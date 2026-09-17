@@ -986,11 +986,11 @@ function _hi_group_ramp() {
 }
 
 # _hi_package_files <array> - every packages file the check reads, in the
-# order it paints them: $_HI_PACKAGES, then each $_HI_PACKAGES_D member by
-# name. Appended by name, check_line's idiom.
+# order it paints them: each $_HI_PACKAGES_D member, by name. Appended by
+# name, check_line's idiom.
 function _hi_package_files() {
   local _hi_pf_f
-  eval "$1=(\"\$_HI_PACKAGES\")"
+  eval "$1=()"
   [ -d "${_HI_PACKAGES_D:-}" ] || return 0
   for _hi_pf_f in "$_HI_PACKAGES_D"/*; do
     if [ -f "$_hi_pf_f" ] && _hi_dir_member_ok "${_hi_pf_f##*/}"; then

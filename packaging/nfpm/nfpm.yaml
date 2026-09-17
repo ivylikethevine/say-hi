@@ -88,6 +88,9 @@ contents:
   - src: ./dist/staging/usr/share/say-hi/settings/*
     dst: /usr/share/say-hi/settings/
     packager: apk
+  - src: ./dist/staging/usr/share/say-hi/settings/packages.d/*
+    dst: /usr/share/say-hi/settings/packages.d/
+    packager: apk
   - src: ./dist/staging/usr/share/say-hi/hi.sh
     dst: /usr/share/say-hi/hi.sh
     packager: apk

@@ -346,15 +346,16 @@ function doctor_plugins() {
 # $_HI_PACKAGES_MIN_PRIORITY, so the header never shows it. Quiet without one.
 function doctor_package_groups() {
   local -a files=() warns=()
-  local f g c ramp line max reach names=""
+  local f g c ramp line max reach names="" where=""
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
+  [ "$_HI_PACKAGES_D" = "$_HI_CONFIG_DIR/packages.d" ] || where="tree default - "
   for f in "$_HI_PACKAGES_D"/*; do
     if [ -e "$f" ] && ! { [ -f "$f" ] && _hi_dir_member_ok "${f##*/}"; }; then
       warns+=("${f##*/}|ignored - a backup, a temp file, or not a plain name, so it never travels")
     fi
   done
   _hi_package_files files
-  for f in "${files[@]:1}"; do
+  for f in "${files[@]}"; do
     _hi_group_name g "$f"
     _hi_group_color c "$f"
     if _hi_group_ramp ramp "$c"; then
@@ -372,7 +373,7 @@ function doctor_package_groups() {
     [ "$reach" = 1 ] ||
       warns+=("${f##*/}|nothing paints $g - no row in it reaches _HI_PACKAGES_MIN_PRIORITY=$min")
   done
-  [ -z "$names" ] || doctor_row packages.d "painted in order: packages$names"
+  [ -z "$names" ] || doctor_row packages.d "$where"'painted in order: '"${names#, }"
   for f in ${warns[@]+"${warns[@]}"}; do
     doctor_row "packages.d/${f%%|*}" "${f#*|}" warn
   done

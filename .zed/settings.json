@@ -1,7 +1,7 @@
 {
   "file_types": {
     "JSONC": [".zed/settings.json"],
-    "Rainbow CSV (,)": ["colors**", "packages**"],
+    "Rainbow CSV (,)": ["colors**", "packages.d/*"],
     "Properties": ["vimrc", "nanorc"],
   },
   "tab_size": 2,

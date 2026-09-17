@@ -42,13 +42,18 @@ source "$_HI_PREVIEW"
 
 # One scratch tree for both halves: the colors fixtures and the ssh config a
 # child render derives its paths from, and the packages roster in the tree.
+# _hi_scratch_tree copies the real settings/ wholesale, real
+# settings/packages.d/ included - replaced here with the one-member fixture,
+# or every row-count assertion below counts the real shipped roster instead.
 function _hi_write_preview_tree() {
   local home
   home="$(_hi_scratch_tree tree common settings scripts)"
   mkdir -p "$home/.ssh"
   cp "$_HI_WORKDIR/colors" "$home/say-hi/settings/colors"
   cp "$_HI_WORKDIR/ssh_config" "$home/.ssh/config"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages"
+  rm -rf "$home/say-hi/settings/packages.d"
+  mkdir -p "$home/say-hi/settings/packages.d"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages.d/only"
 }
 
 #
@@ -486,11 +491,12 @@ highost0:0
 +highostplus:0
 highostalt:3,hibravo:3
 EOF
-  # in-process cases read $_HI_PACKAGES; a child script re-derives it from
+  # in-process cases read $_HI_PACKAGES_D; a child script re-derives it from
   # $_HI_CONFIG_DIR, so the fixture is also an overlay directory
-  export _HI_PACKAGES="$_HI_WORKDIR/packages"
-  mkdir -p "$_HI_WORKDIR/cfg"
-  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/cfg/packages"
+  mkdir -p "$_HI_WORKDIR/packages.d" "$_HI_WORKDIR/cfg/packages.d"
+  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/packages.d/only"
+  export _HI_PACKAGES_D="$_HI_WORKDIR/packages.d"
+  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/cfg/packages.d/only"
 }
 
 # the fixture's packages, and the coreutils the script itself shells out to
@@ -728,9 +734,10 @@ function test_modes_table_renders_the_glyph_set() {
     _hi_table_is_rectangular "$out"
 }
 
-# The real script, in this tree, reading the exported fixture ($_HI_PACKAGES
-# does reach a child: paths.sh keeps a value it did not derive - the per-file
-# overlay). The real file rather than a scratch copy so that what these cases
+# The real script, in this tree, reading the exported fixture: a child
+# re-sources paths.sh, which re-derives $_HI_PACKAGES_D from $_HI_CONFIG_DIR
+# and finds the overlay's packages.d/ built below. The real file rather than
+# a scratch copy so that what these cases
 # exercise counts in the coverage sweep, which only sees files under the
 # checkout; $HOME is pointed at the workdir so no overlay of the user's can
 # win the automatic lookup. The ordinary path - the file the *tree* carries,
@@ -749,8 +756,9 @@ function _hi_render_packages_help() {
     "$_HI_ROOT/scripts/preview.sh" packages "$1" 2>&1
 }
 
-# the ordinary path: nothing exported, the tree's own settings/packages is the
-# roster - a scratch tree, because this checkout's real file is not the fixture
+# the ordinary path: nothing exported, the tree's own settings/packages.d is
+# the roster - a scratch tree, because this checkout's real files are not the
+# fixture
 function test_preview_reads_the_trees_own_file() {
   local out
   out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
@@ -856,7 +864,9 @@ function test_preview_lists_the_package_groups() {
   local cfg="$_HI_WORKDIR/cfg-groups" out orange
   [[ "$_HI_PACKAGES_OUT" != *GROUP* ]] || return 1
   mkdir -p "$cfg/packages.d"
-  cp "$_HI_WORKDIR/packages" "$cfg/packages"
+  # "00-" so it still sorts, and paints, first - "packages" once the digit
+  # prefix is stripped, same as every other member's name
+  cp "$_HI_WORKDIR/packages" "$cfg/packages.d/00-packages"
   printf 'color=orange\nhialpha:3\n' >"$cfg/packages.d/10-lang"
   printf 'color=mono\nhibravo:3\n' >"$cfg/packages.d/20-box"
   out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$cfg" \
@@ -866,32 +876,36 @@ function test_preview_lists_the_package_groups() {
     _hi_table_is_rectangular "$out"
 }
 
-# Every section of the preview reads the packages file, so a missing one is
+# Every section of the preview reads the packages files, so none at all is
 # said out loud and stops the run - the bare redirect it replaces fails with a
 # path and no hint of which file the tool wanted.
-# $_HI_CONFIG_DIR points the child at an empty overlay, so the tree's file
-# is the only candidate - and the tree has none.
-function test_preview_reports_a_missing_packages_file() {
+# $_HI_CONFIG_DIR points the child at an empty overlay, so the tree's
+# packages.d is the only candidate - and the tree has none.
+function test_preview_reports_no_packages_files() {
   local home out
   home="$(_hi_scratch_tree nopackages common settings scripts)"
-  rm -f "$home/say-hi/settings/packages"
+  rm -rf "$home/say-hi/settings/packages.d"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" && return 1
-  [[ "$out" == *"No packages file"* ]]
+  [[ "$out" == *"No packages files in"* ]]
 }
 
-# ...and an exported $_HI_PACKAGES is not a way in: the script's paths.sh
+# ...and an exported $_HI_PACKAGES_D is not a way in: the script's paths.sh
 # re-derives the path from $_HI_CONFIG_DIR and the tree, so the export is
 # ignored and the tree's roster comes out. The overlay is the one way to
-# point the check at a file of your own.
-function test_preview_ignores_an_exported_packages_path() {
-  local home out
+# point the check at a directory of your own.
+function test_preview_ignores_an_exported_packages_d() {
+  local home decoy out
   home="$(_hi_scratch_tree exportedpkgs common settings scripts)"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages"
-  printf 'hionlyone:3\n' >"$_HI_WORKDIR/exported-packages"
+  rm -rf "$home/say-hi/settings/packages.d"
+  mkdir -p "$home/say-hi/settings/packages.d"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages.d/only"
+  decoy="$_HI_WORKDIR/exported-packages.d"
+  mkdir -p "$decoy"
+  printf 'hionlyone:3\n' >"$decoy/only"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES="$_HI_WORKDIR/exported-packages" \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES_D="$decoy" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" || return 1
   [[ "$out" == *hibravo* ]] && [[ "$out" != *hionlyone* ]]
 }
@@ -1054,8 +1068,8 @@ EOF
   _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
   _hi_check "Says the check is off above the floor" test_preview_says_the_check_is_off_above_the_floor
   _hi_check "Lists the packages.d groups in their colors" test_preview_lists_the_package_groups
-  _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
-  _hi_check "An exported \$_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
+  _hi_check "Reports no packages files at all" test_preview_reports_no_packages_files
+  _hi_check "An exported \$_HI_PACKAGES_D is ignored" test_preview_ignores_an_exported_packages_d
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file
 
   _hi_suite_end "preview.sh"

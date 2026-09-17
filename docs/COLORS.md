@@ -101,25 +101,36 @@ falls back to the shipped ramp, `hi --doctor` says so, and
 
 ## Grouping the package check
 
-One `packages` file ranks everything on one ramp, so your language toolchain
-and the box's own package manager can only be told apart by priority. A
-`packages.d/` directory beside it holds more packages files, each a **group**:
-checked after `packages`, in file-name order, its rows kept together (sorted
-by priority within the group, not merged into one sort), and painted in a
-color of its own. The group's name is the file's, less a leading
-`<digits>-` ordering prefix:
+The package check is a `packages.d/` directory of files, each a **group**:
+the tree ships two, `default` and `extra` (the second at a demoted priority,
+so it exists without doubling a fresh header), and every group is checked in
+file-name order, its rows kept together (sorted by priority within the group,
+not merged into one sort), and painted in a color of its own. The group's
+name is the file's, less a leading `<digits>-` ordering prefix - which is
+also why the shipped files are named `00-default` and `01-extra`: it keeps
+them sorted ahead of a group you add with a smaller prefix like the one
+below.
+
+A `~/.config/say-hi/packages.d/` of your own **replaces the tree's two
+wholesale**, the same rule `~/.config/say-hi/colors` follows for
+`settings/colors` — so `hi --add-package` seeds the tree's groups into a
+fresh overlay directory before writing yours, and the manual equivalent
+copies the whole directory in first:
 
 ```sh
-mkdir -p ~/.config/say-hi/packages.d
+cp -r "$_HI_ROOT/settings/packages.d" ~/.config/say-hi/packages.d
 printf 'color=orange\ngo:3\ncargo:3\nuv:2\n' >~/.config/say-hi/packages.d/10-lang
 printf 'color=brblue\n+apt:3,dnf:3,apk:3,pacman:3,brew:3\n' >~/.config/say-hi/packages.d/20-box
 ```
 
-`hi --add-package go:3,cargo:3 --group lang` writes the rows for you (creating
-the group if it does not exist); the `color=` line is still yours to add by
-hand, the way above.
+`hi --add-package go:3,cargo:3 --group lang` writes the rows for you (seeding
+the tree's groups in first if the overlay doesn't exist yet, then creating
+`lang` if it does not exist either); the `color=` line is still yours to add
+by hand, the way above.
 
-A member's rows are the `packages` grammar, and one `color=` line sets its
+A member's rows are the `[-|+]group,package:priority,...` grammar
+`settings/packages.d/00-default`'s own header spells out, and one `color=`
+line sets its
 color: a single name from the vocabulary paints every row, installed or
 missing (the mark still says which), and eight names are a ramp of the group's
 own in `_HI_PACKAGES_PALETTE`'s shape. With no `color=` line, or a value that
@@ -129,7 +140,7 @@ still decides how deep every group goes.
 Only plain names are members — a letter or digit first, then letters, digits,
 `_`, `.`, and `-`, and not ending in `.bak`, `.orig`, `.rej`, or `.tmp` — so an
 editor's swap file or a backup never travels. Each member rides the overlay
-comment-stripped, a few dozen bytes apiece over the same rows in one file.
+comment-stripped, a few dozen bytes apiece over the same rows in one member.
 `hi --preview packages` adds a GROUP table naming each group, its rows, and
 its color painted in itself; `hi --doctor` names the groups in order and warns
 about a `color=` it ignores, a file that is no member, and a group nothing

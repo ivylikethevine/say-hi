@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: MIT
 # `hi --add-package`: append one or more package-check rows to a
 # ~/.config/say-hi/packages.d/ group, creating the group if it does not exist
-# yet. Never writes $_HI_PACKAGES (~/.config/say-hi/packages): that file
-# replaces the shipped roster wholesale (common/paths.sh), so a flag that
-# wrote there would silently drop the ~90 shipped rows the first time anyone
-# reached for it. GLOSSARY: HI.58 is the packages.d contract this follows;
-# HI.09 is _hi_write_back's commit step, HI.33 the standalone-entry form.
+# yet. A packages.d/ of your own replaces the tree's (default, extra)
+# wholesale (common/paths.sh) - which is why the first write into a fresh
+# overlay seeds every tree member in first, so nothing already checked is
+# lost. GLOSSARY: HI.58 is the packages.d contract this follows; HI.09 is
+# _hi_write_back's commit step, HI.33 the standalone-entry form.
 #
 # This script never sources hi.sh, so SC2317/SC2329 (shellcheck marking
 # everything after a `source "$_HI_LAUNCHER"` unreachable, per scripts/doctor.sh's
@@ -47,9 +47,11 @@ else in the file is touched.
   --group <name>   the packages.d member to write (default: custom)
   -n, --dry-run    say what would be written, and write nothing
 
-Never touches ~/.config/say-hi/packages: that file replaces the shipped
-roster wholesale rather than extending it. \`hi --preview packages\` shows
-the check with the row in it; \`hi --doctor\` names every packages.d group.
+The first write creates ~/.config/say-hi/packages.d/ by seeding it with the
+tree's own groups (default, extra, and any others) - a packages.d/ of your
+own replaces the tree's wholesale, so nothing already checked is lost.
+\`hi --preview packages\` shows the check with the row in it; \`hi --doctor\`
+names every packages.d group.
 EOF
 }
 
@@ -103,21 +105,28 @@ function _hi_row_first_pkg() {
   printf -v "$1" '%s' "${_hi_rfp_r%%:*}"
 }
 
-group_file="$_HI_PACKAGES_D/$group"
+# Four names rather than one $_HI_PACKAGES_D: hi writes only ever into the
+# overlay ($pkg_dst), but reads through the same cascade paths.sh already
+# resolved ($pkg_src) - identical to the overlay once one exists, the tree's
+# default+extra until then. Keeping the two apart is what makes --dry-run and
+# a no-op call honest: reading $read_file (not a just-created empty
+# $group_file) means a row already in the tree's default reports "already
+# there" rather than "+", and nothing is written or seeded for a no-op.
+pkg_dst="$_HI_CONFIG_DIR/packages.d" # the only place hi ever writes
+pkg_src="$_HI_PACKAGES_D"            # paths.sh's own cascade result
+group_file="$pkg_dst/$group"         # write target
+read_file="$pkg_src/$group"          # read source
 
 # _hi_first_elsewhere <pkg> - a packages file (not this call's own group)
 # that already carries <pkg> as a row's first package, on stdout; empty and
-# non-zero when nothing does. $_HI_PACKAGES plus every packages.d member
-# (GLOSSARY: HI.58), the group being written excluded - the caller's own
-# report of a within-group replacement already says that part.
+# non-zero when nothing does. Every packages.d member (GLOSSARY: HI.58) in
+# force, the group being written excluded - the caller's own report of a
+# within-group replacement already says that part.
 function _hi_first_elsewhere() {
   local _hi_fe_f _hi_fe_line _hi_fe_first
-  for _hi_fe_f in "$_HI_PACKAGES" "$_HI_PACKAGES_D"/*; do
-    [ -f "$_hi_fe_f" ] || continue
-    [ "$_hi_fe_f" = "$group_file" ] && continue
-    if [ "$_hi_fe_f" != "$_HI_PACKAGES" ]; then
-      _hi_dir_member_ok "${_hi_fe_f##*/}" || continue
-    fi
+  for _hi_fe_f in "$pkg_src"/*; do
+    { [ -f "$_hi_fe_f" ] && _hi_dir_member_ok "${_hi_fe_f##*/}"; } || continue
+    [ "$_hi_fe_f" = "$read_file" ] && continue
     while IFS= read -r _hi_fe_line; do
       case "$_hi_fe_line" in '#'* | '' | color=* | *'#'*) continue ;; esac
       _hi_row_first_pkg _hi_fe_first "$_hi_fe_line"
@@ -131,7 +140,7 @@ function _hi_first_elsewhere() {
 }
 
 existing_lines=()
-[ -f "$group_file" ] && _hi_read_lines existing_lines <"$group_file"
+[ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
 out=(${existing_lines[@]+"${existing_lines[@]}"})
 changed=0
 
@@ -149,7 +158,7 @@ for row in "${rows[@]}"; do
     fi
   done
   if [ "$match" -ge 0 ] && [ "${out[match]}" = "$row" ]; then
-    _hi_cecho " $group_file: $row is already there" "$BLUE"
+    _hi_cecho " $read_file: $row is already there" "$BLUE"
   elif [ "$match" -ge 0 ]; then
     out[match]="$row"
     changed=1
@@ -165,13 +174,27 @@ for row in "${rows[@]}"; do
 done
 
 if [ "$changed" -eq 0 ]; then
-  _hi_cecho "$group_file already has every row given - nothing to write" "$GREEN"
+  _hi_cecho "$read_file already has every row given - nothing to write" "$GREEN"
   exit 0
 fi
 
-dry_run_say "write $group_file" && exit 0
+what="write $group_file"
+[ "$pkg_src" = "$pkg_dst" ] || what="seed $pkg_dst from $pkg_src, then $what"
+dry_run_say "$what" && exit 0
 
-mkdir -p "$_HI_PACKAGES_D"
+mkdir -p "$pkg_dst"
+if [ "$pkg_src" != "$pkg_dst" ]; then
+  # a packages.d/ of your own replaces the tree's wholesale (common/paths.sh),
+  # so the first write into a fresh overlay carries every tree member in
+  # first - walked generically via _hi_dir_member_ok, not by name, so a
+  # future third shipped group needs no change here
+  for _hi_seed_f in "$pkg_src"/*; do
+    { [ -f "$_hi_seed_f" ] && _hi_dir_member_ok "${_hi_seed_f##*/}"; } || continue
+    [ "${_hi_seed_f##*/}" = "$group" ] && continue
+    cp "$_hi_seed_f" "$pkg_dst/${_hi_seed_f##*/}"
+  done
+  _hi_cecho " + seeded $pkg_dst from $pkg_src - an overlay packages.d replaces the tree's" "$GREEN"
+fi
 tmpfile="$(mktemp -t hi.packages.XXXXXX)"
 printf '%s\n' "${out[@]}" >"$tmpfile"
 _hi_write_back "$tmpfile" "$group_file"

@@ -1,10 +1,15 @@
-# `hi --preview packages` renders what the priorities below do: each one's
-# colors, a real example of each from this file, then the check itself.
-# _HI_PACKAGES_MIN_PRIORITY is the dial that decides how far down the list you
-# want to hear about. It ships at 2, so tiers 0-1 are hidden; 4 turns it off.
-# More files like this one in ~/.config/say-hi/packages.d/ are groups checked
-# after it, each painted in its own `color=` line (docs/SETTINGS.md).
-
+# The package check's primary group - `hi --preview packages` renders what
+# the priorities below do: each one's colors, a real example of each from
+# this file, then the check itself. _HI_PACKAGES_MIN_PRIORITY is the dial
+# that decides how far down the list you want to hear about; it ships at 2,
+# so tiers 0-1 are hidden, 4 turns the whole check off.
+#
+# More groups ride alongside this one in packages.d/ - `extra` next to it
+# ships more tools at a demoted priority (raise the floor, or `hi
+# --add-package <row> --group default` to promote one), and a directory of
+# your own at ~/.config/say-hi/packages.d/ replaces every group here
+# wholesale (docs/COLORS.md) - `hi --add-package` seeds a copy of these in
+# first, so nothing here is lost the first time you add one of your own.
 #[-|+]group,package:priority,package2:priority2...
 # a leading `-` speaks only when the whole line is missing, `+` only when one
 # of it is installed; no flag speaks both ways. Priorities run 0-3, loudest

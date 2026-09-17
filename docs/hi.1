@@ -343,9 +343,10 @@ group, one argument per row, creating the group if it does not exist yet.
 .I name
 picks the group (default:
 .BR custom );
-a row naming a package already in it replaces that row. Never writes
-.BR ~/.config/say-hi/packages ,
-which replaces the shipped roster instead of extending it.
+a row naming a package already in it replaces that row. A
+.B packages.d
+of your own replaces the tree's wholesale, so the first write seeds the
+tree's own groups into the new overlay directory first.
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .PP
@@ -462,19 +463,20 @@ works the same.
 settings, written by
 .BR "hi \-\-configure" .
 .TP
-.B ~/.config/say-hi/colors, ~/.config/say-hi/packages
-your copies of
-.B settings/colors
-and
-.BR settings/packages ,
+.B ~/.config/say-hi/colors
+your copy of
+.BR settings/colors ,
 used in place of the tree's.
 .TP
 .B ~/.config/say-hi/packages.d/
-more packages files, each a group the check paints after
-.B packages
-in name order, in the color its
+your package check, one group per member in name order, each in the color
+its
 .B color=
-line names.
+line names, replacing the tree's
+.RB ( default ", " extra )
+wholesale.
+.B hi \-\-add\-package
+seeds the tree's groups into a fresh directory here on its first write.
 .TP
 .B ~/.config/say-hi/vimrc, init.lua, config.toml, nanorc, init.el
 replacements for vim's, neovim's, helix's, nano's, and emacs's configs, used

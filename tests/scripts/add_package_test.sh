@@ -159,7 +159,9 @@ function test_add_package_dry_run_writes_nothing() {
   home="$(_hi_addpkg_fixture addpkg-dry)"
   cfg="$_HI_WORKDIR/addpkg-dry-cfg"
   out="$(_hi_addpkg_run "$home" "$cfg" 'bat:3' --dry-run)" || return 1
-  [[ "$out" == *"dry run"* ]] && [ ! -e "$cfg/packages.d/custom" ]
+  # a fresh overlay would otherwise also be seeded from the tree - --dry-run
+  # creates no directory at all, not just no `custom`
+  [[ "$out" == *"dry run"* ]] && [ ! -d "$cfg/packages.d" ]
 }
 
 # --group with no name, joined or next-word, is refused rather than eating a
@@ -188,9 +190,80 @@ function test_add_package_written_row_reaches_the_check() {
   home="$(_hi_addpkg_fixture addpkg-integration)"
   cfg="$_HI_WORKDIR/addpkg-integration-cfg"
   _hi_addpkg_run "$home" "$cfg" "$_HI_REAL_CMD:3" >/dev/null || return 1
-  out="$(NO_COLOR=1 _HI_PACKAGES="$cfg/packages" _HI_PACKAGES_D="$cfg/packages.d" \
-    bash -c 'source "$_HI_HEADER"; full_check')"
+  out="$(NO_COLOR=1 _HI_PACKAGES_D="$cfg/packages.d" bash -c 'source "$_HI_HEADER"; full_check')"
   [[ "$out" == *"$_HI_REAL_CMD"* ]]
+}
+
+# --- packages.d wholesale-replace: the tree's default+extra seed a fresh
+# overlay on first write, so nothing shipped vanishes the moment a custom
+# group is added --------------------------------------------------------
+
+# a real row known to be in the tree's 00-default, used by several cases
+# below to probe the seeded/cascaded content without a second fixture
+_HI_ADDPKG_KNOWN_ROW='bat:3,batcat:3,ccat:3,cat:2'
+
+function test_add_package_first_call_seeds_the_tree_in() {
+  local home cfg out
+  home="$(_hi_addpkg_fixture addpkg-seed)"
+  cfg="$_HI_WORKDIR/addpkg-seed-cfg"
+  out="$(_hi_addpkg_run "$home" "$cfg" foo:1)" || return 1
+  [[ "$out" == *"seeded $cfg/packages.d"* ]] || return 1
+  [ -f "$cfg/packages.d/00-default" ] && [ -f "$cfg/packages.d/01-extra" ] && [ -f "$cfg/packages.d/custom" ] || return 1
+  cmp -s "$cfg/packages.d/00-default" "$home/say-hi/settings/packages.d/00-default" &&
+    cmp -s "$cfg/packages.d/01-extra" "$home/say-hi/settings/packages.d/01-extra"
+}
+
+# --group 00-default on a fresh overlay writes the seeded+extended content,
+# not a one-line file - the seed has to land before the row merge runs
+function test_add_package_group_default_extends_the_seeded_file() {
+  local home cfg tree_lines cfg_lines
+  home="$(_hi_addpkg_fixture addpkg-seed-default)"
+  cfg="$_HI_WORKDIR/addpkg-seed-default-cfg"
+  _hi_addpkg_run "$home" "$cfg" hi-no-such-tool:1 --group 00-default >/dev/null || return 1
+  tree_lines="$(wc -l <"$home/say-hi/settings/packages.d/00-default")"
+  cfg_lines="$(wc -l <"$cfg/packages.d/00-default")"
+  [ "$cfg_lines" -eq "$((tree_lines + 1))" ] && grep -qxF "$_HI_ADDPKG_KNOWN_ROW" "$cfg/packages.d/00-default"
+}
+
+# a second call does not re-seed or clobber what the first one seeded
+function test_add_package_second_call_does_not_reseed() {
+  local home cfg
+  home="$(_hi_addpkg_fixture addpkg-noreseed)"
+  cfg="$_HI_WORKDIR/addpkg-noreseed-cfg"
+  _hi_addpkg_run "$home" "$cfg" foo:1 --group custom >/dev/null || return 1
+  printf 'truncated:1\n' >"$cfg/packages.d/00-default"
+  _hi_addpkg_run "$home" "$cfg" bar:1 --group other >/dev/null || return 1
+  [ "$(cat "$cfg/packages.d/00-default")" = truncated:1 ]
+}
+
+# --dry-run reads through the cascade too: a row already in the tree's
+# 00-default reports "already there" against the tree, not "+" against an
+# empty file it never wrote - pins the read/write split in add_package.sh
+function test_add_package_dry_run_reads_through_the_cascade() {
+  local home cfg out
+  home="$(_hi_addpkg_fixture addpkg-dry-cascade)"
+  cfg="$_HI_WORKDIR/addpkg-dry-cascade-cfg"
+  out="$(_hi_addpkg_run "$home" "$cfg" "$_HI_ADDPKG_KNOWN_ROW" --group 00-default --dry-run)" || return 1
+  [[ "$out" == *"is already there"* && "$out" != *"+ $_HI_ADDPKG_KNOWN_ROW"* ]] && [ ! -d "$cfg/packages.d" ]
+}
+
+# ...and without --dry-run: a true no-op (the row is already covered by the
+# tree) creates no overlay directory at all
+function test_add_package_true_noop_creates_no_overlay() {
+  local home cfg out
+  home="$(_hi_addpkg_fixture addpkg-true-noop)"
+  cfg="$_HI_WORKDIR/addpkg-true-noop-cfg"
+  out="$(_hi_addpkg_run "$home" "$cfg" "$_HI_ADDPKG_KNOWN_ROW" --group 00-default)" || return 1
+  [[ "$out" == *"already has every row given"* ]] && [ ! -d "$cfg/packages.d" ]
+}
+
+# the elsewhere note names a tree member, not just "somewhere"
+function test_add_package_elsewhere_note_names_a_tree_member() {
+  local home cfg out
+  home="$(_hi_addpkg_fixture addpkg-elsewhere)"
+  cfg="$_HI_WORKDIR/addpkg-elsewhere-cfg"
+  out="$(_hi_addpkg_run "$home" "$cfg" "$_HI_ADDPKG_KNOWN_ROW")" || return 1
+  [[ "$out" == *"note: bat is already checked for by"*"settings/packages.d/00-default"* ]]
 }
 
 function run_add_package_tests() {
@@ -221,6 +294,14 @@ function run_add_package_tests() {
   _hi_check "The identical row again is a no-op" test_add_package_identical_row_is_a_no_op
   _hi_check "A color= line and comments survive a write" test_add_package_preserves_comments_and_color_line
   _hi_check "The written row reaches full_check" test_add_package_written_row_reaches_the_check
+
+  _hi_h2 "Testing: packages.d wholesale-replace and seeding"
+  _hi_check "First call seeds the tree's groups in" test_add_package_first_call_seeds_the_tree_in
+  _hi_check "--group 00-default extends the seeded file" test_add_package_group_default_extends_the_seeded_file
+  _hi_check "A second call does not re-seed or clobber" test_add_package_second_call_does_not_reseed
+  _hi_check "--dry-run reads through the cascade" test_add_package_dry_run_reads_through_the_cascade
+  _hi_check "A true no-op creates no overlay" test_add_package_true_noop_creates_no_overlay
+  _hi_check "The elsewhere note names a tree member" test_add_package_elsewhere_note_names_a_tree_member
 
   _hi_suite_end "scripts/add_package.sh"
 }

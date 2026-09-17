@@ -62,7 +62,7 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
-_HI_OVERLAY_FILES=(settings.sh colors packages packages.d vimrc init.lua nanorc
+_HI_OVERLAY_FILES=(settings.sh colors packages.d vimrc init.lua nanorc
   init.el config.toml aliases.sh plugins.d bashrc zshrc config.fish starship.toml
   oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml p10k.zsh oh-my-zsh.zsh-theme oh-my-bash.theme.sh bash-it.theme.bash tide.vars theme.yml bat.conf
   tmux.conf micro/settings.json micro/bindings.json micro/init.lua)
@@ -540,7 +540,7 @@ function _hi_require_packer() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.35
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors packages vimrc nanorc init.el tmux.conf
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors vimrc nanorc init.el tmux.conf
   '*/packages.d/*' '*/plugins.d/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers

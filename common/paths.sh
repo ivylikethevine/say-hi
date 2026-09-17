@@ -36,10 +36,12 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
 export _HI_COLORS="$_HI_ROOT/settings/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
-export _HI_PACKAGES="$_HI_ROOT/settings/packages"
-[ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
-# the named groups after it; the overlay is its only home (GLOSSARY: HI.58)
-export _HI_PACKAGES_D="$_HI_CONFIG_DIR/packages.d"
+# the package check's groups (GLOSSARY: HI.58); a packages.d/ of your own
+# replaces every group the tree ships (default, extra) wholesale, the same
+# cascade $_HI_COLORS uses above - `hi --add-package` seeds the tree's own
+# members into a fresh overlay directory so nothing is lost on first write.
+export _HI_PACKAGES_D="$_HI_ROOT/settings/packages.d"
+[ -d "$_HI_CONFIG_DIR/packages.d" ] && export _HI_PACKAGES_D="$_HI_CONFIG_DIR/packages.d"
 # drop-in plugins, sourced after the aliases; the same only home (HI.59)
 export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
 # The editor rcs take a middle tier the other two have no use for: the config

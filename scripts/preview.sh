@@ -94,14 +94,13 @@ Usage: $_hi_argv0
 
 Prints the legend for the header's packages check - every priority, the colors
 it renders installed and missing packages in, and one real example of each
-taken from your own packages file - then the marks, then the check itself
-exactly as a connect will print it.
+taken from your own roster - then the marks, then the check itself exactly
+as a connect will print it.
 
 Takes no arguments. Reads:
-  settings/packages      the [-|+]package:priority lines (the overlay's
-                     ~/.config/say-hi/packages wins when present)
-  ~/.config/say-hi/packages.d/   groups checked after it, each in its own
-                     color= - a GROUP table lists them when there are any
+  settings/packages.d/   the [-|+]package:priority lines, one group per
+                     member (a ~/.config/say-hi/packages.d/ of your own
+                     replaces every group here wholesale)
   common/header.sh   the priority meanings and their two color tables
   \$_HI_PACKAGES_PALETTE   the ramp in force - unset for the shipped one, or
                      eight color names of your own - printed above the legend
@@ -113,7 +112,7 @@ EXAMPLE cell reading "below floor" means \$_HI_PACKAGES_MIN_PRIORITY is above
 that rank, so the header prints nothing for it whatever its colors say. That
 floor defaults to 2, so priorities 0-1 read "below floor" until you set one
 of your own; 4 turns the check off entirely. A priority with no example at
-all has no package of its own in your file.
+all has no package of its own in your roster.
 EOF
     ;;
   header)
@@ -634,22 +633,26 @@ _HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_FLOORED=0
 # and this preview has to answer for the floor the header will actually apply
 _HI_PKG_MIN="${_HI_PACKAGES_MIN_PRIORITY:-2}"
 
-# Run the real check over the real packages file and keep the first installed
-# and first missing row at each priority. check_line appends what it would print
-# to `visible` (bash's dynamic scoping - full_check calls it exactly this way)
-# and drops mode-suppressed rows on the floor, which is the point: a `-` line
-# that is installed, or a `+` line that is missing, has no example to show
-# because it shows nothing.
+# Run the real check over every real packages file (_hi_package_files - every
+# $_HI_PACKAGES_D member, in the order full_check paints them) and keep the
+# first installed and first missing row at each priority, across all of them.
+# check_line appends what it would print to `visible` (bash's dynamic scoping -
+# full_check calls it exactly this way) and drops mode-suppressed rows on the
+# floor, which is the point: a `-` line that is installed, or a `+` line that
+# is missing, has no example to show because it shows nothing.
 function _hi_collect_examples() {
-  local line entry priority width rendered
-  local -a visible=()
+  local line entry priority width rendered f
+  local -a visible=() files=()
 
-  while IFS=$' ' read -r line; do
-    # the header's own filter, character for character
-    [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue
-    _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
-    check_line visible "$line"
-  done <"$_HI_PACKAGES"
+  _hi_package_files files
+  for f in ${files[@]+"${files[@]}"}; do
+    while IFS=$' ' read -r line; do
+      # the header's own filter, character for character
+      [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue
+      _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
+      check_line visible "$line"
+    done <"$f"
+  done
   _HI_PKG_SHOWN=${#visible[@]}
 
   for entry in ${visible[@]+"${visible[@]}"}; do
@@ -798,8 +801,8 @@ function _hi_print_pair_table() {
 # the groups (GLOSSARY: HI.58), in the order full_check paints them: each
 # one's name, file, rows, and color - the color cell painted in the group's
 # own loudest installed slot, so a color that reads badly shows it here.
-# Fails, printing nothing, without a packages.d member: a single file is the
-# legend above.
+# Fails, printing nothing, with at most one packages.d member: a single group
+# is the legend above.
 function _hi_print_groups_table() {
   local -a files=() c_name=() c_color=() c_esc=() c_rows=()
   local f g c ramp label n line i=0 w_group=5 w_file=4 w_color=5 w_rows=4
@@ -807,7 +810,6 @@ function _hi_print_groups_table() {
   ((${#files[@]} > 1)) || return 1
   for f in "${files[@]}"; do
     _hi_group_name g "$f"
-    ((i)) || g=packages
     _hi_group_color c "$f"
     _hi_group_ramp ramp "$c" || true
     _hi_packages_palette "$ramp"
@@ -877,13 +879,15 @@ colors)
   ;;
 packages)
   # Everything below reads it, so there is no half-preview worth printing -
-  # and the bare redirect this saves fails as "No such file", naming a path
-  # without saying which of the two it was looking for.
-  if [[ ! -f "$_HI_PACKAGES" ]]; then
-    _hi_cecho "No packages file at $_HI_PACKAGES - the header has nothing to check" "$RED"
+  # a count, not a bare -d test, since a packages.d holding only backups or
+  # dotfiles is "nothing to check" too.
+  _hi_pv_files=()
+  _hi_package_files _hi_pv_files
+  if ((${#_hi_pv_files[@]} == 0)); then
+    _hi_cecho "No packages files in $_HI_PACKAGES_D - the header has nothing to check" "$RED"
     exit 1
   fi
-  _hi_cecho " | reading $_HI_PACKAGES"
+  _hi_cecho " | reading $_HI_PACKAGES_D"
   _hi_print_ramp_line
   _hi_print_scheme_line
   printf '\n'

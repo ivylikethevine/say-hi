@@ -195,7 +195,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   new `_HI_DISABLE_*` toggle is a minor, and lands in `_HI_TOGGLES`,
   `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
   together, or "all of the above" quietly stops meaning all of them.
-- **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
+- **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
   `packages.d/` and its `color=` line, `plugins.d/` and its hook names,
   `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`, `tmux.conf`,
   `micro/`'s `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`,
