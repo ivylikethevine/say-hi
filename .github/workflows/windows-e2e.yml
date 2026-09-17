@@ -158,7 +158,14 @@ jobs:
           # is understood.
           log="$HOME/hi-gitbash.out"
           echo "running: hi.sh -> ${USERNAME:-$(whoami)}@127.0.0.1, 120s budget"
-          timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
+          # `bash -x` with a timestamped PS4: the run before this one proved
+          # ssh is never reached (DEBUG1 would have printed "Reading
+          # configuration data" first) and that no child process is spawned for
+          # the last ~114 seconds, so hi.sh is stalling inside bash itself. The
+          # trace's last line before that gap names the file and line. Single
+          # quotes on purpose - PS4 expands in the traced shell, not here.
+          PS4='+ $EPOCHREALTIME ${BASH_SOURCE##*/}:$LINENO: ' \
+            timeout 120 bash -x ./hi.sh -i "$HOME/.ssh/loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -o LogLevel=DEBUG1 "${USERNAME:-$(whoami)}@127.0.0.1" \
             'echo HI_GITBASH_OK; hi_info' 2>&1 | tee "$log" || rc=$?
@@ -351,7 +358,10 @@ jobs:
           # the Git Bash loopback above carries the whole reasoning.
           log="$HOME/hi-wsl.out"
           echo "running: hi.sh -> $user@$host:2222, 120s budget"
-          timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
+          # traced under `bash -x` for the reason the Git Bash loopback above
+          # spells out: the stall is inside bash, before ssh is reached
+          PS4='+ $EPOCHREALTIME ${BASH_SOURCE##*/}:$LINENO: ' \
+            timeout 120 bash -x ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -o LogLevel=DEBUG1 "$user@$host" \
             'echo HI_WSL_OK; hi_info' 2>&1 | tee "$log" || rc=$?
