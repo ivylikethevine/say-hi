@@ -361,17 +361,30 @@ and are not.
        decision is in `docs/INTEGRATIONS.md` and the framework e2e suite is
        green on it.
 
-4. [ ] **The header closes on the right** — `_hi_row_line` opens every row
-       with a pipe and joins cells with one, but never closes the last cell,
-       so the block has a left edge and no right one. **Do:** pad each row to
-       `_hi_draw_width` and append the closing pipe, taking that column out
-       of every row's budget (the per-cell reserve in `_hi_row_line` is 3
-       today); the banner already draws to the full width, so the two line
-       up. **Ticks when:** every header row, `full_check`'s rows included,
-       ends at the same column as the banner, at 80 and at a narrow
-       `_HI_MAX_WIDTH`.
+4. [ ] **The header closes on the right** — shipped: `_hi_row_line` reserves
+       the last two columns, pads each row to what is left, and closes it with
+       ` |`, so a row now ends where the banner ends rather than at its last
+       cell. Every caller inherits it - `full_check`'s rows, `hi --doctor`,
+       `hi --configure`'s previews - and `_HI_DISABLE_RIGHT_EDGE=1`
+       (`hi --configure` advanced) gives back the open-ended row, the way
+       `_HI_DISABLE_LEAD_SPACE` gives back the leading space.
+       **Ticks when:** the header suites are green on the closed row at 80 and
+       at a narrow `_HI_MAX_WIDTH`, wrapped rows included.
 
-5. [ ] **CI walks the upgrade path a tag creates** — every job today installs
+5. [ ] **The payload badge is measured, not typed** — `README.md`'s
+       `ssh_payload` badge says 65KB; `_hi_wire_bytes` on this checkout
+       returns 69617 bytes, which is 68KB. `bench_payload_readme_badge`
+       (`tests/bench/bench_test.sh`) holds the two within 5%, and 5% of 68KB
+       is 4KB, so a 3KB error is green - and the band widens with the payload,
+       so the badge is free to drift further the more there is to measure.
+       **Do:** stamp the number instead of typing it, the way
+       `packaging/stamp.sh` already stamps the version at build time, and then
+       cut the slack to the rounding error it was meant to absorb rather than
+       the whole drift. **Ticks when:** the badge equals `_hi_wire_estimate`
+       exactly, and adding a kilobyte to the payload turns `--group bench` red
+       until it is restamped.
+
+6. [ ] **CI walks the upgrade path a tag creates** — every job today installs
        one version into a fresh box, so nothing exercises the case
        [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
        about: a shell that loaded the _previous_ release, the tree rewritten
@@ -383,6 +396,24 @@ and are not.
        any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
        `v*` tag runs it green, and putting core.sh's load guard back in
        `common/bash.sh` turns it red.
+
+7. [ ] **Every job's egress is allowlisted, not only audited** — 45 of the 50
+       `harden-runner` steps run `egress-policy: audit`, which records where a
+       job reached and stops nothing. Five run `block` with
+       `allowed-endpoints`: `release.yml`'s two publishing jobs,
+       `publish-external.yml`, and now the two whose whole network use is
+       legible in the job itself - `cancel-closed-pr.yml` (no checkout, only
+       `gh run list`/`cancel`) and `release-note.yml` (one sparse checkout,
+       then a local script). The rest are deliberately still `audit`:
+       `release.yml`'s own allowlist says to extend these from a run's
+       harden-runner insights rather than by guessing, and a guessed list turns
+       a job red for the wrong reason. **Do:** take the audit data a run
+       already collects, a job class at a time - the `setup-tool` fetches, the
+       container pulls, the distribution package installs - leaving the jobs
+       that reach arbitrary hosts by design (`link-check.yml`, `image-scan.yml`,
+       `scorecard.yml`) named as exceptions rather than gaps. **Ticks when:**
+       every job either blocks or is listed here as an exception with its
+       reason, and adding an unlisted download to a blocking job fails it.
 
 ### Post 1.0
 

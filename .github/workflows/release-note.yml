@@ -34,9 +34,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # block, not audit: a sparse checkout and one local script, with the
+      # note written to $GITHUB_STEP_SUMMARY - a file, not a request. Read
+      # off the job, not guessed.
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
 
       # just the script: nothing else in the tree runs here
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

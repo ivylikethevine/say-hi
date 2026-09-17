@@ -114,8 +114,13 @@ _HI_PREV_HUE=""
 # a color left open would otherwise bleed onto the next physical line.
 # Returns 1 and prints nothing for zero cells.
 function _hi_row_line() {
-  local cell out="" max vislen count=0 width=0 i n
+  local cell out="" max vislen count=0 width=0 i n close=1 pad=""
   _hi_draw_width max
+  # The closing " |" owns the last two columns, so every cell is budgeted
+  # against a width that short and the row still ends where the banner does.
+  # $_HI_DISABLE_RIGHT_EDGE gives back the open-ended row this drew before.
+  [[ "${_HI_DISABLE_RIGHT_EDGE:-0}" == 1 ]] && close=0
+  ((close)) && ((max -= 2))
   _HI_ROW_CARRY=()
   local -a args=("$@")
   n=${#args[@]}
@@ -139,6 +144,13 @@ function _hi_row_line() {
     ((++count))
   done
   ((count)) || return 1
+  # An oversized lone cell is placed anyway (above), so the pad can be asked
+  # for a negative width - _hi_repeat treats that as none, and the pipe lands
+  # right after the cell rather than being dropped.
+  if ((close)); then
+    _hi_repeat pad $((max - width)) ' '
+    out+="$NC$pad |"
+  fi
   printf '%b\n' "$out$NC"
 }
 

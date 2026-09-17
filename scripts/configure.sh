@@ -539,6 +539,7 @@ _HI_PROMPT_PROMPTS=(
 # settings most installs never touch, listed last
 _HI_ADVANCED_PROMPTS=(
   "_HI_DISABLE_LEAD_SPACE|0|1|||drop the leading space - before the prompt and header lines"
+  "_HI_DISABLE_RIGHT_EDGE|0|1|||drop the header's right edge - every row ends at its last cell"
   "_HI_MUX|0|1|||default every connect to --mux - a local tmux, zellij, or screen session"
 )
 

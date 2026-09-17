@@ -136,6 +136,45 @@ jobs:
           Set-Content -Path $file -Value $key
           icacls $file /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'
 
+      # Which construction wedges Git Bash? hi.sh assembles a ~65.8KB middle
+      # third for the wire script, and a session times out before ssh is ever
+      # reached. A command substitution was the first suspect and moving off it
+      # did not help, so this times each candidate separately at the real size
+      # instead of reasoning about bash's thresholds: the heredoc into a file,
+      # the heredoc through a command substitution, `read` over the file the
+      # assembly now writes, and a pure in-memory build as the control.
+      # Diagnosis only - it asserts nothing and cannot fail the job.
+      - name: Which 65KB construction stalls here
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "bash $BASH_VERSION | PIPE_BUF $(getconf PIPE_BUF / 2>/dev/null || echo '?')"
+          head -c 49400 /dev/urandom | base64 | head -c 65777 >"$HOME/blob"
+          wc -c <"$HOME/blob"
+          cat >"$HOME/p.sh" <<'PROBE'
+          blob=$(cat "$HOME/blob")
+          mid() {
+            cat <<REMOTE
+          $blob
+          REMOTE
+          }
+          case $1 in
+          heredoc-to-file) mid >"$HOME/out"; wc -c <"$HOME/out" ;;
+          heredoc-to-comsub) out=$(mid); echo "${#out}" ;;
+          read-the-file) mid >"$HOME/out"; IFS= read -r -d '' v <"$HOME/out" || true; echo "${#v}" ;;
+          in-memory) printf -v v '%s' "$blob"; echo "${#v}" ;;
+          esac
+          PROBE
+          for c in in-memory heredoc-to-file read-the-file heredoc-to-comsub; do
+            printf '%18s: ' "$c"
+            s=$SECONDS
+            if timeout 20 bash "$HOME/p.sh" "$c"; then
+              echo "                    took $((SECONDS - s))s"
+            else
+              echo "STALLED or failed (rc=$?) after $((SECONDS - s))s"
+            fi
+          done
+
       # a full hi session this time, not the fallback: the command's output
       # back, run out of the tree hi shipped, and the status never discarded
       - name: Say hi (expect a hi session in Git Bash)
