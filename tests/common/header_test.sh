@@ -900,7 +900,7 @@ function test_hi_header_order_setting_reorders_and_can_omit() {
   local _HI_HEADER_VERSION=orderprobe out
   local ck up si
   out="$(_HI_PACKAGES_D="$(_hi_pkg_one order-custom "$_HI_REAL_CMD:3\n")" \
-    _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
+  _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
   up="$(_hi_pos "$out" "Up:")"
   si="$(_hi_pos "$out" "Cores:")"
@@ -1828,7 +1828,7 @@ function test_full_check_emits_a_row_for_an_installed_package() {
 function _hi_pkg_groups() {
   local dir="$_HI_WORKDIR/$1/packages.d" m
   shift
-  rm -rf "$_HI_WORKDIR/$1"
+  rm -rf "${_HI_WORKDIR:?}/$1"
   mkdir -p "$dir"
   for m; do
     printf '%b' "${m#*=}" >"$dir/${m%%=*}"

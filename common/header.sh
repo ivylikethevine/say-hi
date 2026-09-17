@@ -1161,7 +1161,10 @@ function full_check() {
   for ((i = 0; i < ${#row_widths[@]}; i++)); do
     width_item="${row_widths[$i]}"
     piece="${row_pieces[$i]}"
-    ((i == pkg_start)) && { piece="|$piece"; width_item=$((width_item + 1)); }
+    ((i == pkg_start)) && {
+      piece="|$piece"
+      width_item=$((width_item + 1))
+    }
     if ((width + width_item > max)); then # start of a row
       ((count == 0)) || printf '\n'
       if [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then

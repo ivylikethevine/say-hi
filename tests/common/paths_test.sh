@@ -504,7 +504,7 @@ function test_overlay_guards_match_the_roster() {
     case "$f" in
     settings.sh | aliases.sh) continue ;;
     packages.d)
-      grep -qF '[ -d "$_HI_CONFIG_DIR/packages.d" ] && export' "$_HI_ROOT/common/paths.sh" || {
+      grep -qF "[ -d \"\$_HI_CONFIG_DIR/packages.d\" ] && export" "$_HI_ROOT/common/paths.sh" || {
         _hi_cecho " | packages.d has no guarded (-d) overlay lookup in paths.sh" "$RED"
         return 1
       }

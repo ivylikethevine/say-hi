@@ -143,6 +143,7 @@ existing_lines=()
 [ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
 out=(${existing_lines[@]+"${existing_lines[@]}"})
 changed=0
+first="" # spelled empty so the linter sees _hi_row_first_pkg's printf -v (SC2154)
 
 for row in "${rows[@]}"; do
   _hi_row_first_pkg first "$row"
