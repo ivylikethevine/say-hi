@@ -38,6 +38,11 @@ hi \- your shell config, on every host you say hi to
 .RI [ tag ]
 .RB [ \-\-dry\-run ]
 .br
+.B hi \-\-add\-package
+.I pkg:priority[,...]
+.RB [ \-\-group " " \fIname\fR]
+.RB [ \-\-dry\-run ]
+.br
 .B hi \-\-preview
 .RB { colors | packages | header | targets }
 .br
@@ -328,6 +333,21 @@ in the checkout.
 .B \-\-dry\-run
 fetches and names the tag without moving. Needs a checkout: a package has no
 .BR .git .
+.TP
+.B \-\-add\-package \fIpkg:priority\fR[,...] [\fB\-\-group\fR \fIname\fR] [\fB\-\-dry\-run\fR]
+add a row - "bat:3,batcat:3" is bat, or batcat as a fallback, priorities
+0\-3 - to a
+.B ~/.config/say-hi/packages.d/
+group, one argument per row, creating the group if it does not exist yet.
+.B \-\-group
+.I name
+picks the group (default:
+.BR custom );
+a row naming a package already in it replaces that row. Never writes
+.BR ~/.config/say-hi/packages ,
+which replaces the shipped roster instead of extending it.
+.B \-\-dry\-run
+says what would be written and writes nothing.
 .PP
 Everything else is passed through to
 .BR ssh (1)

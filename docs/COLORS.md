@@ -115,6 +115,10 @@ printf 'color=orange\ngo:3\ncargo:3\nuv:2\n' >~/.config/say-hi/packages.d/10-lan
 printf 'color=brblue\n+apt:3,dnf:3,apk:3,pacman:3,brew:3\n' >~/.config/say-hi/packages.d/20-box
 ```
 
+`hi --add-package go:3,cargo:3 --group lang` writes the rows for you (creating
+the group if it does not exist); the `color=` line is still yours to add by
+hand, the way above.
+
 A member's rows are the `packages` grammar, and one `color=` line sets its
 color: a single name from the vocabulary paints every row, installed or
 missing (the mark still says which), and eight names are a ramp of the group's

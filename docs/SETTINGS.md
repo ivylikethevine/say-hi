@@ -118,6 +118,11 @@ mkdir -p ~/.config/say-hi
 cp "$_HI_ROOT/settings/colors" ~/.config/say-hi/colors
 ```
 
+For adding a tool or two to the package check specifically, `hi --add-package
+bat:3,batcat:3` is the easier path: it writes a `packages.d/` group
+(`--group <name>`, default `custom`) rather than a `packages` copy, so the
+shipped roster stays in force alongside it instead of being replaced wholesale.
+
 A copy stops tracking what `hi --update` delivers for that file; delete it to
 track the tree's again, and `hi --doctor` names which of the two is in force.
 Before 1.0 seven members were renamed to what their tool calls the file

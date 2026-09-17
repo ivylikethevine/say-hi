@@ -1126,7 +1126,7 @@ function _hi_check_file() {
 # scripts/preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
-  local width_item count=0 max cell vislen piece i
+  local width_item count=0 max cell vislen piece i pkg_start
   _hi_draw_width max
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
@@ -1143,6 +1143,10 @@ function full_check() {
     row_widths+=("$((vislen + 3))")
     row_pieces+=("| $cell ")
   done
+  # Where the check's own cells start, past any carried-in ones: the render
+  # loop doubles this one piece's leading "|" so the check reads as its own
+  # section rather than one more item on a row a carried git/env cell opened.
+  pkg_start=${#row_pieces[@]}
   _HI_ROW_CARRY=()
 
   # a file at a time, so a group stays together and wears its own colors
@@ -1157,6 +1161,7 @@ function full_check() {
   for ((i = 0; i < ${#row_widths[@]}; i++)); do
     width_item="${row_widths[$i]}"
     piece="${row_pieces[$i]}"
+    ((i == pkg_start)) && { piece="|$piece"; width_item=$((width_item + 1)); }
     if ((width + width_item > max)); then # start of a row
       ((count == 0)) || printf '\n'
       if [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then

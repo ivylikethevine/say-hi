@@ -56,6 +56,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:rc:common/rc_test.sh"
     "fast:install_location:scripts/install_location_test.sh"
     "fast:update:scripts/update_test.sh"
+    "fast:add_package:scripts/add_package_test.sh"
     "fast:header:common/header_test.sh"
     "fast:load:load/load_test.sh"
     "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"

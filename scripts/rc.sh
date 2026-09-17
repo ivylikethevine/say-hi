@@ -137,16 +137,6 @@ function _hi_has_marker() {
   [ -f "$1" ] && grep -qF -- "$_HI_MARKER" "$1"
 }
 
-# dry_run_say <what> - under --dry-run (install.sh's $_HI_DRY_RUN), say what
-# would happen and succeed, so the caller returns before it writes; otherwise
-# fail quietly and the caller carries on. Every writer install.sh reaches
-# opens with one of these.
-function dry_run_say() {
-  [ -n "${_HI_DRY_RUN:-}" ] || return 1
-  _hi_cecho " dry run: would $1" "$BLUE"
-  return 0
-}
-
 # config_shell with an empty block, plus a quieter report for the common
 # "there was nothing here anyway" case.
 function strip_marker() {

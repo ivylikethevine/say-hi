@@ -18,6 +18,7 @@ export _HI_INSTALL="$_HI_ROOT/scripts/install.sh"
 export _HI_PREVIEW="$_HI_ROOT/scripts/preview.sh"
 export _HI_DOCTOR="$_HI_ROOT/scripts/doctor.sh"
 export _HI_UPDATE="$_HI_ROOT/scripts/update.sh"
+export _HI_ADD_PACKAGE="$_HI_ROOT/scripts/add_package.sh"
 
 # tests - only the two entry points every session needs
 export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
@@ -133,7 +134,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # shells need it and this is the only file all four read - spelled per shell,
 # a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use --update --link --preset"
+export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --group"
 alias hi="$_HI_LAUNCHER"
 # The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

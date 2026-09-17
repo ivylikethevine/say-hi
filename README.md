@@ -211,7 +211,10 @@ row, and everything answered **no**, and why:
   `PATH` leads.
 - `hi --update` moves a cloned install to the newest release tag (`--dry-run`
   names it first; a package upgrades through its package manager).
-- The whole surface is twelve flags: `hi --help` (or bare `hi`) lists them,
+- `hi --add-package bat:3,batcat:3` adds a row to a
+  `~/.config/say-hi/packages.d/` group (`--group <name>` picks which one,
+  default `custom`) without touching the shipped roster.
+- The whole surface is thirteen flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For

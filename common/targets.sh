@@ -104,6 +104,31 @@ if [ "$kind" = words ]; then
     [ -d "$hi_tree/.git" ] && git -C "$hi_tree" tag --list 'v*' --sort=-v:refname 2>/dev/null |
       while IFS= read -r tag; do printf '%s\trelease tag\n' "$tag"; done
     ;;
+  --add-package)
+    # the shipped roster's longer list, one whole row per completion word
+    # ("bat:3,batcat:3,ccat:3,cat:2"), so a `--add-package` argument tabs
+    # complete to exactly what add_package.sh accepts. Grouped once here
+    # rather than a per-package split: a row is what the flag takes.
+    [ -f "$hi_tree/settings/packages_full" ] &&
+      while IFS= read -r line; do
+        case "$line" in '#'* | '' | color=*) continue ;; esac
+        printf '%s\ta package check row\n' "$line"
+      done <"$hi_tree/settings/packages_full"
+    ;;
+  --group)
+    # the custom groups already on disk, so `--group <TAB>` offers the ones a
+    # second call would extend rather than every name a first call could
+    # invent. No tree default (GLOSSARY: HI.58), so an absent directory is
+    # only ever "nothing yet", never a probe failure. $_HI_CONFIG_DIR/packages.d
+    # rather than $_HI_PACKAGES_D itself: this file can run forked with the
+    # session's own _HI_* unexported (HI.47), and $_HI_CONFIG_DIR is the one
+    # of the two the roster keeps.
+    pkgd="${_HI_CONFIG_DIR:-}/packages.d"
+    [ -d "$pkgd" ] &&
+      for f in "$pkgd"/*; do
+        [ -f "$f" ] && printf '%s\tan existing packages.d group\n' "${f##*/}"
+      done
+    ;;
   --preview)
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'
     printf 'packages\tthe package-priority legend, as the header prints it\n'

@@ -95,6 +95,7 @@ All **package**, never in the payload.
 | `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                     |
 | `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                      |
 | `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag.                                    |
+| `scripts/add_package.sh`          | `hi --add-package`: adds a row to a `packages.d/` group.                               |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.           |
 | `scripts/table.sh`                | The boxed table the previews draw.                                                     |
 
