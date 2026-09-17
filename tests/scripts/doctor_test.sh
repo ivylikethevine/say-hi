@@ -508,11 +508,20 @@ function test_config_names_the_package_groups() {
   printf 'sh:1\n' >"$dir/packages.d/30-quiet"
   printf 'sh:3\n' >"$dir/packages.d/30-quiet.bak"
   out="$(_HI_CONFIG_DIR="$dir" _HI_PACKAGES_D="$dir/packages.d" _HI_PACKAGES_MIN_PRIORITY=2 doctor_config)"
-  [[ "$out" == *"packages.d"*"painted in order: packages, lang (orange), box (the ramp), quiet (the ramp)"* ]] &&
+  [[ "$out" == *"packages.d"*"painted in order: lang (orange), box (the ramp), quiet (the ramp)"* ]] &&
     [[ "$out" == *"packages.d/20-box"*"color=mono is ignored"* ]] &&
     [[ "$out" == *"packages.d/30-quiet"*"nothing paints quiet"* ]] &&
     [[ "$out" == *"packages.d/30-quiet.bak"*"ignored"* ]] &&
     [[ "$out" != *"packages.d/10-lang"* ]]
+}
+
+# The row fires unconditionally now that _HI_PACKAGES_D always has a tree
+# default - "tree default - " leads the message when it is one, so the row
+# never reads as naming the user's own groups when they are the tree's.
+function test_config_names_the_package_groups_says_tree_default() {
+  local out
+  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-overlay-here" _HI_PACKAGES_D="$_HI_ROOT/settings/packages.d" doctor_config)"
+  [[ "$out" == *"packages.d"*"tree default - painted in order: default (the ramp), extra (the ramp)"* ]]
 }
 
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
@@ -1203,6 +1212,7 @@ function run_doctor_tests() {
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
   _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
   _hi_check "Config names the packages.d groups, and flags them" test_config_names_the_package_groups
+  _hi_check "...and says so when it's the tree's own" test_config_names_the_package_groups_says_tree_default
   _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
   _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore

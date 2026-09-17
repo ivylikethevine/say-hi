@@ -856,6 +856,20 @@ function test_hi_header_skips_probe_launch_once_identity_is_memoized() {
 _HI_REAL_CMD=sh
 _HI_FAKE_CMD=definitely-not-a-real-hi-test-command-xyz
 
+# _hi_pkg_one <name> <body> - a one-member packages.d directory under
+# $_HI_WORKDIR/<name>, its single member ("only") holding <body> (%b, so \n
+# is a line break - _hi_pkg_groups' own convention. A bare `bash:N` argument
+# would otherwise read as a docker image:tag reference to the lint sweep's
+# image-tag check; embedded after a literal \n in one string, it doesn't).
+# Prints the directory - the single-file full_check fixture, now that every
+# packages file the check reads is a packages.d member.
+function _hi_pkg_one() {
+  local dir="$_HI_WORKDIR/$1/packages.d"
+  mkdir -p "$dir"
+  printf '%b' "$2" >"$dir/only"
+  printf '%s' "$dir"
+}
+
 # hi_header's default row order: timestamp, then sysinfo, then identity
 # (uptime's cell rides inside it), then the packages check - each pinned by a
 # marker unique to it, checked in the order they appear in the joined output.
@@ -867,10 +881,9 @@ _HI_FAKE_CMD=definitely-not-a-real-hi-test-command-xyz
 # has something to print regardless of what is actually installed on the box
 # running this suite.
 function test_hi_header_default_order() {
-  local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-default" out
+  local _HI_HEADER_VERSION=orderprobe out
   local ts si id ck
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  out="$(_HI_PACKAGES="$pkgfile" hi_header Connected)"
+  out="$(_HI_PACKAGES_D="$(_hi_pkg_one order-default "$_HI_REAL_CMD:3\n")" hi_header Connected)"
   ts="$(_hi_pos "$out" orderprobe)"
   si="$(_hi_pos "$out" "Cores:")"
   id="$(_hi_pos "$out" "Auth:")"
@@ -884,10 +897,10 @@ function test_hi_header_default_order() {
 # with no separate $_HI_HEADER_* switch behind it. uptime
 # is in this order, so its cell still shows.
 function test_hi_header_order_setting_reorders_and_can_omit() {
-  local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-custom" out
+  local _HI_HEADER_VERSION=orderprobe out
   local ck up si
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  out="$(_HI_PACKAGES="$pkgfile" _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
+  out="$(_HI_PACKAGES_D="$(_hi_pkg_one order-custom "$_HI_REAL_CMD:3\n")" \
+  _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
   up="$(_hi_pos "$out" "Up:")"
   si="$(_hi_pos "$out" "Cores:")"
@@ -933,8 +946,8 @@ function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
 # full_check has something to open with.
 function test_hi_header_cascades_identity_overflow_into_check() {
   local cfg="$_HI_WORKDIR/cascade-into-check" out line
-  mkdir -p "$cfg"
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$cfg/packages"
+  mkdir -p "$cfg/packages.d"
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$cfg/packages.d/only"
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_CONFIG_DIR="$cfg" \
   _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="gitid auth pub uptime check" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
@@ -1301,9 +1314,9 @@ function test_no_lead_space_drops_only_the_leading_space() {
 }
 
 function test_no_lead_space_applies_to_the_packages_check() {
-  local pkgfile="$_HI_WORKDIR/nolead-pkgs" out
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  mkdir -p "$_HI_WORKDIR/pkgcfg" && cp "$pkgfile" "$_HI_WORKDIR/pkgcfg/packages"
+  local out
+  mkdir -p "$_HI_WORKDIR/pkgcfg/packages.d"
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$_HI_WORKDIR/pkgcfg/packages.d/only"
   out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 _HI_CONFIG_DIR="$_HI_WORKDIR/pkgcfg" bash -c 'source "$_HI_HEADER"; full_check')"
   [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]]
 }
@@ -1666,21 +1679,18 @@ function test_check_line_picks_highest_priority_installed() {
 }
 
 function test_full_check_skips_comments_and_blanks() {
-  local pkgfile="$_HI_WORKDIR/comments"
-  printf '# a comment\n\n%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   (
-    _HI_PACKAGES="$pkgfile"
+    _HI_PACKAGES_D="$(_hi_pkg_one comments "# a comment\n\n$_HI_REAL_CMD:3\n")"
     full_check
   ) | grep -qF "$_HI_REAL_CMD"
 }
 
 function test_full_check_empty_when_everything_hidden() {
-  local pkgfile="$_HI_WORKDIR/hidden" out
+  local out
   # an installed `-` line is the one row the check still hides - see the note
   # above _HI_YES. Nothing else renders nothing.
-  printf '%s:3\n' "-$_HI_REAL_CMD" >"$pkgfile"
   out="$(
-    _HI_PACKAGES="$pkgfile"
+    _HI_PACKAGES_D="$(_hi_pkg_one hidden "-$_HI_REAL_CMD:3\n")"
     full_check
   )"
   [ -z "$out" ]
@@ -1690,12 +1700,11 @@ function test_full_check_empty_when_everything_hidden() {
 # gone. One file, one run, both sides asserted - a case that only checked the
 # hidden half would pass just as well if the floor hid everything.
 function test_full_check_min_priority_boundary() {
-  local pkgfile="$_HI_WORKDIR/floor" out
+  local out
   # both installed, so the only thing separating them is the floor. bash is a
   # second real command (the wrap case above leans on it the same way).
-  printf '%s:3\nbash:2\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(
-    _HI_PACKAGES="$pkgfile"
+    _HI_PACKAGES_D="$(_hi_pkg_one floor "$_HI_REAL_CMD:3\nbash:2\n")"
     _HI_PACKAGES_MIN_PRIORITY=3
     full_check
   )"
@@ -1710,10 +1719,9 @@ function test_full_check_min_priority_boundary() {
 # off. 4 is the documented "off" value: priorities clamp to 3, so nothing can
 # ever reach it.
 function test_full_check_min_priority_above_everything_is_silent() {
-  local pkgfile="$_HI_WORKDIR/floor-all" out
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  local out
   out="$(
-    _HI_PACKAGES="$pkgfile"
+    _HI_PACKAGES_D="$(_hi_pkg_one floor-all "$_HI_REAL_CMD:3\n")"
     _HI_PACKAGES_MIN_PRIORITY=4
     full_check
   )"
@@ -1724,10 +1732,9 @@ function test_full_check_min_priority_above_everything_is_silent() {
 # again, for the reason the boundary case above gives - a default that hid
 # everything would pass a test that only checked the hidden side.
 function test_full_check_min_priority_defaults_to_two() {
-  local pkgfile="$_HI_WORKDIR/floor-default" out
-  printf '%s:2\nbash:1\n' "$_HI_REAL_CMD" >"$pkgfile"
+  local out
   out="$(
-    _HI_PACKAGES="$pkgfile"
+    _HI_PACKAGES_D="$(_hi_pkg_one floor-default "$_HI_REAL_CMD:2\nbash:1\n")"
     unset _HI_PACKAGES_MIN_PRIORITY
     full_check
   )"
@@ -1737,10 +1744,9 @@ function test_full_check_min_priority_defaults_to_two() {
 }
 
 function test_full_check_wraps_at_max_width() {
-  local pkgfile="$_HI_WORKDIR/wrap" out lines
-  printf '%s:3\nbash:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  local out lines
   out="$(
-    _HI_PACKAGES="$pkgfile"
+    _HI_PACKAGES_D="$(_hi_pkg_one wrap "$_HI_REAL_CMD:3\nbash:3\n")"
     _HI_MAX_WIDTH=1
     full_check
   )"
@@ -1759,10 +1765,9 @@ function test_full_check_reads_real_packages_file_without_erroring() {
 # this file shadow $_HI_HEADER_VERSION, and the call is not wrapped in
 # $(...) where inspecting its post-call state is needed.
 function test_full_check_absorbs_an_incoming_carry() {
-  local pkgfile="$_HI_WORKDIR/carry-absorb" out
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  local out
   local -a _HI_ROW_CARRY=(carriedcell)
-  out="$(_HI_PACKAGES="$pkgfile" full_check)"
+  out="$(_HI_PACKAGES_D="$(_hi_pkg_one carry-absorb "$_HI_REAL_CMD:3\n")" full_check)"
   [[ "$out" == *carriedcell* ]] && [[ "$out" == *"$_HI_REAL_CMD"* ]] &&
     [ -n "$(_hi_pos "$out" carriedcell)" ] && [ -n "$(_hi_pos "$out" "$_HI_REAL_CMD")" ] &&
     [ "$(_hi_pos "$out" carriedcell)" -lt "$(_hi_pos "$out" "$_HI_REAL_CMD")" ]
@@ -1771,10 +1776,8 @@ function test_full_check_absorbs_an_incoming_carry() {
 # ...and takes ownership of it: nothing is left for a caller after it to
 # flush a second time.
 function test_full_check_consumes_the_carry() {
-  local pkgfile="$_HI_WORKDIR/carry-consume"
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   local -a _HI_ROW_CARRY=(carriedcell)
-  _HI_PACKAGES="$pkgfile" full_check >/dev/null
+  _HI_PACKAGES_D="$(_hi_pkg_one carry-consume "$_HI_REAL_CMD:3\n")" full_check >/dev/null
   [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
 }
 
@@ -1782,19 +1785,17 @@ function test_full_check_consumes_the_carry() {
 # nothing visible - the floor check must not return the moment $visible is
 # empty, before it considers its second source
 function test_full_check_prints_carry_even_with_no_visible_packages() {
-  local pkgfile="$_HI_WORKDIR/carry-no-packages" out
-  : >"$pkgfile"
+  local out
   local -a _HI_ROW_CARRY=(onlycell)
-  out="$(_HI_PACKAGES="$pkgfile" full_check)"
+  out="$(_HI_PACKAGES_D="$(_hi_pkg_one carry-no-packages "")" full_check)"
   [[ "$out" == *onlycell* ]]
 }
 
 # ...and the original guard still holds with nothing on either side
 function test_full_check_empty_carry_and_no_packages_prints_nothing() {
-  local pkgfile="$_HI_WORKDIR/carry-empty-none" out
-  : >"$pkgfile"
+  local out
   local -a _HI_ROW_CARRY=()
-  out="$(_HI_PACKAGES="$pkgfile" full_check)"
+  out="$(_HI_PACKAGES_D="$(_hi_pkg_one carry-empty-none "")" full_check)"
   [ -z "$out" ]
 }
 
@@ -1812,26 +1813,25 @@ function test_full_check_is_silent_on_stderr() {
 # ...and the other half of that failure mode: sorting produced no rows at all.
 # A visible package must actually reach the output, not just fail to error.
 function test_full_check_emits_a_row_for_an_installed_package() {
-  local pkgfile="$_HI_WORKDIR/emits" out
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  local out
   out="$(
-    _HI_PACKAGES="$pkgfile"
+    _HI_PACKAGES_D="$(_hi_pkg_one emits "$_HI_REAL_CMD:3\n")"
     full_check
   )"
   [[ "$out" == *"$_HI_REAL_CMD"* ]]
 }
 
-# _hi_pkg_groups <name> - a packages file plus a packages.d beside it, under
-# $_HI_WORKDIR/<name>; the file is `cat:2` alone, and each further
-# "<member>=<content>" argument becomes a member. Prints the directory.
+# _hi_pkg_groups <name> [<member>=<content>...] - a packages.d directory
+# under $_HI_WORKDIR/<name>, one member per "<member>=<content>" argument -
+# no distinguished base file anymore, every member (including a stand-in
+# base one, named to sort first) is a plain .d member. Prints the directory.
 function _hi_pkg_groups() {
-  local dir="$_HI_WORKDIR/$1" m
+  local dir="$_HI_WORKDIR/$1/packages.d" m
   shift
-  rm -rf "$dir"
-  mkdir -p "$dir/packages.d"
-  printf 'cat:2\n' >"$dir/packages"
+  rm -rf "${_HI_WORKDIR:?}/$1"
+  mkdir -p "$dir"
   for m; do
-    printf '%b' "${m#*=}" >"$dir/packages.d/${m%%=*}"
+    printf '%b' "${m#*=}" >"$dir/${m%%=*}"
   done
   printf '%s' "$dir"
 }
@@ -1842,9 +1842,9 @@ function _hi_pkg_groups() {
 # members at all.
 function test_full_check_paints_groups_in_order() {
   local dir out
-  dir="$(_hi_pkg_groups groups-order '20-box=sh:3\n' '10-lang=ls:3\n' \
+  dir="$(_hi_pkg_groups groups-order '00-base=cat:2\n' '20-box=sh:3\n' '10-lang=ls:3\n' \
     '10-lang.bak=hi-not-a-member:3\n' '.10-lang.swp=hi-not-a-member:3\n')"
-  out="$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check)"
+  out="$(_HI_PACKAGES_D="$dir" full_check)"
   [ -n "$(_hi_pos "$out" " cat ")" ] && [ -n "$(_hi_pos "$out" " ls ")" ] &&
     [ -n "$(_hi_pos "$out" " sh ")" ] || return 1
   [ "$(_hi_pos "$out" " cat ")" -lt "$(_hi_pos "$out" " ls ")" ] &&
@@ -1861,7 +1861,7 @@ function test_full_check_paints_each_group_its_own_color() {
   dir="$(_hi_pkg_groups groups-color '10-one=color=orange\nls:3\nhi-no-such-tool:3\n' \
     '20-ramp=color=red red red red blue blue blue magenta\nhi-no-such-other:3\n' '30-none=sh:3\n' \
     '40-bad=color=notacolor\ncat:3\n')"
-  out="$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check)"
+  out="$(_HI_PACKAGES_D="$dir" full_check)"
   _hi_ramp_escape orange orange 0
   _hi_ramp_escape no3 brred 0
   _hi_ramp_escape yes3 brgreen 0
@@ -1871,18 +1871,22 @@ function test_full_check_paints_each_group_its_own_color() {
     _hi_assert_contains "$out" "$(printf '%b' "$ramp3 hi-no-such-other ")" &&
     _hi_assert_contains "$out" "$(printf '%b' "$yes3 sh ")" &&
     _hi_assert_contains "$out" "$(printf '%b' "$yes3 cat ")" || return 1
-  _HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check >/dev/null
+  _HI_PACKAGES_D="$dir" full_check >/dev/null
   [ "${_HI_NO[3]}" = "$no3" ]
 }
 
-# No member, or nothing but backups, is today's single-file check byte for byte
-function test_full_check_without_members_is_the_single_file_check() {
-  local dir one
-  dir="$(_hi_pkg_groups groups-none)"
-  one="$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="" full_check | od -c)"
-  [ "$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check | od -c)" = "$one" ] || return 1
-  printf 'sh:3\n' >"$dir/packages.d/10-x.orig"
-  [ "$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check | od -c)" = "$one" ]
+# No packages.d at all, or one holding nothing but non-members, both print
+# nothing - the allow-list half of what used to be the single-file fallback,
+# which no longer exists now that every real install ships packages.d/.
+function test_full_check_with_no_members_prints_nothing() {
+  local dir="$_HI_WORKDIR/no-members-none/packages.d" out
+  mkdir -p "$dir"
+  out="$(_HI_PACKAGES_D="$dir" full_check)"
+  [ -z "$out" ] || return 1
+  printf 'sh:3\n' >"$dir/.hidden"
+  printf 'sh:3\n' >"$dir/10-x.orig"
+  out="$(_HI_PACKAGES_D="$dir" full_check)"
+  [ -z "$out" ]
 }
 
 # _hi_packages_palette's contract: exactly four entries - one per priority
@@ -2185,7 +2189,7 @@ function run_header_tests() {
   _hi_check "Min priority above every rank prints nothing" test_full_check_min_priority_above_everything_is_silent
   _hi_check_requires bash "Min priority unset floors at 2" test_full_check_min_priority_defaults_to_two
   _hi_check_requires bash "Wraps rows at _HI_MAX_WIDTH" test_full_check_wraps_at_max_width
-  _hi_check "Real settings/packages file parses cleanly" test_full_check_reads_real_packages_file_without_erroring
+  _hi_check "Real settings/packages.d parses cleanly" test_full_check_reads_real_packages_file_without_erroring
   _hi_check "Writes nothing to stderr" test_full_check_is_silent_on_stderr
   _hi_check "Emits a row for an installed package" test_full_check_emits_a_row_for_an_installed_package
   _hi_check "Absorbs an incoming carry ahead of its own cells" test_full_check_absorbs_an_incoming_carry
@@ -2194,7 +2198,7 @@ function run_header_tests() {
   _hi_check "Empty carry, no packages: still silent" test_full_check_empty_carry_and_no_packages_prints_nothing
   _hi_check_requires bash "packages.d groups follow the file, in name order" test_full_check_paints_groups_in_order
   _hi_check_requires bash "Each group wears its own color=, or the ramp" test_full_check_paints_each_group_its_own_color
-  _hi_check "No member is the single-file check, byte for byte" test_full_check_without_members_is_the_single_file_check
+  _hi_check "No members at all, or only non-members, prints nothing" test_full_check_with_no_members_prints_nothing
 
   _hi_h2 "Testing: _hi_packages_palette"
   _hi_check "Four entries per table, either way" test_packages_palette_fills_four_slots_each_way

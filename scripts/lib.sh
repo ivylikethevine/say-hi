@@ -66,6 +66,16 @@ function _hi_missing_tools() {
   printf '%s' "${missing% }"
 }
 
+# dry_run_say <what> - under --dry-run ($_HI_DRY_RUN: install.sh's flag, and
+# add_package.sh's), say what would happen and succeed, so the caller returns
+# before it writes; otherwise fail quietly and the caller carries on. Every
+# writer either of them reaches opens with one of these.
+function dry_run_say() {
+  [ -n "${_HI_DRY_RUN:-}" ] || return 1
+  _hi_cecho " dry run: would $1" "$BLUE"
+  return 0
+}
+
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
 # lands on the destination and severs any hardlink/ACL. The mode is captured
 # and reapplied too, since truncate-in-place alone did not preserve it on

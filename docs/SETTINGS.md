@@ -82,8 +82,7 @@ one overrides:
 | ---------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `~/.config/say-hi/settings.sh`     | -                      | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                                           |
 | `~/.config/say-hi/colors`          | `settings/colors`      | your color pins                                                                                                                                                                                                                |
-| `~/.config/say-hi/packages`        | `settings/packages`    | what the package check looks for                                                                                                                                                                                               |
-| `~/.config/say-hi/packages.d/`     | -                      | more packages files, each a group of its own checked after `packages`, in its own color ([below](COLORS.md#grouping-the-package-check))                                                                                        |
+| `~/.config/say-hi/packages.d/`     | `settings/packages.d/` | what the package check looks for, one group per file, each in its own color; a directory of your own replaces the tree's (`default`, `extra`) wholesale ([below](COLORS.md#grouping-the-package-check))                        |
 | `~/.config/say-hi/vimrc`           | `settings/vimrc`       | your vim config for the `vim` alias and `$VIMINIT`, replacing hi's default wholesale; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them)) |
 | `~/.config/say-hi/init.lua`        | `settings/init.lua`    | the same for neovim - the `nvim` alias, and `vim` where a target has nvim - over your `~/.config/nvim/init.lua`                                                                                                                |
 | `~/.config/say-hi/config.toml`     | `settings/config.toml` | the same for the `hx` alias (`-c`), over your `~/.config/helix/config.toml`                                                                                                                                                    |
@@ -110,13 +109,21 @@ when that program is one a target is handed, and `hi --doctor` says when it is
 not.
 
 The overlay starts empty: `hi --install` writes `settings.sh` and nothing
-else. To override `colors` or `packages`, copy the shipped file in and edit
-the copy:
+else. To override `colors`, copy the shipped file in and edit the copy:
 
 ```sh
 mkdir -p ~/.config/say-hi
 cp "$_HI_ROOT/settings/colors" ~/.config/say-hi/colors
 ```
+
+The package check is a directory, not a single file, so `hi --add-package
+bat:3,batcat:3` is the easier path: it writes a `packages.d/` group
+(`--group <name>`, default `custom`), and the first write seeds the tree's
+own groups (`default`, `extra`) into the new overlay directory first - since
+a `packages.d/` of your own replaces the tree's wholesale, the same rule
+`colors` follows, without that seeding step it would drop them the moment
+you added one package. The manual equivalent is `cp -r
+"$_HI_ROOT/settings/packages.d" ~/.config/say-hi/packages.d`.
 
 A copy stops tracking what `hi --update` delivers for that file; delete it to
 track the tree's again, and `hi --doctor` names which of the two is in force.
@@ -163,7 +170,7 @@ prompt program hi does not know, an editor off the ladder - is a red
 | `_HI_DISABLE_BANNER`        | `0`                                                                                                       | `hi --configure`          | hides the `~~~ Connected ~~~` line ([Header details](#header-details))                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `_HI_HEADER_ORDER`          | the table in [Header details](#header-details)                                                            | `hi --configure`          | which header items show, in what order; empty is the default list                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `_HI_MAX_WIDTH`             | `80`                                                                                                      | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                                                                       | `hi --configure`          | the lowest `settings/packages` priority (0-3) the header's check prints, and the main dial on its length: `2` keeps useful tools and up, `1` adds optional extras, `0` prints everything, `3` just favorites and core alerts, `4` turns the check off. `hi --preview packages` marks the ranks it silences `below floor`                                                                                                                                                                                                                        |
+| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                                                                       | `hi --configure`          | the lowest `settings/packages.d/` priority (0-3) the header's check prints, and the main dial on its length: `2` keeps useful tools and up, `1` adds optional extras, `0` prints everything, `3` just favorites and core alerts, `4` turns the check off. `hi --preview packages` marks the ranks it silences `below floor`                                                                                                                                                                                                                     |
 | `_HI_IP_HIDE`               | `172.*`                                                                                                   | `hi --configure`          | globs the header's `ip` cell drops; `none` hides nothing ([Header details](#header-details))                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_DISABLE_HEADER`        | `0`                                                                                                       | `hi --configure`          | turns off the whole header: a connect's, a disconnect's, and the greeting a local interactive shell prints                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_DISABLE_GIT_STATUS`    | `0`                                                                                                       | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -215,7 +222,7 @@ More names look like settings and are not:
   `$XDG_CONFIG_HOME`-or-`~/.config` base resolved beside them — set
   `$XDG_CONFIG_HOME` instead.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments
-  are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_PACKAGES_D`,
+  are read from), `$_HI_COLORS`, `$_HI_PACKAGES_D`,
   `$_HI_VIMRC`, `$_HI_NVIMRC`, `$_HI_HELIXRC`, `$_HI_NANORC`, `$_HI_EMACSRC`,
   `$_HI_TMUX_CONF`, and `$_HI_MICRO_DIR` are re-derived by `common/paths.sh`
   on every source, from `$_HI_HOME`, `$HOME`, and the overlay, so an exported
@@ -260,25 +267,25 @@ Everything else the header prints is one flat list of reorderable items, with
 no fixed rows. `_HI_HEADER_ORDER` is a space-separated subset of these words,
 in the order they should print:
 
-| word         | what it is                                          |
-| ------------ | --------------------------------------------------- |
-| `utc`        | the UTC clock                                       |
-| `version`    | hi's own version                                    |
-| `localtime`  | your local clock                                    |
-| `os`         | the OS name/version                                 |
-| `arch`       | the CPU architecture                                |
-| `cores`      | core count and load percentage                      |
-| `cpu`        | clock speed                                         |
-| `ram`        | used/total memory                                   |
-| `ip`         | this box's routable IPv4 address(es)                |
-| `gitid`      | the masked git identity (`user.email`)              |
-| `containers` | the docker/podman container count, when either runs |
-| `jobs`       | the nomad job count, when nomad answers             |
-| `pods`       | the reachable kube pod count, when kubectl answers  |
-| `auth`       | the `~/.ssh/authorized_keys` line count             |
-| `pub`        | the `~/.ssh/*.pub` file count                       |
-| `uptime`     | this box's uptime                                   |
-| `check`      | the installed-packages check (`settings/packages`)  |
+| word         | what it is                                            |
+| ------------ | ----------------------------------------------------- |
+| `utc`        | the UTC clock                                         |
+| `version`    | hi's own version                                      |
+| `localtime`  | your local clock                                      |
+| `os`         | the OS name/version                                   |
+| `arch`       | the CPU architecture                                  |
+| `cores`      | core count and load percentage                        |
+| `cpu`        | clock speed                                           |
+| `ram`        | used/total memory                                     |
+| `ip`         | this box's routable IPv4 address(es)                  |
+| `gitid`      | the masked git identity (`user.email`)                |
+| `containers` | the docker/podman container count, when either runs   |
+| `jobs`       | the nomad job count, when nomad answers               |
+| `pods`       | the reachable kube pod count, when kubectl answers    |
+| `auth`       | the `~/.ssh/authorized_keys` line count               |
+| `pub`        | the `~/.ssh/*.pub` file count                         |
+| `uptime`     | this box's uptime                                     |
+| `check`      | the installed-packages check (`settings/packages.d/`) |
 
 A word left out is not printed, and an unknown word is ignored.
 `containers`/`jobs`/`pods` render only when their backend answers; listing

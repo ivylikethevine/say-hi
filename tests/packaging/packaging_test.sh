@@ -154,7 +154,7 @@ function test_nfpm_symlink_target_is_absolute_and_unstaged() {
 # so it repeats _HI_PACKAGE_CONTENTS as per-member entries - a second copy of
 # the list, kept honest here the way the formula's copy is.
 function test_nfpm_apk_entries_match_package_contents() {
-  local m src
+  local m src dst
   for m in "${_HI_PACKAGE_CONTENTS[@]}"; do
     if [ -d "$_HI_ROOT/$m" ]; then
       src="./dist/staging/usr/share/say-hi/$m/*"
@@ -169,20 +169,49 @@ function test_nfpm_apk_entries_match_package_contents() {
       return 1
     }
   done
-  # count agrees too, so a stray apk entry can't ship what the list doesn't name
-  [ "$(grep -c '^ *packager: apk$' "$_HI_NFPM")" -eq "${#_HI_PACKAGE_CONTENTS[@]}" ]
+  # every apk entry traces back to a real member too, so a stray one can't
+  # ship what the list doesn't name - a member with a nested directory of its
+  # own (settings/packages.d/, say) legitimately needs more than one entry,
+  # which is why this is traceability rather than a bare count
+  while IFS= read -r dst; do
+    [ -n "$dst" ] || continue
+    for m in "${_HI_PACKAGE_CONTENTS[@]}"; do
+      case "$dst" in "/usr/share/say-hi/$m" | "/usr/share/say-hi/$m/"*) continue 2 ;; esac
+    done
+    _hi_cecho "   apk entry $dst does not trace back to any _HI_PACKAGE_CONTENTS member" "$RED"
+    return 1
+  done < <(awk '
+    /^  - src:/ { dst = "" }
+    /^    dst:/ { dst = $2 }
+    /packager: apk/ && dst { print dst }
+  ' "$_HI_NFPM")
 }
 
 # ...and the globs are one level deep, so a nested directory appearing under a
 # tree member would silently fall out of the apk. Fail here first, with names.
+# A nested directory (settings/packages.d/, say) is fine as long as apk has
+# its own glob entry for it - the ModeDir-leak workaround the comment above
+# the apk entries explains means every directory level needs its own glob,
+# not just the top-level members _HI_PACKAGE_CONTENTS names.
 function test_nfpm_apk_globs_cover_the_staged_depth() {
-  local dest deep
+  local dest deep dst_list d rel
   dest="$(stage_fixture)"
   deep="$(find "$dest/usr/share/say-hi" -mindepth 2 -type d)"
-  [ -z "$deep" ] || {
-    _hi_cecho "   nested dirs need their own apk glob entries: $deep" "$RED"
+  [ -n "$deep" ] || return 0
+  dst_list="$(awk '
+    /^  - src:/ { dst = "" }
+    /^    dst:/ { dst = $2 }
+    /packager: apk/ && dst { print dst }
+  ' "$_HI_NFPM")"
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    rel="${d#"$dest"}"
+    case $'\n'"$dst_list"$'\n' in
+    *$'\n'"$rel/"$'\n'* | *$'\n'"$rel"$'\n'*) continue ;;
+    esac
+    _hi_cecho "   $d has no apk glob entry of its own in $_HI_NFPM" "$RED"
     return 1
-  }
+  done <<<"$deep"
 }
 
 # the apk signature block: key file from the env (unset = unsigned, exactly

@@ -21,6 +21,17 @@
 # as a background job - so "never invoked" is true of the file, not of five
 # lines in it.
 
+# member_ok <name> - core.sh's _hi_dir_member_ok's case line, character for
+# character, reimplemented rather than sourced: this file can be *sourced* by
+# a completion hook, and defining the bash-only _hi_dir_member_ok here would
+# shadow core.sh's own copy in that live shell. A drift test pins the two
+# literal case lines together.
+member_ok() {
+  case "$1" in
+  '' | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]* | *.bak | *.orig | *.rej | *.tmp) return 1 ;;
+  esac
+}
+
 kind="${1:-all}"
 # The docker-compatible family, once: the `words` arm below and the probe
 # roster further down both walk it, and the two exits are far enough apart
@@ -87,6 +98,12 @@ fi
 # targets_test.sh. Answered before the probes, like the flags. The membership
 # test is paths.sh's $_HI_WORD_FLAGS.
 if [ "$kind" = words ]; then
+  # The packages.d this session would actually read/write: the overlay when
+  # one exists, else the tree's own default+extra (common/paths.sh's cascade,
+  # reimplemented here since this file can run forked with the session's own
+  # _HI_* unexported (HI.47) and cannot source paths.sh - GLOSSARY: HI.58).
+  pkgd="${_HI_CONFIG_DIR:-}/packages.d"
+  [ -d "$pkgd" ] || pkgd="$hi_tree/settings/packages.d"
   case "${2:-}" in
   --link)
     printf 'user\t~/.local/bin/hi (the default)\n'
@@ -103,6 +120,31 @@ if [ "$kind" = words ]; then
     # .git and gets nothing
     [ -d "$hi_tree/.git" ] && git -C "$hi_tree" tag --list 'v*' --sort=-v:refname 2>/dev/null |
       while IFS= read -r tag; do printf '%s\trelease tag\n' "$tag"; done
+    ;;
+  --add-package)
+    # every packages.d member in force, one whole row per completion word
+    # ("bat:3,batcat:3,ccat:3,cat:2"), so a `--add-package` argument tabs
+    # complete to exactly what add_package.sh accepts. Grouped once here
+    # rather than a per-package split: a row is what the flag takes. The line
+    # filter matches _hi_check_file's: a `#` anywhere kills a line, not only
+    # a leading one.
+    [ -d "$pkgd" ] && for f in "$pkgd"/*; do
+      { [ -f "$f" ] && member_ok "${f##*/}"; } || continue
+      while IFS= read -r line; do
+        case "$line" in '' | color=* | *'#'*) continue ;; esac
+        printf '%s\ta package check row\n' "$line"
+      done <"$f"
+    done
+    ;;
+  --group)
+    # the groups already on disk, so `--group <TAB>` offers the ones a second
+    # call would extend rather than every name a first call could invent -
+    # the overlay's own once one exists (it replaces the tree's wholesale),
+    # else the tree's default+extra.
+    [ -d "$pkgd" ] && for f in "$pkgd"/*; do
+      { [ -f "$f" ] && member_ok "${f##*/}"; } || continue
+      printf '%s\tan existing packages.d group\n' "${f##*/}"
+    done
     ;;
   --preview)
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'

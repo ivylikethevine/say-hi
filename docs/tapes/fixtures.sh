@@ -325,9 +325,10 @@ EOF
 
 # The other overlay files a demo can ship, into the same $_HI_DEMO_DIR/config
 # that settings.sh lands in - hi.sh's _HI_OVERLAY_FILES carries both to the
-# target, which is the point of showing either. Body on stdin.
-function demo_overlay() { # <basename> - body on stdin
-  mkdir -p "$_HI_DEMO_DIR/config"
+# target, which is the point of showing either. Body on stdin. <name> may
+# carry a subdirectory (packages.d/homelab, say) - mkdir -p covers both.
+function demo_overlay() { # <name> - body on stdin
+  mkdir -p "$_HI_DEMO_DIR/config/$(dirname "$1")"
   cat >"$_HI_DEMO_DIR/config/$1"
 }
 
@@ -574,7 +575,7 @@ export _HI_IP_HIDE='none'
 export _HI_PACKAGES_MIN_PRIORITY='2'
 export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
 EOF
-  demo_overlay packages <<'EOF'
+  demo_overlay packages.d/homelab <<'EOF'
 # the homelab toolbox, and how loudly to miss each piece
 git:3
 vim:3,nano:3

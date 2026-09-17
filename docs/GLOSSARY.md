@@ -652,7 +652,7 @@ frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
 The editor rcs, `tmux.conf`, and micro's `micro/` files ride it for the same
-reason `colors` and `packages` do: the tree copy is a default, and
+reason `colors` and `packages.d` do: the tree copy is a default, and
 `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one
 (HI.57). Left out of the stream, that guard could only fire on the client — an
 override working locally and silently reverting on every target, the
@@ -1134,17 +1134,23 @@ read either. The archive carries no directory entry; every tar hi unpacks with
 creates the parent, busybox's included.
 
 `packages.d` is the first: each member is a group of the package check.
-`header.sh`'s `full_check` walks `_hi_package_files` - `$_HI_PACKAGES`, then
-the members - and `_hi_check_file` runs each through `check_line` under its
-own palette and sorts it alone, so a group is a contiguous run after the file
-before it. The palette is a file's `color=` line (`_hi_group_color`), made a
-ramp by `_hi_group_ramp` - one name in all eight slots, or eight as written -
-and handed to `_hi_packages_palette`, where it outranks
-`$_HI_PACKAGES_PALETTE`; the ramp in force is put back when the check ends.
-The line is not a comment on purpose: the strip would take it. With no member
-the walk is the one file it always was, and the output is byte for byte the
-single-file check's. `$_HI_PACKAGES_D` has no tree default and no guard in
-`common/paths.sh`: like `settings.sh`, the overlay is its only home.
+`header.sh`'s `full_check` walks `_hi_package_files` - every `$_HI_PACKAGES_D`
+member, no distinguished first one - and `_hi_check_file` runs each through
+`check_line` under its own palette and sorts it alone, so a group is a
+contiguous run after the group before it. The palette is a file's `color=`
+line (`_hi_group_color`), made a ramp by `_hi_group_ramp` - one name in all
+eight slots, or eight as written - and handed to `_hi_packages_palette`,
+where it outranks `$_HI_PACKAGES_PALETTE`; the ramp in force is put back when
+the check ends. The line is not a comment on purpose: the strip would take
+it. With no member at all the check prints nothing. Unlike `plugins.d`,
+`$_HI_PACKAGES_D` has a real tree default (`settings/packages.d`, shipping
+`default` and `extra`) and a `-d` guard in `common/paths.sh`, the same
+tree-default/overlay-override cascade `$_HI_COLORS` uses - so a
+`packages.d/` of the user's own **replaces** the tree's wholesale, the way a
+hand-made `~/.config/say-hi/colors` already replaces `settings/colors`.
+That is why `hi --add-package` seeds the tree's members into a fresh overlay
+directory on its first write: without it, the first custom group would
+silently drop every shipped check.
 
 ## HI.59 plugins
 

@@ -134,30 +134,29 @@ function test_overlay_sends_nothing_outside_the_roster() {
 }
 
 # packages.d's members ride as packages.d/<name>, comment-stripped like any
-# packages file, their color= line intact - and two of them cost the stream
-# under 192 gzipped bytes over the same rows in one file (a tar header each,
-# and the color= line: 84 measured under GNU tar, 143 under OpenBSD's), so
-# splitting is nearly free.
+# packages file, their color= line intact - and splitting one member into two
+# costs the stream under 192 gzipped bytes over the same rows in one member
+# (a tar header, and the color= line: 84 measured under GNU tar, 143 under
+# OpenBSD's), so grouping is nearly free.
 function test_overlay_carries_package_groups() {
   local one="$_HI_WORKDIR/groups-one" split="$_HI_WORKDIR/groups-split" n out a b
-  mkdir -p "$one" "$split/packages.d"
-  cp "$_HI_ROOT/settings/packages" "$one/packages"
-  n="$(grep -c . "$one/packages")"
-  head -n $((n / 3)) "$one/packages" >"$split/packages"
-  { printf 'color=orange\n' && sed -n "$((n / 3 + 1)),$((2 * n / 3))p" "$one/packages"; } >"$split/packages.d/10-lang"
-  sed -n "$((2 * n / 3 + 1)),\$p" "$one/packages" >"$split/packages.d/20-box"
-  [ "$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages,packages.d/10-lang,packages.d/20-box ] || return 1
-  out="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | _hi_tar_cat packages.d/10-lang)"
+  mkdir -p "$one/packages.d" "$split/packages.d"
+  cp "$_HI_ROOT/settings/packages.d/00-default" "$one/packages.d/all"
+  n="$(grep -c . "$one/packages.d/all")"
+  head -n $((n / 2)) "$one/packages.d/all" >"$split/packages.d/10-lang"
+  { printf 'color=orange\n' && sed -n "$((n / 2 + 1)),\$p" "$one/packages.d/all"; } >"$split/packages.d/20-box"
+  [ "$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages.d/10-lang,packages.d/20-box ] || return 1
+  out="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | _hi_tar_cat packages.d/20-box)"
   case "$out" in color=orange$'\n'*) ;; *) return 1 ;; esac
   case "$out" in *'#'*)
-    _hi_cecho " | packages.d/10-lang kept a comment line through the strip" "$RED"
+    _hi_cecho " | packages.d/20-box kept a comment line through the strip" "$RED"
     return 1
     ;;
   esac
   a="$(_HI_CONFIG_DIR="$one" _hi_overlay_tar | wc -c)"
   b="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | wc -c)"
   [ $((b - a)) -lt 192 ] || {
-    _hi_cecho " | two packages.d members cost $((b - a)) bytes over one file (budget 192)" "$RED"
+    _hi_cecho " | splitting one member into two costs $((b - a)) bytes (budget 192)" "$RED"
     return 1
   }
 }
@@ -396,9 +395,9 @@ function test_overlay_is_seen_when_present() {
 # "say-hi/colors" or "./config/colors" would be invisible to paths.sh
 function test_overlay_tar_members_are_bare_names() {
   local dir listing
-  dir="$(_hi_overlay_fixture members colors packages settings.sh)"
+  dir="$(_hi_overlay_fixture members colors aliases.sh settings.sh)"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
-  [ "$(printf '%s\n' "$listing" | sort | paste -sd, -)" = "colors,packages,settings.sh" ]
+  [ "$(printf '%s\n' "$listing" | sort | paste -sd, -)" = "aliases.sh,colors,settings.sh" ]
 }
 
 # only what the user actually has - an overlay holding one file must not carry
@@ -1004,13 +1003,14 @@ function test_strip_spares_heredoc_bodies() {
 }
 
 # The data files' prose headers document the *installed* copies a user reads,
-# so they ship stripped too: flags/colors/packages/nanorc through the same
+# so they ship stripped too: flags/colors/packages.d/nanorc through the same
 # `#` rule as the shell, vimrc, init.el, and init.lua through their own
-# rules for vim's `"`, elisp's `;`, and lua's `--`.
+# rules for vim's `"`, elisp's `;`, and lua's `--`. Both shipped packages.d
+# members, proving the strip reaches inside the directory too.
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages settings/nanorc; do
+  for f in common/flags settings/colors settings/packages.d/00-default settings/packages.d/01-extra settings/nanorc; do
     n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
@@ -1032,7 +1032,7 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages settings/nanorc; do
+  for f in common/flags settings/colors settings/packages.d/00-default settings/packages.d/01-extra settings/nanorc; do
     diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
       <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"

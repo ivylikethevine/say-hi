@@ -78,9 +78,10 @@ at a bastion, in fish for its pager's description column.
 
 ### The Header Tells You What's Missing
 
-A `packages` overlay of the tools you care about, each with a priority (and a
-`packages.d/` of named groups, each in its own color); the header checks it
-on every target — one quiet line on a box that has them, a loud one on a box
+A package check of the tools you care about, each with a priority, organized
+into a `packages.d/` of named groups, each in its own color (`default` and
+`extra` ship, more of your own ride alongside); the header checks it on
+every target — one quiet line on a box that has them, a loud one on a box
 that does not. A homelab: bash from a laptop into the nas and the pihole,
 keeping the distro prompt — hi's is off (`_HI_DISABLE_PROMPT=1`), and the
 header, the check, and the aliases ride along anyway.
@@ -211,7 +212,10 @@ row, and everything answered **no**, and why:
   `PATH` leads.
 - `hi --update` moves a cloned install to the newest release tag (`--dry-run`
   names it first; a package upgrades through its package manager).
-- The whole surface is twelve flags: `hi --help` (or bare `hi`) lists them,
+- `hi --add-package bat:3,batcat:3` adds a row to a
+  `~/.config/say-hi/packages.d/` group (`--group <name>` picks which one,
+  default `custom`) without touching the shipped roster.
+- The whole surface is thirteen flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
@@ -234,8 +238,9 @@ row, and everything answered **no**, and why:
 Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
-`packages` apply until you `cp` one out of the tree's `settings/` to edit (or
-add an `aliases.sh` of your own). The editor rcs need no copy: hi carries your
+`packages.d/` apply until you copy one out of the tree's `settings/` to edit
+(`hi --add-package` does the copying for `packages.d/`) or add an
+`aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 The overlay file table, the settings menu, and every setting are in
