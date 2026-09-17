@@ -69,6 +69,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.57 carried configs and the include scan](#hi57-carried-configs-and-the-include-scan)
 - [HI.58 overlay directory members](#hi58-overlay-directory-members)
 - [HI.59 plugins](#hi59-plugins)
+- [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
 
 ## HI.01 empty-array guard
 
@@ -1172,6 +1173,11 @@ a fish-only or sh-only construct costs in the other shell. The parse is a fork
 per plugin per shell start, and nothing without a plugin. The zsh glob sits in
 its own function (`_hi_plugin_files`) so `null_glob` can be local there:
 `local_options` in the loader would also undo every `setopt` a plugin makes.
+That function tests `-d "$_HI_PLUGINS_D"` before it globs: unset, the pattern
+is `/*` and the loader would source what parses at the root of the disk
+([HI.60](#hi60-a-shell-that-outlives-the-tree) is how it comes to be unset).
+fish's copy needs no such test - an empty variable takes the whole word with
+it there.
 
 Hooks are variables, since the subset cannot define a function all three
 shells read. The loader unsets each before a plugin runs and collects it after,
@@ -1183,3 +1189,38 @@ so plugins compose without `${var:+...}`, which fish lacks. The set:
 
 `hi --doctor` lists the plugins in load order and warns for each a shell on
 this machine cannot parse, and for a directory entry that is not a member.
+
+## HI.60 a shell that outlives the tree
+
+An interactive shell is long-lived and the tree under it is not: `hi --update`
+and a package upgrade both rewrite `say-hi/` in place, and every shell already
+running keeps what it loaded. A tmux pane is the extreme case - panes last
+weeks, and the usual reflex after an upgrade is
+
+```sh
+tmux list-panes -a -F '#{session_name}:#{window_index}.#{pane_index}' |
+  xargs -I {} tmux send-keys -t {} 'source ~/.bashrc' Enter
+```
+
+which re-sources the new tree's rc in all of them at once.
+
+`common/core.sh`'s preamble is guarded by `$_hi_core_loaded` so a second
+source in one process is a no-op, and scripts rely on that: `configure.sh`
+stages values the re-run of `common/paths.sh` would write back over. The
+guard is wrong in exactly one place, the rc, where the second source is not a
+second source at all but a _different version's_. Functions below the
+preamble are redefined either way, so the guard left the new tree's code
+running against the old tree's paths, and every `_HI_*` path added between
+the two versions stayed empty. The damage is quiet and cumulative: `source ""`
+for a name that did not exist yet (`bash: : No such file or directory`),
+`_hi_env_prompt: command not found` on every prompt draw, the header's package
+row gone, and `"$_HI_PLUGINS_D"/*` globbing `/` - which
+[HI.59](#hi59-plugins)'s loader then `bash -n`s and _sources_, file by file,
+in every pane at once.
+
+So `common/bash.sh` and `common/zsh.zsh` `unset _hi_core_loaded` before they
+source core.sh. `load.sh` already did, for the same reason on the far side (a
+target whose own `~/.bashrc` wires a say-hi of its own loads that tree's
+core.sh first), and `common/config.fish` never had a guard to clear.
+`_hi_plugin_files` tests `-d "$_HI_PLUGINS_D"` before it globs, so no later
+name arriving empty can reach the root of the disk again.

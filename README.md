@@ -4,10 +4,6 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-<!-- The check-runs badges filter on the compound check name "<ci.yml job
-     name> / <called workflow job name>": mirror a rename on either side into
-     nameFilter or the badge reads "no check runs". -->
-
 ![Payload](https://img.shields.io/badge/ssh_payload-65KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
@@ -133,15 +129,21 @@ A researcher, in zsh, sweeping the cluster's backends.
 
 ## Target Requirements
 
+<!-- Seven shields endpoint badges, published by pages.yml
+     (.github/scripts/platform_badges.sh) - which says why
+     img.shields.io/github/check-runs cannot answer per job here, and is where
+     a renamed CI job has to be mirrored. A badge added here reads
+     "inaccessible" until the next Pages deploy publishes its file. -->
+
 ![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64-0A6E8A)
 ![Full](https://img.shields.io/badge/full-bash%203.2-0A8E8A)
-![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)
-![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28macos-latest%29&label=macOS)
-![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)
-![OpenBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28OpenBSD%29%20%2F%20hi%20localhost%20%28OpenBSD%20both%20ends%29&label=OpenBSD)
-![Alpine client](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Alpine%20client%29&label=Alpine%20client)
-![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)
-![Windows client](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)
+![Linux](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Flinux.json)
+![macOS](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fmacos.json)
+![FreeBSD](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ffreebsd.json)
+![OpenBSD](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fopenbsd.json)
+![Alpine client](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Falpine.json)
+![Windows](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fwindows.json)
+![Windows client](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fwindows-client.json)
 
 Which OSes hi lands a session on, which shell you end up in, what proves each
 row, and everything answered **no**, and why:
@@ -330,10 +332,19 @@ its **Ticks when** holds.
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
       **Ticks when** the tag commit turns `docs/SECURITY.md`'s _Supported
       versions_ prose into the version table it promises.
-- [ ] **The settings pass is closed out** — its open items, the rename's
-      release note and a real-hook test for `_HI_PROMPT_TOOL=hi` first, are
-      [docs/ROADMAP.md](docs/ROADMAP.md)'s _Open_ list. **Ticks when** that
-      section is gone.
+- [ ] **The settings pass is closed out** — the pre-1.0 read over the
+      settings surface, the config overlay, and the prompt programs has one
+      item left: a stale `~/.p10k.zsh` still ships powerlevel10k first. The
+      client counts powerlevel10k as in use when its config file exists, so
+      beside a `ZSH_THEME=robbyrussell` a target with system p10k draws p10k
+      over the theme actually in use; reading the rc for `powerlevel10k`
+      would fix that and miss a config that loads it from a sourced file.
+      **Do:** decide which failure is cheaper, and if the rc read, wire it
+      into `hi.sh`'s `_hi_prompt_list` with a `_hi_rc_last_match`. **Ticks
+      when** [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)'s _counts as
+      installed here_ column says the rule. What the same pass turned down,
+      with the reasons, is
+      [docs/SUPPORT.md's _Already turned down_](docs/SUPPORT.md#already-turned-down).
 
 ### Features
 
@@ -345,6 +356,19 @@ In this checkout, and not what the tag waits on either.
        (`.github/scripts/release_slot.sh`) with the tap PR link and the
        `packages` GIF. **Ticks when:** the next real tag's release page shows
        the tap link and renders the GIF.
+
+2. [ ] **CI walks the upgrade path a tag creates** — every job today installs
+       one version into a fresh box, so nothing exercises the case
+       [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
+       about: a shell that loaded the _previous_ release, the tree rewritten
+       under it, and the rc re-sourced in that same shell. It was found by
+       hand in a container. **Do:** a job the tag triggers (`release.yml`'s
+       `gate`, so a bad upgrade stops the release) that installs the previous
+       tag in a container, opens a shell per wired dialect, replaces the tree
+       with the tag being cut, re-sources each rc in that shell, and fails on
+       any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
+       `v*` tag runs it green, and putting core.sh's load guard back in
+       `common/bash.sh` turns it red.
 
 ### Post 1.0
 

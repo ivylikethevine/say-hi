@@ -260,6 +260,11 @@ function _hi_dir_member_ok() {
 # own function so zsh's null_glob stays local: set in the loader, local_options
 # would also undo every setopt a plugin makes.
 function _hi_plugin_files() {
+  # the -d first: unset, "$_HI_PLUGINS_D"/* is /*, and the loader below would
+  # source whatever parses at the root of the disk. header.sh's package walk
+  # guards its own directory the same way. GLOSSARY: HI.60
+  _hi_pl=()
+  [ -d "${_HI_PLUGINS_D:-}" ] || return 0
   [ -z "${ZSH_VERSION:-}" ] || setopt local_options null_glob
   _hi_pl=("$_HI_PLUGINS_D"/*)
 }

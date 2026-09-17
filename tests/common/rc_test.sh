@@ -822,6 +822,31 @@ function test_fish_rc_reentry_returns() {
   [ "$(_hi_rc_reentry fish config.fish 'set -q _hi_rc_loading; or printf done; test -n "$_HI_ROOT"; and printf :root')" = done:root ]
 }
 
+# test_sh_rc_re_source_after_an_upgrade <shell> <rc>
+# GLOSSARY: HI.60. A shell outlives the tree under it: `hi --update` rewrites
+# say-hi in place, tmux panes last weeks, and the usual reflex is a
+# `tmux send-keys ... 'source ~/.bashrc'` into every one of them at once.
+# core.sh's load guard would make that second source a no-op and leave the new
+# tree's code running on the old tree's paths, so the rc clears it. The scratch
+# tree grows a path between the two sources, which is exactly what an upgrade
+# looks like from inside such a shell.
+function test_sh_rc_re_source_after_an_upgrade() {
+  local shell="$1" rc="$2" base="$_HI_WORKDIR/upgrade-$1"
+  rm -rf "$base" "$base.out"
+  mkdir -p "$base/say-hi" "$base/cfg"
+  cp -R "$_HI_ROOT/common" "$_HI_ROOT/settings" "$base/say-hi/"
+  (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$base" _HI_PROMPT_TOOL=hi \
+    _HI_CONFIG_DIR="$base/cfg" "$shell" -c "
+      source \"\$_HI_HOME/say-hi/common/$rc\"
+      printf '%s|' \"\${_HI_ADDED_LATER-unset}\"
+      printf 'export _HI_ADDED_LATER=\"\$_HI_ROOT/added\"\n' >>\"\$_HI_HOME/say-hi/common/paths.sh\"
+      source \"\$_HI_HOME/say-hi/common/$rc\"
+      printf '%s' \"\${_HI_ADDED_LATER-unset}\"" \
+    </dev/null >"$base.out" 2>/dev/null) &
+  _hi_wait_pid $! 20
+  [ "$(cat "$base.out")" = "unset|$base/say-hi/added" ]
+}
+
 function test_fish_flag_completion_does_not_also_sweep_targets() {
   local out
   out="$(_hi_rc_shell xterm-256color fish \
@@ -1129,6 +1154,8 @@ function run_rc_tests() {
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
   _hi_check "[bash] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns bash bashrc
+  _hi_check "[bash] a re-source after an upgrade re-derives" test_sh_rc_re_source_after_an_upgrade bash bash.sh
+  _hi_check_requires zsh "[zsh] a re-source after an upgrade re-derives" test_sh_rc_re_source_after_an_upgrade zsh zsh.zsh
   _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns zsh zshrc
   _hi_check_requires zsh "[zsh] the target list is colored per backend" test_zsh_target_list_colors_per_backend
   _hi_check_requires zsh "[zsh] target completion carries the colored tag" test_zsh_target_completion_uses_the_colored_tag

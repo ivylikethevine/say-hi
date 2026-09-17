@@ -68,6 +68,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      # the commit check runs platform_badges.sh reads
+      checks: read
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -224,6 +226,16 @@ jobs:
           }
           cov coverage.json kcov "$COVPCT"
           cov coverage-v2.json bashcov "$COVPCT2"
+
+      # README's Target Requirements strip, one endpoint object per platform.
+      # Its own step because it reads the API rather than an artifact, and its
+      # own script because the walk back past a skipped matrix is more shell
+      # than a workflow step should carry (.github/scripts/platform_badges.sh
+      # says why the badge is not img.shields.io/github/check-runs).
+      - name: Write the platform endpoints
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/platform_badges.sh _site/badges
 
       # The package repository, out of the newest non-prerelease release's
       # package-repo.tar.gz (docs/RELEASING.md's _Package repository_) - a
