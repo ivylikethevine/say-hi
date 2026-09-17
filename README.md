@@ -397,26 +397,35 @@ and are not.
        `v*` tag runs it green, and putting core.sh's load guard back in
        `common/bash.sh` turns it red.
 
-7. [ ] **Every job's egress is allowlisted, not only audited** — 44 of the 50
-       `harden-runner` steps run `egress-policy: audit`, which records where a
-       job reached and stops nothing. Six run `block` with `allowed-endpoints`:
-       `release.yml`'s two publishing jobs, `publish-external.yml`,
-       `cancel-closed-pr.yml` and `release-note.yml` (whose whole network use
-       is legible in the job itself), and `ci.yml`'s `test-alpine`, taken off
-       its own run. Where the endpoints come from is the whole difficulty, and
-       an `audit` run answers it: harden-runner's post-step log prints an
-       `endpoint called ... domain: ...` line per host, which is the list to
-       paste. Two things make the lists short - GitHub's meta domains
+7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — 44 of
+       the 50 `harden-runner` steps run `egress-policy: audit`, which records
+       where a job reached and stops nothing. Six run `block` with
+       `allowed-endpoints`: `release.yml`'s two publishing jobs,
+       `publish-external.yml`, `cancel-closed-pr.yml` and `release-note.yml`
+       (whose whole network use is legible in the job itself), and `ci.yml`'s
+       `test-alpine`, taken off its own run. Six of the remaining 44 cannot
+       block at all - `ci.yml`'s `test-macos`, `release.yml`'s `brew`,
+       `windows-client.yml`'s `shard` and `windows-e2e.yml`'s three jobs:
+       harden-runner's Windows agent log reports no endpoint or DNS event at
+       all where an Ubuntu run reports both, and blocking is an Ubuntu
+       capability. That leaves 38. **Do:** take them off the `audit` runs
+       already collected - harden-runner's post-step log prints one
+       `endpoint called ... domain: ...` line per host - a job class at a time
+       (the `setup-tool` fetches, the container pulls, the apt installs), and
+       keep the jobs that reach arbitrary hosts by design (`link-check.yml`,
+       `image-scan.yml`, `scorecard.yml`) named as exceptions rather than gaps.
+       Two things keep the lists short: GitHub's own meta domains
        (`github.com`, `*.github.com`, `ghcr.io`, the `productionresultssa*`
        blobs behind the cache and artifacts) are allowed by harden-runner
        itself, and a blocked endpoint names itself in the log, so a miss costs
-       one run rather than an investigation. **Do:** one job class at a time
-       off that log - the `setup-tool` fetches, the container pulls, the apt
-       installs - leaving the jobs that reach arbitrary hosts by design
-       (`link-check.yml`, `image-scan.yml`, `scorecard.yml`) named as
-       exceptions rather than gaps. **Ticks when:** every job either blocks or
-       is listed here as an exception with its reason, and adding an unlisted
-       download to a blocking job fails it.
+       one run rather than an investigation. One caution on reading those logs:
+       a run that hits its caches reaches fewer hosts than one that misses -
+       `freebsd-e2e.yml`'s apt install came entirely from `actions/cache` on
+       the run inspected here ("Need to get 0 B"), so its log names no Ubuntu
+       mirror at all. A job's list is only complete once a cold run has been
+       read too. **Ticks when:** every Ubuntu job
+       either blocks or is listed here as an exception with its reason, and
+       adding an unlisted download to a blocking job fails it.
 
 ### Post 1.0
 

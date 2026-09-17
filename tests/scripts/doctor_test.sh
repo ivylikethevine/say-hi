@@ -712,16 +712,28 @@ function test_doctor_probe_snippet_runs_under_sh() {
   return 1
 }
 
-# driven by explicit byte counts so no wire assembly runs: the stock figure
-# comes from a real _hi_wire_bytes against no overlay, the floor hides small
-# deltas, and a lighter figure (gzip jitter) is never a row
+# driven by explicit byte counts so no wire assembly runs: the floor hides
+# small deltas, and a lighter figure (gzip jitter) is never a row.
+#
+# _hi_wire_bytes is stubbed rather than called, because two calls to the real
+# one do not agree: the payload tar carries the staged files' mtimes, so the
+# bytes gzip emits move a little between one second and the next - 8 bytes
+# apart on Linux, and further under the pax timestamp headers bsdtar writes,
+# which is enough to cross a 128-byte floor. The arms and the floor are what
+# this case is about, so one fixed figure stands for the stock build and the
+# three deltas are measured against exactly it.
+# The stub is confined to a subshell: a bare redefinition here would outlive
+# the case and take the real figure away from "Reports the per-session wire
+# cost" further down.
 function test_doctor_payload_diff_arms() {
-  local stock out
-  stock="$(_HI_CONFIG_DIR=/nonexistent-hi-doctor-stock _hi_wire_bytes)"
-  [ -z "$(doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))" ] || return 1
-  out="$(doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
-  case "$out" in *'heavier than the stock default'*) ;; *) return 1 ;; esac
-  [ -z "$(doctor_payload_diff "$stock")" ]
+  (
+    stock=69000
+    function _hi_wire_bytes() { printf '%s' "$stock"; }
+    [ -z "$(doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))" ] || exit 1
+    out="$(doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
+    case "$out" in *'heavier than the stock default'*) ;; *) exit 1 ;; esac
+    [ -z "$(doctor_payload_diff "$stock")" ]
+  )
 }
 
 # the folded-in rc check: each rc or overlay file through its parser,
