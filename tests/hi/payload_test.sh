@@ -702,6 +702,36 @@ function test_the_scan_reports_every_dialect() {
   }
 }
 
+# /usr/share/nano is what the nano package itself ships, so an include
+# directly under it resolves wherever nano does - a whole-directory glob or
+# one stock syntax file. A *subdirectory* of it does not: /usr/share/nano/extra
+# is a Debian split, and on Fedora, Alpine, or macOS nano answers the glob
+# that matches nothing with "Mistakes in '<rcfile>'" and a bell, over the
+# whole rcfile rather than that one line.
+_HI_LINT_NANORC='include "/usr/share/nano/*.nanorc"
+include "/usr/share/nano/sh.nanorc"
+include "/usr/share/nano/extra/*.nanorc"
+include "~/.nano/mine.nanorc"
+set tabsize 4
+'
+
+function test_nano_keeps_the_stock_directory_and_drops_the_rest() {
+  local dir out
+  dir="$(_hi_lint_fixture nano nanorc "$_HI_LINT_NANORC")"
+  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "nanorc|3|include,nanorc|4|include" ] || {
+    _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+  out="$(_HI_NANORC="$dir/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nanorc)"
+  [ "$out" = 'include "/usr/share/nano/*.nanorc"
+include "/usr/share/nano/sh.nanorc"
+set tabsize 4' ] || {
+    _hi_cecho " | nanorc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
 # a config with nothing to resolve is silent - the scan is a report of danglers,
 # not an inventory of every include
 function test_the_scan_is_silent_on_a_clean_config() {
@@ -1152,6 +1182,7 @@ function run_hi_payload_tests() {
   _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
   _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config
+  _hi_check "nano keeps /usr/share/nano, drops a subdirectory of it" test_nano_keeps_the_stock_directory_and_drops_the_rest
   _hi_check "An rc is read under its member name" test_the_scan_reads_an_rc_under_its_own_name
   _hi_check "A shell include becomes : and still parses" test_shell_includes_are_neutralized_and_still_parse
   _hi_check "A fish include becomes true" test_fish_includes_become_true

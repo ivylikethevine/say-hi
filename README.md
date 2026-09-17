@@ -344,20 +344,22 @@ and are not.
        versions_ prose into the version table it promises.
 
 3. [ ] **What hi carries is linted against the target, not the client** —
-       `hi.sh`'s include scan drops a line naming a path no target has, but
-       its exemptions are assumptions about the target rather than checks:
-       nano's rule waves through any `include` mentioning `/usr/share/nano`,
-       vim's `runtime` and `$VIMRUNTIME`, the shell rules' `$ZSH`/`$OSH`,
-       micro's `import`. So an `include "/usr/share/nano/extra/*.nanorc"` in
-       your own `nanorc` ships clean and rings nano's bell on Fedora, Alpine,
-       and macOS — the Debian split that `settings/nanorc`'s own comment had
-       to reason out by hand, for hi's copy alone. **Do:** narrow each
-       exemption to what every platform ships (nano's to that one glob, not
-       the directory named anywhere in the line) and let the rest be ordinary
-       findings, which `hi-allow` and `_HI_INCLUDES=keep` already override.
-       **Ticks when:** a `nanorc` carrying the `extra` glob is a
-       `hi --doctor` row and a dropped line on the wire, with a `hi_payload`
-       case for it.
+       shipped: the nano rule. It exempted any `include` line merely
+       _mentioning_ `/usr/share/nano`, so a `/usr/share/nano/extra/*.nanorc`
+       (a Debian split, absent on Fedora, Alpine, and macOS) rode out clean
+       and cost the whole rcfile a bell; it now reads the path as one word and
+       exempts only what sits directly under that directory. What is left is
+       one exemption, `shfix`'s `$ZSH`/`$OSH`: those name a framework tree the
+       _target_ may not have, unlike the `$_HI_CONFIG_DIR` and `$_HI_ROOT`
+       beside them, which ride along. The other three the entry used to name
+       are not assumptions and want no change - vim's `runtime` searches the
+       target vim's own `&runtimepath` and is silent on a miss, `$VIMRUNTIME`
+       is defined by whichever vim the target has, and micro's `import` names
+       micro's own Go packages. **Do:** decide what a theme sourcing
+       `$ZSH/lib/*.zsh` should do on a target with no oh-my-zsh, against what
+       `tests/targets/framework_test.sh` pins today. **Ticks when:** that
+       decision is in `docs/INTEGRATIONS.md` and the framework e2e suite is
+       green on it.
 
 4. [ ] **The header closes on the right** — `_hi_row_line` opens every row
        with a pipe and joins cells with one, but never closes the last cell,

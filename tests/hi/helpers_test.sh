@@ -180,12 +180,14 @@ table="a:b\
 FIXTURE
   _hi_strip_awk >"$dir/strip.awk"
   awk -f "$dir/strip.awk" "$dir/x.sh"
-  out="$(cat "$dir/x.sh.strip")"
+  # in place, not a `.strip` sibling: the stripper writes each file back over
+  # itself in END (GLOSSARY: HI.35)
+  out="$(cat "$dir/x.sh")"
   case "$out" in "#!/bin/sh"*) ;; *) return 1 ;; esac
   case "$out" in *"a full-line comment"*) return 1 ;; *) ;; esac
   case "$out" in *"trailing comments stay"*) ;; *) return 1 ;; esac
   case "$out" in *"inside a heredoc, this line is data"*) ;; *) return 1 ;; esac
-  [ "$(sh -c '. "$1" >/dev/null; printf %s "$table"' _ "$dir/x.sh.strip" 2>/dev/null)" = "a:b c:d" ]
+  [ "$(sh -c '. "$1" >/dev/null; printf %s "$table"' _ "$dir/x.sh" 2>/dev/null)" = "a:b c:d" ]
 }
 
 function test_safe_path_rejects_relative_paths() {

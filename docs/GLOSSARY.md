@@ -607,11 +607,15 @@ explicitly to `exit`, since a signal that kills the subshell outright never
 reaches the `EXIT` trap; set in the function's own shell, the trap would
 replace the one `_hi` installed for its error log.
 
-**One `find -exec awk +`, then `mv`.** Each file's stripped copy lands in
-`<file>.strip` and is renamed back: nothing links to a stage just unpacked,
-so HI.09's four-process `cat` buys nothing here. Only the exec bit has to
-survive — `hi.sh` must stay executable for the relay — so it is noted before
-the rename and restored in one `chmod`.
+**One `find -exec awk +`, and no rename.** The stripper buffers each file and
+writes it back over itself in `END`, once every file in the batch has been
+read. The shape before it put each stripped copy in `<file>.strip` and renamed
+it back, which cost one `mv` a file — 40 in a `hi --doctor`, which stages
+twice, and the largest external cost that command had — and renaming over a
+file a runner still held open broke the Windows jobs. Writing in place leaves
+every mode alone too, so the exec bit `hi.sh` needs for the relay survives
+with nothing to note and restore; either way nothing links to a stage just
+unpacked, so HI.09's four-process `cat` buys nothing here.
 
 ## HI.40 hand-rolled sh quoting
 

@@ -350,7 +350,15 @@ function _hi_overlay_src() {
 #           paq, an `rtp:prepend` bootstrap). micro's init.lua reads the
 #           same, plus `AddRuntimeFile` (a plugin with `RTPlugin`); its
 #           `import` names micro's own Go packages and is left alone.
-#   nano    `include` of a path outside /usr/share/nano, which nano ships.
+#   nano    `include` of anything but a path *directly* under
+#           /usr/share/nano, which the nano package itself ships. A
+#           subdirectory of it is not: /usr/share/nano/extra is a Debian
+#           split that Fedora, Alpine, and macOS do not have, and a glob
+#           matching nothing costs the whole rcfile - nano says "Mistakes in
+#           '<rcfile>'" on the status bar and rings the bell. The path is
+#           read as one word, so a trailing comment cannot fool the rule.
+#           settings/nanorc reasons the same thing out by hand in a comment,
+#           for hi's own copy; this is that rule for yours.
 #   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
 #           of tpm). Line-oriented, but a finding ending in `\` takes its
 #           continuation lines with it.
@@ -441,7 +449,13 @@ function kindof(s,   v) {
     if (s ~ /vim\.cmd/ && s ~ /source[ \t]/) return "include"
     if (s ~ /require[ \t]*\(?[ \t]*["']/ && s !~ /require[ \t]*\(?[ \t]*["']vim[.]/) return "include"
   } else if (nano) {
-    if (s ~ /^[ \t]*include[ \t]/ && s !~ /\/usr\/share\/nano/) return "include"
+    if (s !~ /^[ \t]*include[ \t]/) return ""
+    v = s
+    sub(/^[ \t]*include[ \t]+/, "", v)
+    sub(/^["']/, "", v)
+    sub(/["' \t].*$/, "", v)
+    if (v ~ /^\/usr\/share\/nano\/?[^\/]*$/) return ""
+    return "include"
   } else if (tmux) {
     if (s ~ /@plugin/ || s ~ /(^|[ \t;{"'])run(-shell)?[ \t].*tpm/) return "plugin"
     if (s ~ /(^|[ \t;{"'])source(-file)?[ \t]/) return "include"
@@ -627,19 +641,14 @@ function _hi_stage_tar() {
     fi
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file (GLOSSARY: HI.35); strip.awk sits at $stage and
-    # matches no name above, so the stripper never eats its own script
+    # matches no name above, so the stripper never eats its own script. It
+    # buffers each file and writes it back over itself once the batch has been
+    # read, so there is no `<file>.strip` left to rename: that rename was one
+    # `mv` a file - 40 of them in a `hi --doctor`, which stages twice, and the
+    # largest external cost it had - and renaming over a file still held open
+    # is what broke the Windows runners. Writing in place also leaves every
+    # mode alone, so hi.sh stays 0755 for the relay with nothing to restore.
     find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
-    # `mv`, not scripts/lib.sh's _hi_write_back: that one writes through the
-    # existing inode to keep hardlinks and ACLs (GLOSSARY: HI.09) at four
-    # processes a file, and here nothing links to a tree just unpacked into a
-    # mktemp -d. Only the executable bit has to survive - hi.sh must stay 0755
-    # for the relay - so note it, rename, and restore it in one chmod.
-    local -a _hi_st_exec=()
-    while IFS= read -r f; do
-      [ -x "${f%.strip}" ] && _hi_st_exec+=("${f%.strip}")
-      mv -f "$f" "${f%.strip}" || exit 1
-    done < <(find "$_hi_st_root" -type f -name '*.strip')
-    ((${#_hi_st_exec[@]})) && chmod +x "${_hi_st_exec[@]}"
     _hi_tar_gz -C "$stage" "${stage_out[@]}"
   )
 }
@@ -766,8 +775,8 @@ function _hi_overlay_stream() {
 # GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/) }
-FNR == 1 && /^#!/ { print > out; next }
+FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/) }
+FNR == 1 && /^#!/ { buf[out] = buf[out] $0 "\n"; next }
 vim && /^[ \t]*"/ { next }
 el && /^[ \t]*;/ { next }
 lua && /^[ \t]*--/ { next }
@@ -775,7 +784,7 @@ tag != "" {
   line = $0
   if (dash) sub(/^\t+/, "", line)
   if (line == tag) tag = ""
-  print > out
+  buf[out] = buf[out] $0 "\n"
   next
 }
 /^[ \t]*#/ { next }
@@ -793,7 +802,13 @@ tag != "" {
     sub(/["']$/, "", m)
     tag = m
   }
-  print > out
+  buf[out] = buf[out] $0 "\n"
+}
+END {
+  for (f in seen) {
+    printf "%s", buf[f] > (f)
+    close(f)
+  }
 }
 AWK
 }
