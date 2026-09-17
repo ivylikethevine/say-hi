@@ -38,8 +38,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Getting help and contributing](#getting-help-and-contributing)
 - [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
-  - [What v1.0.0 Means](#what-v100-means)
-  - [Features](#features)
+  - [Before 1.0](#before-10)
   - [Post 1.0](#post-10)
 - [License](#license)
 
@@ -326,29 +325,11 @@ myself.
 What's left; nothing here is parked or descoped. An entry is deleted once
 its **Ticks when** holds.
 
-### What v1.0.0 Means
+### Before 1.0
 
-- [ ] **A stability contract is written down** — shipped as
-      [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-      **Ticks when** the tag commit turns `docs/SECURITY.md`'s _Supported
-      versions_ prose into the version table it promises.
-- [ ] **The settings pass is closed out** — the pre-1.0 read over the
-      settings surface, the config overlay, and the prompt programs has one
-      item left: a stale `~/.p10k.zsh` still ships powerlevel10k first. The
-      client counts powerlevel10k as in use when its config file exists, so
-      beside a `ZSH_THEME=robbyrussell` a target with system p10k draws p10k
-      over the theme actually in use; reading the rc for `powerlevel10k`
-      would fix that and miss a config that loads it from a sourced file.
-      **Do:** decide which failure is cheaper, and if the rc read, wire it
-      into `hi.sh`'s `_hi_prompt_list` with a `_hi_rc_last_match`. **Ticks
-      when** [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)'s _counts as
-      installed here_ column says the rule. What the same pass turned down,
-      with the reasons, is
-      [docs/SUPPORT.md's _Already turned down_](docs/SUPPORT.md#already-turned-down).
-
-### Features
-
-In this checkout, and not what the tag waits on either.
+Ordered by scope, narrowest first. An entry that names the tag in its **Ticks
+when** is one the 1.0.0 release itself waits on; the rest are in this checkout
+and are not.
 
 1. [ ] **A release says where the package went, and shows what changed** —
        shipped: `release.yml`'s `publish` leaves `tap` and `demo` slots in the
@@ -357,7 +338,74 @@ In this checkout, and not what the tag waits on either.
        `packages` GIF. **Ticks when:** the next real tag's release page shows
        the tap link and renders the GIF.
 
-2. [ ] **CI walks the upgrade path a tag creates** — every job today installs
+2. [ ] **A stability contract is written down** — shipped as
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into the version table it promises.
+
+3. [ ] **The settings pass is closed out** — the pre-1.0 read over the
+       settings surface, the config overlay, and the prompt programs has one
+       item left: a stale `~/.p10k.zsh` still ships powerlevel10k first. The
+       client counts powerlevel10k as in use when its config file exists, so
+       beside a `ZSH_THEME=robbyrussell` a target with system p10k draws p10k
+       over the theme actually in use; reading the rc for `powerlevel10k`
+       would fix that and miss a config that loads it from a sourced file.
+       **Do:** decide which failure is cheaper, and if the rc read, wire it
+       into `hi.sh`'s `_hi_prompt_list` with a `_hi_rc_last_match`.
+       **Ticks when:** [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)'s _counts
+       as installed here_ column says the rule. What the same pass turned
+       down, with the reasons, is
+       [docs/SUPPORT.md's _Already turned down_](docs/SUPPORT.md#already-turned-down).
+
+4. [ ] **The "hi closing!" line goes** — `load.sh` prints it as the last thing
+       a session says, after the `Disconnected` footer. It is also the test
+       harness's default end-of-session marker, so the delete is not one
+       line. **Do:** decide whether the words go or the whole trailing
+       segment with them, then re-point `tests/lib/process.sh`'s
+       `closing="hi closing"` default, `ssh_relay_test.sh`'s
+       `_hi_relay_closings`, and `load_test.sh`'s footer case at the footer
+       instead, and drop `docs/tapes/demo.tape`'s note about the line.
+       **Ticks when:** a session ends on the footer, and `--group fast` and
+       the ssh e2e suites are green on the new marker.
+
+5. [ ] **A toggle turns off the "hi loaded with" line** — `load.sh` prints
+       the greeting and the `init:`/`copy:`/`load:` timers on every load, and
+       nothing turns it off short of `_HI_DISABLE_HEADER`. **Do:** add one
+       toggle the usual five places — `_HI_TOGGLES` in `common/core.sh`, the
+       mirror in `common/config.fish`, the local-only gate in
+       `common/paths.sh`, `docs/SETTINGS.md`'s _Every setting_ table, and a
+       `scripts/configure.sh` menu row — defaulting off, so the six vhs tapes
+       and `ci.yml`'s pty scrape keep finding the line. **Ticks when:** the
+       toggle hides both halves and the roster-agreement cases in
+       `tests/common/paths_test.sh` stay green.
+
+6. [ ] **What hi carries is linted against the target, not the client** —
+       `hi.sh`'s include scan drops a line naming a path no target has, but
+       its exemptions are assumptions about the target rather than checks:
+       nano's rule waves through any `include` mentioning `/usr/share/nano`,
+       vim's `runtime` and `$VIMRUNTIME`, the shell rules' `$ZSH`/`$OSH`,
+       micro's `import`. So an `include "/usr/share/nano/extra/*.nanorc"` in
+       your own `nanorc` ships clean and rings nano's bell on Fedora, Alpine,
+       and macOS — the Debian split that `settings/nanorc`'s own comment had
+       to reason out by hand, for hi's copy alone. **Do:** narrow each
+       exemption to what every platform ships (nano's to that one glob, not
+       the directory named anywhere in the line) and let the rest be ordinary
+       findings, which `hi-allow` and `_HI_INCLUDES=keep` already override.
+       **Ticks when:** a `nanorc` carrying the `extra` glob is a
+       `hi --doctor` row and a dropped line on the wire, with a `hi_payload`
+       case for it.
+
+7. [ ] **The header closes on the right** — `_hi_row_line` opens every row
+       with a pipe and joins cells with one, but never closes the last cell,
+       so the block has a left edge and no right one. **Do:** pad each row to
+       `_hi_draw_width` and append the closing pipe, taking that column out
+       of every row's budget (the per-cell reserve in `_hi_row_line` is 3
+       today); the banner already draws to the full width, so the two line
+       up. **Ticks when:** every header row, `full_check`'s rows included,
+       ends at the same column as the banner, at 80 and at a narrow
+       `_HI_MAX_WIDTH`.
+
+8. [ ] **CI walks the upgrade path a tag creates** — every job today installs
        one version into a fresh box, so nothing exercises the case
        [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
        about: a shell that loaded the _previous_ release, the tree rewritten

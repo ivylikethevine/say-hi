@@ -510,6 +510,11 @@ function _hi_cell_ip() {
       return 0
     }
   fi
+  # Display only, and the last thing that happens to the list: the comma
+  # stays this cell's internal separator, which is what the branches above
+  # build and what _hi_ip_filter's peel reads, so nothing that splits on it
+  # has to learn about the space.
+  ips="${ips//,/, }"
   printf -v "$1" '%s' "${BLUE}IP: ${ips:-?}"
 }
 

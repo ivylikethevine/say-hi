@@ -430,15 +430,14 @@ function test_uptime_cell_is_humanized() {
   [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
-# _hi_cell_ip: a comma-joined list of dotted-quad addresses, or "?" - the
-# shape is pinned rather than a value, which depends on this box's own
-# network config
+# _hi_cell_ip: dotted-quad addresses joined with ", ", or "?" - the shape is
+# pinned rather than a value, which depends on this box's own network config
 function test_ip_cell_has_a_shape() {
   local out
   # none: in a container the only address is often docker's 172.*, hidden by
   # default, and an empty cell has no shape to check
   _HI_IP_HIDE=none _hi_cell_ip out
-  [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,[0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
+  [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,\ [0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
 }
 
 # used/total, one unit on total only ("6/60G", not "6G/60G" - the used
@@ -1113,7 +1112,7 @@ function test_ip_cell_on_linux_reads_iproute2() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"')"
-  [[ "$out" == *"[IP: 10.0.0.5,192.0.2.10]"* ]] || {
+  [[ "$out" == *"[IP: 10.0.0.5, 192.0.2.10]"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
   }
@@ -1127,7 +1126,7 @@ function test_ip_cell_on_linux_falls_back_to_hostname() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_FAKE_IP_SILENT=1)"
-  [[ "$out" == *"[IP: 198.51.100.7,198.51.100.8]"* ]] || {
+  [[ "$out" == *"[IP: 198.51.100.7, 198.51.100.8]"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
   }
@@ -1252,7 +1251,7 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
   }
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
-  [[ "$out" == *"[IP: 172.17.0.2,10.0.0.5]"* ]] || {
+  [[ "$out" == *"[IP: 172.17.0.2, 10.0.0.5]"* ]] || {
     _hi_cecho " | none got: $out" "$RED"
     return 1
   }

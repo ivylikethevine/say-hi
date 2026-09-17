@@ -2381,7 +2381,10 @@ function test_mkpkg_without_git_history_stamps_now_and_warns() {
 
 # the whole build as the command runs it, past staging, with a stand-in nfpm:
 # one call per packager at the stamped version, and --source-tarball=<file>
-# carrying the tarball into ARTIFACTS beside what nfpm left
+# carrying the tarball into ARTIFACTS beside what nfpm left. The stand-in
+# writes a byte rather than touching an empty file: write_checksums refuses a
+# zero-byte artifact (its own case above), so an empty stand-in would fail
+# this case for that reason instead of the one it is about.
 function test_mkpkg_builds_every_packager_and_ships_the_tarball() {
   local bin="$_HI_WORKDIR/fakenfpm" dist="$_HI_WORKDIR/fakenfpm-dist" out
   mkdir -p "$bin"
@@ -2393,7 +2396,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 printf '%s %s\n' "$p" "$HI_VERSION" >>"$t.calls"
-: >"$t/say-hi-$HI_VERSION.$p"
+printf '%s\n' "say-hi $HI_VERSION $p" >"$t/say-hi-$HI_VERSION.$p"
 EOF
   chmod +x "$bin/nfpm"
   out="$(PATH="$bin:$PATH" "$_HI_PKG_DIR/mkpkg.sh" --version 9.9.9 --outdir "$dist" \
