@@ -90,10 +90,13 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   else
     # `hi` named in the list takes the prompt back from a program the rc
     # already started: its precmd would redraw over hi's every prompt. Unset,
-    # or a list that ran out, leaves the rc's own choice alone.
+    # or a list that ran out, leaves the rc's own choice alone. starship
+    # renamed its zsh hooks in v1.3.0 (prompt_starship_* over the bare
+    # starship_*); both names are filtered since either can be loaded.
+    # p10k's are _p9k_preexec1/_p9k_preexec2, never a bare _p9k_preexec.
     if _hi_prompt_named_hi; then
-      precmd_functions=(${precmd_functions:#(starship_precmd|_p9k_precmd|_omp_precmd|_omp_hook|__hi_plgo_precmd)})
-      preexec_functions=(${preexec_functions:#(starship_preexec|_p9k_preexec|_omp_preexec)})
+      precmd_functions=(${precmd_functions:#(starship_precmd|prompt_starship_precmd|_p9k_precmd|_omp_precmd|_omp_hook|__hi_plgo_precmd)})
+      preexec_functions=(${preexec_functions:#(starship_preexec|prompt_starship_preexec|_p9k_preexec1|_p9k_preexec2|_omp_preexec)})
     fi
     # git info through a precmd out-var, never a $( ) in PS1 - the fork-free,
     # pw3nage-safe form bash.sh's ps1() uses

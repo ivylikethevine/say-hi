@@ -203,10 +203,14 @@ function run_ssh_tests() {
     # unshaped). netem goes on inside the container (NET_ADMIN,
     # iproute2 in the image), where it shapes the container's own eth0 and
     # nothing on the host.
-    _HI_SSH_RUN_ARGS="--cpus 0.1 --memory 64m --cap-add NET_ADMIN" \
-      _HI_SSH_SHAPE_CMD="tc qdisc add dev eth0 root netem delay 300ms rate 128kbit" \
-      _HI_SSH_CASE_TIMEOUT=300 \
-      _hi_par_case starved _hi_ssh_run_case starved "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+    if _hi_capable netem; then
+      _HI_SSH_RUN_ARGS="--cpus 0.1 --memory 64m --cap-add NET_ADMIN" \
+        _HI_SSH_SHAPE_CMD="tc qdisc add dev eth0 root netem delay 300ms rate 128kbit" \
+        _HI_SSH_CASE_TIMEOUT=300 \
+        _hi_par_case starved _hi_ssh_run_case starved "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+    else
+      _hi_skip "[starved]" "no netem qdisc on this host (modprobe sch_netem)"
+    fi
 
     # sshd shapes that never hand the command to the user's shell, or hand
     # it to a restricted one. `ForceCommand` (and a `command=` on the key,

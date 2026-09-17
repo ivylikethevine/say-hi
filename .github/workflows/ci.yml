@@ -865,6 +865,14 @@ jobs:
         with:
           tools: nfpm
 
+      # the ssh suite's starved case needs the netem qdisc to shape a
+      # container's own link; ubuntu-latest doesn't load it by default. `||
+      # true`: a runner image that ever blocks this degrades to the case's
+      # own explicit skip (tests/lib/fixtures.sh's netem capability) under
+      # --require-run below, rather than failing this step outright.
+      - name: Load the netem qdisc for the ssh suite's starved case
+        run: sudo modprobe sch_netem || true
+
       # --require-run: here a skip is a broken runner, not an optional
       # backend. runner_test.sh checks the matrix's slices partition the
       # e2e group.

@@ -17,7 +17,7 @@
 # so moving this to a later Ubuntu release is a deliberate hand edit too, same
 # as fish37.Dockerfile's floor - dependabot still keeps the digest current
 # within 26.04.
-FROM ubuntu:26.04@sha256:513c074113a871b51a8d16ab445c88779d6452d937a164fb5cc479f32668a41d
+FROM ubuntu:26.04@sha256:cd21a4f68a617580279d4b091cb18e3af9fa8a87500665f0ae5f7f757d17d367
 # The version is *asserted*, not pinned to an exact fish build, for the same
 # reason fish37.Dockerfile gives: an exact pin breaks the build outright the
 # day 26.04 ships a security update, and a broken build here means the check

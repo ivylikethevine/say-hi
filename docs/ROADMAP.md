@@ -15,30 +15,7 @@ not propose it again.
 
 ## Open
 
-Highest first. The first two gate the tag; the rest do not.
-
-1. [ ] **The member rename needs its release note.** Seven overlay files
-       are read under new names (`vimrc`, `nanorc`, `init.el`, `bashrc`,
-       `zshrc`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`); an existing
-       overlay's copies under the old names stop applying, and only
-       `hi --doctor` says so. **Do:** the pull request carrying this branch
-       writes that in its `## Release note` section, `mv` included, so the
-       release page carries it. **Ticks when** the PR is merged with it.
-2. [ ] **`_HI_PROMPT_TOOL=hi` is tested against stub hooks, not real ones.**
-       `common/bash.sh` and `common/zsh.zsh` unhook `starship_precmd`,
-       `_p9k_precmd`, and oh-my-posh's hooks by name; `tests/common/rc_test.sh`
-       proves the mechanism with functions of the same name. **Do:** a
-       `prompt:hi` row in `tests/targets/framework_test.sh` - the starship
-       and p10k images, connected with `_HI_PROMPT_TOOL=hi`, asserting hi's
-       prompt drew. **Ticks when** both cases are green in `--group backends`.
-3. [ ] **The ssh suite's `starved` case fails on this machine.** "could not
-       shape the target", before and after this pass, so it is the container
-       shaping and not hi. **Do:** find whether it is a local docker limit
-       (cgroup or memory shaping the case asks for) or a real regression, and
-       either fix the case's setup or record the host requirement in
-       `docs/TESTING.md`. **Ticks when** `--group e2e` is green here, or the
-       skip is explicit.
-4. [ ] **A stale `~/.p10k.zsh` still ships powerlevel10k first.** The client
+1. [ ] **A stale `~/.p10k.zsh` still ships powerlevel10k first.** The client
        counts powerlevel10k as in use when its config file exists; beside a
        `ZSH_THEME=robbyrussell` that means a target with system p10k draws
        p10k over the theme in use. Reading the rc for `powerlevel10k` would
@@ -88,3 +65,30 @@ Highest first. The first two gate the tag; the rest do not.
   would then disable it and ship the rest of `fish_variables`.
 - **Stripping comments from `.toml` and `.yml`.** The stripper also drops
   indentation, which breaks YAML.
+- **A carried `.gitconfig`.** git has no overlay member at all despite being
+  the most config-sensitive tool in a session; identity, signing, and
+  credential-helper settings are exactly what a shared or visited box must
+  not inherit from a config file that rode over the wire - closer to the
+  `~/.bashrc` reasoning above (tokens a config file can carry) than to the
+  prompt-config precedent (a file with nothing secret in it).
+- **`inputrc` / readline keybindings.** Already the answer in prose
+  ([SETTINGS.md](SETTINGS.md#every-setting): "hi ships nobody's shell
+  preferences - no history sizing, keybindings..."); a keybinding is a
+  preference laid on top of every shell you open, not a per-connect config.
+- **zoxide / atuin / fzf configs.** Already the documented answer for their
+  shell hooks ([INTEGRATIONS.md](INTEGRATIONS.md#shell-hooks-of-your-own):
+  "yours to add"); the same reasoning extends to a config file none of the
+  three needs hi to carry - each reads its own on `$PATH` discovery, no rc
+  line required for the config half.
+- **prezto's prompt as a `_HI_PROMPT_TABLE` row.** Unlike oh-my-zsh's or
+  bash-it's self-contained theme file, a prezto theme is an autoloaded
+  function depending on prezto's own modules (`pmodload`) being loaded
+  first - carrying just the theme file would produce a theme with half its
+  dependencies missing, a materially different carry-and-source story than
+  every existing `fw` row.
+- **Running a plugin manager's own bootstrap.** zinit, zplug, antigen,
+  fisher, and the rest are already neutered by the include lint's verb-line
+  rewrite (`hi.sh`'s dialect awk). A plugin manager's job is fetching and
+  running code at shell start, which is exactly what the lint exists to stop
+  a carried rc from doing silently - the neuter-not-run answer already in
+  place is the intended one.

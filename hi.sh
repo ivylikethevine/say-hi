@@ -63,8 +63,8 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
 _HI_OVERLAY_FILES=(settings.sh colors packages packages.d vimrc init.lua nanorc
-  init.el aliases.sh plugins.d bashrc zshrc config.fish starship.toml
-  oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml p10k.zsh oh-my-zsh.zsh-theme oh-my-bash.theme.sh tide.vars theme.yml bat.conf
+  init.el config.toml aliases.sh plugins.d bashrc zshrc config.fish starship.toml
+  oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml p10k.zsh oh-my-zsh.zsh-theme oh-my-bash.theme.sh bash-it.theme.bash tide.vars theme.yml bat.conf
   tmux.conf micro/settings.json micro/bindings.json micro/init.lua)
 
 # The overlay members renamed before 1.0, old:new. hi reads only the new
@@ -197,6 +197,14 @@ function _hi_prompt_home() {
       [ -f "$_hi_ph_f" ] && break
     done
     ;;
+  bash-it.theme.bash)
+    # bash_it.sh's own loader checks exactly these two, in this order, for a
+    # bare theme name - the custom themes dir, then the built-in one
+    _hi_rc_theme BASH_IT_THEME "$HOME/.bashrc" _hi_ph_t || return 1
+    for _hi_ph_f in {"${BASH_IT_CUSTOM:-${BASH_IT:-$HOME/.bash_it}/custom}/themes","${BASH_IT:-$HOME/.bash_it}/themes"}/"$_hi_ph_t/$_hi_ph_t".theme.bash; do
+      [ -f "$_hi_ph_f" ] && break
+    done
+    ;;
   esac
   [ -f "$_hi_ph_f" ] && _hi_out "${2:-}" "$_hi_ph_f"
 }
@@ -288,6 +296,7 @@ function _hi_overlay_src() {
   bat.conf) [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_os_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
   vimrc) _hi_os_f="${_HI_VIMRC:-}" ;;
   init.lua) _hi_os_f="${_HI_NVIMRC:-}" ;;
+  config.toml) _hi_os_f="${_HI_HELIXRC:-}" ;;
   nanorc) _hi_os_f="${_HI_NANORC:-}" ;;
   init.el) _hi_os_f="${_HI_EMACSRC:-}" ;;
   tmux.conf) _hi_os_f="${_HI_TMUX_CONF:-}" ;;

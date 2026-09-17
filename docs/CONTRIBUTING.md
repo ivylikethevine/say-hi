@@ -196,11 +196,12 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `packages.d/` and its `color=` line, `plugins.d/` and its hook names,
-  `vimrc`, `init.lua`, `nanorc`, `init.el`, `tmux.conf`, `micro/`'s
-  `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`, `bashrc`,
-  `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`, `starship.toml`,
-  `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `tide.vars`,
-  `theme.yml`, and `bat.conf`), their formats, the XDG path, and the
+  `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`, `tmux.conf`,
+  `micro/`'s `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`,
+  `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,
+  `starship.toml`, `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`,
+  `bash-it.theme.bash`, `tide.vars`, `theme.yml`, and `bat.conf`), their
+  formats, the XDG path, and the
   `_HI_CONFIG_DIR` override. The rule behind the names: a member is called
   what its tool calls the file where the tool has a fixed name, and carries
   the tool's name and extension where it has none.

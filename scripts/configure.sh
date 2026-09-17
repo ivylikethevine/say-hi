@@ -417,7 +417,7 @@ function _hi_editors_preview() {
     # shellcheck source=../settings/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     local e body
-    for e in nano vim nvim emacs micro; do
+    for e in nano vim nvim emacs micro hx; do
       body="$(alias "$e" 2>/dev/null)" || continue
       eval "body=${body#*=}"
       printf '%-5s -> %s\n' "$e" "$body"
@@ -508,11 +508,12 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HEADER|1||||connect/disconnect header - its items are under Header"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status in the prompt"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment in the prompt - (myproj) for a venv, ..."
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro"
+  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix"
   "_HI_DISABLE_VIM|1||||vim and nvim - hi's vimrc and init.lua"
   "_HI_DISABLE_NANO|1|||nano|nano - hi's nanorc"
   "_HI_DISABLE_EMACS|1|||emacs|emacs - hi's init file"
   "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
+  "_HI_DISABLE_HELIX|1|||hx|helix - hi's config.toml"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
   "_HI_DISABLE_LOCAL|1||||all of the above on this machine too, not just where you hi"

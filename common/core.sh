@@ -33,7 +33,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
-    _HI_DISABLE_MICRO
+    _HI_DISABLE_MICRO _HI_DISABLE_HELIX
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
     _HI_DISABLE_BANNER)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
@@ -661,7 +661,7 @@ function _hi_prompt_end() {
 # The editors a session's $EDITOR can be, best first: $_HI_EDITOR's pick when
 # the target has it, else the first of these it does (load.sh's
 # _hi_session_editor); scripts/lib.sh's _hi_is_editor validates against it.
-_HI_EDITORS="nvim vim micro nano emacs"
+_HI_EDITORS="nvim vim micro hx nano emacs"
 
 # Every prompt program hi hands the prompt to, one row each:
 # name|shells it fits|how it is found|the overlay member(s) its home config
@@ -675,6 +675,7 @@ _HI_PROMPT_TABLE=(
   'powerlevel10k|zsh|fw|p10k.zsh'
   'oh-my-zsh|zsh|fw|oh-my-zsh.zsh-theme'
   'oh-my-bash|bash|fw|oh-my-bash.theme.sh'
+  'bash-it|bash|fw|bash-it.theme.bash'
   'tide|fish|fw|tide.vars'
   'starship|bash zsh fish|bin|starship.toml'
   'oh-my-posh|bash zsh fish|bin|oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml'

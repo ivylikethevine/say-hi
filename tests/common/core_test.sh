@@ -1028,10 +1028,14 @@ function test_prompt_tool_needs_setting_program_and_shell() {
   ! _HI_PROMPT_TOOL=powerline PATH="$(_hi_fake_path pl powerline):$PATH" _hi_prompt_tool bash || return 1
   # a framework is asked about only in its own shell
   (
-    function _hi_prompt_fw() { [ "$1" = oh-my-bash ]; }
+    function _hi_prompt_fw() { [ "$1" = oh-my-bash ] || [ "$1" = bash-it ]; }
     ! _HI_PROMPT_TOOL="tide powerlevel10k oh-my-zsh" _hi_prompt_tool zsh || exit 1
     [ "$(_HI_PROMPT_TOOL="tide oh-my-bash" _hi_prompt_tool bash)" = oh-my-bash ] || exit 1
-    ! _HI_PROMPT_TOOL=oh-my-bash _hi_prompt_tool zsh
+    ! _HI_PROMPT_TOOL=oh-my-bash _hi_prompt_tool zsh || exit 1
+    # two bash fw rows: the walk picks the first that fits, by $1, not either
+    # answering for the other (common/bash.sh's _hi_prompt_fw once did)
+    [ "$(_HI_PROMPT_TOOL="oh-my-bash bash-it" _hi_prompt_tool bash)" = oh-my-bash ] || exit 1
+    [ "$(_HI_PROMPT_TOOL="bash-it oh-my-bash" _hi_prompt_tool bash)" = bash-it ]
   )
 }
 
