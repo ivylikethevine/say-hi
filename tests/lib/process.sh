@@ -312,14 +312,16 @@ function _hi_session_ready() {
 # suite share this one driver instead of forking it:
 #   -c <closing>  the line whose appearance means the session is over - the
 #                 feeder holds the pipe open until it lands, and it is
-#                 asserted as a marker. Default: load()'s "hi closing"; a tier
-#                 that never reaches load.sh names its own.
+#                 asserted as a marker. Default: load()'s own last line, the
+#                 "| session: <duration>" it prints whatever the header
+#                 toggle says; a tier that never reaches load.sh names its
+#                 own.
 #   -m <marker>   a further must-appear transcript marker (repeatable)
 #   -f <fn>       runs inside the feeder between the marker line and the
 #                 `exit`: its stdout is typed into the live session, and it
 #                 may also do host-side work mid-session
 function _hi_interactive_case() {
-  local closing="hi closing" feeder=""
+  local closing="| session: " feeder=""
   local -a extra=()
   while :; do
     case "${1:-}" in

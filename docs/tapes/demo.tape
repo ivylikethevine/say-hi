@@ -19,8 +19,8 @@
 # The Hide block paces itself with Wait+Screen on sentinel text instead of
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
 # matching its own sentinel. Visible sleeps are reading time only. The exit
-# waits on /Disconnected/, which banner() prints, rather than load.sh's
-# "hi closing!": the teardown reliably beats vhs's scrape to that line and the
+# waits on /Disconnected/, which banner() prints, rather than load.sh's own
+# last line: the teardown reliably beats vhs's scrape to that line and the
 # wait times out, on every backend and not only nomad's.
 
 Output docs/tapes/demo.gif

@@ -225,6 +225,7 @@ function _hi_prompt_list() {
         case "$_hi_pl_r" in
         *'|bin|'*) command -v "$_hi_pl_t" >/dev/null 2>&1 ;;
         tide'|'*) [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/tide.fish" ] ;;
+        powerlevel10k'|'*) _hi_p10k_in_use && _hi_prompt_home "${_hi_pl_r##*|}" _hi_pl_f ;;
         *) _hi_prompt_home "${_hi_pl_r##*|}" _hi_pl_f ;;
         esac && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
       done
@@ -271,6 +272,29 @@ function _hi_posh_rc_config() {
   _hi_pc_v="${_hi_pc_v/#\$HOME/$HOME}"
   _hi_pc_v="${_hi_pc_v/#\$\{HOME\}/$HOME}"
   [ -n "$_hi_pc_v" ] && _hi_out "${1:-}" "$_hi_pc_v"
+}
+
+# _hi_p10k_in_use - does the zsh rc load powerlevel10k *as the theme*? Its
+# config file is not that signal. p10k's wizard appends
+# `[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh`, guarded so it goes inert
+# when the file is gone - so a `~/.p10k.zsh` left behind by a theme switch
+# outlives the theme it configured, and the file alone read as "in use"
+# shipped p10k over the `ZSH_THEME` actually in force. What loads the theme is
+# one of three shapes, and all of them name it twice or name its repo:
+# `ZSH_THEME=powerlevel10k/powerlevel10k` (oh-my-zsh's entry point for it, the
+# one _hi_prompt_home's oh-my-zsh arm turns down as "not a theme file"), a
+# source of `powerlevel10k.zsh-theme` wherever it is installed, or a plugin
+# manager naming `romkatv/powerlevel10k`. Missed: an rc that loads it from a
+# file it sources - the cheaper failure of the two, since it costs the p10k
+# prompt on a target rather than drawing a prompt the user does not use, and
+# `_HI_PROMPT_TOOL=powerlevel10k` names it past any detection. Every other
+# framework here is found the same way, by what the rc sets
+# (docs/INTEGRATIONS.md's _counts as installed here_).
+function _hi_p10k_in_use() {
+  local _hi_pk=""
+  _hi_rc_last_match '^[^#]*(powerlevel10k|romkatv)(/powerlevel10k|\.zsh-theme)' \
+    _hi_pk "${ZDOTDIR:-$HOME}/.zshrc"
+  [ -n "$_hi_pk" ]
 }
 
 # _hi_overlay_src <member> [outvar] - where an overlay member is packed from:

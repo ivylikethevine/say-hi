@@ -297,6 +297,9 @@ function test_oh_my_posh_config_rides_from_home_or_overlay() {
 # powerlevel10k's config, the theme file the rc's last ZSH_THEME / OSH_THEME
 # names (oh-my-zsh's custom one over its stock copy), and of fish's universal
 # variables the tide_ lines alone - never the rest, which can hold secrets.
+# The .zshrc here names agnoster and never loads powerlevel10k, so the
+# ~/.p10k.zsh beside it is the stale one _hi_p10k_in_use exists to ignore:
+# every case that wants p10k on the list names it in $_HI_PROMPT_TOOL.
 function _hi_fw_home_fixture() {
   local h="$_HI_WORKDIR/fw-home"
   mkdir -p "$h/.oh-my-zsh/custom/themes" "$h/.oh-my-zsh/themes" "$h/.oh-my-bash/themes/font" "$h/.config/fish"
@@ -337,12 +340,23 @@ function test_prompt_list_is_what_home_has() {
   local h="$_HI_WORKDIR/fw-home" p
   _hi_fw_home_fixture
   p="$(_hi_fake_path list-bins starship powerline-go)"
+  # The fixture is the stale-config case: a ~/.p10k.zsh beside a .zshrc whose
+  # ZSH_THEME is agnoster. p10k is not in use here, so it is not on the list -
+  # each $( ) is its own subshell, so _hi_prompt_list's memo never carries
+  # between these calls.
   # prefix assignments, not a subshell's exports: _hi_tool_home_unpacked's
   # own already are, and the linter tracks the two as one
   [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
-    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ] &&
+    "oh-my-zsh oh-my-bash starship powerline-go" ] &&
     [ "$(HOME="$h" _HI_PROMPT_TOOL="tide hi" _hi_prompt_list)" = "tide hi" ] &&
-    [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ]
+    [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ] ||
+    return 1
+  # ...and it is, the moment the rc loads the theme rather than just its
+  # config. Appended last: the fixture truncates .zshrc, so every other case
+  # that calls it gets the unloaded rc back.
+  printf 'source ~/powerlevel10k/powerlevel10k.zsh-theme\n' >>"$h/.zshrc"
+  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
+    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ]
 }
 
 # The payload is an allow list; this is its drift guard. Exact match on the

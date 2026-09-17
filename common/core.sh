@@ -35,7 +35,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
     _HI_DISABLE_MICRO _HI_DISABLE_HELIX
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
-    _HI_DISABLE_BANNER)
+    _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
