@@ -145,10 +145,25 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           rc=0
-          out="$(timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
+          # Streamed through `tee`, not captured: a session that hangs until
+          # `timeout` kills it wrote nothing at all into `out="$( ... )"`, so a
+          # red step said only that it was red. tee puts every line in the log
+          # as it lands - GitHub stamps each one, so the log also shows where
+          # the time went - and keeps the copy the assertions below read.
+          # `pipefail` makes the pipeline's status hi.sh's own, and `|| rc=$?`
+          # keeps `set -e` from ending the step before those assertions run.
+          # LogLevel=DEBUG1, not ERROR: with no output at all, "did ssh even
+          # connect and authenticate" is the first thing to rule out. Both are
+          # here to diagnose a hang and belong back at ERROR, captured, once it
+          # is understood.
+          log="$HOME/hi-gitbash.out"
+          echo "running: hi.sh -> ${USERNAME:-$(whoami)}@127.0.0.1, 120s budget"
+          timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 'echo HI_GITBASH_OK; hi_info' 2>&1)" || rc=$?
-          printf '%s\n' "$out"
+            -o LogLevel=DEBUG1 "${USERNAME:-$(whoami)}@127.0.0.1" \
+            'echo HI_GITBASH_OK; hi_info' 2>&1 | tee "$log" || rc=$?
+          echo "the session returned $rc"
+          out="$(cat "$log")"
           printf '%s\n' "$out" | grep -q HI_GITBASH_OK
           if printf '%s\n' "$out" | grep -q "hi from PowerShell"; then
             echo "Git Bash was the shell, yet hi fell back to PowerShell" >&2
@@ -327,15 +342,21 @@ jobs:
           host=127.0.0.1
           ssh -p 2222 -i "$HOME/wsl-loop" -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR \
-            "$user@$host" true 2>/dev/null || {
+            "$user@$host" true 2>/dev/null && echo "plain ssh to $host:2222 answers" || {
             host="$(cat "$HOME/wsl-host")"
             echo "127.0.0.1:2222 is not relayed into WSL - using the distribution's address $host"
           }
           rc=0
-          out="$(timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
+          # Streamed through `tee`, not captured, and ssh raised to DEBUG1 -
+          # the Git Bash loopback above carries the whole reasoning.
+          log="$HOME/hi-wsl.out"
+          echo "running: hi.sh -> $user@$host:2222, 120s budget"
+          timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || rc=$?
-          printf '%s\n' "$out"
+            -o LogLevel=DEBUG1 "$user@$host" \
+            'echo HI_WSL_OK; hi_info' 2>&1 | tee "$log" || rc=$?
+          echo "the session returned $rc"
+          out="$(cat "$log")"
           printf '%s\n' "$out" | grep -q HI_WSL_OK
           # the session runs out of the tree hi shipped - $_HI_HOME is a
           # `mktemp -d -t <client user>.hi.XXXXXX` on the target, named for the
@@ -389,4 +410,3 @@ jobs:
           set -euo pipefail
           echo "shards: $RESULT"
           [ "$RESULT" = success ]
-
