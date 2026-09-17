@@ -5,17 +5,17 @@ home, the doc named for it below, and every other page links there.
 
 ## Using hi
 
-| Doc                                                                          | Covers                                                                                                             |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [Settings](SETTINGS.md)                                                      | The wizard, presets, and the config overlay: every toggle and environment variable hi reads.                       |
-| [Integrations](INTEGRATIONS.md)                                              | The tools hi wires in where a target has them: your prompt program, mise, direnv, bat, eza, tmux, and the rest.    |
-| [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and groups.                           |
-| [Compatibility](COMPATIBILITY.md)                                            | Every target, OS, and shell hi answers to, and every runtime, shell, and feature answered **no**, and why.         |
-| [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, and what a package leaves for you to do.                       |
-| [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, and what response to expect.                               |
-| [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, supported versions, and how to report a vulnerability.              |
-| [Man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1)     | `man hi`: every flag, setting, and exit status; `hi --help` is its short form. A roff page, so not on the site.    |
-| [tldr page](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md) | The eight-example draft for tldr-pages, kept in step with `common/flags` by the lint gate. Not on the site either. |
+| Doc                                                                          | Covers                                                                                                                                  |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [Settings](SETTINGS.md)                                                      | The wizard, presets, and the config overlay: every toggle and environment variable hi reads.                                            |
+| [Integrations](INTEGRATIONS.md)                                              | The tools hi wires in where a target has them: your prompt program, mise, direnv, bat, eza, tmux, and the rest.                         |
+| [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and groups.                                                |
+| [Compatibility](COMPATIBILITY.md)                                            | Every target, OS, and shell hi answers to, and every runtime, shell, and feature answered **no**, and why.                              |
+| [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, and what a package leaves for you to do.                                            |
+| [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, what response to expect, and the changes already turned down, with the reasons. |
+| [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, supported versions, and how to report a vulnerability.                                   |
+| [Man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1)     | `man hi`: every flag, setting, and exit status; `hi --help` is its short form. A roff page, so not on the site.                         |
+| [tldr page](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md) | The eight-example draft for tldr-pages, kept in step with `common/flags` by the lint gate. Not on the site either.                      |
 
 ## Understanding it
 
@@ -31,7 +31,6 @@ home, the doc named for it below, and every other page links there.
 | Doc                                             | Covers                                                                                                                                               |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Contributing](CONTRIBUTING.md)                 | The gate, what CI runs, what a review bounces on, what 1.x will not break, which docs change with what, AI-assisted contributions, push protection.  |
-| [Roadmap](ROADMAP.md)                           | The settings, overlay, and prompt-program pass before 1.0: what is still open, and the changes turned down in it, with the reasons.                  |
 | [Testing](TESTING.md)                           | The runner, suite groups, parallel cases, coverage, the test images, the lint gate, test levers, relaying.                                           |
 | [Releasing](RELEASING.md)                       | The maintainer's runbook: channels not shipped, cutting a release, the release environment, publishing each channel, reproducibility, the demo GIFs. |
 | [Governance](GOVERNANCE.md)                     | Who decides, the roles, how a change gets in, contributor certification, sensitive access, and continuity.                                           |

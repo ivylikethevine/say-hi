@@ -9,6 +9,8 @@ _hi_rc_loading=1
 # The tree from this file's own path: %x is this file, :A absolute, :h up one.
 # GLOSSARY: HI.33
 : "${_HI_HOME:=${${(%):-%x}:A:h:h:h}}"
+# see common/bash.sh: an rc re-sourced after an in-place upgrade re-derives
+unset _hi_core_loaded
 source "$_HI_HOME/say-hi/common/core.sh"
 source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"

@@ -17,6 +17,12 @@ _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 : "${_HI_HOME:=$(cd -P "$_hi_d/../.." && pwd)}"
 unset _hi_d
+# core.sh's load guard is a no-op *within* one process, and this file is the
+# one place that is wrong: a shell outlives the tree under it, and re-sourcing
+# an rc after an in-place upgrade has to re-derive every path rather than keep
+# the version the shell loaded first. load.sh clears it for the same reason on
+# a target. GLOSSARY: HI.60
+unset _hi_core_loaded
 # shellcheck source=./core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
 # shellcheck source=./git_prompt.sh
