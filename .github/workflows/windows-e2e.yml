@@ -136,39 +136,6 @@ jobs:
           Set-Content -Path $file -Value $key
           icacls $file /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'
 
-      # How big a heredoc can Git Bash push through a command substitution?
-      # The `bash -x` trace put the stall on hi.sh's `cat <<REMOTE` in
-      # _hi_remote_middle - the one heredoc that interpolates the armored
-      # payload - and README's badge puts that payload at 65KB, a hair over
-      # the 65536-byte MSYS pipe buffer. This walks sizes across that boundary
-      # in the same shape (a function's heredoc, read back through a command
-      # substitution) so the log names where it gives out instead of leaving it
-      # inferred. Diagnosis only: it asserts nothing and cannot fail the job.
-      - name: How big a heredoc survives a command substitution here
-        shell: bash
-        run: |
-          set -uo pipefail
-          echo "bash $BASH_VERSION | PIPE_BUF $(getconf PIPE_BUF / 2>/dev/null || echo '?') | TMPDIR ${TMPDIR:-unset}"
-          # base64, so the bytes and the line breaks look like the real payload
-          head -c 200000 /dev/urandom | base64 >"$HOME/blob"
-          cat >"$HOME/probe.sh" <<'PROBE'
-          blob=$(cat "$HOME/blob")
-          blob=${blob:0:$1}
-          mid() {
-            cat <<REMOTE
-          head
-          $blob
-          tail
-          REMOTE
-          }
-          out=$(mid)
-          printf 'in=%s out=%s\n' "${#blob}" "${#out}"
-          PROBE
-          for n in 32768 60000 65000 65400 65530 65536 65540 66000 70000 131072; do
-            printf '%7s: ' "$n"
-            timeout 15 bash "$HOME/probe.sh" "$n" || echo "STALLED or failed (rc=$?)"
-          done
-
       # a full hi session this time, not the fallback: the command's output
       # back, run out of the tree hi shipped, and the status never discarded
       - name: Say hi (expect a hi session in Git Bash)
@@ -178,33 +145,10 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           rc=0
-          # Streamed through `tee`, not captured: a session that hangs until
-          # `timeout` kills it wrote nothing at all into `out="$( ... )"`, so a
-          # red step said only that it was red. tee puts every line in the log
-          # as it lands - GitHub stamps each one, so the log also shows where
-          # the time went - and keeps the copy the assertions below read.
-          # `pipefail` makes the pipeline's status hi.sh's own, and `|| rc=$?`
-          # keeps `set -e` from ending the step before those assertions run.
-          # LogLevel=DEBUG1, not ERROR: with no output at all, "did ssh even
-          # connect and authenticate" is the first thing to rule out. Both are
-          # here to diagnose a hang and belong back at ERROR, captured, once it
-          # is understood.
-          log="$HOME/hi-gitbash.out"
-          echo "running: hi.sh -> ${USERNAME:-$(whoami)}@127.0.0.1, 120s budget"
-          # `bash -x` with a timestamped PS4, into the file rather than the
-          # console: the trace is ~1500 lines and only its tail is news - the
-          # last line before the stall, which the timestamps make obvious. The
-          # file is written as it goes, so a killed session still leaves it,
-          # which is what `tee` was here for; the assertions read all of it.
-          # Single quotes on purpose - PS4 expands in the traced shell.
-          PS4='+ $EPOCHREALTIME ${BASH_SOURCE##*/}:$LINENO: ' \
-            timeout 120 bash -x ./hi.sh -i "$HOME/.ssh/loop" \
+          out="$(timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=DEBUG1 "${USERNAME:-$(whoami)}@127.0.0.1" \
-            'echo HI_GITBASH_OK; hi_info' >"$log" 2>&1 || rc=$?
-          echo "the session returned $rc; last 60 traced lines:"
-          tail -n 60 "$log"
-          out="$(cat "$log")"
+            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 'echo HI_GITBASH_OK; hi_info' 2>&1)" || rc=$?
+          printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q HI_GITBASH_OK
           if printf '%s\n' "$out" | grep -q "hi from PowerShell"; then
             echo "Git Bash was the shell, yet hi fell back to PowerShell" >&2
@@ -383,24 +327,15 @@ jobs:
           host=127.0.0.1
           ssh -p 2222 -i "$HOME/wsl-loop" -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR \
-            "$user@$host" true 2>/dev/null && echo "plain ssh to $host:2222 answers" || {
+            "$user@$host" true 2>/dev/null || {
             host="$(cat "$HOME/wsl-host")"
             echo "127.0.0.1:2222 is not relayed into WSL - using the distribution's address $host"
           }
           rc=0
-          # Streamed through `tee`, not captured, and ssh raised to DEBUG1 -
-          # the Git Bash loopback above carries the whole reasoning.
-          log="$HOME/hi-wsl.out"
-          echo "running: hi.sh -> $user@$host:2222, 120s budget"
-          # traced under `bash -x` for the reason the Git Bash loopback above
-          # spells out: the stall is inside bash, before ssh is reached
-          PS4='+ $EPOCHREALTIME ${BASH_SOURCE##*/}:$LINENO: ' \
-            timeout 120 bash -x ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
+          out="$(timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=DEBUG1 "$user@$host" \
-            'echo HI_WSL_OK; hi_info' 2>&1 | tee "$log" || rc=$?
-          echo "the session returned $rc"
-          out="$(cat "$log")"
+            -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || rc=$?
+          printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q HI_WSL_OK
           # the session runs out of the tree hi shipped - $_HI_HOME is a
           # `mktemp -d -t <client user>.hi.XXXXXX` on the target, named for the

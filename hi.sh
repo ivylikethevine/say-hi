@@ -1304,8 +1304,28 @@ function _hi_env_each() {
 
 # _hi_remote_script <outvar> - the script _say_hi sends and _hi_wire_bytes
 # measures: preamble, middle, suffix. One assembly, so the two agree (HI.44).
+#
+# Through a file, not three command substitutions: the middle third carries the
+# armored payload, and Git Bash hangs forever reading a command-substitution
+# pipe whose body lands just above 65536 bytes. Measured on windows-2025 -
+# 65411 and 66011 bytes both pass, 65541 through 65551 never return - so a
+# payload near the badge's 65KB is a coin toss, not a slow path. `read -d ''`
+# takes the file in the shell itself: no pipe to fill and no fork to read it.
+# Each third ends in a newline, so dropping the last byte leaves exactly what
+# '%s\n%s\n%s' built.
 function _hi_remote_script() {
-  printf -v "$1" '%s\n%s\n%s' "$(_hi_remote_preamble)" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
+  local _hi_rs_f _hi_rs_s=""
+  _hi_rs_f="$(mktemp -t hi.script.XXXXXX)" || return 1
+  {
+    _hi_remote_preamble
+    _hi_remote_middle
+    _hi_remote_suffix
+  } >"$_hi_rs_f"
+  # read returns 1 having found no NUL, which is the whole file; -r and an
+  # empty IFS keep every backslash and every edge space of the armor
+  IFS= read -r -d '' _hi_rs_s <"$_hi_rs_f" || true
+  rm -f "$_hi_rs_f"
+  printf -v "$1" '%s' "${_hi_rs_s%$'\n'}"
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
