@@ -604,11 +604,21 @@ function _hi_has_rendered() {
 
 # _hi_login_env <home> <cmd...> - `env -i` plus only what a login shell has:
 # no _HI_HOME (it would answer what install.sh derives) and no _HI_CONFIG_DIR;
-# $SHELL because install.sh reports ${SHELL##*/} under `set -u`
+# $SHELL because install.sh reports ${SHELL##*/} under `set -u`.
+#
+# Bounded by $_HI_LOGIN_TIMEOUT (default 90s). Unbounded, a login shell that
+# wedges takes the case with it and the suite reports only a frozen case count
+# for as long as the job's own timeout allows - a stall in `hi --doctor` cost 25
+# minutes a shard that way, on six shards, without naming a case. A stall is a
+# failure, so timeout's 124 is what the caller should see. Where there is no GNU
+# `timeout` (stock macOS) the call runs bare, the way core.sh's _hi_probe does.
 function _hi_login_env() {
   local home="$1"
+  local -a bound=()
   shift
-  env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
+  command -v timeout >/dev/null 2>&1 &&
+    bound=(timeout -k 5 "${_HI_LOGIN_TIMEOUT:-90}")
+  ${bound[@]+"${bound[@]}"} env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
     SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" _HI_PROMPT_TOOL="${_HI_PROMPT_TOOL-}" "$@"
 }
 

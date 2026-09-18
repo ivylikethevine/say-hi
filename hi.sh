@@ -1434,8 +1434,21 @@ function _hi_remote_middle() {
       # --rcfile (load.sh's _hi_restore_profile guards the same thing on the
       # chain it sources itself). The fallback rc below needs no such line - no
       # profile chain runs on that tier.
-      echo "$tree" | $_HI_UNARMOR | tar -x -m -z -f - -C "\$_HI_HOME"
-      $overlay_line
+REMOTE
+  # Both lines below are printf'd rather than left in the heredoc above, and
+  # that is load-bearing on Git Bash: splicing a value of 800-odd lines into
+  # the middle of a heredoc line wedges it outright - no output, no error, and
+  # `timeout` is what ends the session. Measured on windows-2025: the same
+  # heredoc returns at once with the payload's newlines stripped, and a heredoc
+  # whose whole body *is* the value returns too, so it is the mid-line splice
+  # of a multi-line value that does it, not the 64KB. `printf` on the same
+  # bytes is instant, which is how _hi_armored_line has always written the
+  # overlay's own payload line. $overlay_line carries one of those armored
+  # values itself, so it comes out the same way.
+  printf '      echo "%s" | %s | tar -x -m -z -f - -C "$_HI_HOME"\n' \
+    "$tree" "$_HI_UNARMOR"
+  printf '      %s\n' "$overlay_line"
+  cat <<REMOTE
       export _HI_CONNECT_PREFIX=" $size"
 REMOTE
 }

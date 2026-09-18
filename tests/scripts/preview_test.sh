@@ -325,9 +325,19 @@ function test_hosts_table_groups_identical_renders() {
 
 # the glob seeds its own example row, and a real host it covers joins that
 # same group rather than getting a second one
+# Both arms report on stderr, which _hi_assert inherits: this has failed on
+# Windows arm64, and "one row" and "that row reads pat-*, pat-1" fail for
+# different reasons - the first if the merge did not happen, the second if it
+# did but the names came out in another order.
 function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
-  [ "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'pattern:pat-')" -eq 1 ] || return 1
-  [[ "$_HI_HOSTS_OUT" == *'pat-*, pat-1'* ]]
+  local rows
+  rows="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'pattern:pat-')"
+  [ "$rows" -eq 1 ] ||
+    { printf 'expected one pattern:pat- row, got %s:\n%s\n' "$rows" \
+        "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')" >&2; return 1; }
+  [[ "$_HI_HOSTS_OUT" == *'pat-*, pat-1'* ]] ||
+    { printf 'no "pat-*, pat-1" cell; the row was:\n%s\n' \
+        "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')" >&2; return 1; }
 }
 
 # a LOCALHOSTNAME pin renders the current machine as its own single-host
