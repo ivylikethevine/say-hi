@@ -479,7 +479,10 @@ function test_config_flags_a_ramp_nothing_paints() {
 # warn for a member that never travels. Quiet without a plugin.
 function test_config_lists_the_plugins() {
   local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/plugins.XXXXXX")"
+  # not plugins.XXXXXX: the section header prints $_HI_CONFIG_DIR, and one
+  # mktemp suffix in 62 starts with "d" - which spells "plugins.d" in the path
+  # and fails the quiet-without-one check below on the header alone
+  dir="$(mktemp -d "$_HI_WORKDIR/plugdir.XXXXXX")"
   out="$(_HI_CONFIG_DIR="$dir" _HI_PLUGINS_D="$dir/plugins.d" doctor_config)"
   [[ "$out" != *plugins.d* ]] || return 1
   mkdir -p "$dir/plugins.d"

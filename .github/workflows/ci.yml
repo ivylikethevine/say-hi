@@ -168,7 +168,23 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log, on a run whose apt cache missed, so
+          # the mirrors are named rather than hidden behind a cache hit: the
+          # checkout, the cache receiver, and what `apt-get update` plus the
+          # zsh/fish install reach. azure.archive.ubuntu.com is port 80, not
+          # 443. dl.google.com is there because ../apt/lib.sh drops only
+          # sources.list.d/*.list and the image now ships Chrome as a deb822
+          # .sources, so the index is still fetched - and `apt-get update`
+          # exits 100 when any index fails, which is the whole thing that
+          # mitigation exists to prevent.
+          allowed-endpoints: >
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -534,7 +550,19 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout and the cache, plus
+          # github.com and api.github.com from zizmor itself - it resolves the
+          # actions it audits online, which no other lint job here does. That
+          # run hit the tool cache, so the two release hosts are added for a
+          # cold one, as in advisory-lint; they are setup-tool's download path
+          # recorded in release.yml's allowlist.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -634,7 +662,20 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # This job's own audit log named github.com (checkout) and
+          # results-receiver.actions.githubusercontent.com (the cache), with
+          # the productionresultssa* blob harden-runner allows itself. It was
+          # a cache hit, so hadolint never downloaded: the two release hosts
+          # below are setup-tool's download path, recorded in release.yml's
+          # own allowlist for the same code, and are here so a cold run works
+          # too. GitHub meta domains need no row; these githubusercontent.com
+          # ones are not meta and do.
+          allowed-endpoints: >
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

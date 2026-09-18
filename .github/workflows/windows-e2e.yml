@@ -72,6 +72,44 @@ jobs:
       # 64) - and PowerShell greets. That whole ladder is the case.
       # -NoExit holds the session open, so an `exit` is piped in and a timeout
       # backstops it; the marker in the transcript is the assertion either way.
+      # Where does the dead zone end? A 65777-byte body passed every
+      # construction, yet this job still stalls before ssh while the Git Bash
+      # one - same code, but with a trailing command - now reaches it. The two
+      # differ only in the bootloader the middle third carries, about 100 bytes
+      # apart, and the earlier sweep left 65551..66011 unmeasured. So: print
+      # both real sizes off this runner, then walk that gap. Diagnosis only.
+      - name: Size both variants here, then map the gap
+        shell: bash
+        run: |
+          set -uo pipefail
+          _HI_HOME="$(cd .. && pwd)"
+          export _HI_HOME
+          bash -c '
+            set -- ; source ./hi.sh
+            DOMAIN=target size=$_HI_SIZE_TOKEN overlay_line=""
+            tree="$(_hi_payload_stream)"
+            for c in "echo x; hi_info" ""; do
+              CMDARG="$c" RAWCMD="$c"
+              bootloader="$(_hi_bootloader | $_HI_ARMOR)"
+              m="$(_hi_remote_middle)"
+              printf "CMDARG=%-18s middle=%s body=%s\n" "[${c:0:16}]" "${#m}" "$((${#m} + 1))"
+            done
+          ' || echo "(sizing failed rc=$?)"
+          head -c 200000 /dev/urandom | base64 >"$HOME/blob"
+          cat >"$HOME/p.sh" <<'PROBE'
+          blob=$(cat "$HOME/blob"); blob=${blob:0:$1}
+          mid() {
+            cat <<REMOTE
+          $blob
+          REMOTE
+          }
+          out=$(mid); echo "${#out}"
+          PROBE
+          for n in 65550 65600 65650 65700 65750 65783 65800 65850 65889 65950 66000; do
+            printf '%7s: ' "$n"
+            timeout 15 bash "$HOME/p.sh" "$n" || echo "STALLED (rc=$?)"
+          done
+
       - name: Say hi (expect the PowerShell fallback)
         shell: bash
         run: |
