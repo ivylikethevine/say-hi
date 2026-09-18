@@ -172,10 +172,15 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log: the checkout, the cache, the suite's own
-          # container images and the debian packages inside them, and the apt build
-          # deps kcov's cmake build needs. The release hosts are kcov's source tarball,
-          # which this run took from cache.
+          # Off this job's own audit log: the checkout, the cache, the suite's
+          # own container images and the debian packages inside them, and the
+          # apt build deps kcov's cmake build needs. The release hosts are
+          # kcov's source tarball, which this run took from cache. The union
+          # across every shard, and shared with the other coverage sweep: both
+          # run the whole suite set, so which shard installs mise, starship or
+          # an Alpine package is arbitrary. Several of these rows are cold-run
+          # ones the first list missed because the shard that needed them had a
+          # warm cache.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -190,6 +195,13 @@ jobs:
             production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
             deb.debian.org:80
+            archive.ubuntu.com:80
+            security.ubuntu.com:80
+            dl-cdn.alpinelinux.org:443
+            mise.jdx.dev:443
+            raw.githubusercontent.com:443
+            starship.rs:443
+            docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -250,8 +262,13 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log, bashcov's gem included: index.rubygems.org is
-          # where `gem install bashcov` resolves, and it is reached even on a cache hit.
+          # Off this job's own audit log, bashcov's gem included:
+          # index.rubygems.org is where `gem install bashcov` resolves, and it
+          # is reached even on a cache hit. The union across every shard, and
+          # shared with the other coverage sweep: both run the whole suite set,
+          # so which shard installs mise, starship or an Alpine package is
+          # arbitrary. Several of these rows are cold-run ones the first list
+          # missed because the shard that needed them had a warm cache.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -265,6 +282,15 @@ jobs:
             production.cloudfront.docker.com:443
             deb.debian.org:80
             index.rubygems.org:443
+            archive.ubuntu.com:80
+            security.ubuntu.com:80
+            dl-cdn.alpinelinux.org:443
+            mise.jdx.dev:443
+            raw.githubusercontent.com:443
+            starship.rs:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -291,14 +317,14 @@ jobs:
         run: | # zizmor: ignore[adhoc-packages]
           set -euo pipefail
           command -v ruby >/dev/null 2>&1 || sudo apt-get install -y ruby-full
-          # zizmor flags this as an ad-hoc install, and the ignore rides on
-          # the `run:` line above - a comment in here is shell text, not YAML,
-          # and the audit never sees it. The version pin is the answer to the
-          # finding: the lockfile it would rather see is a Gemfile for a
-          # single gem in a job that installs nothing else. ci.yml audits
-          # with no --min-severity, so even a low finding exits 12 - the
-          # suppression has to be written down rather than assumed.
-          # --user-install lands off the default PATH; coverage_v2.sh looks there
+          # zizmor flags this as an ad-hoc install, and the ignore rides on the
+          # `run:` line above - a comment in here is shell text, not YAML, and
+          # the audit never sees it. The version pin is the answer to the
+          # finding: the lockfile it would rather see is a Gemfile for a single
+          # gem in a job that installs nothing else. ci.yml audits with no
+          # --min-severity, so even a low finding exits 12 - the suppression has
+          # to be written down rather than assumed. --user-install lands off the
+          # default PATH; coverage_v2.sh looks there
           gem install --user-install --no-document bashcov -v "$BASHCOV_VERSION"
 
       # the same driver-owned sh -> bash shim as shard-kcov's
@@ -439,8 +465,8 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log, which named only the cache: this job merges
-          # the shards' parts and writes a figure.
+          # Off this job's own audit log, which named only the cache: this job
+          # merges the shards' parts and writes a figure.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -666,7 +692,8 @@ jobs:
           else
             set -- "repos/$GITHUB_REPOSITORY/issues/$PR/comments"
           fi
-          # dependabot's token is read-only by default: say so, the summary has the table
+          # dependabot's token is read-only by default: say so, the summary has
+          # the table
           gh api "$@" -f body="$body" >/dev/null || {
             echo "::warning title=coverage comment::could not comment on PR #$PR - a read-only token? The table is in this job's summary."
             exit 0

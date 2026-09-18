@@ -399,41 +399,37 @@ and are not.
        `common/bash.sh` turns it red.
 
 7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
-       33 of the 50 `harden-runner` steps now run `egress-policy: block` with an
+       34 of the 50 `harden-runner` steps now run `egress-policy: block` with an
        `allowed-endpoints` list taken off that job's own audit log, up from 6.
-       The 17 still on `audit` each carry a comment saying why, and they are
+       The 16 still on `audit` each carry a comment saying why, and they are
        exceptions rather than gaps: 8 cannot block at all (`windows-e2e.yml`'s
        four jobs, `windows-client.yml`'s two, `ci.yml`'s `test-macos` and
        `release.yml`'s `brew` - blocking is an Ubuntu capability, and
        harden-runner's Windows agent log reports no endpoint or DNS event where
        an Ubuntu run reports both); 3 reach arbitrary hosts by design
-       (`link-check.yml`, `image-scan.yml`, `scorecard.yml`); 3 reach a host no
-       fixed row can name - `ci.yml`'s `e2e` rotates Fedora mirrors, and
-       `pages.yml`'s `deploy` and `release.yml`'s `build` upload through a
+       (`link-check.yml`, `image-scan.yml`, `scorecard.yml`); `ci.yml`'s `e2e`
+       rotates Fedora mirrors and `pages.yml`'s `deploy` polls a
        `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
-       and region both rotate; `openbsd-e2e.yml` opens DNS-over-HTTPS to a bare
-       `9.9.9.9`, and `allowed-endpoints` matches on hostname; and `demos.yml`'s
-       `collect` and `attach` never ran on the audit run the lists came from.
-       Two things kept the lists short: GitHub's own meta domains (`github.com`,
-       `*.github.com`, `ghcr.io`, the `productionresultssa*` blobs behind the
-       cache and artifacts) are allowed by harden-runner itself, and a blocked
-       endpoint names itself in the log, so a miss costs one run rather than an
-       investigation. Two that did not: `*.githubusercontent.com` is not a meta
-       domain and every host under it has to be listed, and a run that hits its
-       caches reaches fewer hosts than one that misses - `freebsd-e2e.yml`'s apt
-       install came entirely from `actions/cache` ("Need to get 0 B"), so its
-       log named no Ubuntu mirror and its list carries them from another job's.
-       The auto-allowing is measured, not assumed: `ci.yml`'s `test-alpine`
-       blocks green with neither `github.com` nor the cache host in its list.
-       Still open is whether the host an artifact _upload_ goes to is
-       auto-allowed the way the blob a _download_ comes from is not -
-       `release.yml`'s `publish` has to name
-       `tmaproduction.blob.core.windows.net` - and `coverage.yml`'s shards,
-       newly blocking and uploading, answer it on their next run. **Do:** read
-       that answer, then a cold run of each blocking job, and give `demos.yml`'s
-       `collect` and `attach` lists off a render that gets far enough for them
-       to run. **Ticks when:** no job is on `audit` without a comment naming the
-       reason, and adding an unlisted download to a blocking job fails it.
+       and region both rotate, so no fixed row names either; `openbsd-e2e.yml`
+       opens DNS-over-HTTPS to a bare `9.9.9.9`, and `allowed-endpoints` matches
+       on hostname; and `demos.yml`'s `collect` and `attach` never ran on the
+       audit run the lists came from. What keeps the lists short is measured,
+       not assumed: harden-runner fetches GitHub's meta domains and auto-allows
+       `github.com`, `*.github.com`, `*.githubapp.com`, `ghcr.io` and
+       `productionresultssa0`-`19.blob.core.windows.net`, so an artifact upload
+       needs no row - `coverage.yml`'s blocking shards upload through
+       `productionresultssa18` - while `*.githubusercontent.com` is not meta and
+       every host under it has to be listed. The rest of the cost is in cold
+       runs: a job that hits its caches reaches fewer hosts than one that
+       misses, and the first list for `ci.yml`'s `e2e-backends` came off a run
+       where `kind-action` restored kind from `actions/cache` and so never
+       fetched kubectl - shard 3 then went red on a blocked `dl.k8s.io`.
+       `freebsd-e2e.yml` has the same shape and carries its Ubuntu mirrors from
+       another job's list rather than its own log. **Do:** read a cold run of
+       each remaining blocking job, and give `demos.yml`'s `collect` and
+       `attach` lists off a render that gets far enough for them to run. **Ticks
+       when:** no job is on `audit` without a comment naming the reason, and
+       adding an unlisted download to a blocking job fails it.
 
 ### Post 1.0
 

@@ -212,12 +212,37 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: a pushed signed tag releases unattended
-          # (docs/RELEASING.md), so a row this job is missing costs a release,
-          # and it uploads artifacts - which means the rotating
-          # run-actions-N-azure-REGION host pages.yml's deploy job records the
-          # same problem with, on top of sigstore, three Ubuntu mirrors and npm.
-          egress-policy: audit
+          egress-policy: block
+          # Off the v0.4.2 run's audit log. Artifact upload needs no row of its
+          # own: harden-runner auto-allows the productionresultssa* blobs it
+          # goes to, as coverage.yml's blocking shards showed. The
+          # run-actions-N-azure-REGION host this job's audit log also named is
+          # something else - if a future run trips on it, this row set is wrong
+          # and the job goes back to audit rather than growing a row that
+          # rotates. tuf-repo-cdn.sigstore.dev is belt and braces: the run read
+          # here signed off an embedded TUF root, and a cold one would not.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            token.actions.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            fulcio.sigstore.dev:443
+            rekor.sigstore.dev:443
+            tuf-repo-cdn.sigstore.dev:443
+            azure.archive.ubuntu.com:80
+            archive.ubuntu.com:80
+            security.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
+            registry.npmjs.org:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudflare.docker.com:443
+            production.cloudfront.docker.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -619,12 +644,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Body: the badges frozen above, what changed, then how to check it. The notes are generated
-          # because README.md's Roadmap section deletes finished entries and
-          # this is where the git-history ledger gets published. Asked for via
-          # the API and composed here rather than --generate-notes plus
-          # --notes, which would put the checklist first: gh appends generated
-          # notes *after* --notes.
+          # Body: the badges frozen above, what changed, then how to check it.
+          # The notes are generated because README.md's Roadmap section deletes
+          # finished entries and this is where the git-history ledger gets
+          # published. Asked for via the API and composed here rather than
+          # --generate-notes plus --notes, which would put the checklist first:
+          # gh appends generated notes *after* --notes.
           notes="$(gh api --method POST \
             "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true)"

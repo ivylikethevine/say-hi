@@ -76,8 +76,9 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log: the checkout, the cache receiver, and the
-          # API that paths-filter and find_tree_run.sh ask for a run to reuse.
+          # Off this job's own audit log: the checkout, the cache receiver, and
+          # the API that paths-filter and find_tree_run.sh ask for a run to
+          # reuse.
           allowed-endpoints: >
             api.github.com:443
             github.com:443
@@ -259,12 +260,13 @@ jobs:
         with:
           egress-policy: block
           # The longest list here, and mostly off this job's own audit log: the
-          # checkout, the cache, setup-shells' apt, and an image pull. Four are added
-          # for a cold run the log could not show - it hit every cache. salsa.debian.org
-          # and mandoc.bsd.lv are checkbashisms' and mandoc's own download hosts from
-          # setup-tool/tools.txt; registry.npmjs.org is `npm ci --prefix .github`; the
-          # release hosts are the other pinned tools. lychee's blocking pass is
-          # --offline, so no linked host belongs here.
+          # checkout, the cache, setup-shells' apt, and an image pull. Four are
+          # added for a cold run the log could not show - it hit every cache.
+          # salsa.debian.org and mandoc.bsd.lv are checkbashisms' and mandoc's
+          # own download hosts from setup-tool/tools.txt; registry.npmjs.org is
+          # `npm ci --prefix .github`; the release hosts are the other pinned
+          # tools. lychee's blocking pass is --offline, so no linked host
+          # belongs here.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -349,8 +351,9 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, and it cannot be otherwise: harden-runner blocks egress on Ubuntu
-          # runners only. Its macOS agent reports no endpoint or DNS event at all.
+          # audit, and it cannot be otherwise: harden-runner blocks egress on
+          # Ubuntu runners only. Its macOS agent reports no endpoint or DNS
+          # event at all.
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -483,10 +486,10 @@ jobs:
           grep -q 'Disconnected' "$RUNNER_TEMP/session.log"
           # The driver's own verdict last, and never discarded: the greps above
           # name a missing marker more precisely, so they get to fail first, but
-          # a session that prints all four and *then* exits non-zero - or one the
-          # driver gave up on at 90s, which exits with its message and a full
-          # transcript already grepped - is only visible here. pipefail is on, so
-          # this is python's status and not tee's.
+          # a session that prints all four and *then* exits non-zero - or one
+          # the driver gave up on at 90s, which exits with its message and a
+          # full transcript already grepped - is only visible here. pipefail is
+          # on, so this is python's status and not tee's.
           [ "$rc" -eq 0 ] || {
             echo "the session driver exited $rc - see the transcript above" >&2
             exit "$rc"
@@ -643,9 +646,10 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log: the checkout and the cache. That run hit the
-          # tool cache, so the two release hosts cover a cold gitleaks download -
-          # setup-tool's path, as recorded in release.yml's own allowlist.
+          # Off this job's own audit log: the checkout and the cache. That run
+          # hit the tool cache, so the two release hosts cover a cold gitleaks
+          # download - setup-tool's path, as recorded in release.yml's own
+          # allowlist.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -681,8 +685,8 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log, which reached one host: the review action
-          # asks the API for the diff's advisories and nothing else.
+          # Off this job's own audit log, which reached one host: the review
+          # action asks the API for the diff's advisories and nothing else.
           allowed-endpoints: >
             api.github.com:443
 
@@ -785,8 +789,8 @@ jobs:
         with:
           egress-policy: block
           # Off this job's own audit log: the checkout, the cache, and what
-          # setup-shells' apt reaches. See test-ubuntu above for why dl.google.com is
-          # here and why the Ubuntu mirror is port 80.
+          # setup-shells' apt reaches. See test-ubuntu above for why
+          # dl.google.com is here and why the Ubuntu mirror is port 80.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -821,9 +825,9 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log: the checkout, timep from raw.github, the
-          # cache, the image pull, and the debian packages inside it. Both Docker CDNs
-          # are listed because a run gets one or the other.
+          # Off this job's own audit log: the checkout, timep from raw.github,
+          # the cache, the image pull, and the debian packages inside it. Both
+          # Docker CDNs are listed because a run gets one or the other.
           allowed-endpoints: >
             github.com:443
             raw.githubusercontent.com:443
@@ -861,9 +865,10 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log: the checkout, the cache, the images mkrepo
-          # builds in, and the debian/alpine packages inside them. The release hosts
-          # cover a cold nfpm download, which this run took from cache.
+          # Off this job's own audit log: the checkout, the cache, the images
+          # mkrepo builds in, and the debian/alpine packages inside them. The
+          # release hosts cover a cold nfpm download, which this run took from
+          # cache.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -990,11 +995,12 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: this shard's suites pull Fedora images, and Fedora
-          # hands out a MirrorManager mirror per request - this run took
-          # cofractal-ewr.mm.fcix.net and insect.mm.fcix.net, which the next run will
-          # not. There is no fixed host list to write, so blocking would fail on the
-          # mirror rotating rather than on anything reaching further.
+          # audit, deliberately: this shard's suites pull Fedora images, and
+          # Fedora hands out a MirrorManager mirror per request - this run took
+          # cofractal-ewr.mm.fcix.net and insect.mm.fcix.net, which the next run
+          # will not. There is no fixed host list to write, so blocking would
+          # fail on the mirror rotating rather than on anything reaching
+          # further.
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1053,10 +1059,15 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Off this job's own audit log, plus two the log could not show: this shard
-          # took podman from ubuntu's own repo and never installed nomad, so
-          # apt.releases.hashicorp.com is here from setup-backends/install.sh, and the
-          # release hosts cover kind's binary download.
+          # Off this job's own audit log, plus two the log could not show: this
+          # shard took podman from ubuntu's own repo and never installed nomad,
+          # so apt.releases.hashicorp.com is here from
+          # setup-backends/install.sh, and the release hosts cover kind's binary
+          # download. The union across all three shards, which sweep one suite
+          # set between them, so which shard reaches a host is arbitrary. The
+          # kube rows came from a cold run: on the run this list was first built
+          # from, kind-action restored kind from actions/cache and never fetched
+          # kubectl, so dl.k8s.io was missing and shard 3 went red on it.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -1071,6 +1082,11 @@ jobs:
             production.cloudfront.docker.com:443
             release-assets.githubusercontent.com:443
             objects.githubusercontent.com:443
+            dl.k8s.io:443
+            cdn.dl.k8s.io:443
+            dl-cdn.alpinelinux.org:443
+            checkpoint-api.hashicorp.com:443
+            docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1180,8 +1196,8 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # A gate job: it reads its needs' outputs and reaches nothing else. Its own
-          # audit log named no endpoint at all.
+          # A gate job: it reads its needs' outputs and reaches nothing else.
+          # Its own audit log named no endpoint at all.
           allowed-endpoints: >
             github.com:443
 
@@ -1249,8 +1265,8 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Artifacts only: it downloads a shard's parts and uploads them again. The
-          # blob storage behind them rides GitHub's meta domains.
+          # Artifacts only: it downloads a shard's parts and uploads them again.
+          # The blob storage behind them rides GitHub's meta domains.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
