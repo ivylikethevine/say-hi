@@ -35,6 +35,7 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit only: on Windows harden-runner has no block mode
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,6 +73,109 @@ jobs:
       # 64) - and PowerShell greets. That whole ladder is the case.
       # -NoExit holds the session open, so an `exit` is piped in and a timeout
       # backstops it; the marker in the transcript is the assertion either way.
+      # Where does the dead zone end? A 65777-byte body passed every
+      # construction, yet this job still stalls before ssh while the Git Bash
+      # one - same code, but with a trailing command - now reaches it. The two
+      # differ only in the bootloader the middle third carries, about 100 bytes
+      # apart, and the earlier sweep left 65551..66011 unmeasured. So: print
+      # both real sizes off this runner, then walk that gap. Diagnosis only.
+      # Bounded on purpose: an earlier version of this step captured the armored
+      # payload with `$( )` and hung this job for its whole 20 minutes. Nothing
+      # here runs unbounded, and each construction is timed on its own.
+      #
+      # Established on this runner so far. `_hi_remote_middle` returns at once
+      # with `tree=""` and passes 20s with the real payload bound, while every
+      # helper it calls first is clear - so it is the body. Yet six constructions
+      # on a synthetic body of exactly that size all returned in 0-1s, a heredoc
+      # into `cat` among them. The one difference: the synthetic body was one
+      # line, where the real armored payload is 64377 bytes in 837 lines wrapped
+      # at 76 columns. So the suspect is the line count, not the byte count.
+      #
+      # This settles which construction is at fault, on the real payload, and
+      # tests the candidate fix beside it. `4-heredoc` should stall on its own;
+      # `3-printf` is what the fix would use instead; `5-mid-flat` runs the real
+      # function over the same bytes with the newlines stripped. If 3 and 5 pass
+      # while 4 and 6 stall, emitting the payload with `printf` rather than
+      # interpolating it into the heredoc is enough. If 3 stalls too, the
+      # expansion itself is the problem and the payload must never reach a
+      # variable at all.
+      #
+      # Each case is a quoted heredoc written to its own file rather than an
+      # inline snippet: the snippets have to keep their `$B`/`$OUT`/`$PRE`
+      # unexpanded for the child shell, and as single-quoted strings that is ten
+      # SC2016 findings actionlint fails the run on. A quoted heredoc is literal
+      # data, so shellcheck reads none of it.
+      - name: Is it the line count, and does printf dodge it
+        shell: bash
+        run: |
+          set -uo pipefail
+          d="$RUNNER_TEMP/probe"
+          mkdir -p "$d"
+          rm -f "$d"/[1-9]-*.sh   # so a re-run cannot time a stale case
+          _HI_HOME="$(cd .. && pwd)"
+          export _HI_HOME
+          # the real armored payload, produced to a file - the one thing here
+          # already known to work - and the same bytes as a single line
+          bash -c 'set --; source ./hi.sh; _hi_payload_stream' >"$d/body" ||
+            echo "could not build the payload" >&2
+          tr -d '\n' <"$d/body" >"$d/flat"
+          printf 'body %s bytes in %s lines, flat %s bytes\n' \
+            "$(wc -c <"$d/body" | tr -d ' ')" \
+            "$(wc -l <"$d/body" | tr -d ' ')" \
+            "$(wc -c <"$d/flat" | tr -d ' ')"
+
+          cat >"$d/prelude.sh" <<'CASE'
+          set --
+          source ./hi.sh
+          DOMAIN=target
+          size="$_HI_SIZE_TOKEN"
+          overlay_line=""
+          bootloader=x
+          tree=x
+          CMDARG=""
+          RAWCMD=""
+          CASE
+
+          cat >"$d/1-cat-file.sh" <<'CASE'
+          cat "$B" >"$OUT"
+          CASE
+          cat >"$d/2-read.sh" <<'CASE'
+          IFS= read -r -d '' v <"$B"
+          printf %s "${#v}"
+          CASE
+          cat >"$d/3-printf.sh" <<'CASE'
+          IFS= read -r -d '' v <"$B"
+          printf '%s\n' "$v" >"$OUT"
+          CASE
+          cat >"$d/4-heredoc.sh" <<'CASE'
+          IFS= read -r -d '' v <"$B"
+          cat <<EOF >"$OUT"
+          $v
+          EOF
+          CASE
+          cat >"$d/5-mid-flat.sh" <<'CASE'
+          . "$PRE"
+          IFS= read -r -d '' tree <"$FLAT" || true
+          _hi_remote_middle >"$OUT"
+          CASE
+          cat >"$d/6-mid-full.sh" <<'CASE'
+          . "$PRE"
+          IFS= read -r -d '' tree <"$B" || true
+          _hi_remote_middle >"$OUT"
+          CASE
+
+          # $B the real payload, $FLAT the same bytes on one line, $PRE sources
+          # hi.sh, $OUT a file to write to. A stall costs 20s, not the job.
+          for f in "$d"/[1-9]-*.sh; do
+            label="$(basename "$f" .sh)"
+            t0=$SECONDS
+            if PRE="$d/prelude.sh" B="$d/body" FLAT="$d/flat" OUT="$d/$label.out" \
+               timeout -k 5 20 bash "$f" >/dev/null 2>&1; then
+              printf '%-16s ok in %ss\n' "$label" "$((SECONDS - t0))"
+            else
+              printf '%-16s TIMED OUT (20s)\n' "$label"
+            fi
+          done
       - name: Say hi (expect the PowerShell fallback)
         shell: bash
         run: |
@@ -104,6 +208,7 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit only: on Windows harden-runner has no block mode
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -135,6 +240,45 @@ jobs:
           $file = "$env:ProgramData\ssh\administrators_authorized_keys"
           Set-Content -Path $file -Value $key
           icacls $file /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'
+
+      # Which construction wedges Git Bash? hi.sh assembles a ~65.8KB middle
+      # third for the wire script, and a session times out before ssh is ever
+      # reached. A command substitution was the first suspect and moving off it
+      # did not help, so this times each candidate separately at the real size
+      # instead of reasoning about bash's thresholds: the heredoc into a file,
+      # the heredoc through a command substitution, `read` over the file the
+      # assembly now writes, and a pure in-memory build as the control.
+      # Diagnosis only - it asserts nothing and cannot fail the job.
+      - name: Which 65KB construction stalls here
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "bash $BASH_VERSION | PIPE_BUF $(getconf PIPE_BUF / 2>/dev/null || echo '?')"
+          head -c 49400 /dev/urandom | base64 | head -c 65777 >"$HOME/blob"
+          wc -c <"$HOME/blob"
+          cat >"$HOME/p.sh" <<'PROBE'
+          blob=$(cat "$HOME/blob")
+          mid() {
+            cat <<REMOTE
+          $blob
+          REMOTE
+          }
+          case $1 in
+          heredoc-to-file) mid >"$HOME/out"; wc -c <"$HOME/out" ;;
+          heredoc-to-comsub) out=$(mid); echo "${#out}" ;;
+          read-the-file) mid >"$HOME/out"; IFS= read -r -d '' v <"$HOME/out" || true; echo "${#v}" ;;
+          in-memory) printf -v v '%s' "$blob"; echo "${#v}" ;;
+          esac
+          PROBE
+          for c in in-memory heredoc-to-file read-the-file heredoc-to-comsub; do
+            printf '%18s: ' "$c"
+            s=$SECONDS
+            if timeout 20 bash "$HOME/p.sh" "$c"; then
+              echo "                    took $((SECONDS - s))s"
+            else
+              echo "STALLED or failed (rc=$?) after $((SECONDS - s))s"
+            fi
+          done
 
       # a full hi session this time, not the fallback: the command's output
       # back, run out of the tree hi shipped, and the status never discarded
@@ -189,6 +333,7 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit only: on Windows harden-runner has no block mode
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -380,6 +525,7 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit only: on Windows harden-runner has no block mode
           egress-policy: audit
 
       - name: Require every shard green
@@ -389,4 +535,3 @@ jobs:
           set -euo pipefail
           echo "shards: $RESULT"
           [ "$RESULT" = success ]
-

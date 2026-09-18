@@ -164,7 +164,10 @@ _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can ta
 The pty-driven cases (`configure`, `install`, `rc_lines`) kill their child
 after 30s and count it a failure; `_HI_CASE_TIMEOUT` raises that deadline on a
 host slow for reasons the suites cannot fix, as `_HI_SSH_CASE_TIMEOUT` (90s)
-does for the ssh cases.
+does for the ssh cases. The login shells `_hi_login_env` starts
+(`install_location`'s dialect pass) are bounded the same way at 90s by
+`_HI_LOGIN_TIMEOUT`: unbounded, one that wedges shows only as a case count that
+stops moving, for as long as the job allows.
 
 ### The install-method suite
 

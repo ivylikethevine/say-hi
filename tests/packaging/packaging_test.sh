@@ -470,12 +470,44 @@ function test_release_signing_keys_are_read_under_the_release_environment() {
   [ "$bad" = 0 ]
 }
 
+# Every asset the release carries goes up one at a time, through
+# .github/scripts/gh_asset.sh. `gh release upload` takes a list and stops at
+# the first refusal, which is how v0.4.3 shipped without its rpm *and*
+# without the three files queued behind it - one GitHub 500, four assets
+# missing. Each source carries its directive line too, or the shellcheck
+# pass actionlint runs reports a file it was never told where to find.
+# shellcheck disable=SC2016 # matching the workflows' literal source text
+function test_release_assets_go_through_the_helper() {
+  local publish attach wf n
+  [ -f "$_HI_ROOT/.github/scripts/gh_asset.sh" ] || return 1
+  publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
+  [[ "$publish" != *'gh release upload'* && "$attach" != *'gh release upload'* ]] || {
+    _hi_cecho " | a workflow still attaches its assets as one gh release upload list" "$RED"
+    return 1
+  }
+  [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" "${files[@]}"'* ]] &&
+    [[ "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* ]] || return 1
+  for wf in "$_HI_RELEASE_WF" "$_HI_DEMOS_WF"; do
+    n="$(grep -c '^ *source \.github/scripts/gh_asset\.sh$' "$wf")"
+    [ "$n" -gt 0 ] &&
+      [ "$n" = "$(grep -c '^ *# shellcheck source=\.github/scripts/gh_asset\.sh$' "$wf")" ] || {
+      _hi_cecho " | ${wf##*/} sources gh_asset.sh without the shellcheck directive above it" "$RED"
+      return 1
+    }
+  done
+}
+
 # ...and nothing outside that gated job may touch `gh release`
 function test_only_the_gated_job_publishes() {
   local before
-  # everything above the publish: job must be free of release uploads
+  # everything above the publish: job must be free of release uploads. The
+  # helper's name too, or the guarantee leaks out through gh_asset.sh the
+  # moment a step above starts sourcing it; the singular covers both
+  # _ci_upload_asset and _ci_upload_assets
   before="$(sed -n '1,/^  publish:/p' "$_HI_RELEASE_WF")"
-  ! { [[ "$before" == *'gh release create'* ]] || [[ "$before" == *'gh release upload'* ]]; }
+  ! { [[ "$before" == *'gh release create'* ]] || [[ "$before" == *'gh release upload'* ]] ||
+    [[ "$before" == *'_ci_upload_asset'* ]]; }
 }
 
 # A prerelease tag (a `-` in the name: v1.0.0-rc.1) is a GitHub Release and
@@ -713,7 +745,8 @@ function test_release_body_links_the_tap_pr_and_embeds_the_demo() {
     "$tap" == *"RELEASE_SLOT_PREFIX: hi"* ]] || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$attach" == *"github.ref_type == 'tag'"* && "$attach" == *"needs.collect.result == 'success'"* &&
-    "$attach" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo'* && "$attach" == *"--clobber"* &&
+    "$attach" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo'* &&
+    "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* &&
     "$attach" == *'releases/download/$TAG/demo.gif'* && "$attach" == *"contents: write"* &&
     "$attach" == *"$group"* && "$attach" == *"RELEASE_SLOT_PREFIX: hi"* ]] || return 1
   ! sed -n '/^on:/,/^[a-z]/p' "$_HI_DEMOS_WF" | grep -qE '^  push:'
@@ -754,6 +787,104 @@ EOF
   chmod +x "$dir/bin/gh"
   HI_SLOT_OUT="$dir/out" PATH="$dir/bin:$PATH" _hi_release_slot o/r v1.2.3 demo '![d](g)' || return 1
   [ "$(cat "$dir/out")" = $'top\n![d](g) <!-- hi:demo -->\nend' ]
+}
+
+# gh_asset.sh against a stand-in gh: the first upload is refused the way
+# GitHub refused v0.4.3's rpm, and the asset still has to land. The name is
+# cleared by asset id first - an attempt refused part way can still hold it,
+# and --clobber deletes only what the release's own asset list admits to -
+# and then the raw uploads.github.com POST goes out as octet-stream, the one
+# half `gh release upload` cannot be talked into: it sends application/x-rpm
+# for that extension off a hardcoded table. `sleep` is stubbed too; the
+# retry's own five seconds are not this suite's to spend.
+function test_gh_asset_retries_through_the_raw_endpoint() {
+  local dir="$_HI_WORKDIR/ghasset" out rc=0
+  rm -rf "$dir"
+  mkdir -p "$dir/bin"
+  cat >"$dir/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CI_GH_LOG"
+case "$*" in
+*releases/tags/v9.9.9*) printf '4242\t77\n' ;;
+*"--method DELETE"*) ;;
+*"release upload"*)
+  echo "HTTP 500: Error saving asset" >&2
+  exit 1
+  ;;
+*uploads.github.com*) printf '{"state":"uploaded"}\n' ;;
+*) exit 1 ;;
+esac
+EOF
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$dir/bin/sleep"
+  chmod +x "$dir/bin/gh" "$dir/bin/sleep"
+  : >"$dir/pkg.rpm"
+  out="$(
+    # shellcheck source=../../.github/scripts/gh_asset.sh
+    source "$_HI_ROOT/.github/scripts/gh_asset.sh"
+    PATH="$dir/bin:$PATH" GITHUB_REPOSITORY=o/r CI_GH_LOG="$dir/log" \
+      _ci_upload_assets v9.9.9 "$dir/pkg.rpm" 2>&1
+  )" || rc=$?
+  [ "$rc" = 0 ] || {
+    _hi_cecho " | gh_asset.sh gave up on a file the fallback could have landed: [$out]" "$RED"
+    return 1
+  }
+  grep -qF 'releases/assets/77' "$dir/log" &&
+    grep -qF -- '--method DELETE' "$dir/log" &&
+    grep -qF 'https://uploads.github.com/repos/o/r/releases/4242/assets?name=pkg.rpm' "$dir/log" &&
+    grep -qF 'Content-Type: application/octet-stream' "$dir/log"
+}
+
+# ...and the list is finished whatever any one file does. Three assets, the
+# middle one refused every way there is: the other two still attach, the step
+# still fails, and the annotation names the missing one once at the end -
+# rather than an error about the rpm and silence about what was behind it,
+# which is how v0.4.3 shipped without its signature, SBOM and provenance.
+function test_gh_asset_attaches_the_rest_and_names_the_missing() {
+  local dir="$_HI_WORKDIR/ghasset-partial" out rc=0
+  rm -rf "$dir"
+  mkdir -p "$dir/bin"
+  cat >"$dir/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CI_GH_LOG"
+case "$*" in
+*bad.rpm*) exit 1 ;;
+*releases/tags/v9.9.9*) printf '4242\t\n' ;;
+*"--method DELETE"*) ;;
+*) printf '{"state":"uploaded"}\n' ;;
+esac
+EOF
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$dir/bin/sleep"
+  chmod +x "$dir/bin/gh" "$dir/bin/sleep"
+  : >"$dir/a.deb"
+  : >"$dir/bad.rpm"
+  : >"$dir/c.apk"
+  out="$(
+    # shellcheck source=../../.github/scripts/gh_asset.sh
+    source "$_HI_ROOT/.github/scripts/gh_asset.sh"
+    PATH="$dir/bin:$PATH" GITHUB_REPOSITORY=o/r CI_GH_LOG="$dir/log" \
+      _ci_upload_assets v9.9.9 "$dir/a.deb" "$dir/bad.rpm" "$dir/c.apk" 2>&1
+  )" || rc=$?
+  [ "$rc" -ne 0 ] || return 1
+  [[ "$out" == *"::error title=Release assets::v9.9.9 is missing: bad.rpm"* ]] || {
+    _hi_cecho " | gh_asset.sh said: [$out]" "$RED"
+    return 1
+  }
+  # the two either side of it went up anyway - the whole point
+  grep -qF 'a.deb' "$dir/log" && grep -qF 'c.apk' "$dir/log"
+}
+
+# A release asset name may not begin with a dot: GitHub stores `.SRCINFO` as
+# `default.SRCINFO`, so publish-external.yml's `--pattern .SRCINFO` matched
+# nothing and the failure surfaced two steps later, at the cp. The manifest
+# travels as `SRCINFO` and gets its dot back at the AUR checkout, and the
+# name release.yml collects, the pattern publish-external.yml asks for, and
+# the file it copies are one string.
+function test_srcinfo_travels_under_a_dotless_asset_name() {
+  [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
+  grep -qF 'cp packaging/aur/say-hi/.SRCINFO dist/manifests/SRCINFO' "$_HI_RELEASE_WF" &&
+    grep -qF -- '--pattern PKGBUILD --pattern SRCINFO' "$_HI_PUBLISH_EXTERNAL_WF" &&
+    grep -qF 'cp dist/manifests/SRCINFO aur/.SRCINFO' "$_HI_PUBLISH_EXTERNAL_WF" &&
+    ! grep -qE 'dist/manifests/\.' "$_HI_RELEASE_WF" "$_HI_PUBLISH_EXTERNAL_WF"
 }
 
 # each job's manifest comes off the release itself, never a same-run build
@@ -1047,7 +1178,7 @@ function test_publish_job_ships_the_package_repository() {
   publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   [[ "$publish" == *'packaging/mkrepo.sh'* ]] &&
     [[ "$publish" == *'--public-key packaging/gpg/say-hi.asc'* ]] &&
-    [[ "$publish" == *'gh release upload "$GITHUB_REF_NAME" --clobber dist/package-repo.tar.gz'* ]]
+    [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" dist/package-repo.tar.gz'* ]]
 }
 
 function test_pages_workflow_serves_the_package_repository() {
@@ -1528,9 +1659,9 @@ function test_package_sh_stamps_the_staged_man_page() {
 function test_write_checksums_lists_the_artifacts() {
   local d="$_HI_WORKDIR/artifacts"
   mkdir -p "$d"
-  : >"$d/say-hi_1.0.0_amd64.deb"
-  : >"$d/say-hi-1.0.0.x86_64.rpm"
-  : >"$d/say-hi-1.0.0.apk"
+  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
+  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
+  printf 'pkg' >"$d/say-hi-1.0.0.apk"
   # sourced in a subshell rather than at suite level: mkpkg.sh's
   # `[[ BASH_SOURCE == $0 ]] || return 0` guard is the seam, and the suite
   # already sources bump.sh at the top - two of them would collide
@@ -1559,8 +1690,8 @@ function test_write_checksums_lists_the_artifacts() {
 function test_write_checksums_reports_a_missing_artifact_type() {
   local d="$_HI_WORKDIR/artifacts-missing" out rc=0
   mkdir -p "$d"
-  : >"$d/say-hi_1.0.0_amd64.deb"
-  : >"$d/say-hi-1.0.0.apk"
+  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
+  printf 'pkg' >"$d/say-hi-1.0.0.apk"
   out="$(
     # shellcheck source=../../packaging/mkpkg.sh
     source "$_HI_PKG_DIR/mkpkg.sh"
@@ -1572,6 +1703,30 @@ function test_write_checksums_reports_a_missing_artifact_type() {
   return 1
 }
 
+# The same glob's other blind spot: nfpm can exit 0 having written a package
+# of zero bytes, and every check after this one passes on it - it is summed
+# into SHA256SUMS and attested over its own nothing. GitHub's asset endpoint
+# is where it finally shows, as an HTTP 500 that takes the uploads queued
+# behind it down too (tag v0.4.3).
+function test_write_checksums_refuses_an_empty_package() {
+  local d="$_HI_WORKDIR/artifacts-empty" out rc=0
+  mkdir -p "$d"
+  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
+  : >"$d/say-hi-1.0.0.x86_64.rpm"
+  printf 'pkg' >"$d/say-hi-1.0.0.apk"
+  out="$(
+    # shellcheck source=../../packaging/mkpkg.sh
+    source "$_HI_PKG_DIR/mkpkg.sh"
+    _HI_DIST="$d"
+    write_checksums 2>&1
+  )" || rc=$?
+  [ "$rc" -ne 0 ] || return 1
+  # and it stopped before summing: an empty package must never reach SHA256SUMS
+  [ ! -f "$d/SHA256SUMS" ] || return 1
+  case "$out" in *"wrote an empty .rpm"*) return 0 ;; esac
+  return 1
+}
+
 # The source tarball rides the same list, which is the whole mechanism: being in
 # ARTIFACTS is what puts it under release.yml's attestation and on the release,
 # without either step naming a .tar.gz. It arrives as a file rather than being
@@ -1580,9 +1735,9 @@ function test_write_checksums_reports_a_missing_artifact_type() {
 function test_write_checksums_ships_the_source_tarball() {
   local d="$_HI_WORKDIR/artifacts-src"
   mkdir -p "$d/elsewhere"
-  : >"$d/say-hi_1.0.0_amd64.deb"
-  : >"$d/say-hi-1.0.0.x86_64.rpm"
-  : >"$d/say-hi-1.0.0.apk"
+  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
+  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
+  printf 'pkg' >"$d/say-hi-1.0.0.apk"
   printf 'tarball\n' >"$d/elsewhere/say-hi-1.0.0.tar.gz"
   (
     # shellcheck source=../../packaging/mkpkg.sh
@@ -1609,9 +1764,9 @@ function test_write_checksums_ships_the_source_tarball() {
 function test_write_checksums_takes_a_tarball_already_in_the_outdir() {
   local d="$_HI_WORKDIR/artifacts-src-inplace"
   mkdir -p "$d"
-  : >"$d/say-hi_1.0.0_amd64.deb"
-  : >"$d/say-hi-1.0.0.x86_64.rpm"
-  : >"$d/say-hi-1.0.0.apk"
+  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
+  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
+  printf 'pkg' >"$d/say-hi-1.0.0.apk"
   printf 'tarball\n' >"$d/say-hi-1.0.0.tar.gz"
   (
     # shellcheck source=../../packaging/mkpkg.sh
@@ -1629,9 +1784,9 @@ function test_write_checksums_takes_a_tarball_already_in_the_outdir() {
 function test_write_checksums_refuses_a_missing_source_tarball() {
   local d="$_HI_WORKDIR/artifacts-src-absent" out rc=0
   mkdir -p "$d"
-  : >"$d/say-hi_1.0.0_amd64.deb"
-  : >"$d/say-hi-1.0.0.x86_64.rpm"
-  : >"$d/say-hi-1.0.0.apk"
+  printf 'pkg' >"$d/say-hi_1.0.0_amd64.deb"
+  printf 'pkg' >"$d/say-hi-1.0.0.x86_64.rpm"
+  printf 'pkg' >"$d/say-hi-1.0.0.apk"
   out="$(
     # shellcheck source=../../packaging/mkpkg.sh
     source "$_HI_PKG_DIR/mkpkg.sh"
@@ -2226,7 +2381,10 @@ function test_mkpkg_without_git_history_stamps_now_and_warns() {
 
 # the whole build as the command runs it, past staging, with a stand-in nfpm:
 # one call per packager at the stamped version, and --source-tarball=<file>
-# carrying the tarball into ARTIFACTS beside what nfpm left
+# carrying the tarball into ARTIFACTS beside what nfpm left. The stand-in
+# writes a byte rather than touching an empty file: write_checksums refuses a
+# zero-byte artifact (its own case above), so an empty stand-in would fail
+# this case for that reason instead of the one it is about.
 function test_mkpkg_builds_every_packager_and_ships_the_tarball() {
   local bin="$_HI_WORKDIR/fakenfpm" dist="$_HI_WORKDIR/fakenfpm-dist" out
   mkdir -p "$bin"
@@ -2238,7 +2396,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 printf '%s %s\n' "$p" "$HI_VERSION" >>"$t.calls"
-: >"$t/say-hi-$HI_VERSION.$p"
+printf '%s\n' "say-hi $HI_VERSION $p" >"$t/say-hi-$HI_VERSION.$p"
 EOF
   chmod +x "$bin/nfpm"
   out="$(PATH="$bin:$PATH" "$_HI_PKG_DIR/mkpkg.sh" --version 9.9.9 --outdir "$dist" \
@@ -2783,12 +2941,14 @@ function run_packaging_tests() {
   # bump.sh --check is the tag/manifest gate; the build must not skip it
   _hi_check "Verifies the manifests against the tag" grep -qF 'packaging/bump.sh --check' "$_HI_RELEASE_WF"
   _hi_check "The publish job signs the sums" test_publish_job_signs_the_sums
+  _hi_check "Every release asset goes up through gh_asset.sh" test_release_assets_go_through_the_helper
   _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
   _hi_check "Every tools.txt row is well-formed" test_tool_manifest_rows_are_wellformed
   _hi_check "Every setup-tool call names a row" test_every_setup_tool_call_names_a_manifest_row
   _hi_check "release.yml reads dist/ARTIFACTS" test_release_workflow_reads_the_artifact_list
   _hi_check "write_checksums lists the artifacts" test_write_checksums_lists_the_artifacts
   _hi_check "...and reports a missing artifact type" test_write_checksums_reports_a_missing_artifact_type
+  _hi_check "...and an empty one" test_write_checksums_refuses_an_empty_package
   _hi_check "...and ships the source tarball with them" test_write_checksums_ships_the_source_tarball
   _hi_check "...taking one already in the outdir" test_write_checksums_takes_a_tarball_already_in_the_outdir
   _hi_check "...and refusing one that does not exist" test_write_checksums_refuses_a_missing_source_tarball
@@ -2818,6 +2978,9 @@ function run_packaging_tests() {
   _hi_check "The release body links the tap PR and embeds the demo" test_release_body_links_the_tap_pr_and_embeds_the_demo
   _hi_check "release_slot.sh fills only its own line" test_release_slot_fills_only_its_own_line
   _hi_check "release_slot.sh writes the body back through gh" test_release_slot_writes_the_body_back_through_gh
+  _hi_check "gh_asset.sh clears the name and falls back to the raw endpoint" test_gh_asset_retries_through_the_raw_endpoint
+  _hi_check "...attaching the rest and naming what did not land" test_gh_asset_attaches_the_rest_and_names_the_missing
+  _hi_check "SRCINFO travels under a dotless asset name" test_srcinfo_travels_under_a_dotless_asset_name
 
   _hi_h2 "Testing: mkpkg.sh / bump.sh"
   _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild

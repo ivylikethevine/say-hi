@@ -46,6 +46,9 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit, deliberately: Trivy pulls the image under test and its own
+          # vulnerability database from wherever the tag points, which is the job's
+          # whole purpose - there is no fixed host set to pin it to.
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

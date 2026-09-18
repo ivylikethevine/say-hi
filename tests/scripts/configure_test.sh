@@ -1250,8 +1250,12 @@ function test_menu_opens_the_check_depth() {
 }
 
 # a feature row flips and says so under the list, with its preview
+# The indices here are positions in $_HI_FEATURE_PROMPTS, so inserting a row
+# above the one a case means shifts it: _HI_DISABLE_EDITORS is 4 and
+# _HI_DISABLE_ENV_STATUS 3 because the greeting row sits at 1, under the
+# header's.
 function test_menu_feature_toggles_and_previews() {
-  _hi_cfg_pty feat_toggle "$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty feat_toggle "$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_toggle "editor config overrides: now off" &&
     _hi_cfg_has feat_toggle "nano --rcfile" &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
@@ -1262,7 +1266,7 @@ function test_menu_feature_toggles_and_previews() {
 # a bare CI box sees - so the case asserts the toggle and the paren shape, not
 # a name only this machine would have.
 function test_menu_env_segment_toggles_and_previews() {
-  _hi_cfg_pty feat_env "$(_hi_item 'row|_HI_FEATURE_PROMPTS|2')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty feat_env "$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_env "environment segment in the prompt: now off" &&
     _hi_cfg_has feat_env "myproj" &&
     [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]]

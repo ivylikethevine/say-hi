@@ -225,6 +225,7 @@ function _hi_prompt_list() {
         case "$_hi_pl_r" in
         *'|bin|'*) command -v "$_hi_pl_t" >/dev/null 2>&1 ;;
         tide'|'*) [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/tide.fish" ] ;;
+        powerlevel10k'|'*) _hi_p10k_in_use && _hi_prompt_home "${_hi_pl_r##*|}" _hi_pl_f ;;
         *) _hi_prompt_home "${_hi_pl_r##*|}" _hi_pl_f ;;
         esac && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
       done
@@ -271,6 +272,29 @@ function _hi_posh_rc_config() {
   _hi_pc_v="${_hi_pc_v/#\$HOME/$HOME}"
   _hi_pc_v="${_hi_pc_v/#\$\{HOME\}/$HOME}"
   [ -n "$_hi_pc_v" ] && _hi_out "${1:-}" "$_hi_pc_v"
+}
+
+# _hi_p10k_in_use - does the zsh rc load powerlevel10k *as the theme*? Its
+# config file is not that signal. p10k's wizard appends
+# `[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh`, guarded so it goes inert
+# when the file is gone - so a `~/.p10k.zsh` left behind by a theme switch
+# outlives the theme it configured, and the file alone read as "in use"
+# shipped p10k over the `ZSH_THEME` actually in force. What loads the theme is
+# one of three shapes, and all of them name it twice or name its repo:
+# `ZSH_THEME=powerlevel10k/powerlevel10k` (oh-my-zsh's entry point for it, the
+# one _hi_prompt_home's oh-my-zsh arm turns down as "not a theme file"), a
+# source of `powerlevel10k.zsh-theme` wherever it is installed, or a plugin
+# manager naming `romkatv/powerlevel10k`. Missed: an rc that loads it from a
+# file it sources - the cheaper failure of the two, since it costs the p10k
+# prompt on a target rather than drawing a prompt the user does not use, and
+# `_HI_PROMPT_TOOL=powerlevel10k` names it past any detection. Every other
+# framework here is found the same way, by what the rc sets
+# (docs/INTEGRATIONS.md's _counts as installed here_).
+function _hi_p10k_in_use() {
+  local _hi_pk=""
+  _hi_rc_last_match '^[^#]*(powerlevel10k|romkatv)(/powerlevel10k|\.zsh-theme)' \
+    _hi_pk "${ZDOTDIR:-$HOME}/.zshrc"
+  [ -n "$_hi_pk" ]
 }
 
 # _hi_overlay_src <member> [outvar] - where an overlay member is packed from:
@@ -326,7 +350,15 @@ function _hi_overlay_src() {
 #           paq, an `rtp:prepend` bootstrap). micro's init.lua reads the
 #           same, plus `AddRuntimeFile` (a plugin with `RTPlugin`); its
 #           `import` names micro's own Go packages and is left alone.
-#   nano    `include` of a path outside /usr/share/nano, which nano ships.
+#   nano    `include` of anything but a path *directly* under
+#           /usr/share/nano, which the nano package itself ships. A
+#           subdirectory of it is not: /usr/share/nano/extra is a Debian
+#           split that Fedora, Alpine, and macOS do not have, and a glob
+#           matching nothing costs the whole rcfile - nano says "Mistakes in
+#           '<rcfile>'" on the status bar and rings the bell. The path is
+#           read as one word, so a trailing comment cannot fool the rule.
+#           settings/nanorc reasons the same thing out by hand in a comment,
+#           for hi's own copy; this is that rule for yours.
 #   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
 #           of tpm). Line-oriented, but a finding ending in `\` takes its
 #           continuation lines with it.
@@ -417,7 +449,13 @@ function kindof(s,   v) {
     if (s ~ /vim\.cmd/ && s ~ /source[ \t]/) return "include"
     if (s ~ /require[ \t]*\(?[ \t]*["']/ && s !~ /require[ \t]*\(?[ \t]*["']vim[.]/) return "include"
   } else if (nano) {
-    if (s ~ /^[ \t]*include[ \t]/ && s !~ /\/usr\/share\/nano/) return "include"
+    if (s !~ /^[ \t]*include[ \t]/) return ""
+    v = s
+    sub(/^[ \t]*include[ \t]+/, "", v)
+    sub(/^["']/, "", v)
+    sub(/["' \t].*$/, "", v)
+    if (v ~ /^\/usr\/share\/nano\/?[^\/]*$/) return ""
+    return "include"
   } else if (tmux) {
     if (s ~ /@plugin/ || s ~ /(^|[ \t;{"'])run(-shell)?[ \t].*tpm/) return "plugin"
     if (s ~ /(^|[ \t;{"'])source(-file)?[ \t]/) return "include"
@@ -603,19 +641,14 @@ function _hi_stage_tar() {
     fi
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file (GLOSSARY: HI.35); strip.awk sits at $stage and
-    # matches no name above, so the stripper never eats its own script
+    # matches no name above, so the stripper never eats its own script. It
+    # buffers each file and writes it back over itself once the batch has been
+    # read, so there is no `<file>.strip` left to rename: that rename was one
+    # `mv` a file - 40 of them in a `hi --doctor`, which stages twice, and the
+    # largest external cost it had - and renaming over a file still held open
+    # is what broke the Windows runners. Writing in place also leaves every
+    # mode alone, so hi.sh stays 0755 for the relay with nothing to restore.
     find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
-    # `mv`, not scripts/lib.sh's _hi_write_back: that one writes through the
-    # existing inode to keep hardlinks and ACLs (GLOSSARY: HI.09) at four
-    # processes a file, and here nothing links to a tree just unpacked into a
-    # mktemp -d. Only the executable bit has to survive - hi.sh must stay 0755
-    # for the relay - so note it, rename, and restore it in one chmod.
-    local -a _hi_st_exec=()
-    while IFS= read -r f; do
-      [ -x "${f%.strip}" ] && _hi_st_exec+=("${f%.strip}")
-      mv -f "$f" "${f%.strip}" || exit 1
-    done < <(find "$_hi_st_root" -type f -name '*.strip')
-    ((${#_hi_st_exec[@]})) && chmod +x "${_hi_st_exec[@]}"
     _hi_tar_gz -C "$stage" "${stage_out[@]}"
   )
 }
@@ -742,8 +775,8 @@ function _hi_overlay_stream() {
 # GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/) }
-FNR == 1 && /^#!/ { print > out; next }
+FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/) }
+FNR == 1 && /^#!/ { buf[out] = buf[out] $0 "\n"; next }
 vim && /^[ \t]*"/ { next }
 el && /^[ \t]*;/ { next }
 lua && /^[ \t]*--/ { next }
@@ -751,7 +784,7 @@ tag != "" {
   line = $0
   if (dash) sub(/^\t+/, "", line)
   if (line == tag) tag = ""
-  print > out
+  buf[out] = buf[out] $0 "\n"
   next
 }
 /^[ \t]*#/ { next }
@@ -769,7 +802,13 @@ tag != "" {
     sub(/["']$/, "", m)
     tag = m
   }
-  print > out
+  buf[out] = buf[out] $0 "\n"
+}
+END {
+  for (f in seen) {
+    printf "%s", buf[f] > (f)
+    close(f)
+  }
 }
 AWK
 }
@@ -1265,8 +1304,28 @@ function _hi_env_each() {
 
 # _hi_remote_script <outvar> - the script _say_hi sends and _hi_wire_bytes
 # measures: preamble, middle, suffix. One assembly, so the two agree (HI.44).
+#
+# Through a file, not three command substitutions: the middle third carries the
+# armored payload, and Git Bash hangs forever reading a command-substitution
+# pipe whose body lands just above 65536 bytes. Measured on windows-2025 -
+# 65411 and 66011 bytes both pass, 65541 through 65551 never return - so a
+# payload near the badge's 65KB is a coin toss, not a slow path. `read -d ''`
+# takes the file in the shell itself: no pipe to fill and no fork to read it.
+# Each third ends in a newline, so dropping the last byte leaves exactly what
+# '%s\n%s\n%s' built.
 function _hi_remote_script() {
-  printf -v "$1" '%s\n%s\n%s' "$(_hi_remote_preamble)" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
+  local _hi_rs_f _hi_rs_s=""
+  _hi_rs_f="$(mktemp -t hi.script.XXXXXX)" || return 1
+  {
+    _hi_remote_preamble
+    _hi_remote_middle
+    _hi_remote_suffix
+  } >"$_hi_rs_f"
+  # read returns 1 having found no NUL, which is the whole file; -r and an
+  # empty IFS keep every backslash and every edge space of the armor
+  IFS= read -r -d '' _hi_rs_s <"$_hi_rs_f" || true
+  rm -f "$_hi_rs_f"
+  printf -v "$1" '%s' "${_hi_rs_s%$'\n'}"
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
@@ -1375,8 +1434,21 @@ function _hi_remote_middle() {
       # --rcfile (load.sh's _hi_restore_profile guards the same thing on the
       # chain it sources itself). The fallback rc below needs no such line - no
       # profile chain runs on that tier.
-      echo "$tree" | $_HI_UNARMOR | tar -x -m -z -f - -C "\$_HI_HOME"
-      $overlay_line
+REMOTE
+  # Both lines below are printf'd rather than left in the heredoc above, and
+  # that is load-bearing on Git Bash: splicing a value of 800-odd lines into
+  # the middle of a heredoc line wedges it outright - no output, no error, and
+  # `timeout` is what ends the session. Measured on windows-2025: the same
+  # heredoc returns at once with the payload's newlines stripped, and a heredoc
+  # whose whole body *is* the value returns too, so it is the mid-line splice
+  # of a multi-line value that does it, not the 64KB. `printf` on the same
+  # bytes is instant, which is how _hi_armored_line has always written the
+  # overlay's own payload line. $overlay_line carries one of those armored
+  # values itself, so it comes out the same way.
+  printf '      echo "%s" | %s | tar -x -m -z -f - -C "$_HI_HOME"\n' \
+    "$tree" "$_HI_UNARMOR"
+  printf '      %s\n' "$overlay_line"
+  cat <<REMOTE
       export _HI_CONNECT_PREFIX=" $size"
 REMOTE
 }

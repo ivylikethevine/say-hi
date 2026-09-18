@@ -44,6 +44,9 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit, deliberately: lychee's job is to reach every URL the docs name, so
+          # an allowlist would either be the docs' own link list or a gate on adding a
+          # link.
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

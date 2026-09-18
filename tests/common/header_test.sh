@@ -241,11 +241,18 @@ function test_banner_floors_padding_on_a_long_hostname() {
   [[ "$out" == *"$_HI_HOSTNAME_CACHE"* && "$out" == *"~"* ]]
 }
 
+# One arm per half, each naming itself: the tildes cannot go missing by
+# construction (the floor is 4, and start_len caps at tildes - 1), so if this
+# fails on the label it means banner printed nothing at all - a different bug,
+# and one a bare FAILED has hidden twice on Windows arm64.
 function test_banner_floors_tildes_on_long_label() {
   local out label
   label="$(printf 'x%.0s' {1..200})" # forces the ((tildes < 4)) floor
   out="$(banner "$label")"
-  [[ "$out" == *"$label"* && "$out" == *"~"* ]]
+  [[ "$out" == *"$label"* ]] ||
+    _hi_because "banner dropped the label, printing ${#out} chars: [$out]" || return 1
+  [[ "$out" == *"~"* ]] ||
+    _hi_because "banner printed no tilde: [$out]"
 }
 
 function test_banner_narrow_width_does_not_error() {
@@ -280,7 +287,9 @@ function test_marks_swap_to_ascii_with_the_set() {
 function test_timestamp_runs_and_has_three_cells() {
   local out
   out="$(_HI_RELEASE="" timestamp)"
-  [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 3 ]
+  # four pipes for three cells: the one that opens the row, the two that join
+  # the cells, and the one that closes it on the right
+  [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 4 ]
 }
 
 # the version is the middle cell, between the two clocks, and is printed bare
@@ -430,15 +439,14 @@ function test_uptime_cell_is_humanized() {
   [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
-# _hi_cell_ip: a comma-joined list of dotted-quad addresses, or "?" - the
-# shape is pinned rather than a value, which depends on this box's own
-# network config
+# _hi_cell_ip: dotted-quad addresses joined with ", ", or "?" - the shape is
+# pinned rather than a value, which depends on this box's own network config
 function test_ip_cell_has_a_shape() {
   local out
   # none: in a container the only address is often docker's 172.*, hidden by
   # default, and an empty cell has no shape to check
   _HI_IP_HIDE=none _hi_cell_ip out
-  [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,[0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
+  [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,\ [0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
 }
 
 # used/total, one unit on total only ("6/60G", not "6G/60G" - the used
@@ -1113,7 +1121,7 @@ function test_ip_cell_on_linux_reads_iproute2() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"')"
-  [[ "$out" == *"[IP: 10.0.0.5,192.0.2.10]"* ]] || {
+  [[ "$out" == *"[IP: 10.0.0.5, 192.0.2.10]"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
   }
@@ -1127,7 +1135,7 @@ function test_ip_cell_on_linux_falls_back_to_hostname() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_FAKE_IP_SILENT=1)"
-  [[ "$out" == *"[IP: 198.51.100.7,198.51.100.8]"* ]] || {
+  [[ "$out" == *"[IP: 198.51.100.7, 198.51.100.8]"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
   }
@@ -1252,7 +1260,7 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
   }
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
-  [[ "$out" == *"[IP: 172.17.0.2,10.0.0.5]"* ]] || {
+  [[ "$out" == *"[IP: 172.17.0.2, 10.0.0.5]"* ]] || {
     _hi_cecho " | none got: $out" "$RED"
     return 1
   }
@@ -1305,12 +1313,16 @@ function test_system_info_with_no_kernel_and_no_release_says_unknown() {
 function test_no_lead_space_drops_only_the_leading_space() {
   local out
   out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
-  [ "$out" = "| alpha | beta" ] || {
+  # matched by shape, not in full: the row is padded out to its right edge now,
+  # and the width that pad answers to is the terminal's. What this case is
+  # about is the two ends - no leading space, and the " | " between the cells
+  # kept - so it pins those and the closing pipe.
+  [[ "$out" == "| alpha | beta"*"|" ]] || {
     _hi_cecho " | got: [$out]" "$RED"
     return 1
   }
   out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
-  [ "$out" = " | alpha | beta" ]
+  [[ "$out" == " | alpha | beta"*"|" ]]
 }
 
 function test_no_lead_space_applies_to_the_packages_check() {

@@ -38,8 +38,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Getting help and contributing](#getting-help-and-contributing)
 - [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
-  - [What v1.0.0 Means](#what-v100-means)
-  - [Features](#features)
+  - [Before 1.0](#before-10)
   - [Post 1.0](#post-10)
 - [License](#license)
 
@@ -326,29 +325,11 @@ myself.
 What's left; nothing here is parked or descoped. An entry is deleted once
 its **Ticks when** holds.
 
-### What v1.0.0 Means
+### Before 1.0
 
-- [ ] **A stability contract is written down** — shipped as
-      [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-      **Ticks when** the tag commit turns `docs/SECURITY.md`'s _Supported
-      versions_ prose into the version table it promises.
-- [ ] **The settings pass is closed out** — the pre-1.0 read over the
-      settings surface, the config overlay, and the prompt programs has one
-      item left: a stale `~/.p10k.zsh` still ships powerlevel10k first. The
-      client counts powerlevel10k as in use when its config file exists, so
-      beside a `ZSH_THEME=robbyrussell` a target with system p10k draws p10k
-      over the theme actually in use; reading the rc for `powerlevel10k`
-      would fix that and miss a config that loads it from a sourced file.
-      **Do:** decide which failure is cheaper, and if the rc read, wire it
-      into `hi.sh`'s `_hi_prompt_list` with a `_hi_rc_last_match`. **Ticks
-      when** [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)'s _counts as
-      installed here_ column says the rule. What the same pass turned down,
-      with the reasons, is
-      [docs/SUPPORT.md's _Already turned down_](docs/SUPPORT.md#already-turned-down).
-
-### Features
-
-In this checkout, and not what the tag waits on either.
+Ordered by scope, narrowest first. An entry that names the tag in its **Ticks
+when** is one the 1.0.0 release itself waits on; the rest are in this checkout
+and are not.
 
 1. [ ] **A release says where the package went, and shows what changed** —
        shipped: `release.yml`'s `publish` leaves `tap` and `demo` slots in the
@@ -357,7 +338,54 @@ In this checkout, and not what the tag waits on either.
        `packages` GIF. **Ticks when:** the next real tag's release page shows
        the tap link and renders the GIF.
 
-2. [ ] **CI walks the upgrade path a tag creates** — every job today installs
+2. [ ] **A stability contract is written down** — shipped as
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into the version table it promises.
+
+3. [ ] **What hi carries is linted against the target, not the client** —
+       shipped: the nano rule. It exempted any `include` line merely
+       _mentioning_ `/usr/share/nano`, so a `/usr/share/nano/extra/*.nanorc`
+       (a Debian split, absent on Fedora, Alpine, and macOS) rode out clean
+       and cost the whole rcfile a bell; it now reads the path as one word and
+       exempts only what sits directly under that directory. What is left is
+       one exemption, `shfix`'s `$ZSH`/`$OSH`: those name a framework tree the
+       _target_ may not have, unlike the `$_HI_CONFIG_DIR` and `$_HI_ROOT`
+       beside them, which ride along. The other three the entry used to name
+       are not assumptions and want no change - vim's `runtime` searches the
+       target vim's own `&runtimepath` and is silent on a miss, `$VIMRUNTIME`
+       is defined by whichever vim the target has, and micro's `import` names
+       micro's own Go packages. **Do:** decide what a theme sourcing
+       `$ZSH/lib/*.zsh` should do on a target with no oh-my-zsh, against what
+       `tests/targets/framework_test.sh` pins today. **Ticks when:** that
+       decision is in `docs/INTEGRATIONS.md` and the framework e2e suite is
+       green on it.
+
+4. [ ] **The header closes on the right** — shipped: `_hi_row_line` reserves
+       the last two columns, pads each row to what is left, and closes it with
+       a space and a `|`, so a row now ends where the banner ends rather than
+       at its last cell. Every caller inherits it - `full_check`'s rows,
+       `hi --doctor`, `hi --configure`'s previews - and
+       `_HI_DISABLE_RIGHT_EDGE=1` (`hi --configure` advanced) gives back the
+       open-ended row, the way `_HI_DISABLE_LEAD_SPACE` gives back the leading
+       space.
+       **Ticks when:** the header suites are green on the closed row at 80 and
+       at a narrow `_HI_MAX_WIDTH`, wrapped rows included.
+
+5. [ ] **The payload badge is measured, not typed** — `README.md`'s
+       `ssh_payload` badge says 65KB; `_hi_wire_bytes` on this checkout
+       returns 69617 bytes, which is 68KB. `bench_payload_readme_badge`
+       (`tests/bench/bench_test.sh`) holds the two within 5%, and 5% of 68KB
+       is 4KB, so a 3KB error is green - and the band widens with the payload,
+       so the badge is free to drift further the more there is to measure.
+       **Do:** stamp the number instead of typing it, the way
+       `packaging/stamp.sh` already stamps the version at build time, and then
+       cut the slack to the rounding error it was meant to absorb rather than
+       the whole drift. **Ticks when:** the badge equals `_hi_wire_estimate`
+       exactly, and adding a kilobyte to the payload turns `--group bench` red
+       until it is restamped.
+
+6. [ ] **CI walks the upgrade path a tag creates** — every job today installs
        one version into a fresh box, so nothing exercises the case
        [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
        about: a shell that loaded the _previous_ release, the tree rewritten
@@ -369,6 +397,39 @@ In this checkout, and not what the tag waits on either.
        any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
        `v*` tag runs it green, and putting core.sh's load guard back in
        `common/bash.sh` turns it red.
+
+7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
+       34 of the 50 `harden-runner` steps now run `egress-policy: block` with an
+       `allowed-endpoints` list taken off that job's own audit log, up from 6.
+       The 16 still on `audit` each carry a comment saying why, and they are
+       exceptions rather than gaps: 8 cannot block at all (`windows-e2e.yml`'s
+       four jobs, `windows-client.yml`'s two, `ci.yml`'s `test-macos` and
+       `release.yml`'s `brew` - blocking is an Ubuntu capability, and
+       harden-runner's Windows agent log reports no endpoint or DNS event where
+       an Ubuntu run reports both); 3 reach arbitrary hosts by design
+       (`link-check.yml`, `image-scan.yml`, `scorecard.yml`); `ci.yml`'s `e2e`
+       rotates Fedora mirrors and `pages.yml`'s `deploy` polls a
+       `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
+       and region both rotate, so no fixed row names either; `openbsd-e2e.yml`
+       opens DNS-over-HTTPS to a bare `9.9.9.9`, and `allowed-endpoints` matches
+       on hostname; and `demos.yml`'s `collect` and `attach` never ran on the
+       audit run the lists came from. What keeps the lists short is measured,
+       not assumed: harden-runner fetches GitHub's meta domains and auto-allows
+       `github.com`, `*.github.com`, `*.githubapp.com`, `ghcr.io` and
+       `productionresultssa0`-`19.blob.core.windows.net`, so an artifact upload
+       needs no row - `coverage.yml`'s blocking shards upload through
+       `productionresultssa18` - while `*.githubusercontent.com` is not meta and
+       every host under it has to be listed. The rest of the cost is in cold
+       runs: a job that hits its caches reaches fewer hosts than one that
+       misses, and the first list for `ci.yml`'s `e2e-backends` came off a run
+       where `kind-action` restored kind from `actions/cache` and so never
+       fetched kubectl - shard 3 then went red on a blocked `dl.k8s.io`.
+       `freebsd-e2e.yml` has the same shape and carries its Ubuntu mirrors from
+       another job's list rather than its own log. **Do:** read a cold run of
+       each remaining blocking job, and give `demos.yml`'s `collect` and
+       `attach` lists off a render that gets far enough for them to run. **Ticks
+       when:** no job is on `audit` without a comment naming the reason, and
+       adding an unlisted download to a blocking job fails it.
 
 ### Post 1.0
 

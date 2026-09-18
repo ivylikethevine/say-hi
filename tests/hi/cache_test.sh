@@ -232,12 +232,23 @@ function test_overlay_cached_rebuilds_when_a_home_config_is_newer() {
 
 # a trimmed member list is a different key, so it cannot be served the fuller
 # archive off the warm one
+# One arm per thing that can go wrong, each naming itself on stderr, which
+# _hi_assert inherits. This has failed on Windows arm64 without saying whether
+# a build failed, the two member lists keyed to one file, or a file came back
+# empty - three different bugs that read identically as a bare FAILED.
 function test_overlay_cached_keys_the_file_by_member_list() {
   local full="" trimmed="" dir
   dir="$(_hi_cache_rt oc.key)"
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached full "${_HI_CACHE_MEMBERS[@]}" || return 1
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached trimmed settings.sh || return 1
-  [ "$full" != "$trimmed" ] && [ -s "$full" ] && [ -s "$trimmed" ]
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached full "${_HI_CACHE_MEMBERS[@]}" ||
+    _hi_because "the full member list did not cache at all" || return 1
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached trimmed settings.sh ||
+    _hi_because "settings.sh alone did not cache at all" || return 1
+  [ "$full" != "$trimmed" ] ||
+    _hi_because "both member lists keyed to the same file: $full" || return 1
+  [ -s "$full" ] ||
+    _hi_because "cache file for the full list is empty: $full" || return 1
+  [ -s "$trimmed" ] ||
+    _hi_because "cache file for settings.sh is empty: $trimmed"
 }
 
 # _HI_INCLUDES changes what the stager writes and no member's mtime, so it is

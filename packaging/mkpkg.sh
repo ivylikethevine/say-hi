@@ -100,6 +100,14 @@ function write_checksums() {
         _hi_cecho " nfpm exited 0 but built no .$packager" "$RED" >&2
         return 1
       }
+      # ...and not an empty one. nfpm can exit 0 having written zero bytes,
+      # and an empty package passes every check downstream - it is summed into
+      # SHA256SUMS and attested over its own nothing - until GitHub refuses
+      # the asset with an HTTP 500 and takes the uploads queued behind it too.
+      [ -s "$f" ] || {
+        _hi_cecho " nfpm exited 0 but wrote an empty .$packager" "$RED" >&2
+        return 1
+      }
       built+=("${f##*/}")
     done
   done

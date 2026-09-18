@@ -465,9 +465,28 @@ function test_load_propagates_the_session_shells_exit_code() {
     return 1
   }
   case "$(_hi_strip_ansi "$out")" in
-  *"hi loaded with"*"hi closing!"*) return 0 ;;
+  *"hi loaded with"*"| session: "*) return 0 ;;
   esac
   _hi_cecho " | transcript missing its fixed lines: $out" "$RED"
+  return 1
+}
+
+# _HI_DISABLE_GREETING=1 takes that whole line - the greeting and its three
+# timers - and nothing else. Run with the header off, which is the case where
+# the greeting was also what closed the line hi.sh's size opened: the
+# disconnect line still has to land.
+function test_load_greeting_toggle_hides_the_line() {
+  local out
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_GREETING=1)" || return 1
+  out="$(_hi_strip_ansi "$out")"
+  case "$out" in
+  *"hi loaded with"* | *"init: "*)
+    _hi_cecho " | the greeting survived its toggle: $out" "$RED"
+    return 1
+    ;;
+  esac
+  case "$out" in *"| session: "*) return 0 ;; esac
+  _hi_cecho " | no closing line: $out" "$RED"
   return 1
 }
 
@@ -716,6 +735,7 @@ EOF
   _hi_check "Greets a bash session honestly" test_load_greets_the_chosen_shell bash "bash today :("
   _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
+  _hi_check "_HI_DISABLE_GREETING=1 hides the line and its timers" test_load_greeting_toggle_hides_the_line
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc

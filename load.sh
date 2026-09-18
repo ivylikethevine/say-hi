@@ -272,6 +272,16 @@ function _hi_session_editor() {
   return 0
 }
 
+# The connect and disconnect lines are each assembled by several writers that
+# print no newline of their own - hi.sh's payload size, the totals in load()
+# below, and banner(), which widens its tildes by the prefix already on the
+# line instead of starting a new one. Whoever writes last closes it, so with
+# the header off (no banner) and nothing optional left to print, this does.
+function _hi_line_close() {
+  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] && printf '\n'
+  return 0
+}
+
 function load() {
   local start total
   start="$(_hi_now)"
@@ -308,18 +318,25 @@ function load() {
     editor="$(_hi_session_editor)"
     [[ -n "$editor" ]] && export EDITOR="$editor" VISUAL="$editor" SUDO_EDITOR="$editor"
   fi
-  _hi_cecho " | " "$NC" 1
-  _hi_cecho "hi loaded with... " "$BRCYAN" 1
-
+  # $shell is needed either way - _hi_session_shell_cmd below runs it - but
+  # the greeting and its three timers are a line of their own, and not part of
+  # the header: they survive $_HI_DISABLE_HEADER, which is why they answer to a
+  # toggle of their own rather than that one.
   local shell greeting color
   _hi_session_shell shell
-  case "$shell" in
-  fish) greeting="fish shell! :^)" color="$GREEN" ;;
-  zsh) greeting="zsh shell! :)" color="$PURPLE" ;;
-  *) greeting="bash today :(" color="$RED" ;;
-  esac
-  _hi_cecho "$greeting" "$color" 1
-  _hi_cecho " | init: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
+  if [[ "${_HI_DISABLE_GREETING:-0}" != 1 ]]; then
+    case "$shell" in
+    fish) greeting="fish shell! :^)" color="$GREEN" ;;
+    zsh) greeting="zsh shell! :)" color="$PURPLE" ;;
+    *) greeting="bash today :(" color="$RED" ;;
+    esac
+    _hi_cecho " | " "$NC" 1
+    _hi_cecho "hi loaded with... " "$BRCYAN" 1
+    _hi_cecho "$greeting" "$color" 1
+    _hi_cecho " | init: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
+  else
+    _hi_line_close
+  fi
 
   local shell_ec=0
   local -a shell_cmd=()
@@ -340,7 +357,6 @@ function load() {
   dur="$(_hi_human_duration "$(_hi_elapsed "$start" "$(_hi_now)")")"
   _hi_cecho " $size | session: $dur" "$NC" 1
   hi_footer Disconnected "$BRRED" " $size | session: $dur"
-  _hi_cecho " | " "$NC" 1
-  _hi_cecho "hi closing!" "$BRPURPLE"
+  _hi_line_close
   exit "$shell_ec"
 }

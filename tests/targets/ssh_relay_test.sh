@@ -130,7 +130,7 @@ function _hi_relay_count() {
 }
 
 function _hi_relay_sessions() { _hi_relay_count "$_HI_SESSION_LOADED_RE" "$1"; }
-function _hi_relay_closings() { _hi_relay_count 'hi closing' "$1"; }
+function _hi_relay_closings() { _hi_relay_count '| session: ' "$1"; }
 
 # What the far end has to say for itself: _hi_probe_cmd's `bash` shape - the
 # shared statement of "hi's tree landed here and its aliases load" - with

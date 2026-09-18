@@ -297,6 +297,9 @@ function test_oh_my_posh_config_rides_from_home_or_overlay() {
 # powerlevel10k's config, the theme file the rc's last ZSH_THEME / OSH_THEME
 # names (oh-my-zsh's custom one over its stock copy), and of fish's universal
 # variables the tide_ lines alone - never the rest, which can hold secrets.
+# The .zshrc here names agnoster and never loads powerlevel10k, so the
+# ~/.p10k.zsh beside it is the stale one _hi_p10k_in_use exists to ignore:
+# every case that wants p10k on the list names it in $_HI_PROMPT_TOOL.
 function _hi_fw_home_fixture() {
   local h="$_HI_WORKDIR/fw-home"
   mkdir -p "$h/.oh-my-zsh/custom/themes" "$h/.oh-my-zsh/themes" "$h/.oh-my-bash/themes/font" "$h/.config/fish"
@@ -337,12 +340,23 @@ function test_prompt_list_is_what_home_has() {
   local h="$_HI_WORKDIR/fw-home" p
   _hi_fw_home_fixture
   p="$(_hi_fake_path list-bins starship powerline-go)"
+  # The fixture is the stale-config case: a ~/.p10k.zsh beside a .zshrc whose
+  # ZSH_THEME is agnoster. p10k is not in use here, so it is not on the list -
+  # each $( ) is its own subshell, so _hi_prompt_list's memo never carries
+  # between these calls.
   # prefix assignments, not a subshell's exports: _hi_tool_home_unpacked's
   # own already are, and the linter tracks the two as one
   [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
-    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ] &&
+    "oh-my-zsh oh-my-bash starship powerline-go" ] &&
     [ "$(HOME="$h" _HI_PROMPT_TOOL="tide hi" _hi_prompt_list)" = "tide hi" ] &&
-    [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ]
+    [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ] ||
+    return 1
+  # ...and it is, the moment the rc loads the theme rather than just its
+  # config. Appended last: the fixture truncates .zshrc, so every other case
+  # that calls it gets the unloaded rc back.
+  printf 'source ~/powerlevel10k/powerlevel10k.zsh-theme\n' >>"$h/.zshrc"
+  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
+    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ]
 }
 
 # The payload is an allow list; this is its drift guard. Exact match on the
@@ -450,10 +464,15 @@ export _HI_MAX_WIDTH=72' ] || {
 # the user's own aliases ride the same stream under their bare name,
 # which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
+# Naming what the tar listed separates the three ways this fails - an empty
+# archive, a second member riding along, and a member under another name - which
+# a bare FAILED cannot.
 function test_overlay_tar_carries_aliases() {
-  local dir
+  local dir listed
   dir="$(_hi_overlay_fixture withaliases aliases.sh)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "aliases.sh" ]
+  listed="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
+  [ "$listed" = "aliases.sh" ] ||
+    _hi_because "the overlay tar listed [$listed], wanted [aliases.sh]"
 }
 
 # Block padding, which is a bug in shipped behaviour on a supported client and
@@ -684,6 +703,36 @@ function test_the_scan_reports_every_dialect() {
   # ones with no dialect (colors, packages) simply have nothing to say
   [ "$out" = "settings.sh|1|include,vimrc|1|include,init.lua|1|include,nanorc|1|include,init.el|1|include,aliases.sh|1|include,bashrc|2|include,zshrc|1|plugin,config.fish|1|include,tmux.conf|1|include,micro/init.lua|1|plugin" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+}
+
+# /usr/share/nano is what the nano package itself ships, so an include
+# directly under it resolves wherever nano does - a whole-directory glob or
+# one stock syntax file. A *subdirectory* of it does not: /usr/share/nano/extra
+# is a Debian split, and on Fedora, Alpine, or macOS nano answers the glob
+# that matches nothing with "Mistakes in '<rcfile>'" and a bell, over the
+# whole rcfile rather than that one line.
+_HI_LINT_NANORC='include "/usr/share/nano/*.nanorc"
+include "/usr/share/nano/sh.nanorc"
+include "/usr/share/nano/extra/*.nanorc"
+include "~/.nano/mine.nanorc"
+set tabsize 4
+'
+
+function test_nano_keeps_the_stock_directory_and_drops_the_rest() {
+  local dir out
+  dir="$(_hi_lint_fixture nano nanorc "$_HI_LINT_NANORC")"
+  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "nanorc|3|include,nanorc|4|include" ] || {
+    _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+  out="$(_HI_NANORC="$dir/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nanorc)"
+  [ "$out" = 'include "/usr/share/nano/*.nanorc"
+include "/usr/share/nano/sh.nanorc"
+set tabsize 4' ] || {
+    _hi_cecho " | nanorc arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -1138,6 +1187,7 @@ function run_hi_payload_tests() {
   _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
   _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config
+  _hi_check "nano keeps /usr/share/nano, drops a subdirectory of it" test_nano_keeps_the_stock_directory_and_drops_the_rest
   _hi_check "An rc is read under its member name" test_the_scan_reads_an_rc_under_its_own_name
   _hi_check "A shell include becomes : and still parses" test_shell_includes_are_neutralized_and_still_parse
   _hi_check "A fish include becomes true" test_fish_includes_become_true
