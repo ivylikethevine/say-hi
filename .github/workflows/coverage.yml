@@ -171,7 +171,25 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout, the cache, the suite's own
+          # container images and the debian packages inside them, and the apt build
+          # deps kcov's cmake build needs. The release hosts are kcov's source tarball,
+          # which this run took from cache.
+          allowed-endpoints: >
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudflare.docker.com:443
+            production.cloudfront.docker.com:443
+            deb.debian.org:80
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -231,7 +249,22 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log, bashcov's gem included: index.rubygems.org is
+          # where `gem install bashcov` resolves, and it is reached even on a cache hit.
+          allowed-endpoints: >
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudflare.docker.com:443
+            production.cloudfront.docker.com:443
+            deb.debian.org:80
+            index.rubygems.org:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -306,7 +339,18 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: artifacts in, apt for kcov's runtime
+          # libraries, and the release hosts for a cold tool download.
+          allowed-endpoints: >
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
 
       # Load-bearing, and not obvious: `kcov --merge` re-reads every source
       # file at the absolute path its shard recorded, so a gather job with no
@@ -394,7 +438,12 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log, which named only the cache: this job merges
+          # the shards' parts and writes a figure.
+          allowed-endpoints: >
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       # each shard's resultset lands in its own artifact-named subdirectory
       # (merge-multiple: false, the default) - never merge-multiple here:
@@ -514,7 +563,13 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: it downloads the figures and posts
+          # them to the PR through the API.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

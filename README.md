@@ -363,11 +363,12 @@ and are not.
 
 4. [ ] **The header closes on the right** — shipped: `_hi_row_line` reserves
        the last two columns, pads each row to what is left, and closes it with
-       ` |`, so a row now ends where the banner ends rather than at its last
-       cell. Every caller inherits it - `full_check`'s rows, `hi --doctor`,
-       `hi --configure`'s previews - and `_HI_DISABLE_RIGHT_EDGE=1`
-       (`hi --configure` advanced) gives back the open-ended row, the way
-       `_HI_DISABLE_LEAD_SPACE` gives back the leading space.
+       a space and a `|`, so a row now ends where the banner ends rather than
+       at its last cell. Every caller inherits it - `full_check`'s rows,
+       `hi --doctor`, `hi --configure`'s previews - and
+       `_HI_DISABLE_RIGHT_EDGE=1` (`hi --configure` advanced) gives back the
+       open-ended row, the way `_HI_DISABLE_LEAD_SPACE` gives back the leading
+       space.
        **Ticks when:** the header suites are green on the closed row at 80 and
        at a narrow `_HI_MAX_WIDTH`, wrapped rows included.
 
@@ -397,35 +398,42 @@ and are not.
        `v*` tag runs it green, and putting core.sh's load guard back in
        `common/bash.sh` turns it red.
 
-7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — 44 of
-       the 50 `harden-runner` steps run `egress-policy: audit`, which records
-       where a job reached and stops nothing. Six run `block` with
-       `allowed-endpoints`: `release.yml`'s two publishing jobs,
-       `publish-external.yml`, `cancel-closed-pr.yml` and `release-note.yml`
-       (whose whole network use is legible in the job itself), and `ci.yml`'s
-       `test-alpine`, taken off its own run. Six of the remaining 44 cannot
-       block at all - `ci.yml`'s `test-macos`, `release.yml`'s `brew`,
-       `windows-client.yml`'s `shard` and `windows-e2e.yml`'s three jobs:
-       harden-runner's Windows agent log reports no endpoint or DNS event at
-       all where an Ubuntu run reports both, and blocking is an Ubuntu
-       capability. That leaves 38. **Do:** take them off the `audit` runs
-       already collected - harden-runner's post-step log prints one
-       `endpoint called ... domain: ...` line per host - a job class at a time
-       (the `setup-tool` fetches, the container pulls, the apt installs), and
-       keep the jobs that reach arbitrary hosts by design (`link-check.yml`,
-       `image-scan.yml`, `scorecard.yml`) named as exceptions rather than gaps.
-       Two things keep the lists short: GitHub's own meta domains
-       (`github.com`, `*.github.com`, `ghcr.io`, the `productionresultssa*`
-       blobs behind the cache and artifacts) are allowed by harden-runner
-       itself, and a blocked endpoint names itself in the log, so a miss costs
-       one run rather than an investigation. One caution on reading those logs:
-       a run that hits its caches reaches fewer hosts than one that misses -
-       `freebsd-e2e.yml`'s apt install came entirely from `actions/cache` on
-       the run inspected here ("Need to get 0 B"), so its log names no Ubuntu
-       mirror at all. A job's list is only complete once a cold run has been
-       read too. **Ticks when:** every Ubuntu job
-       either blocks or is listed here as an exception with its reason, and
-       adding an unlisted download to a blocking job fails it.
+7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
+       33 of the 50 `harden-runner` steps now run `egress-policy: block` with an
+       `allowed-endpoints` list taken off that job's own audit log, up from 6.
+       The 17 still on `audit` each carry a comment saying why, and they are
+       exceptions rather than gaps: 8 cannot block at all (`windows-e2e.yml`'s
+       four jobs, `windows-client.yml`'s two, `ci.yml`'s `test-macos` and
+       `release.yml`'s `brew` - blocking is an Ubuntu capability, and
+       harden-runner's Windows agent log reports no endpoint or DNS event where
+       an Ubuntu run reports both); 3 reach arbitrary hosts by design
+       (`link-check.yml`, `image-scan.yml`, `scorecard.yml`); 3 reach a host no
+       fixed row can name - `ci.yml`'s `e2e` rotates Fedora mirrors, and
+       `pages.yml`'s `deploy` and `release.yml`'s `build` upload through a
+       `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
+       and region both rotate; `openbsd-e2e.yml` opens DNS-over-HTTPS to a bare
+       `9.9.9.9`, and `allowed-endpoints` matches on hostname; and `demos.yml`'s
+       `collect` and `attach` never ran on the audit run the lists came from.
+       Two things kept the lists short: GitHub's own meta domains (`github.com`,
+       `*.github.com`, `ghcr.io`, the `productionresultssa*` blobs behind the
+       cache and artifacts) are allowed by harden-runner itself, and a blocked
+       endpoint names itself in the log, so a miss costs one run rather than an
+       investigation. Two that did not: `*.githubusercontent.com` is not a meta
+       domain and every host under it has to be listed, and a run that hits its
+       caches reaches fewer hosts than one that misses - `freebsd-e2e.yml`'s apt
+       install came entirely from `actions/cache` ("Need to get 0 B"), so its
+       log named no Ubuntu mirror and its list carries them from another job's.
+       The auto-allowing is measured, not assumed: `ci.yml`'s `test-alpine`
+       blocks green with neither `github.com` nor the cache host in its list.
+       Still open is whether the host an artifact _upload_ goes to is
+       auto-allowed the way the blob a _download_ comes from is not -
+       `release.yml`'s `publish` has to name
+       `tmaproduction.blob.core.windows.net` - and `coverage.yml`'s shards,
+       newly blocking and uploading, answer it on their next run. **Do:** read
+       that answer, then a cold run of each blocking job, and give `demos.yml`'s
+       `collect` and `attach` lists off a render that gets far enough for them
+       to run. **Ticks when:** no job is on `audit` without a comment naming the
+       reason, and adding an unlisted download to a blocking job fails it.
 
 ### Post 1.0
 

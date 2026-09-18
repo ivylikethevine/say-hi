@@ -73,7 +73,16 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log: the checkout, the API, and the
+          # tarballs the setup actions fetch.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -280,6 +289,11 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit, deliberately: deploy-pages talks to a host of the shape
+          # run-actions-N-azure-REGION.actions.githubusercontent.com, whose
+          # shard number and region both rotate between runs, so no fixed row
+          # covers it - and a miss here drops the site rather than failing
+          # loudly at a mirror.
           egress-policy: audit
 
       - id: deployment

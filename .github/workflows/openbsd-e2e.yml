@@ -25,6 +25,12 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit, deliberately: the OpenBSD guest opens DNS-over-HTTPS to
+          # 9.9.9.9 with no hostname in the exchange, and allowed-endpoints
+          # matches on hostname, so there is no row that permits it. Blocking
+          # would take the guest's resolver out. Its other hosts are legible
+          # (cdn.openbsd.org, pool.ntp.org, time.cloudflare.com, www.google.com
+          # for its connectivity check).
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

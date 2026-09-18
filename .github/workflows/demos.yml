@@ -74,7 +74,33 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          egress-policy: audit
+          egress-policy: block
+          # The union of every render matrix leg's audit log. Left out on
+          # purpose: the image's Chrome phones home to a dozen Google hosts
+          # (update.googleapis.com, mtalk.google.com, accounts.google.com and
+          # the rest) and to dl.google.com through the deb822 source
+          # _ci_apt_drop_vendor_lists does not remove - none of it is this
+          # job's, and blocking it is the point.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            deb.debian.org:443
+            dl-cdn.alpinelinux.org:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudfront.docker.com:443
+            quay.io:443
+            apt.releases.hashicorp.com:443
+            checkpoint-api.hashicorp.com:443
+            dl.k8s.io:443
+            starship.rs:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -141,6 +167,8 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit for now: the run these lists came from failed in render, so
+          # these two never ran and there is no log to build a row set from.
           egress-policy: audit
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -182,6 +210,8 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
+          # audit for now: the run these lists came from failed in render, so
+          # these two never ran and there is no log to build a row set from.
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
