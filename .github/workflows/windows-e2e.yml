@@ -79,58 +79,62 @@ jobs:
       # differ only in the bootloader the middle third carries, about 100 bytes
       # apart, and the earlier sweep left 65551..66011 unmeasured. So: print
       # both real sizes off this runner, then walk that gap. Diagnosis only.
-      # Bounded on purpose. The step this replaces captured the armored
-      # payload with `tree="$(_hi_payload_stream)"` and the assembled middle
-      # with `m="$(_hi_remote_middle)"` - the very command substitution it was
-      # written to measure - with no timeout, and hung this job for its whole
-      # 20 minutes. Nothing below captures a large body in `$( )`: every
-      # producer is redirected to a file and measured with `wc -c`, anything
-      # that has to come back into a variable is read with `read -r -d ""`,
-      # and every call is under `timeout -k`, so a stall costs seconds and
-      # names itself.
-      - name: Measure the wire on this host, bounded
+      # Bounded on purpose: an earlier version of this step captured the
+      # armored payload with `$( )` and hung this job for its whole 20
+      # minutes. Nothing here runs unbounded, and each statement is timed on
+      # its own so a stall names the line rather than the function.
+      #
+      # What the previous run established on this runner: producing the 64235
+      # byte armored payload to a *file* returns fine, while
+      # `_hi_remote_middle` and `_hi_wire_bytes` both pass 60s - and the
+      # middle probe held no `$( )` of a large body at all. So the blocker is
+      # inside the middle, and the two size-dependent statements there are the
+      # `read -r -d ""` that loads $tree and the `cat <<REMOTE` that
+      # interpolates it. This step times them apart.
+      - name: Time each large-body construction, bounded
         shell: bash
+        # shellcheck disable=SC2016 # the case snippets must NOT expand here:
+        # $B and $OUT are filled by the child shell the timer runs them in
         run: |
+          # shellcheck disable=SC2016
           set -uo pipefail
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
-          # probe <label> <timeout_s> - runs $SNIP with hi.sh sourced, $OUT
-          # naming the file to write to, and $NL holding a newline
-          probe() {
-            local label="$1" t="$2" out="$RUNNER_TEMP/$1.out"
-            if OUT="$out" timeout -k 5 "$t" bash -c '
-              set --
-              source ./hi.sh
-              NL="$(printf \\nx)"; NL="${NL%x}"
-              DOMAIN=target size="$_HI_SIZE_TOKEN" overlay_line=""
-              eval "$SNIP"' >/dev/null 2>&1; then
-              printf '%-26s %s bytes\n' "$label" "$(wc -c <"$out" | tr -d ' ')"
+          # A 64235-byte body, the size the armored payload measured here, so
+          # every case below works on the same bytes with no hi.sh in the way.
+          head -c 64235 /dev/urandom | base64 | tr -d '\n' |
+            head -c 64235 >"$RUNNER_TEMP/body"
+          printf 'body is %s bytes\n' "$(wc -c <"$RUNNER_TEMP/body" | tr -d ' ')"
+          # time_case <label> <timeout_s> <snippet> - $B names the body file,
+          # $OUT a file to write to
+          time_case() {
+            local label="$1" t="$2" snip="$3" t0 t1
+            t0=$SECONDS
+            if B="$RUNNER_TEMP/body" OUT="$RUNNER_TEMP/$1.out" \
+               timeout -k 5 "$t" bash -c "$snip" >/dev/null 2>&1; then
+              t1=$SECONDS
+              printf '%-30s ok in %ss\n' "$label" "$((t1 - t0))"
             else
-              printf '%-26s TIMED OUT (%ss)\n' "$label" "$t"
+              printf '%-30s TIMED OUT (%ss)\n' "$label" "$t"
             fi
           }
-          # the pieces, each straight to a file
-          SNIP='_hi_payload_tar >"$OUT"' probe payload_tar 60
-          SNIP='_hi_payload_stream >"$OUT"' probe payload_armored 60
-          SNIP='_hi_bootloader | $_HI_ARMOR >"$OUT"' probe bootloader_armored 60
-          # the middle, for the two variants these two jobs send: with a
-          # trailing command and without. $tree comes back off the file the
-          # probe above wrote, never out of a command substitution.
-          printf '%s\n' \
-            'bootloader="$(_hi_bootloader | $_HI_ARMOR)"' \
-            'IFS= read -r -d "" tree <"$RUNNER_TEMP/payload_armored.out" || true' \
-            'tree="${tree%$NL}"' \
-            'CMDARG="$CMD" RAWCMD="$CMD" _hi_remote_middle >"$OUT"' \
-            >"$RUNNER_TEMP/mid.snip"
-          export SNIP='. "$RUNNER_TEMP/mid.snip"'
-          CMD='echo x; hi_info' probe middle_with_command 60
-          CMD='' probe middle_bare 60
-          # the one install_location's `hi --doctor` cases go through, and the
-          # suspect for the fast-suite hang: it captures the armored payload
-          # with $( ) itself
-          SNIP='_hi_wire_bytes >"$OUT"' probe wire_bytes 60
-          echo "--- wire_bytes wrote (a byte count, not a body):"
-          cat "$RUNNER_TEMP/wire_bytes.out" 2>/dev/null || echo "(nothing)"
+          # 1. the two ways to get a big file into a variable
+          time_case 'read -r -d ""' 45 'IFS= read -r -d "" v <"$B"; printf %s "${#v}"'
+          time_case 'comsub $(cat)' 45 'v="$(cat "$B")"; printf %s "${#v}"'
+          # 2. the same body back out again, the three ways the tree writes it
+          time_case 'heredoc to cat' 45 'IFS= read -r -d "" v <"$B"; cat <<EOF >"$OUT"
+          $v
+          EOF'
+          time_case 'heredoc to cat, comsub in' 45 'v="$(cat "$B")"; cat <<EOF >"$OUT"
+          $v
+          EOF'
+          time_case 'printf to a file' 45 'IFS= read -r -d "" v <"$B"; printf "%s\n" "$v" >"$OUT"'
+          # 3. and the pair together, which is what _hi_remote_middle does
+          time_case 'heredoc captured in $( )' 45 'IFS= read -r -d "" v <"$B"
+          m="$(cat <<EOF
+          $v
+          EOF
+          )"; printf %s "${#m}"'
 
       - name: Say hi (expect the PowerShell fallback)
         shell: bash
