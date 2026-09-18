@@ -434,6 +434,28 @@ and are not.
        on `audit` without a comment naming the reason, and adding an unlisted
        download to a blocking job fails it.
 
+8. [ ] **The right edge reaches every header row** — `_hi_row_line` grew the
+       closing pipe in item 4 above, and the header suite's 162 cases assert it,
+       but a rendered header does not show it. Measured off a `hi_header` render
+       on this checkout: the banner lands on exactly 80 columns, every row below
+       it stops between 70 and 79, and a wrapped last row stops at 34. Those
+       rows carry no closing pipe at all - `cat -A` on one shows it ending in a
+       bare space after its last cell - so the whole edge is missing rather than
+       the padding being a column out. Ruled out already, each measured rather
+       than read: `_hi_visible_width` is exact on the glyph cells and on a
+       masked username, `_hi_draw_width` answers 80, `_hi_repeat` is defined,
+       `_HI_DISABLE_RIGHT_EDGE` is unset, and the tree holds one `_hi_row_line`,
+       whose closing arm reads correctly on the page. **Do:** start from the
+       contradiction, not the drawing code. Sourced and called by hand in a
+       plain bash, `_hi_row_line` given two cells prints them and stops, while
+       the suite's cases for that same call pass in CI. So either those cases
+       assert something weaker than they appear to - a glob looking for a pipe
+       anywhere matches the separator between two cells, not only a closing one - or the edge depends on state `tests/test_lib.sh` sets up and a bare
+       shell does not. Settle which first. **Ticks when:** a real header render
+       ends every row in the banner's column, at 80 and at a narrow
+       `_HI_MAX_WIDTH`, wrapped rows and the footer included, and a case asserts
+       the column a row ends on rather than the presence of a pipe.
+
 ### Post 1.0
 
 Outside this checkout, and not what the tag waits on: each is an account or
