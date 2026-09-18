@@ -330,14 +330,13 @@ function test_hosts_table_groups_identical_renders() {
 # different reasons - the first if the merge did not happen, the second if it
 # did but the names came out in another order.
 function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
-  local rows
+  local rows found
   rows="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'pattern:pat-')"
+  found="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')"
   [ "$rows" -eq 1 ] ||
-    { printf 'expected one pattern:pat- row, got %s:\n%s\n' "$rows" \
-        "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')" >&2; return 1; }
+    _hi_because "expected one pattern:pat- row, got $rows: $found" || return 1
   [[ "$_HI_HOSTS_OUT" == *'pat-*, pat-1'* ]] ||
-    { printf 'no "pat-*, pat-1" cell; the row was:\n%s\n' \
-        "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')" >&2; return 1; }
+    _hi_because "no \"pat-*, pat-1\" cell; the row was: $found"
 }
 
 # a LOCALHOSTNAME pin renders the current machine as its own single-host

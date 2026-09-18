@@ -464,10 +464,15 @@ export _HI_MAX_WIDTH=72' ] || {
 # the user's own aliases ride the same stream under their bare name,
 # which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
+# Naming what the tar listed separates the three ways this fails - an empty
+# archive, a second member riding along, and a member under another name - which
+# a bare FAILED cannot.
 function test_overlay_tar_carries_aliases() {
-  local dir
+  local dir listed
   dir="$(_hi_overlay_fixture withaliases aliases.sh)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "aliases.sh" ]
+  listed="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
+  [ "$listed" = "aliases.sh" ] ||
+    _hi_because "the overlay tar listed [$listed], wanted [aliases.sh]"
 }
 
 # Block padding, which is a bug in shipped behaviour on a supported client and

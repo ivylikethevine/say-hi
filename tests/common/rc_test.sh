@@ -171,8 +171,12 @@ function test_bash_ps1_inlines_git_info_without_promptvars() {
     shopt -u promptvars
     ps1
     printf %s "$PS1"' HI_TEST_REPO="$(_hi_git_fixture)")"
-  [[ "$out" != *'${__powerline_git_info}'* ]] &&
-    [[ "$out" == *main* && "$out" == *$'\001'* ]]
+  [[ "$out" != *'${__powerline_git_info}'* ]] ||
+    _hi_because "PS1 kept the placeholder rather than inlining it: [$out]" || return 1
+  [[ "$out" == *main* ]] ||
+    _hi_because "PS1 names no branch; the fixture may not be a repo here: [$out]" || return 1
+  [[ "$out" == *$'\001'* ]] ||
+    _hi_because "PS1 has no \\001 mark around the git segment: [$out]"
 }
 
 # bash's dash-word branch, the same promise the zsh and fish cases below pin:

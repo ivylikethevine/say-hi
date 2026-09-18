@@ -52,6 +52,16 @@ function _hi_false() { return 1; }
 # human-readable label. The unit suites always want this wrapped in _hi_case,
 # which is what _hi_check below is; the e2e suites bring their own case
 # runners, which report their own timings, and so use _hi_case directly.
+# _hi_because <text> - name on stderr why a case is failing, and fail it. The
+# stderr _hi_assert runs a case with is the transcript's, so the reason lands
+# beside the FAILED line. One call per arm keeps a multi-way assertion readable
+# where `|| { echo ...; return 1; }` would not: shfmt expands every brace group
+# onto four lines of its own.
+function _hi_because() {
+  printf '%s\n' "$1" >&2
+  return 1
+}
+
 function _hi_assert() {
   local label="$1"
   shift

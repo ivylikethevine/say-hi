@@ -240,15 +240,15 @@ function test_overlay_cached_keys_the_file_by_member_list() {
   local full="" trimmed="" dir
   dir="$(_hi_cache_rt oc.key)"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached full "${_HI_CACHE_MEMBERS[@]}" ||
-    { echo "the full member list did not cache at all" >&2; return 1; }
+    _hi_because "the full member list did not cache at all" || return 1
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached trimmed settings.sh ||
-    { echo "settings.sh alone did not cache at all" >&2; return 1; }
+    _hi_because "settings.sh alone did not cache at all" || return 1
   [ "$full" != "$trimmed" ] ||
-    { echo "both member lists keyed to the same file: $full" >&2; return 1; }
+    _hi_because "both member lists keyed to the same file: $full" || return 1
   [ -s "$full" ] ||
-    { echo "cache file for the full list is empty: $full" >&2; return 1; }
+    _hi_because "cache file for the full list is empty: $full" || return 1
   [ -s "$trimmed" ] ||
-    { echo "cache file for settings.sh is empty: $trimmed" >&2; return 1; }
+    _hi_because "cache file for settings.sh is empty: $trimmed"
 }
 
 # _HI_INCLUDES changes what the stager writes and no member's mtime, so it is

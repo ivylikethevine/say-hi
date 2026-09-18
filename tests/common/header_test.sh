@@ -241,11 +241,18 @@ function test_banner_floors_padding_on_a_long_hostname() {
   [[ "$out" == *"$_HI_HOSTNAME_CACHE"* && "$out" == *"~"* ]]
 }
 
+# One arm per half, each naming itself: the tildes cannot go missing by
+# construction (the floor is 4, and start_len caps at tildes - 1), so if this
+# fails on the label it means banner printed nothing at all - a different bug,
+# and one a bare FAILED has hidden twice on Windows arm64.
 function test_banner_floors_tildes_on_long_label() {
   local out label
   label="$(printf 'x%.0s' {1..200})" # forces the ((tildes < 4)) floor
   out="$(banner "$label")"
-  [[ "$out" == *"$label"* && "$out" == *"~"* ]]
+  [[ "$out" == *"$label"* ]] ||
+    _hi_because "banner dropped the label, printing ${#out} chars: [$out]" || return 1
+  [[ "$out" == *"~"* ]] ||
+    _hi_because "banner printed no tilde: [$out]"
 }
 
 function test_banner_narrow_width_does_not_error() {
