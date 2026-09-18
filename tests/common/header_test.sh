@@ -955,16 +955,22 @@ function test_hi_header_default_order() {
 # width comfortable enough that the banner's own floor behavior (its narrow-
 # width cases, above) doesn't kick in and confound this one
 function test_hi_header_closes_every_line() {
-  local out
-  out="$(_HI_PACKAGES_D="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD:3\nbash:3\n")" \
-  _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="timestamp uptime check" hi_header Connected)"
+  local out _HI_HOSTNAME_CACHE=short-host
+  out="$(
+    unset _HI_BANNER_HOST
+    _HI_PACKAGES_D="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD:3\nbash:3\n")" \
+      _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime uptime check" hi_header Connected
+  )"
   _hi_all_lines_are "$out" 40
 }
 
 # ...and hi_footer's banner-plus-timestamp shape closes the same way
 function test_hi_footer_closes_every_line() {
-  local out
-  out="$(_HI_MAX_WIDTH=40 _HI_HEADER_ORDER="timestamp" hi_footer Disconnected)"
+  local out _HI_HOSTNAME_CACHE=short-host
+  out="$(
+    unset _HI_BANNER_HOST
+    _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime" hi_footer Disconnected
+  )"
   _hi_all_lines_are "$out" 40
 }
 
