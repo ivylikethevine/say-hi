@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The settings wizard behind `hi --configure` (and the second half of a plain
 # install): one flat menu of every setting under a live preview, and the one

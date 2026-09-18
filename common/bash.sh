@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # set -euo pipefail # cannot be enabled: an interactive shell would exit on the first error
 

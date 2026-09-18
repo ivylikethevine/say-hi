@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The tooling-side helpers scripts/, packaging/, docs/tapes/, and tests/ share:
 # flag parsing, the heading rules, the sed-rewrite primitive, the settings and

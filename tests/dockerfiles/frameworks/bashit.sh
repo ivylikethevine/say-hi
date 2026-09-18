@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # bash-it, the bash-side counterpart to oh-my-zsh. --no-modify-config leaves
 # the rc line to the explicit append below, so the file hi appends after is

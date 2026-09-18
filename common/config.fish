@@ -1,5 +1,4 @@
 #!/bin/fish
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 
 # === start required configuration ===

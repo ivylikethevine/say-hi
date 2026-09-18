@@ -1,5 +1,4 @@
 #!/bin/sh
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Shared by bash, zsh AND fish, so this file must stay in the subset all three
 # parse: `alias`, `export`, `&&` chains - no if/then/fi, no $(...) conditionals.

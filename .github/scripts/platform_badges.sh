@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # platform_badges.sh <outdir> - one shields endpoint object per row of README's
 # _Target Requirements_ badge strip, written as <outdir>/<file> for pages.yml

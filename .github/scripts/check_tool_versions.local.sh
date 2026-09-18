@@ -1,5 +1,4 @@
 # shellcheck shell=bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # This repo's half of ./check_tool_versions.sh, which sources it before any
 # section runs (its header has the contract). Not run on its own.

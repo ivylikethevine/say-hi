@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/install.sh's own two halves: install_tree, the whole
 # of what a packaging recipe's package() step calls, and --uninstall's

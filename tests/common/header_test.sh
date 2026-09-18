@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for common/header.sh - the banner and its detail lines, plus the
 # packages check (check_line/full_check) that lives at the bottom of that file.
@@ -18,6 +17,21 @@ source "$_HI_HEADER"
 # ASCII fallback and fail them all. The fallback has its own cases.
 _HI_ASCII=0
 _hi_choose_glyphs
+
+# Every non-blank line of <text>, ANSI stripped, is exactly <width> columns -
+# a closed row's contract (_hi_row_line, full_check), for cases below that
+# pin the column a row ends on rather than the presence of a pipe.
+function _hi_all_lines_are() {
+  local text="$1" want="$2" line n
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    _hi_visible_width n "$(_hi_strip_ansi "$line")"
+    [ "$n" -eq "$want" ] || {
+      _hi_cecho " | got width $n, want $want: [$line]" "$RED"
+      return 1
+    }
+  done <<<"$text"
+}
 
 function test_header_row_joins_cells() {
   local out
@@ -53,6 +67,42 @@ function test_header_row_wrap_keeps_cells_intact() {
   local out
   out="$(_HI_MAX_WIDTH=5 header_row alpha beta gamma)"
   [[ "$out" == *alpha* && "$out" == *beta* && "$out" == *gamma* ]]
+}
+
+# --- the right edge: a row ends in the banner's column, not just a pipe ---
+
+function test_header_row_closes_at_default_width() {
+  local out
+  out="$(header_row foo bar baz)"
+  _hi_all_lines_are "$out" 80
+}
+
+function test_header_row_closes_at_narrow_width() {
+  local out
+  out="$(_HI_MAX_WIDTH=40 header_row cell-one-x cell-two-x cell-three cell-four- cell-five-)"
+  _hi_all_lines_are "$out" 40
+}
+
+# every wrapped continuation line closes too, not only the first
+function test_header_row_closes_every_wrapped_line() {
+  local out lines
+  out="$(_HI_MAX_WIDTH=24 header_row aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee)"
+  lines="$(printf '%s\n' "$out" | grep -c .)"
+  [ "$lines" -ge 3 ] && _hi_all_lines_are "$out" 24
+}
+
+# $_HI_DISABLE_RIGHT_EDGE gives back the open-ended row: no closing pipe, and
+# a row stops short of the pinned width rather than being padded out to it
+function test_disable_right_edge_gives_back_the_open_row() {
+  local out
+  out="$(_HI_DISABLE_RIGHT_EDGE=1 _HI_MAX_WIDTH=40 header_row cell-one-x cell-two-x cell-three)"
+  local line n
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || return 1
+    _hi_visible_width n "$(_hi_strip_ansi "$line")"
+    ((n < 40)) || return 1
+  done <<<"$out"
 }
 
 # _hi_visible_width's own contract: the color escape does not count
@@ -288,8 +338,9 @@ function test_timestamp_runs_and_has_three_cells() {
   local out
   out="$(_HI_RELEASE="" timestamp)"
   # four pipes for three cells: the one that opens the row, the two that join
-  # the cells, and the one that closes it on the right
-  [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 4 ]
+  # the cells, and the one that closes it on the right - and that last one
+  # sits in the banner's own column, not merely somewhere in the row
+  [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 4 ] && _hi_all_lines_are "$out" 80
 }
 
 # the version is the middle cell, between the two clocks, and is printed bare
@@ -900,6 +951,29 @@ function test_hi_header_default_order() {
     ((ts < si)) && ((si < id)) && ((id < ck))
 }
 
+# a real render, banner included - every line ends in the same column, at a
+# width comfortable enough that the banner's own floor behavior (its narrow-
+# width cases, above) doesn't kick in and confound this one
+function test_hi_header_closes_every_line() {
+  local out _HI_HOSTNAME_CACHE=short-host
+  out="$(
+    unset _HI_BANNER_HOST
+    _HI_PACKAGES_D="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD:3\nbash:3\n")" \
+    _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime uptime check" hi_header Connected
+  )"
+  _hi_all_lines_are "$out" 40
+}
+
+# ...and hi_footer's banner-plus-timestamp shape closes the same way
+function test_hi_footer_closes_every_line() {
+  local out _HI_HOSTNAME_CACHE=short-host
+  out="$(
+    unset _HI_BANNER_HOST
+    _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime" hi_footer Disconnected
+  )"
+  _hi_all_lines_are "$out" 40
+}
+
 # a reordered $_HI_HEADER_ORDER moves the features to match, and a feature
 # left out of it is not printed at all - that omission is the whole toggle,
 # with no separate $_HI_HEADER_* switch behind it. uptime
@@ -1317,12 +1391,15 @@ function test_no_lead_space_drops_only_the_leading_space() {
   # and the width that pad answers to is the terminal's. What this case is
   # about is the two ends - no leading space, and the " | " between the cells
   # kept - so it pins those and the closing pipe.
-  [[ "$out" == "| alpha | beta"*"|" ]] || {
+  # the pad still budgets for the leading space this toggle drops, so the
+  # closed row lands one column short of the banner rather than at it - a
+  # pre-existing wrinkle of the toggle, not this case's concern
+  [[ "$out" == "| alpha | beta"*"|" ]] && [ "${#out}" -eq 79 ] || {
     _hi_cecho " | got: [$out]" "$RED"
     return 1
   }
   out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
-  [[ "$out" == " | alpha | beta"*"|" ]]
+  [[ "$out" == " | alpha | beta"*"|" ]] && [ "${#out}" -eq 80 ]
 }
 
 function test_no_lead_space_applies_to_the_packages_check() {
@@ -1770,6 +1847,49 @@ function test_full_check_reads_real_packages_file_without_erroring() {
   full_check >/dev/null
 }
 
+# full_check's own wrap loop, not _hi_row_line's - it needs the same closing
+# column, on every wrapped line including the last. bash is a second real
+# command, the wrap case above leans on it the same way.
+function test_full_check_closes_every_row_at_max_width() {
+  local out lines
+  out="$(
+    _HI_PACKAGES_D="$(_hi_pkg_one close "$_HI_REAL_CMD:3\nbash:3\n")"
+    _HI_MAX_WIDTH=12
+    full_check
+  )"
+  lines="$(printf '%s\n' "$out" | grep -c .)"
+  [ "$lines" -ge 2 ] && _hi_all_lines_are "$out" 12
+}
+
+# the carry rides in full_check's own edge too - the path that lost it before
+# full_check grew a closing arm of its own
+function test_full_check_closes_a_row_that_absorbed_a_carry() {
+  local out
+  local -a _HI_ROW_CARRY=(carriedcell)
+  out="$(
+    _HI_PACKAGES_D="$(_hi_pkg_one close-carry "$_HI_REAL_CMD:3\nbash:3\n")"
+    _HI_MAX_WIDTH=20
+    full_check
+  )"
+  _hi_all_lines_are "$out" 20
+}
+
+function test_full_check_right_edge_disabled_stays_under_max_width() {
+  local out line n
+  out="$(
+    _HI_PACKAGES_D="$(_hi_pkg_one no-edge "$_HI_REAL_CMD:3\nbash:3\n")"
+    _HI_MAX_WIDTH=20
+    _HI_DISABLE_RIGHT_EDGE=1
+    full_check
+  )"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || return 1
+    _hi_visible_width n "$(_hi_strip_ansi "$line")"
+    ((n < 20)) || return 1
+  done <<<"$out"
+}
+
 # full_check is the cascade's landing point: it absorbs an incoming
 # $_HI_ROW_CARRY as its own first cells, ahead of the packages it reads
 # itself, rather than leaving it for a caller that has nowhere left to send
@@ -2048,6 +2168,17 @@ function run_header_tests() {
   _hi_check "Unarmed, a row leaves no carry behind" test_header_row_unarmed_leaves_no_carry_behind
   _hi_check "Zero cells: returns 1, prints nothing" test_row_line_returns_1_and_prints_nothing_for_zero_cells
   _hi_check "_hi_header_flush drains multiple overflow rounds" test_header_flush_drains_across_multiple_overflow_rounds
+
+  _hi_h2 "Testing: the right edge"
+  _hi_check "header_row closes at the default width" test_header_row_closes_at_default_width
+  _hi_check "...and at a narrow _HI_MAX_WIDTH" test_header_row_closes_at_narrow_width
+  _hi_check "...on every wrapped line, not just the first" test_header_row_closes_every_wrapped_line
+  _hi_check "_HI_DISABLE_RIGHT_EDGE gives back the open row" test_disable_right_edge_gives_back_the_open_row
+  _hi_check_requires bash "full_check closes every row too" test_full_check_closes_every_row_at_max_width
+  _hi_check_requires bash "...including one that absorbed a carry" test_full_check_closes_a_row_that_absorbed_a_carry
+  _hi_check_requires bash "...and stays open under the toggle" test_full_check_right_edge_disabled_stays_under_max_width
+  _hi_check_requires bash "A real hi_header render closes every line, banner included" test_hi_header_closes_every_line
+  _hi_check "So does hi_footer's" test_hi_footer_closes_every_line
 
   _hi_h2 "Testing: banner"
   _hi_check "Includes label and hostname" test_banner_includes_label_and_host

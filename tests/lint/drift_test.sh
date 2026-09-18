@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The repo-consistency sweeps: checks that something written down elsewhere
 # (a bash-4 floor, a retired default, docs/GLOSSARY.md, docs/SETTINGS.md,

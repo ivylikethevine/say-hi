@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's container arm - the command shapes, the three helpers
 # that read their caller's scope, and _say_hi_container's failure ladder.

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Shared bash/zsh environment prompt segment: the "(myproj) " prefix naming
 # every active environment manager. common/config.fish carries fish's own copy

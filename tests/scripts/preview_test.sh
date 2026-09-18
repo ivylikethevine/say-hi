@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/preview.sh - `hi --preview colors`, `packages`,
 # `header`, and `targets`, one script with a subject switch.

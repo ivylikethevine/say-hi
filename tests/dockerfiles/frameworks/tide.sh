@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # tide through fisher, the way its README installs it: fish autoloads its
 # fish_prompt, which common/config.fish must leave defined, and tide's

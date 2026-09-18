@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The boxed table the preview scripts draw with: measure every column, then
 # print a rule, padded cells, and a closing rule.

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # `hi --preview <subject>`: what a setting resolves to, rendered the way a
 # connect will render it, plus why.

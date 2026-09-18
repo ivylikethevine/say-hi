@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The connect/disconnect banner, one implementation for every shell (fish
 # shells out here); the packages check (full_check) lives at the bottom too.
@@ -1137,14 +1136,28 @@ function _hi_check_file() {
   done < <(printf '%s\n' "${visible[@]}" | LC_ALL=C sort -t $'\x1f' -k1,1nr -s)
 }
 
+# full_check's right edge: pads $2's row out to $1 and closes it with a
+# pipe. One home for the arithmetic, called from both places a row ends -
+# mid-loop on wrap, and once at the final flush.
+function _hi_check_close() {
+  local _hi_ccl_pad=""
+  _hi_repeat _hi_ccl_pad $(($1 - $2)) ' '
+  printf '%b' "$NC$_hi_ccl_pad|"
+}
+
 # print sorted package results limited by _hi_draw_width, from
 # $_HI_PACKAGES_MIN_PRIORITY up, a group after the file before it (GLOSSARY:
 # HI.58). The floor lives here, not in check_line:
 # scripts/preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
-  local width_item count=0 max cell vislen piece i pkg_start
+  local width_item count=0 max cell vislen piece i pkg_start close=1
   _hi_draw_width max
+  # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
+  # not _hi_row_line's two, since every piece below already carries its own
+  # trailing space ("| $cell ").
+  [[ "${_HI_DISABLE_RIGHT_EDGE:-0}" == 1 ]] && close=0
+  ((close)) && ((max -= 1))
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
   local -a row_widths=() row_pieces=() files=()
@@ -1183,7 +1196,10 @@ function full_check() {
       width_item=$((width_item + 1))
     }
     if ((width + width_item > max)); then # start of a row
-      ((count == 0)) || printf '\n'
+      if ((count)); then
+        ((close)) && _hi_check_close "$max" "$width"
+        printf '\n'
+      fi
       if [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then
         width=0
       else
@@ -1196,5 +1212,8 @@ function full_check() {
     ((++count))
   done
   # guarded: a floor that hides everything printed a bare newline otherwise
-  if ((count)); then printf '\n'; fi
+  if ((count)); then
+    ((close)) && _hi_check_close "$max" "$width"
+    printf '\n'
+  fi
 }

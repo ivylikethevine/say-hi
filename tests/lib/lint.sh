@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The lint infra more than one tests/lint/*_test.sh needs: the file-listing
 # sweep, and the counted-file suite protocol (begin/halves/end below) that

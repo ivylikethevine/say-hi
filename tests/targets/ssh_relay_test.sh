@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # End-to-end test that `hi` chains: from this machine (A, which has say-hi) to a
 # throwaway sshd container (B, which does not), and then *from inside that

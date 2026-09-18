@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Line coverage for the bash suites via kcov - run by hand, and by
 # coverage.yml after every green push to main. The point is finding which

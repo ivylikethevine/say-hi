@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The counted case and everything a suite prints: _hi_case tallies, _hi_assert
 # reports, _hi_check does both; the aligned status line they print through,

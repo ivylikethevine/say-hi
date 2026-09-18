@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # powerline-go, a prompt program with no `init <shell>`: common/bash.sh runs it
 # from PROMPT_COMMAND itself, so this is what says hi wires it the way its

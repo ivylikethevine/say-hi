@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's handoff layer: the common/flags dispatch into
 # scripts/, the sh invocation every ssh probe rides, the middle third of the

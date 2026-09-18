@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Sourced (not run) by release.yml's publish job and its package-repository
 # step, and by demos.yml's attach job - the one way this repo puts a file on a

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Behavioral tests for common/bash.sh, zsh.zsh, and config.fish. Syntax-linting
 # alone lets a prompt or completion silently stop being defined and still pass
