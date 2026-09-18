@@ -62,10 +62,35 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: Scorecard probes the repo's dependencies and their
-          # upstreams, so the hosts it reaches follow the dependency graph rather than
-          # a list kept here.
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log. Scorecard's probes go to a stable set
+          # of named services rather than following the dependency graph to
+          # wherever it leads, which is what put this job on audit: the OSSF
+          # APIs, OSV, deps.dev, the OpenSSF best-practices badge, oss-fuzz's
+          # build logs, and sigstore for the signed result.
+          # Left out on purpose: the audit log also named a
+          # run-actions-N-azure-REGION.actions.githubusercontent.com, whose
+          # shard rotates - 1, 2 and 3 seen across three runs - so no fixed row
+          # covers it. coverage.yml's blocking shards upload their artifacts
+          # without one, through the auto-allowed productionresultssa* blobs, so
+          # it is not the artifact path. This job is advisory, so if it turns
+          # out to need that host the cost is one advisory run saying so.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            api.scorecard.dev:443
+            api.securityscorecards.dev:443
+            api.deps.dev:443
+            api.osv.dev:443
+            www.bestpractices.dev:443
+            oss-fuzz-build-logs.storage.googleapis.com:443
+            index.docker.io:443
+            auth.docker.io:443
+            fulcio.sigstore.dev:443
+            rekor.sigstore.dev:443
+            tuf-repo-cdn.sigstore.dev:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -75,12 +75,19 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # The union of every render matrix leg's audit log. Left out on
-          # purpose: the image's Chrome phones home to a dozen Google hosts
-          # (update.googleapis.com, mtalk.google.com, accounts.google.com and
-          # the rest) and to dl.google.com through the deb822 source
-          # _ci_apt_drop_vendor_lists does not remove - none of it is this
-          # job's, and blocking it is the point.
+          # The union of every render matrix leg's audit log, plus
+          # dl.google.com, which the first blocking run proved is not optional:
+          # _ci_apt_drop_vendor_lists removes only sources.list.d/*.list, so
+          # the image's deb822 Chrome .sources survives and `apt-get update`
+          # still fetches that index - and apt exits 100 when any index fails,
+          # which is what ci.yml's test-ubuntu list says in the same words.
+          # Blocked, `render colors` went from "1 rendered, 0 failed" under
+          # audit to a fixture that never came up and a 312s vhs timeout.
+          # Still left out on purpose: Chrome's own telemetry
+          # (update.googleapis.com, mtalk.google.com, accounts.google.com,
+          # clients2, content-autofill, optimizationguide-pa, www.gstatic.com
+          # and www.google.com). None of that is this job's, and if a later run
+          # shows one of them is load-bearing too, its own log will name it.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -91,6 +98,7 @@ jobs:
             azure.archive.ubuntu.com:80
             esm.ubuntu.com:443
             motd.ubuntu.com:443
+            dl.google.com:443
             deb.debian.org:443
             dl-cdn.alpinelinux.org:443
             registry-1.docker.io:443
@@ -167,9 +175,18 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit for now: the run these lists came from failed in render, so
-          # these two never ran and there is no log to build a row set from.
-          egress-policy: audit
+          egress-policy: block
+          # Taken from the two steps, not from a log: this job has not run
+          # since v0.3.5 (every run since failed in render), and demos.yml
+          # carried no harden-runner at all back then, so there is no audit
+          # data for it either way. Both steps only move artifacts, which go to
+          # the auto-allowed productionresultssa* blobs, so the rows below are
+          # the conventional minimum rather than a demonstrated need. The first
+          # run that gets this far is the one to take a real list from.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -210,9 +227,22 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit for now: the run these lists came from failed in render, so
-          # these two never ran and there is no log to build a row set from.
-          egress-policy: audit
+          egress-policy: block
+          # Taken from the three steps rather than a log: this job is gated on
+          # github.ref_type == 'tag', so it has never run on a branch push and
+          # no audit log for it exists. Its whole network use is legible - the
+          # checkout, artifacts off the auto-allowed blobs, and `gh release
+          # upload`, which release.yml's publish job already blocks against the
+          # same two hosts. If a tagged run trips on a row, that log is the one
+          # to take the real list from.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            uploads.github.com:443
+            codeload.github.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -46,10 +46,28 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: Trivy pulls the image under test and its own
-          # vulnerability database from wherever the tag points, which is the job's
-          # whole purpose - there is no fixed host set to pin it to.
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log. It scans the *pinned* base images, so
+          # the registry set is fixed rather than open: the two Docker hosts and
+          # the mirror it falls back to, plus trivy's own database and version
+          # check. This job was on audit as one that 'reaches arbitrary hosts by
+          # design', which its log does not bear out.
+          # Left out on purpose: the audit log also named a
+          # run-actions-N-azure-REGION.actions.githubusercontent.com, whose
+          # shard rotates - 1, 2 and 3 seen across three runs - so no fixed row
+          # covers it. coverage.yml's blocking shards upload their artifacts
+          # without one, through the auto-allowed productionresultssa* blobs, so
+          # it is not the artifact path. This job is advisory, so if it turns
+          # out to need that host the cost is one advisory run saying so.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            index.docker.io:443
+            auth.docker.io:443
+            production.cloudfront.docker.com:443
+            mirror.gcr.io:443
+            check.trivy.dev:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
