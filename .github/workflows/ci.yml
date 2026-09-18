@@ -76,6 +76,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it only reads a diff
+          # and the API. One that turns out to need root fails here outright
+          # rather than quietly doing less, which is what makes this worth
+          # setting rather than inferring.
+          disable-sudo: true
           # Off this job's own audit log: the checkout, the cache receiver, and
           # the API that paths-filter and find_tree_run.sh ask for a run to
           # reuse.
@@ -587,6 +593,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it runs its three
+          # linters out of the tool cache. One that turns out to need root fails
+          # here outright rather than quietly doing less, which is what makes
+          # this worth setting rather than inferring.
+          disable-sudo: true
           # Off this job's own audit log: the checkout and the cache, plus
           # github.com and api.github.com from zizmor itself - it resolves the
           # actions it audits online, which no other lint job here does. That
@@ -646,6 +658,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it only scans the
+          # checkout. One that turns out to need root fails here outright rather
+          # than quietly doing less, which is what makes this worth setting
+          # rather than inferring.
+          disable-sudo: true
           # Off this job's own audit log: the checkout and the cache. That run
           # hit the tool cache, so the two release hosts cover a cold gitleaks
           # download - setup-tool's path, as recorded in release.yml's own
@@ -685,6 +703,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it is one action
+          # talking to the API. One that turns out to need root fails here
+          # outright rather than quietly doing less, which is what makes this
+          # worth setting rather than inferring.
+          disable-sudo: true
           # Off this job's own audit log, which reached one host: the review
           # action asks the API for the diff's advisories and nothing else.
           allowed-endpoints: >
@@ -712,6 +736,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it runs its linters
+          # out of the tool cache. One that turns out to need root fails here
+          # outright rather than quietly doing less, which is what makes this
+          # worth setting rather than inferring.
+          disable-sudo: true
           # This job's own audit log named github.com (checkout) and
           # results-receiver.actions.githubusercontent.com (the cache), with
           # the productionresultssa* blob harden-runner allows itself. It was
@@ -1126,6 +1156,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it only reads other
+          # jobs' results. One that turns out to need root fails here outright
+          # rather than quietly doing less, which is what makes this worth
+          # setting rather than inferring.
+          disable-sudo: true
           # A gate job, as e2e-gate below: its audit log named no endpoint.
           allowed-endpoints: >
             github.com:443
@@ -1153,6 +1189,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it only reads other
+          # jobs' results. One that turns out to need root fails here outright
+          # rather than quietly doing less, which is what makes this worth
+          # setting rather than inferring.
+          disable-sudo: true
           # A gate job, as e2e-gate below: its audit log named no endpoint.
           allowed-endpoints: >
             github.com:443
@@ -1196,6 +1238,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it only reads other
+          # jobs' results. One that turns out to need root fails here outright
+          # rather than quietly doing less, which is what makes this worth
+          # setting rather than inferring.
+          disable-sudo: true
           # A gate job: it reads its needs' outputs and reaches nothing else.
           # Its own audit log named no endpoint at all.
           allowed-endpoints: >
