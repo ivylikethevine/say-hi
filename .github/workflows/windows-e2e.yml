@@ -80,62 +80,101 @@ jobs:
       # apart, and the earlier sweep left 65551..66011 unmeasured. So: print
       # both real sizes off this runner, then walk that gap. Diagnosis only.
       # Bounded on purpose: an earlier version of this step captured the
-      # armored payload with `$( )` and hung this job for its whole 20
-      # minutes. Nothing here runs unbounded, and each statement is timed on
-      # its own so a stall names the line rather than the function.
+      # armored payload with `$( )` and hung this job for its whole 20 minutes.
+      # Nothing here runs unbounded, and each call is timed on its own so a stall
+      # names the line rather than the function.
       #
-      # What the previous run established on this runner: producing the 64235
-      # byte armored payload to a *file* returns fine, while
-      # `_hi_remote_middle` and `_hi_wire_bytes` both pass 60s - and the
-      # middle probe held no `$( )` of a large body at all. So the blocker is
-      # inside the middle, and the two size-dependent statements there are the
-      # `read -r -d ""` that loads $tree and the `cat <<REMOTE` that
-      # interpolates it. This step times them apart.
-      - name: Time each large-body construction, bounded
+      # Established on this runner so far. Producing the 64235-byte armored
+      # payload to a file returns fine, while `_hi_remote_middle` and
+      # `_hi_wire_bytes` both pass 60s. Then six generic constructions on a body
+      # of exactly that size - `read -r -d ""`, `$(cat)`, a heredoc into `cat`
+      # from each, `printf` to a file, and a heredoc inside `$( )` - all returned
+      # in 0-1s. So neither the size nor the way the body is carried is the
+      # problem, and what is left in the middle is the three helpers it calls
+      # before its heredoc. This times those apart, and brackets them with the
+      # other two thirds, which call the same helpers and are small.
+      #
+      # Each case is a quoted heredoc written to its own file rather than an
+      # inline snippet: the snippets keep their `$B`/`$OUT`/`$PRE` unexpanded for
+      # the child shell, and as single-quoted strings that is ten SC2016 findings
+      # actionlint fails the run on. A quoted heredoc is literal data.
+      - name: Time each step of the wire assembly, bounded
         shell: bash
-        # shellcheck disable=SC2016 # the case snippets must NOT expand here:
-        # $B and $OUT are filled by the child shell the timer runs them in
         run: |
-          # shellcheck disable=SC2016
           set -uo pipefail
+          d="$RUNNER_TEMP/probe"
+          mkdir -p "$d"
+          rm -f "$d"/[1-9]-*.sh   # so a re-run cannot time a stale case
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
-          # A 64235-byte body, the size the armored payload measured here, so
-          # every case below works on the same bytes with no hi.sh in the way.
-          head -c 64235 /dev/urandom | base64 | tr -d '\n' |
-            head -c 64235 >"$RUNNER_TEMP/body"
-          printf 'body is %s bytes\n' "$(wc -c <"$RUNNER_TEMP/body" | tr -d ' ')"
-          # time_case <label> <timeout_s> <snippet> - $B names the body file,
-          # $OUT a file to write to
-          time_case() {
-            local label="$1" t="$2" snip="$3" t0 t1
-            t0=$SECONDS
-            if B="$RUNNER_TEMP/body" OUT="$RUNNER_TEMP/$1.out" \
-               timeout -k 5 "$t" bash -c "$snip" >/dev/null 2>&1; then
-              t1=$SECONDS
-              printf '%-30s ok in %ss\n' "$label" "$((t1 - t0))"
-            else
-              printf '%-30s TIMED OUT (%ss)\n' "$label" "$t"
-            fi
-          }
-          # 1. the two ways to get a big file into a variable
-          time_case 'read -r -d ""' 45 'IFS= read -r -d "" v <"$B"; printf %s "${#v}"'
-          time_case 'comsub $(cat)' 45 'v="$(cat "$B")"; printf %s "${#v}"'
-          # 2. the same body back out again, the three ways the tree writes it
-          time_case 'heredoc to cat' 45 'IFS= read -r -d "" v <"$B"; cat <<EOF >"$OUT"
-          $v
-          EOF'
-          time_case 'heredoc to cat, comsub in' 45 'v="$(cat "$B")"; cat <<EOF >"$OUT"
-          $v
-          EOF'
-          time_case 'printf to a file' 45 'IFS= read -r -d "" v <"$B"; printf "%s\n" "$v" >"$OUT"'
-          # 3. and the pair together, which is what _hi_remote_middle does
-          time_case 'heredoc captured in $( )' 45 'IFS= read -r -d "" v <"$B"
-          m="$(cat <<EOF
-          $v
-          EOF
-          )"; printf %s "${#m}"'
+          # the armored payload, produced to a file - the one thing already
+          # known to work here - so no case has to build it
+          bash -c 'set --; source ./hi.sh; _hi_payload_stream' >"$d/body" ||
+            echo "could not build the payload" >&2
+          printf 'body is %s bytes\n' "$(wc -c <"$d/body" | tr -d ' ')"
 
+          cat >"$d/prelude.sh" <<'CASE'
+          set --
+          source ./hi.sh
+          DOMAIN=target
+          size="$_HI_SIZE_TOKEN"
+          overlay_line=""
+          bootloader=x
+          tree=x
+          CMDARG=""
+          RAWCMD=""
+          CASE
+
+          cat >"$d/1-esc-pair.sh" <<'CASE'
+          . "$PRE"
+          _hi_esc_pair a b
+          printf %s "$a$b"
+          CASE
+          cat >"$d/2-whoami.sh" <<'CASE'
+          . "$PRE"
+          _hi_whoami >/dev/null
+          printf %s "$_HI_WHOAMI_CACHE"
+          CASE
+          cat >"$d/3-shquote.sh" <<'CASE'
+          . "$PRE"
+          _hi_whoami >/dev/null
+          _hi_shquote t "$_HI_WHOAMI_CACHE.hi.XXXXXX"
+          printf %s "$t"
+          CASE
+          cat >"$d/4-preamble.sh" <<'CASE'
+          . "$PRE"
+          _hi_remote_preamble >"$OUT"
+          CASE
+          cat >"$d/5-suffix.sh" <<'CASE'
+          . "$PRE"
+          _hi_remote_suffix >"$OUT"
+          CASE
+          cat >"$d/6-mid-notree.sh" <<'CASE'
+          . "$PRE"
+          tree=""
+          _hi_remote_middle >"$OUT"
+          CASE
+          cat >"$d/7-mid-full.sh" <<'CASE'
+          . "$PRE"
+          IFS= read -r -d '' tree <"$B" || true
+          _hi_remote_middle >"$OUT"
+          CASE
+          cat >"$d/8-wire-bytes.sh" <<'CASE'
+          . "$PRE"
+          _hi_wire_bytes >"$OUT"
+          CASE
+
+          # $PRE sources hi.sh, $B is the payload, $OUT a file to write to
+          for f in "$d"/[1-9]-*.sh; do
+            label="$(basename "$f" .sh)"
+            t0=$SECONDS
+            if PRE="$d/prelude.sh" B="$d/body" OUT="$d/$label.out" \
+               timeout -k 5 20 bash "$f" >/dev/null 2>&1; then
+              printf '%-16s ok in %ss\n' "$label" "$((SECONDS - t0))"
+            else
+              printf '%-16s TIMED OUT (20s)\n' "$label"
+            fi
+          done
       - name: Say hi (expect the PowerShell fallback)
         shell: bash
         run: |
