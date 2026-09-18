@@ -72,6 +72,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read # dorny/paths-filter lists a PR's files via the API
     outputs:
       run: ${{ steps.find.outputs.run }}
       sweep: ${{ steps.gate.outputs.sweep }}
@@ -80,15 +81,57 @@ jobs:
         with:
           egress-policy: block
           # Off this job's own audit log, which reached exactly one host: it
-          # checks out and asks the API for a green run to reuse, and uploads
-          # nothing. The API and the cache ride GitHub meta domains, which
-          # harden-runner allows itself.
+          # checks out, asks the API for a green run to reuse and for a PR's
+          # file list, and uploads nothing. api.github.com is listed the way
+          # ci.yml's `changes` job lists it, though *.github.com is a GitHub
+          # meta domain harden-runner allows itself either way.
           allowed-endpoints: >
             github.com:443
+            api.github.com:443
 
+      # fetch-depth 2 so the workflow_run arm below has HEAD^ to diff against
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
+
+      # Neither tracer can reach a line that a docs-only diff moved, so the
+      # sweep is skipped for one. The exclusion set is ci.yml's `changes` job's,
+      # verbatim, and workflow yaml plus Markdown rather than "*.yaml" for the
+      # reason CLAUDE.md gives: packaging/nfpm/nfpm.yaml, .markdownlint.yaml and
+      # .prettierrc.yaml are all read by the lint suites, so a change to one of
+      # those can move coverage and has to sweep.
+      #
+      # A PR's files come from the API; `some-with-excludes` and the bare `**`
+      # are what make a negated pattern mean anything at all (ci.yml says why).
+      - id: filter
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            code:
+              - '**'
+              - '!.github/workflows/**'
+              - '!**/*.md'
+
+      # workflow_run carries no diff and gives paths-filter no base to compare
+      # against, so the range is read off the checkout instead. HEAD^..HEAD is
+      # the pushed commit, and on a merge to main its first parent, so the whole
+      # merged range. grep -v, so an unreadable or empty diff leaves code=true:
+      # false only where something affirmatively says so, as in ci.yml's gate.
+      - id: diff
+        if: github.event_name == 'workflow_run'
+        continue-on-error: true
+        run: |
+          set -eu
+          code=true
+          if files="$(git diff --name-only HEAD^ HEAD 2>/dev/null)" && [ -n "$files" ]; then
+            printf '%s\n' "$files" |
+              grep -qvE '^\.github/workflows/|\.md$' || code=false
+          fi
+          echo "code=$code" >>"$GITHUB_OUTPUT"
 
       - id: find
         if: >-
@@ -137,6 +180,10 @@ jobs:
           WR_EVENT: ${{ github.event.workflow_run.event }}
           PR_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           FOUND_RUN: ${{ steps.find.outputs.run }}
+          FILTER_OUTCOME: ${{ steps.filter.outcome }}
+          FILTER_CODE: ${{ steps.filter.outputs.code }}
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
+          DIFF_CODE: ${{ steps.diff.outputs.code }}
         run: |
           set -eu
           sweep=false
@@ -146,6 +193,10 @@ jobs:
             sweep=true
           fi
           [ -z "$FOUND_RUN" ] || sweep=false
+          # a docs-only diff, from whichever arm above ran. A dispatch reaches
+          # neither and sweeps: asking for the run by hand is the point of it.
+          [ "$FILTER_OUTCOME" != success ] || [ "$FILTER_CODE" = true ] || sweep=false
+          [ "$DIFF_OUTCOME" != success ] || [ "$DIFF_CODE" = true ] || sweep=false
           echo "sweep=$sweep" >>"$GITHUB_OUTPUT"
 
   # every-suite selection sliced 4 ways, per the header above; each shard

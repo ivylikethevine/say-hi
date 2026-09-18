@@ -399,37 +399,62 @@ and are not.
        `common/bash.sh` turns it red.
 
 7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
-       34 of the 50 `harden-runner` steps now run `egress-policy: block` with an
-       `allowed-endpoints` list taken off that job's own audit log, up from 6.
-       The 16 still on `audit` each carry a comment saying why, and they are
-       exceptions rather than gaps: 8 cannot block at all (`windows-e2e.yml`'s
-       four jobs, `windows-client.yml`'s two, `ci.yml`'s `test-macos` and
-       `release.yml`'s `brew` - blocking is an Ubuntu capability, and
-       harden-runner's Windows agent log reports no endpoint or DNS event where
-       an Ubuntu run reports both); 3 reach arbitrary hosts by design
-       (`link-check.yml`, `image-scan.yml`, `scorecard.yml`); `ci.yml`'s `e2e`
-       rotates Fedora mirrors and `pages.yml`'s `deploy` polls a
+       36 of the 50 `harden-runner` steps run `egress-policy: block` with an
+       `allowed-endpoints` list, up from 6, and each of the 14 left on `audit`
+       carries a comment naming the limit that keeps it there rather than work
+       not done. Eight cannot block at all: `windows-e2e.yml`'s four jobs,
+       `windows-client.yml`'s two, `ci.yml`'s `test-macos` and `release.yml`'s
+       `brew` - harden-runner's Windows agent logs no endpoint or DNS event
+       where an Ubuntu run logs both, and blocking is an Ubuntu capability.
+       `ci.yml`'s `test-arm` has no step at all for the same reason one step
+       further out: the community tier ships no arm agent, so it would log that
+       and exit. Three reach arbitrary hosts by design (`link-check.yml`,
+       `image-scan.yml`, `scorecard.yml`). Three reach a host no fixed row
+       names: `ci.yml`'s `e2e` takes Fedora packages off whichever mirrors the
+       metalink hands it - six distinct `*.mm.fcix.net`,
+       `mirror.cs.princeton.edu` and `fedora.mirror.constant.com` across two
+       shards of one run - `pages.yml`'s `deploy` polls a
        `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
-       and region both rotate, so no fixed row names either; `openbsd-e2e.yml`
-       opens DNS-over-HTTPS to a bare `9.9.9.9`, and `allowed-endpoints` matches
-       on hostname; and `demos.yml`'s `collect` and `attach` never ran on the
-       audit run the lists came from. What keeps the lists short is measured,
-       not assumed: harden-runner fetches GitHub's meta domains and auto-allows
-       `github.com`, `*.github.com`, `*.githubapp.com`, `ghcr.io` and
-       `productionresultssa0`-`19.blob.core.windows.net`, so an artifact upload
-       needs no row - `coverage.yml`'s blocking shards upload through
-       `productionresultssa18` - while `*.githubusercontent.com` is not meta and
-       every host under it has to be listed. The rest of the cost is in cold
-       runs: a job that hits its caches reaches fewer hosts than one that
-       misses, and the first list for `ci.yml`'s `e2e-backends` came off a run
-       where `kind-action` restored kind from `actions/cache` and so never
-       fetched kubectl - shard 3 then went red on a blocked `dl.k8s.io`.
-       `freebsd-e2e.yml` has the same shape and carries its Ubuntu mirrors from
-       another job's list rather than its own log. **Do:** read a cold run of
-       each remaining blocking job, and give `demos.yml`'s `collect` and
-       `attach` lists off a render that gets far enough for them to run. **Ticks
-       when:** no job is on `audit` without a comment naming the reason, and
-       adding an unlisted download to a blocking job fails it.
+       and region both rotate, and `openbsd-e2e.yml`'s guest opens
+       DNS-over-HTTPS to a bare `9.9.9.9`, where `allowed-endpoints` matches on
+       hostname. What keeps the lists short is measured, not assumed:
+       harden-runner fetches GitHub's meta domains and auto-allows `github.com`,
+       `*.github.com`, `*.githubapp.com`, `ghcr.io` and
+       `productionresultssa0`-`19.blob.core.windows.net`, so artifacts need no
+       row either way - `coverage.yml`'s shards upload through
+       `productionresultssa18` and `demos.yml`'s `collect` reaches nothing else
+       at all - while `*.githubusercontent.com` is not meta and every host under
+       it has to be listed. The rest of the cost is cold runs: a job that hits
+       its caches reaches fewer hosts than one that misses, and `e2e-backends`'
+       first list came off a run where `kind-action` restored kind from
+       `actions/cache` and so never fetched kubectl - shard 3 then went red on a
+       blocked `dl.k8s.io`. **Do:** read a cold run of each blocking job, and
+       take `demos.yml`'s `attach` list off a tagged run rather than off its
+       three steps, which is where it comes from now. **Ticks when:** no job is
+       on `audit` without a comment naming the reason, and adding an unlisted
+       download to a blocking job fails it.
+
+8. [ ] **The right edge reaches every header row** — `_hi_row_line` grew the
+       closing pipe in item 4 above, and the header suite's 162 cases assert it,
+       but a rendered header does not show it. Measured off a `hi_header` render
+       on this checkout: the banner lands on exactly 80 columns, every row below
+       it stops between 70 and 79, and a wrapped last row stops at 34. Those
+       rows carry no closing pipe at all - `cat -A` on one shows it ending in a
+       bare space after its last cell - so the whole edge is missing rather than
+       the padding being a column out. Ruled out already, each measured rather
+       than read: `_hi_visible_width` is exact on the glyph cells and on a
+       masked username, `_hi_draw_width` answers 80, `_hi_repeat` is defined,
+       `_HI_DISABLE_RIGHT_EDGE` is unset, and the tree holds one `_hi_row_line`,
+       whose closing arm reads correctly on the page. **Do:** start from the
+       contradiction, not the drawing code. Sourced and called by hand in a
+       plain bash, `_hi_row_line` given two cells prints them and stops, while
+       the suite's cases for that same call pass in CI. So either those cases
+       assert something weaker than they appear to - a glob looking for a pipe
+       anywhere matches the separator between two cells, not only a closing one - or the edge depends on state `tests/test_lib.sh` sets up and a bare
+       shell does not. Settle which first. **Ticks when:** a real header render
+       ends every row in the banner's column, at 80 and at a narrow
+       `_HI_MAX_WIDTH`, wrapped rows and the footer included, and a case asserts
+       the column a row ends on rather than the presence of a pipe.
 
 ### Post 1.0
 
