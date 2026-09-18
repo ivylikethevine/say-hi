@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # `hi --update`: move the say-hi checkout this hi runs from to a release tag.
 #

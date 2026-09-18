@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Every way say-hi gets onto a target, driven over real ssh: the .deb, the .rpm,
 # the .apk, a Homebrew-shaped keg, a system-wide `install.sh --prefix`, and a

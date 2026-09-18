@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # mise's PROMPT_COMMAND hook. Installed from mise.run rather than apt, which
 # does not package it.

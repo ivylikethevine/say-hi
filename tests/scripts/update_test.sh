@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/update.sh - `hi --update`, which moves the checkout
 # this hi runs from to a release tag.

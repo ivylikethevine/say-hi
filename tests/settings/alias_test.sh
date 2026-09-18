@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Sources settings/aliases.sh in a real instance of each target shell and checks
 # that every alias/var it unconditionally defines actually landed - not just

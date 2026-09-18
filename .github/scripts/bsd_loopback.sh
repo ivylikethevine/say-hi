@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # freebsd-e2e.yml's and openbsd-e2e.yml's run script, byte for byte the same
 # on both: hi localhost, client and target both BSD userland. Only each

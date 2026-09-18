@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # tap_formula.sh <formula >tap-formula - the formula as the Homebrew tap
 # carries it. packaging/homebrew/say-hi.rb opens with a header written for

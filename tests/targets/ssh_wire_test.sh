@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # What hi actually puts on the wire, measured rather than computed. One
 # container, one session, through a byte-counting ProxyCommand: every ssh

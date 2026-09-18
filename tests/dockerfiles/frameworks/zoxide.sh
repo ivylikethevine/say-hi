@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # zoxide's PROMPT_COMMAND hook, which has to survive hi chaining its own ps1
 # onto the same variable. One apt package.

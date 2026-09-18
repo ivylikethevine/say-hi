@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Drives hi.sh's real podman path - see tests/lib/backend.sh's
 # _hi_container_backend_test for what this actually does and why it's shared

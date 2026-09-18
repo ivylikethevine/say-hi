@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Not a framework: the target's own ~/.tmux.conf, which a tmux started in a hi
 # session must not read - the client's config has to win over it.

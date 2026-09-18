@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/add_package.sh - `hi --add-package`, which appends
 # rows to a ~/.config/say-hi/packages.d/ group.

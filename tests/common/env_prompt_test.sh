@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for common/env_prompt.sh's _hi_env_prompt - the prompt's leading
 # "(myproj) ", naming every active environment manager.

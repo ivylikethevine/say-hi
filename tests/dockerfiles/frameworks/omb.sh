@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # oh-my-bash, loaded by the target's own ~/.bashrc with its stock theme - the
 # prompt hi stands down for, and draws the home theme over.

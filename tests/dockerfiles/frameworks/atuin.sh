@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # atuin's Ctrl-R. Not packaged in debian, so this takes its release installer
 # straight - the setup.atuin.sh wrapper around it exits nonzero in a container

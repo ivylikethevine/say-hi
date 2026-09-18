@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The one implementation of `hi --version`'s build-time stamp, called by every
 # channel: mkpkg.sh (deb/rpm/apk), both PKGBUILDs, and the Homebrew formula.

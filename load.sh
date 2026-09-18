@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The target half (forked from sshrc): header, session rc, shell handoff, undo.
 

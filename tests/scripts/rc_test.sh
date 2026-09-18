@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/rc.sh - the code that owns the lines hi writes into a
 # user's real shell rc files. Nothing here touches the tester's own rc files:

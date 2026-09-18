@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Shared plumbing for packaging/'s entry points (bump.sh, mkpkg.sh, mkrepo.sh,
 # srctar.sh): locate

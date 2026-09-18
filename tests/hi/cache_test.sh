@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's runtime-directory layer and the three things built on
 # it: the overlay cache, the payload cache, and the ControlMaster socket.

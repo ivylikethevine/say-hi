@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # a prompt that owns PROMPT_COMMAND, which is the bash-side collision:
 # common/bash.sh chains onto it rather than replacing it, and this is what says

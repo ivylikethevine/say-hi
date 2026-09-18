@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: the prompt the bash-less tiers get.
 # common/config.fish renders a git segment without common/git_prompt.sh, so it

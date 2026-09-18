@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi --configure's settings wizard - scripts/configure.sh (the
 # rc.sh and table.sh helpers it shares have their own suites). This half is

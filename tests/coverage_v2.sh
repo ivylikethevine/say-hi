@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Line coverage for the bash suites via bashcov - coverage.yml's shard-bashcov
 # matrix runs it and README's Bashcov badge is its output. Same job and same

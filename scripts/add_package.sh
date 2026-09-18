@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # `hi --add-package`: append one or more package-check rows to a
 # ~/.config/say-hi/packages.d/ group, creating the group if it does not exist

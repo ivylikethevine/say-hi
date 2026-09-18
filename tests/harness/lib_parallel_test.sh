@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for the tests/lib/ harness - the scratch dir, its teardown, and
 # the parallel batch.

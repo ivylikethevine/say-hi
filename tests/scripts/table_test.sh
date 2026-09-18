@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/table.sh: the measure-then-render contract - the two
 # wideners, the rule, and both cell renderers. Everything here is a pure

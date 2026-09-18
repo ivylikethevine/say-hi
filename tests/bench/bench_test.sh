@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Benchmarks for the product's hot paths - the code every shell start, prompt,
 # TAB completion, and connect runs - plus the ssh payload's size budget. The
