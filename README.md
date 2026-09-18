@@ -435,6 +435,10 @@ and are not.
        three steps, which is where it comes from now. **Ticks when:** no job is
        on `audit` without a comment naming the reason, and adding an unlisted
        download to a blocking job fails it.
+8. [ ] **support for ~/.aliases and similar paths**
+9. [ ] **easier to read doctor output**
+10. [ ] **plugin rewrite some features**
+11. [ ] **dedupe shipped files when overlay and settings coexist + rename**
 
 ### Post 1.0
 
