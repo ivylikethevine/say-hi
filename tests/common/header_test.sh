@@ -959,7 +959,7 @@ function test_hi_header_closes_every_line() {
   out="$(
     unset _HI_BANNER_HOST
     _HI_PACKAGES_D="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD:3\nbash:3\n")" \
-      _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime uptime check" hi_header Connected
+    _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime uptime check" hi_header Connected
   )"
   _hi_all_lines_are "$out" 40
 }
