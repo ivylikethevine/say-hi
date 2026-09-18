@@ -48,6 +48,12 @@ jobs:
           # an allowlist would either be the docs' own link list or a gate on adding a
           # link.
           egress-policy: audit
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it fetches URLs. One
+          # that turns out to need root fails here outright rather than quietly
+          # doing less, which is what makes this worth setting rather than
+          # inferring.
+          disable-sudo: true
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

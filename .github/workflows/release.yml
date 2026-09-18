@@ -73,6 +73,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it only reads the
+          # tag, the branch and CI's conclusion. One that turns out to need root
+          # fails here outright rather than quietly doing less, which is what
+          # makes this worth setting rather than inferring.
+          disable-sudo: true
           # Off this job's own audit log, and it reaches nothing else: the gate
           # only reads the tag, the branch and CI's conclusion through the API.
           allowed-endpoints: >

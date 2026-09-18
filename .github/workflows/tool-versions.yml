@@ -47,6 +47,12 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it compares pins
+          # against upstream tags over the API. One that turns out to need root
+          # fails here outright rather than quietly doing less, which is what
+          # makes this worth setting rather than inferring.
+          disable-sudo: true
           # Off this job's own audit log: the API for the upstream tags, plus
           # the two projects that publish theirs elsewhere - hub.docker.com and
           # salsa.debian.org.

@@ -75,19 +75,24 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # The union of every render matrix leg's audit log, plus
-          # dl.google.com, which the first blocking run proved is not optional:
-          # _ci_apt_drop_vendor_lists removes only sources.list.d/*.list, so
-          # the image's deb822 Chrome .sources survives and `apt-get update`
-          # still fetches that index - and apt exits 100 when any index fails,
-          # which is what ci.yml's test-ubuntu list says in the same words.
-          # Blocked, `render colors` went from "1 rendered, 0 failed" under
-          # audit to a fixture that never came up and a 312s vhs timeout.
-          # Still left out on purpose: Chrome's own telemetry
-          # (update.googleapis.com, mtalk.google.com, accounts.google.com,
-          # clients2, content-autofill, optimizationguide-pa, www.gstatic.com
-          # and www.google.com). None of that is this job's, and if a later run
-          # shows one of them is load-bearing too, its own log will name it.
+          # Taken from the last audit run whose tapes actually rendered
+          # (v0.4.2), not from a failed one - which is the whole reason this
+          # list was wrong twice. Two corrections are baked in here.
+          #
+          # dl.google.com: _ci_apt_drop_vendor_lists removes only
+          # sources.list.d/*.list, so the image's deb822 Chrome .sources
+          # survives and `apt-get update` still fetches that index - and apt
+          # exits 100 when any index fails, exactly as ci.yml's test-ubuntu
+          # list says.
+          #
+          # The google/gstatic/gvt1 rows are Chrome's, and Chrome is this job's
+          # *renderer*: vhs drives a headless Chrome to screenshot the
+          # terminal, and the v0.4.2 log attributes every one of these to
+          # `process: chrome`. Blocked, Chrome comes up impaired and vhs times
+          # out waiting for the screen to match - `render colors` went from
+          # "1 rendered, 0 failed" under audit to a 305s timeout on step 16,
+          # which reads as a fixture that never came up and is not. They are
+          # not telemetry incidental to the job, however much they look it.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -109,6 +114,16 @@ jobs:
             checkpoint-api.hashicorp.com:443
             dl.k8s.io:443
             starship.rs:443
+            accounts.google.com:443
+            android.clients.google.com:443
+            clients2.google.com:443
+            content-autofill.googleapis.com:443
+            edgedl.me.gvt1.com:443
+            mtalk.google.com:443
+            optimizationguide-pa.googleapis.com:443
+            update.googleapis.com:443
+            www.google.com:443
+            www.gstatic.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
