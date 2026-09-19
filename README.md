@@ -437,13 +437,14 @@ and are not.
        download to a blocking job fails it.
 8. [ ] **support for ~/.aliases and similar paths**
 9. [ ] **easier to read doctor output**
-10. [ ] **plugin rewrite some features**
+10. [ ] **plugin rewrite some features - header, check**
 11. [ ] **dedupe shipped files when overlay and settings coexist + rename**
 12. [ ] **add a hi-allow, and a hi-quiet directive for the overlay files**
 13. [ ] **only show/use configs for installed tools**
 14. [ ] **simplify and reduce packages confusing-ness**
 15. [ ] **basic ssh-tag adding commands**
 16. [ ] **don't assign aliases for non-installed package**
+17. [ ] **IP color escapes in bash**
 
 ### Post 1.0
 
