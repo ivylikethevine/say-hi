@@ -444,7 +444,8 @@ and are not.
 14. [ ] **simplify and reduce packages confusing-ness**
 15. [ ] **basic ssh-tag adding commands**
 16. [ ] **don't assign aliases for non-installed package**
-17. [ ] **IP color escapes in bash**
+17. [ ] **display hosts and their colors properly**
+18. [ ] **remove --preview targets**
 
 ### Post 1.0
 
