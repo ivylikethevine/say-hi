@@ -491,8 +491,11 @@ function _hi_cell_ip() {
   # more absent-tool roll of the dice apiece, each needing its own
   # `2>/dev/null` to stay quiet under _hi_stripped_header.
   if [ "$plat" = linux ]; then
+    # SGR stripped first: an `ip` that colors (an alias or wrapper the shell
+    # brought along, or `ip -c`) wraps each address, which shifts nothing in
+    # the field layout but defeats the filter's globs and leaks the escapes.
     ips=$(ip -4 -o addr show scope global 2>/dev/null | awk '{
-      split($4, a, "/"); printf "%s%s", sep, a[1]; sep = ","
+      gsub(/\033\[[0-9;]*m/, ""); split($4, a, "/"); printf "%s%s", sep, a[1]; sep = ","
     }')
     [ -n "$ips" ] || ips=$(hostname -I 2>/dev/null | awk '{
       for (i = 1; i <= NF; i++) { printf "%s%s", sep, $i; sep = "," }
