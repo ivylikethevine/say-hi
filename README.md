@@ -443,6 +443,7 @@ and are not.
 13. [ ] **only show/use configs for installed tools**
 14. [ ] **simplify and reduce packages confusing-ness**
 15. [ ] **basic ssh-tag adding commands**
+16. [ ] **don't assign aliases for non-installed package**
 
 ### Post 1.0
 
