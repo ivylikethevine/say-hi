@@ -378,6 +378,22 @@ function _hi_cecho() {
   [ $# -ge 3 ] || printf '\n'
 }
 
+# _hi_flag_word <outvar> <flag> [next] - the word a flag takes, joined
+# (--x=y) or as the next argument (--x y): status 2 when it took <next> and
+# the caller must shift again, 1 for a bare flag with nothing after it. Here,
+# not in scripts/lib.sh, because hi.sh parses flags too and ships in the
+# payload, which cannot reach outside common/.
+function _hi_flag_word() {
+  case "$2" in
+  *=*) printf -v "$1" '%s' "${2#*=}" ;;
+  *)
+    [ $# -ge 3 ] || return 1
+    printf -v "$1" '%s' "$3"
+    return 2
+    ;;
+  esac
+}
+
 # _hi_read_lines <array-name> - stdin into that array, one element per line:
 # `_hi_read_lines lines < <(cmd)`. GLOSSARY: HI.02
 function _hi_read_lines() {
@@ -1002,11 +1018,13 @@ function _hi_ssh_try_patterns() {
 
 # The "# Tags: a, b" comment directly above a "Host <alias>" or "Match host
 # <pattern>" line in ~/.ssh/config (case-insensitive, wildcards honoured);
-# unknown host returns 1, known host with no tag returns 2. An `Include` is
-# walked in place, its files flattened by targets.sh - a fork only for a config
-# that has one.
+# unknown host returns 1, known host with no tag returns 2. An untagged block
+# that matches (a leading `Host *`) does not end the walk: ssh applies every
+# matching block, so a tag further down still counts. An `Include` is walked
+# in place, its files flattened by targets.sh - a fork only for a config that
+# has one.
 function _hi_ssh_host_tag_walk() {
-  local line trimmed rc
+  local line trimmed rc known=1
   _hi_sw_tag=""
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
@@ -1017,17 +1035,19 @@ function _hi_ssh_host_tag_walk() {
       while IFS= read -r line || [ -n "$line" ]; do
         rc=0
         _hi_ssh_walk_line "$line" "$1" || rc=$?
-        [ "$rc" -eq 1 ] || return "$rc"
+        [ "$rc" -ne 0 ] || return 0
+        [ "$rc" -eq 1 ] || known=2
       done < <(sh "$_HI_TARGETS" ssh-include "${trimmed#*[[:space:]=]}" 2>/dev/null)
       ;;
     *)
       rc=0
       _hi_ssh_walk_line "$line" "$1" || rc=$?
-      [ "$rc" -eq 1 ] || return "$rc"
+      [ "$rc" -ne 0 ] || return 0
+      [ "$rc" -eq 1 ] || known=2
       ;;
     esac
   done <"$_HI_SSH_CONFIG"
-  return 1
+  return "$known"
 }
 
 # One line of the walk above: 0 tagged (printed), 2 known-but-untagged, 1 go

@@ -8,23 +8,6 @@
 # *after* common/core.sh, whose _hi_repeat, _hi_cecho, and palette it uses;
 # sourcing it does nothing else.
 
-# _hi_flag_word <outvar> <flag> [next] - the word a flag takes, joined
-# (--x=y) or as the next argument (--x y): status 2 when it took <next> and
-# the caller must shift again, 1 for a bare flag with nothing after it.
-# hi.sh has its own copy of this, since it ships in the ssh payload and
-# cannot depend on a file outside common/ - two copies of five lines rather
-# than a payload file reaching into scripts/.
-function _hi_flag_word() {
-  case "$2" in
-  *=*) printf -v "$1" '%s' "${2#*=}" ;;
-  *)
-    [ $# -ge 3 ] || return 1
-    printf -v "$1" '%s' "$3"
-    return 2
-    ;;
-  esac
-}
-
 # _hi_die <msg> - "$_HI_ME: <msg>" in red on stderr, then exit 1: every
 # refusal a script makes before it does anything.
 function _hi_die() {
@@ -251,29 +234,6 @@ function _hi_ramp_label() {
     printf -v "$1" '%s' custom
   else
     printf -v "$1" '%s (ignored - not eight color names)' "$_HI_PACKAGES_PALETTE"
-  fi
-}
-
-# _hi_group_name <outvar> <file> - a packages group's name: its file's, less a
-# leading `<digits>-` ordering prefix (10-lang is lang). GLOSSARY: HI.58
-function _hi_group_name() {
-  local _hi_gn="${2##*/}" _hi_gn_d
-  _hi_gn_d="${_hi_gn%%[!0-9]*}"
-  [ -z "$_hi_gn_d" ] || case "$_hi_gn" in "$_hi_gn_d"-?*) _hi_gn="${_hi_gn#"$_hi_gn_d"-}" ;; esac
-  printf -v "$1" '%s' "$_hi_gn"
-}
-
-# _hi_group_label <outvar> <color value> - a group's `color=` the way the
-# ramp label above reads: the ramp, the value, or the value and why it is
-# ignored, judged by header.sh's _hi_group_ramp.
-function _hi_group_label() {
-  local _hi_gl_r
-  if [ -z "$2" ]; then
-    printf -v "$1" '%s' "the ramp"
-  elif _hi_group_ramp _hi_gl_r "$2"; then
-    printf -v "$1" '%s' "$2"
-  else
-    printf -v "$1" '%s (ignored - not one color name or eight)' "$2"
   fi
 }
 

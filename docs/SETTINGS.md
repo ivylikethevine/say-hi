@@ -82,7 +82,7 @@ one overrides:
 | ---------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `~/.config/say-hi/settings.sh`     | -                    | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                                           |
 | `~/.config/say-hi/colors`          | `config/colors`      | your color pins                                                                                                                                                                                                                |
-| `~/.config/say-hi/packages.d/`     | `config/packages.d/` | what the package check looks for, one group per file, each in its own color; a directory of your own replaces the tree's (`default`, `extra`) wholesale ([below](COLORS.md#grouping-the-package-check))                        |
+| `~/.config/say-hi/packages`        | `config/packages`    | what the package check looks for; `hi --add-package` copies the tree's in before its first write ([COLORS.md](COLORS.md#the-package-checks-rows))                                                                              |
 | `~/.config/say-hi/vimrc`           | `config/vimrc`       | your vim config for the `vim` alias and `$VIMINIT`, replacing hi's default wholesale; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them)) |
 | `~/.config/say-hi/init.lua`        | `config/init.lua`    | the same for neovim - the `nvim` alias, and `vim` where a target has nvim - over your `~/.config/nvim/init.lua`                                                                                                                |
 | `~/.config/say-hi/config.toml`     | `config/config.toml` | the same for the `hx` alias (`-c`), over your `~/.config/helix/config.toml`                                                                                                                                                    |
@@ -116,14 +116,8 @@ mkdir -p ~/.config/say-hi
 cp "$_HI_ROOT/config/colors" ~/.config/say-hi/colors
 ```
 
-The package check is a directory, not a single file, so `hi --add-package
-bat:3,batcat:3` is the easier path: it writes a `packages.d/` group
-(`--group <name>`, default `custom`), and the first write seeds the tree's
-own groups (`default`, `extra`) into the new overlay directory first - since
-a `packages.d/` of your own replaces the tree's wholesale, the same rule
-`colors` follows, without that seeding step it would drop them the moment
-you added one package. The manual equivalent is `cp -r
-"$_HI_ROOT/config/packages.d" ~/.config/say-hi/packages.d`.
+`hi --add-package bat:3,batcat:3` does that copy for the package check, then
+adds the row.
 
 A copy stops tracking what `hi --update` delivers for that file; delete it to
 track the tree's again, and `hi --doctor` names which of the two is in force.
@@ -171,7 +165,7 @@ prompt program hi does not know, an editor off the ladder - is a red
 | `_HI_DISABLE_GREETING`      | `0`                                                                                                       | `hi --configure`          | hides the `hi loaded with...` line and its init/copy/load timers; not part of the header, so `_HI_DISABLE_HEADER` leaves it alone ([Header details](#header-details))                                                                                                                                                                                                                                                                                                                                                                           |
 | `_HI_HEADER_ORDER`          | the table in [Header details](#header-details)                                                            | `hi --configure`          | which header items show, in what order; empty is the default list                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `_HI_MAX_WIDTH`             | `80`                                                                                                      | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                                                                       | `hi --configure`          | the lowest `config/packages.d/` priority (0-3) the header's check prints, and the main dial on its length: `2` keeps useful tools and up, `1` adds optional extras, `0` prints everything, `3` just favorites and core alerts, `4` turns the check off. `hi --preview packages` marks the ranks it silences `below floor`                                                                                                                                                                                                                       |
+| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                                                                       | `hi --configure`          | the lowest `config/packages` priority (0-3) the header's check prints, and the main dial on its length: `2` keeps useful tools and up, `1` adds optional extras, `0` prints everything, `3` just favorites and core alerts; drop `check` from `_HI_HEADER_ORDER` to turn it off. `hi --preview packages` marks the ranks it silences `below floor`                                                                                                                                                                                              |
 | `_HI_IP_HIDE`               | `172.*`                                                                                                   | `hi --configure`          | globs the header's `ip` cell drops; `none` hides nothing ([Header details](#header-details))                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_DISABLE_HEADER`        | `0`                                                                                                       | `hi --configure`          | turns off the whole header: a connect's, a disconnect's, and the greeting a local interactive shell prints                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_DISABLE_GIT_STATUS`    | `0`                                                                                                       | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -224,7 +218,7 @@ More names look like settings and are not:
   `$XDG_CONFIG_HOME`-or-`~/.config` base resolved beside them — set
   `$XDG_CONFIG_HOME` instead.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments
-  are read from), `$_HI_COLORS`, `$_HI_PACKAGES_D`,
+  are read from), `$_HI_COLORS`, `$_HI_PACKAGES`,
   `$_HI_VIMRC`, `$_HI_NVIMRC`, `$_HI_HELIXRC`, `$_HI_NANORC`, `$_HI_EMACSRC`,
   `$_HI_TMUX_CONF`, and `$_HI_MICRO_DIR` are re-derived by `common/paths.sh`
   on every source, from `$_HI_HOME`, `$HOME`, and the overlay, so an exported
@@ -289,7 +283,7 @@ in the order they should print:
 | `auth`       | the `~/.ssh/authorized_keys` line count             |
 | `pub`        | the `~/.ssh/*.pub` file count                       |
 | `uptime`     | this box's uptime                                   |
-| `check`      | the installed-packages check (`config/packages.d/`) |
+| `check`      | the installed-packages check (`config/packages`)    |
 
 A word left out is not printed, and an unknown word is ignored.
 `containers`/`jobs`/`pods` render only when their backend answers; listing

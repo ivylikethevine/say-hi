@@ -39,6 +39,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [Before 1.0](#before-10)
+  - [At the 1.0.0 tag](#at-the-100-tag)
   - [Post 1.0](#post-10)
 - [License](#license)
 
@@ -73,11 +74,10 @@ at a bastion, in fish for its pager's description column.
 
 ### The Header Tells You What's Missing
 
-A package check of the tools you care about, each with a priority, organized
-into a `packages.d/` of named groups, each in its own color (`default` and
-`extra` ship, more of your own ride alongside); the header checks it on
-every target — one quiet line on a box that has them, a loud one on a box
-that does not. A homelab: bash from a laptop into the nas and the pihole,
+A package check of the tools you care about, each with a priority, in one
+`packages` file (a copy of your own replaces the shipped one); the header
+checks it on every target — one quiet line on a box that has them, a loud
+one on a box that does not. A homelab: bash from a laptop into the nas and the pihole,
 keeping the distro prompt — hi's is off (`_HI_DISABLE_PROMPT=1`), and the
 header, the check, and the aliases ride along anyway.
 
@@ -213,9 +213,8 @@ row, and everything answered **no**, and why:
   files are wired and where `hi` on your `PATH` leads.
 - `hi --update` moves a cloned install to the newest release tag (`--dry-run`
   names it first; a package upgrades through its package manager).
-- `hi --add-package bat:3,batcat:3` adds a row to a
-  `~/.config/say-hi/packages.d/` group (`--group <name>` picks which one,
-  default `custom`) without touching the shipped roster.
+- `hi --add-package bat:3,batcat:3` adds a row to
+  `~/.config/say-hi/packages`, copying the shipped roster there first.
 - `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
   in `~/.ssh/config`, which a `hosttag` row then colors
   ([docs/COLORS.md](docs/COLORS.md)).
@@ -242,8 +241,8 @@ row, and everything answered **no**, and why:
 Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
-`packages.d/` apply until you copy one out of the tree's `config/` to edit
-(`hi --add-package` does the copying for `packages.d/`) or add an
+`packages` apply until you copy one out of the tree's `config/` to edit
+(`hi --add-package` does the copying for `packages`) or add an
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
@@ -330,123 +329,128 @@ its **Ticks when** holds.
 
 ### Before 1.0
 
-Ordered by scope, narrowest first. An entry that names the tag in its **Ticks
-when** is one the 1.0.0 release itself waits on; the rest are in this checkout
-and are not.
+In this checkout, narrowest first.
 
-1. [ ] **A stability contract is written down** — shipped as
+1. [ ] **The header's clock forks less** — `_hi_cell_clock` runs `date`
+       twice for the header and twice for the footer; bash 4.2+ has
+       `printf '%(...)T'`. **Do:** take the builtin only if `--group bench`
+       shows a gain worth its lines and the lost "no date(1) reads ?" case.
+       **Ticks when:** adopted with the bench numbers moving and the payload
+       badge flat, or the entry is deleted with the numbers that say no.
+
+2. [ ] **Uninstall cleans up its rc backups** — `--uninstall` leaves every
+       `<rc>.hi-orig` behind. **Do:** after `--uninstall` (with or without
+       `--purge`) strips an rc, compare it with its backup: identical, delete
+       the backup; different, keep it and print the lines that differ.
+       `--dry-run` says which. Update the `rm` line under _Done with it?_,
+       `docs/FILES.md`, and `install.sh --uninstall --help`. **Ticks when:**
+       an untouched install leaves no `.hi-orig`, and an edited rc keeps its
+       backup with the difference named.
+
+3. [ ] **screen and zellij configs ride like tmux's** — `tmux.conf` has an
+       overlay member, a home tier (`$_HI_TMUX_CONF`), an include scan, and
+       an alias on the target; screen and zellij have none. **Do:** the same
+       for `~/.screenrc` (`screen -c`) and for zellij's config directory
+       (`config.kdl`, `layouts/`, `themes/` - `micro/` is the precedent for
+       a directory) through `ZELLIJ_CONFIG_DIR`. **Ticks when:** a target's
+       `screen` and `zellij` read the home config, and `hi --doctor` names
+       both.
+
+4. [ ] **One overlay priority, stated once** — each member resolves its
+       own way (`tmux.conf` has no tree tier, `micro/` no home tier, a home
+       `~/.aliases` rides unasked), `_hi_overlay_src` and `hi --doctor`
+       restate the order, and `_HI_INCLUDES=keep` overrides the include
+       scan. **Do:** one table that `common/paths.sh`, the stager, and doctor
+       all read: the overlay file, then the user's own file at home (include
+       scan drops external references; `hi-allow`/`hi-quiet` stay), then the
+       tree default. No user-facing variable changes it; `_HI_INCLUDES` goes.
+       Shell files (`bashrc`, `zshrc`, `config.fish`, `aliases.sh`, framework
+       themes) are opt-in for security: no home tier, so they ride only from
+       the overlay. **Ticks when:** every member resolves through the table,
+       a drift test pins paths.sh to it, and `docs/SETTINGS.md`'s overlay
+       table states that one order.
+
+5. [ ] **The settings wizard reads at a glance** — `hi --configure` is one
+       dense menu screen. **Do:** walk it at 80 and 40 columns and regroup so
+       each row says what it changes, its value against the default, and
+       where its preview shows; set the preset, header, and advanced groups
+       apart. **Ticks when:** a first run needs no trip to
+       `docs/SETTINGS.md`, and the `configure` suite's transcripts pin the
+       layout.
+
+6. [ ] **What hi carries is linted against the target** — one exemption
+       is left: `shfix`'s `$ZSH`/`$OSH`, a framework tree the target may not
+       have. **Do:** decide what a theme sourcing `$ZSH/lib/*.zsh` does on a
+       target without oh-my-zsh. **Ticks when:** the decision is in
+       `docs/INTEGRATIONS.md` and `tests/targets/framework_test.sh` is green
+       on it.
+
+7. [ ] **CI walks the upgrade path a tag creates** — nothing exercises
+       [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree): a shell
+       that loaded the previous release, the tree replaced under it, and the
+       rc re-sourced. **Do:** a job in `release.yml`'s `gate` that installs
+       the previous tag in a container, opens a shell per dialect, swaps in
+       the new tree, re-sources, and fails on any stderr or empty `_HI_*`
+       path. **Ticks when:** a `v*` tag runs it green, and putting core.sh's
+       load guard back in `common/bash.sh` turns it red.
+
+8. [ ] **Every Ubuntu job's egress is allowlisted** — 38 of 50
+       `harden-runner` steps block; each of the 12 on `audit` says why
+       (non-Ubuntu runners, `link-check.yml`, and three jobs whose hosts
+       rotate). **Do:** take each blocking list from a cold run - a cache hit
+       reaches fewer hosts - and `demos.yml`'s `attach` list from a tagged
+       run. **Ticks when:** both hold.
+
+9. [ ] **Investigate the header as plugins** — every header cell is one
+       `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
+       set a prompt segment. **Do:** find out whether the cells and
+       `full_check` fit one plugin contract a user's own could share, costing
+       the shared probes (`_hi_probed_cell`), `_hi_row_line`'s wrap, the
+       payload budget, connect forks, and fish's separate loader. **Ticks
+       when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
+       `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
+
+### At the 1.0.0 tag
+
+Shipped; each ticks when the tag itself shows it.
+
+1. [ ] **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into the version table it promises.
+       versions_ prose into its version table.
 
 2. [ ] **A release says where the package went, and shows what changed** —
-       shipped: `release.yml`'s `publish` leaves `tap` and `demo` slots in the
-       release body, which its `tap` job and `demos.yml`'s `attach` job fill
-       (`.github/scripts/release_slot.sh`) with the tap PR link and the
-       `packages` GIF. **Ticks when:** the next real tag's release page shows
-       the tap link and renders the GIF.
-
-3. [ ] **What hi carries is linted against the target, not the client** —
-       shipped: the nano rule, which now exempts only what sits directly
-       under `/usr/share/nano` rather than any path mentioning it. Left: one
-       exemption, `shfix`'s `$ZSH`/`$OSH`, which names a framework tree the
-       _target_ may not have (unlike `$_HI_CONFIG_DIR` and `$_HI_ROOT`, which
-       ride along). **Do:** decide what a theme sourcing `$ZSH/lib/*.zsh`
-       should do on a target with no oh-my-zsh, against what
-       `tests/targets/framework_test.sh` pins today. **Ticks when:** that
-       decision is in `docs/INTEGRATIONS.md` and the framework e2e suite is
-       green on it.
-
-4. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
-       38 of the 50 `harden-runner` steps run `egress-policy: block` with an
-       `allowed-endpoints` list, and each of the 12 left on `audit` carries a
-       comment naming what keeps it there. Eight cannot block at all: the
-       Windows jobs (`windows-e2e.yml`'s four, `windows-client.yml`'s two),
-       `ci.yml`'s `test-macos`, and `release.yml`'s `brew` - blocking is an
-       Ubuntu capability. `link-check.yml` reaches arbitrary hosts by design.
-       Three reach hosts no fixed row names: `ci.yml`'s `e2e` (Fedora's
-       metalink mirrors), `pages.yml`'s `deploy` (a rotating
-       `run-actions-N-azure-REGION.actions.githubusercontent.com`), and
-       `openbsd-e2e.yml`'s guest (DNS-over-HTTPS to a bare `9.9.9.9`).
-       GitHub's meta domains and the `productionresultssa*` blobs are
-       auto-allowed; `*.githubusercontent.com` is not. **Do:** read a cold run
-       of each blocking job - a cache hit reaches fewer hosts, which is how
-       `e2e-backends` once shipped without `dl.k8s.io` - and take `demos.yml`'s
-       `attach` list off a tagged run rather than off its three steps.
-       **Ticks when:** every blocking list is taken from a cold run, and
-       `attach`'s from a tag.
-
-5. [ ] **CI walks the upgrade path a tag creates** — every job today installs
-       one version into a fresh box, so nothing exercises the case
-       [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
-       about: a shell that loaded the _previous_ release, the tree rewritten
-       under it, and the rc re-sourced in that same shell. It was found by
-       hand in a container. **Do:** a job the tag triggers (`release.yml`'s
-       `gate`, so a bad upgrade stops the release) that installs the previous
-       tag in a container, opens a shell per wired dialect, replaces the tree
-       with the tag being cut, re-sources each rc in that shell, and fails on
-       any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
-       `v*` tag runs it green, and putting core.sh's load guard back in
-       `common/bash.sh` turns it red.
-
-6. [ ] **The packages check has fewer dials** — four orthogonal ones decide
-       what one row does: a priority 0-3, the `-`/`+` mode character,
-       `_HI_PACKAGES_MIN_PRIORITY` (where `4` means off), and a group's
-       `color=` line, which outranks `_HI_PACKAGES_PALETTE`. **Do:** decide
-       which of the four a user should ever have to touch and fold or retire
-       the rest, then rewrite `docs/COLORS.md`'s two packages sections and
-       `docs/SETTINGS.md`'s rows to match. **Ticks when:**
-       `hi --preview packages` needs no MODE table to explain itself.
-
-7. [ ] **Investigate the header as plugins** — `common/header.sh` is the
-       largest file in the payload, and every cell in it is already one
-       function behind one dispatch (`_hi_cell_<word>`, picked by the header's
-       word list), while `plugins.d` members load in every shell
-       (`_hi_load_plugins`) and can only set `_HI_SEGMENT`, a prompt segment.
-       **Do:** find out whether the built-in cells and `full_check`'s groups
-       can be rewritten as plugins on one contract a user's own could share,
-       rather than widening the contract beside a header that does not use
-       it. Answer what it costs first: the shared probes several cells read
-       one result from (`_hi_probed_cell`), the width and wrap arithmetic
-       `_hi_row_line` owns, the payload budget, the forks a connect pays, and
-       fish, which loads `plugins.d` with a loader of its own and draws the
-       header by handing it to bash. `check` is itself a header word, so say
-       whether a plugin's check is a group or a cell. **Ticks when:** the
-       verdict and its reasons are written down
-       (`docs/INTEGRATIONS.md` for a contract, `docs/COMPATIBILITY.md` for a
-       no), and this entry is replaced by the work the verdict calls for.
+       `release.yml` leaves `tap` and `demo` slots that the `tap` job and
+       `demos.yml`'s `attach` job fill. **Ticks when:** the tag's release page
+       shows the tap PR link and renders the `packages` GIF.
 
 ### Post 1.0
 
-Outside this checkout, and not what the tag waits on: each is an account or
-an upstream review that lands when it lands.
+Outside this checkout: each is an account or an upstream review that lands
+when it lands.
 
-1. [ ] **tldr page** — CLI surface is frozen, matches `docs/hi.1`, and the
-       draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
-       against tldr-pages. **Ticks when:** merged upstream.
+1. [ ] **tldr page** — `docs/tldr.md` matches `docs/hi.1` and upstream
+       style. **Do:** open the PR against tldr-pages. **Ticks when:** merged.
 
-2. [ ] **AUR** — Registration is closed to new accounts (spam), so
-       `publish-external.yml`'s `aur` job stays written and unexercised.
-       **When it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package the first time by hand
+2. [ ] **AUR** — registration is closed to new accounts, so
+       `publish-external.yml`'s `aur` job is written but unexercised. **When
+       it reopens:** register, add `AUR_SSH_KEY` to the `release`
+       environment, and push each package once by hand
        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
        packages are live and a dispatch has kept `say-hi` current for one
-       real release. <https://archlinux.org/news/>
+       release.
 
-3. [ ] **Best Practices badge entry** — the answer sheet is
+3. [ ] **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle the three rows it flags (`small_tasks`, `secure_2FA`,
-       `hardened_site`), then enter it at bestpractices.dev. **Ticks when:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-4. [ ] **vhs v0.12** — `demos.yml` pins vhs v0.11.0 because v0.12.0 writes no
-       output: it captures every frame and prints `Creating <file>.gif...`,
-       then exits 0 having never run ffmpeg (strace: it resolves
-       `/usr/bin/ffmpeg` and never execs it; the same frames encode fine by
-       hand). Suspect: upstream's browser start/close rewrite (42f1776). No
-       upstream issue or newer release as of 2026-09-14. **Do:** report it
-       upstream with that evidence. **Ticks when:** a v0.12.x release renders
-       all six tapes green on a `demos.yml` dispatch and the pin moves to it.
+4. [ ] **vhs v0.12** — `demos.yml` pins v0.11.0: v0.12.0 captures every
+       frame, then exits 0 without ever running ffmpeg (suspect: upstream's
+       browser rewrite, 42f1776). **Do:** report it upstream with that
+       evidence. **Ticks when:** a v0.12.x release renders all six tapes on a
+       `demos.yml` dispatch and the pin moves to it.
 
 ## License
 

@@ -166,6 +166,15 @@ function test_remote_preamble_ships_the_truecolor_verdict() {
     [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM="" _hi_remote_preamble)" == *"export _HI_TRUECOLOR='0'"* ]]
 }
 
+# user@host is the host's tag, not a miss on the whole word: the session env
+# walks the ssh config for what follows the @, as _hi_target_color does
+function test_session_env_tags_a_user_at_host_target() {
+  local cfg="$_HI_WORKDIR/ssh_config.userhost"
+  printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: prod\nHost taggedbox\n' >"$cfg"
+  unset _HI_TAG_NAME
+  DOMAIN=deploy@taggedbox _HI_SSH_CONFIG="$cfg" _hi_session_env | grep -qx "$(printf '_HI_TARGET_TAG\tprod')"
+}
+
 # Every value the preamble exports is data the client picked up rather than
 # code it wrote: $_HI_LOCAL_HOSTNAME off `hostname`, $_HI_TARGET_TAG out of a
 # free-text ssh_config comment, $_HI_RELEASE off `git describe`. Interpolated
@@ -387,6 +396,7 @@ function run_hi_remote_tests() {
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version
   _hi_check "The preamble ships the glyph verdict" test_remote_preamble_ships_the_glyph_verdict
   _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
+  _hi_check "user@host exports the host's tag" test_session_env_tags_a_user_at_host_target
 
   _hi_h2 "Testing: what the client bakes in stays data"
   _hi_check_eq "A hostile hostname survives the ssh preamble" "$_HI_MEAN" _hi_preamble_env_value _HI_LOCAL_HOSTNAME

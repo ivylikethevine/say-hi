@@ -135,29 +135,6 @@ function test_local_reports_the_version() {
   [[ "$out" == *version* && "$out" == *"1.2.3"* ]]
 }
 
-# an overlay that adds nothing to the wire gets no diff row
-function test_local_omits_payload_diff_at_stock_defaults() {
-  local dir out
-  dir="$_HI_WORKDIR/payloaddiff_stock"
-  mkdir -p "$dir"
-  out="$(_HI_CONFIG_DIR="$dir" doctor_local)"
-  [[ "$out" != *"payload_diff"* ]]
-}
-
-# ...and one with a file in it is diffed, handed the wire figure doctor_local
-# already built (stubbed: the stock build it would add is the whole cost)
-function test_local_diffs_a_non_empty_overlay() {
-  local dir out
-  dir="$_HI_WORKDIR/payloaddiff_overlay"
-  mkdir -p "$dir"
-  printf 'a\n' >"$dir/colors"
-  out="$(
-    function doctor_payload_diff() { printf 'diffed against %s\n' "$1"; }
-    _HI_CONFIG_DIR="$dir" doctor_local
-  )"
-  [[ "$out" == *"diffed against "[0-9]* ]]
-}
-
 # The tool-floor branches: only the happy path (everything present) is ever
 # exercised elsewhere, so a machine that cannot ship a payload at all - or
 # only a bigger one - would go unreported by a broken _hi_missing_tools call.
@@ -519,35 +496,20 @@ function test_config_lists_the_plugins() {
     [[ "$out" != *"plugins.d/10-a"* ]]
 }
 
-# packages.d (HI.58): one row naming the groups in the order the check paints
-# them, and a warning for each thing about them a user could not see in the
-# header - a color= nothing paints, a group whose rows all sit under the
-# floor, a file that is no member. Nothing at all without the directory.
-function test_config_names_the_package_groups() {
+# packages is an overlay file like colors: the tree's default until the
+# overlay has one, then a copy of it (what `hi --add-package` starts from)
+# or an override counted in lines
+function test_config_reports_the_packages_file() {
   local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/groups.XXXXXX")"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_PACKAGES_D="$dir/packages.d" doctor_config)"
-  [[ "$out" != *packages.d* ]] || return 1
-  mkdir -p "$dir/packages.d"
-  printf 'color=orange\nls:3\n' >"$dir/packages.d/10-lang"
-  printf 'color=mono\nsh:3\n' >"$dir/packages.d/20-box"
-  printf 'sh:1\n' >"$dir/packages.d/30-quiet"
-  printf 'sh:3\n' >"$dir/packages.d/30-quiet.bak"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_PACKAGES_D="$dir/packages.d" _HI_PACKAGES_MIN_PRIORITY=2 doctor_config)"
-  [[ "$out" == *"packages.d"*"painted in order: lang (orange), box (the ramp), quiet (the ramp)"* ]] &&
-    [[ "$out" == *"packages.d/20-box"*"color=mono is ignored"* ]] &&
-    [[ "$out" == *"packages.d/30-quiet"*"nothing paints quiet"* ]] &&
-    [[ "$out" == *"packages.d/30-quiet.bak"*"ignored"* ]] &&
-    [[ "$out" != *"packages.d/10-lang"* ]]
-}
-
-# The row fires unconditionally now that _HI_PACKAGES_D always has a tree
-# default - "tree default - " leads the message when it is one, so the row
-# never reads as naming the user's own groups when they are the tree's.
-function test_config_names_the_package_groups_says_tree_default() {
-  local out
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-overlay-here" _HI_PACKAGES_D="$_HI_ROOT/config/packages.d" doctor_config)"
-  [[ "$out" == *"packages.d"*"tree default - painted in order: default (the ramp), extra (the ramp)"* ]]
+  dir="$(mktemp -d "$_HI_WORKDIR/packages.XXXXXX")"
+  out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
+  [[ "$out" == *"packages"*"tree default"* ]] || return 1
+  cp "$_HI_ROOT/config/packages" "$dir/packages"
+  out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
+  [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || return 1
+  printf '# a note\nsh:3\nls:2\n' >"$dir/packages"
+  out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
+  [[ "$out" == *"packages"*"overridden (3 lines)"* ]]
 }
 
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
@@ -814,30 +776,6 @@ function test_doctor_probe_snippet_runs_under_sh() {
   out="$(sh -c "$(_hi_doctor_probe_snippet)")" || return 1
   case " $out " in *' bash '*) return 0 ;; esac
   return 1
-}
-
-# driven by explicit byte counts so no wire assembly runs: the floor hides
-# small deltas, and a lighter figure (gzip jitter) is never a row.
-#
-# _hi_wire_bytes is stubbed rather than called, because two calls to the real
-# one do not agree: the payload tar carries the staged files' mtimes, so the
-# bytes gzip emits move a little between one second and the next - 8 bytes
-# apart on Linux, and further under the pax timestamp headers bsdtar writes,
-# which is enough to cross a 128-byte floor. The arms and the floor are what
-# this case is about, so one fixed figure stands for the stock build and the
-# three deltas are measured against exactly it.
-# The stub is confined to a subshell: a bare redefinition here would outlive
-# the case and take the real figure away from "Reports the per-session wire
-# cost" further down.
-function test_doctor_payload_diff_arms() {
-  (
-    stock=69000
-    function _hi_wire_bytes() { printf '%s' "$stock"; }
-    [ -z "$(_hi_doc_rows doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))" ] || exit 1
-    out="$(_hi_doc_rows doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
-    case "$out" in *'heavier than the stock default'*) ;; *) exit 1 ;; esac
-    [ -z "$(_hi_doc_rows doctor_payload_diff "$stock")" ]
-  )
 }
 
 # the folded-in rc check: each rc or overlay file through its parser,
@@ -1347,8 +1285,6 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_local"
   _hi_check "Reports the version" test_local_reports_the_version
   _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
-  _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
-  _hi_check "A non-empty overlay is diffed against stock" test_local_diffs_a_non_empty_overlay
   _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
   _hi_check "Warns without gzip when tar can compress" test_local_warns_without_gzip
   _hi_check "...and flags it when tar cannot" test_local_flags_a_gzip_that_nothing_can_replace
@@ -1377,8 +1313,7 @@ function run_doctor_tests() {
   _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
   _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
-  _hi_check "Config names the packages.d groups, and flags them" test_config_names_the_package_groups
-  _hi_check "...and says so when it's the tree's own" test_config_names_the_package_groups_says_tree_default
+  _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
   _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
   _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
@@ -1395,7 +1330,6 @@ function run_doctor_tests() {
   _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
   _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
   _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
-  _hi_check "doctor_payload_diff: the heavier arm and the floor" test_doctor_payload_diff_arms
 
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container

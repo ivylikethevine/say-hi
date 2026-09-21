@@ -98,23 +98,29 @@ function test_add_tag_dry_run_writes_nothing() {
 
 # the file keeps its mode through the rewrite (ssh refuses a loose config)
 function test_add_tag_keeps_the_config_mode() {
-  local home mode
+  local home
   home="$(_hi_addtag_fixture addtag-mode)"
   _hi_addtag_run "$home" web2 lab >/dev/null || return 1
-  mode="$(stat -c '%a' "$home/.ssh/config" 2>/dev/null || stat -f '%Lp' "$home/.ssh/config")"
-  [ "$mode" = 600 ]
+  [ "$(_hi_mode_string "$home/.ssh/config")" = -rw------- ]
 }
 
 # The round trip the command exists for: tagged, then drawn by
 # `hi --preview colors` in the hosttag row's color, under that tag
 function test_add_tag_round_trips_through_preview_colors() {
-  local home out
+  local home out esc
   home="$(_hi_addtag_fixture addtag-preview)"
+  # a leading `Host *` of defaults, the shape most real configs open with:
+  # it matches web2 too, and must not end the tag walk before web2's block
+  { printf 'Host *\n  AddKeysToAgent yes\n\n' && cat "$home/.ssh/config"; } >"$home/.ssh/config.new"
+  mv "$home/.ssh/config.new" "$home/.ssh/config"
   mkdir -p "$home/overlay"
   printf 'hosttag,lab,brred\n' >"$home/overlay/colors"
   _hi_addtag_run "$home" web2 lab >/dev/null || return 1
   out="$(HOME="$home" _HI_HOME="$home" _HI_CONFIG_DIR="$home/overlay" _HI_TARGETS_TTL=0 \
     "$home/say-hi/scripts/preview.sh" colors 2>&1)" || return 1
+  _hi_color_escape_var esc brred
+  printf -v esc '%b' "$esc"
+  [[ "$out" == *"${esc}web2"* ]] || _hi_because "web2 is not painted brred" || return 1
   out="$(_hi_strip_ansi "$out")"
   printf '%s\n' "$out" | grep 'web2' | grep -q 'tag:lab'
 }
@@ -131,7 +137,7 @@ function run_add_tag_tests() {
   _hi_check "Tags a pattern" test_add_tag_tags_a_pattern
   _hi_check "Refuses an unknown host and a bad tag" test_add_tag_refuses_an_unknown_host_and_a_bad_tag
   _hi_check "--dry-run writes nothing" test_add_tag_dry_run_writes_nothing
-  _hi_check "Keeps the config's mode" test_add_tag_keeps_the_config_mode
+  _hi_check_capable mode_bits "Keeps the config's mode" test_add_tag_keeps_the_config_mode
   _hi_check "Round-trips through hi --preview colors" test_add_tag_round_trips_through_preview_colors
 
   _hi_suite_end "scripts/add_tag.sh"

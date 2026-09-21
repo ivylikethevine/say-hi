@@ -81,9 +81,9 @@ args=--configure --preset dev" ]
 # this covers alongside --doctor's (no first-arg column either) and
 # --uninstall's/--configure's (one each, above)
 function test_dispatch_hands_add_package_its_rows() {
-  _hi_ds_dispatch --add-package 'bat:3,batcat:3' --group lang
+  _hi_ds_dispatch --add-package 'bat:3,batcat:3' --dry-run
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-package
-args=bat:3,batcat:3 --group lang" ]
+args=bat:3,batcat:3 --dry-run" ]
 }
 
 # test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no

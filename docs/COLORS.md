@@ -2,14 +2,14 @@
 
 How every color hi paints is chosen: the per-host hash, the pins in
 `~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp
-and groups. The two settings here, `_HI_COLOR_SCHEME` and
+and rows. The two settings here, `_HI_COLOR_SCHEME` and
 `_HI_PACKAGES_PALETTE`, are rows in
 [SETTINGS.md](SETTINGS.md#every-setting); the wizard asks about neither.
 
 ## Contents
 
 - [The package check's ramp](#the-package-checks-ramp)
-- [Grouping the package check](#grouping-the-package-check)
+- [The package check's rows](#the-package-checks-rows)
 - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
 
 Every username and hostname resolves to a color derived from its own name, so
@@ -119,53 +119,25 @@ falls back to the shipped ramp, `hi --doctor` says so, and
 `hi --preview packages` labels the line `default`, `custom`, or
 `(ignored - not eight color names)`.
 
-## Grouping the package check
+## The package check's rows
 
-The package check is a `packages.d/` directory of files, each a **group**:
-the tree ships two, `default` and `extra` (the second at a demoted priority,
-so it exists without doubling a fresh header), and every group is checked in
-file-name order, its rows kept together (sorted by priority within the group,
-not merged into one sort), and painted in a color of its own. The group's
-name is the file's, less a leading `<digits>-` ordering prefix - which is
-also why the shipped files are named `00-default` and `01-extra`: it keeps
-them sorted ahead of a group you add with a smaller prefix like the one
-below.
+The check reads one file, `config/packages`. A row is one tool and its
+fallbacks, `[-|+]package:priority[,package:priority...]`, and two dials
+decide what it prints:
 
-A `~/.config/say-hi/packages.d/` of your own **replaces the tree's two
-wholesale**, the same rule `~/.config/say-hi/colors` follows for
-`config/colors` — so `hi --add-package` seeds the tree's groups into a
-fresh overlay directory before writing yours, and the manual equivalent
-copies the whole directory in first:
+- **its priority**, 0-3, against `_HI_PACKAGES_MIN_PRIORITY` (0-3, default
+  `2`): a row that cannot reach the floor is not even looked for. The ramp
+  above paints each priority; there is no per-row color.
+- **an optional leading character**: `-` speaks only when the whole row is
+  missing (core tools, where present is not news), `+` only when something
+  on it is installed (platform facts, where absent is noise).
 
-```sh
-cp -r "$_HI_ROOT/config/packages.d" ~/.config/say-hi/packages.d
-printf 'color=orange\ngo:3\ncargo:3\nuv:2\n' >~/.config/say-hi/packages.d/10-lang
-printf 'color=brblue\n+apt:3,dnf:3,apk:3,pacman:3,brew:3\n' >~/.config/say-hi/packages.d/20-box
-```
-
-`hi --add-package go:3,cargo:3 --group lang` writes the rows for you (seeding
-the tree's groups in first if the overlay doesn't exist yet, then creating
-`lang` if it does not exist either); the `color=` line is still yours to add
-by hand, the way above.
-
-A member's rows are the `[-|+]group,package:priority,...` grammar
-`config/packages.d/00-default`'s own header spells out, and one `color=`
-line sets its
-color: a single name from the vocabulary paints every row, installed or
-missing (the mark still says which), and eight names are a ramp of the group's
-own in `_HI_PACKAGES_PALETTE`'s shape. With no `color=` line, or a value that
-is neither, the group wears the ramp in force. `_HI_PACKAGES_MIN_PRIORITY`
-still decides how deep every group goes.
-
-Only plain names are members — a letter or digit first, then letters, digits,
-`_`, `.`, and `-`, and not ending in `.bak`, `.orig`, `.rej`, or `.tmp` — so an
-editor's swap file or a backup never travels. Each member rides the overlay
-comment-stripped, a few dozen bytes apiece over the same rows in one member.
-`hi --preview packages` adds a GROUP table naming each group, its rows, and
-its color painted in itself; `hi --doctor` names the groups in order and warns
-about a `color=` it ignores, a file that is no member, and a group nothing
-paints — one whose every row sits below the floor.
-[HI.58](GLOSSARY.md#hi58-overlay-directory-members) has the mechanics.
+`hi --add-package go:3 cargo:3,rustc:3` adds rows to
+`~/.config/say-hi/packages`, copying the tree's file there first: a copy of
+your own replaces the tree's wholesale, the same rule `colors` follows. By
+hand, `cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.
+`hi --preview packages` shows each priority's colors with a real example
+from your rows; to turn the check off, drop `check` from `_HI_HEADER_ORDER`.
 
 ## Using the hash in your own prompt
 

@@ -483,7 +483,7 @@ function _hi_packages_floor_preview() {
   if [ -n "$out" ]; then
     printf '%s\n' "$out"
   else
-    _hi_cecho " nothing - the check is off at this floor" "$YELLOW"
+    _hi_cecho " nothing reaches this floor" "$YELLOW"
   fi
 }
 
@@ -1014,12 +1014,12 @@ function config_packages_floor() {
       # menu_read carries the EOF contract (read, close the prompt line, rc 1);
       # its lowercase-and-squeeze is a no-op on a number
       _hi_paint shown "$BRPURPLE" "[$_hi_floor_candidate]"
-      menu_read " Lowest package priority to show (0-3, or 4 to turn the check off)? $shown " reply || break
+      menu_read " Lowest package priority to show (0-3)? $shown " reply || break
       [ -z "$reply" ] && break
-      if ! _hi_is_number "$reply" || [ "$reply" -gt 4 ]; then
+      if ! _hi_is_number "$reply" || [ "$reply" -gt 3 ]; then
         _hi_menu_reject rejects "$max_rejects" \
-          "not 0-4 - type a priority, 4 to turn the check off, or press Enter to keep $_hi_floor_candidate" && continue
-        _hi_cecho " not 0-4, leaving it at $_hi_floor_candidate" "$YELLOW"
+          "not 0-3 - type a priority, or press Enter to keep $_hi_floor_candidate" && continue
+        _hi_cecho " not 0-3, leaving it at $_hi_floor_candidate" "$YELLOW"
         break
       fi
       # shellcheck disable=SC2034 # read by _hi_menu_reject's ${!1}, not by name

@@ -170,7 +170,7 @@ function test_nfpm_apk_entries_match_package_contents() {
   done
   # every apk entry traces back to a real member too, so a stray one can't
   # ship what the list doesn't name - a member with a nested directory of its
-  # own (config/packages.d/, say) legitimately needs more than one entry,
+  # own (a config/ subdirectory, say) legitimately needs more than one entry,
   # which is why this is traceability rather than a bare count
   while IFS= read -r dst; do
     [ -n "$dst" ] || continue
@@ -188,7 +188,7 @@ function test_nfpm_apk_entries_match_package_contents() {
 
 # ...and the globs are one level deep, so a nested directory appearing under a
 # tree member would silently fall out of the apk. Fail here first, with names.
-# A nested directory (config/packages.d/, say) is fine as long as apk has
+# A nested directory (a config/ subdirectory, say) is fine as long as apk has
 # its own glob entry for it - the ModeDir-leak workaround the comment above
 # the apk entries explains means every directory level needs its own glob,
 # not just the top-level members _HI_PACKAGE_CONTENTS names.

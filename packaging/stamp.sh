@@ -44,7 +44,8 @@ while [ $# -gt 0 ]; do
     ;;
   --version | --date | --root | --launcher | --man)
     # one guard for every value flag: typed with its value left off, a flag
-    # would otherwise silently eat the *next* flag
+    # would otherwise silently eat the *next* flag. lib.sh's _hi_need_value,
+    # spelled out and uncolored for the reason at the top: no core.sh here
     [ $# -ge 2 ] || {
       echo "stamp.sh: $1 requires a value" >&2
       exit 1

@@ -6,8 +6,8 @@
 # Its configuration (docs/tapes/fixtures.sh, up:packages): hi's prompt off
 # (_HI_DISABLE_PROMPT - this person keeps their own, and the targets keep
 # theirs), the whole header with every address shown (_HI_IP_HIDE=none), a
-# check floor of 2, and a `packages.d/homelab` overlay group that is the
-# homelab toolbox.
+# check floor of 2, and an overlay `packages` file that is the homelab
+# toolbox.
 # The nas (the tools debian) answers it with one quiet line; the pihole (a
 # bare debian) does not.
 #
@@ -39,7 +39,7 @@ Show
 Sleep 1s
 Type "# the homelab toolbox, and how loudly to miss each piece"
 Enter
-Type "cat $_HI_CONFIG_DIR/packages.d/homelab"
+Type "cat $_HI_CONFIG_DIR/packages"
 Enter
 Sleep 3s
 

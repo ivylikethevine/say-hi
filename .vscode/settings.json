@@ -4,7 +4,7 @@
   "editor.detectIndentation": false,
   "files.associations": {
     "config/colors": "csv",
-    "config/packages.d/*": "csv",
+    "config/packages": "csv",
     "config/vimrc": "ini",
     "config/nanorc": "ini",
   },

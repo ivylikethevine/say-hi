@@ -896,7 +896,7 @@ function hi_footer() {
 # Package priorities, lowest to highest, 0-3. A priority says how loudly you
 # want to hear about a tool; $_HI_PACKAGES_MIN_PRIORITY gates display and
 # ships at 2, so tiers 0-1 (trivia and optional extras) are hidden until asked
-# for, and anything above 3 mutes the check entirely. Direction is a separate axis, one leading
+# for; a floor above 3 reads as 3. Direction is a separate axis, one leading
 # character per line: `-` speaks only when the tool is missing (core tools,
 # where present is not news and absent means the box is bare), `+` only when
 # it is installed (platform facts, where absent is noise); no flag speaks
@@ -937,12 +937,10 @@ _HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 # A ramp is meant to read monotonic 0->3 in both directions - a missing
 # favorite the loudest thing on screen, installed trivia the quietest - and
 # legible on light and dark terminals alike; judge one with
-# `hi --preview packages`. A ramp passed as $1 (a group's own, _hi_group_ramp
-# below) outranks both.
+# `hi --preview packages`.
 function _hi_packages_palette() {
   local _hi_pp_n _hi_pp_i _hi_pp_e _hi_pp_r="$_HI_PACKAGES_RAMP"
   _hi_ramp_ok "${_HI_PACKAGES_PALETTE:-}" && _hi_pp_r="$_HI_PACKAGES_PALETTE"
-  _hi_ramp_ok "${1:-}" && _hi_pp_r="$1"
   # shellcheck disable=SC2086 # eight names, checked by _hi_ramp_ok
   set -- $_hi_pp_r
   _HI_YES_NAMES=("$1" "$2" "$3" "$4")
@@ -973,46 +971,6 @@ function _hi_ramp_escape() {
   }
   _hi_color_index _hi_re_i "$2" || return 0
   _hi_color_escape_at "$1" $((_hi_re_i + 24))
-}
-
-# _hi_group_color <outvar> <file> - the value of <file>'s `color=` line (the
-# last one), empty without one. GLOSSARY: HI.58
-function _hi_group_color() {
-  local _hi_gc_l
-  printf -v "$1" '%s' ''
-  while read -r _hi_gc_l; do
-    case "$_hi_gc_l" in color=*) printf -v "$1" '%s' "${_hi_gc_l#color=}" ;; esac
-  done <"$2"
-}
-
-# _hi_group_ramp <outvar> <value> - a `color=` value as the eight-name ramp it
-# paints: one color name in all eight slots, or eight names as written. Fails,
-# leaving <outvar> empty, on anything else - the group then wears the ramp in
-# force, and `hi --doctor` says so.
-function _hi_group_ramp() {
-  local _hi_gr_i
-  printf -v "$1" '%s' ''
-  if _hi_ramp_ok "$2"; then
-    printf -v "$1" '%s' "$2"
-  elif _hi_color_index _hi_gr_i "$2"; then
-    printf -v "$1" '%s' "$2 $2 $2 $2 $2 $2 $2 $2"
-  else
-    return 1
-  fi
-}
-
-# _hi_package_files <array> - every packages file the check reads, in the
-# order it paints them: each $_HI_PACKAGES_D member, by name. Appended by
-# name, check_line's idiom.
-function _hi_package_files() {
-  local _hi_pf_f
-  eval "$1=()"
-  [ -d "${_HI_PACKAGES_D:-}" ] || return 0
-  for _hi_pf_f in "$_HI_PACKAGES_D"/*; do
-    if [ -f "$_hi_pf_f" ] && _hi_dir_member_ok "${_hi_pf_f##*/}"; then
-      eval "$1+=(\"\$_hi_pf_f\")"
-    fi
-  done
 }
 
 # Assigned at source time. `|| true` because this is a call rather than a
@@ -1104,38 +1062,6 @@ function check_line() {
   eval "$1+=(\"\$record\")"
 }
 
-# _hi_check_file <file> - one packages file through check_line, painted in its
-# own `color=` or else the ramp in force, sorted by rank and appended to
-# full_check's row_widths/row_pieces (bash's dynamic scoping, as above).
-# Resolved per file, not just at source time: a caller that changes
-# $_HI_PACKAGES_PALETTE after header.sh loaded (configure.sh's preview does)
-# needs the next full_check to see it.
-function _hi_check_file() {
-  local line priority width_item rendered row_max color="" ramp=""
-  local -a visible=()
-  [ -f "$1" ] || return 0
-  _hi_group_color color "$1"
-  _hi_group_ramp ramp "$color" || true
-  _hi_packages_palette "$ramp"
-  while IFS=$' ' read -r line; do
-    [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue
-    # the floor first: a row that cannot reach it has nothing to contribute,
-    # and probing it is a failed PATH walk per alternative. Rows that clear it
-    # are still filtered below on the rank they actually scored.
-    _hi_row_max row_max "$line"
-    ((row_max >= min)) || continue
-    check_line visible "$line"
-  done <"$1"
-  ((${#visible[@]})) || return 0
-  # GLOSSARY: HI.11 - numeric key over opaque bytes; unpinned, BSD sort
-  # under UTF-8 printed nothing.
-  while IFS=$'\x1f' read -r priority width_item rendered; do
-    ((priority >= min)) || continue
-    row_widths+=("$width_item")
-    row_pieces+=("|${rendered} ")
-  done < <(printf '%s\n' "${visible[@]}" | LC_ALL=C sort -t $'\x1f' -k1,1nr -s)
-}
-
 # full_check's right edge: pads $2's row out to $1 and closes it with a
 # pipe. One home for the arithmetic, called from both places a row ends -
 # mid-loop on wrap, and once at the final flush.
@@ -1146,12 +1072,11 @@ function _hi_check_close() {
 }
 
 # print sorted package results limited by _hi_draw_width, from
-# $_HI_PACKAGES_MIN_PRIORITY up, a group after the file before it (GLOSSARY:
-# HI.58). The floor lives here, not in check_line:
+# $_HI_PACKAGES_MIN_PRIORITY up. The floor lives here, not in check_line:
 # scripts/preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
-  local width_item count=0 max cell vislen piece i pkg_start close=1
+  local width_item count=0 max cell vislen piece i pkg_start close=1 line row_max rank rec us=$'\x1f'
   _hi_draw_width max
   # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
   # not _hi_row_line's two, since every piece below already carries its own
@@ -1160,7 +1085,8 @@ function full_check() {
   ((close)) && ((max -= 1))
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
-  local -a row_widths=() row_pieces=() files=()
+  ((min > 3)) && min=3
+  local -a row_widths=() row_pieces=() visible=()
 
   # a carry from an earlier row (hi_header's cascade) opens this row's first
   # line, in the same "| <cell> " shape header_row's own cells use - both
@@ -1179,13 +1105,27 @@ function full_check() {
   pkg_start=${#row_pieces[@]}
   _HI_ROW_CARRY=()
 
-  # a file at a time, so a group stays together and wears its own colors
-  _hi_package_files files
-  for i in "${files[@]}"; do
-    _hi_check_file "$i"
-  done
-  # the ramp in force again, for whoever reads _HI_YES/_HI_NO next
+  # the ramp resolved per render: configure.sh's preview changes
+  # $_HI_PACKAGES_PALETTE after header.sh loaded
   _hi_packages_palette
+  [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r line; do
+    [[ "$line" == *#* || -z "$line" ]] && continue
+    # the floor first: a row that cannot reach it has nothing to contribute,
+    # and probing it is a failed PATH walk per alternative. Rows that clear it
+    # are still filtered below on the rank they actually scored.
+    _hi_row_max row_max "$line"
+    ((row_max >= min)) || continue
+    check_line visible "$line"
+  done <"$_HI_PACKAGES"
+  # highest rank first, file order within one: a pass per rank, not a fork
+  for ((rank = 3; rank >= min; rank--)); do
+    for rec in ${visible[@]+"${visible[@]}"}; do
+      [ "${rec%%"$us"*}" = "$rank" ] || continue
+      rec="${rec#*"$us"}"
+      row_widths+=("${rec%%"$us"*}")
+      row_pieces+=("|${rec#*"$us"} ")
+    done
+  done
   ((${#row_widths[@]})) || return 0
 
   for ((i = 0; i < ${#row_widths[@]}; i++)); do

@@ -60,7 +60,7 @@ function need_file() {
 # positional argument at all).
 function _hi_need_value() {
   [ "$3" -ge 2 ] || {
-    echo "$1: $2 requires a value" >&2
+    _hi_cecho "$1: $2 requires a value" "$RED" >&2
     exit 1
   }
 }

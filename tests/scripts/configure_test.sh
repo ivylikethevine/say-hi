@@ -411,11 +411,11 @@ function test_packages_floor_takes_a_number_after_a_rejection() {
   [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
 }
 
-# 4 is the last answer (the check off); 5 is a number and still not one -
-# refused like junk, and the next real answer lands
-function test_packages_floor_refuses_a_number_past_four() {
-  _hi_floor_pty floor_five '5\n3\n3\n' || return 1
-  tr '\r' '\n' <"$_HI_WORKDIR/floor_five.floor.out" | grep -q 'not 0-4' || return 1
+# 3 is the last answer; 4 is a number and still not one - refused like
+# junk, and the next real answer lands
+function test_packages_floor_refuses_a_number_past_three() {
+  _hi_floor_pty floor_five '4\n3\n3\n' || return 1
+  tr '\r' '\n' <"$_HI_WORKDIR/floor_five.floor.out" | grep -q 'not 0-3' || return 1
   [ "$(_hi_floor_pty_lines floor_five)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
 }
 
@@ -1003,12 +1003,14 @@ function test_prompt_tool_preview_reports_none() {
 
 # an empty render is a real answer at a high enough floor, and the preview
 # says so rather than handing show_preview a blank to drop on the floor
-function test_floor_preview_says_off_at_the_top_floor() {
+function test_floor_preview_says_nothing_reaches_the_floor() {
   _hi_load_preview_sources
   local out
-  # the candidate is an argument, not a global the caller sets
-  out="$(_hi_strip_ansi "$(_hi_packages_floor_preview 4)")"
-  [[ "$out" == *"nothing - the check is off at this floor"* ]]
+  printf 'zz-hi-absent:0\n' >"$_HI_WORKDIR/floor_low"
+  # the candidate is an argument, not a global the caller sets; the fixture
+  # file is scoped to the render itself, not to the strip around it
+  out="$(_HI_PACKAGES="$_HI_WORKDIR/floor_low" _hi_packages_floor_preview 3)"
+  [[ "$(_hi_strip_ansi "$out")" == *"nothing reaches this floor"* ]]
 }
 
 # the whole run with neither a preset nor a tty: config_preset stands down,
@@ -1514,7 +1516,7 @@ function run_configure_tests() {
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed
   _hi_check "...and says when there are none" test_prompt_tool_preview_reports_none
-  _hi_check "Floor preview says off at the top floor" test_floor_preview_says_off_at_the_top_floor
+  _hi_check "Floor preview says when nothing reaches it" test_floor_preview_says_nothing_reaches_the_floor
 
   # Every pty case fans out together: each drives its own child under its own
   # $_HI_WORKDIR/<label> and the children re-source configure.sh themselves,
@@ -1525,7 +1527,7 @@ function run_configure_tests() {
   _hi_h2 "Testing: the interactive arms and the menu (pty)"
   _hi_par_begin "pty cases"
   _hi_par_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
-  _hi_par_check_capable pty "Packages floor: 5 is refused like junk" test_packages_floor_refuses_a_number_past_four
+  _hi_par_check_capable pty "Packages floor: 4 is refused like junk" test_packages_floor_refuses_a_number_past_three
   _hi_par_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
   _hi_par_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
   _hi_par_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number

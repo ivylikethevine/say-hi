@@ -353,6 +353,17 @@ function test_use_backend_rejects_a_stranger() {
   ! _hi_use_backend frobnicate >/dev/null 2>&1
 }
 
+# [chosen] is an earlier --use's arm: naming it again is fine, naming another
+# is refused here, once, for _hi_parse and doctor both - on stderr, with
+# nothing on stdout for a caller's $( ) to take as an arm
+function test_use_backend_refuses_a_second_arm() {
+  local out err
+  [ "$(_hi_use_backend docker docker 2>/dev/null)" = docker ] || return 1
+  err="$(_hi_use_backend podman docker 2>&1 >/dev/null)" && return 1
+  out="$(_hi_use_backend podman docker 2>/dev/null)" && return 1
+  [ -z "$out" ] && [[ "$err" == *"--use podman and --use docker both name a backend; pick one"* ]]
+}
+
 # --use=<backend> is the same flag with its word joined, the spelling
 # install.sh's --prefix and --preset already take, and must not fall through
 # to ssh as an unknown option
@@ -1386,6 +1397,7 @@ function run_hi_parse_tests() {
   _hi_h2 "Testing: the arm override (--use <backend>)"
   _hi_check "Every arm resolves through --use, none has a row of its own" test_every_arm_resolves_through_use
   _hi_check "_hi_use_backend rejects a stranger" test_use_backend_rejects_a_stranger
+  _hi_check "_hi_use_backend refuses a second, different arm" test_use_backend_refuses_a_second_arm
   _hi_check_eq "--use <cli> sets BACKEND to that member" "$(printf 'myhost\nnerdctl\n')" _hi_backend_parse_out --use nerdctl myhost
   _hi_check_eq "--use and its word never reach SSHARGS" "$(printf 'myhost\n\n')" _hi_parse_out --use podman myhost
   _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger

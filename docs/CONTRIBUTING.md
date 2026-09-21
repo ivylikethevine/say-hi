@@ -182,8 +182,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`, and
   `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
-  `--update --dry-run`, `--add-package --group <name>` and
-  `--add-package --dry-run`, `--add-tag --dry-run`,
+  `--update --dry-run`, `--add-package --dry-run`, `--add-tag --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and meaning
   (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
   `--install --yes`; no other switch has one); and the `--json` document's
@@ -199,7 +198,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
-  `packages.d/` and its `color=` line, `plugins.d/` and its hook names,
+  `packages`, `plugins.d/` and its hook names,
   `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`, `tmux.conf`,
   `micro/`'s `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,

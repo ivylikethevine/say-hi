@@ -82,10 +82,11 @@ while IFS= read -r f; do
   }
 done < <(sh "$_HI_TARGETS" ssh-files "$_HI_SSH_CONFIG")
 
-if [ -z "$file" ]; then
-  # no line of its own: say which wildcard block claims it, if one does
-  # set -f: the words are ssh's patterns, never this directory's files
-  pattern="$(set -f && sh "$_HI_TARGETS" ssh-config "$_HI_SSH_CONFIG" | while IFS= read -r line; do
+# _hi_wild_block - the first wildcard Host pattern covering $host, if any. A
+# function, not inline in the $( ) below: bash 3.2 ends a substitution at a
+# case pattern's `)`. GLOSSARY: HI.29
+function _hi_wild_block() {
+  sh "$_HI_TARGETS" ssh-config "$_HI_SSH_CONFIG" | while IFS= read -r line; do
     t="${line#"${line%%[![:space:]]*}"}"
     case "$t" in [Hh][Oo][Ss][Tt][[:space:]]*) ;; *) continue ;; esac
     t="${t#[Hh][Oo][Ss][Tt]}"
@@ -93,7 +94,13 @@ if [ -z "$file" ]; then
     for p in ${t//,/ }; do
       case "$p" in *[\*\?]*) _hi_ssh_pattern_hit "$host" "$p" && printf '%s' "$p" && exit 0 ;; esac
     done
-  done)" || true
+  done
+}
+
+if [ -z "$file" ]; then
+  # no line of its own: say which wildcard block claims it, if one does
+  # set -f: the words are ssh's patterns, never this directory's files
+  pattern="$(set -f && _hi_wild_block)" || true
   [ -z "$pattern" ] ||
     _hi_die "$host has no Host line of its own - only 'Host $pattern' covers it; tag that instead: $me '$pattern' $tag"
   _hi_die "no Host $host in $_HI_SSH_CONFIG or the files it Includes"

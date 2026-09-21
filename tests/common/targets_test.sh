@@ -1044,12 +1044,12 @@ function test_word_flags_match_the_words_roster() {
   }
 }
 
-# --- words --add-package / --group: the packages.d cascade, reimplemented -
-# both arms resolve $_HI_CONFIG_DIR/packages.d, else the tree's own
-# config/packages.d, the same wholesale-replace cascade paths.sh's
-# $_HI_PACKAGES_D uses. A known row from each shipped group pins the walk.
+# --- words --add-package: the packages cascade, reimplemented - the arm
+# resolves $_HI_CONFIG_DIR/packages, else the tree's own config/packages, the
+# same wholesale-replace cascade paths.sh's $_HI_PACKAGES uses. Two known rows
+# from the tree's file pin the read.
 
-function test_words_add_package_with_no_overlay_lists_both_tree_groups() {
+function test_words_add_package_with_no_overlay_lists_the_tree_rows() {
   local out
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --add-package)"
   [[ "$out" == *'bat:3,batcat:3,ccat:3,cat:2'* && "$out" == *'fd:1,fdfind:1,find:1'* ]]
@@ -1058,65 +1058,32 @@ function test_words_add_package_with_no_overlay_lists_both_tree_groups() {
 function test_words_add_package_with_an_overlay_lists_only_its_own() {
   local dir out
   dir="$_HI_WORKDIR/addpkg-overlay"
-  mkdir -p "$dir/packages.d"
-  printf 'mine:1\n' >"$dir/packages.d/mine"
+  mkdir -p "$dir"
+  printf 'mine:1\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
   [[ "$out" == *'mine:1'* && "$out" != *'bat:3,batcat:3'* ]]
 }
 
-# the gap this session's rewrite closes: a `#` anywhere on a row kills it,
-# not only a leading one - _hi_check_file's own rule
+# the overlay directory alone is not an override - the guard is on the file,
+# as paths.sh's is, so an overlay without one still offers the tree's rows
+function test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_rows() {
+  local dir out
+  dir="$_HI_WORKDIR/addpkg-overlay-nofile"
+  mkdir -p "$dir"
+  printf 'hostname,foo,brred\n' >"$dir/colors"
+  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
+  [[ "$out" == *'bat:3,batcat:3,ccat:3,cat:2'* ]]
+}
+
+# a `#` anywhere on a row kills it, not only a leading one, and a blank line
+# is no row - full_check's own rule
 function test_words_add_package_skips_a_trailing_hash_comment() {
   local dir out
   dir="$_HI_WORKDIR/addpkg-hash"
-  mkdir -p "$dir/packages.d"
-  printf 'kept:1\nbad:1 # a trailing note\n' >"$dir/packages.d/one"
+  mkdir -p "$dir"
+  printf '# a note\n\nkept:1\nbad:1 # a trailing note\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [[ "$out" == *'kept:1'* && "$out" != *'bad:1'* ]]
-}
-
-# ...and the other gap: a .bak/dotfile member is not a member, for either arm
-function test_words_skip_non_members() {
-  local dir out_add out_group
-  dir="$_HI_WORKDIR/addpkg-nonmember"
-  mkdir -p "$dir/packages.d"
-  printf 'kept:1\n' >"$dir/packages.d/kept"
-  printf 'stale:1\n' >"$dir/packages.d/kept.bak"
-  printf 'hidden:1\n' >"$dir/packages.d/.dotfile"
-  out_add="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  out_group="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --group)"
-  [[ "$out_add" == *'kept:1'* && "$out_add" != *'stale:1'* && "$out_add" != *'hidden:1'* ]] &&
-    [[ "$out_group" == *$'kept\t'* && "$out_group" != *'kept.bak'* && "$out_group" != *'.dotfile'* ]]
-}
-
-function test_words_group_with_no_overlay_lists_the_tree_groups() {
-  local out
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay-2" sh "$_HI_TARGETS" words --group | cut -f1 | sort | tr '\n' ' ')"
-  [ "$out" = "00-default 01-extra " ]
-}
-
-function test_words_group_with_an_overlay_lists_only_its_own() {
-  local dir out
-  dir="$_HI_WORKDIR/addpkg-group-overlay"
-  mkdir -p "$dir/packages.d"
-  printf 'x\n' >"$dir/packages.d/mygroup"
-  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --group | cut -f1)"
-  [ "$out" = mygroup ]
-}
-
-# targets.sh cannot source common/core.sh (standalone POSIX), so it carries
-# its own copy of _hi_dir_member_ok's allow-list under a different name
-# (member_ok, so sourcing this file in a live shell never shadows core.sh's
-# bash one) - pinned here so the two literal case lines cannot drift apart
-function test_member_ok_matches_hi_dir_member_ok() {
-  local want got
-  want="$(sed -n "/function _hi_dir_member_ok/,/^}/p" "$_HI_CORE" | sed -n "3p")"
-  got="$(sed -n '/^member_ok() {/,/^}/p' "$_HI_TARGETS" | sed -n '3p')"
-  [ -n "$want" ] && [ "$want" = "$got" ] || {
-    _hi_cecho " | core.sh's case line: [$want]" "$RED"
-    _hi_cecho " | targets.sh's member_ok: [$got]" "$RED"
-    return 1
-  }
+  [ "$out" = "$(printf 'kept:1\ta package check row')" ]
 }
 
 function run_targets_tests() {
@@ -1205,14 +1172,11 @@ function run_targets_tests() {
   _hi_check "words: --preview's subjects agree in all three files" test_preview_subjects_agree_everywhere
   _hi_check "flags: filtered by prefix, never a target" test_complete_flags_filter_by_prefix_and_never_reach_targets
 
-  _hi_h2 "Testing: --add-package / --group completion"
-  _hi_check "--add-package, no overlay: both tree groups" test_words_add_package_with_no_overlay_lists_both_tree_groups
+  _hi_h2 "Testing: --add-package completion"
+  _hi_check "--add-package, no overlay: the tree's rows" test_words_add_package_with_no_overlay_lists_the_tree_rows
   _hi_check "--add-package, an overlay: only its own" test_words_add_package_with_an_overlay_lists_only_its_own
-  _hi_check "--add-package skips a trailing # comment" test_words_add_package_skips_a_trailing_hash_comment
-  _hi_check "Both arms skip .bak/dotfile members" test_words_skip_non_members
-  _hi_check "--group, no overlay: the tree's default/extra" test_words_group_with_no_overlay_lists_the_tree_groups
-  _hi_check "--group, an overlay: only its own" test_words_group_with_an_overlay_lists_only_its_own
-  _hi_check "member_ok matches _hi_dir_member_ok" test_member_ok_matches_hi_dir_member_ok
+  _hi_check "--add-package, an overlay with no file: the tree's" test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_rows
+  _hi_check "--add-package skips comments and blanks" test_words_add_package_skips_a_trailing_hash_comment
 
   _hi_suite_end "targets.sh"
 }

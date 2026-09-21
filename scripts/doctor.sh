@@ -101,7 +101,7 @@ _hi_doc_args=("$@")
 set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
-# the packages groups' grammar (doctor_package_groups); only defines functions
+# _hi_draw_width, for doctor_row's wrap; only defines functions
 # shellcheck source=../common/header.sh
 source "$_HI_HEADER"
 
@@ -114,13 +114,7 @@ source "$_HI_HEADER"
 # --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
 # not resolved last-wins: doctor reports the arm a connect would take
 function _hi_doctor_use() {
-  local arm
-  arm="$(_hi_use_backend "$1")" || exit 1
-  if [ -n "$_HI_DOC_BACKEND" ] && [ "$_HI_DOC_BACKEND" != "$arm" ]; then
-    _hi_cecho "hi: --use $1 and --use $_HI_DOC_BACKEND both name a backend; pick one" "$RED" >&2
-    exit 1
-  fi
-  _HI_DOC_BACKEND="$arm"
+  _HI_DOC_BACKEND="$(_hi_use_backend "$1" "$_HI_DOC_BACKEND")" || exit 1
 }
 # what this run is called in its messages, as _hi_flag_word_or_die spells it
 _HI_ME="${_HI_ARGV0:-doctor.sh}"
@@ -348,33 +342,6 @@ function doctor_row() {
   return 0
 }
 
-# What this client's overlay adds to the wire, against the stock default -
-# the same figure the README badge and bench_test.sh's budget both measure,
-# recomputed here rather than hardcoded so it can't drift from either. Pointing
-# $_HI_CONFIG_DIR at a path with no settings.sh makes the overlay stream see
-# no overlay at all, which is exactly "stock" - the prefix assignment is
-# scoped to this one call, so the doctor's own environment is untouched
-# either side of it.
-#
-# _hi_wire_bytes is not perfectly reproducible run to run - empirically a few
-# bytes to a couple dozen, gzip-level, the same imprecision
-# bench_payload_readme_badge gives the README's own badge a 5% window for.
-# 128 bytes is the fixed floor - roughly 9x the worst jitter observed - so
-# the row never reports noise.
-_HI_PAYLOAD_DIFF_FLOOR=128
-# doctor_payload_diff [this_bytes] - doctor_local passes the figure it already
-# built, so the payload is assembled twice per run (this config and the stock
-# one), not three times.
-function doctor_payload_diff() {
-  local this_bytes="${1:-}" default_bytes default_h delta
-  [ -n "$this_bytes" ] || this_bytes="$(_hi_wire_bytes)"
-  default_bytes="$(_HI_CONFIG_DIR=/nonexistent-hi-doctor-stock _hi_wire_bytes)"
-  default_h="$(_hi_human_bytes "$default_bytes")"
-  delta="$((this_bytes - default_bytes))"
-  [ "$delta" -ge "$_HI_PAYLOAD_DIFF_FLOOR" ] || return 0
-  doctor_row payload_diff "$(_hi_human_bytes "$delta") heavier than the stock default ($default_h) - your overlay" warn
-}
-
 # The tools hi needs *here* to ship a payload at all, and the one place the
 # report asks. base64 armors the ssh transport (_say_hi refuses without it,
 # and takes openssl's where it is missing) and tar packs the tree for every
@@ -428,12 +395,6 @@ function doctor_local() {
   if [ -z "$missing" ]; then
     wire="$(_hi_wire_bytes)"
     doctor_row payload "$(_hi_human_bytes "$wire") over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
-    # the stock figure is a second full assembly (~300 forks); an overlay dir
-    # with nothing in it can only differ from stock by the run-to-run noise
-    # the floor exists to hide, so the diff row is skipped without building it
-    if [ -d "$_HI_CONFIG_DIR" ] && [ -n "$(ls -A "$_HI_CONFIG_DIR" 2>/dev/null)" ]; then
-      doctor_payload_diff "$wire"
-    fi
   else
     doctor_row payload "unknown - needs $missing to measure (${_HI_PAYLOAD[*]})" bad
   fi
@@ -472,45 +433,6 @@ function doctor_plugins() {
   [ -z "$names" ] || doctor_row plugins.d "loads in order: ${names#, }"
 }
 
-# The packages.d groups (GLOSSARY: HI.58): a row naming them in the order the
-# check paints them, then a warning for a file that is not a member, a color=
-# the check ignores, and a group nothing paints - no row in it reaches
-# $_HI_PACKAGES_MIN_PRIORITY, so the header never shows it. Quiet without one.
-function doctor_package_groups() {
-  local -a files=() warns=()
-  local f g c ramp line max reach names="" where=""
-  local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
-  [ "$_HI_PACKAGES_D" = "$_HI_CONFIG_DIR/packages.d" ] || where="tree default - "
-  for f in "$_HI_PACKAGES_D"/*; do
-    if [ -e "$f" ] && ! { [ -f "$f" ] && _hi_dir_member_ok "${f##*/}"; }; then
-      warns+=("${f##*/}|ignored - a backup, a temp file, or not a plain name, so it never travels")
-    fi
-  done
-  _hi_package_files files
-  for f in "${files[@]}"; do
-    _hi_group_name g "$f"
-    _hi_group_color c "$f"
-    if _hi_group_ramp ramp "$c"; then
-      names="$names, $g ($c)"
-    else
-      names="$names, $g (the ramp)"
-      [ -z "$c" ] || warns+=("${f##*/}|color=$c is ignored - not one color name or eight, so $g wears the ramp")
-    fi
-    reach=0
-    while IFS=$' ' read -r line; do
-      [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue
-      _hi_row_max max "$line"
-      ((max < min)) || reach=1
-    done <"$f"
-    [ "$reach" = 1 ] ||
-      warns+=("${f##*/}|nothing paints $g - no row in it reaches _HI_PACKAGES_MIN_PRIORITY=$min")
-  done
-  [ -z "$names" ] || doctor_row packages.d "$where"'painted in order: '"${names#, }"
-  for f in ${warns[@]+"${warns[@]}"}; do
-    doctor_row "packages.d/${f%%|*}" "${f#*|}" warn
-  done
-}
-
 function doctor_config() {
   local f t v late any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
@@ -539,10 +461,6 @@ function doctor_config() {
   # minus settings.sh, which got its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}"; do
     [ "$f" = settings.sh ] && continue
-    [ "$f" = packages.d ] && {
-      doctor_package_groups
-      continue
-    }
     [ "$f" = plugins.d ] && {
       doctor_plugins
       continue

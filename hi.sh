@@ -61,7 +61,7 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # The user's config overlay: a second, smaller stream into its own overlay/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
-_HI_OVERLAY_FILES=(settings.sh colors packages.d vimrc init.lua nanorc
+_HI_OVERLAY_FILES=(settings.sh colors packages vimrc init.lua nanorc
   init.el config.toml aliases.sh plugins.d bashrc zshrc config.fish starship.toml
   oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml p10k.zsh oh-my-zsh.zsh-theme oh-my-bash.theme.sh bash-it.theme.bash tide.vars theme.yml bat.conf
   tmux.conf micro/settings.json micro/bindings.json micro/init.lua ssh_tags)
@@ -74,7 +74,7 @@ _HI_OVERLAY_RENAMES="vim.rc:vimrc nano.rc:nanorc emacs.el:init.el bash.sh:bashrc
 # The members with a tree default the overlay's copy replaces wholesale on a
 # target (common/paths.sh's cascade; aliases.sh is not one - the overlay's is
 # sourced on top of the tree's). _hi_payload_excl reads it.
-_HI_OVERLAY_SHADOWS=" colors packages.d vimrc init.lua config.toml nanorc init.el "
+_HI_OVERLAY_SHADOWS=" colors packages vimrc init.lua config.toml nanorc init.el "
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -113,7 +113,8 @@ function _hi_session_env() {
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   printf '_HI_TARGET_COLOR\t%s\n' "$_HI_TARGET_COLOR_MEMO"
-  _hi_ssh_host_tag "$DOMAIN" >/dev/null 2>&1 || true
+  # user@host: the tag is the host's, as _hi_target_color reads it
+  _hi_ssh_host_tag "${DOMAIN##*@}" >/dev/null 2>&1 || true
   printf '_HI_TARGET_TAG\t%s\n' "$_HI_TAG_VALUE"
   printf '_HI_LOCAL_USER\t%s\n' "$_HI_WHOAMI_CACHE"
   printf '_HI_LOCAL_HOSTNAME\t%s\n' "$_HI_HOSTNAME_CACHE"
@@ -635,8 +636,8 @@ function _hi_require_packer() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.35
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors vimrc nanorc init.el tmux.conf
-  '*/packages.d/*' '*/plugins.d/*')
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors packages vimrc nanorc init.el
+  tmux.conf '*/plugins.d/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
@@ -1063,19 +1064,28 @@ _HI_BACKENDS+=(
   "kube|kubernetes pod|kubectl get pods -o name|_hi_is_k8s_pod"
 )
 
-# _hi_use_backend <backend> - the arm name for `--use <backend>`, or a message
-# and failure: "ssh" or a roster name, never a bare word, since a typo would
-# force an arm nothing can run. Read off the roster, so a backend added there
-# is reachable with no second spelling anywhere.
+# _hi_use_backend <backend> [chosen] - the arm name for `--use <backend>`, or
+# a message and failure: "ssh" or a roster name, never a bare word, since a
+# typo would force an arm nothing can run. Read off the roster, so a backend
+# added there is reachable with no second spelling anywhere. [chosen] is the
+# arm an earlier --use picked: a second naming another is refused, not
+# resolved last-wins - the one spelling of that refusal, for _hi_parse and
+# doctor both.
 function _hi_use_backend() {
-  local row names="ssh"
-  [ "$1" = ssh ] && printf 'ssh' && return 0
+  local row names="ssh" arm=""
+  [ "$1" = ssh ] && arm=ssh
   for row in "${_HI_BACKENDS[@]}"; do
-    [ "$1" = "${row%%|*}" ] && printf '%s' "$1" && return 0
+    [ "$1" = "${row%%|*}" ] && arm="$1"
     names="$names ${row%%|*}"
   done
-  _hi_cecho "${_HI_ARGV0:-hi}: --use wants one of: $names" "$RED" >&2
-  return 1
+  if [ -z "$arm" ]; then
+    _hi_cecho "${_HI_ARGV0:-hi}: --use wants one of: $names" "$RED" >&2
+    return 1
+  elif [ -n "${2:-}" ] && [ "$2" != "$arm" ]; then
+    _hi_cecho "${_HI_ARGV0:-hi}: --use $1 and --use $2 both name a backend; pick one" "$RED" >&2
+    return 1
+  fi
+  printf '%s' "$arm"
 }
 
 # Run <script> on $DOMAIN through `sh -c`, with ssh's own flags in "$@"
@@ -1307,13 +1317,14 @@ function _hi_size() {
 }
 
 # What a fresh session puts on the wire, without connecting: the real script,
-# assembled as _say_hi assembles it. GLOSSARY: HI.44 - why not a sum of streams
+# assembled as _say_hi assembles it, through the same payload cache - a warm
+# one stages nothing. GLOSSARY: HI.44 - why not a sum of streams
 function _hi_wire_bytes() {
   local overlay_line="" bootloader tree script
   local size="$_HI_SIZE_TOKEN"
   local DOMAIN="${DOMAIN:-target}"
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
-  tree="$(_hi_payload_tar | $_HI_ARMOR)"
+  tree="$(_hi_payload_stream)"
   _hi_remote_script script
   printf '%s' "${#script}"
 }
@@ -1906,20 +1917,6 @@ function _hi_flag_takes() {
   return 1
 }
 
-# The word a flag takes, joined (--use=docker) or next (--use docker): status
-# 2 when it took <next> and the caller must shift again, 1 for a bare flag
-# with nothing after it. printf -v, not a nameref: bash 3.2.
-function _hi_flag_word() {
-  case "$2" in
-  *=*) printf -v "$1" '%s' "${2#*=}" ;;
-  *)
-    [ $# -ge 3 ] || return 1
-    printf -v "$1" '%s' "$3"
-    return 2
-    ;;
-  esac
-}
-
 # Everything after the target is the remote command: RAWCMD as typed, for
 # --plain's direct ssh/exec, and CMDARG with a "; exit" suffix to close the
 # bootloader's sourced script out. One of hi's own flags here belongs before
@@ -1960,7 +1957,7 @@ function _hi_is_ssh_value_opt() {
 
 # split ssh's arguments from the target and any trailing remote command
 function _hi_parse() {
-  local backend_word use_word takes own=""
+  local use_word takes own=""
   # plain globals, so an inherited MUX=1 or PLAIN=1 must not stand in for a
   # flag that was never typed
   DOMAIN="" BACKEND="" PLAIN="" MUX="" RAWCMD="" CMDARG=""
@@ -1989,11 +1986,8 @@ function _hi_parse() {
           _hi_die "--use needs a backend name (ssh counts as one)"
           ;;
         esac
-        backend_word="$(_hi_use_backend "$use_word")" || exit 1
-        if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_die "--use $use_word and --use $BACKEND both name a backend; pick one"
-        fi
-        BACKEND="$backend_word" own=1
+        BACKEND="$(_hi_use_backend "$use_word" "${BACKEND:-}")" || exit 1
+        own=1
       elif [ "$1" = --plain ]; then
         PLAIN=1 own=1
       elif [ "$1" = --mux ]; then

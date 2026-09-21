@@ -27,7 +27,6 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.08 sed tempfile rewrite](#hi08-sed-tempfile-rewrite)
 - [HI.09 cat-over-mv](#hi09-cat-over-mv)
 - [HI.10 strftime %e over %-e](#hi10-strftime-e-over--e)
-- [HI.11 LC_ALL=C sort](#hi11-lc_allc-sort)
 - [HI.12 bytes vs columns](#hi12-bytes-vs-columns)
 - [HI.13 command -v fallthrough](#hi13-command--v-fallthrough)
 - [HI.14 _hi_on_exit](#hi14-_hi_on_exit)
@@ -158,12 +157,6 @@ the GNU/BSD split `common/config.fish`'s mtime probe already uses.
 
 `date +%-e` (no-padding) is a GNU extension; BSD strftime prints the literal
 characters. `%e` is the portable day-of-month.
-
-## HI.11 LC_ALL=C sort
-
-Under a UTF-8 locale, BSD `sort` exits "Illegal byte sequence" on non-UTF-8
-input, having printed nothing while the pipeline carries on. Any sort whose
-input isn't guaranteed clean UTF-8 is pinned to `LC_ALL=C`.
 
 ## HI.12 bytes vs columns
 
@@ -357,9 +350,11 @@ on again, like a first TAB. `_HI_TARGETS_TTL=0` skips all of this.
 
 bash 3.2 scans a `$( ... )` command substitution with a simple quote matcher: a
 comment line _inside_ one containing a lone `'` reads as an unterminated
-string, and the whole file dies at parse time. bash 4+ parses substitutions
-recursively, which is why this only surfaces on macOS. Keep comments inside
-`$( )` apostrophe-free, or hoist them above the assignment. The lint greps
+string, and the whole file dies at parse time. The same matcher ends the
+substitution at a bare `case` pattern's `)`, a syntax error found only when
+the line runs. bash 4+ parses substitutions recursively, which is why this
+only surfaces on macOS. Keep comments inside `$( )` apostrophe-free, or hoist
+them above the assignment, and hoist a `case` into a function. The lint greps
 cannot see this one; `tests/targets/ssh_test.sh` runs `bash -n` over every file
 in a real 3.2 container.
 
@@ -658,7 +653,7 @@ frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
 The editor rcs, `tmux.conf`, and micro's `micro/` files ride it for the same
-reason `colors` and `packages.d` do: the tree copy is a default, and
+reason `colors` and `packages` do: the tree copy is a default, and
 `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one
 (HI.57). Left out of the stream, that guard could only fire on the client — an
 override working locally and silently reverting on every target, the
@@ -720,7 +715,8 @@ in, measures `${#script}`, and substitutes the human figure back — honest to a
 few bytes, since the streams inside are already armored and the script goes
 over the wire as it stands. `_hi_wire_bytes` — what `hi --doctor` and the
 README badge quote — assembles the same script through the same
-`_hi_remote_script` rather than summing the armored streams:
+`_hi_remote_script`, from the same payload cache `_say_hi` reads, rather than
+summing the armored streams:
 summing skips the boilerplate around them and reads ~6KB low, and a badge has
 to show the number the user sees. No overlay is counted, since which files
 ride is a question about a target - and none of the tree defaults one would
@@ -1162,28 +1158,9 @@ through the same function, so a file hi would not send is one hi would not
 read either. The archive carries no directory entry; every tar hi unpacks with
 creates the parent, busybox's included.
 
-`packages.d` is the first: each member is a group of the package check.
-`header.sh`'s `full_check` walks `_hi_package_files` - every `$_HI_PACKAGES_D`
-member, no distinguished first one - and `_hi_check_file` runs each through
-`check_line` under its own palette and sorts it alone, so a group is a
-contiguous run after the group before it. The palette is a file's `color=`
-line (`_hi_group_color`), made a ramp by `_hi_group_ramp` - one name in all
-eight slots, or eight as written - and handed to `_hi_packages_palette`,
-where it outranks `$_HI_PACKAGES_PALETTE`; the ramp in force is put back when
-the check ends. The line is not a comment on purpose: the strip would take
-it. With no member at all the check prints nothing. Unlike `plugins.d`,
-`$_HI_PACKAGES_D` has a real tree default (`config/packages.d`, shipping
-`default` and `extra`) and a `-d` guard in `common/paths.sh`, the same
-tree-default/overlay-override cascade `$_HI_COLORS` uses - so a
-`packages.d/` of the user's own **replaces** the tree's wholesale, the way a
-hand-made `~/.config/say-hi/colors` already replaces `config/colors`.
-That is why `hi --add-package` seeds the tree's members into a fresh overlay
-directory on its first write: without it, the first custom group would
-silently drop every shipped check.
-
 ## HI.59 plugins
 
-`plugins.d` is the second [HI.58](#hi58-overlay-directory-members) directory:
+`plugins.d` is the one [HI.58](#hi58-overlay-directory-members) directory:
 each member is a plugin, a file in the POSIX+fish subset `config/aliases.sh`
 keeps (`export`, `alias`, `&&` chains), so one file serves all three shells
 and something new - another tool's init, a prompt segment - rides to every

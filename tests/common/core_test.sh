@@ -267,6 +267,19 @@ function test_dir_member_ok_takes_plain_names_only() {
   done
 }
 
+# _hi_flag_word's three answers, one home now for hi.sh and scripts/ alike:
+# a joined word (0), the next argument (2, the caller shifts again), and a
+# bare flag with nothing after it (1, the variable untouched)
+function test_flag_word_takes_joined_next_or_nothing() {
+  local w="" rc=0
+  _hi_flag_word w --use=docker extra && [ "$w" = docker ] || return 1
+  _hi_flag_word w --use podman || rc=$?
+  [ "$rc" -eq 2 ] && [ "$w" = podman ] || return 1
+  rc=0
+  _hi_flag_word w --use || rc=$?
+  [ "$rc" -eq 1 ] && [ "$w" = podman ]
+}
+
 # ...and the label the previews and hi --doctor print for it, the three
 # shapes _hi_scheme_label prints for a scheme
 function test_ramp_label_names_every_shape() {
@@ -602,6 +615,19 @@ function test_ssh_host_tag_follows_include() {
   [ "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag included)" = inc ] || return 1
   unset _HI_TAG_NAME
   [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag after)" ]
+}
+
+# a matching untagged block earlier in the file does not end the walk: a
+# leading `Host *` of defaults marks every name known (rc 2) and the walk
+# goes on to the tagged block below it, as ssh reads on past a first match
+function test_ssh_host_tag_survives_a_leading_untagged_wildcard() {
+  local cfg="$_HI_WORKDIR/ssh_config.leadingstar" rc=0
+  printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: prod\nHost behind\n' >"$cfg"
+  unset _HI_TAG_NAME
+  [ "$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag behind)" = prod ] || return 1
+  unset _HI_TAG_NAME
+  _HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag elsewhere >/dev/null || rc=$?
+  [ "$rc" -eq 2 ]
 }
 
 function test_ssh_host_tag_untagged_host_fails() {
@@ -1279,6 +1305,7 @@ function run_core_tests() {
   _hi_check "_hi_scheme_label names every shape" test_scheme_label_names_every_shape
   _hi_check "_hi_ramp_ok takes eight color names" test_ramp_ok_takes_eight_color_names
   _hi_check "_hi_dir_member_ok takes plain names only" test_dir_member_ok_takes_plain_names_only
+  _hi_check "_hi_flag_word: joined, next, or nothing" test_flag_word_takes_joined_next_or_nothing
   _hi_check "_hi_ramp_label names every shape" test_ramp_label_names_every_shape
 
   _hi_h2 "Testing: _hi_cecho"
@@ -1342,6 +1369,7 @@ function run_core_tests() {
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
   _hi_check "A tag in an Included file colors its host" test_ssh_host_tag_follows_include
+  _hi_check "A leading untagged Host * does not end the walk" test_ssh_host_tag_survives_a_leading_untagged_wildcard
   _hi_check "Untagged host fails" test_ssh_host_tag_untagged_host_fails
   _hi_check "A relayed hop reads the client's tag map" test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay
   _hi_check "'Tags=' syntax and multi-alias Host lines" test_ssh_host_tag_equals_syntax_and_multialias

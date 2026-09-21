@@ -36,12 +36,10 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
 export _HI_COLORS="$_HI_ROOT/config/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
-# the package check's groups (GLOSSARY: HI.58); a packages.d/ of your own
-# replaces every group the tree ships (default, extra) wholesale, the same
-# cascade $_HI_COLORS uses above - `hi --add-package` seeds the tree's own
-# members into a fresh overlay directory so nothing is lost on first write.
-export _HI_PACKAGES_D="$_HI_ROOT/config/packages.d"
-[ -d "$_HI_CONFIG_DIR/packages.d" ] && export _HI_PACKAGES_D="$_HI_CONFIG_DIR/packages.d"
+# the package check; `hi --add-package` copies the tree's in before its
+# first write, so a copy of your own starts with every stock row
+export _HI_PACKAGES="$_HI_ROOT/config/packages"
+[ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
 # drop-in plugins, sourced after the aliases; the same only home (HI.59)
 export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
 # The editor rcs take a middle tier the other two have no use for: the config
@@ -136,7 +134,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # shells need it and this is the only file all four read - spelled per shell,
 # a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --add-tag --group"
+export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --add-tag"
 alias hi="$_HI_LAUNCHER"
 # The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

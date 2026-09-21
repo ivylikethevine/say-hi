@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # Isolation, and it has to happen before bootstrap.sh: that resolves
-# $_HI_SETTINGS/$_HI_COLORS/$_HI_PACKAGES_D against $_HI_CONFIG_DIR once, so by
+# $_HI_SETTINGS/$_HI_COLORS/$_HI_PACKAGES against $_HI_CONFIG_DIR once, so by
 # the time a suite runs it is too late to stop the developer's own
 # ~/.config/say-hi from deciding what those point at. Deliberately a path that
 # does not exist yet, so the baseline every suite starts from is "no overlay,
@@ -34,7 +34,7 @@ export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # paths.sh drops a value still equal to the one it recorded resolving, so an
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
-unset _HI_COLORS _HI_PACKAGES_D _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
+unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
 # The tools' own config variables hi.sh's _hi_overlay_src reads: inherited,
 # they would pack the developer's real configs into every overlay stream a
 # suite builds. The prompt programs are pinned to hi's own for the same

@@ -115,14 +115,14 @@ function test_overlay_dereferences_symlinks() {
 # inside a `.d` member too, where only the plain names ride (HI.58).
 function test_overlay_sends_nothing_outside_the_roster() {
   local dir="$_HI_WORKDIR/overlay-leak" f
-  mkdir -p "$dir/.git" "$dir/.chezmoitemplates" "$dir/packages.d/sub"
+  mkdir -p "$dir/.git" "$dir/.chezmoitemplates" "$dir/plugins.d/sub"
   printf 'export _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   for f in .git/config .chezmoiignore README.md id_rsa settings.sh.bak .settings.sh.swp \
-    packages.d/10-x packages.d/10-x.bak packages.d/.10-x.swp packages.d/10-x~ packages.d/sub/20-y; do
+    plugins.d/10-x plugins.d/10-x.bak plugins.d/.10-x.swp plugins.d/10-x~ plugins.d/sub/20-y; do
     printf 'x:3\n' >"$dir/$f"
   done
   while IFS= read -r f; do
-    [ -n "$f" ] && [ "$f" != packages.d/10-x ] || continue
+    [ -n "$f" ] && [ "$f" != plugins.d/10-x ] || continue
     case " ${_HI_OVERLAY_FILES[*]} " in
     *" $f "*) continue ;;
     esac
@@ -132,30 +132,16 @@ function test_overlay_sends_nothing_outside_the_roster() {
   return 0
 }
 
-# packages.d's members ride as packages.d/<name>, comment-stripped like any
-# packages file, their color= line intact - and splitting one member into two
-# costs the stream under 192 gzipped bytes over the same rows in one member
-# (a tar header, and the color= line: 84 measured under GNU tar, 143 under
-# OpenBSD's), so grouping is nearly free.
-function test_overlay_carries_package_groups() {
-  local one="$_HI_WORKDIR/groups-one" split="$_HI_WORKDIR/groups-split" n out a b
-  mkdir -p "$one/packages.d" "$split/packages.d"
-  cp "$_HI_ROOT/config/packages.d/00-default" "$one/packages.d/all"
-  n="$(grep -c . "$one/packages.d/all")"
-  head -n $((n / 2)) "$one/packages.d/all" >"$split/packages.d/10-lang"
-  { printf 'color=orange\n' && sed -n "$((n / 2 + 1)),\$p" "$one/packages.d/all"; } >"$split/packages.d/20-box"
-  [ "$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages.d/10-lang,packages.d/20-box ] || return 1
-  out="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | _hi_tar_cat packages.d/20-box)"
-  case "$out" in color=orange$'\n'*) ;; *) return 1 ;; esac
-  case "$out" in *'#'*)
-    _hi_cecho " | packages.d/20-box kept a comment line through the strip" "$RED"
-    return 1
-    ;;
-  esac
-  a="$(_HI_CONFIG_DIR="$one" _hi_overlay_tar | wc -c)"
-  b="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | wc -c)"
-  [ $((b - a)) -lt 192 ] || {
-    _hi_cecho " | splitting one member into two costs $((b - a)) bytes (budget 192)" "$RED"
+# the overlay's packages file rides as packages, comment-stripped like the
+# tree's, every row intact - a mode character and a trailing space included
+function test_overlay_carries_packages_stripped() {
+  local dir="$_HI_WORKDIR/packages-overlay" out
+  mkdir -p "$dir"
+  printf '# a note\nbat:3,batcat:3\n\n  # indented\n-sudo:2,doas:2\n+getent:0\n' >"$dir/packages"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages ] || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat packages)"
+  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf 'bat:3,batcat:3\n-sudo:2,doas:2\n+getent:0')" ] || {
+    _hi_cecho " | packages arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -688,25 +674,25 @@ function test_a_home_config_needs_its_tool_here() {
 
 # One copy of a file the overlay and the tree both hold: a member that
 # shadows its tree default (common/paths.sh's cascade) cuts that default from
-# the payload. aliases.sh is additive and cuts nothing, a packages.d member
-# cuts the whole directory, and a file still under a pre-1.0 name is no
+# the payload. aliases.sh is additive and cuts nothing, and a file still
+# under a pre-1.0 name is no
 # member, so the default it no longer overrides keeps riding.
 function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   local dir="$_HI_WORKDIR/excl" listing
   local -a payload_excl=() members=()
-  mkdir -p "$dir/packages.d"
+  mkdir -p "$dir"
   printf 'hosttag,x,red\n' >"$dir/colors"
-  printf 'git\n' >"$dir/packages.d/10-mine"
+  printf 'git:3\n' >"$dir/packages"
   printf 'alias a=b\n' >"$dir/aliases.sh"
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
   _hi_payload_excl "${members[@]}"
-  [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages.d" ] || {
+  [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages" ] || {
     _hi_cecho " | cut: [${payload_excl[*]}]" "$RED"
     return 1
   }
   listing="$(_hi_payload_tar | tar tzf -)"
-  [[ "$listing" != *config/colors* && "$listing" != *config/packages.d* ]] &&
+  [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
     [[ "$listing" == *config/aliases.sh* && "$listing" == *config/nanorc* ]] || return 1
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
 }
@@ -1179,14 +1165,13 @@ function test_strip_spares_heredoc_bodies() {
 }
 
 # The data files' prose headers document the *installed* copies a user reads,
-# so they ship stripped too: flags/colors/packages.d/nanorc through the same
+# so they ship stripped too: flags/colors/packages/nanorc through the same
 # `#` rule as the shell, vimrc, init.el, and init.lua through their own
-# rules for vim's `"`, elisp's `;`, and lua's `--`. Both shipped packages.d
-# members, proving the strip reaches inside the directory too.
+# rules for vim's `"`, elisp's `;`, and lua's `--`.
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags config/colors config/packages.d/00-default config/packages.d/01-extra config/nanorc; do
+  for f in common/flags config/colors config/packages config/nanorc; do
     n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
@@ -1208,7 +1193,7 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags config/colors config/packages.d/00-default config/packages.d/01-extra config/nanorc; do
+  for f in common/flags config/colors config/packages config/nanorc; do
     diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
       <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"
@@ -1299,7 +1284,7 @@ function run_hi_payload_tests() {
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
-  _hi_check "packages.d members ride stripped, and nearly free" test_overlay_carries_package_groups
+  _hi_check "The overlay's packages rides stripped" test_overlay_carries_packages_stripped
   _hi_check "plugins.d members ride stripped" test_overlay_carries_plugins
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
