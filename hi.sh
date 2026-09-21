@@ -409,18 +409,24 @@ function _hi_overlay_home() {
 # runtime dir, recut when the config is newer or has an Include; fails with no
 # config, no runtime dir, or no tag.
 function _hi_ssh_tags_file() {
-  local _hi_tf_d="" _hi_tf
+  local _hi_tf_d="" _hi_tf _hi_tf_tmp
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   _hi_runtime_dir _hi_tf_d
   [ -n "$_hi_tf_d" ] || return 1
   _hi_tf="$_hi_tf_d/hi.ssh_tags"
   # an Include's files have mtimes of their own, so a config with one is recut
   if [ ! "$_hi_tf" -nt "$_HI_SSH_CONFIG" ] || grep -qi '^[[:space:]]*include[[:space:]=]' "$_HI_SSH_CONFIG"; then
+    # mktemp, not `.$$`: every subshell of one shell shares its $$
+    _hi_tf_tmp="$(mktemp "$_hi_tf.XXXXXX")" || return 1
     sh "$_HI_TARGETS" ssh-config "$_HI_SSH_CONFIG" | awk '{ t = $0; sub(/^[ \t]+/, "", t); l = tolower(t) }
       l ~ /^#[ \t]*tags[:=]/ { tag = t; next }
       l ~ /^#/ || l == "" { next }
       tag != "" && l ~ /^(host|match[ \t]+host)[ \t]/ { print tag; print t }
-      { tag = "" }' >"$_hi_tf.$$" && mv -f "$_hi_tf.$$" "$_hi_tf" || return 1
+      { tag = "" }' >"$_hi_tf_tmp" && mv -f "$_hi_tf_tmp" "$_hi_tf" && _hi_tf_tmp=""
+    [ -z "$_hi_tf_tmp" ] || {
+      rm -f "$_hi_tf_tmp"
+      return 1
+    }
   fi
   [ -s "$_hi_tf" ] && _hi_out "${2:-}" "$_hi_tf"
 }
@@ -840,7 +846,7 @@ function _hi_overlay_cache_key() {
 function _hi_cached() {
   local _hi_c_outvar="$1" _hi_c_tag="$2" _hi_c_key="$3" _hi_c_pre="$4" _hi_c_build="$5"
   shift 5
-  local _hi_c_dir _hi_c_cache
+  local _hi_c_dir _hi_c_cache _hi_c_tmp
   local -a _hi_c_watch=("${@/#/$_hi_c_pre}" ${cache_also[@]+"${cache_also[@]}"})
   [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
   _hi_runtime_dir _hi_c_dir
@@ -851,11 +857,13 @@ function _hi_cached() {
     printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
     return 0
   fi
-  "$_hi_c_build" "$@" >"$_hi_c_cache.$$" || {
-    rm -f "$_hi_c_cache.$$"
+  # mktemp, not `.$$`: every subshell of one shell shares its $$
+  _hi_c_tmp="$(mktemp "$_hi_c_cache.XXXXXX")" || return 1
+  "$_hi_c_build" "$@" >"$_hi_c_tmp" || {
+    rm -f "$_hi_c_tmp"
     return 1
   }
-  mv -f "$_hi_c_cache.$$" "$_hi_c_cache"
+  mv -f "$_hi_c_tmp" "$_hi_c_cache"
   printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
 }
 
@@ -879,11 +887,13 @@ function _hi_overlay_cached() {
 # The tree twin, against the ~70-130ms _hi_payload_tar otherwise costs on
 # every connect. _hi_payload_tar takes no arguments - the roster is its own -
 # but is handed one anyway: that list is what _hi_cached watches for staleness.
-# Keyed on the caller's $payload_excl, so a tree cut for one overlay is never
-# served beside another; `tree` alone is the whole one.
+# Keyed on the tree's own path and the caller's $payload_excl: two trees on
+# one machine share the runtime dir, and staleness is only "no file newer
+# than the cache", so a tree keyed by name alone was served the other tree's
+# payload; and a tree cut for one overlay is never served beside another.
 function _hi_payload_cached() {
-  local _hi_pc_key=tree
-  [ -z "${payload_excl[*]-}" ] || _hi_pc_key="tree.$(_hi_cksum "${payload_excl[*]}")"
+  local _hi_pc_key
+  _hi_pc_key="tree.$(_hi_cksum "$_HI_HOME|${payload_excl[*]-}")"
   _hi_cached "$1" payload "$_hi_pc_key" \
     "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }

@@ -384,15 +384,47 @@ In this checkout, narrowest first.
        run. **Ticks when:** the two above block and those lists hold.
 
 6. [ ] **No races left for Windows and BSD runners to lose** — their
-       shards fail intermittently where Linux never does, and one cause is
-       already known: `grep -q` or an early `awk exit` reading a `printf` under
-       `pipefail`, which OpenBSD's 1 KB stdio buffer turns into a SIGPIPE
-       (fixed in `release_notes.sh`). **Do:** sweep the tree for that shape
-       and its kin - pipes whose reader leaves early, waits bound to a fixed
-       sleep, temp names shared across parallel cases, output read before
-       its writer flushes, and Git Bash's slow forks against fixed timeouts.
-       **Ticks when:** each finding is fixed or written down as not one, and
-       the Windows and BSD jobs run green across several consecutive pushes.
+       shards fail intermittently where Linux never does. A read-only sweep
+       found the suspects below. One finding shapes the rest: the suites run
+       with strict mode _off_ (`common/core.sh` ends in `set +euo pipefail`,
+       and `test_lib.sh` sources it), so a SIGPIPE can fail a workflow step
+       or a script run as its own process, never a suite's case. **Do:** fix
+       each or write it down as not one, most likely first:
+
+   - **Not races, checked:** the fast group's one 900s `timeout`
+     (`bsd_loopback.sh:34`, `windows-e2e.yml:248`) and the `timeout 120`
+     sessions (`windows-e2e.yml:85`, `:150`, `:338`) - whole jobs take
+     1.8-3.4 minutes. Every Windows job now runs the `defender-off` action; the exclusion
+     stays best-effort on arm64 (tamper protection can refuse it) and warns
+     when it did not take.
+   - **Test harness (every suite):** no per-suite `TMPDIR` or
+     `XDG_RUNTIME_DIR`, so parallel suites share the runtime caches;
+     `kill -0` polls a pid that may be reused (`tests/lib/process.sh:181`,
+     `parallel.sh:93`) - on a timeout the `kill -9` hits a stranger;
+     wall-clock `$SECONDS` deadlines against an NTP-stepped BSD VM
+     (`process.sh:141`); the pty rig reads the child's last line right after
+     it exits, input fed as typeahead (`configure_test.sh:355`, shared by
+     four suites; BSD ptys can drop a fast child's tail); fixed probe names
+     and build-once helpers (`tests/lib/fixtures.sh:220`, `:357`, `:390`,
+     `:428`, `:602`) and `.$$` memos (`runner_test.sh:103`), latent while
+     their callers are serial.
+   - **Single suites:** `targets_test.sh:408` (three probe shims must start
+     within their 0.3s `sleep`; BSD, macOS), `:501` and `:528` (a 5s poll
+     for the detached refresher; Windows arm64, BSD); the default 2s
+     `_HI_PROBE_TIMEOUT` against shims in `doctor_test.sh:197`,
+     `header_test.sh:680`, `parse_test.sh:237` (pinning it in
+     `test_lib.sh` covers all three); the pty cases' 30s cap with ~30
+     children at once (`configure_test.sh:364`, `install_test.sh:490`,
+     `scripts/rc_test.sh:359`); `_hi_login_env`'s 90s over parallel
+     `hi --doctor` shells on one `HOME` (`install_location_test.sh:267`,
+     `:274`; Windows arm64); elapsed-time asserts (`runner_test.sh:564`,
+     `lib_test.sh:290`, `:436`); `hi_payload`'s "hi-allow keeps the next
+     line" on Windows arm64, where the overlay stage exited without a word
+     before tar wrote anything (suspect: the scanner holding a staged
+     file's `mv`).
+
+   **Ticks when:** each is fixed or written down as not one, and the
+   Windows and BSD jobs run green across several consecutive pushes.
 
 7. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a

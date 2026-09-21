@@ -42,6 +42,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: $/.github/actions/defender-off
+
       - name: Start the OpenSSH server
         shell: powershell
         run: |
@@ -88,8 +90,10 @@ jobs:
           printf '%s\n' "$out"
           # the banner first, since it names what is missing; then the status,
           # never discarded - a `timeout` kill is rc 124 with the banner already
-          # printed, so a wedged session was green while this said `|| true`
-          printf '%s\n' "$out" | grep -q "hi from PowerShell"
+          # printed, so a wedged session was green while this said `|| true`.
+          # A here-string, never `printf | grep -q`: grep leaves at the match,
+          # and under pipefail the writer's SIGPIPE fails the step (SYNTAX.md)
+          grep -q "hi from PowerShell" <<<"$out"
           [ "$rc" -eq 0 ] || {
             echo "the session exited $rc (124 = the 120s timeout killed it)" >&2
             exit "$rc"
@@ -111,6 +115,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: $/.github/actions/defender-off
 
       - name: Start the OpenSSH server, Git Bash as its shell
         shell: powershell
@@ -151,12 +157,12 @@ jobs:
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 'echo HI_GITBASH_OK; hi_info' 2>&1)" || rc=$?
           printf '%s\n' "$out"
-          printf '%s\n' "$out" | grep -q HI_GITBASH_OK
-          if printf '%s\n' "$out" | grep -q "hi from PowerShell"; then
+          grep -q HI_GITBASH_OK <<<"$out"
+          if grep -q "hi from PowerShell" <<<"$out"; then
             echo "Git Bash was the shell, yet hi fell back to PowerShell" >&2
             exit 1
           fi
-          printf '%s\n' "$out" | grep -Eq 'hi_root: .*\.hi\.[A-Za-z0-9.]+/say-hi'
+          grep -Eq 'hi_root: .*\.hi\.[A-Za-z0-9.]+/say-hi' <<<"$out"
           [ "$rc" -eq 0 ] || {
             echo "the session exited $rc (124 = the 120s timeout killed it)" >&2
             exit "$rc"
@@ -197,6 +203,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: $/.github/actions/defender-off
 
       # WSL 2: hosted Windows runners carry the nested virtualization it needs
       - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
@@ -339,18 +347,18 @@ jobs:
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || rc=$?
           printf '%s\n' "$out"
-          printf '%s\n' "$out" | grep -q HI_WSL_OK
+          grep -q HI_WSL_OK <<<"$out"
           # the session runs out of the tree hi shipped - $_HI_HOME is a
           # `mktemp -d -t <client user>.hi.XXXXXX` on the target, named for the
           # *client's* user (hi.sh's _hi_whoami), which is why this matches the
           # shape rather than a name. ci.yml's macOS job asserts the same shape.
-          printf '%s\n' "$out" | grep -Eq 'hi_root: .*\.hi\.[A-Za-z0-9.]+/say-hi'
+          grep -Eq 'hi_root: .*\.hi\.[A-Za-z0-9.]+/say-hi' <<<"$out"
           # and not out of the packaged tree: hi dropped target-side install
           # detection, so a session reading /usr/share/say-hi would be a
           # regression back to it.
           # (an `if`, not a bare `! grep`: set -e ignores a negated pipeline,
           # so that form only failed the step while it was the last line)
-          if printf '%s\n' "$out" | grep -q 'hi_root: /usr/share/say-hi'; then
+          if grep -q 'hi_root: /usr/share/say-hi' <<<"$out"; then
             echo "the session ran out of the packaged tree" >&2
             exit 1
           fi

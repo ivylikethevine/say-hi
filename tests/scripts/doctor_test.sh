@@ -1274,9 +1274,10 @@ function test_problems_prints_only_the_findings() {
 # one --json alone prints, byte for byte once the timings are masked
 # the exit status is the findings count's (a box with a finding exits 1), so
 # only the two documents are compared
-# Two runs compared, so anything timing-dependent is pinned: the probe cap is
-# generous (the shims answer or fail at once), or a loaded BSD VM lets one
-# run's backend miss the default 2s and flip its row to "not answering"
+# Two runs compared, so both must see the same world: the probe cap is
+# generous (the shims answer or fail at once, but a loaded VM is slow), and a
+# difference prints. It found the payload cache serving another tree's
+# payload to one of the two runs - a wire size off by 1K on FreeBSD.
 function test_problems_leaves_json_unchanged() {
   local a b
   a="$(_HI_PROBE_TIMEOUT=30 _hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true

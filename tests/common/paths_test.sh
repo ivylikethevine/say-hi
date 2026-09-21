@@ -110,9 +110,12 @@ function test_fish_toggle_list_matches_core() {
 }
 
 # the gate is the last thing paths.sh does and it ends in `|| true`, so a
-# no-flip run must still leave the file sourceable under set -e
+# no-flip run must still leave the file sourceable under set -e. The strict
+# children here run with $BASH_ENV empty: kcov loads its tracer through it, whose
+# PS4 names ${BASH_SOURCE} - unset in a `bash -c` script, so under set -u the
+# trace itself dies before the file is read. Unset outside a coverage sweep.
 function test_paths_sources_cleanly_under_strict_mode() {
-  _HI_DISABLE_LOCAL=0 _HI_REMOTE_SESSION=0 bash -c '
+  _HI_DISABLE_LOCAL=0 _HI_REMOTE_SESSION=0 BASH_ENV='' bash -c '
     set -euo pipefail
     source "$_HI_HOME/say-hi/common/core.sh"
     [ -n "$_HI_ROOT" ]
@@ -150,7 +153,7 @@ function test_core_defines_every_toggle() {
 
 # the whole point: sourcing aliases.sh under `set -u` must not be fatal
 function test_aliases_source_cleanly_under_nounset() {
-  bash -c 'set -euo pipefail
+  BASH_ENV='' bash -c 'set -euo pipefail
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_ALIASES"' 2>/dev/null
 }
@@ -164,7 +167,7 @@ function test_aliases_source_cleanly_under_nounset() {
 # waited on because a hang, not a failure, is the symptom - a bare call here
 # would take the whole suite down with it.
 function test_aliases_do_not_source_themselves() {
-  _HI_CONFIG_DIR="$_HI_ROOT/config" bash -c 'set -eu
+  _HI_CONFIG_DIR="$_HI_ROOT/config" BASH_ENV='' bash -c 'set -eu
     . "$_HI_HOME/say-hi/common/paths.sh"
     . "$_HI_ALIASES"' >/dev/null 2>&1 &
   _hi_wait_pid "$!" 10

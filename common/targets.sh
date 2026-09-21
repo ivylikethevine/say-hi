@@ -541,12 +541,17 @@ if [ -n "$age" ] && [ "$age" -lt "$stale_for" ]; then
   # One refresh at a time, or every TAB in the window a sweep takes would
   # start another. The lock is a directory (made or not in one call) holding
   # the time it was taken; one older than any sweep runs (a flat 30s) was left
-  # by a refresher that died, and is taken over.
+  # by a refresher that died, and is taken over. No time yet is a lock taken
+  # a moment ago - its owner writes `at` right after the mkdir - unless the
+  # directory itself is over a minute old, an owner that died in between.
   lock="$cache.lock"
   if ! mkdir "$lock" 2>/dev/null; then
-    IFS= read -r _hi_at <"$lock/at" 2>/dev/null || _hi_at=0
-    case "$_hi_at" in '' | *[!0-9]*) _hi_at=0 ;; esac
-    [ "$((now - _hi_at))" -gt 30 ] || exit 0
+    if IFS= read -r _hi_at <"$lock/at" 2>/dev/null; then
+      case "$_hi_at" in '' | *[!0-9]*) _hi_at=0 ;; esac
+      [ "$((now - _hi_at))" -gt 30 ] || exit 0
+    else
+      [ -n "$(find "$lock" -prune -mmin +1 2>/dev/null)" ] || exit 0
+    fi
     rm -rf "$lock" 2>/dev/null
     mkdir "$lock" 2>/dev/null || exit 0
   fi

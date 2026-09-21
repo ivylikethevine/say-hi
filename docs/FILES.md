@@ -272,15 +272,14 @@ In the runtime directory: `$XDG_RUNTIME_DIR` when it exists, else
 owned by someone else. A cache is written under a temporary name and moved
 into place.
 
-| File                    | What                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------- |
-| `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                              |
-| `hi.payload.tree`       | the gzipped payload, rebuilt when a tree file changes; off with `_HI_PAYLOAD_CACHE=0` |
-| `hi.payload.tree.<key>` | the same minus the defaults an overlay shadows, keyed on which                        |
-| `hi.overlay.<key>`      | the overlay stream, keyed on its member list                                          |
-| `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                            |
-| `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off) |
-| `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                  |
+| File                    | What                                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                          |
+| `hi.payload.tree.<key>` | the gzipped payload, rebuilt when a tree file changes, keyed on the tree and on which defaults an overlay shadows; off with `_HI_PAYLOAD_CACHE=0` |
+| `hi.overlay.<key>`      | the overlay stream, keyed on its member list                                                                                                      |
+| `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                        |
+| `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                             |
+| `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                                                                              |
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per

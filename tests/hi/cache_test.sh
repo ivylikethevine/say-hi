@@ -282,7 +282,7 @@ function test_payload_cached_builds_cold_then_reuses_it() {
   local out="" dir
   dir="$(_hi_cache_rt pc.warm)"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached out || return 1
-  [ "$out" = "$dir/hi.payload.tree" ] || return 1
+  [[ "$out" == "$dir/hi.payload.tree."* ]] || return 1
   [ -s "$out" ] || return 1
   _hi_cache_mark "$out"
   touch -t 203001010000 "$out"
@@ -299,8 +299,20 @@ function test_payload_cached_is_keyed_on_the_cut_list() {
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached whole || return 1
   _hi_payload_excl colors
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached cut || return 1
-  [ "$whole" = "$dir/hi.payload.tree" ] && [ "$cut" != "$whole" ] &&
+  [[ "$whole" == "$dir/hi.payload.tree."* ]] && [ "$cut" != "$whole" ] &&
     [[ "$(tar tzf "$whole")" == *config/colors* && "$(tar tzf "$cut")" != *config/colors* ]]
+}
+
+# two trees on one machine share the runtime dir, and each is served its
+# own: the cache is keyed on the tree, not only on the name
+function test_payload_cached_is_keyed_on_the_tree() {
+  local a="" b="" dir other="$_HI_WORKDIR/another-home"
+  dir="$(_hi_cache_rt pc.trees)"
+  mkdir -p "$other"
+  ln -sfn "$_HI_ROOT" "$other/say-hi"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_cached a || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_HOME="$other" _hi_payload_cached b || return 1
+  [ -s "$a" ] && [ -s "$b" ] && [ "$a" != "$b" ]
 }
 
 function test_payload_cached_rebuilds_when_a_source_file_is_newer() {
@@ -614,6 +626,7 @@ function run_cache_tests() {
   _hi_check "Overlay stream is byte-identical off a warm cache" test_overlay_stream_is_byte_identical_off_a_warm_cache
   _hi_check "Payload cache builds cold then reuses it" test_payload_cached_builds_cold_then_reuses_it
   _hi_check "Payload cache is keyed on what the overlay cut" test_payload_cached_is_keyed_on_the_cut_list
+  _hi_check_capable symlink "Payload cache is keyed on the tree" test_payload_cached_is_keyed_on_the_tree
   _hi_check "Payload cache rebuilds on a newer source file" test_payload_cached_rebuilds_when_a_source_file_is_newer
   _hi_check "Payload cache off when _HI_PAYLOAD_CACHE=0" test_payload_cached_is_off_when_the_toggle_is_zero
   _hi_check "Payload stream is byte-identical off a warm cache" test_payload_stream_is_byte_identical_off_a_warm_cache

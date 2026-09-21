@@ -222,7 +222,7 @@ function install_bash_profile_line() {
   local profile
   _hi_login_bash_profile profile
   if [ "$profile" = "$HOME/.bash_profile" ]; then
-    if grep -v -F "$_HI_MARKER" "$profile" | grep -qF '.bashrc'; then
+    if grep -v -F "$_HI_MARKER" "$profile" | grep -F '.bashrc' >/dev/null; then
       _hi_h2 "Checking bash_profile"
       _hi_cecho " local bash_profile already reads .bashrc :)" "$GREEN"
       return 0
