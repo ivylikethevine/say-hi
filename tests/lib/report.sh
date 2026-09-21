@@ -62,15 +62,48 @@ function _hi_because() {
 }
 
 function _hi_assert() {
-  local label="$1"
+  local label="$1" t0=$SECONDS
   shift
   if "$@"; then
     _hi_align " | $label" "OK" "$GREEN"
   else
     _hi_align " | $label" "FAILED" "$RED"
     _hi_note_failure "$label"
+    _hi_trace_rerun $((SECONDS - t0)) "$@"
     return 1
   fi
+}
+
+# _hi_trace_rerun <seconds-it-took> <case...> - a failed case once more under
+# `set -x`, and the tail of what it said: most cases fail with a label and no
+# word of their own, and a red line from a runner nobody can reach is worth
+# little. A subshell, so nothing the rerun sets survives it - files it writes
+# do, so a rerun can differ from the first try; that is the note it carries.
+# One that passes the second time is flagged a likely flake. Skipped for a
+# case whose failure took over 20s (a timeout would be paid twice), and when
+# $_HI_TRACE_RERUN is 0 - the coverage sweeps set that, their tracers owning
+# xtrace.
+function _hi_trace_rerun() {
+  local took="$1" out rc=0
+  shift
+  [ "${_HI_TRACE_RERUN:-1}" = 1 ] || return 0
+  if [ "$took" -gt 20 ]; then
+    printf '      (no traced rerun: the failure took %ss)\n' "$took" >&2
+    return 0
+  fi
+  out="$(
+    PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '
+    {
+      set -x
+      "$@"
+    } 2>&1
+  )" || rc=$?
+  if [ "$rc" = 0 ]; then
+    printf '      passed on a traced rerun - a likely flake; its trace:\n' >&2
+  else
+    printf '      traced rerun (exit %s), its last lines:\n' "$rc" >&2
+  fi
+  printf '%s\n' "$out" | tail -n 40 | sed 's/^/      /' >&2
 }
 
 # _hi_check <label> <predicate...> - one counted, labelled assertion.

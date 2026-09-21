@@ -1301,9 +1301,10 @@ function run_doctor_tests() {
   _hi_h1 "Testing scripts/doctor.sh ($part)"
 
   # one suite ran past every other under Git Bash (~450s on windows-11-arm),
-  # so its sections are three suites that shard apart: this file, and
-  # doctor_target_test.sh and doctor_report_test.sh, which name their part
-  # and source it
+  # so its sections are four suites that shard apart: this file, and
+  # doctor_target_test.sh, doctor_report_test.sh, and doctor_json_test.sh,
+  # which name their part and source it - the report and --json halves
+  # apart because each runs the whole doctor case after case (~470s together)
   if [ "$part" = local ]; then
     _hi_h2 "Testing: doctor_local"
     _hi_check "Reports the version" test_local_reports_the_version
@@ -1406,7 +1407,7 @@ function run_doctor_tests() {
 
   fi
 
-  if [ "$part" = report ]; then
+  if [ "$part" = json ]; then
     _hi_h2 "Testing: --json"
     _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
     _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
