@@ -40,7 +40,7 @@ Require podman
 Hide
 Type "docs/tapes/fixtures.sh up overlay >/tmp/hi-demo.log 2>&1; and echo fixture-o''k"
 Enter
-Wait+Screen@240s /fixture-ok/
+Wait+Screen@180s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.fish"
 Enter
 # `cd` alone, not the throwaway $HOME the other tapes stand in: podman keeps

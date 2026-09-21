@@ -20,6 +20,13 @@ exclude_path = [
   '(^|/)target/',
 ]
 
+# Regexes over URLs, never checked - counted as excluded, not as an error or
+# a warning. gnu.org times out often enough that GNU Stow's page (named in
+# docs/ALTERNATIVES.md) would flag a sweep for a slow server, not a dead link.
+exclude = [
+  '^https?://(www\.)?gnu\.org/software/stow',
+]
+
 # a transient network error is retried before it counts as a dead link
 max_retries = 3
 retry_wait_time = 2

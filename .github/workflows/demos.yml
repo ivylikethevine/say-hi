@@ -164,8 +164,18 @@ jobs:
           version: v0.11.0
           install-fonts: "true"
 
+      # Five minutes for one tape: a healthy render takes one or two, and a
+      # stalled one used to sit out the job's thirty. The tapes wait at most
+      # 180s for their fixture, so a stall fails inside vhs first and
+      # generate.sh prints the fixture's steps; the step below prints them
+      # too if the cap is what ended it.
       - name: Render ${{ matrix.tape }}
+        timeout-minutes: 5
         run: docs/tapes/generate.sh --require-run ${{ matrix.tape }}
+
+      - name: The fixture's log, on a failed render
+        if: ${{ failure() }}
+        run: cat /tmp/hi-demo.log 2>/dev/null || echo "no /tmp/hi-demo.log - the tape never ran fixtures.sh"
 
       # A run that died mid-tape leaves its fixture up on a machine that
       # persists between jobs; always, so a failed render still cleans up.
@@ -249,20 +259,15 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Taken from the three steps rather than a log: this job is gated on
-          # github.ref_type == 'tag', so it has never run on a branch push and
-          # no audit log for it exists. Its whole network use is legible - the
-          # checkout, artifacts off the auto-allowed blobs, and `gh release
-          # upload`, which release.yml's publish job already blocks against the
-          # same two hosts. If a tagged run trips on a row, that log is the one
-          # to take the real list from.
+          # Off this job's own log, from its first run (v0.4.8's): the
+          # checkout, the release API and its upload host, and the results
+          # receiver - the artifact comes off the auto-allowed blobs. The
+          # rows read off the steps before any run existed and never used
+          # (codeload, release-assets, objects) are gone.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
             uploads.github.com:443
-            codeload.github.com:443
-            release-assets.githubusercontent.com:443
-            objects.githubusercontent.com:443
             results-receiver.actions.githubusercontent.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -294,3 +299,48 @@ jobs:
           _ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"
           .github/scripts/release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo \
             "![say-hi $TAG: the $TAPE demo]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG/demo.gif)"
+
+  # The site's one deploy for a release: after the GIFs are collected and the
+  # demo attached, so it serves the new package repository and the new demos
+  # at once - release.yml's publish asked for it before the demos existed,
+  # and a merge's Coverage deploy then made three in eight minutes.
+  # `!cancelled()`, not success: a tape that failed must not keep the new
+  # package repository off the site. Not on a prerelease: it publishes
+  # --latest=false, so the release pages.yml serves is unchanged.
+  refresh-pages:
+    name: redeploy the site for this release
+    needs: [collect, attach]
+    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # the pages.yml dispatch
+      actions: write
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          # attach's hosts, less the upload one: the checkout, and the API
+          # for the release lookup and the dispatch
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            results-receiver.actions.githubusercontent.com:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Ask pages.yml for the release's deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          pre="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease 2>/dev/null || echo false)"
+          if [ "$pre" = true ]; then
+            echo "$TAG is a prerelease - the site serves the latest release, unchanged"
+            exit 0
+          fi
+          .github/scripts/gh_dispatch.sh pages.yml main

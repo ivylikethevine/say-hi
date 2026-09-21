@@ -332,38 +332,17 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
-       `upgrade` job, under the gate and ahead of build, runs
-       `.github/scripts/upgrade_path.sh` from the previous `v*` tag - a
-       shell per dialect loads it, the tag's tree is swapped in, the rc is
-       re-sourced, and any stderr or empty `_HI_*` path fails the build. That
-       it goes red is now a standing `ci`-group case (a restored core.sh load
-       guard in `common/bash.sh`), and v0.4.7 to the working tree walks
-       clean. **Ticks when:** a `v*` tag runs the job green.
-
-2. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
-       has failed in `render`: each tape times out waiting for `fixture-ok`
-       with `/tmp/hi-demo.log` empty, so `fixtures.sh up` never reports (the
-       editors tape stalls earlier still, on its `setopt` line). Egress is
-       ruled out - the harden-runner logs refuse only Chrome's updater. So no
-       GIF has rendered since, and `collect` and `attach` have never run.
-       **Do:** find where the fixture stalls. **Ticks when:** a dispatch
-       renders all six tapes.
-
-3. [ ] **Every Ubuntu job's egress is allowlisted** — 41 of 51
-       `harden-runner` steps block, `ci.yml`'s e2e now among them (its list
-       the union of three runs' audit logs, dnf pinned to one Fedora
-       mirror). **Left:** `openbsd-e2e.yml`, whose guest sent DNS over HTTPS
-       to a bare 9.9.9.9; its prepare step now stops `unwind`, and it goes to
-       block once a run's audit log shows no 9.9.9.9. **Audit for good:**
+1. [ ] **Every Ubuntu job's egress is allowlisted** — 42 of 51
+       `harden-runner` steps block, every list off a real run's log:
+       `ci.yml`'s e2e (the union of three runs'; green on its first blocked
+       run), `demos.yml`'s `attach` (off v0.4.8's), and `openbsd-e2e.yml`
+       (its guest's DNS-over-HTTPS resolver stopped). **Audit for good:**
        macOS (`ci.yml`'s `test-macos`, `release.yml`'s brew job) and Windows
        (`windows-client.yml`'s 2, `windows-e2e.yml`'s 4), where
        harden-runner has no block mode, and `link-check.yml`, whose job is
-       reaching any URL. **Do:** `demos.yml`'s `attach` list from a tagged
-       run. **Ticks when:** OpenBSD blocks, the e2e list holds on cold runs,
-       and `attach`'s list is taken from a real one.
+       reaching any URL. **Ticks when:** OpenBSD's first blocked run is green.
 
-4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+2. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -373,7 +352,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-5. [ ] **Investigate the header as plugins** — every header cell is one
+3. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing

@@ -34,10 +34,14 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 
 # group:name:path (relative to this directory), in the order they run - fast
 # local checks first, the docker/kind/nomad-backed end-to-end tests after.
-# Within the fast section the slowest suites lead: the parallel runner starts
-# suites in table order, so a heavy suite starting last is the whole group's
-# scheduling tail. Re-sort from the summary table's TIME column when a
-# suite's weight changes.
+# The fast section is dealt out for windows-client.yml's four shards: row k
+# lands in quarter k mod 4, and each quarter's suites were picked so the four
+# take about the same wall clock on Git Bash arm64 - the two heavy doctor
+# suites (report, target) in different quarters - then listed slowest first, so a
+# row of four heavy suites leads and the parallel runner starts them first.
+# Re-deal from a Windows arm64 run's per-suite TIME column when a suite's
+# weight changes; test_runner's shard check proves the quarters still cover
+# the group.
 #
 # `ci` is what a second platform could only repeat: suites that read repo
 # text (workflows, manifests) or run tooling only ubuntu CI ever runs.
@@ -49,43 +53,43 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # list, so the two cannot disagree.
 if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
-    "fast:packaging:packaging/packaging_test.sh"
-    "fast:doctor:scripts/doctor_test.sh"
-    "fast:install:scripts/install_test.sh"
-    "fast:test_runner:harness/runner_test.sh"
-    "fast:configure:scripts/configure_test.sh"
-    "fast:doctor_target:scripts/doctor_target_test.sh"
-    "fast:test_lib:harness/lib_test.sh"
-    "fast:targets:common/targets_test.sh"
-    "fast:rc:common/rc_test.sh"
     "fast:doctor_report:scripts/doctor_report_test.sh"
-    "fast:install_location:scripts/install_location_test.sh"
-    "fast:update:scripts/update_test.sh"
-    "fast:add_package:scripts/add_package_test.sh"
-    "fast:add_tag:scripts/add_tag_test.sh"
-    "fast:header:common/header_test.sh"
+    "fast:test_runner:harness/runner_test.sh"
     "fast:load:load/load_test.sh"
-    "fast:alias_fallthrough:config/alias_fallthrough_test.sh"
-    "fast:preview:scripts/preview_test.sh"
-    "fast:aliases:config/alias_test.sh"
-    "fast:rc_lines:scripts/rc_test.sh"
-    "fast:table:scripts/table_test.sh"
+    "fast:doctor_target:scripts/doctor_target_test.sh"
+    "fast:doctor:scripts/doctor_test.sh"
+    "fast:update:scripts/update_test.sh"
+    "fast:header:common/header_test.sh"
+    "fast:configure:scripts/configure_test.sh"
     "fast:hi:hi/parse_test.sh"
-    "fast:hi_remote:hi/remote_test.sh"
-    "fast:hi_mux:hi/mux_test.sh"
     "fast:hi_payload:hi/payload_test.sh"
+    "fast:rc:common/rc_test.sh"
+    "fast:targets:common/targets_test.sh"
+    "fast:alias_fallthrough:config/alias_fallthrough_test.sh"
+    "fast:install:scripts/install_test.sh"
+    "fast:rc_lines:scripts/rc_test.sh"
+    "fast:preview:scripts/preview_test.sh"
     "fast:hi_cache:hi/cache_test.sh"
-    "fast:hi_container:hi/container_test.sh"
-    "fast:hi_dispatch:hi/dispatch_test.sh"
+    "fast:add_package:scripts/add_package_test.sh"
+    "fast:packaging:packaging/packaging_test.sh"
+    "fast:install_location:scripts/install_location_test.sh"
+    "fast:test_lib:harness/lib_test.sh"
+    "fast:hi_mux:hi/mux_test.sh"
+    "fast:paths:common/paths_test.sh"
+    "fast:hi_remote:hi/remote_test.sh"
+    "fast:git_prompt:common/git_prompt_test.sh"
     "fast:hi_prompt:hi/prompt_test.sh"
     "fast:hi_helpers:hi/helpers_test.sh"
-    "fast:core:common/core_test.sh"
-    "fast:git_prompt:common/git_prompt_test.sh"
-    "fast:env_prompt:common/env_prompt_test.sh"
-    "fast:paths:common/paths_test.sh"
-    "fast:exports:common/exports_test.sh"
-    "fast:test_lib_report:harness/lib_report_test.sh"
     "fast:test_lib_par:harness/lib_parallel_test.sh"
+    "fast:core:common/core_test.sh"
+    "fast:hi_dispatch:hi/dispatch_test.sh"
+    "fast:aliases:config/alias_test.sh"
+    "fast:hi_container:hi/container_test.sh"
+    "fast:test_lib_report:harness/lib_report_test.sh"
+    "fast:add_tag:scripts/add_tag_test.sh"
+    "fast:table:scripts/table_test.sh"
+    "fast:env_prompt:common/env_prompt_test.sh"
+    "fast:exports:common/exports_test.sh"
     "ci:packaging_ci:packaging/packaging_ci_test.sh"
     "ci:test_runner_ci:harness/runner_ci_test.sh"
     "lint:shellcheck:lint/shellcheck_test.sh"
@@ -273,8 +277,7 @@ fi
 # shard will run. windows-client.yml is the caller: the fast group takes about
 # seven minutes under Git Bash, where backgrounded suites barely overlap
 # (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
-# a wider run would not. Slices of different n compose: 2/12, 6/12, and
-# 10/12 are 2/4.
+# a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"

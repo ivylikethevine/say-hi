@@ -7,18 +7,18 @@ name: Windows client
 # and every same-repository pull request as a real gate (a failing suite
 # fails the run, no continue-on-error); dispatch runs it on its own.
 #
-# Six runners: quarters of the table, except that the second quarter - the
-# doctor suites, one suite of ~10k forks until it ran past every other shard
-# by minutes - is cut in thirds as shards 2a, 2b, and 2c (slices 2/12, 6/12,
-# and 10/12, which --shard's round robin makes exactly 2/4), one doctor
-# suite each. Each slice runs twice: on windows-latest (x64)
+# Four runners a leg: the quarters of the table, which test_runner.sh deals
+# out so the four take about the same time on arm64. Four and no more:
+# GitHub runs about four windows-11-arm jobs at once, and a fifth shard waited
+# for one of them to finish - in eight of ten runs, 9 to 26 minutes into a run
+# that the arm64 leg alone then decided. Each slice runs twice: on windows-latest (x64)
 # and windows-11-arm (arm64, free on a public repo), where only git.exe is
 # native: the MSYS runtime under Git Bash is x86_64, emulated (the host
 # report's `os` row). No --verbose (ci.yml's `test` job's own comment on
 # the same flag): the runner then fans a shard's suites out to the core count
 # instead of forcing width 1 for live streaming, and a failing transcript
 # still replays in full either way - only the live stream is lost. The
-# `fast-suites` job below folds all twelve back into the one check name README's
+# `fast-suites` job below folds all eight back into the one check name README's
 # badge and CONTRIBUTING's table know, "fast suites (Windows client) / fast
 # suites (Git Bash)".
 on:
@@ -36,18 +36,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/4, 2/12, 6/12, 10/12, 3/4, 4/4]
+        shard: [1/4, 2/4, 3/4, 4/4]
         arch: [x64, arm64]
         include:
           - arch: x64
             runner: windows-latest
           - arch: arm64
             runner: windows-11-arm
-          # the check names: quarters 1-4, the second one as thirds 2a-2c
+          # the check names: quarters 1-4
           - { shard: 1/4, label: "1" }
-          - { shard: 2/12, label: 2a }
-          - { shard: 6/12, label: 2b }
-          - { shard: 10/12, label: 2c }
+          - { shard: 2/4, label: "2" }
           - { shard: 3/4, label: "3" }
           - { shard: 4/4, label: "4" }
     steps:

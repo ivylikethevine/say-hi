@@ -25,14 +25,30 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, for one more run: the OpenBSD guest opened DNS-over-HTTPS
-          # to 9.9.9.9 with no hostname in the exchange, and allowed-endpoints
-          # matches on hostname, so no row could permit it. The prepare step
-          # below now stops unwind, the resolver that does it; once a run's
-          # audit log shows no 9.9.9.9, this goes to block. Its other hosts
-          # are legible (cdn.openbsd.org, pool.ntp.org, time.cloudflare.com,
-          # www.google.com for its connectivity check).
-          egress-policy: audit
+          egress-policy: block
+          # Off this job's own audit log, with unwind stopped in the prepare
+          # step below: the guest resolves through resolvd's DHCP nameserver,
+          # the host path, so every name it asks for shows here. The one
+          # DNS-over-HTTPS call to a bare 9.9.9.9 left is unwind's at boot,
+          # before prepare runs; blocked, it costs nothing - prepare stops
+          # unwind next, and the action reaches the VM over a forwarded port.
+          # The guest's own hosts: cdn.openbsd.org for pkg_add, its NTP, and
+          # www.google.com, which ntpd reads as a time constraint. The rest is
+          # freebsd-e2e.yml's runner side: the VM image off the release hosts,
+          # and qemu through apt (the Ubuntu mirrors, for a cache miss).
+          allowed-endpoints: >
+            github.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            cdn.openbsd.org:443
+            pool.ntp.org:123
+            time.cloudflare.com:123
+            www.google.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

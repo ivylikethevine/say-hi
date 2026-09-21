@@ -124,8 +124,11 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    `SHA256SUMS` with minisign, creates the release, attaches the packages,
    tarball, sums, signature, manifests, SBOM, and attestation bundle, builds
    and attaches the [package repository](#package-repository), and dispatches
-   `pages.yml` (its own `workflow_run` trigger cannot fire off a tag push) and
-   `demos.yml`. This workflow never writes to `main`, so the manifests
+   `demos.yml`, which renders the demos, attaches one, and then redeploys the
+   site once - new package repository and new GIFs together (`pages.yml`'s
+   own `workflow_run` trigger cannot fire off a tag push, and a merge's
+   Coverage deploy stands down for a commit a `v*` tag already carries). This
+   workflow never writes to `main`, so the manifests
    committed in `packaging/aur/` and `packaging/homebrew/` stay permanent
    `v0.0.0` templates — for a channel, always use the ones the release
    attached (`gh release download v1.0.0 --pattern …`).

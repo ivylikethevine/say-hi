@@ -26,7 +26,7 @@ Require docker
 Hide
 Type "docs/tapes/fixtures.sh up colors >/tmp/hi-demo.log 2>&1 && echo fixture-o''k"
 Enter
-Wait+Screen@300s /fixture-ok/
+Wait+Screen@180s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.bash"
 Enter
 Type "export HOME=/tmp/hi-demo/home COLORTERM=truecolor && cd"
