@@ -190,9 +190,14 @@ were [decided against](COMPATIBILITY.md#what-would-change-an-answer), and
 
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux.conf` over
-both) rides along and the session's `tmux` alias is `tmux -f` it. A
-`source-file` of another file, or TPM's `@plugin` list and its `run`, names
-something the target does not have, so it goes out disabled and
+both) rides along and the session's `tmux` alias is `tmux -f` it. screen the
+same, `~/.screenrc` under `screen -c`; and zellij's config directory
+(`$ZELLIJ_CONFIG_DIR`, else `$XDG_CONFIG_HOME/zellij`) - `config.kdl` and
+every file of `layouts/` and `themes/`, an overlay `zellij/` copy of each
+name first - with the alias setting `$ZELLIJ_CONFIG_DIR` to it. A
+`source-file` of another file, TPM's `@plugin` list and its `run`, screen's
+`source`, zellij's `layout_dir`/`theme_dir` and `file:` plugins name
+something the target does not have, so they go out disabled and
 `hi --doctor` names the line.
 
 ## lesspipe
@@ -235,7 +240,8 @@ different thing:
   `~/.tmux.conf`, micro's directory, bat's and eza's files - is "the one in
   force here" only with its tool here to read it, so it ships only then:
   `vimrc` with vim, `init.lua` with nvim, `config.toml` with hx, `nanorc` with
-  nano, `init.el` with emacs, `tmux.conf` with tmux, `micro/` with micro,
+  nano, `init.el` with emacs, `tmux.conf` with tmux, `screenrc` with screen,
+  `micro/` with micro, `zellij/` with zellij,
   `bat.conf` with bat (or `batcat`), `theme.yml` with eza. A dotfile left
   behind by a tool you removed neither ships nor gets a `hi --doctor` row. It
   is the client because only the client can be asked before a connect, which

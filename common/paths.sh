@@ -25,14 +25,17 @@ export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
 export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 
 # User config lives in $_HI_CONFIG_DIR, outside the tree; settings.sh has no
-# in-tree half. The files with a tree default resolve to the overlay's
-# copy when the user has made one, to the editor's own config on this machine
-# where there is one to find, and to the tree's otherwise, re-derived on
-# every source: a child shell told `_HI_CONFIG_DIR=elsewhere` reads that
-# overlay, and an exported path of your own does not survive - the overlay is
-# where a file of yours goes. A line per candidate, lowest priority first,
-# since this dialect has no if/elif and no ${var:-...} and the last assignment
-# wins.
+# in-tree half. Each variable below is its member's row of hi.sh's
+# $_HI_OVERLAY_TABLE, the one order (GLOSSARY: HI.61), spelled out: the
+# overlay's copy, else the tool's own config on this machine, else the
+# tree's - re-derived on every source, so a child shell told
+# `_HI_CONFIG_DIR=elsewhere` reads that overlay, and an exported path of your
+# own does not survive. A line per candidate, lowest priority first, since
+# this dialect has no if/elif and no ${var:-...} and the last assignment wins;
+# paths_test.sh pins the lines to the table. The home tier is client-only: on
+# a target $HOME is the *target's*, whose rcs are exactly what hi's
+# `-u`/`--rcfile`/`-q -l` exist to keep out of the session, and the file the
+# client picked is already unpacked at $_HI_CONFIG_DIR.
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
 export _HI_COLORS="$_HI_ROOT/config/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
@@ -42,15 +45,7 @@ export _HI_PACKAGES="$_HI_ROOT/config/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
 # drop-in plugins, sourced after the aliases; the same only home (HI.59)
 export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
-# The editor rcs take a middle tier the other two have no use for: the config
-# that editor already reads on this machine, so hi carries the file you
-# maintain rather than a duplicate you have to remember to update (HI.32 is
-# the same argument for starship, bat, and eza). Three tiers, lowest first
-# since the last assignment wins - tree default, your own config, the
-# overlay - and within a tier the editor's own precedence, reversed. The home
-# tier is client-only: on a target $HOME is the *target's*, whose rcs are
-# exactly what hi's `-u`/`--rcfile`/`-q -l` exist to keep out of the session,
-# and the file the client picked is already unpacked at $_HI_CONFIG_DIR.
+# The editor rcs: within the home tier the editor's own precedence, reversed.
 export _HI_VIMRC="$_HI_ROOT/config/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/vim/vimrc" ] && export _HI_VIMRC="$_HI_XDG_CONFIG/vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vim/vimrc" ] && export _HI_VIMRC="$HOME/.vim/vimrc"
@@ -73,17 +68,25 @@ export _HI_EMACSRC="$_HI_ROOT/config/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs" ] && export _HI_EMACSRC="$HOME/.emacs"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.el" ] && export _HI_EMACSRC="$HOME/.emacs.el"
 [ -f "$_HI_CONFIG_DIR/init.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/init.el"
-# tmux the same, minus a tree default: with no config anywhere the value is
-# empty and config/aliases.sh leaves `tmux` alone
+# tmux and screen the same, minus a tree default: with no config anywhere the
+# value is empty and config/aliases.sh leaves the command alone
 export _HI_TMUX_CONF=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/tmux/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_XDG_CONFIG/tmux/tmux.conf"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.tmux.conf" ] && export _HI_TMUX_CONF="$HOME/.tmux.conf"
 [ -f "$_HI_CONFIG_DIR/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_CONFIG_DIR/tmux.conf"
-# micro takes a config *directory* with fixed file names, so its members ride
-# in a micro/ of their own and the alias's -config-dir names that; at home
-# micro already reads its own, which hi.sh packs from. No tree default either.
+export _HI_SCREENRC=""
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.screenrc" ] && export _HI_SCREENRC="$HOME/.screenrc"
+[ -f "$_HI_CONFIG_DIR/screenrc" ] && export _HI_SCREENRC="$_HI_CONFIG_DIR/screenrc"
+# micro and zellij take a config *directory* with fixed file names, so their
+# members ride in a micro/ and a zellij/ of their own, and the alias names
+# the directory. $_HI_MICRO_HOME and $_HI_ZELLIJ_HOME are the tools' own
+# (core.sh and config.fish spell the ${VAR:-} this dialect cannot).
 export _HI_MICRO_DIR=""
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -d "$_HI_MICRO_HOME" ] && export _HI_MICRO_DIR="$_HI_MICRO_HOME"
 [ -d "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_DIR="$_HI_CONFIG_DIR/micro"
+export _HI_ZELLIJ_DIR=""
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -d "$_HI_ZELLIJ_HOME" ] && export _HI_ZELLIJ_DIR="$_HI_ZELLIJ_HOME"
+[ -d "$_HI_CONFIG_DIR/zellij" ] && export _HI_ZELLIJ_DIR="$_HI_CONFIG_DIR/zellij"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.<format> is the prompt configured at home, and at
 # home the tool's own config is already in force. oh-my-posh reads

@@ -336,8 +336,7 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
 
 # The include scan's rows. hi.sh's _hi_include_lint is the same pass that does
 # the dropping on the way out, so what the report names is exactly what went
-# missing - and the row says which of the two happened, since
-# _HI_INCLUDES=keep sends the line instead. GLOSSARY: HI.57
+# missing. GLOSSARY: HI.57
 function test_config_names_an_unresolvable_include() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/incl.XXXXXX")"
@@ -365,22 +364,6 @@ function test_config_names_a_shell_include_unless_allowed() {
   )"
   [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"*"hi-quiet"* ]] &&
     [[ "$out" != *"aliases.sh:3"* && "$out" != *"aliases.sh:5"* ]]
-}
-
-# ...and with the escape hatch on, the row says the line travels and the target
-# has no such file - the same finding, the opposite fate
-function test_config_says_when_an_include_travels_anyway() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/inclkeep.XXXXXX")"
-  printf 'source ~/.vim/extra.vim\n' >"$dir/vimrc"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_VIMRC="$dir/vimrc"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_INCLUDES=keep
-    doctor_config
-  )"
-  [[ "$out" == *"vimrc:1"*"sent as written"* ]]
 }
 
 # an editor rc hi picked up from where that editor reads it says where it came
@@ -568,11 +551,11 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=12 _HI_PACKAGES_MIN_PRIORITY=9 _HI_IP_HIDE='10.*;x' _HI_HEADER_ORDER='utc bogus'
-    _HI_PROMPT_TOOL='starshp hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes _HI_INCLUDES=sometimes
+    _HI_PROMPT_TOOL='starshp hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes
     doctor_config
   )"
   local n
-  for n in _HI_MAX_WIDTH _HI_PACKAGES_MIN_PRIORITY _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX _HI_INCLUDES; do
+  for n in _HI_MAX_WIDTH _HI_PACKAGES_MIN_PRIORITY _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX; do
     printf '%s\n' "$out" | grep -q "$n.*is ignored" || {
       _hi_cecho " | no row for $n" "$RED"
       return 1
@@ -582,7 +565,7 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=100 _HI_PACKAGES_MIN_PRIORITY=4 _HI_IP_HIDE='10.* 192.168.?.*' _HI_HEADER_ORDER='utc check'
-    _HI_PROMPT_TOOL='tide hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0 _HI_INCLUDES=keep
+    _HI_PROMPT_TOOL='tide hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0
     doctor_config
   )"
   [[ "$out" != *"is ignored"* ]]
@@ -695,7 +678,7 @@ function test_doctor_row_marks_each_severity() {
   _hi_table_is_rectangular "$out"
 }
 
-# the closing box gathers the warn and bad rows of every section, labeled
+# --problems' box gathers the warn and bad rows of every section, labeled
 # with the section they came from, plus the unlabeled detail row under one -
 # and nothing else; with no such row it prints nothing at all
 function test_findings_box_holds_only_warn_and_bad() {
@@ -1228,14 +1211,15 @@ function test_json_is_off_by_default() {
 }
 
 # every section of the whole report is a boxed table, square on the page, and
-# the warn rows it carries on the shims come back in the closing box
-function test_full_report_draws_tables_and_a_findings_box() {
+# the warn rows it carries on the shims stay in their sections: no closing
+# box repeats them (that box is --problems' alone)
+function test_full_report_draws_tables_and_no_findings_box() {
   local out
   _hi_doctor_plain_report
   out="$(_hi_strip_ansi "$_HI_DOC_PLAIN_OUT")"
   _hi_table_is_rectangular "$out" || return 1
   [[ "$out" == *"$_HI_BOX_V CHECK"*"$_HI_BOX_V RESULT"* ]] || return 1
-  [[ "$out" == *"Findings: 0 bad, "*"$_HI_BOX_V FINDING"*"$_HI_BOX_V ! $_HI_BOX_V install/"* ]]
+  [[ "$out" != *"Findings:"* && "$out" != *"$_HI_BOX_V FINDING"* ]]
 }
 
 # _hi_doctor_problems [args...] - `--problems` on the shims, output then exit
@@ -1305,7 +1289,6 @@ function run_doctor_tests() {
   _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
-  _hi_check "...and =keep says it travels anyway" test_config_says_when_an_include_travels_anyway
   _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
   _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
@@ -1357,7 +1340,7 @@ function run_doctor_tests() {
   _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
   _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
-  _hi_check "Sections are tables, closed by a findings box" test_full_report_draws_tables_and_a_findings_box
+  _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
   _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
 
   _hi_h2 "Testing: the install section"

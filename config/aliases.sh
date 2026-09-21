@@ -13,7 +13,7 @@
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_HELIX="${_HI_DISABLE_HELIX-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}" _HI_TMUX_CONF="${_HI_TMUX_CONF-}";: "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_HELIX="${_HI_DISABLE_HELIX-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}" _HI_TMUX_CONF="${_HI_TMUX_CONF-}" _HI_SCREENRC="${_HI_SCREENRC-}" _HI_ZELLIJ_DIR="${_HI_ZELLIJ_DIR-}";: "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -60,9 +60,15 @@ command -v shift >/dev/null 2>&1 &&
 
 # tmux reads one config, at server start: the one in force here ($_HI_TMUX_CONF,
 # which on a target is the overlay's copy) rather than the target's own; two
-# lines, like the wrappers below, since with no config there is no alias
+# lines, like the wrappers below, since with no config there is no alias.
+# screen the same; zellij takes a directory, through the variable it reads,
+# so a zellij started inside the session reads it too.
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_TMUX_CONF" ] && command -v tmux >/dev/null 2>&1 &&
   alias tmux="tmux -f $_HI_TMUX_CONF" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_SCREENRC" ] && command -v screen >/dev/null 2>&1 &&
+  alias screen="screen -c $_HI_SCREENRC" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_ZELLIJ_DIR" ] && command -v zellij >/dev/null 2>&1 &&
+  alias zellij="env ZELLIJ_CONFIG_DIR=$_HI_ZELLIJ_DIR zellij" || true
 
 # the trailing space makes bash/zsh alias-expand the word after sudo, so
 # `sudo vim` gets the vim alias's flags; fish has a wrapper in config.fish

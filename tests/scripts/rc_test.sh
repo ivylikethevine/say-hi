@@ -250,6 +250,25 @@ function test_strip_keeps_a_file_that_was_not_his() {
   [ -f "$home/.bashrc" ] && [ "$(cat "$home/.bashrc")" = "# mine" ]
 }
 
+# uninstall settles each .hi-orig: an rc that matches it again (a missing
+# final newline is no difference) loses the backup; an rc edited since keeps
+# it, with the new line named. --dry-run says both and deletes neither.
+function test_strip_prunes_the_backups() {
+  local home="$_HI_WORKDIR/prune" out
+  mkdir -p "$home"
+  printf 'echo bash-mine\n' >"$home/.bashrc"
+  printf 'echo zsh-mine' >"$home/.zshrc"
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" != fish ]; }' -- install_rc_lines || return 1
+  printf 'echo later\n' >>"$home/.bashrc"
+  out="$(_hi_rc_out "$home" _HI_DRY_RUN=1 -- strip_rc_lines)" || return 1
+  [[ "$out" == *"would remove $home/.zshrc.hi-orig"* ]] &&
+    [[ "$out" == *"would keep $home/.bashrc.hi-orig"* ]] &&
+    [ -e "$home/.zshrc.hi-orig" ] || return 1
+  out="$(_hi_rc_out "$home" -- strip_rc_lines)" || return 1
+  [[ "$out" == *"   > echo later"* ]] &&
+    [ ! -e "$home/.zshrc.hi-orig" ] && [ -e "$home/.bashrc.hi-orig" ]
+}
+
 function test_darwin_bash_profile_that_reads_bashrc_is_left_alone() {
   local home="$_HI_WORKDIR/darwin-has"
   mkdir -p "$home"
@@ -477,6 +496,7 @@ function run_rc_lines_test() {
   _hi_check "Linux gets no .bash_profile" test_linux_gets_no_bash_profile
   _hi_check "The .bash_profile lines end a sourcing loop" test_bash_profile_lines_end_a_sourcing_loop
   _hi_check "A file that was theirs survives an emptying strip" test_strip_keeps_a_file_that_was_not_his
+  _hi_check "Strip removes a backup it matches, keeps and names one it does not" test_strip_prunes_the_backups
 
   _hi_h2 "Testing: the syntax gate"
   _hi_check "check_one_config's verdicts" test_check_one_config_verdicts

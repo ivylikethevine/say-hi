@@ -613,17 +613,6 @@ set number' ] || {
   }
 }
 
-# _HI_INCLUDES=keep is the escape hatch for a fleet that really does
-# carry the file: nothing is touched and the line rides as written
-function test_editor_includes_keep_sends_the_lines_as_written() {
-  local dir out
-  dir="$(_hi_lint_fixture keep vimrc "$_HI_LINT_VIMRC")"
-  out="$(_HI_INCLUDES=keep _HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
-  case "$out" in *'source ~/.vim/extra.vim'*'Plug "tpope/vim-surround"'*) return 0 ;; esac
-  _hi_cecho " | vimrc arrived as: [$out]" "$RED"
-  return 1
-}
-
 # lua and elisp are not line-oriented: commenting only the line that matched
 # would leave `})` behind and the file would not parse at all, which is worse
 # than the include it was fixing
@@ -975,7 +964,7 @@ PS1=x' ]
 }
 
 # `hi-allow` in the file's own comment syntax keeps the next line as written
-# and out of the report - the per-line answer to _HI_INCLUDES=keep
+# and out of the report - for a file every target has
 function test_hi_allow_keeps_the_next_line() {
   local dir out
   dir="$(_hi_lint_fixture allow vimrc '" hi-allow
@@ -1063,6 +1052,49 @@ function test_home_aliases_ride_as_aliases_sh() {
   printf 'alias x=y\n' >"$dir/overlay/aliases.sh"
   HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src aliases.sh out &&
     [ "$out" = "$dir/overlay/aliases.sh" ]
+}
+
+# A shell's own rc never rides from home: a ~/.bashrc is where people export
+# tokens, so only the overlay's copy - the user's say-so - packs
+# (GLOSSARY: HI.61)
+function test_shell_rcs_ride_only_from_the_overlay() {
+  local dir="$_HI_WORKDIR/rc-home" out="" f
+  mkdir -p "$dir/overlay" "$dir/.config/fish"
+  printf 'echo mine\n' | tee "$dir/.bashrc" "$dir/.zshrc" "$dir/.config/fish/config.fish" >/dev/null
+  for f in bashrc zshrc config.fish; do
+    ! HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src "$f" || {
+      _hi_cecho " | $f rode from home" "$RED"
+      return 1
+    }
+  done
+  printf 'echo overlay\n' >"$dir/overlay/bashrc"
+  HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src bashrc out &&
+    [ "$out" = "$dir/overlay/bashrc" ]
+}
+
+# screen and zellij ride like tmux: the overlay's copy, else home's -
+# ~/.screenrc, and zellij's directory ($ZELLIJ_CONFIG_DIR), whose layouts/
+# and themes/ files ride one by one, the overlay's winning name by name -
+# with the tool here, and a relay never packs its own
+function test_screen_and_zellij_ride_like_tmux() {
+  local h="$_HI_WORKDIR/mux-home" o="$_HI_WORKDIR/mux-home/overlay" z p out
+  z="$h/zj"
+  mkdir -p "$o/zellij/layouts" "$z/layouts" "$z/themes"
+  printf 'startup_message off\n' >"$h/.screenrc"
+  printf 'theme "home"\n' >"$z/config.kdl"
+  printf 'layout {}\n' >"$z/layouts/dev.kdl"
+  printf 'layout { home }\n' >"$z/layouts/ops.kdl"
+  printf 'themes {}\n' >"$z/themes/mine.kdl"
+  printf 'layout { overlay }\n' >"$o/zellij/layouts/ops.kdl"
+  p="$(_hi_fake_path mux-bins screen zellij)"
+  set -- HOME="$h" ZELLIJ_CONFIG_DIR="$z" PATH="$p:$PATH" _HI_SCREENRC="$h/.screenrc" _HI_CONFIG_DIR="$o"
+  [ "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl zellij/layouts/ zellij/themes/' | tr '\n' ' ')" = \
+    "screenrc zellij/config.kdl zellij/layouts/ops.kdl zellij/layouts/dev.kdl zellij/themes/mine.kdl " ] || return 1
+  out="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_src zellij/layouts/ops.kdl o && printf %s "$o"')"
+  [ "$out" = "$o/zellij/layouts/ops.kdl" ] || return 1
+  # no zellij here, or a target: nothing from home
+  [ -z "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && PATH=/nonexistent _hi_overlay_files zellij/config.kdl zellij/themes/')" ] &&
+    [ -z "$(env "$@" _HI_REMOTE_SESSION=1 bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl')" ]
 }
 
 function _hi_strip_unpack() {
@@ -1296,11 +1328,12 @@ function run_hi_payload_tests() {
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
   _hi_check "Home's tool configs do not ride from a target" test_home_configs_do_not_ride_from_a_target
   _hi_check "A home .aliases rides as aliases.sh" test_home_aliases_ride_as_aliases_sh
+  _hi_check "A shell's own rc rides only from the overlay" test_shell_rcs_ride_only_from_the_overlay
+  _hi_check "screen and zellij ride like tmux" test_screen_and_zellij_ride_like_tmux
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
-  _hi_check "...and =keep sends it as written" test_editor_includes_keep_sends_the_lines_as_written
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream

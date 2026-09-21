@@ -179,9 +179,9 @@ function bench_payload_size() {
 # of on connect (no overlay - which files ride is a question about a target),
 # NOT the gzipped tar bench_payload_size budgets. Those are different numbers
 # on purpose: the tar is what the tree costs, this is what a session costs.
-# packaging/stamp_badge.sh writes the badge and --check compares it exactly,
-# both measured in one pinned environment: no slack beyond the KB rounding, so
-# a kilobyte more payload is red until the badge is restamped.
+# packaging/stamp_badge.sh writes the badge and --check compares it within
+# 5KB, both measured in one pinned environment: drift past that is red until
+# the badge is restamped.
 function bench_payload_readme_badge() {
   local out
   if out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check 2>&1)"; then

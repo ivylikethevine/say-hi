@@ -29,6 +29,11 @@ set -l _hi_cfg_base ~/.config
 set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
 set -q _HI_CONFIG_DIR; or set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
 set -q _HI_XDG_CONFIG; or set -gx _HI_XDG_CONFIG $_hi_cfg_base
+# ...and core.sh's two tool directories, which paths.sh reads the same way
+set -g _HI_MICRO_HOME $_HI_XDG_CONFIG/micro
+set -q MICRO_CONFIG_HOME; and set _HI_MICRO_HOME $MICRO_CONFIG_HOME
+set -g _HI_ZELLIJ_HOME $_HI_XDG_CONFIG/zellij
+set -q ZELLIJ_CONFIG_DIR; and set _HI_ZELLIJ_HOME $ZELLIJ_CONFIG_DIR
 # settings ahead of paths.sh, whose gate reads them (plain `export NAME=value`
 # lines, which fish parses natively)
 if test -f $_HI_CONFIG_DIR/settings.sh

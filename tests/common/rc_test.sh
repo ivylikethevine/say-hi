@@ -330,15 +330,16 @@ function test_remote_session_exports_overlay_config() {
   [ "$out" = "$want" ] && [ -z "$home" ]
 }
 
-# on a target, tmux and micro reach the overlay's copies through their aliases:
-# tmux -f the tmux.conf, micro -config-dir the micro/ directory, and without
+# on a target, tmux, screen, micro, and zellij reach the overlay's copies
+# through their aliases: tmux -f the tmux.conf, screen -c the screenrc, zellij
+# its $ZELLIJ_CONFIG_DIR, micro -config-dir the micro/ directory, and without
 # the taste flags that would beat its settings.json. With no overlay copy the
 # target's own ~/.tmux.conf is not picked up in its place.
 # <shell> <overlay file, or - for none> <alias> <wanted> [unwanted]
 function test_remote_session_aliases_overlay_config() {
   local shell="$1" file="$2" name="$3" want="$4" bad="${5:-}" script out
   [ "$file" = - ] || {
-    mkdir -p "$_HI_WORKDIR/cfg/micro"
+    mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij"
     printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
   }
   printf 'set -g @mine target\n' >"$_HI_WORKDIR/.tmux.conf"
@@ -349,8 +350,8 @@ function test_remote_session_aliases_overlay_config() {
   # the editor aliases are gated on their tool (config/aliases.sh), and no
   # runner has micro: a stub on PATH stands in for it
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 \
-    PATH="$(_hi_fake_path rc-tools micro tmux):$PATH" 2>/dev/null)"
-  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/.tmux.conf"
+    PATH="$(_hi_fake_path rc-tools micro tmux screen zellij):$PATH" 2>/dev/null)"
+  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf"
   if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
     _hi_cecho " | $name is: [$out]" "$RED"
     return 1
@@ -1082,6 +1083,8 @@ function run_rc_tests() {
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
   _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
+  _hi_check "[bash] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config bash screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
+  _hi_check "[bash] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "env ZELLIJ_CONFIG_DIR=$_HI_WORKDIR/cfg/zellij zellij"
   _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
@@ -1092,6 +1095,8 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
   _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
+  _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
+  _hi_check_requires fish "[fish] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "env ZELLIJ_CONFIG_DIR=$_HI_WORKDIR/cfg/zellij zellij"
   _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
 

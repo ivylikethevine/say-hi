@@ -208,13 +208,22 @@ function _hi_header_version() {
 }
 
 # _hi_cell_clock <outvar> <color> [utc] - a clock cell, a pure getter (the
-# header's dispatch packs cells onto shared lines); no date(1) reads "?".
-# Prefixed local: timestamp() passes "utc"/"localtime" as $1, and printf -v
-# would otherwise land in this frame.
+# header's dispatch packs cells onto shared lines). bash 4.2+ formats it with
+# printf's %(...)T and no fork (four a session, dear on Git Bash); 3.2 forks
+# date(1), and no date(1) there reads "?". Prefixed local: timestamp() passes
+# "utc"/"localtime" as $1, and printf -v would otherwise land in this frame.
 function _hi_cell_clock() {
-  local _hi_ck_raw
-  # shellcheck disable=SC2086 # ${3:+-u} is a flag or nothing, never a word
-  _hi_ck_raw="$(exec date ${3:+-u} "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null)" || _hi_ck_raw=""
+  local _hi_ck_raw=""
+  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+    if [ -n "${3:-}" ]; then
+      TZ=UTC0 printf -v _hi_ck_raw "%(${_HI_HUMAN_CENTRIC_DATE#+})T" -1
+    else
+      printf -v _hi_ck_raw "%(${_HI_HUMAN_CENTRIC_DATE#+})T" -1
+    fi
+  else
+    # shellcheck disable=SC2086 # ${3:+-u} is a flag or nothing, never a word
+    _hi_ck_raw="$(exec date ${3:+-u} "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null)" || _hi_ck_raw=""
+  fi
   printf -v "$1" '%s' "$2${_hi_ck_raw:-?}"
 }
 function _hi_cell_utc() { _hi_cell_clock "$1" "$BRBLUE" utc; }

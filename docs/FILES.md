@@ -157,7 +157,7 @@ with), and `package.json`/`package-lock.json` (the pinned Markdown linters).
 Everything in `$_HI_CONFIG_DIR` that hi knows by name
 (`hi.sh`'s `_HI_OVERLAY_FILES`). All of it is optional, rides to every target
 in its own small stream, and lands there as `$_HI_ROOT/overlay/`. A `.d`
-directory rides member by member; a member name is a letter or digit, then
+directory, and zellij's `layouts/` and `themes/`, ride member by member; a member name is a letter or digit, then
 `[A-Za-z0-9_.-]`, never ending `.bak`, `.orig`, `.rej`, or `.tmp`.
 
 | File                                                                                        | Variable                                                              | Replaces          | Read by                                                             |
@@ -170,7 +170,9 @@ directory rides member by member; a member name is a letter or digit, then
 | `bashrc`, `zshrc`, `config.fish`                                                            | -                                                                     | -                 | the end of hi's rc for that shell                                   |
 | `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | the tree's copy   | the editor aliases and `$VIMINIT`                                   |
 | `tmux.conf`                                                                                 | `_HI_TMUX_CONF`                                                       | -                 | the `tmux` alias (`tmux -f`)                                        |
+| `screenrc`                                                                                  | `_HI_SCREENRC`                                                        | -                 | the `screen` alias (`screen -c`)                                    |
 | `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                 | the `micro` alias (`-config-dir`)                                   |
+| `zellij/` (`config.kdl`, `layouts/`, `themes/`)                                             | `_HI_ZELLIJ_DIR`                                                      | -                 | the `zellij` alias (`$ZELLIJ_CONFIG_DIR`)                           |
 | `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                 | starship, oh-my-posh, eza, and bat on a target                      |
 | `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target |
 | `ssh_tags`                                                                                  | -                                                                     | -                 | a `hi` run from inside a session, for the next hop's tag colors     |
@@ -186,25 +188,31 @@ What happens to a line in one of these that reads a file no target has is
 ### Configs read from where their tool keeps them
 
 On this machine (never on a target), hi carries the config a tool already
-reads rather than asking for a copy. The last one found wins, and an overlay
-copy wins over all of them - for the prompt programs, eza, bat, and your
-aliases on a target only, since at home each already reads its own. A prompt program's
+reads rather than asking for a copy - the middle step of the one order
+([HI.61](GLOSSARY.md#hi61-one-overlay-priority)): the first one found in each
+row wins, an overlay copy wins over all of them - for the prompt programs,
+eza, bat, and your aliases on a target only, since at home each already reads
+its own - and the tree's default applies when neither is there. `bashrc`,
+`zshrc`, and `config.fish` are never looked for here: they ride only as an
+overlay copy. A prompt program's
 member rides only when that program is in the list a target is handed
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
-micro's, bat's, or eza's only with that tool installed here
+screen's, micro's, zellij's, bat's, or eza's only with that tool installed here
 ([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked));
 an overlay copy rides either way.
 
 | Member                | Looked for, in order                                                                                                                                                                                                                                             |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `aliases.sh`          | `~/.aliases`, the file your bash or zsh rc sources here; sourced last on a target, so it keeps to the subset bash, zsh, and fish all parse                                                                                                                       |
-| `vimrc`               | `$XDG_CONFIG_HOME/vim/vimrc`, `~/.vim/vimrc`, `~/.vimrc`                                                                                                                                                                                                         |
+| `vimrc`               | `~/.vimrc`, `~/.vim/vimrc`, `$XDG_CONFIG_HOME/vim/vimrc`                                                                                                                                                                                                         |
 | `init.lua`            | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                                                                                                                                                                 |
 | `config.toml`         | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                                                                                                                                                             |
-| `nanorc`              | `$XDG_CONFIG_HOME/nano/nanorc`, `~/.nanorc`                                                                                                                                                                                                                      |
-| `init.el`             | `$XDG_CONFIG_HOME/emacs/init.el`, `~/.emacs.d/init.el`, `~/.emacs`, `~/.emacs.el`                                                                                                                                                                                |
-| `tmux.conf`           | `$XDG_CONFIG_HOME/tmux/tmux.conf`, `~/.tmux.conf`                                                                                                                                                                                                                |
+| `nanorc`              | `~/.nanorc`, `$XDG_CONFIG_HOME/nano/nanorc`                                                                                                                                                                                                                      |
+| `init.el`             | `~/.emacs.el`, `~/.emacs`, `~/.emacs.d/init.el`, `$XDG_CONFIG_HOME/emacs/init.el`                                                                                                                                                                                |
+| `tmux.conf`           | `~/.tmux.conf`, `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                                                                                                                                                                                |
+| `screenrc`            | `~/.screenrc`                                                                                                                                                                                                                                                    |
 | `micro/<file>`        | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, each of the three on its own                                                                                                                                                                              |
+| `zellij/<file>`       | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`: `config.kdl`, and each file of `layouts/` and `themes/`, the overlay\'s copy of a name first                                                                                                             |
 | `starship.toml`       | `${STARSHIP_CONFIG:-~/.config/starship.toml}`                                                                                                                                                                                                                    |
 | `oh-my-posh.*`        | the last `oh-my-posh init ... --config <file>` in `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, and fish's `config.fish`, then `${POSH_CONFIG:-$POSH_THEME}` over it; the member is the one its extension names, and any overlay copy puts all of them out of the running |
 | `p10k.zsh`            | `${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-~}/.p10k.zsh}`                                                                                                                                                                                                           |

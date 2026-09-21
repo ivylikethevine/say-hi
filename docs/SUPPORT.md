@@ -93,7 +93,7 @@ permanent - it is the argument to beat.
   rc is where people `export` tokens; shipping it by default would ship
   those. The symlink stays opt-in
   ([SETTINGS.md](SETTINGS.md#shells-you-drop-into-inside-a-session)).
-- **Moving the `tide.vars` filter into the lint awk.** `_HI_INCLUDES=keep`
+- **Moving the `tide.vars` filter into the lint awk.** A `hi-allow` line
   would then disable it and ship the rest of `fish_variables`.
 - **Stripping comments from `.toml` and `.yml`.** The stripper also drops
   indentation, which breaks YAML.

@@ -403,8 +403,8 @@ function test_a_target_ignores_its_own_editor_config() {
     _hi_tier_is _HI_TMUX_CONF "$home" "" 1
 }
 
-# micro's directory is the overlay's micro/ or nothing: at home micro reads its
-# own without being told, and an inherited value does not survive
+# micro's directory is the overlay's micro/, else home's (none in this bare
+# $HOME), else nothing, and an inherited value does not survive
 function test_the_micro_dir_is_the_overlays_or_empty() {
   local dir="$_HI_WORKDIR/micro-overlay"
   mkdir -p "$dir"
@@ -477,7 +477,7 @@ function test_overlay_guards_match_the_roster() {
   while IFS= read -r f; do
     case "$f" in
     settings.sh | aliases.sh) continue ;;
-    plugins.d | micro/*)
+    plugins.d | micro/* | zellij/*)
       grep -qF "\"\$_HI_CONFIG_DIR/${f%%/*}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
     bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags) continue ;;
@@ -487,6 +487,54 @@ function test_overlay_guards_match_the_roster() {
       return 1
     }
   done <<<"$roster"
+}
+
+# paths.sh spells out hi.sh's $_HI_OVERLAY_TABLE, the one order, a line per
+# candidate - so every row naming a variable is walked down its tiers in a
+# fabricated $HOME: the overlay's copy, then each home candidate best first,
+# then the tree's default (or the overlay path itself, for the two members
+# with no other home), and the variable has to follow. On a target the home
+# tier is skipped. A directory member's variable is the directory.
+# GLOSSARY: HI.61
+# shellcheck disable=SC2016 # the walk is the child bash's to expand
+function test_paths_follow_the_overlay_table() {
+  local home="$_HI_WORKDIR/table-home"
+  mkdir -p "$home"
+  env -u MICRO_CONFIG_HOME -u ZELLIJ_CONFIG_DIR -u _HI_XDG_CONFIG HOME="$home" \
+    XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/overlay" bash -c '
+    set -- && source "$_HI_LAUNCHER" || exit 1
+    set +eu
+    fail=0 seen=" "
+    mk() { if [ "$t" = -d ]; then mkdir -p "$1"; else mkdir -p "${1%/*}" && : >"$1"; fi; }
+    chk() {
+      . "$_HI_ROOT/common/paths.sh"
+      [ "${!v}" = "$1" ] || { echo "   $v on $2: got [${!v}], want [$1]"; fail=1; }
+    }
+    for row in "${_HI_OVERLAY_TABLE[@]}"; do
+      m="${row%%|*}" v="${row#*|}" h="${row##*|}"
+      v="${v%%|*}"
+      [ "$v" != - ] || continue
+      case "$seen" in *" $v "*) continue ;; esac
+      seen="$seen$v "
+      if [ "${m#*/}" != "$m" ]; then t=-d ov="$_HI_CONFIG_DIR/${m%%/*}"; else t=-f ov="$_HI_CONFIG_DIR/$m"; fi
+      cands=()
+      [ "$h" = - ] || eval "cands=($h)"
+      none=""
+      case "$row" in *"|tree|"*) none="$_HI_ROOT/config/$m" ;; esac
+      [ -n "$none" ] || [ "${#cands[@]}" -gt 0 ] || none="$ov"
+      for c in "${cands[@]}" "$ov"; do mk "$c"; done
+      chk "$ov" "the overlay"
+      rm -rf "$ov"
+      _HI_REMOTE_SESSION=1
+      chk "$none" "a target"
+      _HI_REMOTE_SESSION=0
+      for c in "${cands[@]}"; do
+        chk "$c" "home"
+        rm -rf "$c"
+      done
+      chk "$none" "nothing"
+    done
+    exit "$fail"'
 }
 
 # the gate reads what install.sh wrote, and after this change that file is the
@@ -531,6 +579,7 @@ function run_paths_tests() {
   _hi_check "Settings point at the overlay before it exists" test_settings_point_at_the_overlay_before_it_exists
   _hi_check "Overlay settings reach the gate" test_overlay_settings_are_visible_to_the_gate
   _hi_check "Every overlay file has its paths.sh lookup" test_overlay_guards_match_the_roster
+  _hi_check "paths.sh follows the overlay table, tier by tier" test_paths_follow_the_overlay_table
 
   _hi_h2 "Testing: the editor rcs' middle tier"
   _hi_check "The editor's own config beats the tree's" test_the_editors_own_config_beats_the_tree
@@ -538,7 +587,7 @@ function run_paths_tests() {
   _hi_check "The second locations answer too" test_the_tier_reads_the_second_locations
   _hi_check "The overlay still beats it" test_the_overlay_beats_the_editors_own_config
   _hi_check "A target ignores the box's own" test_a_target_ignores_its_own_editor_config
-  _hi_check "micro's directory is the overlay's micro/ or nothing" test_the_micro_dir_is_the_overlays_or_empty
+  _hi_check "micro's directory is the overlay's micro/, else home's, else nothing" test_the_micro_dir_is_the_overlays_or_empty
 
   _hi_h2 "Testing: per-file overlay location overrides"
   _hi_check "The overlay's copy wins over the tree's" test_unset_still_prefers_the_overlay

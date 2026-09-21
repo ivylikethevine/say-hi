@@ -200,7 +200,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
   `packages`, `plugins.d/` and its hook names,
   `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`, `tmux.conf`,
-  `micro/`'s `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`,
+  `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,
+  `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,
   `starship.toml`, `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`,
   `bash-it.theme.bash`, `tide.vars`, `theme.yml`, `bat.conf`, and

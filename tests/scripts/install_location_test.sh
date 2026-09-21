@@ -148,11 +148,22 @@ function _hi_loc_renders_the_header() {
   _hi_has_rendered "$out" Online
 }
 
+# _hi_loc_names_the_tree <output> - <output> names the nested tree; on a miss
+# it is printed, since a bare FAILED says nothing on a runner you cannot
+# reach (the arm64 Git Bash shard's sh arm, 2026-09-21)
+function _hi_loc_names_the_tree() {
+  local out
+  out="$(_hi_strip_ansi "$1")"
+  [[ "$out" == *"$_HI_LOC_ROOT"* ]] && return 0
+  printf '   want %s in:\n%s\n' "$_HI_LOC_ROOT" "${out:-<no output>}"
+  return 1
+}
+
 # `hi --doctor` through the `hi` alias common/paths.sh defines - the launcher,
 # the alias, and doctor.sh all have to have resolved into the nested tree, and
 # doctor's first row is the tree itself
 function _hi_loc_doctor_names_the_tree() {
-  [[ "$(_hi_strip_ansi "$(_hi_loc_shell "$1" 'hi --doctor')")" == *"$_HI_LOC_ROOT"* ]]
+  _hi_loc_names_the_tree "$(_hi_loc_shell "$1" 'hi --doctor')"
 }
 
 function test_bash_doctor_names_the_nested_tree() { _hi_loc_doctor_names_the_tree bash; }
@@ -172,8 +183,9 @@ function test_sh_renders_the_header() {
   _hi_has_rendered "$(_hi_loc_sh 'bash -c ". \"$_HI_HEADER\"; hi_header Online"')" Online
 }
 
+# doctor's stderr kept here, which _hi_loc_sh otherwise drops
 function test_sh_doctor_names_the_nested_tree() {
-  [[ "$(_hi_strip_ansi "$(_hi_loc_sh '"$_HI_LAUNCHER" --doctor')")" == *"$_HI_LOC_ROOT"* ]]
+  _hi_loc_names_the_tree "$(_hi_loc_sh '"$_HI_LAUNCHER" --doctor 2>&1')"
 }
 
 #

@@ -430,20 +430,20 @@ function run_tool_aliases_flag_tests() {
 }
 
 # No alias for a package that is not installed: every gated name lands with
-# its tool on PATH and is absent without it. tmux and micro's -config-dir line
-# get their config so only the binary decides; cat is the one tool on the
+# its tool on PATH and is absent without it. tmux, screen, zellij, and micro's
+# -config-dir line get their config so only the binary decides; cat is the one tool on the
 # bare PATH, the floor of its own ladder.
 function run_presence_tests() {
   _hi_h1 "An alias exists only where its tool does"
-  local shell gated="nano emacs micro vim nvim hx tmux sudo bat batcat batn catn eza exa"
+  local shell gated="nano emacs micro vim nvim hx tmux screen zellij sudo bat batcat batn catn eza exa"
   local all bare
-  all="$(_hi_fake_path fp_all cat nano emacs micro vim nvim hx tmux sudo bat eza exa)"
+  all="$(_hi_fake_path fp_all cat nano emacs micro vim nvim hx tmux screen zellij sudo bat eza exa)"
   bare="$(_hi_fake_path fp_bare cat)"
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \
-      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_PRESENT="$gated cat ls"
+      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_SCREENRC="$_HI_WORKDIR/screenrc" _HI_ZELLIJ_DIR="$_HI_WORKDIR/zellij" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_PRESENT="$gated cat ls"
     _hi_case _hi_run_scenario "$shell" "$bare" "only cat installed: no gated alias" \
-      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
+      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_SCREENRC="$_HI_WORKDIR/screenrc" _HI_ZELLIJ_DIR="$_HI_WORKDIR/zellij" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
   done
 }
 

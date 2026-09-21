@@ -250,16 +250,6 @@ function test_overlay_cached_keys_the_file_by_member_list() {
     _hi_because "cache file for settings.sh is empty: $trimmed"
 }
 
-# _HI_INCLUDES changes what the stager writes and no member's mtime, so it is
-# part of the key: a keep archive is never served for a drop connect
-function test_overlay_cached_keys_the_file_by_includes() {
-  local dropped="" kept="" dir
-  dir="$(_hi_cache_rt oc.inc)"
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached dropped settings.sh || return 1
-  XDG_RUNTIME_DIR="$dir" _HI_INCLUDES=keep _hi_overlay_cached kept settings.sh || return 1
-  [ "$dropped" != "$kept" ] && [ -s "$dropped" ] && [ -s "$kept" ]
-}
-
 # ---------------------------------------------------------------------------
 # _hi_overlay_stream / _hi_payload_stream
 # ---------------------------------------------------------------------------
@@ -618,7 +608,6 @@ function run_cache_tests() {
   _hi_check "Rebuilds when a member is newer" test_overlay_cached_rebuilds_when_a_member_is_newer
   _hi_check_capable symlink "Rebuilds when a home config's target is newer" test_overlay_cached_rebuilds_when_a_home_config_is_newer
   _hi_check "Keys the file by member list" test_overlay_cached_keys_the_file_by_member_list
-  _hi_check "Keys the file by _HI_INCLUDES" test_overlay_cached_keys_the_file_by_includes
 
   _hi_h2 "Testing: the streams and the payload cache"
   _hi_check "Overlay stream is armored either way" test_overlay_stream_emits_an_armored_line_either_way

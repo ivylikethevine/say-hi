@@ -69,6 +69,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.58 overlay directory members](#hi58-overlay-directory-members)
 - [HI.59 plugins](#hi59-plugins)
 - [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
+- [HI.61 one overlay priority](#hi61-one-overlay-priority)
 
 ## HI.01 empty-array guard
 
@@ -644,15 +645,17 @@ source itself forever. It is omitted when there is nothing to send.
 The prompt programs' configs, eza's `theme.yml`, and bat's `bat.conf` ride it
 so a tool's config on every target is the one in force at home:
 `_hi_overlay_src` packs the overlay's copy when there is one, else the file
-the tool itself reads on the client (a prompt program's only when
-`_hi_prompt_list` names it), so there is one copy to edit and none to drift.
+the tool itself reads on the client (HI.61's order; a prompt program's only
+when `_hi_prompt_list` names it), so there is one copy to edit and none to
+drift.
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
 `$EZA_CONFIG_DIR` - the directory, since eza fixes the file name - ...) at
 the overlay on a target only, and the shell files source or read the
 frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
-The editor rcs, `tmux.conf`, and micro's `micro/` files ride it for the same
+The editor rcs, `tmux.conf`, `screenrc`, and the `micro/` and `zellij/`
+files ride it for the same
 reason `colors` and `packages` do: the tree copy is a default, and
 `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one
 (HI.57). Left out of the stream, that guard could only fire on the client — an
@@ -1090,26 +1093,17 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 hi carries a `vimrc`, `init.lua`, `nanorc`, and `init.el` to every target
 and starts the editor on it (`-u`, `--rcfile`, `-q -l`), so the question is
-which file. `tmux.conf` (`tmux -f`) takes the same three tiers minus a tree
-copy, so with none the value is empty and `tmux` has no alias. micro takes a
-_directory_ of fixed names, so its three files ride under `micro/`,
-`$_HI_MICRO_DIR` is the overlay's `micro/` or nothing, and `_hi_overlay_src`
-resolves each file itself - the overlay's, else micro's own directory on the
-client. `common/paths.sh` answers it in three tiers, lowest first since the
-last assignment wins: the tree's copy, then the config that editor already
-reads on this machine (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`,
-`~/.nanorc`, `~/.emacs`, ..., in the editor's own precedence), then
-`$_HI_CONFIG_DIR`'s copy. The middle tier is
-[HI.32](#hi32-starship-deference)'s argument applied to editors - one copy to
-edit, no duplicate in the overlay to keep in step - and `_hi_overlay_src`
-reads the resolved `$_HI_VIMRC`/`$_HI_NVIMRC`/... rather than a second roster.
-A value still equal to the tree's means there is no config to carry, and the
-tree's copy already rides the payload, so nothing goes in the overlay stream.
-
-The middle tier is client-only (`[ "$_HI_REMOTE_SESSION" != 1 ]`): on a
-target `$HOME` is the _target's_, whose rcs are exactly what the `-u` exists
-to keep out of a visiting session, and the file the client picked is already
-unpacked at `$_HI_CONFIG_DIR`.
+which file - [HI.61](#hi61-one-overlay-priority)'s order answers it: the
+overlay's copy, then the config that editor already reads on this machine
+(`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`, `~/.nanorc`, `~/.emacs`, ...,
+in the editor's own precedence), then the tree's. `tmux.conf` (`tmux -f`) and
+`screenrc` (`screen -c`) take the same tiers minus a tree copy, so with none
+the value is empty and the command has no alias; micro and zellij take a
+_directory_. The middle tier is [HI.32](#hi32-starship-deference)'s argument
+applied to editors - one copy to edit, no duplicate in the overlay to keep in
+step. A value still equal to the tree's means there is no config to carry,
+and the tree's copy already rides the payload, so nothing goes in the overlay
+stream.
 
 Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into
@@ -1127,12 +1121,12 @@ so doctor reads `~/.vimrc` as vim - and a member whose name is no dialect
 (`colors`, a `theme.yml`) passes through untouched, so every member goes in
 and there is no second roster of what has includes. A line directly under a `hi-allow` comment
 in the file's own syntax is neither reported nor touched; one under `hi-quiet`
-is disabled like any other finding but not reported; `_HI_INCLUDES=keep` does
-what `hi-allow` does for every line.
+is disabled like any other finding but not reported. There is no setting that
+turns the scan off: the two comments are the per-line answer.
 
 Disabling must leave a file that parses. vim and nano are line-oriented, so a
-finding is one line (tmux's takes its `\` continuations). lua and elisp are
-not, so the comment runs to the end of the bracket-balanced expression the
+finding is one line (tmux's takes its `\` continuations). lua, elisp, and
+zellij's kdl are not, so the comment runs to the end of the bracket-balanced expression the
 finding opened - commenting only the matched line of `require("lazy").setup({`
 would leave its `})` behind. `bal()` counts that depth blind to strings, and
 takes `'` as a string delimiter for lua only: in elisp it is the quote
@@ -1148,7 +1142,9 @@ can still error on the target; the doctor rows make that legible.
 
 A `$_HI_OVERLAY_FILES` entry ending in `.d` names a directory, and its
 members ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as
-`<dir>/<name>`, in name order, and the rest of the stream - `_hi_overlay_src`,
+`<dir>/<name>`, in name order (an entry ending in `/`, zellij's `layouts/`
+and `themes/`, the same over the overlay's directory and home's, each name
+once and the overlay's copy first), and the rest of the stream - `_hi_overlay_src`,
 the cache key, the stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
 strip (a `-path` entry in `$_HI_STRIP_NAMES`) - treats that path like any
 member. The directory stays an allow list: `core.sh`'s `_hi_dir_member_ok`
@@ -1229,3 +1225,42 @@ target whose own `~/.bashrc` wires a say-hi of its own loads that tree's
 core.sh first), and `common/config.fish` never had a guard to clear.
 `_hi_plugin_files` tests `-d "$_HI_PLUGINS_D"` before it globs, so no later
 name arriving empty can reach the root of the disk again.
+
+## HI.61 one overlay priority
+
+Every overlay member resolves in one order, written once as `hi.sh`'s
+`$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
+else the tree's default. A row names the member, the `common/paths.sh`
+variable that carries it to the shells (or `-`), whether `config/` holds a
+default (`$_HI_OVERLAY_SHADOWS` is derived from that column), and the home
+tier: candidate paths best first, a `@function` where no list can say it
+(oh-my-posh's rc-named config, the theme a framework's rc variable names,
+ssh's tag map), or `-` for none.
+`_hi_overlay_src` - the stager, the cache, the include scan - and
+`hi --doctor` read the table. `paths.sh` cannot, its four-shell dialect
+having no loop, so it spells each row out a line per candidate, and
+`paths_test.sh` walks every row down its tiers against it. Where a row has a
+variable, `_hi_overlay_home` reads its resolved value rather than the
+candidates, so there is one reading of the order at home and the drift test
+keeps the two spellings one. No setting reorders it.
+
+The home tier is the config in force _here_: client-only, like every home
+read (a relay never packs the middle box's), and only with the member's tool
+on this machine (`_hi_tool_here`). Whichever tier answers, the include scan
+([HI.57](#hi57-carried-configs-and-the-include-scan)) runs over it on the way
+out.
+
+A shell's own rc has no home tier. `bashrc`, `zshrc`, and `config.fish` are
+where people export tokens, and a `~/.bashrc` found at home would run on
+every box visited without the user having asked, so they ride only from the
+overlay, where a copy is the user's say-so ([SUPPORT.md](SUPPORT.md) keeps
+the same line on carrying `~/.bashrc`). `plugins.d/` and `settings.sh` live
+in the overlay alone anyway.
+
+micro and zellij take a directory of fixed names, so their members sit under
+`micro/` and `zellij/`, each file resolving on its own against the tool's
+directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the XDG one), and
+zellij's `layouts/` and `themes/` are trailing-`/` entries
+([HI.58](#hi58-overlay-directory-members)). `paths.sh` resolves the directory
+whole, from `core.sh`'s `$_HI_MICRO_HOME` and `$_HI_ZELLIJ_HOME`, which spell
+the `${VAR:-}` its dialect cannot (`config.fish` mirrors them).

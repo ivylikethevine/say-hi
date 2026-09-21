@@ -48,6 +48,10 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # to trim /say-hi back off. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG
+  # ...and, for the same reason, the directories micro and zellij read, which
+  # a variable of their own can move
+  _HI_MICRO_HOME="${MICRO_CONFIG_HOME:-$_HI_XDG_CONFIG/micro}"
+  _HI_ZELLIJ_HOME="${ZELLIJ_CONFIG_DIR:-$_HI_XDG_CONFIG/zellij}"
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
@@ -689,7 +693,7 @@ _HI_EDITORS="nvim vim micro hx nano emacs"
 # _hi_prompt_fw answers for (tide: fish's autoloaded functions). The order is
 # the unset default's - frameworks ahead of the programs that fit every shell.
 # The one roster: _hi_prompt_tool, hi.sh's _hi_prompt_list and
-# _hi_prompt_home, and the wizard all read it. config.fish keeps the
+# _hi_prompt_handed, and the wizard all read it. config.fish keeps the
 # fish-fitting names; rc_test pins that copy to this. GLOSSARY: HI.32
 _HI_PROMPT_TABLE=(
   'powerlevel10k|zsh|fw|p10k.zsh'

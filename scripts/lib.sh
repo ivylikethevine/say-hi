@@ -158,8 +158,6 @@ function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
 function _hi_is_priority() { _hi_is_number "$1" && [ "$1" -le 4 ]; }
 # a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
 function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
-# _HI_INCLUDES's two words
-function _hi_is_includes() { [ "$1" = drop ] || [ "$1" = keep ]; }
 # one of core.sh's $_HI_EDITORS
 function _hi_is_editor() {
   case " $_HI_EDITORS " in *" $1 "*) return 0 ;; esac

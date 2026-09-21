@@ -76,7 +76,12 @@ preview shows until `[s]` saves them. The rows are `scripts/configure.sh`'s
 ## The overlay
 
 Every file hi reads from `~/.config/say-hi/`, and the shipped file each
-one overrides:
+one overrides. Each resolves in one order: the copy here, else your own file
+where its tool keeps it on this machine
+([below](#the-editor-rcs-come-from-where-you-keep-them)), else the shipped
+default. A shell's own rc - `bashrc`, `zshrc`, `config.fish` - has no middle
+step: it rides only from here, never found at home
+([HI.61](GLOSSARY.md#hi61-one-overlay-priority)).
 
 | overlay file                       | overrides            | what it is                                                                                                                                                                                                                     |
 | ---------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -89,6 +94,8 @@ one overrides:
 | `~/.config/say-hi/nanorc`          | `config/nanorc`      | the same for the `nano` alias, over your `~/.nanorc`                                                                                                                                                                           |
 | `~/.config/say-hi/init.el`         | `config/init.el`     | the same for the `emacs` alias (`emacs -q -l`), over your `~/.emacs`                                                                                                                                                           |
 | `~/.config/say-hi/tmux.conf`       | -                    | the same for the `tmux` alias (`tmux -f`), over your `~/.tmux.conf`; with neither, `tmux` is left alone                                                                                                                        |
+| `~/.config/say-hi/screenrc`        | -                    | the same for the `screen` alias (`screen -c`), over your `~/.screenrc`                                                                                                                                                         |
+| `~/.config/say-hi/zellij/`         | -                    | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias sets `$ZELLIJ_CONFIG_DIR` to it                                                                   |
 | `~/.config/say-hi/micro/`          | -                    | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                                         |
 | `~/.config/say-hi/aliases.sh`      | -                    | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                                         |
 | `~/.config/say-hi/plugins.d/`      | -                    | drop-in plugins in the same subset, sourced after the aliases in name order; see [below](#plugins)                                                                                                                             |
@@ -189,7 +196,6 @@ prompt program hi does not know, an editor off the ladder - is a red
 | `_HI_MUX`                   | `0`                                                                                                       | `hi --configure` advanced | `1` makes every connect a `--mux` one, in a local tmux, zellij, or screen session; `--no-mux` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_TRUECOLOR`             | by terminal                                                                                               | `hi --configure` advanced | `1`/`0` forces or refuses 24-bit color; unset, the client decides ([Colors](COLORS.md))                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_EDITOR`                | unset                                                                                                     | you                       | the editor a target session exports as `$EDITOR`, `$VISUAL`, and `$SUDO_EDITOR`, by command name (`nvim`, `micro`, ...); used when the target has it, else the first of `nvim vim micro hx nano emacs` it does have, with hi's config flags so `git commit` and `sudo -e` get the editor the alias gives you                                                                                                                                                                                                                                    |
-| `_HI_INCLUDES`              | `drop`                                                                                                    | you                       | what happens to a line in a carried editor rc, shell file, or prompt config that reads a file hi does not carry, or starts a plugin manager: `drop` disables it on the way out, `keep` sends it as written; a `hi-allow` comment above one line keeps that line alone, and `hi-quiet` drops it without a doctor row. See [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)                                                                                                                          |
 | `_HI_PACKAGES_PALETTE`      | unset                                                                                                     | you                       | the color the check paints each priority in: eight color names, four installed then four missing. Unset, or anything but eight names, is the shipped ramp (`cyan green brcyan brgreen blue magenta bryellow brred`). See [The package check's ramp](COLORS.md#the-package-checks-ramp)                                                                                                                                                                                                                                                          |
 | `_HI_COLOR_SCHEME`          | unset                                                                                                     | you                       | what the palette names render as on a terminal that reports 24-bit color: twenty-four or forty-eight six-digit hex words. Unset is the terminal's own sixteen colors. See [Colors](COLORS.md)                                                                                                                                                                                                                                                                                                                                                   |
 | `_HI_POWERLINE_GO_OPTS`     | unset                                                                                                     | you                       | extra flags for [powerline-go](https://github.com/justjanne/powerline-go) when it draws the prompt, word-split (`-modules venv,cwd,git -mode flat`)                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -220,7 +226,8 @@ More names look like settings and are not:
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments
   are read from), `$_HI_COLORS`, `$_HI_PACKAGES`,
   `$_HI_VIMRC`, `$_HI_NVIMRC`, `$_HI_HELIXRC`, `$_HI_NANORC`, `$_HI_EMACSRC`,
-  `$_HI_TMUX_CONF`, and `$_HI_MICRO_DIR` are re-derived by `common/paths.sh`
+  `$_HI_TMUX_CONF`, `$_HI_SCREENRC`, `$_HI_MICRO_DIR`, and `$_HI_ZELLIJ_DIR`
+  are re-derived by `common/paths.sh`
   on every source, from `$_HI_HOME`, `$HOME`, and the overlay, so an exported
   value does not survive: put your file in the overlay.
 - `$_HI_ASCII` is the _client's_ verdict, from its locale, on whether its
@@ -424,23 +431,26 @@ them in load order. The whole contract is
 
 ## The editor rcs come from where you keep them
 
-The editor, tmux, and micro rows of the overlay usually need no file: hi
-carries the config each tool **already reads on this machine**, so there is
-one copy to edit:
+The editor, tmux, screen, micro, and zellij rows of the overlay usually need
+no file: hi carries the config each tool **already reads on this machine**,
+so there is one copy to edit:
 
-| member         | hi looks at                                                                                                 |
-| -------------- | ----------------------------------------------------------------------------------------------------------- |
-| `vimrc`        | `~/.vimrc`, else `~/.vim/vimrc`, else `$XDG_CONFIG_HOME/vim/vimrc`                                          |
-| `init.lua`     | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                            |
-| `config.toml`  | `$XDG_CONFIG_HOME/helix/config.toml`                                                                        |
-| `nanorc`       | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                                                            |
-| `init.el`      | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el`            |
-| `tmux.conf`    | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                      |
-| `micro/<file>` | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua` |
+| member          | hi looks at                                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `vimrc`         | `~/.vimrc`, else `~/.vim/vimrc`, else `$XDG_CONFIG_HOME/vim/vimrc`                                                  |
+| `init.lua`      | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                    |
+| `config.toml`   | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                |
+| `nanorc`        | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                                                                    |
+| `init.el`       | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el`                    |
+| `tmux.conf`     | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                              |
+| `screenrc`      | `~/.screenrc`                                                                                                       |
+| `micro/<file>`  | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua`         |
+| `zellij/<file>` | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`, for `config.kdl` and every file of `layouts/` and `themes/` |
 
 An overlay copy still wins — that is how you give hi's sessions an editor
 config that differs from your local one — and hi's shipped default applies
-when neither is there. On a target the lookup is off: `$HOME` there is the
+when neither is there; a home config rides only with its tool installed
+here. On a target the lookup is off: `$HOME` there is the
 target's, and the file your client picked has already arrived.
 
 Your own config is written for a machine with your plugins on it, and a target
@@ -448,7 +458,8 @@ has none. So hi reads each of these files — and the overlay's `settings.sh`,
 `aliases.sh`, `plugins.d/` members, per-shell rc files, and the prompt configs
 it carries — for lines naming something it cannot carry: vim's `source`,
 lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's `include`,
-elisp's `load`, tmux's `source-file` and TPM, oh-my-posh's `extends` of a
+elisp's `load`, tmux's `source-file` and TPM, screen's `source`, zellij's
+`layout_dir`/`theme_dir` and file plugins, oh-my-posh's `extends` of a
 local file (emptied, since JSON has no comment), a shell's `source`/`.` of a
 file outside `$_HI_CONFIG_DIR` (or `$ZSH`/`$OSH`, the framework's own tree),
 and every plugin manager's bootstrap. Those are disabled on the way out, and
@@ -461,7 +472,7 @@ decide that line alone:
 - `hi-quiet` still drops it, and silences its row - for a line you know no
   target needs, so the doctor stops saying so.
 
-`_HI_INCLUDES=keep` sends them all.
+There is no switch that sends them all.
 [HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan) is the whole mechanism,
 including what it cannot see.
 

@@ -234,10 +234,9 @@ for warn, a cross for bad
 .BR ! ,
 and
 .B x
-outside a UTF\-8 locale) \- and every warn and bad row is gathered again into
-a closing findings table.
+outside a UTF\-8 locale).
 .B \-\-problems
-prints only that table.
+prints only the warn and bad rows, gathered into one findings table.
 ssh options reach
 that check's BatchMode probe as they would a connect, and are reported as
 ignored for a non\-ssh target.
@@ -310,9 +309,10 @@ link that points at this tree.
 .B \-\-purge
 removes the whole overlay
 .RB ( ~/.config/say-hi )
-too. The tree and the one\-time
+too. The tree stays. A one\-time
 .B .hi\-orig
-rc backups stay.
+rc backup goes once the rc matches it again; one that differs stays, and the
+lines that differ are printed.
 .TP
 .B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
 edit the settings alone, leaving the rc wiring and the link be: a numbered
@@ -516,29 +516,38 @@ whole. Without one, hi carries the config each editor already reads here
 and their alternates), else the tree's. A line that reads a file no target
 has is dropped and named by
 .BR \-\-doctor ;
-.B _HI_INCLUDES=keep
-sends it anyway, as does a
+a
 .B # hi-allow
-line above it; a
+line above it sends it anyway; a
 .B # hi-quiet
 line above it still drops it, but leaves
 .B \-\-doctor
-no row about it. tmux, micro, and the shell and prompt files below get the
-same pass.
+no row about it. tmux, screen, micro, zellij, and the shell and prompt files
+below get the same pass.
 .TP
-.B ~/.config/say-hi/tmux.conf, micro/
+.B ~/.config/say-hi/tmux.conf, screenrc, micro/, zellij/
 the same for tmux (its alias becomes
-.BR "tmux \-f" )
-and for micro's
+.BR "tmux \-f" ),
+screen
+.RB ( "screen \-c" ),
+micro's
 .BR settings.json ,
 .BR bindings.json ,
 and
 .B init.lua
 (read through
-.BR \-config\-dir ).
+.BR \-config\-dir ),
+and zellij's
+.BR config.kdl ,
+.BR layouts/ ,
+and
+.B themes/
+(read through
+.BR ZELLIJ_CONFIG_DIR ).
 Without them hi carries
-.B ~/.tmux.conf
-and micro's own config directory.
+.BR ~/.tmux.conf ,
+.BR ~/.screenrc ,
+and micro's and zellij's own config directories.
 .TP
 .B ~/.config/say-hi/aliases.sh
 your own aliases, sourced after hi's, so one of the same name replaces hi's.
@@ -557,7 +566,10 @@ plugin's
 command is drawn in the prompt.
 .TP
 .B ~/.config/say-hi/bashrc, zshrc, config.fish
-your per\-shell preferences, sourced after hi's own so yours win.
+your per\-shell preferences, sourced after hi's own so yours win. They ride
+only from here: hi never carries a
+.B ~/.bashrc
+or the like it finds at home.
 .TP
 .B ~/.config/say-hi/oh-my-posh.json, oh-my-posh.yaml, oh-my-posh.toml
 oh\-my\-posh's config, carried to every target as its

@@ -82,13 +82,15 @@ The inverse of the install: strip hi's lines back out of your shell rc files
 (bash, zsh, fish - and .bash_profile on macOS), remove the settings.sh the
 install wrote, and unlink hi if the link points at this say-hi. Safe to
 re-run. say-hi itself is left in place - rm -rf it yourself once you're done
-with it - and so is the one-time <rc-file>.hi-orig backup the install took
-before its first write to each rc file.
+with it. The one-time <rc-file>.hi-orig backup the install took before its
+first write to each rc file goes once the rc matches it again; one that
+differs is kept, and the lines that differ are printed.
 
   --purge          Remove ~/.config/say-hi as well - your settings.sh,
                    your aliases.sh, every overlay file. Without it the
                    overlay stays, since what is there is yours.
-  -n, --dry-run    Say what would be removed and remove nothing.
+  -n, --dry-run    Say what would be removed, backups included, and
+                   remove nothing.
 EOF
     ;;
   configure)

@@ -536,7 +536,7 @@ function test_system_info_cpu_cell_has_no_parenthetical() {
 
 # A target with a shell and awk and nothing else - core_test.sh's barebones
 # box, one layer up. The header is the first thing a session prints, so a
-# missing uname or date greeting the user with "command not found" across the
+# missing uname greeting the user with "command not found" across the
 # banner would be a bad first impression; the cells say "?" instead, the way
 # every other sysinfo probe answers a missing binary.
 # shellcheck disable=SC2016 # the probe expands in the child bash, not here
@@ -552,10 +552,12 @@ function test_system_info_without_uname_says_unknown() {
   [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
-function test_timestamp_without_date_says_unknown() {
+# ...except the clocks, which bash 4.2+ formats itself (printf's %(...)T): a
+# missing date(1) costs them nothing. 3.2's "?" is the one rung left untested.
+function test_timestamp_answers_without_date() {
   local out
   out="$(_hi_stripped_header timestamp)"
-  [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+  [[ "$out" =~ [0-9]{2}:[0-9]{2}:[0-9]{2}\ UTC ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
 # unlike the other sysinfo cells, _hi_cell_uptime's only external dependency
@@ -1551,7 +1553,7 @@ function _hi_lead_escape() {
 # need its own resolver - every cell's *color* should come out exactly as
 # _hi_header_word_cell renders it on its own, unresolved. This is the case
 # that would have caught the shipped jobs/pods collision. Compared by leading
-# escape, not the whole cell: utc/localtime re-render from `date` with `%S`
+# escape, not the whole cell: utc/localtime re-render with `%S`
 # (common/header.sh's _hi_cell_clock), so a byte-exact compare fails on a second tick
 # between the two passes below rather than on an actual substitution.
 function test_header_default_order_needs_no_alternate() {
@@ -2220,7 +2222,7 @@ function run_header_tests() {
   _hi_check "Identity without a git email says so" test_identity_without_a_git_email_says_so
   _hi_check "Identity masks a git email's domain" test_identity_masks_the_git_email_domain
   _hi_check "Alternate hue is empty for an unknown word" test_header_word_alt_is_empty_for_an_unknown_word
-  _hi_check "Timestamp says ? without date" test_timestamp_without_date_says_unknown
+  _hi_check "Timestamp answers without date" test_timestamp_answers_without_date
   _hi_check "The uptime cell survives a stripped environment" test_uptime_cell_survives_a_stripped_environment
   _hi_check "The ip cell says unknown under a stripped environment" test_ip_cell_says_unknown_under_a_stripped_environment
   _hi_check "The banner still renders" test_banner_renders_without_coreutils

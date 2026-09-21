@@ -9,7 +9,7 @@
 # Run via `hi --doctor` or `hi --doctor [target]`. `--json` anywhere in the
 # arguments swaps the report for one JSON document on stdout - the same rows,
 # for a bug report or a script - and the exit status stays 1 on any finding.
-# `--problems` prints only the closing box of warn and bad rows.
+# `--problems` prints only the warn and bad rows, in one box.
 #
 # SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` below into
 # hi.sh's trailing `_hi "$@"`, decides that call never returns, and marks
@@ -25,7 +25,7 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
 source "$_hi_d/scripts/lib.sh"
-# the boxed table each section and the closing findings box are drawn with
+# the boxed table each section and --problems' findings box are drawn with
 # shellcheck source=./table.sh
 source "$_hi_d/scripts/table.sh"
 # rc.sh for the rc-file roster and the overlay's parser table, which the
@@ -55,10 +55,10 @@ Prints, in order, each section as a table whose rows are marked by severity
                      each check timed - and for an ssh target, a BatchMode
                      connection, what each session ships, and what the
                      remote end has installed
-  the findings       every warn and bad row above, gathered into one box
 
---problems prints that last box alone - or, with nothing in it, only the
-closing line - so a long report reads as what needs fixing.
+A warn or bad row stays in its section; --problems prints only those rows,
+gathered into one box - or, with none, only the closing line - so a long
+report reads as what needs fixing.
 
 ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
 real connect authenticates with, so \`hi --doctor -J bastion host\`
@@ -286,9 +286,8 @@ function doctor_flush() {
   _HI_DOC_IN_FINDING=0
 }
 
-# doctor_findings - the closing box: every warn and bad row of the report,
-# grouped here rather than left where each surfaced, under a banner that
-# counts them. Nothing when the report found nothing.
+# doctor_findings - --problems' one box: every warn and bad row of the
+# report, under a banner that counts them. Nothing when it found nothing.
 function doctor_findings() {
   [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ] || return 0
   _hi_h2 "Findings: $_HI_DOC_BAD bad, $_HI_DOC_WARN warn"
@@ -470,6 +469,13 @@ function doctor_config() {
         doctor_row "$f" "the # Tags: lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
       continue
     }
+    # a directory entry: how many of its files ride, and from where
+    case "$f" in */)
+      t="$(_hi_overlay_files "$f" | grep -c .)" || true
+      [ "$t" = 0 ] || doctor_row "$f" "$t file(s) ride, the overlay's copy of each first, then $(_hi_overlay_home "$f" || echo "none at home")"
+      continue
+      ;;
+    esac
     t=""
     _hi_overlay_src "$f" t || true
     # a member with no tree default has nothing to report until it exists
@@ -496,7 +502,6 @@ function doctor_config() {
   # way out (GLOSSARY: HI.57). warn, not bad: the session still starts.
   local member lineno kind text fate said
   fate="dropped on the way out (a # hi-allow line above it keeps it, # hi-quiet drops it without this row)"
-  [ "${_HI_INCLUDES:-drop}" != keep ] || fate="sent as written (_HI_INCLUDES=keep), and the target has no such file"
   while IFS='|' read -r member lineno kind text; do
     [ -n "$member" ] || continue
     [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
@@ -549,8 +554,7 @@ function doctor_settings_values() {
     "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS" \
     "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
-    "_HI_MUX|_hi_is_flag|1 or 0" \
-    "_HI_INCLUDES|_hi_is_includes|drop or keep"; do
+    "_HI_MUX|_hi_is_flag|1 or 0"; do
     name="${spec%%|*}" pred="${spec#*|}"
     why="${pred#*|}" pred="${pred%%|*}"
     eval "v=\${$name:-}"
@@ -916,9 +920,9 @@ if [ "$_HI_DOC_JSON" = 1 ]; then
   printf '{\n  "version": %s,\n  "target": %s,\n  "findings": %s,\n  "rows": [\n%s\n  ]\n}\n' \
     "$(_hi_json_str "$(_hi_version)")" "$_hi_target_json" "$_HI_DOC_BAD" "$_HI_DOC_ROWS"
 else
-  doctor_findings
-  # --problems' box is its whole answer; the closing line stands in for an
-  # empty one, so a clean run still says so
+  # --problems' box is its whole answer, and the full report has no second
+  # copy of its rows; the closing line stands in for an empty one
+  [ "$_HI_DOC_PROBLEMS" != 1 ] || doctor_findings
   if [ "$_HI_DOC_PROBLEMS" = 1 ] && [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ]; then
     :
   elif [ "$_HI_DOC_BAD" -eq 0 ]; then
