@@ -105,6 +105,12 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    `.github/allowed_signers` ([Signing the tag](#signing-the-tag)), or whose
    `ci.yml` push run on `main` did not conclude success (it waits for a run
    still going). A red or missing run means fix `main` and cut a new tag.
+   Once it passes, the `upgrade` job walks
+   [HI.60](GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) from the previous
+   `v*` tag: a bash, zsh, and fish shell each load that release's rc, the
+   tag's tree replaces it underneath, and the rc is sourced again
+   (`.github/scripts/upgrade_path.sh`); any stderr, or a path left empty,
+   refuses the build.
 3. The `build` job builds `say-hi-1.0.0.tar.gz` from the tag and runs
    `bump.sh --tarball <that file> 1.0.0` (writes `pkgver`, `b2sums`, the
    formula `url`/`sha256`, and the derivable `.SRCINFO` lines) in its own

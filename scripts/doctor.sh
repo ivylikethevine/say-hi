@@ -43,6 +43,9 @@ Prints, in order, each section as a table whose rows are marked by severity
   the local tree     where say-hi is, git state, payload size, local shells
   the config overlay settings.sh (and whether every shell can parse it),
                      colors/packages overrides, non-default toggles
+  the files          every place each overlay member can come from - the
+                     overlay, each home location, the tree's default - and
+                     which one is used, or why none is
   the shell configs  every rc file and overlay shell file, parsed by the
                      shell that will read it
   the install        each shell's rc lines and whether they name this tree,
@@ -486,6 +489,8 @@ function doctor_config() {
       doctor_row "$f" "not shipped - its prompt program is not one a target is handed (_HI_PROMPT_TOOL)" warn
     elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       doctor_row "$f" "targets get $t, the one in force here"
+    elif [ -z "$t" ] && ! _hi_tool_here "$f"; then
+      doctor_row "$f" "not sent - its tool is not installed here, so targets keep their own"
     elif [ -z "$t" ]; then
       doctor_row "$f" "tree default"
     elif [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/config/$f"; then
@@ -561,6 +566,73 @@ function doctor_settings_values() {
     [ -n "$v" ] || continue
     "$pred" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
   done
+}
+
+# doctor_files - every place hi.sh's $_HI_OVERLAY_TABLE says a member can
+# come from, in its one order (GLOSSARY: HI.61): the overlay's copy, each home
+# location, the tree's default - each marked used, passed over, or absent,
+# and why nothing is sent when something is there. A member found nowhere
+# joins one closing row, so a sparse setup stays a short table.
+function doctor_files() {
+  doctor_section files "The files hi looks for"
+  local row m h used eff p state text none="" found
+  local -a locs
+  for row in "${_HI_OVERLAY_TABLE[@]}"; do
+    m="${row%%|*}" h="${row##*|}"
+    # settings.sh and plugins.d have rows of their own in the overlay section
+    case "$m" in settings.sh | plugins.d) continue ;; esac
+    used="" eff="" text="" found=""
+    _hi_overlay_src "$m" used || used=""
+    locs=("$_HI_CONFIG_DIR/$m")
+    case "$h" in
+    -) ;;
+    @*) p="" && "${h#@}" "$m" p && locs+=("$p") || true ;;
+    *)
+      eval "locs+=($h)"
+      case "$m" in */*) for p in "${!locs[@]}"; do [ "$p" = 0 ] || locs[p]="${locs[p]}/${m#*/}"; done ;; esac
+      ;;
+    esac
+    case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
+    eff="$used"
+    [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
+    for p in "${locs[@]}"; do
+      [ -n "$p" ] || continue
+      if [ -z "${m##*/}" ]; then
+        state=absent
+        [ ! -d "$p" ] || state=present
+      elif [ "$p" = "$eff" ]; then
+        state=used
+      elif [ -e "$p" ]; then
+        state="passed over"
+      else
+        state=absent
+      fi
+      [ "$state" = absent ] || found=1
+      text="$text${text:+; }$state ${p/#$HOME/\~}"
+    done
+    [ -n "$found" ] || {
+      none="$none${none:+ }$m"
+      continue
+    }
+    # a directory entry is its files, the overlay's copy of each name first
+    case "$m" in */)
+      p="$(_hi_overlay_files "$m" | grep -c .)" || true
+      if [ "$p" = 0 ]; then doctor_row "$m" "$text - no file rides"; else doctor_row "$m" "$text - $p file(s) ride" ok; fi
+      continue
+      ;;
+    esac
+    if [ -n "$eff" ]; then
+      doctor_row "$m" "$text" ok
+    elif _hi_prompt_row "$m" >/dev/null && ! _hi_prompt_handed "$m"; then
+      doctor_row "$m" "$text - not sent: its prompt program is not one a target is handed"
+    elif [ "$_HI_REMOTE_SESSION" = 1 ]; then
+      doctor_row "$m" "$text - not sent: a session reads no home file"
+    else
+      doctor_row "$m" "$text - not sent: its tool is not installed here"
+    fi
+  done
+  [ -z "$none" ] || doctor_row "none anywhere" "$none"
+  doctor_flush
 }
 
 # The backend roster both halves of this report walk is hi.sh's _HI_BACKENDS
@@ -910,6 +982,7 @@ set -euo pipefail
 [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h1 "hi doctor"
 doctor_local
 doctor_config
+doctor_files
 doctor_configs
 doctor_install
 doctor_backends

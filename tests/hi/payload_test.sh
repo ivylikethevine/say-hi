@@ -675,7 +675,8 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   printf 'alias a=b\n' >"$dir/aliases.sh"
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
-  _hi_payload_excl "${members[@]}"
+  # every editor here, so the tool gate below cuts nothing of its own
+  PATH="$(_hi_fake_path excl-editors vim nvim hx nano emacs):$PATH" _hi_payload_excl "${members[@]}"
   [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages" ] || {
     _hi_cecho " | cut: [${payload_excl[*]}]" "$RED"
     return 1
@@ -684,6 +685,22 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
     [[ "$listing" == *config/aliases.sh* && "$listing" == *config/nanorc* ]] || return 1
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
+}
+
+# a default whose tool this machine lacks is cut too - no emacs here, no
+# init.el there - while a member the overlay holds rides its copy either way
+function test_a_default_for_a_missing_tool_is_cut() {
+  local -a payload_excl=()
+  PATH=/nonexistent _hi_payload_excl nanorc
+  [ "${payload_excl[*]}" = "say-hi/config/nanorc say-hi/config/vimrc say-hi/config/init.lua say-hi/config/init.el say-hi/config/config.toml" ] || {
+    _hi_cecho " | cut with no editors: [${payload_excl[*]}]" "$RED"
+    return 1
+  }
+  PATH="$(_hi_fake_path excl-editors vim nvim hx nano emacs)" _hi_payload_excl
+  [ -z "${payload_excl[*]}" ] || {
+    _hi_cecho " | cut with every editor: [${payload_excl[*]}]" "$RED"
+    return 1
+  }
 }
 
 # ...and only there: _hi_wire_bytes and `hi --doctor` hold no $payload_excl,
@@ -1293,6 +1310,7 @@ function run_hi_payload_tests() {
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
   _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
+  _hi_check "A tree default for a tool not here is cut" test_a_default_for_a_missing_tool_is_cut
   _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
   _hi_check "The shadow roster is paths.sh's cascade" test_the_shadow_roster_matches_paths_sh
 

@@ -338,34 +338,14 @@ In this checkout, narrowest first.
        forks `date` and reads `?` without one. **Ticks when:** `--group bench`
        shows the header number moving and the payload badge flat.
 
-2. [ ] **Editor configs ride only for editors this machine has** — a home
-       config already rides only with its tool here (`_hi_tool_here`), but
-       the tree's `vimrc`, `init.lua`, `config.toml`, `nanorc`, and `init.el`
-       ride in every payload. **Do:** leave a tree default out of the payload
-       (the `_hi_payload_excl` path, keyed into the payload cache) when the
-       client lacks its tool, the same gate the home tier uses; an overlay
-       copy still rides as the user's say-so. **Ticks when:** a client with no
-       emacs sends no `init.el` from either tier, `--group bench` shows the
-       smaller payload, and `docs/INTEGRATIONS.md`'s _Which side is asked_
-       says so.
-
-3. [ ] **`hi --doctor` shows every file it looks for** — doctor names the
-       file in force per member, not the ones it passed over. **Do:** a files
-       table that walks `hi.sh`'s `$_HI_OVERLAY_TABLE` row by row - every
-       candidate location (the overlay, each home path, the tree's default),
-       whether it is present, and which one is used or why none is (tool
-       missing, prompt program not handed, a target). **Ticks when:** the
-       table is in the report and in `--json`, and `doctor_test.sh` pins a
-       row per tier.
-
-4. [ ] **What hi carries is linted against the target** — one exemption
+2. [ ] **What hi carries is linted against the target** — one exemption
        is left: `shfix`'s `$ZSH`/`$OSH`, a framework tree the target may not
        have. **Do:** decide what a theme sourcing `$ZSH/lib/*.zsh` does on a
        target without oh-my-zsh. **Ticks when:** the decision is in
        `docs/INTEGRATIONS.md` and `tests/targets/framework_test.sh` is green
        on it.
 
-5. [ ] **The settings wizard reads at a glance** — `hi --configure` is one
+3. [ ] **The settings wizard reads at a glance** — `hi --configure` is one
        dense menu screen. **Do:** walk it at 80 and 40 columns and regroup so
        each row says what it changes, its value against the default, and
        where its preview shows; set the preset, header, and advanced groups
@@ -373,7 +353,7 @@ In this checkout, narrowest first.
        `docs/SETTINGS.md`, and the `configure` suite's transcripts pin the
        layout.
 
-6. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -383,7 +363,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-7. [ ] **Investigate the header as plugins** — every header cell is one
+5. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing
@@ -393,16 +373,15 @@ In this checkout, narrowest first.
        when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
        `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
 
-8. [ ] **CI walks the upgrade path a tag creates** — nothing exercises
-       [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree): a shell
-       that loaded the previous release, the tree replaced under it, and the
-       rc re-sourced. **Do:** a job in `release.yml`'s `gate` that installs
-       the previous tag in a container, opens a shell per dialect, swaps in
-       the new tree, re-sources, and fails on any stderr or empty `_HI_*`
-       path. **Ticks when:** a `v*` tag runs it green, and putting core.sh's
-       load guard back in `common/bash.sh` turns it red.
+6. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
+       `upgrade` job, under the gate and ahead of build, runs
+       `.github/scripts/upgrade_path.sh` from the previous `v*` tag - a
+       shell per dialect loads it, the tag's tree is swapped in, the rc is
+       re-sourced, and any stderr or empty `_HI_*` path fails the build.
+       **Ticks when:** a `v*` tag runs it green, and putting core.sh's load
+       guard back in `common/bash.sh` turns it red.
 
-9. [ ] **Every Ubuntu job's egress is allowlisted** — 38 of 50
+7. [ ] **Every Ubuntu job's egress is allowlisted** — 39 of 51
        `harden-runner` steps block; each of the 12 on `audit` says why
        (non-Ubuntu runners, `link-check.yml`, and three jobs whose hosts
        rotate). **Do:** take each blocking list from a cold run - a cache hit

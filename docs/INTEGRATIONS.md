@@ -243,7 +243,10 @@ different thing:
   nano, `init.el` with emacs, `tmux.conf` with tmux, `screenrc` with screen,
   `micro/` with micro, `zellij/` with zellij,
   `bat.conf` with bat (or `batcat`), `theme.yml` with eza. A dotfile left
-  behind by a tool you removed neither ships nor gets a `hi --doctor` row. It
+  behind by a tool you removed neither ships nor gets a `hi --doctor` row.
+  hi's own editor defaults follow the same rule: a client with no emacs
+  sends no `init.el` at all, so the payload carries only the editors you
+  use. It
   is the client because only the client can be asked before a connect, which
   is when the overlay is packed - the reason the
   [prompt programs](#prompt-programs) are a list worked out here too.
@@ -251,8 +254,10 @@ different thing:
   you saying "targets get this", and it rides whatever this machine has -
   the way to carry a `vimrc` from a laptop that only has neovim.
 - **The target, about what is used.** `config/aliases.sh` builds each alias
-  from what the target has, so a config that rode to a box without its tool
-  is a few idle bytes, never an alias to a missing binary.
+  from what the target has, and only with its config there, so a config
+  that rode to a box without its tool is a few idle bytes, and a tool whose
+  config stayed home keeps its own - never an alias to a missing binary or
+  file.
 
 ## Config sizes
 

@@ -396,12 +396,12 @@ function test_release_jobs_under_the_gate_check_their_needs() {
   local name need job bad=0
   while read -r name; do
     job="$(_hi_wf_job "$_HI_RELEASE_WF" "$name")"
-    need="$(printf '%s\n' "$job" | sed -n 's/^    needs: //p' | head -1)"
-    [ -n "$need" ] || continue
-    if ! [[ "$job" == *"needs.$need.result"* ]]; then
+    # a single name or a [a, b] list, each checked
+    for need in $(printf '%s\n' "$job" | sed -n 's/^    needs: //p' | head -1 | tr -d '[],'); do
+      [[ "$job" == *"needs.$need.result"* ]] && continue
       _hi_cecho " | release.yml's $name job needs $need but never checks needs.$need.result" "$RED"
       bad=1
-    fi
+    done
   done < <(_hi_wf_jobs "$_HI_RELEASE_WF")
   [ "$bad" = 0 ]
 }
@@ -428,8 +428,23 @@ function test_release_requires_green_ci_before_build() {
     [[ "$gate" == *"actions/workflows/ci.yml/runs?head_sha=\$GITHUB_SHA&event=push"* ]] &&
     [[ "$gate" == *"compare/main...\$GITHUB_SHA"* ]] &&
     [[ "$gate" == *'[ "$conclusion" = success ]'* ]] &&
-    [[ "$build" == *"needs: gate"* ]] &&
+    [[ "$build" == *"needs: [gate, upgrade]"* ]] &&
     [[ "$build" == *"needs.gate.result == 'success'"* ]]
+}
+
+# HI.60 is walked before anything builds: the upgrade job, under the gate,
+# runs upgrade_path.sh from the nearest earlier v* tag to this commit, and
+# build waits on its success too
+# shellcheck disable=SC2016 # matching release.yml's literal source text
+function test_release_walks_the_upgrade_before_build() {
+  local upgrade build
+  upgrade="$(_hi_wf_job "$_HI_RELEASE_WF" upgrade)"
+  build="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
+  [[ "$upgrade" == *"needs: gate"* ]] &&
+    [[ "$upgrade" == *"--match 'v*' \"\$GITHUB_SHA^\""* ]] &&
+    [[ "$upgrade" == *".github/scripts/upgrade_path.sh"* ]] &&
+    [[ "$build" == *"needs.upgrade.result == 'success'"* ]] &&
+    [ -x "$_HI_ROOT/.github/scripts/upgrade_path.sh" ]
 }
 
 # The tag itself is checked before CI is: a release version, and signed by a
@@ -2922,6 +2937,7 @@ function run_packaging_tests() {
   _hi_check "Publishing sits behind an environment" grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
   _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
   _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
+  _hi_check "release.yml walks the upgrade before it builds" test_release_walks_the_upgrade_before_build
   _hi_check "release.yml requires green CI before it builds" test_release_requires_green_ci_before_build
   _hi_check "...and a well-formed tag signed by an allowed key" test_release_gate_verifies_the_signed_tag
   _hi_check "Signing keys are read under the release environment" test_release_signing_keys_are_read_under_the_release_environment

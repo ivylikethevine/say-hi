@@ -265,7 +265,7 @@ function test_strip_prunes_the_backups() {
     [[ "$out" == *"would keep $home/.bashrc.hi-orig"* ]] &&
     [ -e "$home/.zshrc.hi-orig" ] || return 1
   out="$(_hi_rc_out "$home" -- strip_rc_lines)" || return 1
-  [[ "$out" == *"   > echo later"* ]] &&
+  [[ "$out" == *"   +echo later"* ]] &&
     [ ! -e "$home/.zshrc.hi-orig" ] && [ -e "$home/.bashrc.hi-orig" ]
 }
 

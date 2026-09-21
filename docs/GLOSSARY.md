@@ -672,7 +672,11 @@ OpenBSD's tar lacks. Only a caller holding the list cuts anything:
 container arm, where the two archives travel separately, sends the defaults
 after all when the overlay's copy fails. A file still under a pre-1.0 name
 (`$_HI_OVERLAY_RENAMES`) is not a member, so it cuts nothing and the default
-it no longer overrides keeps riding.
+it no longer overrides keeps riding. A default whose tool the client lacks is cut the same way, by the
+home tier's own gate (`_hi_tool_here`, [HI.61](#hi61-one-overlay-priority)):
+no emacs here, no `init.el` there. The target's aliases and `$VIMINIT` ask
+for the rc file as well as the binary, so a box whose editor got no config
+keeps its own rather than an alias to a missing file.
 
 `ssh_tags` is the one member with no file behind it on the client:
 `_hi_ssh_tags_file` cuts the `# Tags:` lines and the `Host`/`Match host` line
@@ -1242,7 +1246,9 @@ having no loop, so it spells each row out a line per candidate, and
 `paths_test.sh` walks every row down its tiers against it. Where a row has a
 variable, `_hi_overlay_home` reads its resolved value rather than the
 candidates, so there is one reading of the order at home and the drift test
-keeps the two spellings one. No setting reorders it.
+keeps the two spellings one. No setting reorders it. `hi --doctor`'s files
+section (`doctor_files`) walks the same rows, marking every location used,
+passed over, or absent, and why nothing is sent when something is there.
 
 The home tier is the config in force _here_: client-only, like every home
 read (a relay never packs the middle box's), and only with the member's tool

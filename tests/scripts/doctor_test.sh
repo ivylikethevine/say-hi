@@ -320,6 +320,32 @@ function test_config_is_silent_on_a_config_for_an_absent_tool() {
   [[ "$out" != *tmux.conf* ]]
 }
 
+# The files table walks every tier of a member in the table's order and marks
+# each: home's ~/.vimrc used over the tree's default, the overlay's
+# tmux.conf over home's, a member found nowhere only in the closing row, and
+# a default whose tool is missing named as not sent. GLOSSARY: HI.61
+function test_files_table_walks_every_tier() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/files.XXXXXX")"
+  mkdir -p "$h/overlay"
+  printf 'set number\n' >"$h/.vimrc"
+  printf 'set -g mouse on\n' >"$h/.tmux.conf"
+  printf 'set -g mouse off\n' >"$h/overlay/tmux.conf"
+  out="$(
+    function _hi_tool_here() { [ "$1" != init.el ]; }
+    HOME="$h" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" _HI_TMUX_CONF="$h/overlay/tmux.conf" \
+      _HI_SCREENRC="" doctor_files
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"vimrc"*"absent ~/overlay/vimrc; used ~/.vimrc; absent ~/.vim/vimrc"*"passed over $_HI_ROOT/config/vimrc"* ]] &&
+    [[ "$out" == *"tmux.conf"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
+    [[ "$out" == *"init.el"*"passed over $_HI_ROOT/config/init.el - not sent: its tool is not installed here"* ]] &&
+    [[ "$out" == *"none anywhere"*screenrc* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+}
+
 # an overlay copy of the tree's own file, byte for byte: not an override
 # until somebody edits it
 function test_config_calls_an_unedited_overlay_copy_unchanged() {
@@ -1287,6 +1313,7 @@ function run_doctor_tests() {
   _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
   _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
   _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
+  _hi_check "The files table walks every tier" test_files_table_walks_every_tier
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
   _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed

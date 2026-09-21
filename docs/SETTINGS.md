@@ -449,8 +449,8 @@ so there is one copy to edit:
 
 An overlay copy still wins — that is how you give hi's sessions an editor
 config that differs from your local one — and hi's shipped default applies
-when neither is there; a home config rides only with its tool installed
-here. On a target the lookup is off: `$HOME` there is the
+when neither is there; a home config, and hi's default with it, rides only
+with its tool installed here. On a target the lookup is off: `$HOME` there is the
 target's, and the file your client picked has already arrived.
 
 Your own config is written for a machine with your plugins on it, and a target

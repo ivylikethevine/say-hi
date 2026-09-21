@@ -371,8 +371,10 @@ function prune_backup() {
     return 0
   fi
   [ -z "${_HI_DRY_RUN:-}" ] || verb="dry run: would keep"
-  _hi_cecho " $verb $orig - the rc has changed since (< backup, > now):" "$YELLOW"
-  printf '%s\n' "$now" | diff "$orig" - 2>/dev/null | sed -n 's/^[<>] /   &/p'
+  _hi_cecho " $verb $orig - the rc has changed since (- backup, + now):" "$YELLOW"
+  # -U0, not the default format: busybox's diff speaks unified alone
+  printf '%s\n' "$now" | diff -U0 "$orig" - 2>/dev/null |
+    sed -n -e '/^+++ /d' -e '/^--- /d' -e 's/^[-+]/   &/p'
   return 0
 }
 

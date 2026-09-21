@@ -975,7 +975,9 @@ function _hi_die() {
 # _hi_payload_excl <member...> - the tree files those overlay members shadow
 # (GLOSSARY: HI.41), into the caller's $payload_excl: one copy on the wire,
 # not the default beside the file that beats it. Only a member that ships
-# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
+# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing. A
+# default whose tool this machine lacks goes too, the home tier's own gate
+# (_hi_tool_here): an editor you do not use here gets no config there.
 function _hi_payload_excl() {
   local f
   payload_excl=()
@@ -985,6 +987,10 @@ function _hi_payload_excl() {
     *" say-hi/config/$f "*) ;;
     *" $f "*) payload_excl+=("say-hi/config/$f") ;;
     esac
+  done
+  for f in $_HI_OVERLAY_SHADOWS; do
+    case " ${payload_excl[*]-} " in *" say-hi/config/$f "*) continue ;; esac
+    _hi_tool_here "$f" || payload_excl+=("say-hi/config/$f")
   done
 }
 

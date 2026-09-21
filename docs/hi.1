@@ -217,7 +217,9 @@ the rule it matched;
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-problems\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree;
-the config overlay; every rc and overlay shell file, parsed by the shell that
+the config overlay; every place each overlay member can come from (the
+overlay, each home location, the tree's default) and which one is used, or
+why none is; every rc and overlay shell file, parsed by the shell that
 reads it; the install (each shell's rc lines and whether they name this tree,
 the
 .B hi

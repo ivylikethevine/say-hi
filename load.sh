@@ -299,14 +299,14 @@ function load() {
 
   if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
     # vim only: VIMINIT breaks a target that has just vi. Under the toggle,
-    # since VIMINIT *is* the override it turns off (both rcs ship either way -
-    # the payload roster is static). nvim reads $VIMINIT too and `:source`
+    # since VIMINIT *is* the override it turns off, and only with the rc here
+    # (a client without the editor sends none). nvim reads $VIMINIT too and `:source`
     # runs a .lua file as lua, so a box with nvim and no vim gets init.lua
     # here; a command-line `-u` beats $VIMINIT, so the aliases decide on a box
     # that has both, and this is only for the vim nothing else invokes.
     local vimrc=""
-    command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
-    [[ -z "$vimrc" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
+    [[ -f "$_HI_VIMRC" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
+    [[ -z "$vimrc" && -f "$_HI_NVIMRC" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
     [[ "${_HI_DISABLE_VIM:-0}" != 1 && -n "$vimrc" ]] &&
       export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
     # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive

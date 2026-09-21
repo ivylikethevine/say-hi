@@ -553,11 +553,16 @@ function test_system_info_without_uname_says_unknown() {
 }
 
 # ...except the clocks, which bash 4.2+ formats itself (printf's %(...)T): a
-# missing date(1) costs them nothing. 3.2's "?" is the one rung left untested.
+# missing date(1) costs them nothing there, and 3.2 (macOS's) still says "?"
 function test_timestamp_answers_without_date() {
   local out
   out="$(_hi_stripped_header timestamp)"
-  [[ "$out" =~ [0-9]{2}:[0-9]{2}:[0-9]{2}\ UTC ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+  ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out" || return 1
+  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+    [[ "$out" =~ [0-9]{2}:[0-9]{2}:[0-9]{2}\ UTC ]]
+  else
+    [[ "$out" == *"?"* ]]
+  fi
 }
 
 # unlike the other sysinfo cells, _hi_cell_uptime's only external dependency
