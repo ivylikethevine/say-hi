@@ -97,24 +97,24 @@ function _hi_cov_counts_files() {
 
 # _hi_cov_trace_all <trace-fn> - run <trace-fn> <name> <path> for every
 # selected suite, its output discarded (the report is the artifact, the
-# transcript is noise). A suite that fails does not stop the sweep: a red
-# suite still traced everything it reached on the way down, and losing the
-# whole report to one environment-specific failure (no fish, no docker) is
-# the opposite of useful. The names land in $_HI_FAILED for
-# _hi_cov_report_failed to print at the end instead.
+# transcript is noise). The first suite that fails ends the sweep, non-zero
+# and with no report: a figure over the suites that happened to pass is a
+# partial number, and a partial number is no number. A tool that is missing
+# (no fish, no docker) is a skip, never a failure, so this is a real one.
 function _hi_cov_trace_all() {
-  local _hi_i _hi_suite _hi_path
-  _HI_FAILED=""
+  local _hi_i _hi_suite _hi_path _hi_log
+  _hi_log="$(mktemp -t hi.cov.log.XXXXXX)"
+  _HI_COV_TRASH+=("$_hi_log")
   for _hi_i in "${!_HI_PATHS[@]}"; do
     _hi_suite="${_HI_NAMES[$_hi_i]}"
     _hi_path="${_HI_PATHS[$_hi_i]}"
     _hi_cecho " | coverage: tracing $_hi_suite" "$BRCYAN"
-    "$1" "$_hi_suite" "$_hi_path" >/dev/null 2>&1 ||
-      _HI_FAILED="$_HI_FAILED $_hi_suite"
+    "$1" "$_hi_suite" "$_hi_path" >"$_hi_log" 2>&1 || {
+      # the transcript's tail, since a case that fails only under the tracer
+      # cannot be seen by running the suite without one
+      _hi_cecho " | coverage: $_hi_suite failed while being traced - stopping, no report; its last lines:" "$RED"
+      tail -n 40 "$_hi_log" | sed 's/^/ |   /'
+      return 1
+    }
   done
-}
-
-function _hi_cov_report_failed() {
-  [ -z "$_HI_FAILED" ] ||
-    _hi_cecho " | coverage: these suites failed while being traced (their coverage still counts):$_HI_FAILED" "$YELLOW"
 }

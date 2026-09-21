@@ -16,9 +16,9 @@
 
 `hi {{name_or_id}}`
 
-- Connect through a jump host (every ssh option passes through unchanged):
+- Tag an SSH host, so a `hosttag` row in the colors file colors it:
 
-`hi -J {{bastion}} {{host}}`
+`hi --add-tag {{host}} {{tag}}`
 
 - Open a bare shell with nothing copied, for a target with no `tar` or writable `/tmp`:
 

@@ -28,7 +28,7 @@ source "$_HI_HOME/say-hi/common/core.sh"
 source "$_HI_GIT_PROMPT"
 # shellcheck source=./env_prompt.sh
 source "$_HI_ENV_PROMPT"
-# shellcheck source=../settings/aliases.sh
+# shellcheck source=../config/aliases.sh
 source "$_HI_ALIASES"
 _hi_load_plugins
 
@@ -164,6 +164,18 @@ function _hi_load_exa_completion() {
 }
 complete -F _hi_load_exa_completion exa
 
+# _hi_drop_prompt_command <array> - <array> minus prompt_command, a no-op when
+# unset; bash has no zsh-style :# array filter, so a rebuild loop
+function _hi_drop_prompt_command() {
+  declare -p "$1" &>/dev/null || return 0
+  local _hi_f _hi_ref="$1[@]"
+  local -a _hi_pf=()
+  for _hi_f in "${!_hi_ref}"; do
+    [[ "$_hi_f" == prompt_command ]] || _hi_pf+=("$_hi_f")
+  done
+  eval "$1=(\${_hi_pf[@]+\"\${_hi_pf[@]}\"})"
+}
+
 # modified from: https://github.com/riobard/bash-powerline/blob/master/bash-powerline.sh
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   if [ -n "$_hi_pt" ]; then
@@ -207,15 +219,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
         # sourcing a different theme file over it - bash-preexec's
         # safe_append_prompt_command only ever adds, so the rc's own theme
         # would keep redrawing every prompt after this one otherwise. Clear
-        # it first, the same rebuild loop the hi-named unhook below uses.
-        if declare -p precmd_functions &>/dev/null; then
-          _hi_pf=()
-          for _hi_f in "${precmd_functions[@]}"; do
-            [[ "$_hi_f" == prompt_command ]] || _hi_pf+=("$_hi_f")
-          done
-          precmd_functions=(${_hi_pf[@]+"${_hi_pf[@]}"})
-          unset _hi_pf _hi_f
-        fi
+        # it first, as the hi-named unhook below does.
+        _hi_drop_prompt_command precmd_functions
         # shellcheck source=/dev/null
         [ -f "$_hi_bashit_theme" ] && source "$_hi_bashit_theme"
       fi
@@ -250,10 +255,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # from bash 5.1 when the rc made it one. Unset, or a list that ran out,
     # leaves the rc's own choice alone.
     if _hi_prompt_named_hi; then
+      _hi_pcd="$(declare -p PROMPT_COMMAND 2>/dev/null)" # once: the type never changes below
       for _hi_h in starship_precmd _omp_hook _omp_precmd __hi_plgo_ps1; do
         # the array arm is eval'd: to the linter PROMPT_COMMAND is the string
         # every other line here treats it as
-        case "$(declare -p PROMPT_COMMAND 2>/dev/null)" in
+        case "$_hi_pcd" in
         "declare -a"*) eval 'PROMPT_COMMAND=("${PROMPT_COMMAND[@]//$_hi_h/:}")' ;;
         *) PROMPT_COMMAND="${PROMPT_COMMAND//$_hi_h/:}" ;;
         esac
@@ -266,7 +272,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # tools' own hook names legitimately end in (mise's
       # _mise_hook_prompt_command, for one), which the substring form of
       # this check corrupted into "_mise_hook_:" the first time this shipped.
-      case "$(declare -p PROMPT_COMMAND 2>/dev/null)" in
+      case "$_hi_pcd" in
       "declare -a"*)
         # eval'd for the same reason as the loop above: a literal array
         # assignment here would have the linter treat every later scalar
@@ -285,29 +291,14 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
         unset _hi_pc
         ;;
       esac
+      unset _hi_pcd
       # Other bash-it themes call bash-preexec's safe_append_prompt_command,
       # which never touches PROMPT_COMMAND at all - it puts bash-preexec's
       # own dispatcher there (during bash-it's unconditional library load)
-      # and keeps prompt_command in these two indexed arrays instead. bash
-      # has no zsh-style :# array filter, so a rebuild loop. Absent for
-      # every other framework/program above, so this is a no-op when
-      # bash-preexec was never loaded.
-      if declare -p precmd_functions &>/dev/null; then
-        _hi_pf=()
-        for _hi_f in "${precmd_functions[@]}"; do
-          [[ "$_hi_f" == prompt_command ]] || _hi_pf+=("$_hi_f")
-        done
-        precmd_functions=(${_hi_pf[@]+"${_hi_pf[@]}"})
-        unset _hi_pf _hi_f
-      fi
-      if declare -p preexec_functions &>/dev/null; then
-        _hi_pf=()
-        for _hi_f in "${preexec_functions[@]}"; do
-          [[ "$_hi_f" == prompt_command ]] || _hi_pf+=("$_hi_f")
-        done
-        preexec_functions=(${_hi_pf[@]+"${_hi_pf[@]}"})
-        unset _hi_pf _hi_f
-      fi
+      # and keeps prompt_command in these two indexed arrays instead. Absent
+      # for every other framework/program above, so a no-op without it.
+      _hi_drop_prompt_command precmd_functions
+      _hi_drop_prompt_command preexec_functions
     fi
     # Readline counts every $PS1 character it was not told to ignore, so an
     # unmarked color escape makes the typed line wrap back over the prompt.

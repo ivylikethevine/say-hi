@@ -267,6 +267,19 @@ function test_dir_member_ok_takes_plain_names_only() {
   done
 }
 
+# _hi_flag_word's three answers, one home now for hi.sh and scripts/ alike:
+# a joined word (0), the next argument (2, the caller shifts again), and a
+# bare flag with nothing after it (1, the variable untouched)
+function test_flag_word_takes_joined_next_or_nothing() {
+  local w="" rc=0
+  _hi_flag_word w --use=docker extra && [ "$w" = docker ] || return 1
+  _hi_flag_word w --use podman || rc=$?
+  [ "$rc" -eq 2 ] && [ "$w" = podman ] || return 1
+  rc=0
+  _hi_flag_word w --use || rc=$?
+  [ "$rc" -eq 1 ] && [ "$w" = podman ]
+}
+
 # ...and the label the previews and hi --doctor print for it, the three
 # shapes _hi_scheme_label prints for a scheme
 function test_ramp_label_names_every_shape() {
@@ -572,6 +585,49 @@ function _hi_fixture_tag() { _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_
 
 function test_ssh_host_tag_leftmost_of_multiple() {
   [ "$(_hi_fixture_tag myhost)" = "prod" ]
+}
+
+# A relayed hop: the middle box's config knows the host and carries no tag,
+# so the client's tag map (the overlay's ssh_tags) answers - on a target only,
+# and the rc of a host neither file tags is still the local walk's.
+function test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay() {
+  local dir="$_HI_WORKDIR/relaytags"
+  mkdir -p "$dir"
+  unset _HI_TAG_NAME # the one-deep memo is keyed on the name, not on these
+  printf '# Tags: fromclient\nHost untaggedhost far-*\n' >"$dir/ssh_tags"
+  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)" = fromclient ] || return 1
+  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag far-1)" = fromclient ] || return 1
+  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag myhost)" = prod ] || return 1
+  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)" ] || return 1
+  local rc=0
+  _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag nope >/dev/null || rc=$?
+  [ "$rc" = 1 ]
+}
+
+# a tag set in an Included file colors its host, and an Include between a tag
+# and a Host ends the tag there, as any other line does
+function test_ssh_host_tag_follows_include() {
+  local h="$_HI_WORKDIR/inc-tags"
+  mkdir -p "$h/.ssh/config.d"
+  printf 'Include config.d/*\n# Tags: orphan\nInclude none/*\nHost after\n' >"$h/.ssh/config"
+  printf '# Tags: inc\nHost included\n' >"$h/.ssh/config.d/01"
+  unset _HI_TAG_NAME
+  [ "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag included)" = inc ] || return 1
+  unset _HI_TAG_NAME
+  [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag after)" ]
+}
+
+# a matching untagged block earlier in the file does not end the walk: a
+# leading `Host *` of defaults marks every name known (rc 2) and the walk
+# goes on to the tagged block below it, as ssh reads on past a first match
+function test_ssh_host_tag_survives_a_leading_untagged_wildcard() {
+  local cfg="$_HI_WORKDIR/ssh_config.leadingstar" rc=0
+  printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: prod\nHost behind\n' >"$cfg"
+  unset _HI_TAG_NAME
+  [ "$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag behind)" = prod ] || return 1
+  unset _HI_TAG_NAME
+  _HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag elsewhere >/dev/null || rc=$?
+  [ "$rc" -eq 2 ]
 }
 
 function test_ssh_host_tag_untagged_host_fails() {
@@ -1249,6 +1305,7 @@ function run_core_tests() {
   _hi_check "_hi_scheme_label names every shape" test_scheme_label_names_every_shape
   _hi_check "_hi_ramp_ok takes eight color names" test_ramp_ok_takes_eight_color_names
   _hi_check "_hi_dir_member_ok takes plain names only" test_dir_member_ok_takes_plain_names_only
+  _hi_check "_hi_flag_word: joined, next, or nothing" test_flag_word_takes_joined_next_or_nothing
   _hi_check "_hi_ramp_label names every shape" test_ramp_label_names_every_shape
 
   _hi_h2 "Testing: _hi_cecho"
@@ -1265,7 +1322,7 @@ function run_core_tests() {
   _hi_check "LOCALUSER special case" test_override_color_localuser_special_case
   _hi_check "LOCALHOSTNAME special case" test_override_color_localhostname_special_case
 
-  _hi_h2 "Testing: a pin's own hex (settings/colors' fourth column)"
+  _hi_h2 "Testing: a pin's own hex (config/colors' fourth column)"
   _hi_check "The hex joins the name, from every reader" test_pin_hex_joins_the_name
   _hi_check "A leading # is allowed, either case" test_pin_hex_accepts_a_leading_hash_and_either_case
   _hi_check "The hex paints the escape, over any scheme" test_pin_hex_paints_the_escape_over_the_scheme
@@ -1311,7 +1368,10 @@ function run_core_tests() {
 
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
+  _hi_check "A tag in an Included file colors its host" test_ssh_host_tag_follows_include
+  _hi_check "A leading untagged Host * does not end the walk" test_ssh_host_tag_survives_a_leading_untagged_wildcard
   _hi_check "Untagged host fails" test_ssh_host_tag_untagged_host_fails
+  _hi_check "A relayed hop reads the client's tag map" test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay
   _hi_check "'Tags=' syntax and multi-alias Host lines" test_ssh_host_tag_equals_syntax_and_multialias
   _hi_check "Unknown host fails" test_ssh_host_tag_unknown_host_fails
   _hi_check "Lowercase 'host' keyword matches" test_ssh_host_tag_matches_lowercase_host_keyword

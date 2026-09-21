@@ -153,7 +153,7 @@ function bench_targets_warm() {
 # independently - the launcher rides *inside* this tar, so it counts here and
 # not as a stream of its own. See CLAUDE.md.
 # Both figures below are a DEFAULT configuration's, and have to be: hi.sh's
-# _hi_payload_tar drops the settings/ editor rcs
+# _hi_payload_tar drops the config/ editor rcs
 # when the overlay has already switched them off, so a configured client sends less than
 # either number says. The ceiling and the badge are the unconfigured case, which
 # is the one every budget should be set against.
@@ -179,26 +179,15 @@ function bench_payload_size() {
 # of on connect (no overlay - which files ride is a question about a target),
 # NOT the gzipped tar bench_payload_size budgets. Those are different numbers
 # on purpose: the tar is what the tree costs, this is what a session costs.
-# 5% of slack, so ordinary drift in a PR that never touched the payload cannot
-# fail it, while a real jump still does.
+# packaging/stamp_badge.sh writes the badge and --check compares it within
+# 5KB, both measured in one pinned environment: drift past that is red until
+# the badge is restamped.
 function bench_payload_readme_badge() {
-  local bytes kb badge
-  set -- # hi.sh reads "$@"; make sure it sees none
-  # shellcheck source=../../hi.sh
-  source "$_HI_LAUNCHER"
-  bytes="$(_hi_wire_bytes)"
-  kb=$(((bytes + 512) / 1024))
-  badge="$(sed -n 's/.*ssh_payload-\([0-9]*\)KB.*/\1/p' "$_HI_ROOT/README.md" | head -1)"
-  if [ -z "$badge" ]; then
-    _hi_cecho " | README payload badge: MISSING (expected ssh_payload-<n>KB in README.md)" "$RED"
-    return 1
-  fi
-  # 5% of the true figure, rounded up, and never less than 1KB - the same band
-  # ssh_wire_test.sh holds the connect line to, through the same helper
-  if _hi_within_percent "$badge" "$kb" 5; then
-    _hi_align " | README payload badge: says ${badge}KB, a session sends ${kb}KB (±${_HI_WITHIN_SLACK}KB)" "OK" "$GREEN"
+  local out
+  if out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check 2>&1)"; then
+    _hi_align " | $out" "OK" "$GREEN"
   else
-    _hi_cecho " | README payload badge says ${badge}KB but a session sends ${kb}KB - update the badge" "$RED"
+    _hi_cecho " | $out" "$RED"
     return 1
   fi
 }

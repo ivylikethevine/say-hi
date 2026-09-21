@@ -82,13 +82,15 @@ The inverse of the install: strip hi's lines back out of your shell rc files
 (bash, zsh, fish - and .bash_profile on macOS), remove the settings.sh the
 install wrote, and unlink hi if the link points at this say-hi. Safe to
 re-run. say-hi itself is left in place - rm -rf it yourself once you're done
-with it - and so is the one-time <rc-file>.hi-orig backup the install took
-before its first write to each rc file.
+with it. The one-time <rc-file>.hi-orig backup the install took before its
+first write to each rc file goes once the rc matches it again; one that
+differs is kept, and the lines that differ are printed.
 
   --purge          Remove ~/.config/say-hi as well - your settings.sh,
                    your aliases.sh, every overlay file. Without it the
                    overlay stays, since what is there is yours.
-  -n, --dry-run    Say what would be removed and remove nothing.
+  -n, --dry-run    Say what would be removed, backups included, and
+                   remove nothing.
 EOF
     ;;
   configure)
@@ -115,7 +117,7 @@ into ~/.local/bin, then opens the settings menu at a terminal (--preset
 answers it without one). Nothing else is copied into
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi: the tree's colors and packages stay
 in force until you copy one there yourself and edit it
-(cp <say-hi>/settings/colors \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/), and
+(cp <say-hi>/config/colors \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/), and
 the editor rcs need no copy at all - hi carries your own ~/.vimrc and friends.
 Safe to re-run any time - it repairs its own lines and leaves everything else
 alone. The install location is always wherever this script lives (say-hi's
@@ -469,7 +471,7 @@ function purge_overlay() {
 # so github.com and OpenSSF Scorecard's License check can both find it - they
 # look there and nowhere else. It makes no difference to the staged result:
 # install_tree's cp lands file entries flat by basename either way.
-_HI_PACKAGE_CONTENTS=(common scripts settings hi.sh load.sh LICENSE.md README.md)
+_HI_PACKAGE_CONTENTS=(common scripts config hi.sh load.sh LICENSE.md README.md)
 
 # Packaging mode. say-hi normally installs *in place*, which assumes the tree is
 # somewhere you own; here the tree is copied to a staging root for a package
@@ -555,7 +557,7 @@ else
   _hi_h1 "Installing (or reinstalling) hi.sh!"
 fi
 _hi_version_line="$(_hi_release_or_describe 2>/dev/null || true)"
-_hi_cecho " | hi_home: $_HI_HOME | hi_root: $_HI_ROOT | version: ${_hi_version_line:-unknown} | login shell: ${SHELL##*/}" "$BLUE"
+_hi_cells_line "$BLUE" "hi_home: $_HI_HOME" "hi_root: $_HI_ROOT" "version: ${_hi_version_line:-unknown}" "login shell: ${SHELL##*/}"
 unset _hi_version_line
 [ -z "$_HI_DRY_RUN" ] || _hi_cecho " | dry run: nothing below is written" "$BLUE"
 

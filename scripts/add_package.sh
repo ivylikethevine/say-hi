@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# `hi --add-package`: append one or more package-check rows to a
-# ~/.config/say-hi/packages.d/ group, creating the group if it does not exist
-# yet. A packages.d/ of your own replaces the tree's (default, extra)
-# wholesale (common/paths.sh) - which is why the first write into a fresh
-# overlay seeds every tree member in first, so nothing already checked is
-# lost. GLOSSARY: HI.58 is the packages.d contract this follows; HI.09 is
-# _hi_write_back's commit step, HI.33 the standalone-entry form.
+# `hi --add-package`: add one or more package-check rows to
+# ~/.config/say-hi/packages. That file replaces the tree's wholesale
+# (common/paths.sh), so the first write copies the tree's in and adds there -
+# nothing already checked is lost. HI.09 is _hi_write_back's commit step,
+# HI.33 the standalone-entry form.
 #
 # This script never sources hi.sh, so SC2317/SC2329 (shellcheck marking
 # everything after a `source "$_HI_LAUNCHER"` unreachable, per scripts/doctor.sh's
@@ -29,32 +27,27 @@ set -euo pipefail
 
 me="${_HI_ARGV0:-hi --add-package}"
 _HI_ME="$me"
-group="custom" _HI_DRY_RUN="" rows=()
+_HI_DRY_RUN="" rows=()
 
 function _hi_add_package_help() {
   cat <<EOF
-Usage: $me <pkg:priority>[,...] [--group <name>] [--dry-run]
+Usage: $me <pkg:priority>[,...] [--dry-run]
 
-Adds one row per argument to a ~/.config/say-hi/packages.d/ group (default:
-custom), creating the group if it does not exist yet. Each argument is a
+Adds one row per argument to ~/.config/say-hi/packages. Each argument is a
 whole package-check row, exactly as the header reads it - "bat:3,batcat:3"
 is "bat, or batcat as a fallback", priorities 0-3 - so several fallbacks for
 one tool are one argument, and several tools are several arguments. A row
-whose first package matches one already in the group replaces it; nothing
+whose first package matches one already in the file replaces it; nothing
 else in the file is touched.
 
-  --group <name>   the packages.d member to write (default: custom)
   -n, --dry-run    say what would be written, and write nothing
 
-The first write creates ~/.config/say-hi/packages.d/ by seeding it with the
-tree's own groups (default, extra, and any others) - a packages.d/ of your
-own replaces the tree's wholesale, so nothing already checked is lost.
-\`hi --preview packages\` shows the check with the row in it; \`hi --doctor\`
-names every packages.d group.
+The first write copies the tree's packages file there, since yours replaces
+it wholesale. \`hi --preview packages\` shows the check with the row in it.
 EOF
 }
 
-# --help, --dry-run, and --group anywhere on the line; everything else is a
+# --help and --dry-run anywhere on the line; everything else is a
 # row. Loop shape matches scripts/update.sh's.
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -63,13 +56,8 @@ while [ $# -gt 0 ]; do
     exit 0
     ;;
   -n | --dry-run) _HI_DRY_RUN=1 ;;
-  --group | --group=*)
-    _hi_flag_word_or_die group "--group needs a name ($me ... --group <name>)" "$@" || case $? in
-    2) shift ;;
-    esac
-    ;;
   -*)
-    _hi_die "unknown option $1 ($me <pkg:priority>[,...] [--group <name>] [--dry-run])"
+    _hi_die "unknown option $1 ($me <pkg:priority>[,...] [--dry-run])"
     ;;
   *) rows+=("$1") ;;
   esac
@@ -78,9 +66,6 @@ done
 
 [ "${#rows[@]}" -gt 0 ] ||
   _hi_die "needs at least one pkg:priority row ($me --help)"
-
-_hi_dir_member_ok "$group" ||
-  _hi_die "--group $group is not a plain name (letters, digits, _ . - only; not a leading dot or dash, not .bak/.orig/.rej/.tmp)"
 
 # The grammar common/header.sh's check_line reads, made an error here rather
 # than a silently-clamped or silently-skipped row there: an optional leading
@@ -104,40 +89,11 @@ function _hi_row_first_pkg() {
   printf -v "$1" '%s' "${_hi_rfp_r%%:*}"
 }
 
-# Four names rather than one $_HI_PACKAGES_D: hi writes only ever into the
-# overlay ($pkg_dst), but reads through the same cascade paths.sh already
-# resolved ($pkg_src) - identical to the overlay once one exists, the tree's
-# default+extra until then. Keeping the two apart is what makes --dry-run and
-# a no-op call honest: reading $read_file (not a just-created empty
-# $group_file) means a row already in the tree's default reports "already
-# there" rather than "+", and nothing is written or seeded for a no-op.
-pkg_dst="$_HI_CONFIG_DIR/packages.d" # the only place hi ever writes
-pkg_src="$_HI_PACKAGES_D"            # paths.sh's own cascade result
-group_file="$pkg_dst/$group"         # write target
-read_file="$pkg_src/$group"          # read source
-
-# _hi_first_elsewhere <pkg> - a packages file (not this call's own group)
-# that already carries <pkg> as a row's first package, on stdout; empty and
-# non-zero when nothing does. Every packages.d member (GLOSSARY: HI.58) in
-# force, the group being written excluded - the caller's own report of a
-# within-group replacement already says that part.
-function _hi_first_elsewhere() {
-  local _hi_fe_f _hi_fe_line _hi_fe_first
-  for _hi_fe_f in "$pkg_src"/*; do
-    { [ -f "$_hi_fe_f" ] && _hi_dir_member_ok "${_hi_fe_f##*/}"; } || continue
-    [ "$_hi_fe_f" = "$read_file" ] && continue
-    while IFS= read -r _hi_fe_line; do
-      case "$_hi_fe_line" in '#'* | '' | color=* | *'#'*) continue ;; esac
-      _hi_row_first_pkg _hi_fe_first "$_hi_fe_line"
-      if [ "$_hi_fe_first" = "$1" ]; then
-        printf '%s' "$_hi_fe_f"
-        return 0
-      fi
-    done <"$_hi_fe_f"
-  done
-  return 1
-}
-
+# Read through paths.sh's cascade ($_HI_PACKAGES: the overlay's once it
+# exists, the tree's until then), write only the overlay's. Reading the file
+# in force is what makes --dry-run and a no-op honest: a row the tree already
+# has reports "already there", and nothing is written.
+read_file="$_HI_PACKAGES" dst="$_HI_CONFIG_DIR/packages"
 existing_lines=()
 [ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
 out=(${existing_lines[@]+"${existing_lines[@]}"})
@@ -149,7 +105,7 @@ for row in "${rows[@]}"; do
   match=-1
   for ((idx = 0; idx < ${#out[@]}; idx++)); do
     line="${out[idx]}"
-    case "$line" in '#'* | '' | color=*) continue ;; esac
+    case "$line" in '#'* | '') continue ;; esac
     existing_first=""
     _hi_row_first_pkg existing_first "$line"
     if [ "$existing_first" = "$first" ]; then
@@ -162,15 +118,12 @@ for row in "${rows[@]}"; do
   elif [ "$match" -ge 0 ]; then
     out[match]="$row"
     changed=1
-    _hi_cecho " ~ $row (replacing the $group row for $first)" "$YELLOW"
+    _hi_cecho " ~ $row (replacing the row for $first)" "$YELLOW"
   else
     out+=("$row")
     changed=1
     _hi_cecho " + $row" "$GREEN"
   fi
-  elsewhere="$(_hi_first_elsewhere "$first")" || elsewhere=""
-  [ -z "$elsewhere" ] ||
-    _hi_cecho "   note: $first is already checked for by $elsewhere too - both will show in the check" "$BLUE"
 done
 
 if [ "$changed" -eq 0 ]; then
@@ -178,24 +131,12 @@ if [ "$changed" -eq 0 ]; then
   exit 0
 fi
 
-what="write $group_file"
-[ "$pkg_src" = "$pkg_dst" ] || what="seed $pkg_dst from $pkg_src, then $what"
+what="write $dst"
+[ "$read_file" = "$dst" ] || what="copy $read_file to $dst, then add there"
 dry_run_say "$what" && exit 0
 
-mkdir -p "$pkg_dst"
-if [ "$pkg_src" != "$pkg_dst" ]; then
-  # a packages.d/ of your own replaces the tree's wholesale (common/paths.sh),
-  # so the first write into a fresh overlay carries every tree member in
-  # first - walked generically via _hi_dir_member_ok, not by name, so a
-  # future third shipped group needs no change here
-  for _hi_seed_f in "$pkg_src"/*; do
-    { [ -f "$_hi_seed_f" ] && _hi_dir_member_ok "${_hi_seed_f##*/}"; } || continue
-    [ "${_hi_seed_f##*/}" = "$group" ] && continue
-    cp "$_hi_seed_f" "$pkg_dst/${_hi_seed_f##*/}"
-  done
-  _hi_cecho " + seeded $pkg_dst from $pkg_src - an overlay packages.d replaces the tree's" "$GREEN"
-fi
+mkdir -p "$_HI_CONFIG_DIR"
 tmpfile="$(mktemp -t hi.packages.XXXXXX)"
 printf '%s\n' "${out[@]}" >"$tmpfile"
-_hi_write_back "$tmpfile" "$group_file"
-_hi_cecho "$group_file updated" "$GREEN"
+_hi_write_back "$tmpfile" "$dst"
+_hi_cecho "$dst updated" "$GREEN"

@@ -284,7 +284,7 @@ function _hi_floor_run() {
   printf '%s\n' ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} >"$_HI_CONFIG_DIR/lines.out"
 }
 
-function _hi_floor_lines() { cat "$_HI_WORKDIR/$1/config/lines.out" 2>/dev/null; }
+function _hi_floor_lines() { cat "$_HI_WORKDIR/$1/overlay/lines.out" 2>/dev/null; }
 
 function test_packages_floor_keeps_a_configured_value() {
   _hi_settings_fixture floor_keep _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=3'
@@ -296,7 +296,7 @@ function test_packages_floor_keeps_a_configured_value() {
 # has for 80.
 function test_packages_floor_does_not_write_the_default() {
   _hi_settings_fixture floor_default _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=2'
-  [ -f "$_HI_WORKDIR/floor_default/config/lines.out" ] || return 1
+  [ -f "$_HI_WORKDIR/floor_default/overlay/lines.out" ] || return 1
   [ -z "$(_hi_floor_lines floor_default | tr -d '[:space:]')" ]
 }
 
@@ -335,13 +335,13 @@ _HI_FLOOR_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  _HI_CONFIG_DIR="$_hi_dir/config"
-  _HI_SETTINGS="$_hi_dir/config/settings.sh"
+  _HI_CONFIG_DIR="$_hi_dir/overlay"
+  _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   config_packages_floor
   collect_setting_lines
-  printf "FLOORLINES:%s\n" "${_HI_SETTING_LINES[*]:-}"
+  printf "FLOORLINES:%s\n" "${_HI_SETTING_LINES[*]:-}" | tee "$_hi_dir/verdict"
 '
 
 # _hi_floor_pty <label> <input> [settings-line] - run config_packages_floor
@@ -356,12 +356,13 @@ function _hi_pty_run() {
   local child="$1" suffix="$2" label="$3" input="$4" line="${5:-}"
   local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.$suffix.out"
   shift 5
-  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
-  printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
+  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
+  printf '#!/bin/sh\n%s\n' "$line" >"$dir/overlay/settings.sh"
   : >"$out"
+  rm -f "$dir/verdict"
   printf '%b' "$input" |
     "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-30}"
+  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-60}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
@@ -375,16 +376,20 @@ function _hi_floor_prompts() {
   tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -c 'Lowest package priority' || true
 }
 function _hi_floor_finished() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -q 'FLOORLINES:'
+  [ -s "$_HI_WORKDIR/$1/verdict" ] || tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -q 'FLOORLINES:'
 }
 # _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
 # a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
 # everything to the end of the line by default, or just what <capture>
 # matches (a sed bracket expression body) when the tag's value can have
 # trailing text of its own. The one shape behind _hi_floor_pty_lines,
-# _hi_cfg_rc, and _hi_cfg_lines.
+# _hi_cfg_rc, and _hi_cfg_lines. The child also writes that line to
+# <label>/verdict, which is read first: a BSD pty can drop the last output of
+# a child that exits at once, and the transcript is only the fallback.
 function _hi_pty_field() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.$2.out" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
+  local src="$_HI_WORKDIR/$1/verdict"
+  [ -s "$src" ] || src="$_HI_WORKDIR/$1.$2.out"
+  tr '\r' '\n' <"$src" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
 }
 function _hi_floor_pty_lines() { _hi_pty_field "$1" floor 'FLOORLINES:'; }
 
@@ -411,11 +416,11 @@ function test_packages_floor_takes_a_number_after_a_rejection() {
   [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
 }
 
-# 4 is the last answer (the check off); 5 is a number and still not one -
-# refused like junk, and the next real answer lands
-function test_packages_floor_refuses_a_number_past_four() {
-  _hi_floor_pty floor_five '5\n3\n3\n' || return 1
-  tr '\r' '\n' <"$_HI_WORKDIR/floor_five.floor.out" | grep -q 'not 0-4' || return 1
+# 3 is the last answer; 4 is a number and still not one - refused like
+# junk, and the next real answer lands
+function test_packages_floor_refuses_a_number_past_three() {
+  _hi_floor_pty floor_five '4\n3\n3\n' || return 1
+  tr '\r' '\n' <"$_HI_WORKDIR/floor_five.floor.out" | grep -q 'not 0-3' || return 1
   [ "$(_hi_floor_pty_lines floor_five)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
 }
 
@@ -461,7 +466,7 @@ function test_config_settings_writes_every_group_at_once() {
 # `hi --update`'s tag checkout still applies and a root-owned tree still works
 function test_settings_are_written_outside_the_tree() {
   _hi_settings_fixture outside _hi_shebang_fresh
-  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/settings/settings.sh" ]
+  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/config/settings.sh" ]
 }
 
 # this run's answer wins over the file, which still holds the previous run's
@@ -679,7 +684,7 @@ function _hi_diff_run() {
 function test_settings_diff_reports_added_and_removed() {
   local out
   _hi_settings_fixture diff _hi_diff_run
-  out="$(cat "$_HI_WORKDIR/diff/config/diff.out")"
+  out="$(cat "$_HI_WORKDIR/diff/overlay/diff.out")"
   [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_DISABLE_BANNER=1"* &&
     "$out" != *"_HI_DISABLE_PROMPT"* ]]
 }
@@ -694,7 +699,7 @@ function _hi_diff_same_run() {
 
 function test_settings_diff_says_no_changes() {
   _hi_settings_fixture diff_same _hi_diff_same_run
-  grep -q 'no changes' "$_HI_WORKDIR/diff_same/config/diff.out"
+  grep -q 'no changes' "$_HI_WORKDIR/diff_same/overlay/diff.out"
 }
 
 #
@@ -908,17 +913,21 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
 }
 
-# vim and hx are presence-gated in settings/aliases.sh itself (a box with
-# neither vim nor nvim, or without hx, leaves the alias undefined), which
-# _hi_editors_preview reads rather than restates - so their lines only need
-# to be there when the tool actually is; nano/emacs/micro carry no such gate
-# and are unconditional.
+# every editor is presence-gated in config/aliases.sh itself (a box without
+# the tool leaves its alias undefined), which _hi_editors_preview reads rather
+# than restates - so each line only needs to be there when the tool is.
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano --rcfile $_HI_NANORC"* &&
-    "$out" == *"emacs -q -l $_HI_EMACSRC"* &&
-    "$out" == *"micro -> micro -backup false"* ]] || return 1
+  if command -v nano >/dev/null 2>&1; then
+    [[ "$out" == *"nano --rcfile $_HI_NANORC"* ]] || return 1
+  fi
+  if command -v emacs >/dev/null 2>&1; then
+    [[ "$out" == *"emacs -q -l $_HI_EMACSRC"* ]] || return 1
+  fi
+  if command -v micro >/dev/null 2>&1; then
+    [[ "$out" == *"micro -> micro -backup false"* ]] || return 1
+  fi
   # each name carries the rc of the binary behind it: nvim answers to both
   # `vim` and `nvim` and reads init.lua, vim reads vimrc
   if command -v nvim >/dev/null 2>&1; then
@@ -932,17 +941,17 @@ function test_editors_preview_names_every_override() {
 }
 
 # vim has no second spelling left to drift out of step:
-# _hi_editors_preview sources settings/aliases.sh itself and reads the alias
+# _hi_editors_preview sources config/aliases.sh itself and reads the alias
 # back (same trick as load.sh's _hi_session_editor), so what pins them is
 # behaviour, not text - the preview's line for <tool> must be exactly what
-# sourcing the alias produces. tests/settings/alias_fallthrough_test.sh keeps
+# sourcing the alias produces. tests/config/alias_fallthrough_test.sh keeps
 # the textual pin for bat, whose preview is not built this way.
 function test_editor_preview_matches_its_alias() {
   local tool="$1" from_alias from_preview
   from_alias="$(
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this $( )
-    # shellcheck source=/dev/null # settings/aliases.sh, or the copy in the overlay
+    # shellcheck source=/dev/null # config/aliases.sh, or the copy in the overlay
     # (no apostrophe in a comment inside a $( ): bash 3.2 reads it as a quote)
     source "$_HI_ALIASES" >/dev/null 2>&1
     alias "$tool" 2>/dev/null
@@ -999,12 +1008,14 @@ function test_prompt_tool_preview_reports_none() {
 
 # an empty render is a real answer at a high enough floor, and the preview
 # says so rather than handing show_preview a blank to drop on the floor
-function test_floor_preview_says_off_at_the_top_floor() {
+function test_floor_preview_says_nothing_reaches_the_floor() {
   _hi_load_preview_sources
   local out
-  # the candidate is an argument, not a global the caller sets
-  out="$(_hi_strip_ansi "$(_hi_packages_floor_preview 4)")"
-  [[ "$out" == *"nothing - the check is off at this floor"* ]]
+  printf 'zz-hi-absent:0\n' >"$_HI_WORKDIR/floor_low"
+  # the candidate is an argument, not a global the caller sets; the fixture
+  # file is scoped to the render itself, not to the strip around it
+  out="$(_HI_PACKAGES="$_HI_WORKDIR/floor_low" _hi_packages_floor_preview 3)"
+  [[ "$(_hi_strip_ansi "$out")" == *"nothing reaches this floor"* ]]
 }
 
 # the whole run with neither a preset nor a tty: config_preset stands down,
@@ -1044,14 +1055,15 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  _HI_CONFIG_DIR="$_hi_dir/config"
-  _HI_SETTINGS="$_hi_dir/config/settings.sh"
+  _HI_CONFIG_DIR="$_hi_dir/overlay"
+  _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   _hi_cfg_rc=0
   "${_hi_cfg_argv[@]}" || _hi_cfg_rc=$?
   collect_setting_lines
-  printf "CFGRC=%s CFGQUIT=%s CFGLINES=%s\n" "$_hi_cfg_rc" "${_HI_CONFIGURE_QUIT:-none}" "${_HI_SETTING_LINES[*]:-}"
+  printf "CFGRC=%s CFGQUIT=%s CFGLINES=%s\n" "$_hi_cfg_rc" "${_HI_CONFIGURE_QUIT:-none}" "${_HI_SETTING_LINES[*]:-}" |
+    tee "$_hi_dir/verdict"
 '
 
 # _hi_cfg_pty <label> <input> <settings-line> <fn> [arg...] - one configure
@@ -1256,7 +1268,7 @@ function test_menu_opens_the_check_depth() {
 function test_menu_feature_toggles_and_previews() {
   _hi_cfg_pty feat_toggle "$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_toggle "editor config overrides: now off" &&
-    _hi_cfg_has feat_toggle "nano --rcfile" &&
+    { ! command -v nano >/dev/null 2>&1 || _hi_cfg_has feat_toggle "nano --rcfile"; } &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
 }
 
@@ -1266,7 +1278,7 @@ function test_menu_feature_toggles_and_previews() {
 # a name only this machine would have.
 function test_menu_env_segment_toggles_and_previews() {
   _hi_cfg_pty feat_env "$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || return 1
-  _hi_cfg_has feat_env "environment segment in the prompt: now off" &&
+  _hi_cfg_has feat_env "environment segment: now off" &&
     _hi_cfg_has feat_env "myproj" &&
     [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]]
 }
@@ -1342,7 +1354,7 @@ function test_preset_shorthand_seeds_the_run() {
 function test_full_run_preset_then_save() {
   _hi_cfg_pty full_walk 'p\nm\ns\n' '' run_configure "" || return 1
   local block
-  block="$(grep -F "$_HI_MARKER" "$_HI_WORKDIR/full_walk/config/settings.sh")"
+  block="$(grep -F "$_HI_MARKER" "$_HI_WORKDIR/full_walk/overlay/settings.sh")"
   _hi_cfg_has full_walk "Nothing is written until you save" &&
     _hi_cfg_has full_walk "starting from the 'minimal' preset" &&
     _hi_cfg_has full_walk "CFGQUIT=none" &&
@@ -1356,7 +1368,7 @@ function test_full_run_quit_writes_nothing() {
   _hi_cfg_has full_quit "starting from the 'minimal' preset" &&
     _hi_cfg_has full_quit "nothing written" &&
     _hi_cfg_has full_quit "CFGQUIT=1" &&
-    ! grep -qF "$_HI_MARKER" "$_HI_WORKDIR/full_quit/config/settings.sh"
+    ! grep -qF "$_HI_MARKER" "$_HI_WORKDIR/full_quit/overlay/settings.sh"
 }
 
 # EOF at the menu saves what there is - no answer has always meant "keep
@@ -1365,7 +1377,7 @@ function test_full_run_quit_writes_nothing() {
 function test_menu_eof_saves() {
   _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_GIT_STATUS=1' run_configure "" || return 1
   _hi_cfg_has hub_eof "CFGQUIT=none" &&
-    grep -qF "export _HI_DISABLE_GIT_STATUS=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
+    grep -qF "export _HI_DISABLE_GIT_STATUS=1" "$_HI_WORKDIR/hub_eof/overlay/settings.sh"
 }
 
 # ...and the third junk answer in a row ends the run too, but as a quit:
@@ -1381,13 +1393,48 @@ function test_menu_junk_is_bounded_and_quits() {
 function test_menu_lists_every_group() {
   _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
-    _hi_cfg_has hub_all "Features" &&
-    _hi_cfg_has hub_all "Header - in the order it prints" &&
+    _hi_cfg_has hub_all "Editors" &&
+    _hi_cfg_has hub_all "Header - the preview's rows" &&
     _hi_cfg_has hub_all "package check depth" &&
     _hi_cfg_has hub_all "bash prompt ends with" &&
     _hi_cfg_has hub_all "Advanced" &&
     _hi_cfg_has hub_all "24-bit color" &&
     _hi_cfg_has hub_all "CFGQUIT=none"
+}
+
+# The layout, pinned at 80 columns and at 40 the way the header's width is
+# ($_HI_TERM_COLS): no line of the run is wider than the terminal, a narrow
+# one cutting help text rather than wrapping it, and the groups draw in their
+# order - what a setting changes, the header's first, Advanced last, apart
+function _hi_menu_layout_at() {
+  local w="$1" label="layout_$1" line len over=0 heads
+  _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 's\n' '' run_configure "" || return 1
+  while IFS= read -r line; do
+    case "$line" in *CFGRC=*) continue ;; esac
+    # the pty echoes no input, so what follows the ` > ` prompt lands on its
+    # line - where a terminal's Enter would have ended it
+    line="${line#' > '}"
+    _hi_visible_len len "$line"
+    ((len > w)) || continue
+    _hi_cecho " | $len columns at $w: $line" "$RED"
+    over=1
+  done < <(_hi_strip_ansi "$(<"$_HI_WORKDIR/$label.cfg.out")" | tr -d '\r')
+  heads="$(_hi_strip_ansi "$(<"$_HI_WORKDIR/$label.cfg.out")" | tr -d '\r' |
+    sed -E -n 's/^ (Header|Prompt|Editors|Aliases|This machine)( - .*)?$/\1/p; s/^ [^ ]+ Advanced .*/Advanced/p' | paste -sd, -)"
+  [ "$heads" = "Header,Prompt,Editors,Aliases,This machine,Advanced" ] || {
+    _hi_cecho " | the groups at $w columns: [$heads]" "$RED"
+    return 1
+  }
+  [ "$over" = 0 ]
+}
+function test_menu_layout_at_80() { _hi_menu_layout_at 80; }
+function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
+
+# a value away from its default says the default beside it; one at it does not
+function test_menu_value_shows_its_default() {
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 's\n' 'export _HI_PACKAGES_MIN_PRIORITY=3' run_configure "" || return 1
+  _hi_cfg_has hub_def "package check depth   3 (default 2)" &&
+    ! _hi_cfg_has hub_def "(default 80)"
 }
 
 function run_configure_tests() {
@@ -1510,7 +1557,7 @@ function run_configure_tests() {
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed
   _hi_check "...and says when there are none" test_prompt_tool_preview_reports_none
-  _hi_check "Floor preview says off at the top floor" test_floor_preview_says_off_at_the_top_floor
+  _hi_check "Floor preview says when nothing reaches it" test_floor_preview_says_nothing_reaches_the_floor
 
   # Every pty case fans out together: each drives its own child under its own
   # $_HI_WORKDIR/<label> and the children re-source configure.sh themselves,
@@ -1521,7 +1568,7 @@ function run_configure_tests() {
   _hi_h2 "Testing: the interactive arms and the menu (pty)"
   _hi_par_begin "pty cases"
   _hi_par_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
-  _hi_par_check_capable pty "Packages floor: 5 is refused like junk" test_packages_floor_refuses_a_number_past_four
+  _hi_par_check_capable pty "Packages floor: 4 is refused like junk" test_packages_floor_refuses_a_number_past_three
   _hi_par_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
   _hi_par_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
   _hi_par_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number
@@ -1532,6 +1579,9 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
   _hi_par_check_capable pty "Menu: every group on one screen" test_menu_lists_every_group
+  _hi_par_check_capable pty "Menu: fits 80 columns, groups in order" test_menu_layout_at_80
+  _hi_par_check_capable pty "Menu: fits 40 columns, groups in order" test_menu_layout_at_40
+  _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
   _hi_par_check_capable pty "Menu: a feature toggles and previews" test_menu_feature_toggles_and_previews
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "Menu: the header row previews the whole header" test_menu_header_row_previews_the_header

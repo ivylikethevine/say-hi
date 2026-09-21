@@ -56,7 +56,7 @@ function test_fallback_rc_sources_paths_and_aliases() {
   local out
   out="$(CMDARG="" _hi_fallback_rc)"
   # shellcheck disable=SC2016 # same as above - $_HI_ROOT is the target's to expand
-  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/settings/aliases.sh'* ]]
+  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/config/aliases.sh'* ]]
 }
 
 # The command is NOT in the shared rc - fish reads that file through
@@ -95,7 +95,7 @@ function test_remote_suffix_without_a_command_adds_nothing() {
 # settings ahead of paths.sh - paths.sh's local-only gate reads them, so lines
 # arriving after it would be set too late to have any effect
 function test_fallback_rc_sources_settings_before_paths() {
-  _hi_before "$(CMDARG="" _hi_fallback_rc)" 'config/settings\.sh' 'common/paths\.sh'
+  _hi_before "$(CMDARG="" _hi_fallback_rc)" 'overlay/settings\.sh' 'common/paths\.sh'
 }
 
 # bash reads an --rcfile only when it is interactive, and decides that from its
@@ -164,6 +164,15 @@ function test_remote_preamble_ships_the_glyph_verdict() {
 function test_remote_preamble_ships_the_truecolor_verdict() {
   [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM=truecolor _hi_remote_preamble)" == *"export _HI_TRUECOLOR='1'"* ]] &&
     [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM="" _hi_remote_preamble)" == *"export _HI_TRUECOLOR='0'"* ]]
+}
+
+# user@host is the host's tag, not a miss on the whole word: the session env
+# walks the ssh config for what follows the @, as _hi_target_color does
+function test_session_env_tags_a_user_at_host_target() {
+  local cfg="$_HI_WORKDIR/ssh_config.userhost"
+  printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: prod\nHost taggedbox\n' >"$cfg"
+  unset _HI_TAG_NAME
+  DOMAIN=deploy@taggedbox _HI_SSH_CONFIG="$cfg" _hi_session_env | grep -qx "$(printf '_HI_TARGET_TAG\tprod')"
 }
 
 # Every value the preamble exports is data the client picked up rather than
@@ -235,14 +244,14 @@ function test_term_fallback_keeps_a_term_with_terminfo() {
   [ "$(_hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti")" = hi-test-present-term ]
 }
 
-# On a target, $_HI_CONFIG_DIR is the config/ the overlay was unpacked into,
+# On a target, $_HI_CONFIG_DIR is the overlay/ the overlay was unpacked into,
 # not ${XDG_CONFIG_HOME:-...}: a ~/.config/say-hi belonging to whoever we logged
 # in as is not the config this session was asked to run with. It must also not
-# be settings/, which holds the *shipped* aliases.sh - pointed there,
-# settings/aliases.sh's tail line sources itself forever.
+# be config/, which holds the *shipped* aliases.sh - pointed there,
+# config/aliases.sh's tail line sources itself forever.
 function test_fallback_rc_points_config_dir_at_the_overlay() {
   # shellcheck disable=SC2016 # $_HI_ROOT is the target's to expand, not ours
-  [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]]
+  [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/overlay'* ]]
 }
 
 # The bootstrap directory is the *target's* to name. A client-side
@@ -387,6 +396,7 @@ function run_hi_remote_tests() {
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version
   _hi_check "The preamble ships the glyph verdict" test_remote_preamble_ships_the_glyph_verdict
   _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
+  _hi_check "user@host exports the host's tag" test_session_env_tags_a_user_at_host_target
 
   _hi_h2 "Testing: what the client bakes in stays data"
   _hi_check_eq "A hostile hostname survives the ssh preamble" "$_HI_MEAN" _hi_preamble_env_value _HI_LOCAL_HOSTNAME

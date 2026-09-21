@@ -55,7 +55,7 @@ jobs:
   # what. A dispatch rehearsal (a branch HEAD, publishing nothing) skips those
   # checks and waits on the `manual-dispatch` environment instead, so it
   # cannot start a build without a named reviewer saying so. One job for both
-  # events keeps build's single `needs:`; the environment is picked per event
+  # events keeps one gate for build to need; the environment is picked per event
   # because it is job-level, and an empty name is no environment - a tag push
   # stays unattended. A rejected rehearsal fails the job, and build's
   # `== 'success'` stops there.
@@ -188,6 +188,54 @@ jobs:
             exit 1
           }
 
+  # GLOSSARY: HI.60 walked for real before anything builds: a shell per dialect
+  # loads the previous release's rc, this tag's tree replaces it underneath,
+  # and the rc is sourced again, failing on any stderr or a path left empty
+  # (.github/scripts/upgrade_path.sh). The previous release is the nearest v*
+  # tag behind this commit; a first release has none and passes.
+  upgrade:
+    name: the upgrade from the previous release re-sources clean
+    needs: gate
+    if: ${{ !cancelled() && needs.gate.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          # the checkout, the cache receiver, and setup-shells' apt - ci.yml's
+          # fast job's list, which says why each mirror is named
+          allowed-endpoints: >
+            github.com:443
+            results-receiver.actions.githubusercontent.com:443
+            azure.archive.ubuntu.com:80
+            esm.ubuntu.com:443
+            motd.ubuntu.com:443
+            dl.google.com:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-shells
+
+      - name: Walk the upgrade from the previous release
+        run: |
+          set -euo pipefail
+          prev="$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^" 2>/dev/null || true)"
+          [ -n "$prev" ] || {
+            echo "no release before $GITHUB_SHA - nothing to upgrade from"
+            exit 0
+          }
+          echo "upgrading $prev -> $GITHUB_SHA"
+          mkdir -p "$RUNNER_TEMP/prev" "$RUNNER_TEMP/new"
+          git archive "$prev" | tar -x -C "$RUNNER_TEMP/prev"
+          git archive "$GITHUB_SHA" | tar -x -C "$RUNNER_TEMP/new"
+          .github/scripts/upgrade_path.sh "$RUNNER_TEMP/prev" "$RUNNER_TEMP/new"
+
   # Everything that can fail, nothing that can publish: a bad tag fails here,
   # before publish touches the release.
   #
@@ -199,11 +247,11 @@ jobs:
   # with throwaway keys.
   build:
     name: build packages
-    needs: gate
-    # gate is the verdict for both events - the explicit result, per the
-    # header; `!cancelled()` rather than `always()` so cancelling the run
-    # still stops the build
-    if: ${{ !cancelled() && needs.gate.result == 'success' }}
+    needs: [gate, upgrade]
+    # gate and upgrade are the verdict for both events - each result named,
+    # per the header; `!cancelled()` rather than `always()` so cancelling the
+    # run still stops the build
+    if: ${{ !cancelled() && needs.gate.result == 'success' && needs.upgrade.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ github.event_name == 'push' && 'release' || '' }}
@@ -318,10 +366,11 @@ jobs:
       - name: Verify the result
         run: packaging/bump.sh --check "$HI_VERSION"
 
-      # after the bump, so the packaging drift guards in the fast group run
-      # against the manifests this release ships
-      - name: Run fast test suites
-        run: "${{ github.workspace }}/tests/test_runner.sh --group fast"
+      # after the bump, so the packaging drift guards - the ci group - run
+      # against the manifests this release ships. Not the fast group: the gate
+      # above already required CI green on this commit, fast included
+      - name: Run the ci suites against the bumped manifests
+        run: "${{ github.workspace }}/tests/test_runner.sh --group ci"
 
       # markdownlint-cli2 and prettier, as ci.yml's lint job installs them -
       # without these, --require-run below fails on their skips. No npm cache:
@@ -513,9 +562,9 @@ jobs:
       # gh attestation download, below - reads what build's attest steps wrote
       attestations: read
     # relayed rather than read straight off `build` by brew/tap below - each
-    # job under the gate keeps a single `needs:` entry, which is what lets
-    # test_release_jobs_under_the_gate_check_their_needs read every job's
-    # `if:` the same simple way
+    # job under the gate keeps its `needs:` short (build's two are the one
+    # list), which is what lets test_release_jobs_under_the_gate_check_their_needs
+    # read every job's `if:` the same simple way
     outputs:
       prerelease: ${{ needs.build.outputs.prerelease }}
       debug: ${{ needs.build.outputs.debug }}

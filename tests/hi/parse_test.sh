@@ -353,6 +353,17 @@ function test_use_backend_rejects_a_stranger() {
   ! _hi_use_backend frobnicate >/dev/null 2>&1
 }
 
+# [chosen] is an earlier --use's arm: naming it again is fine, naming another
+# is refused here, once, for _hi_parse and doctor both - on stderr, with
+# nothing on stdout for a caller's $( ) to take as an arm
+function test_use_backend_refuses_a_second_arm() {
+  local out err
+  [ "$(_hi_use_backend docker docker 2>/dev/null)" = docker ] || return 1
+  err="$(_hi_use_backend podman docker 2>&1 >/dev/null)" && return 1
+  out="$(_hi_use_backend podman docker 2>/dev/null)" && return 1
+  [ -z "$out" ] && [[ "$err" == *"--use podman and --use docker both name a backend; pick one"* ]]
+}
+
 # --use=<backend> is the same flag with its word joined, the spelling
 # install.sh's --prefix and --preset already take, and must not fall through
 # to ssh as an unknown option
@@ -1078,7 +1089,7 @@ function test_the_shell_tree_is_the_documented_order() {
 # as a process against two throwaway trees.
 #
 # tests/lib/fixtures.sh's _hi_scratch_tree builds the shape a *target* gets:
-# common/, settings/, load.sh, and hi.sh copied in, and deliberately no
+# common/, config/, load.sh, and hi.sh copied in, and deliberately no
 # scripts/, no tests/, and no .git. That is the shape every one of these
 # flags has to refuse by name, and it is the reason $_HI_NO_CHECKOUT exists.
 # _hi_subcmd_run (same file) runs hi.sh as a process against one.
@@ -1094,7 +1105,7 @@ function test_the_shell_tree_is_the_documented_order() {
 # just "some install.sh".
 function _hi_subcmd_stubs() {
   local home stub dir
-  home="$(_hi_scratch_tree subcmd-stubs common settings load.sh hi.sh)"
+  home="$(_hi_scratch_tree subcmd-stubs common config load.sh hi.sh)"
   mkdir -p "$home/say-hi/scripts" "$home/say-hi/tests"
   for stub in install:scripts/install.sh preview:scripts/preview.sh \
     doctor:scripts/doctor.sh; do
@@ -1109,7 +1120,7 @@ function _hi_subcmd_stubs() {
 # every one of them names itself rather than dying on a missing path
 function test_local_subcommands_refuse_without_the_checkout() {
   local home flag say out
-  home="$(_hi_scratch_tree subcmd-bare common settings load.sh hi.sh)"
+  home="$(_hi_scratch_tree subcmd-bare common config load.sh hi.sh)"
   for flag in --install --uninstall --configure "--preview colors" "--preview packages" "--preview header" --doctor --update; do
     # the refusal names the row's flag alone, never a subject or target
     # riding after it - every subcommand agrees, --preview included, since
@@ -1177,13 +1188,16 @@ function test_local_subcommands_exec_the_right_script() {
 # so this needs the real script.
 function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
-  home="$(_hi_scratch_tree preview-real common settings load.sh hi.sh scripts)"
+  home="$(_hi_scratch_tree preview-real common config load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview)" && return 1
-  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
+  # a retired subject is refused like any other: hi <TAB> lists the targets
+  out="$(_hi_subcmd_run "$home" --preview targets)" && return 1
+  [[ "$out" == *"unknown subject 'targets'"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == "Usage: hi --preview"* ]]
 }
@@ -1383,6 +1397,7 @@ function run_hi_parse_tests() {
   _hi_h2 "Testing: the arm override (--use <backend>)"
   _hi_check "Every arm resolves through --use, none has a row of its own" test_every_arm_resolves_through_use
   _hi_check "_hi_use_backend rejects a stranger" test_use_backend_rejects_a_stranger
+  _hi_check "_hi_use_backend refuses a second, different arm" test_use_backend_refuses_a_second_arm
   _hi_check_eq "--use <cli> sets BACKEND to that member" "$(printf 'myhost\nnerdctl\n')" _hi_backend_parse_out --use nerdctl myhost
   _hi_check_eq "--use and its word never reach SSHARGS" "$(printf 'myhost\n\n')" _hi_parse_out --use podman myhost
   _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger

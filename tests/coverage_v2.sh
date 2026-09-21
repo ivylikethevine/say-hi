@@ -47,7 +47,7 @@
 #     is traced only where sh is bash: the xtrace
 #     rides on SHELLOPTS, which dash ignores, so the whole file reads 0%
 #     under a dash /bin/sh (ubuntu; CLAUDE.md's dash sweep - measured 0/220
-#     there, 96% under bash). settings/aliases.sh is
+#     there, 96% under bash). config/aliases.sh is
 #     `#!/bin/sh` too but sourced by its suite, so it is unaffected.
 #     This driver puts a bash-as-sh first on PATH for that reason
 #     (_hi_cov_shim_sh_to_bash, tests/lib/coverage.sh).
@@ -131,13 +131,14 @@ export _HI_COV_OUT="$_HI_COV_DIR"
 # equal ones. --root is the tree, which is what makes its files discoverable
 # at all; without it SimpleCov reports the suite script and nothing else.
 function _hi_cov_trace_one() {
-  _HI_COV_NAME="$1" bashcov --mute --root "$_HI_COV_ROOT" \
+  # no --mute: _hi_cov_trace_all keeps the suite's transcript for its failure
+  # report, and --mute would hand it SimpleCov's lines instead
+  _HI_COV_NAME="$1" bashcov --root "$_HI_COV_ROOT" \
     --command-name "$1" -- "$2"
 }
-_hi_cov_trace_all _hi_cov_trace_one
+_hi_cov_trace_all _hi_cov_trace_one || exit 1
 
 _hi_cecho " | coverage: report in $_HI_COV_DIR/index.html" "$GREEN"
-_hi_cov_report_failed
 
 # Every file bashcov traced, worst first - the ranking is the point, since the
 # question this answers is "which arms does nothing reach", and the answer moves

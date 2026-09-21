@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Sources settings/aliases.sh in a real instance of each target shell and checks
+# Sources config/aliases.sh in a real instance of each target shell and checks
 # that every alias/var it unconditionally defines actually landed - not just
 # that the file was found. Skips any shell that isn't installed.
 #
@@ -19,10 +19,11 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # can't match. What that excludes on purpose: a two-line statement (the
 # `bash`/`fish` session wrappers, whose guard and `alias` sit on separate
 # physical lines), anything gated on more than two brackets, and a guard that
-# holds a `$(...)` - that is a presence probe (`[ -n "$(command -v nvim ||
-# command -v vim)" ]`), not a toggle, so the alias behind it is conditional
-# by design and _hi_test_presence checks each one against the host instead.
-_HI_SAMPLE_ALIASES=$(grep -oE '^(\[[^](]*\] && ){0,2}alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*alias +//; s/=$//' | tr '\n' ' ')
+# holds a `$(...)`, a `command -v` probe, or bat's `[ -n "$_HI_BAT_BIN" ]` -
+# those are presence gates, not toggles, so the alias behind them is
+# conditional by design and _hi_test_presence checks each against the host.
+# shellcheck disable=SC2016 # the literal text of that gate
+_HI_SAMPLE_ALIASES=$(grep -v '"\$_HI_BAT_BIN" \]' "$_HI_ALIASES" | grep -oE '^(\[[^](]*\] && ){0,2}alias +[A-Za-z_][A-Za-z0-9_]*=' | sed -E 's/^.*alias +//; s/=$//' | sort -u | tr '\n' ' ')
 _HI_SAMPLE_VARS=$(grep -oE '^(\[[^](]*\] && ){0,2}export +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*export +//; s/=$//' | tr '\n' ' ')
 
 # posix `alias name` / `test -n "${v+x}"` work unmodified in dash, bash, and zsh;
@@ -76,8 +77,9 @@ function _hi_test_shell() {
 
 # The presence-gated aliases the sampler above leaves out, read off the same
 # file: "<alias> <bin>..." per line, from every line that both probes with
-# `$(command -v x)` and defines an `alias name=`. The sampler and this list
-# partition the alias lines between them, so nothing goes unchecked.
+# `command -v x` (or bat's $_HI_BAT_BIN, which is bat or batcat) and defines
+# an `alias name=`. A name the sampler already holds is always there, so it
+# is skipped here: the two lists partition the alias names between them.
 #
 # Per line rather than per guard, and merged across lines by alias name: one
 # line can define more than one alias (nvim answers to both `vim` and `nvim`)
@@ -85,9 +87,10 @@ function _hi_test_shell() {
 # where there is one, vim's where there is not). What the check asks is
 # whether the *name* is there, so its bins are the union of every probe that
 # can define it - "vim nvim vim", not one row per line.
-_HI_PRESENCE_ALIASES=$(awk '
-  /alias [A-Za-z_][A-Za-z0-9_]*=/ && /\$\(command -v / {
+_HI_PRESENCE_ALIASES=$(awk -v sampled=" $_HI_SAMPLE_ALIASES" '
+  /alias [A-Za-z_][A-Za-z0-9_]*=/ && (/command -v / || /"\$_HI_BAT_BIN" \]/) {
     s = $0; nb = 0
+    if (index($0, "\"$_HI_BAT_BIN\" ]")) { bins[++nb] = "bat"; bins[++nb] = "batcat" }
     while (match(s, /command -v [A-Za-z0-9_-]+/)) {
       bins[++nb] = substr(s, RSTART + 11, RLENGTH - 11)
       s = substr(s, RSTART + RLENGTH)
@@ -96,6 +99,7 @@ _HI_PRESENCE_ALIASES=$(awk '
     while (match(t, / alias [A-Za-z_][A-Za-z0-9_]*=/)) {
       a = substr(t, RSTART + 7, RLENGTH - 8)
       t = substr(t, RSTART + RLENGTH)
+      if (index(sampled, " " a " ")) continue
       if (!(a in seen)) { seen[a] = ""; name[++k] = a }
       for (i = 1; i <= nb; i++)
         if (index(" " seen[a] " ", " " bins[i] " ") == 0)
@@ -129,6 +133,34 @@ function _hi_test_presence() {
   return 1
 }
 
+# _hi_test_no_dangling <dir> [empty] - no alias names a command this PATH
+# lacks: each body's first word (past a leading `command`) is another alias
+# or on PATH. `empty` sources under a PATH of the check's own sed and tr and
+# nothing else, where every gate has to close. bash only: the gates are the same text in every shell,
+# and `alias -p` is the listing worth parsing.
+# shellcheck disable=SC2016 # the script we write out, not code to run here
+function _hi_test_no_dangling() {
+  local script="$1/dangling${2:+.$2}.test" path="$PATH" output rc=0
+  [ -z "${2:-}" ] || path="$(_hi_real_path dangling-tools sed tr)"
+  cat >"$script" <<'SCRIPT'
+. "$_HI_ALIASES" || exit 2
+fail=0 names=" $(alias -p | sed -n 's/^alias \([^=]*\)=.*/\1/p' | tr '\n' ' ')"
+while read -r n w; do
+  [ -n "$n" ] || continue
+  case "$names" in *" $w "*) continue ;; esac
+  [ -n "$(type -P "$w")" ] || { echo "$n names $w, which is not on PATH"; fail=1; }
+done <<LIST
+$(alias -p | sed -n "s/^alias \([^=]*\)='\(command \)\{0,1\}\([^ ']*\).*/\1 \3/p")
+LIST
+exit $fail
+SCRIPT
+  output=$(env -u _HI_CAT_BIN -u _HI_BAT_BIN -u _HI_LS_BIN -u _HI_LS_OPTS \
+    PATH="$path" "$(command -v bash)" "$script" 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  printf '%s\n' "$output" | sed 's/^/      /'
+  return 1
+}
+
 function run_alias_test() {
   _hi_h1 "Testing aliases.sh across shells"
   _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases, $(wc -w <<<"$_HI_SAMPLE_VARS") variables and $(wc -l <<<"$_HI_PRESENCE_ALIASES") presence-gated aliases"
@@ -152,6 +184,8 @@ function run_alias_test() {
       _hi_case _hi_test_presence "$_hi_shell" "$_HI_WORKDIR" "$_hi_alias" $_hi_bins
     done <<<"$_HI_PRESENCE_ALIASES"
   done
+  _hi_case _hi_test_no_dangling "$_HI_WORKDIR"
+  _hi_case _hi_test_no_dangling "$_HI_WORKDIR" empty
 
   _hi_suite_end "" \
     "All installed shells loaded aliases.sh cleanly ($_HI_TOTAL cases)" \

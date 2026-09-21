@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/preview.sh - `hi --preview colors`, `packages`,
-# `header`, and `targets`, one script with a subject switch.
+# and `header`, one script with a subject switch.
 #
 # colors: its job is to render the same answers the live prompt would give, so
 # what matters is that its own precedence logic (_hi_color_source) agrees with
 # common/core.sh's _hi_resolve_color, and that the helpers feeding the table
-# read settings/colors the way the rest of hi does. Everything runs against a
-# fixture settings/colors and ~/.ssh/config in the scratch dir, so the output
+# read config/colors the way the rest of hi does. Everything runs against a
+# fixture config/colors and ~/.ssh/config in the scratch dir, so the output
 # is fixed rather than "whatever this machine is configured with".
 #
 # packages: the preview's whole claim is that it shows what the *header* will
@@ -41,18 +41,16 @@ source "$_HI_PREVIEW"
 
 # One scratch tree for both halves: the colors fixtures and the ssh config a
 # child render derives its paths from, and the packages roster in the tree.
-# _hi_scratch_tree copies the real settings/ wholesale, real
-# settings/packages.d/ included - replaced here with the one-member fixture,
-# or every row-count assertion below counts the real shipped roster instead.
+# _hi_scratch_tree copies the real config/ wholesale, real config/packages
+# included - replaced here with the fixture, or every row-count assertion
+# below counts the real shipped roster instead.
 function _hi_write_preview_tree() {
   local home
-  home="$(_hi_scratch_tree tree common settings scripts)"
+  home="$(_hi_scratch_tree tree common config scripts)"
   mkdir -p "$home/.ssh"
-  cp "$_HI_WORKDIR/colors" "$home/say-hi/settings/colors"
+  cp "$_HI_WORKDIR/colors" "$home/say-hi/config/colors"
   cp "$_HI_WORKDIR/ssh_config" "$home/.ssh/config"
-  rm -rf "$home/say-hi/settings/packages.d"
-  mkdir -p "$home/say-hi/settings/packages.d"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages.d/only"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages"
 }
 
 #
@@ -64,7 +62,7 @@ function test_a_missing_subject_is_refused() {
   local out rc=0
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, header, or targets"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, or header"* ]]
 }
 
 function test_an_unknown_subject_is_refused() {
@@ -79,7 +77,7 @@ function test_bare_help_lists_the_subjects() {
   local out
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" --help 2>&1)" || return 1
-  [[ "$out" == 'Usage: preview.sh <colors|packages|header|targets>'* && "$out" == *header* ]]
+  [[ "$out" == 'Usage: preview.sh <colors|packages|header>'* && "$out" == *header* ]]
 }
 
 # the header subject is hi_header itself, under the settings.sh in force
@@ -184,7 +182,7 @@ function test_source_agrees_with_resolve_color_on_patterns() {
 function test_default_source_still_resolves_to_a_palette_color() {
   local color
   color="$(_hi_resolve_color hostname plain)"
-  [ "$(_hi_color_source hostname plain)" = default ] &&
+  [ "$(_hi_color_source hostname plain)" = hash ] &&
     printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qxF "$color"
 }
 
@@ -292,10 +290,11 @@ function test_users_table_renders_override_rows() {
   [[ "$_HI_USERS_OUT" == *alice* && "$_HI_USERS_OUT" == *brmagenta* && "$_HI_USERS_OUT" == *override:username* ]]
 }
 
-# a user with no pin renders exactly as a bare `hi` does, so the table leaves
-# the row out - same rule as the hosts the script's help text explains
-function test_users_table_skips_default_users() {
-  [[ "$_HI_USERS_OUT" != *defaultuser* ]]
+# a user with no pin still renders in its hashed color, so the table lists it
+# and names the hash as the reason
+function test_users_table_lists_hashed_users() {
+  [[ "$_HI_USERS_OUT" == *defaultuser* ]] &&
+    _hi_strip_ansi "$_HI_USERS_OUT" | grep -q 'defaultuser.*| hash'
 }
 
 # LOCALUSER is a placeholder, not a login name, so its pin renders as its own
@@ -362,6 +361,44 @@ function test_hosts_table_pads_a_wrapped_group_past_its_users() {
   [[ "$row" != *@* ]] && _hi_table_is_rectangular "$out"
 }
 
+# a leading `Host *` of defaults does not end the tag walk, so a tagged block
+# after it still paints its HOST cell in the hosttag's color - the escape
+# itself, not only the tag:work text the SOURCE cell carries
+function test_hosts_table_paints_a_tag_behind_a_leading_wildcard() {
+  local cfg="$_HI_WORKDIR/ssh_config.leadingstar" out esc
+  printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: work\nHost starbehind\n  User nobody\n' >"$cfg"
+  out="$(_HI_SSH_CONFIG="$cfg" _hi_render_hosts_table)" || return 1
+  _hi_color_escape_var esc bryellow
+  printf -v esc '%b' "$esc"
+  _hi_strip_ansi "$out" | grep -F '| starbehind ' | grep -qF 'tag:work' || return 1
+  [[ "$out" == *"${esc}starbehind"* ]] || _hi_because "starbehind is not painted bryellow"
+}
+
+# a usertag's example row sits only under a host carrying that tag, in the
+# usertag's color there; a host without the tag draws no row for it at all
+function test_hosts_table_draws_a_usertag_row_only_under_its_tag() {
+  local cfg="$_HI_WORKDIR/ssh_config.usertag" colors="$_HI_WORKDIR/colors.usertag" out esc
+  printf '# Tags: ops\nHost opsbox\n  User nobody\n\nHost plainbox\n  User nobody\n' >"$cfg"
+  printf 'usertag,ops,brred\n' >"$colors"
+  out="$(_HI_SSH_CONFIG="$cfg" _HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
+  _hi_color_escape_var esc brred
+  printf -v esc '%b' "$esc"
+  [[ "$out" == *"${esc}ops"* ]] || _hi_because "the ops row is not painted brred" || return 1
+  _hi_strip_ansi "$out" | grep -qF 'ops@opsbox' || return 1
+  ! _hi_strip_ansi "$out" | grep -qF 'ops@plainbox' &&
+    _hi_strip_ansi "$out" | grep -qF 'solo@plainbox' &&
+    _hi_table_is_rectangular "$out"
+}
+
+# the machine the preview runs on is always listed, pinned or not: the
+# fixture colors file has no LOCALHOSTNAME row, so it reads by its own name
+function test_hosts_table_lists_the_local_machine_unpinned() {
+  local out row
+  out="$(_hi_render_hosts_table)" || return 1
+  row="$(_hi_strip_ansi "$out" | grep '| localbox ')" || return 1
+  [[ "$row" != *local:hostname* && "$row" == *'| hash '* ]]
+}
+
 # with no ssh config there is nothing to walk; the table says so instead of
 # quietly rendering an empty box
 function test_hosts_table_reports_a_missing_ssh_config() {
@@ -398,8 +435,6 @@ function test_tables_render_without_error() {
   [[ "$_HI_COLORS_OUT" == *pinned* && "$_HI_COLORS_OUT" == *tagged* && "$_HI_COLORS_OUT" == *alice* ]]
 }
 
-# a host with no override and no usable tag would render identically to a bare
-# `hi`, so it's deliberately left out of the table
 # a scheme paints the swatches with the 24-bit tail, and the header line
 # says which scheme it is (HI.50)
 function test_tables_render_under_a_scheme() {
@@ -410,12 +445,27 @@ function test_tables_render_under_a_scheme() {
   [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]]
 }
 
-function test_tables_skip_hosts_that_render_by_default() {
-  ! printf '%s\n' "$_HI_COLORS_OUT" | grep -q '\bplain\b'
+# a host with no override and no usable tag still paints its hashed color on a
+# connect, so every ssh-config host gets a row: the point of the hosts table
+function test_tables_list_every_ssh_config_host() {
+  local out host
+  out="$(_hi_strip_ansi "$_HI_COLORS_OUT")"
+  for host in plain pinned tagged othertag pat-1 a-considerably-longer-hostname; do
+    [[ "$out" == *"$host"* ]] || _hi_because "no row names $host" || return 1
+  done
+}
+
+# the hashed rows name the hash as their rule and land on a palette color
+function test_tables_label_hashed_hosts_hash() {
+  local row color
+  row="$(_hi_strip_ansi "$_HI_COLORS_OUT" | grep '| plain ')" || return 1
+  [[ "$row" == *'| hash '* ]] || _hi_because "the plain row was: $row" || return 1
+  color="$(_hi_resolve_color hostname plain)"
+  [[ "$row" == *"| $color "* ]] || _hi_because "want $color in: $row"
 }
 
 # the tag column has to name the tag that actually matched, since that's the
-# line a user reads to work out which settings/colors entry to edit
+# line a user reads to work out which config/colors entry to edit
 function test_tables_name_the_matching_tag() {
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'tag:work'
 }
@@ -435,7 +485,7 @@ function test_tables_list_the_local_user_and_usertag_pins() {
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'ops.*usertag:ops'
 }
 
-# The same render off the checkout's own settings/colors (LOCALUSER and a
+# The same render off the checkout's own config/colors (LOCALUSER and a
 # usertag are pinned there too), so the coverage sweep sees the users table
 # render; $HOME still supplies the fixture ssh config. With truecolor refused
 # the scheme line says the 16-color escapes are what is on show.
@@ -499,12 +549,11 @@ highost0:0
 +highostplus:0
 highostalt:3,hibravo:3
 EOF
-  # in-process cases read $_HI_PACKAGES_D; a child script re-derives it from
-  # $_HI_CONFIG_DIR, so the fixture is also an overlay directory
-  mkdir -p "$_HI_WORKDIR/packages.d" "$_HI_WORKDIR/cfg/packages.d"
-  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/packages.d/only"
-  export _HI_PACKAGES_D="$_HI_WORKDIR/packages.d"
-  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/cfg/packages.d/only"
+  # in-process cases read $_HI_PACKAGES; a child script re-derives it from
+  # $_HI_CONFIG_DIR, so the fixture is also an overlay's packages file
+  mkdir -p "$_HI_WORKDIR/cfg"
+  export _HI_PACKAGES="$_HI_WORKDIR/packages"
+  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/cfg/packages"
 }
 
 # the fixture's packages, and the coreutils the script itself shells out to
@@ -553,7 +602,7 @@ function test_meanings_take_only_the_block_above_the_table() {
 }
 
 # every entry in the header's two ramps has to be a name the user can look up
-# in settings/colors, or the legend prints something meaningless - checked for
+# in config/colors, or the legend prints something meaningless - checked for
 # the shipped ramp and for one of the user's own, since the ramps are
 # _hi_packages_palette's output and this suite never sets
 # $_HI_PACKAGES_PALETTE itself
@@ -714,37 +763,31 @@ function test_marks_table_is_rectangular() {
   _hi_table_is_rectangular "$(_hi_print_marks_table)"
 }
 
-# all three modes, not just the `-` row the child render checks; `none` is a
-# literal cell, not a mode character
-function test_modes_table_explains_every_mode() {
+# the third axis, a line's leading character, is two lines under the marks:
+# both mode characters and the default, which has none
+function test_marks_table_explains_the_modes() {
   local out
-  out="$(_hi_strip_ansi "$(_hi_print_modes_table)")" || return 1
-  [[ "$out" == *"| MODE "* ]] &&
-    [[ "$out" == *"speaks only when the whole line is missing"* ]] &&
-    [[ "$out" == *"speaks only when something on the line is installed"* ]] &&
-    [[ "$(printf '%s\n' "$out" | grep '^| none ')" == *"speaks both ways - the default"* ]]
-}
-
-function test_modes_table_is_rectangular() {
-  _hi_table_is_rectangular "$(_hi_print_modes_table)"
+  out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
+  [[ "$out" == *"a leading - speaks only when the whole line is missing, + only when"* ]] &&
+    [[ "$out" == *"something on it is installed; no flag speaks both ways"* ]]
 }
 
 # ...and the same table under the glyph set the rest of this suite pins away:
 # real corners and junctions, and still rectangular, since a column measured in
 # bytes rather than columns is exactly what a three-byte edge would expose
 # (GLOSSARY: HI.12)
-function test_modes_table_renders_the_glyph_set() {
+function test_marks_table_renders_the_glyph_set() {
   local out
   out="$(_HI_ASCII=0 bash -c '
     source "$_HI_HOME/say-hi/scripts/preview.sh"
-    _hi_print_modes_table')" || return 1
-  [[ "$out" == *"┌─"* && "$out" == *"├─"* && "$out" == *"└─"* && "$out" == *"│ MODE "* ]] &&
+    _hi_print_marks_table')" || return 1
+  [[ "$out" == *"┌─"* && "$out" == *"├─"* && "$out" == *"└─"* && "$out" == *"│ MARK "* ]] &&
     _hi_table_is_rectangular "$out"
 }
 
 # The real script, in this tree, reading the exported fixture: a child
-# re-sources paths.sh, which re-derives $_HI_PACKAGES_D from $_HI_CONFIG_DIR
-# and finds the overlay's packages.d/ built below. The real file rather than
+# re-sources paths.sh, which re-derives $_HI_PACKAGES from $_HI_CONFIG_DIR
+# and finds the overlay's packages file built below. The real file rather than
 # a scratch copy so that what these cases
 # exercise counts in the coverage sweep, which only sees files under the
 # checkout; $HOME is pointed at the workdir so no overlay of the user's can
@@ -764,7 +807,7 @@ function _hi_render_packages_help() {
     "$_HI_ROOT/scripts/preview.sh" packages "$1" 2>&1
 }
 
-# the ordinary path: nothing exported, the tree's own settings/packages.d is
+# the ordinary path: nothing exported, the tree's own config/packages is
 # the roster - a scratch tree, because this checkout's real files are not the
 # fixture
 function test_preview_reads_the_trees_own_file() {
@@ -838,11 +881,10 @@ function test_preview_names_every_priority() {
   done
 }
 
-# the MODE table is the only place the two mode characters are explained, so
-# the render has to carry it and the row that says what `-` does
+# the lines under the marks are the only place the two mode characters are
+# explained, so the render has to carry them
 function test_preview_explains_the_modes() {
-  [[ "$_HI_PACKAGES_OUT" == *MODE* ]] &&
-    printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q 'speaks only when the whole line is missing'
+  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q 'a leading - speaks only when the whole line is missing'
 }
 
 function test_preview_counts_what_it_read() {
@@ -857,63 +899,45 @@ function test_preview_ends_with_the_real_check() {
   [[ "$(printf '%s\n' "$_HI_PACKAGES_OUT" | tail -3)" == *hialpha* ]]
 }
 
-# a floor above 3 turns the header's check off, and the preview's last
-# section says so in place of an empty check
-function test_preview_says_the_check_is_off_above_the_floor() {
+# a floor above 3 reads as 3, not as the check turned off: the legend names
+# the clamped floor and the preview still ends with the rank-3 rows, and
+# none of rank 2 (hibravo rides at 3 as highostalt's alternative)
+function test_preview_clamps_a_floor_above_three() {
   local out
   out="$(_HI_PACKAGES_MIN_PRIORITY=4 _hi_render_packages)" || return 1
-  [[ "$out" == *"the check is off at this floor (_HI_PACKAGES_MIN_PRIORITY=4)"* ]]
+  [[ "$out" == *"_HI_PACKAGES_MIN_PRIORITY=3"* && "$out" != *"_HI_PACKAGES_MIN_PRIORITY=4"* ]] &&
+    [[ "$out" != *"check is off"* ]] &&
+    [[ "$(printf '%s\n' "$out" | tail -3)" == *hialpha* ]] &&
+    [[ "$(printf '%s\n' "$out" | tail -3)" != *highost2* ]]
 }
 
-# packages.d's groups get a table of their own (HI.58), in the order the check
-# paints them, each color named and painted in itself - and a single file,
-# the fixture's usual overlay, gets none.
-function test_preview_lists_the_package_groups() {
-  local cfg="$_HI_WORKDIR/cfg-groups" out orange
-  [[ "$_HI_PACKAGES_OUT" != *GROUP* ]] || return 1
-  mkdir -p "$cfg/packages.d"
-  # "00-" so it still sorts, and paints, first - "packages" once the digit
-  # prefix is stripped, same as every other member's name
-  cp "$_HI_WORKDIR/packages" "$cfg/packages.d/00-packages"
-  printf 'color=orange\nhialpha:3\n' >"$cfg/packages.d/10-lang"
-  printf 'color=mono\nhibravo:3\n' >"$cfg/packages.d/20-box"
-  out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$cfg" \
-    "$_HI_ROOT/scripts/preview.sh" packages 2>&1)" || return 1
-  _hi_color_escape_var orange orange
-  [[ "$out" == *GROUP*packages*lang*10-lang*"$(printf '%b' "$orange")orange"*box*20-box*"mono (ignored"* ]] &&
-    _hi_table_is_rectangular "$out"
-}
-
-# Every section of the preview reads the packages files, so none at all is
+# Every section of the preview reads the packages file, so none at all is
 # said out loud and stops the run - the bare redirect it replaces fails with a
 # path and no hint of which file the tool wanted.
 # $_HI_CONFIG_DIR points the child at an empty overlay, so the tree's
-# packages.d is the only candidate - and the tree has none.
-function test_preview_reports_no_packages_files() {
+# config/packages is the only candidate - and the tree has none.
+function test_preview_reports_no_packages_file() {
   local home out
-  home="$(_hi_scratch_tree nopackages common settings scripts)"
-  rm -rf "$home/say-hi/settings/packages.d"
+  home="$(_hi_scratch_tree nopackages common config scripts)"
+  rm -f "$home/say-hi/config/packages"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" && return 1
-  [[ "$out" == *"No packages files in"* ]]
+  [[ "$out" == *"No packages file at $home/say-hi/config/packages"* ]]
 }
 
-# ...and an exported $_HI_PACKAGES_D is not a way in: the script's paths.sh
+# ...and an exported $_HI_PACKAGES is not a way in: the script's paths.sh
 # re-derives the path from $_HI_CONFIG_DIR and the tree, so the export is
 # ignored and the tree's roster comes out. The overlay is the one way to
-# point the check at a directory of your own.
-function test_preview_ignores_an_exported_packages_d() {
+# point the check at a file of your own.
+function test_preview_ignores_an_exported_packages() {
   local home decoy out
-  home="$(_hi_scratch_tree exportedpkgs common settings scripts)"
-  rm -rf "$home/say-hi/settings/packages.d"
-  mkdir -p "$home/say-hi/settings/packages.d"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages.d/only"
-  decoy="$_HI_WORKDIR/exported-packages.d"
-  mkdir -p "$decoy"
-  printf 'hionlyone:3\n' >"$decoy/only"
+  home="$(_hi_scratch_tree exportedpkgs common config scripts)"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages"
+  decoy="$_HI_WORKDIR/exported-packages"
+  printf 'hionlyone:3\n' >"$decoy"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES_D="$decoy" \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES="$decoy" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" || return 1
   [[ "$out" == *hibravo* ]] && [[ "$out" != *hionlyone* ]]
 }
@@ -948,10 +972,10 @@ function run_preview_tests() {
 Exact hostname override|hostname|pinned|override:hostname
 Exact username override|username|alice|override:username
 Names the ssh tag that matched|hostname|tagged|tag:work
-Falls back to default|hostname|plain|default
+Falls back to the hash|hostname|plain|hash
 # a host carrying a tag with no hosttag entry has nothing to inherit, so it
-# must read as default rather than claiming a tag it can't resolve
-Ignores a tag with no override|hostname|othertag|default
+# must read as the hash rather than claiming a tag it can't resolve
+Ignores a tag with no override|hostname|othertag|hash
 Subnet pattern names its glob|hostname|pat-1|pattern:pat-*
 EOF
   _hi_check "Never reports a tag for a username" test_source_never_reports_a_tag_for_a_username
@@ -990,7 +1014,7 @@ EOF
 
   _hi_h2 "Testing: colors - the users table"
   _hi_check "Renders every override row" test_users_table_renders_override_rows
-  _hi_check "Skips users that render by default" test_users_table_skips_default_users
+  _hi_check "Lists users that render by the hash" test_users_table_lists_hashed_users
   _hi_check "Shows the LOCALUSER pin as its own row" test_users_table_shows_the_localuser_pin
   _hi_check "Shows each usertag as its own row" test_users_table_shows_each_usertag
 
@@ -999,12 +1023,16 @@ EOF
   _hi_check "Merges pattern hosts into the example row" test_hosts_table_merges_pattern_hosts_into_the_example_row
   _hi_check "Leads with a LOCALHOSTNAME pin" test_hosts_table_leads_with_a_localhostname_pin
   _hi_check "Pads a wrapped group's rows past its users" test_hosts_table_pads_a_wrapped_group_past_its_users
+  _hi_check "A tag behind a leading Host * paints its host" test_hosts_table_paints_a_tag_behind_a_leading_wildcard
+  _hi_check "A usertag row only under a host with the tag" test_hosts_table_draws_a_usertag_row_only_under_its_tag
+  _hi_check "Lists the local machine unpinned" test_hosts_table_lists_the_local_machine_unpinned
   _hi_check "Reports a missing ssh config" test_hosts_table_reports_a_missing_ssh_config
 
   _hi_h2 "Testing: colors - the rendered tables"
   _hi_check "Render without error" test_tables_render_without_error
   _hi_check "Render under a scheme, and name it" test_tables_render_under_a_scheme
-  _hi_check "Skip hosts that render by default" test_tables_skip_hosts_that_render_by_default
+  _hi_check "Lists every ssh-config host" test_tables_list_every_ssh_config_host
+  _hi_check "Labels hashed hosts hash" test_tables_label_hashed_hosts_hash
   _hi_check "Name the matching tag" test_tables_name_the_matching_tag
   _hi_check "A pattern pin gets an example row" test_tables_show_a_pattern_pin_example_row
   _hi_check "LOCALUSER and usertag pins get example rows" test_tables_list_the_local_user_and_usertag_pins
@@ -1058,9 +1086,8 @@ EOF
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph
   _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
-  _hi_check "Modes table explains every mode" test_modes_table_explains_every_mode
-  _hi_check "Modes table is rectangular" test_modes_table_is_rectangular
-  _hi_check "Modes table draws the glyph set's corners" test_modes_table_renders_the_glyph_set
+  _hi_check "Marks table explains the mode characters" test_marks_table_explains_the_modes
+  _hi_check "Marks table draws the glyph set's corners" test_marks_table_renders_the_glyph_set
 
   _hi_h2 "Testing: packages - the rendered preview"
   _hi_check "Help prints usage and stops" test_help_prints_usage_and_stops
@@ -1074,10 +1101,9 @@ EOF
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
-  _hi_check "Says the check is off above the floor" test_preview_says_the_check_is_off_above_the_floor
-  _hi_check "Lists the packages.d groups in their colors" test_preview_lists_the_package_groups
-  _hi_check "Reports no packages files at all" test_preview_reports_no_packages_files
-  _hi_check "An exported \$_HI_PACKAGES_D is ignored" test_preview_ignores_an_exported_packages_d
+  _hi_check "A floor above 3 reads as 3" test_preview_clamps_a_floor_above_three
+  _hi_check "Reports no packages file at all" test_preview_reports_no_packages_file
+  _hi_check "An exported \$_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file
 
   _hi_suite_end "preview.sh"

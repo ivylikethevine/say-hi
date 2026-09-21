@@ -3,10 +3,10 @@
   "editor.insertSpaces": true,
   "editor.detectIndentation": false,
   "files.associations": {
-    "settings/colors": "csv",
-    "settings/packages.d/*": "csv",
-    "settings/vimrc": "ini",
-    "settings/nanorc": "ini",
+    "config/colors": "csv",
+    "config/packages": "csv",
+    "config/vimrc": "ini",
+    "config/nanorc": "ini",
   },
   "[markdown]": {
     "editor.inlineSuggest.enabled": false,

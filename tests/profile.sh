@@ -101,6 +101,7 @@ _HI_PROF_BODY=(
    cd "$_HI_HOME/say-hi" || exit 1
    for ((i = 0; i < 50; i++)); do _hi_git_prompt out; done'
   'set --
+   export _HI_PAYLOAD_CACHE=0
    source "$_HI_HOME/say-hi/hi.sh"
    _hi_payload_tar >/dev/null
    _hi_wire_bytes >/dev/null'

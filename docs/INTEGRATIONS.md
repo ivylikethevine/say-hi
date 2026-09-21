@@ -21,6 +21,7 @@ every `_HI_DISABLE_*` one on your own machine only
 - [lesspipe](#lesspipe)
 - [Shell frameworks](#shell-frameworks)
   - [On your own machine](#on-your-own-machine)
+- [Which side is asked](#which-side-is-asked)
 - [Config sizes](#config-sizes)
 
 ## At a glance
@@ -53,6 +54,17 @@ this order - the first that fits the shell and that the target has wins:
 | starship      | bash, zsh, fish | on `$PATH`                                                                                                                                                                                                            | `starship init <shell>`                                                                                           | `$STARSHIP_CONFIG`, else `~/.config/starship.toml`                                                                          |
 | oh-my-posh    | bash, zsh, fish | on `$PATH`                                                                                                                                                                                                            | `oh-my-posh init <shell>`                                                                                         | `$POSH_CONFIG` (or the older `$POSH_THEME`), else the file your rc's `oh-my-posh init --config` names (json, yaml, or toml) |
 | powerline-go  | bash, zsh, fish | on `$PATH`                                                                                                                                                                                                            | once per prompt, as its README wires it, with `_HI_POWERLINE_GO_OPTS`                                             | the flags in `_HI_POWERLINE_GO_OPTS`                                                                                        |
+
+A framework theme from home is sourced on a target only once hi has found
+that framework's tree there (`$ZSH/lib/git.zsh`, `$OSH/oh-my-bash.sh`,
+`$BASH_IT/bash_it.sh`), so a theme's `source "$ZSH/lib/..."` rides as
+written: on a target without oh-my-zsh the theme never runs, and hi's
+prompt draws instead. Only the theme gets that pass, and only for its own
+framework - the same line in a `plugins.d` member or a shell rc, which run
+on every target, is disabled like any include hi cannot carry (`# hi-allow`
+above it keeps one you have guarded yourself). A theme that sources a
+library its target's framework version lacks fails there as it would at
+home.
 
 So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box
 that has them, and hi's where it has neither. The list is worked out on this
@@ -128,21 +140,25 @@ open reads them too ([HI.54](GLOSSARY.md#hi54-who-draws-the-environment-prefix))
 
 ## bat and eza
 
-`settings/aliases.sh` builds the styled tool aliases from whatever the target
+`config/aliases.sh` builds the styled tool aliases from whatever the target
 has, first installed wins:
 
 - `cat` and `catn` run bat (Debian's `batcat`, where that is its name) with
   `_HI_BAT_OPTS` - no pager, two-space tabs, the Monokai Extended Bright theme,
-  and the `changes,grid` style - and `catn` adds line numbers. Without bat
-  they fall through to `ccat`, then plain `cat`.
+  and the `changes,grid` style - and `catn` adds line numbers. Without bat,
+  `cat` falls through to `ccat`, then plain `cat`, and `catn` is not defined.
 - `ls`, `eza`, and `exa` are one alias under three names, running the first of
-  eza, exa, and `ls` the target has (`_HI_LS_BIN`). The flags follow the rung
-  that answered, since the three share almost no syntax: `_HI_EZA_OPTS`,
-  `_HI_EXA_OPTS`, or a plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is
-  whichever of those the ladder picked, and setting it yourself wins outright.
+  eza, exa, and `ls` the target has (`_HI_LS_BIN`); `eza` and `exa` answer only
+  where that binary is installed. The flags follow the rung that answered,
+  since the three share almost no syntax: `_HI_EZA_OPTS`, `_HI_EXA_OPTS`, or a
+  plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is whichever of those the
+  ladder picked, and setting it yourself wins outright.
 
 `_HI_DISABLE_TOOL_ALIASES=1` drops the `cat`/`catn` rebind and the list alias;
-`bat`, `batcat`, `batn`, and a bare `ls` stay available by name either way.
+`bat`, `batcat`, and `batn` (where bat is installed) and a bare `ls` stay
+available by name either way. No alias names a tool the target lacks: an
+editor, tmux, bat, eza, or sudo that is not installed leaves its name to the
+shell's own not-found.
 The flags and the binary each alias runs are rows in
 [Every setting](SETTINGS.md#every-setting), set in your `settings.sh`; to add
 one flag to hi's instead, redefine the alias in
@@ -154,7 +170,7 @@ Every target gets the bat config you already keep: hi ships the file bat
 reads here - `$BAT_CONFIG_PATH`, else `$BAT_CONFIG_DIR/config`, else
 `~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - or, when there
 is one, the `bat.conf` in `~/.config/say-hi/` instead. On a target the file becomes
-`$BAT_CONFIG_PATH`, and `settings/aliases.sh` leaves `--theme` out of
+`$BAT_CONFIG_PATH`, and `config/aliases.sh` leaves `--theme` out of
 the default `_HI_BAT_OPTS` whenever that variable is set, so the file's theme
 is the one you see through `cat`. The same rule applies at home if you export
 `BAT_CONFIG_PATH` yourself; a `_HI_BAT_OPTS` of your own always wins outright.
@@ -185,9 +201,14 @@ were [decided against](COMPATIBILITY.md#what-would-change-an-answer), and
 
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux.conf` over
-both) rides along and the session's `tmux` alias is `tmux -f` it. A
-`source-file` of another file, or TPM's `@plugin` list and its `run`, names
-something the target does not have, so it goes out disabled and
+both) rides along and the session's `tmux` alias is `tmux -f` it. screen the
+same, `~/.screenrc` under `screen -c`; and zellij's config directory
+(`$ZELLIJ_CONFIG_DIR`, else `$XDG_CONFIG_HOME/zellij`) - `config.kdl` and
+every file of `layouts/` and `themes/`, an overlay `zellij/` copy of each
+name first - with the alias setting `$ZELLIJ_CONFIG_DIR` to it. A
+`source-file` of another file, TPM's `@plugin` list and its `run`, screen's
+`source`, zellij's `layout_dir`/`theme_dir` and `file:` plugins name
+something the target does not have, so they go out disabled and
 `hi --doctor` names the line.
 
 ## lesspipe
@@ -220,6 +241,34 @@ A prompt program your rc loads keeps drawing here without asking
 every `_HI_DISABLE_*` switch on, so everything on this page stays as your own
 rc set it up on this machine, while every target still gets hi's. How hi
 tells home from a target is [SETTINGS.md's _Others_](SETTINGS.md#others).
+
+## Which side is asked
+
+Two machines could answer "is this tool installed", and hi asks each about a
+different thing:
+
+- **The client, about what rides.** A config from home - your `~/.vimrc`,
+  `~/.tmux.conf`, micro's directory, bat's and eza's files - is "the one in
+  force here" only with its tool here to read it, so it ships only then:
+  `vimrc` with vim, `init.lua` with nvim, `config.toml` with hx, `nanorc` with
+  nano, `init.el` with emacs, `tmux.conf` with tmux, `screenrc` with screen,
+  `micro/` with micro, `zellij/` with zellij,
+  `bat.conf` with bat (or `batcat`), `theme.yml` with eza. A dotfile left
+  behind by a tool you removed neither ships nor gets a `hi --doctor` row.
+  hi's own editor defaults follow the same rule: a client with no emacs
+  sends no `init.el` at all, so the payload carries only the editors you
+  use. It
+  is the client because only the client can be asked before a connect, which
+  is when the overlay is packed - the reason the
+  [prompt programs](#prompt-programs) are a list worked out here too.
+- **Nobody, about an overlay copy.** A file you put in `~/.config/say-hi/` is
+  you saying "targets get this", and it rides whatever this machine has -
+  the way to carry a `vimrc` from a laptop that only has neovim.
+- **The target, about what is used.** `config/aliases.sh` builds each alias
+  from what the target has, and only with its config there, so a config
+  that rode to a box without its tool is a few idle bytes, and a tool whose
+  config stayed home keeps its own - never an alias to a missing binary or
+  file.
 
 ## Config sizes
 

@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-65KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-69KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -39,6 +39,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [Before 1.0](#before-10)
+  - [At the 1.0.0 tag](#at-the-100-tag)
   - [Post 1.0](#post-10)
 - [License](#license)
 
@@ -73,11 +74,10 @@ at a bastion, in fish for its pager's description column.
 
 ### The Header Tells You What's Missing
 
-A package check of the tools you care about, each with a priority, organized
-into a `packages.d/` of named groups, each in its own color (`default` and
-`extra` ship, more of your own ride alongside); the header checks it on
-every target — one quiet line on a box that has them, a loud one on a box
-that does not. A homelab: bash from a laptop into the nas and the pihole,
+A package check of the tools you care about, each with a priority, in one
+`packages` file (a copy of your own replaces the shipped one); the header
+checks it on every target — one quiet line on a box that has them, a loud
+one on a box that does not. A homelab: bash from a laptop into the nas and the pihole,
 keeping the distro prompt — hi's is off (`_HI_DISABLE_PROMPT=1`), and the
 header, the check, and the aliases ride along anyway.
 
@@ -208,15 +208,17 @@ row, and everything answered **no**, and why:
 - `hi --configure` reopens the settings menu: pick a preset, or flip any
   setting in its one list — Header, Features, Prompt, Advanced — and save to
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- `hi --doctor [<target>]` when something is slow or failing (`--json` for a
-  bug report); it also reports which rc files are wired and where `hi` on your
-  `PATH` leads.
+- `hi --doctor [<target>]` when something is slow or failing (`--problems` for
+  only what needs fixing, `--json` for a bug report); it also reports which rc
+  files are wired and where `hi` on your `PATH` leads.
 - `hi --update` moves a cloned install to the newest release tag (`--dry-run`
   names it first; a package upgrades through its package manager).
-- `hi --add-package bat:3,batcat:3` adds a row to a
-  `~/.config/say-hi/packages.d/` group (`--group <name>` picks which one,
-  default `custom`) without touching the shipped roster.
-- The whole surface is thirteen flags: `hi --help` (or bare `hi`) lists them,
+- `hi --add-package bat:3,batcat:3` adds a row to
+  `~/.config/say-hi/packages`, copying the shipped roster there first.
+- `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
+  in `~/.ssh/config`, which a `hosttag` row then colors
+  ([docs/COLORS.md](docs/COLORS.md)).
+- The whole surface is fourteen flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
@@ -225,13 +227,14 @@ row, and everything answered **no**, and why:
 - Done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `~/.local/bin/hi` (or a `/usr/bin/hi` of its own making; a
-  package's stays). Left behind on purpose: the checkout or package
-  (`apt remove say-hi` and friends), the rest of `~/.config/say-hi` (`--purge`
-  removes that too), and the one-time `<rc>.hi-orig` backups. `--dry-run`
-  names what would go. To take it all off a cloned install:
+  package's stays). A one-time `<rc>.hi-orig` backup goes once the rc matches
+  it again; one that differs is kept, with the differing lines printed. Left
+  behind on purpose: the checkout or package (`apt remove say-hi` and
+  friends), and the rest of `~/.config/say-hi` (`--purge` removes that too).
+  `--dry-run` names what would go. To take it all off a cloned install:
 
   ```sh
-  hi --uninstall --purge && rm -rf ~/say-hi ~/.bashrc.hi-orig ~/.zshrc.hi-orig ~/.config/fish/config.fish.hi-orig
+  hi --uninstall --purge && rm -rf ~/say-hi
   ```
 
 ## Configuration
@@ -239,8 +242,8 @@ row, and everything answered **no**, and why:
 Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
-`packages.d/` apply until you copy one out of the tree's `settings/` to edit
-(`hi --add-package` does the copying for `packages.d/`) or add an
+`packages` apply until you copy one out of the tree's `config/` to edit
+(`hi --add-package` does the copying for `packages`) or add an
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
@@ -327,156 +330,100 @@ its **Ticks when** holds.
 
 ### Before 1.0
 
-Ordered by scope, narrowest first. An entry that names the tag in its **Ticks
-when** is one the 1.0.0 release itself waits on; the rest are in this checkout
-and are not.
+In this checkout, narrowest first.
 
-1. [ ] **A release says where the package went, and shows what changed** —
-       shipped: `release.yml`'s `publish` leaves `tap` and `demo` slots in the
-       release body, which its `tap` job and `demos.yml`'s `attach` job fill
-       (`.github/scripts/release_slot.sh`) with the tap PR link and the
-       `packages` GIF. **Ticks when:** the next real tag's release page shows
-       the tap link and renders the GIF.
+1. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
+       `upgrade` job, under the gate and ahead of build, runs
+       `.github/scripts/upgrade_path.sh` from the previous `v*` tag - a
+       shell per dialect loads it, the tag's tree is swapped in, the rc is
+       re-sourced, and any stderr or empty `_HI_*` path fails the build. That
+       it goes red is now a standing `ci`-group case (a restored core.sh load
+       guard in `common/bash.sh`), and v0.4.7 to the working tree walks
+       clean. **Ticks when:** a `v*` tag runs the job green.
 
-2. [ ] **A stability contract is written down** — shipped as
+2. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
+       has failed in `render`: each tape times out waiting for `fixture-ok`
+       with `/tmp/hi-demo.log` empty, so `fixtures.sh up` never reports (the
+       editors tape stalls earlier still, on its `setopt` line). Egress is
+       ruled out - the harden-runner logs refuse only Chrome's updater. So no
+       GIF has rendered since, and `collect` and `attach` have never run.
+       **Do:** find where the fixture stalls. **Ticks when:** a dispatch
+       renders all six tapes.
+
+3. [ ] **Every Ubuntu job's egress is allowlisted** — 41 of 51
+       `harden-runner` steps block, `ci.yml`'s e2e now among them (its list
+       the union of three runs' audit logs, dnf pinned to one Fedora
+       mirror). **Left:** `openbsd-e2e.yml`, whose guest sent DNS over HTTPS
+       to a bare 9.9.9.9; its prepare step now stops `unwind`, and it goes to
+       block once a run's audit log shows no 9.9.9.9. **Audit for good:**
+       macOS (`ci.yml`'s `test-macos`, `release.yml`'s brew job) and Windows
+       (`windows-client.yml`'s 2, `windows-e2e.yml`'s 4), where
+       harden-runner has no block mode, and `link-check.yml`, whose job is
+       reaching any URL. **Do:** `demos.yml`'s `attach` list from a tagged
+       run. **Ticks when:** OpenBSD blocks, the e2e list holds on cold runs,
+       and `attach`'s list is taken from a real one.
+
+4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+       not know means a `plugins.d` member or a change to hi. **Do:** a
+       user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
+       directory on this machine, and the command (or variable) that points
+       the tool at it on a target - read from the overlay and riding through
+       the same order and include scan; failing that, a starter plugin that
+       does exactly this for the user to copy and edit. **Ticks when:** a
+       tool of the user's own reads its home config on a target with no code
+       change, and `docs/SETTINGS.md` shows how.
+
+5. [ ] **Investigate the header as plugins** — every header cell is one
+       `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
+       set a prompt segment. **Do:** find out whether the cells and
+       `full_check` fit one plugin contract a user's own could share, costing
+       the shared probes (`_hi_probed_cell`), `_hi_row_line`'s wrap, the
+       payload budget, connect forks, and fish's separate loader; settle it
+       alongside the entry above, which asks the same of configs. **Ticks
+       when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
+       `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
+
+### At the 1.0.0 tag
+
+Shipped; each ticks when the tag itself shows it.
+
+1. [ ] **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into the version table it promises.
+       versions_ prose into its version table.
 
-3. [ ] **What hi carries is linted against the target, not the client** —
-       shipped: the nano rule. It exempted any `include` line merely
-       _mentioning_ `/usr/share/nano`, so a `/usr/share/nano/extra/*.nanorc`
-       (a Debian split, absent on Fedora, Alpine, and macOS) rode out clean
-       and cost the whole rcfile a bell; it now reads the path as one word and
-       exempts only what sits directly under that directory. What is left is
-       one exemption, `shfix`'s `$ZSH`/`$OSH`: those name a framework tree the
-       _target_ may not have, unlike the `$_HI_CONFIG_DIR` and `$_HI_ROOT`
-       beside them, which ride along. The other three the entry used to name
-       are not assumptions and want no change - vim's `runtime` searches the
-       target vim's own `&runtimepath` and is silent on a miss, `$VIMRUNTIME`
-       is defined by whichever vim the target has, and micro's `import` names
-       micro's own Go packages. **Do:** decide what a theme sourcing
-       `$ZSH/lib/*.zsh` should do on a target with no oh-my-zsh, against what
-       `tests/targets/framework_test.sh` pins today. **Ticks when:** that
-       decision is in `docs/INTEGRATIONS.md` and the framework e2e suite is
-       green on it.
-
-4. [ ] **The header closes on the right, on every row** — shipped:
-       `_hi_row_line` reserves the last two columns, pads each row to what is
-       left, and closes it with a space and a `|`, so a row now ends where the
-       banner ends rather than at its last cell. `full_check` grew the same
-       edge - it wraps on its own rather than through `_hi_row_line`, and had
-       none - so a real `hi_header` render, footer included, now closes every
-       row in the banner's column, wrapped rows and a carried-over cell
-       included; `_HI_DISABLE_RIGHT_EDGE=1` (`hi --configure` advanced) gives
-       back the open-ended row either way, the way `_HI_DISABLE_LEAD_SPACE`
-       gives back the leading space. The header suite now asserts the column a
-       row ends on, not just a pipe's presence.
-       **Ticks when:** `--group fast` is green on this checkout.
-
-5. [ ] **The payload badge is measured, not typed** — `README.md`'s
-       `ssh_payload` badge says 65KB; `_hi_wire_bytes` on this checkout
-       returns 69617 bytes, which is 68KB. `bench_payload_readme_badge`
-       (`tests/bench/bench_test.sh`) holds the two within 5%, and 5% of 68KB
-       is 4KB, so a 3KB error is green - and the band widens with the payload,
-       so the badge is free to drift further the more there is to measure.
-       **Do:** stamp the number instead of typing it, the way
-       `packaging/stamp.sh` already stamps the version at build time, and then
-       cut the slack to the rounding error it was meant to absorb rather than
-       the whole drift. **Ticks when:** the badge equals `_hi_wire_estimate`
-       exactly, and adding a kilobyte to the payload turns `--group bench` red
-       until it is restamped.
-
-6. [ ] **CI walks the upgrade path a tag creates** — every job today installs
-       one version into a fresh box, so nothing exercises the case
-       [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
-       about: a shell that loaded the _previous_ release, the tree rewritten
-       under it, and the rc re-sourced in that same shell. It was found by
-       hand in a container. **Do:** a job the tag triggers (`release.yml`'s
-       `gate`, so a bad upgrade stops the release) that installs the previous
-       tag in a container, opens a shell per wired dialect, replaces the tree
-       with the tag being cut, re-sources each rc in that shell, and fails on
-       any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
-       `v*` tag runs it green, and putting core.sh's load guard back in
-       `common/bash.sh` turns it red.
-
-7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
-       36 of the 50 `harden-runner` steps run `egress-policy: block` with an
-       `allowed-endpoints` list, up from 6, and each of the 14 left on `audit`
-       carries a comment naming the limit that keeps it there rather than work
-       not done. Eight cannot block at all: `windows-e2e.yml`'s four jobs,
-       `windows-client.yml`'s two, `ci.yml`'s `test-macos` and `release.yml`'s
-       `brew` - harden-runner's Windows agent logs no endpoint or DNS event
-       where an Ubuntu run logs both, and blocking is an Ubuntu capability.
-       `ci.yml`'s `test-arm` has no step at all for the same reason one step
-       further out: the community tier ships no arm agent, so it would log that
-       and exit. Three reach arbitrary hosts by design (`link-check.yml`,
-       `image-scan.yml`, `scorecard.yml`). Three reach a host no fixed row
-       names: `ci.yml`'s `e2e` takes Fedora packages off whichever mirrors the
-       metalink hands it - six distinct `*.mm.fcix.net`,
-       `mirror.cs.princeton.edu` and `fedora.mirror.constant.com` across two
-       shards of one run - `pages.yml`'s `deploy` polls a
-       `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
-       and region both rotate, and `openbsd-e2e.yml`'s guest opens
-       DNS-over-HTTPS to a bare `9.9.9.9`, where `allowed-endpoints` matches on
-       hostname. What keeps the lists short is measured, not assumed:
-       harden-runner fetches GitHub's meta domains and auto-allows `github.com`,
-       `*.github.com`, `*.githubapp.com`, `ghcr.io` and
-       `productionresultssa0`-`19.blob.core.windows.net`, so artifacts need no
-       row either way - `coverage.yml`'s shards upload through
-       `productionresultssa18` and `demos.yml`'s `collect` reaches nothing else
-       at all - while `*.githubusercontent.com` is not meta and every host under
-       it has to be listed. The rest of the cost is cold runs: a job that hits
-       its caches reaches fewer hosts than one that misses, and `e2e-backends`'
-       first list came off a run where `kind-action` restored kind from
-       `actions/cache` and so never fetched kubectl - shard 3 then went red on a
-       blocked `dl.k8s.io`. **Do:** read a cold run of each blocking job, and
-       take `demos.yml`'s `attach` list off a tagged run rather than off its
-       three steps, which is where it comes from now. **Ticks when:** no job is
-       on `audit` without a comment naming the reason, and adding an unlisted
-       download to a blocking job fails it.
-8. [ ] **support for ~/.aliases and similar paths**
-9. [ ] **easier to read doctor output**
-10. [ ] **plugin rewrite some features - header, check**
-11. [ ] **dedupe shipped files when overlay and settings coexist + rename**
-12. [ ] **add a hi-allow, and a hi-quiet directive for the overlay files**
-13. [ ] **only show/use configs for installed tools**
-14. [ ] **simplify and reduce packages confusing-ness**
-15. [ ] **basic ssh-tag adding commands**
-16. [ ] **don't assign aliases for non-installed package**
-17. [ ] **IP color escapes in bash**
+2. [ ] **A release says where the package went, and shows what changed** —
+       `release.yml` leaves `tap` and `demo` slots that the `tap` job and
+       `demos.yml`'s `attach` job fill. **Ticks when:** the tag's release page
+       shows the tap PR link and renders the `packages` GIF.
 
 ### Post 1.0
 
-Outside this checkout, and not what the tag waits on: each is an account or
-an upstream review that lands when it lands.
+Outside this checkout: each is an account or an upstream review that lands
+when it lands.
 
-1. [ ] **tldr page** — CLI surface is frozen, matches `docs/hi.1`, and the
-       draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
-       against tldr-pages. **Ticks when:** merged upstream.
+1. [ ] **tldr page** — `docs/tldr.md` matches `docs/hi.1` and upstream
+       style. **Do:** open the PR against tldr-pages. **Ticks when:** merged.
 
-2. [ ] **AUR** — Registration is closed to new accounts (spam), so
-       `publish-external.yml`'s `aur` job stays written and unexercised.
-       **When it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package the first time by hand
+2. [ ] **AUR** — registration is closed to new accounts, so
+       `publish-external.yml`'s `aur` job is written but unexercised. **When
+       it reopens:** register, add `AUR_SSH_KEY` to the `release`
+       environment, and push each package once by hand
        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
        packages are live and a dispatch has kept `say-hi` current for one
-       real release. <https://archlinux.org/news/>
+       release.
 
-3. [ ] **Best Practices badge entry** — the answer sheet is
+3. [ ] **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle the three rows it flags (`small_tasks`, `secure_2FA`,
-       `hardened_site`), then enter it at bestpractices.dev. **Ticks when:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-4. [ ] **vhs v0.12** — `demos.yml` pins vhs v0.11.0 because v0.12.0 writes no
-       output: it captures every frame and prints `Creating <file>.gif...`,
-       then exits 0 having never run ffmpeg (strace: it resolves
-       `/usr/bin/ffmpeg` and never execs it; the same frames encode fine by
-       hand). Suspect: upstream's browser start/close rewrite (42f1776). No
-       upstream issue or newer release as of 2026-09-14. **Do:** report it
-       upstream with that evidence. **Ticks when:** a v0.12.x release renders
-       all six tapes green on a `demos.yml` dispatch and the pin moves to it.
+4. [ ] **vhs v0.12** — `demos.yml` pins v0.11.0: v0.12.0 captures every
+       frame, then exits 0 without ever running ffmpeg (suspect: upstream's
+       browser rewrite, 42f1776). **Do:** report it upstream with that
+       evidence. **Ticks when:** a v0.12.x release renders all six tapes on a
+       `demos.yml` dispatch and the pin moves to it.
 
 ## License
 

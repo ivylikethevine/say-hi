@@ -57,6 +57,7 @@ Under `packaging/`:
 | -------------------- | ------------------------------------------------------------------------------------------------ |
 | `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                                    |
 | `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it              |
+| `stamp_badge.sh`     | writes README's `ssh_payload` badge from a pinned measurement; `--check` is `--group bench`'s    |
 | `bump.sh`            | writes the version + real checksums into a release's own manifests; `--check` verifies the write |
 | `lib.sh`             | the tree locator and shared primitives the other scripts (and `release.yml`) source              |
 | `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes                 |
@@ -104,6 +105,12 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    `.github/allowed_signers` ([Signing the tag](#signing-the-tag)), or whose
    `ci.yml` push run on `main` did not conclude success (it waits for a run
    still going). A red or missing run means fix `main` and cut a new tag.
+   Once it passes, the `upgrade` job walks
+   [HI.60](GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) from the previous
+   `v*` tag: a bash, zsh, and fish shell each load that release's rc, the
+   tag's tree replaces it underneath, and the rc is sourced again
+   (`.github/scripts/upgrade_path.sh`); any stderr, or a path left empty,
+   refuses the build.
 3. The `build` job builds `say-hi-1.0.0.tar.gz` from the tag and runs
    `bump.sh --tarball <that file> 1.0.0` (writes `pkgver`, `b2sums`, the
    formula `url`/`sha256`, and the derivable `.SRCINFO` lines) in its own
@@ -408,6 +415,10 @@ Locally, `packaging/mkpkg.sh && packaging/mkrepo.sh` builds an unsigned
 `tests/test_runner.sh repo` is the full proof with throwaway keys.
 
 ## Verifying a packaged build locally
+
+Linux only, as far as anyone has tested - packaging and publishing have not
+been tried on Windows, macOS, or the BSDs
+([CONTRIBUTING.md's _Before you start_](CONTRIBUTING.md#before-you-start)).
 
 For a package **you** just built; [Verifying a release
 download](PACKAGING.md#verifying-a-release-download) is for one somebody

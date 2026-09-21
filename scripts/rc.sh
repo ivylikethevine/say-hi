@@ -43,7 +43,7 @@ function config_shell() {
   mkdir -p "$(dirname "$target")"
   touch "$target"
   # one-time backup on hi's first write to a non-empty file; never overwritten,
-  # so it stays the pre-hi original. Uninstall leaves it, deliberately. Not
+  # so it stays the pre-hi original (uninstall's prune_backup settles it). Not
   # for settings.sh: that file is hi's own, and its shebang line is no
   # original to keep.
   if [ -s "$target" ] && [ -z "$existing" ] && [ ! -e "$target.hi-orig" ] &&
@@ -222,7 +222,7 @@ function install_bash_profile_line() {
   local profile
   _hi_login_bash_profile profile
   if [ "$profile" = "$HOME/.bash_profile" ]; then
-    if grep -v -F "$_HI_MARKER" "$profile" | grep -qF '.bashrc'; then
+    if grep -v -F "$_HI_MARKER" "$profile" | grep -F '.bashrc' >/dev/null; then
       _hi_h2 "Checking bash_profile"
       _hi_cecho " local bash_profile already reads .bashrc :)" "$GREEN"
       return 0
@@ -356,6 +356,28 @@ function install_rc_lines() {
   install_bash_profile_line
 }
 
+# prune_backup <target> - after the strip, <target>.hi-orig is either what the
+# rc is again (deleted) or not (kept, and the lines that differ named). Under
+# --dry-run the marker lines are dropped from the comparison, which is what
+# the strip would leave. $( ) on both sides, so a missing final newline in
+# the original is no difference.
+function prune_backup() {
+  local orig="$1.hi-orig" now verb=kept
+  [ -f "$orig" ] || return 0
+  now="$(grep -vF "$_HI_MARKER" "$1" 2>/dev/null)"
+  if [ "$now" = "$(cat "$orig")" ]; then
+    dry_run_say "remove $orig (the rc matches it again)" && return 0
+    rm -f "$orig" && _hi_cecho " removed $orig - the rc matches it again :)" "$GREEN"
+    return 0
+  fi
+  [ -z "${_HI_DRY_RUN:-}" ] || verb="dry run: would keep"
+  _hi_cecho " $verb $orig - the rc has changed since (- backup, + now):" "$YELLOW"
+  # -U0, not the default format: busybox's diff speaks unified alone
+  printf '%s\n' "$now" | diff -U0 "$orig" - 2>/dev/null |
+    sed -n -e '/^+++ /d' -e '/^--- /d' -e 's/^[-+]/   &/p'
+  return 0
+}
+
 # the inverse, for --uninstall. The bash_profile line goes too, wherever a
 # marker says it was written - not only on macOS, since a home directory can
 # travel.
@@ -364,8 +386,10 @@ function strip_rc_lines() {
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label _ target _ _ <<<"$row"
     strip_marker "$label" "$target"
+    prune_backup "$target"
   done
   if _hi_is_darwin || _hi_has_marker "$profile"; then
     strip_marker bash_profile "$profile"
+    prune_backup "$profile"
   fi
 }

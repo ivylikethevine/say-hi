@@ -37,6 +37,30 @@ _HI_BASH32_LINT=(
   '\$\{![A-Za-z_][A-Za-z_0-9]*\[[@*]\][+:-]|${!a[@]+...} - use a plain "${!a[@]}"'
 )
 
+# Spellings one userland has and another does not, as "<pattern>|<what it
+# is>": the enforced rows of docs/SYNTAX.md, which says what to write instead
+# and which target each one broke. A spelling that needs a judgement call (a
+# `grep -q` under pipefail, sed's `\|`) is a SYNTAX row without a pattern.
+# shellcheck disable=SC2016 # these are regexes and prose, not expansions
+_HI_PORTABLE_LINT=(
+  '\becho[[:space:]]+-e\b|echo -e - dash and a POSIX-mode sh print the -e; use printf'
+  '\bdate\b[^#]*%-[a-zA-Z]|date %-X (GNU) - BSD prints it literally; use %e (HI.10)'
+  '\bsed[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*r\b|sed -r (GNU) - use sed -E'
+  '\bsed[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*i\b|sed -i - its flag differs BSD/GNU (HI.08)'
+  '\bgrep[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*P|grep -P - BSD and busybox grep have no PCRE; use -E'
+  '\breadlink[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*f\b|readlink -f - absent from older macOS; cd -P then pwd -P'
+  '\bxargs[[:space:]]+(-[a-zA-Z0-9]+[[:space:]]+)*-[a-zA-Z0-9]*r\b|xargs -r (GNU) - guard the empty input instead'
+  '\bhead[[:space:]]+-n[[:space:]]*-[0-9]|head -n -N (GNU) - use sed to drop the tail'
+  "\\bsed[[:space:]]+(-[a-zA-DF-Z]+[[:space:]]+)*(-e[[:space:]]+)?'[^']*\\\\\\||sed backslash-bar alternation (GNU) - use sed -E"
+  "\\bprintf[[:space:]]+-v[[:space:]]+[^[:space:]]+[[:space:]]+(''|\"\")([[:space:];)]|\$)|printf -v x '' - bash 3.2 skips it; printf -v x '%s' '' (HI.05)"
+  '\b(gensub|strftime|systime|asorti?|patsplit)[[:space:]]*\(|a gawk-only awk function - mawk, busybox, and BSD awk have none'
+  "\\bmktemp\\b[^;|]*-t[[:space:]]+[A-Za-z0-9._/-]*[A-WYZa-z0-9._/-]([[:space:])\"']|\$)|mktemp -t with no X template - GNU refuses it"
+)
+
+# Both edit files only inside a Linux container, where sed is GNU's: the p10k
+# fixture's ~/.zshrc and repo_test.sh's Fedora mirror pin.
+_HI_PORTABLE_EXEMPT=(p10k.sh repo_test.sh)
+
 # The retired ~/say-hi default, as "<pattern>|<what it is>" - both dialects that
 # ever spelled it. See lint_home_default below for why this is a gate and not
 # a preference.
@@ -137,8 +161,50 @@ function lint_bash32() {
     _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "bash-4 construct" "${_HI_BASH32_LINT[@]}"
 }
 
+function lint_portable() {
+  _hi_h2 "Checking for one-userland spellings (docs/SYNTAX.md)"
+  _hi_lint_mirror
+  _HI_LINT_EXCLUDE="${_HI_PORTABLE_EXEMPT[*]}" \
+    _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "one-userland spelling" "${_HI_PORTABLE_LINT[@]}"
+}
+
+# docs/SYNTAX.md's two rows a single pattern cannot see. `stat -c` (GNU) is
+# fine beside its BSD twin `stat -f` on the same line, and nowhere else. A
+# file an interactive shell sources that turns strict mode on must turn it off
+# again further down, or the user's shell dies on its next non-zero status
+# (GLOSSARY: HI.15).
+function lint_portable_pairs() {
+  local f hits bad=0
+  _hi_h2 "Checking the paired spellings (docs/SYNTAX.md)"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 2))
+  hits="$(cd "$_HI_ROOT" && grep -rnE --include='*.sh' '\bstat[[:space:]]+-c\b' . "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=.git 2>/dev/null |
+    grep -v ':[[:space:]]*#' | grep -vE '\bstat[[:space:]]+-f\b' || true)"
+  if [ -z "$hits" ]; then
+    _hi_align " | no stat -c without its stat -f twin" "OK" "$GREEN"
+  else
+    _hi_align " | stat -c without its stat -f twin (BSD and macOS stat)" "FOUND" "$RED"
+    printf '%s\n' "$hits" | sed 's/^/      /'
+    _hi_note_failure "one-userland spelling: stat -c without stat -f"
+    bad=$((bad + 1))
+  fi
+  hits=""
+  for f in "$_HI_ROOT"/common/*.sh "$_HI_ROOT"/config/*.sh "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh"; do
+    [ -f "$f" ] || continue
+    awk '/^set -euo pipefail/ { on = 1 } on && /^[[:space:]]*set \+euo pipefail/ { on = 0 } END { exit on }' "$f" ||
+      hits="$hits${hits:+ }${f#"$_HI_ROOT"/}"
+  done
+  if [ -z "$hits" ]; then
+    _hi_align " | every sourced file turns strict mode off again" "OK" "$GREEN"
+  else
+    _hi_align " | strict mode left on in a sourced file: $hits" "FOUND" "$RED"
+    _hi_note_failure "strict mode left on (HI.15): $hits"
+    bad=$((bad + 1))
+  fi
+  return "$bad"
+}
+
 # A shipped file that .gitignore swallows never reaches a commit, and nothing
-# local notices: the suites read the working tree. A settings/*.toml sat
+# local notices: the suites read the working tree. A config/*.toml sat
 # under a blanket `*.toml` for a whole feature. Asked of git itself, over
 # every file the payload and the package ship.
 function lint_ignored_payload() {
@@ -153,9 +219,9 @@ function lint_ignored_payload() {
     _hi_align " | $f" "IGNORED" "$RED"
     _hi_note_failure "gitignored shipped file: $f"
     bad=1
-  done < <(cd "$_HI_ROOT" && find common settings scripts hi.sh load.sh -type f 2>/dev/null |
+  done < <(cd "$_HI_ROOT" && find common config scripts hi.sh load.sh -type f 2>/dev/null |
     git check-ignore --stdin 2>/dev/null)
-  [ "$bad" -eq 0 ] && _hi_align " | every file under common/, settings/, scripts/ is tracked" "OK" "$GREEN"
+  [ "$bad" -eq 0 ] && _hi_align " | every file under common/, config/, scripts/ is tracked" "OK" "$GREEN"
   return "$bad"
 }
 
@@ -232,7 +298,7 @@ function lint_image_tags() {
 "
     done < <(grep -rnE "[ =\"']${image}:[A-Za-z0-9][A-Za-z0-9._-]*" "$_HI_ROOT" \
       --include='*.sh' --include='*.yml' \
-      --exclude-dir=.git --exclude-dir=dist --exclude-dir=dockerfiles 2>/dev/null |
+      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
       grep -vE '^[^:]*:[0-9]+:[[:space:]]*#' || true)
 
     hit="$(printf '%s' "$pinned" | tr ' ' '\n' | grep "^$image:" | tr '\n' ' ')"
@@ -319,7 +385,7 @@ function lint_glossary_tags() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   _hi_read_lines headings < <(sed -n 's/^## \(HI\.[0-9][0-9]\).*/\1/p' "$glossary")
   _hi_read_lines tags < <(grep -rn "${pat}: " "$_HI_ROOT" \
-    --exclude-dir=.git --exclude-dir=dist --exclude='*.md' 2>/dev/null || true)
+    --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude='*.md' 2>/dev/null || true)
   for line in "${tags[@]}"; do
     [ -n "$line" ] || continue
     tag="${line#*"${pat}": }"
@@ -497,7 +563,7 @@ function lint_settings_table() {
   # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
   # a row for a variable nothing reads. A *read* - `$NAME`, `${NAME`,
   # fish's `$$NAME`, or `set -q NAME` - not any mention: an assignment or a
-  # comment would keep a dead name green. Only the shipped tree counts (common/, settings/, load.sh, hi.sh):
+  # comment would keep a dead name green. Only the shipped tree counts (common/, config/, load.sh, hi.sh):
   # a setting is what a *session* honours, and scripts/ never rides in the
   # payload, so a name only the wizard or doctor reads is a row that promises
   # nothing on a target. Names hi assembles at run time never appear whole
@@ -509,7 +575,7 @@ function lint_settings_table() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local tree stale=0 dynamic
   tree="$(grep -rhoE '(\$\{?|\$\$|set -q )_HI_[A-Z0-9_]+' "$_HI_ROOT/common" \
-    "$_HI_ROOT/settings" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    "$_HI_ROOT/config" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
     2>/dev/null | grep -oE '_HI_[A-Z0-9_]+' | sort -u)"
   dynamic="$(_hi_settings_dynamic)"
   while IFS= read -r name; do
@@ -596,7 +662,7 @@ function _hi_settings_documented() {
 # `_HI_PROMPT_END_$shell`, is skipped here and caught by its literal rows).
 # Any table by that name counts, so a section added to the wizard cannot ask
 # about a setting this check never sees. Plus the knobs the wizard never asks
-# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that settings/aliases.sh
+# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that config/aliases.sh
 # reads (`${_HI_BAT_OPTS:-...}`, `"$_HI_LS_BIN"`) is a user-facing dial with
 # no question behind it, and the suffix is what tells those from the file's
 # own state (`_HI_SESSION_RC`, `_HI_CLEANUP`, `_HI_CONFIG_DIR`). Minus
@@ -613,7 +679,7 @@ function _hi_settings_roster() {
       "$_HI_ROOT/scripts/configure.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
     sed -n 's/^ *_hi_collect_value "\{0,1\}\(_HI_[A-Z0-9_]*\)"\{0,1\} .*/\1/p' \
       "$_HI_ROOT/scripts/configure.sh" | grep -v '_$'
-    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/settings/aliases.sh" |
+    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/config/aliases.sh" |
       grep -oE '_HI_[A-Z0-9_]+'
   } | sort -u | grep -vxF -f <(_hi_settings_not_settings "$_HI_ROOT/docs/SETTINGS.md")
 }
@@ -853,17 +919,17 @@ function lint_dockerfiles() {
   # orphan looking used
   _hi_read_lines refs < <({
     grep -rhoE "$call (\"[a-z0-9-]+\"|[a-z0-9-]+)" "$_HI_ROOT" \
-      --exclude-dir=.git --exclude-dir=dist --include='*.sh' 2>/dev/null |
+      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
       sed "s/.*$call \"\{0,1\}//;s/\"\$//"
     grep -rhoE 'dockerfiles/[a-z0-9-]+\.Dockerfile' "$_HI_ROOT" \
-      --exclude-dir=.git --exclude-dir=dist --exclude-dir=dockerfiles 2>/dev/null |
+      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
       sed 's|.*/||;s|\.Dockerfile$||'
   } | sort -u)
 
   # the interpolated form, _hi_dockerfile "<prefix>$..." - the literal half is
   # all a grep can know, so every file it could name counts as referenced
   _hi_read_lines prefixes < <(grep -rhoE "$call \"[a-z0-9-]*\\\$" "$_HI_ROOT" \
-    --exclude-dir=.git --exclude-dir=dist --include='*.sh' 2>/dev/null |
+    --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
     sed "s/.*$call \"//;s/\\\$\$//" | sort -u)
 
   # every file has a caller
@@ -1054,7 +1120,7 @@ function run_drift() {
   # _hi_lint_mirror blanks the tree under $_HI_WORKDIR/lintmirror
   _hi_workdir drifttest
 
-  _hi_lint_halves lint_bash32 lint_home_default lint_ignored_payload lint_glossary_tags \
+  _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload lint_glossary_tags \
     lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs lint_site_links \
     lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests

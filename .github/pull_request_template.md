@@ -24,7 +24,7 @@ Please link and reference any relevant issues/discussions/etc here.
 
 If one of these cannot be completed, please give a justification.
 
-- [ ] New code meets the 75% test coverage target (the coverage comment flags a miss; it does not block)
+- [ ] New code meets the 90% test coverage target (the coverage comment flags a miss; it does not block)
 - [ ] All tests and CI checks green
 - [ ] All calls to `sh` were tested with dash as `/bin/sh`
 - [ ] Any disabled linter/code-style rule is explained

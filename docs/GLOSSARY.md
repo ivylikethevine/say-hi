@@ -2,14 +2,14 @@
 
 say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
-**fish** (which parses `common/paths.sh`, `settings/aliases.sh`, and
+**fish** (which parses `common/paths.sh`, `config/aliases.sh`, and
 `settings.sh` natively). Targets also split between **GNU and BSD userlands**.
 Each entry is a construct that looks odd until you know which master it serves.
 
 Every entry carries a stable `HI.NN` code; a file references it with a
 `# GLOSSARY: HI.NN` tag — one code, or two joined with `+`, optional prose
 after — instead of re-explaining. The tag is _mandatory_ in `common/`,
-`settings/`, `load.sh`, and `hi.sh`. Tags point at codes, so an entry can be
+`config/`, `load.sh`, and `hi.sh`. Tags point at codes, so an entry can be
 retitled without touching a tagged file; codes are never reused once retired.
 `tests/lint/drift_test.sh` fails the build if a tag names a code this file
 doesn't define, or if an entry here is referenced by nothing. This file never
@@ -27,7 +27,6 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.08 sed tempfile rewrite](#hi08-sed-tempfile-rewrite)
 - [HI.09 cat-over-mv](#hi09-cat-over-mv)
 - [HI.10 strftime %e over %-e](#hi10-strftime-e-over--e)
-- [HI.11 LC_ALL=C sort](#hi11-lc_allc-sort)
 - [HI.12 bytes vs columns](#hi12-bytes-vs-columns)
 - [HI.13 command -v fallthrough](#hi13-command--v-fallthrough)
 - [HI.14 _hi_on_exit](#hi14-_hi_on_exit)
@@ -70,6 +69,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.58 overlay directory members](#hi58-overlay-directory-members)
 - [HI.59 plugins](#hi59-plugins)
 - [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
+- [HI.61 one overlay priority](#hi61-one-overlay-priority)
 
 ## HI.01 empty-array guard
 
@@ -159,12 +159,6 @@ the GNU/BSD split `common/config.fish`'s mtime probe already uses.
 `date +%-e` (no-padding) is a GNU extension; BSD strftime prints the literal
 characters. `%e` is the portable day-of-month.
 
-## HI.11 LC_ALL=C sort
-
-Under a UTF-8 locale, BSD `sort` exits "Illegal byte sequence" on non-UTF-8
-input, having printed nothing while the pipeline carries on. Any sort whose
-input isn't guaranteed clean UTF-8 is pinned to `LC_ALL=C`.
-
 ## HI.12 bytes vs columns
 
 `${#var}` counts bytes, not display columns; multibyte characters inflate it,
@@ -175,7 +169,7 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 ## HI.13 command -v fallthrough
 
 `export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)"` in
-`settings/aliases.sh`, with the aliases built on the result: resolved at
+`config/aliases.sh`, with the aliases built on the result: resolved at
 source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every
 target has, so no alias points at a missing one.
 
@@ -188,8 +182,13 @@ coreutils `cat` get the bare binary.
 Every chain runs before any alias exists, the overlay's `aliases.sh`
 included (it is sourced last): in zsh and dash `command -v name` returns an
 _alias's_ definition once one exists, so an overlay `alias cat=...` ahead of
-the chains would leave `$_HI_CAT_BIN` holding the alias body.
-`tests/settings/alias_fallthrough_test.sh` is the regression test.
+the chains would leave `$_HI_CAT_BIN` holding the alias body. Ordering
+alone does not cover an alias that was there before hi - a target's
+`alias ls='ls --color=auto'`, or hi's own `vim` alias when an interactive
+shell re-sources its rc - so each `$( )` opens with
+`type unalias >/dev/null 2>&1 && unalias -a || true &&`, clearing aliases in that
+subshell only (fish has no `unalias` and its `command -v` never reports one).
+`tests/config/alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit
 
@@ -277,7 +276,7 @@ that shell's own arm. Toggle defaults come first so the files after them still
 win. `_HI_REMOTE_SESSION=1` is exported because this path never reaches
 `load.sh`. `settings.sh` keeps its `[ -f ]` guard because a bare `.` on a
 missing file abandons the rest of the file in ash/dash. `_HI_CONFIG_DIR` points
-at the target's own `config/`, where the shipped overlay was unpacked.
+at the target's own `overlay/`, where the shipped overlay was unpacked.
 
 ## HI.21 baked prompt
 
@@ -357,9 +356,11 @@ on again, like a first TAB. `_HI_TARGETS_TTL=0` skips all of this.
 
 bash 3.2 scans a `$( ... )` command substitution with a simple quote matcher: a
 comment line _inside_ one containing a lone `'` reads as an unterminated
-string, and the whole file dies at parse time. bash 4+ parses substitutions
-recursively, which is why this only surfaces on macOS. Keep comments inside
-`$( )` apostrophe-free, or hoist them above the assignment. The lint greps
+string, and the whole file dies at parse time. The same matcher ends the
+substitution at a bare `case` pattern's `)`, a syntax error found only when
+the line runs. bash 4+ parses substitutions recursively, which is why this
+only surfaces on macOS. Keep comments inside `$( )` apostrophe-free, or hoist
+them above the assignment, and hoist a `case` into a function. The lint greps
 cannot see this one; `tests/targets/ssh_test.sh` runs `bash -n` over every file
 in a real 3.2 container.
 
@@ -515,7 +516,8 @@ shipped shell is comment. vimrc's comment character is `"`, init.el's `;`,
 and lua's `--`, each its own rule. Lua's `--[[` block form is deliberately
 not one: the strip is line-wise, so a block opener would go and its body stay
 — which is why the shipped `init.lua` uses line comments only.
-`bench_payload_readme_badge` checks README's badge against the result.
+`bench_payload_readme_badge` checks README's badge against the result, through
+`packaging/stamp_badge.sh --check`.
 
 **Blank lines and leading indentation go the same way**: no dialect the
 payload carries reads either, and the indentation alone is 3% of the payload.
@@ -640,28 +642,55 @@ quoting is one decision rather than one per transport.
 
 The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) lives outside the
 tree, so it travels as a second, much smaller archive rather than inside the
-payload. It lands in a `config/` of its own beside `settings/`, with
-`$_HI_CONFIG_DIR` pointing there, never over `settings/`: `settings/aliases.sh`
+payload. It lands in an `overlay/` of its own beside `config/`, with
+`$_HI_CONFIG_DIR` pointing there, never over `config/`: `config/aliases.sh`
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
 The prompt programs' configs, eza's `theme.yml`, and bat's `bat.conf` ride it
 so a tool's config on every target is the one in force at home:
 `_hi_overlay_src` packs the overlay's copy when there is one, else the file
-the tool itself reads on the client (a prompt program's only when
-`_hi_prompt_list` names it), so there is one copy to edit and none to drift.
+the tool itself reads on the client (HI.61's order; a prompt program's only
+when `_hi_prompt_list` names it), so there is one copy to edit and none to
+drift.
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
 `$EZA_CONFIG_DIR` - the directory, since eza fixes the file name - ...) at
 the overlay on a target only, and the shell files source or read the
 frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
-The editor rcs, `tmux.conf`, and micro's `micro/` files ride it for the same
-reason `colors` and `packages.d` do: the tree copy is a default, and
+The editor rcs, `tmux.conf`, `screenrc`, and the `micro/` and `zellij/`
+files ride it for the same
+reason `colors` and `packages` do: the tree copy is a default, and
 `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one
 (HI.57). Left out of the stream, that guard could only fire on the client — an
 override working locally and silently reverting on every target, the
 asymmetry `paths_test.sh`'s guard/roster pin catches one layer up.
+
+That cascade is wholesale, so a member that shadows a tree default makes the
+default dead weight: a connect hands `_hi_payload_excl` its member list, and
+`_hi_payload_tar` drops those files (`$_HI_OVERLAY_SHADOWS`; never
+`aliases.sh`, which is additive) from the stage, cached under a key of its
+own. Dropped from the stage rather than with tar's `--exclude`, which
+OpenBSD's tar lacks. Only a caller holding the list cuts anything:
+`_hi_wire_bytes` has none and measures the stock tree (HI.44), and the
+container arm, where the two archives travel separately, sends the defaults
+after all when the overlay's copy fails. A file still under a pre-1.0 name
+(`$_HI_OVERLAY_RENAMES`) is not a member, so it cuts nothing and the default
+it no longer overrides keeps riding. A default whose tool the client lacks is cut the same way, by the
+home tier's own gate (`_hi_tool_here`, [HI.61](#hi61-one-overlay-priority)):
+no emacs here, no `init.el` there. The target's aliases and `$VIMINIT` ask
+for the rc file as well as the binary, so a box whose editor got no config
+keeps its own rather than an alias to a missing file.
+
+`ssh_tags` is the one member with no file behind it on the client:
+`_hi_ssh_tags_file` cuts the `# Tags:` lines and the `Host`/`Match host` line
+under each out of `~/.ssh/config` into the runtime dir, in ssh_config's own
+shape, so `_hi_ssh_host_tag` on a relaying box walks it with the walker it
+already has - after its own config, and only in a remote session. Only tagged
+blocks ride, so an untagged block that would have answered first at home is
+not there to: a name both it and a later tagged wildcard match reads as
+tagged on the second hop.
 
 ## HI.43 container target grammar
 
@@ -698,10 +727,12 @@ in, measures `${#script}`, and substitutes the human figure back — honest to a
 few bytes, since the streams inside are already armored and the script goes
 over the wire as it stands. `_hi_wire_bytes` — what `hi --doctor` and the
 README badge quote — assembles the same script through the same
-`_hi_remote_script` rather than summing the armored streams:
+`_hi_remote_script`, from the same payload cache `_say_hi` reads, rather than
+summing the armored streams:
 summing skips the boilerplate around them and reads ~6KB low, and a badge has
 to show the number the user sees. No overlay is counted, since which files
-ride is a question about a target.
+ride is a question about a target - and none of the tree defaults one would
+shadow is cut (HI.41), so the figure is the stock tree's on any client.
 
 ## HI.46 session rc directory
 
@@ -729,7 +760,7 @@ Three variables are exported; which shell needs which is the design:
 `$ZDOTDIR` and `$ENV` reach any zsh or POSIX shell started inside the session,
 however it was started, including by something that is not a shell. bash and
 fish have no equivalent (`$BASH_ENV` is for _non_-interactive bash only), so
-`settings/aliases.sh` defines a `bash` and a `fish` wrapper off
+`config/aliases.sh` defines a `bash` and a `fish` wrapper off
 `$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
 function of that name, and without it `fish` would call itself forever.
 
@@ -815,7 +846,7 @@ hues.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twenty-four palette
 names render as; it never adds a name. `_hi_hash_color`, the
-`settings/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
+`config/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
 the same vocabulary, so a scheme is invisible to everything that reasons
 about a color by name - only the bytes a name turns into change. The names
 are the terminal's twelve plus twelve extras (orange, pink, teal, ...) that
@@ -826,7 +857,7 @@ built-in hex, so a truecolor terminal shows an orange host as orange without
 anyone choosing a scheme. `_hi_color_base` is the pair as a name, for zsh's
 `%F{}` and fish's `set_color`, which know the sixteen and nothing else.
 
-A `settings/colors` row may also carry its own hex, in an optional fourth
+A `config/colors` row may also carry its own hex, in an optional fourth
 column, and that is the one thing that outranks the scheme — for that pin
 only. `_hi_colors_scan` joins it to the name (`brred#ff5f5f`) and
 `_hi_color_split` takes the two apart again, so the pinned color travels as
@@ -1071,30 +1102,21 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 hi carries a `vimrc`, `init.lua`, `nanorc`, and `init.el` to every target
 and starts the editor on it (`-u`, `--rcfile`, `-q -l`), so the question is
-which file. `tmux.conf` (`tmux -f`) takes the same three tiers minus a tree
-copy, so with none the value is empty and `tmux` has no alias. micro takes a
-_directory_ of fixed names, so its three files ride under `micro/`,
-`$_HI_MICRO_DIR` is the overlay's `micro/` or nothing, and `_hi_overlay_src`
-resolves each file itself - the overlay's, else micro's own directory on the
-client. `common/paths.sh` answers it in three tiers, lowest first since the
-last assignment wins: the tree's copy, then the config that editor already
-reads on this machine (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`,
-`~/.nanorc`, `~/.emacs`, ..., in the editor's own precedence), then
-`$_HI_CONFIG_DIR`'s copy. The middle tier is
-[HI.32](#hi32-starship-deference)'s argument applied to editors - one copy to
-edit, no duplicate in the overlay to keep in step - and `_hi_overlay_src`
-reads the resolved `$_HI_VIMRC`/`$_HI_NVIMRC`/... rather than a second roster.
-A value still equal to the tree's means there is no config to carry, and the
-tree's copy already rides the payload, so nothing goes in the overlay stream.
-
-The middle tier is client-only (`[ "$_HI_REMOTE_SESSION" != 1 ]`): on a
-target `$HOME` is the _target's_, whose rcs are exactly what the `-u` exists
-to keep out of a visiting session, and the file the client picked is already
-unpacked at `$_HI_CONFIG_DIR`.
+which file - [HI.61](#hi61-one-overlay-priority)'s order answers it: the
+overlay's copy, then the config that editor already reads on this machine
+(`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`, `~/.nanorc`, `~/.emacs`, ...,
+in the editor's own precedence), then the tree's. `tmux.conf` (`tmux -f`) and
+`screenrc` (`screen -c`) take the same tiers minus a tree copy, so with none
+the value is empty and the command has no alias; micro and zellij take a
+_directory_. The middle tier is [HI.32](#hi32-starship-deference)'s argument
+applied to editors - one copy to edit, no duplicate in the overlay to keep in
+step. A value still equal to the tree's means there is no config to carry,
+and the tree's copy already rides the payload, so nothing goes in the overlay
+stream.
 
 Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into
-a `config/` of its own, so a line naming a _path_ - a
+an `overlay/` of its own, so a line naming a _path_ - a
 second rc beside it, a plugin directory, a manager's bootstrap - names
 something no target has, and the editor or shell fails on it rather than hi.
 `hi.sh`'s `_hi_lint_awk` finds exactly those lines; the per-dialect grammar,
@@ -1107,12 +1129,13 @@ went missing. The dialect comes from the member name passed in, not the path,
 so doctor reads `~/.vimrc` as vim - and a member whose name is no dialect
 (`colors`, a `theme.yml`) passes through untouched, so every member goes in
 and there is no second roster of what has includes. A line directly under a `hi-allow` comment
-in the file's own syntax is neither reported nor touched; `_HI_INCLUDES=keep`
-does the same for every line.
+in the file's own syntax is neither reported nor touched; one under `hi-quiet`
+is disabled like any other finding but not reported. There is no setting that
+turns the scan off: the two comments are the per-line answer.
 
 Disabling must leave a file that parses. vim and nano are line-oriented, so a
-finding is one line (tmux's takes its `\` continuations). lua and elisp are
-not, so the comment runs to the end of the bracket-balanced expression the
+finding is one line (tmux's takes its `\` continuations). lua, elisp, and
+zellij's kdl are not, so the comment runs to the end of the bracket-balanced expression the
 finding opened - commenting only the matched line of `require("lazy").setup({`
 would leave its `})` behind. `bal()` counts that depth blind to strings, and
 takes `'` as a string delimiter for lua only: in elisp it is the quote
@@ -1128,7 +1151,9 @@ can still error on the target; the doctor rows make that legible.
 
 A `$_HI_OVERLAY_FILES` entry ending in `.d` names a directory, and its
 members ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as
-`<dir>/<name>`, in name order, and the rest of the stream - `_hi_overlay_src`,
+`<dir>/<name>`, in name order (an entry ending in `/`, zellij's `layouts/`
+and `themes/`, the same over the overlay's directory and home's, each name
+once and the overlay's copy first), and the rest of the stream - `_hi_overlay_src`,
 the cache key, the stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
 strip (a `-path` entry in `$_HI_STRIP_NAMES`) - treats that path like any
 member. The directory stays an allow list: `core.sh`'s `_hi_dir_member_ok`
@@ -1138,29 +1163,10 @@ through the same function, so a file hi would not send is one hi would not
 read either. The archive carries no directory entry; every tar hi unpacks with
 creates the parent, busybox's included.
 
-`packages.d` is the first: each member is a group of the package check.
-`header.sh`'s `full_check` walks `_hi_package_files` - every `$_HI_PACKAGES_D`
-member, no distinguished first one - and `_hi_check_file` runs each through
-`check_line` under its own palette and sorts it alone, so a group is a
-contiguous run after the group before it. The palette is a file's `color=`
-line (`_hi_group_color`), made a ramp by `_hi_group_ramp` - one name in all
-eight slots, or eight as written - and handed to `_hi_packages_palette`,
-where it outranks `$_HI_PACKAGES_PALETTE`; the ramp in force is put back when
-the check ends. The line is not a comment on purpose: the strip would take
-it. With no member at all the check prints nothing. Unlike `plugins.d`,
-`$_HI_PACKAGES_D` has a real tree default (`settings/packages.d`, shipping
-`default` and `extra`) and a `-d` guard in `common/paths.sh`, the same
-tree-default/overlay-override cascade `$_HI_COLORS` uses - so a
-`packages.d/` of the user's own **replaces** the tree's wholesale, the way a
-hand-made `~/.config/say-hi/colors` already replaces `settings/colors`.
-That is why `hi --add-package` seeds the tree's members into a fresh overlay
-directory on its first write: without it, the first custom group would
-silently drop every shipped check.
-
 ## HI.59 plugins
 
-`plugins.d` is the second [HI.58](#hi58-overlay-directory-members) directory:
-each member is a plugin, a file in the POSIX+fish subset `settings/aliases.sh`
+`plugins.d` is the one [HI.58](#hi58-overlay-directory-members) directory:
+each member is a plugin, a file in the POSIX+fish subset `config/aliases.sh`
 keeps (`export`, `alias`, `&&` chains), so one file serves all three shells
 and something new - another tool's init, a prompt segment - rides to every
 target with no edit to the tree. `common/paths.sh` exports `$_HI_PLUGINS_D`
@@ -1228,3 +1234,44 @@ target whose own `~/.bashrc` wires a say-hi of its own loads that tree's
 core.sh first), and `common/config.fish` never had a guard to clear.
 `_hi_plugin_files` tests `-d "$_HI_PLUGINS_D"` before it globs, so no later
 name arriving empty can reach the root of the disk again.
+
+## HI.61 one overlay priority
+
+Every overlay member resolves in one order, written once as `hi.sh`'s
+`$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
+else the tree's default. A row names the member, the `common/paths.sh`
+variable that carries it to the shells (or `-`), whether `config/` holds a
+default (`$_HI_OVERLAY_SHADOWS` is derived from that column), and the home
+tier: candidate paths best first, a `@function` where no list can say it
+(oh-my-posh's rc-named config, the theme a framework's rc variable names,
+ssh's tag map), or `-` for none.
+`_hi_overlay_src` - the stager, the cache, the include scan - and
+`hi --doctor` read the table. `paths.sh` cannot, its four-shell dialect
+having no loop, so it spells each row out a line per candidate, and
+`paths_test.sh` walks every row down its tiers against it. Where a row has a
+variable, `_hi_overlay_home` reads its resolved value rather than the
+candidates, so there is one reading of the order at home and the drift test
+keeps the two spellings one. No setting reorders it. `hi --doctor`'s files
+section (`doctor_files`) walks the same rows, marking every location used,
+passed over, or absent, and why nothing is sent when something is there.
+
+The home tier is the config in force _here_: client-only, like every home
+read (a relay never packs the middle box's), and only with the member's tool
+on this machine (`_hi_tool_here`). Whichever tier answers, the include scan
+([HI.57](#hi57-carried-configs-and-the-include-scan)) runs over it on the way
+out.
+
+A shell's own rc has no home tier. `bashrc`, `zshrc`, and `config.fish` are
+where people export tokens, and a `~/.bashrc` found at home would run on
+every box visited without the user having asked, so they ride only from the
+overlay, where a copy is the user's say-so ([SUPPORT.md](SUPPORT.md) keeps
+the same line on carrying `~/.bashrc`). `plugins.d/` and `settings.sh` live
+in the overlay alone anyway.
+
+micro and zellij take a directory of fixed names, so their members sit under
+`micro/` and `zellij/`, each file resolving on its own against the tool's
+directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the XDG one), and
+zellij's `layouts/` and `themes/` are trailing-`/` entries
+([HI.58](#hi58-overlay-directory-members)). `paths.sh` resolves the directory
+whole, from `core.sh`'s `$_HI_MICRO_HOME` and `$_HI_ZELLIJ_HOME`, which spell
+the `${VAR:-}` its dialect cannot (`config.fish` mirrors them).

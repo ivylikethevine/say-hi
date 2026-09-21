@@ -147,7 +147,7 @@ Already 100%. One correction worth making, and one answer worth keeping:
 | Criterion                       | Answer | Evidence                                                                                                                                             |
 | ------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `automated_integration_testing` | M      | `ci.yml` on every `pull_request` and `push` to `main`; seven required checks before a merge.                                                         |
-| `regression_tests_added50`      | M      | ~50 suites under `tests/`; `.github/pull_request_template.md` sets a 75% coverage target for new code, and `coverage.yml`'s PR comment flags a miss. |
+| `regression_tests_added50`      | M      | ~50 suites under `tests/`; `.github/pull_request_template.md` sets a 90% coverage target for new code, and `coverage.yml`'s PR comment flags a miss. |
 | `test_statement_coverage80`     | M      | README's kcov and bashcov badges, both past the bar, measured over the shipped product.                                                              |
 | `test_policy_mandated`          | M      | [CONTRIBUTING.md](CONTRIBUTING.md) - a new suite has a home and a `test_runner.sh` registration.                                                     |
 | `tests_documented_added`        | M      | `.github/pull_request_template.md` checklist.                                                                                                        |

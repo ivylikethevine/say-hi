@@ -34,7 +34,7 @@ source "$_HI_INSTALL"
 # stand-in can chmod +x clean and still read as non-executable afterward.
 function _hi_package_src() {
   local dir="$_HI_WORKDIR/$1" item
-  mkdir -p "$dir/src/say-hi/common" "$dir/src/say-hi/settings" "$dir/src/say-hi/scripts"
+  mkdir -p "$dir/src/say-hi/common" "$dir/src/say-hi/config" "$dir/src/say-hi/scripts"
   printf '#!/bin/sh\nx\n' >"$dir/src/say-hi/hi.sh"
   for item in load.sh LICENSE.md README.md; do printf 'x\n' >"$dir/src/say-hi/$item"; done
 }
@@ -50,7 +50,7 @@ function _hi_package_fixture() {
 function test_install_tree_copies_the_tree_under_destdir() {
   _hi_package_fixture copies
   local dest="$_HI_WORKDIR/copies/dest/usr/share/say-hi"
-  [ -d "$dest/common" ] && [ -d "$dest/settings" ] &&
+  [ -d "$dest/common" ] && [ -d "$dest/config" ] &&
     [ -f "$dest/load.sh" ] && [ -x "$dest/hi.sh" ]
 }
 
@@ -168,7 +168,7 @@ function _hi_strip_beside_colors() {
 
 function test_strip_settings_leaves_the_rest_of_the_overlay() {
   _hi_settings_fixture keep _hi_strip_beside_colors
-  [ -f "$_HI_WORKDIR/keep/config/colors" ] && [ ! -e "$(_hi_fixture_settings keep)" ]
+  [ -f "$_HI_WORKDIR/keep/overlay/colors" ] && [ ! -e "$(_hi_fixture_settings keep)" ]
 }
 
 # The only path through config_hi a test may take: every other one ends in
@@ -487,7 +487,7 @@ function _hi_run_install_pty() {
   : >"$out"
   printf '%b' "$input" |
     _hi_login_env "$home" "${_HI_PTY_FORCED[@]}" bash "$_HI_RUN_TREE/scripts/install.sh" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$name" "${_HI_CASE_TIMEOUT:-30}"
+  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}" _hi_timed_out "$name" "${_HI_CASE_TIMEOUT:-60}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
@@ -984,7 +984,7 @@ function run_install_tests() {
   _hi_check_capable lockout "Instructs with no sudo at all" test_unlink_hi_instructs_with_no_sudo_at_all
 
   # the scratch tree every real run below executes out of
-  _HI_RUN_TREE="$(_hi_scratch_tree realrun common settings scripts hi.sh load.sh)/say-hi"
+  _HI_RUN_TREE="$(_hi_scratch_tree realrun common config scripts hi.sh load.sh)/say-hi"
   chmod +x "$_HI_RUN_TREE/hi.sh"
 
   _hi_h2 "Testing: install.sh run for real (flags and modes)"

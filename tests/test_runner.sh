@@ -39,6 +39,10 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # scheduling tail. Re-sort from the summary table's TIME column when a
 # suite's weight changes.
 #
+# `ci` is what a second platform could only repeat: suites that read repo
+# text (workflows, manifests) or run tooling only ubuntu CI ever runs.
+# ubuntu's fast job runs it beside fast; every other platform, fast alone.
+#
 # The group is here rather than in .github/workflows/ci.yml: with CI spelling
 # out which suites are fast and which are e2e, a suite added to this table but
 # missed there would silently never run on a push. `--group fast` is the only
@@ -50,17 +54,20 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:install:scripts/install_test.sh"
     "fast:test_runner:harness/runner_test.sh"
     "fast:configure:scripts/configure_test.sh"
+    "fast:doctor_target:scripts/doctor_target_test.sh"
     "fast:test_lib:harness/lib_test.sh"
     "fast:targets:common/targets_test.sh"
     "fast:rc:common/rc_test.sh"
+    "fast:doctor_report:scripts/doctor_report_test.sh"
     "fast:install_location:scripts/install_location_test.sh"
     "fast:update:scripts/update_test.sh"
     "fast:add_package:scripts/add_package_test.sh"
+    "fast:add_tag:scripts/add_tag_test.sh"
     "fast:header:common/header_test.sh"
     "fast:load:load/load_test.sh"
-    "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
+    "fast:alias_fallthrough:config/alias_fallthrough_test.sh"
     "fast:preview:scripts/preview_test.sh"
-    "fast:aliases:settings/alias_test.sh"
+    "fast:aliases:config/alias_test.sh"
     "fast:rc_lines:scripts/rc_test.sh"
     "fast:table:scripts/table_test.sh"
     "fast:hi:hi/parse_test.sh"
@@ -79,6 +86,8 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:exports:common/exports_test.sh"
     "fast:test_lib_report:harness/lib_report_test.sh"
     "fast:test_lib_par:harness/lib_parallel_test.sh"
+    "ci:packaging_ci:packaging/packaging_ci_test.sh"
+    "ci:test_runner_ci:harness/runner_ci_test.sh"
     "lint:shellcheck:lint/shellcheck_test.sh"
     "lint:dialects:lint/dialects_test.sh"
     "lint:tools:lint/tools_test.sh"
@@ -160,9 +169,11 @@ rather than PASS, so a green run can't overstate what actually ran. So does a
 single case inside it - and --require-run turns both into failures.
 
   suite ...        one or more of the names below (default: all of them)
-  --group <group>  every suite in one group: $(_hi_test_groups)
-                   fast is the unit suites, lint the linter sweep (CI runs the
-                   two as separate steps; a platform job runs fast alone)
+  --group <group>  every suite in a group, or a comma list of them:
+                   $(_hi_test_groups)
+                   fast is the unit suites, run on every platform; ci the
+                   checks on the workflows and release tooling, run once on
+                   ubuntu (as --group fast,ci); lint the linter sweep
   --shard <i>/<n>  the i-th of n slices of the selection, every n-th suite in
                    table order - one group split across CI runners
   --list           print "<group> <name>" per suite and exit
@@ -229,7 +240,8 @@ done
 declare -a _HI_SELECTED=()
 if [ -n "$_HI_GROUP" ]; then
   for _hi_t in "${_HI_TESTS[@]}"; do
-    [ "$(_hi_test_group "$_hi_t")" = "$_HI_GROUP" ] && _HI_SELECTED+=("$_hi_t")
+    # a comma list is several groups, in table order
+    case ",$_HI_GROUP," in *",$(_hi_test_group "$_hi_t"),"*) _HI_SELECTED+=("$_hi_t") ;; esac
   done
   if [ "${#_HI_SELECTED[@]}" -eq 0 ]; then
     _hi_cecho "no test group matches: $_HI_GROUP (known: $(_hi_test_groups))" "$RED"
@@ -261,7 +273,8 @@ fi
 # shard will run. windows-client.yml is the caller: the fast group takes about
 # seven minutes under Git Bash, where backgrounded suites barely overlap
 # (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
-# a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
+# a wider run would not. Slices of different n compose: 2/12, 6/12, and
+# 10/12 are 2/4.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"

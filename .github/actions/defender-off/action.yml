@@ -1,0 +1,29 @@
+name: Defender off
+# Every Windows job's first step after the checkout. The x64 image ships
+# Defender off with C:\ and D:\ excluded; the arm64 image cannot (tamper
+# protection), so every fork and temp file there is scanned - and the scanner
+# can hold a file hi has just written while hi renames or runs it, a flake
+# that looks like a race. Exclusions are not tamper-protected on an unmanaged
+# box, so this matches the x64 image's; on x64 it is a no-op. Best effort: a
+# refusal warns rather than failing the job, so a flaky run can be read
+# against it.
+description: Exclude C:\ and D:\ from Defender scanning and turn real-time monitoring off, warning if it did not take
+
+runs:
+  using: composite
+  steps:
+    - name: Exclude the drives from Defender scanning
+      shell: pwsh
+      run: |
+        # never fatal: a runner without Defender, or one that refuses, warns
+        try {
+          Add-MpPreference -ExclusionPath 'C:\', 'D:\' -ErrorAction Stop
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+          Get-MpPreference | Select-Object ExclusionPath, DisableRealtimeMonitoring | Format-List
+          if (-not ((Get-MpPreference).ExclusionPath -contains 'D:\')) {
+            Write-Output "::warning::Defender kept scanning D:\ - a file this run writes can be held by the scanner"
+          }
+        } catch {
+          Write-Output "::warning::Defender refused the exclusion: $($_.Exception.Message)"
+        }
+        exit 0

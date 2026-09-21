@@ -65,6 +65,7 @@ function test_bash_child_still_sees_the_roster() {
 # function-scoped export must not leak the name into the environment after.
 function test_fish_bridge_passes_session_values_without_exporting_them() {
   local out
+  # shellcheck disable=SC2153 # _HI_FISH_CONFIG is paths.sh's, not a typo of _HI_SSH_CONFIG
   out="$(HOME="$_HI_WORKDIR/home" fish -c "set -g _HI_LOCAL_USER bridged; source $_HI_FISH_CONFIG; __hi_bash 'printf %s \"\$_HI_LOCAL_USER\"'; printf '|'; env | grep -c '^_HI_LOCAL_USER=' || true" 2>/dev/null)"
   [ "$out" = "bridged|0" ] || {
     _hi_cecho " | got: $out (want bridged|0)" "$RED"

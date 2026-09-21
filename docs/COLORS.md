@@ -2,14 +2,14 @@
 
 How every color hi paints is chosen: the per-host hash, the pins in
 `~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp
-and groups. The two settings here, `_HI_COLOR_SCHEME` and
+and rows. The two settings here, `_HI_COLOR_SCHEME` and
 `_HI_PACKAGES_PALETTE`, are rows in
 [SETTINGS.md](SETTINGS.md#every-setting); the wizard asks about neither.
 
 ## Contents
 
 - [The package check's ramp](#the-package-checks-ramp)
-- [Grouping the package check](#grouping-the-package-check)
+- [The package check's rows](#the-package-checks-rows)
 - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
 
 Every username and hostname resolves to a color derived from its own name, so
@@ -18,6 +18,9 @@ ones that matter in `~/.config/say-hi/colors`: `username,root,red`,
 `hostname,bastion,yellow`, or `hosttag,prod,red` to color every host carrying a
 `# Tags: prod` comment above its `Host` or `Match host` line in
 `~/.ssh/config` — a wildcard block (`Host prod-*`) colors every name it covers.
+`hi --add-tag <host> <tag>` writes that comment for you, replacing a tag
+already there; given a name only a wildcard block covers, it names the block
+to tag instead.
 A fourth kind, `usertag,prod,red`, colors the _username_ on every host that
 carries that tag, so `you@prod-db` reads as prod on both halves. A
 `hostname` row whose name holds `*` or `?` is a pattern:
@@ -26,8 +29,25 @@ subnet or domain at once, no ssh-config entry needed — the first matching
 pattern in the file wins. Precedence, highest first: an exact pin, then a
 hosttag, then a pattern, then the hash.
 
+A config split into files (`Include config.d/*` in `~/.ssh/config`) is read
+the way ssh reads it: each `Include` is followed in place - `~` is your home,
+a relative path is under `~/.ssh`, globs expand in sorted order, nested
+Includes too - so a host and its `# Tags:` line that live in
+`~/.ssh/config.d/01-work` complete, color, and ride like any other.
+
+Tags follow you past the first hop. A `hi` typed inside a session runs on a
+box whose `~/.ssh/config` has none of your `# Tags:` lines, so the tagged
+`Host` and `Match host` lines of yours - those two lines of each block and
+nothing else, no `HostName`, no `User`, no untagged host - ride the overlay as
+`ssh_tags`, and the middle box reads them wherever its own config has no tag
+for the name. The host is matched as you type it there, against the patterns
+you wrote here. `hi --doctor` says when the member rides; like `colors`, it
+names hosts to every target you visit, so an empty `ssh_tags` of your own in
+`~/.config/say-hi/` is how to keep them home.
+
 `hi --preview colors` shows every host in your ssh config and every user it
-knows of, drawn in the colors themselves, each row naming the rule it matched:
+knows of, drawn in the colors themselves, each row naming the rule it matched
+(`hash` for one nothing pins):
 
 ![hi --preview colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
@@ -99,53 +119,25 @@ falls back to the shipped ramp, `hi --doctor` says so, and
 `hi --preview packages` labels the line `default`, `custom`, or
 `(ignored - not eight color names)`.
 
-## Grouping the package check
+## The package check's rows
 
-The package check is a `packages.d/` directory of files, each a **group**:
-the tree ships two, `default` and `extra` (the second at a demoted priority,
-so it exists without doubling a fresh header), and every group is checked in
-file-name order, its rows kept together (sorted by priority within the group,
-not merged into one sort), and painted in a color of its own. The group's
-name is the file's, less a leading `<digits>-` ordering prefix - which is
-also why the shipped files are named `00-default` and `01-extra`: it keeps
-them sorted ahead of a group you add with a smaller prefix like the one
-below.
+The check reads one file, `config/packages`. A row is one tool and its
+fallbacks, `[-|+]package:priority[,package:priority...]`, and two dials
+decide what it prints:
 
-A `~/.config/say-hi/packages.d/` of your own **replaces the tree's two
-wholesale**, the same rule `~/.config/say-hi/colors` follows for
-`settings/colors` — so `hi --add-package` seeds the tree's groups into a
-fresh overlay directory before writing yours, and the manual equivalent
-copies the whole directory in first:
+- **its priority**, 0-3, against `_HI_PACKAGES_MIN_PRIORITY` (0-3, default
+  `2`): a row that cannot reach the floor is not even looked for. The ramp
+  above paints each priority; there is no per-row color.
+- **an optional leading character**: `-` speaks only when the whole row is
+  missing (core tools, where present is not news), `+` only when something
+  on it is installed (platform facts, where absent is noise).
 
-```sh
-cp -r "$_HI_ROOT/settings/packages.d" ~/.config/say-hi/packages.d
-printf 'color=orange\ngo:3\ncargo:3\nuv:2\n' >~/.config/say-hi/packages.d/10-lang
-printf 'color=brblue\n+apt:3,dnf:3,apk:3,pacman:3,brew:3\n' >~/.config/say-hi/packages.d/20-box
-```
-
-`hi --add-package go:3,cargo:3 --group lang` writes the rows for you (seeding
-the tree's groups in first if the overlay doesn't exist yet, then creating
-`lang` if it does not exist either); the `color=` line is still yours to add
-by hand, the way above.
-
-A member's rows are the `[-|+]group,package:priority,...` grammar
-`settings/packages.d/00-default`'s own header spells out, and one `color=`
-line sets its
-color: a single name from the vocabulary paints every row, installed or
-missing (the mark still says which), and eight names are a ramp of the group's
-own in `_HI_PACKAGES_PALETTE`'s shape. With no `color=` line, or a value that
-is neither, the group wears the ramp in force. `_HI_PACKAGES_MIN_PRIORITY`
-still decides how deep every group goes.
-
-Only plain names are members — a letter or digit first, then letters, digits,
-`_`, `.`, and `-`, and not ending in `.bak`, `.orig`, `.rej`, or `.tmp` — so an
-editor's swap file or a backup never travels. Each member rides the overlay
-comment-stripped, a few dozen bytes apiece over the same rows in one member.
-`hi --preview packages` adds a GROUP table naming each group, its rows, and
-its color painted in itself; `hi --doctor` names the groups in order and warns
-about a `color=` it ignores, a file that is no member, and a group nothing
-paints — one whose every row sits below the floor.
-[HI.58](GLOSSARY.md#hi58-overlay-directory-members) has the mechanics.
+`hi --add-package go:3 cargo:3,rustc:3` adds rows to
+`~/.config/say-hi/packages`, copying the tree's file there first: a copy of
+your own replaces the tree's wholesale, the same rule `colors` follows. By
+hand, `cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.
+`hi --preview packages` shows each priority's colors with a real example
+from your rows; to turn the check off, drop `check` from `_HI_HEADER_ORDER`.
 
 ## Using the hash in your own prompt
 

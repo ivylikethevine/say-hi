@@ -16,6 +16,7 @@ hi \- your shell config, on every host you say hi to
 .br
 .B hi \-\-doctor
 .RB [ \-\-json ]
+.RB [ \-\-problems ]
 .RB [ \-\-use " " \fIbackend\fR]
 .RI [ ssh\-options ]
 .RI [ target ]
@@ -40,11 +41,14 @@ hi \- your shell config, on every host you say hi to
 .br
 .B hi \-\-add\-package
 .I pkg:priority[,...]
-.RB [ \-\-group " " \fIname\fR]
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-add\-tag
+.I host tag
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-preview
-.RB { colors | packages | header | targets }
+.RB { colors | packages | header }
 .br
 .BR "hi \-h" " | " \-V
 .SH DESCRIPTION
@@ -201,7 +205,7 @@ which a package has not.
 .BR \-n " is " \-\-dry\-run 's
 short form wherever it appears.
 .TP
-.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR|\fBtargets\fR}
+.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
 print one of these and exit:
 .B colors
 \- each user and ssh host a pin, tag, or pattern colors, in that color, with
@@ -209,15 +213,13 @@ the rule it matched;
 .B packages
 \- the package\-priority legend, marking the ranks the floor hides;
 .B header
-\- the connect header at your settings;
-.B targets
-\- every target
-.B hi <TAB>
-offers and its backend, probed past the completion cache.
+\- the connect header at your settings.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-problems\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree;
-the config overlay; every rc and overlay shell file, parsed by the shell that
+the config overlay; every place each overlay member can come from (the
+overlay, each home location, the tree's default) and which one is used, or
+why none is; every rc and overlay shell file, parsed by the shell that
 reads it; the install (each shell's rc lines and whether they name this tree,
 the
 .B hi
@@ -226,7 +228,18 @@ link, what
 on PATH runs, the file a login bash or a ZDOTDIR zsh really reads); every
 backend, probed and timed; and, with a
 .IR target ,
-the backend it resolves to plus an ssh reachability check. ssh options reach
+the backend it resolves to plus an ssh reachability check. Each section is a
+table whose rows are marked by severity \- a check mark for ok,
+.B !
+for warn, a cross for bad
+.RB ( + ,
+.BR ! ,
+and
+.B x
+outside a UTF\-8 locale).
+.B \-\-problems
+prints only the warn and bad rows, gathered into one findings table.
+ssh options reach
 that check's BatchMode probe as they would a connect, and are reported as
 ignored for a non\-ssh target.
 .B \-\-use
@@ -298,9 +311,10 @@ link that points at this tree.
 .B \-\-purge
 removes the whole overlay
 .RB ( ~/.config/say-hi )
-too. The tree and the one\-time
+too. The tree stays. A one\-time
 .B .hi\-orig
-rc backups stay.
+rc backup goes once the rc matches it again; one that differs stays, and the
+lines that differ are printed.
 .TP
 .B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
 edit the settings alone, leaving the rc wiring and the link be: a numbered
@@ -334,19 +348,38 @@ in the checkout.
 fetches and names the tag without moving. Needs a checkout: a package has no
 .BR .git .
 .TP
-.B \-\-add\-package \fIpkg:priority\fR[,...] [\fB\-\-group\fR \fIname\fR] [\fB\-\-dry\-run\fR]
+.B \-\-add\-package \fIpkg:priority\fR[,...] [\fB\-\-dry\-run\fR]
 add a row - "bat:3,batcat:3" is bat, or batcat as a fallback, priorities
-0\-3 - to a
-.B ~/.config/say-hi/packages.d/
-group, one argument per row, creating the group if it does not exist yet.
-.B \-\-group
-.I name
-picks the group (default:
-.BR custom );
-a row naming a package already in it replaces that row. A
-.B packages.d
-of your own replaces the tree's wholesale, so the first write seeds the
-tree's own groups into the new overlay directory first.
+0\-3 - to
+.BR ~/.config/say-hi/packages ,
+one argument per row; a row naming a package already there replaces that
+row. That file replaces the tree's wholesale, so the first write copies the
+tree's in first.
+.B \-\-dry\-run
+says what would be written and writes nothing.
+.TP
+.B \-\-add\-tag \fIhost tag\fR [\fB\-\-dry\-run\fR]
+write
+.RI "# Tags: " tag
+directly above
+.IR host 's
+.B Host
+(or
+.BR "Match host" )
+line in
+.BR ~/.ssh/config ,
+or in the file an
+.B Include
+brings it from, so a
+.B hosttag
+or
+.B usertag
+row in the colors file colors it. A tag already there is replaced.
+.I host
+is matched as written in the config, so a pattern such as
+.B *.prod
+tags its whole block; a name only a wildcard block covers is refused, naming
+that block.
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .PP
@@ -446,7 +479,7 @@ when set), and is carried to every target; the files are listed under
 writes
 .BR settings.sh ;
 you create the rest, the tree's
-.B settings/
+.B config/
 copy of a file being the default until you copy it here. Every setting is an
 environment variable, tabulated with its default in
 .IR docs/SETTINGS.md .
@@ -465,18 +498,14 @@ settings, written by
 .TP
 .B ~/.config/say-hi/colors
 your copy of
-.BR settings/colors ,
+.BR config/colors ,
 used in place of the tree's.
 .TP
-.B ~/.config/say-hi/packages.d/
-your package check, one group per member in name order, each in the color
-its
-.B color=
-line names, replacing the tree's
-.RB ( default ", " extra )
-wholesale.
+.B ~/.config/say-hi/packages
+your package check, used in place of the tree's
+.BR config/packages .
 .B hi \-\-add\-package
-seeds the tree's groups into a fresh directory here on its first write.
+copies the tree's here on its first write.
 .TP
 .B ~/.config/say-hi/vimrc, init.lua, config.toml, nanorc, init.el
 replacements for vim's, neovim's, helix's, nano's, and emacs's configs, used
@@ -489,25 +518,38 @@ whole. Without one, hi carries the config each editor already reads here
 and their alternates), else the tree's. A line that reads a file no target
 has is dropped and named by
 .BR \-\-doctor ;
-.B _HI_INCLUDES=keep
-sends it anyway, as does a
+a
 .B # hi-allow
-line above it. tmux, micro, and the shell and prompt files below get the same
-pass.
+line above it sends it anyway; a
+.B # hi-quiet
+line above it still drops it, but leaves
+.B \-\-doctor
+no row about it. tmux, screen, micro, zellij, and the shell and prompt files
+below get the same pass.
 .TP
-.B ~/.config/say-hi/tmux.conf, micro/
+.B ~/.config/say-hi/tmux.conf, screenrc, micro/, zellij/
 the same for tmux (its alias becomes
-.BR "tmux \-f" )
-and for micro's
+.BR "tmux \-f" ),
+screen
+.RB ( "screen \-c" ),
+micro's
 .BR settings.json ,
 .BR bindings.json ,
 and
 .B init.lua
 (read through
-.BR \-config\-dir ).
+.BR \-config\-dir ),
+and zellij's
+.BR config.kdl ,
+.BR layouts/ ,
+and
+.B themes/
+(read through
+.BR ZELLIJ_CONFIG_DIR ).
 Without them hi carries
-.B ~/.tmux.conf
-and micro's own config directory.
+.BR ~/.tmux.conf ,
+.BR ~/.screenrc ,
+and micro's and zellij's own config directories.
 .TP
 .B ~/.config/say-hi/aliases.sh
 your own aliases, sourced after hi's, so one of the same name replaces hi's.
@@ -526,7 +568,10 @@ plugin's
 command is drawn in the prompt.
 .TP
 .B ~/.config/say-hi/bashrc, zshrc, config.fish
-your per\-shell preferences, sourced after hi's own so yours win.
+your per\-shell preferences, sourced after hi's own so yours win. They ride
+only from here: hi never carries a
+.B ~/.bashrc
+or the like it finds at home.
 .TP
 .B ~/.config/say-hi/oh-my-posh.json, oh-my-posh.yaml, oh-my-posh.toml
 oh\-my\-posh's config, carried to every target as its
@@ -577,6 +622,22 @@ Unset,
 hands the prompt to every such program installed here;
 .B _HI_PROMPT_TOOL=hi
 keeps hi's own.
+.TP
+.B ~/.ssh/config
+read for ssh targets and their
+.B # Tags:
+comments. The tagged
+.B Host
+and
+.B Match host
+lines, and nothing else of their blocks, are carried as
+.B ssh_tags
+so a
+.B hi
+run from inside a session colors the next hop by its tag; a copy of that
+name in
+.B ~/.config/say-hi
+is carried instead.
 .SH ENVIRONMENT
 Every setting is an environment variable (see
 .BR CONFIGURATION ).

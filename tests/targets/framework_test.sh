@@ -107,7 +107,7 @@ function _hi_framework_probe() {
   # the inverse of prompt:powerlevel10k / prompt:bash-it / the starship bash
   # row: the real program's rc loaded it, hi's unhook (common/zsh.zsh,
   # common/bash.sh) cleared its hook, and hi's own prompt drew - the list is
-  # `hi`, so _hi_prompt_home packs no prompt config member (p10k only: the
+  # `hi`, so _hi_overlay_src packs no prompt config member (p10k only: the
   # client home's p10k.zsh never rode the overlay either)
   prompt:hi:powerlevel10k) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] )) && (( \${precmd_functions[(I)_p9k_precmd]} == 0 )) && [[ \$PROMPT == *__hi_env_info* && -z \$POWERLEVEL9K_HI_MARK ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
   prompt:hi:starship) printf '%s\n' "command -v starship >/dev/null && [[ \${PROMPT_COMMAND[*]} == *ps1* && \${PROMPT_COMMAND[*]} != *starship_precmd* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
@@ -215,6 +215,10 @@ function _hi_run_framework_case() {
   config)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config"
+    # home's configs ride only with their tools here, and a runner has no micro
+    local stubs
+    stubs="$(_hi_stub_tools tmux micro)"
+    local -x PATH="$stubs:$PATH"
     _hi_config_client_home "$HOME"
     ;;
   esac

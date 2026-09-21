@@ -29,6 +29,11 @@ set -l _hi_cfg_base ~/.config
 set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
 set -q _HI_CONFIG_DIR; or set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
 set -q _HI_XDG_CONFIG; or set -gx _HI_XDG_CONFIG $_hi_cfg_base
+# ...and core.sh's two tool directories, which paths.sh reads the same way
+set -g _HI_MICRO_HOME $_HI_XDG_CONFIG/micro
+set -q MICRO_CONFIG_HOME; and set _HI_MICRO_HOME $MICRO_CONFIG_HOME
+set -g _HI_ZELLIJ_HOME $_HI_XDG_CONFIG/zellij
+set -q ZELLIJ_CONFIG_DIR; and set _HI_ZELLIJ_HOME $ZELLIJ_CONFIG_DIR
 # settings ahead of paths.sh, whose gate reads them (plain `export NAME=value`
 # lines, which fish parses natively)
 if test -f $_HI_CONFIG_DIR/settings.sh
@@ -140,7 +145,7 @@ set -gx fish_color_host_remote $fish_color_host
 
 # wrapper so aliases (functions, in fish) work under sudo; args ride fish's own
 # argv after --, never a re-parsed string - that invites injection. Off with
-# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as settings/aliases.sh's sudo alias.
+# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as config/aliases.sh's sudo alias.
 if test "$_HI_DISABLE_SUDO_ALIAS" != 1
   function sudo
     if functions -q -- "$argv[1]"

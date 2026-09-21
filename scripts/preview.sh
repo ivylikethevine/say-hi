@@ -4,14 +4,13 @@
 # connect will render it, plus why.
 #
 #   colors     every ssh host and every known user in the color it lands in
-#              (override/hosttag/pattern/default) - for tuning settings/colors
+#              (override/hosttag/pattern/hash) - for tuning config/colors
 #   packages   the header's packages check: what each priority means, the
 #              colors it paints an installed and a missing package, a real
 #              example of each from your own packages file, then the check
 #   header     the connect header itself
-#   targets    every target hi <TAB> offers, with its backend
 #
-# One script for the four subjects: they share the boxed table (table.sh),
+# One script for the three subjects: they share the boxed table (table.sh),
 # the palette they paint with, and the scheme line above every table.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -36,19 +35,18 @@ _hi_argv0="${_HI_ARGV0:-preview.sh${_hi_subject:+ $_hi_subject}}"
 
 function _hi_preview_usage() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header|targets>
+Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header>
 
   colors     every ssh host and every known user, in the color it resolves to
   packages   the header's packages check: legend, marks, modes, then the check
   header     the connect header as it will print here
-  targets    every ssh host, container, allocation, and pod hi <TAB> offers
 
 Each subject takes --help and no other argument.
 EOF
 }
 
 case "$_hi_subject" in
-colors | packages | header | targets) shift ;;
+colors | packages | header) shift ;;
 -h | --help)
   _hi_preview_usage
   exit 0
@@ -57,12 +55,12 @@ colors | packages | header | targets) shift ;;
   # sourced with no subject (the test suite's hatch below): every function,
   # no render, nothing to refuse
   if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages, header, or targets is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
+    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages, or header is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
     exit 1
   fi
   ;;
 *)
-  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages, header, or targets (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
+  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages, or header (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
   exit 1
   ;;
 esac
@@ -74,17 +72,13 @@ case "${1:-}" in
     cat <<EOF
 Usage: $_hi_argv0
 
-Prints two tables - every known user, and every ssh host that resolves to
-something other than the default - rendered in the color they'd actually
-appear in, alongside *why* they resolve that way (an exact override, an
-ssh-config tag, or the hash of the name).
+Prints two tables - every known user, and every ssh host - rendered in the
+color they'd actually appear in, alongside *why* they resolve that way (an
+exact override, an ssh-config tag, a pattern, or the hash of the name).
 
 Takes no arguments. Reads:
-  settings/colors        the type,name,color[,rrggbb] pins (its own comments explain them)
+  config/colors        the type,name,color[,rrggbb] pins (its own comments explain them)
   ~/.ssh/config      hosts, and the "# Tags: ..." comments above them
-
-Hosts with no override and no usable tag are left out: they'd render exactly
-as a bare \`hi\` does, so there is nothing to preview.
 EOF
     ;;
   packages)
@@ -97,20 +91,19 @@ taken from your own roster - then the marks, then the check itself exactly
 as a connect will print it.
 
 Takes no arguments. Reads:
-  settings/packages.d/   the [-|+]package:priority lines, one group per
-                     member (a ~/.config/say-hi/packages.d/ of your own
-                     replaces every group here wholesale)
+  config/packages    the [-|+]package:priority lines (a
+                     ~/.config/say-hi/packages of your own replaces it)
   common/header.sh   the priority meanings and their two color tables
   \$_HI_PACKAGES_PALETTE   the ramp in force - unset for the shipped one, or
                      eight color names of your own - printed above the legend
 
 A line's leading mode character decides which states speak at all: \`-\` only
 when the whole line is missing, \`+\` only when something on it is installed,
-no flag both ways - the MODE table below the marks spells them out. An
+no flag both ways - the line under the marks says the same. An
 EXAMPLE cell reading "below floor" means \$_HI_PACKAGES_MIN_PRIORITY is above
 that rank, so the header prints nothing for it whatever its colors say. That
 floor defaults to 2, so priorities 0-1 read "below floor" until you set one
-of your own; 4 turns the check off entirely. A priority with no example at
+of your own. A priority with no example at
 all has no package of its own in your roster.
 EOF
     ;;
@@ -121,18 +114,6 @@ Usage: $_hi_argv0
 Prints the connect header exactly as this machine would draw it, under the
 settings.sh in force - the way to judge a header order, width, or palette
 before saving it.
-
-Takes no arguments.
-EOF
-    ;;
-  targets)
-    cat <<EOF
-Usage: $_hi_argv0
-
-Prints every target \`hi <TAB>\` offers - ~/.ssh/config's Host entries and
-every running container, allocation, and pod - with its backend. It probes
-the backends past the completion cache, so it takes as long as a cold
-\`hi <TAB>\`.
 
 Takes no arguments.
 EOF
@@ -165,37 +146,6 @@ function _hi_print_scheme_line() {
   else
     _hi_cecho " | scheme: $label (no truecolor here - the 16-color escapes render)"
   fi
-}
-
-#
-# targets
-#
-
-# _hi_print_targets_table - common/targets.sh's "<name>\t<kind>" lines, boxed;
-# TTL=0 so the completion cache never answers for a fresh probe
-function _hi_print_targets_table() {
-  local name kind i w_name=0 w_kind=0
-  local -a names=() kinds=()
-  while IFS=$'\t' read -r name kind || [ -n "$name" ]; do
-    [ -n "$name" ] || continue
-    names+=("$name")
-    kinds+=("$kind")
-  done < <(_HI_TARGETS_TTL=0 sh "$_HI_TARGETS")
-  if [ "${#names[@]}" -eq 0 ]; then
-    _hi_cecho " | nothing resolves - no Host entries in ~/.ssh/config, and no running container, allocation, or pod" "$YELLOW"
-    return 0
-  fi
-  _hi_widen w_name "${names[@]}" TARGET
-  _hi_widen w_kind "${kinds[@]}" BACKEND
-  _hi_hbar top "$w_name" "$w_kind"
-  _hi_head_row "$w_name" TARGET "$w_kind" BACKEND
-  _hi_hbar mid "$w_name" "$w_kind"
-  for ((i = 0; i < ${#names[@]}; i++)); do
-    _hi_cell "$w_name" "" "${names[i]}"
-    _hi_cell "$w_kind" "" "${kinds[i]}"
-    _hi_row_end
-  done
-  _hi_hbar bottom "$w_name" "$w_kind"
 }
 
 #
@@ -258,7 +208,7 @@ function _hi_color_source() {
     printf 'pattern:%s' "$pat"
     return
   fi
-  printf 'default'
+  printf 'hash'
 }
 
 # _hi_colors_names <type> [skip-name] - deduped pinned names of that type.
@@ -270,7 +220,7 @@ function _hi_colors_names() {
   done < <(_hi_colors_rows "$1") | awk '!seen[$0]++'
 }
 
-# both read settings/colors through the _hi_colors_names above
+# both read config/colors through the _hi_colors_names above
 function _hi_known_users() {
   {
     _hi_whoami
@@ -316,7 +266,7 @@ function _hi_group_index() {
 
 # _hi_user_color_memo <user> <tag> <color-outvar> <escape-outvar> - most
 # groups share the same (user, tag) pair (usually the empty tag), and
-# _hi_resolve_color walks settings/colors and ~/.ssh/config to answer one.
+# _hi_resolve_color walks config/colors and ~/.ssh/config to answer one.
 # Reads/writes _hi_print_hosts_table's own parallel arrays through bash's
 # dynamic scoping, the same as _hi_group_index above; _hi_color_escape_var
 # is core.sh's no-fork escape form, which a memo answering through an outvar
@@ -374,7 +324,7 @@ function _hi_print_users_table() {
   # reads ${!a[@]+...} as expanding to nothing whatever the array holds, and
   # bash 5 reads it as an indirect reference and errors outright.
   _hi_widen w_item "${users[@]}" LOCALUSER ${usertags[@]+"${usertags[@]}"}
-  # _hi_color_source re-reads settings/colors end to end and walks ~/.ssh/config,
+  # _hi_color_source re-reads config/colors end to end and walks ~/.ssh/config,
   # so the render loop below reads what this one worked out rather than asking
   # a second time for every user.
   for uidx in "${!users[@]}"; do
@@ -382,9 +332,7 @@ function _hi_print_users_table() {
     _hi_resolve_color username "${users[uidx]}" '' color_name # outvar form: no fork per user
     u_color[uidx]="$color_name"
     _hi_widen w_source "${u_source[uidx]}"
-    # a default row never renders (the loop below skips it), so it must not
-    # widen the column either
-    [[ "${u_source[uidx]}" = default ]] || _hi_widen w_color "${u_color[uidx]}"
+    _hi_widen w_color "${u_color[uidx]}"
   done
   _hi_widen w_source "local:username"
   localuser_color=$(_hi_override_color username LOCALUSER 2>/dev/null) || localuser_color=""
@@ -400,7 +348,6 @@ function _hi_print_users_table() {
   _hi_hbar mid "$w_item" "$w_color" "$w_source"
 
   for uidx in "${!users[@]}"; do
-    [[ "${u_source[uidx]}" = default ]] && continue
     _hi_user_row "${users[uidx]}" "${u_color[uidx]}" "${u_source[uidx]}"
   done
 
@@ -424,33 +371,40 @@ function _hi_print_hosts_table() {
   # user_escape, the memo's second outvar, feeds the render loop
   local name color_name source user user_color user_escape name_escape key
   local cur_line sep sep_w candidate idx idx2 li total_lines itemtext previewtext
-  local tag has_usertag
+  local tag
   local user_width=0 pw pad local_hostname
-  local preview_users=() group_order=() group_names=() item_lines=()
+  local preview_users=() group_users=() group_order=() group_names=() item_lines=()
   # Five *parallel* indexed arrays sharing one index, rather than associative
   # arrays keyed by $key: `local -A` is bash 4 and macOS ships bash 3.2, where
   # the declaration alone is a fatal "invalid option".
   # group_order holds the keys, so it doubles as the lookup table below.
   local group_hosts=() group_source=() group_color=() group_tag=() group_pw=()
-  local gidx localhostname_color=""
+  local gidx localhostname_color="" localhostname_source
   # (user, tag) -> (color, escape), so the render loop below asks
   # _hi_resolve_color once per pair instead of once per (pair, group)
   local _hi_upc_keys=() _hi_upc_colors=() _hi_upc_escapes=()
 
   _hi_read_lines preview_users < <(_hi_preview_users)
   _hi_widen user_width ${preview_users[@]+"${preview_users[@]}"}
+  # the usertag example rows that are no real user's name, " a b ": each is
+  # drawn only under a host carrying its tag
+  local known=" " tag_rows=" "
+  while IFS= read -r user; do known+="$user "; done < <(_hi_known_users)
+  while IFS= read -r tag; do
+    case "$known" in *" $tag "*) ;; *) tag_rows+="$tag " ;; esac
+  done < <(_hi_known_usertags)
 
   # The current machine renders as its own single-host group ahead of the ssh
-  # ones, so one measure/render path serves both - its key can't collide with
-  # a real group's (no _hi_color_source result reads local:hostname).
+  # ones, so one measure/render path serves both - its key has no tag field, so
+  # it can't collide with a real group's.
+  _hi_local_hostname local_hostname
   if localhostname_color=$(_hi_override_color hostname LOCALHOSTNAME 2>/dev/null); then
-    _hi_local_hostname local_hostname
-    group_order+=("local:hostname"$'\x1f'"$localhostname_color")
-    group_source+=("local:hostname")
-    group_color+=("$localhostname_color")
-    group_tag+=("")
-    group_hosts+=("$local_hostname")
+    localhostname_source=local:hostname
+  else
+    _hi_resolve_color hostname "$local_hostname" '' localhostname_color
+    localhostname_source=$(_hi_color_source hostname "$local_hostname")
   fi
+  group_order+=("$localhostname_source"$'\x1f'"$localhostname_color") group_source+=("$localhostname_source") group_color+=("$localhostname_color") group_tag+=("") group_hosts+=("$local_hostname")
 
   # Each subnet-style pin as its own example row, seeded with the glob itself
   # as the "host": the glob matches itself through _hi_ssh_pattern_hit, so
@@ -460,11 +414,7 @@ function _hi_print_hosts_table() {
   while IFS= read -r pat; do
     [[ -n "$pat" ]] || continue
     _hi_resolve_color hostname "$pat" '' color_name
-    group_order+=("pattern:$pat"$'\x1f'"$color_name"$'\x1f')
-    group_source+=("pattern:$pat")
-    group_color+=("$color_name")
-    group_tag+=("")
-    group_hosts+=("$pat")
+    group_order+=("pattern:$pat"$'\x1f'"$color_name"$'\x1f') group_source+=("pattern:$pat") group_color+=("$color_name") group_tag+=("") group_hosts+=("$pat")
   done < <(_hi_pattern_pins)
 
   # group hosts that share a type+source AND the actual resolved color, so
@@ -475,10 +425,6 @@ function _hi_print_hosts_table() {
       _hi_ssh_host_tag "$name" >/dev/null 2>&1 || :
       tag="$_HI_TAG_VALUE"
       source=$(_hi_color_source hostname "$name")
-      has_usertag=false
-      [[ -n "$tag" ]] && _hi_override_color usertag "$tag" >/dev/null 2>&1 && has_usertag=true
-      # skip hosts that wouldn't render any differently from a bare `hi`
-      [[ "$source" = default && "$has_usertag" = false ]] && continue
       _hi_resolve_color hostname "$name" '' color_name
       # tag is part of the key (not just source/color) since it changes which
       # users get colored via usertag, even when the hostname cell looks identical
@@ -486,18 +432,14 @@ function _hi_print_hosts_table() {
       if gidx="$(_hi_group_index "$key")"; then
         group_hosts[gidx]="${group_hosts[gidx]} $name"
       else
-        group_order+=("$key")
-        group_source+=("$source")
-        group_color+=("$color_name")
-        group_tag+=("$tag")
-        group_hosts+=("$name")
+        group_order+=("$key") group_source+=("$source") group_color+=("$color_name") group_tag+=("$tag") group_hosts+=("$name")
       fi
     done < <(sh "$_HI_TARGETS" ssh)
   fi
 
   local w_item=24 w_color=5 w_source=6 w_preview=7
   _hi_widen w_color "${_HI_COLOR_NAMES[@]}"
-  [[ -n "$localhostname_color" ]] && _hi_widen w_item "$local_hostname"
+  _hi_widen w_item "$local_hostname"
 
   for gidx in "${!group_order[@]}"; do
     _hi_widen w_source "${group_source[gidx]}"
@@ -546,8 +488,16 @@ function _hi_print_hosts_table() {
     # are right-padded to user_width) so one pad amount covers the whole group
     pw="${group_pw[gidx]}"
 
+    # a usertag's example row only under a host carrying its tag: elsewhere it
+    # would be the hash of the tag's own name, which reads as the tag not
+    # applying
+    group_users=()
+    for user in ${preview_users[@]+"${preview_users[@]}"}; do
+      case "$tag_rows" in *" $user "*) [ "$user" = "${group_tag[gidx]}" ] || continue ;; esac
+      group_users+=("$user")
+    done
     total_lines=${#item_lines[@]}
-    ((${#preview_users[@]} > total_lines)) && total_lines=${#preview_users[@]}
+    ((${#group_users[@]} > total_lines)) && total_lines=${#group_users[@]}
 
     for ((li = 0; li < total_lines; li++)); do
       if ((li < ${#item_lines[@]})); then
@@ -565,8 +515,8 @@ function _hi_print_hosts_table() {
         _hi_cell "$w_source" "" ""
       fi
 
-      if ((li < ${#preview_users[@]})); then
-        user="${preview_users[li]}"
+      if ((li < ${#group_users[@]})); then
+        user="${group_users[li]}"
         _hi_user_color_memo "$user" "${group_tag[gidx]}" user_color user_escape
         # pad after the hostname so the next column lands at the same spot in
         # every user row beneath it, regardless of that user's name length;
@@ -631,27 +581,24 @@ _HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_FLOORED=0
 # read once, here, rather than at each use: full_check reads the same setting
 # and this preview has to answer for the floor the header will actually apply
 _HI_PKG_MIN="${_HI_PACKAGES_MIN_PRIORITY:-2}"
+((_HI_PKG_MIN > 3)) && _HI_PKG_MIN=3
 
-# Run the real check over every real packages file (_hi_package_files - every
-# $_HI_PACKAGES_D member, in the order full_check paints them) and keep the
-# first installed and first missing row at each priority, across all of them.
+# Run the real check over the real packages file and keep the first installed
+# and first missing row at each priority.
 # check_line appends what it would print to `visible` (bash's dynamic scoping -
 # full_check calls it exactly this way) and drops mode-suppressed rows on the
 # floor, which is the point: a `-` line that is installed, or a `+` line that
 # is missing, has no example to show because it shows nothing.
 function _hi_collect_examples() {
-  local line entry priority width rendered f
-  local -a visible=() files=()
+  local line entry priority width rendered
+  local -a visible=()
 
-  _hi_package_files files
-  for f in ${files[@]+"${files[@]}"}; do
-    while IFS=$' ' read -r line; do
-      # the header's own filter, character for character
-      [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue
-      _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
-      check_line visible "$line"
-    done <"$f"
-  done
+  while IFS=$' ' read -r line; do
+    # the header's own filter, character for character
+    [[ "$line" == *#* || -z "$line" ]] && continue
+    _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
+    check_line visible "$line"
+  done <"$_HI_PACKAGES"
   _HI_PKG_SHOWN=${#visible[@]}
 
   for entry in ${visible[@]+"${visible[@]}"}; do
@@ -765,96 +712,27 @@ function _hi_print_priorities_table() {
 # the other half of a rendered row: which of the three marks it ends in, and
 # what each one is saying. The glyphs come from core.sh's _hi_choose_glyphs, so
 # this table follows a terminal onto the ASCII set the same way the header does.
-# _hi_print_pair_table <heading1> <heading2> <raw|plain> <"<col1>|<col2>" rows...>
-# - the boxed two-column shape _hi_print_marks_table and _hi_print_modes_table
-# both want: measured from the rows (column 1's width starts at its heading's
-# own length, same as each caller's own hardcoded start), then rendered.
-# <raw> skips measuring column 1 and prints it through _hi_cell_raw ... 1 - a
-# mark is one visible column by construction, and measuring it against an
-# escape sequence would be wrong; <plain> measures it and prints it through
-# _hi_cell like column 2.
-function _hi_print_pair_table() {
-  local h1="$1" h2="$2" mode="$3" w1=${#1} w2=${#2}
-  shift 3
-  local -a rows=("$@")
-  local entry c1 c2
-
+# Column 1 is never measured: a mark is one visible column by construction,
+# and measuring it against an escape sequence would be wrong.
+function _hi_print_marks_table() {
+  local w2=5 entry c1 c2
+  local -a rows=("$GREEN$_HI_MARK_OK|installed, under the first name the line lists"
+    "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it"
+    "$RED$_HI_MARK_NO|not installed - no name on the line resolved")
+  for entry in "${rows[@]}"; do _hi_widen w2 "${entry#*|}"; done
+  _hi_hbar top 4 "$w2"
+  _hi_head_row 4 MARK "$w2" MEANS
+  _hi_hbar mid 4 "$w2"
   for entry in "${rows[@]}"; do
     IFS='|' read -r c1 c2 <<<"$entry"
-    [ "$mode" = raw ] || _hi_widen w1 "$c1"
-    _hi_widen w2 "$c2"
-  done
-
-  _hi_hbar top "$w1" "$w2"
-  _hi_head_row "$w1" "$h1" "$w2" "$h2"
-  _hi_hbar mid "$w1" "$w2"
-  for entry in "${rows[@]}"; do
-    IFS='|' read -r c1 c2 <<<"$entry"
-    if [ "$mode" = raw ]; then _hi_cell_raw "$w1" 1 "$c1"; else _hi_cell "$w1" "" "$c1"; fi
+    _hi_cell_raw 4 1 "$c1"
     _hi_cell "$w2" "" "$c2"
     _hi_row_end
   done
-  _hi_hbar bottom "$w1" "$w2"
-}
-
-# the groups (GLOSSARY: HI.58), in the order full_check paints them: each
-# one's name, file, rows, and color - the color cell painted in the group's
-# own loudest installed slot, so a color that reads badly shows it here.
-# Fails, printing nothing, with at most one packages.d member: a single group
-# is the legend above.
-function _hi_print_groups_table() {
-  local -a files=() c_name=() c_color=() c_esc=() c_rows=()
-  local f g c ramp label n line i=0 w_group=5 w_file=4 w_color=5 w_rows=4
-  _hi_package_files files
-  ((${#files[@]} > 1)) || return 1
-  for f in "${files[@]}"; do
-    _hi_group_name g "$f"
-    _hi_group_color c "$f"
-    _hi_group_ramp ramp "$c" || true
-    _hi_packages_palette "$ramp"
-    _hi_group_label label "$c"
-    c_color[i]="$label"
-    c_esc[i]="${_HI_YES[3]}"
-    n=0
-    while IFS=$' ' read -r line; do
-      [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] || n=$((n + 1))
-    done <"$f"
-    c_name[i]="$g" c_rows[i]="$n"
-    _hi_widen w_group "$g"
-    _hi_widen w_file "${f##*/}"
-    _hi_widen w_color "${c_color[i]}"
-    i=$((i + 1))
-  done
-  _hi_packages_palette
-
-  _hi_hbar top "$w_group" "$w_file" "$w_rows" "$w_color"
-  _hi_head_row "$w_group" GROUP "$w_file" FILE "$w_rows" ROWS "$w_color" COLOR
-  _hi_hbar mid "$w_group" "$w_file" "$w_rows" "$w_color"
-  for ((i = 0; i < ${#files[@]}; i++)); do
-    _hi_cell "$w_group" "" "${c_name[i]}"
-    _hi_cell "$w_file" "" "${files[i]##*/}"
-    _hi_cell "$w_rows" "" "${c_rows[i]}"
-    _hi_cell "$w_color" "${c_esc[i]}" "${c_color[i]}"
-    _hi_row_end
-  done
-  _hi_hbar bottom "$w_group" "$w_file" "$w_rows" "$w_color"
-}
-
-function _hi_print_marks_table() {
-  _hi_print_pair_table MARK MEANS raw \
-    "$GREEN$_HI_MARK_OK|installed, under the first name the line lists" \
-    "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it" \
-    "$RED$_HI_MARK_NO|not installed - no name on the line resolved"
-}
-
-# the third axis of a line: its leading mode character, which decides whether
-# the row speaks at all. No glyph negotiation here - `-` and `+` are the
-# literal characters the packages file uses.
-function _hi_print_modes_table() {
-  _hi_print_pair_table MODE MEANS plain \
-    "-|speaks only when the whole line is missing" \
-    "+|speaks only when something on the line is installed" \
-    "none|speaks both ways - the default"
+  _hi_hbar bottom 4 "$w2"
+  # the third axis, a line's leading character: whether the row speaks at all
+  _hi_cecho " | a leading - speaks only when the whole line is missing, + only when"
+  _hi_cecho " | something on it is installed; no flag speaks both ways"
 }
 
 # same hatch as scripts/install.sh: sourcing this file defines its functions
@@ -877,33 +755,22 @@ colors)
   _hi_print_hosts_table
   ;;
 packages)
-  # Everything below reads it, so there is no half-preview worth printing -
-  # a count, not a bare -d test, since a packages.d holding only backups or
-  # dotfiles is "nothing to check" too.
-  _hi_pv_files=()
-  _hi_package_files _hi_pv_files
-  if ((${#_hi_pv_files[@]} == 0)); then
-    _hi_cecho "No packages files in $_HI_PACKAGES_D - the header has nothing to check" "$RED"
+  # Everything below reads it, so there is no half-preview worth printing
+  if [ ! -f "$_HI_PACKAGES" ]; then
+    _hi_cecho "No packages file at $_HI_PACKAGES - the header has nothing to check" "$RED"
     exit 1
   fi
-  _hi_cecho " | reading $_HI_PACKAGES_D"
+  _hi_cecho " | reading $_HI_PACKAGES"
   _hi_print_ramp_line
   _hi_print_scheme_line
   printf '\n'
   _hi_collect_examples
   _hi_print_priorities_table
   printf '\n'
-  ! _hi_print_groups_table || printf '\n'
   _hi_print_marks_table
   printf '\n'
-  _hi_print_modes_table
-  printf '\n'
   _hi_h2 "as the header will print it"
-  if [ "$_HI_PKG_MIN" -gt 3 ]; then
-    _hi_cecho " nothing - the check is off at this floor (_HI_PACKAGES_MIN_PRIORITY=$_HI_PACKAGES_MIN_PRIORITY)" "$YELLOW"
-  else
-    full_check
-  fi
+  full_check
   ;;
 header)
   # the wizard's preview says the same in its box: a silent exit here read
@@ -913,8 +780,5 @@ header)
   else
     hi_header Preview
   fi
-  ;;
-targets)
-  _hi_print_targets_table
   ;;
 esac

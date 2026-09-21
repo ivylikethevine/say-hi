@@ -344,16 +344,7 @@ function _hi_capable() {
 # is missing is not something `command -v` can find. Same reason the guard
 # lives here and not in the case body: a `return 0` there would report a green
 # OK for a case that never ran.
-function _hi_check_capable() {
-  local cap="$1" rc=0
-  shift
-  _hi_capable "$cap" || rc=$?
-  case "$rc" in
-  0) _hi_check "$@" ;;
-  1) _hi_skip "$1" "no $cap" ;;
-  *) return 1 ;;
-  esac
-}
+function _hi_check_capable() { _hi_par_capable_body "$1" _hi_check "${@:2}"; }
 
 # _hi_fake_path <name> <bin...> - a $_HI_WORKDIR/<name> directory of no-op
 # executables, printed - for suites that prove a resolution ladder
@@ -519,7 +510,7 @@ function _hi_subcmd_run() {
 # before letting clean_all near $_HI_ROOT.
 #
 # The scratch overlay is deliberately a *different* directory from the scratch
-# tree's settings/, so "writes land outside the tree" is something the tests can see
+# tree's config/, so "writes land outside the tree" is something the tests can see
 # rather than assume.
 #
 # Shared here rather than living in tests/scripts/install_test.sh, where it was
@@ -529,15 +520,15 @@ function _hi_subcmd_run() {
 # the harness instead of being copied.
 function _hi_settings_fixture() {
   local dir="$_HI_WORKDIR/$1"
-  local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/config"
-  local _HI_SETTINGS="$dir/config/settings.sh"
-  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
+  local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/overlay"
+  local _HI_SETTINGS="$dir/overlay/settings.sh"
+  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
   shift
   "$@" >/dev/null
 }
 
 # where _hi_settings_fixture's run writes, as the assertions see it
-function _hi_fixture_settings() { printf '%s' "$_HI_WORKDIR/$1/config/settings.sh"; }
+function _hi_fixture_settings() { printf '%s' "$_HI_WORKDIR/$1/overlay/settings.sh"; }
 
 # The suites' small <key> -> <value> maps (which shell image built, where a
 # binary is), as a newline-separated "<key>=<value>" string in a plain variable:
@@ -601,11 +592,25 @@ function _hi_has_rendered() {
   [[ "$1" == *"$needle"* ]]
 }
 
+# _hi_stub_tools <tool...> - a directory of do-nothing executables by those
+# names, printed, for a caller's $PATH: _hi_overlay_src ships home's config
+# only with its tool on this machine, and a runner has no micro or helix.
+function _hi_stub_tools() {
+  local dir="$_HI_WORKDIR/stubtools" t
+  mkdir -p "$dir"
+  for t; do
+    [ -x "$dir/$t" ] || { printf '#!/bin/sh\nexit 0\n' >"$dir/$t" && chmod +x "$dir/$t"; }
+  done
+  printf '%s' "$dir"
+}
+
 # _hi_login_env <home> <cmd...> - `env -i` plus only what a login shell has:
 # no _HI_HOME (it would answer what install.sh derives) and no _HI_CONFIG_DIR;
 # $SHELL because install.sh reports ${SHELL##*/} under `set -u`.
 #
-# Bounded by $_HI_LOGIN_TIMEOUT (default 90s). Unbounded, a login shell that
+# Bounded by $_HI_LOGIN_TIMEOUT (default 180s: parallel `hi --doctor` shells on
+# emulated Git Bash arm64 are slow, and the bound is for a wedge, not a pace).
+# Unbounded, a login shell that
 # wedges takes the case with it and the suite reports only a frozen case count
 # for as long as the job's own timeout allows - a stall in `hi --doctor` cost 25
 # minutes a shard that way, on six shards, without naming a case. A stall is a
@@ -616,7 +621,7 @@ function _hi_login_env() {
   local -a bound=()
   shift
   command -v timeout >/dev/null 2>&1 &&
-    bound=(timeout -k 5 "${_HI_LOGIN_TIMEOUT:-90}")
+    bound=(timeout -k 5 "${_HI_LOGIN_TIMEOUT:-180}")
   ${bound[@]+"${bound[@]}"} env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
     SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" _HI_PROMPT_TOOL="${_HI_PROMPT_TOOL-}" "$@"
 }

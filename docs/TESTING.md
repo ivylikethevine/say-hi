@@ -19,6 +19,7 @@ tests/test_runner.sh
   - [The container suites run their cases in parallel](#the-container-suites-run-their-cases-in-parallel)
   - [The install-method suite](#the-install-method-suite)
   - [Coverage and profiling](#coverage-and-profiling)
+  - [Timing and shared state](#timing-and-shared-state)
   - [The images are files; the build contexts are not](#the-images-are-files-the-build-contexts-are-not)
     - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
 - [The lint gate](#the-lint-gate)
@@ -35,12 +36,18 @@ summary:
 ```sh
 tests/test_runner.sh                    # every suite
 tests/test_runner.sh aliases shellcheck # just the named suite(s)
-tests/test_runner.sh --group fast       # what CI runs on every push/PR
+tests/test_runner.sh --group fast       # what CI runs on every platform
+tests/test_runner.sh --group fast,ci    # ...plus the ci group, as ubuntu runs it
 tests/test_runner.sh --group fast --shard 1/2 # half of it, as a CI shard runs
 tests/test_runner.sh --host-report      # ...prefixed with what this machine is
 tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 ```
 
+- `ci` is the checks a second platform could only repeat - the workflows
+  and manifests read as text, and the release tooling only Ubuntu runs
+  (`packaging_ci`, `test_runner_ci`, each the ci part of a fast suite's file).
+  Ubuntu's fast job runs it; `release.yml` runs it against the bumped
+  manifests.
 - A passing suite's transcript collapses to one status line; failures replay
   in full and are recapped under the summary table. `--verbose`
   (`_HI_VERBOSE=1`) streams every transcript live, for a case that fails only
@@ -131,7 +138,7 @@ or dev machine that hasn't `modprobe`'d it.
 
 ### Where a suite lives
 
-`tests/<the directory it tests>/`. `tests/common/`, `tests/settings/`,
+`tests/<the directory it tests>/`. `tests/common/`, `tests/config/`,
 `tests/scripts/`, and `tests/packaging/` mirror the tree; `tests/hi/` and
 `tests/load/` cover the two root scripts; `tests/lint/` is the lint gate,
 `tests/bench/` the timings, `tests/targets/` the container/ssh e2e suites, and
@@ -200,7 +207,7 @@ reuses them). The two aggregates have tracked each other within a few points
 for many commits: **the average of the two badges** is the coverage figure,
 and the per-file reports are for finding untested arms. Only a divergence of
 tens of points means one tool has lost the plot. Never a gate: the pull
-request template's 75% is a target, and the PR comment flags an average below
+request template's 90% is a target, and the PR comment flags an average below
 it without failing anything. Both sweeps pin `_HI_PAR_WIDTH=1`, since a batch
 writing into a suite's one trace stream side by side loses lines, and both put
 a bash-as-`sh` first on their own `PATH`: neither tracer follows a dash child,
@@ -262,6 +269,53 @@ read-only; `$_HI_TIMEP` mounts a local copy of timep you have read. Read the
 ranking, not the milliseconds. `ci.yml`'s `profile` job runs it beside `bench`
 and uploads the `profiles` artifact (14 days); it is advisory
 (`continue-on-error`), the bench ceilings stay the gate.
+
+### Timing and shared state
+
+The Windows and BSD runners are where a timing assumption shows up, so the
+harness makes these choices on purpose:
+
+- **Isolation per suite.** `test_lib.sh` gives each suite a fresh
+  `mktemp -d` root holding its `XDG_CONFIG_HOME` (absent until a case makes
+  it) and `XDG_RUNTIME_DIR`, so parallel suites never share hi's payload,
+  overlay, or ssh-tags caches, nor a developer's real sockets. Cleanup removes
+  that root by its recorded path - never whatever an XDG variable points at
+  by then.
+- **Pinned caps.** `_HI_PROBE_TIMEOUT` is 10 in the suites (a user's 2s is
+  for real CLIs; the suites probe shell shims); the pty cases' cap is 60s,
+  `_hi_login_env`'s 180s. A cap bounds a wedge, never a pace.
+- **Meetings over sleeps.** A case proving concurrency has its shims wait
+  for each other (bounded) rather than sleep a fixed time and hope.
+- **The pty rig's verdict is a file.** Each child writes its verdict line to
+  `<label>/verdict` as well as the pty; a BSD pty can drop a fast child's
+  last output.
+
+Written down as not races:
+
+- **`kill -0` as "still running".** `_hi_wait_pid` and `_hi_par_slot` poll
+  it, and a pid bash has reaped can be reused. The job table would say
+  better, but only through `$(jobs)`, and whether a command substitution sees
+  the parent's jobs varies: where it did not (Git Bash, OpenBSD), the
+  timeout stopped counting and a hung case hung its shard. So the poll stays;
+  a reused pid needs the old one to exit and a stranger to take its number
+  inside one poll's window.
+- **Wall-clock deadlines.** `$SECONDS` is the wall clock, chosen over
+  counted iterations (process.sh says why); a VM whose clock NTP steps
+  mid-run can shorten one, a trade taken knowingly.
+- **One `HOME` for the parallel fresh-shell cases** in
+  `install_location_test.sh`: zsh's compdump, fish's variables, and shell
+  history each write through their own lock or append, and no case reads
+  another's.
+- **Build-once fixture helpers** (`_hi_fake_path`, `_hi_real_path`,
+  `_hi_git_fixture`, `_hi_stub_tools`, `_hi_can_mkdir_mode`): safe while
+  their callers are serial, as every caller is; build one before a
+  `_hi_par_begin`, never inside a parallel case.
+
+Instrumented, not yet explained: on Windows arm64, `hi_payload`'s include
+scan cases have left an empty overlay stream with no error of their own
+(gzip then reports "unexpected end of file"). The suite wraps
+`_hi_overlay_tar` to print its exit status and stderr, so the next one names
+its cause.
 
 ### The images are files; the build contexts are not
 
@@ -393,8 +447,8 @@ skipping yellow when its tool isn't installed (CI has all nine):
   really do parse on minimal targets.
 - **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`).
 - **9–11. The shipped editor rcs**, each loaded by its editor the way the alias
-  does: `settings/vimrc` under `vim -u … -es`, `settings/init.lua` under
-  `nvim --headless -u`, `settings/init.el` under `emacs --batch -q -l`. The
+  does: `config/vimrc` under `vim -u … -es`, `config/init.lua` under
+  `nvim --headless -u`, `config/init.el` under `emacs --batch -q -l`. The
   payload suites treat those files as bytes, so a syntax error would otherwise
   ride the wire to every target.
 - **12. typos** over the whole tree, allowlisted by `.typos.toml`.

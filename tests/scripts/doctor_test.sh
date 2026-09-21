@@ -111,11 +111,19 @@ function _hi_doc_target() {
   PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent doctor_target "$@"
 }
 
+# _hi_doc_rows <fn> [args...] - a row helper that is not a section of its
+# own, with its rows drawn: they buffer until doctor_flush, which only the
+# section functions call
+function _hi_doc_rows() {
+  "$@"
+  doctor_flush
+}
+
 # a tree with no .git is what a package manager laid down, and the row says
 # so rather than calling git on it
 function test_local_without_a_git_dir_reads_as_a_package_install() {
   local root out
-  root="$(_hi_scratch_tree nogit common settings scripts hi.sh load.sh)/say-hi"
+  root="$(_hi_scratch_tree nogit common config scripts hi.sh load.sh)/say-hi"
   out="$(_HI_ROOT="$root" doctor_local 2>/dev/null)"
   [[ "$out" == *"no .git - a package or tarball install"* ]]
 }
@@ -125,29 +133,6 @@ function test_local_reports_the_version() {
   local out
   out="$(_HI_RELEASE=1.2.3 doctor_local)"
   [[ "$out" == *version* && "$out" == *"1.2.3"* ]]
-}
-
-# an overlay that adds nothing to the wire gets no diff row
-function test_local_omits_payload_diff_at_stock_defaults() {
-  local dir out
-  dir="$_HI_WORKDIR/payloaddiff_stock"
-  mkdir -p "$dir"
-  out="$(_HI_CONFIG_DIR="$dir" doctor_local)"
-  [[ "$out" != *"payload_diff"* ]]
-}
-
-# ...and one with a file in it is diffed, handed the wire figure doctor_local
-# already built (stubbed: the stock build it would add is the whole cost)
-function test_local_diffs_a_non_empty_overlay() {
-  local dir out
-  dir="$_HI_WORKDIR/payloaddiff_overlay"
-  mkdir -p "$dir"
-  printf 'a\n' >"$dir/colors"
-  out="$(
-    function doctor_payload_diff() { printf 'diffed against %s\n' "$1"; }
-    _HI_CONFIG_DIR="$dir" doctor_local
-  )"
-  [[ "$out" == *"diffed against "[0-9]* ]]
 }
 
 # The tool-floor branches: only the happy path (everything present) is ever
@@ -206,19 +191,19 @@ function test_local_flags_a_gzip_that_nothing_can_replace() {
 
 function test_backend_missing_reports_not_installed() {
   local out
-  out="$(PATH="$(_hi_doctor_path)" doctor_backend docker docker ps -q)"
+  out="$(PATH="$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
   [[ "$out" == *"not installed"* ]]
 }
 
 function test_backend_answering_reports_timing() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" doctor_backend docker docker ps -q)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
   [[ "$out" == *"answering"* && "$out" == *s\)* ]]
 }
 
 function test_backend_dead_reports_not_answering() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" doctor_backend podman podman ps -q)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend podman podman ps -q)"
   [[ "$out" == *"not answering"* ]]
 }
 
@@ -320,12 +305,53 @@ function test_config_names_tmux_and_micro_configs() {
     [[ "$out" == *"tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
 }
 
+# ...and only with the tool here: home's config for a tool this machine lacks
+# is in force nowhere, so it neither ships nor gets a row
+function test_config_is_silent_on_a_config_for_an_absent_tool() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/notool.XXXXXX")"
+  printf 'set -g mouse on\n' >"$dir/tmux.conf"
+  out="$(
+    function _hi_tool_here() { return 1; }
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_SETTINGS="$dir/overlay/settings.sh"
+    _HI_TMUX_CONF="$dir/tmux.conf" doctor_config
+  )"
+  [[ "$out" != *tmux.conf* ]]
+}
+
+# The files table walks every tier of a member in the table's order and marks
+# each: home's ~/.vimrc used over the tree's default, the overlay's
+# tmux.conf over home's, a member found nowhere only in the closing row, and
+# a default whose tool is missing named as not sent. GLOSSARY: HI.61
+function test_files_table_walks_every_tier() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/files.XXXXXX")"
+  mkdir -p "$h/overlay"
+  printf 'set number\n' >"$h/.vimrc"
+  printf 'set -g mouse on\n' >"$h/.tmux.conf"
+  printf 'set -g mouse off\n' >"$h/overlay/tmux.conf"
+  out="$(
+    function _hi_tool_here() { [ "$1" != init.el ]; }
+    HOME="$h" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" _HI_TMUX_CONF="$h/overlay/tmux.conf" \
+      _HI_SCREENRC="" doctor_files
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"vimrc"*"absent ~/overlay/vimrc; used ~/.vimrc; absent ~/.vim/vimrc"*"passed over $_HI_ROOT/config/vimrc"* ]] &&
+    [[ "$out" == *"tmux.conf"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
+    [[ "$out" == *"init.el"*"passed over $_HI_ROOT/config/init.el - not sent: its tool is not installed here"* ]] &&
+    [[ "$out" == *"none anywhere"*screenrc* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+}
+
 # an overlay copy of the tree's own file, byte for byte: not an override
 # until somebody edits it
 function test_config_calls_an_unedited_overlay_copy_unchanged() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/copied.XXXXXX")"
-  cp "$_HI_ROOT/settings/colors" "$dir/colors"
+  cp "$_HI_ROOT/config/colors" "$dir/colors"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
@@ -336,8 +362,7 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
 
 # The include scan's rows. hi.sh's _hi_include_lint is the same pass that does
 # the dropping on the way out, so what the report names is exactly what went
-# missing - and the row says which of the two happened, since
-# _HI_INCLUDES=keep sends the line instead. GLOSSARY: HI.57
+# missing. GLOSSARY: HI.57
 function test_config_names_an_unresolvable_include() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/incl.XXXXXX")"
@@ -352,34 +377,19 @@ function test_config_names_an_unresolvable_include() {
     [[ "$out" == *"vimrc:3"*"names a plugin manager"* ]]
 }
 
-# a shell overlay file gets the same yellow row, and a `# hi-allow` line above a
-# source silences it
+# a shell overlay file gets the same yellow row, and a `# hi-allow` or
+# `# hi-quiet` line above a source silences it
 function test_config_names_a_shell_include_unless_allowed() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/inclsh.XXXXXX")"
-  printf '. ~/.secrets\n# hi-allow\n. ~/.kept\n' >"$dir/aliases.sh"
+  printf '. ~/.secrets\n# hi-allow\n. ~/.kept\n# hi-quiet\n. ~/.hushed\n' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"* && "$out" != *"aliases.sh:3"* ]]
-}
-
-# ...and with the escape hatch on, the row says the line travels and the target
-# has no such file - the same finding, the opposite fate
-function test_config_says_when_an_include_travels_anyway() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/inclkeep.XXXXXX")"
-  printf 'source ~/.vim/extra.vim\n' >"$dir/vimrc"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_VIMRC="$dir/vimrc"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_INCLUDES=keep
-    doctor_config
-  )"
-  [[ "$out" == *"vimrc:1"*"sent as written"* ]]
+  [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"*"hi-quiet"* ]] &&
+    [[ "$out" != *"aliases.sh:3"* && "$out" != *"aliases.sh:5"* ]]
 }
 
 # an editor rc hi picked up from where that editor reads it says where it came
@@ -495,35 +505,20 @@ function test_config_lists_the_plugins() {
     [[ "$out" != *"plugins.d/10-a"* ]]
 }
 
-# packages.d (HI.58): one row naming the groups in the order the check paints
-# them, and a warning for each thing about them a user could not see in the
-# header - a color= nothing paints, a group whose rows all sit under the
-# floor, a file that is no member. Nothing at all without the directory.
-function test_config_names_the_package_groups() {
+# packages is an overlay file like colors: the tree's default until the
+# overlay has one, then a copy of it (what `hi --add-package` starts from)
+# or an override counted in lines
+function test_config_reports_the_packages_file() {
   local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/groups.XXXXXX")"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_PACKAGES_D="$dir/packages.d" doctor_config)"
-  [[ "$out" != *packages.d* ]] || return 1
-  mkdir -p "$dir/packages.d"
-  printf 'color=orange\nls:3\n' >"$dir/packages.d/10-lang"
-  printf 'color=mono\nsh:3\n' >"$dir/packages.d/20-box"
-  printf 'sh:1\n' >"$dir/packages.d/30-quiet"
-  printf 'sh:3\n' >"$dir/packages.d/30-quiet.bak"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_PACKAGES_D="$dir/packages.d" _HI_PACKAGES_MIN_PRIORITY=2 doctor_config)"
-  [[ "$out" == *"packages.d"*"painted in order: lang (orange), box (the ramp), quiet (the ramp)"* ]] &&
-    [[ "$out" == *"packages.d/20-box"*"color=mono is ignored"* ]] &&
-    [[ "$out" == *"packages.d/30-quiet"*"nothing paints quiet"* ]] &&
-    [[ "$out" == *"packages.d/30-quiet.bak"*"ignored"* ]] &&
-    [[ "$out" != *"packages.d/10-lang"* ]]
-}
-
-# The row fires unconditionally now that _HI_PACKAGES_D always has a tree
-# default - "tree default - " leads the message when it is one, so the row
-# never reads as naming the user's own groups when they are the tree's.
-function test_config_names_the_package_groups_says_tree_default() {
-  local out
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-overlay-here" _HI_PACKAGES_D="$_HI_ROOT/settings/packages.d" doctor_config)"
-  [[ "$out" == *"packages.d"*"tree default - painted in order: default (the ramp), extra (the ramp)"* ]]
+  dir="$(mktemp -d "$_HI_WORKDIR/packages.XXXXXX")"
+  out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
+  [[ "$out" == *"packages"*"tree default"* ]] || return 1
+  cp "$_HI_ROOT/config/packages" "$dir/packages"
+  out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
+  [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || return 1
+  printf '# a note\nsh:3\nls:2\n' >"$dir/packages"
+  out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
+  [[ "$out" == *"packages"*"overridden (3 lines)"* ]]
 }
 
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
@@ -582,11 +577,11 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=12 _HI_PACKAGES_MIN_PRIORITY=9 _HI_IP_HIDE='10.*;x' _HI_HEADER_ORDER='utc bogus'
-    _HI_PROMPT_TOOL='starshp hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes _HI_INCLUDES=sometimes
+    _HI_PROMPT_TOOL='starshp hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes
     doctor_config
   )"
   local n
-  for n in _HI_MAX_WIDTH _HI_PACKAGES_MIN_PRIORITY _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX _HI_INCLUDES; do
+  for n in _HI_MAX_WIDTH _HI_PACKAGES_MIN_PRIORITY _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX; do
     printf '%s\n' "$out" | grep -q "$n.*is ignored" || {
       _hi_cecho " | no row for $n" "$RED"
       return 1
@@ -596,7 +591,7 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=100 _HI_PACKAGES_MIN_PRIORITY=4 _HI_IP_HIDE='10.* 192.168.?.*' _HI_HEADER_ORDER='utc check'
-    _HI_PROMPT_TOOL='tide hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0 _HI_INCLUDES=keep
+    _HI_PROMPT_TOOL='tide hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0
     doctor_config
   )"
   [[ "$out" != *"is ignored"* ]]
@@ -686,6 +681,84 @@ function test_doctor_row_counts_only_bad() {
   return 1
 }
 
+# every severity wears its own mark in the first column - core.sh's one-column
+# $_HI_MARK_* pair, so the ASCII set where the locale has no UTF-8 - and plain
+# information none, so a report with no color still reads
+function test_doctor_row_marks_each_severity() {
+  local out v="$_HI_BOX_V"
+  out="$(
+    doctor_row a fine ok
+    doctor_row b meh warn
+    doctor_row c broken bad
+    doctor_row d plain
+    doctor_flush
+    _HI_ASCII=1
+    _hi_choose_glyphs
+    doctor_row e fine ok
+    doctor_row f broken bad
+    doctor_flush
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"$v $_HI_MARK_OK $v a "*"$v ! $v b "*"$v $_HI_MARK_NO $v c "*"$v   $v d "* ]] || return 1
+  [[ "$out" == *"$v + $v e "*"$v x $v f "* ]] || return 1
+  _hi_table_is_rectangular "$out"
+}
+
+# --problems' box gathers the warn and bad rows of every section, labeled
+# with the section they came from, plus the unlabeled detail row under one -
+# and nothing else; with no such row it prints nothing at all
+function test_findings_box_holds_only_warn_and_bad() {
+  local out
+  [ -z "$(
+    _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
+    doctor_findings
+  )" ] || return 1
+  out="$(
+    _HI_DOC_BAD=0 _HI_DOC_WARN=0
+    _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
+    doctor_section one "One"
+    doctor_row a fine ok
+    doctor_row b meh warn
+    doctor_row "" "the detail under meh"
+    doctor_flush
+    doctor_section two "Two"
+    doctor_row c broken bad
+    doctor_row d plain
+    doctor_row "" "detail under a plain row"
+    doctor_flush
+    printf '%s\n' '--findings--'
+    doctor_findings
+  )"
+  out="$(_hi_strip_ansi "${out#*--findings--}")"
+  [[ "$out" == *"Findings: 1 bad, 1 warn"* ]] || return 1
+  [[ "$out" == *"one/b"*"meh"*"the detail under meh"*"two/c"*"broken"* ]] || return 1
+  [[ "$out" != *"one/a"* && "$out" != *fine* && "$out" != *plain* ]] || return 1
+  _hi_table_is_rectangular "$out"
+}
+
+# On a terminal (or with $_HI_TERM_COLS pinned, as here) a row too long for
+# the width wraps inside its cell instead of widening the box past it; the
+# words all survive, and a word longer than the column is split
+function test_a_long_row_wraps_to_the_terminal() {
+  local out line n long word
+  long="$(printf 'word%s ' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18)"
+  word="$(printf 'x%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40)"
+  out="$(
+    _HI_TERM_COLS=50 _HI_MAX_WIDTH=80
+    doctor_row long "$long" warn
+    doctor_row word "$word"
+    doctor_flush
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  _hi_table_is_rectangular "$out" || return 1
+  while IFS= read -r line; do
+    _hi_visible_len n "$line"
+    [ "$n" -le 50 ] || return 1
+  done <<<"$out"
+  [[ "$out" == *word1*word18* ]] || return 1
+  [ "$(printf '%s\n' "$out" | grep -c 'xxxx')" -ge 2 ]
+}
+
 function test_missing_tools_lists_only_the_absent() {
   local out
   out="$(PATH="$(_hi_fake_path doctools sh present-tool)" _hi_missing_tools present-tool absent-tool-9x other-absent-8y)"
@@ -714,30 +787,6 @@ function test_doctor_probe_snippet_runs_under_sh() {
   return 1
 }
 
-# driven by explicit byte counts so no wire assembly runs: the floor hides
-# small deltas, and a lighter figure (gzip jitter) is never a row.
-#
-# _hi_wire_bytes is stubbed rather than called, because two calls to the real
-# one do not agree: the payload tar carries the staged files' mtimes, so the
-# bytes gzip emits move a little between one second and the next - 8 bytes
-# apart on Linux, and further under the pax timestamp headers bsdtar writes,
-# which is enough to cross a 128-byte floor. The arms and the floor are what
-# this case is about, so one fixed figure stands for the stock build and the
-# three deltas are measured against exactly it.
-# The stub is confined to a subshell: a bare redefinition here would outlive
-# the case and take the real figure away from "Reports the per-session wire
-# cost" further down.
-function test_doctor_payload_diff_arms() {
-  (
-    stock=69000
-    function _hi_wire_bytes() { printf '%s' "$stock"; }
-    [ -z "$(doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))" ] || exit 1
-    out="$(doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
-    case "$out" in *'heavier than the stock default'*) ;; *) exit 1 ;; esac
-    [ -z "$(doctor_payload_diff "$stock")" ]
-  )
-}
-
 # the folded-in rc check: each rc or overlay file through its parser,
 # one row each, with the same skip rule install.sh's pre-flight has
 function test_config_rows_parse_the_files() {
@@ -745,12 +794,12 @@ function test_config_rows_parse_the_files() {
   mkdir -p "$dir"
   printf 'alias ll="ls -l"\n' >"$dir/good.bash"
   printf 'if [ 1 ]; then\n' >"$dir/bad.bash"
-  out="$(doctor_config_row good "$dir/good.bash" bash -n)" || return 1
+  out="$(_hi_doc_rows doctor_config_row good "$dir/good.bash" bash -n)" || return 1
   [[ "$out" == *"good"*"parses (bash)"* ]] || return 1
-  out="$(doctor_config_row bad "$dir/bad.bash" bash -n)" || return 1
+  out="$(_hi_doc_rows doctor_config_row bad "$dir/bad.bash" bash -n)" || return 1
   [[ "$out" == *"bad"*"has issues (bash)"* ]] || return 1
-  [ -z "$(doctor_config_row gone "$dir/missing.bash" bash -n)" ] || return 1
-  [ -z "$(doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ]
+  [ -z "$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)" ] || return 1
+  [ -z "$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ]
 }
 
 function test_target_resolves_a_running_container() {
@@ -767,7 +816,7 @@ function test_container_target_reports_the_full_tier() {
   [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]]
 }
 
-# no bash means hi copies settings/aliases.sh alone and drops into the best of the
+# no bash means hi copies config/aliases.sh alone and drops into the best of the
 # ladder - the report has to name which shell that is, since that is the whole
 # question somebody runs this to answer
 function test_container_target_names_the_fallback_shell() {
@@ -829,19 +878,19 @@ function test_forced_ssh_overrides_a_real_container() {
 function test_ssh_target_reports_the_wire_cost() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" \
-  HI_FAKE_TOOLS="base64 bash " doctor_ssh_target somewhere)"
+  HI_FAKE_TOOLS="base64 bash " _hi_doc_rows doctor_ssh_target somewhere)"
   [[ "$out" == *install*"each session"* ]]
 }
 
 function test_ssh_target_flags_a_missing_base64() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " doctor_ssh_target somewhere)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_ssh_target somewhere)"
   [[ "$out" == *"no base64"* ]]
 }
 
 function test_ssh_target_flags_a_missing_bash() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " doctor_ssh_target somewhere)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " _hi_doc_rows doctor_ssh_target somewhere)"
   [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]]
 }
 
@@ -858,9 +907,10 @@ exit 255
 SHIM
   chmod +x "$bin/ssh"
   out="$(
+    # shellcheck disable=SC2030 # lives and dies in this $( )
     PATH="$bin:$(_hi_real_path sshfail-tools mktemp date rm cat sh bash awk grep sed printf wc tr sleep)"
     _HI_DOC_BAD=0
-    doctor_ssh_target somewhere
+    _hi_doc_rows doctor_ssh_target somewhere
     echo "bad=$_HI_DOC_BAD"
   )"
   [[ "$out" == *"FAILED after"* ]] || return 1
@@ -895,8 +945,8 @@ function test_help_exits_zero() {
 # reached as `hi --doctor`, the usage line says so; run by hand it names the
 # file
 function test_help_names_what_was_typed() {
-  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--use <backend>] [ssh-options] [target]" ] &&
-    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]" ]
+  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] &&
+    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]" ]
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
@@ -945,7 +995,7 @@ function test_use_twice_naming_two_backends_is_refused() {
 
 # --help anywhere on the line, not only first: after a flag, after a target
 function test_help_is_read_anywhere_on_the_line() {
-  local out want="Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]"
+  local out want="Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]"
   out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || return 1
   out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ]
 }
@@ -1101,7 +1151,7 @@ assert d["findings"] == 0, d["findings"]
 assert d["target"] is None
 assert d["version"]
 secs = {r["section"] for r in d["rows"]}
-assert secs == {"local", "config", "configs", "install", "backends"}, secs
+assert secs == {"local", "config", "files", "configs", "install", "backends"}, secs
 sevs = {r["severity"] for r in d["rows"]}
 assert sevs <= {"info", "ok", "warn", "bad"}, sevs
 assert any(r["label"] == "docker" and r["severity"] == "ok" for r in d["rows"])
@@ -1186,110 +1236,189 @@ function test_json_is_off_by_default() {
   [[ "$_HI_DOC_PLAIN_OUT" != *'"rows"'* && "$_HI_DOC_PLAIN_OUT" == *"hi doctor"* ]]
 }
 
+# every section of the whole report is a boxed table, square on the page, and
+# the warn rows it carries on the shims stay in their sections: no closing
+# box repeats them (that box is --problems' alone)
+function test_full_report_draws_tables_and_no_findings_box() {
+  local out
+  _hi_doctor_plain_report
+  out="$(_hi_strip_ansi "$_HI_DOC_PLAIN_OUT")"
+  _hi_table_is_rectangular "$out" || return 1
+  [[ "$out" == *"$_HI_BOX_V CHECK"*"$_HI_BOX_V RESULT"* ]] || return 1
+  [[ "$out" != *"Findings:"* && "$out" != *"$_HI_BOX_V FINDING"* ]]
+}
+
+# _hi_doctor_problems [args...] - `--problems` on the shims, output then exit
+# status on the last line
+function _hi_doctor_problems() {
+  local home rc=0
+  home="$(_hi_doctor_home)"
+  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --problems "$@" || rc=$?
+  printf 'rc=%s\n' "$rc"
+}
+
+# --problems is the findings box alone: no banner, no section, the same exit
+# status - 1 with a bad row (the unanswered target's), 0 with only warnings
+function test_problems_prints_only_the_findings() {
+  local out
+  out="$(_hi_strip_ansi "$(_hi_doctor_problems somehost)")"
+  [[ "$out" == *"rc=1" && "$out" == *"Findings: 1 bad, "*"FINDING"* ]] || return 1
+  [[ "$out" != *"hi doctor"* && "$out" != *"The local tree"* && "$out" != *RESULT* ]] || return 1
+  out="$(_hi_strip_ansi "$(_hi_doctor_problems)")"
+  [[ "$out" == *"rc=0" && "$out" == *"Findings: 0 bad, "* ]] || return 1
+  [[ "$out" != *"The local tree"* && "$out" != *RESULT* && "$out" != *"Nothing looks broken"* ]]
+}
+
+# --problems narrows the text report only: beside --json the document is the
+# one --json alone prints, byte for byte once the timings are masked
+# the exit status is the findings count's (a box with a finding exits 1), so
+# only the two documents are compared
+# Two runs compared, so both must see the same world: the probe cap is
+# generous (the shims answer or fail at once, but a loaded VM is slow), and a
+# difference prints. It found the payload cache serving another tree's
+# payload to one of the two runs - a wire size off by 1K on FreeBSD.
+function test_problems_leaves_json_unchanged() {
+  local a b
+  a="$(_HI_PROBE_TIMEOUT=30 _hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
+  b="$(_HI_PROBE_TIMEOUT=30 _hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
+  [ -n "$a" ] && [ "$a" = "$b" ] && return 0
+  _hi_cecho " | the two documents differ:" "$RED"
+  diff <(printf '%s\n' "$a" | tr ',' '\n') <(printf '%s\n' "$b" | tr ',' '\n') | sed 's/^/      /' || true
+  return 1
+}
+
 function run_doctor_tests() {
+  local part="${_HI_DOCTOR_PART:-local}"
   _hi_workdir doctortest
+  # home's configs ride only with their tools on this machine (_hi_tool_here),
+  # and no runner has all of them
+  # shellcheck disable=SC2031 # the $( ) swap above is its own; this one is the suite's
+  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
 
   _hi_suite_begin
 
-  _hi_h1 "Testing scripts/doctor.sh"
+  _hi_h1 "Testing scripts/doctor.sh ($part)"
 
-  _hi_h2 "Testing: doctor_local"
-  _hi_check "Reports the version" test_local_reports_the_version
-  _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
-  _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
-  _hi_check "A non-empty overlay is diffed against stock" test_local_diffs_a_non_empty_overlay
-  _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
-  _hi_check "Warns without gzip when tar can compress" test_local_warns_without_gzip
-  _hi_check "...and flags it when tar cannot" test_local_flags_a_gzip_that_nothing_can_replace
+  # one suite ran past every other under Git Bash (~450s on windows-11-arm),
+  # so its sections are three suites that shard apart: this file, and
+  # doctor_target_test.sh and doctor_report_test.sh, which name their part
+  # and source it
+  if [ "$part" = local ]; then
+    _hi_h2 "Testing: doctor_local"
+    _hi_check "Reports the version" test_local_reports_the_version
+    _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
+    _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
+    _hi_check "Warns without gzip when tar can compress" test_local_warns_without_gzip
+    _hi_check "...and flags it when tar cannot" test_local_flags_a_gzip_that_nothing_can_replace
 
-  _hi_h2 "Testing: doctor_backend"
-  _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed
-  _hi_check "Answering CLI -> timed, green" test_backend_answering_reports_timing
-  _hi_check "Dead CLI -> not answering" test_backend_dead_reports_not_answering
-  _hi_check "ssh config: literal hosts counted" test_backends_count_literal_ssh_hosts
+    _hi_h2 "Testing: doctor_backend"
+    _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed
+    _hi_check "Answering CLI -> timed, green" test_backend_answering_reports_timing
+    _hi_check "Dead CLI -> not answering" test_backend_dead_reports_not_answering
+    _hi_check "ssh config: literal hosts counted" test_backends_count_literal_ssh_hosts
 
-  _hi_h2 "Testing: doctor_config"
-  _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
-  _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
-  _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
-  _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
-  _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
-  _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
-  _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
-  _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
-  _hi_check "...and =keep says it travels anyway" test_config_says_when_an_include_travels_anyway
-  _hi_check "A shell include is named unless hi-allow" test_config_names_a_shell_include_unless_allowed
-  _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
-  _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
-  _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
-  _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
-  _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
-  _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
-  _hi_check "Config names the packages.d groups, and flags them" test_config_names_the_package_groups
-  _hi_check "...and says so when it's the tree's own" test_config_names_the_package_groups_says_tree_default
-  _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
-  _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
-  _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
-  _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
-  _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
-  _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
+    _hi_h2 "Testing: doctor_config"
+    _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
+    _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+    _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
+    _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
+    _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
+    _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
+    _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
+    _hi_check "The files table walks every tier" test_files_table_walks_every_tier
+    _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
+    _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
+    _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
+    _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
+    _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
+    _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
+    _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
+    _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
+    _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
+    _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
+    _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
+    _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
+    _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
+    _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
+    _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
+    _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
 
-  _hi_h2 "Testing: the report primitives"
-  _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens
-  _hi_check "doctor_row: only bad counts; --json collects" test_doctor_row_counts_only_bad
-  _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
-  _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
-  _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
-  _hi_check "doctor_payload_diff: the heavier arm and the floor" test_doctor_payload_diff_arms
+    _hi_h2 "Testing: the report primitives"
+    _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens
+    _hi_check "doctor_row: only bad counts; --json collects" test_doctor_row_counts_only_bad
+    _hi_check "doctor_row: a mark per severity, ASCII too" test_doctor_row_marks_each_severity
+    _hi_check "The findings box holds only warn and bad rows" test_findings_box_holds_only_warn_and_bad
+    _hi_check "A long row wraps to the terminal's width" test_a_long_row_wraps_to_the_terminal
+    _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
+    _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
+    _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
 
-  _hi_h2 "Testing: doctor_target / doctor_ssh_target"
-  _hi_check "Resolves a running container" test_target_resolves_a_running_container
-  _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
-  _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
-  _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
-  _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
-  _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
-  _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
-  _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
-  _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target
-  _hi_check "Container with no known shell" test_container_target_flags_no_known_shell
-  _hi_check "Reports the per-session wire cost" test_ssh_target_reports_the_wire_cost
-  _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
-  _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
-  _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
+  fi
 
-  _hi_h2 "Testing: the report"
-  _hi_check "--help exits zero" test_help_exits_zero
-  _hi_check "--help names what was typed" test_help_names_what_was_typed
-  _hi_check "--help is read anywhere on the line" test_help_is_read_anywhere_on_the_line
-  _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
-  _hi_check "A second target is refused" test_a_second_target_is_refused
-  _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
-  _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
-  _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
-  _hi_check "Full report runs clean on shims" test_full_report_runs_clean
+  if [ "$part" = target ]; then
+    _hi_h2 "Testing: doctor_target / doctor_ssh_target"
+    _hi_check "Resolves a running container" test_target_resolves_a_running_container
+    _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
+    _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
+    _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
+    _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
+    _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
+    _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
+    _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
+    _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target
+    _hi_check "Container with no known shell" test_container_target_flags_no_known_shell
+    _hi_check "Reports the per-session wire cost" test_ssh_target_reports_the_wire_cost
+    _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
+    _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
+    _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 
-  _hi_h2 "Testing: the install section"
-  _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
-  _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
-  _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
-  _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
-  _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
-  _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path
-  _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
-  _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
-  _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
-  _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
+  fi
 
-  _hi_h2 "Testing: --json"
-  _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
-  _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
-  _hi_check_requires python3 "--use from the command line forces the arm" test_json_use_flag_forces_the_arm
-  _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
-  _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
-  _hi_check "Off by default" test_json_is_off_by_default
+  if [ "$part" = report ]; then
+    _hi_h2 "Testing: the report"
+    _hi_check "--help exits zero" test_help_exits_zero
+    _hi_check "--help names what was typed" test_help_names_what_was_typed
+    _hi_check "--help is read anywhere on the line" test_help_is_read_anywhere_on_the_line
+    _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
+    _hi_check "A second target is refused" test_a_second_target_is_refused
+    _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
+    _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
+    _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
+    _hi_check "Full report runs clean on shims" test_full_report_runs_clean
+    _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
+    _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
 
-  _hi_suite_end "doctor.sh"
+  fi
+
+  if [ "$part" = target ]; then
+    _hi_h2 "Testing: the install section"
+    _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
+    _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
+    _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
+    _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
+    _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
+    _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path
+    _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
+    _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
+    _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
+    _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
+
+  fi
+
+  if [ "$part" = report ]; then
+    _hi_h2 "Testing: --json"
+    _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
+    _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
+    _hi_check_requires python3 "--use from the command line forces the arm" test_json_use_flag_forces_the_arm
+    _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
+    _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
+    _hi_check "Off by default" test_json_is_off_by_default
+    _hi_check "--problems leaves the document unchanged" test_problems_leaves_json_unchanged
+
+  fi
+
+  _hi_suite_end "doctor.sh ($part)"
 }
 
 run_doctor_tests

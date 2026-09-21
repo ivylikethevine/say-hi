@@ -38,7 +38,7 @@ class SayHi < Formula
     #
     # It must land in a directory named say-hi - every path in the project
     # resolves against $_HI_HOME/say-hi, so libexec is the _HI_HOME here.
-    (libexec/"say-hi").install "common", "scripts", "settings",
+    (libexec/"say-hi").install "common", "scripts", "config",
                                "hi.sh", "load.sh", "LICENSE.md", "README.md"
     chmod 0755, libexec/"say-hi/hi.sh"
 

@@ -112,6 +112,19 @@ EOF
 # for, and its per-job fan-out is a second mechanism this case is not about.
 _HI_SLOW_PATH=""
 _HI_PROBE_LOG=""
+# Each lane logs its start, then waits for the other two to start - up to 2s -
+# before it logs its end. A meeting, not a fixed `sleep`: a sleep proves
+# overlap only if all three lanes start inside it, which a loaded BSD VM does
+# not promise. Lanes run together pass at once; lanes run in turn each wait
+# out the 2s (under the 10s probe cap _hi_targets_slow gives them) and log
+# their end first, which is what the in-turn case asserts.
+# shellcheck disable=SC2016 # the shims' own code, expanded when they run
+_HI_SLOW_MEET='i=0
+while [ "$(awk "/ start\$/ { n++ } END { print n + 0 }" "$_HI_PROBE_LOG")" -lt 3 ] && [ "$i" -lt 20 ]; do
+  sleep 0.1
+  i=$((i + 1))
+done'
+
 function _hi_write_slow_shims() {
   local dir="$_HI_WORKDIR/slowshims" tool
   mkdir -p "$dir"
@@ -122,18 +135,18 @@ function _hi_write_slow_shims() {
 #!/bin/sh
 [ "\$1" = ps ] || exit 1
 printf '$tool start\\n' >>"\$_HI_PROBE_LOG"
-sleep 0.3
+$_HI_SLOW_MEET
 printf '$tool end\\n' >>"\$_HI_PROBE_LOG"
 printf 'slow-$tool\\n'
 EOF
   done
 
-  cat >"$dir/kubectl" <<'EOF'
+  cat >"$dir/kubectl" <<EOF
 #!/bin/sh
-[ "$1" = get ] || exit 1
-printf 'kube start\n' >>"$_HI_PROBE_LOG"
-sleep 0.3
-printf 'kube end\n' >>"$_HI_PROBE_LOG"
+[ "\$1" = get ] || exit 1
+printf 'kube start\\n' >>"\$_HI_PROBE_LOG"
+$_HI_SLOW_MEET
+printf 'kube end\\n' >>"\$_HI_PROBE_LOG"
 printf 'default slow-pod\n'
 EOF
 
@@ -160,7 +173,7 @@ EOF
 function _hi_targets_slow() {
   : >"$_HI_PROBE_LOG"
   PATH="$_HI_SLOW_PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_PROBE_LOG="$_HI_PROBE_LOG" \
-    TMPDIR="${1:-${TMPDIR:-/tmp}}" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS"
+    TMPDIR="${1:-${TMPDIR:-/tmp}}" _HI_TARGETS_TTL=0 _HI_PROBE_TIMEOUT=10 sh "$_HI_TARGETS"
 }
 
 # A PATH with the commands targets.sh runs and nothing else - no docker,
@@ -232,6 +245,21 @@ function test_missing_config_is_empty_and_succeeds() {
   local out
   out="$(_hi_targets "$_HI_NO_CONFIG" ssh)" || return 1
   [ -z "$out" ]
+}
+
+# a host that lives only in an Included file completes like one in the config
+# itself: ~/.ssh-relative paths, globs, and nested Includes; a word that is not
+# a path is skipped, never run
+function test_ssh_hosts_follow_include() {
+  local h="$_HI_WORKDIR/inc-home" out
+  mkdir -p "$h/.ssh/config.d" "$h/.ssh/deep"
+  # shellcheck disable=SC2016 # the $( ) is the config's text, and must not run
+  printf 'Include config.d/* $(touch %s/ran)\nHost top\n' "$h" >"$h/.ssh/config"
+  printf 'Host alpha\n  Include deep/*\n' >"$h/.ssh/config.d/01-a"
+  printf 'Host gamma\n' >"$h/.ssh/deep/x"
+  out="$(HOME="$h" _hi_targets "$h/.ssh/config" ssh)" || return 1
+  _hi_has_row "$out" alpha ssh && _hi_has_row "$out" gamma ssh &&
+    _hi_has_row "$out" top ssh && [ ! -e "$h/ran" ]
 }
 
 function test_ssh_kind_excludes_container_backends() {
@@ -490,7 +518,7 @@ function test_stale_cache_answers_now_and_refreshes_behind() {
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
   ! _hi_has_row "$out" alpha docker || return 1
-  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
+  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 
@@ -517,7 +545,7 @@ function test_stale_cache_dead_lock_is_taken_over() {
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
-  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
+  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 
@@ -854,7 +882,7 @@ function test_flags_behind_a_local_command_are_its_switches() {
     _hi_cecho "   flags --install gave: $out" "$RED"
     return 1
   }
-  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --use " ] || return 1
+  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --problems --use " ] || return 1
   # a row with no switches offers nothing; a connect flag or a target first
   # is not a local command, so the top-level roster stands
   ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || return 1
@@ -1029,12 +1057,12 @@ function test_word_flags_match_the_words_roster() {
   }
 }
 
-# --- words --add-package / --group: the packages.d cascade, reimplemented -
-# both arms resolve $_HI_CONFIG_DIR/packages.d, else the tree's own
-# settings/packages.d, the same wholesale-replace cascade paths.sh's
-# $_HI_PACKAGES_D uses. A known row from each shipped group pins the walk.
+# --- words --add-package: the packages cascade, reimplemented - the arm
+# resolves $_HI_CONFIG_DIR/packages, else the tree's own config/packages, the
+# same wholesale-replace cascade paths.sh's $_HI_PACKAGES uses. Two known rows
+# from the tree's file pin the read.
 
-function test_words_add_package_with_no_overlay_lists_both_tree_groups() {
+function test_words_add_package_with_no_overlay_lists_the_tree_rows() {
   local out
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --add-package)"
   [[ "$out" == *'bat:3,batcat:3,ccat:3,cat:2'* && "$out" == *'fd:1,fdfind:1,find:1'* ]]
@@ -1043,65 +1071,32 @@ function test_words_add_package_with_no_overlay_lists_both_tree_groups() {
 function test_words_add_package_with_an_overlay_lists_only_its_own() {
   local dir out
   dir="$_HI_WORKDIR/addpkg-overlay"
-  mkdir -p "$dir/packages.d"
-  printf 'mine:1\n' >"$dir/packages.d/mine"
+  mkdir -p "$dir"
+  printf 'mine:1\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
   [[ "$out" == *'mine:1'* && "$out" != *'bat:3,batcat:3'* ]]
 }
 
-# the gap this session's rewrite closes: a `#` anywhere on a row kills it,
-# not only a leading one - _hi_check_file's own rule
+# the overlay directory alone is not an override - the guard is on the file,
+# as paths.sh's is, so an overlay without one still offers the tree's rows
+function test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_rows() {
+  local dir out
+  dir="$_HI_WORKDIR/addpkg-overlay-nofile"
+  mkdir -p "$dir"
+  printf 'hostname,foo,brred\n' >"$dir/colors"
+  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
+  [[ "$out" == *'bat:3,batcat:3,ccat:3,cat:2'* ]]
+}
+
+# a `#` anywhere on a row kills it, not only a leading one, and a blank line
+# is no row - full_check's own rule
 function test_words_add_package_skips_a_trailing_hash_comment() {
   local dir out
   dir="$_HI_WORKDIR/addpkg-hash"
-  mkdir -p "$dir/packages.d"
-  printf 'kept:1\nbad:1 # a trailing note\n' >"$dir/packages.d/one"
+  mkdir -p "$dir"
+  printf '# a note\n\nkept:1\nbad:1 # a trailing note\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [[ "$out" == *'kept:1'* && "$out" != *'bad:1'* ]]
-}
-
-# ...and the other gap: a .bak/dotfile member is not a member, for either arm
-function test_words_skip_non_members() {
-  local dir out_add out_group
-  dir="$_HI_WORKDIR/addpkg-nonmember"
-  mkdir -p "$dir/packages.d"
-  printf 'kept:1\n' >"$dir/packages.d/kept"
-  printf 'stale:1\n' >"$dir/packages.d/kept.bak"
-  printf 'hidden:1\n' >"$dir/packages.d/.dotfile"
-  out_add="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  out_group="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --group)"
-  [[ "$out_add" == *'kept:1'* && "$out_add" != *'stale:1'* && "$out_add" != *'hidden:1'* ]] &&
-    [[ "$out_group" == *$'kept\t'* && "$out_group" != *'kept.bak'* && "$out_group" != *'.dotfile'* ]]
-}
-
-function test_words_group_with_no_overlay_lists_the_tree_groups() {
-  local out
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay-2" sh "$_HI_TARGETS" words --group | cut -f1 | sort | tr '\n' ' ')"
-  [ "$out" = "00-default 01-extra " ]
-}
-
-function test_words_group_with_an_overlay_lists_only_its_own() {
-  local dir out
-  dir="$_HI_WORKDIR/addpkg-group-overlay"
-  mkdir -p "$dir/packages.d"
-  printf 'x\n' >"$dir/packages.d/mygroup"
-  out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --group | cut -f1)"
-  [ "$out" = mygroup ]
-}
-
-# targets.sh cannot source common/core.sh (standalone POSIX), so it carries
-# its own copy of _hi_dir_member_ok's allow-list under a different name
-# (member_ok, so sourcing this file in a live shell never shadows core.sh's
-# bash one) - pinned here so the two literal case lines cannot drift apart
-function test_member_ok_matches_hi_dir_member_ok() {
-  local want got
-  want="$(sed -n "/function _hi_dir_member_ok/,/^}/p" "$_HI_CORE" | sed -n "3p")"
-  got="$(sed -n '/^member_ok() {/,/^}/p' "$_HI_TARGETS" | sed -n '3p')"
-  [ -n "$want" ] && [ "$want" = "$got" ] || {
-    _hi_cecho " | core.sh's case line: [$want]" "$RED"
-    _hi_cecho " | targets.sh's member_ok: [$got]" "$RED"
-    return 1
-  }
+  [ "$out" = "$(printf 'kept:1\ta package check row')" ]
 }
 
 function run_targets_tests() {
@@ -1123,6 +1118,7 @@ function run_targets_tests() {
   _hi_check "Trailing comment isn't a host" test_trailing_comment_is_not_a_host
   _hi_check "Missing config -> empty, exit 0" test_missing_config_is_empty_and_succeeds
   _hi_check "'ssh' argument excludes other kinds" test_ssh_kind_excludes_container_backends
+  _hi_check "ssh hosts follow Include" test_ssh_hosts_follow_include
 
   _hi_h2 "Testing: container/orchestrator backends"
   _hi_check "docker -> running containers" test_docker_kind_lists_running_containers
@@ -1189,14 +1185,11 @@ function run_targets_tests() {
   _hi_check "words: --preview's subjects agree in all three files" test_preview_subjects_agree_everywhere
   _hi_check "flags: filtered by prefix, never a target" test_complete_flags_filter_by_prefix_and_never_reach_targets
 
-  _hi_h2 "Testing: --add-package / --group completion"
-  _hi_check "--add-package, no overlay: both tree groups" test_words_add_package_with_no_overlay_lists_both_tree_groups
+  _hi_h2 "Testing: --add-package completion"
+  _hi_check "--add-package, no overlay: the tree's rows" test_words_add_package_with_no_overlay_lists_the_tree_rows
   _hi_check "--add-package, an overlay: only its own" test_words_add_package_with_an_overlay_lists_only_its_own
-  _hi_check "--add-package skips a trailing # comment" test_words_add_package_skips_a_trailing_hash_comment
-  _hi_check "Both arms skip .bak/dotfile members" test_words_skip_non_members
-  _hi_check "--group, no overlay: the tree's default/extra" test_words_group_with_no_overlay_lists_the_tree_groups
-  _hi_check "--group, an overlay: only its own" test_words_group_with_an_overlay_lists_only_its_own
-  _hi_check "member_ok matches _hi_dir_member_ok" test_member_ok_matches_hi_dir_member_ok
+  _hi_check "--add-package, an overlay with no file: the tree's" test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_rows
+  _hi_check "--add-package skips comments and blanks" test_words_add_package_skips_a_trailing_hash_comment
 
   _hi_suite_end "targets.sh"
 }

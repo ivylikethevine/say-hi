@@ -21,6 +21,23 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
 
+# _hi_overlay_tar, wrapped so a failed build says why: on Windows arm64 the
+# stage has left an empty stream with no word of its own (gzip then reports
+# "unexpected end of file"), and a verdict needs the exit status and stderr
+# the pipe into _hi_tar_cat would otherwise lose
+eval "$(declare -f _hi_overlay_tar | sed '1s/_hi_overlay_tar/_hi_overlay_tar_unwrapped/')"
+function _hi_overlay_tar() {
+  local err rc=0
+  err="$(mktemp "$_HI_WORKDIR/overlay.err.XXXXXX")"
+  _hi_overlay_tar_unwrapped "$@" 2>"$err" || rc=$?
+  if [ "$rc" != 0 ] || [ -s "$err" ]; then
+    _hi_cecho " | _hi_overlay_tar exited $rc; its stderr:" "$YELLOW" >&2
+    sed 's/^/ |   /' "$err" >&2
+  fi
+  rm -f "$err"
+  return "$rc"
+}
+
 # _hi_tar_cat <member> - one member of the gzipped archive on stdin, printed:
 # unpacked and read back, since OpenBSD's tar has no -O to extract to stdout
 function _hi_tar_cat() {
@@ -35,13 +52,13 @@ function test_payload_ships_everything_by_default() {
   local dir="$_HI_WORKDIR/notrim" listing
   mkdir -p "$dir"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/settings/vimrc*) ;; *)
-    _hi_cecho " | a default client did not ship settings/vimrc" "$RED"
+  case "$listing" in *say-hi/config/vimrc*) ;; *)
+    _hi_cecho " | a default client did not ship config/vimrc" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/settings/init.lua*) ;; *)
-    _hi_cecho " | a default client did not ship settings/init.lua" "$RED"
+  case "$listing" in *say-hi/config/init.lua*) ;; *)
+    _hi_cecho " | a default client did not ship config/init.lua" "$RED"
     return 1
     ;;
   esac
@@ -60,8 +77,8 @@ function test_payload_always_ships_aliases() {
     printf "export %s='1'\n" "$t" >>"$dir/settings.sh"
   done
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/settings/aliases.sh*) return 0 ;; esac
-  _hi_cecho " | every toggle off dropped settings/aliases.sh, which carries the whole alias set" "$RED"
+  case "$listing" in *say-hi/config/aliases.sh*) return 0 ;; esac
+  _hi_cecho " | every toggle off dropped config/aliases.sh, which carries the whole alias set" "$RED"
   return 1
 }
 
@@ -115,14 +132,14 @@ function test_overlay_dereferences_symlinks() {
 # inside a `.d` member too, where only the plain names ride (HI.58).
 function test_overlay_sends_nothing_outside_the_roster() {
   local dir="$_HI_WORKDIR/overlay-leak" f
-  mkdir -p "$dir/.git" "$dir/.chezmoitemplates" "$dir/packages.d/sub"
+  mkdir -p "$dir/.git" "$dir/.chezmoitemplates" "$dir/plugins.d/sub"
   printf 'export _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   for f in .git/config .chezmoiignore README.md id_rsa settings.sh.bak .settings.sh.swp \
-    packages.d/10-x packages.d/10-x.bak packages.d/.10-x.swp packages.d/10-x~ packages.d/sub/20-y; do
+    plugins.d/10-x plugins.d/10-x.bak plugins.d/.10-x.swp plugins.d/10-x~ plugins.d/sub/20-y; do
     printf 'x:3\n' >"$dir/$f"
   done
   while IFS= read -r f; do
-    [ -n "$f" ] && [ "$f" != packages.d/10-x ] || continue
+    [ -n "$f" ] && [ "$f" != plugins.d/10-x ] || continue
     case " ${_HI_OVERLAY_FILES[*]} " in
     *" $f "*) continue ;;
     esac
@@ -132,30 +149,16 @@ function test_overlay_sends_nothing_outside_the_roster() {
   return 0
 }
 
-# packages.d's members ride as packages.d/<name>, comment-stripped like any
-# packages file, their color= line intact - and splitting one member into two
-# costs the stream under 192 gzipped bytes over the same rows in one member
-# (a tar header, and the color= line: 84 measured under GNU tar, 143 under
-# OpenBSD's), so grouping is nearly free.
-function test_overlay_carries_package_groups() {
-  local one="$_HI_WORKDIR/groups-one" split="$_HI_WORKDIR/groups-split" n out a b
-  mkdir -p "$one/packages.d" "$split/packages.d"
-  cp "$_HI_ROOT/settings/packages.d/00-default" "$one/packages.d/all"
-  n="$(grep -c . "$one/packages.d/all")"
-  head -n $((n / 2)) "$one/packages.d/all" >"$split/packages.d/10-lang"
-  { printf 'color=orange\n' && sed -n "$((n / 2 + 1)),\$p" "$one/packages.d/all"; } >"$split/packages.d/20-box"
-  [ "$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages.d/10-lang,packages.d/20-box ] || return 1
-  out="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | _hi_tar_cat packages.d/20-box)"
-  case "$out" in color=orange$'\n'*) ;; *) return 1 ;; esac
-  case "$out" in *'#'*)
-    _hi_cecho " | packages.d/20-box kept a comment line through the strip" "$RED"
-    return 1
-    ;;
-  esac
-  a="$(_HI_CONFIG_DIR="$one" _hi_overlay_tar | wc -c)"
-  b="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | wc -c)"
-  [ $((b - a)) -lt 192 ] || {
-    _hi_cecho " | splitting one member into two costs $((b - a)) bytes (budget 192)" "$RED"
+# the overlay's packages file rides as packages, comment-stripped like the
+# tree's, every row intact - a mode character and a trailing space included
+function test_overlay_carries_packages_stripped() {
+  local dir="$_HI_WORKDIR/packages-overlay" out
+  mkdir -p "$dir"
+  printf '# a note\nbat:3,batcat:3\n\n  # indented\n-sudo:2,doas:2\n+getent:0\n' >"$dir/packages"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages ] || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat packages)"
+  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf 'bat:3,batcat:3\n-sudo:2,doas:2\n+getent:0')" ] || {
+    _hi_cecho " | packages arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -363,7 +366,7 @@ function test_prompt_list_is_what_home_has() {
 # every member (so a rename can't quietly ship an empty payload).
 function test_payload_ships_exactly_the_travelled_paths() {
   local m
-  [ "${_HI_PAYLOAD[*]}" = "common settings load.sh hi.sh" ] || {
+  [ "${_HI_PAYLOAD[*]}" = "common config load.sh hi.sh" ] || {
     _hi_cecho " | payload list changed: ${_HI_PAYLOAD[*]} - update this guard deliberately" "$RED"
     return 1
   }
@@ -375,8 +378,8 @@ function test_payload_ships_exactly_the_travelled_paths() {
   done
 }
 
-# The payload only carries the *in-tree* settings/, so once the user's real
-# settings/colors/packages live outside the tree they need their own stream or a
+# The payload only carries the *in-tree* config/, so once the user's real
+# config/colors/packages live outside the tree they need their own stream or a
 # target silently falls back to the shipped defaults. These assert the two
 # halves that can be checked without a target: that nothing is sent when there
 # is nothing to send, and that what is sent lands under the names paths.sh
@@ -429,9 +432,9 @@ function test_overlay_strip_removes_comments() {
   local dir="$_HI_WORKDIR/ovl-strip" out
   mkdir -p "$dir"
   printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
-  cp "$_HI_ROOT/settings/colors" "$dir/colors"
-  cp "$_HI_ROOT/settings/vimrc" "$dir/vimrc"
-  cp "$_HI_ROOT/settings/init.lua" "$dir/init.lua"
+  cp "$_HI_ROOT/config/colors" "$dir/colors"
+  cp "$_HI_ROOT/config/vimrc" "$dir/vimrc"
+  cp "$_HI_ROOT/config/init.lua" "$dir/init.lua"
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat settings.sh)"
   [ "$out" = '#!/bin/sh
 export _HI_MAX_WIDTH=72' ] || {
@@ -461,7 +464,7 @@ export _HI_MAX_WIDTH=72' ] || {
 }
 
 # the user's own aliases ride the same stream under their bare name,
-# which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
+# which is where config/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
 # Naming what the tar listed separates the three ways this fails - an empty
 # archive, a second member riding along, and a member under another name - which
@@ -627,17 +630,6 @@ set number' ] || {
   }
 }
 
-# _HI_INCLUDES=keep is the escape hatch for a fleet that really does
-# carry the file: nothing is touched and the line rides as written
-function test_editor_includes_keep_sends_the_lines_as_written() {
-  local dir out
-  dir="$(_hi_lint_fixture keep vimrc "$_HI_LINT_VIMRC")"
-  out="$(_HI_INCLUDES=keep _HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
-  case "$out" in *'source ~/.vim/extra.vim'*'Plug "tpope/vim-surround"'*) return 0 ;; esac
-  _hi_cecho " | vimrc arrived as: [$out]" "$RED"
-  return 1
-}
-
 # lua and elisp are not line-oriented: commenting only the line that matched
 # would leave `})` behind and the file would not parse at all, which is worse
 # than the include it was fixing
@@ -670,13 +662,122 @@ function test_the_editor_config_in_force_here_rides_the_stream() {
     [ "$(_HI_VIMRC="$mine" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)" = "set number" ]
 }
 
+# ...only with the editor here to read it: a ~/.vimrc on a box with no vim is
+# not a config in force anywhere. A copy in the overlay is the user saying
+# "targets get this", and rides whatever this machine has. $PATH is an empty
+# directory, which _hi_overlay_src's builtins never notice.
+function test_a_home_config_needs_its_tool_here() {
+  local dir="$_HI_WORKDIR/gate-overlay" home="$_HI_WORKDIR/gate-home" none="$_HI_WORKDIR/gate-nopath" out=""
+  mkdir -p "$dir" "$home" "$none"
+  printf 'set number\n' >"$home/vimrc"
+  printf 'set -g mouse on\n' >"$home/tmux.conf"
+  ! PATH="$none" _HI_VIMRC="$home/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc || return 1
+  ! PATH="$none" _HI_TMUX_CONF="$home/tmux.conf" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux.conf || return 1
+  _HI_VIMRC="$home/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$home/vimrc" ] || return 1
+  printf 'set ruler\n' >"$dir/vimrc"
+  PATH="$none" _HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$dir/vimrc" ]
+}
+
+# One copy of a file the overlay and the tree both hold: a member that
+# shadows its tree default (common/paths.sh's cascade) cuts that default from
+# the payload. aliases.sh is additive and cuts nothing, and a file still
+# under a pre-1.0 name is no
+# member, so the default it no longer overrides keeps riding.
+function test_a_shadowed_tree_default_is_cut_from_the_payload() {
+  local dir="$_HI_WORKDIR/excl" listing
+  local -a payload_excl=() members=()
+  mkdir -p "$dir"
+  printf 'hosttag,x,red\n' >"$dir/colors"
+  printf 'git:3\n' >"$dir/packages"
+  printf 'alias a=b\n' >"$dir/aliases.sh"
+  printf 'set ruler\n' >"$dir/nano.rc"
+  _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
+  # every editor here, so the tool gate below cuts nothing of its own
+  PATH="$(_hi_fake_path excl-editors vim nvim hx nano emacs):$PATH" _hi_payload_excl "${members[@]}"
+  [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages" ] || {
+    _hi_cecho " | cut: [${payload_excl[*]}]" "$RED"
+    return 1
+  }
+  listing="$(_hi_payload_tar | tar tzf -)"
+  [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
+    [[ "$listing" == *config/aliases.sh* && "$listing" == *config/nanorc* ]] || return 1
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
+}
+
+# a default whose tool this machine lacks is cut too - no emacs here, no
+# init.el there - while a member the overlay holds rides its copy either way
+function test_a_default_for_a_missing_tool_is_cut() {
+  local -a payload_excl=()
+  PATH=/nonexistent _hi_payload_excl nanorc
+  [ "${payload_excl[*]}" = "say-hi/config/nanorc say-hi/config/vimrc say-hi/config/init.lua say-hi/config/init.el say-hi/config/config.toml" ] || {
+    _hi_cecho " | cut with no editors: [${payload_excl[*]}]" "$RED"
+    return 1
+  }
+  PATH="$(_hi_fake_path excl-editors vim nvim hx nano emacs)" _hi_payload_excl
+  [ -z "${payload_excl[*]}" ] || {
+    _hi_cecho " | cut with every editor: [${payload_excl[*]}]" "$RED"
+    return 1
+  }
+}
+
+# ...and only there: _hi_wire_bytes and `hi --doctor` hold no $payload_excl,
+# so the figure the badge tracks is the stock tree whatever overlay is present
+function test_the_payload_is_whole_without_a_cut_list() {
+  local dir="$_HI_WORKDIR/excl-none"
+  mkdir -p "$dir"
+  printf 'hosttag,x,red\n' >"$dir/colors"
+  [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
+}
+
+# the cut list is the members paths.sh resolves overlay-over-tree, no more:
+# each has a tree default and a $_HI_CONFIG_DIR guard there
+function test_the_shadow_roster_matches_paths_sh() {
+  local f
+  for f in $_HI_OVERLAY_SHADOWS; do
+    if ! [ -e "$_HI_ROOT/config/$f" ] || ! grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh"; then
+      _hi_cecho " | $f is in _HI_OVERLAY_SHADOWS without a tree default and an overlay guard in paths.sh" "$RED"
+      return 1
+    fi
+  done
+  for f in "$_HI_ROOT"/config/*; do
+    [ "${f##*/}" = aliases.sh ] || case "$_HI_OVERLAY_SHADOWS" in *" ${f##*/} "*) ;; *) return 1 ;; esac
+  done
+}
+
+# The tag map a relayed hop colors by: the `# Tags:` lines of ~/.ssh/config
+# and the files it Includes, with the Host or Match line each sits over, and
+# none of the block - no
+# HostName, no User, no untagged host. From a target it is the overlay's copy
+# or nothing: the middle box's own config is not the client's.
+function test_ssh_tags_is_cut_from_the_ssh_config() {
+  local dir="$_HI_WORKDIR/tags" out
+  mkdir -p "$dir/overlay" "$dir/rt" "$dir/.ssh/conf.d"
+  printf '# Tags: inc\nHost included\n' >"$dir/.ssh/conf.d/01"
+  printf '%s\n' '# Tags: prod, web' 'Host web1 web2' '  HostName 10.0.0.1' '  User deploy' '' \
+    'Host plain' '  HostName 10.0.0.2' '# tags=lab' '# a note' 'Match host lab-* user x' \
+    '# Tags: orphan' 'Include conf.d/*' 'Host after-include' >"$dir/config"
+  out="$(HOME="$dir" XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat ssh_tags)"
+  [ "$out" = '# Tags: prod, web
+Host web1 web2
+# tags=lab
+Match host lab-* user x
+# Tags: inc
+Host included' ] || {
+    _hi_cecho " | ssh_tags arrived as: [$out]" "$RED"
+    return 1
+  }
+  ! _HI_REMOTE_SESSION=1 XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags || return 1
+  printf 'Host untagged\n' >"$dir/config"
+  ! XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags
+}
+
 # ...and hi's own tree copy is not one: it rides in the payload already, so
 # packing it again would be the same bytes twice on every connect
 function test_the_trees_own_editor_rc_is_not_streamed() {
   local dir
   dir="$_HI_WORKDIR/lint-treecopy"
   mkdir -p "$dir"
-  [ -z "$(_HI_VIMRC="$_HI_ROOT/settings/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ]
+  [ -z "$(_HI_VIMRC="$_HI_ROOT/config/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ]
 }
 
 # the rows hi --doctor prints come from the same pass that does the dropping,
@@ -896,8 +997,25 @@ function test_framework_and_plugin_includes_are_neutralized() {
 PS1=x' ]
 }
 
+# ...and that pass is the theme's alone, for its own framework: a plugins.d
+# member runs on every target, $ZSH unset on most, and oh-my-zsh's theme has
+# no business in $OSH - both are neutralized like any include
+function test_a_framework_tree_passes_only_its_own_theme() {
+  local dir h="$_HI_WORKDIR/fw-home" out
+  _hi_fw_home_fixture
+  dir="$_HI_WORKDIR/lint-fw-own"
+  mkdir -p "$dir/plugins.d"
+  printf 'source "$ZSH/lib/git.zsh"\nsource $OSH/lib/x.sh\n' >"$dir/oh-my-zsh.zsh-theme"
+  printf 'source "$ZSH/lib/git.zsh"\n' >"$dir/plugins.d/10-omz"
+  out="$(HOME="$h" _HI_PROMPT_TOOL=oh-my-zsh _HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "plugins.d/10-omz|1|include,oh-my-zsh.zsh-theme|2|include" ] || {
+    _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+}
+
 # `hi-allow` in the file's own comment syntax keeps the next line as written
-# and out of the report - the per-line answer to _HI_INCLUDES=keep
+# and out of the report - for a file every target has
 function test_hi_allow_keeps_the_next_line() {
   local dir out
   dir="$(_hi_lint_fixture allow vimrc '" hi-allow
@@ -907,6 +1025,24 @@ source ~/.vim/other.vim
   out="$(_HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
   [ "$out" = 'source ~/.vim/extra.vim' ] &&
     [ "$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|3" ] || {
+    _hi_cecho " | vimrc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# `hi-quiet` is the other half: the next line is still dropped, only its
+# report row goes - one directive under the other, so each is seen alone
+function test_hi_quiet_drops_the_next_line_without_a_row() {
+  local dir out
+  dir="$(_hi_lint_fixture quiet vimrc '" hi-quiet
+source ~/.vim/extra.vim
+" hi-allow
+source ~/.vim/kept.vim
+source ~/.vim/other.vim
+')"
+  out="$(_HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  [ "$out" = 'source ~/.vim/kept.vim' ] &&
+    [ "$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|5" ] || {
     _hi_cecho " | vimrc arrived as: [$out]" "$RED"
     return 1
   }
@@ -949,6 +1085,67 @@ function test_home_configs_do_not_ride_from_a_target() {
   printf 'y\n' >"$dir/overlay/p10k.zsh"
   _HI_REMOTE_SESSION=1 _HI_PROMPT_TOOL=powerlevel10k _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src p10k.zsh out &&
     [ "$out" = "$dir/overlay/p10k.zsh" ]
+}
+
+# aliases.sh rides from the ~/.aliases a bash or zsh rc here already sources
+# when the overlay has none - nothing copied into ~/.config/say-hi - on the
+# client only, and an overlay copy wins over it
+function test_home_aliases_ride_as_aliases_sh() {
+  local dir="$_HI_WORKDIR/aliases-home" out=""
+  mkdir -p "$dir/overlay"
+  printf 'alias ll="ls -l"\n' >"$dir/.aliases"
+  out="$(HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat aliases.sh)"
+  [ "$out" = 'alias ll="ls -l"' ] || {
+    _hi_cecho " | aliases.sh arrived as: [$out]" "$RED"
+    return 1
+  }
+  ! HOME="$dir" _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src aliases.sh || return 1
+  printf 'alias x=y\n' >"$dir/overlay/aliases.sh"
+  HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src aliases.sh out &&
+    [ "$out" = "$dir/overlay/aliases.sh" ]
+}
+
+# A shell's own rc never rides from home: a ~/.bashrc is where people export
+# tokens, so only the overlay's copy - the user's say-so - packs
+# (GLOSSARY: HI.61)
+function test_shell_rcs_ride_only_from_the_overlay() {
+  local dir="$_HI_WORKDIR/rc-home" out="" f
+  mkdir -p "$dir/overlay" "$dir/.config/fish"
+  printf 'echo mine\n' | tee "$dir/.bashrc" "$dir/.zshrc" "$dir/.config/fish/config.fish" >/dev/null
+  for f in bashrc zshrc config.fish; do
+    ! HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src "$f" || {
+      _hi_cecho " | $f rode from home" "$RED"
+      return 1
+    }
+  done
+  printf 'echo overlay\n' >"$dir/overlay/bashrc"
+  HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src bashrc out &&
+    [ "$out" = "$dir/overlay/bashrc" ]
+}
+
+# screen and zellij ride like tmux: the overlay's copy, else home's -
+# ~/.screenrc, and zellij's directory ($ZELLIJ_CONFIG_DIR), whose layouts/
+# and themes/ files ride one by one, the overlay's winning name by name -
+# with the tool here, and a relay never packs its own
+function test_screen_and_zellij_ride_like_tmux() {
+  local h="$_HI_WORKDIR/mux-home" o="$_HI_WORKDIR/mux-home/overlay" z p out
+  z="$h/zj"
+  mkdir -p "$o/zellij/layouts" "$z/layouts" "$z/themes"
+  printf 'startup_message off\n' >"$h/.screenrc"
+  printf 'theme "home"\n' >"$z/config.kdl"
+  printf 'layout {}\n' >"$z/layouts/dev.kdl"
+  printf 'layout { home }\n' >"$z/layouts/ops.kdl"
+  printf 'themes {}\n' >"$z/themes/mine.kdl"
+  printf 'layout { overlay }\n' >"$o/zellij/layouts/ops.kdl"
+  p="$(_hi_fake_path mux-bins screen zellij)"
+  set -- HOME="$h" ZELLIJ_CONFIG_DIR="$z" PATH="$p:$PATH" _HI_SCREENRC="$h/.screenrc" _HI_CONFIG_DIR="$o"
+  [ "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl zellij/layouts/ zellij/themes/' | tr '\n' ' ')" = \
+    "screenrc zellij/config.kdl zellij/layouts/ops.kdl zellij/layouts/dev.kdl zellij/themes/mine.kdl " ] || return 1
+  out="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_src zellij/layouts/ops.kdl o && printf %s "$o"')"
+  [ "$out" = "$o/zellij/layouts/ops.kdl" ] || return 1
+  # no zellij here, or a target: nothing from home
+  [ -z "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && PATH=/nonexistent _hi_overlay_files zellij/config.kdl zellij/themes/')" ] &&
+    [ -z "$(env "$@" _HI_REMOTE_SESSION=1 bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl')" ]
 }
 
 function _hi_strip_unpack() {
@@ -1051,14 +1248,13 @@ function test_strip_spares_heredoc_bodies() {
 }
 
 # The data files' prose headers document the *installed* copies a user reads,
-# so they ship stripped too: flags/colors/packages.d/nanorc through the same
+# so they ship stripped too: flags/colors/packages/nanorc through the same
 # `#` rule as the shell, vimrc, init.el, and init.lua through their own
-# rules for vim's `"`, elisp's `;`, and lua's `--`. Both shipped packages.d
-# members, proving the strip reaches inside the directory too.
+# rules for vim's `"`, elisp's `;`, and lua's `--`.
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages.d/00-default settings/packages.d/01-extra settings/nanorc; do
+  for f in common/flags config/colors config/packages config/nanorc; do
     n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
@@ -1066,7 +1262,7 @@ function test_strip_covers_the_data_files() {
     }
   done
   # the files with a comment character of their own: <file>:<char>
-  for f in 'settings/vimrc:"' 'settings/init.el:;' 'settings/init.lua:--'; do
+  for f in 'config/vimrc:"' 'config/init.el:;' 'config/init.lua:--'; do
     n="$(grep -cE "^[[:space:]]*${f#*:}" "$dir/say-hi/${f%%:*}" || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | ${f%%:*} kept $n comment line(s)" "$RED"
@@ -1080,14 +1276,14 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages.d/00-default settings/packages.d/01-extra settings/nanorc; do
+  for f in common/flags config/colors config/packages config/nanorc; do
     diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
       <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"
       bad=1
     }
   done
-  for f in 'settings/vimrc:"' 'settings/init.el:;' 'settings/init.lua:--'; do
+  for f in 'config/vimrc:"' 'config/init.el:;' 'config/init.lua:--'; do
     diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}" | sed 's/^[[:space:]]*//') \
       <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
@@ -1135,15 +1331,22 @@ function test_can_gzip_reads_the_tar_it_has() {
 
 function run_hi_payload_tests() {
   _hi_workdir hipayloadtest
+  # home's configs ride only with their tools on this machine (_hi_tool_here),
+  # and no runner has all of them
+  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
 
   _hi_suite_begin
 
   _hi_h1 "Testing hi.sh: the payload"
 
   _hi_h2 "Testing: the payload list"
-  _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
+  _hi_check "Ships exactly common/config/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
+  _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
+  _hi_check "A tree default for a tool not here is cut" test_a_default_for_a_missing_tool_is_cut
+  _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
+  _hi_check "The shadow roster is paths.sh's cascade" test_the_shadow_roster_matches_paths_sh
 
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
@@ -1165,7 +1368,7 @@ function run_hi_payload_tests() {
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
-  _hi_check "packages.d members ride stripped, and nearly free" test_overlay_carries_package_groups
+  _hi_check "The overlay's packages rides stripped" test_overlay_carries_packages_stripped
   _hi_check "plugins.d members ride stripped" test_overlay_carries_plugins
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
@@ -1176,13 +1379,17 @@ function run_hi_payload_tests() {
   _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
   _hi_check "Home's tool configs do not ride from a target" test_home_configs_do_not_ride_from_a_target
+  _hi_check "A home .aliases rides as aliases.sh" test_home_aliases_ride_as_aliases_sh
+  _hi_check "A shell's own rc rides only from the overlay" test_shell_rcs_ride_only_from_the_overlay
+  _hi_check "screen and zellij ride like tmux" test_screen_and_zellij_ride_like_tmux
+  _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
-  _hi_check "...and =keep sends it as written" test_editor_includes_keep_sends_the_lines_as_written
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
+  _hi_check "...only with its tool on this machine" test_a_home_config_needs_its_tool_here
   _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
   _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config
@@ -1191,7 +1398,9 @@ function run_hi_payload_tests() {
   _hi_check "A shell include becomes : and still parses" test_shell_includes_are_neutralized_and_still_parse
   _hi_check "A fish include becomes true" test_fish_includes_become_true
   _hi_check "Framework files and plugins.d are scanned as shell" test_framework_and_plugin_includes_are_neutralized
+  _hi_check "...a framework's tree passes only its own theme" test_a_framework_tree_passes_only_its_own_theme
   _hi_check "hi-allow keeps the next line" test_hi_allow_keeps_the_next_line
+  _hi_check "hi-quiet drops the next line without a row" test_hi_quiet_drops_the_next_line_without_a_row
   _hi_check "A commented line is no finding" test_the_scan_skips_a_commented_line
 
   _hi_h2 "Testing: block padding (BSD tar)"

@@ -7,7 +7,9 @@
 #        (<cli> = one of the docker-compatible CLIs: docker, podman, nerdctl
 #        or finch; no argument = every backend; `flags` = hi's own
 #        options instead, `flags --install` a local command's own switches,
-#        `words --use` the word a flag takes)
+#        `words --use` the word a flag takes, `ssh-config [file]` the ssh
+#        config with its Includes inlined, `ssh-files [file]` the files that
+#        reads, `ssh-include <words>` one Include's files)
 # GLOSSARY: HI.26 - _HI_PROBE_TIMEOUT and _HI_TARGETS_TTL
 # GLOSSARY: HI.51 - the docker-compatible CLI family
 #
@@ -20,18 +22,77 @@
 # as a background job - so "never invoked" is true of the file, not of five
 # lines in it.
 
-# member_ok <name> - core.sh's _hi_dir_member_ok's case line, character for
-# character, reimplemented rather than sourced: this file can be *sourced* by
-# a completion hook, and defining the bash-only _hi_dir_member_ok here would
-# shadow core.sh's own copy in that live shell. A drift test pins the two
-# literal case lines together.
-member_ok() {
-  case "$1" in
-  '' | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]* | *.bak | *.orig | *.rej | *.tmp) return 1 ;;
-  esac
+# ssh_config_flat file|files <path> | ssh_config_flat include <words> - an ssh config
+# with every `Include` followed in place by the files it names (the line is
+# kept, so a `# Tags:` above it still ends there), the way ssh
+# reads it: `~` is $HOME, a relative path is under ~/.ssh, a glob expands in
+# sorted order, nested Includes too (16 deep, ssh's own limit). A word with
+# anything but path and glob characters is skipped, never handed to sh.
+# `files` prints the path of each file read, in order, instead of its lines.
+ssh_config_flat() {
+  awk -v mode="$1" -v arg="$2" -v home="$HOME" '
+    function inc(args, depth,   n, w, i, p, cmd, f, m, list, k) {
+      n = split(args, w, /[ \t]+/)
+      for (i = 1; i <= n; i++) {
+        p = w[i]
+        gsub(/"/, "", p)
+        # `]` first and `[` bare: busybox awk ends the class at a `\]`
+        if (p == "" || p !~ /^[][A-Za-z0-9_.\/~*?,@%+:=-]+$/) continue
+        if (p ~ /^~\//) p = home substr(p, 2)
+        else if (p !~ /^\//) p = home "/.ssh/" p
+        cmd = "for f in " p "; do [ -f \"$f\" ] && printf \"%s\\n\" \"$f\"; done"
+        m = 0
+        while ((cmd | getline f) > 0) list[++m] = f
+        close(cmd)
+        for (k = 1; k <= m; k++) emit(list[k], depth + 1)
+      }
+    }
+    function emit(file, depth,   line, rest) {
+      if (mode == "files") print file
+      while ((getline line < file) > 0) {
+        rest = line
+        sub(/^[ \t]+/, "", rest)
+        if (depth < 16 && tolower(rest) ~ /^include[ \t=]/) {
+          if (mode != "files") print line
+          sub(/^[^ \t=]+[ \t=]+/, "", rest)
+          inc(rest, depth)
+        } else if (mode != "files") print line
+      }
+      close(file)
+    }
+    BEGIN { if (mode == "include") inc(arg, 0); else emit(arg, 0); exit }'
+}
+
+# ssh_hosts <help> - every literal Host name in the ssh config and its
+# Includes, "<name>\t<help>"; a wildcard names no host of its own
+ssh_hosts() {
+  _hi_ssh_config="${_HI_SSH_CONFIG:-$HOME/.ssh/config}"
+  [ -f "$_hi_ssh_config" ] || return 0
+  ssh_config_flat file "$_hi_ssh_config" | awk -v help="$1" 'tolower($1) == "host" {
+    for (i = 2; i <= NF; i++) {
+      if ($i ~ /^#/) break
+      if ($i !~ /[*?]/) printf "%s\t%s\n", $i, help
+    }
+  }'
 }
 
 kind="${1:-all}"
+# `ssh-config`/`ssh-files [file]` and `ssh-include <words>`: ssh_config_flat
+# for the shells, which walk a config for tags and cannot source this file
+case "$kind" in
+ssh-config)
+  ssh_config_flat file "${2:-${_HI_SSH_CONFIG:-$HOME/.ssh/config}}"
+  exit 0
+  ;;
+ssh-files)
+  ssh_config_flat files "${2:-${_HI_SSH_CONFIG:-$HOME/.ssh/config}}"
+  exit 0
+  ;;
+ssh-include)
+  ssh_config_flat include "${2:-}"
+  exit 0
+  ;;
+esac
 # The docker-compatible family, once: the `words` arm below and the probe
 # roster further down both walk it, and the two exits are far enough apart
 # that they read as unrelated files. hi.sh and common/header.sh read the same
@@ -97,12 +158,12 @@ fi
 # targets_test.sh. Answered before the probes, like the flags. The membership
 # test is paths.sh's $_HI_WORD_FLAGS.
 if [ "$kind" = words ]; then
-  # The packages.d this session would actually read/write: the overlay when
-  # one exists, else the tree's own default+extra (common/paths.sh's cascade,
-  # reimplemented here since this file can run forked with the session's own
-  # _HI_* unexported (HI.47) and cannot source paths.sh - GLOSSARY: HI.58).
-  pkgd="${_HI_CONFIG_DIR:-}/packages.d"
-  [ -d "$pkgd" ] || pkgd="$hi_tree/settings/packages.d"
+  # The packages file this session would actually read/write: the overlay's
+  # when one exists, else the tree's (common/paths.sh's cascade, reimplemented
+  # here since this file can run forked with the session's own _HI_*
+  # unexported (HI.47) and cannot source paths.sh).
+  pkgs="${_HI_CONFIG_DIR:-}/packages"
+  [ -f "$pkgs" ] || pkgs="$hi_tree/config/packages"
   case "${2:-}" in
   --link)
     printf 'user\t~/.local/bin/hi (the default)\n'
@@ -120,36 +181,23 @@ if [ "$kind" = words ]; then
     [ -d "$hi_tree/.git" ] && git -C "$hi_tree" tag --list 'v*' --sort=-v:refname 2>/dev/null |
       while IFS= read -r tag; do printf '%s\trelease tag\n' "$tag"; done
     ;;
-  --add-package)
-    # every packages.d member in force, one whole row per completion word
-    # ("bat:3,batcat:3,ccat:3,cat:2"), so a `--add-package` argument tabs
-    # complete to exactly what add_package.sh accepts. Grouped once here
-    # rather than a per-package split: a row is what the flag takes. The line
-    # filter matches _hi_check_file's: a `#` anywhere kills a line, not only
-    # a leading one.
-    [ -d "$pkgd" ] && for f in "$pkgd"/*; do
-      { [ -f "$f" ] && member_ok "${f##*/}"; } || continue
-      while IFS= read -r line; do
-        case "$line" in '' | color=* | *'#'*) continue ;; esac
-        printf '%s\ta package check row\n' "$line"
-      done <"$f"
-    done
+  --add-tag)
+    ssh_hosts 'an ssh host to tag'
     ;;
-  --group)
-    # the groups already on disk, so `--group <TAB>` offers the ones a second
-    # call would extend rather than every name a first call could invent -
-    # the overlay's own once one exists (it replaces the tree's wholesale),
-    # else the tree's default+extra.
-    [ -d "$pkgd" ] && for f in "$pkgd"/*; do
-      { [ -f "$f" ] && member_ok "${f##*/}"; } || continue
-      printf '%s\tan existing packages.d group\n' "${f##*/}"
-    done
+  --add-package)
+    # one whole row per completion word ("bat:3,batcat:3,ccat:3,cat:2"), so
+    # a `--add-package` argument tabs complete to exactly what add_package.sh
+    # accepts. The line filter matches full_check's: a `#` anywhere kills a
+    # line, not only a leading one.
+    [ -f "$pkgs" ] && while IFS= read -r line; do
+      case "$line" in '' | *'#'*) continue ;; esac
+      printf '%s\ta package check row\n' "$line"
+    done <"$pkgs"
     ;;
   --preview)
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'
     printf 'packages\tthe package-priority legend, as the header prints it\n'
     printf 'header\tthe connect header, as it prints here\n'
-    printf 'targets\tevery ssh host, container, allocation, and pod hi <TAB> offers\n'
     ;;
   --use)
     printf 'ssh\tssh, no probing (a container of the same name loses)\n'
@@ -273,14 +321,7 @@ emit_targets() {
   # ssh first and in line: a local file read and one awk, faster than the
   # bookkeeping of backgrounding it
   if [ "$kind" = ssh ] || [ "$kind" = all ]; then
-    _hi_ssh_config="${_HI_SSH_CONFIG:-$HOME/.ssh/config}"
-    [ -f "$_hi_ssh_config" ] &&
-      awk 'tolower($1) == "host" {
-        for (i = 2; i <= NF; i++) {
-          if ($i ~ /^#/) break
-          if ($i !~ /[*?]/) printf "%s\tssh\n", $i
-        }
-      }' "$_hi_ssh_config"
+    ssh_hosts ssh
   fi
 
   wanted="" n_wanted=0 n_family=0
@@ -500,12 +541,17 @@ if [ -n "$age" ] && [ "$age" -lt "$stale_for" ]; then
   # One refresh at a time, or every TAB in the window a sweep takes would
   # start another. The lock is a directory (made or not in one call) holding
   # the time it was taken; one older than any sweep runs (a flat 30s) was left
-  # by a refresher that died, and is taken over.
+  # by a refresher that died, and is taken over. No time yet is a lock taken
+  # a moment ago - its owner writes `at` right after the mkdir - unless the
+  # directory itself is over a minute old, an owner that died in between.
   lock="$cache.lock"
   if ! mkdir "$lock" 2>/dev/null; then
-    IFS= read -r _hi_at <"$lock/at" 2>/dev/null || _hi_at=0
-    case "$_hi_at" in '' | *[!0-9]*) _hi_at=0 ;; esac
-    [ "$((now - _hi_at))" -gt 30 ] || exit 0
+    if IFS= read -r _hi_at <"$lock/at" 2>/dev/null; then
+      case "$_hi_at" in '' | *[!0-9]*) _hi_at=0 ;; esac
+      [ "$((now - _hi_at))" -gt 30 ] || exit 0
+    else
+      [ -n "$(find "$lock" -prune -mmin +1 2>/dev/null)" ] || exit 0
+    fi
     rm -rf "$lock" 2>/dev/null
     mkdir "$lock" 2>/dev/null || exit 0
   fi

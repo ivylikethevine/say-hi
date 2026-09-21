@@ -63,7 +63,7 @@ permanent - it is the argument to beat.
 - **Renaming a user's overlay files for them in `hi --update`.** hi writes
   into `~/.config/say-hi/` only what the user asked it to write, by name, on
   the command line (`settings.sh`, and now `hi --add-package`'s
-  `packages.d/` group); a rename nobody asked for is still not that. The
+  `packages`); a rename nobody asked for is still not that. The
   doctor row prints the exact `mv`, which is the same outcome with no new
   write.
 - **Trimming `hi.1`'s copies of what SETTINGS.md says.** `man hi` has to
@@ -93,7 +93,7 @@ permanent - it is the argument to beat.
   rc is where people `export` tokens; shipping it by default would ship
   those. The symlink stays opt-in
   ([SETTINGS.md](SETTINGS.md#shells-you-drop-into-inside-a-session)).
-- **Moving the `tide.vars` filter into the lint awk.** `_HI_INCLUDES=keep`
+- **Moving the `tide.vars` filter into the lint awk.** A `hi-allow` line
   would then disable it and ship the rest of `fish_variables`.
 - **Stripping comments from `.toml` and `.yml`.** The stripper also drops
   indentation, which breaks YAML.

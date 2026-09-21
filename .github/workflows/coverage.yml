@@ -40,10 +40,14 @@ name: Coverage
 # under this run, where pages.yml and release.yml look - ci.yml's
 # push-to-main dedupe, same lookup.
 #
-# continue-on-error on every job, not workflow-level: pages.yml's lookup
-# reads the *whole run's* conclusion, so one hard-failing shard would grey
-# out both tools' badges. A gather merges whatever shards uploaded; a failed
-# shard's badge goes stale rather than gating the run.
+# No partial figures. A suite that fails under either tracer ends that
+# shard non-zero with nothing uploaded (tests/lib/coverage.sh), fail-fast
+# cancels the tool's other shards, and its gather runs only when every shard
+# succeeded - so a red sweep publishes nothing, and pages.yml's lookup, which
+# takes the newest *successful* run, keeps the last whole figures. The shards
+# carry no continue-on-error for the same reason: it would report a failed
+# shard to its gather as a success. The run goes red, which is the point;
+# coverage stays advisory all the same - no branch protection names it.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -220,9 +224,8 @@ jobs:
     concurrency:
       group: coverage-kcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
       cancel-in-progress: true
-    continue-on-error: true
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         shard: [1/4, 2/4, 3/4, 4/4]
     steps:
@@ -310,9 +313,8 @@ jobs:
     concurrency:
       group: coverage-bashcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
       cancel-in-progress: true
-    continue-on-error: true
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         shard: [1/4, 2/4, 3/4, 4/4]
     steps:
@@ -396,7 +398,7 @@ jobs:
       # per-line hit data merges cleanly (see gather-bashcov below).
       # include-hidden-files: upload-artifact drops dotfiles by default, and
       # .resultset.json is one - without this the step silently uploads
-      # nothing and shard-bashcov's continue-on-error hides the failure.
+      # nothing, and the gather would merge an empty set.
       # job-index, not matrix.shard: see shard-kcov's upload above
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -412,7 +414,7 @@ jobs:
   gather-kcov:
     name: kcov - merge shards and publish
     needs: [reuse, shard-kcov]
-    if: always() && needs.reuse.outputs.sweep == 'true'
+    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-kcov.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -511,7 +513,7 @@ jobs:
   gather-bashcov:
     name: bashcov - merge shards and publish
     needs: [reuse, shard-bashcov]
-    if: always() && needs.reuse.outputs.sweep == 'true'
+    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -621,7 +623,7 @@ jobs:
   # lookup), as one comment edited in place on every push - see the header for
   # why never a fork's. The checkout is for that composite action alone;
   # nothing here runs the PR's code. A figure missing on either side reads
-  # "not measured", never 0. The comment names the pull request template's 75%
+  # "not measured", never 0. The comment names the pull request template's 90%
   # target and flags an average below it - a target, not a gate: this job
   # stays continue-on-error and fails nothing.
   comment:
@@ -691,7 +693,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # the pull request template's figure; the average is held against it
-          TARGET: "75"
+          TARGET: "90"
         run: |
           set -euo pipefail
           marker='<!-- say-hi coverage -->'

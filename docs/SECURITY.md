@@ -27,7 +27,7 @@ to report what slipped through it.
   ([PACKAGING.md's _Install channels_](PACKAGING.md#install-channels)).
   `hi --update` is a release-tag checkout in a checkout you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
-  `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`, the
+  `$_HI_PAYLOAD` at the top of `hi.sh` (`common config load.sh hi.sh`, the
   last so a session can say `hi` onward) — docs, tests, CI, and editor config
   never leave the client. Your overlay is a second, smaller allow list,
   `$_HI_OVERLAY_FILES` (the roster is
@@ -132,7 +132,9 @@ command.
   `~/.ssh/config` and your `docker`/`podman`/`nomad`/`kubectl` CLIs — the same
   ones you already run.
 - A malicious target gets what any interactive session gives it: your payload
-  and a terminal. Treat every overlay file as public to every host you visit.
+  and a terminal. Treat every overlay file as public to every host you
+  visit, `ssh_tags` included: it names the hosts your `~/.ssh/config` tags,
+  and only those, with nothing of how to reach them.
   Nothing a target sends back is executed on the client. The one string hi
   reads back and uses - the scratch directory the target made (the ssh
   bootstrap's, or a container's session tree) - reaches a command run back on

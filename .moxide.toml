@@ -7,7 +7,7 @@
 # is "unresolved" to oxide while correct everywhere else. Noise, so off.
 unresolved_diagnostics = false
 
-# dist/ holds the packaging stage, a second copy of README.md and settings/.
+# dist/ holds the packaging stage, a second copy of README.md and config/.
 excluded_folders = ["dist"]
 
 # Write links the way the docs spell them: .md extension, headings as slugs.

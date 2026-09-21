@@ -58,7 +58,7 @@ function _hi_probe_fixture() {
   local root="$1/say-hi"
   mkdir -p "$root"
   : >"$root/hi.sh"
-  printf '%s\n' "alias hi_info='echo hi_info'" "alias sudo='command sudo '" >"$root/aliases.sh"
+  printf '%s\n' "alias hi_info='echo hi_info'" "alias cat='command cat'" >"$root/aliases.sh"
   printf '%s' "$root"
 }
 
@@ -77,7 +77,7 @@ function test_probe_cmd_bash_shape_fires_only_with_a_real_root() {
 }
 
 function test_probe_cmd_fallback_shape_fires_only_with_the_alias() {
-  _hi_probe_says_ok fallback "alias sudo='x'; " &&
+  _hi_probe_says_ok fallback "alias cat='x'; " &&
     ! _hi_probe_says_ok fallback ""
 }
 
@@ -94,7 +94,7 @@ function test_probe_cmd_rooted_elsewhere_fires_off_another_tree() {
 }
 
 function test_probe_cmd_fish_shapes_run_under_fish() {
-  _hi_probe_says_ok fallback_fish "function sudo; end; " "" fish &&
+  _hi_probe_says_ok fallback_fish "function cat; end; " "" fish &&
     ! _hi_probe_says_ok fallback_fish "" "" fish &&
     _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " "" fish &&
     ! _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " /nonexistent/say-hi fish
@@ -424,7 +424,8 @@ function test_exec_case_never_retries_a_timeout() {
 
 # Every escape form the helper documents goes, and a render's worth of them
 # goes in one pass: the bash-replacement version was quadratic, and a 2KB
-# colored table took seconds. Timed with $SECONDS, so the bound is loose.
+# colored table took seconds. Timed with $SECONDS, so the bound is loose - and
+# loose enough for emulated Git Bash: the quadratic version took minutes.
 function test_strip_ansi_strips_every_form_and_stays_linear() {
   local s big i out t0
   s="$(printf 'a\033[1;32mb\033[0mc\033]7;file:///x\007d\033]0;t\033\\e')"
@@ -433,7 +434,7 @@ function test_strip_ansi_strips_every_form_and_stays_linear() {
   for ((i = 0; i < 4000; i++)); do big="$big"$'\e[31m'"word$i"$'\e[0m '; done
   t0=$SECONDS
   out="$(_hi_strip_ansi "$big")"
-  [ $((SECONDS - t0)) -le 2 ] && [[ "$out" == "word0 word1 "* ]] && [[ "$out" != *$'\e'* ]]
+  [ $((SECONDS - t0)) -le 10 ] && [[ "$out" == "word0 word1 "* ]] && [[ "$out" != *$'\e'* ]]
 }
 
 function test_pty_wrap_force_wraps_even_on_a_tty() {

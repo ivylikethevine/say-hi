@@ -209,8 +209,10 @@ jobs:
       # instead of width 1 for live streaming. A passing transcript still
       # folds into a ::group:: and a failing one replays in full with an
       # ::error annotation - only the live stream is lost.
+      # fast plus ci here, and here only: ci is the suites a second platform
+      # could only repeat - workflow and manifest checks, ubuntu-only tooling
       - name: Run fast test suites
-        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast --totals-file ${{ runner.temp }}/totals"
+        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast,ci --totals-file ${{ runner.temp }}/totals"
 
       # The tests badge's number: pages.yml reads this artifact and publishes it
       # as a shields endpoint, so the figure stays generated with no bot commit
@@ -421,7 +423,7 @@ jobs:
           # the marker says the remote command ran; it cannot say the client
           # came home clean, so the status is checked after the output is
           # printed rather than thrown away with a `|| true`
-          printf '%s\n' "$out" | grep -q HI_MAC_LOOP_OK
+          grep -q HI_MAC_LOOP_OK <<<"$out"
           [ "$rc" -eq 0 ] || {
             echo "hi exited $rc after a successful remote command" >&2
             exit "$rc"
@@ -1025,13 +1027,39 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: this shard's suites pull Fedora images, and
-          # Fedora hands out a MirrorManager mirror per request - this run took
-          # cofractal-ewr.mm.fcix.net and insect.mm.fcix.net, which the next run
-          # will not. There is no fixed host list to write, so blocking would
-          # fail on the mirror rotating rather than on anything reaching
-          # further.
-          egress-policy: audit
+          egress-policy: block
+          # The union of every endpoint the four shards called on three runs'
+          # audit logs (Docker Hub's image pulls, the apt, apk, and dnf the
+          # test images build with - dnf pinned to mirrors.kernel.org in
+          # sshd-fedora.Dockerfile and repo_test.sh, where MirrorManager used
+          # to hand out a different host per request - nfpm's download, and
+          # the framework installers), plus two rows no log showed:
+          # objects.githubusercontent.com, where GitHub can serve a release
+          # asset instead of release-assets, and Docker Hub's other CDN
+          # (production.cloudflare and its R2 bucket), which every other
+          # docker-pulling job here lists. A pull or an apt fetch that trips
+          # on a missing row fails loudly; that run's log is the one to add
+          # it from.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudfront.docker.com:443
+            production.cloudflare.docker.com:443
+            docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com:443
+            deb.debian.org:80
+            archive.ubuntu.com:80
+            security.ubuntu.com:80
+            dl-cdn.alpinelinux.org:443
+            mirrors.kernel.org:443
+            starship.rs:443
+            mise.jdx.dev:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

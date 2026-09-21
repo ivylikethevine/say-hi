@@ -250,16 +250,6 @@ function test_overlay_cached_keys_the_file_by_member_list() {
     _hi_because "cache file for settings.sh is empty: $trimmed"
 }
 
-# _HI_INCLUDES changes what the stager writes and no member's mtime, so it is
-# part of the key: a keep archive is never served for a drop connect
-function test_overlay_cached_keys_the_file_by_includes() {
-  local dropped="" kept="" dir
-  dir="$(_hi_cache_rt oc.inc)"
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached dropped settings.sh || return 1
-  XDG_RUNTIME_DIR="$dir" _HI_INCLUDES=keep _hi_overlay_cached kept settings.sh || return 1
-  [ "$dropped" != "$kept" ] && [ -s "$dropped" ] && [ -s "$kept" ]
-}
-
 # ---------------------------------------------------------------------------
 # _hi_overlay_stream / _hi_payload_stream
 # ---------------------------------------------------------------------------
@@ -271,8 +261,8 @@ function test_overlay_stream_emits_an_armored_line_either_way() {
   dir="$(_hi_cache_rt os.line)"
   warm="$(XDG_RUNTIME_DIR="$dir" _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
   cold="$(XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
-  case "$warm" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
-  case "$cold" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
+  case "$warm" in *'tar -x -m -z -f - -C "$_HI_ROOT/overlay"'*) ;; *) return 1 ;; esac
+  case "$cold" in *'tar -x -m -z -f - -C "$_HI_ROOT/overlay"'*) ;; *) return 1 ;; esac
 }
 
 # a warm cache is the same bytes twice: gzip stamps an mtime, so two *fresh*
@@ -292,12 +282,37 @@ function test_payload_cached_builds_cold_then_reuses_it() {
   local out="" dir
   dir="$(_hi_cache_rt pc.warm)"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached out || return 1
-  [ "$out" = "$dir/hi.payload.tree" ] || return 1
+  [[ "$out" == "$dir/hi.payload.tree."* ]] || return 1
   [ -s "$out" ] || return 1
   _hi_cache_mark "$out"
   touch -t 203001010000 "$out"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached out || return 1
   _hi_cache_marked "$out"
+}
+
+# a tree cut for an overlay (_hi_payload_excl) is its own cache file, so a
+# changed overlay is never served the last one's tar, nor the whole tree's
+function test_payload_cached_is_keyed_on_the_cut_list() {
+  local whole="" cut="" dir
+  local -a payload_excl=()
+  dir="$(_hi_cache_rt pc.excl)"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_cached whole || return 1
+  _hi_payload_excl colors
+  XDG_RUNTIME_DIR="$dir" _hi_payload_cached cut || return 1
+  [[ "$whole" == "$dir/hi.payload.tree."* ]] && [ "$cut" != "$whole" ] &&
+    [[ "$(tar tzf "$whole")" == *config/colors* && "$(tar tzf "$cut")" != *config/colors* ]]
+}
+
+# two trees on one machine share the runtime dir, and each is served its
+# own: the cache is keyed on the tree, not only on the name
+function test_payload_cached_is_keyed_on_the_tree() {
+  local a="" b="" dir other="$_HI_WORKDIR/another-home"
+  dir="$(_hi_cache_rt pc.trees)"
+  mkdir -p "$other"
+  ln -sfn "$_HI_ROOT" "$other/say-hi"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_cached a || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_HOME="$other" _hi_payload_cached b || return 1
+  [ -s "$a" ] && [ -s "$b" ] && [ "$a" != "$b" ]
 }
 
 function test_payload_cached_rebuilds_when_a_source_file_is_newer() {
@@ -576,6 +591,9 @@ function test_ctl_close_is_a_noop_with_nothing_open() {
 function run_cache_tests() {
   _hi_h1 "Testing hi.sh's runtime dir, caches, and ControlMaster socket"
   _hi_workdir hicache
+  # home's configs ride only with their tools on this machine (_hi_tool_here),
+  # and no runner has all of them
+  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
   _hi_suite_begin
   _hi_cache_config
 
@@ -602,12 +620,13 @@ function run_cache_tests() {
   _hi_check "Rebuilds when a member is newer" test_overlay_cached_rebuilds_when_a_member_is_newer
   _hi_check_capable symlink "Rebuilds when a home config's target is newer" test_overlay_cached_rebuilds_when_a_home_config_is_newer
   _hi_check "Keys the file by member list" test_overlay_cached_keys_the_file_by_member_list
-  _hi_check "Keys the file by _HI_INCLUDES" test_overlay_cached_keys_the_file_by_includes
 
   _hi_h2 "Testing: the streams and the payload cache"
   _hi_check "Overlay stream is armored either way" test_overlay_stream_emits_an_armored_line_either_way
   _hi_check "Overlay stream is byte-identical off a warm cache" test_overlay_stream_is_byte_identical_off_a_warm_cache
   _hi_check "Payload cache builds cold then reuses it" test_payload_cached_builds_cold_then_reuses_it
+  _hi_check "Payload cache is keyed on what the overlay cut" test_payload_cached_is_keyed_on_the_cut_list
+  _hi_check_capable symlink "Payload cache is keyed on the tree" test_payload_cached_is_keyed_on_the_tree
   _hi_check "Payload cache rebuilds on a newer source file" test_payload_cached_rebuilds_when_a_source_file_is_newer
   _hi_check "Payload cache off when _HI_PAYLOAD_CACHE=0" test_payload_cached_is_off_when_the_toggle_is_zero
   _hi_check "Payload stream is byte-identical off a warm cache" test_payload_stream_is_byte_identical_off_a_warm_cache

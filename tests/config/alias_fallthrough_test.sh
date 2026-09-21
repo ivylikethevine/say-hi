@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# The two pieces of settings/aliases.sh that alias_test.sh doesn't cover: the
+# The two pieces of config/aliases.sh that alias_test.sh doesn't cover: the
 # `command -v a || command -v b || ...` fallthrough chains, and the
 # _HI_DISABLE_* guards that skip parts of the file. The split from
 # alias_test.sh is deliberate and considered-and-kept (2026-08): that suite
@@ -14,7 +14,7 @@
 # It also guards the reason it exists: in zsh, dash, and sh (not bash, not
 # fish) `command -v name` returns an *alias's* definition once one exists, so
 # any chain reachable from an aliased name would silently break - see
-# the resolve-before-aliasing block at the top of settings/aliases.sh.
+# the resolve-before-aliasing block at the top of config/aliases.sh.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
@@ -43,6 +43,12 @@ function _hi_write_check_scripts() {
   _HI_FISH_CHECK="$_HI_WORKDIR/fish_check.fish"
 
   cat >"$_HI_POSIX_CHECK" <<'EOF'
+# an alias the shell already had, as a target's rc leaves one; bash reports
+# aliases to `command -v` only with expansion on, as an interactive one has
+if [ -n "${_HI_PRE_ALIAS:-}" ]; then
+  [ -n "${BASH_VERSION:-}" ] && shopt -s expand_aliases
+  alias "$_HI_PRE_ALIAS"
+fi
 . "$_HI_ALIASES" || exit 1
 fail=0
 
@@ -89,6 +95,11 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
     check_alias exa "$_HI_EXPECT_LS_ALIAS"
   fi
 fi
+
+# every name in $_HI_CHECK_PRESENT must be an alias, none in $_HI_CHECK_ABSENT
+# (split through $( ): zsh leaves a bare $var whole)
+for a in $(printf '%s' "${_HI_CHECK_PRESENT:-}"); do check_alias "$a" 1; done
+for a in $(printf '%s' "${_HI_CHECK_ABSENT:-}"); do check_alias "$a" 0; done
 
 # the session-shell wrappers: present means the body leads with `command`
 # and names the rc load.sh wrote, or fish's alias-function would recurse
@@ -167,6 +178,13 @@ if set -q _HI_CHECK_FLAGS
     check_alias eza "$_HI_EXPECT_LS_ALIAS"
     check_alias exa "$_HI_EXPECT_LS_ALIAS"
   end
+end
+
+for a in (string split -n ' ' -- "$_HI_CHECK_PRESENT")
+  check_alias $a 1
+end
+for a in (string split -n ' ' -- "$_HI_CHECK_ABSENT")
+  check_alias $a 0
 end
 
 if set -q _HI_CHECK_SESSION
@@ -274,6 +292,21 @@ function run_overlay_poisoning_test() {
   done
 }
 
+# Nor can an alias the shell had before hi: Ubuntu's stock root .bashrc has
+# `alias ls='ls --color=auto'`, which `command -v ls` handed back as
+# $_HI_LS_BIN, so the first `ls` ran `alias ... -F -l`. fish never reports one.
+function run_preexisting_alias_test() {
+  _hi_h1 "An alias the shell already had cannot poison the chains"
+  local shell fakepath
+  fakepath="$(_hi_fake_path fp_prealias ls)"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    [ "$shell" = fish ] && continue
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "[$shell] a prior alias ls= does not poison \$_HI_LS_BIN" \
+      _HI_PRE_ALIAS="ls=ls --color=auto" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
+  done
+}
+
 # A value settings.sh exports - here _HI_BAT_OPTS - reaches the alias built
 # from it (core.sh and config.fish source settings.sh ahead of this file).
 function run_bat_opts_test() {
@@ -315,11 +348,14 @@ function _hi_run_scenario() {
   fi
 
   t0="$(_hi_now)"
+  # the editor aliases are gated on their rc being there, so each is a file
+  touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el"
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/init.el" \
+    _HI_NVIMRC="$_HI_WORKDIR/init.lua" _HI_HELIXRC="$_HI_WORKDIR/config.toml" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
@@ -359,14 +395,14 @@ function run_fallthrough_tests() {
   done
 }
 
-# The convenience aliases are the tail of settings/aliases.sh, so `sudo` is
+# The convenience aliases are the tail of config/aliases.sh, so `sudo` is
 # asserted *present* on both editor rows: the cheapest pin on the merged tail
 # being reached at all in three dialects. Its own guard is
 # _HI_DISABLE_SUDO_ALIAS, the third row.
 function run_flag_tests() {
   _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath
-  fakepath="$(_hi_fake_path fp_flags vi)"
+  fakepath="$(_hi_fake_path fp_flags vi cat nano emacs micro sudo)"
 
   for combo in "0 1 1 0" "1 0 1 0" "0 1 0 1"; do
     # shellcheck disable=SC2086 # fixed 4-field combo, splitting is intended
@@ -401,7 +437,7 @@ function run_tool_aliases_flag_tests() {
       _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--theme'
   done
   _hi_h1 "_HI_DISABLE_TOOL_ALIASES guard"
-  fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa)"
+  fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa nano emacs micro sudo)"
 
   for combo in "0 1" "1 0"; do
     # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
@@ -414,6 +450,24 @@ function run_tool_aliases_flag_tests() {
         _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want" \
         _HI_EXPECT_LS_ALIAS="$want"
     done
+  done
+}
+
+# No alias for a package that is not installed: every gated name lands with
+# its tool on PATH and is absent without it. tmux, screen, zellij, and micro's
+# -config-dir line get their config so only the binary decides; cat is the one tool on the
+# bare PATH, the floor of its own ladder.
+function run_presence_tests() {
+  _hi_h1 "An alias exists only where its tool does"
+  local shell gated="nano emacs micro vim nvim hx tmux screen zellij sudo bat batcat batn catn eza exa"
+  local all bare
+  all="$(_hi_fake_path fp_all cat nano emacs micro vim nvim hx tmux screen zellij sudo bat eza exa)"
+  bare="$(_hi_fake_path fp_bare cat)"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \
+      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_SCREENRC="$_HI_WORKDIR/screenrc" _HI_ZELLIJ_DIR="$_HI_WORKDIR/zellij" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_PRESENT="$gated cat ls"
+    _hi_case _hi_run_scenario "$shell" "$bare" "only cat installed: no gated alias" \
+      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_SCREENRC="$_HI_WORKDIR/screenrc" _HI_ZELLIJ_DIR="$_HI_WORKDIR/zellij" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
   done
 }
 
@@ -474,13 +528,15 @@ function run_alias_fallthrough_test() {
   # the vim and bat/eza ladders moved to tests/scripts/configure_test.sh,
   # which already sources configure.sh to call _hi_editors_preview and
   # _hi_tool_alias_preview - both read their alias back from a real `source
-  # settings/aliases.sh`, so nothing here can drift from it to pin - this
-  # suite only sources settings/aliases.sh
+  # config/aliases.sh`, so nothing here can drift from it to pin - this
+  # suite only sources config/aliases.sh
   run_fallthrough_tests
   run_flag_tests
   run_tool_aliases_flag_tests
+  run_presence_tests
   run_overlay_tests
   run_overlay_poisoning_test
+  run_preexisting_alias_test
   run_bat_opts_test
   run_session_wrapper_tests
 

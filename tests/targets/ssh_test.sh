@@ -147,11 +147,14 @@ function run_ssh_tests() {
 
   # see the registration in the bash32 block below for why this exists; the
   # find runs inside the container so the file list and the parser agree on
-  # what a path is
+  # what a path is. The tree's own files only: the coverage drivers' reports
+  # (coverage.yml writes them into the checkout) hold kcov's *.sh entries,
+  # which resolve on the runner and not in here - the lint scans skip the same
   function test_bash32_parses_every_file() {
     docker run --rm -v "$_HI_HOME/say-hi":/w:ro bash:3.2 bash -c '
       rc=0
-      for f in $(find /w -name "*.sh" -not -path "*/.git/*"); do
+      for f in $(find /w -name "*.sh" -not -path "*/.git/*" -not -path "*/node_modules/*" \
+        -not -path "/w/dist/*" -not -path "/w/coverage-report/*" -not -path "/w/coverage-v2-report/*"); do
         out=$(bash -n "$f" 2>&1) || {
           printf "%s\n%s\n" "$f" "$out"
           rc=1

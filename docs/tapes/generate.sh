@@ -333,6 +333,20 @@ function gen_log_errors() { # <log>
   fi
 }
 
+# The tail of the fixture's own log, which every tape redirects out of the
+# recording: a render that timed out waiting for "fixture-ok" failed in
+# `fixtures.sh up`, and only this says why. The teardown after each tape
+# removes the file, so what is here is this tape's.
+# The steps fixtures.sh stamped come first, since a long image build pushes
+# them out of any tail; the last step printed is the one that stalled.
+function gen_fixture_log() {
+  [ -s /tmp/hi-demo.log ] || return 0
+  _hi_cecho " | fixtures.sh up, its steps and the last lines of /tmp/hi-demo.log:" "$YELLOW"
+  grep ' fixtures: ' /tmp/hi-demo.log | sed 's/^/ |   /' || true
+  _hi_cecho " |   ..." "$YELLOW"
+  tail -n 20 /tmp/hi-demo.log | sed 's/^/ |   /'
+}
+
 # One tape, start to finish. Returns non-zero only for a failed render: a tape
 # whose backend is missing stands down yellow, the same way the e2e suites do,
 # unless --require-run says otherwise.
@@ -368,6 +382,7 @@ function gen_render() { # <name> <requires>
   if [ "$rc" -ne 0 ]; then
     gen_row "$name" FAILED "$RED" "vhs exited $rc after ${secs}s:"
     gen_log_errors "$log"
+    gen_fixture_log
     _HI_GEN_FAILED=$((_HI_GEN_FAILED + 1))
     return 1
   fi

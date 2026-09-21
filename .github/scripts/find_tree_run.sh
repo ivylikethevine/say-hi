@@ -20,12 +20,14 @@ shift 2
 api() { gh api "repos/$GITHUB_REPOSITORY/$1" --jq "$2"; }
 for id in $(api "actions/artifacts?name=$marker&per_page=20" \
   '.artifacts[] | select(.expired | not) | .workflow_run.id' | sort -rnu); do
-  api "actions/runs/$id" "select((.path | startswith(\".github/workflows/$workflow\"))
+  [ -n "$(api "actions/runs/$id" "select((.path | startswith(\".github/workflows/$workflow\"))
     and .event == \"pull_request\" and .conclusion == \"success\"
-    and .head_repository.full_name == \"$GITHUB_REPOSITORY\") | .id" | grep -q . || continue
+    and .head_repository.full_name == \"$GITHUB_REPOSITORY\") | .id")" ] || continue
   have="$(api "actions/runs/$id/artifacts?per_page=100" '.artifacts[] | select(.expired | not) | .name')"
   for a in "$@"; do
-    printf '%s\n' "$have" | grep -qxF -- "$a" || continue 2
+    # a here-string: `printf | grep -q` under pipefail fails on the writer's
+    # SIGPIPE once grep leaves at its match (docs/SYNTAX.md)
+    grep -qxF -- "$a" <<<"$have" || continue 2
   done
   echo "run=$id"
   exit 0

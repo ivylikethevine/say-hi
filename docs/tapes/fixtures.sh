@@ -31,6 +31,14 @@ source "$_HI_ROOT/tests/dockerfiles/sshd-entrypoint.sh"
 # the first time it succeeds; otherwise names <what> on stderr and returns 1,
 # so a fixture that never came up says which one rather than failing the tape
 # further down with something unrelated.
+# demo_step <what> - a timestamped line on stderr, which the tapes send to
+# /tmp/hi-demo.log. generate.sh prints that log's tail when a tape times out
+# waiting for fixture-ok, so a stalled step names itself: every step here was
+# silent, and a CI render that hung left an empty log and no clue.
+function demo_step() {
+  printf '[%s] fixtures: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2
+}
+
 function demo_wait_for() {
   local what="$1" i=0
   shift
@@ -62,8 +70,9 @@ function demo_sshd_image() {
     printf '#!/bin/bash\nset -e\n'
     printf '%s\n' "$_HI_SSHD_ENTRYPOINT_BODY"
   } >"$_HI_DEMO_DIR/base/entrypoint.sh"
-  docker build -q -t hi-demo-sshd-base \
-    -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >/dev/null
+  demo_step "building the sshd base image (a cold runner fetches its packages here)"
+  docker build --progress=plain -t hi-demo-sshd-base \
+    -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >&2
   # A clean copy rather than the live checkout as context: .git and dist/ would
   # bloat the build context and the image alike.
   #
@@ -82,8 +91,10 @@ function demo_sshd_image() {
   else
     (cd "$_HI_ROOT" && git archive HEAD | tar -x -C "$_HI_DEMO_DIR/checkout")
   fi
-  docker build -q -t hi-demo-sshd --build-arg BASE=hi-demo-sshd-base \
-    -f "$_HI_ROOT/tests/dockerfiles/demo-sshd.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+  demo_step "building the demo sshd image from the ${HI_DEMO_SOURCE:-head} tree"
+  docker build --progress=plain -t hi-demo-sshd --build-arg BASE=hi-demo-sshd-base \
+    -f "$_HI_ROOT/tests/dockerfiles/demo-sshd.Dockerfile" "$_HI_DEMO_DIR" >&2
+  demo_step "images built"
 }
 
 # demo_ssh_block <name> - the Host block that reaches the running sshd
@@ -123,6 +134,7 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
     demo_ssh_block "$name" >>"$_HI_DEMO_DIR/ssh_config"
   done
   # wait for every sshd to answer before the tape types anything
+  demo_step "waiting for sshd on: $*"
   for name in "$@"; do
     demo_wait_for "sshd for $name" \
       ssh -F "$_HI_DEMO_DIR/ssh_config" "$name" true
@@ -135,7 +147,14 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
 # It also gives the header's color-hash line something meaningful to hash
 # instead of the backend's random container ID.
 function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash>
+  demo_step "starting $2 on $1 ($3)"
   local backend="$1" name="$2" flavor="$3" image
+  # rootless podman's build network (slirp4netns) sends DNS straight to the
+  # host's upstream resolver, past the one a CI egress filter answers - so
+  # apk/apt inside the build cannot resolve. The host's network is the host's
+  # resolver; docker's builds already go through it.
+  local -a net=()
+  [ "$backend" != podman ] || net=(--network=host)
   case "$flavor" in
   debian) image=debian:bookworm-slim ;;
   ash) image=alpine:3.24 ;;
@@ -143,21 +162,21 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
   # /root/app - which is what the feature tapes have to show; the Dockerfile
   # says what each is for
   tools)
-    "$backend" build -q -t hi-demo-tools-img \
-      -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    "$backend" build "${net[@]}" -t hi-demo-tools-img \
+      -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >&2
     image=hi-demo-tools-img
     ;;
   # fish with bash beside it: a box hi can give a *full* session on, in fish
   # (fish leads the shell tree) - the overlay demo's second target, since
   # the bash-less aliases-only tier ships hi's own aliases and not the overlay
   fish-bash)
-    "$backend" build -q -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
-      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    "$backend" build "${net[@]}" -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
+      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >&2
     image=hi-demo-fish-bash-img
     ;;
   zsh | fish)
-    "$backend" build -q -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
-      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    "$backend" build "${net[@]}" -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
+      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >&2
     image="hi-demo-$flavor-img"
     ;;
   *)
@@ -271,8 +290,9 @@ function demo_settings() { # body on stdin
 # ssh reads. `# Tags:` stays above each live block - it is what the hosttag
 # pins resolve from, and a live host without one would color by its name hash
 # and quietly stop being the demo.
-function demo_ssh_config_live() { # <name:tag...>
-  local spec name tag
+function demo_ssh_config_live() { # <name:tag...>; none: db-prod is a plain roster row
+  local spec name tag plain="web-prod"
+  [ $# -gt 0 ] || plain="db-prod web-prod"
   mkdir -p "$_HI_DEMO_DIR/home/.ssh"
   {
     for spec in "$@"; do
@@ -282,9 +302,9 @@ function demo_ssh_config_live() { # <name:tag...>
       demo_ssh_block "$name"
       echo
     done
-    cat <<'EOF'
+    cat <<EOF
 # Tags: prod
-Host web-prod
+Host $plain
   User deploy
 
 # Tags: staging
@@ -325,7 +345,7 @@ EOF
 # The other overlay files a demo can ship, into the same $_HI_DEMO_DIR/config
 # that settings.sh lands in - hi.sh's _HI_OVERLAY_FILES carries both to the
 # target, which is the point of showing either. Body on stdin. <name> may
-# carry a subdirectory (packages.d/homelab, say) - mkdir -p covers both.
+# carry a subdirectory (micro/settings.json, say) - mkdir -p covers both.
 function demo_overlay() { # <name> - body on stdin
   mkdir -p "$_HI_DEMO_DIR/config/$(dirname "$1")"
   cat >"$_HI_DEMO_DIR/config/$1"
@@ -451,28 +471,7 @@ EOF
 #             $HOME: podman keeps its storage there and kubectl its
 #             ~/.kube/config, so a throwaway one empties two of the four
 #             backends the demo exists to show.
-function demo_ssh_config() {
-  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
-  cat >"$_HI_DEMO_DIR/home/.ssh/config" <<'EOF'
-# Tags: prod
-Host db-prod web-prod
-  User deploy
-
-# Tags: staging
-Host db-staging
-  User deploy
-
-# Tags: desktop
-Host workshop
-  User hitest
-
-Host build-box
-  User ci
-
-Host bastion
-  User root
-EOF
-}
+function demo_ssh_config() { demo_ssh_config_live; }
 
 # One of everything, at once - the completion demo's whole subject is that
 # `hi <TAB>` answers from every backend in one list, which is the one thing no
@@ -574,7 +573,7 @@ export _HI_IP_HIDE='none'
 export _HI_PACKAGES_MIN_PRIORITY='2'
 export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
 EOF
-  demo_overlay packages.d/homelab <<'EOF'
+  demo_overlay packages <<'EOF'
 # the homelab toolbox, and how loudly to miss each piece
 git:3
 vim:3,nano:3
@@ -611,7 +610,7 @@ export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
 EOF
   # The demo's subject: a new alias and a redefinition of the shipped `cat`
-  # over the binary hi resolved, in the POSIX+fish subset settings/aliases.sh
+  # over the binary hi resolved, in the POSIX+fish subset config/aliases.sh
   # says the file has to stay in. Both are in effect in a bash session and a
   # fish one, which is what the tape shows.
   demo_overlay aliases.sh <<'EOF'
