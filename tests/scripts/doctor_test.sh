@@ -1282,6 +1282,7 @@ function test_problems_leaves_json_unchanged() {
 }
 
 function run_doctor_tests() {
+  local part="${_HI_DOCTOR_PART:-local}"
   _hi_workdir doctortest
   # home's configs ride only with their tools on this machine (_hi_tool_here),
   # and no runner has all of them
@@ -1290,8 +1291,13 @@ function run_doctor_tests() {
 
   _hi_suite_begin
 
-  _hi_h1 "Testing scripts/doctor.sh"
+  _hi_h1 "Testing scripts/doctor.sh ($part)"
 
+  # one suite ran past every other under Git Bash (~450s on windows-11-arm),
+  # so its sections are three suites that shard apart: this file, and
+  # doctor_target_test.sh and doctor_report_test.sh, which name their part
+  # and source it
+  if [ "$part" = local ]; then
   _hi_h2 "Testing: doctor_local"
   _hi_check "Reports the version" test_local_reports_the_version
   _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
@@ -1341,6 +1347,9 @@ function run_doctor_tests() {
   _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
   _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
 
+  fi
+
+  if [ "$part" = target ]; then
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
   _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
@@ -1357,6 +1366,9 @@ function run_doctor_tests() {
   _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
   _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 
+  fi
+
+  if [ "$part" = report ]; then
   _hi_h2 "Testing: the report"
   _hi_check "--help exits zero" test_help_exits_zero
   _hi_check "--help names what was typed" test_help_names_what_was_typed
@@ -1370,6 +1382,9 @@ function run_doctor_tests() {
   _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
   _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
 
+  fi
+
+  if [ "$part" = target ]; then
   _hi_h2 "Testing: the install section"
   _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
   _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
@@ -1382,6 +1397,9 @@ function run_doctor_tests() {
   _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
   _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
 
+  fi
+
+  if [ "$part" = report ]; then
   _hi_h2 "Testing: --json"
   _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
   _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
@@ -1391,7 +1409,9 @@ function run_doctor_tests() {
   _hi_check "Off by default" test_json_is_off_by_default
   _hi_check "--problems leaves the document unchanged" test_problems_leaves_json_unchanged
 
-  _hi_suite_end "doctor.sh"
+  fi
+
+  _hi_suite_end "doctor.sh ($part)"
 }
 
 run_doctor_tests

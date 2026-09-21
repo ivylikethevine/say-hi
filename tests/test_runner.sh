@@ -50,9 +50,11 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:install:scripts/install_test.sh"
     "fast:test_runner:harness/runner_test.sh"
     "fast:configure:scripts/configure_test.sh"
+    "fast:doctor_target:scripts/doctor_target_test.sh"
     "fast:test_lib:harness/lib_test.sh"
     "fast:targets:common/targets_test.sh"
     "fast:rc:common/rc_test.sh"
+    "fast:doctor_report:scripts/doctor_report_test.sh"
     "fast:install_location:scripts/install_location_test.sh"
     "fast:update:scripts/update_test.sh"
     "fast:add_package:scripts/add_package_test.sh"
@@ -262,7 +264,8 @@ fi
 # shard will run. windows-client.yml is the caller: the fast group takes about
 # seven minutes under Git Bash, where backgrounded suites barely overlap
 # (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
-# a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
+# a wider run would not. Slices of different n compose: 2/12, 6/12, and
+# 10/12 are 2/4.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"
