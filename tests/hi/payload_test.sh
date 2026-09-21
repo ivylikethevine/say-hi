@@ -980,6 +980,23 @@ function test_framework_and_plugin_includes_are_neutralized() {
 PS1=x' ]
 }
 
+# ...and that pass is the theme's alone, for its own framework: a plugins.d
+# member runs on every target, $ZSH unset on most, and oh-my-zsh's theme has
+# no business in $OSH - both are neutralized like any include
+function test_a_framework_tree_passes_only_its_own_theme() {
+  local dir h="$_HI_WORKDIR/fw-home" out
+  _hi_fw_home_fixture
+  dir="$_HI_WORKDIR/lint-fw-own"
+  mkdir -p "$dir/plugins.d"
+  printf 'source "$ZSH/lib/git.zsh"\nsource $OSH/lib/x.sh\n' >"$dir/oh-my-zsh.zsh-theme"
+  printf 'source "$ZSH/lib/git.zsh"\n' >"$dir/plugins.d/10-omz"
+  out="$(HOME="$h" _HI_PROMPT_TOOL=oh-my-zsh _HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "plugins.d/10-omz|1|include,oh-my-zsh.zsh-theme|2|include" ] || {
+    _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+}
+
 # `hi-allow` in the file's own comment syntax keeps the next line as written
 # and out of the report - for a file every target has
 function test_hi_allow_keeps_the_next_line() {
@@ -1364,6 +1381,7 @@ function run_hi_payload_tests() {
   _hi_check "A shell include becomes : and still parses" test_shell_includes_are_neutralized_and_still_parse
   _hi_check "A fish include becomes true" test_fish_includes_become_true
   _hi_check "Framework files and plugins.d are scanned as shell" test_framework_and_plugin_includes_are_neutralized
+  _hi_check "...a framework's tree passes only its own theme" test_a_framework_tree_passes_only_its_own_theme
   _hi_check "hi-allow keeps the next line" test_hi_allow_keeps_the_next_line
   _hi_check "hi-quiet drops the next line without a row" test_hi_quiet_drops_the_next_line_without_a_row
   _hi_check "A commented line is no finding" test_the_scan_skips_a_commented_line

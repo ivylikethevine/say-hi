@@ -621,7 +621,7 @@ jobs:
   # lookup), as one comment edited in place on every push - see the header for
   # why never a fork's. The checkout is for that composite action alone;
   # nothing here runs the PR's code. A figure missing on either side reads
-  # "not measured", never 0. The comment names the pull request template's 75%
+  # "not measured", never 0. The comment names the pull request template's 90%
   # target and flags an average below it - a target, not a gate: this job
   # stays continue-on-error and fails nothing.
   comment:
@@ -691,7 +691,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # the pull request template's figure; the average is held against it
-          TARGET: "75"
+          TARGET: "90"
         run: |
           set -euo pipefail
           marker='<!-- say-hi coverage -->'

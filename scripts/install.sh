@@ -557,7 +557,7 @@ else
   _hi_h1 "Installing (or reinstalling) hi.sh!"
 fi
 _hi_version_line="$(_hi_release_or_describe 2>/dev/null || true)"
-_hi_cecho " | hi_home: $_HI_HOME | hi_root: $_HI_ROOT | version: ${_hi_version_line:-unknown} | login shell: ${SHELL##*/}" "$BLUE"
+_hi_cells_line "$BLUE" "hi_home: $_HI_HOME" "hi_root: $_HI_ROOT" "version: ${_hi_version_line:-unknown}" "login shell: ${SHELL##*/}"
 unset _hi_version_line
 [ -z "$_HI_DRY_RUN" ] || _hi_cecho " | dry run: nothing below is written" "$BLUE"
 

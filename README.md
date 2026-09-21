@@ -332,42 +332,17 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **What hi carries is linted against the target** — one exemption
-       is left: `shfix`'s `$ZSH`/`$OSH`, a framework tree the target may not
-       have. **Do:** decide what a theme sourcing `$ZSH/lib/*.zsh` does on a
-       target without oh-my-zsh. **Ticks when:** the decision is in
-       `docs/INTEGRATIONS.md` and `tests/targets/framework_test.sh` is green
-       on it.
+1. [ ] **The settings wizard reads at a glance** — shipped: `hi --configure`
+       draws to the terminal's width (help text cut, not wrapped; the
+       preview box clipped to fit), groups its rows by what they change -
+       Header, Prompt, Editors, Aliases, This machine, and Advanced apart
+       under a rule - with each group's heading saying where it shows, the
+       keys above the preview, and `(default X)` beside a changed row; the
+       `configure` suite pins the width at 80 and 40 columns. **Ticks
+       when:** a first run, walked at 80 and at 40 columns, needs no trip
+       to `docs/SETTINGS.md`.
 
-2. [ ] **The settings wizard reads at a glance** — `hi --configure` is one
-       dense menu screen. **Do:** walk it at 80 and 40 columns and regroup so
-       each row says what it changes, its value against the default, and
-       where its preview shows; set the preset, header, and advanced groups
-       apart. **Ticks when:** a first run needs no trip to
-       `docs/SETTINGS.md`, and the `configure` suite's transcripts pin the
-       layout.
-
-3. [ ] **A tool's config rides without a plugin** — adding a tool hi does
-       not know means a `plugins.d` member or a change to hi. **Do:** a
-       user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
-       directory on this machine, and the command (or variable) that points
-       the tool at it on a target - read from the overlay and riding through
-       the same order and include scan; failing that, a starter plugin that
-       does exactly this for the user to copy and edit. **Ticks when:** a
-       tool of the user's own reads its home config on a target with no code
-       change, and `docs/SETTINGS.md` shows how.
-
-4. [ ] **Investigate the header as plugins** — every header cell is one
-       `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
-       set a prompt segment. **Do:** find out whether the cells and
-       `full_check` fit one plugin contract a user's own could share, costing
-       the shared probes (`_hi_probed_cell`), `_hi_row_line`'s wrap, the
-       payload budget, connect forks, and fish's separate loader; settle it
-       alongside the entry above, which asks the same of configs. **Ticks
-       when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
-       `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
-
-5. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
+2. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
        `upgrade` job, under the gate and ahead of build, runs
        `.github/scripts/upgrade_path.sh` from the previous `v*` tag - a
        shell per dialect loads it, the tag's tree is swapped in, the rc is
@@ -375,7 +350,16 @@ In this checkout, narrowest first.
        **Ticks when:** a `v*` tag runs it green, and putting core.sh's load
        guard back in `common/bash.sh` turns it red.
 
-6. [ ] **Every Ubuntu job's egress is allowlisted** — 40 of 51
+3. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
+       has failed in `render`: each tape times out waiting for `fixture-ok`
+       with `/tmp/hi-demo.log` empty, so `fixtures.sh up` never reports (the
+       editors tape stalls earlier still, on its `setopt` line). Egress is
+       ruled out - the harden-runner logs refuse only Chrome's updater. So no
+       GIF has rendered since, and `collect` and `attach` have never run.
+       **Do:** find where the fixture stalls. **Ticks when:** a dispatch
+       renders all six tapes.
+
+4. [ ] **Every Ubuntu job's egress is allowlisted** — 40 of 51
        `harden-runner` steps block. **Still on audit, to move:** `ci.yml`'s
        e2e (dnf now pins one Fedora mirror; the list comes from a cold run's
        audit log across all four shards) and `openbsd-e2e.yml` (the guest's
@@ -387,6 +371,37 @@ In this checkout, narrowest first.
        URL. **Do:** take each blocking list from a cold run - a cache hit
        reaches fewer hosts - and `demos.yml`'s `attach` list from a tagged
        run. **Ticks when:** the two above block and those lists hold.
+
+5. [ ] **No races left for Windows and BSD runners to lose** — their
+       shards fail intermittently where Linux never does, and one cause is
+       already known: `grep -q` or an early `awk exit` reading a `printf` under
+       `pipefail`, which OpenBSD's 1 KB stdio buffer turns into a SIGPIPE
+       (fixed in `release_notes.sh`). **Do:** sweep the tree for that shape
+       and its kin - pipes whose reader leaves early, waits bound to a fixed
+       sleep, temp names shared across parallel cases, output read before
+       its writer flushes, and Git Bash's slow forks against fixed timeouts.
+       **Ticks when:** each finding is fixed or written down as not one, and
+       the Windows and BSD jobs run green across several consecutive pushes.
+
+6. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+       not know means a `plugins.d` member or a change to hi. **Do:** a
+       user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
+       directory on this machine, and the command (or variable) that points
+       the tool at it on a target - read from the overlay and riding through
+       the same order and include scan; failing that, a starter plugin that
+       does exactly this for the user to copy and edit. **Ticks when:** a
+       tool of the user's own reads its home config on a target with no code
+       change, and `docs/SETTINGS.md` shows how.
+
+7. [ ] **Investigate the header as plugins** — every header cell is one
+       `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
+       set a prompt segment. **Do:** find out whether the cells and
+       `full_check` fit one plugin contract a user's own could share, costing
+       the shared probes (`_hi_probed_cell`), `_hi_row_line`'s wrap, the
+       payload budget, connect forks, and fish's separate loader; settle it
+       alongside the entry above, which asks the same of configs. **Ticks
+       when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
+       `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
 
 ### At the 1.0.0 tag
 

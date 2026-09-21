@@ -70,10 +70,50 @@ function _hi_write_back() {
   command rm -f "$1"
 }
 
-# _hi_hrule <label> <bar-char> <inset> <color> - a _HI_MAX_WIDTH rule with the
-# label centered; the worker behind the heading levels
+# _hi_term_cols <outvar> - the terminal's width, or empty: $_HI_TERM_COLS (a
+# suite's pin), else - only when stdout is a tty, so captured output keeps
+# its fixed width - $COLUMNS, then tput. header.sh's _hi_draw_width rule.
+function _hi_term_cols() {
+  local _hi_tc="${_HI_TERM_COLS-}"
+  if [ -z "${_HI_TERM_COLS+x}" ] && [ -t 1 ]; then
+    _hi_tc="${COLUMNS:-}"
+    case "$_hi_tc" in '' | *[!0-9]*) _hi_tc="$(tput cols 2>/dev/null || true)" ;; esac
+  fi
+  case "$_hi_tc" in *[!0-9]* | 0) _hi_tc="" ;; esac
+  printf -v "$1" '%s' "$_hi_tc"
+}
+
+# _hi_out_width <outvar> - what a rule or a wrapped line draws to:
+# $_HI_MAX_WIDTH, narrowed to the terminal when that is narrower
+function _hi_out_width() {
+  local _hi_ow=${_HI_MAX_WIDTH:-80} _hi_ow_cols
+  _hi_term_cols _hi_ow_cols
+  [ -n "$_hi_ow_cols" ] && ((_hi_ow_cols < _hi_ow)) && _hi_ow=$_hi_ow_cols
+  printf -v "$1" '%d' "$_hi_ow"
+}
+
+# _hi_cells_line <color> <cell>... - " | a | b" lines, as many cells to a
+# line as fit the output width; a cell wider than that has a line of its own
+function _hi_cells_line() {
+  local color="$1" w line="" cell
+  shift
+  _hi_out_width w
+  for cell; do
+    if [ -n "$line" ] && ((${#line} + ${#cell} + 3 > w)); then
+      _hi_cecho "$line" "$color"
+      line=""
+    fi
+    line="$line | $cell"
+  done
+  [ -z "$line" ] || _hi_cecho "$line" "$color"
+}
+
+# _hi_hrule <label> <bar-char> <inset> <color> - a rule across the output
+# width with the label centered; the worker behind the heading levels
 function _hi_hrule() {
-  local pad label width=$((${_HI_MAX_WIDTH:-80} - 1)) total left right lbar rbar
+  local pad label width total left right lbar rbar
+  _hi_out_width width
+  width=$((width - 1))
   _hi_repeat pad "$3" ' '
   label="$pad$1$pad"
   total=$((width - ${#label}))

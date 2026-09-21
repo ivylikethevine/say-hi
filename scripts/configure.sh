@@ -248,16 +248,30 @@ function _hi_is_header_word() {
 # functions, sized to its longest line rather than the terminal width, since
 # previews range from one short colored line to full_check's wrapped block.
 function show_preview() {
-  local out content_w=0 len line top fill_top i
+  local out content_w=0 len line top fill_top i indent='   ' room restore=0
   local label="$_HI_BOX_H preview "
   local -a lines lens=()
   out="$("$@" 2>/dev/null)" || true
   [ -n "$out" ] || return 0
   _hi_read_lines lines <<<"$out"
+  # the box fits the menu: a narrow one indents it by one, and a line wider
+  # than the room left is cut there - its colors dropped, the escapes being
+  # what a cut cannot count through
+  ((_HI_MENU_W < 60)) && indent=' '
+  room=$((_HI_MENU_W - ${#indent} - 4))
   # measured once, kept for the render loop: the strip behind _hi_visible_len
   # is the expensive half of every line
-  for line in "${lines[@]}"; do
-    _hi_visible_len len "$line"
+  for i in "${!lines[@]}"; do
+    _hi_visible_len len "${lines[i]}"
+    if ((len > room)); then
+      shopt -q extglob || {
+        shopt -s extglob
+        restore=1
+      }
+      line="${lines[i]//$'\e'\[*([0-9;])m/}"
+      ((restore)) && shopt -u extglob
+      lines[i]="${line:0:room}" len=$room
+    fi
     lens+=("$len")
     ((len > content_w)) && content_w=$len
   done
@@ -266,13 +280,13 @@ function show_preview() {
   # primitives, the same ones every other box in this file draws with
   _hi_repeat fill_top $((content_w + 2 - ${#label})) "$_HI_BOX_H"
   top="$_HI_BOX_TL${label}${fill_top}$_HI_BOX_TR"
-  _hi_cecho "   $top" "$NC"
+  _hi_cecho "$indent$top" "$NC"
   for i in "${!lines[@]}"; do
-    printf '   '
+    printf '%s' "$indent"
     _hi_cell_raw "$content_w" "${lens[i]}" "${lines[i]}"
     _hi_row_end
   done
-  printf '   '
+  printf '%s' "$indent"
   _hi_hbar bottom "$content_w"
 }
 
@@ -294,7 +308,7 @@ function _hi_probe_once() {
 # Captured, not a tty, so _hi_draw_width draws to $_HI_MAX_WIDTH
 # exactly - which is what the width dial is previewing.
 function _hi_header_preview() {
-  local order banner width floor palette lead iphide scheme
+  local order banner width floor palette lead iphide scheme w
   _hi_load_preview_sources
   if setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1; then
     _hi_cecho " header off - nothing prints on connect or disconnect" "$YELLOW"
@@ -309,7 +323,11 @@ function _hi_header_preview() {
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
   (
-    export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="${width:-80}"
+    # no wider than the menu's box can hold: a session clamps to its
+    # terminal the same way
+    w="${width:-80}"
+    ((w > _HI_MENU_W - 8)) && w=$((_HI_MENU_W - (_HI_MENU_W < 60 ? 6 : 8)))
+    export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="$w"
     export _HI_PACKAGES_MIN_PRIORITY="${floor:-2}" _HI_PACKAGES_PALETTE="$palette"
     export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
     # the palette and the check ramps were captured at source time;
@@ -379,6 +397,8 @@ function _hi_prompt_sample_preview() {
     export _HI_COLOR_SCHEME="$scheme"
     _hi_assign_palette
     unset _HI_HOST_ESC _HI_USER_ESC
+    # a narrow menu's box has room for the cwd's last part, not its path
+    ((_HI_MENU_W >= 60)) || PWD="${PWD##*/}"
     _hi_prompt_preview
   )"
   setting_off _HI_DISABLE_GIT_STATUS "$_HI_SETTINGS" 1 || git="$(_hi_git_status_preview)"
@@ -392,11 +412,10 @@ function _hi_prompt_sample_preview() {
 }
 
 # The hub's picture: the header as it would print, then the prompt line as
-# it would draw - the two things every session shows. Each half says "off"
-# in words when it is, so the box always has something to show.
+# it would draw under it - the two things every session shows. Each half
+# says "off" in words when it is, so the box always has something to show.
 function _hi_config_preview() {
   _hi_header_preview
-  printf '\n'
   _hi_prompt_sample_preview
 }
 
@@ -504,10 +523,10 @@ declare -a _HI_SETTING_LINES=()
 # what the flip reports. Adding a setting is one row, and every
 # `_HI_*_PROMPTS` table is what tests/lint's settings-table check reads.
 _HI_FEATURE_PROMPTS=(
-  "_HI_DISABLE_HEADER|1||||connect/disconnect header - its items are under Header"
+  "_HI_DISABLE_HEADER|1||||connect/disconnect header - off hides every row below"
   "_HI_DISABLE_GREETING|1||||greeting - the \"hi loaded with...\" line and its timers"
-  "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status in the prompt"
-  "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment in the prompt - (myproj) for a venv, ..."
+  "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status - the branch and its changes"
+  "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment - (myproj) for a venv, ..."
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix"
   "_HI_DISABLE_VIM|1||||vim and nvim - hi's vimrc and init.lua"
   "_HI_DISABLE_NANO|1|||nano|nano - hi's nanorc"
@@ -516,7 +535,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HELIX|1|||hx|helix - hi's config.toml"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
-  "_HI_DISABLE_LOCAL|1||||all of the above on this machine too, not just where you hi"
+  "_HI_DISABLE_LOCAL|1||||here too - all of the above on this machine, not just where you hi"
 )
 
 # The one header row with a hide switch of its own: banner is not part of
@@ -669,13 +688,15 @@ function config_preset() {
 # with no tty has nobody to orient.
 function configure_intro() {
   [ -t 0 ] || return 0
-  local state="none yet - defaults apply"
+  local state="none yet - defaults apply" file="$_HI_SETTINGS"
   # no `|| echo 0`: grep -c already prints 0 on no match, then exits 1
   [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
-  _hi_cecho " The preview shows what a session will look like at your current settings." "$BLUE"
-  _hi_cecho " Type a number to flip a setting or change its value, or [p] for a preset." "$BLUE"
-  _hi_cecho " Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
-  _hi_cecho " settings: $_HI_SETTINGS ($state)" "$BLUE"
+  case "$file" in "$HOME"/*) file="~${file#"$HOME"}" ;; esac
+  _hi_menu_cols _HI_MENU_W
+  _hi_menu_say "The preview shows what a session will look like at your current settings." "$BLUE"
+  _hi_menu_say "Type a number to flip a setting or change its value, or [p] for a preset." "$BLUE"
+  _hi_menu_say "Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
+  _hi_menu_say "settings: $file ($state)" "$BLUE"
 }
 
 # The menu is one numbered list of every setting the wizard asks, no
@@ -698,10 +719,38 @@ function _hi_menu_note() {
   _HI_MENU_NOTE_PREVIEW="${3:-}"
 }
 
+# The width the menu draws to: the terminal's (lib.sh's _hi_term_cols), not
+# capped by $_HI_MAX_WIDTH the way the header is, else 80. Read once per draw
+# into $_HI_MENU_W.
+_HI_MENU_W=80
+# _hi_menu_cols <outvar>
+function _hi_menu_cols() {
+  local _hi_mc
+  _hi_term_cols _hi_mc
+  printf -v "$1" '%d' "${_hi_mc:-80}"
+}
+
+# _hi_menu_say <text> <color> - one line of prose, wrapped at word breaks to
+# the menu's width, every piece indented one space
+function _hi_menu_say() {
+  local line
+  while IFS= read -r line; do
+    _hi_cecho " $line" "$2"
+  done < <(printf '%s\n' "$1" | fold -s -w $((_HI_MENU_W - 2)) | sed 's/ *$//')
+}
+
+# _hi_menu_fit <outvar> <text> <room> - <text> cut to <room> characters, the
+# cut marked with "..."; plain text only, painted after
+function _hi_menu_fit() {
+  local _hi_mf="$2"
+  ((${#_hi_mf} > $3)) && _hi_mf="${_hi_mf:0:$(($3 > 3 ? $3 - 3 : 0))}..."
+  printf -v "$1" '%s' "$_hi_mf"
+}
+
 # The list's colors, so a row scans without reading it: the number you type
 # $BRYELLOW, a green [x] on and a red [ ] off, a current value $BRPURPLE, the
 # help after a label's " - " $BLUE like the intro's, a missing command's note
-# $YELLOW.
+# and a changed row's "(default ...)" $YELLOW.
 # _hi_menu_add <kind> <text> [no_newline] - number the next item and draw it
 function _hi_menu_add() {
   _HI_MENU_ITEMS+=("$1")
@@ -714,49 +763,92 @@ function _hi_menu_check() {
   if [ "$2" = 1 ]; then _hi_paint "$1" "$BRGREEN" "[x]"; else _hi_paint "$1" "$RED" "[ ]"; fi
 }
 
-# _hi_menu_value <kind> <label> <value> - an item that asks for a value,
-# indented past the [x] the yes/no rows carry
+# _hi_menu_head <name> <where> - a group's heading, and where its settings
+# show, when the width has room for both
+function _hi_menu_head() {
+  local where=""
+  ((${#1} + ${#2} + 4 <= _HI_MENU_W)) && _hi_paint where "$BLUE" " - $2"
+  printf '%b %s%b%s\n' "$BRCYAN" "$1" "$NC" "$where"
+}
+
+# _hi_menu_value <kind> <label> <value> <default> - an item that asks for a
+# value, indented past the [x] the yes/no rows carry, the default beside it
+# when the value is not; label and value close up under 60 columns
 function _hi_menu_value() {
-  local _hi_mv_text
-  printf -v _hi_mv_text '    %-22s %b%s%b' "$2" "$BRPURPLE" "$3" "$NC"
+  local _hi_mv_text _hi_mv_def="" pad=22 lead="    "
+  ((_HI_MENU_W < 60)) && pad=$((${#2} + 1)) lead=" "
+  [ "$3" = "$4" ] || _hi_paint _hi_mv_def "$YELLOW" " (default $4)"
+  printf -v _hi_mv_text '%s%-*s%b%s%b%s' "$lead" "$pad" "$2" "$BRPURPLE" "$3" "$NC" "$_hi_mv_def"
   _hi_menu_add "$1" "$_hi_mv_text"
 }
 
-# _hi_menu_rows <table> - a yes/no table's rows, checked when on. A row whose
+# _hi_menu_row <table> <index> - one yes/no row, checked when on. A row whose
 # <needs> command is absent here says so but still toggles - the setting
-# applies wherever the command exists.
-function _hi_menu_rows() {
-  local i var off on needs label state help="" note=""
+# applies wherever the command exists. The help after " - " is what gives way
+# to a narrow terminal; the name, the note, and "(default ...)" stay.
+function _hi_menu_row() {
+  local var off on needs label state def name help="" note="" dnote="" room
   local -a rows=()
   _hi_prompt_rows "$1" rows
-  for i in ${rows[@]+"${!rows[@]}"}; do
-    IFS='|' read -r var off on _ needs label <<<"${rows[$i]}"
-    setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
-    _hi_menu_check state "$state"
-    help="" note=""
-    case "$label" in *' - '*) _hi_paint help "$BLUE" " - ${label#* - }" ;; esac
-    if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
-      _hi_paint note "$YELLOW" " ($needs is not installed here)"
+  IFS='|' read -r var off on _ needs label <<<"${rows[$2]}"
+  setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+  # a default-on toggle has no on-value; an opt-in has one
+  [ -z "$on" ] && def=1 || def=0
+  name="${label%% - *}"
+  if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
+    note=" (no $needs here)"
+  fi
+  [ "$state" = "$def" ] || { [ "$def" = 1 ] && dnote=" (default on)" || dnote=" (default off)"; }
+  # "  NN) [x] " is ten columns
+  room=$((_HI_MENU_W - 11 - ${#name} - ${#note} - ${#dnote}))
+  case "$label" in *' - '*)
+    if ((room > 8)); then
+      _hi_menu_fit help "${label#* - }" $((room - 3))
+      _hi_paint help "$BLUE" " - $help"
     fi
-    _hi_menu_add "row|$1|$i" "$state ${label%% - *}$help$note"
-  done
+    ;;
+  esac
+  [ -z "$note" ] || _hi_paint note "$YELLOW" "$note"
+  [ -z "$dnote" ] || _hi_paint dnote "$YELLOW" "$dnote"
+  _hi_menu_check state "$state"
+  _hi_menu_add "row|$1|$2" "$state $name$help$note$dnote"
 }
 
-# The list, under a heading per group. Header comes first, directly under
-# the rendered header it edits: the banner, the header's items in the order
-# they print - three to a line, so seventeen of them fit a screen - then its
-# width, the package check's depth, and the hidden addresses. Features, the
-# whole-feature toggles, follow.
+# _hi_menu_rows <table> [index...] - those rows of a table, or every row
+function _hi_menu_rows() {
+  local t="$1" i
+  local -a rows=()
+  shift
+  if [ $# = 0 ]; then
+    _hi_prompt_rows "$t" rows
+    set -- ${rows[@]+"${!rows[@]}"}
+  fi
+  for i; do _hi_menu_row "$t" "$i"; done
+}
+
+# The list, grouped by what a setting changes, each heading saying where that
+# shows. Header first, directly under the rendered header it edits: the
+# switch for the whole of it and the greeting after it, the banner, the
+# header's items in the order they print - as many to a line as the width
+# holds, three at most - then its width, the package check's depth, and the
+# hidden addresses. The prompt's switches, the editors a target gets, the
+# aliases, and the one "here too" switch follow; Advanced sits apart, under
+# a rule. The rows keep their tables (and so their item kinds): this is only
+# the order they draw in.
 function _hi_menu_list() {
-  local i state word width floor iphide tc row name shell end cols=3
+  local i state word width floor iphide tc row name shell end def cols rule
   _HI_MENU_ITEMS=()
-  _hi_cecho " Header" "$BRCYAN" 1
-  _hi_cecho " - in the order it prints; up N / down N moves an item" "$BLUE"
+  cols=$(((_HI_MENU_W - 2) / 21))
+  ((cols > 3)) && cols=3
+  ((cols < 1)) && cols=1
+  _hi_menu_head "Header" "the preview's rows; up N / down N moves an item"
+  _hi_menu_rows _HI_FEATURE_PROMPTS 0 1
   _hi_menu_rows _HI_HEADER_PROMPTS
   _HI_MENU_WORD0=$((${#_HI_MENU_ITEMS[@]} + 1))
   for i in "${!_HI_HDR_WORDS[@]}"; do
     _hi_menu_check state "${_HI_HDR_ON[$i]}"
     printf -v word '%-11s' "${_HI_HDR_WORDS[$i]}"
+    ((cols > 1)) || word="${_HI_HDR_WORDS[$i]}"
     _hi_menu_add "word|$i" "$state $word" 1
     [ $(((i + 1) % cols)) != 0 ] || printf '\n'
   done
@@ -764,13 +856,13 @@ function _hi_menu_list() {
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  _hi_menu_value width "width" "${width:-80}"
-  _hi_menu_value floor "package check depth" "${floor:-2}"
-  _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}"
-  _hi_cecho " Features" "$BRCYAN"
-  _hi_menu_rows _HI_FEATURE_PROMPTS
-  _hi_cecho " Prompt" "$BRCYAN"
-  _hi_menu_rows _HI_PROMPT_PROMPTS
+  _hi_menu_value width "width" "${width:-80}" 80
+  _hi_menu_value floor "package check depth" "${floor:-2}" 2
+  _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}" '172.*'
+  _hi_menu_head "Prompt" "the preview's last line"
+  _hi_menu_rows _HI_PROMPT_PROMPTS 0
+  _hi_menu_rows _HI_FEATURE_PROMPTS 2 3
+  _hi_menu_rows _HI_PROMPT_PROMPTS 1
   # one separator per shell hi styles (core.sh's _HI_SHELL_TABLE), wired up
   # here or not - a target's login shell may be one this machine lacks; the
   # shipped defaults are a different character per shell
@@ -778,13 +870,21 @@ function _hi_menu_list() {
     name="${row%%|*}"
     _hi_shell_var shell "$name"
     _hi_prompt_end_shown "$shell" end
-    _hi_menu_value "end|$name" "$name prompt ends with" "$end"
+    def="$(_hi_prompt_end_default "$shell")"
+    _hi_menu_value "end|$name" "$name prompt ends with" "$end" "${def#\\}"
   done
-  _hi_cecho " Advanced" "$BRCYAN"
+  _hi_menu_head "Editors" "hi's config for each, on a target that has it"
+  _hi_menu_rows _HI_FEATURE_PROMPTS 4 5 6 7 8 9
+  _hi_menu_head "Aliases" "what cat, ls, and sudo run"
+  _hi_menu_rows _HI_FEATURE_PROMPTS 10 11
+  _hi_menu_head "This machine" "where you run hi"
+  _hi_menu_rows _HI_FEATURE_PROMPTS 12
+  _hi_repeat rule $((_HI_MENU_W - 15 < 4 ? 4 : (_HI_MENU_W - 15 > 60 ? 60 : _HI_MENU_W - 15))) "$_HI_BOX_H"
+  _hi_cecho " $_HI_BOX_H$_HI_BOX_H Advanced $rule" "$BRCYAN"
   _hi_menu_rows _HI_ADVANCED_PROMPTS
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" tc
   case "$tc" in 1) tc=on ;; 0) tc=off ;; *) tc=auto ;; esac
-  _hi_menu_value truecolor "24-bit color" "$tc"
+  _hi_menu_value truecolor "24-bit color" "$tc" auto
 }
 
 # _hi_menu_pick <n> - act on item <n>: flip a yes/no row or a header item,
@@ -832,14 +932,23 @@ function config_hub() {
   _hi_header_edit_load
   while :; do
     if [ -n "$draw" ]; then
+      _hi_menu_cols _HI_MENU_W
       _hi_h2 "hi --configure"
+      # the keys first, so they are read before the list; short under 60
+      if ((_HI_MENU_W < 60)); then
+        _hi_hotkey preset p p
+        _hi_hotkey header h h
+        _hi_hotkey save s s
+        _hi_hotkey quit q q
+      else
+        _hi_hotkey preset p p
+        _hi_hotkey "header preset" h h
+        _hi_hotkey "save and exit" s s
+        _hi_hotkey "quit without writing" q q
+      fi
+      printf ' %s  %s  %s  %s\n' "$p" "$h" "$s" "$q"
       show_preview _hi_config_preview
       _hi_menu_list
-      _hi_hotkey preset p p
-      _hi_hotkey "header preset" h h
-      _hi_hotkey "save and exit" s s
-      _hi_hotkey "quit without writing" q q
-      printf '   %s  %s  %s  %s\n' "$p" "$h" "$s" "$q"
       if [ -n "$_HI_MENU_NOTE" ]; then
         printf '%s\n' "$_HI_MENU_NOTE"
         [ -z "$_HI_MENU_NOTE_PREVIEW" ] || show_preview "$_HI_MENU_NOTE_PREVIEW"

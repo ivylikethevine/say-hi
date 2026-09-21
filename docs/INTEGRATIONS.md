@@ -55,6 +55,17 @@ this order - the first that fits the shell and that the target has wins:
 | oh-my-posh    | bash, zsh, fish | on `$PATH`                                                                                                                                                                                                            | `oh-my-posh init <shell>`                                                                                         | `$POSH_CONFIG` (or the older `$POSH_THEME`), else the file your rc's `oh-my-posh init --config` names (json, yaml, or toml) |
 | powerline-go  | bash, zsh, fish | on `$PATH`                                                                                                                                                                                                            | once per prompt, as its README wires it, with `_HI_POWERLINE_GO_OPTS`                                             | the flags in `_HI_POWERLINE_GO_OPTS`                                                                                        |
 
+A framework theme from home is sourced on a target only once hi has found
+that framework's tree there (`$ZSH/lib/git.zsh`, `$OSH/oh-my-bash.sh`,
+`$BASH_IT/bash_it.sh`), so a theme's `source "$ZSH/lib/..."` rides as
+written: on a target without oh-my-zsh the theme never runs, and hi's
+prompt draws instead. Only the theme gets that pass, and only for its own
+framework - the same line in a `plugins.d` member or a shell rc, which run
+on every target, is disabled like any include hi cannot carry (`# hi-allow`
+above it keeps one you have guarded yourself). A theme that sources a
+library its target's framework version lacks fails there as it would at
+home.
+
 So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box
 that has them, and hi's where it has neither. The list is worked out on this
 machine and handed to the target, which never looks for programs of its own -

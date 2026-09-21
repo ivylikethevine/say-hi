@@ -200,7 +200,7 @@ reuses them). The two aggregates have tracked each other within a few points
 for many commits: **the average of the two badges** is the coverage figure,
 and the per-file reports are for finding untested arms. Only a divergence of
 tens of points means one tool has lost the plot. Never a gate: the pull
-request template's 75% is a target, and the PR comment flags an average below
+request template's 90% is a target, and the PR comment flags an average below
 it without failing anything. Both sweeps pin `_HI_PAR_WIDTH=1`, since a batch
 writing into a suite's one trace stream side by side loses lines, and both put
 a bash-as-`sh` first on their own `PATH`: neither tracer follows a dash child,

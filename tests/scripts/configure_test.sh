@@ -1272,7 +1272,7 @@ function test_menu_feature_toggles_and_previews() {
 # a name only this machine would have.
 function test_menu_env_segment_toggles_and_previews() {
   _hi_cfg_pty feat_env "$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || return 1
-  _hi_cfg_has feat_env "environment segment in the prompt: now off" &&
+  _hi_cfg_has feat_env "environment segment: now off" &&
     _hi_cfg_has feat_env "myproj" &&
     [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]]
 }
@@ -1387,13 +1387,48 @@ function test_menu_junk_is_bounded_and_quits() {
 function test_menu_lists_every_group() {
   _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
-    _hi_cfg_has hub_all "Features" &&
-    _hi_cfg_has hub_all "Header - in the order it prints" &&
+    _hi_cfg_has hub_all "Editors" &&
+    _hi_cfg_has hub_all "Header - the preview's rows" &&
     _hi_cfg_has hub_all "package check depth" &&
     _hi_cfg_has hub_all "bash prompt ends with" &&
     _hi_cfg_has hub_all "Advanced" &&
     _hi_cfg_has hub_all "24-bit color" &&
     _hi_cfg_has hub_all "CFGQUIT=none"
+}
+
+# The layout, pinned at 80 columns and at 40 the way the header's width is
+# ($_HI_TERM_COLS): no line of the run is wider than the terminal, a narrow
+# one cutting help text rather than wrapping it, and the groups draw in their
+# order - what a setting changes, the header's first, Advanced last, apart
+function _hi_menu_layout_at() {
+  local w="$1" label="layout_$1" line len over=0 heads
+  _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 's\n' '' run_configure "" || return 1
+  while IFS= read -r line; do
+    case "$line" in *CFGRC=*) continue ;; esac
+    # the pty echoes no input, so what follows the ` > ` prompt lands on its
+    # line - where a terminal's Enter would have ended it
+    line="${line#' > '}"
+    _hi_visible_len len "$line"
+    ((len > w)) || continue
+    _hi_cecho " | $len columns at $w: $line" "$RED"
+    over=1
+  done < <(_hi_strip_ansi "$(<"$_HI_WORKDIR/$label.cfg.out")" | tr -d '\r')
+  heads="$(_hi_strip_ansi "$(<"$_HI_WORKDIR/$label.cfg.out")" | tr -d '\r' |
+    sed -E -n 's/^ (Header|Prompt|Editors|Aliases|This machine)( - .*)?$/\1/p; s/^ [^ ]+ Advanced .*/Advanced/p' | paste -sd, -)"
+  [ "$heads" = "Header,Prompt,Editors,Aliases,This machine,Advanced" ] || {
+    _hi_cecho " | the groups at $w columns: [$heads]" "$RED"
+    return 1
+  }
+  [ "$over" = 0 ]
+}
+function test_menu_layout_at_80() { _hi_menu_layout_at 80; }
+function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
+
+# a value away from its default says the default beside it; one at it does not
+function test_menu_value_shows_its_default() {
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 's\n' 'export _HI_PACKAGES_MIN_PRIORITY=3' run_configure "" || return 1
+  _hi_cfg_has hub_def "package check depth   3 (default 2)" &&
+    ! _hi_cfg_has hub_def "(default 80)"
 }
 
 function run_configure_tests() {
@@ -1538,6 +1573,9 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
   _hi_par_check_capable pty "Menu: every group on one screen" test_menu_lists_every_group
+  _hi_par_check_capable pty "Menu: fits 80 columns, groups in order" test_menu_layout_at_80
+  _hi_par_check_capable pty "Menu: fits 40 columns, groups in order" test_menu_layout_at_40
+  _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
   _hi_par_check_capable pty "Menu: a feature toggles and previews" test_menu_feature_toggles_and_previews
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "Menu: the header row previews the whole header" test_menu_header_row_previews_the_header

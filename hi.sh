@@ -483,10 +483,12 @@ function _hi_tool_here() {
 #           (`package-initialize`, `use-package`, straight, elpaca). A bare
 #           `require` is left alone: nearly every one names a built-in.
 #   sh/fish `source`/`.` of anything but a path under $_HI_CONFIG_DIR or
-#           $_HI_ROOT (which ride along), under $ZSH or $OSH (the framework's
-#           own tree, on the target the theme is for), or a process
-#           substitution, and the zsh/fish managers' verbs (zinit, zplug,
-#           antigen, fisher, ...). A plugins.d member is sh.
+#           $_HI_ROOT (which ride along), a process substitution, or - in a
+#           framework's theme member only - under that framework's own tree
+#           ($ZSH, $OSH, $BASH_IT): hi sources a theme only once
+#           _hi_prompt_fw has found the tree on the target, where every other
+#           member runs with it unset. Also the zsh/fish managers' verbs
+#           (zinit, zplug, antigen, fisher, ...). A plugins.d member is sh.
 #
 # A line directly under a `hi-allow` comment, in the file's own comment
 # syntax, is neither reported nor touched; one under `hi-quiet` is still
@@ -546,7 +548,7 @@ function shfix(s,   o, p, r, n, w) {
   while (match(s, /([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|\.)[ \t]+/)) {
     p = substr(s, 1, RSTART + RLENGTH - 1); r = substr(s, RSTART + RLENGTH)
     n = wlen(r); w = substr(r, 1, n)
-    if (w == "" || w ~ /^\\/ || w ~ /^"?\$\{?(_HI_CONFIG_DIR|_HI_ROOT|ZSH|OSH)[}\/"]/ || w ~ /^[<=]?\(/) { o = o p; s = r; continue }
+    if (w == "" || w ~ /^\\/ || w ~ ("^\"?\\$\\{?(_HI_CONFIG_DIR|_HI_ROOT" fwv ")[}/\"]") || w ~ /^[<=]?\(/) { o = o p; s = r; continue }
     sub(/(source|\.)[ \t]+$/, "", p)
     o = o p (fish ? "true" : ":"); s = substr(r, n + 1)
   }
@@ -603,8 +605,9 @@ FNR == 1 {
   close(out); out = FILENAME ".lint"; depth = allow = quiet = 0
   vim = (name == "vimrc"); el = (name == "init.el"); lua = (name ~ /\.lua$/); nano = (name == "nanorc"); tmux = (name == "tmux.conf")
   screen = (name == "screenrc"); kdl = (name ~ /\.kdl$/)
-  sh = (name ~ /\.(sh|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
+  sh = (name ~ /\.(sh|bash|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
   json = (name ~ /\.json$/)
+  fwv = (name == "oh-my-zsh.zsh-theme") ? "|ZSH" : (name == "oh-my-bash.theme.sh") ? "|OSH" : (name == "bash-it.theme.bash") ? "|BASH_IT" : ""
 }
 depth > 0 {
   depth = tmux ? ($0 ~ /\\$/) : depth + bal($0)

@@ -461,8 +461,10 @@ lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's `include`,
 elisp's `load`, tmux's `source-file` and TPM, screen's `source`, zellij's
 `layout_dir`/`theme_dir` and file plugins, oh-my-posh's `extends` of a
 local file (emptied, since JSON has no comment), a shell's `source`/`.` of a
-file outside `$_HI_CONFIG_DIR` (or `$ZSH`/`$OSH`, the framework's own tree),
-and every plugin manager's bootstrap. Those are disabled on the way out, and
+file outside `$_HI_CONFIG_DIR` (a framework theme may also source its own
+tree - `$ZSH`, `$OSH`, `$BASH_IT` - see
+[INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and every plugin
+manager's bootstrap. Those are disabled on the way out, and
 `hi --doctor` names each, file and line, in yellow. Two comments on the line
 above one, in the file's own syntax (`# hi-allow`, or `" hi-allow` in vim),
 decide that line alone:
