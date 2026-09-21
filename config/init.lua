@@ -2,7 +2,7 @@
 -- defaults, minus what litters a target you are only visiting. Nothing to taste
 -- lives here - your own $_HI_CONFIG_DIR/init.lua replaces this file wholesale.
 --
--- Nothing of settings/vimrc is repeated: that file exists to undo what `-u`
+-- Nothing of config/vimrc is repeated: that file exists to undo what `-u`
 -- implies for vim (`compatible`) and to pull in defaults.vim, and neovim has
 -- no compatible mode and ships every one of those defaults on already.
 --

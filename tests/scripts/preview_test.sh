@@ -6,8 +6,8 @@
 # colors: its job is to render the same answers the live prompt would give, so
 # what matters is that its own precedence logic (_hi_color_source) agrees with
 # common/core.sh's _hi_resolve_color, and that the helpers feeding the table
-# read settings/colors the way the rest of hi does. Everything runs against a
-# fixture settings/colors and ~/.ssh/config in the scratch dir, so the output
+# read config/colors the way the rest of hi does. Everything runs against a
+# fixture config/colors and ~/.ssh/config in the scratch dir, so the output
 # is fixed rather than "whatever this machine is configured with".
 #
 # packages: the preview's whole claim is that it shows what the *header* will
@@ -41,18 +41,18 @@ source "$_HI_PREVIEW"
 
 # One scratch tree for both halves: the colors fixtures and the ssh config a
 # child render derives its paths from, and the packages roster in the tree.
-# _hi_scratch_tree copies the real settings/ wholesale, real
-# settings/packages.d/ included - replaced here with the one-member fixture,
+# _hi_scratch_tree copies the real config/ wholesale, real
+# config/packages.d/ included - replaced here with the one-member fixture,
 # or every row-count assertion below counts the real shipped roster instead.
 function _hi_write_preview_tree() {
   local home
-  home="$(_hi_scratch_tree tree common settings scripts)"
+  home="$(_hi_scratch_tree tree common config scripts)"
   mkdir -p "$home/.ssh"
-  cp "$_HI_WORKDIR/colors" "$home/say-hi/settings/colors"
+  cp "$_HI_WORKDIR/colors" "$home/say-hi/config/colors"
   cp "$_HI_WORKDIR/ssh_config" "$home/.ssh/config"
-  rm -rf "$home/say-hi/settings/packages.d"
-  mkdir -p "$home/say-hi/settings/packages.d"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages.d/only"
+  rm -rf "$home/say-hi/config/packages.d"
+  mkdir -p "$home/say-hi/config/packages.d"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages.d/only"
 }
 
 #
@@ -438,7 +438,7 @@ function test_tables_label_hashed_hosts_hash() {
 }
 
 # the tag column has to name the tag that actually matched, since that's the
-# line a user reads to work out which settings/colors entry to edit
+# line a user reads to work out which config/colors entry to edit
 function test_tables_name_the_matching_tag() {
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'tag:work'
 }
@@ -458,7 +458,7 @@ function test_tables_list_the_local_user_and_usertag_pins() {
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'ops.*usertag:ops'
 }
 
-# The same render off the checkout's own settings/colors (LOCALUSER and a
+# The same render off the checkout's own config/colors (LOCALUSER and a
 # usertag are pinned there too), so the coverage sweep sees the users table
 # render; $HOME still supplies the fixture ssh config. With truecolor refused
 # the scheme line says the 16-color escapes are what is on show.
@@ -576,7 +576,7 @@ function test_meanings_take_only_the_block_above_the_table() {
 }
 
 # every entry in the header's two ramps has to be a name the user can look up
-# in settings/colors, or the legend prints something meaningless - checked for
+# in config/colors, or the legend prints something meaningless - checked for
 # the shipped ramp and for one of the user's own, since the ramps are
 # _hi_packages_palette's output and this suite never sets
 # $_HI_PACKAGES_PALETTE itself
@@ -787,7 +787,7 @@ function _hi_render_packages_help() {
     "$_HI_ROOT/scripts/preview.sh" packages "$1" 2>&1
 }
 
-# the ordinary path: nothing exported, the tree's own settings/packages.d is
+# the ordinary path: nothing exported, the tree's own config/packages.d is
 # the roster - a scratch tree, because this checkout's real files are not the
 # fixture
 function test_preview_reads_the_trees_own_file() {
@@ -914,8 +914,8 @@ function test_preview_lists_the_package_groups() {
 # packages.d is the only candidate - and the tree has none.
 function test_preview_reports_no_packages_files() {
   local home out
-  home="$(_hi_scratch_tree nopackages common settings scripts)"
-  rm -rf "$home/say-hi/settings/packages.d"
+  home="$(_hi_scratch_tree nopackages common config scripts)"
+  rm -rf "$home/say-hi/config/packages.d"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" && return 1
@@ -928,10 +928,10 @@ function test_preview_reports_no_packages_files() {
 # point the check at a directory of your own.
 function test_preview_ignores_an_exported_packages_d() {
   local home decoy out
-  home="$(_hi_scratch_tree exportedpkgs common settings scripts)"
-  rm -rf "$home/say-hi/settings/packages.d"
-  mkdir -p "$home/say-hi/settings/packages.d"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages.d/only"
+  home="$(_hi_scratch_tree exportedpkgs common config scripts)"
+  rm -rf "$home/say-hi/config/packages.d"
+  mkdir -p "$home/say-hi/config/packages.d"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages.d/only"
   decoy="$_HI_WORKDIR/exported-packages.d"
   mkdir -p "$decoy"
   printf 'hionlyone:3\n' >"$decoy/only"

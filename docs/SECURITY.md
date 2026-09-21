@@ -27,7 +27,7 @@ to report what slipped through it.
   ([PACKAGING.md's _Install channels_](PACKAGING.md#install-channels)).
   `hi --update` is a release-tag checkout in a checkout you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
-  `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`, the
+  `$_HI_PAYLOAD` at the top of `hi.sh` (`common config load.sh hi.sh`, the
   last so a session can say `hi` onward) — docs, tests, CI, and editor config
   never leave the client. Your overlay is a second, smaller allow list,
   `$_HI_OVERLAY_FILES` (the roster is

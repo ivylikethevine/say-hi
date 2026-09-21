@@ -36,8 +36,8 @@ command -v shift >/dev/null 2>&1 &&
 # `-u: command not found` where `vim: command not found` is the answer).
 #
 # vim's, then nvim's over it where there is one, so an nvim box answers to
-# `vim` with the lua rc (settings/vimrc is vim's; neovim reads
-# settings/init.lua). `nvim` gets an alias of its own so either name reaches
+# `vim` with the lua rc (config/vimrc is vim's; neovim reads
+# config/init.lua). `nvim` gets an alias of its own so either name reaches
 # the same override. _HI_DISABLE_VIM gates both: they are one editor to the toggle.
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="$(command -v vim) -u $_HI_VIMRC" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v nvim >/dev/null 2>&1 && alias vim="$(command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(command -v nvim) -u $_HI_NVIMRC" || true
@@ -122,9 +122,9 @@ command -v shift >/dev/null 2>&1 &&
 # settings.sh, which every shell sources first; set here they arrive too late,
 # and `hi --doctor` says so. Same POSIX+fish subset as this file.
 #
-# The path test stops $_HI_CONFIG_DIR pointed at settings/ from sourcing this
+# The path test stops $_HI_CONFIG_DIR pointed at config/ from sourcing this
 # file forever; the shellcheck directive is the static half of the same hazard
 # (see common/bash.sh).
 # shellcheck source=/dev/null # user config, may not exist
-[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/settings/aliases.sh" ] &&
+[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/config/aliases.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true

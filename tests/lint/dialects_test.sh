@@ -32,7 +32,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # rc files) is the only thing checking them.
 #
 # The rest are files shellcheck *does* read - as sh or bash - that another shell
-# also sources for real, so they have to parse in both. settings/aliases.sh and
+# also sources for real, so they have to parse in both. config/aliases.sh and
 # common/paths.sh are what fish reads directly, and the failure mode there
 # is silent: a perfectly good `${X:-0}` is a fish parse error that aborts the
 # whole file, taking every alias (or every path) with it. zsh reaches
@@ -40,9 +40,9 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_NATIVE_LINT=(
   "common/zsh.zsh:zsh:-n"
   "common/config.fish:fish:--no-execute"
-  "settings/aliases.sh:fish:--no-execute"
+  "config/aliases.sh:fish:--no-execute"
   "common/paths.sh:fish:--no-execute"
-  "settings/aliases.sh:zsh:-n"
+  "config/aliases.sh:zsh:-n"
   "common/paths.sh:zsh:-n"
   "common/core.sh:zsh:-n"
   "common/git_prompt.sh:zsh:-n"

@@ -18,6 +18,9 @@ ones that matter in `~/.config/say-hi/colors`: `username,root,red`,
 `hostname,bastion,yellow`, or `hosttag,prod,red` to color every host carrying a
 `# Tags: prod` comment above its `Host` or `Match host` line in
 `~/.ssh/config` — a wildcard block (`Host prod-*`) colors every name it covers.
+`hi --add-tag <host> <tag>` writes that comment for you, replacing a tag
+already there; given a name only a wildcard block covers, it names the block
+to tag instead.
 A fourth kind, `usertag,prod,red`, colors the _username_ on every host that
 carries that tag, so `you@prod-db` reads as prod on both halves. A
 `hostname` row whose name holds `*` or `?` is a pattern:
@@ -25,6 +28,12 @@ carries that tag, so `you@prod-db` reads as prod on both halves. A
 subnet or domain at once, no ssh-config entry needed — the first matching
 pattern in the file wins. Precedence, highest first: an exact pin, then a
 hosttag, then a pattern, then the hash.
+
+A config split into files (`Include config.d/*` in `~/.ssh/config`) is read
+the way ssh reads it: each `Include` is followed in place - `~` is your home,
+a relative path is under `~/.ssh`, globs expand in sorted order, nested
+Includes too - so a host and its `# Tags:` line that live in
+`~/.ssh/config.d/01-work` complete, color, and ride like any other.
 
 Tags follow you past the first hop. A `hi` typed inside a session runs on a
 box whose `~/.ssh/config` has none of your `# Tags:` lines, so the tagged
@@ -124,12 +133,12 @@ below.
 
 A `~/.config/say-hi/packages.d/` of your own **replaces the tree's two
 wholesale**, the same rule `~/.config/say-hi/colors` follows for
-`settings/colors` — so `hi --add-package` seeds the tree's groups into a
+`config/colors` — so `hi --add-package` seeds the tree's groups into a
 fresh overlay directory before writing yours, and the manual equivalent
 copies the whole directory in first:
 
 ```sh
-cp -r "$_HI_ROOT/settings/packages.d" ~/.config/say-hi/packages.d
+cp -r "$_HI_ROOT/config/packages.d" ~/.config/say-hi/packages.d
 printf 'color=orange\ngo:3\ncargo:3\nuv:2\n' >~/.config/say-hi/packages.d/10-lang
 printf 'color=brblue\n+apt:3,dnf:3,apk:3,pacman:3,brew:3\n' >~/.config/say-hi/packages.d/20-box
 ```
@@ -140,7 +149,7 @@ the tree's groups in first if the overlay doesn't exist yet, then creating
 by hand, the way above.
 
 A member's rows are the `[-|+]group,package:priority,...` grammar
-`settings/packages.d/00-default`'s own header spells out, and one `color=`
+`config/packages.d/00-default`'s own header spells out, and one `color=`
 line sets its
 color: a single name from the vocabulary paints every row, installed or
 missing (the mark still says which), and eight names are a ramp of the group's

@@ -50,7 +50,7 @@ exclude:
   - scripts/
   - tests/
   - packaging/
-  - settings/
+  - config/
   - docs/tapes/
   - docs/hi.1
   - hi.sh

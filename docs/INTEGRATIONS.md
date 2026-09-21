@@ -129,7 +129,7 @@ open reads them too ([HI.54](GLOSSARY.md#hi54-who-draws-the-environment-prefix))
 
 ## bat and eza
 
-`settings/aliases.sh` builds the styled tool aliases from whatever the target
+`config/aliases.sh` builds the styled tool aliases from whatever the target
 has, first installed wins:
 
 - `cat` and `catn` run bat (Debian's `batcat`, where that is its name) with
@@ -159,7 +159,7 @@ Every target gets the bat config you already keep: hi ships the file bat
 reads here - `$BAT_CONFIG_PATH`, else `$BAT_CONFIG_DIR/config`, else
 `~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - or, when there
 is one, the `bat.conf` in `~/.config/say-hi/` instead. On a target the file becomes
-`$BAT_CONFIG_PATH`, and `settings/aliases.sh` leaves `--theme` out of
+`$BAT_CONFIG_PATH`, and `config/aliases.sh` leaves `--theme` out of
 the default `_HI_BAT_OPTS` whenever that variable is set, so the file's theme
 is the one you see through `cat`. The same rule applies at home if you export
 `BAT_CONFIG_PATH` yourself; a `_HI_BAT_OPTS` of your own always wins outright.
@@ -244,7 +244,7 @@ different thing:
 - **Nobody, about an overlay copy.** A file you put in `~/.config/say-hi/` is
   you saying "targets get this", and it rides whatever this machine has -
   the way to carry a `vimrc` from a laptop that only has neovim.
-- **The target, about what is used.** `settings/aliases.sh` builds each alias
+- **The target, about what is used.** `config/aliases.sh` builds each alias
   from what the target has, so a config that rode to a box without its tool
   is a few idle bytes, never an alias to a missing binary.
 

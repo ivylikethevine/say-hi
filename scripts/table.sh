@@ -106,11 +106,12 @@ function _hi_row_end() {
 }
 
 # _hi_cell <width> <escape> <text> - one padded, colored cell of plain text; an
-# empty escape and text render the blank cell continuation rows use.
+# empty escape and text render the blank cell continuation rows use. Only the
+# escapes go through %b: the text is printed as-is, backslashes and all.
 function _hi_cell() {
   local padded
   printf -v padded '%-*s' "$1" "$3"
-  printf '%s %b ' "$_HI_BOX_V" "$2$padded$NC"
+  printf '%s %b%s%b ' "$_HI_BOX_V" "$2" "$padded" "$NC"
 }
 
 # _hi_cell_raw <width> <printed-width> <text> - a cell whose text carries its own

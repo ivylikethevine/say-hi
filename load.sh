@@ -220,7 +220,7 @@ function _hi_session_rc_setup() {
   printf -v q '%q' "$_HI_ROOT"
   {
     printf '[ -r %s/common/paths.sh ] && . %s/common/paths.sh\n' "$q" "$q"
-    printf '[ -r %s/settings/aliases.sh ] && . %s/settings/aliases.sh\n' "$q" "$q"
+    printf '[ -r %s/config/aliases.sh ] && . %s/config/aliases.sh\n' "$q" "$q"
   } >"$dir/shrc"
 
   # Exported, so a shell started *inside* the session inherits them. ZDOTDIR
@@ -251,14 +251,14 @@ function _hi_session_shell_cmd() {
 
 # The editor a session exports, with hi's config flags: $_HI_EDITOR's pick when
 # it names something installed here, else the first of the ladder. The flags
-# are read off the alias settings/aliases.sh builds (sourced here, in the
+# are read off the alias config/aliases.sh builds (sourced here, in the
 # caller's $( ) subshell, so nothing leaks into load()) - one spelling of each
 # editor's invocation, so _HI_MICRO_OPTS or an overlay's own `alias vim=...`
 # reaches $EDITOR the way it reaches the alias. An editor with no alias (micro
 # under _HI_DISABLE_MICRO, say) goes bare, hence the ${body:-$e} tail.
 function _hi_session_editor() {
   local e body
-  # shellcheck source=./settings/aliases.sh
+  # shellcheck source=./config/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} $_HI_EDITORS; do
     type -P "$e" &>/dev/null || continue

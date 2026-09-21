@@ -111,11 +111,19 @@ function _hi_doc_target() {
   PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent doctor_target "$@"
 }
 
+# _hi_doc_rows <fn> [args...] - a row helper that is not a section of its
+# own, with its rows drawn: they buffer until doctor_flush, which only the
+# section functions call
+function _hi_doc_rows() {
+  "$@"
+  doctor_flush
+}
+
 # a tree with no .git is what a package manager laid down, and the row says
 # so rather than calling git on it
 function test_local_without_a_git_dir_reads_as_a_package_install() {
   local root out
-  root="$(_hi_scratch_tree nogit common settings scripts hi.sh load.sh)/say-hi"
+  root="$(_hi_scratch_tree nogit common config scripts hi.sh load.sh)/say-hi"
   out="$(_HI_ROOT="$root" doctor_local 2>/dev/null)"
   [[ "$out" == *"no .git - a package or tarball install"* ]]
 }
@@ -206,19 +214,19 @@ function test_local_flags_a_gzip_that_nothing_can_replace() {
 
 function test_backend_missing_reports_not_installed() {
   local out
-  out="$(PATH="$(_hi_doctor_path)" doctor_backend docker docker ps -q)"
+  out="$(PATH="$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
   [[ "$out" == *"not installed"* ]]
 }
 
 function test_backend_answering_reports_timing() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" doctor_backend docker docker ps -q)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
   [[ "$out" == *"answering"* && "$out" == *s\)* ]]
 }
 
 function test_backend_dead_reports_not_answering() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" doctor_backend podman podman ps -q)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend podman podman ps -q)"
   [[ "$out" == *"not answering"* ]]
 }
 
@@ -340,7 +348,7 @@ function test_config_is_silent_on_a_config_for_an_absent_tool() {
 function test_config_calls_an_unedited_overlay_copy_unchanged() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/copied.XXXXXX")"
-  cp "$_HI_ROOT/settings/colors" "$dir/colors"
+  cp "$_HI_ROOT/config/colors" "$dir/colors"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
@@ -538,7 +546,7 @@ function test_config_names_the_package_groups() {
 # never reads as naming the user's own groups when they are the tree's.
 function test_config_names_the_package_groups_says_tree_default() {
   local out
-  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-overlay-here" _HI_PACKAGES_D="$_HI_ROOT/settings/packages.d" doctor_config)"
+  out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-overlay-here" _HI_PACKAGES_D="$_HI_ROOT/config/packages.d" doctor_config)"
   [[ "$out" == *"packages.d"*"tree default - painted in order: default (the ramp), extra (the ramp)"* ]]
 }
 
@@ -702,6 +710,84 @@ function test_doctor_row_counts_only_bad() {
   return 1
 }
 
+# every severity wears its own mark in the first column - core.sh's one-column
+# $_HI_MARK_* pair, so the ASCII set where the locale has no UTF-8 - and plain
+# information none, so a report with no color still reads
+function test_doctor_row_marks_each_severity() {
+  local out v="$_HI_BOX_V"
+  out="$(
+    doctor_row a fine ok
+    doctor_row b meh warn
+    doctor_row c broken bad
+    doctor_row d plain
+    doctor_flush
+    _HI_ASCII=1
+    _hi_choose_glyphs
+    doctor_row e fine ok
+    doctor_row f broken bad
+    doctor_flush
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"$v $_HI_MARK_OK $v a "*"$v ! $v b "*"$v $_HI_MARK_NO $v c "*"$v   $v d "* ]] || return 1
+  [[ "$out" == *"$v + $v e "*"$v x $v f "* ]] || return 1
+  _hi_table_is_rectangular "$out"
+}
+
+# the closing box gathers the warn and bad rows of every section, labeled
+# with the section they came from, plus the unlabeled detail row under one -
+# and nothing else; with no such row it prints nothing at all
+function test_findings_box_holds_only_warn_and_bad() {
+  local out
+  [ -z "$(
+    _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
+    doctor_findings
+  )" ] || return 1
+  out="$(
+    _HI_DOC_BAD=0 _HI_DOC_WARN=0
+    _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
+    doctor_section one "One"
+    doctor_row a fine ok
+    doctor_row b meh warn
+    doctor_row "" "the detail under meh"
+    doctor_flush
+    doctor_section two "Two"
+    doctor_row c broken bad
+    doctor_row d plain
+    doctor_row "" "detail under a plain row"
+    doctor_flush
+    printf '%s\n' '--findings--'
+    doctor_findings
+  )"
+  out="$(_hi_strip_ansi "${out#*--findings--}")"
+  [[ "$out" == *"Findings: 1 bad, 1 warn"* ]] || return 1
+  [[ "$out" == *"one/b"*"meh"*"the detail under meh"*"two/c"*"broken"* ]] || return 1
+  [[ "$out" != *"one/a"* && "$out" != *fine* && "$out" != *plain* ]] || return 1
+  _hi_table_is_rectangular "$out"
+}
+
+# On a terminal (or with $_HI_TERM_COLS pinned, as here) a row too long for
+# the width wraps inside its cell instead of widening the box past it; the
+# words all survive, and a word longer than the column is split
+function test_a_long_row_wraps_to_the_terminal() {
+  local out line n long word
+  long="$(printf 'word%s ' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18)"
+  word="$(printf 'x%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40)"
+  out="$(
+    _HI_TERM_COLS=50 _HI_MAX_WIDTH=80
+    doctor_row long "$long" warn
+    doctor_row word "$word"
+    doctor_flush
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  _hi_table_is_rectangular "$out" || return 1
+  while IFS= read -r line; do
+    _hi_visible_len n "$line"
+    [ "$n" -le 50 ] || return 1
+  done <<<"$out"
+  [[ "$out" == *word1*word18* ]] || return 1
+  [ "$(printf '%s\n' "$out" | grep -c 'xxxx')" -ge 2 ]
+}
+
 function test_missing_tools_lists_only_the_absent() {
   local out
   out="$(PATH="$(_hi_fake_path doctools sh present-tool)" _hi_missing_tools present-tool absent-tool-9x other-absent-8y)"
@@ -747,10 +833,10 @@ function test_doctor_payload_diff_arms() {
   (
     stock=69000
     function _hi_wire_bytes() { printf '%s' "$stock"; }
-    [ -z "$(doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))" ] || exit 1
-    out="$(doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
+    [ -z "$(_hi_doc_rows doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))" ] || exit 1
+    out="$(_hi_doc_rows doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
     case "$out" in *'heavier than the stock default'*) ;; *) exit 1 ;; esac
-    [ -z "$(doctor_payload_diff "$stock")" ]
+    [ -z "$(_hi_doc_rows doctor_payload_diff "$stock")" ]
   )
 }
 
@@ -761,12 +847,12 @@ function test_config_rows_parse_the_files() {
   mkdir -p "$dir"
   printf 'alias ll="ls -l"\n' >"$dir/good.bash"
   printf 'if [ 1 ]; then\n' >"$dir/bad.bash"
-  out="$(doctor_config_row good "$dir/good.bash" bash -n)" || return 1
+  out="$(_hi_doc_rows doctor_config_row good "$dir/good.bash" bash -n)" || return 1
   [[ "$out" == *"good"*"parses (bash)"* ]] || return 1
-  out="$(doctor_config_row bad "$dir/bad.bash" bash -n)" || return 1
+  out="$(_hi_doc_rows doctor_config_row bad "$dir/bad.bash" bash -n)" || return 1
   [[ "$out" == *"bad"*"has issues (bash)"* ]] || return 1
-  [ -z "$(doctor_config_row gone "$dir/missing.bash" bash -n)" ] || return 1
-  [ -z "$(doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ]
+  [ -z "$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)" ] || return 1
+  [ -z "$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ]
 }
 
 function test_target_resolves_a_running_container() {
@@ -783,7 +869,7 @@ function test_container_target_reports_the_full_tier() {
   [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]]
 }
 
-# no bash means hi copies settings/aliases.sh alone and drops into the best of the
+# no bash means hi copies config/aliases.sh alone and drops into the best of the
 # ladder - the report has to name which shell that is, since that is the whole
 # question somebody runs this to answer
 function test_container_target_names_the_fallback_shell() {
@@ -845,19 +931,19 @@ function test_forced_ssh_overrides_a_real_container() {
 function test_ssh_target_reports_the_wire_cost() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" \
-  HI_FAKE_TOOLS="base64 bash " doctor_ssh_target somewhere)"
+  HI_FAKE_TOOLS="base64 bash " _hi_doc_rows doctor_ssh_target somewhere)"
   [[ "$out" == *install*"each session"* ]]
 }
 
 function test_ssh_target_flags_a_missing_base64() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " doctor_ssh_target somewhere)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_ssh_target somewhere)"
   [[ "$out" == *"no base64"* ]]
 }
 
 function test_ssh_target_flags_a_missing_bash() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " doctor_ssh_target somewhere)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " _hi_doc_rows doctor_ssh_target somewhere)"
   [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]]
 }
 
@@ -877,7 +963,7 @@ SHIM
     # shellcheck disable=SC2030 # lives and dies in this $( )
     PATH="$bin:$(_hi_real_path sshfail-tools mktemp date rm cat sh bash awk grep sed printf wc tr sleep)"
     _HI_DOC_BAD=0
-    doctor_ssh_target somewhere
+    _hi_doc_rows doctor_ssh_target somewhere
     echo "bad=$_HI_DOC_BAD"
   )"
   [[ "$out" == *"FAILED after"* ]] || return 1
@@ -912,8 +998,8 @@ function test_help_exits_zero() {
 # reached as `hi --doctor`, the usage line says so; run by hand it names the
 # file
 function test_help_names_what_was_typed() {
-  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--use <backend>] [ssh-options] [target]" ] &&
-    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]" ]
+  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] &&
+    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]" ]
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
@@ -962,7 +1048,7 @@ function test_use_twice_naming_two_backends_is_refused() {
 
 # --help anywhere on the line, not only first: after a flag, after a target
 function test_help_is_read_anywhere_on_the_line() {
-  local out want="Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]"
+  local out want="Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]"
   out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || return 1
   out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ]
 }
@@ -1203,6 +1289,50 @@ function test_json_is_off_by_default() {
   [[ "$_HI_DOC_PLAIN_OUT" != *'"rows"'* && "$_HI_DOC_PLAIN_OUT" == *"hi doctor"* ]]
 }
 
+# every section of the whole report is a boxed table, square on the page, and
+# the warn rows it carries on the shims come back in the closing box
+function test_full_report_draws_tables_and_a_findings_box() {
+  local out
+  _hi_doctor_plain_report
+  out="$(_hi_strip_ansi "$_HI_DOC_PLAIN_OUT")"
+  _hi_table_is_rectangular "$out" || return 1
+  [[ "$out" == *"$_HI_BOX_V CHECK"*"$_HI_BOX_V RESULT"* ]] || return 1
+  [[ "$out" == *"Findings: 0 bad, "*"$_HI_BOX_V FINDING"*"$_HI_BOX_V ! $_HI_BOX_V install/"* ]]
+}
+
+# _hi_doctor_problems [args...] - `--problems` on the shims, output then exit
+# status on the last line
+function _hi_doctor_problems() {
+  local home rc=0
+  home="$(_hi_doctor_home)"
+  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --problems "$@" || rc=$?
+  printf 'rc=%s\n' "$rc"
+}
+
+# --problems is the findings box alone: no banner, no section, the same exit
+# status - 1 with a bad row (the unanswered target's), 0 with only warnings
+function test_problems_prints_only_the_findings() {
+  local out
+  out="$(_hi_strip_ansi "$(_hi_doctor_problems somehost)")"
+  [[ "$out" == *"rc=1" && "$out" == *"Findings: 1 bad, "*"FINDING"* ]] || return 1
+  [[ "$out" != *"hi doctor"* && "$out" != *"The local tree"* && "$out" != *RESULT* ]] || return 1
+  out="$(_hi_strip_ansi "$(_hi_doctor_problems)")"
+  [[ "$out" == *"rc=0" && "$out" == *"Findings: 0 bad, "* ]] || return 1
+  [[ "$out" != *"The local tree"* && "$out" != *RESULT* && "$out" != *"Nothing looks broken"* ]]
+}
+
+# --problems narrows the text report only: beside --json the document is the
+# one --json alone prints, byte for byte once the timings are masked
+# the exit status is the findings count's (a box with a finding exits 1), so
+# only the two documents are compared
+function test_problems_leaves_json_unchanged() {
+  local a b
+  a="$(_hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
+  b="$(_hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
+  [ -n "$a" ] && [ "$a" = "$b" ]
+}
+
 function run_doctor_tests() {
   _hi_workdir doctortest
   # home's configs ride only with their tools on this machine (_hi_tool_here),
@@ -1259,6 +1389,9 @@ function run_doctor_tests() {
   _hi_h2 "Testing: the report primitives"
   _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens
   _hi_check "doctor_row: only bad counts; --json collects" test_doctor_row_counts_only_bad
+  _hi_check "doctor_row: a mark per severity, ASCII too" test_doctor_row_marks_each_severity
+  _hi_check "The findings box holds only warn and bad rows" test_findings_box_holds_only_warn_and_bad
+  _hi_check "A long row wraps to the terminal's width" test_a_long_row_wraps_to_the_terminal
   _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
   _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
   _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
@@ -1290,6 +1423,8 @@ function run_doctor_tests() {
   _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
   _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
+  _hi_check "Sections are tables, closed by a findings box" test_full_report_draws_tables_and_a_findings_box
+  _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
 
   _hi_h2 "Testing: the install section"
   _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
@@ -1310,6 +1445,7 @@ function run_doctor_tests() {
   _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
   _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
   _hi_check "Off by default" test_json_is_off_by_default
+  _hi_check "--problems leaves the document unchanged" test_problems_leaves_json_unchanged
 
   _hi_suite_end "doctor.sh"
 }

@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-68KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-69KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -208,15 +208,18 @@ row, and everything answered **no**, and why:
 - `hi --configure` reopens the settings menu: pick a preset, or flip any
   setting in its one list — Header, Features, Prompt, Advanced — and save to
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- `hi --doctor [<target>]` when something is slow or failing (`--json` for a
-  bug report); it also reports which rc files are wired and where `hi` on your
-  `PATH` leads.
+- `hi --doctor [<target>]` when something is slow or failing (`--problems` for
+  only what needs fixing, `--json` for a bug report); it also reports which rc
+  files are wired and where `hi` on your `PATH` leads.
 - `hi --update` moves a cloned install to the newest release tag (`--dry-run`
   names it first; a package upgrades through its package manager).
 - `hi --add-package bat:3,batcat:3` adds a row to a
   `~/.config/say-hi/packages.d/` group (`--group <name>` picks which one,
   default `custom`) without touching the shipped roster.
-- The whole surface is thirteen flags: `hi --help` (or bare `hi`) lists them,
+- `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
+  in `~/.ssh/config`, which a `hosttag` row then colors
+  ([docs/COLORS.md](docs/COLORS.md)).
+- The whole surface is fourteen flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
@@ -239,7 +242,7 @@ row, and everything answered **no**, and why:
 Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
-`packages.d/` apply until you copy one out of the tree's `settings/` to edit
+`packages.d/` apply until you copy one out of the tree's `config/` to edit
 (`hi --add-package` does the copying for `packages.d/`) or add an
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
@@ -343,175 +346,75 @@ and are not.
        `packages` GIF. **Ticks when:** the next real tag's release page shows
        the tap link and renders the GIF.
 
-3. [ ] **`--preview targets` goes away** — shipped: the subject, its table,
-       help, completion word, and man-page entry are gone, and
-       `hi --preview targets` is refused as an unknown subject
-       (`tests/hi/parse_test.sh`). **Ticks when:** `--group fast` is green on
-       it.
-
-4. [ ] **No alias for a package that is not installed** — shipped: every alias
-       in `settings/aliases.sh` is gated on its tool (`command -v`, or
-       `$_HI_BAT_BIN` for bat's four), `emacs` included - an alias to a
-       missing binary only ever hid the same not-found.
-       `tests/settings/alias_test.sh` checks that no alias names a command its
-       `PATH` lacks, and `alias_fallthrough_test.sh` pins each gate both ways.
-       **Ticks when:** `--group fast` is green on it.
-
-5. [ ] **A `hi-quiet` directive beside `hi-allow`** — shipped: a `hi-quiet`
-       line drops the next one without a doctor row, at `hi-allow`'s awk seam,
-       and the two are documented side by side; `tests/hi/payload_test.sh` and
-       `tests/scripts/doctor_test.sh` pin both. **Ticks when:** `--group fast`
-       is green on it.
-
-6. [ ] **The payload badge is measured, not typed** — shipped:
-       `packaging/stamp_badge.sh` stamps the badge from `_hi_wire_estimate`,
-       measured in a pinned environment so a local stamp and CI agree, and
-       `bench_payload_readme_badge` runs its `--check`, which compares exactly.
-       **Ticks when:** `--group bench` is green on it, and adding a kilobyte to
-       the payload turns it red until the badge is restamped.
-
-7. [ ] **Your aliases ride from where you keep them** — shipped: with no
-       `aliases.sh` in the overlay, `_hi_overlay_src` packs `~/.aliases` on
-       the client, and an overlay copy wins over it
-       (`tests/hi/payload_test.sh`). **Ticks when:** `--group fast` is green on
-       it.
-
-8. [ ] **What hi carries is linted against the target, not the client** —
-       shipped: the nano rule. It exempted any `include` line merely
-       _mentioning_ `/usr/share/nano`, so a `/usr/share/nano/extra/*.nanorc`
-       (a Debian split, absent on Fedora, Alpine, and macOS) rode out clean
-       and cost the whole rcfile a bell; it now reads the path as one word and
-       exempts only what sits directly under that directory. What is left is
-       one exemption, `shfix`'s `$ZSH`/`$OSH`: those name a framework tree the
-       _target_ may not have, unlike the `$_HI_CONFIG_DIR` and `$_HI_ROOT`
-       beside them, which ride along. The other three the entry used to name
-       are not assumptions and want no change - vim's `runtime` searches the
-       target vim's own `&runtimepath` and is silent on a miss, `$VIMRUNTIME`
-       is defined by whichever vim the target has, and micro's `import` names
-       micro's own Go packages. **Do:** decide what a theme sourcing
-       `$ZSH/lib/*.zsh` should do on a target with no oh-my-zsh, against what
+3. [ ] **What hi carries is linted against the target, not the client** —
+       shipped: the nano rule, which now exempts only what sits directly
+       under `/usr/share/nano` rather than any path mentioning it. Left: one
+       exemption, `shfix`'s `$ZSH`/`$OSH`, which names a framework tree the
+       _target_ may not have (unlike `$_HI_CONFIG_DIR` and `$_HI_ROOT`, which
+       ride along). **Do:** decide what a theme sourcing `$ZSH/lib/*.zsh`
+       should do on a target with no oh-my-zsh, against what
        `tests/targets/framework_test.sh` pins today. **Ticks when:** that
        decision is in `docs/INTEGRATIONS.md` and the framework e2e suite is
        green on it.
 
-9. [ ] **Commands that write an ssh tag** — `_hi_ssh_host_tag_walk` reads
-       `# Tags:` above a `Host` or `Match host` line; nothing writes one.
-       **Do:** `hi --add-tag <host> <tag>` on `scripts/add_package.sh`'s shape:
-       a `common/flags` row, a completion arm in `common/targets.sh`,
-       `--dry-run`, and `_hi_write_back` in `scripts/lib.sh` for the atomic
-       commit. Decide what it does to a host with a tag already (the walk reads
-       the leftmost only) and to one only a wildcard `Host` covers. **Ticks
-       when:** the command round-trips through `hi --preview colors` in a test
-       and is in `docs/hi.1`, `docs/tldr.md`, and `docs/COLORS.md`.
+4. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
+       38 of the 50 `harden-runner` steps run `egress-policy: block` with an
+       `allowed-endpoints` list, and each of the 12 left on `audit` carries a
+       comment naming what keeps it there. Eight cannot block at all: the
+       Windows jobs (`windows-e2e.yml`'s four, `windows-client.yml`'s two),
+       `ci.yml`'s `test-macos`, and `release.yml`'s `brew` - blocking is an
+       Ubuntu capability. `link-check.yml` reaches arbitrary hosts by design.
+       Three reach hosts no fixed row names: `ci.yml`'s `e2e` (Fedora's
+       metalink mirrors), `pages.yml`'s `deploy` (a rotating
+       `run-actions-N-azure-REGION.actions.githubusercontent.com`), and
+       `openbsd-e2e.yml`'s guest (DNS-over-HTTPS to a bare `9.9.9.9`).
+       GitHub's meta domains and the `productionresultssa*` blobs are
+       auto-allowed; `*.githubusercontent.com` is not. **Do:** read a cold run
+       of each blocking job - a cache hit reaches fewer hosts, which is how
+       `e2e-backends` once shipped without `dl.k8s.io` - and take `demos.yml`'s
+       `attach` list off a tagged run rather than off its three steps.
+       **Ticks when:** every blocking list is taken from a cold run, and
+       `attach`'s from a tag.
 
-10. [ ] **A folder of ssh configs is read like one** — hi reads
-        `~/.ssh/config` for `hi <TAB>`'s hosts, the colors' `# Tags:`, and the
-        `ssh_tags` it carries, and none of the three follows an `Include`, so a
-        host kept in a `~/.ssh/config.d/01-config`-style file is invisible to
-        all of them. **Do:** follow `Include` the way ssh does (globs, a
-        relative path taken under `~/.ssh`, in order) everywhere
-        `$_HI_SSH_CONFIG` is walked - `common/targets.sh`,
-        `_hi_ssh_host_tag_walk`, `_hi_ssh_tags_file` - rather than globbing a
-        `config.d/` on hi's own say-so. **Ticks when:** a host and its tag that
-        live only in an included file complete, color, and ride in `ssh_tags`,
-        each pinned by a test.
+5. [ ] **CI walks the upgrade path a tag creates** — every job today installs
+       one version into a fresh box, so nothing exercises the case
+       [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
+       about: a shell that loaded the _previous_ release, the tree rewritten
+       under it, and the rc re-sourced in that same shell. It was found by
+       hand in a container. **Do:** a job the tag triggers (`release.yml`'s
+       `gate`, so a bad upgrade stops the release) that installs the previous
+       tag in a container, opens a shell per wired dialect, replaces the tree
+       with the tag being cut, re-sources each rc in that shell, and fails on
+       any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
+       `v*` tag runs it green, and putting core.sh's load guard back in
+       `common/bash.sh` turns it red.
 
-11. [ ] **`hi --doctor` reads as findings, not a log** — shipped: severity is
-        separate from color and counted (`doctor_row`, `_HI_DOC_BAD`), and
-        `--json` exists. Missing: a glyph per severity, findings grouped rather
-        than interleaved in emission order, a findings-only view, and the boxed
-        table `hi --preview` already draws with `scripts/table.sh`. **Do:**
-        reshape the text output and hold the `--json` shape fixed. **Ticks
-        when:** `tests/scripts/doctor_test.sh` is green on the new text and its
-        `--json` cases did not change.
+6. [ ] **The packages check has fewer dials** — four orthogonal ones decide
+       what one row does: a priority 0-3, the `-`/`+` mode character,
+       `_HI_PACKAGES_MIN_PRIORITY` (where `4` means off), and a group's
+       `color=` line, which outranks `_HI_PACKAGES_PALETTE`. **Do:** decide
+       which of the four a user should ever have to touch and fold or retire
+       the rest, then rewrite `docs/COLORS.md`'s two packages sections and
+       `docs/SETTINGS.md`'s rows to match. **Ticks when:**
+       `hi --preview packages` needs no MODE table to explain itself.
 
-12. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
-        36 of the 50 `harden-runner` steps run `egress-policy: block` with an
-        `allowed-endpoints` list, up from 6, and each of the 14 left on `audit`
-        carries a comment naming the limit that keeps it there rather than work
-        not done. Eight cannot block at all: `windows-e2e.yml`'s four jobs,
-        `windows-client.yml`'s two, `ci.yml`'s `test-macos` and `release.yml`'s
-        `brew` - harden-runner's Windows agent logs no endpoint or DNS event
-        where an Ubuntu run logs both, and blocking is an Ubuntu capability.
-        `ci.yml`'s `test-arm` has no step at all for the same reason one step
-        further out: the community tier ships no arm agent, so it would log that
-        and exit. Three reach arbitrary hosts by design (`link-check.yml`,
-        `image-scan.yml`, `scorecard.yml`). Three reach a host no fixed row
-        names: `ci.yml`'s `e2e` takes Fedora packages off whichever mirrors the
-        metalink hands it - six distinct `*.mm.fcix.net`,
-        `mirror.cs.princeton.edu` and `fedora.mirror.constant.com` across two
-        shards of one run - `pages.yml`'s `deploy` polls a
-        `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
-        and region both rotate, and `openbsd-e2e.yml`'s guest opens
-        DNS-over-HTTPS to a bare `9.9.9.9`, where `allowed-endpoints` matches on
-        hostname. What keeps the lists short is measured, not assumed:
-        harden-runner fetches GitHub's meta domains and auto-allows `github.com`,
-        `*.github.com`, `*.githubapp.com`, `ghcr.io` and
-        `productionresultssa0`-`19.blob.core.windows.net`, so artifacts need no
-        row either way - `coverage.yml`'s shards upload through
-        `productionresultssa18` and `demos.yml`'s `collect` reaches nothing else
-        at all - while `*.githubusercontent.com` is not meta and every host under
-        it has to be listed. The rest of the cost is cold runs: a job that hits
-        its caches reaches fewer hosts than one that misses, and `e2e-backends`'
-        first list came off a run where `kind-action` restored kind from
-        `actions/cache` and so never fetched kubectl - shard 3 then went red on a
-        blocked `dl.k8s.io`. **Do:** read a cold run of each blocking job, and
-        take `demos.yml`'s `attach` list off a tagged run rather than off its
-        three steps, which is where it comes from now. **Ticks when:** no job is
-        on `audit` without a comment naming the reason, and adding an unlisted
-        download to a blocking job fails it.
-
-13. [ ] **CI walks the upgrade path a tag creates** — every job today installs
-        one version into a fresh box, so nothing exercises the case
-        [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
-        about: a shell that loaded the _previous_ release, the tree rewritten
-        under it, and the rc re-sourced in that same shell. It was found by
-        hand in a container. **Do:** a job the tag triggers (`release.yml`'s
-        `gate`, so a bad upgrade stops the release) that installs the previous
-        tag in a container, opens a shell per wired dialect, replaces the tree
-        with the tag being cut, re-sources each rc in that shell, and fails on
-        any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
-        `v*` tag runs it green, and putting core.sh's load guard back in
-        `common/bash.sh` turns it red.
-
-14. [ ] **The packages check has fewer dials** — four orthogonal ones decide
-        what one row does: a priority 0-3, the `-`/`+` mode character,
-        `_HI_PACKAGES_MIN_PRIORITY` (where `4` means off), and a group's
-        `color=` line, which outranks `_HI_PACKAGES_PALETTE`. **Do:** decide
-        which of the four a user should ever have to touch and fold or retire
-        the rest, then rewrite `docs/COLORS.md`'s two packages sections and
-        `docs/SETTINGS.md`'s rows to match. **Ticks when:**
-        `hi --preview packages` needs no MODE table to explain itself.
-
-15. [ ] **Investigate the header as plugins** — `common/header.sh` is the
-        largest file in the payload, and every cell in it is already one
-        function behind one dispatch (`_hi_cell_<word>`, picked by the header's
-        word list), while `plugins.d` members load in every shell
-        (`_hi_load_plugins`) and can only set `_HI_SEGMENT`, a prompt segment.
-        **Do:** find out whether the built-in cells and `full_check`'s groups
-        can be rewritten as plugins on one contract a user's own could share,
-        rather than widening the contract beside a header that does not use
-        it. Answer what it costs first: the shared probes several cells read
-        one result from (`_hi_probed_cell`), the width and wrap arithmetic
-        `_hi_row_line` owns, the payload budget, the forks a connect pays, and
-        fish, which loads `plugins.d` with a loader of its own and draws the
-        header by handing it to bash. `check` is itself a header word, so say
-        whether a plugin's check is a group or a cell. **Ticks when:** the
-        verdict and its reasons are written down
-        (`docs/INTEGRATIONS.md` for a contract, `docs/COMPATIBILITY.md` for a
-        no), and this entry is replaced by the work the verdict calls for.
-
-16. [ ] **`settings` is renamed `config`** — the word is split today: the
-        tree's defaults live in `settings/`, the user's in `~/.config/say-hi/`
-        with a `settings.sh` in it that `$_HI_SETTINGS` names, and a target
-        unpacks the overlay as `$_HI_ROOT/config/`. **Do:** settle the one name
-        and what it covers - the directory, `settings.sh`, `$_HI_SETTINGS`,
-        `hi --configure`'s wording - minding that `config/` is already the
-        overlay's landing directory on a target, and ship it with a fallback
-        that still reads an existing `settings.sh`, so no install breaks.
-        Before 1.0 because entry 1's stability contract freezes these names.
-        **Ticks when:** nothing but that fallback and its test names the old
-        word.
+7. [ ] **Investigate the header as plugins** — `common/header.sh` is the
+       largest file in the payload, and every cell in it is already one
+       function behind one dispatch (`_hi_cell_<word>`, picked by the header's
+       word list), while `plugins.d` members load in every shell
+       (`_hi_load_plugins`) and can only set `_HI_SEGMENT`, a prompt segment.
+       **Do:** find out whether the built-in cells and `full_check`'s groups
+       can be rewritten as plugins on one contract a user's own could share,
+       rather than widening the contract beside a header that does not use
+       it. Answer what it costs first: the shared probes several cells read
+       one result from (`_hi_probed_cell`), the width and wrap arithmetic
+       `_hi_row_line` owns, the payload budget, the forks a connect pays, and
+       fish, which loads `plugins.d` with a loader of its own and draws the
+       header by handing it to bash. `check` is itself a header word, so say
+       whether a plugin's check is a group or a cell. **Ticks when:** the
+       verdict and its reasons are written down
+       (`docs/INTEGRATIONS.md` for a contract, `docs/COMPATIBILITY.md` for a
+       no), and this entry is replaced by the work the verdict calls for.
 
 ### Post 1.0
 

@@ -115,7 +115,7 @@ into ~/.local/bin, then opens the settings menu at a terminal (--preset
 answers it without one). Nothing else is copied into
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi: the tree's colors and packages stay
 in force until you copy one there yourself and edit it
-(cp <say-hi>/settings/colors \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/), and
+(cp <say-hi>/config/colors \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/), and
 the editor rcs need no copy at all - hi carries your own ~/.vimrc and friends.
 Safe to re-run any time - it repairs its own lines and leaves everything else
 alone. The install location is always wherever this script lives (say-hi's
@@ -469,7 +469,7 @@ function purge_overlay() {
 # so github.com and OpenSSF Scorecard's License check can both find it - they
 # look there and nowhere else. It makes no difference to the staged result:
 # install_tree's cp lands file entries flat by basename either way.
-_HI_PACKAGE_CONTENTS=(common scripts settings hi.sh load.sh LICENSE.md README.md)
+_HI_PACKAGE_CONTENTS=(common scripts config hi.sh load.sh LICENSE.md README.md)
 
 # Packaging mode. say-hi normally installs *in place*, which assumes the tree is
 # somewhere you own; here the tree is copied to a staging root for a package

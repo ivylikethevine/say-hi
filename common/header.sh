@@ -932,7 +932,7 @@ _HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 # below are what check_line actually reads.
 #
 # $_HI_PACKAGES_PALETTE is the ramp itself: eight _HI_COLOR_NAMES words
-# (core.sh's vocabulary, the one settings/colors and fish's set_color both
+# (core.sh's vocabulary, the one config/colors and fish's set_color both
 # use), four for installed then four for missing, written into settings.sh
 # by hand. Anything else - unset, a typo, the wrong count - is the shipped
 # ramp. preview.sh's scrape (above) stops at the first line starting

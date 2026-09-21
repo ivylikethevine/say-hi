@@ -56,9 +56,9 @@ _HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain] [--mux|--no-mux]
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
 # session has a launcher to relay onward with.
-_HI_PAYLOAD=(common settings load.sh hi.sh)
+_HI_PAYLOAD=(common config load.sh hi.sh)
 
-# The user's config overlay: a second, smaller stream into its own config/ on
+# The user's config overlay: a second, smaller stream into its own overlay/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
 _HI_OVERLAY_FILES=(settings.sh colors packages.d vimrc init.lua nanorc
@@ -339,7 +339,7 @@ function _hi_overlay_src() {
       _hi_os_f="${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}/${1#micro/}"
     ;;
   esac
-  [ "$_hi_os_f" != "$_HI_ROOT/settings/$1" ] || return 1
+  [ "$_hi_os_f" != "$_HI_ROOT/config/$1" ] || return 1
   [ -f "$_hi_os_f" ] || return 1
   # home's file is "in force here" only with its tool here to read it; the
   # overlay's copy is the user's say-so, and asks nobody
@@ -348,28 +348,30 @@ function _hi_overlay_src() {
 }
 
 # _hi_ssh_tags_file [outvar] - the tag map a relayed hop colors by: every
-# `# Tags:` line of ~/.ssh/config with the Host or Match line under it and
-# nothing else of the block, so the middle box's _hi_ssh_host_tag can walk it
-# as the config it is cut from. Kept in the runtime dir, recut when the config
-# is newer; fails with no config, no runtime dir, or no tag.
+# `# Tags:` line of ~/.ssh/config and the files it Includes, with the Host or
+# Match line under it and nothing else of the block, so the middle box's
+# _hi_ssh_host_tag can walk it as the config it is cut from. Kept in the
+# runtime dir, recut when the config is newer or has an Include; fails with no
+# config, no runtime dir, or no tag.
 function _hi_ssh_tags_file() {
   local _hi_tf_d="" _hi_tf
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   _hi_runtime_dir _hi_tf_d
   [ -n "$_hi_tf_d" ] || return 1
   _hi_tf="$_hi_tf_d/hi.ssh_tags"
-  if [ ! "$_hi_tf" -nt "$_HI_SSH_CONFIG" ]; then
-    awk '{ t = $0; sub(/^[ \t]+/, "", t); l = tolower(t) }
+  # an Include's files have mtimes of their own, so a config with one is recut
+  if [ ! "$_hi_tf" -nt "$_HI_SSH_CONFIG" ] || grep -qi '^[[:space:]]*include[[:space:]=]' "$_HI_SSH_CONFIG"; then
+    sh "$_HI_TARGETS" ssh-config "$_HI_SSH_CONFIG" | awk '{ t = $0; sub(/^[ \t]+/, "", t); l = tolower(t) }
       l ~ /^#[ \t]*tags[:=]/ { tag = t; next }
       l ~ /^#/ || l == "" { next }
       tag != "" && l ~ /^(host|match[ \t]+host)[ \t]/ { print tag; print t }
-      { tag = "" }' "$_HI_SSH_CONFIG" >"$_hi_tf.$$" && mv -f "$_hi_tf.$$" "$_hi_tf" || return 1
+      { tag = "" }' >"$_hi_tf.$$" && mv -f "$_hi_tf.$$" "$_hi_tf" || return 1
   fi
   [ -s "$_hi_tf" ] && _hi_out "${1:-}" "$_hi_tf"
 }
 
 # _hi_tool_here <member> - is the tool that reads <member> on this machine?
-# The names settings/aliases.sh gates each alias on; a member of no tool's
+# The names config/aliases.sh gates each alias on; a member of no tool's
 # (and a prompt program's, which _hi_prompt_list already asked about) is a yes.
 # The client is asked because only it can be, before a connect
 # (docs/INTEGRATIONS.md's _Which side is asked_).
@@ -388,7 +390,7 @@ function _hi_tool_here() {
 }
 
 # The include scanner, in the dialect of each file it reads. Every member
-# ships into a `config/` of its own, so a line naming a *path* - a second rc
+# ships into an `overlay/` of its own, so a line naming a *path* - a second rc
 # beside it, a plugin directory, a manager's bootstrap - names something no
 # target has, and the editor or shell fails on it rather than hi. The
 # grammars, and what is deliberately left alone:
@@ -409,7 +411,7 @@ function _hi_tool_here() {
 #           matching nothing costs the whole rcfile - nano says "Mistakes in
 #           '<rcfile>'" on the status bar and rings the bell. The path is
 #           read as one word, so a trailing comment cannot fool the rule.
-#           settings/nanorc reasons the same thing out by hand in a comment,
+#           config/nanorc reasons the same thing out by hand in a comment,
 #           for hi's own copy; this is that rule for yours.
 #   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
 #           of tpm). Line-oriented, but a finding ending in `\` takes its
@@ -823,7 +825,7 @@ function _hi_overlay_bytes() {
 
 # _hi_overlay_bytes armored into the line that unpacks it on the target.
 function _hi_overlay_stream() {
-  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar -x -m -z -f - -C "$_HI_ROOT/config"'
+  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar -x -m -z -f - -C "$_HI_ROOT/overlay"'
 }
 
 # The comment stripper every payload file goes through: their prose headers
@@ -906,8 +908,8 @@ function _hi_payload_excl() {
   for f; do
     f="${f%%/*}"
     case "$_HI_OVERLAY_SHADOWS${payload_excl[*]-} " in
-    *" say-hi/settings/$f "*) ;;
-    *" $f "*) payload_excl+=("say-hi/settings/$f") ;;
+    *" say-hi/config/$f "*) ;;
+    *" $f "*) payload_excl+=("say-hi/config/$f") ;;
     esac
   done
 }
@@ -1242,9 +1244,9 @@ function _hi_fallback_rc() {
     _hi_client_verdicts 'export %s=%s\n'
     printf '. %s/aliases.sh 2>/dev/null\n' "$aliases_dir"
   else
-    printf 'export _HI_CONFIG_DIR=$_HI_ROOT/config\n'
-    printf '[ -f $_HI_ROOT/config/settings.sh ] && . $_HI_ROOT/config/settings.sh\n'
-    printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/settings/aliases.sh 2>/dev/null\n'
+    printf 'export _HI_CONFIG_DIR=$_HI_ROOT/overlay\n'
+    printf '[ -f $_HI_ROOT/overlay/settings.sh ] && . $_HI_ROOT/overlay/settings.sh\n'
+    printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/config/aliases.sh 2>/dev/null\n'
   fi
   # no $CMDARG here: the two helpers below hand it to each shell the way that
   # shell honours it (GLOSSARY: HI.23)
@@ -1497,7 +1499,7 @@ function _hi_remote_middle() {
   cat <<REMOTE
       export _HI_HOME=\$(mktemp -d -t $tmpl) # busybox mktemp needs exactly six X
       export _HI_ROOT=\$_HI_HOME/say-hi
-      export _HI_CONFIG_DIR=\$_HI_ROOT/config
+      export _HI_CONFIG_DIR=\$_HI_ROOT/overlay
       export _HI_CLEANUP=\$_HI_HOME
       mkdir "\$_HI_ROOT"
       trap 'rm -rf \$_HI_CLEANUP' exit
@@ -1571,7 +1573,7 @@ function _say_hi() {
   tree="$(_hi_payload_stream)"
   # the overlay's own stream, omitted when empty (GLOSSARY: HI.41)
   if ((${#overlay[@]})); then
-    overlay_line="mkdir -p \"\$_HI_ROOT/config\"
+    overlay_line="mkdir -p \"\$_HI_ROOT/overlay\"
 $(_hi_overlay_stream "${overlay[@]}")"
   fi
   size="$_HI_SIZE_TOKEN"
@@ -1852,7 +1854,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 
   if ((${#overlay[@]})) &&
     ! _hi_overlay_bytes "${overlay[@]}" |
-    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config'" 2>"$tmp"; then
+    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/overlay' && tar -x -m -z -f - -C '$root/say-hi/overlay'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
     # the defaults that overlay shadowed were cut from the tree above
     ! ((${#payload_excl[@]})) || tar -c -f - -C "$_HI_HOME" "${payload_excl[@]}" |
@@ -1882,7 +1884,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   # _hi_now is a subshell and a `date` fork on the line before the attach
   local now
   now="$(_hi_now)"
-  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$now")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$now")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
+  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/overlay' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$now")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$now")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?
 
   _hi_container_cleanup

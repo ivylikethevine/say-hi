@@ -234,6 +234,21 @@ function test_missing_config_is_empty_and_succeeds() {
   [ -z "$out" ]
 }
 
+# a host that lives only in an Included file completes like one in the config
+# itself: ~/.ssh-relative paths, globs, and nested Includes; a word that is not
+# a path is skipped, never run
+function test_ssh_hosts_follow_include() {
+  local h="$_HI_WORKDIR/inc-home" out
+  mkdir -p "$h/.ssh/config.d" "$h/.ssh/deep"
+  # shellcheck disable=SC2016 # the $( ) is the config's text, and must not run
+  printf 'Include config.d/* $(touch %s/ran)\nHost top\n' "$h" >"$h/.ssh/config"
+  printf 'Host alpha\n  Include deep/*\n' >"$h/.ssh/config.d/01-a"
+  printf 'Host gamma\n' >"$h/.ssh/deep/x"
+  out="$(HOME="$h" _hi_targets "$h/.ssh/config" ssh)" || return 1
+  _hi_has_row "$out" alpha ssh && _hi_has_row "$out" gamma ssh &&
+    _hi_has_row "$out" top ssh && [ ! -e "$h/ran" ]
+}
+
 function test_ssh_kind_excludes_container_backends() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" ssh)"
@@ -854,7 +869,7 @@ function test_flags_behind_a_local_command_are_its_switches() {
     _hi_cecho "   flags --install gave: $out" "$RED"
     return 1
   }
-  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --use " ] || return 1
+  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --problems --use " ] || return 1
   # a row with no switches offers nothing; a connect flag or a target first
   # is not a local command, so the top-level roster stands
   ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || return 1
@@ -1031,7 +1046,7 @@ function test_word_flags_match_the_words_roster() {
 
 # --- words --add-package / --group: the packages.d cascade, reimplemented -
 # both arms resolve $_HI_CONFIG_DIR/packages.d, else the tree's own
-# settings/packages.d, the same wholesale-replace cascade paths.sh's
+# config/packages.d, the same wholesale-replace cascade paths.sh's
 # $_HI_PACKAGES_D uses. A known row from each shipped group pins the walk.
 
 function test_words_add_package_with_no_overlay_lists_both_tree_groups() {
@@ -1123,6 +1138,7 @@ function run_targets_tests() {
   _hi_check "Trailing comment isn't a host" test_trailing_comment_is_not_a_host
   _hi_check "Missing config -> empty, exit 0" test_missing_config_is_empty_and_succeeds
   _hi_check "'ssh' argument excludes other kinds" test_ssh_kind_excludes_container_backends
+  _hi_check "ssh hosts follow Include" test_ssh_hosts_follow_include
 
   _hi_h2 "Testing: container/orchestrator backends"
   _hi_check "docker -> running containers" test_docker_kind_lists_running_containers

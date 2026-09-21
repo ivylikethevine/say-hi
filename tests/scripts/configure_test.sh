@@ -284,7 +284,7 @@ function _hi_floor_run() {
   printf '%s\n' ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} >"$_HI_CONFIG_DIR/lines.out"
 }
 
-function _hi_floor_lines() { cat "$_HI_WORKDIR/$1/config/lines.out" 2>/dev/null; }
+function _hi_floor_lines() { cat "$_HI_WORKDIR/$1/overlay/lines.out" 2>/dev/null; }
 
 function test_packages_floor_keeps_a_configured_value() {
   _hi_settings_fixture floor_keep _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=3'
@@ -296,7 +296,7 @@ function test_packages_floor_keeps_a_configured_value() {
 # has for 80.
 function test_packages_floor_does_not_write_the_default() {
   _hi_settings_fixture floor_default _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=2'
-  [ -f "$_HI_WORKDIR/floor_default/config/lines.out" ] || return 1
+  [ -f "$_HI_WORKDIR/floor_default/overlay/lines.out" ] || return 1
   [ -z "$(_hi_floor_lines floor_default | tr -d '[:space:]')" ]
 }
 
@@ -335,8 +335,8 @@ _HI_FLOOR_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  _HI_CONFIG_DIR="$_hi_dir/config"
-  _HI_SETTINGS="$_hi_dir/config/settings.sh"
+  _HI_CONFIG_DIR="$_hi_dir/overlay"
+  _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   config_packages_floor
@@ -356,8 +356,8 @@ function _hi_pty_run() {
   local child="$1" suffix="$2" label="$3" input="$4" line="${5:-}"
   local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.$suffix.out"
   shift 5
-  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
-  printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
+  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
+  printf '#!/bin/sh\n%s\n' "$line" >"$dir/overlay/settings.sh"
   : >"$out"
   printf '%b' "$input" |
     "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
@@ -461,7 +461,7 @@ function test_config_settings_writes_every_group_at_once() {
 # `hi --update`'s tag checkout still applies and a root-owned tree still works
 function test_settings_are_written_outside_the_tree() {
   _hi_settings_fixture outside _hi_shebang_fresh
-  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/settings/settings.sh" ]
+  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/config/settings.sh" ]
 }
 
 # this run's answer wins over the file, which still holds the previous run's
@@ -679,7 +679,7 @@ function _hi_diff_run() {
 function test_settings_diff_reports_added_and_removed() {
   local out
   _hi_settings_fixture diff _hi_diff_run
-  out="$(cat "$_HI_WORKDIR/diff/config/diff.out")"
+  out="$(cat "$_HI_WORKDIR/diff/overlay/diff.out")"
   [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_DISABLE_BANNER=1"* &&
     "$out" != *"_HI_DISABLE_PROMPT"* ]]
 }
@@ -694,7 +694,7 @@ function _hi_diff_same_run() {
 
 function test_settings_diff_says_no_changes() {
   _hi_settings_fixture diff_same _hi_diff_same_run
-  grep -q 'no changes' "$_HI_WORKDIR/diff_same/config/diff.out"
+  grep -q 'no changes' "$_HI_WORKDIR/diff_same/overlay/diff.out"
 }
 
 #
@@ -908,7 +908,7 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
 }
 
-# every editor is presence-gated in settings/aliases.sh itself (a box without
+# every editor is presence-gated in config/aliases.sh itself (a box without
 # the tool leaves its alias undefined), which _hi_editors_preview reads rather
 # than restates - so each line only needs to be there when the tool is.
 function test_editors_preview_names_every_override() {
@@ -936,17 +936,17 @@ function test_editors_preview_names_every_override() {
 }
 
 # vim has no second spelling left to drift out of step:
-# _hi_editors_preview sources settings/aliases.sh itself and reads the alias
+# _hi_editors_preview sources config/aliases.sh itself and reads the alias
 # back (same trick as load.sh's _hi_session_editor), so what pins them is
 # behaviour, not text - the preview's line for <tool> must be exactly what
-# sourcing the alias produces. tests/settings/alias_fallthrough_test.sh keeps
+# sourcing the alias produces. tests/config/alias_fallthrough_test.sh keeps
 # the textual pin for bat, whose preview is not built this way.
 function test_editor_preview_matches_its_alias() {
   local tool="$1" from_alias from_preview
   from_alias="$(
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this $( )
-    # shellcheck source=/dev/null # settings/aliases.sh, or the copy in the overlay
+    # shellcheck source=/dev/null # config/aliases.sh, or the copy in the overlay
     # (no apostrophe in a comment inside a $( ): bash 3.2 reads it as a quote)
     source "$_HI_ALIASES" >/dev/null 2>&1
     alias "$tool" 2>/dev/null
@@ -1048,8 +1048,8 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  _HI_CONFIG_DIR="$_hi_dir/config"
-  _HI_SETTINGS="$_hi_dir/config/settings.sh"
+  _HI_CONFIG_DIR="$_hi_dir/overlay"
+  _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   _hi_cfg_rc=0
@@ -1346,7 +1346,7 @@ function test_preset_shorthand_seeds_the_run() {
 function test_full_run_preset_then_save() {
   _hi_cfg_pty full_walk 'p\nm\ns\n' '' run_configure "" || return 1
   local block
-  block="$(grep -F "$_HI_MARKER" "$_HI_WORKDIR/full_walk/config/settings.sh")"
+  block="$(grep -F "$_HI_MARKER" "$_HI_WORKDIR/full_walk/overlay/settings.sh")"
   _hi_cfg_has full_walk "Nothing is written until you save" &&
     _hi_cfg_has full_walk "starting from the 'minimal' preset" &&
     _hi_cfg_has full_walk "CFGQUIT=none" &&
@@ -1360,7 +1360,7 @@ function test_full_run_quit_writes_nothing() {
   _hi_cfg_has full_quit "starting from the 'minimal' preset" &&
     _hi_cfg_has full_quit "nothing written" &&
     _hi_cfg_has full_quit "CFGQUIT=1" &&
-    ! grep -qF "$_HI_MARKER" "$_HI_WORKDIR/full_quit/config/settings.sh"
+    ! grep -qF "$_HI_MARKER" "$_HI_WORKDIR/full_quit/overlay/settings.sh"
 }
 
 # EOF at the menu saves what there is - no answer has always meant "keep
@@ -1369,7 +1369,7 @@ function test_full_run_quit_writes_nothing() {
 function test_menu_eof_saves() {
   _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_GIT_STATUS=1' run_configure "" || return 1
   _hi_cfg_has hub_eof "CFGQUIT=none" &&
-    grep -qF "export _HI_DISABLE_GIT_STATUS=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
+    grep -qF "export _HI_DISABLE_GIT_STATUS=1" "$_HI_WORKDIR/hub_eof/overlay/settings.sh"
 }
 
 # ...and the third junk answer in a row ends the run too, but as a quit:

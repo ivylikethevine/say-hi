@@ -16,6 +16,7 @@ hi \- your shell config, on every host you say hi to
 .br
 .B hi \-\-doctor
 .RB [ \-\-json ]
+.RB [ \-\-problems ]
 .RB [ \-\-use " " \fIbackend\fR]
 .RI [ ssh\-options ]
 .RI [ target ]
@@ -41,6 +42,10 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-add\-package
 .I pkg:priority[,...]
 .RB [ \-\-group " " \fIname\fR]
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-add\-tag
+.I host tag
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-preview
@@ -211,7 +216,7 @@ the rule it matched;
 .B header
 \- the connect header at your settings.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-problems\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree;
 the config overlay; every rc and overlay shell file, parsed by the shell that
 reads it; the install (each shell's rc lines and whether they name this tree,
@@ -222,7 +227,19 @@ link, what
 on PATH runs, the file a login bash or a ZDOTDIR zsh really reads); every
 backend, probed and timed; and, with a
 .IR target ,
-the backend it resolves to plus an ssh reachability check. ssh options reach
+the backend it resolves to plus an ssh reachability check. Each section is a
+table whose rows are marked by severity \- a check mark for ok,
+.B !
+for warn, a cross for bad
+.RB ( + ,
+.BR ! ,
+and
+.B x
+outside a UTF\-8 locale) \- and every warn and bad row is gathered again into
+a closing findings table.
+.B \-\-problems
+prints only that table.
+ssh options reach
 that check's BatchMode probe as they would a connect, and are reported as
 ignored for a non\-ssh target.
 .B \-\-use
@@ -345,6 +362,31 @@ of your own replaces the tree's wholesale, so the first write seeds the
 tree's own groups into the new overlay directory first.
 .B \-\-dry\-run
 says what would be written and writes nothing.
+.TP
+.B \-\-add\-tag \fIhost tag\fR [\fB\-\-dry\-run\fR]
+write
+.RI "# Tags: " tag
+directly above
+.IR host 's
+.B Host
+(or
+.BR "Match host" )
+line in
+.BR ~/.ssh/config ,
+or in the file an
+.B Include
+brings it from, so a
+.B hosttag
+or
+.B usertag
+row in the colors file colors it. A tag already there is replaced.
+.I host
+is matched as written in the config, so a pattern such as
+.B *.prod
+tags its whole block; a name only a wildcard block covers is refused, naming
+that block.
+.B \-\-dry\-run
+says what would be written and writes nothing.
 .PP
 Everything else is passed through to
 .BR ssh (1)
@@ -442,7 +484,7 @@ when set), and is carried to every target; the files are listed under
 writes
 .BR settings.sh ;
 you create the rest, the tree's
-.B settings/
+.B config/
 copy of a file being the default until you copy it here. Every setting is an
 environment variable, tabulated with its default in
 .IR docs/SETTINGS.md .
@@ -461,7 +503,7 @@ settings, written by
 .TP
 .B ~/.config/say-hi/colors
 your copy of
-.BR settings/colors ,
+.BR config/colors ,
 used in place of the tree's.
 .TP
 .B ~/.config/say-hi/packages.d/

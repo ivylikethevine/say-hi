@@ -140,12 +140,12 @@ These are constraints the tree enforces, not requests:
   entry can't be deleted out from under them.
 - **Several files are a smaller dialect than bash, and say so at the top.**
   `common/paths.sh` is the four-shell plain-`export` subset,
-  `settings/aliases.sh` what bash, zsh, and fish all parse, and
+  `config/aliases.sh` what bash, zsh, and fish all parse, and
   `common/targets.sh` standalone POSIX. The stated subset wins over anything
   cleaner.
 - **Nothing may guess the tree from `$HOME`.** Each entry point derives it from
   its own path (`GLOSSARY: HI.33`). The lint sweep covers the docs too.
-- **The payload is budgeted twice.** `common/`, `settings/`, `load.sh`, and
+- **The payload is budgeted twice.** `common/`, `config/`, `load.sh`, and
   `hi.sh` ship to every target; the gzipped tar and the assembled wire script
   are CI-enforced against separate numbers. Touch a shipped file, run
   `--group bench`, and check both; when README's payload badge goes red,
@@ -169,7 +169,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The thirteen flags in `common/flags`** — name, argument shape, and what
+- **The fourteen flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -177,12 +177,14 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   argument is a word (`--use`, `--preview`, `--update`), refused on the rest;
   every `--word` is hi's (an unknown one is hi's error); and everything after
   the target is the remote command.
-- **The sub-command switches** — `--doctor --json`, `--install`'s
+- **The sub-command switches** — `--doctor --json` and
+  `--doctor --problems`, `--install`'s
   `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`, and
   `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
   `--update --dry-run`, `--add-package --group <name>` and
-  `--add-package --dry-run`, `scripts/install.sh --prefix <dir>` — name and meaning
+  `--add-package --dry-run`, `--add-tag --dry-run`,
+  `scripts/install.sh --prefix <dir>` — name and meaning
   (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
   `--install --yes`; no other switch has one); and the `--json` document's
   top-level keys (`version`, `target`, `findings`, `rows`) with each row's four

@@ -91,11 +91,11 @@ function lint_manpage() {
 }
 
 # The vim rc hi ships, parsed by the editor that reads it. Everything else in
-# the suite treats settings/vimrc as *bytes* - payload_test.sh checks it ships
+# the suite treats config/vimrc as *bytes* - payload_test.sh checks it ships
 # and survives the comment strip, load_test.sh checks $VIMINIT points at it - so
 # a syntax error in the file itself failed nothing and rode the wire to every
 # target (an orphaned `endif` left by a half-finished deletion did exactly
-# that). vim only: settings/aliases.sh points neovim at settings/init.lua now,
+# that). vim only: config/aliases.sh points neovim at config/init.lua now,
 # which lint_nvim_rc below parses with the editor that reads it.
 #
 # `-u <rc> -es` is the production invocation (the alias's own), and the verdict
@@ -105,7 +105,7 @@ function lint_manpage() {
 #
 # E484 on defaults.vim is the exception, and a deliberate one: the rc sources
 # it with `silent!` precisely because a vim old enough not to ship that file
-# would error on it (settings/vimrc says so). `silent!` suppresses the
+# would error on it (config/vimrc says so). `silent!` suppresses the
 # message but still sets v:errmsg, so the tolerated case is spelled out here.
 #
 # No nano half: nano reports a bad rcfile only on its status bar and refuses to
@@ -115,8 +115,8 @@ function lint_manpage() {
 # way the alias does and exits non-zero on an elisp error, so there the exit
 # status is the verdict.
 function lint_vim_rc() {
-  local err out rc="$_HI_ROOT/settings/vimrc"
-  _hi_h2 "Checking the shipped editor rc (vim -u settings/vimrc)"
+  local err out rc="$_HI_ROOT/config/vimrc"
+  _hi_h2 "Checking the shipped editor rc (vim -u config/vimrc)"
   if ! command -v vim >/dev/null 2>&1; then
     _hi_skip vim "not installed"
     return 0
@@ -127,12 +127,12 @@ function lint_vim_rc() {
     </dev/null >/dev/null 2>&1 || true
   out="$(grep -v "E484.*defaults\.vim" "$err" 2>/dev/null | tr -d '[:space:]')"
   if [ -z "$out" ]; then
-    _hi_align " | settings/vimrc (vim)" "OK" "$GREEN"
+    _hi_align " | config/vimrc (vim)" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | settings/vimrc (vim)" "FAILED" "$RED"
+  _hi_align " | config/vimrc (vim)" "FAILED" "$RED"
   sed 's/^/      /' "$err"
-  _hi_note_failure "settings/vimrc (vim)"
+  _hi_note_failure "config/vimrc (vim)"
   return 1
 }
 
@@ -141,8 +141,8 @@ function lint_vim_rc() {
 # signals are usable here - a lua error goes to stderr and nvim exits non-zero -
 # so the verdict is a clean exit with nothing written.
 function lint_nvim_rc() {
-  local err rc="$_HI_ROOT/settings/init.lua"
-  _hi_h2 "Checking the shipped editor rc (nvim -u settings/init.lua)"
+  local err rc="$_HI_ROOT/config/init.lua"
+  _hi_h2 "Checking the shipped editor rc (nvim -u config/init.lua)"
   if ! command -v nvim >/dev/null 2>&1; then
     _hi_skip nvim "not installed"
     return 0
@@ -150,18 +150,18 @@ function lint_nvim_rc() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   err="$_HI_WORKDIR/initlua.err"
   if nvim --headless -u "$rc" -c 'qa!' </dev/null >/dev/null 2>"$err" && [ ! -s "$err" ]; then
-    _hi_align " | settings/init.lua (nvim)" "OK" "$GREEN"
+    _hi_align " | config/init.lua (nvim)" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | settings/init.lua (nvim)" "FAILED" "$RED"
+  _hi_align " | config/init.lua (nvim)" "FAILED" "$RED"
   sed 's/^/      /' "$err"
-  _hi_note_failure "settings/init.lua (nvim)"
+  _hi_note_failure "config/init.lua (nvim)"
   return 1
 }
 
 function lint_emacs_rc() {
-  local err rc="$_HI_ROOT/settings/init.el"
-  _hi_h2 "Checking the shipped editor rc (emacs -q -l settings/init.el)"
+  local err rc="$_HI_ROOT/config/init.el"
+  _hi_h2 "Checking the shipped editor rc (emacs -q -l config/init.el)"
   if ! command -v emacs >/dev/null 2>&1; then
     _hi_skip emacs "not installed"
     return 0
@@ -169,12 +169,12 @@ function lint_emacs_rc() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   err="$_HI_WORKDIR/emacs.err"
   if emacs --batch -q -l "$rc" --eval '(kill-emacs 0)' </dev/null >"$err" 2>&1; then
-    _hi_align " | settings/init.el (emacs)" "OK" "$GREEN"
+    _hi_align " | config/init.el (emacs)" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | settings/init.el (emacs)" "FAILED" "$RED"
+  _hi_align " | config/init.el (emacs)" "FAILED" "$RED"
   sed 's/^/      /' "$err"
-  _hi_note_failure "settings/init.el (emacs)"
+  _hi_note_failure "config/init.el (emacs)"
   return 1
 }
 

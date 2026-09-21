@@ -47,7 +47,7 @@
 #     is traced only where sh is bash: the xtrace
 #     rides on SHELLOPTS, which dash ignores, so the whole file reads 0%
 #     under a dash /bin/sh (ubuntu; CLAUDE.md's dash sweep - measured 0/220
-#     there, 96% under bash). settings/aliases.sh is
+#     there, 96% under bash). config/aliases.sh is
 #     `#!/bin/sh` too but sourced by its suite, so it is unaffected.
 #     This driver puts a bash-as-sh first on PATH for that reason
 #     (_hi_cov_shim_sh_to_bash, tests/lib/coverage.sh).

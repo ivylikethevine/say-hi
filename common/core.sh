@@ -145,7 +145,7 @@ function _hi_scheme_words() {
 # fixed-width string, sliced by offset: no arrays (zsh indexes them from 1),
 # no read, no fork. The vocabulary is the twenty-four names - a scheme
 # changes what a name renders as, never which name a host hashes to or what
-# settings/colors may pin. <index> runs 0-47: slots 24-47 are a second bank,
+# config/colors may pin. <index> runs 0-47: slots 24-47 are a second bank,
 # the names again, which only a 48-word list fills (header.sh paints the
 # packages check from it); every other table answers them with the first
 # bank. GLOSSARY: HI.50
@@ -185,7 +185,7 @@ function _hi_slot_hex() {
 # both say so, so a terminal that ignores the second keeps the first, and
 # header.sh's hue and width readers still see one escape. The pair is
 # $_HI_COLOR_FALLBACK's for <index> mod 24, so a second-bank slot wears the
-# same 16-color half as its name. <hex> is a settings/colors row's own
+# same 16-color half as its name. <hex> is a config/colors row's own
 # rrggbb (its optional fourth column): it stands in for the scheme's hex for
 # this one escape, and a terminal with no 24-bit color still gets the slot's
 # pair, so a pinned hex never costs a pin its 16-color half. Empty under
@@ -203,7 +203,7 @@ function _hi_color_escape_at() {
 }
 
 # _hi_color_split <namevar> <hexvar> <value> - a resolved color as its two
-# halves: the palette name, and the rrggbb a settings/colors row pinned for
+# halves: the palette name, and the rrggbb a config/colors row pinned for
 # it in its optional fourth column (empty when there was none). Every
 # resolved color is one shape or the other - "brgreen" or "brgreen#3ba55d" -
 # so the three readers below answer a pinned color exactly where they answer
@@ -865,7 +865,7 @@ function _hi_local_hostname() {
   _hi_out "${1:-}" "${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
 }
 
-# The two readers of settings/colors' "<type>,<name>,<color>[,<rrggbb>]"
+# The two readers of config/colors' "<type>,<name>,<color>[,<rrggbb>]"
 # lines. One walk behind both: they differ only in whether the name field is
 # compared or matched, and the two wrappers below are what the callers and
 # the suites name. A row's optional fourth column is that pin's own 24-bit
@@ -1002,55 +1002,80 @@ function _hi_ssh_try_patterns() {
 
 # The "# Tags: a, b" comment directly above a "Host <alias>" or "Match host
 # <pattern>" line in ~/.ssh/config (case-insensitive, wildcards honoured);
-# unknown host returns 1, known host with no tag returns 2.
+# unknown host returns 1, known host with no tag returns 2. An `Include` is
+# walked in place, its files flattened by targets.sh - a fork only for a config
+# that has one.
 function _hi_ssh_host_tag_walk() {
-  local line trimmed rest tag="" patterns rc
+  local line trimmed rc
+  _hi_sw_tag=""
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
-    # leading whitespace off, once, for every branch below
     trimmed="${line#"${line%%[![:space:]]*}"}"
     case "$trimmed" in
-    '#'*)
-      rest="${trimmed#\#}"
-      rest="${rest#"${rest%%[![:space:]]*}"}"
-      case "$rest" in
-      [Tt]ags[:=]*)
-        rest="${rest#*[:=]}"
-        rest="${rest#"${rest%%[![:space:]]*}"}"
-        # the leftmost tag only - "prod, web" pins on prod
-        tag="${rest%%[,[:space:]]*}"
-        ;;
-      esac
-      ;;
-    [Hh][Oo][Ss][Tt][[:space:]]*)
-      rc=0
-      _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$1" "$tag" || rc=$?
-      [ "$rc" -eq 1 ] || return "$rc"
-      tag=""
-      ;;
-    [Mm][Aa][Tt][Cc][Hh][[:space:]]*)
-      rest="${trimmed#[Mm][Aa][Tt][Cc][Hh]}"
-      rest="${rest#"${rest%%[![:space:]]*}"}"
-      case "$rest" in
-      [Hh][Oo][Ss][Tt][[:space:]]*)
-        patterns="${rest#[Hh][Oo][Ss][Tt]}"
-        # stop at the next Match criterion - ssh allows several per line
-        patterns="${patterns%%[[:space:]][Uu][Ss][Ee][Rr][[:space:]]*}"
-        patterns="${patterns%%[[:space:]][Ll][Oo][Cc][Aa][Ll][Uu][Ss][Ee][Rr][[:space:]]*}"
-        patterns="${patterns%%[[:space:]][Ee][Xx][Ee][Cc][[:space:]]*}"
-        patterns="${patterns%%[[:space:]][Cc][Aa][Nn][Oo][Nn][Ii][Cc][Aa][Ll]*}"
-        patterns="${patterns%%[[:space:]][Ff][Ii][Nn][Aa][Ll]*}"
+    [Ii][Nn][Cc][Ll][Uu][Dd][Ee][[:space:]=]*)
+      _hi_sw_tag=""
+      while IFS= read -r line || [ -n "$line" ]; do
         rc=0
-        _hi_ssh_try_patterns "$patterns" "$1" "$tag" || rc=$?
+        _hi_ssh_walk_line "$line" "$1" || rc=$?
         [ "$rc" -eq 1 ] || return "$rc"
-        ;;
-      esac
-      tag=""
+      done < <(sh "$_HI_TARGETS" ssh-include "${trimmed#*[[:space:]=]}" 2>/dev/null)
       ;;
-    '') ;;
-    *) tag="" ;;
+    *)
+      rc=0
+      _hi_ssh_walk_line "$line" "$1" || rc=$?
+      [ "$rc" -eq 1 ] || return "$rc"
+      ;;
     esac
   done <"$_HI_SSH_CONFIG"
+  return 1
+}
+
+# One line of the walk above: 0 tagged (printed), 2 known-but-untagged, 1 go
+# on. The pending tag rides in $_hi_sw_tag between lines.
+function _hi_ssh_walk_line() {
+  local trimmed rest patterns rc
+  trimmed="${1#"${1%%[![:space:]]*}"}"
+  case "$trimmed" in
+  '#'*)
+    rest="${trimmed#\#}"
+    rest="${rest#"${rest%%[![:space:]]*}"}"
+    case "$rest" in
+    [Tt]ags[:=]*)
+      rest="${rest#*[:=]}"
+      rest="${rest#"${rest%%[![:space:]]*}"}"
+      # the leftmost tag only - "prod, web" pins on prod
+      _hi_sw_tag="${rest%%[,[:space:]]*}"
+      ;;
+    esac
+    ;;
+  [Hh][Oo][Ss][Tt][[:space:]]*)
+    rc=0
+    _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "$_hi_sw_tag" || rc=$?
+    [ "$rc" -eq 1 ] || return "$rc"
+    _hi_sw_tag=""
+    ;;
+  [Mm][Aa][Tt][Cc][Hh][[:space:]]*)
+    rest="${trimmed#[Mm][Aa][Tt][Cc][Hh]}"
+    rest="${rest#"${rest%%[![:space:]]*}"}"
+    case "$rest" in
+    [Hh][Oo][Ss][Tt][[:space:]]*)
+      patterns="${rest#[Hh][Oo][Ss][Tt]}"
+      # stop at the next Match criterion - ssh allows several per line
+      patterns="${patterns%%[[:space:]][Uu][Ss][Ee][Rr][[:space:]]*}"
+      patterns="${patterns%%[[:space:]][Ll][Oo][Cc][Aa][Ll][Uu][Ss][Ee][Rr][[:space:]]*}"
+      patterns="${patterns%%[[:space:]][Ee][Xx][Ee][Cc][[:space:]]*}"
+      patterns="${patterns%%[[:space:]][Cc][Aa][Nn][Oo][Nn][Ii][Cc][Aa][Ll]*}"
+      patterns="${patterns%%[[:space:]][Ff][Ii][Nn][Aa][Ll]*}"
+      rc=0
+      _hi_ssh_try_patterns "$patterns" "$2" "$_hi_sw_tag" || rc=$?
+      [ "$rc" -eq 1 ] || return "$rc"
+      ;;
+    esac
+    _hi_sw_tag=""
+    ;;
+  '') ;;
+  *) _hi_sw_tag="" ;;
+  esac
   return 1
 }
 

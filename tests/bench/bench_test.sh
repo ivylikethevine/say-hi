@@ -153,7 +153,7 @@ function bench_targets_warm() {
 # independently - the launcher rides *inside* this tar, so it counts here and
 # not as a stream of its own. See CLAUDE.md.
 # Both figures below are a DEFAULT configuration's, and have to be: hi.sh's
-# _hi_payload_tar drops the settings/ editor rcs
+# _hi_payload_tar drops the config/ editor rcs
 # when the overlay has already switched them off, so a configured client sends less than
 # either number says. The ceiling and the badge are the unconfigured case, which
 # is the one every budget should be set against.

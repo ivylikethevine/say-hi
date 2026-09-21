@@ -18,6 +18,7 @@ export _HI_PREVIEW="$_HI_ROOT/scripts/preview.sh"
 export _HI_DOCTOR="$_HI_ROOT/scripts/doctor.sh"
 export _HI_UPDATE="$_HI_ROOT/scripts/update.sh"
 export _HI_ADD_PACKAGE="$_HI_ROOT/scripts/add_package.sh"
+export _HI_ADD_TAG="$_HI_ROOT/scripts/add_tag.sh"
 
 # tests - only the two entry points every session needs
 export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
@@ -33,13 +34,13 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # since this dialect has no if/elif and no ${var:-...} and the last assignment
 # wins.
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
-export _HI_COLORS="$_HI_ROOT/settings/colors"
+export _HI_COLORS="$_HI_ROOT/config/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
 # the package check's groups (GLOSSARY: HI.58); a packages.d/ of your own
 # replaces every group the tree ships (default, extra) wholesale, the same
 # cascade $_HI_COLORS uses above - `hi --add-package` seeds the tree's own
 # members into a fresh overlay directory so nothing is lost on first write.
-export _HI_PACKAGES_D="$_HI_ROOT/settings/packages.d"
+export _HI_PACKAGES_D="$_HI_ROOT/config/packages.d"
 [ -d "$_HI_CONFIG_DIR/packages.d" ] && export _HI_PACKAGES_D="$_HI_CONFIG_DIR/packages.d"
 # drop-in plugins, sourced after the aliases; the same only home (HI.59)
 export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
@@ -52,30 +53,30 @@ export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
 # tier is client-only: on a target $HOME is the *target's*, whose rcs are
 # exactly what hi's `-u`/`--rcfile`/`-q -l` exist to keep out of the session,
 # and the file the client picked is already unpacked at $_HI_CONFIG_DIR.
-export _HI_VIMRC="$_HI_ROOT/settings/vimrc"
+export _HI_VIMRC="$_HI_ROOT/config/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/vim/vimrc" ] && export _HI_VIMRC="$_HI_XDG_CONFIG/vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vim/vimrc" ] && export _HI_VIMRC="$HOME/.vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vimrc" ] && export _HI_VIMRC="$HOME/.vimrc"
 [ -f "$_HI_CONFIG_DIR/vimrc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc"
-export _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
+export _HI_NVIMRC="$_HI_ROOT/config/init.lua"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nvim/init.lua" ] && export _HI_NVIMRC="$_HI_XDG_CONFIG/nvim/init.lua"
 [ -f "$_HI_CONFIG_DIR/init.lua" ] && export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua"
 # helix has no dotfile fallback, XDG only - the same shape as nvim's, above
-export _HI_HELIXRC="$_HI_ROOT/settings/config.toml"
+export _HI_HELIXRC="$_HI_ROOT/config/config.toml"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/helix/config.toml" ] && export _HI_HELIXRC="$_HI_XDG_CONFIG/helix/config.toml"
 [ -f "$_HI_CONFIG_DIR/config.toml" ] && export _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml"
-export _HI_NANORC="$_HI_ROOT/settings/nanorc"
+export _HI_NANORC="$_HI_ROOT/config/nanorc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nano/nanorc" ] && export _HI_NANORC="$_HI_XDG_CONFIG/nano/nanorc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.nanorc" ] && export _HI_NANORC="$HOME/.nanorc"
 [ -f "$_HI_CONFIG_DIR/nanorc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nanorc"
-export _HI_EMACSRC="$_HI_ROOT/settings/init.el"
+export _HI_EMACSRC="$_HI_ROOT/config/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/emacs/init.el" ] && export _HI_EMACSRC="$_HI_XDG_CONFIG/emacs/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.d/init.el" ] && export _HI_EMACSRC="$HOME/.emacs.d/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs" ] && export _HI_EMACSRC="$HOME/.emacs"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.el" ] && export _HI_EMACSRC="$HOME/.emacs.el"
 [ -f "$_HI_CONFIG_DIR/init.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/init.el"
 # tmux the same, minus a tree default: with no config anywhere the value is
-# empty and settings/aliases.sh leaves `tmux` alone
+# empty and config/aliases.sh leaves `tmux` alone
 export _HI_TMUX_CONF=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/tmux/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_XDG_CONFIG/tmux/tmux.conf"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.tmux.conf" ] && export _HI_TMUX_CONF="$HOME/.tmux.conf"
@@ -99,11 +100,11 @@ export _HI_MICRO_DIR=""
 # itself is the directory (docs/INTEGRATIONS.md says how to put one there).
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/theme.yml" ] && export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
 # bat too: a bat.conf in the overlay is its config file on every target, and
-# settings/aliases.sh drops its own --theme flag when this is set so the
+# config/aliases.sh drops its own --theme flag when this is set so the
 # file's theme wins.
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/bat.conf" ] && export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
 
-export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
+export _HI_ALIASES="$_HI_ROOT/config/aliases.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"
 export _HI_ZSHRC="$_HI_ROOT/common/zsh.zsh"
 export _HI_FISH_CONFIG="$_HI_ROOT/common/config.fish"
@@ -135,7 +136,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # shells need it and this is the only file all four read - spelled per shell,
 # a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --group"
+export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --add-tag --group"
 alias hi="$_HI_LAUNCHER"
 # The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

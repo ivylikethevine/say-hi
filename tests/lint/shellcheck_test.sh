@@ -25,7 +25,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # .shellcheckrc sets source-path=SCRIPTDIR, so under `shellcheck -x` the
 # basename in a config-dir source resolves against the *sourcing file's own*
 # directory. Where that basename is the file's own name - which is exactly what
-# the per-shell overrides and settings/aliases.sh's own overlay are - the linter
+# the per-shell overrides and config/aliases.sh's own overlay are - the linter
 # follows the file into itself and re-parses its source tree until the kernel
 # stops it. Measured on this tree: ~33GB resident before a global OOM, twice,
 # taking the editor down with the run. Neither the `[ -f ]` test nor the path

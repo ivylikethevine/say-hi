@@ -138,7 +138,7 @@ function lint_bash32() {
 }
 
 # A shipped file that .gitignore swallows never reaches a commit, and nothing
-# local notices: the suites read the working tree. A settings/*.toml sat
+# local notices: the suites read the working tree. A config/*.toml sat
 # under a blanket `*.toml` for a whole feature. Asked of git itself, over
 # every file the payload and the package ship.
 function lint_ignored_payload() {
@@ -153,9 +153,9 @@ function lint_ignored_payload() {
     _hi_align " | $f" "IGNORED" "$RED"
     _hi_note_failure "gitignored shipped file: $f"
     bad=1
-  done < <(cd "$_HI_ROOT" && find common settings scripts hi.sh load.sh -type f 2>/dev/null |
+  done < <(cd "$_HI_ROOT" && find common config scripts hi.sh load.sh -type f 2>/dev/null |
     git check-ignore --stdin 2>/dev/null)
-  [ "$bad" -eq 0 ] && _hi_align " | every file under common/, settings/, scripts/ is tracked" "OK" "$GREEN"
+  [ "$bad" -eq 0 ] && _hi_align " | every file under common/, config/, scripts/ is tracked" "OK" "$GREEN"
   return "$bad"
 }
 
@@ -497,7 +497,7 @@ function lint_settings_table() {
   # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
   # a row for a variable nothing reads. A *read* - `$NAME`, `${NAME`,
   # fish's `$$NAME`, or `set -q NAME` - not any mention: an assignment or a
-  # comment would keep a dead name green. Only the shipped tree counts (common/, settings/, load.sh, hi.sh):
+  # comment would keep a dead name green. Only the shipped tree counts (common/, config/, load.sh, hi.sh):
   # a setting is what a *session* honours, and scripts/ never rides in the
   # payload, so a name only the wizard or doctor reads is a row that promises
   # nothing on a target. Names hi assembles at run time never appear whole
@@ -509,7 +509,7 @@ function lint_settings_table() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local tree stale=0 dynamic
   tree="$(grep -rhoE '(\$\{?|\$\$|set -q )_HI_[A-Z0-9_]+' "$_HI_ROOT/common" \
-    "$_HI_ROOT/settings" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    "$_HI_ROOT/config" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
     2>/dev/null | grep -oE '_HI_[A-Z0-9_]+' | sort -u)"
   dynamic="$(_hi_settings_dynamic)"
   while IFS= read -r name; do
@@ -596,7 +596,7 @@ function _hi_settings_documented() {
 # `_HI_PROMPT_END_$shell`, is skipped here and caught by its literal rows).
 # Any table by that name counts, so a section added to the wizard cannot ask
 # about a setting this check never sees. Plus the knobs the wizard never asks
-# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that settings/aliases.sh
+# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that config/aliases.sh
 # reads (`${_HI_BAT_OPTS:-...}`, `"$_HI_LS_BIN"`) is a user-facing dial with
 # no question behind it, and the suffix is what tells those from the file's
 # own state (`_HI_SESSION_RC`, `_HI_CLEANUP`, `_HI_CONFIG_DIR`). Minus
@@ -613,7 +613,7 @@ function _hi_settings_roster() {
       "$_HI_ROOT/scripts/configure.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
     sed -n 's/^ *_hi_collect_value "\{0,1\}\(_HI_[A-Z0-9_]*\)"\{0,1\} .*/\1/p' \
       "$_HI_ROOT/scripts/configure.sh" | grep -v '_$'
-    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/settings/aliases.sh" |
+    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/config/aliases.sh" |
       grep -oE '_HI_[A-Z0-9_]+'
   } | sort -u | grep -vxF -f <(_hi_settings_not_settings "$_HI_ROOT/docs/SETTINGS.md")
 }

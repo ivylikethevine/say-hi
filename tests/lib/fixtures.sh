@@ -519,7 +519,7 @@ function _hi_subcmd_run() {
 # before letting clean_all near $_HI_ROOT.
 #
 # The scratch overlay is deliberately a *different* directory from the scratch
-# tree's settings/, so "writes land outside the tree" is something the tests can see
+# tree's config/, so "writes land outside the tree" is something the tests can see
 # rather than assume.
 #
 # Shared here rather than living in tests/scripts/install_test.sh, where it was
@@ -529,15 +529,15 @@ function _hi_subcmd_run() {
 # the harness instead of being copied.
 function _hi_settings_fixture() {
   local dir="$_HI_WORKDIR/$1"
-  local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/config"
-  local _HI_SETTINGS="$dir/config/settings.sh"
-  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
+  local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/overlay"
+  local _HI_SETTINGS="$dir/overlay/settings.sh"
+  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
   shift
   "$@" >/dev/null
 }
 
 # where _hi_settings_fixture's run writes, as the assertions see it
-function _hi_fixture_settings() { printf '%s' "$_HI_WORKDIR/$1/config/settings.sh"; }
+function _hi_fixture_settings() { printf '%s' "$_HI_WORKDIR/$1/overlay/settings.sh"; }
 
 # The suites' small <key> -> <value> maps (which shell image built, where a
 # binary is), as a newline-separated "<key>=<value>" string in a plain variable:

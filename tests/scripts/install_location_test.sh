@@ -44,7 +44,7 @@ _HI_PAR_LOCAL=1
 # What a tree needs for install.sh to run and `hi --doctor` to answer: the
 # shipped payload (mirrors install.sh's _HI_PACKAGE_CONTENTS) plus scripts/.
 # Not the whole checkout - .git is the expensive half and nothing reads it.
-_HI_LOC_ITEMS=(common settings scripts hi.sh load.sh)
+_HI_LOC_ITEMS=(common config scripts hi.sh load.sh)
 
 # _hi_loc_tree <name> - a say-hi under $_HI_WORKDIR/<name>, printed.
 # _hi_scratch_tree copies and prints the parent; this adds an executable hi.sh.
@@ -120,7 +120,7 @@ function test_the_install_reported_success() {
 # the tree stays where it is: an install writes the user's rc files and the
 # overlay, never the checkout it was run from
 function test_the_install_wrote_nothing_into_the_tree() {
-  [ ! -e "$_HI_LOC_ROOT/config" ] && [ ! -e "$_HI_LOC_ROOT/settings/settings.sh" ]
+  [ ! -e "$_HI_LOC_ROOT/overlay" ] && [ ! -e "$_HI_LOC_ROOT/config/settings.sh" ]
 }
 
 function test_fish_resolves_the_nested_tree() {

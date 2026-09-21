@@ -140,7 +140,7 @@ set -gx fish_color_host_remote $fish_color_host
 
 # wrapper so aliases (functions, in fish) work under sudo; args ride fish's own
 # argv after --, never a re-parsed string - that invites injection. Off with
-# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as settings/aliases.sh's sudo alias.
+# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as config/aliases.sh's sudo alias.
 if test "$_HI_DISABLE_SUDO_ALIAS" != 1
   function sudo
     if functions -q -- "$argv[1]"

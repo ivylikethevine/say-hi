@@ -7,7 +7,9 @@
 #        (<cli> = one of the docker-compatible CLIs: docker, podman, nerdctl
 #        or finch; no argument = every backend; `flags` = hi's own
 #        options instead, `flags --install` a local command's own switches,
-#        `words --use` the word a flag takes)
+#        `words --use` the word a flag takes, `ssh-config [file]` the ssh
+#        config with its Includes inlined, `ssh-files [file]` the files that
+#        reads, `ssh-include <words>` one Include's files)
 # GLOSSARY: HI.26 - _HI_PROBE_TIMEOUT and _HI_TARGETS_TTL
 # GLOSSARY: HI.51 - the docker-compatible CLI family
 #
@@ -31,7 +33,77 @@ member_ok() {
   esac
 }
 
+# ssh_config_flat file|files <path> | ssh_config_flat include <words> - an ssh config
+# with every `Include` followed in place by the files it names (the line is
+# kept, so a `# Tags:` above it still ends there), the way ssh
+# reads it: `~` is $HOME, a relative path is under ~/.ssh, a glob expands in
+# sorted order, nested Includes too (16 deep, ssh's own limit). A word with
+# anything but path and glob characters is skipped, never handed to sh.
+# `files` prints the path of each file read, in order, instead of its lines.
+ssh_config_flat() {
+  awk -v mode="$1" -v arg="$2" -v home="$HOME" '
+    function inc(args, depth,   n, w, i, p, cmd, f, m, list, k) {
+      n = split(args, w, /[ \t]+/)
+      for (i = 1; i <= n; i++) {
+        p = w[i]
+        gsub(/"/, "", p)
+        # `]` first and `[` bare: busybox awk ends the class at a `\]`
+        if (p == "" || p !~ /^[][A-Za-z0-9_.\/~*?,@%+:=-]+$/) continue
+        if (p ~ /^~\//) p = home substr(p, 2)
+        else if (p !~ /^\//) p = home "/.ssh/" p
+        cmd = "for f in " p "; do [ -f \"$f\" ] && printf \"%s\\n\" \"$f\"; done"
+        m = 0
+        while ((cmd | getline f) > 0) list[++m] = f
+        close(cmd)
+        for (k = 1; k <= m; k++) emit(list[k], depth + 1)
+      }
+    }
+    function emit(file, depth,   line, rest) {
+      if (mode == "files") print file
+      while ((getline line < file) > 0) {
+        rest = line
+        sub(/^[ \t]+/, "", rest)
+        if (depth < 16 && tolower(rest) ~ /^include[ \t=]/) {
+          if (mode != "files") print line
+          sub(/^[^ \t=]+[ \t=]+/, "", rest)
+          inc(rest, depth)
+        } else if (mode != "files") print line
+      }
+      close(file)
+    }
+    BEGIN { if (mode == "include") inc(arg, 0); else emit(arg, 0); exit }'
+}
+
+# ssh_hosts <help> - every literal Host name in the ssh config and its
+# Includes, "<name>\t<help>"; a wildcard names no host of its own
+ssh_hosts() {
+  _hi_ssh_config="${_HI_SSH_CONFIG:-$HOME/.ssh/config}"
+  [ -f "$_hi_ssh_config" ] || return 0
+  ssh_config_flat file "$_hi_ssh_config" | awk -v help="$1" 'tolower($1) == "host" {
+    for (i = 2; i <= NF; i++) {
+      if ($i ~ /^#/) break
+      if ($i !~ /[*?]/) printf "%s\t%s\n", $i, help
+    }
+  }'
+}
+
 kind="${1:-all}"
+# `ssh-config`/`ssh-files [file]` and `ssh-include <words>`: ssh_config_flat
+# for the shells, which walk a config for tags and cannot source this file
+case "$kind" in
+ssh-config)
+  ssh_config_flat file "${2:-${_HI_SSH_CONFIG:-$HOME/.ssh/config}}"
+  exit 0
+  ;;
+ssh-files)
+  ssh_config_flat files "${2:-${_HI_SSH_CONFIG:-$HOME/.ssh/config}}"
+  exit 0
+  ;;
+ssh-include)
+  ssh_config_flat include "${2:-}"
+  exit 0
+  ;;
+esac
 # The docker-compatible family, once: the `words` arm below and the probe
 # roster further down both walk it, and the two exits are far enough apart
 # that they read as unrelated files. hi.sh and common/header.sh read the same
@@ -102,7 +174,7 @@ if [ "$kind" = words ]; then
   # reimplemented here since this file can run forked with the session's own
   # _HI_* unexported (HI.47) and cannot source paths.sh - GLOSSARY: HI.58).
   pkgd="${_HI_CONFIG_DIR:-}/packages.d"
-  [ -d "$pkgd" ] || pkgd="$hi_tree/settings/packages.d"
+  [ -d "$pkgd" ] || pkgd="$hi_tree/config/packages.d"
   case "${2:-}" in
   --link)
     printf 'user\t~/.local/bin/hi (the default)\n'
@@ -119,6 +191,9 @@ if [ "$kind" = words ]; then
     # .git and gets nothing
     [ -d "$hi_tree/.git" ] && git -C "$hi_tree" tag --list 'v*' --sort=-v:refname 2>/dev/null |
       while IFS= read -r tag; do printf '%s\trelease tag\n' "$tag"; done
+    ;;
+  --add-tag)
+    ssh_hosts 'an ssh host to tag'
     ;;
   --add-package)
     # every packages.d member in force, one whole row per completion word
@@ -272,14 +347,7 @@ emit_targets() {
   # ssh first and in line: a local file read and one awk, faster than the
   # bookkeeping of backgrounding it
   if [ "$kind" = ssh ] || [ "$kind" = all ]; then
-    _hi_ssh_config="${_HI_SSH_CONFIG:-$HOME/.ssh/config}"
-    [ -f "$_hi_ssh_config" ] &&
-      awk 'tolower($1) == "host" {
-        for (i = 2; i <= NF; i++) {
-          if ($i ~ /^#/) break
-          if ($i !~ /[*?]/) printf "%s\tssh\n", $i
-        }
-      }' "$_hi_ssh_config"
+    ssh_hosts ssh
   fi
 
   wanted="" n_wanted=0 n_family=0

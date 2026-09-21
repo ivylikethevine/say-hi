@@ -4,7 +4,7 @@
 # connect will render it, plus why.
 #
 #   colors     every ssh host and every known user in the color it lands in
-#              (override/hosttag/pattern/hash) - for tuning settings/colors
+#              (override/hosttag/pattern/hash) - for tuning config/colors
 #   packages   the header's packages check: what each priority means, the
 #              colors it paints an installed and a missing package, a real
 #              example of each from your own packages file, then the check
@@ -77,7 +77,7 @@ color they'd actually appear in, alongside *why* they resolve that way (an
 exact override, an ssh-config tag, a pattern, or the hash of the name).
 
 Takes no arguments. Reads:
-  settings/colors        the type,name,color[,rrggbb] pins (its own comments explain them)
+  config/colors        the type,name,color[,rrggbb] pins (its own comments explain them)
   ~/.ssh/config      hosts, and the "# Tags: ..." comments above them
 EOF
     ;;
@@ -91,7 +91,7 @@ taken from your own roster - then the marks, then the check itself exactly
 as a connect will print it.
 
 Takes no arguments. Reads:
-  settings/packages.d/   the [-|+]package:priority lines, one group per
+  config/packages.d/   the [-|+]package:priority lines, one group per
                      member (a ~/.config/say-hi/packages.d/ of your own
                      replaces every group here wholesale)
   common/header.sh   the priority meanings and their two color tables
@@ -221,7 +221,7 @@ function _hi_colors_names() {
   done < <(_hi_colors_rows "$1") | awk '!seen[$0]++'
 }
 
-# both read settings/colors through the _hi_colors_names above
+# both read config/colors through the _hi_colors_names above
 function _hi_known_users() {
   {
     _hi_whoami
@@ -267,7 +267,7 @@ function _hi_group_index() {
 
 # _hi_user_color_memo <user> <tag> <color-outvar> <escape-outvar> - most
 # groups share the same (user, tag) pair (usually the empty tag), and
-# _hi_resolve_color walks settings/colors and ~/.ssh/config to answer one.
+# _hi_resolve_color walks config/colors and ~/.ssh/config to answer one.
 # Reads/writes _hi_print_hosts_table's own parallel arrays through bash's
 # dynamic scoping, the same as _hi_group_index above; _hi_color_escape_var
 # is core.sh's no-fork escape form, which a memo answering through an outvar
@@ -325,7 +325,7 @@ function _hi_print_users_table() {
   # reads ${!a[@]+...} as expanding to nothing whatever the array holds, and
   # bash 5 reads it as an indirect reference and errors outright.
   _hi_widen w_item "${users[@]}" LOCALUSER ${usertags[@]+"${usertags[@]}"}
-  # _hi_color_source re-reads settings/colors end to end and walks ~/.ssh/config,
+  # _hi_color_source re-reads config/colors end to end and walks ~/.ssh/config,
   # so the render loop below reads what this one worked out rather than asking
   # a second time for every user.
   for uidx in "${!users[@]}"; do

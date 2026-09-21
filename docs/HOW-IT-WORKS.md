@@ -8,7 +8,7 @@ setting named here is a row in [SETTINGS.md](SETTINGS.md#every-setting).
    which unpacks it into a `/tmp` directory. `$_HI_PAYLOAD` at the top of
    `hi.sh` is the allow list — no `.git`, `scripts/`, `tests/`, `docs/`, or
    CI. Your overlay follows in a second, much smaller archive, landing in a
-   `config/` of its own so your `aliases.sh` stays additive; a tree default
+   `overlay/` of its own so your `aliases.sh` stays additive; a tree default
    your overlay replaces outright (`colors`, an editor rc) stays home, so one
    copy rides ([HI.41](GLOSSARY.md#hi41-overlay-stream)).
 2. Both are base64-armored inside one script written over the **stdin** of an

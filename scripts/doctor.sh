@@ -9,6 +9,7 @@
 # Run via `hi --doctor` or `hi --doctor [target]`. `--json` anywhere in the
 # arguments swaps the report for one JSON document on stdout - the same rows,
 # for a bug report or a script - and the exit status stays 1 on any finding.
+# `--problems` prints only the closing box of warn and bad rows.
 #
 # SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` below into
 # hi.sh's trailing `_hi "$@"`, decides that call never returns, and marks
@@ -24,6 +25,9 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
 source "$_hi_d/scripts/lib.sh"
+# the boxed table each section and the closing findings box are drawn with
+# shellcheck source=./table.sh
+source "$_hi_d/scripts/table.sh"
 # rc.sh for the rc-file roster and the overlay's parser table, which the
 # "Shell configs" section below reads the way install.sh's own pre-flight does
 # shellcheck source=./rc.sh
@@ -32,9 +36,10 @@ unset _hi_d
 
 function _hi_doctor_help() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--use <backend>] [ssh-options] [target]
+Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--problems] [--use <backend>] [ssh-options] [target]
 
-Prints, in order:
+Prints, in order, each section as a table whose rows are marked by severity
+($_HI_MARK_OK ok, ! warn, $_HI_MARK_NO bad, blank for information):
   the local tree     where say-hi is, git state, payload size, local shells
   the config overlay settings.sh (and whether every shell can parse it),
                      colors/packages overrides, non-default toggles
@@ -50,6 +55,10 @@ Prints, in order:
                      each check timed - and for an ssh target, a BatchMode
                      connection, what each session ships, and what the
                      remote end has installed
+  the findings       every warn and bad row above, gathered into one box
+
+--problems prints that last box alone - or, with nothing in it, only the
+closing line - so a long report reads as what needs fixing.
 
 ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
 real connect authenticates with, so \`hi --doctor -J bastion host\`
@@ -62,8 +71,8 @@ accepted and ignored - doctor never opens a session.
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
 
---json prints the same report as one JSON document instead - what a bug
-report should carry:
+--json prints the same report as one JSON document instead, whether or not
+--problems is given - what a bug report should carry:
   {"version": ..., "target": ... or null, "findings": N,
    "rows": [{"section", "label", "text", "severity"}, ...]}
 severity is one of info, ok, warn, bad; findings counts the bad rows. The
@@ -85,6 +94,7 @@ esac
 # a second list here.
 _HI_DOC_TARGET=""
 _HI_DOC_JSON=0
+_HI_DOC_PROBLEMS=0
 _HI_DOC_BACKEND=""
 _HI_DOC_SSHARGS=()
 _hi_doc_args=("$@")
@@ -95,7 +105,7 @@ source "$_HI_LAUNCHER"
 # shellcheck source=../common/header.sh
 source "$_HI_HEADER"
 
-# --json, the target, --use, and ssh options come in any order: `hi --doctor
+# --json, --problems, the target, --use, and ssh options come in any order: `hi --doctor
 # host --json` and `hi --doctor -J bastion host` read naturally. An ssh
 # option that takes a value (hi.sh's _hi_is_ssh_value_opt) takes the next
 # word with it into $_HI_DOC_SSHARGS; any other `-x` rides along alone. An
@@ -121,6 +131,7 @@ while [ $# -gt 0 ]; do
   _hi_arg="$1"
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
+  --problems) _HI_DOC_PROBLEMS=1 ;;
   --use | --use=*)
     _hi_flag_word_or_die _hi_arm "--use needs a backend name (ssh counts as one)" "$@"
     [ $? -eq 2 ] && shift
@@ -139,7 +150,7 @@ while [ $# -gt 0 ]; do
     _HI_DOC_SSHARGS+=("$_hi_arg")
     ;;
   --*)
-    _hi_die "unknown option $_hi_arg (--json, --use <backend>, ssh options, a target)"
+    _hi_die "unknown option $_hi_arg (--json, --problems, --use <backend>, ssh options, a target)"
     ;;
   -*)
     if _hi_is_ssh_value_opt "$_hi_arg"; then
@@ -171,13 +182,131 @@ _HI_DOC_BAD=0
 # at the end (a bad row's count is in the header, so nothing streams)
 _HI_DOC_SECTION=""
 _HI_DOC_ROWS=""
+# The text report's two buffers, as parallel arrays (bash 3.2 has no other
+# kind): the open section's rows, drawn as one table by doctor_flush once its
+# widths are known, and every warn and bad row so far, drawn by
+# doctor_findings at the end. A findings label carries its section key.
+_HI_DOC_WARN=0
+_HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
+_HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
+# 1 while the last row was a finding, so an unlabeled row after it (ssh's own
+# words under a failed connect) follows it into the findings box
+_HI_DOC_IN_FINDING=0
 
 # doctor_section <key> <title> - a report section: the banner in the text
 # report, the "section" field of every row that follows in the JSON one. The
 # key is the stable name a script reads; the title is prose and may change.
+# Each section function ends in doctor_flush, which draws its table.
 function doctor_section() {
   _HI_DOC_SECTION="$1"
-  [ "$_HI_DOC_JSON" = 1 ] || _hi_h2 "$2"
+  [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h2 "$2"
+}
+
+# _hi_doc_glyph <sev> - the severity's mark and color into $glyph and $color
+# (the caller's locals). The marks are core.sh's one-column $_HI_MARK_* pair,
+# ASCII where the locale is, so a report with no color still says which row
+# is which; ! is the same in both sets.
+function _hi_doc_glyph() {
+  case "$1" in
+  ok) glyph="$_HI_MARK_OK" color="$GREEN" ;;
+  warn) glyph="!" color="$YELLOW" ;;
+  bad) glyph="$_HI_MARK_NO" color="$RED" ;;
+  *) glyph="" color="" ;;
+  esac
+}
+
+# _hi_doc_wrap <width> <line> - <line> cut at spaces into pieces no wider than
+# <width> (a word wider than that is split), appended to the caller's $pieces
+function _hi_doc_wrap() {
+  local w="$1" rest="$2" cut
+  while [ "${#rest}" -gt "$w" ]; do
+    cut="${rest:0:w+1}"
+    cut="${cut% *}"
+    if [ -z "$cut" ] || [ "${#cut}" -gt "$w" ]; then
+      cut="${rest:0:w}"
+      rest="${rest:w}"
+    else
+      rest="${rest:${#cut}+1}"
+    fi
+    pieces+=("$cut")
+  done
+  pieces+=("$rest")
+}
+
+# _hi_doc_box <heading> - the rows in $_HI_DOC_T_* as table.sh's boxed table:
+# a mark column, the label, and the text under <heading>. A text of several
+# lines (ssh's stderr) is one row whose later lines leave the first two
+# columns blank. On a terminal the text column is cut down to fit the width
+# header.sh's _hi_draw_width gives, and a longer line wraps; captured, a row
+# stays one line, whole for a grep or a bug report.
+function _hi_doc_box() {
+  local wl=0 wt=0 i=0 n="${#_HI_DOC_T_SEV[@]}" line first glyph color fit
+  local -a pieces
+  [ "$n" -gt 0 ] || return 0
+  _hi_widen wl CHECK
+  _hi_widen wt "$1"
+  while [ "$i" -lt "$n" ]; do
+    _hi_widen wl "${_HI_DOC_T_LABEL[i]}"
+    # a carriage return (ssh ends its stderr lines in one) or a tab would
+    # print narrower or wider than it measures, so both are gone first
+    line="${_HI_DOC_T_TEXT[i]//$'\r'/}"
+    _HI_DOC_T_TEXT[i]="${line//$'\t'/ }"
+    while IFS= read -r line; do _hi_widen wt "$line"; done <<<"${_HI_DOC_T_TEXT[i]}"
+    i=$((i + 1))
+  done
+  if [ -t 1 ] || [ -n "${_HI_TERM_COLS+x}" ]; then
+    # four edges and a space either side of three cells: wl + wt + 11 columns
+    _hi_draw_width fit
+    fit=$((fit - wl - 11))
+    [ "$fit" -ge 20 ] || fit=20
+    [ "$wt" -le "$fit" ] || wt=$fit
+  fi
+  _hi_hbar top 1 "$wl" "$wt"
+  _hi_head_row 1 "" "$wl" CHECK "$wt" "$1"
+  _hi_hbar mid 1 "$wl" "$wt"
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    _hi_doc_glyph "${_HI_DOC_T_SEV[i]}"
+    pieces=()
+    while IFS= read -r line; do _hi_doc_wrap "$wt" "$line"; done <<<"${_HI_DOC_T_TEXT[i]}"
+    first=1
+    for line in "${pieces[@]}"; do
+      if [ "$first" = 1 ]; then
+        _hi_cell 1 "$color" "$glyph"
+        _hi_cell "$wl" "" "${_HI_DOC_T_LABEL[i]}"
+        first=0
+      else
+        _hi_cell 1 "" ""
+        _hi_cell "$wl" "" ""
+      fi
+      _hi_cell "$wt" "$color" "$line"
+      _hi_row_end
+    done
+    i=$((i + 1))
+  done
+  _hi_hbar bottom 1 "$wl" "$wt"
+}
+
+# doctor_flush - draw the open section's rows as one table and empty the
+# buffer; nothing at all for a section with no rows, and no table under
+# --problems, whose only box is doctor_findings'.
+function doctor_flush() {
+  [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_doc_box RESULT
+  _HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
+  _HI_DOC_IN_FINDING=0
+}
+
+# doctor_findings - the closing box: every warn and bad row of the report,
+# grouped here rather than left where each surfaced, under a banner that
+# counts them. Nothing when the report found nothing.
+function doctor_findings() {
+  [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ] || return 0
+  _hi_h2 "Findings: $_HI_DOC_BAD bad, $_HI_DOC_WARN warn"
+  _HI_DOC_T_LABEL=("${_HI_DOC_F_LABEL[@]}")
+  _HI_DOC_T_TEXT=("${_HI_DOC_F_TEXT[@]}")
+  _HI_DOC_T_SEV=("${_HI_DOC_F_SEV[@]}")
+  _hi_doc_box FINDING
+  _HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
 }
 
 # _hi_json_str <text> - <text> as a JSON string literal, quotes included.
@@ -189,30 +318,37 @@ function _hi_json_str() {
   printf '"%s"' "$(printf '%s' "$1" | tr '\n\t\r' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
 }
 
-# doctor_row <label> <text> [severity] - one aligned row. Severity picks the
-# color AND decides whether the row counts as a finding: "" plain, ok green,
-# warn yellow, bad red-and-counted. Its own argument rather than inferred
-# from a color, so the palette and the finding counter are separate knobs.
-# Under --json the row is collected instead of printed; the severity word is
-# the one in the document, with "" spelled info.
+# doctor_row <label> <text> [severity] - one row of the open section. Severity
+# picks the mark and color (_hi_doc_glyph) AND decides whether the row counts
+# as a finding: "" plain, ok green, warn yellow, bad red-and-counted. Its own
+# argument rather than inferred from a color, so the palette and the finding
+# counter are separate knobs. Under --json the row is collected into the
+# document, the severity word the one in it with "" spelled info; otherwise
+# it is buffered for doctor_flush, and a warn or bad one for doctor_findings.
 function doctor_row() {
-  local color="" sev="${3:-info}"
-  case "$sev" in
-  ok) color="$GREEN" ;;
-  warn) color="$YELLOW" ;;
-  bad)
-    color="$RED"
-    _HI_DOC_BAD=$((_HI_DOC_BAD + 1))
-    ;;
-  esac
+  local sev="${3:-info}"
+  [ "$sev" != bad ] || _HI_DOC_BAD=$((_HI_DOC_BAD + 1))
   if [ "$_HI_DOC_JSON" = 1 ]; then
     _HI_DOC_ROWS="$_HI_DOC_ROWS${_HI_DOC_ROWS:+,
 }    {\"section\": $(_hi_json_str "$_HI_DOC_SECTION"), \"label\": $(_hi_json_str "$1"), \"text\": $(_hi_json_str "$2"), \"severity\": \"$sev\"}"
     return 0
   fi
-  local label
-  printf -v label '%-12s' "$1"
-  _hi_cecho " | $label $2" "$color"
+  _HI_DOC_T_LABEL+=("$1") _HI_DOC_T_TEXT+=("$2") _HI_DOC_T_SEV+=("$sev")
+  case "$sev" in
+  warn | bad)
+    [ "$sev" = bad ] || _HI_DOC_WARN=$((_HI_DOC_WARN + 1))
+    _HI_DOC_IN_FINDING=1
+    _HI_DOC_F_LABEL+=("${_HI_DOC_SECTION:+$_HI_DOC_SECTION/}$1")
+    ;;
+  *)
+    [ "$_HI_DOC_IN_FINDING" = 1 ] && [ -z "$1" ] || {
+      _HI_DOC_IN_FINDING=0
+      return 0
+    }
+    _HI_DOC_F_LABEL+=("")
+    ;;
+  esac
+  _HI_DOC_F_TEXT+=("$2") _HI_DOC_F_SEV+=("$sev")
   return 0
 }
 
@@ -313,6 +449,7 @@ function doctor_local() {
     rc_shell_present "${row%%|*}" && have="$have${row%%|*} "
   done
   doctor_row shells "local: ${have:-none?!}"
+  doctor_flush
 }
 
 # plugins.d (GLOSSARY: HI.59): one row naming the plugins in the order they
@@ -422,7 +559,7 @@ function doctor_config() {
     t=""
     _hi_overlay_src "$f" t || true
     # a member with no tree default has nothing to report until it exists
-    [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/settings/$f" ] || continue
+    [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/config/$f" ] || continue
     if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # a prompt program's copy with the program out of the list, or an
       # oh-my-posh format another overlay copy already stands in for
@@ -431,14 +568,14 @@ function doctor_config() {
       doctor_row "$f" "targets get $t, the one in force here"
     elif [ -z "$t" ]; then
       doctor_row "$f" "tree default"
-    elif [ -f "$_HI_ROOT/settings/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/settings/$f"; then
+    elif [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/config/$f"; then
       # a copy of the tree's own file, byte for byte, so not an override yet
       doctor_row "$f" "a copy of the tree's, unchanged - edit it to override"
     else
       doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
-  # Every editor rc and shell file hi packs ships into a config/ of its own, so
+  # Every editor rc and shell file hi packs ships into an overlay/ of its own, so
   # a line naming a path names something no target has. hi.sh's
   # _hi_include_lint is the one grammar for every dialect - the same rows the
   # packer acts on, so what is named here is exactly what got dropped on the
@@ -451,7 +588,7 @@ function doctor_config() {
     [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
   done < <(_hi_include_lint)
-  # settings/aliases.sh sources the overlay's aliases.sh last, so a value its
+  # config/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
   # here: spelled, it missed _HI_DISABLE_VIM/NANO/EMACS/MICRO the day they
@@ -481,6 +618,7 @@ function doctor_config() {
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
+  doctor_flush
 }
 
 # doctor_settings_values - a hand-written settings.sh line the code would
@@ -549,6 +687,7 @@ function doctor_configs() {
     # shellcheck disable=SC2086
     doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
   done
+  doctor_flush
 }
 
 # _hi_rc_names_tree <rc-file> - the _HI_HOME a marker line in <rc-file>
@@ -618,6 +757,7 @@ function doctor_install() {
   else
     doctor_row command "hi on PATH is $found, which runs $(readlink "$found" 2>/dev/null || echo 'something else') - not this tree" warn
   fi
+  doctor_flush
 }
 
 # doctor_backend <name> <cli> <probe...> - installed, answering, and how long
@@ -662,6 +802,7 @@ function doctor_backends() {
   _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" >/dev/null 2>&1 || true
   t1="$(_hi_now)"
   doctor_row completion "full target list built in $(_hi_elapsed "$t0" "$t1")s cold (TAB reuses it for ${_HI_TARGETS_TTL:-5}s)"
+  doctor_flush
 }
 
 # the same chain _hi dispatches on, each predicate timed, first match wins -
@@ -719,6 +860,7 @@ function doctor_target() {
     fi
     doctor_container_target "$label" "$target"
   fi
+  doctor_flush
   return 0
 }
 
@@ -756,7 +898,7 @@ function doctor_container_target() {
   doctor_row target "has: $tools"
 
   # the tier, which is the question this arm exists for. hi ships the tree and
-  # runs load.sh under bash; without bash it copies settings/aliases.sh alone and
+  # runs load.sh under bash; without bash it copies config/aliases.sh alone and
   # drops into the best of the ladder.
   case " $tools" in
   *" bash "*)
@@ -765,7 +907,7 @@ function doctor_container_target() {
   *)
     shells="$(_hi_ladder_first "$tools")"
     if [ -n "$shells" ]; then
-      doctor_row session "aliases only - no bash, so a session lands in $shells with settings/aliases.sh" warn
+      doctor_row session "aliases only - no bash, so a session lands in $shells with config/aliases.sh" warn
     else
       doctor_row session "no shell hi knows - not even ${_HI_SHELL_LADDER%% *}" bad
     fi
@@ -847,7 +989,7 @@ function doctor_ssh_target() {
 # running it. GLOSSARY: HI.15
 set -euo pipefail
 
-[ "$_HI_DOC_JSON" = 1 ] || _hi_h1 "hi doctor"
+[ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h1 "hi doctor"
 doctor_local
 doctor_config
 doctor_configs
@@ -859,10 +1001,17 @@ if [ "$_HI_DOC_JSON" = 1 ]; then
   [ -z "$_HI_DOC_TARGET" ] || _hi_target_json="$(_hi_json_str "$_HI_DOC_TARGET")"
   printf '{\n  "version": %s,\n  "target": %s,\n  "findings": %s,\n  "rows": [\n%s\n  ]\n}\n' \
     "$(_hi_json_str "$(_hi_version)")" "$_hi_target_json" "$_HI_DOC_BAD" "$_HI_DOC_ROWS"
-elif [ "$_HI_DOC_BAD" -eq 0 ]; then
-  _hi_h1 "Nothing looks broken" "$BRGREEN"
 else
-  _hi_h1 "$_HI_DOC_BAD finding(s) above in red" "$RED"
+  doctor_findings
+  # --problems' box is its whole answer; the closing line stands in for an
+  # empty one, so a clean run still says so
+  if [ "$_HI_DOC_PROBLEMS" = 1 ] && [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ]; then
+    :
+  elif [ "$_HI_DOC_BAD" -eq 0 ]; then
+    _hi_h1 "Nothing looks broken" "$BRGREEN"
+  else
+    _hi_h1 "$_HI_DOC_BAD finding(s) above in red" "$RED"
+  fi
 fi
 # 1 on any finding, never the count: a count is a value, not a status (it
 # would wrap past 255 and read as "something else broke"), and --json carries

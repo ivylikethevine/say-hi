@@ -48,7 +48,7 @@ SKIPPED means "did not run", never green.
 [CONTRIBUTING.md's _What a review will bounce on_](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)
 is the list, with the why — the bash 3.2 floor, the dialect-constrained
 files, and the payload budget chief among them. Read it before touching
-`common/`, `settings/`, `load.sh`, or `hi.sh`. One more, for sessions only:
+`common/`, `config/`, `load.sh`, or `hi.sh`. One more, for sessions only:
 
 ### `_HI_HOME` points at this checkout
 

@@ -591,6 +591,19 @@ function test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay() {
   [ "$rc" = 1 ]
 }
 
+# a tag set in an Included file colors its host, and an Include between a tag
+# and a Host ends the tag there, as any other line does
+function test_ssh_host_tag_follows_include() {
+  local h="$_HI_WORKDIR/inc-tags"
+  mkdir -p "$h/.ssh/config.d"
+  printf 'Include config.d/*\n# Tags: orphan\nInclude none/*\nHost after\n' >"$h/.ssh/config"
+  printf '# Tags: inc\nHost included\n' >"$h/.ssh/config.d/01"
+  unset _HI_TAG_NAME
+  [ "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag included)" = inc ] || return 1
+  unset _HI_TAG_NAME
+  [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag after)" ]
+}
+
 function test_ssh_host_tag_untagged_host_fails() {
   ! _hi_fixture_tag untaggedhost
 }
@@ -1282,7 +1295,7 @@ function run_core_tests() {
   _hi_check "LOCALUSER special case" test_override_color_localuser_special_case
   _hi_check "LOCALHOSTNAME special case" test_override_color_localhostname_special_case
 
-  _hi_h2 "Testing: a pin's own hex (settings/colors' fourth column)"
+  _hi_h2 "Testing: a pin's own hex (config/colors' fourth column)"
   _hi_check "The hex joins the name, from every reader" test_pin_hex_joins_the_name
   _hi_check "A leading # is allowed, either case" test_pin_hex_accepts_a_leading_hash_and_either_case
   _hi_check "The hex paints the escape, over any scheme" test_pin_hex_paints_the_escape_over_the_scheme
@@ -1328,6 +1341,7 @@ function run_core_tests() {
 
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
+  _hi_check "A tag in an Included file colors its host" test_ssh_host_tag_follows_include
   _hi_check "Untagged host fails" test_ssh_host_tag_untagged_host_fails
   _hi_check "A relayed hop reads the client's tag map" test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay
   _hi_check "'Tags=' syntax and multi-alias Host lines" test_ssh_host_tag_equals_syntax_and_multialias

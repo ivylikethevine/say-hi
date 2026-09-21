@@ -617,7 +617,7 @@ export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
 EOF
   # The demo's subject: a new alias and a redefinition of the shipped `cat`
-  # over the binary hi resolved, in the POSIX+fish subset settings/aliases.sh
+  # over the binary hi resolved, in the POSIX+fish subset config/aliases.sh
   # says the file has to stay in. Both are in effect in a bash session and a
   # fish one, which is what the tape shows.
   demo_overlay aliases.sh <<'EOF'

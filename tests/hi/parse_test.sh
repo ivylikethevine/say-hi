@@ -1078,7 +1078,7 @@ function test_the_shell_tree_is_the_documented_order() {
 # as a process against two throwaway trees.
 #
 # tests/lib/fixtures.sh's _hi_scratch_tree builds the shape a *target* gets:
-# common/, settings/, load.sh, and hi.sh copied in, and deliberately no
+# common/, config/, load.sh, and hi.sh copied in, and deliberately no
 # scripts/, no tests/, and no .git. That is the shape every one of these
 # flags has to refuse by name, and it is the reason $_HI_NO_CHECKOUT exists.
 # _hi_subcmd_run (same file) runs hi.sh as a process against one.
@@ -1094,7 +1094,7 @@ function test_the_shell_tree_is_the_documented_order() {
 # just "some install.sh".
 function _hi_subcmd_stubs() {
   local home stub dir
-  home="$(_hi_scratch_tree subcmd-stubs common settings load.sh hi.sh)"
+  home="$(_hi_scratch_tree subcmd-stubs common config load.sh hi.sh)"
   mkdir -p "$home/say-hi/scripts" "$home/say-hi/tests"
   for stub in install:scripts/install.sh preview:scripts/preview.sh \
     doctor:scripts/doctor.sh; do
@@ -1109,7 +1109,7 @@ function _hi_subcmd_stubs() {
 # every one of them names itself rather than dying on a missing path
 function test_local_subcommands_refuse_without_the_checkout() {
   local home flag say out
-  home="$(_hi_scratch_tree subcmd-bare common settings load.sh hi.sh)"
+  home="$(_hi_scratch_tree subcmd-bare common config load.sh hi.sh)"
   for flag in --install --uninstall --configure "--preview colors" "--preview packages" "--preview header" --doctor --update; do
     # the refusal names the row's flag alone, never a subject or target
     # riding after it - every subcommand agrees, --preview included, since
@@ -1177,7 +1177,7 @@ function test_local_subcommands_exec_the_right_script() {
 # so this needs the real script.
 function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
-  home="$(_hi_scratch_tree preview-real common settings load.sh hi.sh scripts)"
+  home="$(_hi_scratch_tree preview-real common config load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
   [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1

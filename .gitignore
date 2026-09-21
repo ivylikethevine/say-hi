@@ -61,9 +61,9 @@ CLAUDE.local.md
 # lychee's link-check config, read by ci.yml and link-check.yml
 !lychee.toml
 # everything under the payload directories ships, whatever it is named: the
-# blanket rules above once swallowed a settings/*.toml (drift_test.sh's
+# blanket rules above once swallowed a config/*.toml (drift_test.sh's
 # lint_ignored_payload keeps it that way)
-!settings/**
+!config/**
 !common/**
 # packaging/mkpkg.sh's staging and output directory. Not "build/" or
 # "output/": the blanket rules above would swallow those.

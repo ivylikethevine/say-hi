@@ -102,10 +102,10 @@ function test_bash_registers_hi_completion() {
 # the file.
 function test_bash_sources_the_convenience_aliases() {
   local sample
-  sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/settings/aliases.sh" |
+  sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/config/aliases.sh" |
     sed -E 's/^alias +//; s/=$//' | tr '\n' ' ')"
   [ -n "$sample" ] || {
-    _hi_cecho " | settings/aliases.sh defines no unguarded aliases left to sample" "$BLUE"
+    _hi_cecho " | config/aliases.sh defines no unguarded aliases left to sample" "$BLUE"
     return 0
   }
   _hi_rc_shell xterm-256color bash \
@@ -346,7 +346,10 @@ function test_remote_session_aliases_overlay_config() {
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; alias '"$name" ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; functions '"$name" ;;
   esac
-  out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 2>/dev/null)"
+  # the editor aliases are gated on their tool (config/aliases.sh), and no
+  # runner has micro: a stub on PATH stands in for it
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 \
+    PATH="$(_hi_fake_path rc-tools micro tmux):$PATH" 2>/dev/null)"
   rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/.tmux.conf"
   if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
     _hi_cecho " | $name is: [$out]" "$RED"
@@ -791,7 +794,7 @@ function test_fish_completes_the_word_after_preview() {
   ')"
   printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || return 1
   printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || return 1
-  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 4 ]
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 3 ]
 }
 
 # _hi_rc_reentry <shell> <rc> <probe> - <shell> sources hi's <rc> with an
@@ -837,7 +840,7 @@ function test_sh_rc_re_source_after_an_upgrade() {
   local shell="$1" rc="$2" base="$_HI_WORKDIR/upgrade-$1"
   rm -rf "$base" "$base.out"
   mkdir -p "$base/say-hi" "$base/cfg"
-  cp -R "$_HI_ROOT/common" "$_HI_ROOT/settings" "$base/say-hi/"
+  cp -R "$_HI_ROOT/common" "$_HI_ROOT/config" "$base/say-hi/"
   (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$base" _HI_PROMPT_TOOL=hi \
     _HI_CONFIG_DIR="$base/cfg" "$shell" -c "
       source \"\$_HI_HOME/say-hi/common/$rc\"

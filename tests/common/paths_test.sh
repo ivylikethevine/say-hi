@@ -119,7 +119,7 @@ function test_paths_sources_cleanly_under_strict_mode() {
   '
 }
 
-# settings/aliases.sh and common/config.fish read the toggles bare, and neither
+# config/aliases.sh and common/config.fish read the toggles bare, and neither
 # can use ${X:-0} because fish sources both and has no such expansion. So the
 # entry points guarantee the variables exist instead. Getting this wrong is
 # invisible until something runs under `set -u`, where an unset toggle is fatal
@@ -155,16 +155,16 @@ function test_aliases_source_cleanly_under_nounset() {
     source "$_HI_ALIASES"' 2>/dev/null
 }
 
-# The overlay's aliases.sh is additive - settings/aliases.sh's last line sources
+# The overlay's aliases.sh is additive - config/aliases.sh's last line sources
 # $_HI_CONFIG_DIR/aliases.sh so the user's definitions win. Point
-# $_HI_CONFIG_DIR at the tree's own settings/ and that line becomes the file
+# $_HI_CONFIG_DIR at the tree's own config/ and that line becomes the file
 # sourcing itself, forever: exactly what a target does when the overlay is
-# unpacked over settings/ instead of into its own config/, and what hung every ssh
+# unpacked over config/ instead of into its own overlay/, and what hung every ssh
 # session until the overlay got a directory of its own. Backgrounded and
 # waited on because a hang, not a failure, is the symptom - a bare call here
 # would take the whole suite down with it.
 function test_aliases_do_not_source_themselves() {
-  _HI_CONFIG_DIR="$_HI_ROOT/settings" bash -c 'set -eu
+  _HI_CONFIG_DIR="$_HI_ROOT/config" bash -c 'set -eu
     . "$_HI_HOME/say-hi/common/paths.sh"
     . "$_HI_ALIASES"' >/dev/null 2>&1 &
   _hi_wait_pid "$!" 10
@@ -246,13 +246,13 @@ function test_overlay_falls_back_per_file() {
   dir="$(_hi_overlay_dir)"
   printf 'hostname,foo,brred\n' >"$dir/colors"
   rm -rf "$dir/packages.d"
-  [ "$(_hi_resolved _HI_PACKAGES_D "$dir")" = "$_HI_ROOT/settings/packages.d" ]
+  [ "$(_hi_resolved _HI_PACKAGES_D "$dir")" = "$_HI_ROOT/config/packages.d" ]
 }
 
 function test_no_overlay_uses_the_tree() {
   local dir="$_HI_WORKDIR/no-such-overlay"
-  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$_HI_ROOT/settings/colors" ] &&
-    [ "$(_hi_resolved _HI_PACKAGES_D "$dir")" = "$_HI_ROOT/settings/packages.d" ]
+  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$_HI_ROOT/config/colors" ] &&
+    [ "$(_hi_resolved _HI_PACKAGES_D "$dir")" = "$_HI_ROOT/config/packages.d" ]
 }
 
 # $_HI_PACKAGES_D is a directory, not a file, so it needs its own two cases
@@ -321,7 +321,7 @@ function test_an_exported_path_does_not_survive() {
     }
     # shellcheck disable=SC2016 # same again, against no overlay at all
     [ "$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
-      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$_HI_ROOT/settings/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$_HI_ROOT/config/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
       _hi_cecho " | $var kept an exported path over the tree's copy" "$RED"
       return 1
     }
@@ -419,11 +419,11 @@ function test_the_overlay_beats_the_editors_own_config() {
 function test_a_target_ignores_its_own_editor_config() {
   local home
   home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .config/helix/config.toml .nanorc .emacs .tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/settings/vimrc" 1 &&
-    _hi_tier_is _HI_NVIMRC "$home" "$_HI_ROOT/settings/init.lua" 1 &&
-    _hi_tier_is _HI_HELIXRC "$home" "$_HI_ROOT/settings/config.toml" 1 &&
-    _hi_tier_is _HI_NANORC "$home" "$_HI_ROOT/settings/nanorc" 1 &&
-    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/settings/init.el" 1 &&
+  _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/config/vimrc" 1 &&
+    _hi_tier_is _HI_NVIMRC "$home" "$_HI_ROOT/config/init.lua" 1 &&
+    _hi_tier_is _HI_HELIXRC "$home" "$_HI_ROOT/config/config.toml" 1 &&
+    _hi_tier_is _HI_NANORC "$home" "$_HI_ROOT/config/nanorc" 1 &&
+    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/config/init.el" 1 &&
     _hi_tier_is _HI_TMUX_CONF "$home" "" 1
 }
 
@@ -477,7 +477,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
     _HI_CONFIG_DIR="$1" bash -c '"'"'
       source "$_HI_HOME/say-hi/common/core.sh"
       printf "%s\n%s" "$_HI_COLORS" "$_HI_PACKAGES_D"'"'"'' _ "$second")"
-  [ "$out" = "$second/colors"$'\n'"$_HI_ROOT/settings/packages.d" ] || {
+  [ "$out" = "$second/colors"$'\n'"$_HI_ROOT/config/packages.d" ] || {
     _hi_cecho " | re-resolved to [$out], not the second overlay" "$RED"
     return 1
   }
@@ -486,7 +486,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs its overlay
 # lookup in paths.sh - except settings.sh and plugins.d (the overlay is
 # plugins.d's only home, so it is an unguarded export instead) and
-# the four additive ones, which each shell or settings/aliases.sh sources by
+# the four additive ones, which each shell or config/aliases.sh sources by
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
 # aliases.sh and the three per-shell files (bashrc, zshrc, config.fish) -
 # and the prompt frameworks' five, which only a target reads, by name, as
@@ -527,7 +527,7 @@ function test_overlay_guards_match_the_roster() {
 function test_overlay_settings_are_visible_to_the_gate() {
   local dir home
   dir="$(_hi_overlay_dir)"
-  home="$(_hi_scratch_tree overlaygate common settings)"
+  home="$(_hi_scratch_tree overlaygate common config)"
   printf 'export _HI_DISABLE_LOCAL=1\n' >"$dir/settings.sh"
   _hi_all_gated "$(_HI_HOME="$home" _HI_CONFIG_DIR="$dir" _hi_gate 0 0)" 1
 }

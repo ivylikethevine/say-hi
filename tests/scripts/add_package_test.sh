@@ -22,7 +22,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # scripts/, and hi.sh says so and stops - that case is tests/hi/parse_test.sh's
 # with the other subcommands, not this file's). Prints the fixture's _HI_HOME.
 function _hi_addpkg_fixture() {
-  _hi_scratch_tree "$1" common settings load.sh hi.sh scripts
+  _hi_scratch_tree "$1" common config load.sh hi.sh scripts
 }
 
 # _hi_addpkg_run <home> <config> <args...> - _hi_subcmd_run with its own
@@ -208,8 +208,8 @@ function test_add_package_first_call_seeds_the_tree_in() {
   out="$(_hi_addpkg_run "$home" "$cfg" foo:1)" || return 1
   [[ "$out" == *"seeded $cfg/packages.d"* ]] || return 1
   [ -f "$cfg/packages.d/00-default" ] && [ -f "$cfg/packages.d/01-extra" ] && [ -f "$cfg/packages.d/custom" ] || return 1
-  cmp -s "$cfg/packages.d/00-default" "$home/say-hi/settings/packages.d/00-default" &&
-    cmp -s "$cfg/packages.d/01-extra" "$home/say-hi/settings/packages.d/01-extra"
+  cmp -s "$cfg/packages.d/00-default" "$home/say-hi/config/packages.d/00-default" &&
+    cmp -s "$cfg/packages.d/01-extra" "$home/say-hi/config/packages.d/01-extra"
 }
 
 # --group 00-default on a fresh overlay writes the seeded+extended content,
@@ -219,7 +219,7 @@ function test_add_package_group_default_extends_the_seeded_file() {
   home="$(_hi_addpkg_fixture addpkg-seed-default)"
   cfg="$_HI_WORKDIR/addpkg-seed-default-cfg"
   _hi_addpkg_run "$home" "$cfg" hi-no-such-tool:1 --group 00-default >/dev/null || return 1
-  tree_lines="$(wc -l <"$home/say-hi/settings/packages.d/00-default")"
+  tree_lines="$(wc -l <"$home/say-hi/config/packages.d/00-default")"
   cfg_lines="$(wc -l <"$cfg/packages.d/00-default")"
   [ "$cfg_lines" -eq "$((tree_lines + 1))" ] && grep -qxF "$_HI_ADDPKG_KNOWN_ROW" "$cfg/packages.d/00-default"
 }
@@ -262,7 +262,7 @@ function test_add_package_elsewhere_note_names_a_tree_member() {
   home="$(_hi_addpkg_fixture addpkg-elsewhere)"
   cfg="$_HI_WORKDIR/addpkg-elsewhere-cfg"
   out="$(_hi_addpkg_run "$home" "$cfg" "$_HI_ADDPKG_KNOWN_ROW")" || return 1
-  [[ "$out" == *"note: bat is already checked for by"*"settings/packages.d/00-default"* ]]
+  [[ "$out" == *"note: bat is already checked for by"*"config/packages.d/00-default"* ]]
 }
 
 function run_add_package_tests() {

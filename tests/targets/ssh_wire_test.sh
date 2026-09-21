@@ -197,12 +197,15 @@ function _hi_wire_case() {
 
   # the ProxyCommand rides in ahead of the target, where hi's parser hands
   # every -o to ssh; ControlMaster means the probe and the session share the
-  # one connection this proxy carries, so its count is the whole cost
+  # one connection this proxy carries, so its count is the whole cost.
+  # Compression=no: the claim is the uncompressed script, and a `Compression
+  # yes` in the machine's own ssh config would carry less than it
   out_file="$_HI_WORKDIR/$label.ssh.out"
   _hi_cecho " | Running: $_HI_LAUNCHER -p $_HI_SSH_PORT (through the counting proxy) hitest@127.0.0.1 $probe"
   t0="$(_hi_now)"
   # `<&3` pairs with _hi_pty_stdin in run_wire_tests, as in every ssh suite
-  _hi_ssh_launch "$_HI_SSH_PORT" -o "ProxyCommand=python3 $_HI_WORKDIR/wire_proxy.py %h %p $counts"
+  _hi_ssh_launch "$_HI_SSH_PORT" -o Compression=no \
+    -o "ProxyCommand=python3 $_HI_WORKDIR/wire_proxy.py %h %p $counts"
   "${_HI_SSH_LAUNCH[@]}" "$probe" <&3 >"$out_file" 2>&1 &
   _hi_wait_pid "$!" "${_HI_SSH_CASE_TIMEOUT:-90}"
   exit_code="$_HI_WAIT_EXIT"

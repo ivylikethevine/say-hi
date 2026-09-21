@@ -271,8 +271,8 @@ function test_overlay_stream_emits_an_armored_line_either_way() {
   dir="$(_hi_cache_rt os.line)"
   warm="$(XDG_RUNTIME_DIR="$dir" _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
   cold="$(XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
-  case "$warm" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
-  case "$cold" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
+  case "$warm" in *'tar -x -m -z -f - -C "$_HI_ROOT/overlay"'*) ;; *) return 1 ;; esac
+  case "$cold" in *'tar -x -m -z -f - -C "$_HI_ROOT/overlay"'*) ;; *) return 1 ;; esac
 }
 
 # a warm cache is the same bytes twice: gzip stamps an mtime, so two *fresh*
@@ -310,7 +310,7 @@ function test_payload_cached_is_keyed_on_the_cut_list() {
   _hi_payload_excl colors
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached cut || return 1
   [ "$whole" = "$dir/hi.payload.tree" ] && [ "$cut" != "$whole" ] &&
-    [[ "$(tar tzf "$whole")" == *settings/colors* && "$(tar tzf "$cut")" != *settings/colors* ]]
+    [[ "$(tar tzf "$whole")" == *config/colors* && "$(tar tzf "$cut")" != *config/colors* ]]
 }
 
 function test_payload_cached_rebuilds_when_a_source_file_is_newer() {

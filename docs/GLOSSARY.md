@@ -2,14 +2,14 @@
 
 say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
-**fish** (which parses `common/paths.sh`, `settings/aliases.sh`, and
+**fish** (which parses `common/paths.sh`, `config/aliases.sh`, and
 `settings.sh` natively). Targets also split between **GNU and BSD userlands**.
 Each entry is a construct that looks odd until you know which master it serves.
 
 Every entry carries a stable `HI.NN` code; a file references it with a
 `# GLOSSARY: HI.NN` tag — one code, or two joined with `+`, optional prose
 after — instead of re-explaining. The tag is _mandatory_ in `common/`,
-`settings/`, `load.sh`, and `hi.sh`. Tags point at codes, so an entry can be
+`config/`, `load.sh`, and `hi.sh`. Tags point at codes, so an entry can be
 retitled without touching a tagged file; codes are never reused once retired.
 `tests/lint/drift_test.sh` fails the build if a tag names a code this file
 doesn't define, or if an entry here is referenced by nothing. This file never
@@ -175,7 +175,7 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 ## HI.13 command -v fallthrough
 
 `export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)"` in
-`settings/aliases.sh`, with the aliases built on the result: resolved at
+`config/aliases.sh`, with the aliases built on the result: resolved at
 source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every
 target has, so no alias points at a missing one.
 
@@ -189,7 +189,7 @@ Every chain runs before any alias exists, the overlay's `aliases.sh`
 included (it is sourced last): in zsh and dash `command -v name` returns an
 _alias's_ definition once one exists, so an overlay `alias cat=...` ahead of
 the chains would leave `$_HI_CAT_BIN` holding the alias body.
-`tests/settings/alias_fallthrough_test.sh` is the regression test.
+`tests/config/alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit
 
@@ -277,7 +277,7 @@ that shell's own arm. Toggle defaults come first so the files after them still
 win. `_HI_REMOTE_SESSION=1` is exported because this path never reaches
 `load.sh`. `settings.sh` keeps its `[ -f ]` guard because a bare `.` on a
 missing file abandons the rest of the file in ash/dash. `_HI_CONFIG_DIR` points
-at the target's own `config/`, where the shipped overlay was unpacked.
+at the target's own `overlay/`, where the shipped overlay was unpacked.
 
 ## HI.21 baked prompt
 
@@ -641,8 +641,8 @@ quoting is one decision rather than one per transport.
 
 The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) lives outside the
 tree, so it travels as a second, much smaller archive rather than inside the
-payload. It lands in a `config/` of its own beside `settings/`, with
-`$_HI_CONFIG_DIR` pointing there, never over `settings/`: `settings/aliases.sh`
+payload. It lands in an `overlay/` of its own beside `config/`, with
+`$_HI_CONFIG_DIR` pointing there, never over `config/`: `config/aliases.sh`
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
@@ -752,7 +752,7 @@ Three variables are exported; which shell needs which is the design:
 `$ZDOTDIR` and `$ENV` reach any zsh or POSIX shell started inside the session,
 however it was started, including by something that is not a shell. bash and
 fish have no equivalent (`$BASH_ENV` is for _non_-interactive bash only), so
-`settings/aliases.sh` defines a `bash` and a `fish` wrapper off
+`config/aliases.sh` defines a `bash` and a `fish` wrapper off
 `$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
 function of that name, and without it `fish` would call itself forever.
 
@@ -838,7 +838,7 @@ hues.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twenty-four palette
 names render as; it never adds a name. `_hi_hash_color`, the
-`settings/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
+`config/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
 the same vocabulary, so a scheme is invisible to everything that reasons
 about a color by name - only the bytes a name turns into change. The names
 are the terminal's twelve plus twelve extras (orange, pink, teal, ...) that
@@ -849,7 +849,7 @@ built-in hex, so a truecolor terminal shows an orange host as orange without
 anyone choosing a scheme. `_hi_color_base` is the pair as a name, for zsh's
 `%F{}` and fish's `set_color`, which know the sixteen and nothing else.
 
-A `settings/colors` row may also carry its own hex, in an optional fourth
+A `config/colors` row may also carry its own hex, in an optional fourth
 column, and that is the one thing that outranks the scheme — for that pin
 only. `_hi_colors_scan` joins it to the name (`brred#ff5f5f`) and
 `_hi_color_split` takes the two apart again, so the pinned color travels as
@@ -1117,7 +1117,7 @@ unpacked at `$_HI_CONFIG_DIR`.
 
 Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into
-a `config/` of its own, so a line naming a _path_ - a
+an `overlay/` of its own, so a line naming a _path_ - a
 second rc beside it, a plugin directory, a manager's bootstrap - names
 something no target has, and the editor or shell fails on it rather than hi.
 `hi.sh`'s `_hi_lint_awk` finds exactly those lines; the per-dialect grammar,
@@ -1172,11 +1172,11 @@ eight slots, or eight as written - and handed to `_hi_packages_palette`,
 where it outranks `$_HI_PACKAGES_PALETTE`; the ramp in force is put back when
 the check ends. The line is not a comment on purpose: the strip would take
 it. With no member at all the check prints nothing. Unlike `plugins.d`,
-`$_HI_PACKAGES_D` has a real tree default (`settings/packages.d`, shipping
+`$_HI_PACKAGES_D` has a real tree default (`config/packages.d`, shipping
 `default` and `extra`) and a `-d` guard in `common/paths.sh`, the same
 tree-default/overlay-override cascade `$_HI_COLORS` uses - so a
 `packages.d/` of the user's own **replaces** the tree's wholesale, the way a
-hand-made `~/.config/say-hi/colors` already replaces `settings/colors`.
+hand-made `~/.config/say-hi/colors` already replaces `config/colors`.
 That is why `hi --add-package` seeds the tree's members into a fresh overlay
 directory on its first write: without it, the first custom group would
 silently drop every shipped check.
@@ -1184,7 +1184,7 @@ silently drop every shipped check.
 ## HI.59 plugins
 
 `plugins.d` is the second [HI.58](#hi58-overlay-directory-members) directory:
-each member is a plugin, a file in the POSIX+fish subset `settings/aliases.sh`
+each member is a plugin, a file in the POSIX+fish subset `config/aliases.sh`
 keeps (`export`, `alias`, `&&` chains), so one file serves all three shells
 and something new - another tool's init, a prompt segment - rides to every
 target with no edit to the tree. `common/paths.sh` exports `$_HI_PLUGINS_D`

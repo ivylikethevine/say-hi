@@ -401,7 +401,7 @@ function _hi_config_preview() {
 }
 
 # what each editor alias actually resolves to with the override on - read
-# back from settings/aliases.sh itself (the overlay's copy on a target)
+# back from config/aliases.sh itself (the overlay's copy on a target)
 # rather than restated here, so a box with neither nvim nor vim, say, shows
 # nothing for that line instead of a resolved command that was never real. A
 # subshell: nothing this defines should survive past the preview.
@@ -413,7 +413,7 @@ function _hi_editors_preview() {
     # _hi_tool_alias_preview's own export below sourcing the same file
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this subshell
-    # shellcheck source=../settings/aliases.sh
+    # shellcheck source=../config/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     local e body
     for e in nano vim nvim emacs micro hx; do
@@ -425,7 +425,7 @@ function _hi_editors_preview() {
 }
 
 # what `cat` and `eza` resolve to with the rebinds on - read back from
-# settings/aliases.sh itself (the same trick _hi_editors_preview uses above)
+# config/aliases.sh itself (the same trick _hi_editors_preview uses above)
 # rather than restated here, so a BAT_CONFIG_PATH that drops --theme, say,
 # shows up here too instead of drifting from what a real session gets. The
 # resolution caches into _HI_*_BIN/_HI_*_OPTS on export, so those are cleared
@@ -436,7 +436,7 @@ function _hi_tool_alias_preview() {
     _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
     _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
-    # shellcheck source=../settings/aliases.sh
+    # shellcheck source=../config/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     if [ -n "$_HI_BAT_BIN" ]; then
       printf 'cat -> %s %s\n' "$_HI_CAT_BIN" "$_HI_BAT_OPTS"

@@ -58,7 +58,7 @@ function _hi_probe_fixture() {
   local root="$1/say-hi"
   mkdir -p "$root"
   : >"$root/hi.sh"
-  printf '%s\n' "alias hi_info='echo hi_info'" "alias sudo='command sudo '" >"$root/aliases.sh"
+  printf '%s\n' "alias hi_info='echo hi_info'" "alias cat='command cat'" >"$root/aliases.sh"
   printf '%s' "$root"
 }
 
@@ -77,7 +77,7 @@ function test_probe_cmd_bash_shape_fires_only_with_a_real_root() {
 }
 
 function test_probe_cmd_fallback_shape_fires_only_with_the_alias() {
-  _hi_probe_says_ok fallback "alias sudo='x'; " &&
+  _hi_probe_says_ok fallback "alias cat='x'; " &&
     ! _hi_probe_says_ok fallback ""
 }
 
@@ -94,7 +94,7 @@ function test_probe_cmd_rooted_elsewhere_fires_off_another_tree() {
 }
 
 function test_probe_cmd_fish_shapes_run_under_fish() {
-  _hi_probe_says_ok fallback_fish "function sudo; end; " "" fish &&
+  _hi_probe_says_ok fallback_fish "function cat; end; " "" fish &&
     ! _hi_probe_says_ok fallback_fish "" "" fish &&
     _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " "" fish &&
     ! _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " /nonexistent/say-hi fish

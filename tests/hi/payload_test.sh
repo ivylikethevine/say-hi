@@ -35,13 +35,13 @@ function test_payload_ships_everything_by_default() {
   local dir="$_HI_WORKDIR/notrim" listing
   mkdir -p "$dir"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/settings/vimrc*) ;; *)
-    _hi_cecho " | a default client did not ship settings/vimrc" "$RED"
+  case "$listing" in *say-hi/config/vimrc*) ;; *)
+    _hi_cecho " | a default client did not ship config/vimrc" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/settings/init.lua*) ;; *)
-    _hi_cecho " | a default client did not ship settings/init.lua" "$RED"
+  case "$listing" in *say-hi/config/init.lua*) ;; *)
+    _hi_cecho " | a default client did not ship config/init.lua" "$RED"
     return 1
     ;;
   esac
@@ -60,8 +60,8 @@ function test_payload_always_ships_aliases() {
     printf "export %s='1'\n" "$t" >>"$dir/settings.sh"
   done
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/settings/aliases.sh*) return 0 ;; esac
-  _hi_cecho " | every toggle off dropped settings/aliases.sh, which carries the whole alias set" "$RED"
+  case "$listing" in *say-hi/config/aliases.sh*) return 0 ;; esac
+  _hi_cecho " | every toggle off dropped config/aliases.sh, which carries the whole alias set" "$RED"
   return 1
 }
 
@@ -140,7 +140,7 @@ function test_overlay_sends_nothing_outside_the_roster() {
 function test_overlay_carries_package_groups() {
   local one="$_HI_WORKDIR/groups-one" split="$_HI_WORKDIR/groups-split" n out a b
   mkdir -p "$one/packages.d" "$split/packages.d"
-  cp "$_HI_ROOT/settings/packages.d/00-default" "$one/packages.d/all"
+  cp "$_HI_ROOT/config/packages.d/00-default" "$one/packages.d/all"
   n="$(grep -c . "$one/packages.d/all")"
   head -n $((n / 2)) "$one/packages.d/all" >"$split/packages.d/10-lang"
   { printf 'color=orange\n' && sed -n "$((n / 2 + 1)),\$p" "$one/packages.d/all"; } >"$split/packages.d/20-box"
@@ -363,7 +363,7 @@ function test_prompt_list_is_what_home_has() {
 # every member (so a rename can't quietly ship an empty payload).
 function test_payload_ships_exactly_the_travelled_paths() {
   local m
-  [ "${_HI_PAYLOAD[*]}" = "common settings load.sh hi.sh" ] || {
+  [ "${_HI_PAYLOAD[*]}" = "common config load.sh hi.sh" ] || {
     _hi_cecho " | payload list changed: ${_HI_PAYLOAD[*]} - update this guard deliberately" "$RED"
     return 1
   }
@@ -375,8 +375,8 @@ function test_payload_ships_exactly_the_travelled_paths() {
   done
 }
 
-# The payload only carries the *in-tree* settings/, so once the user's real
-# settings/colors/packages live outside the tree they need their own stream or a
+# The payload only carries the *in-tree* config/, so once the user's real
+# config/colors/packages live outside the tree they need their own stream or a
 # target silently falls back to the shipped defaults. These assert the two
 # halves that can be checked without a target: that nothing is sent when there
 # is nothing to send, and that what is sent lands under the names paths.sh
@@ -429,9 +429,9 @@ function test_overlay_strip_removes_comments() {
   local dir="$_HI_WORKDIR/ovl-strip" out
   mkdir -p "$dir"
   printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
-  cp "$_HI_ROOT/settings/colors" "$dir/colors"
-  cp "$_HI_ROOT/settings/vimrc" "$dir/vimrc"
-  cp "$_HI_ROOT/settings/init.lua" "$dir/init.lua"
+  cp "$_HI_ROOT/config/colors" "$dir/colors"
+  cp "$_HI_ROOT/config/vimrc" "$dir/vimrc"
+  cp "$_HI_ROOT/config/init.lua" "$dir/init.lua"
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat settings.sh)"
   [ "$out" = '#!/bin/sh
 export _HI_MAX_WIDTH=72' ] || {
@@ -461,7 +461,7 @@ export _HI_MAX_WIDTH=72' ] || {
 }
 
 # the user's own aliases ride the same stream under their bare name,
-# which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
+# which is where config/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
 # Naming what the tar listed separates the three ways this fails - an empty
 # archive, a second member riding along, and a member under another name - which
@@ -701,13 +701,13 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
   _hi_payload_excl "${members[@]}"
-  [ "${payload_excl[*]}" = "say-hi/settings/colors say-hi/settings/packages.d" ] || {
+  [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages.d" ] || {
     _hi_cecho " | cut: [${payload_excl[*]}]" "$RED"
     return 1
   }
   listing="$(_hi_payload_tar | tar tzf -)"
-  [[ "$listing" != *settings/colors* && "$listing" != *settings/packages.d* ]] &&
-    [[ "$listing" == *settings/aliases.sh* && "$listing" == *settings/nanorc* ]] || return 1
+  [[ "$listing" != *config/colors* && "$listing" != *config/packages.d* ]] &&
+    [[ "$listing" == *config/aliases.sh* && "$listing" == *config/nanorc* ]] || return 1
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
 }
 
@@ -717,7 +717,7 @@ function test_the_payload_is_whole_without_a_cut_list() {
   local dir="$_HI_WORKDIR/excl-none"
   mkdir -p "$dir"
   printf 'hosttag,x,red\n' >"$dir/colors"
-  [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/settings/colors* ]]
+  [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
 }
 
 # the cut list is the members paths.sh resolves overlay-over-tree, no more:
@@ -725,31 +725,35 @@ function test_the_payload_is_whole_without_a_cut_list() {
 function test_the_shadow_roster_matches_paths_sh() {
   local f
   for f in $_HI_OVERLAY_SHADOWS; do
-    if ! [ -e "$_HI_ROOT/settings/$f" ] || ! grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh"; then
+    if ! [ -e "$_HI_ROOT/config/$f" ] || ! grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh"; then
       _hi_cecho " | $f is in _HI_OVERLAY_SHADOWS without a tree default and an overlay guard in paths.sh" "$RED"
       return 1
     fi
   done
-  for f in "$_HI_ROOT"/settings/*; do
+  for f in "$_HI_ROOT"/config/*; do
     [ "${f##*/}" = aliases.sh ] || case "$_HI_OVERLAY_SHADOWS" in *" ${f##*/} "*) ;; *) return 1 ;; esac
   done
 }
 
 # The tag map a relayed hop colors by: the `# Tags:` lines of ~/.ssh/config
-# with the Host or Match line each sits over, and none of the block - no
+# and the files it Includes, with the Host or Match line each sits over, and
+# none of the block - no
 # HostName, no User, no untagged host. From a target it is the overlay's copy
 # or nothing: the middle box's own config is not the client's.
 function test_ssh_tags_is_cut_from_the_ssh_config() {
   local dir="$_HI_WORKDIR/tags" out
-  mkdir -p "$dir/overlay" "$dir/rt"
+  mkdir -p "$dir/overlay" "$dir/rt" "$dir/.ssh/conf.d"
+  printf '# Tags: inc\nHost included\n' >"$dir/.ssh/conf.d/01"
   printf '%s\n' '# Tags: prod, web' 'Host web1 web2' '  HostName 10.0.0.1' '  User deploy' '' \
     'Host plain' '  HostName 10.0.0.2' '# tags=lab' '# a note' 'Match host lab-* user x' \
     '# Tags: orphan' 'Include conf.d/*' 'Host after-include' >"$dir/config"
-  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat ssh_tags)"
+  out="$(HOME="$dir" XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat ssh_tags)"
   [ "$out" = '# Tags: prod, web
 Host web1 web2
 # tags=lab
-Match host lab-* user x' ] || {
+Match host lab-* user x
+# Tags: inc
+Host included' ] || {
     _hi_cecho " | ssh_tags arrived as: [$out]" "$RED"
     return 1
   }
@@ -764,7 +768,7 @@ function test_the_trees_own_editor_rc_is_not_streamed() {
   local dir
   dir="$_HI_WORKDIR/lint-treecopy"
   mkdir -p "$dir"
-  [ -z "$(_HI_VIMRC="$_HI_ROOT/settings/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ]
+  [ -z "$(_HI_VIMRC="$_HI_ROOT/config/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ]
 }
 
 # the rows hi --doctor prints come from the same pass that does the dropping,
@@ -1182,7 +1186,7 @@ function test_strip_spares_heredoc_bodies() {
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages.d/00-default settings/packages.d/01-extra settings/nanorc; do
+  for f in common/flags config/colors config/packages.d/00-default config/packages.d/01-extra config/nanorc; do
     n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
@@ -1190,7 +1194,7 @@ function test_strip_covers_the_data_files() {
     }
   done
   # the files with a comment character of their own: <file>:<char>
-  for f in 'settings/vimrc:"' 'settings/init.el:;' 'settings/init.lua:--'; do
+  for f in 'config/vimrc:"' 'config/init.el:;' 'config/init.lua:--'; do
     n="$(grep -cE "^[[:space:]]*${f#*:}" "$dir/say-hi/${f%%:*}" || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | ${f%%:*} kept $n comment line(s)" "$RED"
@@ -1204,14 +1208,14 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages.d/00-default settings/packages.d/01-extra settings/nanorc; do
+  for f in common/flags config/colors config/packages.d/00-default config/packages.d/01-extra config/nanorc; do
     diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
       <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"
       bad=1
     }
   done
-  for f in 'settings/vimrc:"' 'settings/init.el:;' 'settings/init.lua:--'; do
+  for f in 'config/vimrc:"' 'config/init.el:;' 'config/init.lua:--'; do
     diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}" | sed 's/^[[:space:]]*//') \
       <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
@@ -1268,7 +1272,7 @@ function run_hi_payload_tests() {
   _hi_h1 "Testing hi.sh: the payload"
 
   _hi_h2 "Testing: the payload list"
-  _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
+  _hi_check "Ships exactly common/config/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
   _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
