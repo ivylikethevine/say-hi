@@ -575,7 +575,7 @@ function doctor_settings_values() {
 # joins one closing row, so a sparse setup stays a short table.
 function doctor_files() {
   doctor_section files "The files hi looks for"
-  local row m h used eff p state text none="" found
+  local row m h used eff p state text none="" found tilde='~'
   local -a locs
   for row in "${_HI_OVERLAY_TABLE[@]}"; do
     m="${row%%|*}" h="${row##*|}"
@@ -608,7 +608,8 @@ function doctor_files() {
         state=absent
       fi
       [ "$state" = absent ] || found=1
-      text="$text${text:+; }$state ${p/#$HOME/\~}"
+      # the ~ from a variable: bash 3.2 keeps a \~ replacement's backslash
+      text="$text${text:+; }$state ${p/#"$HOME"/$tilde}"
     done
     [ -n "$found" ] || {
       none="$none${none:+ }$m"

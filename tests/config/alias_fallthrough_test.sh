@@ -43,6 +43,12 @@ function _hi_write_check_scripts() {
   _HI_FISH_CHECK="$_HI_WORKDIR/fish_check.fish"
 
   cat >"$_HI_POSIX_CHECK" <<'EOF'
+# an alias the shell already had, as a target's rc leaves one; bash reports
+# aliases to `command -v` only with expansion on, as an interactive one has
+if [ -n "${_HI_PRE_ALIAS:-}" ]; then
+  [ -n "${BASH_VERSION:-}" ] && shopt -s expand_aliases
+  alias "$_HI_PRE_ALIAS"
+fi
 . "$_HI_ALIASES" || exit 1
 fail=0
 
@@ -286,6 +292,21 @@ function run_overlay_poisoning_test() {
   done
 }
 
+# Nor can an alias the shell had before hi: Ubuntu's stock root .bashrc has
+# `alias ls='ls --color=auto'`, which `command -v ls` handed back as
+# $_HI_LS_BIN, so the first `ls` ran `alias ... -F -l`. fish never reports one.
+function run_preexisting_alias_test() {
+  _hi_h1 "An alias the shell already had cannot poison the chains"
+  local shell fakepath
+  fakepath="$(_hi_fake_path fp_prealias ls)"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    [ "$shell" = fish ] && continue
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "[$shell] a prior alias ls= does not poison \$_HI_LS_BIN" \
+      _HI_PRE_ALIAS="ls=ls --color=auto" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
+  done
+}
+
 # A value settings.sh exports - here _HI_BAT_OPTS - reaches the alias built
 # from it (core.sh and config.fish source settings.sh ahead of this file).
 function run_bat_opts_test() {
@@ -515,6 +536,7 @@ function run_alias_fallthrough_test() {
   run_presence_tests
   run_overlay_tests
   run_overlay_poisoning_test
+  run_preexisting_alias_test
   run_bat_opts_test
   run_session_wrapper_tests
 

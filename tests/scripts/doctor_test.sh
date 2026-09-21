@@ -1151,7 +1151,7 @@ assert d["findings"] == 0, d["findings"]
 assert d["target"] is None
 assert d["version"]
 secs = {r["section"] for r in d["rows"]}
-assert secs == {"local", "config", "configs", "install", "backends"}, secs
+assert secs == {"local", "config", "files", "configs", "install", "backends"}, secs
 sevs = {r["severity"] for r in d["rows"]}
 assert sevs <= {"info", "ok", "warn", "bad"}, sevs
 assert any(r["label"] == "docker" and r["severity"] == "ok" for r in d["rows"])

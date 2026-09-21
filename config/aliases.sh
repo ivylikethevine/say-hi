@@ -17,13 +17,15 @@ command -v shift >/dev/null 2>&1 &&
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
-# chain. $_HI_BAT_BIN is the bat-only tier that parses $_HI_BAT_OPTS - cat
+# chain. So every `$( )` below clears aliases first, in its own subshell only -
+# the target's `alias ls='ls --color=auto'`, or ours on a re-source, would
+# otherwise become the binary (fish has no unalias and never reports one). $_HI_BAT_BIN is the bat-only tier that parses $_HI_BAT_OPTS - cat
 # and ccat reject that syntax, so the options only ever attach behind it.
 # GLOSSARY: HI.13.
-[ -z "$_HI_CAT_BIN" ] && export _HI_CAT_BIN="$(command -v bat || command -v batcat || command -v ccat || command -v cat)" || true
-[ -z "$_HI_BAT_BIN" ] && export _HI_BAT_BIN="$(command -v bat || command -v batcat)" || true
+[ -z "$_HI_CAT_BIN" ] && export _HI_CAT_BIN="$(command -v unalias >/dev/null && unalias -a; command -v bat || command -v batcat || command -v ccat || command -v cat)" || true
+[ -z "$_HI_BAT_BIN" ] && export _HI_BAT_BIN="$(command -v unalias >/dev/null && unalias -a; command -v bat || command -v batcat)" || true
 # one ladder behind all three list names below, newest first
-[ -z "$_HI_LS_BIN" ] && export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)" || true
+[ -z "$_HI_LS_BIN" ] && export _HI_LS_BIN="$(command -v unalias >/dev/null && unalias -a; command -v eza || command -v exa || command -v ls)" || true
 
 # off on _HI_DISABLE_EDITORS=1, or on the editor's own _HI_DISABLE_<EDITOR>=1;
 # `|| true` keeps set -e sourcers alive. Every alias below is gated on what it
@@ -41,11 +43,11 @@ command -v shift >/dev/null 2>&1 &&
 # `vim` with the lua rc (config/vimrc is vim's; neovim reads
 # config/init.lua). `nvim` gets an alias of its own so either name reaches
 # the same override. _HI_DISABLE_VIM gates both: they are one editor to the toggle.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_VIMRC" ] && command -v vim >/dev/null 2>&1 && alias vim="$(command -v vim) -u $_HI_VIMRC" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_NVIMRC" ] && command -v nvim >/dev/null 2>&1 && alias vim="$(command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(command -v nvim) -u $_HI_NVIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_VIMRC" ] && command -v vim >/dev/null 2>&1 && alias vim="$(command -v unalias >/dev/null && unalias -a; command -v vim) -u $_HI_VIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_NVIMRC" ] && command -v nvim >/dev/null 2>&1 && alias vim="$(command -v unalias >/dev/null && unalias -a; command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(command -v unalias >/dev/null && unalias -a; command -v nvim) -u $_HI_NVIMRC" || true
 # hx reads one file, -c/--config overrides only it (no directory-level
 # override exists) - the same one-member shape as vim's above
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && command -v hx >/dev/null 2>&1 && alias hx="$(command -v hx) -c $_HI_HELIXRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && command -v hx >/dev/null 2>&1 && alias hx="$(command -v unalias >/dev/null && unalias -a; command -v hx) -c $_HI_HELIXRC" || true
 # -q skips the target's own init, -l loads hi's in its place
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && [ -f "$_HI_EMACSRC" ] && command -v emacs >/dev/null 2>&1 && alias emacs="emacs -q -l $_HI_EMACSRC" || true
 # micro takes a config *directory*, never a file, but any of its settings can
@@ -103,8 +105,8 @@ command -v shift >/dev/null 2>&1 &&
 # answer only where that binary is.
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS='-F -1 -l -m --group-directories-first --group --no-filesize' || true
-[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(command -v eza)" ] && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
-[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(command -v exa)" ] && export _HI_LS_OPTS="$_HI_EXA_OPTS" || true
+[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(command -v unalias >/dev/null && unalias -a; command -v eza)" ] && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
+[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(command -v unalias >/dev/null && unalias -a; command -v exa)" ] && export _HI_LS_OPTS="$_HI_EXA_OPTS" || true
 [ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS='-F -l' || true
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true

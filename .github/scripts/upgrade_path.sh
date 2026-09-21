@@ -23,8 +23,8 @@ trap 'rm -rf "$work"' EXIT
 # or directory the new tree has
 paths="_HI_ROOT _HI_LAUNCHER _HI_CORE _HI_HEADER _HI_ALIASES _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC"
 fail=0
-for row in bash:bash.sh zsh:zsh.zsh fish:config.fish; do
-  shell="${row%%:*}" rc="${row#*:}"
+for row in bash=bash.sh zsh=zsh.zsh fish=config.fish; do
+  shell="${row%%=*}" rc="${row#*=}"
   command -v "$shell" >/dev/null 2>&1 || {
     echo "::warning::upgrade: $shell is not installed here - its dialect was not walked"
     continue

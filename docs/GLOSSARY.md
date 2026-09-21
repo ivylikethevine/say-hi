@@ -182,7 +182,12 @@ coreutils `cat` get the bare binary.
 Every chain runs before any alias exists, the overlay's `aliases.sh`
 included (it is sourced last): in zsh and dash `command -v name` returns an
 _alias's_ definition once one exists, so an overlay `alias cat=...` ahead of
-the chains would leave `$_HI_CAT_BIN` holding the alias body.
+the chains would leave `$_HI_CAT_BIN` holding the alias body. Ordering
+alone does not cover an alias that was there before hi - a target's
+`alias ls='ls --color=auto'`, or hi's own `vim` alias when an interactive
+shell re-sources its rc - so each `$( )` opens with
+`command -v unalias >/dev/null && unalias -a;`, clearing aliases in that
+subshell only (fish has no `unalias` and its `command -v` never reports one).
 `tests/config/alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit
