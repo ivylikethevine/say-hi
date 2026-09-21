@@ -289,12 +289,17 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: deploy-pages talks to a host of the shape
-          # run-actions-N-azure-REGION.actions.githubusercontent.com, whose
-          # shard number and region both rotate between runs, so no fixed row
-          # covers it - and a miss here drops the site rather than failing
-          # loudly at a mirror.
-          egress-policy: audit
+          egress-policy: block
+          # deploy-pages talks to api.github.com and to a host of the shape
+          # run-actions-N-azure-REGION.actions.githubusercontent.com (the OIDC
+          # token and the artifact), whose shard and region rotate between
+          # runs - hence the wildcard, which harden-runner matches on any
+          # subdomain. A miss here drops the site rather than failing at a
+          # mirror, so watch the first deploy after a change to this list.
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+            *.actions.githubusercontent.com:443
 
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

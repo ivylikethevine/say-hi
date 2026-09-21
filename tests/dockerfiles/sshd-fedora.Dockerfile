@@ -12,7 +12,14 @@
 # _hi_sshd_entrypoint - it carries the throwaway pubkey and the sshd flags, so
 # it cannot be checked in beside this file.
 FROM fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
-RUN dnf install -y --setopt=install_weak_deps=False --nodocs \
+# One fixed mirror in place of the metalink (MirrorManager rotates hosts per
+# request, and ci.yml's e2e harden-runner blocks on a fixed list); repo_test.sh's
+# $_HI_DNF_PIN is the same two lines.
+RUN sed -i -e 's/^metalink=/#metalink=/' \
+      -e 's|^#baseurl=http://download.example/pub/fedora/linux|baseurl=https://mirrors.kernel.org/fedora|' \
+      /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo \
+    && sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/fedora-cisco-openh264.repo \
+    && dnf install -y --setopt=install_weak_deps=False --nodocs \
       openssh-server bash zsh \
     && dnf clean all \
     && useradd -m -s /bin/bash hitest

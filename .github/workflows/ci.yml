@@ -1025,12 +1025,13 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: this shard's suites pull Fedora images, and
-          # Fedora hands out a MirrorManager mirror per request - this run took
-          # cofractal-ewr.mm.fcix.net and insect.mm.fcix.net, which the next run
-          # will not. There is no fixed host list to write, so blocking would
-          # fail on the mirror rotating rather than on anything reaching
-          # further.
+          # audit, for now: Fedora's MirrorManager handed out a different
+          # mirror per request (cofractal-ewr.mm.fcix.net, insect.mm.fcix.net,
+          # ...), so no fixed list could hold. dnf is now pinned to
+          # mirrors.kernel.org (sshd-fedora.Dockerfile, repo_test.sh's
+          # $_HI_DNF_PIN); this goes to block once a cold run's audit log,
+          # all four shards, gives the list - the framework installers
+          # (starship.rs, mise.jdx.dev, ...) reach hosts no file here names.
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -375,12 +375,18 @@ In this checkout, narrowest first.
        **Ticks when:** a `v*` tag runs it green, and putting core.sh's load
        guard back in `common/bash.sh` turns it red.
 
-6. [ ] **Every Ubuntu job's egress is allowlisted** — 39 of 51
-       `harden-runner` steps block; each of the 12 on `audit` says why
-       (non-Ubuntu runners, `link-check.yml`, and three jobs whose hosts
-       rotate). **Do:** take each blocking list from a cold run - a cache hit
+6. [ ] **Every Ubuntu job's egress is allowlisted** — 40 of 51
+       `harden-runner` steps block. **Still on audit, to move:** `ci.yml`'s
+       e2e (dnf now pins one Fedora mirror; the list comes from a cold run's
+       audit log across all four shards) and `openbsd-e2e.yml` (the guest's
+       DNS-over-HTTPS goes to bare 9.9.9.9; turn it off so the guest uses
+       the runner's resolver). **Audit for good:** macOS - `ci.yml`'s
+       `test-macos`, `release.yml`'s brew job - and Windows -
+       `windows-client.yml` (2), `windows-e2e.yml` (4) - where harden-runner
+       has no block mode, and `link-check.yml`, whose job is reaching any
+       URL. **Do:** take each blocking list from a cold run - a cache hit
        reaches fewer hosts - and `demos.yml`'s `attach` list from a tagged
-       run. **Ticks when:** both hold.
+       run. **Ticks when:** the two above block and those lists hold.
 
 ### At the 1.0.0 tag
 

@@ -23,11 +23,15 @@ _RN_HEADING='^## [Rr]elease [Nn]ote'
 
 # The section: from the `## Release note` heading to the next `##` heading or
 # the end of the body. HTML comments go (the template's instructions live in
-# one), and so do blank lines and surrounding whitespace.
+# one), and so do blank lines and surrounding whitespace. awk reads to the end
+# rather than exiting at the next heading, and check()'s grep reads it all
+# rather than -q: under pipefail, a printf still writing into a pipe whose
+# reader left dies of SIGPIPE and fails the pipeline - on OpenBSD, whose 1KB
+# stdio buffer splits even the template into two writes.
 section() {
   awk -v heading="$_RN_HEADING" '
-    $0 ~ heading { inside = 1; next }
-    /^## / { if (inside) exit }
+    !done && $0 ~ heading { inside = 1; next }
+    /^## / { if (inside) done = 1; inside = 0 }
     inside { print }
   ' | sed -e 's/<!--.*-->//g' | awk '
     /<!--/ { skip = 1 }
@@ -74,7 +78,8 @@ main() {
 check() {
   local body text
   body="$(cat)"
-  if ! printf '%s\n' "$body" | grep -qE "$_RN_HEADING"; then
+  # not grep -q - see section()
+  if ! printf '%s\n' "$body" | grep -E "$_RN_HEADING" >/dev/null; then
     echo "no '## Release note' section - add the pull request template's (write \`none\` when nothing a user sees changes)" >&2
     return 1
   fi

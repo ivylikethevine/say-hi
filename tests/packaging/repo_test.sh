@@ -20,7 +20,7 @@
 # nothing but /repo. A bare ubuntu:24.04 pulling that dependency from
 # archive.ubuntu.com ran close to ten minutes on a hosted runner, twice, and
 # took the e2e shard past its budget. dnf and apk resolve from their mirrors
-# in seconds and stay on the stock images.
+# in seconds and stay on the stock images (dnf's pinned to one, below).
 #
 # Needs docker, nfpm (to build the packages), gpg and openssl (the keys).
 # Without any of them the suite stands down yellow.
@@ -128,6 +128,13 @@ function test_tarball_is_the_repository() {
 # and prints `hi --version` from a login shell as its last line; the case
 # passes when that line starts with the version the packages were stamped
 # with, and the transcript replays on failure.
+# Fedora's stock repos with the metalink swapped for one fixed mirror:
+# MirrorManager hands out a different host per request, and a fixed one is what
+# lets ci.yml's e2e harden-runner block. sshd-fedora.Dockerfile carries the same
+# two lines.
+_HI_DNF_PIN='sed -i -e "s/^metalink=/#metalink=/" -e "s|^#baseurl=http://download.example/pub/fedora/linux|baseurl=https://mirrors.kernel.org/fedora|" /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo
+    sed -i "s/^enabled=1/enabled=0/" /etc/yum.repos.d/fedora-cisco-openh264.repo'
+
 function _hi_repo_client() {
   local label="$1" image="$2" shell="$3" script="$4" log="$_HI_WORKDIR/$1.log" last
   if ! docker run --rm -v "$_HI_REPO:/repo:ro" -v "$_HI_PREV:/prev:ro" "$image" "$shell" -ec "$script" >"$log" 2>&1; then
@@ -162,7 +169,7 @@ function test_apt_client_installs_from_the_repository() {
 # dnf: gpgcheck=1 verifies the rpm nfpm signed, repo_gpgcheck=1 the
 # repomd.xml mkrepo.sh signed; both keyed by the say-hi.asc the repo serves
 function test_dnf_client_installs_from_the_repository() {
-  _hi_repo_client dnf fedora:44 bash '
+  _hi_repo_client dnf fedora:44 bash "$_HI_DNF_PIN"'
     printf "[say-hi]\nname=say-hi\nbaseurl=file:///repo/rpm\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///repo/say-hi.asc\n" >/etc/yum.repos.d/say-hi.repo
     dnf -y -q install say-hi >/dev/null
     rpm -q say-hi >/dev/null
@@ -213,7 +220,7 @@ function test_apt_client_upgrades_in_place() {
 
 function test_dnf_client_upgrades_in_place() {
   # shellcheck disable=SC2016 # the $( ) runs inside the container
-  _hi_repo_client dnf-upgrade fedora:44 bash '
+  _hi_repo_client dnf-upgrade fedora:44 bash "$_HI_DNF_PIN"'
     rpm --import /repo/say-hi.asc
     dnf -y -q install /prev/say-hi-*.noarch.rpm >/dev/null
     test "$(bash -lc "hi --version" | cut -d" " -f1)" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
