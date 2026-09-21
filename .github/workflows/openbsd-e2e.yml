@@ -25,12 +25,13 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: the OpenBSD guest opens DNS-over-HTTPS to
-          # 9.9.9.9 with no hostname in the exchange, and allowed-endpoints
-          # matches on hostname, so there is no row that permits it. Blocking
-          # would take the guest's resolver out. Its other hosts are legible
-          # (cdn.openbsd.org, pool.ntp.org, time.cloudflare.com, www.google.com
-          # for its connectivity check).
+          # audit, for one more run: the OpenBSD guest opened DNS-over-HTTPS
+          # to 9.9.9.9 with no hostname in the exchange, and allowed-endpoints
+          # matches on hostname, so no row could permit it. The prepare step
+          # below now stops unwind, the resolver that does it; once a run's
+          # audit log shows no 9.9.9.9, this goes to block. Its other hosts
+          # are legible (cdn.openbsd.org, pool.ntp.org, time.cloudflare.com,
+          # www.google.com for its connectivity check).
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,6 +47,15 @@ jobs:
           usesh: true
           sync: rsync
           copyback: false
+          # unwind first: the guest's own resolver is what sends DNS over
+          # HTTPS to 9.9.9.9, a bare IP no allowlist row can name. Stopped,
+          # resolvd falls back to the nameservers DHCP handed out, which go
+          # through the host - where harden-runner sees every name. Printed,
+          # so the next run's log shows what the guest resolves through.
           prepare: |
+            rcctl stop unwind || true
+            rcctl disable unwind || true
+            sleep 2
+            cat /etc/resolv.conf
             pkg_add -I bash zsh git python%3
           run: bash "$GITHUB_WORKSPACE/.github/scripts/bsd_loopback.sh" </dev/null

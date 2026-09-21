@@ -1027,14 +1027,39 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, for now: Fedora's MirrorManager handed out a different
-          # mirror per request (cofractal-ewr.mm.fcix.net, insect.mm.fcix.net,
-          # ...), so no fixed list could hold. dnf is now pinned to
-          # mirrors.kernel.org (sshd-fedora.Dockerfile, repo_test.sh's
-          # $_HI_DNF_PIN); this goes to block once a cold run's audit log,
-          # all four shards, gives the list - the framework installers
-          # (starship.rs, mise.jdx.dev, ...) reach hosts no file here names.
-          egress-policy: audit
+          egress-policy: block
+          # The union of every endpoint the four shards called on three runs'
+          # audit logs (Docker Hub's image pulls, the apt, apk, and dnf the
+          # test images build with - dnf pinned to mirrors.kernel.org in
+          # sshd-fedora.Dockerfile and repo_test.sh, where MirrorManager used
+          # to hand out a different host per request - nfpm's download, and
+          # the framework installers), plus two rows no log showed:
+          # objects.githubusercontent.com, where GitHub can serve a release
+          # asset instead of release-assets, and Docker Hub's other CDN
+          # (production.cloudflare and its R2 bucket), which every other
+          # docker-pulling job here lists. A pull or an apt fetch that trips
+          # on a missing row fails loudly; that run's log is the one to add
+          # it from.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudfront.docker.com:443
+            production.cloudflare.docker.com:443
+            docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com:443
+            deb.debian.org:80
+            archive.ubuntu.com:80
+            security.ubuntu.com:80
+            dl-cdn.alpinelinux.org:443
+            mirrors.kernel.org:443
+            starship.rs:443
+            mise.jdx.dev:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

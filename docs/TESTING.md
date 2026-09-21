@@ -286,15 +286,19 @@ harness makes these choices on purpose:
   `_hi_login_env`'s 180s. A cap bounds a wedge, never a pace.
 - **Meetings over sleeps.** A case proving concurrency has its shims wait
   for each other (bounded) rather than sleep a fixed time and hope.
-- **The job table over `kill -0`.** `_hi_wait_pid` and `_hi_par_slot` take
-  a pid as alive only while it is still this shell's job - a reaped pid can
-  be reused, and the timeout would have killed a stranger.
 - **The pty rig's verdict is a file.** Each child writes its verdict line to
   `<label>/verdict` as well as the pty; a BSD pty can drop a fast child's
   last output.
 
 Written down as not races:
 
+- **`kill -0` as "still running".** `_hi_wait_pid` and `_hi_par_slot` poll
+  it, and a pid bash has reaped can be reused. The job table would say
+  better, but only through `$(jobs)`, and whether a command substitution sees
+  the parent's jobs varies: where it did not (Git Bash, OpenBSD), the
+  timeout stopped counting and a hung case hung its shard. So the poll stays;
+  a reused pid needs the old one to exit and a stranger to take its number
+  inside one poll's window.
 - **Wall-clock deadlines.** `$SECONDS` is the wall clock, chosen over
   counted iterations (process.sh says why); a VM whose clock NTP steps
   mid-run can shorten one, a trade taken knowingly.

@@ -332,25 +332,16 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **The settings wizard reads at a glance** — shipped: `hi --configure`
-       draws to the terminal's width (help text cut, not wrapped; the
-       preview box clipped to fit), groups its rows by what they change -
-       Header, Prompt, Editors, Aliases, This machine, and Advanced apart
-       under a rule - with each group's heading saying where it shows, the
-       keys above the preview, and `(default X)` beside a changed row; the
-       `configure` suite pins the width at 80 and 40 columns. **Ticks
-       when:** a first run, walked at 80 and at 40 columns, needs no trip
-       to `docs/SETTINGS.md`.
-
-2. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
+1. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
        `upgrade` job, under the gate and ahead of build, runs
        `.github/scripts/upgrade_path.sh` from the previous `v*` tag - a
        shell per dialect loads it, the tag's tree is swapped in, the rc is
-       re-sourced, and any stderr or empty `_HI_*` path fails the build.
-       **Ticks when:** a `v*` tag runs it green, and putting core.sh's load
-       guard back in `common/bash.sh` turns it red.
+       re-sourced, and any stderr or empty `_HI_*` path fails the build. That
+       it goes red is now a standing `ci`-group case (a restored core.sh load
+       guard in `common/bash.sh`), and v0.4.7 to the working tree walks
+       clean. **Ticks when:** a `v*` tag runs the job green.
 
-3. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
+2. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
        has failed in `render`: each tape times out waiting for `fixture-ok`
        with `/tmp/hi-demo.log` empty, so `fixtures.sh up` never reports (the
        editors tape stalls earlier still, on its `setopt` line). Egress is
@@ -359,20 +350,20 @@ In this checkout, narrowest first.
        **Do:** find where the fixture stalls. **Ticks when:** a dispatch
        renders all six tapes.
 
-4. [ ] **Every Ubuntu job's egress is allowlisted** — 40 of 51
-       `harden-runner` steps block. **Still on audit, to move:** `ci.yml`'s
-       e2e (dnf now pins one Fedora mirror; the list comes from a cold run's
-       audit log across all four shards) and `openbsd-e2e.yml` (the guest's
-       DNS-over-HTTPS goes to bare 9.9.9.9; turn it off so the guest uses
-       the runner's resolver). **Audit for good:** macOS - `ci.yml`'s
-       `test-macos`, `release.yml`'s brew job - and Windows -
-       `windows-client.yml` (2), `windows-e2e.yml` (4) - where harden-runner
-       has no block mode, and `link-check.yml`, whose job is reaching any
-       URL. **Do:** take each blocking list from a cold run - a cache hit
-       reaches fewer hosts - and `demos.yml`'s `attach` list from a tagged
-       run. **Ticks when:** the two above block and those lists hold.
+3. [ ] **Every Ubuntu job's egress is allowlisted** — 41 of 51
+       `harden-runner` steps block, `ci.yml`'s e2e now among them (its list
+       the union of three runs' audit logs, dnf pinned to one Fedora
+       mirror). **Left:** `openbsd-e2e.yml`, whose guest sent DNS over HTTPS
+       to a bare 9.9.9.9; its prepare step now stops `unwind`, and it goes to
+       block once a run's audit log shows no 9.9.9.9. **Audit for good:**
+       macOS (`ci.yml`'s `test-macos`, `release.yml`'s brew job) and Windows
+       (`windows-client.yml`'s 2, `windows-e2e.yml`'s 4), where
+       harden-runner has no block mode, and `link-check.yml`, whose job is
+       reaching any URL. **Do:** `demos.yml`'s `attach` list from a tagged
+       run. **Ticks when:** OpenBSD blocks, the e2e list holds on cold runs,
+       and `attach`'s list is taken from a real one.
 
-5. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -382,7 +373,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-6. [ ] **Investigate the header as plugins** — every header cell is one
+5. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing

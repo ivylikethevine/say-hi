@@ -31,6 +31,14 @@ source "$_HI_ROOT/tests/dockerfiles/sshd-entrypoint.sh"
 # the first time it succeeds; otherwise names <what> on stderr and returns 1,
 # so a fixture that never came up says which one rather than failing the tape
 # further down with something unrelated.
+# demo_step <what> - a timestamped line on stderr, which the tapes send to
+# /tmp/hi-demo.log. generate.sh prints that log's tail when a tape times out
+# waiting for fixture-ok, so a stalled step names itself: every step here was
+# silent, and a CI render that hung left an empty log and no clue.
+function demo_step() {
+  printf '[%s] fixtures: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2
+}
+
 function demo_wait_for() {
   local what="$1" i=0
   shift
@@ -62,8 +70,9 @@ function demo_sshd_image() {
     printf '#!/bin/bash\nset -e\n'
     printf '%s\n' "$_HI_SSHD_ENTRYPOINT_BODY"
   } >"$_HI_DEMO_DIR/base/entrypoint.sh"
-  docker build -q -t hi-demo-sshd-base \
-    -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >/dev/null
+  demo_step "building the sshd base image (a cold runner fetches its packages here)"
+  docker build --progress=plain -t hi-demo-sshd-base \
+    -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >&2
   # A clean copy rather than the live checkout as context: .git and dist/ would
   # bloat the build context and the image alike.
   #
@@ -82,8 +91,10 @@ function demo_sshd_image() {
   else
     (cd "$_HI_ROOT" && git archive HEAD | tar -x -C "$_HI_DEMO_DIR/checkout")
   fi
-  docker build -q -t hi-demo-sshd --build-arg BASE=hi-demo-sshd-base \
-    -f "$_HI_ROOT/tests/dockerfiles/demo-sshd.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+  demo_step "building the demo sshd image from the ${HI_DEMO_SOURCE:-head} tree"
+  docker build --progress=plain -t hi-demo-sshd --build-arg BASE=hi-demo-sshd-base \
+    -f "$_HI_ROOT/tests/dockerfiles/demo-sshd.Dockerfile" "$_HI_DEMO_DIR" >&2
+  demo_step "images built"
 }
 
 # demo_ssh_block <name> - the Host block that reaches the running sshd
@@ -123,6 +134,7 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
     demo_ssh_block "$name" >>"$_HI_DEMO_DIR/ssh_config"
   done
   # wait for every sshd to answer before the tape types anything
+  demo_step "waiting for sshd on: $*"
   for name in "$@"; do
     demo_wait_for "sshd for $name" \
       ssh -F "$_HI_DEMO_DIR/ssh_config" "$name" true
@@ -135,6 +147,7 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
 # It also gives the header's color-hash line something meaningful to hash
 # instead of the backend's random container ID.
 function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash>
+  demo_step "starting $2 on $1 ($3)"
   local backend="$1" name="$2" flavor="$3" image
   # rootless podman's build network (slirp4netns) sends DNS straight to the
   # host's upstream resolver, past the one a CI egress filter answers - so
@@ -149,21 +162,21 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
   # /root/app - which is what the feature tapes have to show; the Dockerfile
   # says what each is for
   tools)
-    "$backend" build -q "${net[@]}" -t hi-demo-tools-img \
-      -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    "$backend" build "${net[@]}" -t hi-demo-tools-img \
+      -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >&2
     image=hi-demo-tools-img
     ;;
   # fish with bash beside it: a box hi can give a *full* session on, in fish
   # (fish leads the shell tree) - the overlay demo's second target, since
   # the bash-less aliases-only tier ships hi's own aliases and not the overlay
   fish-bash)
-    "$backend" build -q "${net[@]}" -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
-      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    "$backend" build "${net[@]}" -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
+      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >&2
     image=hi-demo-fish-bash-img
     ;;
   zsh | fish)
-    "$backend" build -q "${net[@]}" -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
-      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    "$backend" build "${net[@]}" -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
+      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >&2
     image="hi-demo-$flavor-img"
     ;;
   *)

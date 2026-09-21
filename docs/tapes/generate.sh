@@ -337,9 +337,13 @@ function gen_log_errors() { # <log>
 # recording: a render that timed out waiting for "fixture-ok" failed in
 # `fixtures.sh up`, and only this says why. The teardown after each tape
 # removes the file, so what is here is this tape's.
+# The steps fixtures.sh stamped come first, since a long image build pushes
+# them out of any tail; the last step printed is the one that stalled.
 function gen_fixture_log() {
   [ -s /tmp/hi-demo.log ] || return 0
-  _hi_cecho " | fixtures.sh up, last lines of /tmp/hi-demo.log:" "$YELLOW"
+  _hi_cecho " | fixtures.sh up, its steps and the last lines of /tmp/hi-demo.log:" "$YELLOW"
+  grep ' fixtures: ' /tmp/hi-demo.log | sed 's/^/ |   /' || true
+  _hi_cecho " |   ..." "$YELLOW"
   tail -n 20 /tmp/hi-demo.log | sed 's/^/ |   /'
 }
 

@@ -375,6 +375,38 @@ function test_release_requires_green_ci_before_build() {
 # runs upgrade_path.sh from the nearest earlier v* tag to this commit, and
 # build waits on its success too
 # shellcheck disable=SC2016 # matching release.yml's literal source text
+# ...and the walk can go red. The new tree moves config/colors (paths.sh
+# pointed at the new name), the layout change a real release makes; swapped
+# under a live bash, it re-sources clean while common/bash.sh unsets core.sh's
+# load guard, and goes red once that `unset _hi_core_loaded` is taken out -
+# bash keeps the old path, into a tree that is gone. The control half is what
+# pins the red one on the unset rather than on the move. HEAD's tracked files
+# stand in for the previous release; bash is the dialect the line guards.
+function test_upgrade_path_goes_red_on_a_restored_load_guard() {
+  local d="$_HI_WORKDIR/upgrade" out rc=0
+  mkdir -p "$d/prev" "$d/new"
+  (cd "$_HI_ROOT" && git ls-files -z | tar --null -T - -cf -) | tar -x -C "$d/prev" || return 1
+  cp -R "$d/prev/." "$d/new/"
+  if ! grep -qx 'unset _hi_core_loaded' "$d/new/common/bash.sh" ||
+    ! grep -qF '"$_HI_ROOT/config/colors"' "$d/new/common/paths.sh"; then
+    _hi_cecho " | bash.sh's unset or paths.sh's config/colors line moved; this case needs both" "$RED"
+    return 1
+  fi
+  mv "$d/new/config/colors" "$d/new/config/colors.moved"
+  sed 's#"$_HI_ROOT/config/colors"#"$_HI_ROOT/config/colors.moved"#' "$d/prev/common/paths.sh" >"$d/new/common/paths.sh"
+  out="$(bash "$_HI_ROOT/.github/scripts/upgrade_path.sh" "$d/prev" "$d/new" 2>&1)" || {
+    _hi_cecho " | the control walk (unset in place) was not clean:" "$RED"
+    printf '%s\n' "$out" | sed 's/^/      /'
+    return 1
+  }
+  sed '/^unset _hi_core_loaded$/d' "$d/prev/common/bash.sh" >"$d/new/common/bash.sh"
+  out="$(bash "$_HI_ROOT/.github/scripts/upgrade_path.sh" "$d/prev" "$d/new" 2>&1)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"::error::upgrade: bash"*"_HI_COLORS"* ]] && return 0
+  _hi_cecho " | upgrade_path.sh exited $rc over a restored load guard:" "$RED"
+  printf '%s\n' "$out" | sed 's/^/      /'
+  return 1
+}
+
 function test_release_walks_the_upgrade_before_build() {
   local upgrade build
   upgrade="$(_hi_wf_job "$_HI_RELEASE_WF" upgrade)"
@@ -2321,6 +2353,7 @@ function run_packaging_ci_tests() {
   _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
   _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
   _hi_check "release.yml walks the upgrade before it builds" test_release_walks_the_upgrade_before_build
+  _hi_check_requires git "...and the walk goes red on a restored load guard" test_upgrade_path_goes_red_on_a_restored_load_guard
   _hi_check "release.yml requires green CI before it builds" test_release_requires_green_ci_before_build
   _hi_check "...and a well-formed tag signed by an allowed key" test_release_gate_verifies_the_signed_tag
   _hi_check "Signing keys are read under the release environment" test_release_signing_keys_are_read_under_the_release_environment
