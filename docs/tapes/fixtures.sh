@@ -277,8 +277,9 @@ function demo_settings() { # body on stdin
 # ssh reads. `# Tags:` stays above each live block - it is what the hosttag
 # pins resolve from, and a live host without one would color by its name hash
 # and quietly stop being the demo.
-function demo_ssh_config_live() { # <name:tag...>
-  local spec name tag
+function demo_ssh_config_live() { # <name:tag...>; none: db-prod is a plain roster row
+  local spec name tag plain="web-prod"
+  [ $# -gt 0 ] || plain="db-prod web-prod"
   mkdir -p "$_HI_DEMO_DIR/home/.ssh"
   {
     for spec in "$@"; do
@@ -288,9 +289,9 @@ function demo_ssh_config_live() { # <name:tag...>
       demo_ssh_block "$name"
       echo
     done
-    cat <<'EOF'
+    cat <<EOF
 # Tags: prod
-Host web-prod
+Host $plain
   User deploy
 
 # Tags: staging
@@ -457,28 +458,7 @@ EOF
 #             $HOME: podman keeps its storage there and kubectl its
 #             ~/.kube/config, so a throwaway one empties two of the four
 #             backends the demo exists to show.
-function demo_ssh_config() {
-  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
-  cat >"$_HI_DEMO_DIR/home/.ssh/config" <<'EOF'
-# Tags: prod
-Host db-prod web-prod
-  User deploy
-
-# Tags: staging
-Host db-staging
-  User deploy
-
-# Tags: desktop
-Host workshop
-  User hitest
-
-Host build-box
-  User ci
-
-Host bastion
-  User root
-EOF
-}
+function demo_ssh_config() { demo_ssh_config_live; }
 
 # One of everything, at once - the completion demo's whole subject is that
 # `hi <TAB>` answers from every backend in one list, which is the one thing no

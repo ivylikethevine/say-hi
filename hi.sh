@@ -17,7 +17,7 @@ _hi_now() {
 }
 # the `||` matters under `set -e`: a client with no `date` degrades to an
 # empty connect time rather than aborting before this file defines anything.
-_HI_CONNECT_T0="$(_hi_now)" || _HI_CONNECT_T0=""
+_HI_CONNECT_T0="${EPOCHREALTIME:-$(_hi_now)}" || _HI_CONNECT_T0=""
 
 # The directory *containing* say-hi, off this script's own path behind a
 # symlink walk. Same walk as scripts/install.sh's and packaging/lib.sh's:
@@ -1384,28 +1384,8 @@ function _hi_env_each() {
 
 # _hi_remote_script <outvar> - the script _say_hi sends and _hi_wire_bytes
 # measures: preamble, middle, suffix. One assembly, so the two agree (HI.44).
-#
-# Through a file, not three command substitutions: the middle third carries the
-# armored payload, and Git Bash hangs forever reading a command-substitution
-# pipe whose body lands just above 65536 bytes. Measured on windows-2025 -
-# 65411 and 66011 bytes both pass, 65541 through 65551 never return - so a
-# payload near the badge's 65KB is a coin toss, not a slow path. `read -d ''`
-# takes the file in the shell itself: no pipe to fill and no fork to read it.
-# Each third ends in a newline, so dropping the last byte leaves exactly what
-# '%s\n%s\n%s' built.
 function _hi_remote_script() {
-  local _hi_rs_f _hi_rs_s=""
-  _hi_rs_f="$(mktemp -t hi.script.XXXXXX)" || return 1
-  {
-    _hi_remote_preamble
-    _hi_remote_middle
-    _hi_remote_suffix
-  } >"$_hi_rs_f"
-  # read returns 1 having found no NUL, which is the whole file; -r and an
-  # empty IFS keep every backslash and every edge space of the armor
-  IFS= read -r -d '' _hi_rs_s <"$_hi_rs_f" || true
-  rm -f "$_hi_rs_f"
-  printf -v "$1" '%s' "${_hi_rs_s%$'\n'}"
+  printf -v "$1" '%s\n%s\n%s' "$(_hi_remote_preamble)" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
@@ -1778,10 +1758,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   # no bash on the target means no fancy stuff, just our aliases
   if ! "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>"$tmp"; then
     fallback="$(_hi_container_fallback_shell "$tmp")"
-    if [ -z "$fallback" ]; then
-      _hi_container_abort " [$DOMAIN] named no shell hi asked about - not falling back"
-      return 1
-    fi
+    [ -n "$fallback" ] || _hi_container_abort " [$DOMAIN] named no shell hi asked about - not falling back" || return 1
     _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
 
     if ! _hi_container_put "$_HI_ALIASES" "$root/aliases.sh"; then
@@ -1811,10 +1788,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 
     case "$fallback" in
     zsh)
-      if ! "${cp[@]}" sh -c "cp '$root/.hi_fallback_rc' '$root/.zshrc'" 2>"$tmp"; then
-        _hi_container_abort " failed to write .zshrc into [$DOMAIN]"
-        return 1
-      fi
+      "${cp[@]}" sh -c "cp '$root/.hi_fallback_rc' '$root/.zshrc'" 2>"$tmp" || _hi_container_abort " failed to write .zshrc into [$DOMAIN]" || return 1
       "${attach[@]}" sh -c "export ZDOTDIR='$root'; exec zsh -i"
       ;;
     # the rc through -C and the command through -c, as in _hi_remote_suffix
@@ -1836,10 +1810,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   if ! _hi_payload_cached tarball; then
     cached=""
     tarball="$tmp.tar.gz"
-    if ! _hi_payload_tar >"$tarball"; then
-      _hi_container_abort " failed to archive say-hi for [$DOMAIN]"
-      return 1
-    fi
+    _hi_payload_tar >"$tarball" || _hi_container_abort " failed to archive say-hi for [$DOMAIN]" || return 1
   fi
   size="$(_hi_human_bytes "$(_hi_file_bytes "$tarball")")"
   prefix=" $size" # the shape the ssh path's prefix reads
@@ -1865,10 +1836,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   # copy. Put like the fallback rc. An empty hi.bashrc is the worst failure
   # this arm has - `bash --rcfile` would start, source nothing, and hand over a
   # bare shell with no error at all - so it is fatal rather than unchecked.
-  if ! _hi_bootloader | _hi_container_put - "$root/say-hi/hi.bashrc"; then
-    _hi_container_abort " failed to write hi's bootloader into [$DOMAIN]"
-    return 1
-  fi
+  _hi_bootloader | _hi_container_put - "$root/say-hi/hi.bashrc" || _hi_container_abort " failed to write hi's bootloader into [$DOMAIN]" || return 1
 
   # `-i` explicitly: `--rcfile` is read by an *interactive* bash and nothing
   # else, and with a conditional tty that interactivity is not inferred
@@ -1969,9 +1937,7 @@ function _hi_parse_command() {
 # --help and --version take nothing after them: `hi --help extra` is a mistake
 # worth naming, the way a stray word after --preview <subject> is
 function _hi_only_word() {
-  [ $# -le 1 ] || {
-    _hi_die "$1 takes no arguments (got: ${*:2})"
-  }
+  [ $# -le 1 ] || _hi_die "$1 takes no arguments (got: ${*:2})"
 }
 
 # _hi_help_or_version "$@" - -h/--help/-V/--version, wherever they are read
@@ -2041,9 +2007,7 @@ function _hi_parse() {
         SSHARGS+=("$1")
       elif _hi_is_ssh_value_opt "$1"; then
         # its value is never read as the target
-        [ "$#" -ge 2 ] || {
-          _hi_die "$1 needs a value"
-        }
+        [ "$#" -ge 2 ] || _hi_die "$1 needs a value"
         SSHARGS+=("$1" "$2")
         shift
       elif takes="$(_hi_flag_takes "${1%%=*}")"; then
@@ -2271,9 +2235,7 @@ function _hi_mux_wrap() {
 function _hi() {
   local tmp exit_code arm
 
-  [ -d "$_HI_ROOT" ] || {
-    _hi_die "no such directory: $_HI_ROOT"
-  }
+  [ -d "$_HI_ROOT" ] || _hi_die "no such directory: $_HI_ROOT"
 
   tmp="$(mktemp -t hi.log.XXXXXX)"
   # $tmp is resolved when the trap fires, not now
@@ -2365,9 +2327,7 @@ function _hi_dispatch_subcommand() {
         case "$w" in --*) ;; *) positional=1 ;; esac
         break
       done
-      [ -n "$positional" ] || {
-        _hi_die "$word takes no joined value (hi $word${shape:+ $shape})"
-      }
+      [ -n "$positional" ] || _hi_die "$word takes no joined value (hi $word${shape:+ $shape})"
     fi
     shift
     _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} ${joined:+"$joined"} "$@"

@@ -344,16 +344,7 @@ function _hi_capable() {
 # is missing is not something `command -v` can find. Same reason the guard
 # lives here and not in the case body: a `return 0` there would report a green
 # OK for a case that never ran.
-function _hi_check_capable() {
-  local cap="$1" rc=0
-  shift
-  _hi_capable "$cap" || rc=$?
-  case "$rc" in
-  0) _hi_check "$@" ;;
-  1) _hi_skip "$1" "no $cap" ;;
-  *) return 1 ;;
-  esac
-}
+function _hi_check_capable() { _hi_par_capable_body "$1" _hi_check "${@:2}"; }
 
 # _hi_fake_path <name> <bin...> - a $_HI_WORKDIR/<name> directory of no-op
 # executables, printed - for suites that prove a resolution ladder

@@ -398,11 +398,7 @@ function _hi_print_hosts_table() {
     _hi_resolve_color hostname "$local_hostname" '' localhostname_color
     localhostname_source=$(_hi_color_source hostname "$local_hostname")
   fi
-  group_order+=("$localhostname_source"$'\x1f'"$localhostname_color")
-  group_source+=("$localhostname_source")
-  group_color+=("$localhostname_color")
-  group_tag+=("")
-  group_hosts+=("$local_hostname")
+  group_order+=("$localhostname_source"$'\x1f'"$localhostname_color") group_source+=("$localhostname_source") group_color+=("$localhostname_color") group_tag+=("") group_hosts+=("$local_hostname")
 
   # Each subnet-style pin as its own example row, seeded with the glob itself
   # as the "host": the glob matches itself through _hi_ssh_pattern_hit, so
@@ -412,11 +408,7 @@ function _hi_print_hosts_table() {
   while IFS= read -r pat; do
     [[ -n "$pat" ]] || continue
     _hi_resolve_color hostname "$pat" '' color_name
-    group_order+=("pattern:$pat"$'\x1f'"$color_name"$'\x1f')
-    group_source+=("pattern:$pat")
-    group_color+=("$color_name")
-    group_tag+=("")
-    group_hosts+=("$pat")
+    group_order+=("pattern:$pat"$'\x1f'"$color_name"$'\x1f') group_source+=("pattern:$pat") group_color+=("$color_name") group_tag+=("") group_hosts+=("$pat")
   done < <(_hi_pattern_pins)
 
   # group hosts that share a type+source AND the actual resolved color, so
@@ -434,11 +426,7 @@ function _hi_print_hosts_table() {
       if gidx="$(_hi_group_index "$key")"; then
         group_hosts[gidx]="${group_hosts[gidx]} $name"
       else
-        group_order+=("$key")
-        group_source+=("$source")
-        group_color+=("$color_name")
-        group_tag+=("$tag")
-        group_hosts+=("$name")
+        group_order+=("$key") group_source+=("$source") group_color+=("$color_name") group_tag+=("$tag") group_hosts+=("$name")
       fi
     done < <(sh "$_HI_TARGETS" ssh)
   fi

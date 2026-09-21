@@ -21,6 +21,8 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
+# shellcheck source=lib.sh
+source "$_hi_d/scripts/lib.sh"
 
 # Strict mode for the rest of this script: core.sh (sourced above) ends with
 # `set +euo pipefail`, so a `set` line placed before it is silently undone.
@@ -28,7 +30,7 @@ source "$_hi_d/common/core.sh"
 set -euo pipefail
 
 # the script's own usage line names what was typed, the way doctor.sh does
-me="${_HI_ARGV0:-hi --update}"
+me="${_HI_ARGV0:-hi --update}" _HI_ME="${_HI_ARGV0:-hi --update}"
 root="$_HI_ROOT" tag="" dirty="" here="" dry_run=""
 
 function _hi_update_help() {
@@ -62,43 +64,26 @@ for _hi_arg in "$@"; do
   shift
 done
 unset _hi_arg
-[ -d "$root/.git" ] || {
-  _hi_cecho "$me: no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on" "$RED" >&2
-  exit 1
-}
+[ -d "$root/.git" ] || _hi_die "no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on"
 case "${1:-}" in
 -*)
-  _hi_cecho "$me: unknown option $1 (one release tag, or nothing for the newest)" "$RED" >&2
-  exit 1
+  _hi_die "unknown option $1 (one release tag, or nothing for the newest)"
   ;;
 esac
-[ $# -le 1 ] || {
-  _hi_cecho "$me: one release tag at most ($*)" "$RED" >&2
-  exit 1
-}
+[ $# -le 1 ] || _hi_die "one release tag at most ($*)"
 tag="${1:-}"
 dirty="$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)"
-[ -z "$dirty" ] || {
-  _hi_cecho "$me: uncommitted changes in $root; commit or stash them first" "$RED" >&2
-  exit 1
-}
-git -C "$root" fetch --tags --quiet || {
-  _hi_cecho "$me: git fetch failed in $root (see above)" "$RED" >&2
-  exit 1
-}
+[ -z "$dirty" ] || _hi_die "uncommitted changes in $root; commit or stash them first"
+git -C "$root" fetch --tags --quiet || _hi_die "git fetch failed in $root (see above)"
 if [ -z "$tag" ]; then
   # newest release by version (v0.0.10 above v0.0.9); a pre-release
   # (v1.0.0-rc.1) is never chosen unasked - name it to move there. No match is
   # not a pipeline failure: grep -v exits 1 on an empty list, and the check
   # right below is what answers that, not `set -e`.
   tag="$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -v -- - | head -n 1)" || true
-  [ -n "$tag" ] || {
-    _hi_cecho "$me: no release tags in $root" "$RED" >&2
-    exit 1
-  }
+  [ -n "$tag" ] || _hi_die "no release tags in $root"
 elif ! git -C "$root" show-ref --verify -q "refs/tags/$tag"; then
-  _hi_cecho "$me: no release tag named $tag; git -C $root tag lists them" "$RED" >&2
-  exit 1
+  _hi_die "no release tag named $tag; git -C $root tag lists them"
 fi
 here="$(exec git -C "$root" describe --tags --exact-match 2>/dev/null)" || here=""
 if [ "$here" = "$tag" ]; then
@@ -164,9 +149,6 @@ esac
   _hi_cecho "$me: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
   exit 0
 }
-git -C "$root" checkout -q "refs/tags/$tag" || {
-  _hi_cecho "$me: git checkout of $tag failed in $root (see above)" "$RED" >&2
-  exit 1
-}
+git -C "$root" checkout -q "refs/tags/$tag" || _hi_die "git checkout of $tag failed in $root (see above)"
 _hi_cecho "$me: now on $tag (detached)" "$GREEN"
 exit 0

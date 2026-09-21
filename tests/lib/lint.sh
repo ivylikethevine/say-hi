@@ -31,6 +31,13 @@ function _hi_lint_find() {
 # test_runner.sh's collector, so its format moves only in lockstep with
 # _hi_report_counts' readers.
 
+# _hi_lint_has <tool> - true, or a yellow "not installed" skip
+function _hi_lint_has() {
+  command -v "$1" >/dev/null 2>&1 && return 0
+  _hi_skip "$1" "not installed"
+  return 1
+}
+
 # _hi_lint_suite_begin <banner> - zero the file counters, start the clock,
 # print the suite heading.
 function _hi_lint_suite_begin() {

@@ -19,10 +19,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 function lint_shfmt() {
   local out
   _hi_h2 "Checking formatting (shfmt -d, style from .editorconfig)"
-  if ! command -v shfmt >/dev/null 2>&1; then
-    _hi_skip "shfmt" "not installed"
-    return 0
-  fi
+  _hi_lint_has shfmt || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   if out="$(shfmt -d "${_HI_SH_FILES[@]}" 2>&1)"; then
     _hi_align " | shfmt $(shfmt --version): every file already formatted" "OK" "$GREEN"
@@ -43,10 +40,7 @@ function lint_shfmt() {
 function lint_checkbashisms() {
   local file rel out shebang bad=0
   _hi_h2 "Checking the #!/bin/sh files for bashisms (checkbashisms)"
-  if ! command -v checkbashisms >/dev/null 2>&1; then
-    _hi_skip "checkbashisms" "not installed"
-    return 0
-  fi
+  _hi_lint_has checkbashisms || return 0
   for file in "${_HI_SH_FILES[@]}"; do
     # `read` builtin, not `head | grep`: two forks per file over ~110 files,
     # to answer a question about one line
@@ -75,10 +69,7 @@ function lint_checkbashisms() {
 function lint_manpage() {
   local man="$_HI_ROOT/docs/hi.1" out
   _hi_h2 "Checking the man page (mandoc -T lint)"
-  if ! command -v mandoc >/dev/null 2>&1; then
-    _hi_skip "mandoc" "not installed"
-    return 0
-  fi
+  _hi_lint_has mandoc || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   if out="$(mandoc -T lint -W warning "$man" 2>&1)"; then
     _hi_align " | docs/hi.1" "OK" "$GREEN"
@@ -117,10 +108,7 @@ function lint_manpage() {
 function lint_vim_rc() {
   local err out rc="$_HI_ROOT/config/vimrc"
   _hi_h2 "Checking the shipped editor rc (vim -u config/vimrc)"
-  if ! command -v vim >/dev/null 2>&1; then
-    _hi_skip vim "not installed"
-    return 0
-  fi
+  _hi_lint_has vim || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   err="$_HI_WORKDIR/vim.err"
   vim -u "$rc" -es -c "call writefile([v:errmsg], '$err')" -c 'qa!' \
@@ -143,10 +131,7 @@ function lint_vim_rc() {
 function lint_nvim_rc() {
   local err rc="$_HI_ROOT/config/init.lua"
   _hi_h2 "Checking the shipped editor rc (nvim -u config/init.lua)"
-  if ! command -v nvim >/dev/null 2>&1; then
-    _hi_skip nvim "not installed"
-    return 0
-  fi
+  _hi_lint_has nvim || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   err="$_HI_WORKDIR/initlua.err"
   if nvim --headless -u "$rc" -c 'qa!' </dev/null >/dev/null 2>"$err" && [ ! -s "$err" ]; then
@@ -162,10 +147,7 @@ function lint_nvim_rc() {
 function lint_emacs_rc() {
   local err rc="$_HI_ROOT/config/init.el"
   _hi_h2 "Checking the shipped editor rc (emacs -q -l config/init.el)"
-  if ! command -v emacs >/dev/null 2>&1; then
-    _hi_skip emacs "not installed"
-    return 0
-  fi
+  _hi_lint_has emacs || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   err="$_HI_WORKDIR/emacs.err"
   if emacs --batch -q -l "$rc" --eval '(kill-emacs 0)' </dev/null >"$err" 2>&1; then
@@ -185,10 +167,7 @@ function lint_emacs_rc() {
 function lint_typos() {
   local out
   _hi_h2 "Checking spelling (typos, allowlist in .typos.toml)"
-  if ! command -v typos >/dev/null 2>&1; then
-    _hi_skip "typos" "not installed"
-    return 0
-  fi
+  _hi_lint_has typos || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   if out="$(cd "$_HI_ROOT" && typos --format brief --config .typos.toml . 2>&1)"; then
     _hi_align " | typos $(typos --version | awk '{print $2}'): nothing misspelt" "OK" "$GREEN"

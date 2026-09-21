@@ -154,9 +154,7 @@ while [ $# -gt 0 ]; do
     ;;
   -*)
     if _hi_is_ssh_value_opt "$_hi_arg"; then
-      [ $# -ge 2 ] || {
-        _hi_die "$_hi_arg needs a value"
-      }
+      [ $# -ge 2 ] || _hi_die "$_hi_arg needs a value"
       _HI_DOC_SSHARGS+=("$_hi_arg" "$2")
       shift
     else
@@ -166,9 +164,7 @@ while [ $# -gt 0 ]; do
     fi
     ;;
   *)
-    [ -z "$_HI_DOC_TARGET" ] || {
-      _hi_die "one target at a time ($_HI_DOC_TARGET and $_hi_arg)"
-    }
+    [ -z "$_HI_DOC_TARGET" ] || _hi_die "one target at a time ($_HI_DOC_TARGET and $_hi_arg)"
     _HI_DOC_TARGET="$_hi_arg"
     ;;
   esac

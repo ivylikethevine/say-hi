@@ -845,10 +845,7 @@ function _hi_collect_header_word() {
 # load.sh's disconnect banner to match the connect side without a
 # disconnect-specific toggle of its own.
 function _hi_order_has() {
-  case " ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT} " in
-  *" $1 "*) return 0 ;;
-  *) return 1 ;;
-  esac
+  [[ " ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT} " == *" $1 "* ]]
 }
 
 function hi_header() {
