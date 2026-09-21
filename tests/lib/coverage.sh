@@ -102,13 +102,18 @@ function _hi_cov_counts_files() {
 # partial number, and a partial number is no number. A tool that is missing
 # (no fish, no docker) is a skip, never a failure, so this is a real one.
 function _hi_cov_trace_all() {
-  local _hi_i _hi_suite _hi_path
+  local _hi_i _hi_suite _hi_path _hi_log
+  _hi_log="$(mktemp -t hi.cov.log.XXXXXX)"
+  _HI_COV_TRASH+=("$_hi_log")
   for _hi_i in "${!_HI_PATHS[@]}"; do
     _hi_suite="${_HI_NAMES[$_hi_i]}"
     _hi_path="${_HI_PATHS[$_hi_i]}"
     _hi_cecho " | coverage: tracing $_hi_suite" "$BRCYAN"
-    "$1" "$_hi_suite" "$_hi_path" >/dev/null 2>&1 || {
-      _hi_cecho " | coverage: $_hi_suite failed while being traced - stopping, no report (run it with tests/test_runner.sh $_hi_suite to see why)" "$RED"
+    "$1" "$_hi_suite" "$_hi_path" >"$_hi_log" 2>&1 || {
+      # the transcript's tail, since a case that fails only under the tracer
+      # cannot be seen by running the suite without one
+      _hi_cecho " | coverage: $_hi_suite failed while being traced - stopping, no report; its last lines:" "$RED"
+      tail -n 40 "$_hi_log" | sed 's/^/ |   /'
       return 1
     }
   done

@@ -350,18 +350,16 @@ In this checkout, narrowest first.
        **Ticks when:** a `v*` tag runs it green, and putting core.sh's load
        guard back in `common/bash.sh` turns it red.
 
-3. [ ] **One page of the portable spellings** — the right way to write a
-       command for every target gets rediscovered the hard way, CI failure
-       by CI failure: `grep -q` under `pipefail` (OpenBSD), `sed`'s `\|`
-       (BSD), `echo` escapes (dash), `command -v` handing back an alias,
-       the heredoc splice Git Bash never returns from, the four-dialect
-       subset `config/aliases.sh` keeps. **Do:** `docs/SYNTAX.md`, one row
-       per idiom - the spelling to use, the one to avoid, which target
-       breaks and how - linking the `docs/GLOSSARY.md` entry where one
-       exists rather than restating it, and linked from `CLAUDE.md` and
-       `docs/CONTRIBUTING.md`'s review list. **Ticks when:** the page
-       exists and every row is either enforced by a lint check or names the
-       CI failure it was learned from.
+3. [ ] **One page of the portable spellings** — shipped:
+       [docs/SYNTAX.md](docs/SYNTAX.md), one row per spelling that has cost
+       a CI round trip, linked from `CLAUDE.md` and CONTRIBUTING's review
+       list; `drift` enforces the eight a pattern can see (`sed -r`/`-i`,
+       `echo -e`, `date %-e`, `grep -P`, `readlink -f`, `xargs -r`,
+       `head -n -N`). **Left:** the review-only rows name no failure yet -
+       awk's POSIX subset, `stat -c` without its `-f` twin, `mktemp -t`,
+       basic-sed alternation, `printf -v x ''`, strict-mode bracketing.
+       **Ticks when:** each of those gets a check or the CI failure it was
+       learned from.
 
 4. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
        has failed in `render`: each tape times out waiting for `fixture-ok`

@@ -37,6 +37,26 @@ _HI_BASH32_LINT=(
   '\$\{![A-Za-z_][A-Za-z_0-9]*\[[@*]\][+:-]|${!a[@]+...} - use a plain "${!a[@]}"'
 )
 
+# Spellings one userland has and another does not, as "<pattern>|<what it
+# is>": the enforced rows of docs/SYNTAX.md, which says what to write instead
+# and which target each one broke. A spelling that needs a judgement call (a
+# `grep -q` under pipefail, sed's `\|`) is a SYNTAX row without a pattern.
+# shellcheck disable=SC2016 # these are regexes and prose, not expansions
+_HI_PORTABLE_LINT=(
+  '\becho[[:space:]]+-e\b|echo -e - dash and a POSIX-mode sh print the -e; use printf'
+  '\bdate\b[^#]*%-[a-zA-Z]|date %-X (GNU) - BSD prints it literally; use %e (HI.10)'
+  '\bsed[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*r\b|sed -r (GNU) - use sed -E'
+  '\bsed[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*i\b|sed -i - its flag differs BSD/GNU (HI.08)'
+  '\bgrep[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*P|grep -P - BSD and busybox grep have no PCRE; use -E'
+  '\breadlink[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*f\b|readlink -f - absent from older macOS; cd -P then pwd -P'
+  '\bxargs[[:space:]]+(-[a-zA-Z0-9]+[[:space:]]+)*-[a-zA-Z0-9]*r\b|xargs -r (GNU) - guard the empty input instead'
+  '\bhead[[:space:]]+-n[[:space:]]*-[0-9]|head -n -N (GNU) - use sed to drop the tail'
+)
+
+# Both edit files only inside a Linux container, where sed is GNU's: the p10k
+# fixture's ~/.zshrc and repo_test.sh's Fedora mirror pin.
+_HI_PORTABLE_EXEMPT=(p10k.sh repo_test.sh)
+
 # The retired ~/say-hi default, as "<pattern>|<what it is>" - both dialects that
 # ever spelled it. See lint_home_default below for why this is a gate and not
 # a preference.
@@ -135,6 +155,13 @@ function lint_bash32() {
   _hi_lint_mirror
   _HI_LINT_EXCLUDE="${_HI_BASH32_EXEMPT[*]}" \
     _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "bash-4 construct" "${_HI_BASH32_LINT[@]}"
+}
+
+function lint_portable() {
+  _hi_h2 "Checking for one-userland spellings (docs/SYNTAX.md)"
+  _hi_lint_mirror
+  _HI_LINT_EXCLUDE="${_HI_PORTABLE_EXEMPT[*]}" \
+    _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "one-userland spelling" "${_HI_PORTABLE_LINT[@]}"
 }
 
 # A shipped file that .gitignore swallows never reaches a commit, and nothing
@@ -1054,7 +1081,7 @@ function run_drift() {
   # _hi_lint_mirror blanks the tree under $_HI_WORKDIR/lintmirror
   _hi_workdir drifttest
 
-  _hi_lint_halves lint_bash32 lint_home_default lint_ignored_payload lint_glossary_tags \
+  _hi_lint_halves lint_bash32 lint_portable lint_home_default lint_ignored_payload lint_glossary_tags \
     lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs lint_site_links \
     lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests

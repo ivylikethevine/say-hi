@@ -32,6 +32,7 @@ home, the doc named for it below, and every other page links there.
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Contributing](CONTRIBUTING.md)                 | The gate, what CI runs, what a review bounces on, what 1.x will not break, which docs change with what, AI-assisted contributions, push protection.  |
 | [Testing](TESTING.md)                           | The runner, suite groups, parallel cases, coverage, the test images, the lint gate, test levers, relaying.                                           |
+| [Portable spellings](SYNTAX.md)                 | How to write a command so every target runs it - sed, grep, awk, pipes under strict mode, bash 3.2, Git Bash - and what catches each slip.           |
 | [Releasing](RELEASING.md)                       | The maintainer's runbook: channels not shipped, cutting a release, the release environment, publishing each channel, reproducibility, the demo GIFs. |
 | [Governance](GOVERNANCE.md)                     | Who decides, the roles, how a change gets in, contributor certification, sensitive access, and continuity.                                           |
 | [Code of conduct](CODE_OF_CONDUCT.md)           | The Contributor Covenant 2.1 as adopted here: the bar for behaviour, where to report a breach, and the enforcement ladder.                           |

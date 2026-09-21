@@ -1274,11 +1274,17 @@ function test_problems_prints_only_the_findings() {
 # one --json alone prints, byte for byte once the timings are masked
 # the exit status is the findings count's (a box with a finding exits 1), so
 # only the two documents are compared
+# Two runs compared, so anything timing-dependent is pinned: the probe cap is
+# generous (the shims answer or fail at once), or a loaded BSD VM lets one
+# run's backend miss the default 2s and flip its row to "not answering"
 function test_problems_leaves_json_unchanged() {
   local a b
-  a="$(_hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
-  b="$(_hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
-  [ -n "$a" ] && [ "$a" = "$b" ]
+  a="$(_HI_PROBE_TIMEOUT=30 _hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
+  b="$(_HI_PROBE_TIMEOUT=30 _hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
+  [ -n "$a" ] && [ "$a" = "$b" ] && return 0
+  _hi_cecho " | the two documents differ:" "$RED"
+  diff <(printf '%s\n' "$a" | tr ',' '\n') <(printf '%s\n' "$b" | tr ',' '\n') | sed 's/^/      /' || true
+  return 1
 }
 
 function run_doctor_tests() {

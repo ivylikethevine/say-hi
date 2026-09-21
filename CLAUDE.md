@@ -98,6 +98,11 @@ export _HI_HOME="$(dirname "$PWD")"
 export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 ```
 
+**Check [docs/SYNTAX.md](docs/SYNTAX.md) before writing a pipe, a `sed`, or
+a `date`.** Each row there is a spelling that passed here and failed on
+another target; the ones a pattern can see fail `drift`, the rest only a CI
+round trip finds.
+
 **A green run where `/bin/sh` is bash is not a green run in CI.** CI's ubuntu
 is dash and macOS's `/bin/sh` is bash in POSIX mode; both expand backslash
 escapes in `echo` where bash-as-sh leaves them as text. Prefer `printf` in

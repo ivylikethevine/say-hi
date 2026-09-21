@@ -146,6 +146,11 @@ These are constraints the tree enforces, not requests:
   odd construct that forces is explained once in [GLOSSARY.md](GLOSSARY.md),
   and code points at it with a `GLOSSARY: HI.NN` tag — drift-checked, so an
   entry can't be deleted out from under them.
+- **A command is spelled the way every target runs it** —
+  [SYNTAX.md](SYNTAX.md) lists each spelling that has cost a CI round trip
+  (`sed -E`, not `sed -r` or `sed -i`; `printf`, not `echo -e`; no `grep -q`
+  on a pipe under `pipefail`), and `drift` fails the build on the ones a
+  pattern can see.
 - **Several files are a smaller dialect than bash, and say so at the top.**
   `common/paths.sh` is the four-shell plain-`export` subset,
   `config/aliases.sh` what bash, zsh, and fish all parse, and
