@@ -186,7 +186,7 @@ the chains would leave `$_HI_CAT_BIN` holding the alias body. Ordering
 alone does not cover an alias that was there before hi - a target's
 `alias ls='ls --color=auto'`, or hi's own `vim` alias when an interactive
 shell re-sources its rc - so each `$( )` opens with
-`command -v unalias >/dev/null && unalias -a;`, clearing aliases in that
+`type unalias >/dev/null 2>&1 && unalias -a || true &&`, clearing aliases in that
 subshell only (fish has no `unalias` and its `command -v` never reports one).
 `tests/config/alias_fallthrough_test.sh` is the regression test.
 
