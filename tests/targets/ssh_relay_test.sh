@@ -12,6 +12,8 @@
 #     transport's bash-less fallback, which ships aliases.sh alone and never
 #     sources paths.sh - there `hi` is simply undefined, not broken.
 #   - the config lands intact on the *final* hop, not just the first.
+#   - the second hop keeps its tag colors: only A's ~/.ssh/config carries the
+#     `# Tags:` line over C's alias, and B's has the alias with no tag.
 #   - the cleanup traps fire on **both** B and C: on a clean exit, and on the
 #     link being killed mid-relay, which is the case that can only be proven
 #     from outside.
@@ -145,6 +147,21 @@ function _hi_relay_closings() { _hi_relay_count '| session: ' "$1"; }
 # shellcheck disable=SC2016 # $(hostname) expands on C, which is the point
 _HI_RELAY_PROOF='$(hostname)-CONFIG-OK'
 
+# The tag A's ssh config pins C's alias with, and the color A's overlay gives
+# that tag. B knows neither: what C reports can only have ridden from A, the
+# tag through the overlay's ssh_tags and the color through its colors.
+_HI_RELAY_TAG=relaytag
+_HI_RELAY_COLOR=brmagenta
+# shellcheck disable=SC2016 # expands on C; the typed line carries no value
+_HI_RELAY_TAG_PROOF='echo "TAGGED-$_HI_TARGET_TAG-$_HI_TARGET_COLOR"'
+
+# _hi_relay_client_home <dir> - A's home: the tagged alias and the pin
+function _hi_relay_client_home() {
+  mkdir -p "$1/.ssh" "$1/.config/say-hi"
+  printf '# Tags: %s\nHost %s\n' "$_HI_RELAY_TAG" "$_HI_RELAY_HOST" >"$1/.ssh/config"
+  printf 'hosttag,%s,%s\n' "$_HI_RELAY_TAG" "$_HI_RELAY_COLOR" >"$1/.config/say-hi/colors"
+}
+
 # Typed into the live session on B by _hi_interactive_case's -f hook, after it
 # has seen B's own marker come back. Each step waits on the transcript rather
 # than sleeping: the second hop ships a payload over a fresh connection, and
@@ -153,6 +170,7 @@ function _hi_relay_feeder() {
   printf 'hi %s\n' "$_HI_RELAY_HOST"
   _hi_poll_bool 120 0.5 _hi_relay_sessions 2 || true
   printf '%s\n' "$(_hi_probe_cmd "$_HI_RELAY_PROOF" bash)"
+  printf '%s\n' "$_HI_RELAY_TAG_PROOF"
   printf 'exit\n'
   # C's session closing, before the outer exit goes anywhere near the pipe
   _hi_poll_bool 60 0.5 _hi_relay_closings 2 || true
@@ -180,11 +198,12 @@ function _hi_relay_report_leftovers() {
 # in turn. Asserted on the transcript (two sessions up, two closed, C's marker
 # present) and then on both containers (nothing left behind).
 function _hi_relay_case() {
-  local ok=0 c_host
+  local ok=0 c_host home="$_HI_WORKDIR/relay-home"
   # the fixtures this case owns - locals, so the case beside it owns its own
   local _HI_SSH_PORT="" _HI_RELAY_NET="" _HI_RELAY_B="" _HI_RELAY_C="" _HI_RELAY_OUT=""
   _hi_relay_pair relay || return 1
   _hi_ssh_launch "$_HI_SSH_PORT"
+  _hi_relay_client_home "$home"
   _HI_RELAY_OUT="$_HI_WORKDIR/relay.interactive.out"
   # what $(hostname) will print on C - docker gives an unnamed container its
   # own short id, and that is the name the proof line has to come back with
@@ -192,8 +211,13 @@ function _hi_relay_case() {
 
   # -m: the far end's proof, on top of B's own marker, which
   # _hi_interactive_case asserts for us
+  # HOME is where hi reads ~/.ssh/config (ssh itself takes every path it
+  # needs from the launcher's flags), and the overlay is that home's
   if _hi_interactive_case -f _hi_relay_feeder -m "$c_host-CONFIG-OK" \
-    relay "relay A -> B -> C" "$_HI_TEST_MARKER" 180 "${_HI_SSH_LAUNCH_BARE[@]}"; then
+    -m "TAGGED-$_HI_RELAY_TAG-$_HI_RELAY_COLOR" \
+    relay "relay A -> B -> C" "$_HI_TEST_MARKER" 180 \
+    env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
+    "${_HI_SSH_LAUNCH_BARE[@]}"; then
     ok=1
     if ! _hi_relay_sessions 2; then
       _hi_cecho " | [relay] -- only one session came up; C was never reached" "$RED"

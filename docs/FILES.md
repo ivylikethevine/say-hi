@@ -171,6 +171,12 @@ directory rides member by member; a member name is a letter or digit, then
 | `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                      | the `micro` alias (`-config-dir`)                                           |
 | `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                      | starship, oh-my-posh, eza, and bat on a target                              |
 | `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                      | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target         |
+| `ssh_tags`                                                                                  | -                                                                     | -                      | a `hi` run from inside a session, for the next hop's tag colors             |
+
+A member in the _Replaces_ column travels in the tree's place, not beside it:
+the payload leaves out a default your overlay shadows, so the wire holds one
+`colors`, not two. `aliases.sh` is the exception by design - yours is sourced
+on top of the tree's, so both ride.
 
 What happens to a line in one of these that reads a file no target has is
 [SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)'s.
@@ -182,7 +188,10 @@ reads rather than asking for a copy. The last one found wins, and an overlay
 copy wins over all of them - for the prompt programs, eza, and bat on a
 target only, since at home each already reads its own. A prompt program's
 member rides only when that program is in the list a target is handed
-([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)).
+([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
+micro's, bat's, or eza's only with that tool installed here
+([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked));
+an overlay copy rides either way.
 
 | Member                | Looked for, in order                                                                                                                                                                                                                                             |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -202,6 +211,7 @@ member rides only when that program is in the list a target is handed
 | `tide.vars`           | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it                                                                                                                                                                   |
 | `theme.yml`           | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                                                                                                                                                                              |
 | `bat.conf`            | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                                                                                                                                                                                             |
+| `ssh_tags`            | the `# Tags:` lines of `~/.ssh/config`, each with the `Host` or `Match host` line under it and nothing else of the block                                                                                                                                         |
 
 ## Paths hi recognizes
 
@@ -251,13 +261,15 @@ In the runtime directory: `$XDG_RUNTIME_DIR` when it exists, else
 owned by someone else. A cache is written under a temporary name and moved
 into place.
 
-| File                  | What                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------- |
-| `hi.targets.<kind>`   | completion's target list, for `$_HI_TARGETS_TTL` seconds                              |
-| `hi.payload.tree`     | the gzipped payload, rebuilt when a tree file changes; off with `_HI_PAYLOAD_CACHE=0` |
-| `hi.overlay.<key>`    | the overlay stream, keyed on its member list                                          |
-| `hi.ctl.<key>`        | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off) |
-| `hi.mux.<target>.kdl` | the zellij layout `--mux` starts a session from, rewritten each time                  |
+| File                    | What                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                              |
+| `hi.payload.tree`       | the gzipped payload, rebuilt when a tree file changes; off with `_HI_PAYLOAD_CACHE=0` |
+| `hi.payload.tree.<key>` | the same minus the defaults an overlay shadows, keyed on which                        |
+| `hi.overlay.<key>`      | the overlay stream, keyed on its member list                                          |
+| `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                            |
+| `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off) |
+| `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                  |
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per

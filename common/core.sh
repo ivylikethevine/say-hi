@@ -934,6 +934,12 @@ function _hi_ssh_host_tag() {
   if [ "${_HI_TAG_NAME+x}" != x ] || [ "$_HI_TAG_NAME" != "$1" ]; then
     _HI_TAG_RC=0
     _HI_TAG_VALUE="$(_hi_ssh_host_tag_walk "$1")" || _HI_TAG_RC=$?
+    # a relayed hop: this box's config carries no tags, so the client's, which
+    # rode the overlay as ssh_tags, answers where it has one
+    if [ -z "$_HI_TAG_VALUE" ] && [ "${_HI_REMOTE_SESSION:-}" = 1 ] && [ -f "${_HI_CONFIG_DIR:-}/ssh_tags" ] &&
+      _HI_TAG_VALUE="$(_HI_SSH_CONFIG="$_HI_CONFIG_DIR/ssh_tags" _hi_ssh_host_tag_walk "$1")"; then
+      _HI_TAG_RC=0
+    fi
     _HI_TAG_NAME="$1"
   fi
   [ -n "$_HI_TAG_VALUE" ] && printf '%s\n' "$_HI_TAG_VALUE"

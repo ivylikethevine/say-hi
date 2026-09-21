@@ -320,6 +320,21 @@ function test_config_names_tmux_and_micro_configs() {
     [[ "$out" == *"tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
 }
 
+# ...and only with the tool here: home's config for a tool this machine lacks
+# is in force nowhere, so it neither ships nor gets a row
+function test_config_is_silent_on_a_config_for_an_absent_tool() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/notool.XXXXXX")"
+  printf 'set -g mouse on\n' >"$dir/tmux.conf"
+  out="$(
+    function _hi_tool_here() { return 1; }
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_SETTINGS="$dir/overlay/settings.sh"
+    _HI_TMUX_CONF="$dir/tmux.conf" doctor_config
+  )"
+  [[ "$out" != *tmux.conf* ]]
+}
+
 # an overlay copy of the tree's own file, byte for byte: not an override
 # until somebody edits it
 function test_config_calls_an_unedited_overlay_copy_unchanged() {
@@ -1188,6 +1203,9 @@ function test_json_is_off_by_default() {
 
 function run_doctor_tests() {
   _hi_workdir doctortest
+  # home's configs ride only with their tools on this machine (_hi_tool_here),
+  # and no runner has all of them
+  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
 
   _hi_suite_begin
 
@@ -1215,6 +1233,7 @@ function run_doctor_tests() {
   _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
   _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
   _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
+  _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
   _hi_check "...and =keep says it travels anyway" test_config_says_when_an_include_travels_anyway

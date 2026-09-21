@@ -21,6 +21,7 @@ every `_HI_DISABLE_*` one on your own machine only
 - [lesspipe](#lesspipe)
 - [Shell frameworks](#shell-frameworks)
   - [On your own machine](#on-your-own-machine)
+- [Which side is asked](#which-side-is-asked)
 - [Config sizes](#config-sizes)
 
 ## At a glance
@@ -220,6 +221,28 @@ A prompt program your rc loads keeps drawing here without asking
 every `_HI_DISABLE_*` switch on, so everything on this page stays as your own
 rc set it up on this machine, while every target still gets hi's. How hi
 tells home from a target is [SETTINGS.md's _Others_](SETTINGS.md#others).
+
+## Which side is asked
+
+Two machines could answer "is this tool installed", and hi asks each about a
+different thing:
+
+- **The client, about what rides.** A config from home - your `~/.vimrc`,
+  `~/.tmux.conf`, micro's directory, bat's and eza's files - is "the one in
+  force here" only with its tool here to read it, so it ships only then:
+  `vimrc` with vim, `init.lua` with nvim, `config.toml` with hx, `nanorc` with
+  nano, `init.el` with emacs, `tmux.conf` with tmux, `micro/` with micro,
+  `bat.conf` with bat (or `batcat`), `theme.yml` with eza. A dotfile left
+  behind by a tool you removed neither ships nor gets a `hi --doctor` row. It
+  is the client because only the client can be asked before a connect, which
+  is when the overlay is packed - the reason the
+  [prompt programs](#prompt-programs) are a list worked out here too.
+- **Nobody, about an overlay copy.** A file you put in `~/.config/say-hi/` is
+  you saying "targets get this", and it rides whatever this machine has -
+  the way to carry a `vimrc` from a laptop that only has neovim.
+- **The target, about what is used.** `settings/aliases.sh` builds each alias
+  from what the target has, so a config that rode to a box without its tool
+  is a few idle bytes, never an alias to a missing binary.
 
 ## Config sizes
 

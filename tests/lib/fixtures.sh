@@ -601,6 +601,18 @@ function _hi_has_rendered() {
   [[ "$1" == *"$needle"* ]]
 }
 
+# _hi_stub_tools <tool...> - a directory of do-nothing executables by those
+# names, printed, for a caller's $PATH: _hi_overlay_src ships home's config
+# only with its tool on this machine, and a runner has no micro or helix.
+function _hi_stub_tools() {
+  local dir="$_HI_WORKDIR/stubtools" t
+  mkdir -p "$dir"
+  for t; do
+    [ -x "$dir/$t" ] || { printf '#!/bin/sh\nexit 0\n' >"$dir/$t" && chmod +x "$dir/$t"; }
+  done
+  printf '%s' "$dir"
+}
+
 # _hi_login_env <home> <cmd...> - `env -i` plus only what a login shell has:
 # no _HI_HOME (it would answer what install.sh derives) and no _HI_CONFIG_DIR;
 # $SHELL because install.sh reports ${SHELL##*/} under `set -u`.

@@ -577,6 +577,22 @@ Unset,
 hands the prompt to every such program installed here;
 .B _HI_PROMPT_TOOL=hi
 keeps hi's own.
+.TP
+.B ~/.ssh/config
+read for ssh targets and their
+.B # Tags:
+comments. The tagged
+.B Host
+and
+.B Match host
+lines, and nothing else of their blocks, are carried as
+.B ssh_tags
+so a
+.B hi
+run from inside a session colors the next hop by its tag; a copy of that
+name in
+.B ~/.config/say-hi
+is carried instead.
 .SH ENVIRONMENT
 Every setting is an environment variable (see
 .BR CONFIGURATION ).

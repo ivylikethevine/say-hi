@@ -184,7 +184,7 @@ function test_source_agrees_with_resolve_color_on_patterns() {
 function test_default_source_still_resolves_to_a_palette_color() {
   local color
   color="$(_hi_resolve_color hostname plain)"
-  [ "$(_hi_color_source hostname plain)" = default ] &&
+  [ "$(_hi_color_source hostname plain)" = hash ] &&
     printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qxF "$color"
 }
 
@@ -292,10 +292,11 @@ function test_users_table_renders_override_rows() {
   [[ "$_HI_USERS_OUT" == *alice* && "$_HI_USERS_OUT" == *brmagenta* && "$_HI_USERS_OUT" == *override:username* ]]
 }
 
-# a user with no pin renders exactly as a bare `hi` does, so the table leaves
-# the row out - same rule as the hosts the script's help text explains
-function test_users_table_skips_default_users() {
-  [[ "$_HI_USERS_OUT" != *defaultuser* ]]
+# a user with no pin still renders in its hashed color, so the table lists it
+# and names the hash as the reason
+function test_users_table_lists_hashed_users() {
+  [[ "$_HI_USERS_OUT" == *defaultuser* ]] &&
+    _hi_strip_ansi "$_HI_USERS_OUT" | grep -q 'defaultuser.*| hash'
 }
 
 # LOCALUSER is a placeholder, not a login name, so its pin renders as its own
@@ -362,6 +363,15 @@ function test_hosts_table_pads_a_wrapped_group_past_its_users() {
   [[ "$row" != *@* ]] && _hi_table_is_rectangular "$out"
 }
 
+# the machine the preview runs on is always listed, pinned or not: the
+# fixture colors file has no LOCALHOSTNAME row, so it reads by its own name
+function test_hosts_table_lists_the_local_machine_unpinned() {
+  local out row
+  out="$(_hi_render_hosts_table)" || return 1
+  row="$(_hi_strip_ansi "$out" | grep '| localbox ')" || return 1
+  [[ "$row" != *local:hostname* && "$row" == *'| hash '* ]]
+}
+
 # with no ssh config there is nothing to walk; the table says so instead of
 # quietly rendering an empty box
 function test_hosts_table_reports_a_missing_ssh_config() {
@@ -398,8 +408,6 @@ function test_tables_render_without_error() {
   [[ "$_HI_COLORS_OUT" == *pinned* && "$_HI_COLORS_OUT" == *tagged* && "$_HI_COLORS_OUT" == *alice* ]]
 }
 
-# a host with no override and no usable tag would render identically to a bare
-# `hi`, so it's deliberately left out of the table
 # a scheme paints the swatches with the 24-bit tail, and the header line
 # says which scheme it is (HI.50)
 function test_tables_render_under_a_scheme() {
@@ -410,8 +418,23 @@ function test_tables_render_under_a_scheme() {
   [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]]
 }
 
-function test_tables_skip_hosts_that_render_by_default() {
-  ! printf '%s\n' "$_HI_COLORS_OUT" | grep -q '\bplain\b'
+# a host with no override and no usable tag still paints its hashed color on a
+# connect, so every ssh-config host gets a row: the point of the hosts table
+function test_tables_list_every_ssh_config_host() {
+  local out host
+  out="$(_hi_strip_ansi "$_HI_COLORS_OUT")"
+  for host in plain pinned tagged othertag pat-1 a-considerably-longer-hostname; do
+    [[ "$out" == *"$host"* ]] || _hi_because "no row names $host" || return 1
+  done
+}
+
+# the hashed rows name the hash as their rule and land on a palette color
+function test_tables_label_hashed_hosts_hash() {
+  local row color
+  row="$(_hi_strip_ansi "$_HI_COLORS_OUT" | grep '| plain ')" || return 1
+  [[ "$row" == *'| hash '* ]] || _hi_because "the plain row was: $row" || return 1
+  color="$(_hi_resolve_color hostname plain)"
+  [[ "$row" == *"| $color "* ]] || _hi_because "want $color in: $row"
 }
 
 # the tag column has to name the tag that actually matched, since that's the
@@ -948,10 +971,10 @@ function run_preview_tests() {
 Exact hostname override|hostname|pinned|override:hostname
 Exact username override|username|alice|override:username
 Names the ssh tag that matched|hostname|tagged|tag:work
-Falls back to default|hostname|plain|default
+Falls back to the hash|hostname|plain|hash
 # a host carrying a tag with no hosttag entry has nothing to inherit, so it
-# must read as default rather than claiming a tag it can't resolve
-Ignores a tag with no override|hostname|othertag|default
+# must read as the hash rather than claiming a tag it can't resolve
+Ignores a tag with no override|hostname|othertag|hash
 Subnet pattern names its glob|hostname|pat-1|pattern:pat-*
 EOF
   _hi_check "Never reports a tag for a username" test_source_never_reports_a_tag_for_a_username
@@ -990,7 +1013,7 @@ EOF
 
   _hi_h2 "Testing: colors - the users table"
   _hi_check "Renders every override row" test_users_table_renders_override_rows
-  _hi_check "Skips users that render by default" test_users_table_skips_default_users
+  _hi_check "Lists users that render by the hash" test_users_table_lists_hashed_users
   _hi_check "Shows the LOCALUSER pin as its own row" test_users_table_shows_the_localuser_pin
   _hi_check "Shows each usertag as its own row" test_users_table_shows_each_usertag
 
@@ -999,12 +1022,14 @@ EOF
   _hi_check "Merges pattern hosts into the example row" test_hosts_table_merges_pattern_hosts_into_the_example_row
   _hi_check "Leads with a LOCALHOSTNAME pin" test_hosts_table_leads_with_a_localhostname_pin
   _hi_check "Pads a wrapped group's rows past its users" test_hosts_table_pads_a_wrapped_group_past_its_users
+  _hi_check "Lists the local machine unpinned" test_hosts_table_lists_the_local_machine_unpinned
   _hi_check "Reports a missing ssh config" test_hosts_table_reports_a_missing_ssh_config
 
   _hi_h2 "Testing: colors - the rendered tables"
   _hi_check "Render without error" test_tables_render_without_error
   _hi_check "Render under a scheme, and name it" test_tables_render_under_a_scheme
-  _hi_check "Skip hosts that render by default" test_tables_skip_hosts_that_render_by_default
+  _hi_check "Lists every ssh-config host" test_tables_list_every_ssh_config_host
+  _hi_check "Labels hashed hosts hash" test_tables_label_hashed_hosts_hash
   _hi_check "Name the matching tag" test_tables_name_the_matching_tag
   _hi_check "A pattern pin gets an example row" test_tables_show_a_pattern_pin_example_row
   _hi_check "LOCALUSER and usertag pins get example rows" test_tables_list_the_local_user_and_usertag_pins

@@ -670,6 +670,94 @@ function test_the_editor_config_in_force_here_rides_the_stream() {
     [ "$(_HI_VIMRC="$mine" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)" = "set number" ]
 }
 
+# ...only with the editor here to read it: a ~/.vimrc on a box with no vim is
+# not a config in force anywhere. A copy in the overlay is the user saying
+# "targets get this", and rides whatever this machine has. $PATH is an empty
+# directory, which _hi_overlay_src's builtins never notice.
+function test_a_home_config_needs_its_tool_here() {
+  local dir="$_HI_WORKDIR/gate-overlay" home="$_HI_WORKDIR/gate-home" none="$_HI_WORKDIR/gate-nopath" out=""
+  mkdir -p "$dir" "$home" "$none"
+  printf 'set number\n' >"$home/vimrc"
+  printf 'set -g mouse on\n' >"$home/tmux.conf"
+  ! PATH="$none" _HI_VIMRC="$home/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc || return 1
+  ! PATH="$none" _HI_TMUX_CONF="$home/tmux.conf" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux.conf || return 1
+  _HI_VIMRC="$home/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$home/vimrc" ] || return 1
+  printf 'set ruler\n' >"$dir/vimrc"
+  PATH="$none" _HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$dir/vimrc" ]
+}
+
+# One copy of a file the overlay and the tree both hold: a member that
+# shadows its tree default (common/paths.sh's cascade) cuts that default from
+# the payload. aliases.sh is additive and cuts nothing, a packages.d member
+# cuts the whole directory, and a file still under a pre-1.0 name is no
+# member, so the default it no longer overrides keeps riding.
+function test_a_shadowed_tree_default_is_cut_from_the_payload() {
+  local dir="$_HI_WORKDIR/excl" listing
+  local -a payload_excl=() members=()
+  mkdir -p "$dir/packages.d"
+  printf 'hosttag,x,red\n' >"$dir/colors"
+  printf 'git\n' >"$dir/packages.d/10-mine"
+  printf 'alias a=b\n' >"$dir/aliases.sh"
+  printf 'set ruler\n' >"$dir/nano.rc"
+  _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
+  _hi_payload_excl "${members[@]}"
+  [ "${payload_excl[*]}" = "say-hi/settings/colors say-hi/settings/packages.d" ] || {
+    _hi_cecho " | cut: [${payload_excl[*]}]" "$RED"
+    return 1
+  }
+  listing="$(_hi_payload_tar | tar tzf -)"
+  [[ "$listing" != *settings/colors* && "$listing" != *settings/packages.d* ]] &&
+    [[ "$listing" == *settings/aliases.sh* && "$listing" == *settings/nanorc* ]] || return 1
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
+}
+
+# ...and only there: _hi_wire_bytes and `hi --doctor` hold no $payload_excl,
+# so the figure the badge tracks is the stock tree whatever overlay is present
+function test_the_payload_is_whole_without_a_cut_list() {
+  local dir="$_HI_WORKDIR/excl-none"
+  mkdir -p "$dir"
+  printf 'hosttag,x,red\n' >"$dir/colors"
+  [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/settings/colors* ]]
+}
+
+# the cut list is the members paths.sh resolves overlay-over-tree, no more:
+# each has a tree default and a $_HI_CONFIG_DIR guard there
+function test_the_shadow_roster_matches_paths_sh() {
+  local f
+  for f in $_HI_OVERLAY_SHADOWS; do
+    [ -e "$_HI_ROOT/settings/$f" ] && grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
+      _hi_cecho " | $f is in _HI_OVERLAY_SHADOWS without a tree default and an overlay guard in paths.sh" "$RED"
+      return 1
+    }
+  done
+  for f in "$_HI_ROOT"/settings/*; do
+    [ "${f##*/}" = aliases.sh ] || case "$_HI_OVERLAY_SHADOWS" in *" ${f##*/} "*) ;; *) return 1 ;; esac
+  done
+}
+
+# The tag map a relayed hop colors by: the `# Tags:` lines of ~/.ssh/config
+# with the Host or Match line each sits over, and none of the block - no
+# HostName, no User, no untagged host. From a target it is the overlay's copy
+# or nothing: the middle box's own config is not the client's.
+function test_ssh_tags_is_cut_from_the_ssh_config() {
+  local dir="$_HI_WORKDIR/tags" out
+  mkdir -p "$dir/overlay" "$dir/rt"
+  printf '%s\n' '# Tags: prod, web' 'Host web1 web2' '  HostName 10.0.0.1' '  User deploy' '' \
+    'Host plain' '  HostName 10.0.0.2' '# tags=lab' '# a note' 'Match host lab-* user x' \
+    '# Tags: orphan' 'Include conf.d/*' 'Host after-include' >"$dir/config"
+  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat ssh_tags)"
+  [ "$out" = '# Tags: prod, web
+Host web1 web2
+# tags=lab
+Match host lab-* user x' ] || {
+    _hi_cecho " | ssh_tags arrived as: [$out]" "$RED"
+    return 1
+  }
+  ! _HI_REMOTE_SESSION=1 XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags || return 1
+  printf 'Host untagged\n' >"$dir/config"
+  ! XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags
+}
+
 # ...and hi's own tree copy is not one: it rides in the payload already, so
 # packing it again would be the same bytes twice on every connect
 function test_the_trees_own_editor_rc_is_not_streamed() {
@@ -1135,6 +1223,9 @@ function test_can_gzip_reads_the_tar_it_has() {
 
 function run_hi_payload_tests() {
   _hi_workdir hipayloadtest
+  # home's configs ride only with their tools on this machine (_hi_tool_here),
+  # and no runner has all of them
+  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
 
   _hi_suite_begin
 
@@ -1144,6 +1235,9 @@ function run_hi_payload_tests() {
   _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
+  _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
+  _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
+  _hi_check "The shadow roster is paths.sh's cascade" test_the_shadow_roster_matches_paths_sh
 
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
@@ -1176,6 +1270,7 @@ function run_hi_payload_tests() {
   _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
   _hi_check "Home's tool configs do not ride from a target" test_home_configs_do_not_ride_from_a_target
+  _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
@@ -1183,6 +1278,7 @@ function run_hi_payload_tests() {
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
+  _hi_check "...only with its tool on this machine" test_a_home_config_needs_its_tool_here
   _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
   _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config

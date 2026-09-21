@@ -70,6 +70,9 @@ source "$_hi_d/../common/core.sh"
 # tier points them somewhere of its own, as tests/common/paths_test.sh does.
 export _HI_VIMRC="$_HI_ROOT/settings/vimrc" _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
 export _HI_NANORC="$_HI_ROOT/settings/nanorc" _HI_EMACSRC="$_HI_ROOT/settings/init.el" _HI_TMUX_CONF=""
+# ...and ~/.ssh/config the same way: its `# Tags:` lines ride the overlay as
+# ssh_tags, so a developer's own would be a member of every stream built here
+export _HI_SSH_CONFIG="$XDG_CONFIG_HOME/no-ssh-config"
 # the heading rules the harness and the suites print with
 # shellcheck source=../scripts/lib.sh
 source "$_hi_d/../scripts/lib.sh"

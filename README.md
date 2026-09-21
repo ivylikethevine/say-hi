@@ -331,19 +331,73 @@ Ordered by scope, narrowest first. An entry that names the tag in its **Ticks
 when** is one the 1.0.0 release itself waits on; the rest are in this checkout
 and are not.
 
-1. [ ] **A release says where the package went, and shows what changed** —
+1. [ ] **A stability contract is written down** — shipped as
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into the version table it promises.
+
+2. [ ] **A release says where the package went, and shows what changed** —
        shipped: `release.yml`'s `publish` leaves `tap` and `demo` slots in the
        release body, which its `tap` job and `demos.yml`'s `attach` job fill
        (`.github/scripts/release_slot.sh`) with the tap PR link and the
        `packages` GIF. **Ticks when:** the next real tag's release page shows
        the tap link and renders the GIF.
 
-2. [ ] **A stability contract is written down** — shipped as
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into the version table it promises.
+3. [ ] **`--preview targets` goes away** — it lists what `hi <TAB>` already
+       offers, and pays a cold probe of every backend to do it. **Do:** remove
+       the subject from `scripts/preview.sh` (the usage and help text, the
+       accept arm, `_hi_print_targets_table`, the dispatch arm), `common/flags`,
+       `common/targets.sh`'s `--preview` completion words, `docs/hi.1`, and the
+       suite's cases; `tests/common/targets_test.sh` drift-checks those word
+       lists against each other, so both sides move in one commit. **Ticks
+       when:** `hi --preview targets` is refused like any unknown subject and
+       `--group fast` is green.
 
-3. [ ] **What hi carries is linted against the target, not the client** —
+4. [ ] **No alias for a package that is not installed** — shipped: `vim`,
+       `nvim`, `hx`, `tmux`, and `micro -config-dir` are already gated in
+       `settings/aliases.sh`. **Do:** gate the rest the same way: `nano`,
+       `emacs`, `micro`, the `bat`/`cat` ladder, and `ls`/`eza`/`exa`. The
+       `emacs` line skips the gate on purpose ("a box without emacs says so
+       itself"), so decide whether an alias to a missing binary is worse than an
+       alias that hides the shell's own not-found message, and change that
+       comment with the line. **Ticks when:** no alias in the file names a
+       command `command -v` cannot find, and `tests/settings/alias_test.sh` pins
+       it.
+
+5. [ ] **A `hi-quiet` directive beside `hi-allow`** — shipped: `hi-allow`
+       exempts the next line of an overlay file from the include lint
+       (`_hi_include_lint` in `hi.sh`, `docs/SETTINGS.md`, `docs/hi.1`). **Do:**
+       add `hi-quiet`, which still drops the line on a target that lacks what it
+       names but leaves `hi --doctor` no row about it, at the same awk seam as
+       `hi-allow`, and document the two side by side. **Ticks when:** a
+       `hi-quiet` line is dropped without a doctor row, and
+       `tests/hi/payload_test.sh` and `tests/scripts/doctor_test.sh` pin both
+       directives.
+
+6. [ ] **The payload badge is measured, not typed** — `README.md`'s
+       `ssh_payload` badge says 65KB; `_hi_wire_bytes` on this checkout
+       returns 69617 bytes, which is 68KB. `bench_payload_readme_badge`
+       (`tests/bench/bench_test.sh`) holds the two within 5%, and 5% of 68KB
+       is 4KB, so a 3KB error is green - and the band widens with the payload,
+       so the badge is free to drift further the more there is to measure.
+       **Do:** stamp the number instead of typing it, the way
+       `packaging/stamp.sh` already stamps the version at build time, and then
+       cut the slack to the rounding error it was meant to absorb rather than
+       the whole drift. **Ticks when:** the badge equals `_hi_wire_estimate`
+       exactly, and adding a kilobyte to the payload turns `--group bench` red
+       until it is restamped.
+
+7. [ ] **A config where its tool keeps it, for the shells too** — shipped: the
+       editor and prompt members read the tool's own path on the client
+       (`common/paths.sh`, `_hi_overlay_src` in `hi.sh`). Missing: `aliases.sh`,
+       `bashrc`, `zshrc`, and `config.fish` have no such tier, so `~/.aliases`,
+       `~/.bash_aliases`, and `~/.shrc` are never found. **Do:** a client-only
+       cascade for each in `common/paths.sh` and a case arm in
+       `_hi_overlay_src`, then the two tables in `docs/FILES.md`. **Ticks
+       when:** a `~/.aliases` on the client rides to the target with no copy
+       into `~/.config/say-hi`.
+
+8. [ ] **What hi carries is linted against the target, not the client** —
        shipped: the nano rule. It exempted any `include` line merely
        _mentioning_ `/usr/share/nano`, so a `/usr/share/nano/extra/*.nanorc`
        (a Debian split, absent on Fedora, Alpine, and macOS) rode out clean
@@ -361,91 +415,100 @@ and are not.
        decision is in `docs/INTEGRATIONS.md` and the framework e2e suite is
        green on it.
 
-4. [ ] **The header closes on the right, on every row** — shipped:
-       `_hi_row_line` reserves the last two columns, pads each row to what is
-       left, and closes it with a space and a `|`, so a row now ends where the
-       banner ends rather than at its last cell. `full_check` grew the same
-       edge - it wraps on its own rather than through `_hi_row_line`, and had
-       none - so a real `hi_header` render, footer included, now closes every
-       row in the banner's column, wrapped rows and a carried-over cell
-       included; `_HI_DISABLE_RIGHT_EDGE=1` (`hi --configure` advanced) gives
-       back the open-ended row either way, the way `_HI_DISABLE_LEAD_SPACE`
-       gives back the leading space. The header suite now asserts the column a
-       row ends on, not just a pipe's presence.
-       **Ticks when:** `--group fast` is green on this checkout.
+9. [ ] **Commands that write an ssh tag** — `_hi_ssh_host_tag_walk` reads
+       `# Tags:` above a `Host` or `Match host` line; nothing writes one.
+       **Do:** `hi --add-tag <host> <tag>` on `scripts/add_package.sh`'s shape:
+       a `common/flags` row, a completion arm in `common/targets.sh`,
+       `--dry-run`, and `_hi_write_back` in `scripts/lib.sh` for the atomic
+       commit. Decide what it does to a host with a tag already (the walk reads
+       the leftmost only) and to one only a wildcard `Host` covers. **Ticks
+       when:** the command round-trips through `hi --preview colors` in a test
+       and is in `docs/hi.1`, `docs/tldr.md`, and `docs/COLORS.md`.
 
-5. [ ] **The payload badge is measured, not typed** — `README.md`'s
-       `ssh_payload` badge says 65KB; `_hi_wire_bytes` on this checkout
-       returns 69617 bytes, which is 68KB. `bench_payload_readme_badge`
-       (`tests/bench/bench_test.sh`) holds the two within 5%, and 5% of 68KB
-       is 4KB, so a 3KB error is green - and the band widens with the payload,
-       so the badge is free to drift further the more there is to measure.
-       **Do:** stamp the number instead of typing it, the way
-       `packaging/stamp.sh` already stamps the version at build time, and then
-       cut the slack to the rounding error it was meant to absorb rather than
-       the whole drift. **Ticks when:** the badge equals `_hi_wire_estimate`
-       exactly, and adding a kilobyte to the payload turns `--group bench` red
-       until it is restamped.
+10. [ ] **`hi --doctor` reads as findings, not a log** — shipped: severity is
+        separate from color and counted (`doctor_row`, `_HI_DOC_BAD`), and
+        `--json` exists. Missing: a glyph per severity, findings grouped rather
+        than interleaved in emission order, a findings-only view, and the boxed
+        table `hi --preview` already draws with `scripts/table.sh`. **Do:**
+        reshape the text output and hold the `--json` shape fixed. **Ticks
+        when:** `tests/scripts/doctor_test.sh` is green on the new text and its
+        `--json` cases did not change.
 
-6. [ ] **CI walks the upgrade path a tag creates** — every job today installs
-       one version into a fresh box, so nothing exercises the case
-       [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
-       about: a shell that loaded the _previous_ release, the tree rewritten
-       under it, and the rc re-sourced in that same shell. It was found by
-       hand in a container. **Do:** a job the tag triggers (`release.yml`'s
-       `gate`, so a bad upgrade stops the release) that installs the previous
-       tag in a container, opens a shell per wired dialect, replaces the tree
-       with the tag being cut, re-sources each rc in that shell, and fails on
-       any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
-       `v*` tag runs it green, and putting core.sh's load guard back in
-       `common/bash.sh` turns it red.
+11. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
+        36 of the 50 `harden-runner` steps run `egress-policy: block` with an
+        `allowed-endpoints` list, up from 6, and each of the 14 left on `audit`
+        carries a comment naming the limit that keeps it there rather than work
+        not done. Eight cannot block at all: `windows-e2e.yml`'s four jobs,
+        `windows-client.yml`'s two, `ci.yml`'s `test-macos` and `release.yml`'s
+        `brew` - harden-runner's Windows agent logs no endpoint or DNS event
+        where an Ubuntu run logs both, and blocking is an Ubuntu capability.
+        `ci.yml`'s `test-arm` has no step at all for the same reason one step
+        further out: the community tier ships no arm agent, so it would log that
+        and exit. Three reach arbitrary hosts by design (`link-check.yml`,
+        `image-scan.yml`, `scorecard.yml`). Three reach a host no fixed row
+        names: `ci.yml`'s `e2e` takes Fedora packages off whichever mirrors the
+        metalink hands it - six distinct `*.mm.fcix.net`,
+        `mirror.cs.princeton.edu` and `fedora.mirror.constant.com` across two
+        shards of one run - `pages.yml`'s `deploy` polls a
+        `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
+        and region both rotate, and `openbsd-e2e.yml`'s guest opens
+        DNS-over-HTTPS to a bare `9.9.9.9`, where `allowed-endpoints` matches on
+        hostname. What keeps the lists short is measured, not assumed:
+        harden-runner fetches GitHub's meta domains and auto-allows `github.com`,
+        `*.github.com`, `*.githubapp.com`, `ghcr.io` and
+        `productionresultssa0`-`19.blob.core.windows.net`, so artifacts need no
+        row either way - `coverage.yml`'s shards upload through
+        `productionresultssa18` and `demos.yml`'s `collect` reaches nothing else
+        at all - while `*.githubusercontent.com` is not meta and every host under
+        it has to be listed. The rest of the cost is cold runs: a job that hits
+        its caches reaches fewer hosts than one that misses, and `e2e-backends`'
+        first list came off a run where `kind-action` restored kind from
+        `actions/cache` and so never fetched kubectl - shard 3 then went red on a
+        blocked `dl.k8s.io`. **Do:** read a cold run of each blocking job, and
+        take `demos.yml`'s `attach` list off a tagged run rather than off its
+        three steps, which is where it comes from now. **Ticks when:** no job is
+        on `audit` without a comment naming the reason, and adding an unlisted
+        download to a blocking job fails it.
 
-7. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
-       36 of the 50 `harden-runner` steps run `egress-policy: block` with an
-       `allowed-endpoints` list, up from 6, and each of the 14 left on `audit`
-       carries a comment naming the limit that keeps it there rather than work
-       not done. Eight cannot block at all: `windows-e2e.yml`'s four jobs,
-       `windows-client.yml`'s two, `ci.yml`'s `test-macos` and `release.yml`'s
-       `brew` - harden-runner's Windows agent logs no endpoint or DNS event
-       where an Ubuntu run logs both, and blocking is an Ubuntu capability.
-       `ci.yml`'s `test-arm` has no step at all for the same reason one step
-       further out: the community tier ships no arm agent, so it would log that
-       and exit. Three reach arbitrary hosts by design (`link-check.yml`,
-       `image-scan.yml`, `scorecard.yml`). Three reach a host no fixed row
-       names: `ci.yml`'s `e2e` takes Fedora packages off whichever mirrors the
-       metalink hands it - six distinct `*.mm.fcix.net`,
-       `mirror.cs.princeton.edu` and `fedora.mirror.constant.com` across two
-       shards of one run - `pages.yml`'s `deploy` polls a
-       `run-actions-N-azure-REGION.actions.githubusercontent.com` whose shard
-       and region both rotate, and `openbsd-e2e.yml`'s guest opens
-       DNS-over-HTTPS to a bare `9.9.9.9`, where `allowed-endpoints` matches on
-       hostname. What keeps the lists short is measured, not assumed:
-       harden-runner fetches GitHub's meta domains and auto-allows `github.com`,
-       `*.github.com`, `*.githubapp.com`, `ghcr.io` and
-       `productionresultssa0`-`19.blob.core.windows.net`, so artifacts need no
-       row either way - `coverage.yml`'s shards upload through
-       `productionresultssa18` and `demos.yml`'s `collect` reaches nothing else
-       at all - while `*.githubusercontent.com` is not meta and every host under
-       it has to be listed. The rest of the cost is cold runs: a job that hits
-       its caches reaches fewer hosts than one that misses, and `e2e-backends`'
-       first list came off a run where `kind-action` restored kind from
-       `actions/cache` and so never fetched kubectl - shard 3 then went red on a
-       blocked `dl.k8s.io`. **Do:** read a cold run of each blocking job, and
-       take `demos.yml`'s `attach` list off a tagged run rather than off its
-       three steps, which is where it comes from now. **Ticks when:** no job is
-       on `audit` without a comment naming the reason, and adding an unlisted
-       download to a blocking job fails it.
-8. [ ] **support for ~/.aliases and similar paths**
-9. [ ] **easier to read doctor output**
-10. [ ] **plugin rewrite some features - header, check**
-11. [ ] **dedupe shipped files when overlay and settings coexist + rename**
-12. [ ] **add a hi-allow, and a hi-quiet directive for the overlay files**
-13. [ ] **only show/use configs for installed tools**
-14. [ ] **simplify and reduce packages confusing-ness**
-15. [ ] **basic ssh-tag adding commands**
-16. [ ] **don't assign aliases for non-installed package**
-17. [ ] **display hosts and their colors properly**
-18. [ ] **remove --preview targets**
+12. [ ] **CI walks the upgrade path a tag creates** — every job today installs
+        one version into a fresh box, so nothing exercises the case
+        [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
+        about: a shell that loaded the _previous_ release, the tree rewritten
+        under it, and the rc re-sourced in that same shell. It was found by
+        hand in a container. **Do:** a job the tag triggers (`release.yml`'s
+        `gate`, so a bad upgrade stops the release) that installs the previous
+        tag in a container, opens a shell per wired dialect, replaces the tree
+        with the tag being cut, re-sources each rc in that shell, and fails on
+        any stderr or any `_HI_*` path left empty. **Ticks when:** a pushed
+        `v*` tag runs it green, and putting core.sh's load guard back in
+        `common/bash.sh` turns it red.
+
+13. [ ] **The packages check has fewer dials** — four orthogonal ones decide
+        what one row does: a priority 0-3, the `-`/`+` mode character,
+        `_HI_PACKAGES_MIN_PRIORITY` (where `4` means off), and a group's
+        `color=` line, which outranks `_HI_PACKAGES_PALETTE`. **Do:** decide
+        which of the four a user should ever have to touch and fold or retire
+        the rest, then rewrite `docs/COLORS.md`'s two packages sections and
+        `docs/SETTINGS.md`'s rows to match. **Ticks when:**
+        `hi --preview packages` needs no MODE table to explain itself.
+
+14. [ ] **Investigate the header as plugins** — `common/header.sh` is the
+        largest file in the payload, and every cell in it is already one
+        function behind one dispatch (`_hi_cell_<word>`, picked by the header's
+        word list), while `plugins.d` members load in every shell
+        (`_hi_load_plugins`) and can only set `_HI_SEGMENT`, a prompt segment.
+        **Do:** find out whether the built-in cells and `full_check`'s groups
+        can be rewritten as plugins on one contract a user's own could share,
+        rather than widening the contract beside a header that does not use
+        it. Answer what it costs first: the shared probes several cells read
+        one result from (`_hi_probed_cell`), the width and wrap arithmetic
+        `_hi_row_line` owns, the payload budget, the forks a connect pays, and
+        fish, which loads `plugins.d` with a loader of its own and draws the
+        header by handing it to bash. `check` is itself a header word, so say
+        whether a plugin's check is a group or a cell. **Ticks when:** the
+        verdict and its reasons are written down
+        (`docs/INTEGRATIONS.md` for a contract, `docs/COMPATIBILITY.md` for a
+        no), and this entry is replaced by the work the verdict calls for.
 
 ### Post 1.0
 

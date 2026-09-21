@@ -300,6 +300,19 @@ function test_payload_cached_builds_cold_then_reuses_it() {
   _hi_cache_marked "$out"
 }
 
+# a tree cut for an overlay (_hi_payload_excl) is its own cache file, so a
+# changed overlay is never served the last one's tar, nor the whole tree's
+function test_payload_cached_is_keyed_on_the_cut_list() {
+  local whole="" cut="" dir
+  local -a payload_excl=()
+  dir="$(_hi_cache_rt pc.excl)"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_cached whole || return 1
+  _hi_payload_excl colors
+  XDG_RUNTIME_DIR="$dir" _hi_payload_cached cut || return 1
+  [ "$whole" = "$dir/hi.payload.tree" ] && [ "$cut" != "$whole" ] &&
+    [[ "$(tar tzf "$whole")" == *settings/colors* && "$(tar tzf "$cut")" != *settings/colors* ]]
+}
+
 function test_payload_cached_rebuilds_when_a_source_file_is_newer() {
   local out="" dir
   dir="$(_hi_cache_rt pc.stale)"
@@ -576,6 +589,9 @@ function test_ctl_close_is_a_noop_with_nothing_open() {
 function run_cache_tests() {
   _hi_h1 "Testing hi.sh's runtime dir, caches, and ControlMaster socket"
   _hi_workdir hicache
+  # home's configs ride only with their tools on this machine (_hi_tool_here),
+  # and no runner has all of them
+  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
   _hi_suite_begin
   _hi_cache_config
 
@@ -608,6 +624,7 @@ function run_cache_tests() {
   _hi_check "Overlay stream is armored either way" test_overlay_stream_emits_an_armored_line_either_way
   _hi_check "Overlay stream is byte-identical off a warm cache" test_overlay_stream_is_byte_identical_off_a_warm_cache
   _hi_check "Payload cache builds cold then reuses it" test_payload_cached_builds_cold_then_reuses_it
+  _hi_check "Payload cache is keyed on what the overlay cut" test_payload_cached_is_keyed_on_the_cut_list
   _hi_check "Payload cache rebuilds on a newer source file" test_payload_cached_rebuilds_when_a_source_file_is_newer
   _hi_check "Payload cache off when _HI_PAYLOAD_CACHE=0" test_payload_cached_is_off_when_the_toggle_is_zero
   _hi_check "Payload stream is byte-identical off a warm cache" test_payload_stream_is_byte_identical_off_a_warm_cache

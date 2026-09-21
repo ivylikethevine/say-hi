@@ -574,6 +574,23 @@ function test_ssh_host_tag_leftmost_of_multiple() {
   [ "$(_hi_fixture_tag myhost)" = "prod" ]
 }
 
+# A relayed hop: the middle box's config knows the host and carries no tag,
+# so the client's tag map (the overlay's ssh_tags) answers - on a target only,
+# and the rc of a host neither file tags is still the local walk's.
+function test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay() {
+  local dir="$_HI_WORKDIR/relaytags"
+  mkdir -p "$dir"
+  unset _HI_TAG_NAME # the one-deep memo is keyed on the name, not on these
+  printf '# Tags: fromclient\nHost untaggedhost far-*\n' >"$dir/ssh_tags"
+  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)" = fromclient ] || return 1
+  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag far-1)" = fromclient ] || return 1
+  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag myhost)" = prod ] || return 1
+  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)" ] || return 1
+  local rc=0
+  _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag nope >/dev/null || rc=$?
+  [ "$rc" = 1 ]
+}
+
 function test_ssh_host_tag_untagged_host_fails() {
   ! _hi_fixture_tag untaggedhost
 }
@@ -1312,6 +1329,7 @@ function run_core_tests() {
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
   _hi_check "Untagged host fails" test_ssh_host_tag_untagged_host_fails
+  _hi_check "A relayed hop reads the client's tag map" test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay
   _hi_check "'Tags=' syntax and multi-alias Host lines" test_ssh_host_tag_equals_syntax_and_multialias
   _hi_check "Unknown host fails" test_ssh_host_tag_unknown_host_fails
   _hi_check "Lowercase 'host' keyword matches" test_ssh_host_tag_matches_lowercase_host_keyword

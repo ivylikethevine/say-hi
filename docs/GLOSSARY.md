@@ -663,6 +663,27 @@ reason `colors` and `packages.d` do: the tree copy is a default, and
 override working locally and silently reverting on every target, the
 asymmetry `paths_test.sh`'s guard/roster pin catches one layer up.
 
+That cascade is wholesale, so a member that shadows a tree default makes the
+default dead weight: a connect hands `_hi_payload_excl` its member list, and
+`_hi_payload_tar` drops those files (`$_HI_OVERLAY_SHADOWS`; never
+`aliases.sh`, which is additive) from the stage, cached under a key of its
+own. Dropped from the stage rather than with tar's `--exclude`, which
+OpenBSD's tar lacks. Only a caller holding the list cuts anything:
+`_hi_wire_bytes` has none and measures the stock tree (HI.44), and the
+container arm, where the two archives travel separately, sends the defaults
+after all when the overlay's copy fails. A file still under a pre-1.0 name
+(`$_HI_OVERLAY_RENAMES`) is not a member, so it cuts nothing and the default
+it no longer overrides keeps riding.
+
+`ssh_tags` is the one member with no file behind it on the client:
+`_hi_ssh_tags_file` cuts the `# Tags:` lines and the `Host`/`Match host` line
+under each out of `~/.ssh/config` into the runtime dir, in ssh_config's own
+shape, so `_hi_ssh_host_tag` on a relaying box walks it with the walker it
+already has - after its own config, and only in a remote session. Only tagged
+blocks ride, so an untagged block that would have answered first at home is
+not there to: a name both it and a later tagged wildcard match reads as
+tagged on the second hop.
+
 ## HI.43 container target grammar
 
 A container target may name what to run _in_ as well as where: `pod/container`
@@ -701,7 +722,8 @@ README badge quote — assembles the same script through the same
 `_hi_remote_script` rather than summing the armored streams:
 summing skips the boilerplate around them and reads ~6KB low, and a badge has
 to show the number the user sees. No overlay is counted, since which files
-ride is a question about a target.
+ride is a question about a target - and none of the tree defaults one would
+shadow is cut (HI.41), so the figure is the stock tree's on any client.
 
 ## HI.46 session rc directory
 

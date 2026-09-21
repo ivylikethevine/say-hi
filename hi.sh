@@ -64,12 +64,17 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 _HI_OVERLAY_FILES=(settings.sh colors packages.d vimrc init.lua nanorc
   init.el config.toml aliases.sh plugins.d bashrc zshrc config.fish starship.toml
   oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml p10k.zsh oh-my-zsh.zsh-theme oh-my-bash.theme.sh bash-it.theme.bash tide.vars theme.yml bat.conf
-  tmux.conf micro/settings.json micro/bindings.json micro/init.lua)
+  tmux.conf micro/settings.json micro/bindings.json micro/init.lua ssh_tags)
 
 # The overlay members renamed before 1.0, old:new. hi reads only the new
 # name; scripts/doctor.sh names a file still under the old one, since it
 # would otherwise be silently ignored.
 _HI_OVERLAY_RENAMES="vim.rc:vimrc nano.rc:nanorc emacs.el:init.el bash.sh:bashrc zsh.zsh:zshrc omz-theme.zsh:oh-my-zsh.zsh-theme omb-theme.sh:oh-my-bash.theme.sh"
+
+# The members with a tree default the overlay's copy replaces wholesale on a
+# target (common/paths.sh's cascade; aliases.sh is not one - the overlay's is
+# sourced on top of the tree's). _hi_payload_excl reads it.
+_HI_OVERLAY_SHADOWS=" colors packages.d vimrc init.lua config.toml nanorc init.el "
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -302,7 +307,7 @@ function _hi_p10k_in_use() {
 # _hi_prompt_list, since nothing else starts it) - so a target gets the config
 # in force here with no copy to keep in step, and a copy in the overlay is the
 # way to give targets a different one. Fails, printing nothing, when there is
-# no file either way.
+# no file either way, or when home's is for a tool this machine lacks.
 #
 # The editor rcs and tmux's come off the path variable common/paths.sh already
 # resolved in the same order, so the roster of where a vimrc lives is written
@@ -323,6 +328,9 @@ function _hi_overlay_src() {
   nanorc) _hi_os_f="${_HI_NANORC:-}" ;;
   init.el) _hi_os_f="${_HI_EMACSRC:-}" ;;
   tmux.conf) _hi_os_f="${_HI_TMUX_CONF:-}" ;;
+  # the overlay's copy - on a relay the client's, landed there - else cut from
+  # this machine's ~/.ssh/config
+  ssh_tags) [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_ssh_tags_file _hi_os_f || return 1 ;;
   micro/*)
     # the overlay's copy, else micro's own directory - on this machine only
     [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] ||
@@ -331,7 +339,50 @@ function _hi_overlay_src() {
   esac
   [ "$_hi_os_f" != "$_HI_ROOT/settings/$1" ] || return 1
   [ -f "$_hi_os_f" ] || return 1
+  # home's file is "in force here" only with its tool here to read it; the
+  # overlay's copy is the user's say-so, and asks nobody
+  [ "$_hi_os_f" = "$_HI_CONFIG_DIR/$1" ] || _hi_tool_here "$1" || return 1
   _hi_out "${2:-}" "$_hi_os_f"
+}
+
+# _hi_ssh_tags_file [outvar] - the tag map a relayed hop colors by: every
+# `# Tags:` line of ~/.ssh/config with the Host or Match line under it and
+# nothing else of the block, so the middle box's _hi_ssh_host_tag can walk it
+# as the config it is cut from. Kept in the runtime dir, recut when the config
+# is newer; fails with no config, no runtime dir, or no tag.
+function _hi_ssh_tags_file() {
+  local _hi_tf_d="" _hi_tf
+  [ -f "$_HI_SSH_CONFIG" ] || return 1
+  _hi_runtime_dir _hi_tf_d
+  [ -n "$_hi_tf_d" ] || return 1
+  _hi_tf="$_hi_tf_d/hi.ssh_tags"
+  if [ ! "$_hi_tf" -nt "$_HI_SSH_CONFIG" ]; then
+    awk '{ t = $0; sub(/^[ \t]+/, "", t); l = tolower(t) }
+      l ~ /^#[ \t]*tags[:=]/ { tag = t; next }
+      l ~ /^#/ || l == "" { next }
+      tag != "" && l ~ /^(host|match[ \t]+host)[ \t]/ { print tag; print t }
+      { tag = "" }' "$_HI_SSH_CONFIG" >"$_hi_tf.$$" && mv -f "$_hi_tf.$$" "$_hi_tf" || return 1
+  fi
+  [ -s "$_hi_tf" ] && _hi_out "${1:-}" "$_hi_tf"
+}
+
+# _hi_tool_here <member> - is the tool that reads <member> on this machine?
+# The names settings/aliases.sh gates each alias on; a member of no tool's
+# (and a prompt program's, which _hi_prompt_list already asked about) is a yes.
+# The client is asked because only it can be, before a connect
+# (docs/INTEGRATIONS.md's _Which side is asked_).
+function _hi_tool_here() {
+  case "$1" in
+  vimrc) command -v vim ;;
+  init.lua) command -v nvim ;;
+  config.toml) command -v hx ;;
+  nanorc) command -v nano ;;
+  init.el) command -v emacs ;;
+  tmux.conf) command -v tmux ;;
+  micro/*) command -v micro ;;
+  bat.conf) command -v bat || command -v batcat ;;
+  theme.yml) command -v eza ;;
+  esac >/dev/null 2>&1
 }
 
 # The include scanner, in the dialect of each file it reads. Every member
@@ -583,7 +634,8 @@ _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flag
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
 # comments, gzip what comes out. Reads $stage_in (members to pull), $stage_out
-# (members to emit), $stage_excl (tar --exclude words) and $stage_add
+# (members to emit), $stage_excl (stage paths dropped once pulled - not tar's
+# --exclude, which OpenBSD's has none of) and $stage_add
 # (<member> <path> pairs copied in from outside <src-dir>) and $stage_lint (1
 # to run the include scan over the stage: the overlay, never the tree) from
 # its caller, the convention _hi_container_cleanup and _hi_remote_middle also
@@ -611,9 +663,9 @@ function _hi_stage_tar() {
     # EPIPE and a "tar: Write error" on stderr. Skipped when every member is
     # a $stage_add one: GNU tar refuses to write an empty archive.
     if ((${#stage_in[@]})); then
-      tar -c -h -f "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]}"} -C "$1" "${stage_in[@]}" || exit 1
+      tar -c -h -f "$stage/in.tar" -C "$1" "${stage_in[@]}" || exit 1
       tar -x -f "$stage/in.tar" -C "$stage" || exit 1
-      rm -f "$stage/in.tar"
+      rm -rf "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]/#/$stage/}"}
     fi
     for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
       case "${_hi_st_add[_hi_st_i]}" in */*) mkdir -p "$_hi_st_root/${_hi_st_add[_hi_st_i]%/*}" || exit 1 ;; esac
@@ -743,8 +795,12 @@ function _hi_overlay_cached() {
 # The tree twin, against the ~70-130ms _hi_payload_tar otherwise costs on
 # every connect. _hi_payload_tar takes no arguments - the roster is its own -
 # but is handed one anyway: that list is what _hi_cached watches for staleness.
+# Keyed on the caller's $payload_excl, so a tree cut for one overlay is never
+# served beside another; `tree` alone is the whole one.
 function _hi_payload_cached() {
-  _hi_cached "$1" payload tree \
+  local _hi_pc_key=tree
+  [ -z "${payload_excl[*]-}" ] || _hi_pc_key="tree.$(_hi_cksum "${payload_excl[*]}")"
+  _hi_cached "$1" payload "$_hi_pc_key" \
     "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }
 
@@ -835,10 +891,28 @@ function _hi_die() {
   exit 1
 }
 
+# _hi_payload_excl <member...> - the tree files those overlay members shadow
+# (GLOSSARY: HI.41), into the caller's $payload_excl: one copy on the wire,
+# not the default beside the file that beats it. Only a member that ships
+# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
+function _hi_payload_excl() {
+  local f
+  payload_excl=()
+  for f; do
+    f="${f%%/*}"
+    case "$_HI_OVERLAY_SHADOWS${payload_excl[*]-} " in
+    *" say-hi/settings/$f "*) ;;
+    *" $f "*) payload_excl+=("say-hi/settings/$f") ;;
+    esac
+  done
+}
+
 # The tree, comment-stripped through a staging copy; both size budgets
-# measure this. GLOSSARY: HI.39 + HI.35
+# measure this. GLOSSARY: HI.39 + HI.35. Whole unless the caller holds a
+# $payload_excl - a connect that ships the overlay too; _hi_wire_bytes has
+# none, and measures the stock tree.
 function _hi_payload_tar() {
-  local -a stage_in stage_out=(say-hi) stage_excl=()
+  local -a stage_in stage_out=(say-hi) stage_excl=(${payload_excl[@]+"${payload_excl[@]}"})
   stage_in=("${_HI_PAYLOAD[@]/#/say-hi/}")
   _hi_stage_tar "$_HI_HOME" say-hi
 }
@@ -1468,6 +1542,8 @@ function _say_hi() {
   # local-only, so resolved once here and reused by the warm below and the
   # real stream
   _hi_read_lines overlay < <(_hi_overlay_files)
+  local -a payload_excl=()
+  _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
 
   # warm the caches while _hi_ctl_open below settles, so a miss's ~70-130ms
   # build is not paid in series with the connect
@@ -1747,6 +1823,9 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   # of the cache first, which already holds that shape. $cached says whether
   # the file is the cache's (leave it) or ours (delete it).
   local cached=1
+  local -a payload_excl=()
+  _hi_read_lines overlay < <(_hi_overlay_files)
+  _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
   if ! _hi_payload_cached tarball; then
     cached=""
     tarball="$tmp.tar.gz"
@@ -1766,11 +1845,13 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   fi
   [ -n "$cached" ] || rm -f "$tarball"
 
-  _hi_read_lines overlay < <(_hi_overlay_files)
   if ((${#overlay[@]})) &&
     ! _hi_overlay_bytes "${overlay[@]}" |
     "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
+    # the defaults that overlay shadowed were cut from the tree above
+    ! ((${#payload_excl[@]})) || tar -c -f - -C "$_HI_HOME" "${payload_excl[@]}" |
+      "${cp[@]}" sh -c "tar -x -m -f - -C '$root'" 2>>"$tmp" || true
   fi
 
   # hi.sh rides the payload tar unpacked above, mode and all - no separate

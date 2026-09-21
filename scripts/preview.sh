@@ -4,7 +4,7 @@
 # connect will render it, plus why.
 #
 #   colors     every ssh host and every known user in the color it lands in
-#              (override/hosttag/pattern/default) - for tuning settings/colors
+#              (override/hosttag/pattern/hash) - for tuning settings/colors
 #   packages   the header's packages check: what each priority means, the
 #              colors it paints an installed and a missing package, a real
 #              example of each from your own packages file, then the check
@@ -74,17 +74,13 @@ case "${1:-}" in
     cat <<EOF
 Usage: $_hi_argv0
 
-Prints two tables - every known user, and every ssh host that resolves to
-something other than the default - rendered in the color they'd actually
-appear in, alongside *why* they resolve that way (an exact override, an
-ssh-config tag, or the hash of the name).
+Prints two tables - every known user, and every ssh host - rendered in the
+color they'd actually appear in, alongside *why* they resolve that way (an
+exact override, an ssh-config tag, a pattern, or the hash of the name).
 
 Takes no arguments. Reads:
   settings/colors        the type,name,color[,rrggbb] pins (its own comments explain them)
   ~/.ssh/config      hosts, and the "# Tags: ..." comments above them
-
-Hosts with no override and no usable tag are left out: they'd render exactly
-as a bare \`hi\` does, so there is nothing to preview.
 EOF
     ;;
   packages)
@@ -258,7 +254,7 @@ function _hi_color_source() {
     printf 'pattern:%s' "$pat"
     return
   fi
-  printf 'default'
+  printf 'hash'
 }
 
 # _hi_colors_names <type> [skip-name] - deduped pinned names of that type.
@@ -382,9 +378,7 @@ function _hi_print_users_table() {
     _hi_resolve_color username "${users[uidx]}" '' color_name # outvar form: no fork per user
     u_color[uidx]="$color_name"
     _hi_widen w_source "${u_source[uidx]}"
-    # a default row never renders (the loop below skips it), so it must not
-    # widen the column either
-    [[ "${u_source[uidx]}" = default ]] || _hi_widen w_color "${u_color[uidx]}"
+    _hi_widen w_color "${u_color[uidx]}"
   done
   _hi_widen w_source "local:username"
   localuser_color=$(_hi_override_color username LOCALUSER 2>/dev/null) || localuser_color=""
@@ -400,7 +394,6 @@ function _hi_print_users_table() {
   _hi_hbar mid "$w_item" "$w_color" "$w_source"
 
   for uidx in "${!users[@]}"; do
-    [[ "${u_source[uidx]}" = default ]] && continue
     _hi_user_row "${users[uidx]}" "${u_color[uidx]}" "${u_source[uidx]}"
   done
 
@@ -424,7 +417,7 @@ function _hi_print_hosts_table() {
   # user_escape, the memo's second outvar, feeds the render loop
   local name color_name source user user_color user_escape name_escape key
   local cur_line sep sep_w candidate idx idx2 li total_lines itemtext previewtext
-  local tag has_usertag
+  local tag
   local user_width=0 pw pad local_hostname
   local preview_users=() group_order=() group_names=() item_lines=()
   # Five *parallel* indexed arrays sharing one index, rather than associative
@@ -432,7 +425,7 @@ function _hi_print_hosts_table() {
   # the declaration alone is a fatal "invalid option".
   # group_order holds the keys, so it doubles as the lookup table below.
   local group_hosts=() group_source=() group_color=() group_tag=() group_pw=()
-  local gidx localhostname_color=""
+  local gidx localhostname_color="" localhostname_source
   # (user, tag) -> (color, escape), so the render loop below asks
   # _hi_resolve_color once per pair instead of once per (pair, group)
   local _hi_upc_keys=() _hi_upc_colors=() _hi_upc_escapes=()
@@ -441,16 +434,20 @@ function _hi_print_hosts_table() {
   _hi_widen user_width ${preview_users[@]+"${preview_users[@]}"}
 
   # The current machine renders as its own single-host group ahead of the ssh
-  # ones, so one measure/render path serves both - its key can't collide with
-  # a real group's (no _hi_color_source result reads local:hostname).
+  # ones, so one measure/render path serves both - its key has no tag field, so
+  # it can't collide with a real group's.
+  _hi_local_hostname local_hostname
   if localhostname_color=$(_hi_override_color hostname LOCALHOSTNAME 2>/dev/null); then
-    _hi_local_hostname local_hostname
-    group_order+=("local:hostname"$'\x1f'"$localhostname_color")
-    group_source+=("local:hostname")
-    group_color+=("$localhostname_color")
-    group_tag+=("")
-    group_hosts+=("$local_hostname")
+    localhostname_source=local:hostname
+  else
+    _hi_resolve_color hostname "$local_hostname" '' localhostname_color
+    localhostname_source=$(_hi_color_source hostname "$local_hostname")
   fi
+  group_order+=("$localhostname_source"$'\x1f'"$localhostname_color")
+  group_source+=("$localhostname_source")
+  group_color+=("$localhostname_color")
+  group_tag+=("")
+  group_hosts+=("$local_hostname")
 
   # Each subnet-style pin as its own example row, seeded with the glob itself
   # as the "host": the glob matches itself through _hi_ssh_pattern_hit, so
@@ -475,10 +472,6 @@ function _hi_print_hosts_table() {
       _hi_ssh_host_tag "$name" >/dev/null 2>&1 || :
       tag="$_HI_TAG_VALUE"
       source=$(_hi_color_source hostname "$name")
-      has_usertag=false
-      [[ -n "$tag" ]] && _hi_override_color usertag "$tag" >/dev/null 2>&1 && has_usertag=true
-      # skip hosts that wouldn't render any differently from a bare `hi`
-      [[ "$source" = default && "$has_usertag" = false ]] && continue
       _hi_resolve_color hostname "$name" '' color_name
       # tag is part of the key (not just source/color) since it changes which
       # users get colored via usertag, even when the hostname cell looks identical
@@ -497,7 +490,7 @@ function _hi_print_hosts_table() {
 
   local w_item=24 w_color=5 w_source=6 w_preview=7
   _hi_widen w_color "${_HI_COLOR_NAMES[@]}"
-  [[ -n "$localhostname_color" ]] && _hi_widen w_item "$local_hostname"
+  _hi_widen w_item "$local_hostname"
 
   for gidx in "${!group_order[@]}"; do
     _hi_widen w_source "${group_source[gidx]}"

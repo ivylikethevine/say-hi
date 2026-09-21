@@ -26,8 +26,19 @@ subnet or domain at once, no ssh-config entry needed — the first matching
 pattern in the file wins. Precedence, highest first: an exact pin, then a
 hosttag, then a pattern, then the hash.
 
+Tags follow you past the first hop. A `hi` typed inside a session runs on a
+box whose `~/.ssh/config` has none of your `# Tags:` lines, so the tagged
+`Host` and `Match host` lines of yours - those two lines of each block and
+nothing else, no `HostName`, no `User`, no untagged host - ride the overlay as
+`ssh_tags`, and the middle box reads them wherever its own config has no tag
+for the name. The host is matched as you type it there, against the patterns
+you wrote here. `hi --doctor` says when the member rides; like `colors`, it
+names hosts to every target you visit, so an empty `ssh_tags` of your own in
+`~/.config/say-hi/` is how to keep them home.
+
 `hi --preview colors` shows every host in your ssh config and every user it
-knows of, drawn in the colors themselves, each row naming the rule it matched:
+knows of, drawn in the colors themselves, each row naming the rule it matched
+(`hash` for one nothing pins):
 
 ![hi --preview colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 

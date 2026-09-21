@@ -414,6 +414,11 @@ function doctor_config() {
       doctor_plugins
       continue
     }
+    [ "$f" = ssh_tags ] && {
+      ! _hi_overlay_src "$f" t ||
+        doctor_row "$f" "the # Tags: lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
+      continue
+    }
     t=""
     _hi_overlay_src "$f" t || true
     # a member with no tree default has nothing to report until it exists

@@ -215,6 +215,10 @@ function _hi_run_framework_case() {
   config)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config"
+    # home's configs ride only with their tools here, and a runner has no micro
+    local stubs
+    stubs="$(_hi_stub_tools tmux micro)"
+    local -x PATH="$stubs:$PATH"
     _hi_config_client_home "$HOME"
     ;;
   esac

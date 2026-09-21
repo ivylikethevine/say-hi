@@ -489,7 +489,8 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # the four additive ones, which each shell or settings/aliases.sh sources by
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
 # aliases.sh and the three per-shell files (bashrc, zshrc, config.fish) -
-# and the prompt frameworks' five, which only a target reads, by name - and
+# and the prompt frameworks' five, which only a target reads, by name, as
+# core.sh's _hi_ssh_host_tag reads ssh_tags - and
 # micro's, whose micro/ directory paths.sh resolves whole. packages.d gets its
 # own arm: unlike plugins.d it now has a tree default too, so its guard is a
 # `-d` test, not the bare export the others still are. A missed lookup fails
@@ -512,7 +513,7 @@ function test_overlay_guards_match_the_roster() {
     plugins.d | micro/*)
       grep -qF "\"\$_HI_CONFIG_DIR/${f%%/*}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
-    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars) continue ;;
+    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"
