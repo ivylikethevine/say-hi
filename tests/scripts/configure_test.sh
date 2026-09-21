@@ -908,17 +908,21 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
 }
 
-# vim and hx are presence-gated in settings/aliases.sh itself (a box with
-# neither vim nor nvim, or without hx, leaves the alias undefined), which
-# _hi_editors_preview reads rather than restates - so their lines only need
-# to be there when the tool actually is; nano/emacs/micro carry no such gate
-# and are unconditional.
+# every editor is presence-gated in settings/aliases.sh itself (a box without
+# the tool leaves its alias undefined), which _hi_editors_preview reads rather
+# than restates - so each line only needs to be there when the tool is.
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano --rcfile $_HI_NANORC"* &&
-    "$out" == *"emacs -q -l $_HI_EMACSRC"* &&
-    "$out" == *"micro -> micro -backup false"* ]] || return 1
+  if command -v nano >/dev/null 2>&1; then
+    [[ "$out" == *"nano --rcfile $_HI_NANORC"* ]] || return 1
+  fi
+  if command -v emacs >/dev/null 2>&1; then
+    [[ "$out" == *"emacs -q -l $_HI_EMACSRC"* ]] || return 1
+  fi
+  if command -v micro >/dev/null 2>&1; then
+    [[ "$out" == *"micro -> micro -backup false"* ]] || return 1
+  fi
   # each name carries the rc of the binary behind it: nvim answers to both
   # `vim` and `nvim` and reads init.lua, vim reads vimrc
   if command -v nvim >/dev/null 2>&1; then
@@ -1256,7 +1260,7 @@ function test_menu_opens_the_check_depth() {
 function test_menu_feature_toggles_and_previews() {
   _hi_cfg_pty feat_toggle "$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_toggle "editor config overrides: now off" &&
-    _hi_cfg_has feat_toggle "nano --rcfile" &&
+    { ! command -v nano >/dev/null 2>&1 || _hi_cfg_has feat_toggle "nano --rcfile"; } &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
 }
 

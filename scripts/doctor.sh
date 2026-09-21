@@ -444,7 +444,7 @@ function doctor_config() {
   # packer acts on, so what is named here is exactly what got dropped on the
   # way out (GLOSSARY: HI.57). warn, not bad: the session still starts.
   local member lineno kind text fate said
-  fate="dropped on the way out (a # hi-allow line above it keeps it)"
+  fate="dropped on the way out (a # hi-allow line above it keeps it, # hi-quiet drops it without this row)"
   [ "${_HI_INCLUDES:-drop}" != keep ] || fate="sent as written (_HI_INCLUDES=keep), and the target has no such file"
   while IFS='|' read -r member lineno kind text; do
     [ -n "$member" ] || continue
@@ -456,9 +456,10 @@ function doctor_config() {
   # The toggle half of the pattern is read off that file rather than spelled
   # here: spelled, it missed _HI_DISABLE_VIM/NANO/EMACS/MICRO the day they
   # landed, so the four newest toggles were the four this row could not see.
-  local toggles
+  local toggles asrc=""
+  _hi_overlay_src aliases.sh asrc || true
   toggles="$(grep -oE '_HI_DISABLE_[A-Z_]+' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
-  late="$(grep -v '^[[:space:]]*#' "$_HI_CONFIG_DIR/aliases.sh" 2>/dev/null |
+  late="$(grep -v '^[[:space:]]*#' "$asrc" 2>/dev/null |
     grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
     tr -d = | sort -u | tr '\n' ' ')" || true
   [ -z "$late" ] ||

@@ -1179,11 +1179,14 @@ function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
   home="$(_hi_scratch_tree preview-real common settings load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview)" && return 1
-  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
+  # a retired subject is refused like any other: hi <TAB> lists the targets
+  out="$(_hi_subcmd_run "$home" --preview targets)" && return 1
+  [[ "$out" == *"unknown subject 'targets'"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == "Usage: hi --preview"* ]]
 }

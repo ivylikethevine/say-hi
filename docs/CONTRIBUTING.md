@@ -148,7 +148,8 @@ These are constraints the tree enforces, not requests:
 - **The payload is budgeted twice.** `common/`, `settings/`, `load.sh`, and
   `hi.sh` ship to every target; the gzipped tar and the assembled wire script
   are CI-enforced against separate numbers. Touch a shipped file, run
-  `--group bench`, and check both. Tooling-only helpers do not belong in
+  `--group bench`, and check both; when README's payload badge goes red,
+  `packaging/stamp_badge.sh` restamps it. Tooling-only helpers do not belong in
   `common/core.sh`.
 - **A new suite has a home and a registration** —
   [TESTING.md's _Where a suite lives_](TESTING.md#where-a-suite-lives).

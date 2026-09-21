@@ -57,6 +57,7 @@ Under `packaging/`:
 | -------------------- | ------------------------------------------------------------------------------------------------ |
 | `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                                    |
 | `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it              |
+| `stamp_badge.sh`     | writes README's `ssh_payload` badge from a pinned measurement; `--check` is `--group bench`'s    |
 | `bump.sh`            | writes the version + real checksums into a release's own manifests; `--check` verifies the write |
 | `lib.sh`             | the tree locator and shared primitives the other scripts (and `release.yml`) source              |
 | `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes                 |

@@ -26,8 +26,10 @@ command -v shift >/dev/null 2>&1 &&
 [ -z "$_HI_LS_BIN" ] && export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)" || true
 
 # off on _HI_DISABLE_EDITORS=1, or on the editor's own _HI_DISABLE_<EDITOR>=1;
-# `|| true` keeps set -e sourcers alive
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_NANO" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
+# `|| true` keeps set -e sourcers alive. Every alias below is gated on what it
+# runs being here (`command -v`, no $( ) fork): a box without the tool keeps
+# its own not-found, and `type <tool>` never names an alias to nothing.
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_NANO" != 1 ] && command -v nano >/dev/null 2>&1 && alias nano="nano --rcfile $_HI_NANORC" || true
 # scripts/configure.sh's _hi_editors_preview sources this file for real to
 # show what this resolves to before the toggle is set - see the note there.
 # A box with neither leaves vim alone (an alias of `" -u ..."` would report
@@ -36,16 +38,14 @@ command -v shift >/dev/null 2>&1 &&
 # vim's, then nvim's over it where there is one, so an nvim box answers to
 # `vim` with the lua rc (settings/vimrc is vim's; neovim reads
 # settings/init.lua). `nvim` gets an alias of its own so either name reaches
-# the same override. The presence gates are `command -v` alone, no $( ) fork.
-# _HI_DISABLE_VIM gates both: they are one editor to the toggle.
+# the same override. _HI_DISABLE_VIM gates both: they are one editor to the toggle.
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="$(command -v vim) -u $_HI_VIMRC" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v nvim >/dev/null 2>&1 && alias vim="$(command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(command -v nvim) -u $_HI_NVIMRC" || true
 # hx reads one file, -c/--config overrides only it (no directory-level
 # override exists) - the same one-member shape as vim's above
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v hx >/dev/null 2>&1 && alias hx="$(command -v hx) -c $_HI_HELIXRC" || true
-# -q skips the target's own init, -l loads hi's in its place. The command word
-# is a literal, so no presence gate: a box without emacs says so itself.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && alias emacs="emacs -q -l $_HI_EMACSRC" || true
+# -q skips the target's own init, -l loads hi's in its place
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && command -v emacs >/dev/null 2>&1 && alias emacs="emacs -q -l $_HI_EMACSRC" || true
 # micro takes a config *directory*, never a file, but any of its settings can
 # be set on the command line as `-name value`, so it gets flags like bat and
 # eza do: no backups or history written into a config dir on a box you are
@@ -55,22 +55,23 @@ command -v shift >/dev/null 2>&1 &&
 # whole string with _HI_MICRO_OPTS in your settings.sh.
 [ -z "$_HI_MICRO_OPTS" ] && [ -n "$_HI_MICRO_DIR" ] && export _HI_MICRO_OPTS='-backup false -savehistory false' || true
 [ -z "$_HI_MICRO_OPTS" ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && alias micro="micro $_HI_MICRO_OPTS" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_DIR" ] && alias micro="micro -config-dir $_HI_MICRO_DIR $_HI_MICRO_OPTS" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && command -v micro >/dev/null 2>&1 && alias micro="micro $_HI_MICRO_OPTS" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_DIR" ] && command -v micro >/dev/null 2>&1 && alias micro="micro -config-dir $_HI_MICRO_DIR $_HI_MICRO_OPTS" || true
 
 # tmux reads one config, at server start: the one in force here ($_HI_TMUX_CONF,
 # which on a target is the overlay's copy) rather than the target's own; two
 # lines, like the wrappers below, since with no config there is no alias
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_TMUX_CONF" ] &&
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_TMUX_CONF" ] && command -v tmux >/dev/null 2>&1 &&
   alias tmux="tmux -f $_HI_TMUX_CONF" || true
 
 # the trailing space makes bash/zsh alias-expand the word after sudo, so
 # `sudo vim` gets the vim alias's flags; fish has a wrapper in config.fish
 # behind the same toggle
-[ "$_HI_DISABLE_SUDO_ALIAS" != 1 ] && alias sudo="command sudo " || true
+[ "$_HI_DISABLE_SUDO_ALIAS" != 1 ] && command -v sudo >/dev/null 2>&1 && alias sudo="command sudo " || true
 
-# cat is bat with our options when bat exists, plain cat otherwise. Everything
-# here is bat syntax (-P included), hence the $_HI_BAT_BIN gate. The cat/catn
+# cat is bat with our options when bat exists, ccat or plain cat otherwise;
+# bat, batcat, batn, and catn exist only with bat. Everything they carry is bat
+# syntax (-P included), hence the $_HI_BAT_BIN gate. The cat/catn
 # rebind (not bat/batcat/batn) is behind _HI_DISABLE_TOOL_ALIASES, together
 # with the exa/eza wrappers below: one toggle for the styled tool aliases.
 # a bat config file (the one bat reads at home: $BAT_CONFIG_PATH on a target,
@@ -78,13 +79,11 @@ command -v shift >/dev/null 2>&1 &&
 # out then - a flag on the command line would beat the file
 [ -z "$_HI_BAT_OPTS" ] && [ -n "$BAT_CONFIG_PATH" ] && export _HI_BAT_OPTS='-P --tabs 2 --style changes,grid' || true
 [ -z "$_HI_BAT_OPTS" ] && export _HI_BAT_OPTS='-P --tabs 2 --theme Monokai\ Extended\ Bright --style changes,grid' || true
-alias batcat="$_HI_CAT_BIN"
-alias bat="batcat"
-alias batn="batcat"
+[ -n "$_HI_BAT_BIN" ] && alias batcat="$_HI_CAT_BIN" || true
 [ -n "$_HI_BAT_BIN" ] && alias bat="batcat $_HI_BAT_OPTS" || true
 [ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias cat="bat" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias catn="batn" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
 
 # eza/exa (its predecessor) improved ls; time format per
 # https://docs.rs/chrono/latest/chrono/format/strftime/index.html. One alias
@@ -92,15 +91,16 @@ alias batn="batcat"
 # diverge past `-F -l` (--group/--no-filesize is exa's, --smart-group and
 # --time-style are eza-only, ls parses neither), so $_HI_LS_OPTS is whichever
 # list the rung that answered takes. Set it yourself and the ladder defers.
-# $_HI_LS_BIN stays resolvable even with the toggle off.
+# $_HI_LS_BIN stays resolvable even with the toggle off; `eza` and `exa`
+# answer only where that binary is.
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS='-F -1 -l -m --group-directories-first --group --no-filesize' || true
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(command -v eza)" ] && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(command -v exa)" ] && export _HI_LS_OPTS="$_HI_EXA_OPTS" || true
 [ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS='-F -l' || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias eza="ls" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias exa="ls" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && command -v exa >/dev/null 2>&1 && alias exa="ls" || true
 
 # Drop into another shell inside a session and hi comes with you. load.sh's
 # _hi_session_rc_setup writes one rc per shell into $_HI_SESSION_RC; zsh and

@@ -515,7 +515,8 @@ shipped shell is comment. vimrc's comment character is `"`, init.el's `;`,
 and lua's `--`, each its own rule. Lua's `--[[` block form is deliberately
 not one: the strip is line-wise, so a block opener would go and its body stay
 — which is why the shipped `init.lua` uses line comments only.
-`bench_payload_readme_badge` checks README's badge against the result.
+`bench_payload_readme_badge` checks README's badge against the result, through
+`packaging/stamp_badge.sh --check`.
 
 **Blank lines and leading indentation go the same way**: no dialect the
 payload carries reads either, and the indentation alone is 3% of the payload.
@@ -1129,8 +1130,9 @@ went missing. The dialect comes from the member name passed in, not the path,
 so doctor reads `~/.vimrc` as vim - and a member whose name is no dialect
 (`colors`, a `theme.yml`) passes through untouched, so every member goes in
 and there is no second roster of what has includes. A line directly under a `hi-allow` comment
-in the file's own syntax is neither reported nor touched; `_HI_INCLUDES=keep`
-does the same for every line.
+in the file's own syntax is neither reported nor touched; one under `hi-quiet`
+is disabled like any other finding but not reported; `_HI_INCLUDES=keep` does
+what `hi-allow` does for every line.
 
 Disabling must leave a file that parses. vim and nano are line-oriented, so a
 finding is one line (tmux's takes its `\` continuations). lua and elisp are

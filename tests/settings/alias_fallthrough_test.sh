@@ -90,6 +90,11 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   fi
 fi
 
+# every name in $_HI_CHECK_PRESENT must be an alias, none in $_HI_CHECK_ABSENT
+# (split through $( ): zsh leaves a bare $var whole)
+for a in $(printf '%s' "${_HI_CHECK_PRESENT:-}"); do check_alias "$a" 1; done
+for a in $(printf '%s' "${_HI_CHECK_ABSENT:-}"); do check_alias "$a" 0; done
+
 # the session-shell wrappers: present means the body leads with `command`
 # and names the rc load.sh wrote, or fish's alias-function would recurse
 if [ -n "${_HI_CHECK_SESSION:-}" ]; then
@@ -167,6 +172,13 @@ if set -q _HI_CHECK_FLAGS
     check_alias eza "$_HI_EXPECT_LS_ALIAS"
     check_alias exa "$_HI_EXPECT_LS_ALIAS"
   end
+end
+
+for a in (string split -n ' ' -- "$_HI_CHECK_PRESENT")
+  check_alias $a 1
+end
+for a in (string split -n ' ' -- "$_HI_CHECK_ABSENT")
+  check_alias $a 0
 end
 
 if set -q _HI_CHECK_SESSION
@@ -366,7 +378,7 @@ function run_fallthrough_tests() {
 function run_flag_tests() {
   _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath
-  fakepath="$(_hi_fake_path fp_flags vi)"
+  fakepath="$(_hi_fake_path fp_flags vi cat nano emacs micro sudo)"
 
   for combo in "0 1 1 0" "1 0 1 0" "0 1 0 1"; do
     # shellcheck disable=SC2086 # fixed 4-field combo, splitting is intended
@@ -401,7 +413,7 @@ function run_tool_aliases_flag_tests() {
       _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--theme'
   done
   _hi_h1 "_HI_DISABLE_TOOL_ALIASES guard"
-  fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa)"
+  fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa nano emacs micro sudo)"
 
   for combo in "0 1" "1 0"; do
     # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
@@ -414,6 +426,24 @@ function run_tool_aliases_flag_tests() {
         _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want" \
         _HI_EXPECT_LS_ALIAS="$want"
     done
+  done
+}
+
+# No alias for a package that is not installed: every gated name lands with
+# its tool on PATH and is absent without it. tmux and micro's -config-dir line
+# get their config so only the binary decides; cat is the one tool on the
+# bare PATH, the floor of its own ladder.
+function run_presence_tests() {
+  _hi_h1 "An alias exists only where its tool does"
+  local shell gated="nano emacs micro vim nvim hx tmux sudo bat batcat batn catn eza exa"
+  local all bare
+  all="$(_hi_fake_path fp_all cat nano emacs micro vim nvim hx tmux sudo bat eza exa)"
+  bare="$(_hi_fake_path fp_bare cat)"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \
+      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_PRESENT="$gated cat ls"
+    _hi_case _hi_run_scenario "$shell" "$bare" "only cat installed: no gated alias" \
+      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
   done
 }
 
@@ -479,6 +509,7 @@ function run_alias_fallthrough_test() {
   run_fallthrough_tests
   run_flag_tests
   run_tool_aliases_flag_tests
+  run_presence_tests
   run_overlay_tests
   run_overlay_poisoning_test
   run_bat_opts_test

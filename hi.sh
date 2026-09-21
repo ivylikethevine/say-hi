@@ -322,6 +322,8 @@ function _hi_overlay_src() {
   # micro's below: a relay hop must not pack the middle box's
   theme.yml) [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_os_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
   bat.conf) [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_os_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
+  # the overlay's, else the ~/.aliases a bash or zsh rc here already sources
+  aliases.sh) [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_os_f="$HOME/.aliases" ;;
   vimrc) _hi_os_f="${_HI_VIMRC:-}" ;;
   init.lua) _hi_os_f="${_HI_NVIMRC:-}" ;;
   config.toml) _hi_os_f="${_HI_HELIXRC:-}" ;;
@@ -425,7 +427,8 @@ function _hi_tool_here() {
 #           antigen, fisher, ...). A plugins.d member is sh.
 #
 # A line directly under a `hi-allow` comment, in the file's own comment
-# syntax, is neither reported nor touched.
+# syntax, is neither reported nor touched; one under `hi-quiet` is still
+# disabled, just not reported - a line you know no target has.
 #
 # mode=report prints one `<member>|<line>|<kind>|<text>` row per finding and
 # leaves the file alone; mode=fix also writes <file>.lint with each finding
@@ -530,7 +533,7 @@ function kindof(s,   v) {
   return ""
 }
 FNR == 1 {
-  close(out); out = FILENAME ".lint"; depth = allow = 0
+  close(out); out = FILENAME ".lint"; depth = allow = quiet = 0
   vim = (name == "vimrc"); el = (name == "init.el"); lua = (name ~ /\.lua$/); nano = (name == "nanorc"); tmux = (name == "tmux.conf")
   sh = (name ~ /\.(sh|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
   json = (name ~ /\.json$/)
@@ -539,14 +542,16 @@ depth > 0 {
   depth = tmux ? ($0 ~ /\\$/) : depth + bal($0)
   if (depth < 0) depth = 0
   if (mode == "fix") print cc() " hi dropped: " $0 > out
-  allow = 0
+  allow = quiet = 0
   next
 }
 {
   kind = allow ? "" : kindof($0)
+  hush = quiet
   allow = ($0 ~ /^[ \t]*(#|"|--|;)+[ \t]*hi-allow/)
+  quiet = ($0 ~ /^[ \t]*(#|"|--|;)+[ \t]*hi-quiet/)
   if (kind == "") { if (mode == "fix") print > out; next }
-  printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
+  if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
   if (mode == "fix") print ((sh || fish || (omp && json)) ? fixed : cc() " hi dropped: " $0) > out
   if (lua || el) { depth = bal($0); if (depth < 0) depth = 0 }
   if (tmux) depth = ($0 ~ /\\$/)

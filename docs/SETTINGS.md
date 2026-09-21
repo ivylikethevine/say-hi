@@ -195,7 +195,7 @@ prompt program hi does not know, an editor off the ladder - is a red
 | `_HI_MUX`                   | `0`                                                                                                       | `hi --configure` advanced | `1` makes every connect a `--mux` one, in a local tmux, zellij, or screen session; `--no-mux` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_TRUECOLOR`             | by terminal                                                                                               | `hi --configure` advanced | `1`/`0` forces or refuses 24-bit color; unset, the client decides ([Colors](COLORS.md))                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_EDITOR`                | unset                                                                                                     | you                       | the editor a target session exports as `$EDITOR`, `$VISUAL`, and `$SUDO_EDITOR`, by command name (`nvim`, `micro`, ...); used when the target has it, else the first of `nvim vim micro hx nano emacs` it does have, with hi's config flags so `git commit` and `sudo -e` get the editor the alias gives you                                                                                                                                                                                                                                    |
-| `_HI_INCLUDES`              | `drop`                                                                                                    | you                       | what happens to a line in a carried editor rc, shell file, or prompt config that reads a file hi does not carry, or starts a plugin manager: `drop` disables it on the way out, `keep` sends it as written; a `hi-allow` comment above one line keeps that line alone. See [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)                                                                                                                                                                        |
+| `_HI_INCLUDES`              | `drop`                                                                                                    | you                       | what happens to a line in a carried editor rc, shell file, or prompt config that reads a file hi does not carry, or starts a plugin manager: `drop` disables it on the way out, `keep` sends it as written; a `hi-allow` comment above one line keeps that line alone, and `hi-quiet` drops it without a doctor row. See [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)                                                                                                                          |
 | `_HI_PACKAGES_PALETTE`      | unset                                                                                                     | you                       | the color the check paints each priority in: eight color names, four installed then four missing. Unset, or anything but eight names, is the shipped ramp (`cyan green brcyan brgreen blue magenta bryellow brred`). See [The package check's ramp](COLORS.md#the-package-checks-ramp)                                                                                                                                                                                                                                                          |
 | `_HI_COLOR_SCHEME`          | unset                                                                                                     | you                       | what the palette names render as on a terminal that reports 24-bit color: twenty-four or forty-eight six-digit hex words. Unset is the terminal's own sixteen colors. See [Colors](COLORS.md)                                                                                                                                                                                                                                                                                                                                                   |
 | `_HI_POWERLINE_GO_OPTS`     | unset                                                                                                     | you                       | extra flags for [powerline-go](https://github.com/justjanne/powerline-go) when it draws the prompt, word-split (`-modules venv,cwd,git -mode flat`)                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -382,7 +382,8 @@ ln -s ~/.zshrc ~/.config/say-hi/zshrc
 Every session then sources it after hi's rc, on this machine too. Lines that
 read a file the target will not have - a second rc beside it, a plugin
 manager's bootstrap - are disabled on the way out and named by `hi --doctor`;
-a `# hi-allow` comment above one sends it as written, and the file rides
+a `# hi-allow` comment above one sends it as written (`# hi-quiet` drops it
+without the row), and the file rides
 comment-stripped, so a long rc costs a few KB on the wire
 ([Integrations](INTEGRATIONS.md#config-sizes)). Your `aliases.sh` likewise
 loads **after** `settings/aliases.sh`, so an `alias` there replaces hi's of
@@ -396,6 +397,11 @@ alias cat=cat                                    # this one alias back to plain
 The `_HI_*_OPTS`, `_HI_*_BIN`, and `_HI_DISABLE_*` values hi's aliases are
 built from go in `settings.sh`, which loads first; set in `aliases.sh` they
 arrive too late, and `hi --doctor` flags them.
+
+Keep your aliases in `~/.aliases` already? With no `aliases.sh` in the
+overlay, that file is what rides to targets, where it loads in the same place
+and keeps to the same subset bash, zsh, and fish all parse. At home your own
+rc goes on sourcing it; hi does not source it again.
 
 ### Plugins
 
@@ -452,9 +458,16 @@ elisp's `load`, tmux's `source-file` and TPM, oh-my-posh's `extends` of a
 local file (emptied, since JSON has no comment), a shell's `source`/`.` of a
 file outside `$_HI_CONFIG_DIR` (or `$ZSH`/`$OSH`, the framework's own tree),
 and every plugin manager's bootstrap. Those are disabled on the way out, and
-`hi --doctor` names each, file and line, in yellow. A `hi-allow` comment on
-the line above one (`# hi-allow`, or `" hi-allow` in vim) sends that line as
-written and silences its row; `_HI_INCLUDES=keep` sends them all.
+`hi --doctor` names each, file and line, in yellow. Two comments on the line
+above one, in the file's own syntax (`# hi-allow`, or `" hi-allow` in vim),
+decide that line alone:
+
+- `hi-allow` sends it as written and silences its row - for a file you know
+  every target has.
+- `hi-quiet` still drops it, and silences its row - for a line you know no
+  target needs, so the doctor stops saying so.
+
+`_HI_INCLUDES=keep` sends them all.
 [HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan) is the whole mechanism,
 including what it cannot see.
 

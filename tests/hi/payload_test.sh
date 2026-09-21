@@ -725,10 +725,10 @@ function test_the_payload_is_whole_without_a_cut_list() {
 function test_the_shadow_roster_matches_paths_sh() {
   local f
   for f in $_HI_OVERLAY_SHADOWS; do
-    [ -e "$_HI_ROOT/settings/$f" ] && grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
+    if ! [ -e "$_HI_ROOT/settings/$f" ] || ! grep -q "^\[ -[fd] \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh"; then
       _hi_cecho " | $f is in _HI_OVERLAY_SHADOWS without a tree default and an overlay guard in paths.sh" "$RED"
       return 1
-    }
+    fi
   done
   for f in "$_HI_ROOT"/settings/*; do
     [ "${f##*/}" = aliases.sh ] || case "$_HI_OVERLAY_SHADOWS" in *" ${f##*/} "*) ;; *) return 1 ;; esac
@@ -1000,6 +1000,24 @@ source ~/.vim/other.vim
   }
 }
 
+# `hi-quiet` is the other half: the next line is still dropped, only its
+# report row goes - one directive under the other, so each is seen alone
+function test_hi_quiet_drops_the_next_line_without_a_row() {
+  local dir out
+  dir="$(_hi_lint_fixture quiet vimrc '" hi-quiet
+source ~/.vim/extra.vim
+" hi-allow
+source ~/.vim/kept.vim
+source ~/.vim/other.vim
+')"
+  out="$(_HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  [ "$out" = 'source ~/.vim/kept.vim' ] &&
+    [ "$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|5" ] || {
+    _hi_cecho " | vimrc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
 # a line the file's own comment marker opens is no finding in any dialect:
 # lua's -- and elisp's ; were the two the scan read through
 function test_the_scan_skips_a_commented_line() {
@@ -1037,6 +1055,24 @@ function test_home_configs_do_not_ride_from_a_target() {
   printf 'y\n' >"$dir/overlay/p10k.zsh"
   _HI_REMOTE_SESSION=1 _HI_PROMPT_TOOL=powerlevel10k _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src p10k.zsh out &&
     [ "$out" = "$dir/overlay/p10k.zsh" ]
+}
+
+# aliases.sh rides from the ~/.aliases a bash or zsh rc here already sources
+# when the overlay has none - nothing copied into ~/.config/say-hi - on the
+# client only, and an overlay copy wins over it
+function test_home_aliases_ride_as_aliases_sh() {
+  local dir="$_HI_WORKDIR/aliases-home" out=""
+  mkdir -p "$dir/overlay"
+  printf 'alias ll="ls -l"\n' >"$dir/.aliases"
+  out="$(HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat aliases.sh)"
+  [ "$out" = 'alias ll="ls -l"' ] || {
+    _hi_cecho " | aliases.sh arrived as: [$out]" "$RED"
+    return 1
+  }
+  ! HOME="$dir" _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src aliases.sh || return 1
+  printf 'alias x=y\n' >"$dir/overlay/aliases.sh"
+  HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src aliases.sh out &&
+    [ "$out" = "$dir/overlay/aliases.sh" ]
 }
 
 function _hi_strip_unpack() {
@@ -1270,6 +1306,7 @@ function run_hi_payload_tests() {
   _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
   _hi_check "Home's tool configs do not ride from a target" test_home_configs_do_not_ride_from_a_target
+  _hi_check "A home .aliases rides as aliases.sh" test_home_aliases_ride_as_aliases_sh
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
 
   _hi_h2 "Testing: the include scan"
@@ -1288,6 +1325,7 @@ function run_hi_payload_tests() {
   _hi_check "A fish include becomes true" test_fish_includes_become_true
   _hi_check "Framework files and plugins.d are scanned as shell" test_framework_and_plugin_includes_are_neutralized
   _hi_check "hi-allow keeps the next line" test_hi_allow_keeps_the_next_line
+  _hi_check "hi-quiet drops the next line without a row" test_hi_quiet_drops_the_next_line_without_a_row
   _hi_check "A commented line is no finding" test_the_scan_skips_a_commented_line
 
   _hi_h2 "Testing: block padding (BSD tar)"

@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-65KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-68KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -343,59 +343,38 @@ and are not.
        `packages` GIF. **Ticks when:** the next real tag's release page shows
        the tap link and renders the GIF.
 
-3. [ ] **`--preview targets` goes away** — it lists what `hi <TAB>` already
-       offers, and pays a cold probe of every backend to do it. **Do:** remove
-       the subject from `scripts/preview.sh` (the usage and help text, the
-       accept arm, `_hi_print_targets_table`, the dispatch arm), `common/flags`,
-       `common/targets.sh`'s `--preview` completion words, `docs/hi.1`, and the
-       suite's cases; `tests/common/targets_test.sh` drift-checks those word
-       lists against each other, so both sides move in one commit. **Ticks
-       when:** `hi --preview targets` is refused like any unknown subject and
-       `--group fast` is green.
-
-4. [ ] **No alias for a package that is not installed** — shipped: `vim`,
-       `nvim`, `hx`, `tmux`, and `micro -config-dir` are already gated in
-       `settings/aliases.sh`. **Do:** gate the rest the same way: `nano`,
-       `emacs`, `micro`, the `bat`/`cat` ladder, and `ls`/`eza`/`exa`. The
-       `emacs` line skips the gate on purpose ("a box without emacs says so
-       itself"), so decide whether an alias to a missing binary is worse than an
-       alias that hides the shell's own not-found message, and change that
-       comment with the line. **Ticks when:** no alias in the file names a
-       command `command -v` cannot find, and `tests/settings/alias_test.sh` pins
+3. [ ] **`--preview targets` goes away** — shipped: the subject, its table,
+       help, completion word, and man-page entry are gone, and
+       `hi --preview targets` is refused as an unknown subject
+       (`tests/hi/parse_test.sh`). **Ticks when:** `--group fast` is green on
        it.
 
-5. [ ] **A `hi-quiet` directive beside `hi-allow`** — shipped: `hi-allow`
-       exempts the next line of an overlay file from the include lint
-       (`_hi_include_lint` in `hi.sh`, `docs/SETTINGS.md`, `docs/hi.1`). **Do:**
-       add `hi-quiet`, which still drops the line on a target that lacks what it
-       names but leaves `hi --doctor` no row about it, at the same awk seam as
-       `hi-allow`, and document the two side by side. **Ticks when:** a
-       `hi-quiet` line is dropped without a doctor row, and
-       `tests/hi/payload_test.sh` and `tests/scripts/doctor_test.sh` pin both
-       directives.
+4. [ ] **No alias for a package that is not installed** — shipped: every alias
+       in `settings/aliases.sh` is gated on its tool (`command -v`, or
+       `$_HI_BAT_BIN` for bat's four), `emacs` included - an alias to a
+       missing binary only ever hid the same not-found.
+       `tests/settings/alias_test.sh` checks that no alias names a command its
+       `PATH` lacks, and `alias_fallthrough_test.sh` pins each gate both ways.
+       **Ticks when:** `--group fast` is green on it.
 
-6. [ ] **The payload badge is measured, not typed** — `README.md`'s
-       `ssh_payload` badge says 65KB; `_hi_wire_bytes` on this checkout
-       returns 69617 bytes, which is 68KB. `bench_payload_readme_badge`
-       (`tests/bench/bench_test.sh`) holds the two within 5%, and 5% of 68KB
-       is 4KB, so a 3KB error is green - and the band widens with the payload,
-       so the badge is free to drift further the more there is to measure.
-       **Do:** stamp the number instead of typing it, the way
-       `packaging/stamp.sh` already stamps the version at build time, and then
-       cut the slack to the rounding error it was meant to absorb rather than
-       the whole drift. **Ticks when:** the badge equals `_hi_wire_estimate`
-       exactly, and adding a kilobyte to the payload turns `--group bench` red
-       until it is restamped.
+5. [ ] **A `hi-quiet` directive beside `hi-allow`** — shipped: a `hi-quiet`
+       line drops the next one without a doctor row, at `hi-allow`'s awk seam,
+       and the two are documented side by side; `tests/hi/payload_test.sh` and
+       `tests/scripts/doctor_test.sh` pin both. **Ticks when:** `--group fast`
+       is green on it.
 
-7. [ ] **A config where its tool keeps it, for the shells too** — shipped: the
-       editor and prompt members read the tool's own path on the client
-       (`common/paths.sh`, `_hi_overlay_src` in `hi.sh`). Missing: `aliases.sh`,
-       `bashrc`, `zshrc`, and `config.fish` have no such tier, so `~/.aliases`,
-       `~/.bash_aliases`, and `~/.shrc` are never found. **Do:** a client-only
-       cascade for each in `common/paths.sh` and a case arm in
-       `_hi_overlay_src`, then the two tables in `docs/FILES.md`. **Ticks
-       when:** a `~/.aliases` on the client rides to the target with no copy
-       into `~/.config/say-hi`.
+6. [ ] **The payload badge is measured, not typed** — shipped:
+       `packaging/stamp_badge.sh` stamps the badge from `_hi_wire_estimate`,
+       measured in a pinned environment so a local stamp and CI agree, and
+       `bench_payload_readme_badge` runs its `--check`, which compares exactly.
+       **Ticks when:** `--group bench` is green on it, and adding a kilobyte to
+       the payload turns it red until the badge is restamped.
+
+7. [ ] **Your aliases ride from where you keep them** — shipped: with no
+       `aliases.sh` in the overlay, `_hi_overlay_src` packs `~/.aliases` on
+       the client, and an overlay copy wins over it
+       (`tests/hi/payload_test.sh`). **Ticks when:** `--group fast` is green on
+       it.
 
 8. [ ] **What hi carries is linted against the target, not the client** —
        shipped: the nano rule. It exempted any `include` line merely
@@ -425,7 +404,19 @@ and are not.
        when:** the command round-trips through `hi --preview colors` in a test
        and is in `docs/hi.1`, `docs/tldr.md`, and `docs/COLORS.md`.
 
-10. [ ] **`hi --doctor` reads as findings, not a log** — shipped: severity is
+10. [ ] **A folder of ssh configs is read like one** — hi reads
+        `~/.ssh/config` for `hi <TAB>`'s hosts, the colors' `# Tags:`, and the
+        `ssh_tags` it carries, and none of the three follows an `Include`, so a
+        host kept in a `~/.ssh/config.d/01-config`-style file is invisible to
+        all of them. **Do:** follow `Include` the way ssh does (globs, a
+        relative path taken under `~/.ssh`, in order) everywhere
+        `$_HI_SSH_CONFIG` is walked - `common/targets.sh`,
+        `_hi_ssh_host_tag_walk`, `_hi_ssh_tags_file` - rather than globbing a
+        `config.d/` on hi's own say-so. **Ticks when:** a host and its tag that
+        live only in an included file complete, color, and ride in `ssh_tags`,
+        each pinned by a test.
+
+11. [ ] **`hi --doctor` reads as findings, not a log** — shipped: severity is
         separate from color and counted (`doctor_row`, `_HI_DOC_BAD`), and
         `--json` exists. Missing: a glyph per severity, findings grouped rather
         than interleaved in emission order, a findings-only view, and the boxed
@@ -434,7 +425,7 @@ and are not.
         when:** `tests/scripts/doctor_test.sh` is green on the new text and its
         `--json` cases did not change.
 
-11. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
+12. [ ] **Every Ubuntu job's egress is allowlisted, not only audited** — shipped:
         36 of the 50 `harden-runner` steps run `egress-policy: block` with an
         `allowed-endpoints` list, up from 6, and each of the 14 left on `audit`
         carries a comment naming the limit that keeps it there rather than work
@@ -470,7 +461,7 @@ and are not.
         on `audit` without a comment naming the reason, and adding an unlisted
         download to a blocking job fails it.
 
-12. [ ] **CI walks the upgrade path a tag creates** — every job today installs
+13. [ ] **CI walks the upgrade path a tag creates** — every job today installs
         one version into a fresh box, so nothing exercises the case
         [HI.60](docs/GLOSSARY.md#hi60-a-shell-that-outlives-the-tree) is
         about: a shell that loaded the _previous_ release, the tree rewritten
@@ -483,7 +474,7 @@ and are not.
         `v*` tag runs it green, and putting core.sh's load guard back in
         `common/bash.sh` turns it red.
 
-13. [ ] **The packages check has fewer dials** — four orthogonal ones decide
+14. [ ] **The packages check has fewer dials** — four orthogonal ones decide
         what one row does: a priority 0-3, the `-`/`+` mode character,
         `_HI_PACKAGES_MIN_PRIORITY` (where `4` means off), and a group's
         `color=` line, which outranks `_HI_PACKAGES_PALETTE`. **Do:** decide
@@ -492,7 +483,7 @@ and are not.
         `docs/SETTINGS.md`'s rows to match. **Ticks when:**
         `hi --preview packages` needs no MODE table to explain itself.
 
-14. [ ] **Investigate the header as plugins** — `common/header.sh` is the
+15. [ ] **Investigate the header as plugins** — `common/header.sh` is the
         largest file in the payload, and every cell in it is already one
         function behind one dispatch (`_hi_cell_<word>`, picked by the header's
         word list), while `plugins.d` members load in every shell
@@ -509,6 +500,18 @@ and are not.
         verdict and its reasons are written down
         (`docs/INTEGRATIONS.md` for a contract, `docs/COMPATIBILITY.md` for a
         no), and this entry is replaced by the work the verdict calls for.
+
+16. [ ] **`settings` is renamed `config`** — the word is split today: the
+        tree's defaults live in `settings/`, the user's in `~/.config/say-hi/`
+        with a `settings.sh` in it that `$_HI_SETTINGS` names, and a target
+        unpacks the overlay as `$_HI_ROOT/config/`. **Do:** settle the one name
+        and what it covers - the directory, `settings.sh`, `$_HI_SETTINGS`,
+        `hi --configure`'s wording - minding that `config/` is already the
+        overlay's landing directory on a target, and ship it with a fallback
+        that still reads an existing `settings.sh`, so no install breaks.
+        Before 1.0 because entry 1's stability contract freezes these names.
+        **Ticks when:** nothing but that fallback and its test names the old
+        word.
 
 ### Post 1.0
 

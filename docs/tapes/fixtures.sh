@@ -136,6 +136,12 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
 # instead of the backend's random container ID.
 function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash>
   local backend="$1" name="$2" flavor="$3" image
+  # rootless podman's build network (slirp4netns) sends DNS straight to the
+  # host's upstream resolver, past the one a CI egress filter answers - so
+  # apk/apt inside the build cannot resolve. The host's network is the host's
+  # resolver; docker's builds already go through it.
+  local -a net=()
+  [ "$backend" != podman ] || net=(--network=host)
   case "$flavor" in
   debian) image=debian:bookworm-slim ;;
   ash) image=alpine:3.24 ;;
@@ -143,7 +149,7 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
   # /root/app - which is what the feature tapes have to show; the Dockerfile
   # says what each is for
   tools)
-    "$backend" build -q -t hi-demo-tools-img \
+    "$backend" build -q "${net[@]}" -t hi-demo-tools-img \
       -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
     image=hi-demo-tools-img
     ;;
@@ -151,12 +157,12 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
   # (fish leads the shell tree) - the overlay demo's second target, since
   # the bash-less aliases-only tier ships hi's own aliases and not the overlay
   fish-bash)
-    "$backend" build -q -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
+    "$backend" build -q "${net[@]}" -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
       -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
     image=hi-demo-fish-bash-img
     ;;
   zsh | fish)
-    "$backend" build -q -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
+    "$backend" build -q "${net[@]}" -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
       -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
     image="hi-demo-$flavor-img"
     ;;

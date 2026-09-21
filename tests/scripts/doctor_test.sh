@@ -367,18 +367,19 @@ function test_config_names_an_unresolvable_include() {
     [[ "$out" == *"vimrc:3"*"names a plugin manager"* ]]
 }
 
-# a shell overlay file gets the same yellow row, and a `# hi-allow` line above a
-# source silences it
+# a shell overlay file gets the same yellow row, and a `# hi-allow` or
+# `# hi-quiet` line above a source silences it
 function test_config_names_a_shell_include_unless_allowed() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/inclsh.XXXXXX")"
-  printf '. ~/.secrets\n# hi-allow\n. ~/.kept\n' >"$dir/aliases.sh"
+  printf '. ~/.secrets\n# hi-allow\n. ~/.kept\n# hi-quiet\n. ~/.hushed\n' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"* && "$out" != *"aliases.sh:3"* ]]
+  [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"*"hi-quiet"* ]] &&
+    [[ "$out" != *"aliases.sh:3"* && "$out" != *"aliases.sh:5"* ]]
 }
 
 # ...and with the escape hatch on, the row says the line travels and the target
@@ -873,6 +874,7 @@ exit 255
 SHIM
   chmod +x "$bin/ssh"
   out="$(
+    # shellcheck disable=SC2030 # lives and dies in this $( )
     PATH="$bin:$(_hi_real_path sshfail-tools mktemp date rm cat sh bash awk grep sed printf wc tr sleep)"
     _HI_DOC_BAD=0
     doctor_ssh_target somewhere
@@ -1205,6 +1207,7 @@ function run_doctor_tests() {
   _hi_workdir doctortest
   # home's configs ride only with their tools on this machine (_hi_tool_here),
   # and no runner has all of them
+  # shellcheck disable=SC2031 # the $( ) swap above is its own; this one is the suite's
   PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
 
   _hi_suite_begin
@@ -1237,7 +1240,7 @@ function run_doctor_tests() {
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
   _hi_check "...and =keep says it travels anyway" test_config_says_when_an_include_travels_anyway
-  _hi_check "A shell include is named unless hi-allow" test_config_names_a_shell_include_unless_allowed
+  _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
   _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish

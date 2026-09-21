@@ -77,7 +77,13 @@ jobs:
           egress-policy: block
           # Taken from the last audit run whose tapes actually rendered
           # (v0.4.2), not from a failed one - which is the whole reason this
-          # list was wrong twice. Two corrections are baked in here.
+          # list was wrong twice. Three corrections are baked in here.
+          #
+          # deb.debian.org is port 80: the bookworm-slim images the fixtures
+          # build (demo-debian, sshd-debian) fetch their lists over http, as
+          # ci.yml's e2e lists already have it. On :443 alone every tape that
+          # builds one timed out on "fixture-ok" - the fixture never came up,
+          # and generate.sh now prints /tmp/hi-demo.log to say so.
           #
           # dl.google.com: _ci_apt_drop_vendor_lists removes only
           # sources.list.d/*.list, so the image's deb822 Chrome .sources
@@ -104,7 +110,7 @@ jobs:
             esm.ubuntu.com:443
             motd.ubuntu.com:443
             dl.google.com:443
-            deb.debian.org:443
+            deb.debian.org:80
             dl-cdn.alpinelinux.org:443
             registry-1.docker.io:443
             auth.docker.io:443

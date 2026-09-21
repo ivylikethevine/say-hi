@@ -134,16 +134,20 @@ has, first installed wins:
 
 - `cat` and `catn` run bat (Debian's `batcat`, where that is its name) with
   `_HI_BAT_OPTS` - no pager, two-space tabs, the Monokai Extended Bright theme,
-  and the `changes,grid` style - and `catn` adds line numbers. Without bat
-  they fall through to `ccat`, then plain `cat`.
+  and the `changes,grid` style - and `catn` adds line numbers. Without bat,
+  `cat` falls through to `ccat`, then plain `cat`, and `catn` is not defined.
 - `ls`, `eza`, and `exa` are one alias under three names, running the first of
-  eza, exa, and `ls` the target has (`_HI_LS_BIN`). The flags follow the rung
-  that answered, since the three share almost no syntax: `_HI_EZA_OPTS`,
-  `_HI_EXA_OPTS`, or a plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is
-  whichever of those the ladder picked, and setting it yourself wins outright.
+  eza, exa, and `ls` the target has (`_HI_LS_BIN`); `eza` and `exa` answer only
+  where that binary is installed. The flags follow the rung that answered,
+  since the three share almost no syntax: `_HI_EZA_OPTS`, `_HI_EXA_OPTS`, or a
+  plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is whichever of those the
+  ladder picked, and setting it yourself wins outright.
 
 `_HI_DISABLE_TOOL_ALIASES=1` drops the `cat`/`catn` rebind and the list alias;
-`bat`, `batcat`, `batn`, and a bare `ls` stay available by name either way.
+`bat`, `batcat`, and `batn` (where bat is installed) and a bare `ls` stay
+available by name either way. No alias names a tool the target lacks: an
+editor, tmux, bat, eza, or sudo that is not installed leaves its name to the
+shell's own not-found.
 The flags and the binary each alias runs are rows in
 [Every setting](SETTINGS.md#every-setting), set in your `settings.sh`; to add
 one flag to hi's instead, redefine the alias in

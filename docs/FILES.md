@@ -112,6 +112,7 @@ All **dev**: the inputs a release builds from.
 | `packaging/bump.sh`                              | Sets the version and checksums in the AUR and Homebrew manifests at release time. |
 | `packaging/stamp.sh`                             | Stamps `_HI_RELEASE` for `hi --version`, the same way in every channel.           |
 | `packaging/lib.sh`                               | Shared plumbing for the scripts above but `stamp.sh`, which is standalone.        |
+| `packaging/stamp_badge.sh`                       | Stamps README's payload badge as measured; bench runs its `--check`.              |
 | `packaging/homebrew/say-hi.rb`                   | The tap formula template.                                                         |
 | `packaging/aur/say-hi/`, `aur/say-hi-git/`       | The versioned and the VCS AUR packages (`PKGBUILD`, `.SRCINFO`).                  |
 | `packaging/gpg/say-hi.asc`, `apk/say-hi.rsa.pub` | The public keys the repositories and release signatures are checked against.      |
@@ -185,8 +186,8 @@ What happens to a line in one of these that reads a file no target has is
 
 On this machine (never on a target), hi carries the config a tool already
 reads rather than asking for a copy. The last one found wins, and an overlay
-copy wins over all of them - for the prompt programs, eza, and bat on a
-target only, since at home each already reads its own. A prompt program's
+copy wins over all of them - for the prompt programs, eza, bat, and your
+aliases on a target only, since at home each already reads its own. A prompt program's
 member rides only when that program is in the list a target is handed
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
 micro's, bat's, or eza's only with that tool installed here
@@ -195,6 +196,7 @@ an overlay copy rides either way.
 
 | Member                | Looked for, in order                                                                                                                                                                                                                                             |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aliases.sh`          | `~/.aliases`, the file your bash or zsh rc sources here; sourced last on a target, so it keeps to the subset bash, zsh, and fish all parse                                                                                                                       |
 | `vimrc`               | `$XDG_CONFIG_HOME/vim/vimrc`, `~/.vim/vimrc`, `~/.vimrc`                                                                                                                                                                                                         |
 | `init.lua`            | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                                                                                                                                                                 |
 | `config.toml`         | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                                                                                                                                                             |

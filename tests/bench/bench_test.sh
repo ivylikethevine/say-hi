@@ -179,26 +179,15 @@ function bench_payload_size() {
 # of on connect (no overlay - which files ride is a question about a target),
 # NOT the gzipped tar bench_payload_size budgets. Those are different numbers
 # on purpose: the tar is what the tree costs, this is what a session costs.
-# 5% of slack, so ordinary drift in a PR that never touched the payload cannot
-# fail it, while a real jump still does.
+# packaging/stamp_badge.sh writes the badge and --check compares it exactly,
+# both measured in one pinned environment: no slack beyond the KB rounding, so
+# a kilobyte more payload is red until the badge is restamped.
 function bench_payload_readme_badge() {
-  local bytes kb badge
-  set -- # hi.sh reads "$@"; make sure it sees none
-  # shellcheck source=../../hi.sh
-  source "$_HI_LAUNCHER"
-  bytes="$(_hi_wire_bytes)"
-  kb=$(((bytes + 512) / 1024))
-  badge="$(sed -n 's/.*ssh_payload-\([0-9]*\)KB.*/\1/p' "$_HI_ROOT/README.md" | head -1)"
-  if [ -z "$badge" ]; then
-    _hi_cecho " | README payload badge: MISSING (expected ssh_payload-<n>KB in README.md)" "$RED"
-    return 1
-  fi
-  # 5% of the true figure, rounded up, and never less than 1KB - the same band
-  # ssh_wire_test.sh holds the connect line to, through the same helper
-  if _hi_within_percent "$badge" "$kb" 5; then
-    _hi_align " | README payload badge: says ${badge}KB, a session sends ${kb}KB (±${_HI_WITHIN_SLACK}KB)" "OK" "$GREEN"
+  local out
+  if out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check 2>&1)"; then
+    _hi_align " | $out" "OK" "$GREEN"
   else
-    _hi_cecho " | README payload badge says ${badge}KB but a session sends ${kb}KB - update the badge" "$RED"
+    _hi_cecho " | $out" "$RED"
     return 1
   fi
 }
