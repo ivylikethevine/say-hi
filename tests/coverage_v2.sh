@@ -134,10 +134,9 @@ function _hi_cov_trace_one() {
   _HI_COV_NAME="$1" bashcov --mute --root "$_HI_COV_ROOT" \
     --command-name "$1" -- "$2"
 }
-_hi_cov_trace_all _hi_cov_trace_one
+_hi_cov_trace_all _hi_cov_trace_one || exit 1
 
 _hi_cecho " | coverage: report in $_HI_COV_DIR/index.html" "$GREEN"
-_hi_cov_report_failed
 
 # Every file bashcov traced, worst first - the ranking is the point, since the
 # question this answers is "which arms does nothing reach", and the answer moves

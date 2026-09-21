@@ -2890,238 +2890,252 @@ function test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one() {
   return 1
 }
 
+# Two suites over this one file. The portable part - the version stamp and
+# stamp.sh (Homebrew runs it on every `brew install`), lib.sh's primitives, and
+# mkpkg.sh's BSD fallbacks - runs in the fast group on every platform. The ci
+# part - the workflows, the manifests, and the release tooling only ever run on
+# ubuntu CI - is packaging_ci_test.sh, in the ci group, run once: on a second
+# platform it could only repeat itself, and it was most of the slowest Windows
+# shard. The group is the part: packaging_ci_test.sh names its own.
 function run_packaging_tests() {
+  local part="${_HI_PACKAGING_PART:-portable}"
   _hi_workdir packagingtest
 
-  _hi_h1 "Testing packaging/"
+  _hi_h1 "Testing packaging/ ($part)"
 
   _hi_suite_begin
 
-  _hi_h2 "Testing: nfpm.yaml against install_tree"
-  _hi_check "Every staged src exists" test_nfpm_staging_sources_all_exist
-  _hi_check "References the staging root" test_nfpm_references_the_staging_root
-  _hi_check_capable symlink "Symlink matches install_tree's" test_nfpm_symlink_matches_install_tree
-  _hi_check "Link target carries no staging prefix" test_nfpm_symlink_target_is_absolute_and_unstaged
-  _hi_check "apk entries match _HI_PACKAGE_CONTENTS" test_nfpm_apk_entries_match_package_contents
-  _hi_check "apk globs cover the staged depth" test_nfpm_apk_globs_cover_the_staged_depth
-  _hi_check "apk signature block is declared" test_nfpm_declares_the_apk_signature
-  _hi_check "rpm signature block is declared" test_nfpm_declares_the_rpm_signature
-  _hi_check "No private key under packaging/" test_no_private_key_is_committed
-  _hi_check "The committed GPG key is the public half" test_committed_gpg_key_is_public
+  if [ "$part" = portable ]; then
+    _hi_h2 "Testing: the version stamp"
+    _hi_check "hi.sh's stamp line is unique and empty" test_launcher_release_line_is_unique_and_empty
+    _hi_check "Every channel calls stamp.sh" test_every_channel_stamps_through_stamp_sh
+    _hi_check "...and none kept a private stamp" test_no_channel_kept_a_private_stamp
+    # The formula dates the .TH line with the version, not a day, and it is the
+    # only channel that does: it has no $SOURCE_DATE_EPOCH, and stamp.sh refuses
+    # to guess. Pinned so it cannot be "fixed" into an irreproducible Time.now.
+    _hi_check "The formula dates .TH with the version" grep -qF -- '"--date", version' "$_HI_FORMULA"
+    # install_tree links usr/bin/hi, and a host without symlinks (Git Bash) aborts
+    # the stage there - every case that stages through mkpkg.sh needs one
+    _hi_check_capable symlink "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher
+    _hi_check_capable symlink "mkpkg.sh stamps the staged man page" test_package_sh_stamps_the_staged_man_page
 
-  _hi_h2 "Testing: the Homebrew formula"
-  _hi_check "File list matches _HI_PACKAGE_CONTENTS" test_formula_file_list_matches_package_contents
-  # the tree has to land in a directory called say-hi, or $_HI_HOME/say-hi misses it
-  _hi_check "Installs into a say-hi/ directory" grep -qF '(libexec/"say-hi").install' "$_HI_FORMULA"
-  _hi_check "Wrapper exports _HI_HOME" test_formula_ships_a_wrapper_that_exports_hi_home
-  # the caveats send people to the per-user install, which sees Homebrew's own
-  # hi on PATH and makes no link of its own
-  _hi_check "Caveats point at hi --install" grep -qF 'hi --install' "$_HI_FORMULA"
+    _hi_h2 "Testing: packaging/stamp.sh"
+    _hi_check "Writes the release line" test_stamp_writes_the_release_line
+    _hi_check "Writes the .TH line" test_stamp_writes_the_th_line
+    _hi_check "Dates from SOURCE_DATE_EPOCH" test_stamp_dates_from_source_date_epoch
+    _hi_check "Refuses to guess a date" test_stamp_refuses_to_guess_a_date
+    _hi_check "Is idempotent" test_stamp_is_idempotent
+    _hi_check "Keeps the launcher exec bit" test_stamp_keeps_the_launcher_exec_bit
+    _hi_check "Fails on a missing release line" test_stamp_fails_on_a_missing_release_line
+    _hi_check "Fails when there is no launcher at all" test_stamp_fails_on_no_launcher_at_the_given_path
+    _hi_check "Fails on a duplicated release line" test_stamp_fails_on_a_duplicated_release_line
+    _hi_check "Fails on a man page with no .TH line" test_stamp_fails_on_a_man_page_with_no_th_line
+    _hi_check "Takes explicit launcher/man paths" test_stamp_takes_explicit_paths
+    _hi_check "Skips a missing man page" test_stamp_skips_a_missing_man_page
+    _hi_check "Accepts the --x=y spelling" test_stamp_accepts_the_equals_form
+    _hi_check "--help prints the usage and exits 0" test_stamp_help_prints_usage_and_exits_zero
+    _hi_check "Refuses an unknown argument" test_stamp_refuses_an_unknown_argument
+    _hi_check "Requires --version" test_stamp_requires_a_version
+    _hi_check "Refuses with nothing to stamp" test_stamp_refuses_with_nothing_to_stamp
 
-  _hi_h2 "Testing: the PKGBUILDs"
-  _hi_check "Both call install.sh --prefix" test_pkgbuilds_call_install_sh
-  _hi_check "Both give it a say-hi-named checkout" test_pkgbuilds_give_install_sh_a_say_hi_named_checkout
-  _hi_check "say-hi-git provides/conflicts say-hi" test_git_pkgbuild_provides_and_conflicts
+    _hi_h2 "Testing: packaging/lib.sh's primitives"
+    _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl
+    _hi_check_requires openssl "b2_of is BLAKE2b-512, makepkg's b2sums" test_lib_b2_matches_makepkg_expectation
+    _hi_check "pkgbuild_version reads pkgver= and refuses none" test_lib_pkgbuild_version_reads_and_refuses
+    _hi_check_requires git "default_version falls through the template" test_lib_default_version_falls_through_the_template
+    _hi_check "pkgbuild_url reads url= and refuses none" test_lib_pkgbuild_url_reads_and_refuses
+    _hi_check "need's two verdicts" test_lib_need_verdicts
+    _hi_check_requires gpg "gpg_fpr reads a bad file as empty, never fatal" test_lib_gpg_fpr_is_empty_never_fatal
+    _hi_check_capable symlink "lib.sh locates its tree through a symlink" test_lib_locates_its_tree_through_a_symlink
+    _hi_check_requires shasum "sha256/blake2b fallbacks agree with coreutils" test_lib_hash_fallbacks_agree_with_coreutils
+    _hi_check_requires gpg "verify_signing_key's gpg verdicts" test_lib_verify_signing_key_gpg_verdicts
+    _hi_check_requires gpg "verify_signing_key refuses a non-key secret" test_lib_verify_signing_key_refuses_a_non_key_secret
+    _hi_check_requires openssl "verify_signing_key's rsa verdicts" test_lib_verify_signing_key_rsa_verdicts
+    _hi_check_requires git "src_tarball carries the versioned prefix" test_lib_src_tarball_carries_the_versioned_prefix
 
-  _hi_h2 "Testing: versions agree"
-  _hi_check "PKGBUILD and formula agree" test_pkgbuild_and_formula_agree_on_the_version
-  _hi_check ".SRCINFO agrees with its PKGBUILD" test_srcinfo_agrees_with_its_pkgbuild
-  _hi_check ".SRCINFO depends match, both packages" test_srcinfo_depends_match_their_pkgbuild
-  _hi_check "All three build from the release asset" test_manifests_build_from_the_release_asset
-  _hi_check "Committed manifests stay templates" test_committed_manifests_are_templates
-
-  _hi_h2 "Testing: release.yml"
-  # `environment: release` on the publishing job is what seals the signing keys
-  # to it and holds it to the environment's `v*` tag rule; losing that line
-  # leaves publish reading secrets no environment guards.
-  _hi_check "Publishing sits behind an environment" grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
-  _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
-  _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
-  _hi_check "release.yml walks the upgrade before it builds" test_release_walks_the_upgrade_before_build
-  _hi_check "release.yml requires green CI before it builds" test_release_requires_green_ci_before_build
-  _hi_check "...and a well-formed tag signed by an allowed key" test_release_gate_verifies_the_signed_tag
-  _hi_check "Signing keys are read under the release environment" test_release_signing_keys_are_read_under_the_release_environment
-  _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
-  _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
-  _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
-  _hi_check "The PR template carries a release-note section" grep -q '^## Release note' "$_HI_PR_TEMPLATE"
-  _hi_check "publish runs release_notes.sh with pull-requests: read" test_release_workflow_publishes_release_notes
-  _hi_check "publish freezes the tag's badges into the body" test_release_body_carries_frozen_badges
-  _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
-  _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
-  _hi_check "release_notes.sh --check requires a written section" test_release_note_check_requires_a_written_section
-  _hi_check "release-note.yml runs --check on every body edit" test_release_note_workflow_runs_the_check
-  _hi_check "release_notes.sh builds the list from the PRs" test_release_notes_builds_the_list_from_the_prs
-  _hi_check "release_notes.sh is silent without a note" test_release_notes_are_silent_without_a_note
-  # bump.sh --check is the tag/manifest gate; the build must not skip it
-  _hi_check "Verifies the manifests against the tag" grep -qF 'packaging/bump.sh --check' "$_HI_RELEASE_WF"
-  _hi_check "The publish job signs the sums" test_publish_job_signs_the_sums
-  _hi_check "Every release asset goes up through gh_asset.sh" test_release_assets_go_through_the_helper
-  _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
-  _hi_check "Every tools.txt row is well-formed" test_tool_manifest_rows_are_wellformed
-  _hi_check "Every setup-tool call names a row" test_every_setup_tool_call_names_a_manifest_row
-  _hi_check "release.yml reads dist/ARTIFACTS" test_release_workflow_reads_the_artifact_list
-  _hi_check "write_checksums lists the artifacts" test_write_checksums_lists_the_artifacts
-  _hi_check "...and reports a missing artifact type" test_write_checksums_reports_a_missing_artifact_type
-  _hi_check "...and an empty one" test_write_checksums_refuses_an_empty_package
-  _hi_check "...and ships the source tarball with them" test_write_checksums_ships_the_source_tarball
-  _hi_check "...taking one already in the outdir" test_write_checksums_takes_a_tarball_already_in_the_outdir
-  _hi_check "...and refusing one that does not exist" test_write_checksums_refuses_a_missing_source_tarball
-  _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
-  _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
-  _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
-  _hi_check "src_tarball ships an executable hi.sh" test_src_tarball_ships_an_executable_hi_sh
-  _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
-  _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
-  _hi_check "every dotfile upload-artifact path sets include-hidden-files" test_upload_artifact_dotfile_paths_set_include_hidden
-
-  _hi_h2 "Testing: every workflow and composite action"
-  _hi_check "Every job has timeout-minutes" test_every_job_has_a_timeout
-  _hi_check "Every job starts with harden-runner" test_every_job_starts_with_harden_runner
-  _hi_check "Every checkout sets persist-credentials: false" test_every_checkout_drops_its_credentials
-  _hi_check "Every third-party action is a SHA with a # vX.Y.Z" test_every_third_party_action_is_sha_pinned
-  _hi_check "Every workflow_run workflow gates on success" test_workflow_run_workflows_gate_on_success
-  _hi_check "fetch-latest-artifact scopes its lookup to an event" test_fetch_latest_artifact_scopes_the_event
-  _hi_check "...and skips a green run with no matching artifact" test_fetch_latest_artifact_skips_runs_without_the_artifact
-
-  _hi_h2 "Testing: publish-external.yml"
-  _hi_check "aur is dispatch-only, not in release.yml" test_aur_is_dispatch_only
-  _hi_check "...and skips a prerelease tag" test_prerelease_tags_reach_no_external_channel
-  _hi_check "...reading its manifest off the release" test_publish_external_reads_manifests_from_the_release
-  _hi_check "release.yml opens the tap PR after brew passes" test_release_workflow_opens_the_tap_pr_after_brew
-  _hi_check "tap_formula.sh swaps only the template header" test_tap_formula_swaps_only_the_template_header
-  _hi_check "The release body links the tap PR and embeds the demo" test_release_body_links_the_tap_pr_and_embeds_the_demo
-  _hi_check "release_slot.sh fills only its own line" test_release_slot_fills_only_its_own_line
-  _hi_check "release_slot.sh writes the body back through gh" test_release_slot_writes_the_body_back_through_gh
-  _hi_check "gh_asset.sh clears the name and falls back to the raw endpoint" test_gh_asset_retries_through_the_raw_endpoint
-  _hi_check "...attaching the rest and naming what did not land" test_gh_asset_attaches_the_rest_and_names_the_missing
-  _hi_check "SRCINFO travels under a dotless asset name" test_srcinfo_travels_under_a_dotless_asset_name
-
-  _hi_h2 "Testing: mkpkg.sh / bump.sh"
-  _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild
-  _hi_check "bump.sh --check rejects a mismatch" test_bump_check_rejects_a_version_the_manifests_do_not_carry
-  _hi_check "every parser refuses a value-less flag" test_parsers_refuse_a_flag_with_no_value
-  _hi_check "bump.sh --help names both modes" test_bump_help_names_both_modes
-  _hi_check "bump.sh refuses an unrecognized argument" test_bump_rejects_an_unknown_flag
-  _hi_check "bump.sh refuses to run without a version" test_bump_requires_a_version
-
-  _hi_h2 "Testing: bump.sh's write path (offline)"
-  _hi_check "Rewrites pkgver and b2sums" test_bump_write_rewrites_pkgver_and_b2sums
-  _hi_check "Rewrites formula url and sha256" test_bump_write_rewrites_formula_url_and_sha256
-  _hi_check ".SRCINFO fallback rewrites all three lines" test_bump_srcinfo_fallback_rewrites_the_three_lines
-  _hi_check "--check passes after a write" test_bump_check_passes_after_a_write
-  _hi_check "Handles a PKGBUILD missing pkgver=" test_bump_check_handles_a_pkgbuild_missing_pkgver
-  _hi_check "--check catches stale .SRCINFO b2sums" _hi_bump_check_rejects 's/^\([[:space:]]*\)b2sums = .*/\1b2sums = 1111/'
-  _hi_check "--check catches a stale .SRCINFO source" test_bump_check_catches_stale_srcinfo_source
-  _hi_check "Builds the tarball from a local tag" test_bump_write_builds_from_a_local_tag
-  _hi_check "...and a failed git archive is loud" test_bump_write_reports_a_failed_git_archive
-  _hi_check_requires curl "...as is a failed asset fetch" test_bump_write_reports_a_failed_asset_fetch
-  _hi_check "Refuses a --tarball that is not there" test_bump_cli_refuses_a_missing_tarball
-  _hi_check "Falls back to the sed rewrite without makepkg" test_bump_write_falls_back_without_makepkg
-  _hi_check "Run as a command, a --tarball write lands" test_bump_cli_write_bumps_the_fixture
-  _hi_check "...and --check then agrees, exit 0" test_bump_cli_check_agrees_after_a_write
-  _hi_check "asset_url follows the PKGBUILD's url=" test_bump_asset_url_follows_the_pkgbuild_url
-  _hi_check "sha256 matches a known vector" test_bump_sha256_matches_a_known_vector
-  # needs both halves present to compare them; nothing else implies openssl
-  if command -v openssl >/dev/null 2>&1; then
-    _hi_check_requires b2sum "b2 fallback agrees with b2sum" test_bump_b2_fallback_agrees_with_b2sum
-  else
-    _hi_skip "b2 fallback agrees with b2sum" "no openssl"
+    _hi_h2 "Testing: mkpkg.sh's BSD fallbacks"
+    _hi_check_capable symlink "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
+    _hi_check "touch_epoch falls back without GNU touch" test_mkpkg_touch_epoch_falls_back_without_gnu_touch
   fi
-  _hi_check "_hi_rewrite preserves the file mode" test_bump_rewrite_preserves_file_mode
 
-  _hi_h2 "Testing: the version stamp"
-  _hi_check "hi.sh's stamp line is unique and empty" test_launcher_release_line_is_unique_and_empty
-  _hi_check "Every channel calls stamp.sh" test_every_channel_stamps_through_stamp_sh
-  _hi_check "...and none kept a private stamp" test_no_channel_kept_a_private_stamp
-  # The formula dates the .TH line with the version, not a day, and it is the
-  # only channel that does: it has no $SOURCE_DATE_EPOCH, and stamp.sh refuses
-  # to guess. Pinned so it cannot be "fixed" into an irreproducible Time.now.
-  _hi_check "The formula dates .TH with the version" grep -qF -- '"--date", version' "$_HI_FORMULA"
-  # install_tree links usr/bin/hi, and a host without symlinks (Git Bash) aborts
-  # the stage there - every case that stages through mkpkg.sh needs one
-  _hi_check_capable symlink "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher
-  _hi_check_capable symlink "mkpkg.sh stamps the staged man page" test_package_sh_stamps_the_staged_man_page
+  if [ "$part" = ci ]; then
+    _hi_h2 "Testing: nfpm.yaml against install_tree"
+    _hi_check "Every staged src exists" test_nfpm_staging_sources_all_exist
+    _hi_check "References the staging root" test_nfpm_references_the_staging_root
+    _hi_check_capable symlink "Symlink matches install_tree's" test_nfpm_symlink_matches_install_tree
+    _hi_check "Link target carries no staging prefix" test_nfpm_symlink_target_is_absolute_and_unstaged
+    _hi_check "apk entries match _HI_PACKAGE_CONTENTS" test_nfpm_apk_entries_match_package_contents
+    _hi_check "apk globs cover the staged depth" test_nfpm_apk_globs_cover_the_staged_depth
+    _hi_check "apk signature block is declared" test_nfpm_declares_the_apk_signature
+    _hi_check "rpm signature block is declared" test_nfpm_declares_the_rpm_signature
+    _hi_check "No private key under packaging/" test_no_private_key_is_committed
+    _hi_check "The committed GPG key is the public half" test_committed_gpg_key_is_public
 
-  _hi_h2 "Testing: packaging/stamp.sh"
-  _hi_check "Writes the release line" test_stamp_writes_the_release_line
-  _hi_check "Writes the .TH line" test_stamp_writes_the_th_line
-  _hi_check "Dates from SOURCE_DATE_EPOCH" test_stamp_dates_from_source_date_epoch
-  _hi_check "Refuses to guess a date" test_stamp_refuses_to_guess_a_date
-  _hi_check "Is idempotent" test_stamp_is_idempotent
-  _hi_check "Keeps the launcher exec bit" test_stamp_keeps_the_launcher_exec_bit
-  _hi_check "Fails on a missing release line" test_stamp_fails_on_a_missing_release_line
-  _hi_check "Fails when there is no launcher at all" test_stamp_fails_on_no_launcher_at_the_given_path
-  _hi_check "Fails on a duplicated release line" test_stamp_fails_on_a_duplicated_release_line
-  _hi_check "Fails on a man page with no .TH line" test_stamp_fails_on_a_man_page_with_no_th_line
-  _hi_check "Takes explicit launcher/man paths" test_stamp_takes_explicit_paths
-  _hi_check "Skips a missing man page" test_stamp_skips_a_missing_man_page
-  _hi_check "Accepts the --x=y spelling" test_stamp_accepts_the_equals_form
-  _hi_check "--help prints the usage and exits 0" test_stamp_help_prints_usage_and_exits_zero
-  _hi_check "Refuses an unknown argument" test_stamp_refuses_an_unknown_argument
-  _hi_check "Requires --version" test_stamp_requires_a_version
-  _hi_check "Refuses with nothing to stamp" test_stamp_refuses_with_nothing_to_stamp
+    _hi_h2 "Testing: the Homebrew formula"
+    _hi_check "File list matches _HI_PACKAGE_CONTENTS" test_formula_file_list_matches_package_contents
+    # the tree has to land in a directory called say-hi, or $_HI_HOME/say-hi misses it
+    _hi_check "Installs into a say-hi/ directory" grep -qF '(libexec/"say-hi").install' "$_HI_FORMULA"
+    _hi_check "Wrapper exports _HI_HOME" test_formula_ships_a_wrapper_that_exports_hi_home
+    # the caveats send people to the per-user install, which sees Homebrew's own
+    # hi on PATH and makes no link of its own
+    _hi_check "Caveats point at hi --install" grep -qF 'hi --install' "$_HI_FORMULA"
 
-  _hi_h2 "Testing: mkpkg.sh (offline half)"
-  _hi_check_capable symlink "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
-  _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
-  _hi_check_capable symlink "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
-  _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
-  _hi_check_capable symlink "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
-  _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
-  _hi_check "build signs the rpm with the checked GPG key" test_build_job_signs_the_rpm
-  _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
-  _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
-  _hi_check "...a release refreshes Pages itself" test_release_refreshes_pages_instead_of_relying_on_workflow_run
-  _hi_check "...and Pages deploys once, after the coverage sweep" test_pages_deploys_once_after_coverage
-  _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
-  _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
-  _hi_check "mkrepo.sh parses its flags before asking for docker" test_mkrepo_parses_flags_before_asking_for_docker
-  _hi_check "mkrepo.sh refuses without a reachable docker" test_mkrepo_main_refuses_without_a_reachable_docker
-  _hi_check "in_container hands over uid, gid, and the arch list" test_mkrepo_in_container_hands_over_uid_gid_and_arches
-  _hi_check "build_rpm lays out the repo and warns unsigned" test_mkrepo_build_rpm_lays_out_the_repo_and_warns_unsigned
-  _hi_check_requires gpg "build_rpm signs repomd.xml with a key" test_mkrepo_build_rpm_signs_repomd_with_a_key
-  _hi_check_requires gpg "build_apt signs the Release with a key" test_mkrepo_build_apt_signs_the_release_with_a_key
-  _hi_check "build_apk without a key serves the committed key" test_mkrepo_build_apk_without_a_key_serves_the_committed_key
-  _hi_check_requires openssl "build_apk with a key derives the public half" test_mkrepo_build_apk_with_a_key_derives_the_public_half
-  _hi_check "mkpkg.sh --help names its flags" test_mkpkg_help_names_its_flags
-  _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
-  _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
-  _hi_check_capable symlink "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
-  _hi_check_capable symlink "mkpkg.sh builds every packager and ships the tarball" test_mkpkg_builds_every_packager_and_ships_the_tarball
-  _hi_check "touch_epoch falls back without GNU touch" test_mkpkg_touch_epoch_falls_back_without_gnu_touch
+    _hi_h2 "Testing: the PKGBUILDs"
+    _hi_check "Both call install.sh --prefix" test_pkgbuilds_call_install_sh
+    _hi_check "Both give it a say-hi-named checkout" test_pkgbuilds_give_install_sh_a_say_hi_named_checkout
+    _hi_check "say-hi-git provides/conflicts say-hi" test_git_pkgbuild_provides_and_conflicts
 
-  _hi_h2 "Testing: packaging/lib.sh's primitives"
-  _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl
-  _hi_check_requires openssl "b2_of is BLAKE2b-512, makepkg's b2sums" test_lib_b2_matches_makepkg_expectation
-  _hi_check "pkgbuild_version reads pkgver= and refuses none" test_lib_pkgbuild_version_reads_and_refuses
-  _hi_check_requires git "default_version falls through the template" test_lib_default_version_falls_through_the_template
-  _hi_check "pkgbuild_url reads url= and refuses none" test_lib_pkgbuild_url_reads_and_refuses
-  _hi_check "need's two verdicts" test_lib_need_verdicts
-  _hi_check_requires gpg "gpg_fpr reads a bad file as empty, never fatal" test_lib_gpg_fpr_is_empty_never_fatal
-  _hi_check_capable symlink "lib.sh locates its tree through a symlink" test_lib_locates_its_tree_through_a_symlink
-  _hi_check_requires shasum "sha256/blake2b fallbacks agree with coreutils" test_lib_hash_fallbacks_agree_with_coreutils
-  _hi_check_requires gpg "verify_signing_key's gpg verdicts" test_lib_verify_signing_key_gpg_verdicts
-  _hi_check_requires gpg "verify_signing_key refuses a non-key secret" test_lib_verify_signing_key_refuses_a_non_key_secret
-  _hi_check_requires openssl "verify_signing_key's rsa verdicts" test_lib_verify_signing_key_rsa_verdicts
-  _hi_check_requires git "src_tarball carries the versioned prefix" test_lib_src_tarball_carries_the_versioned_prefix
+    _hi_h2 "Testing: versions agree"
+    _hi_check "PKGBUILD and formula agree" test_pkgbuild_and_formula_agree_on_the_version
+    _hi_check ".SRCINFO agrees with its PKGBUILD" test_srcinfo_agrees_with_its_pkgbuild
+    _hi_check ".SRCINFO depends match, both packages" test_srcinfo_depends_match_their_pkgbuild
+    _hi_check "All three build from the release asset" test_manifests_build_from_the_release_asset
+    _hi_check "Committed manifests stay templates" test_committed_manifests_are_templates
 
-  _hi_h2 "Testing: packaging/srctar.sh"
-  _hi_check "--help names the usage" test_srctar_help_names_the_usage
-  _hi_check "Refuses a wrong argument count" test_srctar_refuses_a_wrong_arg_count
-  _hi_check_requires git "Builds the tarball it names" test_srctar_builds_the_tarball_it_names
+    _hi_h2 "Testing: release.yml"
+    # `environment: release` on the publishing job is what seals the signing keys
+    # to it and holds it to the environment's `v*` tag rule; losing that line
+    # leaves publish reading secrets no environment guards.
+    _hi_check "Publishing sits behind an environment" grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
+    _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
+    _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
+    _hi_check "release.yml walks the upgrade before it builds" test_release_walks_the_upgrade_before_build
+    _hi_check "release.yml requires green CI before it builds" test_release_requires_green_ci_before_build
+    _hi_check "...and a well-formed tag signed by an allowed key" test_release_gate_verifies_the_signed_tag
+    _hi_check "Signing keys are read under the release environment" test_release_signing_keys_are_read_under_the_release_environment
+    _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
+    _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
+    _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
+    _hi_check "The PR template carries a release-note section" grep -q '^## Release note' "$_HI_PR_TEMPLATE"
+    _hi_check "publish runs release_notes.sh with pull-requests: read" test_release_workflow_publishes_release_notes
+    _hi_check "publish freezes the tag's badges into the body" test_release_body_carries_frozen_badges
+    _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
+    _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
+    _hi_check "release_notes.sh --check requires a written section" test_release_note_check_requires_a_written_section
+    _hi_check "release-note.yml runs --check on every body edit" test_release_note_workflow_runs_the_check
+    _hi_check "release_notes.sh builds the list from the PRs" test_release_notes_builds_the_list_from_the_prs
+    _hi_check "release_notes.sh is silent without a note" test_release_notes_are_silent_without_a_note
+    # bump.sh --check is the tag/manifest gate; the build must not skip it
+    _hi_check "Verifies the manifests against the tag" grep -qF 'packaging/bump.sh --check' "$_HI_RELEASE_WF"
+    _hi_check "The publish job signs the sums" test_publish_job_signs_the_sums
+    _hi_check "Every release asset goes up through gh_asset.sh" test_release_assets_go_through_the_helper
+    _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
+    _hi_check "Every tools.txt row is well-formed" test_tool_manifest_rows_are_wellformed
+    _hi_check "Every setup-tool call names a row" test_every_setup_tool_call_names_a_manifest_row
+    _hi_check "release.yml reads dist/ARTIFACTS" test_release_workflow_reads_the_artifact_list
+    _hi_check "write_checksums lists the artifacts" test_write_checksums_lists_the_artifacts
+    _hi_check "...and reports a missing artifact type" test_write_checksums_reports_a_missing_artifact_type
+    _hi_check "...and an empty one" test_write_checksums_refuses_an_empty_package
+    _hi_check "...and ships the source tarball with them" test_write_checksums_ships_the_source_tarball
+    _hi_check "...taking one already in the outdir" test_write_checksums_takes_a_tarball_already_in_the_outdir
+    _hi_check "...and refusing one that does not exist" test_write_checksums_refuses_a_missing_source_tarball
+    _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
+    _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
+    _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
+    _hi_check "src_tarball ships an executable hi.sh" test_src_tarball_ships_an_executable_hi_sh
+    _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
+    _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
+    _hi_check "every dotfile upload-artifact path sets include-hidden-files" test_upload_artifact_dotfile_paths_set_include_hidden
 
-  _hi_h2 "Testing: mkrepo.sh (offline half)"
-  _hi_check "one_package enforces exactly one artifact" test_mkrepo_one_package_rule
-  _hi_check_requires ar "deb_control reads the control paragraph" test_mkrepo_deb_control_reads_the_paragraph
-  _hi_check_requires ar "deb_control refuses an unknown control member" test_mkrepo_deb_control_refuses_an_unknown_member
-  _hi_check_requires openssl "release_hashes writes apt's hash block shape" test_mkrepo_release_hashes_shape
-  _hi_check_requires ar "build_apt writes a whole apt tree, no docker" test_mkrepo_build_apt_offline
-  _hi_check_requires gpg "gpg_setup's four verdicts" test_mkrepo_gpg_setup_verdicts
-  _hi_check_requires gpg "gpg_setup refuses a --public-key that is not a key" test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one
-  _hi_check "build_apk refuses a .PKGINFO-less apk" test_mkrepo_build_apk_refuses_a_pkginfo_less_apk
+    _hi_h2 "Testing: every workflow and composite action"
+    _hi_check "Every job has timeout-minutes" test_every_job_has_a_timeout
+    _hi_check "Every job starts with harden-runner" test_every_job_starts_with_harden_runner
+    _hi_check "Every checkout sets persist-credentials: false" test_every_checkout_drops_its_credentials
+    _hi_check "Every third-party action is a SHA with a # vX.Y.Z" test_every_third_party_action_is_sha_pinned
+    _hi_check "Every workflow_run workflow gates on success" test_workflow_run_workflows_gate_on_success
+    _hi_check "fetch-latest-artifact scopes its lookup to an event" test_fetch_latest_artifact_scopes_the_event
+    _hi_check "...and skips a green run with no matching artifact" test_fetch_latest_artifact_skips_runs_without_the_artifact
 
-  _hi_suite_end "packaging"
+    _hi_h2 "Testing: publish-external.yml"
+    _hi_check "aur is dispatch-only, not in release.yml" test_aur_is_dispatch_only
+    _hi_check "...and skips a prerelease tag" test_prerelease_tags_reach_no_external_channel
+    _hi_check "...reading its manifest off the release" test_publish_external_reads_manifests_from_the_release
+    _hi_check "release.yml opens the tap PR after brew passes" test_release_workflow_opens_the_tap_pr_after_brew
+    _hi_check "tap_formula.sh swaps only the template header" test_tap_formula_swaps_only_the_template_header
+    _hi_check "The release body links the tap PR and embeds the demo" test_release_body_links_the_tap_pr_and_embeds_the_demo
+    _hi_check "release_slot.sh fills only its own line" test_release_slot_fills_only_its_own_line
+    _hi_check "release_slot.sh writes the body back through gh" test_release_slot_writes_the_body_back_through_gh
+    _hi_check "gh_asset.sh clears the name and falls back to the raw endpoint" test_gh_asset_retries_through_the_raw_endpoint
+    _hi_check "...attaching the rest and naming what did not land" test_gh_asset_attaches_the_rest_and_names_the_missing
+    _hi_check "SRCINFO travels under a dotless asset name" test_srcinfo_travels_under_a_dotless_asset_name
+
+    _hi_h2 "Testing: mkpkg.sh / bump.sh"
+    _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild
+    _hi_check "bump.sh --check rejects a mismatch" test_bump_check_rejects_a_version_the_manifests_do_not_carry
+    _hi_check "every parser refuses a value-less flag" test_parsers_refuse_a_flag_with_no_value
+    _hi_check "bump.sh --help names both modes" test_bump_help_names_both_modes
+    _hi_check "bump.sh refuses an unrecognized argument" test_bump_rejects_an_unknown_flag
+    _hi_check "bump.sh refuses to run without a version" test_bump_requires_a_version
+
+    _hi_h2 "Testing: bump.sh's write path (offline)"
+    _hi_check "Rewrites pkgver and b2sums" test_bump_write_rewrites_pkgver_and_b2sums
+    _hi_check "Rewrites formula url and sha256" test_bump_write_rewrites_formula_url_and_sha256
+    _hi_check ".SRCINFO fallback rewrites all three lines" test_bump_srcinfo_fallback_rewrites_the_three_lines
+    _hi_check "--check passes after a write" test_bump_check_passes_after_a_write
+    _hi_check "Handles a PKGBUILD missing pkgver=" test_bump_check_handles_a_pkgbuild_missing_pkgver
+    _hi_check "--check catches stale .SRCINFO b2sums" _hi_bump_check_rejects 's/^\([[:space:]]*\)b2sums = .*/\1b2sums = 1111/'
+    _hi_check "--check catches a stale .SRCINFO source" test_bump_check_catches_stale_srcinfo_source
+    _hi_check "Builds the tarball from a local tag" test_bump_write_builds_from_a_local_tag
+    _hi_check "...and a failed git archive is loud" test_bump_write_reports_a_failed_git_archive
+    _hi_check_requires curl "...as is a failed asset fetch" test_bump_write_reports_a_failed_asset_fetch
+    _hi_check "Refuses a --tarball that is not there" test_bump_cli_refuses_a_missing_tarball
+    _hi_check "Falls back to the sed rewrite without makepkg" test_bump_write_falls_back_without_makepkg
+    _hi_check "Run as a command, a --tarball write lands" test_bump_cli_write_bumps_the_fixture
+    _hi_check "...and --check then agrees, exit 0" test_bump_cli_check_agrees_after_a_write
+    _hi_check "asset_url follows the PKGBUILD's url=" test_bump_asset_url_follows_the_pkgbuild_url
+    _hi_check "sha256 matches a known vector" test_bump_sha256_matches_a_known_vector
+    # needs both halves present to compare them; nothing else implies openssl
+    if command -v openssl >/dev/null 2>&1; then
+      _hi_check_requires b2sum "b2 fallback agrees with b2sum" test_bump_b2_fallback_agrees_with_b2sum
+    else
+      _hi_skip "b2 fallback agrees with b2sum" "no openssl"
+    fi
+    _hi_check "_hi_rewrite preserves the file mode" test_bump_rewrite_preserves_file_mode
+
+    _hi_h2 "Testing: mkpkg.sh (offline half)"
+    _hi_check_capable symlink "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
+    _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
+    _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
+    _hi_check_capable symlink "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
+    _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
+    _hi_check "build signs the rpm with the checked GPG key" test_build_job_signs_the_rpm
+    _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
+    _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
+    _hi_check "...a release refreshes Pages itself" test_release_refreshes_pages_instead_of_relying_on_workflow_run
+    _hi_check "...and Pages deploys once, after the coverage sweep" test_pages_deploys_once_after_coverage
+    _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
+    _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
+    _hi_check "mkrepo.sh parses its flags before asking for docker" test_mkrepo_parses_flags_before_asking_for_docker
+    _hi_check "mkrepo.sh refuses without a reachable docker" test_mkrepo_main_refuses_without_a_reachable_docker
+    _hi_check "in_container hands over uid, gid, and the arch list" test_mkrepo_in_container_hands_over_uid_gid_and_arches
+    _hi_check "build_rpm lays out the repo and warns unsigned" test_mkrepo_build_rpm_lays_out_the_repo_and_warns_unsigned
+    _hi_check_requires gpg "build_rpm signs repomd.xml with a key" test_mkrepo_build_rpm_signs_repomd_with_a_key
+    _hi_check_requires gpg "build_apt signs the Release with a key" test_mkrepo_build_apt_signs_the_release_with_a_key
+    _hi_check "build_apk without a key serves the committed key" test_mkrepo_build_apk_without_a_key_serves_the_committed_key
+    _hi_check_requires openssl "build_apk with a key derives the public half" test_mkrepo_build_apk_with_a_key_derives_the_public_half
+    _hi_check "mkpkg.sh --help names its flags" test_mkpkg_help_names_its_flags
+    _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
+    _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
+    _hi_check_capable symlink "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
+    _hi_check_capable symlink "mkpkg.sh builds every packager and ships the tarball" test_mkpkg_builds_every_packager_and_ships_the_tarball
+
+    _hi_h2 "Testing: packaging/srctar.sh"
+    _hi_check "--help names the usage" test_srctar_help_names_the_usage
+    _hi_check "Refuses a wrong argument count" test_srctar_refuses_a_wrong_arg_count
+    _hi_check_requires git "Builds the tarball it names" test_srctar_builds_the_tarball_it_names
+
+    _hi_h2 "Testing: mkrepo.sh (offline half)"
+    _hi_check "one_package enforces exactly one artifact" test_mkrepo_one_package_rule
+    _hi_check_requires ar "deb_control reads the control paragraph" test_mkrepo_deb_control_reads_the_paragraph
+    _hi_check_requires ar "deb_control refuses an unknown control member" test_mkrepo_deb_control_refuses_an_unknown_member
+    _hi_check_requires openssl "release_hashes writes apt's hash block shape" test_mkrepo_release_hashes_shape
+    _hi_check_requires ar "build_apt writes a whole apt tree, no docker" test_mkrepo_build_apt_offline
+    _hi_check_requires gpg "gpg_setup's four verdicts" test_mkrepo_gpg_setup_verdicts
+    _hi_check_requires gpg "gpg_setup refuses a --public-key that is not a key" test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one
+    _hi_check "build_apk refuses a .PKGINFO-less apk" test_mkrepo_build_apk_refuses_a_pkginfo_less_apk
+  fi
+
+  _hi_suite_end "packaging ($part)"
 }
 
 run_packaging_tests

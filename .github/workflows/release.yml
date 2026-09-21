@@ -366,10 +366,11 @@ jobs:
       - name: Verify the result
         run: packaging/bump.sh --check "$HI_VERSION"
 
-      # after the bump, so the packaging drift guards in the fast group run
-      # against the manifests this release ships
-      - name: Run fast test suites
-        run: "${{ github.workspace }}/tests/test_runner.sh --group fast"
+      # after the bump, so the packaging drift guards - the ci group - run
+      # against the manifests this release ships. Not the fast group: the gate
+      # above already required CI green on this commit, fast included
+      - name: Run the ci suites against the bumped manifests
+        run: "${{ github.workspace }}/tests/test_runner.sh --group ci"
 
       # markdownlint-cli2 and prettier, as ci.yml's lint job installs them -
       # without these, --require-run below fails on their skips. No npm cache:

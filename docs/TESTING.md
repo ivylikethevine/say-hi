@@ -35,12 +35,18 @@ summary:
 ```sh
 tests/test_runner.sh                    # every suite
 tests/test_runner.sh aliases shellcheck # just the named suite(s)
-tests/test_runner.sh --group fast       # what CI runs on every push/PR
+tests/test_runner.sh --group fast       # what CI runs on every platform
+tests/test_runner.sh --group fast,ci    # ...plus the ci group, as ubuntu runs it
 tests/test_runner.sh --group fast --shard 1/2 # half of it, as a CI shard runs
 tests/test_runner.sh --host-report      # ...prefixed with what this machine is
 tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 ```
 
+- `ci` is the checks a second platform could only repeat - the workflows
+  and manifests read as text, and the release tooling only Ubuntu runs
+  (`packaging_ci`, `test_runner_ci`, each the ci part of a fast suite's file).
+  Ubuntu's fast job runs it; `release.yml` runs it against the bumped
+  manifests.
 - A passing suite's transcript collapses to one status line; failures replay
   in full and are recapped under the summary table. `--verbose`
   (`_HI_VERBOSE=1`) streams every transcript live, for a case that fails only

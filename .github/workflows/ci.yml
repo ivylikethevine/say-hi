@@ -209,8 +209,10 @@ jobs:
       # instead of width 1 for live streaming. A passing transcript still
       # folds into a ::group:: and a failing one replays in full with an
       # ::error annotation - only the live stream is lost.
+      # fast plus ci here, and here only: ci is the suites a second platform
+      # could only repeat - workflow and manifest checks, ubuntu-only tooling
       - name: Run fast test suites
-        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast --totals-file ${{ runner.temp }}/totals"
+        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast,ci --totals-file ${{ runner.temp }}/totals"
 
       # The tests badge's number: pages.yml reads this artifact and publishes it
       # as a shields endpoint, so the figure stays generated with no bot commit

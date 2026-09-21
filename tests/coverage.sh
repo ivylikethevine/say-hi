@@ -199,12 +199,11 @@ function _hi_cov_trace_one() {
     "$_HI_COV_DIR/parts/$1" \
     "$2"
 }
-_hi_cov_trace_all _hi_cov_trace_one
+_hi_cov_trace_all _hi_cov_trace_one || exit 1
 
 kcov --merge "$_HI_COV_DIR/merged" "$_HI_COV_DIR"/parts/* >/dev/null 2>&1
 
 _hi_cecho " | coverage: report in $_HI_COV_DIR/merged/index.html" "$GREEN"
-_hi_cov_report_failed
 
 # Every file kcov traced, worst first - the ranking is the point, since the
 # question this answers is "which arms does nothing reach", and the answer moves

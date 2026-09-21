@@ -416,6 +416,10 @@ Locally, `packaging/mkpkg.sh && packaging/mkrepo.sh` builds an unsigned
 
 ## Verifying a packaged build locally
 
+Linux only, as far as anyone has tested - packaging and publishing have not
+been tried on Windows, macOS, or the BSDs
+([CONTRIBUTING.md's _Before you start_](CONTRIBUTING.md#before-you-start)).
+
 For a package **you** just built; [Verifying a release
 download](PACKAGING.md#verifying-a-release-download) is for one somebody
 downloaded.

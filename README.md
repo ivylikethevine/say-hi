@@ -350,7 +350,20 @@ In this checkout, narrowest first.
        **Ticks when:** a `v*` tag runs it green, and putting core.sh's load
        guard back in `common/bash.sh` turns it red.
 
-3. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
+3. [ ] **One page of the portable spellings** — the right way to write a
+       command for every target gets rediscovered the hard way, CI failure
+       by CI failure: `grep -q` under `pipefail` (OpenBSD), `sed`'s `\|`
+       (BSD), `echo` escapes (dash), `command -v` handing back an alias,
+       the heredoc splice Git Bash never returns from, the four-dialect
+       subset `config/aliases.sh` keeps. **Do:** `docs/SYNTAX.md`, one row
+       per idiom - the spelling to use, the one to avoid, which target
+       breaks and how - linking the `docs/GLOSSARY.md` entry where one
+       exists rather than restating it, and linked from `CLAUDE.md` and
+       `docs/CONTRIBUTING.md`'s review list. **Ticks when:** the page
+       exists and every row is either enforced by a lint check or names the
+       CI failure it was learned from.
+
+4. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
        has failed in `render`: each tape times out waiting for `fixture-ok`
        with `/tmp/hi-demo.log` empty, so `fixtures.sh up` never reports (the
        editors tape stalls earlier still, on its `setopt` line). Egress is
@@ -359,7 +372,7 @@ In this checkout, narrowest first.
        **Do:** find where the fixture stalls. **Ticks when:** a dispatch
        renders all six tapes.
 
-4. [ ] **Every Ubuntu job's egress is allowlisted** — 40 of 51
+5. [ ] **Every Ubuntu job's egress is allowlisted** — 40 of 51
        `harden-runner` steps block. **Still on audit, to move:** `ci.yml`'s
        e2e (dnf now pins one Fedora mirror; the list comes from a cold run's
        audit log across all four shards) and `openbsd-e2e.yml` (the guest's
@@ -372,7 +385,7 @@ In this checkout, narrowest first.
        reaches fewer hosts - and `demos.yml`'s `attach` list from a tagged
        run. **Ticks when:** the two above block and those lists hold.
 
-5. [ ] **No races left for Windows and BSD runners to lose** — their
+6. [ ] **No races left for Windows and BSD runners to lose** — their
        shards fail intermittently where Linux never does, and one cause is
        already known: `grep -q` or an early `awk exit` reading a `printf` under
        `pipefail`, which OpenBSD's 1 KB stdio buffer turns into a SIGPIPE
@@ -383,7 +396,7 @@ In this checkout, narrowest first.
        **Ticks when:** each finding is fixed or written down as not one, and
        the Windows and BSD jobs run green across several consecutive pushes.
 
-6. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+7. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -393,7 +406,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-7. [ ] **Investigate the header as plugins** — every header cell is one
+8. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing

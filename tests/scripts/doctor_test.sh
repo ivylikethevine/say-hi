@@ -1298,116 +1298,116 @@ function run_doctor_tests() {
   # doctor_target_test.sh and doctor_report_test.sh, which name their part
   # and source it
   if [ "$part" = local ]; then
-  _hi_h2 "Testing: doctor_local"
-  _hi_check "Reports the version" test_local_reports_the_version
-  _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
-  _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
-  _hi_check "Warns without gzip when tar can compress" test_local_warns_without_gzip
-  _hi_check "...and flags it when tar cannot" test_local_flags_a_gzip_that_nothing_can_replace
+    _hi_h2 "Testing: doctor_local"
+    _hi_check "Reports the version" test_local_reports_the_version
+    _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
+    _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
+    _hi_check "Warns without gzip when tar can compress" test_local_warns_without_gzip
+    _hi_check "...and flags it when tar cannot" test_local_flags_a_gzip_that_nothing_can_replace
 
-  _hi_h2 "Testing: doctor_backend"
-  _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed
-  _hi_check "Answering CLI -> timed, green" test_backend_answering_reports_timing
-  _hi_check "Dead CLI -> not answering" test_backend_dead_reports_not_answering
-  _hi_check "ssh config: literal hosts counted" test_backends_count_literal_ssh_hosts
+    _hi_h2 "Testing: doctor_backend"
+    _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed
+    _hi_check "Answering CLI -> timed, green" test_backend_answering_reports_timing
+    _hi_check "Dead CLI -> not answering" test_backend_dead_reports_not_answering
+    _hi_check "ssh config: literal hosts counted" test_backends_count_literal_ssh_hosts
 
-  _hi_h2 "Testing: doctor_config"
-  _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
-  _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
-  _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
-  _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
-  _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
-  _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
-  _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
-  _hi_check "The files table walks every tier" test_files_table_walks_every_tier
-  _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
-  _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
-  _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
-  _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
-  _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
-  _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
-  _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
-  _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
-  _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
-  _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
-  _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
-  _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
-  _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
-  _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
-  _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
-  _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
+    _hi_h2 "Testing: doctor_config"
+    _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
+    _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+    _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
+    _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
+    _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
+    _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
+    _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
+    _hi_check "The files table walks every tier" test_files_table_walks_every_tier
+    _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
+    _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
+    _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
+    _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
+    _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
+    _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
+    _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
+    _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
+    _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
+    _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
+    _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
+    _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
+    _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
+    _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
+    _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
+    _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
 
-  _hi_h2 "Testing: the report primitives"
-  _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens
-  _hi_check "doctor_row: only bad counts; --json collects" test_doctor_row_counts_only_bad
-  _hi_check "doctor_row: a mark per severity, ASCII too" test_doctor_row_marks_each_severity
-  _hi_check "The findings box holds only warn and bad rows" test_findings_box_holds_only_warn_and_bad
-  _hi_check "A long row wraps to the terminal's width" test_a_long_row_wraps_to_the_terminal
-  _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
-  _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
-  _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
-
-  fi
-
-  if [ "$part" = target ]; then
-  _hi_h2 "Testing: doctor_target / doctor_ssh_target"
-  _hi_check "Resolves a running container" test_target_resolves_a_running_container
-  _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
-  _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
-  _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
-  _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
-  _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
-  _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
-  _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
-  _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target
-  _hi_check "Container with no known shell" test_container_target_flags_no_known_shell
-  _hi_check "Reports the per-session wire cost" test_ssh_target_reports_the_wire_cost
-  _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
-  _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
-  _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
-
-  fi
-
-  if [ "$part" = report ]; then
-  _hi_h2 "Testing: the report"
-  _hi_check "--help exits zero" test_help_exits_zero
-  _hi_check "--help names what was typed" test_help_names_what_was_typed
-  _hi_check "--help is read anywhere on the line" test_help_is_read_anywhere_on_the_line
-  _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
-  _hi_check "A second target is refused" test_a_second_target_is_refused
-  _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
-  _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
-  _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
-  _hi_check "Full report runs clean on shims" test_full_report_runs_clean
-  _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
-  _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
+    _hi_h2 "Testing: the report primitives"
+    _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens
+    _hi_check "doctor_row: only bad counts; --json collects" test_doctor_row_counts_only_bad
+    _hi_check "doctor_row: a mark per severity, ASCII too" test_doctor_row_marks_each_severity
+    _hi_check "The findings box holds only warn and bad rows" test_findings_box_holds_only_warn_and_bad
+    _hi_check "A long row wraps to the terminal's width" test_a_long_row_wraps_to_the_terminal
+    _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
+    _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
+    _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
 
   fi
 
   if [ "$part" = target ]; then
-  _hi_h2 "Testing: the install section"
-  _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
-  _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
-  _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
-  _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
-  _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
-  _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path
-  _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
-  _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
-  _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
-  _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
+    _hi_h2 "Testing: doctor_target / doctor_ssh_target"
+    _hi_check "Resolves a running container" test_target_resolves_a_running_container
+    _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
+    _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
+    _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
+    _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
+    _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
+    _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
+    _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
+    _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target
+    _hi_check "Container with no known shell" test_container_target_flags_no_known_shell
+    _hi_check "Reports the per-session wire cost" test_ssh_target_reports_the_wire_cost
+    _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
+    _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
+    _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 
   fi
 
   if [ "$part" = report ]; then
-  _hi_h2 "Testing: --json"
-  _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
-  _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
-  _hi_check_requires python3 "--use from the command line forces the arm" test_json_use_flag_forces_the_arm
-  _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
-  _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
-  _hi_check "Off by default" test_json_is_off_by_default
-  _hi_check "--problems leaves the document unchanged" test_problems_leaves_json_unchanged
+    _hi_h2 "Testing: the report"
+    _hi_check "--help exits zero" test_help_exits_zero
+    _hi_check "--help names what was typed" test_help_names_what_was_typed
+    _hi_check "--help is read anywhere on the line" test_help_is_read_anywhere_on_the_line
+    _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
+    _hi_check "A second target is refused" test_a_second_target_is_refused
+    _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
+    _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
+    _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
+    _hi_check "Full report runs clean on shims" test_full_report_runs_clean
+    _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
+    _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
+
+  fi
+
+  if [ "$part" = target ]; then
+    _hi_h2 "Testing: the install section"
+    _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
+    _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
+    _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
+    _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
+    _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
+    _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path
+    _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
+    _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
+    _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
+    _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
+
+  fi
+
+  if [ "$part" = report ]; then
+    _hi_h2 "Testing: --json"
+    _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
+    _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
+    _hi_check_requires python3 "--use from the command line forces the arm" test_json_use_flag_forces_the_arm
+    _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
+    _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
+    _hi_check "Off by default" test_json_is_off_by_default
+    _hi_check "--problems leaves the document unchanged" test_problems_leaves_json_unchanged
 
   fi
 
