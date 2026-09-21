@@ -97,11 +97,12 @@ the first four rows.
 
 ## Git Bash
 
-| Write                                                | Not                                                            | Breaks on                                                                          | Caught by                                 |
-| ---------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------- |
-| `printf '… "%s" …\n' "$long"`                        | a heredoc splicing a many-line value into the middle of a line | Git Bash never returns - no output, no error, only a timeout                       | review; learned from the Windows e2e jobs |
-| builtins and parameter expansion on hot paths        | a `$(…)` fork per call                                         | every fork costs milliseconds under MSYS ([HI.16](GLOSSARY.md#hi16-no-fork-reads)) | the bench group                           |
-| `_hi_check_capable symlink` before a case that links | assuming `ln -s` makes a link                                  | MSYS copies instead                                                                | the suites' capability checks             |
+| Write                                                                                      | Not                                                            | Breaks on                                                                            | Caught by                                                         |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `printf '… "%s" …\n' "$long"`                                                              | a heredoc splicing a many-line value into the middle of a line | Git Bash never returns - no output, no error, only a timeout                         | review; learned from the Windows e2e jobs                         |
+| builtins and parameter expansion on hot paths                                              | a `$(…)` fork per call                                         | every fork costs milliseconds under MSYS ([HI.16](GLOSSARY.md#hi16-no-fork-reads))   | the bench group                                                   |
+| a directory inside a `mktemp -d` root, or `mkdir -m` behind `_hi_check_capable mkdir_mode` | a bare `mkdir -m 700`                                          | Git Bash cannot map the mode onto Windows ACLs and fails "cannot change permissions" | review; learned from every Windows shard failing in `test_lib.sh` |
+| `_hi_check_capable symlink` before a case that links                                       | assuming `ln -s` makes a link                                  | MSYS copies instead                                                                  | the suites' capability checks                                     |
 
 ## Terminal width
 

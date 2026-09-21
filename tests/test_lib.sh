@@ -34,7 +34,9 @@ export XDG_CONFIG_HOME="$_HI_TEST_ROOT/config"
 # since hi only takes $XDG_RUNTIME_DIR when it exists. A case about the runtime
 # dir itself names its own.
 export XDG_RUNTIME_DIR="$_HI_TEST_ROOT/run"
-mkdir -m 700 "$XDG_RUNTIME_DIR"
+# no -m 700: mktemp -d made the root 0700 already, and Git Bash refuses a
+# mode it cannot map onto Windows ACLs ("cannot change permissions")
+mkdir "$XDG_RUNTIME_DIR"
 # The developer's ~/.gitconfig is the same hazard for every git fixture:
 # `commit.gpgsign` signs each fixture commit with a key CI does not have, and
 # `rebase.updateRefs` makes git refuse `rebase --apply` outright, so
