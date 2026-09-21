@@ -51,6 +51,10 @@ _HI_PORTABLE_LINT=(
   '\breadlink[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*f\b|readlink -f - absent from older macOS; cd -P then pwd -P'
   '\bxargs[[:space:]]+(-[a-zA-Z0-9]+[[:space:]]+)*-[a-zA-Z0-9]*r\b|xargs -r (GNU) - guard the empty input instead'
   '\bhead[[:space:]]+-n[[:space:]]*-[0-9]|head -n -N (GNU) - use sed to drop the tail'
+  "\\bsed[[:space:]]+(-[a-zA-DF-Z]+[[:space:]]+)*(-e[[:space:]]+)?'[^']*\\\\\\||sed backslash-bar alternation (GNU) - use sed -E"
+  "\\bprintf[[:space:]]+-v[[:space:]]+[^[:space:]]+[[:space:]]+(''|\"\")([[:space:];)]|\$)|printf -v x '' - bash 3.2 skips it; printf -v x '%s' '' (HI.05)"
+  '\b(gensub|strftime|systime|asorti?|patsplit)[[:space:]]*\(|a gawk-only awk function - mawk, busybox, and BSD awk have none'
+  "\\bmktemp\\b[^;|]*-t[[:space:]]+[A-Za-z0-9._/-]*[A-WYZa-z0-9._/-]([[:space:])\"']|\$)|mktemp -t with no X template - GNU refuses it"
 )
 
 # Both edit files only inside a Linux container, where sed is GNU's: the p10k
@@ -164,6 +168,41 @@ function lint_portable() {
     _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "one-userland spelling" "${_HI_PORTABLE_LINT[@]}"
 }
 
+# docs/SYNTAX.md's two rows a single pattern cannot see. `stat -c` (GNU) is
+# fine beside its BSD twin `stat -f` on the same line, and nowhere else. A
+# file an interactive shell sources that turns strict mode on must turn it off
+# again further down, or the user's shell dies on its next non-zero status
+# (GLOSSARY: HI.15).
+function lint_portable_pairs() {
+  local f hits bad=0
+  _hi_h2 "Checking the paired spellings (docs/SYNTAX.md)"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 2))
+  hits="$(cd "$_HI_ROOT" && grep -rnE --include='*.sh' '\bstat[[:space:]]+-c\b' . "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=.git 2>/dev/null |
+    grep -v ':[[:space:]]*#' | grep -vE '\bstat[[:space:]]+-f\b' || true)"
+  if [ -z "$hits" ]; then
+    _hi_align " | no stat -c without its stat -f twin" "OK" "$GREEN"
+  else
+    _hi_align " | stat -c without its stat -f twin (BSD and macOS stat)" "FOUND" "$RED"
+    printf '%s\n' "$hits" | sed 's/^/      /'
+    _hi_note_failure "one-userland spelling: stat -c without stat -f"
+    bad=$((bad + 1))
+  fi
+  hits=""
+  for f in "$_HI_ROOT"/common/*.sh "$_HI_ROOT"/config/*.sh "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh"; do
+    [ -f "$f" ] || continue
+    awk '/^set -euo pipefail/ { on = 1 } on && /^[[:space:]]*set \+euo pipefail/ { on = 0 } END { exit on }' "$f" ||
+      hits="$hits${hits:+ }${f#"$_HI_ROOT"/}"
+  done
+  if [ -z "$hits" ]; then
+    _hi_align " | every sourced file turns strict mode off again" "OK" "$GREEN"
+  else
+    _hi_align " | strict mode left on in a sourced file: $hits" "FOUND" "$RED"
+    _hi_note_failure "strict mode left on (HI.15): $hits"
+    bad=$((bad + 1))
+  fi
+  return "$bad"
+}
+
 # A shipped file that .gitignore swallows never reaches a commit, and nothing
 # local notices: the suites read the working tree. A config/*.toml sat
 # under a blanket `*.toml` for a whole feature. Asked of git itself, over
@@ -259,7 +298,7 @@ function lint_image_tags() {
 "
     done < <(grep -rnE "[ =\"']${image}:[A-Za-z0-9][A-Za-z0-9._-]*" "$_HI_ROOT" \
       --include='*.sh' --include='*.yml' \
-      --exclude-dir=.git --exclude-dir=dist --exclude-dir=dockerfiles 2>/dev/null |
+      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
       grep -vE '^[^:]*:[0-9]+:[[:space:]]*#' || true)
 
     hit="$(printf '%s' "$pinned" | tr ' ' '\n' | grep "^$image:" | tr '\n' ' ')"
@@ -346,7 +385,7 @@ function lint_glossary_tags() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   _hi_read_lines headings < <(sed -n 's/^## \(HI\.[0-9][0-9]\).*/\1/p' "$glossary")
   _hi_read_lines tags < <(grep -rn "${pat}: " "$_HI_ROOT" \
-    --exclude-dir=.git --exclude-dir=dist --exclude='*.md' 2>/dev/null || true)
+    --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude='*.md' 2>/dev/null || true)
   for line in "${tags[@]}"; do
     [ -n "$line" ] || continue
     tag="${line#*"${pat}": }"
@@ -880,17 +919,17 @@ function lint_dockerfiles() {
   # orphan looking used
   _hi_read_lines refs < <({
     grep -rhoE "$call (\"[a-z0-9-]+\"|[a-z0-9-]+)" "$_HI_ROOT" \
-      --exclude-dir=.git --exclude-dir=dist --include='*.sh' 2>/dev/null |
+      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
       sed "s/.*$call \"\{0,1\}//;s/\"\$//"
     grep -rhoE 'dockerfiles/[a-z0-9-]+\.Dockerfile' "$_HI_ROOT" \
-      --exclude-dir=.git --exclude-dir=dist --exclude-dir=dockerfiles 2>/dev/null |
+      --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=dockerfiles 2>/dev/null |
       sed 's|.*/||;s|\.Dockerfile$||'
   } | sort -u)
 
   # the interpolated form, _hi_dockerfile "<prefix>$..." - the literal half is
   # all a grep can know, so every file it could name counts as referenced
   _hi_read_lines prefixes < <(grep -rhoE "$call \"[a-z0-9-]*\\\$" "$_HI_ROOT" \
-    --exclude-dir=.git --exclude-dir=dist --include='*.sh' 2>/dev/null |
+    --exclude-dir=.git --exclude-dir=dist "${_HI_LINT_NOT_OUTPUT[@]}" --include='*.sh' 2>/dev/null |
     sed "s/.*$call \"//;s/\\\$\$//" | sort -u)
 
   # every file has a caller
@@ -1081,7 +1120,7 @@ function run_drift() {
   # _hi_lint_mirror blanks the tree under $_HI_WORKDIR/lintmirror
   _hi_workdir drifttest
 
-  _hi_lint_halves lint_bash32 lint_portable lint_home_default lint_ignored_payload lint_glossary_tags \
+  _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload lint_glossary_tags \
     lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs lint_site_links \
     lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests

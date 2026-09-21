@@ -131,7 +131,9 @@ export _HI_COV_OUT="$_HI_COV_DIR"
 # equal ones. --root is the tree, which is what makes its files discoverable
 # at all; without it SimpleCov reports the suite script and nothing else.
 function _hi_cov_trace_one() {
-  _HI_COV_NAME="$1" bashcov --mute --root "$_HI_COV_ROOT" \
+  # no --mute: _hi_cov_trace_all keeps the suite's transcript for its failure
+  # report, and --mute would hand it SimpleCov's lines instead
+  _HI_COV_NAME="$1" bashcov --root "$_HI_COV_ROOT" \
     --command-name "$1" -- "$2"
 }
 _hi_cov_trace_all _hi_cov_trace_one || exit 1

@@ -81,16 +81,22 @@ function _hi_par_begin() {
 
 # Blocks until a slot frees up. `wait <pid>` on each in turn and never `wait -n`
 # (macOS ships bash 3.2, as header.sh's probes note), so a finished case is
-# spotted by polling kill -0 and then reaped - the reap is what keeps the
-# process table clean, and it returns immediately for a pid that has already
-# exited.
+# spotted in this shell's job table and then reaped - the reap is what keeps
+# the process table clean, and it returns immediately for a pid that has
+# already exited. The job table, not `kill -0`: a finished case's pid can be
+# reused by then, and would hold its slot (process.sh's _hi_wait_pid).
 function _hi_par_slot() {
-  local pid
+  local pid live
   local -a keep
   while [ "${#_HI_PAR_RUNNING[@]}" -ge "$_HI_PAR_SLOTS" ]; do
     keep=()
+    live=" $(
+      jobs -rp
+      jobs -sp
+    ) "
+    live="${live//$'\n'/ }"
     for pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do
-      if kill -0 "$pid" 2>/dev/null; then
+      if [[ "$live" == *" $pid "* ]]; then
         keep+=("$pid")
       else
         wait "$pid" 2>/dev/null || true

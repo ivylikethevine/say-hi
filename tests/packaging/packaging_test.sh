@@ -457,13 +457,16 @@ function test_lib_locates_its_tree_through_a_symlink() {
   ln -sf "$_HI_PKG_DIR/lib.sh" "$d/abs.sh"
   ln -sf ../abs.sh "$d/deeper/rel.sh"
   # shellcheck disable=SC2016 # $1 is the child's positional, resolved there
-  got="$(bash -c 'source "$1"; printf %s "$_HI_HOME"' _ "$d/abs.sh")"
+  # BASH_ENV empty: lib.sh leaves set -u on, and under kcov the child's
+  # trace then dies expanding its PS4's ${BASH_SOURCE}, unset in `bash -c`
+  # (paths_test.sh's strict children, the same)
+  got="$(BASH_ENV='' bash -c 'source "$1"; printf %s "$_HI_HOME"' _ "$d/abs.sh")"
   [ "$got" = "$want" ] || {
     _hi_cecho " | through the absolute link: $got" "$RED"
     return 1
   }
   # shellcheck disable=SC2016
-  got="$(bash -c 'source "$1"; printf %s "$_HI_HOME"' _ "$d/deeper/rel.sh")"
+  got="$(BASH_ENV='' bash -c 'source "$1"; printf %s "$_HI_HOME"' _ "$d/deeper/rel.sh")"
   [ "$got" = "$want" ] || {
     _hi_cecho " | through the relative link: $got" "$RED"
     return 1

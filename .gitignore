@@ -74,3 +74,7 @@ dist/
 
 # npm installs of the pinned CI Markdown tools (.github/package.json)
 node_modules/
+# the coverage drivers' reports (tests/coverage.sh, tests/coverage_v2.sh), as
+# coverage.yml writes them into the checkout
+/coverage-report/
+/coverage-v2-report/

@@ -487,7 +487,7 @@ function _hi_run_install_pty() {
   : >"$out"
   printf '%b' "$input" |
     _hi_login_env "$home" "${_HI_PTY_FORCED[@]}" bash "$_HI_RUN_TREE/scripts/install.sh" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$name" "${_HI_CASE_TIMEOUT:-30}"
+  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}" _hi_timed_out "$name" "${_HI_CASE_TIMEOUT:-60}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 

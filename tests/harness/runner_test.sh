@@ -561,7 +561,9 @@ function _hi_progress_run() {
 
 function test_progress_line_counts_suites_and_cases() {
   _HI_RUN_WITH="_HI_PROGRESS=1" _hi_progress_run
-  [[ "$_HI_RUN_OUT" == *"[####################] 2/2 suites, 7 cases, 1 failed, 0:0"* ]] &&
+  # under a minute, not under ten seconds: a nested runner and two fixtures
+  # on emulated Git Bash is not a ten-second promise
+  [[ "$_HI_RUN_OUT" == *"[####################] 2/2 suites, 7 cases, 1 failed, 0:"* ]] &&
     _hi_before "$_HI_RUN_OUT" "2/2 suites" "Running prog_counted"
 }
 

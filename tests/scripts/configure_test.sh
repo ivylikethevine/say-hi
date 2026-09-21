@@ -341,7 +341,7 @@ _HI_FLOOR_CHILD='
   _HI_SETTING_PENDING=()
   config_packages_floor
   collect_setting_lines
-  printf "FLOORLINES:%s\n" "${_HI_SETTING_LINES[*]:-}"
+  printf "FLOORLINES:%s\n" "${_HI_SETTING_LINES[*]:-}" | tee "$_hi_dir/verdict"
 '
 
 # _hi_floor_pty <label> <input> [settings-line] - run config_packages_floor
@@ -359,9 +359,10 @@ function _hi_pty_run() {
   mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
   printf '#!/bin/sh\n%s\n' "$line" >"$dir/overlay/settings.sh"
   : >"$out"
+  rm -f "$dir/verdict"
   printf '%b' "$input" |
     "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-30}"
+  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-60}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
@@ -375,16 +376,20 @@ function _hi_floor_prompts() {
   tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -c 'Lowest package priority' || true
 }
 function _hi_floor_finished() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -q 'FLOORLINES:'
+  [ -s "$_HI_WORKDIR/$1/verdict" ] || tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -q 'FLOORLINES:'
 }
 # _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
 # a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
 # everything to the end of the line by default, or just what <capture>
 # matches (a sed bracket expression body) when the tag's value can have
 # trailing text of its own. The one shape behind _hi_floor_pty_lines,
-# _hi_cfg_rc, and _hi_cfg_lines.
+# _hi_cfg_rc, and _hi_cfg_lines. The child also writes that line to
+# <label>/verdict, which is read first: a BSD pty can drop the last output of
+# a child that exits at once, and the transcript is only the fallback.
 function _hi_pty_field() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.$2.out" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
+  local src="$_HI_WORKDIR/$1/verdict"
+  [ -s "$src" ] || src="$_HI_WORKDIR/$1.$2.out"
+  tr '\r' '\n' <"$src" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
 }
 function _hi_floor_pty_lines() { _hi_pty_field "$1" floor 'FLOORLINES:'; }
 
@@ -1057,7 +1062,8 @@ _HI_CFG_CHILD='
   _hi_cfg_rc=0
   "${_hi_cfg_argv[@]}" || _hi_cfg_rc=$?
   collect_setting_lines
-  printf "CFGRC=%s CFGQUIT=%s CFGLINES=%s\n" "$_hi_cfg_rc" "${_HI_CONFIGURE_QUIT:-none}" "${_HI_SETTING_LINES[*]:-}"
+  printf "CFGRC=%s CFGQUIT=%s CFGLINES=%s\n" "$_hi_cfg_rc" "${_HI_CONFIGURE_QUIT:-none}" "${_HI_SETTING_LINES[*]:-}" |
+    tee "$_hi_dir/verdict"
 '
 
 # _hi_cfg_pty <label> <input> <settings-line> <fn> [arg...] - one configure

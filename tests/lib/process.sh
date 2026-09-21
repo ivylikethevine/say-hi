@@ -172,16 +172,25 @@ function _hi_poll_value() {
 # poll is 50ms: a coarser one makes a pty case that finishes in under a
 # second pay up to a quarter of it again just waiting to be noticed, and
 # configure's thirty-odd of them add up.
+#
+# `kill -0` alone is not "still running": bash reaps a background child the
+# moment it exits, its pid goes back to the system, and a reused pid answers
+# `kill -0` - so the loop would sit out the whole budget and the timeout would
+# `kill -9` a stranger (Cygwin's pids follow Windows', which come back
+# quickly). _hi_job_alive asks this shell's job table instead: once a second
+# in the loop, and once more before anything is killed.
 function _hi_wait_pid() {
-  local pid="$1" timeout_s="$2" deadline
+  local pid="$1" timeout_s="$2" deadline n=0
   shift 2
   _HI_WAIT_EXIT=0
   deadline=$((SECONDS + timeout_s + 1))
   while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || break
+    n=$((n + 1))
+    [ $((n % 20)) != 0 ] || _hi_job_alive "$pid" || break
     sleep 0.05
   done
-  if kill -0 "$pid" 2>/dev/null; then
+  if kill -0 "$pid" 2>/dev/null && _hi_job_alive "$pid"; then
     [ $# -gt 0 ] && "$@"
     kill -9 "$pid" 2>/dev/null
     wait "$pid" 2>/dev/null
@@ -189,6 +198,20 @@ function _hi_wait_pid() {
   else
     wait "$pid" 2>/dev/null || _HI_WAIT_EXIT=$?
   fi
+}
+
+# _hi_job_alive <pid> - <pid> is one of this shell's background jobs, running
+# or stopped (a stopped one still needs the timeout's kill). One subshell:
+# bash lists the parent's jobs from inside a command substitution.
+function _hi_job_alive() {
+  local j
+  for j in $(
+    jobs -rp
+    jobs -sp
+  ); do
+    [ "$j" = "$1" ] && return 0
+  done
+  return 1
 }
 
 # _hi_timed_out <label> <timeout_s> [hook] - _hi_wait_pid's timeout callback,

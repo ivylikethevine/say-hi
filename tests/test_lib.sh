@@ -18,7 +18,23 @@ set -euo pipefail
 # in-tree defaults"; a test wanting an overlay mkdir's this and writes into it,
 # and _hi_test_cleanup takes it away again. Same rule as never touching the
 # real ~/say-hi.
-export XDG_CONFIG_HOME="${TMPDIR:-/tmp}/hi.testcfg.$$"
+#
+# Both isolated directories live under one root this file makes itself with
+# mktemp -d - a fresh name every time, so nothing stale is ever inherited and
+# nothing needs deleting up front. _hi_test_cleanup removes that root, by the
+# path recorded here, and nothing else on its account: never $XDG_CONFIG_HOME
+# or $XDG_RUNTIME_DIR themselves, which a test or a sourcing shell could have
+# pointed at a real ~/.config or /run/user/<uid> by then.
+_HI_TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/hi.testroot.XXXXXX")"
+export XDG_CONFIG_HOME="$_HI_TEST_ROOT/config"
+# Each suite its own runtime dir, too: otherwise every suite running at once
+# shares ${TMPDIR:-/tmp}/hi-<uid> - the payload, overlay, and ssh-tags caches
+# and the ControlMaster sockets - and one suite's scratch tree seeds a cache
+# another reads (or a developer's real sessions, through theirs). Made here,
+# since hi only takes $XDG_RUNTIME_DIR when it exists. A case about the runtime
+# dir itself names its own.
+export XDG_RUNTIME_DIR="$_HI_TEST_ROOT/run"
+mkdir -m 700 "$XDG_RUNTIME_DIR"
 # The developer's ~/.gitconfig is the same hazard for every git fixture:
 # `commit.gpgsign` signs each fixture commit with a key CI does not have, and
 # `rebase.updateRefs` makes git refuse `rebase --apply` outright, so
@@ -43,6 +59,11 @@ unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
 unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME ZELLIJ_CONFIG_DIR POSH_CONFIG POSH_THEME \
   POWERLEVEL9K_CONFIG_FILE ZSH ZSH_CUSTOM ZSH_THEME OSH OSH_CUSTOM OSH_THEME _HI_POWERLINE_GO_OPTS
 export _HI_PROMPT_TOOL=hi
+# The backend probe cap, pinned: the default 2s is a user's budget for a CLI
+# that really answers, and against the suites' shell shims on a loaded BSD VM
+# or emulated Git Bash it could run out and flip a row to "not answering". A
+# case about the cap sets its own.
+export _HI_PROBE_TIMEOUT=10
 
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"

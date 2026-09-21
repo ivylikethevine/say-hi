@@ -21,6 +21,23 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
 
+# _hi_overlay_tar, wrapped so a failed build says why: on Windows arm64 the
+# stage has left an empty stream with no word of its own (gzip then reports
+# "unexpected end of file"), and a verdict needs the exit status and stderr
+# the pipe into _hi_tar_cat would otherwise lose
+eval "$(declare -f _hi_overlay_tar | sed '1s/_hi_overlay_tar/_hi_overlay_tar_unwrapped/')"
+function _hi_overlay_tar() {
+  local err rc=0
+  err="$(mktemp "$_HI_WORKDIR/overlay.err.XXXXXX")"
+  _hi_overlay_tar_unwrapped "$@" 2>"$err" || rc=$?
+  if [ "$rc" != 0 ] || [ -s "$err" ]; then
+    _hi_cecho " | _hi_overlay_tar exited $rc; its stderr:" "$YELLOW" >&2
+    sed 's/^/ |   /' "$err" >&2
+  fi
+  rm -f "$err"
+  return "$rc"
+}
+
 # _hi_tar_cat <member> - one member of the gzipped archive on stdin, printed:
 # unpacked and read back, since OpenBSD's tar has no -O to extract to stdout
 function _hi_tar_cat() {

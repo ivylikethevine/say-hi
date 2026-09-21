@@ -110,8 +110,10 @@ function _hi_test_cleanup() {
   if [ -n "$_HI_WORKDIR" ]; then
     rm -rf "$_HI_WORKDIR" || true
   fi
-  # the isolated config overlay from the top of test_lib.sh, if a test made one
-  rm -rf "$XDG_CONFIG_HOME" || true
+  # the isolated config overlay and runtime dir from the top of test_lib.sh:
+  # the one root it made, by the path it recorded and only in the shape
+  # mktemp gave it - never what the XDG variables point at now
+  case "${_HI_TEST_ROOT:-}" in */hi.testroot.??????) rm -rf "$_HI_TEST_ROOT" || true ;; esac
   return 0
 }
 

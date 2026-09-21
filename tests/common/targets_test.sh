@@ -112,6 +112,19 @@ EOF
 # for, and its per-job fan-out is a second mechanism this case is not about.
 _HI_SLOW_PATH=""
 _HI_PROBE_LOG=""
+# Each lane logs its start, then waits for the other two to start - up to 2s -
+# before it logs its end. A meeting, not a fixed `sleep`: a sleep proves
+# overlap only if all three lanes start inside it, which a loaded BSD VM does
+# not promise. Lanes run together pass at once; lanes run in turn each wait
+# out the 2s (under the 10s probe cap _hi_targets_slow gives them) and log
+# their end first, which is what the in-turn case asserts.
+# shellcheck disable=SC2016 # the shims' own code, expanded when they run
+_HI_SLOW_MEET='i=0
+while [ "$(awk "/ start\$/ { n++ } END { print n + 0 }" "$_HI_PROBE_LOG")" -lt 3 ] && [ "$i" -lt 20 ]; do
+  sleep 0.1
+  i=$((i + 1))
+done'
+
 function _hi_write_slow_shims() {
   local dir="$_HI_WORKDIR/slowshims" tool
   mkdir -p "$dir"
@@ -122,18 +135,18 @@ function _hi_write_slow_shims() {
 #!/bin/sh
 [ "\$1" = ps ] || exit 1
 printf '$tool start\\n' >>"\$_HI_PROBE_LOG"
-sleep 0.3
+$_HI_SLOW_MEET
 printf '$tool end\\n' >>"\$_HI_PROBE_LOG"
 printf 'slow-$tool\\n'
 EOF
   done
 
-  cat >"$dir/kubectl" <<'EOF'
+  cat >"$dir/kubectl" <<EOF
 #!/bin/sh
-[ "$1" = get ] || exit 1
-printf 'kube start\n' >>"$_HI_PROBE_LOG"
-sleep 0.3
-printf 'kube end\n' >>"$_HI_PROBE_LOG"
+[ "\$1" = get ] || exit 1
+printf 'kube start\\n' >>"\$_HI_PROBE_LOG"
+$_HI_SLOW_MEET
+printf 'kube end\\n' >>"\$_HI_PROBE_LOG"
 printf 'default slow-pod\n'
 EOF
 
@@ -160,7 +173,7 @@ EOF
 function _hi_targets_slow() {
   : >"$_HI_PROBE_LOG"
   PATH="$_HI_SLOW_PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_PROBE_LOG="$_HI_PROBE_LOG" \
-    TMPDIR="${1:-${TMPDIR:-/tmp}}" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS"
+    TMPDIR="${1:-${TMPDIR:-/tmp}}" _HI_TARGETS_TTL=0 _HI_PROBE_TIMEOUT=10 sh "$_HI_TARGETS"
 }
 
 # A PATH with the commands targets.sh runs and nothing else - no docker,
@@ -505,7 +518,7 @@ function test_stale_cache_answers_now_and_refreshes_behind() {
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
   ! _hi_has_row "$out" alpha docker || return 1
-  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
+  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 
@@ -532,7 +545,7 @@ function test_stale_cache_dead_lock_is_taken_over() {
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
-  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
+  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 

@@ -356,7 +356,7 @@ function test_config_validate_shells_asks_at_a_terminal() {
         source "$_HI_HOME/say-hi/scripts/lib.sh"
         source "$_HI_HOME/say-hi/scripts/rc.sh"
         config_validate_shells && echo GATE_WENT_ON' >"$_HI_WORKDIR/gate-tty.$reply.out" 2>&1 &
-    _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}"
+    _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}"
     [ "$_HI_WAIT_EXIT" != 124 ] || return 1
   done
   grep -q "Continue installing anyway" "$_HI_WORKDIR/gate-tty.y.out" &&

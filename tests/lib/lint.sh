@@ -20,8 +20,14 @@
 # and local scratch; node_modules/ is `npm ci --prefix .github`'s install.
 function _hi_lint_find() {
   find "$_HI_ROOT" \( "$@" \) -not -path '*/.git/*' -not -path '*/node_modules/*' \
-    -not -path "$_HI_ROOT/dist/*" -not -path "$_HI_ROOT/.claude/*" | sort
+    -not -path "$_HI_ROOT/dist/*" -not -path "$_HI_ROOT/.claude/*" \
+    -not -path "$_HI_ROOT/coverage-report/*" -not -path "$_HI_ROOT/coverage-v2-report/*" | sort
 }
+
+# the coverage drivers' reports, which coverage.yml writes into the checkout:
+# SimpleCov's index.html embeds every traced source, GLOSSARY tags and image
+# pins included, and a scan of the tree read them as the tree's own
+_HI_LINT_NOT_OUTPUT=(--exclude-dir=coverage-report --exclude-dir=coverage-v2-report)
 
 # The counted-file suite protocol - the lint twin of report.sh's
 # _hi_suite_begin/_hi_suite_end, reporting files where those report cases.

@@ -337,6 +337,20 @@ function test_wait_pid_kills_and_reports_124_on_timeout() {
   [ "$_HI_WAIT_EXIT" -eq 124 ] && ! kill -0 "$pid" 2>/dev/null
 }
 
+# A pid that answers `kill -0` but is no job of this shell - the shape a
+# reused pid has - is not alive to _hi_job_alive, so _hi_wait_pid never takes
+# it for its child; a finished child is not either, a running one is
+function test_job_alive_trusts_the_job_table_not_kill_0() {
+  local pid
+  kill -0 $$ && ! _hi_job_alive $$ || return 1
+  sleep 5 &
+  pid=$!
+  _hi_job_alive "$pid" || return 1
+  kill "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+  ! _hi_job_alive "$pid"
+}
+
 function test_wait_pid_runs_the_timeout_hook_before_killing() {
   local marker="$_HI_WORKDIR/timeout-hook"
   rm -f "$marker"
@@ -424,7 +438,8 @@ function test_exec_case_never_retries_a_timeout() {
 
 # Every escape form the helper documents goes, and a render's worth of them
 # goes in one pass: the bash-replacement version was quadratic, and a 2KB
-# colored table took seconds. Timed with $SECONDS, so the bound is loose.
+# colored table took seconds. Timed with $SECONDS, so the bound is loose - and
+# loose enough for emulated Git Bash: the quadratic version took minutes.
 function test_strip_ansi_strips_every_form_and_stays_linear() {
   local s big i out t0
   s="$(printf 'a\033[1;32mb\033[0mc\033]7;file:///x\007d\033]0;t\033\\e')"
@@ -433,7 +448,7 @@ function test_strip_ansi_strips_every_form_and_stays_linear() {
   for ((i = 0; i < 4000; i++)); do big="$big"$'\e[31m'"word$i"$'\e[0m '; done
   t0=$SECONDS
   out="$(_hi_strip_ansi "$big")"
-  [ $((SECONDS - t0)) -le 2 ] && [[ "$out" == "word0 word1 "* ]] && [[ "$out" != *$'\e'* ]]
+  [ $((SECONDS - t0)) -le 10 ] && [[ "$out" == "word0 word1 "* ]] && [[ "$out" != *$'\e'* ]]
 }
 
 function test_pty_wrap_force_wraps_even_on_a_tty() {
@@ -655,6 +670,7 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: _hi_wait_pid"
   _hi_check "Reports a clean exit" test_wait_pid_reports_a_clean_exit
   _hi_check "Reports the real exit code" test_wait_pid_reports_the_real_exit_code
+  _hi_check "_hi_job_alive trusts the job table, not kill -0" test_job_alive_trusts_the_job_table_not_kill_0
   _hi_check "Case result fails a timed-out case despite its marker" test_case_result_fails_a_timed_out_case_despite_its_marker
   _hi_check "Case result keeps OK on an odd exit with the marker" test_case_result_keeps_ok_on_an_odd_exit_with_the_marker
   _hi_check "Case result names a timeout" test_case_result_says_timed_out_by_name
