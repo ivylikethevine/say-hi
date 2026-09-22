@@ -66,7 +66,7 @@ workflows.
 ## What CI runs
 
 Every check on your pull request, and whether a red one fails the run or only
-reports. All but the last three rows are `ci.yml`'s.
+reports. All but the last four rows are `ci.yml`'s.
 
 | Job                                                                     | Runs on your PR                                                            | Gate or advisory?                                                |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -77,7 +77,6 @@ reports. All but the last three rows are `ci.yml`'s.
 | `fast suites (Alpine client)`                                           | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
 | `workflow lint` (actionlint + zizmor)                                   | Always                                                                     | Gate                                                             |
 | `secret scan (gitleaks)`                                                | Always; the full history, findings redacted                                | Gate                                                             |
-| `dependency review`                                                     | Always; fails on a new dependency with a high or critical advisory         | Gate                                                             |
 | `advisory lint` (hadolint)                                              | Always                                                                     | Advisory — reports, never fails the job                          |
 | `hot-path benchmarks`                                                   | Always                                                                     | Gate                                                             |
 | `hot-path profiles (timep)`                                             | Skipped on a workflow- or docs-only diff                                   | Advisory — `continue-on-error`                                   |
@@ -87,6 +86,7 @@ reports. All but the last three rows are `ci.yml`'s.
 | `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                     | Same-repo PRs, after both ubuntu fast-suite jobs pass                      | Gate, but see below                                              |
 | `fast suites (Windows client)`                                          | Same-repo PRs, skipped on a workflow- or docs-only diff; eight runners     | Gate, but see below                                              |
 | `release note (pr body)` (`release-note.yml`)                           | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
+| `dependency review` (`dependency-review.yml`)                           | Always; fails on a new dependency with a high or critical advisory         | Gate                                                             |
 | `CodeQL (actions)` (`codeql.yml`)                                       | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset)                |
 | `coverage.yml`'s kcov and bashcov sweep                                 | Same-repo PRs; posts both figures as a comment                             | Advisory — never blocks a PR; a failed suite publishes no figure |
 
@@ -101,8 +101,8 @@ a PR's base against its head, so it runs on pull requests only.
 
 None of it runs twice on the same code: a push to `main` whose tree a
 same-repo PR's green run already tested finds that run's `ci-tree-<tree>`
-marker and skips every job, and `carry-forward` puts the run's badge artifacts
-and platform checks on the merged commit. `coverage.yml` reuses the PR's
+marker and skips every job, and `detect changes` puts the run's badge
+artifacts and platform checks on the merged commit. `coverage.yml` reuses the PR's
 figures the same way.
 
 "Gate" means the job fails loudly rather than reporting and continuing — not,

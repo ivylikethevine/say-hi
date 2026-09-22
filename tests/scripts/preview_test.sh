@@ -308,9 +308,16 @@ function test_users_table_shows_each_usertag() {
 }
 
 # targets.sh's sweep cache would happily serve a previous render's host list;
-# _hi_render_colors below says why TTL=0 is the cure
+# _hi_render_colors below says why TTL=0 is the cure. A render that exits
+# non-zero says so on stderr, which _hi_assert inherits: its callers only
+# `|| return 1`, and it has failed that way on Windows arm64, twice running,
+# with the output that would say why captured and dropped.
 function _hi_render_hosts_table() {
-  _HI_TARGETS_TTL=0 _hi_print_hosts_table 2>&1
+  local out rc=0
+  out="$(_HI_TARGETS_TTL=0 _hi_print_hosts_table 2>&1)" || rc=$?
+  printf '%s\n' "$out"
+  [ "$rc" = 0 ] ||
+    _hi_because "_hi_print_hosts_table exited $rc; its last lines:"$'\n'"$(printf '%s\n' "$out" | tail -n 20)"
 }
 
 # tagged and a-considerably-longer-hostname share a tag and a color, so they

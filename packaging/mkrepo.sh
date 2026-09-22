@@ -51,8 +51,8 @@ _HI_APK_ARCHES="x86_64 aarch64"
 # (oldstable) does. Not trixie yet: its createrepo_c 1.2 writes .zst repodata
 # where bookworm's writes .gz, a change to what every existing dnf/yum client
 # of the published repository reads.
-_HI_ALPINE_IMAGE="alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
-_HI_DEBIAN_IMAGE="debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
+_HI_ALPINE_IMAGE="alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+_HI_DEBIAN_IMAGE="debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251"
 _HI_USAGE="Usage: mkrepo.sh [--dist <dir>] [--outdir <dir>] [--gpg-key <file> [--public-key <asc>]] [--apk-key <file>] [--base-url <url>] [--tarball <file>]"
 
 function usage() {

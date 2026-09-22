@@ -26,7 +26,7 @@
 # time, deliberately - baking a copy in would pin a version nobody chose and
 # put a network fetch in every image rebuild. profile.sh mounts $_HI_TIMEP
 # instead when you have a local copy you have read.
-FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
 # 2026-08-24 rebuild (tag, 13-slim, and 13.6-slim all resolve to it). It ships
 # util-linux 2.41.5-0+deb13u1, which already carries the fix for the four HIGH
 # mount TOCTOU findings CVE-2026-53612 through 53615 - so no `apt-get

@@ -5,7 +5,7 @@ name: Windows client
 # at is Windows. windows-e2e.yml is the target-side half; README's
 # compatibility table rests on both. Called by ci.yml on every push to main
 # and every same-repository pull request as a real gate (a failing suite
-# fails the run, no continue-on-error); dispatch runs it on its own.
+# fails the run, no continue-on-error).
 #
 # Four runners a leg: the quarters of the table, which test_runner.sh deals
 # out so the four take about the same time on arm64. Four and no more:
@@ -23,7 +23,6 @@ name: Windows client
 # suites (Git Bash)".
 on:
   workflow_call:
-  workflow_dispatch:
 
 permissions:
   contents: read

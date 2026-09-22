@@ -4,7 +4,7 @@
 # bash 3.2 as hitest's login shell, so both halves of a session run under it:
 # the payload sshd hands the login shell, and the interactive `bash --rcfile`
 # load.sh chainloads into.
-FROM bash:3.2@sha256:3a13e5da38baa575985778cd09ce8ac736d4b4dafc91a430e71271f6e5311b89
+FROM bash:3.2@sha256:0fd7cb8499c63a3c9345e7088a9cd83bb69f6e895e83833859aff838a0312091
 RUN apk add --no-cache openssh \
     && ln -sf /usr/local/bin/bash /bin/bash \
     && adduser -D -s /usr/local/bin/bash hitest

@@ -17,7 +17,6 @@ on:
   # and Tuesday codeql/scorecard crons, so a red run follows a fresh sweep.
   schedule:
     - cron: '17 6 * * 3'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -35,20 +34,19 @@ jobs:
   # is one flag every code-dependent job below reads instead of repeating
   # "nothing relevant changed" itself. It defaults to 'true' - a dedup match
   # or the filter cleanly reporting no code changes are the only ways to
-  # 'false'; a schedule or dispatch (the filter step's own `if` skips it) and
+  # 'false'; a schedule (the filter step's own `if` skips it) and
   # a failed lookup both leave it 'true', so change detection breaking is
   # never read as "assume nothing changed". `outputs.trusted` is the other
   # flag: a push, or a pull_request from this repository - read by
   # test-macos's loopback, e2e-gate, and e2e-windows-client. The three e2e-*
   # reusable-workflow jobs gate on `needs.e2e-gate.outputs.ok` instead, which
   # is empty when that job skips. The `!cancelled()` jobs below name the
-  # draft clause themselves, since `!cancelled()` runs past a skipped need, and
-  # so does dependency-review, which does not need `changes` at all.
+  # draft clause themselves, since `!cancelled()` runs past a skipped need.
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
   # test-arm, test-macos, test-alpine, profile, packaging-smoke, e2e, and
   # e2e-backends skip on a workflow-only or docs-only diff. workflow-lint,
-  # advisory-lint, secret-scan, and dependency-review are exempt - such a
+  # advisory-lint, and secret-scan are exempt - such a
   # change is what they audit - and so are lint and bench: the lint group
   # checks the Markdown itself and bench_test.sh README.md's payload badge,
   # and both are cheap (~40s); they read `reuse-run` only, never `code`.
@@ -57,17 +55,18 @@ jobs:
   # merge of an up-to-date PR, the usual case) is the same code twice: the
   # push finds that run's ci-tree-<tree> marker, `code` reads false, and every
   # job below skips - lint, workflow-lint, advisory-lint, and bench included,
-  # through `reuse-run`. carry-forward hands the PR run's results to what
-  # reads main's newest run.
+  # through `reuse-run`. The carry-forward steps below hand the PR run's
+  # results to what reads main's newest run.
   changes:
     name: detect changes
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read # dorny/paths-filter lists a PR's files via the API
-      actions: read # find_tree_run.sh reads other runs' artifacts
+      actions: read # find_tree_run.sh and carry-forward read another run's artifacts
+      checks: write # carry-forward mirrors the PR run's platform checks
     outputs:
       code: ${{ steps.gate.outputs.code }}
       reuse-run: ${{ steps.reuse.outputs.run }}
@@ -111,7 +110,7 @@ jobs:
           fi
           echo "trusted=$trusted" >>"$GITHUB_OUTPUT"
 
-      # push/pull_request only: a schedule or dispatch run has no diff to
+      # push/pull_request only: a schedule run has no diff to
       # take, and `gate` below reads that as "assume yes" the same way it
       # reads this step failing outright. some-with-excludes, not `some`: a
       # bare negated pattern matches nothing on its own, and `some` would
@@ -161,6 +160,55 @@ jobs:
           [ "$FILTER_OUTCOME" != success ] || [ "$FILTER_CODE" = true ] || code=false
           [ -z "$REUSE_RUN" ] || code=false
           echo "code=$code" >>"$GITHUB_OUTPUT"
+
+      # Carry-forward: a push whose tree already went green on its PR skips
+      # every job below, so what reads main's newest run gets that PR run's
+      # results instead: the two artifacts pages.yml and release.yml fetch,
+      # and a check run per reusable-workflow job - README's platform badges
+      # read check runs on main's head, and a skipped caller leaves none for
+      # its callee at all. Each mirrored check links the PR job it stands for.
+      # Steps here rather than a job of its own: ci.yml's push trigger is
+      # main only, so such a job could only ever run there, and on every PR
+      # it would sit in the checks list as skipped.
+      - if: steps.reuse.outputs.run != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "{tests,package-install-sizes}"
+          path: ${{ runner.temp }}/pr
+          run-id: ${{ steps.reuse.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - if: steps.reuse.outputs.run != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tests
+          path: ${{ runner.temp }}/pr/tests/totals
+          retention-days: 14
+
+      - if: steps.reuse.outputs.run != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-install-sizes
+          path: ${{ runner.temp }}/pr/package-install-sizes/sizes
+          retention-days: 14
+
+      - name: Mirror the PR run's platform checks onto this commit
+        if: steps.reuse.outputs.run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ steps.reuse.outputs.run }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name | contains(" / ")) | [.name, .conclusion, .html_url] | @tsv' |
+            while IFS=$'\t' read -r name conclusion url; do
+              gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+                -f name="$name" -f head_sha="$GITHUB_SHA" -f status=completed \
+                -f conclusion="$conclusion" -f details_url="$url" \
+                -f "output[title]=Reused from PR run $RUN" \
+                -f "output[summary]=This commit's tree is the one that run tested." >/dev/null
+              printf '%s  %s\n' "$conclusion" "$name"
+            done
 
   # Two plain jobs, not a matrix: a matrix job's skipped entries go unnamed -
   # GitHub reports one skip against the job id, not per `matrix.os` - so a
@@ -688,38 +736,6 @@ jobs:
       - name: Scan the full history for secrets
         run: gitleaks git --redact --no-banner --verbose .
 
-  # Pull requests only: the action diffs the dependency graph between the PR's
-  # base and head, and a push has no base to diff. Fails on a newly added
-  # dependency with a high or critical advisory - the workflows' actions and
-  # .github/package-lock.json here. Skips a draft itself rather than through
-  # `changes`, whose outputs it never reads - not `code`, since a
-  # workflow-only diff is how a new action arrives.
-  dependency-review:
-    name: dependency review
-    if: >-
-      github.event_name == 'pull_request'
-      && github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: block
-          # disable-sudo: this job never elevates - harden-runner's monitor
-          # logged no sudo exec for it on a green run, and it is one action
-          # talking to the API. One that turns out to need root fails here
-          # outright rather than quietly doing less, which is what makes this
-          # worth setting rather than inferring.
-          disable-sudo: true
-          # Off this job's own audit log, which reached one host: the review
-          # action asks the API for the diff's advisories and nothing else.
-          allowed-endpoints: >
-            api.github.com:443
-
-      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
-        with:
-          fail-on-severity: high
-
   # Advisory, not a gate: a dockerfile nit has never shipped a bug. The lint
   # step's verdict is an output read afterwards, so findings still show in the
   # log, and ./.github/actions/advisory-note restates it as a warning in the
@@ -946,7 +962,7 @@ jobs:
           set -euo pipefail
           docker run --rm -v "$PWD/dist:/dist:ro" \
             -v "$RUNNER_TEMP/smoke.rsa.pub:/etc/apk/keys/say-hi.rsa.pub:ro" \
-            alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b \
+            alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 \
             sh -c 'apk add /dist/say-hi_*_noarch.apk && sh -lc "hi --version" && ls /usr/share/say-hi/common/core.sh'
 
       # The reproducibility contract: the same commit builds byte-identical
@@ -1321,64 +1337,3 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.trusted == 'true'
     uses: $/.github/workflows/windows-client.yml
-
-  # A push whose tree already went green on its PR (`changes` found the
-  # marker) skips every job above, so what reads main's newest run gets that
-  # PR run's results instead: the two artifacts pages.yml and release.yml
-  # fetch, and a check run per reusable-workflow job - README's platform
-  # badges read check runs on main's head, and a skipped caller leaves none
-  # for its callee at all. Each mirrored check links the PR job it stands for.
-  carry-forward:
-    name: reuse the PR run's results
-    needs: changes
-    if: needs.changes.outputs.reuse-run != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      actions: read
-      checks: write
-    steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: block
-          # Artifacts only: it downloads a shard's parts and uploads them again.
-          # The blob storage behind them rides GitHub's meta domains.
-          allowed-endpoints: >
-            github.com:443
-            results-receiver.actions.githubusercontent.com:443
-
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: "{tests,package-install-sizes}"
-          path: ${{ runner.temp }}/pr
-          run-id: ${{ needs.changes.outputs.reuse-run }}
-          github-token: ${{ github.token }}
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: tests
-          path: ${{ runner.temp }}/pr/tests/totals
-          retention-days: 14
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: package-install-sizes
-          path: ${{ runner.temp }}/pr/package-install-sizes/sizes
-          retention-days: 14
-
-      - name: Mirror the PR run's platform checks onto this commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN: ${{ needs.changes.outputs.reuse-run }}
-        run: |
-          set -euo pipefail
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" \
-            --jq '.jobs[] | select(.name | contains(" / ")) | [.name, .conclusion, .html_url] | @tsv' |
-            while IFS=$'\t' read -r name conclusion url; do
-              gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
-                -f name="$name" -f head_sha="$GITHUB_SHA" -f status=completed \
-                -f conclusion="$conclusion" -f details_url="$url" \
-                -f "output[title]=Reused from PR run $RUN" \
-                -f "output[summary]=This commit's tree is the one that run tested." >/dev/null
-              printf '%s  %s\n' "$conclusion" "$name"
-            done

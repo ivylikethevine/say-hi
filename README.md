@@ -392,9 +392,11 @@ when it lands.
 
 4. [ ] **vhs v0.12** — `demos.yml` pins v0.11.0: v0.12.0 captures every
        frame, then exits 0 without ever running ffmpeg (suspect: upstream's
-       browser rewrite, 42f1776). **Do:** report it upstream with that
-       evidence. **Ticks when:** a v0.12.x release renders all six tapes on a
-       `demos.yml` dispatch and the pin moves to it.
+       browser rewrite, 42f1776), reported upstream as
+       [charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787).
+       `tool-versions.yml` holds the pin off 0.12.0 alone, so a later release
+       shows as outdated. **Ticks when:** a v0.12.x release renders all six
+       tapes on a `demos.yml` dispatch and the pin moves to it.
 
 ## License
 

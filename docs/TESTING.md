@@ -216,8 +216,8 @@ Two coverage tools, kcov (`tests/coverage.sh`) and
 run over the full suite sweep — every suite the box's backends can host —
 by hand or by `coverage.yml`: after every green CI run on a push to `main`, and
 on every same-repo, non-draft PR, where the `comment` job posts both figures
-beside main's in one comment edited in place (the push that merges the PR
-reuses them). The two aggregates have tracked each other within a few points
+beside main's in one comment edited in place, with the PR's passed-case count
+from its CI run beside main's (the push that merges the PR reuses them). The two aggregates have tracked each other within a few points
 for many commits: **the average of the two badges** is the coverage figure,
 and the per-file reports are for finding untested arms. Only a divergence of
 tens of points means one tool has lost the plot. Never a gate: the pull

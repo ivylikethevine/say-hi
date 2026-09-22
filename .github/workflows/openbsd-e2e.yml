@@ -8,11 +8,9 @@ name: OpenBSD e2e
 # asks of an OpenBSD target. No fish: two fish
 # versions share the package stem, and a non-interactive pkg_add refuses the
 # ambiguity; the fish dialect is proven on every other platform. ci.yml calls
-# it beside freebsd-e2e.yml, behind the same gate; dispatch runs it on its
-# own.
+# it beside freebsd-e2e.yml, behind the same gate.
 on:
   workflow_call:
-  workflow_dispatch:
 
 permissions:
   contents: read
