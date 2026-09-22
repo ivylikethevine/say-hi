@@ -94,8 +94,11 @@ jobs:
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit only: on Windows harden-runner has no block mode
-          egress-policy: audit
+          # block: this collector runs on ubuntu, not Windows, and only reads
+          # the shards' result - it reaches nothing but the results receiver
+          egress-policy: block
+          allowed-endpoints: >
+            results-receiver.actions.githubusercontent.com:443
 
       - name: Require every shard green
         env:

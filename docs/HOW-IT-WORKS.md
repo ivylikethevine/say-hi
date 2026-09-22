@@ -10,7 +10,8 @@ setting named here is a row in [SETTINGS.md](SETTINGS.md#every-setting).
    CI. Your overlay follows in a second, much smaller archive, landing in a
    `overlay/` of its own so your `aliases.sh` stays additive; a tree default
    your overlay replaces outright (`colors`, an editor rc) stays home, so one
-   copy rides ([HI.41](GLOSSARY.md#hi41-overlay-stream)).
+   copy rides, and so does an editor default for an editor this machine does
+   not have ([HI.41](GLOSSARY.md#hi41-overlay-stream)).
 2. Both are base64-armored inside one script written over the **stdin** of an
    ssh connection the session then reuses — not argv, which Linux caps at
    128KB per argument however big `ARG_MAX` says

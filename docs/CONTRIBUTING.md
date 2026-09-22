@@ -70,7 +70,7 @@ reports. All but the last three rows are `ci.yml`'s.
 
 | Job                                                                     | Runs on your PR                                                            | Gate or advisory?                                                |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `fast suites (ubuntu-latest)`                                           | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
+| `fast suites (ubuntu-latest)`                                           | Skipped on a workflow- or docs-only diff; the `ci` group runs here only    | Gate                                                             |
 | `fast suites (ubuntu-24.04-arm)`                                        | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
 | `lint suites (ubuntu-latest)` (the lint group, markdownlint + prettier) | Always                                                                     | Gate                                                             |
 | `fast suites (macos-latest)`                                            | Skipped on a workflow- or docs-only diff; same-repo PRs also ssh to itself | Gate                                                             |
@@ -85,7 +85,7 @@ reports. All but the last three rows are `ci.yml`'s.
 | `e2e (ssh, docker)`                                                     | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
 | `e2e (podman, nomad, kube)`                                             | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
 | `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                     | Same-repo PRs, after both ubuntu fast-suite jobs pass                      | Gate, but see below                                              |
-| `fast suites (Windows client)`                                          | Same-repo PRs, skipped on a workflow- or docs-only diff; ten runners       | Gate, but see below                                              |
+| `fast suites (Windows client)`                                          | Same-repo PRs, skipped on a workflow- or docs-only diff; eight runners     | Gate, but see below                                              |
 | `release note (pr body)` (`release-note.yml`)                           | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
 | `CodeQL (actions)` (`codeql.yml`)                                       | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset)                |
 | `coverage.yml`'s kcov and bashcov sweep                                 | Same-repo PRs; posts both figures as a comment                             | Advisory — never blocks a PR; a failed suite publishes no figure |
@@ -169,13 +169,15 @@ These are constraints the tree enforces, not requests:
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
   which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 - **Every workflow job starts with `step-security/harden-runner`**
-  (`egress-policy: audit`, or `block` with an allowlist on a job that holds a
-  publishing credential; a Linux arm64 job goes without, having no agent) and
+  (`egress-policy: block` with an allowlist taken from a real run's audit log
+  on every Ubuntu job; `audit` only where there is no block mode - macOS and
+  Windows - and on `link-check.yml`, whose job is reaching any URL; a Linux
+  arm64 job goes without, having no agent) and
   sets `timeout-minutes`. Beside it: third-party actions pinned to a full SHA
   with a `# vX.Y.Z` comment, every checkout with `persist-credentials: false`,
   least-privilege `permissions:`, and untrusted input passed through `env:`
-  rather than an inline expression in a `run:`. The packaging suite and
-  `workflow lint` enforce them.
+  rather than an inline expression in a `run:`. The `packaging_ci` suite
+  and `workflow lint` enforce them.
 
 ## What 1.x will not break
 

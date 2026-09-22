@@ -24,21 +24,34 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
 
 ## The wizard
 
-`hi --configure` opens on a preview — the header and the prompt line as they
-would draw at your current settings — over one numbered list of every setting
-it asks, under four headings, with no submenus - the header's own items first, right under the header they change:
+`hi --configure` opens on the keys (`[p]reset`, `[h]eader preset`, `[s]ave`,
+`[q]uit`) and a preview - the header and the prompt line as they would draw
+at your current settings - over one numbered list of every setting it asks,
+grouped by what a setting changes, each heading saying where it shows, with
+no submenus:
 
-- **Header** — first, under the rendered header it edits: everything in [Header details](#header-details): the banner,
-  the header's items in the order they print (`up N`/`down N` moves one), the
-  width, the package check's depth, and the hidden addresses. Outside the
-  menu, `hi --preview header` prints the header at the saved settings, and
+- **Header** — first, under the rendered header it edits: the header and
+  the greeting on or off, then everything in
+  [Header details](#header-details): the banner, the header's items in the
+  order they print (`up N`/`down N` moves one), the width, the package
+  check's depth, and the hidden addresses. Outside the menu,
+  `hi --preview header` prints the header at the saved settings, and
   `hi --preview packages` the check's legend.
-- **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting),
-  but the prompt's own, which sits under _Prompt_.
-- **Prompt** — the colored prompt on or off, hi's own over the prompt
+- **Prompt** — the preview's last line: the colored prompt on or off, git
+  status and the environment segment, hi's own prompt over the prompt
   programs found here, and the character each of the three shells' prompts
   ends with, wired up on this machine or not.
-- **Advanced** — the leading space, the `--mux` default, and 24-bit color.
+- **Editors** — hi's config for each editor, on a target that has it.
+- **Aliases** — what `cat`, `ls`, and `sudo` run.
+- **This machine** — whether hi styles the machine you run it on as well
+  (`_HI_DISABLE_LOCAL`).
+- **Advanced**, set apart under a rule — the leading space, the header's
+  right edge, the `--mux` default, and 24-bit color.
+
+A row away from its default says the default beside it (`(default 2)`,
+`(default on)`). The menu draws to your terminal's width: help text is cut
+rather than wrapped, the header items fold to one column when narrow, and
+the preview box clips a line wider than the room.
 
 A number flips a yes/no item or asks for a value, and the preview and list
 redraw with the change. `[p]` applies a preset (`[e]verything`, `[b]alanced`,
@@ -149,9 +162,9 @@ variable ([HI.47](GLOSSARY.md#hi47-what-a-child-inherits) says which, and
 why). A setting a child must see is an `export` in
 [your own `bashrc`/`zshrc`/`config.fish`](#shells-you-drop-into-inside-a-session).
 
-The whole vocabulary a `settings.sh` may use, grouped the way the wizard's
-menu is - _Header_, _Features_, _Prompt_, _Advanced_ - and then the
-settings nothing asks about; the linked sections explain. The **set by** column:
+The whole vocabulary a `settings.sh` may use, grouped roughly by what each
+setting changes - the header, the features, the prompt, the advanced ones -
+and then the settings nothing asks about; the linked sections explain. The **set by** column:
 
 - **you** — supported surface nothing asks about: export it, or write an
   `export` line into `settings.sh` by hand. The wizard carries such a line
@@ -177,13 +190,13 @@ prompt program hi does not know, an editor off the ladder - is a red
 | `_HI_DISABLE_HEADER`        | `0`                                                                                                       | `hi --configure`          | turns off the whole header: a connect's, a disconnect's, and the greeting a local interactive shell prints                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_DISABLE_GIT_STATUS`    | `0`                                                                                                       | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_DISABLE_ENV_STATUS`    | `0`                                                                                                       | `hi --configure`          | turns off the prompt's environment segment - the leading `(myproj)` naming the active venv, conda, direnv, nix, guix, devbox, or version-manager environment. See [Integrations](INTEGRATIONS.md#the-environment-segment)                                                                                                                                                                                                                                                                                                                       |
-| `_HI_DISABLE_EDITORS`       | `0`                                                                                                       | `hi --configure`          | turns off the editor config overrides (vim, neovim, nano, emacs, micro, helix) and, on a target, the `$EDITOR`/`$VISUAL`/`$SUDO_EDITOR` export that carries them into `git commit`, `crontab -e`, and `sudo -e`; tmux's `-f` override is a tool alias, under `_HI_DISABLE_TOOL_ALIASES`                                                                                                                                                                                                                                                         |
+| `_HI_DISABLE_EDITORS`       | `0`                                                                                                       | `hi --configure`          | turns off the editor config overrides (vim, neovim, nano, emacs, micro, helix) and, on a target, the `$EDITOR`/`$VISUAL`/`$SUDO_EDITOR` export that carries them into `git commit`, `crontab -e`, and `sudo -e`; the tmux, screen, and zellij config aliases are tool aliases, under `_HI_DISABLE_TOOL_ALIASES`                                                                                                                                                                                                                                 |
 | `_HI_DISABLE_VIM`           | `0`                                                                                                       | `hi --configure`          | turns off hi's vim config alone - the `vim` and `nvim` aliases (`vimrc` for vim, `init.lua` for neovim) and `$VIMINIT`; `$EDITOR` can still pick it, bare                                                                                                                                                                                                                                                                                                                                                                                       |
 | `_HI_DISABLE_NANO`          | `0`                                                                                                       | `hi --configure`          | the same for nano's alias                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `_HI_DISABLE_EMACS`         | `0`                                                                                                       | `hi --configure`          | the same for emacs's alias                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_DISABLE_MICRO`         | `0`                                                                                                       | `hi --configure`          | the same for micro's alias, with its `_HI_MICRO_OPTS` flags and `-config-dir`                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `_HI_DISABLE_HELIX`         | `0`                                                                                                       | `hi --configure`          | the same for `hx`'s alias - hi's `config.toml`, `-c`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                                                                       | `hi --configure`          | turns off the styled tool aliases: `cat`/`catn` as `bat`, `ls`/`exa`/`eza` through the list ladder, and `tmux -f` your tmux config; `bat`/`batn` keep their flags either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                                                                                                                                                                   |
+| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                                                                       | `hi --configure`          | turns off the styled tool aliases: `cat`/`catn` as `bat`, `ls`/`exa`/`eza` through the list ladder, and `tmux -f`, `screen -c`, and zellij's config directory, your multiplexer configs; `bat`/`batn` keep their flags either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                                                                                                              |
 | `_HI_DISABLE_SUDO_ALIAS`    | `0`                                                                                                       | `hi --configure`          | turns off the `sudo` alias - the trailing-space alias in bash/zsh that lets `sudo vim` keep the vim alias's flags, and fish's wrapper function that does the same for its alias functions                                                                                                                                                                                                                                                                                                                                                       |
 | `_HI_DISABLE_LOCAL`         | `0`                                                                                                       | `hi --configure`          | turns off everything above, and the banner, **on this machine only** - hi still styles the hosts you visit ([Others](#others))                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `_HI_DISABLE_PROMPT`        | `0`                                                                                                       | `hi --configure`          | turns off the colored `user@host` prompt, leaving your shell's own                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |

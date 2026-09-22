@@ -272,10 +272,10 @@ fi
 
 # --shard i/n keeps every n-th selected suite from the i-th on, in table order:
 # the n slices are disjoint and together are the selection, and interleaving
-# the table spreads its slow harness suites (at the end) across them rather
-# than handing one runner all of them. Applied after the group/name selection
-# and before --list, so `--group fast --shard 2/2 --list` shows what a CI
-# shard will run. windows-client.yml is the caller: the fast group takes about
+# the table - dealt out for it, see the table's header - spreads the slow suites
+# across them rather than handing one runner all of them. Applied after the
+# group/name selection and before --list, so `--group fast --shard 2/4 --list`
+# shows what a CI shard will run. windows-client.yml is the caller: the fast group takes about
 # seven minutes under Git Bash, where backgrounded suites barely overlap
 # (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
 # a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
@@ -392,6 +392,9 @@ fi
 # of them silently shifted every later row's data.
 declare -a _HI_ROWS=()
 declare -a _HI_FAIL_NOTES=()
+# cases that failed and passed on their traced rerun (report.sh's _hi_assert):
+# not failures, listed in their own recap so a flake is never lost
+declare -a _HI_FLAKY_NOTES=()
 _HI_SUITE_FAILED=0
 _HI_SUITE_SKIPPED=0
 _HI_CASES_PASSED=0
@@ -465,6 +468,13 @@ function _hi_collect_suite() {
     _HI_SUITE_FAILED=$((_HI_SUITE_FAILED + 1))
   fi
   _HI_ROWS+=("$_hi_name"$'\t'"$_hi_status"$'\t'"$_hi_pass"$'\t'"$_hi_fail"$'\t'"$_hi_skipcnt"$'\t'"$_hi_dur")
+
+  # flaky cases, whatever the suite's verdict - a green suite can hold them
+  if [ -s "$_hi_fails.flaky" ]; then
+    while IFS= read -r _hi_line; do
+      [ -n "$_hi_line" ] && _HI_FLAKY_NOTES+=("$_hi_name: $_hi_line")
+    done <"$_hi_fails.flaky"
+  fi
 
   # collect the failing case labels the suite noted; a suite that failed
   # without noting any still gets one line, so the recap can't be empty for a
@@ -639,6 +649,7 @@ function _hi_run_batch() {
     _hi_log="$_HI_RUN_DIR/$_hi_i.log"
     : >"$_hi_counts"
     : >"$_hi_fails"
+    rm -f "$_hi_fails.flaky"
     [ -z "$_hi_ticker" ] || _hi_progress="$_HI_RUN_DIR/$_hi_i.progress"
     _hi_batch_names+=("$_hi_name")
 
@@ -756,6 +767,16 @@ if [ "${#_HI_FAIL_NOTES[@]}" -gt 0 ]; then
   for _hi_note in "${_HI_FAIL_NOTES[@]}"; do
     _hi_cecho " | $_hi_note" "$RED"
     [ -n "$_HI_CI" ] && printf '::error title=%s::%s\n' "test failure" "$_hi_note"
+  done
+fi
+
+# every flaky case: failed, then passed its traced rerun - not a failure, and
+# not forgotten either (a GitHub warning on CI, so it shows on the run page)
+if [ "${#_HI_FLAKY_NOTES[@]}" -gt 0 ]; then
+  _hi_h2 "Flaky cases (failed, then passed a rerun)" "$YELLOW"
+  for _hi_note in "${_HI_FLAKY_NOTES[@]}"; do
+    _hi_cecho " | $_hi_note" "$YELLOW"
+    [ -n "$_HI_CI" ] && printf '::warning title=%s::%s\n' "flaky test" "$_hi_note"
   done
 fi
 

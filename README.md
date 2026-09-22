@@ -158,8 +158,9 @@ row, and everything answered **no**, and why:
   container/alloc/pod targets. `bash` gets the full session; without it you
   land in the best shell the target has, with a smaller one
   ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
-- **A slow link**: the ssh wire stays at or under 128 KB — 8 s over a 128 kbps
-  link. Today's (the payload badge above) is about half that.
+- **A slow link**: the ssh wire is meant to stay at or under 128 KB — 8 s over
+  a 128 kbps link — and the gzipped payload is held to 64 KB by the bench
+  group. Today's (the payload badge above) is about half the 128.
 - **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
   out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
@@ -206,7 +207,8 @@ row, and everything answered **no**, and why:
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
   either way). Then reload your shell.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any
-  setting in its one list — Header, Features, Prompt, Advanced — and save to
+  setting in its one list — Header, Prompt, Editors, Aliases, This machine,
+  Advanced — and save to
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
@@ -332,17 +334,7 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **Every Ubuntu job's egress is allowlisted** — 42 of 51
-       `harden-runner` steps block, every list off a real run's log:
-       `ci.yml`'s e2e (the union of three runs'; green on its first blocked
-       run), `demos.yml`'s `attach` (off v0.4.8's), and `openbsd-e2e.yml`
-       (its guest's DNS-over-HTTPS resolver stopped). **Audit for good:**
-       macOS (`ci.yml`'s `test-macos`, `release.yml`'s brew job) and Windows
-       (`windows-client.yml`'s 2, `windows-e2e.yml`'s 4), where
-       harden-runner has no block mode, and `link-check.yml`, whose job is
-       reaching any URL. **Ticks when:** OpenBSD's first blocked run is green.
-
-2. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+1. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -352,7 +344,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-3. [ ] **Investigate the header as plugins** — every header cell is one
+2. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing

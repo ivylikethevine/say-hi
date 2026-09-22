@@ -106,7 +106,7 @@ ubi --project ivylikethevine/say-hi --exe hi.sh
 mise use "ubi:ivylikethevine/say-hi[exe=hi.sh]"
 ```
 
-`tests/packaging/packaging_test.sh`'s `test_src_tarball_ships_an_executable_hi_sh`
+`tests/packaging/packaging_ci_test.sh`'s `test_src_tarball_ships_an_executable_hi_sh`
 holds the tree's half: `hi.sh` at the tarball root, executable bit intact.
 
 ## Verifying a release download
