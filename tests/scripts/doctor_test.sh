@@ -808,6 +808,18 @@ function test_target_resolves_a_running_container() {
   [[ "$out" == *"resolves"*"docker container"* ]]
 }
 
+# ssh options on the line (-p 2222) mean nothing to a container, and the
+# report says it ignored them rather than dropping them silently
+function test_target_says_ssh_options_skip_a_container() {
+  local out
+  out="$(
+    _HI_DOC_SSHARGS=(-p 2222)
+    HI_FAKE_TOOLS="base64 bash sh " _hi_doc_target runningbox
+  )"
+  [[ "$out" == *"ignored - -p 2222 apply only to an ssh target, and this one resolved to docker container"* ]] ||
+    _hi_because "report: $out"
+}
+
 # The container arm reports a tier like the ssh arm, not just the `resolves`
 # row. bash present is the full tier; the interesting case is the other one.
 function test_container_target_reports_the_full_tier() {
@@ -1360,6 +1372,7 @@ function run_doctor_tests() {
   if [ "$part" = target ]; then
     _hi_h2 "Testing: doctor_target / doctor_ssh_target"
     _hi_check "Resolves a running container" test_target_resolves_a_running_container
+    _hi_check "...and says the ssh options on the line skip it" test_target_says_ssh_options_skip_a_container
     _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
     _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
     _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member

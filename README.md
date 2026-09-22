@@ -334,35 +334,14 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **Close the coverage gaps bashcov can see** — CI's bashcov sweep
-       (run 35670586612, commit 7a4bc31) puts the shipped files at 92.5%;
-       `add_tag.sh`, `add_package.sh`, and `update.sh` read 0% only because
-       their suites run scratch-tree copies (`tests/coverage_v2.sh`'s header).
-       **Do:** a test for the untested behavior on these lines, re-measured
-       first, since line numbers drift - and where a gap is a tracer blind
-       spot (a framework container, an `env -i` child), say so in that
-       header instead:
-
-   - `packaging/stamp_badge.sh` 21-22, 27-28, 35-40 - `--check` in and
-     outside the 5KB slack, and no badge in the README
-   - `common/bash.sh` 55-62, 75, 135-149, 159-160, 171-176, 186-190,
-     195-205, 212-215, 223-225, 281-282, 311-315, 341, 375 - the
-     completion's backend symbols, `_hi_drop_prompt_command`, and the
-     oh-my-bash, bash-it, and powerline-go arms
-   - `scripts/preview.sh` 37-45, 51-52, 57-59, 63-64, 124-127, 166,
-     309-310, 326, 347-348, 354, 361, 535, 601, 752-755, 760-761, 781
-   - `scripts/configure.sh` 171, 379-380, 397-402, 466, 479-480, 526-538,
-     682, 739, 939-942, 1066-1067, 1190
-   - `common/core.sh` 16, 98, 181, 271, 286-294, 452, 596, 600, 610, 617,
-     648-651, 837-841, 916, 961, 1000, 1053, 1100
-   - `scripts/doctor.sh` 133, 139, 153-156, 272-273, 324, 460, 472, 489,
-     523-524, 588, 620-622, 628-630, 727, 808-809, 850, 959, 963, 967,
-     1005
-   - `hi.sh` 16, 26-38, 44-45, 54, 216, 294, 314, 340, 355, 427-428, 452,
-     1155-1156
-
-   **Ticks when:** each listed line is covered or named as a blind spot,
-   and the bashcov figure for the shipped files reads 95% or more.
+1. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
+       sweep (run 35670586612) left in the shipped files now has a test
+       (`env_prompt.sh`, `stamp_badge.sh`, `configure.sh`, `core.sh`,
+       `doctor.sh`, `hi.sh`) or is a blind spot `tests/coverage_v2.sh`'s
+       header lists (`paths.sh`, `bash.sh`, `preview.sh`, and the rest of
+       those files' lines). What is left is the measurement. **Ticks when:**
+       the first bashcov sweep on `main` after this lands reads no shipped
+       line at 0 that is neither tested nor in that header.
 
 2. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a

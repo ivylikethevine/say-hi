@@ -37,9 +37,7 @@ _HI_ENV_ROSTER="MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION NODENV_VERSION
 # _hi_env_case <VAR=value>... - the segment a shell with exactly those
 # variables set would draw. A subshell, so the suite's own environment (and
 # whatever the machine running it has activated) never leaks into a case.
-# `export "$kv"`, not an eval: an eval inside the $( ) a check captures this
-# in zeroes every line of it for bashcov (tests/coverage_v2.sh's header),
-# which read every case here as untested.
+# `export "$kv"` sets and exports each pair in one step, no eval needed.
 function _hi_env_case() {
   (
     local kv

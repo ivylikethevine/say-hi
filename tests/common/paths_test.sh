@@ -7,14 +7,12 @@
 # exports it; a local rc never does). Backwards, it would either strip hi from
 # every target or leave it running where the user asked it not to.
 #
-# Each case sources paths.sh in its own subshell so exports can't leak, and
+# Each case sources paths.sh in its own child shell so exports can't leak, and
 # reads the variables back out - which also proves settings.sh is picked up
 # ahead of the gate rather than after it.
 #
 # GLOSSARY: HI.30 + HI.34
-# SC2031: _hi_gate sources core.sh in a subshell, which sets _HI_TOGGLES there
-# on purpose - the suite's own copy is the one the checks below read.
-# shellcheck disable=SC2329,SC2031
+# shellcheck disable=SC2329
 set -euo pipefail
 
 # shellcheck source=../test_lib.sh
@@ -27,22 +25,15 @@ _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
   _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
 
-# Source paths.sh in a subshell with $1/$2 as the two gate inputs, then
+# Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
 # print "<var>=<value>" for every toggle the gate governs. core.sh does the
 # defaulting paths.sh relies on ( _HI_DISABLE_LOCAL / _HI_REMOTE_SESSION both
-# have to exist), so the subshell goes through it exactly like a real shell,
-# its load guard cleared first. A subshell, not a `bash -c` child: bashcov
-# lost the tail of that child's trace (0 to 2 hits over the gate's fourteen
-# exports, the last three never), though every case here asserts all of them.
+# have to exist), so the child goes through it exactly like a real shell.
 function _hi_gate() {
-  (
-    unset _hi_core_loaded
-    _HI_DISABLE_LOCAL="$1" _HI_REMOTE_SESSION="$2"
-    # shellcheck source=../../common/core.sh
+  _HI_DISABLE_LOCAL="$1" _HI_REMOTE_SESSION="$2" bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
-    local v
-    for v in "${_HI_GATED_VARS[@]}"; do printf '%s=%s\n' "$v" "${!v:-}"; done
-  )
+    for v in "$@"; do printf "%s=%s\n" "$v" "${!v:-}"; done
+  ' _ "${_HI_GATED_VARS[@]}"
 }
 
 function _hi_all_gated() {

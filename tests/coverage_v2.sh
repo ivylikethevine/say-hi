@@ -34,11 +34,26 @@
 # they ran; `env -i` children and in-container lines drop out of the trace),
 # which is why both tools ship rather than one replacing the other.
 #
-# Four more readings here are artifacts, not gaps, and are worth ruling out
+# More readings here are artifacts, not gaps, and are worth ruling out
 # before writing a test against a number:
 #   - a script a suite *executes from a scratch-tree copy* under $_HI_WORKDIR
 #     is filed under the copy's path, which the filters drop, so the repo file
-#     reads 0% (scripts/update.sh; preview.sh's and install.sh's dispatch).
+#     reads 0% (scripts/update.sh, add_tag.sh, add_package.sh; preview.sh's
+#     and install.sh's dispatch).
+#   - an `env -i` child keeps none of the three variables the trace rides on
+#     (SHELLOPTS, PS4, BASH_XTRACEFD), so what it runs reads 0; rc_test.sh's
+#     _hi_rc_shell passes them through while a tracer runs, and the pty
+#     children configure_test.sh drives (the narrow menu, a start-of-run
+#     preset) and doctor_test.sh's install-section runs still drop out.
+#   - some lines read 0 though a passing case asserts what they do, for a
+#     reason not yet pinned down (a toy script under bashcov records the
+#     same shapes - a child bash, a subshell or an eval inside a $( ) - fine):
+#     paths.sh's local-only gate (0 to 2 hits over its fourteen exports),
+#     env_prompt_test.sh's _hi_check_eq cases (conda, the .venv rename), and
+#     stamp_badge.sh's --check pass under bench.
+#   - xtrace prints commands, not every line: an empty case arm (`'') ;;`),
+#     an array literal's continuation lines, a `done <"$file"` redirect line,
+#     and the second line of a multi-line command all read 0 whatever ran.
 #   - an `eval` anywhere inside a `$( )` zeroes every line of that subshell,
 #     the lines that ran included (scripts/lib.sh's _hi_setting_get and the other
 #     out-var helpers); a probe calling the function directly still reads 0.

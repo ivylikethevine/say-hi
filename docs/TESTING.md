@@ -247,11 +247,11 @@ safe because shards partition the suite table.
 - **bashcov** reads bash's `xtrace`, and skews the other way: a **heredoc
   body** counts as covered whether or not it ran, and children under `env -i`
   or inside containers drop out of the trace — so a single file reads a few
-  points off either way while the pair brackets the truth. Four more readings
-  are artifacts, not gaps: a script a suite runs from a scratch-tree copy under
-  `$_HI_WORKDIR` reads 0% for the repo file (`scripts/update.sh`); an `eval`
-  anywhere inside a `$( )` zeroes that whole subshell; a zsh-only arm is
-  invisible to both tools; and the `sh …` case above. Rule those out before
+  points off either way while the pair brackets the truth. More readings are
+  artifacts, not gaps, and `tests/coverage_v2.sh`'s header is their list: a
+  scratch-tree copy, an `eval` inside a `$( )`, a zsh-only arm, the `sh …`
+  case above, lines a passing case asserts but that still read 0, and the lines `xtrace`
+  never prints (an empty case arm, a redirect line). Rule those out before
   writing a test against a number. It needs
   `gem install --user-install bashcov` (found off the gem bin directory if
   not on `$PATH`), and writes a `.simplecov` into the checkout for the run,
