@@ -59,7 +59,7 @@ jobs:
           persist-credentials: false
 
       # every Windows job's, x64 a no-op - the action says why
-      - uses: $/.github/actions/defender-off
+      - uses: ./.github/actions/defender-off
 
       # No `uses: ./.github/actions/setup-tools`: it resolves linux/darwin asset
       # slugs and caches into /usr/local/bin, neither a Windows shape, so the

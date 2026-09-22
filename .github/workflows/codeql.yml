@@ -1,59 +1,51 @@
 name: CodeQL
 
-# CodeQL over the one language here it can read: GitHub Actions. It cannot
-# analyse the product - CodeQL has no shell analyser; the bash is covered by
-# `--group fast` (docs/TESTING.md). The overlap with zizmor is the point:
-# zizmor is the fast gate in ci.yml, CodeQL the slower dataflow pass whose
-# findings land in the Security tab with a trace, and Scorecard's SAST check
-# counts only this one. Runs on push to main, every PR, and weekly.
+# CodeQL over the one language here it can read: GitHub Actions (it has no
+# shell analyser; the test suites cover the bash).
+# The actions half overlaps zizmor on purpose: zizmor is the fast gate in
+# ci.yml, CodeQL the slower dataflow pass whose findings land in the Security
+# tab with a trace, and Scorecard's SAST check counts only this one.
+# build-mode none throughout: nothing needs compiling.
+#
+# Runs on every push to main (not after green CI: Scorecard counts analysed
+# commits), every non-draft PR, weekly for the default-branch baseline code
+# scanning diffs a PR against, and on dispatch. No `paths:` filter: a skipped
+# category leaves code scanning waiting on a result.
 on:
   push:
     branches: [main]
-  # no `paths:` filter, deliberately: Scorecard's SAST check counts completed
-  # CodeQL runs on the merged PRs behind the last 30 default-branch commits,
-  # and most dev->main PRs touch no workflow file, so a scoped trigger reads
-  # as if CodeQL only sometimes existed. Drafts are gated out in `analyze`
-  # below; ready_for_review is what gets the run once a draft is marked ready
-  # (it is not one of the default types)
+  # drafts analyse nothing (the jobs' `if`) until ready_for_review
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-  # the default-branch baseline code scanning diffs a PR against; without it
-  # the first PR to touch a workflow has nothing to compare to
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   schedule:
     - cron: "17 6 * * 2"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A PR's superseded run is cancelled. Outside a PR the group is per commit, so
+# a quick second merge can't replace the first commit's queued analysis.
 concurrency:
-  group: codeql-${{ github.ref }}
+  group: codeql-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  analyze:
+  analyze-actions:
     name: CodeQL (actions)
-    # a draft PR is still being written; it gets its run when it is marked
-    # ready, the same rule ci.yml applies
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
-      # the SARIF upload, and the workflow definitions being analysed
-      security-events: write
-      actions: read
+      security-events: write # the SARIF upload
+      actions: read # the workflow definitions being analysed
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # disable-sudo: this job never elevates - harden-runner's monitor
-          # logged no sudo exec for it on a green run, and it unpacks its own
-          # bundle under the runner. One that turns out to need root fails here
-          # outright rather than quietly doing less, which is what makes this
-          # worth setting rather than inferring.
           disable-sudo: true
-          # Off this job's own audit log: the checkout, the API, the CodeQL
-          # bundle from the release hosts, and the cache.
+          # the checkout, the API, the CodeQL bundle, and the cache
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -65,8 +57,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # `actions` is the whole matrix on purpose (see the header); build-mode
-      # none is the only mode it has, there being nothing to compile
       - name: Initialize CodeQL
         uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:

@@ -1,15 +1,16 @@
 name: Image scan
 
-# Trivy scan of tests/dockerfiles' digest-pinned base images: the severity
-# half of digest-pinning, which dependabot cannot offer (its docker ecosystem
-# is version-updates-only - .github/dependabot.yml's docker block). Scans the
-# pinned digest and what the tag points at now, and speaks only when the
-# second is verifiably better; --ignore-unfixed is the whole design (the scan
-# step says why) and the state machine is scan_pinned_images.sh's header.
-# Runs after every green CI battery on a push to main (the batch scorecard,
-# coverage, and tool-versions share) and weekly as a backstop - upstream's
-# clock keeps ticking with no push here; never per-PR, since the findings
-# track that clock and not the diff's.
+# Advisory trivy scans; nothing here blocks a merge.
+# - pins: the digest-pinned base images in tests/dockerfiles. Dependabot repins
+#   on release, not on severity, so this scans each pinned digest and what its
+#   tag points at now, and keeps one tracking issue open only while a repin
+#   verifiably closes fixable HIGH/CRITICAL findings (--ignore-unfixed; state
+#   machine: .github/scripts/scan_pinned_images.sh's header).
+#
+# Runs after every green CI run on a push to main, weekly (upstream rebuilds
+# and advisories land with no push here), and on dispatch; never per PR.
+# workflow_run is safe: the jobs run only after a green push to main and check
+# out the default branch.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -17,53 +18,39 @@ on: # zizmor: ignore[dangerous-triggers]
     branches: [main]
   schedule:
     - cron: "37 6 * * 3"
-
-# pushes to main can stack, but queue rather than cancel: a run cancelled
-# mid-upsert can leave its tracking issue half-written (or a duplicate opened)
-concurrency:
-  group: image-scan
-  cancel-in-progress: false
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Queue rather than cancel: a run cancelled mid-upsert can leave the tracking
+# issue half-written or open a duplicate.
+concurrency:
+  group: image-scan
+  cancel-in-progress: false
+
 jobs:
-  scan:
-    name: trivy over the pinned base images (advisory)
-    # only a green push to main gets a fresh scan; the schedule passes the
-    # first clause
+  pins:
+    name: pinned images (trivy, advisory)
+    # only a green push to main; the schedule and a dispatch pass the first clause
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
-      # the one write this job does: upsert (and close) its own tracking issue
-      issues: write
-    timeout-minutes: 20
+      issues: write # open, refresh or close the tracking issue
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # disable-sudo: this job never elevates - harden-runner's monitor
-          # logged no sudo exec for it on a green run, and it lets trivy read
-          # images and its own database. One that turns out to need root fails
-          # here outright rather than quietly doing less, which is what makes
-          # this worth setting rather than inferring.
           disable-sudo: true
-          # Off this job's own audit log. It scans the *pinned* base images, so
-          # the registry set is fixed rather than open: the two Docker hosts and
-          # the mirror it falls back to, plus trivy's own database and version
-          # check. This job was on audit as one that 'reaches arbitrary hosts by
-          # design', which its log does not bear out.
-          # Left out on purpose: the audit log also named a
-          # run-actions-N-azure-REGION.actions.githubusercontent.com, whose
-          # shard rotates - 1, 2 and 3 seen across three runs - so no fixed row
-          # covers it. coverage.yml's blocking shards upload their artifacts
-          # without one, through the auto-allowed productionresultssa* blobs, so
-          # it is not the artifact path. This job is advisory, so if it turns
-          # out to need that host the cost is one advisory run saying so.
+          # Off this job's own audit log: the pinned images' registries, and
+          # trivy's database and version check. A rotating
+          # run-actions-N-azure-*.actions.githubusercontent.com host also
+          # appeared; no fixed row covers it, and this job is advisory.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -78,26 +65,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tool
         with:
-          tools: trivy
+          tool: trivy
 
-      # Advisory, like hadolint and link-check: a CVE landing upstream is no
-      # reason to redden an unrelated PR, so never make this a required check.
-      # The three verdicts (0 clean, 1 a finding with no better image to move
-      # to, 2 a repin that demonstrably helps) are all green and captured as an
-      # output - continue-on-error would collapse them to "failure" - while
-      # anything else (3 a failed vulnerability database download, 127 a
-      # missing trivy or jq) still fails loudly.
-      # --ignore-unfixed is the whole design: debian:bookworm-slim carries 22
-      # HIGH/CRITICAL won't-fix findings (eight of them perl-base), a job that
-      # counts those is red forever, and two piles of permanent findings differ
-      # by noise. debian:trixie-slim's util-linux TOCTOU set has no rebuilt tag
-      # yet, so verdict 1 naming that pin is expected until Debian rebuilds it
-      # (timep.Dockerfile takes the fix from the archive). A zero is not always
-      # clean either: trivy declines fedora ("Unsupported os"), and the script
-      # reports its null .Results as unscanned rather than counting it clean.
+      # The three verdicts (0 clean, 1 a finding no repin improves, 2 a repin
+      # that helps) are captured as an output, not collapsed by
+      # continue-on-error; anything else (3 a failed database download, 127 no
+      # trivy or jq) still fails the job.
       - id: scan
+        name: Scan pinned digests and their tags
         env:
           SCAN_REPORT: ${{ runner.temp }}/image-scan-report.md
         run: |
@@ -107,21 +84,18 @@ jobs:
           echo "verdict=$rc" >>"$GITHUB_OUTPUT"
           [ "$rc" -le 2 ] || exit "$rc"
 
-      # An issue, not a pull request: dependabot already opens the repin PR, and
-      # one from here would need contents: write and, being GITHUB_TOKEN-
-      # authored, trigger no docker e2e run to prove the new digest builds.
-      # The report file is the summary and the issue body both, so the two can
-      # never drift into saying different things.
-      - uses: $/.github/actions/upsert-tracking-issue
+      # An issue, not a pull request: dependabot already opens the repin PR. The
+      # report is the summary and the issue body both, so the two can't disagree.
+      - uses: ./.github/actions/upsert-tracking-issue
         with:
           label: image-scan
           label-color: D93F0B
-          label-description: A pinned base image can be repinned to fix a CVE
-          title: Base image repin would close known vulnerabilities
-          resolved: ${{ steps.scan.outputs.verdict != 2 && 'true' || 'false' }}
+          label-description: A pinned image can be repinned to fix a CVE
+          title: Image repin would close known vulnerabilities
+          resolved: ${{ steps.scan.outputs.verdict != '2' }}
           close-comment: The pins no longer have a fixable finding a repin would clear.
           resolved-when: the pins no longer need it
           write-summary-on-resolved: "true"
           body-file: ${{ runner.temp }}/image-scan-report.md
           warning-title: trivy
-          warning-body: A pinned base image can be repinned to close known vulnerabilities - see the issue
+          warning-body: A pinned image can be repinned to close known vulnerabilities - see the image-scan issue

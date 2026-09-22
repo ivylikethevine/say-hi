@@ -13,7 +13,7 @@
 #             tar.gz   an archive searched for <name>; when it holds one build
 #             tar.xz   per arch side by side, this machine's arch dir is kept
 #             zip      an archive searched for <name>, the same way (needs unzip)
-#             cmake   a source tarball built with cmake
+#             cmake    a source tarball built with cmake
 #             make     a source tarball built with ./configure && make
 #             Source kinds may append apt build deps: `cmake:libfoo-dev,libbar-dev`
 #             (cmake always adds build-essential and cmake itself).
@@ -78,19 +78,27 @@
 # at the bottom of .gitignore for the same trap.
 #
 # Rows go below.
+# Installed rather than taken from the runner image, whose copy moves when the
+# image does and would change what shellcheck reports with no commit here.
 shellcheck|0.11.0|tar.xz|https://github.com/koalaman/shellcheck/releases/download/v%v/shellcheck-v%v.%a.tar.xz|--version|github:koalaman/shellcheck||linux-x86_64:linux.x86_64=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198,darwin-aarch64:darwin.aarch64=56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79
+actionlint|1.7.12|tar.gz|https://github.com/rhysd/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:rhysd/actionlint||8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+zizmor|1.30.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor||e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a
+# A pin, not `releases/latest`: new rules arrive as a reviewed bump instead of
+# changing what an unrelated PR's lint reports.
+hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint||c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
+# Pinning the binary does not stale the scan: trivy downloads its vulnerability
+# database on every run, whatever this pin is.
+trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy||2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+# Tags are "lychee-v<version>"; the tag-prefix column strips that so the drift
+# check compares versions, not strings.
+lychee|0.24.2|tar.gz|https://github.com/lycheeverse/lychee/releases/download/lychee-v%v/lychee-x86_64-unknown-linux-gnu.tar.gz|--version|github:lycheeverse/lychee|lychee-v|1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
+# `version` is a subcommand, not a flag.
+gitleaks|8.30.1|tar.gz|https://github.com/gitleaks/gitleaks/releases/download/v%v/gitleaks_%v_linux_x64.tar.gz|version|github:gitleaks/gitleaks||551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+typos|1.50.2|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos||abcb3e257c7c2abeff4d903f7fe68071357637605bdb283ce2251f44bc70dc09
 shfmt|3.14.1|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_linux_amd64|--version|github:mvdan/sh||76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
 checkbashisms|2.26.11|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/scripts/checkbashisms.pl|--version|gitlab:salsa.debian.org/debian%2Fdevscripts||7ffec5f4f3282d7551b7f1dd103d84ea6034bb1f177efdce2cebc60bfd72c088
-# actionlint points at kjanat's fork, not upstream rhysd/actionlint: upstream
-# is stuck on 1.7.12 and rejects zizmor's `$/...` self-repository syntax
-# (rhysd/actionlint#732 open, unmerged); the fork added `$/...` support in
-# v1.9.0 and is what unblocks the zizmor pin below.
-actionlint|1.17.0|tar.gz|https://github.com/kjanat/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:kjanat/actionlint||620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a
-zizmor|1.30.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor||e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a
 nfpm|2.47.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm||0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783
 minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/minisign-%v-linux.tar.gz|-v|github:jedisct1/minisign||9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73
-trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy||2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
-hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint||c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
 # kcov publishes no binary asset, so this builds its source tarball. The
 # runtime libs (libdw1, libelf1, libcurl4, zlib1g, libstdc++6) are the
 # caller's to keep - coverage.yml's setup-shells extra-packages. libssl-dev
@@ -99,10 +107,6 @@ hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/h
 # --no-install-recommends drops ("Could NOT find OpenSSL"). The "Could NOT
 # find Bfd" line in the same log is harmless: bfd is optional.
 kcov|43|cmake:libcurl4-openssl-dev,libdw-dev,libelf-dev,libssl-dev,python3,zlib1g-dev|https://github.com/SimonKagstrom/kcov/archive/refs/tags/v%v.tar.gz|--version|github:SimonKagstrom/kcov||4cbba86af11f72de0c7514e09d59c7927ed25df7cebdad087f6d3623213b95bf
-lychee|0.24.2|tar.gz|https://github.com/lycheeverse/lychee/releases/download/lychee-v%v/lychee-x86_64-unknown-linux-gnu.tar.gz|--version|github:lycheeverse/lychee|lychee-v|1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
-# ci.yml's full-history secret scan; `version` is a subcommand, not a flag
-gitleaks|8.30.1|tar.gz|https://github.com/gitleaks/gitleaks/releases/download/v%v/gitleaks_%v_linux_x64.tar.gz|version|github:gitleaks/gitleaks||551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-typos|1.50.1|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos||edf0545109aee6a22751d04ddecb97c45be47d3aa0409564fb895eeeace91b1e
 # mandoc's snapshots page has no feed the checker can read, so the pin is
 # frozen on purpose (1.14.6 is its current release); bump it by hand.
 mandoc|1.14.6|make|https://mandoc.bsd.lv/snapshots/mandoc-%v.tar.gz|-T lint -W error /dev/null|-||8bf0d570f01e70a6e124884088870cbed7537f36328d512909eb10cd53179d9c

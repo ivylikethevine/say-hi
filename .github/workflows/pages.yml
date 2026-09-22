@@ -142,7 +142,7 @@ jobs:
       # one lookup, both artifacts: the count comes from `test`, the sizes
       # from `packaging-smoke`, same run either way
       - name: Fetch CI's totals and package sizes
-        uses: $/.github/actions/fetch-latest-artifact
+        uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: ci.yml
           artifact-name: "{tests,package-install-sizes}"
@@ -156,7 +156,7 @@ jobs:
       # so the pair can never come from two different runs. warn-on-missing
       # stays off - no successful run yet is a normal state.
       - name: Fetch the last coverage run's figures
-        uses: $/.github/actions/fetch-latest-artifact
+        uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
           artifact-name: "{coverage-pct,coverage-v2-pct}"
@@ -180,7 +180,7 @@ jobs:
       # head_branch is the tag itself, never main, so the default branch=main scope would find
       # nothing after the first tag-triggered render.
       - name: Fetch the last demo render's GIFs
-        uses: $/.github/actions/fetch-latest-artifact
+        uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: demos.yml
           artifact-name: demo-gifs
@@ -311,16 +311,15 @@ jobs:
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
 
-  # split from the build so the write scopes live on the one job that needs
-  # them, and the build stays read-only like every other job here
+  # split from the build so the write scopes live on the one job that needs them
   deploy:
     name: deploy
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      pages: write
-      id-token: write
+      pages: write # deploy the site
+      id-token: write # prove the deployment came from this run
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -328,12 +327,8 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # deploy-pages talks to api.github.com and to a host of the shape
-          # run-actions-N-azure-REGION.actions.githubusercontent.com (the OIDC
-          # token and the artifact), whose shard and region rotate between
-          # runs - hence the wildcard, which harden-runner matches on any
-          # subdomain. A miss here drops the site rather than failing at a
-          # mirror, so watch the first deploy after a change to this list.
+          # deploy-pages also reaches run-actions-N-azure-REGION hosts (the OIDC
+          # token and the artifact), whose shard rotates - hence the wildcard
           allowed-endpoints: >
             api.github.com:443
             github.com:443

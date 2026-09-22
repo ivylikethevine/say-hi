@@ -3,25 +3,24 @@ contact_links:
   - name: Report a vulnerability
     url: https://github.com/ivylikethevine/say-hi/security/advisories/new
     about: >-
-      Anything exploitable goes here privately, never in a public issue
-      (docs/SECURITY.md).
-  - name: What hi does on a target
+      Anything exploitable goes here privately, never in a public issue.
+  - name: Security policy
     url: https://github.com/ivylikethevine/say-hi/blob/main/docs/SECURITY.md
     about: >-
-      What it copies, where it writes, and what it removes on exit — worth
-      reading before deciding something is a bug.
-  - name: Ask a question or share an idea
+      What's in scope, what's out of scope, and how reports are handled -
+      worth reading before deciding something is a bug.
+  - name: Ask a question
     url: https://github.com/ivylikethevine/say-hi/discussions
     about: >-
-      Not a bug and not a vulnerability - usage questions, feature ideas and
-      general discussion go here instead of an issue.
-  - name: What hi answers to, and what it was decided against
-    url: https://github.com/ivylikethevine/say-hi/blob/main/docs/COMPATIBILITY.md
-    about: >-
-      Every target, OS, and shell hi supports, and every one answered no with
-      the reason - check here before asking for a new one.
-  - name: Where to ask, and what to include
+      Questions, setup help, and ideas that aren't a bug report or a concrete
+      feature request.
+  - name: Getting help
     url: https://github.com/ivylikethevine/say-hi/blob/main/docs/SUPPORT.md
     about: >-
-      Which channel fits, the `hi --doctor --json` output a report needs, and
-      what response to expect from a one-maintainer project.
+      Where to ask, what to include (`hi --doctor --json` output), and what to expect
+      from a one-maintainer project.
+  - name: Supported targets, OSes and shells
+    url: https://github.com/ivylikethevine/say-hi/blob/main/docs/COMPATIBILITY.md
+    about: >-
+      Every one hi supports, and every one answered no with the reason -
+      check here before asking for a new one.

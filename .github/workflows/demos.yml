@@ -145,7 +145,7 @@ jobs:
       # a failed tape. Installed unconditionally rather than per tape: the
       # roster is generate.sh's to state, and a matrix that had to restate it
       # would be a second copy to keep true.
-      - uses: $/.github/actions/setup-backends
+      - uses: ./.github/actions/setup-backends
         with:
           extra-packages: zsh fish
 

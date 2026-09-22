@@ -6,10 +6,8 @@
 **key**
 **local**
 
-# Claude Code: .claude/settings.json is shared and tracked; a person's own
-# overrides and agent worktrees are not. CLAUDE.local.md holds host-specific
-# agent notes (the blanket **local** above already matches both local files;
-# named here so the intent survives that rule going).
+# Claude Code: .claude/settings.json is shared and tracked; personal overrides,
+# agent worktrees and host-specific agent notes stay local.
 .claude/settings.local.json
 .claude/worktrees/
 CLAUDE.local.md

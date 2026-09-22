@@ -131,7 +131,7 @@ jobs:
       - if: >-
           github.event_name == 'pull_request'
           && steps.trust.outputs.trusted == 'true'
-        uses: $/.github/actions/mark-tree
+        uses: ./.github/actions/mark-tree
         with:
           prefix: ci-tree
 
@@ -251,7 +251,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
 
       # No --verbose: the runner then fans suites out to the core count
       # instead of width 1 for live streaming. A passing transcript still
@@ -287,7 +287,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
 
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
@@ -350,14 +350,14 @@ jobs:
       # checks use the preinstalled docker); tools_test.sh lints the shipped
       # rcs with neovim and emacs, which the image lacks - a skip there is a
       # failure under --require-run below
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
         with:
           extra-packages: neovim emacs-nox
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
       # are absent - these pinned installs are what make them enforce here.
       # release.yml's build job passes the identical list, which is the cache key
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: shellcheck shfmt checkbashisms mandoc typos lychee
 
@@ -416,7 +416,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
 
       # No --verbose - see the `test` job's comment on the same flag.
       - name: Run fast test suites
@@ -628,9 +628,9 @@ jobs:
   # each with continue-on-error so a finding in one does not stop the other
   # from reporting; the trailing step fails the job if either did.
   #
-  # actionlint is pinned to kjanat's fork, not upstream: upstream rejects the
-  # `$/...` self-repository syntax zizmor's own auto-fix rewrote every local
-  # `uses:` to (tools.txt has the why).
+  # Local actions are `uses: ./.github/...`, not zizmor's `$/...`
+  # self-repository syntax, which Scorecard reads as unpinned third-party
+  # actions (.github/zizmor.yml disables that audit).
   workflow-lint:
     name: workflow lint
     needs: changes
@@ -668,7 +668,7 @@ jobs:
 
       # actionlint shells out to shellcheck for run: blocks when it is on
       # PATH - pin it so both tools lint shell with the same version
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: shellcheck actionlint zizmor
 
@@ -729,7 +729,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: gitleaks
 
@@ -785,7 +785,7 @@ jobs:
       # DL4006 (curl piped into sh with no pipefail, where a 404 builds a
       # green image with the framework missing), is fixed in the fixtures
       # rather than ignored here.
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: hadolint
 
@@ -810,7 +810,7 @@ jobs:
             echo "found=0" >>"$GITHUB_OUTPUT"
           fi
 
-      - uses: $/.github/actions/advisory-note
+      - uses: ./.github/actions/advisory-note
         if: steps.hadolint.outputs.found == '1'
         with:
           title: hadolint
@@ -851,7 +851,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
 
       - name: Run benchmarks
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group bench"
@@ -934,7 +934,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: nfpm
 
@@ -1084,7 +1084,7 @@ jobs:
       # install_methods_test.sh builds real .deb/.rpm/.apk with mkpkg.sh and
       # installs them on its targets; without nfpm those cases stand down and
       # --require-run fails the gate, so the pin is what makes them run.
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: nfpm
 
@@ -1166,7 +1166,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-backends
+      - uses: ./.github/actions/setup-backends
         with:
           backends: ${{ matrix.backends }}
 
@@ -1307,7 +1307,7 @@ jobs:
     name: e2e (Windows)
     needs: e2e-gate
     if: needs.e2e-gate.outputs.ok == 'true'
-    uses: $/.github/workflows/windows-e2e.yml
+    uses: ./.github/workflows/windows-e2e.yml
 
   # The non-macOS BSDs, on the same gate: a FreeBSD and an OpenBSD VM on
   # hosted runners each run the fast suites and ssh to themselves.
@@ -1315,13 +1315,13 @@ jobs:
     name: e2e (FreeBSD)
     needs: e2e-gate
     if: needs.e2e-gate.outputs.ok == 'true'
-    uses: $/.github/workflows/freebsd-e2e.yml
+    uses: ./.github/workflows/freebsd-e2e.yml
 
   e2e-openbsd:
     name: e2e (OpenBSD)
     needs: e2e-gate
     if: needs.e2e-gate.outputs.ok == 'true'
-    uses: $/.github/workflows/openbsd-e2e.yml
+    uses: ./.github/workflows/openbsd-e2e.yml
 
   # The client-side half of Windows. Not behind e2e-gate: it is the fast
   # suites on another client, not an e2e that wants green targets first, and
@@ -1336,4 +1336,4 @@ jobs:
     name: fast suites (Windows client)
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.trusted == 'true'
-    uses: $/.github/workflows/windows-client.yml
+    uses: ./.github/workflows/windows-client.yml

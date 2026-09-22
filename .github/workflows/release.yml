@@ -220,7 +220,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
 
       - name: Walk the upgrade from the previous release
         run: |
@@ -320,7 +320,7 @@ jobs:
       # neovim and emacs-nox: tools_test.sh lints the shipped rcs with both,
       # same as ci.yml's lint job - --require-run below turns a missing one
       # into a failure rather than a quiet skip
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
         with:
           extra-packages: neovim emacs-nox
 
@@ -329,7 +329,7 @@ jobs:
       # with shfmt, checkbashisms, mandoc, and typos skipping for want of a binary.
       # lychee too, though nothing here runs it: the list is the cache key, so
       # keeping it identical (same order) to ci.yml's reuses that job's cache
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: shellcheck shfmt checkbashisms mandoc typos lychee
 
@@ -386,7 +386,7 @@ jobs:
       - name: Run the lint group
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
 
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: nfpm
 
@@ -606,7 +606,7 @@ jobs:
           name: packages
           path: dist
 
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: minisign
 
@@ -637,7 +637,7 @@ jobs:
       # triggering push's), and a figure that is not there - Coverage still
       # running, an artifact past its retention - is a grey "unknown",
       # never a failed release.
-      - uses: $/.github/actions/fetch-latest-artifact
+      - uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: ci.yml
           artifact-name: tests
@@ -648,7 +648,7 @@ jobs:
           warn-on-missing: "true"
 
       # one lookup, both figures
-      - uses: $/.github/actions/fetch-latest-artifact
+      - uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
           artifact-name: "{coverage-pct,coverage-v2-pct}"
