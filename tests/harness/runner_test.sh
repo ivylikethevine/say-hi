@@ -749,6 +749,7 @@ function test_coverage_pr_runs_are_same_repo_only() {
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
   gate="$(printf '%s\n' "$jobs" | sed -n "/^  reuse:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
+  # shellcheck disable=SC2016 # coverage.yml's literal source text
   if [[ "$gate" != *"head.repo.full_name == github.repository"* ]] ||
     [[ "$gate" != *'"$WR_EVENT" = push'* ]]; then
     _hi_cecho " | reuse's gate step is missing the same-repo or green-push clause" "$RED"
