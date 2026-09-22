@@ -41,7 +41,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/defender-off
+      - uses: ./.github/actions/defender-off
 
       - name: Start the OpenSSH server
         shell: powershell
@@ -115,7 +115,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/defender-off
+      - uses: ./.github/actions/defender-off
 
       - name: Start the OpenSSH server, Git Bash as its shell
         shell: powershell
@@ -203,7 +203,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/defender-off
+      - uses: ./.github/actions/defender-off
 
       # WSL 2: hosted Windows runners carry the nested virtualization it needs
       - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0

@@ -53,9 +53,10 @@ on: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]
-  # ci.yml's type set, for the same draft-marked-ready reason
+  # drafts skip, same as ci.yml; the `reuse` job skips docs-only changes
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -196,7 +197,8 @@ jobs:
         run: |
           set -eu
           sweep=false
-          if { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; } \
+          if [ "$EVENT" = workflow_dispatch ] \
+            || { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; } \
             || { [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ]; }; then
             sweep=true
           fi
@@ -265,7 +267,7 @@ jobs:
           persist-credentials: false
 
       # plus kcov's runtime libraries
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
         with:
           extra-packages: libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
@@ -273,7 +275,7 @@ jobs:
       # publishes no binary asset and reaches Debian/Ubuntu only
       # through a PPA. Cached by version+os+arch, so all four shards' runners
       # hit the cache rather than each rebuilding kcov from source.
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: kcov
 
@@ -352,7 +354,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-shells
+      - uses: ./.github/actions/setup-shells
 
       # keyed on the version alone (every shard wants the same gem): a hit
       # skips the download and native build, `gem install` below still runs
@@ -458,7 +460,7 @@ jobs:
           _ci_apt_update
           sudo apt-get install -y libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
-      - uses: $/.github/actions/setup-tools
+      - uses: ./.github/actions/setup-tools
         with:
           tools: kcov
 
@@ -624,7 +626,7 @@ jobs:
   # target and flags an average below it - a target, not a gate: this job
   # stays continue-on-error and fails nothing.
   comment:
-    name: post the figures to the PR
+    name: coverage (comment)
     needs: [gather-kcov, gather-bashcov]
     if: >-
       always() &&
@@ -658,7 +660,7 @@ jobs:
           persist-credentials: false
 
       # the marker the push landing this tree on main looks for (`reuse`)
-      - uses: $/.github/actions/mark-tree
+      - uses: ./.github/actions/mark-tree
         with:
           prefix: coverage-tree
 
@@ -674,7 +676,7 @@ jobs:
       # one lookup, both figures - dest-subdir carries no artifact name of its
       # own, so each still lands at main/<artifact-name>/pct, unchanged below
       - name: Fetch main's figures
-        uses: $/.github/actions/fetch-latest-artifact
+        uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
           artifact-name: "{coverage-pct,coverage-v2-pct}"
@@ -691,7 +693,7 @@ jobs:
       # the whole run. None within the wait (a docs-only diff skips the job,
       # a red one uploads nothing) reads "not measured".
       - name: Fetch main's case count
-        uses: $/.github/actions/fetch-latest-artifact
+        uses: ./.github/actions/fetch-latest-artifact
         with:
           workflow: ci.yml
           artifact-name: tests
@@ -740,7 +742,7 @@ jobs:
           TARGET: "90"
         run: |
           set -euo pipefail
-          marker='<!-- say-hi coverage -->'
+          marker='<!-- coverage-comment -->'
           # shellcheck source=.github/scripts/pct_ok.sh
           source .github/scripts/pct_ok.sh
           # a figure is a bare decimal or nothing: an artifact is data, and

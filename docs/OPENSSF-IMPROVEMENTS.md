@@ -41,17 +41,14 @@ short, and whether each is fixable here:
   `dist/say-hi.intoto.jsonl` - the literal filename the provenance probe looks
   for - for the full 10/10. The score is per-tag and never moves
   retroactively, so read it against the newest release, not an older one.
-- **Pinned-Dependencies reads low for a reason outside this repo.** GitHub
-  shipped same-repository `uses: $/...` references in July 2026
-  ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)):
-  a local action or reusable workflow resolves at the exact commit running,
-  with no `./` plus checkout and no separately-pinnable ref. Scorecard's
-  dependency extraction reads every `$/...` reference as an unpinned
-  third-party action - the same gap behind `ci.yml`'s fork-pinned
-  `actionlint` - and that is most of the "unpinned" count; every real
-  third-party action is SHA-pinned (re-count with
-  `grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`). Reverting to
-  `./` would trade a real improvement for the score. The `tests/dockerfiles/`
+- **Local actions stay `uses: ./...`.** GitHub shipped same-repository
+  `uses: $/...` references in July 2026
+  ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)),
+  but Scorecard's dependency extraction reads every `$/...` reference as an
+  unpinned third-party action, so `.github/zizmor.yml` disables zizmor's
+  `self-repository` audit and the workflows keep `./`. Every third-party
+  action is SHA-pinned (re-count with
+  `grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`). The `tests/dockerfiles/`
   findings are annotated `test-data`
   ([TESTING.md](TESTING.md#what-is-pinned-and-what-deliberately-is-not)).
 - **Branch-Protection sits at 8, by choice.** The next tier up requires

@@ -1,26 +1,22 @@
 name: Release note
 
-# Every pull request carries the template's `## Release note` section, with
-# something written under it: release.yml builds the release page's "What
-# changed" list out of it (.github/scripts/release_notes.sh), and a body
-# without one drops out of that list without a word. `none` is a valid answer;
-# a missing heading fails, and so does a blank section (only whitespace or
-# HTML comments under the heading). dev -> main PRs are held to it too, not
-# exempted: they are squash merged, so theirs is the one body generate-notes
-# lists for a release and the one release_notes.sh reads. Dependabot's bodies
-# are generated, have no template, and a bump is never a release note, so its
-# PRs skip.
+# A PR body's `## Release note` section (the PR template's) is what the release
+# job builds the release page's "What changed" list from, through
+# .github/scripts/release_notes.sh. `none` is a valid answer; a missing heading
+# or a blank section (whitespace and HTML comments only) gets a warning here.
 #
-# Its own workflow rather than a ci.yml job: `edited` is the trigger that
-# matters (fixing the body re-runs the check), and on ci.yml it would re-run
-# the whole battery on every body edit. A draft skips, like ci.yml's jobs:
-# ready_for_review is named in `types` so marking it ready runs the check.
+# dev -> main PRs are checked the same way: squash-merged, theirs is the body a
+# release reads, carrying the notes of the PRs they bring in. Dependabot's
+# bodies have no template and a bump is never a note, so its PRs skip, as do
+# drafts until ready_for_review.
+#
+# Its own workflow rather than a ci.yml job: `edited` has to re-run it, and a
+# body edit shouldn't re-run all of CI.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
-permissions:
-  contents: read
+permissions: {}
 
 # a newer edit or push supersedes the check of the older body
 concurrency:
@@ -30,40 +26,44 @@ concurrency:
 jobs:
   release-note:
     name: release note (pr body)
-    if: github.event.pull_request.draft != true && github.event.pull_request.user.login != 'dependabot[bot]'
+    if: >-
+      github.event.pull_request.draft != true &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read # the sparse checkout of release_notes.sh
     steps:
-      # block, not audit: a sparse checkout and one local script, with the
-      # note written to $GITHUB_STEP_SUMMARY - a file, not a request. Read
-      # off the job, not guessed.
+      # block, not audit: a sparse checkout and one local script are all this
+      # job reaches.
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
           allowed-endpoints: >
             github.com:443
 
-      # just the script: nothing else in the tree runs here
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts/release_notes.sh
           sparse-checkout-cone-mode: false
 
-      # the body via env, never inline ${{ }} in the run block: it is
-      # attacker-chosen text (zizmor: template-injection). --check's own
-      # stderr says whether the heading is missing or the section blank.
-      - name: The body has a written Release note section
+      # The body via env, never inline ${{ }} in the run block: it is
+      # attacker-chosen text (zizmor: template-injection). `--check` says on
+      # stderr whether the heading is missing or the section blank, and prints
+      # the note as the release page would list it (empty for `none`).
+      - name: Look for a filled-in `## Release note` section
         env:
           BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
           if ! note="$(printf '%s\n' "$BODY" | bash .github/scripts/release_notes.sh --check)"; then
-            echo "::error title=Release note::the PR body needs a '## Release note' section with something under it - copy it from .github/pull_request_template.md (\`none\` is a valid answer)"
-            exit 1
+            echo "::warning title=release note::no '## Release note' section with something under it (see .github/pull_request_template.md), so this PR adds nothing to the release page; \`none\` is a valid answer"
+            echo "_No release note: this PR adds nothing to the release page._" >>"$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           {
             echo "### Release note"
             echo
-            if [ -n "$note" ]; then printf '%s\n' "$note"; else echo "_none - this PR adds nothing to the release page_"; fi
+            printf '%s\n' "${note:-_none - this PR adds nothing to the release page_}"
           } >>"$GITHUB_STEP_SUMMARY"

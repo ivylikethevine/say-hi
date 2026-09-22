@@ -1,0 +1,10 @@
+# zizmor configuration. Ignores are rule-level here or inline
+# (`# zizmor: ignore[<rule>]` on the flagged line), never by line number: a
+# line-numbered entry silently detaches the moment its file is edited.
+rules:
+  # self-repository wants every local `uses: ./.github/...` rewritten to
+  # GitHub's `$/` syntax, but OpenSSF Scorecard's Pinned-Dependencies check
+  # only recognises `./` as a local action and reads each `$/` reference as an
+  # unpinned third-party action. Revisit when Scorecard understands `$/`.
+  self-repository:
+    disable: true

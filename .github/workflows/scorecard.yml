@@ -1,18 +1,15 @@
 name: Scorecard
 
-# OpenSSF Scorecard: a supply-chain score is only useful as a trend, and the
-# checks it grades move when dependabot bumps an action. The SARIF goes to
-# code scanning (findings in the Security tab with file and line) and
-# publish_results puts the score on the OpenSSF API README's badge reads.
-# publish_results fires on every non-pull_request event (that is the action's
-# only gate), so the workflow_run chain and the schedule both publish.
+# OpenSSF Scorecard. The SARIF goes to code scanning (findings in the Security
+# tab with file and line), and publish_results puts the score on the OpenSSF
+# API the README badge reads. publish_results fires on every non-pull_request
+# event (the action's only gate), so every trigger below publishes.
 #
-# workflow_run so a green push to main refreshes the score without waiting on
-# the weekly cron (kept: a quiet week still re-grades against upstream's
-# moving checks); the job gates on the run's conclusion and event the way
-# pages.yml does, and checkout uses the default ref, never the triggering
-# run's payload. branch_protection_rule re-grades Branch-Protection the moment
-# a rule changes rather than at the next push or cron.
+# workflow_run so a green push to main refreshes the score the same day; the
+# job gates on the run's conclusion and event, and checkout uses the default
+# ref, never the triggering run's payload. The weekly cron re-grades against
+# upstream's moving checks in a quiet week, and branch_protection_rule
+# re-grades Branch-Protection the moment a rule changes.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -21,6 +18,7 @@ on: # zizmor: ignore[dangerous-triggers]
   branch_protection_rule:
   schedule:
     - cron: "41 7 * * 2"
+  workflow_dispatch:
 
 # pushes to main can stack; only the newest score matters
 concurrency:
@@ -33,23 +31,20 @@ permissions: read-all
 
 jobs:
   analysis:
-    name: supply-chain scorecard
-    # only a green push to main gets a fresh score; the schedule and a
-    # branch-protection change pass the first clause
+    name: supply-chain score (scorecard)
+    # only a green push to main gets a fresh score; the other triggers pass
+    # the first clause
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
-    # A literal, not vars.RUNNER_LABEL: publish_results has the scorecard
-    # webapp re-fetch this file and check `runs-on:` with a static parser that
-    # never evaluates expressions, so an expression fails its
-    # ^ubuntu-(latest|NN.NN)(-arm)?$ check and the submission is rejected
-    # while the job itself goes green (docs/TESTING.md).
+    # A literal, not an expression: publish_results has the scorecard webapp
+    # re-fetch this file and check `runs-on:` with a static parser, so an
+    # expression gets the submission rejected while the job goes green. The
+    # same check allows no top-level env or defaults, and only the actions
+    # used below.
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Deliberately no `environment:` gate: a schedule cannot pass a required
-    # reviewer, so every weekly run would sit queued. release.yml's `release`
-    # environment is the one that matters.
     permissions:
       contents: read
       # the only write scopes in this file: code scanning takes the SARIF, and
@@ -62,24 +57,11 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # disable-sudo: this job never elevates - harden-runner's monitor
-          # logged no sudo exec for it on a green run, and it probes the repo
-          # and its upstreams. One that turns out to need root fails here
-          # outright rather than quietly doing less, which is what makes this
-          # worth setting rather than inferring.
           disable-sudo: true
-          # Off this job's own audit log. Scorecard's probes go to a stable set
-          # of named services rather than following the dependency graph to
-          # wherever it leads, which is what put this job on audit: the OSSF
-          # APIs, OSV, deps.dev, the OpenSSF best-practices badge, oss-fuzz's
-          # build logs, and sigstore for the signed result.
-          # Left out on purpose: the audit log also named a
-          # run-actions-N-azure-REGION.actions.githubusercontent.com, whose
-          # shard rotates - 1, 2 and 3 seen across three runs - so no fixed row
-          # covers it. coverage.yml's blocking shards upload their artifacts
-          # without one, through the auto-allowed productionresultssa* blobs, so
-          # it is not the artifact path. This job is advisory, so if it turns
-          # out to need that host the cost is one advisory run saying so.
+          # Scorecard's probes go to a stable set of named services: the OSSF
+          # APIs, OSV, deps.dev, the best-practices badge, oss-fuzz's build
+          # logs, Docker Hub (Dockerfile pins), and sigstore for the signed
+          # result.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -108,8 +90,8 @@ jobs:
           publish_results: true
 
       # kept alongside the code-scanning upload: the artifact is the whole
-      # report as the tool emitted it, for reading a run by hand; code scanning
-      # keeps only what it can map to a line.
+      # report as the tool emitted it; code scanning keeps only what it can
+      # map to a line.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: scorecard-results

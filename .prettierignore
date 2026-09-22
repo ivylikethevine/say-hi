@@ -1,9 +1,7 @@
-# docs/tldr.md is a tldr-pages draft and has to stay byte-for-byte in that
-# project's style; everything else prettier could format is either generated
-# (dist/) or not markdown.
+# Paths prettier must never format: the tldr-pages draft (kept byte-for-byte
+# in that project's style), build output, and untracked agent notes and
+# worktrees.
 docs/tldr.md
 dist/
-# Untracked by design: a host's own agent notes, and agent worktrees (whole
-# second checkouts, formatted where they came from).
 CLAUDE.local.md
 .claude/worktrees/

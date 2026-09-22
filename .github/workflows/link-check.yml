@@ -1,13 +1,12 @@
 name: Link check
 
-# External links in the Markdown. Advisory: a rotted URL is worth seeing and
-# has never shipped a bug, so this reports - a run summary note and one
-# `link-check` tracking issue, closed the run the links recover - and never
-# blocks; never add it to required checks. ci.yml's lint job is the blocking
-# half, offline (relative paths and anchors only). Runs after every green CI
-# battery on a push to main (the batch scorecard, coverage, and tool-versions
-# share) and weekly as a backstop, since link rot happens on the internet's
-# clock with no push here; never per-PR. Settings for both are lychee.toml.
+# External links in the docs. Advisory: a rotted URL is worth fixing but has
+# never shipped a bug, so this never fails on one and is never a required
+# check; what it finds goes to one `link-check` tracking issue, closed by the
+# run that finds none. Runs after every green CI run on a push to main (a doc
+# change checks its new links when it lands) and weekly, since links rot with
+# no push here; never per-PR. Pull requests check relative links and fragments
+# offline (ci.yml). Settings for both are lychee.toml.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -15,6 +14,7 @@ on: # zizmor: ignore[dangerous-triggers]
     branches: [main]
   schedule:
     - cron: "23 8 * * 1"
+  workflow_dispatch:
 
 # pushes to main can stack, but queue rather than cancel: a run cancelled
 # mid-upsert can leave its tracking issue half-written (or a duplicate opened)
@@ -28,8 +28,8 @@ permissions:
 jobs:
   lychee:
     name: lychee (advisory)
-    # only a green push to main gets a fresh sweep; the schedule passes the
-    # first clause
+    # only a green push to main gets a fresh sweep; the schedule and a manual
+    # dispatch pass the first clause
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -41,17 +41,11 @@ jobs:
       # the one write this job does: upsert (and close) its own tracking issue
       issues: write
     steps:
+      # audit, deliberately: lychee's job is to reach every URL the docs name,
+      # so an allowlist would be the docs' own link list.
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
-          # audit, deliberately: lychee's job is to reach every URL the docs name, so
-          # an allowlist would either be the docs' own link list or a gate on adding a
-          # link.
           egress-policy: audit
-          # disable-sudo: this job never elevates - harden-runner's monitor
-          # logged no sudo exec for it on a green run, and it fetches URLs. One
-          # that turns out to need root fails here outright rather than quietly
-          # doing less, which is what makes this worth setting rather than
-          # inferring.
           disable-sudo: true
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,52 +53,53 @@ jobs:
           persist-credentials: false
 
       # the tools.txt pin (sha256-verified, drift-checked), the same binary
-      # ci.yml's lint job runs offline - not lycheeverse/lychee-action, whose
-      # lychee version is the action's to pick
-      - uses: $/.github/actions/setup-tools
+      # ci.yml's offline check runs
+      - uses: ./.github/actions/setup-tool
         with:
-          tools: lychee
+          tool: lychee
 
-      # accepted codes, excluded paths, and retries are lychee.toml's. No
-      # --cache: nothing persists .lycheecache between runs, and the weekly
-      # cadence would expire it anyway - a cold sweep is the job
-      - id: lychee
+      # lychee exits 2 for broken links, which is the finding, not a failure;
+      # any other non-zero exit (bad input, a crash) still fails the job.
+      - id: check
         name: Check for dead links
-        continue-on-error: true
         env:
           # authenticated github.com requests dodge the anonymous rate limit
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
-          lychee --config lychee.toml --no-progress \
-            --format markdown --output "$RUNNER_TEMP/lychee.md" './**/*.md'
+          mapfile -d '' files < <(git ls-files -z '*.md')
+          rc=0
+          lychee --config lychee.toml --include-fragments --no-progress \
+            --format markdown --output "$RUNNER_TEMP/lychee.md" "${files[@]}" || rc=$?
+          case "$rc" in
+            0) echo "found=0" >>"$GITHUB_OUTPUT" ;;
+            2) echo "found=1" >>"$GITHUB_OUTPUT" ;;
+            *) exit "$rc" ;;
+          esac
 
-      # a lychee that died before writing its report still opens the issue,
-      # saying so rather than posting an empty body
       - name: Compose the tracking issue body
-        if: steps.lychee.outcome == 'failure'
+        if: steps.check.outputs.found == '1'
         run: |
           set -euo pipefail
           {
-            echo "lychee found dead or unreachable links in the Markdown."
-            echo "Reproduce with \`lychee --config lychee.toml './**/*.md'\`."
+            echo "lychee found dead or unreachable links in the docs. A URL that is fine but"
+            echo "refuses automated checks belongs in \`lychee.toml\` with a comment saying why."
+            echo "Reproduce with \`git ls-files -z '*.md' | xargs -0 lychee --config lychee.toml --include-fragments\`."
             echo
-            if [ -s "$RUNNER_TEMP/lychee.md" ]; then
-              cat "$RUNNER_TEMP/lychee.md"
-            else
-              echo "lychee wrote no report; the run log has its error."
-            fi
+            cat "$RUNNER_TEMP/lychee.md"
           } >"$RUNNER_TEMP/issue.md"
 
-      - uses: $/.github/actions/upsert-tracking-issue
+      # with warning-title set, this also writes the ::warning and the step
+      # summary
+      - uses: ./.github/actions/upsert-tracking-issue
         with:
           label: link-check
           label-color: FBCA04
-          label-description: A link in the Markdown is dead or unreachable
-          title: Dead links in the Markdown
-          resolved: ${{ steps.lychee.outcome == 'failure' && 'false' || 'true' }}
+          label-description: A link in the docs is dead or unreachable
+          title: Dead links in the docs
+          resolved: ${{ steps.check.outputs.found != '1' }}
           close-comment: Every link resolves again.
           resolved-when: every link resolves
           body-file: ${{ runner.temp }}/issue.md
           warning-title: lychee
-          warning-body: Dead or unreachable links - advisory, not blocking - see the issue
+          warning-body: Dead or unreachable links - advisory, not blocking - see the link-check issue

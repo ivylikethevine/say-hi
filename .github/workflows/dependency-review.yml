@@ -36,10 +36,14 @@ jobs:
           # outright rather than quietly doing less, which is what makes this
           # worth setting rather than inferring.
           disable-sudo: true
-          # Off this job's own audit log, which reached one host: the review
-          # action asks the API for the diff's advisories and nothing else.
+          # The review action asks the API for the diff's advisories, then
+          # (show-openssf-scorecard, on by default) resolves each package on
+          # deps.dev and fetches its OpenSSF Scorecard. Blocking either of the
+          # last two fails the step with a bare "fetch failed".
           allowed-endpoints: >
             api.github.com:443
+            api.deps.dev:443
+            api.securityscorecards.dev:443
 
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:

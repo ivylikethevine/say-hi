@@ -275,7 +275,7 @@ finishing an entry means **deleting** it. What a _user_ reads is the pull
 request's `## Release note` section (the template has it), which
 [`release.yml` collects into the release body](RELEASING.md#cutting-a-release):
 write the sentence you would want on the release page, or `none` when nothing
-a user sees changes. `release note (pr body)` fails a body with no such
+a user sees changes. `release note (pr body)` warns on a body with no such
 section, or an empty one. There is deliberately no `CHANGELOG` file: it would
 be a second copy of those notes to keep in step by hand.
 

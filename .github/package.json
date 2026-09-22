@@ -1,16 +1,9 @@
 {
-  "//": [
-    "overrides: markdownlint-cli2 0.23.2 pins smol-toml 1.7.0 exactly, which has GHSA-7w5x-hrqm-74c2",
-    "(fixed in 1.7.1); drop the override once a markdownlint-cli2 release moves past it."
-  ],
   "name": "ci-markdown-tools",
   "private": true,
   "description": "Pins CI's Markdown tools (markdownlint-cli2, prettier) and their dependency tree with a lockfile, for `npm ci --prefix .github`.",
   "devDependencies": {
-    "markdownlint-cli2": "0.23.2",
-    "prettier": "3.9.6"
-  },
-  "overrides": {
-    "smol-toml": "1.7.2"
+    "markdownlint-cli2": "0.23.3",
+    "prettier": "3.9.8"
   }
 }
