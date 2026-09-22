@@ -876,7 +876,9 @@ function test_hi_home_self_derives_from_a_bare_relative_source() {
 # hi.sh derives the same tree through its own symlink walk (the /usr/bin/hi
 # or ~/.local/bin/hi link install makes points at it): an absolute link, a
 # relative one reached through a directory (the `*/*` arm), and a relative
-# one sourced by its bare name (the `*)` arm, no directory to prepend)
+# one sourced by its bare name (the `*)` arm, no directory to prepend).
+# Behind the symlink capability: Git Bash's `ln -s` copies the file unless
+# native symlinks are on, and a copy outside the tree derives the wrong one.
 function test_hi_sh_walks_its_symlinks_to_the_tree() {
   local d="$_HI_WORKDIR/hi-links" got
   mkdir -p "$d/bin"
@@ -1460,7 +1462,7 @@ function run_core_tests() {
   _hi_h2 "Testing: HI.33's bash arm - \$_HI_HOME self-derivation"
   _hi_check "sourced by its real path with \$_HI_HOME unset" test_hi_home_self_derives_when_unset
   _hi_check "...and by a bare relative name from its own directory" test_hi_home_self_derives_from_a_bare_relative_source
-  _hi_check "hi.sh walks its symlinks to the same tree" test_hi_sh_walks_its_symlinks_to_the_tree
+  _hi_check_capable symlink "hi.sh walks its symlinks to the same tree" test_hi_sh_walks_its_symlinks_to_the_tree
   _hi_check "hi.sh's connect clock takes whole seconds from a date(1) with no %N" \
     test_hi_sh_connect_clock_takes_whole_seconds_without_nanoseconds
 
