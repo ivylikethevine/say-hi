@@ -29,7 +29,7 @@ Type "setopt interactive_comments"
 Enter
 Type "docs/tapes/fixtures.sh up editors >/tmp/hi-demo.log 2>&1 && echo fixture-o''k"
 Enter
-Wait+Screen@240s /fixture-ok/
+Wait+Screen@180s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.zsh"
 Enter
 # stand in a throwaway $HOME: the client prompt then reads ~ rather than the

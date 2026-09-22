@@ -6,11 +6,13 @@
 # Pins that live inline rather than in tools.txt, one row each:
 #   bashcov        a rubygem, and no tools.txt kind fetches one
 #   vhs            vhs-action's `version:` input - the action's SHA does not
-#                  cover the binary it downloads
+#                  cover the binary it downloads. Held off 0.12.0, which
+#                  renders no GIF (README.md's Roadmap, charmbracelet/vhs#787);
+#                  a later release reports OUTDATED again, to be tried.
 #   just-the-docs  the Pages theme, fetched by jekyll-build-pages at deploy
 # shellcheck disable=SC2034 # read by check_tool_versions.sh
 CI_WORKFLOW_ROSTER='bashcov|.github/workflows/coverage.yml|BASHCOV_VERSION: "\([0-9][0-9.]*\)"|github:infertux/bashcov|
-vhs|.github/workflows/demos.yml|version: v\([0-9][0-9.]*\)|github:charmbracelet/vhs|
+vhs|.github/workflows/demos.yml|version: v\([0-9][0-9.]*\)|github:charmbracelet/vhs||0.12.0
 just-the-docs|_config.yml|remote_theme: just-the-docs/just-the-docs@v\([0-9][0-9.]*\)|github:just-the-docs/just-the-docs|'
 
 # The fixtures are the only Dockerfiles. Images named outside one (shell,

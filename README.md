@@ -158,8 +158,9 @@ row, and everything answered **no**, and why:
   container/alloc/pod targets. `bash` gets the full session; without it you
   land in the best shell the target has, with a smaller one
   ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
-- **A slow link**: the ssh wire stays at or under 128 KB — 8 s over a 128 kbps
-  link. Today's (the payload badge above) is about half that.
+- **A slow link**: the ssh wire is meant to stay at or under 128 KB — 8 s over
+  a 128 kbps link — and the gzipped payload is held to 64 KB by the bench
+  group. Today's (the payload badge above) is about half the 128.
 - **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
   out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
@@ -206,7 +207,8 @@ row, and everything answered **no**, and why:
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
   either way). Then reload your shell.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any
-  setting in its one list — Header, Features, Prompt, Advanced — and save to
+  setting in its one list — Header, Prompt, Editors, Aliases, This machine,
+  Advanced — and save to
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
@@ -332,38 +334,16 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **CI walks the upgrade path a tag creates** — shipped: release.yml's
-       `upgrade` job, under the gate and ahead of build, runs
-       `.github/scripts/upgrade_path.sh` from the previous `v*` tag - a
-       shell per dialect loads it, the tag's tree is swapped in, the rc is
-       re-sourced, and any stderr or empty `_HI_*` path fails the build. That
-       it goes red is now a standing `ci`-group case (a restored core.sh load
-       guard in `common/bash.sh`), and v0.4.7 to the working tree walks
-       clean. **Ticks when:** a `v*` tag runs the job green.
+1. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
+       sweep (run 35670586612) left in the shipped files now has a test
+       (`env_prompt.sh`, `stamp_badge.sh`, `configure.sh`, `core.sh`,
+       `doctor.sh`, `hi.sh`) or is a blind spot `tests/coverage_v2.sh`'s
+       header lists (`paths.sh`, `bash.sh`, `preview.sh`, and the rest of
+       those files' lines). What is left is the measurement. **Ticks when:**
+       the first bashcov sweep on `main` after this lands reads no shipped
+       line at 0 that is neither tested nor in that header.
 
-2. [ ] **The demos render again** — every `demos.yml` run since v0.3.5
-       has failed in `render`: each tape times out waiting for `fixture-ok`
-       with `/tmp/hi-demo.log` empty, so `fixtures.sh up` never reports (the
-       editors tape stalls earlier still, on its `setopt` line). Egress is
-       ruled out - the harden-runner logs refuse only Chrome's updater. So no
-       GIF has rendered since, and `collect` and `attach` have never run.
-       **Do:** find where the fixture stalls. **Ticks when:** a dispatch
-       renders all six tapes.
-
-3. [ ] **Every Ubuntu job's egress is allowlisted** — 41 of 51
-       `harden-runner` steps block, `ci.yml`'s e2e now among them (its list
-       the union of three runs' audit logs, dnf pinned to one Fedora
-       mirror). **Left:** `openbsd-e2e.yml`, whose guest sent DNS over HTTPS
-       to a bare 9.9.9.9; its prepare step now stops `unwind`, and it goes to
-       block once a run's audit log shows no 9.9.9.9. **Audit for good:**
-       macOS (`ci.yml`'s `test-macos`, `release.yml`'s brew job) and Windows
-       (`windows-client.yml`'s 2, `windows-e2e.yml`'s 4), where
-       harden-runner has no block mode, and `link-check.yml`, whose job is
-       reaching any URL. **Do:** `demos.yml`'s `attach` list from a tagged
-       run. **Ticks when:** OpenBSD blocks, the e2e list holds on cold runs,
-       and `attach`'s list is taken from a real one.
-
-4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+2. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -373,7 +353,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-5. [ ] **Investigate the header as plugins** — every header cell is one
+3. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing
@@ -421,9 +401,11 @@ when it lands.
 
 4. [ ] **vhs v0.12** — `demos.yml` pins v0.11.0: v0.12.0 captures every
        frame, then exits 0 without ever running ffmpeg (suspect: upstream's
-       browser rewrite, 42f1776). **Do:** report it upstream with that
-       evidence. **Ticks when:** a v0.12.x release renders all six tapes on a
-       `demos.yml` dispatch and the pin moves to it.
+       browser rewrite, 42f1776), reported upstream as
+       [charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787).
+       `tool-versions.yml` holds the pin off 0.12.0 alone, so a later release
+       shows as outdated. **Ticks when:** a v0.12.x release renders all six
+       tapes on a `demos.yml` dispatch and the pin moves to it.
 
 ## License
 

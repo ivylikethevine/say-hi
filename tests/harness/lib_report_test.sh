@@ -60,6 +60,53 @@ function test_assert_reports_ok_and_returns_zero() {
   printf '%s\n' "$out" | grep -qE 'some label +OK$'
 }
 
+# ...and says where: a failed case is run once more under `set -x`, the
+# trace's tail on stderr - the comparison that failed, with its values - so a
+# case with no word of its own still names its cause. One rerun only: a case
+# that passes it is FLAKY, returns 0 (not a failure), and is noted beside the
+# failures file for the runner's recap; one that fails it too stays FAILED.
+function _hi_rr_fails() {
+  local got=2
+  [ "$got" = 3 ]
+}
+function _hi_rr_flake() {
+  [ -f "$_HI_WORKDIR/rr.flag" ] && return 0
+  : >"$_HI_WORKDIR/rr.flag"
+  return 1
+}
+# Run in a subshell with the rerun forced on, xtrace off, and BASH_XTRACEFD
+# unset: the coverage sweeps turn the rerun off (_HI_TRACE_RERUN=0), trace
+# every line (bashcov), and point xtrace at their tracer's own fd - where the
+# trace this case reads would never arrive, and its own lines would.
+function test_a_failed_case_reruns_with_a_trace() {
+  (
+    set +x
+    unset BASH_XTRACEFD
+    export _HI_TRACE_RERUN=1
+    _hi_rr_check
+  )
+}
+function _hi_rr_check() {
+  local err out fails="$_HI_WORKDIR/rr.fails"
+  err="$(_HI_FAILS_FILE="$fails" _hi_assert "rr" _hi_rr_fails 2>&1 >/dev/null)" && return 1
+  [[ "$err" == *"traced rerun (exit 1)"* && "$err" == *"'[' 2 = 3 ']'"* ]] || {
+    printf 'rerun said: [%s]\n' "$err" >&2
+    return 1
+  }
+  rm -f "$_HI_WORKDIR/rr.flag" "$fails.flaky"
+  out="$(_HI_FLAKY_OK=1 _HI_FAILS_FILE="$fails" _hi_assert "rr-flake" _hi_rr_flake 2>/dev/null)" || return 1
+  if ! [[ "$(_hi_strip_ansi "$out")" == *"rr-flake"*"FLAKY"* ]] || ! grep -qx 'rr-flake' "$fails.flaky"; then
+    printf 'a flake reported: [%s]\n' "$out" >&2
+    return 1
+  fi
+  # ...and on native Linux x64 a flake is a failure all the same
+  rm -f "$_HI_WORKDIR/rr.flag" "$fails"
+  _HI_FLAKY_OK=0 _HI_FAILS_FILE="$fails" _hi_assert "rr-strict" _hi_rr_flake >/dev/null 2>&1 && return 1
+  grep -qF 'rr-strict (flaky' "$fails" || return 1
+  err="$(_HI_TRACE_RERUN=0 _hi_assert "rr" _hi_rr_fails 2>&1 >/dev/null)" && return 1
+  [[ "$err" != *"rerun"* ]]
+}
+
 function test_assert_reports_failed_and_returns_nonzero() {
   local out rc=0
   # the capture stays on _hi_assert itself: wrapping it in _hi_strip_ansi would
@@ -453,6 +500,7 @@ function run_lib_report_tests() {
   _hi_check "Keeps running after a failure" _hi_sandboxed test_case_keeps_running_after_a_failure
   _hi_check "Assert reports OK" test_assert_reports_ok_and_returns_zero
   _hi_check "Assert reports FAILED and returns non-zero" test_assert_reports_failed_and_returns_nonzero
+  _hi_check "...reruns it once, traced; a pass there is FLAKY" test_a_failed_case_reruns_with_a_trace
   _hi_check "Assert forwards extra arguments" test_assert_passes_through_arguments
   _hi_check "Check counts and labels in one call" _hi_sandboxed test_check_counts_and_labels_in_one_call
 

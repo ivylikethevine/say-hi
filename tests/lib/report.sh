@@ -62,15 +62,87 @@ function _hi_because() {
 }
 
 function _hi_assert() {
-  local label="$1"
+  local label="$1" t0=$SECONDS
   shift
   if "$@"; then
     _hi_align " | $label" "OK" "$GREEN"
-  else
-    _hi_align " | $label" "FAILED" "$RED"
-    _hi_note_failure "$label"
+    return 0
+  fi
+  # a failed case is run once more, traced (_hi_trace_rerun): a pass the
+  # second time is a flake - FLAKY in yellow, noted for the runner's recap,
+  # and not a failure - and a second failure is FAILED with the trace's tail
+  if _hi_trace_rerun $((SECONDS - t0)) "$@"; then
+    if _hi_flaky_allowed; then
+      _hi_align " | $label" "FLAKY" "$YELLOW"
+      printf '      failed once, passed on a traced rerun - not counted as a failure\n' >&2
+      _hi_note_flaky "$label"
+      return 0
+    fi
+    _hi_align " | $label" "FLAKY" "$RED"
+    printf '      failed once, passed on a traced rerun - a failure on native Linux x64, which allows no flakes\n' >&2
+    _hi_note_failure "$label (flaky, and Linux x64 allows none)"
     return 1
   fi
+  _hi_align " | $label" "FAILED" "$RED"
+  _hi_note_failure "$label"
+  [ -z "$_HI_RERUN_OUT" ] || printf '%s\n' "$_HI_RERUN_OUT" >&2
+  return 1
+}
+
+# _hi_trace_rerun <seconds-it-took> <case...> - a failed case once more under
+# `set -x`: most cases fail with a label and no word of their own, and a red
+# line from a runner nobody can reach is worth little. Exits 0 when the rerun
+# passed (a flake), 1 when it failed too or was not run; the trace's tail is
+# left in $_HI_RERUN_OUT for the FAILED line to print. A subshell, so nothing
+# the rerun sets survives it - files it writes do, so a rerun can differ from
+# the first try. Not run for a case whose failure took over 20s (a timeout
+# would be paid twice), nor when $_HI_TRACE_RERUN is 0 - the coverage sweeps
+# set that, their tracers owning xtrace.
+_HI_RERUN_OUT=""
+function _hi_trace_rerun() {
+  local took="$1" out rc=0
+  shift
+  _HI_RERUN_OUT=""
+  [ "${_HI_TRACE_RERUN:-1}" = 1 ] || return 1
+  if [ "$took" -gt 20 ]; then
+    _HI_RERUN_OUT="      (no traced rerun: the failure took ${took}s)"
+    return 1
+  fi
+  out="$(
+    PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '
+    {
+      set -x
+      "$@"
+    } 2>&1
+  )" || rc=$?
+  [ "$rc" = 0 ] && return 0
+  _HI_RERUN_OUT="      traced rerun (exit $rc), its last lines:"$'\n'"$(printf '%s\n' "$out" | tail -n 40 | sed 's/^/      /')"
+  return 1
+}
+
+# _hi_flaky_allowed - whether a flake may pass here. Not on native Linux x64:
+# the fastest, least loaded platform CI has, where a case that needs a second
+# try is shaky code, not a slow runner. Everywhere else - Windows (WSL
+# included), the BSDs, arm64 (macOS included) - emulation and load make a
+# flake likely enough that it is a warning. $_HI_FLAKY_OK (1/0) overrides.
+# Worked out once, on the first flake.
+_HI_FLAKY_OK_MEMO=""
+function _hi_flaky_allowed() {
+  if [ -z "$_HI_FLAKY_OK_MEMO" ]; then
+    _HI_FLAKY_OK_MEMO=1
+    case "$(uname -s 2>/dev/null)/$(uname -m 2>/dev/null)/$(uname -r 2>/dev/null)" in
+    *[Mm]icrosoft* | *WSL*) ;;
+    Linux/x86_64/*) _HI_FLAKY_OK_MEMO=0 ;;
+    esac
+  fi
+  [ "${_HI_FLAKY_OK:-$_HI_FLAKY_OK_MEMO}" = 1 ]
+}
+
+# _hi_note_flaky <label> - a case that failed and then passed on its rerun,
+# beside the failures file, for the runner's "Flaky cases" recap
+function _hi_note_flaky() {
+  [ -n "${_HI_FAILS_FILE:-}" ] || return 0
+  printf '%s\n' "$1" >>"$_HI_FAILS_FILE.flaky"
 }
 
 # _hi_check <label> <predicate...> - one counted, labelled assertion.

@@ -56,7 +56,6 @@ on: # zizmor: ignore[dangerous-triggers]
   # ci.yml's type set, for the same draft-marked-ready reason
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -65,7 +64,7 @@ jobs:
   # The dedupe lookup (workflow_run/push only, for a tree whose PR run
   # published both figures) and the sweep's one eligibility gate, both here:
   # every sharded and gathering job below reads `sweep` instead of
-  # re-deriving "a dispatch, a green push, or a same-repo PR" for itself.
+  # re-deriving "a green push or a same-repo PR" for itself.
   # Skipped on a draft, and everything below skips with it.
   reuse:
     name: gate the sweep, and reuse the PR run's figures where possible
@@ -176,7 +175,7 @@ jobs:
           path: carried/coverage-v2-pct
           if-no-files-found: error
 
-      # sweep: a dispatch, a green push, or a same-repo PR, and nothing
+      # sweep: a green push or a same-repo PR, and nothing
       # already reused above. `event_name == 'pull_request'` paired with
       # same-repo is the guard: a fork PR opened from its own
       # `main` would otherwise pass pages.yml's "newest green run on branch
@@ -197,14 +196,12 @@ jobs:
         run: |
           set -eu
           sweep=false
-          if [ "$EVENT" = workflow_dispatch ] \
-            || { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; } \
+          if { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; } \
             || { [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ]; }; then
             sweep=true
           fi
           [ -z "$FOUND_RUN" ] || sweep=false
-          # a docs-only diff, from whichever arm above ran. A dispatch reaches
-          # neither and sweeps: asking for the run by hand is the point of it.
+          # a docs-only diff, from whichever arm above ran
           [ "$FILTER_OUTCOME" != success ] || [ "$FILTER_CODE" = true ] || sweep=false
           [ "$DIFF_OUTCOME" != success ] || [ "$DIFF_CODE" = true ] || sweep=false
           echo "sweep=$sweep" >>"$GITHUB_OUTPUT"
@@ -619,8 +616,8 @@ jobs:
           path: coverage-v2-pct
           if-no-files-found: error
 
-  # A same-repo PR's two figures beside main's newest pair (pages.yml's own
-  # lookup), as one comment edited in place on every push - see the header for
+  # A same-repo PR's two figures and case count beside main's newest
+  # (pages.yml's own lookups), as one comment edited in place on every push - see the header for
   # why never a fork's. The checkout is for that composite action alone;
   # nothing here runs the PR's code. A figure missing on either side reads
   # "not measured", never 0. The comment names the pull request template's 90%
@@ -686,6 +683,53 @@ jobs:
           found-message: main's figures from coverage run
           missing-message: no successful coverage run on main - no figures to compare
 
+      # The case counts beside the figures: the `tests` artifact ci.yml's
+      # ubuntu job writes (the Pages badge's number), main's from the same
+      # lookup pages.yml makes, this PR's from its own CI run - which runs
+      # beside this workflow, so it may still be going: the artifact is
+      # there once that one job is, so wait for it a while rather than for
+      # the whole run. None within the wait (a docs-only diff skips the job,
+      # a red one uploads nothing) reads "not measured".
+      - name: Fetch main's case count
+        uses: $/.github/actions/fetch-latest-artifact
+        with:
+          workflow: ci.yml
+          artifact-name: tests
+          # one artifact lands flat: main-tests/totals
+          dest-subdir: main-tests
+          found-message: main's case count from CI run
+          missing-message: no successful CI run on main - no case count to compare
+
+      - name: Find this PR's CI case count
+        id: pr-tests
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')"
+            if [ -n "$run" ] && gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?name=tests" \
+              --jq '.artifacts[] | select(.expired | not) | .id' | grep -q .; then
+              echo "run=$run" >>"$GITHUB_OUTPUT"
+              echo "this PR's case count from CI run $run"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "no tests artifact on this PR's CI run yet - its case count reads not measured"
+
+      - if: steps.pr-tests.outputs.run != ''
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tests
+          path: ${{ runner.temp }}/pr/tests
+          run-id: ${{ steps.pr-tests.outputs.run }}
+          github-token: ${{ github.token }}
+
       # via env, never inline ${{ }} in the run block (zizmor: template-injection)
       - name: Post or update the coverage comment
         env:
@@ -718,6 +762,19 @@ jobs:
             [ -z "$2" ] || [ -z "$3" ] || change="$(awk -v a="$2" -v b="$3" 'BEGIN { printf "%+.2f", a - b }')"
             printf '| %s | %s | %s | %s |\n' "$1" "$now" "$was" "$change"
           }
+          # cases <totals file> - the passed count, a bare integer or nothing
+          cases() {
+            local v=""
+            [ -f "$1" ] && read -r v _ <"$1" || true
+            case "$v" in '' | *[!0-9]*) v="" ;; esac
+            printf '%s' "$v"
+          }
+          # count_row <label> <this PR> <main> - row's shape, for a count
+          count_row() {
+            local now="${2:-not measured}" was="${3:-not measured}" change="-"
+            [ -z "$2" ] || [ -z "$3" ] || change="$(printf '%+d' $(($2 - $3)))"
+            printf '| %s | %s | %s | %s |\n' "$1" "$now" "$was" "$change"
+          }
           avg() { [ -n "$1" ] && [ -n "$2" ] && awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", (a + b) / 2 }' || true; }
           k="$(fig "$RUNNER_TEMP/pr/coverage-pct/pct")"
           b="$(fig "$RUNNER_TEMP/pr/coverage-v2-pct/pct")"
@@ -736,6 +793,7 @@ jobs:
             row kcov "$k" "$k0"
             row bashcov "$b" "$b0"
             row '**average**' "$a" "$(avg "$k0" "$b0")"
+            count_row 'cases passed (fast, ci)' "$(cases "$RUNNER_TEMP/pr/tests/totals")" "$(cases "$RUNNER_TEMP/main-tests/totals")"
             printf '\n%s\n' "$verdict"
             printf '\nThe average is the figure to quote, and neither gates anything ([why two](%s)). ' \
               "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/TESTING.md#coverage-and-profiling"

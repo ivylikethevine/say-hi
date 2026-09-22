@@ -44,7 +44,8 @@ one) has nothing else to read.
 `scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this;
 its `_HI_PACKAGE_CONTENTS` and `install_tree()` decide what a packaged install
 contains, and both AUR PKGBUILDs and `mkpkg.sh` call it. Two places repeat the
-list, and `tests/packaging/packaging_test.sh` fails if either drifts: the
+list, and `tests/packaging/packaging_ci_test.sh` (the `packaging_ci` suite,
+ci group) fails if either drifts: the
 Homebrew formula, because `install_tree` hardcodes `/usr/bin` and
 `/etc/profile.d` and neither exists in a brew prefix, and `nfpm.yaml`'s apk
 entries ([deb / rpm / apk](#deb--rpm--apk)).
@@ -83,7 +84,7 @@ The formula passes `--date <version>`, having no `SOURCE_DATE_EPOCH`;
 formula's shape (`$out/share/say-hi` plus a wrapped `$out/bin/hi` exporting
 `_HI_HOME`), not `scripts/install.sh --prefix`, for the same reason the
 formula is — and that is one more copy of `_HI_PACKAGE_CONTENTS` for
-`packaging_test.sh` to guard. It would start as a `flake.nix` here and reach
+`packaging_ci_test.sh` to guard. It would start as a `flake.nix` here and reach
 nixpkgs (where nix users look, and which wants upstream review and a standing
 maintainer entry) later. The one thing it buys:
 [reproducibility](#reproducibility) becomes a property of hermetic builds
@@ -114,9 +115,9 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 3. The `build` job builds `say-hi-1.0.0.tar.gz` from the tag and runs
    `bump.sh --tarball <that file> 1.0.0` (writes `pkgver`, `b2sums`, the
    formula `url`/`sha256`, and the derivable `.SRCINFO` lines) in its own
-   disposable checkout, never committed, then `bump.sh --check`. The fast
-   group (the packaging drift guards included, now against the bumped
-   manifests) and the lint group run next; then it builds the deb/rpm/apk with
+   disposable checkout, never committed, then `bump.sh --check`. The ci
+   group (the packaging drift guards, now against the bumped manifests) and
+   the lint group run next; then it builds the deb/rpm/apk with
    one `SHA256SUMS` over them and the tarball, and attests their provenance
    and an SBOM. Nothing has published.
 4. The `publish` job runs unattended over exactly what `build` produced (see
@@ -124,8 +125,11 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    `SHA256SUMS` with minisign, creates the release, attaches the packages,
    tarball, sums, signature, manifests, SBOM, and attestation bundle, builds
    and attaches the [package repository](#package-repository), and dispatches
-   `pages.yml` (its own `workflow_run` trigger cannot fire off a tag push) and
-   `demos.yml`. This workflow never writes to `main`, so the manifests
+   `demos.yml`, which renders the demos, attaches one, and then redeploys the
+   site once - new package repository and new GIFs together (`pages.yml`'s
+   own `workflow_run` trigger cannot fire off a tag push, and a merge's
+   Coverage deploy stands down for a commit a `v*` tag already carries). This
+   workflow never writes to `main`, so the manifests
    committed in `packaging/aur/` and `packaging/homebrew/` stay permanent
    `v0.0.0` templates — for a channel, always use the ones the release
    attached (`gh release download v1.0.0 --pattern …`).
@@ -244,12 +248,13 @@ A different pair means a new key on that line in the same commit, since
 ### Hardening the release jobs
 
 Every job in `release.yml` and `publish-external.yml` runs on a GitHub-hosted
-runner and starts with `step-security/harden-runner`. Most run it in `audit`,
-which records each job's outbound connections without refusing any. The three
-that hold a publishing credential run `block` with an allowlist: `publish`
-(the signing keys and a `contents: write` token), `tap`
-(`HOMEBREW_TAP_TOKEN`), and `aur` (`AUR_SSH_KEY`). Each allowlist was read off
-the job's steps, and its comment names what each host is for; tighten or
+runner and starts with `step-security/harden-runner`. Every job but `brew`
+runs it in `block` with an allowlist - `gate`, `upgrade`, `build`, and the
+three that hold a publishing credential: `publish` (the signing keys and a
+`contents: write` token), `tap` (`HOMEBREW_TAP_TOKEN`), and `aur`
+(`AUR_SSH_KEY`). `brew` stays on `audit`, which records its outbound
+connections without refusing any: harden-runner has no block mode on macOS.
+Each allowlist's comment names what each host is for; tighten or
 extend one from the harden-runner insights a release's run summary links (a
 host `block` refused shows there), not by guessing. `brew` stays on `audit`,
 since harden-runner has no block mode on macOS.
@@ -356,8 +361,8 @@ Built by `mkpkg.sh` and attached to every release; how a user installs one is
 
 `nfpm.yaml` lists the apk's contents per `_HI_PACKAGE_CONTENTS` member rather
 than through the `type: tree` entry deb and rpm use, because nfpm 2.47.0's
-tree walker writes directory modes apk-tools rejects. The packaging suite keeps
-that copy honest, and `ci.yml`'s `packaging-smoke` installs the signed apk on
+tree walker writes directory modes apk-tools rejects. The `packaging_ci` suite
+keeps that copy honest, and `ci.yml`'s `packaging-smoke` installs the signed apk on
 Alpine on every code PR.
 
 ### Package repository
@@ -425,7 +430,7 @@ download](PACKAGING.md#verifying-a-release-download) is for one somebody
 downloaded.
 
 ```bash
-tests/test_runner.sh packaging install header   # the offline drift guards
+tests/test_runner.sh packaging packaging_ci install header   # the offline drift guards
 packaging/mkpkg.sh --stage-only               # inspect exactly what ships
 find dist/staging \( -type f -o -type l \)
 packaging/mkpkg.sh                            # needs nfpm on PATH

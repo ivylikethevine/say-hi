@@ -347,6 +347,17 @@ function test_now_answers_without_date() {
   case "$out" in '' | *[!0-9.]*) return 1 ;; esac
 }
 
+# ...and a date(1) with no %N (old BSD) prints the N back: the whole
+# seconds are the answer then, not a figure with an N in it
+function test_now_takes_whole_seconds_from_a_date_without_nanoseconds() {
+  local dir="$_HI_WORKDIR/bsd-date" out
+  mkdir -p "$dir"
+  printf '%s\n' '#!/bin/sh' 'case "$1" in +%s.%N) echo 1700000000.N ;; *) echo 1700000000 ;; esac' >"$dir/date"
+  chmod +x "$dir/date"
+  out="$(unset EPOCHREALTIME && PATH="$dir" _hi_now)"
+  [ "$out" = 1700000000 ] || _hi_because "_hi_now: $out"
+}
+
 function test_hash_color_matches_hand_computed_bucket() {
   # ord('a')=97, 97 % 24 == 1 -> _HI_COLOR_NAMES[1] == green
   [ "$(_hi_hash_color a)" = "green" ] || return 1
@@ -630,6 +641,15 @@ function test_ssh_host_tag_survives_a_leading_untagged_wildcard() {
   [ "$rc" -eq 2 ]
 }
 
+# a blank line between the Tags comment and its Host does not drop the tag -
+# only another Host or Match line does
+function test_ssh_host_tag_survives_a_blank_line_before_its_host() {
+  local cfg="$_HI_WORKDIR/ssh_config.blankline"
+  printf '# Tags: spaced\n\nHost gap\n' >"$cfg"
+  unset _HI_TAG_NAME
+  [ "$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag gap)" = spaced ]
+}
+
 function test_ssh_host_tag_untagged_host_fails() {
   ! _hi_fixture_tag untaggedhost
 }
@@ -851,6 +871,38 @@ function test_hi_home_self_derives_when_unset() {
 function test_hi_home_self_derives_from_a_bare_relative_source() {
   [ "$(cd "$_HI_HOME/say-hi/common" && env -u _HI_HOME -u _hi_core_loaded bash -c \
     'source core.sh; printf "%s" "$_HI_HOME"')" = "$_HI_HOME" ]
+}
+
+# hi.sh derives the same tree through its own symlink walk (the /usr/bin/hi
+# or ~/.local/bin/hi link install makes points at it): an absolute link, a
+# relative one reached through a directory (the `*/*` arm), and a relative
+# one sourced by its bare name (the `*)` arm, no directory to prepend).
+# Behind the symlink capability: Git Bash's `ln -s` copies the file unless
+# native symlinks are on, and a copy outside the tree derives the wrong one.
+function test_hi_sh_walks_its_symlinks_to_the_tree() {
+  local d="$_HI_WORKDIR/hi-links" got
+  mkdir -p "$d/bin"
+  ln -sf "$_HI_HOME/say-hi/hi.sh" "$d/abs"
+  ln -sf ../abs "$d/bin/rel"
+  for got in \
+    "$(env -u _HI_HOME -u _hi_core_loaded bash -c "set --; source '$d/abs'; printf '%s' \"\$_HI_HOME\"")" \
+    "$(env -u _HI_HOME -u _hi_core_loaded bash -c "set --; source '$d/bin/rel'; printf '%s' \"\$_HI_HOME\"")" \
+    "$(cd "$d/bin" && env -u _HI_HOME -u _hi_core_loaded bash -c 'set --; source rel; printf "%s" "$_HI_HOME"')"; do
+    [ "$got" = "$_HI_HOME" ] || _hi_because "derived $got, not $_HI_HOME" || return 1
+  done
+}
+
+# hi.sh stamps the connect clock before core.sh exists, with its own copy of
+# _hi_now: a date(1) with no %N (old BSD) prints the N back, and the stamp is
+# the whole seconds instead
+function test_hi_sh_connect_clock_takes_whole_seconds_without_nanoseconds() {
+  local dir="$_HI_WORKDIR/hi-bsd-date" got
+  mkdir -p "$dir"
+  printf '%s\n' '#!/bin/sh' 'case "$1" in +%s.%N) echo 1700000000.N ;; *) echo 1700000000 ;; esac' >"$dir/date"
+  chmod +x "$dir/date"
+  got="$(env -u _hi_core_loaded PATH="$dir:$PATH" bash -c \
+    'unset EPOCHREALTIME; set --; source "$_HI_HOME/say-hi/hi.sh"; printf "%s" "$_HI_CONNECT_T0"')"
+  [ "$got" = 1700000000 ] || _hi_because "_HI_CONNECT_T0: $got"
 }
 
 # That the user's settings.sh is sourced at all is paths_test.sh's
@@ -1337,6 +1389,7 @@ function run_core_tests() {
   _hi_check_eq "...and to \$LOGNAME" probe-logname _hi_barebones _HI_CASE_PROBE=_hi_whoami LOGNAME=probe-logname
   _hi_check_eq "...and to \"unknown\" with nothing to ask" unknown _hi_barebones _HI_CASE_PROBE=_hi_whoami
   _hi_check "_hi_now answers without date(1)" test_now_answers_without_date
+  _hi_check "...and in whole seconds from a date(1) with no %N" test_now_takes_whole_seconds_from_a_date_without_nanoseconds
 
   _hi_h2 "Testing: _HI_SHELL_TABLE"
   _hi_check "Every row is six well-formed fields" test_shell_table_rows_are_wellformed
@@ -1370,6 +1423,7 @@ function run_core_tests() {
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
   _hi_check "A tag in an Included file colors its host" test_ssh_host_tag_follows_include
   _hi_check "A leading untagged Host * does not end the walk" test_ssh_host_tag_survives_a_leading_untagged_wildcard
+  _hi_check "A blank line before its Host keeps the tag" test_ssh_host_tag_survives_a_blank_line_before_its_host
   _hi_check "Untagged host fails" test_ssh_host_tag_untagged_host_fails
   _hi_check "A relayed hop reads the client's tag map" test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay
   _hi_check "'Tags=' syntax and multi-alias Host lines" test_ssh_host_tag_equals_syntax_and_multialias
@@ -1408,6 +1462,9 @@ function run_core_tests() {
   _hi_h2 "Testing: HI.33's bash arm - \$_HI_HOME self-derivation"
   _hi_check "sourced by its real path with \$_HI_HOME unset" test_hi_home_self_derives_when_unset
   _hi_check "...and by a bare relative name from its own directory" test_hi_home_self_derives_from_a_bare_relative_source
+  _hi_check_capable symlink "hi.sh walks its symlinks to the same tree" test_hi_sh_walks_its_symlinks_to_the_tree
+  _hi_check "hi.sh's connect clock takes whole seconds from a date(1) with no %N" \
+    test_hi_sh_connect_clock_takes_whole_seconds_without_nanoseconds
 
   _hi_h2 "Testing: the settings overlay"
   _hi_check_eq "Defaults to ~/.config/say-hi" say-hi _hi_cfg_answer neither

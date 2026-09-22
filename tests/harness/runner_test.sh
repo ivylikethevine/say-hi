@@ -738,7 +738,7 @@ function test_coverage_drivers_shim_sh_to_bash() {
 # fork PR opened from its own `main` is - its sweep would publish as the
 # README's figure. The guard lives once, in `reuse`'s own gate step, and
 # every sharded or gathering job reads its `sweep` output instead of
-# re-deriving "a dispatch, a green push, or a same-repo non-draft PR" itself
+# re-deriving "a green push or a same-repo non-draft PR" itself
 # - so a same-repo omission can only happen in the one place, not per job.
 # `comment` is the one job that never reads `sweep` (it runs off the gather
 # jobs' results, on a same-repo PR whether or not this run swept), so it
@@ -749,9 +749,10 @@ function test_coverage_pr_runs_are_same_repo_only() {
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
   gate="$(printf '%s\n' "$jobs" | sed -n "/^  reuse:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
+  # shellcheck disable=SC2016 # coverage.yml's literal source text
   if [[ "$gate" != *"head.repo.full_name == github.repository"* ]] ||
-    [[ "$gate" != *"workflow_dispatch"* ]]; then
-    _hi_cecho " | reuse's gate step is missing the same-repo or dispatch/push clause" "$RED"
+    [[ "$gate" != *'"$WR_EVENT" = push'* ]]; then
+    _hi_cecho " | reuse's gate step is missing the same-repo or green-push clause" "$RED"
     return 1
   fi
   while read -r job; do

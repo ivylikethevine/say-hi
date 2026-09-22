@@ -78,3 +78,7 @@ node_modules/
 # coverage.yml writes them into the checkout
 /coverage-report/
 /coverage-v2-report/
+# a local render's GIFs (docs/tapes/generate.sh): CI renders the six and
+# pages.yml serves them; only the hand-reviewed demo.gif is committed
+/docs/tapes/*.gif
+!/docs/tapes/demo.gif

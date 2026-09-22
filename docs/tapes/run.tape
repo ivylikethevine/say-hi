@@ -45,7 +45,7 @@ Type "setopt interactive_comments"
 Enter
 Type "docs/tapes/fixtures.sh up run >/tmp/hi-demo.log 2>&1 && echo fixture-o''k"
 Enter
-Wait+Screen@420s /fixture-ok/
+Wait+Screen@180s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.zsh"
 Enter
 Type "export HOME=/tmp/hi-demo/home && cd && alloc=$(cat /tmp/hi-demo/alloc)"

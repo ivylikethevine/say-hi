@@ -75,7 +75,7 @@ Require kubectl
 Hide
 Type "docs/tapes/fixtures.sh up complete >/tmp/hi-demo.log 2>&1; and echo fixture-o''k"
 Enter
-Wait+Screen@420s /fixture-ok/
+Wait+Screen@180s /fixture-ok/
 Type "kubectl config use-context kind-hi-demo >/dev/null 2>&1"
 Enter
 Type "source /tmp/hi-demo/clientrc.fish"

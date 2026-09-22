@@ -808,6 +808,18 @@ function test_target_resolves_a_running_container() {
   [[ "$out" == *"resolves"*"docker container"* ]]
 }
 
+# ssh options on the line (-p 2222) mean nothing to a container, and the
+# report says it ignored them rather than dropping them silently
+function test_target_says_ssh_options_skip_a_container() {
+  local out
+  out="$(
+    _HI_DOC_SSHARGS=(-p 2222)
+    HI_FAKE_TOOLS="base64 bash sh " _hi_doc_target runningbox
+  )"
+  [[ "$out" == *"ignored - -p 2222 apply only to an ssh target, and this one resolved to docker container"* ]] ||
+    _hi_because "report: $out"
+}
+
 # The container arm reports a tier like the ssh arm, not just the `resolves`
 # row. bash present is the full tier; the interesting case is the other one.
 function test_container_target_reports_the_full_tier() {
@@ -1301,9 +1313,10 @@ function run_doctor_tests() {
   _hi_h1 "Testing scripts/doctor.sh ($part)"
 
   # one suite ran past every other under Git Bash (~450s on windows-11-arm),
-  # so its sections are three suites that shard apart: this file, and
-  # doctor_target_test.sh and doctor_report_test.sh, which name their part
-  # and source it
+  # so its sections are four suites that shard apart: this file, and
+  # doctor_target_test.sh, doctor_report_test.sh, and doctor_json_test.sh,
+  # which name their part and source it - the report and --json halves
+  # apart because each runs the whole doctor case after case (~470s together)
   if [ "$part" = local ]; then
     _hi_h2 "Testing: doctor_local"
     _hi_check "Reports the version" test_local_reports_the_version
@@ -1359,6 +1372,7 @@ function run_doctor_tests() {
   if [ "$part" = target ]; then
     _hi_h2 "Testing: doctor_target / doctor_ssh_target"
     _hi_check "Resolves a running container" test_target_resolves_a_running_container
+    _hi_check "...and says the ssh options on the line skip it" test_target_says_ssh_options_skip_a_container
     _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
     _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
     _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
@@ -1406,7 +1420,7 @@ function run_doctor_tests() {
 
   fi
 
-  if [ "$part" = report ]; then
+  if [ "$part" = json ]; then
     _hi_h2 "Testing: --json"
     _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
     _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag

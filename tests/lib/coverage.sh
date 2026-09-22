@@ -92,6 +92,8 @@ function _hi_cov_counts_files() {
   _HI_FAILS_FILE="$(mktemp -t "hi.$1.fails.XXXXXX")"
   export _HI_COUNTS_FILE _HI_FAILS_FILE
   export _HI_PAR_WIDTH=1
+  # no traced rerun of a failed case (report.sh): the tracer owns xtrace
+  export _HI_TRACE_RERUN=0
   _HI_COV_TRASH+=("$_HI_COUNTS_FILE" "$_HI_FAILS_FILE")
 }
 

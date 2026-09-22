@@ -17,12 +17,19 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # cases can pick the color branch (xterm-256color) or the plain one (dumb)
 function _hi_rc_shell() {
   local term="$1" shell="$2" script="$3"
+  local -a trace=()
   # anything after the script is NAME=VALUE for the child - `env -i` is what
   # keeps local settings out, so extra variables have to be injected here
   # rather than exported around the call
   shift 3
+  # ...and under a coverage tracer (xtrace on, into its own fd) the three
+  # variables it traces a bash child through, which `env -i` would strip:
+  # without them every bash.sh line these cases run read as untested
+  if [ "$shell" = bash ] && [ -n "${BASH_XTRACEFD:-}" ] && [[ $- == *x* ]]; then
+    trace=(SHELLOPTS=xtrace "PS4=$PS4" "BASH_XTRACEFD=$BASH_XTRACEFD")
+  fi
   env -i HOME="$_HI_WORKDIR" TERM="$term" PATH="$PATH" _HI_PROMPT_TOOL="$_HI_PROMPT_TOOL" \
-    _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" "$@" \
+    _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" ${trace[@]+"${trace[@]}"} "$@" \
     "$shell" -c "$script" </dev/null
 }
 

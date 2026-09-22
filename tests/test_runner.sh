@@ -34,10 +34,14 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 
 # group:name:path (relative to this directory), in the order they run - fast
 # local checks first, the docker/kind/nomad-backed end-to-end tests after.
-# Within the fast section the slowest suites lead: the parallel runner starts
-# suites in table order, so a heavy suite starting last is the whole group's
-# scheduling tail. Re-sort from the summary table's TIME column when a
-# suite's weight changes.
+# The fast section is dealt out for windows-client.yml's four shards: row k
+# lands in quarter k mod 4, and each quarter's suites were picked so the four
+# take about the same wall clock on Git Bash arm64 - the heavy doctor suites
+# (report, json, target) in different quarters - then listed slowest first, so a
+# row of four heavy suites leads and the parallel runner starts them first.
+# Re-deal from a Windows arm64 run's per-suite TIME column when a suite's
+# weight changes; test_runner's shard check proves the quarters still cover
+# the group.
 #
 # `ci` is what a second platform could only repeat: suites that read repo
 # text (workflows, manifests) or run tooling only ubuntu CI ever runs.
@@ -49,43 +53,44 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # list, so the two cannot disagree.
 if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
-    "fast:packaging:packaging/packaging_test.sh"
-    "fast:doctor:scripts/doctor_test.sh"
-    "fast:install:scripts/install_test.sh"
+    "fast:doctor_json:scripts/doctor_json_test.sh"
     "fast:test_runner:harness/runner_test.sh"
-    "fast:configure:scripts/configure_test.sh"
     "fast:doctor_target:scripts/doctor_target_test.sh"
-    "fast:test_lib:harness/lib_test.sh"
-    "fast:targets:common/targets_test.sh"
-    "fast:rc:common/rc_test.sh"
-    "fast:doctor_report:scripts/doctor_report_test.sh"
-    "fast:install_location:scripts/install_location_test.sh"
-    "fast:update:scripts/update_test.sh"
-    "fast:add_package:scripts/add_package_test.sh"
-    "fast:add_tag:scripts/add_tag_test.sh"
-    "fast:header:common/header_test.sh"
-    "fast:load:load/load_test.sh"
-    "fast:alias_fallthrough:config/alias_fallthrough_test.sh"
-    "fast:preview:scripts/preview_test.sh"
-    "fast:aliases:config/alias_test.sh"
-    "fast:rc_lines:scripts/rc_test.sh"
-    "fast:table:scripts/table_test.sh"
-    "fast:hi:hi/parse_test.sh"
-    "fast:hi_remote:hi/remote_test.sh"
-    "fast:hi_mux:hi/mux_test.sh"
     "fast:hi_payload:hi/payload_test.sh"
-    "fast:hi_cache:hi/cache_test.sh"
-    "fast:hi_container:hi/container_test.sh"
-    "fast:hi_dispatch:hi/dispatch_test.sh"
     "fast:hi_prompt:hi/prompt_test.sh"
-    "fast:hi_helpers:hi/helpers_test.sh"
-    "fast:core:common/core_test.sh"
-    "fast:git_prompt:common/git_prompt_test.sh"
-    "fast:env_prompt:common/env_prompt_test.sh"
-    "fast:paths:common/paths_test.sh"
-    "fast:exports:common/exports_test.sh"
-    "fast:test_lib_report:harness/lib_report_test.sh"
+    "fast:doctor_report:scripts/doctor_report_test.sh"
+    "fast:targets:common/targets_test.sh"
+    "fast:update:scripts/update_test.sh"
     "fast:test_lib_par:harness/lib_parallel_test.sh"
+    "fast:load:load/load_test.sh"
+    "fast:doctor:scripts/doctor_test.sh"
+    "fast:header:common/header_test.sh"
+    "fast:hi_helpers:hi/helpers_test.sh"
+    "fast:rc:common/rc_test.sh"
+    "fast:configure:scripts/configure_test.sh"
+    "fast:preview:scripts/preview_test.sh"
+    "fast:test_lib_report:harness/lib_report_test.sh"
+    "fast:hi:hi/parse_test.sh"
+    "fast:install:scripts/install_test.sh"
+    "fast:alias_fallthrough:config/alias_fallthrough_test.sh"
+    "fast:hi_dispatch:hi/dispatch_test.sh"
+    "fast:rc_lines:scripts/rc_test.sh"
+    "fast:hi_cache:hi/cache_test.sh"
+    "fast:test_lib:harness/lib_test.sh"
+    "fast:exports:common/exports_test.sh"
+    "fast:paths:common/paths_test.sh"
+    "fast:install_location:scripts/install_location_test.sh"
+    "fast:packaging:packaging/packaging_test.sh"
+    "fast:hi_container:hi/container_test.sh"
+    "fast:git_prompt:common/git_prompt_test.sh"
+    "fast:add_package:scripts/add_package_test.sh"
+    "fast:hi_remote:hi/remote_test.sh"
+    "fast:env_prompt:common/env_prompt_test.sh"
+    "fast:add_tag:scripts/add_tag_test.sh"
+    "fast:hi_mux:hi/mux_test.sh"
+    "fast:core:common/core_test.sh"
+    "fast:table:scripts/table_test.sh"
+    "fast:aliases:config/alias_test.sh"
     "ci:packaging_ci:packaging/packaging_ci_test.sh"
     "ci:test_runner_ci:harness/runner_ci_test.sh"
     "lint:shellcheck:lint/shellcheck_test.sh"
@@ -267,14 +272,13 @@ fi
 
 # --shard i/n keeps every n-th selected suite from the i-th on, in table order:
 # the n slices are disjoint and together are the selection, and interleaving
-# the table spreads its slow harness suites (at the end) across them rather
-# than handing one runner all of them. Applied after the group/name selection
-# and before --list, so `--group fast --shard 2/2 --list` shows what a CI
-# shard will run. windows-client.yml is the caller: the fast group takes about
+# the table - dealt out for it, see the table's header - spreads the slow suites
+# across them rather than handing one runner all of them. Applied after the
+# group/name selection and before --list, so `--group fast --shard 2/4 --list`
+# shows what a CI shard will run. windows-client.yml is the caller: the fast group takes about
 # seven minutes under Git Bash, where backgrounded suites barely overlap
 # (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
-# a wider run would not. Slices of different n compose: 2/12, 6/12, and
-# 10/12 are 2/4.
+# a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"
@@ -388,6 +392,9 @@ fi
 # of them silently shifted every later row's data.
 declare -a _HI_ROWS=()
 declare -a _HI_FAIL_NOTES=()
+# cases that failed and passed on their traced rerun (report.sh's _hi_assert):
+# not failures, listed in their own recap so a flake is never lost
+declare -a _HI_FLAKY_NOTES=()
 _HI_SUITE_FAILED=0
 _HI_SUITE_SKIPPED=0
 _HI_CASES_PASSED=0
@@ -461,6 +468,13 @@ function _hi_collect_suite() {
     _HI_SUITE_FAILED=$((_HI_SUITE_FAILED + 1))
   fi
   _HI_ROWS+=("$_hi_name"$'\t'"$_hi_status"$'\t'"$_hi_pass"$'\t'"$_hi_fail"$'\t'"$_hi_skipcnt"$'\t'"$_hi_dur")
+
+  # flaky cases, whatever the suite's verdict - a green suite can hold them
+  if [ -s "$_hi_fails.flaky" ]; then
+    while IFS= read -r _hi_line; do
+      [ -n "$_hi_line" ] && _HI_FLAKY_NOTES+=("$_hi_name: $_hi_line")
+    done <"$_hi_fails.flaky"
+  fi
 
   # collect the failing case labels the suite noted; a suite that failed
   # without noting any still gets one line, so the recap can't be empty for a
@@ -635,6 +649,7 @@ function _hi_run_batch() {
     _hi_log="$_HI_RUN_DIR/$_hi_i.log"
     : >"$_hi_counts"
     : >"$_hi_fails"
+    rm -f "$_hi_fails.flaky"
     [ -z "$_hi_ticker" ] || _hi_progress="$_HI_RUN_DIR/$_hi_i.progress"
     _hi_batch_names+=("$_hi_name")
 
@@ -752,6 +767,16 @@ if [ "${#_HI_FAIL_NOTES[@]}" -gt 0 ]; then
   for _hi_note in "${_HI_FAIL_NOTES[@]}"; do
     _hi_cecho " | $_hi_note" "$RED"
     [ -n "$_HI_CI" ] && printf '::error title=%s::%s\n' "test failure" "$_hi_note"
+  done
+fi
+
+# every flaky case: failed, then passed its traced rerun - not a failure, and
+# not forgotten either (a GitHub warning on CI, so it shows on the run page)
+if [ "${#_HI_FLAKY_NOTES[@]}" -gt 0 ]; then
+  _hi_h2 "Flaky cases (failed, then passed a rerun)" "$YELLOW"
+  for _hi_note in "${_HI_FLAKY_NOTES[@]}"; do
+    _hi_cecho " | $_hi_note" "$YELLOW"
+    [ -n "$_HI_CI" ] && printf '::warning title=%s::%s\n' "flaky test" "$_hi_note"
   done
 fi
 

@@ -22,6 +22,8 @@ committee, no vote, and nobody else to appeal to.
 The reasoning is public all the same: what is left to do is
 [README's Roadmap](../README.md#roadmap), and what was answered no, with the
 reason, is listed in
+[SUPPORT.md's _Already turned down_](SUPPORT.md#already-turned-down), with
+the runtime, packaging, and tool verdicts reached from
 [CONTRIBUTING.md's _Before you start_](CONTRIBUTING.md#before-you-start). A
 reason that has stopped being true is worth an issue.
 

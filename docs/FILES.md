@@ -68,21 +68,21 @@ Each file is marked with where it goes:
 All **payload**. `common/` is hi's code; `config/` holds the shipped
 defaults an overlay copy replaces.
 
-| File                                                           | What it is                                                                                                       |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                                               | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.           |
-| `common/paths.sh`                                              | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                    |
-| `common/bash.sh`                                               | hi's bash rc: prompt, completion, plugins, the local greeting.                                                   |
-| `common/zsh.zsh`                                               | The same for zsh.                                                                                                |
-| `common/config.fish`                                           | The same for fish, with its own copies of what fish cannot call in bash.                                         |
-| `common/env_prompt.sh`, `git_prompt.sh`                        | The `(myproj)` environment segment and the git segment, for bash and zsh.                                        |
-| `common/header.sh`                                             | The connect and disconnect banner, and the package check.                                                        |
-| `common/targets.sh`                                            | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                |
-| `common/flags`                                                 | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                    |
-| `config/aliases.sh`                                            | The aliases, in the subset bash, zsh, and fish all parse.                                                        |
-| `config/colors`                                                | Color pins.                                                                                                      |
-| `config/packages`                                              | What the package check looks for: the everyday roster, then more tools at priority 0-1, below the default floor. |
-| `config/vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el` | The minimal editor configs a session starts vim, neovim, helix, nano, and emacs on.                              |
+| File                                                           | What it is                                                                                                                          |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                                               | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.                              |
+| `common/paths.sh`                                              | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                       |
+| `common/bash.sh`                                               | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                      |
+| `common/zsh.zsh`                                               | The same for zsh.                                                                                                                   |
+| `common/config.fish`                                           | The same for fish, with its own copies of what fish cannot call in bash.                                                            |
+| `common/env_prompt.sh`, `git_prompt.sh`                        | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                           |
+| `common/header.sh`                                             | The connect and disconnect banner, and the package check.                                                                           |
+| `common/targets.sh`                                            | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                   |
+| `common/flags`                                                 | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                       |
+| `config/aliases.sh`                                            | The aliases, in the subset bash, zsh, and fish all parse.                                                                           |
+| `config/colors`                                                | Color pins.                                                                                                                         |
+| `config/packages`                                              | What the package check looks for: the everyday roster, then more tools at priority 0-1, below the default floor.                    |
+| `config/vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el` | The minimal editor configs a session starts vim, neovim, helix, nano, and emacs on, each sent only when the client has that editor. |
 
 ### scripts/
 
@@ -179,7 +179,8 @@ directory, and zellij's `layouts/` and `themes/`, ride member by member; a membe
 
 A member in the _Replaces_ column travels in the tree's place, not beside it:
 the payload leaves out a default your overlay shadows, so the wire holds one
-`colors`, not two. `aliases.sh` is the exception by design - yours is sourced
+`colors`, not two - and an editor default whose editor this machine lacks
+stays home too, so a client without emacs sends no `init.el`. `aliases.sh` is the exception by design - yours is sourced
 on top of the tree's, so both ride.
 
 What happens to a line in one of these that reads a file no target has is
@@ -216,9 +217,9 @@ an overlay copy rides either way.
 | `starship.toml`       | `${STARSHIP_CONFIG:-~/.config/starship.toml}`                                                                                                                                                                                                                    |
 | `oh-my-posh.*`        | the last `oh-my-posh init ... --config <file>` in `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, and fish's `config.fish`, then `${POSH_CONFIG:-$POSH_THEME}` over it; the member is the one its extension names, and any overlay copy puts all of them out of the running |
 | `p10k.zsh`            | `${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-~}/.p10k.zsh}`                                                                                                                                                                                                           |
-| `oh-my-zsh.zsh-theme` | the theme the last `ZSH_THEME=` in `${ZDOTDIR:-~}/.zshrc` names, under `$ZSH_CUSTOM`, `$ZSH_CUSTOM/themes`, then `${ZSH:-~/.oh-my-zsh}/themes`                                                                                                                   |
-| `oh-my-bash.theme.sh` | the theme the last `OSH_THEME=` in `~/.bashrc` names, under `$OSH_CUSTOM`, `$OSH_CUSTOM/themes`, then `${OSH:-~/.oh-my-bash}/themes`                                                                                                                             |
-| `bash-it.theme.bash`  | the theme the last `BASH_IT_THEME=` in `~/.bashrc` names, under `${BASH_IT_CUSTOM:-~/.bash_it/custom}/themes`, then `${BASH_IT:-~/.bash_it}/themes`                                                                                                              |
+| `oh-my-zsh.zsh-theme` | the theme the last `ZSH_THEME=` in `${ZDOTDIR:-~}/.zshrc` names, under `${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}` and its `themes/`, then `${ZSH:-~/.oh-my-zsh}/themes`                                                                                        |
+| `oh-my-bash.theme.sh` | the theme the last `OSH_THEME=` in `~/.bashrc` names, under `${OSH_CUSTOM:-${OSH:-~/.oh-my-bash}/custom}` and its `themes/`, then `${OSH:-~/.oh-my-bash}/themes`                                                                                                 |
+| `bash-it.theme.bash`  | the theme the last `BASH_IT_THEME=` in `~/.bashrc` names, under `${BASH_IT_CUSTOM:-${BASH_IT:-~/.bash_it}/custom}/themes`, then `${BASH_IT:-~/.bash_it}/themes`                                                                                                  |
 | `tide.vars`           | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it                                                                                                                                                                   |
 | `theme.yml`           | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                                                                                                                                                                              |
 | `bat.conf`            | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                                                                                                                                                                                             |
@@ -272,14 +273,14 @@ In the runtime directory: `$XDG_RUNTIME_DIR` when it exists, else
 owned by someone else. A cache is written under a temporary name and moved
 into place.
 
-| File                    | What                                                                                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                          |
-| `hi.payload.tree.<key>` | the gzipped payload, rebuilt when a tree file changes, keyed on the tree and on which defaults an overlay shadows; off with `_HI_PAYLOAD_CACHE=0` |
-| `hi.overlay.<key>`      | the overlay stream, keyed on its member list                                                                                                      |
-| `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                        |
-| `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                             |
-| `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                                                                              |
+| File                    | What                                                                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                                                                                |
+| `hi.payload.tree.<key>` | the gzipped payload, rebuilt when a tree file changes, keyed on the tree's path and its cut list (the defaults an overlay shadows, or whose tool is not installed here); off with `_HI_PAYLOAD_CACHE=0` |
+| `hi.overlay.<key>`      | the overlay stream, keyed on its member list and the home paths any member was packed from                                                                                                              |
+| `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                              |
+| `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                   |
+| `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                                                                                                                                    |
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per
@@ -298,6 +299,8 @@ All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 | `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                         |
 | `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                |
 | `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place               |
+| `hi.packages.XXXXXX`                                          | `hi --add-package`                                           |
+| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                               |
 
 ## What a session does on a target
 

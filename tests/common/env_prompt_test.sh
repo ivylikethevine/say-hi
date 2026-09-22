@@ -37,13 +37,14 @@ _HI_ENV_ROSTER="MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION NODENV_VERSION
 # _hi_env_case <VAR=value>... - the segment a shell with exactly those
 # variables set would draw. A subshell, so the suite's own environment (and
 # whatever the machine running it has activated) never leaks into a case.
+# `export "$kv"` sets and exports each pair in one step, no eval needed.
 function _hi_env_case() {
   (
     local kv
     # shellcheck disable=SC2086 # the roster is a word list on purpose
     unset $_HI_ENV_ROSTER
     for kv in "$@"; do
-      eval "${kv%%=*}=\${kv#*=}; export ${kv%%=*}"
+      export "${kv?}"
     done
     _hi_env_prompt
   )
@@ -149,13 +150,18 @@ function run_env_prompt_tests() {
   _hi_workdir envprompttest
   _hi_mise_home="$_HI_WORKDIR/home"
   _hi_mise_project="$_hi_mise_home/proj"
+  # a tree beside home/, never under it, for the walks that must reach / -
+  # the bare case assumes nothing above the workdir holds a mise config
+  _hi_mise_outside="$_HI_WORKDIR/outside"
   mkdir -p "$_hi_mise_project/sub" "$_hi_mise_home/other" \
     "$_hi_mise_home/toml-proj" "$_hi_mise_home/dot-toml-proj" \
-    "$_hi_mise_home/dir-proj/.mise"
+    "$_hi_mise_home/dir-proj/.mise" \
+    "$_hi_mise_outside/proj/sub" "$_hi_mise_outside/bare"
   : >"$_hi_mise_project/.tool-versions"
   : >"$_hi_mise_home/toml-proj/mise.toml"
   : >"$_hi_mise_home/dot-toml-proj/.mise.toml"
   : >"$_hi_mise_home/dir-proj/.mise/config.toml"
+  : >"$_hi_mise_outside/proj/.mise.toml"
 
   _hi_h1 "Testing common/env_prompt.sh"
 
@@ -174,6 +180,7 @@ function run_env_prompt_tests() {
   _hi_check_eq "nodenv shell override" "(node:22.1.0) " _hi_env_case NODENV_VERSION=22.1.0
   _hi_check_eq "nix-shell, unnamed" "(nix) " _hi_env_case IN_NIX_SHELL=impure
   _hi_check_eq "nix-shell, stdenv \$name" "(nix:hello-1.0) " _hi_env_case IN_NIX_SHELL=pure name=hello-1.0
+  _hi_check_eq "stdenv's \$name alone is not a nix shell" "" _hi_env_case name=hello-1.0
   _hi_check_eq "guix environment" "(guix) " _hi_env_case GUIX_ENVIRONMENT=/gnu/store/x
   _hi_check_eq "devbox shell" "(devbox) " _hi_env_case DEVBOX_SHELL_ENABLED=1
   _hi_check_eq "devenv shell" "(devenv) " _hi_env_case DEVENV_ROOT=/home/x/proj
@@ -192,6 +199,11 @@ function run_env_prompt_tests() {
     _hi_mise_case PWD="$_hi_mise_home/dot-toml-proj" MISE_SHELL=bash
   _hi_check_eq "...and .mise/config.toml" "(mise) " \
     _hi_mise_case PWD="$_hi_mise_home/dir-proj" MISE_SHELL=bash
+  # outside $HOME there is no global config to stop at, so the walk runs to /
+  _hi_check_eq "mise active outside \$HOME, a config in an ancestor counts" "(mise) " \
+    _hi_mise_case PWD="$_hi_mise_outside/proj/sub" MISE_SHELL=bash
+  _hi_check_eq "mise active outside \$HOME, none up to / is no override" "" \
+    _hi_mise_case PWD="$_hi_mise_outside/bare" MISE_SHELL=bash
   _hi_check "A repeat draw is served from the memo, a cd re-walks" \
     test_mise_memo_follows_a_cd
 
@@ -207,6 +219,8 @@ function run_env_prompt_tests() {
   _hi_check_eq "so is a bare venv/" "(proj) " _hi_env_case VIRTUAL_ENV=/x/proj/venv
   _hi_check_eq "and a prompt of '.venv' from an older activate" "(proj) " \
     _hi_env_case VIRTUAL_ENV=/x/proj/.venv VIRTUAL_ENV_PROMPT=.venv
+  _hi_check_eq "so is a .env" "(proj) " _hi_env_case VIRTUAL_ENV=/x/proj/.env
+  _hi_check_eq "and a bare env/" "(proj) " _hi_env_case VIRTUAL_ENV=/x/proj/env
 
   _hi_h2 "Use-Case: several at once"
   _hi_check_eq "direnv outside a venv, outermost first" "(direnv:proj|myproj) " \
@@ -221,6 +235,8 @@ function run_env_prompt_tests() {
   _hi_check_eq "bash: nothing survives its PROMPT_COMMAND, so hi draws it" "(direnv:proj|myproj) " \
     _hi_env_case _HI_ENV_DEFER=0 _OLD_VIRTUAL_PS1='$ ' \
     DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
+  _hi_check_eq "an empty _OLD_VIRTUAL_PS1 still says activate ran here" "" \
+    _hi_env_case _HI_ENV_DEFER=1 _OLD_VIRTUAL_PS1= VIRTUAL_ENV_PROMPT=myproj
   _hi_check_eq "a venv inherited rather than activated is still hi's" "(myproj) " \
     _hi_env_case _HI_ENV_DEFER=1 VIRTUAL_ENV_PROMPT=myproj
   _hi_check_eq "conda with changeps1 on is conda's" "(mise) " \

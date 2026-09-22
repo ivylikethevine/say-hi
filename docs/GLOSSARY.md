@@ -169,7 +169,8 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 ## HI.13 command -v fallthrough
 
 `export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)"` in
-`config/aliases.sh`, with the aliases built on the result: resolved at
+`config/aliases.sh` (shown without its `[ -z ] &&` guard and the
+alias-clearing prefix below), with the aliases built on the result: resolved at
 source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every
 target has, so no alias points at a missing one.
 
@@ -440,23 +441,25 @@ own. Absent every program, the prompt is hi's, silently.
 tree derives it from its own path rather than defaulting to `$HOME`: the
 default was right for a standard install and wrong everywhere else, and when
 wrong it silently read _another tree_ (the platform e2e jobs sourced a tree
-under `/Users/runner` that was never there). Each file asks only when
-`$_HI_HOME` is unset, so an outer export still wins and costs no fork.
+under `/Users/runner` that was never there). `hi.sh` and the standalone
+scripts ask only when `$_HI_HOME` is unset, so an outer export still wins and
+costs no fork; `scripts/install.sh` and `packaging/lib.sh` always derive from
+their own resolved path - an install acts on the tree it sits in.
 
 `common/core.sh` owns the answer; everything that merely _needs_ the tree
 reaches core.sh through its own path. The files that derive have nothing above
 them to ask through:
 
-| where                                                           | how                                                                                                                                                                                    |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                                                | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                              |
-| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`               | the same behind a `readlink` walk, so `~/.local/bin/hi` (a package's `/usr/bin/hi`) answers the tree it links to. Three copies: each must resolve itself before it can source anything |
-| `load.sh`, `tests/test_runner.sh`                               | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                          |
-| `tests/test_lib.sh`                                             | `${BASH_SOURCE[0]}` only, `$_HI_HOME` or not - the harness sits in the tree it tests, and `_hi_host_tree_check` warns when `$_HI_ROOT` names another                                   |
-| `scripts/doctor.sh`, `scripts/preview.sh`, `scripts/update.sh`  | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                                         |
-| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                         |
-| fish (`common/config.fish`)                                     | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                    |
-| `common/bash.sh`                                                | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                                |
+| where                                                                          | how                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                                                               | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                              |
+| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                              | the same behind a `readlink` walk, so `~/.local/bin/hi` (a package's `/usr/bin/hi`) answers the tree it links to. Three copies: each must resolve itself before it can source anything |
+| `load.sh`, `tests/test_runner.sh`                                              | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                          |
+| `tests/test_lib.sh`                                                            | `${BASH_SOURCE[0]}` only, `$_HI_HOME` or not - the harness sits in the tree it tests, and `_hi_host_tree_check` warns when `$_HI_ROOT` names another                                   |
+| `scripts/doctor.sh`, `preview.sh`, `update.sh`, `add_tag.sh`, `add_package.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                                         |
+| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                         |
+| fish (`common/config.fish`)                                                    | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                    |
+| `common/bash.sh`                                                               | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                                |
 
 **The standalone-entry form, and why `$_HI_HOME` wins in it.** A script run
 on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
@@ -484,7 +487,11 @@ packager reads.
 ## HI.34 test suite preamble
 
 Every suite under `tests/` opens with the same four lines — four separate
-mechanisms, not boilerplate:
+mechanisms, not boilerplate. Two kinds differ, on purpose: a split suite
+(`*_ci_test.sh`, `doctor_*_test.sh`) sources its parent suite in place of the
+harness, which the parent then sources once; and a suite with no function it
+reaches only indirectly (the lint suites, docker's and podman's) drops the
+SC2329 line:
 
 ```sh
 # GLOSSARY: HI.30 + HI.34
@@ -1100,8 +1107,9 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 ## HI.57 carried configs and the include scan
 
-hi carries a `vimrc`, `init.lua`, `nanorc`, and `init.el` to every target
-and starts the editor on it (`-u`, `--rcfile`, `-q -l`), so the question is
+hi carries a `vimrc`, `init.lua`, `nanorc`, `init.el`, and helix's
+`config.toml` to every target and starts the editor on it (`-u`, `--rcfile`,
+`-q -l`, `-c`), so the question is
 which file - [HI.61](#hi61-one-overlay-priority)'s order answers it: the
 overlay's copy, then the config that editor already reads on this machine
 (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`, `~/.nanorc`, `~/.emacs`, ...,
@@ -1165,7 +1173,7 @@ creates the parent, busybox's included.
 
 ## HI.59 plugins
 
-`plugins.d` is the one [HI.58](#hi58-overlay-directory-members) directory:
+`plugins.d` is the one `.d` directory of [HI.58](#hi58-overlay-directory-members):
 each member is a plugin, a file in the POSIX+fish subset `config/aliases.sh`
 keeps (`export`, `alias`, `&&` chains), so one file serves all three shells
 and something new - another tool's init, a prompt segment - rides to every

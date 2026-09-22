@@ -5,7 +5,7 @@ name: Scorecard
 # code scanning (findings in the Security tab with file and line) and
 # publish_results puts the score on the OpenSSF API README's badge reads.
 # publish_results fires on every non-pull_request event (that is the action's
-# only gate), so the workflow_run chain and a manual dispatch both publish.
+# only gate), so the workflow_run chain and the schedule both publish.
 #
 # workflow_run so a green push to main refreshes the score without waiting on
 # the weekly cron (kept: a quiet week still re-grades against upstream's
@@ -21,7 +21,6 @@ on: # zizmor: ignore[dangerous-triggers]
   branch_protection_rule:
   schedule:
     - cron: "41 7 * * 2"
-  workflow_dispatch:
 
 # pushes to main can stack; only the newest score matters
 concurrency:
@@ -35,8 +34,8 @@ permissions: read-all
 jobs:
   analysis:
     name: supply-chain scorecard
-    # only a green push to main gets a fresh score; the schedule, a
-    # branch-protection change, and a manual dispatch pass the first clause
+    # only a green push to main gets a fresh score; the schedule and a
+    # branch-protection change pass the first clause
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&

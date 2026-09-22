@@ -985,6 +985,42 @@ function test_bat_preview_without_bat_says_targets_only() {
   [[ "$out" == *"bat is not installed here"* ]]
 }
 
+# eza (or exa, its predecessor) on PATH: the preview names the ls it
+# aliases, each with its own options - a PATH of the fake alone, so a real
+# eza further down cannot answer for an exa case
+function test_eza_preview_names_the_ls_it_aliases() {
+  local tool dir out
+  for tool in eza exa; do
+    dir="$(_hi_fake_path "preview_$tool" "$tool")"
+    out="$(hash -r && PATH="$dir" _hi_tool_alias_preview)"
+    [[ "$out" == *"ls -> $dir/$tool "* && "$out" != *"eza is not installed"* ]] ||
+      _hi_because "with $tool: $out" || return 1
+  done
+}
+
+# The environment-segment preview draws the live segment even while the
+# setting is off (it previews turning it on), and a sample when nothing is
+# active here, rather than a blank
+_HI_CFG_ENV_ROSTER="MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION NODENV_VERSION
+  IN_NIX_SHELL GUIX_ENVIRONMENT DEVBOX_SHELL_ENABLED DEVENV_ROOT DIRENV_DIR
+  CONDA_DEFAULT_ENV VIRTUAL_ENV VIRTUAL_ENV_PROMPT"
+function test_env_status_preview_draws_the_live_segment() {
+  _hi_load_preview_sources
+  local out
+  # shellcheck disable=SC2086 # the roster is a word list on purpose
+  out="$(unset $_HI_CFG_ENV_ROSTER && export VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1 &&
+    _hi_env_status_preview)"
+  [ "$(_hi_strip_ansi "$out")" = "(myproj) " ] || _hi_because "preview: $out"
+}
+
+function test_env_status_preview_samples_with_nothing_active() {
+  _hi_load_preview_sources
+  local out
+  # shellcheck disable=SC2086 # the roster is a word list on purpose
+  out="$(unset $_HI_CFG_ENV_ROSTER && _hi_env_status_preview)"
+  [ "$(_hi_strip_ansi "$out")" = "(mise|direnv:proj|myproj) " ] || _hi_because "preview: $out"
+}
+
 # the preview names what draws the prompt without the setting - hi.sh's
 # list of the programs installed here, under a home with none of the
 # frameworks so only the fake $PATH answers
@@ -996,6 +1032,15 @@ function test_prompt_tool_preview_names_what_is_installed() {
   out="$(HOME="$_HI_WORKDIR/preview_home" XDG_CONFIG_HOME="$_HI_WORKDIR/preview_home" \
     PATH="$dir:$(_hi_real_path preview_tools bash sh dirname cat tr sed awk grep uname hostname)" _hi_prompt_tool_preview)"
   [[ "$out" == *"the first of starship a target has"* ]]
+}
+
+# with the prompt off there is nothing for the setting to choose between,
+# and the preview says so rather than listing programs
+function test_prompt_tool_preview_is_moot_with_the_prompt_off() {
+  local _HI_SETTINGS="$_HI_WORKDIR/prompt-tool-off.settings.sh" out
+  printf 'export _HI_DISABLE_PROMPT=1\n' >"$_HI_SETTINGS"
+  out="$(_hi_prompt_tool_preview)"
+  [[ "$out" == "moot while the prompt is off"* ]] || _hi_because "preview: $out"
 }
 
 function test_prompt_tool_preview_reports_none() {
@@ -1170,6 +1215,26 @@ function test_header_edit_preset_refuses_a_stranger() {
     printf '%s' "${_HI_SETTING_PENDING[*]:-}"
   )" || return 1
   [ -z "$out" ]
+}
+
+# a header preset: its words on and first, in its order, the rest off after,
+# as one pending _HI_HEADER_ORDER - and `full`, whose word list is empty,
+# lands back on the shipped order, which writes nothing
+function test_header_edit_preset_turns_on_its_words_in_order() {
+  (
+    _HI_SETTINGS=/dev/null
+    _HI_SETTING_PENDING=()
+    _hi_header_edit_preset quiet || exit 1
+    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=utc localtime gitid" ] &&
+      [ "${_HI_HDR_WORDS[*]:0:3}" = "utc localtime gitid" ] &&
+      [ "$(_hi_header_edit_count_on)" = 3 ] &&
+      [[ "$_HI_MENU_NOTE" == *"the 'quiet' preset"* ]] ||
+      _hi_because "quiet: pending [${_HI_SETTING_PENDING[*]}], words [${_HI_HDR_WORDS[*]}]" || exit 1
+    _hi_header_edit_preset full || exit 1
+    [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=" ] &&
+      [ "$(_hi_header_edit_count_on)" = "${#_HI_HDR_WORDS[@]}" ] ||
+      _hi_because "full: pending [${_HI_SETTING_PENDING[*]}]"
+  )
 }
 
 # up/down off the header items, and at the end the item is already at - two
@@ -1480,6 +1545,7 @@ function run_configure_tests() {
   _hi_check "Packages floor: kept when the check is off" test_packages_floor_kept_when_the_check_is_off
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
   _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
+  _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"
@@ -1557,6 +1623,10 @@ function run_configure_tests() {
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed
   _hi_check "...and says when there are none" test_prompt_tool_preview_reports_none
+  _hi_check "...and that it is moot with the prompt off" test_prompt_tool_preview_is_moot_with_the_prompt_off
+  _hi_check "eza/exa preview names the ls it aliases" test_eza_preview_names_the_ls_it_aliases
+  _hi_check "Env segment preview draws the live segment" test_env_status_preview_draws_the_live_segment
+  _hi_check "...and a sample with nothing active" test_env_status_preview_samples_with_nothing_active
   _hi_check "Floor preview says when nothing reaches it" test_floor_preview_says_nothing_reaches_the_floor
 
   # Every pty case fans out together: each drives its own child under its own

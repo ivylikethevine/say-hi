@@ -32,8 +32,12 @@ name: Pages
 # branches: [main], and a tag push's head_branch is the tag - which never
 # matches, so naming Release above would claim a trigger that can never fire.
 # A green tag run means a new package-repo.tar.gz to serve (below), so
-# release.yml's publish job asks for a redeploy itself instead
-# (`gh workflow run pages.yml`), which is what workflow_dispatch is for here.
+# demos.yml's refresh-pages job asks for a redeploy once the release's demos
+# are in (gh_dispatch.sh pages.yml), which is what workflow_dispatch is for
+# here. And a merge's Coverage run stands down when its commit already
+# carries a v* tag (release-pending, below): that release is about to deploy
+# the same tree with its package repository and demos, and three deploys in
+# eight minutes was a merge and a tag.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [Coverage]
@@ -51,6 +55,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Whether a release is already on its way for the commit this Coverage run
+  # covered: a v* tag at its head sha, peeled (an annotated tag's ^{} line).
+  # A tag pushed after this looks still gets its own deploy - two, at worst.
+  release-pending:
+    name: is a release deploying this commit
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tagged: ${{ steps.tag.outputs.tagged }}
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+
+      - id: tag
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          refs="$(git ls-remote --tags "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY")"
+          if awk -v s="$SHA" '$1 == s && $2 ~ /^refs\/tags\/v/ { f = 1 } END { exit !f }' <<<"$refs"; then
+            echo "tagged=true" >>"$GITHUB_OUTPUT"
+            echo "$SHA carries a v* tag - its release deploys the site"
+          else
+            echo "tagged=false" >>"$GITHUB_OUTPUT"
+          fi
+
   build:
     name: build (jekyll)
     runs-on: ubuntu-latest
@@ -58,10 +94,12 @@ jobs:
     # maintainer's dispatch; a pull_request one never publishes - a fork's
     # `main` would pass the branch filter. The dispatch trigger has no run to
     # judge.
+    needs: release-pending
     if: >-
-      github.event_name != 'workflow_run' ||
+      !cancelled() && (github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event != 'pull_request')
+       github.event.workflow_run.event != 'pull_request' &&
+       needs.release-pending.outputs.tagged != 'true'))
     timeout-minutes: 10
     # actions: read is for the cross-workflow artifact read below - the site
     # build itself still needs nothing but contents

@@ -1,0 +1,46 @@
+name: Dependency review
+
+# The action diffs the dependency graph between a PR's base and head, so it
+# only means anything on a pull request. Fails on a newly added dependency
+# with a high or critical advisory - the workflows' actions and
+# .github/package-lock.json here. No paths filter: a workflow-only diff is how
+# a new action arrives.
+#
+# Its own workflow rather than a ci.yml job: ci.yml also runs on every push to
+# main and on a schedule, where this job could only ever show as skipped.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+# a newer push supersedes the review of the older head
+concurrency:
+  group: dependency-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: dependency review
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          # disable-sudo: this job never elevates - harden-runner's monitor
+          # logged no sudo exec for it on a green run, and it is one action
+          # talking to the API. One that turns out to need root fails here
+          # outright rather than quietly doing less, which is what makes this
+          # worth setting rather than inferring.
+          disable-sudo: true
+          # Off this job's own audit log, which reached one host: the review
+          # action asks the API for the diff's advisories and nothing else.
+          allowed-endpoints: >
+            api.github.com:443
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high

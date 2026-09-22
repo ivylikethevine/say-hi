@@ -17,7 +17,6 @@ on: # zizmor: ignore[dangerous-triggers]
     branches: [main]
   schedule:
     - cron: "37 6 * * 3"
-  workflow_dispatch:
 
 # pushes to main can stack, but queue rather than cancel: a run cancelled
 # mid-upsert can leave its tracking issue half-written (or a duplicate opened)
@@ -31,8 +30,8 @@ permissions:
 jobs:
   scan:
     name: trivy over the pinned base images (advisory)
-    # only a green push to main gets a fresh scan; the schedule and a manual
-    # dispatch pass the first clause
+    # only a green push to main gets a fresh scan; the schedule passes the
+    # first clause
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&

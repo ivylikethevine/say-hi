@@ -524,9 +524,9 @@ function test_prerelease_tags_reach_no_channel() {
   fi
   # the Pages refresh too: a prerelease publishes --latest=false, so pages.yml
   # would have nothing new to serve and the dispatch must be skipped
-  job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  if ! [[ "$job" == *"if: \${{ needs.build.$guard }}"* ]]; then
-    _hi_cecho " | release.yml refreshes Pages on a prerelease tag" "$RED"
+  job="$(_hi_wf_job "$_HI_DEMOS_WF" refresh-pages)"
+  if ! [[ "$job" == *'isPrerelease'* ]]; then
+    _hi_cecho " | demos.yml refreshes Pages on a prerelease tag" "$RED"
     bad=1
   fi
   [ "$bad" = 0 ]
@@ -723,7 +723,7 @@ function test_release_body_links_the_tap_pr_and_embeds_the_demo() {
   attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
   [[ "$publish" == *'"<!-- hi:demo -->"'* && "$publish" == *'"<!-- hi:tap -->"'* ]] || return 1
   # shellcheck disable=SC2016 # likewise
-  [[ "$publish" == *'gh workflow run demos.yml --ref "$GITHUB_REF_NAME"'* ]] || return 1
+  [[ "$publish" == *'gh_dispatch.sh demos.yml "$GITHUB_REF_NAME"'* ]] || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$tap" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" tap'* && "$tap" == *"contents: write"* &&
     "$tap" == *"$group"* && "$tap" == *"GH_TOKEN: \${{ github.token }}"* &&
@@ -1179,10 +1179,14 @@ function test_pages_workflow_serves_the_package_repository() {
 # head_branch is main, none a tag). So a release has to ask for its own
 # redeploy instead, and Release must not claim a trigger that cannot fire.
 function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
-  [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_RELEASE_WF" ] || return 0
+  [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_DEMOS_WF" ] || return 0
+  local refresh
+  refresh="$(_hi_wf_job "$_HI_DEMOS_WF" refresh-pages)"
   ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
-    [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" == *'gh workflow run pages.yml'* ]]
+    [[ "$refresh" == *'gh_dispatch.sh pages.yml main'* ]] &&
+    [[ "$refresh" == *'needs: [collect, attach]'* ]] &&
+    [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" != *'gh_dispatch.sh pages.yml'* ]]
 }
 
 # coverage.yml is chained off CI and is the last producer to finish, so it is
@@ -1195,7 +1199,8 @@ function test_pages_deploys_once_after_coverage() {
   build="$(_hi_wf_job "$_HI_PAGES_WF" build)"
   grep -qE '^ *workflows: \[Coverage\]$' "$_HI_PAGES_WF" &&
     [[ "$build" == *"workflow_run.conclusion == 'success'"* ]] &&
-    [[ "$build" == *"workflow_run.event != 'pull_request'"* ]]
+    [[ "$build" == *"workflow_run.event != 'pull_request'"* ]] &&
+    [[ "$build" == *"needs.release-pending.outputs.tagged != 'true'"* ]]
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
@@ -1841,6 +1846,68 @@ function test_srctar_builds_the_tarball_it_names() {
   case "$(tar tzf "$f" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) false ;; esac
 }
 
+# packaging/stamp_badge.sh against a scratch README (its optional argument):
+# the real one is the file under test for bench's --check, and never
+# rewritten by a suite. _hi_badge_readme <badge> writes one holding that
+# badge between two lines the restamp must leave alone.
+function _hi_badge_readme() {
+  local f
+  f="$(mktemp "$_HI_WORKDIR/badge-readme.XXXXXX")"
+  printf '# title\n[![payload](https://img.shields.io/badge/ssh_payload-%s-blue)](x)\nlast line\n' "$1" >"$f"
+  printf '%s' "$f"
+}
+
+# _hi_badge_of <readme> - the badge's figure, e.g. 63.2KB
+function _hi_badge_of() {
+  sed -n 's/.*ssh_payload-\([0-9.]*KB\)-.*/\1/p' "$1"
+}
+
+# the restamp rewrites the figure to the measured one and nothing else
+function test_stamp_badge_restamps_only_the_badge() {
+  local f out
+  f="$(_hi_badge_readme 0.1KB)"
+  out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f")" || return 1
+  [[ "$out" == "${f##*/}: ssh_payload-"*KB ]] ||
+    _hi_because "restamp said: $out" || return 1
+  [ "$(_hi_badge_of "$f")" != 0.1KB ] && [ -n "$(_hi_badge_of "$f")" ] ||
+    _hi_because "badge not restamped: $(cat "$f")" || return 1
+  [ "$(sed -n 1p "$f")" = "# title" ] && [ "$(sed -n 3p "$f")" = "last line" ] &&
+    [ "$(wc -l <"$f" | tr -d ' ')" = 3 ]
+}
+
+# --check on a freshly stamped badge passes, and rewrites nothing
+function test_stamp_badge_check_passes_within_the_slack() {
+  local f before
+  f="$(_hi_badge_readme 0.1KB)"
+  "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || return 1
+  before="$(cat "$f")"
+  "$_HI_ROOT/packaging/stamp_badge.sh" --check "$f" >/dev/null || return 1
+  [ "$(cat "$f")" = "$before" ]
+}
+
+# 10KB off is past the 5KB slack: --check fails, says to restamp, and still
+# rewrites nothing
+function test_stamp_badge_check_fails_past_the_slack() {
+  local f far before out
+  f="$(_hi_badge_readme 0.1KB)"
+  "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || return 1
+  far="$(awk -v b="$(_hi_badge_of "$f")" 'BEGIN { printf "%.1f", b + 10 }')KB"
+  sed "s/ssh_payload-[0-9.]*KB-/ssh_payload-$far-/" "$f" >"$f.far"
+  before="$(cat "$f.far")"
+  out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check "$f.far" 2>&1)" && return 1
+  [[ "$out" == *"says $far"*"run packaging/stamp_badge.sh"* ]] ||
+    _hi_because "--check said: $out" || return 1
+  [ "$(cat "$f.far")" = "$before" ]
+}
+
+function test_stamp_badge_refuses_a_readme_with_no_badge() {
+  local f out
+  f="$(mktemp "$_HI_WORKDIR/badge-none.XXXXXX")"
+  printf '# no badge here\n' >"$f"
+  out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f" 2>&1)" && return 1
+  [[ "$out" == *"no ssh_payload-<n>KB badge in $f"* ]]
+}
+
 function test_mkpkg_help_names_its_flags() {
   local out
   out="$("$_HI_PKG_DIR/mkpkg.sh" --help 2>&1)" || return 1
@@ -2477,6 +2544,12 @@ function run_packaging_ci_tests() {
   _hi_check "--help names the usage" test_srctar_help_names_the_usage
   _hi_check "Refuses a wrong argument count" test_srctar_refuses_a_wrong_arg_count
   _hi_check_requires git "Builds the tarball it names" test_srctar_builds_the_tarball_it_names
+
+  _hi_h2 "Testing: packaging/stamp_badge.sh"
+  _hi_check "Restamps the badge and nothing else" test_stamp_badge_restamps_only_the_badge
+  _hi_check "--check passes a fresh stamp, rewriting nothing" test_stamp_badge_check_passes_within_the_slack
+  _hi_check "--check fails past the 5KB slack, rewriting nothing" test_stamp_badge_check_fails_past_the_slack
+  _hi_check "Refuses a README with no badge" test_stamp_badge_refuses_a_readme_with_no_badge
 
   _hi_h2 "Testing: mkrepo.sh (offline half)"
   _hi_check "one_package enforces exactly one artifact" test_mkrepo_one_package_rule
