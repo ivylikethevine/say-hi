@@ -74,7 +74,19 @@ function _hi_rr_flake() {
   : >"$_HI_WORKDIR/rr.flag"
   return 1
 }
+# Run in a subshell with the rerun forced on, xtrace off, and BASH_XTRACEFD
+# unset: the coverage sweeps turn the rerun off (_HI_TRACE_RERUN=0), trace
+# every line (bashcov), and point xtrace at their tracer's own fd - where the
+# trace this case reads would never arrive, and its own lines would.
 function test_a_failed_case_reruns_with_a_trace() {
+  (
+    set +x
+    unset BASH_XTRACEFD
+    export _HI_TRACE_RERUN=1
+    _hi_rr_check
+  )
+}
+function _hi_rr_check() {
   local err out fails="$_HI_WORKDIR/rr.fails"
   err="$(_HI_FAILS_FILE="$fails" _hi_assert "rr" _hi_rr_fails 2>&1 >/dev/null)" && return 1
   [[ "$err" == *"traced rerun (exit 1)"* && "$err" == *"'[' 2 = 3 ']'"* ]] || {
