@@ -343,7 +343,39 @@ In this checkout, narrowest first.
        the first bashcov sweep on `main` after this lands reads no shipped
        line at 0 that is neither tested nor in that header.
 
-2. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+2. [ ] **No alias that only restates a tool's default** — at home,
+       `common/paths.sh` resolves each tool's config to the file or
+       directory the tool already reads (`~/.tmux.conf`, `~/.screenrc`,
+       `~/.nanorc`, `~/.emacs.d/init.el`, `~/.config/micro`,
+       `~/.config/zellij`), and `config/aliases.sh` still wraps the command
+       to point at it. The wrap buys nothing there and costs a layer: grc's
+       `env` wrapper turns `env ZELLIJ_CONFIG_DIR=… zellij` into zellij
+       piped through a colorizer, which hangs and leaves terminal replies
+       in the input buffer. **Do:** alias only when the resolved path is
+       not the tool's own default (the overlay's copy, or a target), and
+       name the config by flag or exported variable rather than an `env`
+       prefix. **Ticks when:** a home install with only the tools' own
+       configs leaves `tmux`, `screen`, `nano`, `emacs`, `micro`, and
+       `zellij` unaliased, a suite asserts it, and the overlay and target
+       cases still alias.
+
+3. [ ] **No editor alias that only restates the editor's default** — the
+       editors' half of the entry above, split out because they fall back
+       to hi's shipped rc (`config/vimrc`, `config/init.lua`,
+       `config/config.toml`) where the others fall back to nothing. At home
+       `common/paths.sh` resolves `~/.vimrc` (or `~/.vim/vimrc`,
+       `~/.config/vim/vimrc`), `~/.config/nvim/init.lua`, and
+       `~/.config/helix/config.toml`, and `config/aliases.sh` still wraps
+       `vim`, `nvim`, and `hx` with `-u`/`-c` and a binary path fixed at
+       shell start. That buys nothing, and `-u` is not a no-op: vim skips
+       the system vimrc and `defaults.vim` under it. **Do:** alias only
+       when the resolved rc is not the editor's own default (hi's shipped
+       rc, the overlay's copy, or a target). **Ticks when:** a home install
+       with the editors' own configs leaves `vim`, `nvim`, and `hx`
+       unaliased, a suite asserts it, and the shipped-rc, overlay, and
+       target cases still alias.
+
+4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -353,7 +385,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-3. [ ] **Investigate the header as plugins** — every header cell is one
+5. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing
