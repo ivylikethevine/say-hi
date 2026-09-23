@@ -265,7 +265,7 @@ function test_config_names_a_home_tool_config() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
   )"
-  [[ "$out" == *"bat.conf (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"targets get"* ]]
+  [[ "$out" == *"bat.conf (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]]
 }
 
 # a tool config copy in the overlay is the override, over the file the tool
@@ -596,8 +596,8 @@ function test_config_names_a_file_under_an_old_member_name() {
     doctor_config
   )"
   [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $(_hi_doc_path "$dir/vim.rc") $(_hi_doc_path "$dir/vimrc")"* &&
-    "$out" == *"bash.sh"*"old name"*"mv $dir/bash.sh $dir/bashrc"* &&
-    "$out" == *"bashrc"*"overridden (1 lines)"* ]]
+  "$out" == *"bash.sh"*"old name"*"mv $(_hi_doc_path "$dir/bash.sh") $(_hi_doc_path "$dir/bashrc")"* &&
+  "$out" == *"bashrc"*"overridden (1 lines)"* ]]
 }
 
 # a hand-written value the code would fall back from silently is a row:
