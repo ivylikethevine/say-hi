@@ -435,7 +435,7 @@ function _hi_editors_preview() {
     # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     local e body
-    for e in nano vim nvim emacs micro hx; do
+    for e in nano vim nvim emacs micro hx helix; do
       body="$(alias "$e" 2>/dev/null)" || continue
       eval "body=${body#*=}"
       printf '%-5s -> %s\n' "$e" "$body"
@@ -518,9 +518,9 @@ declare -a _HI_SETTING_LINES=()
 # off-value, on writes nothing) and set for an opt-in (on writes it, off
 # writes nothing) - setting_on has the rule. <preview-fn> is boxed under the
 # menu after the row flips, for what the menu's own preview does not show.
-# <needs> names a command the setting is moot without: the menu says so
-# beside it. <label> is the menu's name for it, and its part before " - " is
-# what the flip reports. Adding a setting is one row, and every
+# <needs> names a command the setting is moot without (`a/b` for either of
+# two): the menu says so beside it. <label> is the menu's name for it, and its
+# part before " - " is what the flip reports. Adding a setting is one row, and every
 # `_HI_*_PROMPTS` table is what tests/lint's settings-table check reads.
 _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HEADER|1||||connect/disconnect header - off hides every row below"
@@ -532,7 +532,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_NANO|1|||nano|nano - your carried nanorc"
   "_HI_DISABLE_EMACS|1|||emacs|emacs - your carried init file"
   "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
-  "_HI_DISABLE_HELIX|1|||hx|helix - your carried config.toml"
+  "_HI_DISABLE_HELIX|1|||hx/helix|helix - your carried config.toml"
   "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - your carried kakrc"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
@@ -788,7 +788,7 @@ function _hi_menu_value() {
 # applies wherever the command exists. The help after " - " is what gives way
 # to a narrow terminal; the name, the note, and "(default ...)" stay.
 function _hi_menu_row() {
-  local var off on needs label state def name help="" note="" dnote="" room
+  local var off on needs alt label state def name help="" note="" dnote="" room
   local -a rows=()
   _hi_prompt_rows "$1" rows
   IFS='|' read -r var off on _ needs label <<<"${rows[$2]}"
@@ -796,8 +796,12 @@ function _hi_menu_row() {
   # a default-on toggle has no on-value; an opt-in has one
   [ -z "$on" ] && def=1 || def=0
   name="${label%% - *}"
-  if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
-    note=" (no $needs here)"
+  # <needs> may name alternatives, `hx/helix`: any one of them is enough
+  if [ -n "$needs" ]; then
+    note=" (no ${needs%%/*} here)"
+    for alt in ${needs//\// }; do
+      ! command -v "$alt" >/dev/null 2>&1 || note=""
+    done
   fi
   [ "$state" = "$def" ] || { [ "$def" = 1 ] && dnote=" (default on)" || dnote=" (default off)"; }
   # "  NN) [x] " is ten columns

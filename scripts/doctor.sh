@@ -191,21 +191,23 @@ _HI_DOC_IN_FINDING=0
 # key is the stable name a script reads; the title is prose and may change.
 # Each section function ends in doctor_flush, which draws its table.
 function doctor_section() {
-  local title="$2"
   _HI_DOC_SECTION="$1"
-  _hi_doc_tilde title
-  [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h2 "$title"
+  _hi_doc_tilde "$2"
+  [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h2 "$_HI_DOC_TILDED"
 }
 
-# _hi_doc_tilde <var> - $HOME in <var>'s value shortened to ~, for the boxed
-# report only: --json keeps whole paths for whatever parses it. The ~ comes
-# from a variable, since bash 3.2 keeps a \~ replacement's backslash.
+# _hi_doc_tilde <text> - <text> with $HOME shortened to ~, into
+# $_HI_DOC_TILDED, for the boxed report only: --json keeps whole paths for
+# whatever parses it. A plain variable, since bash 3.2's printf -v cannot
+# write an array element; the ~ from one too, since 3.2 keeps a \~
+# replacement's backslash.
+_HI_DOC_TILDED=""
 function _hi_doc_tilde() {
-  local tilde='~' v="${!1}"
+  local tilde='~'
+  _HI_DOC_TILDED="$1"
   [ -n "${HOME:-}" ] && [ "$HOME" != / ] || return 0
-  v="${v//"$HOME"\//$tilde/}"
-  [ "$v" != "$HOME" ] || v="$tilde"
-  printf -v "$1" '%s' "$v"
+  _HI_DOC_TILDED="${_HI_DOC_TILDED//"$HOME"\//$tilde/}"
+  [ "$_HI_DOC_TILDED" != "$HOME" ] || _HI_DOC_TILDED="$tilde"
 }
 
 # _hi_doc_member <member> <outvar> - <member> with the program that reads it,
@@ -284,8 +286,10 @@ function _hi_doc_box() {
   n="${#_HI_DOC_T_SEV[@]}"
   [ "$n" -gt 0 ] || return 0
   while [ "$i" -lt "$n" ]; do
-    _hi_doc_tilde "_HI_DOC_T_LABEL[i]"
-    _hi_doc_tilde "_HI_DOC_T_TEXT[i]"
+    _hi_doc_tilde "${_HI_DOC_T_LABEL[i]}"
+    _HI_DOC_T_LABEL[i]="$_HI_DOC_TILDED"
+    _hi_doc_tilde "${_HI_DOC_T_TEXT[i]}"
+    _HI_DOC_T_TEXT[i]="$_HI_DOC_TILDED"
     _hi_widen wl "${_HI_DOC_T_LABEL[i]}"
     # a carriage return (ssh ends its stderr lines in one) or a tab would
     # print narrower or wider than it measures, so both are gone first

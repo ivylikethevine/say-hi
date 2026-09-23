@@ -455,7 +455,7 @@ function _hi_tool_here() {
   case "$1" in
   vimrc) command -v vim ;;
   init.lua) command -v nvim ;;
-  config.toml) command -v hx ;;
+  config.toml) command -v hx || command -v helix ;;
   nanorc) command -v nano ;;
   init.el) command -v emacs ;;
   kakrc) command -v kak ;;

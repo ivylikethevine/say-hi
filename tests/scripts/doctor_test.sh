@@ -213,7 +213,7 @@ function test_backends_count_literal_ssh_hosts() {
   local cfg="$_HI_WORKDIR/ssh_config" out
   printf 'Host alpha beta\n  HostName 192.0.2.1\nHost *.wild\n' >"$cfg"
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG="$cfg" doctor_backends)"
-  [[ "$out" == *"2 literal host(s) in $cfg"* ]]
+  [[ "$out" == *"2 literal host(s) in $(_hi_doc_path "$cfg")"* ]]
 }
 
 function test_config_flags_a_settings_file_that_does_not_parse() {
@@ -265,7 +265,7 @@ function test_config_names_a_home_tool_config() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
   )"
-  [[ "$out" == *"bat.conf (bat)"*"$dir/bat-flags"* && "$out" != *"targets get $dir"* ]]
+  [[ "$out" == *"bat.conf (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"targets get"* ]]
 }
 
 # a tool config copy in the overlay is the override, over the file the tool
@@ -300,8 +300,8 @@ function test_config_names_tmux_and_micro_configs() {
     _HI_TMUX_CONF="$dir/tmux.conf"
     MICRO_CONFIG_HOME="$dir/micro" doctor_config
   )"
-  [[ "$out" == *"tmux.conf (tmux)"*"$dir/tmux.conf"* ]] &&
-    [[ "$out" == *"micro/settings.json (micro)"*"$dir/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
+  [[ "$out" == *"tmux.conf (tmux)"*"$(_hi_doc_path "$dir/tmux.conf")"* ]] &&
+    [[ "$out" == *"micro/settings.json (micro)"*"$(_hi_doc_path "$dir/micro/settings.json")"* && "$out" != *micro/bindings.json* ]] &&
     [[ "$out" == *"tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
 }
 
@@ -318,6 +318,15 @@ function test_config_is_silent_on_a_config_for_an_absent_tool() {
     _HI_TMUX_CONF="$dir/tmux.conf" doctor_config
   )"
   [[ "$out" != *tmux.conf* ]]
+}
+
+# _hi_doc_path <path> - <path> as the boxed report writes it: ~ for $HOME, so
+# a workdir under $HOME (Git Bash's temp dir is) reads the way doctor prints it
+function _hi_doc_path() {
+  case "$1" in
+  "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;;
+  *) printf '%s' "$1" ;;
+  esac
 }
 
 # The files table walks every tier of a member in the table's order and marks
@@ -428,7 +437,7 @@ function test_config_names_the_editor_config_in_force_here() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"vimrc (vim)"*"$mine"* ]]
+  [[ "$out" == *"vimrc (vim)"*"$(_hi_doc_path "$mine")"* ]]
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
@@ -586,7 +595,7 @@ function test_config_names_a_file_under_an_old_member_name() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $dir/vim.rc $dir/vimrc"* &&
+  [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $(_hi_doc_path "$dir/vim.rc") $(_hi_doc_path "$dir/vimrc")"* &&
     "$out" == *"bash.sh"*"old name"*"mv $dir/bash.sh $dir/bashrc"* &&
     "$out" == *"bashrc"*"overridden (1 lines)"* ]]
 }

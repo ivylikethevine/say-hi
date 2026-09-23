@@ -56,7 +56,10 @@ command -v shift >/dev/null 2>&1 &&
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_VIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_VIMRC" = "$_HI_CONFIG_DIR/vimrc" ] && command -v vim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v vim) -u $_HI_VIMRC" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_NVIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_NVIMRC" = "$_HI_CONFIG_DIR/init.lua" ] && command -v nvim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" || true
 # hx reads one file, -c/--config overrides only it (no directory-level
-# override exists) - the same one-member shape as vim's above
+# override exists) - the same one-member shape as vim's above. Arch and a few
+# others install the binary as `helix`, so that answers to both names, and an
+# `hx` where there is one takes `hx` back.
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_HELIXRC" = "$_HI_CONFIG_DIR/config.toml" ] && command -v helix >/dev/null 2>&1 && alias hx="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v helix) -c $_HI_HELIXRC" && alias helix="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v helix) -c $_HI_HELIXRC" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_HELIXRC" = "$_HI_CONFIG_DIR/config.toml" ] && command -v hx >/dev/null 2>&1 && alias hx="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v hx) -c $_HI_HELIXRC" || true
 # -q skips the target's own init, -l loads yours in its place, and -nw keeps it
 # in the terminal: with a display to reach, emacs would open a GUI window

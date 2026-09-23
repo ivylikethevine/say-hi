@@ -686,7 +686,7 @@ function _hi_prompt_end() {
 # The editors a session's $EDITOR can be, best first: $_HI_EDITOR's pick when
 # the target has it, else the first of these it does (load.sh's
 # _hi_session_editor); scripts/lib.sh's _hi_is_editor validates against it.
-_HI_EDITORS="nvim vim micro hx kak nano emacs"
+_HI_EDITORS="nvim vim micro hx helix kak nano emacs"
 
 # Every prompt program hi hands the prompt to, one row each:
 # name|shells it fits|how it is found|the overlay member(s) its home config
