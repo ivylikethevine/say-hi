@@ -206,7 +206,7 @@ both) rides along and the session's `tmux` alias is `tmux -f` it. screen the
 same, `~/.screenrc` under `screen -c`; and zellij's config directory
 (`$ZELLIJ_CONFIG_DIR`, else `$XDG_CONFIG_HOME/zellij`) - `config.kdl` and
 every file of `layouts/` and `themes/`, an overlay `zellij/` copy of each
-name first - with the alias setting `$ZELLIJ_CONFIG_DIR` to it. A
+name first - under the alias's `--config-dir`. A
 `source-file` of another file, TPM's `@plugin` list and its `run`, screen's
 `source`, zellij's `layout_dir`/`theme_dir` and `file:` plugins name
 something the target does not have, so they go out disabled and

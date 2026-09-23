@@ -335,6 +335,12 @@ _HI_FLOOR_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the editor rcs move with the tree: config/aliases.sh flags only the shipped
+  # rc or the overlay copy, never a path outside both
+  mkdir -p "$_hi_dir/config"
+  cp "$_HI_NANORC" "$_HI_VIMRC" "$_HI_NVIMRC" "$_HI_EMACSRC" "$_HI_HELIXRC" "$_hi_dir/config/"
+  _HI_NANORC="$_hi_dir/config/nanorc" _HI_VIMRC="$_hi_dir/config/vimrc" _HI_NVIMRC="$_hi_dir/config/init.lua"
+  _HI_EMACSRC="$_hi_dir/config/init.el" _HI_HELIXRC="$_hi_dir/config/config.toml"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -1100,6 +1106,12 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the editor rcs move with the tree: config/aliases.sh flags only the shipped
+  # rc or the overlay copy, never a path outside both
+  mkdir -p "$_hi_dir/config"
+  cp "$_HI_NANORC" "$_HI_VIMRC" "$_HI_NVIMRC" "$_HI_EMACSRC" "$_HI_HELIXRC" "$_hi_dir/config/"
+  _HI_NANORC="$_hi_dir/config/nanorc" _HI_VIMRC="$_hi_dir/config/vimrc" _HI_NVIMRC="$_hi_dir/config/init.lua"
+  _HI_EMACSRC="$_hi_dir/config/init.el" _HI_HELIXRC="$_hi_dir/config/config.toml"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()

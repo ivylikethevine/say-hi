@@ -1116,7 +1116,11 @@ overlay's copy, then the config that editor already reads on this machine
 in the editor's own precedence), then the tree's. `tmux.conf` (`tmux -f`) and
 `screenrc` (`screen -c`) take the same tiers minus a tree copy, so with none
 the value is empty and the command has no alias; micro and zellij take a
-_directory_. The middle tier is [HI.32](#hi32-starship-deference)'s argument
+_directory_. The alias names the file only when it is hi's - the overlay's
+copy or the tree's, and anything on a target: the home tier is what the tool
+reads unasked, so `config/aliases.sh` leaves the command bare there rather
+than restate it (and `vim -u` would drop the system vimrc and
+`defaults.vim`). The middle tier is [HI.32](#hi32-starship-deference)'s argument
 applied to editors - one copy to edit, no duplicate in the overlay to keep in
 step. A value still equal to the tree's means there is no config to carry,
 and the tree's copy already rides the payload, so nothing goes in the overlay

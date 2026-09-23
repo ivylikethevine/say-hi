@@ -339,7 +339,7 @@ function test_remote_session_exports_overlay_config() {
 
 # on a target, tmux, screen, micro, and zellij reach the overlay's copies
 # through their aliases: tmux -f the tmux.conf, screen -c the screenrc, zellij
-# its $ZELLIJ_CONFIG_DIR, micro -config-dir the micro/ directory, and without
+# --config-dir the zellij/ directory, micro -config-dir the micro/ one, and without
 # the taste flags that would beat its settings.json. With no overlay copy the
 # target's own ~/.tmux.conf is not picked up in its place.
 # <shell> <overlay file, or - for none> <alias> <wanted> [unwanted]
@@ -363,6 +363,36 @@ function test_remote_session_aliases_overlay_config() {
     _hi_cecho " | $name is: [$out]" "$RED"
     return 1
   fi
+}
+
+# At home a tool whose own config is in force gets no alias: naming the file
+# it already reads buys nothing, and `vim -u` or `nano --rcfile` is not a
+# no-op. With no config of their own the editors fall back to hi's shipped rc
+# and keep theirs; tmux, screen, and zellij have no shipped one and stay bare.
+# <shell> <own|none>
+_HI_HOME_ALIASED="vim nvim hx nano emacs micro tmux screen zellij"
+function test_home_session_aliases_only_his_configs() {
+  local shell="$1" mode="$2" home="$_HI_WORKDIR/home-$2" script f out want
+  mkdir -p "$home"
+  [ "$mode" = none ] || {
+    mkdir -p "$home/.config/nvim" "$home/.config/helix" "$home/.config/micro" "$home/.config/zellij"
+    for f in .vimrc .config/nvim/init.lua .config/helix/config.toml .nanorc .emacs .tmux.conf .screenrc; do
+      printf '# mine\n' >"$home/$f"
+    done
+  }
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; for a in '"$_HI_HOME_ALIASED"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; for a in '"$_HI_HOME_ALIASED"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; for a in '"$_HI_HOME_ALIASED"'; functions -q $a; and printf "%s " $a; end' ;;
+  esac
+  # shellcheck disable=SC2086 # one fake binary per word of the list
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" HOME="$home" \
+    PATH="$(_hi_fake_path rc-home-tools $_HI_HOME_ALIASED):$PATH" 2>/dev/null)"
+  want=""
+  [ "$mode" = none ] && want="vim nvim hx nano emacs micro "
+  [ "$out" = "$want" ] && return 0
+  _hi_cecho " | aliased: [$out], wanted [$want]" "$RED"
+  return 1
 }
 
 # plugins.d (GLOSSARY: HI.59), one fixture for every shell: 10 exports a value
@@ -1091,7 +1121,7 @@ function run_rc_tests() {
   _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
   _hi_check "[bash] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config bash screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
-  _hi_check "[bash] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "env ZELLIJ_CONFIG_DIR=$_HI_WORKDIR/cfg/zellij zellij"
+  _hi_check "[bash] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
   _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
@@ -1103,9 +1133,15 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
   _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
-  _hi_check_requires fish "[fish] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "env ZELLIJ_CONFIG_DIR=$_HI_WORKDIR/cfg/zellij zellij"
+  _hi_check_requires fish "[fish] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
   _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
+  _hi_check "[bash] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs bash own
+  _hi_check "[bash] ...and the editors keep hi's shipped rc without one" test_home_session_aliases_only_his_configs bash none
+  _hi_check_requires zsh "[zsh] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs zsh own
+  _hi_check_requires zsh "[zsh] ...and the editors keep hi's shipped rc without one" test_home_session_aliases_only_his_configs zsh none
+  _hi_check_requires fish "[fish] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs fish own
+  _hi_check_requires fish "[fish] ...and the editors keep hi's shipped rc without one" test_home_session_aliases_only_his_configs fish none
 
   _hi_h2 "Testing: prompt programs without init (powerline-go, the frameworks)"
   _hi_check "[bash] powerline-go draws each prompt with the status and options" \

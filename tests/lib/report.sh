@@ -108,8 +108,14 @@ function _hi_trace_rerun() {
     _HI_RERUN_OUT="      (no traced rerun: the failure took ${took}s)"
     return 1
   fi
+  # xtrace on fd 9, a copy of the capture: on stderr it would land in every
+  # `$(... 2>&1)` the case makes, and a case that reads its own stderr would
+  # fail the rerun on the trace alone and never count as a flake (bash 3.2
+  # has no BASH_XTRACEFD and keeps tracing to stderr)
   out="$(
     PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '
+    exec 9>&1
+    BASH_XTRACEFD=9
     {
       set -x
       "$@"

@@ -104,7 +104,20 @@ function _hi_rr_check() {
   _HI_FLAKY_OK=0 _HI_FAILS_FILE="$fails" _hi_assert "rr-strict" _hi_rr_flake >/dev/null 2>&1 && return 1
   grep -qF 'rr-strict (flaky' "$fails" || return 1
   err="$(_HI_TRACE_RERUN=0 _hi_assert "rr" _hi_rr_fails 2>&1 >/dev/null)" && return 1
-  [[ "$err" != *"rerun"* ]]
+  [[ "$err" != *"rerun"* ]] || return 1
+  # the trace stays out of a case's own `2>&1` capture, so a case that counts
+  # its stderr lines still passes the rerun and reads FLAKY (bash 4.1+)
+  [ "${BASH_VERSINFO[0]}${BASH_VERSINFO[1]}" -ge 41 ] || return 0
+  rm -f "$_HI_WORKDIR/rr.flag" "$fails.flaky"
+  out="$(_HI_FLAKY_OK=1 _HI_FAILS_FILE="$fails" _hi_assert "rr-stderr" _hi_rr_stderr_flake 2>/dev/null)" || return 1
+  [[ "$(_hi_strip_ansi "$out")" == *"rr-stderr"*"FLAKY"* ]]
+}
+function _hi_rr_stderr_flake() {
+  local out
+  out="$({ printf 'one\n' >&2; } 2>&1)"
+  [ -f "$_HI_WORKDIR/rr.flag" ] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ] && return 0
+  : >"$_HI_WORKDIR/rr.flag"
+  return 1
 }
 
 function test_assert_reports_failed_and_returns_nonzero() {

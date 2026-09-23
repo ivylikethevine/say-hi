@@ -5,6 +5,7 @@
 # shellcheck disable=SC2139 # aliases are meant to expand $_HI_* now, not later
 # shellcheck disable=SC2155
 # shellcheck disable=SC2089,SC2090 # the *_OPTS quotes are literal alias text; the overlay source below makes the linter guess otherwise
+# shellcheck disable=SC2166 # `[ a -o b ]` is the one "or" all three dialects parse inside an && chain
 # GLOSSARY: HI.13 - first-installed wins; reorder to taste.
 
 # Backstop defaults for the toggles and every value var the guards below read
@@ -35,7 +36,14 @@ command -v shift >/dev/null 2>&1 &&
 # its own not-found, and `type <tool>` never names an alias to nothing - and
 # on its rc being here: a client without the editor sends none (hi.sh's
 # _hi_payload_excl), and `vim -u` a missing file is an error, not a vim.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_NANO" != 1 ] && [ -f "$_HI_NANORC" ] && command -v nano >/dev/null 2>&1 && alias nano="nano --rcfile $_HI_NANORC" || true
+#
+# Every config flag below also needs the resolved path to be hi's: the tree's
+# shipped rc or the overlay's copy. At home common/paths.sh can resolve to the
+# config the tool already reads by itself, and naming that again buys nothing
+# and is not free (`vim -u` skips the system vimrc and defaults.vim, `nano
+# --rcfile` skips /etc/nanorc). A target never resolves to a home path, so
+# there they always land.
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_NANO" != 1 ] && [ -f "$_HI_NANORC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_NANORC" = "$_HI_ROOT/config/nanorc" -o "$_HI_NANORC" = "$_HI_CONFIG_DIR/nanorc" ] && command -v nano >/dev/null 2>&1 && alias nano="nano --rcfile $_HI_NANORC" || true
 # scripts/configure.sh's _hi_editors_preview sources this file for real to
 # show what this resolves to before the toggle is set - see the note there.
 # A box with neither leaves vim alone (an alias of `" -u ..."` would report
@@ -44,37 +52,41 @@ command -v shift >/dev/null 2>&1 &&
 # vim's, then nvim's over it where there is one, so an nvim box answers to
 # `vim` with the lua rc (config/vimrc is vim's; neovim reads
 # config/init.lua). `nvim` gets an alias of its own so either name reaches
-# the same override. _HI_DISABLE_VIM gates both: they are one editor to the toggle.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_VIMRC" ] && command -v vim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v vim) -u $_HI_VIMRC" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_NVIMRC" ] && command -v nvim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" || true
+# the same override. _HI_DISABLE_VIM gates both: they are one editor to the
+# toggle. With nvim's own init.lua in force, `vim` stays vim's.
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_VIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_VIMRC" = "$_HI_ROOT/config/vimrc" -o "$_HI_VIMRC" = "$_HI_CONFIG_DIR/vimrc" ] && command -v vim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v vim) -u $_HI_VIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_NVIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_NVIMRC" = "$_HI_ROOT/config/init.lua" -o "$_HI_NVIMRC" = "$_HI_CONFIG_DIR/init.lua" ] && command -v nvim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" || true
 # hx reads one file, -c/--config overrides only it (no directory-level
 # override exists) - the same one-member shape as vim's above
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && command -v hx >/dev/null 2>&1 && alias hx="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v hx) -c $_HI_HELIXRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_HELIXRC" = "$_HI_ROOT/config/config.toml" -o "$_HI_HELIXRC" = "$_HI_CONFIG_DIR/config.toml" ] && command -v hx >/dev/null 2>&1 && alias hx="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v hx) -c $_HI_HELIXRC" || true
 # -q skips the target's own init, -l loads hi's in its place
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && [ -f "$_HI_EMACSRC" ] && command -v emacs >/dev/null 2>&1 && alias emacs="emacs -q -l $_HI_EMACSRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && [ -f "$_HI_EMACSRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_EMACSRC" = "$_HI_ROOT/config/init.el" -o "$_HI_EMACSRC" = "$_HI_CONFIG_DIR/init.el" ] && command -v emacs >/dev/null 2>&1 && alias emacs="emacs -q -l $_HI_EMACSRC" || true
 # micro takes a config *directory*, never a file, but any of its settings can
 # be set on the command line as `-name value`, so it gets flags like bat and
 # eza do: no backups or history written into a config dir on a box you are
 # only visiting, parents made on save, the diff gutter on. With the overlay's
 # micro/ ($_HI_MICRO_DIR) it gets -config-dir, and the two taste flags go the
-# way bat's --theme does, or they would beat that settings.json. Override the
-# whole string with _HI_MICRO_OPTS in your settings.sh.
-[ -z "$_HI_MICRO_OPTS" ] && [ -n "$_HI_MICRO_DIR" ] && export _HI_MICRO_OPTS='-backup false -savehistory false' || true
-[ -z "$_HI_MICRO_OPTS" ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && command -v micro >/dev/null 2>&1 && alias micro="micro $_HI_MICRO_OPTS" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_DIR" ] && command -v micro >/dev/null 2>&1 && alias micro="micro -config-dir $_HI_MICRO_DIR $_HI_MICRO_OPTS" || true
+# way bat's --theme does, or they would beat that settings.json. At home with
+# micro's own config directory there is no default string and no alias, since
+# micro already reads that directory. Override the whole string with
+# _HI_MICRO_OPTS in your settings.sh.
+[ -z "$_HI_MICRO_OPTS" ] && [ "$_HI_MICRO_DIR" = "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_OPTS='-backup false -savehistory false' || true
+[ -z "$_HI_MICRO_OPTS" ] && [ -z "$_HI_MICRO_DIR" ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_OPTS" ] && command -v micro >/dev/null 2>&1 && alias micro="micro $_HI_MICRO_OPTS" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_DIR" ] && [ "$_HI_MICRO_DIR" = "$_HI_CONFIG_DIR/micro" ] && command -v micro >/dev/null 2>&1 && alias micro="micro -config-dir $_HI_MICRO_DIR $_HI_MICRO_OPTS" || true
 
-# tmux reads one config, at server start: the one in force here ($_HI_TMUX_CONF,
-# which on a target is the overlay's copy) rather than the target's own; two
-# lines, like the wrappers below, since with no config there is no alias.
-# screen the same; zellij takes a directory, through the variable it reads,
-# so a zellij started inside the session reads it too.
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_TMUX_CONF" ] && command -v tmux >/dev/null 2>&1 &&
+# tmux reads one config, at server start: the overlay's copy rather than the
+# target's own. With none, or at home with the tool's own config (which it
+# reads unasked), there is no alias; two lines, like the wrappers below.
+# screen the same, and zellij by its --config-dir flag: an `env VAR=...`
+# prefix runs zellij through whatever wraps `env` (grc pipes it through a
+# colorizer, which hangs it).
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_TMUX_CONF" ] && [ "$_HI_TMUX_CONF" = "$_HI_CONFIG_DIR/tmux.conf" ] && command -v tmux >/dev/null 2>&1 &&
   alias tmux="tmux -f $_HI_TMUX_CONF" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_SCREENRC" ] && command -v screen >/dev/null 2>&1 &&
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_SCREENRC" ] && [ "$_HI_SCREENRC" = "$_HI_CONFIG_DIR/screenrc" ] && command -v screen >/dev/null 2>&1 &&
   alias screen="screen -c $_HI_SCREENRC" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_ZELLIJ_DIR" ] && command -v zellij >/dev/null 2>&1 &&
-  alias zellij="env ZELLIJ_CONFIG_DIR=$_HI_ZELLIJ_DIR zellij" || true
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_ZELLIJ_DIR" ] && [ "$_HI_ZELLIJ_DIR" = "$_HI_CONFIG_DIR/zellij" ] && command -v zellij >/dev/null 2>&1 &&
+  alias zellij="zellij --config-dir $_HI_ZELLIJ_DIR" || true
 
 # the trailing space makes bash/zsh alias-expand the word after sudo, so
 # `sudo vim` gets the vim alias's flags; fish has a wrapper in config.fish

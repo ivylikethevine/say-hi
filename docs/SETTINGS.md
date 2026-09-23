@@ -108,7 +108,7 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/init.el`         | `config/init.el`     | the same for the `emacs` alias (`emacs -q -l`), over your `~/.emacs`                                                                                                                                                           |
 | `~/.config/say-hi/tmux.conf`       | -                    | the same for the `tmux` alias (`tmux -f`), over your `~/.tmux.conf`; with neither, `tmux` is left alone                                                                                                                        |
 | `~/.config/say-hi/screenrc`        | -                    | the same for the `screen` alias (`screen -c`), over your `~/.screenrc`                                                                                                                                                         |
-| `~/.config/say-hi/zellij/`         | -                    | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias sets `$ZELLIJ_CONFIG_DIR` to it                                                                   |
+| `~/.config/say-hi/zellij/`         | -                    | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                                         |
 | `~/.config/say-hi/micro/`          | -                    | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                                         |
 | `~/.config/say-hi/aliases.sh`      | -                    | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                                         |
 | `~/.config/say-hi/plugins.d/`      | -                    | drop-in plugins in the same subset, sourced after the aliases in name order; see [below](#plugins)                                                                                                                             |
@@ -465,6 +465,12 @@ config that differs from your local one — and hi's shipped default applies
 when neither is there; a home config, and hi's default with it, rides only
 with its tool installed here. On a target the lookup is off: `$HOME` there is the
 target's, and the file your client picked has already arrived.
+
+Here, a tool whose own config is in force gets no alias at all: `vim`, `nvim`,
+`hx`, `nano`, `emacs`, `micro`, `tmux`, `screen`, and `zellij` already read it
+unasked, and `vim -u` or `nano --rcfile` would skip the system rc besides. The
+alias appears here only for an overlay copy or hi's shipped default, and on a
+target always.
 
 Your own config is written for a machine with your plugins on it, and a target
 has none. So hi reads each of these files — and the overlay's `settings.sh`,

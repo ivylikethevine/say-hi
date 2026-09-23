@@ -348,12 +348,13 @@ function _hi_run_scenario() {
   fi
 
   t0="$(_hi_now)"
-  # the editor aliases are gated on their rc being there, so each is a file
+  # the editor aliases are gated on their rc being there, so each is a file,
+  # and on it being hi's, so the workdir is the overlay that holds them
   touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el"
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
-    _HI_ROOT="$_HI_ROOT" \
+    _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$_HI_WORKDIR" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/init.el" \
     _HI_NVIMRC="$_HI_WORKDIR/init.lua" _HI_HELIXRC="$_HI_WORKDIR/config.toml" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
