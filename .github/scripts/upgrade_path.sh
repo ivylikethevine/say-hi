@@ -21,7 +21,7 @@ trap 'rm -rf "$work"' EXIT
 
 # the paths every dialect's rc resolves through common/paths.sh, each a file
 # or directory the new tree has
-paths="_HI_ROOT _HI_LAUNCHER _HI_CORE _HI_HEADER _HI_ALIASES _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC"
+paths="_HI_ROOT _HI_LAUNCHER _HI_CORE _HI_HEADER _HI_ALIASES _HI_COLORS _HI_PACKAGES"
 fail=0
 for row in bash=bash.sh zsh=zsh.zsh fish=config.fish; do
   shell="${row%%=*}" rc="${row#*=}"

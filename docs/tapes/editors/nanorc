@@ -1,6 +1,5 @@
-# hi's nano override, kept to the minimum that earns the --rcfile: the syntax
-# definitions nano already ships, and nothing to taste. Your own file at
-# $_HI_CONFIG_DIR/nanorc replaces this one wholesale.
+# The editors demo's overlay nanorc (docs/tapes/fixtures.sh, up:editors): the
+# syntax definitions nano already ships.
 #
 # One glob, not two. An `include` that expands to nothing is not fatal, but
 # nano says so on the status bar ("Mistakes in '<rcfile>'") and rings the bell,

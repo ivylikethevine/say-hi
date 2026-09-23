@@ -58,7 +58,7 @@ unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
 # suite builds. The prompt programs are pinned to hi's own for the same
 # reason - unset, whatever this box has installed would draw every prompt -
 # and a case about them names its list.
-unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME ZELLIJ_CONFIG_DIR POSH_CONFIG POSH_THEME \
+unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME ZELLIJ_CONFIG_DIR KAKOUNE_CONFIG_DIR POSH_CONFIG POSH_THEME \
   POWERLEVEL9K_CONFIG_FILE ZSH ZSH_CUSTOM ZSH_THEME OSH OSH_CUSTOM OSH_THEME _HI_POWERLINE_GO_OPTS
 export _HI_PROMPT_TOOL=hi
 # The backend probe cap, pinned: the default 2s is a user's budget for a CLI
@@ -87,12 +87,11 @@ source "$_hi_d/../common/core.sh"
 # ...and the half of that resolution the unset above cannot reach: paths.sh's
 # editor tier reads $HOME/.vimrc, $HOME/.nanorc, $HOME/.emacs.d/init.el and
 # friends, which the XDG_CONFIG_HOME throwaway does not move, so on a developer
-# box with any of them the baseline stops being "in-tree defaults" and every
+# box with any of them the baseline stops being "no editor config" and every
 # overlay stream a suite builds carries their editor. Pinned *after* the source,
 # since paths.sh re-exports over whatever it was handed. A suite exercising the
 # tier points them somewhere of its own, as tests/common/paths_test.sh does.
-export _HI_VIMRC="$_HI_ROOT/config/vimrc" _HI_NVIMRC="$_HI_ROOT/config/init.lua"
-export _HI_NANORC="$_HI_ROOT/config/nanorc" _HI_EMACSRC="$_HI_ROOT/config/init.el" _HI_TMUX_CONF="" _HI_SCREENRC=""
+export _HI_VIMRC="" _HI_NVIMRC="" _HI_HELIXRC="" _HI_NANORC="" _HI_EMACSRC="" _HI_TMUX_CONF="" _HI_SCREENRC=""
 # ...and ~/.ssh/config the same way: its `# Tags:` lines ride the overlay as
 # ssh_tags, so a developer's own would be a member of every stream built here
 export _HI_SSH_CONFIG="$XDG_CONFIG_HOME/no-ssh-config"

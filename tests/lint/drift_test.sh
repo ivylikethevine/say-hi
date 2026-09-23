@@ -188,7 +188,7 @@ function lint_portable_pairs() {
     bad=$((bad + 1))
   fi
   hits=""
-  for f in "$_HI_ROOT"/common/*.sh "$_HI_ROOT"/config/*.sh "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh"; do
+  for f in "$_HI_ROOT"/common/*.sh "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh"; do
     [ -f "$f" ] || continue
     awk '/^set -euo pipefail/ { on = 1 } on && /^[[:space:]]*set \+euo pipefail/ { on = 0 } END { exit on }' "$f" ||
       hits="$hits${hits:+ }${f#"$_HI_ROOT"/}"
@@ -662,7 +662,7 @@ function _hi_settings_documented() {
 # `_HI_PROMPT_END_$shell`, is skipped here and caught by its literal rows).
 # Any table by that name counts, so a section added to the wizard cannot ask
 # about a setting this check never sees. Plus the knobs the wizard never asks
-# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that config/aliases.sh
+# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that common/aliases.sh
 # reads (`${_HI_BAT_OPTS:-...}`, `"$_HI_LS_BIN"`) is a user-facing dial with
 # no question behind it, and the suffix is what tells those from the file's
 # own state (`_HI_SESSION_RC`, `_HI_CLEANUP`, `_HI_CONFIG_DIR`). Minus
@@ -679,7 +679,7 @@ function _hi_settings_roster() {
       "$_HI_ROOT/scripts/configure.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
     sed -n 's/^ *_hi_collect_value "\{0,1\}\(_HI_[A-Z0-9_]*\)"\{0,1\} .*/\1/p' \
       "$_HI_ROOT/scripts/configure.sh" | grep -v '_$'
-    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/config/aliases.sh" |
+    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/common/aliases.sh" |
       grep -oE '_HI_[A-Z0-9_]+'
   } | sort -u | grep -vxF -f <(_hi_settings_not_settings "$_HI_ROOT/docs/SETTINGS.md")
 }

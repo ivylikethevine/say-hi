@@ -73,11 +73,12 @@ _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-'
   'colors|_HI_COLORS|tree|-'
   'packages|_HI_PACKAGES|tree|-'
-  'vimrc|_HI_VIMRC|tree|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
-  'init.lua|_HI_NVIMRC|tree|"$_HI_XDG_CONFIG/nvim/init.lua"'
-  'nanorc|_HI_NANORC|tree|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
-  'init.el|_HI_EMACSRC|tree|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
-  'config.toml|_HI_HELIXRC|tree|"$_HI_XDG_CONFIG/helix/config.toml"'
+  'vimrc|_HI_VIMRC|-|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
+  'init.lua|_HI_NVIMRC|-|"$_HI_XDG_CONFIG/nvim/init.lua"'
+  'nanorc|_HI_NANORC|-|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
+  'init.el|_HI_EMACSRC|-|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
+  'config.toml|_HI_HELIXRC|-|"$_HI_XDG_CONFIG/helix/config.toml"'
+  'kakrc|-|-|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
   'aliases.sh|-|-|"$HOME/.aliases"'
   'plugins.d|_HI_PLUGINS_D|-|-'
   'bashrc|-|-|-'
@@ -164,7 +165,21 @@ function _hi_session_env() {
   printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
   _hi_prompt_list >/dev/null
   printf '_HI_PROMPT_TOOL\t%s\n' "$_HI_PROMPT_LIST_MEMO"
+  # the client's own editors, for load.sh's _hi_session_editor to try first
+  local _hi_se_v
+  ! _hi_cmd_name "${EDITOR:-}" _hi_se_v || printf '_HI_CLIENT_EDITOR\t%s\n' "$_hi_se_v"
+  ! _hi_cmd_name "${VISUAL:-}" _hi_se_v || printf '_HI_CLIENT_VISUAL\t%s\n' "$_hi_se_v"
   _hi_client_verdicts '%s\t%s\n'
+}
+
+# _hi_cmd_name <command line> <outvar> - its command's bare name, false when
+# that is not a plain word: $EDITOR and $VISUAL ride by name alone, since a
+# path or a flag names something of this machine's
+function _hi_cmd_name() {
+  local _hi_cn_v="${1%% *}"
+  _hi_cn_v="${_hi_cn_v##*/}"
+  case "$_hi_cn_v" in '' | *[!A-Za-z0-9._+-]*) return 1 ;; esac
+  printf -v "$2" '%s' "$_hi_cn_v"
 }
 
 # _hi_client_verdicts <format> - the *client's* glyph and 24-bit verdicts
@@ -385,7 +400,7 @@ function _hi_overlay_home() {
   esac
   if [ "$_hi_oh_v" != - ] && [ "${1#*/}" = "$1" ]; then
     _hi_oh_c="${!_hi_oh_v:-}"
-    [ -f "$_hi_oh_c" ] && [ "$_hi_oh_c" != "$_HI_ROOT/config/$1" ] && [ "$_hi_oh_c" != "$_HI_CONFIG_DIR/$1" ] || return 1
+    [ -f "$_hi_oh_c" ] && [ "$_hi_oh_c" != "$_HI_CONFIG_DIR/$1" ] || return 1
     _hi_out "${2:-}" "$_hi_oh_c"
     return 0
   fi
@@ -432,7 +447,7 @@ function _hi_ssh_tags_file() {
 }
 
 # _hi_tool_here <member> - is the tool that reads <member> on this machine?
-# The names config/aliases.sh gates each alias on; a member of no tool's
+# The names common/aliases.sh gates each alias on; a member of no tool's
 # (and a prompt program's, which _hi_prompt_list already asked about) is a yes.
 # The client is asked because only it can be, before a connect
 # (docs/INTEGRATIONS.md's _Which side is asked_).
@@ -440,9 +455,10 @@ function _hi_tool_here() {
   case "$1" in
   vimrc) command -v vim ;;
   init.lua) command -v nvim ;;
-  config.toml) command -v hx ;;
+  config.toml) command -v hx || command -v helix ;;
   nanorc) command -v nano ;;
   init.el) command -v emacs ;;
+  kakrc) command -v kak ;;
   tmux.conf) command -v tmux ;;
   screenrc) command -v screen ;;
   micro/*) command -v micro ;;
@@ -453,7 +469,7 @@ function _hi_tool_here() {
 }
 
 # The include scanner, in the dialect of each file it reads. Every member
-# ships into an `overlay/` of its own, so a line naming a *path* - a second rc
+# ships into the target's `config/`, so a line naming a *path* - a second rc
 # beside it, a plugin directory, a manager's bootstrap - names something no
 # target has, and the editor or shell fails on it rather than hi. The
 # grammars, and what is deliberately left alone:
@@ -474,12 +490,12 @@ function _hi_tool_here() {
 #           matching nothing costs the whole rcfile - nano says "Mistakes in
 #           '<rcfile>'" on the status bar and rings the bell. The path is
 #           read as one word, so a trailing comment cannot fool the rule.
-#           config/nanorc reasons the same thing out by hand in a comment,
-#           for hi's own copy; this is that rule for yours.
 #   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
 #           of tpm). Line-oriented, but a finding ending in `\` takes its
 #           continuation lines with it.
 #   screen  `source` of a file.
+#   kak     `source` of anything but %val{runtime}'s (the target's own), and
+#           the managers (plug.kak's `plug`, kak-bundle's `bundle`).
 #   kdl     zellij's `layout_dir`/`theme_dir` (its own layouts/ and themes/
 #           ride beside config.kdl) and a plugin `location="file:..."`.
 #   omp     oh-my-posh's `extends` naming a local file; a URL or a theme name
@@ -584,6 +600,9 @@ function kindof(s,   v) {
     if (s ~ /(^|[ \t;{"'])source(-file)?[ \t]/) return "include"
   } else if (screen) {
     if (s ~ /^[ \t]*source[ \t]/) return "include"
+  } else if (kak) {
+    if (s ~ /^[ \t]*(plug|bundle)[ \t]/ || s ~ /(plug|bundle)\.kak/) return "plugin"
+    if (s ~ /(^|[ \t;{])source[ \t]/ && s !~ /%val\{runtime\}/) return "include"
   } else if (kdl) {
     if (s ~ /^[ \t]*(layout_dir|theme_dir)[ \t]/) return "include"
     if (s ~ /location[ \t]*=[ \t]*"file:/) return "plugin"
@@ -610,7 +629,7 @@ function kindof(s,   v) {
 FNR == 1 {
   close(out); out = FILENAME ".lint"; depth = allow = quiet = 0
   vim = (name == "vimrc"); el = (name == "init.el"); lua = (name ~ /\.lua$/); nano = (name == "nanorc"); tmux = (name == "tmux.conf")
-  screen = (name == "screenrc"); kdl = (name ~ /\.kdl$/)
+  screen = (name == "screenrc"); kdl = (name ~ /\.kdl$/); kak = (name == "kakrc")
   sh = (name ~ /\.(sh|bash|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
   json = (name ~ /\.json$/)
   fwv = (name == "oh-my-zsh.zsh-theme") ? "|ZSH" : (name == "oh-my-bash.theme.sh") ? "|OSH" : (name == "bash-it.theme.bash") ? "|BASH_IT" : ""
@@ -637,9 +656,7 @@ AWK
 }
 
 # _hi_include_lint - every finding in the overlay members that would actually
-# ship, one row each (see _hi_lint_awk). Nothing for an editor rc that is hi's
-# own tree copy, which _hi_overlay_src declines to pack and which has no
-# includes to begin with.
+# ship, one row each (see _hi_lint_awk).
 function _hi_include_lint() {
   local f src prog
   prog="$(_hi_lint_awk)"
@@ -912,7 +929,7 @@ function _hi_overlay_bytes() {
 
 # _hi_overlay_bytes armored into the line that unpacks it on the target.
 function _hi_overlay_stream() {
-  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar -x -m -z -f - -C "$_HI_ROOT/overlay"'
+  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar -x -m -z -f - -C "$_HI_ROOT/config"'
 }
 
 # The comment stripper every payload file goes through: their prose headers
@@ -988,9 +1005,7 @@ function _hi_die() {
 # _hi_payload_excl <member...> - the tree files those overlay members shadow
 # (GLOSSARY: HI.41), into the caller's $payload_excl: one copy on the wire,
 # not the default beside the file that beats it. Only a member that ships
-# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing. A
-# default whose tool this machine lacks goes too, the home tier's own gate
-# (_hi_tool_here): an editor you do not use here gets no config there.
+# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
 function _hi_payload_excl() {
   local f
   payload_excl=()
@@ -1000,10 +1015,6 @@ function _hi_payload_excl() {
     *" say-hi/config/$f "*) ;;
     *" $f "*) payload_excl+=("say-hi/config/$f") ;;
     esac
-  done
-  for f in $_HI_OVERLAY_SHADOWS; do
-    case " ${payload_excl[*]-} " in *" say-hi/config/$f "*) continue ;; esac
-    _hi_tool_here "$f" || payload_excl+=("say-hi/config/$f")
   done
 }
 
@@ -1346,9 +1357,9 @@ function _hi_fallback_rc() {
     _hi_client_verdicts 'export %s=%s\n'
     printf '. %s/aliases.sh 2>/dev/null\n' "$aliases_dir"
   else
-    printf 'export _HI_CONFIG_DIR=$_HI_ROOT/overlay\n'
-    printf '[ -f $_HI_ROOT/overlay/settings.sh ] && . $_HI_ROOT/overlay/settings.sh\n'
-    printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/config/aliases.sh 2>/dev/null\n'
+    printf 'export _HI_CONFIG_DIR=$_HI_ROOT/config\n'
+    printf '[ -f $_HI_ROOT/config/settings.sh ] && . $_HI_ROOT/config/settings.sh\n'
+    printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/common/aliases.sh 2>/dev/null\n'
   fi
   # no $CMDARG here: the two helpers below hand it to each shell the way that
   # shell honours it (GLOSSARY: HI.23)
@@ -1582,7 +1593,7 @@ function _hi_remote_middle() {
   cat <<REMOTE
       export _HI_HOME=\$(mktemp -d -t $tmpl) # busybox mktemp needs exactly six X
       export _HI_ROOT=\$_HI_HOME/say-hi
-      export _HI_CONFIG_DIR=\$_HI_ROOT/overlay
+      export _HI_CONFIG_DIR=\$_HI_ROOT/config
       export _HI_CLEANUP=\$_HI_HOME
       mkdir "\$_HI_ROOT"
       trap 'rm -rf \$_HI_CLEANUP' exit
@@ -1656,7 +1667,7 @@ function _say_hi() {
   tree="$(_hi_payload_stream)"
   # the overlay's own stream, omitted when empty (GLOSSARY: HI.41)
   if ((${#overlay[@]})); then
-    overlay_line="mkdir -p \"\$_HI_ROOT/overlay\"
+    overlay_line="mkdir -p \"\$_HI_ROOT/config\"
 $(_hi_overlay_stream "${overlay[@]}")"
   fi
   size="$_HI_SIZE_TOKEN"
@@ -1928,7 +1939,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 
   if ((${#overlay[@]})) &&
     ! _hi_overlay_bytes "${overlay[@]}" |
-    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/overlay' && tar -x -m -z -f - -C '$root/say-hi/overlay'" 2>"$tmp"; then
+    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
     # the defaults that overlay shadowed were cut from the tree above
     ! ((${#payload_excl[@]})) || tar -c -f - -C "$_HI_HOME" "${payload_excl[@]}" |
@@ -1955,7 +1966,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   # _hi_now is a subshell and a `date` fork on the line before the attach
   local now
   now="$(_hi_now)"
-  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/overlay' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$now")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$now")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
+  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$now")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$now")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?
 
   _hi_container_cleanup

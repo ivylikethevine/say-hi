@@ -1,6 +1,6 @@
 # The editors demo, as the developer on a shared dev box sees it: maya, zsh
-# on her mac, into the team's debian. nano with hi's nanorc, vim with hi's
-# vimrc. Render with
+# on her mac, into the team's debian. nano and vim with the nanorc and vimrc
+# her overlay carries (docs/tapes/editors/). Render with
 # `vhs docs/tapes/editors.tape` from the repo root, docker running, hi on
 # PATH. CI renders it too (demos.yml).
 #
@@ -46,13 +46,13 @@ Enter
 Wait+Screen@60s /hi loaded with/
 Sleep 2s
 
-Type "nano ~/app/app.conf   # hi's nanorc, on a box that has none"
+Type "nano ~/app/app.conf   # my nanorc, on a box that has none"
 Enter
 Sleep 4s
 Ctrl+X
 Sleep 1s
 
-Type "vim ~/app/main.py   # hi's vimrc: syntax on"
+Type "vim ~/app/main.py   # my vimrc: syntax on"
 Enter
 Sleep 4s
 Type ":q"

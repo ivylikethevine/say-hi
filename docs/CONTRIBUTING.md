@@ -153,7 +153,7 @@ These are constraints the tree enforces, not requests:
   pattern can see.
 - **Several files are a smaller dialect than bash, and say so at the top.**
   `common/paths.sh` is the four-shell plain-`export` subset,
-  `config/aliases.sh` what bash, zsh, and fish all parse, and
+  `common/aliases.sh` what bash, zsh, and fish all parse, and
   `common/targets.sh` standalone POSIX. The stated subset wins over anything
   cleaner.
 - **Nothing may guess the tree from `$HOME`.** Each entry point derives it from
@@ -214,7 +214,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
   `packages`, `plugins.d/` and its hook names,
-  `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`, `tmux.conf`,
+  `vimrc`, `init.lua`, `config.toml`, `kakrc`, `nanorc`, `init.el`, `tmux.conf`,
   `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,
   `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,

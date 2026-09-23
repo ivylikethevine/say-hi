@@ -501,7 +501,7 @@ function test_load_greets_the_chosen_shell() {
   return 1
 }
 
-# VIMINIT is how hi's vimrc reaches the session without touching ~/.vimrc; a
+# VIMINIT is how the carried vimrc reaches the session without touching ~/.vimrc; a
 # faked vim on a prepended PATH makes "vim installed" true on any box. The
 # session shell itself reads the variable back, since load() exports it for
 # exactly that shell to inherit.
@@ -673,6 +673,12 @@ function test_load_disable_header_skips_the_banner() {
 
 function run_load_tests() {
   _hi_workdir loadtest
+  # the editor configs an overlay carried in, for load() to hand the session
+  mkdir -p "$_HI_WORKDIR/overlay"
+  : >"$_HI_WORKDIR/overlay/vimrc"
+  : >"$_HI_WORKDIR/overlay/init.lua"
+  : >"$_HI_WORKDIR/overlay/nanorc"
+  export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
 
   _hi_h1 "Testing load.sh"
 
@@ -743,6 +749,10 @@ EOF
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$_HI_WORKDIR/withvimonly/vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
   _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_NVIMRC|" _HI_EDITOR=no-such-editor
+  _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
+  _hi_check "...one set stands in for the other" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=nano --rcfile $_HI_NANORC|" _HI_CLIENT_EDITOR=nano
+  _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|" _HI_CLIENT_EDITOR=no-such-editor
+  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -mkparents true -diffgutter true|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
   _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"

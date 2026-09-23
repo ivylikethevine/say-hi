@@ -420,7 +420,7 @@ function _hi_config_preview() {
 }
 
 # what each editor alias actually resolves to with the override on - read
-# back from config/aliases.sh itself (the overlay's copy on a target)
+# back from common/aliases.sh itself (the overlay's copy on a target)
 # rather than restated here, so a box with neither nvim nor vim, say, shows
 # nothing for that line instead of a resolved command that was never real. A
 # subshell: nothing this defines should survive past the preview.
@@ -432,10 +432,10 @@ function _hi_editors_preview() {
     # _hi_tool_alias_preview's own export below sourcing the same file
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this subshell
-    # shellcheck source=../config/aliases.sh
+    # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     local e body
-    for e in nano vim nvim emacs micro hx; do
+    for e in nano vim nvim emacs micro hx helix; do
       body="$(alias "$e" 2>/dev/null)" || continue
       eval "body=${body#*=}"
       printf '%-5s -> %s\n' "$e" "$body"
@@ -444,7 +444,7 @@ function _hi_editors_preview() {
 }
 
 # what `cat` and `eza` resolve to with the rebinds on - read back from
-# config/aliases.sh itself (the same trick _hi_editors_preview uses above)
+# common/aliases.sh itself (the same trick _hi_editors_preview uses above)
 # rather than restated here, so a BAT_CONFIG_PATH that drops --theme, say,
 # shows up here too instead of drifting from what a real session gets. The
 # resolution caches into _HI_*_BIN/_HI_*_OPTS on export, so those are cleared
@@ -455,7 +455,7 @@ function _hi_tool_alias_preview() {
     _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
     _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
-    # shellcheck source=../config/aliases.sh
+    # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     if [ -n "$_HI_BAT_BIN" ]; then
       printf 'cat -> %s %s\n' "$_HI_CAT_BIN" "$_HI_BAT_OPTS"
@@ -518,21 +518,22 @@ declare -a _HI_SETTING_LINES=()
 # off-value, on writes nothing) and set for an opt-in (on writes it, off
 # writes nothing) - setting_on has the rule. <preview-fn> is boxed under the
 # menu after the row flips, for what the menu's own preview does not show.
-# <needs> names a command the setting is moot without: the menu says so
-# beside it. <label> is the menu's name for it, and its part before " - " is
-# what the flip reports. Adding a setting is one row, and every
+# <needs> names a command the setting is moot without (`a/b` for either of
+# two): the menu says so beside it. <label> is the menu's name for it, and its
+# part before " - " is what the flip reports. Adding a setting is one row, and every
 # `_HI_*_PROMPTS` table is what tests/lint's settings-table check reads.
 _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HEADER|1||||connect/disconnect header - off hides every row below"
   "_HI_DISABLE_GREETING|1||||greeting - the \"hi loaded with...\" line and its timers"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status - the branch and its changes"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment - (myproj) for a venv, ..."
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix"
-  "_HI_DISABLE_VIM|1||||vim and nvim - hi's vimrc and init.lua"
-  "_HI_DISABLE_NANO|1|||nano|nano - hi's nanorc"
-  "_HI_DISABLE_EMACS|1|||emacs|emacs - hi's init file"
+  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix, kak"
+  "_HI_DISABLE_VIM|1||||vim and nvim - your carried vimrc and init.lua"
+  "_HI_DISABLE_NANO|1|||nano|nano - your carried nanorc"
+  "_HI_DISABLE_EMACS|1|||emacs|emacs - your carried init file"
   "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
-  "_HI_DISABLE_HELIX|1|||hx|helix - hi's config.toml"
+  "_HI_DISABLE_HELIX|1|||hx/helix|helix - your carried config.toml"
+  "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - your carried kakrc"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
   "_HI_DISABLE_LOCAL|1||||here too - all of the above on this machine, not just where you hi"
@@ -787,7 +788,7 @@ function _hi_menu_value() {
 # applies wherever the command exists. The help after " - " is what gives way
 # to a narrow terminal; the name, the note, and "(default ...)" stay.
 function _hi_menu_row() {
-  local var off on needs label state def name help="" note="" dnote="" room
+  local var off on needs alt label state def name help="" note="" dnote="" room
   local -a rows=()
   _hi_prompt_rows "$1" rows
   IFS='|' read -r var off on _ needs label <<<"${rows[$2]}"
@@ -795,8 +796,12 @@ function _hi_menu_row() {
   # a default-on toggle has no on-value; an opt-in has one
   [ -z "$on" ] && def=1 || def=0
   name="${label%% - *}"
-  if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
-    note=" (no $needs here)"
+  # <needs> may name alternatives, `hx/helix`: any one of them is enough
+  if [ -n "$needs" ]; then
+    note=" (no ${needs%%/*} here)"
+    for alt in ${needs//\// }; do
+      ! command -v "$alt" >/dev/null 2>&1 || note=""
+    done
   fi
   [ "$state" = "$def" ] || { [ "$def" = 1 ] && dnote=" (default on)" || dnote=" (default off)"; }
   # "  NN) [x] " is ten columns

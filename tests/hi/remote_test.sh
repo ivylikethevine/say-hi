@@ -56,7 +56,7 @@ function test_fallback_rc_sources_paths_and_aliases() {
   local out
   out="$(CMDARG="" _hi_fallback_rc)"
   # shellcheck disable=SC2016 # same as above - $_HI_ROOT is the target's to expand
-  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/config/aliases.sh'* ]]
+  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/common/aliases.sh'* ]]
 }
 
 # The command is NOT in the shared rc - fish reads that file through
@@ -95,7 +95,7 @@ function test_remote_suffix_without_a_command_adds_nothing() {
 # settings ahead of paths.sh - paths.sh's local-only gate reads them, so lines
 # arriving after it would be set too late to have any effect
 function test_fallback_rc_sources_settings_before_paths() {
-  _hi_before "$(CMDARG="" _hi_fallback_rc)" 'overlay/settings\.sh' 'common/paths\.sh'
+  _hi_before "$(CMDARG="" _hi_fallback_rc)" 'config/settings\.sh' 'common/paths\.sh'
 }
 
 # bash reads an --rcfile only when it is interactive, and decides that from its
@@ -175,6 +175,18 @@ function test_session_env_tags_a_user_at_host_target() {
   DOMAIN=deploy@taggedbox _HI_SSH_CONFIG="$cfg" _hi_session_env | grep -qx "$(printf '_HI_TARGET_TAG\tprod')"
 }
 
+# the client's $EDITOR and $VISUAL ride by command name alone: no path, no
+# flag, and nothing that is not a plain name
+function test_session_env_carries_the_editor_names() {
+  local out
+  out="$(DOMAIN=host EDITOR='/usr/bin/nvim -p' VISUAL='hx' _hi_session_env)"
+  printf '%s\n' "$out" | grep -qx "$(printf '_HI_CLIENT_EDITOR\tnvim')" &&
+    printf '%s\n' "$out" | grep -qx "$(printf '_HI_CLIENT_VISUAL\thx')" || return 1
+  # shellcheck disable=SC2016 # the literal text is the point
+  out="$(DOMAIN=host EDITOR='$(true)' VISUAL='' _hi_session_env)"
+  [[ "$out" != *_HI_CLIENT_* ]]
+}
+
 # Every value the preamble exports is data the client picked up rather than
 # code it wrote: $_HI_LOCAL_HOSTNAME off `hostname`, $_HI_TARGET_TAG out of a
 # free-text ssh_config comment, $_HI_RELEASE off `git describe`. Interpolated
@@ -248,10 +260,10 @@ function test_term_fallback_keeps_a_term_with_terminfo() {
 # not ${XDG_CONFIG_HOME:-...}: a ~/.config/say-hi belonging to whoever we logged
 # in as is not the config this session was asked to run with. It must also not
 # be config/, which holds the *shipped* aliases.sh - pointed there,
-# config/aliases.sh's tail line sources itself forever.
+# common/aliases.sh's tail line sources itself forever.
 function test_fallback_rc_points_config_dir_at_the_overlay() {
   # shellcheck disable=SC2016 # $_HI_ROOT is the target's to expand, not ours
-  [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/overlay'* ]]
+  [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]]
 }
 
 # The bootstrap directory is the *target's* to name. A client-side
@@ -397,6 +409,7 @@ function run_hi_remote_tests() {
   _hi_check "The preamble ships the glyph verdict" test_remote_preamble_ships_the_glyph_verdict
   _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
   _hi_check "user@host exports the host's tag" test_session_env_tags_a_user_at_host_target
+  _hi_check "\$EDITOR and \$VISUAL ride by name alone" test_session_env_carries_the_editor_names
 
   _hi_h2 "Testing: what the client bakes in stays data"
   _hi_check_eq "A hostile hostname survives the ssh preamble" "$_HI_MEAN" _hi_preamble_env_value _HI_LOCAL_HOSTNAME

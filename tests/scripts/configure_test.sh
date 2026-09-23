@@ -335,6 +335,10 @@ _HI_FLOOR_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the editor rcs an overlay carries, the only ones common/aliases.sh flags
+  mkdir -p "$_hi_dir/overlay"
+  : >"$_hi_dir/overlay/nanorc"
+  _HI_NANORC="$_hi_dir/overlay/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -913,7 +917,7 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
 }
 
-# every editor is presence-gated in config/aliases.sh itself (a box without
+# every editor is presence-gated in common/aliases.sh itself (a box without
 # the tool leaves its alias undefined), which _hi_editors_preview reads rather
 # than restates - so each line only needs to be there when the tool is.
 function test_editors_preview_names_every_override() {
@@ -923,7 +927,7 @@ function test_editors_preview_names_every_override() {
     [[ "$out" == *"nano --rcfile $_HI_NANORC"* ]] || return 1
   fi
   if command -v emacs >/dev/null 2>&1; then
-    [[ "$out" == *"emacs -q -l $_HI_EMACSRC"* ]] || return 1
+    [[ "$out" == *"emacs -nw -q -l $_HI_EMACSRC"* ]] || return 1
   fi
   if command -v micro >/dev/null 2>&1; then
     [[ "$out" == *"micro -> micro -backup false"* ]] || return 1
@@ -941,7 +945,7 @@ function test_editors_preview_names_every_override() {
 }
 
 # vim has no second spelling left to drift out of step:
-# _hi_editors_preview sources config/aliases.sh itself and reads the alias
+# _hi_editors_preview sources common/aliases.sh itself and reads the alias
 # back (same trick as load.sh's _hi_session_editor), so what pins them is
 # behaviour, not text - the preview's line for <tool> must be exactly what
 # sourcing the alias produces. tests/config/alias_fallthrough_test.sh keeps
@@ -951,7 +955,7 @@ function test_editor_preview_matches_its_alias() {
   from_alias="$(
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this $( )
-    # shellcheck source=/dev/null # config/aliases.sh, or the copy in the overlay
+    # shellcheck source=/dev/null # common/aliases.sh, or the copy in the overlay
     # (no apostrophe in a comment inside a $( ): bash 3.2 reads it as a quote)
     source "$_HI_ALIASES" >/dev/null 2>&1
     alias "$tool" 2>/dev/null
@@ -1100,6 +1104,10 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the editor rcs an overlay carries, the only ones common/aliases.sh flags
+  mkdir -p "$_hi_dir/overlay"
+  : >"$_hi_dir/overlay/nanorc"
+  _HI_NANORC="$_hi_dir/overlay/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -1504,6 +1512,13 @@ function test_menu_value_shows_its_default() {
 
 function run_configure_tests() {
   _hi_workdir configuretest
+  # the editor configs an overlay carries: without them no editor has an alias
+  # for the previews to read back
+  mkdir -p "$_HI_CONFIG_DIR"
+  local _hi_f
+  for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_CONFIG_DIR/$_hi_f"; done
+  export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc" _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua" _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml" \
+    _HI_NANORC="$_HI_CONFIG_DIR/nanorc" _HI_EMACSRC="$_HI_CONFIG_DIR/init.el"
 
   _hi_h1 "Testing scripts/configure.sh's reusable logic"
 

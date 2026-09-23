@@ -28,7 +28,7 @@ source "$_HI_HOME/say-hi/common/core.sh"
 source "$_HI_GIT_PROMPT"
 # shellcheck source=./env_prompt.sh
 source "$_HI_ENV_PROMPT"
-# shellcheck source=../config/aliases.sh
+# shellcheck source=../common/aliases.sh
 source "$_HI_ALIASES"
 _hi_load_plugins
 

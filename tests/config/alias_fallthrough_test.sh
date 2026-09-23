@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# The two pieces of config/aliases.sh that alias_test.sh doesn't cover: the
+# The two pieces of common/aliases.sh that alias_test.sh doesn't cover: the
 # `command -v a || command -v b || ...` fallthrough chains, and the
 # _HI_DISABLE_* guards that skip parts of the file. The split from
 # alias_test.sh is deliberate and considered-and-kept (2026-08): that suite
@@ -14,7 +14,7 @@
 # It also guards the reason it exists: in zsh, dash, and sh (not bash, not
 # fish) `command -v name` returns an *alias's* definition once one exists, so
 # any chain reachable from an aliased name would silently break - see
-# the resolve-before-aliasing block at the top of config/aliases.sh.
+# the resolve-before-aliasing block at the top of common/aliases.sh.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
@@ -348,12 +348,13 @@ function _hi_run_scenario() {
   fi
 
   t0="$(_hi_now)"
-  # the editor aliases are gated on their rc being there, so each is a file
+  # the editor aliases are gated on their rc being there, so each is a file,
+  # and on it being hi's, so the workdir is the overlay that holds them
   touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el"
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
-    _HI_ROOT="$_HI_ROOT" \
+    _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$_HI_WORKDIR" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/init.el" \
     _HI_NVIMRC="$_HI_WORKDIR/init.lua" _HI_HELIXRC="$_HI_WORKDIR/config.toml" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
@@ -395,7 +396,7 @@ function run_fallthrough_tests() {
   done
 }
 
-# The convenience aliases are the tail of config/aliases.sh, so `sudo` is
+# The convenience aliases are the tail of common/aliases.sh, so `sudo` is
 # asserted *present* on both editor rows: the cheapest pin on the merged tail
 # being reached at all in three dialects. Its own guard is
 # _HI_DISABLE_SUDO_ALIAS, the third row.
@@ -528,8 +529,8 @@ function run_alias_fallthrough_test() {
   # the vim and bat/eza ladders moved to tests/scripts/configure_test.sh,
   # which already sources configure.sh to call _hi_editors_preview and
   # _hi_tool_alias_preview - both read their alias back from a real `source
-  # config/aliases.sh`, so nothing here can drift from it to pin - this
-  # suite only sources config/aliases.sh
+  # common/aliases.sh`, so nothing here can drift from it to pin - this
+  # suite only sources common/aliases.sh
   run_fallthrough_tests
   run_flag_tests
   run_tool_aliases_flag_tests

@@ -16,7 +16,7 @@ end
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS \
-    _HI_DISABLE_MICRO _HI_DISABLE_HELIX \
+    _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE \
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS \
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
@@ -69,7 +69,8 @@ set -e _HI_SEGMENT __hi_f
 set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
-    _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_ASCII _HI_TRUECOLOR
+    _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_CLIENT_EDITOR \
+    _HI_CLIENT_VISUAL _HI_ASCII _HI_TRUECOLOR
 function __hi_bash --description 'bash -c <script>, with the session values hi keeps out of the environment passed along'
   for __hi_n in $_HI_SESSION_VARS
     set -q $__hi_n; and set -fx $__hi_n $$__hi_n
@@ -145,7 +146,7 @@ set -gx fish_color_host_remote $fish_color_host
 
 # wrapper so aliases (functions, in fish) work under sudo; args ride fish's own
 # argv after --, never a re-parsed string - that invites injection. Off with
-# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as config/aliases.sh's sudo alias.
+# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as common/aliases.sh's sudo alias.
 if test "$_HI_DISABLE_SUDO_ALIAS" != 1
   function sudo
     if functions -q -- "$argv[1]"

@@ -461,69 +461,67 @@ skipping yellow when its tool isn't installed (CI has all nine):
 - **7. checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
   really do parse on minimal targets.
 - **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`).
-- **9–11. The shipped editor rcs**, each loaded by its editor the way the alias
-  does: `config/vimrc` under `vim -u … -es`, `config/init.lua` under
-  `nvim --headless -u`, `config/init.el` under `emacs --batch -q -l`. The
-  payload suites treat those files as bytes, so a syntax error would otherwise
-  ride the wire to every target.
-- **12. typos** over the whole tree, allowlisted by `.typos.toml`.
-- **13. markdownlint** (markdownlint-cli2, rules in `.markdownlint.yaml`)
+- **9. The editors demo's vimrc** (`docs/tapes/editors/vimrc`), loaded under
+  `vim -u … -es` the way the alias does, so a syntax error shows here rather
+  than on the recording.
+- **10. typos** over the whole tree, allowlisted by `.typos.toml`.
+- **11. markdownlint** (markdownlint-cli2, rules in `.markdownlint.yaml`)
   over the Markdown git knows about, tracked or new.
-- **14. prettier --check** over the same list, style in `.prettierrc.yaml`,
+- **12. prettier --check** over the same list, style in `.prettierrc.yaml`,
   skipping `.prettierignore`'s files. Fix with `prettier --write` on the paths
   it names.
 
 **`drift`** (`tests/lint/drift_test.sh`) — sixteen repo-consistency sweeps,
 each checking that something written down elsewhere still agrees with the tree:
 
-- **15. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
+- **13. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
   `${x,,}`, `wait -n`, or `${!a[@]+…}` — each explained in [GLOSSARY.md](GLOSSARY.md) by its
   `GLOSSARY: HI.NN` tag.
-- **16. One-userland spellings**: [SYNTAX.md](SYNTAX.md)'s enforced rows -
+- **14. One-userland spellings**: [SYNTAX.md](SYNTAX.md)'s enforced rows -
   `echo -e`, `sed -r` and `-i`, `grep -P`, `readlink -f`, `xargs -r`,
   `head -n -N`, `date %-X`, gawk-only functions, `mktemp -t` with no X's, and
   basic-sed alternation.
-- **17. Paired spellings**: `stat -c` only beside its `stat -f` twin, and
+- **15. Paired spellings**: `stat -c` only beside its `stat -f` twin, and
   strict mode switched off again in every file an interactive shell sources
   ([HI.15](GLOSSARY.md#hi15-strict-mode-bracketing)).
-- **18. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
+- **16. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
   derives the say-hi tree — over `*.zsh`, `*.fish`, and `*.md` too, since the
   docs teach the rule as much as the code obeys it.
-- **19. Ignored payload**: no file the payload or a package ships is one
+- **17. Ignored payload**: no file the payload or a package ships is one
   `.gitignore` swallows, asked of git itself — the suites read the working
   tree, so nothing else would notice it never reached a commit.
-- **20. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
+- **18. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
   GLOSSARY.md defines, and every entry is referenced; matched by code, not
   title.
-- **21. The settings roster**: every name the tree treats as a setting
+- **19. The settings roster**: every name the tree treats as a setting
   (`_HI_TOGGLES`, the `_HI_*_PROMPTS` tables) has a row in
   [SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and every row names a
   variable the tree still reads.
-- **22. The docker-compatible family**: `common/core.sh`'s
+- **20. The docker-compatible family**: `common/core.sh`'s
   `$_HI_CONTAINER_CLIS` and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file
   can read the other.
-- **23. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
+- **21. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
   `common/targets.sh`'s cache directory build the same path, with the same
   ownership guards, in their two dialects.
-- **24. Liquid syntax**: no page the Pages build renders may carry a raw
+- **22. Liquid syntax**: no page the Pages build renders may carry a raw
   Liquid delimiter outside a guarded span — Liquid tokenizes before Markdown,
   so a fence gives no shelter.
-- **25. Site links**: a relative link on a page the site builds lands on a
+- **23. Site links**: a relative link on a page the site builds lands on a
   page the site builds too, not a dot-path or anything `_config.yml` excludes
   (which renders on GitHub and 404s on Pages); link those as absolute
   github.com URLs.
-- **26. Contents blocks**: in every rendered page, each `##` and `###` heading
+- **24. Contents blocks**: in every rendered page, each `##` and `###` heading
   has an entry in that doc's `## Contents` list and each entry names a real
   heading, an `###`'s entry indented under an `##`'s. just-the-docs runs with
   no front matter here, so these lists are the site's only in-page navigation.
-- **27. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **25. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples (the upstream cap).
-- **28. tests/dockerfiles/**: every image definition has a caller and vice
+- **26. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **29. Image tags**: every plain image tag named in shell or YAML is one of
+- **27. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **30. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
+- **28. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
   its digest — check 29 strips digests before comparing, so it can't see one
   tag pinned two ways.
 

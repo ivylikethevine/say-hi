@@ -2,7 +2,7 @@
 
 say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
-**fish** (which parses `common/paths.sh`, `config/aliases.sh`, and
+**fish** (which parses `common/paths.sh`, `common/aliases.sh`, and
 `settings.sh` natively). Targets also split between **GNU and BSD userlands**.
 Each entry is a construct that looks odd until you know which master it serves.
 
@@ -169,7 +169,7 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 ## HI.13 command -v fallthrough
 
 `export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)"` in
-`config/aliases.sh` (shown without its `[ -z ] &&` guard and the
+`common/aliases.sh` (shown without its `[ -z ] &&` guard and the
 alias-clearing prefix below), with the aliases built on the result: resolved at
 source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every
 target has, so no alias points at a missing one.
@@ -277,7 +277,7 @@ that shell's own arm. Toggle defaults come first so the files after them still
 win. `_HI_REMOTE_SESSION=1` is exported because this path never reaches
 `load.sh`. `settings.sh` keeps its `[ -f ]` guard because a bare `.` on a
 missing file abandons the rest of the file in ash/dash. `_HI_CONFIG_DIR` points
-at the target's own `overlay/`, where the shipped overlay was unpacked.
+at the target's own `config/`, where the shipped overlay was unpacked.
 
 ## HI.21 baked prompt
 
@@ -649,10 +649,12 @@ quoting is one decision rather than one per transport.
 
 The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) lives outside the
 tree, so it travels as a second, much smaller archive rather than inside the
-payload. It lands in an `overlay/` of its own beside `config/`, with
-`$_HI_CONFIG_DIR` pointing there, never over `config/`: `config/aliases.sh`
-sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
-source itself forever. It is omitted when there is nothing to send.
+payload. It unpacks into the tree's `config/`, over the defaults it shadows
+(which the payload already left out), and `$_HI_CONFIG_DIR` is that
+directory: one place a session reads config from. hi's own aliases are
+`common/aliases.sh`, so the user's `aliases.sh` shares `config/` with nothing;
+`common/aliases.sh` still refuses to source a `$_HI_CONFIG_DIR/aliases.sh` that
+is itself. It is omitted when there is nothing to send.
 
 The prompt programs' configs, eza's `theme.yml`, and bat's `bat.conf` ride it
 so a tool's config on every target is the one in force at home:
@@ -684,9 +686,7 @@ OpenBSD's tar lacks. Only a caller holding the list cuts anything:
 container arm, where the two archives travel separately, sends the defaults
 after all when the overlay's copy fails. A file still under a pre-1.0 name
 (`$_HI_OVERLAY_RENAMES`) is not a member, so it cuts nothing and the default
-it no longer overrides keeps riding. A default whose tool the client lacks is cut the same way, by the
-home tier's own gate (`_hi_tool_here`, [HI.61](#hi61-one-overlay-priority)):
-no emacs here, no `init.el` there. The target's aliases and `$VIMINIT` ask
+it no longer overrides keeps riding. The target's aliases and `$VIMINIT` ask
 for the rc file as well as the binary, so a box whose editor got no config
 keeps its own rather than an alias to a missing file.
 
@@ -767,7 +767,7 @@ Three variables are exported; which shell needs which is the design:
 `$ZDOTDIR` and `$ENV` reach any zsh or POSIX shell started inside the session,
 however it was started, including by something that is not a shell. bash and
 fish have no equivalent (`$BASH_ENV` is for _non_-interactive bash only), so
-`config/aliases.sh` defines a `bash` and a `fish` wrapper off
+`common/aliases.sh` defines a `bash` and a `fish` wrapper off
 `$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
 function of that name, and without it `fish` would call itself forever.
 
@@ -1107,24 +1107,27 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 ## HI.57 carried configs and the include scan
 
-hi carries a `vimrc`, `init.lua`, `nanorc`, `init.el`, and helix's
-`config.toml` to every target and starts the editor on it (`-u`, `--rcfile`,
-`-q -l`, `-c`), so the question is
+hi carries a `vimrc`, `init.lua`, `nanorc`, `init.el`, helix's `config.toml`,
+and kakoune's `kakrc` (through `$KAKOUNE_CONFIG_DIR`, since `kak -n` would
+drop its system kakrc too) to every target and starts the editor on it (`-u`, `--rcfile`,
+`-nw -q -l`, `-c`), so the question is
 which file - [HI.61](#hi61-one-overlay-priority)'s order answers it: the
 overlay's copy, then the config that editor already reads on this machine
 (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`, `~/.nanorc`, `~/.emacs`, ...,
-in the editor's own precedence), then the tree's. `tmux.conf` (`tmux -f`) and
-`screenrc` (`screen -c`) take the same tiers minus a tree copy, so with none
-the value is empty and the command has no alias; micro and zellij take a
-_directory_. The middle tier is [HI.32](#hi32-starship-deference)'s argument
+in the editor's own precedence). hi ships no editor config of its own, so with
+neither the value is empty and the command has no alias; `tmux.conf` (`tmux
+-f`) and `screenrc` (`screen -c`) take the same tiers, and micro and zellij
+take a _directory_. The alias names the file only when it is hi's - the
+overlay's copy, and anything on a target: the home tier is what the tool
+reads unasked, so `common/aliases.sh` leaves the command bare there rather
+than restate it (and `vim -u` would drop the system vimrc and
+`defaults.vim`). The middle tier is [HI.32](#hi32-starship-deference)'s argument
 applied to editors - one copy to edit, no duplicate in the overlay to keep in
-step. A value still equal to the tree's means there is no config to carry,
-and the tree's copy already rides the payload, so nothing goes in the overlay
-stream.
+step.
 
 Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into
-an `overlay/` of its own, so a line naming a _path_ - a
+the target's `config/`, so a line naming a _path_ - a
 second rc beside it, a plugin directory, a manager's bootstrap - names
 something no target has, and the editor or shell fails on it rather than hi.
 `hi.sh`'s `_hi_lint_awk` finds exactly those lines; the per-dialect grammar,
@@ -1174,7 +1177,7 @@ creates the parent, busybox's included.
 ## HI.59 plugins
 
 `plugins.d` is the one `.d` directory of [HI.58](#hi58-overlay-directory-members):
-each member is a plugin, a file in the POSIX+fish subset `config/aliases.sh`
+each member is a plugin, a file in the POSIX+fish subset `common/aliases.sh`
 keeps (`export`, `alias`, `&&` chains), so one file serves all three shells
 and something new - another tool's init, a prompt segment - rides to every
 target with no edit to the tree. `common/paths.sh` exports `$_HI_PLUGINS_D`
@@ -1247,7 +1250,7 @@ name arriving empty can reach the root of the disk again.
 
 Every overlay member resolves in one order, written once as `hi.sh`'s
 `$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
-else the tree's default. A row names the member, the `common/paths.sh`
+else the tree's default where `config/` holds one. A row names the member, the `common/paths.sh`
 variable that carries it to the shells (or `-`), whether `config/` holds a
 default (`$_HI_OVERLAY_SHADOWS` is derived from that column), and the home
 tier: candidate paths best first, a `@function` where no list can say it
@@ -1260,8 +1263,9 @@ having no loop, so it spells each row out a line per candidate, and
 variable, `_hi_overlay_home` reads its resolved value rather than the
 candidates, so there is one reading of the order at home and the drift test
 keeps the two spellings one. No setting reorders it. `hi --doctor`'s files
-section (`doctor_files`) walks the same rows, marking every location used,
-passed over, or absent, and why nothing is sent when something is there.
+section (`doctor_files`) walks the same rows, naming each member's tool and
+marking every location that holds something used or passed over, and why
+nothing is sent when something is there.
 
 The home tier is the config in force _here_: client-only, like every home
 read (a relay never packs the middle box's), and only with the member's tool
