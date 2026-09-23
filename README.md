@@ -334,7 +334,16 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
+1. [ ] **A blocked upstream shows as drift** — `check_tool_versions.sh`
+       prints `(could not read upstream releases)` for a row it cannot read
+       and counts no problem, and `tool-versions.yml` blocks egress to a
+       fixed host list, so a pin whose upstream lives on a host missing from
+       that list reads as fine forever. **Do:** count a problem when every
+       row served by one host went unread (a blocked host, not a one-off rate
+       limit), naming the host. **Ticks when:** a run with one upstream host
+       removed from `allowed-endpoints` opens the tracking issue naming it.
+
+2. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
        sweep (run 35670586612) left in the shipped files now has a test
        (`env_prompt.sh`, `stamp_badge.sh`, `configure.sh`, `core.sh`,
        `doctor.sh`, `hi.sh`) or is a blind spot `tests/coverage_v2.sh`'s
@@ -343,7 +352,7 @@ In this checkout, narrowest first.
        the first bashcov sweep on `main` after this lands reads no shipped
        line at 0 that is neither tested nor in that header.
 
-2. [ ] **No alias that only restates a tool's default** — at home,
+3. [ ] **No alias that only restates a tool's default** — at home,
        `common/paths.sh` resolves each tool's config to the file or
        directory the tool already reads (`~/.tmux.conf`, `~/.screenrc`,
        `~/.nanorc`, `~/.emacs.d/init.el`, `~/.config/micro`,
@@ -359,7 +368,7 @@ In this checkout, narrowest first.
        `zellij` unaliased, a suite asserts it, and the overlay and target
        cases still alias.
 
-3. [ ] **No editor alias that only restates the editor's default** — the
+4. [ ] **No editor alias that only restates the editor's default** — the
        editors' half of the entry above, split out because they fall back
        to hi's shipped rc (`config/vimrc`, `config/init.lua`,
        `config/config.toml`) where the others fall back to nothing. At home
@@ -375,7 +384,7 @@ In this checkout, narrowest first.
        unaliased, a suite asserts it, and the shipped-rc, overlay, and
        target cases still alias.
 
-4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+5. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -385,7 +394,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-5. [ ] **Investigate the header as plugins** — every header cell is one
+6. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing
