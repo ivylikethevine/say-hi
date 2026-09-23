@@ -28,7 +28,7 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # in-tree half. Each variable below is its member's row of hi.sh's
 # $_HI_OVERLAY_TABLE, the one order (GLOSSARY: HI.61), spelled out: the
 # overlay's copy, else the tool's own config on this machine, else the
-# tree's - re-derived on every source, so a child shell told
+# tree's where there is one - re-derived on every source, so a child shell told
 # `_HI_CONFIG_DIR=elsewhere` reads that overlay, and an exported path of your
 # own does not survive. A line per candidate, lowest priority first, since
 # this dialect has no if/elif and no ${var:-...} and the last assignment wins;
@@ -46,30 +46,31 @@ export _HI_PACKAGES="$_HI_ROOT/config/packages"
 # drop-in plugins, sourced after the aliases; the same only home (HI.59)
 export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
 # The editor rcs: within the home tier the editor's own precedence, reversed.
-export _HI_VIMRC="$_HI_ROOT/config/vimrc"
+# No tree default: with no config anywhere the value is empty and
+# config/aliases.sh leaves the editor alone.
+export _HI_VIMRC=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/vim/vimrc" ] && export _HI_VIMRC="$_HI_XDG_CONFIG/vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vim/vimrc" ] && export _HI_VIMRC="$HOME/.vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vimrc" ] && export _HI_VIMRC="$HOME/.vimrc"
 [ -f "$_HI_CONFIG_DIR/vimrc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc"
-export _HI_NVIMRC="$_HI_ROOT/config/init.lua"
+export _HI_NVIMRC=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nvim/init.lua" ] && export _HI_NVIMRC="$_HI_XDG_CONFIG/nvim/init.lua"
 [ -f "$_HI_CONFIG_DIR/init.lua" ] && export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua"
 # helix has no dotfile fallback, XDG only - the same shape as nvim's, above
-export _HI_HELIXRC="$_HI_ROOT/config/config.toml"
+export _HI_HELIXRC=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/helix/config.toml" ] && export _HI_HELIXRC="$_HI_XDG_CONFIG/helix/config.toml"
 [ -f "$_HI_CONFIG_DIR/config.toml" ] && export _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml"
-export _HI_NANORC="$_HI_ROOT/config/nanorc"
+export _HI_NANORC=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nano/nanorc" ] && export _HI_NANORC="$_HI_XDG_CONFIG/nano/nanorc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.nanorc" ] && export _HI_NANORC="$HOME/.nanorc"
 [ -f "$_HI_CONFIG_DIR/nanorc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nanorc"
-export _HI_EMACSRC="$_HI_ROOT/config/init.el"
+export _HI_EMACSRC=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/emacs/init.el" ] && export _HI_EMACSRC="$_HI_XDG_CONFIG/emacs/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.d/init.el" ] && export _HI_EMACSRC="$HOME/.emacs.d/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs" ] && export _HI_EMACSRC="$HOME/.emacs"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.el" ] && export _HI_EMACSRC="$HOME/.emacs.el"
 [ -f "$_HI_CONFIG_DIR/init.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/init.el"
-# tmux and screen the same, minus a tree default: with no config anywhere the
-# value is empty and config/aliases.sh leaves the command alone
+# tmux and screen the same
 export _HI_TMUX_CONF=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/tmux/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_XDG_CONFIG/tmux/tmux.conf"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.tmux.conf" ] && export _HI_TMUX_CONF="$HOME/.tmux.conf"

@@ -52,13 +52,13 @@ function test_payload_ships_everything_by_default() {
   local dir="$_HI_WORKDIR/notrim" listing
   mkdir -p "$dir"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/config/vimrc*) ;; *)
-    _hi_cecho " | a default client did not ship config/vimrc" "$RED"
+  case "$listing" in *say-hi/config/colors*) ;; *)
+    _hi_cecho " | a default client did not ship config/colors" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/config/init.lua*) ;; *)
-    _hi_cecho " | a default client did not ship config/init.lua" "$RED"
+  case "$listing" in *say-hi/config/packages*) ;; *)
+    _hi_cecho " | a default client did not ship config/packages" "$RED"
     return 1
     ;;
   esac
@@ -692,32 +692,15 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   printf 'alias a=b\n' >"$dir/aliases.sh"
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
-  # every editor here, so the tool gate below cuts nothing of its own
-  PATH="$(_hi_fake_path excl-editors vim nvim hx nano emacs):$PATH" _hi_payload_excl "${members[@]}"
+  _hi_payload_excl "${members[@]}"
   [ "${payload_excl[*]}" = "say-hi/config/colors say-hi/config/packages" ] || {
     _hi_cecho " | cut: [${payload_excl[*]}]" "$RED"
     return 1
   }
   listing="$(_hi_payload_tar | tar tzf -)"
   [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
-    [[ "$listing" == *config/aliases.sh* && "$listing" == *config/nanorc* ]] || return 1
+    [[ "$listing" == *config/aliases.sh* ]] || return 1
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
-}
-
-# a default whose tool this machine lacks is cut too - no emacs here, no
-# init.el there - while a member the overlay holds rides its copy either way
-function test_a_default_for_a_missing_tool_is_cut() {
-  local -a payload_excl=()
-  PATH=/nonexistent _hi_payload_excl nanorc
-  [ "${payload_excl[*]}" = "say-hi/config/nanorc say-hi/config/vimrc say-hi/config/init.lua say-hi/config/init.el say-hi/config/config.toml" ] || {
-    _hi_cecho " | cut with no editors: [${payload_excl[*]}]" "$RED"
-    return 1
-  }
-  PATH="$(_hi_fake_path excl-editors vim nvim hx nano emacs)" _hi_payload_excl
-  [ -z "${payload_excl[*]}" ] || {
-    _hi_cecho " | cut with every editor: [${payload_excl[*]}]" "$RED"
-    return 1
-  }
 }
 
 # ...and only there: _hi_wire_bytes and `hi --doctor` hold no $payload_excl,
@@ -769,15 +752,6 @@ Host included' ] || {
   ! _HI_REMOTE_SESSION=1 XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags || return 1
   printf 'Host untagged\n' >"$dir/config"
   ! XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags
-}
-
-# ...and hi's own tree copy is not one: it rides in the payload already, so
-# packing it again would be the same bytes twice on every connect
-function test_the_trees_own_editor_rc_is_not_streamed() {
-  local dir
-  dir="$_HI_WORKDIR/lint-treecopy"
-  mkdir -p "$dir"
-  [ -z "$(_HI_VIMRC="$_HI_ROOT/config/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ]
 }
 
 # the rows hi --doctor prints come from the same pass that does the dropping,
@@ -1248,13 +1222,14 @@ function test_strip_spares_heredoc_bodies() {
 }
 
 # The data files' prose headers document the *installed* copies a user reads,
-# so they ship stripped too: flags/colors/packages/nanorc through the same
-# `#` rule as the shell, vimrc, init.el, and init.lua through their own
-# rules for vim's `"`, elisp's `;`, and lua's `--`.
+# so they ship stripped too: flags/colors/packages through the same `#` rule
+# as the shell. An overlay vimrc, init.el, and init.lua strip through their
+# own rules for vim's `"`, elisp's `;`, and lua's `--`, keeping every other
+# line.
 function test_strip_covers_the_data_files() {
-  local dir f n bad=0
+  local dir f n out ov="$_HI_WORKDIR/strip-overlay" bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags config/colors config/packages config/nanorc; do
+  for f in common/flags config/colors config/packages; do
     n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
@@ -1262,10 +1237,15 @@ function test_strip_covers_the_data_files() {
     }
   done
   # the files with a comment character of their own: <file>:<char>
-  for f in 'config/vimrc:"' 'config/init.el:;' 'config/init.lua:--'; do
-    n="$(grep -cE "^[[:space:]]*${f#*:}" "$dir/say-hi/${f%%:*}" || true)"
-    [ "$n" -eq 0 ] || {
-      _hi_cecho " | ${f%%:*} kept $n comment line(s)" "$RED"
+  mkdir -p "$ov"
+  for f in 'vimrc:"' 'init.el:;' 'init.lua:--'; do
+    printf '%s a comment\nkept %s\n' "${f#*:}" "${f%%:*}" >"$ov/${f%%:*}"
+  done
+  for f in 'vimrc:"' 'init.el:;' 'init.lua:--'; do
+    out="$(_HI_VIMRC="$ov/vimrc" _HI_EMACSRC="$ov/init.el" _HI_NVIMRC="$ov/init.lua" _HI_CONFIG_DIR="$ov" \
+      _hi_overlay_tar | _hi_tar_cat "${f%%:*}")"
+    [ "$out" = "kept ${f%%:*}" ] || {
+      _hi_cecho " | ${f%%:*} rode as [$out]" "$RED"
       bad=1
     }
   done
@@ -1276,17 +1256,10 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags config/colors config/packages config/nanorc; do
+  for f in common/flags config/colors config/packages; do
     diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
       <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"
-      bad=1
-    }
-  done
-  for f in 'config/vimrc:"' 'config/init.el:;' 'config/init.lua:--'; do
-    diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}" | sed 's/^[[:space:]]*//') \
-      <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}" | sed 's/^[[:space:]]*//') >/dev/null || {
-      _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
       bad=1
     }
   done
@@ -1344,7 +1317,6 @@ function run_hi_payload_tests() {
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
   _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
-  _hi_check "A tree default for a tool not here is cut" test_a_default_for_a_missing_tool_is_cut
   _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
   _hi_check "The shadow roster is paths.sh's cascade" test_the_shadow_roster_matches_paths_sh
 
@@ -1390,7 +1362,6 @@ function run_hi_payload_tests() {
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
   _hi_check "...only with its tool on this machine" test_a_home_config_needs_its_tool_here
-  _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
   _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config
   _hi_check "nano keeps /usr/share/nano, drops a subdirectory of it" test_nano_keeps_the_stock_directory_and_drops_the_rest

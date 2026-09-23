@@ -570,7 +570,7 @@ function doctor_settings_values() {
 
 # doctor_files - every place hi.sh's $_HI_OVERLAY_TABLE says a member can
 # come from, in its one order (GLOSSARY: HI.61): the overlay's copy, each home
-# location, the tree's default - each marked used, passed over, or absent,
+# location, the tree's default where there is one - each marked used, passed over, or absent,
 # and why nothing is sent when something is there. A member found nowhere
 # joins one closing row, so a sparse setup stays a short table.
 function doctor_files() {

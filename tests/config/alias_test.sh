@@ -166,6 +166,12 @@ function run_alias_test() {
   _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases, $(wc -w <<<"$_HI_SAMPLE_VARS") variables and $(wc -l <<<"$_HI_PRESENCE_ALIASES") presence-gated aliases"
 
   _hi_workdir aliases
+  # an editor alias needs its tool and an overlay config, so every editor has one
+  mkdir -p "$_HI_WORKDIR/overlay"
+  for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_WORKDIR/overlay/$_hi_f"; done
+  export _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" \
+    _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_HELIXRC="$_HI_WORKDIR/overlay/config.toml" \
+    _HI_NANORC="$_HI_WORKDIR/overlay/nanorc" _HI_EMACSRC="$_HI_WORKDIR/overlay/init.el"
 
   _hi_suite_begin
   for _hi_shell in dash bash zsh fish; do

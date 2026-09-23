@@ -73,11 +73,11 @@ _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-'
   'colors|_HI_COLORS|tree|-'
   'packages|_HI_PACKAGES|tree|-'
-  'vimrc|_HI_VIMRC|tree|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
-  'init.lua|_HI_NVIMRC|tree|"$_HI_XDG_CONFIG/nvim/init.lua"'
-  'nanorc|_HI_NANORC|tree|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
-  'init.el|_HI_EMACSRC|tree|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
-  'config.toml|_HI_HELIXRC|tree|"$_HI_XDG_CONFIG/helix/config.toml"'
+  'vimrc|_HI_VIMRC|-|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
+  'init.lua|_HI_NVIMRC|-|"$_HI_XDG_CONFIG/nvim/init.lua"'
+  'nanorc|_HI_NANORC|-|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
+  'init.el|_HI_EMACSRC|-|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
+  'config.toml|_HI_HELIXRC|-|"$_HI_XDG_CONFIG/helix/config.toml"'
   'aliases.sh|-|-|"$HOME/.aliases"'
   'plugins.d|_HI_PLUGINS_D|-|-'
   'bashrc|-|-|-'
@@ -385,7 +385,7 @@ function _hi_overlay_home() {
   esac
   if [ "$_hi_oh_v" != - ] && [ "${1#*/}" = "$1" ]; then
     _hi_oh_c="${!_hi_oh_v:-}"
-    [ -f "$_hi_oh_c" ] && [ "$_hi_oh_c" != "$_HI_ROOT/config/$1" ] && [ "$_hi_oh_c" != "$_HI_CONFIG_DIR/$1" ] || return 1
+    [ -f "$_hi_oh_c" ] && [ "$_hi_oh_c" != "$_HI_CONFIG_DIR/$1" ] || return 1
     _hi_out "${2:-}" "$_hi_oh_c"
     return 0
   fi
@@ -474,8 +474,6 @@ function _hi_tool_here() {
 #           matching nothing costs the whole rcfile - nano says "Mistakes in
 #           '<rcfile>'" on the status bar and rings the bell. The path is
 #           read as one word, so a trailing comment cannot fool the rule.
-#           config/nanorc reasons the same thing out by hand in a comment,
-#           for hi's own copy; this is that rule for yours.
 #   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
 #           of tpm). Line-oriented, but a finding ending in `\` takes its
 #           continuation lines with it.
@@ -988,9 +986,7 @@ function _hi_die() {
 # _hi_payload_excl <member...> - the tree files those overlay members shadow
 # (GLOSSARY: HI.41), into the caller's $payload_excl: one copy on the wire,
 # not the default beside the file that beats it. Only a member that ships
-# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing. A
-# default whose tool this machine lacks goes too, the home tier's own gate
-# (_hi_tool_here): an editor you do not use here gets no config there.
+# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
 function _hi_payload_excl() {
   local f
   payload_excl=()
@@ -1000,10 +996,6 @@ function _hi_payload_excl() {
     *" say-hi/config/$f "*) ;;
     *" $f "*) payload_excl+=("say-hi/config/$f") ;;
     esac
-  done
-  for f in $_HI_OVERLAY_SHADOWS; do
-    case " ${payload_excl[*]-} " in *" say-hi/config/$f "*) continue ;; esac
-    _hi_tool_here "$f" || payload_excl+=("say-hi/config/$f")
   done
 }
 

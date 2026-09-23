@@ -68,21 +68,20 @@ Each file is marked with where it goes:
 All **payload**. `common/` is hi's code; `config/` holds the shipped
 defaults an overlay copy replaces.
 
-| File                                                           | What it is                                                                                                                          |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                                               | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.                              |
-| `common/paths.sh`                                              | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                       |
-| `common/bash.sh`                                               | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                      |
-| `common/zsh.zsh`                                               | The same for zsh.                                                                                                                   |
-| `common/config.fish`                                           | The same for fish, with its own copies of what fish cannot call in bash.                                                            |
-| `common/env_prompt.sh`, `git_prompt.sh`                        | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                           |
-| `common/header.sh`                                             | The connect and disconnect banner, and the package check.                                                                           |
-| `common/targets.sh`                                            | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                   |
-| `common/flags`                                                 | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                       |
-| `config/aliases.sh`                                            | The aliases, in the subset bash, zsh, and fish all parse.                                                                           |
-| `config/colors`                                                | Color pins.                                                                                                                         |
-| `config/packages`                                              | What the package check looks for: the everyday roster, then more tools at priority 0-1, below the default floor.                    |
-| `config/vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el` | The minimal editor configs a session starts vim, neovim, helix, nano, and emacs on, each sent only when the client has that editor. |
+| File                                    | What it is                                                                                                       |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                        | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.           |
+| `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                    |
+| `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                   |
+| `common/zsh.zsh`                        | The same for zsh.                                                                                                |
+| `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                         |
+| `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                        |
+| `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                        |
+| `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                |
+| `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                    |
+| `config/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                        |
+| `config/colors`                         | Color pins.                                                                                                      |
+| `config/packages`                       | What the package check looks for: the everyday roster, then more tools at priority 0-1, below the default floor. |
 
 ### scripts/
 
@@ -168,7 +167,7 @@ directory, and zellij's `layouts/` and `themes/`, ride member by member; a membe
 | `aliases.sh`                                                                                | -                                                                     | -                 | `config/aliases.sh`, sourced last                                   |
 | `plugins.d/`                                                                                | `_HI_PLUGINS_D`                                                       | -                 | every shell, after the aliases, in name order                       |
 | `bashrc`, `zshrc`, `config.fish`                                                            | -                                                                     | -                 | the end of hi's rc for that shell                                   |
-| `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | the tree's copy   | the editor aliases and `$VIMINIT`                                   |
+| `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | -                 | the editor aliases and `$VIMINIT`                                   |
 | `tmux.conf`                                                                                 | `_HI_TMUX_CONF`                                                       | -                 | the `tmux` alias (`tmux -f`)                                        |
 | `screenrc`                                                                                  | `_HI_SCREENRC`                                                        | -                 | the `screen` alias (`screen -c`)                                    |
 | `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                 | the `micro` alias (`-config-dir`)                                   |
@@ -193,7 +192,8 @@ reads rather than asking for a copy - the middle step of the one order
 ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)): the first one found in each
 row wins, an overlay copy wins over all of them - for the prompt programs,
 eza, bat, and your aliases on a target only, since at home each already reads
-its own - and the tree's default applies when neither is there. `bashrc`,
+its own - and the tree's default, where there is one, applies when neither
+is there. `bashrc`,
 `zshrc`, and `config.fish` are never looked for here: they ride only as an
 overlay copy. A prompt program's
 member rides only when that program is in the list a target is handed

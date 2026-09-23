@@ -596,6 +596,10 @@ up:editors)
 export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods'
 export _HI_PROMPT_TOOL='starship'
 EOF
+  # hi ships no editor configs, so the demo carries its own through the
+  # overlay, the way a user's would ride
+  demo_overlay vimrc <"$_HI_ROOT/docs/tapes/editors/vimrc"
+  demo_overlay nanorc <"$_HI_ROOT/docs/tapes/editors/nanorc"
   up_container docker dev-box tools
   ;;
 up:overlay)

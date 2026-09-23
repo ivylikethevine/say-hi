@@ -87,12 +87,11 @@ source "$_hi_d/../common/core.sh"
 # ...and the half of that resolution the unset above cannot reach: paths.sh's
 # editor tier reads $HOME/.vimrc, $HOME/.nanorc, $HOME/.emacs.d/init.el and
 # friends, which the XDG_CONFIG_HOME throwaway does not move, so on a developer
-# box with any of them the baseline stops being "in-tree defaults" and every
+# box with any of them the baseline stops being "no editor config" and every
 # overlay stream a suite builds carries their editor. Pinned *after* the source,
 # since paths.sh re-exports over whatever it was handed. A suite exercising the
 # tier points them somewhere of its own, as tests/common/paths_test.sh does.
-export _HI_VIMRC="$_HI_ROOT/config/vimrc" _HI_NVIMRC="$_HI_ROOT/config/init.lua"
-export _HI_NANORC="$_HI_ROOT/config/nanorc" _HI_EMACSRC="$_HI_ROOT/config/init.el" _HI_TMUX_CONF="" _HI_SCREENRC=""
+export _HI_VIMRC="" _HI_NVIMRC="" _HI_HELIXRC="" _HI_NANORC="" _HI_EMACSRC="" _HI_TMUX_CONF="" _HI_SCREENRC=""
 # ...and ~/.ssh/config the same way: its `# Tags:` lines ride the overlay as
 # ssh_tags, so a developer's own would be a member of every stream built here
 export _HI_SSH_CONFIG="$XDG_CONFIG_HOME/no-ssh-config"

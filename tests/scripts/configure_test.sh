@@ -335,12 +335,10 @@ _HI_FLOOR_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  # the editor rcs move with the tree: config/aliases.sh flags only the shipped
-  # rc or the overlay copy, never a path outside both
-  mkdir -p "$_hi_dir/config"
-  cp "$_HI_NANORC" "$_HI_VIMRC" "$_HI_NVIMRC" "$_HI_EMACSRC" "$_HI_HELIXRC" "$_hi_dir/config/"
-  _HI_NANORC="$_hi_dir/config/nanorc" _HI_VIMRC="$_hi_dir/config/vimrc" _HI_NVIMRC="$_hi_dir/config/init.lua"
-  _HI_EMACSRC="$_hi_dir/config/init.el" _HI_HELIXRC="$_hi_dir/config/config.toml"
+  # the editor rcs an overlay carries, the only ones config/aliases.sh flags
+  mkdir -p "$_hi_dir/overlay"
+  : >"$_hi_dir/overlay/nanorc"
+  _HI_NANORC="$_hi_dir/overlay/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -929,7 +927,7 @@ function test_editors_preview_names_every_override() {
     [[ "$out" == *"nano --rcfile $_HI_NANORC"* ]] || return 1
   fi
   if command -v emacs >/dev/null 2>&1; then
-    [[ "$out" == *"emacs -q -l $_HI_EMACSRC"* ]] || return 1
+    [[ "$out" == *"emacs -nw -q -l $_HI_EMACSRC"* ]] || return 1
   fi
   if command -v micro >/dev/null 2>&1; then
     [[ "$out" == *"micro -> micro -backup false"* ]] || return 1
@@ -1106,12 +1104,10 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  # the editor rcs move with the tree: config/aliases.sh flags only the shipped
-  # rc or the overlay copy, never a path outside both
-  mkdir -p "$_hi_dir/config"
-  cp "$_HI_NANORC" "$_HI_VIMRC" "$_HI_NVIMRC" "$_HI_EMACSRC" "$_HI_HELIXRC" "$_hi_dir/config/"
-  _HI_NANORC="$_hi_dir/config/nanorc" _HI_VIMRC="$_hi_dir/config/vimrc" _HI_NVIMRC="$_hi_dir/config/init.lua"
-  _HI_EMACSRC="$_hi_dir/config/init.el" _HI_HELIXRC="$_hi_dir/config/config.toml"
+  # the editor rcs an overlay carries, the only ones config/aliases.sh flags
+  mkdir -p "$_hi_dir/overlay"
+  : >"$_hi_dir/overlay/nanorc"
+  _HI_NANORC="$_hi_dir/overlay/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -1516,6 +1512,13 @@ function test_menu_value_shows_its_default() {
 
 function run_configure_tests() {
   _hi_workdir configuretest
+  # the editor configs an overlay carries: without them no editor has an alias
+  # for the previews to read back
+  mkdir -p "$_HI_CONFIG_DIR"
+  local _hi_f
+  for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_CONFIG_DIR/$_hi_f"; done
+  export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc" _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua" _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml" \
+    _HI_NANORC="$_HI_CONFIG_DIR/nanorc" _HI_EMACSRC="$_HI_CONFIG_DIR/init.el"
 
   _hi_h1 "Testing scripts/configure.sh's reusable logic"
 

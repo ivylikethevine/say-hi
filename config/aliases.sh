@@ -37,30 +37,30 @@ command -v shift >/dev/null 2>&1 &&
 # on its rc being here: a client without the editor sends none (hi.sh's
 # _hi_payload_excl), and `vim -u` a missing file is an error, not a vim.
 #
-# Every config flag below also needs the resolved path to be hi's: the tree's
-# shipped rc or the overlay's copy. At home common/paths.sh can resolve to the
+# Every config flag below also needs the resolved path to be hi's: the
+# overlay's copy. At home common/paths.sh can resolve to the
 # config the tool already reads by itself, and naming that again buys nothing
 # and is not free (`vim -u` skips the system vimrc and defaults.vim, `nano
 # --rcfile` skips /etc/nanorc). A target never resolves to a home path, so
 # there they always land.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_NANO" != 1 ] && [ -f "$_HI_NANORC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_NANORC" = "$_HI_ROOT/config/nanorc" -o "$_HI_NANORC" = "$_HI_CONFIG_DIR/nanorc" ] && command -v nano >/dev/null 2>&1 && alias nano="nano --rcfile $_HI_NANORC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_NANO" != 1 ] && [ -f "$_HI_NANORC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_NANORC" = "$_HI_CONFIG_DIR/nanorc" ] && command -v nano >/dev/null 2>&1 && alias nano="nano --rcfile $_HI_NANORC" || true
 # scripts/configure.sh's _hi_editors_preview sources this file for real to
 # show what this resolves to before the toggle is set - see the note there.
 # A box with neither leaves vim alone (an alias of `" -u ..."` would report
 # `-u: command not found` where `vim: command not found` is the answer).
 #
 # vim's, then nvim's over it where there is one, so an nvim box answers to
-# `vim` with the lua rc (config/vimrc is vim's; neovim reads
-# config/init.lua). `nvim` gets an alias of its own so either name reaches
+# `vim` with the lua rc (a vimrc is vim's; neovim reads init.lua). `nvim` gets an alias of its own so either name reaches
 # the same override. _HI_DISABLE_VIM gates both: they are one editor to the
 # toggle. With nvim's own init.lua in force, `vim` stays vim's.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_VIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_VIMRC" = "$_HI_ROOT/config/vimrc" -o "$_HI_VIMRC" = "$_HI_CONFIG_DIR/vimrc" ] && command -v vim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v vim) -u $_HI_VIMRC" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_NVIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_NVIMRC" = "$_HI_ROOT/config/init.lua" -o "$_HI_NVIMRC" = "$_HI_CONFIG_DIR/init.lua" ] && command -v nvim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_VIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_VIMRC" = "$_HI_CONFIG_DIR/vimrc" ] && command -v vim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v vim) -u $_HI_VIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -f "$_HI_NVIMRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_NVIMRC" = "$_HI_CONFIG_DIR/init.lua" ] && command -v nvim >/dev/null 2>&1 && alias vim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v nvim) -u $_HI_NVIMRC" || true
 # hx reads one file, -c/--config overrides only it (no directory-level
 # override exists) - the same one-member shape as vim's above
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_HELIXRC" = "$_HI_ROOT/config/config.toml" -o "$_HI_HELIXRC" = "$_HI_CONFIG_DIR/config.toml" ] && command -v hx >/dev/null 2>&1 && alias hx="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v hx) -c $_HI_HELIXRC" || true
-# -q skips the target's own init, -l loads hi's in its place
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && [ -f "$_HI_EMACSRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_EMACSRC" = "$_HI_ROOT/config/init.el" -o "$_HI_EMACSRC" = "$_HI_CONFIG_DIR/init.el" ] && command -v emacs >/dev/null 2>&1 && alias emacs="emacs -q -l $_HI_EMACSRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -f "$_HI_HELIXRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_HELIXRC" = "$_HI_CONFIG_DIR/config.toml" ] && command -v hx >/dev/null 2>&1 && alias hx="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v hx) -c $_HI_HELIXRC" || true
+# -q skips the target's own init, -l loads yours in its place, and -nw keeps it
+# in the terminal: with a display to reach, emacs would open a GUI window
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && [ -f "$_HI_EMACSRC" ] && [ "$_HI_REMOTE_SESSION" = 1 -o "$_HI_EMACSRC" = "$_HI_CONFIG_DIR/init.el" ] && command -v emacs >/dev/null 2>&1 && alias emacs="emacs -nw -q -l $_HI_EMACSRC" || true
 # micro takes a config *directory*, never a file, but any of its settings can
 # be set on the command line as `-name value`, so it gets flags like bat and
 # eza do: no backups or history written into a config dir on a box you are

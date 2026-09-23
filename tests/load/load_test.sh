@@ -501,7 +501,7 @@ function test_load_greets_the_chosen_shell() {
   return 1
 }
 
-# VIMINIT is how hi's vimrc reaches the session without touching ~/.vimrc; a
+# VIMINIT is how the carried vimrc reaches the session without touching ~/.vimrc; a
 # faked vim on a prepended PATH makes "vim installed" true on any box. The
 # session shell itself reads the variable back, since load() exports it for
 # exactly that shell to inherit.
@@ -673,6 +673,12 @@ function test_load_disable_header_skips_the_banner() {
 
 function run_load_tests() {
   _hi_workdir loadtest
+  # the editor configs an overlay carried in, for load() to hand the session
+  mkdir -p "$_HI_WORKDIR/overlay"
+  : >"$_HI_WORKDIR/overlay/vimrc"
+  : >"$_HI_WORKDIR/overlay/init.lua"
+  : >"$_HI_WORKDIR/overlay/nanorc"
+  export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
 
   _hi_h1 "Testing load.sh"
 

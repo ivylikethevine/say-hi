@@ -367,8 +367,8 @@ function test_remote_session_aliases_overlay_config() {
 
 # At home a tool whose own config is in force gets no alias: naming the file
 # it already reads buys nothing, and `vim -u` or `nano --rcfile` is not a
-# no-op. With no config of their own the editors fall back to hi's shipped rc
-# and keep theirs; tmux, screen, and zellij have no shipped one and stay bare.
+# no-op. With no config anywhere there is nothing to name either, so only
+# micro keeps an alias, for hi's flags.
 # <shell> <own|none>
 _HI_HOME_ALIASED="vim nvim hx nano emacs micro tmux screen zellij"
 function test_home_session_aliases_only_his_configs() {
@@ -389,7 +389,7 @@ function test_home_session_aliases_only_his_configs() {
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" HOME="$home" \
     PATH="$(_hi_fake_path rc-home-tools $_HI_HOME_ALIASED):$PATH" 2>/dev/null)"
   want=""
-  [ "$mode" = none ] && want="vim nvim hx nano emacs micro "
+  [ "$mode" = none ] && want="micro "
   [ "$out" = "$want" ] && return 0
   _hi_cecho " | aliased: [$out], wanted [$want]" "$RED"
   return 1
@@ -1137,11 +1137,11 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
   _hi_check "[bash] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs bash own
-  _hi_check "[bash] ...and the editors keep hi's shipped rc without one" test_home_session_aliases_only_his_configs bash none
+  _hi_check "[bash] ...and with no config only micro keeps its flags" test_home_session_aliases_only_his_configs bash none
   _hi_check_requires zsh "[zsh] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs zsh own
-  _hi_check_requires zsh "[zsh] ...and the editors keep hi's shipped rc without one" test_home_session_aliases_only_his_configs zsh none
+  _hi_check_requires zsh "[zsh] ...and with no config only micro keeps its flags" test_home_session_aliases_only_his_configs zsh none
   _hi_check_requires fish "[fish] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs fish own
-  _hi_check_requires fish "[fish] ...and the editors keep hi's shipped rc without one" test_home_session_aliases_only_his_configs fish none
+  _hi_check_requires fish "[fish] ...and with no config only micro keeps its flags" test_home_session_aliases_only_his_configs fish none
 
   _hi_h2 "Testing: prompt programs without init (powerline-go, the frameworks)"
   _hi_check "[bash] powerline-go draws each prompt with the status and options" \

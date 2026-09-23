@@ -321,14 +321,15 @@ function test_config_is_silent_on_a_config_for_an_absent_tool() {
 }
 
 # The files table walks every tier of a member in the table's order and marks
-# each: home's ~/.vimrc used over the tree's default, the overlay's
-# tmux.conf over home's, a member found nowhere only in the closing row, and
-# a default whose tool is missing named as not sent. GLOSSARY: HI.61
+# each: home's ~/.vimrc used, the overlay's tmux.conf over home's, a member
+# found nowhere only in the closing row, and a home config whose tool is
+# missing named as not sent. GLOSSARY: HI.61
 function test_files_table_walks_every_tier() {
   local h out
   h="$(mktemp -d "$_HI_WORKDIR/files.XXXXXX")"
   mkdir -p "$h/overlay"
   printf 'set number\n' >"$h/.vimrc"
+  printf '(setq x 1)\n' >"$h/.emacs"
   printf 'set -g mouse on\n' >"$h/.tmux.conf"
   printf 'set -g mouse off\n' >"$h/overlay/tmux.conf"
   out="$(
@@ -337,9 +338,9 @@ function test_files_table_walks_every_tier() {
       _HI_SCREENRC="" doctor_files
   )"
   out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"vimrc"*"absent ~/overlay/vimrc; used ~/.vimrc; absent ~/.vim/vimrc"*"passed over $_HI_ROOT/config/vimrc"* ]] &&
+  [[ "$out" == *"vimrc"*"absent ~/overlay/vimrc; used ~/.vimrc; absent ~/.vim/vimrc"* ]] &&
     [[ "$out" == *"tmux.conf"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
-    [[ "$out" == *"init.el"*"passed over $_HI_ROOT/config/init.el - not sent: its tool is not installed here"* ]] &&
+    [[ "$out" == *"init.el"*"passed over ~/.emacs"*"- not sent: its tool is not installed here"* ]] &&
     [[ "$out" == *"none anywhere"*screenrc* ]] || {
     printf '%s\n' "$out"
     return 1

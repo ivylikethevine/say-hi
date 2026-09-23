@@ -81,33 +81,22 @@ function lint_manpage() {
   fi
 }
 
-# The vim rc hi ships, parsed by the editor that reads it. Everything else in
-# the suite treats config/vimrc as *bytes* - payload_test.sh checks it ships
-# and survives the comment strip, load_test.sh checks $VIMINIT points at it - so
-# a syntax error in the file itself failed nothing and rode the wire to every
-# target (an orphaned `endif` left by a half-finished deletion did exactly
-# that). vim only: config/aliases.sh points neovim at config/init.lua now,
-# which lint_nvim_rc below parses with the editor that reads it.
+# The editors demo's vimrc (docs/tapes/editors/vimrc), parsed by the editor
+# that reads it: the demo rides it to a target under `vim -u`, so a syntax
+# error in it would show on the recording.
 #
-# `-u <rc> -es` is the production invocation (the alias's own), and the verdict
-# is $v:errmsg written to a file, not stderr and not the exit status: vim
-# prints the error to stderr in a full environment but goes silent under the
-# `env -i` a suite runs in. v:errmsg is the one signal that survives either.
+# `-u <rc> -es` is the alias's own invocation, and the verdict is $v:errmsg
+# written to a file, not stderr and not the exit status: vim prints the error
+# to stderr in a full environment but goes silent under the `env -i` a suite
+# runs in. v:errmsg is the one signal that survives either.
 #
 # E484 on defaults.vim is the exception, and a deliberate one: the rc sources
-# it with `silent!` precisely because a vim old enough not to ship that file
-# would error on it (config/vimrc says so). `silent!` suppresses the
-# message but still sets v:errmsg, so the tolerated case is spelled out here.
-#
-# No nano half: nano reports a bad rcfile only on its status bar and refuses to
-# start without a terminal, so there is nothing to assert on offline.
-#
-# The emacs half is lint_emacs_rc below: `--batch -q -l` loads the file the
-# way the alias does and exits non-zero on an elisp error, so there the exit
-# status is the verdict.
+# it with `silent!` because a vim old enough not to ship that file would error
+# on it. `silent!` suppresses the message but still sets v:errmsg, so the
+# tolerated case is spelled out here.
 function lint_vim_rc() {
-  local err out rc="$_HI_ROOT/config/vimrc"
-  _hi_h2 "Checking the shipped editor rc (vim -u config/vimrc)"
+  local err out rc="$_HI_ROOT/docs/tapes/editors/vimrc"
+  _hi_h2 "Checking the editors demo's vimrc (vim -u)"
   _hi_lint_has vim || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   err="$_HI_WORKDIR/vim.err"
@@ -115,48 +104,12 @@ function lint_vim_rc() {
     </dev/null >/dev/null 2>&1 || true
   out="$(grep -v "E484.*defaults\.vim" "$err" 2>/dev/null | tr -d '[:space:]')"
   if [ -z "$out" ]; then
-    _hi_align " | config/vimrc (vim)" "OK" "$GREEN"
+    _hi_align " | docs/tapes/editors/vimrc (vim)" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | config/vimrc (vim)" "FAILED" "$RED"
+  _hi_align " | docs/tapes/editors/vimrc (vim)" "FAILED" "$RED"
   sed 's/^/      /' "$err"
-  _hi_note_failure "config/vimrc (vim)"
-  return 1
-}
-
-# The neovim rc, parsed by the editor that reads it. `--headless -u <rc>` is
-# the alias's own invocation and runs the file as lua; unlike the vim half both
-# signals are usable here - a lua error goes to stderr and nvim exits non-zero -
-# so the verdict is a clean exit with nothing written.
-function lint_nvim_rc() {
-  local err rc="$_HI_ROOT/config/init.lua"
-  _hi_h2 "Checking the shipped editor rc (nvim -u config/init.lua)"
-  _hi_lint_has nvim || return 0
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  err="$_HI_WORKDIR/initlua.err"
-  if nvim --headless -u "$rc" -c 'qa!' </dev/null >/dev/null 2>"$err" && [ ! -s "$err" ]; then
-    _hi_align " | config/init.lua (nvim)" "OK" "$GREEN"
-    return 0
-  fi
-  _hi_align " | config/init.lua (nvim)" "FAILED" "$RED"
-  sed 's/^/      /' "$err"
-  _hi_note_failure "config/init.lua (nvim)"
-  return 1
-}
-
-function lint_emacs_rc() {
-  local err rc="$_HI_ROOT/config/init.el"
-  _hi_h2 "Checking the shipped editor rc (emacs -q -l config/init.el)"
-  _hi_lint_has emacs || return 0
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  err="$_HI_WORKDIR/emacs.err"
-  if emacs --batch -q -l "$rc" --eval '(kill-emacs 0)' </dev/null >"$err" 2>&1; then
-    _hi_align " | config/init.el (emacs)" "OK" "$GREEN"
-    return 0
-  fi
-  _hi_align " | config/init.el (emacs)" "FAILED" "$RED"
-  sed 's/^/      /' "$err"
-  _hi_note_failure "config/init.el (emacs)"
+  _hi_note_failure "docs/tapes/editors/vimrc (vim)"
   return 1
 }
 
@@ -260,7 +213,7 @@ function run_tools() {
   local -a _HI_MD_FILES=()
   _hi_read_lines _HI_MD_FILES < <(_hi_md_files 2>/dev/null)
 
-  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_nvim_rc lint_emacs_rc lint_typos \
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_typos \
     lint_markdownlint lint_prettier
   _hi_lint_suite_end
 }

@@ -684,9 +684,7 @@ OpenBSD's tar lacks. Only a caller holding the list cuts anything:
 container arm, where the two archives travel separately, sends the defaults
 after all when the overlay's copy fails. A file still under a pre-1.0 name
 (`$_HI_OVERLAY_RENAMES`) is not a member, so it cuts nothing and the default
-it no longer overrides keeps riding. A default whose tool the client lacks is cut the same way, by the
-home tier's own gate (`_hi_tool_here`, [HI.61](#hi61-one-overlay-priority)):
-no emacs here, no `init.el` there. The target's aliases and `$VIMINIT` ask
+it no longer overrides keeps riding. The target's aliases and `$VIMINIT` ask
 for the rc file as well as the binary, so a box whose editor got no config
 keeps its own rather than an alias to a missing file.
 
@@ -1109,22 +1107,20 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 hi carries a `vimrc`, `init.lua`, `nanorc`, `init.el`, and helix's
 `config.toml` to every target and starts the editor on it (`-u`, `--rcfile`,
-`-q -l`, `-c`), so the question is
+`-nw -q -l`, `-c`), so the question is
 which file - [HI.61](#hi61-one-overlay-priority)'s order answers it: the
 overlay's copy, then the config that editor already reads on this machine
 (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`, `~/.nanorc`, `~/.emacs`, ...,
-in the editor's own precedence), then the tree's. `tmux.conf` (`tmux -f`) and
-`screenrc` (`screen -c`) take the same tiers minus a tree copy, so with none
-the value is empty and the command has no alias; micro and zellij take a
-_directory_. The alias names the file only when it is hi's - the overlay's
-copy or the tree's, and anything on a target: the home tier is what the tool
+in the editor's own precedence). hi ships no editor config of its own, so with
+neither the value is empty and the command has no alias; `tmux.conf` (`tmux
+-f`) and `screenrc` (`screen -c`) take the same tiers, and micro and zellij
+take a _directory_. The alias names the file only when it is hi's - the
+overlay's copy, and anything on a target: the home tier is what the tool
 reads unasked, so `config/aliases.sh` leaves the command bare there rather
 than restate it (and `vim -u` would drop the system vimrc and
 `defaults.vim`). The middle tier is [HI.32](#hi32-starship-deference)'s argument
 applied to editors - one copy to edit, no duplicate in the overlay to keep in
-step. A value still equal to the tree's means there is no config to carry,
-and the tree's copy already rides the payload, so nothing goes in the overlay
-stream.
+step.
 
 Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into
@@ -1251,7 +1247,7 @@ name arriving empty can reach the root of the disk again.
 
 Every overlay member resolves in one order, written once as `hi.sh`'s
 `$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
-else the tree's default. A row names the member, the `common/paths.sh`
+else the tree's default where `config/` holds one. A row names the member, the `common/paths.sh`
 variable that carries it to the shells (or `-`), whether `config/` holds a
 default (`$_HI_OVERLAY_SHADOWS` is derived from that column), and the home
 tier: candidate paths best first, a `@function` where no list can say it

@@ -203,7 +203,7 @@ function test_environment_beats_the_defaults() {
 # A $HOME with nothing in it. paths.sh's middle tier for the editor rcs reads
 # $HOME/.vimrc, $HOME/.nanorc, $HOME/.emacs and friends, which test_lib.sh's
 # XDG_CONFIG_HOME throwaway does not move - so without this the developer's own
-# editor config would answer every "resolves to the tree's" case below. The
+# editor config would answer every "resolves to nothing" case below. The
 # cases that exercise the tier fill this directory themselves.
 function _hi_bare_home() {
   local dir="$_HI_WORKDIR/bare-home"
@@ -265,9 +265,10 @@ function test_settings_point_at_the_overlay_before_it_exists() {
   [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
 }
 
-# The seven files with a tree default, and the path variable each resolves
-# into. Derived only: an exported value of your own does not survive the
-# source, so the overlay is the one way to move a file.
+# The seven files with a path variable of their own, which each resolves
+# into (colors and packages alone have a tree default). Derived only: an
+# exported value of your own does not survive the source, so the overlay is
+# the one way to move a file.
 _HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_HELIXRC _HI_NANORC _HI_EMACSRC)
 
 # the overlay basename each of the seven resolves to, in the same order
@@ -284,10 +285,10 @@ function _hi_full_overlay_dir() {
 }
 
 # an exported path of the user's is re-derived over: with a full overlay it
-# resolves to the overlay's copy, with none to the tree's - never to the
-# export.
+# resolves to the overlay's copy, with none to the tree's (empty for a file
+# with no tree default) - never to the export.
 function test_an_exported_path_does_not_survive() {
-  local dir i var
+  local dir i var want
   dir="$(_hi_full_overlay_dir)"
   rm -f "$dir/settings.sh"
   for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
@@ -298,9 +299,11 @@ function test_an_exported_path_does_not_survive() {
       _hi_cecho " | $var kept an exported path over the overlay's copy" "$RED"
       return 1
     }
+    want="$_HI_ROOT/config/${_HI_OVERLAY_PATH_FILES[i]}"
+    [ -f "$want" ] || want=""
     # shellcheck disable=SC2016 # same again, against no overlay at all
     [ "$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
-      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$_HI_ROOT/config/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$want" ] || {
       _hi_cecho " | $var kept an exported path over the tree's copy" "$RED"
       return 1
     }
@@ -398,11 +401,11 @@ function test_the_overlay_beats_the_editors_own_config() {
 function test_a_target_ignores_its_own_editor_config() {
   local home
   home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .config/helix/config.toml .nanorc .emacs .tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/config/vimrc" 1 &&
-    _hi_tier_is _HI_NVIMRC "$home" "$_HI_ROOT/config/init.lua" 1 &&
-    _hi_tier_is _HI_HELIXRC "$home" "$_HI_ROOT/config/config.toml" 1 &&
-    _hi_tier_is _HI_NANORC "$home" "$_HI_ROOT/config/nanorc" 1 &&
-    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/config/init.el" 1 &&
+  _hi_tier_is _HI_VIMRC "$home" "" 1 &&
+    _hi_tier_is _HI_NVIMRC "$home" "" 1 &&
+    _hi_tier_is _HI_HELIXRC "$home" "" 1 &&
+    _hi_tier_is _HI_NANORC "$home" "" 1 &&
+    _hi_tier_is _HI_EMACSRC "$home" "" 1 &&
     _hi_tier_is _HI_TMUX_CONF "$home" "" 1
 }
 
@@ -585,7 +588,7 @@ function run_paths_tests() {
   _hi_check "paths.sh follows the overlay table, tier by tier" test_paths_follow_the_overlay_table
 
   _hi_h2 "Testing: the editor rcs' middle tier"
-  _hi_check "The editor's own config beats the tree's" test_the_editors_own_config_beats_the_tree
+  _hi_check "The editor's own config is the one carried" test_the_editors_own_config_beats_the_tree
   _hi_check "...keeping each editor's own precedence" test_the_tier_keeps_each_editors_precedence
   _hi_check "The second locations answer too" test_the_tier_reads_the_second_locations
   _hi_check "The overlay still beats it" test_the_overlay_beats_the_editors_own_config
