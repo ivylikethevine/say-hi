@@ -11,9 +11,6 @@
 .claude/settings.local.json
 .claude/worktrees/
 CLAUDE.local.md
-# ...and the agent memories CLAUDE.local.md imports: one person's working
-# notes about this repo, not a contract contributors inherit
-.claude/memory/
 
 *.js
 *.ts
