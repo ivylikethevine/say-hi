@@ -191,8 +191,53 @@ _HI_DOC_IN_FINDING=0
 # key is the stable name a script reads; the title is prose and may change.
 # Each section function ends in doctor_flush, which draws its table.
 function doctor_section() {
+  local title="$2"
   _HI_DOC_SECTION="$1"
-  [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h2 "$2"
+  _hi_doc_tilde title
+  [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h2 "$title"
+}
+
+# _hi_doc_tilde <var> - $HOME in <var>'s value shortened to ~, for the boxed
+# report only: --json keeps whole paths for whatever parses it. The ~ comes
+# from a variable, since bash 3.2 keeps a \~ replacement's backslash.
+function _hi_doc_tilde() {
+  local tilde='~' v="${!1}"
+  [ -n "${HOME:-}" ] && [ "$HOME" != / ] || return 0
+  v="${v//"$HOME"\//$tilde/}"
+  [ "$v" != "$HOME" ] || v="$tilde"
+  printf -v "$1" '%s' "$v"
+}
+
+# _hi_doc_member <member> <outvar> - <member> with the program that reads it,
+# `vimrc (vim)`, as the label a row names it by; hi's own files go bare
+function _hi_doc_member() {
+  local tool=""
+  case "$1" in
+  vimrc) tool=vim ;;
+  init.lua) tool=nvim ;;
+  config.toml) tool=hx ;;
+  nanorc) tool=nano ;;
+  init.el) tool=emacs ;;
+  kakrc) tool=kak ;;
+  tmux.conf) tool=tmux ;;
+  screenrc) tool=screen ;;
+  micro/*) tool=micro ;;
+  zellij/*) tool=zellij ;;
+  bat.conf) tool=bat ;;
+  theme.yml) tool=eza ;;
+  bashrc) tool=bash ;;
+  zshrc) tool=zsh ;;
+  config.fish) tool=fish ;;
+  starship.toml) tool=starship ;;
+  oh-my-posh.*) tool=oh-my-posh ;;
+  p10k.zsh) tool=powerlevel10k ;;
+  oh-my-zsh.zsh-theme) tool=oh-my-zsh ;;
+  oh-my-bash.theme.sh) tool=oh-my-bash ;;
+  bash-it.theme.bash) tool=bash-it ;;
+  tide.vars) tool=tide ;;
+  ssh_tags) tool=ssh ;;
+  esac
+  printf -v "$2" '%s' "$1${tool:+ ($tool)}"
 }
 
 # _hi_doc_glyph <sev> - the severity's mark and color into $glyph and $color
@@ -233,12 +278,14 @@ function _hi_doc_wrap() {
 # header.sh's _hi_draw_width gives, and a longer line wraps; captured, a row
 # stays one line, whole for a grep or a bug report.
 function _hi_doc_box() {
-  local wl=0 wt=0 i=0 n="${#_HI_DOC_T_SEV[@]}" line first glyph color fit
+  local wl=0 wt=0 i=0 n line first glyph color fit
   local -a pieces
+  _hi_doc_fold
+  n="${#_HI_DOC_T_SEV[@]}"
   [ "$n" -gt 0 ] || return 0
-  _hi_widen wl CHECK
-  _hi_widen wt "$1"
   while [ "$i" -lt "$n" ]; do
+    _hi_doc_tilde "_HI_DOC_T_LABEL[i]"
+    _hi_doc_tilde "_HI_DOC_T_TEXT[i]"
     _hi_widen wl "${_HI_DOC_T_LABEL[i]}"
     # a carriage return (ssh ends its stderr lines in one) or a tab would
     # print narrower or wider than it measures, so both are gone first
@@ -255,8 +302,6 @@ function _hi_doc_box() {
     [ "$wt" -le "$fit" ] || wt=$fit
   fi
   _hi_hbar top 1 "$wl" "$wt"
-  _hi_head_row 1 "" "$wl" CHECK "$wt" "$1"
-  _hi_hbar mid 1 "$wl" "$wt"
   i=0
   while [ "$i" -lt "$n" ]; do
     _hi_doc_glyph "${_HI_DOC_T_SEV[i]}"
@@ -278,6 +323,33 @@ function _hi_doc_box() {
     i=$((i + 1))
   done
   _hi_hbar bottom 1 "$wl" "$wt"
+}
+
+# _hi_doc_fold - plain rows sharing one line of text become one row, the
+# shared text as its label and theirs as its text (`not installed | podman
+# finch nomad`), in the first one's place. Only the box folds: --json keeps a
+# row per check.
+function _hi_doc_fold() {
+  local i j n="${#_HI_DOC_T_SEV[@]}" names
+  local -a f_label=() f_text=() f_sev=() f_used=()
+  for ((i = 0; i < n; i++)); do
+    [ -z "${f_used[i]:-}" ] || continue
+    names=""
+    if [ "${_HI_DOC_T_SEV[i]}" = info ] && [ -n "${_HI_DOC_T_LABEL[i]}" ] && [[ "${_HI_DOC_T_TEXT[i]}" != *$'\n'* ]]; then
+      for ((j = i + 1; j < n; j++)); do
+        [ -z "${f_used[j]:-}" ] && [ "${_HI_DOC_T_SEV[j]}" = info ] && [ -n "${_HI_DOC_T_LABEL[j]}" ] &&
+          [ "${_HI_DOC_T_TEXT[j]}" = "${_HI_DOC_T_TEXT[i]}" ] || continue
+        names="$names ${_HI_DOC_T_LABEL[j]}"
+        f_used[j]=1
+      done
+    fi
+    if [ -n "$names" ]; then
+      f_label+=("${_HI_DOC_T_TEXT[i]}") f_text+=("${_HI_DOC_T_LABEL[i]}$names") f_sev+=(info)
+    else
+      f_label+=("${_HI_DOC_T_LABEL[i]}") f_text+=("${_HI_DOC_T_TEXT[i]}") f_sev+=("${_HI_DOC_T_SEV[i]}")
+    fi
+  done
+  _HI_DOC_T_LABEL=(${f_label[@]+"${f_label[@]}"}) _HI_DOC_T_TEXT=(${f_text[@]+"${f_text[@]}"}) _HI_DOC_T_SEV=(${f_sev[@]+"${f_sev[@]}"})
 }
 
 # doctor_flush - draw the open section's rows as one table and empty the
@@ -436,8 +508,8 @@ function doctor_plugins() {
 }
 
 function doctor_config() {
-  local f t v late any=0
-  doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
+  local f t v label late any=0
+  doctor_section config "The config overlay ($_HI_CONFIG_DIR) - what targets get"
   # Only the absent case here. When the file *is* there, rc.sh's
   # _HI_OVERLAY_CHECKS carries a row per parser that reads it, and
   # doctor_configs walks that table below, so settings.sh gets one verdict.
@@ -475,7 +547,8 @@ function doctor_config() {
     # a directory entry: how many of its files ride, and from where
     case "$f" in */)
       t="$(_hi_overlay_files "$f" | grep -c .)" || true
-      [ "$t" = 0 ] || doctor_row "$f" "$t file(s) ride, the overlay's copy of each first, then $(_hi_overlay_home "$f" || echo "none at home")"
+      _hi_doc_member "$f" label
+      [ "$t" = 0 ] || doctor_row "$label" "$t file(s) ride, the overlay's copy of each first, then $(_hi_overlay_home "$f" || echo "none at home")"
       continue
       ;;
     esac
@@ -483,24 +556,26 @@ function doctor_config() {
     _hi_overlay_src "$f" t || true
     # a member with no tree default has nothing to report until it exists
     [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/config/$f" ] || continue
+    _hi_doc_member "$f" label
     if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # a prompt program's copy with the program out of the list, or an
       # oh-my-posh format another overlay copy already stands in for
-      doctor_row "$f" "not shipped - its prompt program is not one a target is handed (_HI_PROMPT_TOOL)" warn
+      doctor_row "$label" "not shipped - its prompt program is not one a target is handed (_HI_PROMPT_TOOL)" warn
     elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
-      doctor_row "$f" "targets get $t, the one in force here"
+      # the section says what rides; the row names which file
+      doctor_row "$label" "$t"
     elif [ -z "$t" ] && ! _hi_tool_here "$f"; then
-      doctor_row "$f" "not sent - its tool is not installed here, so targets keep their own"
+      doctor_row "$label" "not sent - its tool is not installed here, so targets keep their own"
     elif [ -z "$t" ]; then
-      doctor_row "$f" "tree default"
+      doctor_row "$label" "tree default"
     elif [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/config/$f"; then
       # a copy of the tree's own file, byte for byte, so not an override yet
-      doctor_row "$f" "a copy of the tree's, unchanged - edit it to override"
+      doctor_row "$label" "a copy of the tree's, unchanged - edit it to override"
     else
-      doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
+      doctor_row "$label" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
-  # Every editor rc and shell file hi packs ships into an overlay/ of its own, so
+  # Every editor rc and shell file hi packs ships into the target's config/, so
   # a line naming a path names something no target has. hi.sh's
   # _hi_include_lint is the one grammar for every dialect - the same rows the
   # packer acts on, so what is named here is exactly what got dropped on the
@@ -512,7 +587,7 @@ function doctor_config() {
     [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
   done < <(_hi_include_lint)
-  # config/aliases.sh sources the overlay's aliases.sh last, so a value its
+  # common/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
   # here: spelled, it missed _HI_DISABLE_VIM/NANO/EMACS/MICRO the day they
@@ -568,14 +643,15 @@ function doctor_settings_values() {
   done
 }
 
-# doctor_files - every place hi.sh's $_HI_OVERLAY_TABLE says a member can
-# come from, in its one order (GLOSSARY: HI.61): the overlay's copy, each home
-# location, the tree's default where there is one - each marked used, passed over, or absent,
-# and why nothing is sent when something is there. A member found nowhere
-# joins one closing row, so a sparse setup stays a short table.
+# doctor_files - the places hi.sh's $_HI_OVERLAY_TABLE says a member can come
+# from that hold something, in its one order (GLOSSARY: HI.61): the overlay's
+# copy, each home location, the tree's default where there is one - each
+# marked used or passed over, and why nothing is sent when something is
+# there. A member found nowhere joins one closing row, so a sparse setup
+# stays a short table.
 function doctor_files() {
   doctor_section files "The files hi looks for"
-  local row m h used eff p state text none="" found tilde='~'
+  local row m h used eff p state text label none="" found tilde='~'
   local -a locs
   for row in "${_HI_OVERLAY_TABLE[@]}"; do
     m="${row%%|*}" h="${row##*|}"
@@ -607,29 +683,38 @@ function doctor_files() {
       else
         state=absent
       fi
-      [ "$state" = absent ] || found=1
+      # only what is there: the places looked in and found empty are the
+      # table's to know (GLOSSARY: HI.61), not a line each here
+      [ "$state" != absent ] || continue
+      found=1
+      [ "$p" != "$_HI_ROOT/config/$m" ] || p="the tree's config/$m"
       # the ~ from a variable: bash 3.2 keeps a \~ replacement's backslash
       text="$text${text:+; }$state ${p/#"$HOME"/$tilde}"
     done
     [ -n "$found" ] || {
-      none="$none${none:+ }$m"
+      # one name per tool's family: micro/ for its three files, oh-my-posh.*
+      # for its three formats
+      p="$m"
+      case "$m" in */*) p="${m%%/*}/" ;; oh-my-posh.*) p="oh-my-posh.*" ;; esac
+      case " $none " in *" $p "*) ;; *) none="$none${none:+ }$p" ;; esac
       continue
     }
+    _hi_doc_member "$m" label
     # a directory entry is its files, the overlay's copy of each name first
     case "$m" in */)
       p="$(_hi_overlay_files "$m" | grep -c .)" || true
-      if [ "$p" = 0 ]; then doctor_row "$m" "$text - no file rides"; else doctor_row "$m" "$text - $p file(s) ride" ok; fi
+      if [ "$p" = 0 ]; then doctor_row "$label" "$text - no file rides"; else doctor_row "$label" "$text - $p file(s) ride" ok; fi
       continue
       ;;
     esac
     if [ -n "$eff" ]; then
-      doctor_row "$m" "$text" ok
+      doctor_row "$label" "$text" ok
     elif _hi_prompt_row "$m" >/dev/null && ! _hi_prompt_handed "$m"; then
-      doctor_row "$m" "$text - not sent: its prompt program is not one a target is handed"
+      doctor_row "$label" "$text - not sent: its prompt program is not one a target is handed"
     elif [ "$_HI_REMOTE_SESSION" = 1 ]; then
-      doctor_row "$m" "$text - not sent: a session reads no home file"
+      doctor_row "$label" "$text - not sent: a session reads no home file"
     else
-      doctor_row "$m" "$text - not sent: its tool is not installed here"
+      doctor_row "$label" "$text - not sent: its tool is not installed here"
     fi
   done
   [ -z "$none" ] || doctor_row "none anywhere" "$none"
@@ -889,7 +974,7 @@ function doctor_container_target() {
   doctor_row target "has: $tools"
 
   # the tier, which is the question this arm exists for. hi ships the tree and
-  # runs load.sh under bash; without bash it copies config/aliases.sh alone and
+  # runs load.sh under bash; without bash it copies common/aliases.sh alone and
   # drops into the best of the ladder.
   case " $tools" in
   *" bash "*)
@@ -898,7 +983,7 @@ function doctor_container_target() {
   *)
     shells="$(_hi_ladder_first "$tools")"
     if [ -n "$shells" ]; then
-      doctor_row session "aliases only - no bash, so a session lands in $shells with config/aliases.sh" warn
+      doctor_row session "aliases only - no bash, so a session lands in $shells with common/aliases.sh" warn
     else
       doctor_row session "no shell hi knows - not even ${_HI_SHELL_LADDER%% *}" bad
     fi

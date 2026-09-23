@@ -154,7 +154,8 @@ function _hi_loc_renders_the_header() {
 function _hi_loc_names_the_tree() {
   local out
   out="$(_hi_strip_ansi "$1")"
-  [[ "$out" == *"$_HI_LOC_ROOT"* ]] && return 0
+  # doctor writes a path under $HOME with ~
+  [[ "$out" == *"$_HI_LOC_ROOT"* || "$out" == *"~${_HI_LOC_ROOT#"$_HI_LOC_HOME"}"* ]] && return 0
   printf '   want %s in:\n%s\n' "$_HI_LOC_ROOT" "${out:-<no output>}"
   return 1
 }

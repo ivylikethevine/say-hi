@@ -77,8 +77,8 @@ function test_payload_always_ships_aliases() {
     printf "export %s='1'\n" "$t" >>"$dir/settings.sh"
   done
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/config/aliases.sh*) return 0 ;; esac
-  _hi_cecho " | every toggle off dropped config/aliases.sh, which carries the whole alias set" "$RED"
+  case "$listing" in *say-hi/common/aliases.sh*) return 0 ;; esac
+  _hi_cecho " | every toggle off dropped common/aliases.sh, which carries the whole alias set" "$RED"
   return 1
 }
 
@@ -464,7 +464,7 @@ export _HI_MAX_WIDTH=72' ] || {
 }
 
 # the user's own aliases ride the same stream under their bare name,
-# which is where config/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
+# which is where common/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
 # Naming what the tar listed separates the three ways this fails - an empty
 # archive, a second member riding along, and a member under another name - which
@@ -699,7 +699,7 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   }
   listing="$(_hi_payload_tar | tar tzf -)"
   [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
-    [[ "$listing" == *config/aliases.sh* ]] || return 1
+    [[ "$listing" == *common/aliases.sh* ]] || return 1
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
 }
 
@@ -764,6 +764,7 @@ function test_the_scan_reports_every_dialect() {
   printf 'dofile("/tmp/x.lua")\n' >"$dir/init.lua"
   printf 'include "~/.nano/mine.nanorc"\n' >"$dir/nanorc"
   printf '(load "~/.emacs.d/mine.el")\n' >"$dir/init.el"
+  printf 'source "%%val{runtime}/rc/x.kak"\nplug "andreyorst/fzf.kak"\nsource ~/mine.kak\n' >"$dir/kakrc"
   printf 'source-file ~/.tmux/theme.conf\n' >"$dir/tmux.conf"
   mkdir -p "$dir/micro"
   printf 'config.AddRuntimeFile("mine", config.RTPlugin, "mine.lua")\n' >"$dir/micro/init.lua"
@@ -775,7 +776,7 @@ function test_the_scan_reports_every_dialect() {
   out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
   # rows come in _HI_OVERLAY_FILES order: every member is scanned, and the
   # ones with no dialect (colors, packages) simply have nothing to say
-  [ "$out" = "settings.sh|1|include,vimrc|1|include,init.lua|1|include,nanorc|1|include,init.el|1|include,aliases.sh|1|include,bashrc|2|include,zshrc|1|plugin,config.fish|1|include,tmux.conf|1|include,micro/init.lua|1|plugin" ] || {
+  [ "$out" = "settings.sh|1|include,vimrc|1|include,init.lua|1|include,nanorc|1|include,init.el|1|include,kakrc|2|plugin,kakrc|3|include,aliases.sh|1|include,bashrc|2|include,zshrc|1|plugin,config.fish|1|include,tmux.conf|1|include,micro/init.lua|1|plugin" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }

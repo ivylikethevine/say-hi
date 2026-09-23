@@ -220,7 +220,7 @@ function _hi_session_rc_setup() {
   printf -v q '%q' "$_HI_ROOT"
   {
     printf '[ -r %s/common/paths.sh ] && . %s/common/paths.sh\n' "$q" "$q"
-    printf '[ -r %s/config/aliases.sh ] && . %s/config/aliases.sh\n' "$q" "$q"
+    printf '[ -r %s/common/aliases.sh ] && . %s/common/aliases.sh\n' "$q" "$q"
   } >"$dir/shrc"
 
   # Exported, so a shell started *inside* the session inherits them. ZDOTDIR
@@ -249,18 +249,19 @@ function _hi_session_shell_cmd() {
   eval "$2=(\"\${_hi_sc[@]}\")"
 }
 
-# The editor a session exports, with hi's config flags: $_HI_EDITOR's pick when
-# it names something installed here, else the first of the ladder. The flags
-# are read off the alias config/aliases.sh builds (sourced here, in the
+# _hi_session_editor [name...] - the editor a session exports, with hi's
+# config flags: the first installed here of $_HI_EDITOR, the names given (the
+# client's own $EDITOR and $VISUAL), and the ladder. The flags
+# are read off the alias common/aliases.sh builds (sourced here, in the
 # caller's $( ) subshell, so nothing leaks into load()) - one spelling of each
 # editor's invocation, so _HI_MICRO_OPTS or an overlay's own `alias vim=...`
 # reaches $EDITOR the way it reaches the alias. An editor with no alias (micro
 # under _HI_DISABLE_MICRO, say) goes bare, hence the ${body:-$e} tail.
 function _hi_session_editor() {
   local e body
-  # shellcheck source=./config/aliases.sh
+  # shellcheck source=./common/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
-  for e in ${_HI_EDITOR:-} $_HI_EDITORS; do
+  for e in ${_HI_EDITOR:-} "$@" $_HI_EDITORS; do
     type -P "$e" &>/dev/null || continue
     body="$(alias "$e" 2>/dev/null)"
     body="${body#alias "$e"=\'}"
@@ -312,10 +313,14 @@ function load() {
     # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
     # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e` on
     # the target would still open whatever vi it has. Exported for the
-    # session shell to inherit, carrying the same flags the alias does.
-    local editor
-    editor="$(_hi_session_editor)"
-    [[ -n "$editor" ]] && export EDITOR="$editor" VISUAL="$editor" SUDO_EDITOR="$editor"
+    # session shell to inherit, carrying the same flags the alias does. The
+    # client's own two stay two - each tried first for its own variable, the
+    # other one next - and sudo -e takes $EDITOR's.
+    local editor visual
+    editor="$(_hi_session_editor "${_HI_CLIENT_EDITOR:-}" "${_HI_CLIENT_VISUAL:-}")"
+    visual="$(_hi_session_editor "${_HI_CLIENT_VISUAL:-}" "${_HI_CLIENT_EDITOR:-}")"
+    [[ -n "$editor" ]] && export EDITOR="$editor" SUDO_EDITOR="$editor"
+    [[ -n "$visual" ]] && export VISUAL="$visual"
   fi
   # $shell is needed either way - _hi_session_shell_cmd below runs it - but
   # the greeting and its three timers are a line of their own, and not part of

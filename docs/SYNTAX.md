@@ -83,7 +83,7 @@ the first four rows.
 
 | File                | Dialect                                                                             | Caught by                                       |
 | ------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `config/aliases.sh` | what bash, zsh, and fish all parse: `alias`, `export`, `&&` chains, `$( )`; no `if` | `dialects` (fish and zsh parse it)              |
+| `common/aliases.sh` | what bash, zsh, and fish all parse: `alias`, `export`, `&&` chains, `$( )`; no `if` | `dialects` (fish and zsh parse it)              |
 | `common/paths.sh`   | plain `export` lines four shells read                                               | `dialects` (fish and zsh parse it)              |
 | `common/targets.sh` | standalone POSIX sh                                                                 | checkbashisms, over every `#!/bin/sh` file      |
 | `settings.sh`       | `export NAME=value` lines sh and fish both parse                                    | `hi --doctor`'s config rows, on the user's copy |

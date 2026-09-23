@@ -352,46 +352,7 @@ In this checkout, narrowest first.
        the first bashcov sweep on `main` after this lands reads no shipped
        line at 0 that is neither tested nor in that header.
 
-3. [ ] **`hi --doctor` names each tool and fits a screen** — the config
-       rows say what rides for `vimrc`, `tmux.conf`, `micro/`, and the rest
-       without naming the tool that reads each, and the report runs to
-       several screens. **Do:** put the tool (`vim`, `tmux`, `micro`, ...) in
-       each row of the config list, and cut the report's height: fold the
-       rows that say nothing is there, and keep one line per member.
-       **Ticks when:** every config row names its tool, and a default run on
-       a bare home is measurably shorter than today's, pinned by
-       `doctor_test`.
-
-4. [ ] **Respect `$EDITOR` and `$VISUAL`** — a session exports one value to
-       `$EDITOR`, `$VISUAL`, and `$SUDO_EDITOR` alike, picked from
-       `$_HI_EDITOR` or the `$_HI_EDITORS` ladder, and the client's own
-       `$EDITOR` and `$VISUAL` never reach the target. **Do:** carry the
-       client's two when the editor they name is on the target, ahead of the
-       ladder, keep them distinct, and give each the flags its alias would
-       carry. **Ticks when:** `EDITOR=nano VISUAL=vim hi <target>` exports
-       nano and vim respectively on a target with both, the ladder answers
-       only for a name the target lacks, and `load_test` asserts both.
-
-5. [ ] **kakoune** — hi wires vim, neovim, helix, nano, emacs, and micro,
-       but not `kak`. **Do:** a `kakrc` overlay member with its home tier
-       (`$XDG_CONFIG_HOME/kak/kakrc`), the include scan's rules for kakoune's
-       `source` and plugin managers, an alias and `_HI_DISABLE_KAKOUNE`, and
-       a place in `$_HI_EDITORS` and the package check. **Ticks when:** a
-       home `kakrc` rides to a target with kak and is in force there, and
-       the suites that cover the other editors cover it too.
-
-6. [ ] **One config directory on a target** — the payload unpacks hi's
-       defaults to `say-hi/config/` and the overlay to `say-hi/overlay/`, so
-       every lookup on a target knows two directories. **Do:** unpack the
-       overlay into `config/`, with an overlay member replacing the default
-       of the same name as `$_HI_OVERLAY_SHADOWS` already decides, and
-       resolve `aliases.sh`, the one name both sides use for different
-       files: hi's is sourced first and the user's on top, so one of them
-       has to move. **Ticks when:** a target session has no `overlay/`, its
-       `$_HI_CONFIG_DIR` is `$_HI_ROOT/config`, both alias files still load
-       in order, and the payload and rc suites pass against that layout.
-
-7. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+3. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -401,7 +362,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-8. [ ] **Investigate the header as plugins** — every header cell is one
+4. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing

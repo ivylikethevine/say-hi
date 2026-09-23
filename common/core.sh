@@ -32,7 +32,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
-    _HI_DISABLE_MICRO _HI_DISABLE_HELIX
+    _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
@@ -598,7 +598,8 @@ _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
-  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_ASCII _HI_TRUECOLOR)
+  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_CLIENT_EDITOR
+  _HI_CLIENT_VISUAL _HI_ASCII _HI_TRUECOLOR)
 
 # _hi_unexport - drop the export attribute from every _HI_* name not in
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
@@ -685,7 +686,7 @@ function _hi_prompt_end() {
 # The editors a session's $EDITOR can be, best first: $_HI_EDITOR's pick when
 # the target has it, else the first of these it does (load.sh's
 # _hi_session_editor); scripts/lib.sh's _hi_is_editor validates against it.
-_HI_EDITORS="nvim vim micro hx nano emacs"
+_HI_EDITORS="nvim vim micro hx kak nano emacs"
 
 # Every prompt program hi hands the prompt to, one row each:
 # name|shells it fits|how it is found|the overlay member(s) its home config

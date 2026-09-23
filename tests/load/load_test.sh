@@ -749,6 +749,10 @@ EOF
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$_HI_WORKDIR/withvimonly/vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
   _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_NVIMRC|" _HI_EDITOR=no-such-editor
+  _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
+  _hi_check "...one set stands in for the other" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=nano --rcfile $_HI_NANORC|" _HI_CLIENT_EDITOR=nano
+  _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|" _HI_CLIENT_EDITOR=no-such-editor
+  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -mkparents true -diffgutter true|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
   _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"

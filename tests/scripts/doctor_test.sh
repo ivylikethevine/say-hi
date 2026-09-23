@@ -237,7 +237,7 @@ function test_config_counts_an_overlay_file() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
+  [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]]
 }
 
 # a member with no tree copy - bashrc, starship.toml - has no default to
@@ -250,7 +250,7 @@ function test_config_has_no_tree_default_for_a_member_without_one() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  printf '%s\n' "$out" | grep -q 'colors.*tree default' &&
+  printf '%s\n' "$out" | grep -qE 'colors.*tree default|tree default.*colors' &&
     ! printf '%s\n' "$out" | grep -q 'bash\.sh.*tree default' &&
     ! printf '%s\n' "$out" | grep -q 'starship\.toml.*tree default'
 }
@@ -265,7 +265,7 @@ function test_config_names_a_home_tool_config() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
   )"
-  [[ "$out" == *"bat.conf"*"targets get $dir/bat-flags"* ]]
+  [[ "$out" == *"bat.conf (bat)"*"$dir/bat-flags"* && "$out" != *"targets get $dir"* ]]
 }
 
 # a tool config copy in the overlay is the override, over the file the tool
@@ -300,8 +300,8 @@ function test_config_names_tmux_and_micro_configs() {
     _HI_TMUX_CONF="$dir/tmux.conf"
     MICRO_CONFIG_HOME="$dir/micro" doctor_config
   )"
-  [[ "$out" == *"tmux.conf"*"targets get $dir/tmux.conf"* ]] &&
-    [[ "$out" == *"micro/settings.json"*"targets get $dir/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
+  [[ "$out" == *"tmux.conf (tmux)"*"$dir/tmux.conf"* ]] &&
+    [[ "$out" == *"micro/settings.json (micro)"*"$dir/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
     [[ "$out" == *"tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
 }
 
@@ -321,9 +321,10 @@ function test_config_is_silent_on_a_config_for_an_absent_tool() {
 }
 
 # The files table walks every tier of a member in the table's order and marks
-# each: home's ~/.vimrc used, the overlay's tmux.conf over home's, a member
-# found nowhere only in the closing row, and a home config whose tool is
-# missing named as not sent. GLOSSARY: HI.61
+# what it finds: home's ~/.vimrc used, the overlay's tmux.conf over home's, a
+# member found nowhere only in the closing row, and a home config whose tool
+# is missing named as not sent. A place found empty is no part of a row.
+# GLOSSARY: HI.61
 function test_files_table_walks_every_tier() {
   local h out
   h="$(mktemp -d "$_HI_WORKDIR/files.XXXXXX")"
@@ -338,10 +339,31 @@ function test_files_table_walks_every_tier() {
       _HI_SCREENRC="" doctor_files
   )"
   out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"vimrc"*"absent ~/overlay/vimrc; used ~/.vimrc; absent ~/.vim/vimrc"* ]] &&
-    [[ "$out" == *"tmux.conf"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
-    [[ "$out" == *"init.el"*"passed over ~/.emacs"*"- not sent: its tool is not installed here"* ]] &&
+  [[ "$out" == *"vimrc (vim)"*"used ~/.vimrc"* && "$out" != *absent* ]] &&
+    [[ "$out" == *"tmux.conf (tmux)"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
+    [[ "$out" == *"init.el (emacs)"*"passed over ~/.emacs - not sent: its tool is not installed here"* ]] &&
     [[ "$out" == *"none anywhere"*screenrc* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+}
+
+# The boxed report stays short: no header row, plain rows that say the same
+# thing folded into one (`not installed | podman finch`), and $HOME as ~ -
+# while --json keeps a row per check and whole paths.
+function test_the_box_folds_and_shortens() {
+  local out
+  out="$(
+    HOME=/h
+    _HI_DOC_T_LABEL=(podman finch docker vimrc)
+    _HI_DOC_T_TEXT=("not installed" "not installed" "answering" "/h/.vimrc")
+    _HI_DOC_T_SEV=(info info ok info)
+    unset _HI_TERM_COLS
+    _hi_doc_box RESULT
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 5 ] &&
+    [[ "$out" == *"not installed"*"podman finch"* && "$out" == *"~/.vimrc"* && "$out" != *"/h/.vimrc"* ]] || {
     printf '%s\n' "$out"
     return 1
   }
@@ -406,7 +428,7 @@ function test_config_names_the_editor_config_in_force_here() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"vimrc"*"targets get $mine, the one in force here"* ]]
+  [[ "$out" == *"vimrc (vim)"*"$mine"* ]]
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
@@ -513,7 +535,7 @@ function test_config_reports_the_packages_file() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/packages.XXXXXX")"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
-  [[ "$out" == *"packages"*"tree default"* ]] || return 1
+  [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]] || return 1
   cp "$_HI_ROOT/config/packages" "$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
   [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || return 1
@@ -829,7 +851,7 @@ function test_container_target_reports_the_full_tier() {
   [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]]
 }
 
-# no bash means hi copies config/aliases.sh alone and drops into the best of the
+# no bash means hi copies common/aliases.sh alone and drops into the best of the
 # ladder - the report has to name which shell that is, since that is the whole
 # question somebody runs this to answer
 function test_container_target_names_the_fallback_shell() {
@@ -1056,7 +1078,7 @@ function test_install_section_reports_a_wired_shell() {
   mkdir -p "$home"
   _hi_wired_line sh >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || return 1
-  [[ "$out" == *"$home/.bashrc is wired to this tree"* ]]
+  [[ "$out" == *"~/.bashrc is wired to this tree"* ]]
 }
 
 function test_install_section_flags_a_foreign_tree() {
@@ -1064,7 +1086,7 @@ function test_install_section_flags_a_foreign_tree() {
   mkdir -p "$home"
   _hi_wired_line sh /elsewhere >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"$home/.bashrc names /elsewhere, this is $_HI_HOME"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"~/.bashrc names /elsewhere, this is $_HI_HOME"* ]]
 }
 
 function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() {
@@ -1072,8 +1094,8 @@ function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() 
   mkdir -p "$home"
   : >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"$home/.bashrc has no hi lines"* ]] &&
-    [[ "$out" == *"no $home/.local/bin/hi"* ]] && [[ "$out" == *"zsh"*"not installed here"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"~/.bashrc has no hi lines"* ]] &&
+    [[ "$out" == *"no ~/.local/bin/hi"* ]] && [[ "$out" == *"zsh"*"not installed here"* ]]
 }
 
 function test_install_section_reports_the_link() {
@@ -1081,7 +1103,7 @@ function test_install_section_reports_the_link() {
   mkdir -p "$home/.local/bin"
   ln -sfn "$_HI_LAUNCHER" "$home/.local/bin/hi"
   out="$(_hi_doctor_install_out "$home")" || return 1
-  [[ "$out" == *"$home/.local/bin/hi -> $_HI_LAUNCHER"* && "$out" == *"not on PATH"* ]]
+  [[ "$out" == *"~/.local/bin/hi -> $_HI_LAUNCHER"* && "$out" == *"not on PATH"* ]]
 }
 
 function test_install_section_flags_a_foreign_link() {
@@ -1089,7 +1111,7 @@ function test_install_section_flags_a_foreign_link() {
   mkdir -p "$home/.local/bin"
   ln -sfn /bin/true "$home/.local/bin/hi"
   out="$(_hi_doctor_install_out "$home")" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"$home/.local/bin/hi is not this tree's: /bin/true"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"~/.local/bin/hi is not this tree's: /bin/true"* ]]
 }
 
 # `hi` found on PATH and no ~/.local/bin/hi: a link to this tree's hi.sh
@@ -1101,13 +1123,13 @@ function test_install_section_reads_the_hi_on_path() {
   mkdir -p "$bin"
   ln -sfn "$_HI_LAUNCHER" "$bin/hi"
   out="$(_hi_doctor_install_out "$home" PATH="$path")" || return 1
-  [[ "$out" == *"no $home/.local/bin/hi, none needed: $bin/hi runs this tree"* &&
-    "$out" == *"hi on PATH is $bin/hi, and runs this tree"* ]] || return 1
+  [[ "$out" == *"no ~/.local/bin/hi, none needed: ~/bin/hi runs this tree"* &&
+    "$out" == *"hi on PATH is ~/bin/hi, and runs this tree"* ]] || return 1
   printf '#!/bin/sh\nexit 0\n' >"$bin/other"
   chmod +x "$bin/other"
   ln -sfn "$bin/other" "$bin/hi"
   out="$(_hi_doctor_install_out "$home" PATH="$path")" || return 1
-  [[ "$out" == *"hi on PATH is $bin/hi, which runs $bin/other - not this tree"* ]]
+  [[ "$out" == *"hi on PATH is ~/bin/hi, which runs ~/bin/other - not this tree"* ]]
 }
 
 function test_install_section_warns_about_a_darwin_login_bash() {
@@ -1119,10 +1141,10 @@ function test_install_section_warns_about_a_darwin_login_bash() {
   # and nobody's to edit: the row hands over the line instead
   printf 'umask 022\n' >"$home/.bash_login"
   out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"$home/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"* ]] || return 1
+  [[ "$out" == *"~/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"* ]] || return 1
   printf '. ~/.bashrc\n' >"$home/.bash_profile"
   out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"$home/.bash_profile reads ~/.bashrc"* ]]
+  [[ "$out" == *"~/.bash_profile reads ~/.bashrc"* ]]
 }
 
 function test_install_section_warns_on_a_zdotdir_mismatch() {
@@ -1130,7 +1152,7 @@ function test_install_section_warns_on_a_zdotdir_mismatch() {
   mkdir -p "$home/zdot"
   _hi_wired_line sh >"$home/.zshrc"
   out="$(_hi_doctor_install_out "$home" ZDOTDIR="$home/zdot")" || return 1
-  [[ "$out" == *"ZDOTDIR points zsh at $home/zdot/.zshrc"* ]]
+  [[ "$out" == *"ZDOTDIR points zsh at ~/zdot/.zshrc"* ]]
 }
 
 # sections present and the exit code is the red-finding count (0 here -
@@ -1257,7 +1279,8 @@ function test_full_report_draws_tables_and_no_findings_box() {
   _hi_doctor_plain_report
   out="$(_hi_strip_ansi "$_HI_DOC_PLAIN_OUT")"
   _hi_table_is_rectangular "$out" || return 1
-  [[ "$out" == *"$_HI_BOX_V CHECK"*"$_HI_BOX_V RESULT"* ]] || return 1
+  # boxed, with no header row: the section heading says what the table is
+  [[ "$out" == *"$_HI_BOX_V"* && "$out" != *"$_HI_BOX_V CHECK"* ]] || return 1
   [[ "$out" != *"Findings:"* && "$out" != *"$_HI_BOX_V FINDING"* ]]
 }
 
@@ -1276,7 +1299,7 @@ function _hi_doctor_problems() {
 function test_problems_prints_only_the_findings() {
   local out
   out="$(_hi_strip_ansi "$(_hi_doctor_problems somehost)")"
-  [[ "$out" == *"rc=1" && "$out" == *"Findings: 1 bad, "*"FINDING"* ]] || return 1
+  [[ "$out" == *"rc=1" && "$out" == *"Findings: 1 bad, "*"$_HI_BOX_V"* ]] || return 1
   [[ "$out" != *"hi doctor"* && "$out" != *"The local tree"* && "$out" != *RESULT* ]] || return 1
   out="$(_hi_strip_ansi "$(_hi_doctor_problems)")"
   [[ "$out" == *"rc=0" && "$out" == *"Findings: 0 bad, "* ]] || return 1
@@ -1341,6 +1364,7 @@ function run_doctor_tests() {
     _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
     _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
     _hi_check "The files table walks every tier" test_files_table_walks_every_tier
+    _hi_check "The box folds alike rows, drops its header, and writes ~" test_the_box_folds_and_shortens
     _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
     _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
     _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed

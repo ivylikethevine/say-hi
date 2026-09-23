@@ -21,7 +21,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS _HI_DISABLE_EDITORS
   _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS _HI_DISABLE_MICRO
-  _HI_DISABLE_HELIX
+  _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
   _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
   _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
 
@@ -122,7 +122,7 @@ function test_paths_sources_cleanly_under_strict_mode() {
   '
 }
 
-# config/aliases.sh and common/config.fish read the toggles bare, and neither
+# common/aliases.sh and common/config.fish read the toggles bare, and neither
 # can use ${X:-0} because fish sources both and has no such expansion. So the
 # entry points guarantee the variables exist instead. Getting this wrong is
 # invisible until something runs under `set -u`, where an unset toggle is fatal
@@ -158,7 +158,7 @@ function test_aliases_source_cleanly_under_nounset() {
     source "$_HI_ALIASES"' 2>/dev/null
 }
 
-# The overlay's aliases.sh is additive - config/aliases.sh's last line sources
+# The overlay's aliases.sh is additive - common/aliases.sh's last line sources
 # $_HI_CONFIG_DIR/aliases.sh so the user's definitions win. Point
 # $_HI_CONFIG_DIR at the tree's own config/ and that line becomes the file
 # sourcing itself, forever: exactly what a target does when the overlay is
@@ -468,7 +468,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs its overlay
 # lookup in paths.sh - except settings.sh and plugins.d (the overlay is
 # plugins.d's only home, so it is an unguarded export instead) and
-# the four additive ones, which each shell or config/aliases.sh sources by
+# the four additive ones, which each shell or common/aliases.sh sources by
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
 # aliases.sh and the three per-shell files (bashrc, zshrc, config.fish) -
 # and the prompt frameworks' five, which only a target reads, by name, as

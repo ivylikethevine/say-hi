@@ -47,7 +47,7 @@ export _HI_PACKAGES="$_HI_ROOT/config/packages"
 export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
 # The editor rcs: within the home tier the editor's own precedence, reversed.
 # No tree default: with no config anywhere the value is empty and
-# config/aliases.sh leaves the editor alone.
+# common/aliases.sh leaves the editor alone.
 export _HI_VIMRC=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/vim/vimrc" ] && export _HI_VIMRC="$_HI_XDG_CONFIG/vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vim/vimrc" ] && export _HI_VIMRC="$HOME/.vim/vimrc"
@@ -101,12 +101,16 @@ export _HI_ZELLIJ_DIR=""
 # that directory, and the file has to carry that exact name, so the overlay
 # itself is the directory (docs/INTEGRATIONS.md says how to put one there).
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/theme.yml" ] && export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
+# kakoune the same: it reads kakrc out of $KAKOUNE_CONFIG_DIR, so the overlay
+# is the directory, and `kak -n` would skip the system kakrc that loads its
+# syntax files too. Editor toggles, since kak is an editor.
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_KAKOUNE" != 1 ] && [ -f "$_HI_CONFIG_DIR/kakrc" ] && export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR"
 # bat too: a bat.conf in the overlay is its config file on every target, and
-# config/aliases.sh drops its own --theme flag when this is set so the
+# common/aliases.sh drops its own --theme flag when this is set so the
 # file's theme wins.
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/bat.conf" ] && export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
 
-export _HI_ALIASES="$_HI_ROOT/config/aliases.sh"
+export _HI_ALIASES="$_HI_ROOT/common/aliases.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"
 export _HI_ZSHRC="$_HI_ROOT/common/zsh.zsh"
 export _HI_FISH_CONFIG="$_HI_ROOT/common/config.fish"
@@ -167,6 +171,7 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_EMACS=1
   export _HI_DISABLE_MICRO=1
   export _HI_DISABLE_HELIX=1
+  export _HI_DISABLE_KAKOUNE=1
   export _HI_DISABLE_TOOL_ALIASES=1
   export _HI_DISABLE_SUDO_ALIAS=1
   export _HI_DISABLE_BANNER=1

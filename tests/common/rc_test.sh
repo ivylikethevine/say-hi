@@ -109,10 +109,10 @@ function test_bash_registers_hi_completion() {
 # the file.
 function test_bash_sources_the_convenience_aliases() {
   local sample
-  sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/config/aliases.sh" |
+  sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/common/aliases.sh" |
     sed -E 's/^alias +//; s/=$//' | tr '\n' ' ')"
   [ -n "$sample" ] || {
-    _hi_cecho " | config/aliases.sh defines no unguarded aliases left to sample" "$BLUE"
+    _hi_cecho " | common/aliases.sh defines no unguarded aliases left to sample" "$BLUE"
     return 0
   }
   _hi_rc_shell xterm-256color bash \
@@ -354,7 +354,7 @@ function test_remote_session_aliases_overlay_config() {
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; alias '"$name" ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; functions '"$name" ;;
   esac
-  # the editor aliases are gated on their tool (config/aliases.sh), and no
+  # the editor aliases are gated on their tool (common/aliases.sh), and no
   # runner has micro: a stub on PATH stands in for it
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 \
     PATH="$(_hi_fake_path rc-tools micro tmux screen zellij):$PATH" 2>/dev/null)"
@@ -1117,6 +1117,8 @@ function run_rc_tests() {
   _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config bash theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config bash bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
+  _hi_check "[bash] ...but not with _HI_DISABLE_KAKOUNE=1" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "" _HI_DISABLE_KAKOUNE=1
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
   _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
@@ -1130,6 +1132,7 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
   _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"

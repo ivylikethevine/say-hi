@@ -420,7 +420,7 @@ function _hi_config_preview() {
 }
 
 # what each editor alias actually resolves to with the override on - read
-# back from config/aliases.sh itself (the overlay's copy on a target)
+# back from common/aliases.sh itself (the overlay's copy on a target)
 # rather than restated here, so a box with neither nvim nor vim, say, shows
 # nothing for that line instead of a resolved command that was never real. A
 # subshell: nothing this defines should survive past the preview.
@@ -432,7 +432,7 @@ function _hi_editors_preview() {
     # _hi_tool_alias_preview's own export below sourcing the same file
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this subshell
-    # shellcheck source=../config/aliases.sh
+    # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     local e body
     for e in nano vim nvim emacs micro hx; do
@@ -444,7 +444,7 @@ function _hi_editors_preview() {
 }
 
 # what `cat` and `eza` resolve to with the rebinds on - read back from
-# config/aliases.sh itself (the same trick _hi_editors_preview uses above)
+# common/aliases.sh itself (the same trick _hi_editors_preview uses above)
 # rather than restated here, so a BAT_CONFIG_PATH that drops --theme, say,
 # shows up here too instead of drifting from what a real session gets. The
 # resolution caches into _HI_*_BIN/_HI_*_OPTS on export, so those are cleared
@@ -455,7 +455,7 @@ function _hi_tool_alias_preview() {
     _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
     _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
-    # shellcheck source=../config/aliases.sh
+    # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     if [ -n "$_HI_BAT_BIN" ]; then
       printf 'cat -> %s %s\n' "$_HI_CAT_BIN" "$_HI_BAT_OPTS"
@@ -527,12 +527,13 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_GREETING|1||||greeting - the \"hi loaded with...\" line and its timers"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status - the branch and its changes"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment - (myproj) for a venv, ..."
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix"
+  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix, kak"
   "_HI_DISABLE_VIM|1||||vim and nvim - your carried vimrc and init.lua"
   "_HI_DISABLE_NANO|1|||nano|nano - your carried nanorc"
   "_HI_DISABLE_EMACS|1|||emacs|emacs - your carried init file"
   "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
   "_HI_DISABLE_HELIX|1|||hx|helix - your carried config.toml"
+  "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - your carried kakrc"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
   "_HI_DISABLE_LOCAL|1||||here too - all of the above on this machine, not just where you hi"

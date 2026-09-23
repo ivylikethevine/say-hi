@@ -150,5 +150,5 @@ command -v shift >/dev/null 2>&1 &&
 # file forever; the shellcheck directive is the static half of the same hazard
 # (see common/bash.sh).
 # shellcheck source=/dev/null # user config, may not exist
-[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/config/aliases.sh" ] &&
+[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/common/aliases.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true
