@@ -334,7 +334,18 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **A blocked upstream shows as drift** — `check_tool_versions.sh`
+1. [ ] **Close the prompt mark when the shell exits** — `bash.sh` and
+       `zsh.zsh` emit OSC 133 A and B with each prompt, C before a command
+       and D at the next prompt, so a shell left from its prompt (Ctrl-D)
+       exits with the prompt still open. Konsole's semantic hints then shade
+       every later line as part of it, the parent shell's included. **Do:**
+       emit C and D with the exit status on the way out (an `EXIT` trap in
+       bash, a `zshexit` hook in zsh), and check `config.fish`'s marks for the
+       same gap. **Ticks when:** in Konsole with semantic hints on, running
+       bash (and zsh) from fish and leaving with Ctrl-D leaves the lines after
+       it unshaded.
+
+2. [ ] **A blocked upstream shows as drift** — `check_tool_versions.sh`
        prints `(could not read upstream releases)` for a row it cannot read
        and counts no problem, and `tool-versions.yml` blocks egress to a
        fixed host list, so a pin whose upstream lives on a host missing from
@@ -343,7 +354,7 @@ In this checkout, narrowest first.
        limit), naming the host. **Ticks when:** a run with one upstream host
        removed from `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
+3. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
        sweep (run 35670586612) left in the shipped files now has a test
        (`env_prompt.sh`, `stamp_badge.sh`, `configure.sh`, `core.sh`,
        `doctor.sh`, `hi.sh`) or is a blind spot `tests/coverage_v2.sh`'s
@@ -352,7 +363,7 @@ In this checkout, narrowest first.
        the first bashcov sweep on `main` after this lands reads no shipped
        line at 0 that is neither tested nor in that header.
 
-3. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+4. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -362,7 +373,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-4. [ ] **Investigate the header as plugins** — every header cell is one
+5. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing
