@@ -19,6 +19,7 @@ every `_HI_DISABLE_*` one on your own machine only
   - [Shipping your eza theme](#shipping-your-eza-theme)
 - [Terminal multiplexers](#terminal-multiplexers)
 - [lesspipe](#lesspipe)
+- [readline](#readline)
 - [Shell frameworks](#shell-frameworks)
   - [On your own machine](#on-your-own-machine)
 - [Which side is asked](#which-side-is-asked)
@@ -221,6 +222,21 @@ opens archives, packages, and compressed files the way the distro's own
 skips it. In the same spirit, a chroot's `/etc/debian_chroot` leads the
 prompt: `(name)` in bash and zsh, `(chroot:name)` in fish.
 
+## readline
+
+Every target gets the inputrc you already keep: hi ships the file readline
+reads here - `$INPUTRC`, else `~/.inputrc` - or the `inputrc` in
+`~/.config/say-hi/` when there is one. On a target, `common/paths.sh` points
+`INPUTRC` at the shipped copy, so bash's line editing and every readline
+program started from the session take your bindings; zsh and fish have line
+editors of their own and ignore it. At home the variable is left alone.
+Nothing is asked about first: readline is a library, not a command on `PATH`.
+
+A set `INPUTRC` replaces `/etc/inputrc` rather than adding to it, so an
+inputrc that relies on the system one says `$include /etc/inputrc`, which
+rides as written. An `$include` of any other file is dropped on the way out
+([SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
+
 ## Shell frameworks
 
 A framework on a target loads normally. hi lands you in your own login shell
@@ -255,7 +271,8 @@ different thing:
   kak, `nanorc` with
   nano, `init.el` with emacs, `tmux.conf` with tmux, `screenrc` with screen,
   `micro/` with micro, `zellij/` with zellij,
-  `bat.conf` with bat (or `batcat`), `theme.yml` with eza. A dotfile left
+  `bat.conf` with bat (or `batcat`), `theme.yml` with eza; `inputrc` always,
+  since readline is a library, not a command. A dotfile left
   behind by a tool you removed neither ships nor gets a `hi --doctor` row.
   It is the client because only the client can be asked before a connect, which
   is when the overlay is packed - the reason the

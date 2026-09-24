@@ -175,6 +175,7 @@ directory, and zellij's `layouts/` and `themes/`, ride member by member; a membe
 | `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                 | the `micro` alias (`-config-dir`)                                   |
 | `zellij/` (`config.kdl`, `layouts/`, `themes/`)                                             | `_HI_ZELLIJ_DIR`                                                      | -                 | the `zellij` alias (`--config-dir`)                                 |
 | `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                 | starship, oh-my-posh, eza, and bat on a target                      |
+| `inputrc`                                                                                   | -                                                                     | -                 | readline on a target (`$INPUTRC`)                                   |
 | `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target |
 | `ssh_tags`                                                                                  | -                                                                     | -                 | a `hi` run from inside a session, for the next hop's tag colors     |
 
@@ -201,7 +202,8 @@ overlay copy. A prompt program's
 member rides only when that program is in the list a target is handed
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
 screen's, micro's, zellij's, bat's, or eza's only with that tool installed here
-([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked));
+([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked)),
+and readline's always;
 an overlay copy rides either way.
 
 | Member                | Looked for, in order                                                                                                                                                                                                                                             |
@@ -226,6 +228,7 @@ an overlay copy rides either way.
 | `tide.vars`           | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it                                                                                                                                                                   |
 | `theme.yml`           | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                                                                                                                                                                              |
 | `bat.conf`            | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                                                                                                                                                                                             |
+| `inputrc`             | `${INPUTRC:-~/.inputrc}`                                                                                                                                                                                                                                         |
 | `ssh_tags`            | the `# Tags:` lines of `~/.ssh/config` and its Includes, each with the `Host` or `Match host` line under it and nothing else                                                                                                                                     |
 
 ## Paths hi recognizes

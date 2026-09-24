@@ -227,6 +227,7 @@ function _hi_doc_member() {
   zellij/*) tool=zellij ;;
   bat.conf) tool=bat ;;
   theme.yml) tool=eza ;;
+  inputrc) tool=readline ;;
   bashrc) tool=bash ;;
   zshrc) tool=zsh ;;
   config.fish) tool=fish ;;

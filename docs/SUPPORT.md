@@ -103,10 +103,6 @@ permanent - it is the argument to beat.
   not inherit from a config file that rode over the wire - closer to the
   `~/.bashrc` reasoning above (tokens a config file can carry) than to the
   prompt-config precedent (a file with nothing secret in it).
-- **`inputrc` / readline keybindings.** Already the answer in prose
-  ([SETTINGS.md](SETTINGS.md#every-setting): "hi ships nobody's shell
-  preferences - no history sizing, keybindings..."); a keybinding is a
-  preference laid on top of every shell you open, not a per-connect config.
 - **zoxide / atuin / fzf configs.** Already the documented answer for their
   shell hooks ([INTEGRATIONS.md](INTEGRATIONS.md#shell-hooks-of-your-own):
   "yours to add"); the same reasoning extends to a config file none of the

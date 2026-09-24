@@ -219,7 +219,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,
   `starship.toml`, `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`,
-  `bash-it.theme.bash`, `tide.vars`, `theme.yml`, `bat.conf`, and
+  `bash-it.theme.bash`, `tide.vars`, `theme.yml`, `bat.conf`, `inputrc`, and
   `ssh_tags`), their
   formats, the XDG path, and the
   `_HI_CONFIG_DIR` override. The rule behind the names: a member is called

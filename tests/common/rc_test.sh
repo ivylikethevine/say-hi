@@ -319,7 +319,8 @@ function test_defers_to_prompt_tool_when_asked() {
 
 # on a target, a tool's config in the overlay becomes the tool's own variable
 # (starship.toml -> $STARSHIP_CONFIG, theme.yml -> $EZA_CONFIG_DIR - the
-# directory, since eza fixes the file name - bat.conf -> $BAT_CONFIG_PATH); at
+# directory, since eza fixes the file name - bat.conf -> $BAT_CONFIG_PATH,
+# inputrc -> $INPUTRC); at
 # home the variable is left alone, whatever the overlay holds
 # <shell> <overlay file> <variable> <expected on a target> [NAME=VALUE...]
 function test_remote_session_exports_overlay_config() {
@@ -1117,6 +1118,7 @@ function run_rc_tests() {
   _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config bash theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config bash bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check "[bash] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config bash inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
   _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] ...but not with _HI_DISABLE_KAKOUNE=1" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "" _HI_DISABLE_KAKOUNE=1
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
@@ -1132,6 +1134,7 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check_requires fish "[fish] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config fish inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
   _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
   _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
