@@ -68,7 +68,15 @@ library its target's framework version lacks fails there as it would at
 home.
 
 So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box
-that has them, and hi's where it has neither. The list is worked out on this
+that has them, and hi's where it has neither. A prompt hi has no hand-over
+for stays yours rather than being drawn over: liquidprompt or bash-git-prompt
+in bash; spaceship, pure, or a promptinit theme (prezto's included) in zsh;
+and in fish any `fish_prompt` that is not fish's own - your `functions/`
+directory's, a theme such as pure, hydro, or bobthefish, or one your config
+defines. `hi` in `_HI_PROMPT_TOOL` takes the prompt anyway. Under powerlevel10k's instant
+prompt, hi calls `p10k clear-instant-prompt` before drawing the header, the
+call p10k provides for an rc that prints, so it does not warn about console
+output on every start. The list is worked out on this
 machine and handed to the target, which never looks for programs of its own -
 a shared box with powerlevel10k installed does not change your prompt unless
 you use it too.

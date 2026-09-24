@@ -2,7 +2,22 @@
 # SPDX-License-Identifier: MIT
 # The entry point every bash/zsh script sources: toggles, settings, paths,
 # colors, shared primitives. One file - fish reaches it via bare `bash -c`.
-set -euo pipefail # off again at the end: an error must not close an interactive shell
+# _hi_opts_restore <$- saved at a file's top, p for pipefail> - strict mode
+# off; an interactive shell gets back what it had, a script keeps it off.
+# GLOSSARY: HI.15
+function _hi_opts_restore() {
+  set +euo pipefail
+  [[ $- == *i* ]] || return 0
+  [[ $1 != *e* ]] || set -e
+  [[ $1 != *u* ]] || set -u
+  [[ $1 != *p* ]] || set -o pipefail
+}
+
+# Strict while loading, off again at the end: an error must not close an
+# interactive shell
+_hi_core_o=$-
+[[ -o pipefail ]] && _hi_core_o+=p
+set -euo pipefail
 
 # Re-sourcing is a no-op. Not exported, so fish's `bash -c` child still runs it.
 if [ -z "${_hi_core_loaded:-}" ]; then
@@ -54,8 +69,12 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   _HI_ZELLIJ_HOME="${ZELLIJ_CONFIG_DIR:-$_HI_XDG_CONFIG/zellij}"
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
+  # loaded as the user's own shell would: strict mode here would turn one
+  # failing line or unset variable into a shell that never starts
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
+    set +euo pipefail
     . "$_HI_CONFIG_DIR/settings.sh"
+    set -euo pipefail
   fi
   # shellcheck source=./paths.sh
   source "$_HI_HOME/say-hi/common/paths.sh"
@@ -569,14 +588,26 @@ function _hi_prime_identity() {
   _hi_user_color >/dev/null
 }
 
-# Bound a backend CLI so a downed daemon can't hang a waited-on path; bare
-# without GNU `timeout` (stock macOS). targets.sh keeps its own copy and says
-# why the KILL follows the TERM.
-if command -v timeout >/dev/null 2>&1; then
-  function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
-else
-  function _hi_probe() { "$@"; }
-fi
+# Bound a backend CLI so a downed daemon can't hang a waited-on path: bare
+# without `timeout` (stock macOS), without `-k` where it is refused (BusyBox
+# before 1.35), and as `-t SECS` where that is the only form (before 1.30). The first call settles which and redefines this, so
+# a caller that forks probes calls `_hi_probe true` first and every lane
+# inherits the answer. targets.sh keeps its own copy and says why the KILL
+# follows the TERM.
+function _hi_probe() {
+  if ! command -v timeout >/dev/null 2>&1; then
+    function _hi_probe() { "$@"; }
+  elif timeout -k 0.2 1 true 2>/dev/null; then
+    function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  elif timeout 1 true 2>/dev/null; then
+    function _hi_probe() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  elif timeout -t 1 true 2>/dev/null; then
+    function _hi_probe() { timeout -t "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  else
+    function _hi_probe() { "$@"; }
+  fi
+  _hi_probe "$@"
+}
 
 # lesspipe + the debian_chroot prompt label, shared by bash.sh and zsh.zsh;
 # sets $debian_chroot in the caller's scope
@@ -639,6 +670,29 @@ function _hi_release_or_describe() {
   elif [ -d "$_HI_ROOT/.git" ]; then
     git -C "$_HI_ROOT" describe --tags --always --dirty 2>/dev/null || true
   fi
+}
+
+# _hi_url_path <outvar> <path> - percent-encoded for OSC 7, byte by byte (the
+# mask: bash 3.2 sign-extends a byte past 0x7f); a plain path skips the walk.
+# `${s:$i:1}`, not `${s:i:1}`: zsh reads `:i` as a modifier
+function _hi_url_path() {
+  local s="$2" out="" c i LC_ALL=C
+  if [[ $s != *[!A-Za-z0-9/._~-]* ]]; then
+    printf -v "$1" %s "$s"
+    return
+  fi
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:$i:1}"
+    case "$c" in
+    [A-Za-z0-9/._~-]) out+="$c" ;;
+    *)
+      printf -v c %d "'$c"
+      printf -v c '%%%02X' $((c & 255))
+      out+="$c"
+      ;;
+    esac
+  done
+  printf -v "$1" %s "$out"
 }
 
 # zsh's `trap ... EXIT` fires when the *function it was set inside* returns -
@@ -1168,4 +1222,4 @@ function _hi_user_escape() {
   _hi_out "${1:-}" "$_HI_USER_ESC"
 }
 
-set +euo pipefail # see the top of the file
+_hi_opts_restore "$_hi_core_o" # see the top of the file

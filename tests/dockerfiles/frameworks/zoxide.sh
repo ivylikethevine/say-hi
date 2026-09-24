@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# zoxide's PROMPT_COMMAND hook, which has to survive hi chaining its own ps1
+# zoxide's PROMPT_COMMAND hook, which has to survive hi chaining its own __hi_ps1
 # onto the same variable. One apt package.
 #
 # Run as hitest inside framework.Dockerfile; apt packages come from the roster

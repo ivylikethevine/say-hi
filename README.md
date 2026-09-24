@@ -164,8 +164,8 @@ row, and everything answered **no**, and why:
 - **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
   out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
-  **fish 3.7** (Ubuntu 24.04's) and **zsh 5.8** (Debian 11's) for the other
-  two shells hi styles.
+  **fish 3.4** (Alpine 3.16's) and **zsh 5.5** (RHEL 8's) for the other two
+  shells hi styles.
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.
 
@@ -342,14 +342,12 @@ In this checkout, narrowest first.
        hints on, running bash, zsh, and fish from fish and leaving each with
        Ctrl-D leaves the lines after it unshaded.
 
-2. [ ] **A blocked upstream shows as drift** — `check_tool_versions.sh`
-       prints `(could not read upstream releases)` for a row it cannot read
-       and counts no problem, and `tool-versions.yml` blocks egress to a
-       fixed host list, so a pin whose upstream lives on a host missing from
-       that list reads as fine forever. **Do:** count a problem when every
-       row served by one host went unread (a blocked host, not a one-off rate
-       limit), naming the host. **Ticks when:** a run with one upstream host
-       removed from `allowed-endpoints` opens the tracking issue naming it.
+2. [ ] **A blocked upstream shows as drift** — shipped:
+       `check_tool_versions.sh` counts a problem, naming the host, when no
+       lookup on one host answered (a blocked host, not a one-off rate
+       limit). What is left is seeing it in CI. **Ticks when:** a
+       `tool-versions.yml` dispatch with one upstream host removed from
+       `allowed-endpoints` opens the tracking issue naming it.
 
 3. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
        sweep (run 35670586612) left in the shipped files now has a test
@@ -360,151 +358,43 @@ In this checkout, narrowest first.
        the first bashcov sweep on `main` after this lands reads no shipped
        line at 0 that is neither tested nor in that header.
 
-4. [ ] **A bad `settings.sh` line never closes a shell** — `core.sh` turns on
-       `set -euo pipefail` before sourcing `settings.sh`, so one failing
-       command or unset variable there exits bash before its first prompt,
-       and the `set +euo pipefail` at the end of `core.sh`, `env_prompt.sh`,
-       and `git_prompt.sh` switches off a user's own `set -u` or `pipefail`.
-       **Do:** source `settings.sh` with strict mode off, and restore the
-       caller's option state rather than forcing it off. **Ticks when:** a
-       `settings.sh` with `false` and `$UNSET` in it still reaches a prompt in
-       bash 3.2 and 5.x, and a shell with `set -u` on keeps it after hi loads.
+4. [ ] **The header probes only what was asked** — the default
+       `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local
+       terminal or tmux pane runs docker, podman, nomad, and kubectl.
+       **Do:** leave the backend cells out of the local default (a session
+       keeps them), or run them after the first prompt. **Ticks when:** a
+       local shell with the default order starts no backend CLI.
 
-5. [ ] **`_HI_DISABLE_LOCAL` works in fish 3** — `paths.sh`'s gate groups its
-       exports in `{ ... }`, a brace expansion before fish 4, so fish 3.7
-       prints a parse error on every start and disables nothing. **Do:** one
-       `[ gate ] && export NAME=1` line per toggle, and a case that sources
-       `paths.sh` in the fish 3.7 image rather than only parsing it.
-       **Ticks when:** `_HI_DISABLE_LOCAL=1` sets every toggle, silently, in
-       fish 3.7 and 4.
+5. [ ] **A hand-written prompt stays** — hi now stands down for the prompt
+       frameworks it can recognise (liquidprompt, bash-git-prompt, spaceship,
+       pure, promptinit themes) and for any `fish_prompt` of the user's own,
+       but still replaces a `PS1`/`PROMPT` the user wrote by hand in bash or
+       zsh, since a distro's default `.bashrc` sets one too and standing down
+       for those would take hi's prompt from nearly everyone. **Do:** tell a
+       hand-written prompt from a distro default (compare against the
+       defaults of the distros hi lists, or a setting to opt in). **Ticks
+       when:** a hand-written `PS1` survives hi in bash and zsh, and a stock
+       Debian, Fedora, and Arch `.bashrc` still gets hi's prompt.
 
-6. [ ] **Header after p10k's instant prompt** — `zsh.zsh` prints the header
-       at the end of `.zshrc`, which powerlevel10k's instant prompt reports as
-       console output during initialization, on every shell. **Do:** with
-       p10k loaded, print the header from a one-shot first `precmd`.
-       **Ticks when:** zsh with p10k's instant prompt on starts with the
-       header and without the warning.
+6. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+       not know means a `plugins.d` member or a change to hi. **Do:** a
+       user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
+       directory on this machine, and the command (or variable) that points
+       the tool at it on a target - read from the overlay and riding through
+       the same order and include scan; failing that, a starter plugin that
+       does exactly this for the user to copy and edit. **Ticks when:** a
+       tool of the user's own reads its home config on a target with no code
+       change, and `docs/SETTINGS.md` shows how.
 
-7. [ ] **zsh measures the git segment** — `zsh.zsh` wraps the whole
-       `${__hi_git_info}` in `%{...%}`, so zsh counts its visible text as zero
-       columns: `RPROMPT` lands wrong and long command lines wrap early.
-       **Do:** wrap each escape alone, as bash's `_hi_ps_mark` does.
-       **Ticks when:** a case reads the prompt width `%{...%}`-free text gives
-       with the segment on, and it matches what is drawn.
-
-8. [ ] **The bash rc line skips only hi** — install writes
-       `[[ $- != *i* ]] && return`, which ends the whole `~/.bashrc` for a
-       non-interactive shell, so lines other installers append after it
-       (cargo, nvm, sdkman, conda, pnpm) never run for `ssh host cmd`, scp,
-       or rsync where the distro's `.bashrc` has no guard of its own
-       (Fedora/RHEL, macOS). **Do:** write `[[ $- == *i* ]] && source ...`,
-       give `bash.sh` a guard of its own, and have install rewrite the old
-       line. **Ticks when:** a line appended below hi's block runs in
-       `bash -c` after install and after an upgrade from the old line.
-
-9. [ ] **Earlier prompt hooks see the real `$?`** — `ps1` goes first in
-       `PROMPT_COMMAND` and returns 0, so every hook after it reads a
-       successful last command. **Do:** return `$_hi_ec`, and rename it
-       `__hi_ps1` out of users' namespace. **Ticks when:** a hook after hi's
-       reads the failed command's status.
-
-10. [ ] **Probes that time out on BusyBox** — BusyBox before 1.35 rejects
-        `timeout -k` (Alpine 3.8 and 3.12 exit 1), so every probe and target
-        completion on those comes back empty, and `kubectl` has no
-        request timeout of its own where `timeout` is missing (stock macOS).
-        **Do:** test `timeout -k` once and fall back to plain `timeout`, and
-        pass `--request-timeout` to `kubectl`. **Ticks when:** the header's
-        probes and target completion work in an Alpine 3.12 container.
-
-11. [ ] **Terminal marks only where they belong** — the OSC 133 and OSC 7
-        marks go out on `TERM=dumb` (Emacs `M-x shell`), to a non-terminal,
-        and inside terminals that inject their own shell integration (kitty,
-        ghostty, WezTerm, VS Code, iTerm2), where two sets confuse them.
-        **Do:** skip them on `TERM=dumb`, off a terminal, and under those
-        terminals' integration variables, and percent-encode the OSC 7 path.
-        **Ticks when:** a zsh piped or on `TERM=dumb` prints no marks, and a
-        path with a space reports correctly.
-
-12. [ ] **Defaults, not overrides** — `bash.sh` sets `GCC_COLORS`, `zsh.zsh`
-        `CLICOLOR` and `LSCOLORS`, and `config.fish` exports
-        `fish_color_user`/`fish_color_host` over the theme's, whatever the
-        user had; `setopt prompt_subst` stays on with the prompt disabled.
-        **Do:** set each only when unset (`:=`), and `prompt_subst` only with
-        hi's prompt. **Ticks when:** a value set before hi loads survives
-        it, in each shell.
-
-13. [ ] **One `compinit`** — `zsh.zsh` runs `compinit` (with its own dump)
-        and `promptinit` again after oh-my-zsh, prezto, or zinit already
-        did. **Do:** skip both when `compdef` is already defined.
-        **Ticks when:** zsh under oh-my-zsh runs `compinit` once.
-
-14. [ ] **The `sh` tier keeps its toggles and its width** — a nested `sh`
-        in a session reads only `paths.sh` and `aliases.sh`, after
-        `_hi_unexport` dropped the `_HI_DISABLE_*` toggles, so
-        `_HI_DISABLE_TOOL_ALIASES` is ignored there; the fallback prompt
-        `hi.sh` bakes has no working directory and unmarked escapes, which
-        mksh and BusyBox line editing miscount. **Do:** keep the toggles in
-        `_HI_CHILD_ENV` for the `sh` tier, add the working directory, and
-        mark the escapes. **Ticks when:** a nested dash and mksh honor
-        `_HI_DISABLE_TOOL_ALIASES`, and a long typed line wraps cleanly.
-
-15. [ ] **ble.sh auto-complete runs no sweep** — ble.sh calls `_hi_complete`
-        while the user types a target after `hi`, which starts the backend probes
-        each time. **Do:** return without a sweep under ble.sh's
-        auto-complete (its `comp_type` carries `a`; confirm), and check that
-        ble.sh draws `_hi_ps_mark`'s `\001`/`\002` markers cleanly.
-        **Ticks when:** typing after `hi` under ble.sh starts no `targets.sh` and
-        the prompt draws without stray bytes.
-
-16. [ ] **The header probes only what was asked** — the default
-        `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local
-        terminal or tmux pane runs docker, podman, nomad, and kubectl.
-        **Do:** leave the backend cells out of the local default (a session
-        keeps them), or run them after the first prompt. **Ticks when:** a
-        local shell with the default order starts no backend CLI.
-
-17. [ ] **The floors say what runs** — zsh 5.5.1 (RHEL 8, Alpine 3.8) loads
-        hi as 5.9 does, fish 3.6 (Debian 12) runs it once the
-        `_HI_DISABLE_LOCAL` entry above lands, and only `path` (3.5+) keeps
-        fish from 3.4; fish 3.3 (Ubuntu 22.04) fails every start on the
-        top-level `return`. **Do:** CI images at zsh 5.5 and fish 3.4, the
-        `path` calls in `string`/`stat`, the floors moved in
-        `docs/COMPATIBILITY.md`, and a one-line notice from the installed
-        fish line under 3.4. **Ticks when:** `dialects_test.sh` sources hi
-        in the new floor images, and fish 3.3 prints the notice instead of
-        errors.
-
-18. [ ] **hi stands down for a prompt it does not know** — `config.fish`
-        defines `fish_prompt` over a user's `functions/fish_prompt.fish` and
-        themes such as pure, hydro, and bobthefish; `zsh.zsh` and `bash.sh`
-        replace a hand-written prompt, pure, spaceship, prezto's themes,
-        liquidprompt, and bash-git-prompt, and where those redraw from
-        `precmd` both run, git status twice per prompt. **Do:** in fish,
-        keep hi's prompt only while `functions --details fish_prompt` is
-        fish's own; in bash and zsh, leave a `PS1` the rc set and hi did not
-        recognize, with `hi` in `$_HI_PROMPT_TOOL` to take it anyway.
-        **Ticks when:** each shell with a custom prompt and with one of those
-        themes keeps it, and `_HI_PROMPT_TOOL=hi` still gives hi's.
-
-19. [ ] **A tool's config rides without a plugin** — adding a tool hi does
-        not know means a `plugins.d` member or a change to hi. **Do:** a
-        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
-        directory on this machine, and the command (or variable) that points
-        the tool at it on a target - read from the overlay and riding through
-        the same order and include scan; failing that, a starter plugin that
-        does exactly this for the user to copy and edit. **Ticks when:** a
-        tool of the user's own reads its home config on a target with no code
-        change, and `docs/SETTINGS.md` shows how.
-
-20. [ ] **Investigate the header as plugins** — every header cell is one
-        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
-        set a prompt segment. **Do:** find out whether the cells and
-        `full_check` fit one plugin contract a user's own could share, costing
-        the shared probes (`_hi_probed_cell`), `_hi_row_line`'s wrap, the
-        payload budget, connect forks, and fish's separate loader; settle it
-        alongside the entry above, which asks the same of configs. **Ticks
-        when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
-        `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
+7. [ ] **Investigate the header as plugins** — every header cell is one
+       `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
+       set a prompt segment. **Do:** find out whether the cells and
+       `full_check` fit one plugin contract a user's own could share, costing
+       the shared probes (`_hi_probed_cell`), `_hi_row_line`'s wrap, the
+       payload budget, connect forks, and fish's separate loader; settle it
+       alongside the entry above, which asks the same of configs. **Ticks
+       when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
+       `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
 
 ### At the 1.0.0 tag
 

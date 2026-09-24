@@ -1155,7 +1155,7 @@ function _hi_kube_split() {
 function _hi_is_k8s_pod() {
   _hi_kube_split "$1"
   _hi_probe_is Running kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} \
-    get pod "$_HI_K_POD" -o jsonpath='{.status.phase}'
+    get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' --request-timeout="${_HI_PROBE_TIMEOUT:-2}s"
 }
 
 # The backend roster, in resolution order:
@@ -1419,9 +1419,17 @@ function _hi_fallback_prompt() {
   _hi_color_escape_var ce "$_HI_TARGET_COLOR_MEMO"
   printf -v ce '%b' "$ce" # the _var form leaves `\e` literal
   printf -v nc '%b' "$NC"
-  printf '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}")\n'
-  printf 'PS1=" %s${_hi_u}%s@%s%s%s %s "\n' \
-    "$user_esc" "$nc" "$ce" "$host" "$nc" "$pe"
+  local cwd_esc
+  printf -v cwd_esc '%b' "$BRBLUE"
+  # A line editor counts every byte it is not told to skip, so each escape
+  # sits between $_hi_a and $_hi_z: bash's \[ \] for BusyBox ash, a delimiter
+  # PS1's first two bytes declare for mksh ($_hi_p), nothing for dash, which
+  # has no line editing to mislead. The first line picks; the second is PS1,
+  # its cwd left as ${PWD} for the shell to expand at each draw.
+  # shellcheck disable=SC2016 # every $ here is the target shell's
+  printf '%s\n' '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}"); _hi_a= _hi_z= _hi_p=; [ -z "${BB_ASH_VERSION-}" ] || { _hi_a='"'"'\['"'"' _hi_z='"'"'\]'"'"'; }; case "${KSH_VERSION-}" in *MIRBSD*) _hi_a=$(printf '"'"'\001'"'"') _hi_z=$_hi_a _hi_p=$_hi_a$(printf '"'"'\r'"'"') ;; esac'
+  printf 'PS1="${_hi_p} ${_hi_a}%s${_hi_z}${_hi_u}${_hi_a}%s${_hi_z}@${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} ${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} %s "\n' \
+    "$user_esc" "$nc" "$ce" "$host" "$nc" "$cwd_esc" '\${PWD}' "$nc" "$pe"
 }
 
 function _hi_size() {
@@ -2159,6 +2167,7 @@ function _hi_parse() {
 function _hi_resolve_backend() {
   local target="$1" i
   local -a pids=()
+  _hi_probe true # settled once here, not once per predicate
   for i in "${!_HI_BACKENDS[@]}"; do
     # >/dev/null is what makes the early return below mean anything: the
     # caller is `arm="$(_hi_select_arm)"`, and a backgrounded probe holding

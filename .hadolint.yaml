@@ -29,6 +29,6 @@ ignored:
 # (no --no-install-recommends) and DL4006 (piped RUN without pipefail) were
 # all real findings and are fixed in the fixtures rather than silenced - every
 # fixture with a pipe in a RUN sets `SHELL -o pipefail` first (framework,
-# fish37, fish4, zsh58, demo-debian) and every script sets it itself, and every
+# fish34, fish4, zsh55, demo-debian) and every script sets it itself, and every
 # apt RUN cleans the lists and passes --no-install-recommends.
 failure-threshold: error

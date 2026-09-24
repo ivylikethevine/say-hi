@@ -404,7 +404,7 @@ export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
 export _HI_CONFIG_DIR='@CONFIG@'
 source "$_HI_ROOT/common/bash.sh"
 _hi_demo_ps1() {
-  ps1
+  __hi_ps1
   PS1="${PS1//\\u/@USER@}"
   PS1="${PS1//\\h/@HOST@}"
 }

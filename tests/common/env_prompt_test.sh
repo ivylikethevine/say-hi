@@ -66,7 +66,7 @@ function test_disabled_flag_produces_no_output() {
   [ -z "$(_hi_env_case VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1)" ]
 }
 
-# The out-var form is what bash.sh's ps1() and zsh.zsh's precmd call: it must
+# The out-var form is what bash.sh's __hi_ps1() and zsh.zsh's precmd call: it must
 # fill the variable and print nothing at all.
 function test_out_var_form_fills_variable_not_stdout() {
   local captured="" out
@@ -123,7 +123,7 @@ function test_zsh_walks_the_order_list_the_same_way() {
 
 # Every _hi_env_case is a fresh subshell, so none of them reads the memo back.
 # This one draws three times in one shell through the out-var form, the way
-# ps1() and precmd do (a $( ) would take the memo with it): the repeat at one
+# __hi_ps1() and precmd do (a $( ) would take the memo with it): the repeat at one
 # $PWD is served from the memo, and the cd has to re-key it.
 function test_mise_memo_follows_a_cd() {
   (

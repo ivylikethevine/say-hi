@@ -62,7 +62,8 @@ jobs:
 
       # The script exits with the number of problems, captured as an output
       # rather than failing the step, so the issue closes on zero and opens on
-      # the rest. An unreadable upstream counts as current.
+      # the rest. An unreadable upstream counts as current, unless no lookup on
+      # its host answered: that host is missing from allowed-endpoints above.
       - id: check
         name: Compare pins to upstream releases
         env:

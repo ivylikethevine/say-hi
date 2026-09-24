@@ -123,7 +123,10 @@ function fish_greeting
   # _hi_draw_width wouldn't see it through __hi_bash's plain `bash -c` -
   # handed over with an explicit prefix instead of joining _HI_SESSION_VARS
   # for the one caller that needs it
-  set -q fish_greeting; or COLUMNS=$COLUMNS __hi_bash "source $_HI_HEADER; hi_header Online"
+  # the toggle is checked here: the un-export loop below keeps it from the
+  # bash child, which would otherwise see only settings.sh's copy
+  set -q fish_greeting; or test "$_HI_DISABLE_HEADER" = 1
+  or COLUMNS=$COLUMNS __hi_bash "source $_HI_HEADER; hi_header Online"
 end
 
 # a whole process for two colors, so memoized in a universal variable keyed
@@ -132,7 +135,8 @@ end
 # change pays. Each value is a list - "rrggbb name" under a scheme, the bare
 # name otherwise - and set_color takes the first entry this terminal renders.
 set -l hi_key "$USER@"(prompt_hostname)
-test -f $_HI_COLORS; and set hi_key "$hi_key:"(path mtime $_HI_COLORS 2>/dev/null; or command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
+# `path mtime` where fish has it (3.5+), a stat before that
+test -f $_HI_COLORS; and set hi_key "$hi_key:"(builtin -q path; and path mtime $_HI_COLORS 2>/dev/null; or command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
 set hi_key "$hi_key:$_HI_COLOR_SCHEME:$_HI_TRUECOLOR:$COLORTERM"
 if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
   set -l hi_colors (__hi_bash "source $_HI_CORE; _hi_prompt_colors")
@@ -140,6 +144,9 @@ if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
   set -U __hi_color_host (string split ' ' $hi_colors[2])
   set -U __hi_colors_key "$hi_key"
 end
+# over the theme's on purpose: the per-host colors are what hi draws, and
+# fish 3 keeps a universal fish_color_user whatever the user chose, so "only
+# when unset" would never apply them
 set -gx fish_color_user $__hi_color_user
 set -gx fish_color_host $__hi_color_host
 set -gx fish_color_host_remote $fish_color_host
@@ -206,6 +213,12 @@ if test "$_HI_DISABLE_PROMPT" != 1
     end
   else if test -n "$_hi_pt"
     $_hi_pt init fish | source
+  else if not contains -- hi (string split -n ' ' -- "$_HI_PROMPT_TOOL")
+    and not contains -- (functions --details fish_prompt) $__fish_data_dir/functions/fish_prompt.fish \
+      embedded:functions/fish_prompt.fish (status filename) n/a
+    # a fish_prompt of the user's own - their functions/ directory, a theme
+    # such as pure, hydro, or bobthefish, or one their config defined - stays
+    # theirs; `hi` in $_HI_PROMPT_TOOL takes the prompt anyway. GLOSSARY: HI.32
   else
     # `hi` named in the list takes the prompt back from a program the rc
     # already started: fish_prompt below replaces its left half, and the
@@ -242,7 +255,9 @@ if test "$_HI_DISABLE_PROMPT" != 1
           break
         end
         test "$dir" = "/"; and break
-        set dir (path dirname -- $dir)
+        # `path dirname` is fish 3.5+; the parent of /x is /, which strips to ""
+        set dir (string replace -r '/[^/]*$' '' -- $dir)
+        test -n "$dir"; or set dir /
       end
       set -g __hi_mise_local_pwd $PWD
       set -g __hi_mise_local_verdict $verdict
@@ -318,6 +333,9 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set -q SSH_TTY; and set color_at yellow
       set -l lead " "
       test "$_HI_DISABLE_LEAD_SPACE" = 1; and set lead ""
+      # a venv's or conda's activate prints its own "(name) " ahead of this
+      # prompt, trailing space included (GLOSSARY: HI.54)
+      functions -q _old_fish_prompt; or test -n "$CONDA_PROMPT_MODIFIER"; and set lead ""
       # $lead is its own argument, never "$lead"(__hi_env_prompt): fish drops
       # the *whole* concatenated word when a command substitution inside it
       # produces nothing, so glued to an empty environment segment - which is
@@ -356,28 +374,39 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
         "$(set_color $fish_color_status)" "$(set_color $bold_flag $fish_color_status)" $last_pipestatus)
 
-      echo -n -s $_hi_marks_a (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
-        (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $_hi_marks_b
+      set -l ma
+      set -l mb
+      set -q __hi_marks_live; and set ma $_hi_marks_a; and set mb $_hi_marks_b
+      echo -n -s $ma (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
+        (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $mb
     end
 
     # OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
-    # common/bash.sh's ps1() emits. fish 4 emits both itself, so only fish 3 gets
+    # common/bash.sh's __hi_ps1() emits. fish 4 emits both itself, so only fish 3 gets
     # hi's copy - two sets of marks would confuse the terminal.
+    # whether marks go out, as bash.sh's _hi_marks_on asks: not on a dumb
+    # terminal or off one, and not beside kitty's, ghostty's, or iTerm2's own
+    function __hi_marks_on
+      test "$TERM" != dumb; and test -t 1; and not set -q ITERM_SHELL_INTEGRATION_INSTALLED
+      and not functions -q __ksi_mark_prompt_start; and not set -q __ghostty_prompt_start_mark
+    end
     set -g _hi_marks_a ''
     set -g _hi_marks_b ''
     if not string match -qr '^[4-9]\.' -- $version
       set -g _hi_marks_a \e']133;A'\a
       set -g _hi_marks_b \e']133;B'\a
       function __hi_marks_preexec --on-event fish_preexec
-        printf '\e]133;C\a'
+        set -q __hi_marks_live; and printf '\e]133;C\a'
       end
       function __hi_marks_postexec --on-event fish_postexec
-        printf '\e]133;D;%s\a' $status
+        set -l st $status
+        set -q __hi_marks_live; and printf '\e]133;D;%s\a' $st
       end
       # only an interactive fish owns a terminal to report to: `fish -c` and the
       # suites' captured runs would otherwise get the escape ahead of their output
       function __hi_marks_cwd --on-variable PWD
-        status is-interactive; and printf '\e]7;file://%s%s\a' (prompt_hostname) $PWD
+        status is-interactive; and __hi_marks_on
+        and printf '\e]7;file://%s%s\a' (prompt_hostname) (string escape --style=url -- $PWD)
       end
       __hi_marks_cwd
     end
@@ -385,7 +414,12 @@ if test "$_HI_DISABLE_PROMPT" != 1
     # prompt (Ctrl-D), so do it on the way out, as bash.sh's _hi_marks_exit
     # does. Only then: `exit` is a command, whose C and D already went out.
     function __hi_marks_open --on-event fish_prompt
-      set -g __hi_marks_open 1
+      if __hi_marks_on
+        set -g __hi_marks_live 1
+        set -g __hi_marks_open 1
+      else
+        set -e __hi_marks_live __hi_marks_open
+      end
     end
     function __hi_marks_ran --on-event fish_preexec
       set -e __hi_marks_open

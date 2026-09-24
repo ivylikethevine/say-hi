@@ -343,7 +343,7 @@ build arg), `framework` for the thirteen shell frameworks and tools (the
 framework a build arg naming a script under `frameworks/`), `apt-client` for
 the `repo` suite's apt subscriber (openssh-client preinstalled, no Ubuntu
 archive in its sources, so the cases fetch from the repository under test
-alone), and `fish37`, `fish4`, `zsh58`, and `timep` for the lint gate and the
+alone), and `fish34`, `fish4`, `zsh55`, and `timep` for the lint gate and the
 profiler. Only the _build context_ is generated per case: the `entrypoint.sh`,
 and for the pre-installed cases the repo itself. Suites reach a file through
 `_hi_dockerfile <stem>`; variants differing only by a package list or base
@@ -434,23 +434,23 @@ image no longer carries the version the check claims.
 - **2. Native syntax checks**: `zsh -n` / `fish --no-execute` over the files
   those shells parse for themselves, with whatever `zsh` and `fish` this
   machine has.
-- **3. The fish 3.7 floor**: the same files in a pinned fish 3.7.0
-  (`tests/dockerfiles/fish37.Dockerfile`, Ubuntu 24.04's and so CI's), since
-  fish 4 accepts constructs 3.7 rejects. The one it caught: a _comment inside
-  a `{ ... }` block_ in `common/paths.sh` — `{` opens a brace expansion to
-  fish, `#` isn't a comment inside one, and the file dies with "Mismatched
-  braces", taking `$_HI_TARGETS` and every alias with it. Hence the rule at
-  that block: nothing but `export NAME=value` lines inside.
+- **3. The fish 3.4 floor**: the same files in a pinned fish 3.4.1
+  (`tests/dockerfiles/fish34.Dockerfile`, oh-my-fish's prebuilt image), since
+  newer fish accepts constructs older fish rejects. The one it caught: a
+  `{ ... }` group in `common/paths.sh`, a brace expansion before fish 4, which
+  refuses a comment inside one with "Mismatched braces" and fails even a clean
+  one at run time. So `paths.sh` is also sourced there with
+  `_HI_DISABLE_LOCAL=1`, and its gate is one guarded line per toggle.
 - **4. The fish 4 ceiling**: the same files in a pinned fish 4
-  (`tests/dockerfiles/fish4.Dockerfile`, Ubuntu 26.04's), for a construct 3.7
-  accepts that fish 4 rejects.
-- **5. The zsh 5.8 floor** sources `common/zsh.zsh` in a real interactive zsh
-  5.8 (`tests/dockerfiles/zsh58.Dockerfile`) and asks for a prompt, the
+  (`tests/dockerfiles/fish4.Dockerfile`, Ubuntu 26.04's), for a construct fish
+  3 accepts that fish 4 rejects.
+- **5. The zsh 5.5 floor** sources `common/zsh.zsh` in a real interactive zsh
+  5.5.1 (`tests/dockerfiles/zsh55.Dockerfile`) and asks for a prompt, the
   aliases, a resolved host color, and the prompt separator — zsh's risky
-  constructs parse everywhere and only misbehave on an old zsh. 5.8 because
-  bookworm, noble, alpine, and macOS all ship 5.9, so no development machine
-  is the floor; the image is upstream's `zshusers/zsh:5.8`, since a distro apt
-  install failed on hosted runners only.
+  constructs parse everywhere and only misbehave on an old zsh. 5.5.1 because
+  it is RHEL 8's, while bookworm, noble, alpine, and macOS all ship 5.9; the
+  image is upstream's `zshusers/zsh:5.5.1`, since a distro apt install failed
+  on hosted runners only.
 
 **`tools`** (`tests/lint/tools_test.sh`) — nine external-tool wrappers, each
 skipping yellow when its tool isn't installed (CI has all nine):

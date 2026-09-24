@@ -339,8 +339,11 @@ and what hi writes there outside `~/.config/say-hi/` is
 Every styled hi prompt (not the bash-less `sh` one) emits
 [OSC 133](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md)
 marks where each prompt, command, and output begins, and OSC 7 with the
-working directory, for terminals that read them — kitty, WezTerm, ghostty,
-foot, iTerm2, Konsole; the rest drop them. A shell left from its prompt
+working directory (percent-encoded), for terminals that read them — kitty,
+WezTerm, ghostty, foot, iTerm2, Konsole; the rest drop them. None go out on
+`TERM=dumb`, to anything but a terminal, or while kitty's, ghostty's,
+WezTerm's, or iTerm2's own shell integration is sending its set, which each
+prompt checks for. A shell left from its prompt
 (Ctrl-D) closes the last prompt's pair on its way out, so Konsole's semantic
 hints stop there instead of shading the parent shell's lines. `load.sh` sends
 the closing "command finished" mark a session's `exit` never gets to —

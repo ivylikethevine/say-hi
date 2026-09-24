@@ -164,7 +164,7 @@ export _HI_HOME=\"$home\"" ]
 }
 
 # the roster loop: every local shell's rc gets its marker block, in its own
-# dialect, and bash gets its extra non-interactive return
+# dialect, and bash its interactive-only condition
 function test_install_rc_lines_covers_the_roster() {
   local home="$_HI_WORKDIR/roster"
   mkdir -p "$home/.config/fish"
@@ -175,10 +175,24 @@ function test_install_rc_lines_covers_the_roster() {
     # sh spells it `export _HI_HOME="..."`, fish `set -gx _HI_HOME "..."`
     grep -qF '_HI_HOME' "$home/$f" || return 1
   done
-  grep -qF '[[ $- != *i* ]] && return' "$home/.bashrc" || return 1
-  ! grep -qF '[[ $- != *i* ]] && return' "$home/.zshrc" || return 1
+  grep -qF '[[ $- == *i* ]] && source ' "$home/.bashrc" || return 1
+  ! grep -qF '[[ $- ' "$home/.zshrc" || return 1
   grep -qF 'if status is-interactive' "$home/.config/fish/config.fish" || return 1
   grep -qF 'set -gx _HI_HOME' "$home/.config/fish/config.fish"
+}
+
+# A non-interactive bash that reads ~/.bashrc (ssh host cmd, scp, rsync)
+# skips hi and still runs every line below hi's block - which a `return`
+# there ended - and an install over that older `return` line replaces it
+function test_install_bash_line_leaves_the_rest_of_bashrc() {
+  local home="$_HI_WORKDIR/below" out
+  mkdir -p "$home"
+  printf '%-45s %s\n' '[[ $- != *i* ]] && return' "$_HI_MARKER" >"$home/.bashrc"
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  ! grep -qF '&& return' "$home/.bashrc" || return 1
+  printf 'echo BELOW\n' >>"$home/.bashrc"
+  out="$(env -i HOME="$home" PATH="$PATH" bash -c '. ~/.bashrc; echo "${_hi_core_loaded-}"' 2>&1 </dev/null)"
+  [ "$out" = BELOW ]
 }
 
 function test_strip_rc_lines_restores_the_originals() {
@@ -484,6 +498,7 @@ function run_rc_lines_test() {
 
   _hi_h2 "Testing: install_rc_lines / strip_rc_lines"
   _hi_check "Install covers the local roster, per dialect" test_install_rc_lines_covers_the_roster
+  _hi_check "A non-interactive bash runs the rest of .bashrc, hi skipped" test_install_bash_line_leaves_the_rest_of_bashrc
   _hi_check "Strip restores the originals byte for byte" test_strip_rc_lines_restores_the_originals
   _hi_check "A shell that is not installed gets no rc file" test_install_rc_lines_skips_an_absent_shell
   _hi_check "zsh's rc lives under \$ZDOTDIR" test_install_rc_lines_honours_zdotdir
