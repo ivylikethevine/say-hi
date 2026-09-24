@@ -1424,10 +1424,12 @@ function _hi_fallback_prompt() {
   # A line editor counts every byte it is not told to skip, so each escape
   # sits between $_hi_a and $_hi_z: bash's \[ \] for BusyBox ash, a delimiter
   # PS1's first two bytes declare for mksh ($_hi_p), nothing for dash, which
-  # has no line editing to mislead. The first line picks; the second is PS1,
-  # its cwd left as ${PWD} for the shell to expand at each draw.
+  # has no line editing to mislead. The first line picks - one assignment per
+  # statement where one reads another, since FreeBSD's sh expands every word of
+  # a command before assigning any - and the second is PS1, its cwd left as
+  # ${PWD} for the shell to expand at each draw.
   # shellcheck disable=SC2016 # every $ here is the target shell's
-  printf '%s\n' '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}"); _hi_a= _hi_z= _hi_p=; [ -z "${BB_ASH_VERSION-}" ] || { _hi_a='"'"'\['"'"' _hi_z='"'"'\]'"'"'; }; case "${KSH_VERSION-}" in *MIRBSD*) _hi_a=$(printf '"'"'\001'"'"') _hi_z=$_hi_a _hi_p=$_hi_a$(printf '"'"'\r'"'"') ;; esac'
+  printf '%s\n' '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}"); _hi_a= _hi_z= _hi_p=; [ -z "${BB_ASH_VERSION-}" ] || { _hi_a='"'"'\['"'"' _hi_z='"'"'\]'"'"'; }; case "${KSH_VERSION-}" in *MIRBSD*) _hi_a=$(printf '"'"'\001'"'"'); _hi_z=$_hi_a; _hi_p=$_hi_a$(printf '"'"'\r'"'"') ;; esac'
   printf 'PS1="${_hi_p} ${_hi_a}%s${_hi_z}${_hi_u}${_hi_a}%s${_hi_z}@${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} ${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} %s "\n' \
     "$user_esc" "$nc" "$ce" "$host" "$nc" "$cwd_esc" '\${PWD}' "$nc" "$pe"
 }
