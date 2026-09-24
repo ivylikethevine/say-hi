@@ -381,6 +381,18 @@ if test "$_HI_DISABLE_PROMPT" != 1
       end
       __hi_marks_cwd
     end
+    # Neither version closes the last A/B pair when the shell is left from its
+    # prompt (Ctrl-D), so do it on the way out, as bash.sh's _hi_marks_exit
+    # does. Only then: `exit` is a command, whose C and D already went out.
+    function __hi_marks_open --on-event fish_prompt
+      set -g __hi_marks_open 1
+    end
+    function __hi_marks_ran --on-event fish_preexec
+      set -e __hi_marks_open
+    end
+    function __hi_marks_exit --on-event fish_exit
+      set -q __hi_marks_open; and test -t 1; and printf '\e]133;C\a\e]133;D;%s\a' $status
+    end
   end
 end
 

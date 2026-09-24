@@ -151,6 +151,42 @@ function test_bash_ps1_reports_status_and_cwd_marks() {
     [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]]
 }
 
+# A shell left from its prompt (Ctrl-D) never reaches PS0, so the EXIT trap
+# closes the last A/B pair: chained ahead of a trap already set, which still
+# sees the shell's status, installed once however often bash.sh is sourced,
+# and silent when stdout is not a terminal.
+function test_bash_exit_trap_closes_the_prompt_mark() {
+  local out want
+  out="$(_hi_bash_child '
+    trap "echo prev:\$?" EXIT
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    trap -p EXIT
+    exit 5')"
+  want="$(printf "trap -- '_hi_marks_exit \$?; echo prev:\$?' EXIT\nprev:5")"
+  [ "$out" = "$want" ]
+}
+
+# the zsh half: a zshexit hook, which a terminal-less exit leaves silent
+function test_zsh_exit_hook_closes_the_prompt_mark() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh \
+    'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -r -- "$zshexit_functions"; exit 5')"
+  [ "$out" = __hi_marks_zshexit ]
+}
+
+# the fish half: `exit` is a command whose own C and D went out, so the
+# fish_exit handler closes the pair only when no command ran since the prompt
+function test_fish_exit_closes_the_prompt_mark_only_from_the_prompt() {
+  local out
+  out="$(_hi_rc_shell xterm-256color fish \
+    'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
+     emit fish_prompt >/dev/null; set -q __hi_marks_open; and echo -n open
+     emit fish_preexec >/dev/null; set -q __hi_marks_open; or echo -n ,ran
+     functions -q __hi_marks_exit; and echo -n ,hooked')"
+  [[ "$out" == *open,ran,hooked ]]
+}
+
 # The pw3nage guard (the comment in ps1 says why): with promptvars on, the
 # git segment reaches $PS1 as a literal ${__powerline_git_info} reference for
 # bash to expand at display time - never its value spliced in.
@@ -792,6 +828,28 @@ function test_local_shell_prints_the_header() {
 
 # ...and the word after --preview comes from the words roster, described,
 # through the same stub: the flag is in words[CURRENT-1]
+# the full compinit (-u) only once the dump is a day old: a fresh one gets -C,
+# though the age test's glob qualifier needs an option zsh leaves off
+function test_zsh_fresh_dump_skips_the_full_compinit() {
+  local h="$_HI_WORKDIR/freshdump"
+  mkdir -p "$h"
+  : >"$h/.zcompdump"
+  _hi_rc_shell dumb zsh 'compinit() { print -rn -- "$*" >"$HOME/called"; }
+    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' HOME="$h" >/dev/null
+  [ "$(cat "$h/called")" = -C ]
+}
+
+# compinit sources a compiled dump beside the dump when it is the newer:
+# zsh.zsh builds one and leaves no temporary behind
+function test_zsh_compiles_the_completion_dump() {
+  local f
+  _hi_rc_shell dumb zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' >/dev/null
+  for f in "$_HI_WORKDIR"/.zcompdump.*.zwc; do
+    [ -e "$f" ] && return 1
+  done
+  [ -f "$_HI_WORKDIR/.zcompdump.zwc" ]
+}
+
 function test_zsh_completes_the_word_after_preview() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
@@ -1052,6 +1110,9 @@ function run_rc_tests() {
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
   _hi_check "ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
+  _hi_check "An EXIT trap closes the last prompt mark" test_bash_exit_trap_closes_the_prompt_mark
+  _hi_check_requires zsh "...and a zshexit hook in zsh" test_zsh_exit_hook_closes_the_prompt_mark
+  _hi_check_requires fish "...and fish_exit in fish, from the prompt only" test_fish_exit_closes_the_prompt_mark_only_from_the_prompt
   _hi_check "PS1 references the git segment (promptvars)" test_bash_ps1_references_git_info_under_promptvars
   _hi_check "...and inlines it marked as text without" test_bash_ps1_inlines_git_info_without_promptvars
   _hi_check "bash flag TAB completes hi's options, no sweep" test_bash_flag_completion_offers_hi_options_without_a_sweep
@@ -1064,6 +1125,8 @@ function run_rc_tests() {
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built
   _hi_check_requires zsh "zsh flag TAB completes hi's options" test_zsh_flag_completion_offers_hi_options
   _hi_check_requires zsh "zsh completes the word after --preview" test_zsh_completes_the_word_after_preview
+  _hi_check_requires zsh "zsh skips the full compinit on a fresh dump" test_zsh_fresh_dump_skips_the_full_compinit
+  _hi_check_requires zsh "zsh compiles its completion dump" test_zsh_compiles_the_completion_dump
 
   _hi_h2 "Testing: the environment segment (venv, conda, direnv, nix, ...)"
   # every child's $HOME is $_HI_WORKDIR, so this is the case the mise row was

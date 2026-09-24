@@ -340,11 +340,13 @@ Every styled hi prompt (not the bash-less `sh` one) emits
 [OSC 133](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md)
 marks where each prompt, command, and output begins, and OSC 7 with the
 working directory, for terminals that read them — kitty, WezTerm, ghostty,
-foot, iTerm2, Konsole; the rest drop them. `load.sh` sends the closing
-"command finished" mark a session's `exit` never gets to — without it Konsole
-sends ↑ as ← until the next prompt — and a session that ends any other way
-gets it from the client, with a reset of the terminal modes a remote program
-may have left on ([HI.53](GLOSSARY.md#hi53-terminal-reset-after-a-failed-session)).
+foot, iTerm2, Konsole; the rest drop them. A shell left from its prompt
+(Ctrl-D) closes the last prompt's pair on its way out, so Konsole's semantic
+hints stop there instead of shading the parent shell's lines. `load.sh` sends
+the closing "command finished" mark a session's `exit` never gets to —
+without it Konsole sends ↑ as ← until the next prompt — and a session that
+ends any other way gets it from the client, with a reset of the terminal
+modes a remote program may have left on ([HI.53](GLOSSARY.md#hi53-terminal-reset-after-a-failed-session)).
 
 ### Shells you drop into inside a session
 

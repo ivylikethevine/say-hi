@@ -342,6 +342,21 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       PS1="$_hi_marks_a$_hi_ps1_lead\[$BRCYAN\]$e\[$NC\]$HI_PS1$g\[$NC\] $HI_PS1_END $_hi_marks_b"
     }
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    # Leaving from the prompt (Ctrl-D) never reaches PS0, so the last A/B pair
+    # stays open and Konsole's semantic hints shade every later line, the
+    # parent shell's too: close it on the way out. Returns the status it was
+    # given, so an EXIT trap already set still sees the shell's own.
+    function _hi_marks_exit() {
+      [ -t 1 ] && printf '\e]133;C\a\e]133;D;%s\a' "$1"
+      return "$1"
+    }
+    # <trap -p EXIT's words>: chains ahead of any trap already set, once
+    function _hi_marks_trap() {
+      [[ "${3:-}" == _hi_marks_exit* ]] && return
+      # shellcheck disable=SC2064 # the prior trap is spliced in now, on purpose
+      trap "_hi_marks_exit \$?${3:+; $3}" EXIT
+    }
+    eval "_hi_marks_trap $(trap -p EXIT)"
   fi
 fi
 unset _hi_pt _hi_omb_theme _hi_bashit_theme

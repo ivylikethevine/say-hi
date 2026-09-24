@@ -126,8 +126,15 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$PWD"
     }
     __hi_marks_preexec() { printf '\e]133;C\a'; }
+    # a shell left from its prompt (Ctrl-D) runs no preexec, so close the last
+    # A/B pair on the way out, as bash.sh's _hi_marks_exit does
+    __hi_marks_zshexit() {
+      local ec=$?
+      [[ -t 1 ]] && printf '\e]133;C\a\e]133;D;%s\a' "$ec"
+    }
     precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
     preexec_functions+=(__hi_marks_preexec)
+    zshexit_functions+=(__hi_marks_zshexit)
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
     # expansion happens at render time rather than at assignment. $_hi_lead is
     # a plain double-quoted segment instead - $_HI_DISABLE_LEAD_SPACE is a static
@@ -171,17 +178,27 @@ unset _hi_pt _hi_omz_theme _hi_p10k_cfg
 zmodload zsh/complist
 autoload -Uz compinit promptinit
 # bare `compinit` costs 50-150ms a start; full check once a day, -C between.
-# (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h. -u on the
-# full check: compaudit's interactive [y/n] on a group-writable $fpath hangs
-# `hi` when piped through something non-interactive (vhs included).
-if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
+# (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h; a glob
+# only under extended_glob, off by default, so set for the test alone. -u on
+# the full check: compaudit's interactive [y/n] on a group-writable $fpath
+# hangs `hi` when piped through something non-interactive (vhs included).
+_hi_dump="${ZDOTDIR:-$HOME}/.zcompdump"
+if () { setopt local_options extended_glob; [[ -n $1(#qN.mh+24) ]]; } "$_hi_dump"; then
   compinit -u
   # compinit leaves an unchanged dump's mtime alone, making this branch
   # permanent once the dump turns a day old - touch restarts the clock
-  touch "${ZDOTDIR:-$HOME}/.zcompdump" 2>/dev/null || true
+  touch "$_hi_dump" 2>/dev/null || true
 else
   compinit -C
 fi
+# compinit sources a .zwc beside the dump when it is the newer, which halves
+# what -C costs; recompiled whenever the dump moves. Built aside and renamed,
+# so a shell starting meanwhile never reads half a file.
+if [[ -f $_hi_dump && ! $_hi_dump.zwc -nt $_hi_dump ]]; then
+  { zcompile "$_hi_dump.$$.zwc" "$_hi_dump" && mv -f "$_hi_dump.$$.zwc" "$_hi_dump.zwc"; } 2>/dev/null ||
+    rm -f "$_hi_dump.$$.zwc"
+fi
+unset _hi_dump
 promptinit
 # The in-shell TTL cache bash.sh's _hi_complete explains, in zsh's dialect.
 # (( )) rather than [ ]: zsh's SECONDS is a float once anything typeset -F's it.
