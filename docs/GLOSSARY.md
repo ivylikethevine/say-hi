@@ -656,14 +656,16 @@ directory: one place a session reads config from. hi's own aliases are
 `common/aliases.sh` still refuses to source a `$_HI_CONFIG_DIR/aliases.sh` that
 is itself. It is omitted when there is nothing to send.
 
-The prompt programs' configs, eza's `theme.yml`, and bat's `bat.conf` ride it
+The prompt programs' configs, eza's `theme.yml`, bat's `bat.conf`, and
+readline's `inputrc` ride it
 so a tool's config on every target is the one in force at home:
 `_hi_overlay_src` packs the overlay's copy when there is one, else the file
 the tool itself reads on the client (HI.61's order; a prompt program's only
 when `_hi_prompt_list` names it), so there is one copy to edit and none to
 drift.
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
-`$EZA_CONFIG_DIR` - the directory, since eza fixes the file name - ...) at
+`$EZA_CONFIG_DIR` - the directory, since eza fixes the file name - `$INPUTRC`,
+...) at
 the overlay on a target only, and the shell files source or read the
 frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.

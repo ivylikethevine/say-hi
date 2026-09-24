@@ -194,7 +194,7 @@ function _hi_tool_home_unpacked() {
   shift
   d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
   (
-    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME
+    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME INPUTRC
     export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
       _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
     _hi_overlay_tar | tar -x -z -f - -C "$d"
@@ -1123,6 +1123,30 @@ function test_screen_and_zellij_ride_like_tmux() {
     [ -z "$(env "$@" _HI_REMOTE_SESSION=1 bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl')" ]
 }
 
+# readline's inputrc rides like bat's config: the overlay's copy, else the file
+# $INPUTRC names, else ~/.inputrc, stripped - and an $include of anything but
+# /etc/inputrc names a file no target has, so it is dropped unless allowed
+# shellcheck disable=SC2016 # readline's $include, not an expansion
+function test_inputrc_rides_like_the_tool_configs() {
+  local h="$_HI_WORKDIR/rl-home" dir d
+  mkdir -p "$h"
+  printf '$include /etc/inputrc\n# a comment\n$include ~/.inputrc.local\nset editing-mode vi\n# hi-allow\n$include ~/.inputrc.kept\n' >"$h/.inputrc"
+  printf 'set bell-style none\n' >"$h/named"
+  dir="$(_hi_overlay_fixture rl-none)"
+  d="$(_hi_tool_home_unpacked "$dir" HOME="$h")" || return 1
+  [ "$(cat "$d/inputrc")" = '$include /etc/inputrc
+set editing-mode vi
+$include ~/.inputrc.kept' ] || {
+    _hi_cecho " | inputrc arrived as: [$(cat "$d/inputrc" 2>&1)]" "$RED"
+    return 1
+  }
+  d="$(_hi_tool_home_unpacked "$dir" HOME="$h" INPUTRC="$h/named")" || return 1
+  [ "$(cat "$d/inputrc")" = 'set bell-style none' ] || return 1
+  dir="$(_hi_overlay_fixture rl-copy inputrc)"
+  d="$(_hi_tool_home_unpacked "$dir" HOME="$h")" || return 1
+  [ "$(cat "$d/inputrc")" = x ]
+}
+
 function _hi_strip_unpack() {
   local dir="$_HI_WORKDIR/$1"
   [ -d "$dir" ] || {
@@ -1355,6 +1379,7 @@ function run_hi_payload_tests() {
   _hi_check "A home .aliases rides as aliases.sh" test_home_aliases_ride_as_aliases_sh
   _hi_check "A shell's own rc rides only from the overlay" test_shell_rcs_ride_only_from_the_overlay
   _hi_check "screen and zellij ride like tmux" test_screen_and_zellij_ride_like_tmux
+  _hi_check "inputrc rides like the tool configs, its includes dropped" test_inputrc_rides_like_the_tool_configs
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
 
   _hi_h2 "Testing: the include scan"

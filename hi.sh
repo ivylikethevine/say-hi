@@ -95,6 +95,7 @@ _HI_OVERLAY_TABLE=(
   'tide.vars|-|-|"${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables"'
   'theme.yml|-|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"'
   'bat.conf|-|-|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
+  'inputrc|-|-|"${INPUTRC:-$HOME/.inputrc}"'
   'tmux.conf|_HI_TMUX_CONF|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
   'screenrc|_HI_SCREENRC|-|"$HOME/.screenrc"'
   'micro/settings.json|_HI_MICRO_DIR|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
@@ -494,6 +495,8 @@ function _hi_tool_here() {
 #           of tpm). Line-oriented, but a finding ending in `\` takes its
 #           continuation lines with it.
 #   screen  `source` of a file.
+#   inputrc `$include` of anything but /etc/inputrc, the system file an
+#           $INPUTRC stops readline reading on its own.
 #   kak     `source` of anything but %val{runtime}'s (the target's own), and
 #           the managers (plug.kak's `plug`, kak-bundle's `bundle`).
 #   kdl     zellij's `layout_dir`/`theme_dir` (its own layouts/ and themes/
@@ -600,6 +603,12 @@ function kindof(s,   v) {
     if (s ~ /(^|[ \t;{"'])source(-file)?[ \t]/) return "include"
   } else if (screen) {
     if (s ~ /^[ \t]*source[ \t]/) return "include"
+  } else if (rl) {
+    v = s
+    if (!sub(/^[ \t]*\$include[ \t]+/, "", v)) return ""
+    sub(/[ \t].*$/, "", v)
+    if (v == "/etc/inputrc") return ""
+    return "include"
   } else if (kak) {
     if (s ~ /^[ \t]*(plug|bundle)[ \t]/ || s ~ /(plug|bundle)\.kak/) return "plugin"
     if (s ~ /(^|[ \t;{])source[ \t]/ && s !~ /%val\{runtime\}/) return "include"
@@ -629,7 +638,7 @@ function kindof(s,   v) {
 FNR == 1 {
   close(out); out = FILENAME ".lint"; depth = allow = quiet = 0
   vim = (name == "vimrc"); el = (name == "init.el"); lua = (name ~ /\.lua$/); nano = (name == "nanorc"); tmux = (name == "tmux.conf")
-  screen = (name == "screenrc"); kdl = (name ~ /\.kdl$/); kak = (name == "kakrc")
+  screen = (name == "screenrc"); rl = (name == "inputrc"); kdl = (name ~ /\.kdl$/); kak = (name == "kakrc")
   sh = (name ~ /\.(sh|bash|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
   json = (name ~ /\.json$/)
   fwv = (name == "oh-my-zsh.zsh-theme") ? "|ZSH" : (name == "oh-my-bash.theme.sh") ? "|OSH" : (name == "bash-it.theme.bash") ? "|BASH_IT" : ""
@@ -738,7 +747,7 @@ function _hi_require_packer() {
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.35
 _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors packages vimrc nanorc init.el
-  tmux.conf screenrc '*/plugins.d/*')
+  tmux.conf screenrc inputrc '*/plugins.d/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their

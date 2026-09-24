@@ -118,13 +118,12 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/config.fish`     | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                          |
 | `~/.config/say-hi/oh-my-posh.json` | -                 | your oh-my-posh config (or `.yaml` / `.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names                   |
 
-starship's, powerlevel10k's, tide's, bat's, and eza's own configs, and your
-oh-my-zsh, oh-my-bash, and bash-it themes, need no copy here: every target
-gets the one each tool reads on your machine
+starship's, powerlevel10k's, tide's, bat's, eza's, and readline's own configs,
+and your oh-my-zsh, oh-my-bash, and bash-it themes, need no copy here: every
+target gets the one each tool reads on your machine
 ([Integrations](INTEGRATIONS.md#prompt-programs)). A `starship.toml`,
 `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
-`tide.vars`, `bat.conf`, or
-`theme.yml` in `~/.config/say-hi/` is the override: targets get it instead,
+`tide.vars`, `bat.conf`, `theme.yml`, or `inputrc` in `~/.config/say-hi/` is the override: targets get it instead,
 and at home the tool keeps reading its own. A prompt program's copy rides only
 when that program is one a target is handed, and `hi --doctor` says when it is
 not.
@@ -369,7 +368,8 @@ survives is `sudo <command>`, whose one command gets hi's aliases through the
 
 hi ships nobody's shell preferences — no history sizing, keybindings, `zstyle`
 rules, or fish palette; each rc carries the prompt, the completions, and the
-git segment. Shell code of your own goes in one of three overlay files, which
+git segment. Your readline bindings ride on their own, as the
+[`inputrc`](INTEGRATIONS.md#readline) you already keep. Shell code of your own goes in one of three overlay files, which
 differ in dialect, in when they load, and in whether an `export` there reaches
 programs started from the shell ([HI.47](GLOSSARY.md#hi47-what-a-child-inherits)):
 
@@ -479,7 +479,8 @@ has none. So hi reads each of these files — and the overlay's `settings.sh`,
 `aliases.sh`, `plugins.d/` members, per-shell rc files, and the prompt configs
 it carries — for lines naming something it cannot carry: vim's `source`,
 lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's `include`,
-elisp's `load`, tmux's `source-file` and TPM, screen's `source`, zellij's
+elisp's `load`, tmux's `source-file` and TPM, screen's `source`, readline's
+`$include` of anything but `/etc/inputrc`, zellij's
 `layout_dir`/`theme_dir` and file plugins, oh-my-posh's `extends` of a
 local file (emptied, since JSON has no comment), a shell's `source`/`.` of a
 file outside `$_HI_CONFIG_DIR` (a framework theme may also source its own

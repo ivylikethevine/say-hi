@@ -600,6 +600,21 @@ in
 .B ~/.config/say-hi
 is carried instead.
 .TP
+.B ~/.inputrc
+readline's config (or the file
+.B INPUTRC
+names), carried to every target as its
+.BR INPUTRC ;
+an
+.B inputrc
+in
+.B ~/.config/say-hi
+is carried instead. An
+.B $include
+of anything but
+.B /etc/inputrc
+is dropped.
+.TP
 .B ~/.p10k.zsh, ~/.zshrc, ~/.bashrc, ~/.config/fish/fish_variables
 read for the prompt programs a target is handed: powerlevel10k's config, the
 oh\-my\-zsh, oh\-my\-bash, and bash\-it theme files
