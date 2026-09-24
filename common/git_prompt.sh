@@ -149,4 +149,10 @@ _hi_git_prompt() {
   fi
 }
 
-_hi_opts_restore "$_hi_git_o" # see the top of the file
+# see the top of the file; a caller that sourced this without core.sh (a
+# suite, fish's bash child) gets strict mode off and nothing more
+if type _hi_opts_restore >/dev/null 2>&1; then
+  _hi_opts_restore "$_hi_git_o"
+else
+  set +euo pipefail
+fi

@@ -363,7 +363,10 @@ In this checkout, narrowest first.
        terminal or tmux pane runs docker, podman, nomad, and kubectl.
        **Do:** leave the backend cells out of the local default (a session
        keeps them), or run them after the first prompt. **Ticks when:** a
-       local shell with the default order starts no backend CLI.
+       local shell with the default order starts no backend CLI. **Open
+       question:** drop the containers, jobs, and pods cells from the local
+       default header, or keep them and fill them in after the first prompt?
+       Either changes what a local header shows today.
 
 5. [ ] **A hand-written prompt stays** — hi now stands down for the prompt
        frameworks it can recognise (liquidprompt, bash-git-prompt, spaceship,
@@ -374,7 +377,10 @@ In this checkout, narrowest first.
        hand-written prompt from a distro default (compare against the
        defaults of the distros hi lists, or a setting to opt in). **Ticks
        when:** a hand-written `PS1` survives hi in bash and zsh, and a stock
-       Debian, Fedora, and Arch `.bashrc` still gets hi's prompt.
+       Debian, Fedora, and Arch `.bashrc` still gets hi's prompt. **Open
+       question:** match against the known distro default `PS1`s (automatic,
+       but a list to keep current), or a setting that opts in to keeping the
+       user's own (explicit, but off unless someone finds it)?
 
 6. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a

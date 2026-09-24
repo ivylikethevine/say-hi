@@ -180,6 +180,9 @@ function test_fallback_prompt_marks_its_escapes_per_editor() {
   plain="$(env -u BB_ASH_VERSION -u KSH_VERSION sh -c "$rc"'; printf %s "$PS1"')"
   [[ "$bb" == *'\['$'\e['*'\]'* && "$bb" == *'${PWD}'* ]] || return 1
   [[ "$mk" == $'\001\r'* && "$mk" == *$'\001\e['* ]] || return 1
+  # a busybox sh (Alpine's) sets BB_ASH_VERSION itself: no plain case there
+  # shellcheck disable=SC2016
+  [ -z "$(sh -c 'printf %s "${BB_ASH_VERSION-}"')" ] || return 0
   [[ "$plain" != *'\['* && "$plain" != *$'\001'* ]]
 }
 

@@ -245,7 +245,8 @@ function test_fish_exit_closes_the_prompt_mark_only_from_the_prompt() {
      emit fish_prompt >/dev/null; set -q __hi_marks_open; and echo -n open
      emit fish_preexec >/dev/null; set -q __hi_marks_open; or echo -n ,ran
      functions -q __hi_marks_exit; and echo -n ,hooked')"
-  [[ "$out" == *open,ran,hooked ]]
+  # fish 3's handlers print their own C past `emit`'s redirect, between the words
+  [[ "$out" == *open*,ran*,hooked ]]
 }
 
 # __hi_ps1 runs first in PROMPT_COMMAND, so it hands on the status it found:
@@ -982,7 +983,7 @@ function test_zsh_fresh_dump_skips_the_full_compinit() {
   mkdir -p "$h"
   : >"$h/.zcompdump"
   _hi_rc_shell dumb zsh 'compinit() { print -rn -- "$*" >"$HOME/called"; }
-    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' HOME="$h" >/dev/null
+    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' HOME="$h" ZDOTDIR="$h" >/dev/null
   [ "$(cat "$h/called")" = -C ]
 }
 
@@ -992,7 +993,7 @@ function test_zsh_runs_compinit_once() {
   local h="$_HI_WORKDIR/oncedump" out
   mkdir -p "$h"
   out="$(_hi_rc_shell dumb zsh 'compinit() { print -rn -- "ran " >>"$HOME/called"; }
-    typeset -gA _comps; _comps[x]=y
+    _comps=set # its presence is the whole test; compinit makes it a table
     source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
     [[ -e $HOME/called ]] || print -rn -- none' HOME="$h")"
   [ "$out" = none ] || return 1
@@ -1007,7 +1008,8 @@ function test_zsh_runs_compinit_once() {
 # zsh.zsh builds one and leaves no temporary behind
 function test_zsh_compiles_the_completion_dump() {
   local f
-  _hi_rc_shell dumb zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' >/dev/null
+  # ZDOTDIR set: Alpine's /etc/zsh/zshenv moves it to ~/.config/zsh otherwise
+  _hi_rc_shell dumb zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' ZDOTDIR="$_HI_WORKDIR" >/dev/null
   for f in "$_HI_WORKDIR"/.zcompdump.*.zwc; do
     [ -e "$f" ] && return 1
   done
@@ -1147,9 +1149,11 @@ function _hi_prompt_tail() {
   fish) script="source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null; $root fish_prompt" ;;
   esac
   # _hi_strip_ansi takes the OSC 133 mark that closes every prompt; bash's
-  # \[ \] and zsh's %{ %} around it come off here, before the tail is read
+  # \[ \] and zsh's %{ %} around it come off here, before the tail is read, as
+  # do zsh's ${__hi_ma}/${__hi_mb}, the references its raw $PS1 draws them by
+  # shellcheck disable=SC2016 # the ${...} are literal text to strip
   _hi_strip_ansi "$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")" |
-    sed -e 's/\\\[//g' -e 's/\\\]//g' -e 's/%{%}//g'
+    sed -e 's/\\\[//g' -e 's/\\\]//g' -e 's/%{%}//g' -e 's/\${__hi_m[ab]}//g'
 }
 
 # _hi_prompt_ends <as_root> <shell> <want> [NAME=VALUE ...] - does the prompt
