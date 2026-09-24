@@ -48,13 +48,17 @@ jobs:
           egress-policy: block
           disable-sudo: true
           # Off this job's own audit log: the pinned images' registries, and
-          # trivy's database and version check. A rotating
+          # trivy's database and version check. The release hosts serve the
+          # trivy binary on a setup-tool cache miss, which a warm-cache audit
+          # log never shows. A rotating
           # run-actions-N-azure-*.actions.githubusercontent.com host also
           # appeared; no fixed row covers it, and this job is advisory.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
             results-receiver.actions.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
             index.docker.io:443
             auth.docker.io:443
             production.cloudfront.docker.com:443
