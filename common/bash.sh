@@ -66,15 +66,6 @@ function _hi_prompt_fw() {
 _hi_pt=""
 [[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || _hi_prompt_tool bash _hi_pt || true
 
-if ! shopt -oq posix; then
-  # $BASH_COMPLETION_VERSINFO is the loader's own sentinel: the host's stock
-  # rc often sourced it already, and re-parsing costs 20-50ms a shell
-  # shellcheck disable=SC1091
-  [ -n "${BASH_COMPLETION_VERSINFO-}" ] ||
-    source /usr/share/bash-completion/bash_completion 2>/dev/null ||
-    source /etc/bash_completion 2>/dev/null
-fi
-
 # complete `hi` from the same target list zsh/fish use, and make `exa`
 # complete the way `eza` does.
 #

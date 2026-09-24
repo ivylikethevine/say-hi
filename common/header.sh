@@ -200,7 +200,9 @@ function _hi_shorten_describe() {
 # a session); a stampless, gitless install gets "unknown".
 function _hi_header_version() {
   if [ -z "${_HI_HEADER_VERSION+x}" ]; then
-    _hi_sanitize_var _HI_HEADER_VERSION "${_HI_RELEASE:-$(_hi_release_or_describe)}"
+    local v="${_HI_RELEASE:-}"
+    [ -n "$v" ] || _hi_slow_out v describe
+    _hi_sanitize_var _HI_HEADER_VERSION "$v"
     [ -n "$_HI_HEADER_VERSION" ] || _HI_HEADER_VERSION="unknown"
     _hi_shorten_describe "$_HI_HEADER_VERSION" _HI_HEADER_VERSION
   fi
@@ -292,27 +294,32 @@ function _hi_humanize_uptime() {
 # Every platform test in
 # the shipped tree is in this file, so it lives here and not in core.sh.
 #
-# The `uname` fork is memoized; the verdict is not. $_HI_LINUX_RELEASE stays
-# first in the chain and is re-tested on every call, because header_test.sh
-# points it at a fixture after sourcing to choose an arm - a remembered
-# verdict would ignore that.
+# The verdict is not memoized: $_HI_LINUX_RELEASE stays first in the chain
+# and is re-tested on every call, because header_test.sh points it at a
+# fixture after sourcing to choose an arm - a remembered verdict would ignore
+# that. Linux needs no `uname` for it.
 function _hi_platform() {
-  if [ -z "${_HI_KERNEL+x}" ]; then
-    # process substitution, not <<<: a here-string is a temp file before bash
-    # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
-    read -r _HI_KERNEL _HI_ARCH < <(uname -sm 2>/dev/null || :)
-    _hi_sanitize_var _HI_KERNEL "$_HI_KERNEL"
-    _hi_sanitize_var _HI_ARCH "$_HI_ARCH"
-  fi
   if [ -f "$_HI_LINUX_RELEASE" ]; then
     printf -v "$1" '%s' linux
   else
+    _hi_uname
     case "$_HI_KERNEL" in
     MINGW* | MSYS* | CYGWIN*) printf -v "$1" '%s' windows ;;
     '') printf -v "$1" '%s' unknown ;;
     *) printf -v "$1" '%s' bsd ;;
     esac
   fi
+}
+
+# $_HI_KERNEL and $_HI_ARCH, from one memoized `uname -sm`; no uname leaves
+# both empty, rendered "?"
+function _hi_uname() {
+  [ -z "${_HI_KERNEL+x}" ] || return 0
+  local v
+  _hi_slow_out v uname
+  _hi_sanitize_var _HI_KERNEL "${v%% *}"
+  case "$v" in *' '*) v="${v#* }" ;; *) v="" ;; esac
+  _hi_sanitize_var _HI_ARCH "$v"
 }
 
 # The detection the five sysinfo cells (os arch cores cpu ram) share, run once
@@ -325,6 +332,7 @@ function _hi_system_info_probe() {
   _HI_SI_PROBED=1
   local kernel arch os cpus ram base_mhz load="" load_pct="" plat
   _hi_platform plat
+  _hi_uname
   kernel="$_HI_KERNEL" arch="$_HI_ARCH"
   if [ "$plat" = linux ]; then
     local cpufreq=/sys/devices/system/cpu/cpu0/cpufreq
@@ -338,7 +346,7 @@ function _hi_system_info_probe() {
     while IFS='=' read -r k v; do
       [ "$k" != PRETTY_NAME ] || os="${v//\"/}"
     done <"$_HI_LINUX_RELEASE"
-    cpus=$(exec nproc 2>/dev/null) || true
+    _hi_slow_out cpus nproc
     # straight at the files free(1) and uptime(1) themselves read. Used is
     # MemTotal - MemAvailable (the "how much could a new process actually get"
     # figure free -h reports, not the naive MemTotal - MemFree); MemAvailable
@@ -491,6 +499,29 @@ function _hi_cell_uptime() {
 # nothing. Scope global excludes loopback and link-local, so a bare "?" means
 # neither this box has a routable address nor either tool exists to say so.
 function _hi_cell_ip() {
+  local ips
+  _hi_slow_out ips ips
+  _hi_sanitize_var ips "$ips"
+  # Addresses found but every one of them hidden is an empty cell, which
+  # _hi_collect_header_word drops - not "?", which keeps meaning that
+  # nothing routable was found or no tool could say.
+  if [ -n "$ips" ]; then
+    _hi_ip_filter ips "$ips"
+    [ -n "$ips" ] || {
+      printf -v "$1" '%s' ''
+      return 0
+    }
+  fi
+  # Display only, and the last thing that happens to the list: the comma
+  # stays this cell's internal separator, which is what _hi_ip_list builds
+  # and what _hi_ip_filter's peel reads, so nothing that splits on it
+  # has to learn about the space.
+  ips="${ips//,/, }"
+  printf -v "$1" '%s' "${BLUE}IP: ${ips:-?}"
+}
+
+# the routable addresses, comma-joined, for _hi_cell_ip
+function _hi_ip_list() {
   local ips="" plat
   _hi_platform plat
   # One possibly-absent tool per branch, piped straight into awk for every
@@ -522,23 +553,7 @@ function _hi_cell_ip() {
       printf "%s%s", sep, $2; sep = ","
     }')
   fi
-  _hi_sanitize_var ips "$ips"
-  # Addresses found but every one of them hidden is an empty cell, which
-  # _hi_collect_header_word drops - not "?", which keeps meaning that
-  # nothing routable was found or no tool could say.
-  if [ -n "$ips" ]; then
-    _hi_ip_filter ips "$ips"
-    [ -n "$ips" ] || {
-      printf -v "$1" '%s' ''
-      return 0
-    }
-  fi
-  # Display only, and the last thing that happens to the list: the comma
-  # stays this cell's internal separator, which is what the branches above
-  # build and what _hi_ip_filter's peel reads, so nothing that splits on it
-  # has to learn about the space.
-  ips="${ips//,/, }"
-  printf -v "$1" '%s' "${BLUE}IP: ${ips:-?}"
+  printf '%s' "$ips"
 }
 
 # _hi_ip_filter <outvar> <comma-joined addresses> - the same list minus every
@@ -588,9 +603,86 @@ function _hi_probe_wait() {
   _HI_PROBE_PIDS=()
 }
 
-# Where _hi_probe_launch drops its output; empty until something is launched,
-# so a host answering none of the three pays no mktemp and no rm.
-_HI_PROBE_DIR=""
+# Where the probes and prefetches drop their output; empty until one starts,
+# so a header needing neither pays no mktemp and no rm. $_HI_PROBE_HOLD keeps
+# it past _hi_identity_probe for hi_header's later cells.
+_HI_PROBE_DIR="" _HI_PROBE_LAUNCHED="" _HI_PROBE_HOLD="" _HI_PF_KEYS=""
+
+function _hi_probe_dir() {
+  [ -n "$_HI_PROBE_DIR" ] || _HI_PROBE_DIR="$(mktemp -d -t hi.probes.XXXXXX)"
+  [ -n "$_HI_PROBE_DIR" ]
+}
+
+# waits out whatever is still running, then removes the directory
+function _hi_probe_done() {
+  [ -z "$_HI_PROBE_HOLD" ] && [ -n "$_HI_PROBE_DIR" ] || return 0
+  local k pid
+  for k in $_HI_PF_KEYS; do
+    eval "pid=\${_HI_PF_$k:-} _HI_PF_$k="
+    [ -z "$pid" ] || wait "$pid" 2>/dev/null || true
+  done
+  _hi_probe_wait
+  command rm -rf "$_HI_PROBE_DIR"
+  _HI_PROBE_DIR="" _HI_PROBE_LAUNCHED="" _HI_PF_KEYS=""
+}
+
+# The header's fork-bound lookups, one spelling each. A cell reads one through
+# _hi_slow_out; hi_header starts the ones its order needs up front, so they
+# run side by side in the shadow of the rows before them.
+function _hi_slow() {
+  case "$1" in
+  status) git -C "$_HI_ROOT" --no-optional-locks status --porcelain=v2 --branch ;;
+  describe) _hi_release_or_describe ;;
+  email) git config --get user.email ;;
+  uname) uname -sm ;;
+  nproc) nproc ;;
+  ips) _hi_ip_list ;;
+  pubs) find "$_HI_SSH_DIR" -type f -name "*.pub" ;;
+  esac
+}
+
+function _hi_slow_start() { # <key>
+  _hi_probe_dir || return 0
+  _hi_slow "$1" >"$_HI_PROBE_DIR/pf.$1" 2>/dev/null &
+  eval "_HI_PF_$1=\$!"
+  _HI_PF_KEYS="$_HI_PF_KEYS $1" _HI_PF_SUB="$BASH_SUBSHELL"
+}
+
+# _hi_slow_out <outvar> <key> - $(_hi_slow <key>): the prefetched answer when
+# this shell started one, else run here. A $( ) below the starter cannot
+# `wait` on its job, so it runs its own.
+function _hi_slow_out() {
+  local _hi_so_pid _hi_so_v="" _hi_so_nl=$'\n'
+  eval "_hi_so_pid=\${_HI_PF_$2:-}"
+  if [ -n "$_hi_so_pid" ] && [ "$BASH_SUBSHELL" = "${_HI_PF_SUB:-}" ]; then
+    eval "_HI_PF_$2="
+    wait "$_hi_so_pid" 2>/dev/null || true
+    IFS= read -r -d '' _hi_so_v <"$_HI_PROBE_DIR/pf.$2" || true
+    _hi_so_v="${_hi_so_v%"${_hi_so_v##*[!"$_hi_so_nl"]}"}"
+  else
+    _hi_so_v="$(_hi_slow "$2" 2>/dev/null)" || true
+  fi
+  printf -v "$1" '%s' "$_hi_so_v"
+}
+
+# Start the lookups this order's cells will read. Each is skipped once its
+# memo is set, as configure.sh's repeated renders inherit them.
+function _hi_header_prefetch() {
+  if [ -d "$_HI_ROOT/.git" ]; then
+    [[ "${_HI_DISABLE_BANNER:-0}" == 1 || -n "${_HI_BANNER_CHANGES+x}" ]] || _hi_slow_start status
+    _hi_order_has version && [ -z "${_HI_HEADER_VERSION+x}${_HI_RELEASE:-}" ] && _hi_slow_start describe
+  fi
+  if [ -z "${_HI_ID_PROBED:-}" ]; then
+    _hi_order_has gitid && _hi_slow_start email
+    _hi_order_has pub && [ -d "$_HI_SSH_DIR" ] && _hi_slow_start pubs
+  fi
+  if [ -z "${_HI_SI_PROBED:-}" ]; then
+    [ -z "${_HI_KERNEL+x}" ] && _hi_order_has arch && _hi_slow_start uname
+    _hi_order_has cores && [ -f "$_HI_LINUX_RELEASE" ] && _hi_slow_start nproc
+  fi
+  _hi_order_has ip && _hi_slow_start ips
+  return 0
+}
 
 # Start whichever backends this host can answer, all at once. Its own
 # function so hi_header can start them first and the other rows run in their
@@ -599,7 +691,7 @@ function _hi_probe_launch() {
   local cli clis="" nomad=0 kube=0
   # idempotent: hi_header starts these early, and _hi_identity_probe calls it
   # too so a direct cell read (the suites, hi --doctor) still probes
-  [ -z "$_HI_PROBE_DIR" ] || return 0
+  [ -z "$_HI_PROBE_DIR" ] || [ -z "$_HI_PROBE_LAUNCHED" ] || return 0
   # one lane per docker-compatible CLI on $PATH (GLOSSARY: HI.51); the cell
   # below unions the lanes, so two CLIs fronting one daemon count once.
   # $_HI_CONTAINER_CLIS (core.sh); common/targets.sh spells the same four
@@ -610,7 +702,8 @@ function _hi_probe_launch() {
   command -v nomad &>/dev/null && nomad=1
   command -v kubectl &>/dev/null && kube=1
   [ -n "$clis" ] || ((nomad || kube)) || return 0
-  _HI_PROBE_DIR="$(mktemp -d -t hi.probes.XXXXXX)"
+  _hi_probe_dir || return 0
+  _HI_PROBE_LAUNCHED=1
   for cli in $clis; do
     _hi_probe_start "$_HI_PROBE_DIR/containers.$cli" _hi_probe "$cli" container ls -q
   done
@@ -633,7 +726,7 @@ function _hi_identity_probe() {
   [ -z "${_HI_ID_PROBED:-}" ] || return 0
   _HI_ID_PROBED=1
   local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0 n
-  command -v git &>/dev/null && { email=$(exec git config --get user.email 2>/dev/null) || email=""; }
+  command -v git &>/dev/null && _hi_slow_out email email
   _hi_sanitize_var email "$email"
   if [ -n "$email" ]; then
     domain=${email#*@}
@@ -672,11 +765,14 @@ function _hi_identity_probe() {
       _hi_count_lines n <"$_HI_PROBE_DIR/kube"
       pods="Pods: $n"
     fi
-    command rm -rf "$_HI_PROBE_DIR"
-    _HI_PROBE_DIR=""
+    _hi_probe_done
   fi
   [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_count_lines authorized <"$_HI_SSH_AUTHORIZED_KEYS"
-  [ -d "$_HI_SSH_DIR" ] && _hi_count_lines public < <(find "$_HI_SSH_DIR" -type f -name "*.pub")
+  if [ -d "$_HI_SSH_DIR" ]; then
+    _hi_slow_out n pubs
+    # a line per key: the newlines between them, plus the last
+    [ -z "$n" ] || { n="${n//[!$'\n']/}" public=$((${#n} + 1)); }
+  fi
   _HI_ID_GITID="$user_part"
   _HI_ID_CONTAINERS="${containers:+$BLUE$containers}"
   _HI_ID_JOBS="${jobs:+$BRGREEN$jobs}"
@@ -703,15 +799,18 @@ function banner() {
   if [ -d "$_HI_ROOT/.git" ]; then
     if [ -z "${_HI_BANNER_CHANGES+x}" ]; then
       # one porcelain pass for both, parsed as git_prompt.sh parses it
-      local line
+      local line out nl=$'\n'
       _HI_BANNER_CHANGES=0 _HI_BANNER_BRANCH=""
-      while IFS= read -r line; do
+      _hi_slow_out out status
+      [ -z "$out" ] || out="$out$nl"
+      while [ -n "$out" ]; do
+        line="${out%%"$nl"*}" out="${out#*"$nl"}"
         case "$line" in
         "# branch.head "*) _HI_BANNER_BRANCH="${line#"# branch.head "}" ;;
         "#"*) ;;
         *) _HI_BANNER_CHANGES=$((_HI_BANNER_CHANGES + 1)) ;;
         esac
-      done < <(git -C "$_HI_ROOT" --no-optional-locks status --porcelain=v2 --branch 2>/dev/null)
+      done
       # detached and main are blanked: only an unusual branch earns a callout
       _hi_sanitize_var _HI_BANNER_BRANCH "$_HI_BANNER_BRANCH"
       case "$_HI_BANNER_BRANCH" in main | "(detached)") _HI_BANNER_BRANCH="" ;; esac
@@ -859,9 +958,10 @@ function _hi_order_has() {
 
 function hi_header() {
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] && return 0
-  banner "$@"
-  # ahead of the fork-only cells, so their ~30ms runs inside the probes' wall
-  # clock. Only the three that actually consume a backend probe gate this -
+  _HI_PROBE_HOLD=1
+  _hi_header_prefetch
+  # ahead of the rows, so their work runs inside the probes' wall clock. Only
+  # the three that actually consume a backend probe gate this -
   # gitid/auth/pub never did, so they cost nothing here whether or not they
   # end up in the order.
   # Skipped once identity is memoized (configure.sh renders the header
@@ -870,6 +970,7 @@ function hi_header() {
   if [ -z "${_HI_ID_PROBED:-}" ] && { _hi_order_has containers || _hi_order_has jobs || _hi_order_has pods; }; then
     _hi_probe_launch
   fi
+  banner "$@"
   local row
   local -a _HI_PENDING_CELLS=()
   # armed for the span of this loop only - a cell's overflow cascades into
@@ -889,6 +990,8 @@ function hi_header() {
   # dropped - a no-op when the order ends on "check", since full_check
   # absorbs the carry itself and leaves none behind.
   _hi_header_flush
+  _HI_PROBE_HOLD=""
+  _hi_probe_done
 }
 
 # The disconnect side: the banner, then timestamp()'s row when one of its
@@ -988,23 +1091,6 @@ function _hi_ramp_escape() {
 # strict mode, and neither could be aborted by a plain array assignment.
 _hi_packages_palette || true
 
-# _hi_row_max <outvar> <line> - the highest rank a roster row could reach:
-# its largest `:N`, clamped the way the loop below clamps. Lets full_check
-# apply $_HI_PACKAGES_MIN_PRIORITY *before* the probe rather than after -
-# check_line runs a `command -v` per alternative, and at the default floor
-# more than half the shipped roster is probed only to be dropped.
-function _hi_row_max() {
-  local _hi_rm_rest="$2" _hi_rm_n _hi_rm_max=0
-  while [ "$_hi_rm_rest" != "${_hi_rm_rest#*:}" ]; do
-    _hi_rm_rest="${_hi_rm_rest#*:}"
-    _hi_rm_n="${_hi_rm_rest%%,*}"
-    _hi_rm_n="${_hi_rm_n%%[!0-9]*}"
-    [ -n "$_hi_rm_n" ] || continue
-    ((_hi_rm_n > 3)) && _hi_rm_n=3
-    ((_hi_rm_n > _hi_rm_max)) && _hi_rm_max=$_hi_rm_n
-  done
-  printf -v "$1" '%s' "$_hi_rm_max"
-}
 
 # For each "[-|+]cmd:priority[,...]": the highest-priority installed package
 # (or the first, if none) — a fully-missing line ranks at the max priority
@@ -1085,7 +1171,7 @@ function _hi_check_close() {
 # scripts/preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
-  local width_item count=0 max cell vislen piece i pkg_start close=1 line row_max rank rec us=$'\x1f'
+  local width_item count=0 max cell vislen piece i pkg_start close=1 line reach="*" rank rec us=$'\x1f'
   _hi_draw_width max
   # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
   # not _hi_row_line's two, since every piece below already carries its own
@@ -1095,6 +1181,8 @@ function full_check() {
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
   ((min > 3)) && min=3
+  # a row reaches the floor when one `:N` does; any two-digit N clamps to 3
+  ((min > 0)) && reach="*:[$((min))-9]*"
   local -a row_widths=() row_pieces=() visible=()
 
   # a carry from an earlier row (hi_header's cascade) opens this row's first
@@ -1122,8 +1210,8 @@ function full_check() {
     # the floor first: a row that cannot reach it has nothing to contribute,
     # and probing it is a failed PATH walk per alternative. Rows that clear it
     # are still filtered below on the rank they actually scored.
-    _hi_row_max row_max "$line"
-    ((row_max >= min)) || continue
+    # shellcheck disable=SC2053 # $reach is a glob
+    [[ "$line" == $reach || "$line" == *:[1-9][0-9]* ]] || continue
     check_line visible "$line"
   done <"$_HI_PACKAGES"
   # highest rank first, file order within one: a pass per rank, not a fork
