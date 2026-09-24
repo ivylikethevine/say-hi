@@ -245,8 +245,9 @@ function test_fish_exit_closes_the_prompt_mark_only_from_the_prompt() {
      emit fish_prompt >/dev/null; set -q __hi_marks_open; and echo -n open
      emit fish_preexec >/dev/null; set -q __hi_marks_open; or echo -n ,ran
      functions -q __hi_marks_exit; and echo -n ,hooked')"
-  # fish 3's handlers print their own C past `emit`'s redirect, between the words
-  [[ "$out" == *open*,ran*,hooked ]]
+  # fish 3 prints its handlers' C past `emit`'s redirect, and a bracketed-paste
+  # reset on its way out, between and after the words
+  [[ "$out" == *open*,ran*,hooked* ]]
 }
 
 # __hi_ps1 runs first in PROMPT_COMMAND, so it hands on the status it found:
