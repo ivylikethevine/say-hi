@@ -65,6 +65,19 @@ CI_WORKFLOW_ROSTER="${CI_WORKFLOW_ROSTER:-}"
 CI_IMAGE_GLOBS="${CI_IMAGE_GLOBS-Dockerfile */Dockerfile **/*.Dockerfile **/compose*.y*ml docker-compose*.y*ml}"
 
 bad=0
+# one `host|read` line per upstream lookup, read 1 or 0: a host none of whose
+# lookups came back is blocked (the workflow's egress allow list) or down
+hosts=""
+
+# _ci_host <check> - sets $host to the one <check> is served from
+function _ci_host() {
+  case "$1" in
+  github:*) host=api.github.com ;;
+  gitlab:*/*) host="${1#gitlab:}" host="${host%%/*}" ;;
+  gitlab:*) host=gitlab.com ;;
+  npm:*) host=registry.npmjs.org ;;
+  esac
+}
 
 # _ci_problem <title> <message> - count one problem; annotate it under Actions.
 # Escaped per workflow-command rules so a message cannot start a new command.
@@ -172,11 +185,15 @@ function _ci_report_pin() {
     ;;
   esac
   IFS='|' read -r due newest age <<<"$(_ci_latest "$check" "$prefix")"
-  # no answer is a rate limit or an outage, not a stale pin
+  _ci_host "$check"
+  # no answer is a rate limit or an outage, not a stale pin - unless the
+  # whole host went unread, which the end of the run counts
   if [ -z "$due" ] && [ -z "$newest" ]; then
+    hosts+="$host|0"$'\n'
     printf '%-32s %-14s (could not read upstream releases)\n' "$label" "$pinned"
     return 0
   fi
+  hosts+="$host|1"$'\n'
   if [ -n "$newest" ] && [ "$newest" != "$pinned" ] && [ "$newest" != "$due" ]; then
     note=" ($newest released $age day(s) ago, inside the $COOLDOWN_DAYS-day cooldown)"
   fi
@@ -290,6 +307,7 @@ if [ -n "$CI_IMAGE_GLOBS" ]; then
       jq -r '[ (.digest // ""),
                (if .tag_last_pushed then ((now - (.tag_last_pushed | sub("\\.[0-9]+"; "") | fromdateiso8601)) / 86400 | floor | tostring) else "" end)
              ] | join("|")' 2>/dev/null || echo "|")"
+    hosts+="hub.docker.com|$([ -n "$current" ] && echo 1 || echo 0)"$'\n'
     if [ -z "$current" ]; then
       printf '%-48s %-22s (could not read the current tag digest)\n' "$ref" "${pinned:7:12}..."
     elif [ "$current" = "$pinned" ]; then
@@ -315,5 +333,14 @@ if declare -F ci_local_checks >/dev/null; then
   echo
   ci_local_checks || _ci_problem "local checks" "ci_local_checks in check_tool_versions.local.sh returned non-zero"
 fi
+
+# A one-off miss is a rate limit; every lookup on one host missing is a host
+# this run cannot reach, which would otherwise read as current forever
+while IFS='|' read -r h n; do
+  [ -n "$h" ] || continue
+  echo
+  printf '%-32s UNREAD (%s lookup(s), none answered - blocked by the egress allow list, or down)\n' "$h" "$n"
+  _ci_problem "$h unreachable" "none of the $n upstream lookup(s) on $h answered - add it to the workflow's allowed-endpoints, or check the host"
+done < <(printf '%s' "$hosts" | awk -F'|' '{ n[$1]++; r[$1] += $2 } END { for (h in n) if (!r[h]) print h "|" n[h] }' | sort)
 
 exit $((bad > 255 ? 255 : bad))

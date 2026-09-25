@@ -220,12 +220,24 @@ now="$(exec date +%s 2>/dev/null)" || now=0
 # `timeout` is GNU/busybox, absent on stock macOS - optional. `-k 0.2`: the
 # cap is a SIGTERM, which rootless podman defers while its runtime initialises
 # (longer than the cap on a fresh $HOME); the KILL 200ms later is what makes
-# $_HI_PROBE_TIMEOUT a bound. core.sh's _hi_probe carries the same one.
-if command -v timeout >/dev/null 2>&1; then
-  run_backend() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
-else
-  run_backend() { "$@"; }
-fi
+# $_HI_PROBE_TIMEOUT a bound. BusyBox before 1.35 refuses `-k`, and before
+# 1.30 takes the cap only as `-t SECS`, so the first call settles which form
+# works and redefines this; run_lanes calls it once
+# before forking. core.sh's _hi_probe carries the same one.
+run_backend() {
+  if ! command -v timeout >/dev/null 2>&1; then
+    run_backend() { "$@"; }
+  elif timeout -k 0.2 1 true 2>/dev/null; then
+    run_backend() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  elif timeout 1 true 2>/dev/null; then
+    run_backend() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  elif timeout -t 1 true 2>/dev/null; then
+    run_backend() { timeout -t "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  else
+    run_backend() { "$@"; }
+  fi
+  run_backend "$@"
+}
 
 # Everything below the first line of $1, fork-free: faster than a `tail` exec
 # at this size, and works on a PATH with no coreutils.
@@ -284,6 +296,7 @@ run_lister() {
 run_lanes() {
   if [ "$n_wanted" -ge 2 ] && [ -n "$scratch" ]; then
     files=""
+    run_backend true
     for label in $wanted; do
       run_lister "$label" >"$scratch/$label" 2>/dev/null &
       files="$files $scratch/$label"
@@ -428,8 +441,9 @@ list_kube() {
   fi
 }
 
+# --request-timeout: kubectl's own bound, the one left where `timeout` is not
 kube_pods() {
-  run_backend kubectl get pods -A --field-selector=status.phase=Running \
+  run_backend kubectl get pods -A --request-timeout="${_HI_PROBE_TIMEOUT:-2}s" --field-selector=status.phase=Running \
     -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{range .spec.containers[*]}{" "}{.name}{end}{"\n"}{end}'
 }
 

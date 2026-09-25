@@ -71,7 +71,7 @@ updates:
     # that no longer matches a fixture pin. Only semver update-types are
     # ignored, so digest refreshes still arrive.
     ignore:
-      # zshusers/zsh:5.8 is the zsh floor (zsh58.Dockerfile)
+      # zshusers/zsh:5.5.1 is the zsh floor (zsh55.Dockerfile)
       - dependency-name: zshusers/zsh
         update-types:
           - "version-update:semver-major"
@@ -82,9 +82,15 @@ updates:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      # ubuntu 24.04 is the fish floor (fish37.Dockerfile) and 26.04 the fish
-      # ceiling (fish4.Dockerfile); one ignore cannot tell them apart, so both
-      # stay put and moving either is a hand edit
+      # ohmyfish/fish:3.4.1 is the fish floor (fish34.Dockerfile)
+      - dependency-name: ohmyfish/fish
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      # ubuntu 26.04 is the fish ceiling (fish4.Dockerfile) and 24.04 the apt
+      # client CI's runners match (apt-client.Dockerfile); one ignore cannot
+      # tell them apart, so both stay put and moving either is a hand edit
       - dependency-name: ubuntu
         update-types:
           - "version-update:semver-major"

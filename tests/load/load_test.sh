@@ -186,6 +186,27 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
   return 1
 }
 
+# A nested sh reads $ENV alone, so the settings come first there: their
+# toggles stayed out of the environment (_hi_unexport) and aliases.sh reads
+# them. dash runs it, with a settings.sh of the session's own.
+# <root>: the session rc dir set up for a tree at <root>, its shrc run by sh
+function _hi_shrc_toggle_in() {
+  local _HI_ROOT="$1" _HI_SESSION_RC_DIR=""
+  _hi_session_rc_setup || return 1
+  sh -c '. "$1"; printf %s "$_HI_DISABLE_TOOL_ALIASES"' sh "$_HI_SESSION_RC_DIR/shrc" 2>/dev/null
+  # only the directory the setup's mktemp just made
+  case "$_HI_SESSION_RC_DIR" in */hi.rc.??????) rm -rf "$_HI_SESSION_RC_DIR" ;; esac
+}
+
+function test_session_shrc_reads_the_settings_first() {
+  local root="$_HI_WORKDIR/shrc-root"
+  mkdir -p "$root/config"
+  ln -sfn "$_HI_ROOT/common" "$root/common"
+  printf 'export _HI_DISABLE_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
+  # in a subshell: the setup exports ZDOTDIR and ENV
+  [ "$(_hi_shrc_toggle_in "$root")" = 1 ]
+}
+
 # Only the *set* session vars are written - an unset one is skipped rather
 # than landing as an empty assignment, in both the bashrc and fish.config
 # copies. HI.47's other half: the content of the lines, not just that the
@@ -335,6 +356,26 @@ function _hi_shell_answer() {
     _HI_LOAD_NO_INIT=1
     source "$_HI_HOME/say-hi/load.sh"
     _hi_session_shell' 2>/dev/null
+}
+
+# fish before 3.4 cannot parse hi's config.fish: a login fish that old gives
+# way to the next shell down, and 3.4 itself does not. <version> is what the
+# fake fish reports.
+function _hi_old_fish_answer() {
+  local dir="$_HI_WORKDIR/oldfish-$1" b
+  mkdir -p "$dir"
+  printf '#!/bin/sh\necho "fish, version %s"\n' "$1" >"$dir/fish"
+  for b in zsh bash; do printf '#!/bin/sh\nexit 0\n' >"$dir/$b"; done
+  chmod +x "$dir/fish" "$dir/zsh" "$dir/bash"
+  env -i SHELL=/usr/bin/fish PATH="$dir:$(_hi_real_path shell-tools id awk getent sh)" \
+    HOME="$_HI_WORKDIR" _HI_HOME="$_HI_HOME" "$BASH" -c '
+    _HI_LOAD_NO_INIT=1
+    source "$_HI_HOME/say-hi/load.sh"
+    _hi_session_shell' 2>/dev/null
+}
+
+function test_session_shell_passes_over_a_fish_too_old() {
+  [ "$(_hi_old_fish_answer 3.3.1)" = zsh ] && [ "$(_hi_old_fish_answer 3.4.1)" = fish ]
 }
 
 # _hi_shell_case <installed> <env-string> - _hi_shell_answer with the env
@@ -698,6 +739,7 @@ function run_load_tests() {
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "A target's profile cannot move the session tree" test_profile_cannot_move_the_session_tree
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
+  _hi_check "...and a nested sh reads the settings' toggles" test_session_shrc_reads_the_settings_first
   _hi_check "only the set session vars are written (HI.47)" test_session_rc_setup_writes_only_the_set_vars
   _hi_check "the session shell reads hi's rc, not \$HOME's" test_session_shell_cmd_points_each_shell_at_his_rc
   _hi_check "the rc dir nests under \$_HI_CLEANUP when set" test_session_rc_setup_nests_under_cleanup_when_set
@@ -734,6 +776,7 @@ Floors at bash|bash|SHELL=/usr/bin/fish|bash
 A bash-less tier is never the session shell (dash)|bash dash zsh|SHELL=/bin/dash|zsh
 EOF
   _hi_check "...and bash is the answer even off-PATH" test_session_shell_floors_at_bash_even_off_path
+  _hi_check "A fish older than 3.4 gives way to the next shell" test_session_shell_passes_over_a_fish_too_old
 
   _hi_h2 "Testing: load()"
   _hi_check "Propagates the session shell's exit code" test_load_propagates_the_session_shells_exit_code

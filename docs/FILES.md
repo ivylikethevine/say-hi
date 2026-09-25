@@ -234,7 +234,8 @@ an overlay copy rides either way.
 ## Paths hi recognizes
 
 Read, probed, or checked, on whichever machine the shell runs; nothing here is
-written but zsh's `.zcompdump`, by the daily `compinit`.
+written but zsh's `.zcompdump`, by the daily `compinit`, and the
+`.zcompdump.zwc` compiled from it each time it changes.
 
 | Path                                                                                                      | Variable                                 | Why                                                                        |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------- |

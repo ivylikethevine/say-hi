@@ -5,7 +5,10 @@
 # and tests/hi/prompt_test.sh pins the two together. Plain text, no color - the
 # one color is applied by each shell's own PS1 template, where that shell's
 # width accounting can see it.
-set -euo pipefail # off again at the end: an error must not close an interactive shell
+# strict while loading; the caller's options back at the end, as in core.sh
+_hi_env_o=$-
+[[ -o pipefail ]] && _hi_env_o+=p
+set -euo pipefail
 
 # The sources, in the order they render: outermost environment first, so a venv
 # inside a direnv inside mise reads "(mise|direnv:proj|myproj)".
@@ -133,4 +136,10 @@ _hi_env_prompt() {
   fi
 }
 
-set +euo pipefail # see the top of the file
+# see the top of the file; a caller that sourced this without core.sh (a
+# suite, fish's bash child) gets strict mode off and nothing more
+if type _hi_opts_restore >/dev/null 2>&1; then
+  _hi_opts_restore "$_hi_env_o"
+else
+  set +euo pipefail
+fi

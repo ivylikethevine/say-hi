@@ -704,6 +704,7 @@ function _hi_probe_launch() {
   [ -n "$clis" ] || ((nomad || kube)) || return 0
   _hi_probe_dir || return 0
   _HI_PROBE_LAUNCHED=1
+  _hi_probe true # settled once here, not once per lane
   for cli in $clis; do
     _hi_probe_start "$_HI_PROBE_DIR/containers.$cli" _hi_probe "$cli" container ls -q
   done

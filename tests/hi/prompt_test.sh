@@ -166,6 +166,26 @@ function test_fallback_prompt_renders_in_dash() {
   [[ "$out" == *myhost* && "$out" != *'id -un'* ]]
 }
 
+# Each escape between the line editor's own markers - bash's \[ \] for
+# BusyBox ash, a \001 delimiter PS1 declares up front for mksh, none for dash,
+# which has no line editing - and the cwd left for the shell to expand per draw
+function test_fallback_prompt_marks_its_escapes_per_editor() {
+  local rc bb mk plain
+  rc="$(DOMAIN=hitest@myhost _hi_fallback_prompt)"
+  # shellcheck disable=SC2016 # expanded by the sh below
+  bb="$(BB_ASH_VERSION=1.36 sh -c "$rc"'; printf %s "$PS1"')"
+  # shellcheck disable=SC2016
+  mk="$(KSH_VERSION='@(#)MIRBSD KSH R59' sh -c "$rc"'; printf %s "$PS1"')"
+  # shellcheck disable=SC2016
+  plain="$(env -u BB_ASH_VERSION -u KSH_VERSION sh -c "$rc"'; printf %s "$PS1"')"
+  [[ "$bb" == *'\['$'\e['*'\]'* && "$bb" == *'${PWD}'* ]] || return 1
+  [[ "$mk" == $'\001\r'* && "$mk" == *$'\001\e['* ]] || return 1
+  # a busybox sh (Alpine's) sets BB_ASH_VERSION itself: no plain case there
+  # shellcheck disable=SC2016
+  [ -z "$(sh -c 'printf %s "${BB_ASH_VERSION-}"')" ] || return 0
+  [[ "$plain" != *'\['* && "$plain" != *$'\001'* ]]
+}
+
 # The shared rc must NOT carry it: that file is also fed to fish, which has no
 # PS1 and stops dead on the line, and to zsh, where `\$` is not this escape.
 # The POSIX arm appends it instead - which is what the suffix below shows.
@@ -305,6 +325,7 @@ function run_hi_prompt_tests() {
   _hi_check "_HI_PROMPT_END_BASH is the sh prompt's too" test_fallback_prompt_takes_the_bash_separator
   _hi_check "_HI_DISABLE_PROMPT skips it" test_fallback_prompt_respects_the_toggle
   _hi_check_requires dash "Renders in a real dash" test_fallback_prompt_renders_in_dash
+  _hi_check "Marks its escapes for each shell's line editor, cwd per draw" test_fallback_prompt_marks_its_escapes_per_editor
   _hi_check "The shared rc stays shell-agnostic" test_fallback_rc_stays_shell_agnostic
   _hi_check "The POSIX arm appends it" test_remote_suffix_appends_the_prompt_for_posix_shells
 

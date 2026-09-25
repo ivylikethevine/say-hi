@@ -208,10 +208,13 @@ code registers a cleanup trap.
 Files sourced into an interactive shell (`common/core.sh`, `hi.sh`,
 `common/git_prompt.sh`, `common/env_prompt.sh`, ...) set `set -euo pipefail`
 at the top _and disable it at the end of their own code_: left on, any later
-non-zero status or unset variable kills the user's session. `common/bash.sh`
-never enables it at all. The bootloader and fallback
-rc do the same on targets — forgetting it there breaks `hi <target> <command>`
-outright.
+non-zero status or unset variable kills the user's session. The `common/`
+files end with `_hi_opts_restore`, which gives an interactive shell back the
+`-e`, `-u`, and `pipefail` it had before the file loaded; a script keeps them
+off. A user's file (`settings.sh`) is sourced with strict mode off, so one
+failing line cannot stop a shell starting. `common/bash.sh` never enables it
+at all. The bootloader and fallback rc do the same on targets — forgetting it
+there breaks `hi <target> <command>` outright.
 
 ## HI.16 no-fork reads
 
@@ -336,7 +339,10 @@ directory falls back to the in-turn sweep — slow, not wrong. The cap is a
 SIGTERM with a SIGKILL 200ms behind it (`timeout -k 0.2`): a CLI may defer a
 TERM while it finishes something — rootless podman does for the whole of its
 runtime setup, which on a fresh `$HOME` can outlast the cap — and without the
-KILL the ceiling is a request.
+KILL the ceiling is a request. BusyBox before 1.35 refuses `-k`, and before
+1.30 takes the cap only as `-t SECS`, so the first probe tries each form and
+keeps the one that runs; `kubectl` also gets `--request-timeout`, its own
+bound where there is no `timeout` at all (stock macOS).
 
 `_HI_TARGETS_TTL` — seconds a result is reused (default 5, 0 disables); a
 just-started container may not appear until it expires. **Nothing invalidates
@@ -352,6 +358,10 @@ and the replacing sweep runs behind it - no TAB inside a working session waits
 on a daemon. A lock directory beside the cache allows one refresh at a time,
 taken over if it outlives any real sweep. Older than that, the sweep is waited
 on again, like a first TAB. `_HI_TARGETS_TTL=0` skips all of this.
+
+ble.sh's as-you-type completion calls bash's completion function on every
+keystroke; with `auto` in its `comp_type` it gets the names the shell
+already holds, whatever their age, and never a sweep of its own.
 
 ## HI.29 apostrophes in substitution comments
 
@@ -1051,7 +1061,7 @@ that prefix survives is a property of the _shell_, not of the tool.
 `$CONDA_PROMPT_MODIFIER` unless `changeps1` is off. zsh and fish keep what
 those scripts did: zsh.zsh assigns `$PS1` once at rc time, and fish's
 `fish_prompt` is the very function activate wrapped. bash does not -
-`common/bash.sh`'s `ps1()` is a `PROMPT_COMMAND` hook that rebuilds `$PS1`
+`common/bash.sh`'s `__hi_ps1()` is a `PROMPT_COMMAND` hook that rebuilds `$PS1`
 from `$HI_PS1` on every draw, so the activate script's edit is gone by the
 second prompt.
 
@@ -1062,7 +1072,9 @@ when the tool's own marker is present (`$_OLD_VIRTUAL_PS1`, the
 sets it to 0, because there is provably nothing there to defer to. A venv is
 therefore named in all three shells - in its own styling under zsh and fish,
 in hi's under bash - and the tools with no prefix of their own are hi's
-everywhere. The alternative, exporting `VIRTUAL_ENV_DISABLE_PROMPT=1` to
+everywhere. While such a prefix stands, hi's lead space drops out, since the
+prefix ends in a space of its own: zsh's `__hi_env_precmd` sees `$PS1` no
+longer starting with hi's mark, and fish's `prompt_login` the same markers. The alternative, exporting `VIRTUAL_ENV_DISABLE_PROMPT=1` to
 silence the tools and always draw hi's, would have hi overriding a setting
 the user configured for every other shell they open.
 

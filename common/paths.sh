@@ -158,26 +158,22 @@ export _HI_DISABLE_LOCAL
 export _HI_REMOTE_SESSION
 
 # core.sh's _HI_TOGGLES minus the gates' own three inputs, spelled out because
-# this dialect can't loop; paths_test.sh pins the two lists together.
-#
-# NOTHING INSIDE THE BRACES BUT `export NAME=value` LINES - no comments (blank
-# lines are fine). To fish `{` opens a brace *expansion*, where `#` has no
-# comment meaning; fish 4 tolerates it, fish 3.7 (Ubuntu 24.04, CI) dies with
-# "Mismatched braces" - tests/lint's fish-floor case.
-[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && {
-  export _HI_DISABLE_HEADER=1
-  export _HI_DISABLE_PROMPT=1
-  export _HI_DISABLE_GIT_STATUS=1
-  export _HI_DISABLE_ENV_STATUS=1
-  export _HI_DISABLE_EDITORS=1
-  export _HI_DISABLE_VIM=1
-  export _HI_DISABLE_NANO=1
-  export _HI_DISABLE_EMACS=1
-  export _HI_DISABLE_MICRO=1
-  export _HI_DISABLE_HELIX=1
-  export _HI_DISABLE_KAKOUNE=1
-  export _HI_DISABLE_TOOL_ALIASES=1
-  export _HI_DISABLE_SUDO_ALIAS=1
-  export _HI_DISABLE_BANNER=1
-  export _HI_DISABLE_GREETING=1
-} || true
+# this dialect can't loop; paths_test.sh pins the two lists together. One
+# guarded line each: a `{ ... }` group is a block only from fish 4, and fish 3
+# fails it at run time though `fish -n` passes it.
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_HEADER=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_PROMPT=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_GIT_STATUS=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_ENV_STATUS=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_EDITORS=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_VIM=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_NANO=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_EMACS=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_MICRO=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_HELIX=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_KAKOUNE=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_TOOL_ALIASES=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_SUDO_ALIAS=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_BANNER=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_GREETING=1
+true # the file's status, whichever way the last line went

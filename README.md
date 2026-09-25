@@ -164,8 +164,8 @@ row, and everything answered **no**, and why:
 - **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
   out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
-  **fish 3.7** (Ubuntu 24.04's) and **zsh 5.8** (Debian 11's) for the other
-  two shells hi styles.
+  **fish 3.4** (Alpine 3.16's) and **zsh 5.5** (RHEL 8's) for the other two
+  shells hi styles.
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.
 
@@ -334,16 +334,22 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **A blocked upstream shows as drift** — `check_tool_versions.sh`
-       prints `(could not read upstream releases)` for a row it cannot read
-       and counts no problem, and `tool-versions.yml` blocks egress to a
-       fixed host list, so a pin whose upstream lives on a host missing from
-       that list reads as fine forever. **Do:** count a problem when every
-       row served by one host went unread (a blocked host, not a one-off rate
-       limit), naming the host. **Ticks when:** a run with one upstream host
-       removed from `allowed-endpoints` opens the tracking issue naming it.
+1. [ ] **Close the prompt mark when the shell exits** — shipped: a shell
+       left from its prompt (Ctrl-D) closes the last A/B pair with C and D on
+       the way out (a chained `EXIT` trap in bash, a `zshexit` hook in zsh, a
+       `fish_exit` handler in fish 3 and 4, which had the same gap). What is
+       left is the check by eye. **Ticks when:** in Konsole with semantic
+       hints on, running bash, zsh, and fish from fish and leaving each with
+       Ctrl-D leaves the lines after it unshaded.
 
-2. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
+2. [ ] **A blocked upstream shows as drift** — shipped:
+       `check_tool_versions.sh` counts a problem, naming the host, when no
+       lookup on one host answered (a blocked host, not a one-off rate
+       limit). What is left is seeing it in CI. **Ticks when:** a
+       `tool-versions.yml` dispatch with one upstream host removed from
+       `allowed-endpoints` opens the tracking issue naming it.
+
+3. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
        sweep (run 35670586612) left in the shipped files now has a test
        (`env_prompt.sh`, `stamp_badge.sh`, `configure.sh`, `core.sh`,
        `doctor.sh`, `hi.sh`) or is a blind spot `tests/coverage_v2.sh`'s
@@ -352,7 +358,31 @@ In this checkout, narrowest first.
        the first bashcov sweep on `main` after this lands reads no shipped
        line at 0 that is neither tested nor in that header.
 
-3. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+4. [ ] **The header probes only what was asked** — the default
+       `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local
+       terminal or tmux pane runs docker, podman, nomad, and kubectl.
+       **Do:** leave the backend cells out of the local default (a session
+       keeps them), or run them after the first prompt. **Ticks when:** a
+       local shell with the default order starts no backend CLI. **Open
+       question:** drop the containers, jobs, and pods cells from the local
+       default header, or keep them and fill them in after the first prompt?
+       Either changes what a local header shows today.
+
+5. [ ] **A hand-written prompt stays** — hi now stands down for the prompt
+       frameworks it can recognise (liquidprompt, bash-git-prompt, spaceship,
+       pure, promptinit themes) and for any `fish_prompt` of the user's own,
+       but still replaces a `PS1`/`PROMPT` the user wrote by hand in bash or
+       zsh, since a distro's default `.bashrc` sets one too and standing down
+       for those would take hi's prompt from nearly everyone. **Do:** tell a
+       hand-written prompt from a distro default (compare against the
+       defaults of the distros hi lists, or a setting to opt in). **Ticks
+       when:** a hand-written `PS1` survives hi in bash and zsh, and a stock
+       Debian, Fedora, and Arch `.bashrc` still gets hi's prompt. **Open
+       question:** match against the known distro default `PS1`s (automatic,
+       but a list to keep current), or a setting that opts in to keeping the
+       user's own (explicit, but off unless someone finds it)?
+
+6. [ ] **A tool's config rides without a plugin** — adding a tool hi does
        not know means a `plugins.d` member or a change to hi. **Do:** a
        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
        directory on this machine, and the command (or variable) that points
@@ -362,7 +392,7 @@ In this checkout, narrowest first.
        tool of the user's own reads its home config on a target with no code
        change, and `docs/SETTINGS.md` shows how.
 
-4. [ ] **Investigate the header as plugins** — every header cell is one
+7. [ ] **Investigate the header as plugins** — every header cell is one
        `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
        set a prompt segment. **Do:** find out whether the cells and
        `full_check` fit one plugin contract a user's own could share, costing

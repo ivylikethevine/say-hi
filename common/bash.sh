@@ -33,7 +33,8 @@ source "$_HI_ALIASES"
 _hi_load_plugins
 
 _hi_interactive_extras
-export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+# a default, never over the user's own
+export GCC_COLORS="${GCC_COLORS:-error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01}"
 
 # Primed unconditionally, so a custom PS1 in the user's own bash.sh
 # (sourced at the end of this file) can use hi's per-host/per-user color
@@ -113,7 +114,13 @@ function _hi_complete() {
     done < <(sh "$_HI_TARGETS" "${ask[@]}")
     return 0
   fi
-  _hi_target_rows
+  # ble.sh's as-you-type completion (`auto` in its comp_type) calls this on
+  # every keystroke: it gets the names already held, never a backend sweep
+  if [[ -n ${BLE_VERSION-} && :${comp_type-}: == *:auto:* ]]; then
+    ((${#_HI_TARGET_ROWS[@]})) || return 0
+  else
+    _hi_target_rows
+  fi
   local -a hit_kinds=() shown=() syms=()
   local i j sym row
   for row in "${_HI_TARGET_ROWS[@]}"; do
@@ -177,6 +184,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
         local ec=$?
         # shellcheck disable=SC2086 # the options are words
         PS1="$(powerline-go -shell bash -error "$ec" -jobs "$(($(jobs -p | wc -l)))" ${_HI_POWERLINE_GO_OPTS-})"
+        return "$ec"
       }
       PROMPT_COMMAND="__hi_plgo_ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
       ;;
@@ -218,13 +226,18 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       ;;
     *) eval "$("$_hi_pt" init bash)" ;;
     esac
+  elif ! _hi_prompt_named_hi && { [[ -n ${_LP_VERSION-} ]] || declare -F setGitPrompt >/dev/null; }; then
+    # liquidprompt or bash-git-prompt draws this prompt, and hi has no hand-over
+    # for either: it stays theirs; `hi` in $_HI_PROMPT_TOOL takes it anyway.
+    # GLOSSARY: HI.32
+    :
   else
     # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
     HI_PS1_END=""
     _hi_prompt_end BASH HI_PS1_END
     _hi_ps1_lead=" "
     [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
-    # bash is the one shell where another tool's prefix cannot survive: ps1()
+    # bash is the one shell where another tool's prefix cannot survive: __hi_ps1()
     # below rebuilds $PS1 from scratch on every draw, so there is nothing to
     # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
     _HI_ENV_DEFER=0
@@ -241,7 +254,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       HI_PS1="${debian_chroot:-}\u@\h:\w"
     fi
     # `hi` named in the list takes the prompt back from a program the rc
-    # already started, whose PROMPT_COMMAND hook would redraw over hi's ps1()
+    # already started, whose PROMPT_COMMAND hook would redraw over hi's __hi_ps1()
     # every prompt; each known hook becomes a `:`. PROMPT_COMMAND is an array
     # from bash 5.1 when the rc made it one. Unset, or a list that ran out,
     # leaves the rc's own choice alone.
@@ -314,12 +327,29 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # dropped, and tmux passes 133 through.
     _hi_marks_a=$'\[\e]133;A\a\]'
     _hi_marks_b=$'\[\e]133;B\a\]'
-    if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
-      PS0=$'\e]133;C\a'"${PS0:-}"
-    fi
-    function ps1() {
-      local _hi_ec=$?
-      printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$_hi_ec" "${HOSTNAME:-}" "$PWD"
+    _hi_mark_c=$'\e]133;C\a'
+    _hi_marks_live=0
+    # Whether a draw carries the marks: not on a dumb terminal or off one, and
+    # not while a terminal's own integration sends its set (kitty, ghostty,
+    # WezTerm, iTerm2) - some load after this rc, so asked per draw
+    # shellcheck disable=SC2154 # _ksi_prompt is kitty's
+    function _hi_marks_on() {
+      [[ $TERM != dumb && -t 1 && -z ${ITERM_SHELL_INTEGRATION_INSTALLED-} ]] &&
+        ! declare -p _ksi_prompt &>/dev/null &&
+        ! declare -F __ghostty_precmd >/dev/null &&
+        ! declare -F __wezterm_semantic_precmd >/dev/null
+    }
+    function __hi_ps1() {
+      local _hi_ec=$? _hi_ma="" _hi_mb="" _hi_u
+      if _hi_marks_on; then
+        _hi_marks_live=1 _hi_ma="$_hi_marks_a" _hi_mb="$_hi_marks_b"
+        _hi_url_path _hi_u "$PWD"
+        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$_hi_ec" "${HOSTNAME:-}" "$_hi_u"
+        [[ ${PS0-} == *"$_hi_mark_c"* ]] || PS0="$_hi_mark_c${PS0-}"
+      else
+        _hi_marks_live=0
+        [ -z "${PS0-}" ] || PS0="${PS0/"$_hi_mark_c"/}"
+      fi
       # git info through a reference, never expanded into PS1: expanding user
       # strings is the pw3nage class of bug (github.com/njhartwell/pw3nage)
       _hi_git_prompt __powerline_git_info # out-var form: no $( ) fork per prompt
@@ -339,9 +369,26 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       local e='${__hi_env_info}' g='${__powerline_git_info}'
       # shellcheck disable=SC2154 # assigned by the printf -v calls above
       shopt -q promptvars || e="$__hi_env_info" g="$__powerline_git_info"
-      PS1="$_hi_marks_a$_hi_ps1_lead\[$BRCYAN\]$e\[$NC\]$HI_PS1$g\[$NC\] $HI_PS1_END $_hi_marks_b"
+      PS1="$_hi_ma$_hi_ps1_lead\[$BRCYAN\]$e\[$NC\]$HI_PS1$g\[$NC\] $HI_PS1_END $_hi_mb"
+      # the hooks after this one read the last command's status, not ours
+      return "$_hi_ec"
     }
-    PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    PROMPT_COMMAND="__hi_ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    # Leaving from the prompt (Ctrl-D) never reaches PS0, so the last A/B pair
+    # stays open and Konsole's semantic hints shade every later line, the
+    # parent shell's too: close it on the way out. Returns the status it was
+    # given, so an EXIT trap already set still sees the shell's own.
+    function _hi_marks_exit() {
+      [ "$_hi_marks_live" = 1 ] && [ -t 1 ] && printf '\e]133;C\a\e]133;D;%s\a' "$1"
+      return "$1"
+    }
+    # <trap -p EXIT's words>: chains ahead of any trap already set, once
+    function _hi_marks_trap() {
+      [[ "${3:-}" == _hi_marks_exit* ]] && return
+      # shellcheck disable=SC2064 # the prior trap is spliced in now, on purpose
+      trap "_hi_marks_exit \$?${3:+; $3}" EXIT
+    }
+    eval "_hi_marks_trap $(trap -p EXIT)"
   fi
 fi
 unset _hi_pt _hi_omb_theme _hi_bashit_theme

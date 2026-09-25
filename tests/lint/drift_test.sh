@@ -171,8 +171,8 @@ function lint_portable() {
 # docs/SYNTAX.md's two rows a single pattern cannot see. `stat -c` (GNU) is
 # fine beside its BSD twin `stat -f` on the same line, and nowhere else. A
 # file an interactive shell sources that turns strict mode on must turn it off
-# again further down, or the user's shell dies on its next non-zero status
-# (GLOSSARY: HI.15).
+# again further down (`set +euo pipefail` or `_hi_opts_restore`), or the user's
+# shell dies on its next non-zero status (GLOSSARY: HI.15).
 function lint_portable_pairs() {
   local f hits bad=0
   _hi_h2 "Checking the paired spellings (docs/SYNTAX.md)"
@@ -190,7 +190,7 @@ function lint_portable_pairs() {
   hits=""
   for f in "$_HI_ROOT"/common/*.sh "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh"; do
     [ -f "$f" ] || continue
-    awk '/^set -euo pipefail/ { on = 1 } on && /^[[:space:]]*set \+euo pipefail/ { on = 0 } END { exit on }' "$f" ||
+    awk '/^set -euo pipefail/ { on = 1 } on && /^[[:space:]]*(set \+euo pipefail|_hi_opts_restore )/ { on = 0 } END { exit on }' "$f" ||
       hits="$hits${hits:+ }${f#"$_HI_ROOT"/}"
   done
   if [ -z "$hits" ]; then
@@ -252,8 +252,8 @@ function lint_home_default() {
 # than one tag per image: `debian` is legitimately pinned twice, bookworm-slim
 # for every fixture and trixie-slim for timep.Dockerfile, which needs a glibc
 # new enough for timep's prebuilt .so; `ubuntu` is pinned twice for the same
-# reason, 24.04 the fish floor and 26.04 the fish ceiling
-# (tests/dockerfiles/{fish37,fish4}.Dockerfile). So the rule is "every tag
+# reason, 24.04 the apt client CI's runners match and 26.04 the fish ceiling
+# (tests/dockerfiles/{apt-client,fish4}.Dockerfile). So the rule is "every tag
 # named in shell or YAML is *one of* the pinned tags", not "every tag matches
 # the pin".
 #

@@ -74,19 +74,20 @@ function lint_native() {
 # The two dialect *floors* plus one *ceiling*, run rather than grepped: the
 # files zsh and fish read for themselves, checked again inside a digest-pinned
 # build of that shell at the oldest-supported version
-# (tests/dockerfiles/{zsh58,fish37}.Dockerfile) and, for fish alone, the
+# (tests/dockerfiles/{zsh55,fish34}.Dockerfile) and, for fish alone, the
 # newest one too (tests/dockerfiles/fish4.Dockerfile).
 #
 # _HI_NATIVE_LINT above already runs both sets through the *host's* zsh and
 # fish, and that is the half these exist because of: a developer's shell is
 # newer than the floor, so it accepts constructs the floor rejects and the run
-# goes green while CI does not. The case the pair catches: a comment inside a
-# `{ ... }` block in common/paths.sh - a brace expansion to fish, where `#` is
-# not a comment - which fish 4.8 parses and fish 3.7 refuses with
-# "Mismatched braces", taking $_HI_TARGETS, every path, and every alias with it.
+# goes green while CI does not. The case the pair catches: a `{ ... }` group,
+# a block from fish 4 but a brace expansion before it, which refuses a
+# comment inside one with "Mismatched braces" and fails even a clean one at
+# run time - so common/paths.sh is also sourced, its local-only gate on, not
+# only parsed.
 # The ceiling exists because CI's own runners are Ubuntu 24.04 (fish 3.7), so
-# without it nothing in CI ever parses these files under fish 4 either - the
-# same blind spot one version over.
+# without it nothing in CI ever parses these files under fish 4 - the same
+# blind spot at the other end.
 #
 # All three skip yellow without docker, like every other check whose tool may
 # be absent. The builds are quiet and cached; only the first run pays for
@@ -144,15 +145,18 @@ function _hi_lint_fish_parse() {
   # the paths ride as arguments rather than spliced into the script, so nothing
   # here depends on how a filename quotes
   # shellcheck disable=SC2016 # $f and $@ belong to the sh inside the container
-  out="$("$backend" run --rm -v "$_HI_ROOT":/w:ro "$image" sh -c '
+  out="$("$backend" run --rm -v "$_HI_ROOT":/h/say-hi:ro "$image" sh -c '
     rc=0
     for f in "$@"; do
-      fish --no-execute "/w/$f" || rc=1
+      fish --no-execute "/h/say-hi/$f" || rc=1
     done
+    g="$(_HI_HOME=/h _HI_DISABLE_LOCAL=1 _HI_REMOTE_SESSION=0 fish --no-config -c \
+      "source /h/say-hi/common/paths.sh; echo \$_HI_DISABLE_GREETING" 2>&1)"
+    [ "$g" = 1 ] || { printf "paths.sh with _HI_DISABLE_LOCAL=1: %s\n" "$g"; rc=1; }
     fish --version
     exit $rc' sh "${files[@]}" 2>&1)" || rc=$?
   if [ "$rc" -eq 0 ]; then
-    _hi_align " | $(printf '%s' "$out" | tail -n1): every fish file parses" "OK" "$GREEN"
+    _hi_align " | $(printf '%s' "$out" | tail -n1): every fish file parses, paths.sh's gate runs" "OK" "$GREEN"
     return 0
   fi
   _hi_align " | the fish files do not parse under the $what" "FAILED" "$RED"
@@ -161,13 +165,13 @@ function _hi_lint_fish_parse() {
   return 1
 }
 
-function lint_fish37() { _hi_lint_fish_parse fish37 hi-fish37 "fish 3.7 floor"; }
+function lint_fish34() { _hi_lint_fish_parse fish34 hi-fish34 "fish 3.4 floor"; }
 
-# fish37's counterpart: the same files, parsed again inside a digest-pinned
+# fish34's counterpart: the same files, parsed again inside a digest-pinned
 # fish 4 (tests/dockerfiles/fish4.Dockerfile, Ubuntu 26.04's fish), catching a
-# construct 3.7 accepts that fish 4 rejects or has removed - the direction
-# lint_fish37 cannot cover, for the same reason it exists at all: CI's runners
-# are 24.04, so nothing else in CI ever parses these files under fish 4.
+# construct fish 3 accepts that fish 4 rejects or has removed - the direction
+# lint_fish34 cannot cover: CI's runners are 24.04 (fish 3.7), so nothing else
+# in CI ever parses these files under fish 4.
 function lint_fish4() { _hi_lint_fish_parse fish4 hi-fish4 "fish 4 ceiling"; }
 
 # zsh's floor gets a second stage fish's does not need, because zsh's failure
@@ -177,17 +181,17 @@ function lint_fish4() { _hi_lint_fish_parse fish4 hi-fish4 "fish 4 ceiling"; }
 # interactive shell, and asks the four things a session actually depends on -
 # a prompt, the aliases, a resolved host color, and the prompt separator. A
 # `zsh -n` sweep alone would have passed every one of those constructs.
-function lint_zsh58() {
+function lint_zsh55() {
   local out rc=0 backend="${_HI_BACKEND:-docker}"
   local -a files=()
-  _hi_h2 "Checking the zsh files against the zsh 5.8 floor"
-  _hi_floor_ready zsh58 hi-zsh58 "zsh 5.8 floor" || return $(($? == 2 ? 1 : 0))
+  _hi_h2 "Checking the zsh files against the zsh 5.5 floor"
+  _hi_floor_ready zsh55 hi-zsh55 "zsh 5.5 floor" || return $(($? == 2 ? 1 : 0))
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   _hi_floor_files zsh
   # $HOME and $_HI_CONFIG_DIR into the container's own /tmp: the tree is mounted
   # read-only, and a session resolves an overlay whether or not one exists
   # shellcheck disable=SC2016 # every expansion below is the container's
-  out="$("$backend" run --rm -v "$_HI_ROOT":/w/say-hi:ro hi-zsh58 sh -c '
+  out="$("$backend" run --rm -v "$_HI_ROOT":/w/say-hi:ro hi-zsh55 sh -c '
     rc=0
     for f in "$@"; do
       zsh -n "/w/say-hi/$f" || rc=1
@@ -207,9 +211,9 @@ function lint_zsh58() {
     _hi_align " | $(printf '%s' "$out" | tail -n1): parses, sources, and prompts" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | the zsh files do not hold up under the 5.8 floor" "FAILED" "$RED"
+  _hi_align " | the zsh files do not hold up under the 5.5 floor" "FAILED" "$RED"
   printf '%s\n' "$out" | sed 's/^/      /'
-  _hi_note_failure "zsh 5.8 floor"
+  _hi_note_failure "zsh 5.5 floor"
   return 1
 }
 
@@ -219,7 +223,7 @@ function run_dialects() {
   # _hi_build_image (the floor/ceiling builds) logs to $_HI_WORKDIR/<label>.log
   _hi_workdir dialectstest
 
-  _hi_lint_halves lint_native lint_fish37 lint_fish4 lint_zsh58
+  _hi_lint_halves lint_native lint_fish34 lint_fish4 lint_zsh55
   _hi_lint_suite_end
 }
 

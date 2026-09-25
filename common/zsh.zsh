@@ -18,7 +18,9 @@ _hi_load_plugins
 
 # NOT setopt KSH_ARRAYS: it is global, hi's block runs after oh-my-zsh's, and
 # their code assumes zsh's 1-based arrays - core.sh counts instead.
-setopt prompt_subst
+# prompt_subst only for a prompt hi draws or hands over, never over the
+# user's own choice with the prompt disabled
+[[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || setopt prompt_subst
 
 _hi_interactive_extras
 
@@ -88,6 +90,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       ;;
     *) eval "$("$_hi_pt" init zsh)" ;;
     esac
+  elif ! _hi_prompt_named_hi && { (( ${+_LP_VERSION} || ${+SPACESHIP_VERSION} ||
+    ${+functions[prompt_pure_setup]} )) || [[ -n ${prompt_theme-} ]]; }; then
+    # a prompt hi has no hand-over for draws here - liquidprompt, spaceship,
+    # pure, or a promptinit theme (prezto's included) - and stays theirs; `hi`
+    # in $_HI_PROMPT_TOOL takes it anyway. GLOSSARY: HI.32
+    :
   else
     # `hi` named in the list takes the prompt back from a program the rc
     # already started: its precmd would redraw over hi's every prompt. Unset,
@@ -100,13 +108,24 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       preexec_functions=(${preexec_functions:#(starship_preexec|prompt_starship_preexec|_p9k_preexec1|_p9k_preexec2|_omp_preexec)})
     fi
     # git info through a precmd out-var, never a $( ) in PS1 - the fork-free,
-    # pw3nage-safe form bash.sh's ps1() uses
-    __hi_git_precmd() { _hi_git_prompt __hi_git_info; }
+    # pw3nage-safe form bash.sh's __hi_ps1() uses
+    # zsh counts what %{ %} holds as zero columns, so each escape goes in
+    # alone and the text stays counted; a % in a branch name is doubled
+    __hi_git_precmd() {
+      setopt local_options extended_glob
+      _hi_git_prompt __hi_git_info
+      __hi_git_info=${${__hi_git_info//\%/%%}//(#b)($'\e'\[[0-9;]#m)/%\{$match[1]%\}}
+    }
     precmd_functions+=(__hi_git_precmd)
     # zsh keeps the $PS1 it was given, so another tool's prefix is still on
     # screen and hi stands down for it. GLOSSARY: HI.54
     _HI_ENV_DEFER=1
-    __hi_env_precmd() { _hi_env_prompt __hi_env_info; }
+    # the lead space goes when a script prepended its own "(name) " to $PS1
+    # (a venv's or conda's activate), whose trailing space already separates
+    __hi_env_precmd() {
+      _hi_env_prompt __hi_env_info
+      if [[ $PS1 == '${__hi_ma}'* ]]; then __hi_lead=$_hi_lead; else __hi_lead=""; fi
+    }
     precmd_functions+=(__hi_env_precmd)
     # each plugin's $_HI_SEGMENT after it, `%` doubled so prompt_subst draws
     # the output rather than reading it as a prompt escape. GLOSSARY: HI.59
@@ -117,27 +136,45 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       done
     }
     ((${#_hi_segments[@]})) && precmd_functions+=(__hi_segment_precmd)
-    # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's ps1()
+    # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's __hi_ps1()
     # emits them
     _hi_marks_a=$'%{\e]133;A\a%}'
     _hi_marks_b=$'%{\e]133;B\a%}'
-    __hi_marks_precmd() {
-      local ec=$?
-      printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$PWD"
+    __hi_ma="" __hi_mb=""
+    # whether a draw carries them, as bash.sh's _hi_marks_on asks
+    __hi_marks_on() {
+      [[ $TERM != dumb && -t 1 && -z ${ITERM_SHELL_INTEGRATION_INSTALLED-} ]] &&
+        (( ! ${+_ksi_state} && ! ${+_ghostty_state} && ! ${+functions[__wezterm_semantic_precmd]} ))
     }
-    __hi_marks_preexec() { printf '\e]133;C\a'; }
+    __hi_marks_precmd() {
+      local ec=$? u
+      if __hi_marks_on; then
+        __hi_ma=$_hi_marks_a __hi_mb=$_hi_marks_b
+        _hi_url_path u "$PWD"
+        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$u"
+      else
+        __hi_ma="" __hi_mb=""
+      fi
+    }
+    __hi_marks_preexec() { [[ -z $__hi_ma ]] || printf '\e]133;C\a'; }
+    # a shell left from its prompt (Ctrl-D) runs no preexec, so close the last
+    # A/B pair on the way out, as bash.sh's _hi_marks_exit does
+    __hi_marks_zshexit() {
+      local ec=$?
+      [[ -n $__hi_ma && -t 1 ]] && printf '\e]133;C\a\e]133;D;%s\a' "$ec"
+    }
     precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
     preexec_functions+=(__hi_marks_preexec)
+    zshexit_functions+=(__hi_marks_zshexit)
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
-    # expansion happens at render time rather than at assignment. $_hi_lead is
-    # a plain double-quoted segment instead - $_HI_DISABLE_LEAD_SPACE is a static
-    # setting, not something that needs re-deciding on every prompt draw.
+    # expansion happens at render time rather than at assignment - the lead
+    # too, which __hi_env_precmd re-decides per draw.
     _hi_prompt_end ZSH HI_PS1_END
     _hi_lead=" "
     [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_lead=""
+    __hi_lead=$_hi_lead
     if _hi_has_color; then
-      export CLICOLOR=1
-      export LSCOLORS=gafacadabaegedabagacad
+      export CLICOLOR="${CLICOLOR:-1}" LSCOLORS="${LSCOLORS:-gafacadabaegedabagacad}"
       # %F{} knows the sixteen and no bright variants: an extra name (orange)
       # is its 16-color base first, then brred/brblue/... lose the br. The
       # memos, not $( ): _hi_prime_identity filled both.
@@ -158,11 +195,10 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       fi
       _hi_at_color=plain
       [ -n "${SSH_TTY:-}" ] && _hi_at_color=yellow
-      PS1="$_hi_marks_a$_hi_lead"$'%F{cyan}${__hi_env_info}%f${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
+      PS1=$'${__hi_ma}${__hi_lead}%F{cyan}${__hi_env_info}%f${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}${__hi_git_info} '"$HI_PS1_END "$'${__hi_mb}'
     else
-      PS1="$_hi_marks_a$_hi_lead"$'${__hi_env_info}${debian_chroot:-}%n@%m %~%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
+      PS1=$'${__hi_ma}${__hi_lead}${__hi_env_info}${debian_chroot:-}%n@%m %~${__hi_git_info} '"$HI_PS1_END "$'${__hi_mb}'
     fi
-    unset _hi_lead
   fi
 fi
 unset _hi_pt _hi_omz_theme _hi_p10k_cfg
@@ -170,19 +206,34 @@ unset _hi_pt _hi_omz_theme _hi_p10k_cfg
 # completion: `hi` from the shared target list, `exa` the same way as `eza`
 zmodload zsh/complist
 autoload -Uz compinit promptinit
-# bare `compinit` costs 50-150ms a start; full check once a day, -C between.
-# (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h. -u on the
-# full check: compaudit's interactive [y/n] on a group-writable $fpath hangs
-# `hi` when piped through something non-interactive (vhs included).
-if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
-  compinit -u
-  # compinit leaves an unchanged dump's mtime alone, making this branch
-  # permanent once the dump turns a day old - touch restarts the clock
-  touch "${ZDOTDIR:-$HOME}/.zcompdump" 2>/dev/null || true
-else
-  compinit -C
+# One compinit per shell: $_comps is compinit's own table, so a framework's
+# (oh-my-zsh, prezto, the user's own) already ran it; zinit's queueing
+# compdef stub alone does not count. promptinit likewise, by its `prompt`.
+if (( ! ${+_comps} )); then
+  # bare `compinit` costs 50-150ms a start; full check once a day, -C between.
+  # (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h; a glob
+  # only under extended_glob, off by default, so set for the test alone. -u on
+  # the full check: compaudit's interactive [y/n] on a group-writable $fpath
+  # hangs `hi` when piped through something non-interactive (vhs included).
+  _hi_dump="${ZDOTDIR:-$HOME}/.zcompdump"
+  if () { setopt local_options extended_glob; [[ -n $1(#qN.mh+24) ]]; } "$_hi_dump"; then
+    compinit -u
+    # compinit leaves an unchanged dump's mtime alone, making this branch
+    # permanent once the dump turns a day old - touch restarts the clock
+    touch "$_hi_dump" 2>/dev/null || true
+  else
+    compinit -C
+  fi
+  # compinit sources a .zwc beside the dump when it is the newer, which halves
+  # what -C costs; recompiled whenever the dump moves. Built aside and renamed,
+  # so a shell starting meanwhile never reads half a file.
+  if [[ -f $_hi_dump && ! $_hi_dump.zwc -nt $_hi_dump ]]; then
+    { zcompile "$_hi_dump.$$.zwc" "$_hi_dump" && mv -f "$_hi_dump.$$.zwc" "$_hi_dump.zwc"; } 2>/dev/null ||
+      rm -f "$_hi_dump.$$.zwc"
+  fi
+  unset _hi_dump
 fi
-promptinit
+(( ${+functions[prompt]} )) || promptinit
 # The in-shell TTL cache bash.sh's _hi_complete explains, in zsh's dialect.
 # (( )) rather than [ ]: zsh's SECONDS is a float once anything typeset -F's it.
 # GLOSSARY: HI.26
@@ -261,11 +312,17 @@ _hi_unexport
 # see common/bash.sh: a local interactive shell greets with hi's header,
 # drawn by bash since header.sh is bash's, handed the session values
 # _hi_unexport kept back (as config.fish's __hi_bash does)
-[[ -o interactive && -z "${ZSH_EXECUTION_STRING-}" && "$_HI_REMOTE_SESSION" != 1 &&
-  "${_HI_DISABLE_HEADER:-0}" != 1 ]] && () {
+__hi_header() {
   local n
   local -a kv
   for n in $_HI_SESSION_VARS; do (( ${+parameters[$n]} )) && kv+=("$n=${(P)n}"); done
   env "${kv[@]}" COLUMNS=$COLUMNS bash -c 'source "$1" && hi_header Online' hi "$_HI_HEADER"
 }
+if [[ -o interactive && -z "${ZSH_EXECUTION_STRING-}" && "$_HI_REMOTE_SESSION" != 1 &&
+  "${_HI_DISABLE_HEADER:-0}" != 1 ]]; then
+  # powerlevel10k's instant prompt warns about any output before the real
+  # prompt; this is its own call for an rc that has some
+  (( ${+__p9k_instant_prompt_active} && ${+functions[p10k]} )) && p10k clear-instant-prompt
+  __hi_header
+fi
 unset _hi_rc_loading

@@ -29,7 +29,7 @@ _HI_IMAGE_FILES='packaging/mkrepo.sh .github/workflows/ci.yml'
 # The floors (and fish's ceiling) the docker `ignore:` rules in
 # .github/dependabot.yml hold still: each must still be a fixture pin, and
 # each ignore must still protect one of these.
-_HI_FLOOR_PINS='bash:3.2 zshusers/zsh:5.8 ubuntu:24.04 ubuntu:26.04'
+_HI_FLOOR_PINS='bash:3.2 zshusers/zsh:5.5.1 ohmyfish/fish:3.4.1 ubuntu:24.04 ubuntu:26.04'
 
 function ci_local_checks() {
   local pins ignores f refs ref hex floor image pinned

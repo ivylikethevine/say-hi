@@ -89,6 +89,16 @@ function _hi_login_shell() {
   _hi_out "${1:-}" "${shell##*/}"
 }
 
+# fish before 3.4 cannot parse config.fish (a top-level `return`, and
+# aliases.sh's `$( )`), so a target with one gets the next shell down. A
+# version that will not read counts as new enough.
+function _hi_fish_new_enough() {
+  local v
+  v="$(fish --version 2>/dev/null)" || return 0
+  case "${v##* }" in [0-2].* | 3.[0-3] | 3.[0-3].*) return 1 ;; esac
+  return 0
+}
+
 # The tail is $_HI_SHELL_TREE, not a literal of its own; its bash-less tiers
 # are reachable only where bash is absent, and this file is bash, so what
 # survives is fish > zsh > bash behind the login shell.
@@ -99,7 +109,8 @@ function _hi_session_shell() {
   local _hi_ss_want _hi_ss_found=bash
   for _hi_ss_want in login $_HI_SHELL_TREE; do
     [ "$_hi_ss_want" = login ] && _hi_login_shell _hi_ss_want
-    if _hi_shell_wired "$_hi_ss_want" && command -v "$_hi_ss_want" >/dev/null 2>&1; then
+    if _hi_shell_wired "$_hi_ss_want" && command -v "$_hi_ss_want" >/dev/null 2>&1 &&
+      { [ "$_hi_ss_want" != fish ] || _hi_fish_new_enough; }; then
       _hi_ss_found="$_hi_ss_want"
       break
     fi
@@ -215,10 +226,13 @@ function _hi_session_rc_setup() {
     printf 'source %s\n' "$q"
   } >"$dir/fish.config"
 
-  # $ENV is what sh, dash, and ash read for an *interactive* shell. Aliases and
-  # paths only, the same subset the bash-less fallback gets.
+  # $ENV is what sh, dash, and ash read for an *interactive* shell. Settings,
+  # aliases and paths only, the same subset the bash-less fallback gets - the
+  # settings first, since _hi_unexport kept their toggles out of the
+  # environment and aliases.sh reads them
   printf -v q '%q' "$_HI_ROOT"
   {
+    printf '[ -r %s/config/settings.sh ] && . %s/config/settings.sh\n' "$q" "$q"
     printf '[ -r %s/common/paths.sh ] && . %s/common/paths.sh\n' "$q" "$q"
     printf '[ -r %s/common/aliases.sh ] && . %s/common/aliases.sh\n' "$q" "$q"
   } >"$dir/shrc"

@@ -80,29 +80,29 @@ _HI_PROMPT_HI=(
 # The line each case types into the live session, once hi and the framework are
 # both loaded. Built from two arguments because a pty echoes the input, so the
 # token must be assembled by the shell. zsh checks the array base (hi must not
-# leave KSH_ARRAYS on under omz/p10k); bash checks that hi's `ps1` is still
+# leave KSH_ARRAYS on under omz/p10k); bash checks that hi's `__hi_ps1` is still
 # chained onto the framework's PROMPT_COMMAND rather than replacing it.
 function _hi_framework_probe() {
   case "$1" in
   zsh) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || printf 'HI_FW-%s\\n' CLEAN" ;;
-  bash) printf '%s\n' "[[ \$PROMPT_COMMAND == *ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  bash) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # the tool's Ctrl-R must still be its own after hi loads - `bind -X` lists
   # the bind -x bindings, and the handlers carry their tool's name
   bind:*) printf '%s\n' "bind -X 2>/dev/null | grep -q ${1#bind:} && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # both hooks in one PROMPT_COMMAND: the tool's (by its hook's name) still
-  # there, and hi's ps1 *chained* on rather than having replaced it. The [*]
+  # there, and hi's __hi_ps1 *chained* on rather than having replaced it. The [*]
   # expansion reads the whole thing whether the tool appended to it as a
   # string or as bash 5.1's array form - bare $PROMPT_COMMAND would show
   # element 0 alone and cry LOST over a coexistence that is fine.
-  hook:*) printf '%s\n' "[[ \${PROMPT_COMMAND[*]} == *${1#hook:}* && \${PROMPT_COMMAND[*]} == *ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  hook:*) printf '%s\n' "[[ \${PROMPT_COMMAND[*]} == *${1#hook:}* && \${PROMPT_COMMAND[*]} == *__hi_ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # the program's prompt and not hi's, with the client home's marker config
   # in force (_hi_prompt_client_home); p10k keeps zsh's array base check
   prompt:powerlevel10k) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] && POWERLEVEL9K_HI_MARK )) && [[ \$PROMPT != *__hi_env_info* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
-  prompt:oh-my-bash) printf '%s\n' "[[ \$PS1 == OMBHOME* && \$PROMPT_COMMAND != ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  prompt:oh-my-bash) printf '%s\n' "[[ \$PS1 == OMBHOME* && \$PROMPT_COMMAND != __hi_ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # bash-it's own hook, direct-assigned by its theme (the shape most bundled
   # themes, including the marker one below, use) rather than started through
-  # hi - the PS1 it drew and no ps1 of hi's chained on
-  prompt:bash-it) printf '%s\n' "[[ \$PS1 == BASHITHOME* && \$PROMPT_COMMAND != ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # hi - the PS1 it drew and no __hi_ps1 of hi's chained on
+  prompt:bash-it) printf '%s\n' "[[ \$PS1 == BASHITHOME* && \$PROMPT_COMMAND != __hi_ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   prompt:tide) printf '%s\n' "functions -q tide; and not functions -q __hi_env_prompt; and test \"\$tide_character_icon\" = HITIDE; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' LOST" ;;
   # the inverse of prompt:powerlevel10k / prompt:bash-it / the starship bash
   # row: the real program's rc loaded it, hi's unhook (common/zsh.zsh,
@@ -110,17 +110,17 @@ function _hi_framework_probe() {
   # `hi`, so _hi_overlay_src packs no prompt config member (p10k only: the
   # client home's p10k.zsh never rode the overlay either)
   prompt:hi:powerlevel10k) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] )) && (( \${precmd_functions[(I)_p9k_precmd]} == 0 )) && [[ \$PROMPT == *__hi_env_info* && -z \$POWERLEVEL9K_HI_MARK ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
-  prompt:hi:starship) printf '%s\n' "command -v starship >/dev/null && [[ \${PROMPT_COMMAND[*]} == *ps1* && \${PROMPT_COMMAND[*]} != *starship_precmd* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  prompt:hi:starship) printf '%s\n' "command -v starship >/dev/null && [[ \${PROMPT_COMMAND[*]} == *__hi_ps1* && \${PROMPT_COMMAND[*]} != *starship_precmd* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # bash-it's real hook lives in the precmd_functions array bash-preexec
   # keeps (bobby, the theme the target installs, calls
   # safe_append_prompt_command rather than assigning PROMPT_COMMAND
   # directly), so this is the one case here that checks that array rather
   # than PROMPT_COMMAND's own text for the hook's absence
-  prompt:hi:bash-it) printf '%s\n' "declare -F _bash-it-log-prefix-by-path >/dev/null && [[ \${PROMPT_COMMAND[*]} == *ps1* && \${precmd_functions[*]} != *prompt_command* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  prompt:hi:bash-it) printf '%s\n' "declare -F _bash-it-log-prefix-by-path >/dev/null && [[ \${PROMPT_COMMAND[*]} == *__hi_ps1* && \${precmd_functions[*]} != *prompt_command* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # a tmux server started from the session, asked for the client's mark; the
   # alias is the first word, so it expands
   config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_MICRO_DIR/settings.json\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
-  prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
 }
 

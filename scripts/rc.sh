@@ -330,7 +330,9 @@ function config_validate_shells() {
 
 # The rc lines each shell gets, in the row's dialect: where say-hi is, then a
 # source of hi's rc for that shell, interactive shells only. bash is the one
-# shell whose rc runs for non-interactive shells too, hence its extra line.
+# shell whose rc runs for non-interactive shells too, hence its condition - a
+# condition, not a `return`, which would end all of ~/.bashrc for `ssh host
+# cmd`, scp, and rsync, lines other installers append below hi's included.
 function install_rc_lines() {
   local row shell label target tree_rc dialect
   local -a lines
@@ -345,10 +347,22 @@ function install_rc_lines() {
     }
     lines=("$(tmpdir_line "$dialect")")
     case "$dialect" in
-    fish) lines+=('if status is-interactive' "  source \"$tree_rc\"" 'end') ;;
+    fish)
+      # fish before 3.4 cannot parse hi's config.fish: one line saying so
+      # rather than a parse error on every start
+      # shellcheck disable=SC2016 # $version is fish's, read at its start
+      lines+=("if status is-interactive; and string match -qr '^([4-9]|3\.([4-9]|[1-9][0-9]))\.' -- \$version"
+        "  source \"$tree_rc\""
+        'else if status is-interactive'
+        '  echo "hi needs fish 3.4 or newer (this is $version); not loaded" >&2'
+        'end')
+      ;;
     *)
-      [ "$shell" = bash ] && lines+=('[[ $- != *i* ]] && return')
-      lines+=("source \"$tree_rc\"")
+      if [ "$shell" = bash ]; then
+        lines+=("[[ \$- == *i* ]] && source \"$tree_rc\"")
+      else
+        lines+=("source \"$tree_rc\"")
+      fi
       ;;
     esac
     config_shell "$label" "$target" "${lines[@]}"

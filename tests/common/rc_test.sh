@@ -135,23 +135,134 @@ function _hi_bash_child() {
     bash -c "$script" </dev/null
 }
 
-# ps1 runs per prompt: OSC 133;D must carry the *last* command's status and
+# __hi_ps1 runs per prompt: OSC 133;D must carry the *last* command's status and
 # OSC 7 the cwd (the D/A pair kitty/WezTerm/ghostty jump and report by), and
 # $PS1 itself must open with the A mark and close with B.
 function test_bash_ps1_reports_status_and_cwd_marks() {
   local out
+  # captured, so not a terminal: the gate is forced open here and has its own
+  # case below
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    _hi_marks_on() { :; }
     cd "$HOME" || exit 1
     (exit 7)
-    ps1
+    __hi_ps1
     printf %s "$PS1"')"
   [[ "$out" == *$'\e]133;D;7\a'* ]] &&
     [[ "$out" == *$'\e]7;file://'*"$_HI_WORKDIR"$'\a'* ]] &&
     [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]]
 }
 
-# The pw3nage guard (the comment in ps1 says why): with promptvars on, the
+# <shell>: a value the user set before hi loads survives it - hi's are
+# defaults - and zsh's prompt_subst stays the user's with the prompt disabled
+function test_rc_keeps_the_users_own_values() {
+  local out
+  case "$1" in
+  bash)
+    out="$(_hi_rc_shell xterm-256color bash 'source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1
+      printf %s "$GCC_COLORS"' GCC_COLORS=mine)"
+    [ "$out" = mine ]
+    ;;
+  zsh)
+    out="$(_hi_rc_shell xterm-256color zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
+      printf %s "$CLICOLOR|$LSCOLORS|"
+      _HI_DISABLE_PROMPT=1 zsh -fc "source \$_HI_HOME/say-hi/common/zsh.zsh >/dev/null 2>&1; [[ -o prompt_subst ]] || printf off"' \
+      CLICOLOR=0 LSCOLORS=mine)"
+    [ "$out" = "0|mine|off" ]
+    ;;
+  esac
+}
+
+# No marks off a terminal, on TERM=dumb, or beside a terminal's own
+# integration (kitty's, here), and OSC 7 carries the cwd percent-encoded
+function test_bash_marks_only_where_they_belong() {
+  local out
+  mkdir -p "$_HI_WORKDIR/sp ace"
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    __hi_ps1
+    printf "%s|" "$PS1"
+    _hi_marks_on() { [[ $TERM != dumb && -z ${_ksi_prompt+x} ]]; }
+    TERM=dumb __hi_ps1
+    printf "%s|" "$PS1"
+    _ksi_prompt=y __hi_ps1
+    printf "%s|" "$PS1"
+    _hi_url_path u "$HOME/sp ace"
+    printf "%s" "$u"')"
+  [[ "$out" != *$'\e]133'* && "$out" != *$'\e]7;'* && "$out" == *"/sp%20ace" ]]
+}
+
+# <shell>: a settings.sh line that fails or reads an unset variable never
+# stops the shell starting, and an interactive shell's own set -u and
+# pipefail survive hi's strict load
+function test_rc_keeps_the_callers_shell_options() {
+  local shell="$1" rc out cfg="$_HI_WORKDIR/strictcfg"
+  mkdir -p "$cfg"
+  printf 'false\n: "$HI_UNSET_BY_ANYONE"\n' >"$cfg/settings.sh"
+  case "$shell" in
+  bash) rc="$_HI_HOME/say-hi/common/bash.sh" ;;
+  zsh) rc="$_HI_HOME/say-hi/common/zsh.zsh" ;;
+  esac
+  out="$(env -i HOME="$_HI_WORKDIR" USER=hi TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" \
+    _HI_CONFIG_DIR="$cfg" _HI_DISABLE_HEADER=1 "$shell" -ic \
+    'set -u; set -o pipefail; source "$1" >/dev/null 2>&1; [[ $- == *u* && -o pipefail ]] && echo kept' \
+    "$shell" "$rc" 2>/dev/null </dev/null)"
+  [ "$out" = kept ]
+}
+
+# A shell left from its prompt (Ctrl-D) never reaches PS0, so the EXIT trap
+# closes the last A/B pair: chained ahead of a trap already set, which still
+# sees the shell's status, installed once however often bash.sh is sourced,
+# and silent when stdout is not a terminal.
+function test_bash_exit_trap_closes_the_prompt_mark() {
+  local out want
+  out="$(_hi_bash_child '
+    trap "echo prev:\$?" EXIT
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    trap -p EXIT
+    exit 5')"
+  want="$(printf "trap -- '_hi_marks_exit \$?; echo prev:\$?' EXIT\nprev:5")"
+  [ "$out" = "$want" ]
+}
+
+# the zsh half: a zshexit hook, which a terminal-less exit leaves silent
+function test_zsh_exit_hook_closes_the_prompt_mark() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh \
+    'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -r -- "$zshexit_functions"; exit 5')"
+  [ "$out" = __hi_marks_zshexit ]
+}
+
+# the fish half: `exit` is a command whose own C and D went out, so the
+# fish_exit handler closes the pair only when no command ran since the prompt
+function test_fish_exit_closes_the_prompt_mark_only_from_the_prompt() {
+  local out
+  out="$(_hi_rc_shell xterm-256color fish \
+    'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
+     function __hi_marks_on; end # captured, so not a terminal: gate forced open
+     emit fish_prompt >/dev/null; set -q __hi_marks_open; and echo -n open
+     emit fish_preexec >/dev/null; set -q __hi_marks_open; or echo -n ,ran
+     functions -q __hi_marks_exit; and echo -n ,hooked')"
+  # fish 3 prints its handlers' C past `emit`'s redirect, and a bracketed-paste
+  # reset on its way out, between and after the words
+  [[ "$out" == *open*,ran*,hooked* ]]
+}
+
+# __hi_ps1 runs first in PROMPT_COMMAND, so it hands on the status it found:
+# every hook after it reads the last command's, not its own
+function test_bash_ps1_hands_on_the_status() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    (exit 7)
+    __hi_ps1 >/dev/null
+    echo "st=$?"')"
+  [[ "$out" == *st=7 ]]
+}
+
+# The pw3nage guard (the comment in __hi_ps1 says why): with promptvars on, the
 # git segment reaches $PS1 as a literal ${__powerline_git_info} reference for
 # bash to expand at display time - never its value spliced in.
 function test_bash_ps1_references_git_info_under_promptvars() {
@@ -160,7 +271,7 @@ function test_bash_ps1_references_git_info_under_promptvars() {
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     cd "$HOME" || exit 1
     shopt -s promptvars
-    ps1
+    __hi_ps1
     printf %s "$PS1"')"
   [[ "$out" == *'${__powerline_git_info}'* ]]
 }
@@ -175,7 +286,7 @@ function test_bash_ps1_inlines_git_info_without_promptvars() {
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     cd "$HI_TEST_REPO" || exit 1
     shopt -u promptvars
-    ps1
+    __hi_ps1
     printf %s "$PS1"' HI_TEST_REPO="$(_hi_git_fixture)")"
   [[ "$out" != *'${__powerline_git_info}'* ]] ||
     _hi_because "PS1 kept the placeholder rather than inlining it: [$out]" || return 1
@@ -219,6 +330,24 @@ function test_bash_target_names_are_held_for_the_ttl() {
   [ "$out" = "stub|x|xx" ]
 }
 
+# ble.sh's as-you-type completion (`auto` in its comp_type) never sweeps:
+# nothing held offers nothing, a real TAB sweeps once, and auto then offers
+# what that TAB left
+function test_bash_ble_auto_complete_runs_no_sweep() {
+  local out stub count="$_HI_WORKDIR/ble.count"
+  rm -f "$count"
+  stub="$(_hi_stub_bin bletargets 'printf x >>"$HI_TEST_COUNT"; printf "web\tssh\n"')/bletargets"
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    _HI_TARGETS="$HI_TEST_STUB" BLE_VERSION=0.4 COMP_WORDS=(hi w) COMP_CWORD=1
+    auto() { local comp_type=auto; _hi_complete; printf "[%s]" "${COMPREPLY[*]}"; }
+    auto
+    _hi_complete
+    auto
+    printf "%s" "$(cat "$HI_TEST_COUNT")"' _HI_DISABLE_PROMPT=1 HI_TEST_STUB="$stub" HI_TEST_COUNT="$count")"
+  [ "$out" = "[][web]x" ]
+}
+
 # The deferred exa completion: the first TAB clones eza's registered spec
 # onto exa and answers 124, bash-completion's "retry with the new spec". The
 # loader function is dropped first so a host bash-completion cannot fetch a
@@ -250,15 +379,15 @@ function test_bash_exa_completion_fails_without_an_eza_spec() {
 }
 
 # When starship owns the prompt, hi's per-prompt hook must stay out of its
-# way: no ps1 function defined, nothing prepended to PROMPT_COMMAND - a
-# leftover ps1 there would overwrite starship's $PS1 on every prompt.
+# way: no __hi_ps1 function defined, nothing prepended to PROMPT_COMMAND - a
+# leftover __hi_ps1 there would overwrite starship's $PS1 on every prompt.
 function test_bash_starship_handoff_installs_no_ps1_hook() {
   local out
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    printf "%s|%s" "${PROMPT_COMMAND-}" "$(type -t ps1 || true)"' \
+    printf "%s|%s" "${PROMPT_COMMAND-}" "$(type -t __hi_ps1 || true)"' \
     "PATH=$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship)"
-  [[ "$out" != *ps1* ]]
+  [[ "$out" != *__hi_ps1* ]]
 }
 
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
@@ -418,7 +547,7 @@ function test_plugins_load_in_order_skip_loudly_and_draw() {
   local shell="$1" script want out
   case "$shell" in
   bash)
-    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; ps1; printf "[%s|%s|%s|%s]" "$HI_A" "$HI_B" "${HI_C:-}" "${HI_D:-}"; printf "%s" "$__hi_env_info"'
+    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; __hi_ps1; printf "[%s|%s|%s|%s]" "$HI_A" "$HI_B" "${HI_C:-}" "${HI_D:-}"; printf "%s" "$__hi_env_info"'
     want='[a|ab|c|]kctx '
     ;;
   zsh)
@@ -494,6 +623,27 @@ function _hi_fw_home() {
   printf '%s' "$h"
 }
 
+# <shell> <before-rc script> - a prompt hi has no hand-over for (a framework's
+# marker, or fish_prompt in the user's own functions/) stays the user's, and
+# `hi` in $_HI_PROMPT_TOOL takes it anyway. powerlevel10k in the list fits no
+# case here, so the list runs out rather than naming hi.
+function test_foreign_prompt_stays_unless_hi_named() {
+  local shell="$1" pre="$2" script x="$_HI_WORKDIR/ownprompt" theirs mine
+  mkdir -p "$x/fish/functions"
+  printf 'function fish_prompt; echo -n MINE; end\n' >"$x/fish/functions/fish_prompt.fish"
+  case "$shell" in
+  bash) script="$pre"'; PS1=MINE; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"' ;;
+  zsh) script="$pre"'; PS1=MINE; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish >/dev/null 2>&1; fish_prompt' ;;
+  esac
+  theirs="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k XDG_CONFIG_HOME="$x")"
+  mine="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=hi XDG_CONFIG_HOME="$x")"
+  [[ "$theirs" == *MINE* && "$mine" != *MINE* ]] || {
+    _hi_cecho " | $shell drew [$theirs] unnamed, [$mine] with hi named" "$RED"
+    return 1
+  }
+}
+
 # <shell> <want glob> <before-rc script> [NAME=VALUE...] - the prompt drawn
 # once hi's rc and one round of its per-draw hooks ran, then `|` and what `ls`
 # is aliased to
@@ -529,8 +679,8 @@ function _hi_env_segment() {
   local shell="$1" pre="${2:-}" script
   shift 2
   case "$shell" in
-  # ps1 prints the OSC 133/7 marks as a side effect; they are not the segment
-  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; '"$pre"' ps1 >/dev/null; printf %s "$__hi_env_info"' ;;
+  # __hi_ps1 prints the OSC 133/7 marks as a side effect; they are not the segment
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; '"$pre"' __hi_ps1 >/dev/null; printf %s "$__hi_env_info"' ;;
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; '"$pre"' __hi_env_precmd; print -rn -- "$__hi_env_info"' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; '"$pre"' __hi_env_prompt' ;;
   esac
@@ -555,8 +705,43 @@ function _hi_venv_activated() {
 }
 
 # zsh and fish keep the prompt the activate script edited, so hi leaves the
-# venv to it and names only what has no prefix of its own. bash's ps1() rebuilds
+# venv to it and names only what has no prefix of its own. bash's __hi_ps1() rebuilds
 # $PS1 every draw, so there is nothing there to defer to and hi draws both.
+# zsh counts what %{ %} holds as zero columns: only the git segment's escapes
+# go inside, so its text stays counted, and a % in a branch name prints as one
+function test_zsh_git_segment_counts_its_text() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null
+    _hi_git_prompt() { typeset -g "$1"=$'"'"' (\e[1;35m50%\e[0m)'"'"'; }
+    __hi_git_precmd
+    setopt extended_glob
+    v=${(S)__hi_git_info//\%\{*\%\}/}
+    print -rn -- "[$v][${${(%)__hi_git_info}//$'"'"'\e'"'"'\[[0-9;]#m/}]"')"
+  [[ "$out" == *"[ (50%%)][ (50%)]" && "$out" != *$'\e'* ]]
+}
+
+# An activate script's "(name) " ahead of hi's prompt brings its own space,
+# so the lead space goes while it is there and comes back once it is not:
+# zsh sees the prefix on $PS1, fish the wrapped fish_prompt
+function test_zsh_lead_yields_to_an_activate_prefix() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null
+    __hi_env_precmd; a="[$__hi_lead]"
+    PS1="(proj) $PS1"; __hi_env_precmd
+    print -rn -- "${a}[${__hi_lead}]"')"
+  [[ "$out" == *"[ ][]" ]]
+}
+
+function test_fish_lead_yields_to_an_activate_prefix() {
+  local out
+  out="$(_hi_rc_shell xterm-256color fish 'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
+    set -l a (prompt_login | string replace -ra "\e\[[0-9;]*m|\e\(B" "")
+    function _old_fish_prompt; end
+    set -l b (prompt_login | string replace -ra "\e\[[0-9;]*m|\e\(B" "")
+    echo -n "[$a][$b]"')"
+  [[ "$out" == *"[ "[!\ ]*"]["[!\ ]* ]]
+}
+
 function test_env_defers_to_an_activate_that_ran_here() {
   local shell="$1" want="$2"
   _hi_env_names "$shell" "$want" "$(_hi_venv_activated "$shell")" \
@@ -597,7 +782,7 @@ function test_fish_prompt_drops_the_lead_when_asked() {
 function test_bash_ps1_leads_with_the_environment_reference() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
-    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; ps1; printf %s "$PS1"')"
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; __hi_ps1; printf %s "$PS1"')"
   [[ "$out" == *'${__hi_env_info}'*'\u'* ]]
 }
 
@@ -792,6 +977,46 @@ function test_local_shell_prints_the_header() {
 
 # ...and the word after --preview comes from the words roster, described,
 # through the same stub: the flag is in words[CURRENT-1]
+# the full compinit (-u) only once the dump is a day old: a fresh one gets -C,
+# though the age test's glob qualifier needs an option zsh leaves off
+function test_zsh_fresh_dump_skips_the_full_compinit() {
+  local h="$_HI_WORKDIR/freshdump"
+  mkdir -p "$h"
+  : >"$h/.zcompdump"
+  _hi_rc_shell dumb zsh 'compinit() { print -rn -- "$*" >"$HOME/called"; }
+    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' HOME="$h" ZDOTDIR="$h" >/dev/null
+  [ "$(cat "$h/called")" = -C ]
+}
+
+# One compinit per shell: after a framework ran one ($_comps is compinit's
+# table) hi runs none, while zinit's queueing compdef stub alone does not count
+function test_zsh_runs_compinit_once() {
+  local h="$_HI_WORKDIR/oncedump" out
+  mkdir -p "$h"
+  out="$(_hi_rc_shell dumb zsh 'compinit() { print -rn -- "ran " >>"$HOME/called"; }
+    _comps=set # its presence is the whole test; compinit makes it a table
+    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
+    [[ -e $HOME/called ]] || print -rn -- none' HOME="$h")"
+  [ "$out" = none ] || return 1
+  out="$(_hi_rc_shell dumb zsh 'compinit() { print -rn -- "ran" >>"$HOME/called2"; }
+    compdef() { :; }
+    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
+    print -rn -- "[$(<$HOME/called2)]"' HOME="$h")"
+  [ "$out" = "[ran]" ]
+}
+
+# compinit sources a compiled dump beside the dump when it is the newer:
+# zsh.zsh builds one and leaves no temporary behind
+function test_zsh_compiles_the_completion_dump() {
+  local f
+  # ZDOTDIR set: Alpine's /etc/zsh/zshenv moves it to ~/.config/zsh otherwise
+  _hi_rc_shell dumb zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' ZDOTDIR="$_HI_WORKDIR" >/dev/null
+  for f in "$_HI_WORKDIR"/.zcompdump.*.zwc; do
+    [ -e "$f" ] && return 1
+  done
+  [ -f "$_HI_WORKDIR/.zcompdump.zwc" ]
+}
+
 function test_zsh_completes_the_word_after_preview() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
@@ -920,14 +1145,16 @@ function _hi_prompt_tail() {
   no) root='function fish_is_root_user; return 1; end; ' ;;
   esac
   case "$shell" in
-  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; ps1; printf %s "$PS1"' ;;
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; __hi_ps1; printf %s "$PS1"' ;;
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -rn -- "$PS1"' ;;
   fish) script="source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null; $root fish_prompt" ;;
   esac
   # _hi_strip_ansi takes the OSC 133 mark that closes every prompt; bash's
-  # \[ \] and zsh's %{ %} around it come off here, before the tail is read
+  # \[ \] and zsh's %{ %} around it come off here, before the tail is read, as
+  # do zsh's ${__hi_ma}/${__hi_mb}, the references its raw $PS1 draws them by
+  # shellcheck disable=SC2016 # the ${...} are literal text to strip
   _hi_strip_ansi "$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")" |
-    sed -e 's/\\\[//g' -e 's/\\\]//g' -e 's/%{%}//g'
+    sed -e 's/\\\[//g' -e 's/\\\]//g' -e 's/%{%}//g' -e 's/\${__hi_m[ab]}//g'
 }
 
 # _hi_prompt_ends <as_root> <shell> <want> [NAME=VALUE ...] - does the prompt
@@ -1051,19 +1278,32 @@ function run_rc_tests() {
   _hi_check_requires zsh "...and in zsh too" test_zsh_prompt_disabled_still_primes_color_variables
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
-  _hi_check "ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
+  _hi_check "__hi_ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
+  _hi_check "...and hands the status on to the hooks after it" test_bash_ps1_hands_on_the_status
+  _hi_check "...but no marks off a terminal, on TERM=dumb, or beside kitty's" test_bash_marks_only_where_they_belong
+  _hi_check "A value set before hi loads survives it" test_rc_keeps_the_users_own_values bash
+  _hi_check_requires zsh "...in zsh too, prompt_subst included" test_rc_keeps_the_users_own_values zsh
+  _hi_check "A failing settings.sh line, and the caller's set -u, survive" test_rc_keeps_the_callers_shell_options bash
+  _hi_check_requires zsh "...in zsh too" test_rc_keeps_the_callers_shell_options zsh
+  _hi_check "An EXIT trap closes the last prompt mark" test_bash_exit_trap_closes_the_prompt_mark
+  _hi_check_requires zsh "...and a zshexit hook in zsh" test_zsh_exit_hook_closes_the_prompt_mark
+  _hi_check_requires fish "...and fish_exit in fish, from the prompt only" test_fish_exit_closes_the_prompt_mark_only_from_the_prompt
   _hi_check "PS1 references the git segment (promptvars)" test_bash_ps1_references_git_info_under_promptvars
   _hi_check "...and inlines it marked as text without" test_bash_ps1_inlines_git_info_without_promptvars
   _hi_check "bash flag TAB completes hi's options, no sweep" test_bash_flag_completion_offers_hi_options_without_a_sweep
   _hi_check "bash target TAB reuses its names within the TTL" test_bash_target_names_are_held_for_the_ttl
+  _hi_check "ble.sh's as-you-type completion runs no sweep" test_bash_ble_auto_complete_runs_no_sweep
   _hi_check "the first exa TAB clones eza's spec (124)" test_bash_exa_completion_clones_ezas_spec
   _hi_check "...and fails armed without an eza spec" test_bash_exa_completion_fails_without_an_eza_spec
-  _hi_check "starship handoff installs no ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
+  _hi_check "starship handoff installs no __hi_ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
 
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built
   _hi_check_requires zsh "zsh flag TAB completes hi's options" test_zsh_flag_completion_offers_hi_options
   _hi_check_requires zsh "zsh completes the word after --preview" test_zsh_completes_the_word_after_preview
+  _hi_check_requires zsh "zsh skips the full compinit on a fresh dump" test_zsh_fresh_dump_skips_the_full_compinit
+  _hi_check_requires zsh "zsh compiles its completion dump" test_zsh_compiles_the_completion_dump
+  _hi_check_requires zsh "zsh runs no second compinit after a framework's" test_zsh_runs_compinit_once
 
   _hi_h2 "Testing: the environment segment (venv, conda, direnv, nix, ...)"
   # every child's $HOME is $_HI_WORKDIR, so this is the case the mise row was
@@ -1099,6 +1339,9 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] the drawn prompt leads with it" test_fish_prompt_leads_with_the_environment
   _hi_check_requires fish "...and keeps the lead with no environment" test_fish_prompt_keeps_the_lead_without_an_environment
   _hi_check_requires fish "..._HI_DISABLE_LEAD_SPACE=1 takes the lead away" test_fish_prompt_drops_the_lead_when_asked
+  _hi_check_requires zsh "[zsh] an activate's prefix takes the lead space's place" test_zsh_lead_yields_to_an_activate_prefix
+  _hi_check_requires zsh "[zsh] the git segment's text counts toward the width" test_zsh_git_segment_counts_its_text
+  _hi_check_requires fish "[fish] an activate's prefix takes the lead space's place" test_fish_lead_yields_to_an_activate_prefix
 
   _hi_h2 "Testing: the per-shell override files"
   local _hi_row _hi_sh
@@ -1203,7 +1446,17 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] unset, tide found here draws" \
     test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
   _hi_check_requires fish "[fish] a program that does not fit fish keeps hi's prompt" \
-    test_prompt_program_draws fish '*@*' : _HI_PROMPT_TOOL="oh-my-bash powerlevel10k"
+    test_prompt_program_draws fish '*@*' : _HI_PROMPT_TOOL="oh-my-bash powerlevel10k" XDG_CONFIG_HOME="$_HI_WORKDIR/noprompt"
+  _hi_check "[bash] liquidprompt's prompt stays, unless hi is named" \
+    test_foreign_prompt_stays_unless_hi_named bash '_LP_VERSION=(2 3 0)'
+  _hi_check "[bash] ...and bash-git-prompt's" \
+    test_foreign_prompt_stays_unless_hi_named bash 'setGitPrompt() { :; }'
+  _hi_check_requires zsh "[zsh] a promptinit theme stays, unless hi is named" \
+    test_foreign_prompt_stays_unless_hi_named zsh 'prompt_theme=(adam1)'
+  _hi_check_requires zsh "[zsh] ...and spaceship's, and pure's" \
+    test_foreign_prompt_stays_unless_hi_named zsh 'SPACESHIP_VERSION=4; prompt_pure_setup() { :; }'
+  _hi_check_requires fish "[fish] a fish_prompt of the user's own stays, unless hi is named" \
+    test_foreign_prompt_stays_unless_hi_named fish :
   _hi_check "[bash] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw bash
   _hi_check_requires zsh "[zsh] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw zsh
   _hi_check_requires fish "[fish] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw fish

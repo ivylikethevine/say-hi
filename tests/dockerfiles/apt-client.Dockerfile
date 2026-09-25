@@ -14,7 +14,7 @@
 # archive to fall back to.
 #
 # The dependabot.yml ignore for ubuntu's major/minor applies here as it does
-# to fish37.Dockerfile: the digest moves weekly, the tag does not.
+# to fish4.Dockerfile: the digest moves weekly, the tag does not.
 FROM ubuntu:24.04@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssh-client \
