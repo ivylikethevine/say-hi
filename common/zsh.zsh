@@ -174,7 +174,6 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_lead=""
     __hi_lead=$_hi_lead
     if _hi_has_color; then
-      export CLICOLOR="${CLICOLOR:-1}" LSCOLORS="${LSCOLORS:-gafacadabaegedabagacad}"
       # %F{} knows the sixteen and no bright variants: an extra name (orange)
       # is its 16-color base first, then brred/brblue/... lose the br. The
       # memos, not $( ): _hi_prime_identity filled both.
@@ -203,37 +202,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
 fi
 unset _hi_pt _hi_omz_theme _hi_p10k_cfg
 
-# completion: `hi` from the shared target list, `exa` the same way as `eza`
+# completion: `hi` from the shared target list, `exa` the same way as `eza`.
+# compinit is the rc's own call: common/_hi is a `#compdef` function on
+# $fpath - appended, so it never shadows one of yours - that a compinit run
+# after this block picks up, and one run before it gets through compdef.
 zmodload zsh/complist
-autoload -Uz compinit promptinit
-# One compinit per shell: $_comps is compinit's own table, so a framework's
-# (oh-my-zsh, prezto, the user's own) already ran it; zinit's queueing
-# compdef stub alone does not count. promptinit likewise, by its `prompt`.
-if (( ! ${+_comps} )); then
-  # bare `compinit` costs 50-150ms a start; full check once a day, -C between.
-  # (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h; a glob
-  # only under extended_glob, off by default, so set for the test alone. -u on
-  # the full check: compaudit's interactive [y/n] on a group-writable $fpath
-  # hangs `hi` when piped through something non-interactive (vhs included).
-  _hi_dump="${ZDOTDIR:-$HOME}/.zcompdump"
-  if () { setopt local_options extended_glob; [[ -n $1(#qN.mh+24) ]]; } "$_hi_dump"; then
-    compinit -u
-    # compinit leaves an unchanged dump's mtime alone, making this branch
-    # permanent once the dump turns a day old - touch restarts the clock
-    touch "$_hi_dump" 2>/dev/null || true
-  else
-    compinit -C
-  fi
-  # compinit sources a .zwc beside the dump when it is the newer, which halves
-  # what -C costs; recompiled whenever the dump moves. Built aside and renamed,
-  # so a shell starting meanwhile never reads half a file.
-  if [[ -f $_hi_dump && ! $_hi_dump.zwc -nt $_hi_dump ]]; then
-    { zcompile "$_hi_dump.$$.zwc" "$_hi_dump" && mv -f "$_hi_dump.$$.zwc" "$_hi_dump.zwc"; } 2>/dev/null ||
-      rm -f "$_hi_dump.$$.zwc"
-  fi
-  unset _hi_dump
-fi
-(( ${+functions[prompt]} )) || promptinit
+fpath=("${fpath[@]:#$_HI_ROOT/common}" "$_HI_ROOT/common")
 # The in-shell TTL cache bash.sh's _hi_complete explains, in zsh's dialect.
 # (( )) rather than [ ]: zsh's SECONDS is a float once anything typeset -F's it.
 # GLOSSARY: HI.26
@@ -241,47 +215,12 @@ _HI_TARGET_ROWS=()
 _HI_TARGET_DESCS=()
 _HI_TARGET_ROWS_AT=-1
 
-_hi() {
-  local name kind sym
-  # the word a flag takes (`hi --preview <TAB>`), then hi's own options (or,
-  # behind a local command, its switches), targets otherwise - the split
-  # bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
-  local -a ask
-  if [[ " $_HI_WORD_FLAGS " == *" ${words[CURRENT-1]} "* ]]; then
-    ask=(words "${words[CURRENT-1]}")
-  elif [[ "${words[CURRENT]}" == -* ]]; then
-    ask=(flags "${words[2]}")
-  fi
-  if (( $#ask )); then
-    # "<word>\t<help>" lines: the word is the match, the help its description
-    local -a flags descs
-    local row
-    for row in "${(@f)$(sh "$_HI_TARGETS" "${ask[@]}")}"; do
-      flags+=("${row%%$'\t'*}")
-      descs+=("${row%%$'\t'*} - ${row#*$'\t'}")
-    done
-    compadd -d descs -a flags
-    return 0
-  fi
-  if (( _HI_TARGET_ROWS_AT < 0 || SECONDS - _HI_TARGET_ROWS_AT >= ${_HI_TARGETS_TTL:-5} )); then
-    _HI_TARGET_ROWS=()
-    _HI_TARGET_DESCS=()
-    while IFS=$'\t' read -r name kind; do
-      _HI_TARGET_ROWS+=("$name")
-      _hi_target_symbol sym "$kind"
-      _HI_TARGET_DESCS+=("$sym $kind - $name")
-    done < <(sh "$_HI_TARGETS")
-    _HI_TARGET_ROWS_AT=$SECONDS
-  fi
-  # -V: an unsorted group, so targets.sh's order is the menu's; through
-  # _description, so the hi-targets tag's list-colors (below) applies
-  local -a expl
-  _description -V hi-targets expl target
-  compadd "${expl[@]}" -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
-}
-# hi.sh too: zsh expands paths.sh's `hi` alias before completing, so the
-# command it looks up is the launcher's name, not `hi`
-compdef _hi hi "${_HI_LAUNCHER:t}"
+if (( ${+functions[compdef]} )); then
+  autoload -Uz _hi
+  # hi.sh too: zsh expands paths.sh's `hi` alias before completing, so the
+  # command it looks up is the launcher's name, not `hi`
+  compdef _hi hi "${_HI_LAUNCHER:t}"
+fi
 # The target list colored by backend, matched on the kind after each line's
 # symbol ("▣ docker - web"): ssh yellow, the container family blue, nomad
 # green, kube light purple, in hi's palette so a color scheme repaints them. None under
@@ -300,7 +239,8 @@ compdef _hi hi "${_HI_LAUNCHER:t}"
 }
 # only when something completes `eza`: compdef's service form errors out
 # otherwise. _comps is compinit's own command -> completion map, so no fork.
-(( ${+_comps[eza]} )) && compdef exa=eza
+# and only where hi's tool aliases made exa an alias
+(( ${+_comps[eza]} && ${+functions[compdef]} && ${+aliases[exa]} )) && [[ ${_HI_TOOL_ALIASES:-0} == 1 ]] && compdef exa=eza
 
 # see common/bash.sh: children inherit core.sh's _HI_CHILD_ENV and nothing
 # else with the prefix. GLOSSARY: HI.47

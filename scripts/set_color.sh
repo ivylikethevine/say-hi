@@ -98,12 +98,12 @@ row="$name $color${hex:+ $hex}"
 read_file="$_HI_COLORS" dst="$_HI_CONFIG_DIR/colors"
 existing_lines=()
 [ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
-out=(${existing_lines[@]+"${existing_lines[@]}"})
+_hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
 match=-1 section="" first=""
 # shellcheck disable=SC2034 # _hi_color_index's out-var; only its status is read
 ci=""
-for ((idx = 0; idx < ${#out[@]}; idx++)); do
-  line="${out[idx]}"
+for ((idx = 0; idx < ${#_hi_rows[@]}; idx++)); do
+  line="${_hi_rows[idx]}"
   case "$line" in '#'* | '' | '['*']') continue ;; esac
   read -r first _ <<<"$line"
   [ "$first" = "$name" ] || continue
@@ -118,19 +118,19 @@ if [ "$mode" = unset ]; then
     _hi_cecho "$read_file has no [$type] pin for $name - nothing to write" "$GREEN"
     exit 0
   fi
-  _hi_cecho " - ${out[match]} (from [$type])" "$YELLOW"
-  out=("${out[@]:0:match}" "${out[@]:match+1}")
+  _hi_cecho " - ${_hi_rows[match]} (from [$type])" "$YELLOW"
+  _hi_rows=("${_hi_rows[@]:0:match}" "${_hi_rows[@]:match+1}")
 elif [ "$match" -ge 0 ]; then
   # compared field by field: the shipped file pads its name column
-  read -r _ old_color old_hex <<<"${out[match]}"
+  read -r _ old_color old_hex <<<"${_hi_rows[match]}"
   old_hex="${old_hex%% *}"
   old_hex="${old_hex#\#}"
   if [ "$old_color" = "$color" ] && [ "$old_hex" = "$hex" ]; then
     _hi_cecho "$read_file: $row is already in [$type] - nothing to write" "$GREEN"
     exit 0
   fi
-  _hi_cecho " ~ $row (replacing ${out[match]} in [$type])" "$YELLOW"
-  out[match]="$row"
+  _hi_cecho " ~ $row (replacing ${_hi_rows[match]} in [$type])" "$YELLOW"
+  _hi_rows[match]="$row"
 else
   _hi_cecho " + $row in [$type]" "$GREEN"
   _hi_section_add "$type" "$row"
@@ -142,6 +142,6 @@ dry_run_say "$what" && exit 0
 
 mkdir -p "$_HI_CONFIG_DIR"
 tmpfile="$(mktemp -t hi.colors.XXXXXX)"
-printf '%s\n' "${out[@]}" >"$tmpfile"
+printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
 _hi_write_back "$tmpfile" "$dst"
 _hi_cecho "$dst updated" "$GREEN"

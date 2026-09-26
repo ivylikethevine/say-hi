@@ -71,30 +71,30 @@ function _hi_write_back() {
 }
 
 # The `[section]` files (config/packages, config/colors) as the editing
-# scripts hold them: a global `out` array of lines, one per file line.
+# scripts hold them: a global `_hi_rows` array of lines, one per file line.
 
-# _hi_section_of <outvar> <index> - the section the line at <index> of `out`
+# _hi_section_of <outvar> <index> - the section the line at <index> of `_hi_rows`
 # sits in: the nearest `[...]` line above it, empty above the first
 function _hi_section_of() {
   local _hi_so_i
   printf -v "$1" '%s' ''
   for ((_hi_so_i = $2; _hi_so_i >= 0; _hi_so_i--)); do
-    case "${out[_hi_so_i]}" in
+    case "${_hi_rows[_hi_so_i]}" in
     '['*']')
-      _hi_so_i="${out[_hi_so_i]#[}"
-      printf -v "$1" '%s' "${_hi_so_i%]}"
+      _hi_so_i="${_hi_rows[_hi_so_i]#\[}"
+      printf -v "$1" '%s' "${_hi_so_i%\]}"
       return 0
       ;;
     esac
   done
 }
 
-# _hi_section_add <section> <row> - <row> into `out` after <section>'s last
+# _hi_section_add <section> <row> - <row> into `_hi_rows` after <section>'s last
 # row, or under a new `[<section>]` at the end when the file has none
 function _hi_section_add() {
   local _hi_sa_i _hi_sa_in=0 _hi_sa_at=-1
-  for ((_hi_sa_i = 0; _hi_sa_i < ${#out[@]}; _hi_sa_i++)); do
-    case "${out[_hi_sa_i]}" in
+  for ((_hi_sa_i = 0; _hi_sa_i < ${#_hi_rows[@]}; _hi_sa_i++)); do
+    case "${_hi_rows[_hi_sa_i]}" in
     "[$1]") _hi_sa_in=1 _hi_sa_at=$((_hi_sa_i + 1)) ;;
     '['*']') _hi_sa_in=0 ;;
     '' | '#'*) ;;
@@ -102,10 +102,10 @@ function _hi_section_add() {
     esac
   done
   if [ "$_hi_sa_at" -lt 0 ]; then
-    [ "${#out[@]}" -eq 0 ] || [ -z "${out[${#out[@]} - 1]}" ] || out+=("")
-    out+=("[$1]" "$2")
+    [ "${#_hi_rows[@]}" -eq 0 ] || [ -z "${_hi_rows[${#_hi_rows[@]} - 1]}" ] || _hi_rows+=("")
+    _hi_rows+=("[$1]" "$2")
   else
-    out=("${out[@]:0:_hi_sa_at}" "$2" "${out[@]:_hi_sa_at}")
+    _hi_rows=("${_hi_rows[@]:0:_hi_sa_at}" "$2" "${_hi_rows[@]:_hi_sa_at}")
   fi
 }
 

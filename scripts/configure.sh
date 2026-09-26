@@ -445,13 +445,13 @@ function _hi_editors_preview() {
 
 # what `cat` and `eza` resolve to with the rebinds on - read back from
 # common/aliases.sh itself (the same trick _hi_editors_preview uses above)
-# rather than restated here, so a BAT_CONFIG_PATH that drops --theme, say,
-# shows up here too instead of drifting from what a real session gets. The
+# rather than restated here, so it cannot drift from what a real session
+# gets. The
 # resolution caches into _HI_*_BIN/_HI_*_OPTS on export, so those are cleared
 # first to force a fresh probe of $PATH rather than reusing another preview's.
 function _hi_tool_alias_preview() {
   (
-    _HI_DISABLE_TOOL_ALIASES=0
+    _HI_TOOL_ALIASES=1
     _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
     _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
@@ -534,8 +534,8 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
   "_HI_DISABLE_HELIX|1|||hx/helix|helix - your carried config.toml"
   "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - your carried kakrc"
-  "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
-  "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
+  "_HI_TOOL_ALIASES||1|_hi_tool_alias_preview||styled tool aliases - ls -> eza, cat -> bat"
+  "_HI_SUDO_ALIAS||1|||sudo alias - aliases survive under sudo"
   "_HI_DISABLE_LOCAL|1||||here too - all of the above on this machine, not just where you hi"
 )
 
@@ -579,9 +579,9 @@ function _hi_prompt_rows() {
 # file holds. Applied, its answers are what the menu shows and saves;
 # `--preset <name>` writes them without a hub at all.
 _HI_PRESETS=(
-  "everything|every feature and every header item on - the shipped defaults|"
+  "everything|the shipped defaults - every feature and header item on, the alias opt-ins off|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
-  "minimal|on targets only the colored prompt and the aliases - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
@@ -862,7 +862,7 @@ function _hi_menu_list() {
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   _hi_menu_value width "width" "${width:-80}" 80
-  _hi_menu_value groups "package groups" "${groups:-$_HI_PACKAGES_GROUPS_DEFAULT}" "$_HI_PACKAGES_GROUPS_DEFAULT"
+  _hi_menu_value groups "packages" "${groups:-$_HI_PACKAGES_GROUPS_DEFAULT}" "$_HI_PACKAGES_GROUPS_DEFAULT"
   _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}" '172.*'
   _hi_menu_head "Prompt" "the preview's last line"
   _hi_menu_rows _HI_PROMPT_PROMPTS 0

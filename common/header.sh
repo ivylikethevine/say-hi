@@ -1178,8 +1178,8 @@ function _hi_package_groups() {
   local _hi_pg_l _hi_pg_all=""
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r _hi_pg_l; do
     case "$_hi_pg_l" in *'#'*) ;; '['*']')
-      _hi_pg_l="${_hi_pg_l#[}"
-      _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }${_hi_pg_l%]}"
+      _hi_pg_l="${_hi_pg_l#\[}"
+      _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }${_hi_pg_l%\]}"
       ;;
     esac
   done <"$_HI_PACKAGES"
@@ -1235,8 +1235,8 @@ function full_check() {
     case "$line" in
     '' | *'#'*) continue ;;
     '['*']')
-      line="${line#[}"
-      line="${line%]}"
+      line="${line#\[}"
+      line="${line%\]}"
       on=0
       _hi_group_on "$line" && on=1
       _hi_group_tier tier "$line"

@@ -22,18 +22,20 @@ _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS _HI_DISABLE_EDITORS
   _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS _HI_DISABLE_MICRO
   _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
-  _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
   _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
-# print "<var>=<value>" for every toggle the gate governs. core.sh does the
-# defaulting paths.sh relies on ( _HI_DISABLE_LOCAL / _HI_REMOTE_SESSION both
-# have to exist), so the child goes through it exactly like a real shell.
+# print "<var>=<value>" for every toggle the gate governs, or for the names
+# after $2. core.sh does the defaulting paths.sh relies on ( _HI_DISABLE_LOCAL
+# / _HI_REMOTE_SESSION both have to exist), so the child goes through it
+# exactly like a real shell.
 function _hi_gate() {
+  local -a vars=("${_HI_GATED_VARS[@]}")
+  [ $# -gt 2 ] && vars=("${@:3}")
   _HI_DISABLE_LOCAL="$1" _HI_REMOTE_SESSION="$2" bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
     for v in "$@"; do printf "%s=%s\n" "$v" "${!v:-}"; done
-  ' _ "${_HI_GATED_VARS[@]}"
+  ' _ "${vars[@]}"
 }
 
 function _hi_all_gated() {
@@ -65,6 +67,22 @@ function test_local_only_disables_every_toggle_locally() {
 # bare, can't blow up under `set -u`. Asserting 0 here is what keeps that true.
 function test_local_only_leaves_a_remote_session_alone() {
   _hi_all_gated "$(_hi_gate 1 1)" 0
+}
+
+# the opt-ins go the other way: local-only forces them to 0 at home, over a
+# settings.sh or an environment that turned them on, and leaves a target's be
+function test_local_only_turns_the_opt_ins_off_locally() {
+  local out
+  out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_gate 1 0 _HI_TOOL_ALIASES _HI_SUDO_ALIAS)"
+  [ "$out" = "$(printf '_HI_TOOL_ALIASES=0\n_HI_SUDO_ALIAS=0')" ] || {
+    _hi_cecho " | at home: $(printf '%s' "$out" | tr '\n' ' ')" "$RED"
+    return 1
+  }
+  out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _hi_gate 1 1 _HI_TOOL_ALIASES _HI_SUDO_ALIAS)"
+  [ "$out" = "$(printf '_HI_TOOL_ALIASES=1\n_HI_SUDO_ALIAS=1')" ] || {
+    _hi_cecho " | on a target: $(printf '%s' "$out" | tr '\n' ' ')" "$RED"
+    return 1
+  }
 }
 
 function test_toggles_stay_on_without_local_only() {
@@ -564,6 +582,7 @@ function run_paths_tests() {
   _hi_check "The hi link is under \$HOME" test_link_is_under_home
   _hi_check "Local-only disables every toggle locally" test_local_only_disables_every_toggle_locally
   _hi_check "Local-only leaves a remote session alone" test_local_only_leaves_a_remote_session_alone
+  _hi_check "Local-only turns the opt-ins off at home only" test_local_only_turns_the_opt_ins_off_locally
   _hi_check "Toggles stay on without local-only" test_toggles_stay_on_without_local_only
   _hi_check "Toggles stay on remotely without local-only" test_toggles_stay_on_remotely_without_local_only
   _hi_check "The gate covers the whole toggle roster" test_gate_list_matches_the_toggle_roster

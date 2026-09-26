@@ -213,7 +213,10 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   word list, a name from a fixed set). A toggle that has to go is a 2.0. A
   new `_HI_DISABLE_*` toggle is a minor, and lands in `_HI_TOGGLES`,
   `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
-  together, or "all of the above" quietly stops meaning all of them.
+  together, or "all of the above" quietly stops meaning all of them. An
+  opt-in (`_HI_TOOL_ALIASES`'s shape) stays out of `_HI_TOGGLES`: it takes
+  its `0` from `common/aliases.sh`'s backstop line, every reader compares it
+  against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
   `packages`, `plugins.d/` and its hook names,
   `vimrc`, `init.lua`, `config.toml`, `kakrc`, `nanorc`, `init.el`, `tmux.conf`,

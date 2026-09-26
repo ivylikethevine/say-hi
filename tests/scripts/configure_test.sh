@@ -1004,8 +1004,9 @@ function test_editors_preview_names_every_override() {
   if command -v emacs >/dev/null 2>&1; then
     [[ "$out" == *"emacs -nw -q -l $_HI_EMACSRC"* ]] || return 1
   fi
+  # micro's flags ride only a target or a micro/ of hi's, the overlay's here
   if command -v micro >/dev/null 2>&1; then
-    [[ "$out" == *"micro -> micro -backup false"* ]] || return 1
+    [[ "$out" == *"micro -> micro -config-dir $_HI_MICRO_DIR -backup false"* ]] || return 1
   fi
   # each name carries the rc of the binary behind it: nvim answers to both
   # `vim` and `nvim` and reads init.lua, vim reads vimrc
@@ -1433,6 +1434,13 @@ function test_menu_feature_toggles_and_previews() {
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
 }
 
+# ...and an opt-in row (the tool aliases, 11) flips on to its on-value
+function test_menu_opt_in_row_writes_its_on_value() {
+  _hi_cfg_pty feat_optin "$(_hi_item 'row|_HI_FEATURE_PROMPTS|11')\ns\n" '' config_hub || return 1
+  _hi_cfg_has feat_optin "styled tool aliases: now on" &&
+    [[ "$(_hi_cfg_lines feat_optin)" == *"export _HI_TOOL_ALIASES=1"* ]]
+}
+
 # The environment segment sits between git status and the editors. Its preview
 # falls back to the shape when nothing is active here, which is what a run on
 # a bare CI box sees - so the case asserts the toggle and the paren shape, not
@@ -1556,7 +1564,7 @@ function test_menu_lists_every_group() {
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Editors" &&
     _hi_cfg_has hub_all "Header - the preview's rows" &&
-    _hi_cfg_has hub_all "package groups" &&
+    _hi_cfg_has hub_all "    packages      " &&
     _hi_cfg_has hub_all "bash prompt ends with" &&
     _hi_cfg_has hub_all "Advanced" &&
     _hi_cfg_has hub_all "24-bit color" &&
@@ -1594,7 +1602,7 @@ function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
 # a value away from its default says the default beside it; one at it does not
 function test_menu_value_shows_its_default() {
   _HI_TERM_COLS=80 _hi_cfg_pty hub_def 's\n' "export _HI_PACKAGES_GROUPS='core'" run_configure "" || return 1
-  _hi_cfg_has hub_def "package groups        core (default core useful deprecated)" &&
+  _hi_cfg_has hub_def "packages              core (default core useful deprecated)" &&
     ! _hi_cfg_has hub_def "(default 80)"
 }
 
@@ -1605,8 +1613,9 @@ function run_configure_tests() {
   mkdir -p "$_HI_CONFIG_DIR"
   local _hi_f
   for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_CONFIG_DIR/$_hi_f"; done
+  mkdir -p "$_HI_CONFIG_DIR/micro"
   export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc" _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua" _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml" \
-    _HI_NANORC="$_HI_CONFIG_DIR/nanorc" _HI_EMACSRC="$_HI_CONFIG_DIR/init.el"
+    _HI_NANORC="$_HI_CONFIG_DIR/nanorc" _HI_EMACSRC="$_HI_CONFIG_DIR/init.el" _HI_MICRO_DIR="$_HI_CONFIG_DIR/micro"
 
   _hi_h1 "Testing scripts/configure.sh's reusable logic"
 
@@ -1764,6 +1773,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: fits 40 columns, groups in order" test_menu_layout_at_40
   _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
   _hi_par_check_capable pty "Menu: a feature toggles and previews" test_menu_feature_toggles_and_previews
+  _hi_par_check_capable pty "Menu: an opt-in row writes its on-value" test_menu_opt_in_row_writes_its_on_value
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "Menu: the header row previews the whole header" test_menu_header_row_previews_the_header
   _hi_par_check_capable pty "Menu: item 1 turns the header off, in words" test_menu_header_off_previews_as_words

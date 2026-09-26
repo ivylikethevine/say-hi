@@ -7,7 +7,8 @@
 # The pitch in one frame: your shell follows you. Every other tape turns a knob
 # (docs/tapes/fixtures.sh writes each one a settings.sh); this is the shot that
 # shows the shipped defaults with everything on, so it must stay stock to mean
-# anything. What it *uses* is the point, not what it connects to: the header
+# anything - but for the tool aliases, the one opt-in its settings.sh sets.
+# What it *uses* is the point, not what it connects to: the header
 # says what the box is missing, the prompt carries the git segment inside a
 # checkout on the target, `cat` falls through to the bat the box happens to
 # have, and the last line proves the session took its files with it.

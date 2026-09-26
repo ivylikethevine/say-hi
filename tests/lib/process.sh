@@ -15,10 +15,11 @@
 #   bash              the main branch: asserts the copy landed and sources
 #                     aliases.sh itself, which that branch does not
 #   fallback          the container fallback copies only aliases.sh - no
-#                     paths.sh, so hi_info isn't in scope; check `cat`, the
-#                     one alias every box gets (cat is its own floor), and
-#                     one fish has no function of its own for
-#   fallback_fish     the same, in fish's dialect (its aliases are functions)
+#                     paths.sh, so hi_info isn't in scope, and every alias
+#                     it could make there is opt-in or wants a file the
+#                     fallback does not carry; check $_HI_EZA_OPTS, a
+#                     default nothing but aliases.sh exports
+#   fallback_fish     the same, in fish's dialect
 #   ssh_fallback      the ssh fallback rc *does* source paths.sh, so hi_info is
 #   ssh_fallback_fish ssh_fallback in fish's dialect
 #   rooted_under      $3 is a directory the session's tree must sit under
@@ -36,8 +37,8 @@ function _hi_probe_cmd() {
   local probe='source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo '
   case "$2" in
   bash) printf 'test -f "$_HI_ROOT/hi.sh" && %s%s' "$probe" "$marker" ;;
-  fallback) printf '%s%s' 'alias cat >/dev/null 2>&1 && echo ' "$marker" ;;
-  fallback_fish) printf '%s%s' 'functions -q cat; and echo ' "$marker" ;;
+  fallback) printf '%s%s' '[ -n "${_HI_EZA_OPTS:-}" ] && echo ' "$marker" ;;
+  fallback_fish) printf '%s%s' 'set -q _HI_EZA_OPTS; and echo ' "$marker" ;;
   ssh_fallback) printf '%s%s' 'test -f "$_HI_ROOT/hi.sh" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
   ssh_fallback_fish) printf '%s%s' 'test -f "$_HI_ROOT/hi.sh"; and functions -q hi_info; and echo ' "$marker" ;;
   rooted_under) printf 'case "$_HI_ROOT" in %s/*) %s%s ;; esac' "$3" "$probe" "$marker" ;;

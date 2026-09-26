@@ -157,6 +157,15 @@ fi
 # other); --preset's is configure.sh's table, pinned the same way by
 # targets_test.sh. Answered before the probes, like the flags. The membership
 # test is paths.sh's $_HI_WORD_FLAGS.
+# the four [type] sections of a colors file, as --set-color and --unset-color
+# take them
+color_types() {
+  printf 'hosttag\ta # Tags: value in your ssh config\n'
+  printf 'usertag\tthe username on hosts carrying that tag\n'
+  printf 'username\ta username\n'
+  printf 'hostname\ta hostname, or a * or ? pattern\n'
+}
+
 if [ "$kind" = words ]; then
   # The packages file this session would actually read/write: the overlay's
   # when one exists, else the tree's (common/paths.sh's cascade, reimplemented
@@ -171,9 +180,9 @@ if [ "$kind" = words ]; then
     printf 'none\tno link; the wired shells alias hi either way\n'
     ;;
   --preset)
-    printf 'everything\tevery feature and every header item on\n'
+    printf 'everything\tthe shipped defaults, every feature on\n'
     printf 'balanced\teverything but the noise\n'
-    printf 'minimal\ton targets only the colored prompt and the aliases\n'
+    printf 'minimal\ton targets only the colored prompt\n'
     ;;
   --update)
     # the release tags a checkout knows of, newest first; a package has no
@@ -192,19 +201,19 @@ if [ "$kind" = words ]; then
       printf '%s\ta package check row\n' "${line%%,*}"
     done <"$pkgs"
     ;;
-  --set-color | --unset-color)
-    printf 'hosttag\ta # Tags: value in your ssh config\n'
-    printf 'usertag\tthe username on hosts carrying that tag\n'
-    printf 'username\ta username\n'
-    printf 'hostname\ta hostname, or a * or ? pattern\n'
+  --set-color)
+    color_types
+    ;;
+  --unset-color)
+    color_types
     ;;
   --add-package)
     # the file's groups, add_package.sh's first argument. The line filter
     # matches full_check's: a `#` anywhere kills a line.
     [ -f "$pkgs" ] && while IFS= read -r line; do
       case "$line" in *'#'*) ;; '['*']')
-        line="${line#[}"
-        printf '%s\ta package check group\n' "${line%]}"
+        line="${line#\[}"
+        printf '%s\ta package check group\n' "${line%\]}"
         ;;
       esac
     done <"$pkgs"

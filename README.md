@@ -205,7 +205,9 @@ row, and everything answered **no**, and why:
   that is not installed gets no rc file; on macOS `~/.bash_profile` is taught
   to read `~/.bashrc`. `hi` is linked at `~/.local/bin/hi` (`--link system`
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
-  either way). Then reload your shell.
+  either way). Then reload your shell. zsh completes `hi` through the
+  `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
+  of its own.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any
   setting in its one list — Header, Prompt, Editors, Aliases, This machine,
   Advanced — and save to
@@ -406,6 +408,12 @@ In this checkout, narrowest first.
        alongside the entry above, which asks the same of configs. **Ticks
        when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
        `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
+
+8. [ ] **A shorter `hi --configure`** — the settings menu and its preview
+       box scroll off a 24-line terminal. **Do:** cut its vertical size
+       (fewer section headings and blank lines, toggles packed into columns,
+       a smaller preview) without dropping a setting. **Ticks when:** the
+       whole menu, preview included, fits a 24-row terminal at 80 columns.
 
 ### At the 1.0.0 tag
 

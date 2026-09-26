@@ -1176,6 +1176,15 @@ function test_strip_leaves_no_full_line_comments() {
   [ "$bad" -eq 0 ]
 }
 
+# common/_hi, zsh's completion function, is found by compinit off its first
+# line: it ships, and that line with it - no strip name matches the file
+function test_zsh_completion_ships_with_its_compdef_line() {
+  local dir line=""
+  dir="$(_hi_strip_unpack stripped)"
+  [ -f "$dir/say-hi/common/_hi" ] && IFS= read -r line <"$dir/say-hi/common/_hi"
+  [ "$line" = '#compdef hi hi.sh' ] || _hi_because "common/_hi line 1: [$line]"
+}
+
 # ...and stripping is all it does: every code line survives, its own leading
 # whitespace aside (the strip takes indentation too - none of the four
 # dialects reads it, and it is 3% of the payload), so both sides are compared
@@ -1348,6 +1357,7 @@ function run_hi_payload_tests() {
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
   _hi_check "Every code line survives" test_strip_keeps_every_code_line
+  _hi_check "zsh's completion ships with its #compdef line" test_zsh_completion_ships_with_its_compdef_line
   _hi_check "Blank lines and indentation go, heredoc bodies stay" test_strip_trims_whitespace_outside_heredocs
   _hi_check "The result is still valid shell" test_strip_leaves_valid_shell
   _hi_check "hi.sh stays executable" test_strip_keeps_hi_sh_executable

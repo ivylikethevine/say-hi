@@ -599,7 +599,7 @@ function doctor_config() {
   # landed, so the four newest toggles were the four this row could not see.
   local toggles asrc=""
   _hi_overlay_src aliases.sh asrc || true
-  toggles="$(grep -oE '_HI_DISABLE_[A-Z_]+' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
+  toggles="$(grep -oE '_HI_(DISABLE_[A-Z_]+|TOOL_ALIASES|SUDO_ALIAS)' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
   late="$(grep -v '^[[:space:]]*#' "$asrc" 2>/dev/null |
     grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
     tr -d = | sort -u | tr '\n' ' ')" || true
@@ -619,6 +619,13 @@ function doctor_config() {
     fi
     [ "$t" = _HI_DISABLE_LOCAL ] && [ "$gate" = 1 ] && v="1 (every feature off on this machine; targets keep theirs)"
     doctor_row toggle "$t=$v" warn
+    any=1
+  done
+  # the opt-ins, where on is the non-default
+  for t in _HI_TOOL_ALIASES _HI_SUDO_ALIAS; do
+    eval "v=\${$t:-0}"
+    [ "$v" = 1 ] || continue
+    doctor_row toggle "$t=1"
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"

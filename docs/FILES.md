@@ -74,6 +74,7 @@ defaults an overlay copy replaces.
 | `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                                                                  |
 | `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                                                                 |
 | `common/zsh.zsh`                        | The same for zsh.                                                                                                                                                              |
+| `common/_hi`                            | zsh's completion for `hi`, autoloaded off `$fpath` by the rc's own `compinit`.                                                                                                 |
 | `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                                                                                       |
 | `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                                                                      |
 | `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                                                                                      |
@@ -238,8 +239,7 @@ an overlay copy rides either way.
 ## Paths hi recognizes
 
 Read, probed, or checked, on whichever machine the shell runs; nothing here is
-written but zsh's `.zcompdump`, by the daily `compinit`, and the
-`.zcompdump.zwc` compiled from it each time it changes.
+written.
 
 | Path                                                                                                      | Variable                                 | Why                                                                        |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------- |
@@ -251,11 +251,9 @@ written but zsh's `.zcompdump`, by the daily `compinit`, and the
 | `/etc/os-release`                                                                                         | `_HI_LINUX_RELEASE`                      | the header's OS line                                                       |
 | `/proc/meminfo`, `/proc/loadavg`, `/proc/cpuinfo`, `/proc/uptime`, `/sys/devices/system/cpu/cpu0/cpufreq` | -                                        | the header's stats on Linux; macOS and the BSDs are asked through `sysctl` |
 | `/etc/debian_chroot`                                                                                      | -                                        | the prompt's chroot label                                                  |
-| `/usr/bin/lesspipe`                                                                                       | -                                        | `$LESSOPEN`                                                                |
 | `$TERMINFO`, `~/.terminfo`, `/etc/terminfo`, `/lib/terminfo`, `/usr/share/terminfo`                       | -                                        | whether a target knows `$TERM`, else `xterm-256color`                      |
 | `.tool-versions`, `.mise.toml`, `mise.toml`, `.mise/config.toml` in `$PWD` and above                      | -                                        | the mise environment segment                                               |
 | `.git` above `$PWD`                                                                                       | -                                        | the git segment, read without taking the index lock                        |
-| `${ZDOTDIR:-~}/.zcompdump`                                                                                | -                                        | whether zsh's full `compinit` is due (once a day)                          |
 | `$_HI_ROOT/.git`                                                                                          | -                                        | `hi --update` needs a checkout                                             |
 | `hi` on `$PATH`                                                                                           | -                                        | install and doctor check it runs this tree                                 |
 

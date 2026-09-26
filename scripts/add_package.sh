@@ -128,18 +128,18 @@ function _hi_row_first_pkg() {
 read_file="$_HI_PACKAGES" dst="$_HI_CONFIG_DIR/packages"
 existing_lines=()
 [ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
-out=(${existing_lines[@]+"${existing_lines[@]}"})
+_hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
 changed=0
 # spelled empty so the linter sees the helpers' printf -v (SC2154)
 first="" existing_first="" in_group=""
 
-# _hi_row_index <outvar> <pkg> - the index in `out` of the row whose first
+# _hi_row_index <outvar> <pkg> - the index in `_hi_rows` of the row whose first
 # package is <pkg>, or -1
 function _hi_row_index() {
   local _hi_ri_i
-  for ((_hi_ri_i = 0; _hi_ri_i < ${#out[@]}; _hi_ri_i++)); do
-    case "${out[_hi_ri_i]}" in '#'* | '' | '['*']') continue ;; esac
-    _hi_row_first_pkg existing_first "${out[_hi_ri_i]}"
+  for ((_hi_ri_i = 0; _hi_ri_i < ${#_hi_rows[@]}; _hi_ri_i++)); do
+    case "${_hi_rows[_hi_ri_i]}" in '#'* | '' | '['*']') continue ;; esac
+    _hi_row_first_pkg existing_first "${_hi_rows[_hi_ri_i]}"
     if [ "$existing_first" = "$2" ]; then
       printf -v "$1" '%s' "$_hi_ri_i"
       return 0
@@ -158,24 +158,24 @@ for row in "${rows[@]}"; do
     if [ "$match" -lt 0 ]; then
       _hi_cecho " $read_file: no row for $first" "$BLUE"
     else
-      _hi_cecho " - ${out[match]} (from [${in_group:-no group}])" "$YELLOW"
-      out=("${out[@]:0:match}" "${out[@]:match+1}")
+      _hi_cecho " - ${_hi_rows[match]} (from [${in_group:-no group}])" "$YELLOW"
+      _hi_rows=("${_hi_rows[@]:0:match}" "${_hi_rows[@]:match+1}")
       changed=1
     fi
     continue
   fi
   if [ "$match" -ge 0 ] && [ "$in_group" = "$group" ]; then
-    if [ "${out[match]}" = "$row" ]; then
+    if [ "${_hi_rows[match]}" = "$row" ]; then
       _hi_cecho " $read_file: $row is already in [$group]" "$BLUE"
       continue
     fi
-    out[match]="$row"
+    _hi_rows[match]="$row"
     changed=1
     _hi_cecho " ~ $row (replacing the row for $first in [$group])" "$YELLOW"
     continue
   fi
   if [ "$match" -ge 0 ]; then
-    out=("${out[@]:0:match}" "${out[@]:match+1}")
+    _hi_rows=("${_hi_rows[@]:0:match}" "${_hi_rows[@]:match+1}")
     _hi_cecho " ~ $row (moving the row for $first from [${in_group:-no group}] to [$group])" "$YELLOW"
   else
     _hi_cecho " + $row in [$group]" "$GREEN"
@@ -195,6 +195,6 @@ dry_run_say "$what" && exit 0
 
 mkdir -p "$_HI_CONFIG_DIR"
 tmpfile="$(mktemp -t hi.packages.XXXXXX)"
-printf '%s\n' "${out[@]}" >"$tmpfile"
+printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
 _hi_write_back "$tmpfile" "$dst"
 _hi_cecho "$dst updated" "$GREEN"

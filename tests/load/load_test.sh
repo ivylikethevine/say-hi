@@ -193,7 +193,7 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
 function _hi_shrc_toggle_in() {
   local _HI_ROOT="$1" _HI_SESSION_RC_DIR=""
   _hi_session_rc_setup || return 1
-  sh -c '. "$1"; printf %s "$_HI_DISABLE_TOOL_ALIASES"' sh "$_HI_SESSION_RC_DIR/shrc" 2>/dev/null
+  sh -c '. "$1"; printf %s "$_HI_TOOL_ALIASES"' sh "$_HI_SESSION_RC_DIR/shrc" 2>/dev/null
   # only the directory the setup's mktemp just made
   case "$_HI_SESSION_RC_DIR" in */hi.rc.??????) rm -rf "$_HI_SESSION_RC_DIR" ;; esac
 }
@@ -202,7 +202,7 @@ function test_session_shrc_reads_the_settings_first() {
   local root="$_HI_WORKDIR/shrc-root"
   mkdir -p "$root/config"
   ln -sfn "$_HI_ROOT/common" "$root/common"
-  printf 'export _HI_DISABLE_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
+  printf 'export _HI_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
   # in a subshell: the setup exports ZDOTDIR and ENV
   [ "$(_hi_shrc_toggle_in "$root")" = 1 ]
 }

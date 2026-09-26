@@ -161,8 +161,8 @@ function _hi_colors_rows() {
     case "$cur_name" in
     '' | '#'*) continue ;;
     '['*']')
-      cur_type="${cur_name#[}"
-      cur_type="${cur_type%]}"
+      cur_type="${cur_name#\[}"
+      cur_type="${cur_type%\]}"
       continue
       ;;
     esac
@@ -578,8 +578,8 @@ function _hi_collect_examples() {
     case "$line" in
     '' | *'#'*) continue ;;
     '['*']')
-      line="${line#[}"
-      line="${line%]}"
+      line="${line#\[}"
+      line="${line%\]}"
       gi=$((gi + 1))
       on=0
       _hi_group_on "$line" && on=1

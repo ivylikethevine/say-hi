@@ -602,6 +602,19 @@ function test_config_lists_a_non_default_toggle() {
   [[ "$out" == *"toggle"*"_HI_DISABLE_BANNER=1"* && "$out" != *"all defaults"* ]]
 }
 
+# an opt-in turned on is the non-default, so it gets a row; off is silent
+function test_config_lists_an_opt_in_turned_on() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/optin.XXXXXX")"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=0
+    doctor_config
+  )"
+  [[ "$out" == *"toggle"*"_HI_TOOL_ALIASES=1"* && "$out" != *"_HI_SUDO_ALIAS"* && "$out" != *"all defaults"* ]]
+}
+
 # an overlay file still under a name renamed before 1.0 is a red row with
 # the mv that fixes it; the new name beside it is an ordinary override
 function test_config_names_a_file_under_an_old_member_name() {
@@ -752,8 +765,8 @@ function test_config_collapses_the_local_gates_toggles() {
 # nor an alias that reads one (the add-a-flag idiom) counts. _HI_DISABLE_HELIX
 # is in the fixture as the newest toggle rather than an old one - the row's
 # pattern used to be spelled out in doctor.sh and the four per-editor toggles
-# were invisible to it, so a case built only from _HI_DISABLE_TOOL_ALIASES
-# stayed green through exactly the drift the row exists to catch.
+# were invisible to it, so a fixture of older toggles alone would stay green
+# through exactly the drift the row exists to catch.
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_values_set_in_aliases_sh() {
   local dir out
@@ -761,13 +774,13 @@ function test_config_flags_values_set_in_aliases_sh() {
   printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
     'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
     'export _HI_DISABLE_HELIX=1' \
-    'export _HI_DISABLE_TOOL_ALIASES=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
+    'export _HI_DISABLE_EDITORS=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_HELIX _HI_DISABLE_TOOL_ALIASES - "* ]] || return 1
+  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_EDITORS _HI_DISABLE_HELIX - "* ]] || return 1
   printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -1489,6 +1502,7 @@ function run_doctor_tests() {
     _hi_check "Config flags a type,name,color colors file" test_config_flags_an_old_format_colors_file
     _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
     _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
+    _hi_check "Lists an opt-in turned on" test_config_lists_an_opt_in_turned_on
     _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
     _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
     _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles

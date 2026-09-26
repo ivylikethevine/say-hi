@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/convert_settings.sh, which rewrites overlay files an
-# older hi wrote - name:N packages rows, type,name,color colors rows, and
-# _HI_PACKAGES_MIN_PRIORITY - into the shapes this hi reads.
+# older hi wrote - name:N packages rows, type,name,color colors rows,
+# _HI_PACKAGES_MIN_PRIORITY, and the _HI_DISABLE_TOOL_ALIASES and
+# _HI_DISABLE_SUDO_ALIAS toggles - into the shapes this hi reads.
 #
 # The three converters are filters (stdin to stdout) and run in-process
 # through the script's source hatch; the entry point runs as a process
@@ -150,6 +151,14 @@ function test_settings_drop_the_floor_beside_groups() {
     "export _HI_PACKAGES_GROUPS='core'"
 }
 
+# the two alias toggles have nothing left to turn off (the aliases are
+# opt-ins under new names): their lines go, whatever the quoting, and a
+# comment naming one, or a new name, stays
+function test_settings_drop_the_old_alias_toggles() {
+  _hi_conv_is _hi_convert_settings "#!/bin/sh\nexport _HI_DISABLE_TOOL_ALIASES=1\n  _HI_DISABLE_SUDO_ALIAS='0'\n# _HI_DISABLE_TOOL_ALIASES=1 was mine\nexport _HI_SUDO_ALIAS=1\n" \
+    "#!/bin/sh\n# _HI_DISABLE_TOOL_ALIASES=1 was mine\nexport _HI_SUDO_ALIAS=1"
+}
+
 # --- the entry point ---------------------------------------------------------
 
 # each file in the old shape is converted in place, the original kept as
@@ -171,6 +180,20 @@ function test_entry_converts_each_old_file() {
     grep -qx '\[hostname\]' "$dir/colors" &&
     grep -qx "export _HI_PACKAGES_GROUPS='core deprecated'" "$dir/settings.sh" &&
     ! grep -q MIN_PRIORITY "$dir/settings.sh" && grep -qx 'export _HI_MAX_WIDTH=100' "$dir/settings.sh"
+}
+
+# a settings.sh holding only an old alias toggle is old-format too
+function test_entry_converts_the_old_alias_toggles() {
+  local dir="$_HI_WORKDIR/conv-toggles" out
+  mkdir -p "$dir"
+  printf 'export _HI_DISABLE_SUDO_ALIAS=1\nexport _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
+    grep -q _HI_DISABLE_SUDO_ALIAS "$dir/settings.sh.old" &&
+    [ "$(cat "$dir/settings.sh")" = 'export _HI_MAX_WIDTH=100' ] || {
+    _hi_cecho " | said: $out" "$RED"
+    return 1
+  }
 }
 
 # --dry-run names each conversion and writes nothing
@@ -291,9 +314,11 @@ function run_convert_settings_tests() {
   _hi_check "The floor maps to groups; 2 goes" test_settings_map_the_floor_to_groups
   _hi_check "Beside a groups line the floor just goes" test_settings_drop_the_floor_beside_groups
   _hi_check "A trailing comment, install's marker too, is kept" test_settings_keep_the_trailing_comment
+  _hi_check "The old alias toggles go, a comment naming one stays" test_settings_drop_the_old_alias_toggles
 
   _hi_h2 "Testing: convert_settings.sh"
   _hi_check "Converts each old file, keeping <file>.old" test_entry_converts_each_old_file
+  _hi_check "An old alias toggle alone makes settings.sh old-format" test_entry_converts_the_old_alias_toggles
   _hi_check "--dry-run writes nothing" test_entry_dry_run_writes_nothing
   _hi_check "A second run is a no-op" test_entry_is_idempotent
   _hi_check "Current or absent files are left alone" test_entry_leaves_current_files_alone

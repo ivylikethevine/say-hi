@@ -154,24 +154,49 @@ function test_bash_ps1_reports_status_and_cwd_marks() {
     [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]]
 }
 
-# <shell>: a value the user set before hi loads survives it - hi's are
-# defaults - and zsh's prompt_subst stays the user's with the prompt disabled
-function test_rc_keeps_the_users_own_values() {
+# zsh's prompt_subst stays the user's with the prompt disabled
+function test_zsh_keeps_the_users_prompt_subst() {
   local out
-  case "$1" in
-  bash)
-    out="$(_hi_rc_shell xterm-256color bash 'source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1
-      printf %s "$GCC_COLORS"' GCC_COLORS=mine)"
-    [ "$out" = mine ]
-    ;;
-  zsh)
-    out="$(_hi_rc_shell xterm-256color zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
-      printf %s "$CLICOLOR|$LSCOLORS|"
-      _HI_DISABLE_PROMPT=1 zsh -fc "source \$_HI_HOME/say-hi/common/zsh.zsh >/dev/null 2>&1; [[ -o prompt_subst ]] || printf off"' \
-      CLICOLOR=0 LSCOLORS=mine)"
-    [ "$out" = "0|mine|off" ]
-    ;;
+  out="$(_hi_rc_shell xterm-256color zsh \
+    '_HI_DISABLE_PROMPT=1 zsh -fc "source \$_HI_HOME/say-hi/common/zsh.zsh >/dev/null 2>&1; [[ -o prompt_subst ]] || printf off"')"
+  [ "$out" = off ]
+}
+
+# <shell>: hi exports nothing for other tools (GCC_COLORS, CLICOLOR, LSCOLORS,
+# LESSOPEN), and its palette is the shell's own - set, never exported
+_HI_FOREIGN_ENV="GCC_COLORS CLICOLOR LSCOLORS LESSOPEN NC RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN"
+function test_rc_exports_nothing_for_other_tools() {
+  local rc=bash.sh out
+  [ "$1" = zsh ] && rc=zsh.zsh
+  out="$(_hi_rc_shell xterm-256color "$1" 'source "$_HI_HOME/say-hi/common/'"$rc"'" >/dev/null 2>&1
+    printf "%s|" "${NC+set}${RED+set}"
+    for v in '"$_HI_FOREIGN_ENV"'; do
+      env | grep -q "^$v=" && printf "%s " "$v"
+    done')"
+  [ "$out" = "setset|" ] || {
+    _hi_cecho " | $1: [$out]" "$RED"
+    return 1
+  }
+}
+
+# <shell>: the styled tool aliases and the sudo alias are opt-ins - none in a
+# stock session, every one with _HI_TOOL_ALIASES=1 and _HI_SUDO_ALIAS=1. ls
+# is asked of bash and zsh only: fish ships an ls function of its own.
+function test_rc_tool_and_sudo_aliases_are_opt_in() {
+  local shell="$1" names="cat catn bat batn batcat eza exa sudo" script path off on
+  [ "$shell" = fish ] || names="$names ls"
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; for a in '"$names"'; functions -q $a; and printf "%s " $a; end' ;;
   esac
+  path="$(_hi_fake_path rc-optin-tools bat eza exa sudo):$PATH"
+  off="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path")"
+  on="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1)"
+  [ -z "$off" ] && [ "$on" = "$names " ] || {
+    _hi_cecho " | $shell: off [$off], on [$on]" "$RED"
+    return 1
+  }
 }
 
 # No marks off a terminal, on TERM=dumb, or beside a terminal's own
@@ -348,9 +373,10 @@ function test_bash_ble_auto_complete_runs_no_sweep() {
   [ "$out" = "[][web]x" ]
 }
 
-# The deferred exa completion: the first TAB clones eza's registered spec
-# onto exa and answers 124, bash-completion's "retry with the new spec". The
-# loader function is dropped first so a host bash-completion cannot fetch a
+# The deferred exa completion, registered only where hi's tool aliases made
+# exa an alias: the first TAB clones eza's registered spec onto exa and
+# answers 124, bash-completion's "retry with the new spec". The loader
+# function is dropped first so a host bash-completion cannot fetch a
 # different eza spec over the case's own.
 function test_bash_exa_completion_clones_ezas_spec() {
   local out
@@ -360,7 +386,7 @@ function test_bash_exa_completion_clones_ezas_spec() {
     complete -W "--grid --tree" eza
     _hi_load_exa_completion
     printf "%s|" "$?"
-    complete -p exa' _HI_DISABLE_PROMPT=1)"
+    complete -p exa' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
   [[ "$out" == '124|'*'-W'*'--grid --tree'*' exa' ]]
 }
 
@@ -374,8 +400,43 @@ function test_bash_exa_completion_fails_without_an_eza_spec() {
     complete -r eza 2>/dev/null
     _hi_load_exa_completion
     printf "%s|" "$?"
-    complete -p exa' _HI_DISABLE_PROMPT=1)"
+    complete -p exa' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
   [[ "$out" == '1|'*'_hi_load_exa_completion exa' ]]
+}
+
+# <shell>: exa completes as eza only where hi's tool aliases made exa an
+# alias - not with the opt-in off, nor with the user's aliases.sh taking the
+# alias back. zsh's compdef is stubbed over a seeded eza entry, so the host's
+# own completions cannot answer for it.
+function test_exa_completes_as_eza_only_with_the_alias() {
+  local shell="$1" script path cfg="$_HI_WORKDIR/exa-unaliased-$1" mark on off back
+  mkdir -p "$cfg"
+  case "$shell" in
+  bash)
+    mark=_hi_load_exa_completion
+    printf 'unalias exa\n' >"$cfg/aliases.sh"
+    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; complete -p exa 2>/dev/null'
+    ;;
+  zsh)
+    mark=exa=eza
+    printf 'unalias exa\n' >"$cfg/aliases.sh"
+    script='typeset -A _comps; _comps[eza]=_eza; compdef() { print -rn -- "[$*]"; }
+      source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null'
+    ;;
+  fish)
+    mark=eza
+    printf 'functions -e exa\n' >"$cfg/aliases.sh"
+    script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; complete -c exa'
+    ;;
+  esac
+  path="$(_hi_fake_path rc-exa exa):$PATH"
+  on="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1)"
+  off="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path")"
+  back="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1 _HI_CONFIG_DIR="$cfg")"
+  [[ "$on" == *"$mark"* && "$off" != *"$mark"* && "$back" != *"$mark"* ]] || {
+    _hi_cecho " | $shell: on [$on], off [$off], taken back [$back]" "$RED"
+    return 1
+  }
 }
 
 # When starship owns the prompt, hi's per-prompt hook must stay out of its
@@ -497,12 +558,12 @@ function test_remote_session_aliases_overlay_config() {
 
 # At home a tool whose own config is in force gets no alias: naming the file
 # it already reads buys nothing, and `vim -u` or `nano --rcfile` is not a
-# no-op. With no config anywhere there is nothing to name either, so only
-# micro keeps an alias, for hi's flags.
+# no-op. With no config anywhere there is nothing to name either, and
+# micro's default flags are a target's alone.
 # <shell> <own|none>
 _HI_HOME_ALIASED="vim nvim hx nano emacs micro tmux screen zellij"
 function test_home_session_aliases_only_his_configs() {
-  local shell="$1" mode="$2" home="$_HI_WORKDIR/home-$2" script f out want
+  local shell="$1" mode="$2" home="$_HI_WORKDIR/home-$2" script f out
   mkdir -p "$home"
   [ "$mode" = none ] || {
     mkdir -p "$home/.config/nvim" "$home/.config/helix" "$home/.config/micro" "$home/.config/zellij"
@@ -518,10 +579,8 @@ function test_home_session_aliases_only_his_configs() {
   # shellcheck disable=SC2086 # one fake binary per word of the list
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" HOME="$home" \
     PATH="$(_hi_fake_path rc-home-tools $_HI_HOME_ALIASED):$PATH" 2>/dev/null)"
-  want=""
-  [ "$mode" = none ] && want="micro "
-  [ "$out" = "$want" ] && return 0
-  _hi_cecho " | aliased: [$out], wanted [$want]" "$RED"
+  [ -z "$out" ] && return 0
+  _hi_cecho " | aliased: [$out], wanted none" "$RED"
   return 1
 }
 
@@ -569,12 +628,12 @@ function test_plugins_load_in_order_skip_loudly_and_draw() {
   fi
 }
 
-# fish's sudo wrapper is a function behind _HI_DISABLE_SUDO_ALIAS, the same
-# toggle as the POSIX alias; off, `sudo` is the command and nothing else
+# fish's sudo wrapper is a function behind _HI_SUDO_ALIAS, the same opt-in
+# as the POSIX alias; unset, `sudo` is the command and nothing else
 function test_fish_sudo_wrapper_follows_the_toggle() {
   local script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; functions -q sudo; and echo wrapped; or echo bare' on off
-  on="$(_hi_rc_shell xterm-256color fish "$script")"
-  off="$(_hi_rc_shell xterm-256color fish "$script" _HI_DISABLE_SUDO_ALIAS=1)"
+  on="$(_hi_rc_shell xterm-256color fish "$script" _HI_SUDO_ALIAS=1)"
+  off="$(_hi_rc_shell xterm-256color fish "$script")"
   [ "$on" = wrapped ] && [ "$off" = bare ]
 }
 
@@ -646,7 +705,7 @@ function test_foreign_prompt_stays_unless_hi_named() {
 
 # <shell> <want glob> <before-rc script> [NAME=VALUE...] - the prompt drawn
 # once hi's rc and one round of its per-draw hooks ran, then `|` and what `ls`
-# is aliased to
+# is aliased to, with the tool aliases opted into so hi's ls is there to win
 function test_prompt_program_draws() {
   local shell="$1" want="$2" pre="$3" script out h
   shift 3
@@ -656,7 +715,7 @@ function test_prompt_program_draws() {
   zsh) script="$pre"'; source "$_HI_HOME/say-hi/common/zsh.zsh" 2>&1; for f in $precmd_functions; do $f; done; print -rn -- "$PS1|$aliases[ls]"' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>&1; fish_prompt' ;;
   esac
-  out="$(_hi_rc_shell dumb "$shell" "$script" HOME="$h" _HI_CONFIG_DIR="$h/cfg" \
+  out="$(_hi_rc_shell dumb "$shell" "$script" HOME="$h" _HI_CONFIG_DIR="$h/cfg" _HI_TOOL_ALIASES=1 \
     PATH="$(_hi_stub_bin powerline-go 'printf "PLGO %s" "$*"'):$PATH" "$@")"
   # shellcheck disable=SC2053 # $want is a pattern
   [[ "$out" == $want && "$out" != *FW-LS* ]] || {
@@ -821,10 +880,12 @@ function test_fish_registers_hi_completion() {
 # zsh's `compadd` needs a real completion context, so it is stubbed: `-a` is
 # handed the array's *name*, which is what ${(P)} dereferences. zsh's locals
 # are dynamically scoped, so _hi's `flags` is visible from inside the stub.
+# _hi is autoloaded off the $fpath zsh.zsh extended, as compinit would.
 function test_zsh_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    autoload -Uz _hi
     compadd() { local -a a; while (( $# )); do [[ $1 == -a ]] && a=(${(P)2}); shift; done; print -l -- $a }
     words=(hi --c); CURRENT=2
     _hi
@@ -858,15 +919,19 @@ function test_zsh_target_list_colors_per_backend() {
 }
 
 # zsh expands hi's own `hi` alias before completing, so the launcher's name
-# is registered too, or `hi <TAB>` falls through to file completion
+# is registered too, or `hi <TAB>` falls through to file completion. compinit
+# is the rc's: <before|after> runs it ahead of hi's block (compdef registers
+# _hi) or behind it (compinit reads common/_hi's #compdef line off $fpath).
 function test_zsh_completion_covers_the_alias_target() {
-  local out
-  out="$(_hi_rc_shell xterm-256color zsh '
-    autoload -Uz compinit && compinit -u -D
-    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
-    print -r -- "${_comps[hi]}:${_comps[hi.sh]}"')"
+  local init='autoload -Uz compinit && compinit -u -D' before="" after="" out
+  if [ "$1" = before ]; then before="$init"; else after="$init"; fi
+  out="$(_hi_rc_shell xterm-256color zsh "
+    $before
+    source \$_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    $after
+    print -r -- \"\${_comps[hi]}:\${_comps[hi.sh]}\"")"
   [ "$out" = "_hi:_hi" ] || {
-    _hi_cecho " | _comps[hi]:_comps[hi.sh] = $out" "$RED"
+    _hi_cecho " | compinit $1: _comps[hi]:_comps[hi.sh] = $out" "$RED"
     return 1
   }
 }
@@ -877,6 +942,7 @@ function test_zsh_target_completion_uses_the_colored_tag() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    autoload -Uz _hi
     _description() { print -r -- "desc $*"; expl=(-V -default-); }
     compadd() { print -r -- "compadd $*"; }
     _HI_TARGET_ROWS=(web) _HI_TARGET_DESCS=("docker - web") _HI_TARGET_ROWS_AT=$SECONDS
@@ -975,52 +1041,47 @@ function test_local_shell_prints_the_header() {
     [ "$(_hi_greet "$shell" i _HI_DISABLE_HEADER=1)" = 0 ]
 }
 
-# ...and the word after --preview comes from the words roster, described,
-# through the same stub: the flag is in words[CURRENT-1]
-# the full compinit (-u) only once the dump is a day old: a fresh one gets -C,
-# though the age test's glob qualifier needs an option zsh leaves off
-function test_zsh_fresh_dump_skips_the_full_compinit() {
-  local h="$_HI_WORKDIR/freshdump"
+# An rc that runs no compinit gets none from hi: no compinit, promptinit, or
+# compdef defined, no completion table, and no dump written
+function test_zsh_runs_no_compinit_of_its_own() {
+  local h="$_HI_WORKDIR/nodump" out f
   mkdir -p "$h"
-  : >"$h/.zcompdump"
-  _hi_rc_shell dumb zsh 'compinit() { print -rn -- "$*" >"$HOME/called"; }
-    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' HOME="$h" ZDOTDIR="$h" >/dev/null
-  [ "$(cat "$h/called")" = -C ]
-}
-
-# One compinit per shell: after a framework ran one ($_comps is compinit's
-# table) hi runs none, while zinit's queueing compdef stub alone does not count
-function test_zsh_runs_compinit_once() {
-  local h="$_HI_WORKDIR/oncedump" out
-  mkdir -p "$h"
-  out="$(_hi_rc_shell dumb zsh 'compinit() { print -rn -- "ran " >>"$HOME/called"; }
-    _comps=set # its presence is the whole test; compinit makes it a table
-    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
-    [[ -e $HOME/called ]] || print -rn -- none' HOME="$h")"
-  [ "$out" = none ] || return 1
-  out="$(_hi_rc_shell dumb zsh 'compinit() { print -rn -- "ran" >>"$HOME/called2"; }
-    compdef() { :; }
-    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
-    print -rn -- "[$(<$HOME/called2)]"' HOME="$h")"
-  [ "$out" = "[ran]" ]
-}
-
-# compinit sources a compiled dump beside the dump when it is the newer:
-# zsh.zsh builds one and leaves no temporary behind
-function test_zsh_compiles_the_completion_dump() {
-  local f
   # ZDOTDIR set: Alpine's /etc/zsh/zshenv moves it to ~/.config/zsh otherwise
-  _hi_rc_shell dumb zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1' ZDOTDIR="$_HI_WORKDIR" >/dev/null
-  for f in "$_HI_WORKDIR"/.zcompdump.*.zwc; do
+  out="$(_hi_rc_shell dumb zsh 'source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
+    print -rn -- "${+functions[compinit]}${+functions[promptinit]}${+functions[compdef]}${+_comps}"' \
+    HOME="$h" ZDOTDIR="$h")"
+  [ "$out" = 0000 ] || {
+    _hi_cecho " | compinit promptinit compdef _comps: $out" "$RED"
+    return 1
+  }
+  for f in "$h"/.zcompdump*; do
     [ -e "$f" ] && return 1
   done
-  [ -f "$_HI_WORKDIR/.zcompdump.zwc" ]
+  return 0
 }
 
+# common/ joins $fpath once and last, however often the rc is sourced: after
+# the user's own directories, so a completion of theirs named _hi still wins
+function test_zsh_fpath_holds_common_once() {
+  local out
+  out="$(_hi_rc_shell dumb zsh 'fpath=(/mine $fpath)
+    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
+    source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1
+    hits=(${(M)fpath:#$_HI_ROOT/common})
+    print -rn -- "$#hits|$fpath[1]|$fpath[-1]"')"
+  [[ "$out" == "1|/mine|"*/say-hi/common ]] || {
+    _hi_cecho " | count|first|last: $out" "$RED"
+    return 1
+  }
+}
+
+# ...and the word after --preview comes from the words roster, described,
+# through the same stub: the flag is in words[CURRENT-1]
 function test_zsh_completes_the_word_after_preview() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    autoload -Uz _hi
     compadd() { local -a a; while (( $# )); do [[ $1 == -a ]] && a=(${(P)2}); shift; done; print -l -- $a }
     words=(hi --preview ""); CURRENT=3
     _hi
@@ -1281,8 +1342,12 @@ function run_rc_tests() {
   _hi_check "__hi_ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
   _hi_check "...and hands the status on to the hooks after it" test_bash_ps1_hands_on_the_status
   _hi_check "...but no marks off a terminal, on TERM=dumb, or beside kitty's" test_bash_marks_only_where_they_belong
-  _hi_check "A value set before hi loads survives it" test_rc_keeps_the_users_own_values bash
-  _hi_check_requires zsh "...in zsh too, prompt_subst included" test_rc_keeps_the_users_own_values zsh
+  _hi_check_requires zsh "zsh's prompt_subst stays the user's with the prompt off" test_zsh_keeps_the_users_prompt_subst
+  _hi_check "[bash] no other tool's variables, no exported palette" test_rc_exports_nothing_for_other_tools bash
+  _hi_check_requires zsh "[zsh] no other tool's variables, no exported palette" test_rc_exports_nothing_for_other_tools zsh
+  _hi_check "[bash] the tool and sudo aliases are opt-in" test_rc_tool_and_sudo_aliases_are_opt_in bash
+  _hi_check_requires zsh "[zsh] the tool and sudo aliases are opt-in" test_rc_tool_and_sudo_aliases_are_opt_in zsh
+  _hi_check_requires fish "[fish] the tool and sudo aliases are opt-in" test_rc_tool_and_sudo_aliases_are_opt_in fish
   _hi_check "A failing settings.sh line, and the caller's set -u, survive" test_rc_keeps_the_callers_shell_options bash
   _hi_check_requires zsh "...in zsh too" test_rc_keeps_the_callers_shell_options zsh
   _hi_check "An EXIT trap closes the last prompt mark" test_bash_exit_trap_closes_the_prompt_mark
@@ -1295,15 +1360,17 @@ function run_rc_tests() {
   _hi_check "ble.sh's as-you-type completion runs no sweep" test_bash_ble_auto_complete_runs_no_sweep
   _hi_check "the first exa TAB clones eza's spec (124)" test_bash_exa_completion_clones_ezas_spec
   _hi_check "...and fails armed without an eza spec" test_bash_exa_completion_fails_without_an_eza_spec
+  _hi_check "[bash] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias bash
+  _hi_check_requires zsh "[zsh] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias zsh
+  _hi_check_requires fish "[fish] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias fish
   _hi_check "starship handoff installs no __hi_ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
 
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built
   _hi_check_requires zsh "zsh flag TAB completes hi's options" test_zsh_flag_completion_offers_hi_options
   _hi_check_requires zsh "zsh completes the word after --preview" test_zsh_completes_the_word_after_preview
-  _hi_check_requires zsh "zsh skips the full compinit on a fresh dump" test_zsh_fresh_dump_skips_the_full_compinit
-  _hi_check_requires zsh "zsh compiles its completion dump" test_zsh_compiles_the_completion_dump
-  _hi_check_requires zsh "zsh runs no second compinit after a framework's" test_zsh_runs_compinit_once
+  _hi_check_requires zsh "zsh runs no compinit, and writes no dump, of its own" test_zsh_runs_no_compinit_of_its_own
+  _hi_check_requires zsh "zsh's \$fpath holds common/ once, last, after a re-source" test_zsh_fpath_holds_common_once
 
   _hi_h2 "Testing: the environment segment (venv, conda, direnv, nix, ...)"
   # every child's $HOME is $_HI_WORKDIR, so this is the case the mise row was
@@ -1369,6 +1436,7 @@ function run_rc_tests() {
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
   _hi_check "[bash] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config bash screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
   _hi_check "[bash] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
+  _hi_check "[bash] a target's micro gets hi's flags without a micro/" test_remote_session_aliases_overlay_config bash - micro "micro -backup false -savehistory false -mkparents true -diffgutter true"
   _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
@@ -1383,14 +1451,15 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
   _hi_check_requires fish "[fish] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
+  _hi_check_requires fish "[fish] a target's micro gets hi's flags without a micro/" test_remote_session_aliases_overlay_config fish - micro "micro -backup false -savehistory false -mkparents true -diffgutter true"
   _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
-  _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
+  _hi_check_requires fish "[fish] the sudo wrapper follows _HI_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
   _hi_check "[bash] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs bash own
-  _hi_check "[bash] ...and with no config only micro keeps its flags" test_home_session_aliases_only_his_configs bash none
+  _hi_check "[bash] ...and with no config, none at all" test_home_session_aliases_only_his_configs bash none
   _hi_check_requires zsh "[zsh] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs zsh own
-  _hi_check_requires zsh "[zsh] ...and with no config only micro keeps its flags" test_home_session_aliases_only_his_configs zsh none
+  _hi_check_requires zsh "[zsh] ...and with no config, none at all" test_home_session_aliases_only_his_configs zsh none
   _hi_check_requires fish "[fish] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs fish own
-  _hi_check_requires fish "[fish] ...and with no config only micro keeps its flags" test_home_session_aliases_only_his_configs fish none
+  _hi_check_requires fish "[fish] ...and with no config, none at all" test_home_session_aliases_only_his_configs fish none
 
   _hi_h2 "Testing: prompt programs without init (powerline-go, the frameworks)"
   _hi_check "[bash] powerline-go draws each prompt with the status and options" \
@@ -1472,7 +1541,8 @@ function run_rc_tests() {
   _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns zsh zshrc
   _hi_check_requires zsh "[zsh] the target list is colored per backend" test_zsh_target_list_colors_per_backend
   _hi_check_requires zsh "[zsh] target completion carries the colored tag" test_zsh_target_completion_uses_the_colored_tag
-  _hi_check_requires zsh "[zsh] completion covers the alias's launcher" test_zsh_completion_covers_the_alias_target
+  _hi_check_requires zsh "[zsh] a compinit before hi's block registers hi and its launcher" test_zsh_completion_covers_the_alias_target before
+  _hi_check_requires zsh "[zsh] ...and one after it finds common/_hi on \$fpath" test_zsh_completion_covers_the_alias_target after
   _hi_check "[bash] target symbols only while listing" test_bash_target_symbols_only_when_listing
   _hi_check_requires fish "[fish] target rows carry their symbol" test_fish_target_symbols
   _hi_check "[bash] a local interactive shell prints the header" test_local_shell_prints_the_header bash

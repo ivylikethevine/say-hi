@@ -4,7 +4,8 @@
 # keeping each original beside it as <file>.old:
 #   packages     "[-|+]name:N,..." rows -> [group] sections
 #   colors       "type,name,color[,rrggbb]" rows -> [type] sections
-#   settings.sh  _HI_PACKAGES_MIN_PRIORITY -> _HI_PACKAGES_GROUPS
+#   settings.sh  _HI_PACKAGES_MIN_PRIORITY -> _HI_PACKAGES_GROUPS; the
+#                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped
 # A file already in the current shape is left alone, so a second run is a
 # no-op. scripts/install.sh (--install, --configure) and scripts/update.sh
 # run it; add_package.sh's shape: HI.33 the standalone entry, HI.09 the
@@ -119,6 +120,9 @@ function _hi_convert_settings() {
     END {
       for (i = 1; i <= n; i++) {
         l = lines[i]
+        # the tool and sudo aliases went opt-in under new names: the old
+        # disables have nothing left to turn off
+        if (l ~ /^[ \t]*(export[ \t]+)?_HI_DISABLE_(TOOL|SUDO)_ALIAS(ES)?=/) continue
         if (l !~ /^[ \t]*(export[ \t]+)?_HI_PACKAGES_MIN_PRIORITY=/) { print l; continue }
         if (has) continue
         v = l; sub(/^[^=]*=["\047]?/, "", v); sub(/[^0-9].*/, "", v)
@@ -163,7 +167,7 @@ dir="$_HI_CONFIG_DIR"
 while [ $# -gt 0 ]; do
   case "$1" in
   -h | --help)
-    printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' "${0##*/}" "$_HI_CONFIG_DIR"
+    printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' convert_settings.sh "$_HI_CONFIG_DIR"
     exit 0
     ;;
   -n | --dry-run) _HI_DRY_RUN=1 ;;
@@ -175,4 +179,4 @@ done
 
 _hi_convert_one "$dir/packages" _hi_convert_packages '^[^#]*:[0-9]'
 _hi_convert_one "$dir/colors" _hi_convert_colors '^[a-z]+,[^,#]+,'
-_hi_convert_one "$dir/settings.sh" _hi_convert_settings '^[[:space:]]*(export[[:space:]]+)?_HI_PACKAGES_MIN_PRIORITY='
+_hi_convert_one "$dir/settings.sh" _hi_convert_settings '^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS)='

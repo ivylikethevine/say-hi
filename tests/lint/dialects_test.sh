@@ -26,7 +26,8 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # (A comment line here must never *begin* with the word shellcheck - that reads
 # as a directive and fails the very lint that suite runs.)
 #
-# Two kinds of entry. common/zsh.zsh and common/config.fish are not shell the
+# Two kinds of entry. common/zsh.zsh, common/_hi (zsh's completion function,
+# autoloaded off $fpath) and common/config.fish are not shell the
 # linter can parse at all, so their own shell's syntax checker (`zsh -n` /
 # `fish --no-execute`, the same two scripts/install.sh runs against the user's
 # rc files) is the only thing checking them.
@@ -39,6 +40,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # common/core.sh, common/git_prompt.sh and both of those through common/zsh.zsh.
 _HI_NATIVE_LINT=(
   "common/zsh.zsh:zsh:-n"
+  "common/_hi:zsh:-n"
   "common/config.fish:fish:--no-execute"
   "common/aliases.sh:fish:--no-execute"
   "common/paths.sh:fish:--no-execute"
@@ -178,9 +180,10 @@ function lint_fish4() { _hi_lint_fish_parse fish4 hi-fish4 "fish 4 ceiling"; }
 # modes here are *runtime*: `add-zsh-hook zshexit`, `${(%):-%x}`, `${~pat}` and
 # the KSH_ARRAYS divergence all parse on every zsh and only misbehave on an old
 # one. So this parses the files and then sources common/zsh.zsh for real, in an
-# interactive shell, and asks the four things a session actually depends on -
-# a prompt, the aliases, a resolved host color, and the prompt separator. A
-# `zsh -n` sweep alone would have passed every one of those constructs.
+# interactive shell with the tool aliases opted into, and asks the five things
+# a session actually depends on - a prompt, the aliases, a resolved host
+# color, the prompt separator, and hi's completion once the rc's compinit
+# runs. A `zsh -n` sweep alone would have passed every one of those constructs.
 function lint_zsh55() {
   local out rc=0 backend="${_HI_BACKEND:-docker}"
   local -a files=()
@@ -198,12 +201,14 @@ function lint_zsh55() {
     done
     [ "$rc" = 0 ] || exit "$rc"
     mkdir -p /tmp/cfg
-    HOME=/tmp _HI_HOME=/w _HI_CONFIG_DIR=/tmp/cfg zsh -ic "
+    HOME=/tmp _HI_HOME=/w _HI_CONFIG_DIR=/tmp/cfg _HI_TOOL_ALIASES=1 zsh -ic "
       source /w/say-hi/common/zsh.zsh
       [ -n \"\$PS1\" ] || { print -r -- \"NO PROMPT\"; exit 1 }
       alias cat >/dev/null || { print -r -- \"NO ALIASES\"; exit 1 }
       [ -n \"\$(_hi_host_color)\" ] || { print -r -- \"NO HOST COLOR\"; exit 1 }
       [ -n \"\$(_hi_prompt_end ZSH)\" ] || { print -r -- \"NO PROMPT END\"; exit 1 }
+      autoload -Uz compinit && compinit -u -D
+      [ \"\${_comps[hi]-}\" = _hi ] || { print -r -- \"NO COMPLETION\"; exit 1 }
     " || rc=1
     zsh --version
     exit $rc' sh "${files[@]}" 2>&1)" || rc=$?

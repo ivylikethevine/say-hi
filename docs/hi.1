@@ -521,6 +521,13 @@ of the 1.x contract.
 .SH COMPLETION
 bash, zsh, and fish all complete from one lister,
 .BR common/targets.sh .
+zsh's completion function is
+.B common/_hi
+on
+.BR $fpath ;
+hi runs no
+.BR compinit :
+the one your rc runs, before hi's block or after it, picks it up.
 .TP
 .B hi <TAB>
 every target: the
@@ -675,8 +682,10 @@ and micro's and zellij's own config directories.
 your own aliases, sourced after hi's, so one of the same name replaces hi's.
 .BR _HI_*_OPTS ,
 .BR _HI_*_BIN ,
+.BR _HI_DISABLE_* ,
+.BR _HI_TOOL_ALIASES ,
 and
-.B _HI_DISABLE_*
+.B _HI_SUDO_ALIAS
 values set here arrive too late: they belong in
 .BR settings.sh .
 .TP
@@ -709,8 +718,7 @@ the starship, bat, and eza configs in force here (or wherever
 or
 .B EZA_CONFIG_DIR
 points), carried to every target \- starship's only when starship is a
-prompt program a target is handed. The aliases then leave out bat's theme
-flag. A
+prompt program a target is handed. A
 .BR starship.toml ,
 .BR bat.conf ,
 or

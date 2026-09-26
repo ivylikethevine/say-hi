@@ -338,6 +338,47 @@ function _hi_barebones() {
     'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$(eval "$_HI_CASE_PROBE")"' "$@"
 }
 
+# a bash before 4.4, where _hi_prompt_escape has no ${x@P} to answer with and
+# the binaries, then the variables, are the ladder
+_HI_NO_ESCAPE='_hi_prompt_escape() { return 1; };'
+
+# _hi_prompt_escape: the shell expands the escape itself - bash 4.4+'s
+# ${x@P} - into the named variable, and an older bash says 1
+function test_prompt_escape_answers_in_the_shell() {
+  local out="" rc=0
+  _hi_prompt_escape out '\u' || rc=$?
+  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
+    [ "$rc" = 0 ] && [ "$out" = "$(id -un)" ] || _hi_because "\\u: rc $rc, [$out]"
+  else
+    [ "$rc" = 1 ] || _hi_because "bash $BASH_VERSION: rc $rc"
+  fi
+}
+
+# ...and zsh's (%) flag, any zsh
+function test_zsh_prompt_escape_answers_in_the_shell() {
+  local out
+  out="$(env _HI_HOME="$_HI_HOME" zsh -c 'source "$_HI_HOME/say-hi/common/core.sh"
+    _hi_prompt_escape v "%n" && print -rn -- "$v"' 2>&1)"
+  [ "$out" = "$(id -un)" ] || _hi_because "%n: [$out]"
+}
+
+# the host's name is the kernel's, from bash's \H or the binaries: an
+# exported $HOSTNAME from somewhere else cannot rename it (zsh forks for it)
+function test_hostname_ignores_an_inherited_hostname() {
+  local out
+  out="$(env -u _HI_HOSTNAME_CACHE _HI_HOME="$_HI_HOME" HOSTNAME=fake-inherited bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; _hi_hostname' 2>&1)"
+  [ "$out" = "$(uname -n)" ] || _hi_because "_hi_hostname: [$out]"
+}
+
+# <shell>: the user is the passwd entry's, never an inherited $USER/$LOGNAME
+function test_whoami_ignores_an_inherited_user() {
+  local out
+  out="$(env -u _HI_WHOAMI_CACHE _HI_HOME="$_HI_HOME" USER=fake-inherited LOGNAME=fake-inherited "$1" -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; _hi_whoami' 2>&1)"
+  [ "$out" = "$(id -un)" ] || _hi_because "$1 _hi_whoami: [$out]"
+}
+
 # $EPOCHREALTIME unset is bash 3.2 (macOS) as much as it is a stripped box:
 # unsetting it drops the special attribute, so the date(1) rung is reachable
 # from a bash 5 that would otherwise never fork.
@@ -558,6 +599,26 @@ function test_colors_pattern_row_is_a_glob() {
     [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname web-1)" = red ] &&
     ! _HI_COLORS="$colors" _hi_colors_lookup hostname web-2 &&
     ! _HI_COLORS="$colors" _hi_colors_pattern hostname web-10
+}
+
+# _hi_colors_scan reuses the rows a caller's batch loaded once - a file
+# changed after the load goes unseen - and without a batch reads the file
+# itself, into rows of its own that leave the caller's alone
+function _hi_colors_batch_probe() {
+  local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" batched unbatched
+  _hi_colors_load
+  printf '[username]\nalice blue\n' >"$_HI_COLORS"
+  _hi_colors_scan username alice '' batched
+  _HI_COLORS_BATCH=0
+  _hi_colors_scan username alice '' unbatched
+  printf '%s|%s|%s' "$batched" "$unbatched" "${_HI_COLORS_ROWS//$'\x1f'/,}"
+}
+
+function test_colors_scan_reads_a_batch_once() {
+  local colors="$_HI_WORKDIR/colors.batch" out
+  printf '[username]\nalice red\n' >"$colors"
+  out="$(_HI_COLORS="$colors" _hi_colors_batch_probe)"
+  [ "$out" = "red|blue|username,alice,red," ] || _hi_because "batched|unbatched|rows: $out"
 }
 
 function test_zsh_pin_hex_agrees_with_bash() {
@@ -1290,16 +1351,13 @@ function test_release_or_describe_empty_without_either() {
   )
 }
 
-# lesspipe/debian_chroot both read hardcoded absolute paths
-# (/usr/bin/lesspipe, /etc/debian_chroot) rather than anything on $PATH, so
-# there is no fixture-able way to force either arm on a box that lacks them
-# (this one does) short of writing outside the checkout - only the
-# already-exported skip is portable.
-function test_interactive_extras_skips_lesspipe_when_already_set() {
+# _hi_interactive_extras sets the debian_chroot label and nothing for less:
+# no lesspipe, so no LESSOPEN or LESSCLOSE, whatever the box has installed
+function test_interactive_extras_leaves_less_alone() {
   (
-    LESSOPEN=already-set
+    unset LESSOPEN LESSCLOSE
     _hi_interactive_extras
-    [ "$LESSOPEN" = already-set ]
+    [ -z "${LESSOPEN+x}${LESSCLOSE+x}" ]
   )
 }
 
@@ -1334,6 +1392,28 @@ function test_setting_get_fails_for_a_missing_file_and_an_unset_name() {
   ! _hi_setting_get "$_HI_WORKDIR/absent.sh" _HI_PROBE_SG >/dev/null || return 1
   out="$(_hi_setting_get "$f" _HI_NEVER_SET_SG)" && return 1
   [ -z "$out" ] && [ "$(_hi_setting_get "$f" _HI_PROBE_SG)" = yes ]
+}
+
+# _hi_unexport <shell> - the _HI_* names a child of <shell> sees, sorted,
+# after core.sh, every roster name exported, two strays beside them, and
+# _hi_unexport: exactly the roster, from the one call that un-exports the rest
+function _hi_unexported_env() {
+  env _HI_HOME="$_HI_HOME" _HI_PROBE_UX1=a _HI_PROBE_UX2=b "$1" -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    for n in "${_HI_CHILD_ENV[@]}"; do eval "export $n=\"\${$n-set}\""; done
+    _hi_unexport
+    env | grep -o "^_HI_[A-Za-z0-9_]*" | sort | tr "\n" " "' 2>/dev/null
+}
+
+function test_unexport_leaves_exactly_the_roster() {
+  local want out
+  want="$(printf '%s\n' "${_HI_CHILD_ENV[@]}" | sort | tr '\n' ' ')"
+  out="$(_hi_unexported_env "$1")"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | $1 exports: $out" "$RED"
+    _hi_cecho " | roster:     $want" "$RED"
+    return 1
+  }
 }
 
 # an _HI_* name outside _HI_CHILD_ENV stays set in the shell but stops
@@ -1426,14 +1506,20 @@ function run_core_tests() {
   _hi_check "Rows are scoped to their [type] section" test_colors_rows_are_scoped_to_their_section
   _hi_check "Comments, blanks and old comma rows are skipped" test_colors_skips_comments_blanks_and_old_rows
   _hi_check "A pattern row is a glob, not an exact pin" test_colors_pattern_row_is_a_glob
+  _hi_check "A batch reads the file once, a lone scan every time" test_colors_scan_reads_a_batch_once
   _hi_check_requires zsh "A pinned hex agrees in zsh" test_zsh_pin_hex_agrees_with_bash
 
   _hi_h2 "Testing: a target with nothing but a shell"
-  _hi_check_eq "Hostname falls back to the shell's own" probe-host _hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=probe-host
-  _hi_check_eq "...and to \"unknown\" with nothing to ask" unknown _hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=
-  _hi_check_eq "Whoami falls back to \$USER" probe-user _hi_barebones _HI_CASE_PROBE=_hi_whoami USER=probe-user
-  _hi_check_eq "...and to \$LOGNAME" probe-logname _hi_barebones _HI_CASE_PROBE=_hi_whoami LOGNAME=probe-logname
-  _hi_check_eq "...and to \"unknown\" with nothing to ask" unknown _hi_barebones _HI_CASE_PROBE=_hi_whoami
+  _hi_check_eq "Hostname falls back to the shell's own" probe-host _hi_barebones _HI_CASE_PROBE="$_HI_NO_ESCAPE _hi_hostname" HOSTNAME=probe-host
+  _hi_check_eq "...and to \"unknown\" with nothing to ask" unknown _hi_barebones _HI_CASE_PROBE="$_HI_NO_ESCAPE _hi_hostname" HOSTNAME=
+  _hi_check_eq "Whoami falls back to \$USER" probe-user _hi_barebones _HI_CASE_PROBE="$_HI_NO_ESCAPE _hi_whoami" USER=probe-user
+  _hi_check_eq "...and to \$LOGNAME" probe-logname _hi_barebones _HI_CASE_PROBE="$_HI_NO_ESCAPE _hi_whoami" LOGNAME=probe-logname
+  _hi_check_eq "...and to \"unknown\" with nothing to ask" unknown _hi_barebones _HI_CASE_PROBE="$_HI_NO_ESCAPE _hi_whoami"
+  _hi_check "The shell's escape answers, no binary asked" test_prompt_escape_answers_in_the_shell
+  _hi_check_requires zsh "...in zsh too" test_zsh_prompt_escape_answers_in_the_shell
+  _hi_check "An inherited \$HOSTNAME does not steer _hi_hostname" test_hostname_ignores_an_inherited_hostname
+  _hi_check "An inherited \$USER does not steer _hi_whoami" test_whoami_ignores_an_inherited_user bash
+  _hi_check_requires zsh "...in zsh too" test_whoami_ignores_an_inherited_user zsh
   _hi_check "_hi_now answers without date(1)" test_now_answers_without_date
   _hi_check "...and in whole seconds from a date(1) with no %N" test_now_takes_whole_seconds_from_a_date_without_nanoseconds
 
@@ -1463,7 +1549,7 @@ function run_core_tests() {
   _hi_check "A shipped \$_HI_RELEASE wins outright" test_release_or_describe_prefers_the_stamp
   _hi_check "Falls back to git describe against \$_HI_ROOT" test_release_or_describe_falls_back_to_git
   _hi_check "Empty with neither a stamp nor a .git" test_release_or_describe_empty_without_either
-  _hi_check "_hi_interactive_extras skips the lesspipe fork when LESSOPEN is set" test_interactive_extras_skips_lesspipe_when_already_set
+  _hi_check "_hi_interactive_extras sets nothing for less" test_interactive_extras_leaves_less_alone
 
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
@@ -1504,6 +1590,8 @@ function run_core_tests() {
   _hi_check "_hi_on_exit installs a trap that fires in bash" test_on_exit_installs_a_trap_that_fires_in_bash
   _hi_check "_hi_setting_get: rc 1 for a missing file and an unset name" test_setting_get_fails_for_a_missing_file_and_an_unset_name
   _hi_check "_hi_unexport keeps the value, drops the export bit" test_unexport_keeps_values_and_drops_the_export_bit
+  _hi_check "...leaving exactly \$_HI_CHILD_ENV exported" test_unexport_leaves_exactly_the_roster bash
+  _hi_check_requires zsh "...in zsh too" test_unexport_leaves_exactly_the_roster zsh
 
   _hi_h2 "Testing: HI.33's bash arm - \$_HI_HOME self-derivation"
   _hi_check "sourced by its real path with \$_HI_HOME unset" test_hi_home_self_derives_when_unset

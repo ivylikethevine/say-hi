@@ -76,9 +76,9 @@ function test_probe_cmd_bash_shape_fires_only_with_a_real_root() {
     ! _hi_probe_says_ok bash "" /nonexistent/say-hi
 }
 
-function test_probe_cmd_fallback_shape_fires_only_with_the_alias() {
-  _hi_probe_says_ok fallback "alias cat='x'; " &&
-    ! _hi_probe_says_ok fallback ""
+function test_probe_cmd_fallback_shape_fires_only_with_the_aliases_default() {
+  _hi_probe_says_ok fallback "_HI_EZA_OPTS=x; " &&
+    ! _hi_probe_says_ok fallback "unset _HI_EZA_OPTS; "
 }
 
 function test_probe_cmd_ssh_fallback_fires_only_with_hi_info() {
@@ -94,8 +94,8 @@ function test_probe_cmd_rooted_elsewhere_fires_off_another_tree() {
 }
 
 function test_probe_cmd_fish_shapes_run_under_fish() {
-  _hi_probe_says_ok fallback_fish "function cat; end; " "" fish &&
-    ! _hi_probe_says_ok fallback_fish "" "" fish &&
+  _hi_probe_says_ok fallback_fish "set -g _HI_EZA_OPTS x; " "" fish &&
+    ! _hi_probe_says_ok fallback_fish "set -e _HI_EZA_OPTS; " "" fish &&
     _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " "" fish &&
     ! _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " /nonexistent/say-hi fish
 }
@@ -638,7 +638,7 @@ function run_lib_process_tests() {
 
   _hi_h2 "Testing: _hi_probe_cmd"
   _hi_check "Bash shape fires only with a real root" test_probe_cmd_bash_shape_fires_only_with_a_real_root
-  _hi_check "Container fallback fires only with the alias" test_probe_cmd_fallback_shape_fires_only_with_the_alias
+  _hi_check "Container fallback fires only with aliases.sh's defaults" test_probe_cmd_fallback_shape_fires_only_with_the_aliases_default
   _hi_check "Ssh fallback fires only with hi_info" test_probe_cmd_ssh_fallback_fires_only_with_hi_info
   _hi_check_requires fish "Fish shapes run under fish" test_probe_cmd_fish_shapes_run_under_fish
   _hi_check "rooted_elsewhere fires only off another tree" test_probe_cmd_rooted_elsewhere_fires_off_another_tree
