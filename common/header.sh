@@ -789,7 +789,7 @@ function _hi_cell_pods() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PODS; 
 function _hi_cell_auth() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_AUTH; }
 function _hi_cell_pub() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PUB; }
 
-# "~~~ <label> [host] ~~~" prefixed with say-hi's local change count, always
+# "=== <label> [host] ===" prefixed with say-hi's local change count, always
 # _hi_draw_width columns wide
 function banner() {
   [[ "${_HI_DISABLE_BANNER:-0}" == 1 ]] && return 0
@@ -826,7 +826,7 @@ function banner() {
       changes_w=$((changes_w + ${#_HI_BANNER_BRANCH} + 3))
     fi
   fi
-  local host tildes start_len end_len start_tildes end_tildes width left core lead=" "
+  local host fill start_len end_len start_fill end_fill width left core lead=" "
   [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && lead=""
   # memoized for the same reason; the hostname memo primed in this shell
   if [ -z "${_HI_BANNER_HOST+x}" ]; then
@@ -835,23 +835,22 @@ function banner() {
   fi
   host="$_HI_BANNER_HOST"
   _hi_draw_width width
-  # split so "label [host]" lands at the center with at least 1 tilde on the left
+  # split so "label [host]" lands at the center with at least 1 "=" on the left
   left=$((${#prefix} + ${#lead} + changes_w))
   core=$((${#label} + ${#host} + 4))
-  tildes=$((width - left - core - 1))
-  ((tildes < 4)) && tildes=4
+  fill=$((width - left - core - 1))
+  ((fill < 4)) && fill=4
   start_len=$((width / 2 - left - core / 2))
   ((start_len < 1)) && start_len=1
-  ((start_len > tildes - 1)) && start_len=$((tildes - 1))
-  end_len=$((tildes - start_len))
-  _hi_repeat start_tildes "$start_len" '~'
-  _hi_repeat end_tildes "$end_len" '~'
-  # the tildes drop bold (SGR 22) and keep the color: a terminal that draws a
-  # bold run at the bold face's own advance (Konsole) otherwise stretches it
-  # past the rows' right edge. $color again restores the label's own weight.
+  ((start_len > fill - 1)) && start_len=$((fill - 1))
+  end_len=$((fill - start_len))
+  _hi_repeat start_fill "$start_len" "="
+  _hi_repeat end_fill "$end_len" "="
+  # the fill at normal weight (SGR 22) in the label's color; $color again
+  # restores the label's own weight
   local host_esc="" thin="${NC:+\e[22m}"
   _hi_host_escape host_esc
-  printf '%b\n' "$lead$changes$color$thin$start_tildes $color$label ${NC}[$host_esc$host$NC]$color$thin $end_tildes$NC"
+  printf '%b\n' "$lead$changes$color$thin$start_fill $color$label ${NC}[$host_esc$host$NC]$color$thin $end_fill$NC"
 }
 
 # hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word

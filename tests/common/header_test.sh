@@ -252,11 +252,11 @@ function test_banner_includes_label_and_host() {
 }
 
 # a longer prefix reserves more of the (already-printed) line, so it should
-# shrink - never grow - the tilde padding banner prints for itself
+# shrink - never grow - the "=" padding banner prints for itself
 #
 # The hostname is pinned rather than taken from the machine. banner budgets a
 # fixed width between the change count, the label, the host, and the prefix, and
-# floors the tildes at 4 once that budget is gone - so on a host whose name runs
+# floors the fill at 4 once that budget is gone - so on a host whose name runs
 # past ~54 characters *both* calls floor, the two lines come out the same length
 # and this reads as a failure of the padding logic when it is really a failure
 # to control the fixture. That is what it did on the macOS CI runner.
@@ -288,21 +288,21 @@ function test_banner_floors_padding_on_a_long_hostname() {
     unset _HI_BANNER_HOST
     banner TestBanner
   )"
-  [[ "$out" == *"$_HI_HOSTNAME_CACHE"* && "$out" == *"~"* ]]
+  [[ "$out" == *"$_HI_HOSTNAME_CACHE"* && "$out" == *"="* ]]
 }
 
-# One arm per half, each naming itself: the tildes cannot go missing by
-# construction (the floor is 4, and start_len caps at tildes - 1), so if this
+# One arm per half, each naming itself: the fill cannot go missing by
+# construction (the floor is 4, and start_len caps at fill - 1), so if this
 # fails on the label it means banner printed nothing at all - a different bug,
 # and one a bare FAILED has hidden twice on Windows arm64.
-function test_banner_floors_tildes_on_long_label() {
+function test_banner_floors_fill_on_long_label() {
   local out label
-  label="$(printf 'x%.0s' {1..200})" # forces the ((tildes < 4)) floor
+  label="$(printf 'x%.0s' {1..200})" # forces the ((fill < 4)) floor
   out="$(banner "$label")"
   [[ "$out" == *"$label"* ]] ||
     _hi_because "banner dropped the label, printing ${#out} chars: [$out]" || return 1
-  [[ "$out" == *"~"* ]] ||
-    _hi_because "banner printed no tilde: [$out]"
+  [[ "$out" == *"="* ]] ||
+    _hi_because "banner printed no fill: [$out]"
 }
 
 function test_banner_narrow_width_does_not_error() {
@@ -765,7 +765,7 @@ function test_banner_omits_the_count_without_a_git_dir() {
 # computes fresh. _HI_BANNER_HOST is unset alongside the change/branch caches
 # for the same reason the sibling at the top of this file pins the hostname:
 # banner memoizes it, and a real host name long enough to floor the padding
-# (macOS CI) makes every call print 4 tildes, which reads as a padding bug and
+# (macOS CI) makes every call print 4 "=", which reads as a padding bug and
 # is really an uncontrolled fixture. Runs in a subshell, so nothing leaks.
 function _hi_fixture_banner() {
   (
@@ -814,8 +814,8 @@ function test_banner_branch_stays_out_of_remote_banners() {
   done
 }
 
-# the branch spends the tilde budget, not line width: same label, same repo,
-# fewer tildes once the indicator is on the line - the hostname pinned so the
+# the branch spends the fill budget, not line width: same label, same repo,
+# less fill once the indicator is on the line - the hostname pinned so the
 # padding being compared is a controlled fixture (see _hi_fixture_banner)
 function test_banner_branch_shrinks_padding() {
   local dir plain branched _HI_HOSTNAME_CACHE="pinned-host"
@@ -823,7 +823,7 @@ function test_banner_branch_shrinks_padding() {
   plain="$(_hi_fixture_banner "$dir" Online)"
   git -C "$dir" checkout -qb feature-x
   branched="$(_hi_fixture_banner "$dir" Online)"
-  [ "$(tr -dc '~' <<<"$branched" | wc -c)" -lt "$(tr -dc '~' <<<"$plain" | wc -c)" ]
+  [ "$(tr -dc '=' <<<"$branched" | wc -c)" -lt "$(tr -dc '=' <<<"$plain" | wc -c)" ]
 }
 
 # the regression this toggle exists for: silencing the banner must leave the
@@ -2214,7 +2214,7 @@ function run_header_tests() {
   _hi_check "Includes label and hostname" test_banner_includes_label_and_host
   _hi_check "A longer prefix shrinks the padding" test_banner_prefix_shrinks_padding
   _hi_check "Floors padding on a long hostname" test_banner_floors_padding_on_a_long_hostname
-  _hi_check "Floors tilde padding on a pathologically long label" test_banner_floors_tildes_on_long_label
+  _hi_check "Floors fill padding on a pathologically long label" test_banner_floors_fill_on_long_label
   _hi_check "Survives a narrow _HI_MAX_WIDTH" test_banner_narrow_width_does_not_error
   _hi_check "ASCII fallback swaps the arrow" test_banner_ascii_fallback_uses_caret
   _hi_check "...and the marks with it" test_marks_swap_to_ascii_with_the_set
@@ -2226,7 +2226,7 @@ function run_header_tests() {
   _hi_check "Online stays quiet on main" test_banner_online_stays_quiet_on_main
   _hi_check "Online stays quiet when detached" test_banner_online_stays_quiet_when_detached
   _hi_check "Branch stays out of Connected/Disconnected" test_banner_branch_stays_out_of_remote_banners
-  _hi_check "Branch spends tilde budget, not width" test_banner_branch_shrinks_padding
+  _hi_check "Branch spends fill budget, not width" test_banner_branch_shrinks_padding
 
   _hi_h2 "Testing: timestamp / sysinfo / identity rows (smoke tests)"
   _hi_check "Timestamp prints three cells" test_timestamp_runs_and_has_three_cells

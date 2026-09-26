@@ -543,7 +543,7 @@ _HI_FEATURE_PROMPTS=(
 # $_HI_HEADER_ORDER's reorderable feature list (it always leads). Every other
 # row is addressed at the finer feature grain, as the menu's header items.
 _HI_HEADER_PROMPTS=(
-  "_HI_DISABLE_BANNER|1||||banner - the ~~~ Connected [host] ~~~ line, always first"
+  "_HI_DISABLE_BANNER|1||||banner - the === Connected [host] === line, always first"
 )
 
 # the prompt's own switches, together: off altogether (a feature toggle,

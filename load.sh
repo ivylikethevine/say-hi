@@ -288,7 +288,7 @@ function _hi_session_editor() {
 
 # The connect and disconnect lines are each assembled by several writers that
 # print no newline of their own - hi.sh's payload size, the totals in load()
-# below, and banner(), which widens its tildes by the prefix already on the
+# below, and banner(), which widens its fill by the prefix already on the
 # line instead of starting a new one. Whoever writes last closes it, so with
 # the header off (no banner) and nothing optional left to print, this does.
 function _hi_line_close() {
@@ -307,7 +307,7 @@ function load() {
   # one machine, since clock skew makes a client/target subtraction
   # meaningless. `load` is not in it - this prints before that leg starts. It
   # continues the size hi.sh printed with no newline, so the total has to
-  # widen $_HI_CONNECT_PREFIX or the banner's tildes come out wrong.
+  # widen $_HI_CONNECT_PREFIX or the banner's fill come out wrong.
   total="$(_hi_sum "${_HI_CONNECT_TIME:-0}" "${_HI_COPY_TIME:-0}")"
   _hi_cecho " | ${total}s" "$NC" 1
   hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
