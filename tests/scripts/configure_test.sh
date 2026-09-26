@@ -1239,7 +1239,8 @@ function _hi_cfg_screen_has() {
 # _hi_cfg_titles <label> - every draw's title, in order, comma-joined
 function _hi_cfg_titles() {
   _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
-    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?)  -.*/\1/p' | paste -sd, -
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?|Header|Prompt|Editors|Aliases|This machine|Advanced)  -.*/\1/p' |
+    paste -sd, -
 }
 
 # every section's letter in order, then b: the six pages and the main page
@@ -1686,7 +1687,7 @@ function test_menu_pages_fit_24_rows() {
 # terminal, a narrow one cutting help text and summaries rather than wrapping
 # them, and the pages draw in the order their letters were typed
 function _hi_menu_layout_at() {
-  local w="$1" label="layout_$1" line len over=0 titles
+  local w="$1" label="layout_$1" line len over=0 titles want
   _HI_TERM_COLS="$w" _hi_cfg_pty "$label" "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
   while IFS= read -r line; do
     case "$line" in *CFGRC=*) continue ;; esac
@@ -1699,7 +1700,10 @@ function _hi_menu_layout_at() {
     over=1
   done < <(_hi_strip_ansi "$(<"$_HI_WORKDIR/$label.cfg.out")" | tr -d '\r')
   titles="$(_hi_cfg_titles "$label")"
-  [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || {
+  want="$_HI_MENU_EVERY_TITLE"
+  # under 60 columns a page's title is its name alone
+  ((w >= 60)) || want="${want//hi --configure: /}"
+  [ "$titles" = "$want" ] || {
     _hi_cecho " | the pages at $w columns: [$titles]" "$RED"
     return 1
   }
