@@ -846,9 +846,12 @@ function banner() {
   end_len=$((tildes - start_len))
   _hi_repeat start_tildes "$start_len" '~'
   _hi_repeat end_tildes "$end_len" '~'
-  local host_esc=""
+  # the tildes drop bold (SGR 22) and keep the color: a terminal that draws a
+  # bold run at the bold face's own advance (Konsole) otherwise stretches it
+  # past the rows' right edge. $color again restores the label's own weight.
+  local host_esc="" thin="${NC:+\e[22m}"
   _hi_host_escape host_esc
-  printf '%b\n' "$lead$changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
+  printf '%b\n' "$lead$changes$color$thin$start_tildes $color$label ${NC}[$host_esc$host$NC]$color$thin $end_tildes$NC"
 }
 
 # hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
@@ -1262,7 +1265,8 @@ function full_check() {
     width_item="${row_widths[$i]}"
     piece="${row_pieces[$i]}"
     ((i == pkg_start)) && {
-      piece="|$piece"
+      # bold bright white, outside the palette; $NC is empty under NO_COLOR
+      piece="${NC:+\e[1;97m}||$NC${piece#|}"
       width_item=$((width_item + 1))
     }
     if ((width + width_item > max)); then # start of a row
