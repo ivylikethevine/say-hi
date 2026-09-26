@@ -43,7 +43,7 @@ Show
 Sleep 1s
 Type "hi dev-box"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 2s
 
 Type "nano ~/app/app.conf   # my nanorc, on a box that has none"

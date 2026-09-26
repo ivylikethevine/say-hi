@@ -48,7 +48,7 @@ Show
 Sleep 1s
 Type "hi db-prod"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 3s
 
 # a checkout on the target: the git segment, then `cat` through the box's bat

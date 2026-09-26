@@ -47,7 +47,7 @@ Enter
 
 Type "hi -F ~/.ssh/config db-prod   # tagged prod: red"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 3s
 Type "exit"
 Enter
@@ -56,7 +56,7 @@ Sleep 1s
 
 Type "hi -F ~/.ssh/config dev-1   # tagged dev: green"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 3s
 Type "exit"
 Enter

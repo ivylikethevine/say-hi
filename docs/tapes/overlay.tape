@@ -62,7 +62,7 @@ Sleep 4s
 
 Type "hi db-prod   # debian, bash"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 2s
 Type "dfh"
 Enter
@@ -76,7 +76,7 @@ Enter
 
 Type "hi edge-1   # alpine via podman, session in fish"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 2s
 Type "dfh"
 Enter

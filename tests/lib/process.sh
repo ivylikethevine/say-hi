@@ -292,7 +292,7 @@ function _hi_exec_case() {
 # The full-load banner is a named constant because ssh_relay_test.sh counts
 # sessions by it too: a reword of load()'s banner has to move this one string,
 # not this grep plus a stray one in a suite.
-_HI_SESSION_LOADED_RE='hi loaded with'
+_HI_SESSION_LOADED_RE='hi loaded:'
 function _hi_session_ready() {
   grep -qE "$_HI_SESSION_LOADED_RE|aliases only" "$1" 2>/dev/null
 }

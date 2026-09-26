@@ -524,7 +524,7 @@ declare -a _HI_SETTING_LINES=()
 # `_HI_*_PROMPTS` table is what tests/lint's settings-table check reads.
 _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HEADER|1||||connect/disconnect header - off hides every row below"
-  "_HI_DISABLE_GREETING|1||||greeting - the \"hi loaded with...\" line and its timers"
+  "_HI_DISABLE_GREETING|1||||greeting - the \"hi loaded:\" line and its timers"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status - the branch and its changes"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment - (myproj) for a venv, ..."
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix, kak"

@@ -45,7 +45,7 @@ Sleep 3s
 
 Type "hi nas"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 4s
 Type "exit"
 Enter
@@ -58,7 +58,7 @@ Type "# the same check on the pihole"
 Enter
 Type "hi pihole"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 5s
 Type "exit"
 Enter
