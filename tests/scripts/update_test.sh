@@ -70,6 +70,31 @@ function test_update_to_a_tag_detaches_there() {
   ! git -C "$home/say-hi" symbolic-ref -q HEAD >/dev/null 2>&1
 }
 
+# after the checkout, the tag's own convert_settings.sh rewrites an overlay
+# file an older hi wrote, keeping the original as <file>.old
+function test_update_converts_an_old_overlay() {
+  local home cfg out
+  home="$(_hi_update_fixture upd-convert)" || return 1
+  cfg="$home/overlay"
+  mkdir -p "$cfg"
+  printf 'bat:3,batcat:3\n' >"$cfg/packages"
+  out="$(_HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --update v0.0.2)" || return 1
+  [[ "$out" == *"now on v0.0.2"* && "$out" == *"converted $cfg/packages"* ]] &&
+    grep -qx '\[core\]' "$cfg/packages" && grep -qx 'bat:3,batcat:3' "$cfg/packages.old"
+}
+
+# ...and a dry run, which checks nothing out, converts nothing either
+function test_update_dry_run_converts_nothing() {
+  local home cfg out
+  home="$(_hi_update_fixture upd-convert-dry)" || return 1
+  cfg="$home/overlay"
+  mkdir -p "$cfg"
+  printf 'bat:3,batcat:3\n' >"$cfg/packages"
+  out="$(_HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --update --dry-run v0.0.2)" || return 1
+  [[ "$out" != *converted* ]] && [ ! -e "$cfg/packages.old" ] &&
+    [ "$(cat "$cfg/packages")" = 'bat:3,batcat:3' ]
+}
+
 # The signature check reads gpg's status lines, so the fixture's unsigned tags
 # (tag.gpgsign=false) are the "not signed" arm: said, and still checked out -
 # a fork or mirror has exactly these
@@ -363,6 +388,8 @@ function run_update_tests() {
   _hi_check "--update --help is its own text" test_update_help_is_his_own
   _hi_check "No .git: the package manager is named" test_update_without_git_points_at_the_package_manager
   _hi_check_requires git "--update <tag> checks the tag out, detached" test_update_to_a_tag_detaches_there
+  _hi_check_requires git "...then converts an old overlay" test_update_converts_an_old_overlay
+  _hi_check_requires git "...which a dry run leaves be" test_update_dry_run_converts_nothing
   _hi_check_requires git "A bare --update moves to the newest tag" test_bare_update_moves_to_the_newest_tag
   _hi_check_requires git "...newest by version, pre-releases below" test_bare_update_sorts_tags_by_version
   _hi_check_requires git "Already on the tag: says so, exits 0" test_update_on_the_tag_already_says_so

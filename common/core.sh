@@ -881,7 +881,8 @@ function _hi_choose_glyphs() {
   fi
   # Glyph-independent, so out of both arms rather than spelled twice: only
   # _HI_MARK_OK and _HI_MARK_NO actually change sets.
-  _HI_MARK_ALT="~" # installed, but via a fallback alternative
+  _HI_MARK_ALT="~"  # installed, but via a fallback alternative
+  _HI_MARK_WARN="!" # installed, and the row says it is unwanted
 }
 _hi_choose_glyphs
 
@@ -940,19 +941,28 @@ function _hi_local_hostname() {
   _hi_out "${1:-}" "${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
 }
 
-# The two readers of config/colors' "<type>,<name>,<color>[,<rrggbb>]"
-# lines. One walk behind both: they differ only in whether the name field is
-# compared or matched, and the two wrappers below are what the callers and
-# the suites name. A row's optional fourth column is that pin's own 24-bit
-# color; it comes back joined to the name as "<color>#<rrggbb>", the shape
-# _hi_color_split reads, and only when it is six hex digits (a leading `#` is
-# allowed and dropped) - anything else is ignored and the row colors by name
-# alone, since a colors file is hand-written and a typo must not cost the pin.
+# The two readers of config/colors' `[<type>]` sections of
+# "<name> <color> [rrggbb]" rows. One walk behind both: they differ only in
+# whether the name field is compared or matched, and the two wrappers below
+# are what the callers and the suites name. A row's optional third field is
+# that pin's own 24-bit color; it comes back joined to the name as
+# "<color>#<rrggbb>", the shape _hi_color_split reads, and only when it is six
+# hex digits (a leading `#` is allowed and dropped) - anything else is ignored
+# and the row colors by name alone, since a colors file is hand-written and a
+# typo must not cost the pin.
 # _hi_colors_scan <type> <name> <glob?> [outvar]
 function _hi_colors_scan() {
-  local cur_type cur_name color hex
+  local cur_type="" cur_name color hex
   [[ -f "$_HI_COLORS" ]] || return 1
-  while IFS=',' read -r cur_type cur_name color hex; do
+  while read -r cur_name color hex; do
+    case "$cur_name" in
+    '' | '#'*) continue ;;
+    '['*']')
+      cur_type="${cur_name#[}"
+      cur_type="${cur_type%]}"
+      continue
+      ;;
+    esac
     [[ "$cur_type" = "$1" ]] || continue
     if [ -n "$3" ]; then
       case "$cur_name" in
@@ -962,6 +972,7 @@ function _hi_colors_scan() {
     else
       [[ "$cur_name" = "$2" ]] || continue
     fi
+    hex="${hex%% *}"
     hex="${hex#\#}"
     case "$hex" in
     [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) color="$color#$hex" ;;

@@ -1006,38 +1006,35 @@ function hi_footer() {
   fi
 }
 
-# Package priorities, lowest to highest, 0-3. A priority says how loudly you
-# want to hear about a tool; $_HI_PACKAGES_MIN_PRIORITY gates display and
-# ships at 2, so tiers 0-1 (trivia and optional extras) are hidden until asked
-# for; a floor above 3 reads as 3. Direction is a separate axis, one leading
-# character per line: `-` speaks only when the tool is missing (core tools,
-# where present is not news and absent means the box is bare), `+` only when
-# it is installed (platform facts, where absent is noise); no flag speaks
-# both ways. Priorities above 3 clamp to 3, so an old-format file still
-# renders.
+# The package check reads config/packages as `[group]` sections of rows.
+# $_HI_PACKAGES_GROUPS names the groups that run (space- or comma-separated,
+# `none` for none); unset is $_HI_PACKAGES_GROUPS_DEFAULT. Rows above the first
+# `[group]` line always run. A row lists alternatives in order of preference,
+# and the first one installed is the one shown. One leading character sets
+# what the row is for:
+#   (none)  wanted: installed and missing both show
+#   `-`     unwanted: silent while absent, a warning when installed
+#   `+`     required: silent while installed, an alarm when missing
+# Warnings and alarms sort ahead of everything else.
+#
+# A group paints in one tier of the ramp below (_hi_group_tier): core, base
+# and deprecated 3, useful 2, trivia and platform 0, any other group 1.
+# Warnings and alarms paint in the loudest missing color.
 #
 # Each ramp is ordered intensity-major, not hue-major: both normal
 # intensities first, then both bright, so the loudness step from one
-# priority to the next never reverses direction. A ramp that alternates
-# normal/bright/normal/bright reads a lower priority as louder than the one
+# tier to the next never reverses direction. A ramp that alternates
+# normal/bright/normal/bright reads a lower tier as louder than the one
 # above it - what "monotonic in both directions" below is guarding against.
 # The shipped ramp, in the eight-name shape $_HI_PACKAGES_PALETTE takes: four
-# installed colors then four missing. _hi_packages_palette below is what
-# splits this into the _HI_YES_NAMES/_HI_NO_NAMES arrays its callers index
-# by priority - the one spelling of the eight names, not two kept in step.
-#
-# The numbered lines below are scraped verbatim by scripts/preview.sh
-# (the run directly above _HI_PACKAGES_RAMP, parentheticals dropped): keep
-# the "# <n> <meaning> (<examples>)" shape and add nothing between them and
-# the assignment.
-# 0 platform trivia (sw_vers, kitty)
-# 1 optional extras (gping, navi)
-# 2 useful tools (make, vim, python3)
-# 3 favorites and core (bat, fzf, awk)
+# installed colors then four missing, tier 0 first. _hi_packages_palette
+# below splits it into the _HI_YES_NAMES/_HI_NO_NAMES arrays its callers index
+# by tier - the one spelling of the eight names, not two kept in step.
+_HI_PACKAGES_GROUPS_DEFAULT="core useful deprecated"
 _HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 
 # Palette *names*, not escapes: these are configuration - which of
-# _HI_COLOR_NAMES each priority paints in - so a consumer that wants the name
+# _HI_COLOR_NAMES each tier paints in - so a consumer that wants the name
 # never has to invert an escape. The escapes _hi_packages_palette derives
 # below are what check_line actually reads.
 #
@@ -1045,10 +1042,8 @@ _HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 # (core.sh's vocabulary, the one config/colors and fish's set_color both
 # use), four for installed then four for missing, written into settings.sh
 # by hand. Anything else - unset, a typo, the wrong count - is the shipped
-# ramp. preview.sh's scrape (above) stops at the first line starting
-# "_HI_PACKAGES_RAMP=", so that assignment has to stay exactly there.
-# A ramp is meant to read monotonic 0->3 in both directions - a missing
-# favorite the loudest thing on screen, installed trivia the quietest - and
+# ramp. A ramp is meant to read monotonic 0->3 in both directions - a missing
+# core tool the loudest thing on screen, installed trivia the quietest - and
 # legible on light and dark terminals alike; judge one with
 # `hi --preview packages`.
 function _hi_packages_palette() {
@@ -1092,56 +1087,67 @@ function _hi_ramp_escape() {
 # a plain array assignment.
 _hi_packages_palette || true
 
-# For each "[-|+]cmd:priority[,...]": the highest-priority installed package
-# (or the first, if none) — a fully-missing line ranks at the max priority
-# among its alternatives — colored and marked per above. `-` drops the row
-# when something is installed, `+` when nothing is. The marks live in
-# core.sh's _hi_choose_glyphs.
-# check_line <out-array-name> <line>. The array is the caller's to name: one
-# caller is in another file, and neither has to know a bare name here or the
-# \x1f record shape.
+# _hi_group_tier <outvar> <group> - the ramp tier a group's rows paint in
+function _hi_group_tier() {
+  case "$2" in
+  core | base | deprecated) printf -v "$1" 3 ;;
+  useful) printf -v "$1" 2 ;;
+  trivia | platform) printf -v "$1" 0 ;;
+  *) printf -v "$1" 1 ;;
+  esac
+}
+
+# check_line <out-array-name> <row> [tier] - one "[-|+]cmd[,cmd2...]" row,
+# rendered per the marker rules above in <tier>'s colors (default 1), and
+# appended to the named array as a "<rank>\x1f<width>\x1f<text>" record. Rank
+# is the tier, or 4 for a warning or an alarm. A row with nothing to say
+# appends nothing. The marks live in core.sh's _hi_choose_glyphs.
 function check_line() {
-  local pair cmd priority color best best_priority max_priority best_idx=0 idx=0 found=0 symbol rendered
-  local mode=both line=$2
+  local cmd best="" idx=0 color symbol rendered rank="${3:-1}" mode=want line=$2
   case "$line" in
-  -*) mode=miss line="${line#-}" ;;
-  +*) mode=have line="${line#+}" ;;
+  -*) mode=unwanted line="${line#-}" ;;
+  +*) mode=required line="${line#+}" ;;
   esac
   # word-split on the local IFS, not `read -ra <<<`: that here-string is a
   # temp file before bash 5.1, per package line
   local IFS=','
   # shellcheck disable=SC2206 # deliberate split on IFS; the file has no globs
-  local -a pairs=($line)
+  local -a names=($line)
   unset IFS
-  best="${pairs[0]%:*}"
-  max_priority=0
 
-  for pair in "${pairs[@]}"; do
-    cmd="${pair%:*}"
-    priority="${pair#*:}"
-    if ((priority > 3)); then priority=3; fi
-    if ((priority > max_priority)); then max_priority=$priority; fi
-    if command -v "$cmd" &>/dev/null && ((found == 0 || priority > best_priority)); then
+  for cmd in "${names[@]}"; do
+    if command -v "$cmd" &>/dev/null; then
       best="$cmd"
-      best_priority="$priority"
-      best_idx=$idx
-      found=1
+      break
     fi
     ((++idx))
   done
 
-  if ((found)); then
-    [[ "$mode" == miss ]] && return 0
-    color="${_HI_YES[best_priority]:-$NC}"
-    if ((best_idx == 0)); then
-      symbol="$GREEN$_HI_MARK_OK"
-    else
-      symbol="$YELLOW$_HI_MARK_ALT$NC"
-    fi
+  if [ -n "$best" ]; then
+    case "$mode" in
+    required) return 0 ;;
+    unwanted)
+      rank=4
+      color="${_HI_NO[3]:-$NC}"
+      symbol="$YELLOW$_HI_MARK_WARN$NC"
+      ;;
+    *)
+      color="${_HI_YES[rank]:-$NC}"
+      if ((idx == 0)); then
+        symbol="$GREEN$_HI_MARK_OK"
+      else
+        symbol="$YELLOW$_HI_MARK_ALT$NC"
+      fi
+      ;;
+    esac
   else
-    [[ "$mode" == have ]] && return 0
-    best_priority=$max_priority
-    color="${_HI_NO[best_priority]:-$NC}"
+    [[ "$mode" == unwanted ]] && return 0
+    best="${names[0]}"
+    if [[ "$mode" == required ]]; then
+      rank=4 color="${_HI_NO[3]:-$NC}"
+    else
+      color="${_HI_NO[rank]:-$NC}"
+    fi
     symbol="$RED$_HI_MARK_NO"
   fi
   rendered="$color $best $symbol"
@@ -1150,11 +1156,34 @@ function check_line() {
   # shellcheck disable=SC2034 # read by the eval below, which the linter
   # cannot see into - the point of building the record out here is that
   # everything *it* reads stays visible
-  local record="$best_priority"$'\x1f'"$((${#best} + 5))"$'\x1f'"$rendered"
+  local record="$rank"$'\x1f'"$((${#best} + 5))"$'\x1f'"$rendered"
   # appended by name, the idiom core.sh's _hi_read_lines uses. The record is
   # built first rather than inside the eval, which keeps the eval'd string
   # trivial and leaves every variable it reads visible to the linter.
   eval "$1+=(\"\$record\")"
+}
+
+# _hi_group_on <group> - whether $_HI_PACKAGES_GROUPS runs <group>
+function _hi_group_on() {
+  local _hi_go_g="${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT}"
+  # `none` is the setting's word for no groups, never a group of its own
+  [ "$1" != none ] || return 1
+  case " ${_hi_go_g//,/ } " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# _hi_package_groups <outvar> - the `[group]` names $_HI_PACKAGES holds, in
+# file order, space-separated
+function _hi_package_groups() {
+  local _hi_pg_l _hi_pg_all=""
+  [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r _hi_pg_l; do
+    case "$_hi_pg_l" in *'#'*) ;; '['*']')
+      _hi_pg_l="${_hi_pg_l#[}"
+      _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }${_hi_pg_l%]}"
+      ;;
+    esac
+  done <"$_HI_PACKAGES"
+  printf -v "$1" '%s' "$_hi_pg_all"
 }
 
 # full_check's right edge: pads $2's row out to $1 and closes it with a
@@ -1166,12 +1195,13 @@ function _hi_check_close() {
   printf '%b' "$NC$_hi_ccl_pad|"
 }
 
-# print sorted package results limited by _hi_draw_width, from
-# $_HI_PACKAGES_MIN_PRIORITY up. The floor lives here, not in check_line:
-# scripts/preview.sh calls check_line directly and needs the rows
-# the floor hides.
+# print sorted package results limited by _hi_draw_width, from the groups
+# $_HI_PACKAGES_GROUPS runs. The group filter lives here, not in check_line:
+# scripts/preview.sh calls check_line directly and needs the rows of groups
+# that are off.
 function full_check() {
-  local width_item count=0 max cell vislen piece i pkg_start close=1 line reach="*" rank rec us=$'\x1f'
+  local width_item count=0 max cell vislen piece i pkg_start close=1 line rank rec us=$'\x1f'
+  local on=1 tier=1
   _hi_draw_width max
   # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
   # not _hi_row_line's two, since every piece below already carries its own
@@ -1179,10 +1209,6 @@ function full_check() {
   [[ "${_HI_DISABLE_RIGHT_EDGE:-0}" == 1 ]] && close=0
   ((close)) && ((max -= 1))
   local width=$max
-  local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
-  ((min > 3)) && min=3
-  # a row reaches the floor when one `:N` does; any two-digit N clamps to 3
-  ((min > 0)) && reach="*:[$((min))-9]*"
   local -a row_widths=() row_pieces=() visible=()
 
   # a carry from an earlier row (hi_header's cascade) opens this row's first
@@ -1206,16 +1232,23 @@ function full_check() {
   # $_HI_PACKAGES_PALETTE after header.sh loaded
   _hi_packages_palette
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r line; do
-    [[ "$line" == *#* || -z "$line" ]] && continue
-    # the floor first: a row that cannot reach it has nothing to contribute,
-    # and probing it is a failed PATH walk per alternative. Rows that clear it
-    # are still filtered below on the rank they actually scored.
-    # shellcheck disable=SC2053 # $reach is a glob
-    [[ "$line" == $reach || "$line" == *:[1-9][0-9]* ]] || continue
-    check_line visible "$line"
+    case "$line" in
+    '' | *'#'*) continue ;;
+    '['*']')
+      line="${line#[}"
+      line="${line%]}"
+      on=0
+      _hi_group_on "$line" && on=1
+      _hi_group_tier tier "$line"
+      continue
+      ;;
+    esac
+    # a group that is off is skipped before probing: each row is a PATH walk
+    # per alternative
+    ((on)) && check_line visible "$line" "$tier"
   done <"$_HI_PACKAGES"
   # highest rank first, file order within one: a pass per rank, not a fork
-  for ((rank = 3; rank >= min; rank--)); do
+  for ((rank = 4; rank >= 0; rank--)); do
     for rec in ${visible[@]+"${visible[@]}"}; do
       [ "${rec%%"$us"*}" = "$rank" ] || continue
       rec="${rec#*"$us"}"
@@ -1248,7 +1281,7 @@ function full_check() {
     width=$((width + width_item))
     ((++count))
   done
-  # guarded: a floor that hides everything printed a bare newline otherwise
+  # guarded: groups that show nothing printed a bare newline otherwise
   if ((count)); then
     ((close)) && _hi_check_close "$max" "$width"
     printf '\n'

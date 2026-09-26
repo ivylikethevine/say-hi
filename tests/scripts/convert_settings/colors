@@ -1,7 +1,7 @@
-# Color pins: a `[type]` line starts a section, and each row under it is
-# "name color [rrggbb]". `hi --set-color <type> <name> <color> [rrggbb]` and
-# `hi --unset-color <type> <name>` edit ~/.config/say-hi/colors, copying this
-# file there on the first write; that copy replaces this one wholesale.
+# Color pins, one "type,name,color[,rrggbb]" per line. To pin your own, copy
+# this file to ~/.config/say-hi/colors and edit that one - the copy in the tree
+# is the default say-hi ships, and editing it dirties the checkout `hi --update`
+# pulls into.
 #
 # type  = hosttag | username | hostname | usertag
 # usertag colors the username on every host carrying that # Tags: value
@@ -10,40 +10,33 @@
 #   teal, lime, violet, salmon, gold, sky, indigo, mint, peach, lavender (a
 #   24-bit color of their own on a truecolor terminal, the nearest of the
 #   sixteen elsewhere)
-# an optional third field is that pin's own 24-bit color, six hex digits
-# (a leading # is fine): "prod-db brred ff5f5f" under [hostname] renders
-# prod-db in exactly that red on a truecolor terminal. The color still has to be
+# an optional fourth column is that pin's own 24-bit color, six hex digits
+# (a leading # is fine): "hostname,prod-db,brred,ff5f5f" renders prod-db in
+# exactly that red on a truecolor terminal. The third column still has to be
 # a name from the list above and is what a 16-color terminal gets, so pick
 # the nearest one. It beats _HI_COLOR_SCHEME, which says what a *name*
 # renders as; six hex digits is the whole of what is accepted, and anything
 # else is ignored and the row colors by its name alone.
-# a hostname name holding * or ? is a pattern: "10.0.1.* red" colors
+# a hostname name holding * or ? is a pattern: "hostname,10.0.1.*,red" colors
 # a whole subnet or domain at once. An exact pin and a hosttag both beat it.
 # LOCALUSER and LOCALHOSTNAME are special username/hostname names that match
 # the user/host of the machine say-hi is installed on, wherever that user/host
-# shows up - e.g. "LOCALUSER green" colors your own username green
+# shows up - e.g. "username,LOCALUSER,green" colors your own username green
 # even after ssh'ing into a machine where you're logged in under that same
-# name, without hardcoding the name itself. an exact username or hostname pin
-# still takes priority over these.
+# name, without hardcoding the name itself. an exact "username,jeff,..." or
+# "hostname,jeff-desktop,..." override still takes priority over these.
 # anything with no pin at all falls back to a hash of the name.
 # run `hi --preview colors` to preview what everything currently resolves to.
-
-[hosttag]
-terminal        brmagenta
-baremetal       brred
-personal        brblue
-work            brgreen
-windows         bryellow
-
-[username]
-root            red
-admin           magenta
-ubuntu          yellow
-debian          blue
-LOCALUSER       bryellow
-
-[usertag]
-personal        green
-
-[hostname]
-LOCALHOSTNAME   brmagenta
+#type,name,color[,rrggbb]
+hosttag,terminal,brmagenta
+hosttag,baremetal,brred
+hosttag,personal,brblue
+hosttag,work,brgreen
+hosttag,windows,bryellow
+username,root,red
+username,admin,magenta
+username,ubuntu,yellow
+username,debian,blue
+usertag,personal,green
+username,LOCALUSER,bryellow
+hostname,LOCALHOSTNAME,brmagenta

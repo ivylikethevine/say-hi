@@ -433,25 +433,25 @@ function test_prompt_colors_hand_fish_the_base_name() {
 
 function test_override_color_exact_match() {
   local colors="$_HI_WORKDIR/colors.exact"
-  printf 'username,alice,red\n' >"$colors"
+  printf '[username]\nalice red\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_override_color username alice)" = "red" ]
 }
 
 function test_override_color_no_match_fails() {
   local colors="$_HI_WORKDIR/colors.nomatch"
-  printf 'username,alice,red\n' >"$colors"
+  printf '[username]\nalice red\n' >"$colors"
   ! _HI_COLORS="$colors" _hi_override_color username bob
 }
 
 function test_override_color_localuser_special_case() {
   local colors="$_HI_WORKDIR/colors.localuser"
-  printf 'username,LOCALUSER,cyan\n' >"$colors"
+  printf '[username]\nLOCALUSER cyan\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _HI_LOCAL_USER=testuser _hi_override_color username testuser)" = "cyan" ]
 }
 
 function test_override_color_localhostname_special_case() {
   local colors="$_HI_WORKDIR/colors.localhost"
-  printf 'hostname,LOCALHOSTNAME,magenta\n' >"$colors"
+  printf '[hostname]\nLOCALHOSTNAME magenta\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _HI_LOCAL_HOSTNAME=testhost _hi_override_color hostname testhost)" = "magenta" ]
 }
 
@@ -460,7 +460,7 @@ function test_override_color_localhostname_special_case() {
 # exact pin, the pattern row, and the hosttag alike.
 function test_pin_hex_joins_the_name() {
   local colors="$_HI_WORKDIR/colors.hex"
-  printf 'username,alice,red,3ba55d\nhostname,10.0.1.*,blue,102030\nhosttag,prod,brred,ff5f5f\n' >"$colors"
+  printf '[username]\nalice red 3ba55d\n[hostname]\n10.0.1.* blue 102030\n[hosttag]\nprod brred ff5f5f\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup username alice)" = 'red#3ba55d' ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.1.7)" = 'blue#102030' ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_override_color hosttag prod)" = 'brred#ff5f5f' ] || return 1
@@ -471,7 +471,7 @@ function test_pin_hex_joins_the_name() {
 # read in either case
 function test_pin_hex_accepts_a_leading_hash_and_either_case() {
   local colors="$_HI_WORKDIR/colors.hexhash"
-  printf 'username,alice,red,#FF00AA\n' >"$colors"
+  printf '[username]\nalice red #FF00AA\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup username alice)" = 'red#FF00AA' ]
 }
 
@@ -507,20 +507,62 @@ function test_pin_hex_reaches_the_hex_and_base_readers() {
   [ "$out" = $'fd971f bryellow\nred' ]
 }
 
-# A colors file is hand-written: a typo in the fourth column costs the row
-# its hex, never its color.
-function test_pin_hex_ignores_a_malformed_fourth_column() {
+# A colors file is hand-written: a typo in the hex field costs the row its
+# hex, never its color.
+function test_pin_hex_ignores_a_malformed_hex_field() {
   local colors="$_HI_WORKDIR/colors.hexbad"
-  printf 'username,a,red,zzz\nusername,b,red,12345\nusername,c,red,12345g\nusername,d,red,3ba55d,extra\nusername,e,red,\n' >"$colors"
+  printf '[username]\na red zzz\nb red 12345\nc red 12345g\ne red\nf red #\n' >"$colors"
   local name
-  for name in a b c d e; do
+  for name in a b c e f; do
     [ "$(_HI_COLORS="$colors" _hi_colors_lookup username "$name")" = red ] || return 1
   done
 }
 
+# anything after the hex is a note, not part of it - with or without the #
+function test_pin_hex_ignores_trailing_text() {
+  local colors="$_HI_WORKDIR/colors.hextail"
+  printf '[username]\nd red 3ba55d the office box\ng red #3BA55D # a note\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_lookup username d)" = 'red#3ba55d' ] &&
+    [ "$(_HI_COLORS="$colors" _hi_colors_lookup username g)" = 'red#3BA55D' ]
+}
+
+# A [type] line scopes every row under it: one name pinned under two types
+# answers each type with its own color, a type named twice is read both
+# times, and a row above the first section belongs to no type at all
+function test_colors_rows_are_scoped_to_their_section() {
+  local colors="$_HI_WORKDIR/colors.sections"
+  printf 'shared yellow\n[hostname]\nshared red\n[username]\nshared blue\n[hostname]\nlate green\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname shared)" = red ] &&
+    [ "$(_HI_COLORS="$colors" _hi_colors_lookup username shared)" = blue ] &&
+    [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname late)" = green ] &&
+    ! _HI_COLORS="$colors" _hi_colors_lookup hosttag shared
+}
+
+# comments and blank lines are skipped wherever they sit, indented rows read
+# the same, and the old comma rows pin nothing
+function test_colors_skips_comments_blanks_and_old_rows() {
+  local colors="$_HI_WORKDIR/colors.skips"
+  printf '# a note\n\n[hostname]\n  # an indented note\n\n  box   cyan\nhostname,old,red\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)" = cyan ] &&
+    ! _HI_COLORS="$colors" _hi_colors_lookup hostname old &&
+    ! _HI_COLORS="$colors" _hi_colors_lookup hostname '#'
+}
+
+# a pattern row is a hostname glob: the pattern reader matches it, the exact
+# reader does not, and an exact row is never a pattern
+function test_colors_pattern_row_is_a_glob() {
+  local colors="$_HI_WORKDIR/colors.pattern"
+  printf '[hostname]\nweb-? blue\nweb-1 red\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_pattern hostname web-2)" = blue ] &&
+    [ "$(_HI_COLORS="$colors" _hi_colors_pattern hostname web-1)" = blue ] &&
+    [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname web-1)" = red ] &&
+    ! _HI_COLORS="$colors" _hi_colors_lookup hostname web-2 &&
+    ! _HI_COLORS="$colors" _hi_colors_pattern hostname web-10
+}
+
 function test_zsh_pin_hex_agrees_with_bash() {
   local colors="$_HI_WORKDIR/colors.hexzsh"
-  printf 'username,alice,orange,3ba55d\n' >"$colors"
+  printf '[username]\nalice orange 3ba55d\n' >"$colors"
   _hi_shell_agrees "export _HI_COLORS='$colors' _HI_TRUECOLOR=1
     c=\"\$(_hi_colors_lookup username alice)\"
     _hi_color_escape_var e \"\$c\"; _hi_color_hex h \"\$c\"; _hi_color_base b \"\$c\"
@@ -750,19 +792,19 @@ function test_ssh_host_tag_non_host_match_ends_its_tag() {
 
 function test_resolve_color_override_wins() {
   local colors="$_HI_WORKDIR/colors.resolve1"
-  printf 'username,bob,red\n' >"$colors"
+  printf '[username]\nbob red\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color username bob)" = "red" ]
 }
 
 function test_resolve_color_hosttag_via_ssh_config() {
   local colors="$_HI_WORKDIR/colors.resolve2"
-  printf 'hosttag,prod,blue\n' >"$colors"
+  printf '[hosttag]\nprod blue\n' >"$colors"
   [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = "blue" ]
 }
 
 function test_resolve_color_usertag_when_no_exact_override() {
   local colors="$_HI_WORKDIR/colors.resolve3"
-  printf 'usertag,prodtag,green\n' >"$colors"
+  printf '[usertag]\nprodtag green\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color username someuser prodtag)" = "green" ]
 }
 
@@ -776,7 +818,7 @@ function test_resolve_color_falls_back_to_hash() {
 # hosttag > pattern > hash.
 function test_pattern_pin_colors_a_subnet() {
   local colors="$_HI_WORKDIR/colors.pattern"
-  printf 'hostname,10.0.1.*,red\nhostname,*.prod.example,blue\n' >"$colors"
+  printf '[hostname]\n10.0.1.* red\n*.prod.example blue\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = red ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname db.prod.example)" = blue ] || return 1
   ! _HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.2.7
@@ -784,25 +826,25 @@ function test_pattern_pin_colors_a_subnet() {
 
 function test_pattern_first_row_wins() {
   local colors="$_HI_WORKDIR/colors.patorder"
-  printf 'hostname,10.0.*,green\nhostname,10.0.1.*,red\n' >"$colors"
+  printf '[hostname]\n10.0.* green\n10.0.1.* red\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = green ]
 }
 
 function test_exact_pin_beats_pattern() {
   local colors="$_HI_WORKDIR/colors.patexact"
-  printf 'hostname,10.0.1.*,red\nhostname,10.0.1.7,cyan\n' >"$colors"
+  printf '[hostname]\n10.0.1.* red\n10.0.1.7 cyan\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = cyan ]
 }
 
 function test_hosttag_beats_pattern() {
   local colors="$_HI_WORKDIR/colors.pattag"
-  printf 'hostname,myhost*,red\nhosttag,prod,blue\n' >"$colors"
+  printf '[hostname]\nmyhost* red\n[hosttag]\nprod blue\n' >"$colors"
   [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = blue ]
 }
 
 function test_pattern_beats_hash() {
   local colors="$_HI_WORKDIR/colors.pathash"
-  printf 'hostname,unhashed-*,brred\n' >"$colors"
+  printf '[hostname]\nunhashed-* brred\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname unhashed-9)" = brred ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname other-9)" = "$(_hi_hash_color other-9)" ]
 }
@@ -841,7 +883,7 @@ function test_zsh_pattern_hit_skips_the_same_tokens() {
 # the pattern walk rides _hi_ssh_pattern_hit, whose zsh divergences are HI.37's
 function test_zsh_pattern_pins_agree_with_bash() {
   local colors="$_HI_WORKDIR/colors.zshpat" a b script
-  printf 'hostname,10.0.1.*,red\n' >"$colors"
+  printf '[hostname]\n10.0.1.* red\n' >"$colors"
   script='printf "%s|%s" "$(_hi_resolve_color hostname 10.0.1.7)" "$(_hi_resolve_color hostname 10.0.2.7)"'
   a="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" bash -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
   b="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" zsh -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
@@ -1184,7 +1226,7 @@ function test_prompt_table_is_the_one_roster() {
 
 function test_colors_lookup_verdicts() {
   local colors="$_HI_WORKDIR/colors.lookup"
-  printf 'username,alice,red\nhostname,box,blue\n' >"$colors"
+  printf '[username]\nalice red\n[hostname]\nbox blue\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)" = blue ] || return 1
   ! _HI_COLORS="$colors" _hi_colors_lookup hostname nobox || return 1
   ! _HI_COLORS="$_HI_WORKDIR/colors.absent" _hi_colors_lookup hostname box
@@ -1379,7 +1421,11 @@ function run_core_tests() {
   _hi_check "A leading # is allowed, either case" test_pin_hex_accepts_a_leading_hash_and_either_case
   _hi_check "The hex paints the escape, over any scheme" test_pin_hex_paints_the_escape_over_the_scheme
   _hi_check "zsh and fish get the hex and the base name" test_pin_hex_reaches_the_hex_and_base_readers
-  _hi_check "A malformed fourth column is ignored" test_pin_hex_ignores_a_malformed_fourth_column
+  _hi_check "A malformed hex field is ignored" test_pin_hex_ignores_a_malformed_hex_field
+  _hi_check "Text after the hex is ignored" test_pin_hex_ignores_trailing_text
+  _hi_check "Rows are scoped to their [type] section" test_colors_rows_are_scoped_to_their_section
+  _hi_check "Comments, blanks and old comma rows are skipped" test_colors_skips_comments_blanks_and_old_rows
+  _hi_check "A pattern row is a glob, not an exact pin" test_colors_pattern_row_is_a_glob
   _hi_check_requires zsh "A pinned hex agrees in zsh" test_zsh_pin_hex_agrees_with_bash
 
   _hi_h2 "Testing: a target with nothing but a shell"

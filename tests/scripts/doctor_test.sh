@@ -357,6 +357,26 @@ function test_files_table_walks_every_tier() {
   }
 }
 
+# An overlay copy of a tree-default member replaces the tree's file
+# wholesale, so its row names the copy alone - the tree's default behind it
+# is not "passed over" - while with no copy the tree's default is what is used
+function test_files_table_hides_the_tree_default_behind_a_copy() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/files-tree.XXXXXX")"
+  mkdir -p "$h/overlay"
+  printf '[hostname]\nbox red\n' >"$h/overlay/colors"
+  out="$(
+    HOME="$h" _HI_CONFIG_DIR="$h/overlay" _HI_COLORS="$h/overlay/colors" \
+      _HI_PACKAGES="$_HI_ROOT/config/packages" doctor_files
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"used ~/overlay/colors"* && "$out" != *"the tree's config/colors"* ]] &&
+    [[ "$out" == *"used the tree's config/packages"* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+}
+
 # The boxed report stays short: no header row, plain rows that say the same
 # thing folded into one (`not installed | podman finch`), and $HOME as ~ -
 # while --json keeps a row per check and whole paths.
@@ -548,7 +568,7 @@ function test_config_reports_the_packages_file() {
   cp "$_HI_ROOT/config/packages" "$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
   [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || return 1
-  printf '# a note\nsh:3\nls:2\n' >"$dir/packages"
+  printf '# a note\n[core]\nsh\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
   [[ "$out" == *"packages"*"overridden (3 lines)"* ]]
 }
@@ -608,12 +628,12 @@ function test_config_flags_a_value_the_code_would_ignore() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_MAX_WIDTH=12 _HI_PACKAGES_MIN_PRIORITY=9 _HI_IP_HIDE='10.*;x' _HI_HEADER_ORDER='utc bogus'
+    _HI_MAX_WIDTH=12 _HI_PACKAGES_GROUPS='core;x' _HI_IP_HIDE='10.*;x' _HI_HEADER_ORDER='utc bogus'
     _HI_PROMPT_TOOL='starshp hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes
     doctor_config
   )"
   local n
-  for n in _HI_MAX_WIDTH _HI_PACKAGES_MIN_PRIORITY _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX; do
+  for n in _HI_MAX_WIDTH _HI_PACKAGES_GROUPS _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX; do
     printf '%s\n' "$out" | grep -q "$n.*is ignored" || {
       _hi_cecho " | no row for $n" "$RED"
       return 1
@@ -622,11 +642,90 @@ function test_config_flags_a_value_the_code_would_ignore() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_MAX_WIDTH=100 _HI_PACKAGES_MIN_PRIORITY=4 _HI_IP_HIDE='10.* 192.168.?.*' _HI_HEADER_ORDER='utc check'
+    _HI_MAX_WIDTH=100 _HI_PACKAGES_GROUPS='core,extras' _HI_IP_HIDE='10.* 192.168.?.*' _HI_HEADER_ORDER='utc check'
     _HI_PROMPT_TOOL='tide hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0
     doctor_config
   )"
   [[ "$out" != *"is ignored"* ]]
+}
+
+# _hi_doc_values_json - doctor_settings_values' rows as --json collects them,
+# so a case reads each row's label, text and severity together
+function _hi_doc_values_json() {
+  _HI_DOC_JSON=1 _HI_DOC_ROWS="" _HI_DOC_SECTION=config
+  doctor_settings_values
+  printf '%s' "$_HI_DOC_ROWS"
+}
+
+# the old floor is read by nothing now: set at all, it is a bad row pointing
+# at its replacement; unset, no row
+function test_config_flags_the_old_package_floor() {
+  local out
+  out="$(
+    _HI_PACKAGES_MIN_PRIORITY=2
+    _hi_doc_values_json
+  )"
+  case "$out" in
+  *'"label": "_HI_PACKAGES_MIN_PRIORITY", "text": "is ignored - name the groups to show in _HI_PACKAGES_GROUPS", "severity": "bad"'*) ;;
+  *) return 1 ;;
+  esac
+  out="$(
+    unset _HI_PACKAGES_MIN_PRIORITY
+    _hi_doc_values_json
+  )"
+  [[ "$out" != *_HI_PACKAGES_MIN_PRIORITY* ]]
+}
+
+# a packages file still in name:N rows reads as a roster of missing commands,
+# so it is a bad row; a `:N` inside a comment is not, and neither is a file
+# with a [group] section, whatever stray name:N line it still carries
+function test_config_flags_an_old_format_packages_file() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/oldpkgs.XXXXXX")"
+  printf '# the header\nbat:3,batcat:3\n' >"$dir/old"
+  printf '# was bat:3\n[core]\nbat,batcat\n' >"$dir/new"
+  # converted from a row with a trailing note, which kept its old spelling
+  printf '[core]\nbat\nbatcat:3 # a note\n' >"$dir/sectioned"
+  out="$(
+    _HI_PACKAGES="$dir/old"
+    _hi_doc_values_json
+  )"
+  case "$out" in
+  *'"label": "packages", "text": "'"$dir/old"' has name:priority rows'*'hi --configure converts it", "severity": "bad"'*) ;;
+  *) return 1 ;;
+  esac
+  out="$(
+    _HI_PACKAGES="$dir/new"
+    _hi_doc_values_json
+  )"
+  [[ "$out" != *'"label": "packages"'* ]] || return 1
+  out="$(
+    _HI_PACKAGES="$dir/sectioned"
+    _hi_doc_values_json
+  )"
+  [[ "$out" != *'"label": "packages"'* ]]
+}
+
+# a colors file still in type,name,color rows pins nothing, so it is a bad
+# row; one with a [type] section is the current shape, whatever else it holds
+function test_config_flags_an_old_format_colors_file() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/oldcolors.XXXXXX")"
+  printf '# type,name,color\nhostname,box,red\nusername,me,blue,3ba55d\n' >"$dir/old"
+  printf '# was hostname,box,red\n[hostname]\nbox red\n' >"$dir/new"
+  out="$(
+    _HI_COLORS="$dir/old"
+    _hi_doc_values_json
+  )"
+  case "$out" in
+  *'"label": "colors", "text": "'"$dir/old"' has type,name,color rows'*'hi --configure converts it", "severity": "bad"'*) ;;
+  *) return 1 ;;
+  esac
+  out="$(
+    _HI_COLORS="$dir/new"
+    _hi_doc_values_json
+  )"
+  [[ "$out" != *'"label": "colors"'* ]]
 }
 
 # _HI_DISABLE_LOCAL=1 sets every other toggle through paths.sh's gate: one
@@ -1373,6 +1472,7 @@ function run_doctor_tests() {
     _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
     _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
     _hi_check "The files table walks every tier" test_files_table_walks_every_tier
+    _hi_check "...and names an overlay copy alone, not the tree's behind it" test_files_table_hides_the_tree_default_behind_a_copy
     _hi_check "The box folds alike rows, drops its header, and writes ~" test_the_box_folds_and_shortens
     _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
     _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
@@ -1384,6 +1484,9 @@ function run_doctor_tests() {
     _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
     _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
     _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
+    _hi_check "Config flags a leftover _HI_PACKAGES_MIN_PRIORITY" test_config_flags_the_old_package_floor
+    _hi_check "Config flags a name:priority packages file" test_config_flags_an_old_format_packages_file
+    _hi_check "Config flags a type,name,color colors file" test_config_flags_an_old_format_colors_file
     _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
     _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
     _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore

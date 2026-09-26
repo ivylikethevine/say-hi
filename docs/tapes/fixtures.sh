@@ -333,12 +333,17 @@ function up_colors() {
   demo_ssh_config_live db-prod:prod dev-1:dev
   demo_overlay colors <<'EOF'
 # pins beat the name hash; everything unpinned still resolves on its own
-username,root,red
-hostname,bastion,yellow
-hosttag,prod,red
-hosttag,dev,green
-hosttag,staging,yellow
-hosttag,desktop,green
+[username]
+root      red
+
+[hostname]
+bastion   yellow
+
+[hosttag]
+prod      red
+dev       green
+staging   yellow
+desktop   green
 EOF
 }
 
@@ -570,18 +575,20 @@ up:packages)
   demo_settings <<'EOF'
 export _HI_DISABLE_PROMPT='1'
 export _HI_IP_HIDE='none'
-export _HI_PACKAGES_MIN_PRIORITY='2'
+export _HI_PACKAGES_GROUPS='core useful'
 export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
 EOF
   demo_overlay packages <<'EOF'
 # the homelab toolbox, and how loudly to miss each piece
-git:3
-vim:3,nano:3
-rsync:3
-curl:3
-htop:2
-tmux:2
-smartctl:2
+[core]
+git
+vim,nano
+rsync
+curl
+[useful]
+htop
+tmux
+smartctl
 EOF
   up_container docker nas tools
   up_container docker pihole debian

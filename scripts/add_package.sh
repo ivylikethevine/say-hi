@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # `hi --add-package`: add one or more package-check rows to
-# ~/.config/say-hi/packages. That file replaces the tree's wholesale
+# ~/.config/say-hi/packages; `hi --remove-package` (a leading --remove) takes
+# them out. That file replaces the tree's wholesale
 # (common/paths.sh), so the first write copies the tree's in and adds there -
 # nothing already checked is lost. HI.09 is _hi_write_back's commit step,
 # HI.33 the standalone-entry form.
@@ -25,20 +26,44 @@ unset _hi_d
 # GLOSSARY: HI.15
 set -euo pipefail
 
-me="${_HI_ARGV0:-hi --add-package}"
+# `--remove` first is `hi --remove-package`: the same file, the other way
+mode=add
+[ "${1:-}" != --remove ] || {
+  mode=remove
+  shift
+}
+me="${_HI_ARGV0:-hi --$mode-package}"
 _HI_ME="$me"
-_HI_DRY_RUN="" rows=()
+_HI_DRY_RUN="" group="" rows=()
+usage="$me <group> <pkg>[,...] [--dry-run]"
+[ "$mode" = add ] || usage="$me <pkg>... [--dry-run]"
 
 function _hi_add_package_help() {
-  cat <<EOF
-Usage: $me <pkg:priority>[,...] [--dry-run]
+  if [ "$mode" = remove ]; then
+    cat <<EOF
+Usage: $usage
 
-Adds one row per argument to ~/.config/say-hi/packages. Each argument is a
-whole package-check row, exactly as the header reads it - "bat:3,batcat:3"
-is "bat, or batcat as a fallback", priorities 0-3 - so several fallbacks for
-one tool are one argument, and several tools are several arguments. A row
-whose first package matches one already in the file replaces it; nothing
-else in the file is touched.
+Removes the row whose first package is <pkg> - with or without its leading -
+or + - from ~/.config/say-hi/packages, whichever group it sits in; nothing
+else in the file is touched. The first write copies the tree's packages file
+there, since yours replaces it wholesale.
+
+  -n, --dry-run    say what would be written, and write nothing
+EOF
+    return 0
+  fi
+  cat <<EOF
+Usage: $usage
+
+Adds one row per argument after <group> to that group's [section] in
+~/.config/say-hi/packages, creating the section when the file has none. Each
+argument is a whole package-check row, exactly as the header reads it -
+"bat,batcat" is "bat, or batcat as a fallback" - so several fallbacks for one
+tool are one argument, and several tools are several arguments. A leading -
+marks a package you don't want (a warning when installed), a leading + one
+you need (an alarm when missing). A row whose first package matches one
+already in the file replaces it, moving it to <group>; nothing else in the
+file is touched.
 
   -n, --dry-run    say what would be written, and write nothing
 
@@ -47,8 +72,9 @@ it wholesale. \`hi --preview packages\` shows the check with the row in it.
 EOF
 }
 
-# --help and --dry-run anywhere on the line; everything else is a
-# row. Loop shape matches scripts/update.sh's.
+# --help and --dry-run anywhere on the line; adding, the first other word is
+# the group and the rest rows - a single-dash word such as `-exa` is a row.
+# Loop shape matches scripts/update.sh's.
 while [ $# -gt 0 ]; do
   case "$1" in
   -h | --help)
@@ -56,37 +82,43 @@ while [ $# -gt 0 ]; do
     exit 0
     ;;
   -n | --dry-run) _HI_DRY_RUN=1 ;;
-  -*)
-    _hi_die "unknown option $1 ($me <pkg:priority>[,...] [--dry-run])"
+  --*) _hi_die "unknown option $1 ($usage)" ;;
+  *)
+    if [ "$mode" = add ] && [ -z "$group" ]; then group="$1"; else rows+=("$1"); fi
     ;;
-  *) rows+=("$1") ;;
   esac
   shift
 done
 
-[ "${#rows[@]}" -gt 0 ] ||
-  _hi_die "needs at least one pkg:priority row ($me --help)"
+if [ "$mode" = remove ]; then
+  [ "${#rows[@]}" -gt 0 ] || _hi_die "needs at least one package ($me --help)"
+else
+  [ -n "$group" ] && [ "${#rows[@]}" -gt 0 ] ||
+    _hi_die "needs a group and at least one row ($me --help)"
+  # A group name is what a `[...]` line can hold and $_HI_PACKAGES_GROUPS can
+  # list: no spaces, commas, brackets, or #.
+  [[ "$group" =~ ^[A-Za-z0-9_.][A-Za-z0-9_.-]*$ ]] && [ "$group" != none ] ||
+    _hi_die "not a group name: $group (letters, digits, _ . -; not \"none\")"
+fi
 
 # The grammar common/header.sh's check_line reads, made an error here rather
-# than a silently-clamped or silently-skipped row there: an optional leading
-# -/+ (check_line's own mode marker), then comma-separated name:priority
-# pairs, priority a single digit 0-3, and no # anywhere - the header treats a
-# # anywhere on a line as a comment and skips the whole thing.
-_hi_row_re='^[-+]?[^,:#[:space:]]+:[0-3](,[^,:#[:space:]]+:[0-3])*$'
+# than a silently-misread row there: an optional leading -/+, then
+# comma-separated names, and no # or [ anywhere - the header skips a line
+# with a # and reads a [ line as a group. A name to remove is one such row.
+_hi_row_re='^[-+]?[^][,:#[:space:]+-][^][,:#[:space:]]*(,[^][,:#[:space:]+-][^][,:#[:space:]]*)*$'
 for _hi_row in "${rows[@]}"; do
   [[ "$_hi_row" =~ $_hi_row_re ]] ||
-    _hi_die "not a package-check row: $_hi_row (pkg:priority[,pkg2:priority2...], priority 0-3, no # anywhere; $me --help)"
+    _hi_die "not a package-check row: $_hi_row ([-|+]pkg[,pkg2...], no spaces, colons, # or brackets; $me --help)"
 done
 unset _hi_row
 
 # _hi_row_first_pkg <outvar> <row> - the row's canonical package: past an
-# optional leading -/+, up to the first comma, up to that pair's colon. What
-# check_line's own `best="${pairs[0]%:*}"` reads as the row's name.
+# optional leading -/+, up to the first comma. What check_line shows for a
+# row with nothing installed.
 function _hi_row_first_pkg() {
   local _hi_rfp_r="$2"
   case "$_hi_rfp_r" in -* | +*) _hi_rfp_r="${_hi_rfp_r#?}" ;; esac
-  _hi_rfp_r="${_hi_rfp_r%%,*}"
-  printf -v "$1" '%s' "${_hi_rfp_r%%:*}"
+  printf -v "$1" '%s' "${_hi_rfp_r%%,*}"
 }
 
 # Read through paths.sh's cascade ($_HI_PACKAGES: the overlay's once it
@@ -98,41 +130,67 @@ existing_lines=()
 [ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
 out=(${existing_lines[@]+"${existing_lines[@]}"})
 changed=0
-first="" # spelled empty so the linter sees _hi_row_first_pkg's printf -v (SC2154)
+# spelled empty so the linter sees the helpers' printf -v (SC2154)
+first="" existing_first="" in_group=""
 
-for row in "${rows[@]}"; do
-  _hi_row_first_pkg first "$row"
-  match=-1
-  for ((idx = 0; idx < ${#out[@]}; idx++)); do
-    line="${out[idx]}"
-    case "$line" in '#'* | '') continue ;; esac
-    existing_first=""
-    _hi_row_first_pkg existing_first "$line"
-    if [ "$existing_first" = "$first" ]; then
-      match=$idx
-      break
+# _hi_row_index <outvar> <pkg> - the index in `out` of the row whose first
+# package is <pkg>, or -1
+function _hi_row_index() {
+  local _hi_ri_i
+  for ((_hi_ri_i = 0; _hi_ri_i < ${#out[@]}; _hi_ri_i++)); do
+    case "${out[_hi_ri_i]}" in '#'* | '' | '['*']') continue ;; esac
+    _hi_row_first_pkg existing_first "${out[_hi_ri_i]}"
+    if [ "$existing_first" = "$2" ]; then
+      printf -v "$1" '%s' "$_hi_ri_i"
+      return 0
     fi
   done
-  if [ "$match" -ge 0 ] && [ "${out[match]}" = "$row" ]; then
-    _hi_cecho " $read_file: $row is already there" "$BLUE"
-  elif [ "$match" -ge 0 ]; then
+  printf -v "$1" '%s' -1
+}
+
+match=-1
+for row in "${rows[@]}"; do
+  _hi_row_first_pkg first "$row"
+  _hi_row_index match "$first"
+  in_group=""
+  [ "$match" -lt 0 ] || _hi_section_of in_group "$match"
+  if [ "$mode" = remove ]; then
+    if [ "$match" -lt 0 ]; then
+      _hi_cecho " $read_file: no row for $first" "$BLUE"
+    else
+      _hi_cecho " - ${out[match]} (from [${in_group:-no group}])" "$YELLOW"
+      out=("${out[@]:0:match}" "${out[@]:match+1}")
+      changed=1
+    fi
+    continue
+  fi
+  if [ "$match" -ge 0 ] && [ "$in_group" = "$group" ]; then
+    if [ "${out[match]}" = "$row" ]; then
+      _hi_cecho " $read_file: $row is already in [$group]" "$BLUE"
+      continue
+    fi
     out[match]="$row"
     changed=1
-    _hi_cecho " ~ $row (replacing the row for $first)" "$YELLOW"
-  else
-    out+=("$row")
-    changed=1
-    _hi_cecho " + $row" "$GREEN"
+    _hi_cecho " ~ $row (replacing the row for $first in [$group])" "$YELLOW"
+    continue
   fi
+  if [ "$match" -ge 0 ]; then
+    out=("${out[@]:0:match}" "${out[@]:match+1}")
+    _hi_cecho " ~ $row (moving the row for $first from [${in_group:-no group}] to [$group])" "$YELLOW"
+  else
+    _hi_cecho " + $row in [$group]" "$GREEN"
+  fi
+  changed=1
+  _hi_section_add "$group" "$row"
 done
 
 if [ "$changed" -eq 0 ]; then
-  _hi_cecho "$read_file already has every row given - nothing to write" "$GREEN"
+  _hi_cecho "$read_file needs no change - nothing to write" "$GREEN"
   exit 0
 fi
 
 what="write $dst"
-[ "$read_file" = "$dst" ] || what="copy $read_file to $dst, then add there"
+[ "$read_file" = "$dst" ] || what="copy $read_file to $dst, then change it there"
 dry_run_say "$what" && exit 0
 
 mkdir -p "$_HI_CONFIG_DIR"

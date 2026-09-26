@@ -114,7 +114,7 @@ function test_add_tag_round_trips_through_preview_colors() {
   { printf 'Host *\n  AddKeysToAgent yes\n\n' && cat "$home/.ssh/config"; } >"$home/.ssh/config.new"
   mv "$home/.ssh/config.new" "$home/.ssh/config"
   mkdir -p "$home/overlay"
-  printf 'hosttag,lab,brred\n' >"$home/overlay/colors"
+  printf '[hosttag]\nlab brred\n' >"$home/overlay/colors"
   _hi_addtag_run "$home" web2 lab >/dev/null || return 1
   out="$(HOME="$home" _HI_HOME="$home" _HI_CONFIG_DIR="$home/overlay" _HI_TARGETS_TTL=0 \
     "$home/say-hi/scripts/preview.sh" colors 2>&1)" || return 1

@@ -40,11 +40,24 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-add\-package
-.I pkg:priority[,...]
+.I group pkg\fR[,...]
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-remove\-package
+.IR pkg ...
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-add\-tag
 .I host tag
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-set\-color
+.I type name color
+.RI [ rrggbb ]
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-unset\-color
+.I type name
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-preview
@@ -211,7 +224,8 @@ print one of these and exit:
 \- each user and ssh host a pin, tag, or pattern colors, in that color, with
 the rule it matched;
 .B packages
-\- the package\-priority legend, marking the ranks the floor hides;
+\- one legend row per group, whether it runs, its colors, and an example,
+then the marks and the check;
 .B header
 \- the connect header at your settings.
 .TP
@@ -320,7 +334,7 @@ lines that differ are printed.
 edit the settings alone, leaving the rc wiring and the link be: a numbered
 menu under a live preview of the header and prompt, grouped by what a
 setting changes: Header (its items to toggle and reorder, header presets,
-width, package check depth, hidden addresses, right under the header they
+width, package groups, hidden addresses, right under the header they
 change), Prompt, Editors, Aliases, This machine, and Advanced.
 .B p
 picks a preset
@@ -336,6 +350,13 @@ quits without writing; nothing is written before either.
 applies one without the menu;
 .B \-\-dry\-run
 prints the settings.sh it would write and writes nothing.
+Before the menu, here and under
+.BR \-\-install ,
+a packages, colors, or settings.sh file in an older hi's shape is converted
+to the current one, the original kept as
+.IB file .old\fR;
+.B \-\-dry\-run
+names the conversion instead.
 .TP
 .B \-\-update \fR[\fItag\fR] [\fB\-\-dry\-run\fR]
 fetch the tags and check out the newest release, detached, or
@@ -345,16 +366,35 @@ are tags only; to follow a branch, run
 .B git pull
 in the checkout.
 .B \-\-dry\-run
-fetches and names the tag without moving. Needs a checkout: a package has no
+fetches and names the tag without moving. After the checkout, the new tag's
+converter rewrites any overlay file in an older shape, as under
+.BR \-\-configure .
+Needs a checkout: a package has no
 .BR .git .
 .TP
-.B \-\-add\-package \fIpkg:priority\fR[,...] [\fB\-\-dry\-run\fR]
-add a row - "bat:3,batcat:3" is bat, or batcat as a fallback, priorities
-0\-3 - to
+.B \-\-add\-package \fIgroup pkg\fR[,...] [\fB\-\-dry\-run\fR]
+add rows to
+.IR group 's
+section of
 .BR ~/.config/say-hi/packages ,
-one argument per row; a row naming a package already there replaces that
-row. That file replaces the tree's wholesale, so the first write copies the
-tree's in first.
+creating the section when there is none, one argument per row: "bat,batcat"
+is bat, or batcat as a fallback; a leading \- marks a package you don't want,
+a leading + one you need. A row whose first package is already in the file
+replaces that row, moving it to
+.IR group .
+That file replaces the tree's wholesale, so the first write copies the tree's
+in first.
+.B \-\-dry\-run
+says what would be written and writes nothing.
+.TP
+.B \-\-remove\-package \fIpkg\fR... [\fB\-\-dry\-run\fR]
+remove the row whose first package is
+.IR pkg ,
+with or without its leading \- or +, from
+.BR ~/.config/say-hi/packages ,
+whichever group holds it; nothing else in the file changes. The first write
+copies the tree's in, as under
+.BR \-\-add\-package .
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
@@ -380,6 +420,53 @@ is matched as written in the config, so a pattern such as
 .B *.prod
 tags its whole block; a name only a wildcard block covers is refused, naming
 that block.
+.B \-\-dry\-run
+says what would be written and writes nothing.
+.TP
+.B \-\-set\-color \fItype name color\fR [\fIrrggbb\fR] [\fB\-\-dry\-run\fR]
+pin
+.I name
+to
+.I color
+in the
+.BI [ type ]
+section of
+.BR ~/.config/say-hi/colors ,
+replacing a pin it already has and creating the section when there is none.
+.I type
+is
+.BR hosttag ,
+.BR usertag ,
+.BR username ,
+or
+.BR hostname ;
+.I name
+holds no space,
+.BR # ,
+or bracket, and a
+.B hostname
+name holding * or ? is a pattern;
+.I color
+is one of the twenty\-four color names
+.B hi \-\-set\-color \-\-help
+lists;
+.IR rrggbb ,
+six hex digits, is the pin's own 24\-bit color on a truecolor terminal.
+That file replaces the tree's wholesale, so the first write copies the tree's
+in first.
+.B \-\-dry\-run
+says what would be written and writes nothing.
+.TP
+.B \-\-unset\-color \fItype name\fR [\fB\-\-dry\-run\fR]
+remove
+.IR name 's
+pin from the
+.BI [ type ]
+section of
+.BR ~/.config/say-hi/colors ,
+so it colors by the next rule down. The first write copies the tree's in, as
+under
+.BR \-\-set\-color .
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .PP
@@ -465,7 +552,15 @@ completes the backends (on a connect too),
 .B \-\-link
 and
 .B \-\-preset
-their values, and
+their values,
+.B \-\-add\-package
+the packages file's groups,
+.B \-\-remove\-package
+the first package of each of its rows,
+.B \-\-set\-color
+and
+.B \-\-unset\-color
+the four pin types, and
 .B hi \-\-update <TAB>
 the release tags a checkout knows of.
 .SH CONFIGURATION
@@ -499,13 +594,37 @@ settings, written by
 .B ~/.config/say-hi/colors
 your copy of
 .BR config/colors ,
-used in place of the tree's.
+used in place of the tree's: a
+.BI [ type ]
+line
+.RB ( hosttag ,
+.BR usertag ,
+.BR username ,
+.BR hostname )
+opens a section of
+.RI \(dq name " " color " [" rrggbb ]\(dq
+rows.
+.B hi \-\-set\-color
+copies the tree's here on its first write.
 .TP
 .B ~/.config/say-hi/packages
 your package check, used in place of the tree's
 .BR config/packages .
 .B hi \-\-add\-package
 copies the tree's here on its first write.
+.TP
+.B ~/.config/say-hi/*.old
+the original of a
+.BR packages ,
+.BR colors ,
+or
+.B settings.sh
+in an older hi's shape, kept when
+.BR \-\-install ,
+.BR \-\-configure ,
+or
+.B \-\-update
+converts it.
 .TP
 .B ~/.config/say-hi/vimrc, init.lua, config.toml, kakrc, nanorc, init.el
 replacements for vim's, neovim's, helix's, kakoune's, nano's, and emacs's configs, used

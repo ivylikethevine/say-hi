@@ -184,19 +184,34 @@ if [ "$kind" = words ]; then
   --add-tag)
     ssh_hosts 'an ssh host to tag'
     ;;
-  --add-package)
-    # one whole row per completion word ("bat:3,batcat:3,ccat:3,cat:2"), so
-    # a `--add-package` argument tabs complete to exactly what add_package.sh
-    # accepts. The line filter matches full_check's: a `#` anywhere kills a
-    # line, not only a leading one.
+  --remove-package)
+    # each row's first package, the name remove matches on
     [ -f "$pkgs" ] && while IFS= read -r line; do
-      case "$line" in '' | *'#'*) continue ;; esac
-      printf '%s\ta package check row\n' "$line"
+      case "$line" in '' | *'#'* | '['*']') continue ;; esac
+      line="${line#[-+]}"
+      printf '%s\ta package check row\n' "${line%%,*}"
+    done <"$pkgs"
+    ;;
+  --set-color | --unset-color)
+    printf 'hosttag\ta # Tags: value in your ssh config\n'
+    printf 'usertag\tthe username on hosts carrying that tag\n'
+    printf 'username\ta username\n'
+    printf 'hostname\ta hostname, or a * or ? pattern\n'
+    ;;
+  --add-package)
+    # the file's groups, add_package.sh's first argument. The line filter
+    # matches full_check's: a `#` anywhere kills a line.
+    [ -f "$pkgs" ] && while IFS= read -r line; do
+      case "$line" in *'#'*) ;; '['*']')
+        line="${line#[}"
+        printf '%s\ta package check group\n' "${line%]}"
+        ;;
+      esac
     done <"$pkgs"
     ;;
   --preview)
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'
-    printf 'packages\tthe package-priority legend, as the header prints it\n'
+    printf 'packages\tthe package-group legend, as the header prints it\n'
     printf 'header\tthe connect header, as it prints here\n'
     ;;
   --use)

@@ -151,4 +151,7 @@ esac
 }
 git -C "$root" checkout -q "refs/tags/$tag" || _hi_die "git checkout of $tag failed in $root (see above)"
 _hi_cecho "$me: now on $tag (detached)" "$GREEN"
+# the checked-out tag's converter, which knows every format that tag reads
+[ ! -f "$root/scripts/convert_settings.sh" ] ||
+  _HI_HOME="${root%/*}" bash "$root/scripts/convert_settings.sh" || true
 exit 0

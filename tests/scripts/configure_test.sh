@@ -83,7 +83,7 @@ function test_hand_written_colors_survive_a_run() {
 }
 
 # an unset ramp is the shipped one, so a run that was never told otherwise
-# writes no line for it - the rule config_max_width and config_packages_floor
+# writes no line for it - the rule config_max_width and config_packages_groups
 # use for their own defaults
 function test_packages_palette_does_not_write_the_default() {
   local out
@@ -189,6 +189,12 @@ function test_validators_hold_their_grammars() {
   ! _hi_is_ip_hide "" || return 1
   ! _hi_is_ip_hide "172.*;rm" || return 1
   ! _hi_is_ip_hide "all" || return 1
+  _hi_is_package_groups none || return 1
+  _hi_is_package_groups 'core useful' || return 1
+  _hi_is_package_groups 'core,my-tools.2' || return 1
+  ! _hi_is_package_groups "" || return 1
+  ! _hi_is_package_groups 'core;rm' || return 1
+  ! _hi_is_package_groups "[core]" || return 1
   _hi_is_header_word utc || return 1
   _hi_is_header_word check || return 1
   ! _hi_is_header_word bogus || return 1
@@ -263,65 +269,96 @@ function test_shebang_replaces_a_different_one_and_keeps_content() {
     grep -qF "export _HI_MAX_WIDTH=120" "$f"
 }
 
-# config_packages_floor: the only prompt that loops, so the parts worth pinning
-# without a pty are the three that do not need one - it keeps an existing floor
-# rather than dropping it, it does not restate the shipped default, and a
-# zero survives. The loop itself needs a terminal and is skipped when there is
-# none, which is what makes these callable here - provided stdin really is
-# not one: run by hand from a terminal it would be, and the case would sit at
-# the prompt, so it is fed /dev/null explicitly. _hi_settings_fixture
-# swallows stdout (its other users assert against the file it wrote), so the
-# collected lines go to a file inside the fixture instead - otherwise "no
-# lines" and "lines nobody saw" look identical and two of these three would
-# pass without asserting anything.
-function _hi_floor_run() {
+# config_packages_groups: the only prompt that loops, so the parts worth
+# pinning without a pty are the ones that do not need one - what it writes for
+# the set it ends on. The loop itself needs a terminal and is skipped when
+# there is none, which is what makes these callable here - provided stdin
+# really is not one: run by hand from a terminal it would be, and the case
+# would sit at the prompt, so it is fed /dev/null explicitly.
+# _hi_settings_fixture swallows stdout (its other users assert against the
+# file it wrote), so the collected lines go to a file inside the fixture
+# instead - otherwise "no lines" and "lines nobody saw" look identical and the
+# write-nothing cases would pass without asserting anything.
+function _hi_groups_run() {
   mkdir -p "$_HI_CONFIG_DIR"
   printf '#!/bin/sh\n%s\n' "$1" >"$_HI_SETTINGS"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
-  config_packages_floor </dev/null
+  config_packages_groups </dev/null
   collect_setting_lines
   printf '%s\n' ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} >"$_HI_CONFIG_DIR/lines.out"
 }
 
-function _hi_floor_lines() { cat "$_HI_WORKDIR/$1/overlay/lines.out" 2>/dev/null; }
+function _hi_groups_lines() { cat "$_HI_WORKDIR/$1/overlay/lines.out" 2>/dev/null; }
 
-function test_packages_floor_keeps_a_configured_value() {
-  _hi_settings_fixture floor_keep _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=3'
-  [ "$(_hi_floor_lines floor_keep)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
+function test_packages_groups_keeps_a_configured_value() {
+  _hi_settings_fixture groups_keep _hi_groups_run "export _HI_PACKAGES_GROUPS='core extras'"
+  [ "$(_hi_groups_lines groups_keep)" = "export _HI_PACKAGES_GROUPS='core extras'" ]
 }
 
-# 2 is header.sh's own default via ${_HI_PACKAGES_MIN_PRIORITY:-2}, so writing
-# it out would be a line that means nothing - the same rule config_max_width
-# has for 80.
-function test_packages_floor_does_not_write_the_default() {
-  _hi_settings_fixture floor_default _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=2'
-  [ -f "$_HI_WORKDIR/floor_default/overlay/lines.out" ] || return 1
-  [ -z "$(_hi_floor_lines floor_default | tr -d '[:space:]')" ]
+# a comma-separated value is read as a list and written back space-separated
+function test_packages_groups_normalises_commas() {
+  _hi_settings_fixture groups_comma _hi_groups_run "export _HI_PACKAGES_GROUPS='core,extras'"
+  [ "$(_hi_groups_lines groups_comma)" = "export _HI_PACKAGES_GROUPS='core extras'" ]
 }
 
-# ...and the other side of that rule: 0 is an answer like any other - "put the
-# trivia tier back" - so it has to survive as a line rather than being elided as the default.
-function test_packages_floor_writes_a_zero() {
-  _hi_settings_fixture floor_zero _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=0'
-  [ "$(_hi_floor_lines floor_zero)" = "export _HI_PACKAGES_MIN_PRIORITY=0" ]
+# the shipped set is header.sh's own default, so writing it out would be a
+# line that means nothing - in any order or spelling, the same rule
+# config_max_width has for 80
+function test_packages_groups_does_not_write_the_default() {
+  _hi_settings_fixture groups_default _hi_groups_run "export _HI_PACKAGES_GROUPS='deprecated,useful core'"
+  [ -f "$_HI_WORKDIR/groups_default/overlay/lines.out" ] || return 1
+  [ -z "$(_hi_groups_lines groups_default | tr -d '[:space:]')" ] || return 1
+  _hi_settings_fixture groups_unset _hi_groups_run ''
+  [ -f "$_HI_WORKDIR/groups_unset/overlay/lines.out" ] || return 1
+  [ -z "$(_hi_groups_lines groups_unset | tr -d '[:space:]')" ]
 }
 
-# the check is off, so its depth is moot - the stored floor is kept for when
-# 'check' comes back
-function test_packages_floor_kept_when_the_check_is_off() {
+# ...and the other side of that rule: no group at all is an answer, spelled
+# `none`, not an empty value that would read as the default
+function test_packages_groups_writes_none() {
+  _hi_settings_fixture groups_none _hi_groups_run "export _HI_PACKAGES_GROUPS='none'"
+  [ "$(_hi_groups_lines groups_none)" = "export _HI_PACKAGES_GROUPS='none'" ]
+}
+
+# a fresh shell with only install.sh sourced, the way a caller other than
+# run_configure reaches it: the default set is header.sh's, so the section
+# loads it first - the shipped set in another order still writes nothing
+function test_packages_groups_loads_its_own_default() {
+  local dir="$_HI_WORKDIR/groups_fresh" out
+  mkdir -p "$dir"
+  printf '#!/bin/sh\n%s\n' "export _HI_PACKAGES_GROUPS='useful,core deprecated'" >"$dir/settings.sh"
+  # shellcheck disable=SC2016 # expanded by the child
+  out="$(_HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" bash -c '
+    set --
+    source "$_HI_INSTALL"
+    _HI_SETTINGS="$1/settings.sh" _HI_CONFIG_DIR="$1"
+    _HI_SETTING_LINES=() _HI_SETTING_PENDING=()
+    config_packages_groups </dev/null
+    collect_setting_lines
+    printf "LINES:%s\n" "${_HI_SETTING_LINES[*]:-}"' bash "$dir" 2>&1)" || return 1
+  [[ "$out" == *"LINES:"* && "$out" != *_HI_PACKAGES_GROUPS* ]]
+}
+
+# the check is off, so which groups it runs is moot - the stored value is kept
+# for when 'check' comes back
+function test_packages_groups_kept_when_the_check_is_off() {
   local out
-  out="$(_hi_collected_lines floor_off "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_MIN_PRIORITY=3")"
-  [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* && "$out" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* ]]
+  out="$(_hi_collected_lines groups_off "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_GROUPS='core'")"
+  [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* && "$out" == *"export _HI_PACKAGES_GROUPS='core'"* ]]
 }
 
-# The loop itself, which none of the four cases above can reach: `[ -t 0 ]`
+# The loop itself, which none of the cases above can reach: `[ -t 0 ]`
 # guards it, so exercising it at all needs a pty. An unbounded retry is the
-# failure to fear: an answer that is never a number re-asking forever, with
+# failure to fear: an answer that never names a group re-asking forever, with
 # no way out but ^C and a full re-render of the package check on every pass.
 # What these pin is that it *stops*, by counting
 # the prompts rather than trusting a wall clock: a bound that regressed would
-# show up as more prompts, not as a slower suite.
+# show up as more prompts, not as a slower suite - and that each reply toggles
+# the groups it names.
+#
+# The child reads a fixture packages file with five groups, one of them
+# capitalised, so the offered names do not follow the shipped roster.
 #
 # $_HI_PTY_FORCED is empty when there is no usable pty - no python3 at all, or
 # a python3 without the Unix-only `pty` module - which is why these register
@@ -329,7 +366,7 @@ function test_packages_floor_kept_when_the_check_is_off() {
 # backend suites' doctrine, for the same reason.
 # shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
 # is the child shell's to make, after the pty has put it on the other side
-_HI_FLOOR_CHILD='
+_HI_GROUPS_CHILD='
   _hi_dir="$1"
   source "$_HI_TEST_LIB"
   set --
@@ -341,19 +378,22 @@ _HI_FLOOR_CHILD='
   _HI_NANORC="$_hi_dir/overlay/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
+  printf "%s\n" "[core]" sh "[useful]" sh "[deprecated]" "-zz-hi-absent" "[extras]" sh "[Work]" sh \
+    >"$_hi_dir/overlay/packages"
+  _HI_PACKAGES="$_hi_dir/overlay/packages"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
-  config_packages_floor
+  config_packages_groups
   collect_setting_lines
-  printf "FLOORLINES:%s\n" "${_HI_SETTING_LINES[*]:-}" | tee "$_hi_dir/verdict"
+  printf "GROUPLINES:%s\n" "${_HI_SETTING_LINES[*]:-}" | tee "$_hi_dir/verdict"
 '
 
-# _hi_floor_pty <label> <input> [settings-line] - run config_packages_floor
+# _hi_groups_pty <label> <input> [settings-line] - run config_packages_groups
 # under a pty with <input> (printf %b, so \n and \004 work) on its stdin.
-# Transcript lands in $_HI_WORKDIR/<label>.floor.out. Non-zero when the child
+# Transcript lands in $_HI_WORKDIR/<label>.groups.out. Non-zero when the child
 # had to be killed, which is the regression this is here to catch.
 # _hi_pty_run <child-script> <suffix> <label> <input> <line> [args...] - the
-# pty rig _hi_floor_pty and _hi_cfg_pty both run: a scratch settings.sh, the
+# pty rig _hi_groups_pty and _hi_cfg_pty both run: a scratch settings.sh, the
 # input typed at a forced pty, the transcript captured to
 # $_HI_WORKDIR/<label>.<suffix>.out, timed out rather than hung forever.
 function _hi_pty_run() {
@@ -370,23 +410,23 @@ function _hi_pty_run() {
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
-function _hi_floor_pty() { _hi_pty_run "$_HI_FLOOR_CHILD" floor "$1" "$2" "${3:-}"; }
+function _hi_groups_pty() { _hi_pty_run "$_HI_GROUPS_CHILD" groups "$1" "$2" "${3:-}"; }
 
 # a pty writes CR-LF, so all three readers normalise before matching. The
 # marker is deliberately not anchored to the start of a line: `read -p` leaves
-# the cursor on its prompt, so when the loop exits by repeating the value on
-# screen the marker is printed onto the tail of that same prompt line.
-function _hi_floor_prompts() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -c 'Lowest package priority' || true
+# the cursor on its prompt, so when the loop exits on EOF the marker is
+# printed onto the tail of that same prompt line.
+function _hi_groups_prompts() {
+  tr '\r' '\n' <"$_HI_WORKDIR/$1.groups.out" | grep -c 'Toggle which groups' || true
 }
-function _hi_floor_finished() {
-  [ -s "$_HI_WORKDIR/$1/verdict" ] || tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -q 'FLOORLINES:'
+function _hi_groups_finished() {
+  [ -s "$_HI_WORKDIR/$1/verdict" ] || tr '\r' '\n' <"$_HI_WORKDIR/$1.groups.out" | grep -q 'GROUPLINES:'
 }
 # _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
 # a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
 # everything to the end of the line by default, or just what <capture>
 # matches (a sed bracket expression body) when the tag's value can have
-# trailing text of its own. The one shape behind _hi_floor_pty_lines,
+# trailing text of its own. The one shape behind _hi_groups_pty_lines,
 # _hi_cfg_rc, and _hi_cfg_lines. The child also writes that line to
 # <label>/verdict, which is read first: a BSD pty can drop the last output of
 # a child that exits at once, and the transcript is only the fallback.
@@ -395,37 +435,72 @@ function _hi_pty_field() {
   [ -s "$src" ] || src="$_HI_WORKDIR/$1.$2.out"
   tr '\r' '\n' <"$src" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
 }
-function _hi_floor_pty_lines() { _hi_pty_field "$1" floor 'FLOORLINES:'; }
+function _hi_groups_pty_lines() { _hi_pty_field "$1" groups 'GROUPLINES:'; }
 
-# eight junk answers, three prompts: the bound, not the patience.
-function test_packages_floor_stops_asking_for_a_number() {
-  _hi_floor_pty floor_junk 'zz\nyy\nxx\nww\nvv\nuu\ntt\nss\n' || return 1
-  _hi_floor_finished floor_junk || return 1
-  [ "$(_hi_floor_prompts floor_junk)" -le 3 ]
+# eight junk answers, three prompts: the bound, not the patience - and the
+# set it gives up on is the one it started with, the default, so nothing is
+# written
+function test_packages_groups_stops_asking_for_a_name() {
+  _hi_groups_pty groups_junk 'zz\nyy\nxx\nww\nvv\nuu\ntt\nss\n' || return 1
+  _hi_groups_finished groups_junk || return 1
+  [ "$(_hi_groups_prompts groups_junk)" -le 3 ] &&
+    tr '\r' '\n' <"$_HI_WORKDIR/groups_junk.groups.out" | grep -q 'no group zz' &&
+    [ -z "$(_hi_groups_pty_lines groups_junk)" ]
 }
 
 # EOF is not an answer: one prompt, then out.
-function test_packages_floor_ends_on_eof() {
-  _hi_floor_pty floor_eof '\004' || return 1
-  _hi_floor_finished floor_eof || return 1
-  [ "$(_hi_floor_prompts floor_eof)" -le 1 ]
+function test_packages_groups_ends_on_eof() {
+  _hi_groups_pty groups_eof '\004' || return 1
+  _hi_groups_finished groups_eof || return 1
+  [ "$(_hi_groups_prompts groups_eof)" -le 1 ]
 }
 
-# a rejected answer must not poison the ones after it - the reject count
-# resets, so this still lands on 3 rather than giving up first. 3, not the
-# default: the default is cleared rather than written, which would leave this
-# case nothing to see.
-function test_packages_floor_takes_a_number_after_a_rejection() {
-  _hi_floor_pty floor_recover 'zz\n3\n3\n' || return 1
-  [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
+# the prompt offers the file's groups, in file order
+function test_packages_groups_offers_the_files_groups() {
+  _hi_groups_pty groups_offer '\n' || return 1
+  tr '\r' '\n' <"$_HI_WORKDIR/groups_offer.groups.out" |
+    grep -q 'Toggle which groups (core useful deprecated extras Work)?'
 }
 
-# 3 is the last answer; 4 is a number and still not one - refused like
-# junk, and the next real answer lands
-function test_packages_floor_refuses_a_number_past_three() {
-  _hi_floor_pty floor_five '4\n3\n3\n' || return 1
-  tr '\r' '\n' <"$_HI_WORKDIR/floor_five.floor.out" | grep -q 'not 0-3' || return 1
-  [ "$(_hi_floor_pty_lines floor_five)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
+# a reply flips each group it names: extras on, useful off, in one answer
+function test_packages_groups_toggles_each_named_group() {
+  _hi_groups_pty groups_flip 'extras useful\n\n' || return 1
+  [ "$(_hi_groups_pty_lines groups_flip)" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ]
+}
+
+# a comma-separated reply is a list too
+function test_packages_groups_splits_a_comma_reply() {
+  _hi_groups_pty groups_comma_reply 'extras,useful\n\n' || return 1
+  [ "$(_hi_groups_pty_lines groups_comma_reply)" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ]
+}
+
+# a reply is matched whatever its case, and the group is toggled under the
+# file's own spelling
+function test_packages_groups_matches_any_case() {
+  _hi_groups_pty groups_case 'WORK\n\n' || return 1
+  [ "$(_hi_groups_pty_lines groups_case)" = "export _HI_PACKAGES_GROUPS='core useful deprecated Work'" ]
+}
+
+# every group toggled off is `none`, written out
+function test_packages_groups_all_off_is_none() {
+  _hi_groups_pty groups_alloff 'core useful deprecated\n\n' || return 1
+  [ "$(_hi_groups_pty_lines groups_alloff)" = "export _HI_PACKAGES_GROUPS='none'" ]
+}
+
+# ...and toggling back to the shipped set writes nothing
+function test_packages_groups_back_to_the_default_writes_nothing() {
+  _hi_groups_pty groups_back 'core\n\n' "export _HI_PACKAGES_GROUPS='useful deprecated'" || return 1
+  _hi_groups_finished groups_back || return 1
+  [ -z "$(_hi_groups_pty_lines groups_back)" ]
+}
+
+# a reply naming one unknown group toggles none of it, and a rejected answer
+# must not poison the ones after it: extras is flipped once, by the second
+# reply, not twice
+function test_packages_groups_takes_a_name_after_a_rejection() {
+  _hi_groups_pty groups_recover 'extras zz\nextras\n\n' || return 1
+  tr '\r' '\n' <"$_HI_WORKDIR/groups_recover.groups.out" | grep -q 'no group zz' || return 1
+  [ "$(_hi_groups_pty_lines groups_recover)" = "export _HI_PACKAGES_GROUPS='core useful deprecated extras'" ]
 }
 
 # same mode-preservation contract as config_shell, and the same reason its own
@@ -668,7 +743,7 @@ function test_preset_run_still_creates_the_file() {
   _HI_SETTING_PENDING=()
   mkdir -p "$dir"
   run_configure balanced </dev/null >/dev/null || return 1
-  grep -qF '_HI_PACKAGES_MIN_PRIORITY=3' "$_HI_SETTINGS"
+  grep -qF "_HI_PACKAGES_GROUPS='core,deprecated'" "$_HI_SETTINGS"
 }
 
 function test_validators_for_the_advanced_values() {
@@ -802,7 +877,7 @@ function test_preset_run_writes_the_preset() {
   local block
   _hi_settings_fixture preset_run _hi_preset_run
   block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings preset_run)")"
-  [[ "$block" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* &&
+  [[ "$block" == *"export _HI_PACKAGES_GROUPS='core,deprecated'"* &&
     "$block" == *"export _HI_MAX_WIDTH=120"* && "$block" != *"_HI_DISABLE_EDITORS"* ]]
 }
 
@@ -1055,16 +1130,29 @@ function test_prompt_tool_preview_reports_none() {
   [[ "$out" == *"no prompt program is installed here"* ]]
 }
 
-# an empty render is a real answer at a high enough floor, and the preview
-# says so rather than handing show_preview a blank to drop on the floor
-function test_floor_preview_says_nothing_reaches_the_floor() {
+# the preview renders the groups it is handed, not the ones configured: a
+# group that is off in the file's setting shows when named
+function test_groups_preview_renders_the_candidate() {
   _hi_load_preview_sources
   local out
-  printf 'zz-hi-absent:0\n' >"$_HI_WORKDIR/floor_low"
+  printf '[mine]\nsh\n' >"$_HI_WORKDIR/groups_fixture"
+  out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview mine)"
+  [[ "$(_hi_strip_ansi "$out")" == *" sh "* ]]
+}
+
+# an empty render is a real answer - every group off, or the named ones
+# silent - and the preview says so rather than handing show_preview a blank
+# to drop
+function test_groups_preview_says_when_nothing_shows() {
+  _hi_load_preview_sources
+  local out
+  printf '[mine]\nsh\n' >"$_HI_WORKDIR/groups_fixture"
   # the candidate is an argument, not a global the caller sets; the fixture
   # file is scoped to the render itself, not to the strip around it
-  out="$(_HI_PACKAGES="$_HI_WORKDIR/floor_low" _hi_packages_floor_preview 3)"
-  [[ "$(_hi_strip_ansi "$out")" == *"nothing reaches this floor"* ]]
+  out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview none)"
+  [[ "$(_hi_strip_ansi "$out")" == *"these groups show nothing here"* ]] || return 1
+  out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview)"
+  [[ "$(_hi_strip_ansi "$out")" == *"these groups show nothing here"* ]]
 }
 
 # the whole run with neither a preset nor a tty: config_preset stands down,
@@ -1087,8 +1175,8 @@ function test_run_configure_without_a_preset_keeps_the_block() {
 
 # The interactive arms proper: ask_value's typed answers, the menu,
 # config_preset, and the intro are all `[ -t 0 ]`-gated the same way
-# the floor loop is, and the same pty harness reaches them. The child is
-# _HI_FLOOR_CHILD's shape generalised - point the settings at a scratch dir,
+# the groups loop is, and the same pty harness reaches them. The child is
+# _HI_GROUPS_CHILD's shape generalised - point the settings at a scratch dir,
 # run the one configure function named on its argv with the pty as stdin, and
 # report the exit code, the preset-final flag, and the collected lines on one
 # greppable tail line. Feeding a question an extra newline is harmless (it
@@ -1132,7 +1220,7 @@ function _hi_cfg_pty() {
 # the readers: the transcript's visible text for substrings (fixed strings
 # only - a pty writes CR-LF, so nothing here anchors a line; the menu paints
 # inside a row, so its escapes come out first), the tail line's fields
-# through the same CR normalisation the floor's readers use
+# through the same CR normalisation the groups loop's readers use
 function _hi_cfg_has() { _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | grep -qF "$2"; }
 function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
 function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
@@ -1327,10 +1415,10 @@ function test_menu_lists_missing_header_items_off() {
     _hi_cfg_has hdr_list "$((w + 2))) [ ] utc"
 }
 
-# the check's depth opens the floor's loop
-function test_menu_opens_the_check_depth() {
-  _hi_cfg_pty hdr_depth "$(_hi_item floor)\n3\n3\ns\n" '' config_hub || return 1
-  [[ "$(_hi_cfg_lines hdr_depth)" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* ]]
+# the package groups item opens the groups loop; useful is toggled off
+function test_menu_opens_the_package_groups() {
+  _hi_cfg_pty hdr_groups "$(_hi_item groups)\nuseful\n\ns\n" '' config_hub || return 1
+  [[ "$(_hi_cfg_lines hdr_groups)" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]]
 }
 
 # a feature row flips and says so under the list, with its preview
@@ -1418,7 +1506,7 @@ function test_preset_question_refuses_a_stranger_and_carries_on() {
 function test_preset_shorthand_seeds_the_run() {
   _hi_cfg_pty pre_walk 'b\n' '' config_preset || return 1
   _hi_cfg_has pre_walk "starting from the 'balanced' preset" &&
-    [[ "$(_hi_cfg_lines pre_walk)" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* ]]
+    [[ "$(_hi_cfg_lines pre_walk)" == *"export _HI_PACKAGES_GROUPS='core,deprecated'"* ]]
 }
 
 # The whole run. The shortest: the intro orients, p opens the presets, m
@@ -1468,7 +1556,7 @@ function test_menu_lists_every_group() {
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Editors" &&
     _hi_cfg_has hub_all "Header - the preview's rows" &&
-    _hi_cfg_has hub_all "package check depth" &&
+    _hi_cfg_has hub_all "package groups" &&
     _hi_cfg_has hub_all "bash prompt ends with" &&
     _hi_cfg_has hub_all "Advanced" &&
     _hi_cfg_has hub_all "24-bit color" &&
@@ -1505,8 +1593,8 @@ function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
 
 # a value away from its default says the default beside it; one at it does not
 function test_menu_value_shows_its_default() {
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 's\n' 'export _HI_PACKAGES_MIN_PRIORITY=3' run_configure "" || return 1
-  _hi_cfg_has hub_def "package check depth   3 (default 2)" &&
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 's\n' "export _HI_PACKAGES_GROUPS='core'" run_configure "" || return 1
+  _hi_cfg_has hub_def "package groups        core (default core useful deprecated)" &&
     ! _hi_cfg_has hub_def "(default 80)"
 }
 
@@ -1554,10 +1642,12 @@ function run_configure_tests() {
   _hi_check "Written to a new settings.sh" test_shebang_is_written_to_a_new_settings_file
   _hi_check "Stays first under the settings block" test_shebang_stays_first_under_the_settings_block
   _hi_check "Not duplicated on reruns" test_shebang_is_not_duplicated_on_reruns
-  _hi_check "Packages floor: an existing value survives" test_packages_floor_keeps_a_configured_value
-  _hi_check "Packages floor: the default is not written" test_packages_floor_does_not_write_the_default
-  _hi_check "Packages floor: a zero is written out" test_packages_floor_writes_a_zero
-  _hi_check "Packages floor: kept when the check is off" test_packages_floor_kept_when_the_check_is_off
+  _hi_check "Package groups: an existing value survives" test_packages_groups_keeps_a_configured_value
+  _hi_check "Package groups: commas are written as spaces" test_packages_groups_normalises_commas
+  _hi_check "Package groups: the default set is not written" test_packages_groups_does_not_write_the_default
+  _hi_check "Package groups: none is written out" test_packages_groups_writes_none
+  _hi_check "Package groups: kept when the check is off" test_packages_groups_kept_when_the_check_is_off
+  _hi_check "Package groups: loads its own default" test_packages_groups_loads_its_own_default
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
   _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
@@ -1642,20 +1732,26 @@ function run_configure_tests() {
   _hi_check "eza/exa preview names the ls it aliases" test_eza_preview_names_the_ls_it_aliases
   _hi_check "Env segment preview draws the live segment" test_env_status_preview_draws_the_live_segment
   _hi_check "...and a sample with nothing active" test_env_status_preview_samples_with_nothing_active
-  _hi_check "Floor preview says when nothing reaches it" test_floor_preview_says_nothing_reaches_the_floor
+  _hi_check "Groups preview renders the candidate groups" test_groups_preview_renders_the_candidate
+  _hi_check "...and says when they show nothing" test_groups_preview_says_when_nothing_shows
 
   # Every pty case fans out together: each drives its own child under its own
   # $_HI_WORKDIR/<label> and the children re-source configure.sh themselves,
   # so nothing in this shell is shared - and thirty-odd of them at a second
   # apiece would be this suite's whole wall clock run one at a time.
-  # The three packages-floor prompts belong to the section above; they sit
-  # here because they are pty cases too.
+  # The package-groups prompts belong to the section above; they sit here
+  # because they are pty cases too.
   _hi_h2 "Testing: the interactive arms and the menu (pty)"
   _hi_par_begin "pty cases"
-  _hi_par_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
-  _hi_par_check_capable pty "Packages floor: 4 is refused like junk" test_packages_floor_refuses_a_number_past_three
-  _hi_par_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
-  _hi_par_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
+  _hi_par_check_capable pty "Package groups: junk stops the loop" test_packages_groups_stops_asking_for_a_name
+  _hi_par_check_capable pty "Package groups: EOF ends the prompt" test_packages_groups_ends_on_eof
+  _hi_par_check_capable pty "Package groups: offers the file's groups" test_packages_groups_offers_the_files_groups
+  _hi_par_check_capable pty "Package groups: a reply toggles each name" test_packages_groups_toggles_each_named_group
+  _hi_par_check_capable pty "Package groups: a comma reply is split" test_packages_groups_splits_a_comma_reply
+  _hi_par_check_capable pty "Package groups: a reply matches any case" test_packages_groups_matches_any_case
+  _hi_par_check_capable pty "Package groups: all off is none" test_packages_groups_all_off_is_none
+  _hi_par_check_capable pty "Package groups: back to the default writes nothing" test_packages_groups_back_to_the_default_writes_nothing
+  _hi_par_check_capable pty "Package groups: a name lands after a rejection" test_packages_groups_takes_a_name_after_a_rejection
   _hi_par_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number
   _hi_par_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
   _hi_par_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
@@ -1682,7 +1778,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: h takes a header preset by name" test_menu_takes_a_header_preset_by_name
   _hi_par_check_capable pty "Menu: h refuses a stranger" test_menu_header_preset_refuses_a_stranger
   _hi_par_check_capable pty "Menu: the width item takes a width" test_menu_takes_a_width
-  _hi_par_check_capable pty "Menu: the check depth opens its loop" test_menu_opens_the_check_depth
+  _hi_par_check_capable pty "Menu: package groups opens its loop" test_menu_opens_the_package_groups
   _hi_par_check_capable pty "Menu: hidden addresses" test_menu_takes_hidden_addresses
   _hi_par_check_capable pty "Menu: hi's prompt toggles" test_menu_toggles_hi_prompt
   _hi_par_check_capable pty "Menu: hi's prompt toggles back off" test_menu_toggles_hi_prompt_off

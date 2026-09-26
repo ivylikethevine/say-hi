@@ -161,7 +161,7 @@ function test_strip_settings_removes_what_install_wrote() {
 # colors and packages are the user's own writing, not something install.sh
 # produced - uninstall leaves them for the same reason it leaves the checkout
 function _hi_strip_beside_colors() {
-  printf 'hostname,foo,brred\n' >"$_HI_CONFIG_DIR/colors"
+  printf '[hostname]\nfoo brred\n' >"$_HI_CONFIG_DIR/colors"
   ensure_settings_shebang
   strip_settings
 }
@@ -356,7 +356,7 @@ function test_uninstall_mode_is_safe_on_a_fresh_home() {
 function test_uninstall_purge_removes_the_overlay() {
   local home="$_HI_WORKDIR/un-purge" out rc=0
   mkdir -p "$home/.config/say-hi"
-  printf 'hostname,mine,red\n' >"$home/.config/say-hi/colors"
+  printf '[hostname]\nmine red\n' >"$home/.config/say-hi/colors"
   out="$(_hi_run_install un-purge --uninstall 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [ -f "$home/.config/say-hi/colors" ] || return 1
   out="$(_hi_run_install un-purge --uninstall --purge --dry-run 2>&1)" || rc=$?
@@ -397,6 +397,32 @@ function test_features_only_writes_settings_and_no_rc() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"Features updated!"* ]] &&
     grep -qF "export _HI_DISABLE_HEADER=1" "$home/.config/say-hi/settings.sh" &&
     [ ! -e "$home/.bashrc" ]
+}
+
+# an overlay an older hi wrote is converted before any setting is read: the
+# old-shape packages and colors files come out in [section] form, each
+# original kept beside it as <file>.old
+function test_configure_converts_an_old_overlay() {
+  local home="$_HI_WORKDIR/convert-old" cfg out
+  cfg="$home/.config/say-hi"
+  mkdir -p "$cfg"
+  printf 'bat:3,batcat:3\n' >"$cfg/packages"
+  printf 'hostname,box,red\n' >"$cfg/colors"
+  out="$(_hi_run_install_here convert-old --configure --preset=balanced 2>&1)" || return 1
+  [[ "$out" == *"converted $cfg/packages"* && "$out" == *"converted $cfg/colors"* ]] &&
+    grep -qx '\[core\]' "$cfg/packages" && grep -qx 'bat:3,batcat:3' "$cfg/packages.old" &&
+    grep -qx '\[hostname\]' "$cfg/colors" && grep -qx 'hostname,box,red' "$cfg/colors.old"
+}
+
+# ...and under --dry-run it only says it would
+function test_configure_dry_run_converts_nothing() {
+  local home="$_HI_WORKDIR/convert-dry" cfg out
+  cfg="$home/.config/say-hi"
+  mkdir -p "$cfg"
+  printf 'bat:3,batcat:3\n' >"$cfg/packages"
+  out="$(_hi_run_install_here convert-dry --configure --preset=balanced --dry-run 2>&1)" || return 1
+  [[ "$out" == *"would convert $cfg/packages"* ]] && [ ! -e "$cfg/packages.old" ] &&
+    [ "$(cat "$cfg/packages")" = 'bat:3,batcat:3' ]
 }
 
 # a preset name is checked before a question is asked or a byte written: the
@@ -1015,6 +1041,8 @@ function run_install_tests() {
   _hi_check_capable lockout "...and says when it cannot" test_uninstall_purge_says_when_it_cannot_remove
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
+  _hi_check "--configure converts an old overlay first" test_configure_converts_an_old_overlay
+  _hi_check "...and under --dry-run only says it would" test_configure_dry_run_converts_nothing
   _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written
   _hi_check "...and before the banner" test_a_stranger_preset_is_refused_before_the_banner
   _hi_check "-n is --dry-run" test_dry_run_short_form_is_the_same

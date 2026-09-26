@@ -154,10 +154,10 @@ function test_overlay_sends_nothing_outside_the_roster() {
 function test_overlay_carries_packages_stripped() {
   local dir="$_HI_WORKDIR/packages-overlay" out
   mkdir -p "$dir"
-  printf '# a note\nbat:3,batcat:3\n\n  # indented\n-sudo:2,doas:2\n+getent:0\n' >"$dir/packages"
+  printf '# a note\n[core]\nbat,batcat\n\n  # indented\n-sudo,doas\n+getent\n' >"$dir/packages"
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages ] || return 1
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat packages)"
-  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf 'bat:3,batcat:3\n-sudo:2,doas:2\n+getent:0')" ] || {
+  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat,batcat\n-sudo,doas\n+getent')" ] || {
     _hi_cecho " | packages arrived as: [$out]" "$RED"
     return 1
   }
@@ -687,8 +687,8 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   local dir="$_HI_WORKDIR/excl" listing
   local -a payload_excl=() members=()
   mkdir -p "$dir"
-  printf 'hosttag,x,red\n' >"$dir/colors"
-  printf 'git:3\n' >"$dir/packages"
+  printf '[hosttag]\nx red\n' >"$dir/colors"
+  printf '[core]\ngit\n' >"$dir/packages"
   printf 'alias a=b\n' >"$dir/aliases.sh"
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
@@ -708,7 +708,7 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
 function test_the_payload_is_whole_without_a_cut_list() {
   local dir="$_HI_WORKDIR/excl-none"
   mkdir -p "$dir"
-  printf 'hosttag,x,red\n' >"$dir/colors"
+  printf '[hosttag]\nx red\n' >"$dir/colors"
   [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
 }
 

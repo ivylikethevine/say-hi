@@ -633,7 +633,7 @@ function doctor_settings_values() {
   local spec name pred why v
   for spec in \
     "_HI_MAX_WIDTH|_hi_is_width|a number, 40 or more" \
-    "_HI_PACKAGES_MIN_PRIORITY|_hi_is_priority|0 to 3, or 4 for no check" \
+    "_HI_PACKAGES_GROUPS|_hi_is_package_groups|none, or group names like core useful" \
     "_HI_IP_HIDE|_hi_is_ip_hide|none, or globs like 172.* 10.0.*" \
     "_HI_HEADER_ORDER|_hi_is_header_order|words from $_HI_HEADER_ORDER_DEFAULT" \
     "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS" \
@@ -646,13 +646,22 @@ function doctor_settings_values() {
     [ -n "$v" ] || continue
     "$pred" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
   done
+  # the package check's old shape, which nothing reads any more
+  [ -z "${_HI_PACKAGES_MIN_PRIORITY:-}" ] ||
+    doctor_row _HI_PACKAGES_MIN_PRIORITY "is ignored - name the groups to show in _HI_PACKAGES_GROUPS" bad
+  if [ -f "${_HI_PACKAGES:-}" ] && grep -q '^[^#]*:[0-9]' "$_HI_PACKAGES" && ! grep -Eq '^\[[^]]+\]$' "$_HI_PACKAGES"; then
+    doctor_row packages "$_HI_PACKAGES has name:priority rows, which read as missing commands - hi --configure converts it" bad
+  fi
+  if [ -f "${_HI_COLORS:-}" ] && grep -Eq '^[a-z]+,[^,#]+,' "$_HI_COLORS" && ! grep -Eq '^\[[^]]+\]$' "$_HI_COLORS"; then
+    doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad
+  fi
 }
 
 # doctor_files - the places hi.sh's $_HI_OVERLAY_TABLE says a member can come
 # from that hold something, in its one order (GLOSSARY: HI.61): the overlay's
 # copy, each home location, the tree's default where there is one - each
-# marked used or passed over, and why nothing is sent when something is
-# there. A member found nowhere joins one closing row, so a sparse setup
+# marked used or passed over (the tree's default only when used), and why
+# nothing is sent when something is there. A member found nowhere joins one closing row, so a sparse setup
 # stays a short table.
 function doctor_files() {
   doctor_section files "The files hi looks for"
@@ -689,8 +698,10 @@ function doctor_files() {
         state=absent
       fi
       # only what is there: the places looked in and found empty are the
-      # table's to know (GLOSSARY: HI.61), not a line each here
+      # table's to know (GLOSSARY: HI.61), not a line each here - nor the
+      # tree's default behind a copy that replaces it
       [ "$state" != absent ] || continue
+      [ "$state" != "passed over" ] || [ "$p" != "$_HI_ROOT/config/$m" ] || continue
       found=1
       [ "$p" != "$_HI_ROOT/config/$m" ] || p="the tree's config/$m"
       # the ~ from a variable: bash 3.2 keeps a \~ replacement's backslash
