@@ -61,6 +61,71 @@ function _hi_update_fixture() {
   printf '%s' "$home"
 }
 
+# _hi_update_dev_fixture <name> - _hi_update_fixture with the tree on a dev
+# branch at its first commit, tracking an origin/dev two commits ahead (the
+# fixture's `two`, then `three`). Prints the fixture's _HI_HOME.
+function _hi_update_dev_fixture() {
+  local home g="git -c user.name=hi -c user.email=hi@example.invalid -c commit.gpgsign=false"
+  home="$(_hi_update_fixture "$1")" || return 1
+  {
+    $g -C "$home/work" checkout -q -b dev &&
+      $g -C "$home/work" commit -q --allow-empty -m three &&
+      $g -C "$home/work" push -q origin dev &&
+      $g -C "$home/say-hi" fetch -q origin &&
+      $g -C "$home/say-hi" checkout -q -b dev main &&
+      $g -C "$home/say-hi" branch -q --set-upstream-to=origin/dev dev
+  } >/dev/null 2>&1 || return 1
+  printf '%s' "$home"
+}
+
+# on dev, a bare --update fast-forwards the branch instead of moving to a tag
+function test_update_on_dev_pulls() {
+  local home out
+  home="$(_hi_update_dev_fixture upd-dev)" || return 1
+  out="$(_hi_subcmd_run "$home" --update)" || return 1
+  [[ "$out" == *"(2 new commit(s))"* ]] || return 1
+  [ "$(git -C "$home/say-hi" symbolic-ref --short -q HEAD)" = dev ] || return 1
+  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$(git -C "$home/say-hi" rev-parse origin/dev)" ]
+}
+
+function test_update_on_dev_dry_run_moves_nothing() {
+  local home before out
+  home="$(_hi_update_dev_fixture upd-dev-dry)" || return 1
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update --dry-run)" || return 1
+  [[ "$out" == *"would pull 2 commit(s) into dev"* ]] || return 1
+  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ]
+}
+
+function test_update_on_dev_up_to_date_says_so() {
+  local home out
+  home="$(_hi_update_dev_fixture upd-dev-same)" || return 1
+  git -C "$home/say-hi" merge -q --ff-only origin/dev >/dev/null 2>&1 || return 1
+  out="$(_hi_subcmd_run "$home" --update)" || return 1
+  [[ "$out" == *"dev is up to date"* ]]
+}
+
+# a dev with commits of its own is left for a human: no merge, no reset
+function test_update_on_dev_refuses_a_diverged_branch() {
+  local home before out rc=0
+  home="$(_hi_update_dev_fixture upd-dev-div)" || return 1
+  git -C "$home/say-hi" -c user.name=hi -c user.email=hi@example.invalid -c commit.gpgsign=false \
+    commit -q --allow-empty -m mine >/dev/null 2>&1 || return 1
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update 2>&1)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"has diverged from its upstream (1 ahead, 2 behind)"* ]] || return 1
+  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ]
+}
+
+# a tag named on dev is still a tag checkout
+function test_update_on_dev_with_a_tag_checks_it_out() {
+  local home out
+  home="$(_hi_update_dev_fixture upd-dev-tag)" || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.2)" || return 1
+  [[ "$out" == *"now on v0.0.2"* ]] &&
+    ! git -C "$home/say-hi" symbolic-ref -q HEAD >/dev/null 2>&1
+}
+
 function test_update_to_a_tag_detaches_there() {
   local home out
   home="$(_hi_update_fixture upd-tag)" || return 1
@@ -399,6 +464,11 @@ function run_update_tests() {
   _hi_check_requires git "--update takes one tag at most, no options" test_update_takes_one_tag_at_most
   _hi_check_requires git "A failed fetch stops the update" test_update_stops_when_the_fetch_fails
   _hi_check_requires git "A bare --update with no release tag is refused" test_bare_update_needs_a_release_tag
+  _hi_check_requires git "On dev, a bare --update fast-forwards dev" test_update_on_dev_pulls
+  _hi_check_requires git "...a dry run counts the commits, moves nothing" test_update_on_dev_dry_run_moves_nothing
+  _hi_check_requires git "...an up-to-date dev says so" test_update_on_dev_up_to_date_says_so
+  _hi_check_requires git "...a diverged dev is refused, untouched" test_update_on_dev_refuses_a_diverged_branch
+  _hi_check_requires git "...a named tag is still a tag checkout" test_update_on_dev_with_a_tag_checks_it_out
 
   _hi_h2 "Testing: the tag's signature"
   _hi_check_requires git "An unsigned tag is said to be, and checked out" test_update_says_an_unsigned_tag_is_unsigned

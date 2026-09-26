@@ -361,12 +361,15 @@ names the conversion instead.
 .B \-\-update \fR[\fItag\fR] [\fB\-\-dry\-run\fR]
 fetch the tags and check out the newest release, detached, or
 .I tag
-to move forward or back. A tree with uncommitted changes is refused. Releases
-are tags only; to follow a branch, run
-.B git pull
-in the checkout.
+to move forward or back. On the
+.B dev
+branch with no
+.IR tag ,
+it fast-forwards dev to its upstream instead, and refuses a dev that has
+diverged. A tree with uncommitted changes is refused.
 .B \-\-dry\-run
-fetches and names the tag without moving. After the checkout, the new tag's
+fetches and names the tag, or counts the commits a pull would bring, without
+moving. After the checkout or pull, the new tree's
 converter rewrites any overlay file in an older shape, as under
 .BR \-\-configure .
 Needs a checkout: a package has no

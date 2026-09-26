@@ -94,7 +94,7 @@ All **package**, never in the payload.
 | `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.                                                                                             |
 | `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                      |
 | `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                       |
-| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag.                                                                                                                     |
+| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                             |
 | `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                           |
 | `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                           |
 | `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                |

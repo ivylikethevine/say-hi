@@ -215,8 +215,9 @@ row, and everything answered **no**, and why:
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
-- `hi --update` moves a cloned install to the newest release tag (`--dry-run`
-  names it first; a package upgrades through its package manager).
+- `hi --update` moves a cloned install to the newest release tag, or on the
+  `dev` branch fast-forwards it (`--dry-run` says what it would do; a package
+  upgrades through its package manager).
 - `hi --add-package core bat,batcat` adds a row to the `core` group of
   `~/.config/say-hi/packages`, copying the shipped roster there first;
   `hi --remove-package bat` takes it out again.
