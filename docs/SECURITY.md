@@ -25,7 +25,8 @@ to report what slipped through it.
 - **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`, or
   a package built from that same script
   ([PACKAGING.md's _Install channels_](PACKAGING.md#install-channels)).
-  `hi --update` is a release-tag checkout in a checkout you can read.
+  `hi --update` is a release-tag checkout in a checkout you can read (on
+  `dev`, a fast-forward of the branch you chose to follow).
 - **The payload is an allow list.** What goes over the wire is exactly
   `$_HI_PAYLOAD` at the top of `hi.sh` (`common config load.sh hi.sh`, the
   last so a session can say `hi` onward) — docs, tests, CI, and editor config

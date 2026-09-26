@@ -59,6 +59,14 @@ function test_fallback_rc_sources_paths_and_aliases() {
   [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/common/aliases.sh'* ]]
 }
 
+# no settings.sh reaches the aliases-only tier, so the client's alias opt-ins
+# ride the rc itself, anything but 1 as 0
+function test_fallback_rc_carries_the_alias_opt_ins() {
+  local out
+  out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=yes CMDARG="" _hi_fallback_rc --aliases-only /x)"
+  [[ "$out" == *"export _HI_TOOL_ALIASES=1"* && "$out" == *"export _HI_SUDO_ALIAS=0"* ]]
+}
+
 # The command is NOT in the shared rc - fish reads that file through
 # -C, where an `exit` does not stop its interactive reader (GLOSSARY: HI.23),
 # and the podman suite's fish case hung the full timeout for as long as it was
@@ -388,6 +396,7 @@ function run_hi_remote_tests() {
   _hi_check "Bootloader drops strict mode before the command" test_bootloader_drops_strict_mode_before_the_command
   _hi_check "Bootloader drops strict mode after sourcing load.sh" test_bootloader_drops_strict_mode_after_sourcing_load
   _hi_check "Fallback rc sources paths and aliases" test_fallback_rc_sources_paths_and_aliases
+  _hi_check "Fallback rc carries the alias opt-ins" test_fallback_rc_carries_the_alias_opt_ins
   _hi_check "Fallback rc leaves the command out" test_fallback_rc_leaves_the_command_out
   _hi_check "Remote suffix hands fish the command as -c" test_remote_suffix_hands_fish_the_command_as_a_flag
   _hi_check "Remote suffix quotes the fish command" test_remote_suffix_quotes_the_fish_command

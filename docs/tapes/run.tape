@@ -2,9 +2,9 @@
 # one command across the cluster's backends - `hi <target> <command>` over
 # an ssh host, a docker container, a nomad allocation, a kubernetes pod - in
 # one loop, and only each command's output comes back - one hostname per
-# backend, plus the aliases-only notice for the bash-less pod. (`cat` is hi's
-# bat alias, but bat sees no terminal on a one-off command and prints plain,
-# so nothing here claims otherwise.) Render with `vhs docs/tapes/run.tape` from
+# backend, plus the aliases-only notice for the bash-less pod. (`cat` is plain
+# cat: the tool aliases are opt-in, and this demo leaves them off.) Render
+# with `vhs docs/tapes/run.tape` from
 # the repo root with docker, nomad, kind, and kubectl working and hi on PATH;
 # the kind cluster takes a minute the first time. CI renders it too
 # (demos.yml). The most expensive fixture in the set, and last in

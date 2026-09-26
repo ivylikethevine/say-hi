@@ -14,20 +14,43 @@ and rows. The two settings here, `_HI_COLOR_SCHEME` and
 
 Every username and hostname resolves to a color derived from its own name, so
 an unpinned host looks the same from every machine you say `hi` from. Pin the
-ones that matter in `~/.config/say-hi/colors`: `username,root,red`,
-`hostname,bastion,yellow`, or `hosttag,prod,red` to color every host carrying a
-`# Tags: prod` comment above its `Host` or `Match host` line in
-`~/.ssh/config` — a wildcard block (`Host prod-*`) colors every name it covers.
+ones that matter in `~/.config/say-hi/colors`: a `[type]` line opens a
+section, and each row under it is `name color`, whitespace-separated.
+
+```ini
+[username]
+root              red
+
+[hostname]
+bastion           yellow
+10.0.1.*          red
+
+[hosttag]
+prod              red
+
+[usertag]
+prod              red
+```
+
+A `hosttag` row colors every host carrying a `# Tags: prod` comment above its
+`Host` or `Match host` line in `~/.ssh/config` — a wildcard block
+(`Host prod-*`) colors every name it covers.
 `hi --add-tag <host> <tag>` writes that comment for you, replacing a tag
 already there; given a name only a wildcard block covers, it names the block
 to tag instead.
-A fourth kind, `usertag,prod,red`, colors the _username_ on every host that
-carries that tag, so `you@prod-db` reads as prod on both halves. A
-`hostname` row whose name holds `*` or `?` is a pattern:
-`hostname,10.0.1.*,red` or `hostname,*.prod.example.com,red` colors a whole
-subnet or domain at once, no ssh-config entry needed — the first matching
-pattern in the file wins. Precedence, highest first: an exact pin, then a
-hosttag, then a pattern, then the hash.
+A `usertag` row colors the _username_ on every host that carries that tag, so
+`you@prod-db` reads as prod on both halves. A `hostname` name holding `*` or
+`?` is a pattern: `10.0.1.*` or `*.prod.example.com` colors a whole subnet or
+domain at once, no ssh-config entry needed — the first matching pattern in
+the file wins. Precedence, highest first: an exact pin, then a hosttag, then a
+pattern, then the hash.
+
+`hi --set-color <type> <name> <color> [rrggbb]` writes a pin, replacing one
+the name already has and creating the section when the file has none;
+`hi --unset-color <type> <name>` removes it. Both refuse a name holding a
+space, `#`, or a bracket, a color outside the vocabulary below, and a hex that
+is not six digits. The first write copies the tree's file there, since a copy
+of your own replaces the tree's wholesale.
 
 A config split into files (`Include config.d/*` in `~/.ssh/config`) is read
 the way ssh reads it: each `Include` is followed in place - `~` is your home,
@@ -51,14 +74,14 @@ knows of, drawn in the colors themselves, each row naming the rule it matched
 
 ![hi --preview colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
-Any of those rows takes an optional fourth column, that pin's own 24-bit
-color as six hex digits (a leading `#` is fine):
-`hostname,prod-db,brred,ff5f5f` renders `prod-db` in exactly that red on a
-truecolor terminal. The third column is still a name from the vocabulary
-below and is what a 16-color terminal gets, so name the nearest one. A fourth
-column outranks `_HI_COLOR_SCHEME` for that one pin — the scheme says what a
-_name_ renders as, the column what this host or user renders as — and
-anything that is not six hex digits is ignored.
+Any of those rows takes an optional third field, that pin's own 24-bit
+color as six hex digits (a leading `#` is fine; text after it is ignored):
+`prod-db brred ff5f5f` under `[hostname]` renders `prod-db` in exactly that
+red on a truecolor terminal. The second field is still a name from the
+vocabulary below and is what a 16-color terminal gets, so name the nearest
+one. A third field outranks `_HI_COLOR_SCHEME` for that one pin — the scheme
+says what a _name_ renders as, the field what this host or user renders as —
+and anything that is not six hex digits is ignored.
 
 The vocabulary is twenty-four names: the terminal's twelve (`red`, `green`,
 `yellow`, `blue`, `magenta`, `cyan`, and their `br` forms) and twelve more -
@@ -86,7 +109,7 @@ hi ships no named schemes: the scheme _is_ the setting — twenty-four
 six-digit hex words, one space apart, in the order of the names above (red,
 green, yellow, blue, magenta, cyan, the six bright ones, then the twelve
 extras), or forty-eight, whose second twenty-four paint only the package
-check, so a missing favorite can shout in a different red from the one your
+check, so a missing core tool can shout in a different red from the one your
 prompt wears. Write it into `settings.sh` by hand — it ships to every target,
 so a scheme follows you:
 
@@ -103,7 +126,7 @@ a scheme, labelling it `custom (24)`, `custom (48)`, or
 ## The package check's ramp
 
 `_HI_PACKAGES_PALETTE` is the same idea one level down: which of the
-twenty-four names the header's package check paints each priority in. It is
+twenty-four names the header's package check paints each tier in. It is
 eight of those names, one space apart — four for installed, rising 0→3, then
 four for missing:
 
@@ -112,7 +135,7 @@ export _HI_PACKAGES_PALETTE='cyan green brcyan brgreen blue magenta bryellow brr
 ```
 
 That line is the shipped ramp, so writing it changes nothing. A ramp reads
-best when both halves climb in one direction — a missing favorite the loudest
+best when both halves climb in one direction — a missing core tool the loudest
 thing on screen, installed trivia the quietest — and stay legible on light and
 dark terminals alike. Anything that is not eight names from the vocabulary
 falls back to the shipped ramp, `hi --doctor` says so, and
@@ -121,23 +144,45 @@ falls back to the shipped ramp, `hi --doctor` says so, and
 
 ## The package check's rows
 
-The check reads one file, `config/packages`. A row is one tool and its
-fallbacks, `[-|+]package:priority[,package:priority...]`, and two dials
-decide what it prints:
+The check reads one file, `config/packages`, split into `[group]` sections.
+A row is one tool and its alternatives in order of preference,
+`[-|+]package[,alternative...]`; the first one installed is shown, marked
+`~` when it is not the first listed. An optional leading character sets
+what the row is for:
 
-- **its priority**, 0-3, against `_HI_PACKAGES_MIN_PRIORITY` (0-3, default
-  `2`): a row that cannot reach the floor is not even looked for. The ramp
-  above paints each priority; there is no per-row color.
-- **an optional leading character**: `-` speaks only when the whole row is
-  missing (core tools, where present is not news), `+` only when something
-  on it is installed (platform facts, where absent is noise).
+- **none**, wanted: installed (`✓`) and missing (`✗`) both show.
+- **`-`**, unwanted: silent while absent, a warning (`!`) when installed —
+  the `deprecated` group's `-exa`, `-neofetch`, `-python2`, and `-xsv`.
+- **`+`**, required: silent while installed, an alarm (`✗`) when missing —
+  the `base` group's coreutils.
 
-`hi --add-package go:3 cargo:3,rustc:3` adds rows to
-`~/.config/say-hi/packages`, copying the tree's file there first: a copy of
+Warnings and alarms sort first and paint in the loudest missing color.
+Every other row paints in its group's tier of the ramp above; there is no
+per-row color:
+
+| tier | groups                                     |
+| ---- | ------------------------------------------ |
+| 3    | `core`, `base`, `deprecated`               |
+| 2    | `useful`                                   |
+| 1    | `extras`, and any group of your own naming |
+| 0    | `trivia`, `platform`                       |
+
+`_HI_PACKAGES_GROUPS` names the groups that run, space- or comma-separated,
+or `none`; unset, it is `core useful deprecated`
+([SETTINGS.md](SETTINGS.md#every-setting)). A group that is off is not even
+looked for, and rows above the first `[group]` line always run.
+
+`hi --add-package core go cargo,rustc` adds rows to that group's section of
+`~/.config/say-hi/packages`, creating the section when the file has none; a
+row whose first package is already in the file is replaced, and moved when
+the group differs. `hi --remove-package go cargo` takes out the row whose
+first package each one names, marker or not, from whichever group holds it.
+The first write of either copies the tree's file there: a copy of
 your own replaces the tree's wholesale, the same rule `colors` follows. By
 hand, `cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.
-`hi --preview packages` shows each priority's colors with a real example
-from your rows; to turn the check off, drop `check` from `_HI_HEADER_ORDER`.
+`hi --preview packages` shows each group — whether it runs, its colors, and
+a real example from your rows — then the marks and the check; to turn the
+check off, drop `check` from `_HI_HEADER_ORDER`.
 
 ## Using the hash in your own prompt
 

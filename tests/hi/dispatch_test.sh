@@ -35,7 +35,7 @@ EOF
   printf '%s' "$s"
 }
 
-# _hi_ds_dispatch <flag> [args...] - one dispatch in a subshell, both script
+# _hi_ds_dispatch <flag> [args...] - one dispatch in a subshell, each script
 # vars pointed at the stub, transcript on stdout, and the status in
 # $_HI_DS_RC. A row with no script var returns 1 having run nothing, which is
 # the difference this reads.
@@ -48,6 +48,7 @@ function _hi_ds_dispatch() {
     _HI_DOCTOR="$stub"
     _HI_INSTALL="$stub"
     _HI_ADD_PACKAGE="$stub"
+    _HI_COLOR_PIN="$stub"
     _hi_dispatch_subcommand "$@"
   ) >"$_HI_DS_OUT" 2>&1 || _HI_DS_RC=$?
 }
@@ -76,14 +77,35 @@ function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
 args=--configure --preset dev" ]
 }
 
-# --add-package has no <first arg> column (its rows are positional, not a
-# switch word), so its own arguments reach the script untouched - the row
-# this covers alongside --doctor's (no first-arg column either) and
-# --uninstall's/--configure's (one each, above)
+# --add-package has no <first arg> column (its group and rows are
+# positional, not a switch word), so its own arguments reach the script
+# untouched - the row this covers alongside --doctor's (no first-arg column
+# either) and --uninstall's/--configure's (one each, above)
 function test_dispatch_hands_add_package_its_rows() {
-  _hi_ds_dispatch --add-package 'bat:3,batcat:3' --dry-run
+  _hi_ds_dispatch --add-package core 'bat,batcat' -exa --dry-run
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-package
-args=bat:3,batcat:3 --dry-run" ]
+args=core bat,batcat -exa --dry-run" ]
+}
+
+# --remove-package shares the script, told apart by its first-arg column
+function test_dispatch_hands_remove_package_its_switch() {
+  _hi_ds_dispatch --remove-package exa --dry-run
+  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --remove-package
+args=--remove exa --dry-run" ]
+}
+
+# --set-color's words reach the script untouched, a hex and all
+function test_dispatch_hands_set_color_its_words() {
+  _hi_ds_dispatch --set-color hostname 'web-*' orange fd971f --dry-run
+  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --set-color
+args=hostname web-* orange fd971f --dry-run" ]
+}
+
+# --unset-color shares the script, told apart by its first-arg column
+function test_dispatch_hands_unset_color_its_switch() {
+  _hi_ds_dispatch --unset-color username root
+  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --unset-color
+args=--unset username root" ]
 }
 
 # test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no
@@ -269,6 +291,9 @@ function run_dispatch_tests() {
   _hi_check "Prepends the row's first argument" test_dispatch_prepends_the_rows_first_argument
   _hi_check "Keeps it ahead of the rest" test_dispatch_keeps_the_first_argument_ahead_of_the_rest
   _hi_check "--add-package's rows reach the script untouched" test_dispatch_hands_add_package_its_rows
+  _hi_check "--remove-package reaches the same script with --remove" test_dispatch_hands_remove_package_its_switch
+  _hi_check "--set-color's words reach the script untouched" test_dispatch_hands_set_color_its_words
+  _hi_check "--unset-color reaches the same script with --unset" test_dispatch_hands_unset_color_its_switch
   _hi_check "Declines a row with no script" test_dispatch_declines --plain
   _hi_check "Declines an unknown flag" test_dispatch_declines --nonesuch
   _hi_check "Declines with no argument at all" test_dispatch_declines

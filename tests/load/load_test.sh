@@ -193,7 +193,7 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
 function _hi_shrc_toggle_in() {
   local _HI_ROOT="$1" _HI_SESSION_RC_DIR=""
   _hi_session_rc_setup || return 1
-  sh -c '. "$1"; printf %s "$_HI_DISABLE_TOOL_ALIASES"' sh "$_HI_SESSION_RC_DIR/shrc" 2>/dev/null
+  sh -c '. "$1"; printf %s "$_HI_TOOL_ALIASES"' sh "$_HI_SESSION_RC_DIR/shrc" 2>/dev/null
   # only the directory the setup's mktemp just made
   case "$_HI_SESSION_RC_DIR" in */hi.rc.??????) rm -rf "$_HI_SESSION_RC_DIR" ;; esac
 }
@@ -202,7 +202,7 @@ function test_session_shrc_reads_the_settings_first() {
   local root="$_HI_WORKDIR/shrc-root"
   mkdir -p "$root/config"
   ln -sfn "$_HI_ROOT/common" "$root/common"
-  printf 'export _HI_DISABLE_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
+  printf 'export _HI_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
   # in a subshell: the setup exports ZDOTDIR and ENV
   [ "$(_hi_shrc_toggle_in "$root")" = 1 ]
 }
@@ -505,7 +505,7 @@ function test_load_propagates_the_session_shells_exit_code() {
     return 1
   }
   case "$(_hi_strip_ansi "$out")" in
-  *"hi loaded with"*"| session: "*) return 0 ;;
+  *"hi loaded:"*"| session: "*) return 0 ;;
   esac
   _hi_cecho " | transcript missing its fixed lines: $out" "$RED"
   return 1
@@ -520,7 +520,7 @@ function test_load_greeting_toggle_hides_the_line() {
   out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_GREETING=1)" || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in
-  *"hi loaded with"* | *"init: "*)
+  *"hi loaded:"* | *"init: "*)
     _hi_cecho " | the greeting survived its toggle: $out" "$RED"
     return 1
     ;;
@@ -530,7 +530,33 @@ function test_load_greeting_toggle_hides_the_line() {
   return 1
 }
 
-# <shell> <greeting> - the "hi loaded with..." line names the shell the user
+# With the header on, the greeting line wraps at the draw width and every
+# line of it ends on the header rows' closing "|"; $_HI_DISABLE_RIGHT_EDGE
+# leaves them open. Every row is off, so the greeting is all that could
+# close; the banner stays on, since it ends the line load() opens with the
+# connect total. At 60 columns the timers no longer fit on one line.
+# <width> <right edge off> <lines wanted>
+function test_load_greeting_line_takes_the_right_edge() {
+  local width="$1" edge="$2" want="$3" out line n=0
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=none \
+    "_HI_MAX_WIDTH=$width" "_HI_TERM_COLS=$width" "_HI_DISABLE_RIGHT_EDGE=$edge")" || return 1
+  while IFS= read -r line; do
+    ((++n))
+    if ((edge)); then
+      [ "${line: -1}" != "|" ] && ((${#line} <= width)) && continue
+    else
+      [ "${#line}" -eq "$width" ] && [ "${line: -2}" = " |" ] && continue
+    fi
+    _hi_cecho " | ${#line} columns: '$line'" "$RED"
+    return 1
+  done < <(_hi_strip_ansi "$out" |
+    awk '/hi loaded:/ { on = 1; print; next } on && /^ \| (init|copy|load): / { print; next } { on = 0 }')
+  [ "$n" -eq "$want" ] && return 0
+  _hi_cecho " | $n greeting lines, want $want: $out" "$RED"
+  return 1
+}
+
+# <shell> <greeting> - the "hi loaded:" line names the shell the user
 # actually got, in that shell's own words
 function test_load_greets_the_chosen_shell() {
   local shell="$1" want="$2" out
@@ -784,6 +810,9 @@ EOF
   _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
   _hi_check "_HI_DISABLE_GREETING=1 hides the line and its timers" test_load_greeting_toggle_hides_the_line
+  _hi_check "The greeting line closes on the header's right edge" test_load_greeting_line_takes_the_right_edge 100 0 1
+  _hi_check "...wraps its timers where they don't fit" test_load_greeting_line_takes_the_right_edge 60 0 2
+  _hi_check "...and stays open under _HI_DISABLE_RIGHT_EDGE=1" test_load_greeting_line_takes_the_right_edge 60 1 2
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc

@@ -5,9 +5,9 @@
 #
 # Its configuration (docs/tapes/fixtures.sh, up:packages): hi's prompt off
 # (_HI_DISABLE_PROMPT - this person keeps their own, and the targets keep
-# theirs), the whole header with every address shown (_HI_IP_HIDE=none), a
-# check floor of 2, and an overlay `packages` file that is the homelab
-# toolbox.
+# theirs), the whole header with every address shown (_HI_IP_HIDE=none), the
+# core and useful groups on, and an overlay `packages` file that is the
+# homelab toolbox in those two groups.
 # The nas (the tools debian) answers it with one quiet line; the pihole (a
 # bare debian) does not.
 #
@@ -45,7 +45,7 @@ Sleep 3s
 
 Type "hi nas"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 4s
 Type "exit"
 Enter
@@ -58,7 +58,7 @@ Type "# the same check on the pihole"
 Enter
 Type "hi pihole"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 5s
 Type "exit"
 Enter

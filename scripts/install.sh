@@ -590,6 +590,9 @@ fi
 # --configure touches no rc file, so it has none to syntax-check
 [ -n "$_HI_FEATURES_ONLY" ] || config_validate_shells
 
+# overlay files an older hi wrote, rewritten before the menu reads them
+bash "$_HI_ROOT/scripts/convert_settings.sh" ${_HI_DRY_RUN:+--dry-run} || exit 1
+
 run_configure "$_HI_PRESET" || exit 1
 
 if [ -n "$_HI_FEATURES_ONLY" ]; then

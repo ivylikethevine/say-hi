@@ -1,0 +1,42 @@
+#compdef hi hi.sh
+# SPDX-License-Identifier: MIT
+# zsh's completion for hi, autoloaded from $fpath (common/zsh.zsh appends
+# this directory). The target list's in-shell TTL cache and the list-colors
+# style live in zsh.zsh; bash.sh's _hi_complete is the same logic in bash's
+# dialect.
+local name kind sym
+# the word a flag takes (`hi --preview <TAB>`), then hi's own options (or,
+# behind a local command, its switches), targets otherwise - the split
+# bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
+local -a ask
+if [[ " $_HI_WORD_FLAGS " == *" ${words[CURRENT-1]} "* ]]; then
+  ask=(words "${words[CURRENT-1]}")
+elif [[ "${words[CURRENT]}" == -* ]]; then
+  ask=(flags "${words[2]}")
+fi
+if (( $#ask )); then
+  # "<word>\t<help>" lines: the word is the match, the help its description
+  local -a flags descs
+  local row
+  for row in "${(@f)$(sh "$_HI_TARGETS" "${ask[@]}")}"; do
+    flags+=("${row%%$'\t'*}")
+    descs+=("${row%%$'\t'*} - ${row#*$'\t'}")
+  done
+  compadd -d descs -a flags
+  return 0
+fi
+if (( _HI_TARGET_ROWS_AT < 0 || SECONDS - _HI_TARGET_ROWS_AT >= ${_HI_TARGETS_TTL:-5} )); then
+  _HI_TARGET_ROWS=()
+  _HI_TARGET_DESCS=()
+  while IFS=$'\t' read -r name kind; do
+    _HI_TARGET_ROWS+=("$name")
+    _hi_target_symbol sym "$kind"
+    _HI_TARGET_DESCS+=("$sym $kind - $name")
+  done < <(sh "$_HI_TARGETS")
+  _HI_TARGET_ROWS_AT=$SECONDS
+fi
+# -V: an unsorted group, so targets.sh's order is the menu's; through
+# _description, so the hi-targets tag's list-colors (zsh.zsh) applies
+local -a expl
+_description -V hi-targets expl target
+compadd "${expl[@]}" -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS

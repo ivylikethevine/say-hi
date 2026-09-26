@@ -154,10 +154,10 @@ function test_overlay_sends_nothing_outside_the_roster() {
 function test_overlay_carries_packages_stripped() {
   local dir="$_HI_WORKDIR/packages-overlay" out
   mkdir -p "$dir"
-  printf '# a note\nbat:3,batcat:3\n\n  # indented\n-sudo:2,doas:2\n+getent:0\n' >"$dir/packages"
+  printf '# a note\n[core]\nbat,batcat\n\n  # indented\n-sudo,doas\n+getent\n' >"$dir/packages"
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages ] || return 1
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat packages)"
-  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf 'bat:3,batcat:3\n-sudo:2,doas:2\n+getent:0')" ] || {
+  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat,batcat\n-sudo,doas\n+getent')" ] || {
     _hi_cecho " | packages arrived as: [$out]" "$RED"
     return 1
   }
@@ -687,8 +687,8 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   local dir="$_HI_WORKDIR/excl" listing
   local -a payload_excl=() members=()
   mkdir -p "$dir"
-  printf 'hosttag,x,red\n' >"$dir/colors"
-  printf 'git:3\n' >"$dir/packages"
+  printf '[hosttag]\nx red\n' >"$dir/colors"
+  printf '[core]\ngit\n' >"$dir/packages"
   printf 'alias a=b\n' >"$dir/aliases.sh"
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
@@ -708,7 +708,7 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
 function test_the_payload_is_whole_without_a_cut_list() {
   local dir="$_HI_WORKDIR/excl-none"
   mkdir -p "$dir"
-  printf 'hosttag,x,red\n' >"$dir/colors"
+  printf '[hosttag]\nx red\n' >"$dir/colors"
   [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
 }
 
@@ -1176,6 +1176,15 @@ function test_strip_leaves_no_full_line_comments() {
   [ "$bad" -eq 0 ]
 }
 
+# common/_hi, zsh's completion function, is found by compinit off its first
+# line: it ships, and that line with it - no strip name matches the file
+function test_zsh_completion_ships_with_its_compdef_line() {
+  local dir line=""
+  dir="$(_hi_strip_unpack stripped)"
+  [ -f "$dir/say-hi/common/_hi" ] && IFS= read -r line <"$dir/say-hi/common/_hi"
+  [ "$line" = '#compdef hi hi.sh' ] || _hi_because "common/_hi line 1: [$line]"
+}
+
 # ...and stripping is all it does: every code line survives, its own leading
 # whitespace aside (the strip takes indentation too - none of the four
 # dialects reads it, and it is 3% of the payload), so both sides are compared
@@ -1348,6 +1357,7 @@ function run_hi_payload_tests() {
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
   _hi_check "Every code line survives" test_strip_keeps_every_code_line
+  _hi_check "zsh's completion ships with its #compdef line" test_zsh_completion_ships_with_its_compdef_line
   _hi_check "Blank lines and indentation go, heredoc bodies stay" test_strip_trims_whitespace_outside_heredocs
   _hi_check "The result is still valid shell" test_strip_leaves_valid_shell
   _hi_check "hi.sh stays executable" test_strip_keeps_hi_sh_executable

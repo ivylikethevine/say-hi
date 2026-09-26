@@ -1361,6 +1361,10 @@ function _hi_fallback_rc() {
   for t in "${_HI_TOGGLES[@]}"; do
     [ "$t" = _HI_REMOTE_SESSION ] || printf 'export %s=0\n' "$t"
   done
+  # the alias opt-ins as this client has them: no settings.sh reaches this tier
+  for t in _HI_TOOL_ALIASES _HI_SUDO_ALIAS; do
+    if [ "${!t:-0}" = 1 ]; then printf 'export %s=1\n' "$t"; else printf 'export %s=0\n' "$t"; fi
+  done
   if [ -n "$aliases_dir" ]; then
     # the client verdicts the ssh preamble would have exported ride the rc here
     _hi_client_verdicts 'export %s=%s\n'

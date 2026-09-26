@@ -5,7 +5,7 @@
 #
 #   colors     every ssh host and every known user in the color it lands in
 #              (override/hosttag/pattern/hash) - for tuning config/colors
-#   packages   the header's packages check: what each priority means, the
+#   packages   the header's packages check: each group, whether it runs, the
 #              colors it paints an installed and a missing package, a real
 #              example of each from your own packages file, then the check
 #   header     the connect header itself
@@ -38,7 +38,7 @@ function _hi_preview_usage() {
 Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header>
 
   colors     every ssh host and every known user, in the color it resolves to
-  packages   the header's packages check: legend, marks, modes, then the check
+  packages   the header's packages check: groups, marks, markers, then the check
   header     the connect header as it will print here
 
 Each subject takes --help and no other argument.
@@ -85,26 +85,23 @@ EOF
     cat <<EOF
 Usage: $_hi_argv0
 
-Prints the legend for the header's packages check - every priority, the colors
-it renders installed and missing packages in, and one real example of each
-taken from your own roster - then the marks, then the check itself exactly
-as a connect will print it.
+Prints the legend for the header's packages check - every group in your
+packages file, whether \$_HI_PACKAGES_GROUPS runs it, the colors it renders
+installed and missing packages in, and one real example of each - then the
+marks, then the check itself exactly as a connect will print it.
 
 Takes no arguments. Reads:
-  config/packages    the [-|+]package:priority lines (a
+  config/packages    the [group] sections of [-|+]package[,...] rows (a
                      ~/.config/say-hi/packages of your own replaces it)
-  common/header.sh   the priority meanings and their two color tables
+  \$_HI_PACKAGES_GROUPS   the groups that run (unset: $_HI_PACKAGES_GROUPS_DEFAULT)
   \$_HI_PACKAGES_PALETTE   the ramp in force - unset for the shipped one, or
                      eight color names of your own - printed above the legend
 
-A line's leading mode character decides which states speak at all: \`-\` only
-when the whole line is missing, \`+\` only when something on it is installed,
-no flag both ways - the line under the marks says the same. An
-EXAMPLE cell reading "below floor" means \$_HI_PACKAGES_MIN_PRIORITY is above
-that rank, so the header prints nothing for it whatever its colors say. That
-floor defaults to 2, so priorities 0-1 read "below floor" until you set one
-of your own. A priority with no example at
-all has no package of its own in your roster.
+A row's leading marker decides which states speak at all: none both ways,
+\`-\` (unwanted) only as a warning when installed, \`+\` (required) only as an
+alarm when missing - the line under the marks says the same. A group whose
+STATE reads "off" prints nothing in the header whatever its colors say; its
+example shows what it would print.
 EOF
     ;;
   header)
@@ -158,9 +155,17 @@ function _hi_print_scheme_line() {
 # preview is its only caller, and core.sh ships in the ssh payload under a
 # size budget nothing a target runs should spend.
 function _hi_colors_rows() {
-  local cur_type cur_name
+  local cur_type="" cur_name
   [[ -f "$_HI_COLORS" ]] || return 0
-  while IFS=',' read -r cur_type cur_name _; do
+  while read -r cur_name _; do
+    case "$cur_name" in
+    '' | '#'*) continue ;;
+    '['*']')
+      cur_type="${cur_name#\[}"
+      cur_type="${cur_type%\]}"
+      continue
+      ;;
+    esac
     [[ "$cur_type" = "$1" ]] || continue
     printf '%s\n' "$cur_name"
   done <"$_HI_COLORS"
@@ -547,102 +552,86 @@ function _hi_print_hosts_table() {
 # packages
 #
 
-# _hi_priority_meanings - "<priority>\t<meaning>" per priority, read from the
-# comment block header.sh keeps directly above _HI_PACKAGES_RAMP, not copied
-# here: that block is the only description of the priorities there is, and a
-# copy would be a second thing to keep true. Only the run of lines
-# immediately preceding it counts, so an unrelated "# 2 ..." elsewhere can't
-# join in. The parenthetical examples are dropped - the EXAMPLE column below
-# shows real ones, from the file the header will actually read.
-function _hi_priority_meanings() {
-  awk '
-    /^_HI_PACKAGES_RAMP=/ {
-      for (i = 1; i <= n; i++) print buf[i]
-      exit
-    }
-    /^# [0-9]+ [^ ]/ {
-      line = $0
-      p = $2
-      sub(/^# [0-9]+ +/, "", line)
-      sub(/ *\(.*/, "", line)
-      buf[++n] = p "\t" line
-      next
-    }
-    { n = 0 }
-  ' "$_HI_HEADER"
-}
-
-# Filled by _hi_collect_examples, read by the table: per-priority example rows
-# and their printed widths, plus the two totals under the table. Indexed by
-# priority (a plain indexed array - bash 3.2 has no associative ones), and
-# global rather than local because the collector cannot return six things.
+# Filled by _hi_collect_examples, read by the table: per-group names, state,
+# tier, example rows and their printed widths, plus the totals under the
+# table. Indexed by group, in file order, index 0 being the rows above the
+# first `[group]` line (a plain indexed array - bash 3.2 has no associative
+# ones), and global rather than local because the collector cannot return
+# them all.
+_HI_PG_NAME=() _HI_PG_ON=() _HI_PG_TIER=() _HI_PG_ROWS=()
 _HI_EX_OK=() _HI_EX_OK_W=() _HI_EX_NO=() _HI_EX_NO_W=()
-_HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_FLOORED=0
-# read once, here, rather than at each use: full_check reads the same setting
-# and this preview has to answer for the floor the header will actually apply
-_HI_PKG_MIN="${_HI_PACKAGES_MIN_PRIORITY:-2}"
-((_HI_PKG_MIN > 3)) && _HI_PKG_MIN=3
+_HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_SILENT=0 _HI_PKG_OFF=0
 
-# Run the real check over the real packages file and keep the first installed
-# and first missing row at each priority.
-# check_line appends what it would print to `visible` (bash's dynamic scoping -
-# full_check calls it exactly this way) and drops mode-suppressed rows on the
-# floor, which is the point: a `-` line that is installed, or a `+` line that
-# is missing, has no example to show because it shows nothing.
+# Run the real check over every row of the real packages file, groups that
+# are off included, and keep the first installed and the first missing (or
+# warned) row per group. check_line appends what it would print to `visible`
+# (bash's dynamic scoping - full_check calls it exactly this way) and appends
+# nothing for a `-` row that is absent or a `+` row that is installed, which
+# is the point: those rows show nothing.
 function _hi_collect_examples() {
-  local line entry priority width rendered
-  local -a visible=()
+  local line entry rank width rendered gi=0 on=1 tier=1
+  local -a visible
+  _HI_PG_NAME[0]="(no group)" _HI_PG_ON[0]=1 _HI_PG_TIER[0]=1 _HI_PG_ROWS[0]=0
 
   while IFS=$' ' read -r line; do
     # the header's own filter, character for character
-    [[ "$line" == *#* || -z "$line" ]] && continue
+    case "$line" in
+    '' | *'#'*) continue ;;
+    '['*']')
+      line="${line#\[}"
+      line="${line%\]}"
+      gi=$((gi + 1))
+      on=0
+      _hi_group_on "$line" && on=1
+      _hi_group_tier tier "$line"
+      _HI_PG_NAME[gi]="$line" _HI_PG_ON[gi]=$on _HI_PG_TIER[gi]=$tier _HI_PG_ROWS[gi]=0
+      continue
+      ;;
+    esac
     _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
-    check_line visible "$line"
-  done <"$_HI_PACKAGES"
-  _HI_PKG_SHOWN=${#visible[@]}
-
-  for entry in ${visible[@]+"${visible[@]}"}; do
-    IFS=$'\x1f' read -r priority width rendered <<<"$entry"
-    # counted, not skipped: the example is still collected so the table can show
-    # what this rank *would* print, with the cell saying the floor is why it
-    # does not. full_check applies the same floor for real.
-    ((priority >= _HI_PKG_MIN)) || _HI_PKG_FLOORED=$((_HI_PKG_FLOORED + 1))
-    # the mark is the last thing check_line renders, and $RED prefixes only
-    # that one - a bare "x" (the ASCII glyph) also occurs inside package names
-    if [[ "$rendered" == *"$RED$_HI_MARK_NO" ]]; then
-      [[ -n "${_HI_EX_NO[priority]:-}" ]] || {
-        _HI_EX_NO[priority]="$rendered"
-        _HI_EX_NO_W[priority]="$width"
+    _HI_PG_ROWS[gi]=$((_HI_PG_ROWS[gi] + 1))
+    visible=()
+    check_line visible "$line" "$tier"
+    if ((${#visible[@]} == 0)); then
+      _HI_PKG_SILENT=$((_HI_PKG_SILENT + 1))
+      continue
+    fi
+    if ((on)); then
+      _HI_PKG_SHOWN=$((_HI_PKG_SHOWN + 1))
+    else
+      _HI_PKG_OFF=$((_HI_PKG_OFF + 1))
+    fi
+    IFS=$'\x1f' read -r rank width rendered <<<"${visible[0]}"
+    # the mark is the last thing check_line renders, and $RED or $YELLOW
+    # prefixes only that one - a bare "x" (the ASCII glyph) also occurs
+    # inside package names
+    if [[ "$rendered" == *"$RED$_HI_MARK_NO" || "$rendered" == *"$YELLOW$_HI_MARK_WARN$NC" ]]; then
+      [[ -n "${_HI_EX_NO[gi]:-}" ]] || {
+        _HI_EX_NO[gi]="$rendered"
+        _HI_EX_NO_W[gi]="$width"
       }
     else
-      [[ -n "${_HI_EX_OK[priority]:-}" ]] || {
-        _HI_EX_OK[priority]="$rendered"
-        _HI_EX_OK_W[priority]="$width"
+      [[ -n "${_HI_EX_OK[gi]:-}" ]] || {
+        _HI_EX_OK[gi]="$rendered"
+        _HI_EX_OK_W[gi]="$width"
       }
     fi
-  done
+  done <"$_HI_PACKAGES"
 }
 
-# _hi_example_cell <priority> - the installed example then the missing one, laid
-# out the way full_check lays a row out ("|<rendered> " each), and the printed
-# width that comes to. Two values, so it prints them tab-separated rather than
-# writing to yet another global.
+# _hi_example_cell <group index> - the installed example then the missing
+# one, laid out the way full_check lays a row out ("|<rendered> " each), and
+# the printed width that comes to. Two values, so it prints them
+# tab-separated rather than writing to yet another global.
 function _hi_example_cell() {
-  local p="$1" text="" width=0
-  # the floor's own "hidden": a rank below it renders nothing in the header
-  # whatever its colors say, so the cell names the reason rather than showing an
-  # example that will never appear
-  if ((p < _HI_PKG_MIN)); then
-    printf '%s\t%s' "below floor" 11
-    return 0
+  local g="$1" text="" width=0
+  if [[ -n "${_HI_EX_OK[g]:-}" ]]; then
+    text+="$NC|${_HI_EX_OK[g]} "
+    width=$((width + _HI_EX_OK_W[g]))
   fi
-  if [[ -n "${_HI_EX_OK[p]:-}" ]]; then
-    text+="$NC|${_HI_EX_OK[p]} "
-    width=$((width + _HI_EX_OK_W[p]))
-  fi
-  if [[ -n "${_HI_EX_NO[p]:-}" ]]; then
-    text+="$NC|${_HI_EX_NO[p]} "
-    width=$((width + _HI_EX_NO_W[p]))
+  if [[ -n "${_HI_EX_NO[g]:-}" ]]; then
+    text+="$NC|${_HI_EX_NO[g]} "
+    width=$((width + _HI_EX_NO_W[g]))
   fi
   [[ -n "$text" ]] || {
     text="-" width=1
@@ -650,75 +639,63 @@ function _hi_example_cell() {
   printf '%s\t%s' "$text" "$width"
 }
 
-# the legend: one row per priority, highest first (the order full_check sorts
-# its output into), each painted in the colors that priority actually uses
-function _hi_print_priorities_table() {
-  local entry p meaning yes_escape no_escape yes_name no_name example ex_width
-  local i=0
-  local -a rows=() c_yes=() c_no=() c_example=() c_ex_width=()
-  local w_prio=8 w_meaning=7 w_yes=9 w_no=7 w_example=7
+# the legend: one row per group, in file order, each painted in the colors
+# its tier actually uses
+function _hi_print_groups_table() {
+  local g t state example ex_width
+  local -a c_example=() c_ex_width=()
+  local w_group=5 w_state=5 w_yes=9 w_no=7 w_example=7
 
-  _hi_read_lines rows < <(_hi_priority_meanings | LC_ALL=C sort -k1,1nr)
-
-  # The measure pass keeps what it worked out, indexed by row, so the render
-  # pass below reads it instead of calling
-  # _hi_example_cell a second time for every row. Same parallel-array shape as
-  # _HI_EX_OK/_HI_EX_OK_W above.
-  for entry in ${rows[@]+"${rows[@]}"}; do
-    IFS=$'\t' read -r p meaning <<<"$entry"
-    _hi_widen w_meaning "$meaning"
-    c_yes[i]="${_HI_YES_NAMES[p]:-plain}"
-    c_no[i]="${_HI_NO_NAMES[p]:-plain}"
-    _hi_widen w_yes "${c_yes[i]}"
-    _hi_widen w_no "${c_no[i]}"
-    IFS=$'\t' read -r example ex_width <<<"$(_hi_example_cell "$p")"
-    c_example[i]="$example"
-    c_ex_width[i]="$ex_width"
+  # The measure pass keeps what it worked out, indexed by group, so the render
+  # pass below reads it instead of calling _hi_example_cell a second time.
+  for g in "${!_HI_PG_NAME[@]}"; do
+    ((g > 0 || _HI_PG_ROWS[0] > 0)) || continue
+    t="${_HI_PG_TIER[g]}"
+    _hi_widen w_group "${_HI_PG_NAME[g]}"
+    _hi_widen w_yes "${_HI_YES_NAMES[t]:-plain}"
+    _hi_widen w_no "${_HI_NO_NAMES[t]:-plain}"
+    IFS=$'\t' read -r example ex_width <<<"$(_hi_example_cell "$g")"
+    c_example[g]="$example"
+    c_ex_width[g]="$ex_width"
     _hi_widen_to w_example "$ex_width"
-    i=$((i + 1))
   done
 
-  _hi_hbar top "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
-  _hi_head_row "$w_prio" PRIORITY "$w_meaning" MEANING "$w_yes" INSTALLED \
+  _hi_hbar top "$w_group" "$w_state" "$w_yes" "$w_no" "$w_example"
+  _hi_head_row "$w_group" GROUP "$w_state" STATE "$w_yes" INSTALLED \
     "$w_no" MISSING "$w_example" EXAMPLE
-  _hi_hbar mid "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
+  _hi_hbar mid "$w_group" "$w_state" "$w_yes" "$w_no" "$w_example"
 
-  i=0
-  for entry in ${rows[@]+"${rows[@]}"}; do
-    IFS=$'\t' read -r p meaning <<<"$entry"
-    yes_escape="${_HI_YES[p]:-}"
-    no_escape="${_HI_NO[p]:-}"
-    yes_name="${c_yes[i]}"
-    no_name="${c_no[i]}"
-    example="${c_example[i]}"
-    ex_width="${c_ex_width[i]}"
-    i=$((i + 1))
-
-    _hi_cell "$w_prio" "" "$p"
-    _hi_cell "$w_meaning" "" "$meaning"
-    _hi_cell "$w_yes" "$yes_escape" "$yes_name"
-    _hi_cell "$w_no" "$no_escape" "$no_name"
-    _hi_cell_raw "$w_example" "$ex_width" "$example"
+  for g in "${!_HI_PG_NAME[@]}"; do
+    ((g > 0 || _HI_PG_ROWS[0] > 0)) || continue
+    t="${_HI_PG_TIER[g]}"
+    state=off
+    ((_HI_PG_ON[g])) && state=on
+    _hi_cell "$w_group" "" "${_HI_PG_NAME[g]}"
+    _hi_cell "$w_state" "" "$state"
+    _hi_cell "$w_yes" "${_HI_YES[t]:-}" "${_HI_YES_NAMES[t]:-plain}"
+    _hi_cell "$w_no" "${_HI_NO[t]:-}" "${_HI_NO_NAMES[t]:-plain}"
+    _hi_cell_raw "$w_example" "${c_ex_width[g]}" "${c_example[g]}"
     _hi_row_end
   done
 
-  _hi_hbar bottom "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
-  _hi_cecho " | $_HI_PKG_LISTED listed, $((_HI_PKG_SHOWN - _HI_PKG_FLOORED)) shown, $((_HI_PKG_LISTED - _HI_PKG_SHOWN)) hidden by their priority"
-  if ((_HI_PKG_MIN > 0)); then
-    _hi_cecho " | $_HI_PKG_FLOORED more below \$_HI_PACKAGES_MIN_PRIORITY=$_HI_PKG_MIN, which this legend marks \"below floor\"" "$YELLOW"
+  _hi_hbar bottom "$w_group" "$w_state" "$w_yes" "$w_no" "$w_example"
+  _hi_cecho " | $_HI_PKG_LISTED listed, $_HI_PKG_SHOWN shown, $_HI_PKG_SILENT silent by their marker"
+  if ((_HI_PKG_OFF > 0)); then
+    _hi_cecho " | $_HI_PKG_OFF more in groups \$_HI_PACKAGES_GROUPS leaves off (${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT} run)" "$YELLOW"
   fi
 }
 
-# the other half of a rendered row: which of the three marks it ends in, and
-# what each one is saying. The glyphs come from core.sh's _hi_choose_glyphs, so
-# this table follows a terminal onto the ASCII set the same way the header does.
+# the other half of a rendered row: which mark it ends in, and what each one
+# is saying. The glyphs come from core.sh's _hi_choose_glyphs, so this table
+# follows a terminal onto the ASCII set the same way the header does.
 # Column 1 is never measured: a mark is one visible column by construction,
 # and measuring it against an escape sequence would be wrong.
 function _hi_print_marks_table() {
   local w2=5 entry c1 c2
-  local -a rows=("$GREEN$_HI_MARK_OK|installed, under the first name the line lists"
+  local -a rows=("$GREEN$_HI_MARK_OK|installed, under the first name the row lists"
     "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it"
-    "$RED$_HI_MARK_NO|not installed - no name on the line resolved")
+    "$RED$_HI_MARK_NO|not installed - no name on the row resolved"
+    "$YELLOW$_HI_MARK_WARN|installed, on a - row: a package you don't want")
   for entry in "${rows[@]}"; do _hi_widen w2 "${entry#*|}"; done
   _hi_hbar top 4 "$w2"
   _hi_head_row 4 MARK "$w2" MEANS
@@ -730,9 +707,9 @@ function _hi_print_marks_table() {
     _hi_row_end
   done
   _hi_hbar bottom 4 "$w2"
-  # the third axis, a line's leading character: whether the row speaks at all
-  _hi_cecho " | a leading - speaks only when the whole line is missing, + only when"
-  _hi_cecho " | something on it is installed; no flag speaks both ways"
+  # the third axis, a row's leading marker: whether the row speaks at all
+  _hi_cecho " | a leading - (unwanted) speaks only when installed, + (required) only"
+  _hi_cecho " | when missing; no marker speaks both ways"
 }
 
 # same hatch as scripts/install.sh: sourcing this file defines its functions
@@ -765,7 +742,7 @@ packages)
   _hi_print_scheme_line
   printf '\n'
   _hi_collect_examples
-  _hi_print_priorities_table
+  _hi_print_groups_table
   printf '\n'
   _hi_print_marks_table
   printf '\n'

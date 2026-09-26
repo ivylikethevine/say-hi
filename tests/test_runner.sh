@@ -25,7 +25,7 @@ export _HI_HOME
 # does not exist *before* core.sh is sourced, so nothing here can read the
 # developer's real ~/.config/say-hi. core.sh is deliberately not sourced ahead
 # of this line: it reads settings.sh from the real overlay, and every value it
-# exported (a palette, a priority floor) would ride into each suite's
+# exported (a palette, a package group list) would ride into each suite's
 # environment, where an explicit value outranks the isolated directory. Each
 # suite re-sources the file and re-derives that path from its own $$, so what
 # the suites see is unchanged.
@@ -87,6 +87,8 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:hi_remote:hi/remote_test.sh"
     "fast:env_prompt:common/env_prompt_test.sh"
     "fast:add_tag:scripts/add_tag_test.sh"
+    "fast:set_color:scripts/set_color_test.sh"
+    "fast:convert_settings:scripts/convert_settings_test.sh"
     "fast:hi_mux:hi/mux_test.sh"
     "fast:core:common/core_test.sh"
     "fast:table:scripts/table_test.sh"

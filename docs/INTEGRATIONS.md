@@ -4,8 +4,8 @@ hi installs and ships none of the tools below. Where a target has one, a
 session wires it in the way the tool's own README wires it into an rc; where
 it does not, the session goes on without it and says nothing. The switches are
 rows in [SETTINGS.md](SETTINGS.md#every-setting); `_HI_DISABLE_LOCAL=1` sets
-every `_HI_DISABLE_*` one on your own machine only
-([On your own machine](#on-your-own-machine)).
+every `_HI_DISABLE_*` one, and turns the two alias opt-ins off, on your own
+machine only ([On your own machine](#on-your-own-machine)).
 
 ## Contents
 
@@ -18,7 +18,7 @@ every `_HI_DISABLE_*` one on your own machine only
   - [Shipping your bat theme](#shipping-your-bat-theme)
   - [Shipping your eza theme](#shipping-your-eza-theme)
 - [Terminal multiplexers](#terminal-multiplexers)
-- [lesspipe](#lesspipe)
+- [Debian chroots](#debian-chroots)
 - [readline](#readline)
 - [Shell frameworks](#shell-frameworks)
   - [On your own machine](#on-your-own-machine)
@@ -27,15 +27,14 @@ every `_HI_DISABLE_*` one on your own machine only
 
 ## At a glance
 
-| tool                                                                                                                                                                                                                                                                                                                                                                                           | what hi does with it                                                                                                                                                                                           | on by default             | switch                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------- |
-| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                                                                                                                                                     | yes, where installed here | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                           |
-| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment                                                                                                                                               | yes                       | `_HI_DISABLE_ENV_STATUS`                                                        |
-| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa                                                                                                                                                                                                                                                                                                        | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home                                                                                                                             | yes, where installed      | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s                        |
-| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux.conf`                                                                                                               | no - per connect          | `--mux`, `--no-mux`; `_HI_DISABLE_TOOL_ALIASES` for the config                  |
-| lesspipe                                                                                                                                                                                                                                                                                                                                                                                       | `less` opens archives and packages, as the distro's own rc sets it up                                                                                                                                          | yes, where installed      | none                                                                            |
-| vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vimrc`, micro your micro directory's files, helix `config.toml`, kakoune `kakrc` through `$KAKOUNE_CONFIG_DIR` on a target | yes                       | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
-| oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                                                                                                                                                                | -                         | [Shell frameworks](#shell-frameworks)                                           |
+| tool                                                                                                                                                                                                                                                                                                                                                                                           | what hi does with it                                                                                                                                                                                           | on by default                | switch                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                                                                                                                                                     | yes, where installed here    | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                           |
+| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment                                                                                                                                               | yes                          | `_HI_DISABLE_ENV_STATUS`                                                        |
+| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa                                                                                                                                                                                                                                                                                                        | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home                                                                                                                             | no - opt-in, where installed | `_HI_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s                                |
+| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux.conf`                                                                                                               | no - per connect             | `--mux`, `--no-mux`                                                             |
+| vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vimrc`, micro your micro directory's files, helix `config.toml`, kakoune `kakrc` through `$KAKOUNE_CONFIG_DIR` on a target | yes                          | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
+| oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                                                                                                                                                                | -                            | [Shell frameworks](#shell-frameworks)                                           |
 
 ## Prompt programs
 
@@ -149,13 +148,14 @@ open reads them too ([HI.54](GLOSSARY.md#hi54-who-draws-the-environment-prefix))
 
 ## bat and eza
 
-`common/aliases.sh` builds the styled tool aliases from whatever the target
-has, first installed wins:
+With `_HI_TOOL_ALIASES=1`, `common/aliases.sh` builds the styled tool aliases
+from whatever the target has, first installed wins:
 
 - `cat` and `catn` run bat (Debian's `batcat`, where that is its name) with
-  `_HI_BAT_OPTS` - no pager, two-space tabs, the Monokai Extended Bright theme,
-  and the `changes,grid` style - and `catn` adds line numbers. Without bat,
-  `cat` falls through to `ccat`, then plain `cat`, and `catn` is not defined.
+  `_HI_BAT_OPTS` - no pager, two-space tabs, and the `changes,grid` style,
+  with the theme left to your bat config - and `catn` adds line numbers.
+  Without bat, `cat` falls through to `ccat`, then plain `cat`, and `catn` is
+  not defined.
 - `ls`, `eza`, and `exa` are one alias under three names, running the first of
   eza, exa, and `ls` the target has (`_HI_LS_BIN`); `eza` and `exa` answer only
   where that binary is installed. The flags follow the rung that answered,
@@ -163,10 +163,11 @@ has, first installed wins:
   plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is whichever of those the
   ladder picked, and setting it yourself wins outright.
 
-`_HI_DISABLE_TOOL_ALIASES=1` drops the `cat`/`catn` rebind, the list alias,
-and the tmux, screen, and zellij config aliases;
-`bat`, `batcat`, and `batn` (where bat is installed) and a bare `ls` stay
-available by name either way. No alias names a tool the target lacks: an
+Off, the default, none of these exists and the binary lookups behind them
+are skipped: `cat`, `ls`, and `bat` are the commands themselves. The tmux,
+screen, and zellij config aliases are not among them: they follow the
+overlay's files alone ([Terminal multiplexers](#terminal-multiplexers)).
+No alias names a tool the target lacks: an
 editor, tmux, bat, eza, or sudo that is not installed leaves its name to the
 shell's own not-found.
 The flags and the binary each alias runs are rows in
@@ -180,10 +181,9 @@ Every target gets the bat config you already keep: hi ships the file bat
 reads here - `$BAT_CONFIG_PATH`, else `$BAT_CONFIG_DIR/config`, else
 `~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - or, when there
 is one, the `bat.conf` in `~/.config/say-hi/` instead. On a target the file becomes
-`$BAT_CONFIG_PATH`, and `common/aliases.sh` leaves `--theme` out of
-the default `_HI_BAT_OPTS` whenever that variable is set, so the file's theme
-is the one you see through `cat`. The same rule applies at home if you export
-`BAT_CONFIG_PATH` yourself; a `_HI_BAT_OPTS` of your own always wins outright.
+`$BAT_CONFIG_PATH`, and the default `_HI_BAT_OPTS` carry no `--theme`, so the
+file's theme is the one you see through `cat` and `bat`; a `_HI_BAT_OPTS` of
+your own always wins outright.
 
 ### Shipping your eza theme
 
@@ -193,8 +193,8 @@ name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
 `theme.yml` in `~/.config/say-hi/` when there is one. On a target,
 `common/paths.sh` points `EZA_CONFIG_DIR` at the directory holding the shipped
 copy; at home the variable is left alone. Like `BAT_CONFIG_PATH`, it is
-exported whatever `_HI_DISABLE_TOOL_ALIASES` says, so a bare `command eza`
-matches too.
+exported whatever `_HI_TOOL_ALIASES` says, so a bare `command eza` matches
+too.
 
 ## Terminal multiplexers
 
@@ -221,14 +221,12 @@ name first - under the alias's `--config-dir`. A
 something the target does not have, so they go out disabled and
 `hi --doctor` names the line.
 
-## lesspipe
+## Debian chroots
 
-Where a target has `/usr/bin/lesspipe` (Debian and Ubuntu ship it) and
-`$LESSOPEN` is not already set, bash and zsh sessions `eval` it, so `less`
-opens archives, packages, and compressed files the way the distro's own
-`~/.bashrc` sets it up. A nested shell inherits the exported `$LESSOPEN` and
-skips it. In the same spirit, a chroot's `/etc/debian_chroot` leads the
-prompt: `(name)` in bash and zsh, `(chroot:name)` in fish.
+A chroot's `/etc/debian_chroot` leads the prompt, as the distro's own
+`~/.bashrc` sets it up: `(name)` in bash and zsh, `(chroot:name)` in fish.
+hi sets no `$LESSOPEN`, `$GCC_COLORS`, `$CLICOLOR`, or `$LSCOLORS`: those
+stay your rc's.
 
 ## readline
 
@@ -263,8 +261,9 @@ target's.
 
 A prompt program your rc loads keeps drawing here without asking
 ([Prompt programs](#prompt-programs)). `_HI_DISABLE_LOCAL=1` goes further:
-every `_HI_DISABLE_*` switch on, so everything on this page stays as your own
-rc set it up on this machine, while every target still gets hi's. How hi
+every `_HI_DISABLE_*` switch on and both alias opt-ins off, so everything on
+this page stays as your own rc set it up on this machine, while every target
+still gets hi's. How hi
 tells home from a target is [SETTINGS.md's _Others_](SETTINGS.md#others).
 
 ## Which side is asked

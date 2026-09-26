@@ -288,7 +288,7 @@ function _hi_session_editor() {
 
 # The connect and disconnect lines are each assembled by several writers that
 # print no newline of their own - hi.sh's payload size, the totals in load()
-# below, and banner(), which widens its tildes by the prefix already on the
+# below, and banner(), which widens its fill by the prefix already on the
 # line instead of starting a new one. Whoever writes last closes it, so with
 # the header off (no banner) and nothing optional left to print, this does.
 function _hi_line_close() {
@@ -307,7 +307,7 @@ function load() {
   # one machine, since clock skew makes a client/target subtraction
   # meaningless. `load` is not in it - this prints before that leg starts. It
   # continues the size hi.sh printed with no newline, so the total has to
-  # widen $_HI_CONNECT_PREFIX or the banner's tildes come out wrong.
+  # widen $_HI_CONNECT_PREFIX or the banner's fill come out wrong.
   total="$(_hi_sum "${_HI_CONNECT_TIME:-0}" "${_HI_COPY_TIME:-0}")"
   _hi_cecho " | ${total}s" "$NC" 1
   hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
@@ -340,7 +340,7 @@ function load() {
   # the greeting and its three timers are a line of their own, and not part of
   # the header: they survive $_HI_DISABLE_HEADER, which is why they answer to a
   # toggle of their own rather than that one.
-  local shell greeting color
+  local shell greeting color timer max width close=0 pad=""
   _hi_session_shell shell
   if [[ "${_HI_DISABLE_GREETING:-0}" != 1 ]]; then
     case "$shell" in
@@ -349,9 +349,30 @@ function load() {
     *) greeting="bash today :(" color="$RED" ;;
     esac
     _hi_cecho " | " "$NC" 1
-    _hi_cecho "hi loaded with... " "$BRCYAN" 1
+    _hi_cecho "hi loaded: " "$BRCYAN" 1
     _hi_cecho "$greeting" "$color" 1
-    _hi_cecho " | init: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
+    # wrapped and closed like the header rows above it; with the header off
+    # this line continues hi.sh's, whose width is not known here, so it runs on
+    max=0 width=$((14 + ${#greeting}))
+    if [[ "${_HI_DISABLE_HEADER:-0}" != 1 ]]; then
+      _hi_draw_width max
+      [[ "${_HI_DISABLE_RIGHT_EDGE:-0}" == 1 ]] || { close=1 max=$((max - 2)); }
+    fi
+    for timer in "init: ${_HI_CONNECT_TIME:--1}" "copy: ${_HI_COPY_TIME:--1}" \
+      "load: $(_hi_elapsed "$start" "$(_hi_now)")"; do
+      timer=" | ${timer}s"
+      if ((max && width + ${#timer} > max)); then
+        _hi_repeat pad $((max - width)) ' '
+        ((close)) && printf '%s |' "$pad"
+        printf '\n'
+        width=0
+      fi
+      printf '%s' "$timer"
+      width=$((width + ${#timer}))
+    done
+    _hi_repeat pad $((max - width)) ' '
+    ((close)) && printf '%s |' "$pad"
+    printf '\n'
   else
     _hi_line_close
   fi

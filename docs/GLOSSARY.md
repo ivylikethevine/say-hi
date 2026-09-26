@@ -131,7 +131,10 @@ an unset variable is fatal under bash's `set -u`. The toggles must always
 exist: `common/core.sh` defaults the `_HI_TOGGLES` list (defaulted, never
 assigned, so settings.sh and paths.sh's gate still win), `common/config.fish`
 mirrors it with `set -q X; or set -gx X 0`, and `hi.sh`'s `_hi_fallback_rc`
-emits `export X=0` lines from the same list for bash-less targets.
+emits `export X=0` lines from the same list for bash-less targets. The two
+opt-ins, `_HI_TOOL_ALIASES` and `_HI_SUDO_ALIAS`, sit outside the list:
+`common/aliases.sh`'s backstop line defaults them to `0`, and every reader
+compares against `1`, so unset is off.
 
 ## HI.08 sed tempfile rewrite
 
@@ -172,7 +175,8 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 `common/aliases.sh` (shown without its `[ -z ] &&` guard and the
 alias-clearing prefix below), with the aliases built on the result: resolved at
 source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every
-target has, so no alias points at a missing one.
+target has, so no alias points at a missing one. The chains run only under
+`_HI_TOOL_ALIASES=1`: off, no alias reads them, and their forks are skipped.
 
 A second, **narrower** chain over the same family delivers flags only to the
 tier that parses them: `$_HI_BAT_BIN` is `bat || batcat` where
@@ -806,8 +810,9 @@ It works by taking the attribute off, not by never setting it. fish parses
 accept is `export NAME=value`, so every name it sets arrives exported —
 over fifty. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`)
 un-exports the lot as the last thing in its required block: `_hi_unexport` in
-core.sh (bash `export -n`, zsh `typeset -g +x` — a bare `typeset` inside a
-function declares a local), and a `set -gu NAME $NAME` loop in config.fish.
+core.sh (one bash `export -n`, or one zsh `typeset -g +x` — a bare `typeset`
+inside a function declares a local — over every name), and a
+`set -gu NAME $NAME` loop in config.fish.
 The values stay as shell variables: the header's clock reads
 `$_HI_HUMAN_CENTRIC_DATE` on every render, the prompt reads the colour memos, and a `$( )` is a fork
 rather than an exec; an alias that names a path expanded it at definition
@@ -903,7 +908,8 @@ six-digit words are the only bytes that cost anything on the wire. hi ships
 **no named schemes** — the only table in the tree is the default one, whose
 first twelve slots are `000000` (meaning "the terminal's own") and whose
 twelve extras carry a built-in hex. A scheme is always the user's own.
-`_hi_assign_palette` builds the exported `$RED..$BRCYAN` through the same
+`_hi_assign_palette` builds `$RED..$BRCYAN`, shell variables a child never
+sees, through the same
 primitive as `_hi_color_escape`, so the two can never disagree and
 `scripts/configure.sh`'s previews can rebuild the palette under a pending
 answer.

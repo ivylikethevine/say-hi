@@ -13,9 +13,10 @@
 # (demos.yml).
 #
 # Its configuration: an `aliases.sh` overlay (docs/tapes/fixtures.sh writes it
-# - one alias in the POSIX+fish subset that file has to stay in, and a
-# _HI_BAT_OPTS so the shipped `cat` picks the overlay's theme) plus a package
-# floor of 5 to keep both headers short.
+# - one alias in the POSIX+fish subset that file has to stay in, and a `cat`
+# of its own with the overlay's theme, over the $_HI_CAT_BIN the
+# _HI_TOOL_ALIASES opt-in resolves) plus a trimmed _HI_HEADER_ORDER to keep
+# both headers short.
 #
 # Not `hi --doctor`'s config rows, the natural next line: they validate
 # the *renderer's* ~/.bashrc and friends by path, and those paths belong in
@@ -61,7 +62,7 @@ Sleep 4s
 
 Type "hi db-prod   # debian, bash"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 2s
 Type "dfh"
 Enter
@@ -75,7 +76,7 @@ Enter
 
 Type "hi edge-1   # alpine via podman, session in fish"
 Enter
-Wait+Screen@60s /hi loaded with/
+Wait+Screen@60s /hi loaded:/
 Sleep 2s
 Type "dfh"
 Enter

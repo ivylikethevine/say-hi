@@ -481,7 +481,7 @@ jobs:
       # session's tree, and the disconnect banner has to close it. Driven the
       # way tests/lib/process.sh's _hi_interactive_case drives one - wait for
       # a marker, type the next line - because input queued ahead of load()'s
-      # "hi loaded with" banner lands on whatever reads the pty first, and
+      # "hi loaded:" banner lands on whatever reads the pty first, and
       # pty.spawn never closes the master on stdin EOF: one missed line once
       # sat out the whole job timeout with nothing in the log. The driver
       # gives up at 90s naming the marker that never came (macOS has no GNU
@@ -528,7 +528,7 @@ jobs:
                   seen += data
                   sys.stdout.buffer.write(data)
                   sys.stdout.flush()
-          pump(b"hi loaded with")
+          pump(b"hi loaded:")
           os.write(fd, b"hi_info\n")
           pump(b"hi_root:")
           os.write(fd, b"exit\n")

@@ -28,5 +28,8 @@
 --uninstall|[--purge] [--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines out; --purge removes the overlay too
 --configure|[--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--configure|revisit the settings, leaving the rc wiring be
 --update|[<tag>] [--dry-run]|git|_HI_UPDATE||move the checkout to the newest release tag, or <tag>
---add-package|<pkg:priority>[,...] [--dry-run]|scripts|_HI_ADD_PACKAGE||add a row to your packages file
+--add-package|<group> <pkg>[,...] [--dry-run]|scripts|_HI_ADD_PACKAGE||add rows to a group in your packages file
+--remove-package|<pkg>... [--dry-run]|scripts|_HI_ADD_PACKAGE|--remove|remove rows from your packages file
 --add-tag|<host> <tag> [--dry-run]|scripts|_HI_ADD_TAG||tag an ssh host, for the colors
+--set-color|<type> <name> <color> [rrggbb] [--dry-run]|scripts|_HI_COLOR_PIN||pin a color in your colors file
+--unset-color|<type> <name> [--dry-run]|scripts|_HI_COLOR_PIN|--unset|remove a pin from your colors file

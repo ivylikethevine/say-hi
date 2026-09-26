@@ -12,8 +12,9 @@
 #
 # packages: the preview's whole claim is that it shows what the *header* will
 # do, so what matters is that it reads its facts from header.sh rather than
-# from a copy: the priority meanings out of the comment block, the colors out
-# of _HI_YES and _HI_NO, and every example row out of check_line itself. The
+# from a copy: each group's state and tier out of _hi_group_on and
+# _hi_group_tier, the colors out of _HI_YES and _HI_NO, and every example row
+# out of check_line itself. The
 # cases pin those seams, plus the table geometry, against a fixture packages
 # file and a PATH holding exactly the packages the fixture calls installed.
 #
@@ -113,13 +114,20 @@ function test_header_subject_says_when_the_header_is_off() {
 
 function _hi_write_color_fixtures() {
   cat >"$_HI_WORKDIR/colors" <<'EOF'
-#type,name,color
-username,alice,brmagenta
-username,LOCALUSER,brgreen
-usertag,ops,brred
-hostname,pinned,brcyan
-hosttag,work,bryellow
-hostname,pat-*,brblue
+# [type] sections of: name color [rrggbb]
+[username]
+alice brmagenta
+LOCALUSER brgreen
+
+[usertag]
+ops brred
+
+[hostname]
+pinned brcyan
+pat-* brblue
+
+[hosttag]
+work bryellow
 EOF
 
   cat >"$_HI_WORKDIR/ssh_config" <<'EOF'
@@ -188,11 +196,22 @@ function test_default_source_still_resolves_to_a_palette_color() {
 
 function test_colors_names_dedupes_and_skips() {
   local colors="$_HI_WORKDIR/colors.names" out
-  printf 'hostname,a,red\nhostname,b,blue\nhostname,a,green\nusername,c,red\n' >"$colors"
+  printf '[hostname]\na red\nb blue\na green\n[username]\nc red\n' >"$colors"
   out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
   [ "$out" = "a
 b" ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_colors_names hostname a)" = b ]
+}
+
+# _hi_colors_rows reads the [type] sections core.sh's scan does: a name only
+# under its own section, a row above the first one nowhere, comments and
+# blank lines skipped, a section named twice read both times
+function test_colors_rows_are_scoped_to_their_section() {
+  local colors="$_HI_WORKDIR/colors.rows"
+  printf 'stray red\n[hostname]\n# a note\n\nshared red\nh1 blue\n[username]\nshared green\n[hostname]\nh2 cyan ff0000\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_rows hostname)" = "$(printf 'shared\nh1\nh2')" ] &&
+    [ "$(_HI_COLORS="$colors" _hi_colors_rows username)" = shared ] &&
+    [ -z "$(_HI_COLORS="$colors" _hi_colors_rows hosttag)" ]
 }
 
 function test_known_users_includes_the_current_user() {
@@ -239,7 +258,7 @@ function test_pattern_for_misses_uncovered_names() {
 # don't qualify
 function test_pattern_pins_dedupe_in_file_order() {
   local colors="$_HI_WORKDIR/colors.pins"
-  printf 'hostname,net-*,red\nhostname,exact,blue\nusername,u-*,green\nhostname,db-?,cyan\nhostname,net-*,green\n' >"$colors"
+  printf '[hostname]\nnet-* red\nexact blue\ndb-? cyan\nnet-* green\n[username]\nu-* green\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_pattern_pins)" = 'net-*
 db-?' ]
 }
@@ -349,7 +368,7 @@ function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
 function test_hosts_table_leads_with_a_localhostname_pin() {
   local colors="$_HI_WORKDIR/colors.localhost" out
   cat "$_HI_WORKDIR/colors" >"$colors"
-  printf 'hostname,LOCALHOSTNAME,brgreen\n' >>"$colors"
+  printf '[hostname]\nLOCALHOSTNAME brgreen\n' >>"$colors"
   out="$(_HI_COLORS="$colors" _hi_render_hosts_table)" || return 1
   [[ "$out" == *localbox* && "$out" == *local:hostname* ]] || return 1
   # ahead of: nothing before the localbox row but the header
@@ -361,7 +380,7 @@ function test_hosts_table_leads_with_a_localhostname_pin() {
 # pin) against the two work hosts, which wrap
 function test_hosts_table_pads_a_wrapped_group_past_its_users() {
   local colors="$_HI_WORKDIR/colors.solo" out row
-  printf 'hosttag,work,bryellow\n' >"$colors"
+  printf '[hosttag]\nwork bryellow\n' >"$colors"
   out="$(_HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
   # the wrapped host's own row, with no user@ beside it
   row="$(_hi_strip_ansi "$out" | grep -F '| a-considerably-longer-hostname ')" || return 1
@@ -386,7 +405,7 @@ function test_hosts_table_paints_a_tag_behind_a_leading_wildcard() {
 function test_hosts_table_draws_a_usertag_row_only_under_its_tag() {
   local cfg="$_HI_WORKDIR/ssh_config.usertag" colors="$_HI_WORKDIR/colors.usertag" out esc
   printf '# Tags: ops\nHost opsbox\n  User nobody\n\nHost plainbox\n  User nobody\n' >"$cfg"
-  printf 'usertag,ops,brred\n' >"$colors"
+  printf '[usertag]\nops brred\n' >"$colors"
   out="$(_HI_SSH_CONFIG="$cfg" _HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
   _hi_color_escape_var esc brred
   printf -v esc '%b' "$esc"
@@ -537,24 +556,34 @@ function test_h_flag_prints_the_same_usage() {
 # packages
 #
 
+# One row above the first group (always runs), then a group per case: core
+# and useful on by default, deprecated holding every marker outcome, extras
+# and platform off by default but still collected.
 function _hi_write_package_fixtures() {
-  _hi_fake_path pkgbin hialpha hibravo hicharlie hidelta hiecho hifoxtrot >/dev/null
+  _hi_fake_path pkgbin hitop hialpha hibravo hicharlie hidelta hiecho hifoxtrot >/dev/null
 
   cat >"$_HI_WORKDIR/packages" <<'EOF'
 # a comment, and a blank line, both of which the header skips
-hialpha:3
-highost3:3
-hibravo:2
-highost2:2
-hicharlie:1
-highost1:1
-hidelta:0
-highost0:0
--hiecho:3
--highostcore:3
-+hifoxtrot:0
-+highostplus:0
-highostalt:3,hibravo:3
+
+hitop
+[core]
+hialpha
+highost3
+highostalt,hibravo
+[useful]
+hibravo
+highost2
+[deprecated]
+-hiecho
+-highostgone
++hifoxtrot
++highostplus
+[extras]
+hicharlie
+highost1
+[platform]
+hidelta
+highost0
 EOF
   # in-process cases read $_HI_PACKAGES; a child script re-derives it from
   # $_HI_CONFIG_DIR, so the fixture is also an overlay's packages file
@@ -568,44 +597,14 @@ function _hi_pkg_path() {
   printf '%s:%s' "$(_hi_fake_path pkgbin)" "$(_hi_real_path pkgtools bash awk sort sed cat)"
 }
 
-# collect once - it is the same work for every case that reads the results
+# collect once - it is the same work for every case that reads the results.
+# An empty $_HI_PACKAGES_GROUPS reads as the shipped default, whatever the
+# runner's environment carries.
 function _hi_collect_once() {
-  local saved="$PATH"
+  local saved="$PATH" _HI_PACKAGES_GROUPS=""
   PATH="$(_hi_pkg_path)"
   _hi_collect_examples
   PATH="$saved"
-}
-
-# The pin that keeps the legend honest: header.sh's comment block is the only
-# description of the priorities there is, so every priority its color tables
-# define has to come back with a meaning. A renumbered or reworded block fails
-# here rather than rendering a table with a blank column.
-function test_every_priority_has_a_meaning() {
-  local p meaning i=0
-  for i in "${!_HI_YES[@]}"; do
-    meaning="$(_hi_priority_meanings | awk -v p="$i" -F'\t' '$1 == p { print $2 }')"
-    [ -n "$meaning" ] || return 1
-  done
-  [ "${#_HI_YES[@]}" -eq "${#_HI_NO[@]}" ]
-}
-
-function test_meanings_are_one_per_priority() {
-  [ "$(_hi_priority_meanings | wc -l)" -eq "${#_HI_YES[@]}" ]
-}
-
-# the parenthetical examples in header.sh's comment are dropped - the EXAMPLE
-# column shows real ones, from the file the header will actually read
-function test_meanings_drop_the_parenthetical() {
-  ! _hi_priority_meanings | grep -q '('
-}
-
-function test_meanings_name_the_top_priority() {
-  _hi_priority_meanings | grep -q "^3$(printf '\t')favorites and core$"
-}
-
-# an unrelated "# 2 ..." comment earlier in header.sh must not join the block
-function test_meanings_take_only_the_block_above_the_table() {
-  [ "$(_hi_priority_meanings | awk -F'\t' '$1 == 2' | wc -l)" -eq 1 ]
 }
 
 # every entry in the header's two ramps has to be a name the user can look up
@@ -625,137 +624,172 @@ function test_legend_names_every_header_color() {
   _hi_packages_palette
 }
 
-function test_collect_counts_every_listed_package() {
-  [ "$_HI_PKG_LISTED" -eq 13 ]
+# one slot per group in file order, slot 0 the rows above the first header;
+# each group's state from _hi_group_on, its tier from _hi_group_tier, and its
+# row count
+function test_collect_records_every_group() {
+  [ "${_HI_PG_NAME[*]}" = "(no group) core useful deprecated extras platform" ] &&
+    [ "${_HI_PG_ON[*]}" = "1 1 1 1 0 0" ] &&
+    [ "${_HI_PG_TIER[*]}" = "1 3 2 3 1 0" ] &&
+    [ "${_HI_PG_ROWS[*]}" = "1 3 2 4 2 2" ]
 }
 
-# the installed `-` line and the missing `+` line are the two rows the modes
-# suppress, so of the 13 lines the header prints 11
-function test_collect_counts_only_what_the_header_shows() {
-  [ "$_HI_PKG_SHOWN" -eq 11 ]
+function test_collect_counts_every_listed_package() {
+  [ "$_HI_PKG_LISTED" -eq 14 ]
+}
+
+# an absent `-` row and an installed `+` row print nothing, so of the 14 rows
+# 2 are silent; the 4 in extras and platform would print but their groups are
+# off; the other 8 are what the header shows
+function test_collect_splits_shown_silent_and_off() {
+  [ "$_HI_PKG_SHOWN" -eq 8 ] && [ "$_HI_PKG_SILENT" -eq 2 ] && [ "$_HI_PKG_OFF" -eq 4 ]
 }
 
 function test_collect_finds_an_installed_example() {
-  [[ "${_HI_EX_OK[3]:-}" == *hialpha* ]]
+  [[ "${_HI_EX_OK[1]:-}" == *hialpha* ]]
 }
 
 function test_collect_finds_a_missing_example() {
-  [[ "${_HI_EX_NO[3]:-}" == *highost3* ]]
+  [[ "${_HI_EX_NO[1]:-}" == *highost3* ]]
 }
 
-# an installed `-` line and a missing `+` line show nothing, so neither can be
-# anyone's example - the mode rows in the fixture must not surface anywhere
-function test_collect_skips_a_mode_suppressed_example() {
-  [[ "${_HI_EX_OK[3]:-}" != *hiecho* ]] && [[ "${_HI_EX_NO[0]:-}" != *highostplus* ]]
+# the rows above the first header are a group of their own, slot 0
+function test_collect_keeps_the_ungrouped_rows_in_slot_zero() {
+  [[ "${_HI_EX_OK[0]:-}" == *hitop* ]] && [ -z "${_HI_EX_NO[0]:-}" ]
 }
 
-# The nudge, which is what the table was rebuilt for: a favorite you have not
-# installed is collected and shown rather than silently dropped.
-function test_collect_keeps_a_missing_example_as_a_nudge() {
-  [[ "${_HI_EX_NO[3]:-}" == *highost3* ]] && [[ "${_HI_EX_OK[3]:-}" == *hialpha* ]]
+# an installed `-` row is a warning, and a warning sits on the missing side:
+# deprecated's only installed row is hiecho, and it is not an OK example
+function test_collect_files_a_warning_as_missing() {
+  [ -z "${_HI_EX_OK[3]:-}" ] &&
+    [[ "${_HI_EX_NO[3]:-}" == *hiecho*"$YELLOW$_HI_MARK_WARN$NC" ]]
+}
+
+# the rows that print nothing can be no one's example
+function test_collect_skips_the_silent_rows() {
+  local g
+  for g in "${!_HI_PG_NAME[@]}"; do
+    [[ "${_HI_EX_OK[g]:-}${_HI_EX_NO[g]:-}" != *highostgone* ]] &&
+      [[ "${_HI_EX_OK[g]:-}${_HI_EX_NO[g]:-}" != *hifoxtrot* ]] || return 1
+  done
+}
+
+# a group that is off still has its examples collected: the legend shows what
+# it would print
+function test_collect_keeps_an_off_groups_examples() {
+  [[ "${_HI_EX_OK[4]:-}" == *hicharlie* ]] && [[ "${_HI_EX_NO[4]:-}" == *highost1* ]]
 }
 
 # the installed/missing split reads the mark, so it has to survive a package
-# whose *name* contains the ASCII glyph ("x" in highost0) and the alternatives
-# mark, which is neither of the two
-# Both halves of a tier come back, told apart by the mark rather than by the
-# name - tier 0 has one installed package and one absent, and each has to land
-# in its own column.
+# whose *name* contains the ASCII glyph ("x" in highost0): platform has one
+# installed package and one absent, and each has to land in its own column
 function test_collect_reads_the_mark_not_the_name() {
-  [[ "${_HI_EX_OK[0]:-}" == *hidelta* ]] && [[ "${_HI_EX_NO[0]:-}" == *highost0* ]]
+  [[ "${_HI_EX_OK[5]:-}" == *hidelta* ]] && [[ "${_HI_EX_NO[5]:-}" == *highost0* ]]
 }
 
 # The cell is nothing but color escapes and text, so its length is not its
 # width; handing the table a measured length is what pushes a column past its
-# own rule. Priority 3 shows both examples: "| hialpha X " and "| highost3 X " -
+# own rule. core shows both examples: "| hialpha X " and "| highost3 X " -
 # each the name plus check_line's constant 5 (the lead, the two spaces, the
 # one-column mark).
 function test_example_cell_reports_its_printed_width() {
   local text width
-  IFS=$'\t' read -r text width <<<"$(_hi_example_cell 3)"
+  IFS=$'\t' read -r text width <<<"$(_hi_example_cell 1)"
   [ "$width" -eq $((7 + 5 + 8 + 5)) ] &&
     [ "$width" -lt "${#text}" ]
 }
 
-function test_example_cell_marks_a_priority_with_nothing_to_show() {
+function test_example_cell_marks_a_group_with_nothing_to_show() {
   local text width
   IFS=$'\t' read -r text width <<<"$(_hi_example_cell 9)"
   [ "$text" = "-" ] && [ "$width" -eq 1 ]
-}
-
-# The other reason a cell shows no example, and the one every stock config
-# hits: the floor defaults to 2, so priorities 0-1 have examples collected but
-# never printed, and the cell says why instead of showing one the header will
-# not.
-function test_example_cell_marks_a_priority_below_the_floor() {
-  local text width
-  IFS=$'\t' read -r text width <<<"$(_hi_example_cell 0)"
-  [ "$text" = "below floor" ] && [ "$width" -eq 11 ]
 }
 
 # One in-process render of the legend (the source hatch hands the function
 # over without running it), shared like _HI_PACKAGES_OUT below and for the same
 # SIGPIPE reason. In-process rather than through the child render so a failure
 # points at the table code, not at whatever the child's environment did.
-_HI_PRIO_OUT=""
+_HI_GROUPS_OUT=""
 
-function test_priorities_table_renders_all_columns() {
-  _HI_PRIO_OUT="$(_hi_print_priorities_table)" || return 1
+function test_groups_table_renders_all_columns() {
+  _HI_GROUPS_OUT="$(_HI_PACKAGES_GROUPS="" _hi_print_groups_table)" || return 1
   local stripped
-  stripped="$(_hi_strip_ansi "$_HI_PRIO_OUT")"
-  [[ "$stripped" == *"| PRIORITY "* && "$stripped" == *"| MEANING "* ]] &&
+  stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
+  [[ "$stripped" == *"| GROUP "* && "$stripped" == *"| STATE "* ]] &&
     [[ "$stripped" == *"| INSTALLED "* && "$stripped" == *"| MISSING "* ]] &&
     [[ "$stripped" == *"| EXAMPLE "* ]]
 }
 
-# highest first - the order full_check sorts its own output into, so the two
-# halves of the preview read in the same direction
-function test_priorities_table_sorts_highest_first() {
-  _hi_before "$(_hi_strip_ansi "$_HI_PRIO_OUT")" 'favorites and core' 'platform trivia'
-}
-
-# the INSTALLED/MISSING cells name the active ramp's colors - cool is the
-# default, whose priority-3 pair is brgreen/brred (header.sh's tables)
-function test_priorities_table_names_the_ramp_colors() {
-  local row
-  row="$(_hi_strip_ansi "$_HI_PRIO_OUT" | grep '^| 3 ')"
-  [[ "$row" == *brgreen* && "$row" == *brred* ]]
-}
-
-# the EXAMPLE column shows the fixture's own rows, and "below floor" where the
-# default floor of 2 keeps a rank off the header entirely
-function test_priorities_table_shows_the_real_examples() {
+# file order, the order a reader finds the groups in
+function test_groups_table_keeps_file_order() {
   local stripped
-  stripped="$(_hi_strip_ansi "$_HI_PRIO_OUT")"
-  [[ "$(printf '%s\n' "$stripped" | grep '^| 3 ')" == *hialpha*highost3* ]] &&
-    [[ "$(printf '%s\n' "$stripped" | grep '^| 0 ')" == *"below floor"* ]]
+  stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
+  _hi_before "$stripped" '^| (no group) ' '^| core ' &&
+    _hi_before "$stripped" '^| core ' '^| deprecated ' &&
+    _hi_before "$stripped" '^| deprecated ' '^| platform '
 }
 
-# the two lines under the table: the tally, and the floor note naming the
-# setting responsible - the same numbers the child render asserts, proved here
-# to come from the table code itself
-function test_priorities_table_counts_below_the_table() {
-  [[ "$_HI_PRIO_OUT" == *"13 listed, 6 shown, 2 hidden"* ]] &&
-    [[ "$_HI_PRIO_OUT" == *"\$_HI_PACKAGES_MIN_PRIORITY=2"* ]]
+# STATE is whether $_HI_PACKAGES_GROUPS runs the group
+function test_groups_table_says_on_and_off() {
+  local stripped
+  stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
+  [[ "$(printf '%s\n' "$stripped" | grep '^| core ')" == *"| on "* ]] &&
+    [[ "$(printf '%s\n' "$stripped" | grep '^| extras ')" == *"| off "* ]]
 }
 
-# a floor of 0 floors nothing: every rank shows its example and the note has
-# nothing to explain. The tally pair is overridden too - the script sets both
-# from the same floor before collecting, so a render at floor 0 sees 0 floored.
-function test_priorities_table_drops_the_floor_note_at_zero() {
+# the INSTALLED/MISSING cells name the colors of the group's tier: core is
+# tier 3, the shipped ramp's brgreen/brred, and platform tier 0, cyan/blue
+function test_groups_table_names_the_ramp_colors() {
+  local stripped row
+  stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
+  row="$(printf '%s\n' "$stripped" | grep '^| core ')"
+  [[ "$row" == *brgreen* && "$row" == *brred* ]] || return 1
+  row="$(printf '%s\n' "$stripped" | grep '^| platform ')"
+  [[ "$row" == *"| cyan "* && "$row" == *"| blue "* ]]
+}
+
+# the EXAMPLE column shows the fixture's own rows, an off group's included
+function test_groups_table_shows_the_real_examples() {
+  local stripped
+  stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
+  [[ "$(printf '%s\n' "$stripped" | grep '^| core ')" == *hialpha*highost3* ]] &&
+    [[ "$(printf '%s\n' "$stripped" | grep '^| extras ')" == *hicharlie*highost1* ]]
+}
+
+# the "(no group)" row is there only when the file has rows above its first
+# header
+function test_groups_table_drops_an_empty_no_group_row() {
   local out
-  out="$(_HI_PKG_MIN=0 _HI_PKG_FLOORED=0 _hi_print_priorities_table)" || return 1
-  [[ "$out" != *"below floor"* && "$out" != *_HI_PACKAGES_MIN_PRIORITY* ]] &&
-    [[ "$out" == *hidelta* && "$out" == *"13 listed, 11 shown, 2 hidden"* ]]
+  out="$(
+    _HI_PG_ROWS[0]=0
+    _hi_print_groups_table
+  )" || return 1
+  [[ "$(_hi_strip_ansi "$out")" != *"(no group)"* && "$out" == *core* ]]
+}
+
+# the two lines under the table: the tally, and the note naming the setting
+# that leaves groups off - the same numbers the child render asserts, proved
+# here to come from the table code itself
+function test_groups_table_counts_below_the_table() {
+  [[ "$_HI_GROUPS_OUT" == *"14 listed, 8 shown, 2 silent by their marker"* ]] &&
+    [[ "$_HI_GROUPS_OUT" == *"4 more in groups \$_HI_PACKAGES_GROUPS leaves off (core useful deprecated run)"* ]]
+}
+
+# nothing off, nothing to explain
+function test_groups_table_drops_the_off_note_at_zero() {
+  local out
+  out="$(_HI_PKG_OFF=0 _hi_print_groups_table)" || return 1
+  [[ "$out" != *"leaves off"* && "$out" == *"14 listed"* ]]
 }
 
 function test_marks_table_explains_every_mark() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
   [[ "$out" == *"| MARK "* && "$out" == *"| MEANS "* ]] &&
-    [[ "$out" == *"installed, under the first name the line lists"* ]] &&
+    [[ "$out" == *"installed, under the first name the row lists"* ]] &&
     [[ "$out" == *"installed, but via one of the alternatives after it"* ]] &&
-    [[ "$out" == *"not installed - no name on the line resolved"* ]]
+    [[ "$out" == *"not installed - no name on the row resolved"* ]] &&
+    [[ "$out" == *"installed, on a - row: a package you don't want"* ]]
 }
 
 # each glyph is painted in the color the header paints it - the raw render has
@@ -763,20 +797,21 @@ function test_marks_table_explains_every_mark() {
 function test_marks_table_paints_each_glyph() {
   local out
   out="$(_hi_print_marks_table)" || return 1
-  _hi_has_rendered "$out" "$GREEN$_HI_MARK_OK" && _hi_has_rendered "$out" "$RED$_HI_MARK_NO"
+  _hi_has_rendered "$out" "$GREEN$_HI_MARK_OK" && _hi_has_rendered "$out" "$RED$_HI_MARK_NO" &&
+    _hi_has_rendered "$out" "$YELLOW$_HI_MARK_ALT" && _hi_has_rendered "$out" "$YELLOW$_HI_MARK_WARN"
 }
 
 function test_marks_table_is_rectangular() {
   _hi_table_is_rectangular "$(_hi_print_marks_table)"
 }
 
-# the third axis, a line's leading character, is two lines under the marks:
-# both mode characters and the default, which has none
-function test_marks_table_explains_the_modes() {
+# the third axis, a row's leading marker, is two lines under the marks: both
+# markers and the default, which has none
+function test_marks_table_explains_the_markers() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
-  [[ "$out" == *"a leading - speaks only when the whole line is missing, + only when"* ]] &&
-    [[ "$out" == *"something on it is installed; no flag speaks both ways"* ]]
+  [[ "$out" == *"a leading - (unwanted) speaks only when installed, + (required) only"* ]] &&
+    [[ "$out" == *"when missing; no marker speaks both ways"* ]]
 }
 
 # ...and the same table under the glyph set the rest of this suite pins away:
@@ -822,7 +857,7 @@ function test_preview_reads_the_trees_own_file() {
   out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" packages 2>&1)" || return 1
-  [[ "$out" == *hialpha* ]] && [[ "$out" == *'13 listed'* ]]
+  [[ "$out" == *hialpha* ]] && [[ "$out" == *'14 listed'* ]]
 }
 
 # --help exits 0 before any table renders: usage text, the files it reads, and
@@ -832,7 +867,8 @@ function test_help_prints_usage_and_stops() {
   out="$(_hi_render_packages_help --help)" || return 1
   [[ "$out" == *"Usage: preview.sh packages"* ]] &&
     [[ "$out" == *"Takes no arguments"* ]] &&
-    [[ "$out" != *"| PRIORITY"* ]]
+    [[ "$out" == *"\$_HI_PACKAGES_GROUPS"* ]] &&
+    [[ "$out" != *"| GROUP"* ]]
 }
 
 # anything that is not -h/--help is an error: the flag takes no arguments,
@@ -840,7 +876,7 @@ function test_help_prints_usage_and_stops() {
 function test_packages_stray_argument_is_refused() {
   local out rc=0
   out="$(_hi_render_packages_help nonsense)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* && "$out" != *"| PRIORITY"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* && "$out" != *"| GROUP"* ]]
 }
 
 # One render (the slowest thing this suite does) shared by the cases below;
@@ -851,7 +887,7 @@ _HI_PACKAGES_OUT=""
 
 function test_preview_renders_without_error() {
   _HI_PACKAGES_OUT="$(_hi_render_packages)" || return 1
-  [[ "$_HI_PACKAGES_OUT" == *PRIORITY* && "$_HI_PACKAGES_OUT" == *MARK* ]]
+  [[ "$_HI_PACKAGES_OUT" == *"| GROUP "* && "$_HI_PACKAGES_OUT" == *MARK* ]]
 }
 
 # the eyeball pass _HI_PACKAGES_PALETTE leans on: the legend has to say which
@@ -873,49 +909,53 @@ function test_preview_names_a_custom_scheme_and_its_bank() {
   local out row
   out="$(_HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_render_packages)" || return 1
   [[ "$out" == *"scheme: custom (48)"* ]] || return 1
-  row="$(printf '%s\n' "$out" | grep '^| 3 ')"
+  row="$(printf '%s\n' "$out" | grep '^| core ')"
   # bank 2's brgreen (23d18b) and brred (f14c4c), named as such
   [[ "$row" == *";38;2;35;209;139m"*brgreen* && "$row" == *";38;2;241;76;76m"*brred* ]] || return 1
   out="$(_HI_COLOR_SCHEME="not a scheme" _HI_TRUECOLOR=1 _hi_render_packages)" || return 1
   [[ "$out" == *"scheme: not a scheme (ignored - not a scheme)"* ]]
 }
 
-function test_preview_names_every_priority() {
-  local i stripped
+function test_preview_names_every_group() {
+  local g stripped
   stripped="$(_hi_strip_ansi "$_HI_PACKAGES_OUT")"
-  for i in "${!_HI_YES[@]}"; do
-    printf '%s\n' "$stripped" | grep -q "^| $i  *| " || return 1
+  for g in core useful deprecated extras platform; do
+    printf '%s\n' "$stripped" | grep -q "^| $g  *| " || return 1
   done
 }
 
-# the lines under the marks are the only place the two mode characters are
-# explained, so the render has to carry them
-function test_preview_explains_the_modes() {
-  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q 'a leading - speaks only when the whole line is missing'
+# the lines under the marks are the only place the two markers are explained,
+# so the render has to carry them
+function test_preview_explains_the_markers() {
+  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q 'a leading - (unwanted) speaks only when installed'
 }
 
 function test_preview_counts_what_it_read() {
-  # 6 shown: the default floor of 2 keeps the mode-visible rows of rank 2-3;
-  # the three rank-0 and two rank-1 rows sit below it
-  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '13 listed, 6 shown, 2 hidden'
+  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '14 listed, 8 shown, 2 silent by their marker' &&
+    printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '4 more in groups'
 }
 
 # the check itself is the last thing the preview prints, so a package the
-# header would show has to appear below the tables as well as inside them
+# header would show has to appear below the tables as well as inside them -
+# and one from a group that is off, only inside them
 function test_preview_ends_with_the_real_check() {
-  [[ "$(printf '%s\n' "$_HI_PACKAGES_OUT" | tail -3)" == *hialpha* ]]
+  local tail
+  tail="$(printf '%s\n' "$_HI_PACKAGES_OUT" | tail -3)"
+  [[ "$tail" == *hialpha* && "$tail" != *hicharlie* ]]
 }
 
-# a floor above 3 reads as 3, not as the check turned off: the legend names
-# the clamped floor and the preview still ends with the rank-3 rows, and
-# none of rank 2 (hibravo rides at 3 as highostalt's alternative)
-function test_preview_clamps_a_floor_above_three() {
-  local out
-  out="$(_HI_PACKAGES_MIN_PRIORITY=4 _hi_render_packages)" || return 1
-  [[ "$out" == *"_HI_PACKAGES_MIN_PRIORITY=3"* && "$out" != *"_HI_PACKAGES_MIN_PRIORITY=4"* ]] &&
-    [[ "$out" != *"check is off"* ]] &&
-    [[ "$(printf '%s\n' "$out" | tail -3)" == *hialpha* ]] &&
-    [[ "$(printf '%s\n' "$out" | tail -3)" != *highost2* ]]
+# the check follows $_HI_PACKAGES_GROUPS: naming extras alone turns core off
+# in the legend and in the check, extras on, and the rows above the first
+# header still print
+function test_preview_follows_the_groups_setting() {
+  local out stripped tail
+  out="$(_HI_PACKAGES_GROUPS=extras _hi_render_packages)" || return 1
+  stripped="$(_hi_strip_ansi "$out")"
+  [[ "$(printf '%s\n' "$stripped" | grep '^| core ')" == *"| off "* ]] &&
+    [[ "$(printf '%s\n' "$stripped" | grep '^| extras ')" == *"| on "* ]] &&
+    [[ "$out" == *"(extras run)"* ]] || return 1
+  tail="$(printf '%s\n' "$out" | tail -3)"
+  [[ "$tail" == *hicharlie* && "$tail" == *hitop* && "$tail" != *hialpha* ]]
 }
 
 # Every section of the preview reads the packages file, so none at all is
@@ -942,7 +982,7 @@ function test_preview_ignores_an_exported_packages() {
   home="$(_hi_scratch_tree exportedpkgs common config scripts)"
   cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages"
   decoy="$_HI_WORKDIR/exported-packages"
-  printf 'hionlyone:3\n' >"$decoy"
+  printf 'hionlyone\n' >"$decoy"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES="$decoy" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" || return 1
@@ -995,6 +1035,7 @@ EOF
 
   _hi_h2 "Testing: colors - table inputs"
   _hi_check "_hi_colors_names dedupes and skips" test_colors_names_dedupes_and_skips
+  _hi_check "_hi_colors_rows keeps to its [type] section" test_colors_rows_are_scoped_to_their_section
   _hi_check "Known users include the current user" test_known_users_includes_the_current_user
   _hi_check "Known users include override names" test_known_users_includes_override_names
   _hi_check "Known users exclude the LOCALUSER placeholder" test_known_users_excludes_the_localuser_placeholder
@@ -1058,42 +1099,39 @@ EOF
   _hi_check "-h prints the same usage" test_h_flag_prints_the_same_usage
   _hi_check "A stray argument is refused" test_colors_stray_argument_is_refused
 
-  _hi_h2 "Testing: packages - the priority meanings"
-  _hi_check "Every priority has a meaning" test_every_priority_has_a_meaning
-  _hi_check "One meaning per priority" test_meanings_are_one_per_priority
-  _hi_check "Parenthetical examples dropped" test_meanings_drop_the_parenthetical
-  _hi_check "Names the top priority" test_meanings_name_the_top_priority
-  _hi_check "Reads only the block above the tables" test_meanings_take_only_the_block_above_the_table
-
   _hi_h2 "Testing: packages - naming the header's colors"
   _hi_check "Names every color the header uses" test_legend_names_every_header_color
 
   _hi_h2 "Testing: packages - examples, via the header's check_line"
+  _hi_check "Records every group, state, tier and row count" test_collect_records_every_group
   _hi_check "Counts every listed package" test_collect_counts_every_listed_package
-  _hi_check "Counts only what the header shows" test_collect_counts_only_what_the_header_shows
+  _hi_check "Splits shown, silent and off" test_collect_splits_shown_silent_and_off
   _hi_check "Finds an installed example" test_collect_finds_an_installed_example
   _hi_check "Finds a missing example" test_collect_finds_a_missing_example
-  _hi_check "Skips a mode-suppressed example" test_collect_skips_a_mode_suppressed_example
-  _hi_check "Keeps a missing example as a nudge" test_collect_keeps_a_missing_example_as_a_nudge
+  _hi_check "Rows above the first group are slot 0" test_collect_keeps_the_ungrouped_rows_in_slot_zero
+  _hi_check "Files a warning on the missing side" test_collect_files_a_warning_as_missing
+  _hi_check "Skips the silent rows" test_collect_skips_the_silent_rows
+  _hi_check "Keeps an off group's examples" test_collect_keeps_an_off_groups_examples
   _hi_check "Reads the mark, not the name" test_collect_reads_the_mark_not_the_name
 
   _hi_h2 "Testing: packages - the example cell"
   _hi_check "Reports its printed width" test_example_cell_reports_its_printed_width
-  _hi_check "Marks a priority with nothing to show" test_example_cell_marks_a_priority_with_nothing_to_show
-  _hi_check "Marks a priority below the floor" test_example_cell_marks_a_priority_below_the_floor
+  _hi_check "Marks a group with nothing to show" test_example_cell_marks_a_group_with_nothing_to_show
 
   _hi_h2 "Testing: packages - the tables, rendered in-process"
-  _hi_check "Legend renders all five columns" test_priorities_table_renders_all_columns
-  _hi_check "Legend sorts highest priority first" test_priorities_table_sorts_highest_first
-  _hi_check "Legend names the ramp's colors" test_priorities_table_names_the_ramp_colors
-  _hi_check "Legend shows the real examples" test_priorities_table_shows_the_real_examples
-  _hi_check "Legend counts below the table" test_priorities_table_counts_below_the_table
-  _hi_check "Floor note vanishes at floor 0" test_priorities_table_drops_the_floor_note_at_zero
-  _hi_check "Legend is rectangular" _hi_table_is_rectangular "$_HI_PRIO_OUT"
+  _hi_check "Legend renders all five columns" test_groups_table_renders_all_columns
+  _hi_check "Legend keeps file order" test_groups_table_keeps_file_order
+  _hi_check "Legend says on and off" test_groups_table_says_on_and_off
+  _hi_check "Legend names the tier's colors" test_groups_table_names_the_ramp_colors
+  _hi_check "Legend shows the real examples" test_groups_table_shows_the_real_examples
+  _hi_check "No (no group) row without ungrouped rows" test_groups_table_drops_an_empty_no_group_row
+  _hi_check "Legend counts below the table" test_groups_table_counts_below_the_table
+  _hi_check "Off note vanishes with nothing off" test_groups_table_drops_the_off_note_at_zero
+  _hi_check "Legend is rectangular" _hi_table_is_rectangular "$_HI_GROUPS_OUT"
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph
   _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
-  _hi_check "Marks table explains the mode characters" test_marks_table_explains_the_modes
+  _hi_check "Marks table explains the markers" test_marks_table_explains_the_markers
   _hi_check "Marks table draws the glyph set's corners" test_marks_table_renders_the_glyph_set
 
   _hi_h2 "Testing: packages - the rendered preview"
@@ -1103,12 +1141,12 @@ EOF
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette
   _hi_check "Names a custom scheme, and its second bank" test_preview_names_a_custom_scheme_and_its_bank
-  _hi_check "Names every priority" test_preview_names_every_priority
-  _hi_check "Explains the mode characters" test_preview_explains_the_modes
+  _hi_check "Names every group" test_preview_names_every_group
+  _hi_check "Explains the markers" test_preview_explains_the_markers
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
-  _hi_check "A floor above 3 reads as 3" test_preview_clamps_a_floor_above_three
+  _hi_check "Follows \$_HI_PACKAGES_GROUPS" test_preview_follows_the_groups_setting
   _hi_check "Reports no packages file at all" test_preview_reports_no_packages_file
   _hi_check "An exported \$_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file
