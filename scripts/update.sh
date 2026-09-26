@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# `hi --update`: move the say-hi checkout this hi runs from to a release tag.
+# `hi --update`: move the say-hi checkout this hi runs from to a release tag,
+# or, on the dev branch, fast-forward it to the remote's dev.
 #
 # Here and not in hi.sh, for the reason common/core.sh states about
 # scripts/lib.sh - hi.sh ships in the ssh payload under a size budget, and
@@ -31,7 +32,7 @@ set -euo pipefail
 
 # the script's own usage line names what was typed, the way doctor.sh does
 me="${_HI_ARGV0:-hi --update}" _HI_ME="${_HI_ARGV0:-hi --update}"
-root="$_HI_ROOT" tag="" dirty="" here="" dry_run=""
+root="$_HI_ROOT" tag="" dirty="" here="" dry_run="" branch="" behind="" ahead=""
 
 function _hi_update_help() {
   cat <<EOF
@@ -42,12 +43,13 @@ Moves the say-hi checkout this hi runs from to a release tag (needs its
 $me           the newest release tag, after fetching them
 $me <tag>     that release
 
-Either way the checkout is left detached on the tag. A tree with
-uncommitted changes is refused. \`git -C $root tag\` lists the releases;
-following a branch instead is \`git -C $root pull\`, by hand.
+Either way the checkout is left detached on the tag. On the dev branch,
+$me with no tag fast-forwards dev to its upstream instead (git pull
+--ff-only), and refuses a dev that has diverged. A tree with uncommitted
+changes is refused. \`git -C $root tag\` lists the releases.
 
-  -n, --dry-run    Fetch the tags and say which one would be checked out,
-                   moving nothing.
+  -n, --dry-run    Fetch, and say which tag would be checked out or how
+                   many commits a pull would bring, moving nothing.
 EOF
 }
 # --help and --dry-run anywhere on the line, and ahead of the .git check so a
@@ -74,6 +76,37 @@ esac
 tag="${1:-}"
 dirty="$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)"
 [ -z "$dirty" ] || _hi_die "uncommitted changes in $root; commit or stash them first"
+
+# _hi_update_convert - the checked-out tree's converter, which knows every
+# format that tree reads
+function _hi_update_convert() {
+  [ ! -f "$root/scripts/convert_settings.sh" ] ||
+    _HI_HOME="${root%/*}" bash "$root/scripts/convert_settings.sh" || true
+}
+
+# On dev, no tag named: follow the branch, fast-forward only
+branch="$(exec git -C "$root" symbolic-ref --short -q HEAD 2>/dev/null)" || branch=""
+if [ "$branch" = dev ] && [ -z "${1:-}" ]; then
+  git -C "$root" rev-parse -q --verify '@{u}' >/dev/null 2>&1 ||
+    _hi_die "dev in $root has no upstream; git -C $root branch --set-upstream-to=origin/dev dev"
+  git -C "$root" fetch --quiet || _hi_die "git fetch failed in $root (see above)"
+  behind="$(git -C "$root" rev-list --count 'HEAD..@{u}')"
+  ahead="$(git -C "$root" rev-list --count '@{u}..HEAD')"
+  [ "$ahead" = 0 ] || [ "$behind" = 0 ] ||
+    _hi_die "dev in $root has diverged from its upstream ($ahead ahead, $behind behind); rebase or reset it by hand"
+  if [ "$behind" = 0 ]; then
+    _hi_cecho "$me: dev is up to date" "$GREEN"
+    exit 0
+  fi
+  [ -z "$dry_run" ] || {
+    _hi_cecho "$me: dry run - would pull $behind commit(s) into dev, moving nothing" "$BLUE"
+    exit 0
+  }
+  git -C "$root" merge --ff-only --quiet '@{u}' || _hi_die "fast-forward of dev failed in $root (see above)"
+  _hi_cecho "$me: dev is now at $(exec git -C "$root" describe --tags --always 2>/dev/null) ($behind new commit(s))" "$GREEN"
+  _hi_update_convert
+  exit 0
+fi
 git -C "$root" fetch --tags --quiet || _hi_die "git fetch failed in $root (see above)"
 if [ -z "$tag" ]; then
   # newest release by version (v0.0.10 above v0.0.9); a pre-release
@@ -151,4 +184,5 @@ esac
 }
 git -C "$root" checkout -q "refs/tags/$tag" || _hi_die "git checkout of $tag failed in $root (see above)"
 _hi_cecho "$me: now on $tag (detached)" "$GREEN"
+_hi_update_convert
 exit 0

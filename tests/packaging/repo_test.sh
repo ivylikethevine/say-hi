@@ -199,9 +199,9 @@ function test_apk_client_installs_from_the_repository() {
 # upgrade`, `apk add -u`), not with a path to the new file.
 _HI_UPGRADE_CONFIG='
     mkdir -p /root/.config/say-hi
-    echo "hostname,prod,red" >/root/.config/say-hi/colors'
+    printf "[hostname]\nprod red\n" >/root/.config/say-hi/colors'
 _HI_UPGRADE_ASSERT='
-    grep -q "hostname,prod,red" /root/.config/say-hi/colors
+    grep -qx "prod red" /root/.config/say-hi/colors
     test -L /usr/bin/hi && test -f /etc/profile.d/say-hi.sh && test -f /usr/share/say-hi/hi.sh'
 
 function test_apt_client_upgrades_in_place() {

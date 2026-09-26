@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # The two pieces of common/aliases.sh that alias_test.sh doesn't cover: the
 # `command -v a || command -v b || ...` fallthrough chains, and the
-# _HI_DISABLE_* guards that skip parts of the file. The split from
+# _HI_DISABLE_* guards and opt-ins that gate parts of the file. The split from
 # alias_test.sh is deliberate and considered-and-kept (2026-08): that suite
 # probes against the real machine's PATH, this one against a from-scratch
 # fake one, and the two world-setups read better apart than interleaved.
@@ -79,7 +79,7 @@ fi
 
 if [ -n "${_HI_CHECK_BAT_NO_THEME:-}" ]; then
   case "$(alias bat 2>/dev/null)" in
-  *--theme*) echo "bat alias still carries --theme with BAT_CONFIG_PATH set: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
+  *--theme*) echo "bat alias carries --theme: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
   esac
 fi
 
@@ -160,7 +160,7 @@ end
 
 if set -q _HI_CHECK_BAT_NO_THEME
   if string match -q -- "*--theme*" (functions bat | string join \n)
-    echo "bat alias still carries --theme with BAT_CONFIG_PATH set" >&2
+    echo "bat alias carries --theme" >&2
     set fail 1
   end
 end
@@ -207,7 +207,8 @@ EOF
 }
 
 # aliases.sh's last act is sourcing $_HI_CONFIG_DIR/aliases.sh when it
-# exists, so the overlay's aliases win. Per shell: a new overlay alias
+# exists, so the overlay's aliases win. Per shell, the tool aliases opted
+# into where a shipped one is needed: a new overlay alias
 # arrives; a redefinition of a shipped name wins while building on the
 # shipped values (the add-a-flag idiom docs/SETTINGS.md gives); `alias cat=cat`
 # takes one shipped alias back; and a config-dir-less run (the container
@@ -240,7 +241,7 @@ function _hi_run_overlay_case() {
       script=". $_HI_ALIASES && alias ls 2>/dev/null | grep -q -- '--overlay-marker' && echo WINS-OK"
     fi
     out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
-      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
+      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" _HI_TOOL_ALIASES=1 "$shell_bin" -c "$script" 2>&1)"
     [ "$out" = WINS-OK ]
     ;;
   drops)
@@ -255,7 +256,7 @@ function _hi_run_overlay_case() {
       script=". $_HI_ALIASES && { alias cat 2>/dev/null | grep -q bat && echo DROP-BAD || echo DROP-OK; }"
     fi
     out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
-      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
+      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" _HI_TOOL_ALIASES=1 "$shell_bin" -c "$script" 2>&1)"
     [ "$out" = DROP-OK ]
     ;;
   *)
@@ -331,10 +332,16 @@ function run_overlay_tests() {
   done
 }
 
+# The opt-ins default to on, so every alias the file can make is in play;
+# a caller sets _HI_CASE_TOOLS/_HI_CASE_SUDO to another value for
+# _HI_TOOL_ALIASES/_HI_SUDO_ALIAS, or to "unset" to leave the name out.
 function _hi_run_scenario() {
   local shell="$1" fakepath="$2" label="$3"
   shift 3
   local script shell_bin t0 t1
+  local -a opt_in=()
+  [ "${_HI_CASE_TOOLS:-1}" = unset ] || opt_in+=("_HI_TOOL_ALIASES=${_HI_CASE_TOOLS:-1}")
+  [ "${_HI_CASE_SUDO:-1}" = unset ] || opt_in+=("_HI_SUDO_ALIAS=${_HI_CASE_SUDO:-1}")
 
   # resolved against the real (unrestricted) PATH by the caller's one-time
   # probe, since $fakepath below is deliberately too narrow to contain the
@@ -357,8 +364,7 @@ function _hi_run_scenario() {
     _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$_HI_WORKDIR" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/init.el" \
     _HI_NVIMRC="$_HI_WORKDIR/init.lua" _HI_HELIXRC="$_HI_WORKDIR/config.toml" \
-    _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
-    _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
+    _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" ${opt_in[@]+"${opt_in[@]}"} \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
@@ -396,61 +402,73 @@ function run_fallthrough_tests() {
   done
 }
 
-# The convenience aliases are the tail of common/aliases.sh, so `sudo` is
-# asserted *present* on both editor rows: the cheapest pin on the merged tail
-# being reached at all in three dialects. Its own guard is
-# _HI_DISABLE_SUDO_ALIAS, the third row.
+# `sudo` is asserted *present* on both editor rows: the cheapest pin on the
+# file's tail being reached at all in three dialects. Its own opt-in is
+# _HI_SUDO_ALIAS, the third row off and the fourth unset. A target's, where
+# micro has its flags without a micro/ of hi's.
 function run_flag_tests() {
-  _hi_h1 "_HI_DISABLE_EDITORS guard"
+  _hi_h1 "_HI_DISABLE_EDITORS guard, _HI_SUDO_ALIAS opt-in"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_flags vi cat nano emacs micro sudo)"
 
-  for combo in "0 1 1 0" "1 0 1 0" "0 1 0 1"; do
+  for combo in "0 1 1 1" "1 0 1 1" "0 1 0 0" "0 1 0 unset"; do
     # shellcheck disable=SC2086 # fixed 4-field combo, splitting is intended
     set -- $combo
-    local de="$1" want_nano="$2" want_sudo="$3" ds="$4"
+    local de="$1" want_nano="$2" want_sudo="$3" sa="$4"
     for shell in $_HI_INSTALLED_SHELLS; do
-      _HI_DISABLE_EDITORS="$de" \
+      _HI_DISABLE_EDITORS="$de" _HI_CASE_SUDO="$sa" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_EDITORS=$de _HI_DISABLE_SUDO_ALIAS=$ds" \
-        _HI_DISABLE_SUDO_ALIAS="$ds" _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
+        "_HI_DISABLE_EDITORS=$de _HI_SUDO_ALIAS=$sa" \
+        _HI_REMOTE_SESSION=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
     done
   done
 }
 
 # The cat/catn rebind is unconditional once $_HI_CAT_BIN resolves to
-# anything - even down to plain cat, its floor - so the guard is tested the
-# same way as _HI_DISABLE_EDITORS's above: does the alias exist at all,
-# regardless of what it would ultimately run. The one toggle covers the
-# styled exa/eza wrappers too; the *binaries* stay resolvable either way
-# (run_fallthrough_tests already covers that), so the same pass checks that
-# both families go together.
+# anything - even down to plain cat, its floor - so the opt-in is tested the
+# same way as _HI_DISABLE_EDITORS above: does the alias exist at all,
+# regardless of what it would ultimately run. The one opt-in covers the
+# styled exa/eza wrappers and bat's own names too, and the binary lookups
+# behind them: off, $_HI_CAT_BIN stays empty.
 function run_tool_aliases_flag_tests() {
   local shell fakepath
-  _hi_h1 "A bat config file takes the theme flag out of the default opts"
+  _hi_h1 "The default bat options leave the theme to bat's config"
   fakepath="$(_hi_fake_path fp_batconf bat)"
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "BAT_CONFIG_PATH set: default _HI_BAT_OPTS carry no --theme" \
-      BAT_CONFIG_PATH="$_HI_WORKDIR/bat.conf" _HI_CHECK_BAT_NO_THEME=1
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "BAT_CONFIG_PATH unset: the theme is in" \
-      _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--theme'
+      "default _HI_BAT_OPTS carry no --theme" \
+      _HI_CHECK_BAT_NO_THEME=1 _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='-P --tabs 2 --style changes,grid'
   done
-  _hi_h1 "_HI_DISABLE_TOOL_ALIASES guard"
-  fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa nano emacs micro sudo)"
+  _hi_h1 "_HI_TOOL_ALIASES opt-in"
+  fakepath="$(_hi_fake_path fp_toolflags cat bat vi eza exa nano emacs micro sudo)"
 
-  for combo in "0 1" "1 0"; do
+  for combo in "1 1" "0 0" "unset 0"; do
     # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
     set -- $combo
-    local dta="$1" want="$2"
+    local ta="$1" want="$2" cat_bin="" bats=ABSENT
+    [ "$want" = 1 ] && cat_bin="$fakepath/bat" bats=PRESENT
     for shell in $_HI_INSTALLED_SHELLS; do
-      _HI_DISABLE_TOOL_ALIASES="$dta" \
+      _HI_CASE_TOOLS="$ta" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_TOOL_ALIASES=$dta" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want" \
-        _HI_EXPECT_LS_ALIAS="$want"
+        "_HI_TOOL_ALIASES=$ta" \
+        _HI_REMOTE_SESSION=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want" \
+        _HI_EXPECT_LS_ALIAS="$want" _HI_CHECK_VAR=CAT_BIN _HI_EXPECT="$cat_bin" \
+        "_HI_CHECK_$bats=bat batcat batn catn"
     done
+  done
+}
+
+# micro's default flags are for a box you are only visiting: at home, with no
+# micro/ of hi's, there is no alias; on a target there is
+function run_micro_tests() {
+  _hi_h1 "micro's default flags on a target only"
+  local shell fakepath
+  fakepath="$(_hi_fake_path fp_micro cat micro)"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" "at home: no micro alias" \
+      _HI_REMOTE_SESSION=0 _HI_CHECK_ABSENT=micro
+    _hi_case _hi_run_scenario "$shell" "$fakepath" "on a target: micro keeps its flags" \
+      _HI_REMOTE_SESSION=1 _HI_CHECK_PRESENT=micro
   done
 }
 
@@ -534,6 +552,7 @@ function run_alias_fallthrough_test() {
   run_fallthrough_tests
   run_flag_tests
   run_tool_aliases_flag_tests
+  run_micro_tests
   run_presence_tests
   run_overlay_tests
   run_overlay_poisoning_test

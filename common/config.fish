@@ -17,7 +17,6 @@ for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS \
     _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE \
-    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS \
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
@@ -112,7 +111,8 @@ complete -c hi -f -k -n __hi_prev_takes_word \
 # a local command (`hi --install --<TAB>`) that command's own switches
 complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS flags (commandline -opc)[2])'
-complete exa --wraps eza
+# exa completes as eza only where hi's tool aliases made exa an alias
+functions -q exa; and test "$_HI_TOOL_ALIASES" = 1; and complete exa --wraps eza
 
 # fish can't run hi's bash side, so the greeting, the package check, and the
 # color resolution each come from one bash call
@@ -152,9 +152,9 @@ set -gx fish_color_host $__hi_color_host
 set -gx fish_color_host_remote $fish_color_host
 
 # wrapper so aliases (functions, in fish) work under sudo; args ride fish's own
-# argv after --, never a re-parsed string - that invites injection. Off with
-# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as common/aliases.sh's sudo alias.
-if test "$_HI_DISABLE_SUDO_ALIAS" != 1
+# argv after --, never a re-parsed string - that invites injection. Opt-in with
+# _HI_SUDO_ALIAS=1, the same setting as common/aliases.sh's sudo alias.
+if test "$_HI_SUDO_ALIAS" = 1
   function sudo
     if functions -q -- "$argv[1]"
       set -lx hi_sudo_fn $argv[1]

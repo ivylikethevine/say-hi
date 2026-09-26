@@ -323,14 +323,14 @@ function test_banner_ascii_fallback_uses_caret() {
   [[ "$out" == *"^"* ]] && [[ "$out" != *"↑"* ]]
 }
 
-# ...and the marks swap with it. All three are one visible column in either
+# ...and the marks swap with it. All four are one visible column in either
 # set, which is what lets check_line's width math treat the mark as a constant
 function test_marks_swap_to_ascii_with_the_set() {
   (
     _HI_ASCII=1
     _hi_choose_glyphs
     [ "$_HI_MARK_OK" = "+" ] && [ "$_HI_MARK_NO" = x ] &&
-      [ "$_HI_MARK_ALT" = "~" ]
+      [ "$_HI_MARK_ALT" = "~" ] && [ "$_HI_MARK_WARN" = "!" ]
   )
 }
 
@@ -927,10 +927,9 @@ _HI_REAL_CMD=sh
 _HI_FAKE_CMD=definitely-not-a-real-hi-test-command-xyz
 
 # _hi_pkg_one <name> <body> - a packages file at $_HI_WORKDIR/<name>/packages
-# holding <body> (%b, so \n is a line break. A bare `bash:N` argument would
-# otherwise read as a docker image:tag reference to the lint sweep's image-tag
-# check; embedded after a literal \n in one string, it doesn't). Prints the
-# file, for $_HI_PACKAGES.
+# holding <body> (%b, so \n is a line break). Prints the file, for
+# $_HI_PACKAGES. Rows above the first `[group]` line always run, so a body
+# with no section needs no $_HI_PACKAGES_GROUPS.
 function _hi_pkg_one() {
   mkdir -p "$_HI_WORKDIR/$1"
   printf '%b' "$2" >"$_HI_WORKDIR/$1/packages"
@@ -950,7 +949,7 @@ function _hi_pkg_one() {
 function test_hi_header_default_order() {
   local _HI_HEADER_VERSION=orderprobe out
   local ts si id ck
-  out="$(_HI_PACKAGES="$(_hi_pkg_one order-default "$_HI_REAL_CMD:3\n")" hi_header Connected)"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one order-default "$_HI_REAL_CMD\n")" hi_header Connected)"
   ts="$(_hi_pos "$out" orderprobe)"
   si="$(_hi_pos "$out" "Cores:")"
   id="$(_hi_pos "$out" "Auth:")"
@@ -966,7 +965,7 @@ function test_hi_header_closes_every_line() {
   local out _HI_HOSTNAME_CACHE=short-host
   out="$(
     unset _HI_BANNER_HOST
-    _HI_PACKAGES="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD:3\nbash:3\n")" \
+    _HI_PACKAGES="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD\nbash\n")" \
     _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime uptime check" hi_header Connected
   )"
   _hi_all_lines_are "$out" 40
@@ -989,7 +988,7 @@ function test_hi_footer_closes_every_line() {
 function test_hi_header_order_setting_reorders_and_can_omit() {
   local _HI_HEADER_VERSION=orderprobe out
   local ck up si
-  out="$(_HI_PACKAGES="$(_hi_pkg_one order-custom "$_HI_REAL_CMD:3\n")" \
+  out="$(_HI_PACKAGES="$(_hi_pkg_one order-custom "$_HI_REAL_CMD\n")" \
   _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
   up="$(_hi_pos "$out" "Up:")"
@@ -1032,12 +1031,12 @@ function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
 # rides into the packages row's first line instead of standing alone. A
 # restricted PATH (no docker/podman/nomad/kubectl, the same fixture
 # the identity row's own backend-cell tests use via _hi_identity_path) keeps these
-# cells short and deterministic; one priority-3 package guarantees
+# cells short and deterministic; one installed package guarantees
 # full_check has something to open with.
 function test_hi_header_cascades_identity_overflow_into_check() {
   local cfg="$_HI_WORKDIR/cascade-into-check" out line
   mkdir -p "$cfg"
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$cfg/packages"
+  printf '%s\n' "$_HI_REAL_CMD" >"$cfg/packages"
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_CONFIG_DIR="$cfg" \
   _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="gitid auth pub uptime check" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
@@ -1413,7 +1412,7 @@ function test_no_lead_space_drops_only_the_leading_space() {
 function test_no_lead_space_applies_to_the_packages_check() {
   local out
   mkdir -p "$_HI_WORKDIR/pkgcfg"
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$_HI_WORKDIR/pkgcfg/packages"
+  printf '%s\n' "$_HI_REAL_CMD" >"$_HI_WORKDIR/pkgcfg/packages"
   out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 _HI_CONFIG_DIR="$_HI_WORKDIR/pkgcfg" bash -c 'source "$_HI_HEADER"; full_check')"
   [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]]
 }
@@ -1682,160 +1681,213 @@ function _hi_pos() {
   esac
 }
 
-# The scaffold every check_line case shares: run one spec against a fresh row
-# sink and assert how many rows it left visible. check_line appends to the
-# array it is named, and the single row - when there is one - lands in the
-# caller's `row`, ready for content checks.
+# The scaffold every check_line case shares: run one row (and optional tier)
+# against a fresh row sink and assert how many records it left. check_line
+# appends to the array it is named, and the single record - when there is
+# one - lands in the caller's `row`, ready for content checks.
 function _hi_one_visible_row() {
   local -a visible=()
-  check_line visible "$1"
+  check_line visible "$@"
   [ "${#visible[@]}" -eq 1 ] || return 1
   row="${visible[0]}"
 }
 
 function _hi_no_visible_row() {
   local -a visible=()
-  check_line visible "$1"
+  check_line visible "$@"
   [ "${#visible[@]}" -eq 0 ]
 }
 
-function test_check_line_found_primary_is_visible_checked() {
-  local row
-  _hi_one_visible_row "$_HI_REAL_CMD:3" || return 1
-  _hi_contains "$row" "$_HI_REAL_CMD" &&
-    _hi_assert_contains "$row" "$_HI_MARK_OK"
-}
-
-# ...and the same line missing is exactly the alarm the mode exists for - with
-# the mode character stripped from the printed name.
-function test_check_line_dash_mode_missing_is_visible() {
-  local row
-  _hi_one_visible_row "-$_HI_FAKE_CMD:3" || return 1
-  _hi_contains "$row" "$_HI_FAKE_CMD" || return 1
-  _hi_assert_contains "$row" "$_HI_MARK_NO" || return 1
-  if _hi_contains "$row" "-$_HI_FAKE_CMD"; then return 1; fi
-  return 0
-}
-
-# `+` is the mirror: presence is the fact worth a row, absence is noise.
-function test_check_line_plus_mode_shows_installed() {
-  local row
-  _hi_one_visible_row "+$_HI_REAL_CMD:0" || return 1
-  _hi_contains "$row" "$_HI_REAL_CMD" &&
-    _hi_assert_contains "$row" "$_HI_MARK_OK"
-}
-
-# Every unflagged line speaks when the tool is absent - that is the nudge the
-# table exists for, and tier 0, the quietest one there is, is where it is
-# worth pinning: if even trivia reports itself missing, nothing above it can
-# be silently dropped.
-function test_check_line_missing_priority0_is_visible() {
-  local row
-  _hi_one_visible_row "$_HI_FAKE_CMD:0" || return 1
-  _hi_contains "$row" "$_HI_FAKE_CMD" &&
-    _hi_assert_contains "$row" "$_HI_MARK_NO"
-}
-
-function test_check_line_missing_priority3_is_visible_crossed() {
-  local row
-  _hi_one_visible_row "$_HI_FAKE_CMD:3" || return 1
-  _hi_contains "$row" "$_HI_FAKE_CMD" &&
-    _hi_assert_contains "$row" "$_HI_MARK_NO"
-}
-
-# an old-format file's 4s and 5s clamp to 3 instead of indexing off the end of
-# the four-entry color tables - the degradation rule for a stale overlay
-function test_check_line_clamps_a_priority_above_three() {
-  local row
-  _hi_one_visible_row "$_HI_REAL_CMD:5" || return 1
-  case "$row" in 3$'\x1f'*) return 0 ;; esac
+# _hi_row_is <rank> <color> <name> <mark> - $row is exactly the record
+# check_line builds for these: rank, width (name + 5), then the painted cell.
+# Compared whole and byte for byte, so a wrong tier, a wrong color, a leaked
+# -/+ or the wrong alternative all fail here, in any locale.
+function _hi_row_is() {
+  local want="$1"$'\x1f'"$((${#3} + 5))"$'\x1f'"$2 $3 $4"
+  [ "$row" = "$want" ] && return 0
+  _hi_cecho "   want: $(printf '%s' "$want" | od -An -tx1 | tr -d ' \n')" "$RED"
+  _hi_cecho "   got:  $(printf '%s' "$row" | od -An -tx1 | tr -d ' \n')" "$RED"
   return 1
 }
 
-# a line nothing satisfies ranks at the loudest priority it lists, not the
-# first: the unmet need is as important as its best answer
-function test_check_line_missing_ranks_at_max_priority() {
+# No marker: installed under the first name is a check in the tier's
+# installed color, ranked at the tier
+function test_check_line_installed_first_name_is_checked() {
   local row
-  _hi_one_visible_row "$_HI_FAKE_CMD:1,${_HI_FAKE_CMD}-alt:3" || return 1
-  _hi_contains "$row" "$_HI_FAKE_CMD" || return 1
-  case "$row" in 3$'\x1f'*) return 0 ;; esac
-  return 1
+  _hi_one_visible_row "$_HI_REAL_CMD" 3 || return 1
+  _hi_row_is 3 "${_HI_YES[3]}" "$_HI_REAL_CMD" "$GREEN$_HI_MARK_OK"
 }
 
-function test_check_line_fallback_uses_second_alternative() {
+# ...installed only as a later alternative: that alternative's name, with ~
+function test_check_line_installed_alternative_is_tilded() {
   local row
-  _hi_one_visible_row "$_HI_FAKE_CMD:0,$_HI_REAL_CMD:3" || return 1
-  _hi_contains "$row" "$_HI_REAL_CMD" &&
-    _hi_assert_contains "$row" "$_HI_MARK_ALT"
+  _hi_one_visible_row "$_HI_FAKE_CMD,$_HI_REAL_CMD" 2 || return 1
+  _hi_row_is 2 "${_HI_YES[2]}" "$_HI_REAL_CMD" "$YELLOW$_HI_MARK_ALT$NC"
 }
 
-function test_check_line_picks_highest_priority_installed() {
-  local -a visible=()
-  check_line visible "$_HI_REAL_CMD:1,bash:3"
-  _hi_contains "${visible[0]}" bash
+# ...nothing installed: the first name, crossed, in the tier's missing color
+function test_check_line_missing_shows_the_first_name_crossed() {
+  local row
+  _hi_one_visible_row "$_HI_FAKE_CMD,${_HI_FAKE_CMD}-alt" 0 || return 1
+  _hi_row_is 0 "${_HI_NO[0]}" "$_HI_FAKE_CMD" "$RED$_HI_MARK_NO"
+}
+
+# ...and with no tier argument the row paints and ranks at tier 1
+function test_check_line_tier_defaults_to_one() {
+  local row
+  _hi_one_visible_row "$_HI_FAKE_CMD" || return 1
+  _hi_row_is 1 "${_HI_NO[1]}" "$_HI_FAKE_CMD" "$RED$_HI_MARK_NO"
+}
+
+# The first installed alternative wins, whatever follows it: the list is an
+# order of preference, not a ranking to search
+function test_check_line_first_installed_alternative_wins() {
+  local row
+  _hi_one_visible_row "$_HI_REAL_CMD,bash" 1 || return 1
+  _hi_row_is 1 "${_HI_YES[1]}" "$_HI_REAL_CMD" "$GREEN$_HI_MARK_OK"
+}
+
+# `-` unwanted, installed: a warning at rank 4 in the loudest missing color,
+# whatever the group's tier, with the marker stripped from the name
+function test_check_line_unwanted_installed_warns() {
+  local row
+  _hi_one_visible_row "-$_HI_REAL_CMD" 0 || return 1
+  _hi_row_is 4 "${_HI_NO[3]}" "$_HI_REAL_CMD" "$YELLOW$_HI_MARK_WARN$NC"
+}
+
+# ...and an alternative counts: the warning names the one installed
+function test_check_line_unwanted_alternative_installed_warns() {
+  local row
+  _hi_one_visible_row "-$_HI_FAKE_CMD,$_HI_REAL_CMD" 2 || return 1
+  _hi_row_is 4 "${_HI_NO[3]}" "$_HI_REAL_CMD" "$YELLOW$_HI_MARK_WARN$NC"
+}
+
+# `+` required, missing: an alarm at rank 4 in the loudest missing color,
+# whatever the group's tier, with the marker stripped from the name
+function test_check_line_required_missing_alarms() {
+  local row
+  _hi_one_visible_row "+$_HI_FAKE_CMD" 0 || return 1
+  _hi_row_is 4 "${_HI_NO[3]}" "$_HI_FAKE_CMD" "$RED$_HI_MARK_NO"
 }
 
 function test_full_check_skips_comments_and_blanks() {
   (
-    _HI_PACKAGES="$(_hi_pkg_one comments "# a comment\n\n$_HI_REAL_CMD:3\n")"
+    _HI_PACKAGES="$(_hi_pkg_one comments "# a comment\n\n$_HI_REAL_CMD\n")"
     full_check
   ) | grep -qF "$_HI_REAL_CMD"
 }
 
-function test_full_check_empty_when_everything_hidden() {
+# the two rows with nothing to say - an absent `-` row, an installed `+` row -
+# leave the check empty, not a bare line
+function test_full_check_empty_when_everything_is_silent() {
   local out
-  # an installed `-` line is the one row the check still hides - see the note
-  # above _HI_YES. Nothing else renders nothing.
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one hidden "-$_HI_REAL_CMD:3\n")"
+    _HI_PACKAGES="$(_hi_pkg_one silent "-$_HI_FAKE_CMD\n+$_HI_REAL_CMD\n")"
     full_check
   )"
   [ -z "$out" ]
 }
 
-# The floor's boundary, which is the whole point of the setting: >= shows, < is
-# gone. One file, one run, both sides asserted - a case that only checked the
-# hidden half would pass just as well if the floor hid everything.
-function test_full_check_min_priority_boundary() {
+# _hi_group_tier: the named groups' tiers, and 1 for any other name
+function test_group_tier_maps_names_to_tiers() {
+  local spec t
+  for spec in core=3 base=3 deprecated=3 useful=2 trivia=0 platform=0 \
+    extras=1 mine=1 cores=1; do
+    _hi_group_tier t "${spec%=*}"
+    [ "$t" = "${spec#*=}" ] || return 1
+  done
+}
+
+# _hi_group_on: whole names out of a space- or comma-separated list, unset
+# meaning the shipped default and `none` naming nothing
+function test_group_on_reads_the_list() {
+  (
+    unset _HI_PACKAGES_GROUPS
+    _hi_group_on core && _hi_group_on useful && _hi_group_on deprecated || exit 1
+    ! _hi_group_on extras || exit 1
+    _HI_PACKAGES_GROUPS="alpha,beta gamma"
+    _hi_group_on alpha && _hi_group_on beta && _hi_group_on gamma || exit 1
+    # a whole-word match: neither a prefix nor an extension of a listed name
+    ! _hi_group_on alp && ! _hi_group_on alphas || exit 1
+    _HI_PACKAGES_GROUPS=none
+    ! _hi_group_on core || exit 1
+    # `none` is the setting's word, never a group of its own
+    ! _hi_group_on none || exit 1
+    _HI_PACKAGES_GROUPS="none core"
+    ! _hi_group_on none
+  )
+}
+
+# _hi_package_groups: the `[...]` lines in file order, a line with a # skipped
+# the way full_check skips it
+function test_package_groups_lists_sections_in_file_order() {
+  local got
+  _HI_PACKAGES="$(_hi_pkg_one list-groups "top\n[beta]\nx\n#[gone]\n[alpha] # c\n[alpha]\n")" \
+    _hi_package_groups got
+  [ "$got" = "beta alpha" ]
+}
+
+# A group $_HI_PACKAGES_GROUPS leaves out prints nothing, however installed its
+# rows are; the one it names prints. Both installed, so only the group
+# separates them.
+function test_full_check_runs_only_the_named_groups() {
   local out
-  # both installed, so the only thing separating them is the floor. bash is a
-  # second real command (the wrap case above leans on it the same way).
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one floor "$_HI_REAL_CMD:3\nbash:2\n")"
-    _HI_PACKAGES_MIN_PRIORITY=3
+    _HI_PACKAGES="$(_hi_pkg_one groups-one "[alpha]\n$_HI_REAL_CMD\n[beta]\nbash\n")"
+    _HI_PACKAGES_GROUPS=alpha
     full_check
   )"
-  _hi_contains "$out" "$_HI_REAL_CMD" || return 1
-  # exactly at the floor stays, one below it does not
+  _hi_contains "$out" " $_HI_REAL_CMD " || return 1
   case "$out" in *bash*) return 1 ;; esac
   return 0
 }
 
-# a floor above 3 reads as 3, the way a priority above 3 does - not a way to
-# turn the check off: rank 3 still prints, rank 2 still does not
-function test_full_check_min_priority_above_three_reads_as_three() {
+# ...a comma-separated list runs each group it names
+function test_full_check_reads_a_comma_separated_list() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one floor-all "$_HI_REAL_CMD:3\nbash:2\n")"
-    _HI_PACKAGES_MIN_PRIORITY=9
+    _HI_PACKAGES="$(_hi_pkg_one groups-comma "[alpha]\n$_HI_REAL_CMD\n[beta]\nbash\n")"
+    _HI_PACKAGES_GROUPS=alpha,beta
     full_check
   )"
-  _hi_contains "$out" "$_HI_REAL_CMD" || return 1
+  _hi_contains "$out" " $_HI_REAL_CMD " && _hi_contains "$out" " bash "
+}
+
+# ...unset runs the shipped default, core useful deprecated, and no other
+function test_full_check_unset_runs_the_default_groups() {
+  local out
+  out="$(
+    _HI_PACKAGES="$(_hi_pkg_one groups-default "[core]\nsh\n[useful]\nls\n[deprecated]\n-cat\n[extras]\nbash\n")"
+    unset _HI_PACKAGES_GROUPS
+    full_check
+  )"
+  _hi_contains "$out" " sh " && _hi_contains "$out" " ls " &&
+    _hi_contains "$out" " cat " || return 1
   case "$out" in *bash*) return 1 ;; esac
   return 0
 }
 
-# unset behaves as 2, not 0: rank 2 prints and rank 1 does not. Both halves
-# again, for the reason the boundary case above gives - a default that hid
-# everything would pass a test that only checked the hidden side.
-function test_full_check_min_priority_defaults_to_two() {
+# a hand-written [none] section is not run by the word that turns groups off
+function test_full_check_none_is_not_a_group() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one floor-default "$_HI_REAL_CMD:2\nbash:1\n")"
-    unset _HI_PACKAGES_MIN_PRIORITY
+    _HI_PACKAGES="$(_hi_pkg_one groups-none-section "[none]\n$_HI_REAL_CMD\n")"
+    _HI_PACKAGES_GROUPS=none
     full_check
   )"
-  _hi_contains "$out" "$_HI_REAL_CMD" || return 1
+  [ -z "$out" ]
+}
+
+# `none` turns every group off, but rows above the first `[group]` line
+# always run
+function test_full_check_none_keeps_the_ungrouped_rows() {
+  local out
+  out="$(
+    _HI_PACKAGES="$(_hi_pkg_one groups-none "$_HI_REAL_CMD\n[alpha]\nbash\n")"
+    _HI_PACKAGES_GROUPS=none
+    full_check
+  )"
+  _hi_contains "$out" " $_HI_REAL_CMD " || return 1
   case "$out" in *bash*) return 1 ;; esac
   return 0
 }
@@ -1843,7 +1895,7 @@ function test_full_check_min_priority_defaults_to_two() {
 function test_full_check_wraps_at_max_width() {
   local out lines
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one wrap "$_HI_REAL_CMD:3\nbash:3\n")"
+    _HI_PACKAGES="$(_hi_pkg_one wrap "$_HI_REAL_CMD\nbash\n")"
     _HI_MAX_WIDTH=1
     full_check
   )"
@@ -1861,7 +1913,7 @@ function test_full_check_reads_real_packages_file_without_erroring() {
 function test_full_check_closes_every_row_at_max_width() {
   local out lines
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one close "$_HI_REAL_CMD:3\nbash:3\n")"
+    _HI_PACKAGES="$(_hi_pkg_one close "$_HI_REAL_CMD\nbash\n")"
     _HI_MAX_WIDTH=12
     full_check
   )"
@@ -1875,7 +1927,7 @@ function test_full_check_closes_a_row_that_absorbed_a_carry() {
   local out
   local -a _HI_ROW_CARRY=(carriedcell)
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one close-carry "$_HI_REAL_CMD:3\nbash:3\n")"
+    _HI_PACKAGES="$(_hi_pkg_one close-carry "$_HI_REAL_CMD\nbash\n")"
     _HI_MAX_WIDTH=20
     full_check
   )"
@@ -1885,7 +1937,7 @@ function test_full_check_closes_a_row_that_absorbed_a_carry() {
 function test_full_check_right_edge_disabled_stays_under_max_width() {
   local out line n
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one no-edge "$_HI_REAL_CMD:3\nbash:3\n")"
+    _HI_PACKAGES="$(_hi_pkg_one no-edge "$_HI_REAL_CMD\nbash\n")"
     _HI_MAX_WIDTH=20
     _HI_DISABLE_RIGHT_EDGE=1
     full_check
@@ -1907,7 +1959,7 @@ function test_full_check_right_edge_disabled_stays_under_max_width() {
 function test_full_check_absorbs_an_incoming_carry() {
   local out
   local -a _HI_ROW_CARRY=(carriedcell)
-  out="$(_HI_PACKAGES="$(_hi_pkg_one carry-absorb "$_HI_REAL_CMD:3\n")" full_check)"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one carry-absorb "$_HI_REAL_CMD\n")" full_check)"
   [[ "$out" == *carriedcell* ]] && [[ "$out" == *"$_HI_REAL_CMD"* ]] &&
     [ -n "$(_hi_pos "$out" carriedcell)" ] && [ -n "$(_hi_pos "$out" "$_HI_REAL_CMD")" ] &&
     [ "$(_hi_pos "$out" carriedcell)" -lt "$(_hi_pos "$out" "$_HI_REAL_CMD")" ]
@@ -1917,12 +1969,12 @@ function test_full_check_absorbs_an_incoming_carry() {
 # flush a second time.
 function test_full_check_consumes_the_carry() {
   local -a _HI_ROW_CARRY=(carriedcell)
-  _HI_PACKAGES="$(_hi_pkg_one carry-consume "$_HI_REAL_CMD:3\n")" full_check >/dev/null
+  _HI_PACKAGES="$(_hi_pkg_one carry-consume "$_HI_REAL_CMD\n")" full_check >/dev/null
   [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
 }
 
 # a carry still has to print even when the packages file itself yields
-# nothing visible - the floor check must not return the moment $visible is
+# nothing visible - full_check must not return the moment $visible is
 # empty, before it considers its second source
 function test_full_check_prints_carry_even_with_no_visible_packages() {
   local out
@@ -1955,22 +2007,40 @@ function test_full_check_is_silent_on_stderr() {
 function test_full_check_emits_a_row_for_an_installed_package() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one emits "$_HI_REAL_CMD:3\n")"
+    _HI_PACKAGES="$(_hi_pkg_one emits "$_HI_REAL_CMD\n")"
     full_check
   )"
   [[ "$out" == *"$_HI_REAL_CMD"* ]]
 }
 
-# Highest rank first, and file order within a rank - one pass per rank, no
-# sort: ls and sh (3) print ahead of cat (2) though the file lists cat first,
-# and sh ahead of ls because the file lists it first.
-function test_full_check_orders_by_rank_then_file_order() {
+# Highest tier first, and file order within one - one pass per rank, no sort:
+# ls (core, 3) prints ahead of sh (useful, 2) ahead of cat (extras, 1),
+# though the file lists them the other way round
+function test_full_check_orders_by_tier_then_file_order() {
   local out
-  out="$(_HI_PACKAGES="$(_hi_pkg_one rank-order 'cat:2\nsh:3\nls:3\n')" full_check)"
+  out="$(
+    _HI_PACKAGES="$(_hi_pkg_one rank-order "[extras]\ncat\n[useful]\nsh\n[core]\nls\n")"
+    _HI_PACKAGES_GROUPS="extras useful core"
+    full_check
+  )"
   [ -n "$(_hi_pos "$out" " cat ")" ] && [ -n "$(_hi_pos "$out" " ls ")" ] &&
     [ -n "$(_hi_pos "$out" " sh ")" ] || return 1
-  [ "$(_hi_pos "$out" " sh ")" -lt "$(_hi_pos "$out" " ls ")" ] &&
-    [ "$(_hi_pos "$out" " ls ")" -lt "$(_hi_pos "$out" " cat ")" ]
+  [ "$(_hi_pos "$out" " ls ")" -lt "$(_hi_pos "$out" " sh ")" ] &&
+    [ "$(_hi_pos "$out" " sh ")" -lt "$(_hi_pos "$out" " cat ")" ]
+}
+
+# Warnings and alarms (rank 4) lead even a core row listed before them, in
+# file order between themselves
+function test_full_check_sorts_warnings_and_alarms_first() {
+  local out w a c
+  out="$(
+    _HI_PACKAGES="$(_hi_pkg_one warn-first "[core]\nls\n[extras]\n-$_HI_REAL_CMD\n+$_HI_FAKE_CMD\n")"
+    _HI_PACKAGES_GROUPS="core extras"
+    full_check
+  )"
+  w="$(_hi_pos "$out" " $_HI_REAL_CMD ")" a="$(_hi_pos "$out" " $_HI_FAKE_CMD ")"
+  c="$(_hi_pos "$out" " ls ")"
+  [ -n "$w" ] && [ -n "$a" ] && [ -n "$c" ] && ((w < a && a < c))
 }
 
 # $_HI_PACKAGES naming no file prints nothing, and says nothing on stderr -
@@ -1981,7 +2051,7 @@ function test_full_check_with_no_file_prints_nothing() {
   [ -z "$out" ]
 }
 
-# _hi_packages_palette's contract: exactly four entries - one per priority
+# _hi_packages_palette's contract: exactly four entries - one per tier
 # 0-3 - in both tables, whichever ramp is in force. `VAR=val func` on a shell
 # function (not an external command) reverts VAR once the call returns, so
 # this leaves no _HI_PACKAGES_PALETTE behind for a case after it.
@@ -2040,7 +2110,7 @@ function test_shipped_ramp_names_are_all_real_colors() {
 
 # A 48-word scheme: the check paints from the second bank, every other cell
 # from the first, so bank 2's cyan (slot 17, 11a8cd) is what the shipped
-# ramp's priority-0 installed color becomes.
+# ramp's tier-0 installed color becomes.
 # _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with core_test.sh
 
 function test_packages_palette_uses_the_second_bank_under_48_words() {
@@ -2271,26 +2341,31 @@ function run_header_tests() {
   _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color
 
   _hi_h2 "Testing: check_line"
-  _hi_check "Found primary -> visible, checked" test_check_line_found_primary_is_visible_checked
-  # `-` is the mode hidden when the tool *is* there: it exists to speak up
-  # about absence, so a healthy box says nothing.
-  _hi_check "Installed on a - line -> hidden" _hi_no_visible_row "-$_HI_REAL_CMD:3"
-  _hi_check "Missing on a - line -> visible, no leaked flag" test_check_line_dash_mode_missing_is_visible
-  _hi_check "Installed on a + line -> visible" test_check_line_plus_mode_shows_installed
-  _hi_check "Missing on a + line -> hidden" _hi_no_visible_row "+$_HI_FAKE_CMD:0"
-  _hi_check "Missing priority 0 -> visible" test_check_line_missing_priority0_is_visible
-  _hi_check "Missing priority 3 -> visible, crossed" test_check_line_missing_priority3_is_visible_crossed
-  _hi_check "A priority above 3 clamps to 3" test_check_line_clamps_a_priority_above_three
-  _hi_check "Missing line ranks at its max priority" test_check_line_missing_ranks_at_max_priority
-  _hi_check "Fallback alternative used" test_check_line_fallback_uses_second_alternative
-  _hi_check_requires bash "Picks the highest-priority installed alternative" test_check_line_picks_highest_priority_installed
+  _hi_check "Installed, first name -> checked, at its tier" test_check_line_installed_first_name_is_checked
+  _hi_check "Installed via an alternative -> that name, tilded" test_check_line_installed_alternative_is_tilded
+  _hi_check "Missing -> the first name, crossed, at its tier" test_check_line_missing_shows_the_first_name_crossed
+  _hi_check "No tier argument paints at tier 1" test_check_line_tier_defaults_to_one
+  _hi_check_requires bash "The first installed alternative wins" test_check_line_first_installed_alternative_wins
+  _hi_check "Missing on a - row -> nothing" _hi_no_visible_row "-$_HI_FAKE_CMD" 3
+  _hi_check "Installed on a - row -> a rank-4 warning" test_check_line_unwanted_installed_warns
+  _hi_check "...an installed alternative warns too" test_check_line_unwanted_alternative_installed_warns
+  _hi_check "Installed on a + row -> nothing" _hi_no_visible_row "+$_HI_REAL_CMD" 3
+  _hi_check "...via an alternative, nothing too" _hi_no_visible_row "+$_HI_FAKE_CMD,$_HI_REAL_CMD" 3
+  _hi_check "Missing on a + row -> a rank-4 alarm" test_check_line_required_missing_alarms
+
+  _hi_h2 "Testing: package groups"
+  _hi_check "Group names map to tiers" test_group_tier_maps_names_to_tiers
+  _hi_check "_HI_PACKAGES_GROUPS: unset, lists, none" test_group_on_reads_the_list
+  _hi_check "Sections are listed in file order" test_package_groups_lists_sections_in_file_order
 
   _hi_h2 "Testing: full_check"
   _hi_check "Skips comment/blank lines" test_full_check_skips_comments_and_blanks
-  _hi_check "Empty output when everything is hidden" test_full_check_empty_when_everything_hidden
-  _hi_check_requires bash "Min priority: at the floor shows, below is gone" test_full_check_min_priority_boundary
-  _hi_check_requires bash "Min priority above 3 reads as 3" test_full_check_min_priority_above_three_reads_as_three
-  _hi_check_requires bash "Min priority unset floors at 2" test_full_check_min_priority_defaults_to_two
+  _hi_check "Empty output when every row is silent" test_full_check_empty_when_everything_is_silent
+  _hi_check_requires bash "Runs only the named groups" test_full_check_runs_only_the_named_groups
+  _hi_check_requires bash "...from a comma-separated list" test_full_check_reads_a_comma_separated_list
+  _hi_check_requires bash "Unset runs core useful deprecated" test_full_check_unset_runs_the_default_groups
+  _hi_check_requires bash "none still runs the rows above the first group" test_full_check_none_keeps_the_ungrouped_rows
+  _hi_check "A [none] section never runs" test_full_check_none_is_not_a_group
   _hi_check_requires bash "Wraps rows at _HI_MAX_WIDTH" test_full_check_wraps_at_max_width
   _hi_check "Real config/packages parses cleanly" test_full_check_reads_real_packages_file_without_erroring
   _hi_check "Writes nothing to stderr" test_full_check_is_silent_on_stderr
@@ -2299,7 +2374,8 @@ function run_header_tests() {
   _hi_check "...and consumes it" test_full_check_consumes_the_carry
   _hi_check "A carry still prints with no visible packages" test_full_check_prints_carry_even_with_no_visible_packages
   _hi_check "Empty carry, no packages: still silent" test_full_check_empty_carry_and_no_packages_prints_nothing
-  _hi_check_requires bash "Rank high to low, file order within one" test_full_check_orders_by_rank_then_file_order
+  _hi_check "Tier high to low, file order within one" test_full_check_orders_by_tier_then_file_order
+  _hi_check "Warnings and alarms sort first" test_full_check_sorts_warnings_and_alarms_first
   _hi_check "No packages file prints nothing" test_full_check_with_no_file_prints_nothing
 
   _hi_h2 "Testing: _hi_packages_palette"

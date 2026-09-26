@@ -14,7 +14,7 @@
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_HELIX="${_HI_DISABLE_HELIX-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}" _HI_TMUX_CONF="${_HI_TMUX_CONF-}" _HI_SCREENRC="${_HI_SCREENRC-}" _HI_ZELLIJ_DIR="${_HI_ZELLIJ_DIR-}";: "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_HELIX="${_HI_DISABLE_HELIX-0}" _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}" _HI_TMUX_CONF="${_HI_TMUX_CONF-}" _HI_SCREENRC="${_HI_SCREENRC-}" _HI_ZELLIJ_DIR="${_HI_ZELLIJ_DIR-}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -25,10 +25,10 @@ command -v shift >/dev/null 2>&1 &&
 # tier that parses $_HI_BAT_OPTS - cat and ccat reject that syntax, so the
 # options only ever attach behind it.
 # GLOSSARY: HI.13.
-[ -z "$_HI_CAT_BIN" ] && export _HI_CAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat)" || true
-[ -z "$_HI_BAT_BIN" ] && export _HI_BAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat)" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && export _HI_CAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat)" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && export _HI_BAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat)" || true
 # one ladder behind all three list names below, newest first
-[ -z "$_HI_LS_BIN" ] && export _HI_LS_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v exa || command -v ls)" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && export _HI_LS_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v exa || command -v ls)" || true
 
 # off on _HI_DISABLE_EDITORS=1, or on the editor's own _HI_DISABLE_<EDITOR>=1;
 # `|| true` keeps set -e sourcers alive. Every alias below is gated on what it
@@ -68,13 +68,12 @@ command -v shift >/dev/null 2>&1 &&
 # be set on the command line as `-name value`, so it gets flags like bat and
 # eza do: no backups or history written into a config dir on a box you are
 # only visiting, parents made on save, the diff gutter on. With the overlay's
-# micro/ ($_HI_MICRO_DIR) it gets -config-dir, and the two taste flags go the
-# way bat's --theme does, or they would beat that settings.json. At home with
-# micro's own config directory there is no default string and no alias, since
-# micro already reads that directory. Override the whole string with
-# _HI_MICRO_OPTS in your settings.sh.
+# micro/ ($_HI_MICRO_DIR) it gets -config-dir, and the two taste flags drop,
+# or they would beat that settings.json. At home there is no default string
+# and no alias: those flags are for a box you are only visiting. Override the
+# whole string with _HI_MICRO_OPTS in your settings.sh.
 [ -z "$_HI_MICRO_OPTS" ] && [ "$_HI_MICRO_DIR" = "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_OPTS='-backup false -savehistory false' || true
-[ -z "$_HI_MICRO_OPTS" ] && [ -z "$_HI_MICRO_DIR" ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
+[ -z "$_HI_MICRO_OPTS" ] && [ -z "$_HI_MICRO_DIR" ] && [ "$_HI_REMOTE_SESSION" = 1 ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_OPTS" ] && command -v micro >/dev/null 2>&1 && alias micro="micro $_HI_MICRO_OPTS" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_DIR" ] && [ "$_HI_MICRO_DIR" = "$_HI_CONFIG_DIR/micro" ] && command -v micro >/dev/null 2>&1 && alias micro="micro -config-dir $_HI_MICRO_DIR $_HI_MICRO_OPTS" || true
 
@@ -84,33 +83,29 @@ command -v shift >/dev/null 2>&1 &&
 # screen the same, and zellij by its --config-dir flag: an `env VAR=...`
 # prefix runs zellij through whatever wraps `env` (grc pipes it through a
 # colorizer, which hangs it).
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_TMUX_CONF" ] && [ "$_HI_TMUX_CONF" = "$_HI_CONFIG_DIR/tmux.conf" ] && command -v tmux >/dev/null 2>&1 &&
+[ -n "$_HI_TMUX_CONF" ] && [ "$_HI_TMUX_CONF" = "$_HI_CONFIG_DIR/tmux.conf" ] && command -v tmux >/dev/null 2>&1 &&
   alias tmux="tmux -f $_HI_TMUX_CONF" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_SCREENRC" ] && [ "$_HI_SCREENRC" = "$_HI_CONFIG_DIR/screenrc" ] && command -v screen >/dev/null 2>&1 &&
+[ -n "$_HI_SCREENRC" ] && [ "$_HI_SCREENRC" = "$_HI_CONFIG_DIR/screenrc" ] && command -v screen >/dev/null 2>&1 &&
   alias screen="screen -c $_HI_SCREENRC" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_ZELLIJ_DIR" ] && [ "$_HI_ZELLIJ_DIR" = "$_HI_CONFIG_DIR/zellij" ] && command -v zellij >/dev/null 2>&1 &&
+[ -n "$_HI_ZELLIJ_DIR" ] && [ "$_HI_ZELLIJ_DIR" = "$_HI_CONFIG_DIR/zellij" ] && command -v zellij >/dev/null 2>&1 &&
   alias zellij="zellij --config-dir $_HI_ZELLIJ_DIR" || true
 
-# the trailing space makes bash/zsh alias-expand the word after sudo, so
-# `sudo vim` gets the vim alias's flags; fish has a wrapper in config.fish
-# behind the same toggle
-[ "$_HI_DISABLE_SUDO_ALIAS" != 1 ] && command -v sudo >/dev/null 2>&1 && alias sudo="command sudo " || true
+# opt-in (_HI_SUDO_ALIAS=1): the trailing space makes bash/zsh alias-expand
+# the word after sudo, so `sudo vim` gets the vim alias's flags; fish has a
+# wrapper in config.fish behind the same setting
+[ "$_HI_SUDO_ALIAS" = 1 ] && command -v sudo >/dev/null 2>&1 && alias sudo="command sudo " || true
 
-# cat is bat with our options when bat exists, ccat or plain cat otherwise;
-# bat, batcat, batn, and catn exist only with bat. Everything they carry is bat
-# syntax (-P included), hence the $_HI_BAT_BIN gate. The cat/catn
-# rebind (not bat/batcat/batn) is behind _HI_DISABLE_TOOL_ALIASES, together
-# with the exa/eza wrappers below: one toggle for the styled tool aliases.
-# a bat config file (the one bat reads at home: $BAT_CONFIG_PATH on a target,
-# your own export at home) carries the theme, so the default leaves --theme
-# out then - a flag on the command line would beat the file
-[ -z "$_HI_BAT_OPTS" ] && [ -n "$BAT_CONFIG_PATH" ] && export _HI_BAT_OPTS='-P --tabs 2 --style changes,grid' || true
-[ -z "$_HI_BAT_OPTS" ] && export _HI_BAT_OPTS='-P --tabs 2 --theme Monokai\ Extended\ Bright --style changes,grid' || true
-[ -n "$_HI_BAT_BIN" ] && alias batcat="$_HI_CAT_BIN" || true
-[ -n "$_HI_BAT_BIN" ] && alias bat="batcat $_HI_BAT_OPTS" || true
-[ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
+# The styled tool aliases, opt-in (_HI_TOOL_ALIASES=1), and the binary
+# lookups above with them: cat is bat with these options when bat exists, ccat
+# or plain cat otherwise; bat, batcat, batn, and catn exist only with bat.
+# Everything they carry is bat syntax (-P included), hence the $_HI_BAT_BIN
+# gate. No --theme: that is your bat config's to say.
+[ -z "$_HI_BAT_OPTS" ] && export _HI_BAT_OPTS='-P --tabs 2 --style changes,grid' || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batcat="$_HI_CAT_BIN" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias bat="batcat $_HI_BAT_OPTS" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
 
 # eza/exa (its predecessor) improved ls; time format per
 # https://docs.rs/chrono/latest/chrono/format/strftime/index.html. One alias
@@ -118,16 +113,15 @@ command -v shift >/dev/null 2>&1 &&
 # diverge past `-F -l` (--group/--no-filesize is exa's, --smart-group and
 # --time-style are eza-only, ls parses neither), so $_HI_LS_OPTS is whichever
 # list the rung that answered takes. Set it yourself and the ladder defers.
-# $_HI_LS_BIN stays resolvable even with the toggle off; `eza` and `exa`
-# answer only where that binary is.
+# `eza` and `exa` answer only where that binary is.
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS='-F -1 -l -m --group-directories-first --group --no-filesize' || true
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza)" ] && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v exa)" ] && export _HI_LS_OPTS="$_HI_EXA_OPTS" || true
 [ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS='-F -l' || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
-[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && command -v exa >/dev/null 2>&1 && alias exa="ls" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && command -v exa >/dev/null 2>&1 && alias exa="ls" || true
 
 # Drop into another shell inside a session and hi comes with you. load.sh's
 # _hi_session_rc_setup writes one rc per shell into $_HI_SESSION_RC; zsh and

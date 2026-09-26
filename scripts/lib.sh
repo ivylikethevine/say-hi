@@ -70,6 +70,45 @@ function _hi_write_back() {
   command rm -f "$1"
 }
 
+# The `[section]` files (config/packages, config/colors) as the editing
+# scripts hold them: a global `_hi_rows` array of lines, one per file line.
+
+# _hi_section_of <outvar> <index> - the section the line at <index> of `_hi_rows`
+# sits in: the nearest `[...]` line above it, empty above the first
+function _hi_section_of() {
+  local _hi_so_i
+  printf -v "$1" '%s' ''
+  for ((_hi_so_i = $2; _hi_so_i >= 0; _hi_so_i--)); do
+    case "${_hi_rows[_hi_so_i]}" in
+    '['*']')
+      _hi_so_i="${_hi_rows[_hi_so_i]#\[}"
+      printf -v "$1" '%s' "${_hi_so_i%\]}"
+      return 0
+      ;;
+    esac
+  done
+}
+
+# _hi_section_add <section> <row> - <row> into `_hi_rows` after <section>'s last
+# row, or under a new `[<section>]` at the end when the file has none
+function _hi_section_add() {
+  local _hi_sa_i _hi_sa_in=0 _hi_sa_at=-1
+  for ((_hi_sa_i = 0; _hi_sa_i < ${#_hi_rows[@]}; _hi_sa_i++)); do
+    case "${_hi_rows[_hi_sa_i]}" in
+    "[$1]") _hi_sa_in=1 _hi_sa_at=$((_hi_sa_i + 1)) ;;
+    '['*']') _hi_sa_in=0 ;;
+    '' | '#'*) ;;
+    *) ((_hi_sa_in)) && _hi_sa_at=$((_hi_sa_i + 1)) ;;
+    esac
+  done
+  if [ "$_hi_sa_at" -lt 0 ]; then
+    [ "${#_hi_rows[@]}" -eq 0 ] || [ -z "${_hi_rows[${#_hi_rows[@]} - 1]}" ] || _hi_rows+=("")
+    _hi_rows+=("[$1]" "$2")
+  else
+    _hi_rows=("${_hi_rows[@]:0:_hi_sa_at}" "$2" "${_hi_rows[@]:_hi_sa_at}")
+  fi
+}
+
 # _hi_term_cols <outvar> - the terminal's width, or empty: $_HI_TERM_COLS (a
 # suite's pin), else - only when stdout is a tty, so captured output keeps
 # its fixed width - $COLUMNS, then tput. header.sh's _hi_draw_width rule.
@@ -194,8 +233,13 @@ function _hi_color_escape() {
 function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
 # a header width: 40 columns is the narrowest the banner and rows draw in
 function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
-# the package check's floor: a priority, or 4 for off
-function _hi_is_priority() { _hi_is_number "$1" && [ "$1" -le 4 ]; }
+# $_HI_PACKAGES_GROUPS: `none`, or group names separated by spaces or commas
+function _hi_is_package_groups() {
+  case "$1" in
+  none) return 0 ;;
+  '' | *[!A-Za-z0-9_.,\ -]*) return 1 ;;
+  esac
+}
 # a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
 function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
 # one of core.sh's $_HI_EDITORS

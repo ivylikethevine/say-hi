@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-69KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-75KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -74,7 +74,7 @@ at a bastion, in fish for its pager's description column.
 
 ### The Header Tells You What's Missing
 
-A package check of the tools you care about, each with a priority, in one
+A package check of the tools you care about, in groups you switch on, in one
 `packages` file (a copy of your own replaces the shipped one); the header
 checks it on every target — one quiet line on a box that has them, a loud
 one on a box that does not. A homelab: bash from a laptop into the nas and the pihole,
@@ -205,7 +205,9 @@ row, and everything answered **no**, and why:
   that is not installed gets no rc file; on macOS `~/.bash_profile` is taught
   to read `~/.bashrc`. `hi` is linked at `~/.local/bin/hi` (`--link system`
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
-  either way). Then reload your shell.
+  either way). Then reload your shell. zsh completes `hi` through the
+  `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
+  of its own.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any
   setting in its one list — Header, Prompt, Editors, Aliases, This machine,
   Advanced — and save to
@@ -213,14 +215,19 @@ row, and everything answered **no**, and why:
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
-- `hi --update` moves a cloned install to the newest release tag (`--dry-run`
-  names it first; a package upgrades through its package manager).
-- `hi --add-package bat:3,batcat:3` adds a row to
-  `~/.config/say-hi/packages`, copying the shipped roster there first.
+- `hi --update` moves a cloned install to the newest release tag, or on the
+  `dev` branch fast-forwards it (`--dry-run` says what it would do; a package
+  upgrades through its package manager).
+- `hi --add-package core bat,batcat` adds a row to the `core` group of
+  `~/.config/say-hi/packages`, copying the shipped roster there first;
+  `hi --remove-package bat` takes it out again.
 - `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
   in `~/.ssh/config`, which a `hosttag` row then colors
   ([docs/COLORS.md](docs/COLORS.md)).
-- The whole surface is fourteen flags: `hi --help` (or bare `hi`) lists them,
+- `hi --set-color hostname prod-db yellow` pins a color in
+  `~/.config/say-hi/colors`, copying the shipped pins there first;
+  `hi --unset-color hostname prod-db` removes the pin.
+- The whole surface is seventeen flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
@@ -245,7 +252,7 @@ Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
 `packages` apply until you copy one out of the tree's `config/` to edit
-(`hi --add-package` does the copying for `packages`) or add an
+(`hi --add-package` and `hi --set-color` do the copying) or add an
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
@@ -263,7 +270,8 @@ removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target)
 ### Hostname, Username, and Group/Tag Colors
 
 Every username and hostname gets a color derived from its name; a line in
-`~/.config/say-hi/colors` (`hostname,prod-db,yellow`) pins one, and
+`~/.config/say-hi/colors` (`prod-db yellow` under `[hostname]`, which
+`hi --set-color hostname prod-db yellow` writes) pins one, and
 `hi --preview colors` shows what every host and your user resolve to. Tags
 (`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
 schemes of your own, and using the hash in your own prompt:
@@ -401,6 +409,13 @@ In this checkout, narrowest first.
        alongside the entry above, which asks the same of configs. **Ticks
        when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
        `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
+
+8. [ ] **A shorter `hi --configure`** — shipped: a main page of the
+       preview and one summary line per section, each section a page of
+       its own under the same preview, the header's switches and items one
+       grid; at 80 columns every page is 24 rows or fewer. What is left is a
+       look in a real terminal. **Ticks when:** a pass through every page in
+       an 80x24 terminal scrolls nothing off the top.
 
 ### At the 1.0.0 tag
 

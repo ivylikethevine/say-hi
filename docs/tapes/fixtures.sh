@@ -272,8 +272,8 @@ function up_kube() {
 # too, and doctor.sh fails a settings.sh that only parses as sh.
 #
 # Body on stdin, into the client's overlay dir; the only writer of the format.
-# No call at all is itself a configuration: demo.tape ships the stock defaults
-# on purpose, as the one shot that shows everything on.
+# demo.tape's is the one opt-in and nothing else: the stock defaults on
+# purpose, as the one shot that shows everything on.
 function demo_settings() { # body on stdin
   local out="$_HI_DEMO_DIR/config/settings.sh"
   mkdir -p "$(dirname "$out")"
@@ -333,12 +333,17 @@ function up_colors() {
   demo_ssh_config_live db-prod:prod dev-1:dev
   demo_overlay colors <<'EOF'
 # pins beat the name hash; everything unpinned still resolves on its own
-username,root,red
-hostname,bastion,yellow
-hosttag,prod,red
-hosttag,dev,green
-hosttag,staging,yellow
-hosttag,desktop,green
+[username]
+root      red
+
+[hostname]
+bastion   yellow
+
+[hosttag]
+prod      red
+dev       green
+staging   yellow
+desktop   green
 EOF
 }
 
@@ -570,18 +575,20 @@ up:packages)
   demo_settings <<'EOF'
 export _HI_DISABLE_PROMPT='1'
 export _HI_IP_HIDE='none'
-export _HI_PACKAGES_MIN_PRIORITY='2'
+export _HI_PACKAGES_GROUPS='core useful'
 export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
 EOF
   demo_overlay packages <<'EOF'
 # the homelab toolbox, and how loudly to miss each piece
-git:3
-vim:3,nano:3
-rsync:3
-curl:3
-htop:2
-tmux:2
-smartctl:2
+[core]
+git
+vim,nano
+rsync
+curl
+[useful]
+htop
+tmux
+smartctl
 EOF
   up_container docker nas tools
   up_container docker pihole debian
@@ -612,9 +619,11 @@ up:overlay)
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
+export _HI_TOOL_ALIASES='1'
 EOF
   # The demo's subject: a new alias and a redefinition of the shipped `cat`
-  # over the binary hi resolved, in the POSIX+fish subset common/aliases.sh
+  # over the binary hi resolved (the opt-in above is what resolves it), in
+  # the POSIX+fish subset common/aliases.sh
   # says the file has to stay in. Both are in effect in a bash session and a
   # fish one, which is what the tape shows.
   demo_overlay aliases.sh <<'EOF'
@@ -681,10 +690,14 @@ EOF
   ;;
 up:demo)
   client_rc bash ivy workshop
-  # No demo_settings, deliberately. Every other demo turns something on or
-  # ships something of its own; the README's top GIF is the one that shows
-  # what you get having configured nothing, which is only legible if it stays
-  # stock. The tools debian, so the defaults have something to work on.
+  # The one opt-in, deliberately nothing else. Every other demo turns
+  # something on or ships something of its own; the README's top GIF is the
+  # one that shows the defaults, which is only legible if it stays stock but
+  # for the styled tool aliases, so `cat` renders through the box's bat. The
+  # tools debian, so the defaults have something to work on.
+  demo_settings <<'EOF'
+export _HI_TOOL_ALIASES='1'
+EOF
   up_container docker db-prod tools
   ;;
 down:) demo_down ;;

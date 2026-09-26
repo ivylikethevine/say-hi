@@ -159,7 +159,7 @@ _HI_RELAY_TAG_PROOF='echo "TAGGED-$_HI_TARGET_TAG-$_HI_TARGET_COLOR"'
 function _hi_relay_client_home() {
   mkdir -p "$1/.ssh" "$1/.config/say-hi"
   printf '# Tags: %s\nHost %s\n' "$_HI_RELAY_TAG" "$_HI_RELAY_HOST" >"$1/.ssh/config"
-  printf 'hosttag,%s,%s\n' "$_HI_RELAY_TAG" "$_HI_RELAY_COLOR" >"$1/.config/say-hi/colors"
+  printf '[hosttag]\n%s %s\n' "$_HI_RELAY_TAG" "$_HI_RELAY_COLOR" >"$1/.config/say-hi/colors"
 }
 
 # Typed into the live session on B by _hi_interactive_case's -f hook, after it

@@ -48,7 +48,6 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
     _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
-    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
@@ -376,16 +375,15 @@ function _hi_assign_palette() {
   local _hi_ap_i=0 _hi_ap_v
   for _hi_ap_v in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
     _hi_color_escape_at "$_hi_ap_v" "$_hi_ap_i"
-    export "${_hi_ap_v?}"
     _hi_ap_i=$((_hi_ap_i + 1))
   done
 }
 
 # https://no-color.org: non-empty $NO_COLOR blanks the palette. hi.sh ships it along.
 if [ -n "${NO_COLOR:-}" ]; then
-  export NC=''
+  NC=''
 else
-  export NC='\e[0m'
+  NC='\e[0m'
 fi
 _hi_assign_palette
 
@@ -553,10 +551,30 @@ function _hi_du_size() {
   du -shc $_HI_DU_FLAGS "$@" | awk 'END { print $1 }'
 }
 
-# Memoized; the binaries stay authoritative over $HOSTNAME/$USER (the exact
-# string feeds _hi_hash_color), with the shell variable as the floor for a
-# distroless target that has neither `whoami` nor `uname`. GLOSSARY: HI.33
+# _hi_prompt_escape <outvar> <escape> - a prompt escape expanded by the
+# shell itself, with no fork: bash 4.4+'s ${x@P} (\H, \u), zsh's (%) flag
+# (%n); 1 on bash before 4.4. Eval'd, since neither shell parses the other's
+# form. Both read gethostname() and the passwd entry, not $HOSTNAME/$USER.
+function _hi_prompt_escape() {
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    eval "$1=\${(%):-$2}"
+  elif ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
+    printf -v "$1" '%s' "$2"
+    eval "$1=\${$1@P}"
+  else
+    return 1
+  fi
+}
+
+# Memoized; the shell's own answer where it has one that no inherited
+# variable can steer (zsh's %M follows $HOST, so zsh forks for the host), else
+# the binaries, with $HOSTNAME/$USER as the floor for a distroless target
+# that has neither `whoami` nor `uname`. The exact string feeds
+# _hi_hash_color. GLOSSARY: HI.33
 function _hi_hostname() {
+  if [ -z "${_HI_HOSTNAME_CACHE:-}" ] && [ -z "${ZSH_VERSION:-}" ]; then
+    _hi_prompt_escape _HI_HOSTNAME_CACHE '\H' || _HI_HOSTNAME_CACHE=""
+  fi
   if [ -z "${_HI_HOSTNAME_CACHE:-}" ]; then
     # Each candidate its own substitution rather than one `||` chain inside
     # a single `$( )`: a `||` in there keeps the subshell alive to evaluate
@@ -572,6 +590,13 @@ function _hi_hostname() {
 
 function _hi_whoami() {
   if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
+    if [ -n "${ZSH_VERSION:-}" ]; then
+      _hi_prompt_escape _HI_WHOAMI_CACHE '%n'
+    else
+      _hi_prompt_escape _HI_WHOAMI_CACHE '\u' || _HI_WHOAMI_CACHE=""
+    fi
+  fi
+  if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
     _HI_WHOAMI_CACHE="$(exec whoami 2>/dev/null)" ||
       _HI_WHOAMI_CACHE="$(exec id -un 2>/dev/null)" || _HI_WHOAMI_CACHE=""
     [ -n "$_HI_WHOAMI_CACHE" ] || _HI_WHOAMI_CACHE="${USER:-${LOGNAME:-unknown}}"
@@ -582,6 +607,9 @@ function _hi_whoami() {
 # Fill the memos in the *calling* shell (a prompt's $( ) would lose them).
 # Colors only: resolving is the expensive half, and zsh.zsh wants just names.
 function _hi_prime_identity() {
+  # every lookup below reads one load of the colors file
+  local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""
+  _hi_colors_load
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   _hi_host_color >/dev/null
@@ -609,12 +637,9 @@ function _hi_probe() {
   _hi_probe "$@"
 }
 
-# lesspipe + the debian_chroot prompt label, shared by bash.sh and zsh.zsh;
+# the debian_chroot prompt label, shared by bash.sh and zsh.zsh;
 # sets $debian_chroot in the caller's scope
 function _hi_interactive_extras() {
-  # skipped when a parent shell already exported it, so nested shells (tmux
-  # panes, `bash` inside bash) don't pay the fork+exec again
-  [ -z "${LESSOPEN:-}" ] && [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
   # shellcheck disable=SC2034 # read by common/bash.sh and common/zsh.zsh's PS1
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
   return 0
@@ -636,22 +661,24 @@ _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
 # because a bare `typeset` in a function is local.
 function _hi_unexport() {
-  local _hi_n
-  local -a _hi_names
+  local _hi_n _hi_keep=" ${_HI_CHILD_ENV[*]} "
+  local -a _hi_names _hi_drop
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
   else
     eval '_hi_names=("${!_HI_@}")'
   fi
   for _hi_n in "${_hi_names[@]}"; do
-    case " ${_HI_CHILD_ENV[*]} " in *" $_hi_n "*) continue ;; esac
-    if [ -n "${ZSH_VERSION:-}" ]; then
-      typeset -g +x "$_hi_n"
-    else
-      # shellcheck disable=SC2163 # un-exporting the name held in $_hi_n is the point
-      export -n "$_hi_n"
-    fi
+    case "$_hi_keep" in *" $_hi_n "*) ;; *) _hi_drop+=("$_hi_n") ;; esac
   done
+  # one call for the lot
+  ((${#_hi_drop[@]})) || return 0
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    typeset -g +x "${_hi_drop[@]}"
+  else
+    # shellcheck disable=SC2163 # un-exporting the names held in the array is the point
+    export -n "${_hi_drop[@]}"
+  fi
 }
 
 # _hi_sanitize_var <var> <text> - control chars and backslashes out, into
@@ -881,7 +908,8 @@ function _hi_choose_glyphs() {
   fi
   # Glyph-independent, so out of both arms rather than spelled twice: only
   # _HI_MARK_OK and _HI_MARK_NO actually change sets.
-  _HI_MARK_ALT="~" # installed, but via a fallback alternative
+  _HI_MARK_ALT="~"  # installed, but via a fallback alternative
+  _HI_MARK_WARN="!" # installed, and the row says it is unwanted
 }
 _hi_choose_glyphs
 
@@ -940,20 +968,54 @@ function _hi_local_hostname() {
   _hi_out "${1:-}" "${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
 }
 
-# The two readers of config/colors' "<type>,<name>,<color>[,<rrggbb>]"
-# lines. One walk behind both: they differ only in whether the name field is
-# compared or matched, and the two wrappers below are what the callers and
-# the suites name. A row's optional fourth column is that pin's own 24-bit
-# color; it comes back joined to the name as "<color>#<rrggbb>", the shape
-# _hi_color_split reads, and only when it is six hex digits (a leading `#` is
-# allowed and dropped) - anything else is ignored and the row colors by name
-# alone, since a colors file is hand-written and a typo must not cost the pin.
+# _hi_colors_load - $_HI_COLORS' `[<type>]` sections of "<name> <color>
+# [rrggbb]" rows as "<type>\x1f<name>\x1f<color>\x1f<hex>" lines in
+# $_HI_COLORS_ROWS. A caller resolving several colors declares
+# `local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""` and loads once, so the file
+# is read once (zsh's `read` costs a syscall a byte); _hi_colors_scan loads
+# its own otherwise.
+function _hi_colors_load() {
+  local t="" n c h us=$'\x1f'
+  _HI_COLORS_ROWS=""
+  [[ -f "$_HI_COLORS" ]] || return 0
+  while read -r n c h; do
+    case "$n" in
+    '' | '#'*) continue ;;
+    '['*']')
+      t="${n#\[}"
+      t="${t%\]}"
+      continue
+      ;;
+    esac
+    _HI_COLORS_ROWS+="$t$us$n$us$c$us${h%% *}"$'\n'
+  done <"$_HI_COLORS"
+}
+
+# The two readers of those rows. One walk behind both: they differ only in
+# whether the name field is compared or matched, and the two wrappers below
+# are what the callers and the suites name. A row's optional third field is
+# that pin's own 24-bit color; it comes back joined to the name as
+# "<color>#<rrggbb>", the shape _hi_color_split reads, and only when it is six
+# hex digits (a leading `#` is allowed and dropped) - anything else is ignored
+# and the row colors by name alone, since a colors file is hand-written and a
+# typo must not cost the pin.
 # _hi_colors_scan <type> <name> <glob?> [outvar]
 function _hi_colors_scan() {
-  local cur_type cur_name color hex
-  [[ -f "$_HI_COLORS" ]] || return 1
-  while IFS=',' read -r cur_type cur_name color hex; do
-    [[ "$cur_type" = "$1" ]] || continue
+  local rest row cur_name color hex us=$'\x1f'
+  if [ "${_HI_COLORS_BATCH:-}" != 1 ]; then
+    local _HI_COLORS_ROWS=""
+    _hi_colors_load
+  fi
+  rest="$_HI_COLORS_ROWS"
+  while [ -n "$rest" ]; do
+    row="${rest%%$'\n'*}"
+    rest="${rest#*$'\n'}"
+    [[ "${row%%"$us"*}" = "$1" ]] || continue
+    row="${row#*"$us"}"
+    cur_name="${row%%"$us"*}"
+    row="${row#*"$us"}"
+    color="${row%%"$us"*}"
+    hex="${row#*"$us"}"
     if [ -n "$3" ]; then
       case "$cur_name" in
       *[\*\?]*) _hi_ssh_pattern_hit "$2" "$cur_name" || continue ;;
@@ -968,7 +1030,7 @@ function _hi_colors_scan() {
     esac
     _hi_out "${4:-}" "$color"
     return 0
-  done <"$_HI_COLORS"
+  done
   return 1
 }
 

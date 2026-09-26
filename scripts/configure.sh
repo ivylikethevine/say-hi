@@ -221,7 +221,7 @@ function menu_read() {
 function _hi_menu_reject() {
   printf -v "$1" '%s' "$((${!1} + 1))"
   [ "${!1}" -lt "$2" ] || return 1
-  _hi_cecho " $3" "$YELLOW"
+  _hi_menu_say "$3" "$YELLOW"
 }
 
 # The value validators are scripts/lib.sh's (_hi_is_width and the rest):
@@ -308,7 +308,7 @@ function _hi_probe_once() {
 # Captured, not a tty, so _hi_draw_width draws to $_HI_MAX_WIDTH
 # exactly - which is what the width dial is previewing.
 function _hi_header_preview() {
-  local order banner width floor palette lead iphide scheme w
+  local order banner width groups palette lead iphide scheme w
   _hi_load_preview_sources
   if setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1; then
     _hi_cecho " header off - nothing prints on connect or disconnect" "$YELLOW"
@@ -317,7 +317,7 @@ function _hi_header_preview() {
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" order
   setting_value _HI_DISABLE_BANNER "$_HI_SETTINGS" banner
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
-  setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
+  setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
   setting_value _HI_DISABLE_LEAD_SPACE "$_HI_SETTINGS" lead
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
@@ -328,7 +328,7 @@ function _hi_header_preview() {
     w="${width:-80}"
     ((w > _HI_MENU_W - 8)) && w=$((_HI_MENU_W - (_HI_MENU_W < 60 ? 6 : 8)))
     export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="$w"
-    export _HI_PACKAGES_MIN_PRIORITY="${floor:-2}" _HI_PACKAGES_PALETTE="$palette"
+    export _HI_PACKAGES_GROUPS="$groups" _HI_PACKAGES_PALETTE="$palette"
     export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
     # the palette and the check ramps were captured at source time;
     # rebuild both under this run's scheme so the preview paints with it
@@ -445,13 +445,13 @@ function _hi_editors_preview() {
 
 # what `cat` and `eza` resolve to with the rebinds on - read back from
 # common/aliases.sh itself (the same trick _hi_editors_preview uses above)
-# rather than restated here, so a BAT_CONFIG_PATH that drops --theme, say,
-# shows up here too instead of drifting from what a real session gets. The
+# rather than restated here, so it cannot drift from what a real session
+# gets. The
 # resolution caches into _HI_*_BIN/_HI_*_OPTS on export, so those are cleared
 # first to force a fresh probe of $PATH rather than reusing another preview's.
 function _hi_tool_alias_preview() {
   (
-    _HI_DISABLE_TOOL_ALIASES=0
+    _HI_TOOL_ALIASES=1
     _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
     _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
@@ -488,21 +488,21 @@ function _hi_prompt_tool_preview() {
   fi
 }
 
-# The package floor's preview, rendered at the value being *considered* rather
-# than the one configured: full_check reads $_HI_PACKAGES_MIN_PRIORITY on every
+# The package groups' preview, rendered at the value being *considered* rather
+# than the one configured: full_check reads $_HI_PACKAGES_GROUPS on every
 # call, so a prefix assignment around it is the whole trick. An empty render is
-# a real answer at a high enough floor, and says so rather than showing
-# show_preview a blank string, which it would drop on the floor.
-# <candidate> - the floor to render at. Taken as an argument rather than read
-# out of config_packages_floor's scope: show_preview already runs "$@", so a
+# a real answer, and says so rather than showing show_preview a blank string,
+# which it would drop.
+# <candidate> - the groups to render. Taken as an argument rather than read
+# out of config_packages_groups' scope: show_preview already runs "$@", so a
 # bare global would couple the two for nothing.
-function _hi_packages_floor_preview() {
-  local out candidate="${1:-2}"
-  out="$(_HI_PACKAGES_MIN_PRIORITY="$candidate" full_check)"
+function _hi_packages_groups_preview() {
+  local out
+  out="$(_HI_PACKAGES_GROUPS="${1:-none}" full_check)"
   if [ -n "$out" ]; then
     printf '%s\n' "$out"
   else
-    _hi_cecho " nothing reaches this floor" "$YELLOW"
+    _hi_cecho " these groups show nothing here" "$YELLOW"
   fi
 }
 
@@ -534,8 +534,8 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
   "_HI_DISABLE_HELIX|1|||hx/helix|helix - your carried config.toml"
   "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - your carried kakrc"
-  "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
-  "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
+  "_HI_TOOL_ALIASES||1|_hi_tool_alias_preview||styled tool aliases - ls -> eza, cat -> bat"
+  "_HI_SUDO_ALIAS||1|||sudo alias - aliases survive under sudo"
   "_HI_DISABLE_LOCAL|1||||here too - all of the above on this machine, not just where you hi"
 )
 
@@ -579,9 +579,9 @@ function _hi_prompt_rows() {
 # file holds. Applied, its answers are what the menu shows and saves;
 # `--preset <name>` writes them without a hub at all.
 _HI_PRESETS=(
-  "everything|every feature and every header item on - the shipped defaults|"
-  "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
-  "minimal|on targets only the colored prompt and the aliases - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_LOCAL=1"
+  "everything|the shipped defaults - every feature and header item on, the alias opt-ins off|"
+  "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
+  "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
@@ -596,7 +596,7 @@ function _hi_preset_vocab() {
     printf '%s\n' "${row%%|*}"
   done
   # the one feature toggle listed under Prompt rather than Features
-  printf '%s\n' _HI_DISABLE_PROMPT _HI_PACKAGES_MIN_PRIORITY
+  printf '%s\n' _HI_DISABLE_PROMPT _HI_PACKAGES_GROUPS
 }
 
 # preset_row <name> - its table row, or failure for a name that is not one
@@ -694,19 +694,28 @@ function configure_intro() {
   [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
   case "$file" in "$HOME"/*) file="~${file#"$HOME"}" ;; esac
   _hi_menu_cols _HI_MENU_W
-  _hi_menu_say "The preview shows what a session will look like at your current settings." "$BLUE"
-  _hi_menu_say "Type a number to flip a setting or change its value, or [p] for a preset." "$BLUE"
+  _hi_menu_say "The preview shows a session at your current settings. A section's letter opens its page, [b] comes back; a number flips a setting or changes its value from any page." "$BLUE"
   _hi_menu_say "Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
   _hi_menu_say "settings: $file ($state)" "$BLUE"
 }
 
-# The menu is one numbered list of every setting the wizard asks, no
-# submenus. _HI_MENU_ITEMS says what each number is, rebuilt as the list
-# draws: row|<table>|<index> a yes/no row, word|<index> a header item,
-# end|<shell> a prompt separator, or width, floor, iphide, truecolor.
-# _HI_MENU_WORD0 is the first header item's number, for up/down.
+# The menu numbers every setting the wizard asks once, across all its
+# sections, and draws one section a page: the main page has a summary line a
+# section, each section page its rows. A number works from any page.
+# _HI_MENU_ITEMS says what each number is, rebuilt as the list draws:
+# row|<table>|<index> a yes/no row, word|<index> a header item, end|<shell> a
+# prompt separator, or width, groups, iphide, truecolor. _HI_MENU_WORD0 is the
+# first header item's number, for up/down.
 _HI_MENU_ITEMS=()
 _HI_MENU_WORD0=0
+# The page drawn: empty for the main page, else a section's key. The sections,
+# "<key>|<name>", in the order they number.
+_HI_MENU_PAGE=""
+_HI_MENU_SECTIONS=("i|Header" "r|Prompt" "e|Editors" "a|Aliases" "m|This machine" "v|Advanced")
+# While a section builds: whether its rows draw, and what its summary line
+# on the main page says - its first number, its [x] count, its values.
+_HI_MENU_DRAW=0
+_HI_MENU_SUM_KEY="" _HI_MENU_SUM_FIRST=0 _HI_MENU_SUM_ON=0 _HI_MENU_SUM_N=0 _HI_MENU_SUM_VALS=""
 
 # What the last command said, printed under the next list rather than as it
 # happened, so the redraw does not scroll it away: the colored line, and a
@@ -755,21 +764,41 @@ function _hi_menu_fit() {
 # _hi_menu_add <kind> <text> [no_newline] - number the next item and draw it
 function _hi_menu_add() {
   _HI_MENU_ITEMS+=("$1")
+  [ "$_HI_MENU_DRAW" = 1 ] || return 0
   printf '  %b%2d)%b %s' "$BRYELLOW" "${#_HI_MENU_ITEMS[@]}" "$NC" "$2"
   [ $# -ge 3 ] || printf '\n'
 }
 
-# _hi_menu_check <outvar> <1|0> - a row's checkbox
+# _hi_menu_check <outvar> <1|0> - a row's checkbox, counted toward its
+# section's summary
 function _hi_menu_check() {
+  _HI_MENU_SUM_N=$((_HI_MENU_SUM_N + 1))
+  [ "$2" != 1 ] || _HI_MENU_SUM_ON=$((_HI_MENU_SUM_ON + 1))
   if [ "$2" = 1 ]; then _hi_paint "$1" "$BRGREEN" "[x]"; else _hi_paint "$1" "$RED" "[ ]"; fi
 }
 
-# _hi_menu_head <name> <where> - a group's heading, and where its settings
-# show, when the width has room for both
-function _hi_menu_head() {
-  local where=""
-  ((${#1} + ${#2} + 4 <= _HI_MENU_W)) && _hi_paint where "$BLUE" " - $2"
-  printf '%b %s%b%s\n' "$BRCYAN" "$1" "$NC" "$where"
+# _hi_menu_section [key] - close the section being built (its summary line,
+# on the main page) and open the one named <key>; no key closes the last
+function _hi_menu_section() {
+  local row name range sum
+  if [ -n "$_HI_MENU_SUM_KEY" ] && [ -z "$_HI_MENU_PAGE" ]; then
+    for row in "${_HI_MENU_SECTIONS[@]}"; do
+      [ "${row%%|*}" != "$_HI_MENU_SUM_KEY" ] || name="${row#*|}"
+    done
+    range="$_HI_MENU_SUM_FIRST"
+    ((_HI_MENU_SUM_FIRST == ${#_HI_MENU_ITEMS[@]})) || range="$range-${#_HI_MENU_ITEMS[@]}"
+    sum=""
+    ((_HI_MENU_SUM_N == 0)) || sum="$_HI_MENU_SUM_ON of $_HI_MENU_SUM_N on"
+    [ -z "$_HI_MENU_SUM_VALS" ] || sum="$sum${sum:+, }$_HI_MENU_SUM_VALS"
+    _hi_menu_fit sum "$sum" $((_HI_MENU_W - 27 > 8 ? _HI_MENU_W - 27 : 8))
+    printf ' %b[%s]%b %-13s%b%-6s%b %s\n' "$BRYELLOW" "$_HI_MENU_SUM_KEY" "$NC" "$name" \
+      "$BLUE" "$range" "$NC" "$sum"
+  fi
+  _HI_MENU_SUM_KEY="${1:-}" _HI_MENU_SUM_FIRST=$((${#_HI_MENU_ITEMS[@]} + 1))
+  _HI_MENU_SUM_ON=0 _HI_MENU_SUM_N=0 _HI_MENU_SUM_VALS=""
+  _HI_MENU_DRAW=0
+  [ -n "${1:-}" ] && [ "$1" = "$_HI_MENU_PAGE" ] && _HI_MENU_DRAW=1
+  return 0
 }
 
 # _hi_menu_value <kind> <label> <value> <default> - an item that asks for a
@@ -777,6 +806,7 @@ function _hi_menu_head() {
 # when the value is not; label and value close up under 60 columns
 function _hi_menu_value() {
   local _hi_mv_text _hi_mv_def="" pad=22 lead="    "
+  _HI_MENU_SUM_VALS="$_HI_MENU_SUM_VALS${_HI_MENU_SUM_VALS:+, }$2 $3"
   ((_HI_MENU_W < 60)) && pad=$((${#2} + 1)) lead=" "
   [ "$3" = "$4" ] || _hi_paint _hi_mv_def "$YELLOW" " (default $4)"
   printf -v _hi_mv_text '%s%-*s%b%s%b%s' "$lead" "$pad" "$2" "$BRPURPLE" "$3" "$NC" "$_hi_mv_def"
@@ -831,40 +861,51 @@ function _hi_menu_rows() {
   for i; do _hi_menu_row "$t" "$i"; done
 }
 
-# The list, grouped by what a setting changes, each heading saying where that
-# shows. Header first, directly under the rendered header it edits: the
-# switch for the whole of it and the greeting after it, the banner, the
-# header's items in the order they print - as many to a line as the width
-# holds, three at most - then its width, the package check's depth, and the
-# hidden addresses. The prompt's switches, the editors a target gets, the
-# aliases, and the one "here too" switch follow; Advanced sits apart, under
-# a rule. The rows keep their tables (and so their item kinds): this is only
-# the order they draw in.
+# The list, grouped by what a setting changes: Header first, directly under
+# the rendered header it edits - the switch for the whole of it, the greeting,
+# the banner, then the header's items in the order they print, all as a grid
+# of as many to a line as the width holds, four at most - then its width, the
+# package groups, and the hidden addresses. The prompt's switches, the
+# editors a target gets, the aliases, the one "here too" switch, and
+# Advanced follow. Every section numbers whichever page is drawn; only the
+# page's own rows print. The rows keep their tables (and so their item
+# kinds): this is only the order they draw in.
 function _hi_menu_list() {
-  local i state word width floor iphide tc row name shell end def cols rule
+  local i state word width groups iphide tc row name shell end def cols n var off on label
+  local -a rows=()
   _HI_MENU_ITEMS=()
-  cols=$(((_HI_MENU_W - 2) / 21))
-  ((cols > 3)) && cols=3
+  _HI_MENU_SUM_KEY=""
+  # " NN) [x] containers " is twenty columns, the last on a line nineteen
+  cols=$(((_HI_MENU_W + 1) / 20))
+  ((cols > 4)) && cols=4
   ((cols < 1)) && cols=1
-  _hi_menu_head "Header" "the preview's rows; up N / down N moves an item"
-  _hi_menu_rows _HI_FEATURE_PROMPTS 0 1
-  _hi_menu_rows _HI_HEADER_PROMPTS
+  _hi_menu_section i
+  # the three header switches and the items, one grid: short names, the
+  # switches' full labels are the Header page's heading to know
+  n=0
+  _hi_prompt_rows _HI_FEATURE_PROMPTS rows
+  for i in 0 1; do
+    IFS='|' read -r var off on _ _ label <<<"${rows[$i]}"
+    setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+    case "$var" in _HI_DISABLE_HEADER) word=header ;; *) word=greeting ;; esac
+    _hi_menu_grid_item "row|_HI_FEATURE_PROMPTS|$i" "$state" "$word" "$cols" n
+  done
+  _hi_prompt_rows _HI_HEADER_PROMPTS rows
+  IFS='|' read -r var off on _ _ label <<<"${rows[0]}"
+  setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+  _hi_menu_grid_item "row|_HI_HEADER_PROMPTS|0" "$state" banner "$cols" n
   _HI_MENU_WORD0=$((${#_HI_MENU_ITEMS[@]} + 1))
   for i in "${!_HI_HDR_WORDS[@]}"; do
-    _hi_menu_check state "${_HI_HDR_ON[$i]}"
-    printf -v word '%-11s' "${_HI_HDR_WORDS[$i]}"
-    ((cols > 1)) || word="${_HI_HDR_WORDS[$i]}"
-    _hi_menu_add "word|$i" "$state $word" 1
-    [ $(((i + 1) % cols)) != 0 ] || printf '\n'
+    _hi_menu_grid_item "word|$i" "${_HI_HDR_ON[$i]}" "${_HI_HDR_WORDS[$i]}" "$cols" n
   done
-  [ $((${#_HI_HDR_WORDS[@]} % cols)) = 0 ] || printf '\n'
+  [ "$_HI_MENU_DRAW" != 1 ] || [ $((n % cols)) = 0 ] || printf '\n'
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
-  setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
+  setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   _hi_menu_value width "width" "${width:-80}" 80
-  _hi_menu_value floor "package check depth" "${floor:-2}" 2
+  _hi_menu_value groups "packages" "${groups:-$_HI_PACKAGES_GROUPS_DEFAULT}" "$_HI_PACKAGES_GROUPS_DEFAULT"
   _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}" '172.*'
-  _hi_menu_head "Prompt" "the preview's last line"
+  _hi_menu_section r
   _hi_menu_rows _HI_PROMPT_PROMPTS 0
   _hi_menu_rows _HI_FEATURE_PROMPTS 2 3
   _hi_menu_rows _HI_PROMPT_PROMPTS 1
@@ -878,18 +919,32 @@ function _hi_menu_list() {
     def="$(_hi_prompt_end_default "$shell")"
     _hi_menu_value "end|$name" "$name prompt ends with" "$end" "${def#\\}"
   done
-  _hi_menu_head "Editors" "hi's config for each, on a target that has it"
-  _hi_menu_rows _HI_FEATURE_PROMPTS 4 5 6 7 8 9
-  _hi_menu_head "Aliases" "what cat, ls, and sudo run"
-  _hi_menu_rows _HI_FEATURE_PROMPTS 10 11
-  _hi_menu_head "This machine" "where you run hi"
-  _hi_menu_rows _HI_FEATURE_PROMPTS 12
-  _hi_repeat rule $((_HI_MENU_W - 15 < 4 ? 4 : (_HI_MENU_W - 15 > 60 ? 60 : _HI_MENU_W - 15))) "$_HI_BOX_H"
-  _hi_cecho " $_HI_BOX_H$_HI_BOX_H Advanced $rule" "$BRCYAN"
+  _hi_menu_section e
+  _hi_menu_rows _HI_FEATURE_PROMPTS 4 5 6 7 8 9 10
+  _hi_menu_section a
+  _hi_menu_rows _HI_FEATURE_PROMPTS 11 12
+  _hi_menu_section m
+  _hi_menu_rows _HI_FEATURE_PROMPTS 13
+  _hi_menu_section v
   _hi_menu_rows _HI_ADVANCED_PROMPTS
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" tc
   case "$tc" in 1) tc=on ;; 0) tc=off ;; *) tc=auto ;; esac
   _hi_menu_value truecolor "24-bit color" "$tc" auto
+  _hi_menu_section
+}
+
+# _hi_menu_grid_item <kind> <1|0> <name> <cols> <count-var> - one checkbox in
+# the Header page's grid, <cols> to a line; <count-var> counts the grid so far
+function _hi_menu_grid_item() {
+  local _hi_gi_state _hi_gi_word
+  _hi_menu_check _hi_gi_state "$2"
+  _HI_MENU_ITEMS+=("$1")
+  printf -v "$5" '%s' "$((${!5} + 1))"
+  [ "$_HI_MENU_DRAW" = 1 ] || return 0
+  printf -v _hi_gi_word '%-10s' "$3"
+  (($4 > 1)) || _hi_gi_word="$3"
+  printf ' %b%2d)%b %s %s' "$BRYELLOW" "${#_HI_MENU_ITEMS[@]}" "$NC" "$_hi_gi_state" "$_hi_gi_word"
+  if [ $((${!5} % $4)) = 0 ]; then printf '\n'; else printf ' '; fi
 }
 
 # _hi_menu_pick <n> - act on item <n>: flip a yes/no row or a header item,
@@ -916,7 +971,7 @@ function _hi_menu_pick() {
     fi
     ;;
   width) config_max_width ;;
-  floor) config_packages_floor ;;
+  groups) config_packages_groups ;;
   iphide) config_ip_hide ;;
   end) config_prompt_end "$a" ;;
   truecolor) config_truecolor ;;
@@ -932,13 +987,20 @@ function _hi_menu_pick() {
 # alone redraws.
 _HI_CONFIGURE_QUIT=""
 function config_hub() {
-  local reply cmd arg idx last rejects=0 max_rejects=3 draw=1 p h s q
+  local reply cmd arg idx last rejects=0 max_rejects=3 draw=1 p h s q b="" title row
   _hi_probe_once
   _hi_header_edit_load
+  _HI_MENU_PAGE=""
   while :; do
     if [ -n "$draw" ]; then
       _hi_menu_cols _HI_MENU_W
-      _hi_h2 "hi --configure"
+      title="hi --configure"
+      for row in "${_HI_MENU_SECTIONS[@]}"; do
+        [ "${row%%|*}" != "$_HI_MENU_PAGE" ] || title="hi --configure: ${row#*|}"
+        # under 60 columns a page's title is its name alone
+        [ "${row%%|*}" != "$_HI_MENU_PAGE" ] || ((_HI_MENU_W >= 60)) || title="${row#*|}"
+      done
+      _hi_h2 "$title"
       # the keys first, so they are read before the list; short under 60
       if ((_HI_MENU_W < 60)); then
         _hi_hotkey preset p p
@@ -951,7 +1013,10 @@ function config_hub() {
         _hi_hotkey "save and exit" s s
         _hi_hotkey "quit without writing" q q
       fi
-      printf ' %s  %s  %s  %s\n' "$p" "$h" "$s" "$q"
+      b=""
+      [ -z "$_HI_MENU_PAGE" ] || _hi_hotkey back b b
+      [ -z "$_HI_MENU_PAGE" ] || ((_HI_MENU_W >= 60)) || _hi_hotkey b b b
+      printf ' %s%s%s  %s  %s  %s\n' "$b" "${b:+  }" "$p" "$h" "$s" "$q"
       show_preview _hi_config_preview
       _hi_menu_list
       if [ -n "$_HI_MENU_NOTE" ]; then
@@ -982,13 +1047,15 @@ function config_hub() {
       _HI_CONFIGURE_QUIT=1
       return 0
       ;;
+    b | back) _HI_MENU_PAGE="" ;;
+    i | r | e | a | m | v) _HI_MENU_PAGE="$cmd" ;;
     *)
       if _hi_is_number "$cmd" && [ "$cmd" -ge 1 ] && [ "$cmd" -le "${#_HI_MENU_ITEMS[@]}" ]; then
         _hi_menu_pick "$cmd"
       else
         draw=""
         _hi_menu_reject rejects "$max_rejects" \
-          "type an item number (1-${#_HI_MENU_ITEMS[@]}), up N / down N, or [p] [h] [s] [q]" && continue
+          "type an item number (1-${#_HI_MENU_ITEMS[@]}), a section's letter, up N / down N, or [p] [h] [s] [q]" && continue
         _hi_cecho " not a menu item three times - leaving $_HI_SETTINGS as it was" "$YELLOW"
         _HI_CONFIGURE_QUIT=1
         return 0
@@ -1107,46 +1174,73 @@ function config_header_preset() {
 }
 
 # The one prompt that loops. Every other question here previews once and takes
-# an answer, because the answer is a yes/no or a character; this one is a dial
-# whose whole point is how much it prints, so it re-renders the real check at
-# each value until the answer stops changing. Enter accepts what is on screen.
+# an answer; this one toggles groups, re-rendering the real check after each
+# reply until Enter accepts what is on screen. A reply is one or more group
+# names from the packages file, each flipped on or off.
 #
 # Because it loops, it is also the one prompt that has to prove it can stop.
-# Three ways out, and a non-answer is not one of them: an empty line, an answer
-# equal to the value already on screen, or EOF. A reply that is not a number is
-# re-asked at most $max_rejects times and then keeps the current value - the
-# loop is a dial, not a validator, and an unbounded retry here is a hang.
-function config_packages_floor() {
-  local current reply rejects=0 max_rejects=3 _hi_floor_candidate shown
+# Two ways out, and a non-answer is not one of them: an empty line, or EOF. A
+# reply naming no group in the file is re-asked at most $max_rejects times and
+# then keeps the current value - an unbounded retry here is a hang.
+function config_packages_groups() {
+  local current reply rejects=0 max_rejects=3 on all all_lc g i next shown bad
+  local -a names lc
   current=""
-  setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" current
-  _hi_floor_candidate="${current:-2}"
+  # before the default below, which header.sh defines
+  _hi_load_preview_sources
+  setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" current
+  on="${current:-$_HI_PACKAGES_GROUPS_DEFAULT}"
+  on=" ${on//,/ } "
+  [ "$on" = " none " ] && on=" "
   if [ -t 0 ]; then
-    _hi_load_preview_sources
+    _hi_package_groups all
+    # menu_read lowercases a reply, so a name is matched against its
+    # lowercase and toggled under its own spelling
+    all_lc="$(printf '%s' "$all" | tr '[:upper:]' '[:lower:]')"
+    # shellcheck disable=SC2206 # space-separated group names, no globs
+    names=($all) lc=($all_lc)
     while :; do
-      show_preview _hi_packages_floor_preview "$_hi_floor_candidate"
-      # menu_read carries the EOF contract (read, close the prompt line, rc 1);
-      # its lowercase-and-squeeze is a no-op on a number
-      _hi_paint shown "$BRPURPLE" "[$_hi_floor_candidate]"
-      menu_read " Lowest package priority to show (0-3)? $shown " reply || break
+      next="${on# }" next="${next% }"
+      show_preview _hi_packages_groups_preview "${next:-none}"
+      _hi_paint shown "$BRPURPLE" "[${next:-none}]"
+      # menu_read carries the EOF contract (read, close the prompt line, rc 1)
+      menu_read " Toggle which groups ($all)? $shown " reply || break
       [ -z "$reply" ] && break
-      if ! _hi_is_number "$reply" || [ "$reply" -gt 3 ]; then
+      reply="${reply//,/ }"
+      bad=""
+      # shellcheck disable=SC2086 # the reply is a space-separated word list
+      for g in $reply; do
+        case " $all_lc " in *" $g "*) ;; *) bad="$g" ;; esac
+      done
+      if [ -n "$bad" ]; then
         _hi_menu_reject rejects "$max_rejects" \
-          "not 0-3 - type a priority, or press Enter to keep $_hi_floor_candidate" && continue
-        _hi_cecho " not 0-3, leaving it at $_hi_floor_candidate" "$YELLOW"
+          "no group $bad - type names from: $all, or press Enter to keep these" && continue
+        _hi_cecho " no group $bad, leaving them as they are" "$YELLOW"
         break
       fi
       # shellcheck disable=SC2034 # read by _hi_menu_reject's ${!1}, not by name
       rejects=0
-      [ "$reply" = "$_hi_floor_candidate" ] && break
-      _hi_floor_candidate="$reply"
+      # shellcheck disable=SC2086 # as above
+      for g in $reply; do
+        for i in "${!lc[@]}"; do
+          [ "${lc[i]}" != "$g" ] || g="${names[i]}"
+        done
+        case "$on" in
+        *" $g "*) on="${on/" $g "/ }" ;;
+        *) on="$on$g " ;;
+        esac
+      done
     done
   fi
-  # 2 is common/header.sh's own default, so it clears the override rather than
-  # restating it - config_max_width does the same with 80. 0 and 1 get written
-  # out: each is a real answer (lower tiers back on), not the default.
-  [ "$_hi_floor_candidate" = 2 ] && _hi_floor_candidate=""
-  _hi_pending_set _HI_PACKAGES_MIN_PRIORITY "$_hi_floor_candidate"
+  next="${on# }" next="${next% }"
+  # the shipped set, in any order, clears the override rather than restating
+  # it - config_max_width does the same with 80
+  # shellcheck disable=SC2086 # both are space-separated word lists
+  if [ "$(printf '%s\n' $next | LC_ALL=C sort)" = "$(printf '%s\n' $_HI_PACKAGES_GROUPS_DEFAULT | LC_ALL=C sort)" ]; then
+    next=""
+  fi
+  [ -n "$next" ] || [ "$on" != " " ] || next=none
+  _hi_pending_set _HI_PACKAGES_GROUPS "$next"
 }
 
 # Which addresses the header's ip cell leaves out - header.sh's
@@ -1242,7 +1336,7 @@ function collect_setting_lines() {
   _HI_SETTING_LINES=()
   _hi_collect_group _HI_HEADER_PROMPTS
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
-  _hi_collect_value _HI_PACKAGES_MIN_PRIORITY 2
+  _hi_collect_value _HI_PACKAGES_GROUPS "$_HI_PACKAGES_GROUPS_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_PALETTE ""
   _hi_collect_value _HI_COLOR_SCHEME ""
   _hi_collect_value _HI_IP_HIDE '172.*' quoted

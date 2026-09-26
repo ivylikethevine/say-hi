@@ -33,8 +33,6 @@ source "$_HI_ALIASES"
 _hi_load_plugins
 
 _hi_interactive_extras
-# a default, never over the user's own
-export GCC_COLORS="${GCC_COLORS:-error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01}"
 
 # Primed unconditionally, so a custom PS1 in the user's own bash.sh
 # (sourced at the end of this file) can use hi's per-host/per-user color
@@ -151,8 +149,9 @@ function _hi_complete() {
 }
 complete -F _hi_complete hi
 
-# Deferred to the first TAB after `exa`: startup shouldn't parse a multi-KB
-# spec most sessions never use. 124 is bash-completion's "retry".
+# Only where hi's tool aliases made exa an alias, and deferred to the first
+# TAB after `exa`: startup shouldn't parse a multi-KB spec most sessions never
+# use. 124 is bash-completion's "retry".
 function _hi_load_exa_completion() {
   local spec
   command -v _completion_loader &>/dev/null && _completion_loader eza &>/dev/null
@@ -160,7 +159,7 @@ function _hi_load_exa_completion() {
   eval "${spec% eza} exa"
   return 124
 }
-complete -F _hi_load_exa_completion exa
+alias exa >/dev/null 2>&1 && [ "${_HI_TOOL_ALIASES:-0}" = 1 ] && complete -F _hi_load_exa_completion exa
 
 # _hi_drop_prompt_command <array> - <array> minus prompt_command, a no-op when
 # unset; bash has no zsh-style :# array filter, so a rebuild loop

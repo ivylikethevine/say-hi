@@ -68,36 +68,39 @@ Each file is marked with where it goes:
 All **payload**. `common/` is hi's code; `config/` holds the shipped
 defaults an overlay copy replaces.
 
-| File                                    | What it is                                                                                                       |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                        | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.           |
-| `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                    |
-| `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                   |
-| `common/zsh.zsh`                        | The same for zsh.                                                                                                |
-| `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                         |
-| `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                        |
-| `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                        |
-| `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                |
-| `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                    |
-| `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                        |
-| `config/colors`                         | Color pins.                                                                                                      |
-| `config/packages`                       | What the package check looks for: the everyday roster, then more tools at priority 0-1, below the default floor. |
+| File                                    | What it is                                                                                                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `common/core.sh`                        | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.                                                                         |
+| `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                                                                  |
+| `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                                                                 |
+| `common/zsh.zsh`                        | The same for zsh.                                                                                                                                                              |
+| `common/_hi`                            | zsh's completion for `hi`, autoloaded off `$fpath` by the rc's own `compinit`.                                                                                                 |
+| `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                                                                                       |
+| `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                                                                      |
+| `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                                                                                      |
+| `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                                                              |
+| `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                                                                  |
+| `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                                                                                      |
+| `config/colors`                         | Color pins.                                                                                                                                                                    |
+| `config/packages`                       | What the package check looks for, in `[group]` sections: `core`, `useful`, and `deprecated` run by default; `extras`, `trivia`, `base`, and `platform` wait to be switched on. |
 
 ### scripts/
 
 All **package**, never in the payload.
 
-| File                              | What it is                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------- |
-| `scripts/install.sh`              | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`.      |
-| `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.                 |
-| `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                          |
-| `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                           |
-| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag.                                         |
-| `scripts/add_package.sh`          | `hi --add-package`: adds a row to `~/.config/say-hi/packages`, copying the tree's in first. |
-| `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                               |
-| `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                |
-| `scripts/table.sh`                | The boxed table the previews draw.                                                          |
+| File                              | What it is                                                                                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/install.sh`              | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`.                                                                                  |
+| `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.                                                                                             |
+| `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                      |
+| `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                       |
+| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                             |
+| `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                           |
+| `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                           |
+| `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                |
+| `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it. |
+| `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                            |
+| `scripts/table.sh`                | The boxed table the previews draw.                                                                                                                                      |
 
 ### packaging/
 
@@ -132,6 +135,7 @@ All **dev**; [TESTING.md](TESTING.md) is the full layout.
 | `tests/test_runner.sh`                              | The runner and its `_HI_TESTS` table of suites and groups.                                                                                      |
 | `tests/test_lib.sh`, `tests/lib/`                   | The harness every suite sources: workdir, reporting, parallel cases, fixtures, ssh and container backends.                                      |
 | `tests/<dir>/*_test.sh`                             | One suite per tested area, in a directory named for what it tests (`common/`, `hi/`, `load/`, `scripts/`, `config/`, `packaging/`, `harness/`). |
+| `tests/<dir>/<suite>/`                              | Data files one suite reads, beside it (`scripts/convert_settings/`: the name:N packages and comma colors files).                                |
 | `tests/lint/`                                       | The lint group: shellcheck, the zsh and fish dialects, formatters and editor rcs, drift checks.                                                 |
 | `tests/bench/`                                      | Hot-path timings and the payload size budget.                                                                                                   |
 | `tests/targets/`                                    | The e2e and backends groups: ssh, docker, podman, nomad, kube, install methods, frameworks.                                                     |
@@ -183,7 +187,8 @@ A member in the _Replaces_ column travels in the tree's place, not beside it:
 the payload leaves out a default your overlay shadows, so the wire holds one
 `colors`, not two - and an editor default whose editor this machine lacks
 stays home too, so a client without emacs sends no `init.el`. `aliases.sh` is the exception by design - yours is sourced
-on top of the tree's, so both ride.
+on top of the tree's, so both ride. The `<file>.old` copies
+`scripts/convert_settings.sh` keeps are not members and stay home.
 
 What happens to a line in one of these that reads a file no target has is
 [SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)'s.
@@ -234,8 +239,7 @@ an overlay copy rides either way.
 ## Paths hi recognizes
 
 Read, probed, or checked, on whichever machine the shell runs; nothing here is
-written but zsh's `.zcompdump`, by the daily `compinit`, and the
-`.zcompdump.zwc` compiled from it each time it changes.
+written.
 
 | Path                                                                                                      | Variable                                 | Why                                                                        |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------- |
@@ -247,11 +251,9 @@ written but zsh's `.zcompdump`, by the daily `compinit`, and the
 | `/etc/os-release`                                                                                         | `_HI_LINUX_RELEASE`                      | the header's OS line                                                       |
 | `/proc/meminfo`, `/proc/loadavg`, `/proc/cpuinfo`, `/proc/uptime`, `/sys/devices/system/cpu/cpu0/cpufreq` | -                                        | the header's stats on Linux; macOS and the BSDs are asked through `sysctl` |
 | `/etc/debian_chroot`                                                                                      | -                                        | the prompt's chroot label                                                  |
-| `/usr/bin/lesspipe`                                                                                       | -                                        | `$LESSOPEN`                                                                |
 | `$TERMINFO`, `~/.terminfo`, `/etc/terminfo`, `/lib/terminfo`, `/usr/share/terminfo`                       | -                                        | whether a target knows `$TERM`, else `xterm-256color`                      |
 | `.tool-versions`, `.mise.toml`, `mise.toml`, `.mise/config.toml` in `$PWD` and above                      | -                                        | the mise environment segment                                               |
 | `.git` above `$PWD`                                                                                       | -                                        | the git segment, read without taking the index lock                        |
-| `${ZDOTDIR:-~}/.zcompdump`                                                                                | -                                        | whether zsh's full `compinit` is due (once a day)                          |
 | `$_HI_ROOT/.git`                                                                                          | -                                        | `hi --update` needs a checkout                                             |
 | `hi` on `$PATH`                                                                                           | -                                        | install and doctor check it runs this tree                                 |
 
@@ -305,8 +307,10 @@ All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 | `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                         |
 | `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                |
 | `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place               |
-| `hi.packages.XXXXXX`                                          | `hi --add-package`                                           |
+| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                    |
 | `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                               |
+| `hi.colors.XXXXXX`                                            | `hi --set-color`, `hi --unset-color`                         |
+| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                |
 
 ## What a session does on a target
 
