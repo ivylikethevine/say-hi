@@ -339,9 +339,9 @@ function _hi_run_scenario() {
   local shell="$1" fakepath="$2" label="$3"
   shift 3
   local script shell_bin t0 t1
-  local -a optin=()
-  [ "${_HI_CASE_TOOLS:-1}" = unset ] || optin+=("_HI_TOOL_ALIASES=${_HI_CASE_TOOLS:-1}")
-  [ "${_HI_CASE_SUDO:-1}" = unset ] || optin+=("_HI_SUDO_ALIAS=${_HI_CASE_SUDO:-1}")
+  local -a opt_in=()
+  [ "${_HI_CASE_TOOLS:-1}" = unset ] || opt_in+=("_HI_TOOL_ALIASES=${_HI_CASE_TOOLS:-1}")
+  [ "${_HI_CASE_SUDO:-1}" = unset ] || opt_in+=("_HI_SUDO_ALIAS=${_HI_CASE_SUDO:-1}")
 
   # resolved against the real (unrestricted) PATH by the caller's one-time
   # probe, since $fakepath below is deliberately too narrow to contain the
@@ -364,7 +364,7 @@ function _hi_run_scenario() {
     _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$_HI_WORKDIR" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/init.el" \
     _HI_NVIMRC="$_HI_WORKDIR/init.lua" _HI_HELIXRC="$_HI_WORKDIR/config.toml" \
-    _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" ${optin[@]+"${optin[@]}"} \
+    _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" ${opt_in[@]+"${opt_in[@]}"} \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"

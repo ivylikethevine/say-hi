@@ -1226,6 +1226,29 @@ function _hi_cfg_has() { _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | grep -
 function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
 function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
 
+# _hi_cfg_screen <label> <n> - the menu's <n>th draw, 0 the first: the pty
+# echoes no input, so each ` > ` prompt shares its line with the next draw's
+# title, and a draw runs from one prompt line to the line before the next
+function _hi_cfg_screen() {
+  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
+    awk -v n="$2" 'index($0, " > ") == 1 { s++ } s == n'
+}
+function _hi_cfg_screen_has() {
+  _hi_cfg_screen "$1" "$2" | grep -qF -- "$3" || _hi_because "draw $2 of $1 has no \"$3\""
+}
+# _hi_cfg_titles <label> - every draw's title, in order, comma-joined
+function _hi_cfg_titles() {
+  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?)  -.*/\1/p' | paste -sd, -
+}
+
+# every section's letter in order, then b: the six pages and the main page
+# again, each drawn once
+_HI_MENU_EVERY_PAGE='i\nr\ne\na\nm\nv\nb\ns\n'
+_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Prompt,hi --configure: Editors"
+_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Aliases,hi --configure: This machine"
+_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Advanced,hi --configure"
+
 function test_ask_value_takes_a_typed_number() {
   _hi_cfg_pty width_typed '120\n' '' config_max_width || return 1
   [ "$(_hi_cfg_lines width_typed)" = "export _HI_MAX_WIDTH=120" ]
@@ -1410,7 +1433,7 @@ function test_menu_keeps_the_last_header_item() {
 function test_menu_lists_missing_header_items_off() {
   local w
   w="$(_hi_item 'word|0')"
-  _hi_cfg_pty hdr_list 's\n' "export _HI_HEADER_ORDER='check gitid'" config_hub || return 1
+  _hi_cfg_pty hdr_list 'i\ns\n' "export _HI_HEADER_ORDER='check gitid'" config_hub || return 1
   _hi_cfg_has hdr_list "$w) [x] check" &&
     _hi_cfg_has hdr_list "$((w + 1))) [x] gitid" &&
     _hi_cfg_has hdr_list "$((w + 2))) [ ] utc"
@@ -1436,9 +1459,9 @@ function test_menu_feature_toggles_and_previews() {
 
 # ...and an opt-in row (the tool aliases, 11) flips on to its on-value
 function test_menu_opt_in_row_writes_its_on_value() {
-  _hi_cfg_pty feat_optin "$(_hi_item 'row|_HI_FEATURE_PROMPTS|11')\ns\n" '' config_hub || return 1
-  _hi_cfg_has feat_optin "styled tool aliases: now on" &&
-    [[ "$(_hi_cfg_lines feat_optin)" == *"export _HI_TOOL_ALIASES=1"* ]]
+  _hi_cfg_pty feat_opt_in "$(_hi_item 'row|_HI_FEATURE_PROMPTS|11')\ns\n" '' config_hub || return 1
+  _hi_cfg_has feat_opt_in "styled tool aliases: now on" &&
+    [[ "$(_hi_cfg_lines feat_opt_in)" == *"export _HI_TOOL_ALIASES=1"* ]]
 }
 
 # The environment segment sits between git status and the editors. Its preview
@@ -1558,26 +1581,113 @@ function test_menu_junk_is_bounded_and_quits() {
     _hi_cfg_has hub_junk "CFGQUIT=1"
 }
 
-# one screen holds every group - no submenu to open - under the preview box
-function test_menu_lists_every_group() {
-  _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
-  _hi_cfg_has hub_all "preview" &&
-    _hi_cfg_has hub_all "Editors" &&
-    _hi_cfg_has hub_all "Header - the preview's rows" &&
-    _hi_cfg_has hub_all "    packages      " &&
-    _hi_cfg_has hub_all "bash prompt ends with" &&
-    _hi_cfg_has hub_all "Advanced" &&
-    _hi_cfg_has hub_all "24-bit color" &&
+# the main page is a summary line a section, in order, under the preview box
+# - its key, name, numbers, [x] count, and values - and none of their rows.
+# This machine's one number is _HI_DISABLE_LOCAL's, read off the list.
+function test_menu_main_page_sums_up_every_section() {
+  local m main keys
+  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|13')" || return 1
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
+  main="$(_hi_cfg_screen hub_all 0)"
+  keys="$(printf '%s\n' "$main" | sed -n 's/^ \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
+  [ "$keys" = "i,r,e,a,m,v" ] || _hi_because "the main page's sections: [$keys]" || return 1
+  [[ "$main" == *"preview"* && "$main" == *" [i] Header       1-"*" on, width 80, packages "* ]] &&
+    [[ "$main" == *" [m] This machine $(printf '%-6s' "$m") 1 of 1 on"* ]] &&
+    [[ "$main" == *" [v] Advanced     "*", 24-bit color auto"* ]] &&
+    [[ "$main" != *") ["* && "$main" != *"hi --configure:"* && "$main" != *"[b]ack"* ]] &&
     _hi_cfg_has hub_all "CFGQUIT=none"
 }
 
+# a section's letter opens its page - titled, [b]ack leading the keys, only its
+# own rows - and b comes back to the main page
+function test_menu_section_letters_open_their_pages() {
+  local titles end kak sudo
+  end="$(_hi_item 'end|bash')" && kak="$(_hi_item 'row|_HI_FEATURE_PROMPTS|10')" &&
+    sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|12')" || return 1
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
+  titles="$(_hi_cfg_titles hub_pages)"
+  [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || _hi_because "titles: [$titles]" || return 1
+  _hi_cfg_screen_has hub_pages 1 " [b]ack  [p]reset" &&
+    _hi_cfg_screen_has hub_pages 1 " 1) [x] header" &&
+    _hi_cfg_screen_has hub_pages 1 "    packages      " &&
+    _hi_cfg_screen_has hub_pages 2 "$end)     bash prompt ends with" &&
+    _hi_cfg_screen_has hub_pages 3 "$kak) [x] kakoune" &&
+    _hi_cfg_screen_has hub_pages 4 "$sudo) [ ] sudo alias" &&
+    _hi_cfg_screen_has hub_pages 6 "24-bit color" &&
+    _hi_cfg_screen_has hub_pages 7 " [i] Header" &&
+    ! _hi_cfg_screen_has hub_pages 2 " 1) [x] header" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 7 "[b]ack" 2>/dev/null
+}
+
+# This machine's page draws _HI_DISABLE_LOCAL, the one row it holds
+function test_menu_this_machine_page_holds_here_too() {
+  local m
+  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|13')" || return 1
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_local 'm\ns\n' '' run_configure "" || return 1
+  _hi_cfg_screen_has hub_local 1 "hi --configure: This machine" &&
+    _hi_cfg_screen_has hub_local 1 "$m) [x] here too"
+}
+
+# every row of every table gets a number, whichever page draws it
+function test_menu_numbers_every_row() {
+  local t i
+  local -a rows=()
+  for t in _HI_FEATURE_PROMPTS _HI_HEADER_PROMPTS _HI_PROMPT_PROMPTS _HI_ADVANCED_PROMPTS; do
+    _hi_prompt_rows "$t" rows
+    for i in "${!rows[@]}"; do
+      [ -n "$(_hi_item "row|$t|$i")" ] || _hi_because "no menu number for $t row $i" || return 1
+    done
+  done
+}
+
+# a number works from any page: the main page's flips a Prompt row and stays
+# on the main page, the Advanced page's flips an Aliases row and stays there
+function test_menu_number_works_from_any_page() {
+  local p t
+  p="$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')" && t="$(_hi_item 'row|_HI_FEATURE_PROMPTS|11')" || return 1
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_num "$p\nv\n$t\ns\n" '' run_configure "" || return 1
+  local lines
+  lines="$(_hi_cfg_lines hub_num)"
+  _hi_cfg_screen_has hub_num 1 "colored user@host prompt: now off" &&
+    _hi_cfg_screen_has hub_num 1 " [i] Header" &&
+    _hi_cfg_screen_has hub_num 3 "styled tool aliases: now on" &&
+    _hi_cfg_screen_has hub_num 3 "hi --configure: Advanced" &&
+    [[ "$lines" == *"export _HI_DISABLE_PROMPT=1"* && "$lines" == *"export _HI_TOOL_ALIASES=1"* ]]
+}
+
+# The Header page's grid: the three switches and the header items, 4 cells to
+# a line at 80 columns, folding to 2 at 40, every one drawn
+function _hi_menu_grid_at() {
+  local w="$1" want="$2" label="grid_$1" cells page first
+  cells=$(($(_hi_item width) - 1))
+  _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 'i\ns\n' '' run_configure "" || return 1
+  page="$(_hi_cfg_screen "$label" 1)"
+  first="$(printf '%s\n' "$page" | grep -F ' 1) [x] header' | grep -o ') \[[x ]\] ' | wc -l)"
+  page="$(printf '%s\n' "$page" | grep -o ') \[[x ]\] ' | wc -l)"
+  ((first == want)) || _hi_because "the grid's first line at $w holds $first cells" || return 1
+  ((page == cells)) || _hi_because "the grid at $w holds $page cells, not $cells"
+}
+function test_menu_header_grid_at_80() { _hi_menu_grid_at 80 4; }
+function test_menu_header_grid_at_40() { _hi_menu_grid_at 40 2; }
+
+# At 80 columns every page, the main one included, fits a 24-row terminal:
+# a draw's lines, then the prompt's own row
+function test_menu_pages_fit_24_rows() {
+  local k rows
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_rows "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
+  for k in 1 2 3 4 5 6 7; do
+    rows=$(($(_hi_cfg_screen hub_rows "$k" | wc -l) + 1))
+    ((rows <= 24)) || _hi_because "draw $k is $rows rows" || return 1
+  done
+}
+
 # The layout, pinned at 80 columns and at 40 the way the header's width is
-# ($_HI_TERM_COLS): no line of the run is wider than the terminal, a narrow
-# one cutting help text rather than wrapping it, and the groups draw in their
-# order - what a setting changes, the header's first, Advanced last, apart
+# ($_HI_TERM_COLS), through every page: no line of the run is wider than the
+# terminal, a narrow one cutting help text and summaries rather than wrapping
+# them, and the pages draw in the order their letters were typed
 function _hi_menu_layout_at() {
-  local w="$1" label="layout_$1" line len over=0 heads
-  _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 's\n' '' run_configure "" || return 1
+  local w="$1" label="layout_$1" line len over=0 titles
+  _HI_TERM_COLS="$w" _hi_cfg_pty "$label" "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
   while IFS= read -r line; do
     case "$line" in *CFGRC=*) continue ;; esac
     # the pty echoes no input, so what follows the ` > ` prompt lands on its
@@ -1588,10 +1698,9 @@ function _hi_menu_layout_at() {
     _hi_cecho " | $len columns at $w: $line" "$RED"
     over=1
   done < <(_hi_strip_ansi "$(<"$_HI_WORKDIR/$label.cfg.out")" | tr -d '\r')
-  heads="$(_hi_strip_ansi "$(<"$_HI_WORKDIR/$label.cfg.out")" | tr -d '\r' |
-    sed -E -n 's/^ (Header|Prompt|Editors|Aliases|This machine)( - .*)?$/\1/p; s/^ [^ ]+ Advanced .*/Advanced/p' | paste -sd, -)"
-  [ "$heads" = "Header,Prompt,Editors,Aliases,This machine,Advanced" ] || {
-    _hi_cecho " | the groups at $w columns: [$heads]" "$RED"
+  titles="$(_hi_cfg_titles "$label")"
+  [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || {
+    _hi_cecho " | the pages at $w columns: [$titles]" "$RED"
     return 1
   }
   [ "$over" = 0 ]
@@ -1601,7 +1710,7 @@ function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
 
 # a value away from its default says the default beside it; one at it does not
 function test_menu_value_shows_its_default() {
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 's\n' "export _HI_PACKAGES_GROUPS='core'" run_configure "" || return 1
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 'i\ns\n' "export _HI_PACKAGES_GROUPS='core'" run_configure "" || return 1
   _hi_cfg_has hub_def "packages              core (default core useful deprecated)" &&
     ! _hi_cfg_has hub_def "(default 80)"
 }
@@ -1660,6 +1769,7 @@ function run_configure_tests() {
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
   _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
+  _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"
@@ -1768,9 +1878,15 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
   _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
-  _hi_par_check_capable pty "Menu: every group on one screen" test_menu_lists_every_group
-  _hi_par_check_capable pty "Menu: fits 80 columns, groups in order" test_menu_layout_at_80
-  _hi_par_check_capable pty "Menu: fits 40 columns, groups in order" test_menu_layout_at_40
+  _hi_par_check_capable pty "Menu: the main page sums up every section" test_menu_main_page_sums_up_every_section
+  _hi_par_check_capable pty "Menu: a section's letter opens its page, b comes back" test_menu_section_letters_open_their_pages
+  _hi_par_check_capable pty "Menu: This machine's page holds here too" test_menu_this_machine_page_holds_here_too
+  _hi_par_check_capable pty "Menu: a number works from any page" test_menu_number_works_from_any_page
+  _hi_par_check_capable pty "Menu: the Header grid holds 4 columns at 80" test_menu_header_grid_at_80
+  _hi_par_check_capable pty "Menu: the Header grid folds to 2 at 40" test_menu_header_grid_at_40
+  _hi_par_check_capable pty "Menu: every page fits 24 rows at 80 columns" test_menu_pages_fit_24_rows
+  _hi_par_check_capable pty "Menu: fits 80 columns, pages in order" test_menu_layout_at_80
+  _hi_par_check_capable pty "Menu: fits 40 columns, pages in order" test_menu_layout_at_40
   _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
   _hi_par_check_capable pty "Menu: a feature toggles and previews" test_menu_feature_toggles_and_previews
   _hi_par_check_capable pty "Menu: an opt-in row writes its on-value" test_menu_opt_in_row_writes_its_on_value

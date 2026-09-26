@@ -162,6 +162,7 @@ function _hi_convert_one() {
 # after core.sh, which ends with `set +euo pipefail`. GLOSSARY: HI.15
 set -euo pipefail
 
+_HI_ME="${_HI_ARGV0:-convert_settings.sh}"
 _HI_DRY_RUN=""
 dir="$_HI_CONFIG_DIR"
 while [ $# -gt 0 ]; do

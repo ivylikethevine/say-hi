@@ -26,33 +26,35 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
 
 `hi --configure` opens on the keys (`[p]reset`, `[h]eader preset`, `[s]ave`,
 `[q]uit`) and a preview - the header and the prompt line as they would draw
-at your current settings - over one numbered list of every setting it asks,
-grouped by what a setting changes, each heading saying where it shows, with
-no submenus:
+at your current settings - over one summary line per section: its letter,
+its item numbers, and how many of its switches are on. The letter opens the
+section's page, with the same preview over just that section's settings,
+and `[b]` comes back. Every setting keeps one number across the pages, and
+a number works from any of them:
 
-- **Header** — first, under the rendered header it edits: the header and
-  the greeting on or off, then everything in
-  [Header details](#header-details): the banner, the header's items in the
-  order they print (`up N`/`down N` moves one), the width, the package
-  check's depth, and the hidden addresses. Outside the menu,
+- **Header** `[i]` — the header and the greeting on or off, then everything
+  in [Header details](#header-details): the banner, the header's items in
+  the order they print (`up N`/`down N` moves one), all as a grid, then the
+  width, the package groups, and the hidden addresses. Outside the menu,
   `hi --preview header` prints the header at the saved settings, and
   `hi --preview packages` the check's legend.
-- **Prompt** — the preview's last line: the colored prompt on or off, git
+- **Prompt** `[r]` — the preview's last line: the colored prompt on or off, git
   status and the environment segment, hi's own prompt over the prompt
   programs found here, and the character each of the three shells' prompts
   ends with, wired up on this machine or not.
-- **Editors** — hi's config for each editor, on a target that has it.
-- **Aliases** — whether `cat`, `ls`, and `sudo` get hi's aliases; both
+- **Editors** `[e]` — hi's config for each editor, on a target that has it.
+- **Aliases** `[a]` — whether `cat`, `ls`, and `sudo` get hi's aliases; both
   opt-ins, off until turned on.
-- **This machine** — whether hi styles the machine you run it on as well
+- **This machine** `[m]` — whether hi styles the machine you run it on as well
   (`_HI_DISABLE_LOCAL`).
-- **Advanced**, set apart under a rule — the leading space, the header's
+- **Advanced** `[v]` — the leading space, the header's
   right edge, the `--mux` default, and 24-bit color.
 
 A row away from its default says the default beside it (`(default 2)`,
 `(default on)`). The menu draws to your terminal's width: help text is cut
-rather than wrapped, the header items fold to one column when narrow, and
-the preview box clips a line wider than the room.
+rather than wrapped, the header grid folds to fewer columns when narrow, and
+the preview box clips a line wider than the room. At 80 columns every page
+fits a 24-row terminal.
 
 A number flips a yes/no item or asks for a value, and the preview and list
 redraw with the change. `[p]` applies a preset (`[e]verything`, `[b]alanced`,

@@ -605,7 +605,7 @@ function test_config_lists_a_non_default_toggle() {
 # an opt-in turned on is the non-default, so it gets a row; off is silent
 function test_config_lists_an_opt_in_turned_on() {
   local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/optin.XXXXXX")"
+  dir="$(mktemp -d "$_HI_WORKDIR/opt_in.XXXXXX")"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"

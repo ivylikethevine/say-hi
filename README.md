@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-69KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-75KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -409,11 +409,12 @@ In this checkout, narrowest first.
        when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
        `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
 
-8. [ ] **A shorter `hi --configure`** — the settings menu and its preview
-       box scroll off a 24-line terminal. **Do:** cut its vertical size
-       (fewer section headings and blank lines, toggles packed into columns,
-       a smaller preview) without dropping a setting. **Ticks when:** the
-       whole menu, preview included, fits a 24-row terminal at 80 columns.
+8. [ ] **A shorter `hi --configure`** — shipped: a main page of the
+       preview and one summary line per section, each section a page of
+       its own under the same preview, the header's switches and items one
+       grid; at 80 columns every page is 24 rows or fewer. What is left is a
+       look in a real terminal. **Ticks when:** a pass through every page in
+       an 80x24 terminal scrolls nothing off the top.
 
 ### At the 1.0.0 tag
 

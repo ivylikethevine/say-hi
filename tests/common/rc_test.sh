@@ -190,7 +190,7 @@ function test_rc_tool_and_sudo_aliases_are_opt_in() {
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; for a in '"$names"'; functions -q $a; and printf "%s " $a; end' ;;
   esac
-  path="$(_hi_fake_path rc-optin-tools bat eza exa sudo):$PATH"
+  path="$(_hi_fake_path rc-opt_in-tools bat eza exa sudo):$PATH"
   off="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path")"
   on="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1)"
   [ -z "$off" ] && [ "$on" = "$names " ] || {
@@ -420,7 +420,8 @@ function test_exa_completes_as_eza_only_with_the_alias() {
   zsh)
     mark=exa=eza
     printf 'unalias exa\n' >"$cfg/aliases.sh"
-    script='typeset -A _comps; _comps[eza]=_eza; compdef() { print -rn -- "[$*]"; }
+    # zsh's associative array, spelled so drift's bash-4 check reads past it
+    script='typeset "-A" _comps; _comps[eza]=_eza; compdef() { print -rn -- "[$*]"; }
       source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null'
     ;;
   fish)
