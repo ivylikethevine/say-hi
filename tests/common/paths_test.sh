@@ -339,7 +339,7 @@ function test_an_exported_path_does_not_survive() {
 function _hi_editor_home() {
   local dir="$_HI_WORKDIR/edhome-$1" f
   shift
-  mkdir -p "$dir/.config/vim" "$dir/.config/nvim" "$dir/.config/helix" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.config/tmux" "$dir/.vim" "$dir/.emacs.d"
+  mkdir -p "$dir/.config/vim" "$dir/.config/nvim" "$dir/.config/helix" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.config/tmux" "$dir/.config/screen" "$dir/.vim" "$dir/.emacs.d"
   for f in "$@"; do printf '%s\n' "$f" >"$dir/$f"; done
   printf '%s' "$dir"
 }
@@ -396,6 +396,16 @@ function test_the_tier_reads_the_second_locations() {
     _hi_tier_is _HI_NANORC "$home" "$home/.config/nano/nanorc" &&
     _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.d/init.el" &&
     _hi_tier_is _HI_TMUX_CONF "$home" "$home/.config/tmux/tmux.conf"
+}
+
+# screen reads $SCREENRC instead of ~/.screenrc when it is set, even naming no
+# file, so the tier follows the variable the same way
+function test_the_screenrc_tier_follows_SCREENRC() {
+  local home
+  home="$(_hi_editor_home screenrc .screenrc .config/screen/screenrc)"
+  _hi_tier_is _HI_SCREENRC "$home" "$home/.screenrc" &&
+    SCREENRC="$home/.config/screen/screenrc" _hi_tier_is _HI_SCREENRC "$home" "$home/.config/screen/screenrc" &&
+    SCREENRC="$home/missing" _hi_tier_is _HI_SCREENRC "$home" ""
 }
 
 # an overlay copy is the hi-specific override and still outranks it: the tier
@@ -524,7 +534,7 @@ function test_overlay_guards_match_the_roster() {
 function test_paths_follow_the_overlay_table() {
   local home="$_HI_WORKDIR/table-home"
   mkdir -p "$home"
-  env -u MICRO_CONFIG_HOME -u ZELLIJ_CONFIG_DIR -u _HI_XDG_CONFIG HOME="$home" \
+  env -u MICRO_CONFIG_HOME -u ZELLIJ_CONFIG_DIR -u SCREENRC -u _HI_XDG_CONFIG HOME="$home" \
     XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/overlay" bash -c '
     set -- && source "$_HI_LAUNCHER" || exit 1
     set +eu
@@ -610,6 +620,7 @@ function run_paths_tests() {
   _hi_check "The editor's own config is the one carried" test_the_editors_own_config_beats_the_tree
   _hi_check "...keeping each editor's own precedence" test_the_tier_keeps_each_editors_precedence
   _hi_check "The second locations answer too" test_the_tier_reads_the_second_locations
+  _hi_check "screen's follows \$SCREENRC" test_the_screenrc_tier_follows_SCREENRC
   _hi_check "The overlay still beats it" test_the_overlay_beats_the_editors_own_config
   _hi_check "A target ignores the box's own" test_a_target_ignores_its_own_editor_config
   _hi_check "micro's directory is the overlay's micro/, else home's, else nothing" test_the_micro_dir_is_the_overlays_or_empty

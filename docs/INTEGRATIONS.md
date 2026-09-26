@@ -212,7 +212,7 @@ were [decided against](COMPATIBILITY.md#what-would-change-an-answer), and
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux.conf` over
 both) rides along and the session's `tmux` alias is `tmux -f` it. screen the
-same, `~/.screenrc` under `screen -c`; and zellij's config directory
+same, `${SCREENRC:-~/.screenrc}` under `screen -c`; and zellij's config directory
 (`$ZELLIJ_CONFIG_DIR`, else `$XDG_CONFIG_HOME/zellij`) - `config.kdl` and
 every file of `layouts/` and `themes/`, an overlay `zellij/` copy of each
 name first - under the alias's `--config-dir`. A

@@ -97,7 +97,7 @@ _HI_OVERLAY_TABLE=(
   'bat.conf|-|-|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
   'inputrc|-|-|"${INPUTRC:-$HOME/.inputrc}"'
   'tmux.conf|_HI_TMUX_CONF|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
-  'screenrc|_HI_SCREENRC|-|"$HOME/.screenrc"'
+  'screenrc|_HI_SCREENRC|-|"${SCREENRC:-$HOME/.screenrc}"'
   'micro/settings.json|_HI_MICRO_DIR|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
   'micro/bindings.json|_HI_MICRO_DIR|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
   'micro/init.lua|_HI_MICRO_DIR|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'

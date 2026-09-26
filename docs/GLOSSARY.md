@@ -1306,4 +1306,6 @@ directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the XDG one), and
 zellij's `layouts/` and `themes/` are trailing-`/` entries
 ([HI.58](#hi58-overlay-directory-members)). `paths.sh` resolves the directory
 whole, from `core.sh`'s `$_HI_MICRO_HOME` and `$_HI_ZELLIJ_HOME`, which spell
-the `${VAR:-}` its dialect cannot (`config.fish` mirrors them).
+the `${VAR:-}` its dialect cannot (`config.fish` mirrors them); screen's
+`screenrc` resolves the same way, through `$_HI_SCREENRC_HOME`
+(`$SCREENRC`, else `~/.screenrc`).

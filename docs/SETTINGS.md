@@ -484,7 +484,7 @@ so there is one copy to edit:
 | `nanorc`        | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                                                                    |
 | `init.el`       | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el`                    |
 | `tmux.conf`     | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                              |
-| `screenrc`      | `~/.screenrc`                                                                                                       |
+| `screenrc`      | `${SCREENRC:-~/.screenrc}`                                                                                          |
 | `micro/<file>`  | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua`         |
 | `zellij/<file>` | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`, for `config.kdl` and every file of `layouts/` and `themes/` |
 

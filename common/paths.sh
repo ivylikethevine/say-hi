@@ -77,7 +77,7 @@ export _HI_TMUX_CONF=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.tmux.conf" ] && export _HI_TMUX_CONF="$HOME/.tmux.conf"
 [ -f "$_HI_CONFIG_DIR/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_CONFIG_DIR/tmux.conf"
 export _HI_SCREENRC=""
-[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.screenrc" ] && export _HI_SCREENRC="$HOME/.screenrc"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SCREENRC_HOME" ] && export _HI_SCREENRC="$_HI_SCREENRC_HOME"
 [ -f "$_HI_CONFIG_DIR/screenrc" ] && export _HI_SCREENRC="$_HI_CONFIG_DIR/screenrc"
 # micro and zellij take a config *directory* with fixed file names, so their
 # members ride in a micro/ and a zellij/ of their own, and the alias names
