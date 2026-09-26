@@ -340,7 +340,7 @@ function load() {
   # the greeting and its three timers are a line of their own, and not part of
   # the header: they survive $_HI_DISABLE_HEADER, which is why they answer to a
   # toggle of their own rather than that one.
-  local shell greeting color
+  local shell greeting color timers max pad=""
   _hi_session_shell shell
   if [[ "${_HI_DISABLE_GREETING:-0}" != 1 ]]; then
     case "$shell" in
@@ -348,10 +348,18 @@ function load() {
     zsh) greeting="zsh shell! :)" color="$PURPLE" ;;
     *) greeting="bash today :(" color="$RED" ;;
     esac
+    timers=" | init: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
+    # closed like the header rows above it; with the header off this line
+    # continues hi.sh's, whose width is not known here, so it stays open
+    if [[ "${_HI_DISABLE_HEADER:-0}" != 1 && "${_HI_DISABLE_RIGHT_EDGE:-0}" != 1 ]]; then
+      _hi_draw_width max
+      _hi_repeat pad $((max - 2 - 21 - ${#greeting} - ${#timers})) ' '
+      timers+="$pad |"
+    fi
     _hi_cecho " | " "$NC" 1
     _hi_cecho "hi loaded with... " "$BRCYAN" 1
     _hi_cecho "$greeting" "$color" 1
-    _hi_cecho " | init: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
+    _hi_cecho "$timers"
   else
     _hi_line_close
   fi

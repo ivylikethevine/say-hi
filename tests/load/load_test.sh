@@ -530,6 +530,26 @@ function test_load_greeting_toggle_hides_the_line() {
   return 1
 }
 
+# With the header on, the greeting line ends on the header rows' closing "|"
+# at the draw width; $_HI_DISABLE_RIGHT_EDGE leaves it open. The banner and
+# every row are off, so the greeting is the only line that could close.
+function test_load_greeting_line_takes_the_right_edge() {
+  local out line edge want
+  for edge in 0 1; do
+    out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_BANNER=1 \
+      _HI_HEADER_ORDER=none _HI_MAX_WIDTH=100 _HI_TERM_COLS=100 \
+      "_HI_DISABLE_RIGHT_EDGE=$edge")" || return 1
+    line="$(_hi_strip_ansi "$out" | grep 'hi loaded with')"
+    want=0
+    ((edge)) || { [ "${#line}" -eq 100 ] && [ "${line: -2}" = " |" ] && want=1; }
+    ((edge)) && [ "${line: -1}" != "|" ] && want=1
+    ((want)) || {
+      _hi_cecho " | _HI_DISABLE_RIGHT_EDGE=$edge, ${#line} columns: '$line'" "$RED"
+      return 1
+    }
+  done
+}
+
 # <shell> <greeting> - the "hi loaded with..." line names the shell the user
 # actually got, in that shell's own words
 function test_load_greets_the_chosen_shell() {
@@ -784,6 +804,7 @@ EOF
   _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
   _hi_check "_HI_DISABLE_GREETING=1 hides the line and its timers" test_load_greeting_toggle_hides_the_line
+  _hi_check "The greeting line closes on the header's right edge" test_load_greeting_line_takes_the_right_edge
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
