@@ -532,14 +532,14 @@ function test_load_greeting_toggle_hides_the_line() {
 
 # With the header on, the greeting line wraps at the draw width and every
 # line of it ends on the header rows' closing "|"; $_HI_DISABLE_RIGHT_EDGE
-# leaves them open. The banner and every row are off, so the greeting is all
-# that could close. At 60 columns the timers no longer fit on one line.
+# leaves them open. Every row is off, so the greeting is all that could
+# close; the banner stays on, since it ends the line load() opens with the
+# connect total. At 60 columns the timers no longer fit on one line.
 # <width> <right edge off> <lines wanted>
 function test_load_greeting_line_takes_the_right_edge() {
   local width="$1" edge="$2" want="$3" out line n=0
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_BANNER=1 \
-    _HI_HEADER_ORDER=none "_HI_MAX_WIDTH=$width" "_HI_TERM_COLS=$width" \
-    "_HI_DISABLE_RIGHT_EDGE=$edge")" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=none \
+    "_HI_MAX_WIDTH=$width" "_HI_TERM_COLS=$width" "_HI_DISABLE_RIGHT_EDGE=$edge")" || return 1
   while IFS= read -r line; do
     ((++n))
     if ((edge)); then
