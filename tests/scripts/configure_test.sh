@@ -992,6 +992,35 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
 }
 
+# the sample paints with the settings file's scheme, not the running shell's,
+# and leaves this shell's scheme and palette as they were
+function test_prompt_sample_preview_paints_with_the_settings_scheme() {
+  _hi_load_preview_sources
+  local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-scheme.settings.sh" scheme="" i out before="$RED"
+  for ((i = 0; i < 24; i++)); do scheme="$scheme${scheme:+ }abcdef"; done
+  printf 'export _HI_COLOR_SCHEME="%s"\n' "$scheme" >"$_HI_SETTINGS"
+  out="$(_HI_TRUECOLOR=1 _HI_COLOR_SCHEME='' _hi_prompt_sample_preview)"
+  [[ "$out" == *"38;2;171;205;239m"* ]] || _hi_because "no scheme escape in: $(printf '%q' "$out")" || return 1
+  [ "$RED" = "$before" ] || _hi_because "the palette changed: $(printf '%q' "$RED")" || return 1
+  : >"$_HI_SETTINGS"
+  out="$(_HI_TRUECOLOR=1 _HI_COLOR_SCHEME="$scheme" _hi_prompt_sample_preview)"
+  [[ "$out" != *"38;2;171;205;239m"* ]] || _hi_because "the shell's scheme leaked in: $(printf '%q' "$out")"
+}
+
+# a menu under 60 columns has room for the cwd's last part, not its path
+function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
+  _hi_load_preview_sources
+  local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-narrow.settings.sh" out
+  : >"$_HI_SETTINGS"
+  mkdir -p "$_HI_WORKDIR/deep/er/leafdir"
+  out="$(PWD="$_HI_WORKDIR/deep/er/leafdir" _HI_MENU_W=40 _hi_prompt_sample_preview)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *leafdir* && "$out" != *"deep/er"* ]] || _hi_because "narrow: [$out]" || return 1
+  out="$(PWD="$_HI_WORKDIR/deep/er/leafdir" _HI_MENU_W=80 _hi_prompt_sample_preview)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"er/leafdir"* ]] || _hi_because "wide: [$out]"
+}
+
 # every editor is presence-gated in common/aliases.sh itself (a box without
 # the tool leaves its alias undefined), which _hi_editors_preview reads rather
 # than restates - so each line only needs to be there when the tool is.
@@ -1831,6 +1860,8 @@ function run_configure_tests() {
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
   _hi_check "...and draws the prompt when it is on" test_prompt_sample_preview_draws_the_prompt_when_on
+  _hi_check "...painted with the settings file's scheme" test_prompt_sample_preview_paints_with_the_settings_scheme
+  _hi_check "...its cwd cut to the last part in a narrow menu" test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
   if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
     _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim

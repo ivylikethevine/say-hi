@@ -234,8 +234,9 @@ function _hi_color_escape_at() {
 # $_HI_TARGET_COLOR over the wire, preview.sh's grouping) carries one string
 # and needs to know nothing. GLOSSARY: HI.50
 function _hi_color_split() {
-  printf -v "$1" '%s' "${3%%#*}"
-  case "$3" in *'#'*) printf -v "$2" '%s' "${3#*#}" ;; *) printf -v "$2" '%s' '' ;; esac
+  # \#: under zsh's extended_glob a bare # in a pattern is an operator
+  printf -v "$1" '%s' "${3%%\#*}"
+  case "$3" in *'#'*) printf -v "$2" '%s' "${3#*\#}" ;; *) printf -v "$2" '%s' '' ;; esac
 }
 
 # _hi_color_index <outvar> <name> - <name>'s slot in $_HI_COLOR_NAMES into
@@ -1130,7 +1131,7 @@ function _hi_ssh_pattern_hit() {
 # the way out: 0 tagged (printed), 2 known-but-untagged, 1 no hit here.
 function _hi_ssh_try_patterns() {
   local patterns="$1" name="$2" tag="$3"
-  patterns="${patterns%%#*}"
+  patterns="${patterns%%\#*}"
   patterns="${patterns//	/ }"
   patterns="${patterns//,/ }"
   _hi_ssh_pattern_hit "$name" "$patterns" || return 1

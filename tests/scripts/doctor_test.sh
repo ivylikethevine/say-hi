@@ -240,6 +240,22 @@ function test_config_counts_an_overlay_file() {
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]]
 }
 
+# an ssh config with a `# Tags:` line is a row saying the tags ride; one
+# without, or no config at all, is none
+function test_config_says_the_ssh_tags_ride() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
+  mkdir -p "$dir/rt"
+  printf '# Tags: prod\nHost web\n' >"$dir/ssh_config"
+  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
+    _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" == *"the # Tags: lines of $dir/ssh_config ride along"* ]] || _hi_because "tagged: $out" || return 1
+  printf 'Host web\n' >"$dir/ssh_config"
+  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
+    _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" != *"# Tags:"* ]] || _hi_because "untagged: $out"
+}
+
 # a member with no tree copy - bashrc, starship.toml - has no default to
 # report, so an absent one gets no row at all
 function test_config_has_no_tree_default_for_a_member_without_one() {
@@ -352,6 +368,43 @@ function test_files_table_walks_every_tier() {
     [[ "$out" == *"tmux.conf (tmux)"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
     [[ "$out" == *"init.el (emacs)"*"passed over ~/.emacs - not sent: its tool is not installed here"* ]] &&
     [[ "$out" == *"none anywhere"*screenrc* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+}
+
+# a directory member counts the files that ride from it; a prompt program's
+# config is named but not sent while the prompt is hi's own; and inside a
+# session no home file is sent at all, which the row says instead of blaming
+# the tool
+function test_files_table_names_why_a_found_file_is_not_sent() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/files-why.XXXXXX")"
+  mkdir -p "$h/overlay" "$h/.config/zellij/layouts" "$h/.config/zellij/themes"
+  printf 'layout {}\n' >"$h/.config/zellij/layouts/dev.kdl"
+  printf 'format = "x"\n' >"$h/.config/starship.toml"
+  printf 'set number\n' >"$h/.vimrc"
+  out="$(
+    function _hi_tool_here() { return 0; }
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" \
+      _HI_PROMPT_TOOL=hi doctor_files
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"zellij/layouts/ (zellij)"*"present ~/.config/zellij/layouts/ - 1 file(s) ride"* ]] &&
+    [[ "$out" == *"zellij/themes/ (zellij)"*"present ~/.config/zellij/themes/ - no file rides"* ]] &&
+    [[ "$out" == *"starship.toml (starship)"*"not sent: its prompt program is not one a target is handed"* ]] &&
+    [[ "$out" == *"vimrc (vim)"*"used ~/.vimrc"* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+  out="$(
+    function _hi_tool_here() { return 0; }
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" \
+      _HI_PROMPT_TOOL=hi _HI_REMOTE_SESSION=1 doctor_files
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"vimrc (vim)"*"passed over ~/.vimrc - not sent: a session reads no home file"* ]] &&
+    [[ "$out" == *"zellij/layouts/ (zellij)"*"- no file rides"* ]] || {
     printf '%s\n' "$out"
     return 1
   }
@@ -1125,6 +1178,24 @@ function test_a_second_target_is_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time"* ]]
 }
 
+# an ssh option that takes a value takes the next word with it, so that word is
+# never the target; a bare ssh flag takes nothing
+function test_an_ssh_value_option_takes_its_word() {
+  local out rc=0
+  out="$("$_HI_DOCTOR" -p 2222 -J bastion one two 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]] || return 1
+  rc=0
+  out="$("$_HI_DOCTOR" -4 one -A two 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]]
+}
+
+# ...and one that ends the line with no value is refused, not read as a flag
+function test_a_trailing_ssh_value_option_is_refused() {
+  local out rc=0
+  out="$("$_HI_DOCTOR" host -p 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"-p needs a value"* ]]
+}
+
 function test_use_equals_spelling_names_the_arm() {
   local out rc=0
   out="$("$_HI_DOCTOR" --use=frobnicate host 2>&1)" || rc=$?
@@ -1479,6 +1550,7 @@ function run_doctor_tests() {
     _hi_h2 "Testing: doctor_config"
     _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
     _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+    _hi_check "A tagged ssh config says its tags ride" test_config_says_the_ssh_tags_ride
     _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
     _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
     _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
@@ -1486,6 +1558,7 @@ function run_doctor_tests() {
     _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
     _hi_check "The files table walks every tier" test_files_table_walks_every_tier
     _hi_check "...and names an overlay copy alone, not the tree's behind it" test_files_table_hides_the_tree_default_behind_a_copy
+    _hi_check "...and says why a file it found is not sent" test_files_table_names_why_a_found_file_is_not_sent
     _hi_check "The box folds alike rows, drops its header, and writes ~" test_the_box_folds_and_shortens
     _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
     _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
@@ -1547,6 +1620,8 @@ function run_doctor_tests() {
     _hi_check "--help is read anywhere on the line" test_help_is_read_anywhere_on_the_line
     _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
     _hi_check "A second target is refused" test_a_second_target_is_refused
+    _hi_check "An ssh option's value is not the target" test_an_ssh_value_option_takes_its_word
+    _hi_check "A trailing ssh value option is refused" test_a_trailing_ssh_value_option_is_refused
     _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
     _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
     _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused

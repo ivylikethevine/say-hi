@@ -334,6 +334,32 @@ function test_overlay_carries_the_prompt_frameworks_home_files() {
   [ ! -e "$d/oh-my-zsh.zsh-theme" ]
 }
 
+# bash-it's theme is found where bash_it.sh's loader looks for a bare name:
+# the custom themes dir ($BASH_IT_CUSTOM, else ~/.bash_it/custom) over the
+# built-in one; oh-my-bash takes a .theme.bash where there is no .theme.sh
+function test_overlay_carries_the_bash_it_theme_by_loader_order() {
+  local h="$_HI_WORKDIR/bashit-home" dir d f
+  mkdir -p "$h/.bash_it/themes/bobby" "$h/.bash_it/custom/themes/bobby" "$h/elsewhere/themes/bobby" "$h/.oh-my-bash/themes/font"
+  printf 'export BASH_IT_THEME="bobby"\nOSH_THEME=font\n' >"$h/.bashrc"
+  printf 'PS1=stock\n' >"$h/.bash_it/themes/bobby/bobby.theme.bash"
+  printf 'PS1=custom\n' >"$h/.bash_it/custom/themes/bobby/bobby.theme.bash"
+  printf 'PS1=elsewhere\n' >"$h/elsewhere/themes/bobby/bobby.theme.bash"
+  printf 'PS1=font\n' >"$h/.oh-my-bash/themes/font/font.theme.bash"
+  dir="$(_hi_overlay_fixture bashit-none colors)"
+  d="$(_hi_tool_home_unpacked "$dir" HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL="bash-it oh-my-bash")" || return 1
+  [ "$(cat "$d/bash-it.theme.bash" "$d/oh-my-bash.theme.sh")" = $'PS1=custom\nPS1=font' ] ||
+    _hi_because "carried: $(cat "$d"/*.theme.* 2>&1)" || return 1
+  f="$(unset BASH_IT_CUSTOM BASH_IT && HOME="$h" _hi_theme_home bash-it.theme.bash && echo)" || return 1
+  [ "$f" = "$h/.bash_it/custom/themes/bobby/bobby.theme.bash" ] || _hi_because "default custom: [$f]" || return 1
+  f="$(HOME="$h" BASH_IT_CUSTOM="$h/elsewhere" _hi_theme_home bash-it.theme.bash && echo)" || return 1
+  [ "$f" = "$h/elsewhere/themes/bobby/bobby.theme.bash" ] || _hi_because "\$BASH_IT_CUSTOM: [$f]" || return 1
+  rm -f "$h/.bash_it/custom/themes/bobby/bobby.theme.bash"
+  f="$(unset BASH_IT_CUSTOM BASH_IT && HOME="$h" _hi_theme_home bash-it.theme.bash && echo)" || return 1
+  [ "$f" = "$h/.bash_it/themes/bobby/bobby.theme.bash" ] || _hi_because "built-in: [$f]" || return 1
+  rm -f "$h/.bash_it/themes/bobby/bobby.theme.bash"
+  ! (unset BASH_IT_CUSTOM BASH_IT && HOME="$h" _hi_theme_home bash-it.theme.bash >/dev/null)
+}
+
 # Unset, a target is handed every prompt program this machine has, frameworks
 # first - the list the members above are gated on, and what _hi_session_env
 # ships; set, the setting as written; and a target passes its own along
@@ -752,6 +778,52 @@ Host included' ] || {
   ! _HI_REMOTE_SESSION=1 XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags || return 1
   printf 'Host untagged\n' >"$dir/config"
   ! XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags
+}
+
+# _hi_tags_at <dir> - _hi_ssh_tags_file's answer against <dir>/config with
+# <dir>/rt as the runtime dir: the cut's contents, or `rc <n>`
+function _hi_tags_at() {
+  local f="" rc=0
+  XDG_RUNTIME_DIR="$1/rt" _HI_SSH_CONFIG="$1/config" _hi_ssh_tags_file ssh_tags f || rc=$?
+  [ "$rc" = 0 ] && cat "$f" || printf 'rc %s' "$rc"
+}
+
+# the cut is kept in the runtime dir and reused while it is newer than the
+# config; an older one is recut, and a config with an Include is recut every
+# time, since the Included files have mtimes of their own
+function test_ssh_tags_cut_is_reused_until_the_config_is_newer() {
+  local dir="$_HI_WORKDIR/tags-cache" cut
+  mkdir -p "$dir/rt" "$dir/.ssh"
+  printf '# Tags: one\nHost a\n' >"$dir/config"
+  touch -t 202001010000 "$dir/config"
+  [ "$(_hi_tags_at "$dir")" = $'# Tags: one\nHost a' ] || return 1
+  cut="$dir/rt/hi.ssh_tags"
+  printf '# Tags: kept\nHost a\n' >"$cut"
+  touch -t 202001020000 "$cut"
+  [ "$(_hi_tags_at "$dir")" = $'# Tags: kept\nHost a' ] || _hi_because "a newer cut was not reused" || return 1
+  touch -t 202001030000 "$dir/config"
+  [ "$(_hi_tags_at "$dir")" = $'# Tags: one\nHost a' ] || _hi_because "an older cut was not recut" || return 1
+  printf '# Tags: inc\nHost b\n' >"$dir/.ssh/extra"
+  printf 'Include extra\n' >>"$dir/config"
+  touch -t 202001030000 "$dir/config"
+  touch -t 202001040000 "$cut"
+  [ "$(HOME="$dir" _hi_tags_at "$dir")" = $'# Tags: one\nHost a\n# Tags: inc\nHost b' ] ||
+    _hi_because "a config with an Include was not recut"
+}
+
+# a config with no tag makes no cut, and a runtime dir the cut cannot be
+# written into fails cleanly, leaving no temp file behind
+function test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir() {
+  local dir="$_HI_WORKDIR/tags-fail" out
+  mkdir -p "$dir/rt"
+  printf 'Host untagged\n' >"$dir/config"
+  [ "$(_hi_tags_at "$dir")" = "rc 1" ] || return 1
+  rm -f "$dir/rt"/hi.ssh_tags*
+  printf '# Tags: one\nHost a\n' >"$dir/config"
+  chmod 555 "$dir/rt"
+  out="$(_hi_tags_at "$dir" 2>/dev/null)"
+  chmod 755 "$dir/rt"
+  [ "$out" = "rc 1" ] && [ -z "$(find "$dir/rt" -name 'hi.ssh_tags*')" ] || _hi_because "read-only runtime dir: [$out]"
 }
 
 # the rows hi --doctor prints come from the same pass that does the dropping,
@@ -1338,6 +1410,10 @@ function test_can_gzip_reads_the_tar_it_has() {
 
 function run_hi_payload_tests() {
   _hi_workdir hipayloadtest
+  # ~/.aliases and ~/.inputrc join the overlay stream with no variable to
+  # pin them, so the developer's own would answer every case expecting none
+  HOME="$_HI_WORKDIR/bare-home"
+  mkdir -p "$HOME"
   # home's configs ride only with their tools on this machine (_hi_tool_here),
   # and no runner has all of them
   PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
@@ -1383,6 +1459,7 @@ function run_hi_payload_tests() {
   _hi_check "An overlay copy of a prompt framework's file wins" test_overlay_copy_of_a_prompt_framework_file_wins
   _hi_check "oh-my-posh's config rides from \$POSH_CONFIG, the rc, or the overlay" test_oh_my_posh_config_rides_from_home_or_overlay
   _hi_check "The prompt frameworks' home files ride, tide's lines alone" test_overlay_carries_the_prompt_frameworks_home_files
+  _hi_check "bash-it's theme is found in its loader's order" test_overlay_carries_the_bash_it_theme_by_loader_order
   _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
   _hi_check "Home's tool configs do not ride from a target" test_home_configs_do_not_ride_from_a_target
@@ -1391,6 +1468,8 @@ function run_hi_payload_tests() {
   _hi_check "screen and zellij ride like tmux" test_screen_and_zellij_ride_like_tmux
   _hi_check "inputrc rides like the tool configs, its includes dropped" test_inputrc_rides_like_the_tool_configs
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
+  _hi_check "...kept, and recut once the config is newer or Includes" test_ssh_tags_cut_is_reused_until_the_config_is_newer
+  _hi_check_capable lockout "...and failing cleanly with no tag or no writable dir" test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out

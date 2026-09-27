@@ -262,6 +262,30 @@ function test_ssh_hosts_follow_include() {
     _hi_has_row "$out" top ssh && [ ! -e "$h/ran" ]
 }
 
+# `ssh-files` names every file an Include walk reads, the config first and
+# each Included file where ssh reads it - the list hi --add-tag edits
+function test_ssh_files_lists_the_config_and_its_includes_in_order() {
+  local h="$_HI_WORKDIR/files-home" out
+  mkdir -p "$h/.ssh/config.d"
+  printf 'Include config.d/*\nHost top\n' >"$h/.ssh/config"
+  printf 'Host bravo\n' >"$h/.ssh/config.d/02-b"
+  printf 'Host alpha\n' >"$h/.ssh/config.d/01-a"
+  out="$(HOME="$h" sh "$_HI_TARGETS" ssh-files "$h/.ssh/config" | tr '\n' ' ')"
+  [ "$out" = "$h/.ssh/config $h/.ssh/config.d/01-a $h/.ssh/config.d/02-b " ] || _hi_because "ssh-files: [$out]"
+}
+
+# the word after --add-tag is a literal Host from the config or an Include;
+# a pattern names no host to tag
+function test_add_tag_words_are_the_literal_ssh_hosts() {
+  local h="$_HI_WORKDIR/addtag-home" out
+  mkdir -p "$h/.ssh/config.d"
+  printf 'Include config.d/*\nHost top *.example web?\n' >"$h/.ssh/config"
+  printf 'Host alpha # a note\n' >"$h/.ssh/config.d/01-a"
+  out="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" sh "$_HI_TARGETS" words --add-tag | cut -f1 | sort | tr '\n' ' ')"
+  [ "$out" = "alpha top " ] || _hi_because "--add-tag words: [$out]" || return 1
+  [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/none" sh "$_HI_TARGETS" words --add-tag)" ]
+}
+
 function test_ssh_kind_excludes_container_backends() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" ssh)"
@@ -1152,6 +1176,8 @@ function run_targets_tests() {
   _hi_check "Missing config -> empty, exit 0" test_missing_config_is_empty_and_succeeds
   _hi_check "'ssh' argument excludes other kinds" test_ssh_kind_excludes_container_backends
   _hi_check "ssh hosts follow Include" test_ssh_hosts_follow_include
+  _hi_check "ssh-files lists the config and its Includes, in order" test_ssh_files_lists_the_config_and_its_includes_in_order
+  _hi_check "--add-tag completes the literal ssh hosts" test_add_tag_words_are_the_literal_ssh_hosts
 
   _hi_h2 "Testing: container/orchestrator backends"
   _hi_check "docker -> running containers" test_docker_kind_lists_running_containers

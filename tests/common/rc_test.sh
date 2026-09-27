@@ -672,15 +672,35 @@ function _hi_fw_home() {
     printf 'p10k() { :; }\nPROMPT=P10K\n' >"$h/powerlevel10k/powerlevel10k.zsh-theme"
     printf 'git_prompt_info() { print -n G; }\nalias ls=FW-LS\n' >"$h/.oh-my-zsh/lib/git.zsh"
     printf '_omb_module_require() { :; }\nalias ls=FW-LS\n' >"$h/.oh-my-bash/oh-my-bash.sh"
+    # bash_it.sh's loader sources $BASH_IT_THEME as a literal path; it gets no
+    # alias of its own, since hi sources the whole framework, aliases included
+    mkdir -p "$h/.bash_it"
+    printf '_bash-it-log-prefix-by-path() { :; }\n[ -n "$BASH_IT_THEME" ] && . "$BASH_IT_THEME"\n' >"$h/.bash_it/bash_it.sh"
     printf 'function tide; end\n' >"$h/.config/fish/functions/tide.fish"
     printf 'function fish_prompt; echo -n "TIDE:$tide_character_icon:"(count $tide_left_prompt_items):(count $tide_empty):(count (env | string match "tide_*")); end\n' \
       >"$h/.config/fish/functions/fish_prompt.fish"
     printf 'PROMPT="$PROMPT+CFG"\n' >"$c/p10k.zsh"
     printf 'PROMPT="OMZ-$(git_prompt_info)"\n' >"$c/oh-my-zsh.zsh-theme"
     printf 'PS1=OMB\n' >"$c/oh-my-bash.theme.sh"
+    printf 'PS1=BASHIT\n' >"$c/bash-it.theme.bash"
     printf 'SETUVAR tide_character_icon:\\u276f\nSETUVAR tide_left_prompt_items:pwd\\x1egit\nSETUVAR tide_empty:\\x1d\n' >"$c/tide.vars"
   }
   printf '%s' "$h"
+}
+
+# bash-it loaded by the rc already has a theme, and that theme's
+# prompt_command precmd entry would redraw over the home theme: it is dropped,
+# a hook of anyone else's is kept, and the home theme is sourced on top
+function test_bash_it_from_the_rc_hands_over_its_precmd() {
+  local h out
+  h="$(_hi_fw_home)"
+  out="$(_hi_rc_shell dumb bash '_bash-it-log-prefix-by-path() { :; }
+    prompt_command() { PS1=RC-BASHIT; }; other_hook() { :; }
+    precmd_functions=(prompt_command other_hook); PS1=RC-BASHIT
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>&1
+    printf "%s|%s" "$PS1" "${precmd_functions[*]}"' \
+    HOME="$h" _HI_CONFIG_DIR="$h/cfg" _HI_PROMPT_TOOL=bash-it _HI_REMOTE_SESSION=1)"
+  [ "$out" = "BASHIT|other_hook" ] || _hi_because "bash drew: [$out]"
 }
 
 # <shell> <before-rc script> - a prompt hi has no hand-over for (a framework's
@@ -1511,6 +1531,11 @@ function run_rc_tests() {
     test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
   _hi_check "[bash] ...loaded by the rc, its prompt stays at home" \
     test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=oh-my-bash
+  _hi_check "[bash] bash-it, loaded by hi, draws the home theme on a target" \
+    test_prompt_program_draws bash 'BASHIT|*' : _HI_PROMPT_TOOL=bash-it _HI_REMOTE_SESSION=1
+  _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
+    test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=bash-it
+  _hi_check "[bash] ...loaded by the rc, its precmd hands over to the home theme" test_bash_it_from_the_rc_hands_over_its_precmd
   _hi_check "[bash] a list's first program that fits the shell wins" \
     test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL="tide powerlevel10k oh-my-bash" _HI_REMOTE_SESSION=1
   _hi_check "[bash] a name hi does not know keeps hi's prompt" \
