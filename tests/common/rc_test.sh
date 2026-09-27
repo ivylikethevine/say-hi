@@ -686,22 +686,62 @@ function _hi_fw_home() {
 # <shell> <before-rc script> - a prompt hi has no hand-over for (a framework's
 # marker, or fish_prompt in the user's own functions/) stays the user's, and
 # `hi` in $_HI_PROMPT_TOOL takes it anyway. powerlevel10k in the list fits no
-# case here, so the list runs out rather than naming hi.
+# case here, so the list runs out rather than naming hi. The $PS1 under a
+# marker is the shell's own default, so only the marker can be what keeps it.
 function test_foreign_prompt_stays_unless_hi_named() {
-  local shell="$1" pre="$2" script x="$_HI_WORKDIR/ownprompt" theirs mine
+  local shell="$1" pre="$2" script x="$_HI_WORKDIR/ownprompt" theirs mine own=MINE
   mkdir -p "$x/fish/functions"
   printf 'function fish_prompt; echo -n MINE; end\n' >"$x/fish/functions/fish_prompt.fish"
   case "$shell" in
-  bash) script="$pre"'; PS1=MINE; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"' ;;
-  zsh) script="$pre"'; PS1=MINE; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"' ;;
+  bash)
+    own='\s-\v\$ '
+    script="$pre"'; PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"'
+    ;;
+  zsh)
+    own='%m%# '
+    script="$pre"'; PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"'
+    ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish >/dev/null 2>&1; fish_prompt' ;;
   esac
-  theirs="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k XDG_CONFIG_HOME="$x")"
-  mine="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=hi XDG_CONFIG_HOME="$x")"
-  [[ "$theirs" == *MINE* && "$mine" != *MINE* ]] || {
+  theirs="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k XDG_CONFIG_HOME="$x" RC_PS1="$own")"
+  mine="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=hi XDG_CONFIG_HOME="$x" RC_PS1="$own")"
+  [[ "$theirs" == "$own" && "$mine" != "$own" ]] || {
     _hi_cecho " | $shell drew [$theirs] unnamed, [$mine] with hi named" "$RED"
     return 1
   }
+}
+
+# <shell> <stays|drawn> <PS1> [NAME=VALUE...] - the $PS1 the rc left before
+# hi's: the user's own stays at home, and the shell's or a distro's default,
+# or any on a target, is drawn over (GLOSSARY: HI.32)
+function test_rc_prompt() {
+  local shell="$1" want="$2" ps1="$3" script out
+  shift 3
+  case "$shell" in
+  bash) script='PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"' ;;
+  zsh) script='PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"' ;;
+  esac
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k RC_PS1="$ps1" "$@")"
+  case "$want" in
+  stays) [ "$out" = "$ps1" ] ;;
+  *) [[ "$out" != "$ps1" && "$out" == *__hi_env_info* ]] ;;
+  esac || {
+    _hi_cecho " | $shell, wanting $want, drew [$out] over [$ps1]" "$RED"
+    return 1
+  }
+}
+
+# hi's own prompt from an earlier load is nobody's hand-written one: the rc
+# sourced again draws again, so an upgraded tree's prompt code is the one
+# running (GLOSSARY: HI.60)
+function test_rc_prompt_redraws_on_a_re_source() {
+  local shell="$1" script out
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "$PROMPT_COMMAND" >/dev/null; unset -f __hi_ps1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; declare -F __hi_ps1' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; unfunction __hi_git_precmd; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "${+functions[__hi_git_precmd]}"' ;;
+  esac
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k)"
+  [ "$out" = __hi_ps1 ] || [ "$out" = 1 ]
 }
 
 # <shell> <want glob> <before-rc script> [NAME=VALUE...] - the prompt drawn
@@ -1527,6 +1567,21 @@ function run_rc_tests() {
     test_foreign_prompt_stays_unless_hi_named zsh 'SPACESHIP_VERSION=4; prompt_pure_setup() { :; }'
   _hi_check_requires fish "[fish] a fish_prompt of the user's own stays, unless hi is named" \
     test_foreign_prompt_stays_unless_hi_named fish :
+  _hi_check "[bash] a PS1 of the user's own stays at home" test_rc_prompt bash stays '\[\e[1;32m\]\u\[\e[0m\] \w \$ '
+  _hi_check "[bash] ...unless hi is named" test_rc_prompt bash drawn '\[\e[1;32m\]\u\[\e[0m\] \w \$ ' _HI_PROMPT_TOOL=hi
+  _hi_check "[bash] ...and a target's rc is not asked" test_rc_prompt bash drawn '\[\e[1;32m\]\u\[\e[0m\] \w \$ ' _HI_REMOTE_SESSION=1
+  _hi_check "[bash] bash's own default is drawn over" test_rc_prompt bash drawn '\s-\v\$ '
+  _hi_check "[bash] ...and Debian's, behind its xterm title" test_rc_prompt bash drawn \
+    '\[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+  _hi_check "[bash] ...and its plain one" test_rc_prompt bash drawn '${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+  _hi_check "[bash] ...and Fedora's and Arch's" test_rc_prompt bash drawn '[\u@\h \W]\$ '
+  _hi_check "[bash] the rc sourced again draws over hi's own" test_rc_prompt_redraws_on_a_re_source bash
+  _hi_check_requires zsh "[zsh] a PROMPT of the user's own stays at home" test_rc_prompt zsh stays '%F{green}%n%f %~ %# '
+  _hi_check_requires zsh "[zsh] ...unless hi is named" test_rc_prompt zsh drawn '%F{green}%n%f %~ %# ' _HI_PROMPT_TOOL=hi
+  _hi_check_requires zsh "[zsh] ...and a target's rc is not asked" test_rc_prompt zsh drawn '%F{green}%n%f %~ %# ' _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] zsh's own default is drawn over" test_rc_prompt zsh drawn '%m%# '
+  _hi_check_requires zsh "[zsh] ...and Fedora's" test_rc_prompt zsh drawn '[%n@%m]%~%# '
+  _hi_check_requires zsh "[zsh] the rc sourced again draws over hi's own" test_rc_prompt_redraws_on_a_re_source zsh
   _hi_check "[bash] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw bash
   _hi_check_requires zsh "[zsh] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw zsh
   _hi_check_requires fish "[fish] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw fish

@@ -449,6 +449,18 @@ tide's `tide_*` universal variables exported as globals - exported because
 tide renders in a background `fish -c` that must see them over the target's
 own. Absent every program, the prompt is hi's, silently.
 
+A prompt with no hand-over stays the user's where hi can tell one is
+drawing: a framework's marker (liquidprompt, bash-git-prompt, spaceship,
+pure, a promptinit theme), a `fish_prompt` that is not fish's own, and - at
+home only - a `$PS1` that `_hi_ps1_stock` does not know. That predicate
+(`common/bash.sh` and `common/zsh.zsh`, one list each) answers yes to an
+unset prompt, to hi's own from an earlier load (so a re-sourced rc redraws,
+HI.60), and to each default a shell or a distro's stock rc leaves; a default
+missing from it costs that distro's users hi's prompt at home until it is
+added, and `hi` in the list is their way back. It is never asked on a
+target, whose rc ran before hi's: the list cannot cover every box a session
+reaches, and an unset setting there stays hi's prompt.
+
 ## HI.33 derived tree location
 
 `$_HI_HOME` is the directory _containing_ `say-hi`. Every file that needs the

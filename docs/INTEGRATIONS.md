@@ -72,7 +72,14 @@ for stays yours rather than being drawn over: liquidprompt or bash-git-prompt
 in bash; spaceship, pure, or a promptinit theme (prezto's included) in zsh;
 and in fish any `fish_prompt` that is not fish's own - your `functions/`
 directory's, a theme such as pure, hydro, or bobthefish, or one your config
-defines. `hi` in `_HI_PROMPT_TOOL` takes the prompt anyway. Under powerlevel10k's instant
+defines. A `PS1` or `PROMPT` you wrote in your rc stays as well, in bash and
+zsh at home: hi draws over the ones nobody wrote - the shell's built-in
+default and the one a stock rc sets on Debian and Ubuntu, Raspberry Pi OS,
+Kali, Fedora and the RHEL family, Arch, Alpine, openSUSE, Gentoo, macOS,
+Git Bash, MSYS2, Cygwin, and Termux - and leaves any other alone. A target's
+own rc is not asked, so a session's prompt is hi's whatever the box sets; a
+prompt of yours for targets goes in the overlay's `bashrc` or `zshrc` with
+`_HI_DISABLE_PROMPT=1`. `hi` in `_HI_PROMPT_TOOL` takes the prompt anyway. Under powerlevel10k's instant
 prompt, hi calls `p10k clear-instant-prompt` before drawing the header, the
 call p10k provides for an rc that prints, so it does not warn about console
 output on every start. The list is worked out on this
