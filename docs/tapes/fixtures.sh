@@ -385,12 +385,13 @@ function demo_overlay() { # <name> - body on stdin
 # over at home when its prompt is on. fish has no string to seed; its rc puts
 # fish's own fish_prompt back.
 function demo_stock_ps1() {
-  case "$1:$2" in
-  bash:ubuntu) printf '%s' '\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ ' ;;
-  bash:arch) printf '%s' '[\u@\h \W]\$ ' ;;
-  zsh:macos) printf '%s' '%n@%m %1~ %# ' ;;
-  zsh:fedora) printf '%s' '[%n@%m]%~%# ' ;;
-  fish:*) ;;
+  # `/` between the two: `bash:<word>` reads as an image tag to drift's pin check
+  case "$1/$2" in
+  bash/ubuntu) printf '%s' '\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ ' ;;
+  bash/arch) printf '%s' '[\u@\h \W]\$ ' ;;
+  zsh/macos) printf '%s' '%n@%m %1~ %# ' ;;
+  zsh/fedora) printf '%s' '[%n@%m]%~%# ' ;;
+  fish/*) ;;
   *)
     echo "no stock prompt for $1 on ${2:-an unnamed os}" >&2
     return 1
