@@ -374,16 +374,7 @@ the header's cells are
        zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets hi's
        prompt.
 
-4. [ ] **A dropped nano syntax include falls back to the target's** —
-       shipped: the stripper keeps a dropped `*.nanorc` include's comment,
-       and `load.sh` adds `include "/usr/share/nano/*.nanorc"` where the
-       target has that set, rewriting it each session so a next hop without
-       one loses it; the framework suite's `tmux` case asserts the line on a
-       Debian target, and that nano there paints a shell script in a color
-       under that `nanorc` alone. What is left is the run. **Ticks when:**
-       that case is green in an `e2e` run.
-
-5. [ ] **Every `eval` is counted, then fewer** — shipped: `drift` holds
+4. [ ] **Every `eval` is counted, then fewer** — shipped: `drift` holds
        every `eval` in the payload and `scripts/` to a row of
        `tests/lint/eval_roster` that says what it evaluates, and each file's
        count of its kin (a `source` of a path in a variable, a shell's `-c`,
