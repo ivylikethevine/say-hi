@@ -216,7 +216,7 @@ function test_overlay_carries_the_home_tool_configs() {
   _hi_tool_home_fixture
   dir="$(_hi_overlay_fixture tool-none colors)"
   d="$(_hi_tool_home_unpacked "$dir")" || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "bat.conf colors starship.toml theme.yml " ] &&
+  [ "$(cd "$d" && printf '%s ' *)" = "bat.conf colors starship.toml theme.yml wiring.sh " ] &&
     [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "home"\nfilekinds: home\n--theme=home')" ]
 }
 
@@ -292,7 +292,8 @@ function test_overlay_copy_of_a_prompt_framework_file_wins() {
 
 # oh-my-posh has no default file: home's is the one $POSH_CONFIG names, else
 # the one an rc's `oh-my-posh init ... --config` names, riding under the
-# member its extension picks. Any overlay copy outranks both, and an
+# member its extension picks, its wiring.sh line beside it (GLOSSARY: HI.62).
+# Any overlay copy outranks both, and an
 # `extends` naming a local file goes out emptied - a URL or a theme name
 # resolves on the target and stays.
 function test_oh_my_posh_config_rides_from_home_or_overlay() {
@@ -304,20 +305,20 @@ function test_oh_my_posh_config_rides_from_home_or_overlay() {
   dir="$(_hi_overlay_fixture omp-none)"
   set -- HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL=oh-my-posh
   d="$(_hi_tool_home_unpacked "$dir" "$@" POSH_CONFIG="$h/mine.omp.json")" || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.json " ] &&
+  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.json wiring.sh " ] &&
     [ "$(cat "$d/oh-my-posh.json")" = "$(printf '{\n  "extends": "",\n  "version": 3\n}')" ] || {
     _hi_cecho " | from \$POSH_CONFIG: [$(cd "$d" && printf '%s ' *)] $(cat "$d"/* 2>&1)" "$RED"
     return 1
   }
   d="$(_hi_tool_home_unpacked "$dir" "$@")" || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.yaml " ] &&
+  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.yaml wiring.sh " ] &&
     [ "$(cat "$d/oh-my-posh.yaml")" = "$(cat "$h/rc.omp.yaml")" ] || {
     _hi_cecho " | from the rc: [$(cd "$d" && printf '%s ' *)]" "$RED"
     return 1
   }
   printf 'version = 3\n' >"$dir/oh-my-posh.toml"
   d="$(_hi_tool_home_unpacked "$dir" "$@" POSH_CONFIG="$h/mine.omp.json")" || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.toml " ]
+  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.toml wiring.sh " ]
 }
 
 # The prompt frameworks' home half, each only with its name in the list:
