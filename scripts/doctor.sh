@@ -215,11 +215,8 @@ function _hi_doc_tilde() {
 # program is the first name in the member's tool column of hi.sh's
 # $_HI_OVERLAY_TABLE.
 function _hi_doc_member() {
-  local _hi_dm_t=""
-  _hi_overlay_tools "$1" _hi_dm_t || _hi_dm_t=""
-  _hi_dm_t="${_hi_dm_t#\(}"
-  _hi_dm_t="${_hi_dm_t%\)}"
-  _hi_dm_t="${_hi_dm_t%% *}"
+  local _hi_dm_t
+  _hi_tool_label "$1" _hi_dm_t || true
   printf -v "$2" '%s' "$1${_hi_dm_t:+ ($_hi_dm_t)}"
 }
 
@@ -549,17 +546,16 @@ function doctor_config() {
     # a member with no tree default has nothing to report until it exists
     [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/config/$f" ] || continue
     _hi_doc_member "$f" label
-    if _hi_plugin_off "$f" late; then
-      doctor_row "$label" "not sent - switched off ($late), so targets keep their own"
-    elif [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
-      # a prompt program's copy with the program out of the list, or an
-      # oh-my-posh format another overlay copy already stands in for
-      doctor_row "$label" "not shipped - its prompt program is not one a target is handed (_HI_PROMPT_TOOL)" warn
+    if [ -z "$t" ] && _hi_unsent_why "$f" late; then
+      # a finding where the overlay holds a copy that was not switched off: a
+      # prompt program's with the program out of the list, or an oh-my-posh
+      # format another overlay copy already stands in for
+      v=info
+      [ ! -f "$_HI_CONFIG_DIR/$f" ] || [ "${late#switched}" != "$late" ] || v=warn
+      doctor_row "$label" "not sent - $late, so targets keep their own" "$v"
     elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # the section says what rides; the row names which file
       doctor_row "$label" "$t"
-    elif [ -z "$t" ] && ! _hi_tool_here "$f"; then
-      doctor_row "$label" "not sent - its tool is not installed here, so targets keep their own"
     elif [ -z "$t" ]; then
       doctor_row "$label" "tree default"
     elif [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/config/$f"; then
@@ -672,28 +668,17 @@ function doctor_settings_values() {
 # stays a short table.
 function doctor_files() {
   doctor_section files "The files hi looks for"
-  local row m h used eff p state text label none="" found tilde='~'
+  local row m used eff p state text label none="" found tilde='~'
   local -a locs _hi_paths=()
   _hi_carry_load
   for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
-    m="${row%%|*}" h="${row##*|}"
+    m="${row%%|*}"
     # settings.sh and plugins.d have rows of their own in the overlay section
     case "$m" in settings.sh | plugins.d) continue ;; esac
     used="" eff="" text="" found=""
     _hi_overlay_src "$m" used || used=""
-    locs=("$_HI_CONFIG_DIR/$m")
-    case "$h" in
-    -) ;;
-    @*) p="" && "${h#@}" "$m" p && locs+=("$p") || true ;;
-    =*)
-      _hi_path_list "${h#=}"
-      locs+=(${_hi_paths[@]+"${_hi_paths[@]}"})
-      ;;
-    *)
-      eval "locs+=($h)"
-      case "$m" in */*) for p in "${!locs[@]}"; do [ "$p" = 0 ] || locs[p]="${locs[p]}/${m#*/}"; done ;; esac
-      ;;
-    esac
+    _hi_overlay_places "$m" "$row"
+    locs=("$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"})
     case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
     eff="$used"
     [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
@@ -737,14 +722,11 @@ function doctor_files() {
     esac
     if [ -n "$eff" ]; then
       doctor_row "$label" "$text" ok
-    elif _hi_plugin_off "$m" p; then
-      doctor_row "$label" "$text - not sent: switched off ($p)"
-    elif _hi_prompt_row "$m" >/dev/null && ! _hi_prompt_handed "$m"; then
-      doctor_row "$label" "$text - not sent: its prompt program is not one a target is handed"
-    elif [ "$_HI_REMOTE_SESSION" = 1 ]; then
-      doctor_row "$label" "$text - not sent: a session reads no home file"
     else
-      doctor_row "$label" "$text - not sent: its tool is not installed here"
+      _hi_unsent_why "$m" p || p="not the file in force here"
+      # inside a session no home file is sent, whatever is installed
+      case "$_HI_REMOTE_SESSION:$p" in 1:its\ tool* | 1:not\ the*) p="a session reads no home file" ;; esac
+      doctor_row "$label" "$text - not sent: $p"
     fi
   done
   [ -z "$none" ] || doctor_row "none anywhere" "$none"

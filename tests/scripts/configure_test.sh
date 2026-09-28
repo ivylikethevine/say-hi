@@ -1049,9 +1049,7 @@ function test_editors_preview_names_every_override() {
 function test_editor_preview_matches_its_alias() {
   local tool="$1" member="$2" bin="$3" from_alias from_preview path dir="$_HI_WORKDIR/preview-$1"
   mkdir -p "$dir"
-  # shellcheck disable=SC2016 # the child bash expands its own script
-  bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w "$m" && printf %s "$w"' \
-    _ "$member" >"$dir/wiring.sh" || return 1
+  _hi_wiring_for "$member" >"$dir/wiring.sh" || return 1
   path="$(_hi_fake_path "preview-bin-$bin" "$bin"):$PATH"
   # shellcheck disable=SC2016 # the child bash expands its own script
   from_alias="$(PATH="$path" _HI_DISABLE_EDITORS=0 _HI_DISABLE_VIM=0 _HI_DISABLE_HELIX=0 bash -c '. "$1" && alias "$2"' _ "$dir/wiring.sh" "$tool" 2>/dev/null)"

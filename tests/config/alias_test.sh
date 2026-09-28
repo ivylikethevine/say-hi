@@ -174,7 +174,7 @@ function _hi_test_nvim_stays_in_tree() {
   mkdir -p "$base/home" "$base/tree" "$base/cfg"
   printf '%s\n' 'vim.loader.enable()' 'vim.opt.undofile = true' >"$base/cfg/init.lua"
   printf 'a\n' >"$base/f.txt"
-  bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w init.lua && printf %s "$w"' >"$base/cfg/wiring.sh" ||
+  _hi_wiring_for init.lua >"$base/cfg/wiring.sh" ||
     _hi_because "[$shell] no wiring.sh for init.lua" || return 1
   if [ "$shell" = fish ]; then
     printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' 'nvim --headless -c "normal! ix" -c wq $F' >"$base/t"

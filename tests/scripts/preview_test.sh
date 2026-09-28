@@ -304,14 +304,29 @@ function test_group_preview_width_sums_its_hosts() {
 _HI_USERS_OUT=""
 _HI_HOSTS_OUT=""
 
+# _hi_shared_out <var> <render...> - fills <var> from the render unless a case
+# before this one did. The case that renders first can fail and pass its
+# traced rerun (FLAKY), which runs in a subshell and takes the assignment with
+# it, so every case that reads the variable asks for it this way.
+function _hi_shared_out() {
+  local _hi_so
+  [ -z "${!1}" ] || return 0
+  _hi_so="$("${@:2}")" || return 1
+  printf -v "$1" '%s' "$_hi_so"
+}
+function _hi_users_out() { _HI_WHOAMI_CACHE=defaultuser _hi_shared_out _HI_USERS_OUT _hi_print_users_table; }
+function _hi_hosts_out() { _hi_shared_out _HI_HOSTS_OUT _hi_render_hosts_table; }
+function _hi_colors_out() { _hi_shared_out _HI_COLORS_OUT _hi_render_colors; }
+
 function test_users_table_renders_override_rows() {
-  _HI_USERS_OUT="$(_HI_WHOAMI_CACHE=defaultuser _hi_print_users_table)" || return 1
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *alice* && "$_HI_USERS_OUT" == *brmagenta* && "$_HI_USERS_OUT" == *override:username* ]]
 }
 
 # a user with no pin still renders in its hashed color, so the table lists it
 # and names the hash as the reason
 function test_users_table_lists_hashed_users() {
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *defaultuser* ]] &&
     _hi_strip_ansi "$_HI_USERS_OUT" | grep -q 'defaultuser.*| hash'
 }
@@ -319,10 +334,12 @@ function test_users_table_lists_hashed_users() {
 # LOCALUSER is a placeholder, not a login name, so its pin renders as its own
 # example row rather than as a user
 function test_users_table_shows_the_localuser_pin() {
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *LOCALUSER* && "$_HI_USERS_OUT" == *local:username* ]]
 }
 
 function test_users_table_shows_each_usertag() {
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *usertag:ops* && "$_HI_USERS_OUT" == *brred* ]]
 }
 
@@ -342,7 +359,7 @@ function _hi_render_hosts_table() {
 # tagged and a-considerably-longer-hostname share a tag and a color, so they
 # collapse into one tag:work group row - grouping is the table's whole point
 function test_hosts_table_groups_identical_renders() {
-  _HI_HOSTS_OUT="$(_hi_render_hosts_table)" || return 1
+  _hi_hosts_out || return 1
   [[ "$_HI_HOSTS_OUT" == *tagged* && "$_HI_HOSTS_OUT" == *a-considerably-longer-hostname* ]] || return 1
   [ "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'tag:work')" -eq 1 ]
 }
@@ -355,6 +372,7 @@ function test_hosts_table_groups_identical_renders() {
 # did but the names came out in another order.
 function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
   local rows found
+  _hi_hosts_out || return 1
   rows="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'pattern:pat-')"
   found="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')"
   [ "$rows" -eq 1 ] ||
@@ -457,7 +475,7 @@ function _hi_render_colors() {
 _HI_COLORS_OUT=""
 
 function test_tables_render_without_error() {
-  _HI_COLORS_OUT="$(_hi_render_colors)" || return 1
+  _hi_colors_out || return 1
   [[ "$_HI_COLORS_OUT" == *pinned* && "$_HI_COLORS_OUT" == *tagged* && "$_HI_COLORS_OUT" == *alice* ]]
 }
 
@@ -475,6 +493,7 @@ function test_tables_render_under_a_scheme() {
 # connect, so every ssh-config host gets a row: the point of the hosts table
 function test_tables_list_every_ssh_config_host() {
   local out host
+  _hi_colors_out || return 1
   out="$(_hi_strip_ansi "$_HI_COLORS_OUT")"
   for host in plain pinned tagged othertag pat-1 a-considerably-longer-hostname; do
     [[ "$out" == *"$host"* ]] || _hi_because "no row names $host" || return 1
@@ -484,6 +503,7 @@ function test_tables_list_every_ssh_config_host() {
 # the hashed rows name the hash as their rule and land on a palette color
 function test_tables_label_hashed_hosts_hash() {
   local row color
+  _hi_colors_out || return 1
   row="$(_hi_strip_ansi "$_HI_COLORS_OUT" | grep '| plain ')" || return 1
   [[ "$row" == *'| hash '* ]] || _hi_because "the plain row was: $row" || return 1
   color="$(_hi_resolve_color hostname plain)"
@@ -493,12 +513,14 @@ function test_tables_label_hashed_hosts_hash() {
 # the tag column has to name the tag that actually matched, since that's the
 # line a user reads to work out which config/colors entry to edit
 function test_tables_name_the_matching_tag() {
+  _hi_colors_out || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'tag:work'
 }
 
 # a pattern pin gets an example row (its glob never appears in targets.sh's
 # list), and a real host it covers joins that same group
 function test_tables_show_a_pattern_pin_example_row() {
+  _hi_colors_out || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pattern:pat-\*' || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pat-1'
 }
@@ -507,8 +529,13 @@ function test_tables_show_a_pattern_pin_example_row() {
 # rows of their own, each naming its source, since neither is a real user
 # targets.sh would list
 function test_tables_list_the_local_user_and_usertag_pins() {
+  _hi_colors_out || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'LOCALUSER.*local:username' || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'ops.*usertag:ops'
+}
+
+function test_tables_are_rectangular() {
+  _hi_colors_out && _hi_table_is_rectangular "$_HI_COLORS_OUT"
 }
 
 # The same render off the checkout's own config/colors (LOCALUSER and a
@@ -1092,7 +1119,7 @@ EOF
   # by _hi_group_preview_width) and HOST (unwrappably long names) both got
   # wrong. The packages half asserts the same invariant through literally the
   # same code, so the two cannot segment tables differently.
-  _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_COLORS_OUT"
+  _hi_check "Every line of a table is the same width" test_tables_are_rectangular
 
   _hi_h2 "Testing: colors - --help"
   _hi_check "--help prints usage and exits 0" test_help_prints_usage_and_exits_zero

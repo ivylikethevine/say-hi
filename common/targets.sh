@@ -170,7 +170,7 @@ color_types() {
 # each line, the spaces around it dropped
 carry_members() {
   [ -f "${_HI_CONFIG_DIR:-}/carry" ] || return 0
-  sed -n 's/^[ ]*\([A-Za-z0-9][A-Za-z0-9_.-]*\)[ ]*|.*/\1/p' "$_HI_CONFIG_DIR/carry"
+  sed -n "s/^[ ]*\([A-Za-z0-9][A-Za-z0-9_.-]*\)[ ]*|.*/\1$(printf '\t')a line of your carry file/p" "$_HI_CONFIG_DIR/carry"
 }
 
 if [ "$kind" = words ]; then
@@ -227,7 +227,7 @@ if [ "$kind" = words ]; then
         if (!seen[name]++) printf "%s\ta plugin\n", name
       }
     ' "$hi_tree/hi.sh"
-    carry_members | while IFS= read -r line; do printf '%s\ta line of your carry file\n' "$line"; done
+    carry_members
     ;;
   --plugin-on)
     # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line
@@ -242,7 +242,7 @@ if [ "$kind" = words ]; then
     # target names either
     ;;
   --remove-plugin)
-    carry_members | while IFS= read -r line; do printf '%s\ta line of your carry file\n' "$line"; done
+    carry_members
     ;;
   --unset-color)
     color_types

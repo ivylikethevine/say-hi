@@ -124,6 +124,18 @@ _HI_OVERLAY_TABLE=(
   'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
   'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
 )
+
+# _hi_row_col <row> <column> <outvar> - one column of a row, by the name the
+# table's comment gives it
+function _hi_row_col() {
+  local _hi_rc_r="$1" _hi_rc_n
+  for _hi_rc_n in member variable tree tool group wire off home; do
+    [ "$_hi_rc_n" != "$2" ] || break
+    _hi_rc_r="${_hi_rc_r#*|}"
+  done
+  printf -v "$3" '%s' "${_hi_rc_r%%|*}"
+}
+
 # the members alone, and those with a tree default the overlay's copy
 # replaces wholesale on a target (aliases.sh is not one - the overlay's is
 # sourced on top of the tree's); _hi_payload_excl reads the second
@@ -133,8 +145,8 @@ _HI_OFF_TOGGLES=" "
 for _hi_r in "${_HI_OVERLAY_TABLE[@]}"; do
   _HI_OVERLAY_FILES+=("${_hi_r%%|*}")
   case "$_hi_r" in *'|tree|'*) _HI_OVERLAY_SHADOWS="$_HI_OVERLAY_SHADOWS${_hi_r%%|*} " ;; esac
-  _hi_r="${_hi_r#*|*|*|*|*|*|}"
-  for _hi_w in ${_hi_r%%|*}; do
+  _hi_row_col "$_hi_r" off _hi_r
+  for _hi_w in $_hi_r; do
     case "$_hi_w$_HI_OFF_TOGGLES" in -* | *" ${_hi_w#?} "*) ;; *) _HI_OFF_TOGGLES="$_HI_OFF_TOGGLES${_hi_w#?} " ;; esac
   done
 done
@@ -342,13 +354,22 @@ function _hi_rc_last_match() {
   [ -n "$_hi_rl_v" ] && printf -v "$_hi_rl_out" '%s' "$_hi_rl_v"
 }
 
-# _hi_rc_theme <NAME> <rc> [outvar] - $NAME when exported, else the last
-# NAME= line of <rc> with its quotes dropped: a framework's theme.
+# _hi_rc_value <NAME> <outvar> <file...> - what the last NAME= line of
+# <file...> sets, its quotes dropped; 1 when none does, or it sets nothing
+function _hi_rc_value() {
+  local _hi_rv=""
+  _hi_rc_last_match "^[[:space:]]*(export[[:space:]]+)?$1=(\"[^\"]*\"|'[^']*'|[^[:space:]#]*)" _hi_rv "${@:3}" || return 1
+  _hi_rv="${_hi_rv#[\"\']}"
+  _hi_rv="${_hi_rv%[\"\']}"
+  [ -n "$_hi_rv" ] && printf -v "$2" '%s' "$_hi_rv"
+}
+
+# _hi_rc_theme <NAME> <rc> [outvar] - $NAME when exported, else what <rc>
+# sets it to: a framework's theme.
 function _hi_rc_theme() {
   local _hi_rt_v="${!1:-}"
-  [ -n "$_hi_rt_v" ] ||
-    _hi_rc_last_match "^[[:space:]]*(export[[:space:]]+)?$1=[\"']?([^\"'[:space:]#]*)" _hi_rt_v "$2"
-  [ -n "$_hi_rt_v" ] && _hi_out "${3:-}" "$_hi_rt_v"
+  [ -n "$_hi_rt_v" ] || _hi_rc_value "$1" _hi_rt_v "$2" || return 1
+  _hi_out "${3:-}" "$_hi_rt_v"
 }
 
 # _hi_posh_rc_config [outvar] - the local file an rc's `oh-my-posh init ...
@@ -545,36 +566,41 @@ function _hi_overlay_src() {
 # of its candidates that exists. A directory entry answers with the directory.
 function _hi_overlay_home() {
   local _hi_oh_r _hi_oh_v _hi_oh_c
-  local -a _hi_oh_cs=() _hi_paths=()
+  local -a _hi_paths=()
   [ "$_HI_REMOTE_SESSION" != 1 ] && _hi_overlay_row "$1" _hi_oh_r && _hi_tool_here "$1" "$_hi_oh_r" || return 1
-  _hi_oh_v="${_hi_oh_r#*|}" _hi_oh_c="${_hi_oh_r##*|}"
-  _hi_oh_v="${_hi_oh_v%%|*}"
-  case "$_hi_oh_c" in
-  -) return 1 ;;
-  @*) "${_hi_oh_c#@}" "$1" "${2:-}" && return 0 || return 1 ;;
-  esac
-  if [ "$_hi_oh_v" != - ] && [ "${1#*/}" = "$1" ]; then
-    _hi_oh_c="${!_hi_oh_v:-}"
-    [ -f "$_hi_oh_c" ] && [ "$_hi_oh_c" != "$_HI_CONFIG_DIR/$1" ] || return 1
-    _hi_out "${2:-}" "$_hi_oh_c"
-    return 0
+  _hi_row_col "$_hi_oh_r" variable _hi_oh_v
+  if [ "${_hi_oh_r##*|}" != - ] && [ "$_hi_oh_v" != - ] && [ "${1#*/}" = "$1" ]; then
+    [ "${!_hi_oh_v:-}" = "$_HI_CONFIG_DIR/$1" ] || _hi_paths=("${!_hi_oh_v:-}")
+  else
+    _hi_overlay_places "$1" "$_hi_oh_r"
   fi
-  case "$_hi_oh_c" in
-  =*)
-    _hi_path_list "${_hi_oh_c#=}"
-    _hi_oh_cs=(${_hi_paths[@]+"${_hi_paths[@]}"})
-    ;;
-  *) eval "_hi_oh_cs=(${_hi_oh_r##*|})" ;;
-  esac
-  for _hi_oh_c in ${_hi_oh_cs[@]+"${_hi_oh_cs[@]}"}; do
-    [ -n "$_hi_oh_c" ] || continue
-    case "${_hi_oh_r%%|*}" in */*) _hi_oh_c="$_hi_oh_c/${1#*/}" ;; esac
+  for _hi_oh_c in ${_hi_paths[@]+"${_hi_paths[@]}"}; do
     if [ -f "$_hi_oh_c" ] || { [ -z "${1##*/}" ] && [ -d "$_hi_oh_c" ]; }; then
       _hi_out "${2:-}" "$_hi_oh_c"
       return 0
     fi
   done
   return 1
+}
+
+# _hi_overlay_places <member> <row> - the row's home candidates into the
+# caller's $_hi_paths, best first and an unset one empty, a member under a /
+# as its file in each: the table's own are constants, and eval'd
+function _hi_overlay_places() {
+  local _hi_op_h="${2##*|}" _hi_op_c="" _hi_op_i
+  _hi_paths=()
+  case "$_hi_op_h" in
+  -) ;;
+  @*) ! "${_hi_op_h#@}" "$1" _hi_op_c || _hi_paths=("$_hi_op_c") ;;
+  =*) _hi_path_list "${_hi_op_h#=}" ;;
+  *) eval "_hi_paths=($_hi_op_h)" ;;
+  esac
+  case "${2%%|*}" in */*)
+    for _hi_op_i in "${!_hi_paths[@]}"; do
+      _hi_paths[_hi_op_i]="${_hi_paths[_hi_op_i]:+${_hi_paths[_hi_op_i]}/${1#*/}}"
+    done
+    ;;
+  esac
 }
 
 # _hi_ssh_tags_file <member> [outvar] - the tag map a relayed hop colors by
@@ -612,46 +638,42 @@ function _hi_ssh_tags_file() {
 function _hi_overlay_tools() {
   local _hi_tc="${3:-}"
   [ -n "$_hi_tc" ] || _hi_overlay_row "$1" _hi_tc || return 1
-  _hi_tc="${_hi_tc#*|*|*|}"
-  _hi_tc="${_hi_tc%%|*}"
+  _hi_row_col "$_hi_tc" tool _hi_tc
   [ "$_hi_tc" != - ] && _hi_out "${2:-}" "$_hi_tc"
 }
 
+# _hi_tool_label <member> <outvar> [row] - the name a report gives its tool,
+# the column's first without its parentheses; 1 and empty with no tool
+function _hi_tool_label() {
+  local _hi_tb=""
+  _hi_overlay_tools "$1" _hi_tb "${3:-}" || true
+  _hi_tb="${_hi_tb#\(}"
+  printf -v "$2" '%s' "${_hi_tb%%[ \)]*}"
+  [ -n "$_hi_tb" ]
+}
+
 # _hi_plugin_name <member> <outvar> [row] - the plugin a member is of: its
-# tool's name, the one hi --doctor labels it by, else the member's own
+# tool's label, else the member's own name
 function _hi_plugin_name() {
-  local _hi_pg=""
-  _hi_overlay_tools "$1" _hi_pg "${3:-}" || _hi_pg="${1%%/*}"
-  _hi_pg="${_hi_pg#\(}"
-  _hi_pg="${_hi_pg%\)}"
-  printf -v "$2" '%s' "${_hi_pg%% *}"
+  _hi_tool_label "$@" || printf -v "$2" '%s' "${1%%/*}"
 }
 
 # _hi_toggle_on <NAME> - is that toggle 1 for a target? The environment's
 # value - except at home under _HI_DISABLE_LOCAL=1, where common/paths.sh has
 # set every toggle for this machine alone: there, only a toggle settings.sh
-# sets itself, read off its `export NAME=value` lines (the last wins) without
-# running them.
+# sets itself, read off its last `export NAME=value` line (_hi_rc_value)
+# without running it.
 function _hi_toggle_on() {
-  local _hi_tg_l _hi_tg_w _hi_tg_v
+  local _hi_tg_n _hi_tg_v
   if [ "${_HI_DISABLE_LOCAL:-0}" != 1 ] || [ "$_HI_REMOTE_SESSION" = 1 ]; then
     [ "${!1:-0}" = 1 ]
     return
   fi
   if [ "${_HI_SET_ON_KEY-}" != "$_HI_SETTINGS" ]; then
     _HI_SET_ON_KEY="$_HI_SETTINGS" _HI_SET_ON=" "
-    [ ! -f "$_HI_SETTINGS" ] || while IFS= read -r _hi_tg_l || [ -n "$_hi_tg_l" ]; do
-      case "$_hi_tg_l" in *_HI_DISABLE_*=*) ;; *) continue ;; esac
-      # shellcheck disable=SC2086 # a line's words, one assignment each
-      for _hi_tg_w in $_hi_tg_l; do
-        case "$_hi_tg_w" in _HI_DISABLE_*=*) ;; *) continue ;; esac
-        _hi_tg_v="${_hi_tg_w#*=}"
-        _hi_tg_v="${_hi_tg_v#[\"\']}"
-        _hi_tg_w="${_hi_tg_w%%=*}"
-        _HI_SET_ON="${_HI_SET_ON// $_hi_tg_w / }"
-        [ "${_hi_tg_v%[\"\']}" != 1 ] || _HI_SET_ON="$_HI_SET_ON$_hi_tg_w "
-      done
-    done <"$_HI_SETTINGS"
+    for _hi_tg_n in $_HI_OFF_TOGGLES; do
+      ! _hi_rc_value "$_hi_tg_n" _hi_tg_v "$_HI_SETTINGS" || [ "$_hi_tg_v" != 1 ] || _HI_SET_ON="$_HI_SET_ON$_hi_tg_n "
+    done
   fi
   case "$_HI_SET_ON" in *" $1 "*) return 0 ;; esac
   return 1
@@ -674,10 +696,8 @@ function _hi_plugin_off() {
     for _hi_po_n in $_HI_OFF_TOGGLES; do ! _hi_toggle_on "$_hi_po_n" || _HI_OFF_ANY=1; done
   fi
   [ -n "$_HI_OFF_ANY" ] && _hi_overlay_row "$1" _hi_po_r || return 1
-  _hi_po_g="${_hi_po_r#*|*|*|*|}"
-  _hi_po_t="${_hi_po_g#*|*|}"
-  _hi_po_t="${_hi_po_t%%|*}"
-  _hi_po_g="${_hi_po_g%%|*}"
+  _hi_row_col "$_hi_po_r" group _hi_po_g
+  _hi_row_col "$_hi_po_r" off _hi_po_t
   [ "$_hi_po_g" != - ] || return 1
   # shellcheck disable=SC2086 # the split is the column
   [ "$_hi_po_t" = - ] || for _hi_po_n in $_hi_po_t; do
@@ -720,13 +740,12 @@ function _hi_overlay_wiring() {
   shift
   for _hi_ow_m; do
     _hi_overlay_row "$_hi_ow_m" _hi_ow_r || continue
-    _hi_ow_ws="${_hi_ow_r#*|*|*|*|*|}"
-    _hi_ow_r="${_hi_ow_ws#*|}"
-    _hi_ow_ws="${_hi_ow_ws%%|*};"
-    [ "$_hi_ow_ws" != "-;" ] || continue
-    _hi_ow_g=""
+    _hi_row_col "$_hi_ow_r" wire _hi_ow_ws
+    _hi_row_col "$_hi_ow_r" off _hi_ow_r
+    [ "$_hi_ow_ws" != - ] || continue
+    _hi_ow_ws="$_hi_ow_ws;" _hi_ow_g=""
     # shellcheck disable=SC2086 # the split is the column
-    [ "${_hi_ow_r%%|*}" = - ] || for _hi_ow_v in ${_hi_ow_r%%|*}; do
+    [ "$_hi_ow_r" = - ] || for _hi_ow_v in $_hi_ow_r; do
       _hi_ow_g="${_hi_ow_g}[ \"$_hi_ow_v\" != 1 ] && "
     done
     while [ -n "$_hi_ow_ws" ]; do

@@ -370,8 +370,7 @@ function _hi_run_scenario() {
   touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el" \
     "$_HI_WORKDIR/tmux.conf" "$_HI_WORKDIR/screenrc" "$_HI_WORKDIR/zellij/config.kdl"
   if [ ! -f "$_HI_WORKDIR/wiring.sh" ]; then
-    # shellcheck disable=SC2016 # the child bash expands its own script
-    bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w vimrc init.lua config.toml nanorc init.el tmux.conf screenrc zellij/config.kdl && printf %s "$w"' \
+    _hi_wiring_for vimrc init.lua config.toml nanorc init.el tmux.conf screenrc zellij/config.kdl \
       >"$_HI_WORKDIR/wiring.sh" || return 1
   fi
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and

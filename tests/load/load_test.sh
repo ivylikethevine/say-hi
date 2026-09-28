@@ -793,9 +793,7 @@ function run_load_tests() {
   export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
   # ...and the wiring.sh a client packs beside them; nvim's line keeps its
   # state under the session tree
-  # shellcheck disable=SC2016 # the child bash expands its own script
-  bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w vimrc init.lua nanorc && printf %s "$w"' \
-    >"$_HI_WORKDIR/overlay/wiring.sh"
+  _hi_wiring_for vimrc init.lua nanorc >"$_HI_WORKDIR/overlay/wiring.sh"
   local nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_NVIMRC"
 
   _hi_h1 "Testing load.sh"

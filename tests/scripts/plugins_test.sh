@@ -239,8 +239,8 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=mux\nexport _HI_DISABLE_NANO=1\n' >"$cfg/settings.sh"
   out="$(_hi_plugins_run "$cfg" --plugins)" || return 1
   [[ "$out" == *"bat "*"cli "*"bat.conf "*"rides: $cfg/bat.conf"* ]] || _hi_because "bat: $out" || return 1
-  [[ "$out" == *"nano "*"editors "*"nanorc "*"off (_HI_DISABLE_NANO=1)"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *"tmux "*"mux "*"tmux.conf "*"off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
+  [[ "$out" == *"nano "*"editors "*"nanorc "*"stays home: switched off (_HI_DISABLE_NANO=1)"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"tmux "*"mux "*"tmux.conf "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
   [[ "$out" == *"taskrc "*"carry "*"taskrc "*"rides: ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
   [[ "$out" == *"line 2 is ignored"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }

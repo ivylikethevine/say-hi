@@ -124,30 +124,25 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# _hi_plugins_state <plugin> <member> <outvar> - what a connect does with
-# <member>, in a phrase; 1 when it is off
+# _hi_plugins_state <member> <outvar> - what a connect does with <member>,
+# in a phrase; 1 when it is off
 function _hi_plugins_state() {
-  local src="" why="" n tilde='~'
-  if _hi_plugin_off "$2" why; then
-    printf -v "$3" '%s' "off ($why)"
-    return 1
-  fi
-  case "$2" in
+  local src="" why="" tilde='~'
+  case "$1" in
   */ | *.d)
-    n="$(_hi_overlay_files "$2" | grep -c .)" || true
-    if [ "$n" = 0 ]; then printf -v "$3" '%s' "nothing to carry"; else printf -v "$3" '%s' "rides: $n file(s)"; fi
-    return 0
+    src="$(_hi_overlay_files "$1" | grep -c .)" || true
+    if [ "$src" = 0 ]; then src=""; else src="$src file(s)"; fi
     ;;
+  *) ! _hi_overlay_src "$1" src || src="${src/#"$HOME"/$tilde}" ;;
   esac
-  if _hi_overlay_src "$2" src; then
-    printf -v "$3" '%s' "rides: ${src/#"$HOME"/$tilde}"
-  elif _hi_prompt_row "$2" >/dev/null && ! _hi_prompt_handed "$2"; then
-    printf -v "$3" '%s' "stays home: no target is handed $1"
-  elif ! _hi_tool_here "$2"; then
-    printf -v "$3" '%s' "stays home: $1 is not installed here"
+  if [ -n "$src" ]; then
+    printf -v "$2" '%s' "rides: $src"
+  elif _hi_unsent_why "$1" why; then
+    printf -v "$2" '%s' "stays home: $why"
   else
-    printf -v "$3" '%s' "nothing to carry"
+    printf -v "$2" '%s' "nothing to carry"
   fi
+  [ "${why#switched off}" = "$why" ]
 }
 
 function _hi_plugins_list() {
@@ -155,8 +150,8 @@ function _hi_plugins_list() {
   printf ' %-14s %-8s %-22s %s\n' plugin group member state
   while IFS='|' read -r name group member; do
     color="$GREEN"
-    _hi_plugins_state "$name" "$member" state || color="$YELLOW"
-    case "$state" in rides:* | off*) ;; *) color="" ;; esac
+    _hi_plugins_state "$member" state || color="$YELLOW"
+    case "$state" in rides:* | *"switched off"*) ;; *) color="" ;; esac
     _hi_cecho "$(printf ' %-14s %-8s %-22s %s' "$name" "$group" "$member" "$state")" "$color"
   done < <(_hi_plugin_rows)
   for state in ${_HI_CARRY_BAD[@]+"${_HI_CARRY_BAD[@]}"}; do
@@ -167,15 +162,9 @@ function _hi_plugins_list() {
 # _hi_plugins_off_now <outvar> - the list settings.sh holds, read off its
 # last _HI_PLUGINS_OFF line without running it, a space between its words
 function _hi_plugins_off_now() {
-  local line value=""
-  [ ! -f "$_HI_SETTINGS" ] || while IFS= read -r line || [ -n "$line" ]; do
-    [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?_HI_PLUGINS_OFF=(.*)$ ]] || continue
-    value="${BASH_REMATCH[2]}"
-    value="${value#[\"\']}"
-    value="${value%[\"\']}"
-  done <"$_HI_SETTINGS"
-  value="${value//,/ }"
-  printf -v "$1" '%s' "$value"
+  local value=""
+  _hi_rc_value _HI_PLUGINS_OFF value "$_HI_SETTINGS" || true
+  printf -v "$1" '%s' "${value//,/ }"
 }
 
 # _hi_plugins_write_off <list> - settings.sh with that list as its one

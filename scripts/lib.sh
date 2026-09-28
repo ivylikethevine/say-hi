@@ -351,12 +351,27 @@ function _hi_plugin_rows() {
   local _hi_pw_r _hi_pw_g _hi_pw_n
   _hi_carry_load
   for _hi_pw_r in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
-    _hi_pw_g="${_hi_pw_r#*|*|*|*|}"
-    _hi_pw_g="${_hi_pw_g%%|*}"
+    _hi_row_col "$_hi_pw_r" group _hi_pw_g
     [ "$_hi_pw_g" != - ] || continue
     _hi_plugin_name "${_hi_pw_r%%|*}" _hi_pw_n "$_hi_pw_r"
     printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "${_hi_pw_r%%|*}"
   done
+}
+
+# _hi_unsent_why <member> <outvar> - why a connect sends nothing of a member
+# that has a file, in a phrase; 1 when neither a switch, the prompt in force,
+# nor a missing tool is the reason
+function _hi_unsent_why() {
+  local _hi_uw=""
+  if _hi_plugin_off "$1" _hi_uw; then
+    _hi_uw="switched off ($_hi_uw)"
+  elif _hi_prompt_row "$1" >/dev/null && ! _hi_prompt_handed "$1"; then
+    _hi_uw="its prompt program is not one a target is handed (_HI_PROMPT_TOOL)"
+  elif ! _hi_tool_here "$1"; then
+    _hi_uw="its tool is not installed here"
+  fi
+  printf -v "$2" '%s' "$_hi_uw"
+  [ -n "$_hi_uw" ]
 }
 
 # _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold, one a line

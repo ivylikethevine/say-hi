@@ -485,9 +485,9 @@ a row a file, with what rides and from where:
 ```text
  plugin         group    member                 state
  vim            editors  vimrc                  rides: ~/.vimrc
- kak            editors  kakrc                  stays home: kak is not installed here
+ kak            editors  kakrc                  stays home: its tool is not installed here
  bat            cli      bat.conf               rides: ~/.config/bat/config
- lazygit        cli      lazygit.yml            off (_HI_PLUGINS_OFF)
+ lazygit        cli      lazygit.yml            stays home: switched off (_HI_PLUGINS_OFF)
 ```
 
 `hi --plugin-off lazygit` keeps it home, and `hi --plugin-on lazygit` lets

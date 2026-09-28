@@ -522,8 +522,7 @@ function test_remote_session_exports_overlay_config() {
   shift 4
   mkdir -p "$_HI_WORKDIR/cfg"
   printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
-  bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w "$m" && printf %s "$w"' \
-    _ "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
+  _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   case "$shell" in
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${'"$var"':-}"' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $'"$var" ;;
@@ -546,9 +545,7 @@ function test_remote_session_aliases_overlay_config() {
   [ "$file" = - ] || {
     mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij"
     printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
-    # shellcheck disable=SC2016 # the child bash expands its own script
-    bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w "$m" && printf %s "$w"' \
-      _ "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
+    _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   }
   printf 'set -g @mine target\n' >"$_HI_WORKDIR/.tmux.conf"
   case "$shell" in

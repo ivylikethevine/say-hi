@@ -317,7 +317,7 @@ function test_config_counts_a_tool_config_copy_as_an_override() {
     BAT_CONFIG_PATH="$dir/elsewhere" doctor_config
   )"
   [[ "$out" == *"bat.conf"*"overridden (1 lines)"* ]] &&
-    [[ "$out" == *"starship.toml"*"not shipped - its prompt program is not one a target is handed"* ]]
+    [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]]
 }
 
 # a carry line hi turned down is a row, by line number, and a member a good
@@ -1651,7 +1651,7 @@ function run_doctor_tests() {
     _hi_check "What is switched off says so, and by what" test_config_reports_what_is_switched_off
     _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
     _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
-    _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
+    _hi_check "An overlay copy of one is overridden, or not sent" test_config_counts_a_tool_config_copy_as_an_override
     _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
     _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
     _hi_check "The files table walks every tier" test_files_table_walks_every_tier
