@@ -227,6 +227,9 @@ function _hi_doc_member() {
   zellij/*) tool=zellij ;;
   bat.conf) tool=bat ;;
   theme.yml) tool=eza ;;
+  ripgreprc) tool=rg ;;
+  fzfrc) tool=fzf ;;
+  lazygit.yml) tool=lazygit ;;
   inputrc) tool=readline ;;
   bashrc) tool=bash ;;
   zshrc) tool=zsh ;;
@@ -801,16 +804,27 @@ function _hi_rc_names_tree() {
 # section a half-finished `hi --install` shows up in - the one thing
 # "something is off, run hi --doctor" could not answer before.
 function doctor_install() {
-  local row shell label target dialect other found owner bindir profile
+  local row shell label target tree_rc dialect other found owner bindir profile want
+  local -a lines
   doctor_section install "The install (what hi --install wired up)"
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label _ target _ dialect <<<"$row"
+    IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
     if ! rc_shell_present "$shell"; then
       doctor_row "$shell" "not installed here, nothing to wire"
     elif ! _hi_has_marker "$target"; then
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif grep -qF "$(tmpdir_line "$dialect")" "$target"; then
-      doctor_row "$shell" "$target is wired to this tree" ok
+      # an older hi's block names this tree too, but not the lines this one
+      # writes: bash's `return` ends the rc for `ssh host cmd`, and fish's
+      # bare is-interactive block is a parse error on every fish 3.0-3.3 start
+      lines=()
+      while IFS= read -r want; do lines+=("$want"); done < <(rc_lines "$shell" "$tree_rc" "$dialect")
+      rc_tagged want "${lines[@]}"
+      if [ "$(grep -F "$_HI_MARKER" "$target")" = "${want%$'\n'}" ]; then
+        doctor_row "$shell" "$target is wired to this tree" ok
+      else
+        doctor_row "$shell" "$target is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)" warn
+      fi
     else
       other="$(_hi_rc_names_tree "$target")"
       doctor_row "$shell" "$target names ${other:-another tree}, this is $_HI_HOME (hi --install repairs it)" bad

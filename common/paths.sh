@@ -110,6 +110,10 @@ export _HI_ZELLIJ_DIR=""
 # common/aliases.sh drops its own --theme flag when this is set so the
 # file's theme wins.
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/bat.conf" ] && export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
+# ripgrep, fzf, and lazygit each take their config's path from a variable
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/ripgreprc" ] && export RIPGREP_CONFIG_PATH="$_HI_CONFIG_DIR/ripgreprc"
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/fzfrc" ] && export FZF_DEFAULT_OPTS_FILE="$_HI_CONFIG_DIR/fzfrc"
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/lazygit.yml" ] && export LG_CONFIG_FILE="$_HI_CONFIG_DIR/lazygit.yml"
 # readline too: bash reads $INPUTRC when its first prompt initializes readline,
 # after this rc, and so does every readline program started from the session.
 # Set, it replaces /etc/inputrc, which an inputrc that wants it `$include`s.

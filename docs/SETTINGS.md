@@ -121,12 +121,12 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/config.fish`     | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                          |
 | `~/.config/say-hi/oh-my-posh.json` | -                 | your oh-my-posh config (or `.yaml` / `.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names                   |
 
-starship's, powerlevel10k's, tide's, bat's, eza's, and readline's own configs,
+starship's, powerlevel10k's, tide's, bat's, eza's, rg's, fzf's, lazygit's, and readline's own configs,
 and your oh-my-zsh, oh-my-bash, and bash-it themes, need no copy here: every
 target gets the one each tool reads on your machine
 ([Integrations](INTEGRATIONS.md#prompt-programs)). A `starship.toml`,
 `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
-`tide.vars`, `bat.conf`, `theme.yml`, or `inputrc` in `~/.config/say-hi/` is the override: targets get it instead,
+`tide.vars`, `bat.conf`, `theme.yml`, `ripgreprc`, `fzfrc`, `lazygit.yml`, or `inputrc` in `~/.config/say-hi/` is the override: targets get it instead,
 and at home the tool keeps reading its own. A prompt program's copy rides only
 when that program is one a target is handed, and `hi --doctor` says when it is
 not.

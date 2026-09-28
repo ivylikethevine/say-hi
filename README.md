@@ -342,17 +342,7 @@ its **Ticks when** holds.
 
 In this checkout, narrowest first.
 
-1. [ ] **doctor names an install block from an older hi** — `hi --install`
-       now writes bash's source behind `[[ $- == *i* ]] &&` and fish's behind
-       a 3.4+ version check, but rc files carrying the earlier block (bash's
-       `[[ $- != *i* ]] && return`, fish's bare `if status is-interactive`)
-       pass doctor. On fish 3.0-3.3 the old block is a parse error on every
-       start. **Do:** doctor compares the marker lines with what
-       `install_rc_lines` would write and says `hi --install` refreshes them.
-       **Ticks when:** a `tests/scripts/doctor_*` case flags each old block
-       and passes the current one.
-
-2. [ ] **An overlay `packages` is checked against the tree's** — a copy
+1. [ ] **An overlay `packages` is checked against the tree's** — a copy
        replaces the tree's wholesale, so a group added later (`[deprecated]`)
        never runs for anyone who copied before it existed, and a `-` or `+`
        in the middle of a row (`eza,-exa,lsd`) is read as part of a package
@@ -361,14 +351,14 @@ In this checkout, narrowest first.
        markers; `convert_settings.sh` may offer to append missing groups.
        **Ticks when:** both appear in a `tests/scripts/` case's output.
 
-3. [ ] **A blocked upstream shows as drift** — shipped:
+2. [ ] **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
        lookup on one host answered (a blocked host, not a one-off rate
        limit). What is left is seeing it in CI. **Ticks when:** a
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-4. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
+3. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
        that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`, `update.sh`
        and `preview.sh` from a scratch-tree copy (the first four read 0% in run
        36341616721, 91.11% overall) now link the real `scripts/`, and each
@@ -377,7 +367,7 @@ In this checkout, narrowest first.
        first bashcov sweep on `main` after this lands reads at least 95%
        and no shipped line at 0 that is neither tested nor in that header.
 
-5. [ ] **The header probes only what was asked** — the default
+4. [ ] **The header probes only what was asked** — the default
        `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local
        terminal or tmux pane runs docker, podman, nomad, and kubectl.
        **Do:** leave the backend cells out of the local default (a session
@@ -387,7 +377,7 @@ In this checkout, narrowest first.
        default header, or keep them and fill them in after the first prompt?
        Either changes what a local header shows today.
 
-6. [ ] **A hand-written prompt stays** — shipped: at home, bash and zsh
+5. [ ] **A hand-written prompt stays** — shipped: at home, bash and zsh
        keep a `PS1`/`PROMPT` the rc set unless it is one nobody wrote (the
        shell's built-in default, or a stock rc's on the distros
        [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
@@ -396,16 +386,15 @@ In this checkout, narrowest first.
        zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets hi's
        prompt.
 
-7. [ ] **A dropped nano syntax include falls back to the target's** — an
-       `include` outside `/usr/share/nano` (nano-syntax-highlighting, a
-       Homebrew prefix) is dropped on every target, so the carried `nanorc`
-       gets no syntax highlighting even where the target's nano ships its
-       own set. **Do:** where a finding dropped a `*.nanorc` include, the
-       session adds `include "/usr/share/nano/*.nanorc"` when the target has
-       that directory. **Ticks when:** nano on an e2e target highlights a
-       shell script opened with such a `nanorc`.
+6. [ ] **A dropped nano syntax include falls back to the target's** —
+       shipped: the stripper keeps a dropped `*.nanorc` include's comment,
+       and `load.sh` adds `include "/usr/share/nano/*.nanorc"` where the
+       target has that set, rewriting it each session so a next hop without
+       one loses it; the framework suite's `tmux` case asserts the line on a
+       Debian target. What is left is seeing it. **Ticks when:** nano on an
+       e2e target highlights a shell script opened with such a `nanorc`.
 
-8. [ ] **An editor's side files ride with its rc** — kakoune's
+7. [ ] **An editor's side files ride with its rc** — kakoune's
        `colors/` (a `colorscheme` the `kakrc` names) stays home, so the
        target falls back to the default scheme, and helix's `languages.toml`
        has no flag to point `hx` at. **Do:** carry kak's `colors/` member by
@@ -414,29 +403,29 @@ In this checkout, narrowest first.
        [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md). **Ticks when:** a
        `kakrc` with `colorscheme <own>` shows that scheme on a target.
 
-9. [ ] **Everyday CLI configs ride** — hi carries bat's and eza's configs,
-       but not the ones the same box's search and listing tools read:
-       ripgrep (`RIPGREP_CONFIG_PATH`), fzf (`FZF_DEFAULT_OPTS_FILE`), skim
-       (`SKIM_OPTIONS_FILE`), `LS_COLORS` (dircolors or vivid output, ~18KB
-       raw), lazygit (`LG_CONFIG_FILE`), bottom (`btm -C`), procs
-       (`--load-config`), and dust (`--config`). **Do:** pick the ones worth
-       the payload, as built-in members or as rows of the entry below, each
-       looked for where its tool keeps it. **Ticks when:** each chosen tool
-       reads the home config on a target, and
-       [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them)
-       lists it.
+8. [ ] **Everyday CLI configs ride** — shipped: `ripgreprc`
+       (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
+       `lazygit.yml` (`$LG_CONFIG_FILE`) are members, each carried from
+       where its tool keeps it and listed in
+       [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them);
+       the framework suite's `tmux` case has rg read one on a target. Left
+       to the entry below: `LS_COLORS`, ~18KB raw on every connect; skim,
+       bottom, procs, and dust, which fewer boxes run, the last three behind
+       a flag and so an alias. **Ticks when:** an fzf that reads
+       `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
+       (bookworm's fzf predates the variable, and it ships no lazygit).
 
-10. [ ] **A tool's config rides without a plugin** — adding a tool hi does
-        not know means a `plugins.d` member or a change to hi. **Do:** a
-        user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
-        directory on this machine, and the command (or variable) that points
-        the tool at it on a target - read from the overlay and riding through
-        the same order and include scan; failing that, a starter plugin that
-        does exactly this for the user to copy and edit. **Ticks when:** a
-        tool of the user's own reads its home config on a target with no code
-        change, and `docs/SETTINGS.md` shows how.
+9. [ ] **A tool's config rides without a plugin** — adding a tool hi does
+       not know means a `plugins.d` member or a change to hi. **Do:** a
+       user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
+       directory on this machine, and the command (or variable) that points
+       the tool at it on a target - read from the overlay and riding through
+       the same order and include scan; failing that, a starter plugin that
+       does exactly this for the user to copy and edit. **Ticks when:** a
+       tool of the user's own reads its home config on a target with no code
+       change, and `docs/SETTINGS.md` shows how.
 
-11. [ ] **Investigate the header as plugins** — every header cell is one
+10. [ ] **Investigate the header as plugins** — every header cell is one
         `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
         set a prompt segment. **Do:** find out whether the cells and
         `full_check` fit one plugin contract a user's own could share, costing

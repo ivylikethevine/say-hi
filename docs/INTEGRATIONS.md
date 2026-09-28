@@ -285,7 +285,8 @@ different thing:
   kak, `nanorc` with
   nano, `init.el` with emacs, `tmux.conf` with tmux, `screenrc` with screen,
   `micro/` with micro, `zellij/` with zellij,
-  `bat.conf` with bat (or `batcat`), `theme.yml` with eza; `inputrc` always,
+  `bat.conf` with bat (or `batcat`), `theme.yml` with eza, `ripgreprc` with
+  rg, `fzfrc` with fzf, `lazygit.yml` with lazygit; `inputrc` always,
   since readline is a library, not a command. A dotfile left
   behind by a tool you removed neither ships nor gets a `hi --doctor` row.
   It is the client because only the client can be asked before a connect, which

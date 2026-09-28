@@ -95,6 +95,9 @@ _HI_OVERLAY_TABLE=(
   'tide.vars|-|-|"${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables"'
   'theme.yml|-|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"'
   'bat.conf|-|-|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
+  'ripgreprc|-|-|"${RIPGREP_CONFIG_PATH:-}"'
+  'fzfrc|-|-|"${FZF_DEFAULT_OPTS_FILE:-}"'
+  'lazygit.yml|-|-|"${LG_CONFIG_FILE:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" "$HOME/Library/Application Support/lazygit/config.yml"'
   'inputrc|-|-|"${INPUTRC:-$HOME/.inputrc}"'
   'tmux.conf|_HI_TMUX_CONF|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
   'screenrc|_HI_SCREENRC|-|"${SCREENRC:-$HOME/.screenrc}"'
@@ -466,6 +469,9 @@ function _hi_tool_here() {
   zellij/*) command -v zellij ;;
   bat.conf) command -v bat || command -v batcat ;;
   theme.yml) command -v eza ;;
+  ripgreprc) command -v rg ;;
+  fzfrc) command -v fzf ;;
+  lazygit.yml) command -v lazygit ;;
   esac >/dev/null 2>&1
 }
 
@@ -947,12 +953,15 @@ function _hi_overlay_stream() {
 # character is `"`, init.el's is `;`, and init.lua's is `--`; `#` covers the
 # rest, and blank lines and indentation go with them - none of the four
 # dialects reads either, and the indentation alone is 3% of the payload -
-# except on a line continuing a `word\`, where it is the only separator.
+# except on a line continuing a `word\`, where it is the only separator. A
+# nanorc's dropped syntax include rides as its comment, for load.sh's
+# _hi_nano_fallback to find.
 # GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/) }
+FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/); nano = (FILENAME ~ /nanorc$/) }
 FNR == 1 && /^#!/ { buf[out] = buf[out] $0 "\n"; next }
+nano && /^# hi dropped: include .*\.nanorc/ { buf[out] = buf[out] $0 "\n"; next }
 vim && /^[ \t]*"/ { next }
 el && /^[ \t]*;/ { next }
 lua && /^[ \t]*--/ { next }

@@ -164,24 +164,25 @@ defaults it replaces. A `.d`
 directory, and zellij's `layouts/` and `themes/`, ride member by member; a member name is a letter or digit, then
 `[A-Za-z0-9_.-]`, never ending `.bak`, `.orig`, `.rej`, or `.tmp`.
 
-| File                                                                                        | Variable                                                              | Replaces          | Read by                                                             |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------- |
-| `settings.sh`                                                                               | `_HI_SETTINGS`                                                        | -                 | every shell, first; written by `hi --configure`                     |
-| `colors`                                                                                    | `_HI_COLORS`                                                          | `config/colors`   | prompt and header colors                                            |
-| `packages`                                                                                  | `_HI_PACKAGES`                                                        | `config/packages` | the header's package check, wholesale over the tree's               |
-| `aliases.sh`                                                                                | -                                                                     | -                 | `common/aliases.sh`, sourced last                                   |
-| `plugins.d/`                                                                                | `_HI_PLUGINS_D`                                                       | -                 | every shell, after the aliases, in name order                       |
-| `bashrc`, `zshrc`, `config.fish`                                                            | -                                                                     | -                 | the end of hi's rc for that shell                                   |
-| `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | -                 | the editor aliases and `$VIMINIT`                                   |
-| `kakrc`                                                                                     | -                                                                     | -                 | kakoune on a target (`$KAKOUNE_CONFIG_DIR`)                         |
-| `tmux.conf`                                                                                 | `_HI_TMUX_CONF`                                                       | -                 | the `tmux` alias (`tmux -f`)                                        |
-| `screenrc`                                                                                  | `_HI_SCREENRC`                                                        | -                 | the `screen` alias (`screen -c`)                                    |
-| `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                 | the `micro` alias (`-config-dir`)                                   |
-| `zellij/` (`config.kdl`, `layouts/`, `themes/`)                                             | `_HI_ZELLIJ_DIR`                                                      | -                 | the `zellij` alias (`--config-dir`)                                 |
-| `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                 | starship, oh-my-posh, eza, and bat on a target                      |
-| `inputrc`                                                                                   | -                                                                     | -                 | readline on a target (`$INPUTRC`)                                   |
-| `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target |
-| `ssh_tags`                                                                                  | -                                                                     | -                 | a `hi` run from inside a session, for the next hop's tag colors     |
+| File                                                                                        | Variable                                                              | Replaces          | Read by                                                                                                |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `settings.sh`                                                                               | `_HI_SETTINGS`                                                        | -                 | every shell, first; written by `hi --configure`                                                        |
+| `colors`                                                                                    | `_HI_COLORS`                                                          | `config/colors`   | prompt and header colors                                                                               |
+| `packages`                                                                                  | `_HI_PACKAGES`                                                        | `config/packages` | the header's package check, wholesale over the tree's                                                  |
+| `aliases.sh`                                                                                | -                                                                     | -                 | `common/aliases.sh`, sourced last                                                                      |
+| `plugins.d/`                                                                                | `_HI_PLUGINS_D`                                                       | -                 | every shell, after the aliases, in name order                                                          |
+| `bashrc`, `zshrc`, `config.fish`                                                            | -                                                                     | -                 | the end of hi's rc for that shell                                                                      |
+| `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | -                 | the editor aliases and `$VIMINIT`                                                                      |
+| `kakrc`                                                                                     | -                                                                     | -                 | kakoune on a target (`$KAKOUNE_CONFIG_DIR`)                                                            |
+| `tmux.conf`                                                                                 | `_HI_TMUX_CONF`                                                       | -                 | the `tmux` alias (`tmux -f`)                                                                           |
+| `screenrc`                                                                                  | `_HI_SCREENRC`                                                        | -                 | the `screen` alias (`screen -c`)                                                                       |
+| `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                 | the `micro` alias (`-config-dir`)                                                                      |
+| `zellij/` (`config.kdl`, `layouts/`, `themes/`)                                             | `_HI_ZELLIJ_DIR`                                                      | -                 | the `zellij` alias (`--config-dir`)                                                                    |
+| `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                 | starship, oh-my-posh, eza, and bat on a target                                                         |
+| `inputrc`                                                                                   | -                                                                     | -                 | readline on a target (`$INPUTRC`)                                                                      |
+| `ripgreprc`, `fzfrc`, `lazygit.yml`                                                         | -                                                                     | -                 | rg, fzf, and lazygit on a target (`$RIPGREP_CONFIG_PATH`, `$FZF_DEFAULT_OPTS_FILE`, `$LG_CONFIG_FILE`) |
+| `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target                                    |
+| `ssh_tags`                                                                                  | -                                                                     | -                 | a `hi` run from inside a session, for the next hop's tag colors                                        |
 
 A member in the _Replaces_ column travels in the tree's place, not beside it:
 the payload leaves out a default your overlay shadows, so the wire holds one
@@ -199,14 +200,14 @@ On this machine (never on a target), hi carries the config a tool already
 reads rather than asking for a copy - the middle step of the one order
 ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)): the first one found in each
 row wins, an overlay copy wins over all of them - for the prompt programs,
-eza, bat, and your aliases on a target only, since at home each already reads
+eza, bat, rg, fzf, lazygit, and your aliases on a target only, since at home each already reads
 its own - and the tree's default, where there is one, applies when neither
 is there. `bashrc`,
 `zshrc`, and `config.fish` are never looked for here: they ride only as an
 overlay copy. A prompt program's
 member rides only when that program is in the list a target is handed
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
-screen's, micro's, zellij's, bat's, or eza's only with that tool installed here
+screen's, micro's, zellij's, bat's, eza's, rg's, fzf's, or lazygit's only with that tool installed here
 ([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked)),
 and readline's always;
 an overlay copy rides either way.
@@ -233,6 +234,9 @@ an overlay copy rides either way.
 | `tide.vars`           | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it                                                                                                                                                                   |
 | `theme.yml`           | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                                                                                                                                                                              |
 | `bat.conf`            | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                                                                                                                                                                                             |
+| `ripgreprc`           | `$RIPGREP_CONFIG_PATH`; rg reads no file without it                                                                                                                                                                                                              |
+| `fzfrc`               | `$FZF_DEFAULT_OPTS_FILE`; fzf reads no file without it                                                                                                                                                                                                           |
+| `lazygit.yml`         | `$LG_CONFIG_FILE`, `$XDG_CONFIG_HOME/lazygit/config.yml`, `~/Library/Application Support/lazygit/config.yml`                                                                                                                                                     |
 | `inputrc`             | `${INPUTRC:-~/.inputrc}`                                                                                                                                                                                                                                         |
 | `ssh_tags`            | the `# Tags:` lines of `~/.ssh/config` and its Includes, each with the `Host` or `Match host` line under it and nothing else                                                                                                                                     |
 

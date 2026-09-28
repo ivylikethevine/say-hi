@@ -296,6 +296,22 @@ function _hi_line_close() {
   return 0
 }
 
+# _hi_nano_fallback - a syntax include outside /usr/share/nano was dropped on
+# the client (its comment survives the strip for this), so the carried
+# nanorc highlights nothing: include the target's own set where it has one.
+# Rewritten each session rather than appended once, since the copy rides on
+# to a next hop whose target may have no /usr/share/nano. Only a nanorc
+# inside the disposable tree is touched.
+function _hi_nano_fallback() {
+  local rc="${_HI_NANORC:-}" line='include "/usr/share/nano/*.nanorc"'
+  [[ -n "${_HI_CLEANUP:-}" && "$rc" == "$_HI_CLEANUP"/* && -f "$rc" ]] || return 0
+  grep -q '^# hi dropped: include .*\.nanorc' "$rc" || return 0
+  grep -vxF "$line" "$rc" >"$rc.hi"
+  set -- /usr/share/nano/*.nanorc
+  [[ -f "$1" ]] && printf '%s\n' "$line" >>"$rc.hi"
+  mv -f "$rc.hi" "$rc"
+}
+
 function load() {
   local start total
   start="$(_hi_now)"
@@ -313,6 +329,7 @@ function load() {
   hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
   if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
+    _hi_nano_fallback
     # vim only: VIMINIT breaks a target that has just vi. Under the toggle,
     # since VIMINIT *is* the override it turns off, and only with the rc here
     # (a client without the editor sends none). nvim reads $VIMINIT too and `:source`

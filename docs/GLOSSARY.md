@@ -682,8 +682,9 @@ directory: one place a session reads config from. hi's own aliases are
 `common/aliases.sh` still refuses to source a `$_HI_CONFIG_DIR/aliases.sh` that
 is itself. It is omitted when there is nothing to send.
 
-The prompt programs' configs, eza's `theme.yml`, bat's `bat.conf`, and
-readline's `inputrc` ride it
+The prompt programs' configs, eza's `theme.yml`, bat's `bat.conf`, rg's
+`ripgreprc`, fzf's `fzfrc`, lazygit's `lazygit.yml`, and readline's `inputrc`
+ride it
 so a tool's config on every target is the one in force at home:
 `_hi_overlay_src` packs the overlay's copy when there is one, else the file
 the tool itself reads on the client (HI.61's order; a prompt program's only
@@ -1189,6 +1190,13 @@ become `:` (`true` in fish), and the guard, the `&&`, the case arm around it
 stay. What the pass cannot see is a value the dropped line was meant to bind -
 a `local m = require("x")` used twenty lines down - so a plugin-heavy config
 can still error on the target; the doctor rows make that legible.
+
+One finding is given back. A nanorc whose syntax include (`*.nanorc` outside
+`/usr/share/nano`) was dropped would highlight nothing, so the stripper keeps
+that finding's comment, and `load.sh`'s `_hi_nano_fallback` adds
+`include "/usr/share/nano/*.nanorc"` on a target that has the stock set -
+rewritten each session, not appended once, since the copy rides on to a next
+hop's target, which may not.
 
 ## HI.58 overlay directory members
 

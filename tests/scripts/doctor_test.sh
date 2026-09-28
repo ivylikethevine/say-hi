@@ -262,6 +262,7 @@ function test_member_labels_name_the_reading_tool() {
   for pair in vimrc:vim init.lua:nvim config.toml:hx nanorc:nano init.el:emacs \
     kakrc:kak tmux.conf:tmux screenrc:screen micro/settings.json:micro \
     zellij/config.kdl:zellij bat.conf:bat theme.yml:eza inputrc:readline \
+    ripgreprc:rg fzfrc:fzf lazygit.yml:lazygit \
     bashrc:bash zshrc:zsh config.fish:fish starship.toml:starship \
     oh-my-posh.omp.json:oh-my-posh p10k.zsh:powerlevel10k \
     oh-my-zsh.zsh-theme:oh-my-zsh oh-my-bash.theme.sh:oh-my-bash \
@@ -1282,12 +1283,54 @@ function _hi_wired_line() {
   printf '%-45s %s\n' "$(tmpdir_line "$@")" "$_HI_MARKER"
 }
 
+# _hi_wired_block <line...> - <line...> marker-tagged, as install.sh writes
+# them
+function _hi_wired_block() {
+  local block
+  rc_tagged block "$@"
+  printf '%s' "$block"
+}
+
+# _hi_rc_block <shell> <tree_rc> <dialect> - the block this hi writes
+function _hi_rc_block() {
+  local -a lines=()
+  local line
+  while IFS= read -r line; do lines+=("$line"); done < <(rc_lines "$@")
+  _hi_wired_block "${lines[@]}"
+}
+
 function test_install_section_reports_a_wired_shell() {
   local home="$_HI_WORKDIR/inst-wired" out
   mkdir -p "$home"
-  _hi_wired_line sh >"$home/.bashrc"
+  _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || return 1
-  [[ "$out" == *"~/.bashrc is wired to this tree"* ]]
+  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]]
+}
+
+# the blocks an older hi wrote name this tree, so only a comparison with
+# rc_lines tells them apart: bash's `return` guard and fish's bare
+# is-interactive block (a parse error on fish 3.0-3.3), each against the
+# current block passing. fish is a shim: present is all the row asks.
+# shellcheck disable=SC2153 # $_HI_FISH_CONFIG is paths.sh's
+function test_install_section_names_an_older_hi_block() {
+  local home="$_HI_WORKDIR/inst-old" bin out path fishrc
+  bin="$home/bin"
+  fishrc="$home/.config/fish/config.fish"
+  path="$bin:$(_hi_doctor_shims):$(_hi_doctor_path)"
+  mkdir -p "$bin" "${fishrc%/*}"
+  printf '#!/bin/sh\nexit 0\n' >"$bin/fish"
+  chmod +x "$bin/fish"
+  # shellcheck disable=SC2016 # the old lines, verbatim
+  _hi_wired_block "$(tmpdir_line sh)" '[[ $- != *i* ]] && return' "source \"$_HI_BASHRC\"" >"$home/.bashrc"
+  _hi_wired_block "$(tmpdir_line fish)" 'if status is-interactive' "  source \"$_HI_FISH_CONFIG\"" end >"$fishrc"
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  [[ "$out" == *"~/.bashrc is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)"* &&
+    "$out" == *"config.fish is wired to this tree, but not with the lines this hi writes"* ]] || return 1
+  _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
+  _hi_rc_block fish "$_HI_FISH_CONFIG" fish >"$fishrc"
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" == *"config.fish is wired to this tree"* &&
+    "$out" != *"lines this hi writes"* ]]
 }
 
 function test_install_section_flags_a_foreign_tree() {

@@ -747,6 +747,18 @@ of anything but
 .B /etc/inputrc
 is dropped.
 .TP
+.B $RIPGREP_CONFIG_PATH, $FZF_DEFAULT_OPTS_FILE, ~/.config/lazygit/config.yml
+the rg, fzf, and lazygit configs in force here (lazygit's wherever
+.B LG_CONFIG_FILE
+points), carried to every target and named there by the same variables. A
+.BR ripgreprc ,
+.BR fzfrc ,
+or
+.B lazygit.yml
+in
+.B ~/.config/say-hi
+is carried instead.
+.TP
 .B ~/.p10k.zsh, ~/.zshrc, ~/.bashrc, ~/.config/fish/fish_variables
 read for the prompt programs a target is handed: powerlevel10k's config, the
 oh\-my\-zsh, oh\-my\-bash, and bash\-it theme files

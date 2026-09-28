@@ -738,6 +738,45 @@ function test_load_disable_header_skips_the_banner() {
   return 1
 }
 
+# _hi_nano_case <tree> <nanorc text> [cleanup] - _hi_nano_fallback over a
+# nanorc in <tree>, twice (a hop runs it again over its own output), with
+# <tree> the disposable one unless [cleanup] names another; the result on
+# stdout
+function _hi_nano_case() {
+  local _HI_CLEANUP="${3-$1}" _HI_NANORC="$1/say-hi/config/nanorc"
+  mkdir -p "${_HI_NANORC%/*}"
+  printf '%s' "$2" >"$_HI_NANORC"
+  _hi_nano_fallback
+  _hi_nano_fallback
+  cat "$_HI_NANORC"
+}
+
+# the target's own set stands in for a dropped syntax include where the
+# target has one, once however often it runs, and a stale one a previous hop
+# added goes where it has none; a nanorc with nothing dropped, or outside a
+# disposable tree, is left alone
+function test_nano_fallback_follows_the_target() {
+  local fb='include "/usr/share/nano/*.nanorc"' out want
+  local dropped='# hi dropped: include "~/.nano/*.nanorc"'
+  want="$dropped"$'\nset tabsize 4'
+  set -- /usr/share/nano/*.nanorc
+  [ -f "$1" ] && want="$want"$'\n'"$fb"
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-a" "$dropped"$'\nset tabsize 4\n')"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | fresh: [$out]" "$RED"
+    return 1
+  }
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-b" "$dropped"$'\n'"$fb"$'\nset tabsize 4\n')"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | carried from a hop: [$out]" "$RED"
+    return 1
+  }
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-c" $'set tabsize 4\n')"
+  [ "$out" = "set tabsize 4" ] || return 1
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-d" "$dropped"$'\n' "")"
+  [ "$out" = "$dropped" ]
+}
+
 function run_load_tests() {
   _hi_workdir loadtest
   # the editor configs an overlay carried in, for load() to hand the session
@@ -772,6 +811,7 @@ function run_load_tests() {
   _hi_check "...and stands alone without one" test_session_rc_setup_stands_alone_without_cleanup
   _hi_check_requires fish "_hi_fishquote round-trips through a real fish" test_fishquote_roundtrips_the_hard_cases
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
+  _hi_check "a dropped nano syntax include falls back to the target's" test_nano_fallback_follows_the_target
 
   _hi_h2 "Testing: _hi_login_shell"
   _hi_check "\$SHELL answers as its basename" test_login_shell_answers_with_the_basename_of_shell

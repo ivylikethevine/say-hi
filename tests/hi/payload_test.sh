@@ -194,7 +194,8 @@ function _hi_tool_home_unpacked() {
   shift
   d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
   (
-    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME INPUTRC
+    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME INPUTRC \
+      RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE
     export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
       _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
     _hi_overlay_tar | tar -x -z -f - -C "$d"
@@ -231,6 +232,30 @@ function test_overlay_home_configs_follow_the_tools_variables() {
   d="$(_hi_tool_home_unpacked "$dir" STARSHIP_CONFIG="$o/prompt.toml" \
     EZA_CONFIG_DIR="$o/ezadir" BAT_CONFIG_PATH="$o/bat-flags")" || return 1
   [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ]
+}
+
+# ripgrep's and fzf's config is wherever their variable says, and nowhere
+# without it; lazygit's is its variable's, else its XDG file. Each rides
+# only with its tool here.
+function test_overlay_home_configs_of_the_cli_tools() {
+  local o="$_HI_WORKDIR/cli-vars" dir d stubs lg="$_HI_WORKDIR/tool-home/.config/lazygit/config.yml"
+  mkdir -p "$o" "${lg%/*}"
+  printf -- '--smart-case\n' >"$o/rg"
+  printf -- '--height=40%%\n' >"$o/fzf"
+  printf 'gui:\n  theme: xdg\n' >"$lg"
+  printf 'gui:\n  theme: var\n' >"$o/lg.yml"
+  stubs="$(_hi_stub_tools rg fzf lazygit)"
+  dir="$(_hi_overlay_fixture cli-empty)"
+  d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" RIPGREP_CONFIG_PATH="$o/rg" \
+    FZF_DEFAULT_OPTS_FILE="$o/fzf")" || return 1
+  [ "$(cat "$d/ripgreprc" "$d/fzfrc" "$d/lazygit.yml")" = "$(printf -- '--smart-case\n--height=40%%\ngui:\n  theme: xdg')" ] ||
+    _hi_because "home: $(cat "$d"/* 2>&1)" || return 1
+  d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" LG_CONFIG_FILE="$o/lg.yml")" || return 1
+  [ ! -e "$d/ripgreprc" ] && [ ! -e "$d/fzfrc" ] && [ "$(cat "$d/lazygit.yml")" = "$(printf 'gui:\n  theme: var')" ] ||
+    _hi_because "variable: $(ls "$d")" || return 1
+  rm -f "$lg"
+  ! PATH="$_HI_WORKDIR/no-such-dir" _hi_tool_here ripgreprc || _hi_because "rg found on an empty PATH" || return 1
+  ! PATH="$_HI_WORKDIR/no-such-dir" _hi_tool_here lazygit.yml || _hi_because "lazygit found on an empty PATH"
 }
 
 # an overlay copy wins over home's - and starship's still rides only with
@@ -900,9 +925,13 @@ function test_nano_keeps_the_stock_directory_and_drops_the_rest() {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
+  # a dropped syntax include keeps its comment through the strip: load.sh's
+  # _hi_nano_fallback reads it on the target
   out="$(_HI_NANORC="$dir/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nanorc)"
   [ "$out" = 'include "/usr/share/nano/*.nanorc"
 include "/usr/share/nano/sh.nanorc"
+# hi dropped: include "/usr/share/nano/extra/*.nanorc"
+# hi dropped: include "~/.nano/mine.nanorc"
 set tabsize 4' ] || {
     _hi_cecho " | nanorc arrived as: [$out]" "$RED"
     return 1
@@ -1480,6 +1509,7 @@ function run_hi_payload_tests() {
   _hi_check "plugins.d members ride stripped" test_overlay_carries_plugins
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
+  _hi_check "...ripgrep's, fzf's, and lazygit's included" test_overlay_home_configs_of_the_cli_tools
   _hi_check "...and an overlay copy wins" test_overlay_copy_of_a_tool_config_wins
   _hi_check "An overlay copy of a prompt framework's file wins" test_overlay_copy_of_a_prompt_framework_file_wins
   _hi_check "oh-my-posh's config rides from \$POSH_CONFIG, the rc, or the overlay" test_oh_my_posh_config_rides_from_home_or_overlay
