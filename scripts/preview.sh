@@ -173,7 +173,9 @@ function _hi_colors_rows() {
 
 # _hi_pattern_for <name> - the subnet-style pin (hostname row whose name field
 # is a glob) that would color <name>, printed as the glob itself; core.sh's
-# _hi_colors_pattern answers with the color, but the source cell wants the why
+# _hi_colors_pattern answers with the color, but the source cell wants the why.
+# A here-string, not `< <( )`: callers run this inside `$( )`, where Git Bash's
+# process substitution intermittently reads nothing and the row falls to hash.
 function _hi_pattern_for() {
   local cur_name
   while IFS= read -r cur_name; do
@@ -183,7 +185,7 @@ function _hi_pattern_for() {
     esac
     printf '%s' "$cur_name"
     return 0
-  done < <(_hi_colors_rows hostname)
+  done <<<"$(_hi_colors_rows hostname)"
   return 1
 }
 

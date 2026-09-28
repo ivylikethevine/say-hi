@@ -23,7 +23,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # scripts/, and hi.sh says so and stops - that case is tests/hi/parse_test.sh's
 # with the other subcommands, not this file's). Prints the fixture's _HI_HOME.
 function _hi_addpkg_fixture() {
-  _hi_scratch_tree "$1" common config load.sh hi.sh scripts
+  _hi_scratch_tree "$1" common config load.sh hi.sh link:scripts
 }
 
 # _hi_addpkg_run <home> <config> <args...> - _hi_subcmd_run with its own

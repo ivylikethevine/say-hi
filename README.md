@@ -349,14 +349,14 @@ In this checkout, narrowest first.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
-       sweep (run 35670586612) left in the shipped files now has a test
-       (`env_prompt.sh`, `stamp_badge.sh`, `configure.sh`, `core.sh`,
-       `doctor.sh`, `hi.sh`) or is a blind spot `tests/coverage_v2.sh`'s
-       header lists (`paths.sh`, `bash.sh`, `preview.sh`, and the rest of
-       those files' lines). What is left is the measurement. **Ticks when:**
-       the first bashcov sweep on `main` after this lands reads no shipped
-       line at 0 that is neither tested nor in that header.
+2. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
+       that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`, `update.sh`
+       and `preview.sh` from a scratch-tree copy (the first four read 0% in run
+       36341616721, 91.11% overall) now link the real `scripts/`, and each
+       other gap has a test or is a blind spot `tests/coverage_v2.sh`'s
+       header lists. What is left is the measurement. **Ticks when:** the
+       first bashcov sweep on `main` after this lands reads at least 95%
+       and no shipped line at 0 that is neither tested nor in that header.
 
 3. [ ] **The header probes only what was asked** — the default
        `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local

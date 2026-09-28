@@ -481,11 +481,22 @@ EOF
 # holding copies of the named top-level directories, and prints the _HI_HOME
 # that points at it. What a "minimal shipped tree" needs is one edit here
 # rather than one per suite that stands one up.
+#
+# A `link:<dir>` entry symlinks the real one instead, for a directory the
+# suite only reads: bashcov files a hit under the script's realpath, so a
+# linked script credits the repo file where a copy's hits are dropped. Never
+# for a directory a case writes into - the write would land in the checkout.
+# Git Bash without symlink rights copies it, which only loses the credit.
 function _hi_scratch_tree() {
   local name="$1" root="$_HI_WORKDIR/$1/say-hi" dir
   shift
   mkdir -p "$root"
-  for dir in "$@"; do cp -r "$_HI_ROOT/$dir" "$root/"; done
+  for dir in "$@"; do
+    case "$dir" in
+    link:*) ln -sfn "$_HI_ROOT/${dir#link:}" "$root/${dir#link:}" ;;
+    *) cp -r "$_HI_ROOT/$dir" "$root/" ;;
+    esac
+  done
   printf '%s' "$_HI_WORKDIR/$name"
 }
 

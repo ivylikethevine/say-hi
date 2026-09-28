@@ -19,7 +19,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # _hi_setcolor_fixture <name> - a target-shaped tree with scripts/ added, the
 # one thing that makes --set-color reachable at all. Prints its _HI_HOME.
 function _hi_setcolor_fixture() {
-  _hi_scratch_tree "$1" common config load.sh hi.sh scripts
+  _hi_scratch_tree "$1" common config load.sh hi.sh link:scripts
 }
 
 # _hi_setcolor_run <home> <config> <args...> - `hi --set-color` with its own

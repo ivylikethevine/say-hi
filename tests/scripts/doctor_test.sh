@@ -249,11 +249,28 @@ function test_config_says_the_ssh_tags_ride() {
   printf '# Tags: prod\nHost web\n' >"$dir/ssh_config"
   out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
     _HI_SETTINGS="$dir/settings.sh" doctor_config)"
-  [[ "$out" == *"the # Tags: lines of $dir/ssh_config ride along"* ]] || _hi_because "tagged: $out" || return 1
+  [[ "$out" == *"the # Tags: lines of $(_hi_doc_path "$dir/ssh_config") ride along"* ]] || _hi_because "tagged: $out" || return 1
   printf 'Host web\n' >"$dir/ssh_config"
   out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
     _HI_SETTINGS="$dir/settings.sh" doctor_config)"
   [[ "$out" != *"# Tags:"* ]] || _hi_because "untagged: $out"
+}
+
+# every member a tool reads is labeled with that tool, and hi's own go bare
+function test_member_labels_name_the_reading_tool() {
+  local pair label
+  for pair in vimrc:vim init.lua:nvim config.toml:hx nanorc:nano init.el:emacs \
+    kakrc:kak tmux.conf:tmux screenrc:screen micro/settings.json:micro \
+    zellij/config.kdl:zellij bat.conf:bat theme.yml:eza inputrc:readline \
+    bashrc:bash zshrc:zsh config.fish:fish starship.toml:starship \
+    oh-my-posh.omp.json:oh-my-posh p10k.zsh:powerlevel10k \
+    oh-my-zsh.zsh-theme:oh-my-zsh oh-my-bash.theme.sh:oh-my-bash \
+    bash-it.theme.bash:bash-it tide.vars:tide ssh_tags:ssh; do
+    _hi_doc_member "${pair%%:*}" label
+    [ "$label" = "${pair%%:*} (${pair#*:})" ] || _hi_because "${pair%%:*} -> $label" || return 1
+  done
+  _hi_doc_member colors label
+  [ "$label" = colors ] || _hi_because "colors -> $label"
 }
 
 # a member with no tree copy - bashrc, starship.toml - has no default to
@@ -1551,6 +1568,7 @@ function run_doctor_tests() {
     _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
     _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
     _hi_check "A tagged ssh config says its tags ride" test_config_says_the_ssh_tags_ride
+    _hi_check "A member's label names the tool that reads it" test_member_labels_name_the_reading_tool
     _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
     _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
     _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override

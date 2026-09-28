@@ -47,7 +47,7 @@ source "$_HI_PREVIEW"
 # below counts the real shipped roster instead.
 function _hi_write_preview_tree() {
   local home
-  home="$(_hi_scratch_tree tree common config scripts)"
+  home="$(_hi_scratch_tree tree common config link:scripts)"
   mkdir -p "$home/.ssh"
   cp "$_HI_WORKDIR/colors" "$home/say-hi/config/colors"
   cp "$_HI_WORKDIR/ssh_config" "$home/.ssh/config"
@@ -965,7 +965,7 @@ function test_preview_follows_the_groups_setting() {
 # config/packages is the only candidate - and the tree has none.
 function test_preview_reports_no_packages_file() {
   local home out
-  home="$(_hi_scratch_tree nopackages common config scripts)"
+  home="$(_hi_scratch_tree nopackages common config link:scripts)"
   rm -f "$home/say-hi/config/packages"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
@@ -979,7 +979,7 @@ function test_preview_reports_no_packages_file() {
 # point the check at a file of your own.
 function test_preview_ignores_an_exported_packages() {
   local home decoy out
-  home="$(_hi_scratch_tree exportedpkgs common config scripts)"
+  home="$(_hi_scratch_tree exportedpkgs common config link:scripts)"
   cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages"
   decoy="$_HI_WORKDIR/exported-packages"
   printf 'hionlyone\n' >"$decoy"
