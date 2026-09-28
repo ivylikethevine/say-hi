@@ -61,14 +61,16 @@ it, `--dry-run` shows every write first.
 ## What You Get
 
 Each GIF below is one persona's real config - the settings behind every one
-are in [docs/SETTINGS.md](docs/SETTINGS.md).
+are in [docs/SETTINGS.md](docs/SETTINGS.md). Most leave the laptop as it is
+(`_HI_DISABLE_LOCAL=1`), so the outside prompt is its distro's own and hi
+begins at the target.
 
 ### Connect Via More Than SSH
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
 running container, allocation, and pod, each tagged with its backend;
 `hi --<TAB>` answers hi's own flags without probing any backend. An operator
-at a bastion, in fish for its pager's description column.
+at a workstation, in fish for its pager's description column.
 
 ![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
@@ -77,9 +79,10 @@ at a bastion, in fish for its pager's description column.
 A package check of the tools you care about, in groups you switch on, in one
 `packages` file (a copy of your own replaces the shipped one); the header
 checks it on every target — one quiet line on a box that has them, a loud
-one on a box that does not. A homelab: bash from a laptop into the nas and the pihole,
-keeping the distro prompt — hi's is off (`_HI_DISABLE_PROMPT=1`), and the
-header, the check, and the aliases ride along anyway.
+one on a box that does not. A homelab: bash from an Ubuntu laptop into the
+nas and the pihole, each keeping its distro's prompt — hi's is off
+(`_HI_DISABLE_PROMPT=1`), and the header, the check, and the aliases ride
+along anyway.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
@@ -87,9 +90,10 @@ header, the check, and the aliases ride along anyway.
 
 `~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
 bash session on a debian container and a fish session on an alpine box,
-reached through docker and podman. The operator again, in fish, with the
-header trimmed to the clocks, the backend counts, and the check on a
-blue-to-red ramp of their own. A box with no bash gets the aliases-only tier —
+reached through docker and podman. The operator again, in fish's own prompt
+at the workstation and hi's on both boxes, with the header trimmed to the
+clocks, the backend counts, and the check on a blue-to-red ramp of their
+own. A box with no bash gets the aliases-only tier —
 hi's own aliases, not the overlay
 ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
@@ -99,9 +103,9 @@ hi's own aliases, not the overlay
 
 `nano` and `vim` open with the nanorc and vimrc you keep at home (or an
 overlay copy), on a box with none of those files, and nothing is installed or
-left running on the target. A developer, zsh on a laptop into the team's shared dev box, where the
-prompt is starship's, not hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the
-header, editors, and aliases).
+left running on the target. A developer, zsh on a Mac with its stock prompt,
+into the team's shared dev box, where the prompt is starship's, not hi's
+(`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors, and aliases).
 
 ![nano and vim with the carried rc files inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
@@ -109,9 +113,10 @@ header, editors, and aliases).
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
 `hi --preview colors` to see what every host resolves to — then a prod host
-lands in red and a dev host in green. A sysadmin, bash from a laptop into two
-fish ssh hosts, with a two-line fish prompt of their own riding the overlay,
-drawn on the colors hi resolved.
+lands in red and a dev host in green. A sysadmin, bash from a laptop where
+the prompt is hi's too (`_HI_PROMPT_TOOL=hi`), into two fish ssh hosts, with
+a two-line fish prompt of their own riding the overlay, drawn on the colors
+hi resolved.
 
 ![hi --preview colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
@@ -122,7 +127,7 @@ comes back: the same loop over an ssh host, a docker container, a nomad
 allocation, and a kubernetes pod (`-F` is ssh's, passed through unchanged; the
 recording's ssh config is a throwaway). The pod is busybox `ash` with no bash
 — the aliases-only tier — and hi says so, once, and runs the command anyway.
-A researcher, in zsh, sweeping the cluster's backends.
+A researcher, in zsh on a Fedora laptop, sweeping the cluster's backends.
 
 ![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation, and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
 
@@ -420,12 +425,10 @@ when it lands.
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-4. [ ] **vhs v0.12** — shipped: `demos.yml` pins v0.12.1, which fixes the
-       render v0.12.0 never ran
+4. [x] **vhs v0.12** — `demos.yml` pins v0.12.1, which fixes the render
+       v0.12.0 never ran
        ([charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787)),
-       and `tool-versions.yml` holds the pin off no release. What is left is
-       the render. **Ticks when:** a `demos.yml` dispatch renders all six
-       tapes on that pin.
+       and a `demos.yml` dispatch renders all six tapes on that pin.
 
 ## License
 

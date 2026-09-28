@@ -15,7 +15,9 @@
 #
 # Its configuration: _HI_TARGETS_TTL=0, from the settings.sh
 # docs/tapes/fixtures.sh writes - see the `up:complete` case there for why a
-# cached sweep is the one thing this demo cannot show.
+# cached sweep is the one thing this demo cannot show - and the workstation
+# left as it is (_HI_DISABLE_LOCAL): the prompt is fish's own, the completion
+# hi's all the same.
 #
 # The ssh roster comes from $_HI_SSH_CONFIG, set below, and **not** from a
 # throwaway $HOME the way colors.tape does it. Same goal - the renderer's

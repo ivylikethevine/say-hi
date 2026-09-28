@@ -20,6 +20,8 @@ set -euo pipefail
 
 _HI_DEMO_DIR=/tmp/hi-demo
 _HI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# the account on the sshd boxes; up_ssh sets it to the persona's
+_HI_DEMO_SSH_USER=hitest
 
 # the sshd entrypoint's common tail - shared with tests/lib/ssh.sh's
 # _hi_sshd_entrypoint so a demo box and an e2e one are locked down the same
@@ -65,10 +67,13 @@ function demo_sshd_image() {
   # further down is that one's context. No hi configuration lives on the box:
   # a session ignores a say-hi the target has and runs on the overlay it ships,
   # so each demo's settings go in the client's overlay like any other's.
+  #
+  # The account is the persona's, not the e2e suites' hitest: the Dockerfile
+  # renames it, and the entrypoint seeds the key for the name it was renamed to.
   mkdir -p "$_HI_DEMO_DIR/base"
   {
     printf '#!/bin/bash\nset -e\n'
-    printf '%s\n' "$_HI_SSHD_ENTRYPOINT_BODY"
+    printf '%s\n' "${_HI_SSHD_ENTRYPOINT_BODY//hitest/$_HI_DEMO_SSH_USER}"
   } >"$_HI_DEMO_DIR/base/entrypoint.sh"
   demo_step "building the sshd base image (a cold runner fetches its packages here)"
   docker build --progress=plain -t hi-demo-sshd-base \
@@ -93,6 +98,7 @@ function demo_sshd_image() {
   fi
   demo_step "building the demo sshd image from the ${HI_DEMO_SOURCE:-head} tree"
   docker build --progress=plain -t hi-demo-sshd --build-arg BASE=hi-demo-sshd-base \
+    --build-arg "LOGIN=$_HI_DEMO_SSH_USER" \
     -f "$_HI_ROOT/tests/dockerfiles/demo-sshd.Dockerfile" "$_HI_DEMO_DIR" >&2
   demo_step "images built"
 }
@@ -109,7 +115,7 @@ function demo_ssh_block() {
 Host $1
   HostName 127.0.0.1
   Port $port
-  User hitest
+  User $_HI_DEMO_SSH_USER
   IdentityFile $_HI_DEMO_DIR/key
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
@@ -117,8 +123,10 @@ Host $1
 EOF
 }
 
-function up_ssh() { # <name...> - one sshd box per name, off the one image
+function up_ssh() { # <login> <name...> - one sshd box per name, off the one image
   local name
+  _HI_DEMO_SSH_USER="$1"
+  shift
   demo_keypair
   demo_sshd_image
   : >"$_HI_DEMO_DIR/ssh_config"
@@ -146,9 +154,15 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
 # prompt shows the second, and a demo where those differ reads as a bug in hi.
 # It also gives the header's color-hash line something meaningful to hash
 # instead of the backend's random container ID.
-function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash>
-  demo_step "starting $2 on $1 ($3)"
-  local backend="$1" name="$2" flavor="$3" image
+#
+# <login> is the account the session lands in, layered over the flavor's image
+# by tests/dockerfiles/demo-login.Dockerfile; without one it is the image's
+# own, root. <ps1> is the prompt that account's rc leaves where the distro's
+# differs from the image's - what shows on a box whose session has hi's
+# prompt off.
+function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash> [login] [ps1]
+  demo_step "starting $2 on $1 ($3${4:+, as $4})"
+  local backend="$1" name="$2" flavor="$3" login="${4:-}" ps1="${5:-}" image
   # rootless podman's build network (slirp4netns) sends DNS straight to the
   # host's upstream resolver, past the one a CI egress filter answers - so
   # apk/apt inside the build cannot resolve. The host's network is the host's
@@ -184,6 +198,12 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
     return 1
     ;;
   esac
+  if [ -n "$login" ]; then
+    "$backend" build "${net[@]}" -t "hi-demo-$flavor-$login" --build-arg "BASE=$image" \
+      --build-arg "LOGIN=$login" --build-arg "PS1_STOCK=$ps1" \
+      -f "$_HI_ROOT/tests/dockerfiles/demo-login.Dockerfile" "$_HI_DEMO_DIR" >&2
+    image="hi-demo-$flavor-$login"
+  fi
   "$backend" rm -f "$name" >/dev/null 2>&1 || true
   "$backend" run -d --rm --name "$name" --hostname "$name" --label hi.demo=1 \
     "$image" tail -f /dev/null >/dev/null
@@ -245,8 +265,12 @@ function up_kube() {
 }
 
 # The *client* side of every tape: an rc the tape sources so the outside shell
-# has hi's own prompt (vhs starts a bare shell, which otherwise renders the
-# blank default) under a chosen identity rather than the renderer's.
+# is the persona's machine rather than the renderer's. It starts from the
+# prompt that machine's stock rc leaves (demo_stock_ps1) and sources hi's rc
+# over it, so what draws is what hi decides from the demo's settings.sh: the
+# stock prompt where hi is off at home, hi's own where it is on. vhs's own
+# prompt is not one hi knows as stock, so left in place hi would stand down
+# for it as for a prompt of the user's.
 #
 # The identity needs both halves. $_HI_WHOAMI_CACHE/$_HI_HOSTNAME_CACHE are what
 # hi resolves *colors* from, so priming them makes the prompt's colors the ones
@@ -255,7 +279,7 @@ function up_kube() {
 # not let a script reassign), and fish reads $USER and prompt_hostname. So bash
 # and zsh get the two escapes substituted back out of the finished prompt, and
 # fish gets the variable and the function. Everything else on the line stays
-# hi's real prompt - its colors, its separator, its git segment.
+# the real prompt - its colors, its separator, its git segment.
 #
 # Written through sed rather than an unquoted heredoc so the rc's own ${...}
 # survives being generated.
@@ -313,7 +337,7 @@ Host db-staging
 
 # Tags: desktop
 Host workshop
-  User hitest
+  User admin
 
 Host build-box
   User ci
@@ -329,7 +353,7 @@ EOF
 # writes its settings.sh into. Two live sshd boxes, one per pinned tag, so the
 # preview's table and the two sessions after it are the same names.
 function up_colors() {
-  up_ssh db-prod dev-1 || return 1
+  up_ssh kai db-prod dev-1 || return 1
   demo_ssh_config_live db-prod:prod dev-1:dev
   demo_overlay colors <<'EOF'
 # pins beat the name hash; everything unpinned still resolves on its own
@@ -356,17 +380,41 @@ function demo_overlay() { # <name> - body on stdin
   cat >"$_HI_DEMO_DIR/config/$1"
 }
 
-# The rc template's substitutions, in one place rather than once per shell: the
-# three rc *bodies* below differ for real, the sed line never did. Reads
-# client_rc's locals, so it lives with it and nowhere else.
-function rc_sed() { # <outfile> - body on stdin
-  sed -e "s/@USER@/$user/g" -e "s/@HOST@/$host/g" \
-    -e "s#@HOME@#$home#g" -e "s#@ROOT@#$_HI_ROOT#g" \
-    -e "s#@CONFIG@#$_HI_DEMO_DIR/config#g" >"$1"
+# demo_stock_ps1 <shell> <os> - the prompt <os>'s stock rc leaves in <shell>,
+# as _hi_ps1_stock lists it (common/bash.sh, common/zsh.zsh): one hi takes
+# over at home when its prompt is on. fish has no string to seed; its rc puts
+# fish's own fish_prompt back.
+function demo_stock_ps1() {
+  # `/` between the two: `bash:<word>` reads as an image tag to drift's pin check
+  case "$1/$2" in
+  bash/ubuntu) printf '%s' '\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ ' ;;
+  bash/arch) printf '%s' '[\u@\h \W]\$ ' ;;
+  zsh/macos) printf '%s' '%n@%m %1~ %# ' ;;
+  zsh/fedora) printf '%s' '[%n@%m]%~%# ' ;;
+  fish/*) ;;
+  *)
+    echo "no stock prompt for $1 on ${2:-an unnamed os}" >&2
+    return 1
+    ;;
+  esac
 }
 
-function client_rc() { # <shell> <user> <hostname> [stock]
-  local shell="$1" user="$2" host="$3" stock="${4:-}" home
+# The rc template's substitutions, in one place rather than once per shell: the
+# three rc *bodies* below differ for real, the sed line never did. Reads
+# client_rc's locals, so it lives with it and nowhere else. The stock prompt
+# goes ahead of the body by printf: its backslashes are sed's own escapes.
+function rc_sed() { # <outfile> - body on stdin
+  {
+    [ -z "$ps1" ] || printf "PS1='%s'\n" "$ps1"
+    sed -e "s/@USER@/$user/g" -e "s/@HOST@/$host/g" \
+      -e "s#@HOME@#$home#g" -e "s#@ROOT@#$_HI_ROOT#g" \
+      -e "s#@CONFIG@#$_HI_DEMO_DIR/config#g"
+  } >"$1"
+}
+
+function client_rc() { # <shell> <user> <hostname> [os]
+  local shell="$1" user="$2" host="$3" home ps1
+  ps1="$(demo_stock_ps1 "$shell" "${4:-}")" || return 1
   home="$(dirname "$_HI_ROOT")"
   # Every up:* calls this before writing its overlay, so this is the one place
   # that can guarantee a demo gets its own configuration and no one else's.
@@ -384,21 +432,8 @@ function client_rc() { # <shell> <user> <hostname> [stock]
   # shell, and on a machine where /usr/bin/hi points at some other install (or
   # a login profile exports its own $_HI_HOME) an inherited one renders the
   # wrong tree - silently, and the GIF is the only place it would show.
-  case "$stock:$shell" in
-  # the homelab persona: hi's prompt is off in its settings.sh, so this rc
-  # draws the distro-style prompt such a person already has, and the targets
-  # show their own (debian's root@host:~#) - the header and aliases still
-  # ride along, the prompt does not
-  stock:bash)
-    rc_sed "$_HI_DEMO_DIR/clientrc.bash" <<'EOF'
-export _HI_HOME='@HOME@' _HI_ROOT='@ROOT@'
-export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
-export _HI_CONFIG_DIR='@CONFIG@'
-source "$_HI_ROOT/common/bash.sh"
-PS1='[@USER@@@HOST@ \W]\$ '
-EOF
-    ;;
-  *:bash)
+  case "$shell" in
+  bash)
     rc_sed "$_HI_DEMO_DIR/clientrc.bash" <<'EOF'
 export _HI_HOME='@HOME@' _HI_ROOT='@ROOT@'
 export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
@@ -408,15 +443,22 @@ export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
 # and silently drop this demo's. Ahead of the rc, which is what sources it.
 export _HI_CONFIG_DIR='@CONFIG@'
 source "$_HI_ROOT/common/bash.sh"
-_hi_demo_ps1() {
-  __hi_ps1
+# hi rebuilds its prompt on every draw, so the identity goes in after each;
+# a prompt hi left alone is set once
+if declare -F __hi_ps1 >/dev/null; then
+  _hi_demo_ps1() {
+    __hi_ps1
+    PS1="${PS1//\\u/@USER@}"
+    PS1="${PS1//\\h/@HOST@}"
+  }
+  PROMPT_COMMAND=_hi_demo_ps1
+else
   PS1="${PS1//\\u/@USER@}"
   PS1="${PS1//\\h/@HOST@}"
-}
-PROMPT_COMMAND=_hi_demo_ps1
+fi
 EOF
     ;;
-  *:zsh)
+  zsh)
     rc_sed "$_HI_DEMO_DIR/clientrc.zsh" <<'EOF'
 export _HI_HOME='@HOME@' _HI_ROOT='@ROOT@'
 export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
@@ -424,13 +466,14 @@ export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
 export _HI_CONFIG_DIR='@CONFIG@'
 source "$_HI_ROOT/common/zsh.zsh"
 # %n reads $USERNAME, which zsh will not let a script reassign, so both escapes
-# are substituted out of the finished prompt instead. zsh builds PS1 once and
-# updates the git segment through a variable, so once is enough.
+# are substituted out of the finished prompt instead, hi's or the stock one.
+# zsh builds PS1 once and updates the git segment through a variable, so once
+# is enough.
 PS1="${PS1//\%n/@USER@}"
 PS1="${PS1//\%m/@HOST@}"
 EOF
     ;;
-  *:fish)
+  fish)
     rc_sed "$_HI_DEMO_DIR/clientrc.fish" <<'EOF'
 set -gx _HI_HOME '@HOME@'
 set -gx _HI_ROOT '@ROOT@'
@@ -441,6 +484,15 @@ set -gx USER '@USER@'
 set -gx _HI_CONFIG_DIR '@CONFIG@'
 function prompt_hostname
   echo '@HOST@'
+end
+# fish's own prompt over the one vhs defined: from its file, or out of the
+# binary on a fish that embeds its functions. hi reads the embedded one as
+# the user's own, so a fish client that wants hi's prompt names `hi` in
+# $_HI_PROMPT_TOOL.
+if test -f $__fish_data_dir/functions/fish_prompt.fish
+  source $__fish_data_dir/functions/fish_prompt.fish
+else
+  status get-file functions/fish_prompt.fish | source
 end
 source "$_HI_ROOT/common/config.fish"
 EOF
@@ -499,9 +551,9 @@ function demo_ssh_config() { demo_ssh_config_live; }
 # the two things a bare `hi <name> <cmd>` reads out of $HOME. The tools debian
 # rather than a bare one, so one of the four `cat`s renders through bat.
 function up_run() {
-  up_ssh web-1 || return 1
+  up_ssh deploy web-1 || return 1
   demo_ssh_config_live web-1:
-  up_container docker db-prod tools || return 1
+  up_container docker db-prod tools deploy || return 1
   up_nomad || return 1
   up_kube || return 1
   mkdir -p "$_HI_DEMO_DIR/home/.kube"
@@ -559,19 +611,23 @@ function demo_down() {
 
 mkdir -p "$_HI_DEMO_DIR"
 case "${1:-}:${2:-}" in
-# Client identities, chosen per tape rather than taken from the renderer. The
-# spread is the point: every tape but one says hi somewhere it is not. The
-# exception is docker's second target, where client and target are both cache-1
-# - the same box reached two ways, which is worth one frame of the set.
+# Client identities, chosen per tape rather than taken from the renderer: a
+# person at their own laptop or desktop, reaching a box that is less their
+# own. Five of the seven leave that machine alone (_HI_DISABLE_LOCAL, or the
+# prompt off at both ends), so it shows its distro's stock prompt and hi's
+# begins at the target; demo and colors keep hi's prompt at home, and name
+# `hi` in _HI_PROMPT_TOOL so a prompt program the renderer happens to have
+# installed draws at neither end.
 up:packages)
-  # The homelab tinkerer: sam, from a laptop, into the two boxes under the
-  # stairs. Their own distro prompt everywhere (hi's is off, so the targets
-  # show their stock root@host:~# too), the whole header with every address
-  # shown (_HI_IP_HIDE=none - the default would drop the docker bridge these
-  # containers stand in for a LAN with), and the check as a diagnosis: the
-  # overlay below is the homelab toolbox, and the two boxes answer it very
-  # differently - the nas has most of it, the pihole almost none.
-  client_rc bash sam laptop stock
+  # The homelab tinkerer: sam, from an ubuntu laptop, into the two boxes under
+  # the stairs. The distro's prompt at every stop (hi's is off, so the nas
+  # shows debian's and the pihole Raspberry Pi OS's), the whole header with
+  # every address shown (_HI_IP_HIDE=none - the default would drop the docker
+  # bridge these containers stand in for a LAN with), and the check as a
+  # diagnosis: the overlay below is the homelab toolbox, and the two boxes
+  # answer it very differently - the nas has most of it, the pihole almost
+  # none.
+  client_rc bash sam laptop ubuntu
   demo_settings <<'EOF'
 export _HI_DISABLE_PROMPT='1'
 export _HI_IP_HIDE='none'
@@ -590,16 +646,20 @@ htop
 tmux
 smartctl
 EOF
-  up_container docker nas tools
-  up_container docker pihole debian
+  up_container docker nas tools admin
+  # shellcheck disable=SC2016 # the prompt's own text, never expanded
+  up_container docker pihole debian pi \
+    '${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w \$\[\033[00m\] '
   ;;
 up:editors)
-  # The developer on a shared dev box: maya, zsh on her mac, into the team's
-  # debian where starship is installed. The compact header preset, and the
-  # prompt handed to starship (_HI_PROMPT_TOOL) - hi keeps the header, the
-  # editors, and the aliases; the prompt is hers.
-  client_rc zsh maya mbp
+  # The developer on a shared dev box: maya, zsh on her mac, into her account
+  # on the team's debian, where starship is installed. Her mac is left as it
+  # is (_HI_DISABLE_LOCAL), so it shows macOS's stock prompt. The compact
+  # header preset, and the prompt handed to starship (_HI_PROMPT_TOOL) - hi
+  # keeps the header, the editors, and the aliases; the prompt is hers.
+  client_rc zsh maya mbp macos
   demo_settings <<'EOF'
+export _HI_DISABLE_LOCAL='1'
 export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods'
 export _HI_PROMPT_TOOL='starship'
 EOF
@@ -607,16 +667,19 @@ EOF
   # overlay, the way a user's would ride
   demo_overlay vimrc <"$_HI_ROOT/docs/tapes/editors/vimrc"
   demo_overlay nanorc <"$_HI_ROOT/docs/tapes/editors/nanorc"
-  up_container docker dev-box tools
+  up_container docker dev-box tools maya
   ;;
 up:overlay)
-  # The ops persona: fish on a bastion, into a docker box and a podman box.
-  # The header trimmed to what an operator looks at - clocks, the backend
-  # counts, the check - painted with a blue-to-red ramp of its own. No
-  # throwaway $HOME here: podman
-  # lives under the real one.
-  client_rc fish ops bastion
+  # The ops persona: fish on a workstation, left as it is (_HI_DISABLE_LOCAL,
+  # so fish's own prompt), into a docker box and a podman box, where the
+  # prompt is hi's (`hi` in _HI_PROMPT_TOOL). The header trimmed to what an
+  # operator looks at - clocks, the backend counts, the check - painted with
+  # a blue-to-red ramp of its own. No throwaway $HOME here: podman lives
+  # under the real one.
+  client_rc fish ops workstation
   demo_settings <<'EOF'
+export _HI_DISABLE_LOCAL='1'
+export _HI_PROMPT_TOOL='hi'
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
 export _HI_TOOL_ALIASES='1'
@@ -631,8 +694,8 @@ EOF
 alias dfh='df -h /'
 alias cat="$_HI_CAT_BIN -P --theme Nord --style grid"
 EOF
-  up_container docker db-prod tools
-  up_container podman edge-1 fish-bash
+  up_container docker db-prod tools deploy
+  up_container podman edge-1 fish-bash ops
   ;;
 up:complete)
   # The one demo whose subject is the *client* alone - nothing is connected to,
@@ -645,22 +708,28 @@ up:complete)
   # box - so a TAB landing inside a stale window would render *their* containers
   # into the GIF. 0 is the one value that cannot, and on a demo whose subject is
   # the sweep it is the honest setting anyway.
-  client_rc fish ops bastion
+  #
+  # The workstation is left as it is (_HI_DISABLE_LOCAL): the completion is
+  # hi's either way, and the prompt above the pane is fish's own.
+  client_rc fish ops workstation
   demo_settings <<'EOF'
+export _HI_DISABLE_LOCAL='1'
 export _HI_TARGETS_TTL='0'
 EOF
   up_complete
   ;;
 up:colors)
-  # The sysadmin: kai, bash on a laptop, into two fish boxes. This demo's
-  # configuration is the `colors` overlay up_colors writes, a hex scheme
-  # (atom's one dark) the preview and both sessions paint with, a short
-  # header, and a two-line fish prompt of kai's own - all in the overlay, so
-  # all of it rides to both boxes. The tape exports a throwaway $HOME as well,
-  # for the ssh config the preview and the two sessions read, and COLORTERM,
-  # which vhs's shell does not set.
-  client_rc bash kai ops-laptop
+  # The sysadmin: kai, bash on an ubuntu laptop, into two fish boxes. hi's
+  # prompt at home too, since the colors are the subject (`hi` in
+  # _HI_PROMPT_TOOL). This demo's configuration is the `colors` overlay
+  # up_colors writes, a hex scheme (atom's one dark) the preview and both
+  # sessions paint with, a short header, and a two-line fish prompt of kai's
+  # own - all in the overlay, so all of it rides to both boxes. The tape
+  # exports a throwaway $HOME as well, for the ssh config the preview and the
+  # two sessions read, and COLORTERM, which vhs's shell does not set.
+  client_rc bash kai ops-laptop ubuntu
   demo_settings <<'EOF'
+export _HI_PROMPT_TOOL='hi'
 export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
 export _HI_HEADER_ORDER='gitid containers jobs pods auth pub uptime'
 EOF
@@ -679,26 +748,30 @@ EOF
   up_colors
   ;;
 up:run)
-  # the researcher again, running one command across the cluster's backends
-  client_rc zsh chen thinkpad
+  # The researcher: chen, zsh on a fedora thinkpad left as it is
+  # (_HI_DISABLE_LOCAL), running one command across the cluster's backends.
+  client_rc zsh chen thinkpad fedora
   # a one-off command draws no header, so nothing a knob would show; the TTL
   # is up:complete's, for up:complete's reason
   demo_settings <<'EOF'
+export _HI_DISABLE_LOCAL='1'
 export _HI_TARGETS_TTL='0'
 EOF
   up_run
   ;;
 up:demo)
-  client_rc bash ivy workshop
-  # The one opt-in, deliberately nothing else. Every other demo turns
-  # something on or ships something of its own; the README's top GIF is the
-  # one that shows the defaults, which is only legible if it stays stock but
-  # for the styled tool aliases, so `cat` renders through the box's bat. The
-  # tools debian, so the defaults have something to work on.
+  client_rc bash ivy workshop arch
+  # Every other demo turns something off or ships something of its own; the
+  # README's top GIF is the one that shows the defaults, which is only legible
+  # if it stays stock but for two lines: the styled tool aliases, so `cat`
+  # renders through the box's bat, and `hi` as the prompt, so both ends draw
+  # hi's whatever prompt program the renderer has installed. The tools
+  # debian, so the defaults have something to work on.
   demo_settings <<'EOF'
 export _HI_TOOL_ALIASES='1'
+export _HI_PROMPT_TOOL='hi'
 EOF
-  up_container docker db-prod tools
+  up_container docker db-prod tools deploy
   ;;
 down:) demo_down ;;
 *)

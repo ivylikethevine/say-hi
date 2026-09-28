@@ -394,7 +394,9 @@ The editors never read a target's own rcs: the home lookup is off with
 The editors are started so they leave nothing behind: neovim with
 `XDG_STATE_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` under the session
 tree's `nvim/`, so its shada, swap, undo, log, and `vim.loader` cache go with
-the session, micro with no backups or history.
+the session; vim with the same three under `vim/`, for a vimrc that keeps its
+undo files there, and no viminfo (`-i NONE`); micro with no backups or
+history.
 
 ## Packaged installs
 

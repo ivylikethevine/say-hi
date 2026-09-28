@@ -590,6 +590,22 @@ function doctor_config() {
     tr -d = | sort -u | tr '\n' ' ')" || true
   [ -z "$late" ] ||
     doctor_row alias-vars "aliases.sh sets ${late% } - hi's aliases are built before it loads, so it does nothing; move it to settings.sh" bad
+  # ...and an alias it defines replaces a wiring line's of the same name
+  # (GLOSSARY: HI.62) on a target, so that tool starts without the config hi
+  # carried for it. warn: it may be meant.
+  local wired="" names=""
+  local -a members=()
+  while IFS= read -r t; do members+=("$t"); done < <(_hi_overlay_files)
+  _hi_overlay_wiring wired ${members[@]+"${members[@]}"}
+  while [ "${wired#* alias }" != "$wired" ]; do
+    wired="${wired#* alias }"
+    t="${wired%%=*}"
+    case " $names " in *" $t "*) continue ;; esac
+    ! grep -v '^[[:space:]]*#' "$asrc" 2>/dev/null | grep -qE "(^|[[:space:];&|])alias[[:space:]]+$t=" ||
+      names="$names $t"
+  done
+  [ -z "$names" ] ||
+    doctor_row alias-wired "aliases.sh aliases${names} - on a target that replaces hi's alias, so the config hi carries for it goes unused there; drop the alias, or keep that config home with its _HI_DISABLE_ toggle" warn
   # only the non-default settings: a default setup stays one quiet line.
   # Under _HI_DISABLE_LOCAL=1 paths.sh's gate has set every other toggle
   # here, so those read as one row and only a toggle settings.sh sets on its

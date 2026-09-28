@@ -456,8 +456,8 @@ Needs vhs (with ttyd and ffmpeg) and the backend each tape names; a tape whose
 backend is missing is skipped, not failed. `hi` is shimmed onto $PATH from this
 checkout, so wherever /usr/bin/hi points does not matter.
 
-Renders nothing in CI and answers to nothing: the GIFs are manual artifacts.
-Look at what came out before committing it.
+demos.yml renders every tape but demo; demo.gif is a manual artifact. Look at
+what came out before committing it.
 EOF
     exit 0
     ;;

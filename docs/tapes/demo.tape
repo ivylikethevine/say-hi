@@ -7,7 +7,9 @@
 # The pitch in one frame: your shell follows you. Every other tape turns a knob
 # (docs/tapes/fixtures.sh writes each one a settings.sh); this is the shot that
 # shows the shipped defaults with everything on, so it must stay stock to mean
-# anything - but for the tool aliases, the one opt-in its settings.sh sets.
+# anything - but for the two lines its settings.sh sets: the tool aliases,
+# and `hi` as the prompt, so a prompt program on the renderer draws at
+# neither end.
 # What it *uses* is the point, not what it connects to: the header
 # says what the box is missing, the prompt carries the git segment inside a
 # checkout on the target, `cat` falls through to the bat the box happens to

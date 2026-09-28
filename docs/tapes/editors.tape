@@ -1,13 +1,14 @@
 # The editors demo, as the developer on a shared dev box sees it: maya, zsh
-# on her mac, into the team's debian. nano and vim with the nanorc and vimrc
-# her overlay carries (docs/tapes/editors/). Render with
+# on her mac, into her account on the team's debian. nano and vim with the
+# nanorc and vimrc her overlay carries (docs/tapes/editors/). Render with
 # `vhs docs/tapes/editors.tape` from the repo root, docker running, hi on
 # PATH. CI renders it too (demos.yml).
 #
-# Its configuration (docs/tapes/fixtures.sh, up:editors): the compact header
-# preset, so the header stays one line and the editors get the frame, and the
-# prompt handed to starship (_HI_PROMPT_TOOL=starship - the box has it, and it is
-# the prompt this person already uses); hi keeps everything else.
+# Its configuration (docs/tapes/fixtures.sh, up:editors): her mac left as it
+# is (_HI_DISABLE_LOCAL), so the outside prompt is macOS's stock one; the
+# compact header preset, so the header stays one line and the editors get the
+# frame; and the prompt handed to starship (_HI_PROMPT_TOOL=starship - the box
+# has it); hi keeps everything else.
 #
 # The Hide block paces itself with Wait+Screen on sentinel text instead of
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
@@ -33,7 +34,7 @@ Wait+Screen@180s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.zsh"
 Enter
 # stand in a throwaway $HOME: the client prompt then reads ~ rather than the
-# renderer's checkout path, and carries none of its git markers
+# renderer's checkout path
 Type "export HOME=/tmp/hi-demo/home && cd"
 Enter
 Type "clear"

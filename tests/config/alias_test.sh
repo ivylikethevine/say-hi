@@ -193,6 +193,34 @@ function _hi_test_nvim_stays_in_tree() {
     _hi_because "[$shell] no undo file or luac cache under the tree"
 }
 
+# _hi_test_vim_stays_in_tree <shell> <dir> - ...and vim the same way: no
+# viminfo, and the undo files of a vimrc that keeps them under
+# $XDG_STATE_HOME are the session tree's
+# shellcheck disable=SC2016 # the scripts we write out, not code to run here
+function _hi_test_vim_stays_in_tree() {
+  local shell="$1" base="$2/vimstate.$1" output rc=0 run='vim -es -c "normal! ix" -c wq'
+  mkdir -p "$base/home" "$base/tree" "$base/cfg"
+  printf '%s\n' 'set nocompatible undofile' 'let &undodir = $XDG_STATE_HOME . "/vim/undo"' \
+    'call mkdir(&undodir, "p")' >"$base/cfg/vimrc"
+  printf 'a\n' >"$base/f.txt"
+  _hi_wiring_for vimrc >"$base/cfg/wiring.sh" ||
+    _hi_because "[$shell] no wiring.sh for vimrc" || return 1
+  if [ "$shell" = fish ]; then
+    printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' "$run \$F" >"$base/t"
+  else
+    printf '%s\n' 'shopt -s expand_aliases 2>/dev/null' '. "$_HI_CONFIG_DIR/wiring.sh" || exit 2' "$run \"\$F\"" >"$base/t"
+  fi
+  output=$(env -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME HOME="$base/home" \
+    XDG_CONFIG_HOME="$base/home/.config" F="$base/f.txt" _HI_REMOTE_SESSION=1 \
+    _HI_DISABLE_EDITORS=0 _HI_DISABLE_VIM=0 \
+    _HI_HOME="$base/tree" _HI_CONFIG_DIR="$base/cfg" "$shell" "$base/t" 2>&1 </dev/null) || rc=$?
+  [ "$rc" -eq 0 ] || _hi_because "[$shell] vim exited $rc: $output" || return 1
+  [ -z "$(find "$base/home" -name '.viminfo*' -o -name '*vim')" ] ||
+    _hi_because "[$shell] wrote outside the tree: $(find "$base/home" -name '.viminfo*' -o -name '*vim' | tr '\n' ' ')" || return 1
+  [ -n "$(find "$base/tree/vim/state/vim/undo" -type f 2>/dev/null)" ] ||
+    _hi_because "[$shell] no undo file under the tree"
+}
+
 function run_alias_test() {
   _hi_h1 "Testing aliases.sh across shells"
   _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases, $(wc -w <<<"$_HI_SAMPLE_VARS") variables and $(wc -l <<<"$_HI_PRESENCE_ALIASES") presence-gated aliases"
@@ -227,6 +255,11 @@ function run_alias_test() {
       _hi_case _hi_test_nvim_stays_in_tree "$_hi_shell" "$_HI_WORKDIR"
     else
       _hi_skip "$_hi_shell nvim state" "no nvim"
+    fi
+    if vim --version 2>/dev/null | grep -q '+persistent_undo'; then
+      _hi_case _hi_test_vim_stays_in_tree "$_hi_shell" "$_HI_WORKDIR"
+    else
+      _hi_skip "$_hi_shell vim state" "no vim with persistent undo"
     fi
   done
   _hi_case _hi_test_no_dangling "$_HI_WORKDIR"

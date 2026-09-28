@@ -1,6 +1,8 @@
-# The overlay demo, as the ops persona sees it: fish on a bastion, into a
-# docker box and a podman box, the header trimmed to an operator's cells
-# (clocks, backend counts, the check on its own ramp). One aliases.sh
+# The overlay demo, as the ops persona sees it: fish on a workstation, into a
+# docker box as deploy and a podman box as ops, the header trimmed to an
+# operator's cells (clocks, backend counts, the check on its own ramp). The
+# workstation is left as it is (_HI_DISABLE_LOCAL), so the outside prompt is
+# fish's own and hi's begins at the target. One aliases.sh
 # overlay, sourced on every target: it works in a bash session on a debian
 # container and a fish session on an
 # alpine box - via docker and podman, so no two of client, target shell, and
@@ -16,7 +18,7 @@
 # - one alias in the POSIX+fish subset that file has to stay in, and a `cat`
 # of its own with the overlay's theme, over the $_HI_CAT_BIN the
 # _HI_TOOL_ALIASES opt-in resolves) plus a trimmed _HI_HEADER_ORDER to keep
-# both headers short.
+# both headers short, and `hi` as the prompt on both targets.
 #
 # Not `hi --doctor`'s config rows, the natural next line: they validate
 # the *renderer's* ~/.bashrc and friends by path, and those paths belong in

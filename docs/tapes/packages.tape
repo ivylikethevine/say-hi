@@ -1,13 +1,14 @@
-# The packages demo, as the homelab tinkerer sees it: sam, from a laptop with
-# a plain distro prompt, into the nas and the pihole under the stairs. Render
-# with `vhs docs/tapes/packages.tape` from the repo root, docker running, hi
-# on PATH. CI renders it too (demos.yml).
+# The packages demo, as the homelab tinkerer sees it: sam, from an ubuntu
+# laptop, into the nas and the pihole under the stairs, as admin and as pi.
+# Render with `vhs docs/tapes/packages.tape` from the repo root, docker
+# running, hi on PATH. CI renders it too (demos.yml).
 #
 # Its configuration (docs/tapes/fixtures.sh, up:packages): hi's prompt off
-# (_HI_DISABLE_PROMPT - this person keeps their own, and the targets keep
-# theirs), the whole header with every address shown (_HI_IP_HIDE=none), the
-# core and useful groups on, and an overlay `packages` file that is the
-# homelab toolbox in those two groups.
+# (_HI_DISABLE_PROMPT), so every stop shows its distro's own - ubuntu's on the
+# laptop, debian's on the nas, Raspberry Pi OS's on the pihole - the whole
+# header with every address shown (_HI_IP_HIDE=none), the core and useful
+# groups on, and an overlay `packages` file that is the homelab toolbox in
+# those two groups.
 # The nas (the tools debian) answers it with one quiet line; the pihole (a
 # bare debian) does not.
 #
@@ -29,7 +30,7 @@ Wait+Screen@180s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.bash"
 Enter
 # stand in a throwaway $HOME: the client prompt then reads ~ rather than the
-# renderer's checkout path, and carries none of its git markers
+# renderer's checkout path
 Type "export HOME=/tmp/hi-demo/home && cd"
 Enter
 Type "clear"
