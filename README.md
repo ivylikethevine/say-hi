@@ -386,6 +386,17 @@ the header's cells are
        Debian target. What is left is seeing it. **Ticks when:** nano on an
        e2e target highlights a shell script opened with such a `nanorc`.
 
+6. [ ] **Every `eval` is counted, then fewer** — the payload holds about
+       thirty and `scripts/` ten, beside their kin: a `source` of a computed
+       path, `sh -c` over a built string, `rm -rf` of a variable, indirect
+       assignment. Most read hi's own constants, but none is listed
+       anywhere, so a new one over a user's or a target's text would pass
+       review unseen. **Do:** a `drift` roster of each, by file and what it
+       evaluates, that fails on one not in it; then replace those a builtin
+       can stand in for, the overlay table's home column first. **Ticks
+       when:** the roster is enforced, and no `eval` left in it reads a
+       value from outside the tree.
+
 ### At the 1.0.0 tag
 
 Shipped; it ticks when the tag itself shows it.

@@ -478,15 +478,16 @@ function test_overlay_tar_carries_only_what_exists() {
 
 # a member a variable points its tool at rides with the line that does it:
 # wiring.sh, one export per such member in the table's order, the paths left
-# for the target to expand - the file for env:, the directory for envdir:
-# (GLOSSARY: HI.62)
+# for the target to expand - the file for env:, the directory for envdir: -
+# and kakoune's behind the toggles a target reads (GLOSSARY: HI.62)
 # shellcheck disable=SC2016 # the wanted lines hold $_HI_CONFIG_DIR unexpanded
 function test_overlay_tar_wires_the_members_it_carries() {
   local dir d want
-  dir="$(_hi_overlay_fixture wired colors inputrc bat.conf theme.yml oh-my-posh.toml)"
+  dir="$(_hi_overlay_fixture wired colors inputrc bat.conf theme.yml oh-my-posh.toml kakrc)"
   d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || return 1
   _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
-  want='export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
+  want='[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_KAKOUNE" != 1 ] && export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR" || true
+export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
 export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
 export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
 export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
@@ -498,8 +499,95 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 # wiring.sh, and one written into the overlay by hand is no member
 function test_overlay_tar_has_no_wiring_without_a_wired_member() {
   local dir
-  dir="$(_hi_overlay_fixture unwired colors bashrc kakrc wiring.sh)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bashrc,colors,kakrc" ]
+  dir="$(_hi_overlay_fixture unwired colors bashrc tmux.conf wiring.sh)"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bashrc,colors,tmux.conf" ]
+}
+
+# a row of the user's own, in the overlay's carry: the member rides from the
+# first of its places that is there, with its tool on this machine, beside
+# its wiring.sh line and the carry itself, which a next hop reads
+# (GLOSSARY: HI.63)
+# shellcheck disable=SC2016 # the rows and the wanted lines hold their $ unexpanded
+function test_carry_row_rides_from_home_with_its_wiring() {
+  local dir d h="$_HI_WORKDIR/tool-home" stubs
+  dir="$(_hi_overlay_fixture carry-rides)"
+  mkdir -p "$h/.config/task" "$h/with space"
+  printf 'data.location=~/.task\n' >"$h/.config/task/taskrc"
+  printf 'second\n' >"$h/with space/b.conf"
+  printf '# mine\ntaskrc | task | env:TASKRC | $NOWHERE/taskrc : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc\n' >"$dir/carry"
+  printf 'b.conf | - | envdir:B_DIR | ~/with space/b.conf\n' >>"$dir/carry"
+  printf 'c.toml | - | flag:ctool --config= | ~/with space/b.conf\n' >>"$dir/carry"
+  stubs="$(_hi_stub_tools task)"
+  d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH")" || return 1
+  [ "$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)" = "b.conf,c.toml,carry,taskrc,wiring.sh" ] ||
+    _hi_because "carried: $(ls "$d")" || return 1
+  [ "$(cat "$d/taskrc" "$d/b.conf")" = "$(printf 'data.location=~/.task\nsecond')" ] ||
+    _hi_because "members: $(cat "$d/taskrc" "$d/b.conf" 2>&1)" || return 1
+  [ "$(cat "$d/wiring.sh")" = 'export TASKRC="$_HI_CONFIG_DIR/taskrc"
+export B_DIR="$_HI_CONFIG_DIR"
+command -v ctool >/dev/null 2>&1 && alias ctool="ctool --config='"'"'$_HI_CONFIG_DIR/c.toml'"'"'" || true' ] ||
+    _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
+  d="$(_hi_tool_home_unpacked "$dir" PATH="$_HI_WORKDIR/no-such-dir:$PATH")" || return 1
+  [ ! -e "$d/taskrc" ] || _hi_because "taskrc rode with no task on this machine"
+}
+
+# the home column is data: a candidate starts at /, at ~/, or at one
+# variable's name, and nothing in it runs or expands further
+# shellcheck disable=SC2016 # the candidates hold their $ unexpanded
+function test_carry_home_list_expands_three_starts_and_runs_nothing() {
+  local h="$_HI_WORKDIR/carry-paths" got
+  local -a _hi_paths=()
+  mkdir -p "$h"
+  HOME="$h" CARRY_DIR="$h/set" CARRY_UNSET="" \
+    _hi_path_list '$CARRY_UNSET/a : $CARRY_DIR/b:~/c d/e : /abs : rel/x : ~other/y : ${HOME}/z : $9X/q : $(touch "$HOME/RAN")/x : ~/f$(touch "$HOME/RAN")'
+  got="$(printf '%s\n' ${_hi_paths[@]+"${_hi_paths[@]}"})"
+  [ "$got" = "$h/set/b
+$h/c d/e
+/abs
+$h/f"'$(touch "$HOME/RAN")' ] || _hi_because "expanded to: $got" || return 1
+  [ ! -e "$h/RAN" ] || _hi_because "a command in a candidate ran"
+}
+
+# a row the table cannot hold is left out, line and reason kept for
+# hi --doctor: a name that is no plain file, one hi has already, a tool or a
+# wire of another shape, a fifth column
+function test_carry_turns_down_a_row_the_table_cannot_hold() {
+  local dir
+  dir="$(_hi_overlay_fixture carry-bad)"
+  {
+    printf 'good | - | - | ~/x\n'
+    printf 'vimrc | vim | - | ~/.vimrc\n'
+    printf 'micro | - | - | ~/x\n'
+    printf '../up | - | - | ~/x\n'
+    printf 'wiring.sh | - | - | ~/x\n'
+    printf 'good | - | - | ~/y\n'
+    printf 'w1 | - | env:A;rm | ~/x\n'
+    printf 'w2 | - | flag:-f | ~/x\n'
+    printf 't1 | a;b | - | ~/x\n'
+    printf 'five | - | - | ~/x | more\n'
+    printf 'three | - | -\n'
+  } >"$dir/carry"
+  (
+    _HI_CONFIG_DIR="$dir"
+    _hi_carry_load
+    [ "${_HI_CARRY_FILES[*]}" = good ] || _hi_because "kept: ${_HI_CARRY_FILES[*]}" || exit 1
+    [ "${#_HI_CARRY_BAD[@]}" = 10 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_CARRY_BAD[@]}")" || exit 1
+    case "${_HI_CARRY_BAD[0]}" in '2|'*vimrc*) ;; *) _hi_because "first: ${_HI_CARRY_BAD[0]}" || exit 1 ;; esac
+  )
+}
+
+# from inside a session the carry is the one that rode and so are its
+# members: they go on to a next hop, wired the same, with no home read
+function test_carry_rows_ride_on_from_a_target() {
+  local dir h="$_HI_WORKDIR/carry-relay-home" out
+  dir="$(_hi_overlay_fixture carry-relay taskrc)"
+  mkdir -p "$h"
+  printf 'home\n' >"$h/.taskrc"
+  printf 'home\n' >"$h/.otherrc"
+  printf 'taskrc | - | env:TASKRC | ~/.taskrc\notherrc | - | env:OTHERRC | ~/.otherrc\n' >"$dir/carry"
+  out="$(HOME="$h" _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)"
+  [ "$out" = "carry,taskrc,wiring.sh" ] || _hi_because "a relay carried: $out" || return 1
+  [ "$(HOME="$h" _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat taskrc)" = x ]
 }
 
 # The overlay stream ships comment-stripped the way the payload does (the
@@ -1530,6 +1618,10 @@ function run_hi_payload_tests() {
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
   _hi_check "A wired member rides with its wiring.sh line" test_overlay_tar_wires_the_members_it_carries
   _hi_check "...and there is no wiring.sh without one" test_overlay_tar_has_no_wiring_without_a_wired_member
+  _hi_check "A carry row's member rides from home, wired" test_carry_row_rides_from_home_with_its_wiring
+  _hi_check "...its home list expands three starts and runs nothing" test_carry_home_list_expands_three_starts_and_runs_nothing
+  _hi_check "...a row the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
+  _hi_check "...and the rows ride on from a target" test_carry_rows_ride_on_from_a_target
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks

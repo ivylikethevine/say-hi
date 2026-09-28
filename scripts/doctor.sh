@@ -516,9 +516,16 @@ function doctor_config() {
     [ -e "$_HI_CONFIG_DIR/${t%%:*}" ] || continue
     doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}" bad
   done
-  # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
-  # minus settings.sh, which got its richer parse-checked row above
-  for f in "${_HI_OVERLAY_FILES[@]}"; do
+  # a carry line hi.sh's _hi_carry_load turned down: the member it names
+  # rides nowhere, and nothing else says so (GLOSSARY: HI.63)
+  _hi_carry_load
+  for t in ${_HI_CARRY_BAD[@]+"${_HI_CARRY_BAD[@]}"}; do
+    doctor_row "carry:${t%%|*}" "ignored - ${t#*|}" warn
+  done
+  # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract,
+  # and the carry rows' members after it), minus settings.sh, which got its
+  # richer parse-checked row above
+  for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_CARRY_FILES[@]+"${_HI_CARRY_FILES[@]}"}; do
     [ "$f" = settings.sh ] && continue
     [ "$f" = plugins.d ] && {
       doctor_plugins
@@ -653,8 +660,9 @@ function doctor_settings_values() {
 function doctor_files() {
   doctor_section files "The files hi looks for"
   local row m h used eff p state text label none="" found tilde='~'
-  local -a locs
-  for row in "${_HI_OVERLAY_TABLE[@]}"; do
+  local -a locs _hi_paths=()
+  _hi_carry_load
+  for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
     m="${row%%|*}" h="${row##*|}"
     # settings.sh and plugins.d have rows of their own in the overlay section
     case "$m" in settings.sh | plugins.d) continue ;; esac
@@ -664,6 +672,10 @@ function doctor_files() {
     case "$h" in
     -) ;;
     @*) p="" && "${h#@}" "$m" p && locs+=("$p") || true ;;
+    =*)
+      _hi_path_list "${h#=}"
+      locs+=(${_hi_paths[@]+"${_hi_paths[@]}"})
+      ;;
     *)
       eval "locs+=($h)"
       case "$m" in */*) for p in "${!locs[@]}"; do [ "$p" = 0 ] || locs[p]="${locs[p]}/${m#*/}"; done ;; esac

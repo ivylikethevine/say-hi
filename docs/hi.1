@@ -694,6 +694,24 @@ and
 values set here arrive too late: they belong in
 .BR settings.sh .
 .TP
+.B ~/.config/say-hi/carry
+a line for each config of a tool hi does not know:
+.BR "member | tool | wire | home" .
+The file is carried from the first of the
+.BR : \-separated
+home paths that exists (each starting at
+.BR / ,
+.BR ~/ ,
+or a variable's name), under the member's name, with the tool installed here;
+.B env:
+and
+.B envdir:
+name the variables a target sets to it,
+.B flag:
+and
+.B flagdir:
+the command and flag a target aliases with it. Nothing in a line is evaluated.
+.TP
 .B ~/.config/say-hi/plugins.d/
 plugins in the aliases.sh subset, sourced in name order after the aliases and
 before the prompt; one a shell cannot parse is skipped with a warning. A

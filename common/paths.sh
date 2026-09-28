@@ -90,17 +90,14 @@ export _HI_ZELLIJ_DIR=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -d "$_HI_ZELLIJ_HOME" ] && export _HI_ZELLIJ_DIR="$_HI_ZELLIJ_HOME"
 [ -d "$_HI_CONFIG_DIR/zellij" ] && export _HI_ZELLIJ_DIR="$_HI_CONFIG_DIR/zellij"
 # The carried configs a variable points a tool at - a prompt program's, eza's,
-# bat's, rg's, fzf's, lazygit's, readline's - on a target only: at home each
-# tool's own config is already in force. A line each, written by hi.sh's
-# _hi_overlay_wiring as the overlay is packed, for the members that rode.
-# Only the tool named reads its variable, so none needs a gate.
+# bat's, rg's, fzf's, lazygit's, readline's, kakoune's - on a target only: at
+# home each tool's own config is already in force. A line each, written by
+# hi.sh's _hi_overlay_wiring as the overlay is packed, for the members that
+# rode. Only the tool named reads its variable, so none needs a gate but
+# kakoune's, which sits behind the editor toggles.
 # GLOSSARY: HI.62
 # shellcheck source=/dev/null # written on the client, per connect
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/wiring.sh" ] && . "$_HI_CONFIG_DIR/wiring.sh"
-# kakoune's is spelled here, behind the editor toggles a target reads: it
-# takes kakrc out of $KAKOUNE_CONFIG_DIR, so the overlay is the directory, and
-# `kak -n` would skip the system kakrc that loads its syntax files too.
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_KAKOUNE" != 1 ] && [ -f "$_HI_CONFIG_DIR/kakrc" ] && export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR"
 
 export _HI_ALIASES="$_HI_ROOT/common/aliases.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"

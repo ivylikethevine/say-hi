@@ -32,8 +32,11 @@ to report what slipped through it.
   last so a session can say `hi` onward) — docs, tests, CI, and editor config
   never leave the client. Your overlay is a second, smaller allow list,
   `$_HI_OVERLAY_FILES` (the roster is
-  [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break)); nothing
-  else in `~/.config/say-hi/` leaves the client.
+  [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break)), and
+  the files your own `carry` lines name, each listed by `hi --doctor`; nothing
+  else in `~/.config/say-hi/` leaves the client. A `carry` line is read as
+  data: its paths are never evaluated
+  ([HI.63](GLOSSARY.md#hi63-carry-rows)).
 - **base64 is armor, not crypto.** It gets the payload through the target's
   login shell unmangled; confidentiality and integrity come entirely from the
   transport.

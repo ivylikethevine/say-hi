@@ -500,7 +500,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
 # aliases.sh and the three per-shell files (bashrc, zshrc, config.fish) -
 # and the prompt frameworks' five, which only a target reads, by name, as
-# core.sh's _hi_ssh_host_tag reads ssh_tags - and
+# core.sh's _hi_ssh_host_tag reads ssh_tags and hi.sh's _hi_carry_load the carry - and
 # micro's, whose micro/ directory paths.sh resolves whole, and every member a
 # line of the generated wiring.sh points its tool at (GLOSSARY: HI.62). A missed lookup fails
 # asymmetrically: the file works on targets but local sessions ignore the
@@ -517,7 +517,7 @@ function test_overlay_guards_match_the_roster() {
     plugins.d | micro/* | zellij/*)
       grep -qF "\"\$_HI_CONFIG_DIR/${f%%/*}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
-    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags) continue ;;
+    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags | carry) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"

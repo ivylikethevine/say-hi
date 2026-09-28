@@ -71,6 +71,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
 - [HI.61 one overlay priority](#hi61-one-overlay-priority)
 - [HI.62 generated wiring](#hi62-generated-wiring)
+- [HI.63 carry rows](#hi63-carry-rows)
 
 ## HI.01 empty-array guard
 
@@ -1294,8 +1295,8 @@ else the tree's default where `config/` holds one. A row names the member, the `
 variable that carries it to the shells (or `-`), whether `config/` holds a
 default (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that
 reads it (the binaries `_hi_tool_here` looks for, the first of them its name
-in `hi --doctor`; in parentheses, a name nothing looks for), its wire
-([HI.62](#hi62-generated-wiring)), and the home
+in `hi --doctor`; in parentheses, a name nothing looks for), its wire and the
+toggles that switch it off ([HI.62](#hi62-generated-wiring)), and the home
 tier: candidate paths best first, a `@function` where no list can say it
 (oh-my-posh's rc-named config, the theme a framework's rc variable names,
 ssh's tag map), or `-` for none.
@@ -1340,7 +1341,11 @@ target's line has to parse in bash, zsh, fish, and sh: `common/paths.sh`'s
 dialect, which has no loop to walk a table with. So the client writes the
 lines. A row's wire column says how: `env:<variables>` exports each as the
 member's path, `envdir:<variable>` as the directory holding it (eza and its
-fixed `theme.yml`), and `-` leaves the member to hi's own code.
+fixed `theme.yml`), `flag:<command> <flag>` and `flagdir:` alias the command
+to itself with the flag and that path, where the target has the command (a
+flag ending in `=` takes the path in the same word), and `-` leaves the
+member to hi's own code. The editors', tmux's, and screen's flags are still
+`common/aliases.sh`'s, which also answers at home.
 `_hi_overlay_wiring` turns the members an overlay archive carries into
 `wiring.sh`, which `_hi_overlay_tar` stages beside them, and `paths.sh`
 sources it on a target only. At home each tool's own config is already in
@@ -1357,5 +1362,41 @@ The lines are part of `_hi_overlay_cache_key`. The member list alone would
 hand an archive cached by an older `hi.sh` to a newer one that wires the same
 members another way.
 
-kakoune's line stays in `paths.sh`: it sits behind `_HI_DISABLE_EDITORS` and
-`_HI_DISABLE_KAKOUNE`, which the target reads.
+A row's off column names the toggles its line is written behind, tested on
+the target, where the shell starts: kakoune's is
+`_HI_DISABLE_EDITORS` and `_HI_DISABLE_KAKOUNE`. The client cannot answer for
+them at pack time, since under `_HI_DISABLE_LOCAL=1` every toggle is set here
+and none on a target. Such a line ends `|| true`, as an alias line does: the
+file's status is its last line's, and `core.sh` sources `paths.sh` under
+`set -e`.
+
+## HI.63 carry rows
+
+A tool hi has no row for gets one from the user: a line of the overlay's
+`carry`, `<member> | <tool> | <wire> | <home>`, spaces around a column
+ignored, `#` lines and blank ones skipped. `hi.sh`'s `_hi_carry_load` reads
+it into `$_HI_CARRY_ROWS` in the table's own shape
+([HI.61](#hi61-one-overlay-priority)), so the order, the tool check, the
+include scan, the cache, the wiring ([HI.62](#hi62-generated-wiring)), and
+`hi --doctor` take a row of the user's as they take one of hi's. It is read
+once per `$_HI_CONFIG_DIR`, the first time a row is asked for.
+
+The table's home column is code: constants, `eval`'d. A carry's is the
+user's data and is never evaluated. `_hi_path_list` reads it as candidates a
+`:` apart, best first, each starting at `/`, at `~/`, or at `$NAME`, which is
+that variable's value and drops the candidate while it is unset or empty.
+Nothing else expands: no `${NAME:-default}` (list the default as the next
+candidate), no command substitution, no glob. A grammar can grow in a 1.x
+where an `eval` could never be narrowed.
+
+A line the table cannot hold is left out and kept, with its number and the
+reason, in `$_HI_CARRY_BAD` for `hi --doctor`: a member that is no plain file
+name (`_hi_dir_member_ok`), that hi or an earlier line already has, or that
+is `wiring.sh`; a tool that is not command names; a wire that is not `env:`
+or `envdir:` over variable names, or `flag:` or `flagdir:` over a command
+and its one flag; a fifth column. The wire is checked because
+its words become a line every target sources.
+
+`carry` is itself a member. On a target the copy that rode names the members
+that rode with it, so a hop taken from there carries and wires them again,
+from the session's `config/` and never from that machine's home.

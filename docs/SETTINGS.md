@@ -19,6 +19,7 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
   - [Others](#others)
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
   - [Plugins](#plugins)
+  - [A tool hi does not know](#a-tool-hi-does-not-know)
 - [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 
@@ -115,6 +116,7 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/zellij/`         | -                 | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                         |
 | `~/.config/say-hi/micro/`          | -                 | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                         |
 | `~/.config/say-hi/aliases.sh`      | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                         |
+| `~/.config/say-hi/carry`           | -                 | a line for each config of a tool hi does not know; see [below](#a-tool-hi-does-not-know)                                                                                                                       |
 | `~/.config/say-hi/plugins.d/`      | -                 | drop-in plugins in the same subset, sourced after the aliases in name order; see [below](#plugins)                                                                                                             |
 | `~/.config/say-hi/bashrc`          | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session)) |
 | `~/.config/say-hi/zshrc`           | -                 | the same for zsh - history, keybindings, `zstyle` completion rules                                                                                                                                             |
@@ -469,6 +471,39 @@ to syntax all three share, and fast. Each plugin sets its own; hi collects
 them in load order. The whole contract is
 [HI.59](GLOSSARY.md#hi59-plugins).
 
+### A tool hi does not know
+
+A config hi has no member for rides once `~/.config/say-hi/carry` has a line
+for it:
+
+```text
+# member  | tool   | wire             | home, best first
+taskrc    | task   | env:TASKRC       | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc
+mytool.rc | mytool | flag:mytool --rc | ~/.config/mytool/rc
+notes.txt | -      | -                | ~/notes.txt
+```
+
+- **member** is the name it rides under, a plain file name hi does not use
+  already. A file of that name in `~/.config/say-hi/` is carried instead of
+  home's.
+- **tool** is the command that reads it, or several: home's copy rides only
+  with one of them on this machine. `-` asks about nothing.
+- **wire** is how a target's tool finds it: `env:` and the variables to set
+  to the file's path, `envdir:` and the variable to set to its directory,
+  `flag:` and the command and flag to alias it with (`flagdir:` for the
+  directory; a flag written `--rc=` takes the path in the same word), or
+  `-` when something of yours points at `$_HI_CONFIG_DIR/<member>`, a
+  [plugin](#plugins)'s alias say.
+- **home** is where the file is here, candidates a `:` apart, the first
+  that exists winning. A candidate starts at `/`, at `~/`, or at a
+  variable's name (`$XDG_CONFIG_HOME/...`), and is skipped while that
+  variable is unset. Nothing else in it expands, and nothing in it runs.
+
+`hi --doctor` names each file a line carries, and each line it could not
+read, with the reason. The variable or alias is set on a target only; at
+home the tool goes on reading its own config. The whole contract is
+[HI.63](GLOSSARY.md#hi63-carry-rows).
+
 ## The editor rcs come from where you keep them
 
 The editor, tmux, screen, micro, and zellij rows of the overlay usually need
@@ -539,7 +574,8 @@ directory as one link.
 **Nothing but the overlay files travels.** `$_HI_OVERLAY_FILES` is an allow
 list, so your manager's metadata (`.chezmoiignore`, templates), a `.git` of
 your own, editor swap files, and anything private sharing that directory stay
-on your machine. The one file beside them is hi's own `wiring.sh`
+on your machine. What a line of your `carry` names rides too, since the
+line is you asking. The one file beside them is hi's own `wiring.sh`
 ([HI.62](GLOSSARY.md#hi62-generated-wiring)), written as the overlay is
 packed.
 

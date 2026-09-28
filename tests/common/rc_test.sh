@@ -513,8 +513,8 @@ function test_defers_to_prompt_tool_when_asked() {
 # directory, since eza fixes the file name - bat.conf -> $BAT_CONFIG_PATH,
 # inputrc -> $INPUTRC, and ripgreprc, fzfrc, lazygit.yml the same); at
 # home the variable is left alone, whatever the overlay holds. The lines that
-# do it are the ones the client packs beside the file (GLOSSARY: HI.62);
-# kakoune's is common/paths.sh's own.
+# do it are the ones the client packs beside the file (GLOSSARY: HI.62),
+# kakoune's behind its toggles.
 # <shell> <overlay file> <variable> <expected on a target> [NAME=VALUE...]
 # shellcheck disable=SC2016 # the child bash expands its own script
 function test_remote_session_exports_overlay_config() {

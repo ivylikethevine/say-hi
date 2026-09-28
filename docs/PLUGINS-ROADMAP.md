@@ -38,13 +38,15 @@ deleted once its **Ticks when** holds. What a user does today is
 
 ## What exists
 
-Three ways in, each its own shape:
+Four ways in:
 
 - **`$_HI_OVERLAY_TABLE`** in `hi.sh`, a row per carried member:
   the member, its `common/paths.sh` variable, whether `config/` holds a
   default, the tool that reads it, what points the tool at it on a target,
   and where it is looked for at home
-  ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)). Built-in only.
+  ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)).
+- **`carry`**, the user's own rows in the same columns, read as data
+  ([HI.63](GLOSSARY.md#hi63-carry-rows)).
 - **`plugins.d/`**, the user's files in the subset bash, zsh, and fish all
   parse, sourced at every shell start on both sides, with one hook,
   `_HI_SEGMENT`.
@@ -84,8 +86,7 @@ together.
 
 The first four kinds, 24 of 38 rows, are one sentence: carry a file, point a
 tool at it. Those are data. `env` and `envdir` are written from the row
-today, kakoune's line excepted; `flag` and `flagdir` are still spelled in
-`common/aliases.sh`. What stays code beside a row:
+today; `flag` and `flagdir` are still spelled in `common/aliases.sh`. What stays code beside a row:
 
 - oh-my-posh's home lookup reads rc files, and one program is three members.
 - nvim takes an `env XDG_*_HOME=` prefix on a target.
@@ -130,11 +131,12 @@ So:
   under `$_HI_CONFIG_DIR`, and the list is the same.
 - The lines are part of the overlay cache's key.
 
-A flag is an alias, and an alias is wanted at home too, for an overlay copy.
-Its line would read:
+A flag is an alias, written the same way for a `carry` line. The table's
+own flags are wanted at home too, for an overlay copy, and stay in
+`common/aliases.sh` until the wiring is written there as well:
 
 ```sh
-command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf" || true
+command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f '$_HI_CONFIG_DIR/tmux.conf'" || true
 ```
 
 ### The row
@@ -142,26 +144,30 @@ command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf
 As the table has it, with the two columns still to come:
 
 ```text
-member|variable|tree|tool|wire|home, best first   (then: dialect, group)
-ripgreprc|-|-|rg|env:RIPGREP_CONFIG_PATH|"${RIPGREP_CONFIG_PATH:-}"
-theme.yml|-|-|eza|envdir:EZA_CONFIG_DIR|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"
-inputrc|-|-|(readline)|env:INPUTRC|"${INPUTRC:-$HOME/.inputrc}"
+member|variable|tree|tool|wire|off|home, best first   (then: dialect, group)
+ripgreprc|-|-|rg|env:RIPGREP_CONFIG_PATH|-|"${RIPGREP_CONFIG_PATH:-}"
+theme.yml|-|-|eza|envdir:EZA_CONFIG_DIR|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"
+inputrc|-|-|(readline)|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"
 ```
 
 - **tool** is the binaries that read the member, any of which on `$PATH`
   says home's copy rides; in parentheses, a name nothing looks for. It can
   also feed the header's package check: a config carried for a tool the
   target lacks.
-- **wire** is `env:` or `envdir:` today, `flag:` and `flagdir:` to come, and
-  `-` for a member hi's own code reads.
+- **wire** is `env:`, `envdir:`, `flag:`, or `flagdir:`, and `-` for a
+  member hi's own code reads. The table's own flags are still
+  `common/aliases.sh`'s.
+- **off** is the toggles a target reads before it takes the wire:
+  kakoune's two. The on/off list takes its place.
 - **dialect** stands in for the include scan's name tests and
   `$_HI_STRIP_NAMES`; `-` passes through untouched, as a name that is no
   dialect does now.
 - **group** lets one word, `editors`, switch several.
 
 The built-ins stay one table in the tree, not a file each: a file is a tar
-header on every connect. The user's rows are one overlay member in the same
-format, itself on the member list, so a relay knows the names to forward.
+header on every connect. The user's rows are the overlay's `carry`, four of
+those columns a line ([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know)),
+itself a member, so a relay knows the names to forward.
 
 A row of the user's is wired on a target only. At home the tool reads its
 own config unasked, the rule the `env` members keep.
@@ -216,15 +222,14 @@ shadowed default.
 
 ## Risks
 
-- **`eval` of the home column.** `hi.sh` evaluates it because every value is
-  a constant. A row of the user's makes it user data: their own file on
-  their own machine, the trust `settings.sh` has, and never evaluated on a
-  target, where `_hi_overlay_home` returns first. Either
-  [SECURITY.md](SECURITY.md) says so, or hi expands a fixed set of forms by
-  hand.
-- **The allow list.** A row can name any file, a credentials file included.
-  It was asked for, which a `~/.bashrc` found at home was not, but
-  `hi --doctor` has to name every file a user's row carries, by path.
+- **`eval` of the home column.** `hi.sh` evaluates the table's, where every
+  value is a constant. A `carry` line's is data, read by `_hi_path_list`
+  and never evaluated ([HI.63](GLOSSARY.md#hi63-carry-rows)); the table's
+  own `eval` is one of those
+  [README's Roadmap](../README.md#roadmap) counts down.
+- **The allow list.** A `carry` line can name any file, a credentials file
+  included. It was asked for, which a `~/.bashrc` found at home was not, and
+  `hi --doctor` names every file a line carries, by path.
 - **Names at the overlay's root.** `config.toml` and `theme.yml` are names
   any tool might use, and `envdir` points a tool at the whole overlay. A
   member under its plugin's name (`helix/config.toml`), as `micro/` and
@@ -241,29 +246,24 @@ shadowed default.
   editor rc needs its alias at home too, so `common/aliases.sh` keeps the
   built-in flag lines; generating them at home as well needs a cache and a
   rule for when it is stale.
-- **A toggle the target reads.** kakoune's line sits behind
-  `_HI_DISABLE_EDITORS` and `_HI_DISABLE_KAKOUNE`, read where the shell
-  starts. The client cannot stand in for them with its own environment:
-  under `_HI_DISABLE_LOCAL=1` every toggle is set here and none on a target.
+- **A toggle the target reads.** A line behind `_HI_DISABLE_*` is tested
+  where the shell starts. The client cannot stand in for it with its own
+  environment: under `_HI_DISABLE_LOCAL=1` every toggle is set here and none
+  on a target. The on/off list has to be read from `settings.sh`'s values,
+  not the client's.
 
 ## The work
 
 In order.
 
-1. [ ] **A target's wiring is generated** — shipped: the `wire` column,
-       `wiring.sh` for the `env` and `envdir` members, and
-       `common/paths.sh` sourcing it. What is left is kakoune's line, which
-       waits on the entry that switches a plugin. **Ticks when:** `paths.sh`
-       names no member behind `_HI_REMOTE_SESSION = 1`.
+1. [ ] **A tool's config rides without a change to hi** — shipped: a line
+       of the overlay's `carry` names the member, its tool, its wire, and
+       its places at home, and rides through the same order, include scan,
+       and wiring; [SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know) shows
+       how. What is left is seeing it. **Ticks when:** a tool of the user's
+       own reads its home config on an e2e target.
 
-2. [ ] **A tool's config rides without a change to hi** — adding a tool hi
-       does not know means a `plugins.d` member or a change to hi. **Do:**
-       read the user's rows from the overlay, through the same order and
-       include scan. **Ticks when:** a tool of the user's own reads its home
-       config on a target with no code change, and
-       [SETTINGS.md](SETTINGS.md) shows how.
-
-3. [ ] **Everyday CLI configs ride** — shipped: `ripgreprc`
+2. [ ] **Everyday CLI configs ride** — shipped: `ripgreprc`
        (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
        `lazygit.yml` (`$LG_CONFIG_FILE`) are members, each carried from
        where its tool keeps it and listed in
@@ -275,13 +275,14 @@ In order.
        `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
        (bookworm's fzf predates the variable, and it ships no lazygit).
 
-4. [ ] **One list switches a plugin** — **Do:** the `dialect` and `group`
-       columns, the on/off list, generated `flag` and `flagdir` lines on a
-       target, and kakoune's line among the generated ones. **Ticks when:** a member switched off by name, and one by
+3. [ ] **One list switches a plugin** — **Do:** the `dialect` and `group`
+       columns, the on/off list in place of the `off` column, and the
+       table's own `flag` and `flagdir` rows written as a `carry` line's
+       are, at home too. **Ticks when:** a member switched off by name, and one by
        group, reach no target, and `$_HI_STRIP_NAMES` and the include scan
        name no member.
 
-5. [ ] **An editor's side files ride with its rc** — kakoune's `colors/` (a
+4. [ ] **An editor's side files ride with its rc** — kakoune's `colors/` (a
        `colorscheme` the `kakrc` names) stays home, so the target falls back
        to the default scheme, and helix's `languages.toml` has no flag to
        point `hx` at. **Do:** carry kak's `colors/` member by member, as
@@ -290,7 +291,7 @@ In order.
        verdict into [INTEGRATIONS.md](INTEGRATIONS.md). **Ticks when:** a
        `kakrc` with `colorscheme <own>` shows that scheme on a target.
 
-6. [ ] **The header probes only what was asked** — the default
+5. [ ] **The header probes only what was asked** — the default
        `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local
        terminal or tmux pane runs docker, podman, nomad, and kubectl.
        **Do:** leave the backend cells out of the local default (a session
@@ -300,14 +301,14 @@ In order.
        default header, or keep them and fill them in after the first prompt?
        Either changes what a local header shows today.
 
-7. [ ] **A header cell of the user's own** — every cell is one
+6. [ ] **A header cell of the user's own** — every cell is one
        `_hi_cell_<word>` behind a dispatch, and a `plugins.d` member can
        only set a prompt segment. **Do:** `header.d`, as
        [Header cells](#header-cells) has it. **Ticks when:** a `header.d`
        member's cell draws on a target where `$_HI_HEADER_ORDER` puts it,
        and [INTEGRATIONS.md](INTEGRATIONS.md) shows how.
 
-8. [ ] **A prompt loader nobody was handed stays home** — **Do:** cut the
+7. [ ] **A prompt loader nobody was handed stays home** — **Do:** cut the
        framework loaders outside the handed list from the payload. **Ticks
        when:** a connect handed starship alone ships no framework's loader,
        and `--group bench` reads the smaller payload.
