@@ -675,6 +675,31 @@ vim.opt.tabstop = 2' ] || {
   }
 }
 
+# neovim 0.12's own manager clones into the target's data dir on the first
+# start, and older nvims warn on every one: reported as a plugin and dropped
+# whole, like lazy's setup above
+function test_vim_pack_add_is_a_plugin_finding() {
+  local dir out
+  dir="$(_hi_lint_fixture pack init.lua 'vim.opt.number = true
+vim.pack.add({
+  "https://github.com/tpope/vim-surround",
+  { src = "https://github.com/nvim-lua/plenary.nvim" },
+})
+vim.opt.tabstop = 2
+')"
+  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1-3)"
+  [ "$out" = 'init.lua|2|plugin' ] || {
+    _hi_cecho " | reported: [$out]" "$RED"
+    return 1
+  }
+  out="$(_HI_NVIMRC="$dir/init.lua" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  [ "$out" = 'vim.opt.number = true
+vim.opt.tabstop = 2' ] || {
+    _hi_cecho " | init.lua arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
 # the editor rc in force on this machine rides the stream the way the tool
 # configs above do, through the path variable paths.sh resolved: there is one
 # copy to edit and no duplicate in the overlay to keep in step
@@ -1474,6 +1499,7 @@ function run_hi_payload_tests() {
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
+  _hi_check "...and so does neovim's own vim.pack.add" test_vim_pack_add_is_a_plugin_finding
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
   _hi_check "...only with its tool on this machine" test_a_home_config_needs_its_tool_here

@@ -378,8 +378,10 @@ The editors never read a target's own rcs: the home lookup is off with
 | fish's universal variable store (`~/.config/fish/fish_variables`) | a fish session caches its two prompt colors there, as it does locally          |
 | the runtime directory's caches                                    | only when `hi` is run again from inside the session, to reach a further target |
 
-The editors are started so they leave nothing behind: neovim with no swap or
-shada file, micro with no backups or history.
+The editors are started so they leave nothing behind: neovim with
+`XDG_STATE_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` under the session
+tree's `nvim/`, so its shada, swap, undo, log, and `vim.loader` cache go with
+the session, micro with no backups or history.
 
 ## Packaged installs
 

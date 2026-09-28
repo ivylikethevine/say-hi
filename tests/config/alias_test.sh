@@ -162,6 +162,33 @@ SCRIPT
   return 1
 }
 
+# _hi_test_nvim_stays_in_tree <shell> <dir> - on a target, neovim run through
+# the alias writes its shada, undo, and vim.loader cache under $_HI_CLEANUP,
+# not the target's ~/.local or ~/.cache, even with an init.lua that turns
+# undofile on. fish's own ~/.local/share/fish is not neovim's, hence the name
+# filter.
+# shellcheck disable=SC2016 # the scripts we write out, not code to run here
+function _hi_test_nvim_stays_in_tree() {
+  local shell="$1" base="$2/nvstate.$1" output rc=0
+  mkdir -p "$base/home" "$base/tree"
+  printf '%s\n' 'vim.loader.enable()' 'vim.opt.undofile = true' >"$base/init.lua"
+  printf 'a\n' >"$base/f.txt"
+  if [ "$shell" = fish ]; then
+    printf '%s\n' 'source "$_HI_ALIASES"; or exit 2' 'nvim --headless -c "normal! ix" -c wq $F' >"$base/t"
+  else
+    printf '%s\n' 'shopt -s expand_aliases 2>/dev/null' '. "$_HI_ALIASES" || exit 2' 'nvim --headless -c "normal! ix" -c wq "$F"' >"$base/t"
+  fi
+  output=$(env -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME HOME="$base/home" \
+    XDG_CONFIG_HOME="$base/home/.config" F="$base/f.txt" _HI_REMOTE_SESSION=1 \
+    _HI_CLEANUP="$base/tree" _HI_NVIMRC="$base/init.lua" "$shell" "$base/t" 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] || _hi_because "[$shell] nvim exited $rc: $output" || return 1
+  [ -z "$(find "$base/home" -name nvim)" ] ||
+    _hi_because "[$shell] wrote outside the tree: $(find "$base/home" -name nvim | tr '\n' ' ')" || return 1
+  [ -n "$(find "$base/tree/nvim/state" -path '*undo/*' -type f 2>/dev/null)" ] &&
+    [ -d "$base/tree/nvim/cache/nvim/luac" ] ||
+    _hi_because "[$shell] no undo file or luac cache under the tree"
+}
+
 function run_alias_test() {
   _hi_h1 "Testing aliases.sh across shells"
   _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases, $(wc -w <<<"$_HI_SAMPLE_VARS") variables and $(wc -l <<<"$_HI_PRESENCE_ALIASES") presence-gated aliases"
@@ -192,6 +219,11 @@ function run_alias_test() {
       # shellcheck disable=SC2086 # the bins are a word list on purpose
       _hi_case _hi_test_presence "$_hi_shell" "$_HI_WORKDIR" "$_hi_alias" $_hi_bins
     done <<<"$_HI_PRESENCE_ALIASES"
+    if command -v nvim >/dev/null 2>&1; then
+      _hi_case _hi_test_nvim_stays_in_tree "$_hi_shell" "$_HI_WORKDIR"
+    else
+      _hi_skip "$_hi_shell nvim state" "no nvim"
+    fi
   done
   _hi_case _hi_test_no_dangling "$_HI_WORKDIR"
   _hi_case _hi_test_no_dangling "$_HI_WORKDIR" empty

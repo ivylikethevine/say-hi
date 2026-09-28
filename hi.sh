@@ -481,9 +481,10 @@ function _hi_tool_here() {
 #           `source $VIMRUNTIME/...` is the same argument.
 #   lua     `dofile`/`loadfile`, a `vim.cmd` carrying `source`, `require` of
 #           anything but a `vim.` module, and the managers (lazy, packer,
-#           paq, an `rtp:prepend` bootstrap). micro's init.lua reads the
-#           same, plus `AddRuntimeFile` (a plugin with `RTPlugin`); its
-#           `import` names micro's own Go packages and is left alone.
+#           paq, neovim's own `vim.pack.add`, an `rtp:prepend` bootstrap).
+#           micro's init.lua reads the same, plus `AddRuntimeFile` (a plugin
+#           with `RTPlugin`); its `import` names micro's own Go packages and
+#           is left alone.
 #   nano    `include` of anything but a path *directly* under
 #           /usr/share/nano, which the nano package itself ships. A
 #           subdirectory of it is not: /usr/share/nano/extra is a Debian
@@ -585,7 +586,7 @@ function kindof(s,   v) {
     if (s ~ /^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]/ || s ~ /(plug|vundle|dein|minpac)#/) return "plugin"
     if (s ~ /^[ \t]*(source|so)!?[ \t]/ && s !~ /\$VIMRUNTIME/) return "include"
   } else if (lua) {
-    if (s ~ /(lazypath|rtp:prepend|require[ \t]*\(?[ \t]*["'](lazy|packer|paq))/) return "plugin"
+    if (s ~ /(lazypath|rtp:prepend|vim[.]pack[.]add|require[ \t]*\(?[ \t]*["'](lazy|packer|paq))/) return "plugin"
     if (s ~ /AddRuntimeFile/) return (s ~ /RTPlugin/ ? "plugin" : "include")
     if (s ~ /(dofile|loadfile)[ \t]*\(/) return "include"
     if (s ~ /vim\.cmd/ && s ~ /source[ \t]/) return "include"
