@@ -6,13 +6,13 @@
 # other target: the same session on a box with none of this is the contrast
 # the packages tape is about. Built by docs/tapes/fixtures.sh's up_container,
 # flavor `tools`; the same digest pin as the sshd base, so there is one
-# debian pin to bump. Root, on purpose: a container's shell is root's, and
-# `root` is the username whose color the colors overlay pins.
+# debian pin to bump. Built as root: demo-login.Dockerfile layers the tape's
+# login account on top and moves the checkout into its home.
 #
 # starship too, for the editors tape's developer persona (_HI_PROMPT_TOOL=starship
 # hands the prompt over only where the binary is): the same pinned installer
 # and version as tests/dockerfiles/frameworks/starship.sh, into /usr/local/bin
-# since root is the session user here.
+# so every account has it.
 FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
 # The checksum assertion below is a pipe, and a pipe in a RUN needs pipefail or
 # a failing `echo` is masked by sha256sum's status - DL4006, which

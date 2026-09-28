@@ -3,9 +3,13 @@
 # entrypoint) and on top of it this checkout installed at ~/say-hi, a box that
 # already has hi. One debian digest pin fewer to bump: the base carries it.
 #
-# hitest's login shell is fish on purpose: hi follows the login shell
+# The account's login shell is fish on purpose: hi follows the login shell
 # (load.sh's _hi_session_shell), so this is what makes the demo land in a shell
 # other than the client's - which is the whole point of the GIF.
+#
+# LOGIN renames the base's hitest to the persona's account, in its own layer
+# so the apt one is shared by every name; fixtures.sh writes the entrypoint
+# for the same name.
 #
 # `checkout` is a clean tree docs/tapes/fixtures.sh exports into the build
 # context, not the live working directory: .git and dist/ would bloat the
@@ -17,5 +21,8 @@ FROM ${BASE}
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && usermod -s /usr/bin/fish hitest
-COPY --chown=hitest:hitest checkout /home/hitest/say-hi
-RUN chmod +x /home/hitest/say-hi/hi.sh
+ARG LOGIN=hitest
+RUN if [ "$LOGIN" != hitest ]; then \
+      usermod -l "$LOGIN" -d "/home/$LOGIN" -m hitest && groupmod -n "$LOGIN" hitest; fi
+COPY --chown=${LOGIN}:${LOGIN} checkout /home/${LOGIN}/say-hi
+RUN chmod +x /home/${LOGIN}/say-hi/hi.sh

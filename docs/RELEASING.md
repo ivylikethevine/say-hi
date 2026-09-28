@@ -504,6 +504,7 @@ across the tapes so every one is on screen somewhere. Each tape's header names
 the persona it is shot for, the header configuration, and whose prompt is in
 the frame; `fixtures.sh`'s `up:<name>` arm writes exactly that settings.sh.
 Change the two together, and README's section for the GIF with them. Both
-sides of every GIF are staged: the outside shell gets hi's own prompt under a
-chosen `user@host`, and every target an explicit hostname rather than a random
-hex ID.
+sides of every GIF are staged: the outside shell starts from its distro's
+stock prompt under a chosen `user@host`, which hi takes over or leaves as the
+tape's settings say, and every target gets a login account and an explicit
+hostname rather than root on a random hex ID.
