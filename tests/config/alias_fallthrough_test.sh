@@ -51,6 +51,7 @@ if [ -n "${_HI_PRE_ALIAS:-}" ]; then
 fi
 # a target's editor and multiplexer aliases are the overlay's wiring.sh, which
 # common/paths.sh sources there ahead of this file
+# shellcheck source=/dev/null # the scenario's own, written a run ago
 [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || . "$_HI_CONFIG_DIR/wiring.sh" || exit 1
 . "$_HI_ALIASES" || exit 1
 fail=0
@@ -126,6 +127,7 @@ EOF
 
   cat >"$_HI_FISH_CHECK" <<'EOF'
 if test "$_HI_REMOTE_SESSION" = 1
+  # shellcheck source=/dev/null # the scenario's own, written a run ago
   source "$_HI_CONFIG_DIR/wiring.sh"; or exit 1
 end
 source "$_HI_ALIASES"; or exit 1
