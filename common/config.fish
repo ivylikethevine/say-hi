@@ -17,6 +17,7 @@ for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS \
     _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE \
+    _HI_DISABLE_TMUX _HI_DISABLE_SCREEN _HI_DISABLE_ZELLIJ \
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
@@ -28,11 +29,14 @@ set -l _hi_cfg_base ~/.config
 set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
 set -q _HI_CONFIG_DIR; or set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
 set -q _HI_XDG_CONFIG; or set -gx _HI_XDG_CONFIG $_hi_cfg_base
-# ...and core.sh's two tool directories, which paths.sh reads the same way
+# ...and core.sh's tool directories and screen's rc, which paths.sh reads the
+# same way
 set -g _HI_MICRO_HOME $_HI_XDG_CONFIG/micro
 set -q MICRO_CONFIG_HOME; and set _HI_MICRO_HOME $MICRO_CONFIG_HOME
 set -g _HI_ZELLIJ_HOME $_HI_XDG_CONFIG/zellij
 set -q ZELLIJ_CONFIG_DIR; and set _HI_ZELLIJ_HOME $ZELLIJ_CONFIG_DIR
+set -g _HI_SCREENRC_HOME $HOME/.screenrc
+set -q SCREENRC; and set _HI_SCREENRC_HOME $SCREENRC
 # settings ahead of paths.sh, whose gate reads them (plain `export NAME=value`
 # lines, which fish parses natively)
 if test -f $_HI_CONFIG_DIR/settings.sh

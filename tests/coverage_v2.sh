@@ -37,9 +37,10 @@
 # More readings here are artifacts, not gaps, and are worth ruling out
 # before writing a test against a number:
 #   - a script a suite *executes from a scratch-tree copy* under $_HI_WORKDIR
-#     is filed under the copy's path, which the filters drop, so the repo file
-#     reads 0% (scripts/update.sh, add_tag.sh, add_package.sh; preview.sh's
-#     and install.sh's dispatch).
+#     is filed under the copy's path, which the filters drop, so those lines
+#     read 0 (hi.sh's and install.sh's dispatch). bashcov files a hit under
+#     the realpath, so a scratch tree that only reads a directory links it
+#     instead (_hi_scratch_tree's `link:`, tests/lib/fixtures.sh).
 #   - an `env -i` child keeps none of the three variables the trace rides on
 #     (SHELLOPTS, PS4, BASH_XTRACEFD), so what it runs reads 0; rc_test.sh's
 #     _hi_rc_shell passes them through while a tracer runs, and the pty
@@ -58,6 +59,8 @@
 #     the lines that ran included (scripts/lib.sh's _hi_setting_get and the other
 #     out-var helpers); a probe calling the function directly still reads 0.
 #   - a zsh-only arm (`[ -n "$ZSH_VERSION" ]`) is invisible to both tools.
+#   - an arm for another OS (header.sh's macOS vm_stat and Windows wmic
+#     reads) runs only on that OS's CI leg; the sweep is ubuntu.
 #   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh)
 #     is traced only where sh is bash: the xtrace
 #     rides on SHELLOPTS, which dash ignores, so the whole file reads 0%

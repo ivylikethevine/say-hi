@@ -490,6 +490,12 @@ function _hi_load_run() {
     export HOME="$_HI_WORKDIR/loadhome"
     local _hi_pair
     for _hi_pair in "$@"; do export "${_hi_pair?}"; done
+    # a session's load.sh holds the editor aliases of the overlay's wiring.sh,
+    # which common/paths.sh sourced on its way in (GLOSSARY: HI.62): the
+    # same here, on this run's $PATH
+    # shellcheck source=/dev/null
+    [ ! -f "$_HI_WORKDIR/overlay/wiring.sh" ] ||
+      _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" source "$_HI_WORKDIR/overlay/wiring.sh"
     load
   ) <<<"$stdin_cmds" 2>/dev/null
 }
@@ -738,6 +744,45 @@ function test_load_disable_header_skips_the_banner() {
   return 1
 }
 
+# _hi_nano_case <tree> <nanorc text> [cleanup] - _hi_nano_fallback over a
+# nanorc in <tree>, twice (a hop runs it again over its own output), with
+# <tree> the disposable one unless [cleanup] names another; the result on
+# stdout
+function _hi_nano_case() {
+  local _HI_CLEANUP="${3-$1}" _HI_NANORC="$1/say-hi/config/nanorc"
+  mkdir -p "${_HI_NANORC%/*}"
+  printf '%s' "$2" >"$_HI_NANORC"
+  _hi_nano_fallback
+  _hi_nano_fallback
+  cat "$_HI_NANORC"
+}
+
+# the target's own set stands in for a dropped syntax include where the
+# target has one, once however often it runs, and a stale one a previous hop
+# added goes where it has none; a nanorc with nothing dropped, or outside a
+# disposable tree, is left alone
+function test_nano_fallback_follows_the_target() {
+  local fb='include "/usr/share/nano/*.nanorc"' out want
+  local dropped='# hi dropped: include "~/.nano/*.nanorc"'
+  want="$dropped"$'\nset tabsize 4'
+  set -- /usr/share/nano/*.nanorc
+  [ -f "$1" ] && want="$want"$'\n'"$fb"
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-a" "$dropped"$'\nset tabsize 4\n')"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | fresh: [$out]" "$RED"
+    return 1
+  }
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-b" "$dropped"$'\n'"$fb"$'\nset tabsize 4\n')"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | carried from a hop: [$out]" "$RED"
+    return 1
+  }
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-c" $'set tabsize 4\n')"
+  [ "$out" = "set tabsize 4" ] || return 1
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-d" "$dropped"$'\n' "")"
+  [ "$out" = "$dropped" ]
+}
+
 function run_load_tests() {
   _hi_workdir loadtest
   # the editor configs an overlay carried in, for load() to hand the session
@@ -746,6 +791,10 @@ function run_load_tests() {
   : >"$_HI_WORKDIR/overlay/init.lua"
   : >"$_HI_WORKDIR/overlay/nanorc"
   export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
+  # ...and the wiring.sh a client packs beside them; nvim's line keeps its
+  # state under the session tree
+  _hi_wiring_for vimrc init.lua nanorc >"$_HI_WORKDIR/overlay/wiring.sh"
+  local nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_NVIMRC"
 
   _hi_h1 "Testing load.sh"
 
@@ -772,6 +821,7 @@ function run_load_tests() {
   _hi_check "...and stands alone without one" test_session_rc_setup_stands_alone_without_cleanup
   _hi_check_requires fish "_hi_fishquote round-trips through a real fish" test_fishquote_roundtrips_the_hard_cases
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
+  _hi_check "a dropped nano syntax include falls back to the target's" test_nano_fallback_follows_the_target
 
   _hi_h2 "Testing: _hi_login_shell"
   _hi_check "\$SHELL answers as its basename" test_login_shell_answers_with_the_basename_of_shell
@@ -817,13 +867,13 @@ EOF
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
-  _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "nvim -u $_HI_NVIMRC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|S=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC"
-  _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$_HI_WORKDIR/withvimonly/vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
+  _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
+  _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
-  _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_NVIMRC|" _HI_EDITOR=no-such-editor
-  _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
+  _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "E=$nvim|" _HI_EDITOR=no-such-editor
+  _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$nvim|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "...one set stands in for the other" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=nano --rcfile $_HI_NANORC|" _HI_CLIENT_EDITOR=nano
-  _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|" _HI_CLIENT_EDITOR=no-such-editor
+  _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$nvim|" _HI_CLIENT_EDITOR=no-such-editor
   _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -mkparents true -diffgutter true|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
   _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1

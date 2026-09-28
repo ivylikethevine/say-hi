@@ -329,7 +329,7 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
   local out
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    COMP_WORDS=(hi --pl)
+    COMP_WORDS=(hi --pla)
     COMP_CWORD=1
     COMPREPLY=()
     _hi_complete
@@ -511,26 +511,31 @@ function test_defers_to_prompt_tool_when_asked() {
 # on a target, a tool's config in the overlay becomes the tool's own variable
 # (starship.toml -> $STARSHIP_CONFIG, theme.yml -> $EZA_CONFIG_DIR - the
 # directory, since eza fixes the file name - bat.conf -> $BAT_CONFIG_PATH,
-# inputrc -> $INPUTRC); at
-# home the variable is left alone, whatever the overlay holds
+# inputrc -> $INPUTRC, and ripgreprc, fzfrc, lazygit.yml the same); at
+# home the variable is left alone, whatever the overlay holds. The lines that
+# do it are the ones the client packs beside the file (GLOSSARY: HI.62),
+# kakoune's behind its toggles.
 # <shell> <overlay file> <variable> <expected on a target> [NAME=VALUE...]
+# shellcheck disable=SC2016 # the child bash expands its own script
 function test_remote_session_exports_overlay_config() {
   local shell="$1" file="$2" var="$3" want="$4" script out home
   shift 4
   mkdir -p "$_HI_WORKDIR/cfg"
   printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
+  _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   case "$shell" in
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${'"$var"':-}"' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $'"$var" ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@" _HI_REMOTE_SESSION=1)"
   home="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")"
-  rm -f "$_HI_WORKDIR/cfg/$file"
+  rm -f "$_HI_WORKDIR/cfg/$file" "$_HI_WORKDIR/cfg/wiring.sh"
   [ "$out" = "$want" ] && [ -z "$home" ]
 }
 
 # on a target, tmux, screen, micro, and zellij reach the overlay's copies
-# through their aliases: tmux -f the tmux.conf, screen -c the screenrc, zellij
+# through their aliases (tmux's, screen's, and zellij's a wiring.sh line,
+# GLOSSARY: HI.62): tmux -f the tmux.conf, screen -c the screenrc, zellij
 # --config-dir the zellij/ directory, micro -config-dir the micro/ one, and without
 # the taste flags that would beat its settings.json. With no overlay copy the
 # target's own ~/.tmux.conf is not picked up in its place.
@@ -540,6 +545,7 @@ function test_remote_session_aliases_overlay_config() {
   [ "$file" = - ] || {
     mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij"
     printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
+    _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   }
   printf 'set -g @mine target\n' >"$_HI_WORKDIR/.tmux.conf"
   case "$shell" in
@@ -550,7 +556,8 @@ function test_remote_session_aliases_overlay_config() {
   # runner has micro: a stub on PATH stands in for it
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 \
     PATH="$(_hi_fake_path rc-tools micro tmux screen zellij):$PATH" 2>/dev/null)"
-  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf"
+  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf" \
+    "$_HI_WORKDIR/cfg/wiring.sh"
   if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
     _hi_cecho " | $name is: [$out]" "$RED"
     return 1
@@ -672,36 +679,96 @@ function _hi_fw_home() {
     printf 'p10k() { :; }\nPROMPT=P10K\n' >"$h/powerlevel10k/powerlevel10k.zsh-theme"
     printf 'git_prompt_info() { print -n G; }\nalias ls=FW-LS\n' >"$h/.oh-my-zsh/lib/git.zsh"
     printf '_omb_module_require() { :; }\nalias ls=FW-LS\n' >"$h/.oh-my-bash/oh-my-bash.sh"
+    # bash_it.sh's loader sources $BASH_IT_THEME as a literal path; it gets no
+    # alias of its own, since hi sources the whole framework, aliases included
+    mkdir -p "$h/.bash_it"
+    printf '_bash-it-log-prefix-by-path() { :; }\n[ -n "$BASH_IT_THEME" ] && . "$BASH_IT_THEME"\n' >"$h/.bash_it/bash_it.sh"
     printf 'function tide; end\n' >"$h/.config/fish/functions/tide.fish"
     printf 'function fish_prompt; echo -n "TIDE:$tide_character_icon:"(count $tide_left_prompt_items):(count $tide_empty):(count (env | string match "tide_*")); end\n' \
       >"$h/.config/fish/functions/fish_prompt.fish"
     printf 'PROMPT="$PROMPT+CFG"\n' >"$c/p10k.zsh"
     printf 'PROMPT="OMZ-$(git_prompt_info)"\n' >"$c/oh-my-zsh.zsh-theme"
     printf 'PS1=OMB\n' >"$c/oh-my-bash.theme.sh"
+    printf 'PS1=BASHIT\n' >"$c/bash-it.theme.bash"
     printf 'SETUVAR tide_character_icon:\\u276f\nSETUVAR tide_left_prompt_items:pwd\\x1egit\nSETUVAR tide_empty:\\x1d\n' >"$c/tide.vars"
   }
   printf '%s' "$h"
 }
 
+# bash-it loaded by the rc already has a theme, and that theme's
+# prompt_command precmd entry would redraw over the home theme: it is dropped,
+# a hook of anyone else's is kept, and the home theme is sourced on top
+function test_bash_it_from_the_rc_hands_over_its_precmd() {
+  local h out
+  h="$(_hi_fw_home)"
+  out="$(_hi_rc_shell dumb bash '_bash-it-log-prefix-by-path() { :; }
+    prompt_command() { PS1=RC-BASHIT; }; other_hook() { :; }
+    precmd_functions=(prompt_command other_hook); PS1=RC-BASHIT
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>&1
+    printf "%s|%s" "$PS1" "${precmd_functions[*]}"' \
+    HOME="$h" _HI_CONFIG_DIR="$h/cfg" _HI_PROMPT_TOOL=bash-it _HI_REMOTE_SESSION=1)"
+  [ "$out" = "BASHIT|other_hook" ] || _hi_because "bash drew: [$out]"
+}
+
 # <shell> <before-rc script> - a prompt hi has no hand-over for (a framework's
 # marker, or fish_prompt in the user's own functions/) stays the user's, and
 # `hi` in $_HI_PROMPT_TOOL takes it anyway. powerlevel10k in the list fits no
-# case here, so the list runs out rather than naming hi.
+# case here, so the list runs out rather than naming hi. The $PS1 under a
+# marker is the shell's own default, so only the marker can be what keeps it.
 function test_foreign_prompt_stays_unless_hi_named() {
-  local shell="$1" pre="$2" script x="$_HI_WORKDIR/ownprompt" theirs mine
+  local shell="$1" pre="$2" script x="$_HI_WORKDIR/ownprompt" theirs mine own=MINE
   mkdir -p "$x/fish/functions"
   printf 'function fish_prompt; echo -n MINE; end\n' >"$x/fish/functions/fish_prompt.fish"
   case "$shell" in
-  bash) script="$pre"'; PS1=MINE; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"' ;;
-  zsh) script="$pre"'; PS1=MINE; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"' ;;
+  bash)
+    own='\s-\v\$ '
+    script="$pre"'; PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"'
+    ;;
+  zsh)
+    own='%m%# '
+    script="$pre"'; PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"'
+    ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish >/dev/null 2>&1; fish_prompt' ;;
   esac
-  theirs="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k XDG_CONFIG_HOME="$x")"
-  mine="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=hi XDG_CONFIG_HOME="$x")"
-  [[ "$theirs" == *MINE* && "$mine" != *MINE* ]] || {
+  theirs="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k XDG_CONFIG_HOME="$x" RC_PS1="$own")"
+  mine="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=hi XDG_CONFIG_HOME="$x" RC_PS1="$own")"
+  [[ "$theirs" == "$own" && "$mine" != "$own" ]] || {
     _hi_cecho " | $shell drew [$theirs] unnamed, [$mine] with hi named" "$RED"
     return 1
   }
+}
+
+# <shell> <stays|drawn> <PS1> [NAME=VALUE...] - the $PS1 the rc left before
+# hi's: the user's own stays at home, and the shell's or a distro's default,
+# or any on a target, is drawn over (GLOSSARY: HI.32)
+function test_rc_prompt() {
+  local shell="$1" want="$2" ps1="$3" script out
+  shift 3
+  case "$shell" in
+  bash) script='PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "${PROMPT_COMMAND:-}" >/dev/null; printf %s "$PS1"' ;;
+  zsh) script='PS1=$RC_PS1; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "$PS1"' ;;
+  esac
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k RC_PS1="$ps1" "$@")"
+  case "$want" in
+  stays) [ "$out" = "$ps1" ] ;;
+  *) [[ "$out" != "$ps1" && "$out" == *__hi_env_info* ]] ;;
+  esac || {
+    _hi_cecho " | $shell, wanting $want, drew [$out] over [$ps1]" "$RED"
+    return 1
+  }
+}
+
+# hi's own prompt from an earlier load is nobody's hand-written one: the rc
+# sourced again draws again, so an upgraded tree's prompt code is the one
+# running (GLOSSARY: HI.60)
+function test_rc_prompt_redraws_on_a_re_source() {
+  local shell="$1" script out
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; eval "$PROMPT_COMMAND" >/dev/null; unset -f __hi_ps1; source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1; declare -F __hi_ps1' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; unfunction __hi_git_precmd; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "${+functions[__hi_git_precmd]}"' ;;
+  esac
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k)"
+  [ "$out" = __hi_ps1 ] || [ "$out" = 1 ]
 }
 
 # <shell> <want glob> <before-rc script> [NAME=VALUE...] - the prompt drawn
@@ -1430,6 +1497,9 @@ function run_rc_tests() {
   _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config bash theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config bash bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
   _hi_check "[bash] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config bash inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
+  _hi_check "[bash] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config bash ripgreprc RIPGREP_CONFIG_PATH "$_HI_WORKDIR/cfg/ripgreprc"
+  _hi_check "[bash] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config bash fzfrc FZF_DEFAULT_OPTS_FILE "$_HI_WORKDIR/cfg/fzfrc"
+  _hi_check "[bash] a target points lazygit at the overlay's lazygit.yml" test_remote_session_exports_overlay_config bash lazygit.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit.yml"
   _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] ...but not with _HI_DISABLE_KAKOUNE=1" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "" _HI_DISABLE_KAKOUNE=1
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
@@ -1447,6 +1517,9 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
   _hi_check_requires fish "[fish] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config fish inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
+  _hi_check_requires fish "[fish] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config fish ripgreprc RIPGREP_CONFIG_PATH "$_HI_WORKDIR/cfg/ripgreprc"
+  _hi_check_requires fish "[fish] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config fish fzfrc FZF_DEFAULT_OPTS_FILE "$_HI_WORKDIR/cfg/fzfrc"
+  _hi_check_requires fish "[fish] a target points lazygit at the overlay's lazygit.yml" test_remote_session_exports_overlay_config fish lazygit.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit.yml"
   _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
   _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
@@ -1471,6 +1544,11 @@ function run_rc_tests() {
     test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
   _hi_check "[bash] ...loaded by the rc, its prompt stays at home" \
     test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=oh-my-bash
+  _hi_check "[bash] bash-it, loaded by hi, draws the home theme on a target" \
+    test_prompt_program_draws bash 'BASHIT|*' : _HI_PROMPT_TOOL=bash-it _HI_REMOTE_SESSION=1
+  _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
+    test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=bash-it
+  _hi_check "[bash] ...loaded by the rc, its precmd hands over to the home theme" test_bash_it_from_the_rc_hands_over_its_precmd
   _hi_check "[bash] a list's first program that fits the shell wins" \
     test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL="tide powerlevel10k oh-my-bash" _HI_REMOTE_SESSION=1
   _hi_check "[bash] a name hi does not know keeps hi's prompt" \
@@ -1527,6 +1605,21 @@ function run_rc_tests() {
     test_foreign_prompt_stays_unless_hi_named zsh 'SPACESHIP_VERSION=4; prompt_pure_setup() { :; }'
   _hi_check_requires fish "[fish] a fish_prompt of the user's own stays, unless hi is named" \
     test_foreign_prompt_stays_unless_hi_named fish :
+  _hi_check "[bash] a PS1 of the user's own stays at home" test_rc_prompt bash stays '\[\e[1;32m\]\u\[\e[0m\] \w \$ '
+  _hi_check "[bash] ...unless hi is named" test_rc_prompt bash drawn '\[\e[1;32m\]\u\[\e[0m\] \w \$ ' _HI_PROMPT_TOOL=hi
+  _hi_check "[bash] ...and a target's rc is not asked" test_rc_prompt bash drawn '\[\e[1;32m\]\u\[\e[0m\] \w \$ ' _HI_REMOTE_SESSION=1
+  _hi_check "[bash] bash's own default is drawn over" test_rc_prompt bash drawn '\s-\v\$ '
+  _hi_check "[bash] ...and Debian's, behind its xterm title" test_rc_prompt bash drawn \
+    '\[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+  _hi_check "[bash] ...and its plain one" test_rc_prompt bash drawn '${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+  _hi_check "[bash] ...and Fedora's and Arch's" test_rc_prompt bash drawn '[\u@\h \W]\$ '
+  _hi_check "[bash] the rc sourced again draws over hi's own" test_rc_prompt_redraws_on_a_re_source bash
+  _hi_check_requires zsh "[zsh] a PROMPT of the user's own stays at home" test_rc_prompt zsh stays '%F{green}%n%f %~ %# '
+  _hi_check_requires zsh "[zsh] ...unless hi is named" test_rc_prompt zsh drawn '%F{green}%n%f %~ %# ' _HI_PROMPT_TOOL=hi
+  _hi_check_requires zsh "[zsh] ...and a target's rc is not asked" test_rc_prompt zsh drawn '%F{green}%n%f %~ %# ' _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] zsh's own default is drawn over" test_rc_prompt zsh drawn '%m%# '
+  _hi_check_requires zsh "[zsh] ...and Fedora's" test_rc_prompt zsh drawn '[%n@%m]%~%# '
+  _hi_check_requires zsh "[zsh] the rc sourced again draws over hi's own" test_rc_prompt_redraws_on_a_re_source zsh
   _hi_check "[bash] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw bash
   _hi_check_requires zsh "[zsh] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw zsh
   _hi_check_requires fish "[fish] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw fish

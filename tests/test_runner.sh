@@ -88,6 +88,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:env_prompt:common/env_prompt_test.sh"
     "fast:add_tag:scripts/add_tag_test.sh"
     "fast:set_color:scripts/set_color_test.sh"
+    "fast:plugins:scripts/plugins_test.sh"
     "fast:convert_settings:scripts/convert_settings_test.sh"
     "fast:hi_mux:hi/mux_test.sh"
     "fast:core:common/core_test.sh"

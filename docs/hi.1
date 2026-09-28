@@ -60,6 +60,24 @@ hi \- your shell config, on every host you say hi to
 .I type name
 .RB [ \-\-dry\-run ]
 .br
+.B hi \-\-plugins
+.br
+.B hi \-\-plugin\-off
+.IR name ...
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-plugin\-on
+.IR name ...
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-add\-plugin
+.I member tool wire home
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-remove\-plugin
+.I member
+.RB [ \-\-dry\-run ]
+.br
 .B hi \-\-preview
 .RB { colors | packages | header }
 .br
@@ -472,6 +490,68 @@ under
 .BR \-\-set\-color .
 .B \-\-dry\-run
 says what would be written and writes nothing.
+.TP
+.B \-\-plugins
+list every plugin, a config hi carries to a target and points its tool at:
+its name, its group, each member, and the file that rides, or why none
+does. A plugin is one of hi's own or a line of
+.BR ~/.config/say-hi/carry .
+.TP
+.B \-\-plugin\-off \fIname\fR... [\fB\-\-dry\-run\fR]
+switch plugins off for every target: a plugin that is off sends no file and
+sets nothing there, so the tool keeps the target's own config.
+.I name
+is a plugin, a group
+.RB ( editors ,
+.BR mux ,
+.BR prompt ,
+.BR cli ,
+.BR shell ,
+.BR carry ),
+or a member, as
+.B hi \-\-plugins
+lists them. The list is
+.B _HI_PLUGINS_OFF
+in
+.BR ~/.config/say-hi/settings.sh .
+An editor its
+.B _HI_DISABLE_*
+toggle turns off stays home the same way.
+.B \-\-dry\-run
+says what would be written and writes nothing.
+.TP
+.B \-\-plugin\-on \fIname\fR... [\fB\-\-dry\-run\fR]
+take
+.I name
+back out of that list.
+.B \-\-dry\-run
+says what would be written and writes nothing.
+.TP
+.B \-\-add\-plugin \fImember tool wire home\fR [\fB\-\-dry\-run\fR]
+add a line to
+.BR ~/.config/say-hi/carry ,
+for a config of a tool hi does not know:
+.I member
+is the name the file rides under,
+.I tool
+the command that reads it (or
+.BR \- ),
+.I wire
+how a target's tool finds it, and
+.I home
+where the file is here (see
+.BR FILES ).
+A line hi could not read is refused, with the reason.
+.B \-\-dry\-run
+says what would be written and writes nothing.
+.TP
+.B \-\-remove\-plugin \fImember\fR [\fB\-\-dry\-run\fR]
+remove
+.IR member 's
+line from
+.BR ~/.config/say-hi/carry .
+.B \-\-dry\-run
+says what would be written and writes nothing.
 .PP
 Everything else is passed through to
 .BR ssh (1)
@@ -570,7 +650,13 @@ the first package of each of its rows,
 .B \-\-set\-color
 and
 .B \-\-unset\-color
-the four pin types, and
+the four pin types,
+.B \-\-plugin\-off
+the plugins and their groups,
+.B \-\-plugin\-on
+the ones that are off,
+.B \-\-remove\-plugin
+the members of your carry file, and
 .B hi \-\-update <TAB>
 the release tags a checkout knows of.
 .SH CONFIGURATION
@@ -678,7 +764,9 @@ and
 .BR \-\-config\-dir ).
 Without them hi carries
 .BR ~/.tmux.conf ,
-.BR ~/.screenrc ,
+.B ~/.screenrc
+(or
+.BR $SCREENRC ),
 and micro's and zellij's own config directories.
 .TP
 .B ~/.config/say-hi/aliases.sh
@@ -691,6 +779,24 @@ and
 .B _HI_SUDO_ALIAS
 values set here arrive too late: they belong in
 .BR settings.sh .
+.TP
+.B ~/.config/say-hi/carry
+a line for each config of a tool hi does not know:
+.BR "member | tool | wire | home" .
+The file is carried from the first of the
+.BR : \-separated
+home paths that exists (each starting at
+.BR / ,
+.BR ~/ ,
+or a variable's name), under the member's name, with the tool installed here;
+.B env:
+and
+.B envdir:
+name the variables a target sets to it,
+.B flag:
+and
+.B flagdir:
+the command and flag a target aliases with it. Nothing in a line is evaluated.
 .TP
 .B ~/.config/say-hi/plugins.d/
 plugins in the aliases.sh subset, sourced in name order after the aliases and
@@ -744,6 +850,18 @@ is carried instead. An
 of anything but
 .B /etc/inputrc
 is dropped.
+.TP
+.B $RIPGREP_CONFIG_PATH, $FZF_DEFAULT_OPTS_FILE, ~/.config/lazygit/config.yml
+the rg, fzf, and lazygit configs in force here (lazygit's wherever
+.B LG_CONFIG_FILE
+points), carried to every target and named there by the same variables. A
+.BR ripgreprc ,
+.BR fzfrc ,
+or
+.B lazygit.yml
+in
+.B ~/.config/say-hi
+is carried instead.
 .TP
 .B ~/.p10k.zsh, ~/.zshrc, ~/.bashrc, ~/.config/fish/fish_variables
 read for the prompt programs a target is handed: powerlevel10k's config, the

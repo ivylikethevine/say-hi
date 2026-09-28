@@ -47,7 +47,7 @@ source "$_HI_PREVIEW"
 # below counts the real shipped roster instead.
 function _hi_write_preview_tree() {
   local home
-  home="$(_hi_scratch_tree tree common config scripts)"
+  home="$(_hi_scratch_tree tree common config link:scripts)"
   mkdir -p "$home/.ssh"
   cp "$_HI_WORKDIR/colors" "$home/say-hi/config/colors"
   cp "$_HI_WORKDIR/ssh_config" "$home/.ssh/config"
@@ -304,14 +304,29 @@ function test_group_preview_width_sums_its_hosts() {
 _HI_USERS_OUT=""
 _HI_HOSTS_OUT=""
 
+# _hi_shared_out <var> <render...> - fills <var> from the render unless a case
+# before this one did. The case that renders first can fail and pass its
+# traced rerun (FLAKY), which runs in a subshell and takes the assignment with
+# it, so every case that reads the variable asks for it this way.
+function _hi_shared_out() {
+  local _hi_so
+  [ -z "${!1}" ] || return 0
+  _hi_so="$("${@:2}")" || return 1
+  printf -v "$1" '%s' "$_hi_so"
+}
+function _hi_users_out() { _HI_WHOAMI_CACHE=defaultuser _hi_shared_out _HI_USERS_OUT _hi_print_users_table; }
+function _hi_hosts_out() { _hi_shared_out _HI_HOSTS_OUT _hi_render_hosts_table; }
+function _hi_colors_out() { _hi_shared_out _HI_COLORS_OUT _hi_render_colors; }
+
 function test_users_table_renders_override_rows() {
-  _HI_USERS_OUT="$(_HI_WHOAMI_CACHE=defaultuser _hi_print_users_table)" || return 1
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *alice* && "$_HI_USERS_OUT" == *brmagenta* && "$_HI_USERS_OUT" == *override:username* ]]
 }
 
 # a user with no pin still renders in its hashed color, so the table lists it
 # and names the hash as the reason
 function test_users_table_lists_hashed_users() {
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *defaultuser* ]] &&
     _hi_strip_ansi "$_HI_USERS_OUT" | grep -q 'defaultuser.*| hash'
 }
@@ -319,10 +334,12 @@ function test_users_table_lists_hashed_users() {
 # LOCALUSER is a placeholder, not a login name, so its pin renders as its own
 # example row rather than as a user
 function test_users_table_shows_the_localuser_pin() {
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *LOCALUSER* && "$_HI_USERS_OUT" == *local:username* ]]
 }
 
 function test_users_table_shows_each_usertag() {
+  _hi_users_out || return 1
   [[ "$_HI_USERS_OUT" == *usertag:ops* && "$_HI_USERS_OUT" == *brred* ]]
 }
 
@@ -342,7 +359,7 @@ function _hi_render_hosts_table() {
 # tagged and a-considerably-longer-hostname share a tag and a color, so they
 # collapse into one tag:work group row - grouping is the table's whole point
 function test_hosts_table_groups_identical_renders() {
-  _HI_HOSTS_OUT="$(_hi_render_hosts_table)" || return 1
+  _hi_hosts_out || return 1
   [[ "$_HI_HOSTS_OUT" == *tagged* && "$_HI_HOSTS_OUT" == *a-considerably-longer-hostname* ]] || return 1
   [ "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'tag:work')" -eq 1 ]
 }
@@ -355,6 +372,7 @@ function test_hosts_table_groups_identical_renders() {
 # did but the names came out in another order.
 function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
   local rows found
+  _hi_hosts_out || return 1
   rows="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'pattern:pat-')"
   found="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')"
   [ "$rows" -eq 1 ] ||
@@ -457,7 +475,7 @@ function _hi_render_colors() {
 _HI_COLORS_OUT=""
 
 function test_tables_render_without_error() {
-  _HI_COLORS_OUT="$(_hi_render_colors)" || return 1
+  _hi_colors_out || return 1
   [[ "$_HI_COLORS_OUT" == *pinned* && "$_HI_COLORS_OUT" == *tagged* && "$_HI_COLORS_OUT" == *alice* ]]
 }
 
@@ -475,6 +493,7 @@ function test_tables_render_under_a_scheme() {
 # connect, so every ssh-config host gets a row: the point of the hosts table
 function test_tables_list_every_ssh_config_host() {
   local out host
+  _hi_colors_out || return 1
   out="$(_hi_strip_ansi "$_HI_COLORS_OUT")"
   for host in plain pinned tagged othertag pat-1 a-considerably-longer-hostname; do
     [[ "$out" == *"$host"* ]] || _hi_because "no row names $host" || return 1
@@ -484,6 +503,7 @@ function test_tables_list_every_ssh_config_host() {
 # the hashed rows name the hash as their rule and land on a palette color
 function test_tables_label_hashed_hosts_hash() {
   local row color
+  _hi_colors_out || return 1
   row="$(_hi_strip_ansi "$_HI_COLORS_OUT" | grep '| plain ')" || return 1
   [[ "$row" == *'| hash '* ]] || _hi_because "the plain row was: $row" || return 1
   color="$(_hi_resolve_color hostname plain)"
@@ -493,12 +513,14 @@ function test_tables_label_hashed_hosts_hash() {
 # the tag column has to name the tag that actually matched, since that's the
 # line a user reads to work out which config/colors entry to edit
 function test_tables_name_the_matching_tag() {
+  _hi_colors_out || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'tag:work'
 }
 
 # a pattern pin gets an example row (its glob never appears in targets.sh's
 # list), and a real host it covers joins that same group
 function test_tables_show_a_pattern_pin_example_row() {
+  _hi_colors_out || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pattern:pat-\*' || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pat-1'
 }
@@ -507,8 +529,13 @@ function test_tables_show_a_pattern_pin_example_row() {
 # rows of their own, each naming its source, since neither is a real user
 # targets.sh would list
 function test_tables_list_the_local_user_and_usertag_pins() {
+  _hi_colors_out || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'LOCALUSER.*local:username' || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'ops.*usertag:ops'
+}
+
+function test_tables_are_rectangular() {
+  _hi_colors_out && _hi_table_is_rectangular "$_HI_COLORS_OUT"
 }
 
 # The same render off the checkout's own config/colors (LOCALUSER and a
@@ -782,6 +809,22 @@ function test_groups_table_drops_the_off_note_at_zero() {
   [[ "$out" != *"leaves off"* && "$out" == *"14 listed"* ]]
 }
 
+# a file of the user's own says, under the table, which of the tree's groups
+# it lacks and which rows hold a marker past their first name; the tree's
+# own says nothing
+function test_packages_drift_names_groups_and_stray_markers() {
+  local out want
+  _HI_PACKAGES="$_HI_ROOT/config/packages" _hi_package_groups want
+  want="${want#core }"
+  printf '[core]\nhialpha\nhibravo,-hiecho,+hidelta\n[mine]\nhitop\n' >"$_HI_WORKDIR/packages.drift"
+  out="$(_HI_PACKAGES="$_HI_WORKDIR/packages.drift" _hi_print_packages_drift)" || return 1
+  [[ "$out" == *"never checked: ${want// /, } ("* ]] || _hi_because "groups: $out" || return 1
+  [[ "$out" == *"hibravo,-hiecho,+hidelta: a - or + past the first name"* ]] ||
+    _hi_because "marker: $out" || return 1
+  out="$(_HI_PACKAGES="$_HI_ROOT/config/packages" _hi_print_packages_drift)" || return 1
+  [ -z "$out" ] || _hi_because "the tree's own file: $out"
+}
+
 function test_marks_table_explains_every_mark() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
@@ -965,7 +1008,7 @@ function test_preview_follows_the_groups_setting() {
 # config/packages is the only candidate - and the tree has none.
 function test_preview_reports_no_packages_file() {
   local home out
-  home="$(_hi_scratch_tree nopackages common config scripts)"
+  home="$(_hi_scratch_tree nopackages common config link:scripts)"
   rm -f "$home/say-hi/config/packages"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
@@ -979,7 +1022,7 @@ function test_preview_reports_no_packages_file() {
 # point the check at a file of your own.
 function test_preview_ignores_an_exported_packages() {
   local home decoy out
-  home="$(_hi_scratch_tree exportedpkgs common config scripts)"
+  home="$(_hi_scratch_tree exportedpkgs common config link:scripts)"
   cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages"
   decoy="$_HI_WORKDIR/exported-packages"
   printf 'hionlyone\n' >"$decoy"
@@ -1092,7 +1135,7 @@ EOF
   # by _hi_group_preview_width) and HOST (unwrappably long names) both got
   # wrong. The packages half asserts the same invariant through literally the
   # same code, so the two cannot segment tables differently.
-  _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_COLORS_OUT"
+  _hi_check "Every line of a table is the same width" test_tables_are_rectangular
 
   _hi_h2 "Testing: colors - --help"
   _hi_check "--help prints usage and exits 0" test_help_prints_usage_and_exits_zero
@@ -1127,6 +1170,7 @@ EOF
   _hi_check "No (no group) row without ungrouped rows" test_groups_table_drops_an_empty_no_group_row
   _hi_check "Legend counts below the table" test_groups_table_counts_below_the_table
   _hi_check "Off note vanishes with nothing off" test_groups_table_drops_the_off_note_at_zero
+  _hi_check "A file of your own names what it lacks" test_packages_drift_names_groups_and_stray_markers
   _hi_check "Legend is rectangular" _hi_table_is_rectangular "$_HI_GROUPS_OUT"
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph

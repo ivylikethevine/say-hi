@@ -18,11 +18,7 @@ function config_shell() {
   shift 2
   _hi_h2 "Checking $name"
 
-  for line in "$@"; do
-    [ -n "$line" ] || continue
-    printf -v line '%-45s %s' "$line" "$_HI_MARKER"
-    desired+="$line"$'\n'
-  done
+  rc_tagged desired "$@"
 
   existing=""
   [ -f "$target" ] && existing="$(grep -F "$_HI_MARKER" "$target" || true)"
@@ -134,6 +130,18 @@ function _hi_link_runs_this_tree() {
 # _hi_has_marker <file> - does <file> carry any of hi's tagged lines
 function _hi_has_marker() {
   [ -f "$1" ] && grep -qF -- "$_HI_MARKER" "$1"
+}
+
+# rc_tagged <outvar> <line...> - <line...> as config_shell writes them, each
+# padded and tagged with $_HI_MARKER and newline-ended; empty lines skipped
+function rc_tagged() {
+  local _hi_rt_line _hi_rt_out=""
+  for _hi_rt_line in "${@:2}"; do
+    [ -n "$_hi_rt_line" ] || continue
+    printf -v _hi_rt_line '%-45s %s' "$_hi_rt_line" "$_HI_MARKER"
+    _hi_rt_out+="$_hi_rt_line"$'\n'
+  done
+  printf -v "$1" '%s' "$_hi_rt_out"
 }
 
 # config_shell with an empty block, plus a quieter report for the common
@@ -328,13 +336,39 @@ function config_validate_shells() {
   exit 1
 }
 
-# The rc lines each shell gets, in the row's dialect: where say-hi is, then a
-# source of hi's rc for that shell, interactive shells only. bash is the one
-# shell whose rc runs for non-interactive shells too, hence its condition - a
-# condition, not a `return`, which would end all of ~/.bashrc for `ssh host
-# cmd`, scp, and rsync, lines other installers append below hi's included.
+# rc_lines <shell> <tree_rc> <dialect> - the rc lines <shell> gets, one per
+# line on stdout, in the row's dialect: where say-hi is, then a source of hi's
+# rc for that shell, interactive shells only. bash is the one shell whose rc
+# runs for non-interactive shells too, hence its condition - a condition, not
+# a `return`, which would end all of ~/.bashrc for `ssh host cmd`, scp, and
+# rsync, lines other installers append below hi's included. doctor_install
+# compares a wired rc against these, so a block an older hi wrote is named.
+function rc_lines() {
+  tmpdir_line "$3"
+  printf '\n'
+  case "$3" in
+  fish)
+    # fish before 3.4 cannot parse hi's config.fish: one line saying so
+    # rather than a parse error on every start
+    # shellcheck disable=SC2016 # $version is fish's, read at its start
+    printf '%s\n' "if status is-interactive; and string match -qr '^([4-9]|3\.([4-9]|[1-9][0-9]))\.' -- \$version" \
+      "  source \"$2\"" \
+      'else if status is-interactive' \
+      '  echo "hi needs fish 3.4 or newer (this is $version); not loaded" >&2' \
+      'end'
+    ;;
+  *)
+    if [ "$1" = bash ]; then
+      printf '%s\n' "[[ \$- == *i* ]] && source \"$2\""
+    else
+      printf '%s\n' "source \"$2\""
+    fi
+    ;;
+  esac
+}
+
 function install_rc_lines() {
-  local row shell label target tree_rc dialect
+  local row shell label target tree_rc dialect line
   local -a lines
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
@@ -345,26 +379,8 @@ function install_rc_lines() {
       _hi_cecho " $shell is not installed here - leaving $target alone (re-run hi --install once it is)" "$BLUE"
       continue
     }
-    lines=("$(tmpdir_line "$dialect")")
-    case "$dialect" in
-    fish)
-      # fish before 3.4 cannot parse hi's config.fish: one line saying so
-      # rather than a parse error on every start
-      # shellcheck disable=SC2016 # $version is fish's, read at its start
-      lines+=("if status is-interactive; and string match -qr '^([4-9]|3\.([4-9]|[1-9][0-9]))\.' -- \$version"
-        "  source \"$tree_rc\""
-        'else if status is-interactive'
-        '  echo "hi needs fish 3.4 or newer (this is $version); not loaded" >&2'
-        'end')
-      ;;
-    *)
-      if [ "$shell" = bash ]; then
-        lines+=("[[ \$- == *i* ]] && source \"$tree_rc\"")
-      else
-        lines+=("source \"$tree_rc\"")
-      fi
-      ;;
-    esac
+    lines=()
+    while IFS= read -r line; do lines+=("$line"); done < <(rc_lines "$shell" "$tree_rc" "$dialect")
     config_shell "$label" "$target" "${lines[@]}"
   done
   install_bash_profile_line

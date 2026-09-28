@@ -182,7 +182,10 @@ your own replaces the tree's wholesale, the same rule `colors` follows. By
 hand, `cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.
 `hi --preview packages` shows each group — whether it runs, its colors, and
 a real example from your rows — then the marks and the check; to turn the
-check off, drop `check` from `_HI_HEADER_ORDER`.
+check off, drop `check` from `_HI_HEADER_ORDER`. A copy never gains a group
+the tree adds later, so the preview and `hi --doctor` name the tree's groups
+your file lacks, and any row with a `-` or `+` past its first name
+(`eza,-exa,lsd`), which is read as part of a name nothing matches.
 
 ## Using the hash in your own prompt
 

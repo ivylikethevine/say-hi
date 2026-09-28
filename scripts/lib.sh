@@ -109,6 +109,30 @@ function _hi_section_add() {
   fi
 }
 
+# _hi_packages_drift <file> <tree's> - what a packages file of the user's own
+# gets wrong unseen, a line each: `group|<name>` for a group the tree's has
+# and <file> lacks, since a copy replaces the tree's and never gains one added
+# later, and `marker|<row>` for a row with a - or + past its first name,
+# which is read as part of a name nothing matches
+function _hi_packages_drift() {
+  local _hi_pd_l _hi_pd_have=" "
+  [ -f "$1" ] || return 0
+  while IFS=$' ' read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
+    case "$_hi_pd_l" in
+    *'#'*) ;;
+    '['*']') _hi_pd_have="$_hi_pd_have$_hi_pd_l " ;;
+    *,[-+]*) printf 'marker|%s\n' "$_hi_pd_l" ;;
+    esac
+  done <"$1"
+  [ "$1" != "$2" ] && [ -f "$2" ] || return 0
+  while IFS=$' ' read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
+    case "$_hi_pd_l" in *'#'*) ;; '['*']')
+      case "$_hi_pd_have" in *" $_hi_pd_l "*) ;; *) printf 'group|%s\n' "${_hi_pd_l:1:${#_hi_pd_l}-2}" ;; esac
+      ;;
+    esac
+  done <"$2"
+}
+
 # _hi_term_cols <outvar> - the terminal's width, or empty: $_HI_TERM_COLS (a
 # suite's pin), else - only when stdout is a tty, so captured output keeps
 # its fixed width - $COLUMNS, then tput. header.sh's _hi_draw_width rule.
@@ -210,8 +234,8 @@ function _hi_setting_get() {
     unset "$_hi_sg_name"
     # shellcheck source=/dev/null # a config file, or one a test wrote - not one shellcheck can trace
     . "$_hi_sg_file" >/dev/null 2>&1
-    eval "[ \"\${${_hi_sg_name}+x}\" = x ]" || exit 1
-    eval "printf '%s' \"\$${_hi_sg_name}\""
+    [ "${!_hi_sg_name+x}" = x ] || exit 1
+    printf '%s' "${!_hi_sg_name}"
   )" || return 1
   _hi_out "$_hi_sg_outvar" "$_hi_sg_val"
 }
@@ -342,3 +366,42 @@ else
   _HI_BOX_BL="└" _HI_BOX_B="┴" _HI_BOX_BR="┘"
   _HI_BOX_H="─" _HI_BOX_V="│"
 fi
+
+# _hi_plugin_rows - every row of hi.sh's that can be switched, the table's
+# and the carry's (so only where hi.sh is sourced), as
+# `<plugin>|<group>|<member>` lines in the table's order: what hi --plugins
+# lists
+function _hi_plugin_rows() {
+  local _hi_pw_r _hi_pw_g _hi_pw_n
+  _hi_carry_load
+  for _hi_pw_r in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
+    _hi_row_col "$_hi_pw_r" group _hi_pw_g
+    [ "$_hi_pw_g" != - ] || continue
+    _hi_plugin_name "${_hi_pw_r%%|*}" _hi_pw_n "$_hi_pw_r"
+    printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "${_hi_pw_r%%|*}"
+  done
+}
+
+# _hi_unsent_why <member> <outvar> - why a connect sends nothing of a member
+# that has a file, in a phrase; 1 when neither a switch, the prompt in force,
+# nor a missing tool is the reason
+function _hi_unsent_why() {
+  local _hi_uw=""
+  if _hi_plugin_off "$1" _hi_uw; then
+    _hi_uw="switched off ($_hi_uw)"
+  elif _hi_prompt_row "$1" >/dev/null && ! _hi_prompt_handed "$1"; then
+    _hi_uw="its prompt program is not one a target is handed (_HI_PROMPT_TOOL)"
+  elif ! _hi_tool_here "$1"; then
+    _hi_uw="its tool is not installed here"
+  fi
+  printf -v "$2" '%s' "$_hi_uw"
+  [ -n "$_hi_uw" ]
+}
+
+# _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold, one a line
+function _hi_plugin_words() {
+  local _hi_pw_l
+  while IFS= read -r _hi_pw_l; do
+    printf '%s\n%s\n%s\n' "${_hi_pw_l%%|*}" "${_hi_pw_l##*|}" "${_hi_pw_l#*|}"
+  done < <(_hi_plugin_rows) | sed 's/|.*//' | sort -u
+}

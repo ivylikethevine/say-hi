@@ -70,6 +70,9 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.59 plugins](#hi59-plugins)
 - [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
 - [HI.61 one overlay priority](#hi61-one-overlay-priority)
+- [HI.62 generated wiring](#hi62-generated-wiring)
+- [HI.63 carry rows](#hi63-carry-rows)
+- [HI.64 what is switched off](#hi64-what-is-switched-off)
 
 ## HI.01 empty-array guard
 
@@ -98,7 +101,8 @@ strings via `_hi_kv_get`/`_hi_kv_set` (`tests/lib/fixtures.sh`).
 ## HI.04 dynamic-name assignment
 
 bash 3.2 has no namerefs, so writing into a caller-named variable goes through
-`eval` (`_hi_read_lines`, `_hi_widen_to`) or `printf -v` for a single string.
+`eval` for an array (`_hi_read_lines`) or `printf -v` for a single string,
+and reading one through `${!name}` where only bash reads the file.
 Reading a caller's `local` works through bash's dynamic scoping — which cuts
 both ways: a helper that writes an out-var by name must not declare a `local`
 of the same name, or it writes into its own (`_hi_setting_get`'s locals are
@@ -442,12 +446,23 @@ directly), so `common/bash.sh` clears that array too - bash has no zsh-style
 Home's config rides the overlay (HI.41) and applies on a target only
 (`_HI_REMOTE_SESSION=1`), over whatever the target has: `$STARSHIP_CONFIG` /
 `$POSH_CONFIG` (and `$POSH_THEME`, which older oh-my-posh releases read) from
-`common/paths.sh` (paths.sh because fish sources it
-natively), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh, oh-my-bash,
+the generated wiring ([HI.62](#hi62-generated-wiring)), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh, oh-my-bash,
 or bash-it theme file the home rc names sourced over the framework, and
 tide's `tide_*` universal variables exported as globals - exported because
 tide renders in a background `fish -c` that must see them over the target's
 own. Absent every program, the prompt is hi's, silently.
+
+A prompt with no hand-over stays the user's where hi can tell one is
+drawing: a framework's marker (liquidprompt, bash-git-prompt, spaceship,
+pure, a promptinit theme), a `fish_prompt` that is not fish's own, and - at
+home only - a `$PS1` that `_hi_ps1_stock` does not know. That predicate
+(`common/bash.sh` and `common/zsh.zsh`, one list each) answers yes to an
+unset prompt, to hi's own from an earlier load (so a re-sourced rc redraws,
+HI.60), and to each default a shell or a distro's stock rc leaves; a default
+missing from it costs that distro's users hi's prompt at home until it is
+added, and `hi` in the list is their way back. It is never asked on a
+target, whose rc ran before hi's: the list cannot cover every box a session
+reaches, and an unset setting there stays hi's prompt.
 
 ## HI.33 derived tree location
 
@@ -670,17 +685,18 @@ directory: one place a session reads config from. hi's own aliases are
 `common/aliases.sh` still refuses to source a `$_HI_CONFIG_DIR/aliases.sh` that
 is itself. It is omitted when there is nothing to send.
 
-The prompt programs' configs, eza's `theme.yml`, bat's `bat.conf`, and
-readline's `inputrc` ride it
+The prompt programs' configs, eza's `theme.yml`, bat's `bat.conf`, rg's
+`ripgreprc`, fzf's `fzfrc`, lazygit's `lazygit.yml`, and readline's `inputrc`
+ride it
 so a tool's config on every target is the one in force at home:
 `_hi_overlay_src` packs the overlay's copy when there is one, else the file
 the tool itself reads on the client (HI.61's order; a prompt program's only
 when `_hi_prompt_list` names it), so there is one copy to edit and none to
 drift.
-`common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
-`$EZA_CONFIG_DIR` - the directory, since eza fixes the file name - `$INPUTRC`,
-...) at
-the overlay on a target only, and the shell files source or read the
+The generated wiring ([HI.62](#hi62-generated-wiring)) points each tool's
+own variable (`$STARSHIP_CONFIG`, `$EZA_CONFIG_DIR` - the directory, since eza
+fixes the file name - `$INPUTRC`, ...) at the overlay on a target only, and
+the shell files source or read the
 frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
@@ -1137,11 +1153,10 @@ overlay's copy, then the config that editor already reads on this machine
 in the editor's own precedence). hi ships no editor config of its own, so with
 neither the value is empty and the command has no alias; `tmux.conf` (`tmux
 -f`) and `screenrc` (`screen -c`) take the same tiers, and micro and zellij
-take a _directory_. The alias names the file only when it is hi's - the
-overlay's copy, and anything on a target: the home tier is what the tool
-reads unasked, so `common/aliases.sh` leaves the command bare there rather
-than restate it (and `vim -u` would drop the system vimrc and
-`defaults.vim`). The middle tier is [HI.32](#hi32-starship-deference)'s argument
+take a _directory_. The alias is a target's alone, a line of the overlay's
+`wiring.sh` ([HI.62](#hi62-generated-wiring)): at home every tool reads its
+own config unasked, an overlay copy is what targets get, and `vim -u` would
+drop the system vimrc and `defaults.vim`. The middle tier is [HI.32](#hi32-starship-deference)'s argument
 applied to editors - one copy to edit, no duplicate in the overlay to keep in
 step.
 
@@ -1177,6 +1192,13 @@ become `:` (`true` in fish), and the guard, the `&&`, the case arm around it
 stay. What the pass cannot see is a value the dropped line was meant to bind -
 a `local m = require("x")` used twenty lines down - so a plugin-heavy config
 can still error on the target; the doctor rows make that legible.
+
+One finding is given back. A nanorc whose syntax include (`*.nanorc` outside
+`/usr/share/nano`) was dropped would highlight nothing, so the stripper keeps
+that finding's comment, and `load.sh`'s `_hi_nano_fallback` adds
+`include "/usr/share/nano/*.nanorc"` on a target that has the stock set -
+rewritten each session, not appended once, since the copy rides on to a next
+hop's target, which may not.
 
 ## HI.58 overlay directory members
 
@@ -1272,7 +1294,10 @@ Every overlay member resolves in one order, written once as `hi.sh`'s
 `$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
 else the tree's default where `config/` holds one. A row names the member, the `common/paths.sh`
 variable that carries it to the shells (or `-`), whether `config/` holds a
-default (`$_HI_OVERLAY_SHADOWS` is derived from that column), and the home
+default (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that
+reads it (the binaries `_hi_tool_here` looks for, the first of them its name
+in `hi --doctor`; in parentheses, a name nothing looks for), its wire and the
+toggles that switch it off ([HI.62](#hi62-generated-wiring)), and the home
 tier: candidate paths best first, a `@function` where no list can say it
 (oh-my-posh's rc-named config, the theme a framework's rc variable names,
 ssh's tag map), or `-` for none.
@@ -1306,4 +1331,113 @@ directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the XDG one), and
 zellij's `layouts/` and `themes/` are trailing-`/` entries
 ([HI.58](#hi58-overlay-directory-members)). `paths.sh` resolves the directory
 whole, from `core.sh`'s `$_HI_MICRO_HOME` and `$_HI_ZELLIJ_HOME`, which spell
-the `${VAR:-}` its dialect cannot (`config.fish` mirrors them).
+the `${VAR:-}` its dialect cannot (`config.fish` mirrors them); screen's
+`screenrc` resolves the same way, through `$_HI_SCREENRC_HOME`
+(`$SCREENRC`, else `~/.screenrc`).
+
+## HI.62 generated wiring
+
+Pointing a tool at its carried config is a line on the target, and the
+target's line has to parse in bash, zsh, fish, and sh: `common/paths.sh`'s
+dialect, which has no loop to walk a table with. So the client writes the
+lines. A row's wire column says how: `env:<variables>` exports each as the
+member's path, `envdir:<variable>` as the directory holding it (eza and its
+fixed `theme.yml`), `flag:<command> <words>` and `flagdir:` alias the
+command to itself with the words and that path, where the target has the
+command (a flag ending in `=` takes the path in the same word), and `-`
+leaves the member to hi's own code. A row holds several wires with a `;`
+between them, read in order, a later alias replacing an earlier one.
+`<names>=<command>` aliases other names to the command, and words ahead of
+it that hold a `=` are its environment: neovim answers to `vim` as well and
+keeps its state under the session tree, and helix to `hx` whichever of its
+two names the target installed. helix's row asks for `hx` first, since
+`command -v` finds an alias once there is one. The path goes in bare:
+`load.sh` reads an alias's body back for `$EDITOR`, and a quote inside one
+does not survive that.
+
+micro's alias is the one still spelled in `common/aliases.sh`: its flags are
+`$_HI_MICRO_OPTS`, a setting whose default that file gives after `wiring.sh`
+has been read.
+`_hi_overlay_wiring` turns the members an overlay archive carries into
+`wiring.sh`, which `_hi_overlay_tar` stages beside them, and `paths.sh`
+sources it on a target only. At home each tool's own config is already in
+force.
+
+A target therefore knows no wired member by name, tests no file per member
+per shell start, and gets no line for a member that stayed home. The paths
+are written under `$_HI_CONFIG_DIR`, unexpanded, so a hop taken from inside a
+session writes the same lines from the same list. `wiring.sh` is no member:
+one in the overlay is not read, and the archive has none when no member it
+carries has a wire.
+
+The lines are part of `_hi_overlay_cache_key`. The member list alone would
+hand an archive cached by an older `hi.sh` to a newer one that wires the same
+members another way.
+
+A row's off column names the toggles its line is written behind, tested on
+the target, where the shell starts: kakoune's is
+`_HI_DISABLE_EDITORS` and `_HI_DISABLE_KAKOUNE`. The client reads them too
+([HI.64](#hi64-what-is-switched-off)), so the line is there only for a
+toggle the target's own environment sets. Such a line ends `|| true`, as an alias line does: the
+file's status is its last line's, and `core.sh` sources `paths.sh` under
+`set -e`.
+
+## HI.63 carry rows
+
+A tool hi has no row for gets one from the user: a line of the overlay's
+`carry`, `<member> | <tool> | <wire> | <home>`, spaces around a column
+ignored, `#` lines and blank ones skipped. `hi.sh`'s `_hi_carry_load` reads
+it into `$_HI_CARRY_ROWS` in the table's own shape
+([HI.61](#hi61-one-overlay-priority)), so the order, the tool check, the
+include scan, the cache, the wiring ([HI.62](#hi62-generated-wiring)), and
+`hi --doctor` take a row of the user's as they take one of hi's. It is read
+once per `$_HI_CONFIG_DIR`, the first time a row is asked for.
+
+A home column, the table's or a carry's, is data and is never evaluated.
+`_hi_path_list` reads it as candidates a `:` apart, best first, each a path
+starting at `/`, at `~/`, or at `$NAME`, which is that variable's value and
+drops the path while it is unset or empty. A candidate may be several paths
+a `,` apart, of which the first not dropped is the one: `$NAME/rc , ~/.rc`
+is `${NAME:-$HOME}`'s place, where a tool looks once its variable is unset.
+Nothing else expands: no `${NAME:-default}`, no command substitution, no
+glob. A grammar can grow in a 1.x where an `eval` could never be narrowed.
+
+A line the table cannot hold is left out and kept, with its number and the
+reason, in `$_HI_CARRY_BAD` for `hi --doctor`: a member that is no plain file
+name (`_hi_dir_member_ok`), that hi or an earlier line already has, or that
+is `wiring.sh`; a tool that is not command names; a wire that is not `env:`
+or `envdir:` over variable names, or `flag:` or `flagdir:` over a command
+and its one flag; a fifth column. The wire is checked because
+its words become a line every target sources.
+
+`carry` is itself a member. On a target the copy that rode names the members
+that rode with it, so a hop taken from there carries and wires them again,
+from the session's `config/` and never from that machine's home.
+
+## HI.64 what is switched off
+
+A plugin is a row's tool, or the member where it has none; its group is the
+row's group column (`editors`, `mux`, `prompt`, `cli`, `shell`, and `carry`
+for a line of the user's). A row with no group is hi's own file and nothing
+switches it. `_hi_plugin_off` answers for a member: off when
+`$_HI_PLUGINS_OFF` names its plugin, its group, or the member itself, or
+when a toggle of its off column is 1.
+
+It is asked in `_hi_overlay_src` and `_hi_overlay_files`, the two gates
+every member passes on its way out, so what is off is not packed, has no
+line in `wiring.sh` ([HI.62](#hi62-generated-wiring)), and is not in the
+cache key's member list. The target is handed the result and needs neither
+the list nor the table. An overlay copy stays home too: off is the user
+saying no, which outranks a file saying yes.
+
+Two things keep it cheap and right. Every member asks, several times a
+connect, and nearly always nothing is off, so that verdict is kept for the
+values in force: the list, and each toggle an off column names
+(`$_HI_OFF_TOGGLES`). And a toggle is not always what the environment says:
+under `_HI_DISABLE_LOCAL=1` `common/paths.sh` has set every one for this
+machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
+`export NAME=value` lines, the last of a name winning, as text.
+
+`scripts/plugins.sh` is the list's writer: one `_HI_PLUGINS_OFF` line in
+`settings.sh`, outside the block `hi --configure` owns, which leaves a line
+for a name it does not write alone.

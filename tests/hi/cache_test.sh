@@ -137,6 +137,19 @@ function test_overlay_cache_key_changes_with_the_member_list() {
   [ "$full" != "$trimmed" ] && [ "$full" != "$reordered" ]
 }
 
+# the wiring written from the list is in the key too (GLOSSARY: HI.62): a
+# hi.sh that wires a member another way must not be served the archive an
+# older one cached under the same list
+function test_overlay_cache_key_changes_with_the_wiring() {
+  local was now
+  was="$(_hi_overlay_cache_key bat.conf)"
+  now="$(
+    function _hi_overlay_wiring() { printf -v "$1" '%s' 'export BAT_CONFIG_DIR=elsewhere'; }
+    _hi_overlay_cache_key bat.conf
+  )"
+  [ -n "$was" ] && [ "$was" != "$now" ]
+}
+
 # ---------------------------------------------------------------------------
 # _hi_overlay_cached
 # ---------------------------------------------------------------------------
@@ -608,6 +621,7 @@ function run_cache_tests() {
   _hi_h2 "Testing: the cache keys"
   _hi_check "Overlay key is stable for one member list" test_overlay_cache_key_is_stable_for_one_member_list
   _hi_check "Overlay key changes with the member list" test_overlay_cache_key_changes_with_the_member_list
+  _hi_check "Overlay key changes with the wiring" test_overlay_cache_key_changes_with_the_wiring
 
   _hi_h2 "Testing: _hi_overlay_cached"
   _hi_check "Refuses an empty member list" test_overlay_cached_refuses_an_empty_member_list

@@ -211,36 +211,13 @@ function _hi_doc_tilde() {
 }
 
 # _hi_doc_member <member> <outvar> - <member> with the program that reads it,
-# `vimrc (vim)`, as the label a row names it by; hi's own files go bare
+# `vimrc (vim)`, as the label a row names it by; hi's own files go bare. The
+# program is the first name in the member's tool column of hi.sh's
+# $_HI_OVERLAY_TABLE.
 function _hi_doc_member() {
-  local tool=""
-  case "$1" in
-  vimrc) tool=vim ;;
-  init.lua) tool=nvim ;;
-  config.toml) tool=hx ;;
-  nanorc) tool=nano ;;
-  init.el) tool=emacs ;;
-  kakrc) tool=kak ;;
-  tmux.conf) tool=tmux ;;
-  screenrc) tool=screen ;;
-  micro/*) tool=micro ;;
-  zellij/*) tool=zellij ;;
-  bat.conf) tool=bat ;;
-  theme.yml) tool=eza ;;
-  inputrc) tool=readline ;;
-  bashrc) tool=bash ;;
-  zshrc) tool=zsh ;;
-  config.fish) tool=fish ;;
-  starship.toml) tool=starship ;;
-  oh-my-posh.*) tool=oh-my-posh ;;
-  p10k.zsh) tool=powerlevel10k ;;
-  oh-my-zsh.zsh-theme) tool=oh-my-zsh ;;
-  oh-my-bash.theme.sh) tool=oh-my-bash ;;
-  bash-it.theme.bash) tool=bash-it ;;
-  tide.vars) tool=tide ;;
-  ssh_tags) tool=ssh ;;
-  esac
-  printf -v "$2" '%s' "$1${tool:+ ($tool)}"
+  local _hi_dm_t
+  _hi_tool_label "$1" _hi_dm_t || true
+  printf -v "$2" '%s' "$1${_hi_dm_t:+ ($_hi_dm_t)}"
 }
 
 # _hi_doc_glyph <sev> - the severity's mark and color into $glyph and $color
@@ -536,9 +513,16 @@ function doctor_config() {
     [ -e "$_HI_CONFIG_DIR/${t%%:*}" ] || continue
     doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}" bad
   done
-  # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
-  # minus settings.sh, which got its richer parse-checked row above
-  for f in "${_HI_OVERLAY_FILES[@]}"; do
+  # a carry line hi.sh's _hi_carry_load turned down: the member it names
+  # rides nowhere, and nothing else says so (GLOSSARY: HI.63)
+  _hi_carry_load
+  for t in ${_HI_CARRY_BAD[@]+"${_HI_CARRY_BAD[@]}"}; do
+    doctor_row "carry:${t%%|*}" "ignored - ${t#*|}" warn
+  done
+  # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract,
+  # and the carry rows' members after it), minus settings.sh, which got its
+  # richer parse-checked row above
+  for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_CARRY_FILES[@]+"${_HI_CARRY_FILES[@]}"}; do
     [ "$f" = settings.sh ] && continue
     [ "$f" = plugins.d ] && {
       doctor_plugins
@@ -562,15 +546,16 @@ function doctor_config() {
     # a member with no tree default has nothing to report until it exists
     [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/config/$f" ] || continue
     _hi_doc_member "$f" label
-    if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
-      # a prompt program's copy with the program out of the list, or an
-      # oh-my-posh format another overlay copy already stands in for
-      doctor_row "$label" "not shipped - its prompt program is not one a target is handed (_HI_PROMPT_TOOL)" warn
+    if [ -z "$t" ] && _hi_unsent_why "$f" late; then
+      # a finding where the overlay holds a copy that was not switched off: a
+      # prompt program's with the program out of the list, or an oh-my-posh
+      # format another overlay copy already stands in for
+      v=info
+      [ ! -f "$_HI_CONFIG_DIR/$f" ] || [ "${late#switched}" != "$late" ] || v=warn
+      doctor_row "$label" "not sent - $late, so targets keep their own" "$v"
     elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # the section says what rides; the row names which file
       doctor_row "$label" "$t"
-    elif [ -z "$t" ] && ! _hi_tool_here "$f"; then
-      doctor_row "$label" "not sent - its tool is not installed here, so targets keep their own"
     elif [ -z "$t" ]; then
       doctor_row "$label" "tree default"
     elif [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/config/$f"; then
@@ -612,7 +597,7 @@ function doctor_config() {
   local gate=0
   [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && gate=1
   for t in "${_HI_TOGGLES[@]}"; do
-    eval "v=\${$t:-0}"
+    v="${!t:-0}"
     [ "$v" = 0 ] && continue
     if [ "$gate" = 1 ] && [ "$t" != _HI_DISABLE_LOCAL ]; then
       { _hi_setting_get "$_HI_SETTINGS" "$t" v && [ "$v" != 0 ]; } || continue
@@ -623,13 +608,23 @@ function doctor_config() {
   done
   # the opt-ins, where on is the non-default
   for t in _HI_TOOL_ALIASES _HI_SUDO_ALIAS; do
-    eval "v=\${$t:-0}"
+    v="${!t:-0}"
     [ "$v" = 1 ] || continue
     doctor_row toggle "$t=1"
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
   doctor_flush
+}
+
+# _hi_is_plugin_list <value> - is every word of it a plugin, a group, or a
+# member that can be switched: one of a row hi.sh's _hi_plugin_words lists?
+function _hi_is_plugin_list() {
+  local w known
+  known=" $(_hi_plugin_words | tr '\n' ' ')"
+  for w in ${1//,/ }; do
+    case "$known" in *" $w "*) ;; *) return 1 ;; esac
+  done
 }
 
 # doctor_settings_values - a hand-written settings.sh line the code would
@@ -644,12 +639,13 @@ function doctor_settings_values() {
     "_HI_IP_HIDE|_hi_is_ip_hide|none, or globs like 172.* 10.0.*" \
     "_HI_HEADER_ORDER|_hi_is_header_order|words from $_HI_HEADER_ORDER_DEFAULT" \
     "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS" \
+    "_HI_PLUGINS_OFF|_hi_is_plugin_list|plugins, groups, or members that hi --plugins lists" \
     "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
     "_HI_MUX|_hi_is_flag|1 or 0"; do
     name="${spec%%|*}" pred="${spec#*|}"
     why="${pred#*|}" pred="${pred%%|*}"
-    eval "v=\${$name:-}"
+    v="${!name:-}"
     [ -n "$v" ] || continue
     "$pred" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
   done
@@ -658,6 +654,17 @@ function doctor_settings_values() {
     doctor_row _HI_PACKAGES_MIN_PRIORITY "is ignored - name the groups to show in _HI_PACKAGES_GROUPS" bad
   if [ -f "${_HI_PACKAGES:-}" ] && grep -q '^[^#]*:[0-9]' "$_HI_PACKAGES" && ! grep -Eq '^\[[^]]+\]$' "$_HI_PACKAGES"; then
     doctor_row packages "$_HI_PACKAGES has name:priority rows, which read as missing commands - hi --configure converts it" bad
+  else
+    # a copy of the user's own never gains a group the tree adds later, and
+    # a marker past a row's first name is part of a name nothing matches
+    v=""
+    while IFS='|' read -r name why; do
+      case "$name" in
+      group) v="$v${v:+, }$why" ;;
+      marker) doctor_row packages "the row $why never matches: a - or + past its first name is read as part of that name" warn ;;
+      esac
+    done < <(_hi_packages_drift "${_HI_PACKAGES:-}" "$_HI_ROOT/config/packages")
+    [ -z "$v" ] || doctor_row packages "lacks the tree's groups, which are never checked: $v ($_HI_ROOT/config/packages has them to copy)"
   fi
   if [ -f "${_HI_COLORS:-}" ] && grep -Eq '^[a-z]+,[^,#]+,' "$_HI_COLORS" && ! grep -Eq '^\[[^]]+\]$' "$_HI_COLORS"; then
     doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad
@@ -672,23 +679,17 @@ function doctor_settings_values() {
 # stays a short table.
 function doctor_files() {
   doctor_section files "The files hi looks for"
-  local row m h used eff p state text label none="" found tilde='~'
-  local -a locs
-  for row in "${_HI_OVERLAY_TABLE[@]}"; do
-    m="${row%%|*}" h="${row##*|}"
+  local row m used eff p state text label none="" found tilde='~'
+  local -a locs _hi_paths=()
+  _hi_carry_load
+  for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
+    m="${row%%|*}"
     # settings.sh and plugins.d have rows of their own in the overlay section
     case "$m" in settings.sh | plugins.d) continue ;; esac
     used="" eff="" text="" found=""
     _hi_overlay_src "$m" used || used=""
-    locs=("$_HI_CONFIG_DIR/$m")
-    case "$h" in
-    -) ;;
-    @*) p="" && "${h#@}" "$m" p && locs+=("$p") || true ;;
-    *)
-      eval "locs+=($h)"
-      case "$m" in */*) for p in "${!locs[@]}"; do [ "$p" = 0 ] || locs[p]="${locs[p]}/${m#*/}"; done ;; esac
-      ;;
-    esac
+    _hi_overlay_places "$m" "$row"
+    locs=("$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"})
     case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
     eff="$used"
     [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
@@ -732,12 +733,11 @@ function doctor_files() {
     esac
     if [ -n "$eff" ]; then
       doctor_row "$label" "$text" ok
-    elif _hi_prompt_row "$m" >/dev/null && ! _hi_prompt_handed "$m"; then
-      doctor_row "$label" "$text - not sent: its prompt program is not one a target is handed"
-    elif [ "$_HI_REMOTE_SESSION" = 1 ]; then
-      doctor_row "$label" "$text - not sent: a session reads no home file"
     else
-      doctor_row "$label" "$text - not sent: its tool is not installed here"
+      _hi_unsent_why "$m" p || p="not the file in force here"
+      # inside a session no home file is sent, whatever is installed
+      case "$_HI_REMOTE_SESSION:$p" in 1:its\ tool* | 1:not\ the*) p="a session reads no home file" ;; esac
+      doctor_row "$label" "$text - not sent: $p"
     fi
   done
   [ -z "$none" ] || doctor_row "none anywhere" "$none"
@@ -801,16 +801,27 @@ function _hi_rc_names_tree() {
 # section a half-finished `hi --install` shows up in - the one thing
 # "something is off, run hi --doctor" could not answer before.
 function doctor_install() {
-  local row shell label target dialect other found owner bindir profile
+  local row shell label target tree_rc dialect other found owner bindir profile want
+  local -a lines
   doctor_section install "The install (what hi --install wired up)"
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label _ target _ dialect <<<"$row"
+    IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
     if ! rc_shell_present "$shell"; then
       doctor_row "$shell" "not installed here, nothing to wire"
     elif ! _hi_has_marker "$target"; then
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif grep -qF "$(tmpdir_line "$dialect")" "$target"; then
-      doctor_row "$shell" "$target is wired to this tree" ok
+      # an older hi's block names this tree too, but not the lines this one
+      # writes: bash's `return` ends the rc for `ssh host cmd`, and fish's
+      # bare is-interactive block is a parse error on every fish 3.0-3.3 start
+      lines=()
+      while IFS= read -r want; do lines+=("$want"); done < <(rc_lines "$shell" "$tree_rc" "$dialect")
+      rc_tagged want "${lines[@]}"
+      if [ "$(grep -F "$_HI_MARKER" "$target")" = "${want%$'\n'}" ]; then
+        doctor_row "$shell" "$target is wired to this tree" ok
+      else
+        doctor_row "$shell" "$target is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)" warn
+      fi
     else
       other="$(_hi_rc_names_tree "$target")"
       doctor_row "$shell" "$target names ${other:-another tree}, this is $_HI_HOME (hi --install repairs it)" bad

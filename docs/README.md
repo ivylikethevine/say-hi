@@ -37,3 +37,4 @@ home, the doc named for it below, and every other page links there.
 | [Governance](GOVERNANCE.md)                     | Who decides, the roles, how a change gets in, contributor certification, sensitive access, and continuity.                                           |
 | [Code of conduct](CODE_OF_CONDUCT.md)           | The Contributor Covenant 2.1 as adopted here: the bar for behaviour, where to report a breach, and the enforcement ladder.                           |
 | [OpenSSF answer sheet](OPENSSF-IMPROVEMENTS.md) | Where the Scorecard number is capped here, and the Best Practices questionnaire answers.                                                             |
+| [Plugins roadmap](PLUGINS-ROADMAP.md)           | Which parts of hi become plugins, the row a carried config is, and the work left: what is carried, what switches it, and the header's cells.         |

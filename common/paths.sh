@@ -1,8 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Every path hi uses, in one place. Fish sources this too, so plain
-# `export NAME=value` lines only (plus `[ ] && export` guards) - no functions,
-# no ${var:-...}. $_HI_HOME and $_HI_CONFIG_DIR must already be set.
+# `export NAME=value` lines only (plus `[ ] && export` guards, and one `.` of
+# more such lines) - no functions, no ${var:-...}. $_HI_HOME and $_HI_CONFIG_DIR must already be set.
 # shellcheck disable=SC2139 # aliases are meant to expand $_HI_* now, not later
 # shellcheck disable=SC2153 # $_HI_HOME is set by whoever sources this, not here
 
@@ -20,6 +20,7 @@ export _HI_UPDATE="$_HI_ROOT/scripts/update.sh"
 export _HI_ADD_PACKAGE="$_HI_ROOT/scripts/add_package.sh"
 export _HI_ADD_TAG="$_HI_ROOT/scripts/add_tag.sh"
 export _HI_COLOR_PIN="$_HI_ROOT/scripts/set_color.sh"
+export _HI_PLUGINS_CMD="$_HI_ROOT/scripts/plugins.sh"
 
 # tests - only the two entry points every session needs
 export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
@@ -77,7 +78,7 @@ export _HI_TMUX_CONF=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.tmux.conf" ] && export _HI_TMUX_CONF="$HOME/.tmux.conf"
 [ -f "$_HI_CONFIG_DIR/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_CONFIG_DIR/tmux.conf"
 export _HI_SCREENRC=""
-[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.screenrc" ] && export _HI_SCREENRC="$HOME/.screenrc"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SCREENRC_HOME" ] && export _HI_SCREENRC="$_HI_SCREENRC_HOME"
 [ -f "$_HI_CONFIG_DIR/screenrc" ] && export _HI_SCREENRC="$_HI_CONFIG_DIR/screenrc"
 # micro and zellij take a config *directory* with fixed file names, so their
 # members ride in a micro/ and a zellij/ of their own, and the alias names
@@ -89,31 +90,15 @@ export _HI_MICRO_DIR=""
 export _HI_ZELLIJ_DIR=""
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -d "$_HI_ZELLIJ_HOME" ] && export _HI_ZELLIJ_DIR="$_HI_ZELLIJ_HOME"
 [ -d "$_HI_CONFIG_DIR/zellij" ] && export _HI_ZELLIJ_DIR="$_HI_CONFIG_DIR/zellij"
-# The prompt tools' own config variables, on a target only: the overlay's
-# starship.toml / oh-my-posh.<format> is the prompt configured at home, and at
-# home the tool's own config is already in force. oh-my-posh reads
-# $POSH_CONFIG ($POSH_THEME in its older releases). Only the tool named reads
-# its variable, so none needs an _HI_PROMPT_TOOL gate. GLOSSARY: HI.32
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/starship.toml" ] && export STARSHIP_CONFIG="$_HI_CONFIG_DIR/starship.toml"
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.json" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.yaml" ] && export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.yaml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.yaml"
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.toml" ] && export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
-# eza the same way: it reads $EZA_CONFIG_DIR/theme.yml and nothing else from
-# that directory, and the file has to carry that exact name, so the overlay
-# itself is the directory (docs/INTEGRATIONS.md says how to put one there).
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/theme.yml" ] && export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
-# kakoune the same: it reads kakrc out of $KAKOUNE_CONFIG_DIR, so the overlay
-# is the directory, and `kak -n` would skip the system kakrc that loads its
-# syntax files too. Editor toggles, since kak is an editor.
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_KAKOUNE" != 1 ] && [ -f "$_HI_CONFIG_DIR/kakrc" ] && export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR"
-# bat too: a bat.conf in the overlay is its config file on every target, and
-# common/aliases.sh drops its own --theme flag when this is set so the
-# file's theme wins.
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/bat.conf" ] && export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
-# readline too: bash reads $INPUTRC when its first prompt initializes readline,
-# after this rc, and so does every readline program started from the session.
-# Set, it replaces /etc/inputrc, which an inputrc that wants it `$include`s.
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/inputrc" ] && export INPUTRC="$_HI_CONFIG_DIR/inputrc"
+# The carried configs a variable points a tool at - a prompt program's, eza's,
+# bat's, rg's, fzf's, lazygit's, readline's, kakoune's - on a target only: at
+# home each tool's own config is already in force. A line each, written by
+# hi.sh's _hi_overlay_wiring as the overlay is packed, for the members that
+# rode. Only the tool named reads its variable, so none needs a gate but
+# kakoune's, which sits behind the editor toggles.
+# GLOSSARY: HI.62
+# shellcheck source=/dev/null # written on the client, per connect
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/wiring.sh" ] && . "$_HI_CONFIG_DIR/wiring.sh"
 
 export _HI_ALIASES="$_HI_ROOT/common/aliases.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"
@@ -147,7 +132,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # shells need it and this is the only file all four read - spelled per shell,
 # a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --remove-package --add-tag --set-color --unset-color"
+export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --remove-package --add-tag --set-color --unset-color --plugin-off --plugin-on --add-plugin --remove-plugin"
 alias hi="$_HI_LAUNCHER"
 # The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.
@@ -173,6 +158,9 @@ export _HI_REMOTE_SESSION
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_MICRO=1
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_HELIX=1
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_KAKOUNE=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_TMUX=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_SCREEN=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_ZELLIJ=1
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_TOOL_ALIASES=0
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_SUDO_ALIAS=0
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_BANNER=1

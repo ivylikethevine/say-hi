@@ -20,7 +20,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # _HI_HOME.
 function _hi_addtag_fixture() {
   local home
-  home="$(_hi_scratch_tree "$1" common config load.sh hi.sh scripts)"
+  home="$(_hi_scratch_tree "$1" common config load.sh hi.sh link:scripts)"
   mkdir -p "$home/.ssh/config.d"
   printf '%s\n' 'Include config.d/*' '# Tags: old' 'Host web1' '  HostName 10.0.0.1' '' \
     'Host web2' '  HostName 10.0.0.2' '' 'Host *.prod' '  User deploy' >"$home/.ssh/config"

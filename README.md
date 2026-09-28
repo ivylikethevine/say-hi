@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-75KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-79KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -227,7 +227,12 @@ row, and everything answered **no**, and why:
 - `hi --set-color hostname prod-db yellow` pins a color in
   `~/.config/say-hi/colors`, copying the shipped pins there first;
   `hi --unset-color hostname prod-db` removes the pin.
-- The whole surface is seventeen flags: `hi --help` (or bare `hi`) lists them,
+- `hi --plugins` lists every config hi carries to a target, and what rides;
+  `hi --plugin-off lazygit editors` keeps a plugin or a whole group home and
+  `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
+  carry a config of a tool hi does not know
+  ([docs/SETTINGS.md](docs/SETTINGS.md#plugins)).
+- The whole surface is twenty-two flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
@@ -340,96 +345,58 @@ its **Ticks when** holds.
 
 ### Before 1.0
 
-In this checkout, narrowest first.
+In this checkout, narrowest first. What is carried, what switches it, and
+the header's cells are
+[docs/PLUGINS-ROADMAP.md](docs/PLUGINS-ROADMAP.md)'s, in the same form.
 
-1. [ ] **Close the prompt mark when the shell exits** — shipped: a shell
-       left from its prompt (Ctrl-D) closes the last A/B pair with C and D on
-       the way out (a chained `EXIT` trap in bash, a `zshexit` hook in zsh, a
-       `fish_exit` handler in fish 3 and 4, which had the same gap). What is
-       left is the check by eye. **Ticks when:** in Konsole with semantic
-       hints on, running bash, zsh, and fish from fish and leaving each with
-       Ctrl-D leaves the lines after it unshaded.
-
-2. [ ] **A blocked upstream shows as drift** — shipped:
+1. [ ] **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
        lookup on one host answered (a blocked host, not a one-off rate
        limit). What is left is seeing it in CI. **Ticks when:** a
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-3. [ ] **Close the coverage gaps bashcov can see** — each gap CI's bashcov
-       sweep (run 35670586612) left in the shipped files now has a test
-       (`env_prompt.sh`, `stamp_badge.sh`, `configure.sh`, `core.sh`,
-       `doctor.sh`, `hi.sh`) or is a blind spot `tests/coverage_v2.sh`'s
-       header lists (`paths.sh`, `bash.sh`, `preview.sh`, and the rest of
-       those files' lines). What is left is the measurement. **Ticks when:**
-       the first bashcov sweep on `main` after this lands reads no shipped
-       line at 0 that is neither tested nor in that header.
+2. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
+       that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`, `update.sh`
+       and `preview.sh` from a scratch-tree copy (the first four read 0% in run
+       36341616721, 91.11% overall) now link the real `scripts/`, and each
+       other gap has a test or is a blind spot `tests/coverage_v2.sh`'s
+       header lists. What is left is the measurement. **Ticks when:** the
+       first bashcov sweep on `main` after this lands reads at least 95%
+       and no shipped line at 0 that is neither tested nor in that header.
 
-4. [ ] **The header probes only what was asked** — the default
-       `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local
-       terminal or tmux pane runs docker, podman, nomad, and kubectl.
-       **Do:** leave the backend cells out of the local default (a session
-       keeps them), or run them after the first prompt. **Ticks when:** a
-       local shell with the default order starts no backend CLI. **Open
-       question:** drop the containers, jobs, and pods cells from the local
-       default header, or keep them and fill them in after the first prompt?
-       Either changes what a local header shows today.
+3. [ ] **A hand-written prompt stays** — shipped: at home, bash and zsh
+       keep a `PS1`/`PROMPT` the rc set unless it is one nobody wrote (the
+       shell's built-in default, or a stock rc's on the distros
+       [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
+       target's prompt is hi's as before. What is left is the check on real
+       installs. **Ticks when:** a hand-written `PS1` survives hi in bash and
+       zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets hi's
+       prompt.
 
-5. [ ] **A hand-written prompt stays** — hi now stands down for the prompt
-       frameworks it can recognise (liquidprompt, bash-git-prompt, spaceship,
-       pure, promptinit themes) and for any `fish_prompt` of the user's own,
-       but still replaces a `PS1`/`PROMPT` the user wrote by hand in bash or
-       zsh, since a distro's default `.bashrc` sets one too and standing down
-       for those would take hi's prompt from nearly everyone. **Do:** tell a
-       hand-written prompt from a distro default (compare against the
-       defaults of the distros hi lists, or a setting to opt in). **Ticks
-       when:** a hand-written `PS1` survives hi in bash and zsh, and a stock
-       Debian, Fedora, and Arch `.bashrc` still gets hi's prompt. **Open
-       question:** match against the known distro default `PS1`s (automatic,
-       but a list to keep current), or a setting that opts in to keeping the
-       user's own (explicit, but off unless someone finds it)?
-
-6. [ ] **A tool's config rides without a plugin** — adding a tool hi does
-       not know means a `plugins.d` member or a change to hi. **Do:** a
-       user-side row in the shape of `$_HI_OVERLAY_TABLE` - a file or
-       directory on this machine, and the command (or variable) that points
-       the tool at it on a target - read from the overlay and riding through
-       the same order and include scan; failing that, a starter plugin that
-       does exactly this for the user to copy and edit. **Ticks when:** a
-       tool of the user's own reads its home config on a target with no code
-       change, and `docs/SETTINGS.md` shows how.
-
-7. [ ] **Investigate the header as plugins** — every header cell is one
-       `_hi_cell_<word>` behind a dispatch, while `plugins.d` members can only
-       set a prompt segment. **Do:** find out whether the cells and
-       `full_check` fit one plugin contract a user's own could share, costing
-       the shared probes (`_hi_probed_cell`), `_hi_row_line`'s wrap, the
-       payload budget, connect forks, and fish's separate loader; settle it
-       alongside the entry above, which asks the same of configs. **Ticks
-       when:** the verdict is written down (`docs/INTEGRATIONS.md` for yes,
-       `docs/COMPATIBILITY.md` for no) and this entry becomes that work.
-
-8. [ ] **A shorter `hi --configure`** — shipped: a main page of the
-       preview and one summary line per section, each section a page of
-       its own under the same preview, the header's switches and items one
-       grid; at 80 columns every page is 24 rows or fewer. What is left is a
-       look in a real terminal. **Ticks when:** a pass through every page in
-       an 80x24 terminal scrolls nothing off the top.
+4. [ ] **Every `eval` is counted, then fewer** — shipped: `drift` holds
+       every `eval` in the payload and `scripts/` to a row of
+       `tests/lint/eval_roster` that says what it evaluates, and each file's
+       count of its kin (a `source` of a path in a variable, a shell's `-c`,
+       a recursive `rm`); the overlay table's home column is read by the
+       `carry` grammar, and eleven more gave way to `${!name}` and
+       `printf -v`. Left: the eight of its twenty-seven that read from
+       outside the tree - the shell's own `complete -p`, `alias -p`, and
+       `trap -p` run back in `common/bash.sh`, a prompt program's init, and
+       a plugin's `$_HI_SEGMENT` - and indirect assignment, which nothing
+       counts. **Ticks when:** no `eval` in the roster reads a value from
+       outside the tree. **Open question:** a prompt program's init and
+       `$_HI_SEGMENT` are commands by contract; do they count against the
+       tick, or does the roster name them as the two ways in that stay?
 
 ### At the 1.0.0 tag
 
-Shipped; each ticks when the tag itself shows it.
+Shipped; it ticks when the tag itself shows it.
 
 1. [ ] **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
-
-2. [ ] **A release says where the package went, and shows what changed** —
-       `release.yml` leaves `tap` and `demo` slots that the `tap` job and
-       `demos.yml`'s `attach` job fill. **Ticks when:** the tag's release page
-       shows the tap PR link and renders the `packages` GIF.
 
 ### Post 1.0
 
@@ -453,13 +420,12 @@ when it lands.
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-4. [ ] **vhs v0.12** — `demos.yml` pins v0.11.0: v0.12.0 captures every
-       frame, then exits 0 without ever running ffmpeg (suspect: upstream's
-       browser rewrite, 42f1776), reported upstream as
-       [charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787).
-       `tool-versions.yml` holds the pin off 0.12.0 alone, so a later release
-       shows as outdated. **Ticks when:** a v0.12.x release renders all six
-       tapes on a `demos.yml` dispatch and the pin moves to it.
+4. [ ] **vhs v0.12** — shipped: `demos.yml` pins v0.12.1, which fixes the
+       render v0.12.0 never ran
+       ([charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787)),
+       and `tool-versions.yml` holds the pin off no release. What is left is
+       the render. **Ticks when:** a `demos.yml` dispatch renders all six
+       tapes on that pin.
 
 ## License
 

@@ -70,6 +70,16 @@ _HI_HOME_LINT=(
   'set -g?x? *_HI_HOME +(~|\$HOME)([^A-Za-z_]|$)|fish `set -gx _HI_HOME ~` tree default'
 )
 
+# What runs text as code beside eval, as "<kind>|<pattern>": a `source` or .
+# of a path held in a variable, a shell handed a script in a word, a recursive
+# rm. tests/lint/eval_roster counts each, a file.
+# shellcheck disable=SC2016 # these are regexes, not expansions
+_HI_EVAL_KIN_LINT=(
+  'source|(\bsource|(^|&&|\|\||[;({])[[:space:]]*\.)[[:space:]]+"?\$'
+  'sh -c|(^|[^A-Za-z_.])(bash|dash|zsh|fish|sh)[[:space:]]+(-[a-z]+[[:space:]]+)*-c([[:space:]]|$)'
+  'rm -r|(^|[^A-Za-z_.])rm[[:space:]]+-[a-zA-Z]*[rR]'
+)
+
 # One file's text with the pattern tables above blanked out - their patterns
 # and descriptions name the very constructs they look for, so this file would
 # otherwise report itself. Blanked rather than deleted so the line numbers in a
@@ -513,6 +523,59 @@ function lint_runtime_dir() {
     _hi_align " | $file: $name" "OK" "$GREEN"
   done
   return "$bad"
+}
+
+# _hi_eval_found - every eval the payload and scripts/ hold, a line each in
+# the roster's shape less its <what>, and each kin counted a file
+function _hi_eval_found() {
+  local entry
+  local -a where=("$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" "$_HI_ROOT/common" "$_HI_ROOT/scripts")
+  { grep -rHnE '(^|[^A-Za-z0-9_-])eval[[:space:]]' "${where[@]}" || true; } |
+    { grep -v '^[^:]*:[0-9]*:[[:space:]]*#' || true; } |
+    awk -v skip="${#_HI_ROOT}" '{
+      file = $0; sub(/:.*/, "", file)
+      text = $0; sub(/^[^:]*:[0-9]+:/, "", text)
+      text = substr(text, match(text, /(^|[^A-Za-z0-9_-])eval[ \t]/)); sub(/^[^e]/, "", text)
+      print "eval|" substr(file, skip + 2) "|" substr(text, 1, 72)
+    }'
+  for entry in "${_HI_EVAL_KIN_LINT[@]}"; do
+    { grep -rHnE "${entry#*|}" "${where[@]}" || true; } |
+      { grep -v '^[^:]*:[0-9]*:[[:space:]]*#' || true; } |
+      awk -F: -v skip="${#_HI_ROOT}" -v kind="${entry%%|*}" '{ n[substr($1, skip + 2)]++ }
+        END { for (file in n) print kind "|" file "|" n[file] }'
+  done
+}
+
+# Text that runs as code is how a user's or a target's words would come to
+# run on the other side, so every way in is written down: tests/lint/eval_roster
+# holds each eval with what it evaluates, and each file's count of its kin.
+# One the roster lacks fails until it has a row, and a row nothing matches has
+# to go, so the roster only ever says what the tree does.
+function lint_eval_roster() {
+  local roster="$_HI_ROOT/tests/lint/eval_roster" found want line bad=0
+  _hi_h2 "Checking every eval and its kin against tests/lint/eval_roster"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  found="$(_hi_eval_found)"
+  want="$(awk -F'|' '/^#/ || /^$/ { next }
+    $1 != "eval" { print $1 "|" $2 "|" $3; next }
+    $3 !~ /^(const|name|own|shell|tool|segment)$/ { print "unknown|" $0; next }
+    { text = $0; sub(/^[^|]*\|[^|]*\|[^|]*\|/, "", text); print "eval|" $2 "|" text }' "$roster")"
+  while IFS= read -r line; do
+    if [ -z "$line" ] || grep -qxF -- "$line" <<<"$want"; then continue; fi
+    _hi_align " | not in the roster: $line" "FOUND" "$RED"
+    bad=$((bad + 1))
+  done <<<"$found"
+  while IFS= read -r line; do
+    if [ -z "$line" ] || grep -qxF -- "$line" <<<"$found"; then continue; fi
+    _hi_align " | in the roster alone: $line" "FOUND" "$RED"
+    bad=$((bad + 1))
+  done <<<"$want"
+  if [ "$bad" = 0 ]; then
+    _hi_align " | every eval, source, sh -c, and rm -r has its row" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_note_failure "eval roster: $bad rows apart - tests/lint/eval_roster says what each one evaluates"
+  return 1
 }
 
 # The vocabulary a `settings.sh` may use has to be written down where a user
@@ -1121,7 +1184,7 @@ function run_drift() {
   _hi_workdir drifttest
 
   _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload lint_glossary_tags \
-    lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs lint_site_links \
+    lint_settings_table lint_container_family lint_runtime_dir lint_eval_roster lint_liquid_docs lint_site_links \
     lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests
   _hi_lint_suite_end

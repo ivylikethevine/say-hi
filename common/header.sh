@@ -618,7 +618,9 @@ function _hi_probe_done() {
   [ -z "$_HI_PROBE_HOLD" ] && [ -n "$_HI_PROBE_DIR" ] || return 0
   local k pid
   for k in $_HI_PF_KEYS; do
-    eval "pid=\${_HI_PF_$k:-} _HI_PF_$k="
+    k="_HI_PF_$k"
+    pid="${!k:-}"
+    printf -v "$k" '%s' ''
     [ -z "$pid" ] || wait "$pid" 2>/dev/null || true
   done
   _hi_probe_wait
@@ -644,7 +646,7 @@ function _hi_slow() {
 function _hi_slow_start() { # <key>
   _hi_probe_dir || return 0
   _hi_slow "$1" >"$_HI_PROBE_DIR/pf.$1" 2>/dev/null &
-  eval "_HI_PF_$1=\$!"
+  printf -v "_HI_PF_$1" '%s' "$!"
   _HI_PF_KEYS="$_HI_PF_KEYS $1" _HI_PF_SUB="$BASH_SUBSHELL"
 }
 
@@ -652,10 +654,10 @@ function _hi_slow_start() { # <key>
 # this shell started one, else run here. A $( ) below the starter cannot
 # `wait` on its job, so it runs its own.
 function _hi_slow_out() {
-  local _hi_so_pid _hi_so_v="" _hi_so_nl=$'\n'
-  eval "_hi_so_pid=\${_HI_PF_$2:-}"
+  local _hi_so_pid="_HI_PF_$2" _hi_so_v="" _hi_so_nl=$'\n'
+  _hi_so_pid="${!_hi_so_pid:-}"
   if [ -n "$_hi_so_pid" ] && [ "$BASH_SUBSHELL" = "${_HI_PF_SUB:-}" ]; then
-    eval "_HI_PF_$2="
+    printf -v "_HI_PF_$2" '%s' ''
     wait "$_hi_so_pid" 2>/dev/null || true
     IFS= read -r -d '' _hi_so_v <"$_HI_PROBE_DIR/pf.$2" || true
     _hi_so_v="${_hi_so_v%"${_hi_so_v##*[!"$_hi_so_nl"]}"}"

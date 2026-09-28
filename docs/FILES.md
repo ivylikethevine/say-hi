@@ -88,19 +88,20 @@ defaults an overlay copy replaces.
 
 All **package**, never in the payload.
 
-| File                              | What it is                                                                                                                                                              |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/install.sh`              | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`.                                                                                  |
-| `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.                                                                                             |
-| `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                      |
-| `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                       |
-| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                             |
-| `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                           |
-| `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                           |
-| `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                |
-| `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it. |
-| `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                            |
-| `scripts/table.sh`                | The boxed table the previews draw.                                                                                                                                      |
+| File                              | What it is                                                                                                                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/install.sh`              | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`.                                                                                                          |
+| `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.                                                                                                                     |
+| `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                                              |
+| `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                                               |
+| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                                                     |
+| `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                                                   |
+| `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                                                   |
+| `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                                        |
+| `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                         |
+| `scripts/plugins.sh`              | `hi --plugins`, `--plugin-off`, `--plugin-on`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes lines of `~/.config/say-hi/carry`. |
+| `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                    |
+| `scripts/table.sh`                | The boxed table the previews draw.                                                                                                                                                              |
 
 ### packaging/
 
@@ -164,24 +165,31 @@ defaults it replaces. A `.d`
 directory, and zellij's `layouts/` and `themes/`, ride member by member; a member name is a letter or digit, then
 `[A-Za-z0-9_.-]`, never ending `.bak`, `.orig`, `.rej`, or `.tmp`.
 
-| File                                                                                        | Variable                                                              | Replaces          | Read by                                                             |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------- |
-| `settings.sh`                                                                               | `_HI_SETTINGS`                                                        | -                 | every shell, first; written by `hi --configure`                     |
-| `colors`                                                                                    | `_HI_COLORS`                                                          | `config/colors`   | prompt and header colors                                            |
-| `packages`                                                                                  | `_HI_PACKAGES`                                                        | `config/packages` | the header's package check, wholesale over the tree's               |
-| `aliases.sh`                                                                                | -                                                                     | -                 | `common/aliases.sh`, sourced last                                   |
-| `plugins.d/`                                                                                | `_HI_PLUGINS_D`                                                       | -                 | every shell, after the aliases, in name order                       |
-| `bashrc`, `zshrc`, `config.fish`                                                            | -                                                                     | -                 | the end of hi's rc for that shell                                   |
-| `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | -                 | the editor aliases and `$VIMINIT`                                   |
-| `kakrc`                                                                                     | -                                                                     | -                 | kakoune on a target (`$KAKOUNE_CONFIG_DIR`)                         |
-| `tmux.conf`                                                                                 | `_HI_TMUX_CONF`                                                       | -                 | the `tmux` alias (`tmux -f`)                                        |
-| `screenrc`                                                                                  | `_HI_SCREENRC`                                                        | -                 | the `screen` alias (`screen -c`)                                    |
-| `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                 | the `micro` alias (`-config-dir`)                                   |
-| `zellij/` (`config.kdl`, `layouts/`, `themes/`)                                             | `_HI_ZELLIJ_DIR`                                                      | -                 | the `zellij` alias (`--config-dir`)                                 |
-| `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                 | starship, oh-my-posh, eza, and bat on a target                      |
-| `inputrc`                                                                                   | -                                                                     | -                 | readline on a target (`$INPUTRC`)                                   |
-| `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target |
-| `ssh_tags`                                                                                  | -                                                                     | -                 | a `hi` run from inside a session, for the next hop's tag colors     |
+| File                                                                                        | Variable                                                              | Replaces          | Read by                                                                                                |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `settings.sh`                                                                               | `_HI_SETTINGS`                                                        | -                 | every shell, first; written by `hi --configure`                                                        |
+| `colors`                                                                                    | `_HI_COLORS`                                                          | `config/colors`   | prompt and header colors                                                                               |
+| `packages`                                                                                  | `_HI_PACKAGES`                                                        | `config/packages` | the header's package check, wholesale over the tree's                                                  |
+| `aliases.sh`                                                                                | -                                                                     | -                 | `common/aliases.sh`, sourced last                                                                      |
+| `carry`                                                                                     | -                                                                     | -                 | hi, for the members your own lines add ([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know))            |
+| `plugins.d/`                                                                                | `_HI_PLUGINS_D`                                                       | -                 | every shell, after the aliases, in name order                                                          |
+| `bashrc`, `zshrc`, `config.fish`                                                            | -                                                                     | -                 | the end of hi's rc for that shell                                                                      |
+| `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | -                 | the editor aliases and `$VIMINIT`                                                                      |
+| `kakrc`                                                                                     | -                                                                     | -                 | kakoune on a target (`$KAKOUNE_CONFIG_DIR`)                                                            |
+| `tmux.conf`                                                                                 | `_HI_TMUX_CONF`                                                       | -                 | the `tmux` alias (`tmux -f`)                                                                           |
+| `screenrc`                                                                                  | `_HI_SCREENRC`                                                        | -                 | the `screen` alias (`screen -c`)                                                                       |
+| `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                 | the `micro` alias (`-config-dir`)                                                                      |
+| `zellij/` (`config.kdl`, `layouts/`, `themes/`)                                             | `_HI_ZELLIJ_DIR`                                                      | -                 | the `zellij` alias (`--config-dir`)                                                                    |
+| `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                 | starship, oh-my-posh, eza, and bat on a target                                                         |
+| `inputrc`                                                                                   | -                                                                     | -                 | readline on a target (`$INPUTRC`)                                                                      |
+| `ripgreprc`, `fzfrc`, `lazygit.yml`                                                         | -                                                                     | -                 | rg, fzf, and lazygit on a target (`$RIPGREP_CONFIG_PATH`, `$FZF_DEFAULT_OPTS_FILE`, `$LG_CONFIG_FILE`) |
+| `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target                                    |
+| `ssh_tags`                                                                                  | -                                                                     | -                 | a `hi` run from inside a session, for the next hop's tag colors                                        |
+
+`wiring.sh` rides beside them, written by hi as the overlay is packed: the
+lines that point each tool at its member on a target
+([HI.62](GLOSSARY.md#hi62-generated-wiring)). It is not a member, and one in
+`$_HI_CONFIG_DIR` is not read.
 
 A member in the _Replaces_ column travels in the tree's place, not beside it:
 the payload leaves out a default your overlay shadows, so the wire holds one
@@ -199,14 +207,14 @@ On this machine (never on a target), hi carries the config a tool already
 reads rather than asking for a copy - the middle step of the one order
 ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)): the first one found in each
 row wins, an overlay copy wins over all of them - for the prompt programs,
-eza, bat, and your aliases on a target only, since at home each already reads
+eza, bat, rg, fzf, lazygit, and your aliases on a target only, since at home each already reads
 its own - and the tree's default, where there is one, applies when neither
 is there. `bashrc`,
 `zshrc`, and `config.fish` are never looked for here: they ride only as an
 overlay copy. A prompt program's
 member rides only when that program is in the list a target is handed
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
-screen's, micro's, zellij's, bat's, or eza's only with that tool installed here
+screen's, micro's, zellij's, bat's, eza's, rg's, fzf's, or lazygit's only with that tool installed here
 ([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked)),
 and readline's always;
 an overlay copy rides either way.
@@ -221,7 +229,7 @@ an overlay copy rides either way.
 | `nanorc`              | `~/.nanorc`, `$XDG_CONFIG_HOME/nano/nanorc`                                                                                                                                                                                                                      |
 | `init.el`             | `~/.emacs.el`, `~/.emacs`, `~/.emacs.d/init.el`, `$XDG_CONFIG_HOME/emacs/init.el`                                                                                                                                                                                |
 | `tmux.conf`           | `~/.tmux.conf`, `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                                                                                                                                                                                |
-| `screenrc`            | `~/.screenrc`                                                                                                                                                                                                                                                    |
+| `screenrc`            | `${SCREENRC:-~/.screenrc}`                                                                                                                                                                                                                                       |
 | `micro/<file>`        | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, each of the three on its own                                                                                                                                                                              |
 | `zellij/<file>`       | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`: `config.kdl`, and each file of `layouts/` and `themes/`, the overlay\'s copy of a name first                                                                                                             |
 | `starship.toml`       | `${STARSHIP_CONFIG:-~/.config/starship.toml}`                                                                                                                                                                                                                    |
@@ -233,6 +241,9 @@ an overlay copy rides either way.
 | `tide.vars`           | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it                                                                                                                                                                   |
 | `theme.yml`           | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                                                                                                                                                                              |
 | `bat.conf`            | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                                                                                                                                                                                             |
+| `ripgreprc`           | `$RIPGREP_CONFIG_PATH`; rg reads no file without it                                                                                                                                                                                                              |
+| `fzfrc`               | `$FZF_DEFAULT_OPTS_FILE`; fzf reads no file without it                                                                                                                                                                                                           |
+| `lazygit.yml`         | `$LG_CONFIG_FILE`, `$XDG_CONFIG_HOME/lazygit/config.yml`, `~/Library/Application Support/lazygit/config.yml`                                                                                                                                                     |
 | `inputrc`             | `${INPUTRC:-~/.inputrc}`                                                                                                                                                                                                                                         |
 | `ssh_tags`            | the `# Tags:` lines of `~/.ssh/config` and its Includes, each with the `Host` or `Match host` line under it and nothing else                                                                                                                                     |
 
@@ -269,7 +280,8 @@ reads none of their config files.
 | `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish` | lines tagged `# added by hi during install`; the file and its directory are created if missing                                             |
 | `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                          |
 | `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                        |
-| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes                                                                                                 |
+| `$_HI_CONFIG_DIR/carry`                                                               | the lines `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                      |
+| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --plugin-off` keeps                                         |
 | `~/.local/bin/hi` (`--link user`), `/usr/bin/hi` (`--link system`)                    | a symlink to `hi.sh`; `$_HI_LINK`; a link that is not hi's, or a package's, is left alone                                                  |
 | the checkout                                                                          | `hi --update` fetches tags and checks one out; refused on a dirty tree                                                                     |
 | uninstall                                                                             | removes the tagged lines (and an rc hi created that is now empty), `settings.sh`, and hi's links; `--purge` also removes `$_HI_CONFIG_DIR` |
@@ -298,19 +310,20 @@ change.
 
 All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 
-| Pattern                                                       | Made by                                                      |
-| ------------------------------------------------------------- | ------------------------------------------------------------ |
-| `hi.log.XXXXXX`                                               | every `hi` run                                               |
-| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes) |
-| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off  |
-| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)         |
-| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                         |
-| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                |
-| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place               |
-| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                    |
-| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                               |
-| `hi.colors.XXXXXX`                                            | `hi --set-color`, `hi --unset-color`                         |
-| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                |
+| Pattern                                                       | Made by                                                                      |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `hi.log.XXXXXX`                                               | every `hi` run                                                               |
+| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes)                 |
+| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off                  |
+| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)                         |
+| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                                         |
+| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                |
+| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                               |
+| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                                    |
+| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                               |
+| `hi.colors.XXXXXX`                                            | `hi --set-color`, `hi --unset-color`                                         |
+| `hi.plugins.XXXXXX`                                           | `hi --plugin-off`, `hi --plugin-on`, `hi --add-plugin`, `hi --remove-plugin` |
+| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                |
 
 ## What a session does on a target
 
@@ -378,8 +391,10 @@ The editors never read a target's own rcs: the home lookup is off with
 | fish's universal variable store (`~/.config/fish/fish_variables`) | a fish session caches its two prompt colors there, as it does locally          |
 | the runtime directory's caches                                    | only when `hi` is run again from inside the session, to reach a further target |
 
-The editors are started so they leave nothing behind: neovim with no swap or
-shada file, micro with no backups or history.
+The editors are started so they leave nothing behind: neovim with
+`XDG_STATE_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` under the session
+tree's `nvim/`, so its shada, swap, undo, log, and `vim.loader` cache go with
+the session, micro with no backups or history.
 
 ## Packaged installs
 

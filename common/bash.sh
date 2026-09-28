@@ -173,6 +173,35 @@ function _hi_drop_prompt_command() {
   eval "$1=(\${_hi_pf[@]+\"\${_hi_pf[@]}\"})"
 }
 
+# _hi_ps1_stock - is $PS1 one nobody wrote: unset, hi's own from an earlier
+# load, or what bash or a distro's rc leaves. Anything else is the user's, and
+# stays at home. GLOSSARY: HI.32
+# shellcheck disable=SC2016 # the prompts' own text, never expanded
+function _hi_ps1_stock() {
+  local p="${PS1-}"
+  [[ -n ${HI_PS1-} && $p == *"$HI_PS1"* ]] && return 0
+  # Debian's xterm title and chroot name lead either of its prompts
+  case "$p" in '\[\e]0;'*'\u@\h: \w\a\]'*) p=${p#*'\a\]'} ;; esac
+  p=${p#'${debian_chroot:+($debian_chroot)}'}
+  case "$p" in
+  '' | '\s-\v\$ ') ;;
+  # Debian and Ubuntu; Raspberry Pi OS
+  '\u@\h:\w\$ ' | '\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ ') ;;
+  '\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w \$\[\033[00m\] ') ;;
+  # Fedora and the RHEL family, Arch; Alpine; macOS
+  '[\u@\h \W]\$ ' | '\h:\w\$ ' | '\h:\W \u\$ ') ;;
+  # openSUSE, root's in tput's own bytes
+  '\u@\h:\w> ' | '\h:\w # ' | '\['*'\]\h:\w #\['*'\] ') ;;
+  # Gentoo; Kali's, by the two expansions every variant of it carries
+  '\u@\h \w \$ ' | '\[\e[01;3'[12]'m\]'*'\h\[\e[01;34m\] \w \$\[\e[00m\] ') ;;
+  *'${debian_chroot:+($debian_chroot)'*'${VIRTUAL_ENV:+('*) ;;
+  # Git Bash; MSYS2 and Cygwin; Termux
+  '\[\033]0;$TITLEPREFIX:$PWD\007\]'* | '\[\e]0;\w\a\]\n\[\e[32m\]\u@\h '*) ;;
+  '\[\e[0;32m\]\w\[\e[0m\] \[\e[0;97m\]\$\[\e[0m\] ') ;;
+  *) return 1 ;;
+  esac
+}
+
 # modified from: https://github.com/riobard/bash-powerline/blob/master/bash-powerline.sh
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   if [ -n "$_hi_pt" ]; then
@@ -225,10 +254,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       ;;
     *) eval "$("$_hi_pt" init bash)" ;;
     esac
-  elif ! _hi_prompt_named_hi && { [[ -n ${_LP_VERSION-} ]] || declare -F setGitPrompt >/dev/null; }; then
+  elif ! _hi_prompt_named_hi && { [[ -n ${_LP_VERSION-} ]] || declare -F setGitPrompt >/dev/null ||
+    { [ "$_HI_REMOTE_SESSION" != 1 ] && ! _hi_ps1_stock; }; }; then
     # liquidprompt or bash-git-prompt draws this prompt, and hi has no hand-over
-    # for either: it stays theirs; `hi` in $_HI_PROMPT_TOOL takes it anyway.
-    # GLOSSARY: HI.32
+    # for either, or at home the rc left a $PS1 of the user's own: it stays
+    # theirs; `hi` in $_HI_PROMPT_TOOL takes it anyway. A target's own rc is
+    # not asked, as for the programs. GLOSSARY: HI.32
     :
   else
     # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end

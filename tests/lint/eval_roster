@@ -1,0 +1,77 @@
+# Every eval in the payload and scripts/, and its kin, read by drift's
+# lint_eval_roster: one that has no row here fails the gate, and so does a
+# row nothing matches.
+#
+#   eval|<file>|<what it evaluates>|<the line from `eval` on, 72 characters>
+#   <kin>|<file>|<how many>
+#
+# <what it evaluates>:
+#   const    a literal the file spells, kept from a parser that cannot read it
+#   name     a variable or function name hi chose; values go by reference
+#   own      hi's own words as code: an exit hook's command, a prompt escape
+#   shell    the shell's own listing run back: complete -p, alias -p, trap -p
+#   tool     a prompt program's init, which is how it installs itself
+#   segment  a plugin's $_HI_SEGMENT, a command by contract (GLOSSARY: HI.59)
+# The last three read text from outside the tree.
+#
+# <kin>: `source` is a source or . of a path held in a variable, `sh -c` a
+# shell handed a script in a word, `rm -r` a recursive delete.
+
+eval|common/aliases.sh|const|eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_
+eval|common/bash.sh|tool|eval "$("$_hi_pt" init bash)" ;;
+eval|common/bash.sh|name|eval "$1=(\${_hi_pf[@]+\"\${_hi_pf[@]}\"})"
+eval|common/bash.sh|shell|eval "$_hi_a"
+eval|common/bash.sh|segment|eval "$_hi_c" 2>/dev/null)" && [ -n "$_hi_o" ] && __hi_env_info+="$_hi_o
+eval|common/bash.sh|shell|eval "${spec% eza} exa"
+eval|common/bash.sh|shell|eval "_hi_marks_trap $(trap -p EXIT)"
+eval|common/bash.sh|const|eval 'PROMPT_COMMAND=("${PROMPT_COMMAND[@]//$_hi_h/:}")' ;;
+eval|common/bash.sh|const|eval 'for _hi_i in "${!PROMPT_COMMAND[@]}"; do [ "${PROMPT_COMMAND[_hi_i
+eval|common/config.fish|segment|eval $c 2>/dev/null)
+eval|common/core.sh|name|eval "$1=\${$1@P}"
+eval|common/core.sh|own|eval "$1=\${(%):-$2}"
+eval|common/core.sh|name|eval "$_hi_rl_var+=(\"\$_hi_rl_line\")"
+eval|common/core.sh|name|eval "$_hi_rl_var=()"
+eval|common/core.sh|name|eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
+eval|common/core.sh|own|eval "_hi_on_exit_fn_$_hi_on_exit_n() { $1; }"
+eval|common/core.sh|name|eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
+eval|common/core.sh|const|eval '_hi_names=("${!_HI_@}")'
+eval|common/core.sh|const|eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
+eval|common/core.sh|const|eval '_hi_self=${(%):-%x}'
+eval|common/core.sh|const|eval 'case "$name" in ${~pat}) hit=0 ;; esac'
+eval|common/header.sh|name|eval "$1+=(\"\$record\")"
+eval|common/zsh.zsh|tool|eval "$("$_hi_pt" init zsh)" ;;
+eval|common/zsh.zsh|segment|eval "$c" 2>/dev/null)" && [[ -n "$o" ]] && __hi_env_info+="${o//\%/%%} 
+eval|hi.sh|name|eval "function _hi_is_${_hi_cli}_container() { _hi_is_family_container $
+eval|load.sh|name|eval "$2=(\"\${_hi_sc[@]}\")"
+eval|scripts/configure.sh|name|eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
+
+rm -r|common/header.sh|1
+rm -r|common/targets.sh|3
+rm -r|hi.sh|6
+rm -r|load.sh|2
+rm -r|scripts/install.sh|4
+sh -c|common/config.fish|4
+sh -c|common/zsh.zsh|1
+sh -c|hi.sh|16
+sh -c|scripts/doctor.sh|1
+source|common/aliases.sh|2
+source|common/bash.sh|10
+source|common/config.fish|7
+source|common/core.sh|3
+source|common/header.sh|1
+source|common/paths.sh|1
+source|common/zsh.zsh|10
+source|hi.sh|2
+source|load.sh|6
+source|scripts/add_package.sh|2
+source|scripts/add_tag.sh|2
+source|scripts/configure.sh|7
+source|scripts/convert_settings.sh|2
+source|scripts/doctor.sh|6
+source|scripts/install.sh|5
+source|scripts/lib.sh|1
+source|scripts/plugins.sh|3
+source|scripts/preview.sh|4
+source|scripts/rc.sh|2
+source|scripts/set_color.sh|2
+source|scripts/update.sh|2

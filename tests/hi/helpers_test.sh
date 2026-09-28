@@ -267,6 +267,86 @@ function test_require_refuses_and_names_a_missing_tool() {
   case "$out" in *"requires definitely-not-a-real-hi-helpers-tool-xyz"*"to do the thing"*"not installed"*) ;; *) return 1 ;; esac
 }
 
+# _hi_compose_shim - docker and podman shims into $_HI_COMPOSE_BIN, printed.
+# `container inspect` answers true only for $_HI_CS_RUNNING; `ps --filter
+# label=...` logs its argv to $_HI_CS_LOG and prints $_HI_CS_MATCHES (%b).
+# Any other argv exits 1, so a changed command shape fails here.
+function _hi_compose_shim() {
+  _HI_COMPOSE_BIN="$_HI_WORKDIR/composebin"
+  if [ ! -d "$_HI_COMPOSE_BIN" ]; then
+    mkdir -p "$_HI_COMPOSE_BIN"
+    cat >"$_HI_COMPOSE_BIN/docker" <<'SHIM'
+#!/bin/sh
+case "$1 $2 $3" in
+"container inspect -f")
+  [ "$5" = "${_HI_CS_RUNNING:-}" ] && printf 'true\n' || printf 'false\n'
+  exit 0
+  ;;
+esac
+if [ "$1 $2" = "ps --filter" ] && [ "$4" = --format ]; then
+  printf '%s\n' "$*" >>"$_HI_CS_LOG"
+  printf '%b' "${_HI_CS_MATCHES:-}"
+  exit 0
+fi
+exit 1
+SHIM
+    chmod +x "$_HI_COMPOSE_BIN/docker"
+    cp "$_HI_COMPOSE_BIN/docker" "$_HI_COMPOSE_BIN/podman"
+    cp "$_HI_COMPOSE_BIN/docker" "$_HI_COMPOSE_BIN/nerdctl"
+  fi
+}
+
+# _hi_compose_resolve <cli> <name> [NAME=value...] - _hi_container_target's
+# answer on stdout, or `rc <n>` when it declines
+function _hi_compose_resolve() {
+  local cli="$1" name="$2" got="" rc=0
+  shift 2
+  (
+    export PATH="$_HI_COMPOSE_BIN:$PATH" _HI_CS_LOG="$_HI_WORKDIR/compose.log" ${1+"$@"}
+    _hi_container_target "$cli" "$name" got || rc=$?
+    [ "$rc" = 0 ] && printf '%s' "$got" || printf 'rc %s' "$rc"
+  )
+}
+
+# a running container is taken by its own name, with no compose lookup
+function test_container_target_takes_a_running_name_as_is() {
+  _hi_compose_shim
+  : >"$_HI_WORKDIR/compose.log"
+  [ "$(_hi_compose_resolve docker web _HI_CS_RUNNING=web _HI_CS_MATCHES='other-1\n')" = web ] &&
+    [ ! -s "$_HI_WORKDIR/compose.log" ]
+}
+
+# a compose service name resolves to the one container carrying its label,
+# for docker and podman alike, and the filter names the label exactly
+function test_container_target_resolves_a_compose_service() {
+  local cli
+  _hi_compose_shim
+  for cli in docker podman; do
+    : >"$_HI_WORKDIR/compose.log"
+    [ "$(_hi_compose_resolve "$cli" web _HI_CS_MATCHES='proj-web-1\n')" = proj-web-1 ] || return 1
+    grep -qxF 'ps --filter label=com.docker.compose.service=web --format {{.Names}}' "$_HI_WORKDIR/compose.log" ||
+      _hi_because "$cli asked: $(cat "$_HI_WORKDIR/compose.log")"
+  done
+}
+
+# two replicas behind one service is ambiguous, and none is no answer: both
+# decline rather than guess
+function test_container_target_declines_an_ambiguous_or_empty_service() {
+  _hi_compose_shim
+  [ "$(_hi_compose_resolve docker web _HI_CS_MATCHES='proj-web-1\nproj-web-2\n')" = "rc 1" ] &&
+    [ "$(_hi_compose_resolve docker web _HI_CS_MATCHES='')" = "rc 1" ]
+}
+
+# the other family members never ask about compose labels, and a CLI that is
+# not installed declines without running anything
+function test_container_target_asks_only_docker_and_podman_about_compose() {
+  _hi_compose_shim
+  : >"$_HI_WORKDIR/compose.log"
+  [ "$(_hi_compose_resolve nerdctl web _HI_CS_MATCHES='proj-web-1\n')" = "rc 1" ] &&
+    [ ! -s "$_HI_WORKDIR/compose.log" ] &&
+    ! _hi_compose_container hi-no-such-cli web
+}
+
 function run_hi_helpers_test() {
   _hi_h1 "Testing hi.sh's pure helpers"
   _hi_workdir hi_helpers
@@ -308,6 +388,12 @@ function run_hi_helpers_test() {
   _hi_check "Retries a landing the target reports empty" test_container_put_retries_an_empty_landing
   _hi_check "Gives up after three empty landings" test_container_put_gives_up_after_three_empty_landings
   _hi_check "Costs one call on the happy path" test_container_put_costs_one_call_on_the_happy_path
+
+  _hi_h2 "Testing: _hi_container_target's compose lookup"
+  _hi_check "A running name is taken as is" test_container_target_takes_a_running_name_as_is
+  _hi_check "A compose service resolves to its one container" test_container_target_resolves_a_compose_service
+  _hi_check "Two replicas or none decline" test_container_target_declines_an_ambiguous_or_empty_service
+  _hi_check "Only docker and podman ask about compose" test_container_target_asks_only_docker_and_podman_about_compose
 
   _hi_h2 "Testing: _hi_require"
   _hi_check "Finds an installed tool" test_require_finds_an_installed_tool

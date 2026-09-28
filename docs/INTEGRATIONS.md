@@ -72,7 +72,14 @@ for stays yours rather than being drawn over: liquidprompt or bash-git-prompt
 in bash; spaceship, pure, or a promptinit theme (prezto's included) in zsh;
 and in fish any `fish_prompt` that is not fish's own - your `functions/`
 directory's, a theme such as pure, hydro, or bobthefish, or one your config
-defines. `hi` in `_HI_PROMPT_TOOL` takes the prompt anyway. Under powerlevel10k's instant
+defines. A `PS1` or `PROMPT` you wrote in your rc stays as well, in bash and
+zsh at home: hi draws over the ones nobody wrote - the shell's built-in
+default and the one a stock rc sets on Debian and Ubuntu, Raspberry Pi OS,
+Kali, Fedora and the RHEL family, Arch, Alpine, openSUSE, Gentoo, macOS,
+Git Bash, MSYS2, Cygwin, and Termux - and leaves any other alone. A target's
+own rc is not asked, so a session's prompt is hi's whatever the box sets; a
+prompt of yours for targets goes in the overlay's `bashrc` or `zshrc` with
+`_HI_DISABLE_PROMPT=1`. `hi` in `_HI_PROMPT_TOOL` takes the prompt anyway. Under powerlevel10k's instant
 prompt, hi calls `p10k clear-instant-prompt` before drawing the header, the
 call p10k provides for an rc that prints, so it does not warn about console
 output on every start. The list is worked out on this
@@ -191,8 +198,9 @@ eza reads its colors from `$EZA_CONFIG_DIR/theme.yml`, and only under that
 name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
 `~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - or the
 `theme.yml` in `~/.config/say-hi/` when there is one. On a target,
-`common/paths.sh` points `EZA_CONFIG_DIR` at the directory holding the shipped
-copy; at home the variable is left alone. Like `BAT_CONFIG_PATH`, it is
+`EZA_CONFIG_DIR` points at the directory holding the shipped copy
+([HI.62](GLOSSARY.md#hi62-generated-wiring)); at home the variable is left
+alone. Like `BAT_CONFIG_PATH`, it is
 exported whatever `_HI_TOOL_ALIASES` says, so a bare `command eza` matches
 too.
 
@@ -212,7 +220,7 @@ were [decided against](COMPATIBILITY.md#what-would-change-an-answer), and
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux.conf` over
 both) rides along and the session's `tmux` alias is `tmux -f` it. screen the
-same, `~/.screenrc` under `screen -c`; and zellij's config directory
+same, `${SCREENRC:-~/.screenrc}` under `screen -c`; and zellij's config directory
 (`$ZELLIJ_CONFIG_DIR`, else `$XDG_CONFIG_HOME/zellij`) - `config.kdl` and
 every file of `layouts/` and `themes/`, an overlay `zellij/` copy of each
 name first - under the alias's `--config-dir`. A
@@ -232,8 +240,8 @@ stay your rc's.
 
 Every target gets the inputrc you already keep: hi ships the file readline
 reads here - `$INPUTRC`, else `~/.inputrc` - or the `inputrc` in
-`~/.config/say-hi/` when there is one. On a target, `common/paths.sh` points
-`INPUTRC` at the shipped copy, so bash's line editing and every readline
+`~/.config/say-hi/` when there is one. On a target, `INPUTRC` points at the
+shipped copy, so bash's line editing and every readline
 program started from the session take your bindings; zsh and fish have line
 editors of their own and ignore it. At home the variable is left alone.
 Nothing is asked about first: readline is a library, not a command on `PATH`.
@@ -278,7 +286,8 @@ different thing:
   kak, `nanorc` with
   nano, `init.el` with emacs, `tmux.conf` with tmux, `screenrc` with screen,
   `micro/` with micro, `zellij/` with zellij,
-  `bat.conf` with bat (or `batcat`), `theme.yml` with eza; `inputrc` always,
+  `bat.conf` with bat (or `batcat`), `theme.yml` with eza, `ripgreprc` with
+  rg, `fzfrc` with fzf, `lazygit.yml` with lazygit; `inputrc` always,
   since readline is a library, not a command. A dotfile left
   behind by a tool you removed neither ships nor gets a `hi --doctor` row.
   It is the client because only the client can be asked before a connect, which
@@ -287,11 +296,14 @@ different thing:
 - **Nobody, about an overlay copy.** A file you put in `~/.config/say-hi/` is
   you saying "targets get this", and it rides whatever this machine has -
   the way to carry a `vimrc` from a laptop that only has neovim.
-- **The target, about what is used.** `common/aliases.sh` builds each alias
-  from what the target has, and only with its config there, so a config
-  that rode to a box without its tool is a few idle bytes, and a tool whose
-  config stayed home keeps its own - never an alias to a missing binary or
-  file.
+- **Nobody, about a plugin that is off.** `hi --plugin-off`, or an editor's
+  `_HI_DISABLE_*` toggle, keeps every file of that plugin home, overlay copy
+  included ([SETTINGS.md](SETTINGS.md#switching-a-plugin-off)).
+- **The target, about what is used.** Each alias is made from what the
+  target has, and only for a config that rode
+  ([HI.62](GLOSSARY.md#hi62-generated-wiring)), so a config that rode to a
+  box without its tool is a few idle bytes, and a tool whose config stayed
+  home keeps its own - never an alias to a missing binary or file.
 
 ## Config sizes
 

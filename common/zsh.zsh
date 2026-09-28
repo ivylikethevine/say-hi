@@ -53,6 +53,20 @@ _hi_prompt_fw() {
   esac
 }
 
+# see common/bash.sh: unset, hi's own from an earlier load, or what zsh or a
+# distro's rc leaves - zsh's own; Fedora and the RHEL family; Alpine;
+# openSUSE; macOS; Kali, plain and by the two expansions every variant of
+# its prompt carries. GLOSSARY: HI.32
+_hi_ps1_stock() {
+  case ${PS1-} in
+  '' | *'${__hi_git_info}'* | '%m%# ' | '[%n@%m]%~%# ' | '%m:%~%# ') ;;
+  '%n@%m:%~> ' | '%n@%m:%~ # ' | '%n@%m %1~ %# ') ;;
+  '${debian_chroot:+($debian_chroot)}%n@%m:%~%(#.#.$) ') ;;
+  *'${debian_chroot:+($debian_chroot)'*'${VIRTUAL_ENV:+('*) ;;
+  *) return 1 ;;
+  esac
+}
+
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   _hi_pt=""
   if _hi_prompt_tool zsh _hi_pt; then
@@ -91,10 +105,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     *) eval "$("$_hi_pt" init zsh)" ;;
     esac
   elif ! _hi_prompt_named_hi && { (( ${+_LP_VERSION} || ${+SPACESHIP_VERSION} ||
-    ${+functions[prompt_pure_setup]} )) || [[ -n ${prompt_theme-} ]]; }; then
+    ${+functions[prompt_pure_setup]} )) || [[ -n ${prompt_theme-} ]] ||
+    { [[ $_HI_REMOTE_SESSION != 1 ]] && ! _hi_ps1_stock; }; }; then
     # a prompt hi has no hand-over for draws here - liquidprompt, spaceship,
-    # pure, or a promptinit theme (prezto's included) - and stays theirs; `hi`
-    # in $_HI_PROMPT_TOOL takes it anyway. GLOSSARY: HI.32
+    # pure, or a promptinit theme (prezto's included) - or at home the rc left
+    # a $PS1 of the user's own: it stays theirs; `hi` in $_HI_PROMPT_TOOL takes
+    # it anyway. A target's own rc is not asked. GLOSSARY: HI.32
     :
   else
     # `hi` named in the list takes the prompt back from a program the rc

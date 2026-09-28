@@ -184,7 +184,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The seventeen flags in `common/flags`** — name, argument shape, and what
+- **The twenty-two flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -200,6 +200,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `--update --dry-run`, `--add-package --dry-run`,
   `--remove-package --dry-run`, `--add-tag --dry-run`,
   `--set-color --dry-run`, `--unset-color --dry-run`,
+  `--plugin-off --dry-run`, `--plugin-on --dry-run`,
+  `--add-plugin --dry-run`, `--remove-plugin --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and meaning
   (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
   `--install --yes`; no other switch has one); and the `--json` document's
@@ -218,13 +220,15 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   its `0` from `common/aliases.sh`'s backstop line, every reader compares it
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
-  `packages`, `plugins.d/` and its hook names,
+  `packages`, `plugins.d/` and its hook names, `carry` and its four
+  columns,
   `vimrc`, `init.lua`, `config.toml`, `kakrc`, `nanorc`, `init.el`, `tmux.conf`,
   `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,
   `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,
   `starship.toml`, `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`,
-  `bash-it.theme.bash`, `tide.vars`, `theme.yml`, `bat.conf`, `inputrc`, and
+  `bash-it.theme.bash`, `tide.vars`, `theme.yml`, `bat.conf`, `ripgreprc`,
+  `fzfrc`, `lazygit.yml`, `inputrc`, and
   `ssh_tags`), their
   formats, the XDG path, and the
   `_HI_CONFIG_DIR` override. The rule behind the names: a member is called

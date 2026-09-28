@@ -481,11 +481,22 @@ EOF
 # holding copies of the named top-level directories, and prints the _HI_HOME
 # that points at it. What a "minimal shipped tree" needs is one edit here
 # rather than one per suite that stands one up.
+#
+# A `link:<dir>` entry symlinks the real one instead, for a directory the
+# suite only reads: bashcov files a hit under the script's realpath, so a
+# linked script credits the repo file where a copy's hits are dropped. Never
+# for a directory a case writes into - the write would land in the checkout.
+# Git Bash without symlink rights copies it, which only loses the credit.
 function _hi_scratch_tree() {
   local name="$1" root="$_HI_WORKDIR/$1/say-hi" dir
   shift
   mkdir -p "$root"
-  for dir in "$@"; do cp -r "$_HI_ROOT/$dir" "$root/"; done
+  for dir in "$@"; do
+    case "$dir" in
+    link:*) ln -sfn "$_HI_ROOT/${dir#link:}" "$root/${dir#link:}" ;;
+    *) cp -r "$_HI_ROOT/$dir" "$root/" ;;
+    esac
+  done
   printf '%s' "$_HI_WORKDIR/$name"
 }
 
@@ -499,6 +510,14 @@ function _hi_subcmd_run() {
   local home="$1"
   shift
   (_HI_HOME="$home" "$home/say-hi/hi.sh" "$@" 2>&1)
+}
+
+# _hi_wiring_for <member...> - the wiring.sh a client packs for those members
+# (hi.sh's _hi_overlay_wiring), on stdout: from a child bash with no
+# arguments left, since sourcing hi.sh runs it on them
+function _hi_wiring_for() {
+  # shellcheck disable=SC2016 # the child bash expands its own script
+  bash -c 'm=("$@") && set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w "${m[@]}" && printf %s "$w"' _ "$@"
 }
 
 # _hi_settings_fixture <name> <fn...> - run <fn...> with $_HI_ROOT,

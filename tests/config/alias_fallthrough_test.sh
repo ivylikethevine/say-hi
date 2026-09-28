@@ -49,6 +49,10 @@ if [ -n "${_HI_PRE_ALIAS:-}" ]; then
   [ -n "${BASH_VERSION:-}" ] && shopt -s expand_aliases
   alias "$_HI_PRE_ALIAS"
 fi
+# a target's editor and multiplexer aliases are the overlay's wiring.sh, which
+# common/paths.sh sources there ahead of this file
+# shellcheck source=/dev/null # the scenario's own, written a run ago
+[ "${_HI_REMOTE_SESSION:-0}" != 1 ] || . "$_HI_CONFIG_DIR/wiring.sh" || exit 1
 . "$_HI_ALIASES" || exit 1
 fail=0
 
@@ -122,6 +126,10 @@ exit $fail
 EOF
 
   cat >"$_HI_FISH_CHECK" <<'EOF'
+if test "$_HI_REMOTE_SESSION" = 1
+  # shellcheck source=/dev/null # the scenario's own, written a run ago
+  source "$_HI_CONFIG_DIR/wiring.sh"; or exit 1
+end
 source "$_HI_ALIASES"; or exit 1
 set fail 0
 
@@ -355,9 +363,16 @@ function _hi_run_scenario() {
   fi
 
   t0="$(_hi_now)"
-  # the editor aliases are gated on their rc being there, so each is a file,
-  # and on it being hi's, so the workdir is the overlay that holds them
-  touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el"
+  # the editor and multiplexer aliases are lines of the wiring.sh a client
+  # packs beside the configs that ride, so the workdir is the overlay that
+  # holds both (GLOSSARY: HI.62)
+  mkdir -p "$_HI_WORKDIR/zellij"
+  touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el" \
+    "$_HI_WORKDIR/tmux.conf" "$_HI_WORKDIR/screenrc" "$_HI_WORKDIR/zellij/config.kdl"
+  if [ ! -f "$_HI_WORKDIR/wiring.sh" ]; then
+    _hi_wiring_for vimrc init.lua config.toml nanorc init.el tmux.conf screenrc zellij/config.kdl \
+      >"$_HI_WORKDIR/wiring.sh" || return 1
+  fi
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
@@ -473,9 +488,11 @@ function run_micro_tests() {
 }
 
 # No alias for a package that is not installed: every gated name lands with
-# its tool on PATH and is absent without it. tmux, screen, zellij, and micro's
-# -config-dir line get their config so only the binary decides; cat is the one tool on the
-# bare PATH, the floor of its own ladder.
+# its tool on PATH and is absent without it, on a target, where the editors'
+# and the multiplexers' ride in wiring.sh; micro's -config-dir line gets its
+# config so only the binary decides; cat is the one tool on the bare PATH, the
+# floor of its own ladder. At home none of them is aliased, whatever is
+# installed: every tool there reads its own config.
 function run_presence_tests() {
   _hi_h1 "An alias exists only where its tool does"
   local shell gated="nano emacs micro vim nvim hx tmux screen zellij sudo bat batcat batn catn eza exa"
@@ -484,9 +501,11 @@ function run_presence_tests() {
   bare="$(_hi_fake_path fp_bare cat)"
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \
-      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_SCREENRC="$_HI_WORKDIR/screenrc" _HI_ZELLIJ_DIR="$_HI_WORKDIR/zellij" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_PRESENT="$gated cat ls"
+      _HI_REMOTE_SESSION=1 _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_PRESENT="$gated cat ls"
     _hi_case _hi_run_scenario "$shell" "$bare" "only cat installed: no gated alias" \
-      _HI_TMUX_CONF="$_HI_WORKDIR/tmux.conf" _HI_SCREENRC="$_HI_WORKDIR/screenrc" _HI_ZELLIJ_DIR="$_HI_WORKDIR/zellij" _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
+      _HI_REMOTE_SESSION=1 _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
+    _hi_case _hi_run_scenario "$shell" "$all" "at home: no editor or multiplexer alias" \
+      _HI_REMOTE_SESSION=0 _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="nano emacs micro vim nvim hx tmux screen zellij"
   done
 }
 

@@ -49,6 +49,7 @@ function _hi_ds_dispatch() {
     _HI_INSTALL="$stub"
     _HI_ADD_PACKAGE="$stub"
     _HI_COLOR_PIN="$stub"
+    _HI_PLUGINS_CMD="$stub"
     _hi_dispatch_subcommand "$@"
   ) >"$_HI_DS_OUT" 2>&1 || _HI_DS_RC=$?
 }
@@ -106,6 +107,20 @@ function test_dispatch_hands_unset_color_its_switch() {
   _hi_ds_dispatch --unset-color username root
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --unset-color
 args=--unset username root" ]
+}
+
+# the five plugin flags share one script too: --plugins reaches it bare, the
+# rest behind the word that tells them apart
+function test_dispatch_hands_the_plugin_flags_their_switches() {
+  _hi_ds_dispatch --plugins
+  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugins
+args=" ] || return 1
+  _hi_ds_dispatch --plugin-off editors bat --dry-run
+  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugin-off
+args=--off editors bat --dry-run" ] || return 1
+  _hi_ds_dispatch --add-plugin taskrc task env:TASKRC '/opt/taskrc : /etc/taskrc'
+  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-plugin
+args=--add taskrc task env:TASKRC /opt/taskrc : /etc/taskrc" ]
 }
 
 # test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no
@@ -294,6 +309,7 @@ function run_dispatch_tests() {
   _hi_check "--remove-package reaches the same script with --remove" test_dispatch_hands_remove_package_its_switch
   _hi_check "--set-color's words reach the script untouched" test_dispatch_hands_set_color_its_words
   _hi_check "--unset-color reaches the same script with --unset" test_dispatch_hands_unset_color_its_switch
+  _hi_check "The plugin flags reach one script, each behind its word" test_dispatch_hands_the_plugin_flags_their_switches
   _hi_check "Declines a row with no script" test_dispatch_declines --plain
   _hi_check "Declines an unknown flag" test_dispatch_declines --nonesuch
   _hi_check "Declines with no argument at all" test_dispatch_declines

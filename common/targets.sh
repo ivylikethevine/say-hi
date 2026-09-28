@@ -166,6 +166,13 @@ color_types() {
   printf 'hostname\ta hostname, or a * or ? pattern\n'
 }
 
+# a carry file's members, as --remove-plugin takes them: the first column of
+# each line, the spaces around it dropped
+carry_members() {
+  [ -f "${_HI_CONFIG_DIR:-}/carry" ] || return 0
+  sed -n "s/^[ ]*\([A-Za-z0-9][A-Za-z0-9_.-]*\)[ ]*|.*/\1$(printf '\t')a line of your carry file/p" "$_HI_CONFIG_DIR/carry"
+}
+
 if [ "$kind" = words ]; then
   # The packages file this session would actually read/write: the overlay's
   # when one exists, else the tree's (common/paths.sh's cascade, reimplemented
@@ -203,6 +210,39 @@ if [ "$kind" = words ]; then
     ;;
   --set-color)
     color_types
+    ;;
+  --plugin-off)
+    # hi.sh's table read as text, since this file cannot source it: a row's
+    # group, and its plugin - its tool's first name, else its member. Then
+    # the carry's members.
+    awk -F'|' '
+      /^_HI_OVERLAY_TABLE=\(/ { on = 1; next }
+      on && /^\)/ { exit }
+      !on || $5 == "-" { next }
+      {
+        name = $4
+        if (name == "-") { name = $1; sub(/^[ \t]*\047/, "", name); sub(/\/.*/, "", name) }
+        gsub(/[()]/, "", name); sub(/ .*/, "", name)
+        if (!seen[$5]++) printf "%s\tevery plugin of that group\n", $5
+        if (!seen[name]++) printf "%s\ta plugin\n", name
+      }
+    ' "$hi_tree/hi.sh"
+    carry_members
+    ;;
+  --plugin-on)
+    # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line
+    [ -f "${_HI_CONFIG_DIR:-}/settings.sh" ] &&
+      sed -n 's/^[ ]*\(export[ ]\{1,\}\)\{0,1\}_HI_PLUGINS_OFF=//p' "$_HI_CONFIG_DIR/settings.sh" |
+      tail -n 1 | tr -d "\"'" | tr ',' ' ' | tr -s ' ' '\n' | while IFS= read -r line; do
+        [ -z "$line" ] || printf '%s\tswitched off\n' "$line"
+      done
+    ;;
+  --add-plugin)
+    # a member's name is the user's to make up: nothing to offer, and no
+    # target names either
+    ;;
+  --remove-plugin)
+    carry_members
     ;;
   --unset-color)
     color_types

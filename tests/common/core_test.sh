@@ -1092,6 +1092,22 @@ function test_zsh_scheme_list_agrees_with_bash() {
   _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_L48' _HI_TRUECOLOR=1; _hi_scheme_words n; _hi_assign_palette; _hi_color_hex h brcyan; _hi_color_escape_at e 17; printf '%s|%s|%s|%s|%s' \"\$n\" \"\$RED\" \"\$BRCYAN\" \"\$h\" \"\$e\""
 }
 
+# extended_glob (grml's and prezto's default, and common in a .zshrc) makes a
+# bare # a pattern operator: a pin's hex and a Host line's trailing comment
+# still split off the same as in bash
+function test_zsh_extended_glob_agrees_with_bash() {
+  local cfg="$_HI_WORKDIR/ssh_config.extglob" want='orange|3ba55d|red||eg' got
+  printf '# Tags: eg\nHost eghost # a note\n' >"$cfg"
+  got="$(_hi_in_shell zsh "setopt extended_glob; export _HI_SSH_CONFIG='$cfg'
+    _hi_color_split b h \"orange#3ba55d\"; _hi_color_split b2 h2 red
+    printf '%s|%s|%s|%s|%s' \"\$b\" \"\$h\" \"\$b2\" \"\$h2\" \"\$(_hi_ssh_host_tag eghost)\"")"
+  [ "$got" = "$want" ] || _hi_because "zsh: [$got]" || return 1
+  got="$(_hi_in_shell bash "export _HI_SSH_CONFIG='$cfg'
+    _hi_color_split b h \"orange#3ba55d\"; _hi_color_split b2 h2 red
+    printf '%s|%s|%s|%s|%s' \"\$b\" \"\$h\" \"\$b2\" \"\$h2\" \"\$(_hi_ssh_host_tag eghost)\"")"
+  [ "$got" = "$want" ] || _hi_because "bash: [$got]"
+}
+
 function test_zsh_host_tag_agrees_with_bash() {
   _hi_shell_agrees 'printf "%s|%s" "$(_hi_ssh_host_tag myhost)" "$(_hi_ssh_host_tag devhost)"'
 }
@@ -1181,6 +1197,16 @@ function test_shell_table_covers_every_rc_path_var() {
     _hi_cecho " | in paths.sh but in no _HI_SHELL_TABLE row:$missing" "$RED"
     return 1
   }
+}
+
+# OSC 7's path: unreserved bytes pass, every other byte is %XX in upper case,
+# a multi-byte character one escape per byte
+function test_url_path_percent_encodes_byte_by_byte() {
+  local u
+  _hi_url_path u /plain/path_1.x~-
+  [ "$u" = /plain/path_1.x~- ] || _hi_because "plain: [$u]" || return 1
+  _hi_url_path u "/a b/n$(printf '\303\251')e/100%#?"
+  [ "$u" = "/a%20b/n%C3%A9e/100%25%23%3F" ] || _hi_because "encoded: [$u]"
 }
 
 function test_repeat_makes_count_copies() {
@@ -1529,6 +1555,7 @@ function run_core_tests() {
 
   _hi_h2 "Testing: the small formatters"
   _hi_check "_hi_repeat makes count copies" test_repeat_makes_count_copies
+  _hi_check "_hi_url_path percent-encodes byte by byte" test_url_path_percent_encodes_byte_by_byte
   _hi_check "_hi_human_duration's three shapes" test_human_duration_formats
   _hi_check "_hi_du_size answers for a real path" test_du_size_answers_for_a_real_path
 
@@ -1611,6 +1638,7 @@ function run_core_tests() {
   _hi_check_requires zsh "A scheme escape agrees with bash" test_zsh_scheme_escape_agrees_with_bash
   _hi_check_requires zsh "A scheme list agrees with bash" test_zsh_scheme_list_agrees_with_bash
   _hi_check_requires zsh "_hi_ssh_host_tag agrees with bash" test_zsh_host_tag_agrees_with_bash
+  _hi_check_requires zsh "...and under extended_glob, a # still splits a pin and a comment" test_zsh_extended_glob_agrees_with_bash
   _hi_check_requires zsh "...and rejects the same hosts" test_zsh_host_tag_rejects_the_same_hosts
   _hi_check_requires zsh "...and agrees on wildcard blocks" test_zsh_host_tag_wildcard_agrees_with_bash
   _hi_check_requires zsh "_hi_resolve_color agrees with bash" test_zsh_resolve_color_agrees_with_bash

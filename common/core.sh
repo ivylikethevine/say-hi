@@ -48,6 +48,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
     _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
+    _HI_DISABLE_TMUX _HI_DISABLE_SCREEN _HI_DISABLE_ZELLIJ
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
@@ -62,10 +63,11 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # to trim /say-hi back off. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG
-  # ...and, for the same reason, the directories micro and zellij read, which
-  # a variable of their own can move
+  # ...and, for the same reason, the directories micro and zellij read and
+  # the file screen reads, which a variable of their own can move
   _HI_MICRO_HOME="${MICRO_CONFIG_HOME:-$_HI_XDG_CONFIG/micro}"
   _HI_ZELLIJ_HOME="${ZELLIJ_CONFIG_DIR:-$_HI_XDG_CONFIG/zellij}"
+  _HI_SCREENRC_HOME="${SCREENRC:-$HOME/.screenrc}"
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   # loaded as the user's own shell would: strict mode here would turn one
@@ -233,8 +235,9 @@ function _hi_color_escape_at() {
 # $_HI_TARGET_COLOR over the wire, preview.sh's grouping) carries one string
 # and needs to know nothing. GLOSSARY: HI.50
 function _hi_color_split() {
-  printf -v "$1" '%s' "${3%%#*}"
-  case "$3" in *'#'*) printf -v "$2" '%s' "${3#*#}" ;; *) printf -v "$2" '%s' '' ;; esac
+  # \#: under zsh's extended_glob a bare # in a pattern is an operator
+  printf -v "$1" '%s' "${3%%\#*}"
+  case "$3" in *'#'*) printf -v "$2" '%s' "${3#*\#}" ;; *) printf -v "$2" '%s' '' ;; esac
 }
 
 # _hi_color_index <outvar> <name> - <name>'s slot in $_HI_COLOR_NAMES into
@@ -1129,7 +1132,7 @@ function _hi_ssh_pattern_hit() {
 # the way out: 0 tagged (printed), 2 known-but-untagged, 1 no hit here.
 function _hi_ssh_try_patterns() {
   local patterns="$1" name="$2" tag="$3"
-  patterns="${patterns%%#*}"
+  patterns="${patterns%%\#*}"
   patterns="${patterns//	/ }"
   patterns="${patterns//,/ }"
   _hi_ssh_pattern_hit "$name" "$patterns" || return 1

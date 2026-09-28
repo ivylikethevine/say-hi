@@ -240,6 +240,41 @@ function test_config_counts_an_overlay_file() {
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]]
 }
 
+# an ssh config with a `# Tags:` line is a row saying the tags ride; one
+# without, or no config at all, is none
+function test_config_says_the_ssh_tags_ride() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
+  mkdir -p "$dir/rt"
+  printf '# Tags: prod\nHost web\n' >"$dir/ssh_config"
+  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
+    _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" == *"the # Tags: lines of $(_hi_doc_path "$dir/ssh_config") ride along"* ]] || _hi_because "tagged: $out" || return 1
+  printf 'Host web\n' >"$dir/ssh_config"
+  out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
+    _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" != *"# Tags:"* ]] || _hi_because "untagged: $out"
+}
+
+# every member a tool reads is labeled with that tool, and hi's own go bare
+function test_member_labels_name_the_reading_tool() {
+  local pair label
+  for pair in vimrc:vim init.lua:nvim config.toml:hx nanorc:nano init.el:emacs \
+    kakrc:kak tmux.conf:tmux screenrc:screen micro/settings.json:micro \
+    zellij/config.kdl:zellij bat.conf:bat theme.yml:eza inputrc:readline \
+    ripgreprc:rg fzfrc:fzf lazygit.yml:lazygit \
+    bashrc:bash zshrc:zsh config.fish:fish starship.toml:starship \
+    oh-my-posh.json:oh-my-posh zellij/layouts/work.kdl:zellij \
+    p10k.zsh:powerlevel10k \
+    oh-my-zsh.zsh-theme:oh-my-zsh oh-my-bash.theme.sh:oh-my-bash \
+    bash-it.theme.bash:bash-it tide.vars:tide ssh_tags:ssh; do
+    _hi_doc_member "${pair%%:*}" label
+    [ "$label" = "${pair%%:*} (${pair#*:})" ] || _hi_because "${pair%%:*} -> $label" || return 1
+  done
+  _hi_doc_member colors label
+  [ "$label" = colors ] || _hi_because "colors -> $label"
+}
+
 # a member with no tree copy - bashrc, starship.toml - has no default to
 # report, so an absent one gets no row at all
 function test_config_has_no_tree_default_for_a_member_without_one() {
@@ -282,7 +317,41 @@ function test_config_counts_a_tool_config_copy_as_an_override() {
     BAT_CONFIG_PATH="$dir/elsewhere" doctor_config
   )"
   [[ "$out" == *"bat.conf"*"overridden (1 lines)"* ]] &&
-    [[ "$out" == *"starship.toml"*"not shipped - its prompt program is not one a target is handed"* ]]
+    [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]]
+}
+
+# a carry line hi turned down is a row, by line number, and a member a good
+# line carries from home is named by its path (GLOSSARY: HI.63)
+function test_config_reports_the_carry_rows() {
+  local dir out h="$_HI_WORKDIR/carry-doc-home"
+  dir="$(mktemp -d "$_HI_WORKDIR/carrydoc.XXXXXX")"
+  mkdir -p "$h"
+  printf 'x\n' >"$h/.taskrc"
+  printf 'taskrc | - | env:TASKRC | %s/.taskrc\nvimrc | vim | - | ~/.vimrc\n' "$h" >"$dir/carry"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"carry:2"*"ignored - 'vimrc' is a member already"* ]] || _hi_because "no row for the bad line: $out" || return 1
+  [[ "$out" == *"taskrc"*"$(_hi_doc_path "$h/.taskrc")"* ]] || _hi_because "no row for the member: $out"
+}
+
+# a member of a plugin that is switched off says so, and by what, and a word
+# of the list that names nothing is a finding
+function test_config_reports_what_is_switched_off() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/offdoc.XXXXXX")"
+  printf -- '--theme=x\n' >"$dir/bat.conf"
+  printf 'set nu\n' >"$dir/nanorc"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="cli nosuch" doctor_config
+  )"
+  [[ "$out" == *"bat.conf (bat)"*"not sent - switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "bat: $out" || return 1
+  [[ "$out" == *"nanorc (nano)"*"not sent - switched off (_HI_DISABLE_NANO=1)"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"_HI_PLUGINS_OFF"*"'cli nosuch' is ignored"* ]] || _hi_because "the list: $out"
 }
 
 # tmux's and micro's configs come from home like a tool's: the file in force
@@ -352,6 +421,43 @@ function test_files_table_walks_every_tier() {
     [[ "$out" == *"tmux.conf (tmux)"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
     [[ "$out" == *"init.el (emacs)"*"passed over ~/.emacs - not sent: its tool is not installed here"* ]] &&
     [[ "$out" == *"none anywhere"*screenrc* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+}
+
+# a directory member counts the files that ride from it; a prompt program's
+# config is named but not sent while the prompt is hi's own; and inside a
+# session no home file is sent at all, which the row says instead of blaming
+# the tool
+function test_files_table_names_why_a_found_file_is_not_sent() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/files-why.XXXXXX")"
+  mkdir -p "$h/overlay" "$h/.config/zellij/layouts" "$h/.config/zellij/themes"
+  printf 'layout {}\n' >"$h/.config/zellij/layouts/dev.kdl"
+  printf 'format = "x"\n' >"$h/.config/starship.toml"
+  printf 'set number\n' >"$h/.vimrc"
+  out="$(
+    function _hi_tool_here() { return 0; }
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" \
+      _HI_PROMPT_TOOL=hi doctor_files
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"zellij/layouts/ (zellij)"*"present ~/.config/zellij/layouts/ - 1 file(s) ride"* ]] &&
+    [[ "$out" == *"zellij/themes/ (zellij)"*"present ~/.config/zellij/themes/ - no file rides"* ]] &&
+    [[ "$out" == *"starship.toml (starship)"*"not sent: its prompt program is not one a target is handed"* ]] &&
+    [[ "$out" == *"vimrc (vim)"*"used ~/.vimrc"* ]] || {
+    printf '%s\n' "$out"
+    return 1
+  }
+  out="$(
+    function _hi_tool_here() { return 0; }
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" \
+      _HI_PROMPT_TOOL=hi _HI_REMOTE_SESSION=1 doctor_files
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"vimrc (vim)"*"passed over ~/.vimrc - not sent: a session reads no home file"* ]] &&
+    [[ "$out" == *"zellij/layouts/ (zellij)"*"- no file rides"* ]] || {
     printf '%s\n' "$out"
     return 1
   }
@@ -711,9 +817,30 @@ function test_config_flags_an_old_format_packages_file() {
     _HI_PACKAGES="$dir/new"
     _hi_doc_values_json
   )"
-  [[ "$out" != *'"label": "packages"'* ]] || return 1
+  [[ "$out" != *'has name:priority rows'* ]] || return 1
   out="$(
     _HI_PACKAGES="$dir/sectioned"
+    _hi_doc_values_json
+  )"
+  [[ "$out" != *'has name:priority rows'* ]]
+}
+
+# a packages file of the user's own names the tree's groups it lacks and a
+# row whose marker sits past its first name; the tree's own names neither
+function test_config_names_what_a_packages_copy_lacks() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/driftpkgs.XXXXXX")"
+  printf '[core]\nbat\neza,-exa,lsd\n' >"$dir/packages"
+  out="$(
+    _HI_PACKAGES="$dir/packages"
+    _hi_doc_values_json
+  )"
+  [[ "$out" == *'"label": "packages", "text": "lacks the tree'*'never checked: useful, '*'"severity": "info"'* ]] ||
+    _hi_because "groups: $out" || return 1
+  [[ "$out" == *'"text": "the row eza,-exa,lsd never matches'*'"severity": "warn"'* ]] ||
+    _hi_because "marker: $out" || return 1
+  out="$(
+    _HI_PACKAGES="$_HI_ROOT/config/packages"
     _hi_doc_values_json
   )"
   [[ "$out" != *'"label": "packages"'* ]]
@@ -1125,6 +1252,24 @@ function test_a_second_target_is_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time"* ]]
 }
 
+# an ssh option that takes a value takes the next word with it, so that word is
+# never the target; a bare ssh flag takes nothing
+function test_an_ssh_value_option_takes_its_word() {
+  local out rc=0
+  out="$("$_HI_DOCTOR" -p 2222 -J bastion one two 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]] || return 1
+  rc=0
+  out="$("$_HI_DOCTOR" -4 one -A two 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]]
+}
+
+# ...and one that ends the line with no value is refused, not read as a flag
+function test_a_trailing_ssh_value_option_is_refused() {
+  local out rc=0
+  out="$("$_HI_DOCTOR" host -p 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"-p needs a value"* ]]
+}
+
 function test_use_equals_spelling_names_the_arm() {
   local out rc=0
   out="$("$_HI_DOCTOR" --use=frobnicate host 2>&1)" || rc=$?
@@ -1194,12 +1339,54 @@ function _hi_wired_line() {
   printf '%-45s %s\n' "$(tmpdir_line "$@")" "$_HI_MARKER"
 }
 
+# _hi_wired_block <line...> - <line...> marker-tagged, as install.sh writes
+# them
+function _hi_wired_block() {
+  local block
+  rc_tagged block "$@"
+  printf '%s' "$block"
+}
+
+# _hi_rc_block <shell> <tree_rc> <dialect> - the block this hi writes
+function _hi_rc_block() {
+  local -a lines=()
+  local line
+  while IFS= read -r line; do lines+=("$line"); done < <(rc_lines "$@")
+  _hi_wired_block "${lines[@]}"
+}
+
 function test_install_section_reports_a_wired_shell() {
   local home="$_HI_WORKDIR/inst-wired" out
   mkdir -p "$home"
-  _hi_wired_line sh >"$home/.bashrc"
+  _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || return 1
-  [[ "$out" == *"~/.bashrc is wired to this tree"* ]]
+  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]]
+}
+
+# the blocks an older hi wrote name this tree, so only a comparison with
+# rc_lines tells them apart: bash's `return` guard and fish's bare
+# is-interactive block (a parse error on fish 3.0-3.3), each against the
+# current block passing. fish is a shim: present is all the row asks.
+# shellcheck disable=SC2153 # $_HI_FISH_CONFIG is paths.sh's
+function test_install_section_names_an_older_hi_block() {
+  local home="$_HI_WORKDIR/inst-old" bin out path fishrc
+  bin="$home/bin"
+  fishrc="$home/.config/fish/config.fish"
+  path="$bin:$(_hi_doctor_shims):$(_hi_doctor_path)"
+  mkdir -p "$bin" "${fishrc%/*}"
+  printf '#!/bin/sh\nexit 0\n' >"$bin/fish"
+  chmod +x "$bin/fish"
+  # shellcheck disable=SC2016 # the old lines, verbatim
+  _hi_wired_block "$(tmpdir_line sh)" '[[ $- != *i* ]] && return' "source \"$_HI_BASHRC\"" >"$home/.bashrc"
+  _hi_wired_block "$(tmpdir_line fish)" 'if status is-interactive' "  source \"$_HI_FISH_CONFIG\"" end >"$fishrc"
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  [[ "$out" == *"~/.bashrc is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)"* &&
+    "$out" == *"config.fish is wired to this tree, but not with the lines this hi writes"* ]] || return 1
+  _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
+  _hi_rc_block fish "$_HI_FISH_CONFIG" fish >"$fishrc"
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" == *"config.fish is wired to this tree"* &&
+    "$out" != *"lines this hi writes"* ]]
 }
 
 function test_install_section_flags_a_foreign_tree() {
@@ -1479,13 +1666,18 @@ function run_doctor_tests() {
     _hi_h2 "Testing: doctor_config"
     _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
     _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+    _hi_check "A tagged ssh config says its tags ride" test_config_says_the_ssh_tags_ride
+    _hi_check "A member's label names the tool that reads it" test_member_labels_name_the_reading_tool
+    _hi_check "A carry row is reported, good or turned down" test_config_reports_the_carry_rows
+    _hi_check "What is switched off says so, and by what" test_config_reports_what_is_switched_off
     _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
     _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
-    _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
+    _hi_check "An overlay copy of one is overridden, or not sent" test_config_counts_a_tool_config_copy_as_an_override
     _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
     _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
     _hi_check "The files table walks every tier" test_files_table_walks_every_tier
     _hi_check "...and names an overlay copy alone, not the tree's behind it" test_files_table_hides_the_tree_default_behind_a_copy
+    _hi_check "...and says why a file it found is not sent" test_files_table_names_why_a_found_file_is_not_sent
     _hi_check "The box folds alike rows, drops its header, and writes ~" test_the_box_folds_and_shortens
     _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
     _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
@@ -1499,6 +1691,7 @@ function run_doctor_tests() {
     _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
     _hi_check "Config flags a leftover _HI_PACKAGES_MIN_PRIORITY" test_config_flags_the_old_package_floor
     _hi_check "Config flags a name:priority packages file" test_config_flags_an_old_format_packages_file
+    _hi_check "Config names what a packages copy lacks" test_config_names_what_a_packages_copy_lacks
     _hi_check "Config flags a type,name,color colors file" test_config_flags_an_old_format_colors_file
     _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
     _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
@@ -1547,6 +1740,8 @@ function run_doctor_tests() {
     _hi_check "--help is read anywhere on the line" test_help_is_read_anywhere_on_the_line
     _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
     _hi_check "A second target is refused" test_a_second_target_is_refused
+    _hi_check "An ssh option's value is not the target" test_an_ssh_value_option_takes_its_word
+    _hi_check "A trailing ssh value option is refused" test_a_trailing_ssh_value_option_is_refused
     _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
     _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
     _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
