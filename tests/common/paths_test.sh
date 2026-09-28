@@ -501,12 +501,15 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # aliases.sh and the three per-shell files (bashrc, zshrc, config.fish) -
 # and the prompt frameworks' five, which only a target reads, by name, as
 # core.sh's _hi_ssh_host_tag reads ssh_tags - and
-# micro's, whose micro/ directory paths.sh resolves whole. A missed lookup fails
+# micro's, whose micro/ directory paths.sh resolves whole, and every member a
+# line of the generated wiring.sh points its tool at (GLOSSARY: HI.62). A missed lookup fails
 # asymmetrically: the file works on targets but local sessions ignore the
 # overlay's copy - the same silent drift the toggle-gate pin above catches.
+# shellcheck disable=SC2016 # the child bash expands its own script
 function test_overlay_guards_match_the_roster() {
   local f roster
-  roster="$(bash -c 'set -- && source "$_HI_LAUNCHER" && printf "%s\n" "${_HI_OVERLAY_FILES[@]}"')"
+  roster="$(bash -c 'set -- && source "$_HI_LAUNCHER" && for m in "${_HI_OVERLAY_FILES[@]}"; do
+    _hi_overlay_wiring w "$m" && [ -n "$w" ] || printf "%s\n" "$m"; done')"
   [ -n "$roster" ] || return 1
   while IFS= read -r f; do
     case "$f" in

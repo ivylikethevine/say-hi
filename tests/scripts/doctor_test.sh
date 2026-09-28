@@ -264,7 +264,8 @@ function test_member_labels_name_the_reading_tool() {
     zellij/config.kdl:zellij bat.conf:bat theme.yml:eza inputrc:readline \
     ripgreprc:rg fzfrc:fzf lazygit.yml:lazygit \
     bashrc:bash zshrc:zsh config.fish:fish starship.toml:starship \
-    oh-my-posh.omp.json:oh-my-posh p10k.zsh:powerlevel10k \
+    oh-my-posh.json:oh-my-posh zellij/layouts/work.kdl:zellij \
+    p10k.zsh:powerlevel10k \
     oh-my-zsh.zsh-theme:oh-my-zsh oh-my-bash.theme.sh:oh-my-bash \
     bash-it.theme.bash:bash-it tide.vars:tide ssh_tags:ssh; do
     _hi_doc_member "${pair%%:*}" label

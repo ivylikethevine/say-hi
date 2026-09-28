@@ -475,6 +475,32 @@ function test_overlay_tar_carries_only_what_exists() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "colors" ]
 }
 
+# a member a variable points its tool at rides with the line that does it:
+# wiring.sh, one export per such member in the table's order, the paths left
+# for the target to expand - the file for env:, the directory for envdir:
+# (GLOSSARY: HI.62)
+# shellcheck disable=SC2016 # the wanted lines hold $_HI_CONFIG_DIR unexpanded
+function test_overlay_tar_wires_the_members_it_carries() {
+  local dir d want
+  dir="$(_hi_overlay_fixture wired colors inputrc bat.conf theme.yml oh-my-posh.toml)"
+  d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || return 1
+  _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
+  want='export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
+export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
+export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
+export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
+  [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
+  [ -f "$d/colors" ] && [ -f "$d/oh-my-posh.toml" ] || _hi_because "unpacked: $(ls "$d")"
+}
+
+# ...and only with them: an overlay of members hi's own code reads has no
+# wiring.sh, and one written into the overlay by hand is no member
+function test_overlay_tar_has_no_wiring_without_a_wired_member() {
+  local dir
+  dir="$(_hi_overlay_fixture unwired colors bashrc kakrc wiring.sh)"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bashrc,colors,kakrc" ]
+}
+
 # The overlay stream ships comment-stripped the way the payload does (the
 # same strip.awk): a copied-in default is mostly header, and every byte rides
 # each connect. settings.sh keeps its shebang; vimrc loses its `"` lines and
@@ -1501,6 +1527,8 @@ function run_hi_payload_tests() {
   _hi_check "Members are bare names" test_overlay_tar_members_are_bare_names
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
+  _hi_check "A wired member rides with its wiring.sh line" test_overlay_tar_wires_the_members_it_carries
+  _hi_check "...and there is no wiring.sh without one" test_overlay_tar_has_no_wiring_without_a_wired_member
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks

@@ -539,7 +539,9 @@ directory as one link.
 **Nothing but the overlay files travels.** `$_HI_OVERLAY_FILES` is an allow
 list, so your manager's metadata (`.chezmoiignore`, templates), a `.git` of
 your own, editor swap files, and anything private sharing that directory stay
-on your machine.
+on your machine. The one file beside them is hi's own `wiring.sh`
+([HI.62](GLOSSARY.md#hi62-generated-wiring)), written as the overlay is
+packed.
 
 **Pick one keeper for the files a manager owns.** `hi --configure` writes
 `settings.sh` in the **live** directory; if your manager also owns it, the two

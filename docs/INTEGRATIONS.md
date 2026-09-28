@@ -198,8 +198,9 @@ eza reads its colors from `$EZA_CONFIG_DIR/theme.yml`, and only under that
 name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
 `~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - or the
 `theme.yml` in `~/.config/say-hi/` when there is one. On a target,
-`common/paths.sh` points `EZA_CONFIG_DIR` at the directory holding the shipped
-copy; at home the variable is left alone. Like `BAT_CONFIG_PATH`, it is
+`EZA_CONFIG_DIR` points at the directory holding the shipped copy
+([HI.62](GLOSSARY.md#hi62-generated-wiring)); at home the variable is left
+alone. Like `BAT_CONFIG_PATH`, it is
 exported whatever `_HI_TOOL_ALIASES` says, so a bare `command eza` matches
 too.
 
@@ -239,8 +240,8 @@ stay your rc's.
 
 Every target gets the inputrc you already keep: hi ships the file readline
 reads here - `$INPUTRC`, else `~/.inputrc` - or the `inputrc` in
-`~/.config/say-hi/` when there is one. On a target, `common/paths.sh` points
-`INPUTRC` at the shipped copy, so bash's line editing and every readline
+`~/.config/say-hi/` when there is one. On a target, `INPUTRC` points at the
+shipped copy, so bash's line editing and every readline
 program started from the session take your bindings; zsh and fish have line
 editors of their own and ignore it. At home the variable is left alone.
 Nothing is asked about first: readline is a library, not a command on `PATH`.

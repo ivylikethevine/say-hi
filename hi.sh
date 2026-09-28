@@ -62,7 +62,14 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # the target (GLOSSARY: HI.41), and every member's one resolution order
 # (HI.61): the overlay's copy, else the user's own file at home, else the
 # tree's default, which the payload already carries. One row per member:
-# <member>|<paths.sh variable>|<tree, when config/ has a default>|<home>.
+# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<wire>|<home>.
+# <tool> is the binaries that read it, its name in a report first: home's
+# copy rides with any of them on $PATH. In parentheses it is a name alone,
+# for what nothing looks for - a shell, readline, a prompt program
+# (_hi_prompt_list asks about those).
+# <wire> is what points the tool at the member on a target, written there by
+# _hi_overlay_wiring (HI.62): env:<variables> names the file, envdir: the
+# directory holding it, and - leaves it to hi's own code.
 # <home> is the candidates, best first - eval'd, and constants, never user
 # data - or @fn for a lookup no path list can say, or - for none: a shell's
 # own rc (bashrc, zshrc, config.fish) rides only from the overlay, since
@@ -70,44 +77,44 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # candidate directory; a trailing / is a directory whose files ride one by
 # one, and a .d entry the same from the overlay alone (HI.58).
 _HI_OVERLAY_TABLE=(
-  'settings.sh|_HI_SETTINGS|-|-'
-  'colors|_HI_COLORS|tree|-'
-  'packages|_HI_PACKAGES|tree|-'
-  'vimrc|_HI_VIMRC|-|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
-  'init.lua|_HI_NVIMRC|-|"$_HI_XDG_CONFIG/nvim/init.lua"'
-  'nanorc|_HI_NANORC|-|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
-  'init.el|_HI_EMACSRC|-|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
-  'config.toml|_HI_HELIXRC|-|"$_HI_XDG_CONFIG/helix/config.toml"'
-  'kakrc|-|-|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
-  'aliases.sh|-|-|"$HOME/.aliases"'
-  'plugins.d|_HI_PLUGINS_D|-|-'
-  'bashrc|-|-|-'
-  'zshrc|-|-|-'
-  'config.fish|-|-|-'
-  'starship.toml|-|-|"${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"'
-  'oh-my-posh.json|-|-|@_hi_posh_home'
-  'oh-my-posh.yaml|-|-|@_hi_posh_home'
-  'oh-my-posh.toml|-|-|@_hi_posh_home'
-  'p10k.zsh|-|-|"${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}"'
-  'oh-my-zsh.zsh-theme|-|-|@_hi_theme_home'
-  'oh-my-bash.theme.sh|-|-|@_hi_theme_home'
-  'bash-it.theme.bash|-|-|@_hi_theme_home'
-  'tide.vars|-|-|"${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables"'
-  'theme.yml|-|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"'
-  'bat.conf|-|-|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
-  'ripgreprc|-|-|"${RIPGREP_CONFIG_PATH:-}"'
-  'fzfrc|-|-|"${FZF_DEFAULT_OPTS_FILE:-}"'
-  'lazygit.yml|-|-|"${LG_CONFIG_FILE:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" "$HOME/Library/Application Support/lazygit/config.yml"'
-  'inputrc|-|-|"${INPUTRC:-$HOME/.inputrc}"'
-  'tmux.conf|_HI_TMUX_CONF|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
-  'screenrc|_HI_SCREENRC|-|"${SCREENRC:-$HOME/.screenrc}"'
-  'micro/settings.json|_HI_MICRO_DIR|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'micro/bindings.json|_HI_MICRO_DIR|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'micro/init.lua|_HI_MICRO_DIR|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/layouts/|_HI_ZELLIJ_DIR|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/themes/|_HI_ZELLIJ_DIR|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'ssh_tags|-|-|@_hi_ssh_tags_file'
+  'settings.sh|_HI_SETTINGS|-|-|-|-'
+  'colors|_HI_COLORS|tree|-|-|-'
+  'packages|_HI_PACKAGES|tree|-|-|-'
+  'vimrc|_HI_VIMRC|-|vim|-|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
+  'init.lua|_HI_NVIMRC|-|nvim|-|"$_HI_XDG_CONFIG/nvim/init.lua"'
+  'nanorc|_HI_NANORC|-|nano|-|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
+  'init.el|_HI_EMACSRC|-|emacs|-|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
+  'config.toml|_HI_HELIXRC|-|hx helix|-|"$_HI_XDG_CONFIG/helix/config.toml"'
+  'kakrc|-|-|kak|-|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
+  'aliases.sh|-|-|-|-|"$HOME/.aliases"'
+  'plugins.d|_HI_PLUGINS_D|-|-|-|-'
+  'bashrc|-|-|(bash)|-|-'
+  'zshrc|-|-|(zsh)|-|-'
+  'config.fish|-|-|(fish)|-|-'
+  'starship.toml|-|-|(starship)|env:STARSHIP_CONFIG|"${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"'
+  'oh-my-posh.json|-|-|(oh-my-posh)|env:POSH_CONFIG POSH_THEME|@_hi_posh_home'
+  'oh-my-posh.yaml|-|-|(oh-my-posh)|env:POSH_CONFIG POSH_THEME|@_hi_posh_home'
+  'oh-my-posh.toml|-|-|(oh-my-posh)|env:POSH_CONFIG POSH_THEME|@_hi_posh_home'
+  'p10k.zsh|-|-|(powerlevel10k)|-|"${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}"'
+  'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|-|@_hi_theme_home'
+  'oh-my-bash.theme.sh|-|-|(oh-my-bash)|-|@_hi_theme_home'
+  'bash-it.theme.bash|-|-|(bash-it)|-|@_hi_theme_home'
+  'tide.vars|-|-|(tide)|-|"${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables"'
+  'theme.yml|-|-|eza|envdir:EZA_CONFIG_DIR|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"'
+  'bat.conf|-|-|bat batcat|env:BAT_CONFIG_PATH|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
+  'ripgreprc|-|-|rg|env:RIPGREP_CONFIG_PATH|"${RIPGREP_CONFIG_PATH:-}"'
+  'fzfrc|-|-|fzf|env:FZF_DEFAULT_OPTS_FILE|"${FZF_DEFAULT_OPTS_FILE:-}"'
+  'lazygit.yml|-|-|lazygit|env:LG_CONFIG_FILE|"${LG_CONFIG_FILE:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" "$HOME/Library/Application Support/lazygit/config.yml"'
+  'inputrc|-|-|(readline)|env:INPUTRC|"${INPUTRC:-$HOME/.inputrc}"'
+  'tmux.conf|_HI_TMUX_CONF|-|tmux|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
+  'screenrc|_HI_SCREENRC|-|screen|-|"${SCREENRC:-$HOME/.screenrc}"'
+  'micro/settings.json|_HI_MICRO_DIR|-|micro|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
+  'micro/bindings.json|_HI_MICRO_DIR|-|micro|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
+  'micro/init.lua|_HI_MICRO_DIR|-|micro|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
+  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'ssh_tags|-|-|(ssh)|-|@_hi_ssh_tags_file'
 )
 # the members alone, and those with a tree default the overlay's copy
 # replaces wholesale on a target (aliases.sh is not one - the overlay's is
@@ -395,7 +402,7 @@ function _hi_overlay_src() {
 function _hi_overlay_home() {
   local _hi_oh_r _hi_oh_v _hi_oh_c
   local -a _hi_oh_cs=()
-  [ "$_HI_REMOTE_SESSION" != 1 ] && _hi_overlay_row "$1" _hi_oh_r && _hi_tool_here "$1" || return 1
+  [ "$_HI_REMOTE_SESSION" != 1 ] && _hi_overlay_row "$1" _hi_oh_r && _hi_tool_here "$1" "$_hi_oh_r" || return 1
   _hi_oh_v="${_hi_oh_r#*|}" _hi_oh_c="${_hi_oh_r##*|}"
   _hi_oh_v="${_hi_oh_v%%|*}"
   case "$_hi_oh_c" in
@@ -450,29 +457,58 @@ function _hi_ssh_tags_file() {
   [ -s "$_hi_tf" ] && _hi_out "${2:-}" "$_hi_tf"
 }
 
-# _hi_tool_here <member> - is the tool that reads <member> on this machine?
-# The names common/aliases.sh gates each alias on; a member of no tool's
-# (and a prompt program's, which _hi_prompt_list already asked about) is a yes.
+# _hi_overlay_tools <member> [outvar] [row] - its row's tool column (the row
+# looked up unless handed in); 1 for a member of no tool's, or of no row
+function _hi_overlay_tools() {
+  local _hi_ot="${3:-}"
+  [ -n "$_hi_ot" ] || _hi_overlay_row "$1" _hi_ot || return 1
+  _hi_ot="${_hi_ot#*|*|*|}"
+  _hi_ot="${_hi_ot%%|*}"
+  [ "$_hi_ot" != - ] && _hi_out "${2:-}" "$_hi_ot"
+}
+
+# _hi_overlay_wiring <outvar> <member...> - the lines that point each tool at
+# its member on a target, one per member whose row has a wire, in
+# common/paths.sh's four-shell dialect, which sources them there. The paths
+# stay under $_HI_CONFIG_DIR for the target to expand, so a next hop writes
+# the same lines. Builtins only: every connect runs it. GLOSSARY: HI.62
+function _hi_overlay_wiring() {
+  local _hi_ow_out="$1" _hi_ow_m _hi_ow_w _hi_ow_p _hi_ow_v _hi_ow_l _hi_ow_all=""
+  shift
+  for _hi_ow_m; do
+    _hi_overlay_row "$_hi_ow_m" _hi_ow_w || continue
+    _hi_ow_w="${_hi_ow_w#*|*|*|*|}"
+    _hi_ow_w="${_hi_ow_w%%|*}"
+    _hi_ow_p="\$_HI_CONFIG_DIR/$_hi_ow_m"
+    case "$_hi_ow_w" in
+    env:*) ;;
+    envdir:*) _hi_ow_p="${_hi_ow_p%/*}" ;;
+    *) continue ;;
+    esac
+    _hi_ow_l="export"
+    # shellcheck disable=SC2086 # the split is the column
+    for _hi_ow_v in ${_hi_ow_w#*:}; do
+      _hi_ow_l="$_hi_ow_l $_hi_ow_v=\"$_hi_ow_p\""
+    done
+    _hi_ow_all="$_hi_ow_all$_hi_ow_l"$'\n'
+  done
+  printf -v "$_hi_ow_out" '%s' "$_hi_ow_all"
+}
+
+# _hi_tool_here <member> [row] - is the tool that reads <member> on this
+# machine? The table's binaries, which are the names common/aliases.sh gates
+# each alias on; a member of no tool's, or of one nothing looks for, is a yes.
 # The client is asked because only it can be, before a connect
 # (docs/INTEGRATIONS.md's _Which side is asked_).
 function _hi_tool_here() {
-  case "$1" in
-  vimrc) command -v vim ;;
-  init.lua) command -v nvim ;;
-  config.toml) command -v hx || command -v helix ;;
-  nanorc) command -v nano ;;
-  init.el) command -v emacs ;;
-  kakrc) command -v kak ;;
-  tmux.conf) command -v tmux ;;
-  screenrc) command -v screen ;;
-  micro/*) command -v micro ;;
-  zellij/*) command -v zellij ;;
-  bat.conf) command -v bat || command -v batcat ;;
-  theme.yml) command -v eza ;;
-  ripgreprc) command -v rg ;;
-  fzfrc) command -v fzf ;;
-  lazygit.yml) command -v lazygit ;;
-  esac >/dev/null 2>&1
+  local _hi_tl_t _hi_tl_b
+  _hi_overlay_tools "$1" _hi_tl_t "${2:-}" || return 0
+  case "$_hi_tl_t" in '('*) return 0 ;; esac
+  # shellcheck disable=SC2086 # the split is the column
+  for _hi_tl_b in $_hi_tl_t; do
+    ! command -v "$_hi_tl_b" >/dev/null 2>&1 || return 0
+  done
+  return 1
 }
 
 # The include scanner, in the dialect of each file it reads. Every member
@@ -824,6 +860,9 @@ function _hi_stage_tar() {
     # is what broke the Windows runners. Writing in place also leaves every
     # mode alone, so hi.sh stays 0755 for the relay with nothing to restore.
     find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
+    # the overlay's generated member, last: hi wrote it, so there is nothing
+    # in it to scan or strip
+    [ -z "${stage_wiring:-}" ] || printf '%s' "$stage_wiring" >"$_hi_st_root/wiring.sh" || exit 1
     _hi_tar_gz -C "$stage" "${stage_out[@]}"
   )
 }
@@ -835,13 +874,16 @@ function _hi_stage_tar() {
 # connect. The first tar's -h resolves a dotfile manager's symlinks into
 # content; the final tar names the members, so strip.awk never ships. A
 # member _hi_overlay_src packs from elsewhere is copied in under its own name.
+# wiring.sh rides beside the members it has a line for (GLOSSARY: HI.62).
 function _hi_overlay_tar() {
   local -a present=("$@")
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
   local -a stage_in=() stage_out=("${present[@]}") stage_excl=() stage_add=()
-  local stage_lint=1
+  local stage_lint=1 stage_wiring=""
   local f src
+  _hi_overlay_wiring stage_wiring "${present[@]}"
+  [ -z "$stage_wiring" ] || stage_out+=(wiring.sh)
   for f in "${present[@]}"; do
     if _hi_overlay_src "$f" src && [ "$src" != "$_HI_CONFIG_DIR/$f" ]; then
       stage_add+=("$f" "$src")
@@ -862,9 +904,13 @@ function _hi_cksum() {
 }
 
 # What changes an overlay tar without touching any member's mtime: the member
-# list itself. Cksummed, not spelled out, to keep the cache filename short.
+# list itself, and the wiring written from it, which a newer hi.sh can change
+# under the same list. Cksummed, not spelled out, to keep the cache filename
+# short.
 function _hi_overlay_cache_key() {
-  _hi_cksum "$*"
+  local _hi_ok_w
+  _hi_overlay_wiring _hi_ok_w "$@"
+  _hi_cksum "$*$_hi_ok_w"
 }
 
 # _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two

@@ -512,20 +512,25 @@ function test_defers_to_prompt_tool_when_asked() {
 # (starship.toml -> $STARSHIP_CONFIG, theme.yml -> $EZA_CONFIG_DIR - the
 # directory, since eza fixes the file name - bat.conf -> $BAT_CONFIG_PATH,
 # inputrc -> $INPUTRC, and ripgreprc, fzfrc, lazygit.yml the same); at
-# home the variable is left alone, whatever the overlay holds
+# home the variable is left alone, whatever the overlay holds. The lines that
+# do it are the ones the client packs beside the file (GLOSSARY: HI.62);
+# kakoune's is common/paths.sh's own.
 # <shell> <overlay file> <variable> <expected on a target> [NAME=VALUE...]
+# shellcheck disable=SC2016 # the child bash expands its own script
 function test_remote_session_exports_overlay_config() {
   local shell="$1" file="$2" var="$3" want="$4" script out home
   shift 4
   mkdir -p "$_HI_WORKDIR/cfg"
   printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
+  bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w "$m" && printf %s "$w"' \
+    _ "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   case "$shell" in
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${'"$var"':-}"' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $'"$var" ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@" _HI_REMOTE_SESSION=1)"
   home="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")"
-  rm -f "$_HI_WORKDIR/cfg/$file"
+  rm -f "$_HI_WORKDIR/cfg/$file" "$_HI_WORKDIR/cfg/wiring.sh"
   [ "$out" = "$want" ] && [ -z "$home" ]
 }
 

@@ -211,39 +211,16 @@ function _hi_doc_tilde() {
 }
 
 # _hi_doc_member <member> <outvar> - <member> with the program that reads it,
-# `vimrc (vim)`, as the label a row names it by; hi's own files go bare
+# `vimrc (vim)`, as the label a row names it by; hi's own files go bare. The
+# program is the first name in the member's tool column of hi.sh's
+# $_HI_OVERLAY_TABLE.
 function _hi_doc_member() {
-  local tool=""
-  case "$1" in
-  vimrc) tool=vim ;;
-  init.lua) tool=nvim ;;
-  config.toml) tool=hx ;;
-  nanorc) tool=nano ;;
-  init.el) tool=emacs ;;
-  kakrc) tool=kak ;;
-  tmux.conf) tool=tmux ;;
-  screenrc) tool=screen ;;
-  micro/*) tool=micro ;;
-  zellij/*) tool=zellij ;;
-  bat.conf) tool=bat ;;
-  theme.yml) tool=eza ;;
-  ripgreprc) tool=rg ;;
-  fzfrc) tool=fzf ;;
-  lazygit.yml) tool=lazygit ;;
-  inputrc) tool=readline ;;
-  bashrc) tool=bash ;;
-  zshrc) tool=zsh ;;
-  config.fish) tool=fish ;;
-  starship.toml) tool=starship ;;
-  oh-my-posh.*) tool=oh-my-posh ;;
-  p10k.zsh) tool=powerlevel10k ;;
-  oh-my-zsh.zsh-theme) tool=oh-my-zsh ;;
-  oh-my-bash.theme.sh) tool=oh-my-bash ;;
-  bash-it.theme.bash) tool=bash-it ;;
-  tide.vars) tool=tide ;;
-  ssh_tags) tool=ssh ;;
-  esac
-  printf -v "$2" '%s' "$1${tool:+ ($tool)}"
+  local _hi_dm_t=""
+  _hi_overlay_tools "$1" _hi_dm_t || _hi_dm_t=""
+  _hi_dm_t="${_hi_dm_t#\(}"
+  _hi_dm_t="${_hi_dm_t%\)}"
+  _hi_dm_t="${_hi_dm_t%% *}"
+  printf -v "$2" '%s' "$1${_hi_dm_t:+ ($_hi_dm_t)}"
 }
 
 # _hi_doc_glyph <sev> - the severity's mark and color into $glyph and $color

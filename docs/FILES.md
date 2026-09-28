@@ -184,6 +184,11 @@ directory, and zellij's `layouts/` and `themes/`, ride member by member; a membe
 | `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                 | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target                                    |
 | `ssh_tags`                                                                                  | -                                                                     | -                 | a `hi` run from inside a session, for the next hop's tag colors                                        |
 
+`wiring.sh` rides beside them, written by hi as the overlay is packed: the
+lines that point each tool at its member on a target
+([HI.62](GLOSSARY.md#hi62-generated-wiring)). It is not a member, and one in
+`$_HI_CONFIG_DIR` is not read.
+
 A member in the _Replaces_ column travels in the tree's place, not beside it:
 the payload leaves out a default your overlay shadows, so the wire holds one
 `colors`, not two - and an editor default whose editor this machine lacks

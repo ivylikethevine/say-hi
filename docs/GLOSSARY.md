@@ -70,6 +70,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.59 plugins](#hi59-plugins)
 - [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
 - [HI.61 one overlay priority](#hi61-one-overlay-priority)
+- [HI.62 generated wiring](#hi62-generated-wiring)
 
 ## HI.01 empty-array guard
 
@@ -442,8 +443,7 @@ directly), so `common/bash.sh` clears that array too - bash has no zsh-style
 Home's config rides the overlay (HI.41) and applies on a target only
 (`_HI_REMOTE_SESSION=1`), over whatever the target has: `$STARSHIP_CONFIG` /
 `$POSH_CONFIG` (and `$POSH_THEME`, which older oh-my-posh releases read) from
-`common/paths.sh` (paths.sh because fish sources it
-natively), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh, oh-my-bash,
+the generated wiring ([HI.62](#hi62-generated-wiring)), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh, oh-my-bash,
 or bash-it theme file the home rc names sourced over the framework, and
 tide's `tide_*` universal variables exported as globals - exported because
 tide renders in a background `fish -c` that must see them over the target's
@@ -690,10 +690,10 @@ so a tool's config on every target is the one in force at home:
 the tool itself reads on the client (HI.61's order; a prompt program's only
 when `_hi_prompt_list` names it), so there is one copy to edit and none to
 drift.
-`common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
-`$EZA_CONFIG_DIR` - the directory, since eza fixes the file name - `$INPUTRC`,
-...) at
-the overlay on a target only, and the shell files source or read the
+The generated wiring ([HI.62](#hi62-generated-wiring)) points each tool's
+own variable (`$STARSHIP_CONFIG`, `$EZA_CONFIG_DIR` - the directory, since eza
+fixes the file name - `$INPUTRC`, ...) at the overlay on a target only, and
+the shell files source or read the
 frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
@@ -1292,7 +1292,10 @@ Every overlay member resolves in one order, written once as `hi.sh`'s
 `$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
 else the tree's default where `config/` holds one. A row names the member, the `common/paths.sh`
 variable that carries it to the shells (or `-`), whether `config/` holds a
-default (`$_HI_OVERLAY_SHADOWS` is derived from that column), and the home
+default (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that
+reads it (the binaries `_hi_tool_here` looks for, the first of them its name
+in `hi --doctor`; in parentheses, a name nothing looks for), its wire
+([HI.62](#hi62-generated-wiring)), and the home
 tier: candidate paths best first, a `@function` where no list can say it
 (oh-my-posh's rc-named config, the theme a framework's rc variable names,
 ssh's tag map), or `-` for none.
@@ -1329,3 +1332,30 @@ whole, from `core.sh`'s `$_HI_MICRO_HOME` and `$_HI_ZELLIJ_HOME`, which spell
 the `${VAR:-}` its dialect cannot (`config.fish` mirrors them); screen's
 `screenrc` resolves the same way, through `$_HI_SCREENRC_HOME`
 (`$SCREENRC`, else `~/.screenrc`).
+
+## HI.62 generated wiring
+
+Pointing a tool at its carried config is a line on the target, and the
+target's line has to parse in bash, zsh, fish, and sh: `common/paths.sh`'s
+dialect, which has no loop to walk a table with. So the client writes the
+lines. A row's wire column says how: `env:<variables>` exports each as the
+member's path, `envdir:<variable>` as the directory holding it (eza and its
+fixed `theme.yml`), and `-` leaves the member to hi's own code.
+`_hi_overlay_wiring` turns the members an overlay archive carries into
+`wiring.sh`, which `_hi_overlay_tar` stages beside them, and `paths.sh`
+sources it on a target only. At home each tool's own config is already in
+force.
+
+A target therefore knows no wired member by name, tests no file per member
+per shell start, and gets no line for a member that stayed home. The paths
+are written under `$_HI_CONFIG_DIR`, unexpanded, so a hop taken from inside a
+session writes the same lines from the same list. `wiring.sh` is no member:
+one in the overlay is not read, and the archive has none when no member it
+carries has a wire.
+
+The lines are part of `_hi_overlay_cache_key`. The member list alone would
+hand an archive cached by an older `hi.sh` to a newer one that wires the same
+members another way.
+
+kakoune's line stays in `paths.sh`: it sits behind `_HI_DISABLE_EDITORS` and
+`_HI_DISABLE_KAKOUNE`, which the target reads.

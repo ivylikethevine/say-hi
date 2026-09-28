@@ -42,7 +42,8 @@ Three ways in, each its own shape:
 
 - **`$_HI_OVERLAY_TABLE`** in `hi.sh`, a row per carried member:
   the member, its `common/paths.sh` variable, whether `config/` holds a
-  default, and where it is looked for at home
+  default, the tool that reads it, what points the tool at it on a target,
+  and where it is looked for at home
   ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)). Built-in only.
 - **`plugins.d/`**, the user's files in the subset bash, zsh, and fish all
   parse, sourced at every shell start on both sides, with one hook,
@@ -55,24 +56,20 @@ Three ways in, each its own shape:
 `ripgreprc` is the simplest kind, a file one variable names, and it is
 written down in:
 
-| Where               | What                                                                                                              |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `hi.sh`             | its `$_HI_OVERLAY_TABLE` row                                                                                      |
-| `hi.sh`             | `_hi_tool_here`: the member to its binary                                                                         |
-| `common/paths.sh`   | the target's `export RIPGREP_CONFIG_PATH=`                                                                        |
-| `scripts/doctor.sh` | `_hi_doc_member`: the member to its tool's label                                                                  |
-| six docs            | FILES.md, SETTINGS.md, INTEGRATIONS.md, GLOSSARY.md, CONTRIBUTING.md's _What 1.x will not break_, and `docs/hi.1` |
-| five suites         | `payload_test`, `rc_test` for bash and fish, `doctor_test`, `paths_test`, `framework_test`                        |
+| Where       | What                                                                                                              |
+| ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `hi.sh`     | its `$_HI_OVERLAY_TABLE` row: the member, its tool, its wire, its places at home                                  |
+| six docs    | FILES.md, SETTINGS.md, INTEGRATIONS.md, GLOSSARY.md, CONTRIBUTING.md's _What 1.x will not break_, and `docs/hi.1` |
+| four suites | a case each in `payload_test`, `rc_test`, `doctor_test`, and `framework_test`                                     |
 
-A config pointed at by a flag adds a `common/aliases.sh` line. One with a
-dialect adds `$_HI_STRIP_NAMES` and a name test in the include scan
+A config pointed at by a flag is still more than its row: a
+`common/aliases.sh` line, and its variable's lines in `common/paths.sh`. One
+with a dialect adds `$_HI_STRIP_NAMES` and a name test in the include scan
 ([HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan)). One with a
 toggle adds `_HI_TOGGLES`, `common/config.fish`'s mirror, `paths.sh`'s
 `_HI_DISABLE_LOCAL` block, and `scripts/configure.sh`'s
-`_HI_FEATURE_PROMPTS`.
-
-So a member is one record kept in four to eight rosters, and `paths_test`
-and `drift` exist to hold the copies together.
+`_HI_FEATURE_PROMPTS`. `paths_test` and `drift` exist to hold those copies
+together.
 
 ## The overlay by wiring
 
@@ -86,7 +83,9 @@ and `drift` exist to hold the copies together.
 | hi's own  | 4    | `settings.sh`, `colors`, `packages`, `ssh_tags`                                                            | read by hi                        |
 
 The first four kinds, 24 of 38 rows, are one sentence: carry a file, point a
-tool at it. Those are data. What stays code beside a row:
+tool at it. Those are data. `env` and `envdir` are written from the row
+today, kakoune's line excepted; `flag` and `flagdir` are still spelled in
+`common/aliases.sh`. What stays code beside a row:
 
 - oh-my-posh's home lookup reads rc files, and one program is three members.
 - nvim takes an `env XDG_*_HOME=` prefix on a target.
@@ -102,56 +101,59 @@ tool at it. Those are data. What stays code beside a row:
 
 A member has a **client half**: find it at home, check its tool is here,
 scan it, strip it, pack it, name it in `hi --doctor`. That runs in bash, in
-`hi.sh` and `scripts/`, and reads the table already; `_hi_tool_here` and
-`_hi_doc_member` are the two rosters left beside it.
+`hi.sh` and `scripts/`, and reads the table.
 
 It also has a **target half**: point the tool at the file. That runs in bash,
 zsh, fish, and sh, in `common/paths.sh`'s dialect, which has no loop, no
-function, and no `case`. Nothing written in it can walk a table, so every
-wiring is spelled by hand, and a row of the user's own has nowhere to run.
+function, and no `case`. Nothing written in it can walk a table, so a wiring
+is spelled there by hand, or written for it by the client.
 
 ### Generated wiring
 
-The client writes the target half. The overlay's stager already copies in a
-member packed from elsewhere; it also writes one generated member, a line in
-the four-shell dialect for each member that ships:
+The client writes the target half
+([HI.62](GLOSSARY.md#hi62-generated-wiring)): `wiring.sh`, a line in the
+four-shell dialect for each member the overlay's archive carries, which
+`common/paths.sh` sources on a target.
 
 ```sh
 export RIPGREP_CONFIG_PATH="$_HI_CONFIG_DIR/ripgreprc"
+export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
+```
+
+So:
+
+- A target knows no wired member by name, and a row added by the user needs
+  no change to hi.
+- Only a member that ships has a line: no `[ -f ... ]` per member per shell
+  start.
+- A hop taken from inside a session writes the same lines: the paths are
+  under `$_HI_CONFIG_DIR`, and the list is the same.
+- The lines are part of the overlay cache's key.
+
+A flag is an alias, and an alias is wanted at home too, for an overlay copy.
+Its line would read:
+
+```sh
 command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf" || true
 ```
 
-`common/paths.sh` sources it in place of its own per-member lines. Then:
-
-- A target knows no member by name, so a row added by the user needs no
-  change to hi.
-- Only a member that ships has a line: no `[ -f ... ]` per member per shell
-  start.
-- A member switched off is neither sent nor wired, so a target reads no
-  toggle for it.
-- `paths.sh`'s target-only lines leave the payload.
-- A relayed hop forwards the generated member as written: its paths are
-  under `$_HI_CONFIG_DIR`, and the middle box has no home tier to write one
-  from.
-
-The generated member is on the member list, and its text is part of the
-overlay cache's key.
-
 ### The row
 
-One row a plugin, in the table's own style:
+As the table has it, with the two columns still to come:
 
 ```text
-name|tools|member|home, best first|wire|dialect|group
-ripgrep|rg|ripgreprc|"${RIPGREP_CONFIG_PATH:-}"|env:RIPGREP_CONFIG_PATH|-|cli
-eza|eza|theme.yml|"${EZA_CONFIG_DIR:-$_HI_XDG_CONFIG/eza}/theme.yml"|envdir:EZA_CONFIG_DIR|-|cli
-tmux|tmux|tmux.conf|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"|flag:-f|tmux|mux
+member|variable|tree|tool|wire|home, best first   (then: dialect, group)
+ripgreprc|-|-|rg|env:RIPGREP_CONFIG_PATH|"${RIPGREP_CONFIG_PATH:-}"
+theme.yml|-|-|eza|envdir:EZA_CONFIG_DIR|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"
+inputrc|-|-|(readline)|env:INPUTRC|"${INPUTRC:-$HOME/.inputrc}"
 ```
 
-- **tools** stands in for `_hi_tool_here` and `_hi_doc_member`, and can feed
-  the header's package check: a config carried for a tool the target lacks.
-- **wire** is `env:`, `envdir:`, `flag:`, or `flagdir:`, or `-` for a member
-  hi's own code reads.
+- **tool** is the binaries that read the member, any of which on `$PATH`
+  says home's copy rides; in parentheses, a name nothing looks for. It can
+  also feed the header's package check: a config carried for a tool the
+  target lacks.
+- **wire** is `env:` or `envdir:` today, `flag:` and `flagdir:` to come, and
+  `-` for a member hi's own code reads.
 - **dialect** stands in for the include scan's name tests and
   `$_HI_STRIP_NAMES`; `-` passes through untouched, as a name that is no
   dialect does now.
@@ -162,7 +164,7 @@ header on every connect. The user's rows are one overlay member in the same
 format, itself on the member list, so a relay knows the names to forward.
 
 A row of the user's is wired on a target only. At home the tool reads its
-own config unasked, the rule the `env` members keep today.
+own config unasked, the rule the `env` members keep.
 
 ### On and off
 
@@ -235,34 +237,33 @@ shadowed default.
   [_What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break) names
   every member and `plugins.d`'s hooks, so the row is settled before the
   1.0 tag.
-- **Flags at home.** Generated wiring is a target's. An overlay copy of an
+- **Flags at home.** `wiring.sh` is a target's. An overlay copy of an
   editor rc needs its alias at home too, so `common/aliases.sh` keeps the
   built-in flag lines; generating them at home as well needs a cache and a
   rule for when it is stale.
+- **A toggle the target reads.** kakoune's line sits behind
+  `_HI_DISABLE_EDITORS` and `_HI_DISABLE_KAKOUNE`, read where the shell
+  starts. The client cannot stand in for them with its own environment:
+  under `_HI_DISABLE_LOCAL=1` every toggle is set here and none on a target.
 
 ## The work
 
-In order; the first two change no behavior.
+In order.
 
-1. [ ] **A member's tool is a column** — `_hi_tool_here` and
-       `_hi_doc_member` are two more rosters of what the table knows.
-       **Do:** add the tools column and read it from both callers. **Ticks
-       when:** neither function names a member.
+1. [ ] **A target's wiring is generated** — shipped: the `wire` column,
+       `wiring.sh` for the `env` and `envdir` members, and
+       `common/paths.sh` sourcing it. What is left is kakoune's line, which
+       waits on the entry that switches a plugin. **Ticks when:** `paths.sh`
+       names no member behind `_HI_REMOTE_SESSION = 1`.
 
-2. [ ] **A target's wiring is generated** — **Do:** the `wire` column, the
-       generated member for `env` and `envdir`, and `common/paths.sh`
-       sourcing it. **Ticks when:** `paths.sh` names no member behind
-       `_HI_REMOTE_SESSION = 1`, and `rc_test`'s target cases pass off the
-       generated member.
-
-3. [ ] **A tool's config rides without a change to hi** — adding a tool hi
+2. [ ] **A tool's config rides without a change to hi** — adding a tool hi
        does not know means a `plugins.d` member or a change to hi. **Do:**
        read the user's rows from the overlay, through the same order and
        include scan. **Ticks when:** a tool of the user's own reads its home
        config on a target with no code change, and
        [SETTINGS.md](SETTINGS.md) shows how.
 
-4. [ ] **Everyday CLI configs ride** — shipped: `ripgreprc`
+3. [ ] **Everyday CLI configs ride** — shipped: `ripgreprc`
        (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
        `lazygit.yml` (`$LG_CONFIG_FILE`) are members, each carried from
        where its tool keeps it and listed in
@@ -274,13 +275,13 @@ In order; the first two change no behavior.
        `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
        (bookworm's fzf predates the variable, and it ships no lazygit).
 
-5. [ ] **One list switches a plugin** — **Do:** the `dialect` and `group`
-       columns, the on/off list, and generated `flag` and `flagdir` lines on
-       a target. **Ticks when:** a member switched off by name, and one by
+4. [ ] **One list switches a plugin** — **Do:** the `dialect` and `group`
+       columns, the on/off list, generated `flag` and `flagdir` lines on a
+       target, and kakoune's line among the generated ones. **Ticks when:** a member switched off by name, and one by
        group, reach no target, and `$_HI_STRIP_NAMES` and the include scan
        name no member.
 
-6. [ ] **An editor's side files ride with its rc** — kakoune's `colors/` (a
+5. [ ] **An editor's side files ride with its rc** — kakoune's `colors/` (a
        `colorscheme` the `kakrc` names) stays home, so the target falls back
        to the default scheme, and helix's `languages.toml` has no flag to
        point `hx` at. **Do:** carry kak's `colors/` member by member, as
@@ -289,7 +290,7 @@ In order; the first two change no behavior.
        verdict into [INTEGRATIONS.md](INTEGRATIONS.md). **Ticks when:** a
        `kakrc` with `colorscheme <own>` shows that scheme on a target.
 
-7. [ ] **The header probes only what was asked** — the default
+6. [ ] **The header probes only what was asked** — the default
        `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so every local
        terminal or tmux pane runs docker, podman, nomad, and kubectl.
        **Do:** leave the backend cells out of the local default (a session
@@ -299,14 +300,14 @@ In order; the first two change no behavior.
        default header, or keep them and fill them in after the first prompt?
        Either changes what a local header shows today.
 
-8. [ ] **A header cell of the user's own** — every cell is one
+7. [ ] **A header cell of the user's own** — every cell is one
        `_hi_cell_<word>` behind a dispatch, and a `plugins.d` member can
        only set a prompt segment. **Do:** `header.d`, as
        [Header cells](#header-cells) has it. **Ticks when:** a `header.d`
        member's cell draws on a target where `$_HI_HEADER_ORDER` puts it,
        and [INTEGRATIONS.md](INTEGRATIONS.md) shows how.
 
-9. [ ] **A prompt loader nobody was handed stays home** — **Do:** cut the
+8. [ ] **A prompt loader nobody was handed stays home** — **Do:** cut the
        framework loaders outside the handed list from the payload. **Ticks
        when:** a connect handed starship alone ships no framework's loader,
        and `--group bench` reads the smaller payload.
