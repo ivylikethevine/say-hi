@@ -154,14 +154,14 @@ jobs:
       #
       # `version` pinned as well: left unset the action installs whatever vhs
       # tagged last, and the binary is not covered by the SHA above. v0.12.0
-      # (2026-09-09 09:50 UTC) reached the 16:07 run that day and every one of
-      # the six tapes came back "vhs exited 0 but <gif> was not rewritten" -
-      # the renderer is a build input like any other, so it gets a version.
-      # Bump it deliberately, after a dispatch run renders all six green.
+      # reached a run the day it was tagged and every one of the six tapes
+      # came back "vhs exited 0 but <gif> was not rewritten" (fixed in
+      # v0.12.1) - the renderer is a build input like any other, so it gets a
+      # version. Bump it deliberately, and dispatch a run that renders all six.
       - name: Install vhs, ttyd, and ffmpeg
         uses: charmbracelet/vhs-action@f6d7db07a432fcd3b06772628d36a57f96d95dcf # v2.1.1
         with:
-          version: v0.11.0
+          version: v0.12.1
           install-fonts: "true"
 
       # Five minutes for one tape: a healthy render takes one or two, and a

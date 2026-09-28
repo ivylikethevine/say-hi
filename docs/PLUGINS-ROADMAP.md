@@ -227,11 +227,10 @@ shadowed default.
 
 ## Risks
 
-- **`eval` of the home column.** `hi.sh` evaluates the table's, where every
-  value is a constant. A `carry` line's is data, read by `_hi_path_list`
-  and never evaluated ([HI.63](GLOSSARY.md#hi63-carry-rows)); the table's
-  own `eval` is one of those
-  [README's Roadmap](../README.md#roadmap) counts down.
+- **The home column.** The table's and a `carry` line's are both data,
+  read by `_hi_path_list` and never evaluated
+  ([HI.63](GLOSSARY.md#hi63-carry-rows)); an `@fn` is the table's alone,
+  and a `carry` line that names one is turned down.
 - **The allow list.** A `carry` line can name any file, a credentials file
   included. It was asked for, which a `~/.bashrc` found at home was not, and
   `hi --doctor` names every file a line carries, by path.

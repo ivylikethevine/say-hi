@@ -529,7 +529,10 @@ notes.txt | -      | -                | ~/notes.txt
 - **home** is where the file is here, candidates a `:` apart, the first
   that exists winning. A candidate starts at `/`, at `~/`, or at a
   variable's name (`$XDG_CONFIG_HOME/...`), and is skipped while that
-  variable is unset. Nothing else in it expands, and nothing in it runs.
+  variable is unset; written as several a `,` apart
+  (`$TASKRC , ~/.taskrc`), it is the first of them not skipped, the way a
+  tool looks in its default place only once its variable is unset. Nothing
+  else in it expands, and nothing in it runs.
 
 `hi --add-plugin taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes the
 first line above, quoted so the shell leaves its `$` and `~` alone, and

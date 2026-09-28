@@ -396,7 +396,7 @@ framework missing.
 
 ## The lint gate
 
-`--group lint` is four suites, thirty checks between them. Each suite is
+`--group lint` is four suites, twenty-nine checks between them. Each suite is
 its own process (`shellcheck`, `dialects`, `tools`, `drift`) with its own
 tally in the summary table, so a failure in one never hides what the others
 found.
@@ -471,7 +471,7 @@ skipping yellow when its tool isn't installed (CI has all nine):
   skipping `.prettierignore`'s files. Fix with `prettier --write` on the paths
   it names.
 
-**`drift`** (`tests/lint/drift_test.sh`) — sixteen repo-consistency sweeps,
+**`drift`** (`tests/lint/drift_test.sh`) — seventeen repo-consistency sweeps,
 each checking that something written down elsewhere still agrees with the tree:
 
 - **13. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
@@ -522,8 +522,13 @@ each checking that something written down elsewhere still agrees with the tree:
 - **27. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
 - **28. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
-  its digest — check 29 strips digests before comparing, so it can't see one
+  its digest — check 27 strips digests before comparing, so it can't see one
   tag pinned two ways.
+- **29. The eval roster**: every `eval` in the payload and `scripts/` has a
+  row in `tests/lint/eval_roster` saying what it evaluates, and every file's
+  count of its kin (a `source` of a path in a variable, a shell's `-c`, a
+  recursive `rm`) matches its row; a row nothing matches fails too, so the
+  roster only counts down.
 
 ## Test levers
 

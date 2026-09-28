@@ -109,6 +109,30 @@ function _hi_section_add() {
   fi
 }
 
+# _hi_packages_drift <file> <tree's> - what a packages file of the user's own
+# gets wrong unseen, a line each: `group|<name>` for a group the tree's has
+# and <file> lacks, since a copy replaces the tree's and never gains one added
+# later, and `marker|<row>` for a row with a - or + past its first name,
+# which is read as part of a name nothing matches
+function _hi_packages_drift() {
+  local _hi_pd_l _hi_pd_have=" "
+  [ -f "$1" ] || return 0
+  while IFS=$' ' read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
+    case "$_hi_pd_l" in
+    *'#'*) ;;
+    '['*']') _hi_pd_have="$_hi_pd_have$_hi_pd_l " ;;
+    *,[-+]*) printf 'marker|%s\n' "$_hi_pd_l" ;;
+    esac
+  done <"$1"
+  [ "$1" != "$2" ] && [ -f "$2" ] || return 0
+  while IFS=$' ' read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
+    case "$_hi_pd_l" in *'#'*) ;; '['*']')
+      case "$_hi_pd_have" in *" $_hi_pd_l "*) ;; *) printf 'group|%s\n' "${_hi_pd_l:1:${#_hi_pd_l}-2}" ;; esac
+      ;;
+    esac
+  done <"$2"
+}
+
 # _hi_term_cols <outvar> - the terminal's width, or empty: $_HI_TERM_COLS (a
 # suite's pin), else - only when stdout is a tty, so captured output keeps
 # its fixed width - $COLUMNS, then tput. header.sh's _hi_draw_width rule.
@@ -210,8 +234,8 @@ function _hi_setting_get() {
     unset "$_hi_sg_name"
     # shellcheck source=/dev/null # a config file, or one a test wrote - not one shellcheck can trace
     . "$_hi_sg_file" >/dev/null 2>&1
-    eval "[ \"\${${_hi_sg_name}+x}\" = x ]" || exit 1
-    eval "printf '%s' \"\$${_hi_sg_name}\""
+    [ "${!_hi_sg_name+x}" = x ] || exit 1
+    printf '%s' "${!_hi_sg_name}"
   )" || return 1
   _hi_out "$_hi_sg_outvar" "$_hi_sg_val"
 }

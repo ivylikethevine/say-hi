@@ -88,8 +88,9 @@ Adds a line to ~/.config/say-hi/carry: <member> is the name the file rides
 under, <tool> the command that reads it (or -), <wire> how a target's tool
 finds it (env:<variables>, envdir:<variable>, 'flag:<command> <flag>',
 'flagdir:<command> <flag>', or -), and <home> where the file is here: paths
-a : apart, each starting at /, ~/, or \$NAME. Quote <home>, or the shell
-expands it first.
+a : apart, each starting at /, ~/, or \$NAME; several a , apart are one
+place, the first whose variable is set. Quote <home>, or the shell expands
+it first.
 
   -n, --dry-run    say what would be written, and write nothing
 

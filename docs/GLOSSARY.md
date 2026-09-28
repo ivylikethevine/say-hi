@@ -101,7 +101,8 @@ strings via `_hi_kv_get`/`_hi_kv_set` (`tests/lib/fixtures.sh`).
 ## HI.04 dynamic-name assignment
 
 bash 3.2 has no namerefs, so writing into a caller-named variable goes through
-`eval` (`_hi_read_lines`, `_hi_widen_to`) or `printf -v` for a single string.
+`eval` for an array (`_hi_read_lines`) or `printf -v` for a single string,
+and reading one through `${!name}` where only bash reads the file.
 Reading a caller's `local` works through bash's dynamic scoping — which cuts
 both ways: a helper that writes an out-var by name must not declare a `local`
 of the same name, or it writes into its own (`_hi_setting_get`'s locals are
@@ -1392,13 +1393,14 @@ include scan, the cache, the wiring ([HI.62](#hi62-generated-wiring)), and
 `hi --doctor` take a row of the user's as they take one of hi's. It is read
 once per `$_HI_CONFIG_DIR`, the first time a row is asked for.
 
-The table's home column is code: constants, `eval`'d. A carry's is the
-user's data and is never evaluated. `_hi_path_list` reads it as candidates a
-`:` apart, best first, each starting at `/`, at `~/`, or at `$NAME`, which is
-that variable's value and drops the candidate while it is unset or empty.
-Nothing else expands: no `${NAME:-default}` (list the default as the next
-candidate), no command substitution, no glob. A grammar can grow in a 1.x
-where an `eval` could never be narrowed.
+A home column, the table's or a carry's, is data and is never evaluated.
+`_hi_path_list` reads it as candidates a `:` apart, best first, each a path
+starting at `/`, at `~/`, or at `$NAME`, which is that variable's value and
+drops the path while it is unset or empty. A candidate may be several paths
+a `,` apart, of which the first not dropped is the one: `$NAME/rc , ~/.rc`
+is `${NAME:-$HOME}`'s place, where a tool looks once its variable is unset.
+Nothing else expands: no `${NAME:-default}`, no command substitution, no
+glob. A grammar can grow in a 1.x where an `eval` could never be narrowed.
 
 A line the table cannot hold is left out and kept, with its number and the
 reason, in `$_HI_CARRY_BAD` for `hi --doctor`: a member that is no plain file

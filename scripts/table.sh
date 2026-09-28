@@ -49,11 +49,11 @@ function _hi_visible_len() {
 function _hi_widen_to() {
   local var="$1" n cur
   shift
-  eval "cur=\$$var"
+  cur="${!var}"
   for n in "$@"; do
     ((n > cur)) && cur=$n
   done
-  eval "$var=\$cur"
+  printf -v "$var" '%s' "$cur"
 }
 
 # _hi_widen <var> <string...> - grow the width variable named <var> to the

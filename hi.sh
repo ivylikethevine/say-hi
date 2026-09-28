@@ -76,9 +76,9 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # <off> is the toggles that switch it off, spelled as a wiring line reads
 # them, or - for none: with any of them at 1 the member stays home
 # (_hi_plugin_off), and a target tests them again before it takes the wire.
-# <home> is the candidates, best first - eval'd, and constants, never user
-# data: a row of the user's own (carry, below) is read by _hi_path_list
-# instead - or @fn for a lookup no path list can say, or - for none: a shell's
+# <home> is the candidates, best first, in _hi_path_list's grammar, which a
+# row of the user's own (carry, below) shares - or @fn for a lookup no path
+# list can say, or - for none: a shell's
 # own rc (bashrc, zshrc, config.fish) rides only from the overlay, since
 # the rc a target runs should be asked for, not found. A member under a / is its file in each
 # candidate directory; a trailing / is a directory whose files ride one by
@@ -87,41 +87,41 @@ _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-'
   'packages|_HI_PACKAGES|tree|-|-|-|-|-'
-  'vimrc|_HI_VIMRC|-|vim|editors|flag:vim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
-  'init.lua|_HI_NVIMRC|-|nvim|editors|flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$_HI_XDG_CONFIG/nvim/init.lua"'
-  'nanorc|_HI_NANORC|-|nano|editors|flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
-  'init.el|_HI_EMACSRC|-|emacs|editors|flag:emacs -nw -q -l|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
-  'config.toml|_HI_HELIXRC|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|"$_HI_XDG_CONFIG/helix/config.toml"'
-  'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
-  'aliases.sh|-|-|-|shell|-|-|"$HOME/.aliases"'
+  'vimrc|_HI_VIMRC|-|vim|editors|flag:vim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
+  'init.lua|_HI_NVIMRC|-|nvim|editors|flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|$_HI_XDG_CONFIG/nvim/init.lua'
+  'nanorc|_HI_NANORC|-|nano|editors|flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
+  'init.el|_HI_EMACSRC|-|emacs|editors|flag:emacs -nw -q -l|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'
+  'config.toml|_HI_HELIXRC|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|$_HI_XDG_CONFIG/helix/config.toml'
+  'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|$KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc'
+  'aliases.sh|-|-|-|shell|-|-|~/.aliases'
   'plugins.d|_HI_PLUGINS_D|-|-|shell|-|-|-'
   'carry|-|-|-|-|-|-|-'
   'bashrc|-|-|(bash)|shell|-|-|-'
   'zshrc|-|-|(zsh)|shell|-|-|-'
   'config.fish|-|-|(fish)|shell|-|-|-'
-  'starship.toml|-|-|(starship)|prompt|env:STARSHIP_CONFIG|-|"${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"'
+  'starship.toml|-|-|(starship)|prompt|env:STARSHIP_CONFIG|-|$STARSHIP_CONFIG , ~/.config/starship.toml'
   'oh-my-posh.json|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
   'oh-my-posh.yaml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
   'oh-my-posh.toml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
-  'p10k.zsh|-|-|(powerlevel10k)|prompt|-|-|"${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}"'
+  'p10k.zsh|-|-|(powerlevel10k)|prompt|-|-|$POWERLEVEL9K_CONFIG_FILE , $ZDOTDIR/.p10k.zsh , ~/.p10k.zsh'
   'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|prompt|-|-|@_hi_theme_home'
   'oh-my-bash.theme.sh|-|-|(oh-my-bash)|prompt|-|-|@_hi_theme_home'
   'bash-it.theme.bash|-|-|(bash-it)|prompt|-|-|@_hi_theme_home'
-  'tide.vars|-|-|(tide)|prompt|-|-|"${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables"'
-  'theme.yml|-|-|eza|cli|envdir:EZA_CONFIG_DIR|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"'
-  'bat.conf|-|-|bat batcat|cli|env:BAT_CONFIG_PATH|-|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
-  'ripgreprc|-|-|rg|cli|env:RIPGREP_CONFIG_PATH|-|"${RIPGREP_CONFIG_PATH:-}"'
-  'fzfrc|-|-|fzf|cli|env:FZF_DEFAULT_OPTS_FILE|-|"${FZF_DEFAULT_OPTS_FILE:-}"'
-  'lazygit.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|"${LG_CONFIG_FILE:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" "$HOME/Library/Application Support/lazygit/config.yml"'
-  'inputrc|-|-|(readline)|cli|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"'
-  'tmux.conf|_HI_TMUX_CONF|-|tmux|mux|flag:tmux -f|$_HI_DISABLE_TMUX|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
-  'screenrc|_HI_SCREENRC|-|screen|mux|flag:screen -c|$_HI_DISABLE_SCREEN|"${SCREENRC:-$HOME/.screenrc}"'
-  'micro/settings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'micro/bindings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'micro/init.lua|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'tide.vars|-|-|(tide)|prompt|-|-|$XDG_CONFIG_HOME/fish/fish_variables , ~/.config/fish/fish_variables'
+  'theme.yml|-|-|eza|cli|envdir:EZA_CONFIG_DIR|-|$EZA_CONFIG_DIR/theme.yml , $XDG_CONFIG_HOME/eza/theme.yml , ~/.config/eza/theme.yml'
+  'bat.conf|-|-|bat batcat|cli|env:BAT_CONFIG_PATH|-|$BAT_CONFIG_PATH , $BAT_CONFIG_DIR/config , $XDG_CONFIG_HOME/bat/config , ~/.config/bat/config'
+  'ripgreprc|-|-|rg|cli|env:RIPGREP_CONFIG_PATH|-|$RIPGREP_CONFIG_PATH'
+  'fzfrc|-|-|fzf|cli|env:FZF_DEFAULT_OPTS_FILE|-|$FZF_DEFAULT_OPTS_FILE'
+  'lazygit.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|$LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml'
+  'inputrc|-|-|(readline)|cli|env:INPUTRC|-|$INPUTRC , ~/.inputrc'
+  'tmux.conf|_HI_TMUX_CONF|-|tmux|mux|flag:tmux -f|$_HI_DISABLE_TMUX|~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf'
+  'screenrc|_HI_SCREENRC|-|screen|mux|flag:screen -c|$_HI_DISABLE_SCREEN|$SCREENRC , ~/.screenrc'
+  'micro/settings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'micro/bindings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'micro/init.lua|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
   'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
 )
 
@@ -153,7 +153,7 @@ done
 unset _hi_r _hi_w
 
 # The user's own rows, read from the overlay's carry by _hi_carry_load: the
-# table's shape, their home column behind a = for _hi_path_list. $_HI_CARRY_BAD
+# table's shape. $_HI_CARRY_BAD
 # is the lines it turned down, `<line>|<why>` each, for scripts/doctor.sh.
 # GLOSSARY: HI.63
 _HI_CARRY_ROWS=() _HI_CARRY_FILES=() _HI_CARRY_BAD=() _HI_CARRY_KEY=""
@@ -428,30 +428,35 @@ function _hi_words_ok() {
   done
 }
 
-# _hi_path_list <list> - a carry row's home column into the caller's
-# $_hi_paths: candidates a : apart, best first, each a path that starts at /,
-# at ~/ (this $HOME), or at $NAME (that variable, the candidate dropped while
-# it is unset or empty). Nothing else expands and nothing runs: the list is
-# the user's data, where the table's own is code. GLOSSARY: HI.63
+# _hi_path_list <list> - a row's home column into the caller's $_hi_paths:
+# candidates a : apart, best first, each a path that starts at /, at ~/ (this
+# $HOME), or at $NAME (that variable, the path dropped while it is unset or
+# empty). A candidate is one path or several a , apart, of which the first
+# not dropped is the one: where a tool looks once its variable is unset.
+# Nothing else expands and nothing runs. GLOSSARY: HI.63
 function _hi_path_list() {
-  local _hi_pa_s="$1:" _hi_pa_c _hi_pa_n
+  local _hi_pa_s="$1:" _hi_pa_a _hi_pa_c _hi_pa_n
   _hi_paths=()
   while [ -n "$_hi_pa_s" ]; do
-    _hi_pa_c="${_hi_pa_s%%:*}" _hi_pa_s="${_hi_pa_s#*:}"
-    _hi_trim _hi_pa_c
-    case "$_hi_pa_c" in
-    /*) ;;
-    \~/*) _hi_pa_c="$HOME/${_hi_pa_c#??}" ;;
-    '$'*)
-      _hi_pa_n="${_hi_pa_c#?}"
-      _hi_pa_n="${_hi_pa_n%%/*}"
-      _hi_words_ok "$_hi_pa_n" 'A-Za-z_' 'A-Za-z0-9_' && [ "${_hi_pa_n% *}" = "$_hi_pa_n" ] || continue
-      [ -n "${!_hi_pa_n:-}" ] || continue
-      _hi_pa_c="${!_hi_pa_n}${_hi_pa_c#"\$$_hi_pa_n"}"
-      ;;
-    *) continue ;;
-    esac
-    _hi_paths+=("$_hi_pa_c")
+    _hi_pa_a="${_hi_pa_s%%:*}," _hi_pa_s="${_hi_pa_s#*:}"
+    while [ -n "$_hi_pa_a" ]; do
+      _hi_pa_c="${_hi_pa_a%%,*}" _hi_pa_a="${_hi_pa_a#*,}"
+      _hi_trim _hi_pa_c
+      case "$_hi_pa_c" in
+      /*) ;;
+      \~/*) _hi_pa_c="$HOME/${_hi_pa_c#??}" ;;
+      '$'*)
+        _hi_pa_n="${_hi_pa_c#?}"
+        _hi_pa_n="${_hi_pa_n%%/*}"
+        _hi_words_ok "$_hi_pa_n" 'A-Za-z_' 'A-Za-z0-9_' && [ "${_hi_pa_n% *}" = "$_hi_pa_n" ] || continue
+        [ -n "${!_hi_pa_n:-}" ] || continue
+        _hi_pa_c="${!_hi_pa_n}${_hi_pa_c#"\$$_hi_pa_n"}"
+        ;;
+      *) continue ;;
+      esac
+      _hi_paths+=("$_hi_pa_c")
+      break
+    done
   done
 }
 
@@ -484,6 +489,9 @@ function _hi_carry_load() {
       _hi_cy_why="'$_hi_cy_m' is no plain file name"
     elif _hi_carry_taken "$_hi_cy_m"; then
       _hi_cy_why="'$_hi_cy_m' is a member already"
+    elif [ "${_hi_cy_h#@}" != "$_hi_cy_h" ]; then
+      # the table's @fn is a function's name, which no line of the user's is
+      _hi_cy_why="'$_hi_cy_h' is no list of paths"
     elif [ "$_hi_cy_t" != - ] && ! _hi_words_ok "$_hi_cy_t" 'A-Za-z0-9_' 'A-Za-z0-9._+-'; then
       _hi_cy_why="'$_hi_cy_t' is no list of commands, or -"
     else
@@ -506,7 +514,6 @@ function _hi_carry_load() {
       _HI_CARRY_BAD+=("$_hi_cy_n|$_hi_cy_why")
       continue
     fi
-    [ "$_hi_cy_h" = - ] || _hi_cy_h="=$_hi_cy_h"
     _HI_CARRY_ROWS+=("$_hi_cy_m|-|-|$_hi_cy_t|carry|$_hi_cy_w|-|$_hi_cy_h")
     _HI_CARRY_FILES+=("$_hi_cy_m")
   done <"$_hi_cy_f"
@@ -584,20 +591,18 @@ function _hi_overlay_home() {
 }
 
 # _hi_overlay_places <member> <row> - the row's home candidates into the
-# caller's $_hi_paths, best first and an unset one empty, a member under a /
-# as its file in each: the table's own are constants, and eval'd
+# caller's $_hi_paths, best first, a member under a / as its file in each
 function _hi_overlay_places() {
   local _hi_op_h="${2##*|}" _hi_op_c="" _hi_op_i
   _hi_paths=()
   case "$_hi_op_h" in
   -) ;;
   @*) ! "${_hi_op_h#@}" "$1" _hi_op_c || _hi_paths=("$_hi_op_c") ;;
-  =*) _hi_path_list "${_hi_op_h#=}" ;;
-  *) eval "_hi_paths=($_hi_op_h)" ;;
+  *) _hi_path_list "$_hi_op_h" ;;
   esac
   case "${2%%|*}" in */*)
     for _hi_op_i in "${!_hi_paths[@]}"; do
-      _hi_paths[_hi_op_i]="${_hi_paths[_hi_op_i]:+${_hi_paths[_hi_op_i]}/${1#*/}}"
+      _hi_paths[_hi_op_i]="${_hi_paths[_hi_op_i]}/${1#*/}"
     done
     ;;
   esac

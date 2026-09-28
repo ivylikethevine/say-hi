@@ -576,9 +576,39 @@ $h/f"'$(touch "$HOME/RAN")' ] || _hi_because "expanded to: $got" || return 1
   [ ! -e "$h/RAN" ] || _hi_because "a command in a candidate ran"
 }
 
+# paths a , apart are one place: the first whose variable is set, the rest
+# never looked at, as a tool reads its default only once its variable is unset
+# shellcheck disable=SC2016 # the candidates hold their $ unexpanded
+function test_home_list_takes_the_first_set_of_a_place() {
+  local h="$_HI_WORKDIR/carry-places" got
+  local -a _hi_paths=()
+  HOME="$h" CARRY_DIR="$h/set" CARRY_UNSET="" \
+    _hi_path_list '$CARRY_UNSET/a , $CARRY_DIR/b , ~/c : ~/d , /e : $CARRY_UNSET/x , rel/y'
+  got="$(printf '%s\n' ${_hi_paths[@]+"${_hi_paths[@]}"})"
+  [ "$got" = "$h/set/b
+$h/d" ] || _hi_because "expanded to: $got"
+}
+
+# the table's own home columns are that grammar and nothing past it: every
+# path of every row starts at /, ~/, or a variable's name
+function test_table_home_columns_are_the_grammar() {
+  local row h part
+  for row in "${_HI_OVERLAY_TABLE[@]}"; do
+    h="${row##*|}"
+    case "$h" in - | @*) continue ;; esac
+    h="${h//,/:}:"
+    while [ -n "$h" ]; do
+      part="${h%%:*}" h="${h#*:}"
+      _hi_trim part
+      case "$part" in /?* | \~/?* | '$'[A-Za-z_]*) ;; *) _hi_because "${row%%|*}: [$part]" || return 1 ;; esac
+      case "$part" in *[\"\'\`\{\(]*) _hi_because "${row%%|*}: [$part] would need evaluating" || return 1 ;; esac
+    done
+  done
+}
+
 # a row the table cannot hold is left out, line and reason kept for
 # hi --doctor: a name that is no plain file, one hi has already, a tool or a
-# wire of another shape, a fifth column
+# wire of another shape, a fifth column, a home that names a function
 function test_carry_turns_down_a_row_the_table_cannot_hold() {
   local dir
   dir="$(_hi_overlay_fixture carry-bad)"
@@ -594,12 +624,13 @@ function test_carry_turns_down_a_row_the_table_cannot_hold() {
     printf 't1 | a;b | - | ~/x\n'
     printf 'five | - | - | ~/x | more\n'
     printf 'three | - | -\n'
+    printf 'fn | - | - | @_hi_posh_home\n'
   } >"$dir/carry"
   (
     _HI_CONFIG_DIR="$dir"
     _hi_carry_load
     [ "${_HI_CARRY_FILES[*]}" = good ] || _hi_because "kept: ${_HI_CARRY_FILES[*]}" || exit 1
-    [ "${#_HI_CARRY_BAD[@]}" = 10 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_CARRY_BAD[@]}")" || exit 1
+    [ "${#_HI_CARRY_BAD[@]}" = 11 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_CARRY_BAD[@]}")" || exit 1
     case "${_HI_CARRY_BAD[0]}" in '2|'*vimrc*) ;; *) _hi_because "first: ${_HI_CARRY_BAD[0]}" || exit 1 ;; esac
   )
 }
@@ -1696,6 +1727,8 @@ function run_hi_payload_tests() {
   _hi_check "...and there is no wiring.sh without one" test_overlay_tar_has_no_wiring_without_a_wired_member
   _hi_check "A carry row's member rides from home, wired" test_carry_row_rides_from_home_with_its_wiring
   _hi_check "...its home list expands three starts and runs nothing" test_carry_home_list_expands_three_starts_and_runs_nothing
+  _hi_check "...paths a , apart are one place, the first set" test_home_list_takes_the_first_set_of_a_place
+  _hi_check "...and the table's own rows are that grammar" test_table_home_columns_are_the_grammar
   _hi_check "...a row the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
   _hi_check "...and the rows ride on from a target" test_carry_rows_ride_on_from_a_target
   _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home

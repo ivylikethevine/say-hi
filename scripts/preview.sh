@@ -687,6 +687,20 @@ function _hi_print_groups_table() {
   fi
 }
 
+# what a packages file of the user's own lacks of the tree's, and the rows
+# it holds that can never match (scripts/lib.sh's _hi_packages_drift)
+function _hi_print_packages_drift() {
+  local kind what groups=""
+  while IFS='|' read -r kind what; do
+    case "$kind" in
+    group) groups="$groups${groups:+, }$what" ;;
+    marker) _hi_cecho " | $what: a - or + past the first name is read as part of that name, which nothing matches" "$YELLOW" ;;
+    esac
+  done < <(_hi_packages_drift "$_HI_PACKAGES" "$_HI_ROOT/config/packages")
+  [ -z "$groups" ] ||
+    _hi_cecho " | lacks the tree's groups, which are never checked: $groups ($_HI_ROOT/config/packages has them to copy)" "$YELLOW"
+}
+
 # the other half of a rendered row: which mark it ends in, and what each one
 # is saying. The glyphs come from core.sh's _hi_choose_glyphs, so this table
 # follows a terminal onto the ASCII set the same way the header does.
@@ -745,6 +759,7 @@ packages)
   printf '\n'
   _hi_collect_examples
   _hi_print_groups_table
+  _hi_print_packages_drift
   printf '\n'
   _hi_print_marks_table
   printf '\n'

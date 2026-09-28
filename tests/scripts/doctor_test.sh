@@ -817,9 +817,30 @@ function test_config_flags_an_old_format_packages_file() {
     _HI_PACKAGES="$dir/new"
     _hi_doc_values_json
   )"
-  [[ "$out" != *'"label": "packages"'* ]] || return 1
+  [[ "$out" != *'has name:priority rows'* ]] || return 1
   out="$(
     _HI_PACKAGES="$dir/sectioned"
+    _hi_doc_values_json
+  )"
+  [[ "$out" != *'has name:priority rows'* ]]
+}
+
+# a packages file of the user's own names the tree's groups it lacks and a
+# row whose marker sits past its first name; the tree's own names neither
+function test_config_names_what_a_packages_copy_lacks() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/driftpkgs.XXXXXX")"
+  printf '[core]\nbat\neza,-exa,lsd\n' >"$dir/packages"
+  out="$(
+    _HI_PACKAGES="$dir/packages"
+    _hi_doc_values_json
+  )"
+  [[ "$out" == *'"label": "packages", "text": "lacks the tree'*'never checked: useful, '*'"severity": "info"'* ]] ||
+    _hi_because "groups: $out" || return 1
+  [[ "$out" == *'"text": "the row eza,-exa,lsd never matches'*'"severity": "warn"'* ]] ||
+    _hi_because "marker: $out" || return 1
+  out="$(
+    _HI_PACKAGES="$_HI_ROOT/config/packages"
     _hi_doc_values_json
   )"
   [[ "$out" != *'"label": "packages"'* ]]
@@ -1670,6 +1691,7 @@ function run_doctor_tests() {
     _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
     _hi_check "Config flags a leftover _HI_PACKAGES_MIN_PRIORITY" test_config_flags_the_old_package_floor
     _hi_check "Config flags a name:priority packages file" test_config_flags_an_old_format_packages_file
+    _hi_check "Config names what a packages copy lacks" test_config_names_what_a_packages_copy_lacks
     _hi_check "Config flags a type,name,color colors file" test_config_flags_an_old_format_colors_file
     _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
     _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle

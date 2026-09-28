@@ -809,6 +809,22 @@ function test_groups_table_drops_the_off_note_at_zero() {
   [[ "$out" != *"leaves off"* && "$out" == *"14 listed"* ]]
 }
 
+# a file of the user's own says, under the table, which of the tree's groups
+# it lacks and which rows hold a marker past their first name; the tree's
+# own says nothing
+function test_packages_drift_names_groups_and_stray_markers() {
+  local out want
+  _HI_PACKAGES="$_HI_ROOT/config/packages" _hi_package_groups want
+  want="${want#core }"
+  printf '[core]\nhialpha\nhibravo,-hiecho,+hidelta\n[mine]\nhitop\n' >"$_HI_WORKDIR/packages.drift"
+  out="$(_HI_PACKAGES="$_HI_WORKDIR/packages.drift" _hi_print_packages_drift)" || return 1
+  [[ "$out" == *"never checked: ${want// /, } ("* ]] || _hi_because "groups: $out" || return 1
+  [[ "$out" == *"hibravo,-hiecho,+hidelta: a - or + past the first name"* ]] ||
+    _hi_because "marker: $out" || return 1
+  out="$(_HI_PACKAGES="$_HI_ROOT/config/packages" _hi_print_packages_drift)" || return 1
+  [ -z "$out" ] || _hi_because "the tree's own file: $out"
+}
+
 function test_marks_table_explains_every_mark() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
@@ -1154,6 +1170,7 @@ EOF
   _hi_check "No (no group) row without ungrouped rows" test_groups_table_drops_an_empty_no_group_row
   _hi_check "Legend counts below the table" test_groups_table_counts_below_the_table
   _hi_check "Off note vanishes with nothing off" test_groups_table_drops_the_off_note_at_zero
+  _hi_check "A file of your own names what it lacks" test_packages_drift_names_groups_and_stray_markers
   _hi_check "Legend is rectangular" _hi_table_is_rectangular "$_HI_GROUPS_OUT"
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph

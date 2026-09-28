@@ -349,23 +349,14 @@ In this checkout, narrowest first. What is carried, what switches it, and
 the header's cells are
 [docs/PLUGINS-ROADMAP.md](docs/PLUGINS-ROADMAP.md)'s, in the same form.
 
-1. [ ] **An overlay `packages` is checked against the tree's** — a copy
-       replaces the tree's wholesale, so a group added later (`[deprecated]`)
-       never runs for anyone who copied before it existed, and a `-` or `+`
-       in the middle of a row (`eza,-exa,lsd`) is read as part of a package
-       name that nothing will ever match. **Do:** `hi --preview packages` and
-       doctor name groups the tree has and the overlay lacks, and mid-row
-       markers; `convert_settings.sh` may offer to append missing groups.
-       **Ticks when:** both appear in a `tests/scripts/` case's output.
-
-2. [ ] **A blocked upstream shows as drift** — shipped:
+1. [ ] **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
        lookup on one host answered (a blocked host, not a one-off rate
        limit). What is left is seeing it in CI. **Ticks when:** a
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-3. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
+2. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
        that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`, `update.sh`
        and `preview.sh` from a scratch-tree copy (the first four read 0% in run
        36341616721, 91.11% overall) now link the real `scripts/`, and each
@@ -374,7 +365,7 @@ the header's cells are
        first bashcov sweep on `main` after this lands reads at least 95%
        and no shipped line at 0 that is neither tested nor in that header.
 
-4. [ ] **A hand-written prompt stays** — shipped: at home, bash and zsh
+3. [ ] **A hand-written prompt stays** — shipped: at home, bash and zsh
        keep a `PS1`/`PROMPT` the rc set unless it is one nobody wrote (the
        shell's built-in default, or a stock rc's on the distros
        [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
@@ -383,24 +374,29 @@ the header's cells are
        zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets hi's
        prompt.
 
-5. [ ] **A dropped nano syntax include falls back to the target's** —
+4. [ ] **A dropped nano syntax include falls back to the target's** —
        shipped: the stripper keeps a dropped `*.nanorc` include's comment,
        and `load.sh` adds `include "/usr/share/nano/*.nanorc"` where the
        target has that set, rewriting it each session so a next hop without
        one loses it; the framework suite's `tmux` case asserts the line on a
-       Debian target. What is left is seeing it. **Ticks when:** nano on an
-       e2e target highlights a shell script opened with such a `nanorc`.
+       Debian target, and that nano there paints a shell script in a color
+       under that `nanorc` alone. What is left is the run. **Ticks when:**
+       that case is green in an `e2e` run.
 
-6. [ ] **Every `eval` is counted, then fewer** — the payload holds about
-       thirty and `scripts/` ten, beside their kin: a `source` of a computed
-       path, `sh -c` over a built string, `rm -rf` of a variable, indirect
-       assignment. Most read hi's own constants, but none is listed
-       anywhere, so a new one over a user's or a target's text would pass
-       review unseen. **Do:** a `drift` roster of each, by file and what it
-       evaluates, that fails on one not in it; then replace those a builtin
-       can stand in for, the overlay table's home column first. **Ticks
-       when:** the roster is enforced, and no `eval` left in it reads a
-       value from outside the tree.
+5. [ ] **Every `eval` is counted, then fewer** — shipped: `drift` holds
+       every `eval` in the payload and `scripts/` to a row of
+       `tests/lint/eval_roster` that says what it evaluates, and each file's
+       count of its kin (a `source` of a path in a variable, a shell's `-c`,
+       a recursive `rm`); the overlay table's home column is read by the
+       `carry` grammar, and eleven more gave way to `${!name}` and
+       `printf -v`. Left: the eight of its twenty-seven that read from
+       outside the tree - the shell's own `complete -p`, `alias -p`, and
+       `trap -p` run back in `common/bash.sh`, a prompt program's init, and
+       a plugin's `$_HI_SEGMENT` - and indirect assignment, which nothing
+       counts. **Ticks when:** no `eval` in the roster reads a value from
+       outside the tree. **Open question:** a prompt program's init and
+       `$_HI_SEGMENT` are commands by contract; do they count against the
+       tick, or does the roster name them as the two ways in that stay?
 
 ### At the 1.0.0 tag
 
@@ -433,13 +429,12 @@ when it lands.
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-4. [ ] **vhs v0.12** — `demos.yml` pins v0.11.0: v0.12.0 captures every
-       frame, then exits 0 without ever running ffmpeg (suspect: upstream's
-       browser rewrite, 42f1776), reported upstream as
-       [charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787).
-       `tool-versions.yml` holds the pin off 0.12.0 alone, so a later release
-       shows as outdated. **Ticks when:** a v0.12.x release renders all six
-       tapes on a `demos.yml` dispatch and the pin moves to it.
+4. [ ] **vhs v0.12** — shipped: `demos.yml` pins v0.12.1, which fixes the
+       render v0.12.0 never ran
+       ([charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787)),
+       and `tool-versions.yml` holds the pin off no release. What is left is
+       the render. **Ticks when:** a `demos.yml` dispatch renders all six
+       tapes on that pin.
 
 ## License
 

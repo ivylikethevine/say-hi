@@ -597,7 +597,7 @@ function doctor_config() {
   local gate=0
   [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && gate=1
   for t in "${_HI_TOGGLES[@]}"; do
-    eval "v=\${$t:-0}"
+    v="${!t:-0}"
     [ "$v" = 0 ] && continue
     if [ "$gate" = 1 ] && [ "$t" != _HI_DISABLE_LOCAL ]; then
       { _hi_setting_get "$_HI_SETTINGS" "$t" v && [ "$v" != 0 ]; } || continue
@@ -608,7 +608,7 @@ function doctor_config() {
   done
   # the opt-ins, where on is the non-default
   for t in _HI_TOOL_ALIASES _HI_SUDO_ALIAS; do
-    eval "v=\${$t:-0}"
+    v="${!t:-0}"
     [ "$v" = 1 ] || continue
     doctor_row toggle "$t=1"
     any=1
@@ -645,7 +645,7 @@ function doctor_settings_values() {
     "_HI_MUX|_hi_is_flag|1 or 0"; do
     name="${spec%%|*}" pred="${spec#*|}"
     why="${pred#*|}" pred="${pred%%|*}"
-    eval "v=\${$name:-}"
+    v="${!name:-}"
     [ -n "$v" ] || continue
     "$pred" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
   done
@@ -654,6 +654,17 @@ function doctor_settings_values() {
     doctor_row _HI_PACKAGES_MIN_PRIORITY "is ignored - name the groups to show in _HI_PACKAGES_GROUPS" bad
   if [ -f "${_HI_PACKAGES:-}" ] && grep -q '^[^#]*:[0-9]' "$_HI_PACKAGES" && ! grep -Eq '^\[[^]]+\]$' "$_HI_PACKAGES"; then
     doctor_row packages "$_HI_PACKAGES has name:priority rows, which read as missing commands - hi --configure converts it" bad
+  else
+    # a copy of the user's own never gains a group the tree adds later, and
+    # a marker past a row's first name is part of a name nothing matches
+    v=""
+    while IFS='|' read -r name why; do
+      case "$name" in
+      group) v="$v${v:+, }$why" ;;
+      marker) doctor_row packages "the row $why never matches: a - or + past its first name is read as part of that name" warn ;;
+      esac
+    done < <(_hi_packages_drift "${_HI_PACKAGES:-}" "$_HI_ROOT/config/packages")
+    [ -z "$v" ] || doctor_row packages "lacks the tree's groups, which are never checked: $v ($_HI_ROOT/config/packages has them to copy)"
   fi
   if [ -f "${_HI_COLORS:-}" ] && grep -Eq '^[a-z]+,[^,#]+,' "$_HI_COLORS" && ! grep -Eq '^\[[^]]+\]$' "$_HI_COLORS"; then
     doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad

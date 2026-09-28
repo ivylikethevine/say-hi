@@ -555,8 +555,9 @@ function test_paths_follow_the_overlay_table() {
       case "$seen" in *" $v "*) continue ;; esac
       seen="$seen$v "
       if [ "${m#*/}" != "$m" ]; then t=-d ov="$_HI_CONFIG_DIR/${m%%/*}"; else t=-f ov="$_HI_CONFIG_DIR/$m"; fi
-      cands=()
-      [ "$h" = - ] || eval "cands=($h)"
+      _hi_paths=()
+      [ "$h" = - ] || _hi_path_list "$h"
+      cands=("${_hi_paths[@]}")
       none=""
       case "$row" in *"|tree|"*) none="$_HI_ROOT/config/$m" ;; esac
       [ -n "$none" ] || [ "${#cands[@]}" -gt 0 ] || none="$ov"
