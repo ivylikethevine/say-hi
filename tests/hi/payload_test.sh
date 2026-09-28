@@ -505,8 +505,9 @@ function test_overlay_tar_has_no_wiring_without_a_wired_member() {
 
 # a row of the user's own, in the overlay's carry: the member rides from the
 # first of its places that is there, with its tool on this machine, beside
-# its wiring.sh line and the carry itself, which a next hop reads
-# (GLOSSARY: HI.63)
+# its wiring.sh line and the carry itself, which a next hop reads. The two
+# tools are names no runner has, one stubbed and one never: the suite's stub
+# directory is on $PATH for the whole run. (GLOSSARY: HI.63)
 # shellcheck disable=SC2016 # the rows and the wanted lines hold their $ unexpanded
 function test_carry_row_rides_from_home_with_its_wiring() {
   local dir d h="$_HI_WORKDIR/tool-home" stubs
@@ -514,11 +515,15 @@ function test_carry_row_rides_from_home_with_its_wiring() {
   mkdir -p "$h/.config/task" "$h/with space"
   printf 'data.location=~/.task\n' >"$h/.config/task/taskrc"
   printf 'second\n' >"$h/with space/b.conf"
-  printf '# mine\ntaskrc | task | env:TASKRC | $NOWHERE/taskrc : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc\n' >"$dir/carry"
-  printf 'b.conf | - | envdir:B_DIR | ~/with space/b.conf\n' >>"$dir/carry"
-  printf 'c.toml | - | flag:ctool --config= | ~/with space/b.conf\n' >>"$dir/carry"
-  stubs="$(_hi_stub_tools task)"
+  {
+    printf '# mine\ntaskrc | hi-carry-here | env:TASKRC | $NOWHERE/taskrc : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc\n'
+    printf 'b.conf | - | envdir:B_DIR | ~/with space/b.conf\n'
+    printf 'c.toml | - | flag:ctool --config= | ~/with space/b.conf\n'
+    printf 'gone.rc | hi-carry-absent | env:GONERC | ~/with space/b.conf\n'
+  } >"$dir/carry"
+  stubs="$(_hi_stub_tools hi-carry-here)"
   d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH")" || return 1
+  # gone.rc stays home: its tool is nowhere on this machine
   [ "$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)" = "b.conf,c.toml,carry,taskrc,wiring.sh" ] ||
     _hi_because "carried: $(ls "$d")" || return 1
   [ "$(cat "$d/taskrc" "$d/b.conf")" = "$(printf 'data.location=~/.task\nsecond')" ] ||
@@ -526,9 +531,7 @@ function test_carry_row_rides_from_home_with_its_wiring() {
   [ "$(cat "$d/wiring.sh")" = 'export TASKRC="$_HI_CONFIG_DIR/taskrc"
 export B_DIR="$_HI_CONFIG_DIR"
 command -v ctool >/dev/null 2>&1 && alias ctool="ctool --config='"'"'$_HI_CONFIG_DIR/c.toml'"'"'" || true' ] ||
-    _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
-  d="$(_hi_tool_home_unpacked "$dir" PATH="$_HI_WORKDIR/no-such-dir:$PATH")" || return 1
-  [ ! -e "$d/taskrc" ] || _hi_because "taskrc rode with no task on this machine"
+    _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)"
 }
 
 # the home column is data: a candidate starts at /, at ~/, or at one

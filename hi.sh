@@ -71,8 +71,9 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # _hi_overlay_wiring (HI.62): env:<variables> names the file, envdir: the
 # directory holding it, flag:<command> <flag> and flagdir: the same through
 # an alias, and - leaves it to hi's own code.
-# <off> is the toggles a target reads before it takes the wire, any of them
-# at 1 leaving the tool its own config, or - for none.
+# <off> is the toggles a target reads before it takes the wire, spelled as
+# its line reads them, any of them at 1 leaving the tool its own config, or -
+# for none.
 # <home> is the candidates, best first - eval'd, and constants, never user
 # data: a row of the user's own (carry, below) is read by _hi_path_list
 # instead - or @fn for a lookup no path list can say, or - for none: a shell's
@@ -89,7 +90,7 @@ _HI_OVERLAY_TABLE=(
   'nanorc|_HI_NANORC|-|nano|-|-|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
   'init.el|_HI_EMACSRC|-|emacs|-|-|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
   'config.toml|_HI_HELIXRC|-|hx helix|-|-|"$_HI_XDG_CONFIG/helix/config.toml"'
-  'kakrc|-|-|kak|envdir:KAKOUNE_CONFIG_DIR|_HI_DISABLE_EDITORS _HI_DISABLE_KAKOUNE|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
+  'kakrc|-|-|kak|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
   'aliases.sh|-|-|-|-|-|"$HOME/.aliases"'
   'plugins.d|_HI_PLUGINS_D|-|-|-|-|-'
   'carry|-|-|-|-|-|-'
@@ -630,7 +631,7 @@ function _hi_overlay_wiring() {
     _hi_ow_l=""
     # shellcheck disable=SC2086 # the split is the column
     [ "$_hi_ow_g" = - ] || for _hi_ow_v in $_hi_ow_g; do
-      _hi_ow_l="${_hi_ow_l}[ \"\$$_hi_ow_v\" != 1 ] && "
+      _hi_ow_l="${_hi_ow_l}[ \"$_hi_ow_v\" != 1 ] && "
     done
     case "$_hi_ow_w" in
     flag*)
