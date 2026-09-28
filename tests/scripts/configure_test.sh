@@ -1029,7 +1029,7 @@ function test_editors_preview_names_every_override() {
   out="$(_hi_editors_preview)"
   [[ "$out" == *"nano  -> nano --rcfile $_HI_NANORC"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_EMACSRC"* ]] || _hi_because "emacs: $out" || return 1
-  [[ "$out" == *"vim   -> vim -u $_HI_VIMRC"* ]] || _hi_because "vim: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_VIMRC"* ]] || _hi_because "vim: $out" || return 1
   # each name carries the rc of the binary behind it: nvim answers to both
   # `vim` and `nvim` and reads init.lua, its state kept in the session tree
   [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_NVIMRC"* ]] || _hi_because "nvim: $out" || return 1

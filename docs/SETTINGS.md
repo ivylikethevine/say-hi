@@ -444,7 +444,9 @@ alias cat=cat                                    # this one alias back to plain
 
 The `_HI_*_OPTS`, `_HI_*_BIN`, and `_HI_DISABLE_*` values hi's aliases are
 built from go in `settings.sh`, which loads first; set in `aliases.sh` they
-arrive too late, and `hi --doctor` flags them.
+arrive too late, and `hi --doctor` flags them. It also names an alias of yours
+that replaces one hi points at a carried config (`alias nano=...` over
+`nano --rcfile`), since that config then goes unused on a target.
 
 Keep your aliases in `~/.aliases` already? With no `aliases.sh` in the
 overlay, that file is what rides to targets, where it loads in the same place

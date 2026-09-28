@@ -917,6 +917,34 @@ function test_config_flags_values_set_in_aliases_sh() {
   [[ "$out" != *"alias-vars"* ]]
 }
 
+# ...and an alias of its own under a name hi wires replaces hi's on a target,
+# so the carried config goes unused: named once for each, and only for a
+# member that rides - not a comment, a name hi wires nothing to, or a member
+# its toggle keeps home
+# shellcheck disable=SC2016 # the aliases.sh lines are written, not run
+function test_config_flags_aliases_that_replace_a_wired_one() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/wiredalias.XXXXXX")"
+  printf 'x\n' >"$dir/nanorc"
+  printf 'x\n' >"$dir/tmux.conf"
+  printf '%s\n' 'alias nano="nano -l"' '# alias tmux=tmux' 'alias ll="ls -l"' \
+    '[ -n "$X" ] && alias nano=pico' >"$dir/aliases.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_DISABLE_EDITORS=0 _HI_DISABLE_NANO=0 _HI_DISABLE_TMUX=0
+    doctor_config
+  )"
+  [[ "$out" == *"alias-wired"*"aliases.sh aliases nano - "* ]] || _hi_because "rides: $out" || return 1
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_DISABLE_EDITORS=0 _HI_DISABLE_NANO=1 _HI_DISABLE_TMUX=0
+    doctor_config
+  )"
+  [[ "$out" != *"alias-wired"* ]] || _hi_because "kept home: $out"
+}
+
 # _hi_json_str is what makes --json parseable whatever a target wrote into a
 # row: quotes and backslashes escaped, control characters flattened to spaces
 function test_json_str_escapes_and_flattens() {
@@ -1700,6 +1728,7 @@ function run_doctor_tests() {
     _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
     _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
     _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
+    _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
 
     _hi_h2 "Testing: the report primitives"
     _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens

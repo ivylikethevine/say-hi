@@ -87,7 +87,7 @@ _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-'
   'packages|_HI_PACKAGES|tree|-|-|-|-|-'
-  'vimrc|_HI_VIMRC|-|vim|editors|flag:vim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
+  'vimrc|_HI_VIMRC|-|vim|editors|flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
   'init.lua|_HI_NVIMRC|-|nvim|editors|flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|$_HI_XDG_CONFIG/nvim/init.lua'
   'nanorc|_HI_NANORC|-|nano|editors|flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
   'init.el|_HI_EMACSRC|-|emacs|editors|flag:emacs -nw -q -l|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'

@@ -791,9 +791,10 @@ function run_load_tests() {
   : >"$_HI_WORKDIR/overlay/init.lua"
   : >"$_HI_WORKDIR/overlay/nanorc"
   export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
-  # ...and the wiring.sh a client packs beside them; nvim's line keeps its
-  # state under the session tree
+  # ...and the wiring.sh a client packs beside them; vim's and nvim's lines
+  # keep their state under the session tree
   _hi_wiring_for vimrc init.lua nanorc >"$_HI_WORKDIR/overlay/wiring.sh"
+  local vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_VIMRC"
   local nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_NVIMRC"
 
   _hi_h1 "Testing load.sh"
@@ -868,7 +869,7 @@ EOF
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
-  _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
+  _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$vim|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
   _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "E=$nvim|" _HI_EDITOR=no-such-editor
   _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$nvim|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
