@@ -337,6 +337,23 @@ function test_config_reports_the_carry_rows() {
   [[ "$out" == *"taskrc"*"$(_hi_doc_path "$h/.taskrc")"* ]] || _hi_because "no row for the member: $out"
 }
 
+# a member of a plugin that is switched off says so, and by what, and a word
+# of the list that names nothing is a finding
+function test_config_reports_what_is_switched_off() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/offdoc.XXXXXX")"
+  printf -- '--theme=x\n' >"$dir/bat.conf"
+  printf 'set nu\n' >"$dir/nanorc"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="cli nosuch" doctor_config
+  )"
+  [[ "$out" == *"bat.conf (bat)"*"not sent - switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "bat: $out" || return 1
+  [[ "$out" == *"nanorc (nano)"*"not sent - switched off (_HI_DISABLE_NANO=1)"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"_HI_PLUGINS_OFF"*"'cli nosuch' is ignored"* ]] || _hi_because "the list: $out"
+}
+
 # tmux's and micro's configs come from home like a tool's: the file in force
 # here is named, a micro file nobody has gets no row, and a tmux.conf's
 # source-file is a row of the include scan like any editor rc's
@@ -1631,6 +1648,7 @@ function run_doctor_tests() {
     _hi_check "A tagged ssh config says its tags ride" test_config_says_the_ssh_tags_ride
     _hi_check "A member's label names the tool that reads it" test_member_labels_name_the_reading_tool
     _hi_check "A carry row is reported, good or turned down" test_config_reports_the_carry_rows
+    _hi_check "What is switched off says so, and by what" test_config_reports_what_is_switched_off
     _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
     _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
     _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override

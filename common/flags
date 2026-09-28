@@ -33,3 +33,8 @@
 --add-tag|<host> <tag> [--dry-run]|scripts|_HI_ADD_TAG||tag an ssh host, for the colors
 --set-color|<type> <name> <color> [rrggbb] [--dry-run]|scripts|_HI_COLOR_PIN||pin a color in your colors file
 --unset-color|<type> <name> [--dry-run]|scripts|_HI_COLOR_PIN|--unset|remove a pin from your colors file
+--plugins||scripts|_HI_PLUGINS_CMD||list the plugins: what rides, and what is off
+--plugin-off|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--off|switch plugins off: nothing of theirs rides
+--plugin-on|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--on|switch them back on
+--add-plugin|<member> <tool> <wire> <home> [--dry-run]|scripts|_HI_PLUGINS_CMD|--add|carry a config of a tool hi does not know
+--remove-plugin|<member> [--dry-run]|scripts|_HI_PLUGINS_CMD|--remove|stop carrying it

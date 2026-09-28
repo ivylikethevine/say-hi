@@ -72,6 +72,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.61 one overlay priority](#hi61-one-overlay-priority)
 - [HI.62 generated wiring](#hi62-generated-wiring)
 - [HI.63 carry rows](#hi63-carry-rows)
+- [HI.64 what is switched off](#hi64-what-is-switched-off)
 
 ## HI.01 empty-array guard
 
@@ -1364,9 +1365,9 @@ members another way.
 
 A row's off column names the toggles its line is written behind, tested on
 the target, where the shell starts: kakoune's is
-`_HI_DISABLE_EDITORS` and `_HI_DISABLE_KAKOUNE`. The client cannot answer for
-them at pack time, since under `_HI_DISABLE_LOCAL=1` every toggle is set here
-and none on a target. Such a line ends `|| true`, as an alias line does: the
+`_HI_DISABLE_EDITORS` and `_HI_DISABLE_KAKOUNE`. The client reads them too
+([HI.64](#hi64-what-is-switched-off)), so the line is there only for a
+toggle the target's own environment sets. Such a line ends `|| true`, as an alias line does: the
 file's status is its last line's, and `core.sh` sources `paths.sh` under
 `set -e`.
 
@@ -1400,3 +1401,31 @@ its words become a line every target sources.
 `carry` is itself a member. On a target the copy that rode names the members
 that rode with it, so a hop taken from there carries and wires them again,
 from the session's `config/` and never from that machine's home.
+
+## HI.64 what is switched off
+
+A plugin is a row's tool, or the member where it has none; its group is the
+row's group column (`editors`, `mux`, `prompt`, `cli`, `shell`, and `carry`
+for a line of the user's). A row with no group is hi's own file and nothing
+switches it. `_hi_plugin_off` answers for a member: off when
+`$_HI_PLUGINS_OFF` names its plugin, its group, or the member itself, or
+when a toggle of its off column is 1.
+
+It is asked in `_hi_overlay_src` and `_hi_overlay_files`, the two gates
+every member passes on its way out, so what is off is not packed, has no
+line in `wiring.sh` ([HI.62](#hi62-generated-wiring)), and is not in the
+cache key's member list. The target is handed the result and needs neither
+the list nor the table. An overlay copy stays home too: off is the user
+saying no, which outranks a file saying yes.
+
+Two things keep it cheap and right. Every member asks, several times a
+connect, and nearly always nothing is off, so that verdict is kept for the
+values in force: the list, and each toggle an off column names
+(`$_HI_OFF_TOGGLES`). And a toggle is not always what the environment says:
+under `_HI_DISABLE_LOCAL=1` `common/paths.sh` has set every one for this
+machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
+`export NAME=value` lines, the last of a name winning, as text.
+
+`scripts/plugins.sh` is the list's writer: one `_HI_PLUGINS_OFF` line in
+`settings.sh`, outside the block `hi --configure` owns, which leaves a line
+for a name it does not write alone.

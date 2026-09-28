@@ -342,3 +342,27 @@ else
   _HI_BOX_BL="└" _HI_BOX_B="┴" _HI_BOX_BR="┘"
   _HI_BOX_H="─" _HI_BOX_V="│"
 fi
+
+# _hi_plugin_rows - every row of hi.sh's that can be switched, the table's
+# and the carry's (so only where hi.sh is sourced), as
+# `<plugin>|<group>|<member>` lines in the table's order: what hi --plugins
+# lists
+function _hi_plugin_rows() {
+  local _hi_pw_r _hi_pw_g _hi_pw_n
+  _hi_carry_load
+  for _hi_pw_r in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
+    _hi_pw_g="${_hi_pw_r#*|*|*|*|}"
+    _hi_pw_g="${_hi_pw_g%%|*}"
+    [ "$_hi_pw_g" != - ] || continue
+    _hi_plugin_name "${_hi_pw_r%%|*}" _hi_pw_n "$_hi_pw_r"
+    printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "${_hi_pw_r%%|*}"
+  done
+}
+
+# _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold, one a line
+function _hi_plugin_words() {
+  local _hi_pw_l
+  while IFS= read -r _hi_pw_l; do
+    printf '%s\n%s\n%s\n' "${_hi_pw_l%%|*}" "${_hi_pw_l##*|}" "${_hi_pw_l#*|}"
+  done < <(_hi_plugin_rows) | sed 's/|.*//' | sort -u
+}

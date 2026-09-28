@@ -296,6 +296,9 @@ different thing:
 - **Nobody, about an overlay copy.** A file you put in `~/.config/say-hi/` is
   you saying "targets get this", and it rides whatever this machine has -
   the way to carry a `vimrc` from a laptop that only has neovim.
+- **Nobody, about a plugin that is off.** `hi --plugin-off`, or an editor's
+  `_HI_DISABLE_*` toggle, keeps every file of that plugin home, overlay copy
+  included ([SETTINGS.md](SETTINGS.md#switching-a-plugin-off)).
 - **The target, about what is used.** `common/aliases.sh` builds each alias
   from what the target has, and only with its config there, so a config
   that rode to a box without its tool is a few idle bytes, and a tool whose

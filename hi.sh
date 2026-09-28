@@ -62,18 +62,20 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # the target (GLOSSARY: HI.41), and every member's one resolution order
 # (HI.61): the overlay's copy, else the user's own file at home, else the
 # tree's default, which the payload already carries. One row per member:
-# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<wire>|<off>|<home>.
+# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<wire>|<off>|<home>.
 # <tool> is the binaries that read it, its name in a report first: home's
 # copy rides with any of them on $PATH. In parentheses it is a name alone,
 # for what nothing looks for - a shell, readline, a prompt program
 # (_hi_prompt_list asks about those).
+# <group> is the word that switches it with its kind in $_HI_PLUGINS_OFF
+# (_hi_plugin_off), or - for a member of hi's own, which nothing switches.
 # <wire> is what points the tool at the member on a target, written there by
 # _hi_overlay_wiring (HI.62): env:<variables> names the file, envdir: the
 # directory holding it, flag:<command> <flag> and flagdir: the same through
 # an alias, and - leaves it to hi's own code.
-# <off> is the toggles a target reads before it takes the wire, spelled as
-# its line reads them, any of them at 1 leaving the tool its own config, or -
-# for none.
+# <off> is the toggles that switch it off, spelled as a wiring line reads
+# them, or - for none: with any of them at 1 the member stays home
+# (_hi_plugin_off), and a target tests them again before it takes the wire.
 # <home> is the candidates, best first - eval'd, and constants, never user
 # data: a row of the user's own (carry, below) is read by _hi_path_list
 # instead - or @fn for a lookup no path list can say, or - for none: a shell's
@@ -82,55 +84,61 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # candidate directory; a trailing / is a directory whose files ride one by
 # one, and a .d entry the same from the overlay alone (HI.58).
 _HI_OVERLAY_TABLE=(
-  'settings.sh|_HI_SETTINGS|-|-|-|-|-'
-  'colors|_HI_COLORS|tree|-|-|-|-'
-  'packages|_HI_PACKAGES|tree|-|-|-|-'
-  'vimrc|_HI_VIMRC|-|vim|-|-|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
-  'init.lua|_HI_NVIMRC|-|nvim|-|-|"$_HI_XDG_CONFIG/nvim/init.lua"'
-  'nanorc|_HI_NANORC|-|nano|-|-|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
-  'init.el|_HI_EMACSRC|-|emacs|-|-|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
-  'config.toml|_HI_HELIXRC|-|hx helix|-|-|"$_HI_XDG_CONFIG/helix/config.toml"'
-  'kakrc|-|-|kak|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
-  'aliases.sh|-|-|-|-|-|"$HOME/.aliases"'
-  'plugins.d|_HI_PLUGINS_D|-|-|-|-|-'
-  'carry|-|-|-|-|-|-'
-  'bashrc|-|-|(bash)|-|-|-'
-  'zshrc|-|-|(zsh)|-|-|-'
-  'config.fish|-|-|(fish)|-|-|-'
-  'starship.toml|-|-|(starship)|env:STARSHIP_CONFIG|-|"${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"'
-  'oh-my-posh.json|-|-|(oh-my-posh)|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
-  'oh-my-posh.yaml|-|-|(oh-my-posh)|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
-  'oh-my-posh.toml|-|-|(oh-my-posh)|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
-  'p10k.zsh|-|-|(powerlevel10k)|-|-|"${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}"'
-  'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|-|-|@_hi_theme_home'
-  'oh-my-bash.theme.sh|-|-|(oh-my-bash)|-|-|@_hi_theme_home'
-  'bash-it.theme.bash|-|-|(bash-it)|-|-|@_hi_theme_home'
-  'tide.vars|-|-|(tide)|-|-|"${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables"'
-  'theme.yml|-|-|eza|envdir:EZA_CONFIG_DIR|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"'
-  'bat.conf|-|-|bat batcat|env:BAT_CONFIG_PATH|-|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
-  'ripgreprc|-|-|rg|env:RIPGREP_CONFIG_PATH|-|"${RIPGREP_CONFIG_PATH:-}"'
-  'fzfrc|-|-|fzf|env:FZF_DEFAULT_OPTS_FILE|-|"${FZF_DEFAULT_OPTS_FILE:-}"'
-  'lazygit.yml|-|-|lazygit|env:LG_CONFIG_FILE|-|"${LG_CONFIG_FILE:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" "$HOME/Library/Application Support/lazygit/config.yml"'
-  'inputrc|-|-|(readline)|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"'
-  'tmux.conf|_HI_TMUX_CONF|-|tmux|-|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
-  'screenrc|_HI_SCREENRC|-|screen|-|-|"${SCREENRC:-$HOME/.screenrc}"'
-  'micro/settings.json|_HI_MICRO_DIR|-|micro|-|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'micro/bindings.json|_HI_MICRO_DIR|-|micro|-|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'micro/init.lua|_HI_MICRO_DIR|-|micro|-|-|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'ssh_tags|-|-|(ssh)|-|-|@_hi_ssh_tags_file'
+  'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
+  'colors|_HI_COLORS|tree|-|-|-|-|-'
+  'packages|_HI_PACKAGES|tree|-|-|-|-|-'
+  'vimrc|_HI_VIMRC|-|vim|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
+  'init.lua|_HI_NVIMRC|-|nvim|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$_HI_XDG_CONFIG/nvim/init.lua"'
+  'nanorc|_HI_NANORC|-|nano|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
+  'init.el|_HI_EMACSRC|-|emacs|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
+  'config.toml|_HI_HELIXRC|-|hx helix|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|"$_HI_XDG_CONFIG/helix/config.toml"'
+  'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
+  'aliases.sh|-|-|-|shell|-|-|"$HOME/.aliases"'
+  'plugins.d|_HI_PLUGINS_D|-|-|shell|-|-|-'
+  'carry|-|-|-|-|-|-|-'
+  'bashrc|-|-|(bash)|shell|-|-|-'
+  'zshrc|-|-|(zsh)|shell|-|-|-'
+  'config.fish|-|-|(fish)|shell|-|-|-'
+  'starship.toml|-|-|(starship)|prompt|env:STARSHIP_CONFIG|-|"${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"'
+  'oh-my-posh.json|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
+  'oh-my-posh.yaml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
+  'oh-my-posh.toml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
+  'p10k.zsh|-|-|(powerlevel10k)|prompt|-|-|"${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}"'
+  'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|prompt|-|-|@_hi_theme_home'
+  'oh-my-bash.theme.sh|-|-|(oh-my-bash)|prompt|-|-|@_hi_theme_home'
+  'bash-it.theme.bash|-|-|(bash-it)|prompt|-|-|@_hi_theme_home'
+  'tide.vars|-|-|(tide)|prompt|-|-|"${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables"'
+  'theme.yml|-|-|eza|cli|envdir:EZA_CONFIG_DIR|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"'
+  'bat.conf|-|-|bat batcat|cli|env:BAT_CONFIG_PATH|-|"${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}"'
+  'ripgreprc|-|-|rg|cli|env:RIPGREP_CONFIG_PATH|-|"${RIPGREP_CONFIG_PATH:-}"'
+  'fzfrc|-|-|fzf|cli|env:FZF_DEFAULT_OPTS_FILE|-|"${FZF_DEFAULT_OPTS_FILE:-}"'
+  'lazygit.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|"${LG_CONFIG_FILE:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" "$HOME/Library/Application Support/lazygit/config.yml"'
+  'inputrc|-|-|(readline)|cli|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"'
+  'tmux.conf|_HI_TMUX_CONF|-|tmux|mux|-|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
+  'screenrc|_HI_SCREENRC|-|screen|mux|-|-|"${SCREENRC:-$HOME/.screenrc}"'
+  'micro/settings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
+  'micro/bindings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
+  'micro/init.lua|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
+  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|mux|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|mux|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|mux|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
 )
 # the members alone, and those with a tree default the overlay's copy
 # replaces wholesale on a target (aliases.sh is not one - the overlay's is
 # sourced on top of the tree's); _hi_payload_excl reads the second
 _HI_OVERLAY_FILES=() _HI_OVERLAY_SHADOWS=" "
+# ...and every toggle an <off> column names, once each, for _hi_plugin_off
+_HI_OFF_TOGGLES=" "
 for _hi_r in "${_HI_OVERLAY_TABLE[@]}"; do
   _HI_OVERLAY_FILES+=("${_hi_r%%|*}")
   case "$_hi_r" in *'|tree|'*) _HI_OVERLAY_SHADOWS="$_HI_OVERLAY_SHADOWS${_hi_r%%|*} " ;; esac
+  _hi_r="${_hi_r#*|*|*|*|*|*|}"
+  for _hi_w in ${_hi_r%%|*}; do
+    case "$_hi_w$_HI_OFF_TOGGLES" in -* | *" ${_hi_w#?} "*) ;; *) _HI_OFF_TOGGLES="$_HI_OFF_TOGGLES${_hi_w#?} " ;; esac
+  done
 done
-unset _hi_r
+unset _hi_r _hi_w
 
 # The user's own rows, read from the overlay's carry by _hi_carry_load: the
 # table's shape, their home column behind a = for _hi_path_list. $_HI_CARRY_BAD
@@ -478,7 +486,7 @@ function _hi_carry_load() {
       continue
     fi
     [ "$_hi_cy_h" = - ] || _hi_cy_h="=$_hi_cy_h"
-    _HI_CARRY_ROWS+=("$_hi_cy_m|-|-|$_hi_cy_t|$_hi_cy_w|-|$_hi_cy_h")
+    _HI_CARRY_ROWS+=("$_hi_cy_m|-|-|$_hi_cy_t|carry|$_hi_cy_w|-|$_hi_cy_h")
     _HI_CARRY_FILES+=("$_hi_cy_m")
   done <"$_hi_cy_f"
 }
@@ -519,10 +527,12 @@ function _hi_overlay_row() {
 # in the table's order: the overlay's copy, else home's (_hi_overlay_home) -
 # a target gets the config in force here with no copy to keep in step - else
 # nothing, since a tree default rides in the payload already. A prompt
-# config rides only for a program a target is handed. Fails, printing
-# nothing, when there is no file either way.
+# config rides only for a program a target is handed, and nothing of a
+# plugin that is switched off. Fails, printing nothing, when there is no
+# file either way.
 function _hi_overlay_src() {
   local _hi_os_f="$_HI_CONFIG_DIR/$1"
+  ! _hi_plugin_off "$1" || return 1
   ! _hi_prompt_row "$1" >/dev/null || _hi_prompt_handed "$1" || return 1
   [ -f "$_hi_os_f" ] || _hi_overlay_home "$1" _hi_os_f || return 1
   _hi_out "${2:-}" "$_hi_os_f"
@@ -607,6 +617,86 @@ function _hi_overlay_tools() {
   [ "$_hi_tc" != - ] && _hi_out "${2:-}" "$_hi_tc"
 }
 
+# _hi_plugin_name <member> <outvar> [row] - the plugin a member is of: its
+# tool's name, the one hi --doctor labels it by, else the member's own
+function _hi_plugin_name() {
+  local _hi_pg=""
+  _hi_overlay_tools "$1" _hi_pg "${3:-}" || _hi_pg="${1%%/*}"
+  _hi_pg="${_hi_pg#\(}"
+  _hi_pg="${_hi_pg%\)}"
+  printf -v "$2" '%s' "${_hi_pg%% *}"
+}
+
+# _hi_toggle_on <NAME> - is that toggle 1 for a target? The environment's
+# value - except at home under _HI_DISABLE_LOCAL=1, where common/paths.sh has
+# set every toggle for this machine alone: there, only a toggle settings.sh
+# sets itself, read off its `export NAME=value` lines (the last wins) without
+# running them.
+function _hi_toggle_on() {
+  local _hi_tg_l _hi_tg_w _hi_tg_v
+  if [ "${_HI_DISABLE_LOCAL:-0}" != 1 ] || [ "$_HI_REMOTE_SESSION" = 1 ]; then
+    [ "${!1:-0}" = 1 ]
+    return
+  fi
+  if [ "${_HI_SET_ON_KEY-}" != "$_HI_SETTINGS" ]; then
+    _HI_SET_ON_KEY="$_HI_SETTINGS" _HI_SET_ON=" "
+    [ ! -f "$_HI_SETTINGS" ] || while IFS= read -r _hi_tg_l || [ -n "$_hi_tg_l" ]; do
+      case "$_hi_tg_l" in *_HI_DISABLE_*=*) ;; *) continue ;; esac
+      # shellcheck disable=SC2086 # a line's words, one assignment each
+      for _hi_tg_w in $_hi_tg_l; do
+        case "$_hi_tg_w" in _HI_DISABLE_*=*) ;; *) continue ;; esac
+        _hi_tg_v="${_hi_tg_w#*=}"
+        _hi_tg_v="${_hi_tg_v#[\"\']}"
+        _hi_tg_w="${_hi_tg_w%%=*}"
+        _HI_SET_ON="${_HI_SET_ON// $_hi_tg_w / }"
+        [ "${_hi_tg_v%[\"\']}" != 1 ] || _HI_SET_ON="$_HI_SET_ON$_hi_tg_w "
+      done
+    done <"$_HI_SETTINGS"
+  fi
+  case "$_HI_SET_ON" in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# _hi_plugin_off <member> [outvar] - is it switched off, and by what, into
+# <outvar>? By $_HI_PLUGINS_OFF naming its plugin, its group, or the member
+# (words a space or a comma apart), or by a toggle of its row's <off> column;
+# a row of hi's own (group -) is never off. Read where the overlay is
+# packed, so what is off neither rides nor is wired, and the target is handed
+# the result. GLOSSARY: HI.64
+function _hi_plugin_off() {
+  local _hi_po_r _hi_po_g _hi_po_n _hi_po_t
+  # nothing is off, most connects: said once for the values in force, since
+  # every member asks, several times a connect
+  _hi_po_t="${_HI_PLUGINS_OFF:-}|${_HI_DISABLE_LOCAL:-0}|${_HI_REMOTE_SESSION:-0}|${_HI_SETTINGS:-}|"
+  for _hi_po_n in $_HI_OFF_TOGGLES; do _hi_po_t="$_hi_po_t${!_hi_po_n:-0}"; done
+  if [ "${_HI_OFF_KEY-}" != "$_hi_po_t" ]; then
+    _HI_OFF_KEY="$_hi_po_t" _HI_OFF_ANY="${_HI_PLUGINS_OFF:-}"
+    for _hi_po_n in $_HI_OFF_TOGGLES; do ! _hi_toggle_on "$_hi_po_n" || _HI_OFF_ANY=1; done
+  fi
+  [ -n "$_HI_OFF_ANY" ] && _hi_overlay_row "$1" _hi_po_r || return 1
+  _hi_po_g="${_hi_po_r#*|*|*|*|}"
+  _hi_po_t="${_hi_po_g#*|*|}"
+  _hi_po_t="${_hi_po_t%%|*}"
+  _hi_po_g="${_hi_po_g%%|*}"
+  [ "$_hi_po_g" != - ] || return 1
+  # shellcheck disable=SC2086 # the split is the column
+  [ "$_hi_po_t" = - ] || for _hi_po_n in $_hi_po_t; do
+    ! _hi_toggle_on "${_hi_po_n#?}" || {
+      [ -z "${2:-}" ] || printf -v "$2" '%s' "${_hi_po_n#?}=1"
+      return 0
+    }
+  done
+  [ -n "${_HI_PLUGINS_OFF:-}" ] || return 1
+  _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
+  case " ${_HI_PLUGINS_OFF//,/ } " in
+  *" $_hi_po_n "* | *" $_hi_po_g "* | *" ${_hi_po_r%%|*} "*)
+    [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
+    return 0
+    ;;
+  esac
+  return 1
+}
+
 # _hi_overlay_wiring <outvar> <member...> - the lines that point each tool at
 # its member on a target, one per member whose row has a wire, in
 # common/paths.sh's four-shell dialect, which sources them there. The paths
@@ -618,7 +708,7 @@ function _hi_overlay_wiring() {
   shift
   for _hi_ow_m; do
     _hi_overlay_row "$_hi_ow_m" _hi_ow_w || continue
-    _hi_ow_w="${_hi_ow_w#*|*|*|*|}"
+    _hi_ow_w="${_hi_ow_w#*|*|*|*|*|}"
     _hi_ow_g="${_hi_ow_w#*|}"
     _hi_ow_g="${_hi_ow_g%%|*}"
     _hi_ow_w="${_hi_ow_w%%|*}"
@@ -892,6 +982,7 @@ function _hi_overlay_files() {
   _hi_carry_load
   [ $# -gt 0 ] || set -- "${_HI_OVERLAY_FILES[@]}" ${_HI_CARRY_FILES[@]+"${_HI_CARRY_FILES[@]}"}
   for f; do
+    ! _hi_plugin_off "$f" || continue
     case "$f" in
     *.d)
       for src in "$_HI_CONFIG_DIR/$f"/*; do

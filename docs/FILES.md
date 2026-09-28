@@ -88,19 +88,20 @@ defaults an overlay copy replaces.
 
 All **package**, never in the payload.
 
-| File                              | What it is                                                                                                                                                              |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/install.sh`              | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`.                                                                                  |
-| `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.                                                                                             |
-| `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                      |
-| `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                       |
-| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                             |
-| `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                           |
-| `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                           |
-| `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                |
-| `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it. |
-| `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                            |
-| `scripts/table.sh`                | The boxed table the previews draw.                                                                                                                                      |
+| File                              | What it is                                                                                                                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/install.sh`              | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`.                                                                                                          |
+| `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.                                                                                                                     |
+| `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                                                                                                                              |
+| `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                                                                                                                               |
+| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                                                     |
+| `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                                                   |
+| `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                                                   |
+| `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                                        |
+| `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                         |
+| `scripts/plugins.sh`              | `hi --plugins`, `--plugin-off`, `--plugin-on`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes lines of `~/.config/say-hi/carry`. |
+| `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                    |
+| `scripts/table.sh`                | The boxed table the previews draw.                                                                                                                                                              |
 
 ### packaging/
 
@@ -279,7 +280,8 @@ reads none of their config files.
 | `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish` | lines tagged `# added by hi during install`; the file and its directory are created if missing                                             |
 | `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                          |
 | `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                        |
-| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes                                                                                                 |
+| `$_HI_CONFIG_DIR/carry`                                                               | the lines `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                      |
+| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --plugin-off` keeps                                         |
 | `~/.local/bin/hi` (`--link user`), `/usr/bin/hi` (`--link system`)                    | a symlink to `hi.sh`; `$_HI_LINK`; a link that is not hi's, or a package's, is left alone                                                  |
 | the checkout                                                                          | `hi --update` fetches tags and checks one out; refused on a dirty tree                                                                     |
 | uninstall                                                                             | removes the tagged lines (and an rc hi created that is now empty), `settings.sh`, and hi's links; `--purge` also removes `$_HI_CONFIG_DIR` |
@@ -308,19 +310,20 @@ change.
 
 All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 
-| Pattern                                                       | Made by                                                      |
-| ------------------------------------------------------------- | ------------------------------------------------------------ |
-| `hi.log.XXXXXX`                                               | every `hi` run                                               |
-| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes) |
-| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off  |
-| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)         |
-| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                         |
-| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                |
-| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place               |
-| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                    |
-| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                               |
-| `hi.colors.XXXXXX`                                            | `hi --set-color`, `hi --unset-color`                         |
-| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                |
+| Pattern                                                       | Made by                                                                      |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `hi.log.XXXXXX`                                               | every `hi` run                                                               |
+| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes)                 |
+| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off                  |
+| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)                         |
+| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                                         |
+| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                |
+| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                               |
+| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                                    |
+| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                               |
+| `hi.colors.XXXXXX`                                            | `hi --set-color`, `hi --unset-color`                                         |
+| `hi.plugins.XXXXXX`                                           | `hi --plugin-off`, `hi --plugin-on`, `hi --add-plugin`, `hi --remove-plugin` |
+| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                |
 
 ## What a session does on a target
 

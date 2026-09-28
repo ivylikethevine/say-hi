@@ -593,6 +593,53 @@ function test_carry_rows_ride_on_from_a_target() {
   [ "$(HOME="$h" _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat taskrc)" = x ]
 }
 
+# a plugin that is switched off sends nothing: $_HI_PLUGINS_OFF names it, its
+# group, or the member, a row of the carry too - and never one of hi's own
+# files, which nothing switches (GLOSSARY: HI.64)
+function test_plugin_off_keeps_its_members_home() {
+  local dir
+  dir="$(_hi_overlay_fixture plugins-off colors vimrc nanorc tmux.conf bat.conf lazygit.yml mine.rc)"
+  mkdir -p "$dir/micro"
+  printf '{}\n' >"$dir/micro/settings.json"
+  printf 'mine.rc | - | env:MINE | /etc/mine\n' >"$dir/carry"
+  [ "$(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors carry bat.conf tmux.conf mine.rc " ] ||
+    _hi_because "a plugin and a group off: $(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_PLUGINS_OFF="mux,cli,carry,nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors vimrc carry micro/settings.json " ] ||
+    _hi_because "commas, a member, the carry: $(_HI_PLUGINS_OFF="mux,cli,carry,nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_PLUGINS_OFF="colors carry settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x -e colors -e carry)" = 2 ] ||
+    _hi_because "one of hi's own was switched off"
+}
+
+# ...and neither does an editor its toggle turns off, nor its wiring line:
+# what a tool is not to use has no business on the wire
+function test_editor_toggle_keeps_its_rc_home() {
+  local dir w=""
+  dir="$(_hi_overlay_fixture toggle-off vimrc init.lua nanorc kakrc bat.conf)"
+  [ "$(_HI_DISABLE_VIM=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "nanorc kakrc bat.conf " ] ||
+    _hi_because "_HI_DISABLE_VIM=1: $(_HI_DISABLE_VIM=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_DISABLE_EDITORS=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "bat.conf " ] ||
+    _hi_because "_HI_DISABLE_EDITORS=1: $(_HI_DISABLE_EDITORS=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_DISABLE_KAKOUNE=1 _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat.conf,init.lua,nanorc,vimrc,wiring.sh" ] || return 1
+  _HI_DISABLE_KAKOUNE=1 _HI_CONFIG_DIR="$dir" _hi_overlay_wiring w bat.conf
+  [[ "$w" != *KAKOUNE* ]]
+}
+
+# under _HI_DISABLE_LOCAL=1 common/paths.sh has set every toggle on this
+# machine, and a target keeps its editors: only a toggle settings.sh sets
+# itself keeps an rc home, its last line winning, quoted or not
+function test_local_only_toggles_keep_nothing_home() {
+  local dir
+  dir="$(_hi_overlay_fixture local-only vimrc nanorc kakrc)"
+  printf '#!/bin/sh\nexport _HI_DISABLE_LOCAL=1\n' >"$dir/settings.sh"
+  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_VIM=1 _HI_DISABLE_NANO=1 _HI_DISABLE_KAKOUNE=1 \
+    _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vimrc nanorc kakrc " ] ||
+    _hi_because "local only kept an rc home" || return 1
+  printf 'export _HI_DISABLE_VIM=1\nexport _HI_DISABLE_NANO="1"\nexport _HI_DISABLE_VIM=0\n' >>"$dir/settings.sh"
+  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_VIM=1 _HI_DISABLE_NANO=1 _HI_DISABLE_KAKOUNE=1 \
+    _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vimrc kakrc " ] ||
+    _hi_because "settings.sh's own toggle did not keep nanorc home"
+}
+
 # The overlay stream ships comment-stripped the way the payload does (the
 # same strip.awk): a copied-in default is mostly header, and every byte rides
 # each connect. settings.sh keeps its shebang; vimrc loses its `"` lines and
@@ -1625,6 +1672,9 @@ function run_hi_payload_tests() {
   _hi_check "...its home list expands three starts and runs nothing" test_carry_home_list_expands_three_starts_and_runs_nothing
   _hi_check "...a row the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
   _hi_check "...and the rows ride on from a target" test_carry_rows_ride_on_from_a_target
+  _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home
+  _hi_check "...nor does an editor its toggle turns off" test_editor_toggle_keeps_its_rc_home
+  _hi_check "...while local-only's toggles keep nothing home" test_local_only_toggles_keep_nothing_home
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks

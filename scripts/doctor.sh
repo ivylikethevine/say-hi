@@ -549,7 +549,9 @@ function doctor_config() {
     # a member with no tree default has nothing to report until it exists
     [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/config/$f" ] || continue
     _hi_doc_member "$f" label
-    if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
+    if _hi_plugin_off "$f" late; then
+      doctor_row "$label" "not sent - switched off ($late), so targets keep their own"
+    elif [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # a prompt program's copy with the program out of the list, or an
       # oh-my-posh format another overlay copy already stands in for
       doctor_row "$label" "not shipped - its prompt program is not one a target is handed (_HI_PROMPT_TOOL)" warn
@@ -619,6 +621,16 @@ function doctor_config() {
   doctor_flush
 }
 
+# _hi_is_plugin_list <value> - is every word of it a plugin, a group, or a
+# member that can be switched: one of a row hi.sh's _hi_plugin_words lists?
+function _hi_is_plugin_list() {
+  local w known
+  known=" $(_hi_plugin_words | tr '\n' ' ')"
+  for w in ${1//,/ }; do
+    case "$known" in *" $w "*) ;; *) return 1 ;; esac
+  done
+}
+
 # doctor_settings_values - a hand-written settings.sh line the code would
 # silently fall back from: each value against scripts/lib.sh's predicate, the
 # ones the wizard takes an answer by. settings.sh is already sourced, so the
@@ -631,6 +643,7 @@ function doctor_settings_values() {
     "_HI_IP_HIDE|_hi_is_ip_hide|none, or globs like 172.* 10.0.*" \
     "_HI_HEADER_ORDER|_hi_is_header_order|words from $_HI_HEADER_ORDER_DEFAULT" \
     "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS" \
+    "_HI_PLUGINS_OFF|_hi_is_plugin_list|plugins, groups, or members that hi --plugins lists" \
     "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
     "_HI_MUX|_hi_is_flag|1 or 0"; do
@@ -724,6 +737,8 @@ function doctor_files() {
     esac
     if [ -n "$eff" ]; then
       doctor_row "$label" "$text" ok
+    elif _hi_plugin_off "$m" p; then
+      doctor_row "$label" "$text - not sent: switched off ($p)"
     elif _hi_prompt_row "$m" >/dev/null && ! _hi_prompt_handed "$m"; then
       doctor_row "$label" "$text - not sent: its prompt program is not one a target is handed"
     elif [ "$_HI_REMOTE_SESSION" = 1 ]; then

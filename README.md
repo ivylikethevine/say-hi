@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-75KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-79KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -227,7 +227,12 @@ row, and everything answered **no**, and why:
 - `hi --set-color hostname prod-db yellow` pins a color in
   `~/.config/say-hi/colors`, copying the shipped pins there first;
   `hi --unset-color hostname prod-db` removes the pin.
-- The whole surface is seventeen flags: `hi --help` (or bare `hi`) lists them,
+- `hi --plugins` lists every config hi carries to a target, and what rides;
+  `hi --plugin-off lazygit editors` keeps a plugin or a whole group home and
+  `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
+  carry a config of a tool hi does not know
+  ([docs/SETTINGS.md](docs/SETTINGS.md#plugins)).
+- The whole surface is twenty-two flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For

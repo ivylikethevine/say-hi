@@ -29,7 +29,7 @@ deleted once its **Ticks when** holds. What a user does today is
 | A carried config a tool is pointed at     | yes, as data          | one table row; the target's wiring is generated on the client    |
 | The same with a quirk (vim, nano, nvim)   | yes, row and built-in | the same row; the quirk stays code in the tree                   |
 | Shell code of the user's own              | already               | `plugins.d` ([HI.59](GLOSSARY.md#hi59-plugins)), unchanged       |
-| The tool aliases (bat, ls, sudo)          | yes                   | the same on/off list; the code stays in `common/aliases.sh`      |
+| The tool aliases (bat, ls, sudo)          | yes                   | the same off list; the code stays in `common/aliases.sh`         |
 | A header cell added by the user           | yes                   | a bash `header.d/<word>` defining `_hi_cell_<word>`              |
 | The built-in header cells                 | no                    | two probes feed eleven cells; a file each ships more, saves none |
 | The git and environment prompt segments   | no                    | drawn with no fork, written once per shell family                |
@@ -51,7 +51,7 @@ Four ways in:
   parse, sourced at every shell start on both sides, with one hook,
   `_HI_SEGMENT`.
 - **Word lists and toggles**: `_HI_HEADER_ORDER`, `_HI_PACKAGES_GROUPS`,
-  `_HI_PROMPT_TOOL`, and the `_HI_DISABLE_*` set.
+  `_HI_PROMPT_TOOL`, `_HI_PLUGINS_OFF`, and the `_HI_DISABLE_*` set.
 
 ## What one carried config costs
 
@@ -141,13 +141,13 @@ command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f '$_HI_CONFIG_DIR/tmux.con
 
 ### The row
 
-As the table has it, with the two columns still to come:
+As the table has it, with the column still to come:
 
 ```text
-member|variable|tree|tool|wire|off|home, best first   (then: dialect, group)
-ripgreprc|-|-|rg|env:RIPGREP_CONFIG_PATH|-|"${RIPGREP_CONFIG_PATH:-}"
-theme.yml|-|-|eza|envdir:EZA_CONFIG_DIR|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"
-inputrc|-|-|(readline)|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"
+member|variable|tree|tool|group|wire|off|home, best first   (then: dialect)
+ripgreprc|-|-|rg|cli|env:RIPGREP_CONFIG_PATH|-|"${RIPGREP_CONFIG_PATH:-}"
+theme.yml|-|-|eza|cli|envdir:EZA_CONFIG_DIR|-|"${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml"
+inputrc|-|-|(readline)|cli|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"
 ```
 
 - **tool** is the binaries that read the member, any of which on `$PATH`
@@ -157,12 +157,13 @@ inputrc|-|-|(readline)|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"
 - **wire** is `env:`, `envdir:`, `flag:`, or `flagdir:`, and `-` for a
   member hi's own code reads. The table's own flags are still
   `common/aliases.sh`'s.
-- **off** is the toggles a target reads before it takes the wire:
-  kakoune's two. The on/off list takes its place.
+- **group** is the word that switches it with its kind: `editors`, `mux`,
+  `prompt`, `cli`, `shell`; `-` is hi's own file, which nothing switches.
+- **off** is the toggles that keep it home, and that a target tests again
+  before it takes the wire: an editor's two.
 - **dialect** stands in for the include scan's name tests and
   `$_HI_STRIP_NAMES`; `-` passes through untouched, as a name that is no
   dialect does now.
-- **group** lets one word, `editors`, switch several.
 
 The built-ins stay one table in the tree, not a file each: a file is a tar
 header on every connect. The user's rows are the overlay's `carry`, four of
@@ -174,9 +175,16 @@ own config unasked, the rule the `env` members keep.
 
 ### On and off
 
-One word list over names and groups, read on the client as it packs, in
-place of a `_HI_DISABLE_*` per tool. The target is handed the result, not
-the list.
+`$_HI_PLUGINS_OFF` is one word list over plugins, groups, and members, read
+on the client as it packs ([HI.64](GLOSSARY.md#hi64-what-is-switched-off)):
+what is off sends no file and has no wiring line, and the target is handed
+the result, not the list. `hi --plugins` lists, `hi --plugin-off` and
+`hi --plugin-on` switch, and `hi --add-plugin` and `hi --remove-plugin`
+write the carry's lines
+([SETTINGS.md](SETTINGS.md#switching-a-plugin-off)).
+
+The editors' `_HI_DISABLE_*` toggles keep a member home the same way, and
+go on gating its alias, which the list does not reach.
 
 ## Header cells
 
@@ -249,8 +257,8 @@ shadowed default.
 - **A toggle the target reads.** A line behind `_HI_DISABLE_*` is tested
   where the shell starts. The client cannot stand in for it with its own
   environment: under `_HI_DISABLE_LOCAL=1` every toggle is set here and none
-  on a target. The on/off list has to be read from `settings.sh`'s values,
-  not the client's.
+  on a target. There the client reads a toggle off `settings.sh`'s own
+  lines, not its environment.
 
 ## The work
 
@@ -275,12 +283,15 @@ In order.
        `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
        (bookworm's fzf predates the variable, and it ships no lazygit).
 
-3. [ ] **One list switches a plugin** — **Do:** the `dialect` and `group`
-       columns, the on/off list in place of the `off` column, and the
-       table's own `flag` and `flagdir` rows written as a `carry` line's
-       are, at home too. **Ticks when:** a member switched off by name, and one by
-       group, reach no target, and `$_HI_STRIP_NAMES` and the include scan
-       name no member.
+3. [ ] **The table's flags are written as a carry line's are** — shipped:
+       the `group` column, `$_HI_PLUGINS_OFF` and the commands that keep it,
+       and the toggles keeping a member home. What is left is the `dialect`
+       column, and the editors', tmux's, screen's, micro's, and zellij's
+       aliases, which are wanted at home too and so still spelled in
+       `common/aliases.sh`. **Do:** the table in a file every shell's rc
+       can read, as `common/flags` is, and the aliases written from it on
+       both sides. **Ticks when:** `common/aliases.sh` names no member, and
+       `$_HI_STRIP_NAMES` and the include scan name none either.
 
 4. [ ] **An editor's side files ride with its rc** — kakoune's `colors/` (a
        `colorscheme` the `kakrc` names) stays home, so the target falls back

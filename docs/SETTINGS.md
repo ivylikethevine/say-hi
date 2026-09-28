@@ -19,6 +19,7 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
   - [Others](#others)
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
   - [Plugins](#plugins)
+  - [Switching a plugin off](#switching-a-plugin-off)
   - [A tool hi does not know](#a-tool-hi-does-not-know)
 - [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
@@ -229,6 +230,7 @@ prompt program hi does not know, an editor off the ladder - is a red
 | `_HI_PROMPT_END_FISH`    | `\|`                                                                             | `hi --configure`          | fish's prompt separator; unset, root gets `#` in its place, and a value you set is used for root too                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `_HI_DISABLE_LEAD_SPACE` | `0`                                                                              | `hi --configure` advanced | `1` drops the leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `_HI_DISABLE_RIGHT_EDGE` | `0`                                                                              | `hi --configure` advanced | `1` drops the closing \| from every header row and the greeting line, so each ends at its last cell instead of at the banner's column                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `_HI_PLUGINS_OFF`        | unset                                                                            | `hi --plugin-off`         | the plugins, groups, or members that stay home, a space or a comma apart ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_MUX`                | `0`                                                                              | `hi --configure` advanced | `1` makes every connect a `--mux` one, in a local tmux, zellij, or screen session; `--no-mux` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_TRUECOLOR`          | by terminal                                                                      | `hi --configure` advanced | `1`/`0` forces or refuses 24-bit color; unset, the client decides ([Colors](COLORS.md))                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_EDITOR`             | unset                                                                            | you                       | the editor a target session exports as `$EDITOR`, `$VISUAL`, and `$SUDO_EDITOR`, by command name (`nvim`, `micro`, ...); used when the target has it. Unset, `$EDITOR` is your own `$EDITOR`'s command (else your `$VISUAL`'s) and `$VISUAL` your `$VISUAL`'s (else your `$EDITOR`'s) where the target has it, else the first of `nvim vim micro hx nano emacs` it does have; `$SUDO_EDITOR` follows `$EDITOR`. Each carries hi's config flags so `git commit` and `sudo -e` get the editor the alias gives you                                 |
@@ -471,10 +473,37 @@ to syntax all three share, and fast. Each plugin sets its own; hi collects
 them in load order. The whole contract is
 [HI.59](GLOSSARY.md#hi59-plugins).
 
+### Switching a plugin off
+
+Every config hi carries to a target is a plugin: a file, the tool that
+reads it, and what points the tool at it there. `hi --plugins` lists them,
+a row a file, with what rides and from where:
+
+```text
+ plugin         group    member                 state
+ vim            editors  vimrc                  rides: ~/.vimrc
+ kak            editors  kakrc                  stays home: kak is not installed here
+ bat            cli      bat.conf               rides: ~/.config/bat/config
+ lazygit        cli      lazygit.yml            off (_HI_PLUGINS_OFF)
+```
+
+`hi --plugin-off lazygit` keeps it home, and `hi --plugin-on lazygit` lets
+it ride again. A name is a plugin, a member (`bat.conf`), or a group, which
+switches all of its kind: `editors`, `mux`, `prompt`, `cli`, `shell`, and
+`carry` for the lines of your own. What is off sends no file, an overlay
+copy included, and sets nothing on a target, so the tool there keeps the
+target's own config. hi's own files (`settings.sh`, `colors`, `packages`)
+are not plugins and always ride.
+
+The list is `_HI_PLUGINS_OFF` in `settings.sh`, words a space or a comma
+apart. An editor switched off by its `_HI_DISABLE_*` toggle stays home the
+same way. Both are about what rides: at home a tool reads its own config,
+whatever the list says.
+
 ### A tool hi does not know
 
 A config hi has no member for rides once `~/.config/say-hi/carry` has a line
-for it:
+for it, written by hand or by `hi --add-plugin`:
 
 ```text
 # member  | tool   | wire             | home, best first
@@ -499,8 +528,11 @@ notes.txt | -      | -                | ~/notes.txt
   variable's name (`$XDG_CONFIG_HOME/...`), and is skipped while that
   variable is unset. Nothing else in it expands, and nothing in it runs.
 
-`hi --doctor` names each file a line carries, and each line it could not
-read, with the reason. The variable or alias is set on a target only; at
+`hi --add-plugin taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes the
+first line above, quoted so the shell leaves its `$` and `~` alone, and
+refuses a line hi could not read; `hi --remove-plugin taskrc` takes it out.
+To change one, edit the file. `hi --plugins` and `hi --doctor` name each
+file a line carries, and each line hi could not read, with the reason. The variable or alias is set on a target only; at
 home the tool goes on reading its own config. The whole contract is
 [HI.63](GLOSSARY.md#hi63-carry-rows).
 

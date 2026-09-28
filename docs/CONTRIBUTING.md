@@ -184,7 +184,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The seventeen flags in `common/flags`** — name, argument shape, and what
+- **The twenty-two flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -200,6 +200,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `--update --dry-run`, `--add-package --dry-run`,
   `--remove-package --dry-run`, `--add-tag --dry-run`,
   `--set-color --dry-run`, `--unset-color --dry-run`,
+  `--plugin-off --dry-run`, `--plugin-on --dry-run`,
+  `--add-plugin --dry-run`, `--remove-plugin --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and meaning
   (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
   `--install --yes`; no other switch has one); and the `--json` document's
