@@ -299,11 +299,11 @@ different thing:
 - **Nobody, about a plugin that is off.** `hi --plugin-off`, or an editor's
   `_HI_DISABLE_*` toggle, keeps every file of that plugin home, overlay copy
   included ([SETTINGS.md](SETTINGS.md#switching-a-plugin-off)).
-- **The target, about what is used.** `common/aliases.sh` builds each alias
-  from what the target has, and only with its config there, so a config
-  that rode to a box without its tool is a few idle bytes, and a tool whose
-  config stayed home keeps its own - never an alias to a missing binary or
-  file.
+- **The target, about what is used.** Each alias is made from what the
+  target has, and only for a config that rode
+  ([HI.62](GLOSSARY.md#hi62-generated-wiring)), so a config that rode to a
+  box without its tool is a few idle bytes, and a tool whose config stayed
+  home keeps its own - never an alias to a missing binary or file.
 
 ## Config sizes
 

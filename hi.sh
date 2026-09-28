@@ -70,9 +70,9 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # <group> is the word that switches it with its kind in $_HI_PLUGINS_OFF
 # (_hi_plugin_off), or - for a member of hi's own, which nothing switches.
 # <wire> is what points the tool at the member on a target, written there by
-# _hi_overlay_wiring (HI.62): env:<variables> names the file, envdir: the
-# directory holding it, flag:<command> <flag> and flagdir: the same through
-# an alias, and - leaves it to hi's own code.
+# _hi_overlay_wiring (HI.62), whose comment is the grammar: env: and envdir:
+# export variables, flag: and flagdir: alias a command, and - leaves the
+# member to hi's own code.
 # <off> is the toggles that switch it off, spelled as a wiring line reads
 # them, or - for none: with any of them at 1 the member stays home
 # (_hi_plugin_off), and a target tests them again before it takes the wire.
@@ -87,11 +87,11 @@ _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-'
   'packages|_HI_PACKAGES|tree|-|-|-|-|-'
-  'vimrc|_HI_VIMRC|-|vim|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
-  'init.lua|_HI_NVIMRC|-|nvim|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$_HI_XDG_CONFIG/nvim/init.lua"'
-  'nanorc|_HI_NANORC|-|nano|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
-  'init.el|_HI_EMACSRC|-|emacs|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
-  'config.toml|_HI_HELIXRC|-|hx helix|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|"$_HI_XDG_CONFIG/helix/config.toml"'
+  'vimrc|_HI_VIMRC|-|vim|editors|flag:vim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$HOME/.vimrc" "$HOME/.vim/vimrc" "$_HI_XDG_CONFIG/vim/vimrc"'
+  'init.lua|_HI_NVIMRC|-|nvim|editors|flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|"$_HI_XDG_CONFIG/nvim/init.lua"'
+  'nanorc|_HI_NANORC|-|nano|editors|flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|"$HOME/.nanorc" "$_HI_XDG_CONFIG/nano/nanorc"'
+  'init.el|_HI_EMACSRC|-|emacs|editors|flag:emacs -nw -q -l|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|"$HOME/.emacs.el" "$HOME/.emacs" "$HOME/.emacs.d/init.el" "$_HI_XDG_CONFIG/emacs/init.el"'
+  'config.toml|_HI_HELIXRC|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|"$_HI_XDG_CONFIG/helix/config.toml"'
   'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|"${KAKOUNE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kak}/kakrc"'
   'aliases.sh|-|-|-|shell|-|-|"$HOME/.aliases"'
   'plugins.d|_HI_PLUGINS_D|-|-|shell|-|-|-'
@@ -114,14 +114,14 @@ _HI_OVERLAY_TABLE=(
   'fzfrc|-|-|fzf|cli|env:FZF_DEFAULT_OPTS_FILE|-|"${FZF_DEFAULT_OPTS_FILE:-}"'
   'lazygit.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|"${LG_CONFIG_FILE:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" "$HOME/Library/Application Support/lazygit/config.yml"'
   'inputrc|-|-|(readline)|cli|env:INPUTRC|-|"${INPUTRC:-$HOME/.inputrc}"'
-  'tmux.conf|_HI_TMUX_CONF|-|tmux|mux|-|-|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
-  'screenrc|_HI_SCREENRC|-|screen|mux|-|-|"${SCREENRC:-$HOME/.screenrc}"'
+  'tmux.conf|_HI_TMUX_CONF|-|tmux|mux|flag:tmux -f|$_HI_DISABLE_TMUX|"$HOME/.tmux.conf" "$_HI_XDG_CONFIG/tmux/tmux.conf"'
+  'screenrc|_HI_SCREENRC|-|screen|mux|flag:screen -c|$_HI_DISABLE_SCREEN|"${SCREENRC:-$HOME/.screenrc}"'
   'micro/settings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
   'micro/bindings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
   'micro/init.lua|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|"${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}"'
-  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|mux|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|mux|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
-  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|mux|-|-|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
+  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|"${ZELLIJ_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zellij}"'
   'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
 )
 # the members alone, and those with a tree default the overlay's copy
@@ -698,55 +698,88 @@ function _hi_plugin_off() {
 }
 
 # _hi_overlay_wiring <outvar> <member...> - the lines that point each tool at
-# its member on a target, one per member whose row has a wire, in
-# common/paths.sh's four-shell dialect, which sources them there. The paths
-# stay under $_HI_CONFIG_DIR for the target to expand, so a next hop writes
-# the same lines, and a row's <off> toggles are tested there, where the
-# shell starts. Builtins only: every connect runs it. GLOSSARY: HI.62
+# its member on a target, in common/paths.sh's four-shell dialect, which
+# sources them there. A row's wire column holds one wire or several, a ;
+# between them: env:<variables> exports each as the member's path and
+# envdir: as its directory; flag:<command> <words> aliases the command to
+# itself, the words, and the path, where the target has the command, and
+# flagdir: the same with the directory. <command> is `<names>=<command>` to
+# answer to other names (a , between them), and words before it that hold a =
+# are its environment. A flag ending in = takes the path in the same word.
+# The directory of a member under a / is the one its first name names.
+# Wires run in order and a later alias replaces an earlier one, so helix's
+# row asks for hx first: once `hx` is an alias, `command -v hx` finds it.
+#
+# The paths stay under $_HI_CONFIG_DIR for the target to expand, so a next
+# hop writes the same lines, and a row's <off> toggles are tested there,
+# where the shell starts. A line is written once, however many members ask
+# for it. Builtins only: every connect runs it. GLOSSARY: HI.62
 function _hi_overlay_wiring() {
-  local _hi_ow_out="$1" _hi_ow_m _hi_ow_w _hi_ow_g _hi_ow_p _hi_ow_v _hi_ow_l _hi_ow_all=""
+  local _hi_ow_out="$1" _hi_ow_m _hi_ow_r _hi_ow_ws _hi_ow_w _hi_ow_g _hi_ow_p _hi_ow_v _hi_ow_l
+  local _hi_ow_n _hi_ow_c _hi_ow_e _hi_ow_all=$'\n'
   shift
   for _hi_ow_m; do
-    _hi_overlay_row "$_hi_ow_m" _hi_ow_w || continue
-    _hi_ow_w="${_hi_ow_w#*|*|*|*|*|}"
-    _hi_ow_g="${_hi_ow_w#*|}"
-    _hi_ow_g="${_hi_ow_g%%|*}"
-    _hi_ow_w="${_hi_ow_w%%|*}"
-    _hi_ow_p="\$_HI_CONFIG_DIR/$_hi_ow_m"
-    case "$_hi_ow_w" in
-    env:* | flag:*) ;;
-    envdir:* | flagdir:*) _hi_ow_p="${_hi_ow_p%/*}" ;;
-    *) continue ;;
-    esac
-    _hi_ow_l=""
+    _hi_overlay_row "$_hi_ow_m" _hi_ow_r || continue
+    _hi_ow_ws="${_hi_ow_r#*|*|*|*|*|}"
+    _hi_ow_r="${_hi_ow_ws#*|}"
+    _hi_ow_ws="${_hi_ow_ws%%|*};"
+    [ "$_hi_ow_ws" != "-;" ] || continue
+    _hi_ow_g=""
     # shellcheck disable=SC2086 # the split is the column
-    [ "$_hi_ow_g" = - ] || for _hi_ow_v in $_hi_ow_g; do
-      _hi_ow_l="${_hi_ow_l}[ \"$_hi_ow_v\" != 1 ] && "
+    [ "${_hi_ow_r%%|*}" = - ] || for _hi_ow_v in ${_hi_ow_r%%|*}; do
+      _hi_ow_g="${_hi_ow_g}[ \"$_hi_ow_v\" != 1 ] && "
     done
-    case "$_hi_ow_w" in
-    flag*)
-      # <command> <flag>: an alias, where the command is; a flag ending in =
-      # takes the path in the same word
-      _hi_ow_v="${_hi_ow_w#*:}"
-      _hi_ow_w="${_hi_ow_v#* }"
-      _hi_ow_v="${_hi_ow_v%% *}"
-      case "$_hi_ow_w" in *=) ;; *) _hi_ow_w="$_hi_ow_w " ;; esac
-      _hi_ow_l="${_hi_ow_l}command -v $_hi_ow_v >/dev/null 2>&1 && alias $_hi_ow_v=\"$_hi_ow_v $_hi_ow_w'$_hi_ow_p'\" || true"
-      ;;
-    *)
-      _hi_ow_l="${_hi_ow_l}export"
-      # shellcheck disable=SC2086 # the split is the column
-      for _hi_ow_v in ${_hi_ow_w#*:}; do
-        _hi_ow_l="$_hi_ow_l $_hi_ow_v=\"$_hi_ow_p\""
-      done
-      # a line behind a toggle ends true, or a sourcer under set -e would
-      # stop at the file whose last line a toggle turned down
-      [ "$_hi_ow_g" = - ] || _hi_ow_l="$_hi_ow_l || true"
-      ;;
-    esac
-    _hi_ow_all="$_hi_ow_all$_hi_ow_l"$'\n'
+    while [ -n "$_hi_ow_ws" ]; do
+      _hi_ow_w="${_hi_ow_ws%%;*}" _hi_ow_ws="${_hi_ow_ws#*;}"
+      case "$_hi_ow_w" in
+      env:* | flag:*) _hi_ow_p="\$_HI_CONFIG_DIR/$_hi_ow_m" ;;
+      envdir:* | flagdir:*)
+        _hi_ow_p="\$_HI_CONFIG_DIR"
+        case "$_hi_ow_m" in */*) _hi_ow_p="$_hi_ow_p/${_hi_ow_m%%/*}" ;; esac
+        ;;
+      *) continue ;;
+      esac
+      _hi_ow_l="$_hi_ow_g"
+      case "$_hi_ow_w" in
+      flag*)
+        # <names>=, then the environment, the command, and its words
+        _hi_ow_w="${_hi_ow_w#*:} "
+        _hi_ow_n="" _hi_ow_e="" _hi_ow_c=""
+        case "${_hi_ow_w%% *}" in *=*) _hi_ow_n="${_hi_ow_w%%=*}" _hi_ow_w="${_hi_ow_w#*=}" ;; esac
+        while [ -z "$_hi_ow_c" ]; do
+          case "${_hi_ow_w%% *}" in
+          [!-]*=*) _hi_ow_e="$_hi_ow_e${_hi_ow_w%% *} " ;;
+          *) _hi_ow_c="${_hi_ow_w%% *}" ;;
+          esac
+          _hi_ow_w="${_hi_ow_w#* }"
+        done
+        case "$_hi_ow_w" in *'= ') _hi_ow_w="${_hi_ow_w% }" ;; esac
+        # the path bare, as an alias of hi's always had it: load.sh reads a
+        # body back for $EDITOR, and a quote inside one does not survive that
+        _hi_ow_v="${_hi_ow_e:+env $_hi_ow_e}$_hi_ow_c $_hi_ow_w$_hi_ow_p"
+        _hi_ow_l="${_hi_ow_l}command -v $_hi_ow_c >/dev/null 2>&1"
+        _hi_ow_n="${_hi_ow_n:-$_hi_ow_c},"
+        while [ -n "$_hi_ow_n" ]; do
+          _hi_ow_l="$_hi_ow_l && alias ${_hi_ow_n%%,*}=\"$_hi_ow_v\""
+          _hi_ow_n="${_hi_ow_n#*,}"
+        done
+        _hi_ow_l="$_hi_ow_l || true"
+        ;;
+      *)
+        _hi_ow_l="${_hi_ow_l}export"
+        # shellcheck disable=SC2086 # the split is the column
+        for _hi_ow_v in ${_hi_ow_w#*:}; do
+          _hi_ow_l="$_hi_ow_l $_hi_ow_v=\"$_hi_ow_p\""
+        done
+        # a line behind a toggle ends true, or a sourcer under set -e would
+        # stop at the file whose last line a toggle turned down
+        [ -z "$_hi_ow_g" ] || _hi_ow_l="$_hi_ow_l || true"
+        ;;
+      esac
+      case "$_hi_ow_all" in *$'\n'"$_hi_ow_l"$'\n'*) ;; *) _hi_ow_all="$_hi_ow_all$_hi_ow_l"$'\n' ;; esac
+    done
   done
-  printf -v "$_hi_ow_out" '%s' "$_hi_ow_all"
+  printf -v "$_hi_ow_out" '%s' "${_hi_ow_all#$'\n'}"
 }
 
 # _hi_tool_here <member> [row] - is the tool that reads <member> on this

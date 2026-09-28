@@ -1021,56 +1021,49 @@ function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
   [[ "$out" == *"er/leafdir"* ]] || _hi_because "wide: [$out]"
 }
 
-# every editor is presence-gated in common/aliases.sh itself (a box without
-# the tool leaves its alias undefined), which _hi_editors_preview reads rather
-# than restates - so each line only needs to be there when the tool is.
+# the preview lists an editor for every config that would ride, whether or
+# not this machine has the editor: the alias is a target's. micro's is
+# common/aliases.sh's, and there only with micro here.
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  if command -v nano >/dev/null 2>&1; then
-    [[ "$out" == *"nano --rcfile $_HI_NANORC"* ]] || return 1
-  fi
-  if command -v emacs >/dev/null 2>&1; then
-    [[ "$out" == *"emacs -nw -q -l $_HI_EMACSRC"* ]] || return 1
-  fi
+  [[ "$out" == *"nano  -> nano --rcfile $_HI_NANORC"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_EMACSRC"* ]] || _hi_because "emacs: $out" || return 1
+  [[ "$out" == *"vim   -> vim -u $_HI_VIMRC"* ]] || _hi_because "vim: $out" || return 1
+  # each name carries the rc of the binary behind it: nvim answers to both
+  # `vim` and `nvim` and reads init.lua, its state kept in the session tree
+  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_NVIMRC"* ]] || _hi_because "nvim: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" nvim -u $_HI_NVIMRC"* ]] || _hi_because "vim as nvim: $out" || return 1
+  [[ "$out" == *"hx    -> hx -c $_HI_HELIXRC"* && "$out" == *"helix -> helix -c $_HI_HELIXRC"* ]] || _hi_because "helix: $out" || return 1
   # micro's flags ride only a target or a micro/ of hi's, the overlay's here
   if command -v micro >/dev/null 2>&1; then
-    [[ "$out" == *"micro -> micro -config-dir $_HI_MICRO_DIR -backup false"* ]] || return 1
-  fi
-  # each name carries the rc of the binary behind it: nvim answers to both
-  # `vim` and `nvim` and reads init.lua, vim reads vimrc
-  if command -v nvim >/dev/null 2>&1; then
-    [[ "$out" == *"nvim  -> "* && "$out" == *"-u $_HI_NVIMRC"* ]] || return 1
-  elif command -v vim >/dev/null 2>&1; then
-    [[ "$out" == *"-u $_HI_VIMRC"* ]] || return 1
-  fi
-  if command -v hx >/dev/null 2>&1; then
-    [[ "$out" == *"hx    -> "* && "$out" == *"-c $_HI_HELIXRC"* ]] || return 1
+    [[ "$out" == *"micro -> micro -config-dir $_HI_MICRO_DIR -backup false"* ]] || _hi_because "micro: $out" || return 1
   fi
 }
 
-# vim has no second spelling left to drift out of step:
-# _hi_editors_preview sources common/aliases.sh itself and reads the alias
-# back (same trick as load.sh's _hi_session_editor), so what pins them is
-# behaviour, not text - the preview's line for <tool> must be exactly what
-# sourcing the alias produces. tests/config/alias_fallthrough_test.sh keeps
-# the textual pin for bat, whose preview is not built this way.
+# the preview has no second spelling to drift out of step: its line for
+# <tool> is the alias a target's shell holds once it has read the wiring.sh
+# a client packs for the same configs, the last of two where a name has two.
+# <tool> <member> <binary>: the alias, the config behind it, and the command
+# a target has to have for the line to land.
 function test_editor_preview_matches_its_alias() {
-  local tool="$1" from_alias from_preview
-  from_alias="$(
-    _HI_DISABLE_EDITORS=0
-    # shellcheck disable=SC2031 # lives and dies in this $( )
-    # shellcheck source=/dev/null # common/aliases.sh, or the copy in the overlay
-    # (no apostrophe in a comment inside a $( ): bash 3.2 reads it as a quote)
-    source "$_HI_ALIASES" >/dev/null 2>&1
-    alias "$tool" 2>/dev/null
-  )"
+  local tool="$1" member="$2" bin="$3" from_alias from_preview path dir="$_HI_WORKDIR/preview-$1"
+  mkdir -p "$dir"
+  # shellcheck disable=SC2016 # the child bash expands its own script
+  bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w "$m" && printf %s "$w"' \
+    _ "$member" >"$dir/wiring.sh" || return 1
+  path="$(_hi_fake_path "preview-bin-$bin" "$bin"):$PATH"
+  # shellcheck disable=SC2016 # the child bash expands its own script
+  from_alias="$(PATH="$path" _HI_DISABLE_EDITORS=0 _HI_DISABLE_VIM=0 _HI_DISABLE_HELIX=0 bash -c '. "$1" && alias "$2"' _ "$dir/wiring.sh" "$tool" 2>/dev/null)"
   [ -n "$from_alias" ] || {
     _hi_cecho " | no $tool alias to compare" "$RED"
     return 1
   }
-  eval "from_alias=${from_alias#*=}"
-  from_preview="$(_hi_editors_preview | sed -n "s/^$tool *-> //p")"
+  from_alias="${from_alias#alias "$tool"=\'}"
+  from_alias="${from_alias%\'}"
+  # the preview names the session tree as a target will, by its variable
+  from_preview="$(_hi_editors_preview | sed -n "s/^$tool *-> //p" | tail -n 1)"
+  from_preview="${from_preview//\$_HI_HOME/$_HI_HOME}"
   [ "$from_alias" = "$from_preview" ] || {
     _hi_cecho " | alias: [$from_alias]" "$RED"
     _hi_cecho " | preview: [$from_preview]" "$RED"
@@ -1616,7 +1609,7 @@ function test_menu_junk_is_bounded_and_quits() {
 # This machine's one number is _HI_DISABLE_LOCAL's, read off the list.
 function test_menu_main_page_sums_up_every_section() {
   local m main keys
-  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|13')" || return 1
+  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|16')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
   main="$(_hi_cfg_screen hub_all 0)"
   keys="$(printf '%s\n' "$main" | sed -n 's/^ \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
@@ -1652,7 +1645,7 @@ function test_menu_section_letters_open_their_pages() {
 # This machine's page draws _HI_DISABLE_LOCAL, the one row it holds
 function test_menu_this_machine_page_holds_here_too() {
   local m
-  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|13')" || return 1
+  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|16')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_local 'm\ns\n' '' run_configure "" || return 1
   _hi_cfg_screen_has hub_local 1 "hi --configure: This machine" &&
     _hi_cfg_screen_has hub_local 1 "$m) [x] here too"
@@ -1863,21 +1856,9 @@ function run_configure_tests() {
   _hi_check "...painted with the settings file's scheme" test_prompt_sample_preview_paints_with_the_settings_scheme
   _hi_check "...its cwd cut to the last part in a narrow menu" test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
-  if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
-    _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim
-  else
-    _hi_skip "The vim preview matches its alias" "no nvim or vim"
-  fi
-  if command -v nvim >/dev/null 2>&1; then
-    _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim
-  else
-    _hi_skip "...and the nvim preview matches its own" "no nvim"
-  fi
-  if command -v hx >/dev/null 2>&1; then
-    _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx
-  else
-    _hi_skip "...and the hx preview matches its own" "no hx"
-  fi
+  _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim init.lua nvim
+  _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim init.lua nvim
+  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx config.toml helix
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed

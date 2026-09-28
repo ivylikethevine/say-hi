@@ -495,12 +495,37 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
   [ -f "$d/colors" ] && [ -f "$d/oh-my-posh.toml" ] || _hi_because "unpacked: $(ls "$d")"
 }
 
+# an editor's or a multiplexer's config rides with its alias: the command
+# and its flags, where the target has the command and its toggles are off.
+# nvim answers to vim too and keeps its state in the session tree, helix to
+# hx under either name, and zellij's directory is aliased once for all its
+# files
+# shellcheck disable=SC2016 # the wanted lines hold their $ unexpanded
+function test_overlay_tar_aliases_the_editors_and_multiplexers() {
+  local dir d want
+  dir="$(_hi_overlay_fixture aliased vimrc init.lua config.toml tmux.conf)"
+  mkdir -p "$dir/zellij/themes"
+  printf 'x\n' >"$dir/zellij/config.kdl"
+  printf 'x\n' >"$dir/zellij/themes/dark.kdl"
+  d="$(mktemp -d "$_HI_WORKDIR/aliased-out.XXXXXX")" || return 1
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
+  want='[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="vim -u $_HI_CONFIG_DIR/vimrc" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/config.toml" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v helix >/dev/null 2>&1 && alias hx="helix -c $_HI_CONFIG_DIR/config.toml" && alias helix="helix -c $_HI_CONFIG_DIR/config.toml" || true
+[ "$_HI_DISABLE_TMUX" != 1 ] && command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf" || true
+[ "$_HI_DISABLE_ZELLIJ" != 1 ] && command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONFIG_DIR/zellij" || true'
+  [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
+  [ "$(_HI_DISABLE_TMUX=1 _HI_DISABLE_ZELLIJ=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vimrc init.lua config.toml " ] ||
+    _hi_because "their toggles left: $(_HI_DISABLE_TMUX=1 _HI_DISABLE_ZELLIJ=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+}
+
 # ...and only with them: an overlay of members hi's own code reads has no
 # wiring.sh, and one written into the overlay by hand is no member
 function test_overlay_tar_has_no_wiring_without_a_wired_member() {
   local dir
-  dir="$(_hi_overlay_fixture unwired colors bashrc tmux.conf wiring.sh)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bashrc,colors,tmux.conf" ]
+  dir="$(_hi_overlay_fixture unwired colors bashrc aliases.sh wiring.sh)"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "aliases.sh,bashrc,colors" ]
 }
 
 # a row of the user's own, in the overlay's carry: the member rides from the
@@ -530,7 +555,7 @@ function test_carry_row_rides_from_home_with_its_wiring() {
     _hi_because "members: $(cat "$d/taskrc" "$d/b.conf" 2>&1)" || return 1
   [ "$(cat "$d/wiring.sh")" = 'export TASKRC="$_HI_CONFIG_DIR/taskrc"
 export B_DIR="$_HI_CONFIG_DIR"
-command -v ctool >/dev/null 2>&1 && alias ctool="ctool --config='"'"'$_HI_CONFIG_DIR/c.toml'"'"'" || true' ] ||
+command -v ctool >/dev/null 2>&1 && alias ctool="ctool --config=$_HI_CONFIG_DIR/c.toml" || true' ] ||
     _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)"
 }
 
@@ -1667,6 +1692,7 @@ function run_hi_payload_tests() {
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
   _hi_check "A wired member rides with its wiring.sh line" test_overlay_tar_wires_the_members_it_carries
+  _hi_check "...an editor's or a multiplexer's with its alias" test_overlay_tar_aliases_the_editors_and_multiplexers
   _hi_check "...and there is no wiring.sh without one" test_overlay_tar_has_no_wiring_without_a_wired_member
   _hi_check "A carry row's member rides from home, wired" test_carry_row_rides_from_home_with_its_wiring
   _hi_check "...its home list expands three starts and runs nothing" test_carry_home_list_expands_three_starts_and_runs_nothing

@@ -158,6 +158,9 @@ export _HI_REMOTE_SESSION
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_MICRO=1
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_HELIX=1
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_KAKOUNE=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_TMUX=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_SCREEN=1
+[ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_ZELLIJ=1
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_TOOL_ALIASES=0
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_SUDO_ALIAS=0
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && export _HI_DISABLE_BANNER=1

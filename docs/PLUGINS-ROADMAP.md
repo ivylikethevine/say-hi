@@ -27,7 +27,7 @@ deleted once its **Ticks when** holds. What a user does today is
 | Aspect                                    | A plugin?             | Contract                                                         |
 | ----------------------------------------- | --------------------- | ---------------------------------------------------------------- |
 | A carried config a tool is pointed at     | yes, as data          | one table row; the target's wiring is generated on the client    |
-| The same with a quirk (vim, nano, nvim)   | yes, row and built-in | the same row; the quirk stays code in the tree                   |
+| The same with a quirk (vim, nano, micro)  | yes, row and built-in | the same row; the quirk stays code in the tree                   |
 | Shell code of the user's own              | already               | `plugins.d` ([HI.59](GLOSSARY.md#hi59-plugins)), unchanged       |
 | The tool aliases (bat, ls, sudo)          | yes                   | the same off list; the code stays in `common/aliases.sh`         |
 | A header cell added by the user           | yes                   | a bash `header.d/<word>` defining `_hi_cell_<word>`              |
@@ -82,18 +82,16 @@ together.
 | `flag`    | 7    | `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`, `tmux.conf`, `screenrc`                           | `alias tool="tool <flag> <file>"` |
 | `flagdir` | 6    | `micro/`'s three, `zellij/`'s three                                                                        | `alias tool="tool <flag> <dir>"`  |
 | sourced   | 10   | `aliases.sh`, `plugins.d`, `bashrc`, `zshrc`, `config.fish`, `p10k.zsh`, the framework themes, `tide.vars` | hi's rc for that shell            |
-| hi's own  | 4    | `settings.sh`, `colors`, `packages`, `ssh_tags`                                                            | read by hi                        |
+| hi's own  | 5    | `settings.sh`, `colors`, `packages`, `ssh_tags`, `carry`                                                   | read by hi                        |
 
-The first four kinds, 24 of 38 rows, are one sentence: carry a file, point a
-tool at it. Those are data. `env` and `envdir` are written from the row
-today; `flag` and `flagdir` are still spelled in `common/aliases.sh`. What stays code beside a row:
+The first four kinds, 24 of 39 rows, are one sentence: carry a file, point a
+tool at it. Those are data, written from the row, micro's alias excepted.
+What stays code beside a row:
 
 - oh-my-posh's home lookup reads rc files, and one program is three members.
-- nvim takes an `env XDG_*_HOME=` prefix on a target.
 - vim also gets `$VIMINIT`, in `load.sh`.
 - nano gets `load.sh`'s `_hi_nano_fallback`.
-- helix answers to two binary names; micro has default options with no
-  config at all.
+- micro's flags are a setting, with a default on a target and none at home.
 - tide's member is cut down to its `SETUVAR tide_` lines by the stager.
 
 ## The design
@@ -131,12 +129,11 @@ So:
   under `$_HI_CONFIG_DIR`, and the list is the same.
 - The lines are part of the overlay cache's key.
 
-A flag is an alias, written the same way for a `carry` line. The table's
-own flags are wanted at home too, for an overlay copy, and stay in
-`common/aliases.sh` until the wiring is written there as well:
+A flag is an alias, and a target's alone: at home every tool reads its own
+config, overlay copy or not.
 
 ```sh
-command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f '$_HI_CONFIG_DIR/tmux.conf'" || true
+[ "$_HI_DISABLE_TMUX" != 1 ] && command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf" || true
 ```
 
 ### The row
@@ -250,10 +247,6 @@ shadowed default.
   [_What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break) names
   every member and `plugins.d`'s hooks, so the row is settled before the
   1.0 tag.
-- **Flags at home.** `wiring.sh` is a target's. An overlay copy of an
-  editor rc needs its alias at home too, so `common/aliases.sh` keeps the
-  built-in flag lines; generating them at home as well needs a cache and a
-  rule for when it is stale.
 - **A toggle the target reads.** A line behind `_HI_DISABLE_*` is tested
   where the shell starts. The client cannot stand in for it with its own
   environment: under `_HI_DISABLE_LOCAL=1` every toggle is set here and none
@@ -283,14 +276,14 @@ In order.
        `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
        (bookworm's fzf predates the variable, and it ships no lazygit).
 
-3. [ ] **The table's flags are written as a carry line's are** — shipped:
-       the `group` column, `$_HI_PLUGINS_OFF` and the commands that keep it,
-       and the toggles keeping a member home. What is left is the `dialect`
-       column, and the editors', tmux's, screen's, micro's, and zellij's
-       aliases, which are wanted at home too and so still spelled in
-       `common/aliases.sh`. **Do:** the table in a file every shell's rc
-       can read, as `common/flags` is, and the aliases written from it on
-       both sides. **Ticks when:** `common/aliases.sh` names no member, and
+3. [ ] **A member is its row and nothing else** — shipped: the `group`
+       column, `$_HI_PLUGINS_OFF` and the commands that keep it, the toggles
+       keeping a member home, and the editors' and multiplexers' aliases
+       written from their rows. What is left: the `dialect` column; micro's
+       alias, whose flags are a setting `common/aliases.sh` defaults; and
+       the editors' and multiplexers' variables in `common/paths.sh`, which
+       only `hi.sh` and `load.sh` still read. **Ticks when:**
+       `common/aliases.sh` and `common/paths.sh` name no member, and
        `$_HI_STRIP_NAMES` and the include scan name none either.
 
 4. [ ] **An editor's side files ride with its rc** — kakoune's `colors/` (a

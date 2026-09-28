@@ -163,24 +163,28 @@ SCRIPT
 }
 
 # _hi_test_nvim_stays_in_tree <shell> <dir> - on a target, neovim run through
-# the alias writes its shada, undo, and vim.loader cache under $_HI_CLEANUP,
-# not the target's ~/.local or ~/.cache, even with an init.lua that turns
-# undofile on. fish's own ~/.local/share/fish is not neovim's, hence the name
-# filter.
+# the alias writes its shada, undo, and vim.loader cache under the session
+# tree ($_HI_HOME there), not the target's ~/.local or ~/.cache, even with an
+# init.lua that turns undofile on. The alias is the overlay's wiring.sh line
+# (GLOSSARY: HI.62), written here as a client writes it. fish's own
+# ~/.local/share/fish is not neovim's, hence the name filter.
 # shellcheck disable=SC2016 # the scripts we write out, not code to run here
 function _hi_test_nvim_stays_in_tree() {
   local shell="$1" base="$2/nvstate.$1" output rc=0
-  mkdir -p "$base/home" "$base/tree"
-  printf '%s\n' 'vim.loader.enable()' 'vim.opt.undofile = true' >"$base/init.lua"
+  mkdir -p "$base/home" "$base/tree" "$base/cfg"
+  printf '%s\n' 'vim.loader.enable()' 'vim.opt.undofile = true' >"$base/cfg/init.lua"
   printf 'a\n' >"$base/f.txt"
+  bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w init.lua && printf %s "$w"' >"$base/cfg/wiring.sh" ||
+    _hi_because "[$shell] no wiring.sh for init.lua" || return 1
   if [ "$shell" = fish ]; then
-    printf '%s\n' 'source "$_HI_ALIASES"; or exit 2' 'nvim --headless -c "normal! ix" -c wq $F' >"$base/t"
+    printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' 'nvim --headless -c "normal! ix" -c wq $F' >"$base/t"
   else
-    printf '%s\n' 'shopt -s expand_aliases 2>/dev/null' '. "$_HI_ALIASES" || exit 2' 'nvim --headless -c "normal! ix" -c wq "$F"' >"$base/t"
+    printf '%s\n' 'shopt -s expand_aliases 2>/dev/null' '. "$_HI_CONFIG_DIR/wiring.sh" || exit 2' 'nvim --headless -c "normal! ix" -c wq "$F"' >"$base/t"
   fi
   output=$(env -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME HOME="$base/home" \
     XDG_CONFIG_HOME="$base/home/.config" F="$base/f.txt" _HI_REMOTE_SESSION=1 \
-    _HI_CLEANUP="$base/tree" _HI_NVIMRC="$base/init.lua" "$shell" "$base/t" 2>&1) || rc=$?
+    _HI_DISABLE_EDITORS=0 _HI_DISABLE_VIM=0 \
+    _HI_HOME="$base/tree" _HI_CONFIG_DIR="$base/cfg" "$shell" "$base/t" 2>&1) || rc=$?
   [ "$rc" -eq 0 ] || _hi_because "[$shell] nvim exited $rc: $output" || return 1
   [ -z "$(find "$base/home" -name nvim)" ] ||
     _hi_because "[$shell] wrote outside the tree: $(find "$base/home" -name nvim | tr '\n' ' ')" || return 1
@@ -194,14 +198,14 @@ function run_alias_test() {
   _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases, $(wc -w <<<"$_HI_SAMPLE_VARS") variables and $(wc -l <<<"$_HI_PRESENCE_ALIASES") presence-gated aliases"
 
   _hi_workdir aliases
-  # an editor alias needs its tool and an overlay config, so every editor has one
+  # micro's alias needs its tool, a target, and a micro/ of hi's
   mkdir -p "$_HI_WORKDIR/overlay"
   for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_WORKDIR/overlay/$_hi_f"; done
   mkdir -p "$_HI_WORKDIR/overlay/micro"
   export _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" \
     _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_HELIXRC="$_HI_WORKDIR/overlay/config.toml" \
     _HI_NANORC="$_HI_WORKDIR/overlay/nanorc" _HI_EMACSRC="$_HI_WORKDIR/overlay/init.el" \
-    _HI_MICRO_DIR="$_HI_WORKDIR/overlay/micro" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1
+    _HI_MICRO_DIR="$_HI_WORKDIR/overlay/micro" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _HI_REMOTE_SESSION=1
 
   _hi_suite_begin
   for _hi_shell in dash bash zsh fish; do

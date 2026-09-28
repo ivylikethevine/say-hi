@@ -1152,11 +1152,10 @@ overlay's copy, then the config that editor already reads on this machine
 in the editor's own precedence). hi ships no editor config of its own, so with
 neither the value is empty and the command has no alias; `tmux.conf` (`tmux
 -f`) and `screenrc` (`screen -c`) take the same tiers, and micro and zellij
-take a _directory_. The alias names the file only when it is hi's - the
-overlay's copy, and anything on a target: the home tier is what the tool
-reads unasked, so `common/aliases.sh` leaves the command bare there rather
-than restate it (and `vim -u` would drop the system vimrc and
-`defaults.vim`). The middle tier is [HI.32](#hi32-starship-deference)'s argument
+take a _directory_. The alias is a target's alone, a line of the overlay's
+`wiring.sh` ([HI.62](#hi62-generated-wiring)): at home every tool reads its
+own config unasked, an overlay copy is what targets get, and `vim -u` would
+drop the system vimrc and `defaults.vim`. The middle tier is [HI.32](#hi32-starship-deference)'s argument
 applied to editors - one copy to edit, no duplicate in the overlay to keep in
 step.
 
@@ -1342,11 +1341,22 @@ target's line has to parse in bash, zsh, fish, and sh: `common/paths.sh`'s
 dialect, which has no loop to walk a table with. So the client writes the
 lines. A row's wire column says how: `env:<variables>` exports each as the
 member's path, `envdir:<variable>` as the directory holding it (eza and its
-fixed `theme.yml`), `flag:<command> <flag>` and `flagdir:` alias the command
-to itself with the flag and that path, where the target has the command (a
-flag ending in `=` takes the path in the same word), and `-` leaves the
-member to hi's own code. The editors', tmux's, and screen's flags are still
-`common/aliases.sh`'s, which also answers at home.
+fixed `theme.yml`), `flag:<command> <words>` and `flagdir:` alias the
+command to itself with the words and that path, where the target has the
+command (a flag ending in `=` takes the path in the same word), and `-`
+leaves the member to hi's own code. A row holds several wires with a `;`
+between them, read in order, a later alias replacing an earlier one.
+`<names>=<command>` aliases other names to the command, and words ahead of
+it that hold a `=` are its environment: neovim answers to `vim` as well and
+keeps its state under the session tree, and helix to `hx` whichever of its
+two names the target installed. helix's row asks for `hx` first, since
+`command -v` finds an alias once there is one. The path goes in bare:
+`load.sh` reads an alias's body back for `$EDITOR`, and a quote inside one
+does not survive that.
+
+micro's alias is the one still spelled in `common/aliases.sh`: its flags are
+`$_HI_MICRO_OPTS`, a setting whose default that file gives after `wiring.sh`
+has been read.
 `_hi_overlay_wiring` turns the members an overlay archive carries into
 `wiring.sh`, which `_hi_overlay_tar` stages beside them, and `paths.sh`
 sources it on a target only. At home each tool's own config is already in

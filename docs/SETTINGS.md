@@ -220,6 +220,9 @@ prompt program hi does not know, an editor off the ladder - is a red
 | `_HI_DISABLE_MICRO`      | `0`                                                                              | `hi --configure`          | the same for micro's alias, with its `_HI_MICRO_OPTS` flags and `-config-dir`                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `_HI_DISABLE_HELIX`      | `0`                                                                              | `hi --configure`          | the same for `hx`'s alias - hi's `config.toml`, `-c`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `_HI_DISABLE_KAKOUNE`    | `0`                                                                              | `hi --configure`          | the same for kakoune - on a target, `$KAKOUNE_CONFIG_DIR` pointed at the overlay that holds your `kakrc`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `_HI_DISABLE_TMUX`       | `0`                                                                              | `hi --configure`          | turns off tmux's carried config: `tmux.conf` stays home and a target's `tmux` is not aliased to it                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `_HI_DISABLE_SCREEN`     | `0`                                                                              | `hi --configure`          | the same for screen's `screenrc`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `_HI_DISABLE_ZELLIJ`     | `0`                                                                              | `hi --configure`          | the same for zellij's `config.kdl`, `layouts/`, and `themes/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `_HI_TOOL_ALIASES`       | `0`                                                                              | `hi --configure`          | `1` turns on the styled tool aliases: `cat`/`catn` as `bat` with `_HI_BAT_OPTS`, `bat`/`batcat`/`batn`, and `ls`/`exa`/`eza` through the list ladder. Off, none of them exists and the `_HI_*_BIN` lookups are skipped. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                                                                                                                         |
 | `_HI_SUDO_ALIAS`         | `0`                                                                              | `hi --configure`          | `1` turns on the `sudo` alias - the trailing-space alias in bash/zsh that lets `sudo vim` keep the vim alias's flags, and fish's wrapper function that does the same for its alias functions                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_DISABLE_LOCAL`      | `0`                                                                              | `hi --configure`          | turns off everything above, the two alias opt-ins included whatever they say, and the banner, **on this machine only** - hi still styles the hosts you visit ([Others](#others))                                                                                                                                                                                                                                                                                                                                                                |
@@ -496,8 +499,8 @@ target's own config. hi's own files (`settings.sh`, `colors`, `packages`)
 are not plugins and always ride.
 
 The list is `_HI_PLUGINS_OFF` in `settings.sh`, words a space or a comma
-apart. An editor switched off by its `_HI_DISABLE_*` toggle stays home the
-same way. Both are about what rides: at home a tool reads its own config,
+apart. An editor or a multiplexer switched off by its `_HI_DISABLE_*` toggle
+stays home the same way. Both are about what rides: at home a tool reads its own config,
 whatever the list says.
 
 ### A tool hi does not know
@@ -555,16 +558,17 @@ so there is one copy to edit:
 | `micro/<file>`  | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua`         |
 | `zellij/<file>` | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`, for `config.kdl` and every file of `layouts/` and `themes/` |
 
-An overlay copy still wins — that is how you give hi's sessions an editor
-config that differs from your local one. With neither, nothing rides and the
-tool starts on the target's own config; a home config rides only with its
-tool installed here. On a target the lookup is off: `$HOME` there is the
+An overlay copy still wins — that is how you give a target an editor config
+that differs from your local one. With neither, nothing rides and the tool
+starts on the target's own config; a home config rides only with its tool
+installed here. On a target the lookup is off: `$HOME` there is the
 target's, and the file your client picked has already arrived.
 
-Here, a tool whose own config is in force gets no alias at all: `vim`, `nvim`,
-`hx`, `nano`, `emacs`, `micro`, `tmux`, `screen`, and `zellij` already read it
-unasked, and `vim -u` or `nano --rcfile` would skip the system rc besides. The
-alias appears here only for an overlay copy, and on a target always.
+The aliases are a target's. There `vim`, `nvim`, `hx`, `nano`, `emacs`,
+`micro`, `tmux`, `screen`, and `zellij` each name the file that rode, where
+the target has the command. Here none of them is aliased, overlay copy or
+not: every tool reads its own config, and `vim -u` or `nano --rcfile` would
+skip the system rc besides.
 
 Your own config is written for a machine with your plugins on it, and a target
 has none. So hi reads each of these files — and the overlay's `settings.sh`,

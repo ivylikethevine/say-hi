@@ -419,27 +419,42 @@ function _hi_config_preview() {
   _hi_prompt_sample_preview
 }
 
-# what each editor alias actually resolves to with the override on - read
-# back from common/aliases.sh itself (the overlay's copy on a target)
-# rather than restated here, so a box with neither nvim nor vim, say, shows
-# nothing for that line instead of a resolved command that was never real. A
+# what each editor's alias is on a target with the override on: the lines
+# hi.sh's _hi_overlay_wiring writes for the editor configs that would ride
+# (GLOSSARY: HI.62), read off that writer rather than restated here, each
+# naming the file it carries in place of the target's copy. A name two
+# lines alias (`vim`, where a target has nvim) is listed for each, in the
+# order a target reads them, so the last is the one it keeps. micro's alias
+# is common/aliases.sh's own, read back from it as a target builds it. A
 # subshell: nothing this defines should survive past the preview.
-# load.sh's _hi_session_editor reads an alias body back the same way; the
-# eval re-parses bash's own quoting of it (micro's flag string nests spaces).
 function _hi_editors_preview() {
   (
     # shellcheck disable=SC2030 # lives and dies in this subshell, same as
     # _hi_tool_alias_preview's own export below sourcing the same file
     _HI_DISABLE_EDITORS=0
+    # shellcheck source=/dev/null # hi.sh, which shellcheck would follow into its own `_hi "$@"`
+    source "$_HI_LAUNCHER" >/dev/null 2>&1
+    local row member src lines line body
+    while IFS= read -r row; do
+      case "$row" in *'|editors|'*) ;; *) continue ;; esac
+      member="${row##*|}" src="" lines=""
+      _hi_overlay_src "$member" src || continue
+      _hi_overlay_wiring lines "$member"
+      while IFS= read -r line; do
+        while [ "${line#* alias }" != "$line" ]; do
+          line="${line#* alias }"
+          body="${line#*=\"}"
+          body="${body%%\"*}"
+          printf '%-5s -> %s\n' "${line%%=*}" "${body//\$_HI_CONFIG_DIR\/$member/$src}"
+        done
+      done <<<"$lines"
+    done < <(_hi_plugin_rows)
     # shellcheck disable=SC2031 # lives and dies in this subshell
     # shellcheck source=../common/aliases.sh
-    source "$_HI_ALIASES" >/dev/null 2>&1
-    local e body
-    for e in nano vim nvim emacs micro hx helix; do
-      body="$(alias "$e" 2>/dev/null)" || continue
-      eval "body=${body#*=}"
-      printf '%-5s -> %s\n' "$e" "$body"
-    done
+    _HI_REMOTE_SESSION=1 source "$_HI_ALIASES" >/dev/null 2>&1
+    body="$(alias micro 2>/dev/null)" || return 0
+    body="${body#alias micro=\'}"
+    printf '%-5s -> %s\n' micro "${body%\'}"
   )
 }
 
@@ -536,6 +551,9 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - your carried kakrc"
   "_HI_TOOL_ALIASES||1|_hi_tool_alias_preview||styled tool aliases - ls -> eza, cat -> bat"
   "_HI_SUDO_ALIAS||1|||sudo alias - aliases survive under sudo"
+  "_HI_DISABLE_TMUX|1|||tmux|tmux - your carried tmux.conf"
+  "_HI_DISABLE_SCREEN|1|||screen|screen - your carried screenrc"
+  "_HI_DISABLE_ZELLIJ|1|||zellij|zellij - your carried config, layouts, and themes"
   "_HI_DISABLE_LOCAL|1||||here too - all of the above on this machine, not just where you hi"
 )
 
@@ -922,9 +940,11 @@ function _hi_menu_list() {
   _hi_menu_section e
   _hi_menu_rows _HI_FEATURE_PROMPTS 4 5 6 7 8 9 10
   _hi_menu_section a
-  _hi_menu_rows _HI_FEATURE_PROMPTS 11 12
+  # the multiplexers' configs reach a target through an alias too, and the
+  # editors' page is a full screen already
+  _hi_menu_rows _HI_FEATURE_PROMPTS 11 12 13 14 15
   _hi_menu_section m
-  _hi_menu_rows _HI_FEATURE_PROMPTS 13
+  _hi_menu_rows _HI_FEATURE_PROMPTS 16
   _hi_menu_section v
   _hi_menu_rows _HI_ADVANCED_PROMPTS
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" tc

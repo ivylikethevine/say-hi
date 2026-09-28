@@ -329,7 +329,7 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
   local out
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    COMP_WORDS=(hi --pl)
+    COMP_WORDS=(hi --pla)
     COMP_CWORD=1
     COMPREPLY=()
     _hi_complete
@@ -535,7 +535,8 @@ function test_remote_session_exports_overlay_config() {
 }
 
 # on a target, tmux, screen, micro, and zellij reach the overlay's copies
-# through their aliases: tmux -f the tmux.conf, screen -c the screenrc, zellij
+# through their aliases (tmux's, screen's, and zellij's a wiring.sh line,
+# GLOSSARY: HI.62): tmux -f the tmux.conf, screen -c the screenrc, zellij
 # --config-dir the zellij/ directory, micro -config-dir the micro/ one, and without
 # the taste flags that would beat its settings.json. With no overlay copy the
 # target's own ~/.tmux.conf is not picked up in its place.
@@ -545,6 +546,9 @@ function test_remote_session_aliases_overlay_config() {
   [ "$file" = - ] || {
     mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij"
     printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
+    # shellcheck disable=SC2016 # the child bash expands its own script
+    bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w "$m" && printf %s "$w"' \
+      _ "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   }
   printf 'set -g @mine target\n' >"$_HI_WORKDIR/.tmux.conf"
   case "$shell" in
@@ -555,7 +559,8 @@ function test_remote_session_aliases_overlay_config() {
   # runner has micro: a stub on PATH stands in for it
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 \
     PATH="$(_hi_fake_path rc-tools micro tmux screen zellij):$PATH" 2>/dev/null)"
-  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf"
+  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf" \
+    "$_HI_WORKDIR/cfg/wiring.sh"
   if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
     _hi_cecho " | $name is: [$out]" "$RED"
     return 1
