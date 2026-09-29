@@ -63,6 +63,8 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # (HI.61): the overlay's copy, else the user's own file at home, else the
 # tree's default, which the payload already carries. One row per member:
 # <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<wire>|<off>|<home>.
+# <paths.sh variable> is hi's own files' alone: a tool's member has none, and
+# what hi's code reads of one on a target is an env: wire of its row.
 # <tool> is the binaries that read it, its name in a report first: home's
 # copy rides with any of them on $PATH. In parentheses it is a name alone,
 # for what nothing looks for - a shell, readline, a prompt program
@@ -87,11 +89,11 @@ _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-'
   'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|-'
-  'vimrc|_HI_VIMRC|-|vim|editors|flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
-  'init.lua|_HI_NVIMRC|-|nvim|editors|flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|$_HI_XDG_CONFIG/nvim/init.lua'
-  'nanorc|_HI_NANORC|-|nano|editors|flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
-  'init.el|_HI_EMACSRC|-|emacs|editors|flag:emacs -nw -q -l|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'
-  'config.toml|_HI_HELIXRC|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|$_HI_XDG_CONFIG/helix/config.toml'
+  'vimrc|-|-|vim|editors|env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
+  'init.lua|-|-|nvim|editors|env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|$_HI_XDG_CONFIG/nvim/init.lua'
+  'nanorc|-|-|nano|editors|env:_HI_NANORC;flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
+  'init.el|-|-|emacs|editors|flag:emacs -nw -q -l|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'
+  'config.toml|-|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|$_HI_XDG_CONFIG/helix/config.toml'
   'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|$KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc'
   'aliases.sh|-|-|-|shell|-|-|~/.aliases'
   'plugins.d|_HI_PLUGINS_D|-|-|shell|-|-|-'
@@ -114,14 +116,14 @@ _HI_OVERLAY_TABLE=(
   'fzfrc|-|-|fzf|cli|env:FZF_DEFAULT_OPTS_FILE|-|$FZF_DEFAULT_OPTS_FILE'
   'lazygit.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|$LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml'
   'inputrc|-|-|(readline)|cli|env:INPUTRC|-|$INPUTRC , ~/.inputrc'
-  'tmux.conf|_HI_TMUX_CONF|-|tmux|mux|flag:tmux -f|$_HI_DISABLE_TMUX|~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf'
-  'screenrc|_HI_SCREENRC|-|screen|mux|flag:screen -c|$_HI_DISABLE_SCREEN|$SCREENRC , ~/.screenrc'
-  'micro/settings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'micro/bindings.json|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'micro/init.lua|_HI_MICRO_DIR|-|micro|editors|-|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'zellij/config.kdl|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
-  'zellij/layouts/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
-  'zellij/themes/|_HI_ZELLIJ_DIR|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'tmux.conf|-|-|tmux|mux|flag:tmux -f|$_HI_DISABLE_TMUX|~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf'
+  'screenrc|-|-|screen|mux|flag:screen -c|$_HI_DISABLE_SCREEN|$SCREENRC , ~/.screenrc'
+  'micro/settings.json|-|-|micro|editors|envdir:_HI_MICRO_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'micro/bindings.json|-|-|micro|editors|envdir:_HI_MICRO_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'micro/init.lua|-|-|micro|editors|envdir:_HI_MICRO_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'zellij/config.kdl|-|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'zellij/layouts/|-|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'zellij/themes/|-|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
   'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
 )
 
@@ -568,19 +570,13 @@ function _hi_overlay_src() {
 
 # _hi_overlay_home <member> [outvar] - the home tier alone, on this machine
 # only (a relay must not pack the middle box's) and with the member's tool
-# here to read it: a file's paths.sh variable where the row names one -
-# resolved there in this same order, which paths_test pins - else the first
-# of its candidates that exists. A directory entry answers with the directory.
+# here to read it: the first of its row's candidates that exists. A directory
+# entry answers with the directory.
 function _hi_overlay_home() {
-  local _hi_oh_r _hi_oh_v _hi_oh_c
+  local _hi_oh_r _hi_oh_c
   local -a _hi_paths=()
   [ "$_HI_REMOTE_SESSION" != 1 ] && _hi_overlay_row "$1" _hi_oh_r && _hi_tool_here "$1" "$_hi_oh_r" || return 1
-  _hi_row_col "$_hi_oh_r" variable _hi_oh_v
-  if [ "${_hi_oh_r##*|}" != - ] && [ "$_hi_oh_v" != - ] && [ "${1#*/}" = "$1" ]; then
-    [ "${!_hi_oh_v:-}" = "$_HI_CONFIG_DIR/$1" ] || _hi_paths=("${!_hi_oh_v:-}")
-  else
-    _hi_overlay_places "$1" "$_hi_oh_r"
-  fi
+  _hi_overlay_places "$1" "$_hi_oh_r"
   for _hi_oh_c in ${_hi_paths[@]+"${_hi_paths[@]}"}; do
     if [ -f "$_hi_oh_c" ] || { [ -z "${1##*/}" ] && [ -d "$_hi_oh_c" ]; }; then
       _hi_out "${2:-}" "$_hi_oh_c"

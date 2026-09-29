@@ -265,12 +265,13 @@ More names look like settings and are not:
   `$XDG_CONFIG_HOME`-or-`~/.config` base resolved beside them — set
   `$XDG_CONFIG_HOME` instead.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments
-  are read from), `$_HI_COLORS`, `$_HI_PACKAGES`,
-  `$_HI_VIMRC`, `$_HI_NVIMRC`, `$_HI_HELIXRC`, `$_HI_NANORC`, `$_HI_EMACSRC`,
-  `$_HI_TMUX_CONF`, `$_HI_SCREENRC`, `$_HI_MICRO_DIR`, and `$_HI_ZELLIJ_DIR`
+  are read from), `$_HI_COLORS`, and `$_HI_PACKAGES`
   are re-derived by `common/paths.sh`
   on every source, from `$_HI_HOME`, `$HOME`, and the overlay, so an exported
   value does not survive: put your file in the overlay.
+- `$_HI_VIMRC`, `$_HI_NVIMRC`, `$_HI_NANORC`, and `$_HI_MICRO_DIR` are a
+  session's: the path of a config that rode, set on a target by `wiring.sh`
+  ([HI.62](GLOSSARY.md#hi62-generated-wiring)). At home nothing reads them.
 - `$_HI_ASCII` is the _client's_ verdict, from its locale, on whether its
   terminal renders multibyte glyphs, shipped to the session next to
   `$NO_COLOR`: the glyphs land in the terminal you sit at, so a target whose

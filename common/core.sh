@@ -58,16 +58,10 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # ...and the base it came from, which paths.sh needs whole: that file's
-  # four-shell dialect has no ${var:-} to spell the default with and no way
-  # to trim /say-hi back off. config.fish mirrors both lines.
+  # ...and the base it came from, which a home column of hi.sh's table
+  # starts at. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG
-  # ...and, for the same reason, the directories micro and zellij read and
-  # the file screen reads, which a variable of their own can move
-  _HI_MICRO_HOME="${MICRO_CONFIG_HOME:-$_HI_XDG_CONFIG/micro}"
-  _HI_ZELLIJ_HOME="${ZELLIJ_CONFIG_DIR:-$_HI_XDG_CONFIG/zellij}"
-  _HI_SCREENRC_HOME="${SCREENRC:-$HOME/.screenrc}"
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   # loaded as the user's own shell would: strict mode here would turn one

@@ -292,10 +292,14 @@ harness makes these choices on purpose:
 
 - **Isolation per suite.** `test_lib.sh` gives each suite a fresh
   `mktemp -d` root holding its `XDG_CONFIG_HOME` (absent until a case makes
-  it) and `XDG_RUNTIME_DIR`, so parallel suites never share hi's payload,
-  overlay, or ssh-tags caches, nor a developer's real sockets. Cleanup removes
-  that root by its recorded path - never whatever an XDG variable points at
-  by then.
+  it), `XDG_RUNTIME_DIR`, and `HOME`, so parallel suites never share hi's
+  payload, overlay, or ssh-tags caches, nor a developer's real sockets, and
+  no dotfile of a developer's rides a stream a suite builds. docker keeps
+  its contexts through `DOCKER_CONFIG` and podman its storage through
+  `XDG_DATA_HOME`, both set from the home the run started in;
+  `_HI_TEST_KEEP_HOME=1` leaves `HOME` alone, for a toolchain that resolves
+  through it. Cleanup removes that root by its recorded path - never
+  whatever a variable points at by then.
 - **Pinned caps.** `_HI_PROBE_TIMEOUT` is 10 in the suites (a user's 2s is
   for real CLIs; the suites probe shell shims); the pty cases' cap is 60s,
   `_hi_login_env`'s 180s. A cap bounds a wedge, never a pace.

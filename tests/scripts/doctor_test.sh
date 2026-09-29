@@ -361,16 +361,15 @@ function test_config_names_tmux_and_micro_configs() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/muxcfg.XXXXXX")"
   mkdir -p "$dir/micro"
-  printf 'set -g mouse on\nsource-file ~/.tmux/theme.conf\n' >"$dir/tmux.conf"
+  printf 'set -g mouse on\nsource-file ~/.tmux/theme.conf\n' >"$dir/.tmux.conf"
   printf '{}\n' >"$dir/micro/settings.json"
   out="$(
     _HI_CONFIG_DIR="$dir/overlay"
     _HI_SETTINGS="$dir/overlay/settings.sh"
-    _HI_TMUX_CONF="$dir/tmux.conf"
-    MICRO_CONFIG_HOME="$dir/micro" doctor_config
+    HOME="$dir" MICRO_CONFIG_HOME="$dir/micro" doctor_config
   )"
-  [[ "$out" == *"tmux.conf (tmux)"*"$(_hi_doc_path "$dir/tmux.conf")"* ]] &&
-    [[ "$out" == *"micro/settings.json (micro)"*"$(_hi_doc_path "$dir/micro/settings.json")"* && "$out" != *micro/bindings.json* ]] &&
+  [[ "$out" == *"tmux.conf (tmux)"*"~/.tmux.conf"* ]] &&
+    [[ "$out" == *"micro/settings.json (micro)"*"~/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
     [[ "$out" == *"tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
 }
 
@@ -379,12 +378,12 @@ function test_config_names_tmux_and_micro_configs() {
 function test_config_is_silent_on_a_config_for_an_absent_tool() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/notool.XXXXXX")"
-  printf 'set -g mouse on\n' >"$dir/tmux.conf"
+  printf 'set -g mouse on\n' >"$dir/.tmux.conf"
   out="$(
     function _hi_tool_here() { return 1; }
     _HI_CONFIG_DIR="$dir/overlay"
     _HI_SETTINGS="$dir/overlay/settings.sh"
-    _HI_TMUX_CONF="$dir/tmux.conf" doctor_config
+    HOME="$dir" doctor_config
   )"
   [[ "$out" != *tmux.conf* ]]
 }
@@ -413,8 +412,7 @@ function test_files_table_walks_every_tier() {
   printf 'set -g mouse off\n' >"$h/overlay/tmux.conf"
   out="$(
     function _hi_tool_here() { [ "$1" != init.el ]; }
-    HOME="$h" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" _HI_TMUX_CONF="$h/overlay/tmux.conf" \
-      _HI_SCREENRC="" doctor_files
+    HOME="$h" _HI_CONFIG_DIR="$h/overlay" doctor_files
   )"
   out="$(_hi_strip_ansi "$out")"
   [[ "$out" == *"vimrc (vim)"*"used ~/.vimrc"* && "$out" != *absent* ]] &&
@@ -439,8 +437,7 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
   printf 'set number\n' >"$h/.vimrc"
   out="$(
     function _hi_tool_here() { return 0; }
-    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" \
-      _HI_PROMPT_TOOL=hi doctor_files
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_PROMPT_TOOL=hi doctor_files
   )"
   out="$(_hi_strip_ansi "$out")"
   [[ "$out" == *"zellij/layouts/ (zellij)"*"present ~/.config/zellij/layouts/ - 1 file(s) ride"* ]] &&
@@ -452,8 +449,8 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
   }
   out="$(
     function _hi_tool_here() { return 0; }
-    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_VIMRC="$h/.vimrc" \
-      _HI_PROMPT_TOOL=hi _HI_REMOTE_SESSION=1 doctor_files
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_PROMPT_TOOL=hi \
+      _HI_REMOTE_SESSION=1 doctor_files
   )"
   out="$(_hi_strip_ansi "$out")"
   [[ "$out" == *"vimrc (vim)"*"passed over ~/.vimrc - not sent: a session reads no home file"* ]] &&
@@ -527,7 +524,6 @@ function test_config_names_an_unresolvable_include() {
   printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vimrc"
   out="$(
     _HI_CONFIG_DIR="$dir"
-    _HI_VIMRC="$dir/vimrc"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
@@ -553,17 +549,15 @@ function test_config_names_a_shell_include_unless_allowed() {
 # an editor rc hi picked up from where that editor reads it says where it came
 # from, so "which file is my target actually getting" has one answer on screen
 function test_config_names_the_editor_config_in_force_here() {
-  local dir mine out
+  local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/in-force.XXXXXX")"
-  mine="$dir/dotvimrc"
-  printf 'set number\n' >"$mine"
+  printf 'set number\n' >"$dir/.vimrc"
   out="$(
     _HI_CONFIG_DIR="$dir/overlay"
-    _HI_VIMRC="$mine"
     _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
+    HOME="$dir" doctor_config
   )"
-  [[ "$out" == *"vimrc (vim)"*"$(_hi_doc_path "$mine")"* ]]
+  [[ "$out" == *"vimrc (vim)"*"~/.vimrc"* ]]
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles

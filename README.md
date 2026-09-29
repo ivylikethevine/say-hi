@@ -350,16 +350,15 @@ checkout: an account or an upstream review that lands when it lands.
 
 1. [ ] _Before 1.0:_ **A member is its row and nothing else** — shipped:
        the `group` column, `$_HI_PLUGINS_OFF` and the commands that keep it,
-       the toggles keeping a member home, and the editors' and
-       multiplexers' aliases written from their rows. What is left: micro's
-       alias, whose flags are a setting `common/aliases.sh` defaults; and
-       the editors' and multiplexers' variables in `common/paths.sh`, which
-       only `hi.sh` and `load.sh` still read. **Do:** write them into
-       `wiring.sh` for a target and resolve the home tier in `hi.sh` alone,
-       so `paths_test.sh` has no second spelling to pin.
-       _What 1.x will not break_ names every member, so the row settles
-       before the tag. **Ticks when:** `common/aliases.sh` and
-       `common/paths.sh` name no member.
+       the toggles keeping a member home, the editors' and multiplexers'
+       aliases written from their rows, and the home tier resolved in
+       `hi.sh` alone: `common/paths.sh` names no tool's member, and what
+       `load.sh` and `common/aliases.sh` read of one is an `env:` wire of
+       its row. What is left: micro's alias, whose flags are a setting
+       `common/aliases.sh` defaults, so that file still names micro's
+       directory. _What 1.x will not break_ names every member, so the row
+       settles before the tag. **Ticks when:** `common/aliases.sh` names no
+       member, and `common/paths.sh` none but hi's own files.
 
 2. [ ] _Before 1.0:_ **One list says what stays home** — a carried config
        is switched off two ways, `$_HI_PLUGINS_OFF` and a `_HI_DISABLE_*`

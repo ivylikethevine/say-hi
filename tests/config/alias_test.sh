@@ -230,10 +230,8 @@ function run_alias_test() {
   mkdir -p "$_HI_WORKDIR/overlay"
   for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_WORKDIR/overlay/$_hi_f"; done
   mkdir -p "$_HI_WORKDIR/overlay/micro"
-  export _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" \
-    _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_HELIXRC="$_HI_WORKDIR/overlay/config.toml" \
-    _HI_NANORC="$_HI_WORKDIR/overlay/nanorc" _HI_EMACSRC="$_HI_WORKDIR/overlay/init.el" \
-    _HI_MICRO_DIR="$_HI_WORKDIR/overlay/micro" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _HI_REMOTE_SESSION=1
+  export _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" _HI_MICRO_DIR="$_HI_WORKDIR/overlay/micro" \
+    _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _HI_REMOTE_SESSION=1
 
   _hi_suite_begin
   for _hi_shell in dash bash zsh fish; do

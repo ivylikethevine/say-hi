@@ -700,13 +700,13 @@ the shell files source or read the
 frameworks' (HI.32). The stager keeps nothing of fish's universal variables
 but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
-The editor rcs, `tmux.conf`, `screenrc`, and the `micro/` and `zellij/`
-files ride it for the same
-reason `colors` and `packages` do: the tree copy is a default, and
-`common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one
-(HI.57). Left out of the stream, that guard could only fire on the client — an
-override working locally and silently reverting on every target, the
-asymmetry `paths_test.sh`'s guard/roster pin catches one layer up.
+`colors` and `packages` ride it because the tree copy is a default, and
+`common/paths.sh` points `$_HI_COLORS` and `$_HI_PACKAGES` at the overlay's
+when there is one. Left out of the stream, that guard could only fire on the
+client — an override working locally and silently reverting on every target,
+the asymmetry `paths_test.sh`'s guard/roster pin catches one layer up. The
+editor rcs, `tmux.conf`, `screenrc`, and the `micro/` and `zellij/` files
+ride with the wiring line that names them (HI.57).
 
 That cascade is wholesale, so a member that shadows a tree default makes the
 default dead weight: a connect hands `_hi_payload_excl` its member list, and
@@ -1303,7 +1303,8 @@ name arriving empty can reach the root of the disk again.
 Every overlay member resolves in one order, written once as `hi.sh`'s
 `$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
 else the tree's default where `config/` holds one. A row names the member, the `common/paths.sh`
-variable that carries it to the shells (or `-`), whether `config/` holds a
+variable that carries one of hi's own files to the shells (`-` for a tool's
+member), whether `config/` holds a
 default (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that
 reads it (the binaries `_hi_tool_here` looks for, the first of them its name
 in `hi --doctor`; in parentheses, a name nothing looks for), its wire and the
@@ -1312,12 +1313,12 @@ tier: candidate paths best first, a `@function` where no list can say it
 (oh-my-posh's rc-named config, the theme a framework's rc variable names,
 ssh's tag map), or `-` for none.
 `_hi_overlay_src` - the stager, the cache, the include scan - and
-`hi --doctor` read the table. `paths.sh` cannot, its four-shell dialect
-having no loop, so it spells each row out a line per candidate, and
-`paths_test.sh` walks every row down its tiers against it. Where a row has a
-variable, `_hi_overlay_home` reads its resolved value rather than the
-candidates, so there is one reading of the order at home and the drift test
-keeps the two spellings one. No setting reorders it. `hi --doctor`'s files
+`hi --doctor` read the table, and a tool's member is resolved nowhere else:
+`_hi_overlay_home` walks its row's candidates as the overlay is packed.
+`paths.sh` cannot read a table, its four-shell dialect having no loop, so it
+spells out the rows of hi's own files (`settings.sh`, `colors`, `packages`,
+`plugins.d`), a line per candidate, and `paths_test.sh` walks those rows down
+their tiers against it. No setting reorders it. `hi --doctor`'s files
 section (`doctor_files`) walks the same rows, naming each member's tool and
 marking every location that holds something used or passed over, and why
 nothing is sent when something is there.
@@ -1339,11 +1340,7 @@ micro and zellij take a directory of fixed names, so their members sit under
 `micro/` and `zellij/`, each file resolving on its own against the tool's
 directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the XDG one), and
 zellij's `layouts/` and `themes/` are trailing-`/` entries
-([HI.58](#hi58-overlay-directory-members)). `paths.sh` resolves the directory
-whole, from `core.sh`'s `$_HI_MICRO_HOME` and `$_HI_ZELLIJ_HOME`, which spell
-the `${VAR:-}` its dialect cannot (`config.fish` mirrors them); screen's
-`screenrc` resolves the same way, through `$_HI_SCREENRC_HOME`
-(`$SCREENRC`, else `~/.screenrc`).
+([HI.58](#hi58-overlay-directory-members)).
 
 ## HI.62 generated wiring
 
@@ -1356,7 +1353,11 @@ fixed `theme.yml`), `flag:<command> <words>` and `flagdir:` alias the
 command to itself with the words and that path, where the target has the
 command (a flag ending in `=` takes the path in the same word), and `-`
 leaves the member to hi's own code. A row holds several wires with a `;`
-between them, read in order, a later alias replacing an earlier one.
+between them, read in order, a later alias replacing an earlier one. An
+`env:` over a name of hi's own is how hi's code on a target learns a
+member's path without naming the member: `$_HI_VIMRC` and `$_HI_NVIMRC` for
+`load.sh`'s `$VIMINIT`, `$_HI_NANORC` for its syntax fallback, and
+`$_HI_MICRO_DIR` for micro's alias.
 `<names>=<command>` aliases other names to the command, and words ahead of
 it that hold a `=` are its environment: neovim answers to `vim` as well and
 keeps its state under the session tree, and helix to `hx` whichever of its
@@ -1367,7 +1368,7 @@ does not survive that.
 
 micro's alias is the one still spelled in `common/aliases.sh`: its flags are
 `$_HI_MICRO_OPTS`, a setting whose default that file gives after `wiring.sh`
-has been read.
+has been read, over the directory `$_HI_MICRO_DIR` names.
 `_hi_overlay_wiring` turns the members an overlay archive carries into
 `wiring.sh`, which `_hi_overlay_tar` stages beside them, and `paths.sh`
 sources it on a target only. At home each tool's own config is already in

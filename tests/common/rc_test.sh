@@ -1502,6 +1502,8 @@ function run_rc_tests() {
   _hi_check "[bash] a target points lazygit at the overlay's lazygit.yml" test_remote_session_exports_overlay_config bash lazygit.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit.yml"
   _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] ...but not with _HI_DISABLE_KAKOUNE=1" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "" _HI_DISABLE_KAKOUNE=1
+  _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vimrc"
+  _hi_check "[bash] ...but not with _HI_DISABLE_VIM=1" test_remote_session_exports_overlay_config bash vimrc _HI_VIMRC "" _HI_DISABLE_VIM=1
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
   _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
@@ -1521,6 +1523,7 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config fish fzfrc FZF_DEFAULT_OPTS_FILE "$_HI_WORKDIR/cfg/fzfrc"
   _hi_check_requires fish "[fish] a target points lazygit at the overlay's lazygit.yml" test_remote_session_exports_overlay_config fish lazygit.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit.yml"
   _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
+  _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vimrc"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
   _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
   _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"

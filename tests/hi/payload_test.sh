@@ -496,7 +496,8 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 }
 
 # an editor's or a multiplexer's config rides with its alias: the command
-# and its flags, where the target has the command and its toggles are off.
+# and its flags, where the target has the command and its toggles are off,
+# under the path load.sh reads for $VIMINIT.
 # vim and nvim keep their state in the session tree, nvim answers to vim
 # too, helix to hx under either name, and zellij's directory is aliased once
 # for all its files
@@ -509,7 +510,9 @@ function test_overlay_tar_aliases_the_editors_and_multiplexers() {
   printf 'x\n' >"$dir/zellij/themes/dark.kdl"
   d="$(mktemp -d "$_HI_WORKDIR/aliased-out.XXXXXX")" || return 1
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
-  want='[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vimrc" || true
+  want='[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vimrc" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/config.toml" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v helix >/dev/null 2>&1 && alias hx="helix -c $_HI_CONFIG_DIR/config.toml" && alias helix="helix -c $_HI_CONFIG_DIR/config.toml" || true
@@ -726,7 +729,7 @@ export _HI_MAX_WIDTH=72' ] || {
     return 1
     ;;
   esac
-  out="$(_HI_NVIMRC="$dir/init.lua" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
   case "$out" in '--'* | *$'\n--'*)
     _hi_cecho " | init.lua kept a lua comment line through the strip" "$RED"
     return 1
@@ -857,17 +860,6 @@ function test_payload_stays_under_the_tripwire() {
 # brace, and that a shell finding leaves the file parseable.
 # GLOSSARY: HI.57
 
-# _hi_lint_vars <dir> <cmd...> - <cmd> with every editor path variable
-# pointed into <dir>. test_lib.sh pins the four at the tree's copies so a
-# developer's own vimrc cannot answer, and _hi_overlay_src reads them rather
-# than $_HI_CONFIG_DIR - so a fixture directory alone is not enough here.
-function _hi_lint_vars() {
-  local dir="$1"
-  shift
-  _HI_CONFIG_DIR="$dir" _HI_VIMRC="$dir/vimrc" _HI_NVIMRC="$dir/init.lua" \
-    _HI_NANORC="$dir/nanorc" _HI_EMACSRC="$dir/init.el" _HI_TMUX_CONF="$dir/tmux.conf" "$@"
-}
-
 # _hi_lint_fixture <name> <member> <body> - an overlay holding one editor rc.
 function _hi_lint_fixture() {
   local dir="$_HI_WORKDIR/lint-$1"
@@ -892,7 +884,7 @@ set number
 function test_editor_includes_are_dropped_on_the_way_out() {
   local dir out
   dir="$(_hi_lint_fixture drop vimrc "$_HI_LINT_VIMRC")"
-  out="$(_HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
   [ "$out" = 'set nocompatible
 source $VIMRUNTIME/defaults.vim
 runtime! plugin/sensible.vim
@@ -913,7 +905,7 @@ require("lazy").setup({
 })
 vim.opt.tabstop = 2
 ')"
-  out="$(_HI_NVIMRC="$dir/init.lua" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
   [ "$out" = 'vim.opt.number = true
 vim.opt.tabstop = 2' ] || {
     _hi_cecho " | init.lua arrived as: [$out]" "$RED"
@@ -933,12 +925,12 @@ vim.pack.add({
 })
 vim.opt.tabstop = 2
 ')"
-  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1-3)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3)"
   [ "$out" = 'init.lua|2|plugin' ] || {
     _hi_cecho " | reported: [$out]" "$RED"
     return 1
   }
-  out="$(_HI_NVIMRC="$dir/init.lua" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
   [ "$out" = 'vim.opt.number = true
 vim.opt.tabstop = 2' ] || {
     _hi_cecho " | init.lua arrived as: [$out]" "$RED"
@@ -947,16 +939,47 @@ vim.opt.tabstop = 2' ] || {
 }
 
 # the editor rc in force on this machine rides the stream the way the tool
-# configs above do, through the path variable paths.sh resolved: there is one
+# configs above do, from where its row's home column finds it: there is one
 # copy to edit and no duplicate in the overlay to keep in step
 function test_the_editor_config_in_force_here_rides_the_stream() {
-  local dir mine
-  dir="$_HI_WORKDIR/lint-in-force"
+  local dir="$_HI_WORKDIR/lint-in-force" home="$_HI_WORKDIR/in-force-home" p
+  mkdir -p "$dir" "$home"
+  printf 'set number\n' >"$home/.vimrc"
+  p="$(_hi_fake_path in-force-bins vim):$PATH"
+  [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_files vimrc)" = vimrc ] &&
+    [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_tar vimrc | _hi_tar_cat vimrc)" = "set number" ]
+}
+
+# ...in the tool's own order of precedence, each place answering once the
+# ones before it are gone, screen's following $SCREENRC even to a file that
+# is not there; and a target reads none of them: $HOME there is the target's
+function test_a_home_config_is_found_in_its_tools_order() {
+  local home="$_HI_WORKDIR/order-home" dir="$_HI_WORKDIR/order-overlay" p f m out
+  local places="vimrc:.vimrc vimrc:.vim/vimrc vimrc:.config/vim/vimrc init.lua:.config/nvim/init.lua
+    config.toml:.config/helix/config.toml nanorc:.nanorc nanorc:.config/nano/nanorc
+    init.el:.emacs.el init.el:.emacs init.el:.emacs.d/init.el init.el:.config/emacs/init.el
+    tmux.conf:.tmux.conf tmux.conf:.config/tmux/tmux.conf screenrc:.screenrc"
   mkdir -p "$dir"
-  mine="$_HI_WORKDIR/my.vimrc"
-  printf 'set number\n' >"$mine"
-  [ "$(_HI_VIMRC="$mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" = vimrc ] &&
-    [ "$(_HI_VIMRC="$mine" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)" = "set number" ]
+  p="$(_hi_fake_path order-bins vim nvim hx nano emacs tmux screen):$PATH"
+  set -- HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_XDG_CONFIG="$home/.config" PATH="$p" _HI_CONFIG_DIR="$dir"
+  for f in $places; do
+    f="$home/${f#*:}"
+    mkdir -p "${f%/*}" && printf 'x\n' >"$f" || return 1
+  done
+  for f in $places; do
+    m="${f%%:*}" f="$home/${f#*:}"
+    ! env "$@" _HI_REMOTE_SESSION=1 bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_src "$m"' _ "$m" ||
+      _hi_because "a target read its own $m" || return 1
+    out="$(env "$@" bash -c 'm="$1" && set -- && source "$_HI_LAUNCHER" && _hi_overlay_src "$m" o && printf %s "$o"' _ "$m")"
+    [ "$out" = "$f" ] || _hi_because "$m: [$out], wanted $f" || return 1
+    rm -f "$f"
+  done
+  printf 'x\n' >"$home/.screenrc"
+  printf 'x\n' >"$home/named"
+  out="$(env "$@" SCREENRC="$home/named" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_src screenrc o && printf %s "$o"')"
+  [ "$out" = "$home/named" ] || _hi_because "\$SCREENRC: [$out]" || return 1
+  ! env "$@" SCREENRC="$home/missing" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_src screenrc' ||
+    _hi_because "a \$SCREENRC naming no file fell back to ~/.screenrc"
 }
 
 # ...only with the editor here to read it: a ~/.vimrc on a box with no vim is
@@ -964,15 +987,16 @@ function test_the_editor_config_in_force_here_rides_the_stream() {
 # "targets get this", and rides whatever this machine has. $PATH is an empty
 # directory, which _hi_overlay_src's builtins never notice.
 function test_a_home_config_needs_its_tool_here() {
-  local dir="$_HI_WORKDIR/gate-overlay" home="$_HI_WORKDIR/gate-home" none="$_HI_WORKDIR/gate-nopath" out=""
+  local dir="$_HI_WORKDIR/gate-overlay" home="$_HI_WORKDIR/gate-home" none="$_HI_WORKDIR/gate-nopath" p out=""
   mkdir -p "$dir" "$home" "$none"
-  printf 'set number\n' >"$home/vimrc"
-  printf 'set -g mouse on\n' >"$home/tmux.conf"
-  ! PATH="$none" _HI_VIMRC="$home/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc || return 1
-  ! PATH="$none" _HI_TMUX_CONF="$home/tmux.conf" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux.conf || return 1
-  _HI_VIMRC="$home/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$home/vimrc" ] || return 1
+  printf 'set number\n' >"$home/.vimrc"
+  printf 'set -g mouse on\n' >"$home/.tmux.conf"
+  p="$(_hi_fake_path gate-bins vim)"
+  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc || return 1
+  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux.conf || return 1
+  HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$home/.vimrc" ] || return 1
   printf 'set ruler\n' >"$dir/vimrc"
-  PATH="$none" _HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$dir/vimrc" ]
+  HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$dir/vimrc" ]
 }
 
 # One copy of a file the overlay and the tree both hold: a member that
@@ -1141,7 +1165,7 @@ function test_the_scan_reports_every_dialect() {
   printf 'x=1\n[ -f ~/.bash_local ] && . ~/.bash_local\n' >"$dir/bashrc"
   printf 'zinit light foo/bar\n' >"$dir/zshrc"
   printf 'source ~/.config/fish/local.fish\n' >"$dir/config.fish"
-  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
   # rows come in _HI_OVERLAY_FILES order: every member is scanned, and the
   # ones with no dialect (colors, packages) simply have nothing to say
   [ "$out" = "settings.sh|1|include,vimrc|1|include,init.lua|1|include,nanorc|1|include,init.el|1|include,kakrc|2|plugin,kakrc|3|include,aliases.sh|1|include,bashrc|2|include,zshrc|1|plugin,config.fish|1|include,tmux.conf|1|include,micro/init.lua|1|plugin" ] || {
@@ -1167,14 +1191,14 @@ set tabsize 4
 function test_nano_keeps_the_stock_directory_and_drops_the_rest() {
   local dir out
   dir="$(_hi_lint_fixture nano nanorc "$_HI_LINT_NANORC")"
-  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
   [ "$out" = "nanorc|3|include,nanorc|4|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
   # a dropped syntax include or extendsyntax keeps its comment through the
   # strip: load.sh's _hi_nano_fallback reads it on the target
-  out="$(_HI_NANORC="$dir/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nanorc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nanorc)"
   [ "$out" = 'include "/usr/share/nano/*.nanorc"
 include "/usr/share/nano/sh.nanorc"
 # hi dropped: include "/usr/share/nano/extra/*.nanorc"
@@ -1194,7 +1218,7 @@ function test_the_scan_is_silent_on_a_clean_config() {
   mkdir -p "$dir"
   printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vimrc"
   printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/init.el"
-  [ -z "$(_hi_lint_vars "$dir" _hi_include_lint)" ]
+  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_include_lint)" ]
 }
 
 # the dialect comes from the member, not the path: doctor reads ~/.vimrc under
@@ -1204,7 +1228,7 @@ function test_the_scan_reads_an_rc_under_its_own_name() {
   dir="$_HI_WORKDIR/lint-dotname"
   mkdir -p "$dir"
   printf 'source ~/.vim/extra.vim\n' >"$dir/.vimrc"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_VIMRC="$dir/.vimrc" _hi_include_lint | cut -d'|' -f1,2,3)"
+  out="$(HOME="$dir" PATH="$(_hi_fake_path dotname-bins vim):$PATH" _HI_CONFIG_DIR="$dir/overlay" _hi_include_lint | grep '^vimrc|' | cut -d'|' -f1,2,3)"
   [ "$out" = "vimrc|1|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
@@ -1285,7 +1309,7 @@ set -g status-left "#S "
 source-file -q ~/.tmux.kept
 run "~/.tmux/plugins/tpm/tpm"
 ')"
-  out="$(_HI_TMUX_CONF="$dir/tmux.conf" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux.conf)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux.conf)"
   [ "$out" = 'set -g mouse on
 set -g status-left "#S "
 source-file -q ~/.tmux.kept' ] || {
@@ -1371,9 +1395,9 @@ function test_hi_allow_keeps_the_next_line() {
 source ~/.vim/extra.vim
 source ~/.vim/other.vim
 ')"
-  out="$(_HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
   [ "$out" = 'source ~/.vim/extra.vim' ] &&
-    [ "$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|3" ] || {
+    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|3" ] || {
     _hi_cecho " | vimrc arrived as: [$out]" "$RED"
     return 1
   }
@@ -1389,9 +1413,9 @@ source ~/.vim/extra.vim
 source ~/.vim/kept.vim
 source ~/.vim/other.vim
 ')"
-  out="$(_HI_VIMRC="$dir/vimrc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
   [ "$out" = 'source ~/.vim/kept.vim' ] &&
-    [ "$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|5" ] || {
+    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|5" ] || {
     _hi_cecho " | vimrc arrived as: [$out]" "$RED"
     return 1
   }
@@ -1407,7 +1431,7 @@ require("lazy").setup({})
   _hi_lint_fixture comment init.el ';; (load "~/x.el")
 (load "~/x.el")
 ' >/dev/null
-  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)"
   [ "$out" = 'init.lua|2
 init.el|2' ] || {
     _hi_cecho " | reported: [$out]" "$RED"
@@ -1487,7 +1511,7 @@ function test_screen_and_zellij_ride_like_tmux() {
   printf 'themes {}\n' >"$z/themes/mine.kdl"
   printf 'layout { overlay }\n' >"$o/zellij/layouts/ops.kdl"
   p="$(_hi_fake_path mux-bins screen zellij)"
-  set -- HOME="$h" ZELLIJ_CONFIG_DIR="$z" PATH="$p:$PATH" _HI_SCREENRC="$h/.screenrc" _HI_CONFIG_DIR="$o"
+  set -- HOME="$h" ZELLIJ_CONFIG_DIR="$z" PATH="$p:$PATH" _HI_CONFIG_DIR="$o"
   [ "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl zellij/layouts/ zellij/themes/' | tr '\n' ' ')" = \
     "screenrc zellij/config.kdl zellij/layouts/ops.kdl zellij/layouts/dev.kdl zellij/themes/mine.kdl " ] || return 1
   out="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_src zellij/layouts/ops.kdl o && printf %s "$o"')"
@@ -1650,7 +1674,7 @@ function test_strip_covers_the_data_files() {
     printf '%s a comment\nkept %s\n' "${f#*:}" "${f%%:*}" >"$ov/${f%%:*}"
   done
   for f in 'vimrc:"' 'init.el:;' 'init.lua:--'; do
-    out="$(_HI_VIMRC="$ov/vimrc" _HI_EMACSRC="$ov/init.el" _HI_NVIMRC="$ov/init.lua" _HI_CONFIG_DIR="$ov" \
+    out="$(_HI_CONFIG_DIR="$ov" \
       _hi_overlay_tar | _hi_tar_cat "${f%%:*}")"
     [ "$out" = "kept ${f%%:*}" ] || {
       _hi_cecho " | ${f%%:*} rode as [$out]" "$RED"
@@ -1793,6 +1817,7 @@ function run_hi_payload_tests() {
   _hi_check "...and so does neovim's own vim.pack.add" test_vim_pack_add_is_a_plugin_finding
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
+  _hi_check "...found in its tool's own order, and never on a target" test_a_home_config_is_found_in_its_tools_order
   _hi_check "...only with its tool on this machine" test_a_home_config_needs_its_tool_here
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
   _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config

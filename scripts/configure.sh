@@ -425,7 +425,8 @@ function _hi_config_preview() {
 # naming the file it carries in place of the target's copy. A name two
 # lines alias (`vim`, where a target has nvim) is listed for each, in the
 # order a target reads them, so the last is the one it keeps. micro's alias
-# is common/aliases.sh's own, read back from it as a target builds it. A
+# is common/aliases.sh's own, read back from it as a target builds it, over
+# the directory its line names. A
 # subshell: nothing this defines should survive past the preview.
 function _hi_editors_preview() {
   (
@@ -440,6 +441,9 @@ function _hi_editors_preview() {
       member="${row##*|}" src="" lines=""
       _hi_overlay_src "$member" src || continue
       _hi_overlay_wiring lines "$member"
+      # micro's directory is a line's too, for common/aliases.sh below
+      # shellcheck disable=SC2030 # lives and dies in this subshell
+      case "$lines" in *' _HI_MICRO_DIR='*) _HI_MICRO_DIR="$_HI_CONFIG_DIR/${member%%/*}" ;; esac
       while IFS= read -r line; do
         while [ "${line#* alias }" != "$line" ]; do
           line="${line#* alias }"

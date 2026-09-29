@@ -19,12 +19,12 @@ set -euo pipefail
 # and _hi_test_cleanup takes it away again. Same rule as never touching the
 # real ~/say-hi.
 #
-# Both isolated directories live under one root this file makes itself with
+# The isolated directories live under one root this file makes itself with
 # mktemp -d - a fresh name every time, so nothing stale is ever inherited and
 # nothing needs deleting up front. _hi_test_cleanup removes that root, by the
-# path recorded here, and nothing else on its account: never $XDG_CONFIG_HOME
-# or $XDG_RUNTIME_DIR themselves, which a test or a sourcing shell could have
-# pointed at a real ~/.config or /run/user/<uid> by then.
+# path recorded here, and nothing else on its account: never $XDG_CONFIG_HOME,
+# $XDG_RUNTIME_DIR, or $HOME themselves, which a test or a sourcing shell
+# could have pointed at a real ~/.config, /run/user/<uid>, or ~ by then.
 _HI_TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/hi.testroot.XXXXXX")"
 export XDG_CONFIG_HOME="$_HI_TEST_ROOT/config"
 # Each suite its own runtime dir, too: otherwise every suite running at once
@@ -37,6 +37,22 @@ export XDG_RUNTIME_DIR="$_HI_TEST_ROOT/run"
 # no -m 700: mktemp -d made the root 0700 already, and Git Bash refuses a
 # mode it cannot map onto Windows ACLs ("cannot change permissions")
 mkdir "$XDG_RUNTIME_DIR"
+# $HOME too, and ahead of core.sh, which resolves $_HI_LINK and the rc files
+# install.sh writes against it. A home column of hi.sh's table that starts at
+# ~/ (~/.vimrc, ~/.inputrc, ~/.aliases) is read from it, so the developer's
+# own would ride every overlay stream a suite builds, and every shell a case
+# starts would read their ~/.zshenv. The container CLIs keep what they had
+# there, through the variables they take it from: docker its contexts and
+# credentials, podman its storage, which a fresh $HOME would have it build
+# under the root as a subuid no cleanup here can remove.
+# _HI_TEST_KEEP_HOME=1 leaves $HOME alone, for a toolchain that resolves
+# through it.
+if [ "${_HI_TEST_KEEP_HOME:-0}" != 1 ]; then
+  [ ! -d "$HOME/.docker" ] || export DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
+  export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+  export HOME="$_HI_TEST_ROOT/home"
+  mkdir "$HOME"
+fi
 # The developer's ~/.gitconfig is the same hazard for every git fixture:
 # `commit.gpgsign` signs each fixture commit with a key CI does not have, and
 # `rebase.updateRefs` makes git refuse `rebase --apply` outright, so
@@ -44,7 +60,7 @@ mkdir "$XDG_RUNTIME_DIR"
 # identity (_hi_git_fixture), so nothing here needs the global file.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
-# ...and the five files that carry a path variable of their own, for the same
+# ...and the two files that carry a path variable of their own, for the same
 # reason one line later. Each takes an explicit value over the overlay's
 # ("only when unset", common/paths.sh), so a value inherited from the shell
 # that launched the suite - an agent session, a developer's own hi session -
@@ -52,7 +68,7 @@ export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # paths.sh drops a value still equal to the one it recorded resolving, so an
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
-unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
+unset _HI_COLORS _HI_PACKAGES
 # The tools' own config variables hi.sh's _hi_overlay_src reads: inherited,
 # they would pack the developer's real configs into every overlay stream a
 # suite builds. ZDOTDIR also moves the .zshrc scripts/rc.sh writes out of a
@@ -85,16 +101,9 @@ export GIT_CONFIG_COUNT=$((_hi_n + 1)) "GIT_CONFIG_KEY_$_hi_n=safe.directory" \
 unset _hi_n
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
-# ...and the half of that resolution the unset above cannot reach: paths.sh's
-# editor tier reads $HOME/.vimrc, $HOME/.nanorc, $HOME/.emacs.d/init.el and
-# friends, which the XDG_CONFIG_HOME throwaway does not move, so on a developer
-# box with any of them the baseline stops being "no editor config" and every
-# overlay stream a suite builds carries their editor. Pinned *after* the source,
-# since paths.sh re-exports over whatever it was handed. A suite exercising the
-# tier points them somewhere of its own, as tests/common/paths_test.sh does.
-export _HI_VIMRC="" _HI_NVIMRC="" _HI_HELIXRC="" _HI_NANORC="" _HI_EMACSRC="" _HI_TMUX_CONF="" _HI_SCREENRC=""
-# ...and ~/.ssh/config the same way: its `# Tags:` lines ride the overlay as
-# ssh_tags, so a developer's own would be a member of every stream built here
+# ~/.ssh/config, pinned after the source, which sets it: its `# Tags:` lines
+# ride the overlay as ssh_tags, so under _HI_TEST_KEEP_HOME=1 a developer's
+# own would be a member of every stream built here
 export _HI_SSH_CONFIG="$XDG_CONFIG_HOME/no-ssh-config"
 # the heading rules the harness and the suites print with
 # shellcheck source=../scripts/lib.sh

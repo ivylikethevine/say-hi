@@ -375,7 +375,6 @@ _HI_GROUPS_CHILD='
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
   : >"$_hi_dir/overlay/nanorc"
-  _HI_NANORC="$_hi_dir/overlay/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   printf "%s\n" "[core]" sh "[useful]" sh "[deprecated]" "-zz-hi-absent" "[extras]" sh "[Work]" sh \
@@ -1027,17 +1026,17 @@ function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano  -> nano --rcfile $_HI_NANORC"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_EMACSRC"* ]] || _hi_because "emacs: $out" || return 1
-  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_VIMRC"* ]] || _hi_because "vim: $out" || return 1
+  [[ "$out" == *"nano  -> nano --rcfile $_HI_CONFIG_DIR/nanorc"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_CONFIG_DIR/init.el"* ]] || _hi_because "emacs: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_CONFIG_DIR/vimrc"* ]] || _hi_because "vim: $out" || return 1
   # each name carries the rc of the binary behind it: nvim answers to both
   # `vim` and `nvim` and reads init.lua, its state kept in the session tree
-  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_NVIMRC"* ]] || _hi_because "nvim: $out" || return 1
-  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" nvim -u $_HI_NVIMRC"* ]] || _hi_because "vim as nvim: $out" || return 1
-  [[ "$out" == *"hx    -> hx -c $_HI_HELIXRC"* && "$out" == *"helix -> helix -c $_HI_HELIXRC"* ]] || _hi_because "helix: $out" || return 1
+  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/init.lua"* ]] || _hi_because "nvim: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/init.lua"* ]] || _hi_because "vim as nvim: $out" || return 1
+  [[ "$out" == *"hx    -> hx -c $_HI_CONFIG_DIR/config.toml"* && "$out" == *"helix -> helix -c $_HI_CONFIG_DIR/config.toml"* ]] || _hi_because "helix: $out" || return 1
   # micro's flags ride only a target or a micro/ of hi's, the overlay's here
   if command -v micro >/dev/null 2>&1; then
-    [[ "$out" == *"micro -> micro -config-dir $_HI_MICRO_DIR -backup false"* ]] || _hi_because "micro: $out" || return 1
+    [[ "$out" == *"micro -> micro -config-dir $_HI_CONFIG_DIR/micro -backup false"* ]] || _hi_because "micro: $out" || return 1
   fi
 }
 
@@ -1216,7 +1215,6 @@ _HI_CFG_CHILD='
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
   : >"$_hi_dir/overlay/nanorc"
-  _HI_NANORC="$_hi_dir/overlay/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -1747,8 +1745,7 @@ function run_configure_tests() {
   local _hi_f
   for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_CONFIG_DIR/$_hi_f"; done
   mkdir -p "$_HI_CONFIG_DIR/micro"
-  export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc" _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua" _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml" \
-    _HI_NANORC="$_HI_CONFIG_DIR/nanorc" _HI_EMACSRC="$_HI_CONFIG_DIR/init.el" _HI_MICRO_DIR="$_HI_CONFIG_DIR/micro"
+  : >"$_HI_CONFIG_DIR/micro/settings.json"
 
   _hi_h1 "Testing scripts/configure.sh's reusable logic"
 
