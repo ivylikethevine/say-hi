@@ -36,8 +36,8 @@ Type "clear"
 Enter
 Show
 
-Sleep 1s
-Type "# tags in ~/.ssh/config, pins in the colors overlay, a hex scheme"
+Sleep 500ms
+Type@5ms "# tags in ~/.ssh/config, pins in the colors overlay, a hex scheme"
 Enter
 Type "hi --preview colors"
 Enter
@@ -46,7 +46,8 @@ Sleep 6s
 Type "clear"
 Enter
 
-Type "hi -F ~/.ssh/config db-prod   # tagged prod: red"
+Type "hi -F ~/.ssh/config db-prod"
+Type@5ms "   # tagged prod: red"
 Enter
 Wait+Screen@60s /hi loaded:/
 Sleep 3s
@@ -55,7 +56,8 @@ Enter
 Wait+Screen@30s /Disconnected/
 Sleep 1s
 
-Type "hi -F ~/.ssh/config dev-1   # tagged dev: green"
+Type "hi -F ~/.ssh/config dev-1"
+Type@5ms "   # tagged dev: green"
 Enter
 Wait+Screen@60s /hi loaded:/
 Sleep 3s

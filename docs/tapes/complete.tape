@@ -88,8 +88,8 @@ Type "clear"
 Enter
 Show
 
-Sleep 1s
-Type "# one list: ssh hosts, and every running container on every backend"
+Sleep 500ms
+Type@5ms "# one list: ssh hosts, and every running container on every backend"
 Enter
 Sleep 1s
 Type "hi "
@@ -100,7 +100,7 @@ Sleep 6s
 # in one key, where an Enter would connect to whatever the pager had selected.
 Ctrl+C
 Sleep 1s
-Type "# ...and the flags, which answer without waking a single daemon"
+Type@5ms "# ...and the flags, which answer without waking a single daemon"
 Enter
 Sleep 1s
 Type "hi --"

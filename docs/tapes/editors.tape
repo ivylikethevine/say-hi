@@ -39,21 +39,23 @@ Type "export HOME=/tmp/hi-demo/home && cd"
 Enter
 Type "clear"
 Enter
-Show
-
-Sleep 1s
+# the connect is not the subject: the first frame is the session, already up
 Type "hi dev-box"
 Enter
 Wait+Screen@60s /hi loaded:/
-Sleep 2s
+Show
 
-Type "nano ~/app/app.conf   # my nanorc, on a box that has none"
+Sleep 500ms
+
+Type "nano ~/app/app.conf"
+Type@5ms "   # my nanorc, on a box that has none"
 Enter
 Sleep 4s
 Ctrl+X
 Sleep 1s
 
-Type "vim ~/app/main.py   # my vimrc: syntax on"
+Type "vim ~/app/main.py"
+Type@5ms "   # my vimrc: syntax on"
 Enter
 Sleep 4s
 Type ":q"
