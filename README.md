@@ -38,9 +38,6 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Getting help and contributing](#getting-help-and-contributing)
 - [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
-  - [Before 1.0](#before-10)
-  - [At the 1.0.0 tag](#at-the-100-tag)
-  - [Post 1.0](#post-10)
 - [License](#license)
 
 ---
@@ -345,73 +342,61 @@ myself.
 
 ## Roadmap
 
-What's left; nothing here is parked or descoped. An entry is deleted once
-its **Ticks when** holds.
+What's left; nothing here is parked or descoped. One list, least work left
+first. An entry is deleted once its **Ticks when** holds. _Post 1.0_ entries
+are outside this checkout: an account or an upstream review that lands when
+it lands.
 
-### Before 1.0
-
-In this checkout, narrowest first. What is carried, what switches it, and
-the header's cells are
-[docs/PLUGINS-ROADMAP.md](docs/PLUGINS-ROADMAP.md)'s, in the same form.
-
-1. [ ] **A blocked upstream shows as drift** — shipped:
+1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
        lookup on one host answered (a blocked host, not a one-off rate
        limit). What is left is seeing it in CI. **Ticks when:** a
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
-       that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`, `update.sh`
-       and `preview.sh` from a scratch-tree copy (the first four read 0% in run
-       36341616721, 91.11% overall) now link the real `scripts/`, and each
-       other gap has a test or is a blind spot `tests/coverage_v2.sh`'s
-       header lists. What is left is the measurement. **Ticks when:** the
-       first bashcov sweep on `main` after this lands reads at least 95%
-       and no shipped line at 0 that is neither tested nor in that header.
+2. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
+       the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
+       `update.sh` and `preview.sh` from a scratch-tree copy (the first four
+       read 0% in run 36341616721, 91.11% overall) now link the real
+       `scripts/`, and each other gap has a test or is a blind spot
+       `tests/coverage_v2.sh`'s header lists. What is left is the
+       measurement. **Ticks when:** the first bashcov sweep on `main` after
+       this lands reads at least 95% and no shipped line at 0 that is
+       neither tested nor in that header.
 
-3. [ ] **A hand-written prompt stays** — shipped: at home, bash and zsh
-       keep a `PS1`/`PROMPT` the rc set unless it is one nobody wrote (the
-       shell's built-in default, or a stock rc's on the distros
+3. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
+       shipped: a line of the overlay's `carry` names the member, its tool,
+       its wire, and its places at home, and rides through the same order,
+       include scan, and wiring;
+       [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know) shows
+       how. What is left is seeing it. **Ticks when:** a tool of the user's
+       own reads its home config on an e2e target.
+
+4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
+
+5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+       upstream style. **Do:** open the PR against tldr-pages. **Ticks
+       when:** merged.
+
+6. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
+       bash and zsh keep a `PS1`/`PROMPT` the rc set unless it is one nobody
+       wrote (the shell's built-in default, or a stock rc's on the distros
        [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
        target's prompt is hi's as before. What is left is the check on real
        installs. **Ticks when:** a hand-written `PS1` survives hi in bash and
        zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets hi's
        prompt.
 
-4. [ ] **Every `eval` is counted, then fewer** — shipped: `drift` holds
-       every `eval` in the payload and `scripts/` to a row of
-       `tests/lint/eval_roster` that says what it evaluates, and each file's
-       count of its kin (a `source` of a path in a variable, a shell's `-c`,
-       a recursive `rm`); the overlay table's home column is read by the
-       `carry` grammar, and eleven more gave way to `${!name}` and
-       `printf -v`. Left: the eight of its twenty-seven that read from
-       outside the tree - the shell's own `complete -p`, `alias -p`, and
-       `trap -p` run back in `common/bash.sh`, a prompt program's init, and
-       a plugin's `$_HI_SEGMENT` - and indirect assignment, which nothing
-       counts. **Ticks when:** no `eval` in the roster reads a value from
-       outside the tree. **Open question:** a prompt program's init and
-       `$_HI_SEGMENT` are commands by contract; do they count against the
-       tick, or does the roster name them as the two ways in that stay?
+7. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+       the live entry matches the sheet.
 
-### At the 1.0.0 tag
-
-Shipped; it ticks when the tag itself shows it.
-
-1. [ ] **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
-
-### Post 1.0
-
-Outside this checkout: each is an account or an upstream review that lands
-when it lands.
-
-1. [ ] **tldr page** — `docs/tldr.md` matches `docs/hi.1` and upstream
-       style. **Do:** open the PR against tldr-pages. **Ticks when:** merged.
-
-2. [ ] **AUR** — registration is closed to new accounts, so
+8. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand
@@ -419,16 +404,93 @@ when it lands.
        packages are live and a dispatch has kept `say-hi` current for one
        release.
 
-3. [ ] **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
+9. [ ] _Before 1.0:_ **The header probes only what was asked** — the
+       default `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so
+       every local terminal or tmux pane runs docker, podman, nomad, and
+       kubectl. **Do:** leave the backend cells out of the local default (a
+       session keeps them), or run them after the first prompt. **Ticks
+       when:** a local shell with the default order starts no backend CLI.
+       **Open question:** drop the containers, jobs, and pods cells from the
+       local default header, or keep them and fill them in after the first
+       prompt? Either changes what a local header shows today.
 
-4. [x] **vhs v0.12** — `demos.yml` pins v0.12.1, which fixes the render
-       v0.12.0 never ran
-       ([charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787)),
-       and a `demos.yml` dispatch renders all six tapes on that pin.
+10. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
+        (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
+        `lazygit.yml` (`$LG_CONFIG_FILE`) are members, each carried from
+        where its tool keeps it and listed in
+        [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them);
+        the framework suite's `tmux` case has rg read one on a target. Left
+        for rows of their own: `LS_COLORS`, ~18KB raw on every connect;
+        skim, bottom, procs, and dust, which fewer boxes run, the last three
+        behind a flag and so an alias. **Ticks when:** an fzf that reads
+        `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
+        (bookworm's fzf predates the variable, and it ships no lazygit).
+
+11. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
+        kakoune's `colors/` (a `colorscheme` the `kakrc` names) stays home,
+        so the target falls back to the default scheme, and helix's
+        `languages.toml` has no flag to point `hx` at. **Do:** carry kak's
+        `colors/` member by member, as zellij's `themes/` rides, in the row's
+        own directory; find out whether helix can take a `languages.toml` on
+        a target, and write the verdict into
+        [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md). **Ticks when:** a
+        `kakrc` with `colorscheme <own>` shows that scheme on a target.
+
+12. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
+        the client knows the prompt programs a target is handed before it
+        packs
+        ([HI.32](docs/GLOSSARY.md#hi32-starship-deference)).
+        **Do:** cut the framework loaders outside that list from the payload,
+        as `_hi_payload_excl` cuts a shadowed default. The git and
+        environment segments stay built in: they draw with no fork, and on
+        `_HI_SEGMENT` each would cost one a prompt. **Ticks when:** a
+        connect handed starship alone ships no framework's loader, and
+        `--group bench` reads the smaller payload.
+
+13. [ ] _Before 1.0:_ **A header cell of the user's own** — every cell is
+        one `_hi_cell_<word>` behind a dispatch, and a `plugins.d` member can
+        only set a prompt segment. **Do:** `header.d`, a `.d` member
+        ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members))
+        scanned and stripped as sh, each file defining `_hi_cell_<word>`
+        (`common/header.sh` is bash on every side). `_hi_header_word_cell`'s
+        roster gate admits the loaded cells' names beside
+        `$_HI_HEADER_ORDER_DEFAULT`'s, since only a known word may reach a
+        function; a cell with no `$_HI_HEADER_ALTS` entry gets an alternate
+        from its own hue
+        ([HI.48](docs/GLOSSARY.md#hi48-header-cell-hue-resolution));
+        a user's cell may fork, and the shared probes stay the built-ins'.
+        The built-in cells stay in `header.sh`: two probes feed eleven, so a
+        file each would ship more and save nothing. **Ticks when:** a
+        `header.d` member's cell draws on a target where `$_HI_HEADER_ORDER`
+        puts it, and [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) shows how.
+
+14. [ ] _Before 1.0:_ **A member is its row and nothing else** — shipped:
+        the `group` column, `$_HI_PLUGINS_OFF` and the commands that keep it,
+        the toggles keeping a member home, and the editors' and
+        multiplexers' aliases written from their rows. What is left: a
+        `dialect` column standing in for the include scan's name tests and
+        `$_HI_STRIP_NAMES` (`-` passing through untouched); micro's alias,
+        whose flags are a setting `common/aliases.sh` defaults; and the
+        editors' and multiplexers' variables in `common/paths.sh`, which only
+        `hi.sh` and `load.sh` still read. _What 1.x will not break_ names
+        every member, so the row settles before the tag. **Ticks when:**
+        `common/aliases.sh` and `common/paths.sh` name no member, and
+        `$_HI_STRIP_NAMES` and the include scan name none either.
+
+15. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
+        `drift` holds every `eval` in the payload and `scripts/` to a row of
+        `tests/lint/eval_roster` that says what it evaluates, and each file's
+        count of its kin (a `source` of a path in a variable, a shell's `-c`,
+        a recursive `rm`); the overlay table's home column is read by the
+        `carry` grammar, and eleven more gave way to `${!name}` and
+        `printf -v`. Left: the eight of its twenty-seven that read from
+        outside the tree - the shell's own `complete -p`, `alias -p`, and
+        `trap -p` run back in `common/bash.sh`, a prompt program's init, and
+        a plugin's `$_HI_SEGMENT` - and indirect assignment, which nothing
+        counts. **Ticks when:** no `eval` in the roster reads a value from
+        outside the tree. **Open question:** a prompt program's init and
+        `$_HI_SEGMENT` are commands by contract; do they count against the
+        tick, or does the roster name them as the two ways in that stay?
 
 ## License
 

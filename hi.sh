@@ -1313,14 +1313,14 @@ function _hi_overlay_stream() {
 # rest, and blank lines and indentation go with them - none of the four
 # dialects reads either, and the indentation alone is 3% of the payload -
 # except on a line continuing a `word\`, where it is the only separator. A
-# nanorc's dropped syntax include rides as its comment, for load.sh's
-# _hi_nano_fallback to find.
+# nanorc's dropped syntax include and extendsyntax ride as comments, for
+# load.sh's _hi_nano_fallback to find.
 # GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
 FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/); nano = (FILENAME ~ /nanorc$/) }
 FNR == 1 && /^#!/ { buf[out] = buf[out] $0 "\n"; next }
-nano && /^# hi dropped: include .*\.nanorc/ { buf[out] = buf[out] $0 "\n"; next }
+nano && /^# hi dropped: (include .*\.nanorc|extendsyntax )/ { buf[out] = buf[out] $0 "\n"; next }
 vim && /^[ \t]*"/ { next }
 el && /^[ \t]*;/ { next }
 lua && /^[ \t]*--/ { next }

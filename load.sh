@@ -296,19 +296,64 @@ function _hi_line_close() {
   return 0
 }
 
+# _hi_nano_glob <pattern> - adds the files <pattern> matches here to the
+# caller's _hi_files; false when it matches none
+function _hi_nano_glob() {
+  local f n="${#_hi_files[@]}"
+  # shellcheck disable=SC2086 # the glob is the point; the path holds no space
+  for f in $1; do [[ -f "$f" ]] && _hi_files+=("$f"); done
+  [[ "${#_hi_files[@]}" -gt "$n" ]]
+}
+
 # _hi_nano_fallback - a syntax include outside /usr/share/nano was dropped on
 # the client (its comment survives the strip for this), so the carried
-# nanorc highlights nothing: include the target's own set where it has one.
-# Rewritten each session rather than appended once, since the copy rides on
-# to a next hop whose target may have no /usr/share/nano. Only a nanorc
-# inside the disposable tree is touched.
+# nanorc highlights nothing. Under each such comment goes its include again
+# where an absolute path matches files here, else, under the first, the
+# target's stock set. nano resolves an `extendsyntax` as it reads it, so
+# placement matters, and so does the name: each takes the spelling of a
+# syntax those files define, compared without case (nano-syntax-highlighting
+# spells `GO` what the stock set spells `go`), and one naming no syntax here
+# is dropped. Rewritten each session from the comments, since the copy rides
+# on to a next hop's target. Only a nanorc inside the disposable tree is
+# touched.
 function _hi_nano_fallback() {
-  local rc="${_HI_NANORC:-}" line='include "/usr/share/nano/*.nanorc"'
+  local rc="${_HI_NANORC:-}" tag='# hi dropped: ' fb='include "/usr/share/nano/*.nanorc"'
+  local l r p f adds="" own=$'\n' hit=""
+  local -a _hi_files=()
   [[ -n "${_HI_CLEANUP:-}" && "$rc" == "$_HI_CLEANUP"/* && -f "$rc" ]] || return 0
   grep -q '^# hi dropped: include .*\.nanorc' "$rc" || return 0
-  grep -vxF "$line" "$rc" >"$rc.hi"
-  set -- /usr/share/nano/*.nanorc
-  [[ -f "$1" ]] && printf '%s\n' "$line" >>"$rc.hi"
+  while IFS= read -r l || [[ -n "$l" ]]; do
+    r="${l#"$tag"}"
+    p="${r#"${r%%[![:space:]]*}"}"
+    case "$p" in include[[:space:]]*) ;; *) continue ;; esac
+    f="${p#include}"
+    f="${f#"${f%%[![:space:]]*}"}"
+    f="${f#[\"\']}"
+    f="${f%%[\"\'[:space:]]*}"
+    if [[ "$l" != "$r" ]]; then
+      own="$own$r"$'\n'
+      [[ "$f" == /* ]] && _hi_nano_glob "$f" && hit=1 && adds="$adds$r"
+      adds="$adds"$'\n'
+    elif [[ "$l" != "$fb" && "$own" != *$'\n'"$l"$'\n'* ]]; then
+      [[ "$f" == \~/* ]] && f="$HOME/${f#??}"
+      _hi_nano_glob "$f"
+    fi
+  done <"$rc"
+  [[ -z "$hit" ]] && _hi_nano_glob '/usr/share/nano/*.nanorc' && adds="$fb$adds"
+  HI_NANO_RC="$rc" HI_NANO_ADDS="$adds" HI_NANO_FB="$fb" awk '
+function syn(s) { gsub(/"/, "", s); have[s] = 1; if (!(tolower(s) in low)) low[tolower(s)] = s }
+BEGIN { split(ENVIRON["HI_NANO_ADDS"], add, "\n"); fb = ENVIRON["HI_NANO_FB"] }
+FILENAME != ENVIRON["HI_NANO_RC"] { if ($1 == "syntax") syn($2); next }
+/^# hi dropped: extendsyntax / { $0 = substr($0, 15) }
+/^# hi dropped: include / { print; own[substr($0, 15)] = 1; if (add[++m] != "") print add[m]; next }
+$0 == fb || ($0 in own) { next }
+$1 == "syntax" { syn($2) }
+$1 == "extendsyntax" && !($2 in have) {
+  if (!(tolower($2) in low)) { print "# hi dropped: " $0; next }
+  match($0, /extendsyntax[ \t]+[^ \t]+/)
+  $0 = substr($0, 1, RSTART - 1) "extendsyntax " low[tolower($2)] substr($0, RSTART + RLENGTH)
+}
+{ print }' ${_hi_files[@]+"${_hi_files[@]}"} "$rc" >"$rc.hi"
   mv -f "$rc.hi" "$rc"
 }
 

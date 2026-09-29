@@ -766,7 +766,7 @@ function test_nano_fallback_follows_the_target() {
   local dropped='# hi dropped: include "~/.nano/*.nanorc"'
   want="$dropped"$'\nset tabsize 4'
   set -- /usr/share/nano/*.nanorc
-  [ -f "$1" ] && want="$want"$'\n'"$fb"
+  [ -f "$1" ] && want="$dropped"$'\n'"$fb"$'\nset tabsize 4'
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-a" "$dropped"$'\nset tabsize 4\n')"
   [ "$out" = "$want" ] || {
     _hi_cecho " | fresh: [$out]" "$RED"
@@ -781,6 +781,29 @@ function test_nano_fallback_follows_the_target() {
   [ "$out" = "set tabsize 4" ] || return 1
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-d" "$dropped"$'\n' "")"
   [ "$out" = "$dropped" ]
+}
+
+# a dropped include whose files the target has comes back in its own place,
+# ahead of the extendsyntax lines nano resolves as it reads them; each of those
+# takes the spelling the target defines, and one naming no syntax there is
+# dropped, then restored by a hop that has it
+function test_nano_fallback_resolves_extendsyntax() {
+  local syn="$_HI_WORKDIR/nano-syn" out want
+  mkdir -p "$syn"
+  printf 'syntax "GO" "\\.go$"\n' >"$syn/go.nanorc"
+  local inc="include \"$syn/*.nanorc\""
+  want="# hi dropped: $inc"$'\n'"$inc"$'\nsyntax mine "\\.x$"\nextendsyntax GO tabgives " "\nextendsyntax mine tabgives " "\n# hi dropped: extendsyntax JSX linter eslint'
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-e" "# hi dropped: $inc"$'\nsyntax mine "\\.x$"\nextendsyntax go tabgives " "\nextendsyntax mine tabgives " "\nextendsyntax JSX linter eslint\n')"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | resolved: [$out]" "$RED"
+    return 1
+  }
+  printf 'syntax "JSX" "\\.jsx$"\n' >"$syn/jsx.nanorc"
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-f" "$want"$'\n')"
+  [ "$out" = "${want/\# hi dropped: extendsyntax/extendsyntax}" ] || {
+    _hi_cecho " | carried to a hop that has it: [$out]" "$RED"
+    return 1
+  }
 }
 
 function run_load_tests() {
@@ -823,6 +846,7 @@ function run_load_tests() {
   _hi_check_requires fish "_hi_fishquote round-trips through a real fish" test_fishquote_roundtrips_the_hard_cases
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
   _hi_check "a dropped nano syntax include falls back to the target's" test_nano_fallback_follows_the_target
+  _hi_check "nano extendsyntax follows the target's syntax names" test_nano_fallback_resolves_extendsyntax
 
   _hi_h2 "Testing: _hi_login_shell"
   _hi_check "\$SHELL answers as its basename" test_login_shell_answers_with_the_basename_of_shell

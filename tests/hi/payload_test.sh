@@ -1135,6 +1135,7 @@ _HI_LINT_NANORC='include "/usr/share/nano/*.nanorc"
 include "/usr/share/nano/sh.nanorc"
 include "/usr/share/nano/extra/*.nanorc"
 include "~/.nano/mine.nanorc"
+# hi dropped: extendsyntax JSX linter eslint
 set tabsize 4
 '
 
@@ -1146,13 +1147,14 @@ function test_nano_keeps_the_stock_directory_and_drops_the_rest() {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
-  # a dropped syntax include keeps its comment through the strip: load.sh's
-  # _hi_nano_fallback reads it on the target
+  # a dropped syntax include or extendsyntax keeps its comment through the
+  # strip: load.sh's _hi_nano_fallback reads it on the target
   out="$(_HI_NANORC="$dir/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nanorc)"
   [ "$out" = 'include "/usr/share/nano/*.nanorc"
 include "/usr/share/nano/sh.nanorc"
 # hi dropped: include "/usr/share/nano/extra/*.nanorc"
 # hi dropped: include "~/.nano/mine.nanorc"
+# hi dropped: extendsyntax JSX linter eslint
 set tabsize 4' ] || {
     _hi_cecho " | nanorc arrived as: [$out]" "$RED"
     return 1

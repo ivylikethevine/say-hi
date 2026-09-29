@@ -1195,10 +1195,16 @@ can still error on the target; the doctor rows make that legible.
 
 One finding is given back. A nanorc whose syntax include (`*.nanorc` outside
 `/usr/share/nano`) was dropped would highlight nothing, so the stripper keeps
-that finding's comment, and `load.sh`'s `_hi_nano_fallback` adds
-`include "/usr/share/nano/*.nanorc"` on a target that has the stock set -
-rewritten each session, not appended once, since the copy rides on to a next
-hop's target, which may not.
+that finding's comment, and `load.sh`'s `_hi_nano_fallback` puts an include
+right under it: the dropped one again where its absolute path matches files
+on the target, else `include "/usr/share/nano/*.nanorc"` where the stock set
+is there. Placement matters because nano resolves an `extendsyntax` as it
+reads it; so does the name, since nano-syntax-highlighting spells `GO` what
+the stock set spells `go`. Each `extendsyntax` takes the target's spelling,
+compared without case, and one naming no syntax there becomes a
+`# hi dropped:` comment the stripper keeps too. The file is rewritten from
+those comments each session, not patched once, since the copy rides on to a
+next hop's target, which may have a different set.
 
 ## HI.58 overlay directory members
 
