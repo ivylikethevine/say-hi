@@ -86,7 +86,7 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-'
-  'packages|_HI_PACKAGES|tree|-|-|-|-|-'
+  'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|-'
   'vimrc|_HI_VIMRC|-|vim|editors|flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
   'init.lua|_HI_NVIMRC|-|nvim|editors|flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|$_HI_XDG_CONFIG/nvim/init.lua'
   'nanorc|_HI_NANORC|-|nano|editors|flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
@@ -703,7 +703,6 @@ function _hi_plugin_off() {
   [ -n "$_HI_OFF_ANY" ] && _hi_overlay_row "$1" _hi_po_r || return 1
   _hi_row_col "$_hi_po_r" group _hi_po_g
   _hi_row_col "$_hi_po_r" off _hi_po_t
-  [ "$_hi_po_g" != - ] || return 1
   # shellcheck disable=SC2086 # the split is the column
   [ "$_hi_po_t" = - ] || for _hi_po_n in $_hi_po_t; do
     ! _hi_toggle_on "${_hi_po_n#?}" || {
@@ -711,6 +710,8 @@ function _hi_plugin_off() {
       return 0
     }
   done
+  # hi's own file: its toggles above, never the list
+  [ "$_hi_po_g" != - ] || return 1
   [ -n "${_HI_PLUGINS_OFF:-}" ] || return 1
   _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
   case " ${_HI_PLUGINS_OFF//,/ } " in
@@ -1384,9 +1385,12 @@ function _hi_die() {
 # (GLOSSARY: HI.41), into the caller's $payload_excl: one copy on the wire,
 # not the default beside the file that beats it. Only a member that ships
 # counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
+# With the header off the target never draws one, so header.sh and the
+# package list it checks stay home too.
 function _hi_payload_excl() {
   local f
   payload_excl=()
+  ! _hi_toggle_on _HI_DISABLE_HEADER || payload_excl=(say-hi/common/header.sh say-hi/config/packages)
   for f; do
     f="${f%%/*}"
     case "$_HI_OVERLAY_SHADOWS${payload_excl[*]-} " in

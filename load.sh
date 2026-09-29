@@ -53,8 +53,9 @@ set -euo pipefail
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=./common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
+# with the header off, the client sent no header.sh
 # shellcheck source=./common/header.sh
-source "$_HI_HEADER"
+[[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || source "$_HI_HEADER"
 
 # The bootloader shell: `hi <target> <cmd>` runs <cmd> here and load() starts
 # the session shell from here, so what is exported now is what both inherit.
@@ -371,7 +372,7 @@ function load() {
   # widen $_HI_CONNECT_PREFIX or the banner's fill come out wrong.
   total="$(_hi_sum "${_HI_CONNECT_TIME:-0}" "${_HI_COPY_TIME:-0}")"
   _hi_cecho " | ${total}s" "$NC" 1
-  hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
+  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
   if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
     _hi_nano_fallback
@@ -457,7 +458,7 @@ function load() {
   # "load:" line above timed
   dur="$(_hi_human_duration "$(_hi_elapsed "$start" "$(_hi_now)")")"
   _hi_cecho " $size | session: $dur" "$NC" 1
-  hi_footer Disconnected "$BRRED" " $size | session: $dur"
+  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_footer Disconnected "$BRRED" " $size | session: $dur"
   _hi_line_close
   exit "$shell_ec"
 }

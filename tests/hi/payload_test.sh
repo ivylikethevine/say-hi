@@ -651,7 +651,7 @@ function test_carry_rows_ride_on_from_a_target() {
 
 # a plugin that is switched off sends nothing: $_HI_PLUGINS_OFF names it, its
 # group, or the member, a row of the carry too - and never one of hi's own
-# files, which nothing switches (GLOSSARY: HI.64)
+# files, which only their toggles switch (GLOSSARY: HI.64)
 function test_plugin_off_keeps_its_members_home() {
   local dir
   dir="$(_hi_overlay_fixture plugins-off colors vimrc nanorc tmux.conf bat.conf lazygit.yml mine.rc)"
@@ -998,6 +998,31 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
     [[ "$listing" == *common/aliases.sh* ]] || return 1
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
+}
+
+# with the header off no target draws one, so header.sh, the tree's package
+# list, and the overlay's copy of it all stay home; under _HI_DISABLE_LOCAL=1
+# only a line of settings.sh's own says so
+function test_header_off_keeps_the_header_home() {
+  local dir="$_HI_WORKDIR/excl-header" listing
+  local -a payload_excl=()
+  mkdir -p "$dir"
+  printf '[core]\ngit\n' >"$dir/packages"
+  printf '#!/bin/sh\n' >"$dir/local.sh"
+  printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$dir/local-off.sh"
+  [ -z "$(_HI_DISABLE_HEADER=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ] ||
+    _hi_because "the overlay's packages rode" || return 1
+  _HI_DISABLE_HEADER=1 _hi_payload_excl
+  [ "${payload_excl[*]}" = "say-hi/common/header.sh say-hi/config/packages" ] ||
+    _hi_because "cut: [${payload_excl[*]}]" || return 1
+  listing="$(_hi_payload_tar | tar tzf -)"
+  [[ "$listing" != *common/header.sh* && "$listing" != *config/packages* && "$listing" == *common/core.sh* ]] ||
+    _hi_because "the tree still carries the header" || return 1
+  _HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/local.sh" _hi_payload_excl
+  [ -z "${payload_excl[*]-}" ] || _hi_because "local only cut the header" || return 1
+  _HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/local-off.sh" _hi_payload_excl
+  [ "${payload_excl[*]}" = "say-hi/common/header.sh say-hi/config/packages" ] ||
+    _hi_because "settings.sh's own line kept the header: [${payload_excl[*]-}]"
 }
 
 # ...and only there: _hi_wire_bytes and `hi --doctor` hold no $payload_excl,
@@ -1704,6 +1729,7 @@ function run_hi_payload_tests() {
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
   _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
+  _hi_check "With the header off, header.sh and the package list stay home" test_header_off_keeps_the_header_home
   _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
   _hi_check "The shadow roster is paths.sh's cascade" test_the_shadow_roster_matches_paths_sh
 

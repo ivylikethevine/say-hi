@@ -712,7 +712,11 @@ That cascade is wholesale, so a member that shadows a tree default makes the
 default dead weight: a connect hands `_hi_payload_excl` its member list, and
 `_hi_payload_tar` drops those files (`$_HI_OVERLAY_SHADOWS`; never
 `aliases.sh`, which is additive) from the stage, cached under a key of its
-own. Dropped from the stage rather than with tar's `--exclude`, which
+own. With `_HI_DISABLE_HEADER` on (read as HI.64's `_hi_toggle_on` reads
+it), `common/header.sh` and `config/packages` are dropped too, about 11 KB
+armored: no target draws a header, and `common/paths.sh` there reads a
+missing `header.sh` as the header off, whatever the target's `settings.sh`
+says. Dropped from the stage rather than with tar's `--exclude`, which
 OpenBSD's tar lacks. Only a caller holding the list cuts anything:
 `_hi_wire_bytes` has none and measures the stock tree (HI.44), and the
 container arm, where the two archives travel separately, sends the defaults
@@ -1424,8 +1428,9 @@ from the session's `config/` and never from that machine's home.
 
 A plugin is a row's tool, or the member where it has none; its group is the
 row's group column (`editors`, `mux`, `prompt`, `cli`, `shell`, and `carry`
-for a line of the user's). A row with no group is hi's own file and nothing
-switches it. `_hi_plugin_off` answers for a member: off when
+for a line of the user's). A row with no group is hi's own file, which the list
+never switches; only its off column can (`packages`, under
+`_HI_DISABLE_HEADER`). `_hi_plugin_off` answers for a member: off when
 `$_HI_PLUGINS_OFF` names its plugin, its group, or the member itself, or
 when a toggle of its off column is 1.
 

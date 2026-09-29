@@ -141,6 +141,18 @@ function test_paths_sources_cleanly_under_strict_mode() {
   '
 }
 
+# a client with the header off sends no header.sh, and every shell on that
+# target reads the missing file as the header off, whatever settings.sh says
+function test_no_header_file_turns_the_header_off() {
+  # shellcheck disable=SC2016 # the child sh expands it
+  local home="$_HI_WORKDIR/headerless" script='. "$1"; printf %s "$_HI_DISABLE_HEADER"'
+  mkdir -p "$home/say-hi/common"
+  [ "$(_HI_HOME="$home" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")" = 1 ] ||
+    _hi_because "a tree with no header.sh kept the header on" || return 1
+  [ "$(_HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")" = 0 ] ||
+    _hi_because "a whole tree turned the header off"
+}
+
 # common/aliases.sh and common/config.fish read the toggles bare, and neither
 # can use ${X:-0} because fish sources both and has no such expansion. So the
 # entry points guarantee the variables exist instead. Getting this wrong is
@@ -603,6 +615,7 @@ function run_paths_tests() {
   _hi_check "The gate covers the whole toggle roster" test_gate_list_matches_the_toggle_roster
   _hi_check "config.fish's toggle mirror matches core.sh" test_fish_toggle_list_matches_core
   _hi_check "Sources cleanly under strict mode" test_paths_sources_cleanly_under_strict_mode
+  _hi_check "A tree with no header.sh has the header off" test_no_header_file_turns_the_header_off
 
   _hi_h2 "Testing: the toggles are always defined"
   _hi_check "core.sh defines every toggle" test_core_defines_every_toggle

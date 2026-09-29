@@ -10,6 +10,8 @@ export _HI_ROOT="$_HI_HOME/say-hi"
 export _HI_LAUNCHER="$_HI_ROOT/hi.sh"
 export _HI_CORE="$_HI_ROOT/common/core.sh"
 export _HI_HEADER="$_HI_ROOT/common/header.sh"
+# a client with the header off sends no header.sh; no file, no header
+[ -f "$_HI_HEADER" ] || export _HI_DISABLE_HEADER=1
 export _HI_GIT_PROMPT="$_HI_ROOT/common/git_prompt.sh"
 export _HI_ENV_PROMPT="$_HI_ROOT/common/env_prompt.sh"
 export _HI_TARGETS="$_HI_ROOT/common/targets.sh"
