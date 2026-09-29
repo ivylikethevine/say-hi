@@ -30,11 +30,6 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # disable-sudo: this job never elevates - harden-runner's monitor
-          # logged no sudo exec for it on a green run, and it is one action
-          # talking to the API. One that turns out to need root fails here
-          # outright rather than quietly doing less, which is what makes this
-          # worth setting rather than inferring.
           disable-sudo: true
           # The review action asks the API for the diff's advisories, then
           # (show-openssf-scorecard, on by default) resolves each package on

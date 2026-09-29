@@ -55,8 +55,8 @@ Type "clear"
 Enter
 Show
 
-Sleep 1s
-Type "# one command, four backends: ssh, docker, nomad, kube"
+Sleep 500ms
+Type@5ms "# one command, four backends: ssh, docker, nomad, kube"
 Enter
 Type "for h in web-1 db-prod $alloc api-7; do hi -F ~/.ssh/config $h 'cat /etc/hostname'; done"
 Enter

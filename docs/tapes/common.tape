@@ -35,6 +35,7 @@ Set Width 1120
 Set Height 800
 Set Padding 20
 # Set Margin 10
+# commands at this speed; a tape types its `#` comments with `Type@5ms`
 Set TypingSpeed 40ms
 Set BorderRadius 10
 # Set WindowBar Colorful

@@ -37,8 +37,8 @@ Type "clear"
 Enter
 Show
 
-Sleep 1s
-Type "# the homelab toolbox, and how loudly to miss each piece"
+Sleep 500ms
+Type@5ms "# the homelab toolbox, and how loudly to miss each piece"
 Enter
 Type "cat $_HI_CONFIG_DIR/packages"
 Enter
@@ -55,7 +55,7 @@ Sleep 1s
 Type "clear"
 Enter
 
-Type "# the same check on the pihole"
+Type@5ms "# the same check on the pihole"
 Enter
 Type "hi pihole"
 Enter

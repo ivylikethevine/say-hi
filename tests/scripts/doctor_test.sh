@@ -494,7 +494,7 @@ function test_the_box_folds_and_shortens() {
     _HI_DOC_T_TEXT=("not installed" "not installed" "answering" "/h/.vimrc")
     _HI_DOC_T_SEV=(info info ok info)
     unset _HI_TERM_COLS
-    _hi_doc_box RESULT
+    _hi_doc_box
   )"
   out="$(_hi_strip_ansi "$out")"
   [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 5 ] &&

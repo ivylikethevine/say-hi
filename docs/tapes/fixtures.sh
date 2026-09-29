@@ -160,7 +160,7 @@ function up_ssh() { # <login> <name...> - one sshd box per name, off the one ima
 # own, root. <ps1> is the prompt that account's rc leaves where the distro's
 # differs from the image's - what shows on a box whose session has hi's
 # prompt off.
-function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash> [login] [ps1]
+function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|fish-bash> [login] [ps1]
   demo_step "starting $2 on $1 ($3${4:+, as $4})"
   local backend="$1" name="$2" flavor="$3" login="${4:-}" ps1="${5:-}" image
   # rootless podman's build network (slirp4netns) sends DNS straight to the
@@ -171,7 +171,6 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
   [ "$backend" != podman ] || net=(--network=host)
   case "$flavor" in
   debian) image=debian:bookworm-slim ;;
-  ash) image=alpine:3.24 ;;
   # the debian with your tools on it - git, nano, vim, bat, and a checkout under
   # /root/app - which is what the feature tapes have to show; the Dockerfile
   # says what each is for
@@ -180,16 +179,11 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
       -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >&2
     image=hi-demo-tools-img
     ;;
-  # fish with bash beside it: a box hi can give a *full* session on, in fish
+  # fish-bash is fish with bash beside it: a box hi can give a *full* session on, in fish
   # (fish leads the shell tree) - the overlay demo's second target, since
   # the bash-less aliases-only tier ships hi's own aliases and not the overlay
-  fish-bash)
-    "$backend" build "${net[@]}" -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
-      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >&2
-    image=hi-demo-fish-bash-img
-    ;;
-  zsh | fish)
-    "$backend" build "${net[@]}" -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
+  zsh | fish | fish-bash)
+    "$backend" build "${net[@]}" -t "hi-demo-$flavor-img" --build-arg "PKGS=${flavor/-/ } git" \
       -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >&2
     image="hi-demo-$flavor-img"
     ;;
@@ -308,6 +302,24 @@ function demo_settings() { # body on stdin
   } >"$out"
 }
 
+# The demo ssh roster, written outside the overlay because neither thing that
+# reads it looks there: it is the file $_HI_SSH_CONFIG has to end up pointing
+# at. Getting this in front of the two demos that show ssh hosts is not
+# neatness - reading the renderer's real ~/.ssh/config would put their hostnames
+# into a committed GIF.
+#
+# Shared by colors and complete, so the two GIFs name the same boxes - the color
+# demo resolves them, the completion demo lists what carries them - but they
+# reach the file by different routes, and the difference is forced:
+#
+#   colors    exports a throwaway $HOME, which paths.sh:52 derives
+#             $_HI_SSH_CONFIG from. It reads files and starts nothing, so a
+#             fake $HOME costs it nothing.
+#   complete  sets $_HI_SSH_CONFIG directly, *after* the rc. It cannot fake
+#             $HOME: podman keeps its storage there and kubectl its
+#             ~/.kube/config, so a throwaway one empties two of the four
+#             backends the demo exists to show.
+#
 # The same roster with real connection details for the sshd boxes named, for
 # the demos that both *list* hosts and *connect* to one from a throwaway $HOME:
 # the tape types `hi db-prod` bare, so its port and key have to be in the file
@@ -511,41 +523,6 @@ EOF
   fi
 }
 
-# The demo ssh roster, written outside the overlay because neither thing that
-# reads it looks there: it is the file $_HI_SSH_CONFIG has to end up pointing
-# at. Getting this in front of the two demos that show ssh hosts is not
-# neatness - reading the renderer's real ~/.ssh/config would put their hostnames
-# into a committed GIF.
-#
-# Shared by colors and complete, so the two GIFs name the same boxes - the color
-# demo resolves them, the completion demo lists what carries them - but they
-# reach the file by different routes, and the difference is forced:
-#
-#   colors    exports a throwaway $HOME, which paths.sh:52 derives
-#             $_HI_SSH_CONFIG from. It reads files and starts nothing, so a
-#             fake $HOME costs it nothing.
-#   complete  sets $_HI_SSH_CONFIG directly, *after* the rc. It cannot fake
-#             $HOME: podman keeps its storage there and kubectl its
-#             ~/.kube/config, so a throwaway one empties two of the four
-#             backends the demo exists to show.
-function demo_ssh_config() { demo_ssh_config_live; }
-
-# One of everything, at once - the completion demo's whole subject is that
-# `hi <TAB>` answers from every backend in one list, which is the one thing no
-# other fixture sets up: they each bring up the single target their tape
-# connects to.
-#
-# Composed from the existing up_* rather than written fresh, so the names in the
-# completion pane are the ones the other GIFs already use and nothing here
-# can drift from them. The two container names are picked to *not* collide with
-# demo_ssh_config's hosts: `db-prod` is an ssh host in that roster, and a pane
-# listing it twice - once ssh, once docker - reads as a bug rather than as the
-# feature it actually is.
-#
-# No ssh backend. The ssh rows come from the config file demo_ssh_config writes,
-# which is all targets.sh reads for them (its `emit_targets` awks the file), so
-# a running sshd would cost four minutes of image build and change nothing on
-# screen.
 # The run demo's stage: one target per backend, reached from a throwaway $HOME
 # that carries the ssh host's port and key and the kind cluster's kubeconfig -
 # the two things a bare `hi <name> <cmd>` reads out of $HOME. The tools debian
@@ -560,8 +537,24 @@ function up_run() {
   kind get kubeconfig --name hi-demo >"$_HI_DEMO_DIR/home/.kube/config"
 }
 
+# One of everything, at once - the completion demo's whole subject is that
+# `hi <TAB>` answers from every backend in one list, which is the one thing no
+# other fixture sets up: they each bring up the single target their tape
+# connects to.
+#
+# Composed from the existing up_* rather than written fresh, so the names in the
+# completion pane are the ones the other GIFs already use and nothing here
+# can drift from them. The two container names are picked to *not* collide with
+# demo_ssh_config_live's hosts: `db-prod` is an ssh host in that roster, and a
+# pane listing it twice - once ssh, once docker - reads as a bug rather than as
+# the feature it actually is.
+#
+# No ssh backend. The ssh rows come from the config file demo_ssh_config_live
+# writes, which is all targets.sh reads for them (its `emit_targets` awks the
+# file), so a running sshd would cost four minutes of image build and change
+# nothing on screen.
 function up_complete() {
-  demo_ssh_config
+  demo_ssh_config_live
   up_container docker cache-1 zsh || return 1
   up_container podman edge-1 fish || return 1
   up_nomad || return 1

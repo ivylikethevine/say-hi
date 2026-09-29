@@ -55,14 +55,15 @@ Type "clear"
 Enter
 Show
 
-Sleep 1s
-Type "# your overlay rides along to every target"
+Sleep 500ms
+Type@5ms "# your overlay rides along to every target"
 Enter
 Type "cat $_HI_CONFIG_DIR/aliases.sh"
 Enter
 Sleep 4s
 
-Type "hi db-prod   # debian, bash"
+Type "hi db-prod"
+Type@5ms "   # debian, bash"
 Enter
 Wait+Screen@60s /hi loaded:/
 Sleep 2s
@@ -76,7 +77,8 @@ Sleep 1s
 Type "clear"
 Enter
 
-Type "hi edge-1   # alpine via podman, session in fish"
+Type "hi edge-1"
+Type@5ms "   # alpine via podman, session in fish"
 Enter
 Wait+Screen@60s /hi loaded:/
 Sleep 2s

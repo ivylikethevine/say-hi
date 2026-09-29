@@ -47,7 +47,7 @@ Type "clear"
 Enter
 Show
 
-Sleep 1s
+Sleep 500ms
 Type "hi db-prod"
 Enter
 Wait+Screen@60s /hi loaded:/
@@ -64,7 +64,8 @@ Wait+Screen@30s /Disconnected/
 Sleep 1s
 
 # the proof, from outside: hi's tree on the target is gone with the session
-Type "docker exec db-prod sh -c 'ls -A /tmp | wc -l'   # files hi left behind"
+Type "docker exec db-prod sh -c 'ls -A /tmp | wc -l'"
+Type@5ms "   # files hi left behind"
 Enter
 Sleep 4s
 
