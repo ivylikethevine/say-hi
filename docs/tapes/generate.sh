@@ -118,15 +118,6 @@ function gen_row() { # <name> <status> <color> [detail]
   _hi_cecho " | $(printf '%-14s %-9s' "$1" "$2")${4:+$4}" "$3"
 }
 
-# gen_bytes <path> - the file's size, or 0 when it isn't there
-function gen_bytes() {
-  [ -f "$1" ] || {
-    printf '0'
-    return 0
-  }
-  wc -c <"$1" | tr -d ' '
-}
-
 # gen_head_bytes <path> - the committed size of the same file, or 0 when HEAD
 # has no copy (a brand new GIF). Read from git rather than a backup, so the
 # comparison survives however many times the file is rewritten in one run.
@@ -362,7 +353,6 @@ function gen_render() { # <name> <requires>
   if [ -n "$missing" ]; then
     if [ "$_HI_GEN_REQUIRE" = 1 ]; then
       gen_row "$name" FAILED "$RED" "not installed: $missing (--require-run)"
-      _HI_GEN_FAILED=$((_HI_GEN_FAILED + 1))
       return 1
     fi
     gen_row "$name" SKIPPED "$YELLOW" "not installed: $missing"
@@ -383,7 +373,6 @@ function gen_render() { # <name> <requires>
     gen_row "$name" FAILED "$RED" "vhs exited $rc after ${secs}s:"
     gen_log_errors "$log"
     gen_fixture_log
-    _HI_GEN_FAILED=$((_HI_GEN_FAILED + 1))
     return 1
   fi
   # vhs reports a Require failure on stderr and still exits 0 in some versions,
@@ -399,11 +388,10 @@ function gen_render() { # <name> <requires>
     fi
     gen_row "$name" FAILED "$RED" "vhs exited 0 after ${secs}s but $why:"
     gen_log_errors "$log"
-    _HI_GEN_FAILED=$((_HI_GEN_FAILED + 1))
     return 1
   fi
 
-  size="$(gen_bytes "$gif")"
+  size="$(wc -c <"$gif" | tr -d ' ')"
   gen_row "$name" RENDERED "$GREEN" "$(gen_size_note "$size" "$was") in ${secs}s"
   _HI_GEN_OK=$((_HI_GEN_OK + 1))
   return 0
@@ -418,7 +406,7 @@ function gen_run() {
   last=$((${#_HI_GEN_RUN[@]} - 1))
   for entry in "${_HI_GEN_RUN[@]}"; do
     IFS=: read -r name fixture requires <<<"$entry"
-    gen_render "$name" "$requires" || true
+    gen_render "$name" "$requires" || _HI_GEN_FAILED=$((_HI_GEN_FAILED + 1))
     if [ "$_HI_GEN_KEEP" = 1 ] && [ "$i" -eq "$last" ]; then
       gen_row "" kept "$YELLOW" "fixtures left up (--keep); remove them with generate.sh --down"
     elif [ "$_HI_GEN_STAGED" = 1 ]; then

@@ -400,8 +400,5 @@ function _hi_unsent_why() {
 
 # _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold, one a line
 function _hi_plugin_words() {
-  local _hi_pw_l
-  while IFS= read -r _hi_pw_l; do
-    printf '%s\n%s\n%s\n' "${_hi_pw_l%%|*}" "${_hi_pw_l##*|}" "${_hi_pw_l#*|}"
-  done < <(_hi_plugin_rows) | sed 's/|.*//' | sort -u
+  _hi_plugin_rows | tr '|' '\n' | sort -u
 }

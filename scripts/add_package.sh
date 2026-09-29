@@ -6,10 +6,6 @@
 # (common/paths.sh), so the first write copies the tree's in and adds there -
 # nothing already checked is lost. HI.09 is _hi_write_back's commit step,
 # HI.33 the standalone-entry form.
-#
-# This script never sources hi.sh, so SC2317/SC2329 (shellcheck marking
-# everything after a `source "$_HI_LAUNCHER"` unreachable, per scripts/doctor.sh's
-# comment on the same pair) do not apply here - nothing to disable.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
@@ -21,9 +17,7 @@ source "$_hi_d/common/core.sh"
 source "$_hi_d/scripts/lib.sh"
 unset _hi_d
 
-# Strict mode for the rest of this script: core.sh (sourced above) ends with
-# `set +euo pipefail`, so a `set` line placed before it is silently undone.
-# GLOSSARY: HI.15
+# after core.sh, which ends with `set +euo pipefail`. GLOSSARY: HI.15
 set -euo pipefail
 
 # `--remove` first is `hi --remove-package`: the same file, the other way

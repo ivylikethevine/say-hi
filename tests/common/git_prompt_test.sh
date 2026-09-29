@@ -308,58 +308,42 @@ function test_out_var_is_precleared_outside_a_repo() {
 # two use the out-var form instead (no fork), which is the only way to
 # observe it, and also happens to be the form both production callers use
 # (common/bash.sh, common/zsh.zsh) specifically to skip that per-prompt fork.
-function test_detached_head_reuses_the_describe_memo() {
-  local dir sha describe_calls before after captured out1 out2
+#
+# _hi_describe_twice <cmd...> - the prompt on a detached HEAD, <cmd>, the
+# prompt again: $out1 and $out2, and the `git describe` calls made by then in
+# $before and $after. Run in the case's subshell, which the cd and the git
+# wrapper end with.
+function _hi_describe_twice() {
+  local dir calls shown
   dir="$(_hi_git_fixture)"
-  sha="$(git -C "$dir" rev-parse HEAD)"
-  git -C "$dir" -c advice.detachedHead=false checkout -q "$sha"
-  describe_calls="$(mktemp "$_HI_WORKDIR/describe_calls.XXXXXX")"
-  : >"$describe_calls"
+  git -C "$dir" -c advice.detachedHead=false checkout -q "$(git -C "$dir" rev-parse HEAD)"
+  calls="$(mktemp "$_HI_WORKDIR/describe_calls.XXXXXX")"
+  cd "$dir" || return 1
+  function git() {
+    [[ "$1" == describe ]] && printf 'x\n' >>"$calls"
+    command git "$@"
+  }
+  _hi_git_prompt shown
+  out1="$shown"
+  before="$(wc -l <"$calls")"
+  "$@"
+  _hi_git_prompt shown
+  out2="$shown"
+  after="$(wc -l <"$calls")"
+}
+
+function test_detached_head_reuses_the_describe_memo() {
+  local before after out1 out2
   (
-    cd "$dir"
-    function git() {
-      [[ "$1" == describe ]] && printf 'x\n' >>"$describe_calls"
-      command git "$@"
-    }
-    _hi_git_prompt captured
-    # SC2031 x2 below: captured, out1 and out2 are read here, still inside the
-    # same subshell that writes them - nothing crosses the subshell boundary
-    # shellcheck disable=SC2031
-    out1="$captured"
-    before="$(wc -l <"$describe_calls")"
-    _hi_git_prompt captured
-    # shellcheck disable=SC2031
-    out2="$captured"
-    after="$(wc -l <"$describe_calls")"
+    _hi_describe_twice true
     [[ "$out1" == "$out2" ]] && [ "$before" -gt 0 ] && [ "$after" -eq "$before" ]
   )
 }
 
 function test_a_new_commit_drops_the_describe_memo() {
-  local dir sha describe_calls before after captured out1 out2
-  dir="$(_hi_git_fixture)"
-  sha="$(git -C "$dir" rev-parse HEAD)"
-  git -C "$dir" -c advice.detachedHead=false checkout -q "$sha"
-  describe_calls="$(mktemp "$_HI_WORKDIR/describe_calls.XXXXXX")"
-  : >"$describe_calls"
+  local before after out1 out2
   (
-    cd "$dir"
-    function git() {
-      [[ "$1" == describe ]] && printf 'x\n' >>"$describe_calls"
-      command git "$@"
-    }
-    _hi_git_prompt captured
-    # SC2031 x2 below: captured, out1 and out2 are read here, still inside the
-    # same subshell that writes them - nothing crosses the subshell boundary
-    # shellcheck disable=SC2031
-    out1="$captured"
-    before="$(wc -l <"$describe_calls")"
-    printf 'again\n' >>file.txt
-    git commit -qam again
-    _hi_git_prompt captured
-    # shellcheck disable=SC2031
-    out2="$captured"
-    after="$(wc -l <"$describe_calls")"
+    _hi_describe_twice git commit -q --allow-empty -m again
     [[ "$out1" != "$out2" ]] && [ "$after" -gt "$before" ]
   )
 }

@@ -227,16 +227,12 @@ function _hi_colors_names() {
   done < <(_hi_colors_rows "$1") | awk '!seen[$0]++'
 }
 
-# both read config/colors through the _hi_colors_names above
+# reads config/colors through the _hi_colors_names above
 function _hi_known_users() {
   {
     _hi_whoami
     _hi_colors_names username LOCALUSER
   } | awk '!seen[$0]++'
-}
-
-function _hi_known_usertags() {
-  _hi_colors_names usertag
 }
 
 function _hi_preview_users() {
@@ -245,7 +241,7 @@ function _hi_preview_users() {
     _hi_known_users # already leads with _hi_whoami, LOCALUSER-pinned or not
     while IFS= read -r tag; do
       _hi_override_color usertag "$tag" >/dev/null 2>&1 && printf '%s\n' "$tag"
-    done < <(_hi_known_usertags)
+    done < <(_hi_colors_names usertag)
   } | awk '!seen[$0]++'
 }
 
@@ -271,13 +267,6 @@ function _hi_group_index() {
   return 1
 }
 
-# _hi_user_color_memo <user> <tag> <color-outvar> <escape-outvar> - most
-# groups share the same (user, tag) pair (usually the empty tag), and
-# _hi_resolve_color walks config/colors and ~/.ssh/config to answer one.
-# Reads/writes _hi_print_hosts_table's own parallel arrays through bash's
-# dynamic scoping, the same as _hi_group_index above; _hi_color_escape_var
-# is core.sh's no-fork escape form, which a memo answering through an outvar
-# can use directly.
 # _hi_user_row <item> <color> <source> - one users-table row in <color>'s
 # escape, at the caller's w_* widths (dynamic scoping)
 function _hi_user_row() {
@@ -289,6 +278,11 @@ function _hi_user_row() {
   _hi_row_end
 }
 
+# _hi_user_color_memo <user> <tag> <color-outvar> <escape-outvar> - most
+# groups share the same (user, tag) pair (usually the empty tag), and
+# _hi_resolve_color walks config/colors and ~/.ssh/config to answer one.
+# Reads/writes _hi_print_hosts_table's own parallel arrays through bash's
+# dynamic scoping, the same as _hi_group_index above.
 function _hi_user_color_memo() {
   local i color escape
   for i in "${!_hi_upc_keys[@]}"; do
@@ -299,8 +293,7 @@ function _hi_user_color_memo() {
     fi
   done
   color="$(_hi_resolve_color username "$1" "$2")"
-  _hi_color_escape_var escape "$color"
-  printf -v escape '%b' "$escape"
+  _hi_color_escape "$color" escape
   _hi_upc_keys+=("$1"$'\x1f'"$2")
   _hi_upc_colors+=("$color")
   _hi_upc_escapes+=("$escape")
@@ -317,7 +310,7 @@ function _hi_print_users_table() {
   local localuser_color=""
 
   _hi_read_lines users < <(_hi_known_users)
-  _hi_read_lines usertags < <(_hi_known_usertags)
+  _hi_read_lines usertags < <(_hi_colors_names usertag)
 
   # every palette name fits, and a pin carrying a fourth-column hex resolves
   # to "<name>#<rrggbb>", which does not - so the widths below are taken from
@@ -399,7 +392,7 @@ function _hi_print_hosts_table() {
   while IFS= read -r user; do known+="$user "; done < <(_hi_known_users)
   while IFS= read -r tag; do
     case "$known" in *" $tag "*) ;; *) tag_rows+="$tag " ;; esac
-  done < <(_hi_known_usertags)
+  done < <(_hi_colors_names usertag)
 
   # The current machine renders as its own single-host group ahead of the ssh
   # ones, so one measure/render path serves both - its key has no tag field, so

@@ -251,8 +251,8 @@ function _hi_doc_wrap() {
   pieces+=("$rest")
 }
 
-# _hi_doc_box <heading> - the rows in $_HI_DOC_T_* as table.sh's boxed table:
-# a mark column, the label, and the text under <heading>. A text of several
+# _hi_doc_box - the rows in $_HI_DOC_T_* as table.sh's boxed table:
+# a mark column, the label, and the text. A text of several
 # lines (ssh's stderr) is one row whose later lines leave the first two
 # columns blank. On a terminal the text column is cut down to fit the width
 # header.sh's _hi_draw_width gives, and a longer line wraps; captured, a row
@@ -338,7 +338,7 @@ function _hi_doc_fold() {
 # buffer; nothing at all for a section with no rows, and no table under
 # --problems, whose only box is doctor_findings'.
 function doctor_flush() {
-  [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_doc_box RESULT
+  [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_doc_box
   _HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
   _HI_DOC_IN_FINDING=0
 }
@@ -351,7 +351,7 @@ function doctor_findings() {
   _HI_DOC_T_LABEL=("${_HI_DOC_F_LABEL[@]}")
   _HI_DOC_T_TEXT=("${_HI_DOC_F_TEXT[@]}")
   _HI_DOC_T_SEV=("${_HI_DOC_F_SEV[@]}")
-  _hi_doc_box FINDING
+  _hi_doc_box
   _HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
 }
 

@@ -234,7 +234,7 @@ function test_known_users_are_deduplicated() {
 
 function test_known_usertags_lists_only_usertags() {
   local out
-  out="$(_hi_known_usertags)"
+  out="$(_hi_colors_names usertag)"
   printf '%s\n' "$out" | grep -qxF ops || return 1
   ! printf '%s\n' "$out" | grep -qxF work # that one's a hosttag
 }

@@ -1022,13 +1022,12 @@ function config_hub() {
       done
       _hi_h2 "$title"
       # the keys first, so they are read before the list; short under 60
+      _hi_hotkey preset p p
       if ((_HI_MENU_W < 60)); then
-        _hi_hotkey preset p p
         _hi_hotkey header h h
         _hi_hotkey save s s
         _hi_hotkey quit q q
       else
-        _hi_hotkey preset p p
         _hi_hotkey "header preset" h h
         _hi_hotkey "save and exit" s s
         _hi_hotkey "quit without writing" q q
@@ -1149,17 +1148,12 @@ function _hi_header_edit_count_on() {
 # _hi_header_edit_preset <name> - the header items from a header preset:
 # its words first and on, in its order, everything else off after
 function _hi_header_edit_preset() {
-  local row words
-  for row in "${_HI_HEADER_PRESETS[@]}"; do
-    [ "${row%%|*}" = "$1" ] || continue
-    words="${row##*|}"
-    _hi_pending_set _HI_HEADER_ORDER "$words"
-    _hi_header_edit_load
-    _hi_header_edit_commit
-    _hi_menu_note " header: the '$1' preset" "$GREEN"
-    return 0
-  done
-  return 1
+  local row
+  row="$(preset_row "$1" _HI_HEADER_PRESETS)" || return 1
+  _hi_pending_set _HI_HEADER_ORDER "${row##*|}"
+  _hi_header_edit_load
+  _hi_header_edit_commit
+  _hi_menu_note " header: the '$1' preset" "$GREEN"
 }
 
 # _hi_header_edit_move <index> <-1|+1> - swap a word with its neighbor

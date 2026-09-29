@@ -25,9 +25,7 @@ source "$_hi_d/common/core.sh"
 # shellcheck source=lib.sh
 source "$_hi_d/scripts/lib.sh"
 
-# Strict mode for the rest of this script: core.sh (sourced above) ends with
-# `set +euo pipefail`, so a `set` line placed before it is silently undone.
-# packaging/lib.sh does the same. GLOSSARY: HI.15
+# after core.sh, which ends with `set +euo pipefail`. GLOSSARY: HI.15
 set -euo pipefail
 
 # the script's own usage line names what was typed, the way doctor.sh does
