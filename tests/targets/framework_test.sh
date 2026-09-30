@@ -283,8 +283,9 @@ function _hi_run_framework_case() {
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
     # home's configs ride only with their tools here; git is the runner's own
-    local -x PATH
-    PATH="$(_hi_stub_tools hx kak lazygit):$PATH"
+    local stubs
+    stubs="$(_hi_stub_tools hx kak lazygit)"
+    local -x PATH="$stubs:$PATH"
     _hi_tools_client_home "$HOME"
     ;;
   esac
