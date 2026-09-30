@@ -308,6 +308,7 @@ function lint_image_tags() {
       [[ "$line" =~ $re ]] && ref="${BASH_REMATCH[0]}"
       tag="${ref#*:}"
       case "$pinned" in *" $image:$tag "*) continue ;; esac
+      # shellcheck disable=SC2153 # core.sh's derived roster, not a typo of the setting
       case " hi $_HI_PROMPT_TOOLS " in *" $tag "*) continue ;; esac
       hits="$hits$line
 "
