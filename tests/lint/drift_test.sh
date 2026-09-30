@@ -581,45 +581,25 @@ function lint_eval_roster() {
   return 1
 }
 
-# The vocabulary a `settings.sh` may use has to be written down where a user
-# looks for it, and the tree is where it actually lives - in three places, at
-# that: `common/core.sh`'s `_HI_TOGGLES` is the on/off roster, and
-# `scripts/configure.sh`'s `_HI_*_PROMPTS` tables and its `_hi_collect_value`
-# calls are the questions `hi --configure` asks and the lines it writes. A
-# name goes into any of the three without a thought for the docs; this is
-# what makes SETTINGS.md's roster derived rather than hand-kept.
-#
-# Only the `## Every setting` section counts, not every backticked `_HI_` name
-# in the file. The point of the entry is one table, and matching the whole
-# document would go green on a name mentioned in passing three sections away -
-# which is the state this check exists to end.
+# scripts/settings is every setting, a row each: docs/SETTINGS.md's table is
+# written from it and `hi --configure` reads its items from it, so there is
+# no second roster to hold it to. What is left to check is the rows against
+# what the doc says elsewhere and what the shipped tree reads.
 function lint_settings_table() {
   local doc="$_HI_ROOT/docs/SETTINGS.md"
-  local documented names name bad=0
-  _hi_h2 "Checking hi's settings against docs/SETTINGS.md"
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  documented="$(_hi_settings_documented "$doc")"
-  _hi_read_lines names < <(_hi_settings_roster)
-  for name in "${names[@]}"; do
-    [ -n "$name" ] || continue
-    case "$documented" in *"|$name|"*) continue ;; esac
-    _hi_align " | $name is a setting with no row in '## Every setting'" "FAILED" "$RED"
-    _hi_note_failure "settings table: $name undocumented"
-    bad=$((bad + 1))
-  done
-  [ "$bad" -eq 0 ] && _hi_align " | every setting the tree defines has a row" "OK" "$GREEN"
+  local documented name bad=0
+  _hi_h2 "Checking scripts/settings against docs/SETTINGS.md and the tree"
+  documented="$(_hi_settings_documented)"
 
   # A name the doc files under `### Not settings` is by its own account not a
-  # setting, so a row for it contradicts the doc three sections down - and
-  # that is the list the roster above is filtered against, so the two halves
-  # cannot both be right about one name.
+  # setting, so a row for it contradicts the doc three sections down.
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local levers lever=0
   levers="$(_hi_settings_not_settings "$doc")"
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     case "$documented" in *"|$name|"*) ;; *) continue ;; esac
-    _hi_align " | $name has a row, and a '### Not settings' entry saying it is none" "FAILED" "$RED"
+    _hi_align " | $name has a row in scripts/settings, and a '### Not settings' entry saying it is none" "FAILED" "$RED"
     _hi_note_failure "settings table: $name is both a row and not a setting"
     lever=$((lever + 1))
   done <<<"$levers"
@@ -712,42 +692,11 @@ function _hi_settings_not_settings() {
     grep -oE '`\$?_HI_[A-Z0-9_]+`' | tr -d '`$' | sort -u
 }
 
-# The `_HI_` names of the `## Every setting` table, `|`-delimited with a leading
+# The `_HI_` names of scripts/settings' rows, `|`-delimited with a leading
 # and trailing one so a `*"|$name|"*` match cannot succeed on a prefix.
 function _hi_settings_documented() {
-  # shellcheck disable=SC2016 # \1 is sed's backref and `|$` its anchor, not shell
-  printf '|%s|' "$(awk '/^## /{inside = ($0 == "## Every setting")} inside' "$1" |
-    sed -n 's/^| *`\(_HI_[A-Z0-9_]*\)`.*/\1/p' | sort -u | tr '\n' '|' | sed 's/|$//')"
-}
-
-# Every name the tree treats as a setting: core.sh's toggle roster, plus the
-# variable column of every `_HI_*_PROMPTS` table in configure.sh (the yes/no
-# groups `hi --configure` asks, `<var>|<off>|<on>|<preview>|<needs>|<label>`
-# rows), plus every name a `_hi_collect_value` call writes (the free-text
-# settings the wizard asks outside a table; a name assembled at run time,
-# `_HI_PROMPT_END_$shell`, is skipped here and caught by its literal rows).
-# Any table by that name counts, so a section added to the wizard cannot ask
-# about a setting this check never sees. Plus the knobs the wizard never asks
-# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that common/aliases.sh
-# reads (`${_HI_BAT_OPTS:-...}`, `"$_HI_LS_BIN"`) is a user-facing dial with
-# no question behind it, and the suffix is what tells those from the file's
-# own state (`_HI_SESSION_RC`, `_HI_CLEANUP`, `_HI_CONFIG_DIR`). Minus
-# whatever the doc itself files under `### Not settings` - the test levers
-# and the derived paths take effect the same way a row does and must not be
-# asked for as one. `sort -u` because the toggles and the tables overlap
-# almost entirely - without it a toggle that is also a question is reported
-# missing twice.
-function _hi_settings_roster() {
-  {
-    sed -n '/^  _HI_TOGGLES=(/,/)$/p' "$_HI_ROOT/common/core.sh" |
-      grep -oE '_HI_[A-Z0-9_]+' | grep -v '^_HI_TOGGLES$'
-    sed -n '/^_HI_[A-Z_]*_PROMPTS=(/,/^)$/p' \
-      "$_HI_ROOT/scripts/configure.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
-    sed -n 's/^ *_hi_collect_value "\{0,1\}\(_HI_[A-Z0-9_]*\)"\{0,1\} .*/\1/p' \
-      "$_HI_ROOT/scripts/configure.sh" | grep -v '_$'
-    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/common/aliases.sh" |
-      grep -oE '_HI_[A-Z0-9_]+'
-  } | sort -u | grep -vxF -f <(_hi_settings_not_settings "$_HI_ROOT/docs/SETTINGS.md")
+  printf '|%s|' "$(awk -F' [|] ' '!/^#/ && $2 ~ /^_HI_/ { print $2 }' "$_HI_ROOT/scripts/settings" |
+    sort -u | tr '\n' '|' | sed 's/|$//')"
 }
 
 # `_config.yml`'s `exclude:` block, split into _HI_JEKYLL_DIR_EXCL (entries
@@ -1080,106 +1029,6 @@ function lint_tldr_page() {
   return "$bad"
 }
 
-# GitHub derives a heading's anchor by lowercasing it, dropping everything
-# that is not a letter, digit, space, `-`, or `_`, then turning spaces into
-# `-` - so ` - ` between words collapses to a double hyphen, which is why
-# several entries carry one. bash 3.2 has no ${x,,}, hence tr.
-function _hi_doc_anchor() {
-  printf '%s\n' "$1" |
-    sed -e 's/\[\([^]]*\)\]([^)]*)/\1/g' -e 's/[*`]//g' |
-    tr '[:upper:]' '[:lower:]' |
-    sed -e 's/[^a-z0-9 _-]//g' -e 's/^ *//' -e 's/ *$//' -e 's/ /-/g'
-}
-
-# _config.yml runs just-the-docs with no front matter on any page, so the
-# theme generates no in-page navigation: a doc's "## Contents" block is the
-# only intra-page nav the published site has, and nothing regenerates it. A
-# heading added without its entry reads as no heading at all on the site.
-# Both directions,
-# plus the nesting, since a ### filed at a ##'s indent reads as a peer.
-# Headings inside a fenced block are the page's content, not its structure,
-# and an h3's entry only has to be indented under an h2's, not at one depth -
-# TESTING.md nests an h3 under another on purpose.
-function lint_doc_contents() {
-  local file rel line fence intoc depth text anchor want
-  local heads entries filebad bad=0
-  _hi_h2 "Checking each doc's Contents block against its headings"
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    grep -q '^## Contents$' "$file" || continue
-    rel="${file#"$_HI_ROOT/"}"
-    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-    heads=""
-    entries=""
-    fence=0
-    intoc=0
-    while IFS= read -r line; do
-      case "$line" in
-      '```'*) fence=$((1 - fence)) ;;
-      esac
-      [ "$fence" -eq 0 ] || continue
-      case "$line" in
-      '### '*)
-        intoc=0
-        text="${line#\#\#\# }"
-        heads="${heads}3 $(_hi_doc_anchor "$text")"$'\n'
-        continue
-        ;;
-      '## '*)
-        text="${line#\#\# }"
-        if [ "$text" = Contents ]; then
-          intoc=1
-          continue
-        fi
-        intoc=0
-        heads="${heads}2 $(_hi_doc_anchor "$text")"$'\n'
-        continue
-        ;;
-      esac
-      [ "$intoc" -eq 1 ] || continue
-      case "$line" in
-      '- ['*'](#'*')') entries="${entries}0 ${line##*\(#}"$'\n' ;;
-      ' '*'- ['*'](#'*')') entries="${entries}1 ${line##*\(#}"$'\n' ;;
-      esac
-    done <"$file"
-    entries="$(printf '%s' "$entries" | sed 's/)$//')"
-    filebad=0
-    while IFS=' ' read -r depth anchor; do
-      [ -n "$anchor" ] || continue
-      want=0
-      [ "$depth" = 3 ] && want=1
-      case $'\n'"$entries"$'\n' in
-      *$'\n'"$want $anchor"$'\n'*) ;;
-      *$'\n'*" $anchor"$'\n'*)
-        _hi_align " | $rel: #$anchor is an h$depth but sits at the wrong list level" "FAILED" "$RED"
-        filebad=$((filebad + 1))
-        ;;
-      *)
-        _hi_align " | $rel: no Contents entry for #$anchor" "FAILED" "$RED"
-        filebad=$((filebad + 1))
-        ;;
-      esac
-    done <<<"$heads"
-    while IFS=' ' read -r depth anchor; do
-      [ -n "$anchor" ] || continue
-      case $'\n'"$heads"$'\n' in
-      *" $anchor"$'\n'*) ;;
-      *)
-        _hi_align " | $rel: Contents links #$anchor, which is no heading" "FAILED" "$RED"
-        filebad=$((filebad + 1))
-        ;;
-      esac
-    done <<<"$entries"
-    if [ "$filebad" -eq 0 ]; then
-      _hi_align " | $rel" "OK" "$GREEN"
-    else
-      _hi_note_failure "$rel: Contents drift"
-      bad=$((bad + filebad))
-    fi
-  done < <(_hi_jekyll_md_files)
-  return "$bad"
-}
-
 function run_drift() {
   _hi_lint_suite_begin "Checking repo-consistency drift"
 
@@ -1188,7 +1037,7 @@ function run_drift() {
 
   _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload lint_glossary_tags \
     lint_settings_table lint_container_family lint_runtime_dir lint_eval_roster lint_liquid_docs lint_site_links \
-    lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
+    lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests
   _hi_lint_suite_end
 }

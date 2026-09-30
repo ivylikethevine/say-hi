@@ -1150,7 +1150,7 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 ## HI.57 carried configs and the include scan
 
 hi carries a `vim/vimrc`, `nvim/init.lua`, `nano/nanorc`, `emacs/init.el`, helix's `helix/config.toml` (and `languages.toml`),
-and kakoune's `kak/kakrc` (through `$KAKOUNE_CONFIG_DIR`, since `kak -n` would
+and kakoune's `kak/kakrc` and its `colors/` (through `$KAKOUNE_CONFIG_DIR`, since `kak -n` would
 drop its system kakrc too) to every target and starts the editor on it (`-u`, `--rcfile`,
 `-nw -q -l`, `-c`), so the question is
 which file - [HI.61](#hi61-one-overlay-priority)'s order answers it: the
@@ -1226,7 +1226,8 @@ next hop's target, which may have a different set.
 A `$_HI_OVERLAY_FILES` entry ending in `/` names a directory, and its
 members ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as
 `<dir>/<name>`, in name order, over the overlay's directory and home's, each
-name once and the overlay's copy first (zellij's `layouts/` and `themes/`),
+name once and the overlay's copy first (zellij's `layouts/` and `themes/`,
+kakoune's `colors/`),
 or over the overlay's alone where the row has no home (`extensions/`), and
 the rest of the stream - `_hi_overlay_src`,
 the cache key, the stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s

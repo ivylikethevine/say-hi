@@ -104,7 +104,7 @@ _hi_doc_args=("$@")
 set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
-# _hi_draw_width, for doctor_row's wrap; only defines functions
+# $_HI_HEADER_ORDER_DEFAULT, for the settings rows; only defines functions
 # shellcheck source=../common/header.sh
 source "$_HI_HEADER"
 
@@ -175,12 +175,10 @@ _HI_DOC_BAD=0
 # at the end (a bad row's count is in the header, so nothing streams)
 _HI_DOC_SECTION=""
 _HI_DOC_ROWS=""
-# The text report's two buffers, as parallel arrays (bash 3.2 has no other
-# kind): the open section's rows, drawn as one table by doctor_flush once its
-# widths are known, and every warn and bad row so far, drawn by
-# doctor_findings at the end. A findings label carries its section key.
+# Every warn and bad row so far, drawn by doctor_findings at the end, as
+# parallel arrays (bash 3.2 has no other kind); a findings label carries its
+# section key. The open section's rows are table.sh's $_HI_ROWS_*.
 _HI_DOC_WARN=0
-_HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
 _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
 # 1 while the last row was a finding, so an unlabeled row after it (ssh's own
 # words under a failed connect) follows it into the findings box
@@ -192,154 +190,15 @@ _HI_DOC_IN_FINDING=0
 # Each section function ends in doctor_flush, which draws its table.
 function doctor_section() {
   _HI_DOC_SECTION="$1"
-  _hi_doc_tilde "$2"
-  [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_h2 "$_HI_DOC_TILDED"
-}
-
-# _hi_doc_tilde <text> - <text> with $HOME shortened to ~, into
-# $_HI_DOC_TILDED, for the boxed report only: --json keeps whole paths for
-# whatever parses it. A plain variable, since bash 3.2's printf -v cannot
-# write an array element; the ~ from one too, since 3.2 keeps a \~
-# replacement's backslash.
-_HI_DOC_TILDED=""
-function _hi_doc_tilde() {
-  local tilde='~'
-  _HI_DOC_TILDED="$1"
-  [ -n "${HOME:-}" ] && [ "$HOME" != / ] || return 0
-  _HI_DOC_TILDED="${_HI_DOC_TILDED//"$HOME"\//$tilde/}"
-  [ "$_HI_DOC_TILDED" != "$HOME" ] || _HI_DOC_TILDED="$tilde"
-}
-
-# _hi_doc_member <member> <outvar> - <member> with the program that reads it,
-# `vimrc (vim)`, as the label a row names it by; hi's own files go bare. The
-# program is the first name in the member's tool column of hi.sh's
-# $_HI_OVERLAY_TABLE.
-function _hi_doc_member() {
-  local _hi_dm_t
-  _hi_tool_label "$1" _hi_dm_t || true
-  printf -v "$2" '%s' "$1${_hi_dm_t:+ ($_hi_dm_t)}"
-}
-
-# _hi_doc_glyph <sev> - the severity's mark and color into $glyph and $color
-# (the caller's locals). The marks are core.sh's one-column $_HI_MARK_* pair,
-# ASCII where the locale is, so a report with no color still says which row
-# is which; ! is the same in both sets.
-function _hi_doc_glyph() {
-  case "$1" in
-  ok) glyph="$_HI_MARK_OK" color="$GREEN" ;;
-  warn) glyph="!" color="$YELLOW" ;;
-  bad) glyph="$_HI_MARK_NO" color="$RED" ;;
-  *) glyph="" color="" ;;
-  esac
-}
-
-# _hi_doc_wrap <width> <line> - <line> cut at spaces into pieces no wider than
-# <width> (a word wider than that is split), appended to the caller's $pieces
-function _hi_doc_wrap() {
-  local w="$1" rest="$2" cut
-  while [ "${#rest}" -gt "$w" ]; do
-    cut="${rest:0:w+1}"
-    cut="${cut% *}"
-    if [ -z "$cut" ] || [ "${#cut}" -gt "$w" ]; then
-      cut="${rest:0:w}"
-      rest="${rest:w}"
-    else
-      rest="${rest:${#cut}+1}"
-    fi
-    pieces+=("$cut")
-  done
-  pieces+=("$rest")
-}
-
-# _hi_doc_box - the rows in $_HI_DOC_T_* as table.sh's boxed table:
-# a mark column, the label, and the text. A text of several
-# lines (ssh's stderr) is one row whose later lines leave the first two
-# columns blank. On a terminal the text column is cut down to fit the width
-# header.sh's _hi_draw_width gives, and a longer line wraps; captured, a row
-# stays one line, whole for a grep or a bug report.
-function _hi_doc_box() {
-  local wl=0 wt=0 i=0 n line first glyph color fit
-  local -a pieces
-  _hi_doc_fold
-  n="${#_HI_DOC_T_SEV[@]}"
-  [ "$n" -gt 0 ] || return 0
-  while [ "$i" -lt "$n" ]; do
-    _hi_doc_tilde "${_HI_DOC_T_LABEL[i]}"
-    _HI_DOC_T_LABEL[i]="$_HI_DOC_TILDED"
-    _hi_doc_tilde "${_HI_DOC_T_TEXT[i]}"
-    _HI_DOC_T_TEXT[i]="$_HI_DOC_TILDED"
-    _hi_widen wl "${_HI_DOC_T_LABEL[i]}"
-    # a carriage return (ssh ends its stderr lines in one) or a tab would
-    # print narrower or wider than it measures, so both are gone first
-    line="${_HI_DOC_T_TEXT[i]//$'\r'/}"
-    _HI_DOC_T_TEXT[i]="${line//$'\t'/ }"
-    while IFS= read -r line; do _hi_widen wt "$line"; done <<<"${_HI_DOC_T_TEXT[i]}"
-    i=$((i + 1))
-  done
-  if [ -t 1 ] || [ -n "${_HI_TERM_COLS+x}" ]; then
-    # four edges and a space either side of three cells: wl + wt + 11 columns
-    _hi_draw_width fit
-    fit=$((fit - wl - 11))
-    [ "$fit" -ge 20 ] || fit=20
-    [ "$wt" -le "$fit" ] || wt=$fit
-  fi
-  _hi_hbar top 1 "$wl" "$wt"
-  i=0
-  while [ "$i" -lt "$n" ]; do
-    _hi_doc_glyph "${_HI_DOC_T_SEV[i]}"
-    pieces=()
-    while IFS= read -r line; do _hi_doc_wrap "$wt" "$line"; done <<<"${_HI_DOC_T_TEXT[i]}"
-    first=1
-    for line in "${pieces[@]}"; do
-      if [ "$first" = 1 ]; then
-        _hi_cell 1 "$color" "$glyph"
-        _hi_cell "$wl" "" "${_HI_DOC_T_LABEL[i]}"
-        first=0
-      else
-        _hi_cell 1 "" ""
-        _hi_cell "$wl" "" ""
-      fi
-      _hi_cell "$wt" "$color" "$line"
-      _hi_row_end
-    done
-    i=$((i + 1))
-  done
-  _hi_hbar bottom 1 "$wl" "$wt"
-}
-
-# _hi_doc_fold - plain rows sharing one line of text become one row, the
-# shared text as its label and theirs as its text (`not installed | podman
-# finch nomad`), in the first one's place. Only the box folds: --json keeps a
-# row per check.
-function _hi_doc_fold() {
-  local i j n="${#_HI_DOC_T_SEV[@]}" names
-  local -a f_label=() f_text=() f_sev=() f_used=()
-  for ((i = 0; i < n; i++)); do
-    [ -z "${f_used[i]:-}" ] || continue
-    names=""
-    if [ "${_HI_DOC_T_SEV[i]}" = info ] && [ -n "${_HI_DOC_T_LABEL[i]}" ] && [[ "${_HI_DOC_T_TEXT[i]}" != *$'\n'* ]]; then
-      for ((j = i + 1; j < n; j++)); do
-        [ -z "${f_used[j]:-}" ] && [ "${_HI_DOC_T_SEV[j]}" = info ] && [ -n "${_HI_DOC_T_LABEL[j]}" ] &&
-          [ "${_HI_DOC_T_TEXT[j]}" = "${_HI_DOC_T_TEXT[i]}" ] || continue
-        names="$names ${_HI_DOC_T_LABEL[j]}"
-        f_used[j]=1
-      done
-    fi
-    if [ -n "$names" ]; then
-      f_label+=("${_HI_DOC_T_TEXT[i]}") f_text+=("${_HI_DOC_T_LABEL[i]}$names") f_sev+=(info)
-    else
-      f_label+=("${_HI_DOC_T_LABEL[i]}") f_text+=("${_HI_DOC_T_TEXT[i]}") f_sev+=("${_HI_DOC_T_SEV[i]}")
-    fi
-  done
-  _HI_DOC_T_LABEL=(${f_label[@]+"${f_label[@]}"}) _HI_DOC_T_TEXT=(${f_text[@]+"${f_text[@]}"}) _HI_DOC_T_SEV=(${f_sev[@]+"${f_sev[@]}"})
+  [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_section "$2"
 }
 
 # doctor_flush - draw the open section's rows as one table and empty the
 # buffer; nothing at all for a section with no rows, and no table under
 # --problems, whose only box is doctor_findings'.
 function doctor_flush() {
-  [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_doc_box
-  _HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
+  [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_rows_flush
+  _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=()
   _HI_DOC_IN_FINDING=0
 }
 
@@ -348,11 +207,10 @@ function doctor_flush() {
 function doctor_findings() {
   [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ] || return 0
   _hi_h2 "Findings: $_HI_DOC_BAD bad, $_HI_DOC_WARN warn"
-  _HI_DOC_T_LABEL=("${_HI_DOC_F_LABEL[@]}")
-  _HI_DOC_T_TEXT=("${_HI_DOC_F_TEXT[@]}")
-  _HI_DOC_T_SEV=("${_HI_DOC_F_SEV[@]}")
-  _hi_doc_box
-  _HI_DOC_T_LABEL=() _HI_DOC_T_TEXT=() _HI_DOC_T_SEV=()
+  _HI_ROWS_LABEL=("${_HI_DOC_F_LABEL[@]}")
+  _HI_ROWS_TEXT=("${_HI_DOC_F_TEXT[@]}")
+  _HI_ROWS_SEV=("${_HI_DOC_F_SEV[@]}")
+  _hi_rows_flush
 }
 
 # _hi_json_str <text> - <text> as a JSON string literal, quotes included.
@@ -365,7 +223,7 @@ function _hi_json_str() {
 }
 
 # doctor_row <label> <text> [severity] - one row of the open section. Severity
-# picks the mark and color (_hi_doc_glyph) AND decides whether the row counts
+# picks the mark and color (_hi_glyph) AND decides whether the row counts
 # as a finding: "" plain, ok green, warn yellow, bad red-and-counted. Its own
 # argument rather than inferred from a color, so the palette and the finding
 # counter are separate knobs. Under --json the row is collected into the
@@ -379,7 +237,7 @@ function doctor_row() {
 }    {\"section\": $(_hi_json_str "$_HI_DOC_SECTION"), \"label\": $(_hi_json_str "$1"), \"text\": $(_hi_json_str "$2"), \"severity\": \"$sev\"}"
     return 0
   fi
-  _HI_DOC_T_LABEL+=("$1") _HI_DOC_T_TEXT+=("$2") _HI_DOC_T_SEV+=("$sev")
+  _hi_row "$1" "$2" "$sev"
   case "$sev" in
   warn | bad)
     [ "$sev" = bad ] || _HI_DOC_WARN=$((_HI_DOC_WARN + 1))
@@ -469,7 +327,7 @@ function doctor_local() {
 # they load, then a row for each a wired shell on this machine cannot parse -
 # that shell skips it - and each that never travels. Quiet without one.
 function doctor_extensions() {
-  local f n sh bad names=""
+  local f n sh bad order=""
   for f in "$_HI_EXTENSIONS"/*; do
     [ -e "$f" ] || continue
     n="${f##*/}"
@@ -477,7 +335,7 @@ function doctor_extensions() {
       doctor_row "extensions/$n" "ignored - a backup, a temp file, or not a plain name, so it never loads" warn
       continue
     fi
-    names="$names, $n"
+    order="$order, $n"
     bad=""
     for sh in bash zsh fish; do
       command -v "$sh" >/dev/null 2>&1 || continue
@@ -486,7 +344,7 @@ function doctor_extensions() {
     done
     [ -z "$bad" ] || doctor_row "extensions/$n" "does not parse in $bad - skipped there" warn
   done
-  [ -z "$names" ] || doctor_row extensions/ "loads in order: ${names#, }"
+  [ -z "$order" ] || doctor_row extensions/ "loads in order: ${order#, }"
 }
 
 function doctor_config() {
@@ -546,7 +404,7 @@ function doctor_config() {
     # a directory entry: how many of its files ride, and from where
     case "$f" in */)
       t="$(_hi_overlay_files "$f" | grep -c .)" || true
-      _hi_doc_member "$f" label
+      _hi_member_label "$f" label
       [ "$t" = 0 ] || doctor_row "$label" "$t file(s) ride, the overlay's copy of each first, then $(_hi_overlay_home "$f" || echo "none at home")"
       continue
       ;;
@@ -555,7 +413,7 @@ function doctor_config() {
     _hi_overlay_src "$f" t || true
     # a member with no tree default has nothing to report until it exists
     [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/config/$f" ] || continue
-    _hi_doc_member "$f" label
+    _hi_member_label "$f" label
     if [ -z "$t" ] && _hi_unsent_why "$f" late; then
       # a finding where the overlay holds a copy that was not switched off: a
       # prompt program's with the program out of the list, or an oh-my-posh
@@ -610,19 +468,19 @@ function doctor_config() {
   # ...and an alias it defines replaces a wiring line's of the same name
   # (GLOSSARY: HI.62) on a target, so that tool starts without the config hi
   # carried for it. warn: it may be meant.
-  local wired="" names=""
+  local wired="" shadowed=""
   local -a members=()
   while IFS= read -r t; do members+=("$t"); done < <(_hi_overlay_files)
   _hi_overlay_wiring wired ${members[@]+"${members[@]}"}
   while [ "${wired#* alias }" != "$wired" ]; do
     wired="${wired#* alias }"
     t="${wired%%=*}"
-    case " $names " in *" $t "*) continue ;; esac
+    case " $shadowed " in *" $t "*) continue ;; esac
     ! grep -v '^[[:space:]]*#' "$asrc" 2>/dev/null | grep -qE "(^|[[:space:];&|])alias[[:space:]]+$t=" ||
-      names="$names $t"
+      shadowed="$shadowed $t"
   done
-  [ -z "$names" ] ||
-    doctor_row alias-wired "aliases.sh aliases${names} - on a target that replaces hi's alias, so the config hi carries for it goes unused there; drop the alias, or keep that config home with its _HI_DISABLE_ toggle" warn
+  [ -z "$shadowed" ] ||
+    doctor_row alias-wired "aliases.sh aliases${shadowed} - on a target that replaces hi's alias, so the config hi carries for it goes unused there; drop the alias, or keep that config home with its _HI_DISABLE_ toggle" warn
   # only the non-default settings: a default setup stays one quiet line.
   # Under _HI_DISABLE_LOCAL=1 paths.sh's gate has set every other toggle
   # here, so those read as one row and only a toggle settings.sh sets on its
@@ -715,76 +573,18 @@ function doctor_settings_values() {
   esac
 }
 
-# doctor_files - the places hi.sh's $_HI_OVERLAY_TABLE and the plugins files
-# say a member can come from that hold something, in its one order (GLOSSARY: HI.61): the overlay's
-# copy, each home location, the tree's default where there is one - each
-# marked used or passed over (the tree's default only when used), and why
-# nothing is sent when something is there. A member found nowhere joins one closing row, so a sparse setup
-# stays a short table.
+# doctor_files - every member's row (lib.sh's _hi_member_rows, the rows
+# `hi --plugins` lists too): where it is found, and what a connect sends.
 function doctor_files() {
   doctor_section files "The files hi looks for"
-  local row m used eff p state text label none="" found tilde='~'
-  local -a locs _hi_paths=()
+  local row _HI_ROW_FN=doctor_row
+  local -a members=()
   _hi_plugins_load
+  # settings.sh and extensions/ have rows of their own in the overlay section
   for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
-    m="${row%%|*}"
-    # settings.sh and extensions/ have rows of their own in the overlay section
-    case "$m" in settings.sh | extensions/) continue ;; esac
-    used="" eff="" text="" found=""
-    _hi_overlay_src "$m" used || used=""
-    _hi_overlay_places "$m" "$row"
-    locs=("$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"})
-    case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
-    eff="$used"
-    [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
-    for p in "${locs[@]}"; do
-      [ -n "$p" ] || continue
-      if [ -z "${m##*/}" ]; then
-        state=absent
-        [ ! -d "$p" ] || state=present
-      elif [ "$p" = "$eff" ]; then
-        state=used
-      elif [ -e "$p" ]; then
-        state="passed over"
-      else
-        state=absent
-      fi
-      # only what is there: the places looked in and found empty are the
-      # table's to know (GLOSSARY: HI.61), not a line each here - nor the
-      # tree's default behind a copy that replaces it
-      [ "$state" != absent ] || continue
-      [ "$state" != "passed over" ] || [ "$p" != "$_HI_ROOT/config/$m" ] || continue
-      found=1
-      [ "$p" != "$_HI_ROOT/config/$m" ] || p="the tree's config/$m"
-      # the ~ from a variable: bash 3.2 keeps a \~ replacement's backslash
-      text="$text${text:+; }$state ${p/#"$HOME"/$tilde}"
-    done
-    [ -n "$found" ] || {
-      # one name per tool's family: micro/ for its three files, oh-my-posh.*
-      # for its three formats
-      p="$m"
-      case "$m" in */*) p="${m%%/*}/" ;; oh-my-posh.*) p="oh-my-posh.*" ;; esac
-      case " $none " in *" $p "*) ;; *) none="$none${none:+ }$p" ;; esac
-      continue
-    }
-    _hi_doc_member "$m" label
-    # a directory entry is its files, the overlay's copy of each name first
-    case "$m" in */)
-      p="$(_hi_overlay_files "$m" | grep -c .)" || true
-      if [ "$p" = 0 ]; then doctor_row "$label" "$text - no file rides"; else doctor_row "$label" "$text - $p file(s) ride" ok; fi
-      continue
-      ;;
-    esac
-    if [ -n "$eff" ]; then
-      doctor_row "$label" "$text" ok
-    else
-      _hi_unsent_why "$m" p || p="not the file in force here"
-      # inside a session no home file is sent, whatever is installed
-      case "$_HI_REMOTE_SESSION:$p" in 1:its\ tool* | 1:not\ the*) p="a session reads no home file" ;; esac
-      doctor_row "$label" "$text - not sent: $p"
-    fi
+    case "${row%%|*}" in settings.sh | extensions/) ;; *) members+=("${row%%|*}") ;; esac
   done
-  [ -z "$none" ] || doctor_row "none anywhere" "$none"
+  _hi_member_rows "${members[@]}"
   doctor_flush
 }
 

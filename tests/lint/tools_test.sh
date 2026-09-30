@@ -192,13 +192,17 @@ function lint_markdownlint() {
 }
 
 # prettier --check over the same list, style from .prettierrc.yaml; files in
-# .prettierignore (docs/tldr.md) are skipped even when named.
+# .prettierignore (docs/tldr.md) are skipped even when named. The plugin
+# writes each `## Contents` list from the doc's headings, so a stale list is
+# a formatting failure; it is a flag, not a .prettierrc.yaml line, since that
+# file is kept identical across repos.
 function lint_prettier() {
   _hi_lint_md_tool prettier \
     "Checking Markdown formatting (prettier --check, style in .prettierrc.yaml)" \
     "every file already formatted" \
-    "files need reformatting (fix with: prettier --write on the paths below)" \
-    "Markdown formatting (prettier --write the paths it names)" --check
+    "files need reformatting (fix with: prettier --write --plugin ./.github/prettier-plugin-docs.mjs on the paths below)" \
+    "Markdown formatting (prettier --write --plugin ./.github/prettier-plugin-docs.mjs the paths it names)" \
+    --check --plugin ./.github/prettier-plugin-docs.mjs
 }
 
 function run_tools() {

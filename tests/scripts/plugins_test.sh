@@ -208,8 +208,8 @@ function test_add_plugin_refuses_a_member_the_carry_has() {
   _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home> | <dialect>"\n\n[cli]\n\n[mine]\ntaskrc = "- | env:OTHER | ~/.other"\n' || return 1
   out="$(_hi_plugins_run "$cfg" --add-plugin editors vim/vimrc vim - '~/.vimrc')" || return 1
   [[ "$out" == *' + "vim/vimrc" = "vim | - | ~/.vimrc" in [editors]'* ]] || _hi_because "said: $out" || return 1
-  out="$(_hi_plugins_run "$cfg" --plugins)" || return 1
-  [[ "$out" == *"vim "*"editors "*"vim/vimrc "* ]] && [ "$(printf '%s\n' "$out" | grep -c ' vim/vimrc ')" = 1 ] ||
+  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || return 1
+  [[ "$out" == *" editors "*" vim/"* ]] && [ "$(printf '%s\n' "$out" | grep -c ' vim/')" = 1 ] ||
     _hi_because "listed: $out"
 }
 
@@ -259,12 +259,12 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   printf 'x\n' >"$cfg.home/.taskrc"
   printf '[mine]\ntaskrc = "- | env:TASKRC | ~/.taskrc"\nbad line\n' >"$cfg/plugins"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="mux nano"\n' >"$cfg/settings.sh"
-  out="$(_hi_plugins_run "$cfg" --plugins)" || return 1
-  [[ "$out" == *"bat "*"cli "*"bat/config "*"rides: $cfg/bat/config"* ]] || _hi_because "bat: $out" || return 1
-  [[ "$out" == *"nano "*"editors "*"nano/nanorc "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *"tmux "*"mux "*"tmux/tmux.conf "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
-  [[ "$out" == *"taskrc "*"mine "*"taskrc "*"rides: ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
-  [[ "$out" == *"$cfg/plugins line 3 is ignored"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
+  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || return 1
+  [[ "$out" == *" cli "*"bat/config (bat)"*"used $cfg/bat/config"* ]] || _hi_because "bat: $out" || return 1
+  [[ "$out" == *" editors "*"nano/nanorc (nano)"*"not sent: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *" mux "*"switched off (_HI_PLUGINS_OFF)"*"tmux/tmux.conf (tmux)"* ]] || _hi_because "tmux: $out" || return 1
+  [[ "$out" == *" mine "*"taskrc"*"used ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
+  [[ "$out" == *" ignored "*"$cfg/plugins line 3"*"not a row"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }
 
 function run_plugins_tests() {

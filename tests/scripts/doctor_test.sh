@@ -268,10 +268,10 @@ function test_member_labels_name_the_reading_tool() {
     p10k.zsh:powerlevel10k \
     oh-my-zsh.zsh-theme:oh-my-zsh oh-my-bash.theme.sh:oh-my-bash \
     bash-it.theme.bash:bash-it tide.vars:tide ssh_tags:ssh; do
-    _hi_doc_member "${pair%%:*}" label
+    _hi_member_label "${pair%%:*}" label
     [ "$label" = "${pair%%:*} (${pair#*:})" ] || _hi_because "${pair%%:*} -> $label" || return 1
   done
-  _hi_doc_member colors label
+  _hi_member_label colors label
   [ "$label" = colors ] || _hi_because "colors -> $label"
 }
 
@@ -491,11 +491,11 @@ function test_the_box_folds_and_shortens() {
   local out
   out="$(
     HOME=/h
-    _HI_DOC_T_LABEL=(podman finch docker vim/vimrc)
-    _HI_DOC_T_TEXT=("not installed" "not installed" "answering" "/h/.vimrc")
-    _HI_DOC_T_SEV=(info info ok info)
+    _HI_ROWS_LABEL=(podman finch docker vim/vimrc)
+    _HI_ROWS_TEXT=("not installed" "not installed" "answering" "/h/.vimrc")
+    _HI_ROWS_SEV=(info info ok info)
     unset _HI_TERM_COLS
-    _hi_doc_box
+    _hi_rows_box
   )"
   out="$(_hi_strip_ansi "$out")"
   [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 5 ] &&

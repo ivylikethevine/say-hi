@@ -26,6 +26,10 @@ source "$_hi_d/common/core.sh"
 source "$_hi_d/hi.sh"
 # shellcheck source=./lib.sh
 source "$_hi_d/scripts/lib.sh"
+# shellcheck source=./table.sh
+source "$_hi_d/scripts/table.sh"
+# shellcheck source=./rc.sh
+source "$_hi_d/scripts/rc.sh"
 unset _hi_d
 
 # after core.sh, which ends with `set +euo pipefail`. GLOSSARY: HI.15
@@ -56,8 +60,9 @@ function _hi_plugins_help() {
 Usage: $usage
 
 Lists every plugin: a config hi carries to a target and points its tool at.
-One row a member, with the file that rides, or why none does: its plugin is
-switched off, its tool is not installed here, or there is nothing to carry.
+A table a group and a row a member, as hi --doctor draws it: where its file
+is found, and whether it rides or why not - its plugin is switched off, or
+its tool is not installed here. Members found nowhere share one last row.
 
   hi --plugin-off <name>...     switch plugins off: nothing of theirs rides
   hi --plugin-on <name>...      switch them back on
@@ -131,19 +136,33 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# a section a group, in the order the rows name them, and a member's row as
+# `hi --doctor` draws it (lib.sh's _hi_member_rows); the rows hi could not
+# read last, a warn each
 function _hi_plugins_list() {
-  local name group member state color
-  printf ' %-14s %-8s %-22s %s\n' plugin group member state
+  local name group member groups=" " line
+  local -a members
+  _hi_plugins_load
   while IFS='|' read -r name group member; do
-    color="$GREEN"
-    _hi_plugin_state "$member" state || color="$YELLOW"
-    case "$state" in rides:* | *"switched off"*) ;; *) color="" ;; esac
-    _hi_cecho "$(printf ' %-14s %-8s %-22s %s' "$name" "$group" "$member" "$state")" "$color"
+    case "$groups" in *" $group "*) ;; *) groups="$groups$group " ;; esac
   done < <(_hi_plugin_rows)
-  for state in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do
-    _hi_plugins_bad_where name "${state%%|*}"
-    _hi_cecho " $name is ignored: ${state#*|}" "$YELLOW"
+  # shellcheck disable=SC2086 # group names, a space apart
+  for group in $groups; do
+    members=()
+    while IFS='|' read -r name line member; do
+      [ "$line" != "$group" ] || members+=("$member")
+    done < <(_hi_plugin_rows)
+    _hi_section "$group"
+    _hi_member_rows "${members[@]}"
+    _hi_rows_flush
   done
+  [ "${#_HI_PLUGIN_BAD[@]}" -gt 0 ] || return 0
+  _hi_section "ignored"
+  for line in "${_HI_PLUGIN_BAD[@]}"; do
+    _hi_plugins_bad_where name "${line%%|*}"
+    _hi_row "$name" "${line#*|}" warn
+  done
+  _hi_rows_flush
 }
 
 # _hi_plugins_bad_where <outvar> <file:line> - a $_HI_PLUGIN_BAD entry's
@@ -178,8 +197,10 @@ function _hi_plugins_write_off() {
   else
     printf '#!/bin/sh\n' >"$tmpfile"
   fi
-  # the wizard's own spelling of the line (rc_tagged), so its block holds it
-  [ -z "$1" ] || printf '%-45s %s\n' "export _HI_PLUGINS_OFF='$1'" "$_HI_MARKER" >>"$tmpfile"
+  # the wizard's own spelling of the line, so its block holds it
+  local tagged
+  [ -z "$1" ] || rc_tagged tagged "export _HI_PLUGINS_OFF='$1'"
+  printf '%s' "${tagged:-}" >>"$tmpfile"
   _hi_write_back "$tmpfile" "$_HI_SETTINGS"
   _hi_cecho "$_HI_SETTINGS updated" "$GREEN"
 }

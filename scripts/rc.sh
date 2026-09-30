@@ -135,10 +135,11 @@ function _hi_has_marker() {
 # rc_tagged <outvar> <line...> - <line...> as config_shell writes them, each
 # padded and tagged with $_HI_MARKER and newline-ended; empty lines skipped
 function rc_tagged() {
-  local _hi_rt_line _hi_rt_out=""
+  local _hi_rt_line _hi_rt_out="" _hi_rt_pad
   for _hi_rt_line in "${@:2}"; do
     [ -n "$_hi_rt_line" ] || continue
-    printf -v _hi_rt_line '%-45s %s' "$_hi_rt_line" "$_HI_MARKER"
+    _hi_repeat _hi_rt_pad $((45 - ${#_hi_rt_line})) ' '
+    _hi_rt_line="$_hi_rt_line$_hi_rt_pad $_HI_MARKER"
     _hi_rt_out+="$_hi_rt_line"$'\n'
   done
   printf -v "$1" '%s' "$_hi_rt_out"

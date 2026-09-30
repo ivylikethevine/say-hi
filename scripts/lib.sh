@@ -477,6 +477,102 @@ function _hi_plugin_state() {
   [ "${why#switched off}" = "$why" ]
 }
 
+# _hi_member_label <member> <outvar> - <member> with the program that reads
+# it, `vim/vimrc (vim)`, as a row names it; hi's own files go bare. The program
+# is the first name in the member's tool column.
+function _hi_member_label() {
+  local _hi_ml_t
+  _hi_tool_label "$1" _hi_ml_t || true
+  printf -v "$2" '%s' "$1${_hi_ml_t:+ ($_hi_ml_t)}"
+}
+
+# _hi_member_rows <member...> - a row each, through ${_HI_ROW_FN:-_hi_row}
+# (`hi --doctor` hands in doctor_row): the places its row says it can come
+# from that hold something, in its one order (GLOSSARY: HI.61) - the overlay's
+# copy, each home location, the tree's default - each marked used or passed
+# over (the tree's default only when used), and why nothing is sent when
+# something is there. A member found nowhere joins one closing
+# `none anywhere` row, so a sparse setup stays a short table, unless it is
+# switched off, which is its own row.
+function _hi_member_rows() {
+  local row m used eff p state text label none="" found tilde='~' draw="${_HI_ROW_FN:-_hi_row}"
+  local -a locs _hi_paths=()
+  _hi_plugins_load
+  for m; do
+    _hi_overlay_row "$m" row || continue
+    used="" eff="" text="" found=""
+    _hi_overlay_src "$m" used || used=""
+    _hi_overlay_places "$m" "$row"
+    locs=("$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"})
+    case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
+    eff="$used"
+    [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
+    for p in "${locs[@]}"; do
+      [ -n "$p" ] || continue
+      if [ -z "${m##*/}" ]; then
+        state=absent
+        [ ! -d "$p" ] || state=present
+      elif [ "$p" = "$eff" ]; then
+        state=used
+      elif [ -e "$p" ]; then
+        state="passed over"
+      else
+        state=absent
+      fi
+      # only what is there: the places looked in and found empty are the
+      # table's to know, not a line each here - nor the tree's default
+      # behind a copy that replaces it
+      [ "$state" != absent ] || continue
+      [ "$state" != "passed over" ] || [ "$p" != "$_HI_ROOT/config/$m" ] || continue
+      found=1
+      [ "$p" != "$_HI_ROOT/config/$m" ] || p="the tree's config/$m"
+      # the ~ from a variable: bash 3.2 keeps a \~ replacement's backslash
+      text="$text${text:+; }$state ${p/#"$HOME"/$tilde}"
+    done
+    _hi_member_label "$m" label
+    [ -n "$found" ] || {
+      if _hi_plugin_off "$m" p; then
+        "$draw" "$label" "switched off ($p)"
+        continue
+      fi
+      none="$none $m"
+      continue
+    }
+    # a directory entry is its files, the overlay's copy of each name first
+    case "$m" in */)
+      p="$(_hi_overlay_files "$m" | grep -c .)" || true
+      if [ "$p" = 0 ]; then "$draw" "$label" "$text - no file rides"; else "$draw" "$label" "$text - $p file(s) ride" ok; fi
+      continue
+      ;;
+    esac
+    if [ -n "$eff" ]; then
+      "$draw" "$label" "$text" ok
+    else
+      _hi_unsent_why "$m" p || p="not the file in force here"
+      # inside a session no home file is sent, whatever is installed
+      case "$_HI_REMOTE_SESSION:$p" in 1:its\ tool* | 1:not\ the*) p="a session reads no home file" ;; esac
+      "$draw" "$label" "$text - not sent: $p"
+    fi
+  done
+  [ -n "$none" ] || return 0
+  # one name for a tool's family found nowhere at all: micro/ for its three
+  # files, oh-my-posh.* for its three formats
+  local family said=" " all
+  text=""
+  for m in $none; do
+    family="$m"
+    case "$m" in */*) family="${m%%/*}/" ;; oh-my-posh.*) family="oh-my-posh.*" ;; esac
+    all=1
+    for p; do
+      case "$p" in "$family"* | "${family%\*}"*) case "$none " in *" $p "*) ;; *) all=0 ;; esac ;; esac
+    done
+    [ "$all" = 1 ] || family="$m"
+    case "$said" in *" $family "*) continue ;; esac
+    said="$said$family " text="$text${text:+ }$family"
+  done
+  "$draw" "none anywhere" "$text"
+}
+
 # _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold, one a line
 function _hi_plugin_words() {
   _hi_plugin_rows | tr '|' '\n' | sort -u

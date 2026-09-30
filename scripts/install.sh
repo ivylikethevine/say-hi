@@ -63,7 +63,7 @@ function _hi_install_usage() {
   *)
     # wrapped under the same 80 columns hi --help keeps
     printf 'Usage: %s [--yes] [--link {none,user,system}]\n' "$me"
-    printf '       %*s [--preset <name>] [--dry-run]\n' "${#me}" ""
+    printf '       %s [--preset <name>] [--dry-run]\n' "${me//?/ }"
     [ -n "${_HI_ARGV0:-}" ] ||
       printf '       %s --configure [--preset <name>] [--dry-run]\n       %s --uninstall [--purge] [--dry-run] | --prefix <dir>\n' "$me" "$me"
     ;;

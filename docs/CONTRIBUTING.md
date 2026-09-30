@@ -222,7 +222,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
   `packages`, `extensions/` and its hook names, `plugins` and its
   columns,
-  `vim/vimrc`, `nvim/init.lua`, `helix/config.toml`/`languages.toml`, `kak/kakrc`, `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`,
+  `vim/vimrc`, `nvim/init.lua`, `helix/config.toml`/`languages.toml`, `kak/kakrc`/`colors/`, `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`,
   `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,
   `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,
@@ -256,7 +256,7 @@ does not ship.
 | you changed                                            | update                                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | a flag, or `_hi_parse`                                 | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
-| an environment variable or toggle                      | `docs/SETTINGS.md` (enforced)                                            |
+| an environment variable or toggle                      | a row of `scripts/settings`, which writes `docs/SETTINGS.md`'s table     |
 | what hi leaves on a target                             | `docs/SECURITY.md`                                                       |
 | a target hi does or doesn't answer to                  | `docs/COMPATIBILITY.md`                                                  |
 | a tool hi wires in, or its hook                        | `docs/INTEGRATIONS.md`                                                   |
@@ -267,14 +267,15 @@ does not ship.
 | a release channel or the release flow                  | `docs/RELEASING.md`                                                      |
 | the harness or the lint gate                           | `docs/TESTING.md`                                                        |
 | a new document under `docs/`                           | `docs/README.md`'s index                                                 |
-| a heading in a doc with a `Contents`                   | that doc's `Contents` list (enforced)                                    |
 
 "Enforced" is the lint suite, alongside a `docs/tldr.md` example whose flag is
 not a `common/flags` row, or a ninth example; the rest are on your honour and
 on review.
 
 Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
-`.github/node_modules/.bin/prettier --write <files>` by hand) and linted with
+`.github/node_modules/.bin/prettier --write --plugin ./.github/prettier-plugin-docs.mjs <files>`
+by hand, which also writes each doc's `## Contents` list from its headings,
+so a new heading needs no list edit) and linted with
 markdownlint (`.markdownlint.yaml`); the two agree by construction. A link from
 a page the site builds into a path the site leaves out (a dot-path such as
 `.github/`, or anything `_config.yml` excludes) is an absolute github.com URL,

@@ -1741,6 +1741,25 @@ function test_screen_and_zellij_ride_like_tmux() {
     [ -z "$(env "$@" _HI_REMOTE_SESSION=1 bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl')" ]
 }
 
+# kakoune's colors/ rides file by file from the directory kak reads, so the
+# scheme a kakrc names is there on a target; it has no wire of its own - the
+# kakrc's $KAKOUNE_CONFIG_DIR is what points kak at it
+# shellcheck disable=SC2016 # the wanted line holds $_HI_CONFIG_DIR unexpanded
+function test_kak_colors_ride_beside_the_kakrc() {
+  local h="$_HI_WORKDIR/kak-home" k p w
+  k="$h/kk"
+  mkdir -p "$h/overlay" "$k/colors"
+  printf 'colorscheme mine\n' >"$k/kakrc"
+  printf 'face global Default red\n' >"$k/colors/mine.kak"
+  p="$(_hi_fake_path kak-bins kak)"
+  set -- HOME="$h" KAKOUNE_CONFIG_DIR="$k" PATH="$p:$PATH" _HI_CONFIG_DIR="$h/overlay"
+  [ "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files kak/kakrc kak/colors/' | tr '\n' ' ')" = \
+    "kak/kakrc kak/colors/mine.kak " ] || return 1
+  w="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w kak/kakrc kak/colors/mine.kak && printf %s "$w"')"
+  [ "$w" = 'export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR/kak"' ] || _hi_because "wiring: $w" || return 1
+  [ -z "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w kak/colors/mine.kak && printf %s "$w"')" ]
+}
+
 # readline's inputrc rides like bat's config: the overlay's copy, else the file
 # $INPUTRC names, else ~/.inputrc, stripped - and an $include of anything but
 # /etc/inputrc names a file no target has, so it is dropped unless allowed
@@ -2028,6 +2047,7 @@ function run_hi_payload_tests() {
   _hi_check "A home .aliases rides as aliases.sh" test_home_aliases_ride_as_aliases_sh
   _hi_check "A shell's own rc rides only from the overlay" test_shell_rcs_ride_only_from_the_overlay
   _hi_check "screen and zellij ride like tmux" test_screen_and_zellij_ride_like_tmux
+  _hi_check "kakoune's colors/ rides beside its kakrc" test_kak_colors_ride_beside_the_kakrc
   _hi_check "inputrc rides like the tool configs, its includes dropped" test_inputrc_rides_like_the_tool_configs
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
   _hi_check "...kept, and recut once the config is newer or Includes" test_ssh_tags_cut_is_reused_until_the_config_is_newer

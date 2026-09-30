@@ -41,6 +41,7 @@
 "helix/config.toml" = "hx helix | flag:hx -c;flag:helix -c | $_HI_XDG_CONFIG/helix/config.toml"
 "helix/languages.toml" = "hx helix | xdg:hx;xdg:helix | $_HI_XDG_CONFIG/helix/languages.toml"
 "kak/kakrc" = "kak | envdir:KAKOUNE_CONFIG_DIR | $KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc | kak"
+"kak/colors/" = "kak | - | $KAKOUNE_CONFIG_DIR/ , $XDG_CONFIG_HOME/kak/ , ~/.config/kak/ | kak"
 "micro/settings.json" = "micro | flagdir:micro -backup false -savehistory false -config-dir | $MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/"
 "micro/bindings.json" = "micro | flagdir:micro -backup false -savehistory false -config-dir | $MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/"
 "micro/init.lua" = "micro | flagdir:micro -backup false -savehistory false -config-dir | $MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/ | lua"

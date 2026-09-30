@@ -21,7 +21,7 @@ tests/test_runner.sh
   - [Coverage and profiling](#coverage-and-profiling)
   - [Timing and shared state](#timing-and-shared-state)
   - [The images are files; the build contexts are not](#the-images-are-files-the-build-contexts-are-not)
-    - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
+  - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
 - [The lint gate](#the-lint-gate)
 - [Test levers](#test-levers)
 - [Relaying](#relaying)
@@ -472,10 +472,13 @@ skipping yellow when its tool isn't installed (CI has all nine):
 - **11. markdownlint** (markdownlint-cli2, rules in `.markdownlint.yaml`)
   over the Markdown git knows about, tracked or new.
 - **12. prettier --check** over the same list, style in `.prettierrc.yaml`,
-  skipping `.prettierignore`'s files. Fix with `prettier --write` on the paths
+  skipping `.prettierignore`'s files, with `.github/prettier-plugin-docs.mjs`,
+  which writes each doc's `## Contents` list from its `##` and `###`
+  headings: a stale list fails like any other formatting. Fix with
+  `prettier --write --plugin ./.github/prettier-plugin-docs.mjs` on the paths
   it names.
 
-**`drift`** (`tests/lint/drift_test.sh`) — seventeen repo-consistency sweeps,
+**`drift`** (`tests/lint/drift_test.sh`) — sixteen repo-consistency sweeps,
 each checking that something written down elsewhere still agrees with the tree:
 
 - **13. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
@@ -497,10 +500,10 @@ each checking that something written down elsewhere still agrees with the tree:
 - **18. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
   GLOSSARY.md defines, and every entry is referenced; matched by code, not
   title.
-- **19. The settings roster**: every name the tree treats as a setting
-  (`_HI_TOGGLES`, the `_HI_*_PROMPTS` tables) has a row in
-  [SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and every row names a
-  variable the tree still reads.
+- **19. The settings rows**: every row of `scripts/settings` (the rows
+  [SETTINGS.md](SETTINGS.md)'s _Every setting_ table is written from and
+  `hi --configure` reads its items from) names a variable the shipped tree
+  still reads, and none is one the doc's _Not settings_ lists.
 - **20. The docker-compatible family**: `common/core.sh`'s
   `$_HI_CONTAINER_CLIS` and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file
@@ -515,18 +518,14 @@ each checking that something written down elsewhere still agrees with the tree:
   page the site builds too, not a dot-path or anything `_config.yml` excludes
   (which renders on GitHub and 404s on Pages); link those as absolute
   github.com URLs.
-- **24. Contents blocks**: in every rendered page, each `##` and `###` heading
-  has an entry in that doc's `## Contents` list and each entry names a real
-  heading, an `###`'s entry indented under an `##`'s. just-the-docs runs with
-  no front matter here, so these lists are the site's only in-page navigation.
-- **25. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **24. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples (the upstream cap).
-- **26. tests/dockerfiles/**: every image definition has a caller and vice
+- **25. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **27. Image tags**: every plain image tag named in shell or YAML is one of
+- **26. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **28. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
-  its digest — check 27 strips digests before comparing, so it can't see one
+- **27. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
+  its digest — check 26 strips digests before comparing, so it can't see one
   tag pinned two ways.
 - **29. The eval roster**: every `eval` in the payload and `scripts/` has a
   row in `tests/lint/eval_roster` saying what it evaluates, and every file's

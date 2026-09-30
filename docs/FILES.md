@@ -102,7 +102,8 @@ All **package**, never in the payload.
 | `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                          |
 | `scripts/plugins.sh`              | `hi --plugins`, `--plugin-off`, `--plugin-on`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes rows of `~/.config/say-hi/plugins`. |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                     |
-| `scripts/table.sh`                | The boxed table the previews draw.                                                                                                                                                               |
+| `scripts/table.sh`                | The display the scripts draw through: column padding, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                     |
+| `scripts/settings`                | Every setting, a row each: `docs/SETTINGS.md`'s _Every setting_ table is written from it, and `hi --configure` reads its menu items from it.                                                     |
 
 ### packaging/
 
@@ -153,7 +154,9 @@ it runs; `actions/` the composite actions they share (shells, backends,
 `setup-tool/tools.txt`'s pinned tool roster); `scripts/` the helpers they
 call; plus the issue and pull request templates, `CODEOWNERS`,
 `dependabot.yml`, `allowed_signers` (the keys a release tag may be signed
-with), and `package.json`/`package-lock.json` (the pinned Markdown linters).
+with), `package.json`/`package-lock.json` (the pinned Markdown linters), and
+`prettier-plugin-docs.mjs` (writes each doc's `## Contents` list and the
+settings table as prettier formats them).
 
 ## Your files
 
@@ -176,7 +179,7 @@ ride member by member; a member name is a letter or digit, then
 | `extensions/`                                                                                             | `_HI_EXTENSIONS` | -                 | every shell, after the aliases, in name order                                                          |
 | `bashrc`, `zshrc`, `config.fish`                                                                          | -                | -                 | the end of hi's rc for that shell                                                                      |
 | `vim/vimrc`, `nvim/init.lua`, `helix/config.toml`, `helix/languages.toml`, `nano/nanorc`, `emacs/init.el` | -                | -                 | the editor aliases and `$VIMINIT`                                                                      |
-| `kak/kakrc`                                                                                               | -                | -                 | kakoune on a target (`$KAKOUNE_CONFIG_DIR`)                                                            |
+| `kak/kakrc`, `kak/colors/`                                                                                | -                | -                 | kakoune on a target (`$KAKOUNE_CONFIG_DIR`)                                                            |
 | `tmux/tmux.conf`                                                                                          | -                | -                 | the `tmux` alias (`tmux -f`)                                                                           |
 | `screenrc`                                                                                                | -                | -                 | the `screen` alias (`screen -c`)                                                                       |
 | `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                                   | -                | -                 | the `micro` alias (`-config-dir`)                                                                      |
@@ -226,6 +229,7 @@ an overlay copy rides either way.
 | `vim/vimrc`            | `~/.vimrc`, `~/.vim/vimrc`, `$XDG_CONFIG_HOME/vim/vimrc`                                                                                                                                                                                                         |
 | `nvim/init.lua`        | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                                                                                                                                                                 |
 | `kak/kakrc`            | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/kakrc`                                                                                                                                                                                                              |
+| `kak/colors/`          | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/colors/`, file by file                                                                                                                                                                                              |
 | `helix/config.toml`    | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                                                                                                                                                             |
 | `helix/languages.toml` | `$XDG_CONFIG_HOME/helix/languages.toml`                                                                                                                                                                                                                          |
 | `nano/nanorc`          | `~/.nanorc`, `$XDG_CONFIG_HOME/nano/nanorc`                                                                                                                                                                                                                      |

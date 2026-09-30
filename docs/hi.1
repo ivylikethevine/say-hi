@@ -727,14 +727,16 @@ or
 .B \-\-update
 converts it.
 .TP
-.B ~/.config/say-hi/vim/vimrc, nvim/init.lua, helix/config.toml, helix/languages.toml, kak/kakrc, nano/nanorc, emacs/init.el
+.B ~/.config/say-hi/vim/vimrc, nvim/init.lua, helix/config.toml, helix/languages.toml, kak/kakrc, kak/colors/, nano/nanorc, emacs/init.el
 replacements for vim's, neovim's, helix's, kakoune's, nano's, and emacs's configs, used
 whole. Without one, hi carries the config each editor already reads here
 .RB ( ~/.vimrc ,
 .BR ~/.config/nvim/init.lua ,
 .BR ~/.config/helix/config.toml ,
 .BR ~/.config/helix/languages.toml ,
-.BR ~/.config/kak/kakrc ,
+.BR ~/.config/kak/kakrc
+and its
+.BR colors/ ,
 .BR ~/.nanorc ,
 .BR ~/.emacs ,
 and their alternates), else none. A line that reads a file no target

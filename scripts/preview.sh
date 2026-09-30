@@ -515,7 +515,7 @@ function _hi_print_hosts_table() {
         # pad after the hostname so the next column lands at the same spot in
         # every user row beneath it, regardless of that user's name length;
         # depends only on $user, so once per row rather than once per column
-        printf -v pad '%*s' $((user_width - ${#user})) ''
+        _hi_repeat pad $((user_width - ${#user})) ' '
         previewtext=""
         for idx2 in "${!group_names[@]}"; do
           ((idx2 > 0)) && previewtext+='  '
