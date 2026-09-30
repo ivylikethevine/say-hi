@@ -70,7 +70,7 @@ source|load.sh|6
 source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2
 source|scripts/configure.sh|7
-source|scripts/convert_settings.sh|2
+source|scripts/convert_settings.sh|3
 source|scripts/doctor.sh|6
 source|scripts/install.sh|5
 source|scripts/lib.sh|1

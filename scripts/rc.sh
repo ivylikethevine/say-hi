@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Ownership of the lines hi adds to a user's shell rc files - writing them
 # (config_shell), taking them back out (strip_marker) - and the syntax checks
-# run before either. Sourced by scripts/install.sh after common/core.sh; not
-# an entry point of its own. $_HI_MARKER comes from common/paths.sh.
+# run before either. Sourced by scripts/install.sh after common/core.sh and
+# scripts/table.sh, whose pad aligns the tags; not an entry point of its own. $_HI_MARKER comes from common/paths.sh.
 #
 # These own individual lines in a permanent local rc, tagged one by one. A
 # session on a target never writes to its rc files at all - load.sh's session
@@ -135,12 +135,11 @@ function _hi_has_marker() {
 # rc_tagged <outvar> <line...> - <line...> as config_shell writes them, each
 # padded and tagged with $_HI_MARKER and newline-ended; empty lines skipped
 function rc_tagged() {
-  local _hi_rt_line _hi_rt_out="" _hi_rt_pad
+  local _hi_rt_line _hi_rt_out=""
   for _hi_rt_line in "${@:2}"; do
     [ -n "$_hi_rt_line" ] || continue
-    _hi_repeat _hi_rt_pad $((45 - ${#_hi_rt_line})) ' '
-    _hi_rt_line="$_hi_rt_line$_hi_rt_pad $_HI_MARKER"
-    _hi_rt_out+="$_hi_rt_line"$'\n'
+    _hi_pad_to _hi_rt_line 45 "$_hi_rt_line"
+    _hi_rt_out+="$_hi_rt_line $_HI_MARKER"$'\n'
   done
   printf -v "$1" '%s' "$_hi_rt_out"
 }

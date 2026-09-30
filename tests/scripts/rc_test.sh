@@ -38,6 +38,7 @@ function _hi_rc_probe() {
   local script='
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/scripts/lib.sh"
+    source "$_HI_HOME/say-hi/scripts/table.sh"
     source "$_HI_HOME/say-hi/scripts/rc.sh"
     eval "${_HI_RC_PRELUDE:-}"
     "$@"'
@@ -368,6 +369,7 @@ function test_config_validate_shells_asks_at_a_terminal() {
       env HOME="$home" "${_HI_PTY_FORCED[@]}" bash -c '
         source "$_HI_HOME/say-hi/common/core.sh"
         source "$_HI_HOME/say-hi/scripts/lib.sh"
+        source "$_HI_HOME/say-hi/scripts/table.sh"
         source "$_HI_HOME/say-hi/scripts/rc.sh"
         config_validate_shells && echo GATE_WENT_ON' >"$_HI_WORKDIR/gate-tty.$reply.out" 2>&1 &
     _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}"
@@ -438,6 +440,7 @@ function _hi_link_owner_with() {
   bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/scripts/lib.sh"
+    source "$_HI_HOME/say-hi/scripts/table.sh"
     source "$_HI_HOME/say-hi/scripts/rc.sh"
     PATH="$1"
     link_owner "$2"' link_owner_probe "$mgrdir" "$path"

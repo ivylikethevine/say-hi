@@ -118,6 +118,17 @@ function test_profile_cannot_move_the_session_tree() {
   [ "${out%%|*}" = "$_HI_HOME" ] && [ "${out#*|}" = "$_HI_ROOT" ]
 }
 
+# The session bash is interactive, so a profile's aliases would expand into
+# every function load.sh parses after the chain; the shopt stands in for -i.
+function test_profile_aliases_stay_out_of_load_functions() {
+  local home="$_HI_WORKDIR/profilehome-alias" out
+  mkdir -p "$home"
+  printf "shopt -s expand_aliases\nalias mv='mv -v'\n" >"$home/.profile"
+  out="$(_HI_LOAD_NO_INIT=0 HOME="$home" bash -c \
+    'source "$1/load.sh"; declare -f _hi_nano_fallback' _ "$_HI_ROOT")"
+  [[ "$out" == *'mv -f '* && "$out" != *'mv -v'* ]]
+}
+
 # The tree must NOT land on $PATH: on a disposable session $_HI_ROOT is a
 # directory under /tmp, and "no /tmp on PATH" is a line item in every
 # hardening baseline an admin has to answer to. paths.sh's `alias hi=` is
@@ -839,6 +850,7 @@ function run_load_tests() {
   _hi_check ".bash_login outranks .profile" test_profile_falls_back_to_bash_login
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "A target's profile cannot move the session tree" test_profile_cannot_move_the_session_tree
+  _hi_check "A target's aliases stay out of load.sh's functions" test_profile_aliases_stay_out_of_load_functions
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
   _hi_check "...and a nested sh reads the settings' toggles" test_session_shrc_reads_the_settings_first
   _hi_check "only the set session vars are written (HI.47)" test_session_rc_setup_writes_only_the_set_vars

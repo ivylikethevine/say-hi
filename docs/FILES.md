@@ -103,7 +103,7 @@ All **package**, never in the payload.
 | `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                          |
 | `scripts/plugins.sh`              | `hi --plugins`, `--plugin-off`, `--plugin-on`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes rows of `~/.config/say-hi/plugins`. |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                     |
-| `scripts/table.sh`                | The display the scripts draw through: column padding, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                     |
+| `scripts/table.sh`                | The display the scripts draw through: column padding, the pieces a line is painted from, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.  |
 | `scripts/settings`                | Every setting, a row each: `docs/SETTINGS.md`'s _Every setting_ table is written from it, and `hi --configure` reads its menu items from it.                                                     |
 
 ### packaging/

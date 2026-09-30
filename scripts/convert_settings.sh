@@ -25,6 +25,8 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
 source "$_hi_d/scripts/lib.sh"
+# shellcheck source=./table.sh
+source "$_hi_d/scripts/table.sh"
 unset _hi_d
 
 # _hi_convert_packages - stdin's name:N rows as [group] sections on stdout.
@@ -102,7 +104,7 @@ function _hi_convert_colors() {
       n = split($0, f, ",")
       t = f[1]; gsub(/[ \t]/, "", t)
       if (!(t in body)) { types[++nt] = t; body[t] = "" }
-      row = sprintf("%-15s %s", f[2], f[3])
+      row = f[2] "\037" f[3]
       if (n >= 4 && f[4] != "") row = row " " f[4]
       body[t] = body[t] pend row "\n"
       pend = ""
@@ -112,7 +114,7 @@ function _hi_convert_colors() {
       for (k = 1; k <= nt; k++) printf "\n[%s]\n%s", types[k], body[types[k]]
       if (pend != "") printf "\n%s", pend
     }
-  '
+  ' | _hi_pad_cols 15
 }
 
 # _hi_toml_packages - stdin's `[group]` sections of "[-|+]name,..." rows as
@@ -212,7 +214,7 @@ function _hi_toml_colors() {
       for (i = from; i <= NF; i++) note = note " " $i
       sub(/^[ #]+/, "", note)
       if (!(t in known)) { known[t] = 1; order[++nt] = t }
-      body[t] = body[t] pend sprintf("%-15s = \"%s\"%s\n", key($1), v, (note == "" ? "" : " # " note))
+      body[t] = body[t] pend key($1) "\037= \"" v "\"" (note == "" ? "" : " # " note) "\n"
       pend = ""
     }
     END {
@@ -228,7 +230,7 @@ function _hi_toml_colors() {
       }
       if (pend != "") printf "%s%s", (out ? "\n" : ""), pend
     }
-  '
+  ' | _hi_pad_cols 15
 }
 
 # _hi_convert_carry - stdin's `member | tool | wire | home` lines as TOML on
@@ -274,7 +276,7 @@ function _hi_convert_settings() {
     # the line as the wizard pads it (rc_tagged), so its block takes it as its own
     function listed(   l) {
       l = "export _HI_PLUGINS_OFF=\047" off "\047"
-      if (mark == "") print l; else printf "%-45s %s\n", l, mark
+      if (mark == "") print l; else print l "\037" mark
     }
     function marked(l) {
       if (!match(l, /[ \t]+#.*/)) return
@@ -316,7 +318,7 @@ function _hi_convert_settings() {
       }
       if (!at && off != "") listed()
     }
-  '
+  ' | _hi_pad_cols 45
 }
 
 # _hi_convert_one <file> <shape> <converter> - <file> through <converter>,

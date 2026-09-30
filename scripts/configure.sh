@@ -159,28 +159,6 @@ function ask_value() {
   printf '%s' "$value"
 }
 
-# _hi_hotkey <name> <letter> <outvar> - <name> with its shortcut letter in
-# brackets, [e]verything or p[r]ompt: how every menu here spells an option
-# whose letter is typed rather than its number, so the key and the word
-# are read together and nothing has to say "or type e". The key is painted
-# $BRYELLOW, the color of everything the wizard has you type.
-function _hi_hotkey() {
-  local name="$1" key="$2" head
-  head="${name%%"$key"*}"
-  if [ "$head" = "$name" ]; then
-    printf -v "$3" '%s' "$name"
-  else
-    printf -v "$3" '%s%b[%s]%b%s' "$head" "$BRYELLOW" "$key" "$NC" "${name#*"$key"}"
-  fi
-}
-
-# _hi_paint <outvar> <color> <text> - <text> in <color>, the palette's
-# escapes expanded so the result can be joined into a row or a `read -p`
-# prompt. Under $NO_COLOR both halves are empty (core.sh) and it is plain.
-function _hi_paint() {
-  printf -v "$1" '%b%s%b' "$2" "$3" "$NC"
-}
-
 # _hi_preset_list <table> <width> - a presets table as its pick lists it:
 # the name with its hotkey, padded to <width> by its visible length (a
 # printf width would count the key's escapes), then the description
@@ -762,12 +740,11 @@ function _hi_menu_say() {
   done < <(printf '%s\n' "$1" | fold -s -w $((_HI_MENU_W - 2)) | sed 's/ *$//')
 }
 
-# _hi_menu_fit <outvar> <text> <room> - <text> cut to <room> characters, the
-# cut marked with "..."; plain text only, painted after
-function _hi_menu_fit() {
-  local _hi_mf="$2"
-  ((${#_hi_mf} > $3)) && _hi_mf="${_hi_mf:0:$(($3 > 3 ? $3 - 3 : 0))}..."
-  printf -v "$1" '%s' "$_hi_mf"
+# _hi_menu_num <outvar> - the last item's number as the list prints it,
+# right-aligned in two columns and painted, ` 7)` or `12)`
+function _hi_menu_num() {
+  _hi_pad_to "$1" 2 "${#_HI_MENU_ITEMS[@]}" right
+  _hi_paint "$1" "$BRYELLOW" "${!1})"
 }
 
 # The list's colors, so a row scans without reading it: the number you type
@@ -776,9 +753,11 @@ function _hi_menu_fit() {
 # and a changed row's "(default ...)" $YELLOW.
 # _hi_menu_add <kind> <text> [no_newline] - number the next item and draw it
 function _hi_menu_add() {
+  local num
   _HI_MENU_ITEMS+=("$1")
   [ "$_HI_MENU_DRAW" = 1 ] || return 0
-  printf '  %b%2d)%b %s' "$BRYELLOW" "${#_HI_MENU_ITEMS[@]}" "$NC" "$2"
+  _hi_menu_num num
+  printf '  %s %s' "$num" "$2"
   [ $# -ge 3 ] || printf '\n'
 }
 
@@ -803,7 +782,7 @@ function _hi_menu_section() {
     sum=""
     ((_HI_MENU_SUM_N == 0)) || sum="$_HI_MENU_SUM_ON of $_HI_MENU_SUM_N on"
     [ -z "$_HI_MENU_SUM_VALS" ] || sum="$sum${sum:+, }$_HI_MENU_SUM_VALS"
-    _hi_menu_fit sum "$sum" $((_HI_MENU_W - 27 > 8 ? _HI_MENU_W - 27 : 8))
+    _hi_fit sum "$sum" $((_HI_MENU_W - 27 > 8 ? _HI_MENU_W - 27 : 8))
     _hi_pad_to name 13 "$name"
     _hi_pad_to range 6 "$range"
     printf ' %b[%s]%b %s%b%s%b %s\n' "$BRYELLOW" "$_HI_MENU_SUM_KEY" "$NC" "$name" \
@@ -854,7 +833,7 @@ function _hi_menu_row() {
   room=$((_HI_MENU_W - 11 - ${#name} - ${#note} - ${#dnote}))
   case "$label" in *' - '*)
     if ((room > 8)); then
-      _hi_menu_fit help "${label#* - }" $((room - 3))
+      _hi_fit help "${label#* - }" $((room - 3))
       _hi_paint help "$BLUE" " - $help"
     fi
     ;;
@@ -953,14 +932,15 @@ function _hi_menu_list() {
 # _hi_menu_grid_item <kind> <1|0> <name> <cols> <count-var> - one checkbox in
 # the Header page's grid, <cols> to a line; <count-var> counts the grid so far
 function _hi_menu_grid_item() {
-  local _hi_gi_state _hi_gi_word
+  local _hi_gi_state _hi_gi_word _hi_gi_num
   _hi_menu_check _hi_gi_state "$2"
   _HI_MENU_ITEMS+=("$1")
   printf -v "$5" '%s' "$((${!5} + 1))"
   [ "$_HI_MENU_DRAW" = 1 ] || return 0
   _hi_pad_to _hi_gi_word 10 "$3"
   (($4 > 1)) || _hi_gi_word="$3"
-  printf ' %b%2d)%b %s %s' "$BRYELLOW" "${#_HI_MENU_ITEMS[@]}" "$NC" "$_hi_gi_state" "$_hi_gi_word"
+  _hi_menu_num _hi_gi_num
+  printf ' %s %s %s' "$_hi_gi_num" "$_hi_gi_state" "$_hi_gi_word"
   if [ $((${!5} % $4)) = 0 ]; then printf '\n'; else printf ' '; fi
 }
 

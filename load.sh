@@ -48,6 +48,11 @@ export _HI_REMOTE_SESSION=1
 # guard as an env var, since this file is only ever sourced.
 [ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_restore_profile
 
+# The profile chain ran in an interactive bash, and bash expands aliases when
+# it parses a function: a target's `alias mv='mv -v'` would chatter from every
+# function below. The session shell is a child with its own rc.
+shopt -u expand_aliases
+
 set -euo pipefail
 
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"

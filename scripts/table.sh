@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# The boxed table the preview scripts draw with: measure every column, then
-# print a rule, padded cells, and a closing rule.
+# The display every script draws through: the column pad, the pieces a line
+# is painted from, the boxed table the previews draw (measure every column,
+# then print a rule, padded cells, and a closing rule), and the section of
+# rows a report lists.
 #
 # It sits in scripts/ rather than common/ on purpose - common/ ships in the ssh
 # payload and wears a CI-enforced size budget, and nothing a target runs draws
@@ -41,15 +43,69 @@ function _hi_visible_len() {
   printf -v "$1" '%s' "${#stripped}"
 }
 
-# _hi_pad_to <var> <width> <text> - <text> into <var>, spaces after it to
-# <width> printed columns as _hi_visible_len measures them: the one column
-# pad every script draws with, escapes and multibyte glyphs counted as what
-# they print. A text already that wide or wider goes in as it is.
+# _hi_pad_to <var> <width> <text> [right] - <text> into <var>, spaces after
+# it to <width> printed columns as _hi_visible_len measures them (before it,
+# right-aligned, with `right`): the one column pad every script draws with,
+# escapes and multibyte glyphs counted as what they print. A text already
+# that wide or wider goes in as it is.
 function _hi_pad_to() {
   local _hi_pt_n _hi_pt_s
   _hi_visible_len _hi_pt_n "$3"
   _hi_repeat _hi_pt_s $(($2 - _hi_pt_n)) ' '
-  printf -v "$1" '%s' "$3$_hi_pt_s"
+  if [ "${4:-}" = right ]; then
+    printf -v "$1" '%s' "$_hi_pt_s$3"
+  else
+    printf -v "$1" '%s' "$3$_hi_pt_s"
+  fi
+}
+
+# _hi_pad_cols <width> - stdin to stdout, each line's text ahead of a \037
+# padded to <width> and joined to the rest by a space: a column for a writer
+# with no bash of its own (awk emits the \037). Other lines pass as they are.
+function _hi_pad_cols() {
+  local line nl cell us=$'\037'
+  while :; do
+    if IFS= read -r line; then nl=$'\n'; else
+      [ -n "$line" ] || break
+      nl=""
+    fi
+    case "$line" in *"$us"*)
+      _hi_pad_to cell "$1" "${line%%"$us"*}"
+      line="$cell ${line#*"$us"}"
+      ;;
+    esac
+    printf '%s%s' "$line" "$nl"
+  done
+}
+
+# _hi_paint <outvar> <color> <text> - <text> in <color>, the palette's
+# escapes expanded so the result can be joined into a row or a `read -p`
+# prompt. Under $NO_COLOR both halves are empty (core.sh) and it is plain.
+function _hi_paint() {
+  printf -v "$1" '%b%s%b' "$2" "$3" "$NC"
+}
+
+# _hi_hotkey <name> <letter> <outvar> - <name> with its shortcut letter in
+# brackets, [e]verything or p[r]ompt: how every menu spells an option whose
+# letter is typed rather than its number, so the key and the word are read
+# together and nothing has to say "or type e". The key is painted
+# $BRYELLOW, the color of everything a menu has you type.
+function _hi_hotkey() {
+  local name="$1" key="$2" head
+  head="${name%%"$key"*}"
+  if [ "$head" = "$name" ]; then
+    printf -v "$3" '%s' "$name"
+  else
+    printf -v "$3" '%s%b[%s]%b%s' "$head" "$BRYELLOW" "$key" "$NC" "${name#*"$key"}"
+  fi
+}
+
+# _hi_fit <outvar> <text> <room> - <text> cut to <room> characters, the cut
+# marked with "..."; plain text only, painted after
+function _hi_fit() {
+  local _hi_ft="$2"
+  ((${#_hi_ft} > $3)) && _hi_ft="${_hi_ft:0:$(($3 > 3 ? $3 - 3 : 0))}..."
+  printf -v "$1" '%s' "$_hi_ft"
 }
 
 # _hi_widen_to <var> <count...> - grow the width variable named <var> to the
@@ -123,7 +179,8 @@ function _hi_row_end() {
 function _hi_cell() {
   local padded
   _hi_pad_to padded "$1" "$3"
-  printf '%s %b%s%b ' "$_HI_BOX_V" "$2" "$padded" "$NC"
+  _hi_paint padded "$2" "$padded"
+  printf '%s %s ' "$_HI_BOX_V" "$padded"
 }
 
 # _hi_cell_raw <width> <printed-width> <text> - a cell whose text carries its own

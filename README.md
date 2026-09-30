@@ -400,19 +400,7 @@ checkout: an account or an upstream review that lands when it lands.
        how. What is left is seeing it. **Ticks when:** a tool of the user's
        own reads its home config on an e2e target.
 
-6. [ ] _Before 1.0:_ **One display for every command** — shipped:
-       `scripts/table.sh` is the display the scripts draw through - column
-       padding, the boxed table, and the section of rows `hi --doctor` and
-       `hi --plugins` both report in, a member's row drawn by one function
-       (`scripts/lib.sh`'s `_hi_member_rows`) - and the wizard's two
-       word-list questions are one. Left: the wizard's other questions and
-       its menu, `scripts/configure.sh`'s own, are not the library's, and
-       `scripts/convert_settings.sh`'s awk pads the file lines it writes.
-       **Ticks when:** a wizard question and a command's row are drawn by
-       the same library, and no script pads a column with a `printf` of its
-       own.
-
-7. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
+6. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
        `drift` holds every `eval` in the payload and `scripts/` to a row of
        `tests/lint/eval_roster` that says what it evaluates, and each file's
        count of its kin (a `source` of a path in a variable, a shell's `-c`,
@@ -427,7 +415,7 @@ checkout: an account or an upstream review that lands when it lands.
        `$_HI_SEGMENT` are commands by contract; do they count against the
        tick, or does the roster name them as the two ways in that stay?
 
-8. [ ] _Before 1.0:_ **A header cell of the user's own** — shipped:
+7. [ ] _Before 1.0:_ **A header cell of the user's own** — shipped:
        `header/`, a directory member
        ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)) scanned
        and stripped as sh, each file defining `_hi_cell_<word>` for its
@@ -438,7 +426,7 @@ checkout: an account or an upstream review that lands when it lands.
        shows how. What is left is seeing it: the framework suite's `config`
        case draws one. **Ticks when:** that case passes in CI.
 
-9. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
+8. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
        shipped: each framework's loader is a file of its own,
        `common/fw_<name>.<ext>`, and `_hi_payload_excl` cuts the ones a
        target is not handed
@@ -447,16 +435,16 @@ checkout: an account or an upstream review that lands when it lands.
        What is left is the bench reading it. **Ticks when:** `--group bench`
        reads a connect handed starship alone under the unconfigured payload.
 
-10. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
-        bash and zsh keep a `PS1`/`PROMPT` the rc set unless it is one nobody
-        wrote (the shell's built-in default, or a stock rc's on the distros
-        [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
-        target's prompt is hi's as before. What is left is the check on real
-        installs. **Ticks when:** a hand-written `PS1` survives hi in bash
-        and zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets
-        hi's prompt.
+9. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
+       bash and zsh keep a `PS1`/`PROMPT` the rc set unless it is one nobody
+       wrote (the shell's built-in default, or a stock rc's on the distros
+       [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
+       target's prompt is hi's as before. What is left is the check on real
+       installs. **Ticks when:** a hand-written `PS1` survives hi in bash
+       and zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets
+       hi's prompt.
 
-11. [ ] _Before 1.0:_ **The header probes only what was asked** — the
+10. [ ] _Before 1.0:_ **The header probes only what was asked** — the
         default `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so
         every local terminal or tmux pane runs docker, podman, nomad, and
         kubectl. **Do:** leave the backend cells out of the local default (a
@@ -466,14 +454,14 @@ checkout: an account or an upstream review that lands when it lands.
         local default header, or keep them and fill them in after the first
         prompt? Either changes what a local header shows today.
 
-12. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
+11. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
         `check_tool_versions.sh` counts a problem, naming the host, when no
         lookup on one host answered (a blocked host, not a one-off rate
         limit). What is left is seeing it in CI. **Ticks when:** a
         `tool-versions.yml` dispatch with one upstream host removed from
         `allowed-endpoints` opens the tracking issue naming it.
 
-13. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
+12. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
         the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
         `update.sh` and `preview.sh` from a scratch-tree copy (the first four
         read 0% in run 36341616721, 91.11% overall) now link the real
@@ -483,22 +471,22 @@ checkout: an account or an upstream review that lands when it lands.
         this lands reads at least 95% and no shipped line at 0 that is
         neither tested nor in that header.
 
-14. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+13. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
         [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
         **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
         versions_ prose into its version table.
 
-15. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+14. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-16. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+15. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-17. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+16. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand
