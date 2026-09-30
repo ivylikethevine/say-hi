@@ -7,6 +7,12 @@
 # return at once rather than recurse. GLOSSARY: HI.55
 [[ -z "${_hi_rc_loading-}" ]] || return 0
 _hi_rc_loading=1
+# bash expands aliases as it parses a function, so an rc's `alias mkdir='mkdir
+# -pv'` above this file would run inside hi's: off while loading, as load.sh
+# does, and back on at the end of the required block
+_hi_rc_aliases=0
+! shopt -q expand_aliases || _hi_rc_aliases=1
+shopt -u expand_aliases
 # $_HI_HOME first, this file's own path as the fallback for a hand-written
 # `source` (hi.sh and install.sh's rc line set it). GLOSSARY: HI.33
 # `${BASH_SOURCE%/*}` and not `$(dirname ...)`: header.sh:14 and core.sh:21
@@ -14,7 +20,7 @@ _hi_rc_loading=1
 # `source` pays.
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
-: "${_HI_HOME:=$(cd -P "$_hi_d/../.." && pwd)}"
+: "${_HI_HOME:=$(CDPATH='' builtin cd -P "$_hi_d/../.." && pwd)}"
 unset _hi_d
 # core.sh's load guard is a no-op *within* one process, and this file is the
 # one place that is wrong: a shell outlives the tree under it, and re-sourcing
@@ -291,7 +297,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
         # every other line here treats it as
         case "$_hi_pcd" in
         "declare -a"*) eval 'PROMPT_COMMAND=("${PROMPT_COMMAND[@]//$_hi_h/:}")' ;;
-        *) PROMPT_COMMAND="${PROMPT_COMMAND//$_hi_h/:}" ;;
+        ?*) PROMPT_COMMAND="${PROMPT_COMMAND//$_hi_h/:}" ;;
         esac
       done
       unset _hi_h
@@ -436,6 +442,8 @@ unset _hi_pt _hi_omb_theme _hi_bashit_theme
 # children inherit core.sh's _HI_CHILD_ENV and nothing else with the prefix.
 # The overlay's bash.sh below can still `export` anything. GLOSSARY: HI.47
 _hi_unexport
+[ "$_hi_rc_aliases" = 0 ] || shopt -s expand_aliases
+unset _hi_rc_aliases
 # === end required configuration ===
 
 # The user's own bashrc from the overlay, last. The directive is NOT

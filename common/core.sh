@@ -36,7 +36,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     */*) _hi_self="${_hi_self%/*}" ;;
     *) _hi_self="." ;;
     esac
-    _HI_HOME="$(cd -P "$_hi_self/../.." && pwd)"
+    _HI_HOME="$(CDPATH='' builtin cd -P "$_hi_self/../.." && pwd)"
     unset _hi_self
   fi
   export _HI_HOME

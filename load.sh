@@ -58,7 +58,7 @@ shopt -u expand_aliases
 
 set -euo pipefail
 
-: "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+: "${_HI_HOME:=$(CDPATH='' builtin cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=./common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
 # with the header off, the client sent no header.sh

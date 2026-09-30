@@ -5,6 +5,17 @@
 # see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
 [[ -z "${_hi_rc_loading-}" ]] || return 0
 _hi_rc_loading=1
+# hi's code assumes zsh's defaults for these, which an rc's setopt breaks
+# (ksh_arrays, sh_word_split, no_unset) or makes chatter (warn_*); `aliases`
+# would expand the rc's aliases into hi's functions as they are parsed. Each
+# is off (unset on) while loading and back at the end of the required block;
+# the prompt hooks run under `emulate -L zsh`.
+_hi_zopts=()
+for _hi_o in ksh_arrays sh_word_split warn_create_global warn_nested_var aliases; do
+  [[ -o $_hi_o ]] && _hi_zopts+=($_hi_o) && unsetopt $_hi_o
+done
+[[ -o unset ]] || { _hi_zopts+=(no_unset) && setopt unset; }
+unset _hi_o
 # The tree from this file's own path: %x is this file, :A absolute, :h up one.
 # GLOSSARY: HI.33
 : "${_HI_HOME:=${${(%):-%x}:A:h:h:h}}"
@@ -107,7 +118,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # zsh counts what %{ %} holds as zero columns, so each escape goes in
     # alone and the text stays counted; a % in a branch name is doubled
     __hi_git_precmd() {
-      setopt local_options extended_glob
+      emulate -L zsh
+      setopt extended_glob
       _hi_git_prompt __hi_git_info
       __hi_git_info=${${__hi_git_info//\%/%%}//(#b)($'\e'\[[0-9;]#m)/%\{$match[1]%\}}
     }
@@ -118,6 +130,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # the lead space goes when a script prepended its own "(name) " to $PS1
     # (a venv's or conda's activate), whose trailing space already separates
     __hi_env_precmd() {
+      emulate -L zsh
       _hi_env_prompt __hi_env_info
       if [[ $PS1 == '${__hi_ma}'* ]]; then __hi_lead=$_hi_lead; else __hi_lead=""; fi
     }
@@ -125,6 +138,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # each plugin's $_HI_SEGMENT after it, `%` doubled so prompt_subst draws
     # the output rather than reading it as a prompt escape. GLOSSARY: HI.59
     __hi_segment_precmd() {
+      emulate -L zsh
       local c o
       for c in "${_hi_segments[@]}"; do
         o="$(${=c} 2>/dev/null)" && [[ -n "$o" ]] && __hi_env_info+="${o//\%/%%} "
@@ -143,6 +157,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     }
     __hi_marks_precmd() {
       local ec=$? u
+      emulate -L zsh
       if __hi_marks_on; then
         __hi_ma=$_hi_marks_a __hi_mb=$_hi_marks_b
         _hi_url_path u "$PWD"
@@ -240,6 +255,8 @@ fi
 # see common/bash.sh: children inherit core.sh's _HI_CHILD_ENV and nothing
 # else with the prefix. GLOSSARY: HI.47
 _hi_unexport
+(( ${#_hi_zopts} )) && setopt "${_hi_zopts[@]}"
+unset _hi_zopts
 # === end required configuration ===
 
 # see common/bash.sh for why the paths are compared before sourcing

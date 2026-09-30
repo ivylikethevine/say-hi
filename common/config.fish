@@ -9,7 +9,7 @@ set -g _hi_rc_loading 1
 # fish's `cd`/`pwd`: a builtin-only command substitution runs in the current
 # process, and fish's `pwd` is logical. GLOSSARY: HI.33
 if not set -q _HI_HOME
-  set -gx _HI_HOME (command sh -c 'cd -P "$1/../.." && pwd' sh (status dirname))
+  set -gx _HI_HOME (command sh -c 'CDPATH= cd -P "$1/../.." && pwd' sh (status dirname))
 end
 # GLOSSARY: HI.07 - defaulted, never assigned, so settings.sh still overrides.
 # Mirrors core.sh's _HI_TOGGLES.
