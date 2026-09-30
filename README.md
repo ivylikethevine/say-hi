@@ -354,13 +354,12 @@ checkout: an account or an upstream review that lands when it lands.
        manager, or allowed, and how a finding is disabled), which the scan
        and the overlay's comment strip read in place of a test of the
        member's name, so a row of the user's with a dialect has its include
-       disabled on a target. Left: an include under the tool's own directory
-       rides with it and is left as written.
-       [docs/SETTINGS.md](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)
-       shows the guard that needs no scan, a test of `$_HI_REMOTE_SESSION`
-       ([HI.47](docs/GLOSSARY.md#hi47-what-a-child-inherits)). **Ticks
-       when:** an include under a tool's own directory is read on a target
-       rather than disabled.
+       disabled on a target; an include naming a file of the tool's own
+       directory is carried instead, the file riding beside the member and
+       the include's path made the target's copy
+       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)).
+       The framework suite's `config` case has tmux read one. **Ticks
+       when:** that case passes in CI.
 
 2. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — shipped: an
        `xdg:<command>` wire aliases the command with `$XDG_CONFIG_HOME` set
@@ -410,10 +409,10 @@ checkout: an account or an upstream review that lands when it lands.
        outside the tree - the shell's own `complete -p`, `alias -p`, and
        `trap -p` run back in `common/bash.sh` and its oh-my-bash loader, a
        prompt program's init, and a plugin's `$_HI_SEGMENT` - and indirect
-       assignment, which nothing counts. **Ticks when:** no `eval` in the roster reads a value from
-       outside the tree. **Open question:** a prompt program's init and
-       `$_HI_SEGMENT` are commands by contract; do they count against the
-       tick, or does the roster name them as the two ways in that stay?
+       assignment, which nothing counts. Every `eval` counts against the
+       tick, the prompt init and `$_HI_SEGMENT` included, until a later pass
+       names the ones that stay. **Ticks when:** no `eval` in the roster
+       reads a value from outside the tree.
 
 7. [ ] _Before 1.0:_ **A header cell of the user's own** — shipped:
        `header/`, a directory member
@@ -445,24 +444,14 @@ checkout: an account or an upstream review that lands when it lands.
        and without a `PS1` of the user's, in bash and (on Debian) zsh.
        **Ticks when:** that suite passes in CI.
 
-10. [ ] _Before 1.0:_ **The header probes only what was asked** — the
-        default `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so
-        every local terminal or tmux pane runs docker, podman, nomad, and
-        kubectl. **Do:** leave the backend cells out of the local default (a
-        session keeps them), or run them after the first prompt. **Ticks
-        when:** a local shell with the default order starts no backend CLI.
-        **Open question:** drop the containers, jobs, and pods cells from the
-        local default header, or keep them and fill them in after the first
-        prompt? Either changes what a local header shows today.
-
-11. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
+10. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
         `check_tool_versions.sh` counts a problem, naming the host, when no
         lookup on one host answered (a blocked host, not a one-off rate
         limit). What is left is seeing it in CI. **Ticks when:** a
         `tool-versions.yml` dispatch with one upstream host removed from
         `allowed-endpoints` opens the tracking issue naming it.
 
-12. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
+11. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
         the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
         `update.sh` and `preview.sh` from a scratch-tree copy (the first four
         read 0% in run 36341616721, 91.11% overall) now link the real
@@ -472,22 +461,22 @@ checkout: an account or an upstream review that lands when it lands.
         this lands reads at least 95% and no shipped line at 0 that is
         neither tested nor in that header.
 
-13. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+12. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
         [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
         **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
         versions_ prose into its version table.
 
-14. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-15. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-16. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

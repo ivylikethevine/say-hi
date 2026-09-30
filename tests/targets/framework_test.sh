@@ -119,12 +119,12 @@ function _hi_framework_probe() {
   # directly), so this is the one case here that checks that array rather
   # than PROMPT_COMMAND's own text for the hook's absence
   prompt:hi:bash-it) printf '%s\n' "declare -F _bash-it-log-prefix-by-path >/dev/null && [[ \${PROMPT_COMMAND[*]} == *__hi_ps1* && \${precmd_functions[*]} != *prompt_command* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
-  # a tmux server started from the session, asked for the client's mark; the
-  # alias is the first word, so it expands. nano, on a pty of its own and
+  # a tmux server started from the session, asked for the client's mark and
+  # the carried include's; the alias is the first word, so it expands. nano, on a pty of its own and
   # closed by a ^X, has to paint a shell script in a color: under --rcfile
   # the carried nanorc is the only one read, so the target's set is what did.
   # fzf filters with the client's --exact, so only the exact match comes back
-  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && test \"\$(printf 'axb\\nab\\n' | fzf --filter ab)\" = ab && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && tmux -L hi show-options -gv @hi_carried | grep -qx HICARRY && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && test \"\$(printf 'axb\\nab\\n' | fzf --filter ab)\" = ab && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
 }
@@ -152,14 +152,17 @@ function _hi_prompt_client_home() {
 # _hi_config_client_home <dir> - a client home with a tmux config, a micro
 # settings file, a nanorc, a ripgreprc, and an fzfrc ($RIPGREP_CONFIG_PATH and
 # $FZF_DEFAULT_OPTS_FILE, set by the case) of its own, each a marker the
-# config probe looks for; the nanorc's include is one hi drops. Its overlay
+# config probe looks for; the nanorc's include is one hi drops, and the tmux
+# config's, a file of tmux's own directory, one hi carries. Its overlay
 # has a header/ cell of its own, which $_HI_HEADER_ORDER puts in the header.
 # shellcheck disable=SC2016 # the cell's own code, expanded on the target
 function _hi_config_client_home() {
   mkdir -p "$1/.config/micro" "$1/.config/say-hi/header"
   printf '_hi_cell_hitest() { printf -v "$1" %%s "${CYAN}HITESTCELL"; }\n' >"$1/.config/say-hi/header/hitest"
   printf 'export _HI_HEADER_ORDER="utc hitest"\n' >"$1/.config/say-hi/settings.sh"
-  printf 'set -g @hi_mark HITMUX\n' >"$1/.tmux.conf"
+  mkdir -p "$1/.config/tmux"
+  printf 'set -g @hi_mark HITMUX\nsource-file ~/.config/tmux/hi.conf\n' >"$1/.tmux.conf"
+  printf 'set -g @hi_carried HICARRY\n' >"$1/.config/tmux/hi.conf"
   printf '{"tabsize": 7}\n' >"$1/.config/micro/settings.json"
   printf 'include "~/.nano/*.nanorc"\nset tabsize 4\n' >"$1/.nanorc"
   printf -- '--type-add=hitest:*.hitest\n' >"$1/.ripgreprc"

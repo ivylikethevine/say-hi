@@ -1384,6 +1384,86 @@ source-file -q ~/.tmux.kept' ] || {
   }
 }
 
+# _hi_carry_home <name> - a home whose tmux directory holds a theme that
+# sources a part of its own, and an overlay tmux.conf including both a file
+# there and one that is not: the fixture of the carry cases below
+function _hi_carry_home() {
+  local h="$_HI_WORKDIR/carry-$1"
+  mkdir -p "$h/.config/tmux/parts" "$h/overlay/tmux"
+  printf 'set -g mouse on\nsource-file ~/.config/tmux/theme.conf\nsource-file $HOME/.config/tmux/gone.conf\n' >"$h/overlay/tmux/tmux.conf"
+  printf '# the theme\nset -g @theme HI\nsource-file "${XDG_CONFIG_HOME}/tmux/parts/bar.conf"\n' >"$h/.config/tmux/theme.conf"
+  printf 'set -g @bar HI\n' >"$h/.config/tmux/parts/bar.conf"
+  printf '%s' "$h"
+}
+
+# an include naming a file under the tool's own directory rides beside the
+# member, its path held for the target's overlay directory, and the file's
+# own includes the same; one naming nothing there is dropped as ever
+function test_an_include_under_the_tools_directory_rides() {
+  local h d
+  h="$(_hi_carry_home rides)"
+  d="$(mktemp -d "$_HI_WORKDIR/carry-unpacked.XXXXXX")" || return 1
+  HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _hi_overlay_tar tmux/tmux.conf |
+    tar -x -z -f - -C "$d" || return 1
+  [ "$(cat "$d/tmux/tmux.conf")" = "set -g mouse on
+source-file $_HI_CARRY_TOKEN/tmux/theme.conf" ] || _hi_because "tmux.conf: [$(cat "$d/tmux/tmux.conf")]" || return 1
+  [ "$(cat "$d/tmux/theme.conf")" = "set -g @theme HI
+source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.conf: [$(cat "$d/tmux/theme.conf")]" || return 1
+  [ "$(cat "$d/tmux/parts/bar.conf")" = 'set -g @bar HI' ]
+}
+
+# the target's half: a real sh makes every held path the directory the
+# overlay landed in
+function test_a_carried_path_lands_on_the_target() {
+  local d="$_HI_WORKDIR/carry-fixup/config"
+  mkdir -p "$d/tmux"
+  printf 'source-file %s/tmux/theme.conf\nset -g mouse on\n' "$_HI_CARRY_TOKEN" >"$d/tmux/tmux.conf"
+  sh -c "$(_hi_overlay_fixup "'$d'")" || return 1
+  [ "$(cat "$d/tmux/tmux.conf")" = "source-file $d/tmux/theme.conf
+set -g mouse on" ] || _hi_because "after the fixup: [$(cat "$d/tmux/tmux.conf")]"
+}
+
+# hi --doctor names what is dropped and nothing the packer carries
+function test_a_carried_include_is_no_finding() {
+  local h out
+  h="$(_hi_carry_home doctor)"
+  out="$(HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _hi_include_lint)"
+  [ "$out" = 'tmux/tmux.conf|3|include|source-file $HOME/.config/tmux/gone.conf' ] || _hi_because "rows: [$out]"
+}
+
+# a relay: on a target the copy that arrived is the member's own directory,
+# so the next hop is sent the carried file again under the same name
+function test_a_carried_include_rides_on_from_a_target() {
+  local h d
+  h="$_HI_WORKDIR/carry-relay"
+  mkdir -p "$h/overlay/tmux"
+  printf 'set -g @theme HI\n' >"$h/overlay/tmux/theme.conf"
+  printf 'source-file %s/overlay/tmux/theme.conf\n' "$h" >"$h/overlay/tmux/tmux.conf"
+  d="$(mktemp -d "$_HI_WORKDIR/carry-relay-unpacked.XXXXXX")" || return 1
+  HOME="$h/target-home" _HI_CONFIG_DIR="$h/overlay" _HI_REMOTE_SESSION=1 _hi_overlay_tar tmux/tmux.conf |
+    tar -x -z -f - -C "$d" || return 1
+  [ "$(cat "$d/tmux/tmux.conf")" = "source-file $_HI_CARRY_TOKEN/tmux/theme.conf" ] &&
+    [ "$(cat "$d/tmux/theme.conf")" = 'set -g @theme HI' ] ||
+    _hi_because "arrived as: [$(cat "$d"/tmux/* 2>&1)]"
+}
+
+# the overlay cache keeps the carried files' list beside it, so an edit to
+# one alone rebuilds it
+function test_an_edit_to_a_carried_file_rebuilds_the_cache() {
+  local h c1="" c2=""
+  h="$(_hi_carry_home cache)"
+  mkdir -p "$h/run"
+  HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" XDG_RUNTIME_DIR="$h/run" \
+    _hi_overlay_cached c1 tmux/tmux.conf || return 1
+  grep -qx "$h/.config/tmux/parts/bar.conf" "$c1.carry" || _hi_because "no carry list beside $c1" || return 1
+  # dated ahead, so the edit is newer than the cache on any clock grain
+  printf 'set -g @bar EDITED\n' >"$h/.config/tmux/parts/bar.conf"
+  touch -t 203001010000 "$h/.config/tmux/parts/bar.conf"
+  HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" XDG_RUNTIME_DIR="$h/run" \
+    _hi_overlay_cached c2 tmux/tmux.conf || return 1
+  [ "$(_hi_tar_cat tmux/parts/bar.conf <"$c2")" = 'set -g @bar EDITED' ] || _hi_because "the cache kept the old carried file"
+}
+
 # micro's files ride under micro/ - micro fixes their names, so -config-dir
 # names the directory - each from the overlay when it has one and from micro's
 # own directory here otherwise; nvim/init.lua loses its plugin load, and keeps the
@@ -2079,6 +2159,11 @@ function run_hi_payload_tests() {
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
   _hi_check "...and so does neovim's own vim.pack.add" test_vim_pack_add_is_a_plugin_finding
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
+  _hi_check "An include under the tool's own directory rides" test_an_include_under_the_tools_directory_rides
+  _hi_check "...its path lands on the target's overlay" test_a_carried_path_lands_on_the_target
+  _hi_check "...it is no doctor finding" test_a_carried_include_is_no_finding
+  _hi_check "...and it rides on from a target" test_a_carried_include_rides_on_from_a_target
+  _hi_check "An edit to a carried file rebuilds the cache" test_an_edit_to_a_carried_file_rebuilds_the_cache
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
   _hi_check "...found in its tool's own order, and never on a target" test_a_home_config_is_found_in_its_tools_order
   _hi_check "...only with its tool on this machine" test_a_home_config_needs_its_tool_here

@@ -213,6 +213,13 @@ export _HI_SHELL_LADDER="${_HI_SHELL_TREE//bash /}"
 # stands in for the size until the script is measured. GLOSSARY: HI.44
 _HI_SIZE_TOKEN="@@SIZE@@"
 
+# stands in for the target's overlay directory in a carried include's path
+# until the overlay lands there (_hi_overlay_fixup)
+_HI_CARRY_TOKEN="@@HI_CONFIG@@"
+# a path an include may name: from ~/, $HOME, $XDG_CONFIG_HOME, or /, to the
+# first character no config file puts in a bare path
+_HI_CARRY_RE='(~/|[$][{]?(HOME|XDG_CONFIG_HOME)[}]?/|/)[^]{}[:space:]"'"'"';,()<>|&\[]+'
+
 # GLOSSARY: HI.17 - base64 over openssl (and openssl where base64 is
 # missing), the -d/-D ladder, and the `tr` fold
 _HI_ARMOR="base64"
@@ -1095,6 +1102,7 @@ function shfix(s,   o, p, r, n, w) {
 }
 function kindof(s,   t) {
   if (lead != "-" && s ~ ("^[ \t]*" lead)) return ""
+  if (index(s, "@@HI_CONFIG@@")) return ""
   if (plug != "-" && s ~ plug) { fixed = noop " " s; return "plugin" }
   if (inc == "-") return ""
   if (noop != "") { fixed = shfix(s); return (fixed != s) ? "include" : "" }
@@ -1141,15 +1149,77 @@ AWK
 }
 
 # _hi_include_lint - every finding in the overlay members that would actually
-# ship, one row each (see _hi_lint_awk); a member with no dialect has none.
+# ship, one row each (see _hi_lint_awk); a member with no dialect has none, and
+# an include the packer carries (_hi_include_carry) is no finding.
 function _hi_include_lint() {
-  local f src prog row
+  local f src prog row m n k t
+  local -a _hi_dirs=() _hi_carried=()
   prog="$(_hi_lint_awk)"
   while IFS= read -r f; do
-    _hi_member_dialect "$f" row && _hi_overlay_src "$f" src &&
-      _hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src"
+    if ! _hi_member_dialect "$f" row || ! _hi_overlay_src "$f" src; then continue; fi
+    _hi_tool_dirs "$f" "$src"
+    while IFS='|' read -r m n k t; do
+      [ "$k" = include ] && ((${#_hi_dirs[@]})) && _hi_include_carry row "$t" "${f%%/*}" && continue
+      printf '%s|%s|%s|%s\n' "$m" "$n" "$k" "$t"
+    done < <(_hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src")
   done < <(_hi_overlay_files)
   return 0
+}
+
+# _hi_tool_dirs <member> <source> - the directories an include in <member> is
+# carried from, into the caller's $_hi_dirs: the source's own directory (not
+# $HOME's), and here $XDG_CONFIG_HOME/<tool>, ~/.<tool>, and ~/.<tool>.d for
+# the member's directory <tool>. None for a member with no directory; on a
+# target, the source's alone, which is where the client's copy landed.
+function _hi_tool_dirs() {
+  local _hi_td_t="${1%%/*}" _hi_td_s="${2%/*}"
+  _hi_dirs=()
+  [ "$_hi_td_t" != "$1" ] || return 0
+  [ "$_hi_td_s" = "$HOME" ] || [ "$_hi_td_s" = "$2" ] || _hi_dirs+=("$_hi_td_s")
+  [ "$_HI_REMOTE_SESSION" = 1 ] ||
+    _hi_dirs+=("${XDG_CONFIG_HOME:-$HOME/.config}/$_hi_td_t" "$HOME/.$_hi_td_t" "$HOME/.$_hi_td_t.d")
+}
+
+# _hi_include_carry <outvar> <line> <tool> - <line> with each path in it that
+# names a file under one of the caller's $_hi_dirs rewritten to
+# $_HI_CARRY_TOKEN/<tool>/<its path under that directory>, into <outvar>,
+# and each such file appended to the caller's $_hi_carried as a <member>
+# <source> pair; 1 when no path is carried. ~, $HOME, and $XDG_CONFIG_HOME
+# are read as they are here.
+function _hi_include_carry() {
+  local _hi_ic_rest="$2" _hi_ic_out="" _hi_ic_t _hi_ic_p _hi_ic_d _hi_ic_r _hi_ic_n=0
+  while [[ $_hi_ic_rest =~ $_HI_CARRY_RE ]]; do
+    _hi_ic_t="${BASH_REMATCH[0]}"
+    _hi_ic_out+="${_hi_ic_rest%%"$_hi_ic_t"*}"
+    _hi_ic_rest="${_hi_ic_rest#*"$_hi_ic_t"}"
+    # shellcheck disable=SC2088 # a ~ the include wrote, matched as text
+    case "$_hi_ic_t" in
+    '~/'*) _hi_ic_p="$HOME/${_hi_ic_t#'~/'}" ;;
+    '$HOME/'* | '${HOME}/'*) _hi_ic_p="$HOME/${_hi_ic_t#*/}" ;;
+    '$XDG_CONFIG_HOME/'* | '${XDG_CONFIG_HOME}/'*) _hi_ic_p="${XDG_CONFIG_HOME:-$HOME/.config}/${_hi_ic_t#*/}" ;;
+    *) _hi_ic_p="$_hi_ic_t" ;;
+    esac
+    for _hi_ic_d in ${_hi_dirs[@]+"${_hi_dirs[@]}"}; do
+      _hi_ic_r="${_hi_ic_p#"$_hi_ic_d"/}"
+      [ "$_hi_ic_r" != "$_hi_ic_p" ] && [ -f "$_hi_ic_p" ] || continue
+      case "/$_hi_ic_r/" in */../* | */./*) continue ;; esac
+      _hi_carried+=("$3/$_hi_ic_r" "$_hi_ic_p")
+      _hi_ic_t="$_HI_CARRY_TOKEN/$3/$_hi_ic_r" _hi_ic_n=1
+      break
+    done
+    _hi_ic_out+="$_hi_ic_t"
+  done
+  printf -v "$1" '%s' "$_hi_ic_out$_hi_ic_rest"
+  [ "$_hi_ic_n" = 1 ]
+}
+
+# _hi_overlay_fixup <dir> - the target's half of a carried include: every
+# $_HI_CARRY_TOKEN in the overlay unpacked at <dir> (a word of sh) made that
+# directory. sh, busybox's included.
+# shellcheck disable=SC2016 # the target's own expansions
+function _hi_overlay_fixup() {
+  printf '{ d=%s; grep -rl %s "$d" 2>/dev/null | while IFS= read -r f; do sed "s|%s|$d|g" "$f" >"$f.hi" && mv -f "$f.hi" "$f"; done; }' \
+    "$1" "$_HI_CARRY_TOKEN" "$_HI_CARRY_TOKEN"
 }
 
 # _hi_overlay_files [member...] - the members (default $_HI_OVERLAY_FILES and
@@ -1221,6 +1291,42 @@ function _hi_require_packer() {
 # stripped by its dialect's <strip>. GLOSSARY: HI.35
 _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags '*/config/*')
 
+# _hi_stage_carry - the overlay stager's carry, over its staged file $f
+# (member $_hi_st_m, dialect row $_hi_st_d): each include the scan finds whose
+# path names a file under the member's tool directories (_hi_tool_dirs) is
+# rewritten to the copy that rides (_hi_include_carry), and the file staged
+# as a member of its own, queued for the same scan. The source it came from
+# is kept in $_hi_st_carry. Reads and grows _hi_stage_tar's locals.
+function _hi_stage_carry() {
+  local _hi_sc_src="${_hi_st_qs[_hi_st_i]:-}" _hi_sc_at=" " _hi_sc_l _hi_sc_n=0 _hi_sc_out="" _hi_sc_k _hi_sc_j _hi_sc_m
+  local -a _hi_dirs=() _hi_carried=()
+  [ -n "$_hi_sc_src" ] || _hi_overlay_src "$_hi_st_m" _hi_sc_src || return 0
+  _hi_tool_dirs "$_hi_st_m" "$_hi_sc_src"
+  ((${#_hi_dirs[@]})) || return 0
+  while IFS='|' read -r _ _hi_sc_l _hi_sc_k _; do
+    [ "$_hi_sc_k" != include ] || _hi_sc_at="$_hi_sc_at$_hi_sc_l "
+  done < <(_hi_dialect="$_hi_st_d" awk -v mode=report -v name="$_hi_st_m" "$_hi_st_prog" "$f")
+  [ "$_hi_sc_at" != " " ] || return 0
+  while IFS= read -r _hi_sc_l || [ -n "$_hi_sc_l" ]; do
+    _hi_sc_n=$((_hi_sc_n + 1))
+    case "$_hi_sc_at" in *" $_hi_sc_n "*) _hi_include_carry _hi_sc_l "$_hi_sc_l" "${_hi_st_m%%/*}" || true ;; esac
+    _hi_sc_out+="$_hi_sc_l"$'\n'
+  done <"$f"
+  ((${#_hi_carried[@]})) || return 0
+  printf '%s' "$_hi_sc_out" >"$f" || return 1
+  for ((_hi_sc_j = 0; _hi_sc_j < ${#_hi_carried[@]}; _hi_sc_j += 2)); do
+    _hi_sc_m="${_hi_carried[_hi_sc_j]}"
+    # one already staged - a member, or a file carried before - rides once
+    [ ! -e "$_hi_st_root/$_hi_sc_m" ] || continue
+    mkdir -p "$_hi_st_root/${_hi_sc_m%/*}" && cp "${_hi_carried[_hi_sc_j + 1]}" "$_hi_st_root/$_hi_sc_m" || return 1
+    _hi_st_q+=("$_hi_st_root/$_hi_sc_m")
+    _hi_st_qd[${#_hi_st_q[@]} - 1]="$_hi_st_d"
+    _hi_st_qs[${#_hi_st_q[@]} - 1]="${_hi_carried[_hi_sc_j + 1]}"
+    _hi_st_carry+=("${_hi_carried[_hi_sc_j + 1]}")
+    stage_out+=("$_hi_sc_m")
+  done
+}
+
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
 # comments, gzip what comes out. Reads $stage_in (members to pull), $stage_out
@@ -1238,6 +1344,7 @@ _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags '*/config/*')
 function _hi_stage_tar() {
   local stage f _hi_st_root _hi_st_i _hi_st_prog _hi_st_m _hi_st_d _hi_st_n
   local -a _hi_st_names=() _hi_st_strip=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
+  local -a _hi_st_q=() _hi_st_qd=() _hi_st_qs=() _hi_st_carry=()
   local _hi_st_lint="${stage_lint:-0}"
   for f in "${_HI_STRIP_NAMES[@]}"; do
     ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
@@ -1273,16 +1380,23 @@ function _hi_stage_tar() {
     # in a shell or JSON file, and the strip below drops a comment
     if [ "$_hi_st_lint" = 1 ]; then
       _hi_st_prog="$(_hi_lint_awk)"
-      while IFS= read -r f; do
-        _hi_st_m="${f#"$_hi_st_root"/}"
-        _hi_member_dialect "$_hi_st_m" _hi_st_d || continue
+      _hi_read_lines _hi_st_q < <(find "$_hi_st_root" -type f ! -name '*.lint')
+      # a queue, not the find's lines: a carried file joins it, in the
+      # dialect of the member that named it
+      for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_q[@]}; _hi_st_i++)); do
+        f="${_hi_st_q[_hi_st_i]}" _hi_st_m="${_hi_st_q[_hi_st_i]#"$_hi_st_root"/}" _hi_st_d="${_hi_st_qd[_hi_st_i]:-}"
+        [ -n "$_hi_st_d" ] || _hi_member_dialect "$_hi_st_m" _hi_st_d || continue
+        _hi_stage_carry || exit 1
         _hi_dialect="$_hi_st_d" awk -v mode=fix -v name="$_hi_st_m" "$_hi_st_prog" "$f" >/dev/null || exit 1
         # no .lint at all means an empty member: awk never ran a rule on it
         [ ! -f "$f.lint" ] || mv -f "$f.lint" "$f" || exit 1
         # <name> | <leader> | <strip> | ...: strip.awk's d= and c= per file
         _hi_st_n="${_hi_st_d%% | *}" _hi_st_d="${_hi_st_d#* | }"
         case "${_hi_st_d#* | }" in 1' | '*) _hi_st_strip+=("d=$_hi_st_n" "c=${_hi_st_d%% | *}" "$f") ;; esac
-      done < <(find "$_hi_st_root" -type f ! -name '*.lint')
+      done
+      # what the overlay cache watches besides the members (_hi_overlay_cached)
+      [ -z "${_hi_carry_list:-}" ] ||
+        printf '%s\n' ${_hi_st_carry[@]+"${_hi_st_carry[@]}"} >"$_hi_carry_list" || exit 1
     fi
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file (GLOSSARY: HI.35); strip.awk sits at $stage and
@@ -1387,9 +1501,11 @@ function _hi_cached() {
 # _hi_cached over exactly these overlay members, keyed on the list. Fails when
 # there is no member at all, on top of _hi_cached's own refusals. A member
 # _hi_overlay_src packs from elsewhere is watched there and keyed by its path,
-# so pointing the tool at another file never serves the old one's cache.
+# so pointing the tool at another file never serves the old one's cache. The
+# files the last build carried (_hi_stage_carry) are watched from the list it
+# left beside the cache, $_hi_carry_list.
 function _hi_overlay_cached() {
-  local _hi_oc_outvar="$1" _hi_oc_f _hi_oc_src
+  local _hi_oc_outvar="$1" _hi_oc_f _hi_oc_src _hi_oc_key _hi_oc_dir _hi_carry_list=""
   shift
   (($#)) || return 1
   local -a cache_also=()
@@ -1397,8 +1513,15 @@ function _hi_overlay_cached() {
     _hi_overlay_src "$_hi_oc_f" _hi_oc_src && [ "$_hi_oc_src" != "$_HI_CONFIG_DIR/$_hi_oc_f" ] &&
       cache_also+=("$_hi_oc_src")
   done
-  _hi_cached "$_hi_oc_outvar" overlay "$(_hi_overlay_cache_key "$@" ${cache_also[@]+"${cache_also[@]}"})" \
-    "$_HI_CONFIG_DIR/" _hi_overlay_tar "$@"
+  _hi_oc_key="$(_hi_overlay_cache_key "$@" ${cache_also[@]+"${cache_also[@]}"})"
+  _hi_runtime_dir _hi_oc_dir
+  if [ -n "$_hi_oc_dir" ]; then
+    _hi_carry_list="$_hi_oc_dir/hi.overlay.$_hi_oc_key.carry"
+    [ ! -f "$_hi_carry_list" ] || while IFS= read -r _hi_oc_f; do
+      [ -z "$_hi_oc_f" ] || cache_also+=("$_hi_oc_f")
+    done <"$_hi_carry_list"
+  fi
+  _hi_cached "$_hi_oc_outvar" overlay "$_hi_oc_key" "$_HI_CONFIG_DIR/" _hi_overlay_tar "$@"
 }
 
 # The tree twin, against the ~70-130ms _hi_payload_tar otherwise costs on
@@ -1429,7 +1552,7 @@ function _hi_overlay_bytes() {
 
 # _hi_overlay_bytes armored into the line that unpacks it on the target.
 function _hi_overlay_stream() {
-  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar -x -m -z -f - -C "$_HI_ROOT/config"'
+  _hi_overlay_bytes "$@" | _hi_armored_line '|' "tar -x -m -z -f - -C \"\$_HI_ROOT/config\" && $(_hi_overlay_fixup '"$_HI_ROOT/config"')"
 }
 
 # The comment stripper every payload file goes through: their prose headers
@@ -2466,7 +2589,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 
   if ((${#overlay[@]})) &&
     ! _hi_overlay_bytes "${overlay[@]}" |
-    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config'" 2>"$tmp"; then
+    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config' && $(_hi_overlay_fixup "'$root/say-hi/config'")" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
     # the defaults that overlay shadowed were cut from the tree above; a
     # prompt loader's cut is not the overlay's, and a hop's tree lacks it

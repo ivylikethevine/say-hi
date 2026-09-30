@@ -338,7 +338,10 @@ A word left out is not printed, and an unknown word is ignored. A word of
 your own is a file of the overlay's `header/`
 ([Integrations](INTEGRATIONS.md#header-cells-of-your-own)).
 `containers`/`jobs`/`pods` render only when their backend answers; listing
-them decides whether hi asks at all. Each word has a fixed color, swapped for
+them decides whether hi asks at all. They are in the default order on purpose,
+the one exception to a header probing only what you asked for: every local
+shell with it runs docker, podman, nomad, and kubectl, each capped by
+`_HI_PROBE_TIMEOUT`. An order without the three words starts none. Each word has a fixed color, swapped for
 an alternate when it would repeat the cell before it, so no order puts two
 same-colored cells side by side
 ([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). Unset or empty is the
@@ -624,7 +627,11 @@ file outside `$_HI_CONFIG_DIR` (a framework theme may also source its own
 tree - `$ZSH`, `$OSH`, `$BASH_IT` - see
 [INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and every plugin
 manager's bootstrap. Those are disabled on the way out, and
-`hi --doctor` names each, file and line, in yellow. Two comments on the line
+`hi --doctor` names each, file and line, in yellow. One naming a file of the
+tool's own directory - `source-file ~/.config/tmux/theme.conf`, vim's `source
+~/.vim/keys.vim` - is carried instead: the file rides beside the member and
+the include reads it there
+([HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan)). Two comments on the line
 above one, in the file's own syntax (`# hi-allow`, or `" hi-allow` in vim),
 decide that line alone:
 

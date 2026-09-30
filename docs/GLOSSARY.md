@@ -1220,6 +1220,22 @@ stay. What the pass cannot see is a value the dropped line was meant to bind -
 a `local m = require("x")` used twenty lines down - so a plugin-heavy config
 can still error on the target; the doctor rows make that legible.
 
+An include naming a file of the tool's own directory is carried instead
+(`_hi_stage_carry`). For a member `<tool>/<file>`, that is its source's
+directory (not `$HOME` itself), and at home `$XDG_CONFIG_HOME/<tool>`,
+`~/.<tool>`, and `~/.<tool>.d`; a path spelled from `~`, `$HOME`, or
+`$XDG_CONFIG_HOME` is read as it is here. The file rides as `<tool>/<its path
+under that directory>`, scanned in the member's dialect, so its own includes
+carry too, and the include's path becomes `@@HI_CONFIG@@/<tool>/...`, a word
+the target makes its overlay directory as the overlay lands
+(`_hi_overlay_fixup`, one `grep -rl` and a `sed` per file that has it). The
+line is not a finding, so `hi --doctor` does not name it. On a target the
+source's own directory is the only one, and the carried copy sits in it, so a
+relayed hop is sent the file again under the same name. The overlay cache
+watches the carried files through the list the last build left beside it.
+An include naming a module rather than a path - lua's `require("x")` - is not
+one this reads, and is dropped as before.
+
 One finding is given back. A nanorc whose syntax include (`*.nanorc` outside
 `/usr/share/nano`) was dropped would highlight nothing, so the stripper keeps
 that finding's comment, and `load.sh`'s `_hi_nano_fallback` puts an include
