@@ -1011,10 +1011,11 @@ jobs:
   # PR three minutes of wall clock, and a red unit test and a red e2e show up
   # together.
   #
-  # Four shards rather than one long run: the eight e2e suites take 25
+  # Four shards rather than one long run: the nine e2e suites take 25
   # minutes serial (test_runner.sh pins its width to 1 whenever an
   # e2e/backends/bench suite is selected), and --shard i/n (the same tool
-  # windows-client.yml uses) is a runner-count knob - two suites a shard.
+  # windows-client.yml uses) is a runner-count knob - two or three suites a
+  # shard.
   e2e:
     name: e2e (ssh, docker, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest

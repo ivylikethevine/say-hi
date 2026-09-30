@@ -50,7 +50,10 @@ export _HI_REMOTE_SESSION=1
 
 # The profile chain ran in an interactive bash, and bash expands aliases when
 # it parses a function: a target's `alias mv='mv -v'` would chatter from every
-# function below. The session shell is a child with its own rc.
+# function below. Back on at the end of the file, for the `hi <target> <cmd>`
+# line the bootloader runs after it (hi_info is an alias).
+_hi_load_aliases=0
+! shopt -q expand_aliases || _hi_load_aliases=1
 shopt -u expand_aliases
 
 set -euo pipefail
@@ -471,3 +474,7 @@ function load() {
   _hi_line_close
   exit "$shell_ec"
 }
+
+# every function above is parsed; the command line after this file is not
+[ "$_hi_load_aliases" = 0 ] || shopt -s expand_aliases
+unset _hi_load_aliases

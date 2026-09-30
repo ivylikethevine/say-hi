@@ -432,17 +432,18 @@ checkout: an account or an upstream review that lands when it lands.
        target is not handed
        ([HI.32](docs/GLOSSARY.md#hi32-starship-deference)), as it cuts a
        shadowed default; the git and environment segments stay built in.
-       What is left is the bench reading it. **Ticks when:** `--group bench`
-       reads a connect handed starship alone under the unconfigured payload.
+       `--group bench` reads the cached tar a connect handed starship alone
+       streams against the unconfigured one. **Ticks when:** that bench
+       passes in CI.
 
 9. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
        bash and zsh keep a `PS1`/`PROMPT` the rc set unless it is one nobody
        wrote (the shell's built-in default, or a stock rc's on the distros
        [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
-       target's prompt is hi's as before. What is left is the check on real
-       installs. **Ticks when:** a hand-written `PS1` survives hi in bash
-       and zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets
-       hi's prompt.
+       target's prompt is hi's as before. `tests/targets/home_prompt_test.sh`
+       installs hi over Debian's, Fedora's, and Arch's own `/etc/skel`, with
+       and without a `PS1` of the user's, in bash and (on Debian) zsh.
+       **Ticks when:** that suite passes in CI.
 
 10. [ ] _Before 1.0:_ **The header probes only what was asked** — the
         default `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so

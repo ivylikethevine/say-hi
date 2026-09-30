@@ -129,6 +129,18 @@ function test_profile_aliases_stay_out_of_load_functions() {
   [[ "$out" == *'mv -f '* && "$out" != *'mv -v'* ]]
 }
 
+# ...yet the `hi <target> <cmd>` line the bootloader runs after load.sh still
+# reads aliases: hi_info is one (paths.sh)
+function test_a_command_after_load_reads_aliases() {
+  local home="$_HI_WORKDIR/profilehome-alias-cmd" out
+  mkdir -p "$home"
+  printf 'shopt -s expand_aliases\n' >"$home/.profile"
+  out="$(_HI_LOAD_NO_INIT=0 HOME="$home" bash -c 'source "$1/load.sh"
+    set +euo pipefail
+    hi_info' _ "$_HI_ROOT" 2>&1)"
+  [[ "$out" == *'hi_root: '* ]] || _hi_because "hi_info said: [$out]"
+}
+
 # The tree must NOT land on $PATH: on a disposable session $_HI_ROOT is a
 # directory under /tmp, and "no /tmp on PATH" is a line item in every
 # hardening baseline an admin has to answer to. paths.sh's `alias hi=` is
@@ -851,6 +863,7 @@ function run_load_tests() {
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "A target's profile cannot move the session tree" test_profile_cannot_move_the_session_tree
   _hi_check "A target's aliases stay out of load.sh's functions" test_profile_aliases_stay_out_of_load_functions
+  _hi_check "...and a command after load.sh still reads aliases" test_a_command_after_load_reads_aliases
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
   _hi_check "...and a nested sh reads the settings' toggles" test_session_shrc_reads_the_settings_first
   _hi_check "only the set session vars are written (HI.47)" test_session_rc_setup_writes_only_the_set_vars
