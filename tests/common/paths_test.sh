@@ -19,10 +19,7 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
-  _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS _HI_DISABLE_EDITORS
-  _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS _HI_DISABLE_MICRO
-  _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
-  _HI_DISABLE_TMUX _HI_DISABLE_SCREEN _HI_DISABLE_ZELLIJ
+  _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
   _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
@@ -141,6 +138,18 @@ function test_paths_sources_cleanly_under_strict_mode() {
   '
 }
 
+# a client with the header off sends no header.sh, and every shell on that
+# target reads the missing file as the header off, whatever settings.sh says
+function test_no_header_file_turns_the_header_off() {
+  # shellcheck disable=SC2016 # the child sh expands it
+  local home="$_HI_WORKDIR/headerless" script='. "$1"; printf %s "$_HI_DISABLE_HEADER"'
+  mkdir -p "$home/say-hi/common"
+  [ "$(_HI_HOME="$home" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")" = 1 ] ||
+    _hi_because "a tree with no header.sh kept the header on" || return 1
+  [ "$(_HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")" = 0 ] ||
+    _hi_because "a whole tree turned the header off"
+}
+
 # common/aliases.sh and common/config.fish read the toggles bare, and neither
 # can use ${X:-0} because fish sources both and has no such expansion. So the
 # entry points guarantee the variables exist instead. Getting this wrong is
@@ -204,8 +213,8 @@ function test_settings_beat_the_defaults() {
 # an explicit export from the caller's environment outranks the default too,
 # which is what makes `_HI_DISABLE_PROMPT=1 bash` work as a one-off
 function test_environment_beats_the_defaults() {
-  [ "$(_HI_DISABLE_EDITORS=1 bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_EDITORS"')" = 1 ]
+  [ "$(_HI_DISABLE_GIT_STATUS=1 bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_GIT_STATUS"')" = 1 ]
 }
 
 # colors and packages each resolve to $_HI_CONFIG_DIR's copy when the user has
@@ -219,11 +228,8 @@ function test_environment_beats_the_defaults() {
 # the un-overridden direction is the default here and a real ~/.config/say-hi
 # can't decide the result.
 
-# A $HOME with nothing in it. paths.sh's middle tier for the editor rcs reads
-# $HOME/.vimrc, $HOME/.nanorc, $HOME/.emacs and friends, which test_lib.sh's
-# XDG_CONFIG_HOME throwaway does not move - so without this the developer's own
-# editor config would answer every "resolves to nothing" case below. The
-# cases that exercise the tier fill this directory themselves.
+# A $HOME with nothing in it, so nothing of the developer's answers a case
+# below.
 function _hi_bare_home() {
   local dir="$_HI_WORKDIR/bare-home"
   mkdir -p "$dir"
@@ -256,7 +262,7 @@ function test_settings_resolve_to_the_overlay() {
 function test_overlay_colors_win() {
   local dir
   dir="$(_hi_overlay_dir)"
-  printf '[hostname]\nfoo brred\n' >"$dir/colors"
+  printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ]
 }
 
@@ -266,7 +272,7 @@ function test_overlay_colors_win() {
 function test_overlay_falls_back_per_file() {
   local dir
   dir="$(_hi_overlay_dir)"
-  printf '[hostname]\nfoo brred\n' >"$dir/colors"
+  printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   rm -f "$dir/packages"
   [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ]
 }
@@ -284,16 +290,15 @@ function test_settings_point_at_the_overlay_before_it_exists() {
   [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
 }
 
-# The seven files with a path variable of their own, which each resolves
-# into (colors and packages alone have a tree default). Derived only: an
-# exported value of your own does not survive the source, so the overlay is
-# the one way to move a file.
-_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_HELIXRC _HI_NANORC _HI_EMACSRC)
+# The two files with a path variable of their own and a tree default, which
+# each resolves into. Derived only: an exported value of your own does not
+# survive the source, so the overlay is the one way to move a file.
+_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES)
 
-# the overlay basename each of the seven resolves to, in the same order
-_HI_OVERLAY_PATH_FILES=(colors packages vimrc init.lua config.toml nanorc init.el)
+# the overlay basename each resolves to, in the same order
+_HI_OVERLAY_PATH_FILES=(colors packages)
 
-# an overlay directory holding a copy of all seven, so every case below is
+# an overlay directory holding a copy of both, so every case below is
 # choosing between two real files rather than between a file and a miss
 function _hi_full_overlay_dir() {
   local dir f
@@ -304,8 +309,8 @@ function _hi_full_overlay_dir() {
 }
 
 # an exported path of the user's is re-derived over: with a full overlay it
-# resolves to the overlay's copy, with none to the tree's (empty for a file
-# with no tree default) - never to the export.
+# resolves to the overlay's copy, with none to the tree's - never to the
+# export.
 function test_an_exported_path_does_not_survive() {
   local dir i var want
   dir="$(_hi_full_overlay_dir)"
@@ -329,132 +334,13 @@ function test_an_exported_path_does_not_survive() {
   done
 }
 
-# The editor rcs take a middle tier the other two have no use for: the config
-# the editor already reads on this machine, so hi carries the file the user
-# maintains rather than a duplicate in the overlay. Three tiers, and the cases
-# below pin each boundary. GLOSSARY: HI.57
-
-# _hi_editor_home <name> <relpath...> - a fresh $HOME holding those files,
-# each one line naming itself so a resolved path can be told apart by content
-# as well as by name; prints the directory.
-function _hi_editor_home() {
-  local dir="$_HI_WORKDIR/edhome-$1" f
-  shift
-  mkdir -p "$dir/.config/vim" "$dir/.config/nvim" "$dir/.config/helix" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.config/tmux" "$dir/.config/screen" "$dir/.vim" "$dir/.emacs.d"
-  for f in "$@"; do printf '%s\n' "$f" >"$dir/$f"; done
-  printf '%s' "$dir"
-}
-
-# _hi_tier_is <var> <home> <want> [remote] - <var> out of a child shell whose
-# $HOME is <home> (no overlay unless <home>/.config/say-hi exists), against
-# <want>; a fourth argument of 1 makes it a target's shell. Names itself on a
-# failure, so four in a row stay legible.
-function _hi_tier_is() {
-  local got
-  got="$(HOME="$2" _HI_XDG_CONFIG="$2/.config" _HI_CONFIG_DIR="$2/.config/say-hi" \
-    _HI_REMOTE_SESSION="${4:-0}" bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$1")"
-  [ "$got" = "$3" ] && return 0
-  _hi_cecho " | $1 resolved to $got, wanted $3" "$RED"
-  return 1
-}
-
-# the tier itself: each editor's own config beats hi's shipped default, at the
-# location that editor actually reads
-function test_the_editors_own_config_beats_the_tree() {
-  local home
-  home="$(_hi_editor_home own .vimrc .config/nvim/init.lua .config/helix/config.toml .nanorc .emacs .tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.vimrc" &&
-    _hi_tier_is _HI_NVIMRC "$home" "$home/.config/nvim/init.lua" &&
-    _hi_tier_is _HI_HELIXRC "$home" "$home/.config/helix/config.toml" &&
-    _hi_tier_is _HI_NANORC "$home" "$home/.nanorc" &&
-    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs" &&
-    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.tmux.conf"
-}
-
-# ...and within the tier, the editor's own precedence: vim reads ~/.vimrc
-# before ~/.vim/vimrc before the XDG copy, nano ~/.nanorc and tmux ~/.tmux.conf
-# before the XDG copy, emacs ~/.emacs.el before ~/.emacs before
-# ~/.emacs.d/init.el
-function test_the_tier_keeps_each_editors_precedence() {
-  local home
-  home="$(_hi_editor_home order .vimrc .vim/vimrc .config/vim/vimrc .nanorc .config/nano/nanorc .emacs.el .emacs .emacs.d/init.el .tmux.conf .config/tmux/tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.vimrc" &&
-    _hi_tier_is _HI_NANORC "$home" "$home/.nanorc" &&
-    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.el" &&
-    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.tmux.conf" || return 1
-  rm "$home/.vimrc" "$home/.emacs.el"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.vim/vimrc" &&
-    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs"
-}
-
-# the second-choice locations answer on their own, or the roster above would
-# be three lines nothing reaches
-function test_the_tier_reads_the_second_locations() {
-  local home
-  home="$(_hi_editor_home second .config/vim/vimrc .config/nano/nanorc .emacs.d/init.el .config/tmux/tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.config/vim/vimrc" &&
-    _hi_tier_is _HI_NANORC "$home" "$home/.config/nano/nanorc" &&
-    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.d/init.el" &&
-    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.config/tmux/tmux.conf"
-}
-
-# screen reads $SCREENRC instead of ~/.screenrc when it is set, even naming no
-# file, so the tier follows the variable the same way
-function test_the_screenrc_tier_follows_SCREENRC() {
-  local home
-  home="$(_hi_editor_home screenrc .screenrc .config/screen/screenrc)"
-  _hi_tier_is _HI_SCREENRC "$home" "$home/.screenrc" &&
-    SCREENRC="$home/.config/screen/screenrc" _hi_tier_is _HI_SCREENRC "$home" "$home/.config/screen/screenrc" &&
-    SCREENRC="$home/missing" _hi_tier_is _HI_SCREENRC "$home" ""
-}
-
-# an overlay copy is the hi-specific override and still outranks it: the tier
-# is a convenience, not a demotion of the file the user put in $_HI_CONFIG_DIR
-function test_the_overlay_beats_the_editors_own_config() {
-  local home
-  home="$(_hi_editor_home beaten .vimrc .tmux.conf .config/helix/config.toml)"
-  mkdir -p "$home/.config/say-hi"
-  printf 'set number\n' >"$home/.config/say-hi/vimrc"
-  printf 'set -g mouse on\n' >"$home/.config/say-hi/tmux.conf"
-  printf 'theme = "overlay"\n' >"$home/.config/say-hi/config.toml"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.config/say-hi/vimrc" &&
-    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.config/say-hi/tmux.conf" &&
-    _hi_tier_is _HI_HELIXRC "$home" "$home/.config/say-hi/config.toml"
-}
-
-# and on a target the tier is off: $HOME there is the *target's*, whose rcs are
-# what hi's -u/--rcfile/-q -l exist to keep out of the session. The file the
-# client picked already arrived at $_HI_CONFIG_DIR and wins through the tier
-# above this one.
-function test_a_target_ignores_its_own_editor_config() {
-  local home
-  home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .config/helix/config.toml .nanorc .emacs .tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "" 1 &&
-    _hi_tier_is _HI_NVIMRC "$home" "" 1 &&
-    _hi_tier_is _HI_HELIXRC "$home" "" 1 &&
-    _hi_tier_is _HI_NANORC "$home" "" 1 &&
-    _hi_tier_is _HI_EMACSRC "$home" "" 1 &&
-    _hi_tier_is _HI_TMUX_CONF "$home" "" 1
-}
-
-# micro's directory is the overlay's micro/, else home's (none in this bare
-# $HOME), else nothing, and an inherited value does not survive
-function test_the_micro_dir_is_the_overlays_or_empty() {
-  local dir="$_HI_WORKDIR/micro-overlay"
-  mkdir -p "$dir"
-  [ -z "$(_HI_MICRO_DIR=/anywhere _hi_resolved _HI_MICRO_DIR "$dir")" ] || return 1
-  mkdir -p "$dir/micro"
-  [ "$(_hi_resolved _HI_MICRO_DIR "$dir")" = "$dir/micro" ]
-}
-
 # ...and the same through settings.sh: a line there is read before paths.sh
 # and re-derived over just the same
 function test_a_settings_path_does_not_survive() {
   local dir
   dir="$(_hi_full_overlay_dir)"
-  printf 'export _HI_VIMRC=/dotfiles/hi-vimrc\n' >"$dir/settings.sh"
-  [ "$(_hi_resolved _HI_VIMRC "$dir")" = "$dir/vimrc" ]
+  printf 'export _HI_COLORS=/dotfiles/hi-colors\n' >"$dir/settings.sh"
+  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ]
 }
 
 # with nothing exported, the overlay's copy wins over the tree's, which is the
@@ -494,16 +380,13 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
   }
 }
 
-# Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs its overlay
-# lookup in paths.sh - except settings.sh and plugins.d (the overlay is
-# plugins.d's only home, so it is an unguarded export instead) and
-# the four additive ones, which each shell or common/aliases.sh sources by
-# name from $_HI_CONFIG_DIR rather than reaching through a path var:
-# aliases.sh and the three per-shell files (bashrc, zshrc, config.fish) -
-# and the prompt frameworks' five, which only a target reads, by name, as
-# core.sh's _hi_ssh_host_tag reads ssh_tags and hi.sh's _hi_carry_load the carry - and
-# micro's, whose micro/ directory paths.sh resolves whole, and every member a
-# line of the generated wiring.sh points its tool at (GLOSSARY: HI.62). A missed lookup fails
+# Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) that no line of the
+# generated wiring.sh covers (GLOSSARY: HI.62) needs its overlay lookup in
+# paths.sh - except settings.sh, extensions/, and header/ (the overlay is
+# their only home, so each is an unguarded export instead) and the ones read by name from
+# $_HI_CONFIG_DIR rather than through a path var: aliases.sh and the three
+# per-shell files (bashrc, zshrc, config.fish), the prompt frameworks' five,
+# which only a target reads, ssh_tags, and the plugins file. A missed lookup fails
 # asymmetrically: the file works on targets but local sessions ignore the
 # overlay's copy - the same silent drift the toggle-gate pin above catches.
 # shellcheck disable=SC2016 # the child bash expands its own script
@@ -515,10 +398,10 @@ function test_overlay_guards_match_the_roster() {
   while IFS= read -r f; do
     case "$f" in
     settings.sh | aliases.sh) continue ;;
-    plugins.d | micro/* | zellij/*)
-      grep -qF "\"\$_HI_CONFIG_DIR/${f%%/*}\"" "$_HI_ROOT/common/paths.sh" && continue
+    extensions/ | header/)
+      grep -qF "\"\$_HI_CONFIG_DIR/${f%/}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
-    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags | carry) continue ;;
+    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags | plugins) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"
@@ -527,12 +410,11 @@ function test_overlay_guards_match_the_roster() {
   done <<<"$roster"
 }
 
-# paths.sh spells out hi.sh's $_HI_OVERLAY_TABLE, the one order, a line per
-# candidate - so every row naming a variable is walked down its tiers in a
-# fabricated $HOME: the overlay's copy, then each home candidate best first,
-# then the tree's default (or the overlay path itself, for the two members
-# with no other home), and the variable has to follow. On a target the home
-# tier is skipped. A directory member's variable is the directory.
+# paths.sh spells out the rows of hi.sh's $_HI_OVERLAY_TABLE that name a
+# variable, hi's own files, a line per candidate - so each is walked down its
+# tiers in a fabricated $HOME: the overlay's copy, then the tree's default
+# (or the overlay path itself, for the members with no other home), and
+# the variable has to follow.
 # GLOSSARY: HI.61
 # shellcheck disable=SC2016 # the walk is the child bash's to expand
 function test_paths_follow_the_overlay_table() {
@@ -603,6 +485,7 @@ function run_paths_tests() {
   _hi_check "The gate covers the whole toggle roster" test_gate_list_matches_the_toggle_roster
   _hi_check "config.fish's toggle mirror matches core.sh" test_fish_toggle_list_matches_core
   _hi_check "Sources cleanly under strict mode" test_paths_sources_cleanly_under_strict_mode
+  _hi_check "A tree with no header.sh has the header off" test_no_header_file_turns_the_header_off
 
   _hi_h2 "Testing: the toggles are always defined"
   _hi_check "core.sh defines every toggle" test_core_defines_every_toggle
@@ -620,15 +503,6 @@ function run_paths_tests() {
   _hi_check "Overlay settings reach the gate" test_overlay_settings_are_visible_to_the_gate
   _hi_check "Every overlay file has its paths.sh lookup" test_overlay_guards_match_the_roster
   _hi_check "paths.sh follows the overlay table, tier by tier" test_paths_follow_the_overlay_table
-
-  _hi_h2 "Testing: the editor rcs' middle tier"
-  _hi_check "The editor's own config is the one carried" test_the_editors_own_config_beats_the_tree
-  _hi_check "...keeping each editor's own precedence" test_the_tier_keeps_each_editors_precedence
-  _hi_check "The second locations answer too" test_the_tier_reads_the_second_locations
-  _hi_check "screen's follows \$SCREENRC" test_the_screenrc_tier_follows_SCREENRC
-  _hi_check "The overlay still beats it" test_the_overlay_beats_the_editors_own_config
-  _hi_check "A target ignores the box's own" test_a_target_ignores_its_own_editor_config
-  _hi_check "micro's directory is the overlay's micro/, else home's, else nothing" test_the_micro_dir_is_the_overlays_or_empty
 
   _hi_h2 "Testing: per-file overlay location overrides"
   _hi_check "The overlay's copy wins over the tree's" test_unset_still_prefers_the_overlay

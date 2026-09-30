@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# `hi --set-color`: pin a color in ~/.config/say-hi/colors; `hi --unset-color`
-# (a leading --unset) removes a pin. That file replaces the tree's wholesale
+# `hi --set-color`: pin a color in ~/.config/say-hi/colors, a TOML row under
+# its type's table; `hi --unset-color` (a leading --unset) removes a pin. That file replaces the tree's wholesale
 # (common/paths.sh), so the first write copies the tree's in and edits there.
 # add_package.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
 
@@ -35,7 +35,7 @@ function _hi_set_color_help() {
     cat <<EOF
 Usage: $usage
 
-Removes <name>'s row from the [<type>] section of ~/.config/say-hi/colors, so
+Removes <name>'s row from the [<type>] table of ~/.config/say-hi/colors, so
 it colors by whatever comes next (docs/COLORS.md). <type> is one of: $types.
 
   -n, --dry-run    say what would be written, and write nothing
@@ -48,8 +48,8 @@ EOF
   cat <<EOF
 Usage: $usage
 
-Pins <name> to <color> in the [<type>] section of ~/.config/say-hi/colors,
-replacing a pin it already has and creating the section when the file has
+Pins <name> to <color> in the [<type>] table of ~/.config/say-hi/colors,
+replacing a pin it already has and creating the table when the file has
 none. <type> is one of: $types. <color> is one of
 ${_HI_COLOR_NAMES[*]}; <rrggbb>, six hex digits,
 is the pin's own 24-bit color on a truecolor terminal. A hostname <name>
@@ -82,66 +82,52 @@ else
 fi
 type="${args[0]}" name="${args[1]}" color="${args[2]:-}" hex="${args[3]:-}"
 case " $types " in *" $type "*) ;; *) _hi_die "not a type: $type (one of $types)" ;; esac
-# one field core.sh's _hi_colors_scan reads whole: no spaces, and nothing
-# that would read as a comment or a section
-[[ "$name" =~ ^[^][#[:space:]]+$ ]] ||
-  _hi_die "not a name: $name (no spaces, # or brackets)"
+# one key core.sh's _hi_toml_row reads whole: no spaces, and nothing that
+# would read as a comment or a table, or that a quoted key would escape
+_hi_name_re='^[^]["\\#[:space:]]+$'
+[[ "$name" =~ $_hi_name_re ]] ||
+  _hi_die "not a name: $name (no spaces, quotes, # or brackets)"
 if [ "$mode" = set ]; then
   _hi_color_index ci "$color" || _hi_die "not a color: $color (one of ${_HI_COLOR_NAMES[*]})"
   hex="${hex#\#}"
   [ -z "$hex" ] || [[ "$hex" =~ ^[0-9a-fA-F]{6}$ ]] || _hi_die "not six hex digits: ${args[3]}"
 fi
 row="$name $color${hex:+ $hex}"
+key=""
+_hi_toml_key key "$name"
+toml="$key = \"$color${hex:+ $hex}\""
 
 # Read through paths.sh's cascade ($_HI_COLORS: the overlay's once it exists,
 # the tree's until then), write only the overlay's.
 read_file="$_HI_COLORS" dst="$_HI_CONFIG_DIR/colors"
-existing_lines=()
-[ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
-_hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
-match=-1 section="" first=""
+_hi_rows_read "$read_file"
+match=-1 old=""
 # shellcheck disable=SC2034 # _hi_color_index's out-var; only its status is read
 ci=""
-for ((idx = 0; idx < ${#_hi_rows[@]}; idx++)); do
-  line="${_hi_rows[idx]}"
-  case "$line" in '#'* | '' | '['*']') continue ;; esac
-  read -r first _ <<<"$line"
-  [ "$first" = "$name" ] || continue
-  _hi_section_of section "$idx"
-  [ "$section" = "$type" ] || continue
-  match=$idx
-  break
-done
+_hi_rows_index match "$name" "$type"
+[ "$match" -lt 0 ] || _hi_toml_row "${_hi_rows[match]}" _ old
 
 if [ "$mode" = unset ]; then
   if [ "$match" -lt 0 ]; then
     _hi_cecho "$read_file has no [$type] pin for $name - nothing to write" "$GREEN"
     exit 0
   fi
-  _hi_cecho " - ${_hi_rows[match]} (from [$type])" "$YELLOW"
+  _hi_cecho " - $name $old (from [$type])" "$YELLOW"
   _hi_rows=("${_hi_rows[@]:0:match}" "${_hi_rows[@]:match+1}")
 elif [ "$match" -ge 0 ]; then
   # compared field by field: the shipped file pads its name column
-  read -r _ old_color old_hex <<<"${_hi_rows[match]}"
+  read -r old_color old_hex <<<"$old"
   old_hex="${old_hex%% *}"
   old_hex="${old_hex#\#}"
   if [ "$old_color" = "$color" ] && [ "$old_hex" = "$hex" ]; then
     _hi_cecho "$read_file: $row is already in [$type] - nothing to write" "$GREEN"
     exit 0
   fi
-  _hi_cecho " ~ $row (replacing ${_hi_rows[match]} in [$type])" "$YELLOW"
-  _hi_rows[match]="$row"
+  _hi_cecho " ~ $row (replacing $name $old in [$type])" "$YELLOW"
+  _hi_rows[match]="$toml"
 else
   _hi_cecho " + $row in [$type]" "$GREEN"
-  _hi_section_add "$type" "$row"
+  _hi_section_add "$type" "$toml"
 fi
 
-what="write $dst"
-[ "$read_file" = "$dst" ] || what="copy $read_file to $dst, then change it there"
-dry_run_say "$what" && exit 0
-
-mkdir -p "$_HI_CONFIG_DIR"
-tmpfile="$(mktemp -t hi.colors.XXXXXX)"
-printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
-_hi_write_back "$tmpfile" "$dst"
-_hi_cecho "$dst updated" "$GREEN"
+_hi_rows_write "$dst" "$read_file"

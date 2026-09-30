@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Ownership of the lines hi adds to a user's shell rc files - writing them
 # (config_shell), taking them back out (strip_marker) - and the syntax checks
-# run before either. Sourced by scripts/install.sh after common/core.sh; not
-# an entry point of its own. $_HI_MARKER comes from common/paths.sh.
+# run before either. Sourced by scripts/install.sh after common/core.sh and
+# scripts/table.sh, whose pad aligns the tags; not an entry point of its own. $_HI_MARKER comes from common/paths.sh.
 #
 # These own individual lines in a permanent local rc, tagged one by one. A
 # session on a target never writes to its rc files at all - load.sh's session
@@ -14,7 +14,7 @@
 # machine and repairs stale lines if say-hi has moved. Empty arguments are
 # skipped, so a setting left at its default contributes nothing.
 function config_shell() {
-  local name="$1" target="$2" line existing desired="" tmpfile
+  local name="$1" target="$2" existing desired="" tmpfile
   shift 2
   _hi_h2 "Checking $name"
 
@@ -138,8 +138,8 @@ function rc_tagged() {
   local _hi_rt_line _hi_rt_out=""
   for _hi_rt_line in "${@:2}"; do
     [ -n "$_hi_rt_line" ] || continue
-    printf -v _hi_rt_line '%-45s %s' "$_hi_rt_line" "$_HI_MARKER"
-    _hi_rt_out+="$_hi_rt_line"$'\n'
+    _hi_pad_to _hi_rt_line 45 "$_hi_rt_line"
+    _hi_rt_out+="$_hi_rt_line $_HI_MARKER"$'\n'
   done
   printf -v "$1" '%s' "$_hi_rt_out"
 }
@@ -368,7 +368,7 @@ function rc_lines() {
 }
 
 function install_rc_lines() {
-  local row shell label target tree_rc dialect line
+  local row shell label target tree_rc dialect
   local -a lines
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
@@ -379,8 +379,7 @@ function install_rc_lines() {
       _hi_cecho " $shell is not installed here - leaving $target alone (re-run hi --install once it is)" "$BLUE"
       continue
     }
-    lines=()
-    while IFS= read -r line; do lines+=("$line"); done < <(rc_lines "$shell" "$tree_rc" "$dialect")
+    _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect")
     config_shell "$label" "$target" "${lines[@]}"
   done
   install_bash_profile_line

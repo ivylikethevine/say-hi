@@ -1,0 +1,73 @@
+# The plugins: every config of a tool's that hi carries to a target and
+# points the tool at, one row a member, in as much of TOML as hi reads: a
+# `[group]` line starts a table, and each row under it is
+# "<member>" = "<tool> | <wire> | <home> | <dialect>", on one line. The group
+# is the word that switches every row under it in $_HI_PLUGINS_OFF (editors,
+# mux, prompt, cli, shell); a row's own words are its tool's first name and
+# its member.
+#
+# <member> is the name the file rides under: a tool's own file name under its
+# directory (vim/vimrc), its own name where the tool keeps none (inputrc), a
+# directory whose files ride one by one (zellij/layouts/).
+# <tool> is the commands that read it, the name a report gives first; in
+# parentheses a name nothing looks for (a shell, readline, a prompt
+# program); - for none.
+# <wire> points the tool at the member on a target: env:<variables> exports
+# each as the member's path, envdir:<variables> as its directory,
+# flag:<command> <flag> aliases the command to itself, the flag and the path
+# (<names>=<command> to answer to other names, words holding a = before the
+# command its environment), flagdir: the same with the directory,
+# xdg:<command> aliases it with $XDG_CONFIG_HOME set to the overlay, the
+# fallback for a file no variable or flag reaches (what the command starts
+# inherits the variable); several a ; apart; - for none.
+# <home> is where the file is here, best first: paths a : apart, each
+# starting at /, ~/, or $NAME; several a , apart are one place, the first
+# whose variable is set; one ending in / a directory the member's file is
+# looked for in; - for none.
+# <dialect> is how the include scan and the comment strip read it, a row of
+# hi.sh's $_HI_DIALECTS: sh, fish, vim, lua, elisp, nano, tmux, screen,
+# readline, kak, kdl, omp, omp-json, or conf (# comments, no includes); left
+# out or -, it rides as written.
+#
+# `hi --add-plugin` adds a row to ~/.config/say-hi/plugins, which adds to
+# this file, or replaces a row of the same member; `hi --plugins` lists what
+# rides.
+
+[editors]
+"vim/vimrc" = "vim | env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u | ~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc | vim"
+"nvim/init.lua" = "nvim | env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u | $_HI_XDG_CONFIG/nvim/init.lua | lua"
+"nano/nanorc" = "nano | env:_HI_NANORC;flag:nano --rcfile | ~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc | nano"
+"emacs/init.el" = "emacs | flag:emacs -nw -q -l | ~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el | elisp"
+"helix/config.toml" = "hx helix | flag:hx -c;flag:helix -c | $_HI_XDG_CONFIG/helix/config.toml"
+"helix/languages.toml" = "hx helix | xdg:hx;xdg:helix | $_HI_XDG_CONFIG/helix/languages.toml"
+"kak/kakrc" = "kak | envdir:KAKOUNE_CONFIG_DIR | $KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc | kak"
+"kak/colors/" = "kak | - | $KAKOUNE_CONFIG_DIR/ , $XDG_CONFIG_HOME/kak/ , ~/.config/kak/ | kak"
+"micro/settings.json" = "micro | flagdir:micro -backup false -savehistory false -config-dir | $MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/"
+"micro/bindings.json" = "micro | flagdir:micro -backup false -savehistory false -config-dir | $MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/"
+"micro/init.lua" = "micro | flagdir:micro -backup false -savehistory false -config-dir | $MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/ | lua"
+
+[shell]
+"aliases.sh" = "- | - | ~/.aliases | sh"
+bashrc = "(bash) | - | - | sh"
+zshrc = "(zsh) | - | - | sh"
+"config.fish" = "(fish) | - | - | fish"
+
+[prompt]
+"starship.toml" = "(starship) | env:STARSHIP_CONFIG | $STARSHIP_CONFIG , ~/.config/starship.toml"
+"p10k.zsh" = "(powerlevel10k) | - | $POWERLEVEL9K_CONFIG_FILE , $ZDOTDIR/.p10k.zsh , ~/.p10k.zsh | sh"
+"tide.vars" = "(tide) | - | $XDG_CONFIG_HOME/fish/fish_variables , ~/.config/fish/fish_variables"
+
+[cli]
+"eza/theme.yml" = "eza | envdir:EZA_CONFIG_DIR | $EZA_CONFIG_DIR/theme.yml , $XDG_CONFIG_HOME/eza/theme.yml , ~/.config/eza/theme.yml"
+"bat/config" = "bat batcat | env:BAT_CONFIG_PATH | $BAT_CONFIG_PATH , $BAT_CONFIG_DIR/config , $XDG_CONFIG_HOME/bat/config , ~/.config/bat/config"
+ripgreprc = "rg | env:RIPGREP_CONFIG_PATH | $RIPGREP_CONFIG_PATH"
+fzfrc = "fzf | env:FZF_DEFAULT_OPTS_FILE | $FZF_DEFAULT_OPTS_FILE"
+"lazygit/config.yml" = "lazygit | env:LG_CONFIG_FILE | $LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml"
+inputrc = "(readline) | env:INPUTRC | $INPUTRC , ~/.inputrc | readline"
+
+[mux]
+"tmux/tmux.conf" = "tmux | flag:tmux -f | ~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf | tmux"
+screenrc = "screen | flag:screen -c | $SCREENRC , ~/.screenrc | screen"
+"zellij/config.kdl" = "zellij | flagdir:zellij --config-dir | $ZELLIJ_CONFIG_DIR/ , $XDG_CONFIG_HOME/zellij/ , ~/.config/zellij/ | kdl"
+"zellij/layouts/" = "zellij | flagdir:zellij --config-dir | $ZELLIJ_CONFIG_DIR/ , $XDG_CONFIG_HOME/zellij/ , ~/.config/zellij/ | kdl"
+"zellij/themes/" = "zellij | flagdir:zellij --config-dir | $ZELLIJ_CONFIG_DIR/ , $XDG_CONFIG_HOME/zellij/ , ~/.config/zellij/ | kdl"

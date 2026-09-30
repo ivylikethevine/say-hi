@@ -72,9 +72,9 @@ that runs on every host you touch. If you just want your `.bashrc` and
 
 **Where say-hi went further**, beyond the table's rows:
 
-- **Cleanup, proven for the dropped link.** `tests/targets/ssh_disconnect_test.sh`
-  freezes a live session until sshd reaps it and checks the tree is gone, not
-  only after a clean `exit`.
+- **Cleanup, proven for the dropped link.**
+  `tests/targets/ssh_disconnect_test.sh` freezes a live session until sshd reaps
+  it and checks the tree is gone, not only after a clean `exit`.
 - **A designed session, not copied files.** Header, hashed per-host colors, a
   git prompt, aliases, editor configs — degrading in defined tiers when the
   target cannot support all of it.
@@ -87,8 +87,8 @@ zsh on a host that has neither.
 **Where xxh wins outright:** that capability. say-hi cannot give you a shell
 the target lacks — its no-bash ladder (`fish > zsh > dash > ash > sh`) picks
 the best of what is installed and says so. xxh's plugins can also ship whole
-frameworks, where hi's `plugins.d` ([HI.59](GLOSSARY.md#hi59-plugins)) is
-shell lines.
+frameworks, where hi's `extensions/` ([HI.59](GLOSSARY.md#hi59-extensions))
+is shell lines.
 
 **Where say-hi wins**, beyond the table's reach and weight rows: no
 architecture or libc tie. Anything with `sh` and `base64` is in reach, and CI
@@ -116,14 +116,14 @@ you can use homeshick" — no Ruby, no Python, no root. It answers the other
 half of the problem, symlinking a cloned repo's `home/` into `$HOME` and
 keeping the two in step.
 
-So it is not a competitor and is not in the table. It is the tool for a
-machine you own and will come back to: the checkout and symlinks **stay**, and
-the next login is configured with no client involved. The failure modes are
-mirror images: homeshick on a production box you touch once leaves a
-`~/.homesick` and an edited rc file for the next person; say-hi on your own
-laptop re-sends a payload every session for what a symlink gives for free.
-The two compose — install say-hi permanently on that box
-(`scripts/install.sh`) and let homeshick manage everything else.
+So it is not a competitor and is not in the table. It is the tool for a machine
+you own and will come back to: the checkout and symlinks **stay**, and the next
+login is configured with no client involved. The failure modes are mirror
+images: homeshick on a production box you touch once leaves a `~/.homesick` and
+an edited rc file for the next person; say-hi on your own laptop re-sends a
+payload every session for what a symlink gives for free. The two compose —
+install say-hi permanently on that box (`scripts/install.sh`) and let homeshick
+manage everything else.
 
 ## Adjacent tools, and how they compose
 

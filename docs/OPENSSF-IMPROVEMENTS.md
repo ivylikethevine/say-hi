@@ -6,7 +6,7 @@ Best Practices questionnaire answer sheet to enter at
 Work already shipped for either badge is not repeated here; git history is
 the ledger, and [SECURITY.md#assurance-case](SECURITY.md#assurance-case) is
 the security half. The account-side steps still open are in
-[README's Roadmap](../README.md#post-10).
+[README's Roadmap](../README.md#roadmap).
 
 ## Contents
 
@@ -46,10 +46,10 @@ short, and whether each is fixable here:
   ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)),
   but Scorecard's dependency extraction reads every `$/...` reference as an
   unpinned third-party action, so `.github/zizmor.yml` disables zizmor's
-  `self-repository` audit and the workflows keep `./`. Every third-party
-  action is SHA-pinned (re-count with
-  `grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`). The `tests/dockerfiles/`
-  findings are annotated `test-data`
+  `self-repository` audit and the workflows keep `./`. Every third-party action
+  is SHA-pinned (re-count with
+  `grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`). The
+  `tests/dockerfiles/` findings are annotated `test-data`
   ([TESTING.md](TESTING.md#what-is-pinned-and-what-deliberately-is-not)).
 - **Branch-Protection sits at 8, by choice.** The next tier up requires
   "include administrators", which would take away the maintainer's ability to

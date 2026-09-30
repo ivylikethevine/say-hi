@@ -27,7 +27,8 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # as a directive and fails the very lint that suite runs.)
 #
 # Two kinds of entry. common/zsh.zsh, common/_hi (zsh's completion function,
-# autoloaded off $fpath) and common/config.fish are not shell the
+# autoloaded off $fpath), common/config.fish, and the zsh and fish prompt
+# loaders (common/fw_*) are not shell the
 # linter can parse at all, so their own shell's syntax checker (`zsh -n` /
 # `fish --no-execute`, the same two scripts/install.sh runs against the user's
 # rc files) is the only thing checking them.
@@ -41,7 +42,10 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_NATIVE_LINT=(
   "common/zsh.zsh:zsh:-n"
   "common/_hi:zsh:-n"
+  "common/fw_powerlevel10k.zsh:zsh:-n"
+  "common/fw_oh-my-zsh.zsh:zsh:-n"
   "common/config.fish:fish:--no-execute"
+  "common/fw_tide.fish:fish:--no-execute"
   "common/aliases.sh:fish:--no-execute"
   "common/paths.sh:fish:--no-execute"
   "common/aliases.sh:zsh:-n"

@@ -48,13 +48,22 @@ export _HI_REMOTE_SESSION=1
 # guard as an env var, since this file is only ever sourced.
 [ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_restore_profile
 
+# The profile chain ran in an interactive bash, and bash expands aliases when
+# it parses a function: a target's `alias mv='mv -v'` would chatter from every
+# function below. Back on at the end of the file, for the `hi <target> <cmd>`
+# line the bootloader runs after it (hi_info is an alias).
+_hi_load_aliases=0
+! shopt -q expand_aliases || _hi_load_aliases=1
+shopt -u expand_aliases
+
 set -euo pipefail
 
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=./common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
+# with the header off, the client sent no header.sh
 # shellcheck source=./common/header.sh
-source "$_HI_HEADER"
+[[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || source "$_HI_HEADER"
 
 # The bootloader shell: `hi <target> <cmd>` runs <cmd> here and load() starts
 # the session shell from here, so what is exported now is what both inherit.
@@ -266,11 +275,12 @@ function _hi_session_shell_cmd() {
 # _hi_session_editor [name...] - the editor a session exports, with hi's
 # config flags: the first installed here of $_HI_EDITOR, the names given (the
 # client's own $EDITOR and $VISUAL), and the ladder. The flags
-# are read off the alias common/aliases.sh builds (sourced here, in the
-# caller's $( ) subshell, so nothing leaks into load()) - one spelling of each
-# editor's invocation, so _HI_MICRO_OPTS or an overlay's own `alias vim=...`
-# reaches $EDITOR the way it reaches the alias. An editor with no alias (micro
-# under _HI_DISABLE_MICRO, say) goes bare, hence the ${body:-$e} tail.
+# are read off the alias wiring.sh gave it, or the overlay's aliases.sh
+# (sourced here, in the caller's $( ) subshell, so nothing leaks into load())
+# - one spelling of each editor's invocation, so an overlay's own
+# `alias vim=...` reaches $EDITOR the way it reaches the alias. An editor
+# with no alias (one whose config stayed home) goes bare, hence the
+# ${body:-$e} tail.
 function _hi_session_editor() {
   local e body
   # shellcheck source=./common/aliases.sh
@@ -296,19 +306,64 @@ function _hi_line_close() {
   return 0
 }
 
+# _hi_nano_glob <pattern> - adds the files <pattern> matches here to the
+# caller's _hi_files; false when it matches none
+function _hi_nano_glob() {
+  local f n="${#_hi_files[@]}"
+  # shellcheck disable=SC2086 # the glob is the point; the path holds no space
+  for f in $1; do [[ -f "$f" ]] && _hi_files+=("$f"); done
+  [[ "${#_hi_files[@]}" -gt "$n" ]]
+}
+
 # _hi_nano_fallback - a syntax include outside /usr/share/nano was dropped on
 # the client (its comment survives the strip for this), so the carried
-# nanorc highlights nothing: include the target's own set where it has one.
-# Rewritten each session rather than appended once, since the copy rides on
-# to a next hop whose target may have no /usr/share/nano. Only a nanorc
-# inside the disposable tree is touched.
+# nanorc highlights nothing. Under each such comment goes its include again
+# where an absolute path matches files here, else, under the first, the
+# target's stock set. nano resolves an `extendsyntax` as it reads it, so
+# placement matters, and so does the name: each takes the spelling of a
+# syntax those files define, compared without case (nano-syntax-highlighting
+# spells `GO` what the stock set spells `go`), and one naming no syntax here
+# is dropped. Rewritten each session from the comments, since the copy rides
+# on to a next hop's target. Only a nanorc inside the disposable tree is
+# touched.
 function _hi_nano_fallback() {
-  local rc="${_HI_NANORC:-}" line='include "/usr/share/nano/*.nanorc"'
+  local rc="${_HI_NANORC:-}" tag='# hi dropped: ' fb='include "/usr/share/nano/*.nanorc"'
+  local l r p f adds="" own=$'\n' hit=""
+  local -a _hi_files=()
   [[ -n "${_HI_CLEANUP:-}" && "$rc" == "$_HI_CLEANUP"/* && -f "$rc" ]] || return 0
   grep -q '^# hi dropped: include .*\.nanorc' "$rc" || return 0
-  grep -vxF "$line" "$rc" >"$rc.hi"
-  set -- /usr/share/nano/*.nanorc
-  [[ -f "$1" ]] && printf '%s\n' "$line" >>"$rc.hi"
+  while IFS= read -r l || [[ -n "$l" ]]; do
+    r="${l#"$tag"}"
+    p="${r#"${r%%[![:space:]]*}"}"
+    case "$p" in include[[:space:]]*) ;; *) continue ;; esac
+    f="${p#include}"
+    f="${f#"${f%%[![:space:]]*}"}"
+    f="${f#[\"\']}"
+    f="${f%%[\"\'[:space:]]*}"
+    if [[ "$l" != "$r" ]]; then
+      own="$own$r"$'\n'
+      [[ "$f" == /* ]] && _hi_nano_glob "$f" && hit=1 && adds="$adds$r"
+      adds="$adds"$'\n'
+    elif [[ "$l" != "$fb" && "$own" != *$'\n'"$l"$'\n'* ]]; then
+      [[ "$f" == \~/* ]] && f="$HOME/${f#??}"
+      _hi_nano_glob "$f"
+    fi
+  done <"$rc"
+  [[ -z "$hit" ]] && _hi_nano_glob '/usr/share/nano/*.nanorc' && adds="$fb$adds"
+  HI_NANO_RC="$rc" HI_NANO_ADDS="$adds" HI_NANO_FB="$fb" awk '
+function syn(s) { gsub(/"/, "", s); have[s] = 1; if (!(tolower(s) in low)) low[tolower(s)] = s }
+BEGIN { split(ENVIRON["HI_NANO_ADDS"], add, "\n"); fb = ENVIRON["HI_NANO_FB"] }
+FILENAME != ENVIRON["HI_NANO_RC"] { if ($1 == "syntax") syn($2); next }
+/^# hi dropped: extendsyntax / { $0 = substr($0, 15) }
+/^# hi dropped: include / { print; own[substr($0, 15)] = 1; if (add[++m] != "") print add[m]; next }
+$0 == fb || ($0 in own) { next }
+$1 == "syntax" { syn($2) }
+$1 == "extendsyntax" && !($2 in have) {
+  if (!(tolower($2) in low)) { print "# hi dropped: " $0; next }
+  match($0, /extendsyntax[ \t]+[^ \t]+/)
+  $0 = substr($0, 1, RSTART - 1) "extendsyntax " low[tolower($2)] substr($0, RSTART + RLENGTH)
+}
+{ print }' ${_hi_files[@]+"${_hi_files[@]}"} "$rc" >"$rc.hi"
   mv -f "$rc.hi" "$rc"
 }
 
@@ -326,20 +381,23 @@ function load() {
   # widen $_HI_CONNECT_PREFIX or the banner's fill come out wrong.
   total="$(_hi_sum "${_HI_CONNECT_TIME:-0}" "${_HI_COPY_TIME:-0}")"
   _hi_cecho " | ${total}s" "$NC" 1
-  hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
+  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
-  if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
+  # with the editors off (the settings.sh that rode says so) nothing of
+  # theirs rode, and $EDITOR stays the target's own
+  local off=" ${_HI_PLUGINS_OFF:-} "
+  if [[ "${off//,/ }" != *" editors "* ]]; then
     _hi_nano_fallback
-    # vim only: VIMINIT breaks a target that has just vi. Under the toggle,
-    # since VIMINIT *is* the override it turns off, and only with the rc here
-    # (a client without the editor sends none). nvim reads $VIMINIT too and `:source`
+    # vim only: VIMINIT breaks a target that has just vi. Only with the rc
+    # here: a client without the editor, or with vim switched off, sends none
+    # and wiring.sh names none. nvim reads $VIMINIT too and `:source`
     # runs a .lua file as lua, so a box with nvim and no vim gets init.lua
     # here; a command-line `-u` beats $VIMINIT, so the aliases decide on a box
     # that has both, and this is only for the vim nothing else invokes.
     local vimrc=""
-    [[ -f "$_HI_VIMRC" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
-    [[ -z "$vimrc" && -f "$_HI_NVIMRC" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
-    [[ "${_HI_DISABLE_VIM:-0}" != 1 && -n "$vimrc" ]] &&
+    [[ -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
+    [[ -z "$vimrc" && -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
+    [[ -n "$vimrc" ]] &&
       export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
     # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
     # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e` on
@@ -412,7 +470,11 @@ function load() {
   # "load:" line above timed
   dur="$(_hi_human_duration "$(_hi_elapsed "$start" "$(_hi_now)")")"
   _hi_cecho " $size | session: $dur" "$NC" 1
-  hi_footer Disconnected "$BRRED" " $size | session: $dur"
+  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_footer Disconnected "$BRRED" " $size | session: $dur"
   _hi_line_close
   exit "$shell_ec"
 }
+
+# every function above is parsed; the command line after this file is not
+[ "$_hi_load_aliases" = 0 ] || shopt -s expand_aliases
+unset _hi_load_aliases

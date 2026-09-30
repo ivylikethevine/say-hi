@@ -177,23 +177,22 @@ function header_row() {
   ((_HI_ROW_CARRY_ARMED)) || _hi_header_flush
 }
 
-# The header's version cell is a glance value, not a lookup key. A tag exactly
-# on HEAD (a release, or a plain $_HI_RELEASE/snapshot stamp) is shown as-is,
-# capped at 10 columns. Anything else - commits ahead of the last tag, or no
-# reachable tag at all - is not a release, so the tag is dropped rather than
-# implied: just a 6-column commit hash, `-dirty` included in neither case.
+# The header's version cell is a glance value, not a lookup key, capped at 10
+# columns with `-dirty` dropped: a tag or stamp as-is, a checkout past a tag
+# as <tag>+N (_hi_git_version's form), a bare hash cut to 6. A <tag>+N too
+# long for the cap keeps the tag and a bare `+` rather than a cut-off count.
 # Never `hi --version`'s own answer (hi.sh's _hi_version calls
 # _hi_release_or_describe directly) - this is a display-only shortening of the
 # header's copy. [outvar]: GLOSSARY: HI.05.
 function _hi_shorten_describe() {
   local _hi_sd_v="${1%-dirty}"
-  local re_g='^.*-[0-9]+-g([0-9a-f]{4,})$' re_bare='^([0-9a-f]{4,})$'
-  if [[ "$_hi_sd_v" =~ $re_g ]] || [[ "$_hi_sd_v" =~ $re_bare ]]; then
-    _hi_sd_v="${BASH_REMATCH[1]}"
-    _hi_out "${2:-}" "${_hi_sd_v:0:6}"
-  else
-    _hi_out "${2:-}" "${_hi_sd_v:0:10}"
+  if ((${#_hi_sd_v} > 6)) && [[ "$_hi_sd_v" != *[!0-9a-f]* ]]; then
+    _hi_sd_v="${_hi_sd_v:0:6}"
+  elif ((${#_hi_sd_v} > 10)) && [[ "$_hi_sd_v" == *+* ]]; then
+    _hi_sd_v="${_hi_sd_v%+*}"
+    _hi_sd_v="${_hi_sd_v:0:9}+"
   fi
+  _hi_out "${2:-}" "${_hi_sd_v:0:10}"
 }
 
 # hi's version for the header, resolved once per shell (the row prints twice
@@ -632,14 +631,15 @@ function _hi_probe_done() {
 # _hi_slow_out; hi_header starts the ones its order needs up front, so they
 # run side by side in the shadow of the rows before them.
 function _hi_slow() {
+  # always in a subshell (below), so a lone command can replace it
   case "$1" in
-  status) git -C "$_HI_ROOT" --no-optional-locks status --porcelain=v2 --branch ;;
+  status) exec git -C "$_HI_ROOT" --no-optional-locks status --porcelain=v2 --branch ;;
   describe) _hi_release_or_describe ;;
-  email) git config --get user.email ;;
-  uname) uname -sm ;;
-  nproc) nproc ;;
+  email) exec git config --get user.email ;;
+  uname) exec uname -sm ;;
+  nproc) exec nproc ;;
   ips) _hi_ip_list ;;
-  pubs) find "$_HI_SSH_DIR" -type f -name "*.pub" ;;
+  pubs) exec find "$_HI_SSH_DIR" -type f -name "*.pub" ;;
   esac
 }
 
@@ -862,19 +862,50 @@ function banner() {
 # without parsing the dispatch.
 _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
 
+# The header/ overlay member's cells (GLOSSARY: HI.58, HI.48): a file each,
+# its word the name up to the first `.`, defining _hi_cell_<word> the way the
+# built-ins below do. Sourced in name order on the header's first word, not
+# with this file, so a caller that never draws one runs none of them; a
+# file whose function did not come out of it adds no word. A word already
+# the default's replaces that built-in. $_HI_HEADER_WORDS is the words that
+# loaded, space-bounded, and set once this has run.
+function _hi_header_cells_load() {
+  local _hi_hc_f _hi_hc_w
+  _HI_HEADER_WORDS=" "
+  [ -d "${_HI_HEADER_CELLS:-}" ] || return 0
+  for _hi_hc_f in "$_HI_HEADER_CELLS"/*; do
+    _hi_hc_w="${_hi_hc_f##*/}"
+    { [ -f "$_hi_hc_f" ] && _hi_dir_member_ok "$_hi_hc_w"; } || continue
+    _hi_hc_w="${_hi_hc_w%%.*}"
+    # shellcheck source=/dev/null
+    source "$_hi_hc_f" || true
+    declare -F "_hi_cell_$_hi_hc_w" >/dev/null || continue
+    case " $_HI_HEADER_ORDER_DEFAULT$_HI_HEADER_WORDS" in *" $_hi_hc_w "*) ;; *) _HI_HEADER_WORDS="$_HI_HEADER_WORDS$_hi_hc_w " ;; esac
+  done
+}
+
+# _hi_header_vocab <outvar> - every word $_HI_HEADER_ORDER may name: the
+# default's, then header/'s
+function _hi_header_vocab() {
+  [ -n "${_HI_HEADER_WORDS:-}" ] || _hi_header_cells_load
+  printf -v "$1" '%s' "$_HI_HEADER_ORDER_DEFAULT${_HI_HEADER_WORDS% }"
+}
+
 # <var> gets $1's cell text if $1 names a getter, empty otherwise -
 # _hi_collect_header_word's own dispatch, split out so a direct caller (a
 # suite) can ask "what would this word render as" without going through the
 # accumulate/flush machinery below.
 function _hi_header_word_cell() {
+  local _hi_hw_v
   printf -v "$2" '%s' ""
   # Each word's getter is named _hi_cell_<word>, so the convention *is* the
   # mapping. The roster
   # gate is what keeps it safe: $_HI_HEADER_ORDER is the user's own string, so
-  # only a word the shipped default names may reach a function here. `check`
-  # is in that roster and has no getter - it is full_check's own row - hence
-  # the declare -F.
-  case " $_HI_HEADER_ORDER_DEFAULT " in
+  # only a word the shipped default or a loaded header/ file names may reach
+  # a function here. `check` is in that roster and has no getter - it is
+  # full_check's own row - hence the declare -F.
+  _hi_header_vocab _hi_hw_v
+  case " $_hi_hw_v " in
   *" $1 "*) declare -F "_hi_cell_$1" >/dev/null && "_hi_cell_$1" "$2" ;;
   esac
   return 0
@@ -896,6 +927,9 @@ _HI_HEADER_ALTS="utc:BRCYAN version:BRCYAN localtime:BRRED os:BRPURPLE\
  containers:BRYELLOW jobs:BRYELLOW pods:BRCYAN auth:BRYELLOW pub:BRRED\
  uptime:BRGREEN"
 
+# _hi_header_word_alt <word> <outvar> [hue] - a word with no row (one of
+# header/'s) takes the next hue round the ring from its own <hue>, bright, so
+# the property above holds for it too
 function _hi_header_word_alt() {
   local _hi_wa
   printf -v "$2" '%s' ""
@@ -908,7 +942,12 @@ function _hi_header_word_alt() {
     printf -v "$2" '%s' "${!_hi_wa}"
     return 0
   done
-  return 0
+  case "${3:-}" in
+  1) _hi_wa=BRGREEN ;; 2) _hi_wa=BRYELLOW ;; 3) _hi_wa=BRBLUE ;;
+  4) _hi_wa=BRPURPLE ;; 5) _hi_wa=BRCYAN ;; 6) _hi_wa=BRRED ;;
+  *) return 0 ;;
+  esac
+  printf -v "$2" '%s' "${!_hi_wa}"
 }
 
 # One $_HI_HEADER_ORDER word: "check" flushes whatever cells are pending as
@@ -945,7 +984,7 @@ function _hi_collect_header_word() {
     # $hue only got set above by matching this exact escape prefix, so it's
     # already known to be there and to end in the first "m" in the string -
     # no need to re-derive it with a second regex.
-    _hi_header_word_alt "$1" alt
+    _hi_header_word_alt "$1" alt "$hue"
     cell="$alt${cell#*m}"
     _hi_cell_hue hue "$cell"
   fi
@@ -1176,16 +1215,13 @@ function _hi_group_on() {
   return 1
 }
 
-# _hi_package_groups <outvar> - the `[group]` names $_HI_PACKAGES holds, in
-# file order, space-separated
+# _hi_package_groups <outvar> - the groups $_HI_PACKAGES holds, in file
+# order, space-separated, each once
 function _hi_package_groups() {
-  local _hi_pg_l _hi_pg_all=""
+  local _hi_pg_l _hi_pg_g _hi_pg_m _hi_pg_all=""
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r _hi_pg_l; do
-    case "$_hi_pg_l" in *'#'*) ;; '['*']')
-      _hi_pg_l="${_hi_pg_l#\[}"
-      _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }${_hi_pg_l%\]}"
-      ;;
-    esac
+    _hi_package_table "$_hi_pg_l" _hi_pg_g _hi_pg_m && [ -n "$_hi_pg_g" ] || continue
+    case " $_hi_pg_all " in *" $_hi_pg_g "*) ;; *) _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }$_hi_pg_g" ;; esac
   done <"$_HI_PACKAGES"
   printf -v "$1" '%s' "$_hi_pg_all"
 }
@@ -1205,7 +1241,7 @@ function _hi_check_close() {
 # that are off.
 function full_check() {
   local width_item count=0 max cell vislen piece i pkg_start close=1 line rank rec us=$'\x1f'
-  local on=1 tier=1
+  local on=1 tier=1 group mark="" name alts
   _hi_draw_width max
   # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
   # not _hi_row_line's two, since every piece below already carries its own
@@ -1236,20 +1272,15 @@ function full_check() {
   # $_HI_PACKAGES_PALETTE after header.sh loaded
   _hi_packages_palette
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r line; do
-    case "$line" in
-    '' | *'#'*) continue ;;
-    '['*']')
-      line="${line#\[}"
-      line="${line%\]}"
+    if _hi_package_table "$line" group mark; then
       on=0
-      _hi_group_on "$line" && on=1
-      _hi_group_tier tier "$line"
+      [ -n "$group" ] && ! _hi_group_on "$group" || on=1
+      _hi_group_tier tier "$group"
       continue
-      ;;
-    esac
-    # a group that is off is skipped before probing: each row is a PATH walk
-    # per alternative
-    ((on)) && check_line visible "$line" "$tier"
+    fi
+    # a group that is off is skipped before its rows are read: each is a
+    # PATH walk per alternative
+    ((on)) && _hi_toml_row "$line" name alts && check_line visible "$mark$name${alts:+,$alts}" "$tier"
   done <"$_HI_PACKAGES"
   # highest rank first, file order within one: a pass per rank, not a fork
   for ((rank = 4; rank >= 0; rank--)); do

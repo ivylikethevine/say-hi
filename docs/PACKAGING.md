@@ -71,12 +71,13 @@ apk add ./say-hi_*_noarch.apk   # the version you downloaded
 
 ### Homebrew tap
 
-The tap is [ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap):
-a plain repo with a `Formula/` directory, so `brew install
-ivylikethevine/tap/say-hi` works with no review and no approval on Homebrew's
-side. Then run `hi --install` once, as for any package. The formula declares
-no dependencies: `ssh` and `base64` ship with macOS and any Linux that would
-install this.
+The tap is
+[ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap): a
+plain repo with a `Formula/` directory, so
+`brew install ivylikethevine/tap/say-hi` works with no review and no approval on
+Homebrew's side. Then run `hi --install` once, as for any package. The formula
+declares no dependencies: `ssh` and `base64` ship with macOS and any Linux that
+would install this.
 
 Each release (not a candidate) opens a PR against the tap with the new
 formula, checked by the tap's own CI before it is merged, so the tap can trail
@@ -106,8 +107,9 @@ ubi --project ivylikethevine/say-hi --exe hi.sh
 mise use "ubi:ivylikethevine/say-hi[exe=hi.sh]"
 ```
 
-`tests/packaging/packaging_ci_test.sh`'s `test_src_tarball_ships_an_executable_hi_sh`
-holds the tree's half: `hi.sh` at the tarball root, executable bit intact.
+`tests/packaging/packaging_ci_test.sh`'s
+`test_src_tarball_ships_an_executable_hi_sh` holds the tree's half: `hi.sh` at
+the tarball root, executable bit intact.
 
 ## Verifying a release download
 

@@ -99,11 +99,11 @@ arrives through a workflow, and a docs change is what `lint suites`
 the README-badge half of `hot-path benchmarks` read. `dependency review` diffs
 a PR's base against its head, so it runs on pull requests only.
 
-None of it runs twice on the same code: a push to `main` whose tree a
-same-repo PR's green run already tested finds that run's `ci-tree-<tree>`
-marker and skips every job, and `detect changes` puts the run's badge
-artifacts and platform checks on the merged commit. `coverage.yml` reuses the PR's
-figures the same way.
+None of it runs twice on the same code: a push to `main` whose tree a same-repo
+PR's green run already tested finds that run's `ci-tree-<tree>` marker and skips
+every job, and `detect changes` puts the run's badge artifacts and platform
+checks on the merged commit. `coverage.yml` reuses the PR's figures the same
+way.
 
 "Gate" means the job fails loudly rather than reporting and continuing — not,
 on its own, that it blocks the merge button. `main`'s ruleset requires six
@@ -146,11 +146,10 @@ These are constraints the tree enforces, not requests:
   odd construct that forces is explained once in [GLOSSARY.md](GLOSSARY.md),
   and code points at it with a `GLOSSARY: HI.NN` tag — drift-checked, so an
   entry can't be deleted out from under them.
-- **A command is spelled the way every target runs it** —
-  [SYNTAX.md](SYNTAX.md) lists each spelling that has cost a CI round trip
-  (`sed -E`, not `sed -r` or `sed -i`; `printf`, not `echo -e`; no `grep -q`
-  on a pipe under `pipefail`), and `drift` fails the build on the ones a
-  pattern can see.
+- **A command is spelled the way every target runs it** — [SYNTAX.md](SYNTAX.md)
+  lists each spelling that has cost a CI round trip (`sed -E`, not `sed -r` or
+  `sed -i`; `printf`, not `echo -e`; no `grep -q` on a pipe under `pipefail`),
+  and `drift` fails the build on the ones a pattern can see.
 - **Several files are a smaller dialect than bash, and say so at the top.**
   `common/paths.sh` is the four-shell plain-`export` subset,
   `common/aliases.sh` what bash, zsh, and fish all parse, and
@@ -169,15 +168,14 @@ These are constraints the tree enforces, not requests:
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
   which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 - **Every workflow job starts with `step-security/harden-runner`**
-  (`egress-policy: block` with an allowlist taken from a real run's audit log
-  on every Ubuntu job; `audit` only where there is no block mode - macOS and
+  (`egress-policy: block` with an allowlist taken from a real run's audit log on
+  every Ubuntu job; `audit` only where there is no block mode - macOS and
   Windows - and on `link-check.yml`, whose job is reaching any URL; a Linux
-  arm64 job goes without, having no agent) and
-  sets `timeout-minutes`. Beside it: third-party actions pinned to a full SHA
-  with a `# vX.Y.Z` comment, every checkout with `persist-credentials: false`,
-  least-privilege `permissions:`, and untrusted input passed through `env:`
-  rather than an inline expression in a `run:`. The `packaging_ci` suite
-  and `workflow lint` enforce them.
+  arm64 job goes without, having no agent) and sets `timeout-minutes`. Beside
+  it: third-party actions pinned to a full SHA with a `# vX.Y.Z` comment, every
+  checkout with `persist-credentials: false`, least-privilege `permissions:`,
+  and untrusted input passed through `env:` rather than an inline expression in
+  a `run:`. The `packaging_ci` suite and `workflow lint` enforce them.
 
 ## What 1.x will not break
 
@@ -192,18 +190,15 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   argument is a word (`--use`, `--preview`, `--update`), refused on the rest;
   every `--word` is hi's (an unknown one is hi's error); and everything after
   the target is the remote command.
-- **The sub-command switches** — `--doctor --json` and
-  `--doctor --problems`, `--install`'s
-  `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`, and
-  `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
+- **The sub-command switches** — `--doctor --json` and `--doctor --problems`,
+  `--install`'s `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`,
+  and `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
-  `--update --dry-run`, `--add-package --dry-run`,
-  `--remove-package --dry-run`, `--add-tag --dry-run`,
-  `--set-color --dry-run`, `--unset-color --dry-run`,
-  `--plugin-off --dry-run`, `--plugin-on --dry-run`,
-  `--add-plugin --dry-run`, `--remove-plugin --dry-run`,
-  `scripts/install.sh --prefix <dir>` — name and meaning
-  (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
+  `--update --dry-run`, `--add-package --dry-run`, `--remove-package --dry-run`,
+  `--add-tag --dry-run`, `--set-color --dry-run`, `--unset-color --dry-run`,
+  `--plugin-off --dry-run`, `--plugin-on --dry-run`, `--add-plugin --dry-run`,
+  `--remove-plugin --dry-run`, `scripts/install.sh --prefix <dir>` — name and
+  meaning (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
   `--install --yes`; no other switch has one); and the `--json` document's
   top-level keys (`version`, `target`, `findings`, `rows`) with each row's four
   fields.
@@ -219,24 +214,24 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   opt-in (`_HI_TOOL_ALIASES`'s shape) stays out of `_HI_TOGGLES`: it takes
   its `0` from `common/aliases.sh`'s backstop line, every reader compares it
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
-- **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
-  `packages`, `plugins.d/` and its hook names, `carry` and its four
-  columns,
-  `vimrc`, `init.lua`, `config.toml`, `kakrc`, `nanorc`, `init.el`, `tmux.conf`,
-  `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,
-  `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
-  `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,
-  `starship.toml`, `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`,
-  `bash-it.theme.bash`, `tide.vars`, `theme.yml`, `bat.conf`, `ripgreprc`,
-  `fzfrc`, `lazygit.yml`, `inputrc`, and
-  `ssh_tags`), their
-  formats, the XDG path, and the
-  `_HI_CONFIG_DIR` override. The rule behind the names: a member is called
-  what its tool calls the file where the tool has a fixed name, and carries
-  the tool's name and extension where it has none.
-- **The installed layout** — `$_HI_HOME/say-hi` and
-  `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,
-  and `_HI_RELEASE` as the version stamp `packaging/stamp.sh` fills.
+- **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
+  `extensions/` and its hook names, `header/` and its `_hi_cell_<word>`
+  functions, `plugins` and its columns, `vim/vimrc`,
+  `nvim/init.lua`, `helix/config.toml`/`languages.toml`, `kak/kakrc`/`colors/`,
+  `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`, `screenrc`, `micro/`'s
+  `settings.json`/`bindings.json`/`init.lua`, `zellij/`'s
+  `config.kdl`/`layouts/`/`themes/`, `aliases.sh`, `bashrc`, `zshrc`,
+  `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`, `starship.toml`, `p10k.zsh`,
+  `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
+  `tide.vars`, `eza/theme.yml`, `bat/config`, `ripgreprc`, `fzfrc`,
+  `lazygit/config.yml`, `inputrc`, and `ssh_tags`), their formats, the XDG path,
+  and the `_HI_CONFIG_DIR` override. The rule behind the names: a member is
+  called what its tool calls the file, under a directory of the tool's name
+  where the tool keeps one in `~/.config`; where the tool has no fixed name the
+  member carries the tool's name and extension.
+- **The installed layout** — `$_HI_HOME/say-hi` and `/etc/profile.d/say-hi.sh`
+  for packages, the rc lines `install.sh` writes, and `_HI_RELEASE` as the
+  version stamp `packaging/stamp.sh` fills.
 - **Target behaviour** — nothing hi writes outside the session directory,
   and the directory removed on any exit
   ([SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)).
@@ -255,7 +250,7 @@ does not ship.
 | you changed                                            | update                                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | a flag, or `_hi_parse`                                 | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
-| an environment variable or toggle                      | `docs/SETTINGS.md` (enforced)                                            |
+| an environment variable or toggle                      | a row of `scripts/settings`, which writes `docs/SETTINGS.md`'s table     |
 | what hi leaves on a target                             | `docs/SECURITY.md`                                                       |
 | a target hi does or doesn't answer to                  | `docs/COMPATIBILITY.md`                                                  |
 | a tool hi wires in, or its hook                        | `docs/INTEGRATIONS.md`                                                   |
@@ -266,18 +261,19 @@ does not ship.
 | a release channel or the release flow                  | `docs/RELEASING.md`                                                      |
 | the harness or the lint gate                           | `docs/TESTING.md`                                                        |
 | a new document under `docs/`                           | `docs/README.md`'s index                                                 |
-| a heading in a doc with a `Contents`                   | that doc's `Contents` list (enforced)                                    |
 
 "Enforced" is the lint suite, alongside a `docs/tldr.md` example whose flag is
 not a `common/flags` row, or a ninth example; the rest are on your honour and
 on review.
 
 Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
-`.github/node_modules/.bin/prettier --write <files>` by hand) and linted with
-markdownlint (`.markdownlint.yaml`); the two agree by construction. A link from
-a page the site builds into a path the site leaves out (a dot-path such as
-`.github/`, or anything `_config.yml` excludes) is an absolute github.com URL,
-or it 404s on Pages; the lint group checks that too.
+`.github/node_modules/.bin/prettier --write --plugin ./.github/prettier-plugin-docs.mjs <files>`
+by hand, which also writes each doc's `## Contents` list from its headings, so a
+new heading needs no list edit) and linted with markdownlint
+(`.markdownlint.yaml`); the two agree by construction. A link from a page the
+site builds into a path the site leaves out (a dot-path such as `.github/`, or
+anything `_config.yml` excludes) is an absolute github.com URL, or it 404s on
+Pages; the lint group checks that too.
 
 [README's Roadmap](../README.md#roadmap) is a to-do list, not a changelog:
 finishing an entry means **deleting** it. What a _user_ reads is the pull

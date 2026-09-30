@@ -161,7 +161,7 @@ function test_strip_settings_removes_what_install_wrote() {
 # colors and packages are the user's own writing, not something install.sh
 # produced - uninstall leaves them for the same reason it leaves the checkout
 function _hi_strip_beside_colors() {
-  printf '[hostname]\nfoo brred\n' >"$_HI_CONFIG_DIR/colors"
+  printf '[hostname]\nfoo = "brred"\n' >"$_HI_CONFIG_DIR/colors"
   ensure_settings_shebang
   strip_settings
 }
@@ -334,7 +334,7 @@ function test_install_copies_no_default_into_the_overlay() {
   local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0 f
   out="$(_hi_run_install_here ovl-mode --link none --yes 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Installed!"* ]] || return 1
-  for f in colors packages vimrc init.lua nanorc init.el; do
+  for f in colors packages vim nvim nano emacs; do
     [ ! -e "$ovl/$f" ] || {
       _hi_cecho " | $f was copied into the overlay" "$RED"
       return 1
@@ -356,7 +356,7 @@ function test_uninstall_mode_is_safe_on_a_fresh_home() {
 function test_uninstall_purge_removes_the_overlay() {
   local home="$_HI_WORKDIR/un-purge" out rc=0
   mkdir -p "$home/.config/say-hi"
-  printf '[hostname]\nmine red\n' >"$home/.config/say-hi/colors"
+  printf '[hostname]\nmine = "red"\n' >"$home/.config/say-hi/colors"
   out="$(_hi_run_install un-purge --uninstall 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [ -f "$home/.config/say-hi/colors" ] || return 1
   out="$(_hi_run_install un-purge --uninstall --purge --dry-run 2>&1)" || rc=$?
@@ -400,8 +400,8 @@ function test_features_only_writes_settings_and_no_rc() {
 }
 
 # an overlay an older hi wrote is converted before any setting is read: the
-# old-shape packages and colors files come out in [section] form, each
-# original kept beside it as <file>.old
+# old-shape packages and colors files come out as TOML, each original kept
+# beside it as <file>.old
 function test_configure_converts_an_old_overlay() {
   local home="$_HI_WORKDIR/convert-old" cfg out
   cfg="$home/.config/say-hi"
@@ -410,8 +410,8 @@ function test_configure_converts_an_old_overlay() {
   printf 'hostname,box,red\n' >"$cfg/colors"
   out="$(_hi_run_install_here convert-old --configure --preset=balanced 2>&1)" || return 1
   [[ "$out" == *"converted $cfg/packages"* && "$out" == *"converted $cfg/colors"* ]] &&
-    grep -qx '\[core\]' "$cfg/packages" && grep -qx 'bat:3,batcat:3' "$cfg/packages.old" &&
-    grep -qx '\[hostname\]' "$cfg/colors" && grep -qx 'hostname,box,red' "$cfg/colors.old"
+    grep -qx 'bat = \["batcat"\]' "$cfg/packages" && grep -qx 'bat:3,batcat:3' "$cfg/packages.old" &&
+    grep -q '^box  *= "red"$' "$cfg/colors" && grep -qx 'hostname,box,red' "$cfg/colors.old"
 }
 
 # ...and under --dry-run it only says it would

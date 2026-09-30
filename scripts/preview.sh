@@ -38,7 +38,7 @@ function _hi_preview_usage() {
 Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header>
 
   colors     every ssh host and every known user, in the color it resolves to
-  packages   the header's packages check: groups, marks, markers, then the check
+  packages   the header's packages check: groups, marks, tables, then the check
   header     the connect header as it will print here
 
 Each subject takes --help and no other argument.
@@ -91,15 +91,15 @@ installed and missing packages in, and one real example of each - then the
 marks, then the check itself exactly as a connect will print it.
 
 Takes no arguments. Reads:
-  config/packages    the [group] sections of [-|+]package[,...] rows (a
+  config/packages    the [group] tables of package = [...] rows (a
                      ~/.config/say-hi/packages of your own replaces it)
   \$_HI_PACKAGES_GROUPS   the groups that run (unset: $_HI_PACKAGES_GROUPS_DEFAULT)
   \$_HI_PACKAGES_PALETTE   the ramp in force - unset for the shipped one, or
                      eight color names of your own - printed above the legend
 
-A row's leading marker decides which states speak at all: none both ways,
-\`-\` (unwanted) only as a warning when installed, \`+\` (required) only as an
-alarm when missing - the line under the marks says the same. A group whose
+A row's table decides which states speak at all: [group] both ways,
+[group.unwanted] only as a warning when installed, [group.required] only as
+an alarm when missing - the line under the marks says the same. A group whose
 STATE reads "off" prints nothing in the header whatever its colors say; its
 example shows what it would print.
 EOF
@@ -150,25 +150,16 @@ function _hi_print_scheme_line() {
 #
 
 # _hi_colors_rows <type> - every pinned name of that type, one per line, file
-# order, not deduped - the one walk of $_HI_COLORS behind _hi_pattern_for,
-# _hi_pattern_pins, and _hi_colors_names below. Not in core.sh: the colors
-# preview is its only caller, and core.sh ships in the ssh payload under a
-# size budget nothing a target runs should spend.
+# order, not deduped: core.sh's _hi_colors_load rows, the one walk behind
+# _hi_pattern_for, _hi_pattern_pins, and _hi_colors_names below
 function _hi_colors_rows() {
-  local cur_type="" cur_name
-  [[ -f "$_HI_COLORS" ]] || return 0
-  while read -r cur_name _; do
-    case "$cur_name" in
-    '' | '#'*) continue ;;
-    '['*']')
-      cur_type="${cur_name#\[}"
-      cur_type="${cur_type%\]}"
-      continue
-      ;;
-    esac
-    [[ "$cur_type" = "$1" ]] || continue
-    printf '%s\n' "$cur_name"
-  done <"$_HI_COLORS"
+  local row us=$'\x1f'
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
+  while IFS= read -r row; do
+    [ "${row%%"$us"*}" = "$1" ] || continue
+    row="${row#*"$us"}"
+    printf '%s\n' "${row%%"$us"*}"
+  done <<<"$_HI_COLORS_ROWS"
 }
 
 # _hi_pattern_for <name> - the subnet-style pin (hostname row whose name field
@@ -201,13 +192,13 @@ function _hi_pattern_pins() {
 }
 
 function _hi_color_source() {
-  local type="$1" name="$2" tag pat
+  local type="$1" name="$2" pat
   if _hi_override_color "$type" "$name" >/dev/null 2>&1; then
     printf 'override:%s' "$type"
     return
   fi
-  if [[ "$type" = hostname ]] && tag=$(_hi_ssh_host_tag "$name") && _hi_override_color hosttag "$tag" >/dev/null 2>&1; then
-    printf 'tag:%s' "$tag"
+  if [[ "$type" = hostname ]] && _hi_ssh_host_tag "$name" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE" >/dev/null 2>&1; then
+    printf 'tag:%s' "$_HI_TAG_VALUE"
     return
   fi
   # after the tag, before the hash - _hi_resolve_color's order
@@ -304,6 +295,7 @@ function _hi_user_color_memo() {
 # users table: every known real user with a non-default color, plus LOCALUSER
 # and every usertag override as its own "example" row
 function _hi_print_users_table() {
+  local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load # one load for every row
   local color_name uidx tidx
   local users=() usertags=() u_source=() u_color=() t_color=()
   local w_item=9 w_color=5 w_source=6
@@ -324,8 +316,7 @@ function _hi_print_users_table() {
   # reads ${!a[@]+...} as expanding to nothing whatever the array holds, and
   # bash 5 reads it as an indirect reference and errors outright.
   _hi_widen w_item "${users[@]}" LOCALUSER ${usertags[@]+"${usertags[@]}"}
-  # _hi_color_source re-reads config/colors end to end and walks ~/.ssh/config,
-  # so the render loop below reads what this one worked out rather than asking
+  # _hi_color_source forks and walks ~/.ssh/config, so the render loop below reads what this one worked out rather than asking
   # a second time for every user.
   for uidx in "${!users[@]}"; do
     u_source[uidx]="$(_hi_color_source username "${users[uidx]}")"
@@ -366,6 +357,7 @@ function _hi_print_users_table() {
 # combines every real known user plus the "example" users from the users
 # table (LOCALUSER, each usertag) against that host's name(s)
 function _hi_print_hosts_table() {
+  local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load # one load for every row
   # shellcheck disable=SC2034 # user_color: a required outvar of
   # _hi_user_color_memo below (its color half), never read on its own - only
   # user_escape, the memo's second outvar, feeds the render loop
@@ -521,7 +513,7 @@ function _hi_print_hosts_table() {
         # pad after the hostname so the next column lands at the same spot in
         # every user row beneath it, regardless of that user's name length;
         # depends only on $user, so once per row rather than once per column
-        printf -v pad '%*s' $((user_width - ${#user})) ''
+        _hi_repeat pad $((user_width - ${#user})) ' '
         previewtext=""
         for idx2 in "${!group_names[@]}"; do
           ((idx2 > 0)) && previewtext+='  '
@@ -564,25 +556,28 @@ _HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_SILENT=0 _HI_PKG_OFF=0
 # nothing for a `-` row that is absent or a `+` row that is installed, which
 # is the point: those rows show nothing.
 function _hi_collect_examples() {
-  local line entry rank width rendered gi=0 on=1 tier=1
+  local line entry rank width rendered gi=0 on=1 tier=1 group mark="" name alts
   local -a visible
   _HI_PG_NAME[0]="(no group)" _HI_PG_ON[0]=1 _HI_PG_TIER[0]=1 _HI_PG_ROWS[0]=0
 
   while IFS=$' ' read -r line; do
-    # the header's own filter, character for character
-    case "$line" in
-    '' | *'#'*) continue ;;
-    '['*']')
-      line="${line#\[}"
-      line="${line%\]}"
-      gi=$((gi + 1))
+    # the header's own reading of a line, table or row
+    if _hi_package_table "$line" group mark; then
+      # a group's tables are one group, wherever each sits
+      [ -n "$group" ] || group="(no group)"
+      for ((gi = 0; gi < ${#_HI_PG_NAME[@]}; gi++)); do
+        [ "${_HI_PG_NAME[gi]}" != "$group" ] || break
+      done
+      on="${_HI_PG_ON[gi]:-}" tier="${_HI_PG_TIER[gi]:-}"
+      [ -z "$on" ] || continue
       on=0
-      _hi_group_on "$line" && on=1
-      _hi_group_tier tier "$line"
-      _HI_PG_NAME[gi]="$line" _HI_PG_ON[gi]=$on _HI_PG_TIER[gi]=$tier _HI_PG_ROWS[gi]=0
+      _hi_group_on "$group" && on=1
+      _hi_group_tier tier "$group"
+      _HI_PG_NAME[gi]="$group" _HI_PG_ON[gi]=$on _HI_PG_TIER[gi]=$tier _HI_PG_ROWS[gi]=0
       continue
-      ;;
-    esac
+    fi
+    _hi_toml_row "$line" name alts || continue
+    line="$mark$name${alts:+,$alts}"
     _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
     _HI_PG_ROWS[gi]=$((_HI_PG_ROWS[gi] + 1))
     visible=()
@@ -674,7 +669,7 @@ function _hi_print_groups_table() {
   done
 
   _hi_hbar bottom "$w_group" "$w_state" "$w_yes" "$w_no" "$w_example"
-  _hi_cecho " | $_HI_PKG_LISTED listed, $_HI_PKG_SHOWN shown, $_HI_PKG_SILENT silent by their marker"
+  _hi_cecho " | $_HI_PKG_LISTED listed, $_HI_PKG_SHOWN shown, $_HI_PKG_SILENT silent by their table"
   if ((_HI_PKG_OFF > 0)); then
     _hi_cecho " | $_HI_PKG_OFF more in groups \$_HI_PACKAGES_GROUPS leaves off (${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT} run)" "$YELLOW"
   fi
@@ -683,15 +678,10 @@ function _hi_print_groups_table() {
 # what a packages file of the user's own lacks of the tree's, and the rows
 # it holds that can never match (scripts/lib.sh's _hi_packages_drift)
 function _hi_print_packages_drift() {
-  local kind what groups=""
-  while IFS='|' read -r kind what; do
-    case "$kind" in
-    group) groups="$groups${groups:+, }$what" ;;
-    marker) _hi_cecho " | $what: a - or + past the first name is read as part of that name, which nothing matches" "$YELLOW" ;;
-    esac
+  local what
+  while IFS='|' read -r _ what; do
+    _hi_cecho " | $what" "$YELLOW"
   done < <(_hi_packages_drift "$_HI_PACKAGES" "$_HI_ROOT/config/packages")
-  [ -z "$groups" ] ||
-    _hi_cecho " | lacks the tree's groups, which are never checked: $groups ($_HI_ROOT/config/packages has them to copy)" "$YELLOW"
 }
 
 # the other half of a rendered row: which mark it ends in, and what each one
@@ -704,7 +694,7 @@ function _hi_print_marks_table() {
   local -a rows=("$GREEN$_HI_MARK_OK|installed, under the first name the row lists"
     "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it"
     "$RED$_HI_MARK_NO|not installed - no name on the row resolved"
-    "$YELLOW$_HI_MARK_WARN|installed, on a - row: a package you don't want")
+    "$YELLOW$_HI_MARK_WARN|installed, under .unwanted: a package you don't want")
   for entry in "${rows[@]}"; do _hi_widen w2 "${entry#*|}"; done
   _hi_hbar top 4 "$w2"
   _hi_head_row 4 MARK "$w2" MEANS
@@ -716,9 +706,9 @@ function _hi_print_marks_table() {
     _hi_row_end
   done
   _hi_hbar bottom 4 "$w2"
-  # the third axis, a row's leading marker: whether the row speaks at all
-  _hi_cecho " | a leading - (unwanted) speaks only when installed, + (required) only"
-  _hi_cecho " | when missing; no marker speaks both ways"
+  # the third axis, the table a row sits in: whether the row speaks at all
+  _hi_cecho " | a row under [group.unwanted] speaks only when installed, one under"
+  _hi_cecho " | [group.required] only when missing; one under [group] both ways"
 }
 
 # same hatch as scripts/install.sh: sourcing this file defines its functions

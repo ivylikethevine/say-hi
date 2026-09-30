@@ -118,6 +118,29 @@ function test_profile_cannot_move_the_session_tree() {
   [ "${out%%|*}" = "$_HI_HOME" ] && [ "${out#*|}" = "$_HI_ROOT" ]
 }
 
+# The session bash is interactive, so a profile's aliases would expand into
+# every function load.sh parses after the chain; the shopt stands in for -i.
+function test_profile_aliases_stay_out_of_load_functions() {
+  local home="$_HI_WORKDIR/profilehome-alias" out
+  mkdir -p "$home"
+  printf "shopt -s expand_aliases\nalias mv='mv -v'\n" >"$home/.profile"
+  out="$(_HI_LOAD_NO_INIT=0 HOME="$home" bash -c \
+    'source "$1/load.sh"; declare -f _hi_nano_fallback' _ "$_HI_ROOT")"
+  [[ "$out" == *'mv -f '* && "$out" != *'mv -v'* ]]
+}
+
+# ...yet the `hi <target> <cmd>` line the bootloader runs after load.sh still
+# reads aliases: hi_info is one (paths.sh)
+function test_a_command_after_load_reads_aliases() {
+  local home="$_HI_WORKDIR/profilehome-alias-cmd" out
+  mkdir -p "$home"
+  printf 'shopt -s expand_aliases\n' >"$home/.profile"
+  out="$(_HI_LOAD_NO_INIT=0 HOME="$home" bash -c 'source "$1/load.sh"
+    set +euo pipefail
+    hi_info' _ "$_HI_ROOT" 2>&1)"
+  [[ "$out" == *'hi_root: '* ]] || _hi_because "hi_info said: [$out]"
+}
+
 # The tree must NOT land on $PATH: on a disposable session $_HI_ROOT is a
 # directory under /tmp, and "no /tmp on PATH" is a line item in every
 # hardening baseline an admin has to answer to. paths.sh's `alias hi=` is
@@ -642,12 +665,12 @@ function _hi_editorless_path() {
   _hi_real_path editorless bash sh date awk du mktemp rm mkdir cat sed grep tr cut id hostname uname cksum
 }
 
-# ...and _HI_DISABLE_EDITORS=1 is the gate, not vim's absence: same fake vim,
-# toggle on, no export
-function test_load_editors_toggle_blocks_viminit() {
+# ...and the list's `editors` is the gate, not vim's absence: same fake vim,
+# the editors off, no export
+function test_load_editors_off_blocks_viminit() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_EDITORS=1 \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_PLUGINS_OFF=lazygit,editors \
     "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
   case "$out" in *"VIM=unset"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
@@ -749,7 +772,7 @@ function test_load_disable_header_skips_the_banner() {
 # <tree> the disposable one unless [cleanup] names another; the result on
 # stdout
 function _hi_nano_case() {
-  local _HI_CLEANUP="${3-$1}" _HI_NANORC="$1/say-hi/config/nanorc"
+  local _HI_CLEANUP="${3-$1}" _HI_NANORC="$1/say-hi/config/nano/nanorc"
   mkdir -p "${_HI_NANORC%/*}"
   printf '%s' "$2" >"$_HI_NANORC"
   _hi_nano_fallback
@@ -766,7 +789,7 @@ function test_nano_fallback_follows_the_target() {
   local dropped='# hi dropped: include "~/.nano/*.nanorc"'
   want="$dropped"$'\nset tabsize 4'
   set -- /usr/share/nano/*.nanorc
-  [ -f "$1" ] && want="$want"$'\n'"$fb"
+  [ -f "$1" ] && want="$dropped"$'\n'"$fb"$'\nset tabsize 4'
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-a" "$dropped"$'\nset tabsize 4\n')"
   [ "$out" = "$want" ] || {
     _hi_cecho " | fresh: [$out]" "$RED"
@@ -783,17 +806,42 @@ function test_nano_fallback_follows_the_target() {
   [ "$out" = "$dropped" ]
 }
 
+# a dropped include whose files the target has comes back in its own place,
+# ahead of the extendsyntax lines nano resolves as it reads them; each of those
+# takes the spelling the target defines, and one naming no syntax there is
+# dropped, then restored by a hop that has it
+function test_nano_fallback_resolves_extendsyntax() {
+  local syn="$_HI_WORKDIR/nano-syn" out want
+  mkdir -p "$syn"
+  printf 'syntax "GO" "\\.go$"\n' >"$syn/go.nanorc"
+  local inc="include \"$syn/*.nanorc\""
+  want="# hi dropped: $inc"$'\n'"$inc"$'\nsyntax mine "\\.x$"\nextendsyntax GO tabgives " "\nextendsyntax mine tabgives " "\n# hi dropped: extendsyntax JSX linter eslint'
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-e" "# hi dropped: $inc"$'\nsyntax mine "\\.x$"\nextendsyntax go tabgives " "\nextendsyntax mine tabgives " "\nextendsyntax JSX linter eslint\n')"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | resolved: [$out]" "$RED"
+    return 1
+  }
+  printf 'syntax "JSX" "\\.jsx$"\n' >"$syn/jsx.nanorc"
+  out="$(_hi_nano_case "$_HI_WORKDIR/nano-f" "$want"$'\n')"
+  [ "$out" = "${want/\# hi dropped: extendsyntax/extendsyntax}" ] || {
+    _hi_cecho " | carried to a hop that has it: [$out]" "$RED"
+    return 1
+  }
+}
+
 function run_load_tests() {
   _hi_workdir loadtest
   # the editor configs an overlay carried in, for load() to hand the session
-  mkdir -p "$_HI_WORKDIR/overlay"
-  : >"$_HI_WORKDIR/overlay/vimrc"
-  : >"$_HI_WORKDIR/overlay/init.lua"
-  : >"$_HI_WORKDIR/overlay/nanorc"
-  export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
+  mkdir -p "$_HI_WORKDIR/overlay/vim" "$_HI_WORKDIR/overlay/nvim" "$_HI_WORKDIR/overlay/nano"
+  : >"$_HI_WORKDIR/overlay/vim/vimrc"
+  : >"$_HI_WORKDIR/overlay/nvim/init.lua"
+  : >"$_HI_WORKDIR/overlay/nano/nanorc"
+  mkdir -p "$_HI_WORKDIR/overlay/micro"
+  : >"$_HI_WORKDIR/overlay/micro/settings.json"
+  export _HI_VIMRC="$_HI_WORKDIR/overlay/vim/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/nvim/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nano/nanorc"
   # ...and the wiring.sh a client packs beside them; vim's and nvim's lines
   # keep their state under the session tree
-  _hi_wiring_for vimrc init.lua nanorc >"$_HI_WORKDIR/overlay/wiring.sh"
+  _hi_wiring_for vim/vimrc nvim/init.lua nano/nanorc micro/settings.json >"$_HI_WORKDIR/overlay/wiring.sh"
   local vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_VIMRC"
   local nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_NVIMRC"
 
@@ -814,6 +862,8 @@ function run_load_tests() {
   _hi_check ".bash_login outranks .profile" test_profile_falls_back_to_bash_login
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "A target's profile cannot move the session tree" test_profile_cannot_move_the_session_tree
+  _hi_check "A target's aliases stay out of load.sh's functions" test_profile_aliases_stay_out_of_load_functions
+  _hi_check "...and a command after load.sh still reads aliases" test_a_command_after_load_reads_aliases
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
   _hi_check "...and a nested sh reads the settings' toggles" test_session_shrc_reads_the_settings_first
   _hi_check "only the set session vars are written (HI.47)" test_session_rc_setup_writes_only_the_set_vars
@@ -823,6 +873,7 @@ function run_load_tests() {
   _hi_check_requires fish "_hi_fishquote round-trips through a real fish" test_fishquote_roundtrips_the_hard_cases
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
   _hi_check "a dropped nano syntax include falls back to the target's" test_nano_fallback_follows_the_target
+  _hi_check "nano extendsyntax follows the target's syntax names" test_nano_fallback_resolves_extendsyntax
 
   _hi_h2 "Testing: _hi_login_shell"
   _hi_check "\$SHELL answers as its basename" test_login_shell_answers_with_the_basename_of_shell
@@ -867,7 +918,7 @@ EOF
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
-  _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
+  _hi_check "The editors off leaves VIMINIT unset" test_load_editors_off_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$vim|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
@@ -875,9 +926,8 @@ EOF
   _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$nvim|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "...one set stands in for the other" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=nano --rcfile $_HI_NANORC|" _HI_CLIENT_EDITOR=nano
   _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$nvim|" _HI_CLIENT_EDITOR=no-such-editor
-  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -mkparents true -diffgutter true|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
-  _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
-  _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1
+  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -config-dir $_HI_WORKDIR/overlay/micro|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
+  _hi_check "The editors off leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_PLUGINS_OFF=editors
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer

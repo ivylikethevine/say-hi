@@ -157,8 +157,13 @@ function bench_targets_warm() {
 # when the overlay has already switched them off, so a configured client sends less than
 # either number says. The ceiling and the badge are the unconfigured case, which
 # is the one every budget should be set against.
+#
+# A connect handed starship alone is measured beside it: it leaves every
+# framework's prompt loader home (hi.sh's _hi_payload_excl), so it has to come
+# in under the unconfigured figure.
 function bench_payload_size() {
-  local bytes budget=65536
+  local bytes lean budget=65536
+  local -a payload_excl=()
   set -- # hi.sh reads "$@"; make sure it sees none
   # shellcheck source=../../hi.sh
   source "$_HI_LAUNCHER"
@@ -167,6 +172,38 @@ function bench_payload_size() {
     _hi_align " | payload: $bytes bytes gzipped (budget $budget)" "OK" "$GREEN"
   else
     _hi_cecho " | payload: $bytes bytes gzipped BLEW the $budget budget" "$RED"
+    return 1
+  fi
+  _HI_PROMPT_TOOL=starship _hi_payload_excl
+  lean="$(_hi_payload_tar | wc -c)"
+  if ((lean < bytes)); then
+    _hi_align " | payload handed starship alone: $lean bytes gzipped" "OK" "$GREEN"
+  else
+    _hi_cecho " | payload handed starship alone: $lean bytes gzipped, not under $bytes" "$RED"
+    return 1
+  fi
+}
+
+# What a connect handed starship alone streams: not _hi_payload_tar but the
+# cached tar the connect sends (_hi_payload_cached), keyed on its cut. The
+# unconfigured payload's cache is built first, so a key that ignored the cut
+# would hand this connect every loader.
+function bench_payload_starship_connect() {
+  local whole lean listing wb lb
+  local -a payload_excl=()
+  set --
+  # shellcheck source=../../hi.sh
+  source "$_HI_LAUNCHER"
+  if ! { _hi_payload_cached whole && _HI_PROMPT_TOOL=starship _hi_payload_excl && _hi_payload_cached lean; }; then
+    _hi_cecho " | no payload cache under \$XDG_RUNTIME_DIR to read" "$RED"
+    return 1
+  fi
+  wb="$(_hi_file_bytes "$whole")" lb="$(_hi_file_bytes "$lean")"
+  listing="$(tar tzf "$lean")"
+  if [ "$lean" != "$whole" ] && ((lb < wb)) && [[ "$listing" != *common/fw_* && "$listing" == *common/bash.sh* ]]; then
+    _hi_align " | connect handed starship alone: $lb bytes gzipped, unconfigured $wb" "OK" "$GREEN"
+  else
+    _hi_cecho " | connect handed starship alone sent $lb bytes (unconfigured $wb), loaders: $(printf '%s\n' "$listing" | grep -c common/fw_)" "$RED"
     return 1
   fi
 }
@@ -239,6 +276,7 @@ function run_bench_tests() {
 
   _hi_h2 "Benchmark: the wire"
   _hi_case bench_payload_size
+  _hi_case bench_payload_starship_connect
   _hi_case bench_payload_readme_badge
 
   _hi_suite_end "bench" \

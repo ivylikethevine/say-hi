@@ -101,7 +101,7 @@ if [ "$branch" = dev ] && [ -z "${1:-}" ]; then
     exit 0
   }
   git -C "$root" merge --ff-only --quiet '@{u}' || _hi_die "fast-forward of dev failed in $root (see above)"
-  _hi_cecho "$me: dev is now at $(exec git -C "$root" describe --tags --always 2>/dev/null) ($behind new commit(s))" "$GREEN"
+  _hi_cecho "$me: dev is now at $(_hi_git_version "$root") ($behind new commit(s))" "$GREEN"
   _hi_update_convert
   exit 0
 fi

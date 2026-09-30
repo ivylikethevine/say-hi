@@ -366,20 +366,21 @@ function _hi_run_scenario() {
   # the editor and multiplexer aliases are lines of the wiring.sh a client
   # packs beside the configs that ride, so the workdir is the overlay that
   # holds both (GLOSSARY: HI.62)
-  mkdir -p "$_HI_WORKDIR/zellij"
-  touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el" \
-    "$_HI_WORKDIR/tmux.conf" "$_HI_WORKDIR/screenrc" "$_HI_WORKDIR/zellij/config.kdl"
+  local f members="vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml nano/nanorc emacs/init.el tmux/tmux.conf screenrc
+    zellij/config.kdl micro/settings.json"
+  for f in $members; do
+    case "$f" in */*) mkdir -p "$_HI_WORKDIR/${f%/*}" ;; esac
+    touch "$_HI_WORKDIR/$f"
+  done
   if [ ! -f "$_HI_WORKDIR/wiring.sh" ]; then
-    _hi_wiring_for vimrc init.lua config.toml nanorc init.el tmux.conf screenrc zellij/config.kdl \
-      >"$_HI_WORKDIR/wiring.sh" || return 1
+    # shellcheck disable=SC2086 # one member a word
+    _hi_wiring_for $members >"$_HI_WORKDIR/wiring.sh" || return 1
   fi
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$_HI_WORKDIR" \
-    _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/init.el" \
-    _HI_NVIMRC="$_HI_WORKDIR/init.lua" _HI_HELIXRC="$_HI_WORKDIR/config.toml" \
-    _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" ${opt_in[@]+"${opt_in[@]}"} \
+    ${opt_in[@]+"${opt_in[@]}"} \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
@@ -417,31 +418,31 @@ function run_fallthrough_tests() {
   done
 }
 
-# `sudo` is asserted *present* on both editor rows: the cheapest pin on the
+# `sudo` is asserted *present* on the first row: the cheapest pin on the
 # file's tail being reached at all in three dialects. Its own opt-in is
-# _HI_SUDO_ALIAS, the third row off and the fourth unset. A target's, where
-# micro has its flags without a micro/ of hi's.
+# _HI_SUDO_ALIAS, the second row off and the third unset. A target's, where
+# the editors' aliases are the wiring's whatever the opt-in says.
 function run_flag_tests() {
-  _hi_h1 "_HI_DISABLE_EDITORS guard, _HI_SUDO_ALIAS opt-in"
+  _hi_h1 "_HI_SUDO_ALIAS opt-in"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_flags vi cat nano emacs micro sudo)"
 
-  for combo in "0 1 1 1" "1 0 1 1" "0 1 0 0" "0 1 0 unset"; do
-    # shellcheck disable=SC2086 # fixed 4-field combo, splitting is intended
+  for combo in "1 1" "0 0" "0 unset"; do
+    # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
     set -- $combo
-    local de="$1" want_nano="$2" want_sudo="$3" sa="$4"
+    local want_sudo="$1" sa="$2"
     for shell in $_HI_INSTALLED_SHELLS; do
-      _HI_DISABLE_EDITORS="$de" _HI_CASE_SUDO="$sa" \
+      _HI_CASE_SUDO="$sa" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_EDITORS=$de _HI_SUDO_ALIAS=$sa" \
-        _HI_REMOTE_SESSION=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
+        "_HI_SUDO_ALIAS=$sa" \
+        _HI_REMOTE_SESSION=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
     done
   done
 }
 
 # The cat/catn rebind is unconditional once $_HI_CAT_BIN resolves to
 # anything - even down to plain cat, its floor - so the opt-in is tested the
-# same way as _HI_DISABLE_EDITORS above: does the alias exist at all,
+# same way as _HI_SUDO_ALIAS above: does the alias exist at all,
 # regardless of what it would ultimately run. The one opt-in covers the
 # styled exa/eza wrappers and bat's own names too, and the binary lookups
 # behind them: off, $_HI_CAT_BIN stays empty.
@@ -473,24 +474,23 @@ function run_tool_aliases_flag_tests() {
   done
 }
 
-# micro's default flags are for a box you are only visiting: at home, with no
-# micro/ of hi's, there is no alias; on a target there is
+# micro's alias is a target's, like every editor's: at home there is none,
+# and on a target its config rode with the line that names it
 function run_micro_tests() {
-  _hi_h1 "micro's default flags on a target only"
+  _hi_h1 "micro's alias on a target only"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_micro cat micro)"
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$fakepath" "at home: no micro alias" \
       _HI_REMOTE_SESSION=0 _HI_CHECK_ABSENT=micro
-    _hi_case _hi_run_scenario "$shell" "$fakepath" "on a target: micro keeps its flags" \
+    _hi_case _hi_run_scenario "$shell" "$fakepath" "on a target: micro reads its config" \
       _HI_REMOTE_SESSION=1 _HI_CHECK_PRESENT=micro
   done
 }
 
 # No alias for a package that is not installed: every gated name lands with
 # its tool on PATH and is absent without it, on a target, where the editors'
-# and the multiplexers' ride in wiring.sh; micro's -config-dir line gets its
-# config so only the binary decides; cat is the one tool on the bare PATH, the
+# and the multiplexers' ride in wiring.sh; cat is the one tool on the bare PATH, the
 # floor of its own ladder. At home none of them is aliased, whatever is
 # installed: every tool there reads its own config.
 function run_presence_tests() {
@@ -501,11 +501,11 @@ function run_presence_tests() {
   bare="$(_hi_fake_path fp_bare cat)"
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \
-      _HI_REMOTE_SESSION=1 _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_PRESENT="$gated cat ls"
+      _HI_REMOTE_SESSION=1 _HI_CHECK_PRESENT="$gated cat ls"
     _hi_case _hi_run_scenario "$shell" "$bare" "only cat installed: no gated alias" \
-      _HI_REMOTE_SESSION=1 _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
+      _HI_REMOTE_SESSION=1 _HI_CHECK_ABSENT="$gated" _HI_CHECK_PRESENT=cat
     _hi_case _hi_run_scenario "$shell" "$all" "at home: no editor or multiplexer alias" \
-      _HI_REMOTE_SESSION=0 _HI_MICRO_DIR="$_HI_WORKDIR/micro" _HI_CHECK_ABSENT="nano emacs micro vim nvim hx tmux screen zellij"
+      _HI_REMOTE_SESSION=0 _HI_CHECK_ABSENT="nano emacs micro vim nvim hx tmux screen zellij"
   done
 }
 

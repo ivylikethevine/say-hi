@@ -1068,10 +1068,11 @@ function test_preview_subjects_agree_everywhere() {
 
 function test_word_flags_match_the_words_roster() {
   local arms want got
-  # the arm labels of the `words` case, in file order.
+  # the arm labels of the `words` case, one per line; `--a | --b)` gives both.
   # shellcheck disable=SC2016 # the sed script is literal, not an expansion
   arms="$(sed -n '/if \[ "\$kind" = words \]/,/^fi$/p' "$_HI_TARGETS" |
-    sed -n 's/^  \(--[a-z-]*\))$/\1/p' | sort | tr '\n' ' ')"
+    sed -n 's/^  \(--[a-z| -]*\))$/\1/p' | tr -d ' ' | tr '|' '\n' |
+    sort | tr '\n' ' ')"
   # shellcheck disable=SC2086 # the split is the roster
   want="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
   got="$arms"
@@ -1098,7 +1099,7 @@ function test_words_add_package_with_an_overlay_lists_only_its_own() {
   local dir out
   dir="$_HI_WORKDIR/addpkg-overlay"
   mkdir -p "$dir"
-  printf '[mine]\nfoo\n' >"$dir/packages"
+  printf '[mine]\nfoo = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
   [ "$out" = "$(printf 'mine\ta package check group')" ]
 }
@@ -1109,31 +1110,31 @@ function test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_group
   local dir out
   dir="$_HI_WORKDIR/addpkg-overlay-nofile"
   mkdir -p "$dir"
-  printf '[hostname]\nfoo brred\n' >"$dir/colors"
+  printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
   [[ "$out" == *"core$(printf '\t')"* ]]
 }
 
-# groups only, in file order: rows are not offered, and a `#` anywhere on a
-# header line kills it - full_check's own rule
+# groups only, in file order, each once: rows are not offered, nor a
+# commented table, and a table of required or unwanted rows is its group's
 function test_words_add_package_lists_only_clean_group_headers() {
   local dir out
   dir="$_HI_WORKDIR/addpkg-hash"
   mkdir -p "$dir"
-  printf '# [commented]\ntop\n[b]\nx\n[gone] # a note\n\n[a]\ny\n' >"$dir/packages"
+  printf '# [commented]\ntop = []\n[b.unwanted]\nx = []\n[required]\nz = []\n[b]\n  [a] # a note\ny = []\n[a.required]\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
   [ "$out" = "$(printf 'b\ta package check group\na\ta package check group')" ]
 }
 
-# --remove-package: each row's first package, its -/+ marker dropped; group
-# headers, comments and blanks are not rows
+# --remove-package: each row's key, quoted or bare, whatever table it sits
+# in; tables, comments and blanks are not rows
 function test_words_remove_package_lists_first_packages() {
   local dir out
   dir="$_HI_WORKDIR/rmpkg-words"
   mkdir -p "$dir"
-  printf '# a note\ntop\n[a]\nbat,batcat\n-exa\n\n[b]\n+bash\nx # a trailing note\n' >"$dir/packages"
+  printf '# a note\ntop = []\n[a]\nbat = ["batcat"]\n"g++" = []\n\n[a.unwanted]\nexa = []\n[b.required]\n  bash = [] # a trailing note\n# x = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --remove-package)"
-  [ "$out" = "$(printf 'top\ta package check row\nbat\ta package check row\nexa\ta package check row\nbash\ta package check row')" ]
+  [ "$out" = "$(printf 'top\ta package check row\nbat\ta package check row\ng++\ta package check row\nexa\ta package check row\nbash\ta package check row')" ]
 }
 
 # --set-color and --unset-color: the four types, the same list for both, and
@@ -1157,14 +1158,14 @@ function test_words_color_types_match_set_color() {
 }
 
 # --plugin-off: every group and plugin of hi.sh's table, read as text, then
-# the carry's members; hi's own files (colors, settings.sh) are no words
+# the overlay plugins rows; hi's own files (colors, settings.sh) are no words
 function test_words_plugin_off_lists_groups_plugins_and_carry_members() {
   local out cfg="$_HI_WORKDIR/words-plugins"
   mkdir -p "$cfg"
-  printf '# mine\n taskrc | task | env:TASKRC | ~/.taskrc\nbad line\n' >"$cfg/carry"
+  printf '# mine\n[mine]\n  taskrc   =   "task | env:TASKRC | ~/.taskrc"\n"b.rc" = "- | - | ~/b"\nbad line\n' >"$cfg/plugins"
   out=" $(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --plugin-off | cut -f1 | tr '\n' ' ')"
   [[ "$out" == *" editors "* && "$out" == *" vim "* && "$out" == *" hx "* && "$out" == *" readline "* ]] &&
-    [[ "$out" == *" micro "* && "$out" == *" plugins.d "* && "$out" == *" taskrc "* ]] &&
+    [[ "$out" == *" micro "* && "$out" == *" extensions "* && "$out" == *" mine "* && "$out" == *" task "* && "$out" == *" taskrc "* && "$out" == *" b.rc "* ]] &&
     [[ "$out" != *" colors "* && "$out" != *" settings.sh "* && "$out" != *" bad "* ]] ||
     _hi_because "offered: $out"
 }
@@ -1183,12 +1184,12 @@ function test_words_plugin_off_match_the_table() {
 }
 
 # --plugin-on: the words that are off, as settings.sh's last list has them;
-# --remove-plugin: the carry's members; --add-plugin: nothing
+# --remove-plugin: the overlay's plugins rows' members; --add-plugin: nothing
 function test_words_plugin_on_and_remove_read_the_overlay() {
   local out cfg="$_HI_WORKDIR/words-plugins-on"
   mkdir -p "$cfg"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=old\nexport _HI_PLUGINS_OFF="bat, editors"\n' >"$cfg/settings.sh"
-  printf 'taskrc | task | env:TASKRC | ~/.taskrc\nb.rc|-|-|~/b\n' >"$cfg/carry"
+  printf '[mine]\ntaskrc = "task | env:TASKRC | ~/.taskrc"\n"b.rc"="- | - | ~/b"\n' >"$cfg/plugins"
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --plugin-on | cut -f1 | tr '\n' ' ')"
   [ "$out" = "bat editors " ] || _hi_because "--plugin-on offered: $out" || return 1
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --remove-plugin | cut -f1 | tr '\n' ' ')"
@@ -1289,11 +1290,11 @@ function run_targets_tests() {
   _hi_check "--add-package, no overlay: the tree's groups" test_words_add_package_with_no_overlay_lists_the_tree_groups
   _hi_check "--add-package, an overlay: only its own" test_words_add_package_with_an_overlay_lists_only_its_own
   _hi_check "--add-package, an overlay with no file: the tree's" test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_groups
-  _hi_check "--add-package lists clean group headers only" test_words_add_package_lists_only_clean_group_headers
-  _hi_check "--remove-package lists each row's first package" test_words_remove_package_lists_first_packages
+  _hi_check "--add-package lists each group once, by its tables" test_words_add_package_lists_only_clean_group_headers
+  _hi_check "--remove-package lists each row's key" test_words_remove_package_lists_first_packages
   _hi_check "--set-color and --unset-color list the four types" test_words_set_and_unset_color_list_the_four_types
   _hi_check "...which are set_color.sh's own" test_words_color_types_match_set_color
-  _hi_check "--plugin-off lists groups, plugins, and the carry's members" test_words_plugin_off_lists_groups_plugins_and_carry_members
+  _hi_check "--plugin-off lists groups, plugins, and the overlay's rows" test_words_plugin_off_lists_groups_plugins_and_carry_members
   _hi_check "...every word hi.sh's own reading gives" test_words_plugin_off_match_the_table
   _hi_check "--plugin-on and --remove-plugin read the overlay" test_words_plugin_on_and_remove_read_the_overlay
 

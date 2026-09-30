@@ -929,7 +929,7 @@ _HI_FAKE_CMD=definitely-not-a-real-hi-test-command-xyz
 # _hi_pkg_one <name> <body> - a packages file at $_HI_WORKDIR/<name>/packages
 # holding <body> (%b, so \n is a line break). Prints the file, for
 # $_HI_PACKAGES. Rows above the first `[group]` line always run, so a body
-# with no section needs no $_HI_PACKAGES_GROUPS.
+# with no table needs no $_HI_PACKAGES_GROUPS.
 function _hi_pkg_one() {
   mkdir -p "$_HI_WORKDIR/$1"
   printf '%b' "$2" >"$_HI_WORKDIR/$1/packages"
@@ -949,7 +949,7 @@ function _hi_pkg_one() {
 function test_hi_header_default_order() {
   local _HI_HEADER_VERSION=orderprobe out
   local ts si id ck
-  out="$(_HI_PACKAGES="$(_hi_pkg_one order-default "$_HI_REAL_CMD\n")" hi_header Connected)"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one order-default "$_HI_REAL_CMD = []\n")" hi_header Connected)"
   ts="$(_hi_pos "$out" orderprobe)"
   si="$(_hi_pos "$out" "Cores:")"
   id="$(_hi_pos "$out" "Auth:")"
@@ -965,7 +965,7 @@ function test_hi_header_closes_every_line() {
   local out _HI_HOSTNAME_CACHE=short-host
   out="$(
     unset _HI_BANNER_HOST
-    _HI_PACKAGES="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD\nbash\n")" \
+    _HI_PACKAGES="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD = []\nbash = []\n")" \
     _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime uptime check" hi_header Connected
   )"
   _hi_all_lines_are "$out" 40
@@ -988,7 +988,7 @@ function test_hi_footer_closes_every_line() {
 function test_hi_header_order_setting_reorders_and_can_omit() {
   local _HI_HEADER_VERSION=orderprobe out
   local ck up si
-  out="$(_HI_PACKAGES="$(_hi_pkg_one order-custom "$_HI_REAL_CMD\n")" \
+  out="$(_HI_PACKAGES="$(_hi_pkg_one order-custom "$_HI_REAL_CMD = []\n")" \
   _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
   up="$(_hi_pos "$out" "Up:")"
@@ -1036,7 +1036,7 @@ function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
 function test_hi_header_cascades_identity_overflow_into_check() {
   local cfg="$_HI_WORKDIR/cascade-into-check" out line
   mkdir -p "$cfg"
-  printf '%s\n' "$_HI_REAL_CMD" >"$cfg/packages"
+  printf '%s = []\n' "$_HI_REAL_CMD" >"$cfg/packages"
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_CONFIG_DIR="$cfg" \
   _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="gitid auth pub uptime check" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
@@ -1412,7 +1412,7 @@ function test_no_lead_space_drops_only_the_leading_space() {
 function test_no_lead_space_applies_to_the_packages_check() {
   local out
   mkdir -p "$_HI_WORKDIR/pkgcfg"
-  printf '%s\n' "$_HI_REAL_CMD" >"$_HI_WORKDIR/pkgcfg/packages"
+  printf '%s = []\n' "$_HI_REAL_CMD" >"$_HI_WORKDIR/pkgcfg/packages"
   out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 _HI_CONFIG_DIR="$_HI_WORKDIR/pkgcfg" bash -c 'source "$_HI_HEADER"; full_check')"
   [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]]
 }
@@ -1613,6 +1613,63 @@ function test_header_hues_never_repeat_in_a_pathological_order() {
   done
 }
 
+# _hi_header_cells_fixture - a header/ directory: `sky` and `sea` draw cyan
+# cells, `quiet.sh` defines no cell of its own name, `stale.bak` is no member
+# shellcheck disable=SC2016 # the cells' own code, expanded when sourced
+function _hi_header_cells_fixture() {
+  local dir="$_HI_WORKDIR/header-cells"
+  mkdir -p "$dir"
+  printf '_hi_cell_sky() { printf -v "$1" %%s "${CYAN}Sky: clear"; }\n' >"$dir/sky"
+  printf '_hi_cell_sea() { printf -v "$1" %%s "${BRCYAN}Sea: calm"; }\n' >"$dir/sea.sh"
+  printf '_hi_cell_loud() { printf -v "$1" %%s LOUD; }\n' >"$dir/quiet.sh"
+  printf '_hi_cell_stale() { printf -v "$1" %%s STALE; }\n' >"$dir/stale.bak"
+  printf '%s' "$dir"
+}
+
+# a header/ member's cell draws where $_HI_HEADER_ORDER puts it, its word
+# the file's name; a function no file is named for stays behind the gate
+function test_a_header_cell_of_your_own_draws() {
+  local dir out
+  dir="$(_hi_header_cells_fixture)"
+  out="$(
+    unset _HI_HEADER_WORDS
+    _HI_HEADER_CELLS="$dir" _HI_HEADER_ORDER="sky utc loud stale" hi_header Connected
+  )"
+  [[ "$out" == *"Sky: clear"* && "$out" != *LOUD* && "$out" != *STALE* ]] ||
+    _hi_because "drew: [$out]" || return 1
+  out="$(
+    unset _HI_HEADER_WORDS
+    _HI_HEADER_CELLS="$dir" _hi_header_vocab v && printf '%s' "${v#"$_HI_HEADER_ORDER_DEFAULT"}"
+  )"
+  [ "$out" = " sea sky" ] || _hi_because "the words that loaded: [$out]"
+}
+
+# a cell with no $_HI_HEADER_ALTS row takes the next bright hue round the
+# ring from its own, so two of them side by side never share one
+function test_a_header_cell_of_your_own_gets_an_alternate() {
+  local dir h alt alt_hue cell hue prev=""
+  for h in 1 2 3 4 5 6; do
+    alt="" alt_hue=""
+    _hi_header_word_alt nosuchword alt "$h"
+    _hi_cell_hue alt_hue "${alt}x"
+    [ -n "$alt_hue" ] && [ "$alt_hue" != "$h" ] || _hi_because "hue $h got [$alt_hue]" || return 1
+  done
+  dir="$(_hi_header_cells_fixture)"
+  (
+    unset _HI_HEADER_WORDS
+    _HI_HEADER_CELLS="$dir"
+    _HI_PENDING_CELLS=() _HI_PREV_HUE=""
+    _hi_collect_header_word sky
+    _hi_collect_header_word sea
+    for cell in "${_HI_PENDING_CELLS[@]}"; do
+      hue=""
+      _hi_cell_hue hue "$cell"
+      [ -n "$hue" ] && [ "$hue" != "$prev" ] || exit 1
+      prev="$hue"
+    done
+  )
+}
+
 # containers/jobs/pods render only when their own backend answered, so any
 # subset of the trio has to read right on its own - three distinct families,
 # not just "not identical to the immediate neighbor"
@@ -1772,7 +1829,7 @@ function test_check_line_required_missing_alarms() {
 
 function test_full_check_skips_comments_and_blanks() {
   (
-    _HI_PACKAGES="$(_hi_pkg_one comments "# a comment\n\n$_HI_REAL_CMD\n")"
+    _HI_PACKAGES="$(_hi_pkg_one comments "# a comment\n$_HI_REAL_CMD = []\n")"
     full_check
   ) | grep -qF "$_HI_REAL_CMD"
 }
@@ -1782,7 +1839,7 @@ function test_full_check_skips_comments_and_blanks() {
 function test_full_check_empty_when_everything_is_silent() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one silent "-$_HI_FAKE_CMD\n+$_HI_REAL_CMD\n")"
+    _HI_PACKAGES="$(_hi_pkg_one silent "[required]\n$_HI_REAL_CMD = []\n[unwanted]\n$_HI_FAKE_CMD = []\n")"
     full_check
   )"
   [ -z "$out" ]
@@ -1818,13 +1875,47 @@ function test_group_on_reads_the_list() {
   )
 }
 
-# _hi_package_groups: the `[...]` lines in file order, a line with a # skipped
-# the way full_check skips it
+# _hi_package_groups: the tables in file order, a group once however many
+# tables it has, a comment behind one read past, and a commented one skipped
 function test_package_groups_lists_sections_in_file_order() {
   local got
-  _HI_PACKAGES="$(_hi_pkg_one list-groups "top\n[beta]\nx\n#[gone]\n[alpha] # c\n[alpha]\n")" \
+  _HI_PACKAGES="$(_hi_pkg_one list-groups "top = []\n[required]\nneed = []\n[beta.unwanted]\nx = []\n#[gone]\n[alpha] # c\n[beta]\n[alpha.required]\n")" \
     _hi_package_groups got
   [ "$got" = "beta alpha" ]
+}
+
+# a row is its key and its array, whatever pads or follows them: a quoted
+# key, a comment behind the row, and the alternatives in the order given
+function test_full_check_reads_a_toml_row() {
+  local out
+  out="$(
+    _HI_PACKAGES="$(_hi_pkg_one toml-row "[alpha]\n  \"$_HI_FAKE_CMD\"   =   [ \"$_HI_FAKE_CMD-2\",\"$_HI_REAL_CMD\" ]  # a note\n$_HI_FAKE_CMD-3 = \"not an array\"\nbare words\n")"
+    _HI_PACKAGES_GROUPS=alpha
+    full_check
+  )"
+  _hi_contains "$out" " $_HI_REAL_CMD " && _hi_contains "$out" "$_HI_FAKE_CMD-3" || return 1
+  case "$out" in *words* | *note*) return 1 ;; esac
+  return 0
+}
+
+# a group is its three tables, each saying what its rows are, and one switch
+# turns all three off
+function test_full_check_reads_a_group_by_its_tables() {
+  local out body
+  body="[alpha]\nls = []\n[alpha.required]\n$_HI_FAKE_CMD = []\n$_HI_REAL_CMD = []\n[alpha.unwanted]\ncat = []\n$_HI_FAKE_CMD-2 = []\n"
+  out="$(
+    _HI_PACKAGES="$(_hi_pkg_one tables "$body")"
+    _HI_PACKAGES_GROUPS=alpha
+    full_check
+  )"
+  _hi_contains "$out" " ls " && _hi_contains "$out" " cat " && _hi_contains "$out" " $_HI_FAKE_CMD " || return 1
+  case "$out" in *" $_HI_REAL_CMD "* | *"$_HI_FAKE_CMD-2"*) return 1 ;; esac
+  out="$(
+    _HI_PACKAGES="$_HI_WORKDIR/tables/packages"
+    _HI_PACKAGES_GROUPS=none
+    full_check
+  )"
+  [ -z "$out" ]
 }
 
 # A group $_HI_PACKAGES_GROUPS leaves out prints nothing, however installed its
@@ -1833,7 +1924,7 @@ function test_package_groups_lists_sections_in_file_order() {
 function test_full_check_runs_only_the_named_groups() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-one "[alpha]\n$_HI_REAL_CMD\n[beta]\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one groups-one "[alpha]\n$_HI_REAL_CMD = []\n[beta]\nbash = []\n")"
     _HI_PACKAGES_GROUPS=alpha
     full_check
   )"
@@ -1846,7 +1937,7 @@ function test_full_check_runs_only_the_named_groups() {
 function test_full_check_reads_a_comma_separated_list() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-comma "[alpha]\n$_HI_REAL_CMD\n[beta]\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one groups-comma "[alpha]\n$_HI_REAL_CMD = []\n[beta]\nbash = []\n")"
     _HI_PACKAGES_GROUPS=alpha,beta
     full_check
   )"
@@ -1857,7 +1948,7 @@ function test_full_check_reads_a_comma_separated_list() {
 function test_full_check_unset_runs_the_default_groups() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-default "[core]\nsh\n[useful]\nls\n[deprecated]\n-cat\n[extras]\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one groups-default "[core]\nsh = []\n[useful]\nls = []\n[deprecated.unwanted]\ncat = []\n[extras]\nbash = []\n")"
     unset _HI_PACKAGES_GROUPS
     full_check
   )"
@@ -1871,7 +1962,7 @@ function test_full_check_unset_runs_the_default_groups() {
 function test_full_check_none_is_not_a_group() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-none-section "[none]\n$_HI_REAL_CMD\n")"
+    _HI_PACKAGES="$(_hi_pkg_one groups-none-section "[none]\n$_HI_REAL_CMD = []\n")"
     _HI_PACKAGES_GROUPS=none
     full_check
   )"
@@ -1883,7 +1974,7 @@ function test_full_check_none_is_not_a_group() {
 function test_full_check_none_keeps_the_ungrouped_rows() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one groups-none "$_HI_REAL_CMD\n[alpha]\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one groups-none "$_HI_REAL_CMD = []\n[alpha]\nbash = []\n")"
     _HI_PACKAGES_GROUPS=none
     full_check
   )"
@@ -1895,7 +1986,7 @@ function test_full_check_none_keeps_the_ungrouped_rows() {
 function test_full_check_wraps_at_max_width() {
   local out lines
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one wrap "$_HI_REAL_CMD\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one wrap "$_HI_REAL_CMD = []\nbash = []\n")"
     _HI_MAX_WIDTH=1
     full_check
   )"
@@ -1913,7 +2004,7 @@ function test_full_check_reads_real_packages_file_without_erroring() {
 function test_full_check_closes_every_row_at_max_width() {
   local out lines
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one close "$_HI_REAL_CMD\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one close "$_HI_REAL_CMD = []\nbash = []\n")"
     _HI_MAX_WIDTH=12
     full_check
   )"
@@ -1927,7 +2018,7 @@ function test_full_check_closes_a_row_that_absorbed_a_carry() {
   local out
   local -a _HI_ROW_CARRY=(carriedcell)
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one close-carry "$_HI_REAL_CMD\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one close-carry "$_HI_REAL_CMD = []\nbash = []\n")"
     _HI_MAX_WIDTH=20
     full_check
   )"
@@ -1937,7 +2028,7 @@ function test_full_check_closes_a_row_that_absorbed_a_carry() {
 function test_full_check_right_edge_disabled_stays_under_max_width() {
   local out line n
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one no-edge "$_HI_REAL_CMD\nbash\n")"
+    _HI_PACKAGES="$(_hi_pkg_one no-edge "$_HI_REAL_CMD = []\nbash = []\n")"
     _HI_MAX_WIDTH=20
     _HI_DISABLE_RIGHT_EDGE=1
     full_check
@@ -1959,7 +2050,7 @@ function test_full_check_right_edge_disabled_stays_under_max_width() {
 function test_full_check_absorbs_an_incoming_carry() {
   local out
   local -a _HI_ROW_CARRY=(carriedcell)
-  out="$(_HI_PACKAGES="$(_hi_pkg_one carry-absorb "$_HI_REAL_CMD\n")" full_check)"
+  out="$(_HI_PACKAGES="$(_hi_pkg_one carry-absorb "$_HI_REAL_CMD = []\n")" full_check)"
   [[ "$out" == *carriedcell* ]] && [[ "$out" == *"$_HI_REAL_CMD"* ]] &&
     [ -n "$(_hi_pos "$out" carriedcell)" ] && [ -n "$(_hi_pos "$out" "$_HI_REAL_CMD")" ] &&
     [ "$(_hi_pos "$out" carriedcell)" -lt "$(_hi_pos "$out" "$_HI_REAL_CMD")" ]
@@ -1969,7 +2060,7 @@ function test_full_check_absorbs_an_incoming_carry() {
 # flush a second time.
 function test_full_check_consumes_the_carry() {
   local -a _HI_ROW_CARRY=(carriedcell)
-  _HI_PACKAGES="$(_hi_pkg_one carry-consume "$_HI_REAL_CMD\n")" full_check >/dev/null
+  _HI_PACKAGES="$(_hi_pkg_one carry-consume "$_HI_REAL_CMD = []\n")" full_check >/dev/null
   [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
 }
 
@@ -2007,7 +2098,7 @@ function test_full_check_is_silent_on_stderr() {
 function test_full_check_emits_a_row_for_an_installed_package() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one emits "$_HI_REAL_CMD\n")"
+    _HI_PACKAGES="$(_hi_pkg_one emits "$_HI_REAL_CMD = []\n")"
     full_check
   )"
   [[ "$out" == *"$_HI_REAL_CMD"* ]]
@@ -2019,7 +2110,7 @@ function test_full_check_emits_a_row_for_an_installed_package() {
 function test_full_check_orders_by_tier_then_file_order() {
   local out
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one rank-order "[extras]\ncat\n[useful]\nsh\n[core]\nls\n")"
+    _HI_PACKAGES="$(_hi_pkg_one rank-order "[extras]\ncat = []\n[useful]\nsh = []\n[core]\nls = []\n")"
     _HI_PACKAGES_GROUPS="extras useful core"
     full_check
   )"
@@ -2034,7 +2125,7 @@ function test_full_check_orders_by_tier_then_file_order() {
 function test_full_check_sorts_warnings_and_alarms_first() {
   local out w a c
   out="$(
-    _HI_PACKAGES="$(_hi_pkg_one warn-first "[core]\nls\n[extras]\n-$_HI_REAL_CMD\n+$_HI_FAKE_CMD\n")"
+    _HI_PACKAGES="$(_hi_pkg_one warn-first "[core]\nls = []\n[extras.unwanted]\n$_HI_REAL_CMD = []\n[extras.required]\n$_HI_FAKE_CMD = []\n")"
     _HI_PACKAGES_GROUPS="core extras"
     full_check
   )"
@@ -2233,19 +2324,16 @@ function run_header_tests() {
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "_hi_header_version resolves once per shell" test_header_version_resolves_once_per_shell
-  # _hi_shorten_describe's own contract - not exactly on a tag (commits ahead,
-  # or no tag reachable at all) means it isn't a release, so only a 6-column
-  # commit hash shows, tag dropped rather than implied; a tag with no hash (an
-  # exact tag, a plain $_HI_RELEASE, "unknown") is a release and shows as-is,
-  # truncated to 10 since there's nothing to join it to
-  _hi_check_eq "Shows a 6-char hash when not on a tag" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f
-  _hi_check_eq "...drops the -dirty suffix" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty
-  _hi_check_eq "...trims a bare hash too" 9c1dd0 _hi_shorten_describe 9c1dd0fabc
+  # _hi_shorten_describe's own contract: 10 columns, no -dirty, a bare hash
+  # cut to 6, and a <tag>+N too long for the cap losing its count, not a digit
+  _hi_check_eq "Shows <tag>+N past a tag" v1.0.0+5 _hi_shorten_describe v1.0.0+5
+  _hi_check_eq "...drops the -dirty suffix" v1.0.0+5 _hi_shorten_describe v1.0.0+5-dirty
+  _hi_check_eq "...ends a <tag>+N over the cap at the +" v0.10.10+ _hi_shorten_describe v0.10.10+123
+  _hi_check_eq "...trims a bare hash to 6" 9c1dd0 _hi_shorten_describe 9c1dd0fabc
   _hi_check_eq "...leaves an exact tag alone" v1.0.0 _hi_shorten_describe v1.0.0
   _hi_check_eq "...leaves a release stamp alone" 1.2.3 _hi_shorten_describe 1.2.3
   _hi_check_eq "...leaves 'unknown' alone" unknown _hi_shorten_describe unknown
   _hi_check_eq "...caps a long exact tag at 10 columns" snapshot-6 _hi_shorten_describe snapshot-6fba937
-  _hi_check_eq "...drops a long tag when a hash is present" 200cef _hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty
   _hi_check "The version cell itself is shortened" test_timestamp_version_cell_is_shortened
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info does not show uptime" test_system_info_does_not_show_uptime
@@ -2337,6 +2425,8 @@ function run_header_tests() {
   _hi_check "...nor under a color scheme" test_header_hues_never_repeat_under_a_scheme
   _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_24_word_scheme
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
+  _hi_check "A header/ member's cell draws where the order puts it" test_a_header_cell_of_your_own_draws
+  _hi_check "...and takes an alternate from its own hue" test_a_header_cell_of_your_own_gets_an_alternate
   _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
   _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color
 
@@ -2357,6 +2447,8 @@ function run_header_tests() {
   _hi_check "Group names map to tiers" test_group_tier_maps_names_to_tiers
   _hi_check "_HI_PACKAGES_GROUPS: unset, lists, none" test_group_on_reads_the_list
   _hi_check "Sections are listed in file order" test_package_groups_lists_sections_in_file_order
+  _hi_check "A row is its key and its array" test_full_check_reads_a_toml_row
+  _hi_check "A group is its three tables" test_full_check_reads_a_group_by_its_tables
 
   _hi_h2 "Testing: full_check"
   _hi_check "Skips comment/blank lines" test_full_check_skips_comments_and_blanks

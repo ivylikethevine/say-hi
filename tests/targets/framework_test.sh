@@ -61,10 +61,18 @@ _HI_FRAMEWORKS=(
   # The configs hi carries for a tool the target runs: a tmux started in the
   # session reads the client's ~/.tmux.conf over the target's own, micro
   # is pointed at the client's micro directory, the client's nanorc, its
-  # syntax include dropped, gets the target's /usr/share/nano set, and rg
-  # reads the client's ripgreprc (_hi_config_client_home)
-  "tmux:/bin/bash:tmux nano ripgrep:config"
+  # syntax include dropped, gets the target's /usr/share/nano set, rg
+  # reads the client's ripgreprc, and fzf its fzfrc (_hi_config_client_home)
+  "tmux:/bin/bash:tmux nano ripgrep curl:config"
 )
+
+# The editors and tools no Debian image here has a package for - helix,
+# lazygit, and a kakoune new enough for -ui dummy - from Alpine's community
+# repository on the busybox sshd image, for the tools case: helix reads the
+# client's languages.toml through its xdg: wire, kakoune the client's own
+# colorscheme beside its kakrc, lazygit its config.yml, and git a row of the
+# overlay's own plugins file. bash for the session, script(1) for lazygit's pty.
+_HI_TOOLS_PKGS="bash git kakoune helix lazygit util-linux-misc"
 
 # <stem in _HI_FRAMEWORKS>:<login shell>:<_HI_PROMPT_TOOL name>. The same
 # images the rows above already build, reused rather than built again, with
@@ -119,11 +127,17 @@ function _hi_framework_probe() {
   # directly), so this is the one case here that checks that array rather
   # than PROMPT_COMMAND's own text for the hook's absence
   prompt:hi:bash-it) printf '%s\n' "declare -F _bash-it-log-prefix-by-path >/dev/null && [[ \${PROMPT_COMMAND[*]} == *__hi_ps1* && \${precmd_functions[*]} != *prompt_command* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
-  # a tmux server started from the session, asked for the client's mark; the
-  # alias is the first word, so it expands. nano, on a pty of its own and
+  # a tmux server started from the session, asked for the client's mark and
+  # the carried include's; the alias is the first word, so it expands. nano, on a pty of its own and
   # closed by a ^X, has to paint a shell script in a color: under --rcfile
-  # the carried nanorc is the only one read, so the target's set is what did
-  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_MICRO_DIR/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # the carried nanorc is the only one read, so the target's set is what did.
+  # fzf filters with the client's --exact, so only the exact match comes back
+  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && tmux -L hi show-options -gv @hi_carried | grep -qx HICARRY && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && test \"\$(printf 'axb\\nab\\n' | fzf --filter ab)\" = ab && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # the tools case: hx names the language server the carried languages.toml
+  # configures, kak's own colorscheme sets its option, lazygit draws in the
+  # language its carried config asks for (U+6587, spelled in octal so the pty
+  # carries ASCII), and git reads the overlay's own row
+  tools) printf '%s\n' "hx --health toml 2>&1 | grep -q hitest-ls && timeout 20 kak -ui dummy -e 'echo -to-file /tmp/hikak %opt{hi_scheme}; kill' && grep -q HITHEME /tmp/hikak && git init -q /tmp/hilg && (sleep 5; printf q) | TERM=xterm timeout 30 script -qec 'stty rows 30 cols 100; lazygit -p /tmp/hilg' /dev/null | grep -q \"\$(printf '\\346\\226\\207')\" && git config --global --get hi.mark | grep -qx HIGIT && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
 }
@@ -149,15 +163,39 @@ function _hi_prompt_client_home() {
 }
 
 # _hi_config_client_home <dir> - a client home with a tmux config, a micro
-# settings file, a nanorc, and a ripgreprc ($RIPGREP_CONFIG_PATH, set by the
-# case) of its own, each a marker the config probe looks for; the nanorc's
-# include is one hi drops
+# settings file, a nanorc, a ripgreprc, and an fzfrc ($RIPGREP_CONFIG_PATH and
+# $FZF_DEFAULT_OPTS_FILE, set by the case) of its own, each a marker the
+# config probe looks for; the nanorc's include is one hi drops, and the tmux
+# config's, a file of tmux's own directory, one hi carries. Its overlay
+# has a header/ cell of its own, which $_HI_HEADER_ORDER puts in the header.
+# shellcheck disable=SC2016 # the cell's own code, expanded on the target
 function _hi_config_client_home() {
-  mkdir -p "$1/.config/micro"
-  printf 'set -g @hi_mark HITMUX\n' >"$1/.tmux.conf"
+  mkdir -p "$1/.config/micro" "$1/.config/say-hi/header"
+  printf '_hi_cell_hitest() { printf -v "$1" %%s "${CYAN}HITESTCELL"; }\n' >"$1/.config/say-hi/header/hitest"
+  printf 'export _HI_HEADER_ORDER="utc hitest"\n' >"$1/.config/say-hi/settings.sh"
+  mkdir -p "$1/.config/tmux"
+  printf 'set -g @hi_mark HITMUX\nsource-file ~/.config/tmux/hi.conf\n' >"$1/.tmux.conf"
+  printf 'set -g @hi_carried HICARRY\n' >"$1/.config/tmux/hi.conf"
   printf '{"tabsize": 7}\n' >"$1/.config/micro/settings.json"
   printf 'include "~/.nano/*.nanorc"\nset tabsize 4\n' >"$1/.nanorc"
   printf -- '--type-add=hitest:*.hitest\n' >"$1/.ripgreprc"
+  printf -- '--exact\n' >"$1/.fzfrc"
+}
+
+# _hi_tools_client_home <dir> - a client home with helix's languages.toml,
+# a kakrc naming a colorscheme of its own colors/, lazygit's config.yml, and a
+# git config the overlay's plugins file carries under a row of its own; each a
+# marker the tools probe looks for
+# shellcheck disable=SC2016 # the plugins row's home, expanded by hi
+function _hi_tools_client_home() {
+  mkdir -p "$1/.config/helix" "$1/.config/kak/colors" "$1/.config/lazygit" "$1/.config/git" "$1/.config/say-hi"
+  printf '[[language]]\nname = "toml"\nlanguage-servers = ["hitest-ls"]\n\n[language-server.hitest-ls]\ncommand = "hitest-ls"\n' \
+    >"$1/.config/helix/languages.toml"
+  printf 'colorscheme hitheme\n' >"$1/.config/kak/kakrc"
+  printf 'declare-option str hi_scheme HITHEME\n' >"$1/.config/kak/colors/hitheme.kak"
+  printf 'gui:\n  language: zh-CN\n' >"$1/.config/lazygit/config.yml"
+  printf '[hi]\n\tmark = HIGIT\n' >"$1/.config/git/config"
+  printf '[mine]\n"git/config" = "git | env:GIT_CONFIG_GLOBAL | $XDG_CONFIG_HOME/git/config"\n' >"$1/.config/say-hi/plugins"
 }
 
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with
@@ -179,6 +217,15 @@ function _hi_build_frameworks() {
       _hi_kv_set _HI_FRAMEWORK_OK "$label" 0
     fi
   done
+  local ctx="$_HI_WORKDIR/tools"
+  mkdir -p "$ctx"
+  _hi_sshd_entrypoint "$ctx" /bin/sh
+  if _hi_build_image tools "hi-fwtest-tools-$$" "the tools case" \
+    --build-arg "PKGS=$_HI_TOOLS_PKGS" -f "$(_hi_dockerfile sshd-alpine)" "$ctx"; then
+    _hi_kv_set _HI_FRAMEWORK_OK tools 1
+  else
+    _hi_kv_set _HI_FRAMEWORK_OK tools 0
+  fi
 }
 
 # the shared driver's feeder hook: types the probe for the framework family
@@ -223,12 +270,25 @@ function _hi_run_framework_case() {
   config)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" RIPGREP_CONFIG_PATH="$_HI_WORKDIR/home-$label/.ripgreprc"
+    local -x _HI_CONFIG_DIR="$HOME/.config/say-hi"
+    local -x FZF_DEFAULT_OPTS_FILE="$_HI_WORKDIR/home-$label/.fzfrc"
     # home's configs ride only with their tools here, and a runner has no
-    # micro, nano, or rg
+    # micro, nano, rg, or fzf
     local stubs
-    stubs="$(_hi_stub_tools tmux micro nano rg)"
+    stubs="$(_hi_stub_tools tmux micro nano rg fzf)"
     local -x PATH="$stubs:$PATH"
     _hi_config_client_home "$HOME"
+    ;;
+  tools)
+    local -x HOME="$_HI_WORKDIR/home-$label"
+    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
+    # helix's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
+    local -x _HI_XDG_CONFIG="$XDG_CONFIG_HOME"
+    # home's configs ride only with their tools here; git is the runner's own
+    local stubs
+    stubs="$(_hi_stub_tools hx kak lazygit)"
+    local -x PATH="$stubs:$PATH"
+    _hi_tools_client_home "$HOME"
     ;;
   esac
 
@@ -242,6 +302,12 @@ function _hi_run_framework_case() {
     # the assertion this suite exists for: hi and the framework coexisting
     # without either one printing at the user
     _hi_transcript_is_clean "$label" "$_HI_WORKDIR/$label.interactive.out" && ok=1
+    # the config case's header drew the overlay's header/ cell
+    [ "$3" != config ] || grep -q HITESTCELL "$_HI_WORKDIR/$label.interactive.out" || {
+      _hi_h3 " | [$label] -- FAILED: the overlay's header/ cell did not draw" "$RED"
+      _hi_note_failure "[$label] header/ cell missing"
+      ok=0
+    }
   fi
 
   _hi_rm_container "$name"
@@ -264,9 +330,9 @@ function run_framework_tests() {
 
   _hi_suite_begin
 
-  # Thirteen images, one container per row, nothing shared between them - the
-  # widest fan-out in the tree and the one this suite is almost entirely made
-  # of.
+  # Fourteen images, the Alpine tools one last, one container per row,
+  # nothing shared between them - the widest fan-out in the tree and the one
+  # this suite is almost entirely made of.
   local spec label shell pkgs family
   _hi_par_begin "framework cases"
   for spec in "${_HI_FRAMEWORKS[@]}"; do
@@ -277,6 +343,11 @@ function run_framework_tests() {
       _hi_skip "[$label]" "image did not build"
     fi
   done
+  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK tools)" = 1 ]; then
+    _hi_par_case tools _hi_run_framework_case tools /bin/ash tools
+  else
+    _hi_skip "[tools]" "image did not build"
+  fi
 
   # Three more containers off the starship, p10k, and bash-it images above,
   # with the prompt handed to hi instead of the framework - proof that the
@@ -299,6 +370,7 @@ function run_framework_tests() {
   for spec in "${_HI_FRAMEWORKS[@]}"; do
     docker image rm -f "hi-fwtest-${spec%%:*}-$$" >/dev/null 2>&1 || true
   done
+  docker image rm -f "hi-fwtest-tools-$$" >/dev/null 2>&1 || true
 
   _hi_suite_end "" \
     "hi coexists with every framework tested ($_HI_TOTAL cases)" \

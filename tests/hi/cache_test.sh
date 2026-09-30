@@ -142,10 +142,10 @@ function test_overlay_cache_key_changes_with_the_member_list() {
 # older one cached under the same list
 function test_overlay_cache_key_changes_with_the_wiring() {
   local was now
-  was="$(_hi_overlay_cache_key bat.conf)"
+  was="$(_hi_overlay_cache_key bat/config)"
   now="$(
     function _hi_overlay_wiring() { printf -v "$1" '%s' 'export BAT_CONFIG_DIR=elsewhere'; }
-    _hi_overlay_cache_key bat.conf
+    _hi_overlay_cache_key bat/config
   )"
   [ -n "$was" ] && [ "$was" != "$now" ]
 }
@@ -233,12 +233,12 @@ function test_overlay_cached_rebuilds_when_a_home_config_is_newer() {
   mkdir -p "$home"
   printf -- '--theme=a\n' >"$home/real"
   ln -sf "$home/real" "$home/config"
-  XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat.conf || return 1
-  [ "$out" = "$dir/hi.overlay.$(_hi_overlay_cache_key bat.conf "$home/config")" ] || return 1
+  XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat/config || return 1
+  [ "$out" = "$dir/hi.overlay.$(_hi_overlay_cache_key bat/config "$home/config")" ] || return 1
   _hi_cache_mark "$out"
   touch -t 203001010000 "$out"
   touch -t 203101010000 "$home/real"
-  XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat.conf || return 1
+  XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat/config || return 1
   ! _hi_cache_marked "$out"
 }
 
@@ -421,7 +421,7 @@ function test_ctl_open_shared_socket_name_stays_short() {
   [ "${#base}" -le 20 ]
 }
 
-# the key is a cksum of the target *and* its ssh args, so a -p/-l/-o naming a
+# the key is a hash of the target *and* its ssh args, so a -p/-l/-o naming a
 # different connection to the same host cannot join the wrong socket
 function test_ctl_open_shared_key_splits_on_ssh_args() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared plain ported

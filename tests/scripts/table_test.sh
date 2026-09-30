@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Unit tests for scripts/table.sh: the measure-then-render contract - the two
-# wideners, the rule, and both cell renderers. Everything here is a pure
+# Unit tests for scripts/table.sh: the measure-then-render contract - the pad,
+# the two wideners, the rule, both cell renderers, and a line's pieces. Everything here is a pure
 # string/width function, so every case is an exact-output comparison.
 # GLOSSARY: HI.34
 # shellcheck disable=SC2329
@@ -50,6 +50,46 @@ function test_widen_to_takes_widths_not_strings() {
   w=3
   _hi_widen w 12
   [ "$w" = 3 ]
+}
+
+function test_pad_to_pads_either_side_by_printed_width() {
+  local out colored
+  _hi_pad_to out 4 ab
+  [ "$out" = 'ab  ' ] || return 1
+  _hi_pad_to out 4 7 right
+  [ "$out" = '   7' ] || return 1
+  printf -v colored '%b' "${RED}ab${NC}"
+  _hi_pad_to out 4 "$colored" right
+  [ "$out" = "  $colored" ] || return 1
+  _hi_pad_to out 2 toolong
+  [ "$out" = toolong ]
+}
+
+# the awk writers' column: only a line with a \037 is padded, and a last line
+# with no newline keeps none
+function test_pad_cols_pads_the_marked_lines() {
+  local out
+  out="$(printf '# note\nab\037= "x"\nabcdef\037y' | _hi_pad_cols 4 | od -An -c | tr -s ' \n' ' ')"
+  [ "$out" = "$(printf '# note\nab   = "x"\nabcdef y' | od -An -c | tr -s ' \n' ' ')" ]
+}
+
+function test_fit_cuts_with_an_ellipsis() {
+  local out
+  _hi_fit out abcdefgh 8
+  [ "$out" = abcdefgh ] || return 1
+  _hi_fit out abcdefgh 6
+  [ "$out" = abc... ] || return 1
+  _hi_fit out abcdefgh 2
+  [ "$out" = ... ]
+}
+
+function test_hotkey_brackets_the_letter() {
+  local out want
+  _hi_hotkey prompt r out
+  printf -v want 'p%b[r]%bompt' "$BRYELLOW" "$NC"
+  [ "$out" = "$want" ] || return 1
+  _hi_hotkey save z out
+  [ "$out" = save ]
 }
 
 # Built from the $_HI_BOX_* set in play rather than from a literal "+---+":
@@ -209,6 +249,12 @@ function run_table_tests() {
   _hi_check "_hi_hbar: each column is width+2 dashes" test_hbar_pads_each_column_by_two
   _hi_check "_hi_hbar: one rule for all three positions in ASCII" test_hbar_positions_are_one_rule_in_ascii
   _hi_check "_hi_hbar: corners and junctions on the glyph set" test_hbar_positions_differ_on_the_glyph_set
+
+  _hi_h2 "Testing: _hi_pad_to / _hi_pad_cols / _hi_fit / _hi_hotkey"
+  _hi_check "_hi_pad_to pads either side by printed width" test_pad_to_pads_either_side_by_printed_width
+  _hi_check "_hi_pad_cols pads only the marked lines" test_pad_cols_pads_the_marked_lines
+  _hi_check "_hi_fit cuts with an ellipsis" test_fit_cuts_with_an_ellipsis
+  _hi_check "_hi_hotkey brackets the letter" test_hotkey_brackets_the_letter
 
   _hi_h2 "Testing: _hi_cell / _hi_cell_raw"
   _hi_check "Pads to the width" test_cell_pads_to_the_width

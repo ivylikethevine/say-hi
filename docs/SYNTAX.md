@@ -78,6 +78,7 @@ the first four rows.
 | `${a[@]+"${a[@]}"}`, and a plain `"${!a[@]}"`               | `"${a[@]}"` of a maybe-empty array, or `${!a[@]+…}`   | "unbound variable" under `set -u` ([HI.01](GLOSSARY.md#hi01-empty-array-guard))                | `drift` (the index form)                                    |
 | comments above a `$( … )`, apostrophe-free inside one       | a `'` in a comment inside `$( … )`                    | the whole file fails to parse ([HI.29](GLOSSARY.md#hi29-apostrophes-in-substitution-comments)) | `bash -n` under the bash:3.2 image                          |
 | `_hi_shquote`                                               | `${2//\'/…}`                                          | 3.2 keeps the replacement's quoting ([HI.40](GLOSSARY.md#hi40-hand-rolled-sh-quoting))         | `hi_helpers` and `hi_dispatch`, on the macOS job's bash 3.2 |
+| `d="${m%%/*}"`, then `${x//$d/…}`                           | `${x//${m%%/*}/…}`                                    | bash 3.2 ends the pattern at the `/` inside the nested expansion: "bad substitution"           | `drift`                                                     |
 | `if ((BASH_VERSINFO[0] > 4 \|\| …))` around a newer builtin | `printf '%(…)T'` unguarded                            | bash before 4.2 has no `%(…)T`                                                                 | the header suite on macOS                                   |
 
 ## Files shared with other shells

@@ -21,7 +21,7 @@ tests/test_runner.sh
   - [Coverage and profiling](#coverage-and-profiling)
   - [Timing and shared state](#timing-and-shared-state)
   - [The images are files; the build contexts are not](#the-images-are-files-the-build-contexts-are-not)
-    - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
+  - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
 - [The lint gate](#the-lint-gate)
 - [Test levers](#test-levers)
 - [Relaying](#relaying)
@@ -43,12 +43,11 @@ tests/test_runner.sh --host-report      # ...prefixed with what this machine is
 tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 ```
 
-- `ci` is the checks a second platform could only repeat - the workflows
-  and manifests read as text, and the release tooling only Ubuntu runs
+- `ci` is the checks a second platform could only repeat - the workflows and
+  manifests read as text, and the release tooling only Ubuntu runs
   (`packaging_ci`, a file of its own beside `packaging`'s portable half, and
-  `test_runner_ci`, `runner_test.sh`'s ci part).
-  Ubuntu's fast job runs it; `release.yml` runs it against the bumped
-  manifests.
+  `test_runner_ci`, `runner_test.sh`'s ci part). Ubuntu's fast job runs it;
+  `release.yml` runs it against the bumped manifests.
 - A passing suite's transcript collapses to one status line; failures replay
   in full and are recapped under the summary table. `--verbose`
   (`_HI_VERBOSE=1`) streams every transcript live, for a case that fails only
@@ -72,13 +71,12 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   `--require-run` (CI's lint, e2e, and backends jobs pass it) turns both into
   failures: the suite goes red, its transcript replays, and each stood-down
   case is named in the recap.
-- `--host-report` (`_HI_HOST_REPORT=1`) prints one block before the first
-  suite: bash, OS, CPU and memory, userland (GNU/BSD/busybox), the locale's
-  glyph verdict, which tree `$_HI_HOME` resolves to, which backends answer,
-  and tool versions. Every CI job but the lint runs and `release.yml`'s `ci`
-  run passes it. The tree half prints on
-  **every** run when the tree under test is not the one the runner was
-  invoked from — the quietest way to get a wrong result here.
+- `--host-report` (`_HI_HOST_REPORT=1`) prints one block before the first suite:
+  bash, OS, CPU and memory, userland (GNU/BSD/busybox), the locale's glyph
+  verdict, which tree `$_HI_HOME` resolves to, which backends answer, and tool
+  versions. Every CI job but the lint runs and `release.yml`'s `ci` run passes
+  it. The tree half prints on **every** run when the tree under test is not the
+  one the runner was invoked from — the quietest way to get a wrong result here.
 - Every test script also runs directly, e.g. `tests/lint/shellcheck_test.sh`.
 - Under a wrapper that leaves a controlling terminal but a background process
   group (`timeout` from a prompt, a `wsl.exe` session), run
@@ -87,10 +85,10 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   sessions the `load` and `install_location` suites start stop on SIGTTIN
   until the deadline. GitHub's ubuntu runner has no controlling terminal.
 - Under WSL 2, drop the `/mnt/` entries from `$PATH` first: interop's ~50
-  `/mnt/c/...` directories are served over 9p, and the package check's
-  uncached `command -v` misses make one `full_check` take 30–37s instead of
-  30ms - half a minute a check, when the pty cases' deadline was 30s. `windows-e2e.yml`'s `wsl-suites`
-  job does this and has the measurements.
+  `/mnt/c/...` directories are served over 9p, and the package check's uncached
+  `command -v` misses make one `full_check` take 30–37s instead of 30ms - half a
+  minute a check, when the pty cases' deadline was 30s. `windows-e2e.yml`'s
+  `wsl-suites` job does this and has the measurements.
 
 Six groups (`--group <name>`, or a comma list; `--list` prints the
 membership) - `ci` above, and:
@@ -107,20 +105,21 @@ membership) - `ci` above, and:
   one `fast suites (Git Bash)` check (backgrounded suites barely overlap
   under MSYS, so only more machines shorten it), and `ci.yml` shards `e2e`
   and `backends`.
-- **`lint`** — [the lint gate](#the-lint-gate): its own ubuntu CI job,
-  beside `fast`'s; the macOS, Windows, and BSD jobs run `fast` alone, since
-  linting text does not depend on the userland. Run
-  `npm ci --prefix .github` first, or its two Markdown checks skip.
+- **`lint`** — [the lint gate](#the-lint-gate): its own ubuntu CI job, beside
+  `fast`'s; the macOS, Windows, and BSD jobs run `fast` alone, since linting
+  text does not depend on the userland. Run `npm ci --prefix .github` first, or
+  its two Markdown checks skip.
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
   budgets.
 - **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `ssh_wire`,
-  `install_methods`, `repo`, `docker`, `framework`: throwaway containers
-  driving `hi.sh`'s real connection paths (`_say_hi` and
+  `install_methods`, `repo`, `docker`, `framework`, `home_prompt`: throwaway
+  containers driving `hi.sh`'s real connection paths (`_say_hi` and
   `_say_hi_container`). `ssh_wire` counts one session's bytes through a
   `ProxyCommand` and checks them against the figure hi prints on its connect
-  line. `repo` is about packaging rather than sessions: it builds the package
-  repository with throwaway keys and installs from it as apt, dnf, and apk
-  clients, signatures verified.
+  line. Two are not about sessions: `repo` builds the package repository with
+  throwaway keys and installs from it as apt, dnf, and apk clients, signatures
+  verified, and `home_prompt` installs hi over each distro's stock `/etc/skel`
+  rc to check which prompt wins at home.
 - **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
   need extra runner setup.
 
@@ -213,49 +212,48 @@ run.
 
 Two coverage tools, kcov (`tests/coverage.sh`) and
 [bashcov](https://github.com/infertux/bashcov) (`tests/coverage_v2.sh`), each
-run over the full suite sweep — every suite the box's backends can host —
-by hand or by `coverage.yml`: after every green CI run on a push to `main`, and
-on every same-repo, non-draft PR, where the `comment` job posts both figures
-beside main's in one comment edited in place, with the PR's passed-case count
-from its CI run beside main's (the push that merges the PR reuses them). The two aggregates have tracked each other within a few points
-for many commits: **the average of the two badges** is the coverage figure,
-and the per-file reports are for finding untested arms. Only a divergence of
-tens of points means one tool has lost the plot. Never a gate: the pull
-request template's 90% is a target, and the PR comment flags an average below
-it without failing anything. Both sweeps pin `_HI_PAR_WIDTH=1`, since a batch
-writing into a suite's one trace stream side by side loses lines, and both put
-a bash-as-`sh` first on their own `PATH`: neither tracer follows a dash child,
-so a `#!/bin/sh` file a suite executes as `sh …` (`common/targets.sh`) would
-read 0% where `/bin/sh` is dash.
+run over the full suite sweep — every suite the box's backends can host — by
+hand or by `coverage.yml`: after every green CI run on a push to `main`, and on
+every same-repo, non-draft PR, where the `comment` job posts both figures beside
+main's in one comment edited in place, with the PR's passed-case count from its
+CI run beside main's (the push that merges the PR reuses them). The two
+aggregates have tracked each other within a few points for many commits: **the
+average of the two badges** is the coverage figure, and the per-file reports are
+for finding untested arms. Only a divergence of tens of points means one tool
+has lost the plot. Never a gate: the pull request template's 90% is a target,
+and the PR comment flags an average below it without failing anything. Both
+sweeps pin `_HI_PAR_WIDTH=1`, since a batch writing into a suite's one trace
+stream side by side loses lines, and both put a bash-as-`sh` first on their own
+`PATH`: neither tracer follows a dash child, so a `#!/bin/sh` file a suite
+executes as `sh …` (`common/targets.sh`) would read 0% where `/bin/sh` is dash.
 
-In CI each tool is sharded 4 ways (`--shard i/4`, which
-`_hi_cov_select_suites` passes straight to `test_runner.sh`) and merged by a
-gather job: `kcov --merge` over the shards' `parts/` directories, and a plain
-JSON hash union of bashcov's `--command-name`-keyed `.resultset.json` files,
-safe because shards partition the suite table.
+In CI each tool is sharded 4 ways (`--shard i/4`, which `_hi_cov_select_suites`
+passes straight to `test_runner.sh`) and merged by a gather job: `kcov --merge`
+over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
+`--command-name`-keyed `.resultset.json` files, safe because shards partition
+the suite table.
 
 - **kcov**'s known failure mode is losing its DEBUG trap once the harness is
-  sourced, which reads whole suites as load-time-only; the script's header
-  keeps the probe to re-run if the badges diverge. **`kcov --merge` re-reads
-  the sources** at the absolute paths each shard recorded, so a merge with no
+  sourced, which reads whole suites as load-time-only; the script's header keeps
+  the probe to re-run if the badges diverge. **`kcov --merge` re-reads the
+  sources** at the absolute paths each shard recorded, so a merge with no
   working tree yields `"files": []` and a well-formed `0.00%` badge, not an
   error. `coverage.yml`'s `gather-kcov` checks the tree out before calling
-  `tests/coverage.sh --merge` (a local sweep's own merge, ranking, and
-  all-zero refusal), and the `test_runner_ci` suite (`runner_test.sh`'s ci
-  part) asserts every job
-  calling it does. `gather-bashcov` needs no checkout.
-- **bashcov** reads bash's `xtrace`, and skews the other way: a **heredoc
-  body** counts as covered whether or not it ran, and children under `env -i`
-  or inside containers drop out of the trace — so a single file reads a few
-  points off either way while the pair brackets the truth. More readings are
-  artifacts, not gaps, and `tests/coverage_v2.sh`'s header is their list: a
-  scratch-tree copy, an `eval` inside a `$( )`, a zsh-only arm, the `sh …`
-  case above, lines a passing case asserts but that still read 0, and the lines `xtrace`
-  never prints (an empty case arm, a redirect line). Rule those out before
-  writing a test against a number. It needs
-  `gem install --user-install bashcov` (found off the gem bin directory if
-  not on `$PATH`), and writes a `.simplecov` into the checkout for the run,
-  refusing to start rather than overwrite one you have.
+  `tests/coverage.sh --merge` (a local sweep's own merge, ranking, and all-zero
+  refusal), and the `test_runner_ci` suite (`runner_test.sh`'s ci part) asserts
+  every job calling it does. `gather-bashcov` needs no checkout.
+- **bashcov** reads bash's `xtrace`, and skews the other way: a **heredoc body**
+  counts as covered whether or not it ran, and children under `env -i` or inside
+  containers drop out of the trace — so a single file reads a few points off
+  either way while the pair brackets the truth. More readings are artifacts, not
+  gaps, and `tests/coverage_v2.sh`'s header is their list: a scratch-tree copy,
+  an `eval` inside a `$( )`, a zsh-only arm, the `sh …` case above, lines a
+  passing case asserts but that still read 0, and the lines `xtrace` never
+  prints (an empty case arm, a redirect line). Rule those out before writing a
+  test against a number. It needs `gem install --user-install bashcov` (found
+  off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into
+  the checkout for the run, refusing to start rather than overwrite one you
+  have.
 
 `pages.yml` publishes both aggregates as shields endpoints
 (`badges/coverage.json`, `badges/coverage-v2.json`), each labelled by its tool
@@ -292,10 +290,14 @@ harness makes these choices on purpose:
 
 - **Isolation per suite.** `test_lib.sh` gives each suite a fresh
   `mktemp -d` root holding its `XDG_CONFIG_HOME` (absent until a case makes
-  it) and `XDG_RUNTIME_DIR`, so parallel suites never share hi's payload,
-  overlay, or ssh-tags caches, nor a developer's real sockets. Cleanup removes
-  that root by its recorded path - never whatever an XDG variable points at
-  by then.
+  it), `XDG_RUNTIME_DIR`, and `HOME`, so parallel suites never share hi's
+  payload, overlay, or ssh-tags caches, nor a developer's real sockets, and
+  no dotfile of a developer's rides a stream a suite builds. docker keeps
+  its contexts through `DOCKER_CONFIG` and podman its storage through
+  `XDG_DATA_HOME`, both set from the home the run started in;
+  `_HI_TEST_KEEP_HOME=1` leaves `HOME` alone, for a toolchain that resolves
+  through it. Cleanup removes that root by its recorded path - never
+  whatever a variable points at by then.
 - **Pinned caps.** `_HI_PROBE_TIMEOUT` is 10 in the suites (a user's 2s is
   for real CLIs; the suites probe shell shims); the pty cases' cap is 60s,
   `_hi_login_env`'s 180s. A cap bounds a wedge, never a pace.
@@ -356,12 +358,12 @@ naming a missing Dockerfile.
 ### What is pinned, and what deliberately is not
 
 **Upstream base images are digest-pinned, non-negotiably.** Every `FROM` in
-`tests/dockerfiles/` that names an upstream image (11 of 19: alpine, ubuntu,
+`tests/dockerfiles/` that names an upstream image (11 of 20: alpine, ubuntu,
 debian, fedora, bash, zshusers/zsh) carries a `@sha256:` — what makes a failed
 e2e run reproducible and a base-image move a deliberate, reviewable act.
 Dependabot bumps the digests weekly, which is how a base image reaching EOL
-gets noticed. The other 8 are `FROM ${BASE}` over an image a suite builds
-locally (`hi-test-sshd` and the like; see `--build-arg BASE=` in
+gets noticed. The other 9 are `FROM ${BASE}` over an image a suite or a tape
+builds locally (`hi-test-sshd` and the like; see `--build-arg BASE=` in
 `tests/targets/*_test.sh`), with no upstream digest to pin; Scorecard flags
 them as unpinned `containerImage` dependencies, and
 [`.scorecard.yml`](https://github.com/ivylikethevine/say-hi/blob/main/.scorecard.yml)
@@ -376,27 +378,28 @@ cannot see them. `lint_image_tags` fails when a tag named anywhere in the tree
 disagrees with the digest-pinned ones; `lint_image_digests` when two
 Dockerfiles pin one tag to different digests.
 
-**Every framework fetch is pinned.** Five to a release and a hash, each
+**Every framework fetch is pinned.** Six to a release and a hash, each
 downloaded to a file and `sha256sum -c`d before use: `frameworks/plgo.sh`'s
-release binary (v1.26), `frameworks/tide.sh`'s fisher (4.4.5, installing tide
-v6.2.0), and the atuin, mise, and starship installers. `atuin.sh` (v18.20.1)
-and `mise.sh` (v2026.8.14) name the release tag in the download URL, so hash
-and version move together (`mise.run` is regenerated per release whatever
-`MISE_VERSION` says, so pinning that alone drifts); `starship.sh` (v1.26.0,
-via `--version`) fetches the generic `starship.rs/install.sh`, so its hash
-pins _that day's copy of the installer_ — a mismatch needs a fresh hash, not a
-version bump. The frameworks without releases are pinned by commit: the
-oh-my-zsh and oh-my-bash installers by commit and hash, each fed its framework
-through a local mirror fetched at a commit (`omz.sh`, `p10k.sh`, `omb.sh`), the
-bash-it and powerlevel10k checkouts by commit, and atuin's bash-preexec by
-commit and hash. Every pin is named in its script and bumped by hand. The image
-builds under `pipefail`, so a 404, a checksum mismatch, or an installer
-changing shape fails the build rather than shipping an image with the
-framework missing.
+release binary (v1.26), `frameworks/tmux.sh`'s fzf release (v0.74.4, since
+bookworm's apt fzf predates `$FZF_DEFAULT_OPTS_FILE`), `frameworks/tide.sh`'s
+fisher (4.4.5, installing tide v6.2.0), and the atuin, mise, and starship
+installers. `atuin.sh` (v18.20.1) and `mise.sh` (v2026.8.14) name the release
+tag in the download URL, so hash and version move together (`mise.run` is
+regenerated per release whatever `MISE_VERSION` says, so pinning that alone
+drifts); `starship.sh` (v1.26.0, via `--version`) fetches the generic
+`starship.rs/install.sh`, so its hash pins _that day's copy of the installer_ —
+a mismatch needs a fresh hash, not a version bump. The frameworks without
+releases are pinned by commit: the oh-my-zsh and oh-my-bash installers by commit
+and hash, each fed its framework through a local mirror fetched at a commit
+(`omz.sh`, `p10k.sh`, `omb.sh`), the bash-it and powerlevel10k checkouts by
+commit, and atuin's bash-preexec by commit and hash. Every pin is named in its
+script and bumped by hand. The image builds under `pipefail`, so a 404, a
+checksum mismatch, or an installer changing shape fails the build rather than
+shipping an image with the framework missing.
 
 ## The lint gate
 
-`--group lint` is four suites, twenty-nine checks between them. Each suite is
+`--group lint` is four suites, twenty-eight checks between them. Each suite is
 its own process (`shellcheck`, `dialects`, `tools`, `drift`) with its own
 tally in the summary table, so a failure in one never hides what the others
 found.
@@ -452,8 +455,8 @@ image no longer carries the version the check claims.
   image is upstream's `zshusers/zsh:5.5.1`, since a distro apt install failed
   on hosted runners only.
 
-**`tools`** (`tests/lint/tools_test.sh`) — nine external-tool wrappers, each
-skipping yellow when its tool isn't installed (CI has all nine):
+**`tools`** (`tests/lint/tools_test.sh`) — seven external-tool wrappers, each
+skipping yellow when its tool isn't installed (CI has all seven):
 
 - **6. shfmt** over the same `*.sh` list, style from `.editorconfig`. Fix a
   red run with `shfmt -w` on the paths it names, not `shfmt -w .`, which also
@@ -468,15 +471,18 @@ skipping yellow when its tool isn't installed (CI has all nine):
 - **11. markdownlint** (markdownlint-cli2, rules in `.markdownlint.yaml`)
   over the Markdown git knows about, tracked or new.
 - **12. prettier --check** over the same list, style in `.prettierrc.yaml`,
-  skipping `.prettierignore`'s files. Fix with `prettier --write` on the paths
+  skipping `.prettierignore`'s files, with `.github/prettier-plugin-docs.mjs`,
+  which writes each doc's `## Contents` list from its `##` and `###`
+  headings: a stale list fails like any other formatting. Fix with
+  `prettier --write --plugin ./.github/prettier-plugin-docs.mjs` on the paths
   it names.
 
-**`drift`** (`tests/lint/drift_test.sh`) — seventeen repo-consistency sweeps,
+**`drift`** (`tests/lint/drift_test.sh`) — sixteen repo-consistency sweeps,
 each checking that something written down elsewhere still agrees with the tree:
 
 - **13. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
-  `${x,,}`, `wait -n`, or `${!a[@]+…}` — each explained in [GLOSSARY.md](GLOSSARY.md) by its
-  `GLOSSARY: HI.NN` tag.
+  `${x,,}`, `wait -n`, or `${!a[@]+…}` — each explained in
+  [GLOSSARY.md](GLOSSARY.md) by its `GLOSSARY: HI.NN` tag.
 - **14. One-userland spellings**: [SYNTAX.md](SYNTAX.md)'s enforced rows -
   `echo -e`, `sed -r` and `-i`, `grep -P`, `readlink -f`, `xargs -r`,
   `head -n -N`, `date %-X`, gawk-only functions, `mktemp -t` with no X's, and
@@ -493,12 +499,12 @@ each checking that something written down elsewhere still agrees with the tree:
 - **18. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
   GLOSSARY.md defines, and every entry is referenced; matched by code, not
   title.
-- **19. The settings roster**: every name the tree treats as a setting
-  (`_HI_TOGGLES`, the `_HI_*_PROMPTS` tables) has a row in
-  [SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and every row names a
-  variable the tree still reads.
-- **20. The docker-compatible family**: `common/core.sh`'s
-  `$_HI_CONTAINER_CLIS` and `common/targets.sh`'s copy name the same CLIs
+- **19. The settings rows**: every row of `scripts/settings` (the rows
+  [SETTINGS.md](SETTINGS.md)'s _Every setting_ table is written from and
+  `hi --configure` reads its items from) names a variable the shipped tree
+  still reads, and none is one the doc's _Not settings_ lists.
+- **20. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
+  and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file
   can read the other.
 - **21. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
@@ -511,20 +517,16 @@ each checking that something written down elsewhere still agrees with the tree:
   page the site builds too, not a dot-path or anything `_config.yml` excludes
   (which renders on GitHub and 404s on Pages); link those as absolute
   github.com URLs.
-- **24. Contents blocks**: in every rendered page, each `##` and `###` heading
-  has an entry in that doc's `## Contents` list and each entry names a real
-  heading, an `###`'s entry indented under an `##`'s. just-the-docs runs with
-  no front matter here, so these lists are the site's only in-page navigation.
-- **25. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **24. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples (the upstream cap).
-- **26. tests/dockerfiles/**: every image definition has a caller and vice
+- **25. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **27. Image tags**: every plain image tag named in shell or YAML is one of
+- **26. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **28. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
-  its digest — check 27 strips digests before comparing, so it can't see one
+- **27. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
+  its digest — check 26 strips digests before comparing, so it can't see one
   tag pinned two ways.
-- **29. The eval roster**: every `eval` in the payload and `scripts/` has a
+- **28. The eval roster**: every `eval` in the payload and `scripts/` has a
   row in `tests/lint/eval_roster` saying what it evaluates, and every file's
   count of its kin (a `source` of a path in a variable, a shell's `-c`, a
   recursive `rm`) matches its row; a row nothing matches fails too, so the

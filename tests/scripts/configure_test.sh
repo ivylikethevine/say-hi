@@ -372,13 +372,16 @@ _HI_GROUPS_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the shipped plugins rows, which hi.sh reads under $_HI_ROOT
+  mkdir -p "$_hi_dir/config"
+  ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
-  : >"$_hi_dir/overlay/nanorc"
-  _HI_NANORC="$_hi_dir/overlay/nanorc"
+  mkdir -p "$_hi_dir/overlay/nano"
+  : >"$_hi_dir/overlay/nano/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
-  printf "%s\n" "[core]" sh "[useful]" sh "[deprecated]" "-zz-hi-absent" "[extras]" sh "[Work]" sh \
+  printf "%s\n" "[core]" "sh = []" "[useful]" "sh = []" "[deprecated.unwanted]" "zz-hi-absent = []" "[extras]" "sh = []" "[Work]" "sh = []" \
     >"$_hi_dir/overlay/packages"
   _HI_PACKAGES="$_hi_dir/overlay/packages"
   _HI_SETTING_LINES=()
@@ -867,7 +870,7 @@ function test_preset_vocab_excludes_palette_and_order() {
 # so the before-state is the marked block a real run would find.
 function _hi_preset_run() {
   mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_EDITORS=1" "export _HI_MAX_WIDTH=120"
+  config_shell settings "$_HI_SETTINGS" "export _HI_PLUGINS_OFF='editors'" "export _HI_MAX_WIDTH=120"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   run_configure balanced </dev/null
@@ -878,7 +881,7 @@ function test_preset_run_writes_the_preset() {
   _hi_settings_fixture preset_run _hi_preset_run
   block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings preset_run)")"
   [[ "$block" == *"export _HI_PACKAGES_GROUPS='core,deprecated'"* &&
-    "$block" == *"export _HI_MAX_WIDTH=120"* && "$block" != *"_HI_DISABLE_EDITORS"* ]]
+    "$block" == *"export _HI_MAX_WIDTH=120"* && "$block" != *"_HI_PLUGINS_OFF"* ]]
 }
 
 function test_install_rejects_an_unknown_preset() {
@@ -1022,23 +1025,21 @@ function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
 }
 
 # the preview lists an editor for every config that would ride, whether or
-# not this machine has the editor: the alias is a target's. micro's is
-# common/aliases.sh's, and there only with micro here.
+# not this machine has the editor: the alias is a target's.
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano  -> nano --rcfile $_HI_NANORC"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_EMACSRC"* ]] || _hi_because "emacs: $out" || return 1
-  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_VIMRC"* ]] || _hi_because "vim: $out" || return 1
+  [[ "$out" == *"nano  -> nano --rcfile $_HI_CONFIG_DIR/nano/nanorc"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_CONFIG_DIR/emacs/init.el"* ]] || _hi_because "emacs: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_CONFIG_DIR/vim/vimrc"* ]] || _hi_because "vim: $out" || return 1
   # each name carries the rc of the binary behind it: nvim answers to both
   # `vim` and `nvim` and reads init.lua, its state kept in the session tree
-  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_NVIMRC"* ]] || _hi_because "nvim: $out" || return 1
-  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" nvim -u $_HI_NVIMRC"* ]] || _hi_because "vim as nvim: $out" || return 1
-  [[ "$out" == *"hx    -> hx -c $_HI_HELIXRC"* && "$out" == *"helix -> helix -c $_HI_HELIXRC"* ]] || _hi_because "helix: $out" || return 1
-  # micro's flags ride only a target or a micro/ of hi's, the overlay's here
-  if command -v micro >/dev/null 2>&1; then
-    [[ "$out" == *"micro -> micro -config-dir $_HI_MICRO_DIR -backup false"* ]] || _hi_because "micro: $out" || return 1
-  fi
+  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/nvim/init.lua"* ]] || _hi_because "nvim: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/nvim/init.lua"* ]] || _hi_because "vim as nvim: $out" || return 1
+  [[ "$out" == *"hx    -> hx -c $_HI_CONFIG_DIR/helix/config.toml"* && "$out" == *"helix -> helix -c $_HI_CONFIG_DIR/helix/config.toml"* ]] || _hi_because "helix: $out" || return 1
+  # micro's three files share one line
+  [[ "$out" == *"micro -> micro -backup false -savehistory false -config-dir $_HI_CONFIG_DIR/micro"* ]] || _hi_because "micro: $out" || return 1
+  [ "$(grep -c '^micro ' <<<"$out")" = 1 ] || _hi_because "micro, more than once: $out"
 }
 
 # the preview has no second spelling to drift out of step: its line for
@@ -1052,7 +1053,7 @@ function test_editor_preview_matches_its_alias() {
   _hi_wiring_for "$member" >"$dir/wiring.sh" || return 1
   path="$(_hi_fake_path "preview-bin-$bin" "$bin"):$PATH"
   # shellcheck disable=SC2016 # the child bash expands its own script
-  from_alias="$(PATH="$path" _HI_DISABLE_EDITORS=0 _HI_DISABLE_VIM=0 _HI_DISABLE_HELIX=0 bash -c '. "$1" && alias "$2"' _ "$dir/wiring.sh" "$tool" 2>/dev/null)"
+  from_alias="$(PATH="$path" bash -c '. "$1" && alias "$2"' _ "$dir/wiring.sh" "$tool" 2>/dev/null)"
   [ -n "$from_alias" ] || {
     _hi_cecho " | no $tool alias to compare" "$RED"
     return 1
@@ -1156,7 +1157,7 @@ function test_prompt_tool_preview_reports_none() {
 function test_groups_preview_renders_the_candidate() {
   _hi_load_preview_sources
   local out
-  printf '[mine]\nsh\n' >"$_HI_WORKDIR/groups_fixture"
+  printf '[mine]\nsh = []\n' >"$_HI_WORKDIR/groups_fixture"
   out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview mine)"
   [[ "$(_hi_strip_ansi "$out")" == *" sh "* ]]
 }
@@ -1167,7 +1168,7 @@ function test_groups_preview_renders_the_candidate() {
 function test_groups_preview_says_when_nothing_shows() {
   _hi_load_preview_sources
   local out
-  printf '[mine]\nsh\n' >"$_HI_WORKDIR/groups_fixture"
+  printf '[mine]\nsh = []\n' >"$_HI_WORKDIR/groups_fixture"
   # the candidate is an argument, not a global the caller sets; the fixture
   # file is scoped to the render itself, not to the strip around it
   out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview none)"
@@ -1213,10 +1214,13 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the shipped plugins rows, which hi.sh reads under $_HI_ROOT
+  mkdir -p "$_hi_dir/config"
+  ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
-  : >"$_hi_dir/overlay/nanorc"
-  _HI_NANORC="$_hi_dir/overlay/nanorc"
+  mkdir -p "$_hi_dir/overlay/nano"
+  : >"$_hi_dir/overlay/nano/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -1259,14 +1263,14 @@ function _hi_cfg_screen_has() {
 # _hi_cfg_titles <label> - every draw's title, in order, comma-joined
 function _hi_cfg_titles() {
   _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
-    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?|Header|Prompt|Editors|Aliases|This machine|Advanced)  -.*/\1/p' |
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?|Header|Prompt|Plugins|Aliases|This machine|Advanced)  -.*/\1/p' |
     paste -sd, -
 }
 
 # every section's letter in order, then b: the six pages and the main page
 # again, each drawn once
-_HI_MENU_EVERY_PAGE='i\nr\ne\na\nm\nv\nb\ns\n'
-_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Prompt,hi --configure: Editors"
+_HI_MENU_EVERY_PAGE='i\nr\ng\na\nm\nv\nb\ns\n'
+_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Prompt,hi --configure: Plugins"
 _HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Aliases,hi --configure: This machine"
 _HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Advanced,hi --configure"
 
@@ -1466,26 +1470,36 @@ function test_menu_opens_the_package_groups() {
   [[ "$(_hi_cfg_lines hdr_groups)" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]]
 }
 
-# a feature row flips and says so under the list, with its preview
-# The indices here are positions in $_HI_FEATURE_PROMPTS, so inserting a row
-# above the one a case means shifts it: _HI_DISABLE_EDITORS is 4 and
-# _HI_DISABLE_ENV_STATUS 3 because the greeting row sits at 1, under the
-# header's.
-function test_menu_feature_toggles_and_previews() {
-  _hi_cfg_pty feat_toggle "$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')\ns\n" '' config_hub || return 1
-  _hi_cfg_has feat_toggle "editor config overrides: now off" &&
-    { ! command -v nano >/dev/null 2>&1 || _hi_cfg_has feat_toggle "nano --rcfile"; } &&
-    [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
+# the plugins kept home are a list of words, toggled by name: a group goes
+# in, Enter keeps it, and the editors' aliases that are left preview under
+# the list - none, with every editor home
+function test_menu_toggles_the_plugins_kept_home() {
+  _hi_cfg_pty plug_toggle "$(_hi_item plugins)\neditors\n\ns\n" '' config_hub || return 1
+  _hi_cfg_has plug_toggle "plugins kept home: editors" &&
+    ! _hi_cfg_has plug_toggle "nano --rcfile" 2>/dev/null &&
+    [[ "$(_hi_cfg_lines plug_toggle)" == *"export _HI_PLUGINS_OFF='editors'"* ]]
 }
 
-# ...and an opt-in row (the tool aliases, 11) flips on to its on-value
+# ...a word that names nothing is asked again, and the list keeps what it had
+function test_menu_plugins_refuse_a_stranger() {
+  _hi_cfg_pty plug_stranger "$(_hi_item plugins)\nnosuch\n\ns\n" "export _HI_PLUGINS_OFF='mux'" config_hub || return 1
+  _hi_cfg_has plug_stranger "no plugin or group nosuch" &&
+    [[ "$(_hi_cfg_lines plug_stranger)" == *"export _HI_PLUGINS_OFF='mux'"* ]]
+}
+
+# The indices here are positions in $_HI_FEATURE_PROMPTS, so inserting a row
+# above the one a case means shifts it: the tool aliases are 4 and
+# _HI_DISABLE_ENV_STATUS 3 because the greeting row sits at 1, under the
+# header's.
+
+# an opt-in row (the tool aliases, 4) flips on to its on-value
 function test_menu_opt_in_row_writes_its_on_value() {
-  _hi_cfg_pty feat_opt_in "$(_hi_item 'row|_HI_FEATURE_PROMPTS|11')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty feat_opt_in "$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_opt_in "styled tool aliases: now on" &&
     [[ "$(_hi_cfg_lines feat_opt_in)" == *"export _HI_TOOL_ALIASES=1"* ]]
 }
 
-# The environment segment sits between git status and the editors. Its preview
+# The environment segment sits after git status. Its preview
 # falls back to the shape when nothing is active here, which is what a run on
 # a bare CI box sees - so the case asserts the toggle and the paren shape, not
 # a name only this machine would have.
@@ -1571,7 +1585,8 @@ function test_full_run_preset_then_save() {
   _hi_cfg_has full_walk "Nothing is written until you save" &&
     _hi_cfg_has full_walk "starting from the 'minimal' preset" &&
     _hi_cfg_has full_walk "CFGQUIT=none" &&
-    [[ "$block" == *"export _HI_DISABLE_HEADER=1"* && "$block" == *"export _HI_DISABLE_LOCAL=1"* ]]
+    [[ "$block" == *"export _HI_DISABLE_HEADER=1"* && "$block" == *"export _HI_DISABLE_LOCAL=1"* &&
+      "$block" == *"export _HI_PLUGINS_OFF='editors'"* ]]
 }
 
 # q after the same preset writes nothing at all - no block, not even the
@@ -1607,11 +1622,11 @@ function test_menu_junk_is_bounded_and_quits() {
 # This machine's one number is _HI_DISABLE_LOCAL's, read off the list.
 function test_menu_main_page_sums_up_every_section() {
   local m main keys
-  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|16')" || return 1
+  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|6')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
   main="$(_hi_cfg_screen hub_all 0)"
   keys="$(printf '%s\n' "$main" | sed -n 's/^ \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
-  [ "$keys" = "i,r,e,a,m,v" ] || _hi_because "the main page's sections: [$keys]" || return 1
+  [ "$keys" = "i,r,g,a,m,v" ] || _hi_because "the main page's sections: [$keys]" || return 1
   [[ "$main" == *"preview"* && "$main" == *" [i] Header       1-"*" on, width 80, packages "* ]] &&
     [[ "$main" == *" [m] This machine $(printf '%-6s' "$m") 1 of 1 on"* ]] &&
     [[ "$main" == *" [v] Advanced     "*", 24-bit color auto"* ]] &&
@@ -1622,9 +1637,9 @@ function test_menu_main_page_sums_up_every_section() {
 # a section's letter opens its page - titled, [b]ack leading the keys, only its
 # own rows - and b comes back to the main page
 function test_menu_section_letters_open_their_pages() {
-  local titles end kak sudo
-  end="$(_hi_item 'end|bash')" && kak="$(_hi_item 'row|_HI_FEATURE_PROMPTS|10')" &&
-    sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|12')" || return 1
+  local titles end kept sudo
+  end="$(_hi_item 'end|bash')" && kept="$(_hi_item plugins)" &&
+    sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|5')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
   titles="$(_hi_cfg_titles hub_pages)"
   [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || _hi_because "titles: [$titles]" || return 1
@@ -1632,7 +1647,7 @@ function test_menu_section_letters_open_their_pages() {
     _hi_cfg_screen_has hub_pages 1 " 1) [x] header" &&
     _hi_cfg_screen_has hub_pages 1 "    packages      " &&
     _hi_cfg_screen_has hub_pages 2 "$end)     bash prompt ends with" &&
-    _hi_cfg_screen_has hub_pages 3 "$kak) [x] kakoune" &&
+    _hi_cfg_screen_has hub_pages 3 "$kept)     kept home" &&
     _hi_cfg_screen_has hub_pages 4 "$sudo) [ ] sudo alias" &&
     _hi_cfg_screen_has hub_pages 6 "24-bit color" &&
     _hi_cfg_screen_has hub_pages 7 " [i] Header" &&
@@ -1643,7 +1658,7 @@ function test_menu_section_letters_open_their_pages() {
 # This machine's page draws _HI_DISABLE_LOCAL, the one row it holds
 function test_menu_this_machine_page_holds_here_too() {
   local m
-  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|16')" || return 1
+  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|6')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_local 'm\ns\n' '' run_configure "" || return 1
   _hi_cfg_screen_has hub_local 1 "hi --configure: This machine" &&
     _hi_cfg_screen_has hub_local 1 "$m) [x] here too"
@@ -1665,7 +1680,7 @@ function test_menu_numbers_every_row() {
 # on the main page, the Advanced page's flips an Aliases row and stays there
 function test_menu_number_works_from_any_page() {
   local p t
-  p="$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')" && t="$(_hi_item 'row|_HI_FEATURE_PROMPTS|11')" || return 1
+  p="$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')" && t="$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_num "$p\nv\n$t\ns\n" '' run_configure "" || return 1
   local lines
   lines="$(_hi_cfg_lines hub_num)"
@@ -1745,10 +1760,13 @@ function run_configure_tests() {
   # for the previews to read back
   mkdir -p "$_HI_CONFIG_DIR"
   local _hi_f
-  for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_CONFIG_DIR/$_hi_f"; done
+  for _hi_f in vim/vimrc nvim/init.lua helix/config.toml nano/nanorc emacs/init.el; do
+    mkdir -p "$_HI_CONFIG_DIR/${_hi_f%/*}"
+    : >"$_HI_CONFIG_DIR/$_hi_f"
+  done
   mkdir -p "$_HI_CONFIG_DIR/micro"
-  export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc" _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua" _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml" \
-    _HI_NANORC="$_HI_CONFIG_DIR/nanorc" _HI_EMACSRC="$_HI_CONFIG_DIR/init.el" _HI_MICRO_DIR="$_HI_CONFIG_DIR/micro"
+  : >"$_HI_CONFIG_DIR/micro/settings.json"
+  : >"$_HI_CONFIG_DIR/micro/bindings.json"
 
   _hi_h1 "Testing scripts/configure.sh's reusable logic"
 
@@ -1854,9 +1872,10 @@ function run_configure_tests() {
   _hi_check "...painted with the settings file's scheme" test_prompt_sample_preview_paints_with_the_settings_scheme
   _hi_check "...its cwd cut to the last part in a narrow menu" test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
-  _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim init.lua nvim
-  _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim init.lua nvim
-  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx config.toml helix
+  _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim nvim/init.lua nvim
+  _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim nvim/init.lua nvim
+  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx helix/config.toml hx
+  _hi_check "...and so does helix's, under that name alone" test_editor_preview_matches_its_alias helix helix/config.toml helix
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed
@@ -1902,7 +1921,8 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: fits 80 columns, pages in order" test_menu_layout_at_80
   _hi_par_check_capable pty "Menu: fits 40 columns, pages in order" test_menu_layout_at_40
   _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
-  _hi_par_check_capable pty "Menu: a feature toggles and previews" test_menu_feature_toggles_and_previews
+  _hi_par_check_capable pty "Menu: the plugins kept home toggle by name" test_menu_toggles_the_plugins_kept_home
+  _hi_par_check_capable pty "Menu: ...and a word that names nothing is refused" test_menu_plugins_refuse_a_stranger
   _hi_par_check_capable pty "Menu: an opt-in row writes its on-value" test_menu_opt_in_row_writes_its_on_value
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "Menu: the header row previews the whole header" test_menu_header_row_previews_the_header

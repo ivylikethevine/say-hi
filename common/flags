@@ -36,5 +36,5 @@
 --plugins||scripts|_HI_PLUGINS_CMD||list the plugins: what rides, and what is off
 --plugin-off|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--off|switch plugins off: nothing of theirs rides
 --plugin-on|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--on|switch them back on
---add-plugin|<member> <tool> <wire> <home> [--dry-run]|scripts|_HI_PLUGINS_CMD|--add|carry a config of a tool hi does not know
+--add-plugin|<group> <member> <tool> <wire> <home> [--dry-run]|scripts|_HI_PLUGINS_CMD|--add|carry a config of a tool hi does not know
 --remove-plugin|<member> [--dry-run]|scripts|_HI_PLUGINS_CMD|--remove|stop carrying it

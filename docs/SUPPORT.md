@@ -69,12 +69,13 @@ permanent - it is the argument to beat.
   write.
 - **Trimming `hi.1`'s copies of what SETTINGS.md says.** `man hi` has to
   stand alone; only `FILES.md` and `INTEGRATIONS.md` point instead of repeat.
-- **Dropping the framework loaders in `common/zsh.zsh` and `common/bash.sh`.**
-  A target with powerlevel10k or oh-my-bash installed but an rc that does
-  not load it is a real case (a fresh account on a box the distro set up),
-  and `INTEGRATIONS.md`'s table promises it; `tests/targets/framework_test.sh`
-  boots real images for it. The forty-five lines stay. At home they are
-  never reached: a framework counts there only once the rc loaded it.
+- **Dropping the framework loaders (`common/fw_*`).** A target with
+  powerlevel10k or oh-my-bash installed but an rc that does not load it is a
+  real case (a fresh account on a box the distro set up), and
+  `INTEGRATIONS.md`'s table promises it; `tests/targets/framework_test.sh`
+  boots real images for it. The loaders stay, and ride only to a target
+  handed that framework. At home they are never reached: a framework counts
+  there only once the rc loaded it.
 - **Shipping a hand-placed overlay prompt config whose program is not in
   the list.** The bytes would ride every connect for a program nothing
   starts; `hi --doctor` already names the file and the reason, so it is not

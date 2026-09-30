@@ -15,9 +15,6 @@ end
 # Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
-    _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS \
-    _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE \
-    _HI_DISABLE_TMUX _HI_DISABLE_SCREEN _HI_DISABLE_ZELLIJ \
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
@@ -29,14 +26,6 @@ set -l _hi_cfg_base ~/.config
 set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
 set -q _HI_CONFIG_DIR; or set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
 set -q _HI_XDG_CONFIG; or set -gx _HI_XDG_CONFIG $_hi_cfg_base
-# ...and core.sh's tool directories and screen's rc, which paths.sh reads the
-# same way
-set -g _HI_MICRO_HOME $_HI_XDG_CONFIG/micro
-set -q MICRO_CONFIG_HOME; and set _HI_MICRO_HOME $MICRO_CONFIG_HOME
-set -g _HI_ZELLIJ_HOME $_HI_XDG_CONFIG/zellij
-set -q ZELLIJ_CONFIG_DIR; and set _HI_ZELLIJ_HOME $ZELLIJ_CONFIG_DIR
-set -g _HI_SCREENRC_HOME $HOME/.screenrc
-set -q SCREENRC; and set _HI_SCREENRC_HOME $SCREENRC
 # settings ahead of paths.sh, whose gate reads them (plain `export NAME=value`
 # lines, which fish parses natively)
 if test -f $_HI_CONFIG_DIR/settings.sh
@@ -44,16 +33,16 @@ if test -f $_HI_CONFIG_DIR/settings.sh
 end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
-# core.sh's _hi_load_plugins, in fish: each plugins.d member in name order,
+# core.sh's _hi_load_extensions, in fish: each extensions/ member in name order,
 # skipped loudly when fish cannot parse it, its $_HI_SEGMENT collected.
 # GLOSSARY: HI.59
 set -g _hi_segments
-for __hi_f in $_HI_PLUGINS_D/*
+for __hi_f in $_HI_EXTENSIONS/*
   set -l __hi_n (string replace -r '.*/' '' -- $__hi_f)
   test -f $__hi_f; and string match -qr '^[A-Za-z0-9][A-Za-z0-9_.-]*$' -- $__hi_n
   and not string match -qr '\.(bak|orig|rej|tmp)$' -- $__hi_n; or continue
   if not command fish --no-config -n $__hi_f 2>/dev/null
-    echo -s (set_color yellow) "hi: plugin $__hi_n does not parse in fish; skipped" (set_color normal) >&2
+    echo -s (set_color yellow) "hi: extension $__hi_n does not parse in fish; skipped" (set_color normal) >&2
     continue
   end
   set -e _HI_SEGMENT
@@ -134,13 +123,19 @@ function fish_greeting
 end
 
 # a whole process for two colors, so memoized in a universal variable keyed
-# on user@host+colors-mtime, plus the scheme and the terminal's 24-bit verdict
+# on user@host, the colors file's and core.sh's mtimes (an upgrade can change
+# how the same file resolves), the scheme, and the terminal's 24-bit verdict
 # (a universal variable outlives this terminal): only the first shell after a
 # change pays. Each value is a list - "rrggbb name" under a scheme, the bare
 # name otherwise - and set_color takes the first entry this terminal renders.
 set -l hi_key "$USER@"(prompt_hostname)
-# `path mtime` where fish has it (3.5+), a stat before that
-test -f $_HI_COLORS; and set hi_key "$hi_key:"(builtin -q path; and path mtime $_HI_COLORS 2>/dev/null; or command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
+# `path mtime` where fish has it (3.5+), a stat before that; an absent file
+# keeps its slot empty
+for hi_f in $_HI_COLORS $_HI_CORE
+  set hi_key "$hi_key:"
+  test -f $hi_f; and set hi_key "$hi_key"(builtin -q path; and path mtime $hi_f 2>/dev/null; or command stat -c %Y $hi_f 2>/dev/null; or command stat -f %m $hi_f 2>/dev/null)
+end
+set -e hi_f
 set hi_key "$hi_key:$_HI_COLOR_SCHEME:$_HI_TRUECOLOR:$COLORTERM"
 if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
   set -l hi_colors (__hi_bash "source $_HI_CORE; _hi_prompt_colors")
@@ -199,18 +194,10 @@ if test "$_HI_DISABLE_PROMPT" != 1
   end
   set -e _hi_t
   if test "$_hi_pt" = tide
-    # fish already loaded tide and its fish_prompt autoloads; on a target the
-    # home config rides as fish_variables lines, exported so tide's background
-    # renderer (a `fish -c`) sees them over the target's own
-    if test "$_HI_REMOTE_SESSION" = 1; and test -f $_HI_CONFIG_DIR/tide.vars
-      for _hi_l in (string match 'SETUVAR tide_*' <$_HI_CONFIG_DIR/tide.vars)
-        set -l kv (string split -m1 : -- (string sub -s 9 -- $_hi_l))
-        # \x1e joins a list, a lone \x1d is the empty one
-        set -l v (string unescape -- "$kv[2]" | string collect)
-        test "$v" = \x1d; and set -gx $kv[1]; or set -gx $kv[1] (string split -- \x1e "$v")
-      end
-      set -e _hi_l
-    end
+    # its loader rides only to a target handed tide; at home fish loaded
+    # tide, and the config it reads, itself
+    test "$_HI_REMOTE_SESSION" = 1; and test -f $_HI_ROOT/common/fw_tide.fish
+    and source $_HI_ROOT/common/fw_tide.fish
   else if test "$_hi_pt" = powerline-go
     function fish_prompt
       powerline-go -shell bare -error $status -jobs (count (jobs -p)) (string split -n ' ' -- "$_HI_POWERLINE_GO_OPTS")
@@ -321,9 +308,10 @@ if test "$_HI_DISABLE_PROMPT" != 1
       echo -n "($out) "
     end
 
-    function __hi_segments --description 'each plugin segment, run per draw'
+    function __hi_segments --description 'each extension segment, run per draw'
       for c in $_hi_segments
-        set -l o (eval $c 2>/dev/null)
+        set -l w (string split -n ' ' -- $c)
+        set -l o ($w 2>/dev/null)
         test -n "$o"; and echo -n "$o "
       end
     end

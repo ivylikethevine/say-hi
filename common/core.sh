@@ -46,9 +46,6 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
-    _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
-    _HI_DISABLE_MICRO _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
-    _HI_DISABLE_TMUX _HI_DISABLE_SCREEN _HI_DISABLE_ZELLIJ
     _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
@@ -58,16 +55,10 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # ...and the base it came from, which paths.sh needs whole: that file's
-  # four-shell dialect has no ${var:-} to spell the default with and no way
-  # to trim /say-hi back off. config.fish mirrors both lines.
+  # ...and the base it came from, which a home column of hi.sh's table
+  # starts at. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG
-  # ...and, for the same reason, the directories micro and zellij read and
-  # the file screen reads, which a variable of their own can move
-  _HI_MICRO_HOME="${MICRO_CONFIG_HOME:-$_HI_XDG_CONFIG/micro}"
-  _HI_ZELLIJ_HOME="${ZELLIJ_CONFIG_DIR:-$_HI_XDG_CONFIG/zellij}"
-  _HI_SCREENRC_HOME="${SCREENRC:-$HOME/.screenrc}"
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   # loaded as the user's own shell would: strict mode here would turn one
@@ -210,7 +201,7 @@ function _hi_slot_hex() {
 # header.sh's hue and width readers still see one escape. The pair is
 # $_HI_COLOR_FALLBACK's for <index> mod 24, so a second-bank slot wears the
 # same 16-color half as its name. <hex> is a config/colors row's own
-# rrggbb (its optional fourth column): it stands in for the scheme's hex for
+# rrggbb (its string's second word): it stands in for the scheme's hex for
 # this one escape, and a terminal with no 24-bit color still gets the slot's
 # pair, so a pinned hex never costs a pin its 16-color half. Empty under
 # $NO_COLOR. GLOSSARY: HI.50
@@ -228,7 +219,7 @@ function _hi_color_escape_at() {
 
 # _hi_color_split <namevar> <hexvar> <value> - a resolved color as its two
 # halves: the palette name, and the rrggbb a config/colors row pinned for
-# it in its optional fourth column (empty when there was none). Every
+# it as its string's second word (empty when there was none). Every
 # resolved color is one shape or the other - "brgreen" or "brgreen#3ba55d" -
 # so the three readers below answer a pinned color exactly where they answer
 # a bare name, and everything between _hi_colors_scan and them (the memos,
@@ -271,7 +262,7 @@ function _hi_color_base() {
   printf -v "$1" '%s' "${_HI_COLOR_NAMES[@]:$((${_hi_cb_p:0:1} * 6 + ${_hi_cb_p:1:1} - 1)):1}"
 }
 
-# _hi_dir_member_ok <name> - whether a file in an overlay `.d` directory is a
+# _hi_dir_member_ok <name> - whether a file in an overlay directory is a
 # member: a plain name, never a dotfile, a backup, or a swap file, so the
 # directory stays an allow list like the roster naming it. GLOSSARY: HI.58
 function _hi_dir_member_ok() {
@@ -280,34 +271,34 @@ function _hi_dir_member_ok() {
   esac
 }
 
-# _hi_plugin_files - $_HI_PLUGINS_D's entries into $_hi_pl, in name order. Its
+# _hi_extension_files - $_HI_EXTENSIONS's entries into $_hi_pl, in name order. Its
 # own function so zsh's null_glob stays local: set in the loader, local_options
-# would also undo every setopt a plugin makes.
-function _hi_plugin_files() {
-  # the -d first: unset, "$_HI_PLUGINS_D"/* is /*, and the loader below would
+# would also undo every setopt an extension makes.
+function _hi_extension_files() {
+  # the -d first: unset, "$_HI_EXTENSIONS"/* is /*, and the loader below would
   # source whatever parses at the root of the disk. header.sh's package walk
   # guards its own directory the same way. GLOSSARY: HI.60
   _hi_pl=()
-  [ -d "${_HI_PLUGINS_D:-}" ] || return 0
+  [ -d "${_HI_EXTENSIONS:-}" ] || return 0
   [ -z "${ZSH_VERSION:-}" ] || setopt local_options null_glob
-  _hi_pl=("$_HI_PLUGINS_D"/*)
+  _hi_pl=("$_HI_EXTENSIONS"/*)
 }
 
-# _hi_load_plugins - source each plugins.d member once the aliases are built
+# _hi_load_extensions - source each extensions/ member once the aliases are built
 # and before the prompt is. One this shell cannot parse is skipped with a line
 # on stderr rather than half-run; one that sets $_HI_SEGMENT adds that command
-# to $_hi_segments, which the prompt runs per draw. Prefixed locals: a
-# plugin's own `f=` would otherwise land in them. GLOSSARY: HI.59
-function _hi_load_plugins() {
+# to $_hi_segments, which the prompt runs per draw. Prefixed locals: an
+# extension's own `f=` would otherwise land in them. GLOSSARY: HI.59
+function _hi_load_extensions() {
   local _hi_pl_f _hi_pl_sh="${BASH:-bash}"
   local -a _hi_pl=()
   [ -z "${ZSH_VERSION:-}" ] || _hi_pl_sh=zsh
   _hi_segments=()
-  _hi_plugin_files
+  _hi_extension_files
   for _hi_pl_f in ${_hi_pl[@]+"${_hi_pl[@]}"}; do
     { [ -f "$_hi_pl_f" ] && _hi_dir_member_ok "${_hi_pl_f##*/}"; } || continue
     "$_hi_pl_sh" -n "$_hi_pl_f" 2>/dev/null || {
-      _hi_cecho "hi: plugin ${_hi_pl_f##*/} does not parse in ${_hi_pl_sh##*/}; skipped" "${YELLOW:-}" >&2
+      _hi_cecho "hi: extension ${_hi_pl_f##*/} does not parse in ${_hi_pl_sh##*/}; skipped" "${YELLOW:-}" >&2
       continue
     }
     unset _HI_SEGMENT
@@ -593,11 +584,9 @@ function _hi_hostname() {
 
 function _hi_whoami() {
   if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
-    if [ -n "${ZSH_VERSION:-}" ]; then
-      _hi_prompt_escape _HI_WHOAMI_CACHE '%n'
-    else
-      _hi_prompt_escape _HI_WHOAMI_CACHE '\u' || _HI_WHOAMI_CACHE=""
-    fi
+    local e='\u'
+    [ -z "${ZSH_VERSION:-}" ] || e='%n'
+    _hi_prompt_escape _HI_WHOAMI_CACHE "$e" || _HI_WHOAMI_CACHE=""
   fi
   if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
     _HI_WHOAMI_CACHE="$(exec whoami 2>/dev/null)" ||
@@ -693,13 +682,29 @@ function _hi_sanitize_var() {
 }
 
 # The version, unpresented: a packager's stamp (or the client's, shipped by
-# the ssh preamble) wins, else git describe, else nothing. Callers present it.
+# the ssh preamble) wins, else the checkout's, else nothing. Callers present it.
 function _hi_release_or_describe() {
   if [ -n "${_HI_RELEASE:-}" ]; then
     printf '%s\n' "$_HI_RELEASE"
   elif [ -d "$_HI_ROOT/.git" ]; then
-    git -C "$_HI_ROOT" describe --tags --always --dirty 2>/dev/null || true
+    _hi_git_version "$_HI_ROOT"
   fi
+}
+
+# _hi_git_version <root> - git describe, renamed: v0.5.5 on the tag, v0.5.5+28
+# twenty-eight commits past it, a bare hash with no v* tag reachable (a
+# snapshot-<sha> tag is not a version); -dirty kept. --long makes the count
+# unambiguous against a tag holding `-g`.
+function _hi_git_version() {
+  local d t s=""
+  d="$(git -C "$1" describe --tags --match 'v*' --long --always --dirty 2>/dev/null)" || return 0
+  case "$d" in *-dirty) s=-dirty d="${d%-dirty}" ;; esac
+  t="${d%-g*}"
+  if [ "$t" != "$d" ]; then
+    d="${t%-*}"
+    [ "${t##*-}" = 0 ] || d="$d+${t##*-}"
+  fi
+  printf '%s\n' "$d$s"
 }
 
 # _hi_url_path <outvar> <path> - percent-encoded for OSC 7, byte by byte (the
@@ -971,32 +976,95 @@ function _hi_local_hostname() {
   _hi_out "${1:-}" "${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
 }
 
-# _hi_colors_load - $_HI_COLORS' `[<type>]` sections of "<name> <color>
-# [rrggbb]" rows as "<type>\x1f<name>\x1f<color>\x1f<hex>" lines in
+# _hi_toml_row <line> <keyvar> <valvar> - a `key = value` line of the TOML
+# subset config/colors and config/packages keep to: the key bare or in double
+# quotes, the value a double-quoted string or an array of them, on the one
+# line, and whatever follows it (a # comment) left unread. The value comes
+# back as the string's text, or the array's members a , apart. 1 for a line
+# that is no row: a comment, a [table], anything the subset has no word for.
+function _hi_toml_row() {
+  local _hi_tr_k _hi_tr_v="${1#"${1%%[![:space:]]*}"}"
+  case "$_hi_tr_v" in
+  '"'*'"'*)
+    _hi_tr_k="${_hi_tr_v#?}"
+    _hi_tr_v="${_hi_tr_k#*\"}"
+    _hi_tr_k="${_hi_tr_k%%\"*}"
+    ;;
+  [A-Za-z0-9_-]*)
+    _hi_tr_k="${_hi_tr_v%%[!A-Za-z0-9_-]*}"
+    _hi_tr_v="${_hi_tr_v#"$_hi_tr_k"}"
+    ;;
+  *) return 1 ;;
+  esac
+  _hi_tr_v="${_hi_tr_v#"${_hi_tr_v%%[![:space:]]*}"}"
+  case "$_hi_tr_v" in '='*) _hi_tr_v="${_hi_tr_v#?}" ;; *) return 1 ;; esac
+  _hi_tr_v="${_hi_tr_v#"${_hi_tr_v%%[![:space:]]*}"}"
+  case "$_hi_tr_v" in
+  '"'*'"'*)
+    _hi_tr_v="${_hi_tr_v#?}"
+    _hi_tr_v="${_hi_tr_v%%\"*}"
+    ;;
+  '['*']'*)
+    _hi_tr_v="${_hi_tr_v#?}"
+    _hi_tr_v="${_hi_tr_v%%\]*}"
+    _hi_tr_v="${_hi_tr_v//\"/}"
+    _hi_tr_v="${_hi_tr_v//[[:space:]]/}"
+    ;;
+  *) return 1 ;;
+  esac
+  [ -n "$_hi_tr_k" ] || return 1
+  printf -v "$2" '%s' "$_hi_tr_k"
+  printf -v "$3" '%s' "$_hi_tr_v"
+}
+
+# _hi_package_table <line> <groupvar> <markvar> - a `[group]`,
+# `[group.required]`, or `[group.unwanted]` line of $_HI_PACKAGES: its group,
+# and the mark check_line reads its rows under (+, -, or none). A bare
+# `[required]` or `[unwanted]` marks rows of no group. 1 for any other line.
+# Here, not in header.sh: the scripts that write the file load no header.
+function _hi_package_table() {
+  local _hi_pt="$1" _hi_pt_m=""
+  case "$_hi_pt" in '['*']'*) ;; *) return 1 ;; esac
+  _hi_pt="${_hi_pt#\[}"
+  _hi_pt=".${_hi_pt%%\]*}"
+  case "$_hi_pt" in
+  *.required) _hi_pt_m=+ _hi_pt="${_hi_pt%.*}" ;;
+  *.unwanted) _hi_pt_m=- _hi_pt="${_hi_pt%.*}" ;;
+  esac
+  _hi_pt="${_hi_pt#.}"
+  printf -v "$2" '%s' "$_hi_pt"
+  printf -v "$3" '%s' "$_hi_pt_m"
+}
+
+# _hi_colors_load - $_HI_COLORS' `[<type>]` tables of `<name> = "<color>
+# [rrggbb]"` rows as "<type>\x1f<name>\x1f<color>\x1f<hex>" lines in
 # $_HI_COLORS_ROWS. A caller resolving several colors declares
 # `local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""` and loads once, so the file
-# is read once (zsh's `read` costs a syscall a byte); _hi_colors_scan loads
+# is read once (zsh's `read` costs a syscall a byte); each lookup below opens
 # its own otherwise.
 function _hi_colors_load() {
-  local t="" n c h us=$'\x1f'
+  local t="" l n="" c="" h us=$'\x1f'
   _HI_COLORS_ROWS=""
   [[ -f "$_HI_COLORS" ]] || return 0
-  while read -r n c h; do
-    case "$n" in
-    '' | '#'*) continue ;;
-    '['*']')
-      t="${n#\[}"
-      t="${t%\]}"
+  while read -r l; do
+    case "$l" in
+    '['*']'*)
+      t="${l#\[}"
+      t="${t%%\]*}"
       continue
       ;;
     esac
+    _hi_toml_row "$l" n c || continue
+    h=""
+    case "$c" in *' '*) h="${c#*[ ]}" c="${c%% *}" ;; esac
+    h="${h#"${h%%[! ]*}"}"
     _HI_COLORS_ROWS+="$t$us$n$us$c$us${h%% *}"$'\n'
   done <"$_HI_COLORS"
 }
 
 # The two readers of those rows. One walk behind both: they differ only in
 # whether the name field is compared or matched, and the two wrappers below
-# are what the callers and the suites name. A row's optional third field is
+# are what the callers and the suites name. A string's second word is
 # that pin's own 24-bit color; it comes back joined to the name as
 # "<color>#<rrggbb>", the shape _hi_color_split reads, and only when it is six
 # hex digits (a leading `#` is allowed and dropped) - anything else is ignored
@@ -1005,10 +1073,7 @@ function _hi_colors_load() {
 # _hi_colors_scan <type> <name> <glob?> [outvar]
 function _hi_colors_scan() {
   local rest row cur_name color hex us=$'\x1f'
-  if [ "${_HI_COLORS_BATCH:-}" != 1 ]; then
-    local _HI_COLORS_ROWS=""
-    _hi_colors_load
-  fi
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
   rest="$_HI_COLORS_ROWS"
   while [ -n "$rest" ]; do
     row="${rest%%$'\n'*}"
@@ -1053,6 +1118,7 @@ function _hi_colors_pattern() { _hi_colors_scan "$1" "$2" glob "${3:-}"; }
 # without a $( ) anywhere in the middle.
 function _hi_override_color() {
   local special="" _hi_oc_me="" _hi_oc_outvar="${3:-}"
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
   _hi_colors_lookup "$1" "$2" "$_hi_oc_outvar" && return 0
   case "$1" in
   username)
@@ -1235,6 +1301,8 @@ function _hi_ssh_tag_color() {
 # the chain - each still answers on stdout when [outvar] is empty.
 function _hi_resolve_color() {
   local type="$1" name="$2" tag="${3:-}" outvar="${4:-}"
+  # one load of the colors file for the whole chain
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
   _hi_override_color "$type" "$name" "$outvar" && return
   case "$type" in
   hostname)

@@ -114,20 +114,20 @@ function test_header_subject_says_when_the_header_is_off() {
 
 function _hi_write_color_fixtures() {
   cat >"$_HI_WORKDIR/colors" <<'EOF'
-# [type] sections of: name color [rrggbb]
+# [type] tables of: name = "color [rrggbb]"
 [username]
-alice brmagenta
-LOCALUSER brgreen
+alice = "brmagenta"
+LOCALUSER = "brgreen"
 
 [usertag]
-ops brred
+ops = "brred"
 
 [hostname]
-pinned brcyan
-pat-* brblue
+pinned = "brcyan"
+"pat-*" = "brblue"
 
 [hosttag]
-work bryellow
+work = "bryellow"
 EOF
 
   cat >"$_HI_WORKDIR/ssh_config" <<'EOF'
@@ -196,7 +196,7 @@ function test_default_source_still_resolves_to_a_palette_color() {
 
 function test_colors_names_dedupes_and_skips() {
   local colors="$_HI_WORKDIR/colors.names" out
-  printf '[hostname]\na red\nb blue\na green\n[username]\nc red\n' >"$colors"
+  printf '[hostname]\na = "red"\nb = "blue"\na = "green"\n[username]\nc = "red"\n' >"$colors"
   out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
   [ "$out" = "a
 b" ] || return 1
@@ -208,7 +208,7 @@ b" ] || return 1
 # blank lines skipped, a section named twice read both times
 function test_colors_rows_are_scoped_to_their_section() {
   local colors="$_HI_WORKDIR/colors.rows"
-  printf 'stray red\n[hostname]\n# a note\n\nshared red\nh1 blue\n[username]\nshared green\n[hostname]\nh2 cyan ff0000\n' >"$colors"
+  printf 'stray = "red"\n[hostname]\n# a note\n\nshared = "red"\n  h1   =   "blue" # padded\n[username]\nshared = "green"\n[hostname]\nh2 = "cyan ff0000"\nold red\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_rows hostname)" = "$(printf 'shared\nh1\nh2')" ] &&
     [ "$(_HI_COLORS="$colors" _hi_colors_rows username)" = shared ] &&
     [ -z "$(_HI_COLORS="$colors" _hi_colors_rows hosttag)" ]
@@ -258,7 +258,7 @@ function test_pattern_for_misses_uncovered_names() {
 # don't qualify
 function test_pattern_pins_dedupe_in_file_order() {
   local colors="$_HI_WORKDIR/colors.pins"
-  printf '[hostname]\nnet-* red\nexact blue\ndb-? cyan\nnet-* green\n[username]\nu-* green\n' >"$colors"
+  printf '[hostname]\n"net-*" = "red"\nexact = "blue"\n"db-?" = "cyan"\n"net-*" = "green"\n[username]\n"u-*" = "green"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_pattern_pins)" = 'net-*
 db-?' ]
 }
@@ -386,7 +386,7 @@ function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
 function test_hosts_table_leads_with_a_localhostname_pin() {
   local colors="$_HI_WORKDIR/colors.localhost" out
   cat "$_HI_WORKDIR/colors" >"$colors"
-  printf '[hostname]\nLOCALHOSTNAME brgreen\n' >>"$colors"
+  printf '[hostname]\nLOCALHOSTNAME = "brgreen"\n' >>"$colors"
   out="$(_HI_COLORS="$colors" _hi_render_hosts_table)" || return 1
   [[ "$out" == *localbox* && "$out" == *local:hostname* ]] || return 1
   # ahead of: nothing before the localbox row but the header
@@ -398,7 +398,7 @@ function test_hosts_table_leads_with_a_localhostname_pin() {
 # pin) against the two work hosts, which wrap
 function test_hosts_table_pads_a_wrapped_group_past_its_users() {
   local colors="$_HI_WORKDIR/colors.solo" out row
-  printf '[hosttag]\nwork bryellow\n' >"$colors"
+  printf '[hosttag]\nwork = "bryellow"\n' >"$colors"
   out="$(_HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
   # the wrapped host's own row, with no user@ beside it
   row="$(_hi_strip_ansi "$out" | grep -F '| a-considerably-longer-hostname ')" || return 1
@@ -423,7 +423,7 @@ function test_hosts_table_paints_a_tag_behind_a_leading_wildcard() {
 function test_hosts_table_draws_a_usertag_row_only_under_its_tag() {
   local cfg="$_HI_WORKDIR/ssh_config.usertag" colors="$_HI_WORKDIR/colors.usertag" out esc
   printf '# Tags: ops\nHost opsbox\n  User nobody\n\nHost plainbox\n  User nobody\n' >"$cfg"
-  printf '[usertag]\nops brred\n' >"$colors"
+  printf '[usertag]\nops = "brred"\n' >"$colors"
   out="$(_HI_SSH_CONFIG="$cfg" _HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
   _hi_color_escape_var esc brred
   printf -v esc '%b' "$esc"
@@ -584,33 +584,34 @@ function test_h_flag_prints_the_same_usage() {
 #
 
 # One row above the first group (always runs), then a group per case: core
-# and useful on by default, deprecated holding every marker outcome, extras
-# and platform off by default but still collected.
+# and useful on by default, deprecated holding every outcome of its two
+# tables, extras and platform off by default but still collected.
 function _hi_write_package_fixtures() {
   _hi_fake_path pkgbin hitop hialpha hibravo hicharlie hidelta hiecho hifoxtrot >/dev/null
 
   cat >"$_HI_WORKDIR/packages" <<'EOF'
 # a comment, and a blank line, both of which the header skips
 
-hitop
+hitop = []
 [core]
-hialpha
-highost3
-highostalt,hibravo
+hialpha = []
+highost3 = []
+highostalt = ["hibravo"]
 [useful]
-hibravo
-highost2
-[deprecated]
--hiecho
--highostgone
-+hifoxtrot
-+highostplus
+hibravo = []
+highost2 = []
+[deprecated.unwanted]
+hiecho = []
+highostgone = []
+[deprecated.required]
+hifoxtrot = []
+highostplus = []
 [extras]
-hicharlie
-highost1
+hicharlie = []
+highost1 = []
 [platform]
-hidelta
-highost0
+hidelta = []
+highost0 = []
 EOF
   # in-process cases read $_HI_PACKAGES; a child script re-derives it from
   # $_HI_CONFIG_DIR, so the fixture is also an overlay's packages file
@@ -798,7 +799,7 @@ function test_groups_table_drops_an_empty_no_group_row() {
 # that leaves groups off - the same numbers the child render asserts, proved
 # here to come from the table code itself
 function test_groups_table_counts_below_the_table() {
-  [[ "$_HI_GROUPS_OUT" == *"14 listed, 8 shown, 2 silent by their marker"* ]] &&
+  [[ "$_HI_GROUPS_OUT" == *"14 listed, 8 shown, 2 silent by their table"* ]] &&
     [[ "$_HI_GROUPS_OUT" == *"4 more in groups \$_HI_PACKAGES_GROUPS leaves off (core useful deprecated run)"* ]]
 }
 
@@ -810,16 +811,16 @@ function test_groups_table_drops_the_off_note_at_zero() {
 }
 
 # a file of the user's own says, under the table, which of the tree's groups
-# it lacks and which rows hold a marker past their first name; the tree's
-# own says nothing
+# it lacks and which rows hold a name led by a marker; the tree's own says
+# nothing
 function test_packages_drift_names_groups_and_stray_markers() {
   local out want
   _HI_PACKAGES="$_HI_ROOT/config/packages" _hi_package_groups want
   want="${want#core }"
-  printf '[core]\nhialpha\nhibravo,-hiecho,+hidelta\n[mine]\nhitop\n' >"$_HI_WORKDIR/packages.drift"
+  printf '[core]\nhialpha = []\nhibravo = ["-hiecho", "+hidelta"]\n[mine.required]\nhitop = []\n' >"$_HI_WORKDIR/packages.drift"
   out="$(_HI_PACKAGES="$_HI_WORKDIR/packages.drift" _hi_print_packages_drift)" || return 1
   [[ "$out" == *"never checked: ${want// /, } ("* ]] || _hi_because "groups: $out" || return 1
-  [[ "$out" == *"hibravo,-hiecho,+hidelta: a - or + past the first name"* ]] ||
+  [[ "$out" == *"the row hibravo,-hiecho,+hidelta never matches: a - or + leading a name"* ]] ||
     _hi_because "marker: $out" || return 1
   out="$(_HI_PACKAGES="$_HI_ROOT/config/packages" _hi_print_packages_drift)" || return 1
   [ -z "$out" ] || _hi_because "the tree's own file: $out"
@@ -832,7 +833,7 @@ function test_marks_table_explains_every_mark() {
     [[ "$out" == *"installed, under the first name the row lists"* ]] &&
     [[ "$out" == *"installed, but via one of the alternatives after it"* ]] &&
     [[ "$out" == *"not installed - no name on the row resolved"* ]] &&
-    [[ "$out" == *"installed, on a - row: a package you don't want"* ]]
+    [[ "$out" == *"installed, under .unwanted: a package you don't want"* ]]
 }
 
 # each glyph is painted in the color the header paints it - the raw render has
@@ -848,13 +849,13 @@ function test_marks_table_is_rectangular() {
   _hi_table_is_rectangular "$(_hi_print_marks_table)"
 }
 
-# the third axis, a row's leading marker, is two lines under the marks: both
-# markers and the default, which has none
+# the third axis, the table a row sits in, is two lines under the marks: both
+# kinds and the default, which names none
 function test_marks_table_explains_the_markers() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
-  [[ "$out" == *"a leading - (unwanted) speaks only when installed, + (required) only"* ]] &&
-    [[ "$out" == *"when missing; no marker speaks both ways"* ]]
+  [[ "$out" == *"a row under [group.unwanted] speaks only when installed, one under"* ]] &&
+    [[ "$out" == *"only when missing; one under [group] both ways"* ]]
 }
 
 # ...and the same table under the glyph set the rest of this suite pins away:
@@ -967,14 +968,14 @@ function test_preview_names_every_group() {
   done
 }
 
-# the lines under the marks are the only place the two markers are explained,
-# so the render has to carry them
+# the lines under the marks are the only place the three tables are
+# explained, so the render has to carry them
 function test_preview_explains_the_markers() {
-  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q 'a leading - (unwanted) speaks only when installed'
+  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -qF 'a row under [group.unwanted] speaks only when installed'
 }
 
 function test_preview_counts_what_it_read() {
-  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '14 listed, 8 shown, 2 silent by their marker' &&
+  printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '14 listed, 8 shown, 2 silent by their table' &&
     printf '%s\n' "$_HI_PACKAGES_OUT" | grep -q '4 more in groups'
 }
 
@@ -1175,7 +1176,7 @@ EOF
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph
   _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
-  _hi_check "Marks table explains the markers" test_marks_table_explains_the_markers
+  _hi_check "Marks table explains the tables" test_marks_table_explains_the_markers
   _hi_check "Marks table draws the glyph set's corners" test_marks_table_renders_the_glyph_set
 
   _hi_h2 "Testing: packages - the rendered preview"
@@ -1186,7 +1187,7 @@ EOF
   _hi_check "Names the active palette" test_preview_names_the_active_palette
   _hi_check "Names a custom scheme, and its second bank" test_preview_names_a_custom_scheme_and_its_bank
   _hi_check "Names every group" test_preview_names_every_group
-  _hi_check "Explains the markers" test_preview_explains_the_markers
+  _hi_check "Explains the tables" test_preview_explains_the_markers
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"

@@ -12,6 +12,7 @@ machine only ([On your own machine](#on-your-own-machine)).
 - [At a glance](#at-a-glance)
 - [Prompt programs](#prompt-programs)
 - [Shell hooks of your own](#shell-hooks-of-your-own)
+- [Header cells of your own](#header-cells-of-your-own)
 - [The environment segment](#the-environment-segment)
   - [Tools that draw their own prefix](#tools-that-draw-their-own-prefix)
 - [bat and eza](#bat-and-eza)
@@ -23,18 +24,19 @@ machine only ([On your own machine](#on-your-own-machine)).
 - [Shell frameworks](#shell-frameworks)
   - [On your own machine](#on-your-own-machine)
 - [Which side is asked](#which-side-is-asked)
+- [A tool with no variable and no flag](#a-tool-with-no-variable-and-no-flag)
 - [Config sizes](#config-sizes)
 
 ## At a glance
 
-| tool                                                                                                                                                                                                                                                                                                                                                                                           | what hi does with it                                                                                                                                                                                           | on by default                | switch                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------- |
-| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                                                                                                                                                     | yes, where installed here    | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                           |
-| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment                                                                                                                                               | yes                          | `_HI_DISABLE_ENV_STATUS`                                                        |
-| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa                                                                                                                                                                                                                                                                                                        | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home                                                                                                                             | no - opt-in, where installed | `_HI_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s                                |
-| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux.conf`                                                                                                               | no - per connect             | `--mux`, `--no-mux`                                                             |
-| vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vimrc`, micro your micro directory's files, helix `config.toml`, kakoune `kakrc` through `$KAKOUNE_CONFIG_DIR` on a target | yes                          | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
-| oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                                                                                                                                                                | -                            | [Shell frameworks](#shell-frameworks)                                           |
+| tool                                                                                                                                                                                                                                                                                                                                                                                           | what hi does with it                                                                                                                                                                                                                                                     | on by default                | switch                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                                                                                                                                                                                                               | yes, where installed here    | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                                               |
+| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment                                                                                                                                                                                                         | yes                          | `_HI_DISABLE_ENV_STATUS`                                                                            |
+| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa                                                                                                                                                                                                                                                                                                        | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home                                                                                                                                                                                       | no - opt-in, where installed | `_HI_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s                                                    |
+| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux/tmux.conf`                                                                                                                                                                    | no - per connect             | `--mux`, `--no-mux`                                                                                 |
+| vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opened with hi's config, or yours, through an alias - neovim reads `nvim/init.lua`, vim `vim/vimrc`, micro your micro directory's files, helix `helix/config.toml` and `languages.toml`, kakoune `kak/kakrc` and its `colors/` through `$KAKOUNE_CONFIG_DIR` on a target | yes                          | `hi --plugin-off editors`, or one by name; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
+| oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                                                                                                                                                                                                                          | -                            | [Shell frameworks](#shell-frameworks)                                                               |
 
 ## Prompt programs
 
@@ -60,39 +62,38 @@ that framework's tree there (`$ZSH/lib/git.zsh`, `$OSH/oh-my-bash.sh`,
 `$BASH_IT/bash_it.sh`), so a theme's `source "$ZSH/lib/..."` rides as
 written: on a target without oh-my-zsh the theme never runs, and hi's
 prompt draws instead. Only the theme gets that pass, and only for its own
-framework - the same line in a `plugins.d` member or a shell rc, which run
+framework - the same line in an extension or a shell rc, which run
 on every target, is disabled like any include hi cannot carry (`# hi-allow`
 above it keeps one you have guarded yourself). A theme that sources a
 library its target's framework version lacks fails there as it would at
 home.
 
-So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box
-that has them, and hi's where it has neither. A prompt hi has no hand-over
-for stays yours rather than being drawn over: liquidprompt or bash-git-prompt
-in bash; spaceship, pure, or a promptinit theme (prezto's included) in zsh;
-and in fish any `fish_prompt` that is not fish's own - your `functions/`
-directory's, a theme such as pure, hydro, or bobthefish, or one your config
-defines. A `PS1` or `PROMPT` you wrote in your rc stays as well, in bash and
-zsh at home: hi draws over the ones nobody wrote - the shell's built-in
-default and the one a stock rc sets on Debian and Ubuntu, Raspberry Pi OS,
-Kali, Fedora and the RHEL family, Arch, Alpine, openSUSE, Gentoo, macOS,
-Git Bash, MSYS2, Cygwin, and Termux - and leaves any other alone. A target's
-own rc is not asked, so a session's prompt is hi's whatever the box sets; a
-prompt of yours for targets goes in the overlay's `bashrc` or `zshrc` with
-`_HI_DISABLE_PROMPT=1`. `hi` in `_HI_PROMPT_TOOL` takes the prompt anyway. Under powerlevel10k's instant
-prompt, hi calls `p10k clear-instant-prompt` before drawing the header, the
-call p10k provides for an rc that prints, so it does not warn about console
-output on every start. The list is worked out on this
-machine and handed to the target, which never looks for programs of its own -
-a shared box with powerlevel10k installed does not change your prompt unless
-you use it too.
+So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box that
+has them, and hi's where it has neither. A prompt hi has no hand-over for stays
+yours rather than being drawn over: liquidprompt or bash-git-prompt in bash;
+spaceship, pure, or a promptinit theme (prezto's included) in zsh; and in fish
+any `fish_prompt` that is not fish's own - your `functions/` directory's, a
+theme such as pure, hydro, or bobthefish, or one your config defines. A `PS1` or
+`PROMPT` you wrote in your rc stays as well, in bash and zsh at home: hi draws
+over the ones nobody wrote - the shell's built-in default and the one a stock rc
+sets on Debian and Ubuntu, Raspberry Pi OS, Kali, Fedora and the RHEL family,
+Arch, Alpine, openSUSE, Gentoo, macOS, Git Bash, MSYS2, Cygwin, and Termux - and
+leaves any other alone. A target's own rc is not asked, so a session's prompt is
+hi's whatever the box sets; a prompt of yours for targets goes in the overlay's
+`bashrc` or `zshrc` with `_HI_DISABLE_PROMPT=1`. `hi` in `_HI_PROMPT_TOOL` takes
+the prompt anyway. Under powerlevel10k's instant prompt, hi calls
+`p10k clear-instant-prompt` before drawing the header, the call p10k provides
+for an rc that prints, so it does not warn about console output on every start.
+The list is worked out on this machine and handed to the target, which never
+looks for programs of its own - a shared box with powerlevel10k installed does
+not change your prompt unless you use it too.
 
 `_HI_PROMPT_TOOL=hi` (the Prompt item in `hi --configure`) keeps hi's prompt
-everywhere: it starts no program on any target, and takes the prompt back
-from one the _target's_ own rc started, unhooking its prompt hook. Only the
-name `hi` does that - an unset list, or one no entry of which fits, leaves
-the target's own choice drawing. To choose, name them: `"tide starship"` is tide in fish and starship in
-bash and zsh, `"tide hi"` tide in fish and hi's prompt elsewhere.
+everywhere: it starts no program on any target, and takes the prompt back from
+one the _target's_ own rc started, unhooking its prompt hook. Only the name `hi`
+does that - an unset list, or one no entry of which fits, leaves the target's
+own choice drawing. To choose, name them: `"tide starship"` is tide in fish and
+starship in bash and zsh, `"tide hi"` tide in fish and hi's prompt elsewhere.
 `_HI_DISABLE_PROMPT=1` beats all of it: no prompt from hi at all, its own or a
 program's.
 
@@ -115,10 +116,47 @@ command -v zoxide >/dev/null && eval "$(zoxide init bash)"
 command -v atuin >/dev/null && eval "$(atuin init bash)"
 ```
 
-In `config.fish` the same line is `command -q zoxide; and zoxide init fish | source`.
-Once started, a tool keeps state of its own under the target's `$HOME` -
-zoxide's directory database, atuin's history - which hi neither writes nor
-cleans up.
+In `config.fish` the same line is
+`command -q zoxide; and zoxide init fish | source`. Once started, a tool keeps
+state of its own under the target's `$HOME` - zoxide's directory database,
+atuin's history - which hi neither writes nor cleans up.
+
+## Header cells of your own
+
+A header item hi does not have is a file under `~/.config/say-hi/header/`,
+named for its word, that defines `_hi_cell_<word>`: the function writes the
+cell's text, a color first, into the variable its first argument names. The
+file rides to every target with the rest of the overlay, and
+`_HI_HEADER_ORDER` puts the word where it prints:
+
+```sh
+# ~/.config/say-hi/header/load
+_hi_cell_load() {
+  local _load_l
+  read -r _load_l _ 2>/dev/null </proc/loadavg || _load_l="?"
+  printf -v "$1" '%s' "${YELLOW}Load: $_load_l"
+}
+```
+
+```sh
+# ~/.config/say-hi/settings.sh
+export _HI_HEADER_ORDER="utc version localtime os load check"
+```
+
+The header is bash on every side, so the file is bash whatever shell the
+session runs. The word is the name up to its first `.` (`load.sh` is `load`
+too), and a file named for a built-in word replaces that item. Prefix the
+function's locals: the variable it writes is its caller's. One of hi's
+color variables leads the text - `$RED`, `$GREEN`, `$YELLOW`, `$BLUE`,
+`$PURPLE`, `$CYAN`, or a `$BR` one of them - and a cell that would repeat its
+neighbor's color takes the next hue round from its own
+([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). The function runs
+on every header hi draws, a local shell's greeting included, so a command it
+starts costs that fork each time; the built-in items' probes are not shared
+with it. `hi --configure` lists the words that loaded beside hi's own, and a
+line sourcing a file outside `~/.config/say-hi` goes out disabled, as in
+every overlay file
+([SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 
 ## The environment segment
 
@@ -146,12 +184,12 @@ and hi draws the segment itself. A venv is named in all three shells, then, in
 its own styling or hi's; direnv, nix, and the rest have no prefix of their own
 and are always hi's.
 
-To get hi's styling and naming everywhere, silence the tool's own prefix the
-way the tool documents: `VIRTUAL_ENV_DISABLE_PROMPT=1` for a venv (`export` it
-before you activate) and `conda config --set changeps1 false`. hi then draws
-the segment in every shell - which is also how a `.venv` stops reading as
-`(.venv)`. hi never sets those two for you: every other shell and prompt you
-open reads them too ([HI.54](GLOSSARY.md#hi54-who-draws-the-environment-prefix)).
+To get hi's styling and naming everywhere, silence the tool's own prefix the way
+the tool documents: `VIRTUAL_ENV_DISABLE_PROMPT=1` for a venv (`export` it
+before you activate) and `conda config --set changeps1 false`. hi then draws the
+segment in every shell - which is also how a `.venv` stops reading as `(.venv)`.
+hi never sets those two for you: every other shell and prompt you open reads
+them too ([HI.54](GLOSSARY.md#hi54-who-draws-the-environment-prefix)).
 
 ## bat and eza
 
@@ -170,64 +208,60 @@ from whatever the target has, first installed wins:
   plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is whichever of those the
   ladder picked, and setting it yourself wins outright.
 
-Off, the default, none of these exists and the binary lookups behind them
-are skipped: `cat`, `ls`, and `bat` are the commands themselves. The tmux,
-screen, and zellij config aliases are not among them: they follow the
-overlay's files alone ([Terminal multiplexers](#terminal-multiplexers)).
-No alias names a tool the target lacks: an
-editor, tmux, bat, eza, or sudo that is not installed leaves its name to the
-shell's own not-found.
-The flags and the binary each alias runs are rows in
-[Every setting](SETTINGS.md#every-setting), set in your `settings.sh`; to add
-one flag to hi's instead, redefine the alias in
+Off, the default, none of these exists and the binary lookups behind them are
+skipped: `cat`, `ls`, and `bat` are the commands themselves. The tmux, screen,
+and zellij config aliases are not among them: they follow the overlay's files
+alone ([Terminal multiplexers](#terminal-multiplexers)). No alias names a tool
+the target lacks: an editor, tmux, bat, eza, or sudo that is not installed
+leaves its name to the shell's own not-found. The flags and the binary each
+alias runs are rows in [Every setting](SETTINGS.md#every-setting), set in your
+`settings.sh`; to add one flag to hi's instead, redefine the alias in
 [your `aliases.sh`](SETTINGS.md#shells-you-drop-into-inside-a-session).
 
 ### Shipping your bat theme
 
-Every target gets the bat config you already keep: hi ships the file bat
-reads here - `$BAT_CONFIG_PATH`, else `$BAT_CONFIG_DIR/config`, else
-`~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - or, when there
-is one, the `bat.conf` in `~/.config/say-hi/` instead. On a target the file becomes
-`$BAT_CONFIG_PATH`, and the default `_HI_BAT_OPTS` carry no `--theme`, so the
-file's theme is the one you see through `cat` and `bat`; a `_HI_BAT_OPTS` of
-your own always wins outright.
+Every target gets the bat config you already keep: hi ships the file bat reads
+here - `$BAT_CONFIG_PATH`, else `$BAT_CONFIG_DIR/config`, else
+`~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - or, when there is
+one, the `bat/config` in `~/.config/say-hi/` instead. On a target the file
+becomes `$BAT_CONFIG_PATH`, and the default `_HI_BAT_OPTS` carry no `--theme`,
+so the file's theme is the one you see through `cat` and `bat`; a `_HI_BAT_OPTS`
+of your own always wins outright.
 
 ### Shipping your eza theme
 
-eza reads its colors from `$EZA_CONFIG_DIR/theme.yml`, and only under that
-name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
+eza reads its colors from `$EZA_CONFIG_DIR/theme.yml`, and only under that name.
+hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
 `~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - or the
-`theme.yml` in `~/.config/say-hi/` when there is one. On a target,
+`eza/theme.yml` in `~/.config/say-hi/` when there is one. On a target,
 `EZA_CONFIG_DIR` points at the directory holding the shipped copy
 ([HI.62](GLOSSARY.md#hi62-generated-wiring)); at home the variable is left
-alone. Like `BAT_CONFIG_PATH`, it is
-exported whatever `_HI_TOOL_ALIASES` says, so a bare `command eza` matches
-too.
+alone. Like `BAT_CONFIG_PATH`, it is exported whatever `_HI_TOOL_ALIASES` says,
+so a bare `command eza` matches too.
 
 ## Terminal multiplexers
 
 `hi --mux <target>` starts the connect inside a session of the first of tmux,
 zellij, and screen on **your** `PATH`, named `hi-<target>`, and a second
-`hi --mux <target>` joins the one already running - so a dropped link leaves
-a session to reattach to, on your side. Already inside tmux, hi switches the
-client to that session rather than nesting; inside screen or zellij it
-opens a new window or tab. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the default
-and `--no-mux` skips it once. The target sees an ordinary session: persistent
-sessions on the target
-were [decided against](COMPATIBILITY.md#what-would-change-an-answer), and
+`hi --mux <target>` joins the one already running - so a dropped link leaves a
+session to reattach to, on your side. Already inside tmux, hi switches the
+client to that session rather than nesting; inside screen or zellij it opens a
+new window or tab. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the
+default and `--no-mux` skips it once. The target sees an ordinary session:
+persistent sessions on the target were
+[decided against](COMPATIBILITY.md#what-would-change-an-answer), and
 [HI.52](GLOSSARY.md#hi52-client-multiplexer-wrap) is how the wrap works.
 
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
-(else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux.conf` over
+(else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux/tmux.conf` over
 both) rides along and the session's `tmux` alias is `tmux -f` it. screen the
-same, `${SCREENRC:-~/.screenrc}` under `screen -c`; and zellij's config directory
-(`$ZELLIJ_CONFIG_DIR`, else `$XDG_CONFIG_HOME/zellij`) - `config.kdl` and
-every file of `layouts/` and `themes/`, an overlay `zellij/` copy of each
-name first - under the alias's `--config-dir`. A
-`source-file` of another file, TPM's `@plugin` list and its `run`, screen's
-`source`, zellij's `layout_dir`/`theme_dir` and `file:` plugins name
-something the target does not have, so they go out disabled and
-`hi --doctor` names the line.
+same, `${SCREENRC:-~/.screenrc}` under `screen -c`; and zellij's config
+directory (`$ZELLIJ_CONFIG_DIR`, else `$XDG_CONFIG_HOME/zellij`) - `config.kdl`
+and every file of `layouts/` and `themes/`, an overlay `zellij/` copy of each
+name first - under the alias's `--config-dir`. A `source-file` of another file,
+TPM's `@plugin` list and its `run`, screen's `source`, zellij's
+`layout_dir`/`theme_dir` and `file:` plugins name something the target does not
+have, so they go out disabled and `hi --doctor` names the line.
 
 ## Debian chroots
 
@@ -238,13 +272,13 @@ stay your rc's.
 
 ## readline
 
-Every target gets the inputrc you already keep: hi ships the file readline
-reads here - `$INPUTRC`, else `~/.inputrc` - or the `inputrc` in
-`~/.config/say-hi/` when there is one. On a target, `INPUTRC` points at the
-shipped copy, so bash's line editing and every readline
-program started from the session take your bindings; zsh and fish have line
-editors of their own and ignore it. At home the variable is left alone.
-Nothing is asked about first: readline is a library, not a command on `PATH`.
+Every target gets the inputrc you already keep: hi ships the file readline reads
+here - `$INPUTRC`, else `~/.inputrc` - or the `inputrc` in `~/.config/say-hi/`
+when there is one. On a target, `INPUTRC` points at the shipped copy, so bash's
+line editing and every readline program started from the session take your
+bindings; zsh and fish have line editors of their own and ignore it. At home the
+variable is left alone. Nothing is asked about first: readline is a library, not
+a command on `PATH`.
 
 A set `INPUTRC` replaces `/etc/inputrc` rather than adding to it, so an
 inputrc that relies on the system one says `$include /etc/inputrc`, which
@@ -268,11 +302,11 @@ target's.
 ### On your own machine
 
 A prompt program your rc loads keeps drawing here without asking
-([Prompt programs](#prompt-programs)). `_HI_DISABLE_LOCAL=1` goes further:
-every `_HI_DISABLE_*` switch on and both alias opt-ins off, so everything on
-this page stays as your own rc set it up on this machine, while every target
-still gets hi's. How hi
-tells home from a target is [SETTINGS.md's _Others_](SETTINGS.md#others).
+([Prompt programs](#prompt-programs)). `_HI_DISABLE_LOCAL=1` goes further: every
+`_HI_DISABLE_*` switch on and both alias opt-ins off, so everything on this page
+stays as your own rc set it up on this machine, while every target still gets
+hi's. How hi tells home from a target is
+[SETTINGS.md's _Others_](SETTINGS.md#others).
 
 ## Which side is asked
 
@@ -282,28 +316,45 @@ different thing:
 - **The client, about what rides.** A config from home - your `~/.vimrc`,
   `~/.tmux.conf`, micro's directory, bat's and eza's files - is "the one in
   force here" only with its tool here to read it, so it ships only then:
-  `vimrc` with vim, `init.lua` with nvim, `config.toml` with hx, `kakrc` with
-  kak, `nanorc` with
-  nano, `init.el` with emacs, `tmux.conf` with tmux, `screenrc` with screen,
-  `micro/` with micro, `zellij/` with zellij,
-  `bat.conf` with bat (or `batcat`), `theme.yml` with eza, `ripgreprc` with
-  rg, `fzfrc` with fzf, `lazygit.yml` with lazygit; `inputrc` always,
-  since readline is a library, not a command. A dotfile left
-  behind by a tool you removed neither ships nor gets a `hi --doctor` row.
-  It is the client because only the client can be asked before a connect, which
-  is when the overlay is packed - the reason the
+  `vim/vimrc` with vim, `nvim/init.lua` with nvim, `helix/`'s files with hx,
+  `kak/`'s with kak, `nano/nanorc` with nano, `emacs/init.el` with emacs,
+  `tmux/tmux.conf` with tmux, `screenrc` with screen, `micro/` with micro,
+  `zellij/` with zellij, `bat/config` with bat (or `batcat`), `eza/theme.yml`
+  with eza, `ripgreprc` with rg, `fzfrc` with fzf, `lazygit/config.yml` with
+  lazygit; `inputrc` always, since readline is a library, not a command. A
+  dotfile left behind by a tool you removed neither ships nor gets a
+  `hi --doctor` row. It is the client because only the client can be asked
+  before a connect, which is when the overlay is packed - the reason the
   [prompt programs](#prompt-programs) are a list worked out here too.
 - **Nobody, about an overlay copy.** A file you put in `~/.config/say-hi/` is
   you saying "targets get this", and it rides whatever this machine has -
-  the way to carry a `vimrc` from a laptop that only has neovim.
-- **Nobody, about a plugin that is off.** `hi --plugin-off`, or an editor's
-  `_HI_DISABLE_*` toggle, keeps every file of that plugin home, overlay copy
-  included ([SETTINGS.md](SETTINGS.md#switching-a-plugin-off)).
+  the way to carry a `vim/vimrc` from a laptop that only has neovim.
+- **Nobody, about a plugin that is off.** `hi --plugin-off` keeps every file of
+  that plugin home, overlay copy included
+  ([SETTINGS.md](SETTINGS.md#switching-a-plugin-off)).
 - **The target, about what is used.** Each alias is made from what the
   target has, and only for a config that rode
   ([HI.62](GLOSSARY.md#hi62-generated-wiring)), so a config that rode to a
   box without its tool is a few idle bytes, and a tool whose config stayed
   home keeps its own - never an alias to a missing binary or file.
+
+## A tool with no variable and no flag
+
+A carried config reaches its tool on a target the way the tool lets it: a
+variable naming the file (`$RIPGREP_CONFIG_PATH`) or its directory
+(`$KAKOUNE_CONFIG_DIR`), or a flag an alias adds (`tmux -f`, `hx -c`). Some
+files have neither - helix's `languages.toml` is read from its config
+directory alone - and for those a row's wire is `xdg:<command>`: the alias
+sets `$XDG_CONFIG_HOME` to the overlay, where each `<tool>/<file>` member
+sits as it would under `~/.config`
+([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know)).
+
+It is the fallback, not the first choice. The variable reaches everything
+the command starts, not just the tool: a language server under helix, or a
+`git` under lazygit, looks in the overlay for its own config and not in the
+target's `~/.config`. Use it only for a file nothing else points at; hi's
+own helix row keeps `hx -c` for `config.toml` and switches to `xdg:` only
+when a `languages.toml` rides too.
 
 ## Config sizes
 
@@ -313,28 +364,27 @@ different thing:
 > `gzip -9n` by hand. Real configs vary widely; `hi --doctor` and the size hi
 > prints on connect are the numbers for yours.
 
-Everything in the overlay rides every connect beside the payload (README's badge measures it), so
-what a heavy config costs on the wire is the gzipped size after hi strips
-comments and blank lines
+Everything in the overlay rides every connect beside the payload (README's badge
+measures it), so what a heavy config costs on the wire is the gzipped size after
+hi strips comments and blank lines
 ([HI.35](GLOSSARY.md#hi35-payload-comment-and-whitespace-strip)). Prose-heavy
-files shrink the most:
-powerlevel10k's wizard output is three-quarters comments.
+files shrink the most: powerlevel10k's wizard output is three-quarters comments.
 
-| user                                                        | what rides the overlay                            | on disk  | stripped | on the wire (gzip) |
-| ----------------------------------------------------------- | ------------------------------------------------- | -------- | -------- | ------------------ |
-| defaults, nothing configured                                | nothing                                           | 0        | 0        | 0                  |
-| a few settings and aliases                                  | `settings.sh`, `aliases.sh`                       | ~2 KB    | ~1 KB    | ~0.5 KB            |
-| starship with a preset                                      | `starship.toml` (the nerd-font-symbols preset)    | ~3.4 KB  | ~3.4 KB  | ~1.4 KB            |
-| oh-my-posh with a stock theme                               | `oh-my-posh.json` (jandedobbeleer)                | ~7 KB    | ~7 KB    | ~1.4 KB            |
-| oh-my-zsh, robbyrussell                                     | `oh-my-zsh.zsh-theme`                             | ~0.4 KB  | ~0.4 KB  | ~0.2 KB            |
-| oh-my-zsh, agnoster                                         | `oh-my-zsh.zsh-theme`                             | ~13 KB   | ~8 KB    | ~2.5 KB            |
-| oh-my-bash, font or agnoster                                | `oh-my-bash.theme.sh`                             | 2-20 KB  | 1-9 KB   | 0.5-2.6 KB         |
-| tide, configured by its wizard                              | `tide.vars` (its ~160 variables)                  | ~6 KB    | ~6 KB    | ~1.5 KB            |
-| powerlevel10k from its wizard                               | `p10k.zsh` (lean or rainbow)                      | 90-95 KB | 24-28 KB | ~5.5 KB            |
-| a tuned vim                                                 | `vimrc` (like amix/vimrc's basic.vim)             | ~9.5 KB  | ~4 KB    | ~1.8 KB            |
-| a neovim starter config                                     | `init.lua` (like kickstart.nvim, single file)     | ~44 KB   | ~19 KB   | ~6 KB              |
-| a long-lived bash setup                                     | `bashrc`, `aliases.sh`, a few `plugins.d` members | 10-30 KB | 5-15 KB  | 2-6 KB             |
-| all of it: powerlevel10k, tide, neovim, vim, bash, starship | everything above that ships at once               | ~200 KB  | ~75 KB   | ~20 KB             |
+| user                                                        | what rides the overlay                             | on disk  | stripped | on the wire (gzip) |
+| ----------------------------------------------------------- | -------------------------------------------------- | -------- | -------- | ------------------ |
+| defaults, nothing configured                                | nothing                                            | 0        | 0        | 0                  |
+| a few settings and aliases                                  | `settings.sh`, `aliases.sh`                        | ~2 KB    | ~1 KB    | ~0.5 KB            |
+| starship with a preset                                      | `starship.toml` (the nerd-font-symbols preset)     | ~3.4 KB  | ~3.4 KB  | ~1.4 KB            |
+| oh-my-posh with a stock theme                               | `oh-my-posh.json` (jandedobbeleer)                 | ~7 KB    | ~7 KB    | ~1.4 KB            |
+| oh-my-zsh, robbyrussell                                     | `oh-my-zsh.zsh-theme`                              | ~0.4 KB  | ~0.4 KB  | ~0.2 KB            |
+| oh-my-zsh, agnoster                                         | `oh-my-zsh.zsh-theme`                              | ~13 KB   | ~8 KB    | ~2.5 KB            |
+| oh-my-bash, font or agnoster                                | `oh-my-bash.theme.sh`                              | 2-20 KB  | 1-9 KB   | 0.5-2.6 KB         |
+| tide, configured by its wizard                              | `tide.vars` (its ~160 variables)                   | ~6 KB    | ~6 KB    | ~1.5 KB            |
+| powerlevel10k from its wizard                               | `p10k.zsh` (lean or rainbow)                       | 90-95 KB | 24-28 KB | ~5.5 KB            |
+| a tuned vim                                                 | `vim/vimrc` (like amix/vimrc's basic.vim)          | ~9.5 KB  | ~4 KB    | ~1.8 KB            |
+| a neovim starter config                                     | `nvim/init.lua` (like kickstart.nvim, single file) | ~44 KB   | ~19 KB   | ~6 KB              |
+| a long-lived bash setup                                     | `bashrc`, `aliases.sh`, a few extensions           | 10-30 KB | 5-15 KB  | 2-6 KB             |
+| all of it: powerlevel10k, tide, neovim, vim, bash, starship | everything above that ships at once                | ~200 KB  | ~75 KB   | ~20 KB             |
 
 A neovim config spread over many files under `~/.config/nvim/lua/` does not
-ride at all - only `init.lua` does - so its size here is the single file.
+ride at all - only `nvim/init.lua` does - so its size here is the single file.

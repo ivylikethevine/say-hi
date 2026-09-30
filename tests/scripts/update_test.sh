@@ -145,7 +145,7 @@ function test_update_converts_an_old_overlay() {
   printf 'bat:3,batcat:3\n' >"$cfg/packages"
   out="$(_HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --update v0.0.2)" || return 1
   [[ "$out" == *"now on v0.0.2"* && "$out" == *"converted $cfg/packages"* ]] &&
-    grep -qx '\[core\]' "$cfg/packages" && grep -qx 'bat:3,batcat:3' "$cfg/packages.old"
+    grep -qx 'bat = \["batcat"\]' "$cfg/packages" && grep -qx 'bat:3,batcat:3' "$cfg/packages.old"
 }
 
 # ...and a dry run, which checks nothing out, converts nothing either

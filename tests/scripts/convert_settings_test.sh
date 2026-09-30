@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Unit tests for scripts/convert_settings.sh, which rewrites overlay files an
-# older hi wrote - name:N packages rows, type,name,color colors rows,
+# older hi wrote - name:N packages rows, type,name,color colors rows, the
+# bare rows under [section] lines that followed both,
 # _HI_PACKAGES_MIN_PRIORITY, and the _HI_DISABLE_TOOL_ALIASES and
 # _HI_DISABLE_SUDO_ALIAS toggles - into the shapes this hi reads.
 #
-# The three converters are filters (stdin to stdout) and run in-process
+# The converters are filters (stdin to stdout) and run in-process
 # through the script's source hatch; the entry point runs as a process
 # against a scratch overlay directory per case.
 #
@@ -93,6 +94,47 @@ function test_packages_comments_travel_with_their_row() {
     '# top\n# more\n\n[core]\n# about a\na\n\n[useful]\nb\n\n# trailing'
 }
 
+# --- packages, sections to TOML ------------------------------------------------
+
+# a group's rows gather by kind, plain then required then unwanted, in file
+# order within one; a group of marked rows alone has no table of plain ones,
+# and a name TOML would not read bare is quoted
+function test_toml_packages_gather_a_group_by_kind() {
+  _hi_conv_is _hi_toml_packages '[a]\nbat,batcat,cat\n+sudo,doas\njq\n-exa\n+g++\n[b]\n+awk\n[c]\n' \
+    '[a]\nbat = ["batcat", "cat"]\njq = []\n\n[a.required]\nsudo = ["doas"]\n"g++" = []\n\n[a.unwanted]\nexa = []\n\n[b.required]\nawk = []\n\n[c]\n'
+}
+
+# a group named twice is one table, and rows above the first group keep
+# their place on top, the marked ones under a table that names no group
+function test_toml_packages_merge_a_group_named_twice() {
+  _hi_conv_is _hi_toml_packages 'top\n-gone\n[a]\nx\n[b]\ny\n[a]\nz\n' \
+    'top = []\n\n[unwanted]\ngone = []\n\n[a]\nx = []\nz = []\n\n[b]\ny = []\n'
+}
+
+# the leading block stays on top, a comment above a group above its first
+# table, the rest with the row below; a line holding a #, which nothing read,
+# is a comment
+function test_toml_packages_comments_travel() {
+  _hi_conv_is _hi_toml_packages '# top\n# more\n\n# about a\n[a]\n+x\n# about y\ny\nz # inert\n\n# trailing\n' \
+    '# top\n# more\n\n# about a\n[a]\n# about y\ny = []\n\n[a.required]\nx = []\n\n# z # inert\n# trailing\n'
+}
+
+# --- colors, sections to TOML --------------------------------------------------
+
+# a row is its name and a string of its color and hex; a name TOML would not
+# read bare is quoted, a type named twice is one table, and what followed the
+# color and was no hex is a comment behind the row
+function test_toml_colors_rows_become_strings() {
+  local f="$_HI_WORKDIR/colors.toml"
+  printf '# top\n\n[hostname]\nweb-* red\nbox brred #ff5f5f the office\nodd blue note\n[username]\nme green 3ba55d\n[hostname]\nlate cyan\n' |
+    _hi_toml_colors >"$f"
+  [ "$(sed 's/  */ /g' "$f")" = "$(printf '# top\n\n[hostname]\n"web-*" = "red"\nbox = "brred #ff5f5f" # the office\nodd = "blue" # note\nlate = "cyan"\n\n[username]\nme = "green 3ba55d"')" ] ||
+    _hi_because "$(cat "$f")" || return 1
+  [ "$(_HI_COLORS="$f" _hi_colors_pattern hostname web-2)" = red ] &&
+    [ "$(_HI_COLORS="$f" _hi_colors_lookup hostname box)" = 'brred#ff5f5f' ] &&
+    [ "$(_HI_COLORS="$f" _hi_colors_lookup username me)" = 'green#3ba55d' ]
+}
+
 # --- colors ------------------------------------------------------------------
 
 # types come out in the order they first appear, rows in file order within
@@ -101,9 +143,9 @@ function test_packages_comments_travel_with_their_row() {
 function test_colors_group_rows_by_type_in_order() {
   local f="$_HI_WORKDIR/colors.converted"
   printf 'hostname,web-*,red\nusername,me,blue\nhostname,web-1,green,#ff0000\nhosttag,prod,brred,ff5f5f\n' |
-    _hi_convert_colors >"$f"
+    _hi_convert_colors | _hi_toml_colors >"$f"
   [ "$(grep '^\[' "$f" | tr '\n' ' ')" = "[hostname] [username] [hosttag] " ] || return 1
-  _hi_before "$(cat "$f")" '^web-\*' '^web-1 ' || return 1
+  _hi_before "$(cat "$f")" '^"web-\*"' '^web-1 ' || return 1
   [ "$(_HI_COLORS="$f" _hi_colors_pattern hostname web-2)" = red ] &&
     [ "$(_HI_COLORS="$f" _hi_colors_lookup hostname web-1)" = 'green#ff0000' ] &&
     [ "$(_HI_COLORS="$f" _hi_colors_lookup username me)" = blue ] &&
@@ -116,6 +158,33 @@ function test_colors_comments_travel_with_their_row() {
   local got
   got="$(printf '# top\nhostname,a,red\n# about b\nusername,b,blue\n' | _hi_convert_colors)"
   [ "$(printf '%s\n' "$got" | grep -v '^$' | sed 's/  */ /g')" = "$(printf '# top\n[hostname]\na red\n[username]\n# about b\nb blue')" ]
+}
+
+# --- carry -------------------------------------------------------------------
+
+# the lines become rows of one [carry] table, a name TOML would not read
+# bare in quotes; comments stay, and a line of the wrong shape becomes one
+# shellcheck disable=SC2016 # the home column holds its $ unexpanded
+function test_carry_lines_become_rows() {
+  _hi_conv_is _hi_convert_carry '# member | tool | wire | home\n\n  taskrc | task | env:TASKRC | $TASKRC : ~/.taskrc  \nmy.rc|-|-|~/.myrc\n# about b\nb | x\n' \
+    '# member | tool | wire | home\n[carry]\ntaskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc"\n"my.rc" = "- | - | ~/.myrc"\n# about b\n# b | x\n'
+}
+
+# the entry point writes the carry as plugins and keeps it as carry.old,
+# unless a plugins file is there already
+function test_entry_converts_the_carry() {
+  local dir="$_HI_WORKDIR/conv-carry" out
+  mkdir -p "$dir"
+  printf 'taskrc | - | env:TASKRC | ~/.taskrc\n' >"$dir/carry"
+  out="$(_hi_conv_run --dry-run "$dir")" || return 1
+  [[ "$out" == *"would convert $dir/carry to $dir/plugins"* ]] && [ ! -e "$dir/plugins" ] || _hi_because "dry: $out" || return 1
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/carry to $dir/plugins"* ]] && [ ! -e "$dir/carry" ] &&
+    [ "$(cat "$dir/carry.old")" = 'taskrc | - | env:TASKRC | ~/.taskrc' ] &&
+    [ "$(cat "$dir/plugins")" = "$(printf '[carry]\ntaskrc = "- | env:TASKRC | ~/.taskrc"')" ] || _hi_because "$out: $(cat "$dir/plugins")" || return 1
+  printf 'b | - | - | ~/b\n' >"$dir/carry"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [ -z "$out" ] && [ -f "$dir/carry" ]
 }
 
 # --- settings.sh -------------------------------------------------------------
@@ -159,6 +228,26 @@ function test_settings_drop_the_old_alias_toggles() {
     "#!/bin/sh\n# _HI_DISABLE_TOOL_ALIASES=1 was mine\nexport _HI_SUDO_ALIAS=1"
 }
 
+# an editor's or a multiplexer's toggle at 1 is its word in the list, vim's
+# both of its plugins, and one at 0 just goes; the list's own line takes the
+# words where it stands, each once, and with none a line is written last
+function test_settings_move_the_tool_toggles_to_the_list() {
+  _hi_conv_is _hi_convert_settings "#!/bin/sh\nexport _HI_DISABLE_VIM=1\nexport _HI_DISABLE_NANO='0'\nexport _HI_MAX_WIDTH=100\n  _HI_DISABLE_TMUX=\"1\"\n" \
+    "#!/bin/sh\nexport _HI_MAX_WIDTH=100\nexport _HI_PLUGINS_OFF='vim nvim tmux'" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_OFF='lazygit, vim'\nexport _HI_DISABLE_EDITORS=1\nexport _HI_DISABLE_VIM=1\nexport _HI_MUX=1\n" \
+    "export _HI_PLUGINS_OFF='lazygit vim editors nvim'\nexport _HI_MUX=1" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_DISABLE_EMACS=0\n" ""
+}
+
+# ...under the marker the toggle's line carried, padded as the wizard pads
+# its own, so its block takes the line for one of its own
+function test_settings_list_line_keeps_the_marker() {
+  local line want
+  printf -v line '%-45s %s' 'export _HI_DISABLE_HELIX=1' "$_HI_MARKER"
+  printf -v want '%-45s %s' "export _HI_PLUGINS_OFF='hx'" "$_HI_MARKER"
+  [ "$(printf '%s\n' "$line" | _hi_convert_settings)" = "$want" ]
+}
+
 # --- the entry point ---------------------------------------------------------
 
 # each file in the old shape is converted in place, the original kept as
@@ -176,8 +265,9 @@ function test_entry_converts_each_old_file() {
       return 1
     fi
   done
-  grep -qx '\[core\]' "$dir/packages" && grep -qx 'bat,batcat' "$dir/packages" &&
-    grep -qx '\[hostname\]' "$dir/colors" &&
+  grep -qx '\[core\]' "$dir/packages" && grep -qx 'bat = \["batcat"\]' "$dir/packages" &&
+    grep -qx '\[useful.required\]' "$dir/packages" && grep -qx 'sudo = \[\]' "$dir/packages" &&
+    grep -qx '\[hostname\]' "$dir/colors" && grep -q '^me  *= "blue 3ba55d"$' "$dir/colors" &&
     grep -qx "export _HI_PACKAGES_GROUPS='core deprecated'" "$dir/settings.sh" &&
     ! grep -q MIN_PRIORITY "$dir/settings.sh" && grep -qx 'export _HI_MAX_WIDTH=100' "$dir/settings.sh"
 }
@@ -191,6 +281,19 @@ function test_entry_converts_the_old_alias_toggles() {
   [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
     grep -q _HI_DISABLE_SUDO_ALIAS "$dir/settings.sh.old" &&
     [ "$(cat "$dir/settings.sh")" = 'export _HI_MAX_WIDTH=100' ] || {
+    _hi_cecho " | said: $out" "$RED"
+    return 1
+  }
+}
+
+# ...and so does a toggle the list replaced
+function test_entry_converts_a_tool_toggle() {
+  local dir="$_HI_WORKDIR/conv-tool-toggle" out
+  mkdir -p "$dir"
+  printf 'export _HI_DISABLE_KAKOUNE=1\n' >"$dir/settings.sh"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
+    [ "$(cat "$dir/settings.sh")" = "export _HI_PLUGINS_OFF='kak'" ] || {
     _hi_cecho " | said: $out" "$RED"
     return 1
   }
@@ -224,13 +327,28 @@ function test_entry_is_idempotent() {
   cmp -s "$dir/colors.old" "$dir/colors.orig"
 }
 
-# files already in the current shape, or absent, are left alone; a
-# sectioned packages file with a stray name:N row is current too
+# the rows under [section] lines, the shape between the first and this one,
+# are converted the same way
+function test_entry_converts_the_sections() {
+  local dir="$_HI_WORKDIR/conv-sections" out
+  mkdir -p "$dir"
+  printf '# mine\n[core]\nbat,batcat\n+sudo\n' >"$dir/packages"
+  printf '[hostname]\n10.0.* red\n' >"$dir/colors"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/packages to the current format"* && "$out" == *"converted $dir/colors to"* ]] &&
+    grep -qx 'bat,batcat' "$dir/packages.old" && grep -qx '10.0.\* red' "$dir/colors.old" || return 1
+  [ "$(cat "$dir/packages")" = "$(printf '# mine\n[core]\nbat = ["batcat"]\n\n[core.required]\nsudo = []')" ] ||
+    _hi_because "$(cat "$dir/packages")" || return 1
+  grep -q '^"10.0.\*"  *= "red"$' "$dir/colors"
+}
+
+# files already in the current shape, or absent, are left alone, whatever
+# old row a comment of theirs still holds
 function test_entry_leaves_current_files_alone() {
   local dir="$_HI_WORKDIR/conv-current" out
   mkdir -p "$dir"
-  printf '[core]\nbat\nold:3\n' >"$dir/packages"
-  printf '[hostname]\nbox red\n' >"$dir/colors"
+  printf '# bat:3\n[core]\nbat = ["batcat"] # was bat,batcat\n\n[core.required]\n  "g++" = []\n' >"$dir/packages"
+  printf '# hostname,box,red\n[hostname]\nbox = "red"\n' >"$dir/colors"
   out="$(_hi_conv_run "$dir")" || return 1
   [ -z "$out" ] && [ ! -e "$dir/packages.old" ] && [ ! -e "$dir/colors.old" ] &&
     [ ! -e "$dir/settings.sh" ]
@@ -254,22 +372,67 @@ function test_entry_help_and_unknown_option() {
 
 # --- the shipped files of an older hi ----------------------------------------
 
-# config/packages and config/colors as the last release in the old shapes
+# config/packages and config/colors as the last release in each old shape
 # shipped them, kept verbatim beside this suite so the cases never depend on
-# how much history a checkout carries
+# how much history a checkout carries: the first shape's under their own
+# names, the sections' as <name>.sections
 _HI_CONV_OLD="$_HI_ROOT/tests/scripts/convert_settings"
 
 # the old shipped config/packages converts into a file full_check reads
 # without an error and with no name:N row left, every group on
 function test_shipped_old_packages_convert_and_parse() {
   local old="$_HI_WORKDIR/shipped.packages.old" new="$_HI_WORKDIR/shipped.packages"
-  local err="$_HI_WORKDIR/shipped.packages.err" out
+  local err="$_HI_WORKDIR/shipped.packages.err" out shape=""
   cp "$_HI_CONV_OLD/packages" "$old"
   grep -q '^[^#]*:[0-9]' "$old" || return 1
-  _hi_convert_packages <"$old" >"$new"
+  _hi_convert_packages <"$old" | _hi_toml_packages >"$new"
   ! grep -q '^[^#]*:[0-9]' "$new" || return 1
+  _hi_data_shape shape "$new" "$_HI_FLAT_PACKAGES"
+  [ "$shape" = toml ] || return 1
   out="$(_HI_PACKAGES="$new" _HI_PACKAGES_GROUPS="core useful extras trivia base platform" full_check 2>"$err")"
   [ ! -s "$err" ] && [ -n "$out" ]
+}
+
+# the sections' shipped config/packages converts into the rows it held: as
+# many, every first name a key, and each marked row under its kind's table
+function test_shipped_sections_packages_convert_whole() {
+  local old="$_HI_CONV_OLD/packages.sections" new="$_HI_WORKDIR/shipped.packages.toml"
+  local line group="" mark="" name="" alts="" got want shape=""
+  _hi_data_shape shape "$old" "$_HI_FLAT_PACKAGES"
+  [ "$shape" = sections ] || return 1
+  _hi_toml_packages <"$old" >"$new"
+  _hi_data_shape shape "$new" "$_HI_FLAT_PACKAGES"
+  [ "$shape" = toml ] || return 1
+  # both as "<group> <marker><name>,<alternatives>" lines, sorted
+  want="$(awk '/#/ || /^$/ { next } /^\[/ { g = substr($0, 2, length($0) - 2); next } { print g, $0 }' "$old" | sort)"
+  got="$(
+    while IFS= read -r line; do
+      _hi_package_table "$line" group mark && continue
+      _hi_toml_row "$line" name alts || continue
+      printf '%s %s\n' "$group" "$mark$name${alts:+,$alts}"
+    done <"$new" | sort
+  )"
+  [ -n "$want" ] && [ "$got" = "$want" ] || _hi_because "$(diff <(printf '%s\n' "$want") <(printf '%s\n' "$got"))"
+}
+
+# ...and its config/colors into one every pin reads back from
+function test_shipped_sections_colors_convert_whole() {
+  local old="$_HI_CONV_OLD/colors.sections" new="$_HI_WORKDIR/shipped.colors.toml"
+  local type="" name color hex got n=0
+  _hi_toml_colors <"$old" >"$new"
+  while read -r name color hex; do
+    case "$name" in
+    '' | '#'*) continue ;;
+    '['*']')
+      type="${name:1:${#name}-2}"
+      continue
+      ;;
+    esac
+    got="$(_HI_COLORS="$new" _hi_colors_lookup "$type" "$name")" || got=""
+    [ "$got" = "$color" ] || _hi_because "$type $name: got [$got], want [$color]" || return 1
+    n=$((n + 1))
+  done <"$old"
+  [ "$n" -gt 0 ]
 }
 
 # ...and the old shipped config/colors into one core.sh resolves the same
@@ -278,7 +441,7 @@ function test_shipped_old_colors_convert_and_resolve() {
   local old="$_HI_WORKDIR/shipped.colors.old" new="$_HI_WORKDIR/shipped.colors" type name color hex want got n=0
   cp "$_HI_CONV_OLD/colors" "$old"
   grep -Eq '^[a-z]+,[^,#]+,' "$old" || return 1
-  _hi_convert_colors <"$old" >"$new"
+  _hi_convert_colors <"$old" | _hi_toml_colors >"$new"
   while IFS=, read -r type name color hex; do
     case "$type" in '' | '#'*) continue ;; esac
     case "$name" in *[\*\?]*) continue ;; esac
@@ -306,21 +469,35 @@ function run_convert_settings_tests() {
   _hi_check "A + row becomes a plain [platform] row" test_packages_plus_rows_become_platform
   _hi_check "Comments travel with the row below" test_packages_comments_travel_with_their_row
 
+  _hi_h2 "Testing: _hi_toml_packages and _hi_toml_colors"
+  _hi_check "A group's rows gather by kind" test_toml_packages_gather_a_group_by_kind
+  _hi_check "A group named twice is one table" test_toml_packages_merge_a_group_named_twice
+  _hi_check "Comments travel with the row or the group below" test_toml_packages_comments_travel
+  _hi_check "A colors row is its name and a string" test_toml_colors_rows_become_strings
+
   _hi_h2 "Testing: _hi_convert_colors"
   _hi_check "Types in first-appearance order, rows in file order" test_colors_group_rows_by_type_in_order
   _hi_check "Comments travel with the row below" test_colors_comments_travel_with_their_row
+
+  _hi_h2 "Testing: the carry"
+  _hi_check "Its lines become rows of a [carry] table" test_carry_lines_become_rows
+  _hi_check "The entry point writes it as plugins, keeping carry.old" test_entry_converts_the_carry
 
   _hi_h2 "Testing: _hi_convert_settings"
   _hi_check "The floor maps to groups; 2 goes" test_settings_map_the_floor_to_groups
   _hi_check "Beside a groups line the floor just goes" test_settings_drop_the_floor_beside_groups
   _hi_check "A trailing comment, install's marker too, is kept" test_settings_keep_the_trailing_comment
   _hi_check "The old alias toggles go, a comment naming one stays" test_settings_drop_the_old_alias_toggles
+  _hi_check "An editor's toggle becomes its word in the list" test_settings_move_the_tool_toggles_to_the_list
+  _hi_check "...on a line the wizard's block takes as its own" test_settings_list_line_keeps_the_marker
 
   _hi_h2 "Testing: convert_settings.sh"
   _hi_check "Converts each old file, keeping <file>.old" test_entry_converts_each_old_file
   _hi_check "An old alias toggle alone makes settings.sh old-format" test_entry_converts_the_old_alias_toggles
+  _hi_check "...and so does an editor's" test_entry_converts_a_tool_toggle
   _hi_check "--dry-run writes nothing" test_entry_dry_run_writes_nothing
   _hi_check "A second run is a no-op" test_entry_is_idempotent
+  _hi_check "The rows under [section] lines are converted too" test_entry_converts_the_sections
   _hi_check "Current or absent files are left alone" test_entry_leaves_current_files_alone
   _hi_check "No directory means the overlay" test_entry_defaults_to_the_overlay
   _hi_check "--help, and an unknown option refused" test_entry_help_and_unknown_option
@@ -328,6 +505,8 @@ function run_convert_settings_tests() {
   _hi_h2 "Testing: an older hi's shipped files"
   _hi_check "config/packages converts and parses" test_shipped_old_packages_convert_and_parse
   _hi_check "config/colors converts and resolves the same" test_shipped_old_colors_convert_and_resolve
+  _hi_check "The sections' config/packages converts whole" test_shipped_sections_packages_convert_whole
+  _hi_check "...and their config/colors" test_shipped_sections_colors_convert_whole
 
   _hi_suite_end "scripts/convert_settings.sh"
 }

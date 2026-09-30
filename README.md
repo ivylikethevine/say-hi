@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-79KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -38,9 +38,6 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Getting help and contributing](#getting-help-and-contributing)
 - [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
-  - [Before 1.0](#before-10)
-  - [At the 1.0.0 tag](#at-the-100-tag)
-  - [Post 1.0](#post-10)
 - [License](#license)
 
 ---
@@ -89,12 +86,11 @@ along anyway.
 ### One Config Directory, Every Host, Every Shell
 
 `~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
-bash session on a debian container and a fish session on an alpine box,
-reached through docker and podman. The operator again, in fish's own prompt
-at the workstation and hi's on both boxes, with the header trimmed to the
-clocks, the backend counts, and the check on a blue-to-red ramp of their
-own. A box with no bash gets the aliases-only tier —
-hi's own aliases, not the overlay
+bash session on a debian container and a fish session on an alpine box, reached
+through docker and podman. The operator again, in fish's own prompt at the
+workstation and hi's on both boxes, with the header trimmed to the clocks, the
+backend counts, and the check on a blue-to-red ramp of their own. A box with no
+bash gets the aliases-only tier — hi's own aliases, not the overlay
 ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on an alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
@@ -165,7 +161,7 @@ row, and everything answered **no**, and why:
   ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 - **A slow link**: the ssh wire is meant to stay at or under 128 KB — 8 s over
   a 128 kbps link — and the gzipped payload is held to 64 KB by the bench
-  group. Today's (the payload badge above) is about half the 128.
+  group. The payload badge above is today's wire size.
 - **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
   out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
@@ -213,10 +209,9 @@ row, and everything answered **no**, and why:
   either way). Then reload your shell. zsh completes `hi` through the
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
-- `hi --configure` reopens the settings menu: pick a preset, or flip any
-  setting in its one list — Header, Prompt, Editors, Aliases, This machine,
-  Advanced — and save to
-  `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+- `hi --configure` reopens the settings menu: pick a preset, or flip any setting
+  on its pages — Header, Prompt, Plugins, Aliases, This machine, Advanced — and
+  save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
@@ -236,7 +231,7 @@ row, and everything answered **no**, and why:
   `hi --plugin-off lazygit editors` keeps a plugin or a whole group home and
   `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry a config of a tool hi does not know
-  ([docs/SETTINGS.md](docs/SETTINGS.md#plugins)).
+  ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
 - The whole surface is twenty-two flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
@@ -272,15 +267,16 @@ The overlay file table, the settings menu, and every setting are in
 target has them — your prompt program, mise, direnv, bat, eza, and more — are
 [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
-**_IMPORTANT: every overlay file in that directory is copied to every host
-you say `hi` to — keep local-only lines (a token, an internal hostname) in
+**_IMPORTANT: every overlay file in that directory is copied to every host you
+say `hi` to — keep local-only lines (a token, an internal hostname) in
 `~/.bashrc` and friends instead._** What lands on a target, and that it is
-removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
+removed on exit:
+[docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, Username, and Group/Tag Colors
 
 Every username and hostname gets a color derived from its name; a line in
-`~/.config/say-hi/colors` (`prod-db yellow` under `[hostname]`, which
+`~/.config/say-hi/colors` (`prod-db = "yellow"` under `[hostname]`, which
 `hi --set-color hostname prod-db yellow` writes) pins one, and
 `hi --preview colors` shows what every host and your user resolve to. Tags
 (`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
@@ -345,90 +341,50 @@ myself.
 
 ## Roadmap
 
-What's left; nothing here is parked or descoped. An entry is deleted once
-its **Ticks when** holds.
+What's left; nothing here is parked or descoped. One list, in the order the
+work is best done: what CI has yet to show, then the 1.0 tag. An entry is
+deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
+checkout: an account or an upstream review that lands when it lands.
 
-### Before 1.0
-
-In this checkout, narrowest first. What is carried, what switches it, and
-the header's cells are
-[docs/PLUGINS-ROADMAP.md](docs/PLUGINS-ROADMAP.md)'s, in the same form.
-
-1. [ ] **A blocked upstream shows as drift** — shipped:
+1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
        lookup on one host answered (a blocked host, not a one-off rate
        limit). What is left is seeing it in CI. **Ticks when:** a
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] **Close the coverage gaps bashcov can see** — shipped: the suites
-       that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`, `update.sh`
-       and `preview.sh` from a scratch-tree copy (the first four read 0% in run
-       36341616721, 91.11% overall) now link the real `scripts/`, and each
-       other gap has a test or is a blind spot `tests/coverage_v2.sh`'s
-       header lists. What is left is the measurement. **Ticks when:** the
-       first bashcov sweep on `main` after this lands reads at least 95%
-       and no shipped line at 0 that is neither tested nor in that header.
+2. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
+       the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
+       `update.sh` and `preview.sh` from a scratch-tree copy (the first four
+       read 0% in run 36341616721, 91.11% overall) now link the real
+       `scripts/`, and each other gap has a test or is a blind spot
+       `tests/coverage_v2.sh`'s header lists. What is left is the
+       measurement. **Ticks when:** the first bashcov sweep on `main` after
+       this lands reads at least 95% and no shipped line at 0 that is
+       neither tested nor in that header.
 
-3. [ ] **A hand-written prompt stays** — shipped: at home, bash and zsh
-       keep a `PS1`/`PROMPT` the rc set unless it is one nobody wrote (the
-       shell's built-in default, or a stock rc's on the distros
-       [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
-       target's prompt is hi's as before. What is left is the check on real
-       installs. **Ticks when:** a hand-written `PS1` survives hi in bash and
-       zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets hi's
-       prompt.
-
-4. [ ] **Every `eval` is counted, then fewer** — shipped: `drift` holds
-       every `eval` in the payload and `scripts/` to a row of
-       `tests/lint/eval_roster` that says what it evaluates, and each file's
-       count of its kin (a `source` of a path in a variable, a shell's `-c`,
-       a recursive `rm`); the overlay table's home column is read by the
-       `carry` grammar, and eleven more gave way to `${!name}` and
-       `printf -v`. Left: the eight of its twenty-seven that read from
-       outside the tree - the shell's own `complete -p`, `alias -p`, and
-       `trap -p` run back in `common/bash.sh`, a prompt program's init, and
-       a plugin's `$_HI_SEGMENT` - and indirect assignment, which nothing
-       counts. **Ticks when:** no `eval` in the roster reads a value from
-       outside the tree. **Open question:** a prompt program's init and
-       `$_HI_SEGMENT` are commands by contract; do they count against the
-       tick, or does the roster name them as the two ways in that stay?
-
-### At the 1.0.0 tag
-
-Shipped; it ticks when the tag itself shows it.
-
-1. [ ] **A stability contract is written down** —
+3. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-### Post 1.0
+4. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+       upstream style. **Do:** open the PR against tldr-pages. **Ticks
+       when:** merged.
 
-Outside this checkout: each is an account or an upstream review that lands
-when it lands.
+5. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+       the live entry matches the sheet.
 
-1. [ ] **tldr page** — `docs/tldr.md` matches `docs/hi.1` and upstream
-       style. **Do:** open the PR against tldr-pages. **Ticks when:** merged.
-
-2. [ ] **AUR** — registration is closed to new accounts, so
+6. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand
        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
        packages are live and a dispatch has kept `say-hi` current for one
        release.
-
-3. [ ] **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
-
-4. [x] **vhs v0.12** — `demos.yml` pins v0.12.1, which fixes the render
-       v0.12.0 never ran
-       ([charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787)),
-       and a `demos.yml` dispatch renders all six tapes on that pin.
 
 ## License
 
