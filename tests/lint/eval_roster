@@ -61,7 +61,7 @@ source|common/header.sh|2
 source|common/paths.sh|1
 source|common/zsh.zsh|7
 source|hi.sh|2
-source|load.sh|6
+source|load.sh|7
 source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2
 source|scripts/configure.sh|7
