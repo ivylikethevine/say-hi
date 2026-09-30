@@ -2471,11 +2471,11 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     # the defaults that overlay shadowed were cut from the tree above; a
     # prompt loader's cut is not the overlay's, and a hop's tree lacks it
     local f
-    local -a shadowed=()
+    local -a config_defaults=()
     for f in ${payload_excl[@]+"${payload_excl[@]}"}; do
-      case "$f" in say-hi/config/*) shadowed+=("$f") ;; esac
+      case "$f" in say-hi/config/*) config_defaults+=("$f") ;; esac
     done
-    ! ((${#shadowed[@]})) || tar -c -f - -C "$_HI_HOME" "${shadowed[@]}" |
+    ! ((${#config_defaults[@]})) || tar -c -f - -C "$_HI_HOME" "${config_defaults[@]}" |
       "${cp[@]}" sh -c "tar -x -m -f - -C '$root'" 2>>"$tmp" || true
   fi
 
