@@ -196,7 +196,10 @@ an alias that was there before hi - a target's `alias ls='ls --color=auto'`, or
 hi's own `vim` alias when an interactive shell re-sources its rc - so each
 `$( )` opens with `type unalias >/dev/null 2>&1 && unalias -a || true &&`,
 clearing aliases in that subshell only (fish has no `unalias` and its
-`command -v` never reports one). `tests/config/alias_fallthrough_test.sh` is the
+`command -v` never reports one). bash and zsh skip those forks: with
+`common/core.sh` loaded, each chain runs through `_hi_path_lookup`, a walk of
+`$PATH` that sees no alias or function, and the `$( )` line runs only where
+that function is not defined. `tests/config/alias_fallthrough_test.sh` is the
 regression test.
 
 ## HI.14 _hi_on_exit

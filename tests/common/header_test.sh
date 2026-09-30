@@ -852,8 +852,8 @@ function test_hi_header_enabled_prints_banner() {
   return 1
 }
 
-# The eager probe launch fires when a backend word is in the order and
-# identity is not yet memoized...
+# The eager probe launch fires when a backend word is in the order and the
+# backends are not yet memoized...
 function test_hi_header_launches_probes_for_a_backend_word() {
   local out
   out="$(
@@ -911,15 +911,26 @@ function test_probe_launch_takes_podman_when_docker_is_absent() {
   [ "$out" = PODMAN_PROBED ]
 }
 
-function test_hi_header_skips_probe_launch_once_identity_is_memoized() {
+function test_hi_header_skips_probe_launch_once_backends_are_memoized() {
   local out
   out="$(
     function _hi_probe_launch() { echo LAUNCHED; }
-    _HI_ID_PROBED=1 _HI_ID_GITID=gitid _HI_ID_CONTAINERS="" _HI_ID_JOBS="" _HI_ID_PODS=""
-    _HI_ID_AUTH=auth _HI_ID_PUB=pub
+    _HI_ID_PROBED=1 _HI_ID_GITID=gitid _HI_ID_AUTH=auth _HI_ID_PUB=pub
+    _HI_BK_PROBED=1 _HI_ID_CONTAINERS="" _HI_ID_JOBS="" _HI_ID_PODS=
     _HI_HEADER_ORDER="containers gitid" hi_header Connected
   )"
   [[ "$out" != *LAUNCHED* && "$out" == *gitid* ]]
+}
+
+# gitid/auth/pub read git and ~/.ssh only: an order without a backend word
+# never starts docker, nomad, or kubectl, directly or through their probe
+function test_hi_header_identity_cells_skip_the_backends() {
+  local out
+  out="$(
+    function _hi_probe_launch() { echo LAUNCHED; }
+    _HI_HEADER_ORDER="gitid auth pub" hi_header Connected
+  )"
+  [[ "$out" != *LAUNCHED* && "$out" == *Auth:* ]]
 }
 
 # shellcheck disable=SC2209 # the literal command name "sh" is intentional, not a botched `sh` invocation
@@ -1681,7 +1692,7 @@ function test_header_backend_trio_hues_are_three_families() {
   path="$d_dir:$n_dir:$k_dir:$(_hi_identity_path)"
   out="$(PATH="$path" _HI_TARGETS_TTL=0 bash -c '
     source "$_HI_HEADER"
-    _hi_identity_probe
+    _hi_backend_probe
     printf "%s\n%s\n%s\n" "$_HI_ID_CONTAINERS" "$_HI_ID_JOBS" "$_HI_ID_PODS"')"
   local containers jobs pods hc hj hp
   containers="$(sed -n 1p <<<"$out")"
@@ -2394,7 +2405,8 @@ function run_header_tests() {
   _hi_check "Prints the banner when enabled" test_hi_header_enabled_prints_banner
   _hi_check "Banner off still prints the detail lines" test_hi_header_banner_off_keeps_detail_lines
   _hi_check "A backend word launches the probes" test_hi_header_launches_probes_for_a_backend_word
-  _hi_check "...but not once identity is memoized" test_hi_header_skips_probe_launch_once_identity_is_memoized
+  _hi_check "...but not once the backends are memoized" test_hi_header_skips_probe_launch_once_backends_are_memoized
+  _hi_check "gitid/auth/pub never start a backend probe" test_hi_header_identity_cells_skip_the_backends
   _hi_check "podman probes when docker is absent" test_probe_launch_takes_podman_when_docker_is_absent
   _hi_check_capable pty "_hi_draw_width: COLUMNS, then tput, never past the max" test_draw_width_reads_columns_then_tput_under_a_tty
   _hi_check "Default feature order: timestamp, sysinfo, identity, check" test_hi_header_default_order

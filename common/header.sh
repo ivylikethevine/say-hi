@@ -703,18 +703,15 @@ function _hi_probe_launch() {
   return 0
 }
 
-# git identity (domain masked), containers/jobs/pods, ssh key counts - the
-# detection the identity cells share, memoized into $_HI_ID_* the same way
-# _hi_system_info_probe memoizes the sysinfo cells'. $_HI_ID_CONTAINERS/_JOBS/_PODS
-# stay empty when that backend's probe never ran - a getter checks for that
-# itself, same "cell appears only when the probe actually ran" rule as
-# before. Uptime is not part of this probe: _hi_cell_uptime already has its
-# own minimal, independent one (see its own comment) and stays that way.
-# Reads what _hi_probe_launch started; calls it itself if nobody did.
+# git identity (domain masked) and ssh key counts - the detection the
+# gitid/auth/pub cells share, memoized into $_HI_ID_* the same way
+# _hi_system_info_probe memoizes the sysinfo cells'. Uptime is not part of
+# this probe: _hi_cell_uptime already has its own minimal, independent one
+# (see its own comment) and stays that way.
 function _hi_identity_probe() {
   [ -z "${_HI_ID_PROBED:-}" ] || return 0
   _HI_ID_PROBED=1
-  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0 n
+  local email="" domain user_part bullets authorized=0 public=0 n
   command -v git &>/dev/null && _hi_slow_out email email
   _hi_sanitize_var email "$email"
   if [ -n "$email" ]; then
@@ -724,7 +721,26 @@ function _hi_identity_probe() {
   else
     user_part="${YELLOW}No Git ID Found..."
   fi
+  [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_count_lines authorized <"$_HI_SSH_AUTHORIZED_KEYS"
+  if [ -d "$_HI_SSH_DIR" ]; then
+    _hi_slow_out n pubs
+    # a line per key: the newlines between them, plus the last
+    [ -z "$n" ] || { n="${n//[!$'\n']/}" public=$((${#n} + 1)); }
+  fi
+  _HI_ID_GITID="$user_part"
+  _HI_ID_AUTH="${RED}Auth: $authorized"
+  _HI_ID_PUB="${PURPLE}Pub: $public"
+}
 
+# The containers/jobs/pods counts, memoized into $_HI_ID_CONTAINERS/_JOBS/_PODS.
+# Apart from _hi_identity_probe so the other identity cells never wait on a
+# daemon. Each stays empty when that backend's probe never ran - a getter
+# checks for that itself. Reads what _hi_probe_launch started; calls it
+# itself if nobody did.
+function _hi_backend_probe() {
+  [ -z "${_HI_BK_PROBED:-}" ] || return 0
+  _HI_BK_PROBED=1
+  local containers="" jobs="" pods="" n
   _hi_probe_launch
   _hi_probe_wait
 
@@ -756,24 +772,15 @@ function _hi_identity_probe() {
     fi
     _hi_probe_done
   fi
-  [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_count_lines authorized <"$_HI_SSH_AUTHORIZED_KEYS"
-  if [ -d "$_HI_SSH_DIR" ]; then
-    _hi_slow_out n pubs
-    # a line per key: the newlines between them, plus the last
-    [ -z "$n" ] || { n="${n//[!$'\n']/}" public=$((${#n} + 1)); }
-  fi
-  _HI_ID_GITID="$user_part"
   _HI_ID_CONTAINERS="${containers:+$BLUE$containers}"
   _HI_ID_JOBS="${jobs:+$BRGREEN$jobs}"
   _HI_ID_PODS="${pods:+$BRPURPLE$pods}"
-  _HI_ID_AUTH="${RED}Auth: $authorized"
-  _HI_ID_PUB="${PURPLE}Pub: $public"
 }
 
 function _hi_cell_gitid() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_GITID; }
-function _hi_cell_containers() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_CONTAINERS; }
-function _hi_cell_jobs() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_JOBS; }
-function _hi_cell_pods() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PODS; }
+function _hi_cell_containers() { _hi_probed_cell "$1" _hi_backend_probe _HI_ID_CONTAINERS; }
+function _hi_cell_jobs() { _hi_probed_cell "$1" _hi_backend_probe _HI_ID_JOBS; }
+function _hi_cell_pods() { _hi_probed_cell "$1" _hi_backend_probe _HI_ID_PODS; }
 function _hi_cell_auth() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_AUTH; }
 function _hi_cell_pub() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PUB; }
 
@@ -991,13 +998,11 @@ function hi_header() {
   _HI_PROBE_HOLD=1
   _hi_header_prefetch
   # ahead of the rows, so their work runs inside the probes' wall clock. Only
-  # the three that actually consume a backend probe gate this -
-  # gitid/auth/pub never did, so they cost nothing here whether or not they
-  # end up in the order.
-  # Skipped once identity is memoized (configure.sh renders the header
+  # the three that consume a backend probe gate this.
+  # Skipped once the backends are memoized (configure.sh renders the header
   # repeatedly in subshells): a relaunch there would start backends nobody
   # waits on and leave their mktemp dir behind.
-  if [ -z "${_HI_ID_PROBED:-}" ] && { _hi_order_has containers || _hi_order_has jobs || _hi_order_has pods; }; then
+  if [ -z "${_HI_BK_PROBED:-}" ] && { _hi_order_has containers || _hi_order_has jobs || _hi_order_has pods; }; then
     _hi_probe_launch
   fi
   banner "$@"
