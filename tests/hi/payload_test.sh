@@ -502,12 +502,13 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 # and its flags, where the target has the command, under the path load.sh
 # reads for $VIMINIT.
 # vim and nvim keep their state in the session tree, nvim answers to vim
-# too, helix to hx under either name, and zellij's directory is aliased once
-# for all its files
+# too, helix under each of its names as itself, its languages.toml through
+# the xdg wire, whose alias comes last and wins, and zellij's directory is
+# aliased once for all its files
 # shellcheck disable=SC2016 # the wanted lines hold their $ unexpanded
 function test_overlay_tar_aliases_the_editors_and_multiplexers() {
   local dir d want
-  dir="$(_hi_overlay_fixture aliased vim/vimrc nvim/init.lua helix/config.toml tmux/tmux.conf)"
+  dir="$(_hi_overlay_fixture aliased vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml tmux/tmux.conf)"
   mkdir -p "$dir/zellij/themes"
   printf 'x\n' >"$dir/zellij/config.kdl"
   printf 'x\n' >"$dir/zellij/themes/dark.kdl"
@@ -518,11 +519,13 @@ command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/st
 export _HI_NVIMRC="$_HI_CONFIG_DIR/nvim/init.lua"
 command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/nvim/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/nvim/init.lua" || true
 command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/helix/config.toml" || true
-command -v helix >/dev/null 2>&1 && alias hx="helix -c $_HI_CONFIG_DIR/helix/config.toml" && alias helix="helix -c $_HI_CONFIG_DIR/helix/config.toml" || true
+command -v helix >/dev/null 2>&1 && alias helix="helix -c $_HI_CONFIG_DIR/helix/config.toml" || true
+command -v hx >/dev/null 2>&1 && alias hx="env XDG_CONFIG_HOME=$_HI_CONFIG_DIR hx" || true
+command -v helix >/dev/null 2>&1 && alias helix="env XDG_CONFIG_HOME=$_HI_CONFIG_DIR helix" || true
 command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux/tmux.conf" || true
 command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONFIG_DIR/zellij" || true'
   [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
-  [ "$(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vim/vimrc nvim/init.lua helix/config.toml " ] ||
+  [ "$(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml " ] ||
     _hi_because "with mux off: $(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
 }
 
@@ -616,8 +619,9 @@ function test_table_home_columns_are_the_grammar() {
 # for hi --doctor: one above the first table or under a name that is no
 # group, no row at all, a name that is no member, one of hi's own or the
 # directory of one, one the file has already, a tool or a wire of another
-# shape, a fourth column, a home that names a function. A row of the
-# tree's member, a directory entry included, replaces the tree's row.
+# shape, a dialect hi does not read, a fifth column, a home that names a
+# function. A row of the tree's member, a directory entry included, replaces
+# the tree's row.
 function test_carry_turns_down_a_row_the_table_cannot_hold() {
   local dir
   dir="$(_hi_overlay_fixture carry-bad)"
@@ -633,8 +637,12 @@ function test_carry_turns_down_a_row_the_table_cannot_hold() {
     printf 'good = "- | - | ~/y"\n'
     printf 'w1 = "- | env:A;rm | ~/x"\n'
     printf 'w2 = "- | flag:-f | ~/x"\n'
+    printf 'w3 = "- | xdg:a b | ~/x"\n'
+    printf 'w4 = "- | xdg:a,b=c;xdg:d | ~/x"\n'
     printf 't1 = "a;b | - | ~/x"\n'
-    printf 'four = "- | - | ~/x | more"\n'
+    printf 'four = "- | - | ~/x | sh"\n'
+    printf 'd1 = "- | - | ~/x | nodialect"\n'
+    printf 'five = "- | - | ~/x | sh | more"\n'
     printf 'two = "- | -"\n'
     printf 'fn = "- | - | @_hi_posh_home"\n'
     printf 'arr = ["-", "-", "~/x"]\n'
@@ -646,10 +654,10 @@ function test_carry_turns_down_a_row_the_table_cannot_hold() {
     _HI_CONFIG_DIR="$dir"
     _hi_plugins_load
     case " ${_HI_PLUGIN_FILES[*]} " in
-    *" good "*) ;;
+    *" good w4 four "*) ;;
     *) _hi_because "kept: ${_HI_PLUGIN_FILES[*]}" || exit 1 ;;
     esac
-    [ "${#_HI_PLUGIN_BAD[@]}" = 15 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    [ "${#_HI_PLUGIN_BAD[@]}" = 17 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
     case "${_HI_PLUGIN_BAD[0]}" in 'plugins:1|no [group] above it') ;; *) _hi_because "first: ${_HI_PLUGIN_BAD[0]}" || exit 1 ;; esac
     local r="" tilde='~'
     _hi_overlay_row vim/vimrc r
@@ -990,7 +998,7 @@ function test_the_editor_config_in_force_here_rides_the_stream() {
 function test_a_home_config_is_found_in_its_tools_order() {
   local home="$_HI_WORKDIR/order-home" dir="$_HI_WORKDIR/order-overlay" p f m out
   local places="vim/vimrc:.vimrc vim/vimrc:.vim/vimrc vim/vimrc:.config/vim/vimrc nvim/init.lua:.config/nvim/init.lua
-    helix/config.toml:.config/helix/config.toml nano/nanorc:.nanorc nano/nanorc:.config/nano/nanorc
+    helix/config.toml:.config/helix/config.toml helix/languages.toml:.config/helix/languages.toml nano/nanorc:.nanorc nano/nanorc:.config/nano/nanorc
     emacs/init.el:.emacs.el emacs/init.el:.emacs emacs/init.el:.emacs.d/init.el emacs/init.el:.config/emacs/init.el
     tmux/tmux.conf:.tmux.conf tmux/tmux.conf:.config/tmux/tmux.conf screenrc:.screenrc"
   mkdir -p "$dir"
@@ -1627,6 +1635,30 @@ emacs/init.el|2' ] || {
   }
 }
 
+# a row of the user's is scanned and stripped in the dialect it names: its
+# include goes out disabled and is reported; with no dialect the same file
+# rides as written
+function test_a_users_row_is_read_in_its_dialect() {
+  local dir bare out
+  dir="$(_hi_lint_fixture user-dialect mine.rc '# about it
+. ~/.mine-extra
+set_it=1
+')"
+  bare="$(_hi_lint_fixture user-no-dialect mine.rc "$(cat "$dir/mine.rc")")"
+  printf '[mine]\n"mine.rc" = "- | env:MINERC | - | sh"\n' >"$dir/plugins"
+  printf '[mine]\n"mine.rc" = "- | env:MINERC | -"\n' >"$bare/plugins"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3)"
+  [ "$out" = 'mine.rc|2|include' ] || _hi_because "reported: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat mine.rc)"
+  [ "$out" = ':
+set_it=1' ] || _hi_because "arrived as: [$out]" || return 1
+  [ -z "$(_HI_CONFIG_DIR="$bare" _hi_include_lint)" ] || _hi_because "reported with no dialect" || return 1
+  out="$(_HI_CONFIG_DIR="$bare" _hi_overlay_tar | _hi_tar_cat mine.rc)"
+  [ "$out" = '# about it
+. ~/.mine-extra
+set_it=1' ] || _hi_because "with no dialect arrived as: [$out]"
+}
+
 # On a target, "the config in force here" is the middle box's: only the
 # overlay's copy packs, so a relay never carries a hop's own files onward.
 # micro/ and the editor ladders already refuse; bat, eza, and the prompt
@@ -2025,6 +2057,7 @@ function run_hi_payload_tests() {
   _hi_check "An unclosed start decides nothing and is a row" test_an_unclosed_start_decides_nothing_and_is_reported
   _hi_check "...and a lone marker still decides one line" test_a_single_marker_still_decides_one_line
   _hi_check "A commented line is no finding" test_the_scan_skips_a_commented_line
+  _hi_check "A row of the user's is read in its dialect" test_a_users_row_is_read_in_its_dialect
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

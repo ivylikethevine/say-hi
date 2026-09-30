@@ -544,12 +544,14 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment and whitespace strip
 
-Every file `hi.sh`'s `$_HI_STRIP_NAMES` matches — the shell files, `*.lua`,
-and data files such as `colors`, `vim/vimrc`, and `tmux/tmux.conf`, whose prose
-headers document the _installed_ copies — is comment-stripped by
+Every tree file `hi.sh`'s `$_HI_STRIP_NAMES` matches — the shell files and
+the data files under `config/` — and every overlay member whose dialect
+(`$_HI_DIALECTS`) has `<strip>` 1, such as `vim/vimrc` and `tmux/tmux.conf`,
+whose prose headers document the _installed_ copies, is comment-stripped by
 `_hi_strip_awk` on its way into the payload or overlay; about 40% of the
-shipped shell is comment. vimrc's comment character is `"`, init.el's `;`,
-and lua's `--`, each its own rule. Lua's `--[[` block form is deliberately
+shipped shell is comment. A member's comment leader is its dialect's, handed
+to the stripper as `c=` ahead of the file: vimrc's `"`, init.el's `;`, and
+lua's `--`, beside `#`. Lua's `--[[` block form is deliberately
 not one: the strip is line-wise, so a block opener would go and its body stay
 — which is why the shipped `nvim/init.lua` uses line comments only.
 `bench_payload_readme_badge` checks README's badge against the result, through
@@ -1147,7 +1149,7 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 ## HI.57 carried configs and the include scan
 
-hi carries a `vim/vimrc`, `nvim/init.lua`, `nano/nanorc`, `emacs/init.el`, helix's `helix/config.toml`,
+hi carries a `vim/vimrc`, `nvim/init.lua`, `nano/nanorc`, `emacs/init.el`, helix's `helix/config.toml` (and `languages.toml`),
 and kakoune's `kak/kakrc` (through `$KAKOUNE_CONFIG_DIR`, since `kak -n` would
 drop its system kakrc too) to every target and starts the editor on it (`-u`, `--rcfile`,
 `-nw -q -l`, `-c`), so the question is
@@ -1175,10 +1177,12 @@ serves both readers: `_hi_stage_tar` runs it in `fix` mode ahead of
 [HI.35](#hi35-payload-comment-and-whitespace-strip)'s stripper, so a finding
 goes out disabled in its own dialect and the strip drops it for free, and
 `hi --doctor` runs it in `report` mode, so its yellow rows name exactly what
-went missing. The dialect comes from the member name passed in, not the path,
-so doctor reads `~/.vimrc` as vim - and a member whose name is no dialect
-(`colors`, an `eza/theme.yml`) passes through untouched, so every member goes in
-and there is no second roster of what has includes. A line directly under a `hi-allow` comment
+went missing. The grammar is a row of `hi.sh`'s `$_HI_DIALECTS` - its comment
+leader, where a statement ends, what is an include, a plugin manager, or
+allowed, and how a finding is disabled - named by the member's row's
+`<dialect>`, so doctor reads `~/.vimrc` as vim, a row of the user's is read in
+the dialect it names, and a member with none (an `eza/theme.yml`) passes
+through untouched. A line directly under a `hi-allow` comment
 in the file's own syntax is neither reported nor touched; one under `hi-quiet`
 is disabled like any other finding but not reported. A pair, `hi-allow-start`
 and `hi-allow-end` or `hi-quiet-start` and `hi-quiet-end`, decides every line
@@ -1226,7 +1230,7 @@ name once and the overlay's copy first (zellij's `layouts/` and `themes/`),
 or over the overlay's alone where the row has no home (`extensions/`), and
 the rest of the stream - `_hi_overlay_src`,
 the cache key, the stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
-strip (a `-path` entry in `$_HI_STRIP_NAMES`) - treats that path like any
+strip (by the directory row's dialect) - treats that path like any
 member. The directory stays an allow list: `core.sh`'s `_hi_dir_member_ok`
 admits a plain name only (a letter or digit first, then `[A-Za-z0-9_.-]`, not
 ending `.bak`/`.orig`/`.rej`/`.tmp`), and the target reads the directory back
@@ -1368,17 +1372,23 @@ lines. A row's wire column says how: `env:<variables>` exports each as the
 member's path, `envdir:<variable>` as the directory holding it (eza and its
 fixed `eza/theme.yml`), `flag:<command> <words>` and `flagdir:` alias the
 command to itself with the words and that path, where the target has the
-command (a flag ending in `=` takes the path in the same word), and `-`
-leaves the member to hi's own code. A row holds several wires with a `;`
+command (a flag ending in `=` takes the path in the same word),
+`xdg:<command>` aliases it with `$XDG_CONFIG_HOME` set to the overlay, where
+the `<tool>/<file>` members sit as they would under `~/.config`, and `-`
+leaves the member to hi's own code. `xdg:` is the fallback: everything the
+command starts inherits the variable, so it is for a file no variable or
+flag reaches (helix's `languages.toml`), and its row follows the flag row's
+so its alias replaces that one when both files ride. A row holds several wires with a `;`
 between them, read in order, a later alias replacing an earlier one. An
 `env:` over a name of hi's own is how hi's code on a target learns a
 member's path without naming the member: `$_HI_VIMRC` and `$_HI_NVIMRC` for
 `load.sh`'s `$VIMINIT`, and `$_HI_NANORC` for its syntax fallback.
 `<names>=<command>` aliases other names to the command, and words ahead of
 it that hold a `=` are its environment: neovim answers to `vim` as well and
-keeps its state under the session tree, and helix to `hx` whichever of its
-two names the target installed. helix's row asks for `hx` first, since
-`command -v` finds an alias once there is one. The path goes in bare:
+keeps its state under the session tree. helix's rows wire `hx` and `helix`
+each as itself and alias neither name to the other: which name a target's
+helix answers to is the user's call, in their own `aliases.sh`. The path
+goes in bare:
 `load.sh` reads an alias's body back for `$EDITOR`, and a quote inside one
 does not survive that.
 
@@ -1412,8 +1422,8 @@ file's status is its last line's, and `core.sh` sources `paths.sh` under
 The tools' rows are a file, the tree's `config/plugins`, and the user's rows
 another of the same shape, the overlay's `plugins`: TOML in the subset
 `core.sh`'s `_hi_toml_row` reads, `[group]` tables of
-`"<member>" = "<tool> | <wire> | <home>"` rows, spaces around a column
-ignored, `#` lines and blank ones skipped. `hi.sh`'s `_hi_plugins_load` reads
+`"<member>" = "<tool> | <wire> | <home> | <dialect>"` rows, the last
+column `-` when left out, spaces around a column ignored, `#` lines and blank ones skipped. `hi.sh`'s `_hi_plugins_load` reads
 both into `$_HI_PLUGIN_ROWS` in the table's own shape
 ([HI.61](#hi61-one-overlay-priority)), the group the table's name, so the
 order, the tool check, the include scan, the cache, the wiring
@@ -1439,8 +1449,9 @@ member that is no `<name>`, `<dir>/<name>` or `<dir>/`
 (`_hi_plugin_member_ok`), that is hi's own, an earlier row's, or the
 directory one sits under, or that is `wiring.sh`; a tool that is not command
 names or one `(name)`; a wire that is not `env:` or `envdir:` over variable
-names, or `flag:` or `flagdir:` over a command and its words, wires a `;`
-apart; a fourth column. The wire is checked because its words become a line
+names, `flag:` or `flagdir:` over a command and its words, or `xdg:` over
+one command, wires a `;`
+apart; a dialect `$_HI_DIALECTS` has no row of; a fifth column. The wire is checked because its words become a line
 every target sources.
 
 The overlay's `plugins` is itself a member. On a target the copy that rode

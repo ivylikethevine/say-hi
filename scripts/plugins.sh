@@ -41,7 +41,7 @@ esac
 case "$mode" in
 list) me="hi --plugins" usage="hi --plugins" ;;
 off | on) me="hi --plugin-$mode" usage="hi --plugin-$mode <name>... [--dry-run]" ;;
-add) me="hi --add-plugin" usage="hi --add-plugin <group> <member> <tool> <wire> <home> [--dry-run]" ;;
+add) me="hi --add-plugin" usage="hi --add-plugin <group> <member> <tool> <wire> <home> [<dialect>] [--dry-run]" ;;
 remove) me="hi --remove-plugin" usage="hi --remove-plugin <member> [--dry-run]" ;;
 esac
 me="${_HI_ARGV0:-$me}"
@@ -61,7 +61,7 @@ switched off, its tool is not installed here, or there is nothing to carry.
 
   hi --plugin-off <name>...     switch plugins off: nothing of theirs rides
   hi --plugin-on <name>...      switch them back on
-  hi --add-plugin <group> <member> <tool> <wire> <home>
+  hi --add-plugin <group> <member> <tool> <wire> <home> [<dialect>]
                                 carry a config of a tool hi does not know
   hi --remove-plugin <member>   stop carrying it
 
@@ -90,10 +90,13 @@ to the tree's config/plugins or replaces its row of the same <member>.
 prompt, cli, shell, or one of your own), <member> the name the file rides
 under, <tool> the command that reads it (or -), <wire> how a target's tool
 finds it (env:<variables>, envdir:<variable>, 'flag:<command> <flag>',
-'flagdir:<command> <flag>', or -), and <home> where the file is here: paths
+'flagdir:<command> <flag>', xdg:<command> for a file it has no variable or
+flag for, or -), and <home> where the file is here: paths
 a : apart, each starting at /, ~/, or \$NAME; several a , apart are one
 place, the first whose variable is set. Quote <home>, or the shell expands
-it first.
+it first. <dialect> is how its includes are found and its comments stripped
+(sh, fish, vim, lua, elisp, nano, tmux, screen, readline, kak, kdl, omp,
+omp-json, conf); left out, it rides as written.
 
   -n, --dry-run    say what would be written, and write nothing
 
@@ -238,13 +241,14 @@ function _hi_plugins_write() {
 function _hi_plugins_add() {
   local group member key row tmpdir at=-1 table="" why="" line said=""
   local -a existing_lines=()
-  [ "${#args[@]}" -eq 5 ] || _hi_die "needs a group, a member, a tool, a wire, and a home ($me --help)"
+  [ "${#args[@]}" -eq 5 ] || [ "${#args[@]}" -eq 6 ] ||
+    _hi_die "needs a group, a member, a tool, a wire, and a home, then a dialect or nothing ($me --help)"
   group="${args[0]}" member="${args[1]}"
   _hi_words_ok "$group" 'A-Za-z0-9_' 'A-Za-z0-9_-' && [ "${group% *}" = "$group" ] ||
     _hi_die "not a group name: $group (letters, digits, _ -)"
-  case "${args[2]}${args[3]}${args[4]}" in *['"'\\]*) _hi_die "a column cannot hold a quote or a backslash ($me --help)" ;; esac
+  case "${args[2]}${args[3]}${args[4]}${args[5]:-}" in *['"'\\]*) _hi_die "a column cannot hold a quote or a backslash ($me --help)" ;; esac
   _hi_toml_key key "$member"
-  row="$key = \"${args[2]} | ${args[3]} | ${args[4]}\""
+  row="$key = \"${args[2]} | ${args[3]} | ${args[4]}${args[5]:+ | ${args[5]}}\""
   [ -f "$plugins" ] && _hi_read_lines existing_lines <"$plugins"
   _hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
   _hi_plugins_index at "$member"
@@ -263,7 +267,7 @@ function _hi_plugins_add() {
     fi
   else
     said=" + $row in [$group]|$GREEN"
-    [ "${#_hi_rows[@]}" -gt 0 ] || _hi_rows=('# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home>"')
+    [ "${#_hi_rows[@]}" -gt 0 ] || _hi_rows=('# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home> | <dialect>"')
     _hi_section_add "$group" "$row"
   fi
   # through the reader a connect uses, over the file as it would be: good

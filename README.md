@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-81KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -348,43 +348,36 @@ reaches a target first, then the lint gate, the rest, and CI. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
-1. [ ] _Before 1.0:_ **The include scan reads rows** — each dialect is an
-       arm of `_hi_lint_awk`, picked by a test of the member's name, and a
-       row of the user's passes through unscanned. **Do:** a `dialect`
-       column standing in for the scan's name tests and `$_HI_STRIP_NAMES`
-       (`-` passing through untouched), and a row a dialect: its comment
-       leader, where a statement ends, what is an include, a plugin
-       manager, or allowed, and how a finding is disabled. An include under
-       the tool's own directory rides with it and is left as written.
+1. [ ] _Before 1.0:_ **The include scan reads rows** — shipped: a row's
+       `dialect` column names a row of `hi.sh`'s `$_HI_DIALECTS` (its
+       comment leader, where a statement ends, what is an include, a plugin
+       manager, or allowed, and how a finding is disabled), which the scan
+       and the overlay's comment strip read in place of a test of the
+       member's name, so a row of the user's with a dialect has its include
+       disabled on a target. Left: an include under the tool's own directory
+       rides with it and is left as written.
        [docs/SETTINGS.md](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)
        shows the guard that needs no scan, a test of `$_HI_REMOTE_SESSION`
        ([HI.47](docs/GLOSSARY.md#hi47-what-a-child-inherits)). **Ticks
-       when:** `$_HI_STRIP_NAMES` and the include scan name no member, and
-       a row of the user's with a dialect has its include disabled on a
-       target.
+       when:** an include under a tool's own directory is read on a target
+       rather than disabled.
 
-2. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — `env:` and `flag:`
-       reach a config a tool can be pointed at, and helix's
-       `languages.toml` is one it cannot. **Do:** an `xdg` wire that
-       aliases the command with `$XDG_CONFIG_HOME` set to the overlay,
-       which `<tool>/<file>` members give the shape of `~/.config`.
-       [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) and
-       [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know) name it
-       the fallback, for a tool with no variable and no flag, and its cost:
-       what the tool starts inherits the variable, so a `git` under lazygit
-       would not read the target's `~/.config/git`. **Ticks when:** `hx` on
-       a target reads a carried `languages.toml`, and both docs say when to
-       use the wire and what it costs.
+2. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — shipped: an
+       `xdg:<command>` wire aliases the command with `$XDG_CONFIG_HOME` set
+       to the overlay, which `<tool>/<file>` members give the shape of
+       `~/.config`, and helix's `languages.toml` is a member that rides by
+       it. [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#a-tool-with-no-variable-and-no-flag)
+       and [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know)
+       name it the fallback and its cost. What is left is seeing it on a
+       target. **Ticks when:** `hx` on an e2e target reads a carried
+       `languages.toml`.
 
 3. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
        kakoune's `colors/` (a `colorscheme` the `kakrc` names) stays home,
-       so the target falls back to the default scheme, and helix's
-       `languages.toml` has no flag to point `hx` at. **Do:** carry kak's
+       so the target falls back to the default scheme. **Do:** carry kak's
        `colors/` member by member, as zellij's `themes/` rides, in the row's
-       own directory; helix's `languages.toml` rides under the `xdg` wire,
-       and [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) says so. **Ticks
-       when:** a `kakrc` with `colorscheme <own>` shows that scheme on a
-       target.
+       own directory. **Ticks when:** a `kakrc` with `colorscheme <own>`
+       shows that scheme on a target.
 
 4. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
        (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and

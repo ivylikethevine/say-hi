@@ -1874,7 +1874,8 @@ function run_configure_tests() {
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
   _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim nvim/init.lua nvim
   _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim nvim/init.lua nvim
-  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx helix/config.toml helix
+  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx helix/config.toml hx
+  _hi_check "...and so does helix's, under that name alone" test_editor_preview_matches_its_alias helix helix/config.toml helix
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed

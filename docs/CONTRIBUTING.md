@@ -222,7 +222,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
   `packages`, `extensions/` and its hook names, `plugins` and its
   columns,
-  `vim/vimrc`, `nvim/init.lua`, `helix/config.toml`, `kak/kakrc`, `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`,
+  `vim/vimrc`, `nvim/init.lua`, `helix/config.toml`/`languages.toml`, `kak/kakrc`, `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`,
   `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,
   `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,

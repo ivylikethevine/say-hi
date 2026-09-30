@@ -727,12 +727,13 @@ or
 .B \-\-update
 converts it.
 .TP
-.B ~/.config/say-hi/vim/vimrc, nvim/init.lua, helix/config.toml, kak/kakrc, nano/nanorc, emacs/init.el
+.B ~/.config/say-hi/vim/vimrc, nvim/init.lua, helix/config.toml, helix/languages.toml, kak/kakrc, nano/nanorc, emacs/init.el
 replacements for vim's, neovim's, helix's, kakoune's, nano's, and emacs's configs, used
 whole. Without one, hi carries the config each editor already reads here
 .RB ( ~/.vimrc ,
 .BR ~/.config/nvim/init.lua ,
 .BR ~/.config/helix/config.toml ,
+.BR ~/.config/helix/languages.toml ,
 .BR ~/.config/kak/kakrc ,
 .BR ~/.nanorc ,
 .BR ~/.emacs ,
@@ -815,7 +816,12 @@ name the variables a target sets to it,
 .B flag:
 and
 .B flagdir:
-the command and flag a target aliases with it. Nothing in a row is evaluated.
+the command and flag a target aliases with it, and
+.B xdg:
+the command a target aliases with
+.B XDG_CONFIG_HOME
+set to the overlay, for a file no variable or flag reaches. Nothing in a row
+is evaluated.
 .TP
 .B ~/.config/say-hi/extensions/
 extensions in the aliases.sh subset, sourced in name order after the aliases

@@ -72,7 +72,7 @@ function test_plugins_help_is_each_command_s_own() {
   cfg="$(_hi_plugins_cfg help)"
   for flag in "--plugins:Usage: hi --plugins" "--plugin-off:Usage: hi --plugin-off <name>... [--dry-run]" \
     "--plugin-on:Usage: hi --plugin-on <name>... [--dry-run]" \
-    "--add-plugin:Usage: hi --add-plugin <group> <member> <tool> <wire> <home> [--dry-run]" \
+    "--add-plugin:Usage: hi --add-plugin <group> <member> <tool> <wire> <home> [<dialect>] [--dry-run]" \
     "--remove-plugin:Usage: hi --remove-plugin <member> [--dry-run]"; do
     out="$(_hi_plugins_run "$cfg" "${flag%%:*}" --help)" || return 1
     [[ "$out" == "${flag#*:}"* ]] || _hi_because "${flag%%:*} --help: $out" || return 1
@@ -86,7 +86,7 @@ function test_plugins_refuse_what_they_cannot_take() {
     _hi_plugins_refused "$(_hi_plugins_cfg r3)" "not a plugin, a group, or a member: nosuch" --plugin-off nosuch &&
     _hi_plugins_refused "$(_hi_plugins_cfg r4)" "not a plugin, a group, or a member: colors" --plugin-off colors &&
     _hi_plugins_refused "$(_hi_plugins_cfg r5)" "unknown option --force" --plugin-on vim --force &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r6)" "needs a group, a member, a tool, a wire, and a home" --add-plugin cli taskrc task &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r6)" "needs a group, a member, a tool, a wire, and a home, then a dialect or nothing" --add-plugin cli taskrc task &&
     _hi_plugins_refused "$(_hi_plugins_cfg r8)" "not a group name: my group" --add-plugin "my group" taskrc task - - &&
     _hi_plugins_refused "$(_hi_plugins_cfg r7)" "needs one member" --remove-plugin
 }
@@ -168,8 +168,8 @@ function test_add_plugin_writes_a_carry_line() {
   out="$(_hi_plugins_run "$cfg" --add-plugin cli taskrc task env:TASKRC '$TASKRC : ~/.taskrc')" || return 1
   [[ "$out" == *' + taskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc" in [cli]'* ]] || _hi_because "said: $out" || return 1
   _hi_plugins_run "$cfg" --add-plugin cli b.rc - 'flag:btool -C' - >/dev/null || return 1
-  _hi_plugins_run "$cfg" --add-plugin mine c.rc - - /etc/c >/dev/null || return 1
-  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home>"\n\n[cli]\ntaskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc"\n"b.rc" = "- | flag:btool -C | -"\n\n[mine]\n"c.rc" = "- | - | /etc/c"\n'
+  _hi_plugins_run "$cfg" --add-plugin mine c.rc - - /etc/c sh >/dev/null || return 1
+  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home> | <dialect>"\n\n[cli]\ntaskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc"\n"b.rc" = "- | flag:btool -C | -"\n\n[mine]\n"c.rc" = "- | - | /etc/c | sh"\n'
 }
 
 # a file whose last line was never ended gets the new row on one of its own
@@ -186,10 +186,11 @@ function test_add_plugin_starts_its_own_line() {
 # shellcheck disable=SC2088 # the ~ is the file's to read, not the shell's
 function test_add_plugin_refuses_a_line_hi_cannot_read() {
   _hi_plugins_refused "$(_hi_plugins_cfg add-r1)" "'colors' is a member already" --add-plugin cli colors - - '~/.colors' &&
-    _hi_plugins_refused "$(_hi_plugins_cfg add-r2)" "'B' is not env:, envdir:, flag:, flagdir:, or -" --add-plugin cli x.rc - 'env:A;B' '~/x' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r2)" "'B' is not env:, envdir:, flag:, flagdir:, xdg:, or -" --add-plugin cli x.rc - 'env:A;B' '~/x' &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r6)" "'9x' is no list of variable names" --add-plugin cli x.rc - 'env:9x' '~/x' &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r3)" "is no <name>, <dir>/<name>, or <dir>/" --add-plugin cli ../x - - '~/x' &&
-    _hi_plugins_refused "$(_hi_plugins_cfg add-r4)" "not three columns" --add-plugin cli x.rc - - '~/x | y' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r4)" "not three or four columns" --add-plugin cli x.rc - - '~/x | sh | y' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r7)" "'y' is no dialect hi reads, or -" --add-plugin cli x.rc - - '~/x' y &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r5)" "cannot hold a quote or a backslash" --add-plugin cli x.rc - - '~/"x"'
 }
 
@@ -202,9 +203,9 @@ function test_add_plugin_refuses_a_member_the_carry_has() {
   _hi_plugins_run "$cfg" --add-plugin cli taskrc - env:TASKRC '~/.taskrc' >/dev/null || return 1
   out="$(_hi_plugins_run "$cfg" --add-plugin cli taskrc - env:OTHER '~/.other')" || return 1
   [[ "$out" == *"(replacing the row for taskrc in [cli])"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home>"\n\n[cli]\ntaskrc = "- | env:OTHER | ~/.other"\n' || return 1
+  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home> | <dialect>"\n\n[cli]\ntaskrc = "- | env:OTHER | ~/.other"\n' || return 1
   _hi_plugins_run "$cfg" --add-plugin mine taskrc - env:OTHER '~/.other' >/dev/null || return 1
-  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home>"\n\n[cli]\n\n[mine]\ntaskrc = "- | env:OTHER | ~/.other"\n' || return 1
+  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home> | <dialect>"\n\n[cli]\n\n[mine]\ntaskrc = "- | env:OTHER | ~/.other"\n' || return 1
   out="$(_hi_plugins_run "$cfg" --add-plugin editors vim/vimrc vim - '~/.vimrc')" || return 1
   [[ "$out" == *' + "vim/vimrc" = "vim | - | ~/.vimrc" in [editors]'* ]] || _hi_because "said: $out" || return 1
   out="$(_hi_plugins_run "$cfg" --plugins)" || return 1

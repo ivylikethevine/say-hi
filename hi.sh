@@ -62,12 +62,12 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # the target (GLOSSARY: HI.41), and every member's one resolution order
 # (HI.61): the overlay's copy, else the user's own file at home, else the
 # tree's default, which the payload already carries. One row per member:
-# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<wire>|<off>|<home>.
+# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<wire>|<off>|<dialect>|<home>.
 # This table is hi's own members' - its files, and the prompt configs whose
 # home is a lookup (@fn) no path list can say. The tools' rows are
 # config/plugins' and the overlay's plugins (_hi_plugins_load): the same
-# columns, of which a file holds <member>, <tool>, <wire> and <home>, and
-# the table it sits under is its <group>.
+# columns, of which a file holds <member>, <tool>, <wire>, <home> and
+# <dialect>, and the table it sits under is its <group>.
 # <paths.sh variable> is hi's own files' alone: a tool's member has none, and
 # what hi's code reads of one on a target is an env: wire of its row.
 # <tool> is the binaries that read it, its name in a report first: home's
@@ -84,6 +84,8 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # wiring line reads them, or - for none: with any of them at 1 the member
 # stays home (_hi_plugin_off). A tool's member has none: $_HI_PLUGINS_OFF
 # switches it.
+# <dialect> is the $_HI_DIALECTS row the include scan and the comment strip
+# read it by, or - for a file that rides as written.
 # <home> is the candidates, best first, in _hi_path_list's grammar - or @fn
 # for a lookup no path list can say, or - for none: a shell's own rc
 # (bashrc, zshrc, config.fish) rides only from the overlay, since the rc a
@@ -94,29 +96,84 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # member with a trailing / is a directory whose files ride one by one
 # (HI.58), from the overlay alone where the row has no home.
 _HI_OVERLAY_TABLE=(
-  'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
-  'colors|_HI_COLORS|tree|-|-|-|-|-'
-  'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|-'
-  'extensions/|_HI_EXTENSIONS|-|-|shell|-|-|-'
-  'plugins|-|-|-|-|-|-|-'
-  'oh-my-posh.json|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
-  'oh-my-posh.yaml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
-  'oh-my-posh.toml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|@_hi_posh_home'
-  'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|prompt|-|-|@_hi_theme_home'
-  'oh-my-bash.theme.sh|-|-|(oh-my-bash)|prompt|-|-|@_hi_theme_home'
-  'bash-it.theme.bash|-|-|(bash-it)|prompt|-|-|@_hi_theme_home'
-  'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
+  'settings.sh|_HI_SETTINGS|-|-|-|-|-|sh|-'
+  'colors|_HI_COLORS|tree|-|-|-|-|conf|-'
+  'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|conf|-'
+  'extensions/|_HI_EXTENSIONS|-|-|shell|-|-|sh|-'
+  'plugins|-|-|-|-|-|-|conf|-'
+  'oh-my-posh.json|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp-json|@_hi_posh_home'
+  'oh-my-posh.yaml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp|@_hi_posh_home'
+  'oh-my-posh.toml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp|@_hi_posh_home'
+  'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|prompt|-|-|omz|@_hi_theme_home'
+  'oh-my-bash.theme.sh|-|-|(oh-my-bash)|prompt|-|-|omb|@_hi_theme_home'
+  'bash-it.theme.bash|-|-|(bash-it)|prompt|-|-|bash-it|@_hi_theme_home'
+  'ssh_tags|-|-|(ssh)|-|-|-|-|@_hi_ssh_tags_file'
 )
 
 # _hi_row_col <row> <column> <outvar> - one column of a row, by the name the
 # table's comment gives it
 function _hi_row_col() {
   local _hi_rc_r="$1" _hi_rc_n
-  for _hi_rc_n in member variable tree tool group wire off home; do
+  for _hi_rc_n in member variable tree tool group wire off dialect home; do
     [ "$_hi_rc_n" != "$2" ] || break
     _hi_rc_r="${_hi_rc_r#*|}"
   done
   printf -v "$3" '%s' "${_hi_rc_r%%|*}"
+}
+
+# The dialects a row's <dialect> names, for _hi_lint_awk and _hi_strip_awk:
+# <name> | <leader> | <strip> | <end> | <disable> | <plugin> | <include> | <allow>,
+# no column holding a ` | `, - for none. <leader> starts a comment line; with
+# <strip> 1 the strip drops those, blank lines, and indentation. <end> is
+# where a statement ends: line, \ (a line ending in one continues it), ()
+# (the brackets balance, strings "-quoted), or ()' ('-quoted too).
+# <disable> is how a finding goes out: comment (a <leader> line, the whole
+# statement), : or true (the verb and its file word become that no-op, a
+# plugin line is prefixed with it), or "" (the value is emptied). <plugin>,
+# <include>, and <allow> are EREs, \t a tab: a line matching <plugin> is a
+# plugin manager, and one matching <include> is an include, once the text
+# <allow> matches is taken out - for a : or true disable, <include> is the
+# verb in command position and <allow> the file words it leaves alone.
+_HI_DIALECTS=()
+
+# _hi_dialect_row <name> <outvar> - its $_HI_DIALECTS row; 1 for none
+function _hi_dialect_row() {
+  local _hi_dr
+  ((${#_HI_DIALECTS[@]})) || _hi_read_lines _HI_DIALECTS <<'ROWS'
+sh | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"]
+omz | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|ZSH)[}/"]
+omb | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|OSH)[}/"]
+bash-it | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|BASH_IT)[}/"]
+fish | # | 1 | line | true | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"]
+vim | " | 1 | line | comment | ^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]|(plug|vundle|dein|minpac)# | ^[ \t]*(source|so)!?[ \t] | .*[$]VIMRUNTIME.*
+lua | -- | 1 | ()' | comment | lazypath|rtp:prepend|vim[.]pack[.]add|require[ \t]*[(]?[ \t]*["'](lazy|packer|paq)|AddRuntimeFile.*RTPlugin | AddRuntimeFile|(dofile|loadfile)[ \t]*[(]|vim[.]cmd.*source[ \t]|require[ \t]*[(]?[ \t]*["'] | require[ \t]*[(]?[ \t]*["']vim[.]
+elisp | ; | 1 | () | comment | [(](package-initialize|package-install|use-package|straight-|elpaca) | [(]load(-file)?[ \t]+"|add-to-list[ \t]+'load-path | -
+nano | # | 1 | line | comment | - | ^[ \t]*include[ \t] | ^[ \t]*include[ \t]+["']?/usr/share/nano/?[^/"' \t]*(["' \t].*)?$
+tmux | # | 1 | \ | comment | @plugin|(^|[ \t;{"'])run(-shell)?[ \t].*tpm | (^|[ \t;{"'])source(-file)?[ \t] | -
+screen | # | 1 | line | comment | - | ^[ \t]*source[ \t] | -
+readline | # | 1 | line | comment | - | ^[ \t]*[$]include[ \t] | ^[ \t]*[$]include[ \t]+/etc/inputrc([ \t].*)?$
+kak | # | 0 | line | comment | ^[ \t]*(plug|bundle)[ \t]|(plug|bundle)[.]kak | (^|[ \t;{])source[ \t] | .*%val[{]runtime[}].*
+kdl | // | 0 | () | comment | location[ \t]*=[ \t]*"file: | ^[ \t]*(layout_dir|theme_dir)[ \t] | -
+omp | # | 0 | line | comment | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?://
+omp-json | - | 0 | line | "" | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?://
+conf | # | 1 | line | comment | - | - | -
+ROWS
+  for _hi_dr in "${_HI_DIALECTS[@]}"; do
+    [ "${_hi_dr%% | *}" != "$1" ] || {
+      printf -v "$2" '%s' "$_hi_dr"
+      return 0
+    }
+  done
+  return 1
+}
+
+# _hi_member_dialect <member> <outvar> - the dialect row its overlay row
+# names; 1 for a member that rides as written
+function _hi_member_dialect() {
+  local _hi_md
+  _hi_overlay_row "$1" _hi_md || return 1
+  _hi_row_col "$_hi_md" dialect _hi_md
+  _hi_dialect_row "$_hi_md" "$2"
 }
 
 # the members alone, and those with a tree default the overlay's copy
@@ -449,14 +506,14 @@ function _hi_path_list() {
 # and overlay: the tree's config/plugins, then the overlay's plugins, whose
 # row of a member the tree's has replaces it. Each is TOML in the subset
 # core.sh's _hi_toml_row reads: `[group]` tables of
-# `"<member>" = "<tool> | <wire> | <home>"` rows. A row the table could not
-# hold is left out and noted in $_HI_PLUGIN_BAD: one above the first table,
-# a member that is no <name>, <dir>/<name> or <dir>/, or that is hi's own or
-# a row's already, a tool or a wire that is not the table's shape, a fourth
-# column. On a target the overlay's file is the one that rode, so a next hop
+# `"<member>" = "<tool> | <wire> | <home> | <dialect>"` rows, the last column
+# - when left out. A row the table could not hold is left out and noted in
+# $_HI_PLUGIN_BAD: one above the first table, a member that is no <name>,
+# <dir>/<name> or <dir>/, or that is hi's own or a row's already, a tool, a
+# wire, or a dialect that is not the table's, a fifth column. On a target the overlay's file is the one that rode, so a next hop
 # carries the same members. GLOSSARY: HI.63
 function _hi_plugins_load() {
-  local _hi_cy_k="$_HI_ROOT|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_g _hi_cy_m _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_x _hi_cy_why _hi_cy_n _hi_cy_i
+  local _hi_cy_k="$_HI_ROOT|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_g _hi_cy_m _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d _hi_cy_x _hi_cy_why _hi_cy_n _hi_cy_i
   [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_TREE_ROWS=0
   for _hi_cy_s in config/plugins plugins; do
@@ -480,21 +537,23 @@ function _hi_plugins_load() {
         continue
         ;;
       esac
-      _hi_cy_x="" _hi_cy_t="" _hi_cy_w="" _hi_cy_h=""
+      _hi_cy_x="" _hi_cy_t="" _hi_cy_w="" _hi_cy_h="" _hi_cy_d=""
       if ! _hi_toml_row "$_hi_cy_l" _hi_cy_m _hi_cy_t; then
-        _hi_cy_why="not a row: \"<member>\" = \"<tool> | <wire> | <home>\""
+        _hi_cy_why="not a row: \"<member>\" = \"<tool> | <wire> | <home> | <dialect>\""
       else
-        IFS='|' read -r _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_x <<<"$_hi_cy_t"
+        IFS='|' read -r _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d _hi_cy_x <<<"$_hi_cy_t"
         _hi_trim _hi_cy_t
         _hi_trim _hi_cy_w
         _hi_trim _hi_cy_h
+        _hi_trim _hi_cy_d
+        _hi_cy_d="${_hi_cy_d:--}"
       fi
       if [ -n "$_hi_cy_why" ]; then
         :
       elif [ -z "$_hi_cy_g" ]; then
         _hi_cy_why="no [group] above it"
       elif [ -n "$_hi_cy_x" ] || [ -z "$_hi_cy_h" ]; then
-        _hi_cy_why="not three columns: <tool> | <wire> | <home>"
+        _hi_cy_why="not three or four columns: <tool> | <wire> | <home> | <dialect>"
       elif ! _hi_plugin_member_ok "$_hi_cy_m"; then
         _hi_cy_why="'$_hi_cy_m' is no <name>, <dir>/<name>, or <dir>/"
       elif _hi_plugin_taken "$_hi_cy_m" _hi_cy_i "$_hi_cy_s"; then
@@ -504,6 +563,8 @@ function _hi_plugins_load() {
         _hi_cy_why="'$_hi_cy_h' is no list of paths"
       elif ! _hi_plugin_tools_ok "$_hi_cy_t"; then
         _hi_cy_why="'$_hi_cy_t' is no list of commands, a (name), or -"
+      elif [ "$_hi_cy_d" != - ] && ! _hi_dialect_row "$_hi_cy_d" _hi_cy_x; then
+        _hi_cy_why="'$_hi_cy_d' is no dialect hi reads, or -"
       else
         _hi_plugin_wire_ok "$_hi_cy_w" _hi_cy_why || :
       fi
@@ -511,7 +572,7 @@ function _hi_plugins_load() {
         _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|$_hi_cy_why")
         continue
       fi
-      _hi_cy_l="$_hi_cy_m|-|-|$_hi_cy_t|$_hi_cy_g|$_hi_cy_w|-|$_hi_cy_h"
+      _hi_cy_l="$_hi_cy_m|-|-|$_hi_cy_t|$_hi_cy_g|$_hi_cy_w|-|$_hi_cy_d|$_hi_cy_h"
       if [ "$_hi_cy_i" -ge 0 ]; then
         _HI_PLUGIN_ROWS[_hi_cy_i]="$_hi_cy_l"
       else
@@ -560,8 +621,16 @@ function _hi_plugin_wire_ok() {
         return 1
       fi
       ;;
+    xdg:?*)
+      # one word: the command, or <names>=<command>
+      if [ "${_hi_wk_x% *}" != "$_hi_wk_x" ] || ! _hi_words_ok "${_hi_wk_x#*=}" 'A-Za-z0-9_' 'A-Za-z0-9._+-' ||
+        ! _hi_words_ok "${_hi_wk_x%%=*}" 'A-Za-z0-9_' 'A-Za-z0-9,._+-'; then
+        printf -v "$2" '%s' "'$_hi_wk_x' is not a command, or <names>=<command>"
+        return 1
+      fi
+      ;;
     *)
-      printf -v "$2" '%s' "'$_hi_wk_w' is not env:, envdir:, flag:, flagdir:, or -"
+      printf -v "$2" '%s' "'$_hi_wk_w' is not env:, envdir:, flag:, flagdir:, xdg:, or -"
       return 1
       ;;
     esac
@@ -794,9 +863,14 @@ function _hi_plugin_off() {
 # flagdir: the same with the directory. <command> is `<names>=<command>` to
 # answer to other names (a , between them), and words before it that hold a =
 # are its environment. A flag ending in = takes the path in the same word.
+# xdg:<command> aliases the command to itself with $XDG_CONFIG_HOME set to
+# the overlay, whose <tool>/<file> members are laid out as ~/.config is: the
+# fallback for a file no variable or flag reaches, since everything the
+# command starts inherits the variable too.
 # The directory of a member under a / is the one its first name names.
 # Wires run in order and a later alias replaces an earlier one, so helix's
-# row asks for hx first: once `hx` is an alias, `command -v hx` finds it.
+# languages.toml row follows its config.toml row: with both riding, the xdg
+# alias is the one a target keeps.
 #
 # The paths stay under $_HI_CONFIG_DIR for the target to expand, so a next
 # hop writes the same lines, and a row's <off> toggles are tested there,
@@ -824,6 +898,12 @@ function _hi_overlay_wiring() {
         _hi_ow_p="\$_HI_CONFIG_DIR"
         case "$_hi_ow_m" in */*) _hi_ow_p="$_hi_ow_p/${_hi_ow_m%%/*}" ;; esac
         ;;
+      xdg:*)
+        # flag:'s alias with the variable for its environment, and no path
+        _hi_ow_n="${_hi_ow_w#xdg:}" _hi_ow_p=""
+        case "$_hi_ow_n" in *=*) ;; *) _hi_ow_n="$_hi_ow_n=$_hi_ow_n" ;; esac
+        _hi_ow_w="flag:${_hi_ow_n%%=*}=XDG_CONFIG_HOME=\$_HI_CONFIG_DIR ${_hi_ow_n#*=}"
+        ;;
       *) continue ;;
       esac
       _hi_ow_l="$_hi_ow_g"
@@ -844,6 +924,9 @@ function _hi_overlay_wiring() {
         # the path bare, as an alias of hi's always had it: load.sh reads a
         # body back for $EDITOR, and a quote inside one does not survive that
         _hi_ow_v="${_hi_ow_e:+env $_hi_ow_e}$_hi_ow_c $_hi_ow_w$_hi_ow_p"
+        # no trailing blank, which would have the shell expand the next word
+        # as an alias too
+        _hi_ow_v="${_hi_ow_v% }"
         _hi_ow_l="${_hi_ow_l}command -v $_hi_ow_c >/dev/null 2>&1"
         _hi_ow_n="${_hi_ow_n:-$_hi_ow_c},"
         while [ -n "$_hi_ow_n" ]; do
@@ -889,7 +972,8 @@ function _hi_tool_here() {
 # ships into the target's `config/`, so a line naming a *path* - a second rc
 # beside it, a plugin directory, a manager's bootstrap - names something no
 # target has, and the editor or shell fails on it rather than hi. The
-# grammars, and what is deliberately left alone:
+# grammars are $_HI_DIALECTS rows, the file's read from ENVIRON[_hi_dialect];
+# what each finds, and what it deliberately leaves alone:
 #
 #   vim     `source`/`so` (a path), the managers' verbs (`Plug`, `packadd`,
 #           `plug#`/`vundle#`/`dein#`). `runtime` is *not* flagged: it
@@ -921,13 +1005,13 @@ function _hi_tool_here() {
 #   omp     oh-my-posh's `extends` naming a local file; a URL or a theme name
 #           resolves on the target. JSON has no comment, so there the value is
 #           emptied, which oh-my-posh reads as no base; yaml and toml comment it.
-#   emacs   `load`/`load-file`, `add-to-list 'load-path`, and the managers
+#   elisp   `load`/`load-file`, `add-to-list 'load-path`, and the managers
 #           (`package-initialize`, `use-package`, straight, elpaca). A bare
 #           `require` is left alone: nearly every one names a built-in.
 #   sh/fish `source`/`.` of anything but a path under $_HI_CONFIG_DIR or
 #           $_HI_ROOT (which ride along), a process substitution, or - in a
-#           framework's theme member only - under that framework's own tree
-#           ($ZSH, $OSH, $BASH_IT): hi sources a theme only once
+#           framework's theme only (omz, omb, bash-it) - under that
+#           framework's own tree ($ZSH, $OSH, $BASH_IT): hi sources a theme only once
 #           _hi_prompt_fw has found the tree on the target, where every other
 #           member runs with it unset. Also the zsh/fish managers' verbs
 #           (zinit, zplug, antigen, fisher, ...). An extension is sh.
@@ -955,21 +1039,18 @@ function _hi_tool_here() {
 # closing brace behind as a syntax error. sh and fish get neither: commenting
 # a line can empty a `then`/`do` body, which does not parse, so only the verb
 # and its file word become `:` (fish: `true`), and the rest of the line stays.
-# `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name,
-# and a member whose name is no dialect (colors, packages, eza's theme.yml) passes
-# through untouched - so every overlay member goes in, and there is no second
-# roster of "what has includes".
+# `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name.
 #
 # bal() counts that depth blind to anything inside a quoted string, and takes
-# ' as a string delimiter for lua only: in elisp it is the quote operator, and
-# reading `'load-path` as an opening quote swallows the rest of the file.
+# ' as a string delimiter only where <end> says so (lua): in elisp it is the
+# quote operator, and reading `'load-path` as an opening quote swallows the
+# rest of the file.
 # wlen() is the length of one shell word, quotes and $(...) nesting included.
 # Nothing in the AWK body carries a `#` comment - strip.awk spares a heredoc
 # body, so every one of them would ride the wire on every connect.
 function _hi_lint_awk() {
   cat <<'AWK'
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-function cc() { return vim ? "\"" : (el ? ";" : (lua ? "--" : (kdl ? "//" : "#"))) }
 function mark(s) {
   if (!match(s, /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-(allow|quiet)(-start|-end)?/)) return ""
   s = substr(s, RSTART, RLENGTH); sub(/.*hi-/, "", s)
@@ -980,7 +1061,7 @@ function bal(s,   i, c, q, d) {
   for (i = 1; i <= length(s); i++) {
     c = substr(s, i, 1)
     if (q != "") { if (c == "\\") i++; else if (c == q) q = ""; continue }
-    if (c == "\"" || (lua && c == "'")) { q = c; continue }
+    if (c == "\"" || (stmt == "()'" && c == "'")) { q = c; continue }
     if (c == "(" || c == "{" || c == "[") d++
     else if (c == ")" || c == "}" || c == "]") d--
   }
@@ -1002,73 +1083,28 @@ function wlen(s,   i, c, q, d) {
 }
 function shfix(s,   o, p, r, n, w) {
   o = ""; s = ";" s
-  while (match(s, /([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|\.)[ \t]+/)) {
+  while (match(s, inc)) {
     p = substr(s, 1, RSTART + RLENGTH - 1); r = substr(s, RSTART + RLENGTH)
     n = wlen(r); w = substr(r, 1, n)
-    if (w == "" || w ~ /^\\/ || w ~ ("^\"?\\$\\{?(_HI_CONFIG_DIR|_HI_ROOT" fwv ")[}/\"]") || w ~ /^[<=]?\(/) { o = o p; s = r; continue }
-    sub(/(source|\.)[ \t]+$/, "", p)
-    o = o p (fish ? "true" : ":"); s = substr(r, n + 1)
+    if (w == "" || w ~ /^\\/ || (allow != "-" && w ~ allow) || w ~ /^[<=]?\(/) { o = o p; s = r; continue }
+    sub(/[^;&|{() \t]+[ \t]+$/, "", p)
+    o = o p noop; s = substr(r, n + 1)
   }
   return substr(o s, 2)
 }
-function kindof(s,   v) {
-  if (s ~ ("^[ \t]*" cc())) return ""
-  if (vim) {
-    if (s ~ /^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]/ || s ~ /(plug|vundle|dein|minpac)#/) return "plugin"
-    if (s ~ /^[ \t]*(source|so)!?[ \t]/ && s !~ /\$VIMRUNTIME/) return "include"
-  } else if (lua) {
-    if (s ~ /(lazypath|rtp:prepend|vim[.]pack[.]add|require[ \t]*\(?[ \t]*["'](lazy|packer|paq))/) return "plugin"
-    if (s ~ /AddRuntimeFile/) return (s ~ /RTPlugin/ ? "plugin" : "include")
-    if (s ~ /(dofile|loadfile)[ \t]*\(/) return "include"
-    if (s ~ /vim\.cmd/ && s ~ /source[ \t]/) return "include"
-    if (s ~ /require[ \t]*\(?[ \t]*["']/ && s !~ /require[ \t]*\(?[ \t]*["']vim[.]/) return "include"
-  } else if (nano) {
-    if (s !~ /^[ \t]*include[ \t]/) return ""
-    v = s
-    sub(/^[ \t]*include[ \t]+/, "", v)
-    sub(/^["']/, "", v)
-    sub(/["' \t].*$/, "", v)
-    if (v ~ /^\/usr\/share\/nano\/?[^\/]*$/) return ""
-    return "include"
-  } else if (tmux) {
-    if (s ~ /@plugin/ || s ~ /(^|[ \t;{"'])run(-shell)?[ \t].*tpm/) return "plugin"
-    if (s ~ /(^|[ \t;{"'])source(-file)?[ \t]/) return "include"
-  } else if (screen) {
-    if (s ~ /^[ \t]*source[ \t]/) return "include"
-  } else if (rl) {
-    v = s
-    if (!sub(/^[ \t]*\$include[ \t]+/, "", v)) return ""
-    sub(/[ \t].*$/, "", v)
-    if (v == "/etc/inputrc") return ""
-    return "include"
-  } else if (kak) {
-    if (s ~ /^[ \t]*(plug|bundle)[ \t]/ || s ~ /(plug|bundle)\.kak/) return "plugin"
-    if (s ~ /(^|[ \t;{])source[ \t]/ && s !~ /%val\{runtime\}/) return "include"
-  } else if (kdl) {
-    if (s ~ /^[ \t]*(layout_dir|theme_dir)[ \t]/) return "include"
-    if (s ~ /location[ \t]*=[ \t]*"file:/) return "plugin"
-  } else if (omp) {
-    v = s
-    if (!sub(/^(.*[ \t{,"'])?extends["']?[ \t]*[:=][ \t]*["']?/, "", v)) return ""
-    sub(/["' \t,}].*$/, "", v)
-    if (v == "" || v ~ /^https?:\/\//) return ""
-    if (v !~ /[\/\\~]/ && v !~ /\.(json|jsonc|ya?ml|toml)$/) return ""
-    fixed = s
-    sub(/extends"[ \t]*:[ \t]*"[^"]*"/, "extends\": \"\"", fixed)
-    return "include"
-  } else if (el) {
-    if (s ~ /\((package-initialize|package-install|use-package|straight-|elpaca)/) return "plugin"
-    if (s ~ /\(load(-file)?[ \t]+["]/) return "include"
-    if (s ~ /add-to-list[ \t]+'load-path/) return "include"
-  } else if (sh || fish) {
-    if (s ~ /^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t]/) { fixed = (fish ? "true " : ": ") s; return "plugin" }
-    fixed = shfix(s)
-    if (fixed != s) return "include"
-  }
-  return ""
+function kindof(s,   t) {
+  if (lead != "-" && s ~ ("^[ \t]*" lead)) return ""
+  if (plug != "-" && s ~ plug) { fixed = noop " " s; return "plugin" }
+  if (inc == "-") return ""
+  if (noop != "") { fixed = shfix(s); return (fixed != s) ? "include" : "" }
+  t = s
+  if (allow != "-") gsub(allow, "", t)
+  if (t !~ inc) return ""
+  if (blank && match(s, inc)) { t = substr(s, RSTART); sub(/:[ \t]*"[^"]*"/, ": \"\"", t); fixed = substr(s, 1, RSTART - 1) t }
+  return "include"
 }
 FNR == 1 {
-  close(out); out = FILENAME ".lint"; depth = allow = quiet = n = 0
+  close(out); out = FILENAME ".lint"; depth = allow_l = quiet = n = 0
   split("", blk); split("", bad); split("", from)
   while ((getline l < FILENAME) > 0) {
     n++; w = k = mark(l); sub(/-.*/, "", k)
@@ -1077,40 +1113,40 @@ FNR == 1 {
   }
   close(FILENAME)
   for (k in from) bad[from[k]] = 1
-  vim = (name == "vim/vimrc"); el = (name == "emacs/init.el"); lua = (name ~ /\.lua$/); nano = (name == "nano/nanorc"); tmux = (name == "tmux/tmux.conf")
-  screen = (name == "screenrc"); rl = (name == "inputrc"); kdl = (name ~ /\.kdl$/); kak = (name == "kak/kakrc")
-  sh = (name ~ /\.(sh|bash|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^extensions\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
-  json = (name ~ /\.json$/)
-  fwv = (name == "oh-my-zsh.zsh-theme") ? "|ZSH" : (name == "oh-my-bash.theme.sh") ? "|OSH" : (name == "bash-it.theme.bash") ? "|BASH_IT" : ""
+  split(ENVIRON["_hi_dialect"], f, / [|] /)
+  for (i = 6; i <= 8; i++) gsub(/\\t/, "\t", f[i])
+  lead = f[2]; stmt = f[4]; noop = f[5]; plug = f[6]; inc = f[7]; allow = f[8]
+  blank = (noop == "\"\""); if (noop == "comment" || blank) noop = ""
 }
 FNR in bad { printf "%s|%d|unclosed|%s\n", name, FNR, trim($0) }
 depth > 0 {
-  depth = tmux ? ($0 ~ /\\$/) : depth + bal($0)
+  depth = (stmt == "\\") ? ($0 ~ /\\$/) : depth + bal($0)
   if (depth < 0) depth = 0
-  if (mode == "fix") print cc() " hi dropped: " $0 > out
-  allow = quiet = 0
+  if (mode == "fix") print lead " hi dropped: " $0 > out
+  allow_l = quiet = 0
   next
 }
 {
-  kind = (allow || (("allow", FNR) in blk)) ? "" : kindof($0)
+  kind = (allow_l || (("allow", FNR) in blk)) ? "" : kindof($0)
   hush = quiet || (("quiet", FNR) in blk)
-  w = mark($0); allow = (w == "allow"); quiet = (w == "quiet")
+  w = mark($0); allow_l = (w == "allow"); quiet = (w == "quiet")
   if (kind == "") { if (mode == "fix") print > out; next }
   if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
-  if (mode == "fix") print ((sh || fish || (omp && json)) ? fixed : cc() " hi dropped: " $0) > out
-  if (lua || el || kdl) { depth = bal($0); if (depth < 0) depth = 0 }
-  if (tmux) depth = ($0 ~ /\\$/)
+  if (mode == "fix") print ((noop != "" || blank) ? fixed : lead " hi dropped: " $0) > out
+  if (stmt ~ /^\(\)/) { depth = bal($0); if (depth < 0) depth = 0 }
+  if (stmt == "\\") depth = ($0 ~ /\\$/)
 }
 AWK
 }
 
 # _hi_include_lint - every finding in the overlay members that would actually
-# ship, one row each (see _hi_lint_awk).
+# ship, one row each (see _hi_lint_awk); a member with no dialect has none.
 function _hi_include_lint() {
-  local f src prog
+  local f src prog row
   prog="$(_hi_lint_awk)"
   while IFS= read -r f; do
-    _hi_overlay_src "$f" src && awk -v mode=report -v name="$f" "$prog" "$src"
+    _hi_member_dialect "$f" row && _hi_overlay_src "$f" src &&
+      _hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src"
   done < <(_hi_overlay_files)
   return 0
 }
@@ -1180,11 +1216,9 @@ function _hi_require_packer() {
     { _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z"; }
 }
 
-# What the comment-stripper is pointed at. One list, not a copy per stager:
-# both walk the same shapes, and `flags` is inert against an overlay, which
-# has no member by that name. GLOSSARY: HI.35
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors packages plugins vimrc nanorc init.el
-  tmux.conf screenrc inputrc '*/extensions/*')
+# What the comment-stripper is pointed at in the tree; an overlay member is
+# stripped by its dialect's <strip>. GLOSSARY: HI.35
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags '*/config/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
@@ -1192,7 +1226,8 @@ _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flag
 # (members to emit), $stage_excl (stage paths dropped once pulled - not tar's
 # --exclude, which OpenBSD's has none of) and $stage_add
 # (<member> <path> pairs copied in from outside <src-dir>) and $stage_lint (1
-# to run the include scan over the stage: the overlay, never the tree) from
+# for the overlay: the include scan runs over the stage, and each member is
+# stripped by its dialect rather than $_HI_STRIP_NAMES) from
 # its caller, the convention _hi_container_cleanup and _hi_remote_middle also
 # use.
 #
@@ -1200,8 +1235,8 @@ _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flag
 # (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): `root` is
 # _say_hi_container's name for the target's tree, and this runs inside it.
 function _hi_stage_tar() {
-  local stage f _hi_st_root _hi_st_i _hi_st_prog
-  local -a _hi_st_names=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
+  local stage f _hi_st_root _hi_st_i _hi_st_prog _hi_st_m _hi_st_d _hi_st_n
+  local -a _hi_st_names=() _hi_st_strip=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
   local _hi_st_lint="${stage_lint:-0}"
   for f in "${_HI_STRIP_NAMES[@]}"; do
     ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
@@ -1238,10 +1273,14 @@ function _hi_stage_tar() {
     if [ "$_hi_st_lint" = 1 ]; then
       _hi_st_prog="$(_hi_lint_awk)"
       while IFS= read -r f; do
-        awk -v mode=fix -v name="${f#"$_hi_st_root"/}" "$_hi_st_prog" "$f" >/dev/null || exit 1
+        _hi_st_m="${f#"$_hi_st_root"/}"
+        _hi_member_dialect "$_hi_st_m" _hi_st_d || continue
+        _hi_dialect="$_hi_st_d" awk -v mode=fix -v name="$_hi_st_m" "$_hi_st_prog" "$f" >/dev/null || exit 1
         # no .lint at all means an empty member: awk never ran a rule on it
-        [ -f "$f.lint" ] || continue
-        mv -f "$f.lint" "$f" || exit 1
+        [ ! -f "$f.lint" ] || mv -f "$f.lint" "$f" || exit 1
+        # <name> | <leader> | <strip> | ...: strip.awk's d= and c= per file
+        _hi_st_n="${_hi_st_d%% | *}" _hi_st_d="${_hi_st_d#* | }"
+        case "${_hi_st_d#* | }" in 1' | '*) _hi_st_strip+=("d=$_hi_st_n" "c=${_hi_st_d%% | *}" "$f") ;; esac
       done < <(find "$_hi_st_root" -type f ! -name '*.lint')
     fi
     _hi_strip_awk >"$stage/strip.awk"
@@ -1253,7 +1292,11 @@ function _hi_stage_tar() {
     # largest external cost it had - and renaming over a file still held open
     # is what broke the Windows runners. Writing in place also leaves every
     # mode alone, so hi.sh stays 0755 for the relay with nothing to restore.
-    find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
+    if [ "$_hi_st_lint" = 1 ]; then
+      ((${#_hi_st_strip[@]} == 0)) || awk -f "$stage/strip.awk" "${_hi_st_strip[@]}" || exit 1
+    else
+      find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
+    fi
     # the overlay's generated member, last: hi wrote it, so there is nothing
     # in it to scan or strip
     [ -z "${stage_wiring:-}" ] || printf '%s' "$stage_wiring" >"$_hi_st_root/wiring.sh" || exit 1
@@ -1389,22 +1432,20 @@ function _hi_overlay_stream() {
 }
 
 # The comment stripper every payload file goes through: their prose headers
-# are for the installed copy a user reads, not the wire. vimrc's comment
-# character is `"`, init.el's is `;`, and init.lua's is `--`; `#` covers the
-# rest, and blank lines and indentation go with them - none of the four
-# dialects reads either, and the indentation alone is 3% of the payload -
-# except on a line continuing a `word\`, where it is the only separator. A
-# nanorc's dropped syntax include and extendsyntax ride as comments, for
-# load.sh's _hi_nano_fallback to find.
+# are for the installed copy a user reads, not the wire. A comment line starts
+# with `#`, or with c=, an overlay member's dialect <leader>, set on the
+# command line ahead of its file with its d=, and blank lines and indentation
+# go with them - no dialect with <strip> 1 reads either, and the indentation
+# alone is 3% of the payload - except on a line continuing a `word\`, where it
+# is the only separator. A nanorc's dropped syntax include and extendsyntax
+# ride as comments, for load.sh's _hi_nano_fallback to find.
 # GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/); nano = (FILENAME ~ /nanorc$/) }
+FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; lc = (c != "" && c != "#") ? "^[ \t]*" c : ""; nano = (d == "nano") }
 FNR == 1 && /^#!/ { buf[out] = buf[out] $0 "\n"; next }
 nano && /^# hi dropped: (include .*\.nanorc|extendsyntax )/ { buf[out] = buf[out] $0 "\n"; next }
-vim && /^[ \t]*"/ { next }
-el && /^[ \t]*;/ { next }
-lua && /^[ \t]*--/ { next }
+lc != "" && $0 ~ lc { next }
 tag != "" {
   line = $0
   if (dash) sub(/^\t+/, "", line)

@@ -103,28 +103,29 @@ default. A shell's own rc - `bashrc`, `zshrc`, `config.fish` - has no middle
 step: it rides only from here, never found at home
 ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)).
 
-| overlay file                         | overrides         | what it is                                                                                                                                                                                                     |
-| ------------------------------------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.config/say-hi/settings.sh`       | -                 | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                           |
-| `~/.config/say-hi/colors`            | `config/colors`   | your color pins; `hi --set-color` copies the tree's in before its first write ([COLORS.md](COLORS.md))                                                                                                         |
-| `~/.config/say-hi/packages`          | `config/packages` | what the package check looks for; `hi --add-package` copies the tree's in before its first write ([COLORS.md](COLORS.md#the-package-checks-rows))                                                              |
-| `~/.config/say-hi/vim/vimrc`         | -                 | your vim config for the `vim` alias and `$VIMINIT`; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them))                   |
-| `~/.config/say-hi/nvim/init.lua`     | -                 | the same for neovim - the `nvim` alias, and `vim` where a target has nvim - over your `~/.config/nvim/init.lua`                                                                                                |
-| `~/.config/say-hi/helix/config.toml` | -                 | the same for the `hx` alias (`-c`), over your `~/.config/helix/config.toml`                                                                                                                                    |
-| `~/.config/say-hi/kak/kakrc`         | -                 | kakoune's `kak/kakrc`, over your own: on a target `$KAKOUNE_CONFIG_DIR` names the overlay, so kak's system kakrc and its syntax files still load                                                               |
-| `~/.config/say-hi/nano/nanorc`       | -                 | the same for the `nano` alias, over your `~/.nanorc`                                                                                                                                                           |
-| `~/.config/say-hi/emacs/init.el`     | -                 | the same for the `emacs` alias (`emacs -nw -q -l`), over your `~/.emacs`                                                                                                                                       |
-| `~/.config/say-hi/tmux/tmux.conf`    | -                 | the same for the `tmux` alias (`tmux -f`), over your `~/.tmux.conf`; with neither, `tmux` is left alone                                                                                                        |
-| `~/.config/say-hi/screenrc`          | -                 | the same for the `screen` alias (`screen -c`), over your `~/.screenrc`                                                                                                                                         |
-| `~/.config/say-hi/zellij/`           | -                 | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                         |
-| `~/.config/say-hi/micro/`            | -                 | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                         |
-| `~/.config/say-hi/aliases.sh`        | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                         |
-| `~/.config/say-hi/plugins`           | -                 | a row for each config of a tool hi does not know, or your own row for one it does; see [below](#a-tool-hi-does-not-know)                                                                                       |
-| `~/.config/say-hi/extensions/`       | -                 | extensions in the same subset, sourced after the aliases in name order; see [below](#extensions)                                                                                                               |
-| `~/.config/say-hi/bashrc`            | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session)) |
-| `~/.config/say-hi/zshrc`             | -                 | the same for zsh - history, keybindings, `zstyle` completion rules                                                                                                                                             |
-| `~/.config/say-hi/config.fish`       | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                          |
-| `~/.config/say-hi/oh-my-posh.json`   | -                 | your oh-my-posh config (or `.yaml` / `.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names                   |
+| overlay file                            | overrides         | what it is                                                                                                                                                                                                     |
+| --------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/say-hi/settings.sh`          | -                 | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                           |
+| `~/.config/say-hi/colors`               | `config/colors`   | your color pins; `hi --set-color` copies the tree's in before its first write ([COLORS.md](COLORS.md))                                                                                                         |
+| `~/.config/say-hi/packages`             | `config/packages` | what the package check looks for; `hi --add-package` copies the tree's in before its first write ([COLORS.md](COLORS.md#the-package-checks-rows))                                                              |
+| `~/.config/say-hi/vim/vimrc`            | -                 | your vim config for the `vim` alias and `$VIMINIT`; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them))                   |
+| `~/.config/say-hi/nvim/init.lua`        | -                 | the same for neovim - the `nvim` alias, and `vim` where a target has nvim - over your `~/.config/nvim/init.lua`                                                                                                |
+| `~/.config/say-hi/helix/config.toml`    | -                 | the same for the `hx` or `helix` alias (`-c`), over your `~/.config/helix/config.toml`                                                                                                                         |
+| `~/.config/say-hi/helix/languages.toml` | -                 | helix's language settings, over your `~/.config/helix/languages.toml`; `hx` has no flag for it, so a target reads it through the `xdg` wire ([below](#a-tool-hi-does-not-know))                                |
+| `~/.config/say-hi/kak/kakrc`            | -                 | kakoune's `kak/kakrc`, over your own: on a target `$KAKOUNE_CONFIG_DIR` names the overlay, so kak's system kakrc and its syntax files still load                                                               |
+| `~/.config/say-hi/nano/nanorc`          | -                 | the same for the `nano` alias, over your `~/.nanorc`                                                                                                                                                           |
+| `~/.config/say-hi/emacs/init.el`        | -                 | the same for the `emacs` alias (`emacs -nw -q -l`), over your `~/.emacs`                                                                                                                                       |
+| `~/.config/say-hi/tmux/tmux.conf`       | -                 | the same for the `tmux` alias (`tmux -f`), over your `~/.tmux.conf`; with neither, `tmux` is left alone                                                                                                        |
+| `~/.config/say-hi/screenrc`             | -                 | the same for the `screen` alias (`screen -c`), over your `~/.screenrc`                                                                                                                                         |
+| `~/.config/say-hi/zellij/`              | -                 | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                         |
+| `~/.config/say-hi/micro/`               | -                 | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                         |
+| `~/.config/say-hi/aliases.sh`           | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                         |
+| `~/.config/say-hi/plugins`              | -                 | a row for each config of a tool hi does not know, or your own row for one it does; see [below](#a-tool-hi-does-not-know)                                                                                       |
+| `~/.config/say-hi/extensions/`          | -                 | extensions in the same subset, sourced after the aliases in name order; see [below](#extensions)                                                                                                               |
+| `~/.config/say-hi/bashrc`               | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session)) |
+| `~/.config/say-hi/zshrc`                | -                 | the same for zsh - history, keybindings, `zstyle` completion rules                                                                                                                                             |
+| `~/.config/say-hi/config.fish`          | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                          |
+| `~/.config/say-hi/oh-my-posh.json`      | -                 | your oh-my-posh config (or `.yaml` / `.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names                   |
 
 starship's, powerlevel10k's, tide's, bat's, eza's, rg's, fzf's, lazygit's, and readline's own configs,
 and your oh-my-zsh, oh-my-bash, and bash-it themes, need no copy here: every
@@ -510,15 +511,15 @@ With `editors` in it a target also keeps its own `$EDITOR`, `$VISUAL`, and
 
 Every config hi carries is a row of the tree's `config/plugins`, in as much
 of TOML as hi reads: a `[group]` table, and under it a row a member,
-`"<member>" = "<tool> | <wire> | <home>"`. A config hi has no row for rides
-once `~/.config/say-hi/plugins` has one, written by hand or by
+`"<member>" = "<tool> | <wire> | <home> | <dialect>"`. A config hi has no
+row for rides once `~/.config/say-hi/plugins` has one, written by hand or by
 `hi --add-plugin`, and a row there of a member the tree's file has replaces
 the tree's row:
 
 ```toml
 [cli]
 taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc"
-"mytool.rc" = "mytool | flag:mytool --rc | ~/.config/mytool/rc"
+"mytool.rc" = "mytool | flag:mytool --rc | ~/.config/mytool/rc | sh"
 
 [mine]
 "notes.txt" = "- | - | ~/notes.txt"
@@ -539,8 +540,15 @@ taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc
   to the file's path, `envdir:` and the variable to set to its directory,
   `flag:` and the command and flag to alias it with (`flagdir:` for the
   directory; a flag written `--rc=` takes the path in the same word;
-  several wires a `;` apart), or `-` when something of yours points at
-  `$_HI_CONFIG_DIR/<member>`, a [extension](#extensions)'s alias say.
+  several wires a `;` apart), `xdg:` and the command to alias with
+  `$XDG_CONFIG_HOME` set to the overlay, or `-` when something of yours
+  points at `$_HI_CONFIG_DIR/<member>`, a [extension](#extensions)'s alias
+  say. `xdg:` is the fallback, for a file a tool has no variable and no
+  flag for, such as helix's `languages.toml`: it reads the file as
+  `<tool>/<file>`, the shape the member's name gives it, but every program
+  the command starts inherits the variable, so a `git` under lazygit would
+  not read the target's `~/.config/git`
+  ([INTEGRATIONS.md](INTEGRATIONS.md#a-tool-with-no-variable-and-no-flag)).
 - **home** is where the file is here, candidates a `:` apart, the first
   that exists winning. A candidate starts at `/`, at `~/`, or at a
   variable's name (`$XDG_CONFIG_HOME/...`), and is skipped while that
@@ -548,9 +556,15 @@ taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc
   (`$TASKRC , ~/.taskrc`), it is the first of them not skipped, the way a
   tool looks in its default place only once its variable is unset. Nothing
   else in it expands, and nothing in it runs.
+- **dialect**, left out or `-`, has the file ride as written. Named, it is
+  read the way hi reads its own configs: a line that sources a file no
+  target has is disabled on the way out and named by `hi --doctor`, and
+  comments are stripped. The dialects are `sh`, `fish`, `vim`, `lua`,
+  `elisp`, `nano`, `tmux`, `screen`, `readline`, `kak`, `kdl`, `omp`,
+  `omp-json`, and `conf` (`#` comments and nothing to source).
 
 `hi --add-plugin cli taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes
-the first row above, quoted so the shell leaves its `$` and `~` alone, and
+the first row above (a dialect goes after the home), quoted so the shell leaves its `$` and `~` alone, and
 refuses a row hi could not read; `hi --remove-plugin taskrc` takes it out.
 To change one, edit the file. `hi --plugins` and `hi --doctor` name each
 file a row carries, and each row hi could not read, with the reason. The
@@ -564,18 +578,19 @@ The editor, tmux, screen, micro, and zellij rows of the overlay usually need
 no file: hi carries the config each tool **already reads on this machine**,
 so there is one copy to edit:
 
-| member              | hi looks at                                                                                                         |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `vim/vimrc`         | `~/.vimrc`, else `~/.vim/vimrc`, else `$XDG_CONFIG_HOME/vim/vimrc`                                                  |
-| `nvim/init.lua`     | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                    |
-| `helix/config.toml` | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                |
-| `kak/kakrc`         | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/kakrc`                                                                 |
-| `nano/nanorc`       | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                                                                    |
-| `emacs/init.el`     | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el`                    |
-| `tmux/tmux.conf`    | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                              |
-| `screenrc`          | `${SCREENRC:-~/.screenrc}`                                                                                          |
-| `micro/<file>`      | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua`         |
-| `zellij/<file>`     | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`, for `config.kdl` and every file of `layouts/` and `themes/` |
+| member                 | hi looks at                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `vim/vimrc`            | `~/.vimrc`, else `~/.vim/vimrc`, else `$XDG_CONFIG_HOME/vim/vimrc`                                                  |
+| `nvim/init.lua`        | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                    |
+| `helix/config.toml`    | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                |
+| `helix/languages.toml` | `$XDG_CONFIG_HOME/helix/languages.toml`                                                                             |
+| `kak/kakrc`            | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/kakrc`                                                                 |
+| `nano/nanorc`          | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                                                                    |
+| `emacs/init.el`        | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el`                    |
+| `tmux/tmux.conf`       | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                              |
+| `screenrc`             | `${SCREENRC:-~/.screenrc}`                                                                                          |
+| `micro/<file>`         | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua`         |
+| `zellij/<file>`        | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`, for `config.kdl` and every file of `layouts/` and `themes/` |
 
 An overlay copy still wins — that is how you give a target an editor config
 that differs from your local one. With neither, nothing rides and the tool
@@ -583,7 +598,7 @@ starts on the target's own config; a home config rides only with its tool
 installed here. On a target the lookup is off: `$HOME` there is the
 target's, and the file your client picked has already arrived.
 
-The aliases are a target's. There `vim`, `nvim`, `hx`, `nano`, `emacs`,
+The aliases are a target's. There `vim`, `nvim`, `hx` or `helix`, `nano`, `emacs`,
 `micro`, `tmux`, `screen`, and `zellij` each name the file that rode, where
 the target has the command. Here none of them is aliased, overlay copy or
 not: every tool reads its own config, and `vim -u` or `nano --rcfile` would

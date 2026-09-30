@@ -366,7 +366,7 @@ function _hi_run_scenario() {
   # the editor and multiplexer aliases are lines of the wiring.sh a client
   # packs beside the configs that ride, so the workdir is the overlay that
   # holds both (GLOSSARY: HI.62)
-  local f members="vim/vimrc nvim/init.lua helix/config.toml nano/nanorc emacs/init.el tmux/tmux.conf screenrc
+  local f members="vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml nano/nanorc emacs/init.el tmux/tmux.conf screenrc
     zellij/config.kdl micro/settings.json"
   for f in $members; do
     case "$f" in */*) mkdir -p "$_HI_WORKDIR/${f%/*}" ;; esac
