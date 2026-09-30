@@ -29,13 +29,12 @@ setting named here is a row in [SETTINGS.md](SETTINGS.md#every-setting).
    (`fish > zsh > bash > dash > ash > sh`; with no bash at all, the same list
    without bash).
 5. On exit, the session's `EXIT` trap removes the `/tmp` directory and the
-   scratch rc directory. bash runs it on the hangup a dropped connection
-   sends too, so that cleans up the same way, with nothing left to reconnect
-   to. Run `hi` inside
-   `tmux` or `screen` on the _client_ to survive drops - `hi --mux <target>`
-   (or [`_HI_MUX=1`](SETTINGS.md#every-setting)) does that for you and reattaches on the
-   next connect; persistent sessions on the target were
-   [decided against](COMPATIBILITY.md#what-would-change-an-answer).
+   scratch rc directory. bash runs it on the hangup a dropped connection sends
+   too, so that cleans up the same way, with nothing left to reconnect to. Run
+   `hi` inside `tmux` or `screen` on the _client_ to survive drops -
+   `hi --mux <target>` (or [`_HI_MUX=1`](SETTINGS.md#every-setting)) does that
+   for you and reattaches on the next connect; persistent sessions on the target
+   were [decided against](COMPATIBILITY.md#what-would-change-an-answer).
 6. `hi <target> 'some command'` runs the command inside that same session -
    hi's aliases and environment, a pty when your stdin is one - and prints
    only its output; a plain, pty-free remote command is `ssh`'s job.

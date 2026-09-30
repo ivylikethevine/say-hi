@@ -42,9 +42,9 @@ Each file is marked with where it goes:
 - **payload** — `hi.sh`'s `_HI_PAYLOAD` (`common/`, `config/`, `load.sh`,
   `hi.sh`): comment-stripped, gzipped, and sent to every target on every
   connect.
-- **package** — `scripts/install.sh`'s `_HI_PACKAGE_CONTENTS` (the payload
-  plus `scripts/`, `LICENSE.md`, `README.md`), copied to
-  `<prefix>/say-hi` by a package or `install.sh --prefix`.
+- **package** — `scripts/install.sh`'s `_HI_PACKAGE_CONTENTS` (the payload plus
+  `scripts/`, `LICENSE.md`, `README.md`), copied to `<prefix>/say-hi` by a
+  package or `install.sh --prefix`.
 - **dev** — only in a checkout.
 
 ### Top level
@@ -163,12 +163,12 @@ settings table as prettier formats them).
 
 ### The overlay
 
-Everything in `$_HI_CONFIG_DIR` that hi knows by name
-(`hi.sh`'s `_HI_OVERLAY_FILES`). All of it is optional, rides to every target
-in its own small stream, and lands there in `$_HI_ROOT/config/`, over the
-defaults it replaces. `extensions/`, and zellij's `layouts/` and `themes/`,
-ride member by member; a member name is a letter or digit, then
-`[A-Za-z0-9_.-]`, never ending `.bak`, `.orig`, `.rej`, or `.tmp`.
+Everything in `$_HI_CONFIG_DIR` that hi knows by name (`hi.sh`'s
+`_HI_OVERLAY_FILES`). All of it is optional, rides to every target in its own
+small stream, and lands there in `$_HI_ROOT/config/`, over the defaults it
+replaces. `extensions/`, and zellij's `layouts/` and `themes/`, ride member by
+member; a member name is a letter or digit, then `[A-Za-z0-9_.-]`, never ending
+`.bak`, `.orig`, `.rej`, or `.tmp`.
 
 | File                                                                                                      | Variable           | Replaces          | Read by                                                                                                |
 | --------------------------------------------------------------------------------------------------------- | ------------------ | ----------------- | ------------------------------------------------------------------------------------------------------ |
@@ -199,31 +199,31 @@ lines that point each tool at its member on a target
 
 A member in the _Replaces_ column travels in the tree's place, not beside it:
 the payload leaves out a default your overlay shadows, so the wire holds one
-`colors`, not two - and an editor default whose editor this machine lacks
-stays home too, so a client without emacs sends no `emacs/init.el`. `aliases.sh` is the exception by design - yours is sourced
-on top of the tree's, so both ride. The `<file>.old` copies
-`scripts/convert_settings.sh` keeps are not members and stay home.
+`colors`, not two - and an editor default whose editor this machine lacks stays
+home too, so a client without emacs sends no `emacs/init.el`. `aliases.sh` is
+the exception by design - yours is sourced on top of the tree's, so both ride.
+The `<file>.old` copies `scripts/convert_settings.sh` keeps are not members and
+stay home.
 
 What happens to a line in one of these that reads a file no target has is
 [SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)'s.
 
 ### Configs read from where their tool keeps them
 
-On this machine (never on a target), hi carries the config a tool already
-reads rather than asking for a copy - the middle step of the one order
+On this machine (never on a target), hi carries the config a tool already reads
+rather than asking for a copy - the middle step of the one order
 ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)): the first one found in each
-row wins, an overlay copy wins over all of them - for the prompt programs,
-eza, bat, rg, fzf, lazygit, and your aliases on a target only, since at home each already reads
-its own - and the tree's default, where there is one, applies when neither
-is there. `bashrc`,
-`zshrc`, and `config.fish` are never looked for here: they ride only as an
-overlay copy. A prompt program's
-member rides only when that program is in the list a target is handed
+row wins, an overlay copy wins over all of them - for the prompt programs, eza,
+bat, rg, fzf, lazygit, and your aliases on a target only, since at home each
+already reads its own - and the tree's default, where there is one, applies when
+neither is there. `bashrc`, `zshrc`, and `config.fish` are never looked for
+here: they ride only as an overlay copy. A prompt program's member rides only
+when that program is in the list a target is handed
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and an editor's, tmux's,
-screen's, micro's, zellij's, bat's, eza's, rg's, fzf's, or lazygit's only with that tool installed here
+screen's, micro's, zellij's, bat's, eza's, rg's, fzf's, or lazygit's only with
+that tool installed here
 ([INTEGRATIONS.md's _Which side is asked_](INTEGRATIONS.md#which-side-is-asked)),
-and readline's always;
-an overlay copy rides either way.
+and readline's always; an overlay copy rides either way.
 
 | Member                 | Looked for, in order                                                                                                                                                                                                                                             |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

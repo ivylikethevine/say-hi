@@ -41,14 +41,13 @@ one) has nothing else to read.
 | AUR, deb, rpm, apk | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`      |
 | Homebrew           | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes |
 
-`scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this;
-its `_HI_PACKAGE_CONTENTS` and `install_tree()` decide what a packaged install
+`scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this; its
+`_HI_PACKAGE_CONTENTS` and `install_tree()` decide what a packaged install
 contains, and both AUR PKGBUILDs and `mkpkg.sh` call it. Two places repeat the
-list, and `tests/packaging/packaging_ci_test.sh` (the `packaging_ci` suite,
-ci group) fails if either drifts: the
-Homebrew formula, because `install_tree` hardcodes `/usr/bin` and
-`/etc/profile.d` and neither exists in a brew prefix, and `nfpm.yaml`'s apk
-entries ([deb / rpm / apk](#deb--rpm--apk)).
+list, and `tests/packaging/packaging_ci_test.sh` (the `packaging_ci` suite, ci
+group) fails if either drifts: the Homebrew formula, because `install_tree`
+hardcodes `/usr/bin` and `/etc/profile.d` and neither exists in a brew prefix,
+and `nfpm.yaml`'s apk entries ([deb / rpm / apk](#deb--rpm--apk)).
 
 ## Layout
 
@@ -121,18 +120,18 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    one `SHA256SUMS` over them and the tarball, and attests their provenance
    and an SBOM. Nothing has published.
 4. The `publish` job runs unattended over exactly what `build` produced (see
-   [The release environment](#the-release-environment)): it signs
-   `SHA256SUMS` with minisign, creates the release, attaches the packages,
-   tarball, sums, signature, manifests, SBOM, and attestation bundle, builds
-   and attaches the [package repository](#package-repository), and dispatches
-   `demos.yml`, which renders the demos, attaches one, and then redeploys the
-   site once - new package repository and new GIFs together (`pages.yml`'s
-   own `workflow_run` trigger cannot fire off a tag push, and a merge's
-   Coverage deploy stands down for a commit a `v*` tag already carries). This
-   workflow never writes to `main`, so the manifests
-   committed in `packaging/aur/` and `packaging/homebrew/` stay permanent
-   `v0.0.0` templates — for a channel, always use the ones the release
-   attached (`gh release download v1.0.0 --pattern …`).
+   [The release environment](#the-release-environment)): it signs `SHA256SUMS`
+   with minisign, creates the release, attaches the packages, tarball, sums,
+   signature, manifests, SBOM, and attestation bundle, builds and attaches the
+   [package repository](#package-repository), and dispatches `demos.yml`, which
+   renders the demos, attaches one, and then redeploys the site once - new
+   package repository and new GIFs together (`pages.yml`'s own `workflow_run`
+   trigger cannot fire off a tag push, and a merge's Coverage deploy stands down
+   for a commit a `v*` tag already carries). This workflow never writes to
+   `main`, so the manifests committed in `packaging/aur/` and
+   `packaging/homebrew/` stay permanent `v0.0.0` templates — for a channel,
+   always use the ones the release attached
+   (`gh release download v1.0.0 --pattern …`).
 5. `brew` installs, tests, and audits the formula on a hosted mac, and when it
    passes, `tap` opens a PR against the tap ([Homebrew tap](#homebrew-tap));
    merging it is yours.
@@ -254,10 +253,9 @@ three that hold a publishing credential: `publish` (the signing keys and a
 `contents: write` token), `tap` (`HOMEBREW_TAP_TOKEN`), and `aur`
 (`AUR_SSH_KEY`). `brew` stays on `audit`, which records its outbound
 connections without refusing any: harden-runner has no block mode on macOS.
-Each allowlist's comment names what each host is for; tighten or
-extend one from the harden-runner insights a release's run summary links (a
-host `block` refused shows there), not by guessing. `brew` stays on `audit`,
-since harden-runner has no block mode on macOS.
+Each allowlist's comment names what each host is for; tighten or extend one
+from the harden-runner insights a release's run summary links (a host `block`
+refused shows there), not by guessing.
 
 ## Publishing each channel
 
@@ -312,9 +310,10 @@ is correct only on `say-hi-git`.
 
 ### Homebrew tap
 
-The tap is a plain repo ([PACKAGING.md's Homebrew tap](PACKAGING.md#homebrew-tap)):
-nothing on Homebrew's side reviews what lands there, which is why
-`brew audit --strict` is a hard gate here.
+The tap is a plain repo
+([PACKAGING.md's Homebrew tap](PACKAGING.md#homebrew-tap)): nothing on
+Homebrew's side reviews what lands there, which is why `brew audit --strict` is
+a hard gate here.
 
 **The checks and the PR are automated; merging is not.** Right after
 `publish`, `release.yml`'s `brew` job puts the release's formula in a
@@ -360,9 +359,9 @@ Built by `mkpkg.sh` and attached to every release; how a user installs one is
 [PACKAGING.md's deb / rpm / apk](PACKAGING.md#deb--rpm--apk).
 
 `nfpm.yaml` lists the apk's contents per `_HI_PACKAGE_CONTENTS` member rather
-than through the `type: tree` entry deb and rpm use, because nfpm 2.47.0's
-tree walker writes directory modes apk-tools rejects. The `packaging_ci` suite
-keeps that copy honest, and `ci.yml`'s `packaging-smoke` installs the signed apk on
+than through the `type: tree` entry deb and rpm use, because nfpm 2.47.0's tree
+walker writes directory modes apk-tools rejects. The `packaging_ci` suite keeps
+that copy honest, and `ci.yml`'s `packaging-smoke` installs the signed apk on
 Alpine on every code PR.
 
 ### Package repository

@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 # The external-tool wrappers that ride along with the lint gate when their
 # tool is installed, and skip yellow when it isn't: shfmt as a formatting
-# gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim and
-# emacs over the editor rcs that ship, typos over the whole tree, and
+# gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim
+# over the editors demo's vimrc, typos over the whole tree, and
 # markdownlint and prettier over the Markdown. CI always has them (setup-tool
 # pins each binary; `npm ci --prefix .github` the two node tools), so a local
 # skip here is a local-only gap, never a green run that CI would have failed.
@@ -206,7 +206,7 @@ function lint_prettier() {
 }
 
 function run_tools() {
-  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, nvim, emacs, typos, markdownlint, prettier)"
+  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, typos, markdownlint, prettier)"
   _hi_workdir toolstest
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt

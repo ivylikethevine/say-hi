@@ -72,9 +72,9 @@ that runs on every host you touch. If you just want your `.bashrc` and
 
 **Where say-hi went further**, beyond the table's rows:
 
-- **Cleanup, proven for the dropped link.** `tests/targets/ssh_disconnect_test.sh`
-  freezes a live session until sshd reaps it and checks the tree is gone, not
-  only after a clean `exit`.
+- **Cleanup, proven for the dropped link.**
+  `tests/targets/ssh_disconnect_test.sh` freezes a live session until sshd reaps
+  it and checks the tree is gone, not only after a clean `exit`.
 - **A designed session, not copied files.** Header, hashed per-host colors, a
   git prompt, aliases, editor configs — degrading in defined tiers when the
   target cannot support all of it.
@@ -116,14 +116,14 @@ you can use homeshick" — no Ruby, no Python, no root. It answers the other
 half of the problem, symlinking a cloned repo's `home/` into `$HOME` and
 keeping the two in step.
 
-So it is not a competitor and is not in the table. It is the tool for a
-machine you own and will come back to: the checkout and symlinks **stay**, and
-the next login is configured with no client involved. The failure modes are
-mirror images: homeshick on a production box you touch once leaves a
-`~/.homesick` and an edited rc file for the next person; say-hi on your own
-laptop re-sends a payload every session for what a symlink gives for free.
-The two compose — install say-hi permanently on that box
-(`scripts/install.sh`) and let homeshick manage everything else.
+So it is not a competitor and is not in the table. It is the tool for a machine
+you own and will come back to: the checkout and symlinks **stay**, and the next
+login is configured with no client involved. The failure modes are mirror
+images: homeshick on a production box you touch once leaves a `~/.homesick` and
+an edited rc file for the next person; say-hi on your own laptop re-sends a
+payload every session for what a symlink gives for free. The two compose —
+install say-hi permanently on that box (`scripts/install.sh`) and let homeshick
+manage everything else.
 
 ## Adjacent tools, and how they compose
 

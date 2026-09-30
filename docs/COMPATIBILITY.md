@@ -206,9 +206,10 @@ these, how often, and what they do today instead — enough to be worth what
 exec CLI, a cleaner API, or an easier integration moves nothing, because
 nothing here is a "no" for being hard.
 
-Two proposals about hi itself were declined: **persistent sessions on a
-target** (`hi --session <name>`, a tree that outlives a dropped connection) —
-a multiplexer on the client (`hi --mux`) already survives a drop, and a tree
-that outlives its session breaks
-[SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)'s footprint promise; and **a bash 4 floor for the client** — the 3.2 plumbing
-is tested on both ends, and a split floor is two dialects in one tree.
+Two proposals about hi itself were declined: **persistent sessions on a target**
+(`hi --session <name>`, a tree that outlives a dropped connection) — a
+multiplexer on the client (`hi --mux`) already survives a drop, and a tree that
+outlives its session breaks
+[SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)'s footprint promise; and
+**a bash 4 floor for the client** — the 3.2 plumbing is tested on both ends, and
+a split floor is two dialects in one tree.

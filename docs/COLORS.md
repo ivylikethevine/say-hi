@@ -1,10 +1,9 @@
 # Colors
 
 How every color hi paints is chosen: the per-host hash, the pins in
-`~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp
-and rows. The two settings here, `_HI_COLOR_SCHEME` and
-`_HI_PACKAGES_PALETTE`, are rows in
-[SETTINGS.md](SETTINGS.md#every-setting); the wizard asks about neither.
+`~/.config/say-hi/colors`, the 24-bit scheme, and the package check's ramp and
+rows. The two settings here, `_HI_COLOR_SCHEME` and `_HI_PACKAGES_PALETTE`, are
+rows in [SETTINGS.md](SETTINGS.md#every-setting); the wizard asks about neither.
 
 ## Contents
 
@@ -35,16 +34,15 @@ prod = "red"
 
 A `hosttag` row colors every host carrying a `# Tags: prod` comment above its
 `Host` or `Match host` line in `~/.ssh/config` — a wildcard block
-(`Host prod-*`) colors every name it covers.
-`hi --add-tag <host> <tag>` writes that comment for you, replacing a tag
-already there; given a name only a wildcard block covers, it names the block
-to tag instead.
-A `usertag` row colors the _username_ on every host that carries that tag, so
-`you@prod-db` reads as prod on both halves. A `hostname` name holding `*` or
-`?` is a pattern: `10.0.1.*` or `*.prod.example.com` colors a whole subnet or
-domain at once, no ssh-config entry needed — the first matching pattern in
-the file wins. Precedence, highest first: an exact pin, then a hosttag, then a
-pattern, then the hash.
+(`Host prod-*`) colors every name it covers. `hi --add-tag <host> <tag>` writes
+that comment for you, replacing a tag already there; given a name only a
+wildcard block covers, it names the block to tag instead. A `usertag` row colors
+the _username_ on every host that carries that tag, so `you@prod-db` reads as
+prod on both halves. A `hostname` name holding `*` or `?` is a pattern:
+`10.0.1.*` or `*.prod.example.com` colors a whole subnet or domain at once, no
+ssh-config entry needed — the first matching pattern in the file wins.
+Precedence, highest first: an exact pin, then a hosttag, then a pattern, then
+the hash.
 
 `hi --set-color <type> <name> <color> [rrggbb]` writes a pin, replacing one
 the name already has and creating the section when the file has none;
@@ -192,21 +190,21 @@ or `none`; unset, it is `core useful deprecated`
 looked for, and rows above the first table always run.
 
 `hi --add-package core go cargo,rustc` adds rows to that group's table of
-`~/.config/say-hi/packages`, creating the table when the file has none, and
-a leading `+` or `-` on an argument (`+sudo,doas`) lands its row in the
-group's `.required` or `.unwanted` table; a row whose first package is
-already in the file is replaced, and moved when the group differs.
-`hi --remove-package go cargo` takes out the row whose first package each
-one names, from whichever table holds it.
-The first write of either copies the tree's file there: a copy of
-your own replaces the tree's wholesale, the same rule `colors` follows. By
-hand, `cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.
-`hi --preview packages` shows each group — whether it runs, its colors, and
-a real example from your rows — then the marks and the check; to turn the
-check off, drop `check` from `_HI_HEADER_ORDER`. A copy never gains a group
-the tree adds later, so the preview and `hi --doctor` name the tree's groups
-your file lacks, and any row with a `-` or `+` past its first name
-(`eza,-exa,lsd`), which is read as part of a name nothing matches.
+`~/.config/say-hi/packages`, creating the table when the file has none, and a
+leading `+` or `-` on an argument (`+sudo,doas`) lands its row in the group's
+`.required` or `.unwanted` table; a row whose first package is already in the
+file is replaced, and moved when the group differs.
+`hi --remove-package go cargo` takes out the row whose first package each one
+names, from whichever table holds it. The first write of either copies the
+tree's file there: a copy of your own replaces the tree's wholesale, the same
+rule `colors` follows. By hand,
+`cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.
+`hi --preview packages` shows each group — whether it runs, its colors, and a
+real example from your rows — then the marks and the check; to turn the check
+off, drop `check` from `_HI_HEADER_ORDER`. A copy never gains a group the tree
+adds later, so the preview and `hi --doctor` name the tree's groups your file
+lacks, and any row with a `-` or `+` past its first name (`eza,-exa,lsd`), which
+is read as part of a name nothing matches.
 
 ## Using the hash in your own prompt
 

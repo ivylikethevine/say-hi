@@ -51,8 +51,8 @@ a number works from any of them:
   opt-ins, off until turned on.
 - **This machine** `[m]` — whether hi styles the machine you run it on as well
   (`_HI_DISABLE_LOCAL`).
-- **Advanced** `[v]` — the leading space, the header's
-  right edge, the `--mux` default, and 24-bit color.
+- **Advanced** `[v]` — the leading space, the header's right edge, the `--mux`
+  default, and 24-bit color.
 
 A row away from its default says the default beside it (`(default 2)`,
 `(default on)`). The menu draws to your terminal's width: help text is cut
@@ -85,12 +85,12 @@ The menu's `[p]`, or `hi --configure --preset <name>` without the menu:
 | `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_GROUPS=core,deprecated`)                                                                |
 | `minimal`    | on targets only the colored prompt: no header, git status, or editors (`_HI_PLUGINS_OFF=editors`) — and nothing on this machine (`_HI_DISABLE_LOCAL=1`). |
 
-A preset is an absolute answer over the feature toggles, the banner, the
-package check's groups, and the plugins kept home: what it names is set and the rest of those return to
-their defaults. Everything else — the header order, the width, the hidden
-addresses, the colors, the prompt program and separators, the advanced
-settings — keeps what it holds. From the menu its answers are only what the
-preview shows until `[s]` saves them. The rows are `scripts/configure.sh`'s
+A preset is an absolute answer over the feature toggles, the banner, the package
+check's groups, and the plugins kept home: what it names is set and the rest of
+those return to their defaults. Everything else — the header order, the width,
+the hidden addresses, the colors, the prompt program and separators, the
+advanced settings — keeps what it holds. From the menu its answers are only what
+the preview shows until `[s]` saves them. The rows are `scripts/configure.sh`'s
 `_HI_PRESETS`.
 
 ## The overlay
@@ -129,15 +129,16 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/config.fish`          | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                          |
 | `~/.config/say-hi/oh-my-posh.json`      | -                 | your oh-my-posh config (or `.yaml` / `.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names                   |
 
-starship's, powerlevel10k's, tide's, bat's, eza's, rg's, fzf's, lazygit's, and readline's own configs,
-and your oh-my-zsh, oh-my-bash, and bash-it themes, need no copy here: every
-target gets the one each tool reads on your machine
+starship's, powerlevel10k's, tide's, bat's, eza's, rg's, fzf's, lazygit's, and
+readline's own configs, and your oh-my-zsh, oh-my-bash, and bash-it themes, need
+no copy here: every target gets the one each tool reads on your machine
 ([Integrations](INTEGRATIONS.md#prompt-programs)). A `starship.toml`,
 `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
-`tide.vars`, `bat/config`, `eza/theme.yml`, `ripgreprc`, `fzfrc`, `lazygit/config.yml`, or `inputrc` in `~/.config/say-hi/` is the override: targets get it instead,
-and at home the tool keeps reading its own. A prompt program's copy rides only
-when that program is one a target is handed, and `hi --doctor` says when it is
-not.
+`tide.vars`, `bat/config`, `eza/theme.yml`, `ripgreprc`, `fzfrc`,
+`lazygit/config.yml`, or `inputrc` in `~/.config/say-hi/` is the override:
+targets get it instead, and at home the tool keeps reading its own. A prompt
+program's copy rides only when that program is one a target is handed, and
+`hi --doctor` says when it is not.
 
 The overlay starts empty: `hi --install` writes `settings.sh` and nothing
 else. To override `colors`, copy the shipped file in and edit the copy:
@@ -152,36 +153,35 @@ adds the row; `hi --set-color hostname bastion yellow` does it for `colors`,
 then adds the pin.
 
 A copy stops tracking what `hi --update` delivers for that file; delete it to
-track the tree's again, and `hi --doctor` names which of the two is in force.
-A member is named as its tool names the file, under a directory of the
-tool's name where the tool keeps one in `~/.config`, so the overlay is shaped
-like the `~/.config` it stands in for: `nvim/init.lua`, `bat/config`,
-`lazygit/config.yml`, and `starship.toml` or `inputrc` at the top, where
-their tools keep them. Before 1.0 a member had other names (`vim.rc`, then
-`vimrc`, for `vim/vimrc`; `bat.conf` for `bat/config`; `bash.sh` for
-`bashrc`); a file still under an old name is not read, and `hi --doctor`
-names it with the `mv` that fixes it.
-Versioning the directory is yours to do — a `git init` there, or
+track the tree's again, and `hi --doctor` names which of the two is in force. A
+member is named as its tool names the file, under a directory of the tool's name
+where the tool keeps one in `~/.config`, so the overlay is shaped like the
+`~/.config` it stands in for: `nvim/init.lua`, `bat/config`,
+`lazygit/config.yml`, and `starship.toml` or `inputrc` at the top, where their
+tools keep them. Before 1.0 a member had other names (`vim.rc`, then `vimrc`,
+for `vim/vimrc`; `bat.conf` for `bat/config`; `bash.sh` for `bashrc`); a file
+still under an old name is not read, and `hi --doctor` names it with the `mv`
+that fixes it. Versioning the directory is yours to do — a `git init` there, or
 [a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager).
 
 `packages` in `name:N` rows, `colors` in `type,name,color` rows, and a
 `settings.sh` setting `_HI_PACKAGES_MIN_PRIORITY` are an older hi's shapes,
-which this one does not read. `hi --install` and `hi --configure` convert them before the menu opens,
-and `hi --update` does so with the new tag's converter after checking it out;
-by hand, `scripts/convert_settings.sh [--dry-run] [<dir>]`. Each converted
-file keeps its original beside it as `<file>.old`, a file already in the
-current shape is left alone, and `hi --doctor` flags one still in the old
-shape. A packages row goes to the group its highest `N` named (3 `core`,
-2 `useful`, 1 `extras`, 0 `trivia`), alternatives sorted highest `N` first; an
-old `-` row becomes a `+` row (in `base` at `N` 0-1), and an old `+` row a
-plain row in `platform`. `_HI_PACKAGES_MIN_PRIORITY` becomes a
-`_HI_PACKAGES_GROUPS` line - 0 all seven groups,
-1 `core useful deprecated extras base`, 3 `core deprecated`, 4 or more
+which this one does not read. `hi --install` and `hi --configure` convert them
+before the menu opens, and `hi --update` does so with the new tag's converter
+after checking it out; by hand,
+`scripts/convert_settings.sh [--dry-run] [<dir>]`. Each converted file keeps its
+original beside it as `<file>.old`, a file already in the current shape is left
+alone, and `hi --doctor` flags one still in the old shape. A packages row goes
+to the group its highest `N` named (3 `core`, 2 `useful`, 1 `extras`, 0
+`trivia`), alternatives sorted highest `N` first; an old `-` row becomes a `+`
+row (in `base` at `N` 0-1), and an old `+` row a plain row in `platform`.
+`_HI_PACKAGES_MIN_PRIORITY` becomes a `_HI_PACKAGES_GROUPS` line - 0 all seven
+groups, 1 `core useful deprecated extras base`, 3 `core deprecated`, 4 or more
 `none` - and is dropped at 2, the default, or when `settings.sh` already sets
 `_HI_PACKAGES_GROUPS`. An editor's or a multiplexer's `_HI_DISABLE_*` toggle,
 which the list of plugins replaced, becomes its word in `_HI_PLUGINS_OFF`:
-`_HI_DISABLE_EDITORS=1` is `editors`, `_HI_DISABLE_VIM=1` both `vim` and
-`nvim`, and one set to `0` just goes.
+`_HI_DISABLE_EDITORS=1` is `editors`, `_HI_DISABLE_VIM=1` both `vim` and `nvim`,
+and one set to `0` just goes.
 
 ## Every setting
 
@@ -197,8 +197,9 @@ why). A setting a child must see is an `export` in
 [your own `bashrc`/`zshrc`/`config.fish`](#shells-you-drop-into-inside-a-session).
 
 The whole vocabulary a `settings.sh` may use, grouped roughly by what each
-setting changes - the header, the features, the prompt, the advanced ones -
-and then the settings nothing asks about; the linked sections explain. The **set by** column:
+setting changes - the header, the features, the prompt, the advanced ones - and
+then the settings nothing asks about; the linked sections explain. The **set
+by** column:
 
 - **you** — supported surface nothing asks about: export it, or write an
   `export` line into `settings.sh` by hand. The wizard carries such a line
@@ -208,10 +209,10 @@ and then the settings nothing asks about; the linked sections explain. The **set
 
 The table is written from `scripts/settings`, one row a setting, which
 `hi --configure` reads its menu items from too, so a new setting is one row
-there. A value written by hand that the
-code would silently fall back from - a width under 40, a header word or
-prompt program hi does not know, an editor off the ladder - is a red
-`hi --doctor` row, judged by the same rules the wizard takes an answer by.
+there. A value written by hand that the code would silently fall back from - a
+width under 40, a header word or prompt program hi does not know, an editor off
+the ladder - is a red `hi --doctor` row, judged by the same rules the wizard
+takes an answer by.
 
 | variable                 | default                                                               | set by                    | what it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------ | --------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -265,12 +266,11 @@ More names look like settings and are not:
   `$XDG_CONFIG_HOME`-or-`~/.config` base resolved beside them — set
   `$XDG_CONFIG_HOME` instead.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments
-  are read from), `$_HI_COLORS`, and `$_HI_PACKAGES`
-  are re-derived by `common/paths.sh`
-  on every source, from `$_HI_HOME`, `$HOME`, and the overlay, so an exported
-  value does not survive: put your file in the overlay.
-- `$_HI_VIMRC`, `$_HI_NVIMRC`, and `$_HI_NANORC` are a
-  session's: the path of a config that rode, set on a target by `wiring.sh`
+  are read from), `$_HI_COLORS`, and `$_HI_PACKAGES` are re-derived by
+  `common/paths.sh` on every source, from `$_HI_HOME`, `$HOME`, and the overlay,
+  so an exported value does not survive: put your file in the overlay.
+- `$_HI_VIMRC`, `$_HI_NVIMRC`, and `$_HI_NANORC` are a session's: the path of a
+  config that rode, set on a target by `wiring.sh`
   ([HI.62](GLOSSARY.md#hi62-generated-wiring)). At home nothing reads them.
 - `$_HI_ASCII` is the _client's_ verdict, from its locale, on whether its
   terminal renders multibyte glyphs, shipped to the session next to
@@ -288,13 +288,13 @@ More names look like settings and are not:
 - `$_HI_RELEASE` is the version `packaging/stamp.sh` stamps at build time,
   and `$_HI_SESSION_RC` the `mktemp -d` holding a session's per-shell rc
   files ([HI.46](GLOSSARY.md#hi46-session-rc-directory)).
-- `$_HI_TARGET_COLOR` and `$_HI_TARGET_TAG` (the color and `# Tags:` value
-  the target resolved to) and `$_HI_LOCAL_USER`/`$_HI_LOCAL_HOSTNAME` (the
-  header's "from" half) are set from the client;
+- `$_HI_TARGET_COLOR` and `$_HI_TARGET_TAG` (the color and `# Tags:` value the
+  target resolved to) and `$_HI_LOCAL_USER`/`$_HI_LOCAL_HOSTNAME` (the header's
+  "from" half) are set from the client;
   `$_HI_HOST_COLOR`/`$_HI_USER_COLOR`/`$_HI_HOST_ESC`/`$_HI_USER_ESC` are the
   resolved prompt colors, for
-  [your own prompt](COLORS.md#using-the-hash-in-your-own-prompt) to read. Setting one
-  by hand tells the shell something untrue about where it is.
+  [your own prompt](COLORS.md#using-the-hash-in-your-own-prompt) to read.
+  Setting one by hand tells the shell something untrue about where it is.
 
 Everything else beginning `_HI_` is internal state, named that way to stay
 out of your namespace.
@@ -306,9 +306,9 @@ _and_ disconnect; it always leads, so it takes a switch rather than a place in
 the order below. `_HI_DISABLE_HEADER=1` turns off everything in this section
 without erasing it: `hi --configure` keeps a stored order while the header is
 off. The wizard's _Header_ items edit all of it under the rendered header
-([The wizard](#the-wizard)). The `hi loaded:` line and its
-init/copy/load timers are not part of this section - they survive
-`_HI_DISABLE_HEADER` and answer to `_HI_DISABLE_GREETING` of their own.
+([The wizard](#the-wizard)). The `hi loaded:` line and its init/copy/load timers
+are not part of this section - they survive `_HI_DISABLE_HEADER` and answer to
+`_HI_DISABLE_GREETING` of their own.
 
 Everything else the header prints is one flat list of reorderable items, with
 no fixed rows. `_HI_HEADER_ORDER` is a space-separated subset of these words,
@@ -334,19 +334,19 @@ in the order they should print:
 | `uptime`     | this box's uptime                                   |
 | `check`      | the installed-packages check (`config/packages`)    |
 
-A word left out is not printed, and an unknown word is ignored. A word of
-your own is a file of the overlay's `header/`
+A word left out is not printed, and an unknown word is ignored. A word of your
+own is a file of the overlay's `header/`
 ([Integrations](INTEGRATIONS.md#header-cells-of-your-own)).
-`containers`/`jobs`/`pods` render only when their backend answers; listing
-them decides whether hi asks at all. They are in the default order on purpose,
-the one exception to a header probing only what you asked for: every local
-shell with it runs docker, podman, nomad, and kubectl, each capped by
-`_HI_PROBE_TIMEOUT`. An order without the three words starts none. Each word has a fixed color, swapped for
-an alternate when it would repeat the cell before it, so no order puts two
-same-colored cells side by side
+`containers`/`jobs`/`pods` render only when their backend answers; listing them
+decides whether hi asks at all. They are in the default order on purpose, the
+one exception to a header probing only what you asked for: every local shell
+with it runs docker, podman, nomad, and kubectl, each capped by
+`_HI_PROBE_TIMEOUT`. An order without the three words starts none. Each word has
+a fixed color, swapped for an alternate when it would repeat the cell before it,
+so no order puts two same-colored cells side by side
 ([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). Unset or empty is the
-table's order: `utc version localtime os arch cores cpu ram ip gitid
-containers jobs pods auth pub uptime check`.
+table's order:
+`utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check`.
 
 The `ip` cell's `_HI_IP_HIDE` globs match the dotted quad; the `172.*` default
 keeps a docker or podman bridge address from being the first thing a
@@ -362,27 +362,26 @@ with `check` left out - prints as its own trailing line.
 ### Others
 
 `_HI_DISABLE_LOCAL` is "leave my own machine alone, but give me hi everywhere I
-connect to"; a session is told apart by
-[`$_HI_REMOTE_SESSION`](#not-settings). A prompt or shell framework of your
-own on this machine is
-[Integrations' _On your own machine_](INTEGRATIONS.md#on-your-own-machine),
-and what hi writes there outside `~/.config/say-hi/` is
+connect to"; a session is told apart by [`$_HI_REMOTE_SESSION`](#not-settings).
+A prompt or shell framework of your own on this machine is
+[Integrations' _On your own machine_](INTEGRATIONS.md#on-your-own-machine), and
+what hi writes there outside `~/.config/say-hi/` is
 [FILES.md](FILES.md#what-hi-creates-on-this-machine).
 
 Every styled hi prompt (not the bash-less `sh` one) emits
 [OSC 133](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md)
-marks where each prompt, command, and output begins, and OSC 7 with the
-working directory (percent-encoded), for terminals that read them — kitty,
-WezTerm, ghostty, foot, iTerm2, Konsole; the rest drop them. None go out on
-`TERM=dumb`, to anything but a terminal, or while kitty's, ghostty's,
-WezTerm's, or iTerm2's own shell integration is sending its set, which each
-prompt checks for. A shell left from its prompt
-(Ctrl-D) closes the last prompt's pair on its way out, so Konsole's semantic
-hints stop there instead of shading the parent shell's lines. `load.sh` sends
-the closing "command finished" mark a session's `exit` never gets to —
-without it Konsole sends ↑ as ← until the next prompt — and a session that
-ends any other way gets it from the client, with a reset of the terminal
-modes a remote program may have left on ([HI.53](GLOSSARY.md#hi53-terminal-reset-after-a-failed-session)).
+marks where each prompt, command, and output begins, and OSC 7 with the working
+directory (percent-encoded), for terminals that read them — kitty, WezTerm,
+ghostty, foot, iTerm2, Konsole; the rest drop them. None go out on `TERM=dumb`,
+to anything but a terminal, or while kitty's, ghostty's, WezTerm's, or iTerm2's
+own shell integration is sending its set, which each prompt checks for. A shell
+left from its prompt (Ctrl-D) closes the last prompt's pair on its way out, so
+Konsole's semantic hints stop there instead of shading the parent shell's lines.
+`load.sh` sends the closing "command finished" mark a session's `exit` never
+gets to — without it Konsole sends ↑ as ← until the next prompt — and a session
+that ends any other way gets it from the client, with a reset of the terminal
+modes a remote program may have left on
+([HI.53](GLOSSARY.md#hi53-terminal-reset-after-a-failed-session)).
 
 ### Shells you drop into inside a session
 
@@ -405,11 +404,12 @@ survives is `sudo <command>`, whose one command gets hi's aliases through the
 `sudo` alias.
 
 hi ships nobody's shell preferences — no history sizing, keybindings, `zstyle`
-rules, or fish palette; each rc carries the prompt, the completions, and the
-git segment. Your readline bindings ride on their own, as the
-[`inputrc`](INTEGRATIONS.md#readline) you already keep. Shell code of your own goes in one of three overlay files, which
-differ in dialect, in when they load, and in whether an `export` there reaches
-programs started from the shell ([HI.47](GLOSSARY.md#hi47-what-a-child-inherits)):
+rules, or fish palette; each rc carries the prompt, the completions, and the git
+segment. Your readline bindings ride on their own, as the
+[`inputrc`](INTEGRATIONS.md#readline) you already keep. Shell code of your own
+goes in one of three overlay files, which differ in dialect, in when they load,
+and in whether an `export` there reaches programs started from the shell
+([HI.47](GLOSSARY.md#hi47-what-a-child-inherits)):
 
 | file                             | dialect                                                        | sourced                                                       | an `export` reaches children |
 | -------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------- |
@@ -418,8 +418,8 @@ programs started from the shell ([HI.47](GLOSSARY.md#hi47-what-a-child-inherits)
 | `bashrc`, `zshrc`, `config.fish` | that shell's own, in full                                      | last, at the end of hi's rc for that shell                    | yes                          |
 
 The per-shell file is sourced at the end of hi's, in the same dialect, and
-wins - `HISTFILE` included; hi sets none. At home it may source your own `~/.bashrc` or
-`~/.zshrc`: re-entered while it loads, hi's rc returns at once
+wins - `HISTFILE` included; hi sets none. At home it may source your own
+`~/.bashrc` or `~/.zshrc`: re-entered while it loads, hi's rc returns at once
 ([HI.55](GLOSSARY.md#hi55-re-entrant-rc-guard)). On a target that line does
 nothing - `~/.bashrc` there is the target's, which the session already read
 first, and a `source` of a path hi does not carry goes out disabled
@@ -434,14 +434,13 @@ ln -s ~/.zshrc ~/.config/say-hi/zshrc
 ```
 
 Every session then sources it after hi's rc, on this machine too. Lines that
-read a file the target will not have - a second rc beside it, a plugin
-manager's bootstrap - are disabled on the way out and named by `hi --doctor`;
-a `# hi-allow` comment above one sends it as written (`# hi-quiet` drops it
-without the row), and the file rides
-comment-stripped, so a long rc costs a few KB on the wire
-([Integrations](INTEGRATIONS.md#config-sizes)). Your `aliases.sh` likewise
-loads **after** `common/aliases.sh`, so an `alias` there replaces hi's of
-the same name, and can build on hi's flags rather than restate them:
+read a file the target will not have - a second rc beside it, a plugin manager's
+bootstrap - are disabled on the way out and named by `hi --doctor`; a
+`# hi-allow` comment above one sends it as written (`# hi-quiet` drops it
+without the row), and the file rides comment-stripped, so a long rc costs a few
+KB on the wire ([Integrations](INTEGRATIONS.md#config-sizes)). Your `aliases.sh`
+likewise loads **after** `common/aliases.sh`, so an `alias` there replaces hi's
+of the same name, and can build on hi's flags rather than restate them:
 
 ```sh
 alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"      # hi's flags, plus one
@@ -479,13 +478,12 @@ command -v kubectl >/dev/null 2>&1 &&
   export _HI_SEGMENT='kubectl config current-context'
 ```
 
-It is a command and its words, split at spaces and run as they stand -
-no pipe, quote, `$( )`, or glob - before every prompt, so keep it fast; for
-more, name a script of your own. Each extension sets its own; hi collects
-them in load order. The whole contract is
-[HI.59](GLOSSARY.md#hi59-extensions). Before 1.0 the directory was
-`plugins.d`; one still under that name is not read, and `hi --doctor` names
-it with the `mv` that fixes it.
+It is a command and its words, split at spaces and run as they stand - no pipe,
+quote, `$( )`, or glob - before every prompt, so keep it fast; for more, name a
+script of your own. Each extension sets its own; hi collects them in load order.
+The whole contract is [HI.59](GLOSSARY.md#hi59-extensions). Before 1.0 the
+directory was `plugins.d`; one still under that name is not read, and
+`hi --doctor` names it with the `mv` that fixes it.
 
 ### Switching a plugin off
 
@@ -552,20 +550,19 @@ taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc
   directory; a flag written `--rc=` takes the path in the same word;
   several wires a `;` apart), `xdg:` and the command to alias with
   `$XDG_CONFIG_HOME` set to the overlay, or `-` when something of yours
-  points at `$_HI_CONFIG_DIR/<member>`, a [extension](#extensions)'s alias
+  points at `$_HI_CONFIG_DIR/<member>`, an [extension](#extensions)'s alias
   say. `xdg:` is the fallback, for a file a tool has no variable and no
   flag for, such as helix's `languages.toml`: it reads the file as
   `<tool>/<file>`, the shape the member's name gives it, but every program
   the command starts inherits the variable, so a `git` under lazygit would
   not read the target's `~/.config/git`
   ([INTEGRATIONS.md](INTEGRATIONS.md#a-tool-with-no-variable-and-no-flag)).
-- **home** is where the file is here, candidates a `:` apart, the first
-  that exists winning. A candidate starts at `/`, at `~/`, or at a
-  variable's name (`$XDG_CONFIG_HOME/...`), and is skipped while that
-  variable is unset; written as several a `,` apart
-  (`$TASKRC , ~/.taskrc`), it is the first of them not skipped, the way a
-  tool looks in its default place only once its variable is unset. Nothing
-  else in it expands, and nothing in it runs.
+- **home** is where the file is here, candidates a `:` apart, the first that
+  exists winning. A candidate starts at `/`, at `~/`, or at a variable's name
+  (`$XDG_CONFIG_HOME/...`), and is skipped while that variable is unset; written
+  as several a `,` apart (`$TASKRC , ~/.taskrc`), it is the first of them not
+  skipped, the way a tool looks in its default place only once its variable is
+  unset. Nothing else in it expands, and nothing in it runs.
 - **dialect**, left out or `-`, has the file ride as written. Named, it is
   read the way hi reads its own configs: a line that sources a file no
   target has is disabled on the way out and named by `hi --doctor`, and
@@ -573,13 +570,13 @@ taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc
   `elisp`, `nano`, `tmux`, `screen`, `readline`, `kak`, `kdl`, `omp`,
   `omp-json`, and `conf` (`#` comments and nothing to source).
 
-`hi --add-plugin cli taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes
-the first row above (a dialect goes after the home), quoted so the shell leaves its `$` and `~` alone, and
-refuses a row hi could not read; `hi --remove-plugin taskrc` takes it out.
-To change one, edit the file. `hi --plugins` and `hi --doctor` name each
-file a row carries, and each row hi could not read, with the reason. The
-variable or alias is set on a target only; at home the tool goes on reading
-its own config. The whole contract is
+`hi --add-plugin cli taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes the
+first row above (a dialect goes after the home), quoted so the shell leaves its
+`$` and `~` alone, and refuses a row hi could not read;
+`hi --remove-plugin taskrc` takes it out. To change one, edit the file.
+`hi --plugins` and `hi --doctor` name each file a row carries, and each row hi
+could not read, with the reason. The variable or alias is set on a target only;
+at home the tool goes on reading its own config. The whole contract is
 [HI.63](GLOSSARY.md#hi63-plugins-rows).
 
 ## The editor rcs come from where you keep them
@@ -609,32 +606,31 @@ starts on the target's own config; a home config rides only with its tool
 installed here. On a target the lookup is off: `$HOME` there is the
 target's, and the file your client picked has already arrived.
 
-The aliases are a target's. There `vim`, `nvim`, `hx` or `helix`, `nano`, `emacs`,
-`micro`, `tmux`, `screen`, and `zellij` each name the file that rode, where
-the target has the command. Here none of them is aliased, overlay copy or
-not: every tool reads its own config, and `vim -u` or `nano --rcfile` would
-skip the system rc besides.
+The aliases are a target's. There `vim`, `nvim`, `hx` or `helix`, `nano`,
+`emacs`, `micro`, `tmux`, `screen`, and `zellij` each name the file that rode,
+where the target has the command. Here none of them is aliased, overlay copy or
+not: every tool reads its own config, and `vim -u` or `nano --rcfile` would skip
+the system rc besides.
 
 Your own config is written for a machine with your plugins on it, and a target
 has none. So hi reads each of these files — and the overlay's `settings.sh`,
-`aliases.sh`, `extensions/` and `header/` members, per-shell rc files, and
-the prompt configs it carries — for lines naming something it cannot carry:
-vim's `source`, lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's `include`,
-elisp's `load`, tmux's `source-file` and TPM, screen's `source`, readline's
-`$include` of anything but `/etc/inputrc`, zellij's
-`layout_dir`/`theme_dir` and file plugins, oh-my-posh's `extends` of a
-local file (emptied, since JSON has no comment), a shell's `source`/`.` of a
-file outside `$_HI_CONFIG_DIR` (a framework theme may also source its own
-tree - `$ZSH`, `$OSH`, `$BASH_IT` - see
-[INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and every plugin
-manager's bootstrap. Those are disabled on the way out, and
-`hi --doctor` names each, file and line, in yellow. One naming a file of the
-tool's own directory - `source-file ~/.config/tmux/theme.conf`, vim's `source
-~/.vim/keys.vim` - is carried instead: the file rides beside the member and
-the include reads it there
-([HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan)). Two comments on the line
-above one, in the file's own syntax (`# hi-allow`, or `" hi-allow` in vim),
-decide that line alone:
+`aliases.sh`, `extensions/` and `header/` members, per-shell rc files, and the
+prompt configs it carries — for lines naming something it cannot carry: vim's
+`source`, lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's
+`include`, elisp's `load`, tmux's `source-file` and TPM, screen's `source`,
+readline's `$include` of anything but `/etc/inputrc`, zellij's
+`layout_dir`/`theme_dir` and file plugins, oh-my-posh's `extends` of a local
+file (emptied, since JSON has no comment), a shell's `source`/`.` of a file
+outside `$_HI_CONFIG_DIR` (a framework theme may also source its own tree -
+`$ZSH`, `$OSH`, `$BASH_IT` - see
+[INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)), and every plugin manager's
+bootstrap. Those are disabled on the way out, and `hi --doctor` names each, file
+and line, in yellow. One naming a file of the tool's own directory -
+`source-file ~/.config/tmux/theme.conf`, vim's `source ~/.vim/keys.vim` - is
+carried instead: the file rides beside the member and the include reads it there
+([HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan)). Two comments
+on the line above one, in the file's own syntax (`# hi-allow`, or `" hi-allow`
+in vim), decide that line alone:
 
 - `hi-allow` sends it as written and silences its row - for a file you know
   every target has.
@@ -658,8 +654,8 @@ names it; an end with no start is ignored. An allow pair inside a quiet one
 keeps its lines.
 
 There is no switch that sends them all.
-[HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan) is the whole mechanism,
-including what it cannot see.
+[HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan) is the whole
+mechanism, including what it cannot see.
 
 ## Keeping the overlay in a dotfile manager
 

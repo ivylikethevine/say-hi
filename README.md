@@ -86,12 +86,11 @@ along anyway.
 ### One Config Directory, Every Host, Every Shell
 
 `~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
-bash session on a debian container and a fish session on an alpine box,
-reached through docker and podman. The operator again, in fish's own prompt
-at the workstation and hi's on both boxes, with the header trimmed to the
-clocks, the backend counts, and the check on a blue-to-red ramp of their
-own. A box with no bash gets the aliases-only tier —
-hi's own aliases, not the overlay
+bash session on a debian container and a fish session on an alpine box, reached
+through docker and podman. The operator again, in fish's own prompt at the
+workstation and hi's on both boxes, with the header trimmed to the clocks, the
+backend counts, and the check on a blue-to-red ramp of their own. A box with no
+bash gets the aliases-only tier — hi's own aliases, not the overlay
 ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on an alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
@@ -162,7 +161,7 @@ row, and everything answered **no**, and why:
   ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 - **A slow link**: the ssh wire is meant to stay at or under 128 KB — 8 s over
   a 128 kbps link — and the gzipped payload is held to 64 KB by the bench
-  group. Today's (the payload badge above) is about half the 128.
+  group. The payload badge above is today's wire size.
 - **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
   out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
@@ -210,10 +209,9 @@ row, and everything answered **no**, and why:
   either way). Then reload your shell. zsh completes `hi` through the
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
-- `hi --configure` reopens the settings menu: pick a preset, or flip any
-  setting in its one list — Header, Prompt, Editors, Aliases, This machine,
-  Advanced — and save to
-  `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+- `hi --configure` reopens the settings menu: pick a preset, or flip any setting
+  on its pages — Header, Prompt, Plugins, Aliases, This machine, Advanced — and
+  save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
@@ -269,10 +267,11 @@ The overlay file table, the settings menu, and every setting are in
 target has them — your prompt program, mise, direnv, bat, eza, and more — are
 [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
-**_IMPORTANT: every overlay file in that directory is copied to every host
-you say `hi` to — keep local-only lines (a token, an internal hostname) in
+**_IMPORTANT: every overlay file in that directory is copied to every host you
+say `hi` to — keep local-only lines (a token, an internal hostname) in
 `~/.bashrc` and friends instead._** What lands on a target, and that it is
-removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
+removed on exit:
+[docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, Username, and Group/Tag Colors
 

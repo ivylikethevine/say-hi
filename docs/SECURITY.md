@@ -19,9 +19,9 @@ to report what slipped through it.
 ## What hi does - and deliberately doesn't
 
 - **No network calls of its own.** `hi` only execs the transports you already
-  use (`ssh`, `docker exec`, `podman exec`, `nerdctl exec`, `finch exec`, `nomad alloc exec`, `kubectl exec`)
-  against a target you named. No telemetry, no update checks, no
-  `curl`/`wget` in the shipped tree.
+  use (`ssh`, `docker exec`, `podman exec`, `nerdctl exec`, `finch exec`,
+  `nomad alloc exec`, `kubectl exec`) against a target you named. No telemetry,
+  no update checks, no `curl`/`wget` in the shipped tree.
 - **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`, or
   a package built from that same script
   ([PACKAGING.md's _Install channels_](PACKAGING.md#install-channels)).
@@ -45,11 +45,11 @@ to report what slipped through it.
   [What hi writes on a target](#what-hi-writes-on-a-target) is the whole list,
   and names what a prompt program or your own per-shell files write on their
   own account.
-- **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr,
-  so the server's `Banner`, the `Permanently added ... to the list of known
-hosts` line and the host-key fingerprint on a first connection reach your
-  terminal exactly as they would without hi. Capturing them would turn
-  trust-on-first-use into accepting a fingerprint nobody was shown.
+- **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr, so
+  the server's `Banner`, the `Permanently added ... to the list of known hosts`
+  line and the host-key fingerprint on a first connection reach your terminal
+  exactly as they would without hi. Capturing them would turn trust-on-first-use
+  into accepting a fingerprint nobody was shown.
 - **`hi --update` reads the tag's signature before checking it out**, from
   `git verify-tag`'s output rather than its exit code, SSH signatures checked
   against the checkout's own `.github/allowed_signers`: a failing signature
@@ -82,7 +82,8 @@ session's opens. All three are `tests/targets/ssh_test.sh` cases.
 
 ## What hi writes on a target
 
-Default answer: one directory (two over ssh), and only for the life of the session.
+Default answer: one directory (two over ssh), and only for the life of the
+session.
 
 | what              | where, in the target's temp directory, mode 0700                                             | when                                                               |
 | ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -133,21 +134,20 @@ command.
 - hi's security model is the transport's. It adds no authentication, listens on
   nothing, and anyone positioned to intercept or control your ssh/container
   session could do so without hi in it. Backend dispatch trusts your local
-  `~/.ssh/config` and your `docker`/`podman`/`nerdctl`/`finch`/`nomad`/`kubectl` CLIs — the same
-  ones you already run.
+  `~/.ssh/config` and your `docker`/`podman`/`nerdctl`/`finch`/`nomad`/`kubectl`
+  CLIs — the same ones you already run.
 - A malicious target gets what any interactive session gives it: your payload
-  and a terminal. Treat every overlay file as public to every host you
-  visit, `ssh_tags` included: it names the hosts your `~/.ssh/config` tags,
-  and only those, with nothing of how to reach them.
-  Nothing a target sends back is executed on the client. The one string hi
-  reads back and uses - the scratch directory the target made (the ssh
-  bootstrap's, or a container's session tree) - reaches a command run back on
-  that target only if absolute and built from an allow list of path
-  characters (`_hi_safe_path`); otherwise ssh hands over the host's own
-  session and a container connect fails. Escape sequences in session output
-  remain possible, exactly as with plain `ssh`; hi's own connect-failure
-  report prints a target's stderr as text, so a backslash sequence a target
-  wrote stays one.
+  and a terminal. Treat every overlay file as public to every host you visit,
+  `ssh_tags` included: it names the hosts your `~/.ssh/config` tags, and only
+  those, with nothing of how to reach them. Nothing a target sends back is
+  executed on the client. The one string hi reads back and uses - the scratch
+  directory the target made (the ssh bootstrap's, or a container's session
+  tree) - reaches a command run back on that target only if absolute and built
+  from an allow list of path characters (`_hi_safe_path`); otherwise ssh hands
+  over the host's own session and a container connect fails. Escape sequences in
+  session output remain possible, exactly as with plain `ssh`; hi's own
+  connect-failure report prints a target's stderr as text, so a backslash
+  sequence a target wrote stays one.
 - A tool your per-shell files start on a target runs under that target's own
   config for it, not yours: an atuin logged in to a sync server there syncs
   the session's history like any other shell's on that box.

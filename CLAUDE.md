@@ -26,12 +26,12 @@ _HI_HOME="$(dirname "$PWD")" tests/test_runner.sh --group fast   # ~15s
 _HI_HOME="$(dirname "$PWD")" tests/test_runner.sh --group lint   # ~30s
 ```
 
-Without the `npm ci`, the lint group skips markdownlint and prettier yellow,
-and CI, which has them, fails what that run let through. Run both groups at
-the **end** of a multi-step change; after touching a shipped file add
-`--group bench`. Before calling an ssh or container change done, try `--group
-e2e` and `--group backends` too, and read the STATUS/SKIP columns: a yellow
-SKIPPED means "did not run", never green.
+Without the `npm ci`, the lint group skips markdownlint and prettier yellow, and
+CI, which has them, fails what that run let through. Run both groups at the
+**end** of a multi-step change; after touching a shipped file add
+`--group bench`. Before calling an ssh or container change done, try
+`--group e2e` and `--group backends` too, and read the STATUS/SKIP columns: a
+yellow SKIPPED means "did not run", never green.
 
 - A new suite's home, preamble (GLOSSARY: HI.34), and registration are
   [docs/TESTING.md's _Where a suite lives_](docs/TESTING.md#where-a-suite-lives).
@@ -115,13 +115,13 @@ PATH=/tmp/dashsh:$PATH _HI_HOME="$(dirname "$PWD")" \
   tests/test_runner.sh --group fast
 ```
 
-**"Only `.yml`/`.md`" is _not_ prose only.** Skipping the suites is right for
-a prose-only diff, but `.github/workflows/*.yml`,
+**"Only `.yml`/`.md`" is _not_ prose only.** Skipping the suites is right for a
+prose-only diff, but `.github/workflows/*.yml`,
 `.github/pull_request_template.md`, `docs/GLOSSARY.md`, `docs/SETTINGS.md`'s
 _Every setting_ table, `docs/hi.1`, `docs/tldr.md`, every doc's `## Contents`
-block, `docs/PACKAGING.md`'s `minisign -Vm` line, and
-`packaging/nfpm/nfpm.yaml` are all machine-read by a suite, and `README.md`'s
-payload badge by `--group bench`.
+block, `docs/PACKAGING.md`'s `minisign -Vm` line, and `packaging/nfpm/nfpm.yaml`
+are all machine-read by a suite, and `README.md`'s payload badge by
+`--group bench`.
 
 ## Docs rules
 
