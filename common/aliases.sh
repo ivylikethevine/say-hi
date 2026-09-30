@@ -28,14 +28,14 @@ command -v shift >/dev/null 2>&1 &&
 # $_HI_BAT_OPTS - cat and ccat reject that syntax, so the options only ever
 # attach behind it.
 # GLOSSARY: HI.13.
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && type _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_CAT_BIN bat batcat ccat cat && export _HI_CAT_BIN || true
-type _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_CAT_BIN" ] || export _HI_CAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat)"
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && type _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_BAT_BIN bat batcat && export _HI_BAT_BIN || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_CAT_BIN bat batcat ccat cat && export _HI_CAT_BIN || true
+command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_CAT_BIN" ] || export _HI_CAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat)"
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_BAT_BIN bat batcat && export _HI_BAT_BIN || true
 # shellcheck disable=SC2015 # `|| true` only keeps a failed unalias from ending the chain
-type _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_BAT_BIN" ] || export _HI_BAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat)"
+command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_BAT_BIN" ] || export _HI_BAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat)"
 # one ladder behind all three list names below, newest first
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && type _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_LS_BIN eza exa ls && export _HI_LS_BIN || true
-type _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_LS_BIN" ] || export _HI_LS_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v exa || command -v ls)"
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_LS_BIN eza exa ls && export _HI_LS_BIN || true
+command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_LS_BIN" ] || export _HI_LS_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v exa || command -v ls)"
 
 # The editors', tmux's, screen's, and zellij's aliases are not here: each is
 # a line of the overlay's wiring.sh, written from hi.sh's table for the
@@ -70,10 +70,10 @@ type _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_
 # taken; an ls that refuses it colors through CLICOLOR, or not at all.
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS='-F -1 -l -m --group-directories-first --group --no-filesize' || true
-[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && type _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
-type _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza)" ] || export _HI_LS_OPTS="$_HI_EZA_OPTS"
-[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && type _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" exa && export _HI_LS_OPTS="$_HI_EXA_OPTS" || true
-type _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v exa)" ] || export _HI_LS_OPTS="$_HI_EXA_OPTS"
+[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
+command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza)" ] || export _HI_LS_OPTS="$_HI_EZA_OPTS"
+[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" exa && export _HI_LS_OPTS="$_HI_EXA_OPTS" || true
+command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v exa)" ] || export _HI_LS_OPTS="$_HI_EXA_OPTS"
 [ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS="-F -l$(command ls --color=auto -d / >/dev/null 2>&1 && echo ' --color=auto')" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
