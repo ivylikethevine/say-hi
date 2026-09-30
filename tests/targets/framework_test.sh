@@ -282,6 +282,8 @@ function _hi_run_framework_case() {
   tools)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
+    # helix's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
+    local -x _HI_XDG_CONFIG="$XDG_CONFIG_HOME"
     # home's configs ride only with their tools here; git is the runner's own
     local stubs
     stubs="$(_hi_stub_tools hx kak lazygit)"
