@@ -270,14 +270,16 @@ function show_preview() {
 }
 
 # The header's cells are memoized per shell (_HI_SI_* by
-# _hi_system_info_probe, _HI_ID_* by _hi_identity_probe - the latter waits on
-# the docker/nomad/kubectl probes, up to $_HI_PROBE_TIMEOUT). Paid once here,
+# _hi_system_info_probe, _HI_ID_* by _hi_identity_probe and _hi_backend_probe -
+# the latter waits on the docker/nomad/kubectl probes, up to
+# $_HI_PROBE_TIMEOUT). Paid once here,
 # in the shell that runs the menus, so every `$( )` render below inherits the
 # memo instead of probing the backends again per keystroke.
 function _hi_probe_once() {
   _hi_load_preview_sources
   _hi_system_info_probe
   _hi_identity_probe
+  _hi_backend_probe
   _hi_header_version >/dev/null
 }
 

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Prettier's own Markdown parser with a preprocess step that writes the
 // generated parts of a doc before it is formatted: each `## Contents` list,
-// from the page's `##` and `###` headings, and the `## Every setting` table,
-// from scripts/settings' rows. `prettier --write --plugin
+// from the page's `##` and `###` headings, the `## Every setting` table, from
+// scripts/settings' rows, and the `## Every command` sections, from
+// common/flags and docs/tapes/usage. `prettier --write --plugin
 // ./.github/prettier-plugin-docs.mjs` writes them, and the lint gate's
-// `--check` with the same flag fails a doc whose list or table is stale, so a
-// new heading or setting needs no edit of the doc. .prettierrc.yaml does not
-// name the plugin: that file is kept byte-identical across repos.
+// `--check` with the same flag fails a doc whose generated part is stale, so a
+// new heading, setting, or flag needs no edit of the doc. .prettierrc.yaml
+// does not name the plugin: that file is kept byte-identical across repos.
 import { readFileSync } from "node:fs";
 import { parsers as markdownParsers } from "prettier/plugins/markdown";
 
@@ -106,12 +107,85 @@ function writeSettings(text) {
   return lines.join("\n");
 }
 
+// The rows of a `|`-separated table file, comments and blanks left out.
+function tableRows(path) {
+  return readFileSync(new URL(path, import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => l && !l.startsWith("#"))
+    .map((l) => l.split("|"));
+}
+
+// Prose from a table cell: nothing in it reads as markup.
+function plain(text) {
+  return text.replace(/[\\`*_<>[\]]/g, "\\$&");
+}
+
+const usageImages = "https://ivylikethevine.github.io/say-hi/docs/tapes";
+// what a row's <needs> adds to its section; `scripts` is USAGE.md's rule
+const usageNeeds = {
+  "-": "Works in a session too.",
+  git: "Needs a git checkout, which a package is not.",
+};
+
+// Everything under `## Every command` up to the next `##`: a section per row of
+// common/flags, with docs/tapes/usage's examples as images docs/tapes/usage.sh
+// renders and pages.yml serves. A flag either file lacks is an error, so a new
+// flag cannot pass the lint gate without an example row.
+function writeUsage(text) {
+  const lines = text.split("\n");
+  const at = lines.indexOf("## Every command");
+  if (at < 0) return text;
+  let end = at + 1;
+  while (end < lines.length && !/^## /.test(lines[end])) end++;
+  const flags = tableRows("../common/flags");
+  const examples = new Map();
+  let last = "";
+  for (const [flag, example = ""] of tableRows("../docs/tapes/usage")) {
+    if (!flags.some((f) => f[0] === flag))
+      throw new Error(`docs/tapes/usage: ${flag} is not a row of common/flags`);
+    // usage.sh numbers a flag's images by counting adjacent rows
+    if (flag !== last && examples.has(flag))
+      throw new Error(`docs/tapes/usage: ${flag}'s rows are not together`);
+    if (!examples.has(flag)) examples.set(flag, []);
+    examples.get(flag).push(example);
+    last = flag;
+  }
+  const out = [""];
+  for (const [flag, arg, needs, , , help] of flags) {
+    const rows = examples.get(flag);
+    if (!rows)
+      throw new Error(`docs/tapes/usage has no row for ${flag} (common/flags)`);
+    out.push(
+      `### \`hi ${flag}\``,
+      "",
+      `\`hi ${flag}${arg ? ` ${arg}` : ""}\`: ${plain(help)}. ${usageNeeds[needs] ?? ""}`.trimEnd(),
+      "",
+    );
+    rows.forEach((example, i) => {
+      if (example === "-") {
+        out.push(
+          needs === "-"
+            ? "It changes how a connect runs, which the [README's demos](../README.md) show."
+            : "No image: its output depends on the network and the release tags.",
+          "",
+        );
+        return;
+      }
+      const cmd = `hi ${flag}${example ? ` ${example}` : ""}`;
+      const slug = flag.slice(2) + (i ? `-${i + 1}` : "");
+      out.push(`![${plain(cmd)}](${usageImages}/usage-${slug}.svg)`, "");
+    });
+  }
+  lines.splice(at + 1, end - at - 1, ...out);
+  return lines.join("\n");
+}
+
 export const parsers = {
   markdown: {
     ...builtin,
     preprocess(text, options) {
       const pre = builtin.preprocess ? builtin.preprocess(text, options) : text;
-      return writeSettings(writeContents(pre));
+      return writeSettings(writeContents(writeUsage(pre)));
     },
   },
 };

@@ -128,7 +128,8 @@ All **dev**: the inputs a release builds from.
 
 **dev**, except `docs/hi.1`, the man page a package installs. The docs are
 indexed in [README.md](README.md); `docs/tapes/` holds the VHS demo tapes,
-their fixtures, `generate.sh` to render them, and `demo.gif`.
+their fixtures, `generate.sh` to render them, and `demo.gif`, plus
+[USAGE.md](USAGE.md)'s examples (`usage`) and `usage.sh` to render them.
 
 ### tests/
 
@@ -149,15 +150,15 @@ All **dev**; [TESTING.md](TESTING.md) is the full layout.
 ### .github/
 
 All **dev**. `workflows/` holds CI (`ci.yml` and the BSD and Windows runs it
-calls), coverage, release and publishing, the docs site and demos, the link,
-tool-pin, and release-note checks, and the scanners, each header saying when
-it runs; `actions/` the composite actions they share (shells, backends,
-`setup-tool/tools.txt`'s pinned tool roster); `scripts/` the helpers they
-call; plus the issue and pull request templates, `CODEOWNERS`,
+calls), coverage, release and publishing, the docs site, demos, and usage
+images, the link, tool-pin, and release-note checks, and the scanners, each
+header saying when it runs; `actions/` the composite actions they share
+(shells, backends, `setup-tool/tools.txt`'s pinned tool roster); `scripts/`
+the helpers they call; plus the issue and pull request templates, `CODEOWNERS`,
 `dependabot.yml`, `allowed_signers` (the keys a release tag may be signed
 with), `package.json`/`package-lock.json` (the pinned Markdown linters), and
-`prettier-plugin-docs.mjs` (writes each doc's `## Contents` list and the
-settings table as prettier formats them).
+`prettier-plugin-docs.mjs` (writes each doc's `## Contents` list, the
+settings table, and USAGE.md's commands as prettier formats them).
 
 ## Your files
 
@@ -375,8 +376,8 @@ target's own rc first, then re-points `_HI_HOME`, `_HI_ROOT`, and
 | File          | For                                                                                                               |
 | ------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `bashrc`      | `bash --rcfile`: `~/.bashrc`, then `common/bash.sh`                                                               |
-| `.zshenv`     | `ZDOTDIR` points here, so this shim sources `~/.zshenv`                                                           |
-| `.zshrc`      | `~/.zshrc`, then `common/zsh.zsh`                                                                                 |
+| `.zshenv`     | `ZDOTDIR` points here: sources `~/.zshenv` with `ZDOTDIR` unset, keeps where it left it, points it back           |
+| `.zshrc`      | the `.zshrc` in that `ZDOTDIR` (`~/.zshrc` by default), read under it, then `common/zsh.zsh`                      |
 | `fish.config` | `fish -C`: blanks `fish_greeting`, then `common/config.fish` (fish has read `~/.config/fish/config.fish` already) |
 | `shrc`        | `$ENV` for sh, dash, and ash: `common/paths.sh` and `common/aliases.sh`                                           |
 

@@ -53,6 +53,9 @@ fi
 # common/paths.sh sources there ahead of this file
 # shellcheck source=/dev/null # the scenario's own, written a run ago
 [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || . "$_HI_CONFIG_DIR/wiring.sh" || exit 1
+# core.sh's resolver, as bash.sh and zsh.zsh have it loaded ahead of this file
+# shellcheck source=/dev/null # cut from core.sh a run ago
+[ -z "${_HI_CORE_HELPERS:-}" ] || . "$_HI_CORE_HELPERS" || exit 1
 . "$_HI_ALIASES" || exit 1
 fail=0
 
@@ -316,6 +319,38 @@ function run_preexisting_alias_test() {
   done
 }
 
+# bash and zsh resolve through core.sh's _hi_path_lookup where the runs above
+# take the `$( )` fallbacks: the same ladders again with it loaded, a
+# directory named like a rung skipped, and an alias the shell already had
+# ignored (GLOSSARY: HI.13)
+function run_path_lookup_tests() {
+  _hi_h1 "The ladders through core.sh's _hi_path_lookup"
+  local helpers="$_HI_WORKDIR/path_lookup.sh" var name cands installed expect fakepath shell
+  sed -n -e '/^function _hi_path_lookup()/,/^}/p' -e '/^function _hi_bin_is()/,/^}/p' \
+    "$_HI_ROOT/common/core.sh" >"$helpers"
+  for shell in bash zsh; do
+    case " $_HI_INSTALLED_SHELLS " in *" $shell "*) ;; *) continue ;; esac
+    for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza exa ls"; do
+      name="${var%%:*}" cands="${var#*:}"
+      for installed in "$cands" "${cands##* }" ""; do
+        expect="$(_hi_expect_winner "$cands" "$installed")"
+        # shellcheck disable=SC2086 # $installed is an intentionally unquoted word list
+        fakepath="$(_hi_fake_path "fpl_${name}_$(echo "$installed" | tr -d ' ')" $installed)"
+        _hi_case _hi_run_scenario "$shell" "$fakepath" "$name installed=[${installed:-none}] -> want [${expect:-empty}]" \
+          _HI_CORE_HELPERS="$helpers" _HI_CHECK_VAR="$name" \
+          _HI_EXPECT="$([ -n "$expect" ] && printf '%s/%s' "$fakepath" "$expect" || printf '')"
+      done
+    done
+    fakepath="$(_hi_fake_path fpl_dir_rung exa ls)"
+    mkdir -p "$fakepath/eza"
+    _hi_case _hi_run_scenario "$shell" "$fakepath" "a directory named eza is passed over" \
+      _HI_CORE_HELPERS="$helpers" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/exa"
+    fakepath="$(_hi_fake_path fpl_prealias ls)"
+    _hi_case _hi_run_scenario "$shell" "$fakepath" "a prior alias ls= does not poison \$_HI_LS_BIN" \
+      _HI_CORE_HELPERS="$helpers" _HI_PRE_ALIAS="ls=ls --color=auto" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
+  done
+}
+
 # A value settings.sh exports - here _HI_BAT_OPTS - reaches the alias built
 # from it (core.sh and config.fish source settings.sh ahead of this file).
 function run_bat_opts_test() {
@@ -576,6 +611,7 @@ function run_alias_fallthrough_test() {
   run_overlay_tests
   run_overlay_poisoning_test
   run_preexisting_alias_test
+  run_path_lookup_tests
   run_bat_opts_test
   run_session_wrapper_tests
 

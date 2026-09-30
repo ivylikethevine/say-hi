@@ -7,6 +7,7 @@ home, the doc named for it below, and every other page links there.
 
 | Doc                                                                          | Covers                                                                                                                                  |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [Usage](USAGE.md)                                                            | Every `hi --flag` with an example and a picture of what it prints, generated from `common/flags`.                                       |
 | [Settings](SETTINGS.md)                                                      | The wizard, presets, and the config overlay: every toggle and environment variable hi reads.                                            |
 | [Integrations](INTEGRATIONS.md)                                              | The tools hi wires in where a target has them: your prompt program, mise, direnv, bat, eza, tmux, and the rest.                         |
 | [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and rows.                                                  |

@@ -176,7 +176,7 @@ while [ -L "$_HI_SELF" ]; do
     esac ;;
   esac
 done
-_HI_HOME="$(cd -P "$(dirname "$_HI_SELF")/../.." && pwd)"
+_HI_HOME="$(CDPATH='' cd -P "$(dirname "$_HI_SELF")/../.." && pwd)"
 export _HI_HOME
 
 # the same guard hi.sh has, and for the same reason: bash's own "No such

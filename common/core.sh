@@ -36,7 +36,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     */*) _hi_self="${_hi_self%/*}" ;;
     *) _hi_self="." ;;
     esac
-    _HI_HOME="$(cd -P "$_hi_self/../.." && pwd)"
+    _HI_HOME="$(CDPATH='' builtin cd -P "$_hi_self/../.." && pwd)"
     unset _hi_self
   fi
   export _HI_HOME
@@ -444,6 +444,32 @@ function _hi_repeat() {
 # (GLOSSARY: HI.04).
 function _hi_out() {
   if [ -n "$1" ]; then printf -v "$1" '%s' "$2"; else printf '%s' "$2"; fi
+}
+
+# _hi_path_lookup <outvar> <name>... - the first <name> that is an executable
+# file in a $PATH directory, or empty. aliases.sh's resolver in the shells
+# that load this file: a PATH walk sees no alias or function, so it needs
+# neither the `unalias -a` nor the `$( )` fork. GLOSSARY: HI.13
+function _hi_path_lookup() {
+  local _hi_pl_n _hi_pl_d _hi_pl_r
+  printf -v "$1" '%s' ''
+  for _hi_pl_n in "${@:2}"; do
+    _hi_pl_r="$PATH:"
+    while [ -n "$_hi_pl_r" ]; do
+      _hi_pl_d="${_hi_pl_r%%:*}"
+      _hi_pl_r="${_hi_pl_r#*:}"
+      _hi_pl_d="${_hi_pl_d:-.}/$_hi_pl_n"
+      [ -f "$_hi_pl_d" ] && [ -x "$_hi_pl_d" ] && printf -v "$1" '%s' "$_hi_pl_d" && return 0
+    done
+  done
+  return 0
+}
+
+# _hi_bin_is <path> <name> - whether <path> is the <name> _hi_path_lookup finds
+function _hi_bin_is() {
+  local _hi_bi_p
+  _hi_path_lookup _hi_bi_p "$2"
+  [ -n "$_hi_bi_p" ] && [ "$1" = "$_hi_bi_p" ]
 }
 
 # The heading rules (_hi_hrule/_hi_h1/_hi_h2) and _hi_rewrite live in

@@ -1,0 +1,36 @@
+# docs/USAGE.md's examples, one row an image: <flag>|<example>|<setup>
+#
+# <flag> is a row of common/flags, and every row there needs one here: the
+# docs prettier plugin (.github/prettier-plugin-docs.mjs) writes USAGE.md's
+# _Every command_ from both files and fails on a flag either one lacks.
+# Rows print in common/flags' order; a flag's own rows in this file's.
+# <example> is the words after the flag, one space apart (no quoting, no
+# expansion); empty runs the bare flag, and `-` shows no image - a connect
+# modifier, or a command whose output is the network's.
+# <setup> is a hi command run first, unseen, in the same throwaway home.
+# docs/tapes/usage.sh renders each example as usage-<flag>[-<n>].svg, <n>
+# counting a flag's second row and on.
+--help||
+--version||
+--use|-|
+--plain|-|
+--mux|-|
+--no-mux|-|
+--preview|colors|
+--preview|packages|
+--preview|header|
+--doctor|--problems|--install --yes --link user
+--install|--yes --dry-run|
+--uninstall|--dry-run|--install --yes --link user
+--configure|--preset minimal --dry-run|
+--update|-|
+--add-package|useful lazygit,tig --dry-run|
+--remove-package|kubectl --dry-run|
+--add-tag|web-dev dev --dry-run|
+--set-color|hosttag prod red --dry-run|
+--unset-color|username root --dry-run|
+--plugins||--plugin-off mux
+--plugin-off|prompt --dry-run|
+--plugin-on|mux --dry-run|--plugin-off mux
+--add-plugin|cli lnav/config.json lnav - ~/.config/lnav/config.json --dry-run|
+--remove-plugin|lnav/config.json --dry-run|--add-plugin cli lnav/config.json lnav - ~/.config/lnav/config.json

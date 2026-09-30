@@ -473,7 +473,9 @@ skipping yellow when its tool isn't installed (CI has all seven):
 - **12. prettier --check** over the same list, style in `.prettierrc.yaml`,
   skipping `.prettierignore`'s files, with `.github/prettier-plugin-docs.mjs`,
   which writes each doc's `## Contents` list from its `##` and `###`
-  headings: a stale list fails like any other formatting. Fix with
+  headings, SETTINGS.md's table from `scripts/settings`, and USAGE.md's
+  commands from `common/flags` and `docs/tapes/usage`: a stale one fails like
+  any other formatting, and a flag with no usage row fails outright. Fix with
   `prettier --write --plugin ./.github/prettier-plugin-docs.mjs` on the paths
   it names.
 

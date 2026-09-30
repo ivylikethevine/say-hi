@@ -34,7 +34,7 @@ if [ -z "${_HI_HOME:-}" ]; then
       esac ;;
     esac
   done
-  _HI_HOME="$(cd -P "$(dirname "$_hi_self")/.." && pwd)"
+  _HI_HOME="$(CDPATH='' cd -P "$(dirname "$_hi_self")/.." && pwd)"
   unset _hi_self _hi_link
 fi
 export _HI_HOME

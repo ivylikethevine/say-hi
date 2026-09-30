@@ -1,0 +1,63 @@
+name: Usage
+
+# Renders docs/USAGE.md's images (docs/tapes/usage.sh) and ships them as the
+# artifact pages.yml serves beside the demo GIFs. A pull request renders them
+# too, so an example a flag change broke fails there; only a push to main's
+# artifact reaches the site. Nothing is committed back. A workflow of its own
+# rather than a ci.yml job: a merge's CI run skips every job whose tree a PR
+# run already took green, and the site's artifact has to come from main.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: usage-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  render:
+    name: render the usage images
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          # The checkout, setup-tool's download of freeze, and the results
+          # receiver; every command the render runs is local.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            release-assets.githubusercontent.com:443
+            objects.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+
+      # full history, so `hi --version` and the header show git describe
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-tool
+        with:
+          tool: freeze
+
+      - name: Render
+        run: docs/tapes/usage.sh
+
+      # 90 days on main, the site's source until the next push; a pull
+      # request's are for reviewing the change and go sooner
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: usage-svgs
+          path: docs/tapes/usage-*.svg
+          retention-days: ${{ github.event_name == 'push' && 90 || 7 }}
+          if-no-files-found: error

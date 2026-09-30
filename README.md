@@ -233,7 +233,8 @@ row, and everything answered **no**, and why:
   carry a config of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
 - The whole surface is twenty-two flags: `hi --help` (or bare `hi`) lists them,
-  `man hi` is the long form, and everything hi does not answer goes to `ssh`.
+  [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
+  form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
   a flaky link, `hi --mux <target>` starts the session inside a local `tmux`,

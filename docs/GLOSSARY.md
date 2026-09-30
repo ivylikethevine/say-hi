@@ -196,7 +196,10 @@ an alias that was there before hi - a target's `alias ls='ls --color=auto'`, or
 hi's own `vim` alias when an interactive shell re-sources its rc - so each
 `$( )` opens with `type unalias >/dev/null 2>&1 && unalias -a || true &&`,
 clearing aliases in that subshell only (fish has no `unalias` and its
-`command -v` never reports one). `tests/config/alias_fallthrough_test.sh` is the
+`command -v` never reports one). bash and zsh skip those forks: with
+`common/core.sh` loaded, each chain runs through `_hi_path_lookup`, a walk of
+`$PATH` that sees no alias or function, and the `$( )` line runs only where
+that function is not defined. `tests/config/alias_fallthrough_test.sh` is the
 regression test.
 
 ## HI.14 _hi_on_exit
@@ -793,7 +796,12 @@ never written.
 
 Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
 `~/.zshenv` — `ZDOTDIR` moves _all_ of zsh's startup files, not just `.zshrc`),
-then hi's on top, so the host's configuration still applies underneath.
+then hi's on top, so the host's configuration still applies underneath. A
+`~/.zshenv` may set `ZDOTDIR` itself (a `~/.config/zsh` layout), which would
+have zsh read that directory's `.zshrc` and never hi's, so the `.zshenv` shim
+runs it with `ZDOTDIR` unset, keeps what it chose, and points `ZDOTDIR` back at
+hi's directory; the `.zshrc` then sources the target's from there, under that
+`ZDOTDIR`.
 
 Three variables are exported; which shell needs which is the design:
 

@@ -191,6 +191,18 @@ jobs:
           found-message: demo GIFs from run
           missing-message: no successful demos run - the rendered GIFs are missing
 
+      # docs/USAGE.md's images, from usage.yml's newest push to main: none is
+      # committed, so this is their only source, and USAGE.md links their
+      # published URLs beside the GIFs'
+      - name: Fetch the last usage render's images
+        uses: ./.github/actions/fetch-latest-artifact
+        with:
+          workflow: usage.yml
+          artifact-name: usage-svgs
+          dest-subdir: usage
+          found-message: usage images from run
+          missing-message: no successful usage run on main - USAGE.md's images are missing
+
       - name: Write the shields endpoint
         env:
           TOTALS: ${{ runner.temp }}/ci/tests/totals
@@ -203,16 +215,20 @@ jobs:
           # docker, so _site comes back root-owned while this step runs as the
           # runner user, and a plain mkdir under it is denied.
           sudo chown -R "$(id -u):$(id -g)" _site
-          # Every GIF is served from _site/docs/tapes/: the committed demo.gif
-          # first (Jekyll excludes docs/tapes/, so nothing else puts it there),
-          # then the rendered ones beside it, at the very path README.md's and
-          # docs/SETTINGS.md's published URLs resolve to - so a fresh render
+          # Every GIF and usage SVG is served from _site/docs/tapes/: the
+          # committed demo.gif first (Jekyll excludes docs/tapes/, so nothing
+          # else puts it there), then the rendered ones beside it, at the very
+          # path the docs' published URLs resolve to - so a fresh render
           # reaches the site with no link anywhere having to change.
           mkdir -p _site/docs/tapes
           cp docs/tapes/demo.gif _site/docs/tapes/
           if [ -d "$RUNNER_TEMP/demos" ]; then
             cp "$RUNNER_TEMP/demos"/*.gif _site/docs/tapes/ 2>/dev/null || true
             echo "published $(find "$RUNNER_TEMP/demos" -name '*.gif' | wc -l) rendered demo(s)"
+          fi
+          if [ -d "$RUNNER_TEMP/usage" ]; then
+            cp "$RUNNER_TEMP/usage"/*.svg _site/docs/tapes/ 2>/dev/null || true
+            echo "published $(find "$RUNNER_TEMP/usage" -name '*.svg' | wc -l) usage image(s)"
           fi
           mkdir -p _site/badges
           # badge <file> <label> <color> <message> - one shields endpoint object

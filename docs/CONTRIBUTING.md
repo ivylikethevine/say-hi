@@ -66,7 +66,7 @@ workflows.
 ## What CI runs
 
 Every check on your pull request, and whether a red one fails the run or only
-reports. All but the last four rows are `ci.yml`'s.
+reports. All but the last five rows are `ci.yml`'s.
 
 | Job                                                                     | Runs on your PR                                                            | Gate or advisory?                                                |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -87,6 +87,7 @@ reports. All but the last four rows are `ci.yml`'s.
 | `fast suites (Windows client)`                                          | Same-repo PRs, skipped on a workflow- or docs-only diff; eight runners     | Gate, but see below                                              |
 | `release note (pr body)` (`release-note.yml`)                           | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
 | `dependency review` (`dependency-review.yml`)                           | Always; fails on a new dependency with a high or critical advisory         | Gate                                                             |
+| `render the usage images` (`usage.yml`)                                 | Always; runs every `docs/tapes/usage` example                              | Gate                                                             |
 | `CodeQL (actions)` (`codeql.yml`)                                       | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset)                |
 | `coverage.yml`'s kcov and bashcov sweep                                 | Same-repo PRs; posts both figures as a comment                             | Advisory — never blocks a PR; a failed suite publishes no figure |
 
@@ -250,6 +251,7 @@ does not ship.
 | you changed                                            | update                                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | a flag, or `_hi_parse`                                 | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
+| a new flag                                             | its `docs/tapes/usage` row, which writes `docs/USAGE.md` (enforced)      |
 | an environment variable or toggle                      | a row of `scripts/settings`, which writes `docs/SETTINGS.md`'s table     |
 | what hi leaves on a target                             | `docs/SECURITY.md`                                                       |
 | a target hi does or doesn't answer to                  | `docs/COMPATIBILITY.md`                                                  |

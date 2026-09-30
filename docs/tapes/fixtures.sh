@@ -625,7 +625,6 @@ up:packages)
 export _HI_DISABLE_PROMPT='1'
 export _HI_IP_HIDE='none'
 export _HI_PACKAGES_GROUPS='core useful'
-export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
 EOF
   demo_overlay packages <<'EOF'
 # the homelab toolbox, and how loudly to miss each piece
