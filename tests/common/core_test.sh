@@ -1351,17 +1351,22 @@ function test_prompt_tool_needs_setting_program_and_shell() {
 }
 
 # a <shell>:<program> entry is walked first, by its shell alone; with no plain
-# entry the rest is the unset list at home and nothing more on a target
+# entry the rest is the unset list (starship first of the two here) at home,
+# and nothing more on a target. No framework is loaded, so the walk passes
+# over them.
 function test_prompt_tool_per_shell_entries() {
   local p
   p="$(_hi_fake_path star2 starship):$(_hi_fake_path posh2 oh-my-posh)"
-  [ "$(_HI_PROMPT_TOOL="hi bash:starship" PATH="$p" _hi_prompt_tool bash)" = starship ] || return 1
-  ! _HI_PROMPT_TOOL="bash:starship hi" PATH="$p" _hi_prompt_tool zsh || return 1
-  [ "$(_HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || return 1
-  ! _HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool zsh || return 1
-  ! _HI_PROMPT_TOOL="zsh:starship" _HI_REMOTE_SESSION=1 PATH="$p" _hi_prompt_tool bash || return 1
-  # a missing pick falls through to the rest
-  [ "$(_HI_PROMPT_TOOL="bash:powerline-go oh-my-posh" PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || return 1
+  (
+    function _hi_prompt_fw() { return 1; }
+    [ "$(_HI_PROMPT_TOOL="hi bash:oh-my-posh" PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || exit 1
+    ! _HI_PROMPT_TOOL="bash:starship hi" PATH="$p" _hi_prompt_tool zsh || exit 1
+    [ "$(_HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool bash)" = starship ] || exit 1
+    ! _HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool zsh || exit 1
+    ! _HI_PROMPT_TOOL="zsh:starship" _HI_REMOTE_SESSION=1 PATH="$p" _hi_prompt_tool bash || exit 1
+    # a missing pick falls through to the rest
+    [ "$(_HI_PROMPT_TOOL="bash:powerline-go oh-my-posh" PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ]
+  ) || return 1
   _HI_PROMPT_TOOL="zsh:hi" _hi_prompt_named_hi zsh && ! _HI_PROMPT_TOOL="zsh:hi" _hi_prompt_named_hi bash &&
     _HI_PROMPT_TOOL="bash:starship hi" _hi_prompt_named_hi fish
 }
