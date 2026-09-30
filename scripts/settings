@@ -44,7 +44,7 @@ you | _HI_SYMBOL_CONTAINER | `▣` (`#`) | - | - | - | - | - | the same for a do
 you | _HI_SYMBOL_NOMAD | `◆` (`*`) | - | - | - | - | - | the same for a nomad allocation
 you | _HI_SYMBOL_KUBE | `⎈` (`@`) | - | - | - | - | - | the same for a kubernetes pod
 you | NO_COLOR | unset | - | - | - | - | - | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to [`_HI_ASCII`](#not-settings)
-you | _HI_LS_OPTS | the rung's own flags below, else `-F -l` | - | - | - | - | - | the flags the `ls`/`eza`/`exa` alias runs with - set it and it is the whole answer, whichever binary the ladder picked
+you | _HI_LS_OPTS | the rung's own flags below, else `-F -l` (and `--color=auto` where `ls` takes it) | - | - | - | - | - | the flags the `ls`/`eza`/`exa` alias runs with - set it and it is the whole answer, whichever binary the ladder picked
 you | _HI_EZA_OPTS | `-F -1 -l -m --group-directories-first --smart-group` + a time format | - | - | - | - | - | what `_HI_LS_OPTS` defaults to when eza is the rung that answered
 you | _HI_EXA_OPTS | the same leading flags + `--group --no-filesize` | - | - | - | - | - | the same for exa, whose column set its successor dropped
 you | _HI_BAT_OPTS | `-P --tabs 2 --style changes,grid` | - | - | - | - | - | the flags the `bat`/`batn` aliases attach; no `--theme`, so your bat config's theme is the one you see

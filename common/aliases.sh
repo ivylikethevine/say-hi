@@ -58,12 +58,14 @@ command -v shift >/dev/null 2>&1 &&
 # diverge past `-F -l` (--group/--no-filesize is exa's, --smart-group and
 # --time-style are eza-only, ls parses neither), so $_HI_LS_OPTS is whichever
 # list the rung that answered takes. Set it yourself and the ladder defers.
-# `eza` and `exa` answer only where that binary is.
+# `eza` and `exa` answer only where that binary is. ls colors only when asked
+# (coreutils, busybox, newer BSD ls), so its rung asks where the flag is
+# taken; an ls that refuses it colors through CLICOLOR, or not at all.
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS='-F -1 -l -m --group-directories-first --group --no-filesize' || true
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza)" ] && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && [ "$_HI_LS_BIN" = "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v exa)" ] && export _HI_LS_OPTS="$_HI_EXA_OPTS" || true
-[ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS='-F -l' || true
+[ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS="-F -l$(command ls --color=auto -d / >/dev/null 2>&1 && echo ' --color=auto')" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && command -v exa >/dev/null 2>&1 && alias exa="ls" || true

@@ -209,8 +209,10 @@ from whatever the target has, first installed wins:
   eza, exa, and `ls` the target has (`_HI_LS_BIN`); `eza` and `exa` answer only
   where that binary is installed. The flags follow the rung that answered,
   since the three share almost no syntax: `_HI_EZA_OPTS`, `_HI_EXA_OPTS`, or a
-  plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is whichever of those the
-  ladder picked, and setting it yourself wins outright.
+  plain `-F -l` for `ls`, with `--color=auto` where that `ls` takes it
+  (coreutils, busybox, newer BSD), since it colors only when asked.
+  `_HI_LS_OPTS` is whichever of those the ladder picked, and setting it
+  yourself wins outright.
 
 Off, the default, none of these exists and the binary lookups behind them are
 skipped: `cat`, `ls`, and `bat` are the commands themselves. The tmux, screen,
