@@ -561,7 +561,7 @@ function lint_eval_roster() {
   found="$(_hi_eval_found)"
   want="$(awk -F'|' '/^#/ || /^$/ { next }
     $1 != "eval" { print $1 "|" $2 "|" $3; next }
-    $3 !~ /^(const|name|own|shell|tool|segment)$/ { print "unknown|" $0; next }
+    $3 !~ /^(const|name|own|tool)$/ { print "unknown|" $0; next }
     { text = $0; sub(/^[^|]*\|[^|]*\|[^|]*\|/, "", text); print "eval|" $2 "|" text }' "$roster")"
   while IFS= read -r line; do
     if [ -z "$line" ] || grep -qxF -- "$line" <<<"$want"; then continue; fi

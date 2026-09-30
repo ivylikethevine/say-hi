@@ -310,7 +310,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
 
     function __hi_segments --description 'each extension segment, run per draw'
       for c in $_hi_segments
-        set -l o (eval $c 2>/dev/null)
+        set -l w (string split -n ' ' -- $c)
+        set -l o ($w 2>/dev/null)
         test -n "$o"; and echo -n "$o "
       end
     end

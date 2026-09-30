@@ -127,7 +127,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     __hi_segment_precmd() {
       local c o
       for c in "${_hi_segments[@]}"; do
-        o="$(eval "$c" 2>/dev/null)" && [[ -n "$o" ]] && __hi_env_info+="${o//\%/%%} "
+        o="$(${=c} 2>/dev/null)" && [[ -n "$o" ]] && __hi_env_info+="${o//\%/%%} "
       done
     }
     ((${#_hi_segments[@]})) && precmd_functions+=(__hi_segment_precmd)

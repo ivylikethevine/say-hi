@@ -1300,9 +1300,9 @@ Hooks are variables, since the subset cannot define a function all three
 shells read. The loader unsets each before an extension runs and collects it after,
 so extensions compose without `${var:+...}`, which fish lacks. The set:
 
-| hook          | what hi does with it                                                                                                                                                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_HI_SEGMENT` | a command, run in the session's own shell on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
+| hook          | what hi does with it                                                                                                                                                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `_HI_SEGMENT` | a command and its words, split at spaces and run as they stand (no shell syntax, no glob, no `eval`) on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
 
 `hi --doctor` lists the extensions in load order and warns for each a shell on
 this machine cannot parse, and for a directory entry that is not a member.

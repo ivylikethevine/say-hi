@@ -156,10 +156,35 @@ complete -F _hi_complete hi
 # TAB after `exa`: startup shouldn't parse a multi-KB spec most sessions never
 # use. 124 is bash-completion's "retry".
 function _hi_load_exa_completion() {
-  local spec
+  local spec w c q="'"
+  local -a words=()
   command -v _completion_loader &>/dev/null && _completion_loader eza &>/dev/null
   spec=$(complete -p eza 2>/dev/null) || return 1
-  eval "${spec% eza} exa"
+  # complete -p's words read back as words, not run as a line: bare text, a
+  # '...' word, and a \-escaped character, as it quotes them; a " it never
+  # writes means something else wrote this, and it stays eza's alone
+  case "$spec" in *\"*) return 1 ;; esac
+  spec="${spec% eza} "
+  while [ -n "${spec// /}" ]; do
+    spec="${spec#"${spec%%[! ]*}"}" w=""
+    while [ -n "$spec" ] && [ "${spec# }" = "$spec" ]; do
+      case "$spec" in
+      "$q"*)
+        spec="${spec#?}"
+        [ "${spec#*"$q"}" != "$spec" ] || return 1
+        w+="${spec%%"$q"*}" spec="${spec#*"$q"}"
+        ;;
+      \\?*) w+="${spec:1:1}" spec="${spec:2}" ;;
+      *)
+        # shellcheck disable=SC2295 # $q is a character of the class
+        c="${spec%%[ \\$q]*}"
+        w+="$c" spec="${spec#"$c"}"
+        ;;
+      esac
+    done
+    words+=("$w")
+  done
+  complete "${words[@]:1}" exa
   return 124
 }
 alias exa >/dev/null 2>&1 && [ "${_HI_TOOL_ALIASES:-0}" = 1 ] && complete -F _hi_load_exa_completion exa
@@ -358,11 +383,18 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # the one color is in the template below, inside \[ \]; the mark after
       # the extension segments is for any color a segment prints itself
       _hi_env_prompt __hi_env_info
-      # each plugin's $_HI_SEGMENT, run per draw; empty output draws nothing
-      local _hi_c _hi_o
+      # each plugin's $_HI_SEGMENT, a command and its words, run per draw
+      # without globbing; empty output draws nothing. GLOSSARY: HI.59
+      local _hi_c _hi_o _hi_g=1
+      local -a _hi_w
+      [[ $- == *f* ]] || _hi_g=0
+      set -f
       for _hi_c in ${_hi_segments[@]+"${_hi_segments[@]}"}; do
-        _hi_o="$(eval "$_hi_c" 2>/dev/null)" && [ -n "$_hi_o" ] && __hi_env_info+="$_hi_o "
+        # shellcheck disable=SC2206 # the split is the contract
+        _hi_w=($_hi_c)
+        _hi_o="$("${_hi_w[@]}" 2>/dev/null)" && [ -n "$_hi_o" ] && __hi_env_info+="$_hi_o "
       done
+      [ "$_hi_g" = 1 ] || set +f
       _hi_ps_mark __hi_env_info
       # the segments as references; no expansion happens without promptvars,
       # so there the values go in as text
@@ -383,13 +415,19 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       [ "$_hi_marks_live" = 1 ] && [ -t 1 ] && printf '\e]133;C\a\e]133;D;%s\a' "$1"
       return "$1"
     }
-    # <trap -p EXIT's words>: chains ahead of any trap already set, once
+    # <the EXIT trap's command>: chains ahead of any trap already set, once
     function _hi_marks_trap() {
-      [[ "${3:-}" == _hi_marks_exit* ]] && return
+      [[ "${1:-}" == _hi_marks_exit* ]] && return
       # shellcheck disable=SC2064 # the prior trap is spliced in now, on purpose
-      trap "_hi_marks_exit \$?${3:+; $3}" EXIT
+      trap "_hi_marks_exit \$?${1:+; $1}" EXIT
     }
-    eval "_hi_marks_trap $(trap -p EXIT)"
+    # trap -p's one line, `trap -- '<command>' EXIT`, read back as text: a '
+    # in the command is '\''
+    _hi_t="$(trap -p EXIT)" _hi_q="'" _hi_e="'\\''"
+    _hi_t="${_hi_t#"trap -- $_hi_q"}"
+    _hi_t="${_hi_t%"$_hi_q EXIT"}"
+    _hi_marks_trap "${_hi_t//"$_hi_e"/$_hi_q}"
+    unset _hi_t _hi_q _hi_e
   fi
 fi
 unset _hi_pt _hi_omb_theme _hi_bashit_theme

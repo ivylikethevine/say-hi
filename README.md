@@ -348,37 +348,24 @@ reaches a target first, then the lint gate, the rest, and CI. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
-1. [ ] _Before 1.0:_ **The include scan reads rows** — shipped: a row's
-       `dialect` column names a row of `hi.sh`'s `$_HI_DIALECTS` (its
-       comment leader, where a statement ends, what is an include, a plugin
-       manager, or allowed, and how a finding is disabled), which the scan
-       and the overlay's comment strip read in place of a test of the
-       member's name, so a row of the user's with a dialect has its include
-       disabled on a target; an include naming a file of the tool's own
-       directory is carried instead, the file riding beside the member and
-       the include's path made the target's copy
-       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)).
-       The framework suite's `config` case has tmux read one. **Ticks
-       when:** that case passes in CI.
-
-2. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — shipped: an
+1. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — shipped: an
        `xdg:<command>` wire aliases the command with `$XDG_CONFIG_HOME` set
        to the overlay, which `<tool>/<file>` members give the shape of
        `~/.config`, and helix's `languages.toml` is a member that rides by
        it. [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#a-tool-with-no-variable-and-no-flag)
        and [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know)
-       name it the fallback and its cost. What is left is seeing it on a
-       target. **Ticks when:** `hx` on an e2e target reads a carried
-       `languages.toml`.
+       name it the fallback and its cost. The framework suite's `tools`
+       case has `hx` read a carried one on an Alpine target. **Ticks
+       when:** that case passes in CI.
 
-3. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
+2. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
        shipped: kakoune's `colors/` rides file by file beside the `kakrc`,
        as zellij's `themes/` does, from the directory kak reads, and the
-       `kakrc`'s `$KAKOUNE_CONFIG_DIR` points kak at it. What is left is
-       seeing it. **Ticks when:** a `kakrc` with `colorscheme <own>` shows
-       that scheme on an e2e target.
+       `kakrc`'s `$KAKOUNE_CONFIG_DIR` points kak at it. The framework
+       suite's `tools` case has a `kakrc`'s `colorscheme <own>` load that
+       scheme on a target. **Ticks when:** that case passes in CI.
 
-4. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
+3. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
        (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
        `lazygit/config.yml` (`$LG_CONFIG_FILE`) are members, each carried from
        where its tool keeps it and listed in
@@ -387,45 +374,30 @@ checkout: an account or an upstream review that lands when it lands.
        fzf (a pinned release, since bookworm's predates the variable). Left
        for rows of their own: `LS_COLORS`, ~18KB raw on every connect;
        skim, bottom, procs, and dust, which fewer boxes run, the last three
-       behind a flag and so an alias. **Ticks when:** that fzf check passes
-       in CI, and lazygit reads its own on a target (bookworm ships no
-       lazygit).
+       behind a flag and so an alias. The `tools` case has lazygit read
+       its own on Alpine, which packages it. **Ticks when:** the `tmux`
+       and `tools` cases pass in CI.
 
-5. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
+4. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
        shipped: a row of the overlay's `plugins` names the member, its
        tool, its wire, and its places at home, and rides through the same order,
        include scan, and wiring;
        [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know) shows
-       how. What is left is seeing it. **Ticks when:** a tool of the user's
-       own reads its home config on an e2e target.
+       how. The framework suite's `tools` case carries git's config by a
+       row of the overlay's own and has git read it on a target. **Ticks
+       when:** that case passes in CI.
 
-6. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
+5. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
        `drift` holds every `eval` in the payload and `scripts/` to a row of
        `tests/lint/eval_roster` that says what it evaluates, and each file's
        count of its kin (a `source` of a path in a variable, a shell's `-c`,
-       a recursive `rm`); the overlay table's home column is read by the
-       `plugins` grammar, and eleven more gave way to `${!name}` and
-       `printf -v`. Left: the eight of its twenty-seven that read from
-       outside the tree - the shell's own `complete -p`, `alias -p`, and
-       `trap -p` run back in `common/bash.sh` and its oh-my-bash loader, a
-       prompt program's init, and a plugin's `$_HI_SEGMENT` - and indirect
-       assignment, which nothing counts. Every `eval` counts against the
-       tick, the prompt init and `$_HI_SEGMENT` included, until a later pass
-       names the ones that stay. **Ticks when:** no `eval` in the roster
-       reads a value from outside the tree.
+       a recursive `rm`). Twenty-one are left, and the two that read text
+       from outside the tree are a prompt program's `init`, the one way in
+       that stays; the shell's `complete -p`, `alias -p`, and `trap -p` are
+       read back by a grammar, and `$_HI_SEGMENT` runs as a command and its
+       words. **Ticks when:** the lint group passes in CI on that roster.
 
-7. [ ] _Before 1.0:_ **A header cell of the user's own** — shipped:
-       `header/`, a directory member
-       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)) scanned
-       and stripped as sh, each file defining `_hi_cell_<word>` for its
-       name; the roster gate admits the words that loaded, a cell with no
-       `$_HI_HEADER_ALTS` entry takes an alternate round the ring from its
-       own hue ([HI.48](docs/GLOSSARY.md#hi48-header-cell-hue-resolution)),
-       and [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#header-cells-of-your-own)
-       shows how. What is left is seeing it: the framework suite's `config`
-       case draws one. **Ticks when:** that case passes in CI.
-
-8. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
+6. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
        shipped: each framework's loader is a file of its own,
        `common/fw_<name>.<ext>`, and `_hi_payload_excl` cuts the ones a
        target is not handed
@@ -435,48 +407,39 @@ checkout: an account or an upstream review that lands when it lands.
        streams against the unconfigured one. **Ticks when:** that bench
        passes in CI.
 
-9. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
-       bash and zsh keep a `PS1`/`PROMPT` the rc set unless it is one nobody
-       wrote (the shell's built-in default, or a stock rc's on the distros
-       [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
-       target's prompt is hi's as before. `tests/targets/home_prompt_test.sh`
-       installs hi over Debian's, Fedora's, and Arch's own `/etc/skel`, with
-       and without a `PS1` of the user's, in bash and (on Debian) zsh.
-       **Ticks when:** that suite passes in CI.
+7. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
+       `check_tool_versions.sh` counts a problem, naming the host, when no
+       lookup on one host answered (a blocked host, not a one-off rate
+       limit). What is left is seeing it in CI. **Ticks when:** a
+       `tool-versions.yml` dispatch with one upstream host removed from
+       `allowed-endpoints` opens the tracking issue naming it.
 
-10. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
-        `check_tool_versions.sh` counts a problem, naming the host, when no
-        lookup on one host answered (a blocked host, not a one-off rate
-        limit). What is left is seeing it in CI. **Ticks when:** a
-        `tool-versions.yml` dispatch with one upstream host removed from
-        `allowed-endpoints` opens the tracking issue naming it.
+8. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
+       the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
+       `update.sh` and `preview.sh` from a scratch-tree copy (the first four
+       read 0% in run 36341616721, 91.11% overall) now link the real
+       `scripts/`, and each other gap has a test or is a blind spot
+       `tests/coverage_v2.sh`'s header lists. What is left is the
+       measurement. **Ticks when:** the first bashcov sweep on `main` after
+       this lands reads at least 95% and no shipped line at 0 that is
+       neither tested nor in that header.
 
-11. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
-        the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
-        `update.sh` and `preview.sh` from a scratch-tree copy (the first four
-        read 0% in run 36341616721, 91.11% overall) now link the real
-        `scripts/`, and each other gap has a test or is a blind spot
-        `tests/coverage_v2.sh`'s header lists. What is left is the
-        measurement. **Ticks when:** the first bashcov sweep on `main` after
-        this lands reads at least 95% and no shipped line at 0 that is
-        neither tested nor in that header.
+9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
 
-12. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-        versions_ prose into its version table.
-
-13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

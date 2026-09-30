@@ -479,8 +479,9 @@ command -v kubectl >/dev/null 2>&1 &&
   export _HI_SEGMENT='kubectl config current-context'
 ```
 
-The command runs in the session's own shell before every prompt, so keep it
-to syntax all three share, and fast. Each extension sets its own; hi collects
+It is a command and its words, split at spaces and run as they stand -
+no pipe, quote, `$( )`, or glob - before every prompt, so keep it fast; for
+more, name a script of your own. Each extension sets its own; hi collects
 them in load order. The whole contract is
 [HI.59](GLOSSARY.md#hi59-extensions). Before 1.0 the directory was
 `plugins.d`; one still under that name is not read, and `hi --doctor` names
