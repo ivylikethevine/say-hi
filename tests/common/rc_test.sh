@@ -1611,6 +1611,15 @@ function run_rc_tests() {
     test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
   _hi_check_requires fish "[fish] a program that does not fit fish keeps hi's prompt" \
     test_prompt_program_draws fish '*@*' : _HI_PROMPT_TOOL="oh-my-bash powerlevel10k" XDG_CONFIG_HOME="$_HI_WORKDIR/noprompt"
+  # one setting, a program per shell: bash:starship is bash's alone
+  _hi_check "[bash] bash:starship hi draws starship in bash, at home" \
+    test_prompt_program_draws bash 'PROMPT-STUB|*' : _HI_PROMPT_TOOL="bash:starship hi" PATH="$(_hi_prompt_stub_dir starship):$PATH"
+  _hi_check "[bash] ...and on a target" \
+    test_prompt_program_draws bash 'PROMPT-STUB|*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH"
+  _hi_check_requires zsh "[zsh] ...and hi's prompt in zsh" \
+    test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH"
+  _hi_check_requires fish "[fish] ...and in fish" \
+    test_prompt_program_draws fish '*@*' : _HI_PROMPT_TOOL="bash:starship hi" _HI_REMOTE_SESSION=1 PATH="$(_hi_prompt_stub_dir starship):$PATH" XDG_CONFIG_HOME="$_HI_WORKDIR/noprompt"
   _hi_check "[bash] liquidprompt's prompt stays, unless hi is named" \
     test_foreign_prompt_stays_unless_hi_named bash '_LP_VERSION=(2 3 0)'
   _hi_check "[bash] ...and bash-git-prompt's" \

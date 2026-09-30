@@ -250,7 +250,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       ;;
     *) eval "$("$_hi_pt" init bash)" ;;
     esac
-  elif ! _hi_prompt_named_hi && { [[ -n ${_LP_VERSION-} ]] || declare -F setGitPrompt >/dev/null ||
+  elif ! _hi_prompt_named_hi bash && { [[ -n ${_LP_VERSION-} ]] || declare -F setGitPrompt >/dev/null ||
     { [ "$_HI_REMOTE_SESSION" != 1 ] && ! _hi_ps1_stock; }; }; then
     # liquidprompt or bash-git-prompt draws this prompt, and hi has no hand-over
     # for either, or at home the rc left a $PS1 of the user's own: it stays
@@ -284,7 +284,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # every prompt; each known hook becomes a `:`. PROMPT_COMMAND is an array
     # from bash 5.1 when the rc made it one. Unset, or a list that ran out,
     # leaves the rc's own choice alone.
-    if _hi_prompt_named_hi; then
+    if _hi_prompt_named_hi bash; then
       _hi_pcd="$(declare -p PROMPT_COMMAND 2>/dev/null)" # once: the type never changes below
       for _hi_h in starship_precmd _omp_hook _omp_precmd __hi_plgo_ps1; do
         # the array arm is eval'd: to the linter PROMPT_COMMAND is the string

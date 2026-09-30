@@ -273,8 +273,9 @@ function lint_home_default() {
 # A tag counts as an image reference only where it reads like one: preceded by a
 # space, `=`, or a quote, in a `*.sh`/`*.yml` line that is not a comment. Each
 # of those filters earns its place - `nobash:alpine:ssh_fallback` is a case
-# spec, `/bin/bash:bash` a framework row and `bash:5` a packages fixture, all
-# the same characters meaning something else; prose in `.md` and `#` comments
+# spec, `/bin/bash:bash` a framework row, `bash:5` a packages fixture and
+# `bash:starship` an _HI_PROMPT_TOOL entry, all the same characters meaning
+# something else; prose in `.md` and `#` comments
 # names old versions on purpose (dependabot.yml explains bash:5 by naming it).
 # So does docs/RELEASING.md, whose runbook installs the .deb on `debian:stable`
 # deliberately - a hand-run check wants current stable, not the fixture pin.
@@ -307,6 +308,8 @@ function lint_image_tags() {
       [[ "$line" =~ $re ]] && ref="${BASH_REMATCH[0]}"
       tag="${ref#*:}"
       case "$pinned" in *" $image:$tag "*) continue ;; esac
+      # shellcheck disable=SC2153 # core.sh's derived roster, not a typo of the setting
+      case " hi $_HI_PROMPT_TOOLS " in *" $tag "*) continue ;; esac
       hits="$hits$line
 "
     done < <(grep -rnE "[ =\"']${image}:[A-Za-z0-9][A-Za-z0-9._-]*" "$_HI_ROOT" \

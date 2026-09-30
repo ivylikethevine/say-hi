@@ -363,22 +363,30 @@ checkout: an account or an upstream review that lands when it lands.
        this lands reads at least 95% and no shipped line at 0 that is
        neither tested nor in that header.
 
-3. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+3. [ ] _Before 1.0:_ **A prompt program per shell** — shipped: a
+       `<shell>:<program>` entry in `_HI_PROMPT_TOOL` is tried first, by that
+       shell alone, so `bash:starship hi` draws starship in bash and hi's
+       prompt in zsh and fish; `hi --configure`'s Prompt page asks shell by
+       shell. What is left is a real connect. **Ticks when:** that setting
+       draws starship in bash and hi's prompt in zsh and fish on an ssh
+       target.
+
+4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-4. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-5. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-6. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

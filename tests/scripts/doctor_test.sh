@@ -771,7 +771,7 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=12 _HI_PACKAGES_GROUPS='core;x' _HI_IP_HIDE='10.*;x' _HI_HEADER_ORDER='utc bogus'
-    _HI_PROMPT_TOOL='starshp hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes
+    _HI_PROMPT_TOOL='bash:tide hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes
     doctor_config
   )"
   local n
@@ -785,7 +785,7 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=100 _HI_PACKAGES_GROUPS='core,extras' _HI_IP_HIDE='10.* 192.168.?.*' _HI_HEADER_ORDER='utc check'
-    _HI_PROMPT_TOOL='tide hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0
+    _HI_PROMPT_TOOL='fish:tide bash:starship hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0
     doctor_config
   )"
   [[ "$out" != *"is ignored"* ]]

@@ -88,12 +88,16 @@ The list is worked out on this machine and handed to the target, which never
 looks for programs of its own - a shared box with powerlevel10k installed does
 not change your prompt unless you use it too.
 
-`_HI_PROMPT_TOOL=hi` (the Prompt item in `hi --configure`) keeps hi's prompt
-everywhere: it starts no program on any target, and takes the prompt back from
-one the _target's_ own rc started, unhooking its prompt hook. Only the name `hi`
-does that - an unset list, or one no entry of which fits, leaves the target's
-own choice drawing. To choose, name them: `"tide starship"` is tide in fish and
-starship in bash and zsh, `"tide hi"` tide in fish and hi's prompt elsewhere.
+`_HI_PROMPT_TOOL=hi` keeps hi's prompt everywhere: it starts no program on any
+target, and takes the prompt back from one the _target's_ own rc started,
+unhooking its prompt hook. Only the name `hi` does that - an unset list, or one
+no entry of which fits, leaves the target's own choice drawing. To choose, name
+them: `"tide starship"` is tide in fish and starship in bash and zsh, `"tide hi"`
+tide in fish and hi's prompt elsewhere. An entry written `<shell>:<program>` is
+tried first, by that shell alone: `"bash:starship hi"` is starship in bash and
+hi's prompt in zsh and fish, and `"bash:starship"` alone leaves zsh and fish to
+the programs installed here, as unset does. `hi --configure`'s Prompt page asks
+shell by shell and writes these entries.
 `_HI_DISABLE_PROMPT=1` beats all of it: no prompt from hi at all, its own or a
 program's.
 
@@ -205,8 +209,10 @@ from whatever the target has, first installed wins:
   eza, exa, and `ls` the target has (`_HI_LS_BIN`); `eza` and `exa` answer only
   where that binary is installed. The flags follow the rung that answered,
   since the three share almost no syntax: `_HI_EZA_OPTS`, `_HI_EXA_OPTS`, or a
-  plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is whichever of those the
-  ladder picked, and setting it yourself wins outright.
+  plain `-F -l` for `ls`, with `--color=auto` where that `ls` takes it
+  (coreutils, busybox, newer BSD), since it colors only when asked.
+  `_HI_LS_OPTS` is whichever of those the ladder picked, and setting it
+  yourself wins outright.
 
 Off, the default, none of these exists and the binary lookups behind them are
 skipped: `cat`, `ls`, and `bat` are the commands themselves. The tmux, screen,

@@ -175,13 +175,25 @@ set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_p
 # prompt: "<chroot> user@host cwd (git) [status] |", @ yellow over ssh; skipped
 # entirely when disabled, leaving fish's own default prompt in place
 if test "$_HI_DISABLE_PROMPT" != 1
-  # core.sh's _hi_prompt_tool rule (fish can't call it): unset, every program
-  # that fits fish, at home; `hi` or none here falls back to hi's prompt
-  # below. The tool's config variable is paths.sh's job, which fish sourced
-  # above. tide counts wherever its functions autoload
+  # core.sh's _hi_prompt_tool rule (fish can't call it): fish: entries first,
+  # then the plain ones - with none, every program that fits fish, at home;
+  # `hi` or none here falls back to hi's prompt below. The tool's config
+  # variable is paths.sh's job, which fish sourced above. tide counts
+  # wherever its functions autoload
   set -l _hi_pt
-  set -l _hi_tools (string split -n ' ' -- "$_HI_PROMPT_TOOL")
-  test -z "$_hi_tools"; and test "$_HI_REMOTE_SESSION" != 1; and set _hi_tools tide starship oh-my-posh powerline-go
+  set -l _hi_tools
+  set -l _hi_plain
+  for _hi_t in (string split -n ' ' -- "$_HI_PROMPT_TOOL")
+    switch $_hi_t
+      case 'fish:*'
+        set _hi_tools $_hi_tools (string sub -s 6 -- $_hi_t)
+      case '*:*'
+      case '*'
+        set _hi_plain $_hi_plain $_hi_t
+    end
+  end
+  test -z "$_hi_plain"; and test "$_HI_REMOTE_SESSION" != 1; and set _hi_plain tide starship oh-my-posh powerline-go
+  set _hi_tools $_hi_tools $_hi_plain
   for _hi_t in $_hi_tools
     switch $_hi_t
       case hi
@@ -204,7 +216,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
     end
   else if test -n "$_hi_pt"
     $_hi_pt init fish | source
-  else if not contains -- hi (string split -n ' ' -- "$_HI_PROMPT_TOOL")
+  else if not contains -- hi $_hi_tools
     and not contains -- (functions --details fish_prompt) $__fish_data_dir/functions/fish_prompt.fish \
       embedded:functions/fish_prompt.fish (status filename) n/a
     # a fish_prompt of the user's own - their functions/ directory, a theme
@@ -214,7 +226,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
     # `hi` named in the list takes the prompt back from a program the rc
     # already started: fish_prompt below replaces its left half, and the
     # right half and vi-mode indicator it may have defined go with it
-    if contains -- hi (string split -n ' ' -- "$_HI_PROMPT_TOOL")
+    if contains -- hi $_hi_tools
       functions -q fish_right_prompt; and functions -e fish_right_prompt
       functions -q fish_mode_prompt; and functions -e fish_mode_prompt
     end

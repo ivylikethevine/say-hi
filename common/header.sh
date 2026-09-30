@@ -274,20 +274,6 @@ function _hi_load_pct() {
   printf -v "$1" '%d' $(((2 * (10#${whole:-0} * 100 + 10#${frac:0:2}) + cpus) / (2 * cpus)))
 }
 
-# <seconds> [outvar] humanized to at most two units, largest first - a header
-# cell, not a stopwatch. Shared by _hi_cell_uptime and nothing else.
-function _hi_humanize_uptime() {
-  local _hi_hu_s="$1" _hi_hu
-  if ((_hi_hu_s >= 86400)); then
-    printf -v _hi_hu '%dd %dh' "$((_hi_hu_s / 86400))" "$((_hi_hu_s % 86400 / 3600))"
-  elif ((_hi_hu_s >= 3600)); then
-    printf -v _hi_hu '%dh %dm' "$((_hi_hu_s / 3600))" "$((_hi_hu_s % 3600 / 60))"
-  else
-    printf -v _hi_hu '%dm' "$((_hi_hu_s / 60))"
-  fi
-  _hi_out "${2:-}" "$_hi_hu"
-}
-
 # _hi_platform <outvar> - linux, windows, bsd, or unknown: the one question
 # the three probes below all ask, spelled once so they cannot drift apart.
 # Every platform test in
@@ -485,7 +471,7 @@ function _hi_cell_uptime() {
   # the guard drops anything non-numeric - a skewed clock can make the macOS
   # probe negative, and a stripped-down awk fails closed the same way
   case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
-  [ -n "$uptime_s" ] && _hi_humanize_uptime "$uptime_s" up
+  [ -n "$uptime_s" ] && _hi_human_duration "$uptime_s" up
   printf -v "$1" '%s' "${BRBLUE}Up: ${up:-?}"
 }
 

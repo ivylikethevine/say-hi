@@ -458,11 +458,19 @@ function test_packages_groups_ends_on_eof() {
   [ "$(_hi_groups_prompts groups_eof)" -le 1 ]
 }
 
-# the prompt offers the file's groups, in file order
+# the list numbers the file's groups in file order, the ones that run checked
 function test_packages_groups_offers_the_files_groups() {
   _hi_groups_pty groups_offer '\n' || return 1
-  tr '\r' '\n' <"$_HI_WORKDIR/groups_offer.groups.out" |
-    grep -q 'Toggle which groups (core useful deprecated extras Work)?'
+  local out
+  out="$(_hi_strip_ansi "$(tr '\r' '\n' <"$_HI_WORKDIR/groups_offer.groups.out")")"
+  [[ "$out" == *"1) [x] core"*"2) [x] useful"*"3) [x] deprecated"*"4) [ ] extras"*"5) [ ] Work"* ]] ||
+    _hi_because "list: $out"
+}
+
+# ...and a number flips the group it lists: 4 is extras, 2 useful
+function test_packages_groups_toggles_by_number() {
+  _hi_groups_pty groups_num '4 2\n\n' || return 1
+  [ "$(_hi_groups_pty_lines groups_num)" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ]
 }
 
 # a reply flips each group it names: extras on, useful off, in one answer
@@ -616,8 +624,7 @@ function test_setting_get_leaves_other_variables_ambient() {
 
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
-# (_HI_DISABLE_LEAD_SPACE=1, _HI_PROMPT_TOOL=hi) is on only when its
-# on-value is. setting_on is the one reader of both, and _hi_setting_flip
+# (_HI_DISABLE_LEAD_SPACE=1) is on only when its on-value is. setting_on is the one reader of both, and _hi_setting_flip
 # writes both.
 
 function test_setting_on_opt_in_absent_is_off() {
@@ -676,7 +683,9 @@ function test_opt_in_off_writes_nothing() {
 function test_hi_prompt_kept_when_chosen() {
   local out
   out="$(_hi_collected_lines hiprompt "export _HI_PROMPT_TOOL=hi")"
-  [[ "$out" == *"export _HI_PROMPT_TOOL=hi"* ]]
+  [[ "$out" == *"export _HI_PROMPT_TOOL=hi"* ]] || return 1
+  out="$(_hi_collected_lines hiprompt2 "export _HI_PROMPT_TOOL='bash:starship hi'")"
+  [[ "$out" == *"export _HI_PROMPT_TOOL='bash:starship hi'"* ]]
 }
 
 # the truecolor question with nobody to answer keeps what the file holds,
@@ -1131,8 +1140,9 @@ function test_prompt_tool_preview_names_what_is_installed() {
   mkdir -p "$_HI_WORKDIR/preview_home"
   # shellcheck disable=SC2031 # the swap lives and dies in its own $( )
   out="$(HOME="$_HI_WORKDIR/preview_home" XDG_CONFIG_HOME="$_HI_WORKDIR/preview_home" \
-    PATH="$dir:$(_hi_real_path preview_tools bash sh dirname cat tr sed awk grep uname hostname)" _hi_prompt_tool_preview)"
-  [[ "$out" == *"the first of starship a target has"* ]]
+    PATH="$dir:$(_hi_real_path preview_tools bash sh dirname cat tr sed awk grep uname hostname)" _hi_prompt_tool_preview bash auto)"
+  [[ "$out" == *"the first of these a target has, else hi's: starship"* && "$out" == *"starship"*"found here"* ]] ||
+    _hi_because "preview: $out"
 }
 
 # with the prompt off there is nothing for the setting to choose between,
@@ -1140,7 +1150,7 @@ function test_prompt_tool_preview_names_what_is_installed() {
 function test_prompt_tool_preview_is_moot_with_the_prompt_off() {
   local _HI_SETTINGS="$_HI_WORKDIR/prompt-tool-off.settings.sh" out
   printf 'export _HI_DISABLE_PROMPT=1\n' >"$_HI_SETTINGS"
-  out="$(_hi_prompt_tool_preview)"
+  out="$(_hi_prompt_tool_preview bash auto)"
   [[ "$out" == "moot while the prompt is off"* ]] || _hi_because "preview: $out"
 }
 
@@ -1148,7 +1158,7 @@ function test_prompt_tool_preview_reports_none() {
   local out
   mkdir -p "$_HI_WORKDIR/preview_none" "$_HI_WORKDIR/preview_home"
   out="$(HOME="$_HI_WORKDIR/preview_home" XDG_CONFIG_HOME="$_HI_WORKDIR/preview_home" \
-    PATH="$(_hi_real_path preview_tools bash sh dirname cat tr sed awk grep uname hostname):$_HI_WORKDIR/preview_none" _hi_prompt_tool_preview)"
+    PATH="$(_hi_real_path preview_tools bash sh dirname cat tr sed awk grep uname hostname):$_HI_WORKDIR/preview_none" _hi_prompt_tool_preview bash auto)"
   [[ "$out" == *"no prompt program is installed here"* ]]
 }
 
@@ -1480,6 +1490,14 @@ function test_menu_toggles_the_plugins_kept_home() {
     [[ "$(_hi_cfg_lines plug_toggle)" == *"export _HI_PLUGINS_OFF='editors'"* ]]
 }
 
+# ...or by the number the list gives it: the rig's one file is nano's, so
+# the editors group is 1 and nano 2
+function test_menu_toggles_a_plugin_by_number() {
+  _hi_cfg_pty plug_num "$(_hi_item plugins)\n2\n\ns\n" '' config_hub || return 1
+  _hi_cfg_has plug_num "1) [x] editors" && _hi_cfg_has plug_num "2) [ ] nano" &&
+    [[ "$(_hi_cfg_lines plug_num)" == *"export _HI_PLUGINS_OFF='nano'"* ]]
+}
+
 # ...a word that names nothing is asked again, and the list keeps what it had
 function test_menu_plugins_refuse_a_stranger() {
   _hi_cfg_pty plug_stranger "$(_hi_item plugins)\nnosuch\n\ns\n" "export _HI_PLUGINS_OFF='mux'" config_hub || return 1
@@ -1527,18 +1545,30 @@ function test_prompt_end_typed_interactively_is_quoted() {
   [[ "$lines" == *"export _HI_PROMPT_END_BASH='>>'"* && "$lines" != *"_HI_PROMPT_END_ZSH"* ]]
 }
 
-function test_menu_toggles_hi_prompt() {
-  _hi_cfg_pty pe_star "$(_hi_item 'row|_HI_PROMPT_PROMPTS|1')\ns\n" '' config_hub || return 1
-  _hi_cfg_has pe_star "hi's own prompt: now on" &&
-    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=hi"* ]]
+# who draws each shell's prompt is asked shell by shell: starship for bash,
+# by name, hi for zsh and fish, by number, is one plain `hi` and bash's entry
+function test_menu_picks_a_prompt_program_per_shell() {
+  _hi_cfg_pty pe_star "$(_hi_item 'tool|bash')\nstarship\n$(_hi_item 'tool|zsh')\n2\n$(_hi_item 'tool|fish')\n2\ns\n" '' config_hub || return 1
+  _hi_cfg_has pe_star "bash prompt: starship" &&
+    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL='bash:starship hi'"* ]]
 }
 
-# ...and back off: an opt-in switched off clears its line rather than
-# writing an off-value
-function test_menu_toggles_hi_prompt_off() {
-  _hi_cfg_pty pe_star_off "$(_hi_item 'row|_HI_PROMPT_PROMPTS|1')\ns\n" 'export _HI_PROMPT_TOOL=hi' config_hub || return 1
-  _hi_cfg_has pe_star_off "hi's own prompt: now off" && _hi_cfg_has pe_star_off "CFGLINES=" &&
+# ...and auto for every shell clears the line rather than writing one
+function test_menu_prompt_program_back_to_auto() {
+  _hi_cfg_pty pe_star_off "$(_hi_item 'tool|bash')\nauto\ns\n" "export _HI_PROMPT_TOOL='bash:starship'" config_hub || return 1
+  _hi_cfg_has pe_star_off "bash prompt: auto" && _hi_cfg_has pe_star_off "CFGLINES=" &&
     [[ "$(_hi_cfg_lines pe_star_off)" != *"_HI_PROMPT_TOOL"* ]]
+}
+
+# the menu's reading of a value: a shell's own entry first, then the plain
+# ones, auto with only other shells' entries, hi when none fits
+function test_prompt_choice_reads_the_value() {
+  local c
+  _hi_prompt_choice bash "bash:starship hi" c && [ "$c" = starship ] || _hi_because "bash: $c" || return 1
+  _hi_prompt_choice zsh "bash:starship hi" c && [ "$c" = hi ] || _hi_because "zsh: $c" || return 1
+  _hi_prompt_choice fish "bash:starship" c && [ "$c" = auto ] || _hi_because "fish: $c" || return 1
+  _hi_prompt_choice bash "tide" c && [ "$c" = hi ] || _hi_because "tide in bash: $c" || return 1
+  _hi_prompt_choice fish "tide hi" c && [ "$c" = tide ] || _hi_because "fish tide: $c"
 }
 
 # the Advanced rows: an opt-in toggle and a value typed for real, including
@@ -1881,6 +1911,7 @@ function run_configure_tests() {
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed
   _hi_check "...and says when there are none" test_prompt_tool_preview_reports_none
   _hi_check "...and that it is moot with the prompt off" test_prompt_tool_preview_is_moot_with_the_prompt_off
+  _hi_check "The menu reads who draws each shell's prompt" test_prompt_choice_reads_the_value
   _hi_check "eza/exa preview names the ls it aliases" test_eza_preview_names_the_ls_it_aliases
   _hi_check "Env segment preview draws the live segment" test_env_status_preview_draws_the_live_segment
   _hi_check "...and a sample with nothing active" test_env_status_preview_samples_with_nothing_active
@@ -1899,6 +1930,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Package groups: EOF ends the prompt" test_packages_groups_ends_on_eof
   _hi_par_check_capable pty "Package groups: offers the file's groups" test_packages_groups_offers_the_files_groups
   _hi_par_check_capable pty "Package groups: a reply toggles each name" test_packages_groups_toggles_each_named_group
+  _hi_par_check_capable pty "Package groups: a number toggles the group it lists" test_packages_groups_toggles_by_number
   _hi_par_check_capable pty "Package groups: a comma reply is split" test_packages_groups_splits_a_comma_reply
   _hi_par_check_capable pty "Package groups: a reply matches any case" test_packages_groups_matches_any_case
   _hi_par_check_capable pty "Package groups: all off is none" test_packages_groups_all_off_is_none
@@ -1922,6 +1954,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: fits 40 columns, pages in order" test_menu_layout_at_40
   _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
   _hi_par_check_capable pty "Menu: the plugins kept home toggle by name" test_menu_toggles_the_plugins_kept_home
+  _hi_par_check_capable pty "Menu: ...or by number" test_menu_toggles_a_plugin_by_number
   _hi_par_check_capable pty "Menu: ...and a word that names nothing is refused" test_menu_plugins_refuse_a_stranger
   _hi_par_check_capable pty "Menu: an opt-in row writes its on-value" test_menu_opt_in_row_writes_its_on_value
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
@@ -1940,8 +1973,8 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: the width item takes a width" test_menu_takes_a_width
   _hi_par_check_capable pty "Menu: package groups opens its loop" test_menu_opens_the_package_groups
   _hi_par_check_capable pty "Menu: hidden addresses" test_menu_takes_hidden_addresses
-  _hi_par_check_capable pty "Menu: hi's prompt toggles" test_menu_toggles_hi_prompt
-  _hi_par_check_capable pty "Menu: hi's prompt toggles back off" test_menu_toggles_hi_prompt_off
+  _hi_par_check_capable pty "Menu: a prompt program is picked per shell" test_menu_picks_a_prompt_program_per_shell
+  _hi_par_check_capable pty "Menu: auto for every shell clears the line" test_menu_prompt_program_back_to_auto
   _hi_par_check_capable pty "Menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Menu: a quoted separator is refused" test_menu_refuses_a_quoted_separator
   _hi_par_check_capable pty "Menu: the advanced rows" test_menu_advanced_rows

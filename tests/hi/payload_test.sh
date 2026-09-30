@@ -403,6 +403,9 @@ function test_prompt_list_is_what_home_has() {
   [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
     "oh-my-zsh oh-my-bash starship powerline-go" ] &&
     [ "$(HOME="$h" _HI_PROMPT_TOOL="tide hi" _hi_prompt_list)" = "tide hi" ] &&
+    [ "$(HOME="$h" _HI_PROMPT_TOOL="bash:starship hi" _hi_prompt_list)" = "bash:starship hi" ] &&
+    [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL="zsh:hi" _hi_prompt_list)" = \
+      "zsh:hi oh-my-zsh oh-my-bash starship powerline-go" ] &&
     [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ] ||
     return 1
   # ...and it is, the moment the rc loads the theme rather than just its
