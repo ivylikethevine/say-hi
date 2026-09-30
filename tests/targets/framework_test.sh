@@ -61,9 +61,9 @@ _HI_FRAMEWORKS=(
   # The configs hi carries for a tool the target runs: a tmux started in the
   # session reads the client's ~/.tmux.conf over the target's own, micro
   # is pointed at the client's micro directory, the client's nanorc, its
-  # syntax include dropped, gets the target's /usr/share/nano set, and rg
-  # reads the client's ripgreprc (_hi_config_client_home)
-  "tmux:/bin/bash:tmux nano ripgrep:config"
+  # syntax include dropped, gets the target's /usr/share/nano set, rg
+  # reads the client's ripgreprc, and fzf its fzfrc (_hi_config_client_home)
+  "tmux:/bin/bash:tmux nano ripgrep curl:config"
 )
 
 # <stem in _HI_FRAMEWORKS>:<login shell>:<_HI_PROMPT_TOOL name>. The same
@@ -122,8 +122,9 @@ function _hi_framework_probe() {
   # a tmux server started from the session, asked for the client's mark; the
   # alias is the first word, so it expands. nano, on a pty of its own and
   # closed by a ^X, has to paint a shell script in a color: under --rcfile
-  # the carried nanorc is the only one read, so the target's set is what did
-  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # the carried nanorc is the only one read, so the target's set is what did.
+  # fzf filters with the client's --exact, so only the exact match comes back
+  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && test \"\$(printf 'axb\\nab\\n' | fzf --filter ab)\" = ab && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
 }
@@ -149,15 +150,16 @@ function _hi_prompt_client_home() {
 }
 
 # _hi_config_client_home <dir> - a client home with a tmux config, a micro
-# settings file, a nanorc, and a ripgreprc ($RIPGREP_CONFIG_PATH, set by the
-# case) of its own, each a marker the config probe looks for; the nanorc's
-# include is one hi drops
+# settings file, a nanorc, a ripgreprc, and an fzfrc ($RIPGREP_CONFIG_PATH and
+# $FZF_DEFAULT_OPTS_FILE, set by the case) of its own, each a marker the
+# config probe looks for; the nanorc's include is one hi drops
 function _hi_config_client_home() {
   mkdir -p "$1/.config/micro"
   printf 'set -g @hi_mark HITMUX\n' >"$1/.tmux.conf"
   printf '{"tabsize": 7}\n' >"$1/.config/micro/settings.json"
   printf 'include "~/.nano/*.nanorc"\nset tabsize 4\n' >"$1/.nanorc"
   printf -- '--type-add=hitest:*.hitest\n' >"$1/.ripgreprc"
+  printf -- '--exact\n' >"$1/.fzfrc"
 }
 
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with
@@ -223,10 +225,11 @@ function _hi_run_framework_case() {
   config)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" RIPGREP_CONFIG_PATH="$_HI_WORKDIR/home-$label/.ripgreprc"
+    local -x FZF_DEFAULT_OPTS_FILE="$_HI_WORKDIR/home-$label/.fzfrc"
     # home's configs ride only with their tools here, and a runner has no
-    # micro, nano, or rg
+    # micro, nano, rg, or fzf
     local stubs
-    stubs="$(_hi_stub_tools tmux micro nano rg)"
+    stubs="$(_hi_stub_tools tmux micro nano rg fzf)"
     local -x PATH="$stubs:$PATH"
     _hi_config_client_home "$HOME"
     ;;

@@ -380,10 +380,12 @@ cannot see them. `lint_image_tags` fails when a tag named anywhere in the tree
 disagrees with the digest-pinned ones; `lint_image_digests` when two
 Dockerfiles pin one tag to different digests.
 
-**Every framework fetch is pinned.** Five to a release and a hash, each
+**Every framework fetch is pinned.** Six to a release and a hash, each
 downloaded to a file and `sha256sum -c`d before use: `frameworks/plgo.sh`'s
-release binary (v1.26), `frameworks/tide.sh`'s fisher (4.4.5, installing tide
-v6.2.0), and the atuin, mise, and starship installers. `atuin.sh` (v18.20.1)
+release binary (v1.26), `frameworks/tmux.sh`'s fzf release (v0.74.4, since
+bookworm's apt fzf predates `$FZF_DEFAULT_OPTS_FILE`), `frameworks/tide.sh`'s
+fisher (4.4.5, installing tide v6.2.0), and the atuin, mise, and starship
+installers. `atuin.sh` (v18.20.1)
 and `mise.sh` (v2026.8.14) name the release tag in the download URL, so hash
 and version move together (`mise.run` is regenerated per release whatever
 `MISE_VERSION` says, so pinning that alone drifts); `starship.sh` (v1.26.0,

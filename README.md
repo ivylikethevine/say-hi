@@ -384,12 +384,13 @@ checkout: an account or an upstream review that lands when it lands.
        `lazygit/config.yml` (`$LG_CONFIG_FILE`) are members, each carried from
        where its tool keeps it and listed in
        [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them);
-       the framework suite's `tmux` case has rg read one on a target. Left
+       the framework suite's `tmux` case has rg read one on a target, and
+       fzf (a pinned release, since bookworm's predates the variable). Left
        for rows of their own: `LS_COLORS`, ~18KB raw on every connect;
        skim, bottom, procs, and dust, which fewer boxes run, the last three
-       behind a flag and so an alias. **Ticks when:** an fzf that reads
-       `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
-       (bookworm's fzf predates the variable, and it ships no lazygit).
+       behind a flag and so an alias. **Ticks when:** that fzf check passes
+       in CI, and lazygit reads its own on a target (bookworm ships no
+       lazygit).
 
 5. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
        shipped: a row of the overlay's `plugins` names the member, its
