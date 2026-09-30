@@ -87,8 +87,8 @@ zsh on a host that has neither.
 **Where xxh wins outright:** that capability. say-hi cannot give you a shell
 the target lacks — its no-bash ladder (`fish > zsh > dash > ash > sh`) picks
 the best of what is installed and says so. xxh's plugins can also ship whole
-frameworks, where hi's `plugins.d` ([HI.59](GLOSSARY.md#hi59-plugins)) is
-shell lines.
+frameworks, where hi's `extensions/` ([HI.59](GLOSSARY.md#hi59-extensions))
+is shell lines.
 
 **Where say-hi wins**, beyond the table's reach and weight rows: no
 architecture or libc tie. Anything with `sh` and `base64` is in reach, and CI

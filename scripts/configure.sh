@@ -439,14 +439,14 @@ function _hi_editors_preview() {
       member="${row##*|}" src="" lines=""
       _hi_overlay_src "$member" src || continue
       _hi_overlay_wiring lines "$member"
-      # a directory's member is wired by the directory
-      case "$member" in */*) member="${member%%/*}" src="${src%/*}" ;; esac
       while IFS= read -r line; do
         while [ "${line#* alias }" != "$line" ]; do
           line="${line#* alias }"
           body="${line#*=\"}"
           body="${body%%\"*}"
-          body="$(printf '%-5s -> %s' "${line%%=*}" "${body//\$_HI_CONFIG_DIR\/$member/$src}")"
+          # the file it names, else the directory holding it
+          body="${body//\$_HI_CONFIG_DIR\/$member/$src}"
+          body="$(printf '%-5s -> %s' "${line%%=*}" "${body//\$_HI_CONFIG_DIR\/${member%%/*}/${src%/*}}")"
           case "$seen" in *$'\n'"$body"$'\n'*) continue ;; esac
           seen="$seen$body"$'\n'
           printf '%s\n' "$body"

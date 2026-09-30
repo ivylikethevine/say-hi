@@ -259,10 +259,10 @@ function test_config_says_the_ssh_tags_ride() {
 # every member a tool reads is labeled with that tool, and hi's own go bare
 function test_member_labels_name_the_reading_tool() {
   local pair label
-  for pair in vimrc:vim init.lua:nvim config.toml:hx nanorc:nano init.el:emacs \
-    kakrc:kak tmux.conf:tmux screenrc:screen micro/settings.json:micro \
-    zellij/config.kdl:zellij bat.conf:bat theme.yml:eza inputrc:readline \
-    ripgreprc:rg fzfrc:fzf lazygit.yml:lazygit \
+  for pair in vim/vimrc:vim nvim/init.lua:nvim helix/config.toml:hx nano/nanorc:nano emacs/init.el:emacs \
+    kak/kakrc:kak tmux/tmux.conf:tmux screenrc:screen micro/settings.json:micro \
+    zellij/config.kdl:zellij bat/config:bat eza/theme.yml:eza inputrc:readline \
+    ripgreprc:rg fzfrc:fzf lazygit/config.yml:lazygit \
     bashrc:bash zshrc:zsh config.fish:fish starship.toml:starship \
     oh-my-posh.json:oh-my-posh zellij/layouts/work.kdl:zellij \
     p10k.zsh:powerlevel10k \
@@ -300,7 +300,7 @@ function test_config_names_a_home_tool_config() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
   )"
-  [[ "$out" == *"bat.conf (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]]
+  [[ "$out" == *"bat/config (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]]
 }
 
 # a tool config copy in the overlay is the override, over the file the tool
@@ -309,14 +309,15 @@ function test_config_names_a_home_tool_config() {
 function test_config_counts_a_tool_config_copy_as_an_override() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/tooloverride.XXXXXX")"
-  printf -- '--theme=x\n' >"$dir/bat.conf"
+  mkdir -p "$dir/bat"
+  printf -- '--theme=x\n' >"$dir/bat/config"
   printf 'format = "x"\n' >"$dir/starship.toml"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     BAT_CONFIG_PATH="$dir/elsewhere" doctor_config
   )"
-  [[ "$out" == *"bat.conf"*"overridden (1 lines)"* ]] &&
+  [[ "$out" == *"bat/config"*"overridden (1 lines)"* ]] &&
     [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]]
 }
 
@@ -342,21 +343,22 @@ function test_config_reports_the_carry_rows() {
 function test_config_reports_what_is_switched_off() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/offdoc.XXXXXX")"
-  printf -- '--theme=x\n' >"$dir/bat.conf"
-  printf 'set nu\n' >"$dir/nanorc"
+  mkdir -p "$dir/bat" "$dir/nano"
+  printf -- '--theme=x\n' >"$dir/bat/config"
+  printf 'set nu\n' >"$dir/nano/nanorc"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="cli nosuch" doctor_config
   )"
-  [[ "$out" == *"bat.conf (bat)"*"not sent - switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "bat: $out" || return 1
-  [[ "$out" == *"nanorc (nano)"* && "$out" != *"nanorc (nano)"*"not sent"*"_HI_DISABLE_NANO"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"bat/config (bat)"*"not sent - switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "bat: $out" || return 1
+  [[ "$out" == *"nano/nanorc (nano)"* && "$out" != *"nano/nanorc (nano)"*"not sent"*"_HI_DISABLE_NANO"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *"_HI_DISABLE_NANO"*"is ignored"* ]] || _hi_because "the old toggle: $out" || return 1
   [[ "$out" == *"_HI_PLUGINS_OFF"*"'cli nosuch' is ignored"* ]] || _hi_because "the list: $out"
 }
 
 # tmux's and micro's configs come from home like a tool's: the file in force
-# here is named, a micro file nobody has gets no row, and a tmux.conf's
+# here is named, a micro file nobody has gets no row, and a tmux/tmux.conf's
 # source-file is a row of the include scan like any editor rc's
 function test_config_names_tmux_and_micro_configs() {
   local dir out
@@ -369,9 +371,9 @@ function test_config_names_tmux_and_micro_configs() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     HOME="$dir" MICRO_CONFIG_HOME="$dir/micro" doctor_config
   )"
-  [[ "$out" == *"tmux.conf (tmux)"*"~/.tmux.conf"* ]] &&
+  [[ "$out" == *"tmux/tmux.conf (tmux)"*"~/.tmux.conf"* ]] &&
     [[ "$out" == *"micro/settings.json (micro)"*"~/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
-    [[ "$out" == *"tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
+    [[ "$out" == *"tmux/tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
 }
 
 # ...and only with the tool here: home's config for a tool this machine lacks
@@ -386,7 +388,7 @@ function test_config_is_silent_on_a_config_for_an_absent_tool() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     HOME="$dir" doctor_config
   )"
-  [[ "$out" != *tmux.conf* ]]
+  [[ "$out" != *tmux/tmux.conf* ]]
 }
 
 # _hi_doc_path <path> - <path> as the boxed report writes it: ~ for $HOME, so
@@ -399,7 +401,7 @@ function _hi_doc_path() {
 }
 
 # The files table walks every tier of a member in the table's order and marks
-# what it finds: home's ~/.vimrc used, the overlay's tmux.conf over home's, a
+# what it finds: home's ~/.vimrc used, the overlay's tmux/tmux.conf over home's, a
 # member found nowhere only in the closing row, and a home config whose tool
 # is missing named as not sent. A place found empty is no part of a row.
 # GLOSSARY: HI.61
@@ -410,15 +412,16 @@ function test_files_table_walks_every_tier() {
   printf 'set number\n' >"$h/.vimrc"
   printf '(setq x 1)\n' >"$h/.emacs"
   printf 'set -g mouse on\n' >"$h/.tmux.conf"
-  printf 'set -g mouse off\n' >"$h/overlay/tmux.conf"
+  mkdir -p "$h/overlay/tmux"
+  printf 'set -g mouse off\n' >"$h/overlay/tmux/tmux.conf"
   out="$(
-    function _hi_tool_here() { [ "$1" != init.el ]; }
+    function _hi_tool_here() { [ "$1" != emacs/init.el ]; }
     HOME="$h" _HI_CONFIG_DIR="$h/overlay" doctor_files
   )"
   out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"vimrc (vim)"*"used ~/.vimrc"* && "$out" != *absent* ]] &&
-    [[ "$out" == *"tmux.conf (tmux)"*"used ~/overlay/tmux.conf; passed over ~/.tmux.conf"* ]] &&
-    [[ "$out" == *"init.el (emacs)"*"passed over ~/.emacs - not sent: its tool is not installed here"* ]] &&
+  [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* && "$out" != *absent* ]] &&
+    [[ "$out" == *"tmux/tmux.conf (tmux)"*"used ~/overlay/tmux/tmux.conf; passed over ~/.tmux.conf"* ]] &&
+    [[ "$out" == *"emacs/init.el (emacs)"*"passed over ~/.emacs - not sent: its tool is not installed here"* ]] &&
     [[ "$out" == *"none anywhere"*screenrc* ]] || {
     printf '%s\n' "$out"
     return 1
@@ -444,7 +447,7 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
   [[ "$out" == *"zellij/layouts/ (zellij)"*"present ~/.config/zellij/layouts/ - 1 file(s) ride"* ]] &&
     [[ "$out" == *"zellij/themes/ (zellij)"*"present ~/.config/zellij/themes/ - no file rides"* ]] &&
     [[ "$out" == *"starship.toml (starship)"*"not sent: its prompt program is not one a target is handed"* ]] &&
-    [[ "$out" == *"vimrc (vim)"*"used ~/.vimrc"* ]] || {
+    [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* ]] || {
     printf '%s\n' "$out"
     return 1
   }
@@ -454,7 +457,7 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
       _HI_REMOTE_SESSION=1 doctor_files
   )"
   out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"vimrc (vim)"*"passed over ~/.vimrc - not sent: a session reads no home file"* ]] &&
+  [[ "$out" == *"vim/vimrc (vim)"*"passed over ~/.vimrc - not sent: a session reads no home file"* ]] &&
     [[ "$out" == *"zellij/layouts/ (zellij)"*"- no file rides"* ]] || {
     printf '%s\n' "$out"
     return 1
@@ -488,7 +491,7 @@ function test_the_box_folds_and_shortens() {
   local out
   out="$(
     HOME=/h
-    _HI_DOC_T_LABEL=(podman finch docker vimrc)
+    _HI_DOC_T_LABEL=(podman finch docker vim/vimrc)
     _HI_DOC_T_TEXT=("not installed" "not installed" "answering" "/h/.vimrc")
     _HI_DOC_T_SEV=(info info ok info)
     unset _HI_TERM_COLS
@@ -522,14 +525,15 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
 function test_config_names_an_unresolvable_include() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/incl.XXXXXX")"
-  printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vimrc"
+  mkdir -p "$dir/vim"
+  printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vim/vimrc"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"vimrc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
-    [[ "$out" == *"vimrc:3"*"names a plugin manager"* ]]
+  [[ "$out" == *"vim/vimrc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
+    [[ "$out" == *"vim/vimrc:3"*"names a plugin manager"* ]]
 }
 
 # a shell overlay file gets the same yellow row, and a `# hi-allow` or
@@ -547,6 +551,23 @@ function test_config_names_a_shell_include_unless_allowed() {
     [[ "$out" != *"aliases.sh:3"* && "$out" != *"aliases.sh:5"* ]]
 }
 
+# a block marker's start with no end below it decides nothing, so it gets a
+# row naming the end it lacks and the line under it keeps its own
+function test_config_names_an_unclosed_block_marker() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/unclosed.XXXXXX")"
+  printf '# hi-quiet-start\n. ~/.secrets\n' >"$dir/aliases.sh"
+  mkdir -p "$dir/vim"
+  printf '" hi-allow-start\nsource ~/.vim/kept.vim\n" hi-allow-end\n' >"$dir/vim/vimrc"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"aliases.sh:1"*"# hi-quiet-start has no # hi-quiet-end below it, so it decides nothing"* ]] &&
+    [[ "$out" == *"aliases.sh:2"*"reads a file hi does not carry"* && "$out" != *"vim/vimrc:"* ]]
+}
+
 # an editor rc hi picked up from where that editor reads it says where it came
 # from, so "which file is my target actually getting" has one answer on screen
 function test_config_names_the_editor_config_in_force_here() {
@@ -558,7 +579,7 @@ function test_config_names_the_editor_config_in_force_here() {
     _HI_SETTINGS="$dir/settings.sh"
     HOME="$dir" doctor_config
   )"
-  [[ "$out" == *"vimrc (vim)"*"~/.vimrc"* ]]
+  [[ "$out" == *"vim/vimrc (vim)"*"~/.vimrc"* ]]
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
@@ -636,26 +657,23 @@ function test_config_flags_a_ramp_nothing_paints() {
   [[ "$out" != *"pkg-palette"* ]]
 }
 
-# plugins.d (HI.59): the load order in one row, a warn for a plugin a shell
-# here cannot parse (bash is always here; zsh and fish when installed), and a
-# warn for a member that never travels. Quiet without a plugin.
-function test_config_lists_the_plugins() {
+# extensions/ (HI.59): the load order in one row, a warn for an extension a
+# shell here cannot parse (bash is always here; zsh and fish when installed),
+# and a warn for a member that never travels. Quiet without one.
+function test_config_lists_the_extensions() {
   local dir out
-  # not plugins.XXXXXX: the section header prints $_HI_CONFIG_DIR, and one
-  # mktemp suffix in 62 starts with "d" - which spells "plugins.d" in the path
-  # and fails the quiet-without-one check below on the header alone
-  dir="$(mktemp -d "$_HI_WORKDIR/plugdir.XXXXXX")"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_PLUGINS_D="$dir/plugins.d" doctor_config)"
-  [[ "$out" != *plugins.d* ]] || return 1
-  mkdir -p "$dir/plugins.d"
-  printf 'export A=1\n' >"$dir/plugins.d/10-a"
-  printf 'foo() {\n' >"$dir/plugins.d/20-broken"
-  printf 'export B=1\n' >"$dir/plugins.d/30-c.bak"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_PLUGINS_D="$dir/plugins.d" doctor_config)"
-  [[ "$out" == *"plugins.d"*"loads in order: 10-a, 20-broken"* ]] &&
-    [[ "$out" == *"plugins.d/20-broken"*"does not parse in bash"*"skipped there"* ]] &&
-    [[ "$out" == *"plugins.d/30-c.bak"*"ignored"* ]] &&
-    [[ "$out" != *"plugins.d/10-a"* ]]
+  dir="$(mktemp -d "$_HI_WORKDIR/extdir.XXXXXX")"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_EXTENSIONS="$dir/extensions" doctor_config)"
+  [[ "$out" != *extensions/* ]] || return 1
+  mkdir -p "$dir/extensions"
+  printf 'export A=1\n' >"$dir/extensions/10-a"
+  printf 'foo() {\n' >"$dir/extensions/20-broken"
+  printf 'export B=1\n' >"$dir/extensions/30-c.bak"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_EXTENSIONS="$dir/extensions" doctor_config)"
+  [[ "$out" == *"extensions/"*"loads in order: 10-a, 20-broken"* ]] &&
+    [[ "$out" == *"extensions/20-broken"*"does not parse in bash"*"skipped there"* ]] &&
+    [[ "$out" == *"extensions/30-c.bak"*"ignored"* ]] &&
+    [[ "$out" != *"extensions/10-a"* ]]
 }
 
 # packages is an overlay file like colors: the tree's default until the
@@ -717,19 +735,25 @@ function test_config_lists_an_opt_in_turned_on() {
 }
 
 # an overlay file still under a name renamed before 1.0 is a red row with
-# the mv that fixes it; the new name beside it is an ordinary override
+# the mv that fixes it, a directory too; the new name beside it is an
+# ordinary override
 function test_config_names_a_file_under_an_old_member_name() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/oldname.XXXXXX")"
   printf 'set number\n' >"$dir/vim.rc"
   printf 'export X=1\n' >"$dir/bash.sh"
   printf 'export X=1\n' >"$dir/bashrc"
+  mkdir -p "$dir/plugins.d"
+  printf 'export X=1\n' >"$dir/plugins.d/10-x"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
+    _HI_EXTENSIONS="$dir/extensions"
     doctor_config
   )"
-  [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $(_hi_doc_path "$dir/vim.rc") $(_hi_doc_path "$dir/vimrc")"* &&
+  [[ "$out" == *"plugins.d"*"old name"*"mv $(_hi_doc_path "$dir/plugins.d") $(_hi_doc_path "$dir/extensions")"* &&
+  "$out" != *"loads in order"* ]] || _hi_because "the old directory: $out" || return 1
+  [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $(_hi_doc_path "$dir/vim.rc") $(_hi_doc_path "$dir/vim/vimrc")"* &&
   "$out" == *"bash.sh"*"old name"*"mv $(_hi_doc_path "$dir/bash.sh") $(_hi_doc_path "$dir/bashrc")"* &&
   "$out" == *"bashrc"*"overridden (1 lines)"* ]]
 }
@@ -917,8 +941,9 @@ function test_config_flags_values_set_in_aliases_sh() {
 function test_config_flags_aliases_that_replace_a_wired_one() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/wiredalias.XXXXXX")"
-  printf 'x\n' >"$dir/nanorc"
-  printf 'x\n' >"$dir/tmux.conf"
+  mkdir -p "$dir/nano" "$dir/tmux"
+  printf 'x\n' >"$dir/nano/nanorc"
+  printf 'x\n' >"$dir/tmux/tmux.conf"
   printf '%s\n' 'alias nano="nano -l"' '# alias tmux=tmux' 'alias ll="ls -l"' \
     '[ -n "$X" ] && alias nano=pico' >"$dir/aliases.sh"
   out="$(
@@ -1701,6 +1726,7 @@ function run_doctor_tests() {
     _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
     _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
     _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
+    _hi_check "A block marker's start with no end is named" test_config_names_an_unclosed_block_marker
     _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
     _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
     _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
@@ -1712,7 +1738,7 @@ function run_doctor_tests() {
     _hi_check "Config flags a name:priority packages file" test_config_flags_an_old_format_packages_file
     _hi_check "Config names what a packages copy lacks" test_config_names_what_a_packages_copy_lacks
     _hi_check "Config flags a type,name,color colors file" test_config_flags_an_old_format_colors_file
-    _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
+    _hi_check "Config lists the plugins, and flags them" test_config_lists_the_extensions
     _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
     _hi_check "Lists an opt-in turned on" test_config_lists_an_opt_in_turned_on
     _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore

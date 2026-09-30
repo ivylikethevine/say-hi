@@ -233,7 +233,7 @@ row, and everything answered **no**, and why:
   `hi --plugin-off lazygit editors` keeps a plugin or a whole group home and
   `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry a config of a tool hi does not know
-  ([docs/SETTINGS.md](docs/SETTINGS.md#plugins)).
+  ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
 - The whole surface is twenty-two flags: `hi --help` (or bare `hi`) lists them,
   `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
@@ -348,29 +348,7 @@ reaches a target first, then the lint gate, the rest, and CI. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
-1. [ ] _Before 1.0:_ **A plugin is one thing** — the word names a carried
-       config ([HI.64](docs/GLOSSARY.md#hi64-what-is-switched-off)) and a
-       shell drop-in of `plugins.d`
-       ([HI.59](docs/GLOSSARY.md#hi59-plugins)). **Do:** a drop-in is an
-       extension and its directory `extensions.d`, a rename `hi --doctor`
-       names as it names `$_HI_OVERLAY_RENAMES`'; a plugin stays the
-       carried config, with `hi --plugins` and `$_HI_PLUGINS_OFF` as they
-       are. **Ticks when:** no doc or message calls a drop-in a plugin, and
-       `hi --doctor` names a `plugins.d` left in the overlay with the `mv`
-       that fixes it.
-
-2. [ ] _Before 1.0:_ **A member is `<tool>/<file>`** — a member is named
-       for its file, so `config.toml` is helix's, `theme.yml` eza's, and
-       `init.lua` neovim's beside micro's `micro/init.lua`. **Do:** every
-       tool's members under a directory of its name, as micro's and
-       zellij's are (`helix/config.toml`, `nvim/init.lua`, `eza/theme.yml`),
-       so the overlay is shaped like `~/.config`; the flat names join
-       `$_HI_OVERLAY_RENAMES`. hi's own files (`settings.sh`, `colors`,
-       `packages`, `aliases.sh`) stay where they are. **Ticks when:** no
-       two tools can ask for one name, and `hi --doctor` names a flat
-       member with its `mv`.
-
-3. [ ] _Before 1.0:_ **The data files are TOML** — `config/packages` and
+1. [ ] _Before 1.0:_ **The data files are TOML** — `config/packages` and
        `config/colors` have `[section]` headers over rows no TOML reader takes
        (`bat,batcat`, `root red`), so an editor highlights neither, or reads
        both as the CSV `.vscode` and `.zed` call them. **Do:** rows a TOML
@@ -384,7 +362,7 @@ checkout: an account or an upstream review that lands when it lands.
        files keep their names, the type said by the editor settings, or gain
        `.toml`?
 
-4. [ ] _Before 1.0:_ **hi's rows and yours are one file** — hi's table is
+2. [ ] _Before 1.0:_ **hi's rows and yours are one file** — hi's table is
        eight columns in `hi.sh` and a `carry` line is four, so a row of the
        user's cannot do what one of hi's does. **Do:** the tools' rows in
        `config/plugins`, in the `carry` line's columns under `[group]`
@@ -395,17 +373,7 @@ checkout: an account or an upstream review that lands when it lands.
        prompt hand-over. **Ticks when:** `hi.sh` holds no tool's row, and a
        row of the user's replaces hi's of the same member.
 
-5. [ ] _Before 1.0:_ **A comment pair decides a block** — `hi-allow` and
-       `hi-quiet` decide the one line under them
-       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)),
-       so a guarded block of plugin lines takes a comment a line. **Do:**
-       `hi-quiet-start` and `hi-quiet-end`, and `hi-allow-start` and
-       `hi-allow-end`, in the file's own comment syntax, deciding every
-       line between them; a start with no end decides nothing and is a
-       `hi --doctor` row. **Ticks when:** a block between a pair rides as
-       its pair says, in each dialect the scan reads.
-
-6. [ ] _Before 1.0:_ **The include scan reads rows** — each dialect is an
+3. [ ] _Before 1.0:_ **The include scan reads rows** — each dialect is an
        arm of `_hi_lint_awk`, picked by a test of the member's name, and a
        row of the user's passes through unscanned. **Do:** a `dialect`
        column standing in for the scan's name tests and `$_HI_STRIP_NAMES`
@@ -420,7 +388,7 @@ checkout: an account or an upstream review that lands when it lands.
        a row of the user's with a dialect has its include disabled on a
        target.
 
-7. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — `env:` and `flag:`
+4. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — `env:` and `flag:`
        reach a config a tool can be pointed at, and helix's
        `languages.toml` is one it cannot. **Do:** an `xdg` wire that
        aliases the command with `$XDG_CONFIG_HOME` set to the overlay,
@@ -433,7 +401,7 @@ checkout: an account or an upstream review that lands when it lands.
        a target reads a carried `languages.toml`, and both docs say when to
        use the wire and what it costs.
 
-8. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
+5. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
        kakoune's `colors/` (a `colorscheme` the `kakrc` names) stays home,
        so the target falls back to the default scheme, and helix's
        `languages.toml` has no flag to point `hx` at. **Do:** carry kak's
@@ -443,9 +411,9 @@ checkout: an account or an upstream review that lands when it lands.
        when:** a `kakrc` with `colorscheme <own>` shows that scheme on a
        target.
 
-9. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
+6. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
        (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
-       `lazygit.yml` (`$LG_CONFIG_FILE`) are members, each carried from
+       `lazygit/config.yml` (`$LG_CONFIG_FILE`) are members, each carried from
        where its tool keeps it and listed in
        [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them);
        the framework suite's `tmux` case has rg read one on a target. Left
@@ -455,44 +423,44 @@ checkout: an account or an upstream review that lands when it lands.
        `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
        (bookworm's fzf predates the variable, and it ships no lazygit).
 
-10. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
-        shipped: a line of the overlay's `carry` names the member, its tool,
-        its wire, and its places at home, and rides through the same order,
-        include scan, and wiring;
-        [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know) shows
-        how. What is left is seeing it. **Ticks when:** a tool of the user's
-        own reads its home config on an e2e target.
+7. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
+       shipped: a line of the overlay's `carry` names the member, its tool,
+       its wire, and its places at home, and rides through the same order,
+       include scan, and wiring;
+       [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know) shows
+       how. What is left is seeing it. **Ticks when:** a tool of the user's
+       own reads its home config on an e2e target.
 
-11. [ ] _Before 1.0:_ **The settings table is written, not checked** —
-        `drift` holds
-        [docs/SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting)
-        to the names the tree treats as settings: two spellings and a check
-        between them. **Do:** one row a setting (its name, default, who sets
-        it, what it does), which `hi --configure` reads its items from and
-        the table is written from. **Ticks when:** a new setting is one row,
-        and `drift` has no settings roster check.
+8. [ ] _Before 1.0:_ **The settings table is written, not checked** —
+       `drift` holds
+       [docs/SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting)
+       to the names the tree treats as settings: two spellings and a check
+       between them. **Do:** one row a setting (its name, default, who sets
+       it, what it does), which `hi --configure` reads its items from and
+       the table is written from. **Ticks when:** a new setting is one row,
+       and `drift` has no settings roster check.
 
-12. [ ] _Before 1.0:_ **One display for every command** —
-        `hi --configure` has a menu, a preview box, and questions of its own,
-        `hi --doctor` a boxed report, `hi --preview` the table of
-        `scripts/table.sh`, and `hi --plugins` a `printf` of its own, so one
-        member's row is drawn four ways. **Do:** one library the wizard, the
-        doctor, the previews, and the commands that list or edit draw and ask
-        through - a section, a row with its state, a box, a question that
-        toggles words, a question that takes a value - over a smaller one for
-        what every script says: a message, an error, a dry run's line. A
-        command is then its rows and what it does with an answer. **Ticks
-        when:** `hi --plugins` and `hi --doctor` draw a member's row through
-        one function, the wizard's two word-list questions are one, and no
-        script pads a column with a `printf` of its own.
+9. [ ] _Before 1.0:_ **One display for every command** —
+       `hi --configure` has a menu, a preview box, and questions of its own,
+       `hi --doctor` a boxed report, `hi --preview` the table of
+       `scripts/table.sh`, and `hi --plugins` a `printf` of its own, so one
+       member's row is drawn four ways. **Do:** one library the wizard, the
+       doctor, the previews, and the commands that list or edit draw and ask
+       through - a section, a row with its state, a box, a question that
+       toggles words, a question that takes a value - over a smaller one for
+       what every script says: a message, an error, a dry run's line. A
+       command is then its rows and what it does with an answer. **Ticks
+       when:** `hi --plugins` and `hi --doctor` draw a member's row through
+       one function, the wizard's two word-list questions are one, and no
+       script pads a column with a `printf` of its own.
 
-13. [ ] _Before 1.0:_ **A Contents list is written, not checked** — every
+10. [ ] _Before 1.0:_ **A Contents list is written, not checked** — every
         doc's `## Contents` is kept by hand, and `drift` checks it against
         the headings. **Do:** write the list from the headings, in a step
         prettier's `--check` agrees with. **Ticks when:** a new heading
         needs no edit of the list, and `drift` has no Contents check.
 
-14. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
+11. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
         `drift` holds every `eval` in the payload and `scripts/` to a row of
         `tests/lint/eval_roster` that says what it evaluates, and each file's
         count of its kin (a `source` of a path in a variable, a shell's `-c`,
@@ -507,9 +475,9 @@ checkout: an account or an upstream review that lands when it lands.
         `$_HI_SEGMENT` are commands by contract; do they count against the
         tick, or does the roster name them as the two ways in that stay?
 
-15. [ ] _Before 1.0:_ **A header cell of the user's own** — every cell is
-        one `_hi_cell_<word>` behind a dispatch, and a `plugins.d` member can
-        only set a prompt segment. **Do:** `header.d`, a `.d` member
+12. [ ] _Before 1.0:_ **A header cell of the user's own** — every cell is
+        one `_hi_cell_<word>` behind a dispatch, and an extension can
+        only set a prompt segment. **Do:** `header/`, a directory member
         ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members))
         scanned and stripped as sh, each file defining `_hi_cell_<word>`
         (`common/header.sh` is bash on every side). `_hi_header_word_cell`'s
@@ -521,10 +489,10 @@ checkout: an account or an upstream review that lands when it lands.
         a user's cell may fork, and the shared probes stay the built-ins'.
         The built-in cells stay in `header.sh`: two probes feed eleven, so a
         file each would ship more and save nothing. **Ticks when:** a
-        `header.d` member's cell draws on a target where `$_HI_HEADER_ORDER`
+        `header/` member's cell draws on a target where `$_HI_HEADER_ORDER`
         puts it, and [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) shows how.
 
-16. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
+13. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
         the client knows the prompt programs a target is handed before it
         packs
         ([HI.32](docs/GLOSSARY.md#hi32-starship-deference)).
@@ -535,7 +503,7 @@ checkout: an account or an upstream review that lands when it lands.
         connect handed starship alone ships no framework's loader, and
         `--group bench` reads the smaller payload.
 
-17. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
+14. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
         bash and zsh keep a `PS1`/`PROMPT` the rc set unless it is one nobody
         wrote (the shell's built-in default, or a stock rc's on the distros
         [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#prompt-programs) lists); a
@@ -544,7 +512,7 @@ checkout: an account or an upstream review that lands when it lands.
         and zsh, and a stock Debian, Fedora, and Arch `.bashrc` still gets
         hi's prompt.
 
-18. [ ] _Before 1.0:_ **The header probes only what was asked** — the
+15. [ ] _Before 1.0:_ **The header probes only what was asked** — the
         default `$_HI_HEADER_ORDER` counts containers, jobs, and pods, so
         every local terminal or tmux pane runs docker, podman, nomad, and
         kubectl. **Do:** leave the backend cells out of the local default (a
@@ -554,14 +522,14 @@ checkout: an account or an upstream review that lands when it lands.
         local default header, or keep them and fill them in after the first
         prompt? Either changes what a local header shows today.
 
-19. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
+16. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
         `check_tool_versions.sh` counts a problem, naming the host, when no
         lookup on one host answered (a blocked host, not a one-off rate
         limit). What is left is seeing it in CI. **Ticks when:** a
         `tool-versions.yml` dispatch with one upstream host removed from
         `allowed-endpoints` opens the tracking issue naming it.
 
-20. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
+17. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
         the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
         `update.sh` and `preview.sh` from a scratch-tree copy (the first four
         read 0% in run 36341616721, 91.11% overall) now link the real
@@ -571,22 +539,22 @@ checkout: an account or an upstream review that lands when it lands.
         this lands reads at least 95% and no shipped line at 0 that is
         neither tested nor in that header.
 
-21. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+18. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
         [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
         **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
         versions_ prose into its version table.
 
-22. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+19. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-23. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+20. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-24. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+21. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

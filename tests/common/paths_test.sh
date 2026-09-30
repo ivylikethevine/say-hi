@@ -382,7 +382,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) that no line of the
 # generated wiring.sh covers (GLOSSARY: HI.62) needs its overlay lookup in
-# paths.sh - except settings.sh and plugins.d (the overlay is plugins.d's only
+# paths.sh - except settings.sh and extensions/ (the overlay is its only
 # home, so it is an unguarded export instead) and the ones read by name from
 # $_HI_CONFIG_DIR rather than through a path var: aliases.sh and the three
 # per-shell files (bashrc, zshrc, config.fish), the prompt frameworks' five,
@@ -398,8 +398,8 @@ function test_overlay_guards_match_the_roster() {
   while IFS= read -r f; do
     case "$f" in
     settings.sh | aliases.sh) continue ;;
-    plugins.d)
-      grep -qF "\"\$_HI_CONFIG_DIR/$f\"" "$_HI_ROOT/common/paths.sh" && continue
+    extensions/)
+      grep -qF "\"\$_HI_CONFIG_DIR/${f%/}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
     bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags | carry) continue ;;
     esac

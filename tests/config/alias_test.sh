@@ -170,10 +170,10 @@ SCRIPT
 # shellcheck disable=SC2016 # the scripts we write out, not code to run here
 function _hi_test_nvim_stays_in_tree() {
   local shell="$1" base="$2/nvstate.$1" output rc=0
-  mkdir -p "$base/home" "$base/tree" "$base/cfg"
-  printf '%s\n' 'vim.loader.enable()' 'vim.opt.undofile = true' >"$base/cfg/init.lua"
+  mkdir -p "$base/home" "$base/tree" "$base/cfg/vim" "$base/cfg/nvim"
+  printf '%s\n' 'vim.loader.enable()' 'vim.opt.undofile = true' >"$base/cfg/nvim/init.lua"
   printf 'a\n' >"$base/f.txt"
-  _hi_wiring_for init.lua >"$base/cfg/wiring.sh" ||
+  _hi_wiring_for nvim/init.lua >"$base/cfg/wiring.sh" ||
     _hi_because "[$shell] no wiring.sh for init.lua" || return 1
   if [ "$shell" = fish ]; then
     printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' 'nvim --headless -c "normal! ix" -c wq $F' >"$base/t"
@@ -197,11 +197,11 @@ function _hi_test_nvim_stays_in_tree() {
 # shellcheck disable=SC2016 # the scripts we write out, not code to run here
 function _hi_test_vim_stays_in_tree() {
   local shell="$1" base="$2/vimstate.$1" output rc=0 run='vim -es -c "normal! ix" -c wq'
-  mkdir -p "$base/home" "$base/tree" "$base/cfg"
+  mkdir -p "$base/home" "$base/tree" "$base/cfg/vim" "$base/cfg/nvim"
   printf '%s\n' 'set nocompatible undofile' 'let &undodir = $XDG_STATE_HOME . "/vim/undo"' \
-    'call mkdir(&undodir, "p")' >"$base/cfg/vimrc"
+    'call mkdir(&undodir, "p")' >"$base/cfg/vim/vimrc"
   printf 'a\n' >"$base/f.txt"
-  _hi_wiring_for vimrc >"$base/cfg/wiring.sh" ||
+  _hi_wiring_for vim/vimrc >"$base/cfg/wiring.sh" ||
     _hi_because "[$shell] no wiring.sh for vimrc" || return 1
   if [ "$shell" = fish ]; then
     printf '%s\n' 'source "$_HI_CONFIG_DIR/wiring.sh"; or exit 2' "$run \$F" >"$base/t"

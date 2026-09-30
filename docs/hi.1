@@ -719,7 +719,7 @@ or
 .B \-\-update
 converts it.
 .TP
-.B ~/.config/say-hi/vimrc, init.lua, config.toml, kakrc, nanorc, init.el
+.B ~/.config/say-hi/vim/vimrc, nvim/init.lua, helix/config.toml, kak/kakrc, nano/nanorc, emacs/init.el
 replacements for vim's, neovim's, helix's, kakoune's, nano's, and emacs's configs, used
 whole. Without one, hi carries the config each editor already reads here
 .RB ( ~/.vimrc ,
@@ -737,10 +737,21 @@ line above it sends it anyway; a
 .B # hi-quiet
 line above it still drops it, but leaves
 .B \-\-doctor
-no row about it. tmux, screen, micro, zellij, and the shell and prompt files
+no row about it. A pair,
+.B # hi-allow-start
+and
+.B # hi-allow-end
+or
+.B # hi-quiet-start
+and
+.BR "# hi-quiet-end" ,
+decides every line inside it the same way; a start with no end decides
+nothing and is named by
+.BR \-\-doctor .
+tmux, screen, micro, zellij, and the shell and prompt files
 below get the same pass.
 .TP
-.B ~/.config/say-hi/tmux.conf, screenrc, micro/, zellij/
+.B ~/.config/say-hi/tmux/tmux.conf, screenrc, micro/, zellij/
 the same for tmux (its alias becomes
 .BR "tmux \-f" ),
 screen
@@ -795,10 +806,10 @@ and
 .B flagdir:
 the command and flag a target aliases with it. Nothing in a line is evaluated.
 .TP
-.B ~/.config/say-hi/plugins.d/
-plugins in the aliases.sh subset, sourced in name order after the aliases and
-before the prompt; one a shell cannot parse is skipped with a warning. A
-plugin's
+.B ~/.config/say-hi/extensions/
+extensions in the aliases.sh subset, sourced in name order after the aliases
+and before the prompt; one a shell cannot parse is skipped with a warning. An
+extension's
 .B _HI_SEGMENT
 command is drawn in the prompt.
 .TP
@@ -826,7 +837,7 @@ or
 points), carried to every target \- starship's only when starship is a
 prompt program a target is handed. A
 .BR starship.toml ,
-.BR bat.conf ,
+.BR bat/config ,
 or
 .B theme.yml
 in
@@ -855,7 +866,7 @@ points), carried to every target and named there by the same variables. A
 .BR ripgreprc ,
 .BR fzfrc ,
 or
-.B lazygit.yml
+.B lazygit/config.yml
 in
 .B ~/.config/say-hi
 is carried instead.

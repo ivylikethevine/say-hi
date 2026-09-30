@@ -403,7 +403,7 @@ function _hi_unsent_why() {
 function _hi_plugin_state() {
   local src="" why="" tilde='~'
   case "$1" in
-  */ | *.d)
+  */)
     src="$(_hi_overlay_files "$1" | grep -c .)" || true
     if [ "$src" = 0 ]; then src=""; else src="$src file(s)"; fi
     ;;

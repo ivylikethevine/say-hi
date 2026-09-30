@@ -520,6 +520,7 @@ function test_remote_session_exports_overlay_config() {
   local shell="$1" file="$2" var="$3" want="$4" script out home
   shift 4
   mkdir -p "$_HI_WORKDIR/cfg"
+  case "$file" in */*) mkdir -p "$_HI_WORKDIR/cfg/${file%/*}" ;; esac
   printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
   _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   case "$shell" in
@@ -541,7 +542,7 @@ function test_remote_session_exports_overlay_config() {
 function test_remote_session_aliases_overlay_config() {
   local shell="$1" file="$2" name="$3" want="$4" bad="${5:-}" script out
   [ "$file" = - ] || {
-    mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij"
+    mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux"
     printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
     _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
   }
@@ -554,7 +555,7 @@ function test_remote_session_aliases_overlay_config() {
   # runner has micro: a stub on PATH stands in for it
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 \
     PATH="$(_hi_fake_path rc-tools micro tmux screen zellij):$PATH" 2>/dev/null)"
-  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf" \
+  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux" "$_HI_WORKDIR/cfg/screenrc" "$_HI_WORKDIR/.tmux.conf" \
     "$_HI_WORKDIR/cfg/wiring.sh"
   if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
     _hi_cecho " | $name is: [$out]" "$RED"
@@ -590,13 +591,13 @@ function test_home_session_aliases_only_his_configs() {
   return 1
 }
 
-# plugins.d (GLOSSARY: HI.59), one fixture for every shell: 10 exports a value
+# extensions/ (GLOSSARY: HI.59), one fixture for every shell: 10 exports a value
 # and a segment, 20 reads 10's value (so name order is load order), 30 uses
 # if/then/fi (bash and zsh parse it, fish does not), 40 parses nowhere, and
 # 50 is a backup that is never a member. Each shell loads what it can parse,
 # in order, says what it skipped, and draws the segment.
-function _hi_plugin_cfg() {
-  local d="$_HI_WORKDIR/plugcfg/plugins.d"
+function _hi_extension_cfg() {
+  local d="$_HI_WORKDIR/extcfg/extensions"
   [ -d "$d" ] || {
     mkdir -p "$d"
     printf '#!/bin/sh\nexport HI_A=a\nexport _HI_SEGMENT="printf kctx"\n' >"$d/10-kube"
@@ -608,7 +609,7 @@ function _hi_plugin_cfg() {
   printf '%s' "${d%/*}"
 }
 
-function test_plugins_load_in_order_skip_loudly_and_draw() {
+function test_extensions_load_in_order_skip_loudly_and_draw() {
   local shell="$1" script want out
   case "$shell" in
   bash)
@@ -624,11 +625,11 @@ function test_plugins_load_in_order_skip_loudly_and_draw() {
     want='[a|ab||]'
     ;;
   esac
-  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$(_hi_plugin_cfg)")"
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$(_hi_extension_cfg)")"
   # fish's drawn prompt sits between the values and the segment's lead space
-  if [[ "$out" != *"plugin 40-broken does not parse in $shell; skipped"* || "$out" == *50-x* ||
+  if [[ "$out" != *"extension 40-broken does not parse in $shell; skipped"* || "$out" == *50-x* ||
     "$out" != *"$want"* || "$out" != *"kctx "* ]] ||
-    [[ "$shell" == fish && "$out" != *"plugin 30-shonly does not parse in fish"* ]]; then
+    [[ "$shell" == fish && "$out" != *"extension 30-shonly does not parse in fish"* ]]; then
     _hi_cecho " | $shell said: [$out]" "$RED"
     return 1
   fi
@@ -1492,16 +1493,16 @@ function run_rc_tests() {
   _hi_check "[bash] keeps hi's prompt without the setting" test_bash_keeps_hi_prompt_without_the_setting
   _hi_check "[bash] falls back silently when absent" test_bash_falls_back_when_starship_is_absent
   _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
-  _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config bash theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
-  _hi_check "[bash] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config bash bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check "[bash] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config bash eza/theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg/eza"
+  _hi_check "[bash] a target points bat at the overlay's config" test_remote_session_exports_overlay_config bash bat/config BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat/config"
   _hi_check "[bash] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config bash inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
   _hi_check "[bash] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config bash ripgreprc RIPGREP_CONFIG_PATH "$_HI_WORKDIR/cfg/ripgreprc"
   _hi_check "[bash] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config bash fzfrc FZF_DEFAULT_OPTS_FILE "$_HI_WORKDIR/cfg/fzfrc"
-  _hi_check "[bash] a target points lazygit at the overlay's lazygit.yml" test_remote_session_exports_overlay_config bash lazygit.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit.yml"
-  _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
-  _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vimrc"
+  _hi_check "[bash] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config bash lazygit/config.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit/config.yml"
+  _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
+  _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
-  _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
+  _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux/tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux/tmux.conf"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
   _hi_check "[bash] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config bash screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
   _hi_check "[bash] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
@@ -1512,16 +1513,16 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
   _hi_check_requires fish "[fish] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked fish oh-my-posh
   _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
-  _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
-  _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check_requires fish "[fish] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config fish eza/theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg/eza"
+  _hi_check_requires fish "[fish] a target points bat at the overlay's config" test_remote_session_exports_overlay_config fish bat/config BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat/config"
   _hi_check_requires fish "[fish] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config fish inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
   _hi_check_requires fish "[fish] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config fish ripgreprc RIPGREP_CONFIG_PATH "$_HI_WORKDIR/cfg/ripgreprc"
   _hi_check_requires fish "[fish] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config fish fzfrc FZF_DEFAULT_OPTS_FILE "$_HI_WORKDIR/cfg/fzfrc"
-  _hi_check_requires fish "[fish] a target points lazygit at the overlay's lazygit.yml" test_remote_session_exports_overlay_config fish lazygit.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit.yml"
-  _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg"
-  _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vimrc"
+  _hi_check_requires fish "[fish] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config fish lazygit/config.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit/config.yml"
+  _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
+  _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
-  _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
+  _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux/tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux/tmux.conf"
   _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
   _hi_check_requires fish "[fish] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
   _hi_check_requires fish "[fish] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config fish - micro "" micro
@@ -1619,9 +1620,9 @@ function run_rc_tests() {
   _hi_check_requires zsh "[zsh] zsh's own default is drawn over" test_rc_prompt zsh drawn '%m%# '
   _hi_check_requires zsh "[zsh] ...and Fedora's" test_rc_prompt zsh drawn '[%n@%m]%~%# '
   _hi_check_requires zsh "[zsh] the rc sourced again draws over hi's own" test_rc_prompt_redraws_on_a_re_source zsh
-  _hi_check "[bash] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw bash
-  _hi_check_requires zsh "[zsh] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw zsh
-  _hi_check_requires fish "[fish] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw fish
+  _hi_check "[bash] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw bash
+  _hi_check_requires zsh "[zsh] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw zsh
+  _hi_check_requires fish "[fish] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
   _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options

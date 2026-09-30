@@ -11,7 +11,7 @@
 #   own      hi's own words as code: an exit hook's command, a prompt escape
 #   shell    the shell's own listing run back: complete -p, alias -p, trap -p
 #   tool     a prompt program's init, which is how it installs itself
-#   segment  a plugin's $_HI_SEGMENT, a command by contract (GLOSSARY: HI.59)
+#   segment  an extension's $_HI_SEGMENT, a command by contract (GLOSSARY: HI.59)
 # The last three read text from outside the tree.
 #
 # <kin>: `source` is a source or . of a path held in a variable, `sh -c` a

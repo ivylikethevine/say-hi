@@ -33,16 +33,16 @@ if test -f $_HI_CONFIG_DIR/settings.sh
 end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
-# core.sh's _hi_load_plugins, in fish: each plugins.d member in name order,
+# core.sh's _hi_load_extensions, in fish: each extensions/ member in name order,
 # skipped loudly when fish cannot parse it, its $_HI_SEGMENT collected.
 # GLOSSARY: HI.59
 set -g _hi_segments
-for __hi_f in $_HI_PLUGINS_D/*
+for __hi_f in $_HI_EXTENSIONS/*
   set -l __hi_n (string replace -r '.*/' '' -- $__hi_f)
   test -f $__hi_f; and string match -qr '^[A-Za-z0-9][A-Za-z0-9_.-]*$' -- $__hi_n
   and not string match -qr '\.(bak|orig|rej|tmp)$' -- $__hi_n; or continue
   if not command fish --no-config -n $__hi_f 2>/dev/null
-    echo -s (set_color yellow) "hi: plugin $__hi_n does not parse in fish; skipped" (set_color normal) >&2
+    echo -s (set_color yellow) "hi: extension $__hi_n does not parse in fish; skipped" (set_color normal) >&2
     continue
   end
   set -e _HI_SEGMENT
@@ -310,7 +310,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
       echo -n "($out) "
     end
 
-    function __hi_segments --description 'each plugin segment, run per draw'
+    function __hi_segments --description 'each extension segment, run per draw'
       for c in $_hi_segments
         set -l o (eval $c 2>/dev/null)
         test -n "$o"; and echo -n "$o "

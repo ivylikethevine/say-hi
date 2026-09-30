@@ -220,20 +220,21 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   its `0` from `common/aliases.sh`'s backstop line, every reader compares it
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
-  `packages`, `plugins.d/` and its hook names, `carry` and its four
+  `packages`, `extensions/` and its hook names, `carry` and its four
   columns,
-  `vimrc`, `init.lua`, `config.toml`, `kakrc`, `nanorc`, `init.el`, `tmux.conf`,
+  `vim/vimrc`, `nvim/init.lua`, `helix/config.toml`, `kak/kakrc`, `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`,
   `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,
   `zellij/`'s `config.kdl`/`layouts/`/`themes/`, `aliases.sh`,
   `bashrc`, `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`,
   `starship.toml`, `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`,
-  `bash-it.theme.bash`, `tide.vars`, `theme.yml`, `bat.conf`, `ripgreprc`,
-  `fzfrc`, `lazygit.yml`, `inputrc`, and
+  `bash-it.theme.bash`, `tide.vars`, `eza/theme.yml`, `bat/config`, `ripgreprc`,
+  `fzfrc`, `lazygit/config.yml`, `inputrc`, and
   `ssh_tags`), their
   formats, the XDG path, and the
   `_HI_CONFIG_DIR` override. The rule behind the names: a member is called
-  what its tool calls the file where the tool has a fixed name, and carries
-  the tool's name and extension where it has none.
+  what its tool calls the file, under a directory of the tool's name where
+  the tool keeps one in `~/.config`; where the tool has no fixed name the
+  member carries the tool's name and extension.
 - **The installed layout** — `$_HI_HOME/say-hi` and
   `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,
   and `_HI_RELEASE` as the version stamp `packaging/stamp.sh` fills.

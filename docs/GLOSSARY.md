@@ -67,7 +67,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.56 listing-only completion symbols](#hi56-listing-only-completion-symbols)
 - [HI.57 carried configs and the include scan](#hi57-carried-configs-and-the-include-scan)
 - [HI.58 overlay directory members](#hi58-overlay-directory-members)
-- [HI.59 plugins](#hi59-plugins)
+- [HI.59 extensions](#hi59-extensions)
 - [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
 - [HI.61 one overlay priority](#hi61-one-overlay-priority)
 - [HI.62 generated wiring](#hi62-generated-wiring)
@@ -545,13 +545,13 @@ HI.30. Both stay verbatim above their statement.
 ## HI.35 payload comment and whitespace strip
 
 Every file `hi.sh`'s `$_HI_STRIP_NAMES` matches — the shell files, `*.lua`,
-and data files such as `colors`, `vimrc`, and `tmux.conf`, whose prose
+and data files such as `colors`, `vim/vimrc`, and `tmux/tmux.conf`, whose prose
 headers document the _installed_ copies — is comment-stripped by
 `_hi_strip_awk` on its way into the payload or overlay; about 40% of the
 shipped shell is comment. vimrc's comment character is `"`, init.el's `;`,
 and lua's `--`, each its own rule. Lua's `--[[` block form is deliberately
 not one: the strip is line-wise, so a block opener would go and its body stay
-— which is why the shipped `init.lua` uses line comments only.
+— which is why the shipped `nvim/init.lua` uses line comments only.
 `bench_payload_readme_badge` checks README's badge against the result, through
 `packaging/stamp_badge.sh --check`.
 
@@ -685,8 +685,8 @@ directory: one place a session reads config from. hi's own aliases are
 `common/aliases.sh` still refuses to source a `$_HI_CONFIG_DIR/aliases.sh` that
 is itself. It is omitted when there is nothing to send.
 
-The prompt programs' configs, eza's `theme.yml`, bat's `bat.conf`, rg's
-`ripgreprc`, fzf's `fzfrc`, lazygit's `lazygit.yml`, and readline's `inputrc`
+The prompt programs' configs, eza's `eza/theme.yml`, bat's `bat/config`, rg's
+`ripgreprc`, fzf's `fzfrc`, lazygit's `lazygit/config.yml`, and readline's `inputrc`
 ride it
 so a tool's config on every target is the one in force at home:
 `_hi_overlay_src` packs the overlay's copy when there is one, else the file
@@ -705,7 +705,7 @@ but the `tide_` lines, since `set -U` holds whatever a user ever put there.
 when there is one. Left out of the stream, that guard could only fire on the
 client — an override working locally and silently reverting on every target,
 the asymmetry `paths_test.sh`'s guard/roster pin catches one layer up. The
-editor rcs, `tmux.conf`, `screenrc`, and the `micro/` and `zellij/` files
+editor rcs, `tmux/tmux.conf`, `screenrc`, and the `micro/` and `zellij/` files
 ride with the wiring line that names them (HI.57).
 
 That cascade is wholesale, so a member that shadows a tree default makes the
@@ -1147,15 +1147,15 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 ## HI.57 carried configs and the include scan
 
-hi carries a `vimrc`, `init.lua`, `nanorc`, `init.el`, helix's `config.toml`,
-and kakoune's `kakrc` (through `$KAKOUNE_CONFIG_DIR`, since `kak -n` would
+hi carries a `vim/vimrc`, `nvim/init.lua`, `nano/nanorc`, `emacs/init.el`, helix's `helix/config.toml`,
+and kakoune's `kak/kakrc` (through `$KAKOUNE_CONFIG_DIR`, since `kak -n` would
 drop its system kakrc too) to every target and starts the editor on it (`-u`, `--rcfile`,
 `-nw -q -l`, `-c`), so the question is
 which file - [HI.61](#hi61-one-overlay-priority)'s order answers it: the
 overlay's copy, then the config that editor already reads on this machine
 (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`, `~/.nanorc`, `~/.emacs`, ...,
 in the editor's own precedence). hi ships no editor config of its own, so with
-neither the value is empty and the command has no alias; `tmux.conf` (`tmux
+neither the value is empty and the command has no alias; `tmux/tmux.conf` (`tmux
 -f`) and `screenrc` (`screen -c`) take the same tiers, and micro and zellij
 take a _directory_. The alias is a target's alone, a line of the overlay's
 `wiring.sh` ([HI.62](#hi62-generated-wiring)): at home every tool reads its
@@ -1177,11 +1177,18 @@ goes out disabled in its own dialect and the strip drops it for free, and
 `hi --doctor` runs it in `report` mode, so its yellow rows name exactly what
 went missing. The dialect comes from the member name passed in, not the path,
 so doctor reads `~/.vimrc` as vim - and a member whose name is no dialect
-(`colors`, a `theme.yml`) passes through untouched, so every member goes in
+(`colors`, an `eza/theme.yml`) passes through untouched, so every member goes in
 and there is no second roster of what has includes. A line directly under a `hi-allow` comment
 in the file's own syntax is neither reported nor touched; one under `hi-quiet`
-is disabled like any other finding but not reported. There is no setting that
-turns the scan off: the two comments are the per-line answer.
+is disabled like any other finding but not reported. A pair, `hi-allow-start`
+and `hi-allow-end` or `hi-quiet-start` and `hi-quiet-end`, decides every line
+inside it the same way; each word pairs on its own, a start with the next
+end of its word, so an allow pair inside a quiet one keeps its lines. A start
+with no such end decides nothing and is a row of its own kind, `unclosed`,
+which `hi --doctor` names; an end with no start is ignored. The scan cannot
+know a start is closed until the file ends, so it reads the file through once
+for the pairs before it reads it for findings. There is no setting that
+turns the scan off: the comments are the per-line and per-block answer.
 
 Disabling must leave a file that parses. vim and nano are line-oriented, so a
 finding is one line (tmux's takes its `\` continuations). lua, elisp, and
@@ -1212,11 +1219,12 @@ next hop's target, which may have a different set.
 
 ## HI.58 overlay directory members
 
-A `$_HI_OVERLAY_FILES` entry ending in `.d` names a directory, and its
+A `$_HI_OVERLAY_FILES` entry ending in `/` names a directory, and its
 members ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as
-`<dir>/<name>`, in name order (an entry ending in `/`, zellij's `layouts/`
-and `themes/`, the same over the overlay's directory and home's, each name
-once and the overlay's copy first), and the rest of the stream - `_hi_overlay_src`,
+`<dir>/<name>`, in name order, over the overlay's directory and home's, each
+name once and the overlay's copy first (zellij's `layouts/` and `themes/`),
+or over the overlay's alone where the row has no home (`extensions/`), and
+the rest of the stream - `_hi_overlay_src`,
 the cache key, the stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
 strip (a `-path` entry in `$_HI_STRIP_NAMES`) - treats that path like any
 member. The directory stays an allow list: `core.sh`'s `_hi_dir_member_ok`
@@ -1226,41 +1234,43 @@ through the same function, so a file hi would not send is one hi would not
 read either. The archive carries no directory entry; every tar hi unpacks with
 creates the parent, busybox's included.
 
-## HI.59 plugins
+## HI.59 extensions
 
-`plugins.d` is the one `.d` directory of [HI.58](#hi58-overlay-directory-members):
-each member is a plugin, a file in the POSIX+fish subset `common/aliases.sh`
+`extensions/` is a directory of [HI.58](#hi58-overlay-directory-members)
+with no home but the overlay:
+each member is an extension, a file in the POSIX+fish subset `common/aliases.sh`
 keeps (`export`, `alias`, `&&` chains), so one file serves all three shells
 and something new - another tool's init, a prompt segment - rides to every
-target with no edit to the tree. `common/paths.sh` exports `$_HI_PLUGINS_D`
-unguarded; the overlay is its only home.
+target with no edit to the tree. `common/paths.sh` exports `$_HI_EXTENSIONS`
+unguarded; the overlay is its only home. A plugin is the other thing: a
+config hi carries for a tool ([HI.64](#hi64-what-is-switched-off)).
 
-The moment is stated: right after `$_HI_ALIASES` (so a plugin sees, and can
+The moment is stated: right after `$_HI_ALIASES` (so an extension sees, and can
 replace, hi's aliases and the overlay's) and before the prompt is built, in
-name order - `core.sh`'s `_hi_load_plugins` for bash and zsh, and its fish
+name order - `core.sh`'s `_hi_load_extensions` for bash and zsh, and its fish
 copy in `common/config.fish`, which cannot call bash. Each member is parsed
 first by the shell loading it (`bash -n`, `zsh -n`, `fish --no-config -n`); one
-that does not parse is skipped with a yellow `hi: plugin <name> does not
+that does not parse is skipped with a yellow `hi: extension <name> does not
 parse in <shell>; skipped` on stderr rather than half-run, which is also what
 a fish-only or sh-only construct costs in the other shell. The parse is a fork
-per plugin per shell start, and nothing without a plugin. The zsh glob sits in
-its own function (`_hi_plugin_files`) so `null_glob` can be local there:
-`local_options` in the loader would also undo every `setopt` a plugin makes.
-That function tests `-d "$_HI_PLUGINS_D"` before it globs: unset, the pattern
+per extension per shell start, and nothing without one. The zsh glob sits in
+its own function (`_hi_extension_files`) so `null_glob` can be local there:
+`local_options` in the loader would also undo every `setopt` an extension makes.
+That function tests `-d "$_HI_EXTENSIONS"` before it globs: unset, the pattern
 is `/*` and the loader would source what parses at the root of the disk
 ([HI.60](#hi60-a-shell-that-outlives-the-tree) is how it comes to be unset).
 fish's copy needs no such test - an empty variable takes the whole word with
 it there.
 
 Hooks are variables, since the subset cannot define a function all three
-shells read. The loader unsets each before a plugin runs and collects it after,
-so plugins compose without `${var:+...}`, which fish lacks. The set:
+shells read. The loader unsets each before an extension runs and collects it after,
+so extensions compose without `${var:+...}`, which fish lacks. The set:
 
 | hook          | what hi does with it                                                                                                                                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `_HI_SEGMENT` | a command, run in the session's own shell on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
 
-`hi --doctor` lists the plugins in load order and warns for each a shell on
+`hi --doctor` lists the extensions in load order and warns for each a shell on
 this machine cannot parse, and for a directory entry that is not a member.
 
 ## HI.60 a shell that outlives the tree
@@ -1287,15 +1297,15 @@ running against the old tree's paths, and every `_HI_*` path added between
 the two versions stayed empty. The damage is quiet and cumulative: `source ""`
 for a name that did not exist yet (`bash: : No such file or directory`),
 `_hi_env_prompt: command not found` on every prompt draw, the header's package
-row gone, and `"$_HI_PLUGINS_D"/*` globbing `/` - which
-[HI.59](#hi59-plugins)'s loader then `bash -n`s and _sources_, file by file,
+row gone, and `"$_HI_EXTENSIONS"/*` globbing `/` - which
+[HI.59](#hi59-extensions)'s loader then `bash -n`s and _sources_, file by file,
 in every pane at once.
 
 So `common/bash.sh` and `common/zsh.zsh` `unset _hi_core_loaded` before they
 source core.sh. `load.sh` already did, for the same reason on the far side (a
 target whose own `~/.bashrc` wires a say-hi of its own loads that tree's
 core.sh first), and `common/config.fish` never had a guard to clear.
-`_hi_plugin_files` tests `-d "$_HI_PLUGINS_D"` before it globs, so no later
+`_hi_extension_files` tests `-d "$_HI_EXTENSIONS"` before it globs, so no later
 name arriving empty can reach the root of the disk again.
 
 ## HI.61 one overlay priority
@@ -1317,7 +1327,7 @@ ssh's tag map), or `-` for none.
 `_hi_overlay_home` walks its row's candidates as the overlay is packed.
 `paths.sh` cannot read a table, its four-shell dialect having no loop, so it
 spells out the rows of hi's own files (`settings.sh`, `colors`, `packages`,
-`plugins.d`), a line per candidate, and `paths_test.sh` walks those rows down
+`extensions/`), a line per candidate, and `paths_test.sh` walks those rows down
 their tiers against it. No setting reorders it. `hi --doctor`'s files
 section (`doctor_files`) walks the same rows, naming each member's tool and
 marking every location that holds something used or passed over, and why
@@ -1333,13 +1343,18 @@ A shell's own rc has no home tier. `bashrc`, `zshrc`, and `config.fish` are
 where people export tokens, and a `~/.bashrc` found at home would run on
 every box visited without the user having asked, so they ride only from the
 overlay, where a copy is the user's say-so ([SUPPORT.md](SUPPORT.md) keeps
-the same line on carrying `~/.bashrc`). `plugins.d/` and `settings.sh` live
+the same line on carrying `~/.bashrc`). `extensions/` and `settings.sh` live
 in the overlay alone anyway.
 
-micro and zellij take a directory of fixed names, so their members sit under
-`micro/` and `zellij/`, each file resolving on its own against the tool's
-directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the XDG one), and
-zellij's `layouts/` and `themes/` are trailing-`/` entries
+A member is `<tool>/<file>` where its tool keeps a directory under
+`~/.config`, the file named as the tool names it, so the overlay has the
+shape of the `~/.config` it stands in for and no two tools ask for one name;
+a tool that keeps none (`starship.toml`, `inputrc`, `screenrc`) has its
+member at the top. A home candidate is a file, or with a trailing `/` a
+directory the member's file is looked for in: micro and zellij take a
+directory of fixed names, so each of their files resolves on its own against
+the tool's directory (`$MICRO_CONFIG_HOME`, `$ZELLIJ_CONFIG_DIR`, else the
+XDG one), and zellij's `layouts/` and `themes/` are trailing-`/` entries
 ([HI.58](#hi58-overlay-directory-members)).
 
 ## HI.62 generated wiring
@@ -1349,7 +1364,7 @@ target's line has to parse in bash, zsh, fish, and sh: `common/paths.sh`'s
 dialect, which has no loop to walk a table with. So the client writes the
 lines. A row's wire column says how: `env:<variables>` exports each as the
 member's path, `envdir:<variable>` as the directory holding it (eza and its
-fixed `theme.yml`), `flag:<command> <words>` and `flagdir:` alias the
+fixed `eza/theme.yml`), `flag:<command> <words>` and `flagdir:` alias the
 command to itself with the words and that path, where the target has the
 command (a flag ending in `=` takes the path in the same word), and `-`
 leaves the member to hi's own code. A row holds several wires with a `;`

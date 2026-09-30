@@ -1045,15 +1045,15 @@ function test_config_dir_explicit_value_wins() {
     bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_CONFIG_DIR"')" = "$base/shipped" ]
 }
 
-# GLOSSARY: HI.60. $_HI_PLUGINS_D empty - a shell that loaded a tree from
-# before plugins.d, re-sourcing its rc - makes "$_HI_PLUGINS_D"/* the glob /*,
-# and _hi_load_plugins sources what it is handed: every file at the root of
-# the disk that parses.
-function test_plugin_files_never_globs_the_root() {
+# GLOSSARY: HI.60. $_HI_EXTENSIONS empty - a shell that loaded a tree from
+# before it, re-sourcing its rc - makes "$_HI_EXTENSIONS"/* the glob /*,
+# and _hi_load_extensions sources what it is handed: every file at the root
+# of the disk that parses.
+function test_extension_files_never_glob_the_root() {
   (
-    _HI_PLUGINS_D=""
+    _HI_EXTENSIONS=""
     _hi_pl=(x)
-    _hi_plugin_files
+    _hi_extension_files
     [ "${#_hi_pl[@]}" -eq 0 ]
   )
 }
@@ -1631,7 +1631,7 @@ function run_core_tests() {
   _hi_check_eq "Defaults to ~/.config/say-hi" say-hi _hi_cfg_answer neither
   _hi_check_eq "Uses say-hi when it exists" say-hi _hi_cfg_answer new
   _hi_check "An explicit \$_HI_CONFIG_DIR wins" test_config_dir_explicit_value_wins
-  _hi_check "An empty plugins.d globs nothing, never /" test_plugin_files_never_globs_the_root
+  _hi_check "An empty extensions/ globs nothing, never /" test_extension_files_never_glob_the_root
 
   _hi_h2 "Testing: the same answers in zsh"
   _hi_check_requires zsh "_hi_hash_color agrees with bash" test_zsh_hash_color_agrees_with_bash

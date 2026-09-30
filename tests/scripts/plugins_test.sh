@@ -99,9 +99,9 @@ function test_plugins_refuse_what_they_cannot_take() {
 function test_plugin_off_writes_the_list() {
   local cfg out
   cfg="$(_hi_plugins_cfg off)"
-  out="$(_hi_plugins_run "$cfg" --plugin-off lazygit editors tmux.conf)" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off lazygit editors tmux/tmux.conf)" || return 1
   [[ "$out" == *" - lazygit"* && "$out" == *" - editors"* && "$out" == *"settings.sh updated"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'lazygit editors tmux.conf')\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'lazygit editors tmux/tmux.conf')\n"
 }
 
 # every other line of a settings.sh stays where it was, and a second list
@@ -181,7 +181,7 @@ function test_add_plugin_starts_its_own_line() {
 # a line hi's own reader would turn down is never written, and says why
 # shellcheck disable=SC2088 # the ~ is the carry's to read, not the shell's
 function test_add_plugin_refuses_a_line_hi_cannot_read() {
-  _hi_plugins_refused "$(_hi_plugins_cfg add-r1)" "'vimrc' is a member already" --add-plugin vimrc vim - '~/.vimrc' &&
+  _hi_plugins_refused "$(_hi_plugins_cfg add-r1)" "'vim' is a member already" --add-plugin vim vim - '~/.vimrc' &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r2)" "'A;B' is no list of variable names" --add-plugin x.rc - 'env:A;B' '~/x' &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r3)" "is no plain file name" --add-plugin ../x - - '~/x' &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r4)" "not four columns" --add-plugin x.rc - - '~/x | y'
@@ -221,8 +221,8 @@ function test_remove_plugin_takes_the_line_out() {
 function test_remove_plugin_knows_hi_s_own_from_nothing() {
   local cfg out rc=0
   cfg="$(_hi_plugins_cfg remove-own)"
-  out="$(_hi_plugins_run "$cfg" --remove-plugin vimrc)" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"hi --plugin-off vimrc switches it off"* ]] || _hi_because "rc $rc: $out" || return 1
+  out="$(_hi_plugins_run "$cfg" --remove-plugin vim/vimrc)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"hi --plugin-off vim/vimrc switches it off"* ]] || _hi_because "rc $rc: $out" || return 1
   out="$(_hi_plugins_run "$cfg" --remove-plugin nosuch.rc)" || return 1
   [[ "$out" == *"has no line for nosuch.rc"* ]] && [ ! -e "$cfg" ]
 }
@@ -237,15 +237,16 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   local cfg out
   cfg="$(_hi_plugins_cfg list)"
   mkdir -p "$cfg" "$cfg.home"
-  printf 'x\n' >"$cfg/bat.conf"
-  printf 'x\n' >"$cfg/nanorc"
+  mkdir -p "$cfg/bat" "$cfg/nano"
+  printf 'x\n' >"$cfg/bat/config"
+  printf 'x\n' >"$cfg/nano/nanorc"
   printf 'x\n' >"$cfg.home/.taskrc"
   printf 'taskrc | - | env:TASKRC | ~/.taskrc\nbad line\n' >"$cfg/carry"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="mux nano"\n' >"$cfg/settings.sh"
   out="$(_hi_plugins_run "$cfg" --plugins)" || return 1
-  [[ "$out" == *"bat "*"cli "*"bat.conf "*"rides: $cfg/bat.conf"* ]] || _hi_because "bat: $out" || return 1
-  [[ "$out" == *"nano "*"editors "*"nanorc "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *"tmux "*"mux "*"tmux.conf "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
+  [[ "$out" == *"bat "*"cli "*"bat/config "*"rides: $cfg/bat/config"* ]] || _hi_because "bat: $out" || return 1
+  [[ "$out" == *"nano "*"editors "*"nano/nanorc "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"tmux "*"mux "*"tmux/tmux.conf "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
   [[ "$out" == *"taskrc "*"carry "*"taskrc "*"rides: ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
   [[ "$out" == *"line 2 is ignored"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }

@@ -30,7 +30,7 @@ source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"
 # shellcheck source=../common/aliases.sh
 source "$_HI_ALIASES"
-_hi_load_plugins
+_hi_load_extensions
 
 _hi_interactive_extras
 
@@ -385,7 +385,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       _hi_git_prompt __powerline_git_info # out-var form: no $( ) fork per prompt
       _hi_ps_mark __powerline_git_info
       # the one color is in the template below, inside \[ \]; the mark after
-      # the plugin segments is for any color a segment prints itself
+      # the extension segments is for any color a segment prints itself
       _hi_env_prompt __hi_env_info
       # each plugin's $_HI_SEGMENT, run per draw; empty output draws nothing
       local _hi_c _hi_o

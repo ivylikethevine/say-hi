@@ -1164,7 +1164,7 @@ function test_words_plugin_off_lists_groups_plugins_and_carry_members() {
   printf '# mine\n taskrc | task | env:TASKRC | ~/.taskrc\nbad line\n' >"$cfg/carry"
   out=" $(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --plugin-off | cut -f1 | tr '\n' ' ')"
   [[ "$out" == *" editors "* && "$out" == *" vim "* && "$out" == *" hx "* && "$out" == *" readline "* ]] &&
-    [[ "$out" == *" micro "* && "$out" == *" plugins.d "* && "$out" == *" taskrc "* ]] &&
+    [[ "$out" == *" micro "* && "$out" == *" extensions "* && "$out" == *" taskrc "* ]] &&
     [[ "$out" != *" colors "* && "$out" != *" settings.sh "* && "$out" != *" bad "* ]] ||
     _hi_because "offered: $out"
 }

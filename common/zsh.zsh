@@ -14,7 +14,7 @@ source "$_HI_HOME/say-hi/common/core.sh"
 source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"
 source "$_HI_ALIASES"
-_hi_load_plugins
+_hi_load_extensions
 
 # NOT setopt KSH_ARRAYS: it is global, hi's block runs after oh-my-zsh's, and
 # their code assumes zsh's 1-based arrays - core.sh counts instead.

@@ -465,16 +465,16 @@ function doctor_local() {
   doctor_flush
 }
 
-# plugins.d (GLOSSARY: HI.59): one row naming the plugins in the order they
-# load, then a row for each a wired shell on this machine cannot parse - that
-# shell skips it - and each that never travels. Quiet without one.
-function doctor_plugins() {
+# extensions/ (GLOSSARY: HI.59): one row naming the extensions in the order
+# they load, then a row for each a wired shell on this machine cannot parse -
+# that shell skips it - and each that never travels. Quiet without one.
+function doctor_extensions() {
   local f n sh bad names=""
-  for f in "$_HI_PLUGINS_D"/*; do
+  for f in "$_HI_EXTENSIONS"/*; do
     [ -e "$f" ] || continue
     n="${f##*/}"
     if ! { [ -f "$f" ] && _hi_dir_member_ok "$n"; }; then
-      doctor_row "plugins.d/$n" "ignored - a backup, a temp file, or not a plain name, so it never loads" warn
+      doctor_row "extensions/$n" "ignored - a backup, a temp file, or not a plain name, so it never loads" warn
       continue
     fi
     names="$names, $n"
@@ -484,9 +484,9 @@ function doctor_plugins() {
       case "$sh" in fish) fish --no-config -n "$f" ;; *) "$sh" -n "$f" ;; esac >/dev/null 2>&1 ||
         bad="${bad:+$bad, }$sh"
     done
-    [ -z "$bad" ] || doctor_row "plugins.d/$n" "does not parse in $bad - skipped there" warn
+    [ -z "$bad" ] || doctor_row "extensions/$n" "does not parse in $bad - skipped there" warn
   done
-  [ -z "$names" ] || doctor_row plugins.d "loads in order: ${names#, }"
+  [ -z "$names" ] || doctor_row extensions/ "loads in order: ${names#, }"
 }
 
 function doctor_config() {
@@ -511,7 +511,10 @@ function doctor_config() {
   # would say why the override stopped applying
   for t in $_HI_OVERLAY_RENAMES; do
     [ -e "$_HI_CONFIG_DIR/${t%%:*}" ] || continue
-    doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}" bad
+    # a name under a directory needs the directory first
+    f=""
+    case "${t#*:}" in */*) f="mkdir -p $_HI_CONFIG_DIR/${t#*:}" f="${f%/*} && " ;; esac
+    doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: ${f}mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}" bad
   done
   # a carry line hi.sh's _hi_carry_load turned down: the member it names
   # rides nowhere, and nothing else says so (GLOSSARY: HI.63)
@@ -524,8 +527,8 @@ function doctor_config() {
   # richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_CARRY_FILES[@]+"${_HI_CARRY_FILES[@]}"}; do
     [ "$f" = settings.sh ] && continue
-    [ "$f" = plugins.d ] && {
-      doctor_plugins
+    [ "$f" = extensions/ ] && {
+      doctor_extensions
       continue
     }
     [ "$f" = ssh_tags ] && {
@@ -569,12 +572,20 @@ function doctor_config() {
   # a line naming a path names something no target has. hi.sh's
   # _hi_include_lint is the one grammar for every dialect - the same rows the
   # packer acts on, so what is named here is exactly what got dropped on the
-  # way out (GLOSSARY: HI.57). warn, not bad: the session still starts.
+  # way out (GLOSSARY: HI.57). warn, not bad: the session still starts. An
+  # unclosed row is a block marker's start with no end, which dropped nothing.
   local member lineno kind text fate said
-  fate="dropped on the way out (a # hi-allow line above it keeps it, # hi-quiet drops it without this row)"
+  fate="dropped on the way out (a # hi-allow line above it keeps it, # hi-quiet drops it without this row; a -start and -end pair of either decides a block)"
   while IFS='|' read -r member lineno kind text; do
     [ -n "$member" ] || continue
-    [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
+    case "$kind" in
+    unclosed)
+      doctor_row "$member:$lineno" "$text has no ${text%%-start*}-end below it, so it decides nothing" warn
+      continue
+      ;;
+    plugin) said="names a plugin manager" ;;
+    *) said="reads a file hi does not carry" ;;
+    esac
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
   done < <(_hi_include_lint)
   # common/aliases.sh sources the overlay's aliases.sh last, so a value its
@@ -705,8 +716,8 @@ function doctor_files() {
   _hi_carry_load
   for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
     m="${row%%|*}"
-    # settings.sh and plugins.d have rows of their own in the overlay section
-    case "$m" in settings.sh | plugins.d) continue ;; esac
+    # settings.sh and extensions/ have rows of their own in the overlay section
+    case "$m" in settings.sh | extensions/) continue ;; esac
     used="" eff="" text="" found=""
     _hi_overlay_src "$m" used || used=""
     _hi_overlay_places "$m" "$row"

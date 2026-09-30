@@ -366,12 +366,15 @@ function _hi_run_scenario() {
   # the editor and multiplexer aliases are lines of the wiring.sh a client
   # packs beside the configs that ride, so the workdir is the overlay that
   # holds both (GLOSSARY: HI.62)
-  mkdir -p "$_HI_WORKDIR/zellij" "$_HI_WORKDIR/micro"
-  touch "$_HI_WORKDIR/nanorc" "$_HI_WORKDIR/vimrc" "$_HI_WORKDIR/init.lua" "$_HI_WORKDIR/config.toml" "$_HI_WORKDIR/init.el" \
-    "$_HI_WORKDIR/tmux.conf" "$_HI_WORKDIR/screenrc" "$_HI_WORKDIR/zellij/config.kdl" "$_HI_WORKDIR/micro/settings.json"
+  local f members="vim/vimrc nvim/init.lua helix/config.toml nano/nanorc emacs/init.el tmux/tmux.conf screenrc
+    zellij/config.kdl micro/settings.json"
+  for f in $members; do
+    case "$f" in */*) mkdir -p "$_HI_WORKDIR/${f%/*}" ;; esac
+    touch "$_HI_WORKDIR/$f"
+  done
   if [ ! -f "$_HI_WORKDIR/wiring.sh" ]; then
-    _hi_wiring_for vimrc init.lua config.toml nanorc init.el tmux.conf screenrc zellij/config.kdl \
-      micro/settings.json >"$_HI_WORKDIR/wiring.sh" || return 1
+    # shellcheck disable=SC2086 # one member a word
+    _hi_wiring_for $members >"$_HI_WORKDIR/wiring.sh" || return 1
   fi
   # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).

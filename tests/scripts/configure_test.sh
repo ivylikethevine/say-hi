@@ -374,7 +374,8 @@ _HI_GROUPS_CHILD='
   _HI_ROOT="$_hi_dir"
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
-  : >"$_hi_dir/overlay/nanorc"
+  mkdir -p "$_hi_dir/overlay/nano"
+  : >"$_hi_dir/overlay/nano/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   printf "%s\n" "[core]" sh "[useful]" sh "[deprecated]" "-zz-hi-absent" "[extras]" sh "[Work]" sh \
@@ -1025,14 +1026,14 @@ function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano  -> nano --rcfile $_HI_CONFIG_DIR/nanorc"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_CONFIG_DIR/init.el"* ]] || _hi_because "emacs: $out" || return 1
-  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_CONFIG_DIR/vimrc"* ]] || _hi_because "vim: $out" || return 1
+  [[ "$out" == *"nano  -> nano --rcfile $_HI_CONFIG_DIR/nano/nanorc"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_CONFIG_DIR/emacs/init.el"* ]] || _hi_because "emacs: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" vim -i NONE -u $_HI_CONFIG_DIR/vim/vimrc"* ]] || _hi_because "vim: $out" || return 1
   # each name carries the rc of the binary behind it: nvim answers to both
   # `vim` and `nvim` and reads init.lua, its state kept in the session tree
-  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/init.lua"* ]] || _hi_because "nvim: $out" || return 1
-  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/init.lua"* ]] || _hi_because "vim as nvim: $out" || return 1
-  [[ "$out" == *"hx    -> hx -c $_HI_CONFIG_DIR/config.toml"* && "$out" == *"helix -> helix -c $_HI_CONFIG_DIR/config.toml"* ]] || _hi_because "helix: $out" || return 1
+  [[ "$out" == *"nvim  -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/nvim/init.lua"* ]] || _hi_because "nvim: $out" || return 1
+  [[ "$out" == *"vim   -> env XDG_STATE_HOME="*" nvim -u $_HI_CONFIG_DIR/nvim/init.lua"* ]] || _hi_because "vim as nvim: $out" || return 1
+  [[ "$out" == *"hx    -> hx -c $_HI_CONFIG_DIR/helix/config.toml"* && "$out" == *"helix -> helix -c $_HI_CONFIG_DIR/helix/config.toml"* ]] || _hi_because "helix: $out" || return 1
   # micro's three files share one line
   [[ "$out" == *"micro -> micro -backup false -savehistory false -config-dir $_HI_CONFIG_DIR/micro"* ]] || _hi_because "micro: $out" || return 1
   [ "$(grep -c '^micro ' <<<"$out")" = 1 ] || _hi_because "micro, more than once: $out"
@@ -1212,7 +1213,8 @@ _HI_CFG_CHILD='
   _HI_ROOT="$_hi_dir"
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
-  : >"$_hi_dir/overlay/nanorc"
+  mkdir -p "$_hi_dir/overlay/nano"
+  : >"$_hi_dir/overlay/nano/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
@@ -1752,7 +1754,10 @@ function run_configure_tests() {
   # for the previews to read back
   mkdir -p "$_HI_CONFIG_DIR"
   local _hi_f
-  for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_CONFIG_DIR/$_hi_f"; done
+  for _hi_f in vim/vimrc nvim/init.lua helix/config.toml nano/nanorc emacs/init.el; do
+    mkdir -p "$_HI_CONFIG_DIR/${_hi_f%/*}"
+    : >"$_HI_CONFIG_DIR/$_hi_f"
+  done
   mkdir -p "$_HI_CONFIG_DIR/micro"
   : >"$_HI_CONFIG_DIR/micro/settings.json"
   : >"$_HI_CONFIG_DIR/micro/bindings.json"
@@ -1861,9 +1866,9 @@ function run_configure_tests() {
   _hi_check "...painted with the settings file's scheme" test_prompt_sample_preview_paints_with_the_settings_scheme
   _hi_check "...its cwd cut to the last part in a narrow menu" test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
-  _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim init.lua nvim
-  _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim init.lua nvim
-  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx config.toml helix
+  _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim nvim/init.lua nvim
+  _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim nvim/init.lua nvim
+  _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx helix/config.toml helix
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed

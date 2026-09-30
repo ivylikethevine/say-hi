@@ -658,8 +658,8 @@ export _HI_PROMPT_TOOL='starship'
 EOF
   # hi ships no editor configs, so the demo carries its own through the
   # overlay, the way a user's would ride
-  demo_overlay vimrc <"$_HI_ROOT/docs/tapes/editors/vimrc"
-  demo_overlay nanorc <"$_HI_ROOT/docs/tapes/editors/nanorc"
+  demo_overlay vim/vimrc <"$_HI_ROOT/docs/tapes/editors/vimrc"
+  demo_overlay nano/nanorc <"$_HI_ROOT/docs/tapes/editors/nanorc"
   up_container docker dev-box tools maya
   ;;
 up:overlay)

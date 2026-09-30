@@ -132,14 +132,14 @@ function test_overlay_dereferences_symlinks() {
 # inside a `.d` member too, where only the plain names ride (HI.58).
 function test_overlay_sends_nothing_outside_the_roster() {
   local dir="$_HI_WORKDIR/overlay-leak" f
-  mkdir -p "$dir/.git" "$dir/.chezmoitemplates" "$dir/plugins.d/sub"
+  mkdir -p "$dir/.git" "$dir/.chezmoitemplates" "$dir/extensions/sub"
   printf 'export _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   for f in .git/config .chezmoiignore README.md id_rsa settings.sh.bak .settings.sh.swp \
-    plugins.d/10-x plugins.d/10-x.bak plugins.d/.10-x.swp plugins.d/10-x~ plugins.d/sub/20-y; do
+    extensions/10-x extensions/10-x.bak extensions/.10-x.swp extensions/10-x~ extensions/sub/20-y; do
     printf 'x:3\n' >"$dir/$f"
   done
   while IFS= read -r f; do
-    [ -n "$f" ] && [ "$f" != plugins.d/10-x ] || continue
+    [ -n "$f" ] && [ "$f" != extensions/10-x ] || continue
     case " ${_HI_OVERLAY_FILES[*]} " in
     *" $f "*) continue ;;
     esac
@@ -163,19 +163,19 @@ function test_overlay_carries_packages_stripped() {
   }
 }
 
-# plugins.d's members ride as plugins.d/<name>, comment-stripped, and only the
+# an extension rides as extensions/<name>, comment-stripped, and only the
 # ones _hi_dir_member_ok admits (GLOSSARY: HI.59)
-function test_overlay_carries_plugins() {
+function test_overlay_carries_extensions() {
   local dir out
   dir="$_HI_WORKDIR/plugins"
-  mkdir -p "$dir/plugins.d"
-  printf '#!/bin/sh\n# a comment\nexport _HI_SEGMENT="printf x"\n' >"$dir/plugins.d/10-x"
-  printf 'export Y=1\n' >"$dir/plugins.d/10-x.orig"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = plugins.d/10-x ] || return 1
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat plugins.d/10-x)"
+  mkdir -p "$dir/extensions"
+  printf '#!/bin/sh\n# a comment\nexport _HI_SEGMENT="printf x"\n' >"$dir/extensions/10-x"
+  printf 'export Y=1\n' >"$dir/extensions/10-x.orig"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = extensions/10-x ] || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat extensions/10-x)"
   [ "$out" = '#!/bin/sh
 export _HI_SEGMENT="printf x"' ] || {
-    _hi_cecho " | plugins.d/10-x arrived as: [$out]" "$RED"
+    _hi_cecho " | extensions/10-x arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -216,8 +216,8 @@ function test_overlay_carries_the_home_tool_configs() {
   _hi_tool_home_fixture
   dir="$(_hi_overlay_fixture tool-none colors)"
   d="$(_hi_tool_home_unpacked "$dir")" || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "bat.conf colors starship.toml theme.yml wiring.sh " ] &&
-    [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "home"\nfilekinds: home\n--theme=home')" ]
+  [ "$(cd "$d" && printf '%s ' *)" = "bat colors eza starship.toml wiring.sh " ] &&
+    [ "$(cat "$d/starship.toml" "$d/eza/theme.yml" "$d/bat/config")" = "$(printf 'format = "home"\nfilekinds: home\n--theme=home')" ]
 }
 
 # each tool's own variable names the file, whatever it is called - here with
@@ -231,7 +231,7 @@ function test_overlay_home_configs_follow_the_tools_variables() {
   dir="$(_hi_overlay_fixture tool-empty)"
   d="$(_hi_tool_home_unpacked "$dir" STARSHIP_CONFIG="$o/prompt.toml" \
     EZA_CONFIG_DIR="$o/ezadir" BAT_CONFIG_PATH="$o/bat-flags")" || return 1
-  [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ]
+  [ "$(cat "$d/starship.toml" "$d/eza/theme.yml" "$d/bat/config")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ]
 }
 
 # ripgrep's and fzf's config is wherever their variable says, and nowhere
@@ -248,14 +248,14 @@ function test_overlay_home_configs_of_the_cli_tools() {
   dir="$(_hi_overlay_fixture cli-empty)"
   d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" RIPGREP_CONFIG_PATH="$o/rg" \
     FZF_DEFAULT_OPTS_FILE="$o/fzf")" || return 1
-  [ "$(cat "$d/ripgreprc" "$d/fzfrc" "$d/lazygit.yml")" = "$(printf -- '--smart-case\n--height=40%%\ngui:\n  theme: xdg')" ] ||
+  [ "$(cat "$d/ripgreprc" "$d/fzfrc" "$d/lazygit/config.yml")" = "$(printf -- '--smart-case\n--height=40%%\ngui:\n  theme: xdg')" ] ||
     _hi_because "home: $(cat "$d"/* 2>&1)" || return 1
   d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" LG_CONFIG_FILE="$o/lg.yml")" || return 1
-  [ ! -e "$d/ripgreprc" ] && [ ! -e "$d/fzfrc" ] && [ "$(cat "$d/lazygit.yml")" = "$(printf 'gui:\n  theme: var')" ] ||
+  [ ! -e "$d/ripgreprc" ] && [ ! -e "$d/fzfrc" ] && [ "$(cat "$d/lazygit/config.yml")" = "$(printf 'gui:\n  theme: var')" ] ||
     _hi_because "variable: $(ls "$d")" || return 1
   rm -f "$lg"
   ! PATH="$_HI_WORKDIR/no-such-dir" _hi_tool_here ripgreprc || _hi_because "rg found on an empty PATH" || return 1
-  ! PATH="$_HI_WORKDIR/no-such-dir" _hi_tool_here lazygit.yml || _hi_because "lazygit found on an empty PATH"
+  ! PATH="$_HI_WORKDIR/no-such-dir" _hi_tool_here lazygit/config.yml || _hi_because "lazygit found on an empty PATH"
 }
 
 # an overlay copy wins over home's - and starship's still rides only with
@@ -263,11 +263,11 @@ function test_overlay_home_configs_of_the_cli_tools() {
 function test_overlay_copy_of_a_tool_config_wins() {
   local dir d
   _hi_tool_home_fixture
-  dir="$(_hi_overlay_fixture tool-copy bat.conf theme.yml starship.toml)"
+  dir="$(_hi_overlay_fixture tool-copy bat/config eza/theme.yml starship.toml)"
   d="$(_hi_tool_home_unpacked "$dir")" || return 1
-  [ "$(cat "$d/bat.conf" "$d/theme.yml" "$d/starship.toml")" = "$(printf 'x\nx\nx')" ] || return 1
+  [ "$(cat "$d/bat/config" "$d/eza/theme.yml" "$d/starship.toml")" = "$(printf 'x\nx\nx')" ] || return 1
   d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=hi)" || return 1
-  [ "$(cat "$d/bat.conf" "$d/theme.yml")" = "$(printf 'x\nx')" ] && [ ! -e "$d/starship.toml" ]
+  [ "$(cat "$d/bat/config" "$d/eza/theme.yml")" = "$(printf 'x\nx')" ] && [ ! -e "$d/starship.toml" ]
 }
 
 # the prompt frameworks' files the same way: an overlay copy of each rides over
@@ -441,7 +441,10 @@ function _hi_overlay_fixture() {
   local dir="$_HI_WORKDIR/$1"
   mkdir -p "$dir"
   shift
-  for f in "$@"; do printf 'x\n' >"$dir/$f"; done
+  for f in "$@"; do
+    case "$f" in */*) mkdir -p "$dir/${f%/*}" ;; esac
+    printf 'x\n' >"$dir/$f"
+  done
   printf '%s' "$dir"
 }
 
@@ -483,13 +486,13 @@ function test_overlay_tar_carries_only_what_exists() {
 # shellcheck disable=SC2016 # the wanted lines hold $_HI_CONFIG_DIR unexpanded
 function test_overlay_tar_wires_the_members_it_carries() {
   local dir d want
-  dir="$(_hi_overlay_fixture wired colors inputrc bat.conf theme.yml oh-my-posh.toml kakrc)"
+  dir="$(_hi_overlay_fixture wired colors inputrc bat/config eza/theme.yml oh-my-posh.toml kak/kakrc)"
   d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || return 1
   _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
-  want='export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR"
+  want='export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR/kak"
 export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
-export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
-export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
+export EZA_CONFIG_DIR="$_HI_CONFIG_DIR/eza"
+export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat/config"
 export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
   [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
   [ -f "$d/colors" ] && [ -f "$d/oh-my-posh.toml" ] || _hi_because "unpacked: $(ls "$d")"
@@ -504,22 +507,22 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 # shellcheck disable=SC2016 # the wanted lines hold their $ unexpanded
 function test_overlay_tar_aliases_the_editors_and_multiplexers() {
   local dir d want
-  dir="$(_hi_overlay_fixture aliased vimrc init.lua config.toml tmux.conf)"
+  dir="$(_hi_overlay_fixture aliased vim/vimrc nvim/init.lua helix/config.toml tmux/tmux.conf)"
   mkdir -p "$dir/zellij/themes"
   printf 'x\n' >"$dir/zellij/config.kdl"
   printf 'x\n' >"$dir/zellij/themes/dark.kdl"
   d="$(mktemp -d "$_HI_WORKDIR/aliased-out.XXXXXX")" || return 1
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
-  want='export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc"
-command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vimrc" || true
-export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua"
-command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" || true
-command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/config.toml" || true
-command -v helix >/dev/null 2>&1 && alias hx="helix -c $_HI_CONFIG_DIR/config.toml" && alias helix="helix -c $_HI_CONFIG_DIR/config.toml" || true
-command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf" || true
+  want='export _HI_VIMRC="$_HI_CONFIG_DIR/vim/vimrc"
+command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vim/vimrc" || true
+export _HI_NVIMRC="$_HI_CONFIG_DIR/nvim/init.lua"
+command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/nvim/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/nvim/init.lua" || true
+command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/helix/config.toml" || true
+command -v helix >/dev/null 2>&1 && alias hx="helix -c $_HI_CONFIG_DIR/helix/config.toml" && alias helix="helix -c $_HI_CONFIG_DIR/helix/config.toml" || true
+command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux/tmux.conf" || true
 command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONFIG_DIR/zellij" || true'
   [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
-  [ "$(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vimrc init.lua config.toml " ] ||
+  [ "$(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vim/vimrc nvim/init.lua helix/config.toml " ] ||
     _hi_because "with mux off: $(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
 }
 
@@ -617,7 +620,7 @@ function test_carry_turns_down_a_row_the_table_cannot_hold() {
   dir="$(_hi_overlay_fixture carry-bad)"
   {
     printf 'good | - | - | ~/x\n'
-    printf 'vimrc | vim | - | ~/.vimrc\n'
+    printf 'vim/vimrc | vim | - | ~/.vimrc\n'
     printf 'micro | - | - | ~/x\n'
     printf '../up | - | - | ~/x\n'
     printf 'wiring.sh | - | - | ~/x\n'
@@ -634,7 +637,7 @@ function test_carry_turns_down_a_row_the_table_cannot_hold() {
     _hi_carry_load
     [ "${_HI_CARRY_FILES[*]}" = good ] || _hi_because "kept: ${_HI_CARRY_FILES[*]}" || exit 1
     [ "${#_HI_CARRY_BAD[@]}" = 11 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_CARRY_BAD[@]}")" || exit 1
-    case "${_HI_CARRY_BAD[0]}" in '2|'*vimrc*) ;; *) _hi_because "first: ${_HI_CARRY_BAD[0]}" || exit 1 ;; esac
+    case "${_HI_CARRY_BAD[0]}" in '2|'*vim/vimrc*) ;; *) _hi_because "first: ${_HI_CARRY_BAD[0]}" || exit 1 ;; esac
   )
 }
 
@@ -657,14 +660,14 @@ function test_carry_rows_ride_on_from_a_target() {
 # files, which only their toggles switch (GLOSSARY: HI.64)
 function test_plugin_off_keeps_its_members_home() {
   local dir
-  dir="$(_hi_overlay_fixture plugins-off colors vimrc nanorc tmux.conf bat.conf lazygit.yml mine.rc)"
+  dir="$(_hi_overlay_fixture plugins-off colors vim/vimrc nano/nanorc tmux/tmux.conf bat/config lazygit/config.yml mine.rc)"
   mkdir -p "$dir/micro"
   printf '{}\n' >"$dir/micro/settings.json"
   printf 'mine.rc | - | env:MINE | /etc/mine\n' >"$dir/carry"
-  [ "$(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors carry bat.conf tmux.conf mine.rc " ] ||
+  [ "$(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors carry bat/config tmux/tmux.conf mine.rc " ] ||
     _hi_because "a plugin and a group off: $(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_PLUGINS_OFF="mux,cli,carry,nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors vimrc carry micro/settings.json " ] ||
-    _hi_because "commas, a member, the carry: $(_HI_PLUGINS_OFF="mux,cli,carry,nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_PLUGINS_OFF="mux,cli,carry,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors vim/vimrc carry micro/settings.json " ] ||
+    _hi_because "commas, a member, the carry: $(_HI_PLUGINS_OFF="mux,cli,carry,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
   [ "$(_HI_PLUGINS_OFF="colors carry settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x -e colors -e carry)" = 2 ] ||
     _hi_because "one of hi's own was switched off"
 }
@@ -673,9 +676,9 @@ function test_plugin_off_keeps_its_members_home() {
 # wire
 function test_a_plugin_off_has_no_wiring_line() {
   local dir w=""
-  dir="$(_hi_overlay_fixture wire-off vimrc init.lua nanorc kakrc bat.conf)"
-  [ "$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat.conf,init.lua,nanorc,vimrc,wiring.sh" ] || return 1
-  _HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_wiring w bat.conf
+  dir="$(_hi_overlay_fixture wire-off vim/vimrc nvim/init.lua nano/nanorc kak/kakrc bat/config)"
+  [ "$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat/config,nano/nanorc,nvim/init.lua,vim/vimrc,wiring.sh" ] || return 1
+  _HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_wiring w bat/config
   [[ "$w" != *KAKOUNE* ]]
 }
 
@@ -685,26 +688,27 @@ function test_a_plugin_off_has_no_wiring_line() {
 # winning, quoted or not
 function test_local_only_toggles_keep_nothing_home() {
   local dir
-  dir="$(_hi_overlay_fixture local-only packages vimrc)"
+  dir="$(_hi_overlay_fixture local-only packages vim/vimrc)"
   printf '#!/bin/sh\nexport _HI_DISABLE_LOCAL=1\n' >"$dir/settings.sh"
-  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh packages vimrc " ] ||
+  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh packages vim/vimrc " ] ||
     _hi_because "local only kept the package list home" || return 1
   printf 'export _HI_DISABLE_HEADER=0\nexport _HI_DISABLE_HEADER="1"\n' >>"$dir/settings.sh"
-  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vimrc " ] ||
+  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vim/vimrc " ] ||
     _hi_because "settings.sh's own toggle did not keep the package list home"
 }
 
 # The overlay stream ships comment-stripped the way the payload does (the
 # same strip.awk): a copied-in default is mostly header, and every byte rides
-# each connect. settings.sh keeps its shebang; vimrc loses its `"` lines and
-# init.lua its `--` ones.
+# each connect. settings.sh keeps its shebang; vim/vimrc loses its `"` lines and
+# nvim/init.lua its `--` ones.
 function test_overlay_strip_removes_comments() {
   local dir="$_HI_WORKDIR/ovl-strip" out
   mkdir -p "$dir"
   printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   cp "$_HI_ROOT/config/colors" "$dir/colors"
-  cp "$_HI_ROOT/config/vimrc" "$dir/vimrc"
-  cp "$_HI_ROOT/config/init.lua" "$dir/init.lua"
+  mkdir -p "$dir/vim" "$dir/nvim"
+  printf '" a comment\nset number\n' >"$dir/vim/vimrc"
+  printf -- '-- a comment\nvim.opt.number = true\n' >"$dir/nvim/init.lua"
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat settings.sh)"
   [ "$out" = '#!/bin/sh
 export _HI_MAX_WIDTH=72' ] || {
@@ -718,15 +722,17 @@ export _HI_MAX_WIDTH=72' ] || {
     return 1
     ;;
   esac
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
+  [ "$out" = "set number" ] || _hi_because "vim/vimrc arrived as: [$out]" || return 1
   case "$out" in '"'* | *$'\n"'*)
-    _hi_cecho " | vimrc kept a vim comment line through the strip" "$RED"
+    _hi_cecho " | vim/vimrc kept a vim comment line through the strip" "$RED"
     return 1
     ;;
   esac
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
+  [ "$out" = "vim.opt.number = true" ] || _hi_because "nvim/init.lua arrived as: [$out]" || return 1
   case "$out" in '--'* | *$'\n--'*)
-    _hi_cecho " | init.lua kept a lua comment line through the strip" "$RED"
+    _hi_cecho " | nvim/init.lua kept a lua comment line through the strip" "$RED"
     return 1
     ;;
   esac
@@ -859,6 +865,7 @@ function test_payload_stays_under_the_tripwire() {
 function _hi_lint_fixture() {
   local dir="$_HI_WORKDIR/lint-$1"
   mkdir -p "$dir"
+  case "$2" in */*) mkdir -p "$dir/${2%/*}" ;; esac
   printf '%s' "$3" >"$dir/$2"
   printf '%s' "$dir"
 }
@@ -878,13 +885,13 @@ set number
 # neither is a dangler and dropping them would be a regression, not a fix
 function test_editor_includes_are_dropped_on_the_way_out() {
   local dir out
-  dir="$(_hi_lint_fixture drop vimrc "$_HI_LINT_VIMRC")"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  dir="$(_hi_lint_fixture drop vim/vimrc "$_HI_LINT_VIMRC")"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
   [ "$out" = 'set nocompatible
 source $VIMRUNTIME/defaults.vim
 runtime! plugin/sensible.vim
 set number' ] || {
-    _hi_cecho " | vimrc arrived as: [$out]" "$RED"
+    _hi_cecho " | vim/vimrc arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -894,16 +901,16 @@ set number' ] || {
 # than the include it was fixing
 function test_a_dropped_expression_goes_out_whole() {
   local dir out
-  dir="$(_hi_lint_fixture whole init.lua 'vim.opt.number = true
+  dir="$(_hi_lint_fixture whole nvim/init.lua 'vim.opt.number = true
 require("lazy").setup({
   { "tpope/vim-surround" },
 })
 vim.opt.tabstop = 2
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
   [ "$out" = 'vim.opt.number = true
 vim.opt.tabstop = 2' ] || {
-    _hi_cecho " | init.lua arrived as: [$out]" "$RED"
+    _hi_cecho " | nvim/init.lua arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -913,7 +920,7 @@ vim.opt.tabstop = 2' ] || {
 # whole, like lazy's setup above
 function test_vim_pack_add_is_a_plugin_finding() {
   local dir out
-  dir="$(_hi_lint_fixture pack init.lua 'vim.opt.number = true
+  dir="$(_hi_lint_fixture pack nvim/init.lua 'vim.opt.number = true
 vim.pack.add({
   "https://github.com/tpope/vim-surround",
   { src = "https://github.com/nvim-lua/plenary.nvim" },
@@ -921,14 +928,14 @@ vim.pack.add({
 vim.opt.tabstop = 2
 ')"
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3)"
-  [ "$out" = 'init.lua|2|plugin' ] || {
+  [ "$out" = 'nvim/init.lua|2|plugin' ] || {
     _hi_cecho " | reported: [$out]" "$RED"
     return 1
   }
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
   [ "$out" = 'vim.opt.number = true
 vim.opt.tabstop = 2' ] || {
-    _hi_cecho " | init.lua arrived as: [$out]" "$RED"
+    _hi_cecho " | nvim/init.lua arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -941,8 +948,8 @@ function test_the_editor_config_in_force_here_rides_the_stream() {
   mkdir -p "$dir" "$home"
   printf 'set number\n' >"$home/.vimrc"
   p="$(_hi_fake_path in-force-bins vim):$PATH"
-  [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_files vimrc)" = vimrc ] &&
-    [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_tar vimrc | _hi_tar_cat vimrc)" = "set number" ]
+  [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_files vim/vimrc)" = vim/vimrc ] &&
+    [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_tar vim/vimrc | _hi_tar_cat vim/vimrc)" = "set number" ]
 }
 
 # ...in the tool's own order of precedence, each place answering once the
@@ -950,10 +957,10 @@ function test_the_editor_config_in_force_here_rides_the_stream() {
 # is not there; and a target reads none of them: $HOME there is the target's
 function test_a_home_config_is_found_in_its_tools_order() {
   local home="$_HI_WORKDIR/order-home" dir="$_HI_WORKDIR/order-overlay" p f m out
-  local places="vimrc:.vimrc vimrc:.vim/vimrc vimrc:.config/vim/vimrc init.lua:.config/nvim/init.lua
-    config.toml:.config/helix/config.toml nanorc:.nanorc nanorc:.config/nano/nanorc
-    init.el:.emacs.el init.el:.emacs init.el:.emacs.d/init.el init.el:.config/emacs/init.el
-    tmux.conf:.tmux.conf tmux.conf:.config/tmux/tmux.conf screenrc:.screenrc"
+  local places="vim/vimrc:.vimrc vim/vimrc:.vim/vimrc vim/vimrc:.config/vim/vimrc nvim/init.lua:.config/nvim/init.lua
+    helix/config.toml:.config/helix/config.toml nano/nanorc:.nanorc nano/nanorc:.config/nano/nanorc
+    emacs/init.el:.emacs.el emacs/init.el:.emacs emacs/init.el:.emacs.d/init.el emacs/init.el:.config/emacs/init.el
+    tmux/tmux.conf:.tmux.conf tmux/tmux.conf:.config/tmux/tmux.conf screenrc:.screenrc"
   mkdir -p "$dir"
   p="$(_hi_fake_path order-bins vim nvim hx nano emacs tmux screen):$PATH"
   set -- HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_XDG_CONFIG="$home/.config" PATH="$p" _HI_CONFIG_DIR="$dir"
@@ -987,11 +994,12 @@ function test_a_home_config_needs_its_tool_here() {
   printf 'set number\n' >"$home/.vimrc"
   printf 'set -g mouse on\n' >"$home/.tmux.conf"
   p="$(_hi_fake_path gate-bins vim)"
-  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc || return 1
-  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux.conf || return 1
-  HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$home/.vimrc" ] || return 1
-  printf 'set ruler\n' >"$dir/vimrc"
-  HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vimrc out && [ "$out" = "$dir/vimrc" ]
+  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc || return 1
+  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux/tmux.conf || return 1
+  HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc out && [ "$out" = "$home/.vimrc" ] || return 1
+  mkdir -p "$dir/vim"
+  printf 'set ruler\n' >"$dir/vim/vimrc"
+  HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc out && [ "$out" = "$dir/vim/vimrc" ]
 }
 
 # One copy of a file the overlay and the tree both hold: a member that
@@ -1147,12 +1155,13 @@ function test_the_scan_reports_every_dialect() {
   local dir out
   dir="$_HI_WORKDIR/lint-report"
   mkdir -p "$dir"
-  printf 'source ~/.vim/extra.vim\n' >"$dir/vimrc"
-  printf 'dofile("/tmp/x.lua")\n' >"$dir/init.lua"
-  printf 'include "~/.nano/mine.nanorc"\n' >"$dir/nanorc"
-  printf '(load "~/.emacs.d/mine.el")\n' >"$dir/init.el"
-  printf 'source "%%val{runtime}/rc/x.kak"\nplug "andreyorst/fzf.kak"\nsource ~/mine.kak\n' >"$dir/kakrc"
-  printf 'source-file ~/.tmux/theme.conf\n' >"$dir/tmux.conf"
+  mkdir -p "$dir/vim" "$dir/nvim" "$dir/nano" "$dir/emacs" "$dir/kak" "$dir/tmux"
+  printf 'source ~/.vim/extra.vim\n' >"$dir/vim/vimrc"
+  printf 'dofile("/tmp/x.lua")\n' >"$dir/nvim/init.lua"
+  printf 'include "~/.nano/mine.nanorc"\n' >"$dir/nano/nanorc"
+  printf '(load "~/.emacs.d/mine.el")\n' >"$dir/emacs/init.el"
+  printf 'source "%%val{runtime}/rc/x.kak"\nplug "andreyorst/fzf.kak"\nsource ~/mine.kak\n' >"$dir/kak/kakrc"
+  printf 'source-file ~/.tmux/theme.conf\n' >"$dir/tmux/tmux.conf"
   mkdir -p "$dir/micro"
   printf 'config.AddRuntimeFile("mine", config.RTPlugin, "mine.lua")\n' >"$dir/micro/init.lua"
   printf '. ~/.secrets\n' >"$dir/settings.sh"
@@ -1163,7 +1172,7 @@ function test_the_scan_reports_every_dialect() {
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
   # rows come in _HI_OVERLAY_FILES order: every member is scanned, and the
   # ones with no dialect (colors, packages) simply have nothing to say
-  [ "$out" = "settings.sh|1|include,vimrc|1|include,init.lua|1|include,nanorc|1|include,init.el|1|include,kakrc|2|plugin,kakrc|3|include,aliases.sh|1|include,bashrc|2|include,zshrc|1|plugin,config.fish|1|include,tmux.conf|1|include,micro/init.lua|1|plugin" ] || {
+  [ "$out" = "settings.sh|1|include,vim/vimrc|1|include,nvim/init.lua|1|include,nano/nanorc|1|include,emacs/init.el|1|include,kak/kakrc|2|plugin,kak/kakrc|3|include,aliases.sh|1|include,bashrc|2|include,zshrc|1|plugin,config.fish|1|include,tmux/tmux.conf|1|include,micro/init.lua|1|plugin" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
@@ -1185,22 +1194,22 @@ set tabsize 4
 
 function test_nano_keeps_the_stock_directory_and_drops_the_rest() {
   local dir out
-  dir="$(_hi_lint_fixture nano nanorc "$_HI_LINT_NANORC")"
+  dir="$(_hi_lint_fixture nano nano/nanorc "$_HI_LINT_NANORC")"
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
-  [ "$out" = "nanorc|3|include,nanorc|4|include" ] || {
+  [ "$out" = "nano/nanorc|3|include,nano/nanorc|4|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
   # a dropped syntax include or extendsyntax keeps its comment through the
   # strip: load.sh's _hi_nano_fallback reads it on the target
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nanorc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nano/nanorc)"
   [ "$out" = 'include "/usr/share/nano/*.nanorc"
 include "/usr/share/nano/sh.nanorc"
 # hi dropped: include "/usr/share/nano/extra/*.nanorc"
 # hi dropped: include "~/.nano/mine.nanorc"
 # hi dropped: extendsyntax JSX linter eslint
 set tabsize 4' ] || {
-    _hi_cecho " | nanorc arrived as: [$out]" "$RED"
+    _hi_cecho " | nano/nanorc arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -1211,8 +1220,9 @@ function test_the_scan_is_silent_on_a_clean_config() {
   local dir
   dir="$_HI_WORKDIR/lint-clean"
   mkdir -p "$dir"
-  printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vimrc"
-  printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/init.el"
+  mkdir -p "$dir/vim" "$dir/emacs"
+  printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vim/vimrc"
+  printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/emacs/init.el"
   [ -z "$(_HI_CONFIG_DIR="$dir" _hi_include_lint)" ]
 }
 
@@ -1223,8 +1233,8 @@ function test_the_scan_reads_an_rc_under_its_own_name() {
   dir="$_HI_WORKDIR/lint-dotname"
   mkdir -p "$dir"
   printf 'source ~/.vim/extra.vim\n' >"$dir/.vimrc"
-  out="$(HOME="$dir" PATH="$(_hi_fake_path dotname-bins vim):$PATH" _HI_CONFIG_DIR="$dir/overlay" _hi_include_lint | grep '^vimrc|' | cut -d'|' -f1,2,3)"
-  [ "$out" = "vimrc|1|include" ] || {
+  out="$(HOME="$dir" PATH="$(_hi_fake_path dotname-bins vim):$PATH" _HI_CONFIG_DIR="$dir/overlay" _hi_include_lint | grep '^vim/vimrc|' | cut -d'|' -f1,2,3)"
+  [ "$out" = "vim/vimrc|1|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
@@ -1293,7 +1303,7 @@ true fisher install jorgebucaran/nvm.fish' ] || {
 # and TPM is a plugin manager whether it is the @plugin list or its `run`
 function test_tmux_includes_are_dropped_on_the_way_out() {
   local dir out
-  dir="$(_hi_lint_fixture tmux tmux.conf 'set -g mouse on
+  dir="$(_hi_lint_fixture tmux tmux/tmux.conf 'set -g mouse on
 source-file ~/.tmux/theme.conf
 if-shell "test -f ~/.tmux.local" "source-file ~/.tmux.local"
 bind r source-file ~/.tmux.conf \; \
@@ -1304,18 +1314,18 @@ set -g status-left "#S "
 source-file -q ~/.tmux.kept
 run "~/.tmux/plugins/tpm/tpm"
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux.conf)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux/tmux.conf)"
   [ "$out" = 'set -g mouse on
 set -g status-left "#S "
 source-file -q ~/.tmux.kept' ] || {
-    _hi_cecho " | tmux.conf arrived as: [$out]" "$RED"
+    _hi_cecho " | tmux/tmux.conf arrived as: [$out]" "$RED"
     return 1
   }
 }
 
 # micro's files ride under micro/ - micro fixes their names, so -config-dir
 # names the directory - each from the overlay when it has one and from micro's
-# own directory here otherwise; init.lua loses its plugin load, and keeps the
+# own directory here otherwise; nvim/init.lua loses its plugin load, and keeps the
 # `import` of micro's own package
 function test_micro_config_rides_in_a_directory_of_its_own() {
   local h="$_HI_WORKDIR/tool-home/.config/micro" dir d
@@ -1336,27 +1346,27 @@ local config = import("micro/config")' ] || {
   }
 }
 
-# the prompt frameworks' files and plugins.d's members are shell like the
+# the prompt frameworks' files and the extensions are shell like the
 # overlay's rc files, so a source of a file hi does not carry is neutralized in
 # them too - except one under $OSH or $ZSH, the framework's own tree, which is
 # on any target the theme is for
-function test_framework_and_plugin_includes_are_neutralized() {
+function test_framework_and_extension_includes_are_neutralized() {
   local dir h="$_HI_WORKDIR/fw-home" out
   _hi_fw_home_fixture
   dir="$_HI_WORKDIR/lint-fw"
-  mkdir -p "$dir/plugins.d"
+  mkdir -p "$dir/extensions"
   printf '. "$OSH/themes/base.theme.sh"\n. ~/.omb-mine\nPS1=x\n' >"$dir/oh-my-bash.theme.sh"
   printf 'source ~/.p10k-local.zsh\n' >"$dir/p10k.zsh"
-  printf 'export Y=1\n[ -f ~/.kube-extra ] && . ~/.kube-extra\n' >"$dir/plugins.d/10-kube"
+  printf 'export Y=1\n[ -f ~/.kube-extra ] && . ~/.kube-extra\n' >"$dir/extensions/10-kube"
   out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
-  [ "$out" = "plugins.d/10-kube|2|include,p10k.zsh|1|include,oh-my-bash.theme.sh|2|include" ] || {
+  [ "$out" = "extensions/10-kube|2|include,p10k.zsh|1|include,oh-my-bash.theme.sh|2|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
-  out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat plugins.d/10-kube)"
+  out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat extensions/10-kube)"
   [ "$out" = 'export Y=1
 [ -f ~/.kube-extra ] && :' ] || {
-    _hi_cecho " | plugins.d/10-kube arrived as: [$out]" "$RED"
+    _hi_cecho " | extensions/10-kube arrived as: [$out]" "$RED"
     return 1
   }
   out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat oh-my-bash.theme.sh)"
@@ -1365,18 +1375,18 @@ function test_framework_and_plugin_includes_are_neutralized() {
 PS1=x' ]
 }
 
-# ...and that pass is the theme's alone, for its own framework: a plugins.d
+# ...and that pass is the theme's alone, for its own framework: an extension
 # member runs on every target, $ZSH unset on most, and oh-my-zsh's theme has
 # no business in $OSH - both are neutralized like any include
 function test_a_framework_tree_passes_only_its_own_theme() {
   local dir h="$_HI_WORKDIR/fw-home" out
   _hi_fw_home_fixture
   dir="$_HI_WORKDIR/lint-fw-own"
-  mkdir -p "$dir/plugins.d"
+  mkdir -p "$dir/extensions"
   printf 'source "$ZSH/lib/git.zsh"\nsource $OSH/lib/x.sh\n' >"$dir/oh-my-zsh.zsh-theme"
-  printf 'source "$ZSH/lib/git.zsh"\n' >"$dir/plugins.d/10-omz"
+  printf 'source "$ZSH/lib/git.zsh"\n' >"$dir/extensions/10-omz"
   out="$(HOME="$h" _HI_PROMPT_TOOL=oh-my-zsh _HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
-  [ "$out" = "plugins.d/10-omz|1|include,oh-my-zsh.zsh-theme|2|include" ] || {
+  [ "$out" = "extensions/10-omz|1|include,oh-my-zsh.zsh-theme|2|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
@@ -1386,14 +1396,14 @@ function test_a_framework_tree_passes_only_its_own_theme() {
 # and out of the report - for a file every target has
 function test_hi_allow_keeps_the_next_line() {
   local dir out
-  dir="$(_hi_lint_fixture allow vimrc '" hi-allow
+  dir="$(_hi_lint_fixture allow vim/vimrc '" hi-allow
 source ~/.vim/extra.vim
 source ~/.vim/other.vim
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
   [ "$out" = 'source ~/.vim/extra.vim' ] &&
-    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|3" ] || {
-    _hi_cecho " | vimrc arrived as: [$out]" "$RED"
+    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vim/vimrc|3" ] || {
+    _hi_cecho " | vim/vimrc arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -1402,16 +1412,166 @@ source ~/.vim/other.vim
 # report row goes - one directive under the other, so each is seen alone
 function test_hi_quiet_drops_the_next_line_without_a_row() {
   local dir out
-  dir="$(_hi_lint_fixture quiet vimrc '" hi-quiet
+  dir="$(_hi_lint_fixture quiet vim/vimrc '" hi-quiet
 source ~/.vim/extra.vim
 " hi-allow
 source ~/.vim/kept.vim
 source ~/.vim/other.vim
 ')"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vimrc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
   [ "$out" = 'source ~/.vim/kept.vim' ] &&
-    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vimrc|5" ] || {
-    _hi_cecho " | vimrc arrived as: [$out]" "$RED"
+    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vim/vimrc|5" ] || {
+    _hi_cecho " | vim/vimrc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# `hi-quiet-start` to `hi-quiet-end` is `hi-quiet` over every line between
+# them, so a guarded block of plugin lines takes one pair
+function test_a_quiet_block_drops_its_lines_without_a_row() {
+  local dir out
+  dir="$(_hi_lint_fixture quiet-block vim/vimrc '" hi-quiet-start
+source ~/.vim/extra.vim
+call plug#begin()
+packadd! matchit
+call plug#end()
+" hi-quiet-end
+set number
+source ~/.vim/other.vim
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
+  [ "$out" = 'set number' ] &&
+    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vim/vimrc|8" ] || {
+    _hi_cecho " | vim/vimrc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# ...and `hi-allow-start` to `hi-allow-end` is `hi-allow`: the block rides as
+# written
+function test_an_allow_block_keeps_its_lines() {
+  local dir out
+  dir="$(_hi_lint_fixture allow-block vim/vimrc '" hi-allow-start
+source ~/.vim/extra.vim
+packadd! matchit
+" hi-allow-end
+source ~/.vim/other.vim
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
+  [ "$out" = 'source ~/.vim/extra.vim
+packadd! matchit' ] &&
+    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vim/vimrc|5" ] || {
+    _hi_cecho " | vim/vimrc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# a pair is read in each dialect's own comment syntax, and a quiet one takes
+# a lua or elisp finding's whole expression with it; the vim pairs are the
+# two cases above
+function test_a_block_is_read_in_every_dialect() {
+  local dir out
+  dir="$(_hi_lint_fixture block-dialects nvim/init.lua '-- hi-quiet-start
+require("lazy").setup({
+  { "tpope/vim-surround" },
+})
+-- hi-quiet-end
+-- hi-allow-start
+require("mine")
+-- hi-allow-end
+dofile("/tmp/x.lua")
+')"
+  _hi_lint_fixture block-dialects emacs/init.el ';; hi-quiet-start
+(use-package magit
+  :ensure t)
+;; hi-quiet-end
+;; hi-allow-start
+(load "~/.emacs.d/mine.el")
+;; hi-allow-end
+(load "~/x.el")
+' >/dev/null
+  _hi_lint_fixture block-dialects tmux/tmux.conf '# hi-quiet-start
+set -g @plugin "tmux-plugins/tpm"
+run ~/.tmux/plugins/tpm/tpm
+# hi-quiet-end
+# hi-allow-start
+source-file ~/.tmux/theme.conf
+# hi-allow-end
+source-file ~/.tmux/other.conf
+' >/dev/null
+  _hi_lint_fixture block-dialects bashrc '# hi-quiet-start
+[ -f ~/.hushed ] && . ~/.hushed
+# hi-quiet-end
+# hi-allow-start
+. ~/.kept
+# hi-allow-end
+. ~/.secrets
+' >/dev/null
+  mkdir -p "$dir/zellij"
+  _hi_lint_fixture block-dialects zellij/config.kdl '// hi-quiet-start
+layout_dir "/x"
+// hi-quiet-end
+// hi-allow-start
+theme_dir "/y"
+// hi-allow-end
+theme_dir "/z"
+' >/dev/null
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "nvim/init.lua|9|include,emacs/init.el|8|include,bashrc|7|include,tmux/tmux.conf|8|include,zellij/config.kdl|7|include" ] ||
+    _hi_because "the scan reported: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
+  [ "$out" = 'require("mine")' ] || _hi_because "nvim/init.lua arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat emacs/init.el)"
+  [ "$out" = '(load "~/.emacs.d/mine.el")' ] || _hi_because "emacs/init.el arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux/tmux.conf)"
+  [ "$out" = 'source-file ~/.tmux/theme.conf' ] || _hi_because "tmux/tmux.conf arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat bashrc)"
+  [ "$out" = '[ -f ~/.hushed ] && :
+. ~/.kept
+:' ] || _hi_because "bashrc arrived as: [$out]"
+}
+
+# a start with no end of its own word below it decides nothing and is a row
+# of its own, whether the file ends first or a second start of that word
+# comes first; an end with no start is ignored
+function test_an_unclosed_start_decides_nothing_and_is_reported() {
+  local dir out
+  dir="$(_hi_lint_fixture unclosed vim/vimrc '" hi-allow-start
+source ~/.vim/extra.vim
+" hi-quiet-end
+" hi-allow-start
+source ~/.vim/kept.vim
+" hi-allow-end
+" hi-quiet-start
+source ~/.vim/other.vim
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | paste -sd, -)"
+  [ "$out" = 'vim/vimrc|1|unclosed|" hi-allow-start,vim/vimrc|2|include|source ~/.vim/extra.vim,vim/vimrc|7|unclosed|" hi-quiet-start,vim/vimrc|8|include|source ~/.vim/other.vim' ] ||
+    _hi_because "the scan reported: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
+  [ "$out" = 'source ~/.vim/kept.vim' ] || _hi_because "vim/vimrc arrived as: [$out]"
+}
+
+# `hi-allow` and `hi-quiet` still decide the one line under them, inside a
+# pair too, and a pair's own words are not read as them: the stray end here
+# keeps nothing
+function test_a_single_marker_still_decides_one_line() {
+  local dir out
+  dir="$(_hi_lint_fixture single vim/vimrc '" hi-quiet-start
+" hi-allow
+source ~/.vim/kept.vim
+source ~/.vim/hushed.vim
+" hi-quiet-end
+" hi-allow-end
+source ~/.vim/extra.vim
+" hi-quiet
+source ~/.vim/quiet.vim
+source ~/.vim/other.vim
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim/vimrc)"
+  [ "$out" = 'source ~/.vim/kept.vim' ] &&
+    [ "$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2 | paste -sd, -)" = "vim/vimrc|7,vim/vimrc|10" ] || {
+    _hi_cecho " | vim/vimrc arrived as: [$out]" "$RED"
     return 1
   }
 }
@@ -1420,15 +1580,15 @@ source ~/.vim/other.vim
 # lua's -- and elisp's ; were the two the scan read through
 function test_the_scan_skips_a_commented_line() {
   local dir out
-  dir="$(_hi_lint_fixture comment init.lua '-- require("lazy").setup({})
+  dir="$(_hi_lint_fixture comment nvim/init.lua '-- require("lazy").setup({})
 require("lazy").setup({})
 ')"
-  _hi_lint_fixture comment init.el ';; (load "~/x.el")
+  _hi_lint_fixture comment emacs/init.el ';; (load "~/x.el")
 (load "~/x.el")
 ' >/dev/null
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2)"
-  [ "$out" = 'init.lua|2
-init.el|2' ] || {
+  [ "$out" = 'nvim/init.lua|2
+emacs/init.el|2' ] || {
     _hi_cecho " | reported: [$out]" "$RED"
     return 1
   }
@@ -1444,11 +1604,11 @@ function test_home_configs_do_not_ride_from_a_target() {
   mkdir -p "$dir/overlay"
   printf -- '--theme=a\n' >"$dir/bat"
   printf 'x\n' >"$dir/p10k"
-  BAT_CONFIG_PATH="$dir/bat" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src bat.conf out &&
+  BAT_CONFIG_PATH="$dir/bat" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src bat/config out &&
     [ "$out" = "$dir/bat" ] || return 1
   POWERLEVEL9K_CONFIG_FILE="$dir/p10k" _HI_PROMPT_TOOL=powerlevel10k _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src p10k.zsh out &&
     [ "$out" = "$dir/p10k" ] || return 1
-  ! _HI_REMOTE_SESSION=1 BAT_CONFIG_PATH="$dir/bat" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src bat.conf &&
+  ! _HI_REMOTE_SESSION=1 BAT_CONFIG_PATH="$dir/bat" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src bat/config &&
     ! _HI_REMOTE_SESSION=1 POWERLEVEL9K_CONFIG_FILE="$dir/p10k" _HI_PROMPT_TOOL=powerlevel10k _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src p10k.zsh || return 1
   printf 'y\n' >"$dir/overlay/p10k.zsh"
   _HI_REMOTE_SESSION=1 _HI_PROMPT_TOOL=powerlevel10k _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src p10k.zsh out &&
@@ -1650,7 +1810,7 @@ function test_strip_spares_heredoc_bodies() {
 
 # The data files' prose headers document the *installed* copies a user reads,
 # so they ship stripped too: flags/colors/packages through the same `#` rule
-# as the shell. An overlay vimrc, init.el, and init.lua strip through their
+# as the shell. An overlay vim/vimrc, emacs/init.el, and nvim/init.lua strip through their
 # own rules for vim's `"`, elisp's `;`, and lua's `--`, keeping every other
 # line.
 function test_strip_covers_the_data_files() {
@@ -1665,10 +1825,11 @@ function test_strip_covers_the_data_files() {
   done
   # the files with a comment character of their own: <file>:<char>
   mkdir -p "$ov"
-  for f in 'vimrc:"' 'init.el:;' 'init.lua:--'; do
+  mkdir -p "$ov/vim" "$ov/emacs" "$ov/nvim"
+  for f in 'vim/vimrc:"' 'emacs/init.el:;' 'nvim/init.lua:--'; do
     printf '%s a comment\nkept %s\n' "${f#*:}" "${f%%:*}" >"$ov/${f%%:*}"
   done
-  for f in 'vimrc:"' 'init.el:;' 'init.lua:--'; do
+  for f in 'vim/vimrc:"' 'emacs/init.el:;' 'nvim/init.lua:--'; do
     out="$(_HI_CONFIG_DIR="$ov" \
       _hi_overlay_tar | _hi_tar_cat "${f%%:*}")"
     [ "$out" = "kept ${f%%:*}" ] || {
@@ -1786,7 +1947,7 @@ function run_hi_payload_tests() {
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
   _hi_check "The overlay's packages rides stripped" test_overlay_carries_packages_stripped
-  _hi_check "plugins.d members ride stripped" test_overlay_carries_plugins
+  _hi_check "Extensions ride stripped" test_overlay_carries_extensions
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
   _hi_check "...ripgrep's, fzf's, and lazygit's included" test_overlay_home_configs_of_the_cli_tools
@@ -1820,10 +1981,15 @@ function run_hi_payload_tests() {
   _hi_check "An rc is read under its member name" test_the_scan_reads_an_rc_under_its_own_name
   _hi_check "A shell include becomes : and still parses" test_shell_includes_are_neutralized_and_still_parse
   _hi_check "A fish include becomes true" test_fish_includes_become_true
-  _hi_check "Framework files and plugins.d are scanned as shell" test_framework_and_plugin_includes_are_neutralized
+  _hi_check "Framework files and extensions are scanned as shell" test_framework_and_extension_includes_are_neutralized
   _hi_check "...a framework's tree passes only its own theme" test_a_framework_tree_passes_only_its_own_theme
   _hi_check "hi-allow keeps the next line" test_hi_allow_keeps_the_next_line
   _hi_check "hi-quiet drops the next line without a row" test_hi_quiet_drops_the_next_line_without_a_row
+  _hi_check "A hi-quiet pair drops its block without a row" test_a_quiet_block_drops_its_lines_without_a_row
+  _hi_check "A hi-allow pair keeps its block" test_an_allow_block_keeps_its_lines
+  _hi_check "...in every dialect's comment syntax" test_a_block_is_read_in_every_dialect
+  _hi_check "An unclosed start decides nothing and is a row" test_an_unclosed_start_decides_nothing_and_is_reported
+  _hi_check "...and a lone marker still decides one line" test_a_single_marker_still_decides_one_line
   _hi_check "A commented line is no finding" test_the_scan_skips_a_commented_line
 
   _hi_h2 "Testing: block padding (BSD tar)"

@@ -43,8 +43,8 @@ export _HI_COLORS="$_HI_ROOT/config/colors"
 # first write, so a copy of your own starts with every stock row
 export _HI_PACKAGES="$_HI_ROOT/config/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
-# drop-in plugins, sourced after the aliases; the same only home (HI.59)
-export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
+# extensions, sourced after the aliases; the same only home (HI.59)
+export _HI_EXTENSIONS="$_HI_CONFIG_DIR/extensions"
 # A tool's config has no line here. On a target, what points a tool at the
 # config that rode - a variable of the tool's, an alias, or a path hi's own
 # code reads - is a line of wiring.sh, written by hi.sh's _hi_overlay_wiring

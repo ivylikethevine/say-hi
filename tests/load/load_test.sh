@@ -749,7 +749,7 @@ function test_load_disable_header_skips_the_banner() {
 # <tree> the disposable one unless [cleanup] names another; the result on
 # stdout
 function _hi_nano_case() {
-  local _HI_CLEANUP="${3-$1}" _HI_NANORC="$1/say-hi/config/nanorc"
+  local _HI_CLEANUP="${3-$1}" _HI_NANORC="$1/say-hi/config/nano/nanorc"
   mkdir -p "${_HI_NANORC%/*}"
   printf '%s' "$2" >"$_HI_NANORC"
   _hi_nano_fallback
@@ -809,16 +809,16 @@ function test_nano_fallback_resolves_extendsyntax() {
 function run_load_tests() {
   _hi_workdir loadtest
   # the editor configs an overlay carried in, for load() to hand the session
-  mkdir -p "$_HI_WORKDIR/overlay"
-  : >"$_HI_WORKDIR/overlay/vimrc"
-  : >"$_HI_WORKDIR/overlay/init.lua"
-  : >"$_HI_WORKDIR/overlay/nanorc"
+  mkdir -p "$_HI_WORKDIR/overlay/vim" "$_HI_WORKDIR/overlay/nvim" "$_HI_WORKDIR/overlay/nano"
+  : >"$_HI_WORKDIR/overlay/vim/vimrc"
+  : >"$_HI_WORKDIR/overlay/nvim/init.lua"
+  : >"$_HI_WORKDIR/overlay/nano/nanorc"
   mkdir -p "$_HI_WORKDIR/overlay/micro"
   : >"$_HI_WORKDIR/overlay/micro/settings.json"
-  export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
+  export _HI_VIMRC="$_HI_WORKDIR/overlay/vim/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/nvim/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nano/nanorc"
   # ...and the wiring.sh a client packs beside them; vim's and nvim's lines
   # keep their state under the session tree
-  _hi_wiring_for vimrc init.lua nanorc micro/settings.json >"$_HI_WORKDIR/overlay/wiring.sh"
+  _hi_wiring_for vim/vimrc nvim/init.lua nano/nanorc micro/settings.json >"$_HI_WORKDIR/overlay/wiring.sh"
   local vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_VIMRC"
   local nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_NVIMRC"
 

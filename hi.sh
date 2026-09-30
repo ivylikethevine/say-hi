@@ -83,21 +83,24 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # row of the user's own (carry, below) shares - or @fn for a lookup no path
 # list can say, or - for none: a shell's
 # own rc (bashrc, zshrc, config.fish) rides only from the overlay, since
-# the rc a target runs should be asked for, not found. A member under a / is its file in each
-# candidate directory; a trailing / is a directory whose files ride one by
-# one, and a .d entry the same from the overlay alone (HI.58).
+# the rc a target runs should be asked for, not found. A member is
+# <tool>/<file> where its tool keeps a directory under ~/.config, the file
+# named as the tool names it, and its own name where the tool keeps none. A
+# candidate ending in / is a directory, the member's file looked for inside
+# it. A member with a trailing / is a directory whose files ride one by one
+# (HI.58), from the overlay alone where the row has no home.
 _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-'
   'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|-'
-  'vimrc|-|-|vim|editors|env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|-|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
-  'init.lua|-|-|nvim|editors|env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|-|$_HI_XDG_CONFIG/nvim/init.lua'
-  'nanorc|-|-|nano|editors|env:_HI_NANORC;flag:nano --rcfile|-|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
-  'init.el|-|-|emacs|editors|flag:emacs -nw -q -l|-|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'
-  'config.toml|-|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|-|$_HI_XDG_CONFIG/helix/config.toml'
-  'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|-|$KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc'
+  'vim/vimrc|-|-|vim|editors|env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|-|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
+  'nvim/init.lua|-|-|nvim|editors|env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|-|$_HI_XDG_CONFIG/nvim/init.lua'
+  'nano/nanorc|-|-|nano|editors|env:_HI_NANORC;flag:nano --rcfile|-|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
+  'emacs/init.el|-|-|emacs|editors|flag:emacs -nw -q -l|-|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'
+  'helix/config.toml|-|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|-|$_HI_XDG_CONFIG/helix/config.toml'
+  'kak/kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|-|$KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc'
   'aliases.sh|-|-|-|shell|-|-|~/.aliases'
-  'plugins.d|_HI_PLUGINS_D|-|-|shell|-|-|-'
+  'extensions/|_HI_EXTENSIONS|-|-|shell|-|-|-'
   'carry|-|-|-|-|-|-|-'
   'bashrc|-|-|(bash)|shell|-|-|-'
   'zshrc|-|-|(zsh)|shell|-|-|-'
@@ -111,20 +114,20 @@ _HI_OVERLAY_TABLE=(
   'oh-my-bash.theme.sh|-|-|(oh-my-bash)|prompt|-|-|@_hi_theme_home'
   'bash-it.theme.bash|-|-|(bash-it)|prompt|-|-|@_hi_theme_home'
   'tide.vars|-|-|(tide)|prompt|-|-|$XDG_CONFIG_HOME/fish/fish_variables , ~/.config/fish/fish_variables'
-  'theme.yml|-|-|eza|cli|envdir:EZA_CONFIG_DIR|-|$EZA_CONFIG_DIR/theme.yml , $XDG_CONFIG_HOME/eza/theme.yml , ~/.config/eza/theme.yml'
-  'bat.conf|-|-|bat batcat|cli|env:BAT_CONFIG_PATH|-|$BAT_CONFIG_PATH , $BAT_CONFIG_DIR/config , $XDG_CONFIG_HOME/bat/config , ~/.config/bat/config'
+  'eza/theme.yml|-|-|eza|cli|envdir:EZA_CONFIG_DIR|-|$EZA_CONFIG_DIR/theme.yml , $XDG_CONFIG_HOME/eza/theme.yml , ~/.config/eza/theme.yml'
+  'bat/config|-|-|bat batcat|cli|env:BAT_CONFIG_PATH|-|$BAT_CONFIG_PATH , $BAT_CONFIG_DIR/config , $XDG_CONFIG_HOME/bat/config , ~/.config/bat/config'
   'ripgreprc|-|-|rg|cli|env:RIPGREP_CONFIG_PATH|-|$RIPGREP_CONFIG_PATH'
   'fzfrc|-|-|fzf|cli|env:FZF_DEFAULT_OPTS_FILE|-|$FZF_DEFAULT_OPTS_FILE'
-  'lazygit.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|$LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml'
+  'lazygit/config.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|$LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml'
   'inputrc|-|-|(readline)|cli|env:INPUTRC|-|$INPUTRC , ~/.inputrc'
-  'tmux.conf|-|-|tmux|mux|flag:tmux -f|-|~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf'
+  'tmux/tmux.conf|-|-|tmux|mux|flag:tmux -f|-|~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf'
   'screenrc|-|-|screen|mux|flag:screen -c|-|$SCREENRC , ~/.screenrc'
-  'micro/settings.json|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'micro/bindings.json|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'micro/init.lua|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'zellij/config.kdl|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
-  'zellij/layouts/|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
-  'zellij/themes/|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'micro/settings.json|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/'
+  'micro/bindings.json|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/'
+  'micro/init.lua|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/'
+  'zellij/config.kdl|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR/ , $XDG_CONFIG_HOME/zellij/ , ~/.config/zellij/'
+  'zellij/layouts/|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR/ , $XDG_CONFIG_HOME/zellij/ , ~/.config/zellij/'
+  'zellij/themes/|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR/ , $XDG_CONFIG_HOME/zellij/ , ~/.config/zellij/'
   'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
 )
 
@@ -164,7 +167,9 @@ _HI_CARRY_ROWS=() _HI_CARRY_FILES=() _HI_CARRY_BAD=() _HI_CARRY_KEY=""
 # The overlay members renamed before 1.0, old:new. hi reads only the new
 # name; scripts/doctor.sh names a file still under the old one, since it
 # would otherwise be silently ignored.
-_HI_OVERLAY_RENAMES="vim.rc:vimrc nano.rc:nanorc emacs.el:init.el bash.sh:bashrc zsh.zsh:zshrc omz-theme.zsh:oh-my-zsh.zsh-theme omb-theme.sh:oh-my-bash.theme.sh"
+_HI_OVERLAY_RENAMES="plugins.d:extensions vim.rc:vim/vimrc vimrc:vim/vimrc init.lua:nvim/init.lua nano.rc:nano/nanorc nanorc:nano/nanorc
+  emacs.el:emacs/init.el init.el:emacs/init.el config.toml:helix/config.toml kakrc:kak/kakrc tmux.conf:tmux/tmux.conf theme.yml:eza/theme.yml
+  bat.conf:bat/config lazygit.yml:lazygit/config.yml bash.sh:bashrc zsh.zsh:zshrc omz-theme.zsh:oh-my-zsh.zsh-theme omb-theme.sh:oh-my-bash.theme.sh"
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -523,10 +528,12 @@ function _hi_carry_load() {
 }
 
 # _hi_carry_taken <name> - is it a member of the table's, the directory of
-# one, or a carry row's already?
+# one, a carry row's already, or a name a member had before
+# ($_HI_OVERLAY_RENAMES), which scripts/doctor.sh reads as a file left behind?
 function _hi_carry_taken() {
   local _hi_ct
-  for _hi_ct in "${_HI_OVERLAY_FILES[@]}" ${_HI_CARRY_FILES[@]+"${_HI_CARRY_FILES[@]}"}; do
+  for _hi_ct in "${_HI_OVERLAY_FILES[@]}" ${_HI_CARRY_FILES[@]+"${_HI_CARRY_FILES[@]}"} $_HI_OVERLAY_RENAMES; do
+    _hi_ct="${_hi_ct%%:*}"
     [ "${_hi_ct%%/*}" != "$1" ] || return 0
   done
   return 1
@@ -588,7 +595,8 @@ function _hi_overlay_home() {
 }
 
 # _hi_overlay_places <member> <row> - the row's home candidates into the
-# caller's $_hi_paths, best first, a member under a / as its file in each
+# caller's $_hi_paths, best first, a candidate ending in / as the member's
+# file inside it
 function _hi_overlay_places() {
   local _hi_op_h="${2##*|}" _hi_op_c="" _hi_op_i
   _hi_paths=()
@@ -597,12 +605,9 @@ function _hi_overlay_places() {
   @*) ! "${_hi_op_h#@}" "$1" _hi_op_c || _hi_paths=("$_hi_op_c") ;;
   *) _hi_path_list "$_hi_op_h" ;;
   esac
-  case "${2%%|*}" in */*)
-    for _hi_op_i in "${!_hi_paths[@]}"; do
-      _hi_paths[_hi_op_i]="${_hi_paths[_hi_op_i]}/${1#*/}"
-    done
-    ;;
-  esac
+  for _hi_op_i in ${_hi_paths[@]+"${!_hi_paths[@]}"}; do
+    case "${_hi_paths[_hi_op_i]}" in */) _hi_paths[_hi_op_i]="${_hi_paths[_hi_op_i]}${1#*/}" ;; esac
+  done
 }
 
 # _hi_ssh_tags_file <member> [outvar] - the tag map a relayed hop colors by
@@ -865,11 +870,21 @@ function _hi_tool_here() {
 #           ($ZSH, $OSH, $BASH_IT): hi sources a theme only once
 #           _hi_prompt_fw has found the tree on the target, where every other
 #           member runs with it unset. Also the zsh/fish managers' verbs
-#           (zinit, zplug, antigen, fisher, ...). A plugins.d member is sh.
+#           (zinit, zplug, antigen, fisher, ...). An extension is sh.
 #
 # A line directly under a `hi-allow` comment, in the file's own comment
 # syntax, is neither reported nor touched; one under `hi-quiet` is still
-# disabled, just not reported - a line you know no target has.
+# disabled, just not reported - a line you know no target has. A pair,
+# `hi-allow-start` and `hi-allow-end` or `hi-quiet-start` and `hi-quiet-end`,
+# decides every line inside it the same way. Each word pairs on its own, a
+# start with the next end of its word, so an allow pair inside a quiet one
+# keeps its lines. A start with no end below it, or with a second start of
+# its word before one, decides nothing and is an `unclosed` row; an end with
+# no start is ignored. Whether a start is closed is known only at the end of
+# the file, so FNR == 1 reads the file through once with getline before the
+# scan: blk holds the lines inside a closed pair, bad the starts with no end.
+# mark() is the marker a comment line opens with, whole, so `hi-allow` and
+# `hi-allow-start` are never read as each other.
 #
 # mode=report prints one `<member>|<line>|<kind>|<text>` row per finding and
 # leaves the file alone; mode=fix also writes <file>.lint with each finding
@@ -881,7 +896,7 @@ function _hi_tool_here() {
 # a line can empty a `then`/`do` body, which does not parse, so only the verb
 # and its file word become `:` (fish: `true`), and the rest of the line stays.
 # `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name,
-# and a member whose name is no dialect (colors, packages, a theme.yml) passes
+# and a member whose name is no dialect (colors, packages, eza's theme.yml) passes
 # through untouched - so every overlay member goes in, and there is no second
 # roster of "what has includes".
 #
@@ -895,6 +910,11 @@ function _hi_lint_awk() {
   cat <<'AWK'
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
 function cc() { return vim ? "\"" : (el ? ";" : (lua ? "--" : (kdl ? "//" : "#"))) }
+function mark(s) {
+  if (!match(s, /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-(allow|quiet)(-start|-end)?/)) return ""
+  s = substr(s, RSTART, RLENGTH); sub(/.*hi-/, "", s)
+  return s
+}
 function bal(s,   i, c, q, d) {
   d = 0; q = ""
   for (i = 1; i <= length(s); i++) {
@@ -988,13 +1008,22 @@ function kindof(s,   v) {
   return ""
 }
 FNR == 1 {
-  close(out); out = FILENAME ".lint"; depth = allow = quiet = 0
-  vim = (name == "vimrc"); el = (name == "init.el"); lua = (name ~ /\.lua$/); nano = (name == "nanorc"); tmux = (name == "tmux.conf")
-  screen = (name == "screenrc"); rl = (name == "inputrc"); kdl = (name ~ /\.kdl$/); kak = (name == "kakrc")
-  sh = (name ~ /\.(sh|bash|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
+  close(out); out = FILENAME ".lint"; depth = allow = quiet = n = 0
+  split("", blk); split("", bad); split("", from)
+  while ((getline l < FILENAME) > 0) {
+    n++; w = k = mark(l); sub(/-.*/, "", k)
+    if (w ~ /-start/) { if (k in from) bad[from[k]] = 1; from[k] = n }
+    else if (w ~ /-end/ && (k in from)) { for (i = from[k] + 1; i < n; i++) blk[k, i] = 1; delete from[k] }
+  }
+  close(FILENAME)
+  for (k in from) bad[from[k]] = 1
+  vim = (name == "vim/vimrc"); el = (name == "emacs/init.el"); lua = (name ~ /\.lua$/); nano = (name == "nano/nanorc"); tmux = (name == "tmux/tmux.conf")
+  screen = (name == "screenrc"); rl = (name == "inputrc"); kdl = (name ~ /\.kdl$/); kak = (name == "kak/kakrc")
+  sh = (name ~ /\.(sh|bash|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^extensions\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
   json = (name ~ /\.json$/)
   fwv = (name == "oh-my-zsh.zsh-theme") ? "|ZSH" : (name == "oh-my-bash.theme.sh") ? "|OSH" : (name == "bash-it.theme.bash") ? "|BASH_IT" : ""
 }
+FNR in bad { printf "%s|%d|unclosed|%s\n", name, FNR, trim($0) }
 depth > 0 {
   depth = tmux ? ($0 ~ /\\$/) : depth + bal($0)
   if (depth < 0) depth = 0
@@ -1003,10 +1032,9 @@ depth > 0 {
   next
 }
 {
-  kind = allow ? "" : kindof($0)
-  hush = quiet
-  allow = ($0 ~ /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-allow/)
-  quiet = ($0 ~ /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-quiet/)
+  kind = (allow || (("allow", FNR) in blk)) ? "" : kindof($0)
+  hush = quiet || (("quiet", FNR) in blk)
+  w = mark($0); allow = (w == "allow"); quiet = (w == "quiet")
   if (kind == "") { if (mode == "fix") print > out; next }
   if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
   if (mode == "fix") print ((sh || fish || (omp && json)) ? fixed : cc() " hi dropped: " $0) > out
@@ -1029,9 +1057,9 @@ function _hi_include_lint() {
 
 # _hi_overlay_files [member...] - the members (default $_HI_OVERLAY_FILES and
 # the user's own, $_HI_CARRY_FILES) that have a source, one per line; callers read it once and hand the list to
-# _hi_overlay_tar. A `.d` entry lists its members as <dir>/<name>, in name
-# order, only those _hi_dir_member_ok admits; a trailing-/ entry the same,
-# over the overlay's directory and home's, each name once.
+# _hi_overlay_tar. A trailing-/ entry lists its members as <dir>/<name>, in
+# name order, only those _hi_dir_member_ok admits, over the overlay's
+# directory and home's, each name once.
 function _hi_overlay_files() {
   local f src home seen
   _hi_carry_load
@@ -1039,11 +1067,6 @@ function _hi_overlay_files() {
   for f; do
     ! _hi_plugin_off "$f" || continue
     case "$f" in
-    *.d)
-      for src in "$_HI_CONFIG_DIR/$f"/*; do
-        [ -f "$src" ] && _hi_dir_member_ok "${src##*/}" && printf '%s\n' "$f/${src##*/}"
-      done
-      ;;
     */)
       _hi_overlay_home "$f" home || home=""
       seen=" "
@@ -1101,7 +1124,7 @@ function _hi_require_packer() {
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.35
 _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors packages carry vimrc nanorc init.el
-  tmux.conf screenrc inputrc '*/plugins.d/*')
+  tmux.conf screenrc inputrc '*/extensions/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
