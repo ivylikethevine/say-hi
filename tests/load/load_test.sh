@@ -642,12 +642,12 @@ function _hi_editorless_path() {
   _hi_real_path editorless bash sh date awk du mktemp rm mkdir cat sed grep tr cut id hostname uname cksum
 }
 
-# ...and _HI_DISABLE_EDITORS=1 is the gate, not vim's absence: same fake vim,
-# toggle on, no export
-function test_load_editors_toggle_blocks_viminit() {
+# ...and the list's `editors` is the gate, not vim's absence: same fake vim,
+# the editors off, no export
+function test_load_editors_off_blocks_viminit() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_EDITORS=1 \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_PLUGINS_OFF=lazygit,editors \
     "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
   case "$out" in *"VIM=unset"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
@@ -813,10 +813,12 @@ function run_load_tests() {
   : >"$_HI_WORKDIR/overlay/vimrc"
   : >"$_HI_WORKDIR/overlay/init.lua"
   : >"$_HI_WORKDIR/overlay/nanorc"
+  mkdir -p "$_HI_WORKDIR/overlay/micro"
+  : >"$_HI_WORKDIR/overlay/micro/settings.json"
   export _HI_VIMRC="$_HI_WORKDIR/overlay/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nanorc"
   # ...and the wiring.sh a client packs beside them; vim's and nvim's lines
   # keep their state under the session tree
-  _hi_wiring_for vimrc init.lua nanorc >"$_HI_WORKDIR/overlay/wiring.sh"
+  _hi_wiring_for vimrc init.lua nanorc micro/settings.json >"$_HI_WORKDIR/overlay/wiring.sh"
   local vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_VIMRC"
   local nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_NVIMRC"
 
@@ -891,7 +893,7 @@ EOF
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
-  _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
+  _hi_check "The editors off leaves VIMINIT unset" test_load_editors_off_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$vim|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
@@ -899,9 +901,8 @@ EOF
   _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$nvim|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "...one set stands in for the other" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=nano --rcfile $_HI_NANORC|" _HI_CLIENT_EDITOR=nano
   _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$nvim|" _HI_CLIENT_EDITOR=no-such-editor
-  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -mkparents true -diffgutter true|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
-  _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
-  _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1
+  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -config-dir $_HI_WORKDIR/overlay/micro|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
+  _hi_check "The editors off leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_PLUGINS_OFF=editors
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer

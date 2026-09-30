@@ -75,9 +75,10 @@ _HI_PAYLOAD=(common config load.sh hi.sh)
 # _hi_overlay_wiring (HI.62), whose comment is the grammar: env: and envdir:
 # export variables, flag: and flagdir: alias a command, and - leaves the
 # member to hi's own code.
-# <off> is the toggles that switch it off, spelled as a wiring line reads
-# them, or - for none: with any of them at 1 the member stays home
-# (_hi_plugin_off), and a target tests them again before it takes the wire.
+# <off> is the toggles that keep one of hi's own files home, spelled as a
+# wiring line reads them, or - for none: with any of them at 1 the member
+# stays home (_hi_plugin_off). A tool's member has none: $_HI_PLUGINS_OFF
+# switches it.
 # <home> is the candidates, best first, in _hi_path_list's grammar, which a
 # row of the user's own (carry, below) shares - or @fn for a lookup no path
 # list can say, or - for none: a shell's
@@ -89,12 +90,12 @@ _HI_OVERLAY_TABLE=(
   'settings.sh|_HI_SETTINGS|-|-|-|-|-|-'
   'colors|_HI_COLORS|tree|-|-|-|-|-'
   'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|-'
-  'vimrc|-|-|vim|editors|env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
-  'init.lua|-|-|nvim|editors|env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|$_HI_DISABLE_EDITORS $_HI_DISABLE_VIM|$_HI_XDG_CONFIG/nvim/init.lua'
-  'nanorc|-|-|nano|editors|env:_HI_NANORC;flag:nano --rcfile|$_HI_DISABLE_EDITORS $_HI_DISABLE_NANO|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
-  'init.el|-|-|emacs|editors|flag:emacs -nw -q -l|$_HI_DISABLE_EDITORS $_HI_DISABLE_EMACS|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'
-  'config.toml|-|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|$_HI_DISABLE_EDITORS $_HI_DISABLE_HELIX|$_HI_XDG_CONFIG/helix/config.toml'
-  'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_KAKOUNE|$KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc'
+  'vimrc|-|-|vim|editors|env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u|-|~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc'
+  'init.lua|-|-|nvim|editors|env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u|-|$_HI_XDG_CONFIG/nvim/init.lua'
+  'nanorc|-|-|nano|editors|env:_HI_NANORC;flag:nano --rcfile|-|~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc'
+  'init.el|-|-|emacs|editors|flag:emacs -nw -q -l|-|~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el'
+  'config.toml|-|-|hx helix|editors|flag:hx -c;flag:hx,helix=helix -c|-|$_HI_XDG_CONFIG/helix/config.toml'
+  'kakrc|-|-|kak|editors|envdir:KAKOUNE_CONFIG_DIR|-|$KAKOUNE_CONFIG_DIR/kakrc , $XDG_CONFIG_HOME/kak/kakrc , ~/.config/kak/kakrc'
   'aliases.sh|-|-|-|shell|-|-|~/.aliases'
   'plugins.d|_HI_PLUGINS_D|-|-|shell|-|-|-'
   'carry|-|-|-|-|-|-|-'
@@ -116,14 +117,14 @@ _HI_OVERLAY_TABLE=(
   'fzfrc|-|-|fzf|cli|env:FZF_DEFAULT_OPTS_FILE|-|$FZF_DEFAULT_OPTS_FILE'
   'lazygit.yml|-|-|lazygit|cli|env:LG_CONFIG_FILE|-|$LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml'
   'inputrc|-|-|(readline)|cli|env:INPUTRC|-|$INPUTRC , ~/.inputrc'
-  'tmux.conf|-|-|tmux|mux|flag:tmux -f|$_HI_DISABLE_TMUX|~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf'
-  'screenrc|-|-|screen|mux|flag:screen -c|$_HI_DISABLE_SCREEN|$SCREENRC , ~/.screenrc'
-  'micro/settings.json|-|-|micro|editors|envdir:_HI_MICRO_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'micro/bindings.json|-|-|micro|editors|envdir:_HI_MICRO_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'micro/init.lua|-|-|micro|editors|envdir:_HI_MICRO_DIR|$_HI_DISABLE_EDITORS $_HI_DISABLE_MICRO|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
-  'zellij/config.kdl|-|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
-  'zellij/layouts/|-|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
-  'zellij/themes/|-|-|zellij|mux|flagdir:zellij --config-dir|$_HI_DISABLE_ZELLIJ|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'tmux.conf|-|-|tmux|mux|flag:tmux -f|-|~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf'
+  'screenrc|-|-|screen|mux|flag:screen -c|-|$SCREENRC , ~/.screenrc'
+  'micro/settings.json|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'micro/bindings.json|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'micro/init.lua|-|-|micro|editors|flagdir:micro -backup false -savehistory false -config-dir|-|$MICRO_CONFIG_HOME , $XDG_CONFIG_HOME/micro , ~/.config/micro'
+  'zellij/config.kdl|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'zellij/layouts/|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
+  'zellij/themes/|-|-|zellij|mux|flagdir:zellij --config-dir|-|$ZELLIJ_CONFIG_DIR , $XDG_CONFIG_HOME/zellij , ~/.config/zellij'
   'ssh_tags|-|-|(ssh)|-|-|-|@_hi_ssh_tags_file'
 )
 

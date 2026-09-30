@@ -17,7 +17,7 @@
 # <kin>: `source` is a source or . of a path held in a variable, `sh -c` a
 # shell handed a script in a word, `rm -r` a recursive delete.
 
-eval|common/aliases.sh|const|eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_
+eval|common/aliases.sh|const|eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${
 eval|common/bash.sh|tool|eval "$("$_hi_pt" init bash)" ;;
 eval|common/bash.sh|name|eval "$1=(\${_hi_pf[@]+\"\${_hi_pf[@]}\"})"
 eval|common/bash.sh|shell|eval "$_hi_a"

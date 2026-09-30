@@ -5,7 +5,9 @@
 #   packages     "[-|+]name:N,..." rows -> [group] sections
 #   colors       "type,name,color[,rrggbb]" rows -> [type] sections
 #   settings.sh  _HI_PACKAGES_MIN_PRIORITY -> _HI_PACKAGES_GROUPS; the
-#                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped
+#                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped;
+#                an editor's or a multiplexer's _HI_DISABLE_* -> its word in
+#                _HI_PLUGINS_OFF
 # A file already in the current shape is left alone, so a second run is a
 # no-op. scripts/install.sh (--install, --configure) and scripts/update.sh
 # run it; add_package.sh's shape: HI.33 the standalone entry, HI.09 the
@@ -112,13 +114,50 @@ function _hi_convert_colors() {
 # _hi_convert_settings - stdin's settings.sh with a _HI_PACKAGES_MIN_PRIORITY
 # line replaced by the _HI_PACKAGES_GROUPS that shows the same tiers, its
 # trailing comment (install's marker among them) kept, or dropped where that
-# is the default (2) or a _HI_PACKAGES_GROUPS line already says what to show
+# is the default (2) or a _HI_PACKAGES_GROUPS line already says what to show;
+# and with every editor's and multiplexer's toggle gone, the ones at 1 as
+# words of the _HI_PLUGINS_OFF line, which is written where the file's own
+# was, or last, under the marker any of them carried
 function _hi_convert_settings() {
   awk '
+    BEGIN {
+      word["EDITORS"] = "editors"; word["VIM"] = "vim nvim"; word["NANO"] = "nano"
+      word["EMACS"] = "emacs"; word["MICRO"] = "micro"; word["HELIX"] = "hx"
+      word["KAKOUNE"] = "kak"; word["TMUX"] = "tmux"; word["SCREEN"] = "screen"
+      word["ZELLIJ"] = "zellij"
+    }
+    function add(words,   k, w, m) {
+      m = split(words, w, /[ ,]+/)
+      for (k = 1; k <= m; k++)
+        if (w[k] != "" && index(" " off " ", " " w[k] " ") == 0) off = off (off == "" ? "" : " ") w[k]
+    }
+    # the line as the wizard pads it (rc_tagged), so its block takes it as its own
+    function listed(   l) {
+      l = "export _HI_PLUGINS_OFF=\047" off "\047"
+      if (mark == "") print l; else printf "%-45s %s\n", l, mark
+    }
+    function marked(l) {
+      if (!match(l, /[ \t]+#.*/)) return
+      mark = substr(l, RSTART); sub(/^[ \t]+/, "", mark)
+    }
+    function value(l) {
+      sub(/^[^=]*=/, "", l); sub(/[ \t]+#.*/, "", l); gsub(/["\047]/, "", l)
+      return l
+    }
     { lines[++n] = $0 }
     /^[ \t]*(export[ \t]+)?_HI_PACKAGES_GROUPS=/ { has = 1 }
+    /^[ \t]*(export[ \t]+)?_HI_PLUGINS_OFF=/ { at = n }
+    /^[ \t]*(export[ \t]+)?_HI_DISABLE_(EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ)=/ {
+      t = $0; sub(/^[ \t]*(export[ \t]+)?_HI_DISABLE_/, "", t); sub(/=.*/, "", t)
+      if (value($0) == 1) { moved = moved " " word[t]; marked($0) }
+      lines[n] = ""; gone[n] = 1
+    }
     END {
+      if (at) { add(value(lines[at])); marked(lines[at]) }
+      add(moved)
       for (i = 1; i <= n; i++) {
+        if (gone[i]) continue
+        if (i == at) { if (off != "") listed(); continue }
         l = lines[i]
         # the tool and sudo aliases went opt-in under new names: the old
         # disables have nothing left to turn off
@@ -135,6 +174,7 @@ function _hi_convert_settings() {
         if (match(l, /[ \t]+#.*/)) c = substr(l, RSTART)
         print "export _HI_PACKAGES_GROUPS=\047" g "\047" c
       }
+      if (!at && off != "") listed()
     }
   '
 }
@@ -180,4 +220,4 @@ done
 
 _hi_convert_one "$dir/packages" _hi_convert_packages '^[^#]*:[0-9]'
 _hi_convert_one "$dir/colors" _hi_convert_colors '^[a-z]+,[^,#]+,'
-_hi_convert_one "$dir/settings.sh" _hi_convert_settings '^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS)='
+_hi_convert_one "$dir/settings.sh" _hi_convert_settings '^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_(EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ))='

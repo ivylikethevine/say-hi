@@ -13,8 +13,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # derived straight from aliases.sh so this test can't drift out of sync with
 # it. Most of the file is `[ toggle-test ] && alias/export name=... || true`
-# (the toggles default to "shipped on", and run_alias_test turns the opt-ins
-# on and gives micro a micro/ of hi's), so the patterns below allow up to
+# (run_alias_test turns the opt-ins on), so the patterns below allow up to
 # two leading `[ ... ] &&` guards ahead of the `alias`/`export` token, still
 # anchored to the start of the line so a mention of `alias x=` in a comment
 # can't match. What that excludes on purpose: a two-line statement (the
@@ -45,9 +44,9 @@ function _hi_test_script() {
 }
 
 # _hi_test_shell <shell> <dir> [strict] - run the sampled-alias script in a
-# real <shell>. With `strict`, the toggles are scrubbed from the environment
-# and the shell runs under `set -u`: aliases.sh reads _HI_DISABLE_EDITORS bare
-# (fish can't parse ${X:-0}), so it must default it
+# real <shell>. With `strict`, hi's session mark is scrubbed from the
+# environment and the shell runs under `set -u`: aliases.sh reads
+# _HI_REMOTE_SESSION bare (fish can't parse ${X:-0}), so it must default it
 # itself - that is the shape `hi <target> <command>` runs in. fish has no `set -u` (unset is always empty there), so its
 # strict run only proves the defaulting line parses.
 function _hi_test_shell() {
@@ -55,12 +54,12 @@ function _hi_test_shell() {
   local script="$2/$1${strict:+.strict}.test" what="Loaded aliases.sh"
   local -a runner=("$shell")
   if [ -n "$strict" ]; then
-    what="Loaded with the toggles unset"
+    what="Loaded with the session mark unset"
     [ "$shell" = fish ] || runner+=(-u)
-    runner=(env -u _HI_DISABLE_EDITORS "${runner[@]}")
+    runner=(env -u _HI_REMOTE_SESSION "${runner[@]}")
   fi
 
-  _hi_h2 "Starting: [$shell]${strict:+ (toggles unset, strict mode)}"
+  _hi_h2 "Starting: [$shell]${strict:+ (session mark unset, strict mode)}"
   t0="$(_hi_now)"
   _hi_test_script "$shell" >"$script"
   _hi_cecho "  [$shell] -- Running: $script"
@@ -183,7 +182,6 @@ function _hi_test_nvim_stays_in_tree() {
   fi
   output=$(env -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME HOME="$base/home" \
     XDG_CONFIG_HOME="$base/home/.config" F="$base/f.txt" _HI_REMOTE_SESSION=1 \
-    _HI_DISABLE_EDITORS=0 _HI_DISABLE_VIM=0 \
     _HI_HOME="$base/tree" _HI_CONFIG_DIR="$base/cfg" "$shell" "$base/t" 2>&1) || rc=$?
   [ "$rc" -eq 0 ] || _hi_because "[$shell] nvim exited $rc: $output" || return 1
   [ -z "$(find "$base/home" -name nvim)" ] ||
@@ -212,7 +210,6 @@ function _hi_test_vim_stays_in_tree() {
   fi
   output=$(env -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME HOME="$base/home" \
     XDG_CONFIG_HOME="$base/home/.config" F="$base/f.txt" _HI_REMOTE_SESSION=1 \
-    _HI_DISABLE_EDITORS=0 _HI_DISABLE_VIM=0 \
     _HI_HOME="$base/tree" _HI_CONFIG_DIR="$base/cfg" "$shell" "$base/t" 2>&1 </dev/null) || rc=$?
   [ "$rc" -eq 0 ] || _hi_because "[$shell] vim exited $rc: $output" || return 1
   [ -z "$(find "$base/home" -name '.viminfo*' -o -name '*vim')" ] ||
@@ -226,12 +223,8 @@ function run_alias_test() {
   _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases, $(wc -w <<<"$_HI_SAMPLE_VARS") variables and $(wc -l <<<"$_HI_PRESENCE_ALIASES") presence-gated aliases"
 
   _hi_workdir aliases
-  # micro's alias needs its tool, a target, and a micro/ of hi's
   mkdir -p "$_HI_WORKDIR/overlay"
-  for _hi_f in vimrc init.lua config.toml nanorc init.el; do : >"$_HI_WORKDIR/overlay/$_hi_f"; done
-  mkdir -p "$_HI_WORKDIR/overlay/micro"
-  export _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" _HI_MICRO_DIR="$_HI_WORKDIR/overlay/micro" \
-    _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _HI_REMOTE_SESSION=1
+  export _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1 _HI_REMOTE_SESSION=1
 
   _hi_suite_begin
   for _hi_shell in dash bash zsh fish; do

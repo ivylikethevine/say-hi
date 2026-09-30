@@ -419,46 +419,40 @@ function _hi_config_preview() {
   _hi_prompt_sample_preview
 }
 
-# what each editor's alias is on a target with the override on: the lines
+# what each editor's alias is on a target: the lines
 # hi.sh's _hi_overlay_wiring writes for the editor configs that would ride
 # (GLOSSARY: HI.62), read off that writer rather than restated here, each
 # naming the file it carries in place of the target's copy. A name two
 # lines alias (`vim`, where a target has nvim) is listed for each, in the
-# order a target reads them, so the last is the one it keeps. micro's alias
-# is common/aliases.sh's own, read back from it as a target builds it, over
-# the directory its line names. A
-# subshell: nothing this defines should survive past the preview.
+# order a target reads them, so the last is the one it keeps, and a line
+# several members of one directory share (micro's) once. A subshell: nothing
+# this defines should survive past the preview.
 function _hi_editors_preview() {
   (
-    # shellcheck disable=SC2030 # lives and dies in this subshell, same as
-    # _hi_tool_alias_preview's own export below sourcing the same file
-    _HI_DISABLE_EDITORS=0
     # shellcheck source=/dev/null # hi.sh, which shellcheck would follow into its own `_hi "$@"`
     source "$_HI_LAUNCHER" >/dev/null 2>&1
-    local row member src lines line body
+    local row member src lines line body seen=$'\n'
+    # under the list this run has settled on, not the file's
+    setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" _HI_PLUGINS_OFF
     while IFS= read -r row; do
       case "$row" in *'|editors|'*) ;; *) continue ;; esac
       member="${row##*|}" src="" lines=""
       _hi_overlay_src "$member" src || continue
       _hi_overlay_wiring lines "$member"
-      # micro's directory is a line's too, for common/aliases.sh below
-      # shellcheck disable=SC2030 # lives and dies in this subshell
-      case "$lines" in *' _HI_MICRO_DIR='*) _HI_MICRO_DIR="$_HI_CONFIG_DIR/${member%%/*}" ;; esac
+      # a directory's member is wired by the directory
+      case "$member" in */*) member="${member%%/*}" src="${src%/*}" ;; esac
       while IFS= read -r line; do
         while [ "${line#* alias }" != "$line" ]; do
           line="${line#* alias }"
           body="${line#*=\"}"
           body="${body%%\"*}"
-          printf '%-5s -> %s\n' "${line%%=*}" "${body//\$_HI_CONFIG_DIR\/$member/$src}"
+          body="$(printf '%-5s -> %s' "${line%%=*}" "${body//\$_HI_CONFIG_DIR\/$member/$src}")"
+          case "$seen" in *$'\n'"$body"$'\n'*) continue ;; esac
+          seen="$seen$body"$'\n'
+          printf '%s\n' "$body"
         done
       done <<<"$lines"
     done < <(_hi_plugin_rows)
-    # shellcheck disable=SC2031 # lives and dies in this subshell
-    # shellcheck source=../common/aliases.sh
-    _HI_REMOTE_SESSION=1 source "$_HI_ALIASES" >/dev/null 2>&1
-    body="$(alias micro 2>/dev/null)" || return 0
-    body="${body#alias micro=\'}"
-    printf '%-5s -> %s\n' micro "${body%\'}"
   )
 }
 
@@ -546,18 +540,8 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_GREETING|1||||greeting - the \"hi loaded:\" line and its timers"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status - the branch and its changes"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment - (myproj) for a venv, ..."
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro, helix, kak"
-  "_HI_DISABLE_VIM|1||||vim and nvim - your carried vimrc and init.lua"
-  "_HI_DISABLE_NANO|1|||nano|nano - your carried nanorc"
-  "_HI_DISABLE_EMACS|1|||emacs|emacs - your carried init file"
-  "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
-  "_HI_DISABLE_HELIX|1|||hx/helix|helix - your carried config.toml"
-  "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - your carried kakrc"
   "_HI_TOOL_ALIASES||1|_hi_tool_alias_preview||styled tool aliases - ls -> eza, cat -> bat"
   "_HI_SUDO_ALIAS||1|||sudo alias - aliases survive under sudo"
-  "_HI_DISABLE_TMUX|1|||tmux|tmux - your carried tmux.conf"
-  "_HI_DISABLE_SCREEN|1|||screen|screen - your carried screenrc"
-  "_HI_DISABLE_ZELLIJ|1|||zellij|zellij - your carried config, layouts, and themes"
   "_HI_DISABLE_LOCAL|1||||here too - all of the above on this machine, not just where you hi"
 )
 
@@ -603,11 +587,11 @@ function _hi_prompt_rows() {
 _HI_PRESETS=(
   "everything|the shipped defaults - every feature and header item on, the alias opt-ins off|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
-  "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=editors _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
-# plus the one dial - so "not named by the preset" can mean "back to the
+# plus the two lists - so "not named by the preset" can mean "back to the
 # default". _HI_PROMPT_TOOL (hi's prompt) stays out, like the color scheme and the
 # packages ramp: those are taste, not a feature level, and no preset has an
 # opinion on them. Neither is asked here at all - both are written into
@@ -618,7 +602,7 @@ function _hi_preset_vocab() {
     printf '%s\n' "${row%%|*}"
   done
   # the one feature toggle listed under Prompt rather than Features
-  printf '%s\n' _HI_DISABLE_PROMPT _HI_PACKAGES_GROUPS
+  printf '%s\n' _HI_DISABLE_PROMPT _HI_PACKAGES_GROUPS _HI_PLUGINS_OFF
 }
 
 # preset_row <name> - its table row, or failure for a name that is not one
@@ -733,7 +717,7 @@ _HI_MENU_WORD0=0
 # The page drawn: empty for the main page, else a section's key. The sections,
 # "<key>|<name>", in the order they number.
 _HI_MENU_PAGE=""
-_HI_MENU_SECTIONS=("i|Header" "r|Prompt" "e|Editors" "a|Aliases" "m|This machine" "v|Advanced")
+_HI_MENU_SECTIONS=("i|Header" "r|Prompt" "g|Plugins" "a|Aliases" "m|This machine" "v|Advanced")
 # While a section builds: whether its rows draw, and what its summary line
 # on the main page says - its first number, its [x] count, its values.
 _HI_MENU_DRAW=0
@@ -888,12 +872,12 @@ function _hi_menu_rows() {
 # the banner, then the header's items in the order they print, all as a grid
 # of as many to a line as the width holds, four at most - then its width, the
 # package groups, and the hidden addresses. The prompt's switches, the
-# editors a target gets, the aliases, the one "here too" switch, and
+# plugins kept home, the aliases, the one "here too" switch, and
 # Advanced follow. Every section numbers whichever page is drawn; only the
 # page's own rows print. The rows keep their tables (and so their item
 # kinds): this is only the order they draw in.
 function _hi_menu_list() {
-  local i state word width groups iphide tc row name shell end def cols n var off on label
+  local i state word width groups iphide tc row name shell end def cols n var off on label kept
   local -a rows=()
   _HI_MENU_ITEMS=()
   _HI_MENU_SUM_KEY=""
@@ -941,14 +925,13 @@ function _hi_menu_list() {
     def="$(_hi_prompt_end_default "$shell")"
     _hi_menu_value "end|$name" "$name prompt ends with" "$end" "${def#\\}"
   done
-  _hi_menu_section e
-  _hi_menu_rows _HI_FEATURE_PROMPTS 4 5 6 7 8 9 10
+  _hi_menu_section g
+  setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
+  _hi_menu_value plugins "kept home" "${kept:-none}" none
   _hi_menu_section a
-  # the multiplexers' configs reach a target through an alias too, and the
-  # editors' page is a full screen already
-  _hi_menu_rows _HI_FEATURE_PROMPTS 11 12 13 14 15
+  _hi_menu_rows _HI_FEATURE_PROMPTS 4 5
   _hi_menu_section m
-  _hi_menu_rows _HI_FEATURE_PROMPTS 16
+  _hi_menu_rows _HI_FEATURE_PROMPTS 6
   _hi_menu_section v
   _hi_menu_rows _HI_ADVANCED_PROMPTS
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" tc
@@ -996,6 +979,7 @@ function _hi_menu_pick() {
     ;;
   width) config_max_width ;;
   groups) config_packages_groups ;;
+  plugins) config_plugins_off ;;
   iphide) config_ip_hide ;;
   end) config_prompt_end "$a" ;;
   truecolor) config_truecolor ;;
@@ -1071,7 +1055,7 @@ function config_hub() {
       return 0
       ;;
     b | back) _HI_MENU_PAGE="" ;;
-    i | r | e | a | m | v) _HI_MENU_PAGE="$cmd" ;;
+    i | r | g | a | m | v) _HI_MENU_PAGE="$cmd" ;;
     *)
       if _hi_is_number "$cmd" && [ "$cmd" -ge 1 ] && [ "$cmd" -le "${#_HI_MENU_ITEMS[@]}" ]; then
         _hi_menu_pick "$cmd"
@@ -1261,6 +1245,81 @@ function config_packages_groups() {
   _hi_pending_set _HI_PACKAGES_GROUPS "$next"
 }
 
+# _hi_plugins_off_preview <list> - what rides with <list> kept home, a line a
+# group: the plugins that ride, then the ones switched off. One with nothing
+# to carry, or whose tool is not here, is not named. With --words, every word
+# a list may hold instead, one a line: hi.sh is sourced in the one place.
+function _hi_plugins_off_preview() {
+  (
+    # shellcheck source=/dev/null # hi.sh, whose functions alone are wanted
+    source "$_HI_LAUNCHER" >/dev/null 2>&1
+    [ "$1" != --words ] || {
+      _hi_plugin_words
+      return 0
+    }
+    _HI_PLUGINS_OFF="$1"
+    local name group member state g rides="" off="" last=""
+    while IFS='|' read -r name group member; do
+      if [ "$group" != "$last" ]; then
+        [ -z "$rides$off" ] || printf '%-8s %s%s\n' "$last" "${rides:+rides:$rides}" "${off:+${rides:+; }kept home:$off}"
+        last="$group" rides="" off=""
+      fi
+      if _hi_plugin_state "$member" state; then
+        case "$state:$rides " in rides:*" $name "*) ;; rides:*) rides="$rides $name" ;; esac
+      else
+        case "$off " in *" $name "*) ;; *) off="$off $name" ;; esac
+      fi
+    done < <(_hi_plugin_rows | sort -s -t'|' -k2,2)
+    [ -z "$rides$off" ] || printf '%-8s %s%s\n' "$last" "${rides:+rides:$rides}" "${off:+${rides:+; }kept home:$off}"
+  )
+}
+
+# Which plugins stay home: $_HI_PLUGINS_OFF, the list `hi --plugin-off` keeps
+# too (GLOSSARY: HI.64). A reply toggles the words it names - a plugin, a
+# group, or a member, as `hi --plugins` lists them - and Enter alone keeps
+# the list. A reply naming none of them is re-asked at most $max_rejects
+# times and then keeps the current value, as config_packages_groups does.
+function config_plugins_off() {
+  local current="" reply rejects=0 max_rejects=3 off=" " known w bad next shown
+  setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" current
+  # one space between words, whatever the file's line had
+  for w in ${current//,/ }; do off="$off$w "; done
+  if [ -t 0 ]; then
+    known=" $(_hi_plugins_off_preview --words | tr '\n' ' ')"
+    while :; do
+      next="${off# }" next="${next% }"
+      show_preview _hi_plugins_off_preview "$next"
+      _hi_paint shown "$BRPURPLE" "[${next:-none}]"
+      menu_read " Toggle which plugins or groups (editors, mux, prompt, cli, shell, carry)? $shown " reply || break
+      [ -z "$reply" ] && break
+      reply="${reply//,/ }"
+      bad=""
+      # shellcheck disable=SC2086 # the reply is a space-separated word list
+      for w in $reply; do
+        case "$known" in *" $w "*) ;; *) bad="$w" ;; esac
+      done
+      if [ -n "$bad" ]; then
+        _hi_menu_reject rejects "$max_rejects" \
+          "no plugin or group $bad - hi --plugins lists them; press Enter to keep these" && continue
+        _hi_cecho " no plugin or group $bad, leaving them as they are" "$YELLOW"
+        break
+      fi
+      # shellcheck disable=SC2034 # read by _hi_menu_reject's ${!1}, not by name
+      rejects=0
+      # shellcheck disable=SC2086 # as above
+      for w in $reply; do
+        case "$off" in
+        *" $w "*) off="${off/" $w "/ }" ;;
+        *) off="$off$w " ;;
+        esac
+      done
+    done
+  fi
+  next="${off# }" next="${next% }"
+  _hi_pending_set _HI_PLUGINS_OFF "$next"
+  _hi_menu_note " plugins kept home: ${next:-none}" "$GREEN" _hi_editors_preview
+}
+
 # Which addresses the header's ip cell leaves out - header.sh's
 # _hi_ip_filter reads it. `172.*` is the shipped default (the docker/podman
 # bridge range), so typing it clears the override the way config_max_width's
@@ -1360,6 +1419,7 @@ function collect_setting_lines() {
   _hi_collect_value _HI_IP_HIDE '172.*' quoted
   _hi_collect_value _HI_MAX_WIDTH 80
   _hi_collect_group _HI_FEATURE_PROMPTS
+  _hi_collect_value _HI_PLUGINS_OFF "" quoted
   _hi_collect_group _HI_PROMPT_PROMPTS
   for row in "${_HI_SHELL_TABLE[@]}"; do
     name="${row%%|*}"

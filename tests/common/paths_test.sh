@@ -19,10 +19,7 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
-  _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS _HI_DISABLE_EDITORS
-  _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS _HI_DISABLE_MICRO
-  _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE
-  _HI_DISABLE_TMUX _HI_DISABLE_SCREEN _HI_DISABLE_ZELLIJ
+  _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
   _HI_DISABLE_BANNER _HI_DISABLE_GREETING)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
@@ -216,8 +213,8 @@ function test_settings_beat_the_defaults() {
 # an explicit export from the caller's environment outranks the default too,
 # which is what makes `_HI_DISABLE_PROMPT=1 bash` work as a one-off
 function test_environment_beats_the_defaults() {
-  [ "$(_HI_DISABLE_EDITORS=1 bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_EDITORS"')" = 1 ]
+  [ "$(_HI_DISABLE_GIT_STATUS=1 bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_GIT_STATUS"')" = 1 ]
 }
 
 # colors and packages each resolve to $_HI_CONFIG_DIR's copy when the user has

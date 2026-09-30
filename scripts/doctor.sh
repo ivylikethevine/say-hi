@@ -580,8 +580,7 @@ function doctor_config() {
   # common/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
-  # here: spelled, it missed _HI_DISABLE_VIM/NANO/EMACS/MICRO the day they
-  # landed, so the four newest toggles were the four this row could not see.
+  # here, where a list would miss the day's newest.
   local toggles asrc=""
   _hi_overlay_src aliases.sh asrc || true
   toggles="$(grep -oE '_HI_(DISABLE_[A-Z_]+|TOOL_ALIASES|SUDO_ALIAS)' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
@@ -668,6 +667,12 @@ function doctor_settings_values() {
   # the package check's old shape, which nothing reads any more
   [ -z "${_HI_PACKAGES_MIN_PRIORITY:-}" ] ||
     doctor_row _HI_PACKAGES_MIN_PRIORITY "is ignored - name the groups to show in _HI_PACKAGES_GROUPS" bad
+  # ...and the editors' and the multiplexers' toggles, now words of a list
+  for name in EDITORS VIM NANO EMACS MICRO HELIX KAKOUNE TMUX SCREEN ZELLIJ; do
+    name="_HI_DISABLE_$name"
+    [ -z "${!name:-}" ] ||
+      doctor_row "$name" "is ignored - hi --plugin-off keeps a config home, and hi --configure converts this line" bad
+  done
   if [ -f "${_HI_PACKAGES:-}" ] && grep -q '^[^#]*:[0-9]' "$_HI_PACKAGES" && ! grep -Eq '^\[[^]]+\]$' "$_HI_PACKAGES"; then
     doctor_row packages "$_HI_PACKAGES has name:priority rows, which read as missing commands - hi --configure converts it" bad
   else

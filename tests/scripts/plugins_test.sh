@@ -26,7 +26,7 @@ function _hi_plugins_run() {
   local cfg="$1"
   shift
   mkdir -p "$cfg.home"
-  env -u _HI_PLUGINS_OFF -u _HI_DISABLE_LOCAL -u _HI_DISABLE_EDITORS -u _HI_DISABLE_NANO \
+  env -u _HI_PLUGINS_OFF -u _HI_DISABLE_LOCAL \
     HOME="$cfg.home" XDG_CONFIG_HOME="$cfg.home/.config" _HI_CONFIG_DIR="$cfg" \
     _HI_HOME="$_HI_PLUGINS_TREE" NO_COLOR=1 \
     "$_HI_PLUGINS_TREE/say-hi/hi.sh" "$@" 2>&1
@@ -35,6 +35,12 @@ function _hi_plugins_run() {
 # _hi_plugins_cfg <name> - a fresh overlay directory's path; nothing is made
 function _hi_plugins_cfg() {
   printf '%s' "$_HI_WORKDIR/$1-cfg"
+}
+
+# _hi_plugins_off_line <list> - the line the list is kept on, as the wizard
+# pads and tags its own
+function _hi_plugins_off_line() {
+  printf '%-45s %s' "export _HI_PLUGINS_OFF='$1'" "$_HI_MARKER"
 }
 
 # _hi_plugins_is <file> <body> - <file> holds exactly <body> (%b)
@@ -95,7 +101,7 @@ function test_plugin_off_writes_the_list() {
   cfg="$(_hi_plugins_cfg off)"
   out="$(_hi_plugins_run "$cfg" --plugin-off lazygit editors tmux.conf)" || return 1
   [[ "$out" == *" - lazygit"* && "$out" == *" - editors"* && "$out" == *"settings.sh updated"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_PLUGINS_OFF='lazygit editors tmux.conf'\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'lazygit editors tmux.conf')\n"
 }
 
 # every other line of a settings.sh stays where it was, and a second list
@@ -106,7 +112,7 @@ function test_plugin_off_keeps_the_other_settings() {
   mkdir -p "$cfg"
   printf '#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_PLUGINS_OFF="bat, rg"\nexport _HI_MUX=1\n' >"$cfg/settings.sh"
   _hi_plugins_run "$cfg" --plugin-off fzf >/dev/null || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_MUX=1\nexport _HI_PLUGINS_OFF='bat rg fzf'\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_MUX=1\n$(_hi_plugins_off_line 'bat rg fzf')\n"
 }
 
 function test_plugin_off_twice_writes_nothing() {
@@ -115,7 +121,7 @@ function test_plugin_off_twice_writes_nothing() {
   _hi_plugins_run "$cfg" --plugin-off bat >/dev/null || return 1
   out="$(_hi_plugins_run "$cfg" --plugin-off bat)" || return 1
   [[ "$out" == *"bat is off already"* && "$out" != *updated* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_PLUGINS_OFF='bat'\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'bat')\n"
 }
 
 # switching the last one back on takes the line with it
@@ -125,21 +131,20 @@ function test_plugin_on_takes_a_word_back() {
   _hi_plugins_run "$cfg" --plugin-off bat editors >/dev/null || return 1
   out="$(_hi_plugins_run "$cfg" --plugin-on editors)" || return 1
   [[ "$out" == *" + editors"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_PLUGINS_OFF='bat'\n" || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'bat')\n" || return 1
   _hi_plugins_run "$cfg" --plugin-on bat >/dev/null || return 1
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n"
 }
 
-# a word that is on says so; one a toggle holds off names the toggle, since
-# the list is not what to change
-function test_plugin_on_names_what_holds_a_plugin_off() {
+# a word that is on says so, and nothing is written
+function test_plugin_on_says_a_word_is_on() {
   local cfg out
-  cfg="$(_hi_plugins_cfg on-toggle)"
+  cfg="$(_hi_plugins_cfg on-already)"
   mkdir -p "$cfg"
-  printf '#!/bin/sh\nexport _HI_DISABLE_NANO=1\n' >"$cfg/settings.sh"
-  out="$(_hi_plugins_run "$cfg" --plugin-on nano bat)" || return 1
-  [[ "$out" == *"nano is off by _HI_DISABLE_NANO=1"* && "$out" == *"bat is not in the list"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_DISABLE_NANO=1\n"
+  printf '#!/bin/sh\n' >"$cfg/settings.sh"
+  out="$(_hi_plugins_run "$cfg" --plugin-on bat)" || return 1
+  [[ "$out" == *"bat is not in the list"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n"
 }
 
 function test_plugin_off_dry_run_writes_nothing() {
@@ -236,10 +241,10 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   printf 'x\n' >"$cfg/nanorc"
   printf 'x\n' >"$cfg.home/.taskrc"
   printf 'taskrc | - | env:TASKRC | ~/.taskrc\nbad line\n' >"$cfg/carry"
-  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=mux\nexport _HI_DISABLE_NANO=1\n' >"$cfg/settings.sh"
+  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="mux nano"\n' >"$cfg/settings.sh"
   out="$(_hi_plugins_run "$cfg" --plugins)" || return 1
   [[ "$out" == *"bat "*"cli "*"bat.conf "*"rides: $cfg/bat.conf"* ]] || _hi_because "bat: $out" || return 1
-  [[ "$out" == *"nano "*"editors "*"nanorc "*"stays home: switched off (_HI_DISABLE_NANO=1)"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"nano "*"editors "*"nanorc "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *"tmux "*"mux "*"tmux.conf "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
   [[ "$out" == *"taskrc "*"carry "*"taskrc "*"rides: ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
   [[ "$out" == *"line 2 is ignored"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
@@ -259,7 +264,7 @@ function run_plugins_tests() {
   _hi_check "...and keeps every other line of it" test_plugin_off_keeps_the_other_settings
   _hi_check "...a word that is off already writes nothing" test_plugin_off_twice_writes_nothing
   _hi_check "--plugin-on takes a word back, and the line with the last" test_plugin_on_takes_a_word_back
-  _hi_check "...and names the toggle that holds a plugin off" test_plugin_on_names_what_holds_a_plugin_off
+  _hi_check "...and says so of a word that is on" test_plugin_on_says_a_word_is_on
   _hi_check "--dry-run names the write and writes nothing" test_plugin_off_dry_run_writes_nothing
 
   _hi_h2 "Testing: --add-plugin and --remove-plugin"

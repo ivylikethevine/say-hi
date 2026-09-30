@@ -125,33 +125,12 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# _hi_plugins_state <member> <outvar> - what a connect does with <member>,
-# in a phrase; 1 when it is off
-function _hi_plugins_state() {
-  local src="" why="" tilde='~'
-  case "$1" in
-  */ | *.d)
-    src="$(_hi_overlay_files "$1" | grep -c .)" || true
-    if [ "$src" = 0 ]; then src=""; else src="$src file(s)"; fi
-    ;;
-  *) ! _hi_overlay_src "$1" src || src="${src/#"$HOME"/$tilde}" ;;
-  esac
-  if [ -n "$src" ]; then
-    printf -v "$2" '%s' "rides: $src"
-  elif _hi_unsent_why "$1" why; then
-    printf -v "$2" '%s' "stays home: $why"
-  else
-    printf -v "$2" '%s' "nothing to carry"
-  fi
-  [ "${why#switched off}" = "$why" ]
-}
-
 function _hi_plugins_list() {
   local name group member state color
   printf ' %-14s %-8s %-22s %s\n' plugin group member state
   while IFS='|' read -r name group member; do
     color="$GREEN"
-    _hi_plugins_state "$member" state || color="$YELLOW"
+    _hi_plugin_state "$member" state || color="$YELLOW"
     case "$state" in rides:* | *"switched off"*) ;; *) color="" ;; esac
     _hi_cecho "$(printf ' %-14s %-8s %-22s %s' "$name" "$group" "$member" "$state")" "$color"
   done < <(_hi_plugin_rows)
@@ -169,7 +148,8 @@ function _hi_plugins_off_now() {
 }
 
 # _hi_plugins_write_off <list> - settings.sh with that list as its one
-# _HI_PLUGINS_OFF line, or with none when the list is empty
+# _HI_PLUGINS_OFF line, among the lines hi --configure writes, or with none
+# when the list is empty
 function _hi_plugins_write_off() {
   local tmpfile line
   dry_run_say "write _HI_PLUGINS_OFF='$1' to $_HI_SETTINGS" && return 0
@@ -182,24 +162,14 @@ function _hi_plugins_write_off() {
   else
     printf '#!/bin/sh\n' >"$tmpfile"
   fi
-  [ -z "$1" ] || printf "export _HI_PLUGINS_OFF='%s'\n" "$1" >>"$tmpfile"
+  # the wizard's own spelling of the line (rc_tagged), so its block holds it
+  [ -z "$1" ] || printf '%-45s %s\n' "export _HI_PLUGINS_OFF='$1'" "$_HI_MARKER" >>"$tmpfile"
   _hi_write_back "$tmpfile" "$_HI_SETTINGS"
   _hi_cecho "$_HI_SETTINGS updated" "$GREEN"
 }
 
-# _hi_plugins_toggled <word> <outvar> - is a member <word> names (as its
-# plugin, its group, or itself) off by a toggle, the list aside?
-function _hi_plugins_toggled() {
-  local name group member
-  while IFS='|' read -r name group member; do
-    case "$1" in "$name" | "$group" | "$member") ;; *) continue ;; esac
-    ! _HI_PLUGINS_OFF="" _hi_plugin_off "$member" "$2" || return 0
-  done < <(_hi_plugin_rows)
-  return 1
-}
-
 function _hi_plugins_switch() {
-  local word known now="" next="" w why="" changed=""
+  local word known now="" next="" w changed=""
   [ "${#args[@]}" -gt 0 ] || _hi_die "needs a plugin, a group, or a member ($me --help)"
   known=" $(_hi_plugin_words | tr '\n' ' ')"
   _hi_plugins_off_now now
@@ -218,14 +188,7 @@ function _hi_plugins_switch() {
       changed=1
       _hi_cecho " + $word" "$GREEN"
       ;;
-    on:*)
-      # off by a toggle: that is hi --configure's to change
-      if _hi_plugins_toggled "$word" why; then
-        _hi_cecho " $word is off by $why, which hi --configure sets" "$YELLOW"
-      else
-        _hi_cecho " $word is not in the list - nothing to switch" "$GREEN"
-      fi
-      ;;
+    on:*) _hi_cecho " $word is not in the list - nothing to switch" "$GREEN" ;;
     esac
   done
   [ -n "$changed" ] || exit 0

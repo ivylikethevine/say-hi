@@ -1308,7 +1308,7 @@ member), whether `config/` holds a
 default (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that
 reads it (the binaries `_hi_tool_here` looks for, the first of them its name
 in `hi --doctor`; in parentheses, a name nothing looks for), its wire and the
-toggles that switch it off ([HI.62](#hi62-generated-wiring)), and the home
+toggles that keep one of hi's own files home, and the home
 tier: candidate paths best first, a `@function` where no list can say it
 (oh-my-posh's rc-named config, the theme a framework's rc variable names,
 ssh's tag map), or `-` for none.
@@ -1356,8 +1356,7 @@ leaves the member to hi's own code. A row holds several wires with a `;`
 between them, read in order, a later alias replacing an earlier one. An
 `env:` over a name of hi's own is how hi's code on a target learns a
 member's path without naming the member: `$_HI_VIMRC` and `$_HI_NVIMRC` for
-`load.sh`'s `$VIMINIT`, `$_HI_NANORC` for its syntax fallback, and
-`$_HI_MICRO_DIR` for micro's alias.
+`load.sh`'s `$VIMINIT`, and `$_HI_NANORC` for its syntax fallback.
 `<names>=<command>` aliases other names to the command, and words ahead of
 it that hold a `=` are its environment: neovim answers to `vim` as well and
 keeps its state under the session tree, and helix to `hx` whichever of its
@@ -1366,9 +1365,9 @@ two names the target installed. helix's row asks for `hx` first, since
 `load.sh` reads an alias's body back for `$EDITOR`, and a quote inside one
 does not survive that.
 
-micro's alias is the one still spelled in `common/aliases.sh`: its flags are
-`$_HI_MICRO_OPTS`, a setting whose default that file gives after `wiring.sh`
-has been read, over the directory `$_HI_MICRO_DIR` names.
+micro's row carries two flags ahead of `-config-dir`, `-backup false` and
+`-savehistory false`: its config directory is the session's tree, and a
+backup or a history written there is lost with it.
 `_hi_overlay_wiring` turns the members an overlay archive carries into
 `wiring.sh`, which `_hi_overlay_tar` stages beside them, and `paths.sh`
 sources it on a target only. At home each tool's own config is already in
@@ -1385,11 +1384,9 @@ The lines are part of `_hi_overlay_cache_key`. The member list alone would
 hand an archive cached by an older `hi.sh` to a newer one that wires the same
 members another way.
 
-A row's off column names the toggles its line is written behind, tested on
-the target, where the shell starts: kakoune's is
-`_HI_DISABLE_EDITORS` and `_HI_DISABLE_KAKOUNE`. The client reads them too
-([HI.64](#hi64-what-is-switched-off)), so the line is there only for a
-toggle the target's own environment sets. Such a line ends `|| true`, as an alias line does: the
+No line is written behind a test of a setting: what is switched off is
+decided on the client ([HI.64](#hi64-what-is-switched-off)), and has no line.
+An alias line ends `|| true`, since the target may lack the command: the
 file's status is its last line's, and `core.sh` sources `paths.sh` under
 `set -e`.
 
@@ -1450,6 +1447,8 @@ under `_HI_DISABLE_LOCAL=1` `common/paths.sh` has set every one for this
 machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
 `export NAME=value` lines, the last of a name winning, as text.
 
-`scripts/plugins.sh` is the list's writer: one `_HI_PLUGINS_OFF` line in
-`settings.sh`, outside the block `hi --configure` owns, which leaves a line
-for a name it does not write alone.
+`scripts/plugins.sh` and `hi --configure` both write the list, as one
+`_HI_PLUGINS_OFF` line of `settings.sh` in the wizard's padded, marked
+spelling, so each rewrites the line the other left. `load.sh` reads one word
+of it on a target, from the `settings.sh` that rode: with `editors` off it
+exports no `$EDITOR`.

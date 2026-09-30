@@ -8,13 +8,13 @@
 # shellcheck disable=SC2166 # `[ a -o b ]` is the one "or" all three dialects parse inside an && chain
 # GLOSSARY: HI.13 - first-installed wins; reorder to taste.
 
-# Backstop defaults for the toggles and every value var the guards below read
+# Backstop defaults for the opt-ins and every value var the guards below read
 # bare under `set -u`, in an eval fish can't parse. The gate is really "no
 # file named shift on PATH" (fish's `command -v` reports no builtins; `getopts`
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_HELIX="${_HI_DISABLE_HELIX-0}" _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}"' 2>/dev/null || true
+  eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -34,21 +34,6 @@ command -v shift >/dev/null 2>&1 &&
 # a line of the overlay's wiring.sh, written from hi.sh's table for the
 # configs that rode, and common/paths.sh sources it on a target
 # (GLOSSARY: HI.62). At home every tool reads its own config, unaliased.
-#
-# micro takes a config *directory*, never a file, but any of its settings can
-# be set on the command line as `-name value`, so it gets flags like bat and
-# eza do: no backups or history written into a config dir on a box you are
-# only visiting, parents made on save, the diff gutter on. With the overlay's
-# micro/ ($_HI_MICRO_DIR, a wiring.sh line's) it gets -config-dir, and the
-# two taste flags drop, or they would beat that settings.json. At home there is no default string
-# and no alias: those flags are for a box you are only visiting. Override the
-# whole string with _HI_MICRO_OPTS in your settings.sh. The one editor whose
-# alias is spelled here: its flags are a setting, read after this file's
-# defaults, where a wiring.sh line is read before them.
-[ -z "$_HI_MICRO_OPTS" ] && [ "$_HI_REMOTE_SESSION" = 1 ] && [ "$_HI_MICRO_DIR" = "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_OPTS='-backup false -savehistory false' || true
-[ -z "$_HI_MICRO_OPTS" ] && [ -z "$_HI_MICRO_DIR" ] && [ "$_HI_REMOTE_SESSION" = 1 ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ "$_HI_REMOTE_SESSION" = 1 ] && [ -n "$_HI_MICRO_OPTS" ] && command -v micro >/dev/null 2>&1 && alias micro="micro $_HI_MICRO_OPTS" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ "$_HI_REMOTE_SESSION" = 1 ] && [ "$_HI_MICRO_DIR" = "$_HI_CONFIG_DIR/micro" ] && command -v micro >/dev/null 2>&1 && alias micro="micro -config-dir $_HI_MICRO_DIR $_HI_MICRO_OPTS" || true
 
 # opt-in (_HI_SUDO_ALIAS=1): the trailing space makes bash/zsh alias-expand
 # the word after sudo, so `sudo vim` gets the vim alias's flags; fish has a
@@ -99,7 +84,7 @@ command -v shift >/dev/null 2>&1 &&
 # target), sourced LAST: an `alias` there replaces the same name above, can
 # build on what this file resolved (`alias ls="$_HI_LS_BIN $_HI_LS_OPTS
 # --icons"`), and `alias cat=cat` takes one back. The values the aliases above
-# read (_HI_*_OPTS, _HI_*_BIN, the _HI_DISABLE_* toggles) belong in
+# read (_HI_*_OPTS, _HI_*_BIN, the two opt-ins) belong in
 # settings.sh, which every shell sources first; set here they arrive too late,
 # and `hi --doctor` says so. Same POSIX+fish subset as this file.
 #

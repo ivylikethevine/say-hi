@@ -159,6 +159,26 @@ function test_settings_drop_the_old_alias_toggles() {
     "#!/bin/sh\n# _HI_DISABLE_TOOL_ALIASES=1 was mine\nexport _HI_SUDO_ALIAS=1"
 }
 
+# an editor's or a multiplexer's toggle at 1 is its word in the list, vim's
+# both of its plugins, and one at 0 just goes; the list's own line takes the
+# words where it stands, each once, and with none a line is written last
+function test_settings_move_the_tool_toggles_to_the_list() {
+  _hi_conv_is _hi_convert_settings "#!/bin/sh\nexport _HI_DISABLE_VIM=1\nexport _HI_DISABLE_NANO='0'\nexport _HI_MAX_WIDTH=100\n  _HI_DISABLE_TMUX=\"1\"\n" \
+    "#!/bin/sh\nexport _HI_MAX_WIDTH=100\nexport _HI_PLUGINS_OFF='vim nvim tmux'" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_OFF='lazygit, vim'\nexport _HI_DISABLE_EDITORS=1\nexport _HI_DISABLE_VIM=1\nexport _HI_MUX=1\n" \
+    "export _HI_PLUGINS_OFF='lazygit vim editors nvim'\nexport _HI_MUX=1" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_DISABLE_EMACS=0\n" ""
+}
+
+# ...under the marker the toggle's line carried, padded as the wizard pads
+# its own, so its block takes the line for one of its own
+function test_settings_list_line_keeps_the_marker() {
+  local line want
+  printf -v line '%-45s %s' 'export _HI_DISABLE_HELIX=1' "$_HI_MARKER"
+  printf -v want '%-45s %s' "export _HI_PLUGINS_OFF='hx'" "$_HI_MARKER"
+  [ "$(printf '%s\n' "$line" | _hi_convert_settings)" = "$want" ]
+}
+
 # --- the entry point ---------------------------------------------------------
 
 # each file in the old shape is converted in place, the original kept as
@@ -191,6 +211,19 @@ function test_entry_converts_the_old_alias_toggles() {
   [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
     grep -q _HI_DISABLE_SUDO_ALIAS "$dir/settings.sh.old" &&
     [ "$(cat "$dir/settings.sh")" = 'export _HI_MAX_WIDTH=100' ] || {
+    _hi_cecho " | said: $out" "$RED"
+    return 1
+  }
+}
+
+# ...and so does a toggle the list replaced
+function test_entry_converts_a_tool_toggle() {
+  local dir="$_HI_WORKDIR/conv-tool-toggle" out
+  mkdir -p "$dir"
+  printf 'export _HI_DISABLE_KAKOUNE=1\n' >"$dir/settings.sh"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
+    [ "$(cat "$dir/settings.sh")" = "export _HI_PLUGINS_OFF='kak'" ] || {
     _hi_cecho " | said: $out" "$RED"
     return 1
   }
@@ -315,10 +348,13 @@ function run_convert_settings_tests() {
   _hi_check "Beside a groups line the floor just goes" test_settings_drop_the_floor_beside_groups
   _hi_check "A trailing comment, install's marker too, is kept" test_settings_keep_the_trailing_comment
   _hi_check "The old alias toggles go, a comment naming one stays" test_settings_drop_the_old_alias_toggles
+  _hi_check "An editor's toggle becomes its word in the list" test_settings_move_the_tool_toggles_to_the_list
+  _hi_check "...on a line the wizard's block takes as its own" test_settings_list_line_keeps_the_marker
 
   _hi_h2 "Testing: convert_settings.sh"
   _hi_check "Converts each old file, keeping <file>.old" test_entry_converts_each_old_file
   _hi_check "An old alias toggle alone makes settings.sh old-format" test_entry_converts_the_old_alias_toggles
+  _hi_check "...and so does an editor's" test_entry_converts_a_tool_toggle
   _hi_check "--dry-run writes nothing" test_entry_dry_run_writes_nothing
   _hi_check "A second run is a no-op" test_entry_is_idempotent
   _hi_check "Current or absent files are left alone" test_entry_leaves_current_files_alone

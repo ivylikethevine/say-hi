@@ -123,7 +123,7 @@ function _hi_framework_probe() {
   # alias is the first word, so it expands. nano, on a pty of its own and
   # closed by a ^X, has to paint a shell script in a color: under --rcfile
   # the carried nanorc is the only one read, so the target's set is what did
-  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_MICRO_DIR/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
 }

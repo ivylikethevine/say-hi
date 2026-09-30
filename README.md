@@ -348,40 +348,18 @@ reaches a target first, then the lint gate, the rest, and CI. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
-1. [ ] _Before 1.0:_ **A member is its row and nothing else** — shipped:
-       the `group` column, `$_HI_PLUGINS_OFF` and the commands that keep it,
-       the toggles keeping a member home, the editors' and multiplexers'
-       aliases written from their rows, and the home tier resolved in
-       `hi.sh` alone: `common/paths.sh` names no tool's member, and what
-       `load.sh` and `common/aliases.sh` read of one is an `env:` wire of
-       its row. What is left: micro's alias, whose flags are a setting
-       `common/aliases.sh` defaults, so that file still names micro's
-       directory. _What 1.x will not break_ names every member, so the row
-       settles before the tag. **Ticks when:** `common/aliases.sh` names no
-       member, and `common/paths.sh` none but hi's own files.
-
-2. [ ] _Before 1.0:_ **One list says what stays home** — a carried config
-       is switched off two ways, `$_HI_PLUGINS_OFF` and a `_HI_DISABLE_*`
-       toggle, and `hi --plugin-on` cannot undo the second. **Do:** drop
-       `_HI_DISABLE_EDITORS` and the nine toggles of one tool each for the
-       list's `editors`, `mux`, and tool names, the `$EDITOR` export
-       following `editors`; `scripts/convert_settings.sh` rewrites a
-       `settings.sh` that sets one, and the table's off column stays for
-       `packages` alone. **Ticks when:** `hi --plugin-on` switches on every
-       row `hi --plugins` lists as off, and a `settings.sh` setting
-       `_HI_DISABLE_VIM=1` converts to a list naming `vim` and `nvim`.
-
-3. [ ] _Before 1.0:_ **A plugin is one thing** — the word names a carried
+1. [ ] _Before 1.0:_ **A plugin is one thing** — the word names a carried
        config ([HI.64](docs/GLOSSARY.md#hi64-what-is-switched-off)) and a
        shell drop-in of `plugins.d`
-       ([HI.59](docs/GLOSSARY.md#hi59-plugins)). **Do:** rename the
-       directory `rc.d`, a rename `hi --doctor` names as it names
-       `$_HI_OVERLAY_RENAMES`', so a plugin is a tool whose config rides
-       and nothing else. **Ticks when:** no doc or message calls a drop-in
-       a plugin, and `hi --doctor` names a `plugins.d` left in the overlay
-       with the `mv` that fixes it.
+       ([HI.59](docs/GLOSSARY.md#hi59-plugins)). **Do:** a drop-in is an
+       extension and its directory `extensions.d`, a rename `hi --doctor`
+       names as it names `$_HI_OVERLAY_RENAMES`'; a plugin stays the
+       carried config, with `hi --plugins` and `$_HI_PLUGINS_OFF` as they
+       are. **Ticks when:** no doc or message calls a drop-in a plugin, and
+       `hi --doctor` names a `plugins.d` left in the overlay with the `mv`
+       that fixes it.
 
-4. [ ] _Before 1.0:_ **A member is `<tool>/<file>`** — a member is named
+2. [ ] _Before 1.0:_ **A member is `<tool>/<file>`** — a member is named
        for its file, so `config.toml` is helix's, `theme.yml` eza's, and
        `init.lua` neovim's beside micro's `micro/init.lua`. **Do:** every
        tool's members under a directory of its name, as micro's and
@@ -392,7 +370,21 @@ checkout: an account or an upstream review that lands when it lands.
        two tools can ask for one name, and `hi --doctor` names a flat
        member with its `mv`.
 
-5. [ ] _Before 1.0:_ **hi's rows and yours are one file** — hi's table is
+3. [ ] _Before 1.0:_ **The data files are TOML** — `config/packages` and
+       `config/colors` have `[section]` headers over rows no TOML reader takes
+       (`bat,batcat`, `root red`), so an editor highlights neither, or reads
+       both as the CSV `.vscode` and `.zed` call them. **Do:** rows a TOML
+       parser reads as written, under the same sections, which hi reads by a
+       small grammar of that subset, with no parser to ship;
+       `scripts/convert_settings.sh` rewrites a file in today's shape,
+       `hi --add-package` and `hi --set-color` write the new one, and the
+       editor settings name both TOML. The plugins file takes the same shape.
+       **Ticks when:** a TOML parser reads both shipped files, and hi reads a
+       converted overlay copy as it read the old. **Open question:** do the
+       files keep their names, the type said by the editor settings, or gain
+       `.toml`?
+
+4. [ ] _Before 1.0:_ **hi's rows and yours are one file** — hi's table is
        eight columns in `hi.sh` and a `carry` line is four, so a row of the
        user's cannot do what one of hi's does. **Do:** the tools' rows in
        `config/plugins`, in the `carry` line's columns under `[group]`
@@ -403,7 +395,7 @@ checkout: an account or an upstream review that lands when it lands.
        prompt hand-over. **Ticks when:** `hi.sh` holds no tool's row, and a
        row of the user's replaces hi's of the same member.
 
-6. [ ] _Before 1.0:_ **A comment pair decides a block** — `hi-allow` and
+5. [ ] _Before 1.0:_ **A comment pair decides a block** — `hi-allow` and
        `hi-quiet` decide the one line under them
        ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)),
        so a guarded block of plugin lines takes a comment a line. **Do:**
@@ -413,7 +405,7 @@ checkout: an account or an upstream review that lands when it lands.
        `hi --doctor` row. **Ticks when:** a block between a pair rides as
        its pair says, in each dialect the scan reads.
 
-7. [ ] _Before 1.0:_ **The include scan reads rows** — each dialect is an
+6. [ ] _Before 1.0:_ **The include scan reads rows** — each dialect is an
        arm of `_hi_lint_awk`, picked by a test of the member's name, and a
        row of the user's passes through unscanned. **Do:** a `dialect`
        column standing in for the scan's name tests and `$_HI_STRIP_NAMES`
@@ -428,7 +420,7 @@ checkout: an account or an upstream review that lands when it lands.
        a row of the user's with a dialect has its include disabled on a
        target.
 
-8. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — `env:` and `flag:`
+7. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — `env:` and `flag:`
        reach a config a tool can be pointed at, and helix's
        `languages.toml` is one it cannot. **Do:** an `xdg` wire that
        aliases the command with `$XDG_CONFIG_HOME` set to the overlay,
@@ -441,7 +433,7 @@ checkout: an account or an upstream review that lands when it lands.
        a target reads a carried `languages.toml`, and both docs say when to
        use the wire and what it costs.
 
-9. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
+8. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
        kakoune's `colors/` (a `colorscheme` the `kakrc` names) stays home,
        so the target falls back to the default scheme, and helix's
        `languages.toml` has no flag to point `hx` at. **Do:** carry kak's
@@ -451,19 +443,19 @@ checkout: an account or an upstream review that lands when it lands.
        when:** a `kakrc` with `colorscheme <own>` shows that scheme on a
        target.
 
-10. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
-        (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
-        `lazygit.yml` (`$LG_CONFIG_FILE`) are members, each carried from
-        where its tool keeps it and listed in
-        [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them);
-        the framework suite's `tmux` case has rg read one on a target. Left
-        for rows of their own: `LS_COLORS`, ~18KB raw on every connect;
-        skim, bottom, procs, and dust, which fewer boxes run, the last three
-        behind a flag and so an alias. **Ticks when:** an fzf that reads
-        `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
-        (bookworm's fzf predates the variable, and it ships no lazygit).
+9. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
+       (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
+       `lazygit.yml` (`$LG_CONFIG_FILE`) are members, each carried from
+       where its tool keeps it and listed in
+       [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them);
+       the framework suite's `tmux` case has rg read one on a target. Left
+       for rows of their own: `LS_COLORS`, ~18KB raw on every connect;
+       skim, bottom, procs, and dust, which fewer boxes run, the last three
+       behind a flag and so an alias. **Ticks when:** an fzf that reads
+       `$FZF_DEFAULT_OPTS_FILE`, and lazygit, read theirs on a target
+       (bookworm's fzf predates the variable, and it ships no lazygit).
 
-11. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
+10. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
         shipped: a line of the overlay's `carry` names the member, its tool,
         its wire, and its places at home, and rides through the same order,
         include scan, and wiring;
@@ -471,7 +463,7 @@ checkout: an account or an upstream review that lands when it lands.
         how. What is left is seeing it. **Ticks when:** a tool of the user's
         own reads its home config on an e2e target.
 
-12. [ ] _Before 1.0:_ **The settings table is written, not checked** —
+11. [ ] _Before 1.0:_ **The settings table is written, not checked** —
         `drift` holds
         [docs/SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting)
         to the names the tree treats as settings: two spellings and a check
@@ -479,6 +471,20 @@ checkout: an account or an upstream review that lands when it lands.
         it, what it does), which `hi --configure` reads its items from and
         the table is written from. **Ticks when:** a new setting is one row,
         and `drift` has no settings roster check.
+
+12. [ ] _Before 1.0:_ **One display for every command** —
+        `hi --configure` has a menu, a preview box, and questions of its own,
+        `hi --doctor` a boxed report, `hi --preview` the table of
+        `scripts/table.sh`, and `hi --plugins` a `printf` of its own, so one
+        member's row is drawn four ways. **Do:** one library the wizard, the
+        doctor, the previews, and the commands that list or edit draw and ask
+        through - a section, a row with its state, a box, a question that
+        toggles words, a question that takes a value - over a smaller one for
+        what every script says: a message, an error, a dry run's line. A
+        command is then its rows and what it does with an answer. **Ticks
+        when:** `hi --plugins` and `hi --doctor` draw a member's row through
+        one function, the wizard's two word-list questions are one, and no
+        script pads a column with a `printf` of its own.
 
 13. [ ] _Before 1.0:_ **A Contents list is written, not checked** — every
         doc's `## Contents` is kept by hand, and `drift` checks it against

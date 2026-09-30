@@ -478,15 +478,15 @@ function test_overlay_tar_carries_only_what_exists() {
 
 # a member a variable points its tool at rides with the line that does it:
 # wiring.sh, one export per such member in the table's order, the paths left
-# for the target to expand - the file for env:, the directory for envdir: -
-# and kakoune's behind the toggles a target reads (GLOSSARY: HI.62)
+# for the target to expand - the file for env:, the directory for envdir:
+# (GLOSSARY: HI.62)
 # shellcheck disable=SC2016 # the wanted lines hold $_HI_CONFIG_DIR unexpanded
 function test_overlay_tar_wires_the_members_it_carries() {
   local dir d want
   dir="$(_hi_overlay_fixture wired colors inputrc bat.conf theme.yml oh-my-posh.toml kakrc)"
   d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || return 1
   _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
-  want='[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_KAKOUNE" != 1 ] && export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR" || true
+  want='export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR"
 export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
 export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
 export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
@@ -496,8 +496,8 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 }
 
 # an editor's or a multiplexer's config rides with its alias: the command
-# and its flags, where the target has the command and its toggles are off,
-# under the path load.sh reads for $VIMINIT.
+# and its flags, where the target has the command, under the path load.sh
+# reads for $VIMINIT.
 # vim and nvim keep their state in the session tree, nvim answers to vim
 # too, helix to hx under either name, and zellij's directory is aliased once
 # for all its files
@@ -510,17 +510,17 @@ function test_overlay_tar_aliases_the_editors_and_multiplexers() {
   printf 'x\n' >"$dir/zellij/themes/dark.kdl"
   d="$(mktemp -d "$_HI_WORKDIR/aliased-out.XXXXXX")" || return 1
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
-  want='[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vimrc" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/config.toml" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v helix >/dev/null 2>&1 && alias hx="helix -c $_HI_CONFIG_DIR/config.toml" && alias helix="helix -c $_HI_CONFIG_DIR/config.toml" || true
-[ "$_HI_DISABLE_TMUX" != 1 ] && command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf" || true
-[ "$_HI_DISABLE_ZELLIJ" != 1 ] && command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONFIG_DIR/zellij" || true'
+  want='export _HI_VIMRC="$_HI_CONFIG_DIR/vimrc"
+command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vimrc" || true
+export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua"
+command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/init.lua" || true
+command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/config.toml" || true
+command -v helix >/dev/null 2>&1 && alias hx="helix -c $_HI_CONFIG_DIR/config.toml" && alias helix="helix -c $_HI_CONFIG_DIR/config.toml" || true
+command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux.conf" || true
+command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONFIG_DIR/zellij" || true'
   [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
-  [ "$(_HI_DISABLE_TMUX=1 _HI_DISABLE_ZELLIJ=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vimrc init.lua config.toml " ] ||
-    _hi_because "their toggles left: $(_HI_DISABLE_TMUX=1 _HI_DISABLE_ZELLIJ=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vimrc init.lua config.toml " ] ||
+    _hi_because "with mux off: $(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
 }
 
 # ...and only with them: an overlay of members hi's own code reads has no
@@ -669,34 +669,29 @@ function test_plugin_off_keeps_its_members_home() {
     _hi_because "one of hi's own was switched off"
 }
 
-# ...and neither does an editor its toggle turns off, nor its wiring line:
-# what a tool is not to use has no business on the wire
-function test_editor_toggle_keeps_its_rc_home() {
+# ...nor its wiring line: what a tool is not to use has no business on the
+# wire
+function test_a_plugin_off_has_no_wiring_line() {
   local dir w=""
-  dir="$(_hi_overlay_fixture toggle-off vimrc init.lua nanorc kakrc bat.conf)"
-  [ "$(_HI_DISABLE_VIM=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "nanorc kakrc bat.conf " ] ||
-    _hi_because "_HI_DISABLE_VIM=1: $(_HI_DISABLE_VIM=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_DISABLE_EDITORS=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "bat.conf " ] ||
-    _hi_because "_HI_DISABLE_EDITORS=1: $(_HI_DISABLE_EDITORS=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_DISABLE_KAKOUNE=1 _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat.conf,init.lua,nanorc,vimrc,wiring.sh" ] || return 1
-  _HI_DISABLE_KAKOUNE=1 _HI_CONFIG_DIR="$dir" _hi_overlay_wiring w bat.conf
+  dir="$(_hi_overlay_fixture wire-off vimrc init.lua nanorc kakrc bat.conf)"
+  [ "$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat.conf,init.lua,nanorc,vimrc,wiring.sh" ] || return 1
+  _HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_wiring w bat.conf
   [[ "$w" != *KAKOUNE* ]]
 }
 
-# under _HI_DISABLE_LOCAL=1 common/paths.sh has set every toggle on this
-# machine, and a target keeps its editors: only a toggle settings.sh sets
-# itself keeps an rc home, its last line winning, quoted or not
+# one of hi's own files answers to its toggle alone, and under
+# _HI_DISABLE_LOCAL=1 common/paths.sh has set every toggle on this machine:
+# only a toggle settings.sh sets itself keeps the file home, its last line
+# winning, quoted or not
 function test_local_only_toggles_keep_nothing_home() {
   local dir
-  dir="$(_hi_overlay_fixture local-only vimrc nanorc kakrc)"
+  dir="$(_hi_overlay_fixture local-only packages vimrc)"
   printf '#!/bin/sh\nexport _HI_DISABLE_LOCAL=1\n' >"$dir/settings.sh"
-  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_VIM=1 _HI_DISABLE_NANO=1 _HI_DISABLE_KAKOUNE=1 \
-    _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vimrc nanorc kakrc " ] ||
-    _hi_because "local only kept an rc home" || return 1
-  printf 'export _HI_DISABLE_VIM=1\nexport _HI_DISABLE_NANO="1"\nexport _HI_DISABLE_VIM=0\n' >>"$dir/settings.sh"
-  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_VIM=1 _HI_DISABLE_NANO=1 _HI_DISABLE_KAKOUNE=1 \
-    _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vimrc kakrc " ] ||
-    _hi_because "settings.sh's own toggle did not keep nanorc home"
+  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh packages vimrc " ] ||
+    _hi_because "local only kept the package list home" || return 1
+  printf 'export _HI_DISABLE_HEADER=0\nexport _HI_DISABLE_HEADER="1"\n' >>"$dir/settings.sh"
+  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vimrc " ] ||
+    _hi_because "settings.sh's own toggle did not keep the package list home"
 }
 
 # The overlay stream ships comment-stripped the way the payload does (the
@@ -1784,7 +1779,7 @@ function run_hi_payload_tests() {
   _hi_check "...a row the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
   _hi_check "...and the rows ride on from a target" test_carry_rows_ride_on_from_a_target
   _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home
-  _hi_check "...nor does an editor its toggle turns off" test_editor_toggle_keeps_its_rc_home
+  _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
   _hi_check "...while local-only's toggles keep nothing home" test_local_only_toggles_keep_nothing_home
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files

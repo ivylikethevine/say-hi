@@ -398,6 +398,27 @@ function _hi_unsent_why() {
   [ -n "$_hi_uw" ]
 }
 
+# _hi_plugin_state <member> <outvar> - what a connect does with <member>,
+# in a phrase; 1 when it is off
+function _hi_plugin_state() {
+  local src="" why="" tilde='~'
+  case "$1" in
+  */ | *.d)
+    src="$(_hi_overlay_files "$1" | grep -c .)" || true
+    if [ "$src" = 0 ]; then src=""; else src="$src file(s)"; fi
+    ;;
+  *) ! _hi_overlay_src "$1" src || src="${src/#"$HOME"/$tilde}" ;;
+  esac
+  if [ -n "$src" ]; then
+    printf -v "$2" '%s' "rides: $src"
+  elif _hi_unsent_why "$1" why; then
+    printf -v "$2" '%s' "stays home: $why"
+  else
+    printf -v "$2" '%s' "nothing to carry"
+  fi
+  [ "${why#switched off}" = "$why" ]
+}
+
 # _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold, one a line
 function _hi_plugin_words() {
   _hi_plugin_rows | tr '|' '\n' | sort -u

@@ -337,8 +337,8 @@ function test_config_reports_the_carry_rows() {
   [[ "$out" == *"taskrc"*"$(_hi_doc_path "$h/.taskrc")"* ]] || _hi_because "no row for the member: $out"
 }
 
-# a member of a plugin that is switched off says so, and by what, and a word
-# of the list that names nothing is a finding
+# a member of a plugin that is switched off says so, a word of the list that
+# names nothing is a finding, and so is a toggle the list replaced
 function test_config_reports_what_is_switched_off() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/offdoc.XXXXXX")"
@@ -350,7 +350,8 @@ function test_config_reports_what_is_switched_off() {
     _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="cli nosuch" doctor_config
   )"
   [[ "$out" == *"bat.conf (bat)"*"not sent - switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "bat: $out" || return 1
-  [[ "$out" == *"nanorc (nano)"*"not sent - switched off (_HI_DISABLE_NANO=1)"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"nanorc (nano)"* && "$out" != *"nanorc (nano)"*"not sent"*"_HI_DISABLE_NANO"* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *"_HI_DISABLE_NANO"*"is ignored"* ]] || _hi_because "the old toggle: $out" || return 1
   [[ "$out" == *"_HI_PLUGINS_OFF"*"'cli nosuch' is ignored"* ]] || _hi_because "the list: $out"
 }
 
@@ -883,25 +884,22 @@ function test_config_collapses_the_local_gates_toggles() {
 
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
 # value they read does nothing there: each named once, and neither a comment
-# nor an alias that reads one (the add-a-flag idiom) counts. _HI_DISABLE_HELIX
-# is in the fixture as the newest toggle rather than an old one - the row's
-# pattern used to be spelled out in doctor.sh and the four per-editor toggles
-# were invisible to it, so a fixture of older toggles alone would stay green
-# through exactly the drift the row exists to catch.
+# nor an alias that reads one (the add-a-flag idiom) counts. The opt-ins are
+# in the fixture because the row reads their names off common/aliases.sh.
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_values_set_in_aliases_sh() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/latevals.XXXXXX")"
   printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
     'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
-    'export _HI_DISABLE_HELIX=1' \
-    'export _HI_DISABLE_EDITORS=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
+    'export _HI_TOOL_ALIASES=1' \
+    'export _HI_SUDO_ALIAS=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_EDITORS _HI_DISABLE_HELIX - "* ]] || return 1
+  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_SUDO_ALIAS _HI_TOOL_ALIASES - "* ]] || return 1
   printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -914,7 +912,7 @@ function test_config_flags_values_set_in_aliases_sh() {
 # ...and an alias of its own under a name hi wires replaces hi's on a target,
 # so the carried config goes unused: named once for each, and only for a
 # member that rides - not a comment, a name hi wires nothing to, or a member
-# its toggle keeps home
+# the list keeps home
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_aliases_that_replace_a_wired_one() {
   local dir out
@@ -926,14 +924,13 @@ function test_config_flags_aliases_that_replace_a_wired_one() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_EDITORS=0 _HI_DISABLE_NANO=0 _HI_DISABLE_TMUX=0
     doctor_config
   )"
   [[ "$out" == *"alias-wired"*"aliases.sh aliases nano - "* ]] || _hi_because "rides: $out" || return 1
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_EDITORS=0 _HI_DISABLE_NANO=1 _HI_DISABLE_TMUX=0
+    _HI_PLUGINS_OFF=nano
     doctor_config
   )"
   [[ "$out" != *"alias-wired"* ]] || _hi_because "kept home: $out"
