@@ -421,7 +421,7 @@ function test_ctl_open_shared_socket_name_stays_short() {
   [ "${#base}" -le 20 ]
 }
 
-# the key is a cksum of the target *and* its ssh args, so a -p/-l/-o naming a
+# the key is a hash of the target *and* its ssh args, so a -p/-l/-o naming a
 # different connection to the same host cannot join the wrong socket
 function test_ctl_open_shared_key_splits_on_ssh_args() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared plain ported

@@ -19,9 +19,10 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # runs "$@" with the counters sandboxed, so a case can call _hi_case/
-# _hi_suite_begin freely without corrupting this suite's own tally
+# _hi_suite_begin freely without corrupting this suite's own tally, or the
+# runner's live one in $_HI_PROGRESS_FILE
 function _hi_sandboxed() {
-  local saved_total="$_HI_TOTAL" saved_failed="$_HI_FAILED" rc=0
+  local saved_total="$_HI_TOTAL" saved_failed="$_HI_FAILED" rc=0 _HI_PROGRESS_FILE=""
   "$@" || rc=$?
   _HI_TOTAL="$saved_total"
   _HI_FAILED="$saved_failed"

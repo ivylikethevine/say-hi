@@ -165,7 +165,7 @@ command.
   directory: `ControlMaster=auto` _joins_ a socket it finds at its path, and a
   name that was unused when printed promises nothing about the moment it is
   used. A connect reuses one at a stable path in the runtime directory, named
-  by a checksum of the target and your ssh options rather than either in the
+  by a hash of the target and your ssh options rather than either in the
   clear, and torn down after `_HI_CTL_PERSIST` idle seconds (sixty by
   default); `scripts/doctor.sh`'s probe, `_HI_CTL_PERSIST=0`, and a runtime
   directory hi cannot vouch for take a fresh socket in a `mktemp -d` of their

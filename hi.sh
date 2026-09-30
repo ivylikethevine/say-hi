@@ -1446,23 +1446,30 @@ function _hi_overlay_tar() {
   _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
 
-# _hi_cksum <value> [outvar] - cksum's checksum field alone; `${k%% *}`
-# rather than a `cut`, which would be a second process per key, three keys a
-# connect.
-function _hi_cksum() {
-  local _hi_ck
-  _hi_ck="$(printf '%s' "$1" | cksum)"
-  _hi_out "${2:-}" "${_hi_ck%% *}"
+# _hi_hash <value> [outvar] - 32-bit FNV-1a of <value>, in decimal: a cache or
+# socket name, never verified. Arithmetic, not cksum(1): Git for Windows ships
+# none, and a fork per key is what Git Bash is slowest at. Sliced 64 characters
+# at a time because `${s:i:1}` walks from the start of $s.
+function _hi_hash() {
+  local _hi_hs_h=2166136261 _hi_hs_s="$1" _hi_hs_p _hi_hs_i _hi_hs_c
+  while [ -n "$_hi_hs_s" ]; do
+    _hi_hs_p="${_hi_hs_s:0:64}" _hi_hs_s="${_hi_hs_s:64}"
+    for ((_hi_hs_i = 0; _hi_hs_i < ${#_hi_hs_p}; _hi_hs_i++)); do
+      printf -v _hi_hs_c '%d' "'${_hi_hs_p:_hi_hs_i:1}"
+      _hi_hs_h=$((((_hi_hs_h ^ (_hi_hs_c & 0xFFFFFFFF)) * 16777619) & 0xFFFFFFFF))
+    done
+  done
+  _hi_out "${2:-}" "$_hi_hs_h"
 }
 
 # What changes an overlay tar without touching any member's mtime: the member
 # list itself, and the wiring written from it, which a newer hi.sh can change
-# under the same list. Cksummed, not spelled out, to keep the cache filename
+# under the same list. Hashed, not spelled out, to keep the cache filename
 # short.
 function _hi_overlay_cache_key() {
   local _hi_ok_w
   _hi_overlay_wiring _hi_ok_w "$@"
-  _hi_cksum "$*$_hi_ok_w"
+  _hi_hash "$*$_hi_ok_w"
 }
 
 # _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two
@@ -1533,7 +1540,8 @@ function _hi_overlay_cached() {
 # payload; and a tree cut for one overlay is never served beside another.
 function _hi_payload_cached() {
   local _hi_pc_key
-  _hi_pc_key="tree.$(_hi_cksum "$_HI_HOME|${payload_excl[*]-}")"
+  _hi_hash "$_HI_HOME|${payload_excl[*]-}" _hi_pc_key
+  _hi_pc_key="tree.$_hi_pc_key"
   _hi_cached "$1" payload "$_hi_pc_key" \
     "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }
@@ -1853,7 +1861,7 @@ function _hi_ssh_sh() {
 #
 # "/s" and "hi.ctl.<key>", never a second random component or a 40-hex `%C`:
 # ControlPath goes into a sockaddr_un capped near 104 bytes, and macOS's
-# per-user $TMPDIR already spends ~50. <key> is a cksum of $DOMAIN and
+# per-user $TMPDIR already spends ~50. <key> is a hash of $DOMAIN and
 # $SSHARGS, so a `-p`/`-l`/`-o` naming a different connection to the same
 # target gets its own socket rather than joining the wrong one.
 function _hi_ctl_open() {
@@ -1878,10 +1886,9 @@ function _hi_ctl_open() {
   if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
-      # printf -v and outvars, not $( ): the joined words are a builtin away,
-      # and cksum itself is the only fork this key needs to cost
+      # printf -v and outvars, not $( ): this key costs no fork
       printf -v words '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"}
-      _hi_cksum "$words" key
+      _hi_hash "$words" key
       ctl_path="$dir/hi.ctl.$key"
       ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
       ctl_shared=1

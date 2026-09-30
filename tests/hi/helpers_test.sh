@@ -102,6 +102,18 @@ function test_file_bytes_counts() {
   [ "$(_hi_file_bytes "$f")" = 5 ]
 }
 
+# FNV-1a's published vectors, across the 64-character slice boundary, with an
+# empty PATH: Git for Windows has no cksum, and an empty key merges caches
+function test_hash_is_fnv1a_in_the_shell() {
+  local ten=0123456789 long a b c d
+  long="$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten$ten"
+  PATH="" _hi_hash "" a
+  PATH="" _hi_hash foobar b
+  PATH="" _hi_hash "$long" c
+  d="$(PATH="" _hi_hash "$long!")"
+  [ "$a $b $c $d" = "2166136261 3214735720 1422867810 3309138041" ]
+}
+
 function test_target_color_memoizes_the_domain() {
   (
     unset _HI_TARGET_COLOR_MEMO
@@ -364,6 +376,7 @@ function run_hi_helpers_test() {
   _hi_h2 "Testing: sizes"
   _hi_check "_hi_human_bytes picks the unit" test_human_bytes_units
   _hi_check "_hi_file_bytes counts bytes" test_file_bytes_counts
+  _hi_check "_hi_hash is FNV-1a, no tool needed" test_hash_is_fnv1a_in_the_shell
 
   _hi_check "_hi_target_color memoizes the domain's color" test_target_color_memoizes_the_domain
 
