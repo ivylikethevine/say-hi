@@ -468,7 +468,7 @@ function load() {
   size="$(_hi_du_size "$_HI_ROOT")"
   # $start is load()'s entry, so this is the whole session, not the setup the
   # "load:" line above timed
-  dur="$(_hi_human_duration "$(_hi_elapsed "$start" "$(_hi_now)")")"
+  _hi_human_duration "$(_hi_elapsed "$start" "$(_hi_now)")" dur
   _hi_cecho " $size | session: $dur" "$NC" 1
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_footer Disconnected "$BRRED" " $size | session: $dur"
   _hi_line_close

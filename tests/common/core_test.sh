@@ -1277,9 +1277,12 @@ function test_repeat_makes_count_copies() {
 }
 
 function test_human_duration_formats() {
-  [ "$(_hi_human_duration 59)" = "0:59" ] &&
-    [ "$(_hi_human_duration 61.9)" = "1:01" ] &&
-    [ "$(_hi_human_duration 3661)" = "1:01:01" ]
+  local out
+  _hi_human_duration 90000 out
+  [ "$out" = "1d 1h" ] &&
+    [ "$(_hi_human_duration 5400)" = "1h 30m" ] &&
+    [ "$(_hi_human_duration 179.9)" = "2m" ] &&
+    [ "$(_hi_human_duration 59)" = "0m" ]
 }
 
 function test_du_size_answers_for_a_real_path() {
@@ -1347,6 +1350,22 @@ function test_prompt_tool_needs_setting_program_and_shell() {
   )
 }
 
+# a <shell>:<program> entry is walked first, by its shell alone; with no plain
+# entry the rest is the unset list at home and nothing more on a target
+function test_prompt_tool_per_shell_entries() {
+  local p
+  p="$(_hi_fake_path star2 starship):$(_hi_fake_path posh2 oh-my-posh)"
+  [ "$(_HI_PROMPT_TOOL="hi bash:starship" PATH="$p" _hi_prompt_tool bash)" = starship ] || return 1
+  ! _HI_PROMPT_TOOL="bash:starship hi" PATH="$p" _hi_prompt_tool zsh || return 1
+  [ "$(_HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || return 1
+  ! _HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool zsh || return 1
+  ! _HI_PROMPT_TOOL="zsh:starship" _HI_REMOTE_SESSION=1 PATH="$p" _hi_prompt_tool bash || return 1
+  # a missing pick falls through to the rest
+  [ "$(_HI_PROMPT_TOOL="bash:powerline-go oh-my-posh" PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || return 1
+  _HI_PROMPT_TOOL="zsh:hi" _hi_prompt_named_hi zsh && ! _HI_PROMPT_TOOL="zsh:hi" _hi_prompt_named_hi bash &&
+    _HI_PROMPT_TOOL="bash:starship hi" _hi_prompt_named_hi fish
+}
+
 # _HI_PROMPT_TABLE is the one roster: a row answers to its program and to
 # each overlay member it names, _HI_PROMPT_TOOLS is its first column in
 # order, and config.fish's hand copy of the fish-fitting names matches it
@@ -1363,7 +1382,7 @@ function test_prompt_table_is_the_one_roster() {
   done
   # shellcheck disable=SC2153 # core.sh's derived roster, not a typo of the setting
   [ "$tools" = "$_HI_PROMPT_TOOLS" ] || return 1
-  fish_have="$(sed -n 's/.*; and set _hi_tools \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish")"
+  fish_have="$(sed -n 's/.*; and set _hi_plain \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish")"
   [ "$fish_have" = "$fish_want" ] || {
     _hi_cecho " | config.fish: [$fish_have]  core.sh: [$fish_want]" "$RED"
     return 1
@@ -1632,13 +1651,14 @@ function run_core_tests() {
   _hi_h2 "Testing: the small formatters"
   _hi_check "_hi_repeat makes count copies" test_repeat_makes_count_copies
   _hi_check "_hi_url_path percent-encodes byte by byte" test_url_path_percent_encodes_byte_by_byte
-  _hi_check "_hi_human_duration's three shapes" test_human_duration_formats
+  _hi_check "_hi_human_duration's shapes, stdout and outvar" test_human_duration_formats
   _hi_check "_hi_du_size answers for a real path" test_du_size_answers_for_a_real_path
 
   _hi_h2 "Testing: the shipped verdicts"
   _hi_check "Local identity prefers the shipped verdict" test_local_identity_prefers_the_shipped_verdict
   _hi_check "_hi_ascii_flag ships the client's verdict" test_ascii_flag_ships_the_verdict
   _hi_check "_hi_prompt_tool needs the setting, the program, and its shell" test_prompt_tool_needs_setting_program_and_shell
+  _hi_check "...and walks a shell's own entries first" test_prompt_tool_per_shell_entries
   _hi_check "the prompt table is the one roster, fish's copy included" test_prompt_table_is_the_one_roster
 
   _hi_h2 "Testing: the colors file readers and the identity memos"

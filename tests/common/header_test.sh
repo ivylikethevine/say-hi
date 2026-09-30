@@ -2353,11 +2353,6 @@ function run_header_tests() {
   _hi_check "...and the GHz cell does not carry it" test_system_info_cpu_cell_has_no_parenthetical
   _hi_check "The uptime cell is humanized" test_uptime_cell_is_humanized
   _hi_check "The ip cell has a shape" test_ip_cell_has_a_shape
-  # _hi_humanize_uptime's own contract, independent of what this box's real
-  # uptime happens to be
-  _hi_check_eq "_hi_humanize_uptime: days and hours" "1d 1h" _hi_humanize_uptime 90000
-  _hi_check_eq "_hi_humanize_uptime: hours and minutes" "1h 30m" _hi_humanize_uptime 5400
-  _hi_check_eq "_hi_humanize_uptime: minutes only" 2m _hi_humanize_uptime 120
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
   _hi_check "Identity's uptime cell rides last" test_identity_includes_uptime_cell_last
   _hi_check "No cells at all when no backend is found" test_identity_hides_all_backend_cells_when_none_found

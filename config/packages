@@ -108,6 +108,7 @@ sshfs = ["rclone"]
 sshm = []
 watchexec = ["entr"]
 
+# odds and ends worth spotting: languages, network tools, checksums
 [trivia]
 cosign = []
 whois = []

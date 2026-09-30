@@ -304,7 +304,7 @@ function _hi_prompt_handed() {
   local _hi_ph_t
   _hi_prompt_row "$1" _hi_ph_t || return 1
   _hi_prompt_list >/dev/null
-  case " $_HI_PROMPT_LIST_MEMO " in *" ${_hi_ph_t%%|*} "*) ;; *) return 1 ;; esac
+  case " $_HI_PROMPT_LIST_MEMO " in *[\ :]"${_hi_ph_t%%|*} "*) ;; *) return 1 ;; esac
 }
 
 # _hi_posh_home <member> [outvar] - oh-my-posh's config at home, under the
@@ -362,16 +362,21 @@ function _hi_theme_home() {
 }
 
 # _hi_prompt_list [outvar] - the prompt programs a target is handed:
-# $_HI_PROMPT_TOOL when set, else every one this machine has - the programs
-# on $PATH, tide where fisher put it, and a framework with a theme or config
-# to ship. Memoized: the members and the session env each ask. GLOSSARY: HI.32
+# $_HI_PROMPT_TOOL, followed, when it has no entry but <shell>:<program>
+# ones, by every one this machine has - the programs on $PATH, tide where
+# fisher put it, and a framework with a theme or config to ship. Memoized:
+# the members and the session env each ask. GLOSSARY: HI.32
 function _hi_prompt_list() {
-  local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_out=""
-  if [ "${_HI_PROMPT_LIST_KEY-}" != "${_HI_PROMPT_TOOL:-}|$HOME" ]; then
-    _HI_PROMPT_LIST_KEY="${_HI_PROMPT_TOOL:-}|$HOME" _HI_PROMPT_LIST_MEMO="${_HI_PROMPT_TOOL:-}"
-    if [ -z "$_HI_PROMPT_LIST_MEMO" ] && [ "$_HI_REMOTE_SESSION" != 1 ]; then
+  local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_p="" _hi_pl_out="${_HI_PROMPT_TOOL:-}"
+  if [ "${_HI_PROMPT_LIST_KEY-}" != "$_hi_pl_out|$HOME" ]; then
+    _HI_PROMPT_LIST_KEY="$_hi_pl_out|$HOME" _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
+    # shellcheck disable=SC2086 # the value is a space-separated word list
+    for _hi_pl_t in $_hi_pl_out; do
+      case "$_hi_pl_t" in *:*) ;; *) _hi_pl_p=1 ;; esac
+    done
+    if [ -z "$_hi_pl_p" ] && [ "$_HI_REMOTE_SESSION" != 1 ]; then
       # _hi_overlay_src asks this list too: all of it while it is being built
-      _HI_PROMPT_LIST_MEMO="$_HI_PROMPT_TOOLS"
+      _HI_PROMPT_LIST_MEMO="$_hi_pl_out${_hi_pl_out:+ }$_HI_PROMPT_TOOLS"
       for _hi_pl_r in "${_HI_PROMPT_TABLE[@]}"; do
         _hi_pl_t="${_hi_pl_r%%|*}"
         case "$_hi_pl_r" in
@@ -1656,7 +1661,7 @@ function _hi_payload_excl() {
   _hi_prompt_list >/dev/null
   for f in "${_HI_PROMPT_TABLE[@]}"; do
     case "$f" in *'|fw|'*) ;; *) continue ;; esac
-    case " $_HI_PROMPT_LIST_MEMO " in *" ${f%%|*} "*) continue ;; esac
+    case " $_HI_PROMPT_LIST_MEMO " in *[\ :]"${f%%|*} "*) continue ;; esac
     s="${f#*|}" s="${s%%|*}"
     payload_excl+=("say-hi/common/fw_${f%%|*}.${s/bash/sh}")
   done

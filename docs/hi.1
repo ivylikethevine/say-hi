@@ -922,7 +922,11 @@ Unset,
 .B _HI_PROMPT_TOOL
 hands the prompt to every such program installed here;
 .B _HI_PROMPT_TOOL=hi
-keeps hi's own.
+keeps hi's own, and an entry written
+.IB shell : program
+is tried first by that shell alone, so
+.B "_HI_PROMPT_TOOL=\(dqbash:starship hi\(dq"
+is starship in bash and hi's prompt in zsh and fish.
 .TP
 .B ~/.ssh/config
 read for ssh targets and their

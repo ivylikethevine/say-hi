@@ -363,16 +363,13 @@ checkout: an account or an upstream review that lands when it lands.
        this lands reads at least 95% and no shipped line at 0 that is
        neither tested nor in that header.
 
-3. [ ] _Before 1.0:_ **A prompt program per shell** — `_HI_PROMPT_TOOL` is
-       one list for bash, zsh, and fish, and each shell takes the first
-       entry that fits it, so starship in bash with hi's prompt in zsh and
-       fish can't be set: starship fits all three. The way around it,
-       `_HI_DISABLE_PROMPT=1` and an rc's own `starship init bash`, turns off
-       hi's whole prompt block in that shell and works at home only. **Do:**
-       let a setting name the program per shell, in `hi --configure` and
-       [docs/SETTINGS.md](docs/SETTINGS.md), before 1.x fixes the settings.
-       **Ticks when:** one setting draws starship in bash and hi's prompt in
-       zsh and fish, at home and on a target.
+3. [ ] _Before 1.0:_ **A prompt program per shell** — shipped: a
+       `<shell>:<program>` entry in `_HI_PROMPT_TOOL` is tried first, by that
+       shell alone, so `bash:starship hi` draws starship in bash and hi's
+       prompt in zsh and fish; `hi --configure`'s Prompt page asks shell by
+       shell. What is left is a real connect. **Ticks when:** that setting
+       draws starship in bash and hi's prompt in zsh and fish on an ssh
+       target.
 
 4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).

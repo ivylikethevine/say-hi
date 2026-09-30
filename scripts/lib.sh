@@ -396,12 +396,15 @@ function _hi_is_header_order() {
 }
 
 # _hi_is_prompt_list <words> - every word of the value a program of core.sh's
-# _HI_PROMPT_TABLE, or `hi`
+# _HI_PROMPT_TABLE, or `hi`, either one optionally <shell>: for a shell it fits
 function _hi_is_prompt_list() {
-  local _hi_pl_w
+  local _hi_pl_w _hi_pl_r
   # shellcheck disable=SC2086 # the value is a space-separated word list
   for _hi_pl_w in $1; do
-    [ "$_hi_pl_w" = hi ] || _hi_prompt_row "$_hi_pl_w" >/dev/null || return 1
+    case "$_hi_pl_w" in bash:hi | zsh:hi | fish:hi | hi) continue ;; esac
+    _hi_prompt_row "${_hi_pl_w#*:}" _hi_pl_r || return 1
+    _hi_pl_r="${_hi_pl_r#*|}"
+    case "$_hi_pl_w" in *:*) case " ${_hi_pl_r%%|*} " in *" ${_hi_pl_w%%:*} "*) ;; *) return 1 ;; esac ;; esac
   done
   return 0
 }

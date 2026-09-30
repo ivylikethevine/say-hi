@@ -530,7 +530,7 @@ function doctor_settings_values() {
     "_HI_PACKAGES_GROUPS|_hi_is_package_groups|none, or group names like core useful" \
     "_HI_IP_HIDE|_hi_is_ip_hide|none, or globs like 172.* 10.0.*" \
     "_HI_HEADER_ORDER|_hi_is_header_order|words from $_HI_HEADER_ORDER_DEFAULT" \
-    "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS" \
+    "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS, each optionally bash:, zsh:, or fish: for a shell it fits" \
     "_HI_PLUGINS_OFF|_hi_is_plugin_list|plugins, groups, or members that hi --plugins lists" \
     "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \

@@ -402,8 +402,9 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 `_HI_PROMPT_TOOL` hands the prompt to a prompt program - starship, oh-my-posh,
 powerline-go, powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, or tide - keeping
 hi's header and aliases. It is a list, each shell taking the first entry that
-fits it and is present; `hi` is hi's own prompt and ends the walk. Unset is the
-whole roster (`common/core.sh`'s `_HI_PROMPT_TABLE`, one row per program - the
+fits it and is present; `hi` is hi's own prompt and ends the walk. A
+`<shell>:<program>` entry is walked first, by that shell alone. With no plain
+entry, or unset, the rest is the whole roster (`common/core.sh`'s `_HI_PROMPT_TABLE`, one row per program - the
 shells it fits, how it is found, the overlay member its home config rides as -
 frameworks ahead of the programs that fit every shell; `_hi_prompt_row` answers
 to a program's name or a member's), so a prompt already in use at home is the

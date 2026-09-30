@@ -476,15 +476,19 @@ function _hi_sum() {
   awk -v n="$*" 'BEGIN { split(n, a); for (i in a) t += a[i]; printf "%.3f", t }'
 }
 
-# H:MM:SS (M:SS under an hour) from an _hi_elapsed second count, for load.sh's
-# disconnect line where sub-second precision is unreadable
+# <seconds> [outvar] humanized to at most two units, largest first ("1d 1h",
+# "1h 30m", "2m"): the header's uptime cell and load.sh's disconnect line. A
+# fractional _hi_elapsed count is truncated.
 function _hi_human_duration() {
-  awk -v s="$1" 'BEGIN {
-    s = int(s)
-    h = int(s / 3600); m = int((s % 3600) / 60); sec = s % 60
-    if (h > 0) printf "%d:%02d:%02d", h, m, sec
-    else printf "%d:%02d", m, sec
-  }'
+  local _hi_hd_s="${1%%.*}" _hi_hd
+  if ((_hi_hd_s >= 86400)); then
+    printf -v _hi_hd '%dd %dh' "$((_hi_hd_s / 86400))" "$((_hi_hd_s % 86400 / 3600))"
+  elif ((_hi_hd_s >= 3600)); then
+    printf -v _hi_hd '%dh %dm' "$((_hi_hd_s / 3600))" "$((_hi_hd_s % 3600 / 60))"
+  else
+    printf -v _hi_hd '%dm' "$((_hi_hd_s / 60))"
+  fi
+  _hi_out "${2:-}" "$_hi_hd"
 }
 
 # _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral
@@ -819,13 +823,24 @@ function _hi_prompt_row() {
 
 # _hi_prompt_tool <bash|zsh> [outvar] - the first of $_HI_PROMPT_TOOL's prompt
 # programs that fits this shell and is here, to hand the prompt to while hi
-# keeps its header and aliases; `hi` or none leaves hi's prompt. Unset, the
-# list is every one - so a program found at home wins by default - and a
-# target is handed home's answer (hi.sh's _hi_prompt_list), never its own.
-# A framework's presence is the shell's own _hi_prompt_fw. GLOSSARY: HI.32
+# keeps its header and aliases; `hi` or none leaves hi's prompt. A
+# <shell>:<program> entry is tried first, by that shell alone. With no plain
+# entry the rest is every program - so one found at home wins by default -
+# and a target is handed home's answer (hi.sh's _hi_prompt_list), never its
+# own. A framework's presence is the shell's own _hi_prompt_fw. GLOSSARY: HI.32
 function _hi_prompt_tool() {
-  local _hi_ptt _hi_ptr _hi_pts _hi_ptl="${_HI_PROMPT_TOOL:-} "
-  [ "$_hi_ptl" != " " ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_ptl="$_HI_PROMPT_TOOLS "
+  local _hi_ptt _hi_ptr _hi_pts _hi_ptl="${_HI_PROMPT_TOOL:-} " _hi_pto="" _hi_ptp=""
+  while [ -n "$_hi_ptl" ]; do
+    _hi_ptt="${_hi_ptl%% *}" _hi_ptl="${_hi_ptl#* }"
+    case "$_hi_ptt" in
+    '') ;;
+    "$1":*) _hi_pto="$_hi_pto${_hi_ptt#*:} " ;;
+    *:*) ;;
+    *) _hi_ptp="$_hi_ptp$_hi_ptt " ;;
+    esac
+  done
+  [ -n "$_hi_ptp" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_ptp="$_HI_PROMPT_TOOLS "
+  _hi_ptl="$_hi_pto$_hi_ptp"
   while [ -n "$_hi_ptl" ]; do
     _hi_ptt="${_hi_ptl%% *}" _hi_ptl="${_hi_ptl#* }"
     [ "$_hi_ptt" != hi ] || return 1
@@ -841,11 +856,12 @@ function _hi_prompt_tool() {
   return 1
 }
 
-# _hi_prompt_named_hi - is `hi` itself in $_HI_PROMPT_TOOL: the opt-in that
-# takes the prompt back from a program the rc already started, where an
-# unset list, or one that merely ran out, leaves that program's hooks alone
+# _hi_prompt_named_hi <shell> - is `hi` or `<shell>:hi` in $_HI_PROMPT_TOOL:
+# the opt-in that takes the prompt back from a program the rc already
+# started, where an unset list, or one that merely ran out, leaves that
+# program's hooks alone
 function _hi_prompt_named_hi() {
-  case " ${_HI_PROMPT_TOOL:-} " in *" hi "*) return 0 ;; esac
+  case " ${_HI_PROMPT_TOOL:-} " in *" hi "* | *" $1:hi "*) return 0 ;; esac
   return 1
 }
 
