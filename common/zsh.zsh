@@ -109,7 +109,10 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # renamed its zsh hooks in v1.3.0 (prompt_starship_* over the bare
     # starship_*); both names are filtered since either can be loaded.
     # p10k's are _p9k_preexec1/_p9k_preexec2, never a bare _p9k_preexec.
+    # A promptinit theme (grml's /etc/zsh/zshrc, prezto's) drops its own
+    # hooks through `prompt off`, which also resets the prompt options.
     if _hi_prompt_named_hi zsh; then
+      [[ -n ${prompt_theme-} ]] && (( ${+functions[prompt]} )) && prompt off && setopt prompt_subst prompt_percent
       precmd_functions=(${precmd_functions:#(starship_precmd|prompt_starship_precmd|_p9k_precmd|_omp_precmd|_omp_hook|__hi_plgo_precmd)})
       preexec_functions=(${preexec_functions:#(starship_preexec|prompt_starship_preexec|_p9k_preexec1|_p9k_preexec2|_omp_preexec)})
     fi
