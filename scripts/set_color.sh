@@ -100,20 +100,12 @@ toml="$key = \"$color${hex:+ $hex}\""
 # Read through paths.sh's cascade ($_HI_COLORS: the overlay's once it exists,
 # the tree's until then), write only the overlay's.
 read_file="$_HI_COLORS" dst="$_HI_CONFIG_DIR/colors"
-existing_lines=()
-[ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
-_hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
-match=-1 section="" first="" old=""
+_hi_rows_read "$read_file"
+match=-1 old=""
 # shellcheck disable=SC2034 # _hi_color_index's out-var; only its status is read
 ci=""
-for ((idx = 0; idx < ${#_hi_rows[@]}; idx++)); do
-  _hi_toml_row "${_hi_rows[idx]}" first old || continue
-  [ "$first" = "$name" ] || continue
-  _hi_section_of section "$idx"
-  [ "$section" = "$type" ] || continue
-  match=$idx
-  break
-done
+_hi_rows_index match "$name" "$type"
+[ "$match" -lt 0 ] || _hi_toml_row "${_hi_rows[match]}" _ old
 
 if [ "$mode" = unset ]; then
   if [ "$match" -lt 0 ]; then
@@ -138,12 +130,4 @@ else
   _hi_section_add "$type" "$toml"
 fi
 
-what="write $dst"
-[ "$read_file" = "$dst" ] || what="copy $read_file to $dst, then change it there"
-dry_run_say "$what" && exit 0
-
-mkdir -p "$_HI_CONFIG_DIR"
-tmpfile="$(mktemp -t hi.colors.XXXXXX)"
-printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
-_hi_write_back "$tmpfile" "$dst"
-_hi_cecho "$dst updated" "$GREEN"
+_hi_rows_write "$dst" "$read_file"

@@ -140,18 +140,20 @@ done
 # `hi --doctor` draws it (lib.sh's _hi_member_rows); the rows hi could not
 # read last, a warn each
 function _hi_plugins_list() {
-  local name group member groups=" " line
-  local -a members
+  local name group groups=" " row line
+  local -a rows members
   _hi_plugins_load
-  while IFS='|' read -r name group member; do
+  _hi_read_lines rows < <(_hi_plugin_rows)
+  for row in ${rows[@]+"${rows[@]}"}; do
+    group="${row#*|}" group="${group%|*}"
     case "$groups" in *" $group "*) ;; *) groups="$groups$group " ;; esac
-  done < <(_hi_plugin_rows)
+  done
   # shellcheck disable=SC2086 # group names, a space apart
   for group in $groups; do
     members=()
-    while IFS='|' read -r name line member; do
-      [ "$line" != "$group" ] || members+=("$member")
-    done < <(_hi_plugin_rows)
+    for row in "${rows[@]}"; do
+      case "$row" in *"|$group|"*) members+=("${row##*|}") ;; esac
+    done
     _hi_section "$group"
     _hi_member_rows "${members[@]}"
     _hi_rows_flush
@@ -159,27 +161,13 @@ function _hi_plugins_list() {
   [ "${#_HI_PLUGIN_BAD[@]}" -gt 0 ] || return 0
   _hi_section "ignored"
   for line in "${_HI_PLUGIN_BAD[@]}"; do
-    _hi_plugins_bad_where name "${line%%|*}"
-    _hi_row "$name" "${line#*|}" warn
+    # a file:line of the tree's config/ or of the overlay
+    name="$_HI_CONFIG_DIR"
+    case "$line" in config/*) name="$_HI_ROOT" ;; esac
+    row="${line%%|*}"
+    _hi_row "$name/${row%%:*} line ${row#*:}" "${line#*|}" warn
   done
   _hi_rows_flush
-}
-
-# _hi_plugins_bad_where <outvar> <file:line> - a $_HI_PLUGIN_BAD entry's
-# place as a path and a line
-function _hi_plugins_bad_where() {
-  case "$2" in
-  config/*) printf -v "$1" '%s line %s' "$_HI_ROOT/${2%%:*}" "${2#*:}" ;;
-  *) printf -v "$1" '%s line %s' "$_HI_CONFIG_DIR/${2%%:*}" "${2#*:}" ;;
-  esac
-}
-
-# _hi_plugins_off_now <outvar> - the list settings.sh holds, read off its
-# last _HI_PLUGINS_OFF line without running it, a space between its words
-function _hi_plugins_off_now() {
-  local value=""
-  _hi_rc_value _HI_PLUGINS_OFF value "$_HI_SETTINGS" || true
-  printf -v "$1" '%s' "${value//,/ }"
 }
 
 # _hi_plugins_write_off <list> - settings.sh with that list as its one
@@ -209,7 +197,9 @@ function _hi_plugins_switch() {
   local word known now="" next="" w changed=""
   [ "${#args[@]}" -gt 0 ] || _hi_die "needs a plugin, a group, or a member ($me --help)"
   known=" $(_hi_plugin_words | tr '\n' ' ')"
-  _hi_plugins_off_now now
+  # settings.sh's last _HI_PLUGINS_OFF line, read without running it
+  _hi_rc_value _HI_PLUGINS_OFF now "$_HI_SETTINGS" || true
+  now="${now//,/ }"
   next=" $now "
   for word in "${args[@]}"; do
     case "$known" in *" $word "*) ;; *) _hi_die "not a plugin, a group, or a member: $word (hi --plugins lists them)" ;; esac
@@ -235,33 +225,8 @@ function _hi_plugins_switch() {
   _hi_plugins_write_off "$now"
 }
 
-# _hi_plugins_index <outvar> <member> - the index in `_hi_rows` of the
-# overlay file's row of that member, or -1
-function _hi_plugins_index() {
-  local _hi_pi_i _hi_pi_k _hi_pi_v
-  for ((_hi_pi_i = 0; _hi_pi_i < ${#_hi_rows[@]}; _hi_pi_i++)); do
-    _hi_toml_row "${_hi_rows[_hi_pi_i]}" _hi_pi_k _hi_pi_v || continue
-    [ "$_hi_pi_k" != "$2" ] || {
-      printf -v "$1" '%s' "$_hi_pi_i"
-      return 0
-    }
-  done
-  printf -v "$1" '%s' -1
-}
-
-# _hi_plugins_write - `_hi_rows` as the overlay's plugins file
-function _hi_plugins_write() {
-  local tmpfile
-  mkdir -p "$_HI_CONFIG_DIR"
-  tmpfile="$(mktemp -t hi.plugins.XXXXXX)"
-  printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
-  _hi_write_back "$tmpfile" "$plugins"
-  _hi_cecho "$plugins updated" "$GREEN"
-}
-
 function _hi_plugins_add() {
   local group member key row tmpdir at=-1 table="" why="" line said=""
-  local -a existing_lines=()
   [ "${#args[@]}" -eq 5 ] || [ "${#args[@]}" -eq 6 ] ||
     _hi_die "needs a group, a member, a tool, a wire, and a home, then a dialect or nothing ($me --help)"
   group="${args[0]}" member="${args[1]}"
@@ -270,9 +235,8 @@ function _hi_plugins_add() {
   case "${args[2]}${args[3]}${args[4]}${args[5]:-}" in *['"'\\]*) _hi_die "a column cannot hold a quote or a backslash ($me --help)" ;; esac
   _hi_toml_key key "$member"
   row="$key = \"${args[2]} | ${args[3]} | ${args[4]}${args[5]:+ | ${args[5]}}\""
-  [ -f "$plugins" ] && _hi_read_lines existing_lines <"$plugins"
-  _hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
-  _hi_plugins_index at "$member"
+  _hi_rows_read "$plugins"
+  _hi_rows_index at "$member"
   if [ "$at" -ge 0 ]; then
     _hi_section_of table "$at"
     if [ "${_hi_rows[at]}" = "$row" ] && [ "$table" = "$group" ]; then
@@ -295,7 +259,7 @@ function _hi_plugins_add() {
   # when that reader turns the row down for nothing
   tmpdir="$(mktemp -d -t hi.plugins.XXXXXX)"
   printf '%s\n' "${_hi_rows[@]}" >"$tmpdir/plugins"
-  _hi_plugins_index at "$member"
+  _hi_rows_index at "$member"
   at=$((at + 1))
   why="$(
     _HI_CONFIG_DIR="$tmpdir" _hi_plugins_load
@@ -307,17 +271,14 @@ function _hi_plugins_add() {
   rmdir "$tmpdir"
   [ -z "$why" ] || _hi_die "$why ($me --help)"
   _hi_cecho "${said%|*}" "${said##*|}"
-  dry_run_say "write $plugins" && exit 0
-  _hi_plugins_write
+  _hi_rows_write "$plugins"
 }
 
 function _hi_plugins_remove() {
   local at=-1 table=""
-  local -a existing_lines=()
   [ "${#args[@]}" -eq 1 ] || _hi_die "needs one member ($me --help)"
-  [ -f "$plugins" ] && _hi_read_lines existing_lines <"$plugins"
-  _hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
-  _hi_plugins_index at "${args[0]}"
+  _hi_rows_read "$plugins"
+  _hi_rows_index at "${args[0]}"
   if [ "$at" -lt 0 ]; then
     _hi_overlay_row "${args[0]}" >/dev/null &&
       _hi_die "${args[0]} is hi's own, with no row of yours to remove: hi --plugin-off ${args[0]} switches it off"
@@ -328,7 +289,7 @@ function _hi_plugins_remove() {
   _hi_cecho " - ${_hi_rows[at]} (from [${table:-no group}])" "$YELLOW"
   _hi_rows=("${_hi_rows[@]:0:at}" "${_hi_rows[@]:at+1}")
   dry_run_say "write $plugins without it" && exit 0
-  _hi_plugins_write
+  _hi_rows_write "$plugins"
 }
 
 case "$mode" in

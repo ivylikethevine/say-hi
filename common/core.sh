@@ -584,11 +584,9 @@ function _hi_hostname() {
 
 function _hi_whoami() {
   if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
-    if [ -n "${ZSH_VERSION:-}" ]; then
-      _hi_prompt_escape _HI_WHOAMI_CACHE '%n'
-    else
-      _hi_prompt_escape _HI_WHOAMI_CACHE '\u' || _HI_WHOAMI_CACHE=""
-    fi
+    local e='\u'
+    [ -z "${ZSH_VERSION:-}" ] || e='%n'
+    _hi_prompt_escape _HI_WHOAMI_CACHE "$e" || _HI_WHOAMI_CACHE=""
   fi
   if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
     _HI_WHOAMI_CACHE="$(exec whoami 2>/dev/null)" ||
@@ -1026,7 +1024,7 @@ function _hi_package_table() {
 # [rrggbb]"` rows as "<type>\x1f<name>\x1f<color>\x1f<hex>" lines in
 # $_HI_COLORS_ROWS. A caller resolving several colors declares
 # `local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""` and loads once, so the file
-# is read once (zsh's `read` costs a syscall a byte); _hi_colors_scan loads
+# is read once (zsh's `read` costs a syscall a byte); each lookup below opens
 # its own otherwise.
 function _hi_colors_load() {
   local t="" l n="" c="" h us=$'\x1f'
@@ -1059,10 +1057,7 @@ function _hi_colors_load() {
 # _hi_colors_scan <type> <name> <glob?> [outvar]
 function _hi_colors_scan() {
   local rest row cur_name color hex us=$'\x1f'
-  if [ "${_HI_COLORS_BATCH:-}" != 1 ]; then
-    local _HI_COLORS_ROWS=""
-    _hi_colors_load
-  fi
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
   rest="$_HI_COLORS_ROWS"
   while [ -n "$rest" ]; do
     row="${rest%%$'\n'*}"
@@ -1107,6 +1102,7 @@ function _hi_colors_pattern() { _hi_colors_scan "$1" "$2" glob "${3:-}"; }
 # without a $( ) anywhere in the middle.
 function _hi_override_color() {
   local special="" _hi_oc_me="" _hi_oc_outvar="${3:-}"
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
   _hi_colors_lookup "$1" "$2" "$_hi_oc_outvar" && return 0
   case "$1" in
   username)
@@ -1289,6 +1285,8 @@ function _hi_ssh_tag_color() {
 # the chain - each still answers on stdout when [outvar] is empty.
 function _hi_resolve_color() {
   local type="$1" name="$2" tag="${3:-}" outvar="${4:-}"
+  # one load of the colors file for the whole chain
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
   _hi_override_color "$type" "$name" "$outvar" && return
   case "$type" in
   hostname)

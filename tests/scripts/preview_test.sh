@@ -820,7 +820,7 @@ function test_packages_drift_names_groups_and_stray_markers() {
   printf '[core]\nhialpha = []\nhibravo = ["-hiecho", "+hidelta"]\n[mine.required]\nhitop = []\n' >"$_HI_WORKDIR/packages.drift"
   out="$(_HI_PACKAGES="$_HI_WORKDIR/packages.drift" _hi_print_packages_drift)" || return 1
   [[ "$out" == *"never checked: ${want// /, } ("* ]] || _hi_because "groups: $out" || return 1
-  [[ "$out" == *"hibravo,-hiecho,+hidelta: a - or + leading a name"* ]] ||
+  [[ "$out" == *"the row hibravo,-hiecho,+hidelta never matches: a - or + leading a name"* ]] ||
     _hi_because "marker: $out" || return 1
   out="$(_HI_PACKAGES="$_HI_ROOT/config/packages" _hi_print_packages_drift)" || return 1
   [ -z "$out" ] || _hi_because "the tree's own file: $out"

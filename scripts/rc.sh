@@ -14,7 +14,7 @@
 # machine and repairs stale lines if say-hi has moved. Empty arguments are
 # skipped, so a setting left at its default contributes nothing.
 function config_shell() {
-  local name="$1" target="$2" line existing desired="" tmpfile
+  local name="$1" target="$2" existing desired="" tmpfile
   shift 2
   _hi_h2 "Checking $name"
 
@@ -368,7 +368,7 @@ function rc_lines() {
 }
 
 function install_rc_lines() {
-  local row shell label target tree_rc dialect line
+  local row shell label target tree_rc dialect
   local -a lines
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
@@ -379,8 +379,7 @@ function install_rc_lines() {
       _hi_cecho " $shell is not installed here - leaving $target alone (re-run hi --install once it is)" "$BLUE"
       continue
     }
-    lines=()
-    while IFS= read -r line; do lines+=("$line"); done < <(rc_lines "$shell" "$tree_rc" "$dialect")
+    _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect")
     config_shell "$label" "$target" "${lines[@]}"
   done
   install_bash_profile_line

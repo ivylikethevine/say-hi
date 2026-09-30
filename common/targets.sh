@@ -157,26 +157,12 @@ fi
 # other); --preset's is configure.sh's table, pinned the same way by
 # targets_test.sh. Answered before the probes, like the flags. The membership
 # test is paths.sh's $_HI_WORD_FLAGS.
-# the four [type] sections of a colors file, as --set-color and --unset-color
-# take them
-color_types() {
-  printf 'hosttag\ta # Tags: value in your ssh config\n'
-  printf 'usertag\tthe username on hosts carrying that tag\n'
-  printf 'username\ta username\n'
-  printf 'hostname\ta hostname, or a * or ? pattern\n'
-}
-
-# plugins_keys <file> - the keys of a plugins file's rows, bare or quoted
-plugins_keys() {
-  sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$1"
-}
-
-# the overlay's plugins file's members, as --remove-plugin takes them
-plugin_members() {
-  [ -f "${_HI_CONFIG_DIR:-}/plugins" ] || return 0
-  plugins_keys "$_HI_CONFIG_DIR/plugins" | while IFS= read -r line; do
-    printf '%s\ta row of your plugins file\n' "$line"
-  done
+# toml_keys <file> <what> - the keys of a TOML file's rows, bare or quoted, as
+# completions described as <what>; nothing when there is no file
+toml_keys() {
+  [ -f "$1" ] || return 0
+  sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$1" |
+    while IFS= read -r line; do printf '%s\t%s\n' "$line" "$2"; done
 }
 
 if [ "$kind" = words ]; then
@@ -208,14 +194,14 @@ if [ "$kind" = words ]; then
     ;;
   --remove-package)
     # each row's key, its first package and the name remove matches on
-    [ -f "$pkgs" ] &&
-      sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$pkgs" |
-      while IFS= read -r line; do
-        printf '%s\ta package check row\n' "$line"
-      done
+    toml_keys "$pkgs" 'a package check row'
     ;;
-  --set-color)
-    color_types
+  --set-color | --unset-color)
+    # the four [type] sections of a colors file
+    printf 'hosttag\ta # Tags: value in your ssh config\n'
+    printf 'usertag\tthe username on hosts carrying that tag\n'
+    printf 'username\ta username\n'
+    printf 'hostname\ta hostname, or a * or ? pattern\n'
     ;;
   --plugin-off)
     # hi.sh's table and the plugins files read as text, since this file
@@ -244,7 +230,7 @@ if [ "$kind" = words ]; then
         if (!seen[name]++) printf "%s\ta plugin\n", name
       }
     '
-    plugin_members
+    toml_keys "${_HI_CONFIG_DIR:-}/plugins" 'a row of your plugins file'
     ;;
   --plugin-on)
     # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line
@@ -259,10 +245,7 @@ if [ "$kind" = words ]; then
     # target names either
     ;;
   --remove-plugin)
-    plugin_members
-    ;;
-  --unset-color)
-    color_types
+    toml_keys "${_HI_CONFIG_DIR:-}/plugins" 'a row of your plugins file'
     ;;
   --add-package)
     # the file's groups, add_package.sh's first argument: its tables, less

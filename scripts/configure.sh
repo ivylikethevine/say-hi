@@ -278,6 +278,7 @@ function _hi_probe_once() {
   _hi_load_preview_sources
   _hi_system_info_probe
   _hi_identity_probe
+  _hi_header_version >/dev/null
 }
 
 # The real header, rendered at the answers this run holds so far: hi_header
@@ -866,7 +867,7 @@ function _hi_menu_rows() {
 # page's own rows print. The rows keep their tables (and so their item
 # kinds): this is only the order they draw in.
 function _hi_menu_list() {
-  local i state word width groups iphide tc row name shell end def cols n var off on label kept
+  local i state word width groups iphide tc row name shell end def cols var off on kept
   local -a rows=()
   _HI_MENU_ITEMS=()
   _HI_MENU_SUM_KEY=""
@@ -877,23 +878,18 @@ function _hi_menu_list() {
   _hi_menu_section i
   # the three header switches and the items, one grid: short names, the
   # switches' full labels are the Header page's heading to know
-  n=0
-  _hi_prompt_rows _HI_FEATURE_PROMPTS rows
-  for i in 0 1; do
-    IFS='|' read -r var off on _ _ label <<<"${rows[$i]}"
+  for row in _HI_FEATURE_PROMPTS:0:header _HI_FEATURE_PROMPTS:1:greeting _HI_HEADER_PROMPTS:0:banner; do
+    IFS=: read -r name i word <<<"$row"
+    _hi_prompt_rows "$name" rows
+    IFS='|' read -r var off on _ <<<"${rows[$i]}"
     setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
-    case "$var" in _HI_DISABLE_HEADER) word=header ;; *) word=greeting ;; esac
-    _hi_menu_grid_item "row|_HI_FEATURE_PROMPTS|$i" "$state" "$word" "$cols" n
+    _hi_menu_grid_item "row|$name|$i" "$state" "$word" "$cols"
   done
-  _hi_prompt_rows _HI_HEADER_PROMPTS rows
-  IFS='|' read -r var off on _ _ label <<<"${rows[0]}"
-  setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
-  _hi_menu_grid_item "row|_HI_HEADER_PROMPTS|0" "$state" banner "$cols" n
   _HI_MENU_WORD0=$((${#_HI_MENU_ITEMS[@]} + 1))
   for i in "${!_HI_HDR_WORDS[@]}"; do
-    _hi_menu_grid_item "word|$i" "${_HI_HDR_ON[$i]}" "${_HI_HDR_WORDS[$i]}" "$cols" n
+    _hi_menu_grid_item "word|$i" "${_HI_HDR_ON[$i]}" "${_HI_HDR_WORDS[$i]}" "$cols"
   done
-  [ "$_HI_MENU_DRAW" != 1 ] || [ $((n % cols)) = 0 ] || printf '\n'
+  [ "$_HI_MENU_DRAW" != 1 ] || [ $((${#_HI_MENU_ITEMS[@]} % cols)) = 0 ] || printf '\n'
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
@@ -929,19 +925,18 @@ function _hi_menu_list() {
   _hi_menu_section
 }
 
-# _hi_menu_grid_item <kind> <1|0> <name> <cols> <count-var> - one checkbox in
-# the Header page's grid, <cols> to a line; <count-var> counts the grid so far
+# _hi_menu_grid_item <kind> <1|0> <name> <cols> - one checkbox in the Header
+# page's grid, the page's first items, <cols> to a line
 function _hi_menu_grid_item() {
   local _hi_gi_state _hi_gi_word _hi_gi_num
   _hi_menu_check _hi_gi_state "$2"
   _HI_MENU_ITEMS+=("$1")
-  printf -v "$5" '%s' "$((${!5} + 1))"
   [ "$_HI_MENU_DRAW" = 1 ] || return 0
   _hi_pad_to _hi_gi_word 10 "$3"
   (($4 > 1)) || _hi_gi_word="$3"
   _hi_menu_num _hi_gi_num
   printf ' %s %s %s' "$_hi_gi_num" "$_hi_gi_state" "$_hi_gi_word"
-  if [ $((${!5} % $4)) = 0 ]; then printf '\n'; else printf ' '; fi
+  if [ $((${#_HI_MENU_ITEMS[@]} % $4)) = 0 ]; then printf '\n'; else printf ' '; fi
 }
 
 # _hi_menu_pick <n> - act on item <n>: flip a yes/no row or a header item,
@@ -985,7 +980,7 @@ function _hi_menu_pick() {
 # alone redraws.
 _HI_CONFIGURE_QUIT=""
 function config_hub() {
-  local reply cmd arg idx last rejects=0 max_rejects=3 draw=1 p h s q b="" title row
+  local reply cmd arg idx last rejects=0 max_rejects=3 draw=1 p h s q b="" back title row
   _hi_probe_once
   _hi_header_edit_load
   _HI_MENU_PAGE=""
@@ -994,9 +989,10 @@ function config_hub() {
       _hi_menu_cols _HI_MENU_W
       title="hi --configure"
       for row in "${_HI_MENU_SECTIONS[@]}"; do
-        [ "${row%%|*}" != "$_HI_MENU_PAGE" ] || title="hi --configure: ${row#*|}"
+        [ "${row%%|*}" = "$_HI_MENU_PAGE" ] || continue
         # under 60 columns a page's title is its name alone
-        [ "${row%%|*}" != "$_HI_MENU_PAGE" ] || ((_HI_MENU_W >= 60)) || title="${row#*|}"
+        title="${row#*|}"
+        ((_HI_MENU_W < 60)) || title="hi --configure: $title"
       done
       _hi_h2 "$title"
       # the keys first, so they are read before the list; short under 60
@@ -1005,14 +1001,15 @@ function config_hub() {
         _hi_hotkey header h h
         _hi_hotkey save s s
         _hi_hotkey quit q q
+        back=b
       else
         _hi_hotkey "header preset" h h
         _hi_hotkey "save and exit" s s
         _hi_hotkey "quit without writing" q q
+        back=back
       fi
       b=""
-      [ -z "$_HI_MENU_PAGE" ] || _hi_hotkey back b b
-      [ -z "$_HI_MENU_PAGE" ] || ((_HI_MENU_W >= 60)) || _hi_hotkey b b b
+      [ -z "$_HI_MENU_PAGE" ] || _hi_hotkey "$back" b b
       printf ' %s%s%s  %s  %s  %s\n' "$b" "${b:+  }" "$p" "$h" "$s" "$q"
       show_preview _hi_config_preview
       _hi_menu_list
@@ -1253,18 +1250,22 @@ function _hi_plugins_off_preview() {
       return 0
     }
     _HI_PLUGINS_OFF="$1"
-    local name group member state rides="" off="" last="" col
+    local name group member rides="" off="" last="" col
     while IFS='|' read -r name group member; do
       if [ "$group" != "$last" ]; then
         _hi_pad_to col 8 "$last"
         [ -z "$rides$off" ] || printf '%s %s%s\n' "$col" "${rides:+rides:$rides}" "${off:+${rides:+; }kept home:$off}"
         last="$group" rides="" off=""
       fi
-      if _hi_plugin_state "$member" state; then
-        case "$state:$rides " in rides:*" $name "*) ;; rides:*) rides="$rides $name" ;; esac
-      else
+      if _hi_plugin_off "$member"; then
         case "$off " in *" $name "*) ;; *) off="$off $name" ;; esac
+        continue
       fi
+      case "$member" in
+      */) [ -n "$(_hi_overlay_files "$member")" ] || continue ;;
+      *) _hi_overlay_src "$member" >/dev/null || continue ;;
+      esac
+      case "$rides " in *" $name "*) ;; *) rides="$rides $name" ;; esac
     done < <(_hi_plugin_rows | sort -s -t'|' -k2,2)
     _hi_pad_to col 8 "$last"
     [ -z "$rides$off" ] || printf '%s %s%s\n' "$col" "${rides:+rides:$rides}" "${off:+${rides:+; }kept home:$off}"

@@ -261,7 +261,7 @@ function _hi_convert_carry() {
 # words of the _HI_PLUGINS_OFF line, which is written where the file's own
 # was, or last, under the marker any of them carried
 function _hi_convert_settings() {
-  awk '
+  awk -v old="$_HI_OLD_TOGGLES" '
     BEGIN {
       word["EDITORS"] = "editors"; word["VIM"] = "vim nvim"; word["NANO"] = "nano"
       word["EMACS"] = "emacs"; word["MICRO"] = "micro"; word["HELIX"] = "hx"
@@ -289,7 +289,7 @@ function _hi_convert_settings() {
     { lines[++n] = $0 }
     /^[ \t]*(export[ \t]+)?_HI_PACKAGES_GROUPS=/ { has = 1 }
     /^[ \t]*(export[ \t]+)?_HI_PLUGINS_OFF=/ { at = n }
-    /^[ \t]*(export[ \t]+)?_HI_DISABLE_(EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ)=/ {
+    $0 ~ "^[ \t]*(export[ \t]+)?_HI_DISABLE_(" old ")=" {
       t = $0; sub(/^[ \t]*(export[ \t]+)?_HI_DISABLE_/, "", t); sub(/=.*/, "", t)
       if (value($0) == 1) { moved = moved " " word[t]; marked($0) }
       lines[n] = ""; gone[n] = 1
@@ -321,14 +321,16 @@ function _hi_convert_settings() {
   ' | _hi_pad_cols 45
 }
 
-# _hi_convert_one <file> <shape> <converter> - <file> through <converter>,
-# and through _hi_toml_<converter's subject> behind it when <shape> is `flat`,
-# the rows two formats back; nothing for the shape this hi reads, or no file
+# _hi_convert_one <file> <shape> <converter> [dst] - <file> through
+# <converter> into [dst] (default <file> itself), and through _hi_toml_<the
+# converter's subject> behind it when <shape> is `flat`, the rows two formats
+# back; the old file kept as <file>.old. Nothing for the shape this hi reads.
 function _hi_convert_one() {
-  local f="$1" tmp
+  local f="$1" dst="${4:-$1}" to="" tmp
   case "$2" in '' | toml) return 0 ;; esac
+  [ "$dst" = "$f" ] || to="$dst"
   if [ -n "$_HI_DRY_RUN" ]; then
-    _hi_cecho " would convert $f (the old one kept at $f.old)" "$BLUE"
+    _hi_cecho " would convert $f${to:+ to $to} (the old one kept at $f.old)" "$BLUE"
     return 0
   fi
   tmp="$(mktemp -t hi.convert.XXXXXX)"
@@ -336,25 +338,10 @@ function _hi_convert_one() {
   flat) "$3" <"$f" | "_hi_toml_${3#_hi_convert_}" >"$tmp" ;;
   *) "$3" <"$f" >"$tmp" ;;
   esac
-  cp -p "$f" "$f.old"
-  _hi_write_back "$tmp" "$f"
-  _hi_cecho " converted $f to the current format (the old one is at $f.old)" "$GREEN"
-}
-
-# _hi_convert_carry_file <dir> - <dir>/carry as <dir>/plugins, the carry
-# kept as carry.old; nothing where there is no carry, or a plugins already
-function _hi_convert_carry_file() {
-  local tmp
-  [ -f "$1/carry" ] && [ ! -e "$1/plugins" ] || return 0
-  if [ -n "$_HI_DRY_RUN" ]; then
-    _hi_cecho " would convert $1/carry to $1/plugins (the old one kept at $1/carry.old)" "$BLUE"
-    return 0
-  fi
-  tmp="$(mktemp -t hi.convert.XXXXXX)"
-  _hi_convert_carry <"$1/carry" >"$tmp"
-  _hi_write_back "$tmp" "$1/plugins"
-  mv -f "$1/carry" "$1/carry.old"
-  _hi_cecho " converted $1/carry to $1/plugins (the old one is at $1/carry.old)" "$GREEN"
+  [ -n "$to" ] || cp -p "$f" "$f.old"
+  _hi_write_back "$tmp" "$dst"
+  [ -z "$to" ] || mv -f "$f" "$f.old"
+  _hi_cecho " converted $f to ${to:-the current format} (the old one is at $f.old)" "$GREEN"
 }
 
 # _hi_convert_data <file> <packages|colors> <flat rows' pattern> - a data
@@ -390,9 +377,10 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-_hi_old_settings='^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_(EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ))='
+_hi_old_settings="^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_($_HI_OLD_TOGGLES))="
 _hi_convert_data "$dir/packages" packages "$_HI_FLAT_PACKAGES"
 _hi_convert_data "$dir/colors" colors "$_HI_FLAT_COLORS"
-_hi_convert_carry_file "$dir"
+# a carry file is the plugins file's old name; nothing where there is one already
+[ ! -f "$dir/carry" ] || [ -e "$dir/plugins" ] || _hi_convert_one "$dir/carry" carry _hi_convert_carry "$dir/plugins"
 [ ! -f "$dir/settings.sh" ] || ! grep -Eq "$_hi_old_settings" "$dir/settings.sh" ||
   _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings

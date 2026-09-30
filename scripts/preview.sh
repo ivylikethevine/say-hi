@@ -150,19 +150,16 @@ function _hi_print_scheme_line() {
 #
 
 # _hi_colors_rows <type> - every pinned name of that type, one per line, file
-# order, not deduped - the one walk of $_HI_COLORS behind _hi_pattern_for,
-# _hi_pattern_pins, and _hi_colors_names below. Not in core.sh: the colors
-# preview is its only caller, and core.sh ships in the ssh payload under a
-# size budget nothing a target runs should spend.
+# order, not deduped: core.sh's _hi_colors_load rows, the one walk behind
+# _hi_pattern_for, _hi_pattern_pins, and _hi_colors_names below
 function _hi_colors_rows() {
-  local line cur_type="" cur_name _
-  [[ -f "$_HI_COLORS" ]] || return 0
-  while IFS= read -r line; do
-    _hi_toml_table cur_type "$line" && continue
-    [[ "$cur_type" = "$1" ]] || continue
-    _hi_toml_row "$line" cur_name _ || continue
-    printf '%s\n' "$cur_name"
-  done <"$_HI_COLORS"
+  local row us=$'\x1f'
+  [ "${_HI_COLORS_BATCH:-}" = 1 ] || { local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load; }
+  while IFS= read -r row; do
+    [ "${row%%"$us"*}" = "$1" ] || continue
+    row="${row#*"$us"}"
+    printf '%s\n' "${row%%"$us"*}"
+  done <<<"$_HI_COLORS_ROWS"
 }
 
 # _hi_pattern_for <name> - the subnet-style pin (hostname row whose name field
@@ -195,13 +192,13 @@ function _hi_pattern_pins() {
 }
 
 function _hi_color_source() {
-  local type="$1" name="$2" tag pat
+  local type="$1" name="$2" pat
   if _hi_override_color "$type" "$name" >/dev/null 2>&1; then
     printf 'override:%s' "$type"
     return
   fi
-  if [[ "$type" = hostname ]] && tag=$(_hi_ssh_host_tag "$name") && _hi_override_color hosttag "$tag" >/dev/null 2>&1; then
-    printf 'tag:%s' "$tag"
+  if [[ "$type" = hostname ]] && _hi_ssh_host_tag "$name" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE" >/dev/null 2>&1; then
+    printf 'tag:%s' "$_HI_TAG_VALUE"
     return
   fi
   # after the tag, before the hash - _hi_resolve_color's order
@@ -298,6 +295,7 @@ function _hi_user_color_memo() {
 # users table: every known real user with a non-default color, plus LOCALUSER
 # and every usertag override as its own "example" row
 function _hi_print_users_table() {
+  local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load # one load for every row
   local color_name uidx tidx
   local users=() usertags=() u_source=() u_color=() t_color=()
   local w_item=9 w_color=5 w_source=6
@@ -318,8 +316,7 @@ function _hi_print_users_table() {
   # reads ${!a[@]+...} as expanding to nothing whatever the array holds, and
   # bash 5 reads it as an indirect reference and errors outright.
   _hi_widen w_item "${users[@]}" LOCALUSER ${usertags[@]+"${usertags[@]}"}
-  # _hi_color_source re-reads config/colors end to end and walks ~/.ssh/config,
-  # so the render loop below reads what this one worked out rather than asking
+  # _hi_color_source forks and walks ~/.ssh/config, so the render loop below reads what this one worked out rather than asking
   # a second time for every user.
   for uidx in "${!users[@]}"; do
     u_source[uidx]="$(_hi_color_source username "${users[uidx]}")"
@@ -360,6 +357,7 @@ function _hi_print_users_table() {
 # combines every real known user plus the "example" users from the users
 # table (LOCALUSER, each usertag) against that host's name(s)
 function _hi_print_hosts_table() {
+  local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" && _hi_colors_load # one load for every row
   # shellcheck disable=SC2034 # user_color: a required outvar of
   # _hi_user_color_memo below (its color half), never read on its own - only
   # user_escape, the memo's second outvar, feeds the render loop
@@ -680,15 +678,10 @@ function _hi_print_groups_table() {
 # what a packages file of the user's own lacks of the tree's, and the rows
 # it holds that can never match (scripts/lib.sh's _hi_packages_drift)
 function _hi_print_packages_drift() {
-  local kind what groups=""
-  while IFS='|' read -r kind what; do
-    case "$kind" in
-    group) groups="$groups${groups:+, }$what" ;;
-    marker) _hi_cecho " | $what: a - or + leading a name is read as part of that name, which nothing matches" "$YELLOW" ;;
-    esac
+  local what
+  while IFS='|' read -r _ what; do
+    _hi_cecho " | $what" "$YELLOW"
   done < <(_hi_packages_drift "$_HI_PACKAGES" "$_HI_ROOT/config/packages")
-  [ -z "$groups" ] ||
-    _hi_cecho " | lacks the tree's groups, which are never checked: $groups ($_HI_ROOT/config/packages has them to copy)" "$YELLOW"
 }
 
 # the other half of a rendered row: which mark it ends in, and what each one

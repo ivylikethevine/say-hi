@@ -137,10 +137,47 @@ function _hi_section_add() {
   fi
 }
 
+# _hi_rows_read <file> - <file>'s lines as `_hi_rows`, none when it is absent
+function _hi_rows_read() {
+  _hi_rows=()
+  [ ! -f "$1" ] || _hi_read_lines _hi_rows <"$1"
+}
+
+# _hi_rows_index <outvar> <key> [table] - the index in `_hi_rows` of the row
+# keyed <key>, in [<table>] when one is named, or -1
+function _hi_rows_index() {
+  local _hi_ri_i _hi_ri_k _hi_ri_v _hi_ri_t
+  for ((_hi_ri_i = 0; _hi_ri_i < ${#_hi_rows[@]}; _hi_ri_i++)); do
+    _hi_toml_row "${_hi_rows[_hi_ri_i]}" _hi_ri_k _hi_ri_v || continue
+    [ "$_hi_ri_k" = "$2" ] || continue
+    _hi_section_of _hi_ri_t "$_hi_ri_i"
+    [ -z "${3:-}" ] || [ "$_hi_ri_t" = "$3" ] || continue
+    printf -v "$1" '%s' "$_hi_ri_i"
+    return 0
+  done
+  printf -v "$1" '%s' -1
+}
+
+# _hi_rows_write <dst> [read-from] - `_hi_rows` as <dst>, or under --dry-run
+# what that would do, <read-from> being the file the rows were read from
+function _hi_rows_write() {
+  local what="write $1" tmpfile
+  [ "${2:-$1}" = "$1" ] || what="copy $2 to $1, then change it there"
+  ! dry_run_say "$what" || return 0
+  mkdir -p "${1%/*}"
+  tmpfile="$(mktemp -t "hi.${1##*/}.XXXXXX")"
+  printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
+  _hi_write_back "$tmpfile" "$1"
+  _hi_cecho "$1 updated" "$GREEN"
+}
+
 # the rows of the first packages and colors files, "name:N,..." and
 # "type,name,color", for _hi_data_shape
 _HI_FLAT_PACKAGES='^[^#]*:[0-9]'
 _HI_FLAT_COLORS='^[a-z]+,[^,#]+,'
+# the editors' and multiplexers' _HI_DISABLE_<name> toggles, now words of
+# _HI_PLUGINS_OFF
+_HI_OLD_TOGGLES='EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ'
 
 # _hi_data_shape <outvar> <file> <flat rows' pattern> - which hi wrote the
 # rows of a packages or colors file: `toml`, this one, also of a file with no
@@ -168,27 +205,31 @@ function _hi_data_shape() {
 }
 
 # _hi_packages_drift <file> <tree's> - what a packages file of the user's own
-# gets wrong unseen, a line each: `group|<name>` for a group the tree's has
-# and <file> lacks, since a copy replaces the tree's and never gains one added
-# later, and `marker|<row>` for a row with a name led by - or +, which is
-# part of a name nothing matches: a table says what its rows are
+# gets wrong unseen, a `<severity>|<sentence>` line each: a row with a name
+# led by - or +, which is part of a name nothing matches (a table says what
+# its rows are), then the groups the tree's has and <file> lacks, since a copy
+# replaces the tree's and never gains one added later
 function _hi_packages_drift() {
-  local _hi_pd_l _hi_pd_g _hi_pd_k _hi_pd_v _hi_pd_have=" " _hi_pd_said=" "
+  local _hi_pd_l _hi_pd_g _hi_pd_k _hi_pd_v _hi_pd_have=" " _hi_pd_lack=""
   [ -f "$1" ] || return 0
   while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
     if _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k; then
       _hi_pd_have="$_hi_pd_have$_hi_pd_g "
     elif _hi_toml_row "$_hi_pd_l" _hi_pd_k _hi_pd_v; then
-      case ",$_hi_pd_k,$_hi_pd_v" in *,[-+]*) printf 'marker|%s\n' "$_hi_pd_k${_hi_pd_v:+,$_hi_pd_v}" ;; esac
+      case ",$_hi_pd_k,$_hi_pd_v" in *,[-+]*)
+        printf 'warn|the row %s never matches: a - or + leading a name is read as part of that name\n' "$_hi_pd_k${_hi_pd_v:+,$_hi_pd_v}"
+        ;;
+      esac
     fi
   done <"$1"
   [ "$1" != "$2" ] && [ -f "$2" ] || return 0
   while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
     _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k || continue
-    case "$_hi_pd_have$_hi_pd_said" in *" $_hi_pd_g "*) continue ;; esac
-    _hi_pd_said="$_hi_pd_said$_hi_pd_g "
-    printf 'group|%s\n' "$_hi_pd_g"
+    case "$_hi_pd_have" in *" $_hi_pd_g "*) continue ;; esac
+    _hi_pd_have="$_hi_pd_have$_hi_pd_g " _hi_pd_lack="$_hi_pd_lack${_hi_pd_lack:+, }$_hi_pd_g"
   done <"$2"
+  [ -z "$_hi_pd_lack" ] ||
+    printf "info|lacks the tree's groups, which are never checked: %s (%s has them to copy)\n" "$_hi_pd_lack" "$2"
 }
 
 # _hi_term_cols <outvar> - the terminal's width, or empty: $_HI_TERM_COLS (a
@@ -457,27 +498,6 @@ function _hi_unsent_why() {
   [ -n "$_hi_uw" ]
 }
 
-# _hi_plugin_state <member> <outvar> - what a connect does with <member>,
-# in a phrase; 1 when it is off
-function _hi_plugin_state() {
-  local src="" why="" tilde='~'
-  case "$1" in
-  */)
-    src="$(_hi_overlay_files "$1" | grep -c .)" || true
-    if [ "$src" = 0 ]; then src=""; else src="$src file(s)"; fi
-    ;;
-  *) ! _hi_overlay_src "$1" src || src="${src/#"$HOME"/$tilde}" ;;
-  esac
-  if [ -n "$src" ]; then
-    printf -v "$2" '%s' "rides: $src"
-  elif _hi_unsent_why "$1" why; then
-    printf -v "$2" '%s' "stays home: $why"
-  else
-    printf -v "$2" '%s' "nothing to carry"
-  fi
-  [ "${why#switched off}" = "$why" ]
-}
-
 # _hi_member_label <member> <outvar> - <member> with the program that reads
 # it, `vim/vimrc (vim)`, as a row names it; hi's own files go bare. The program
 # is the first name in the member's tool column.
@@ -496,7 +516,7 @@ function _hi_member_label() {
 # `none anywhere` row, so a sparse setup stays a short table, unless it is
 # switched off, which is its own row.
 function _hi_member_rows() {
-  local row m used eff p state text label none="" found tilde='~' draw="${_HI_ROW_FN:-_hi_row}"
+  local row m used eff p state text label none="" found draw="${_HI_ROW_FN:-_hi_row}"
   local -a locs _hi_paths=()
   _hi_plugins_load
   for m; do
@@ -527,8 +547,7 @@ function _hi_member_rows() {
       [ "$state" != "passed over" ] || [ "$p" != "$_HI_ROOT/config/$m" ] || continue
       found=1
       [ "$p" != "$_HI_ROOT/config/$m" ] || p="the tree's config/$m"
-      # the ~ from a variable: bash 3.2 keeps a \~ replacement's backslash
-      text="$text${text:+; }$state ${p/#"$HOME"/$tilde}"
+      text="$text${text:+; }$state $p"
     done
     _hi_member_label "$m" label
     [ -n "$found" ] || {
@@ -541,7 +560,7 @@ function _hi_member_rows() {
     }
     # a directory entry is its files, the overlay's copy of each name first
     case "$m" in */)
-      p="$(_hi_overlay_files "$m" | grep -c .)" || true
+      _hi_count_lines p < <(_hi_overlay_files "$m")
       if [ "$p" = 0 ]; then "$draw" "$label" "$text - no file rides"; else "$draw" "$label" "$text - $p file(s) ride" ok; fi
       continue
       ;;

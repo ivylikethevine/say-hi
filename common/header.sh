@@ -632,14 +632,15 @@ function _hi_probe_done() {
 # _hi_slow_out; hi_header starts the ones its order needs up front, so they
 # run side by side in the shadow of the rows before them.
 function _hi_slow() {
+  # always in a subshell (below), so a lone command can replace it
   case "$1" in
-  status) git -C "$_HI_ROOT" --no-optional-locks status --porcelain=v2 --branch ;;
+  status) exec git -C "$_HI_ROOT" --no-optional-locks status --porcelain=v2 --branch ;;
   describe) _hi_release_or_describe ;;
-  email) git config --get user.email ;;
-  uname) uname -sm ;;
-  nproc) nproc ;;
+  email) exec git config --get user.email ;;
+  uname) exec uname -sm ;;
+  nproc) exec nproc ;;
   ips) _hi_ip_list ;;
-  pubs) find "$_HI_SSH_DIR" -type f -name "*.pub" ;;
+  pubs) exec find "$_HI_SSH_DIR" -type f -name "*.pub" ;;
   esac
 }
 

@@ -403,7 +403,7 @@ function doctor_config() {
     }
     # a directory entry: how many of its files ride, and from where
     case "$f" in */)
-      t="$(_hi_overlay_files "$f" | grep -c .)" || true
+      _hi_count_lines t < <(_hi_overlay_files "$f")
       _hi_member_label "$f" label
       [ "$t" = 0 ] || doctor_row "$label" "$t file(s) ride, the overlay's copy of each first, then $(_hi_overlay_home "$f" || echo "none at home")"
       continue
@@ -419,7 +419,7 @@ function doctor_config() {
       # prompt program's with the program out of the list, or an oh-my-posh
       # format another overlay copy already stands in for
       v=info
-      [ ! -f "$_HI_CONFIG_DIR/$f" ] || [ "${late#switched}" != "$late" ] || v=warn
+      [ ! -f "$_HI_CONFIG_DIR/$f" ] || _hi_plugin_off "$f" || v=warn
       doctor_row "$label" "not sent - $late, so targets keep their own" "$v"
     elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # the section says what rides; the row names which file
@@ -457,10 +457,11 @@ function doctor_config() {
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
   # here, where a list would miss the day's newest.
-  local toggles asrc=""
+  local toggles asrc="" atext=""
   _hi_overlay_src aliases.sh asrc || true
+  [ -z "$asrc" ] || atext="$(grep -v '^[[:space:]]*#' "$asrc")" || true
   toggles="$(grep -oE '_HI_(DISABLE_[A-Z_]+|TOOL_ALIASES|SUDO_ALIAS)' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
-  late="$(grep -v '^[[:space:]]*#' "$asrc" 2>/dev/null |
+  late="$(printf '%s\n' "$atext" |
     grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
     tr -d = | sort -u | tr '\n' ' ')" || true
   [ -z "$late" ] ||
@@ -468,16 +469,16 @@ function doctor_config() {
   # ...and an alias it defines replaces a wiring line's of the same name
   # (GLOSSARY: HI.62) on a target, so that tool starts without the config hi
   # carried for it. warn: it may be meant.
-  local wired="" shadowed=""
+  local wired="" shadowed="" re
   local -a members=()
-  while IFS= read -r t; do members+=("$t"); done < <(_hi_overlay_files)
+  _hi_read_lines members < <(_hi_overlay_files)
   _hi_overlay_wiring wired ${members[@]+"${members[@]}"}
   while [ "${wired#* alias }" != "$wired" ]; do
     wired="${wired#* alias }"
     t="${wired%%=*}"
     case " $shadowed " in *" $t "*) continue ;; esac
-    ! grep -v '^[[:space:]]*#' "$asrc" 2>/dev/null | grep -qE "(^|[[:space:];&|])alias[[:space:]]+$t=" ||
-      shadowed="$shadowed $t"
+    re="(^|[[:space:];&|])alias[[:space:]]+$t="
+    [[ ! "$atext" =~ $re ]] || shadowed="$shadowed $t"
   done
   [ -z "$shadowed" ] ||
     doctor_row alias-wired "aliases.sh aliases${shadowed} - on a target that replaces hi's alias, so the config hi carries for it goes unused there; drop the alias, or keep that config home with its _HI_DISABLE_ toggle" warn
@@ -544,7 +545,7 @@ function doctor_settings_values() {
   [ -z "${_HI_PACKAGES_MIN_PRIORITY:-}" ] ||
     doctor_row _HI_PACKAGES_MIN_PRIORITY "is ignored - name the groups to show in _HI_PACKAGES_GROUPS" bad
   # ...and the editors' and the multiplexers' toggles, now words of a list
-  for name in EDITORS VIM NANO EMACS MICRO HELIX KAKOUNE TMUX SCREEN ZELLIJ; do
+  for name in ${_HI_OLD_TOGGLES//|/ }; do
     name="_HI_DISABLE_$name"
     [ -z "${!name:-}" ] ||
       doctor_row "$name" "is ignored - hi --plugin-off keeps a config home, and hi --configure converts this line" bad
@@ -554,16 +555,9 @@ function doctor_settings_values() {
   flat) doctor_row packages "$_HI_PACKAGES has name:priority rows, which this hi reads none of - hi --configure converts it" bad ;;
   sections) doctor_row packages "$_HI_PACKAGES has rows that are not TOML's name = [...], which this hi does not read - hi --configure converts it" bad ;;
   *)
-    # a copy of the user's own never gains a group the tree adds later, and
-    # a marker past a row's first name is part of a name nothing matches
-    v=""
-    while IFS='|' read -r name why; do
-      case "$name" in
-      group) v="$v${v:+, }$why" ;;
-      marker) doctor_row packages "the row $why never matches: a - or + leading a name is read as part of that name" warn ;;
-      esac
+    while IFS='|' read -r v why; do
+      doctor_row packages "$why" "$v"
     done < <(_hi_packages_drift "${_HI_PACKAGES:-}" "$_HI_ROOT/config/packages")
-    [ -z "$v" ] || doctor_row packages "lacks the tree's groups, which are never checked: $v ($_HI_ROOT/config/packages has them to copy)"
     ;;
   esac
   _hi_data_shape v "${_HI_COLORS:-}" "$_HI_FLAT_COLORS"
@@ -658,8 +652,7 @@ function doctor_install() {
       # an older hi's block names this tree too, but not the lines this one
       # writes: bash's `return` ends the rc for `ssh host cmd`, and fish's
       # bare is-interactive block is a parse error on every fish 3.0-3.3 start
-      lines=()
-      while IFS= read -r want; do lines+=("$want"); done < <(rc_lines "$shell" "$tree_rc" "$dialect")
+      _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect")
       rc_tagged want "${lines[@]}"
       if [ "$(grep -F "$_HI_MARKER" "$target")" = "${want%$'\n'}" ]; then
         doctor_row "$shell" "$target is wired to this tree" ok

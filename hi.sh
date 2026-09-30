@@ -458,11 +458,14 @@ function _hi_p10k_in_use() {
   [ -n "$_hi_pk" ]
 }
 
-# _hi_trim <var> - the variable's value without the spaces around it
+# _hi_trim <var...> - each variable's value without the spaces around it
 function _hi_trim() {
-  local _hi_tr="${!1}"
-  _hi_tr="${_hi_tr#"${_hi_tr%%[! ]*}"}"
-  printf -v "$1" '%s' "${_hi_tr%"${_hi_tr##*[! ]}"}"
+  local _hi_tr_v _hi_tr
+  for _hi_tr_v; do
+    _hi_tr="${!_hi_tr_v}"
+    _hi_tr="${_hi_tr#"${_hi_tr%%[! ]*}"}"
+    printf -v "$_hi_tr_v" '%s' "${_hi_tr%"${_hi_tr##*[! ]}"}"
+  done
 }
 
 # _hi_words_ok <words> <first> <rest> - is <words> one or more words, a space
@@ -550,10 +553,7 @@ function _hi_plugins_load() {
         _hi_cy_why="not a row: \"<member>\" = \"<tool> | <wire> | <home> | <dialect>\""
       else
         IFS='|' read -r _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d _hi_cy_x <<<"$_hi_cy_t"
-        _hi_trim _hi_cy_t
-        _hi_trim _hi_cy_w
-        _hi_trim _hi_cy_h
-        _hi_trim _hi_cy_d
+        _hi_trim _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d
         _hi_cy_d="${_hi_cy_d:--}"
       fi
       if [ -n "$_hi_cy_why" ]; then

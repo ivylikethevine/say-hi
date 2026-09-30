@@ -143,31 +143,15 @@ function _hi_row_table() {
 # in force is what makes --dry-run and a no-op honest: a row the tree already
 # has reports "already there", and nothing is written.
 read_file="$_HI_PACKAGES" dst="$_HI_CONFIG_DIR/packages"
-existing_lines=()
-[ -f "$read_file" ] && _hi_read_lines existing_lines <"$read_file"
-_hi_rows=(${existing_lines[@]+"${existing_lines[@]}"})
+_hi_rows_read "$read_file"
 changed=0
 # spelled empty so the linter sees the helpers' printf -v (SC2154)
 first="" in_table="" in_group="" mark="" table="" toml="" was="" alts=""
 
-# _hi_row_index <outvar> <pkg> - the index in `_hi_rows` of the row whose first
-# package is <pkg>, or -1
-function _hi_row_index() {
-  local _hi_ri_i _hi_ri_k _hi_ri_v
-  for ((_hi_ri_i = 0; _hi_ri_i < ${#_hi_rows[@]}; _hi_ri_i++)); do
-    _hi_toml_row "${_hi_rows[_hi_ri_i]}" _hi_ri_k _hi_ri_v || continue
-    if [ "$_hi_ri_k" = "$2" ]; then
-      printf -v "$1" '%s' "$_hi_ri_i"
-      return 0
-    fi
-  done
-  printf -v "$1" '%s' -1
-}
-
 match=-1
 for row in "${rows[@]}"; do
   _hi_row_first_pkg first "$row"
-  _hi_row_index match "$first"
+  _hi_rows_index match "$first"
   in_table="" in_group="" was=""
   if [ "$match" -ge 0 ]; then
     _hi_section_of in_table "$match"
@@ -215,12 +199,4 @@ if [ "$changed" -eq 0 ]; then
   exit 0
 fi
 
-what="write $dst"
-[ "$read_file" = "$dst" ] || what="copy $read_file to $dst, then change it there"
-dry_run_say "$what" && exit 0
-
-mkdir -p "$_HI_CONFIG_DIR"
-tmpfile="$(mktemp -t hi.packages.XXXXXX)"
-printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
-_hi_write_back "$tmpfile" "$dst"
-_hi_cecho "$dst updated" "$GREEN"
+_hi_rows_write "$dst" "$read_file"
