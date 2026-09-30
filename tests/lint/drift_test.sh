@@ -17,10 +17,12 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # at runtime rather than at parse time (see tests/targets/ssh_test.sh's bash32
 # cases for the same rule enforced end-to-end against a real 3.2).
 #
-# The last entry isn't a version issue at all - ${!a[@]+...} is a trap in both
+# The last two are no version issue. ${!a[@]+...} is a trap in both
 # directions: bash 3.2 quietly expands it to nothing whatever the array holds,
 # and bash 5 reads it as an indirect reference and dies. Plain "${!a[@]}" is
-# already empty-safe and is what to write instead.
+# already empty-safe and is what to write instead. And bash 3.2 reads the
+# pattern of a ${x//pat/rep} up to the first /, one inside a nested expansion
+# included, and dies with "bad substitution" where bash 4 pairs the braces.
 #
 # One trap no pattern here can catch: bash 3.2's $( ... ) scanner does not
 # skip # comments, so an apostrophe (or an unbalanced paren) in a comment
@@ -35,6 +37,7 @@ _HI_BASH32_LINT=(
   '\$\{[A-Za-z_][A-Za-z_0-9]*(\[[^]]*\])?(,,?|\^\^?)\}|case conversion (bash 4)'
   '\bwait[[:space:]]+-n\b|wait -n (bash 4.3)'
   '\$\{![A-Za-z_][A-Za-z_0-9]*\[[@*]\][+:-]|${!a[@]+...} - use a plain "${!a[@]}"'
+  '\$\{[A-Za-z_][A-Za-z_0-9]*//?[^}]*\$\{[A-Za-z_][A-Za-z_0-9]*(%%?|##?)[^}]*/|a / in an expansion nested in ${x//...} - bash 3.2 ends the pattern there; cut it into a variable first'
 )
 
 # Spellings one userland has and another does not, as "<pattern>|<what it

@@ -14,22 +14,23 @@ and rows. The two settings here, `_HI_COLOR_SCHEME` and
 
 Every username and hostname resolves to a color derived from its own name, so
 an unpinned host looks the same from every machine you say `hi` from. Pin the
-ones that matter in `~/.config/say-hi/colors`: a `[type]` line opens a
-section, and each row under it is `name color`, whitespace-separated.
+ones that matter in `~/.config/say-hi/colors`, which is TOML: a `[type]` line
+opens a table, and each row under it is `name = "color"`, on one line. A name
+that is not letters, digits, `_` and `-` alone goes in double quotes.
 
-```ini
+```toml
 [username]
-root              red
+root = "red"
 
 [hostname]
-bastion           yellow
-10.0.1.*          red
+bastion = "yellow"
+"10.0.1.*" = "red"
 
 [hosttag]
-prod              red
+prod = "red"
 
 [usertag]
-prod              red
+prod = "red"
 ```
 
 A `hosttag` row colors every host carrying a `# Tags: prod` comment above its
@@ -74,14 +75,14 @@ knows of, drawn in the colors themselves, each row naming the rule it matched
 
 ![hi --preview colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
-Any of those rows takes an optional third field, that pin's own 24-bit
+Any of those strings takes an optional second word, that pin's own 24-bit
 color as six hex digits (a leading `#` is fine; text after it is ignored):
-`prod-db brred ff5f5f` under `[hostname]` renders `prod-db` in exactly that
-red on a truecolor terminal. The second field is still a name from the
+`prod-db = "brred ff5f5f"` under `[hostname]` renders `prod-db` in exactly
+that red on a truecolor terminal. The first word is still a name from the
 vocabulary below and is what a 16-color terminal gets, so name the nearest
-one. A third field outranks `_HI_COLOR_SCHEME` for that one pin — the scheme
-says what a _name_ renders as, the field what this host or user renders as —
-and anything that is not six hex digits is ignored.
+one. The hex outranks `_HI_COLOR_SCHEME` for that one pin — the scheme says
+what a _name_ renders as, the hex what this host or user renders as — and
+anything that is not six hex digits is ignored.
 
 The vocabulary is twenty-four names: the terminal's twelve (`red`, `green`,
 `yellow`, `blue`, `magenta`, `cyan`, and their `br` forms) and twelve more -
@@ -144,17 +145,35 @@ falls back to the shipped ramp, `hi --doctor` says so, and
 
 ## The package check's rows
 
-The check reads one file, `config/packages`, split into `[group]` sections.
-A row is one tool and its alternatives in order of preference,
-`[-|+]package[,alternative...]`; the first one installed is shown, marked
-`~` when it is not the first listed. An optional leading character sets
-what the row is for:
+The check reads one file, `config/packages`, which is TOML: a table per
+group, and a row per tool, its value the alternatives in order of
+preference, on one line.
 
-- **none**, wanted: installed (`✓`) and missing (`✗`) both show.
-- **`-`**, unwanted: silent while absent, a warning (`!`) when installed —
-  the `deprecated` group's `-exa`, `-neofetch`, `-python2`, and `-xsv`.
-- **`+`**, required: silent while installed, an alarm (`✗`) when missing —
-  the `base` group's coreutils.
+```toml
+[useful]
+curl = ["httpie", "xh"]
+rsync = []
+
+[useful.required]
+sudo = ["doas"]
+
+[deprecated.unwanted]
+exa = []
+```
+
+The first name installed is shown, marked `~` when it is not the row's own.
+The table a row sits under sets what the row is for:
+
+- **`[group]`**, wanted: installed (`✓`) and missing (`✗`) both show.
+- **`[group.unwanted]`**: silent while absent, a warning (`!`) when
+  installed — the `deprecated` group's `exa`, `neofetch`, `python2`, and
+  `xsv`.
+- **`[group.required]`**: silent while installed, an alarm (`✗`) when
+  missing — the `base` group's coreutils.
+
+hi reads that much of TOML and no more: a value on a second line, a string
+in single quotes, or an inline table is a row it skips, and `hi --doctor`
+says so of a file still in an older format.
 
 Warnings and alarms sort first and paint in the loudest missing color.
 Every other row paints in its group's tier of the ramp above; there is no
@@ -170,13 +189,15 @@ per-row color:
 `_HI_PACKAGES_GROUPS` names the groups that run, space- or comma-separated,
 or `none`; unset, it is `core useful deprecated`
 ([SETTINGS.md](SETTINGS.md#every-setting)). A group that is off is not even
-looked for, and rows above the first `[group]` line always run.
+looked for, and rows above the first table always run.
 
-`hi --add-package core go cargo,rustc` adds rows to that group's section of
-`~/.config/say-hi/packages`, creating the section when the file has none; a
-row whose first package is already in the file is replaced, and moved when
-the group differs. `hi --remove-package go cargo` takes out the row whose
-first package each one names, marker or not, from whichever group holds it.
+`hi --add-package core go cargo,rustc` adds rows to that group's table of
+`~/.config/say-hi/packages`, creating the table when the file has none, and
+a leading `+` or `-` on an argument (`+sudo,doas`) lands its row in the
+group's `.required` or `.unwanted` table; a row whose first package is
+already in the file is replaced, and moved when the group differs.
+`hi --remove-package go cargo` takes out the row whose first package each
+one names, from whichever table holds it.
 The first write of either copies the tree's file there: a copy of
 your own replaces the tree's wholesale, the same rule `colors` follows. By
 hand, `cp "$_HI_ROOT/config/packages" ~/.config/say-hi/packages` and edit.

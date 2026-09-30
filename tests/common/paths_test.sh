@@ -262,7 +262,7 @@ function test_settings_resolve_to_the_overlay() {
 function test_overlay_colors_win() {
   local dir
   dir="$(_hi_overlay_dir)"
-  printf '[hostname]\nfoo brred\n' >"$dir/colors"
+  printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ]
 }
 
@@ -272,7 +272,7 @@ function test_overlay_colors_win() {
 function test_overlay_falls_back_per_file() {
   local dir
   dir="$(_hi_overlay_dir)"
-  printf '[hostname]\nfoo brred\n' >"$dir/colors"
+  printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   rm -f "$dir/packages"
   [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ]
 }

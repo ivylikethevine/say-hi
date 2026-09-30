@@ -396,11 +396,13 @@ Needs a checkout: a package has no
 .B \-\-add\-package \fIgroup pkg\fR[,...] [\fB\-\-dry\-run\fR]
 add rows to
 .IR group 's
-section of
+table of
 .BR ~/.config/say-hi/packages ,
-creating the section when there is none, one argument per row: "bat,batcat"
-is bat, or batcat as a fallback; a leading \- marks a package you don't want,
-a leading + one you need. A row whose first package is already in the file
+creating the table when there is none, one argument per row: "bat,batcat"
+is bat, or batcat as a fallback, written bat = ["batcat"]; a leading \- marks
+a package you don't want and lands the row in the group's .unwanted table, a
+leading + one you need, in its .required table. A row whose first package is
+already in the file
 replaces that row, moving it to
 .IR group .
 That file replaces the tree's wholesale, so the first write copies the tree's
@@ -451,9 +453,9 @@ to
 .I color
 in the
 .BI [ type ]
-section of
+table of
 .BR ~/.config/say-hi/colors ,
-replacing a pin it already has and creating the section when there is none.
+replacing a pin it already has and creating the table when there is none.
 .I type
 is
 .BR hosttag ,
@@ -483,7 +485,7 @@ remove
 .IR name 's
 pin from the
 .BI [ type ]
-section of
+table of
 .BR ~/.config/say-hi/colors ,
 so it colors by the next rule down. The first write copies the tree's in, as
 under
@@ -694,14 +696,14 @@ line
 .BR usertag ,
 .BR username ,
 .BR hostname )
-opens a section of
-.RI \(dq name " " color " [" rrggbb ]\(dq
-rows.
+opens a table of
+.IR name " = \(dq" color " [" rrggbb ]\(dq
+rows, in TOML.
 .B hi \-\-set\-color
 copies the tree's here on its first write.
 .TP
 .B ~/.config/say-hi/packages
-your package check, used in place of the tree's
+your package check, in TOML, used in place of the tree's
 .BR config/packages .
 .B hi \-\-add\-package
 copies the tree's here on its first write.

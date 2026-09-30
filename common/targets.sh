@@ -201,12 +201,12 @@ if [ "$kind" = words ]; then
     ssh_hosts 'an ssh host to tag'
     ;;
   --remove-package)
-    # each row's first package, the name remove matches on
-    [ -f "$pkgs" ] && while IFS= read -r line; do
-      case "$line" in '' | *'#'* | '['*']') continue ;; esac
-      line="${line#[-+]}"
-      printf '%s\ta package check row\n' "${line%%,*}"
-    done <"$pkgs"
+    # each row's key, its first package and the name remove matches on
+    [ -f "$pkgs" ] &&
+      sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$pkgs" |
+      while IFS= read -r line; do
+        printf '%s\ta package check row\n' "$line"
+      done
     ;;
   --set-color)
     color_types
@@ -248,15 +248,21 @@ if [ "$kind" = words ]; then
     color_types
     ;;
   --add-package)
-    # the file's groups, add_package.sh's first argument. The line filter
-    # matches full_check's: a `#` anywhere kills a line.
-    [ -f "$pkgs" ] && while IFS= read -r line; do
-      case "$line" in *'#'*) ;; '['*']')
-        line="${line#\[}"
-        printf '%s\ta package check group\n' "${line%\]}"
-        ;;
-      esac
-    done <"$pkgs"
+    # the file's groups, add_package.sh's first argument: its tables, less
+    # the word that says what a table's rows are, each group once
+    [ -f "$pkgs" ] &&
+      sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/\1/p' "$pkgs" | {
+        seen=" "
+        while IFS= read -r line; do
+          case "$line" in
+          required | unwanted) continue ;;
+          *.required | *.unwanted) line="${line%.*}" ;;
+          esac
+          case "$seen" in *" $line "*) continue ;; esac
+          seen="$seen$line "
+          printf '%s\ta package check group\n' "$line"
+        done
+      }
     ;;
   --preview)
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'

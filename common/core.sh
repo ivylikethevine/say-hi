@@ -201,7 +201,7 @@ function _hi_slot_hex() {
 # header.sh's hue and width readers still see one escape. The pair is
 # $_HI_COLOR_FALLBACK's for <index> mod 24, so a second-bank slot wears the
 # same 16-color half as its name. <hex> is a config/colors row's own
-# rrggbb (its optional fourth column): it stands in for the scheme's hex for
+# rrggbb (its string's second word): it stands in for the scheme's hex for
 # this one escape, and a terminal with no 24-bit color still gets the slot's
 # pair, so a pinned hex never costs a pin its 16-color half. Empty under
 # $NO_COLOR. GLOSSARY: HI.50
@@ -219,7 +219,7 @@ function _hi_color_escape_at() {
 
 # _hi_color_split <namevar> <hexvar> <value> - a resolved color as its two
 # halves: the palette name, and the rrggbb a config/colors row pinned for
-# it in its optional fourth column (empty when there was none). Every
+# it as its string's second word (empty when there was none). Every
 # resolved color is one shape or the other - "brgreen" or "brgreen#3ba55d" -
 # so the three readers below answer a pinned color exactly where they answer
 # a bare name, and everything between _hi_colors_scan and them (the memos,
@@ -962,32 +962,95 @@ function _hi_local_hostname() {
   _hi_out "${1:-}" "${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
 }
 
-# _hi_colors_load - $_HI_COLORS' `[<type>]` sections of "<name> <color>
-# [rrggbb]" rows as "<type>\x1f<name>\x1f<color>\x1f<hex>" lines in
+# _hi_toml_row <line> <keyvar> <valvar> - a `key = value` line of the TOML
+# subset config/colors and config/packages keep to: the key bare or in double
+# quotes, the value a double-quoted string or an array of them, on the one
+# line, and whatever follows it (a # comment) left unread. The value comes
+# back as the string's text, or the array's members a , apart. 1 for a line
+# that is no row: a comment, a [table], anything the subset has no word for.
+function _hi_toml_row() {
+  local _hi_tr_k _hi_tr_v="${1#"${1%%[![:space:]]*}"}"
+  case "$_hi_tr_v" in
+  '"'*'"'*)
+    _hi_tr_k="${_hi_tr_v#?}"
+    _hi_tr_v="${_hi_tr_k#*\"}"
+    _hi_tr_k="${_hi_tr_k%%\"*}"
+    ;;
+  [A-Za-z0-9_-]*)
+    _hi_tr_k="${_hi_tr_v%%[!A-Za-z0-9_-]*}"
+    _hi_tr_v="${_hi_tr_v#"$_hi_tr_k"}"
+    ;;
+  *) return 1 ;;
+  esac
+  _hi_tr_v="${_hi_tr_v#"${_hi_tr_v%%[![:space:]]*}"}"
+  case "$_hi_tr_v" in '='*) _hi_tr_v="${_hi_tr_v#?}" ;; *) return 1 ;; esac
+  _hi_tr_v="${_hi_tr_v#"${_hi_tr_v%%[![:space:]]*}"}"
+  case "$_hi_tr_v" in
+  '"'*'"'*)
+    _hi_tr_v="${_hi_tr_v#?}"
+    _hi_tr_v="${_hi_tr_v%%\"*}"
+    ;;
+  '['*']'*)
+    _hi_tr_v="${_hi_tr_v#?}"
+    _hi_tr_v="${_hi_tr_v%%\]*}"
+    _hi_tr_v="${_hi_tr_v//\"/}"
+    _hi_tr_v="${_hi_tr_v//[[:space:]]/}"
+    ;;
+  *) return 1 ;;
+  esac
+  [ -n "$_hi_tr_k" ] || return 1
+  printf -v "$2" '%s' "$_hi_tr_k"
+  printf -v "$3" '%s' "$_hi_tr_v"
+}
+
+# _hi_package_table <line> <groupvar> <markvar> - a `[group]`,
+# `[group.required]`, or `[group.unwanted]` line of $_HI_PACKAGES: its group,
+# and the mark check_line reads its rows under (+, -, or none). A bare
+# `[required]` or `[unwanted]` marks rows of no group. 1 for any other line.
+# Here, not in header.sh: the scripts that write the file load no header.
+function _hi_package_table() {
+  local _hi_pt="$1" _hi_pt_m=""
+  case "$_hi_pt" in '['*']'*) ;; *) return 1 ;; esac
+  _hi_pt="${_hi_pt#\[}"
+  _hi_pt=".${_hi_pt%%\]*}"
+  case "$_hi_pt" in
+  *.required) _hi_pt_m=+ _hi_pt="${_hi_pt%.*}" ;;
+  *.unwanted) _hi_pt_m=- _hi_pt="${_hi_pt%.*}" ;;
+  esac
+  _hi_pt="${_hi_pt#.}"
+  printf -v "$2" '%s' "$_hi_pt"
+  printf -v "$3" '%s' "$_hi_pt_m"
+}
+
+# _hi_colors_load - $_HI_COLORS' `[<type>]` tables of `<name> = "<color>
+# [rrggbb]"` rows as "<type>\x1f<name>\x1f<color>\x1f<hex>" lines in
 # $_HI_COLORS_ROWS. A caller resolving several colors declares
 # `local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS=""` and loads once, so the file
 # is read once (zsh's `read` costs a syscall a byte); _hi_colors_scan loads
 # its own otherwise.
 function _hi_colors_load() {
-  local t="" n c h us=$'\x1f'
+  local t="" l n="" c="" h us=$'\x1f'
   _HI_COLORS_ROWS=""
   [[ -f "$_HI_COLORS" ]] || return 0
-  while read -r n c h; do
-    case "$n" in
-    '' | '#'*) continue ;;
-    '['*']')
-      t="${n#\[}"
-      t="${t%\]}"
+  while read -r l; do
+    case "$l" in
+    '['*']'*)
+      t="${l#\[}"
+      t="${t%%\]*}"
       continue
       ;;
     esac
+    _hi_toml_row "$l" n c || continue
+    h=""
+    case "$c" in *' '*) h="${c#*[ ]}" c="${c%% *}" ;; esac
+    h="${h#"${h%%[! ]*}"}"
     _HI_COLORS_ROWS+="$t$us$n$us$c$us${h%% *}"$'\n'
   done <"$_HI_COLORS"
 }
 
 # The two readers of those rows. One walk behind both: they differ only in
 # whether the name field is compared or matched, and the two wrappers below
-# are what the callers and the suites name. A row's optional third field is
+# are what the callers and the suites name. A string's second word is
 # that pin's own 24-bit color; it comes back joined to the name as
 # "<color>#<rrggbb>", the shape _hi_color_split reads, and only when it is six
 # hex digits (a leading `#` is allowed and dropped) - anything else is ignored

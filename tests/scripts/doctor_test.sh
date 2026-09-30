@@ -471,7 +471,7 @@ function test_files_table_hides_the_tree_default_behind_a_copy() {
   local h out
   h="$(mktemp -d "$_HI_WORKDIR/files-tree.XXXXXX")"
   mkdir -p "$h/overlay"
-  printf '[hostname]\nbox red\n' >"$h/overlay/colors"
+  printf '[hostname]\nbox = "red"\n' >"$h/overlay/colors"
   out="$(
     HOME="$h" _HI_CONFIG_DIR="$h/overlay" _HI_COLORS="$h/overlay/colors" \
       _HI_PACKAGES="$_HI_ROOT/config/packages" doctor_files
@@ -687,7 +687,7 @@ function test_config_reports_the_packages_file() {
   cp "$_HI_ROOT/config/packages" "$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
   [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || return 1
-  printf '# a note\n[core]\nsh\n' >"$dir/packages"
+  printf '# a note\n[core]\nsh = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
   [[ "$out" == *"packages"*"overridden (3 lines)"* ]]
 }
@@ -814,16 +814,15 @@ function test_config_flags_the_old_package_floor() {
   [[ "$out" != *_HI_PACKAGES_MIN_PRIORITY* ]]
 }
 
-# a packages file still in name:N rows reads as a roster of missing commands,
-# so it is a bad row; a `:N` inside a comment is not, and neither is a file
-# with a [group] section, whatever stray name:N line it still carries
+# a packages file still in name:N rows, or in bare rows under [group] lines,
+# is read as no rows at all, so it is a bad row naming which; a `:N` or a bare
+# row inside a comment is not, in a file of TOML rows
 function test_config_flags_an_old_format_packages_file() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/oldpkgs.XXXXXX")"
   printf '# the header\nbat:3,batcat:3\n' >"$dir/old"
-  printf '# was bat:3\n[core]\nbat,batcat\n' >"$dir/new"
-  # converted from a row with a trailing note, which kept its old spelling
-  printf '[core]\nbat\nbatcat:3 # a note\n' >"$dir/sectioned"
+  printf '# was bat:3\n# bat,batcat\n[core]\nbat = ["batcat"]\n\n[core.required]\n"g++" = [] # a note\n' >"$dir/new"
+  printf '# the header\n[core]\nbat,batcat\n+sudo\n' >"$dir/sectioned"
   out="$(
     _HI_PACKAGES="$dir/old"
     _hi_doc_values_json
@@ -837,19 +836,24 @@ function test_config_flags_an_old_format_packages_file() {
     _hi_doc_values_json
   )"
   [[ "$out" != *'has name:priority rows'* ]] || return 1
+  [[ "$out" != *'has name:priority rows'* && "$out" != *"that are not TOML"* ]] || return 1
   out="$(
     _HI_PACKAGES="$dir/sectioned"
     _hi_doc_values_json
   )"
-  [[ "$out" != *'has name:priority rows'* ]]
+  case "$out" in
+  *'"label": "packages", "text": "'"$dir/sectioned"' has rows that are not TOML'*'hi --configure converts it", "severity": "bad"'*) ;;
+  *) return 1 ;;
+  esac
 }
 
 # a packages file of the user's own names the tree's groups it lacks and a
-# row whose marker sits past its first name; the tree's own names neither
+# row with a marker leading a name, which its table says instead; the tree's
+# own names neither
 function test_config_names_what_a_packages_copy_lacks() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/driftpkgs.XXXXXX")"
-  printf '[core]\nbat\neza,-exa,lsd\n' >"$dir/packages"
+  printf '[core]\nbat = []\neza = ["-exa", "lsd"]\n[extras.required]\n' >"$dir/packages"
   out="$(
     _HI_PACKAGES="$dir/packages"
     _hi_doc_values_json
@@ -865,13 +869,15 @@ function test_config_names_what_a_packages_copy_lacks() {
   [[ "$out" != *'"label": "packages"'* ]]
 }
 
-# a colors file still in type,name,color rows pins nothing, so it is a bad
-# row; one with a [type] section is the current shape, whatever else it holds
+# a colors file still in type,name,color rows, or in bare rows under [type]
+# lines, pins nothing, so it is a bad row naming which; a file of TOML rows
+# is not, whatever its comments hold
 function test_config_flags_an_old_format_colors_file() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/oldcolors.XXXXXX")"
   printf '# type,name,color\nhostname,box,red\nusername,me,blue,3ba55d\n' >"$dir/old"
-  printf '# was hostname,box,red\n[hostname]\nbox red\n' >"$dir/new"
+  printf '# was hostname,box,red\n# box red\n[hostname]\nbox = "red"\n"10.0.*" = "blue 3ba55d" # a note\n' >"$dir/new"
+  printf '[hostname]\nbox red\n' >"$dir/sectioned"
   out="$(
     _HI_COLORS="$dir/old"
     _hi_doc_values_json
@@ -884,7 +890,15 @@ function test_config_flags_an_old_format_colors_file() {
     _HI_COLORS="$dir/new"
     _hi_doc_values_json
   )"
-  [[ "$out" != *'"label": "colors"'* ]]
+  [[ "$out" != *'"label": "colors"'* ]] || return 1
+  out="$(
+    _HI_COLORS="$dir/sectioned"
+    _hi_doc_values_json
+  )"
+  case "$out" in
+  *'"label": "colors", "text": "'"$dir/sectioned"' has rows that are not TOML'*'hi --configure converts it", "severity": "bad"'*) ;;
+  *) return 1 ;;
+  esac
 }
 
 # _HI_DISABLE_LOCAL=1 sets every other toggle through paths.sh's gate: one
@@ -1735,9 +1749,9 @@ function run_doctor_tests() {
     _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
     _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
     _hi_check "Config flags a leftover _HI_PACKAGES_MIN_PRIORITY" test_config_flags_the_old_package_floor
-    _hi_check "Config flags a name:priority packages file" test_config_flags_an_old_format_packages_file
+    _hi_check "Config flags a packages file of either old format" test_config_flags_an_old_format_packages_file
     _hi_check "Config names what a packages copy lacks" test_config_names_what_a_packages_copy_lacks
-    _hi_check "Config flags a type,name,color colors file" test_config_flags_an_old_format_colors_file
+    _hi_check "Config flags a colors file of either old format" test_config_flags_an_old_format_colors_file
     _hi_check "Config lists the plugins, and flags them" test_config_lists_the_extensions
     _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
     _hi_check "Lists an opt-in turned on" test_config_lists_an_opt_in_turned_on

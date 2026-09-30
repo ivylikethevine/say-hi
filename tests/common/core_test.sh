@@ -474,25 +474,25 @@ function test_prompt_colors_hand_fish_the_base_name() {
 
 function test_override_color_exact_match() {
   local colors="$_HI_WORKDIR/colors.exact"
-  printf '[username]\nalice red\n' >"$colors"
+  printf '[username]\nalice = "red"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_override_color username alice)" = "red" ]
 }
 
 function test_override_color_no_match_fails() {
   local colors="$_HI_WORKDIR/colors.nomatch"
-  printf '[username]\nalice red\n' >"$colors"
+  printf '[username]\nalice = "red"\n' >"$colors"
   ! _HI_COLORS="$colors" _hi_override_color username bob
 }
 
 function test_override_color_localuser_special_case() {
   local colors="$_HI_WORKDIR/colors.localuser"
-  printf '[username]\nLOCALUSER cyan\n' >"$colors"
+  printf '[username]\nLOCALUSER = "cyan"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _HI_LOCAL_USER=testuser _hi_override_color username testuser)" = "cyan" ]
 }
 
 function test_override_color_localhostname_special_case() {
   local colors="$_HI_WORKDIR/colors.localhost"
-  printf '[hostname]\nLOCALHOSTNAME magenta\n' >"$colors"
+  printf '[hostname]\nLOCALHOSTNAME = "magenta"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _HI_LOCAL_HOSTNAME=testhost _hi_override_color hostname testhost)" = "magenta" ]
 }
 
@@ -501,7 +501,7 @@ function test_override_color_localhostname_special_case() {
 # exact pin, the pattern row, and the hosttag alike.
 function test_pin_hex_joins_the_name() {
   local colors="$_HI_WORKDIR/colors.hex"
-  printf '[username]\nalice red 3ba55d\n[hostname]\n10.0.1.* blue 102030\n[hosttag]\nprod brred ff5f5f\n' >"$colors"
+  printf '[username]\nalice = "red 3ba55d"\n[hostname]\n"10.0.1.*" = "blue 102030"\n[hosttag]\nprod = "brred ff5f5f"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup username alice)" = 'red#3ba55d' ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.1.7)" = 'blue#102030' ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_override_color hosttag prod)" = 'brred#ff5f5f' ] || return 1
@@ -512,7 +512,7 @@ function test_pin_hex_joins_the_name() {
 # read in either case
 function test_pin_hex_accepts_a_leading_hash_and_either_case() {
   local colors="$_HI_WORKDIR/colors.hexhash"
-  printf '[username]\nalice red #FF00AA\n' >"$colors"
+  printf '[username]\nalice = "red #FF00AA"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup username alice)" = 'red#FF00AA' ]
 }
 
@@ -548,44 +548,103 @@ function test_pin_hex_reaches_the_hex_and_base_readers() {
   [ "$out" = $'fd971f bryellow\nred' ]
 }
 
+# _hi_toml_rows_probe - _hi_toml_row over the lines a data file can hold, a
+# line each as "<status>|<key>|<value>": bare and quoted keys, a string, an
+# array, padding, a comment behind the value, a # inside a string, and what
+# is no row at all
+function _hi_toml_rows_probe() {
+  local l k v
+  while IFS= read -r l; do
+    k="" v=""
+    _hi_toml_row "$l" k v
+    printf '%s|%s|%s\n' "$?" "$k" "$v"
+  done <<'ROWS'
+bat = ["batcat", "ccat"]
+direnv = []
+  "g++"   =   [ "c++","clang++" ]   # a note
+prod-db = "brred ff5f5f"
+"10.0.1.*" = "red" # a subnet
+tagged = "red #ff0000"
+# a comment
+[table]
+[table.required]
+bare words
+old,row,red
+n = 1
+t = true
+s = "unclosed
+= "no key"
+ROWS
+}
+
+function test_toml_row_reads_the_subset() {
+  local want
+  want="0|bat|batcat,ccat
+0|direnv|
+0|g++|c++,clang++
+0|prod-db|brred ff5f5f
+0|10.0.1.*|red
+0|tagged|red #ff0000
+1||
+1||
+1||
+1||
+1||
+1||
+1||
+1||
+1||"
+  [ "$(_hi_toml_rows_probe)" = "$want" ] || _hi_because "$(_hi_toml_rows_probe)"
+}
+
+function test_zsh_toml_row_agrees_with_bash() {
+  local zsh_out
+  zsh_out="$(zsh -c "source '$_HI_ROOT/common/core.sh'; $(declare -f _hi_toml_rows_probe); _hi_toml_rows_probe")"
+  [ "$zsh_out" = "$(_hi_toml_rows_probe)" ] || _hi_because "$zsh_out"
+}
+
 # A colors file is hand-written: a typo in the hex field costs the row its
 # hex, never its color.
 function test_pin_hex_ignores_a_malformed_hex_field() {
   local colors="$_HI_WORKDIR/colors.hexbad"
-  printf '[username]\na red zzz\nb red 12345\nc red 12345g\ne red\nf red #\n' >"$colors"
+  printf '[username]\na = "red zzz"\nb = "red 12345"\nc = "red 12345g"\ne = "red"\nf = "red #"\n' >"$colors"
   local name
   for name in a b c e f; do
     [ "$(_HI_COLORS="$colors" _hi_colors_lookup username "$name")" = red ] || return 1
   done
 }
 
-# anything after the hex is a note, not part of it - with or without the #
+# anything after the hex is a note, not part of it, in the string or behind it
 function test_pin_hex_ignores_trailing_text() {
   local colors="$_HI_WORKDIR/colors.hextail"
-  printf '[username]\nd red 3ba55d the office box\ng red #3BA55D # a note\n' >"$colors"
+  printf '[username]\nd = "red 3ba55d the office box"\ng = "red #3BA55D" # a note\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup username d)" = 'red#3ba55d' ] &&
     [ "$(_HI_COLORS="$colors" _hi_colors_lookup username g)" = 'red#3BA55D' ]
 }
 
 # A [type] line scopes every row under it: one name pinned under two types
-# answers each type with its own color, a type named twice is read both
-# times, and a row above the first section belongs to no type at all
+# answers each type with its own color, a type named twice, which TOML
+# would refuse, is read both times, and a row above the first table belongs
+# to no type at all
 function test_colors_rows_are_scoped_to_their_section() {
   local colors="$_HI_WORKDIR/colors.sections"
-  printf 'shared yellow\n[hostname]\nshared red\n[username]\nshared blue\n[hostname]\nlate green\n' >"$colors"
+  printf 'shared = "yellow"\n[hostname]\nshared = "red"\n[username] # a note\nshared = "blue"\n[hostname]\nlate = "green"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname shared)" = red ] &&
     [ "$(_HI_COLORS="$colors" _hi_colors_lookup username shared)" = blue ] &&
     [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname late)" = green ] &&
     ! _HI_COLORS="$colors" _hi_colors_lookup hosttag shared
 }
 
-# comments and blank lines are skipped wherever they sit, indented rows read
-# the same, and the old comma rows pin nothing
+# comments and blank lines are skipped wherever they sit, indented and padded
+# rows read the same, a name in quotes is the name, and the rows of the two
+# formats before this one pin nothing
 function test_colors_skips_comments_blanks_and_old_rows() {
   local colors="$_HI_WORKDIR/colors.skips"
-  printf '# a note\n\n[hostname]\n  # an indented note\n\n  box   cyan\nhostname,old,red\n' >"$colors"
+  printf '# a note\n\n[hostname]\n  # an indented note\n\n  box   =   "cyan"\n"a.b"="red"\nhostname,old,red\nolder blue\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)" = cyan ] &&
+    [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname a.b)" = red ] &&
     ! _HI_COLORS="$colors" _hi_colors_lookup hostname old &&
+    ! _HI_COLORS="$colors" _hi_colors_lookup hostname older &&
     ! _HI_COLORS="$colors" _hi_colors_lookup hostname '#'
 }
 
@@ -593,7 +652,7 @@ function test_colors_skips_comments_blanks_and_old_rows() {
 # reader does not, and an exact row is never a pattern
 function test_colors_pattern_row_is_a_glob() {
   local colors="$_HI_WORKDIR/colors.pattern"
-  printf '[hostname]\nweb-? blue\nweb-1 red\n' >"$colors"
+  printf '[hostname]\n"web-?" = "blue"\nweb-1 = "red"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_pattern hostname web-2)" = blue ] &&
     [ "$(_HI_COLORS="$colors" _hi_colors_pattern hostname web-1)" = blue ] &&
     [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname web-1)" = red ] &&
@@ -607,7 +666,7 @@ function test_colors_pattern_row_is_a_glob() {
 function _hi_colors_batch_probe() {
   local _HI_COLORS_BATCH=1 _HI_COLORS_ROWS="" batched unbatched
   _hi_colors_load
-  printf '[username]\nalice blue\n' >"$_HI_COLORS"
+  printf '[username]\nalice = "blue"\n' >"$_HI_COLORS"
   _hi_colors_scan username alice '' batched
   _HI_COLORS_BATCH=0
   _hi_colors_scan username alice '' unbatched
@@ -616,14 +675,14 @@ function _hi_colors_batch_probe() {
 
 function test_colors_scan_reads_a_batch_once() {
   local colors="$_HI_WORKDIR/colors.batch" out
-  printf '[username]\nalice red\n' >"$colors"
+  printf '[username]\nalice = "red"\n' >"$colors"
   out="$(_HI_COLORS="$colors" _hi_colors_batch_probe)"
   [ "$out" = "red|blue|username,alice,red," ] || _hi_because "batched|unbatched|rows: $out"
 }
 
 function test_zsh_pin_hex_agrees_with_bash() {
   local colors="$_HI_WORKDIR/colors.hexzsh"
-  printf '[username]\nalice orange 3ba55d\n' >"$colors"
+  printf '[username]\nalice = "orange 3ba55d"\n' >"$colors"
   _hi_shell_agrees "export _HI_COLORS='$colors' _HI_TRUECOLOR=1
     c=\"\$(_hi_colors_lookup username alice)\"
     _hi_color_escape_var e \"\$c\"; _hi_color_hex h \"\$c\"; _hi_color_base b \"\$c\"
@@ -853,19 +912,19 @@ function test_ssh_host_tag_non_host_match_ends_its_tag() {
 
 function test_resolve_color_override_wins() {
   local colors="$_HI_WORKDIR/colors.resolve1"
-  printf '[username]\nbob red\n' >"$colors"
+  printf '[username]\nbob = "red"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color username bob)" = "red" ]
 }
 
 function test_resolve_color_hosttag_via_ssh_config() {
   local colors="$_HI_WORKDIR/colors.resolve2"
-  printf '[hosttag]\nprod blue\n' >"$colors"
+  printf '[hosttag]\nprod = "blue"\n' >"$colors"
   [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = "blue" ]
 }
 
 function test_resolve_color_usertag_when_no_exact_override() {
   local colors="$_HI_WORKDIR/colors.resolve3"
-  printf '[usertag]\nprodtag green\n' >"$colors"
+  printf '[usertag]\nprodtag = "green"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color username someuser prodtag)" = "green" ]
 }
 
@@ -879,7 +938,7 @@ function test_resolve_color_falls_back_to_hash() {
 # hosttag > pattern > hash.
 function test_pattern_pin_colors_a_subnet() {
   local colors="$_HI_WORKDIR/colors.pattern"
-  printf '[hostname]\n10.0.1.* red\n*.prod.example blue\n' >"$colors"
+  printf '[hostname]\n"10.0.1.*" = "red"\n"*.prod.example" = "blue"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = red ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname db.prod.example)" = blue ] || return 1
   ! _HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.2.7
@@ -887,25 +946,25 @@ function test_pattern_pin_colors_a_subnet() {
 
 function test_pattern_first_row_wins() {
   local colors="$_HI_WORKDIR/colors.patorder"
-  printf '[hostname]\n10.0.* green\n10.0.1.* red\n' >"$colors"
+  printf '[hostname]\n"10.0.*" = "green"\n"10.0.1.*" = "red"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = green ]
 }
 
 function test_exact_pin_beats_pattern() {
   local colors="$_HI_WORKDIR/colors.patexact"
-  printf '[hostname]\n10.0.1.* red\n10.0.1.7 cyan\n' >"$colors"
+  printf '[hostname]\n"10.0.1.*" = "red"\n"10.0.1.7" = "cyan"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = cyan ]
 }
 
 function test_hosttag_beats_pattern() {
   local colors="$_HI_WORKDIR/colors.pattag"
-  printf '[hostname]\nmyhost* red\n[hosttag]\nprod blue\n' >"$colors"
+  printf '[hostname]\n"myhost*" = "red"\n[hosttag]\nprod = "blue"\n' >"$colors"
   [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = blue ]
 }
 
 function test_pattern_beats_hash() {
   local colors="$_HI_WORKDIR/colors.pathash"
-  printf '[hostname]\nunhashed-* brred\n' >"$colors"
+  printf '[hostname]\n"unhashed-*" = "brred"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname unhashed-9)" = brred ] || return 1
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname other-9)" = "$(_hi_hash_color other-9)" ]
 }
@@ -944,7 +1003,7 @@ function test_zsh_pattern_hit_skips_the_same_tokens() {
 # the pattern walk rides _hi_ssh_pattern_hit, whose zsh divergences are HI.37's
 function test_zsh_pattern_pins_agree_with_bash() {
   local colors="$_HI_WORKDIR/colors.zshpat" a b script
-  printf '[hostname]\n10.0.1.* red\n' >"$colors"
+  printf '[hostname]\n"10.0.1.*" = "red"\n' >"$colors"
   script='printf "%s|%s" "$(_hi_resolve_color hostname 10.0.1.7)" "$(_hi_resolve_color hostname 10.0.2.7)"'
   a="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" bash -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
   b="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" zsh -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
@@ -1313,7 +1372,7 @@ function test_prompt_table_is_the_one_roster() {
 
 function test_colors_lookup_verdicts() {
   local colors="$_HI_WORKDIR/colors.lookup"
-  printf '[username]\nalice red\n[hostname]\nbox blue\n' >"$colors"
+  printf '[username]\nalice = "red"\n[hostname]\nbox = "blue"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)" = blue ] || return 1
   ! _HI_COLORS="$colors" _hi_colors_lookup hostname nobox || return 1
   ! _HI_COLORS="$_HI_WORKDIR/colors.absent" _hi_colors_lookup hostname box
@@ -1522,15 +1581,17 @@ function run_core_tests() {
   _hi_check "LOCALUSER special case" test_override_color_localuser_special_case
   _hi_check "LOCALHOSTNAME special case" test_override_color_localhostname_special_case
 
-  _hi_h2 "Testing: a pin's own hex (config/colors' fourth column)"
+  _hi_h2 "Testing: config/colors' rows, and a pin's own hex"
+  _hi_check "_hi_toml_row reads a key and its string or array" test_toml_row_reads_the_subset
+  _hi_check_requires zsh "...in zsh too" test_zsh_toml_row_agrees_with_bash
   _hi_check "The hex joins the name, from every reader" test_pin_hex_joins_the_name
   _hi_check "A leading # is allowed, either case" test_pin_hex_accepts_a_leading_hash_and_either_case
   _hi_check "The hex paints the escape, over any scheme" test_pin_hex_paints_the_escape_over_the_scheme
   _hi_check "zsh and fish get the hex and the base name" test_pin_hex_reaches_the_hex_and_base_readers
   _hi_check "A malformed hex field is ignored" test_pin_hex_ignores_a_malformed_hex_field
   _hi_check "Text after the hex is ignored" test_pin_hex_ignores_trailing_text
-  _hi_check "Rows are scoped to their [type] section" test_colors_rows_are_scoped_to_their_section
-  _hi_check "Comments, blanks and old comma rows are skipped" test_colors_skips_comments_blanks_and_old_rows
+  _hi_check "Rows are scoped to their [type] table" test_colors_rows_are_scoped_to_their_section
+  _hi_check "Comments, blanks and the old rows are skipped" test_colors_skips_comments_blanks_and_old_rows
   _hi_check "A pattern row is a glob, not an exact pin" test_colors_pattern_row_is_a_glob
   _hi_check "A batch reads the file once, a lone scan every time" test_colors_scan_reads_a_batch_once
   _hi_check_requires zsh "A pinned hex agrees in zsh" test_zsh_pin_hex_agrees_with_bash

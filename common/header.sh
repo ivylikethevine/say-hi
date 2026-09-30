@@ -1176,16 +1176,13 @@ function _hi_group_on() {
   return 1
 }
 
-# _hi_package_groups <outvar> - the `[group]` names $_HI_PACKAGES holds, in
-# file order, space-separated
+# _hi_package_groups <outvar> - the groups $_HI_PACKAGES holds, in file
+# order, space-separated, each once
 function _hi_package_groups() {
-  local _hi_pg_l _hi_pg_all=""
+  local _hi_pg_l _hi_pg_g _hi_pg_m _hi_pg_all=""
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r _hi_pg_l; do
-    case "$_hi_pg_l" in *'#'*) ;; '['*']')
-      _hi_pg_l="${_hi_pg_l#\[}"
-      _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }${_hi_pg_l%\]}"
-      ;;
-    esac
+    _hi_package_table "$_hi_pg_l" _hi_pg_g _hi_pg_m && [ -n "$_hi_pg_g" ] || continue
+    case " $_hi_pg_all " in *" $_hi_pg_g "*) ;; *) _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }$_hi_pg_g" ;; esac
   done <"$_HI_PACKAGES"
   printf -v "$1" '%s' "$_hi_pg_all"
 }
@@ -1205,7 +1202,7 @@ function _hi_check_close() {
 # that are off.
 function full_check() {
   local width_item count=0 max cell vislen piece i pkg_start close=1 line rank rec us=$'\x1f'
-  local on=1 tier=1
+  local on=1 tier=1 group mark="" name alts
   _hi_draw_width max
   # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
   # not _hi_row_line's two, since every piece below already carries its own
@@ -1236,20 +1233,15 @@ function full_check() {
   # $_HI_PACKAGES_PALETTE after header.sh loaded
   _hi_packages_palette
   [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r line; do
-    case "$line" in
-    '' | *'#'*) continue ;;
-    '['*']')
-      line="${line#\[}"
-      line="${line%\]}"
+    if _hi_package_table "$line" group mark; then
       on=0
-      _hi_group_on "$line" && on=1
-      _hi_group_tier tier "$line"
+      [ -n "$group" ] && ! _hi_group_on "$group" || on=1
+      _hi_group_tier tier "$group"
       continue
-      ;;
-    esac
-    # a group that is off is skipped before probing: each row is a PATH walk
-    # per alternative
-    ((on)) && check_line visible "$line" "$tier"
+    fi
+    # a group that is off is skipped before its rows are read: each is a
+    # PATH walk per alternative
+    ((on)) && _hi_toml_row "$line" name alts && check_line visible "$mark$name${alts:+,$alts}" "$tier"
   done <"$_HI_PACKAGES"
   # highest rank first, file order within one: a pass per rank, not a fork
   for ((rank = 4; rank >= 0; rank--)); do

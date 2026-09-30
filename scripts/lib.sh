@@ -70,66 +70,124 @@ function _hi_write_back() {
   command rm -f "$1"
 }
 
-# The `[section]` files (config/packages, config/colors) as the editing
-# scripts hold them: a global `_hi_rows` array of lines, one per file line.
+# The TOML files (config/packages, config/colors) as the editing scripts hold
+# them: a global `_hi_rows` array of lines, one per file line.
 
-# _hi_section_of <outvar> <index> - the section the line at <index> of `_hi_rows`
+# _hi_toml_table <outvar> <line> - the name a `[table]` line gives, or 1
+function _hi_toml_table() {
+  local _hi_tt="${2#"${2%%[![:space:]]*}"}"
+  case "$_hi_tt" in '['*']'*) ;; *) return 1 ;; esac
+  _hi_tt="${_hi_tt#\[}"
+  printf -v "$1" '%s' "${_hi_tt%%\]*}"
+}
+
+# _hi_toml_key <outvar> <name> - <name> as a key: bare where TOML reads it
+# bare, in double quotes otherwise
+function _hi_toml_key() {
+  case "$2" in
+  '' | *[!A-Za-z0-9_-]*) printf -v "$1" '"%s"' "$2" ;;
+  *) printf -v "$1" '%s' "$2" ;;
+  esac
+}
+
+# _hi_section_of <outvar> <index> - the table the line at <index> of `_hi_rows`
 # sits in: the nearest `[...]` line above it, empty above the first
 function _hi_section_of() {
   local _hi_so_i
   printf -v "$1" '%s' ''
   for ((_hi_so_i = $2; _hi_so_i >= 0; _hi_so_i--)); do
-    case "${_hi_rows[_hi_so_i]}" in
-    '['*']')
-      _hi_so_i="${_hi_rows[_hi_so_i]#\[}"
-      printf -v "$1" '%s' "${_hi_so_i%\]}"
-      return 0
-      ;;
-    esac
+    ! _hi_toml_table "$1" "${_hi_rows[_hi_so_i]}" || return 0
   done
 }
 
-# _hi_section_add <section> <row> - <row> into `_hi_rows` after <section>'s last
-# row, or under a new `[<section>]` at the end when the file has none
+# _hi_section_add <table> <row> - <row> into `_hi_rows` after <table>'s last
+# row, or under a new `[<table>]` when the file has none: after the last row
+# of the tables of its group (`core` for `core.required`), else at the end
 function _hi_section_add() {
-  local _hi_sa_i _hi_sa_in=0 _hi_sa_at=-1
+  local _hi_sa_i _hi_sa_in=0 _hi_sa_at=-1 _hi_sa_by=-1 _hi_sa_t
   for ((_hi_sa_i = 0; _hi_sa_i < ${#_hi_rows[@]}; _hi_sa_i++)); do
+    if _hi_toml_table _hi_sa_t "${_hi_rows[_hi_sa_i]}"; then
+      _hi_sa_in=0
+      case "$_hi_sa_t" in
+      "$1") _hi_sa_in=1 _hi_sa_at=$((_hi_sa_i + 1)) ;;
+      "${1%.*}" | "${1%.*}".*) _hi_sa_in=2 _hi_sa_by=$((_hi_sa_i + 1)) ;;
+      esac
+      continue
+    fi
     case "${_hi_rows[_hi_sa_i]}" in
-    "[$1]") _hi_sa_in=1 _hi_sa_at=$((_hi_sa_i + 1)) ;;
-    '['*']') _hi_sa_in=0 ;;
     '' | '#'*) ;;
-    *) ((_hi_sa_in)) && _hi_sa_at=$((_hi_sa_i + 1)) ;;
+    *)
+      case "$_hi_sa_in" in
+      1) _hi_sa_at=$((_hi_sa_i + 1)) ;;
+      2) _hi_sa_by=$((_hi_sa_i + 1)) ;;
+      esac
+      ;;
     esac
   done
-  if [ "$_hi_sa_at" -lt 0 ]; then
+  if [ "$_hi_sa_at" -ge 0 ]; then
+    _hi_rows=("${_hi_rows[@]:0:_hi_sa_at}" "$2" "${_hi_rows[@]:_hi_sa_at}")
+  elif [ "$_hi_sa_by" -ge 0 ]; then
+    # a blank line either side, where a line follows that is not one
+    _hi_sa_t="$2"
+    [ -z "${_hi_rows[_hi_sa_by]:-}" ] || _hi_sa_t="$2"$'\n'
+    _hi_rows=("${_hi_rows[@]:0:_hi_sa_by}" "" "[$1]" "$_hi_sa_t" "${_hi_rows[@]:_hi_sa_by}")
+  else
     [ "${#_hi_rows[@]}" -eq 0 ] || [ -z "${_hi_rows[${#_hi_rows[@]} - 1]}" ] || _hi_rows+=("")
     _hi_rows+=("[$1]" "$2")
+  fi
+}
+
+# the rows of the first packages and colors files, "name:N,..." and
+# "type,name,color", for _hi_data_shape
+_HI_FLAT_PACKAGES='^[^#]*:[0-9]'
+_HI_FLAT_COLORS='^[a-z]+,[^,#]+,'
+
+# _hi_data_shape <outvar> <file> <flat rows' pattern> - which hi wrote the
+# rows of a packages or colors file: `toml`, this one, also of a file with no
+# rows; `sections` for bare rows under `[section]` lines; `flat` for the rows
+# before those, which <flat rows' pattern> matches. Empty for no file.
+function _hi_data_shape() {
+  local _hi_ds_l _hi_ds_k _hi_ds_v _hi_ds_heads=0 _hi_ds_old=0
+  printf -v "$1" '%s' ''
+  [ -f "$2" ] || return 0
+  while IFS= read -r _hi_ds_l || [ -n "$_hi_ds_l" ]; do
+    _hi_ds_l="${_hi_ds_l#"${_hi_ds_l%%[![:space:]]*}"}"
+    case "$_hi_ds_l" in
+    '' | '#'*) ;;
+    '['*']'*) _hi_ds_heads=1 ;;
+    *) _hi_toml_row "$_hi_ds_l" _hi_ds_k _hi_ds_v || _hi_ds_old=1 ;;
+    esac
+  done <"$2"
+  if ! ((_hi_ds_old)); then
+    printf -v "$1" toml
+  elif ! ((_hi_ds_heads)) && grep -Eq "$3" "$2"; then
+    printf -v "$1" flat
   else
-    _hi_rows=("${_hi_rows[@]:0:_hi_sa_at}" "$2" "${_hi_rows[@]:_hi_sa_at}")
+    printf -v "$1" sections
   fi
 }
 
 # _hi_packages_drift <file> <tree's> - what a packages file of the user's own
 # gets wrong unseen, a line each: `group|<name>` for a group the tree's has
 # and <file> lacks, since a copy replaces the tree's and never gains one added
-# later, and `marker|<row>` for a row with a - or + past its first name,
-# which is read as part of a name nothing matches
+# later, and `marker|<row>` for a row with a name led by - or +, which is
+# part of a name nothing matches: a table says what its rows are
 function _hi_packages_drift() {
-  local _hi_pd_l _hi_pd_have=" "
+  local _hi_pd_l _hi_pd_g _hi_pd_k _hi_pd_v _hi_pd_have=" " _hi_pd_said=" "
   [ -f "$1" ] || return 0
-  while IFS=$' ' read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
-    case "$_hi_pd_l" in
-    *'#'*) ;;
-    '['*']') _hi_pd_have="$_hi_pd_have$_hi_pd_l " ;;
-    *,[-+]*) printf 'marker|%s\n' "$_hi_pd_l" ;;
-    esac
+  while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
+    if _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k; then
+      _hi_pd_have="$_hi_pd_have$_hi_pd_g "
+    elif _hi_toml_row "$_hi_pd_l" _hi_pd_k _hi_pd_v; then
+      case ",$_hi_pd_k,$_hi_pd_v" in *,[-+]*) printf 'marker|%s\n' "$_hi_pd_k${_hi_pd_v:+,$_hi_pd_v}" ;; esac
+    fi
   done <"$1"
   [ "$1" != "$2" ] && [ -f "$2" ] || return 0
-  while IFS=$' ' read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
-    case "$_hi_pd_l" in *'#'*) ;; '['*']')
-      case "$_hi_pd_have" in *" $_hi_pd_l "*) ;; *) printf 'group|%s\n' "${_hi_pd_l:1:${#_hi_pd_l}-2}" ;; esac
-      ;;
-    esac
+  while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
+    _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k || continue
+    case "$_hi_pd_have$_hi_pd_said" in *" $_hi_pd_g "*) continue ;; esac
+    _hi_pd_said="$_hi_pd_said$_hi_pd_g "
+    printf 'group|%s\n' "$_hi_pd_g"
   done <"$2"
 }
 

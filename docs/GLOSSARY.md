@@ -901,8 +901,8 @@ built-in hex, so a truecolor terminal shows an orange host as orange without
 anyone choosing a scheme. `_hi_color_base` is the pair as a name, for zsh's
 `%F{}` and fish's `set_color`, which know the sixteen and nothing else.
 
-A `config/colors` row may also carry its own hex, in an optional fourth
-column, and that is the one thing that outranks the scheme — for that pin
+A `config/colors` row may also carry its own hex, the second word of its
+string, and that is the one thing that outranks the scheme — for that pin
 only. `_hi_colors_scan` joins it to the name (`brred#ff5f5f`) and
 `_hi_color_split` takes the two apart again, so the pinned color travels as
 one string through the memos, `$_HI_TARGET_COLOR` over the wire and

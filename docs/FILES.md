@@ -68,21 +68,21 @@ Each file is marked with where it goes:
 All **payload**. `common/` is hi's code; `config/` holds the shipped
 defaults an overlay copy replaces.
 
-| File                                    | What it is                                                                                                                                                                     |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `common/core.sh`                        | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.                                                                         |
-| `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                                                                  |
-| `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                                                                 |
-| `common/zsh.zsh`                        | The same for zsh.                                                                                                                                                              |
-| `common/_hi`                            | zsh's completion for `hi`, autoloaded off `$fpath` by the rc's own `compinit`.                                                                                                 |
-| `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                                                                                       |
-| `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                                                                      |
-| `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                                                                                      |
-| `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                                                              |
-| `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                                                                  |
-| `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                                                                                      |
-| `config/colors`                         | Color pins.                                                                                                                                                                    |
-| `config/packages`                       | What the package check looks for, in `[group]` sections: `core`, `useful`, and `deprecated` run by default; `extras`, `trivia`, `base`, and `platform` wait to be switched on. |
+| File                                    | What it is                                                                                                                                                                          |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                        | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.                                                                              |
+| `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                                                                       |
+| `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                                                                      |
+| `common/zsh.zsh`                        | The same for zsh.                                                                                                                                                                   |
+| `common/_hi`                            | zsh's completion for `hi`, autoloaded off `$fpath` by the rc's own `compinit`.                                                                                                      |
+| `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                                                                                            |
+| `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                                                                           |
+| `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                                                                                           |
+| `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                                                                   |
+| `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                                                                       |
+| `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                                                                                           |
+| `config/colors`                         | Color pins, in TOML.                                                                                                                                                                |
+| `config/packages`                       | What the package check looks for, in TOML, a table per group: `core`, `useful`, and `deprecated` run by default; `extras`, `trivia`, `base`, and `platform` wait to be switched on. |
 
 ### scripts/
 

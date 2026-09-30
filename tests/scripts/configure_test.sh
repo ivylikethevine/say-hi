@@ -378,7 +378,7 @@ _HI_GROUPS_CHILD='
   : >"$_hi_dir/overlay/nano/nanorc"
   _HI_CONFIG_DIR="$_hi_dir/overlay"
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
-  printf "%s\n" "[core]" sh "[useful]" sh "[deprecated]" "-zz-hi-absent" "[extras]" sh "[Work]" sh \
+  printf "%s\n" "[core]" "sh = []" "[useful]" "sh = []" "[deprecated.unwanted]" "zz-hi-absent = []" "[extras]" "sh = []" "[Work]" "sh = []" \
     >"$_hi_dir/overlay/packages"
   _HI_PACKAGES="$_hi_dir/overlay/packages"
   _HI_SETTING_LINES=()
@@ -1154,7 +1154,7 @@ function test_prompt_tool_preview_reports_none() {
 function test_groups_preview_renders_the_candidate() {
   _hi_load_preview_sources
   local out
-  printf '[mine]\nsh\n' >"$_HI_WORKDIR/groups_fixture"
+  printf '[mine]\nsh = []\n' >"$_HI_WORKDIR/groups_fixture"
   out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview mine)"
   [[ "$(_hi_strip_ansi "$out")" == *" sh "* ]]
 }
@@ -1165,7 +1165,7 @@ function test_groups_preview_renders_the_candidate() {
 function test_groups_preview_says_when_nothing_shows() {
   _hi_load_preview_sources
   local out
-  printf '[mine]\nsh\n' >"$_HI_WORKDIR/groups_fixture"
+  printf '[mine]\nsh = []\n' >"$_HI_WORKDIR/groups_fixture"
   # the candidate is an argument, not a global the caller sets; the fixture
   # file is scoped to the render itself, not to the strip around it
   out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview none)"

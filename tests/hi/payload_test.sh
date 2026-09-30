@@ -150,14 +150,14 @@ function test_overlay_sends_nothing_outside_the_roster() {
 }
 
 # the overlay's packages file rides as packages, comment-stripped like the
-# tree's, every row intact - a mode character and a trailing space included
+# tree's, every table and row intact - a quoted key included
 function test_overlay_carries_packages_stripped() {
   local dir="$_HI_WORKDIR/packages-overlay" out
   mkdir -p "$dir"
-  printf '# a note\n[core]\nbat,batcat\n\n  # indented\n-sudo,doas\n+getent\n' >"$dir/packages"
+  printf '# a note\n[core]\nbat = ["batcat"]\n\n  # indented\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []\n' >"$dir/packages"
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages ] || return 1
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat packages)"
-  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat,batcat\n-sudo,doas\n+getent')" ] || {
+  [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat = ["batcat"]\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []')" ] || {
     _hi_cecho " | packages arrived as: [$out]" "$RED"
     return 1
   }
@@ -1011,8 +1011,8 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   local dir="$_HI_WORKDIR/excl" listing
   local -a payload_excl=() members=()
   mkdir -p "$dir"
-  printf '[hosttag]\nx red\n' >"$dir/colors"
-  printf '[core]\ngit\n' >"$dir/packages"
+  printf '[hosttag]\nx = "red"\n' >"$dir/colors"
+  printf '[core]\ngit = []\n' >"$dir/packages"
   printf 'alias a=b\n' >"$dir/aliases.sh"
   printf 'set ruler\n' >"$dir/nano.rc"
   _hi_read_lines members < <(_HI_CONFIG_DIR="$dir" _hi_overlay_files)
@@ -1034,7 +1034,7 @@ function test_header_off_keeps_the_header_home() {
   local dir="$_HI_WORKDIR/excl-header" listing
   local -a payload_excl=()
   mkdir -p "$dir"
-  printf '[core]\ngit\n' >"$dir/packages"
+  printf '[core]\ngit = []\n' >"$dir/packages"
   printf '#!/bin/sh\n' >"$dir/local.sh"
   printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$dir/local-off.sh"
   [ -z "$(_HI_DISABLE_HEADER=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ] ||
@@ -1057,7 +1057,7 @@ function test_header_off_keeps_the_header_home() {
 function test_the_payload_is_whole_without_a_cut_list() {
   local dir="$_HI_WORKDIR/excl-none"
   mkdir -p "$dir"
-  printf '[hosttag]\nx red\n' >"$dir/colors"
+  printf '[hosttag]\nx = "red"\n' >"$dir/colors"
   [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
 }
 

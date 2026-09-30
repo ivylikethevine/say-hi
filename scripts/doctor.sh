@@ -684,23 +684,28 @@ function doctor_settings_values() {
     [ -z "${!name:-}" ] ||
       doctor_row "$name" "is ignored - hi --plugin-off keeps a config home, and hi --configure converts this line" bad
   done
-  if [ -f "${_HI_PACKAGES:-}" ] && grep -q '^[^#]*:[0-9]' "$_HI_PACKAGES" && ! grep -Eq '^\[[^]]+\]$' "$_HI_PACKAGES"; then
-    doctor_row packages "$_HI_PACKAGES has name:priority rows, which read as missing commands - hi --configure converts it" bad
-  else
+  _hi_data_shape v "${_HI_PACKAGES:-}" "$_HI_FLAT_PACKAGES"
+  case "$v" in
+  flat) doctor_row packages "$_HI_PACKAGES has name:priority rows, which this hi reads none of - hi --configure converts it" bad ;;
+  sections) doctor_row packages "$_HI_PACKAGES has rows that are not TOML's name = [...], which this hi does not read - hi --configure converts it" bad ;;
+  *)
     # a copy of the user's own never gains a group the tree adds later, and
     # a marker past a row's first name is part of a name nothing matches
     v=""
     while IFS='|' read -r name why; do
       case "$name" in
       group) v="$v${v:+, }$why" ;;
-      marker) doctor_row packages "the row $why never matches: a - or + past its first name is read as part of that name" warn ;;
+      marker) doctor_row packages "the row $why never matches: a - or + leading a name is read as part of that name" warn ;;
       esac
     done < <(_hi_packages_drift "${_HI_PACKAGES:-}" "$_HI_ROOT/config/packages")
     [ -z "$v" ] || doctor_row packages "lacks the tree's groups, which are never checked: $v ($_HI_ROOT/config/packages has them to copy)"
-  fi
-  if [ -f "${_HI_COLORS:-}" ] && grep -Eq '^[a-z]+,[^,#]+,' "$_HI_COLORS" && ! grep -Eq '^\[[^]]+\]$' "$_HI_COLORS"; then
-    doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad
-  fi
+    ;;
+  esac
+  _hi_data_shape v "${_HI_COLORS:-}" "$_HI_FLAT_COLORS"
+  case "$v" in
+  flat) doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad ;;
+  sections) doctor_row colors "$_HI_COLORS has rows that are not TOML's name = \"color\", which pin nothing - hi --configure converts it" bad ;;
+  esac
 }
 
 # doctor_files - the places hi.sh's $_HI_OVERLAY_TABLE says a member can come

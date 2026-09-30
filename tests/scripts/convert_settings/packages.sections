@@ -1,0 +1,180 @@
+# The package check - `hi --preview packages` renders each group's colors, a
+# real example from this file, then the check itself.
+#
+# `[group]` starts a group; $_HI_PACKAGES_GROUPS (space- or comma-separated,
+# or `none`) names the groups that run, and ships as `core useful deprecated`.
+# Drop `check` from _HI_HEADER_ORDER to turn the check off.
+#
+# `hi --add-package` copies this file to ~/.config/say-hi/packages the first
+# time and edits it there; that copy replaces this one wholesale.
+#
+# [-|+]package,alternative2,...
+# alternatives in order of preference: the first one installed is shown.
+# no marker: shown installed or missing
+# `-` unwanted: silent while absent, a warning when installed
+# `+` required: silent while installed, an alarm when missing
+
+# the install checklist, worth adding to a box you visit often
+[core]
+bat,batcat,ccat,cat
+eza,lsd
+jq,gojq,jaq
+tldr,tlrc,tealdeer,man
+just,task
+asdf,mise
+direnv
+
+# good to know either way. bash and sudo are required rather than core: a
+# bash-less box gets hi's sh tier and a sudo-less one is a choice
+[useful]
++bash
++sudo,doas
+apt-get,dnf,pacman,zypper,apk,pkg,emerge,xbps-install,brew,choco,yay,paru,rpm,mas
+flatpak,snap,nix,guix
+nano,micro,vim,pico,nvim,vi,emacs,hx,helix,kak
+zeditor,zed,code
+docker,podman,nerdctl,finch
+kubectl
+nomad
+python3,python
+curl,httpie,xh,curlie,httpstat
+wget,aria2
+rsync
+top,btop,htop,btm,glances
+delta,difft,diff-so-fancy,icdiff,xdelta3
+zsh,fish
+dust,ncdu,gdu
+zip,unzip
+yq
+less,moar,most
++gpg
++tput
++ip,ifconfig
+
+# superseded or unmaintained: installed means a replacement is due
+[deprecated]
+-exa
+-neofetch
+-python2
+-xsv
+
+# nice, not load-bearing
+[extras]
+gping,prettyping,mtr
+navi,cheat
+tre,tree,broot
+dua
+duf
+procs,pstree
+ctop,lazydocker
+k9s,helm,kind,minikube
+pv,progress
+scc,tokei,cloc
+ouch,7z,zstd,xz
+strace,ltrace
+dig,dog,doggo
+ffmpeg
+rustc,rustup
+act
+gh,glab
+tailspin,lnav
+yazi,ranger,lf,nnn,mc
+jless,fx
+choose,mlr,qsv
+hexyl,xxd,hexdump
+fastfetch
+viddy,hwatch,watch
+croc,wormhole
+pyenv,rbenv,nodenv,conda,devbox,devenv
+fd,fdfind,find
+rg,ag,ugrep,ack,rga
+fzf,sk,skim
+tmux,zellij,screen,dtach
+zoxide,autojump
+atuin,mcfly
+starship,oh-my-posh,powerline-go
+lazygit,gitui,tig
+hi
+go
+make,cmake
+sd,sed
+hyperfine
+sshfs,rclone
+sshm
+watchexec,entr
+
+[trivia]
+cosign
+whois
+pkgconf
+fusermount
+dotnet
+php
+uv,pip,pipx
+n,npx,npm,nvm,node,bun,pnpm,fnm
+netstat,bandwhich,iftop,nethogs
+grc
+has
+nmcli
+nmap,rustscan
+sshpass
+symlinks
+fdupes
+lesspipe
+pgrep
+b2sum,sha256sum
+
+# the tools hi and a working shell lean on: silent unless one is missing
+[base]
++awk
++base64
++grep
++tr
++cut
++head
++sort
++uniq
++wc
++paste
++date
++du
++mkdir
++rm
++ln
++chmod
++mktemp
++dirname
++readlink
++hostname
++uname
++whoami
++ssh
++ssh-keygen
++gzip
++od
++stty
++tar
++git
++df
++stat
++scp
++openssl
++ping
++timeout,gtimeout
++lscpu,nproc,sysctl
+
+# what kind of box this is: which terminal, dotfile manager, tunnel, VM
+[platform]
+sw_vers,wmic,sysctl,vm_stat
+dpkg,wpkg
+bsdtar,gtar
+getent
+dash
+kitty,wezterm,alacritty,foot,ghostty,konsole,yakuake,guake
+chezmoi,yadm,stow,dotbot,rcm,homeshick
+mosh,et
+sshuttle,autossh
+tailscale,tsh
+limactl,colima,orb
+distrobox,toolbox,devpod
+xpipe

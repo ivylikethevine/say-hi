@@ -431,7 +431,7 @@ function _hi_editors_preview() {
   (
     # shellcheck source=/dev/null # hi.sh, which shellcheck would follow into its own `_hi "$@"`
     source "$_HI_LAUNCHER" >/dev/null 2>&1
-    local row member src lines line body seen=$'\n'
+    local row member src lines line body dir from seen=$'\n'
     # under the list this run has settled on, not the file's
     setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" _HI_PLUGINS_OFF
     while IFS= read -r row; do
@@ -444,9 +444,12 @@ function _hi_editors_preview() {
           line="${line#* alias }"
           body="${line#*=\"}"
           body="${body%%\"*}"
-          # the file it names, else the directory holding it
+          # the file it names, else the directory holding it; both cut
+          # ahead of the substitution, which bash 3.2 splits at a / inside
+          # a nested expansion
+          dir="${member%%/*}" from="${src%/*}"
           body="${body//\$_HI_CONFIG_DIR\/$member/$src}"
-          body="$(printf '%-5s -> %s' "${line%%=*}" "${body//\$_HI_CONFIG_DIR\/${member%%/*}/${src%/*}}")"
+          body="$(printf '%-5s -> %s' "${line%%=*}" "${body//\$_HI_CONFIG_DIR\/$dir/$from}")"
           case "$seen" in *$'\n'"$body"$'\n'*) continue ;; esac
           seen="$seen$body"$'\n'
           printf '%s\n' "$body"

@@ -3,8 +3,8 @@
   "editor.insertSpaces": true,
   "editor.detectIndentation": false,
   "files.associations": {
-    "config/colors": "csv",
-    "config/packages": "csv",
+    "config/colors": "toml",
+    "config/packages": "toml",
     "docs/tapes/editors/vimrc": "ini",
     "docs/tapes/editors/nanorc": "ini",
   },

@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: MIT
 # Rewrites overlay files still in a shape this hi no longer reads, in place,
 # keeping each original beside it as <file>.old:
-#   packages     "[-|+]name:N,..." rows -> [group] sections
-#   colors       "type,name,color[,rrggbb]" rows -> [type] sections
+#   packages     "[-|+]name:N,..." rows, or "[-|+]name,..." rows under
+#                [group] lines -> TOML tables of name = [...] rows
+#   colors       "type,name,color[,rrggbb]" rows, or "name color [rrggbb]"
+#                rows under [type] lines -> TOML tables of name = "..." rows
 #   settings.sh  _HI_PACKAGES_MIN_PRIORITY -> _HI_PACKAGES_GROUPS; the
 #                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped;
 #                an editor's or a multiplexer's _HI_DISABLE_* -> its word in
@@ -111,6 +113,122 @@ function _hi_convert_colors() {
   '
 }
 
+# _hi_toml_packages - stdin's `[group]` sections of "[-|+]name,..." rows as
+# TOML on stdout: a group's plain rows under `[group]`, its + rows under
+# `[group.required]`, its - rows under `[group.unwanted]`, each
+# `name = ["alternative", ...]`. A table is written once, so a group's rows
+# gather by kind, in file order within one. A line holding a #, which nothing
+# read, is a comment; comments travel with the row or the group below them.
+function _hi_toml_packages() {
+  awk '
+    function key(n) { return (n ~ /^[A-Za-z0-9_-]+$/) ? n : "\"" n "\"" }
+    function group(g) {
+      if (!(g in known)) { known[g] = 1; order[++ng] = g }
+    }
+    function table(g, k) {
+      if (body[g, k] == "" && (k != "" || body[g, "required"] body[g, "unwanted"] != "")) return
+      if (g k != "") {
+        printf "%s%s[%s%s%s]\n", (out ? "\n" : ""), above[g], g, (g != "" && k != "" ? "." : ""), k
+        above[g] = ""
+      }
+      printf "%s", body[g, k]
+      out = 1
+    }
+    /^[ \t]*$/ {
+      if (!seen) { head = head pend "\n"; pend = "" }
+      next
+    }
+    /#/ {
+      sub(/^[ \t]+/, "")
+      pend = pend (/^#/ ? "" : "# ") $0 "\n"
+      next
+    }
+    /^[ \t]*\[.*\][ \t]*$/ {
+      seen = 1
+      g = $0; gsub(/[][ \t]/, "", g)
+      group(g)
+      above[g] = above[g] pend; pend = ""
+      next
+    }
+    {
+      seen = 1
+      line = $0
+      gsub(/[ \t]/, "", line)
+      m = substr(line, 1, 1)
+      k = (m == "+") ? "required" : (m == "-") ? "unwanted" : ""
+      if (k != "") line = substr(line, 2)
+      n = split(line, alt, ",")
+      row = ""
+      for (i = 2; i <= n; i++) row = row (i > 2 ? ", " : "") "\"" alt[i] "\""
+      group(g)
+      body[g, k] = body[g, k] pend key(alt[1]) " = [" row "]\n"
+      pend = ""
+    }
+    END {
+      sub(/\n+$/, "\n", head)
+      if (head == "\n") head = ""
+      printf "%s", head
+      out = (head != "")
+      for (j = 1; j <= ng; j++) {
+        table(order[j], "")
+        table(order[j], "required")
+        table(order[j], "unwanted")
+      }
+      if (pend != "") printf "%s%s", (out ? "\n" : ""), pend
+    }
+  '
+}
+
+# _hi_toml_colors - stdin's `[type]` sections of "name color [rrggbb]" rows as
+# TOML on stdout: `name = "color [rrggbb]"` under `[type]`, a table written
+# once and its rows in file order. What followed a row's color and was no
+# hex, which nothing read, is a comment behind the row.
+function _hi_toml_colors() {
+  awk '
+    function key(n) { return (n ~ /^[A-Za-z0-9_-]+$/) ? n : "\"" n "\"" }
+    /^[ \t]*$/ {
+      if (!seen) { head = head pend "\n"; pend = "" }
+      next
+    }
+    /^[ \t]*#/ {
+      sub(/^[ \t]+/, "")
+      pend = pend $0 "\n"
+      next
+    }
+    /^[ \t]*\[.*\][ \t]*$/ {
+      seen = 1
+      t = $0; gsub(/[][ \t]/, "", t)
+      if (!(t in known)) { known[t] = 1; order[++nt] = t }
+      above[t] = above[t] pend; pend = ""
+      next
+    }
+    {
+      seen = 1
+      v = $2; from = 3
+      if ($3 ~ /^#?[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]$/) { v = v " " $3; from = 4 }
+      note = ""
+      for (i = from; i <= NF; i++) note = note " " $i
+      sub(/^[ #]+/, "", note)
+      if (!(t in known)) { known[t] = 1; order[++nt] = t }
+      body[t] = body[t] pend sprintf("%-15s = \"%s\"%s\n", key($1), v, (note == "" ? "" : " # " note))
+      pend = ""
+    }
+    END {
+      sub(/\n+$/, "\n", head)
+      if (head == "\n") head = ""
+      printf "%s", head
+      out = (head != "")
+      for (j = 1; j <= nt; j++) {
+        t = order[j]
+        if (t != "") printf "%s%s[%s]\n", (out ? "\n" : ""), above[t], t
+        printf "%s", body[t]
+        out = 1
+      }
+      if (pend != "") printf "%s%s", (out ? "\n" : ""), pend
+    }
+  '
+}
+
 # _hi_convert_settings - stdin's settings.sh with a _HI_PACKAGES_MIN_PRIORITY
 # line replaced by the _HI_PACKAGES_GROUPS that shows the same tiers, its
 # trailing comment (install's marker among them) kept, or dropped where that
@@ -179,21 +297,35 @@ function _hi_convert_settings() {
   '
 }
 
-# _hi_convert_one <file> <converter> <old-shape grep> - converts <file> when
-# a line matches the old shape and none is a [section] (settings.sh has none)
+# _hi_convert_one <file> <shape> <converter> - <file> through <converter>,
+# and through _hi_toml_<converter's subject> behind it when <shape> is `flat`,
+# the rows two formats back; nothing for the shape this hi reads, or no file
 function _hi_convert_one() {
   local f="$1" tmp
-  [ -f "$f" ] && grep -Eq "$3" "$f" || return 0
-  [ "$2" = _hi_convert_settings ] || ! grep -Eq '^\[[^]]+\]$' "$f" || return 0
+  case "$2" in '' | toml) return 0 ;; esac
   if [ -n "$_HI_DRY_RUN" ]; then
     _hi_cecho " would convert $f (the old one kept at $f.old)" "$BLUE"
     return 0
   fi
   tmp="$(mktemp -t hi.convert.XXXXXX)"
-  "$2" <"$f" >"$tmp"
+  case "$2" in
+  flat) "$3" <"$f" | "_hi_toml_${3#_hi_convert_}" >"$tmp" ;;
+  *) "$3" <"$f" >"$tmp" ;;
+  esac
   cp -p "$f" "$f.old"
   _hi_write_back "$tmp" "$f"
   _hi_cecho " converted $f to the current format (the old one is at $f.old)" "$GREEN"
+}
+
+# _hi_convert_data <file> <packages|colors> <flat rows' pattern> - a data
+# file, by the shape scripts/lib.sh's _hi_data_shape reads off its rows
+function _hi_convert_data() {
+  local shape=""
+  _hi_data_shape shape "$1" "$3"
+  case "$shape" in
+  flat) _hi_convert_one "$1" flat "_hi_convert_$2" ;;
+  sections) _hi_convert_one "$1" sections "_hi_toml_$2" ;;
+  esac
 }
 
 # sourced by a suite for the converters alone
@@ -218,6 +350,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-_hi_convert_one "$dir/packages" _hi_convert_packages '^[^#]*:[0-9]'
-_hi_convert_one "$dir/colors" _hi_convert_colors '^[a-z]+,[^,#]+,'
-_hi_convert_one "$dir/settings.sh" _hi_convert_settings '^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_(EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ))='
+_hi_old_settings='^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_(EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ))='
+_hi_convert_data "$dir/packages" packages "$_HI_FLAT_PACKAGES"
+_hi_convert_data "$dir/colors" colors "$_HI_FLAT_COLORS"
+[ ! -f "$dir/settings.sh" ] || ! grep -Eq "$_hi_old_settings" "$dir/settings.sh" ||
+  _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings
