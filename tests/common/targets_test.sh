@@ -1068,10 +1068,11 @@ function test_preview_subjects_agree_everywhere() {
 
 function test_word_flags_match_the_words_roster() {
   local arms want got
-  # the arm labels of the `words` case, in file order.
+  # the arm labels of the `words` case, one per line; `--a | --b)` gives both.
   # shellcheck disable=SC2016 # the sed script is literal, not an expansion
   arms="$(sed -n '/if \[ "\$kind" = words \]/,/^fi$/p' "$_HI_TARGETS" |
-    sed -n 's/^  \(--[a-z-]*\))$/\1/p' | sort | tr '\n' ' ')"
+    sed -n 's/^  \(--[a-z| -]*\))$/\1/p' | tr -d ' ' | tr '|' '\n' |
+    sort | tr '\n' ' ')"
   # shellcheck disable=SC2086 # the split is the roster
   want="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
   got="$arms"
