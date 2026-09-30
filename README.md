@@ -420,40 +420,32 @@ checkout: an account or an upstream review that lands when it lands.
        `plugins` grammar, and eleven more gave way to `${!name}` and
        `printf -v`. Left: the eight of its twenty-seven that read from
        outside the tree - the shell's own `complete -p`, `alias -p`, and
-       `trap -p` run back in `common/bash.sh`, a prompt program's init, and
-       a plugin's `$_HI_SEGMENT` - and indirect assignment, which nothing
-       counts. **Ticks when:** no `eval` in the roster reads a value from
+       `trap -p` run back in `common/bash.sh` and its oh-my-bash loader, a
+       prompt program's init, and a plugin's `$_HI_SEGMENT` - and indirect
+       assignment, which nothing counts. **Ticks when:** no `eval` in the roster reads a value from
        outside the tree. **Open question:** a prompt program's init and
        `$_HI_SEGMENT` are commands by contract; do they count against the
        tick, or does the roster name them as the two ways in that stay?
 
-8. [ ] _Before 1.0:_ **A header cell of the user's own** — every cell is
-       one `_hi_cell_<word>` behind a dispatch, and an extension can
-       only set a prompt segment. **Do:** `header/`, a directory member
-       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members))
-       scanned and stripped as sh, each file defining `_hi_cell_<word>`
-       (`common/header.sh` is bash on every side). `_hi_header_word_cell`'s
-       roster gate admits the loaded cells' names beside
-       `$_HI_HEADER_ORDER_DEFAULT`'s, since only a known word may reach a
-       function; a cell with no `$_HI_HEADER_ALTS` entry gets an alternate
-       from its own hue
-       ([HI.48](docs/GLOSSARY.md#hi48-header-cell-hue-resolution));
-       a user's cell may fork, and the shared probes stay the built-ins'.
-       The built-in cells stay in `header.sh`: two probes feed eleven, so a
-       file each would ship more and save nothing. **Ticks when:** a
-       `header/` member's cell draws on a target where `$_HI_HEADER_ORDER`
-       puts it, and [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) shows how.
+8. [ ] _Before 1.0:_ **A header cell of the user's own** — shipped:
+       `header/`, a directory member
+       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)) scanned
+       and stripped as sh, each file defining `_hi_cell_<word>` for its
+       name; the roster gate admits the words that loaded, a cell with no
+       `$_HI_HEADER_ALTS` entry takes an alternate round the ring from its
+       own hue ([HI.48](docs/GLOSSARY.md#hi48-header-cell-hue-resolution)),
+       and [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#header-cells-of-your-own)
+       shows how. What is left is seeing it: the framework suite's `config`
+       case draws one. **Ticks when:** that case passes in CI.
 
 9. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
-       the client knows the prompt programs a target is handed before it
-       packs
-       ([HI.32](docs/GLOSSARY.md#hi32-starship-deference)).
-       **Do:** cut the framework loaders outside that list from the payload,
-       as `_hi_payload_excl` cuts a shadowed default. The git and
-       environment segments stay built in: they draw with no fork, and on
-       `_HI_SEGMENT` each would cost one a prompt. **Ticks when:** a
-       connect handed starship alone ships no framework's loader, and
-       `--group bench` reads the smaller payload.
+       shipped: each framework's loader is a file of its own,
+       `common/fw_<name>.<ext>`, and `_hi_payload_excl` cuts the ones a
+       target is not handed
+       ([HI.32](docs/GLOSSARY.md#hi32-starship-deference)), as it cuts a
+       shadowed default; the git and environment segments stay built in.
+       What is left is the bench reading it. **Ticks when:** `--group bench`
+       reads a connect handed starship alone under the unconfigured payload.
 
 10. [ ] _Before 1.0:_ **A hand-written prompt stays** — shipped: at home,
         bash and zsh keep a `PS1`/`PROMPT` the rc set unless it is one nobody

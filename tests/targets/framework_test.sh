@@ -152,9 +152,13 @@ function _hi_prompt_client_home() {
 # _hi_config_client_home <dir> - a client home with a tmux config, a micro
 # settings file, a nanorc, a ripgreprc, and an fzfrc ($RIPGREP_CONFIG_PATH and
 # $FZF_DEFAULT_OPTS_FILE, set by the case) of its own, each a marker the
-# config probe looks for; the nanorc's include is one hi drops
+# config probe looks for; the nanorc's include is one hi drops. Its overlay
+# has a header/ cell of its own, which $_HI_HEADER_ORDER puts in the header.
+# shellcheck disable=SC2016 # the cell's own code, expanded on the target
 function _hi_config_client_home() {
-  mkdir -p "$1/.config/micro"
+  mkdir -p "$1/.config/micro" "$1/.config/say-hi/header"
+  printf '_hi_cell_hitest() { printf -v "$1" %%s "${CYAN}HITESTCELL"; }\n' >"$1/.config/say-hi/header/hitest"
+  printf 'export _HI_HEADER_ORDER="utc hitest"\n' >"$1/.config/say-hi/settings.sh"
   printf 'set -g @hi_mark HITMUX\n' >"$1/.tmux.conf"
   printf '{"tabsize": 7}\n' >"$1/.config/micro/settings.json"
   printf 'include "~/.nano/*.nanorc"\nset tabsize 4\n' >"$1/.nanorc"
@@ -225,6 +229,7 @@ function _hi_run_framework_case() {
   config)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" RIPGREP_CONFIG_PATH="$_HI_WORKDIR/home-$label/.ripgreprc"
+    local -x _HI_CONFIG_DIR="$HOME/.config/say-hi"
     local -x FZF_DEFAULT_OPTS_FILE="$_HI_WORKDIR/home-$label/.fzfrc"
     # home's configs ride only with their tools here, and a runner has no
     # micro, nano, rg, or fzf
@@ -245,6 +250,12 @@ function _hi_run_framework_case() {
     # the assertion this suite exists for: hi and the framework coexisting
     # without either one printing at the user
     _hi_transcript_is_clean "$label" "$_HI_WORKDIR/$label.interactive.out" && ok=1
+    # the config case's header drew the overlay's header/ cell
+    [ "$3" != config ] || grep -q HITESTCELL "$_HI_WORKDIR/$label.interactive.out" || {
+      _hi_h3 " | [$label] -- FAILED: the overlay's header/ cell did not draw" "$RED"
+      _hi_note_failure "[$label] header/ cell missing"
+      ok=0
+    }
   fi
 
   _hi_rm_container "$name"

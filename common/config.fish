@@ -188,18 +188,10 @@ if test "$_HI_DISABLE_PROMPT" != 1
   end
   set -e _hi_t
   if test "$_hi_pt" = tide
-    # fish already loaded tide and its fish_prompt autoloads; on a target the
-    # home config rides as fish_variables lines, exported so tide's background
-    # renderer (a `fish -c`) sees them over the target's own
-    if test "$_HI_REMOTE_SESSION" = 1; and test -f $_HI_CONFIG_DIR/tide.vars
-      for _hi_l in (string match 'SETUVAR tide_*' <$_HI_CONFIG_DIR/tide.vars)
-        set -l kv (string split -m1 : -- (string sub -s 9 -- $_hi_l))
-        # \x1e joins a list, a lone \x1d is the empty one
-        set -l v (string unescape -- "$kv[2]" | string collect)
-        test "$v" = \x1d; and set -gx $kv[1]; or set -gx $kv[1] (string split -- \x1e "$v")
-      end
-      set -e _hi_l
-    end
+    # its loader rides only to a target handed tide; at home fish loaded
+    # tide, and the config it reads, itself
+    test "$_HI_REMOTE_SESSION" = 1; and test -f $_HI_ROOT/common/fw_tide.fish
+    and source $_HI_ROOT/common/fw_tide.fish
   else if test "$_hi_pt" = powerline-go
     function fish_prompt
       powerline-go -shell bare -error $status -jobs (count (jobs -p)) (string split -n ' ' -- "$_HI_POWERLINE_GO_OPTS")

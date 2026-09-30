@@ -1097,14 +1097,15 @@ _HI_HEADER_PRESETS=(
 # vocabulary exactly once, in display order, with a parallel on/off flag.
 # _hi_header_edit_load seeds it from this run's value - the words it names
 # first, in its order, then every word it leaves out, off, in the shipped
-# order - and _hi_header_edit_commit writes the on words back to pending
+# order and then header/'s - and _hi_header_edit_commit writes the on words back to pending
 # (empty when they are the shipped order, so nothing is written for it).
 _HI_HDR_WORDS=()
 _HI_HDR_ON=()
 
 function _hi_header_edit_load() {
-  local current word seen=" "
+  local current word vocab seen=" "
   _hi_load_preview_sources
+  _hi_header_vocab vocab
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" current
   [ -n "$current" ] || current="$_HI_HEADER_ORDER_DEFAULT"
   _HI_HDR_WORDS=()
@@ -1117,7 +1118,8 @@ function _hi_header_edit_load() {
     _HI_HDR_WORDS+=("$word")
     _HI_HDR_ON+=(1)
   done
-  for word in $_HI_HEADER_ORDER_DEFAULT; do
+  # shellcheck disable=SC2086 # the split is the point: one word per feature
+  for word in $vocab; do
     case "$seen" in *" $word "*) continue ;; esac
     seen="$seen$word "
     _HI_HDR_WORDS+=("$word")

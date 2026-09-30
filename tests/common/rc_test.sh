@@ -791,6 +791,18 @@ function test_prompt_program_draws() {
   }
 }
 
+# a target is sent only the loaders of the frameworks it is handed (hi.sh's
+# _hi_payload_excl), so a framework whose loader is missing is passed over
+# for the next in the list, hi's prompt at the end of it
+function test_prompt_framework_without_its_loader_is_passed_over() {
+  local shell="$1" fw="$2" want="$3" base
+  base="$(mktemp -d "$_HI_WORKDIR/noloader.XXXXXX")" || return 1
+  mkdir -p "$base/say-hi"
+  cp -R "$_HI_ROOT/common" "$_HI_ROOT/config" "$base/say-hi/"
+  rm -f "$base/say-hi/common/fw_$fw".*
+  test_prompt_program_draws "$shell" "$want" : _HI_PROMPT_TOOL="$fw" _HI_REMOTE_SESSION=1 _HI_HOME="$base"
+}
+
 #
 # The environment segment (GLOSSARY: HI.54). Three implementations - the shared
 # common/env_prompt.sh for bash and zsh, config.fish's own copy for fish - and
@@ -1544,6 +1556,8 @@ function run_rc_tests() {
     test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
   _hi_check "[bash] ...loaded by the rc, its prompt stays at home" \
     test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=oh-my-bash
+  _hi_check "[bash] ...a target sent no loader for it keeps hi's prompt" \
+    test_prompt_framework_without_its_loader_is_passed_over bash oh-my-bash '*\\u@\\h:\\w*'
   _hi_check "[bash] bash-it, loaded by hi, draws the home theme on a target" \
     test_prompt_program_draws bash 'BASHIT|*' : _HI_PROMPT_TOOL=bash-it _HI_REMOTE_SESSION=1
   _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
@@ -1563,6 +1577,8 @@ function run_rc_tests() {
     test_prompt_program_draws zsh 'OMZ-G|*' : _HI_PROMPT_TOOL=oh-my-zsh _HI_REMOTE_SESSION=1
   _hi_check_requires zsh "[zsh] ...at home, with no theme to draw, hi's prompt stays" \
     test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL=oh-my-zsh
+  _hi_check_requires zsh "[zsh] ...a target sent no loader for it keeps hi's prompt" \
+    test_prompt_framework_without_its_loader_is_passed_over zsh oh-my-zsh '*%n@%m*'
   _hi_check_requires fish "[fish] powerline-go draws each prompt with the status and options" \
     test_prompt_program_draws fish 'PLGO -shell bare -error 0 -jobs 0 -mode flat' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
   _hi_check_requires fish "[fish] tide draws with the home variables, exported, on a target" \

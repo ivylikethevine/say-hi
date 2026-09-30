@@ -1613,6 +1613,63 @@ function test_header_hues_never_repeat_in_a_pathological_order() {
   done
 }
 
+# _hi_header_cells_fixture - a header/ directory: `sky` and `sea` draw cyan
+# cells, `quiet.sh` defines no cell of its own name, `stale.bak` is no member
+# shellcheck disable=SC2016 # the cells' own code, expanded when sourced
+function _hi_header_cells_fixture() {
+  local dir="$_HI_WORKDIR/header-cells"
+  mkdir -p "$dir"
+  printf '_hi_cell_sky() { printf -v "$1" %%s "${CYAN}Sky: clear"; }\n' >"$dir/sky"
+  printf '_hi_cell_sea() { printf -v "$1" %%s "${BRCYAN}Sea: calm"; }\n' >"$dir/sea.sh"
+  printf '_hi_cell_loud() { printf -v "$1" %%s LOUD; }\n' >"$dir/quiet.sh"
+  printf '_hi_cell_stale() { printf -v "$1" %%s STALE; }\n' >"$dir/stale.bak"
+  printf '%s' "$dir"
+}
+
+# a header/ member's cell draws where $_HI_HEADER_ORDER puts it, its word
+# the file's name; a function no file is named for stays behind the gate
+function test_a_header_cell_of_your_own_draws() {
+  local dir out
+  dir="$(_hi_header_cells_fixture)"
+  out="$(
+    unset _HI_HEADER_WORDS
+    _HI_HEADER_CELLS="$dir" _HI_HEADER_ORDER="sky utc loud stale" hi_header Connected
+  )"
+  [[ "$out" == *"Sky: clear"* && "$out" != *LOUD* && "$out" != *STALE* ]] ||
+    _hi_because "drew: [$out]" || return 1
+  out="$(
+    unset _HI_HEADER_WORDS
+    _HI_HEADER_CELLS="$dir" _hi_header_vocab v && printf '%s' "${v#"$_HI_HEADER_ORDER_DEFAULT"}"
+  )"
+  [ "$out" = " sea sky" ] || _hi_because "the words that loaded: [$out]"
+}
+
+# a cell with no $_HI_HEADER_ALTS row takes the next bright hue round the
+# ring from its own, so two of them side by side never share one
+function test_a_header_cell_of_your_own_gets_an_alternate() {
+  local dir h alt alt_hue cell hue prev=""
+  for h in 1 2 3 4 5 6; do
+    alt="" alt_hue=""
+    _hi_header_word_alt nosuchword alt "$h"
+    _hi_cell_hue alt_hue "${alt}x"
+    [ -n "$alt_hue" ] && [ "$alt_hue" != "$h" ] || _hi_because "hue $h got [$alt_hue]" || return 1
+  done
+  dir="$(_hi_header_cells_fixture)"
+  (
+    unset _HI_HEADER_WORDS
+    _HI_HEADER_CELLS="$dir"
+    _HI_PENDING_CELLS=() _HI_PREV_HUE=""
+    _hi_collect_header_word sky
+    _hi_collect_header_word sea
+    for cell in "${_HI_PENDING_CELLS[@]}"; do
+      hue=""
+      _hi_cell_hue hue "$cell"
+      [ -n "$hue" ] && [ "$hue" != "$prev" ] || exit 1
+      prev="$hue"
+    done
+  )
+}
+
 # containers/jobs/pods render only when their own backend answered, so any
 # subset of the trio has to read right on its own - three distinct families,
 # not just "not identical to the immediate neighbor"
@@ -2371,6 +2428,8 @@ function run_header_tests() {
   _hi_check "...nor under a color scheme" test_header_hues_never_repeat_under_a_scheme
   _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_24_word_scheme
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
+  _hi_check "A header/ member's cell draws where the order puts it" test_a_header_cell_of_your_own_draws
+  _hi_check "...and takes an alternate from its own hue" test_a_header_cell_of_your_own_gets_an_alternate
   _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
   _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color
 

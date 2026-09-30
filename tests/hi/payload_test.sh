@@ -1048,7 +1048,7 @@ function test_a_home_config_needs_its_tool_here() {
 # under a pre-1.0 name is no
 # member, so the default it no longer overrides keeps riding.
 function test_a_shadowed_tree_default_is_cut_from_the_payload() {
-  local dir="$_HI_WORKDIR/excl" listing
+  local dir="$_HI_WORKDIR/excl" listing _HI_PROMPT_TOOL="$_HI_PROMPT_TOOLS"
   local -a payload_excl=() members=()
   mkdir -p "$dir"
   printf '[hosttag]\nx = "red"\n' >"$dir/colors"
@@ -1071,7 +1071,7 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
 # list, and the overlay's copy of it all stay home; under _HI_DISABLE_LOCAL=1
 # only a line of settings.sh's own says so
 function test_header_off_keeps_the_header_home() {
-  local dir="$_HI_WORKDIR/excl-header" listing
+  local dir="$_HI_WORKDIR/excl-header" listing _HI_PROMPT_TOOL="$_HI_PROMPT_TOOLS"
   local -a payload_excl=()
   mkdir -p "$dir"
   printf '[core]\ngit = []\n' >"$dir/packages"
@@ -1099,6 +1099,26 @@ function test_the_payload_is_whole_without_a_cut_list() {
   mkdir -p "$dir"
   printf '[hosttag]\nx = "red"\n' >"$dir/colors"
   [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
+}
+
+# a framework's prompt loader rides only to a target handed that framework:
+# none with starship alone, the one named beside it, and each name the cut
+# gives is a file of the tree
+function test_a_prompt_loader_rides_only_where_handed() {
+  local listing f
+  local -a payload_excl=()
+  _HI_PROMPT_TOOL=starship _hi_payload_excl
+  [ "${payload_excl[*]}" = "say-hi/common/fw_powerlevel10k.zsh say-hi/common/fw_oh-my-zsh.zsh say-hi/common/fw_oh-my-bash.sh say-hi/common/fw_bash-it.sh say-hi/common/fw_tide.fish" ] ||
+    _hi_because "cut: [${payload_excl[*]}]" || return 1
+  for f in "${payload_excl[@]}"; do
+    [ -f "$_HI_HOME/$f" ] || _hi_because "the cut names $f, which the tree lacks" || return 1
+  done
+  listing="$(_hi_payload_tar | tar tzf -)"
+  [[ "$listing" != *common/fw_* && "$listing" == *common/bash.sh* ]] ||
+    _hi_because "a loader rode with starship alone" || return 1
+  _HI_PROMPT_TOOL="oh-my-zsh starship" _hi_payload_excl
+  [[ ${#payload_excl[@]} = 4 && " ${payload_excl[*]} " != *" say-hi/common/fw_oh-my-zsh.zsh "* ]] ||
+    _hi_because "handed oh-my-zsh, cut: [${payload_excl[*]}]"
 }
 
 # the cut list is the members paths.sh resolves overlay-over-tree, no more:
@@ -1995,6 +2015,7 @@ function run_hi_payload_tests() {
   _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
   _hi_check "With the header off, header.sh and the package list stay home" test_header_off_keeps_the_header_home
   _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
+  _hi_check "A prompt framework's loader rides only where handed" test_a_prompt_loader_rides_only_where_handed
   _hi_check "The shadow roster is paths.sh's cascade" test_the_shadow_roster_matches_paths_sh
 
   _hi_h2 "Testing: the in-transit comment strip"

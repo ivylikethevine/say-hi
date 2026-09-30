@@ -341,14 +341,15 @@ function _hi_is_ip_hide() {
 }
 
 # _hi_is_header_order <words> - every word of the value one of $_HI_HEADER_ORDER's
-# vocabulary, read off header.sh's own $_HI_HEADER_ORDER_DEFAULT (the caller
-# has header.sh loaded) rather than a second copy of the list
+# vocabulary, read off header.sh's own _hi_header_vocab (the caller has
+# header.sh loaded) rather than a second copy of the list
 function _hi_is_header_order() {
-  local _hi_ho_w
+  local _hi_ho_w _hi_ho_v
   [ -n "$1" ] || return 1
+  _hi_header_vocab _hi_ho_v
   # shellcheck disable=SC2086 # the value is a space-separated word list
   for _hi_ho_w in $1; do
-    case " $_HI_HEADER_ORDER_DEFAULT " in *" $_hi_ho_w "*) ;; *) return 1 ;; esac
+    case " $_hi_ho_v " in *" $_hi_ho_w "*) ;; *) return 1 ;; esac
   done
   return 0
 }

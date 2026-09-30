@@ -123,6 +123,7 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/aliases.sh`           | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                         |
 | `~/.config/say-hi/plugins`              | -                 | a row for each config of a tool hi does not know, or your own row for one it does; see [below](#a-tool-hi-does-not-know)                                                                                       |
 | `~/.config/say-hi/extensions/`          | -                 | extensions in the same subset, sourced after the aliases in name order; see [below](#extensions)                                                                                                               |
+| `~/.config/say-hi/header/`              | -                 | header cells of your own, a bash file each defining `_hi_cell_<word>` for `_HI_HEADER_ORDER` to name; see [Integrations](INTEGRATIONS.md#header-cells-of-your-own)                                             |
 | `~/.config/say-hi/bashrc`               | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session)) |
 | `~/.config/say-hi/zshrc`                | -                 | the same for zsh - history, keybindings, `zstyle` completion rules                                                                                                                                             |
 | `~/.config/say-hi/config.fish`          | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                          |
@@ -333,7 +334,9 @@ in the order they should print:
 | `uptime`     | this box's uptime                                   |
 | `check`      | the installed-packages check (`config/packages`)    |
 
-A word left out is not printed, and an unknown word is ignored.
+A word left out is not printed, and an unknown word is ignored. A word of
+your own is a file of the overlay's `header/`
+([Integrations](INTEGRATIONS.md#header-cells-of-your-own)).
 `containers`/`jobs`/`pods` render only when their backend answers; listing
 them decides whether hi asks at all. Each word has a fixed color, swapped for
 an alternate when it would repeat the cell before it, so no order puts two
@@ -610,9 +613,9 @@ skip the system rc besides.
 
 Your own config is written for a machine with your plugins on it, and a target
 has none. So hi reads each of these files — and the overlay's `settings.sh`,
-`aliases.sh`, `extensions/` members, per-shell rc files, and the prompt configs
-it carries — for lines naming something it cannot carry: vim's `source`,
-lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's `include`,
+`aliases.sh`, `extensions/` and `header/` members, per-shell rc files, and
+the prompt configs it carries — for lines naming something it cannot carry:
+vim's `source`, lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's `include`,
 elisp's `load`, tmux's `source-file` and TPM, screen's `source`, readline's
 `$include` of anything but `/etc/inputrc`, zellij's
 `layout_dir`/`theme_dir` and file plugins, oh-my-posh's `extends` of a

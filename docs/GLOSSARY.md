@@ -434,6 +434,12 @@ aliases put back over theirs); bash-it the same way, `BASH_IT_THEME` pointed
 straight at home's packed theme file when the rc had not loaded it already -
 its own loader takes a literal path there, so unlike oh-my-bash this needs no
 separate theme-file step; tide by leaving its autoloaded fish_prompt alone.
+Each framework's loader is a file of its own, `common/fw_<name>.<ext>`, and
+`hi.sh`'s `_hi_payload_excl` cuts the ones a target is not handed from the
+payload, as it cuts a shadowed default (HI.41); `_hi_prompt_fw` asks for the
+file first, so a framework whose loader did not ride is passed over for the
+next in the list. The git and environment segments stay in the rcs: they
+draw with no fork.
 
 Unhooking a program the rc already started (`_HI_PROMPT_TOOL=hi`) means
 different surfaces per program: bash's `PROMPT_COMMAND` string for starship,
@@ -881,6 +887,12 @@ collide with what came before it. The shell does not enforce this; it is a
 property of the hand-written table, and `tests/common/header_test.sh`'s
 `test_header_word_alt_differs_from_its_own_primary` checks it mechanically.
 
+A cell of the user's own, from the overlay's `header/` (`header.sh`'s
+`_hi_header_cells_load`, admitted past the word gate by name), has no row of
+alternates: `_hi_header_word_alt` gives it the bright color of the next hue
+round the ring from its own (red to green, ..., cyan to red), which keeps the
+property for it too.
+
 An empty cell (`containers`/`jobs`/`pods` when that backend never answered)
 leaves `$_HI_PREV_HUE` untouched rather than resetting it to empty —
 resetting it would let the _next_ word compare against nothing and skip a
@@ -1228,7 +1240,8 @@ members ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as
 `<dir>/<name>`, in name order, over the overlay's directory and home's, each
 name once and the overlay's copy first (zellij's `layouts/` and `themes/`,
 kakoune's `colors/`),
-or over the overlay's alone where the row has no home (`extensions/`), and
+or over the overlay's alone where the row has no home (`extensions/`,
+`header/`), and
 the rest of the stream - `_hi_overlay_src`,
 the cache key, the stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
 strip (by the directory row's dialect) - treats that path like any

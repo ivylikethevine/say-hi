@@ -832,6 +832,13 @@ extension's
 .B _HI_SEGMENT
 command is drawn in the prompt.
 .TP
+.B ~/.config/say-hi/header/
+header cells of your own, in bash: a file each, named for its word, defining
+.BI _hi_cell_ word
+for
+.B _HI_HEADER_ORDER
+to name.
+.TP
 .B ~/.config/say-hi/bashrc, zshrc, config.fish
 your per\-shell preferences, sourced after hi's own so yours win. They ride
 only from here: hi never carries a

@@ -35,7 +35,9 @@ _hi_prime_identity
 # file from home to draw: the overlay's theme or p10k config. At home the rc
 # is the user's whole answer, so an installed-but-unloaded framework (a
 # distro's powerlevel10k package nobody adopted) is never started, and the
-# two paths stay empty there. bash.sh's oh-my-bash half is the same shape.
+# two paths stay empty there. Either needs its loader, common/fw_<name>.zsh,
+# which rides only to a target handed that framework. bash.sh's oh-my-bash
+# half is the same shape.
 _hi_omz_theme="" _hi_p10k_cfg=""
 [[ "$_HI_REMOTE_SESSION" == 1 ]] && _hi_omz_theme="$_HI_CONFIG_DIR/oh-my-zsh.zsh-theme" _hi_p10k_cfg="$_HI_CONFIG_DIR/p10k.zsh"
 _hi_p10k_theme() {
@@ -47,6 +49,7 @@ _hi_p10k_theme() {
   return 1
 }
 _hi_prompt_fw() {
+  [[ -f $_HI_ROOT/common/fw_$1.zsh ]] || return 1
   case $1 in
   powerlevel10k) (( $+functions[p10k] )) || { [[ -f $_hi_p10k_cfg ]] && _hi_p10k_theme } ;;
   oh-my-zsh) (( $+functions[git_prompt_info] )) || [[ -f $_hi_omz_theme && -f ${ZSH:-$HOME/.oh-my-zsh}/lib/git.zsh ]] ;;
@@ -77,31 +80,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       __hi_plgo_precmd() { PS1="$(powerline-go -shell zsh -error $? -jobs ${${(%):-%j}:-0} ${=_HI_POWERLINE_GO_OPTS})"; }
       precmd_functions=(__hi_plgo_precmd "${precmd_functions[@]}")
       ;;
-    powerlevel10k)
-      # not loaded by the rc (a target, then): the theme, then home's config;
-      # loaded, home's config still goes over the target's own
-      if (( ! $+functions[p10k] )); then
-        typeset -g POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
-        _hi_p10k_theme && source "$REPLY"
-      fi
-      [[ -f $_hi_p10k_cfg ]] && source "$_hi_p10k_cfg"
-      ;;
-    oh-my-zsh)
-      # not loaded by the rc: only the libraries themes call into - no plugins,
-      # completion, or key bindings - and hi's aliases put back over theirs
-      if (( ! $+functions[git_prompt_info] )); then
-        typeset -gA _hi_a
-        _hi_a=("${(@kv)aliases}")
-        : "${ZSH:=$HOME/.oh-my-zsh}"
-        autoload -Uz colors && colors
-        for _hi_l in async_prompt bzr git nvm prompt_info_functions spectrum theme-and-appearance vcs_info; do
-          [[ -f $ZSH/lib/$_hi_l.zsh ]] && source "$ZSH/lib/$_hi_l.zsh"
-        done
-        aliases=("${(@kv)_hi_a}")
-        unset _hi_a _hi_l
-      fi
-      [[ -f $_hi_omz_theme ]] && source "$_hi_omz_theme"
-      ;;
+    powerlevel10k | oh-my-zsh) source "$_HI_ROOT/common/fw_$_hi_pt.zsh" ;;
     *) eval "$("$_hi_pt" init zsh)" ;;
     esac
   elif ! _hi_prompt_named_hi && { (( ${+_LP_VERSION} || ${+SPACESHIP_VERSION} ||

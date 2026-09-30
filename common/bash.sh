@@ -45,12 +45,15 @@ _hi_user_escape >/dev/null
 
 # the prompt program the prompt goes to, if any (GLOSSARY: HI.32). oh-my-bash
 # and bash-it count once the rc loaded either, or where either installs with
-# a theme from home to draw - the overlay's copy, so only on a target
+# a theme from home to draw - the overlay's copy, so only on a target. Either
+# needs its loader, common/fw_<name>.sh, which rides only to a target handed
+# that framework.
 _hi_omb_theme=""
 _hi_bashit_theme=""
 [ "$_HI_REMOTE_SESSION" = 1 ] && _hi_omb_theme="$_HI_CONFIG_DIR/oh-my-bash.theme.sh"
 [ "$_HI_REMOTE_SESSION" = 1 ] && _hi_bashit_theme="$_HI_CONFIG_DIR/bash-it.theme.bash"
 function _hi_prompt_fw() {
+  [ -f "$_HI_ROOT/common/fw_$1.sh" ] || return 1
   case "$1" in
   oh-my-bash)
     declare -F _omb_module_require >/dev/null ||
@@ -216,41 +219,9 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       }
       PROMPT_COMMAND="__hi_plgo_ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
       ;;
-    oh-my-bash)
-      # not loaded by the rc: all of it but plugins, aliases, and completions
-      # (none listed), and hi's aliases put back over its libraries'
-      if ! declare -F _omb_module_require >/dev/null; then
-        _hi_a="$(alias -p)"
-        OSH="${OSH:-$HOME/.oh-my-bash}"
-        # shellcheck source=/dev/null
-        DISABLE_AUTO_UPDATE=true OSH_THEME="" source "$OSH/oh-my-bash.sh"
-        unalias -a
-        eval "$_hi_a"
-        unset _hi_a
-      fi
+    oh-my-bash | bash-it)
       # shellcheck source=/dev/null
-      [ -f "$_hi_omb_theme" ] && source "$_hi_omb_theme"
-      ;;
-    bash-it)
-      # not loaded by the rc: bash_it.sh's own loader takes a literal path in
-      # BASH_IT_THEME (sourced directly, no name lookup), so unlike oh-my-bash
-      # this needs no separate theme step - _hi_prompt_fw already required a
-      # home theme to exist before selecting bash-it here in the first place
-      if ! declare -F _bash-it-log-prefix-by-path >/dev/null; then
-        BASH_IT="${BASH_IT:-$HOME/.bash_it}"
-        # shellcheck source=/dev/null
-        BASH_IT_THEME="$_hi_bashit_theme" DISABLE_AUTO_UPDATE=true source "$BASH_IT/bash_it.sh"
-      else
-        # already loaded with its own theme, whose precmd_functions entry
-        # (prompt_command, the fixed name most bundled themes use) survives
-        # sourcing a different theme file over it - bash-preexec's
-        # safe_append_prompt_command only ever adds, so the rc's own theme
-        # would keep redrawing every prompt after this one otherwise. Clear
-        # it first, as the hi-named unhook below does.
-        _hi_drop_prompt_command precmd_functions
-        # shellcheck source=/dev/null
-        [ -f "$_hi_bashit_theme" ] && source "$_hi_bashit_theme"
-      fi
+      source "$_HI_ROOT/common/fw_$_hi_pt.sh"
       ;;
     *) eval "$("$_hi_pt" init bash)" ;;
     esac

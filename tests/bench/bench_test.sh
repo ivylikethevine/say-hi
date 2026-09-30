@@ -157,8 +157,13 @@ function bench_targets_warm() {
 # when the overlay has already switched them off, so a configured client sends less than
 # either number says. The ceiling and the badge are the unconfigured case, which
 # is the one every budget should be set against.
+#
+# A connect handed starship alone is measured beside it: it leaves every
+# framework's prompt loader home (hi.sh's _hi_payload_excl), so it has to come
+# in under the unconfigured figure.
 function bench_payload_size() {
-  local bytes budget=65536
+  local bytes lean budget=65536
+  local -a payload_excl=()
   set -- # hi.sh reads "$@"; make sure it sees none
   # shellcheck source=../../hi.sh
   source "$_HI_LAUNCHER"
@@ -167,6 +172,14 @@ function bench_payload_size() {
     _hi_align " | payload: $bytes bytes gzipped (budget $budget)" "OK" "$GREEN"
   else
     _hi_cecho " | payload: $bytes bytes gzipped BLEW the $budget budget" "$RED"
+    return 1
+  fi
+  _HI_PROMPT_TOOL=starship _hi_payload_excl
+  lean="$(_hi_payload_tar | wc -c)"
+  if ((lean < bytes)); then
+    _hi_align " | payload handed starship alone: $lean bytes gzipped" "OK" "$GREEN"
+  else
+    _hi_cecho " | payload handed starship alone: $lean bytes gzipped, not under $bytes" "$RED"
     return 1
   fi
 }

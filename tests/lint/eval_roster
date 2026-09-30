@@ -20,7 +20,6 @@
 eval|common/aliases.sh|const|eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${
 eval|common/bash.sh|tool|eval "$("$_hi_pt" init bash)" ;;
 eval|common/bash.sh|name|eval "$1=(\${_hi_pf[@]+\"\${_hi_pf[@]}\"})"
-eval|common/bash.sh|shell|eval "$_hi_a"
 eval|common/bash.sh|segment|eval "$_hi_c" 2>/dev/null)" && [ -n "$_hi_o" ] && __hi_env_info+="$_hi_o
 eval|common/bash.sh|shell|eval "${spec% eza} exa"
 eval|common/bash.sh|shell|eval "_hi_marks_trap $(trap -p EXIT)"
@@ -38,6 +37,7 @@ eval|common/core.sh|const|eval '_hi_names=("${!_HI_@}")'
 eval|common/core.sh|const|eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
 eval|common/core.sh|const|eval '_hi_self=${(%):-%x}'
 eval|common/core.sh|const|eval 'case "$name" in ${~pat}) hit=0 ;; esac'
+eval|common/fw_oh-my-bash.sh|shell|eval "$_hi_a"
 eval|common/header.sh|name|eval "$1+=(\"\$record\")"
 eval|common/zsh.zsh|tool|eval "$("$_hi_pt" init zsh)" ;;
 eval|common/zsh.zsh|segment|eval "$c" 2>/dev/null)" && [[ -n "$o" ]] && __hi_env_info+="${o//\%/%%} 
@@ -55,12 +55,16 @@ sh -c|common/zsh.zsh|1
 sh -c|hi.sh|16
 sh -c|scripts/doctor.sh|1
 source|common/aliases.sh|2
-source|common/bash.sh|10
-source|common/config.fish|7
+source|common/bash.sh|7
+source|common/config.fish|8
 source|common/core.sh|3
-source|common/header.sh|1
+source|common/fw_bash-it.sh|2
+source|common/fw_oh-my-bash.sh|2
+source|common/fw_oh-my-zsh.zsh|2
+source|common/fw_powerlevel10k.zsh|2
+source|common/header.sh|2
 source|common/paths.sh|1
-source|common/zsh.zsh|10
+source|common/zsh.zsh|7
 source|hi.sh|2
 source|load.sh|6
 source|scripts/add_package.sh|2

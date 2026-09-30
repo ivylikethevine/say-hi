@@ -862,19 +862,50 @@ function banner() {
 # without parsing the dispatch.
 _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
 
+# The header/ overlay member's cells (GLOSSARY: HI.58, HI.48): a file each,
+# its word the name up to the first `.`, defining _hi_cell_<word> the way the
+# built-ins below do. Sourced in name order on the header's first word, not
+# with this file, so a caller that never draws one runs none of them; a
+# file whose function did not come out of it adds no word. A word already
+# the default's replaces that built-in. $_HI_HEADER_WORDS is the words that
+# loaded, space-bounded, and set once this has run.
+function _hi_header_cells_load() {
+  local _hi_hc_f _hi_hc_w
+  _HI_HEADER_WORDS=" "
+  [ -d "${_HI_HEADER_CELLS:-}" ] || return 0
+  for _hi_hc_f in "$_HI_HEADER_CELLS"/*; do
+    _hi_hc_w="${_hi_hc_f##*/}"
+    { [ -f "$_hi_hc_f" ] && _hi_dir_member_ok "$_hi_hc_w"; } || continue
+    _hi_hc_w="${_hi_hc_w%%.*}"
+    # shellcheck source=/dev/null
+    source "$_hi_hc_f" || true
+    declare -F "_hi_cell_$_hi_hc_w" >/dev/null || continue
+    case " $_HI_HEADER_ORDER_DEFAULT$_HI_HEADER_WORDS" in *" $_hi_hc_w "*) ;; *) _HI_HEADER_WORDS="$_HI_HEADER_WORDS$_hi_hc_w " ;; esac
+  done
+}
+
+# _hi_header_vocab <outvar> - every word $_HI_HEADER_ORDER may name: the
+# default's, then header/'s
+function _hi_header_vocab() {
+  [ -n "${_HI_HEADER_WORDS:-}" ] || _hi_header_cells_load
+  printf -v "$1" '%s' "$_HI_HEADER_ORDER_DEFAULT${_HI_HEADER_WORDS% }"
+}
+
 # <var> gets $1's cell text if $1 names a getter, empty otherwise -
 # _hi_collect_header_word's own dispatch, split out so a direct caller (a
 # suite) can ask "what would this word render as" without going through the
 # accumulate/flush machinery below.
 function _hi_header_word_cell() {
+  local _hi_hw_v
   printf -v "$2" '%s' ""
   # Each word's getter is named _hi_cell_<word>, so the convention *is* the
   # mapping. The roster
   # gate is what keeps it safe: $_HI_HEADER_ORDER is the user's own string, so
-  # only a word the shipped default names may reach a function here. `check`
-  # is in that roster and has no getter - it is full_check's own row - hence
-  # the declare -F.
-  case " $_HI_HEADER_ORDER_DEFAULT " in
+  # only a word the shipped default or a loaded header/ file names may reach
+  # a function here. `check` is in that roster and has no getter - it is
+  # full_check's own row - hence the declare -F.
+  _hi_header_vocab _hi_hw_v
+  case " $_hi_hw_v " in
   *" $1 "*) declare -F "_hi_cell_$1" >/dev/null && "_hi_cell_$1" "$2" ;;
   esac
   return 0
@@ -896,6 +927,9 @@ _HI_HEADER_ALTS="utc:BRCYAN version:BRCYAN localtime:BRRED os:BRPURPLE\
  containers:BRYELLOW jobs:BRYELLOW pods:BRCYAN auth:BRYELLOW pub:BRRED\
  uptime:BRGREEN"
 
+# _hi_header_word_alt <word> <outvar> [hue] - a word with no row (one of
+# header/'s) takes the next hue round the ring from its own <hue>, bright, so
+# the property above holds for it too
 function _hi_header_word_alt() {
   local _hi_wa
   printf -v "$2" '%s' ""
@@ -908,7 +942,12 @@ function _hi_header_word_alt() {
     printf -v "$2" '%s' "${!_hi_wa}"
     return 0
   done
-  return 0
+  case "${3:-}" in
+  1) _hi_wa=BRGREEN ;; 2) _hi_wa=BRYELLOW ;; 3) _hi_wa=BRBLUE ;;
+  4) _hi_wa=BRPURPLE ;; 5) _hi_wa=BRCYAN ;; 6) _hi_wa=BRRED ;;
+  *) return 0 ;;
+  esac
+  printf -v "$2" '%s' "${!_hi_wa}"
 }
 
 # One $_HI_HEADER_ORDER word: "check" flushes whatever cells are pending as
@@ -945,7 +984,7 @@ function _hi_collect_header_word() {
     # $hue only got set above by matching this exact escape prefix, so it's
     # already known to be there and to end in the first "m" in the string -
     # no need to re-derive it with a second regex.
-    _hi_header_word_alt "$1" alt
+    _hi_header_word_alt "$1" alt "$hue"
     cell="$alt${cell#*m}"
     _hi_cell_hue hue "$cell"
   fi

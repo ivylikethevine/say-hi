@@ -382,8 +382,8 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) that no line of the
 # generated wiring.sh covers (GLOSSARY: HI.62) needs its overlay lookup in
-# paths.sh - except settings.sh and extensions/ (the overlay is its only
-# home, so it is an unguarded export instead) and the ones read by name from
+# paths.sh - except settings.sh, extensions/, and header/ (the overlay is
+# their only home, so each is an unguarded export instead) and the ones read by name from
 # $_HI_CONFIG_DIR rather than through a path var: aliases.sh and the three
 # per-shell files (bashrc, zshrc, config.fish), the prompt frameworks' five,
 # which only a target reads, ssh_tags, and the plugins file. A missed lookup fails
@@ -398,7 +398,7 @@ function test_overlay_guards_match_the_roster() {
   while IFS= read -r f; do
     case "$f" in
     settings.sh | aliases.sh) continue ;;
-    extensions/)
+    extensions/ | header/)
       grep -qF "\"\$_HI_CONFIG_DIR/${f%/}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
     bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags | plugins) continue ;;
@@ -413,7 +413,7 @@ function test_overlay_guards_match_the_roster() {
 # paths.sh spells out the rows of hi.sh's $_HI_OVERLAY_TABLE that name a
 # variable, hi's own files, a line per candidate - so each is walked down its
 # tiers in a fabricated $HOME: the overlay's copy, then the tree's default
-# (or the overlay path itself, for the two members with no other home), and
+# (or the overlay path itself, for the members with no other home), and
 # the variable has to follow.
 # GLOSSARY: HI.61
 # shellcheck disable=SC2016 # the walk is the child bash's to expand

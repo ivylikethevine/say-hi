@@ -100,6 +100,7 @@ _HI_OVERLAY_TABLE=(
   'colors|_HI_COLORS|tree|-|-|-|-|conf|-'
   'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|conf|-'
   'extensions/|_HI_EXTENSIONS|-|-|shell|-|-|sh|-'
+  'header/|_HI_HEADER_CELLS|-|-|-|-|$_HI_DISABLE_HEADER|sh|-'
   'plugins|-|-|-|-|-|-|conf|-'
   'oh-my-posh.json|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp-json|@_hi_posh_home'
   'oh-my-posh.yaml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp|@_hi_posh_home'
@@ -1507,9 +1508,11 @@ function _hi_die() {
 # not the default beside the file that beats it. Only a member that ships
 # counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
 # With the header off the target never draws one, so header.sh and the
-# package list it checks stay home too.
+# package list it checks stay home too. A framework's prompt loader,
+# common/fw_<name>.<ext>, rides only to a target handed that framework
+# (_hi_prompt_list): the shell there picks from that list alone. GLOSSARY: HI.32
 function _hi_payload_excl() {
-  local f
+  local f s
   payload_excl=()
   ! _hi_toggle_on _HI_DISABLE_HEADER || payload_excl=(say-hi/common/header.sh say-hi/config/packages)
   for f; do
@@ -1518,6 +1521,13 @@ function _hi_payload_excl() {
     *" say-hi/config/$f "*) ;;
     *" $f "*) payload_excl+=("say-hi/config/$f") ;;
     esac
+  done
+  _hi_prompt_list >/dev/null
+  for f in "${_HI_PROMPT_TABLE[@]}"; do
+    case "$f" in *'|fw|'*) ;; *) continue ;; esac
+    case " $_HI_PROMPT_LIST_MEMO " in *" ${f%%|*} "*) continue ;; esac
+    s="${f#*|}" s="${s%%|*}"
+    payload_excl+=("say-hi/common/fw_${f%%|*}.${s/bash/sh}")
   done
 }
 
@@ -2458,8 +2468,14 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     ! _hi_overlay_bytes "${overlay[@]}" |
     "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
-    # the defaults that overlay shadowed were cut from the tree above
-    ! ((${#payload_excl[@]})) || tar -c -f - -C "$_HI_HOME" "${payload_excl[@]}" |
+    # the defaults that overlay shadowed were cut from the tree above; a
+    # prompt loader's cut is not the overlay's, and a hop's tree lacks it
+    local f
+    local -a shadowed=()
+    for f in ${payload_excl[@]+"${payload_excl[@]}"}; do
+      case "$f" in say-hi/config/*) shadowed+=("$f") ;; esac
+    done
+    ! ((${#shadowed[@]})) || tar -c -f - -C "$_HI_HOME" "${shadowed[@]}" |
       "${cp[@]}" sh -c "tar -x -m -f - -C '$root'" 2>>"$tmp" || true
   fi
 

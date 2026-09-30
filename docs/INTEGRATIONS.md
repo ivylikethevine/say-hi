@@ -12,6 +12,7 @@ machine only ([On your own machine](#on-your-own-machine)).
 - [At a glance](#at-a-glance)
 - [Prompt programs](#prompt-programs)
 - [Shell hooks of your own](#shell-hooks-of-your-own)
+- [Header cells of your own](#header-cells-of-your-own)
 - [The environment segment](#the-environment-segment)
   - [Tools that draw their own prefix](#tools-that-draw-their-own-prefix)
 - [bat and eza](#bat-and-eza)
@@ -120,6 +121,43 @@ In `config.fish` the same line is `command -q zoxide; and zoxide init fish | sou
 Once started, a tool keeps state of its own under the target's `$HOME` -
 zoxide's directory database, atuin's history - which hi neither writes nor
 cleans up.
+
+## Header cells of your own
+
+A header item hi does not have is a file under `~/.config/say-hi/header/`,
+named for its word, that defines `_hi_cell_<word>`: the function writes the
+cell's text, a color first, into the variable its first argument names. The
+file rides to every target with the rest of the overlay, and
+`_HI_HEADER_ORDER` puts the word where it prints:
+
+```sh
+# ~/.config/say-hi/header/load
+_hi_cell_load() {
+  local _load_l
+  read -r _load_l _ 2>/dev/null </proc/loadavg || _load_l="?"
+  printf -v "$1" '%s' "${YELLOW}Load: $_load_l"
+}
+```
+
+```sh
+# ~/.config/say-hi/settings.sh
+export _HI_HEADER_ORDER="utc version localtime os load check"
+```
+
+The header is bash on every side, so the file is bash whatever shell the
+session runs. The word is the name up to its first `.` (`load.sh` is `load`
+too), and a file named for a built-in word replaces that item. Prefix the
+function's locals: the variable it writes is its caller's. One of hi's
+color variables leads the text - `$RED`, `$GREEN`, `$YELLOW`, `$BLUE`,
+`$PURPLE`, `$CYAN`, or a `$BR` one of them - and a cell that would repeat its
+neighbor's color takes the next hue round from its own
+([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). The function runs
+on every header hi draws, a local shell's greeting included, so a command it
+starts costs that fork each time; the built-in items' probes are not shared
+with it. `hi --configure` lists the words that loaded beside hi's own, and a
+line sourcing a file outside `~/.config/say-hi` goes out disabled, as in
+every overlay file
+([SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 
 ## The environment segment
 
