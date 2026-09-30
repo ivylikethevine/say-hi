@@ -2324,19 +2324,16 @@ function run_header_tests() {
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "_hi_header_version resolves once per shell" test_header_version_resolves_once_per_shell
-  # _hi_shorten_describe's own contract - not exactly on a tag (commits ahead,
-  # or no tag reachable at all) means it isn't a release, so only a 6-column
-  # commit hash shows, tag dropped rather than implied; a tag with no hash (an
-  # exact tag, a plain $_HI_RELEASE, "unknown") is a release and shows as-is,
-  # truncated to 10 since there's nothing to join it to
-  _hi_check_eq "Shows a 6-char hash when not on a tag" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f
-  _hi_check_eq "...drops the -dirty suffix" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty
-  _hi_check_eq "...trims a bare hash too" 9c1dd0 _hi_shorten_describe 9c1dd0fabc
+  # _hi_shorten_describe's own contract: 10 columns, no -dirty, a bare hash
+  # cut to 6, and a <tag>+N too long for the cap losing its count, not a digit
+  _hi_check_eq "Shows <tag>+N past a tag" v1.0.0+5 _hi_shorten_describe v1.0.0+5
+  _hi_check_eq "...drops the -dirty suffix" v1.0.0+5 _hi_shorten_describe v1.0.0+5-dirty
+  _hi_check_eq "...ends a <tag>+N over the cap at the +" v0.10.10+ _hi_shorten_describe v0.10.10+123
+  _hi_check_eq "...trims a bare hash to 6" 9c1dd0 _hi_shorten_describe 9c1dd0fabc
   _hi_check_eq "...leaves an exact tag alone" v1.0.0 _hi_shorten_describe v1.0.0
   _hi_check_eq "...leaves a release stamp alone" 1.2.3 _hi_shorten_describe 1.2.3
   _hi_check_eq "...leaves 'unknown' alone" unknown _hi_shorten_describe unknown
   _hi_check_eq "...caps a long exact tag at 10 columns" snapshot-6 _hi_shorten_describe snapshot-6fba937
-  _hi_check_eq "...drops a long tag when a hash is present" 200cef _hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty
   _hi_check "The version cell itself is shortened" test_timestamp_version_cell_is_shortened
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info does not show uptime" test_system_info_does_not_show_uptime

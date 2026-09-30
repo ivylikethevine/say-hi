@@ -682,13 +682,29 @@ function _hi_sanitize_var() {
 }
 
 # The version, unpresented: a packager's stamp (or the client's, shipped by
-# the ssh preamble) wins, else git describe, else nothing. Callers present it.
+# the ssh preamble) wins, else the checkout's, else nothing. Callers present it.
 function _hi_release_or_describe() {
   if [ -n "${_HI_RELEASE:-}" ]; then
     printf '%s\n' "$_HI_RELEASE"
   elif [ -d "$_HI_ROOT/.git" ]; then
-    git -C "$_HI_ROOT" describe --tags --always --dirty 2>/dev/null || true
+    _hi_git_version "$_HI_ROOT"
   fi
+}
+
+# _hi_git_version <root> - git describe, renamed: v0.5.5 on the tag, v0.5.5+28
+# twenty-eight commits past it, a bare hash with no v* tag reachable (a
+# snapshot-<sha> tag is not a version); -dirty kept. --long makes the count
+# unambiguous against a tag holding `-g`.
+function _hi_git_version() {
+  local d t s=""
+  d="$(git -C "$1" describe --tags --match 'v*' --long --always --dirty 2>/dev/null)" || return 0
+  case "$d" in *-dirty) s=-dirty d="${d%-dirty}" ;; esac
+  t="${d%-g*}"
+  if [ "$t" != "$d" ]; then
+    d="${t%-*}"
+    [ "${t##*-}" = 0 ] || d="$d+${t##*-}"
+  fi
+  printf '%s\n' "$d$s"
 }
 
 # _hi_url_path <outvar> <path> - percent-encoded for OSC 7, byte by byte (the

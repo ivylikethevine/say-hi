@@ -1426,6 +1426,21 @@ function test_release_or_describe_falls_back_to_git() {
   )
 }
 
+# _hi_git_version against a scratch repo: on the tag, past it, dirty, and a
+# snapshot-<sha> tag nearer than the v* one, which must not count
+function test_git_version_names_commits_past_the_tag() {
+  local dir g
+  dir="$(mktemp -d "$_HI_WORKDIR/gitversion.XXXXXX")"
+  g=(git -C "$dir" -c commit.gpgsign=false -c tag.gpgsign=false -c user.name=t -c user.email=t@t)
+  "${g[@]}" init -q && "${g[@]}" commit -q --allow-empty -m a && "${g[@]}" tag v1.2.3 || return 1
+  [ "$(_hi_git_version "$dir")" = v1.2.3 ] || return 1
+  "${g[@]}" commit -q --allow-empty -m b && "${g[@]}" tag snapshot-abc1234 &&
+    "${g[@]}" commit -q --allow-empty -m c || return 1
+  [ "$(_hi_git_version "$dir")" = v1.2.3+2 ] || return 1
+  : >"$dir/f" && "${g[@]}" add f || return 1
+  [ "$(_hi_git_version "$dir")" = v1.2.3+2-dirty ]
+}
+
 function test_release_or_describe_empty_without_either() {
   local dir
   dir="$(mktemp -d "$_HI_WORKDIR/norelease.XXXXXX")"
@@ -1636,6 +1651,7 @@ function run_core_tests() {
   _hi_h2 "Testing: _hi_release_or_describe"
   _hi_check "A shipped \$_HI_RELEASE wins outright" test_release_or_describe_prefers_the_stamp
   _hi_check "Falls back to git describe against \$_HI_ROOT" test_release_or_describe_falls_back_to_git
+  _hi_check "_hi_git_version names commits past a v* tag as <tag>+N" test_git_version_names_commits_past_the_tag
   _hi_check "Empty with neither a stamp nor a .git" test_release_or_describe_empty_without_either
   _hi_check "_hi_interactive_extras sets nothing for less" test_interactive_extras_leaves_less_alone
 

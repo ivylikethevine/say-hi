@@ -177,23 +177,22 @@ function header_row() {
   ((_HI_ROW_CARRY_ARMED)) || _hi_header_flush
 }
 
-# The header's version cell is a glance value, not a lookup key. A tag exactly
-# on HEAD (a release, or a plain $_HI_RELEASE/snapshot stamp) is shown as-is,
-# capped at 10 columns. Anything else - commits ahead of the last tag, or no
-# reachable tag at all - is not a release, so the tag is dropped rather than
-# implied: just a 6-column commit hash, `-dirty` included in neither case.
+# The header's version cell is a glance value, not a lookup key, capped at 10
+# columns with `-dirty` dropped: a tag or stamp as-is, a checkout past a tag
+# as <tag>+N (_hi_git_version's form), a bare hash cut to 6. A <tag>+N too
+# long for the cap keeps the tag and a bare `+` rather than a cut-off count.
 # Never `hi --version`'s own answer (hi.sh's _hi_version calls
 # _hi_release_or_describe directly) - this is a display-only shortening of the
 # header's copy. [outvar]: GLOSSARY: HI.05.
 function _hi_shorten_describe() {
   local _hi_sd_v="${1%-dirty}"
-  local re_g='^.*-[0-9]+-g([0-9a-f]{4,})$' re_bare='^([0-9a-f]{4,})$'
-  if [[ "$_hi_sd_v" =~ $re_g ]] || [[ "$_hi_sd_v" =~ $re_bare ]]; then
-    _hi_sd_v="${BASH_REMATCH[1]}"
-    _hi_out "${2:-}" "${_hi_sd_v:0:6}"
-  else
-    _hi_out "${2:-}" "${_hi_sd_v:0:10}"
+  if ((${#_hi_sd_v} > 6)) && [[ "$_hi_sd_v" != *[!0-9a-f]* ]]; then
+    _hi_sd_v="${_hi_sd_v:0:6}"
+  elif ((${#_hi_sd_v} > 10)) && [[ "$_hi_sd_v" == *+* ]]; then
+    _hi_sd_v="${_hi_sd_v%+*}"
+    _hi_sd_v="${_hi_sd_v:0:9}+"
   fi
+  _hi_out "${2:-}" "${_hi_sd_v:0:10}"
 }
 
 # hi's version for the header, resolved once per shell (the row prints twice
