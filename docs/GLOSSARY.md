@@ -793,7 +793,12 @@ never written.
 
 Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
 `~/.zshenv` — `ZDOTDIR` moves _all_ of zsh's startup files, not just `.zshrc`),
-then hi's on top, so the host's configuration still applies underneath.
+then hi's on top, so the host's configuration still applies underneath. A
+`~/.zshenv` may set `ZDOTDIR` itself (a `~/.config/zsh` layout), which would
+have zsh read that directory's `.zshrc` and never hi's, so the `.zshenv` shim
+runs it with `ZDOTDIR` unset, keeps what it chose, and points `ZDOTDIR` back at
+hi's directory; the `.zshrc` then sources the target's from there, under that
+`ZDOTDIR`.
 
 Three variables are exported; which shell needs which is the design:
 

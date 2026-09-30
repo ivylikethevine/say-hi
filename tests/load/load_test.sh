@@ -349,13 +349,55 @@ function test_fishquote_roundtrips_the_hard_cases() {
 # first, this run's verdicts, then hi's rc - in that order
 function test_session_sh_rc_writes_the_three_layers() {
   local out="$_HI_WORKDIR/session.rc" sh_vars=$'_HI_TARGET_COLOR=probe\n'
-  _hi_session_sh_rc .proberc "/some tree/rc file.sh" "$out" || return 1
+  _hi_session_sh_rc '[ -r "$HOME/.proberc" ] && . "$HOME/.proberc"' "/some tree/rc file.sh" "$out" || return 1
   diff "$out" - <<'EOF' || return 1
 [ -r "$HOME/.proberc" ] && . "$HOME/.proberc"
 _HI_TARGET_COLOR=probe
 . /some\ tree/rc\ file.sh
 EOF
   return 0
+}
+
+# <home>: what a session zsh under that $HOME prints - the target's .zshrc and
+# a probe standing in for hi's each print their $ZDOTDIR, then the shell its
+# own - followed by the session rc dir. In a $( ): the setup exports ZDOTDIR.
+function _hi_session_zsh_in() {
+  local _HI_SESSION_RC_DIR="" _HI_ZSHRC="$_HI_WORKDIR/probe-hi.zsh"
+  printf 'print -rn -- "hi:$ZDOTDIR "\n' >"$_HI_ZSHRC"
+  _hi_session_rc_setup || return 1
+  # -d: no /etc/zsh rc but zshenv, which zsh reads regardless
+  HOME="$1" zsh -d -i -c 'print -rn -- "end:$ZDOTDIR:${_hi_zdotdir-unset}"' </dev/null 2>/dev/null
+  printf ' dir:%s' "$_HI_SESSION_RC_DIR"
+  case "$_HI_SESSION_RC_DIR" in */hi.rc.??????) rm -rf "$_HI_SESSION_RC_DIR" ;; esac
+}
+
+# <home> <target ZDOTDIR>: the target's .zshrc runs from <target ZDOTDIR> and
+# under it, then hi's under the session dir, which the shell keeps
+function _hi_session_zsh_layers() {
+  local out dir
+  out="$(_hi_session_zsh_in "$1")"
+  dir="${out##* dir:}"
+  [ "$out" = "target:$2 hi:$dir end:$dir:unset dir:$dir" ] || {
+    _hi_cecho " | $out" "$RED"
+    return 1
+  }
+}
+
+function test_session_zsh_reads_the_home_zshrc_then_his() {
+  local h="$_HI_WORKDIR/zsh-home"
+  mkdir -p "$h"
+  printf 'print -rn -- "target:$ZDOTDIR "\n' >"$h/.zshrc"
+  _hi_session_zsh_layers "$h" "$h"
+}
+
+# A ~/.zshenv that moves ZDOTDIR (a ~/.config/zsh layout) had zsh read that
+# directory's .zshrc in place of hi's
+function test_session_zsh_follows_a_zshenv_that_moves_zdotdir() {
+  local h="$_HI_WORKDIR/zdot-home"
+  mkdir -p "$h/.config/zsh"
+  printf 'export ZDOTDIR="$HOME/.config/zsh"\n' >"$h/.zshenv"
+  printf 'print -rn -- "target:$ZDOTDIR "\n' >"$h/.config/zsh/.zshrc"
+  _hi_session_zsh_layers "$h" "$h/.config/zsh"
 }
 
 # Which shell the session runs in - the login shell when hi styles it, else
@@ -872,6 +914,8 @@ function run_load_tests() {
   _hi_check "...and stands alone without one" test_session_rc_setup_stands_alone_without_cleanup
   _hi_check_requires fish "_hi_fishquote round-trips through a real fish" test_fishquote_roundtrips_the_hard_cases
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
+  _hi_check_requires zsh "a session zsh reads ~/.zshrc, then hi's" test_session_zsh_reads_the_home_zshrc_then_his
+  _hi_check_requires zsh "...and follows a ~/.zshenv that moves ZDOTDIR" test_session_zsh_follows_a_zshenv_that_moves_zdotdir
   _hi_check "a dropped nano syntax include falls back to the target's" test_nano_fallback_follows_the_target
   _hi_check "nano extendsyntax follows the target's syntax names" test_nano_fallback_resolves_extendsyntax
 

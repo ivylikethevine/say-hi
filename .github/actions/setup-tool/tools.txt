@@ -107,6 +107,8 @@ minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/m
 # --no-install-recommends drops ("Could NOT find OpenSSL"). The "Could NOT
 # find Bfd" line in the same log is harmless: bfd is optional.
 kcov|43|cmake:libcurl4-openssl-dev,libdw-dev,libelf-dev,libssl-dev,python3,zlib1g-dev|https://github.com/SimonKagstrom/kcov/archive/refs/tags/v%v.tar.gz|--version|github:SimonKagstrom/kcov||4cbba86af11f72de0c7514e09d59c7927ed25df7cebdad087f6d3623213b95bf
+# Draws docs/USAGE.md's images from hi's own output (docs/tapes/usage.sh).
+freeze|0.2.2|tar.gz|https://github.com/charmbracelet/freeze/releases/download/v%v/freeze_%v_Linux_x86_64.tar.gz|--version|github:charmbracelet/freeze||012fdbdd16c0c19570f9052aac34d16d93d7d0d3b565b05374cc59492f53539b
 # mandoc's snapshots page has no feed the checker can read, so the pin is
 # frozen on purpose (1.14.6 is its current release); bump it by hand.
 mandoc|1.14.6|make|https://mandoc.bsd.lv/snapshots/mandoc-%v.tar.gz|-T lint -W error /dev/null|-||8bf0d570f01e70a6e124884088870cbed7537f36328d512909eb10cd53179d9c

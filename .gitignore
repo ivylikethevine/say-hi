@@ -77,3 +77,6 @@ node_modules/
 # pages.yml serves them; only the hand-reviewed demo.gif is committed
 /docs/tapes/*.gif
 !/docs/tapes/demo.gif
+# a local render of docs/USAGE.md's images (docs/tapes/usage.sh), which
+# usage.yml renders and pages.yml serves the same way
+/docs/tapes/usage-*.svg

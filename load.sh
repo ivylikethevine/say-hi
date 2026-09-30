@@ -166,23 +166,22 @@ function _hi_fishquote() {
 # often root-owned and read-only. %q on every interpolated path, since
 # $TMPDIR is the target's to choose.
 #
-# shellcheck disable=SC2016 # the single quotes are the point: $HOME is the
-# *target's* to expand when it reads these files, not this script's to expand
-# while writing them
+# _hi_session_sh_rc <target lines> <hi rc> <out> - the shape bash and zsh
+# share: the lines that source the target's own rc, the client's verdicts
+# ($sh_vars, the caller's local), then hi's rc
 function _hi_session_sh_rc() {
-  # the shape bash and zsh share: the target's rc, the client's verdicts
-  # ($sh_vars, the caller's local), then hi's rc
   local q
   printf -v q '%q' "$2"
   {
-    printf '[ -r "$HOME/%s" ] && . "$HOME/%s"\n' "$1" "$1"
+    printf '%s\n' "$1"
     printf '%s' "$sh_vars"
     printf '. %s\n' "$q"
   } >"$3"
 }
 
-# shellcheck disable=SC2016 # same rule as _hi_session_sh_rc's: the target
-# expands $HOME, not this script
+# shellcheck disable=SC2016 # the single quotes are the point: $HOME and
+# $ZDOTDIR are the *target's* to expand when it reads these files, not this
+# script's to expand while writing them
 function _hi_session_rc_setup() {
   [ -z "$_HI_SESSION_RC_DIR" ] || return 0
   if [ -n "${_HI_CLEANUP:-}" ]; then
@@ -190,7 +189,7 @@ function _hi_session_rc_setup() {
   else
     _HI_SESSION_RC_DIR="$(mktemp -d -t hi.rc.XXXXXX)" || return 1
   fi
-  local dir="$_HI_SESSION_RC_DIR" q
+  local dir="$_HI_SESSION_RC_DIR" q zsh_rc
 
   # The client's verdicts ($_HI_SESSION_VARS, exported into this process by
   # hi.sh) as plain assignments in each rc. The session shell unexports every
@@ -217,13 +216,28 @@ function _hi_session_rc_setup() {
     fish_vars="${fish_vars}set -g $v $q"$'\n'
   done
 
-  _hi_session_sh_rc .bashrc "$_HI_BASHRC" "$dir/bashrc"
+  _hi_session_sh_rc '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"' "$_HI_BASHRC" "$dir/bashrc"
 
   # ZDOTDIR moves *all* of zsh's startup files, so the target's .zshenv needs
   # a shim or the environment it sets is lost. .zprofile/.zlogin are
-  # login-shell only, and this is `zsh -i`.
-  printf '[ -r "$HOME/.zshenv" ] && . "$HOME/.zshenv"\n' >"$dir/.zshenv"
-  _hi_session_sh_rc .zshrc "$_HI_ZSHRC" "$dir/.zshrc"
+  # login-shell only, and this is `zsh -i`. A .zshenv that sets ZDOTDIR
+  # itself (a ~/.config/zsh layout) would have zsh read that directory's
+  # .zshrc and never hi's, so the shim runs it with ZDOTDIR unset, as a plain
+  # zsh would, keeps what it chose, and points zsh back here. The .zshrc
+  # sources the target's from there, under that ZDOTDIR.
+  printf -v q '%q' "$dir"
+  {
+    printf 'unset ZDOTDIR\n'
+    printf '[ -r "$HOME/.zshenv" ] && . "$HOME/.zshenv"\n'
+    printf '_hi_zdotdir="${ZDOTDIR:-$HOME}"\n'
+    printf 'export ZDOTDIR=%s\n' "$q"
+  } >"$dir/.zshenv"
+  printf -v zsh_rc '%s\n%s\n%s\n%s' \
+    'ZDOTDIR="${_hi_zdotdir:-$HOME}"' \
+    '[ -r "$ZDOTDIR/.zshrc" ] && . "$ZDOTDIR/.zshrc"' \
+    "export ZDOTDIR=$q" \
+    'unset _hi_zdotdir'
+  _hi_session_sh_rc "$zsh_rc" "$_HI_ZSHRC" "$dir/.zshrc"
 
   # fish reads config.fish before -C, so the host's config is already in place
   # by the time this is sourced - the same order as above, for free. The
