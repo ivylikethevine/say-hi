@@ -220,7 +220,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   its `0` from `common/aliases.sh`'s backstop line, every reader compares it
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`,
-  `packages`, `extensions/` and its hook names, `carry` and its four
+  `packages`, `extensions/` and its hook names, `plugins` and its
   columns,
   `vim/vimrc`, `nvim/init.lua`, `helix/config.toml`, `kak/kakrc`, `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`,
   `screenrc`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`,

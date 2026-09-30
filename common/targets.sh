@@ -166,11 +166,17 @@ color_types() {
   printf 'hostname\ta hostname, or a * or ? pattern\n'
 }
 
-# a carry file's members, as --remove-plugin takes them: the first column of
-# each line, the spaces around it dropped
-carry_members() {
-  [ -f "${_HI_CONFIG_DIR:-}/carry" ] || return 0
-  sed -n "s/^[ ]*\([A-Za-z0-9][A-Za-z0-9_.-]*\)[ ]*|.*/\1$(printf '\t')a line of your carry file/p" "$_HI_CONFIG_DIR/carry"
+# plugins_keys <file> - the keys of a plugins file's rows, bare or quoted
+plugins_keys() {
+  sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$1"
+}
+
+# the overlay's plugins file's members, as --remove-plugin takes them
+plugin_members() {
+  [ -f "${_HI_CONFIG_DIR:-}/plugins" ] || return 0
+  plugins_keys "$_HI_CONFIG_DIR/plugins" | while IFS= read -r line; do
+    printf '%s\ta row of your plugins file\n' "$line"
+  done
 }
 
 if [ "$kind" = words ]; then
@@ -212,22 +218,33 @@ if [ "$kind" = words ]; then
     color_types
     ;;
   --plugin-off)
-    # hi.sh's table read as text, since this file cannot source it: a row's
-    # group, and its plugin - its tool's first name, else its member. Then
-    # the carry's members.
-    awk -F'|' '
-      /^_HI_OVERLAY_TABLE=\(/ { on = 1; next }
-      on && /^\)/ { exit }
-      !on || $5 == "-" { next }
+    # hi.sh's table and the plugins files read as text, since this file
+    # cannot source them: a row's group, and its plugin - its tool's first
+    # name, else its member's first name. The overlay's file last, so a row
+    # of its own is offered as it stands.
+    {
+      awk -F'|' '
+        /^_HI_OVERLAY_TABLE=\(/ { on = 1; next }
+        on && /^\)/ { exit }
+        !on || $5 == "-" { next }
+        { name = $1; sub(/^[ \t]*\047/, "", name); print $5 "|" $4 "|" name }
+      ' "$hi_tree/hi.sh"
+      for f in "$hi_tree/config/plugins" "${_HI_CONFIG_DIR:-}/plugins"; do
+        [ -f "$f" ] || continue
+        sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/[\1]/p; s/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=[[:space:]]*"\([^"|]*\)|.*/\2|\1/p' "$f" |
+          awk -F'|' '/^\[/ { g = substr($0, 2, length($0) - 2); next } { t = $1; sub(/ *$/, "", t); print g "|" t "|" $2 }'
+      done
+    } | awk -F'|' '
+      $1 == "" { next }
       {
-        name = $4
-        if (name == "-") { name = $1; sub(/^[ \t]*\047/, "", name); sub(/\/.*/, "", name) }
+        name = $2
+        if (name == "-" || name == "") { name = $3; sub(/\/.*/, "", name) }
         gsub(/[()]/, "", name); sub(/ .*/, "", name)
-        if (!seen[$5]++) printf "%s\tevery plugin of that group\n", $5
+        if (!seen[$1]++) printf "%s\tevery plugin of that group\n", $1
         if (!seen[name]++) printf "%s\ta plugin\n", name
       }
-    ' "$hi_tree/hi.sh"
-    carry_members
+    '
+    plugin_members
     ;;
   --plugin-on)
     # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line
@@ -242,7 +259,7 @@ if [ "$kind" = words ]; then
     # target names either
     ;;
   --remove-plugin)
-    carry_members
+    plugin_members
     ;;
   --unset-color)
     color_types

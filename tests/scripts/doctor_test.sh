@@ -321,20 +321,20 @@ function test_config_counts_a_tool_config_copy_as_an_override() {
     [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]]
 }
 
-# a carry line hi turned down is a row, by line number, and a member a good
-# line carries from home is named by its path (GLOSSARY: HI.63)
+# a plugins row hi turned down is a row, by file and line, and a member a
+# good row carries from home is named by its path (GLOSSARY: HI.63)
 function test_config_reports_the_carry_rows() {
   local dir out h="$_HI_WORKDIR/carry-doc-home"
   dir="$(mktemp -d "$_HI_WORKDIR/carrydoc.XXXXXX")"
   mkdir -p "$h"
   printf 'x\n' >"$h/.taskrc"
-  printf 'taskrc | - | env:TASKRC | %s/.taskrc\nvimrc | vim | - | ~/.vimrc\n' "$h" >"$dir/carry"
+  printf '[mine]\ntaskrc = "- | env:TASKRC | %s/.taskrc"\nvimrc = "vim | - | ~/.vimrc"\n' "$h" >"$dir/plugins"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"carry:2"*"ignored - 'vimrc' is a member already"* ]] || _hi_because "no row for the bad line: $out" || return 1
+  [[ "$out" == *"plugins:3"*"ignored - 'vimrc' is a member already"* ]] || _hi_because "no row for the bad line: $out" || return 1
   [[ "$out" == *"taskrc"*"$(_hi_doc_path "$h/.taskrc")"* ]] || _hi_because "no row for the member: $out"
 }
 
@@ -743,6 +743,7 @@ function test_config_names_a_file_under_an_old_member_name() {
   printf 'set number\n' >"$dir/vim.rc"
   printf 'export X=1\n' >"$dir/bash.sh"
   printf 'export X=1\n' >"$dir/bashrc"
+  printf 'taskrc | - | - | ~/.taskrc\n' >"$dir/carry"
   mkdir -p "$dir/plugins.d"
   printf 'export X=1\n' >"$dir/plugins.d/10-x"
   out="$(
@@ -755,7 +756,10 @@ function test_config_names_a_file_under_an_old_member_name() {
   "$out" != *"loads in order"* ]] || _hi_because "the old directory: $out" || return 1
   [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $(_hi_doc_path "$dir/vim.rc") $(_hi_doc_path "$dir/vim/vimrc")"* &&
   "$out" == *"bash.sh"*"old name"*"mv $(_hi_doc_path "$dir/bash.sh") $(_hi_doc_path "$dir/bashrc")"* &&
-  "$out" == *"bashrc"*"overridden (1 lines)"* ]]
+  "$out" == *"bashrc"*"overridden (1 lines)"* ]] || return 1
+  # the carry's lines are rewritten, not moved
+  [[ "$out" == *"carry"*"old name hi no longer reads - it is plugins now: hi --configure converts it"* && "$out" != *"mv $(_hi_doc_path "$dir/carry")"* ]] ||
+    _hi_because "the carry: $out"
 }
 
 # a hand-written value the code would fall back from silently is a row:

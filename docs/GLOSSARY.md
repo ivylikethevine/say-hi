@@ -71,7 +71,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.60 a shell that outlives the tree](#hi60-a-shell-that-outlives-the-tree)
 - [HI.61 one overlay priority](#hi61-one-overlay-priority)
 - [HI.62 generated wiring](#hi62-generated-wiring)
-- [HI.63 carry rows](#hi63-carry-rows)
+- [HI.63 plugins rows](#hi63-plugins-rows)
 - [HI.64 what is switched off](#hi64-what-is-switched-off)
 
 ## HI.01 empty-array guard
@@ -1311,17 +1311,19 @@ name arriving empty can reach the root of the disk again.
 ## HI.61 one overlay priority
 
 Every overlay member resolves in one order, written once as `hi.sh`'s
-`$_HI_OVERLAY_TABLE`: the overlay's copy, else the user's own file at home,
-else the tree's default where `config/` holds one. A row names the member, the `common/paths.sh`
-variable that carries one of hi's own files to the shells (`-` for a tool's
-member), whether `config/` holds a
-default (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that
-reads it (the binaries `_hi_tool_here` looks for, the first of them its name
-in `hi --doctor`; in parentheses, a name nothing looks for), its wire and the
-toggles that keep one of hi's own files home, and the home
-tier: candidate paths best first, a `@function` where no list can say it
-(oh-my-posh's rc-named config, the theme a framework's rc variable names,
-ssh's tag map), or `-` for none.
+`$_HI_OVERLAY_TABLE` and the rows `config/plugins` adds to it
+([HI.63](#hi63-plugins-rows)): the overlay's copy, else the user's own file
+at home, else the tree's default where `config/` holds one. A row names the
+member, the `common/paths.sh` variable that carries one of hi's own files to
+the shells (`-` for a tool's member), whether `config/` holds a default
+(`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that reads it
+(the binaries `_hi_tool_here` looks for, the first of them its name in
+`hi --doctor`; in parentheses, a name nothing looks for), its wire and the
+toggles that keep one of hi's own files home, and the home tier: candidate
+paths best first, a `@function` where no list can say it (oh-my-posh's
+rc-named config, the theme a framework's rc variable names, ssh's tag map),
+or `-` for none. `hi.sh` holds hi's own rows alone: its files, and the
+prompt configs a `@function` finds; every tool's row is the file's.
 `_hi_overlay_src` - the stager, the cache, the include scan - and
 `hi --doctor` read the table, and a tool's member is resolved nowhere else:
 `_hi_overlay_home` walks its row's candidates as the overlay is packed.
@@ -1405,18 +1407,23 @@ An alias line ends `|| true`, since the target may lack the command: the
 file's status is its last line's, and `core.sh` sources `paths.sh` under
 `set -e`.
 
-## HI.63 carry rows
+## HI.63 plugins rows
 
-A tool hi has no row for gets one from the user: a line of the overlay's
-`carry`, `<member> | <tool> | <wire> | <home>`, spaces around a column
-ignored, `#` lines and blank ones skipped. `hi.sh`'s `_hi_carry_load` reads
-it into `$_HI_CARRY_ROWS` in the table's own shape
-([HI.61](#hi61-one-overlay-priority)), so the order, the tool check, the
-include scan, the cache, the wiring ([HI.62](#hi62-generated-wiring)), and
-`hi --doctor` take a row of the user's as they take one of hi's. It is read
-once per `$_HI_CONFIG_DIR`, the first time a row is asked for.
+The tools' rows are a file, the tree's `config/plugins`, and the user's rows
+another of the same shape, the overlay's `plugins`: TOML in the subset
+`core.sh`'s `_hi_toml_row` reads, `[group]` tables of
+`"<member>" = "<tool> | <wire> | <home>"` rows, spaces around a column
+ignored, `#` lines and blank ones skipped. `hi.sh`'s `_hi_plugins_load` reads
+both into `$_HI_PLUGIN_ROWS` in the table's own shape
+([HI.61](#hi61-one-overlay-priority)), the group the table's name, so the
+order, the tool check, the include scan, the cache, the wiring
+([HI.62](#hi62-generated-wiring)), and `hi --doctor` take a row of the user's
+as they take one of hi's. The overlay's file is read after the tree's, and
+a row of a member the tree's has, a directory entry included, replaces the
+tree's row. Both are read once per tree and `$_HI_CONFIG_DIR`, the first
+time a row is asked for.
 
-A home column, the table's or a carry's, is data and is never evaluated.
+A home column, the table's or a file's, is data and is never evaluated.
 `_hi_path_list` reads it as candidates a `:` apart, best first, each a path
 starting at `/`, at `~/`, or at `$NAME`, which is that variable's value and
 drops the path while it is unset or empty. A candidate may be several paths
@@ -1425,23 +1432,28 @@ is `${NAME:-$HOME}`'s place, where a tool looks once its variable is unset.
 Nothing else expands: no `${NAME:-default}`, no command substitution, no
 glob. A grammar can grow in a 1.x where an `eval` could never be narrowed.
 
-A line the table cannot hold is left out and kept, with its number and the
-reason, in `$_HI_CARRY_BAD` for `hi --doctor`: a member that is no plain file
-name (`_hi_dir_member_ok`), that hi or an earlier line already has, or that
-is `wiring.sh`; a tool that is not command names; a wire that is not `env:`
-or `envdir:` over variable names, or `flag:` or `flagdir:` over a command
-and its one flag; a fifth column. The wire is checked because
-its words become a line every target sources.
+A row the table cannot hold is left out and kept, with its file, its line
+and the reason, in `$_HI_PLUGIN_BAD` for `hi --doctor`: a row above the
+first table or under a name that is no group, a line that is no row, a
+member that is no `<name>`, `<dir>/<name>` or `<dir>/`
+(`_hi_plugin_member_ok`), that is hi's own, an earlier row's, or the
+directory one sits under, or that is `wiring.sh`; a tool that is not command
+names or one `(name)`; a wire that is not `env:` or `envdir:` over variable
+names, or `flag:` or `flagdir:` over a command and its words, wires a `;`
+apart; a fourth column. The wire is checked because its words become a line
+every target sources.
 
-`carry` is itself a member. On a target the copy that rode names the members
-that rode with it, so a hop taken from there carries and wires them again,
-from the session's `config/` and never from that machine's home.
+The overlay's `plugins` is itself a member. On a target the copy that rode
+names the members that rode with it, so a hop taken from there carries and
+wires them again, from the session's `config/` and never from that machine's
+home.
 
 ## HI.64 what is switched off
 
 A plugin is a row's tool, or the member where it has none; its group is the
-row's group column (`editors`, `mux`, `prompt`, `cli`, `shell`, and `carry`
-for a line of the user's). A row with no group is hi's own file, which the list
+row's group column, the table a row sits under in a plugins file (`editors`,
+`mux`, `prompt`, `cli`, `shell`, or one the user names). A row with no group
+is hi's own file, which the list
 never switches; only its off column can (`packages`, under
 `_HI_DISABLE_HEADER`). `_hi_plugin_off` answers for a member: off when
 `$_HI_PLUGINS_OFF` names its plugin, its group, or the member itself, or

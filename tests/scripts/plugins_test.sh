@@ -3,7 +3,7 @@
 # Unit tests for scripts/plugins.sh - `hi --plugins`, which lists what rides
 # to a target; `hi --plugin-off` and `--plugin-on`, which keep
 # $_HI_PLUGINS_OFF in settings.sh; and `hi --add-plugin` and
-# `--remove-plugin`, which write a line of ~/.config/say-hi/carry.
+# `--remove-plugin`, which write a row of ~/.config/say-hi/plugins.
 #
 # Driven through `hi.sh --<flag>` rather than by calling the script directly,
 # so the common/flags rows and _hi_dispatch_subcommand are covered with it,
@@ -72,7 +72,7 @@ function test_plugins_help_is_each_command_s_own() {
   cfg="$(_hi_plugins_cfg help)"
   for flag in "--plugins:Usage: hi --plugins" "--plugin-off:Usage: hi --plugin-off <name>... [--dry-run]" \
     "--plugin-on:Usage: hi --plugin-on <name>... [--dry-run]" \
-    "--add-plugin:Usage: hi --add-plugin <member> <tool> <wire> <home> [--dry-run]" \
+    "--add-plugin:Usage: hi --add-plugin <group> <member> <tool> <wire> <home> [--dry-run]" \
     "--remove-plugin:Usage: hi --remove-plugin <member> [--dry-run]"; do
     out="$(_hi_plugins_run "$cfg" "${flag%%:*}" --help)" || return 1
     [[ "$out" == "${flag#*:}"* ]] || _hi_because "${flag%%:*} --help: $out" || return 1
@@ -86,7 +86,8 @@ function test_plugins_refuse_what_they_cannot_take() {
     _hi_plugins_refused "$(_hi_plugins_cfg r3)" "not a plugin, a group, or a member: nosuch" --plugin-off nosuch &&
     _hi_plugins_refused "$(_hi_plugins_cfg r4)" "not a plugin, a group, or a member: colors" --plugin-off colors &&
     _hi_plugins_refused "$(_hi_plugins_cfg r5)" "unknown option --force" --plugin-on vim --force &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r6)" "needs a member, a tool, a wire, and a home" --add-plugin taskrc task &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r6)" "needs a group, a member, a tool, a wire, and a home" --add-plugin cli taskrc task &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r8)" "not a group name: my group" --add-plugin "my group" taskrc task - - &&
     _hi_plugins_refused "$(_hi_plugins_cfg r7)" "needs one member" --remove-plugin
 }
 
@@ -158,73 +159,87 @@ function test_plugin_off_dry_run_writes_nothing() {
 # --add-plugin / --remove-plugin
 # ---------------------------------------------------------------------------
 
+# a row under its group's table, the file made with a comment line when
+# there is none, a key TOML would not read bare in quotes
 # shellcheck disable=SC2016,SC2088 # the home column holds its $ and ~ unexpanded
 function test_add_plugin_writes_a_carry_line() {
   local cfg out
   cfg="$(_hi_plugins_cfg add)"
-  out="$(_hi_plugins_run "$cfg" --add-plugin taskrc task env:TASKRC '$TASKRC : ~/.taskrc')" || return 1
-  [[ "$out" == *' + taskrc | task | env:TASKRC | $TASKRC : ~/.taskrc'* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_run "$cfg" --add-plugin b.rc - 'flag:btool -C' - >/dev/null || return 1
-  _hi_plugins_is "$cfg/carry" '# member | tool | wire | home, best first\ntaskrc | task | env:TASKRC | $TASKRC : ~/.taskrc\nb.rc | - | flag:btool -C | -\n'
+  out="$(_hi_plugins_run "$cfg" --add-plugin cli taskrc task env:TASKRC '$TASKRC : ~/.taskrc')" || return 1
+  [[ "$out" == *' + taskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc" in [cli]'* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_run "$cfg" --add-plugin cli b.rc - 'flag:btool -C' - >/dev/null || return 1
+  _hi_plugins_run "$cfg" --add-plugin mine c.rc - - /etc/c >/dev/null || return 1
+  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home>"\n\n[cli]\ntaskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc"\n"b.rc" = "- | flag:btool -C | -"\n\n[mine]\n"c.rc" = "- | - | /etc/c"\n'
 }
 
-# a carry whose last line was never ended gets the new line on one of its own
+# a file whose last line was never ended gets the new row on one of its own
 function test_add_plugin_starts_its_own_line() {
   local cfg
   cfg="$(_hi_plugins_cfg add-unended)"
   mkdir -p "$cfg"
-  printf 'a.rc | - | - | /etc/a' >"$cfg/carry"
-  _hi_plugins_run "$cfg" --add-plugin b.rc - - /etc/b >/dev/null || return 1
-  _hi_plugins_is "$cfg/carry" 'a.rc | - | - | /etc/a\nb.rc | - | - | /etc/b\n'
+  printf '[mine]\n"a.rc" = "- | - | /etc/a"' >"$cfg/plugins"
+  _hi_plugins_run "$cfg" --add-plugin mine b.rc - - /etc/b >/dev/null || return 1
+  _hi_plugins_is "$cfg/plugins" '[mine]\n"a.rc" = "- | - | /etc/a"\n"b.rc" = "- | - | /etc/b"\n'
 }
 
-# a line hi's own reader would turn down is never written, and says why
-# shellcheck disable=SC2088 # the ~ is the carry's to read, not the shell's
+# a row hi's own reader would turn down is never written, and says why
+# shellcheck disable=SC2088 # the ~ is the file's to read, not the shell's
 function test_add_plugin_refuses_a_line_hi_cannot_read() {
-  _hi_plugins_refused "$(_hi_plugins_cfg add-r1)" "'vim' is a member already" --add-plugin vim vim - '~/.vimrc' &&
-    _hi_plugins_refused "$(_hi_plugins_cfg add-r2)" "'A;B' is no list of variable names" --add-plugin x.rc - 'env:A;B' '~/x' &&
-    _hi_plugins_refused "$(_hi_plugins_cfg add-r3)" "is no plain file name" --add-plugin ../x - - '~/x' &&
-    _hi_plugins_refused "$(_hi_plugins_cfg add-r4)" "not four columns" --add-plugin x.rc - - '~/x | y'
+  _hi_plugins_refused "$(_hi_plugins_cfg add-r1)" "'colors' is a member already" --add-plugin cli colors - - '~/.colors' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r2)" "'B' is not env:, envdir:, flag:, flagdir:, or -" --add-plugin cli x.rc - 'env:A;B' '~/x' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r6)" "'9x' is no list of variable names" --add-plugin cli x.rc - 'env:9x' '~/x' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r3)" "is no <name>, <dir>/<name>, or <dir>/" --add-plugin cli ../x - - '~/x' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r4)" "not three columns" --add-plugin cli x.rc - - '~/x | y' &&
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r5)" "cannot hold a quote or a backslash" --add-plugin cli x.rc - - '~/"x"'
 }
 
-# shellcheck disable=SC2088 # the ~ is the carry's to read, not the shell's
+# a member the file has already is replaced, in its table or moved to the
+# named one; one of the tree's is replaced by a row of the file's own
+# shellcheck disable=SC2088 # the ~ is the file's to read, not the shell's
 function test_add_plugin_refuses_a_member_the_carry_has() {
-  local cfg out rc=0
+  local cfg out
   cfg="$(_hi_plugins_cfg add-twice)"
-  _hi_plugins_run "$cfg" --add-plugin taskrc - env:TASKRC '~/.taskrc' >/dev/null || return 1
-  out="$(_hi_plugins_run "$cfg" --add-plugin taskrc - env:OTHER '~/.other')" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"'taskrc' is a member already"* ]] || _hi_because "rc $rc: $out" || return 1
-  _hi_plugins_is "$cfg/carry" '# member | tool | wire | home, best first\ntaskrc | - | env:TASKRC | ~/.taskrc\n'
+  _hi_plugins_run "$cfg" --add-plugin cli taskrc - env:TASKRC '~/.taskrc' >/dev/null || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin cli taskrc - env:OTHER '~/.other')" || return 1
+  [[ "$out" == *"(replacing the row for taskrc in [cli])"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home>"\n\n[cli]\ntaskrc = "- | env:OTHER | ~/.other"\n' || return 1
+  _hi_plugins_run "$cfg" --add-plugin mine taskrc - env:OTHER '~/.other' >/dev/null || return 1
+  _hi_plugins_is "$cfg/plugins" '# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home>"\n\n[cli]\n\n[mine]\ntaskrc = "- | env:OTHER | ~/.other"\n' || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin editors vim/vimrc vim - '~/.vimrc')" || return 1
+  [[ "$out" == *' + "vim/vimrc" = "vim | - | ~/.vimrc" in [editors]'* ]] || _hi_because "said: $out" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugins)" || return 1
+  [[ "$out" == *"vim "*"editors "*"vim/vimrc "* ]] && [ "$(printf '%s\n' "$out" | grep -c ' vim/vimrc ')" = 1 ] ||
+    _hi_because "listed: $out"
 }
 
-# shellcheck disable=SC2088 # the ~ is the carry's to read, not the shell's
+# shellcheck disable=SC2088 # the ~ is the file's to read, not the shell's
 function test_add_plugin_dry_run_writes_nothing() {
   local cfg out
   cfg="$(_hi_plugins_cfg add-dry)"
-  out="$(_hi_plugins_run "$cfg" --add-plugin taskrc - env:TASKRC '~/.taskrc' -n)" || return 1
-  [[ "$out" == *"dry run"*"add that line to $cfg/carry"* ]] && [ ! -e "$cfg" ]
+  out="$(_hi_plugins_run "$cfg" --add-plugin cli taskrc - env:TASKRC '~/.taskrc' -n)" || return 1
+  [[ "$out" == *"dry run"*"write $cfg/plugins"* ]] && [ ! -e "$cfg" ]
 }
 
-# the line goes, its comments and its neighbours stay
+# the row goes, its comments, its table and its neighbours stay
 function test_remove_plugin_takes_the_line_out() {
   local cfg out
   cfg="$(_hi_plugins_cfg remove)"
   mkdir -p "$cfg"
-  printf '# mine\n  taskrc | task | env:TASKRC | ~/.taskrc\n# kept\nb.rc | - | - | ~/b\n' >"$cfg/carry"
+  printf '# mine\n[cli]\n  taskrc = "task | env:TASKRC | ~/.taskrc"\n# kept\n"b.rc" = "- | - | ~/b"\n' >"$cfg/plugins"
   out="$(_hi_plugins_run "$cfg" --remove-plugin taskrc)" || return 1
-  [[ "$out" == *" - "*"taskrc | task"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/carry" '# mine\n# kept\nb.rc | - | - | ~/b\n'
+  [[ "$out" == *" - "*'taskrc = "task'*"(from [cli])"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_is "$cfg/plugins" '# mine\n[cli]\n# kept\n"b.rc" = "- | - | ~/b"\n'
 }
 
-# one of hi's own has no line: the answer is --plugin-off. A name nothing
-# has is a no-op.
+# one of hi's own has no row of the user's: the answer is --plugin-off. A
+# name nothing has is a no-op.
 function test_remove_plugin_knows_hi_s_own_from_nothing() {
   local cfg out rc=0
   cfg="$(_hi_plugins_cfg remove-own)"
   out="$(_hi_plugins_run "$cfg" --remove-plugin vim/vimrc)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"hi --plugin-off vim/vimrc switches it off"* ]] || _hi_because "rc $rc: $out" || return 1
   out="$(_hi_plugins_run "$cfg" --remove-plugin nosuch.rc)" || return 1
-  [[ "$out" == *"has no line for nosuch.rc"* ]] && [ ! -e "$cfg" ]
+  [[ "$out" == *"has no row for nosuch.rc"* ]] && [ ! -e "$cfg" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -232,7 +247,7 @@ function test_remove_plugin_knows_hi_s_own_from_nothing() {
 # ---------------------------------------------------------------------------
 
 # a row a member: what rides and from where, what is off and by what, and
-# a line of the carry beside hi's own
+# a row of the user's own beside hi's
 function test_plugins_lists_what_rides_and_what_is_off() {
   local cfg out
   cfg="$(_hi_plugins_cfg list)"
@@ -241,14 +256,14 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   printf 'x\n' >"$cfg/bat/config"
   printf 'x\n' >"$cfg/nano/nanorc"
   printf 'x\n' >"$cfg.home/.taskrc"
-  printf 'taskrc | - | env:TASKRC | ~/.taskrc\nbad line\n' >"$cfg/carry"
+  printf '[mine]\ntaskrc = "- | env:TASKRC | ~/.taskrc"\nbad line\n' >"$cfg/plugins"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="mux nano"\n' >"$cfg/settings.sh"
   out="$(_hi_plugins_run "$cfg" --plugins)" || return 1
   [[ "$out" == *"bat "*"cli "*"bat/config "*"rides: $cfg/bat/config"* ]] || _hi_because "bat: $out" || return 1
   [[ "$out" == *"nano "*"editors "*"nano/nanorc "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *"tmux "*"mux "*"tmux/tmux.conf "*"stays home: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
-  [[ "$out" == *"taskrc "*"carry "*"taskrc "*"rides: ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
-  [[ "$out" == *"line 2 is ignored"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
+  [[ "$out" == *"taskrc "*"mine "*"taskrc "*"rides: ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
+  [[ "$out" == *"$cfg/plugins line 3 is ignored"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }
 
 function run_plugins_tests() {
@@ -269,10 +284,10 @@ function run_plugins_tests() {
   _hi_check "--dry-run names the write and writes nothing" test_plugin_off_dry_run_writes_nothing
 
   _hi_h2 "Testing: --add-plugin and --remove-plugin"
-  _hi_check "--add-plugin writes a carry line" test_add_plugin_writes_a_carry_line
+  _hi_check "--add-plugin writes a row under its group" test_add_plugin_writes_a_carry_line
   _hi_check "...on a line of its own after an unended one" test_add_plugin_starts_its_own_line
   _hi_check "...never one hi could not read" test_add_plugin_refuses_a_line_hi_cannot_read
-  _hi_check "...nor a member the carry has" test_add_plugin_refuses_a_member_the_carry_has
+  _hi_check "...a member the file has is replaced, and one of the tree's" test_add_plugin_refuses_a_member_the_carry_has
   _hi_check "...and nothing under --dry-run" test_add_plugin_dry_run_writes_nothing
   _hi_check "--remove-plugin takes the line out" test_remove_plugin_takes_the_line_out
   _hi_check "...and tells hi's own from a name nothing has" test_remove_plugin_knows_hi_s_own_from_nothing

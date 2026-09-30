@@ -5,6 +5,7 @@
   "files.associations": {
     "config/colors": "toml",
     "config/packages": "toml",
+    "config/plugins": "toml",
     "docs/tapes/editors/vimrc": "ini",
     "docs/tapes/editors/nanorc": "ini",
   },

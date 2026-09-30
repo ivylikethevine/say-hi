@@ -1293,7 +1293,7 @@ function config_plugins_off() {
       next="${off# }" next="${next% }"
       show_preview _hi_plugins_off_preview "$next"
       _hi_paint shown "$BRPURPLE" "[${next:-none}]"
-      menu_read " Toggle which plugins or groups (editors, mux, prompt, cli, shell, carry)? $shown " reply || break
+      menu_read " Toggle which plugins or groups (editors, mux, prompt, cli, shell)? $shown " reply || break
       [ -z "$reply" ] && break
       reply="${reply//,/ }"
       bad=""

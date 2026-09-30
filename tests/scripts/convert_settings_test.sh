@@ -160,6 +160,33 @@ function test_colors_comments_travel_with_their_row() {
   [ "$(printf '%s\n' "$got" | grep -v '^$' | sed 's/  */ /g')" = "$(printf '# top\n[hostname]\na red\n[username]\n# about b\nb blue')" ]
 }
 
+# --- carry -------------------------------------------------------------------
+
+# the lines become rows of one [carry] table, a name TOML would not read
+# bare in quotes; comments stay, and a line of the wrong shape becomes one
+# shellcheck disable=SC2016 # the home column holds its $ unexpanded
+function test_carry_lines_become_rows() {
+  _hi_conv_is _hi_convert_carry '# member | tool | wire | home\n\n  taskrc | task | env:TASKRC | $TASKRC : ~/.taskrc  \nmy.rc|-|-|~/.myrc\n# about b\nb | x\n' \
+    '# member | tool | wire | home\n[carry]\ntaskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc"\n"my.rc" = "- | - | ~/.myrc"\n# about b\n# b | x\n'
+}
+
+# the entry point writes the carry as plugins and keeps it as carry.old,
+# unless a plugins file is there already
+function test_entry_converts_the_carry() {
+  local dir="$_HI_WORKDIR/conv-carry" out
+  mkdir -p "$dir"
+  printf 'taskrc | - | env:TASKRC | ~/.taskrc\n' >"$dir/carry"
+  out="$(_hi_conv_run --dry-run "$dir")" || return 1
+  [[ "$out" == *"would convert $dir/carry to $dir/plugins"* ]] && [ ! -e "$dir/plugins" ] || _hi_because "dry: $out" || return 1
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/carry to $dir/plugins"* ]] && [ ! -e "$dir/carry" ] &&
+    [ "$(cat "$dir/carry.old")" = 'taskrc | - | env:TASKRC | ~/.taskrc' ] &&
+    [ "$(cat "$dir/plugins")" = "$(printf '[carry]\ntaskrc = "- | env:TASKRC | ~/.taskrc"')" ] || _hi_because "$out: $(cat "$dir/plugins")" || return 1
+  printf 'b | - | - | ~/b\n' >"$dir/carry"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [ -z "$out" ] && [ -f "$dir/carry" ]
+}
+
 # --- settings.sh -------------------------------------------------------------
 
 # the old floor becomes the groups that show the same tiers; 2 was the
@@ -451,6 +478,10 @@ function run_convert_settings_tests() {
   _hi_h2 "Testing: _hi_convert_colors"
   _hi_check "Types in first-appearance order, rows in file order" test_colors_group_rows_by_type_in_order
   _hi_check "Comments travel with the row below" test_colors_comments_travel_with_their_row
+
+  _hi_h2 "Testing: the carry"
+  _hi_check "Its lines become rows of a [carry] table" test_carry_lines_become_rows
+  _hi_check "The entry point writes it as plugins, keeping carry.old" test_entry_converts_the_carry
 
   _hi_h2 "Testing: _hi_convert_settings"
   _hi_check "The floor maps to groups; 2 goes" test_settings_map_the_floor_to_groups

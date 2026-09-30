@@ -372,6 +372,9 @@ _HI_GROUPS_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the shipped plugins rows, which hi.sh reads under $_HI_ROOT
+  mkdir -p "$_hi_dir/config"
+  ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
   mkdir -p "$_hi_dir/overlay/nano"
@@ -1211,6 +1214,9 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
+  # the shipped plugins rows, which hi.sh reads under $_HI_ROOT
+  mkdir -p "$_hi_dir/config"
+  ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"
   mkdir -p "$_hi_dir/overlay/nano"

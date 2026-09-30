@@ -119,7 +119,7 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/zellij/`           | -                 | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                         |
 | `~/.config/say-hi/micro/`            | -                 | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                         |
 | `~/.config/say-hi/aliases.sh`        | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                         |
-| `~/.config/say-hi/carry`             | -                 | a line for each config of a tool hi does not know; see [below](#a-tool-hi-does-not-know)                                                                                                                       |
+| `~/.config/say-hi/plugins`           | -                 | a row for each config of a tool hi does not know, or your own row for one it does; see [below](#a-tool-hi-does-not-know)                                                                                       |
 | `~/.config/say-hi/extensions/`       | -                 | extensions in the same subset, sourced after the aliases in name order; see [below](#extensions)                                                                                                               |
 | `~/.config/say-hi/bashrc`            | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session)) |
 | `~/.config/say-hi/zshrc`             | -                 | the same for zsh - history, keybindings, `zstyle` completion rules                                                                                                                                             |
@@ -494,8 +494,8 @@ a row a file, with what rides and from where:
 
 `hi --plugin-off lazygit` keeps it home, and `hi --plugin-on lazygit` lets
 it ride again. A name is a plugin, a member (`bat/config`), or a group, which
-switches all of its kind: `editors`, `mux`, `prompt`, `cli`, `shell`, and
-`carry` for the lines of your own. What is off sends no file, an overlay
+switches all of its kind: `editors`, `mux`, `prompt`, `cli`, `shell`, or
+a table of your own `plugins` file. What is off sends no file, an overlay
 copy included, and sets nothing on a target, so the tool there keeps the
 target's own config. hi's own files (`settings.sh`, `colors`, `packages`)
 are not plugins and always ride.
@@ -508,27 +508,39 @@ With `editors` in it a target also keeps its own `$EDITOR`, `$VISUAL`, and
 
 ### A tool hi does not know
 
-A config hi has no member for rides once `~/.config/say-hi/carry` has a line
-for it, written by hand or by `hi --add-plugin`:
+Every config hi carries is a row of the tree's `config/plugins`, in as much
+of TOML as hi reads: a `[group]` table, and under it a row a member,
+`"<member>" = "<tool> | <wire> | <home>"`. A config hi has no row for rides
+once `~/.config/say-hi/plugins` has one, written by hand or by
+`hi --add-plugin`, and a row there of a member the tree's file has replaces
+the tree's row:
 
-```text
-# member  | tool   | wire             | home, best first
-taskrc    | task   | env:TASKRC       | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc
-mytool.rc | mytool | flag:mytool --rc | ~/.config/mytool/rc
-notes.txt | -      | -                | ~/notes.txt
+```toml
+[cli]
+taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc"
+"mytool.rc" = "mytool | flag:mytool --rc | ~/.config/mytool/rc"
+
+[mine]
+"notes.txt" = "- | - | ~/notes.txt"
 ```
 
-- **member** is the name it rides under, a plain file name hi does not use
-  already. A file of that name in `~/.config/say-hi/` is carried instead of
-  home's.
+- **group** is the table, the word that switches every row under it with
+  `hi --plugin-off`: one of hi's (`editors`, `mux`, `prompt`, `cli`,
+  `shell`) or one of your own.
+- **member** is the name it rides under: a file name hi does not use
+  already, in double quotes where TOML would not read it bare, a tool's own
+  file under its directory (`vim/vimrc`), or a directory whose files ride
+  one by one (`zellij/layouts/`). A file of that name in `~/.config/say-hi/`
+  is carried instead of home's.
 - **tool** is the command that reads it, or several: home's copy rides only
-  with one of them on this machine. `-` asks about nothing.
+  with one of them on this machine. `-` asks about nothing, and a name in
+  parentheses (`(readline)`) is one nothing looks for.
 - **wire** is how a target's tool finds it: `env:` and the variables to set
   to the file's path, `envdir:` and the variable to set to its directory,
   `flag:` and the command and flag to alias it with (`flagdir:` for the
-  directory; a flag written `--rc=` takes the path in the same word), or
-  `-` when something of yours points at `$_HI_CONFIG_DIR/<member>`, a
-  [extension](#extensions)'s alias say.
+  directory; a flag written `--rc=` takes the path in the same word;
+  several wires a `;` apart), or `-` when something of yours points at
+  `$_HI_CONFIG_DIR/<member>`, a [extension](#extensions)'s alias say.
 - **home** is where the file is here, candidates a `:` apart, the first
   that exists winning. A candidate starts at `/`, at `~/`, or at a
   variable's name (`$XDG_CONFIG_HOME/...`), and is skipped while that
@@ -537,13 +549,14 @@ notes.txt | -      | -                | ~/notes.txt
   tool looks in its default place only once its variable is unset. Nothing
   else in it expands, and nothing in it runs.
 
-`hi --add-plugin taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes the
-first line above, quoted so the shell leaves its `$` and `~` alone, and
-refuses a line hi could not read; `hi --remove-plugin taskrc` takes it out.
+`hi --add-plugin cli taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes
+the first row above, quoted so the shell leaves its `$` and `~` alone, and
+refuses a row hi could not read; `hi --remove-plugin taskrc` takes it out.
 To change one, edit the file. `hi --plugins` and `hi --doctor` name each
-file a line carries, and each line hi could not read, with the reason. The variable or alias is set on a target only; at
-home the tool goes on reading its own config. The whole contract is
-[HI.63](GLOSSARY.md#hi63-carry-rows).
+file a row carries, and each row hi could not read, with the reason. The
+variable or alias is set on a target only; at home the tool goes on reading
+its own config. The whole contract is
+[HI.63](GLOSSARY.md#hi63-plugins-rows).
 
 ## The editor rcs come from where you keep them
 
@@ -632,8 +645,8 @@ directory as one link.
 **Nothing but the overlay files travels.** `$_HI_OVERLAY_FILES` is an allow
 list, so your manager's metadata (`.chezmoiignore`, templates), a `.git` of
 your own, editor swap files, and anything private sharing that directory stay
-on your machine. What a line of your `carry` names rides too, since the
-line is you asking. The one file beside them is hi's own `wiring.sh`
+on your machine. What a row of your `plugins` names rides too, since the
+row is you asking. The one file beside them is hi's own `wiring.sh`
 ([HI.62](GLOSSARY.md#hi62-generated-wiring)), written as the overlay is
 packed.
 

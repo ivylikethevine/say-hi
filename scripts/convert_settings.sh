@@ -6,6 +6,8 @@
 #                [group] lines -> TOML tables of name = [...] rows
 #   colors       "type,name,color[,rrggbb]" rows, or "name color [rrggbb]"
 #                rows under [type] lines -> TOML tables of name = "..." rows
+#   carry        "member | tool | wire | home" lines -> plugins, TOML rows
+#                of the same columns under [carry]
 #   settings.sh  _HI_PACKAGES_MIN_PRIORITY -> _HI_PACKAGES_GROUPS; the
 #                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped;
 #                an editor's or a multiplexer's _HI_DISABLE_* -> its word in
@@ -229,6 +231,26 @@ function _hi_toml_colors() {
   '
 }
 
+# _hi_convert_carry - stdin's `member | tool | wire | home` lines as TOML on
+# stdout: `"member" = "tool | wire | home"` rows under [carry], the group the
+# lines had, a name TOML would not read bare in quotes; comments stay where
+# they were, and a line of the wrong shape becomes one
+function _hi_convert_carry() {
+  awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    /^[ \t]*$/ { next }
+    /^[ \t]*#/ { print trim($0); next }
+    {
+      if (!seen++) print "[carry]"
+      n = split($0, f, "|")
+      if (n != 4 || index($0, "\"") || index($0, "\\")) { print "# " trim($0); next }
+      k = trim(f[1])
+      if (k !~ /^[A-Za-z0-9_-]+$/) k = "\"" k "\""
+      printf "%s = \"%s | %s | %s\"\n", k, trim(f[2]), trim(f[3]), trim(f[4])
+    }
+  '
+}
+
 # _hi_convert_settings - stdin's settings.sh with a _HI_PACKAGES_MIN_PRIORITY
 # line replaced by the _HI_PACKAGES_GROUPS that shows the same tiers, its
 # trailing comment (install's marker among them) kept, or dropped where that
@@ -317,6 +339,22 @@ function _hi_convert_one() {
   _hi_cecho " converted $f to the current format (the old one is at $f.old)" "$GREEN"
 }
 
+# _hi_convert_carry_file <dir> - <dir>/carry as <dir>/plugins, the carry
+# kept as carry.old; nothing where there is no carry, or a plugins already
+function _hi_convert_carry_file() {
+  local tmp
+  [ -f "$1/carry" ] && [ ! -e "$1/plugins" ] || return 0
+  if [ -n "$_HI_DRY_RUN" ]; then
+    _hi_cecho " would convert $1/carry to $1/plugins (the old one kept at $1/carry.old)" "$BLUE"
+    return 0
+  fi
+  tmp="$(mktemp -t hi.convert.XXXXXX)"
+  _hi_convert_carry <"$1/carry" >"$tmp"
+  _hi_write_back "$tmp" "$1/plugins"
+  mv -f "$1/carry" "$1/carry.old"
+  _hi_cecho " converted $1/carry to $1/plugins (the old one is at $1/carry.old)" "$GREEN"
+}
+
 # _hi_convert_data <file> <packages|colors> <flat rows' pattern> - a data
 # file, by the shape scripts/lib.sh's _hi_data_shape reads off its rows
 function _hi_convert_data() {
@@ -340,7 +378,7 @@ dir="$_HI_CONFIG_DIR"
 while [ $# -gt 0 ]; do
   case "$1" in
   -h | --help)
-    printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' convert_settings.sh "$_HI_CONFIG_DIR"
+    printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, carry, and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' convert_settings.sh "$_HI_CONFIG_DIR"
     exit 0
     ;;
   -n | --dry-run) _HI_DRY_RUN=1 ;;
@@ -353,5 +391,6 @@ done
 _hi_old_settings='^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_(EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ))='
 _hi_convert_data "$dir/packages" packages "$_HI_FLAT_PACKAGES"
 _hi_convert_data "$dir/colors" colors "$_HI_FLAT_COLORS"
+_hi_convert_carry_file "$dir"
 [ ! -f "$dir/settings.sh" ] || ! grep -Eq "$_hi_old_settings" "$dir/settings.sh" ||
   _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings

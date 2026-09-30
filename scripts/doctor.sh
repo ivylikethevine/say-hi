@@ -511,21 +511,28 @@ function doctor_config() {
   # would say why the override stopped applying
   for t in $_HI_OVERLAY_RENAMES; do
     [ -e "$_HI_CONFIG_DIR/${t%%:*}" ] || continue
-    # a name under a directory needs the directory first
+    # the carry's lines are rewritten, not moved; a name under a directory
+    # needs the directory first
     f=""
-    case "${t#*:}" in */*) f="mkdir -p $_HI_CONFIG_DIR/${t#*:}" f="${f%/*} && " ;; esac
-    doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: ${f}mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}" bad
+    case "$t" in
+    carry:*) f="hi --configure converts it, or hi --add-plugin writes its rows there" ;;
+    *)
+      case "${t#*:}" in */*) f="mkdir -p $_HI_CONFIG_DIR/${t#*:}" f="${f%/*} && " ;; esac
+      f="${f}mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}"
+      ;;
+    esac
+    doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: $f" bad
   done
-  # a carry line hi.sh's _hi_carry_load turned down: the member it names
+  # a plugins row hi.sh's _hi_plugins_load turned down: the member it names
   # rides nowhere, and nothing else says so (GLOSSARY: HI.63)
-  _hi_carry_load
-  for t in ${_HI_CARRY_BAD[@]+"${_HI_CARRY_BAD[@]}"}; do
-    doctor_row "carry:${t%%|*}" "ignored - ${t#*|}" warn
+  _hi_plugins_load
+  for t in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do
+    doctor_row "${t%%|*}" "ignored - ${t#*|}" warn
   done
   # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract,
-  # and the carry rows' members after it), minus settings.sh, which got its
-  # richer parse-checked row above
-  for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_CARRY_FILES[@]+"${_HI_CARRY_FILES[@]}"}; do
+  # and the plugins rows' members after it), minus settings.sh, which got
+  # its richer parse-checked row above
+  for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
     [ "$f" = settings.sh ] && continue
     [ "$f" = extensions/ ] && {
       doctor_extensions
@@ -708,8 +715,8 @@ function doctor_settings_values() {
   esac
 }
 
-# doctor_files - the places hi.sh's $_HI_OVERLAY_TABLE says a member can come
-# from that hold something, in its one order (GLOSSARY: HI.61): the overlay's
+# doctor_files - the places hi.sh's $_HI_OVERLAY_TABLE and the plugins files
+# say a member can come from that hold something, in its one order (GLOSSARY: HI.61): the overlay's
 # copy, each home location, the tree's default where there is one - each
 # marked used or passed over (the tree's default only when used), and why
 # nothing is sent when something is there. A member found nowhere joins one closing row, so a sparse setup
@@ -718,8 +725,8 @@ function doctor_files() {
   doctor_section files "The files hi looks for"
   local row m used eff p state text label none="" found tilde='~'
   local -a locs _hi_paths=()
-  _hi_carry_load
-  for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_CARRY_ROWS[@]+"${_HI_CARRY_ROWS[@]}"}; do
+  _hi_plugins_load
+  for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
     m="${row%%|*}"
     # settings.sh and extensions/ have rows of their own in the overlay section
     case "$m" in settings.sh | extensions/) continue ;; esac
