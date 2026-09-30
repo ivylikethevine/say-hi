@@ -315,7 +315,7 @@ function _hi_uname() {
 function _hi_system_info_probe() {
   [ -z "${_HI_SI_PROBED:-}" ] || return 0
   _HI_SI_PROBED=1
-  local kernel arch os cpus ram base_mhz load="" load_pct="" plat
+  local kernel arch os="" cpus="" ram="" base_mhz="" load="" load_pct="" plat
   _hi_platform plat
   _hi_uname
   kernel="$_HI_KERNEL" arch="$_HI_ARCH"
