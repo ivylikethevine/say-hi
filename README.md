@@ -343,78 +343,18 @@ myself.
 ## Roadmap
 
 What's left; nothing here is parked or descoped. One list, in the order the
-work is best done, an entry leaning on the ones above it: how a config
-reaches a target first, then the lint gate, the rest, and CI. An entry is
+work is best done: what CI has yet to show, then the 1.0 tag. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
-1. [ ] _Before 1.0:_ **An `xdg` wire, the fallback** — shipped: an
-       `xdg:<command>` wire aliases the command with `$XDG_CONFIG_HOME` set
-       to the overlay, which `<tool>/<file>` members give the shape of
-       `~/.config`, and helix's `languages.toml` is a member that rides by
-       it. [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#a-tool-with-no-variable-and-no-flag)
-       and [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know)
-       name it the fallback and its cost. The framework suite's `tools`
-       case has `hx` read a carried one on an Alpine target. **Ticks
-       when:** that case passes in CI.
-
-2. [ ] _Before 1.0:_ **An editor's side files ride with its rc** —
-       shipped: kakoune's `colors/` rides file by file beside the `kakrc`,
-       as zellij's `themes/` does, from the directory kak reads, and the
-       `kakrc`'s `$KAKOUNE_CONFIG_DIR` points kak at it. The framework
-       suite's `tools` case has a `kakrc`'s `colorscheme <own>` load that
-       scheme on a target. **Ticks when:** that case passes in CI.
-
-3. [ ] _Before 1.0:_ **Everyday CLI configs ride** — shipped: `ripgreprc`
-       (`$RIPGREP_CONFIG_PATH`), `fzfrc` (`$FZF_DEFAULT_OPTS_FILE`), and
-       `lazygit/config.yml` (`$LG_CONFIG_FILE`) are members, each carried from
-       where its tool keeps it and listed in
-       [docs/FILES.md](docs/FILES.md#configs-read-from-where-their-tool-keeps-them);
-       the framework suite's `tmux` case has rg read one on a target, and
-       fzf (a pinned release, since bookworm's predates the variable). Left
-       for rows of their own: `LS_COLORS`, ~18KB raw on every connect;
-       skim, bottom, procs, and dust, which fewer boxes run, the last three
-       behind a flag and so an alias. The `tools` case has lazygit read
-       its own on Alpine, which packages it. **Ticks when:** the `tmux`
-       and `tools` cases pass in CI.
-
-4. [ ] _Before 1.0:_ **A tool's config rides without a change to hi** —
-       shipped: a row of the overlay's `plugins` names the member, its
-       tool, its wire, and its places at home, and rides through the same order,
-       include scan, and wiring;
-       [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know) shows
-       how. The framework suite's `tools` case carries git's config by a
-       row of the overlay's own and has git read it on a target. **Ticks
-       when:** that case passes in CI.
-
-5. [ ] _Before 1.0:_ **Every `eval` is counted, then fewer** — shipped:
-       `drift` holds every `eval` in the payload and `scripts/` to a row of
-       `tests/lint/eval_roster` that says what it evaluates, and each file's
-       count of its kin (a `source` of a path in a variable, a shell's `-c`,
-       a recursive `rm`). Twenty-one are left, and the two that read text
-       from outside the tree are a prompt program's `init`, the one way in
-       that stays; the shell's `complete -p`, `alias -p`, and `trap -p` are
-       read back by a grammar, and `$_HI_SEGMENT` runs as a command and its
-       words. **Ticks when:** the lint group passes in CI on that roster.
-
-6. [ ] _Before 1.0:_ **A prompt loader nobody was handed stays home** —
-       shipped: each framework's loader is a file of its own,
-       `common/fw_<name>.<ext>`, and `_hi_payload_excl` cuts the ones a
-       target is not handed
-       ([HI.32](docs/GLOSSARY.md#hi32-starship-deference)), as it cuts a
-       shadowed default; the git and environment segments stay built in.
-       `--group bench` reads the cached tar a connect handed starship alone
-       streams against the unconfigured one. **Ticks when:** that bench
-       passes in CI.
-
-7. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
+1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
        lookup on one host answered (a blocked host, not a one-off rate
        limit). What is left is seeing it in CI. **Ticks when:** a
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-8. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
+2. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
        the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
        `update.sh` and `preview.sh` from a scratch-tree copy (the first four
        read 0% in run 36341616721, 91.11% overall) now link the real
@@ -424,28 +364,28 @@ checkout: an account or an upstream review that lands when it lands.
        this lands reads at least 95% and no shipped line at 0 that is
        neither tested nor in that header.
 
-9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+3. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-        upstream style. **Do:** open the PR against tldr-pages. **Ticks
-        when:** merged.
+4. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+       upstream style. **Do:** open the PR against tldr-pages. **Ticks
+       when:** merged.
 
-11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-        settle its three flagged rows (`small_tasks`, `secure_2FA`,
-        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-        the live entry matches the sheet.
+5. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+       the live entry matches the sheet.
 
-12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-        `publish-external.yml`'s `aur` job is written but unexercised. **When
-        it reopens:** register, add `AUR_SSH_KEY` to the `release`
-        environment, and push each package once by hand
-        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-        packages are live and a dispatch has kept `say-hi` current for one
-        release.
+6. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+       `publish-external.yml`'s `aur` job is written but unexercised. **When
+       it reopens:** register, add `AUR_SSH_KEY` to the `release`
+       environment, and push each package once by hand
+       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+       packages are live and a dispatch has kept `say-hi` current for one
+       release.
 
 ## License
 
