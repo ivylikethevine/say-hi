@@ -159,7 +159,7 @@ function bench_targets_warm() {
 # is the one every budget should be set against.
 #
 # A connect handed starship alone is measured beside it: it leaves every
-# framework's prompt loader home (hi.sh's _hi_payload_excl), so it has to come
+# framework's prompt loader home (pack.sh's _hi_payload_excl), so it has to come
 # in under the unconfigured figure.
 function bench_payload_size() {
   local bytes lean budget=65536

@@ -204,17 +204,18 @@ if [ "$kind" = words ]; then
     printf 'hostname\ta hostname, or a * or ? pattern\n'
     ;;
   --plugin-off)
-    # hi.sh's table and the plugins files read as text, since this file
+    # pack.sh's table and the plugins files read as text, since this file
     # cannot source them: a row's group, and its plugin - its tool's first
     # name, else its member's first name. The overlay's file last, so a row
-    # of its own is offered as it stands.
+    # of its own is offered as it stands. A session has no scripts/, and no
+    # use for the flag.
     {
-      awk -F'|' '
+      [ ! -f "$hi_tree/scripts/pack.sh" ] || awk -F'|' '
         /^_HI_OVERLAY_TABLE=\(/ { on = 1; next }
         on && /^\)/ { exit }
         !on || $5 == "-" { next }
         { name = $1; sub(/^[ \t]*\047/, "", name); print $5 "|" $4 "|" name }
-      ' "$hi_tree/hi.sh"
+      ' "$hi_tree/scripts/pack.sh"
       for f in "$hi_tree/config/plugins" "${_HI_CONFIG_DIR:-}/plugins"; do
         [ -f "$f" ] || continue
         sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/[\1]/p; s/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=[[:space:]]*"\([^"|]*\)|.*/\2|\1/p' "$f" |

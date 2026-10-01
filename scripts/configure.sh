@@ -402,7 +402,7 @@ function _hi_config_preview() {
 }
 
 # what each editor's alias is on a target: the lines
-# hi.sh's _hi_overlay_wiring writes for the editor configs that would ride
+# pack.sh's _hi_overlay_wiring writes for the editor configs that would ride
 # (GLOSSARY: HI.62), read off that writer rather than restated here, each
 # naming the file it carries in place of the target's copy. A name two
 # lines alias (`vim`, where a target has nvim) is listed for each, in the

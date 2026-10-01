@@ -163,7 +163,9 @@ These are constraints the tree enforces, not requests:
   are CI-enforced against separate numbers. Touch a shipped file, run
   `--group bench`, and check both; when README's payload badge goes red,
   `packaging/stamp_badge.sh` restamps it. Tooling-only helpers do not belong in
-  `common/core.sh`.
+  `common/core.sh`, and what only builds the payload belongs in
+  `scripts/pack.sh`, not `hi.sh`: a session relays its tree as it stands
+  (`GLOSSARY: HI.66`).
 - **A new suite has a home and a registration** —
   [TESTING.md's _Where a suite lives_](TESTING.md#where-a-suite-lives).
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,

@@ -898,7 +898,7 @@ function test_payload_stays_under_the_tripwire() {
 # see - `hi --help` - is intact.
 # The include scan. Every editor rc and shell file ships into a config/ of its
 # own, so a line naming a path names something no target has and the editor
-# or shell fails, not hi. hi.sh's _hi_lint_awk reads every dialect; these pin
+# or shell fails, not hi. pack.sh's _hi_lint_awk reads every dialect; these pin
 # what it drops, what it deliberately leaves alone, that a lua or elisp
 # finding takes its whole expression with it rather than leaving a stray
 # brace, and that a shell finding leaves the file parseable.
@@ -1948,8 +1948,8 @@ function test_strip_keeps_every_code_line() {
 # The two halves of the whitespace trim, on the file that has both: nothing
 # blank and nothing indented survives *outside* a heredoc, and everything
 # inside one is untouched - a target's `sh` reads those bodies as data, and
-# `<<-` strips its own tabs there. hi.sh's own awk program is the fixture:
-# its `  line = $0` sits inside `<<'"'"'AWK'"'"'` and is indented on purpose.
+# `<<-` strips its own tabs there. hi.sh's remote script is the fixture: its
+# `      mkdir "\$_HI_ROOT"` sits inside `<<REMOTE`.
 function test_strip_trims_whitespace_outside_heredocs() {
   local dir n
   dir="$(_hi_strip_unpack stripped)"
@@ -1963,7 +1963,7 @@ function test_strip_trims_whitespace_outside_heredocs() {
     _hi_cecho " | core.sh kept $n indented line(s) through the strip" "$RED"
     return 1
   }
-  grep -q '^  line = \$0$' "$dir/say-hi/hi.sh" || {
+  grep -q '^      mkdir "\\\$_HI_ROOT"$' "$dir/say-hi/hi.sh" || {
     _hi_cecho " | a heredoc body lost its indentation through the strip" "$RED"
     return 1
   }
@@ -1993,6 +1993,82 @@ function test_strip_spares_heredoc_bodies() {
   local dir
   dir="$(_hi_strip_unpack stripped)"
   grep -q 'passed to ssh unchanged' "$dir/say-hi/hi.sh"
+}
+
+# A session's tree is the payload unpacked: no scripts/, so no packer, and
+# its hi.sh relays the tree as it stands. The fixture is one hop's tree, the
+# way a session leaves it: the bootloader beside the payload, and an include
+# the client carried, fixed up to this hop's path.
+function _hi_session_tree() {
+  local dir="$_HI_WORKDIR/session"
+  [ -d "$dir" ] || {
+    mkdir -p "$dir"
+    _hi_payload_tar | tar -x -z -f - -C "$dir"
+    mkdir -p "$dir/say-hi/config/vim"
+    printf 'source %s/say-hi/config/vim/extra.vim\n' "$dir" >"$dir/say-hi/config/vim/vimrc"
+    : >"$dir/say-hi/config/vim/extra.vim"
+    : >"$dir/say-hi/hi.bashrc"
+  }
+  printf '%s' "$dir"
+}
+
+# _hi_in_session <tree> <config dir> <command...> - <command> in that tree's
+# own hi.sh, with what a session exports to a child
+function _hi_in_session() {
+  env _HI_REMOTE_SESSION=1 _HI_HOME="$1" _HI_CONFIG_DIR="$2" \
+    bash -c 'a=("${@:3}") && set -- && source "$_HI_HOME/say-hi/hi.sh" && "${a[@]}"' _ "$@"
+}
+
+function test_a_session_relays_its_tree_as_it_stands() {
+  local dir out="$_HI_WORKDIR/relayed" m
+  dir="$(_hi_session_tree)"
+  [ ! -e "$dir/say-hi/scripts" ] || _hi_because "the payload carries scripts/" || return 1
+  mkdir -p "$out"
+  _hi_in_session "$dir" "$dir/say-hi/config" _hi_payload_tar | tar -x -z -f - -C "$out" || return 1
+  for m in "${_HI_PAYLOAD[@]}"; do
+    diff -r "$dir/say-hi/$m" "$out/say-hi/$m" >/dev/null || _hi_because "$m is not the session's own" || return 1
+  done
+  [ ! -e "$out/say-hi/hi.bashrc" ] || _hi_because "the hop's bootloader rode"
+}
+
+# ...and what an include of it names is the relaying hop's directory, which
+# the next hop makes its own
+function test_a_relay_hands_on_what_it_carried() {
+  local dir next="$_HI_WORKDIR/nexthop/config" fix
+  dir="$(_hi_session_tree)"
+  mkdir -p "$next/vim"
+  cp "$dir/say-hi/config/vim/vimrc" "$next/vim/vimrc"
+  fix="$(_hi_in_session "$dir" "$dir/say-hi/config" _hi_overlay_fixup "'$next'")" || return 1
+  sh -c "$fix" || return 1
+  [ "$(cat "$next/vim/vimrc")" = "source $next/vim/extra.vim" ] ||
+    _hi_because "the include on the next hop: $(cat "$next/vim/vimrc")" || return 1
+  # a path no script can hold bare is no token: nothing is rewritten
+  [ "$(_hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'")" = : ]
+}
+
+# hi.sh reaches the packer through the five functions a session defines for
+# itself, and four more that run only with an overlay to send or outside a
+# session. The session's stripped copy is read, so a comment names nothing.
+function test_hi_sh_reaches_the_packer_only_through_the_seam() {
+  local dir have n
+  dir="$(_hi_session_tree)"
+  have=" $(_hi_in_session "$dir" "$dir/say-hi/config" declare -F | sed 's/^declare -f //' | tr '\n' ' ')"
+  [[ "$have" == *" _hi_payload_tar "* ]] || _hi_because "a session's hi.sh defines no _hi_payload_tar" || return 1
+  while IFS= read -r n; do
+    grep -E "(^|[^A-Za-z0-9_])$n([^A-Za-z0-9_]|\$)" "$dir/say-hi/hi.sh" >/dev/null || continue
+    case "$have _hi_overlay_cached _hi_overlay_stream _hi_overlay_bytes _hi_prompt_here " in *" $n "*) continue ;; esac
+    _hi_because "hi.sh calls $n, which only scripts/pack.sh defines" || return 1
+  done < <(sed -n 's/^function \(_hi_[a-z0-9_]*\)().*/\1/p' "$_HI_ROOT/scripts/pack.sh")
+}
+
+# only a session goes without the packer: anywhere else its absence is a
+# broken install, said before anything is sent
+function test_an_install_without_the_packer_refuses_to_connect() {
+  local dir out rc=0
+  dir="$(_hi_session_tree)"
+  out="$(env _HI_REMOTE_SESSION=0 _HI_HOME="$dir" _HI_CONFIG_DIR="$dir/say-hi/config" \
+    bash "$dir/say-hi/hi.sh" somehost 2>&1 </dev/null)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no scripts/pack.sh in $dir/say-hi"* ]] || _hi_because "exit $rc: $out"
 }
 
 # The data files' prose headers document the *installed* copies a user reads,
@@ -2111,6 +2187,12 @@ function run_hi_payload_tests() {
   _hi_check "Heredoc bodies are spared" test_strip_spares_heredoc_bodies
   _hi_check "The data-file headers strip too" test_strip_covers_the_data_files
   _hi_check "Every data line survives" test_strip_keeps_every_data_line
+
+  _hi_h2 "Testing: a session's relay"
+  _hi_check "A session relays its tree as it stands" test_a_session_relays_its_tree_as_it_stands
+  _hi_check "...and hands on what it carried, under its own path" test_a_relay_hands_on_what_it_carried
+  _hi_check "hi.sh reaches the packer only through the seam" test_hi_sh_reaches_the_packer_only_through_the_seam
+  _hi_check "An install without the packer refuses to connect" test_an_install_without_the_packer_refuses_to_connect
 
   _hi_h2 "Testing: the config overlay stream"
   _hi_check "Nothing sent without an overlay" test_overlay_is_empty_without_one

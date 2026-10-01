@@ -381,13 +381,13 @@ function doctor_config() {
     esac
     doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: $f" bad
   done
-  # a plugins row hi.sh's _hi_plugins_load turned down: the member it names
+  # a plugins row pack.sh's _hi_plugins_load turned down: the member it names
   # rides nowhere, and nothing else says so (GLOSSARY: HI.63)
   _hi_plugins_load
   for t in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do
     doctor_row "${t%%|*}" "ignored - ${t#*|}" warn
   done
-  # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract,
+  # every overlay file hi ships (pack.sh's _HI_OVERLAY_FILES is the contract,
   # and the plugins rows' members after it), minus settings.sh, which got
   # its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do

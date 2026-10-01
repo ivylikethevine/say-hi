@@ -38,7 +38,7 @@ export XDG_RUNTIME_DIR="$_HI_TEST_ROOT/run"
 # mode it cannot map onto Windows ACLs ("cannot change permissions")
 mkdir "$XDG_RUNTIME_DIR"
 # $HOME too, and ahead of core.sh, which resolves $_HI_LINK and the rc files
-# install.sh writes against it. A home column of hi.sh's table that starts at
+# install.sh writes against it. A home column of pack.sh's table that starts at
 # ~/ (~/.vimrc, ~/.inputrc, ~/.aliases) is read from it, so the developer's
 # own would ride every overlay stream a suite builds, and every shell a case
 # starts would read their ~/.zshenv. The container CLIs keep what they had
@@ -69,7 +69,7 @@ export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
 unset _HI_COLORS _HI_PACKAGES
-# The tools' own config variables hi.sh's _hi_overlay_src reads: inherited,
+# The tools' own config variables pack.sh's _hi_overlay_src reads: inherited,
 # they would pack the developer's real configs into every overlay stream a
 # suite builds. ZDOTDIR also moves the .zshrc scripts/rc.sh writes out of a
 # fixture home. The prompt programs are pinned to hi's own for the same

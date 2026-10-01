@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-89KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-75KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)

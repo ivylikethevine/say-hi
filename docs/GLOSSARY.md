@@ -74,6 +74,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.63 plugins rows](#hi63-plugins-rows)
 - [HI.64 what is switched off](#hi64-what-is-switched-off)
 - [HI.65 kept session](#hi65-kept-session)
+- [HI.66 the packer stays home](#hi66-the-packer-stays-home)
 
 ## HI.01 empty-array guard
 
@@ -553,8 +554,8 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment and whitespace strip
 
-Every tree file `hi.sh`'s `$_HI_STRIP_NAMES` matches — the shell files and
-the data files under `config/` — and every overlay member whose dialect
+Every tree file `scripts/pack.sh`'s `$_HI_STRIP_NAMES` matches — the shell
+files and the data files under `config/` — and every overlay member whose dialect
 (`$_HI_DIALECTS`) has `<strip>` 1, such as `vim/vimrc` and `tmux/tmux.conf`,
 whose prose headers document the _installed_ copies, is comment-stripped by
 `_hi_strip_awk` on its way into the payload or overlay; about 40% of the
@@ -607,7 +608,7 @@ than wrong; the cost, a wrongly-colored excluded host, is cosmetic.
 
 ## HI.38 split tar and gzip
 
-`_hi_tar_gz` (`hi.sh`) runs `tar -c -f - | gzip -n` rather than
+`_hi_tar_gz` (`hi.sh`) runs `tar -c -f - | gzip -9 -n` rather than
 `tar -c -z -f -`. The two userlands pad differently, and only one pads something
 that survives compression: GNU tar rounds the _uncompressed_ archive up to the
 10240-byte blocking factor and then gzips it, so its trailing NULs cost about
@@ -616,7 +617,8 @@ stream_, appending raw NULs after the gzip member, so a one-step payload built
 on a BSD client is a multiple of 10240: about 27% waste on a stock payload and a
 flat 54× on a two-file overlay (189 B against 10240). Split, the steps agree
 with GNU tar to within a few bytes under both userlands and are byte-stable run
-to run.
+to run. `-9`, since the cache pays for the slower pass once and every connect
+sends the result.
 
 `${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail` back off for
 interactive sourcing, so a failing tar would otherwise hide behind a
@@ -639,12 +641,13 @@ so `tar cf - -C dir` archives a file called `-C` there.
 
 ## HI.39 payload staging
 
-`_hi_payload_tar` (`hi.sh`) ships the tree, comment-stripped (HI.35), through
-`_hi_stage_tar`, which the overlay shares. What ships never depends on a
-toggle: `$_HI_PAYLOAD` is whole directories, every toggle is read where it
-applies, and a session that switched something off carries the file and
-leaves it alone (a per-toggle trim would save about a kilobyte at the cost of
-a cache key, a second table, and an exclusion list).
+`_hi_payload_tar` (`scripts/pack.sh`) ships the tree, comment-stripped
+(HI.35), through `_hi_stage_tar`, which the overlay shares; a session's own
+`_hi_payload_tar` stages nothing ([HI.66](#hi66-the-packer-stays-home)). What
+ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
+toggle is read where it applies, and a session that switched something off
+carries the file and leaves it alone (a per-toggle trim would save about a
+kilobyte at the cost of a cache key, a second table, and an exclusion list).
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so it is copied to a `mktemp -d` stage through an
@@ -687,8 +690,9 @@ quoting is one decision rather than one per transport.
 
 ## HI.41 overlay stream
 
-The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) lives outside the
-tree, so it travels as a second, much smaller archive rather than inside the
+The user's config overlay (`$_HI_OVERLAY_FILES` in `scripts/pack.sh`) lives
+outside the tree, so it travels as a second, much smaller archive rather than
+inside the
 payload. It unpacks into the tree's `config/`, over the defaults it shadows
 (which the payload already left out), and `$_HI_CONFIG_DIR` is that
 directory: one place a session reads config from. hi's own aliases are
@@ -1187,14 +1191,14 @@ Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into the
 target's `config/`, so a line naming a _path_ - a second rc beside it, a plugin
 directory, a manager's bootstrap - names something no target has, and the editor
-or shell fails on it rather than hi. `hi.sh`'s `_hi_lint_awk` finds exactly
-those lines; the per-dialect grammar, and what it deliberately leaves alone, is
+or shell fails on it rather than hi. `scripts/pack.sh`'s `_hi_lint_awk` finds
+exactly those lines; the per-dialect grammar, and what it deliberately leaves alone, is
 the comment above it. One pass serves both readers: `_hi_stage_tar` runs it in
 `fix` mode ahead of [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
 stripper, so a finding goes out disabled in its own dialect and the strip drops
 it for free, and `hi --doctor` runs it in `report` mode, so its yellow rows name
-exactly what went missing. The grammar is a row of `hi.sh`'s `$_HI_DIALECTS` -
-its comment leader, where a statement ends, what is an include, a plugin
+exactly what went missing. The grammar is a row of `scripts/pack.sh`'s
+`$_HI_DIALECTS` - its comment leader, where a statement ends, what is an include, a plugin
 manager, or allowed, and how a finding is disabled - named by the member's row's
 `<dialect>`, so doctor reads `~/.vimrc` as vim, a row of the user's is read in
 the dialect it names, and a member with none (an `eza/theme.yml`) passes through
@@ -1233,9 +1237,9 @@ directory (not `$HOME` itself), and at home `$XDG_CONFIG_HOME/<tool>`,
 its own includes carry too, and the include's path becomes
 `@@HI_CONFIG@@/<tool>/...`, a word the target makes its overlay directory as the
 overlay lands (`_hi_overlay_fixup`, one `grep -rl` and a `sed` per file that has
-it). The line is not a finding, so `hi --doctor` does not name it. On a target
-the source's own directory is the only one, and the carried copy sits in it, so
-a relayed hop is sent the file again under the same name. The overlay cache
+it). The line is not a finding, so `hi --doctor` does not name it. A relay
+sends the carried copy with the rest of its tree, and its own overlay directory
+as the word ([HI.66](#hi66-the-packer-stays-home)). The overlay cache
 watches the carried files through the list the last build left beside it. An
 include naming a module rather than a path - lua's `require("x")` - is not one
 this reads, and is dropped as before.
@@ -1256,8 +1260,8 @@ next hop's target, which may have a different set.
 ## HI.58 overlay directory members
 
 A `$_HI_OVERLAY_FILES` entry ending in `/` names a directory, and its members
-ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as `<dir>/<name>`, in
-name order, over the overlay's directory and home's, each name once and the
+ride one by one: `scripts/pack.sh`'s `_hi_overlay_files` lists each as
+`<dir>/<name>`, in name order, over the overlay's directory and home's, each name once and the
 overlay's copy first (zellij's `layouts/` and `themes/`, kakoune's `colors/`),
 or over the overlay's alone where the row has no home (`extensions/`,
 `header/`), and the rest of the stream - `_hi_overlay_src`, the cache key, the
@@ -1346,7 +1350,7 @@ name arriving empty can reach the root of the disk again.
 
 ## HI.61 one overlay priority
 
-Every overlay member resolves in one order, written once as `hi.sh`'s
+Every overlay member resolves in one order, written once as `scripts/pack.sh`'s
 `$_HI_OVERLAY_TABLE` and the rows `config/plugins` adds to it
 ([HI.63](#hi63-plugins-rows)): the overlay's copy, else the user's own file
 at home, else the tree's default where `config/` holds one. A row names the
@@ -1431,13 +1435,14 @@ tool's own config is already in force.
 
 A target therefore knows no wired member by name, tests no file per member
 per shell start, and gets no line for a member that stayed home. The paths
-are written under `$_HI_CONFIG_DIR`, unexpanded, so a hop taken from inside a
-session writes the same lines from the same list. `wiring.sh` is no member:
+are written under `$_HI_CONFIG_DIR`, unexpanded, so the file holds on a hop
+taken from inside a session, which sends it as it stands. `wiring.sh` is no
+member:
 one in the overlay is not read, and the archive has none when no member it
 carries has a wire.
 
 The lines are part of `_hi_overlay_cache_key`. The member list alone would
-hand an archive cached by an older `hi.sh` to a newer one that wires the same
+hand an archive cached by an older packer to a newer one that wires the same
 members another way.
 
 No line is written behind a test of a setting: what is switched off is
@@ -1453,8 +1458,8 @@ another of the same shape, the overlay's `plugins`: TOML in the subset
 `core.sh`'s `_hi_toml_row` reads, `[group]` tables of
 `"<member>" = "<tool> | <wire> | <home> | <dialect>"` rows, the last column `-`
 when left out, spaces around a column ignored, `#` lines and blank ones skipped.
-`hi.sh`'s `_hi_plugins_load` reads both into `$_HI_PLUGIN_ROWS` in the table's
-own shape ([HI.61](#hi61-one-overlay-priority)), the group the table's name, so
+`scripts/pack.sh`'s `_hi_plugins_load` reads both into `$_HI_PLUGIN_ROWS` in
+the table's own shape ([HI.61](#hi61-one-overlay-priority)), the group the table's name, so
 the order, the tool check, the include scan, the cache, the wiring
 ([HI.62](#hi62-generated-wiring)), and `hi --doctor` take a row of the user's as
 they take one of hi's. The overlay's file is read after the tree's, and a row of
@@ -1482,10 +1487,10 @@ words, or `xdg:` over one command, wires a `;` apart; a dialect `$_HI_DIALECTS`
 has no row of; a fifth column. The wire is checked because its words become a
 line every target sources.
 
-The overlay's `plugins` is itself a member. On a target the copy that rode
-names the members that rode with it, so a hop taken from there carries and
-wires them again, from the session's `config/` and never from that machine's
-home.
+The overlay's `plugins` is itself a member. A hop taken from a target sends
+the session's `config/` as it stands ([HI.66](#hi66-the-packer-stays-home)),
+so the members that rode, their rows, and their wiring arrive again, and
+nothing of that machine's home does.
 
 ## HI.64 what is switched off
 
@@ -1561,3 +1566,30 @@ bash-less target connect as usual.
   that rode) with no client attached, and it kills the session. `clean_all`
   kills the job by process group, so its `sleep` does not outlive a session
   closed another way.
+
+## HI.66 the packer stays home
+
+What a connect sends is built by `scripts/pack.sh`, which `hi.sh` sources
+where it finds it: the overlay table and the plugins rows, home's lookups, the
+include scan, the comment strip, the staged tars and their caches. Only the
+machine that owns the config runs any of it, and `scripts/` never rides, so
+none of it costs a byte on the wire.
+
+A session's tree has no `scripts/`, and needs no packer: the tree _is_ the
+payload, already stripped, with the overlay unpacked over `config/`. There
+`hi.sh` defines the packer's side of a connect itself, in five short
+functions: no overlay members, no cut list, no cache, and a `_hi_payload_tar`
+that tars `$_HI_PAYLOAD` as it stands. A relay sends what it was sent.
+
+- **The seam.** `_say_hi` and `_say_hi_container` reach the packer through
+  `_hi_overlay_files`, `_hi_payload_excl`, `_hi_payload_cached`,
+  `_hi_payload_tar`, and `_hi_payload_stream`, the five a session defines, and
+  through four that run only with an overlay to send or outside a session
+  (`_hi_overlay_cached`, `_hi_overlay_stream`, `_hi_overlay_bytes`,
+  `_hi_prompt_here`). `payload_test.sh` holds `hi.sh` to that list.
+- **Carried includes.** An include the client carried names the config
+  directory of the hop it landed on, once `_hi_overlay_fixup` has run there.
+  A relay hands that path on as the token, so the next hop's fixup makes it its
+  own; a path a script cannot hold bare is no token, and nothing is rewritten.
+- **Not a broken install.** Outside a session a tree without the packer is
+  incomplete, and `_hi` refuses before anything is sent.

@@ -519,7 +519,7 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
   [[ "$out" == *"colors"*"a copy of the tree's, unchanged - edit it to override"* && "$out" != *overridden* ]]
 }
 
-# The include scan's rows. hi.sh's _hi_include_lint is the same pass that does
+# The include scan's rows. pack.sh's _hi_include_lint is the same pass that does
 # the dropping on the way out, so what the report names is exactly what went
 # missing. GLOSSARY: HI.57
 function test_config_names_an_unresolvable_include() {

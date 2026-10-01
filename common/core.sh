@@ -55,7 +55,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # ...and the base it came from, which a home column of hi.sh's table
+  # ...and the base it came from, which a home column of pack.sh's table
   # starts at. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG

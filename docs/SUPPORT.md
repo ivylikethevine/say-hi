@@ -118,7 +118,7 @@ permanent - it is the argument to beat.
   every existing `fw` row.
 - **Running a plugin manager's own bootstrap.** zinit, zplug, antigen,
   fisher, and the rest are already neutered by the include lint's verb-line
-  rewrite (`hi.sh`'s dialect awk). A plugin manager's job is fetching and
-  running code at shell start, which is exactly what the lint exists to stop
-  a carried rc from doing silently - the neuter-not-run answer already in
-  place is the intended one.
+  rewrite (`scripts/pack.sh`'s dialect awk). A plugin manager's job is
+  fetching and running code at shell start, which is exactly what the lint
+  exists to stop a carried rc from doing silently - the neuter-not-run answer
+  already in place is the intended one.
