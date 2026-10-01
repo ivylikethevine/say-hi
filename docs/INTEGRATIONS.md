@@ -281,7 +281,12 @@ that one: a fresh shell in a multiplexer there, under the same name, sharing
 the session's directory. Detaching lands you back in the shell you typed it
 in, and whichever of the two ends last removes the directory.
 A kept session that dies with its target - a reboot that keeps `/tmp` - leaves
-its directory behind; your next `hi <target>` removes it.
+its directory behind; your next `hi <target>` removes it, and says the kept
+session is gone if this machine had seen it. When the link to a kept session
+drops and hi is itself running in a pane of a local tmux, zellij, or screen,
+it retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and lands
+back in the session; anywhere else it ends as ssh does, and `hi <target>`
+reattaches.
 `_HI_KEEP=1` makes it the default. The two flags combine: under
 `hi --mux --keep` both ends hold a session, and the inner multiplexer's prefix
 key has to be sent through the outer one.

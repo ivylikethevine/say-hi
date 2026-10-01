@@ -19,6 +19,11 @@
 #   dead     detached, every process of the account's is killed at once, as
 #            a target going down kills them: the tree that leaves is gone
 #            once the next `hi <target>` is up
+#   retry    in a local multiplexer's pane, as far as hi can tell, the link is
+#            cut from the target's end: hi says so, retries, and is back in
+#            the kept shell
+#   lost     the same pane, and the session dies with the link: the retry
+#            says the kept session is gone and keeps a new one
 #
 # Each ends with no session and no tree on the target. A multiplexer redraws,
 # so its transcript is text with cursor moves through it: a case types at the
@@ -31,6 +36,10 @@ set -euo pipefail
 
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
+
+# a runner's own multiplexer is not the cases': inside one, a dropped connect
+# retries (the retry and lost cases set one themselves)
+unset TMUX ZELLIJ STY
 
 # what _hi_mux_name makes of the target every case connects to
 _HI_KEEP_SESSION=hi-hitest-127-0-0-1
@@ -162,12 +171,18 @@ function _hi_keep_loaded_twice() {
   [ "${n:-0}" -ge 2 ]
 }
 
+# _hi_keep_last <transcript> <text> <other> - of the two, <text> is the one
+# the transcript holds last
+function _hi_keep_last() {
+  [ "$(LC_ALL=C grep -a -o -F -e "$2" -e "$3" "$1" 2>/dev/null | tail -n 1)" = "$2" ]
+}
+
 # _hi_keep_zellij_normal <transcript> - zellij's status bar, as last drawn,
 # offers no detach. Asked twice, since a frame lands in pieces.
 function _hi_keep_zellij_normal() {
   local _
   for _ in 1 2; do
-    [ "$(LC_ALL=C grep -a -o -e 'Ctrl +' -e Detach "$1" 2>/dev/null | tail -n 1)" = 'Ctrl +' ] || return 1
+    _hi_keep_last "$1" 'Ctrl +' Detach || return 1
     sleep 0.2
   done
 }
@@ -252,6 +267,32 @@ function _hi_keep_feed_pane() {
   _hi_poll_bool 60 0.5 _hi_keep_left keep.pane || true
   printf 'exit\n'
   _hi_poll_bool 60 0.5 _hi_keep_shells_are 1 || true
+  _hi_keep_feed_exit "$1" y
+}
+
+# marked, then - once the case has cut the link and hi has said it is
+# retrying - back in the kept shell as any later connect is. The old client
+# is waited out first, and zellij's new one until it draws.
+function _hi_keep_feed_retry() {
+  _hi_keep_feed_mark "$1"
+  _hi_poll_bool 240 0.5 grep -q 'retrying for' "$1" || true
+  _hi_poll_bool 40 0.5 _hi_keep_is detached || true
+  [ "$_HI_KEEPTEST_MUX" != zellij ] || _hi_poll_bool 120 0.5 _hi_keep_last "$1" 'Ctrl +' 'retrying for' || true
+  _hi_keep_feed_back "$1"
+}
+
+# marked, then - once the session has died with its link and the retry has
+# said so - the shell of the session kept in its place says it is a new one,
+# and `exit` with a `y` closes it
+function _hi_keep_feed_lost() {
+  _hi_keep_feed_mark "$1"
+  _hi_poll_bool 240 0.5 grep -q 'is gone' "$1" || true
+  _hi_poll_bool 120 0.5 _hi_keep_last "$1" "$_HI_SESSION_LOADED_RE" 'is gone' || true
+  _hi_poll_bool 120 0.5 _hi_keep_is attached || true
+  # shellcheck disable=SC2016 # the new shell expands it
+  printf '%s\n' 'printf "%s\n" "${_hi_keep_mark:-fresh}" >/tmp/keep.back'
+  _hi_poll_bool 60 0.5 _hi_keep_left keep.back || true
+  _hi_keep_trees >"$1.trees"
   _hi_keep_feed_exit "$1" y
 }
 
@@ -440,6 +481,60 @@ function _hi_keep_dead() {
     _hi_keep_fail "$label" "the next connect left a tree" "$out.next"
 }
 
+# the link cut from the target's end: sshd's process for the connection is
+# killed, and the client's ssh sees it close
+function _hi_keep_cut_link() {
+  # shellcheck disable=SC2016 # the container's sh expands it
+  docker exec "$_HI_KEEPTEST_C" sh -c 'n=0
+    for f in $(grep -ls "hitest@pt[s]" /proc/[0-9]*/cmdline); do
+      f=${f#/proc/}
+      kill "${f%/cmdline}" && n=1
+    done
+    [ "$n" = 1 ]'
+}
+
+function _hi_keep_retry() {
+  local label="$1" out="$_HI_WORKDIR/$1.out"
+  # the pane of a local multiplexer, as far as hi can tell
+  local -x STY=hi-keeptest
+  _hi_ssh_launch "$_HI_SSH_PORT" --keep
+  _hi_keep_typed "$out" _hi_keep_feed_retry "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_up "$label" "$out" || return 1
+
+  _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
+  _hi_keep_ended "$label" "$out" 240 "the retried session never closed" || return 1
+  grep -q 'lost \[.*retrying for' "$out" ||
+    _hi_keep_fail "$label" "the dropped connect did not say it was retrying" "$out" || return 1
+  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = owner ] ||
+    _hi_keep_fail "$label" "the retry was not back in the kept shell" "$out" || return 1
+  [ "$(cat "$out.trees" 2>/dev/null)" = 1 ] ||
+    _hi_keep_fail "$label" "the retry unpacked a tree of its own" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone ||
+    _hi_keep_fail "$label" "exit and y left the session or its tree" "$out"
+}
+
+function _hi_keep_lost() {
+  local label="$1" out="$_HI_WORKDIR/$1.out"
+  local -x STY=hi-keeptest
+  _hi_ssh_launch "$_HI_SSH_PORT" --keep
+  _hi_keep_typed "$out" _hi_keep_feed_lost "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_up "$label" "$out" || return 1
+
+  # sshd's process for the connection is the account's too
+  docker exec -u hitest "$_HI_KEEPTEST_C" sh -c 'kill -9 -1' || true
+  _hi_keep_ended "$label" "$out" 240 "the session kept in its place never closed" || return 1
+  grep -q 'lost \[.*retrying for' "$out" ||
+    _hi_keep_fail "$label" "the dropped connect did not say it was retrying" "$out" || return 1
+  grep -q 'the kept session on .* is gone' "$out" ||
+    _hi_keep_fail "$label" "the retry did not say the kept session was gone" "$out" || return 1
+  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = fresh ] ||
+    _hi_keep_fail "$label" "the retry was not in a session of its own" "$out" || return 1
+  [ "$(cat "$out.trees" 2>/dev/null)" = 1 ] ||
+    _hi_keep_fail "$label" "$(cat "$out.trees" 2>/dev/null) trees under the new session, not its own alone" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone ||
+    _hi_keep_fail "$label" "exit and y left the session or its tree" "$out"
+}
+
 # <scenario>:<what a pass showed>
 _HI_KEEP_CASES=(
   "drop:outlived a dropped link, reattached, closed on y"
@@ -448,6 +543,8 @@ _HI_KEEP_CASES=(
   "inside:kept from inside a session, reattached, closed on y"
   "pane:a second pane opened hi's shell, closed with the session"
   "dead:killed outright, its tree removed by the next connect"
+  "retry:its link cut, retried back into the kept shell"
+  "lost:killed with its link, the retry said so and kept a new one"
 )
 
 # _hi_keep_case <mux> <scenario> <what a pass showed> - one container holding

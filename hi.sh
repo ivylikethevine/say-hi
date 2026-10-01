@@ -458,7 +458,7 @@ function _hi_ssh_sh() {
 # $SSHARGS, so a `-p`/`-l`/`-o` naming a different connection to the same
 # target gets its own socket rather than joining the wrong one.
 function _hi_ctl_open() {
-  local persist="$1" scope="$2" dir key words
+  local persist="$1" scope="$2" dir key
   shift 2
   ctl_dir=""
   ctl_path=""
@@ -479,9 +479,7 @@ function _hi_ctl_open() {
   if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
-      # printf -v and outvars, not $( ): this key costs no fork
-      printf -v words '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"}
-      _hi_hash "$words" key
+      _hi_conn_key key
       ctl_path="$dir/hi.ctl.$key"
       ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
       ctl_shared=1
@@ -495,6 +493,15 @@ function _hi_ctl_open() {
     fi
   fi
   ctl_opts+=("$@")
+}
+
+# _hi_conn_key <outvar> - a hash of $DOMAIN and $SSHARGS, one connection's
+# name under the runtime directory. printf -v and outvars, not $( ): it costs
+# no fork.
+function _hi_conn_key() {
+  local _hi_ck_words
+  printf -v _hi_ck_words '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"}
+  _hi_hash "$_hi_ck_words" "$1"
 }
 
 function _hi_ctl_close() {
@@ -768,25 +775,29 @@ REMOTE
 
 # Ahead of the unpack: a kept session is attached and the script ends there,
 # so nothing new lands on the target. _hi_kept_note is the line a detach
-# leaves, for this path and the start below. A session that does start is
+# leaves, for this path and the start below, and the script's status says
+# whether a kept session is left behind (86, _hi_keep_connect). A client that
+# expected one says so where there is none. A session that does start is
 # told the target's name, for a `hi --keep` typed in it (_hi_keep_here).
 function _hi_keep_attach() {
-  local target_q _hi_esc _hi_nc
+  local target_q _hi_esc _hi_nc gone=""
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
+  [ "${_HI_KEEP_EXPECTED:-}" != 1 ] ||
+    gone="      _hi_kept || printf '%s hi: the kept session on [%s] is gone %s\\n' \"$_hi_esc\" $target_q \"$_hi_nc\" >&2"$'\n'
   _hi_keep_find
   cat <<REMOTE
-      _hi_kept_note() { ! _hi_kept || printf '%s%s detached, the session on [%s] is kept %s\n' "$_hi_esc" "\$1" $target_q "$_hi_nc" >&2; }
+      _hi_kept_note() { _hi_kept && printf '%s%s detached, the session on [%s] is kept %s\n' "$_hi_esc" "\$1" $target_q "$_hi_nc" >&2; }
       if [ -t 0 ] && _hi_kept; then
         case \$_hi_k in
         tmux) tmux attach-session -t "=\$_hi_kn" ;;
         zellij) zellij attach "\$_hi_kn" ;;
         screen) screen -x "\$_hi_ks" ;;
         esac
-        _hi_kept_note ' hi:'
+        _hi_kept_note ' hi:' && exit 86
         exit 0
       fi
-      export _HI_KEEP_AS=$target_q
+$gone      export _HI_KEEP_AS=$target_q
 REMOTE
 }
 
@@ -894,8 +905,10 @@ REMOTE
 
 # hi --end <target>: close the kept session there, without attaching
 function _hi_keep_end() {
-  local ec=0
+  local ec=0 rec
   _hi_ssh_sh "$(_hi_keep_end_script)" </dev/null || ec=$?
+  # closed, or not there: either way this client no longer expects it
+  case "$ec" in 0 | 3) ! _hi_keep_record rec || rm -f "$rec" ;; esac
   case "$ec" in
   0) _hi_cecho "hi: closed the kept session on [$DOMAIN]" "$GREEN" ;;
   3)
@@ -931,12 +944,76 @@ function _hi_keep_here() {
     [ "${line%%=*}" = _HI_KEEP_AS ] || names+=("${line%%=*}")
   done <"$file"
   DOMAIN="$_HI_KEEP_AS" KEEP=1 CMDARG=""
+  # 86 is the attach block's word to a client that a session is kept
   # shellcheck disable=SC2016 # the script's sh expands these
   sh -c "$(_hi_keep_attach)"'
       _hi_rc_dir=$_HI_ROOT
       : >"$_HI_ROOT/hi.kept"
 '"$(_hi_keep_start ' hi:' "${names[@]}")"'
-      _hi_kept || rm -f "$_HI_ROOT/hi.kept"'
+      _hi_kept || rm -f "$_HI_ROOT/hi.kept"' || [ "$?" = 86 ]
+}
+
+# _hi_keep_record <outvar> - where this client notes that the target holds a
+# kept session: an empty file in hi's runtime directory, named for the
+# connection, so a logout forgets it. False with no such directory.
+function _hi_keep_record() {
+  local _hi_kr_dir _hi_kr_key
+  _hi_runtime_dir _hi_kr_dir
+  [ -n "$_hi_kr_dir" ] || return 1
+  _hi_conn_key _hi_kr_key
+  printf -v "$1" '%s/hi.kept.%s' "$_hi_kr_dir" "$_hi_kr_key"
+}
+
+# A pane of a local multiplexer, which nobody may be watching
+function _hi_keep_in_mux() {
+  [ -t 0 ] && [ -n "${TMUX:-}${ZELLIJ:-}${STY:-}" ]
+}
+
+# _hi_keep_connect <log> - _say_hi, for a session that may be kept. The
+# target's script ends 86 when it leaves a kept session behind and 0 when it
+# does not, and the record follows; a connect that keeps writes it up front,
+# since a dropped link says nothing. The record is what the next connect's
+# script warns by when the session is gone (_hi_keep_attach), and what a
+# dropped session is retried by: in a local multiplexer's pane, for
+# $_HI_KEEP_RETRY from the drop, each try quiet (its words in <log>) until
+# the target answers. A try that gets in and drops within ten seconds does
+# not restart the window. GLOSSARY: HI.65
+function _hi_keep_connect() {
+  local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-5m}" limit t0="" t1 expected=""
+  ! _hi_keep_probes || probes=1
+  [ "$probes" = 0 ] || _hi_keep_record rec || rec=""
+  [ -z "$rec" ] || [ ! -e "$rec" ] || expected=1
+  [ -z "$rec" ] || ! _hi_keep_starts || : >"$rec"
+  _hi_keep_seconds "$window" limit || window=5m limit=300
+  while :; do
+    ec=0 t1=$SECONDS _HI_LINK_UP=0 _HI_KEEP_EXPECTED="$expected"
+    _say_hi || ec=$?
+    if [ "$probes" = 1 ]; then
+      case "$ec" in
+      86)
+        ec=0
+        [ -z "$rec" ] || : >"$rec"
+        ;;
+      0) [ -z "$rec" ] || rm -f "$rec" ;;
+      esac
+    fi
+    { [ "$ec" = 255 ] && [ -n "$rec" ] && [ -e "$rec" ] && ((limit > 0)) && _hi_keep_in_mux; } || break
+    if [ "$_HI_LINK_UP" = 1 ] && { [ -z "$t0" ] || ((SECONDS - t1 >= 10)); }; then
+      t0=$SECONDS
+      [ ! -t 1 ] || _hi_reset_terminal "$ec"
+      _hi_cecho " hi: lost [$DOMAIN], where the session is kept - retrying for $window, Ctrl+C stops" "$YELLOW" >&2
+    elif [ -z "$t0" ]; then
+      break
+    elif ((SECONDS - t0 >= limit)); then
+      _hi_cecho "hi: [$DOMAIN] did not come back in $window; a later hi to it reattaches the session it kept" "$YELLOW" >&2
+      _HI_SAID=1
+      break
+    fi
+    sleep 5
+    expected=1 _HI_CONNECT_T0="$(_hi_now)" _HI_KEEP_QUIET="$log"
+  done
+  _HI_KEEP_QUIET=""
+  return "$ec"
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
@@ -984,12 +1061,15 @@ function _hi_esc_pair() {
 function _hi_remote_suffix() {
   # single-quoted here so the fallback line can name the target without the
   # session carrying a variable for it
-  local target_q _hi_esc _hi_nc
+  local target_q _hi_esc _hi_nc tail=""
   # shellcheck disable=SC2016 # the target's to expand
   local handoff='        bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
   ! _hi_keep_starts || handoff="$(_hi_keep_start)"
+  # 86 for a kept session left behind, by this connect or by a `hi --keep`
+  # typed in it, and never the session's own status (_hi_keep_connect)
+  ! _hi_keep_probes || tail=$'      _hi_kept && exit 86\n      exit 0'
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
       if command -v bash >/dev/null 2>&1; then
@@ -1013,6 +1093,7 @@ $handoff
           ;;
         esac
       fi
+$tail
 REMOTE
 }
 
@@ -1079,9 +1160,9 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size script boot_tmp ctl_path ctl_dir ctl_shared ct ec=0
+  local size script boot_tmp ctl_path ctl_dir ctl_shared ct run ec=0
   local bootloader="" tree="" overlay_line=""
-  local -a ctl_opts overlay=()
+  local -a ctl_opts overlay=() retry=()
 
   # Asked here rather than at the pipeline that needs them: a
   # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
@@ -1107,7 +1188,9 @@ function _say_hi() {
   # multiplex the bootloader write and the real session over one ssh
   # connection; `shared` tries to reuse one already authenticated for this
   # target
-  _hi_ctl_open 30 shared
+  # a retry (_hi_keep_connect) does not wait out a network that is not there
+  [ -z "${_HI_KEEP_QUIET:-}" ] || retry=(-o ConnectTimeout=10)
+  _hi_ctl_open 30 shared ${retry[@]+"${retry[@]}"}
 
   # the tars the script carries. The orphaned warm finishes its own atomic mv
   # after hi has moved on.
@@ -1145,8 +1228,21 @@ $(_hi_overlay_stream "${overlay[@]}")"
   # login shell, /var/folders/../T - which does not exist on a Linux target,
   # so the whole session would fall through to the PowerShell branch on a host
   # that has bash, invisibly to a CI job that only connects to 127.0.0.1.
-  local boot_out boot_ec=0
-  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}")" || boot_ec=$?
+  #
+  # A retry holds the transport's words back until the target has answered,
+  # and ends here when it has not: a host ssh could not reach has no shell to
+  # fall back on.
+  local boot_out boot_ec=0 boot_fd=2
+  [ -z "${_HI_KEEP_QUIET:-}" ] || { exec 8>"$_HI_KEEP_QUIET" && boot_fd=8; }
+  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}" 2>&"$boot_fd")" || boot_ec=$?
+  if [ "$boot_fd" = 8 ]; then
+    exec 8>&-
+    if [ "$boot_ec" = 255 ]; then
+      _hi_ctl_close
+      return 255
+    fi
+    cat "$_HI_KEEP_QUIET" >&2
+  fi
 
   # Tagged rather than taken whole: a target whose sh writes anything of its
   # own to stdout would otherwise prepend it to the path.
@@ -1174,8 +1270,16 @@ $(_hi_overlay_stream "${overlay[@]}")"
     # $ct is our own _hi_elapsed digits-and-a-dot, never text a target sent
     # back, so it interpolates straight into the command line
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
-    ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
-      "_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
+    run="_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\""
+    # a session that drops from here on was up (_hi_keep_connect)
+    _HI_LINK_UP=1
+    if _hi_keep_probes; then
+      # the script's status is its word on a kept session, so it outlasts
+      # the removal - under sh, whatever the login shell
+      _hi_ssh_sh "$run; _hi_e=\$?; rm -rf \"$boot_tmp\"; exit \$_hi_e" ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" || ec=$?
+    else
+      ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" "$run; rm -rf \"$boot_tmp\"" || ec=$?
+    fi
   elif [ -n "$why" ]; then
     _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
     _say_hi_plain "${ctl_opts[@]}" || ec=$?
@@ -1857,7 +1961,7 @@ function _hi() {
   elif [ -n "$arm" ]; then
     _say_hi_container "$arm" "$tmp"
   else
-    _say_hi
+    _hi_keep_connect "$tmp"
   fi
   exit_code="$?"
 

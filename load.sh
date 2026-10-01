@@ -429,20 +429,6 @@ function _hi_keep_claim() {
 # zellij, or screen session hi.sh started: $_HI_KEEP_MUX names the multiplexer
 # and $_HI_KEEP_NAME the session. The three functions below are that pane's.
 
-# _hi_keep_seconds <duration> <outvar> - <n>, or <n> with s, m, h, or d, as
-# seconds; false for anything else
-function _hi_keep_seconds() {
-  local _hi_kd_n="${1%[smhd]}" _hi_kd_u="${1#"${1%?}"}"
-  case "$_hi_kd_n" in '' | *[!0-9]*) return 1 ;; esac
-  _hi_kd_n=$((10#$_hi_kd_n))
-  case "$_hi_kd_u" in
-  m) _hi_kd_n=$((_hi_kd_n * 60)) ;;
-  h) _hi_kd_n=$((_hi_kd_n * 3600)) ;;
-  d) _hi_kd_n=$((_hi_kd_n * 86400)) ;;
-  esac
-  printf -v "$2" '%s' "$_hi_kd_n"
-}
-
 # Is a client attached to the session this pane owns? zellij lists its
 # clients a line each under a header. With no header to read - a zellij too
 # old to list them, or one still starting, which answers with nothing - it

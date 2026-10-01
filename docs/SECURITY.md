@@ -166,13 +166,14 @@ command.
 - **What hi writes on the client.** The rc lines and `settings.sh` the install
   asked about - `install.sh` checks your rc files with each shell's own syntax
   checker before touching them, and `--uninstall` removes exactly what it
-  wrote - plus `hi <TAB>`'s target cache, the payload/overlay cache, and the
-  ssh `ControlMaster` socket, in a private runtime directory:
+  wrote - plus `hi <TAB>`'s target cache, the payload/overlay cache, the
+  ssh `ControlMaster` socket, and an empty file per target seen holding a
+  kept session, in a private runtime directory:
   `$XDG_RUNTIME_DIR`, or a per-uid directory hi creates with `mkdir -m 700`.
   Its name is predictable - the next `hi` has to find it - so if it already
-  exists and is not owned by you, or is a symlink, all three are skipped:
-  completion sweeps the backends and a connect builds afresh over a fresh
-  socket, slower and correct.
+  exists and is not owned by you, or is a symlink, all four are skipped:
+  completion sweeps the backends, a connect builds afresh over a fresh
+  socket, slower and correct, and a kept session that dies is not missed.
 - The `ControlMaster` socket is never at a `mktemp -u` name in a shared temp
   directory: `ControlMaster=auto` _joins_ a socket it finds at its path, and a
   name that was unused when printed promises nothing about the moment it is

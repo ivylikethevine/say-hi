@@ -1616,6 +1616,33 @@ bash-less target connect as usual.
   pid some other process of the account's now holds leaves the tree for a
   later connect. An empty claim - `hi --keep` typed inside, its pane not up
   yet - and a tree with none are left alone.
+- **The client's record.** A client cannot see a target's sessions without
+  connecting, so it notes the ones it has seen: an empty `hi.kept.<key>` in
+  hi's runtime directory, `<key>` the hash of the target and the ssh options
+  that names the connection's control socket. The target's script is what
+  writes it. A connect that looks for a kept session runs it as
+  `sh -c '...; e=$?; rm -rf <scratch>; exit $e'` rather than the bare pair
+  of commands, so its status outlasts the scratch directory's removal, and
+  the script ends 86 with a kept session left behind - off the attach, or at
+  its end, which covers a `hi --keep` typed inside - and 0 otherwise, never
+  the session shell's own status. `_hi_keep_connect` turns 86 into 0 and
+  the record on, 0 into the record off, and leaves it alone on anything else
+  (255, a link that dropped). A connect that keeps writes it before it
+  connects, since a drop says nothing; `hi --end` removes it. With the
+  record there, the next connect's script carries one more line after the
+  attach: no session by that name, and it says the kept session is gone
+  before it goes on. The runtime directory does not outlive a logout, and a
+  client that forgot expects nothing.
+- **The retry.** In a pane of a local multiplexer (`$TMUX`, `$ZELLIJ`, or
+  `$STY`, and a terminal) nobody may be watching when a link drops. There,
+  a session that was up, ends 255, and has the record is retried: every
+  five seconds for `$_HI_KEEP_RETRY` (5m; 0 is never) from the drop, then
+  one line saying the target did not come back. A try is `_say_hi` again
+  with `ConnectTimeout=10`; the boot call's stderr goes to a file until the
+  target answers, and a boot call ssh itself failed ends the try there, with
+  no PowerShell fallback for a host that was not reached. A try that gets in
+  and drops within ten seconds does not restart the window. A connect that
+  never got in is not retried.
 - **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
   polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
   that rode) with no client attached, and it kills the session. `clean_all`

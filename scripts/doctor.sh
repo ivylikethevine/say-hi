@@ -536,7 +536,8 @@ function doctor_settings_values() {
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
     "_HI_MUX|_hi_is_flag|1 or 0" \
     "_HI_KEEP|_hi_is_flag|1 or 0" \
-    "_HI_KEEP_TIMEOUT|_hi_is_duration|seconds, or a number with s, m, h, or d"; do
+    "_HI_KEEP_TIMEOUT|_hi_is_duration|seconds, or a number with s, m, h, or d" \
+    "_HI_KEEP_RETRY|_hi_is_duration|seconds, or a number with s, m, h, or d"; do
     name="${spec%%|*}" pred="${spec#*|}"
     why="${pred#*|}" pred="${pred%%|*}"
     v="${!name:-}"
