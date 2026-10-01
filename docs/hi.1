@@ -9,6 +9,7 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-use " " \fIbackend\fR]
 .RB [ \-\-plain ]
 .RB [ \-\-mux | \-\-no\-mux ]
+.RB [ \-\-keep | \-\-no\-keep | \-\-end ]
 .I target
 .RI [ command ...]
 .br
@@ -227,6 +228,37 @@ connect without the multiplexer, past
 or an earlier
 .BR \-\-mux ;
 the last of the two flags wins.
+.TP
+.B \-\-keep
+keep the session on an ssh target past a disconnect: it runs in a
+.BR tmux (1)
+or
+.BR screen (1)
+session there, the first of the two the target has, named
+.BI hi\- target\fR,
+and every later
+.B hi
+to that target reattaches instead of starting over. Detach with the
+multiplexer's own key. Leaving the first pane's shell asks before it closes
+the session; with nobody attached for
+.B _HI_KEEP_TIMEOUT
+(24h) it closes itself. Either way the session directory is removed.
+The target needs bash and one of the two multiplexers, and you a terminal;
+otherwise hi says so and connects as usual.
+.B _HI_KEEP=1
+makes this the default.
+.TP
+.B \-\-no\-keep
+an ordinary session, past
+.B _HI_KEEP=1
+or an earlier
+.BR \-\-keep ,
+and beside any session the target is already keeping.
+.TP
+.B \-\-end
+close the session
+.I target
+is keeping, without attaching to it. Exits 1 when there is none.
 .PP
 The local commands act on this machine instead of connecting. Each needs
 .BR scripts/ ,
@@ -281,8 +313,11 @@ ignored for a non\-ssh target.
 forces the backend as a connect would.
 .BR \-\-plain ,
 .BR \-\-mux ,
+.BR \-\-no\-mux ,
+.BR \-\-keep ,
+.BR \-\-no\-keep ,
 and
-.B \-\-no\-mux
+.B \-\-end
 are ignored, so a connect line pastes behind
 .BR \-\-doctor .
 .B \-\-json
@@ -970,6 +1005,28 @@ makes every connect a
 one;
 .B \-\-no\-mux
 overrides it once. Client\-side only.
+.TP
+.B _HI_KEEP
+.B 1
+makes every ssh connect a
+.B \-\-keep
+one;
+.B \-\-no\-keep
+overrides it once.
+.TP
+.B _HI_KEEP_TIMEOUT
+how long a kept session waits with nobody attached before it closes: seconds,
+or a number with
+.BR s ,
+.BR m ,
+.BR h ,
+or
+.BR d ;
+.B 0
+is never. Default
+.BR 24h .
+Read on the target, so set it in
+.BR settings.sh .
 .SH EXAMPLES
 .TP
 .B hi prod-db

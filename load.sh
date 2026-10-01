@@ -77,6 +77,10 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # Everything hi put on the target and nothing the target had. hi never writes
 # to a target's own login files, so there is nothing to strip back out.
 function clean_all() {
+  # a kept session's timeout watcher, by process group: its `sleep` goes too
+  if [ -n "${_hi_keep_watch_pid:-}" ]; then
+    kill -- "-$_hi_keep_watch_pid" 2>/dev/null || kill "$_hi_keep_watch_pid" 2>/dev/null
+  fi
   # the rc directory nests under $_HI_CLEANUP when there is one; this removal
   # is for a session with no disposable tree - a local install's own shells
   [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
@@ -381,6 +385,81 @@ $1 == "extendsyntax" && !($2 in have) {
   mv -f "$rc.hi" "$rc"
 }
 
+# A kept session (GLOSSARY: HI.65) runs load() in the owner pane of a tmux or
+# screen session hi.sh started: $_HI_KEEP_MUX names the multiplexer and
+# $_HI_KEEP_NAME the session. The three functions below are that pane's.
+
+# _hi_keep_seconds <duration> <outvar> - <n>, or <n> with s, m, h, or d, as
+# seconds; false for anything else
+function _hi_keep_seconds() {
+  local _hi_kd_n="${1%[smhd]}" _hi_kd_u="${1#"${1%?}"}"
+  case "$_hi_kd_n" in '' | *[!0-9]*) return 1 ;; esac
+  _hi_kd_n=$((10#$_hi_kd_n))
+  case "$_hi_kd_u" in
+  m) _hi_kd_n=$((_hi_kd_n * 60)) ;;
+  h) _hi_kd_n=$((_hi_kd_n * 3600)) ;;
+  d) _hi_kd_n=$((_hi_kd_n * 86400)) ;;
+  esac
+  printf -v "$2" '%s' "$_hi_kd_n"
+}
+
+# Is a client attached to the session this pane owns?
+function _hi_keep_attached() {
+  local n
+  case "${_HI_KEEP_MUX:-}" in
+  tmux)
+    n="$(tmux display-message -p -t "=$_HI_KEEP_NAME:" '#{session_attached}' 2>/dev/null)"
+    [ "${n:-0}" != 0 ]
+    ;;
+  screen) screen -ls 2>/dev/null | grep -F "${STY:-.$_HI_KEEP_NAME}" | grep -F '(Attached)' >/dev/null ;;
+  *) return 1 ;;
+  esac
+}
+
+# The timeout: a background job of the owner pane that ends the session once
+# no client has been attached for $_HI_KEEP_TIMEOUT (24h; 0 is never). The
+# pane takes the hangup and its exit hook removes the tree, so nothing of
+# hi's outlives the session. <step> is the poll, a test's to shorten.
+function _hi_keep_watch() {
+  local limit step="${1:-60}" idle=0
+  [ -n "${_HI_KEEP_NAME:-}" ] || return 0
+  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-24h}" limit || limit=86400
+  ((limit > 0)) || return 0
+  ((step <= limit)) || step="$limit"
+  (
+    while sleep "$step"; do
+      if _hi_keep_attached; then
+        idle=0
+      else
+        idle=$((idle + step))
+        ((idle < limit)) || break
+      fi
+    done
+    case "$_HI_KEEP_MUX" in
+    tmux) tmux kill-session -t "=$_HI_KEEP_NAME" ;;
+    screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X quit ;;
+    esac
+  ) </dev/null >/dev/null 2>&1 &
+  _hi_keep_watch_pid=$!
+}
+
+# Asked when the owner pane's shell exits with a client attached, since an
+# `exit` typed from habit would otherwise end every pane. True to stay: the
+# client is detached and load() starts a fresh shell. With nobody attached
+# there is nobody to ask, and the session closes.
+function _hi_keep_stays() {
+  local reply=""
+  [ -n "${_HI_KEEP_NAME:-}" ] && [ -t 0 ] && _hi_keep_attached || return 1
+  _hi_cecho " hi: close the kept session? [y/N] " "$YELLOW" 1
+  read -r reply || return 1
+  case "$reply" in [yY]*) return 1 ;; esac
+  case "$_HI_KEEP_MUX" in
+  tmux) tmux detach-client -s "=$_HI_KEEP_NAME" ;;
+  screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X detach ;;
+  esac
+  return 0
+}
+
 function load() {
   local start total
   start="$(_hi_now)"
@@ -394,6 +473,9 @@ function load() {
   # continues the size hi.sh printed with no newline, so the total has to
   # widen $_HI_CONNECT_PREFIX or the banner's fill come out wrong.
   total="$(_hi_sum "${_HI_CONNECT_TIME:-0}" "${_HI_COPY_TIME:-0}")"
+  # a kept session's owner pane (GLOSSARY: HI.65) opens on an empty line: the
+  # size hi.sh printed stayed outside the multiplexer
+  [ -z "${_HI_KEEP_NAME:-}" ] || printf '%s' "${_HI_CONNECT_PREFIX:-}"
   _hi_cecho " | ${total}s" "$NC" 1
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
@@ -466,11 +548,16 @@ function load() {
     _hi_line_close
   fi
 
-  local shell_ec=0
+  local shell_ec
   local -a shell_cmd=()
   _hi_session_rc_setup
   _hi_session_shell_cmd "$shell" shell_cmd
-  "${shell_cmd[@]}" || shell_ec=$?
+  _hi_keep_watch
+  while :; do
+    shell_ec=0
+    "${shell_cmd[@]}" || shell_ec=$?
+    _hi_keep_stays || break
+  done
 
   # The shell's last prompt mark was C - `exit` is a command like any other -
   # and the D closing the pair never came, since the shell is gone. A terminal

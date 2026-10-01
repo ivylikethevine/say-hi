@@ -83,7 +83,10 @@ session's opens. All three are `tests/targets/ssh_test.sh` cases.
 ## What hi writes on a target
 
 Default answer: one directory (two over ssh), and only for the life of the
-session.
+session. A session is as long as its connection unless you ask otherwise:
+`hi --keep` runs it in tmux or screen on the target, where it and its
+directory last until you close it or nobody has been attached for
+`_HI_KEEP_TIMEOUT` (24h).
 
 | what              | where, in the target's temp directory, mode 0700                                             | when                                                               |
 | ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -120,6 +123,13 @@ command.
   (`tests/targets/ssh_disconnect_test.sh` verifies the latter). Over ssh the
   bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is a backstop for the one
   thing the hook cannot survive: bash killed by a signal nothing can trap.
+- A kept session ([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers))
+  moves the same hook into the session's first pane, and adds one process: a
+  timer in that pane, which ends the session once nobody has been attached
+  for `_HI_KEEP_TIMEOUT`. Nothing of hi's runs outside the multiplexer
+  session, and the bootstrap's backstop leaves a tree alone while its session
+  is running. What that cannot cover is a target that goes down under a kept
+  session and keeps `/tmp` across the reboot: the tree is left there.
 - The session tree is **not** added to `$PATH`; `hi` inside a session is an
   alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
   any host that is scanned for one.

@@ -18,6 +18,9 @@ in a session.
   - [`hi --plain`](#hi---plain)
   - [`hi --mux`](#hi---mux)
   - [`hi --no-mux`](#hi---no-mux)
+  - [`hi --keep`](#hi---keep)
+  - [`hi --no-keep`](#hi---no-keep)
+  - [`hi --end`](#hi---end)
   - [`hi --preview`](#hi---preview)
   - [`hi --doctor`](#hi---doctor)
   - [`hi --install`](#hi---install)
@@ -70,6 +73,24 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 ### `hi --no-mux`
 
 `hi --no-mux`: skip the multiplexer this once, past --mux or \_HI\_MUX=1. Works in a session too.
+
+It changes how a connect runs, which the [README's demos](../README.md) show.
+
+### `hi --keep`
+
+`hi --keep`: keep the session on the target, in tmux or screen. Works in a session too.
+
+It changes how a connect runs, which the [README's demos](../README.md) show.
+
+### `hi --no-keep`
+
+`hi --no-keep`: an ordinary session, past \_HI\_KEEP=1 or a kept one. Works in a session too.
+
+It changes how a connect runs, which the [README's demos](../README.md) show.
+
+### `hi --end`
+
+`hi --end`: close the session \<target\> is keeping. Works in a session too.
 
 It changes how a connect runs, which the [README's demos](../README.md) show.
 

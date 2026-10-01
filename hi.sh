@@ -52,7 +52,7 @@ _HI_RELEASE="${_HI_RELEASE:-}"
 # Kept identical to docs/hi.1's SYNOPSIS (parse_test.sh compares the two);
 # folded so --help fits 80 columns
 _HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain] [--mux|--no-mux]
-          <target> [command ...]"
+          [--keep|--no-keep|--end] <target> [command ...]"
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
 # session has a launcher to relay onward with.
@@ -2159,9 +2159,140 @@ function _hi_env_each() {
 }
 
 # _hi_remote_script <outvar> - the script _say_hi sends and _hi_wire_bytes
-# measures: preamble, middle, suffix. One assembly, so the two agree (HI.44).
+# measures: preamble, the kept-session reattach where this connect looks for
+# one, middle, suffix. One assembly, so the two agree (HI.44).
 function _hi_remote_script() {
-  printf -v "$1" '%s\n%s\n%s' "$(_hi_remote_preamble)" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
+  local _hi_rs_keep=""
+  ! _hi_keep_probes || _hi_rs_keep="$(_hi_keep_attach)"$'\n'
+  printf -v "$1" '%s\n%s%s\n%s' "$(_hi_remote_preamble)" "$_hi_rs_keep" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
+}
+
+# Whether this connect looks on the target for a kept session to reattach:
+# every session, not a command, unless --no-keep asked for one beside it.
+function _hi_keep_probes() {
+  [ -z "${CMDARG:-}" ] && [ "${KEEP:-}" != 0 ]
+}
+
+# ...and whether it starts one where the target has none: --keep, or
+# _HI_KEEP=1 with neither flag typed.
+function _hi_keep_starts() {
+  _hi_keep_probes && [ "${KEEP:-${_HI_KEEP:-0}}" = 1 ]
+}
+
+# How the target finds its kept session: $_hi_kn is the name, and _hi_kept
+# answers with the multiplexer holding it in $_hi_k (screen's own id for it
+# in $_hi_ks). GLOSSARY: HI.65
+function _hi_keep_find() {
+  local name_q
+  _hi_shquote name_q "$(_hi_mux_name "$DOMAIN")"
+  cat <<REMOTE
+      _hi_kn=$name_q
+      _hi_kept() {
+        _hi_k=tmux
+        tmux has-session -t "=\$_hi_kn" 2>/dev/null && return
+        _hi_k=screen
+        _hi_ks=\$(screen -ls 2>/dev/null | sed -n "/Dead/d; s/^[[:space:]]*\\([0-9][0-9]*[.]\$_hi_kn\\)[[:space:]].*/\\1/p")
+        [ -n "\$_hi_ks" ] && return
+        _hi_k=
+        return 1
+      }
+REMOTE
+}
+
+# Ahead of the unpack: a kept session is attached and the script ends there,
+# so nothing new lands on the target. _hi_kept_note is the line a detach
+# leaves, for this path and the start below.
+function _hi_keep_attach() {
+  local target_q _hi_esc _hi_nc
+  _hi_esc_pair _hi_esc _hi_nc
+  _hi_shquote target_q "$DOMAIN"
+  _hi_keep_find
+  cat <<REMOTE
+      _hi_kept_note() { ! _hi_kept || printf '%s%s detached, the session on [%s] is kept %s\n' "$_hi_esc" "\$1" $target_q "$_hi_nc" >&2; }
+      if [ -t 0 ] && _hi_kept; then
+        case \$_hi_k in
+        tmux) tmux attach-session -t "=\$_hi_kn" ;;
+        screen) screen -x "\$_hi_ks" ;;
+        esac
+        _hi_kept_note ' hi:'
+        exit 0
+      fi
+REMOTE
+}
+
+# The bash handoff of a connect that keeps its session: the same
+# `bash --rcfile` as the owner pane of a tmux or screen session, the first of
+# the two on the target. The session's variables reach the pane as an `env`
+# argv, since a multiplexer server already running hands a pane its own
+# environment, and the subshell drops them before the exec so a server
+# started here carries none of them to its other panes (GLOSSARY: HI.47).
+# The multiplexer reads the config hi carried, as the session's alias does.
+function _hi_keep_start() {
+  local n target_q _hi_esc _hi_nc argv="" drop=""
+  _hi_esc_pair _hi_esc _hi_nc
+  _hi_shquote target_q "$DOMAIN"
+  while IFS=$'\t' read -r n _; do
+    argv="$argv $n=\"\$$n\""
+    [ "$n" = NO_COLOR ] || drop="$drop $n"
+  done < <(_hi_session_env)
+  for n in _HI_ROOT _HI_CLEANUP _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME; do
+    argv="$argv $n=\"\$$n\""
+    drop="$drop $n"
+  done
+  cat <<REMOTE
+        _hi_k=
+        for _hi_s in tmux screen; do command -v "\$_hi_s" >/dev/null 2>&1 && { _hi_k=\$_hi_s; break; }; done
+        if [ -n "\$_hi_k" ] && [ -t 0 ]; then
+          set -- env _HI_KEEP_MUX="\$_hi_k" _HI_KEEP_NAME="\$_hi_kn" _HI_HOME="\$_HI_HOME" _HI_CONFIG_DIR="\$_HI_CONFIG_DIR"$argv bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
+          (
+            unset$drop
+            case \$_hi_k in
+            tmux)
+              _hi_kc="\$_HI_CONFIG_DIR/tmux/tmux.conf"
+              [ ! -f "\$_hi_kc" ] || exec tmux -f "\$_hi_kc" new-session -s "\$_hi_kn" "\$@"
+              exec tmux new-session -s "\$_hi_kn" "\$@"
+              ;;
+            screen)
+              _hi_kc="\$_HI_CONFIG_DIR/screenrc"
+              [ ! -f "\$_hi_kc" ] || exec screen -c "\$_hi_kc" -S "\$_hi_kn" "\$@"
+              exec screen -S "\$_hi_kn" "\$@"
+              ;;
+            esac
+          )
+          _hi_kept_note ' |'
+        else
+          [ -n "\$_hi_k" ] || printf '%s --keep needs tmux or screen on [%s], connecting without it %s\n' "$_hi_esc" $target_q "$_hi_nc" >&2
+          bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
+        fi
+REMOTE
+}
+
+# What `hi --end` runs on the target: 3 when there is no kept session to
+# close. The owner pane's bash takes the hangup and its exit hook removes the
+# tree, as on a dropped connection.
+function _hi_keep_end_script() {
+  _hi_keep_find
+  cat <<REMOTE
+      _hi_kept || exit 3
+      case \$_hi_k in
+      tmux) tmux kill-session -t "=\$_hi_kn" ;;
+      screen) screen -S "\$_hi_ks" -X quit ;;
+      esac
+REMOTE
+}
+
+# hi --end <target>: close the kept session there, without attaching
+function _hi_keep_end() {
+  local ec=0
+  _hi_ssh_sh "$(_hi_keep_end_script)" </dev/null || ec=$?
+  case "$ec" in
+  0) _hi_cecho "hi: closed the kept session on [$DOMAIN]" "$GREEN" ;;
+  3)
+    _hi_cecho "hi: no kept session on [$DOMAIN]" "$YELLOW" >&2
+    ec=1
+    ;;
+  esac
+  return "$ec"
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
@@ -2210,12 +2341,15 @@ function _hi_remote_suffix() {
   # single-quoted here so the fallback line can name the target without the
   # session carrying a variable for it
   local target_q _hi_esc _hi_nc
+  # shellcheck disable=SC2016 # the target's to expand
+  local handoff='        bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
+  ! _hi_keep_starts || handoff="$(_hi_keep_start)"
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
       if command -v bash >/dev/null 2>&1; then
-        bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
+$handoff
       else
         _hi_fallback=sh
         $(_hi_ladder_probe '_hi_fallback="$_hi_s"')
@@ -2246,9 +2380,12 @@ REMOTE
 # knows how to undo everything hi did on the target and runs on a normal exit
 # and an abrupt disconnect alike. This trap covers the one thing it cannot
 # survive - bash killed by a signal nothing can trap - and only has to remove
-# the tree, since $_HI_SESSION_RC_DIR nests inside it.
+# the tree, since $_HI_SESSION_RC_DIR nests inside it. A connect that keeps
+# its session leaves a tree whose session is still running to that session's
+# owner pane (GLOSSARY: HI.65).
 function _hi_remote_middle() {
-  local tmpl _hi_esc _hi_nc
+  local tmpl _hi_esc _hi_nc kept=""
+  ! _hi_keep_starts || kept='_hi_kept || '
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
@@ -2258,7 +2395,7 @@ function _hi_remote_middle() {
       export _HI_CONFIG_DIR=\$_HI_ROOT/config
       export _HI_CLEANUP=\$_HI_HOME
       mkdir "\$_HI_ROOT"
-      trap 'rm -rf \$_HI_CLEANUP' exit
+      trap '${kept}rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
       printf '%s %s%s' "$_hi_esc" "$_hi_nc" "$size" >&2
       { printf 'export _HI_HOME="%s"\nexport _HI_ROOT="%s"\n' "\$_HI_HOME" "\$_HI_ROOT"
@@ -2731,7 +2868,7 @@ function _hi_parse() {
   local use_word takes own=""
   # plain globals, so an inherited MUX=1 or PLAIN=1 must not stand in for a
   # flag that was never typed
-  DOMAIN="" BACKEND="" PLAIN="" MUX="" RAWCMD="" CMDARG=""
+  DOMAIN="" BACKEND="" PLAIN="" MUX="" KEEP="" END="" RAWCMD="" CMDARG=""
   SSHARGS=()
   while [ $# -gt 0 ]; do
     # the target ends the options: every word after it, dashed or not, is
@@ -2767,6 +2904,14 @@ function _hi_parse() {
         # the last of --mux/--no-mux wins, and either beats _HI_MUX=1 - which
         # is what makes --no-mux useful behind that setting
         MUX=0 own=1
+      elif [ "$1" = --keep ]; then
+        KEEP=1 own=1
+      elif [ "$1" = --no-keep ]; then
+        # the same pair, over _HI_KEEP=1; this one also leaves a session the
+        # target is already keeping alone, for an ordinary one beside it
+        KEEP=0 own=1
+      elif [ "$1" = --end ]; then
+        END=1 own=1
       elif [ "$1" = -- ]; then
         # ssh's own option terminator, passed along as-is
         SSHARGS+=("$1")
@@ -2944,8 +3089,9 @@ function _hi_mux_wrap() {
   # string: tmux hands it to its default-shell, which may be fish, and screen
   # to `sh -c`, and single quotes are the one form every shell reads alike
   # (%q's $'...' is bash's alone). zellij takes the words, in a layout.
+  case "${KEEP:-}" in 1) word=--keep ;; 0) word=--no-keep ;; *) word="" ;; esac
   inner=(env _HI_MUX_INNER=1 "$_HI_LAUNCHER"
-    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain}
+    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain} ${word:+"$word"}
     ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"})
   for word in "${inner[@]}"; do
     _hi_shquote q "$word"
@@ -3014,6 +3160,14 @@ function _hi() {
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   [ -z "${DOMAIN:-}" ] || { _hi_target_color >/dev/null && _hi_prompt_list >/dev/null; }
+  if [ "${END:-0}" = 1 ]; then
+    # a kept session is the ssh arm's alone, and closing one runs no command
+    [ -z "${RAWCMD:-}" ] || _hi_die "--end takes a target and nothing after it"
+    [ "${PLAIN:-0}" != 1 ] && [ -z "$(_hi_select_arm)" ] ||
+      _hi_die "--end closes a kept session, which only an ssh target has"
+    _hi_keep_end
+    exit $?
+  fi
   # only with a terminal to attach: a piped `hi host cmd` keeps working
   if [ -t 0 ]; then _hi_mux_wrap; fi
   # No `2>"$tmp"` around this block: catching a failure to reprint in red
@@ -3024,6 +3178,11 @@ function _hi() {
   # better claim on the terminal. $tmp still reaches _say_hi_container, which
   # redirects the commands whose noise is genuinely hi's.
   arm="$(_hi_select_arm)"
+  # said for the flag alone: _HI_KEEP=1 is a default, and silent where it
+  # does not apply
+  if [ "${KEEP:-}" = 1 ] && { [ "${PLAIN:-0}" = 1 ] || [ -n "$arm" ]; }; then
+    _hi_cecho "hi: --keep needs an ssh target and hi's own session; connecting without it" "$YELLOW" >&2
+  fi
   if [ "${PLAIN:-0}" = 1 ]; then
     if [ -n "$arm" ]; then
       _say_hi_container_plain "$arm"

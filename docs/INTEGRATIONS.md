@@ -34,7 +34,7 @@ machine only ([On your own machine](#on-your-own-machine)).
 | [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                                                                                                                                                                                                               | yes, where installed here    | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                                               |
 | mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment                                                                                                                                                                                                         | yes                          | `_HI_DISABLE_ENV_STATUS`                                                                            |
 | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa                                                                                                                                                                                                                                                                                                        | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home                                                                                                                                                                                       | no - opt-in, where installed | `_HI_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s                                                    |
-| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux/tmux.conf`                                                                                                                                                                    | no - per connect             | `--mux`, `--no-mux`                                                                                 |
+| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --mux` runs the connect inside one, on the client, and `hi --keep` the session inside tmux or screen on the target; a tmux on a target reads your `tmux/tmux.conf`                                                                                                   | no - per connect             | `--mux`, `--no-mux`, `--keep`, `--no-keep`, `--end`                                                 |
 | vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opened with hi's config, or yours, through an alias - neovim reads `nvim/init.lua`, vim `vim/vimrc`, micro your micro directory's files, helix `helix/config.toml` and `languages.toml`, kakoune `kak/kakrc` and its `colors/` through `$KAKOUNE_CONFIG_DIR` on a target | yes                          | `hi --plugin-off editors`, or one by name; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
 | oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                                                                                                                                                                                                                          | -                            | [Shell frameworks](#shell-frameworks)                                                               |
 
@@ -253,10 +253,28 @@ zellij, and screen on **your** `PATH`, named `hi-<target>`, and a second
 session to reattach to, on your side. Already inside tmux, hi switches the
 client to that session rather than nesting; inside screen or zellij it opens a
 new window or tab. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the
-default and `--no-mux` skips it once. The target sees an ordinary session:
-persistent sessions on the target were
-[decided against](COMPATIBILITY.md#what-would-change-an-answer), and
+default and `--no-mux` skips it once. The target sees an ordinary session;
 [HI.52](GLOSSARY.md#hi52-client-multiplexer-wrap) is how the wrap works.
+
+`hi --keep <target>` puts the multiplexer on the **target** instead: the
+session runs in tmux or screen there, the first of the two it has, as
+`hi-<target>`, and outlives the connection, your machine sleeping, or a move
+to another one. Every later `hi <target>` reattaches rather than starting
+over; `--no-keep` asks for an ordinary session beside it. It ends three ways:
+
+- `exit` in the first pane, which asks first (`close the kept session? [y/N]`);
+  anything but `y` detaches you and leaves a fresh shell in the pane;
+- `hi --end <target>`, from your side, without attaching;
+- nobody attached for [`_HI_KEEP_TIMEOUT`](SETTINGS.md#every-setting) (24h).
+
+Each removes the session directory, as any session's end does
+([SECURITY.md](SECURITY.md#footprint-and-cleanup-on-the-target)). Detach with
+the multiplexer's own key. It needs an ssh target with bash and tmux or screen,
+and a terminal on your side; anywhere else hi says so and connects as usual.
+`_HI_KEEP=1` makes it the default. The two flags combine: under
+`hi --mux --keep` both ends hold a session, and the inner multiplexer's prefix
+key has to be sent through the outer one.
+[HI.65](GLOSSARY.md#hi65-kept-session) is how it works.
 
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux/tmux.conf` over

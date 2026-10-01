@@ -73,6 +73,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.62 generated wiring](#hi62-generated-wiring)
 - [HI.63 plugins rows](#hi63-plugins-rows)
 - [HI.64 what is switched off](#hi64-what-is-switched-off)
+- [HI.65 kept session](#hi65-kept-session)
 
 ## HI.01 empty-array guard
 
@@ -1022,9 +1023,8 @@ the family is reachable with no second spelling. Names stay plain identifiers
 `hi --mux <target>` re-executes the connect inside a local multiplexer
 session named `hi-<target>` and never returns; a second `hi --mux` to the same
 target joins the running session. It is the client-side answer to a dropped
-link - a disposable tree cannot outlive its own session, so there is no
-target-side multiplexer. `_hi_mux_tool` picks the first of tmux, zellij, and
-screen on `PATH`, each driven in its own idiom:
+link; [HI.65](#hi65-kept-session) is the target-side one. `_hi_mux_tool` picks
+the first of tmux, zellij, and screen on `PATH`, each driven in its own idiom:
 
 - **tmux**: `new-session -A -s <name> <one string>`; the `-A` is the reattach.
 - **screen**: `-D -R -S <name> sh -c <one string>`; `-D -R` reattaches a
@@ -1040,9 +1040,9 @@ Five rules in `_hi_mux_wrap`:
 
 - **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
   insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
-  inner argv is rebuilt from the parsed state (`--use`, `--plain`, the ssh
-  options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
-  settled on rides along.
+  inner argv is rebuilt from the parsed state (`--use`, `--plain`, `--keep` or
+  `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
+  `"$@"`, so the target it settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
   the wrap returns at once when that is set. The inner argv carries no
   `--mux`/`--no-mux` of its own, so the inner hi re-reads `$_HI_MUX` - without
@@ -1517,3 +1517,47 @@ machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
 spelling, so each rewrites the line the other left. `load.sh` reads one word
 of it on a target, from the `settings.sh` that rode: with `editors` off it
 exports no `$EDITOR`.
+
+## HI.65 kept session
+
+`hi --keep <target>` (or `_HI_KEEP=1`) runs the session inside the target's
+tmux or screen, so it outlives the connection;
+[HI.52](#hi52-client-multiplexer-wrap) is the same idea on the client. All of
+it is the ssh arm's and the bash tier's: a container arm, `--plain`, and a
+bash-less target connect as usual.
+
+- **The name.** `hi-<target>`, from `_hi_mux_name` as `--mux` names its local
+  session: the target as typed on this client, so two clients that call a
+  host the same thing reach one session.
+- **Reattach comes first.** Every interactive connect, `--keep` or not,
+  carries `_hi_keep_attach` between the preamble and the unpack. Its
+  `_hi_kept` asks tmux (`has-session -t =<name>`), then screen (`-ls`, Dead
+  entries dropped), and a hit is attached and the script exits there, with
+  nothing unpacked. `--no-keep` and `hi <target> <cmd>` leave the block out;
+  without a terminal it does nothing.
+- **The owner pane.** With no session to attach, `_hi_keep_start` replaces
+  the bash handoff with `tmux new-session -s <name>` (or `screen -S`) running
+  the same `bash --rcfile hi.bashrc -i`, under the config hi carried. `load.sh`
+  runs in that pane as in any session, so its exit hook is still the one
+  thing that removes the tree: on `exit`, a killed session, or the timeout.
+- **The environment is an argv.** A multiplexer server already running hands
+  a new pane its own environment, not the caller's, so the session's
+  variables ride as `env NAME=value ...` ahead of bash. The subshell that
+  execs the multiplexer unsets them first: a server started here would
+  otherwise carry the client's verdicts to every other pane
+  ([HI.47](#hi47-what-a-child-inherits)). `$_HI_KEEP_MUX` and `$_HI_KEEP_NAME`
+  are how `load.sh` knows it is the owner.
+- **The trap stands down.** On a connect that keeps, the bootstrap's
+  `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
+  runs an exit trap on a hangup, and a dropped link would otherwise take the
+  tree from under the session.
+- **Closing.** `load()` loops: when the pane's shell exits with a client
+  attached, `_hi_keep_stays` asks, and anything but `y` detaches the client
+  and starts a fresh shell. With nobody attached it closes.
+  `hi --end <target>` kills the session over one ssh call, and the pane's
+  bash takes the hangup.
+- **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
+  polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
+  that rode) with no client attached, and it kills the session. `clean_all`
+  kills the job by process group, so its `sleep` does not outlive a session
+  closed another way.

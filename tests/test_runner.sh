@@ -91,6 +91,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:plugins:scripts/plugins_test.sh"
     "fast:convert_settings:scripts/convert_settings_test.sh"
     "fast:hi_mux:hi/mux_test.sh"
+    "fast:hi_keep:hi/keep_test.sh"
     "fast:core:common/core_test.sh"
     "fast:table:scripts/table_test.sh"
     "fast:aliases:config/alias_test.sh"

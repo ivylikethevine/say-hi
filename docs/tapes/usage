@@ -16,6 +16,9 @@
 --plain|-|
 --mux|-|
 --no-mux|-|
+--keep|-|
+--no-keep|-|
+--end|-|
 --preview|colors|
 --preview|packages|
 --preview|header|

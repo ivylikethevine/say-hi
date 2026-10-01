@@ -871,6 +871,97 @@ function test_nano_fallback_resolves_extendsyntax() {
   }
 }
 
+# --- a kept session's owner pane (GLOSSARY: HI.65) ---------------------------
+
+# _hi_keep_tmux - a directory holding a tmux stand-in, printed: it appends its
+# argv to $_HI_TEST_LOG and answers display-message from $_HI_TEST_ATTACHED, a
+# file a case rewrites while the watcher runs
+function _hi_keep_tmux() {
+  local bin="$_HI_WORKDIR/keeptmux"
+  if [ ! -d "$bin" ]; then
+    mkdir -p "$bin"
+    printf '%s\n' '#!/bin/sh' 'printf '\''%s\n'\'' "$*" >>"$_HI_TEST_LOG"' \
+      'case "$1" in display-message) cat "$_HI_TEST_ATTACHED" ;; esac' >"$bin/tmux"
+    chmod +x "$bin/tmux"
+  fi
+  printf '%s' "$bin"
+}
+
+# a typo is refused, so the watcher falls back to the default, not to "never"
+function test_keep_seconds_reads_the_duration_grammar() {
+  local v out
+  for v in 90:90 08s:8 30m:1800 24h:86400 2d:172800 0:0; do
+    _hi_keep_seconds "${v%%:*}" out && [ "$out" = "${v##*:}" ] || _hi_because "${v%%:*} read as ${out:-nothing}" || return 1
+  done
+  for v in '' x h 1.5h -3 10x '1 h'; do
+    ! _hi_keep_seconds "$v" out || _hi_because "'$v' was taken as $out" || return 1
+  done
+}
+
+# attached, the count starts over; unattended for the timeout, the session is
+# killed - the pane's hangup is what removes the tree
+function test_keep_watch_ends_a_session_nobody_is_attached_to() {
+  local log="$_HI_WORKDIR/watch.log" flag="$_HI_WORKDIR/watch.attached" bin
+  bin="$(_hi_keep_tmux)"
+  : >"$log"
+  printf '1\n' >"$flag"
+  (
+    _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_KEEP_TIMEOUT=1s
+    # the watcher forks inside the call, so it keeps the stand-in's PATH
+    PATH="$bin:$PATH" _HI_TEST_LOG="$log" _HI_TEST_ATTACHED="$flag" _hi_keep_watch 1
+    sleep 2.5
+    ! grep -q kill-session "$log" || exit 3
+    printf '0\n' >"$flag"
+    wait "$_hi_keep_watch_pid"
+  ) || _hi_because "the watcher killed an attached session, or failed" || return 1
+  grep -qx 'kill-session -t =hi-box' "$log" || _hi_because "no kill: $(cat "$log")"
+}
+
+# no session, or a timeout of 0, is no watcher at all
+function test_keep_watch_is_off_outside_a_kept_session() {
+  (
+    unset _HI_KEEP_NAME _hi_keep_watch_pid
+    _hi_keep_watch 1
+    [ -z "${_hi_keep_watch_pid:-}" ] || exit 1
+    _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_KEEP_TIMEOUT=0
+    _hi_keep_watch 1
+    [ -z "${_hi_keep_watch_pid:-}" ]
+  )
+}
+
+# _hi_keep_stays_answer <reply> <attached: 0|1> - one ask at a terminal:
+# "RC=<status>", then what tmux was told. The reply is typed ahead, so the
+# status lands on the question's own line.
+function _hi_keep_stays_answer() {
+  local log="$_HI_WORKDIR/stays.log" flag="$_HI_WORKDIR/stays.attached"
+  : >"$log"
+  printf '%s\n' "$2" >"$flag"
+  printf '%s\n' "$1" | env PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_TEST_ATTACHED="$flag" \
+    _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_LOAD_NO_INIT=1 _HI_HOME="$_HI_HOME" \
+    python3 -c "$_HI_PTY_SPAWN" bash -c 'source "$_HI_HOME/say-hi/load.sh"; set +euo pipefail
+_hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o 'RC=[0-9]*' || true
+  grep -v display-message "$log" || true
+}
+
+# anything but y keeps the session: the client is detached and load() goes
+# round again. y closes it, and with nobody attached nobody is asked.
+function test_keep_stays_asks_before_the_owner_pane_closes() {
+  [ "$(_hi_keep_stays_answer n 1)" = "$(printf 'RC=0\ndetach-client -s =hi-box')" ] ||
+    _hi_because "n: $(_hi_keep_stays_answer n 1)" || return 1
+  [ "$(_hi_keep_stays_answer '' 1)" = "$(printf 'RC=0\ndetach-client -s =hi-box')" ] ||
+    _hi_because "Enter: $(_hi_keep_stays_answer '' 1)" || return 1
+  [ "$(_hi_keep_stays_answer y 1)" = "RC=1" ] || _hi_because "y: $(_hi_keep_stays_answer y 1)" || return 1
+  [ "$(_hi_keep_stays_answer n 0)" = "RC=1" ] || _hi_because "unattended: $(_hi_keep_stays_answer n 0)"
+}
+
+# an ordinary session never asks: load()'s loop is one pass
+function test_keep_stays_is_no_outside_a_kept_session() {
+  (
+    unset _HI_KEEP_NAME
+    ! _hi_keep_stays </dev/null
+  )
+}
+
 function run_load_tests() {
   _hi_workdir loadtest
   # the editor configs an overlay carried in, for load() to hand the session
@@ -978,6 +1069,13 @@ EOF
   _hi_check "Closes the OSC 133 mark pair with the shell's status" test_load_closes_the_prompt_mark_pair_on_exit
   _hi_check "Disconnect clock row follows \$_HI_HEADER_ORDER" test_load_disconnect_timestamp_follows_the_header_order
   _hi_check "_HI_DISABLE_HEADER=1 keeps the footer, drops the banner" test_load_disable_header_skips_the_banner
+
+  _hi_h2 "Testing: a kept session's owner pane"
+  _hi_check "_hi_keep_seconds reads <n> and <n>[smhd], nothing else" test_keep_seconds_reads_the_duration_grammar
+  _hi_check "The watcher ends a session nobody is attached to" test_keep_watch_ends_a_session_nobody_is_attached_to
+  _hi_check "...and is off without a session, or at a timeout of 0" test_keep_watch_is_off_outside_a_kept_session
+  _hi_check_capable pty "The owner pane's exit asks first" test_keep_stays_asks_before_the_owner_pane_closes
+  _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
 
   _hi_h2 "Testing: this checkout"
   _hi_check "Still intact after every clean_all above" test_this_checkout_was_never_touched

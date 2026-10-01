@@ -365,6 +365,8 @@ function _hi_is_package_groups() {
 }
 # a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
 function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
+# $_HI_KEEP_TIMEOUT: seconds, or a number with s, m, h, or d
+function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }
 # one of core.sh's $_HI_EDITORS
 function _hi_is_editor() {
   case " $_HI_EDITORS " in *" $1 "*) return 0 ;; esac
