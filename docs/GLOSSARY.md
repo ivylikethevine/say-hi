@@ -1375,9 +1375,10 @@ section (`doctor_files`) walks the same rows, naming each member's tool and
 marking every location that holds something used or passed over, and why
 nothing is sent when something is there.
 
-The home tier is the config in force _here_: client-only, like every home
-read (a relay never packs the middle box's), and only with the member's tool
-on this machine (`_hi_tool_here`). Whichever tier answers, the include scan
+The home tier is the config in force _here_: client-only, since a relay
+packs nothing of the middle box's
+([HI.66](#hi66-the-packer-stays-home)), and only with the member's tool on
+this machine (`_hi_tool_here`). Whichever tier answers, the include scan
 ([HI.57](#hi57-carried-configs-and-the-include-scan)) runs over it on the way
 out.
 

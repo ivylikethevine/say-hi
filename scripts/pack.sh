@@ -579,14 +579,13 @@ function _hi_overlay_src() {
   _hi_out "${2:-}" "$_hi_os_f"
 }
 
-# _hi_overlay_home <member> [outvar] - the home tier alone, on this machine
-# only (a relay must not pack the middle box's) and with the member's tool
-# here to read it: the first of its row's candidates that exists. A directory
-# entry answers with the directory.
+# _hi_overlay_home <member> [outvar] - the home tier alone, with the member's
+# tool here to read it: the first of its row's candidates that exists. A
+# directory entry answers with the directory.
 function _hi_overlay_home() {
   local _hi_oh_r _hi_oh_c
   local -a _hi_paths=()
-  [ "$_HI_REMOTE_SESSION" != 1 ] && _hi_overlay_row "$1" _hi_oh_r && _hi_tool_here "$1" "$_hi_oh_r" || return 1
+  _hi_overlay_row "$1" _hi_oh_r && _hi_tool_here "$1" "$_hi_oh_r" || return 1
   _hi_overlay_places "$1" "$_hi_oh_r"
   for _hi_oh_c in ${_hi_paths[@]+"${_hi_paths[@]}"}; do
     if [ -f "$_hi_oh_c" ] || { [ -z "${1##*/}" ] && [ -d "$_hi_oh_c" ]; }; then
@@ -675,7 +674,7 @@ function _hi_plugin_name() {
 # without running it.
 function _hi_toggle_on() {
   local _hi_tg_n _hi_tg_v
-  if [ "${_HI_DISABLE_LOCAL:-0}" != 1 ] || [ "$_HI_REMOTE_SESSION" = 1 ]; then
+  if [ "${_HI_DISABLE_LOCAL:-0}" != 1 ]; then
     [ "${!1:-0}" = 1 ]
     return
   fi
@@ -699,7 +698,7 @@ function _hi_plugin_off() {
   local _hi_po_r _hi_po_g _hi_po_n _hi_po_t
   # nothing is off, most connects: said once for the values in force, since
   # every member asks, several times a connect
-  _hi_po_t="${_HI_PLUGINS_OFF:-}|${_HI_DISABLE_LOCAL:-0}|${_HI_REMOTE_SESSION:-0}|${_HI_SETTINGS:-}|"
+  _hi_po_t="${_HI_PLUGINS_OFF:-}|${_HI_DISABLE_LOCAL:-0}|${_HI_SETTINGS:-}|"
   for _hi_po_n in $_HI_OFF_TOGGLES; do _hi_po_t="$_hi_po_t${!_hi_po_n:-0}"; done
   if [ "${_HI_OFF_KEY-}" != "$_hi_po_t" ]; then
     _HI_OFF_KEY="$_hi_po_t" _HI_OFF_ANY="${_HI_PLUGINS_OFF:-}"
@@ -1034,16 +1033,14 @@ function _hi_include_lint() {
 
 # _hi_tool_dirs <member> <source> - the directories an include in <member> is
 # carried from, into the caller's $_hi_dirs: the source's own directory (not
-# $HOME's), and here $XDG_CONFIG_HOME/<tool>, ~/.<tool>, and ~/.<tool>.d for
-# the member's directory <tool>. None for a member with no directory; on a
-# target, the source's alone, which is where the client's copy landed.
+# $HOME's), and $XDG_CONFIG_HOME/<tool>, ~/.<tool>, and ~/.<tool>.d for the
+# member's directory <tool>. None for a member with no directory.
 function _hi_tool_dirs() {
   local _hi_td_t="${1%%/*}" _hi_td_s="${2%/*}"
   _hi_dirs=()
   [ "$_hi_td_t" != "$1" ] || return 0
   [ "$_hi_td_s" = "$HOME" ] || [ "$_hi_td_s" = "$2" ] || _hi_dirs+=("$_hi_td_s")
-  [ "$_HI_REMOTE_SESSION" = 1 ] ||
-    _hi_dirs+=("${XDG_CONFIG_HOME:-$HOME/.config}/$_hi_td_t" "$HOME/.$_hi_td_t" "$HOME/.$_hi_td_t.d")
+  _hi_dirs+=("${XDG_CONFIG_HOME:-$HOME/.config}/$_hi_td_t" "$HOME/.$_hi_td_t" "$HOME/.$_hi_td_t.d")
 }
 
 # _hi_include_carry <outvar> <line> <tool> - <line> with each path in it that

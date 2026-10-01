@@ -428,10 +428,8 @@ function test_files_table_walks_every_tier() {
   }
 }
 
-# a directory member counts the files that ride from it; a prompt program's
-# config is named but not sent while the prompt is hi's own; and inside a
-# session no home file is sent at all, which the row says instead of blaming
-# the tool
+# a directory member counts the files that ride from it, and a prompt
+# program's config is named but not sent while the prompt is hi's own
 function test_files_table_names_why_a_found_file_is_not_sent() {
   local h out
   h="$(mktemp -d "$_HI_WORKDIR/files-why.XXXXXX")"
@@ -448,17 +446,6 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
     [[ "$out" == *"zellij/themes/ (zellij)"*"present ~/.config/zellij/themes/ - no file rides"* ]] &&
     [[ "$out" == *"starship.toml (starship)"*"not sent: its prompt program is not one a target is handed"* ]] &&
     [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* ]] || {
-    printf '%s\n' "$out"
-    return 1
-  }
-  out="$(
-    function _hi_tool_here() { return 0; }
-    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_PROMPT_TOOL=hi \
-      _HI_REMOTE_SESSION=1 doctor_files
-  )"
-  out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"vim/vimrc (vim)"*"passed over ~/.vimrc - not sent: a session reads no home file"* ]] &&
-    [[ "$out" == *"zellij/layouts/ (zellij)"*"- no file rides"* ]] || {
     printf '%s\n' "$out"
     return 1
   }

@@ -574,8 +574,6 @@ function _hi_member_rows() {
       "$draw" "$label" "$text" ok
     else
       _hi_unsent_why "$m" p || p="not the file in force here"
-      # inside a session no home file is sent, whatever is installed
-      case "$_HI_REMOTE_SESSION:$p" in 1:its\ tool* | 1:not\ the*) p="a session reads no home file" ;; esac
       "$draw" "$label" "$text - not sent: $p"
     fi
   done

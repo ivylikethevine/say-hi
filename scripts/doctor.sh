@@ -487,7 +487,7 @@ function doctor_config() {
   # here, so those read as one row and only a toggle settings.sh sets on its
   # own is a row of its own.
   local gate=0
-  [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && gate=1
+  [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && gate=1
   for t in "${_HI_TOGGLES[@]}"; do
     v="${!t:-0}"
     [ "$v" = 0 ] && continue
