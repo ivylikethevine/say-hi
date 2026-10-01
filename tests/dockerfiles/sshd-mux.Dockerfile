@@ -1,7 +1,7 @@
 # The sshd image (BASE, from sshd-debian.Dockerfile) plus one terminal
 # multiplexer, MUX, for the kept-session suite. hi keeps a session in the
-# first of tmux and screen a target has, so each gets an image holding it
-# alone.
+# first of tmux, zellij, and screen a target has, so each gets an image
+# holding it alone; zellij's is sshd-alpine's, debian packaging none.
 #
 # screen keeps its sockets under /run/screen, which its package makes at boot;
 # a container never boots, so the directory is made here, with the mode

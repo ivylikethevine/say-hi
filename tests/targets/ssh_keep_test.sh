@@ -6,8 +6,9 @@
 #   drop     the link is frozen until sshd reaps it, the session and its tree
 #            stay, and the next `hi <target>` is back in the same shell with
 #            nothing new unpacked; `exit` and a `y` then close it
-#   end      `exit` and an `n` detach, `hi --end` closes it from here, and a
-#            second `hi --end` finds nothing
+#   end      `exit` and an `n` detach (in zellij, the `n` and then its own
+#            detach key), `hi --end` closes it from here, and a second
+#            `hi --end` finds nothing
 #   timeout  attached, it outlives $_HI_KEEP_TIMEOUT; detached, it does not
 #
 # Each ends with no session and no tree on the target. A multiplexer redraws,
@@ -48,6 +49,13 @@ function _hi_keep_state() {
         id == n && /[(]Detached[)]/ { s = "detached" }
         END { printf "%s", s }'
     ;;
+  zellij)
+    # its client list is a header, then a line for each one attached
+    # shellcheck disable=SC2016 # the container's sh expands it
+    { docker exec -u hitest "$_HI_KEEPTEST_C" sh -c 'zellij ls -n 2>/dev/null | grep -v "(EXITED" | grep -q "^$1 " || exit 0
+        zellij --session "$1" action list-clients 2>/dev/null' sh "$_HI_KEEP_SESSION" || true; } |
+      awk 'NR == 1 { s = "detached" } NR > 1 { s = "attached" } END { printf "%s", s }'
+    ;;
   esac
 }
 
@@ -61,6 +69,13 @@ function _hi_keep_trees() {
 function _hi_keep_trees_are() { [ "$(_hi_keep_trees)" = "$1" ]; }
 
 function _hi_keep_gone() { _hi_keep_is "" && _hi_keep_trees_are 0; }
+
+# sshd has reaped the session's connection: no process of it is left holding
+# the pty. Read off /proc, since asking zellij for its clients redraws them,
+# and a link that keeps carrying output is one sshd never probes.
+function _hi_keep_link_gone() {
+  ! docker exec "$_HI_KEEPTEST_C" sh -c 'grep -qs "hitest@pt[s]" /proc/[0-9]*/cmdline'
+}
 
 # _hi_keep_left <name> - a typed line left /tmp/<name> on the target
 function _hi_keep_left() { docker exec "$_HI_KEEPTEST_C" test -e "/tmp/$1"; }
@@ -111,14 +126,23 @@ function _hi_keep_feed_mark() {
   _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
   printf '%s\n' '_hi_keep_mark=owner; : >/tmp/keep.up'
   _hi_poll_bool 120 0.5 _hi_keep_left keep.up || true
+  # zellij lists its client a moment after the pane's shell is up
+  _hi_poll_bool 40 0.5 _hi_keep_is attached || true
 }
 
 # _hi_keep_feed_exit <transcript> <y|n> - `exit` in the owner pane, and the
-# answer to what it asks
+# answer to what it asks. zellij leaves an `n` attached, in a fresh shell,
+# naming the key that detaches: Ctrl+o, then d once its status bar offers
+# the detach - typed in one write, the d lands ahead of the mode it needs.
 function _hi_keep_feed_exit() {
   printf 'exit\n'
   _hi_poll_bool 40 0.5 grep -q 'close the kept session' "$1" || true
   printf '%s\n' "$2"
+  [ "$_HI_KEEPTEST_MUX:$2" = zellij:n ] || return 0
+  _hi_poll_bool 40 0.5 grep -q 'own key detaches' "$1" || true
+  printf '\017'
+  _hi_poll_bool 20 0.5 grep -q 'Detach' "$1" || true
+  printf 'd'
 }
 
 # ...marked, then left by `exit` and an `n`
@@ -150,7 +174,7 @@ function _hi_keep_feed_back() {
 function _hi_keep_up() {
   _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
     _hi_keep_fail "$1" "the session never came up" "$2" || return 1
-  _hi_keep_is attached ||
+  _hi_poll_bool 40 0.5 _hi_keep_is attached ||
     _hi_keep_fail "$1" "no $_HI_KEEPTEST_MUX session named $_HI_KEEP_SESSION holds it" "$2" || return 1
   _hi_keep_trees_are 1 || _hi_keep_fail "$1" "$(_hi_keep_trees) session trees, not 1"
 }
@@ -171,7 +195,9 @@ function _hi_keep_drop() {
 
   # client and mux master both, or sshd keeps the link (_hi_freeze_session)
   _hi_freeze_session || _hi_keep_fail "$label" "no session to freeze" || return 1
-  _hi_poll_bool 120 0.5 _hi_keep_is detached ||
+  _hi_poll_bool 120 0.5 _hi_keep_link_gone ||
+    _hi_keep_fail "$label" "sshd never reaped the frozen connection" "$out" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_is detached ||
     _hi_keep_fail "$label" "the session did not outlive its connection" "$out" || return 1
   _hi_keep_trees_are 1 || _hi_keep_fail "$label" "the dropped connection took the session's tree" || return 1
   _hi_thaw_frozen
@@ -273,7 +299,7 @@ function run_ssh_keep_tests() {
   _hi_require_bin pgrep
 
   _hi_workdir keeptest
-  _hi_h1 "Testing a kept session over ssh, in tmux and in screen"
+  _hi_h1 "Testing a kept session over ssh, in tmux, screen, and zellij"
   _hi_ssh_keypair
 
   _hi_h2 "Building test images"
@@ -284,11 +310,17 @@ function run_ssh_keep_tests() {
       --build-arg "BASE=$_HI_SSHD_IMAGE" --build-arg "MUX=$mux" \
       -f "$(_hi_dockerfile sshd-mux)" "$_HI_WORKDIR/$mux"
   done
+  # zellij is packaged by alpine, not by debian: the alpine sshd image, with
+  # the bash a kept session needs
+  mkdir -p "$_HI_WORKDIR/zellij"
+  _hi_sshd_entrypoint "$_HI_WORKDIR/zellij" /bin/sh
+  _hi_bg zellij _hi_build_image zellij "hi-keeptest-zellij-$$" "the zellij cases" \
+    --build-arg "PKGS=bash zellij" -f "$(_hi_dockerfile sshd-alpine)" "$_HI_WORKDIR/zellij"
   wait
 
   _hi_suite_begin
   _hi_par_begin "kept-session cases"
-  for mux in tmux screen; do
+  for mux in tmux screen zellij; do
     _hi_bg_ok "$mux" ok
     for spec in "${_HI_KEEP_CASES[@]}"; do
       if [ "$ok" = 1 ]; then
@@ -300,7 +332,7 @@ function run_ssh_keep_tests() {
   done
   _hi_par_wait
 
-  docker image rm -f "hi-keeptest-tmux-$$" "hi-keeptest-screen-$$" >/dev/null 2>&1 || true
+  docker image rm -f "hi-keeptest-tmux-$$" "hi-keeptest-screen-$$" "hi-keeptest-zellij-$$" >/dev/null 2>&1 || true
 
   _hi_suite_end "" \
     "a kept session held, reattached, and closed in every multiplexer ($_HI_TOTAL cases)" \

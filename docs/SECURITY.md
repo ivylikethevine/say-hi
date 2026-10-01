@@ -84,8 +84,8 @@ session's opens. All three are `tests/targets/ssh_test.sh` cases.
 
 Default answer: one directory (two over ssh), and only for the life of the
 session. A session is as long as its connection unless you ask otherwise:
-`hi --keep` runs it in tmux or screen on the target, where it and its
-directory last until you close it or nobody has been attached for
+`hi --keep` runs it in tmux, zellij, or screen on the target, where it and
+its directory last until you close it or nobody has been attached for
 `_HI_KEEP_TIMEOUT` (24h).
 
 | what              | where, in the target's temp directory, mode 0700                                             | when                                                               |

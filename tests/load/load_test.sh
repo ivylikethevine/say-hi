@@ -873,16 +873,32 @@ function test_nano_fallback_resolves_extendsyntax() {
 
 # --- a kept session's owner pane (GLOSSARY: HI.65) ---------------------------
 
-# _hi_keep_tmux - a directory holding a tmux stand-in, printed: it appends its
-# argv to $_HI_TEST_LOG and answers display-message from $_HI_TEST_ATTACHED, a
-# file a case rewrites while the watcher runs
+# _hi_keep_tmux - a directory holding tmux and zellij stand-ins, printed: each
+# appends its argv to $_HI_TEST_LOG and answers from $_HI_TEST_ATTACHED, a
+# file a case rewrites while the watcher runs. tmux prints it for
+# display-message. zellij's client list is a header and a client for 1, the
+# header alone for 0, nothing for `starting`, and a refusal for `old`.
 function _hi_keep_tmux() {
   local bin="$_HI_WORKDIR/keeptmux"
   if [ ! -d "$bin" ]; then
     mkdir -p "$bin"
     printf '%s\n' '#!/bin/sh' 'printf '\''%s\n'\'' "$*" >>"$_HI_TEST_LOG"' \
       'case "$1" in display-message) cat "$_HI_TEST_ATTACHED" ;; esac' >"$bin/tmux"
-    chmod +x "$bin/tmux"
+    cat >"$bin/zellij" <<'SHIM'
+#!/bin/sh
+printf '%s\n' "$*" >>"$_HI_TEST_LOG"
+case "$*" in
+*list-clients)
+  case "$(cat "$_HI_TEST_ATTACHED")" in
+  old) exit 2 ;;
+  starting) exit 0 ;;
+  esac
+  echo 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND'
+  [ "$(cat "$_HI_TEST_ATTACHED")" = 0 ] || echo '1         terminal_0     bash -i'
+  ;;
+esac
+SHIM
+    chmod +x "$bin/tmux" "$bin/zellij"
   fi
   printf '%s' "$bin"
 }
@@ -898,23 +914,42 @@ function test_keep_seconds_reads_the_duration_grammar() {
   done
 }
 
+# zellij's client list, read: only a header with nothing under it is nobody.
+# One that is still starting answers with nothing, and one too old to list
+# clients refuses - neither may read as a session to close.
+function test_keep_attached_reads_zellij_s_client_list() {
+  local flag="$_HI_WORKDIR/zattached" v got
+  for v in 1:0 0:1 starting:0 old:0; do
+    printf '%s\n' "${v%%:*}" >"$flag"
+    got=0
+    PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG=/dev/null _HI_TEST_ATTACHED="$flag" \
+    _HI_KEEP_MUX=zellij _HI_KEEP_NAME=hi-box _hi_keep_attached || got=$?
+    [ "$got" = "${v##*:}" ] || _hi_because "${v%%:*}: _hi_keep_attached answered $got" || return 1
+  done
+}
+
 # attached, the count starts over; unattended for the timeout, the session is
 # killed - the pane's hangup is what removes the tree
-function test_keep_watch_ends_a_session_nobody_is_attached_to() {
-  local log="$_HI_WORKDIR/watch.log" flag="$_HI_WORKDIR/watch.attached" bin
+# _hi_keep_watch_ends <mux> <the kill it logs>
+function _hi_keep_watch_ends() {
+  local log="$_HI_WORKDIR/watch.log" flag="$_HI_WORKDIR/watch.attached" bin mux="$1"
   bin="$(_hi_keep_tmux)"
   : >"$log"
   printf '1\n' >"$flag"
   (
-    _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_KEEP_TIMEOUT=1s
+    _HI_KEEP_MUX="$mux" _HI_KEEP_NAME=hi-box _HI_KEEP_TIMEOUT=1s
     # the watcher forks inside the call, so it keeps the stand-in's PATH
     PATH="$bin:$PATH" _HI_TEST_LOG="$log" _HI_TEST_ATTACHED="$flag" _hi_keep_watch 1
     sleep 2.5
     ! grep -q kill-session "$log" || exit 3
     printf '0\n' >"$flag"
     wait "$_hi_keep_watch_pid"
-  ) || _hi_because "the watcher killed an attached session, or failed" || return 1
-  grep -qx 'kill-session -t =hi-box' "$log" || _hi_because "no kill: $(cat "$log")"
+  ) || _hi_because "$mux: the watcher killed an attached session, or failed" || return 1
+  grep -qx -- "$2" "$log" || _hi_because "$mux: no kill: $(cat "$log")"
+}
+
+function test_keep_watch_ends_a_session_nobody_is_attached_to() {
+  _hi_keep_watch_ends tmux 'kill-session -t =hi-box' && _hi_keep_watch_ends zellij 'kill-session hi-box'
 }
 
 # no session, or a timeout of 0, is no watcher at all
@@ -929,18 +964,19 @@ function test_keep_watch_is_off_outside_a_kept_session() {
   )
 }
 
-# _hi_keep_stays_answer <reply> <attached: 0|1> - one ask at a terminal:
-# "RC=<status>", then what tmux was told. The reply is typed ahead, so the
-# status lands on the question's own line.
+# _hi_keep_stays_answer <reply> <attached: 0|1> [mux] - one ask at a terminal:
+# "RC=<status>", then what the multiplexer was told (zellij: what hi said
+# instead). The reply is typed ahead, so the status lands on the question's
+# own line.
 function _hi_keep_stays_answer() {
   local log="$_HI_WORKDIR/stays.log" flag="$_HI_WORKDIR/stays.attached"
   : >"$log"
   printf '%s\n' "$2" >"$flag"
   printf '%s\n' "$1" | env PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_TEST_ATTACHED="$flag" \
-    _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_LOAD_NO_INIT=1 _HI_HOME="$_HI_HOME" \
+    _HI_KEEP_MUX="${3:-tmux}" _HI_KEEP_NAME=hi-box _HI_LOAD_NO_INIT=1 _HI_HOME="$_HI_HOME" \
     python3 -c "$_HI_PTY_SPAWN" bash -c 'source "$_HI_HOME/say-hi/load.sh"; set +euo pipefail
-_hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o 'RC=[0-9]*' || true
-  grep -v display-message "$log" || true
+_hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o 'RC=[0-9]*\|own key detaches' || true
+  grep -v 'display-message\|list-clients' "$log" || true
 }
 
 # anything but y keeps the session: the client is detached and load() goes
@@ -952,6 +988,14 @@ function test_keep_stays_asks_before_the_owner_pane_closes() {
     _hi_because "Enter: $(_hi_keep_stays_answer '' 1)" || return 1
   [ "$(_hi_keep_stays_answer y 1)" = "RC=1" ] || _hi_because "y: $(_hi_keep_stays_answer y 1)" || return 1
   [ "$(_hi_keep_stays_answer n 0)" = "RC=1" ] || _hi_because "unattended: $(_hi_keep_stays_answer n 0)"
+}
+
+# zellij has no command that detaches a client: an `n` keeps the session and
+# the client both, and names the key
+function test_keep_stays_names_zellij_s_detach_key() {
+  [ "$(_hi_keep_stays_answer n 1 zellij)" = "$(printf 'own key detaches\nRC=0')" ] ||
+    _hi_because "n: $(_hi_keep_stays_answer n 1 zellij)" || return 1
+  [ "$(_hi_keep_stays_answer y 1 zellij)" = "RC=1" ] || _hi_because "y: $(_hi_keep_stays_answer y 1 zellij)"
 }
 
 # an ordinary session never asks: load()'s loop is one pass
@@ -1072,9 +1116,11 @@ EOF
 
   _hi_h2 "Testing: a kept session's owner pane"
   _hi_check "_hi_keep_seconds reads <n> and <n>[smhd], nothing else" test_keep_seconds_reads_the_duration_grammar
+  _hi_check "zellij's client list: only a bare header is nobody" test_keep_attached_reads_zellij_s_client_list
   _hi_check "The watcher ends a session nobody is attached to" test_keep_watch_ends_a_session_nobody_is_attached_to
   _hi_check "...and is off without a session, or at a timeout of 0" test_keep_watch_is_off_outside_a_kept_session
   _hi_check_capable pty "The owner pane's exit asks first" test_keep_stays_asks_before_the_owner_pane_closes
+  _hi_check_capable pty "...and under zellij an n names the key that detaches" test_keep_stays_names_zellij_s_detach_key
   _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
 
   _hi_h2 "Testing: this checkout"

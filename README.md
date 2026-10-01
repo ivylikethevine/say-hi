@@ -376,19 +376,18 @@ checkout: an account or an upstream review that lands when it lands.
 
 4. [ ] _Before 1.0:_ **A session that outlives its connection** — shipped:
        `hi --keep <target>` (or `_HI_KEEP=1`) runs the session in the
-       target's tmux or screen as `hi-<target>`, any later `hi <target>`
-       reattaches, the first pane's `exit` asks before closing, a session
-       nobody is attached to closes after `_HI_KEEP_TIMEOUT`, and
+       target's tmux, zellij, or screen as `hi-<target>`, any later
+       `hi <target>` reattaches, the first pane's `exit` asks before closing,
+       a session nobody is attached to closes after `_HI_KEEP_TIMEOUT`, and
        `hi --end <target>` closes it from here
        ([HI.65](docs/GLOSSARY.md#hi65-kept-session)), and the `ssh_keep` e2e
-       suite drives it over a real sshd in tmux and in screen (a dropped
+       suite drives it over a real sshd in each of the three (a dropped
        link, the reattach, `--end`, the timeout). What is left, in order:
-       zellij as a third multiplexer on the target, started from a
-       layout with session serialization off; `hi --keep` typed inside a
-       running session; new panes opening hi's session shell; a tree whose
-       session died with the target removed by the next connect; and, for a
-       connect run inside a local multiplexer, a reconnect loop bounded by a
-       `_HI_KEEP_RETRY` window, warning when the kept session is gone.
+       `hi --keep` typed inside a running session; new panes opening hi's
+       session shell; a tree whose session died with the target removed by
+       the next connect; and, for a connect run inside a local multiplexer, a
+       reconnect loop bounded by a `_HI_KEEP_RETRY` window, warning when the
+       kept session is gone.
        **Ticks when:** each of those has landed and the e2e suite is green in
        CI for tmux, screen, and zellij.
 

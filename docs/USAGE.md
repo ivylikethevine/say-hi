@@ -78,7 +78,7 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 
 ### `hi --keep`
 
-`hi --keep`: keep the session on the target, in tmux or screen. Works in a session too.
+`hi --keep`: keep the session on the target, in tmux/zellij/screen. Works in a session too.
 
 It changes how a connect runs, which the [README's demos](../README.md) show.
 

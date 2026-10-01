@@ -1489,19 +1489,35 @@ function test_install_section_reads_the_hi_on_path() {
   [[ "$out" == *"hi on PATH is ~/bin/hi, which runs ~/bin/other - not this tree"* ]]
 }
 
+# _hi_darwin_login_row <home> <text> - the report for <home> on a macOS holds
+# <text>. One doctor run a case: three in one took a slow runner past the
+# traced rerun's limit, and failed there with nothing said.
+function _hi_darwin_login_row() {
+  local out rc=0
+  out="$(_hi_doctor_install_out "$1" _HI_UNAME=Darwin)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"$2"* ]] || _hi_because "exit $rc, no \"$2\" in: $out"
+}
+
 function test_install_section_warns_about_a_darwin_login_bash() {
-  local home="$_HI_WORKDIR/inst-darwin" out
+  _hi_darwin_login_row "$_HI_WORKDIR/inst-darwin" "never reaches ~/.bashrc"
+}
+
+# a ~/.bash_login with no .bash_profile ahead of it is the file bash reads,
+# and nobody's to edit: the row hands over the line instead
+function test_install_section_hands_a_darwin_bash_login_the_line() {
+  local home="$_HI_WORKDIR/inst-darwin-login"
   mkdir -p "$home"
-  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"never reaches ~/.bashrc"* ]] || return 1
-  # a ~/.bash_login with no .bash_profile ahead of it is the file bash reads,
-  # and nobody's to edit: the row hands over the line instead
   printf 'umask 022\n' >"$home/.bash_login"
-  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"~/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"* ]] || return 1
+  # shellcheck disable=SC2088 # the ~ is the report's own, for $HOME
+  _hi_darwin_login_row "$home" "~/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"
+}
+
+function test_install_section_passes_a_darwin_profile_that_reads_bashrc() {
+  local home="$_HI_WORKDIR/inst-darwin-profile"
+  mkdir -p "$home"
   printf '. ~/.bashrc\n' >"$home/.bash_profile"
-  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"~/.bash_profile reads ~/.bashrc"* ]]
+  # shellcheck disable=SC2088 # the ~ is the report's own, for $HOME
+  _hi_darwin_login_row "$home" "~/.bash_profile reads ~/.bashrc"
 }
 
 function test_install_section_warns_on_a_zdotdir_mismatch() {
@@ -1811,6 +1827,8 @@ function run_doctor_tests() {
     _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
     _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path
     _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
+    _hi_check "...a ~/.bash_login is handed the line to add" test_install_section_hands_a_darwin_bash_login_the_line
+    _hi_check "...and a ~/.bash_profile that reads .bashrc is green" test_install_section_passes_a_darwin_profile_that_reads_bashrc
     _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
     _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
     _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report

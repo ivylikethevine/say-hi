@@ -385,9 +385,9 @@ $1 == "extendsyntax" && !($2 in have) {
   mv -f "$rc.hi" "$rc"
 }
 
-# A kept session (GLOSSARY: HI.65) runs load() in the owner pane of a tmux or
-# screen session hi.sh started: $_HI_KEEP_MUX names the multiplexer and
-# $_HI_KEEP_NAME the session. The three functions below are that pane's.
+# A kept session (GLOSSARY: HI.65) runs load() in the owner pane of a tmux,
+# zellij, or screen session hi.sh started: $_HI_KEEP_MUX names the multiplexer
+# and $_HI_KEEP_NAME the session. The three functions below are that pane's.
 
 # _hi_keep_seconds <duration> <outvar> - <n>, or <n> with s, m, h, or d, as
 # seconds; false for anything else
@@ -403,13 +403,20 @@ function _hi_keep_seconds() {
   printf -v "$2" '%s' "$_hi_kd_n"
 }
 
-# Is a client attached to the session this pane owns?
+# Is a client attached to the session this pane owns? zellij lists its
+# clients a line each under a header. With no header to read - a zellij too
+# old to list them, or one still starting, which answers with nothing - it
+# counts as attached, so nothing closes a session somebody may be in.
 function _hi_keep_attached() {
   local n
   case "${_HI_KEEP_MUX:-}" in
   tmux)
     n="$(tmux display-message -p -t "=$_HI_KEEP_NAME:" '#{session_attached}' 2>/dev/null)"
     [ "${n:-0}" != 0 ]
+    ;;
+  zellij)
+    n="$(zellij --session "$_HI_KEEP_NAME" action list-clients 2>/dev/null)" || return 0
+    [[ "$n" != CLIENT_ID* || "$n" == *$'\n'* ]]
     ;;
   screen) screen -ls 2>/dev/null | grep -F "${STY:-.$_HI_KEEP_NAME}" | grep -F '(Attached)' >/dev/null ;;
   *) return 1 ;;
@@ -437,6 +444,7 @@ function _hi_keep_watch() {
     done
     case "$_HI_KEEP_MUX" in
     tmux) tmux kill-session -t "=$_HI_KEEP_NAME" ;;
+    zellij) zellij kill-session "$_HI_KEEP_NAME" ;;
     screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X quit ;;
     esac
   ) </dev/null >/dev/null 2>&1 &
@@ -445,8 +453,9 @@ function _hi_keep_watch() {
 
 # Asked when the owner pane's shell exits with a client attached, since an
 # `exit` typed from habit would otherwise end every pane. True to stay: the
-# client is detached and load() starts a fresh shell. With nobody attached
-# there is nobody to ask, and the session closes.
+# client is detached and load() starts a fresh shell. zellij has no command
+# that detaches a client, so there the fresh shell comes with the key that
+# does. With nobody attached there is nobody to ask, and the session closes.
 function _hi_keep_stays() {
   local reply=""
   [ -n "${_HI_KEEP_NAME:-}" ] && [ -t 0 ] && _hi_keep_attached || return 1
@@ -455,6 +464,7 @@ function _hi_keep_stays() {
   case "$reply" in [yY]*) return 1 ;; esac
   case "$_HI_KEEP_MUX" in
   tmux) tmux detach-client -s "=$_HI_KEEP_NAME" ;;
+  zellij) _hi_cecho " hi: kept - zellij's own key detaches, Ctrl+o d unless rebound" "$YELLOW" ;;
   screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X detach ;;
   esac
   return 0

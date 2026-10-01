@@ -755,6 +755,8 @@ function _hi_keep_find() {
       _hi_kept() {
         _hi_k=tmux
         tmux has-session -t "=\$_hi_kn" 2>/dev/null && return
+        _hi_k=zellij
+        zellij ls -n 2>/dev/null | grep -v '(EXITED' | grep -q "^\$_hi_kn " && return
         _hi_k=screen
         _hi_ks=\$(screen -ls 2>/dev/null | sed -n "/Dead/d; s/^[[:space:]]*\\([0-9][0-9]*[.]\$_hi_kn\\)[[:space:]].*/\\1/p")
         [ -n "\$_hi_ks" ] && return
@@ -777,6 +779,7 @@ function _hi_keep_attach() {
       if [ -t 0 ] && _hi_kept; then
         case \$_hi_k in
         tmux) tmux attach-session -t "=\$_hi_kn" ;;
+        zellij) zellij attach "\$_hi_kn" ;;
         screen) screen -x "\$_hi_ks" ;;
         esac
         _hi_kept_note ' hi:'
@@ -786,12 +789,17 @@ REMOTE
 }
 
 # The bash handoff of a connect that keeps its session: the same
-# `bash --rcfile` as the owner pane of a tmux or screen session, the first of
-# the two on the target. The session's variables reach the pane as an `env`
-# argv, since a multiplexer server already running hands a pane its own
-# environment, and the subshell drops them before the exec so a server
+# `bash --rcfile` as the owner pane of a tmux, zellij, or screen session, the
+# first of the three on the target. The session's variables reach the pane as
+# an `env` argv, since a multiplexer server already running hands a pane its
+# own environment, and the subshell drops them before the exec so a server
 # started here carries none of them to its other panes (GLOSSARY: HI.47).
 # The multiplexer reads the config hi carried, as the session's alias does.
+# zellij takes a first pane's command from a layout alone, so that argv is
+# written into one beside the rc, as KDL strings, under zellij's own two bars;
+# its options keep the session off the disk and a dropped client a detach,
+# and turn off the popups that would take the first prompt's keys, each asked
+# for only where this zellij lists it.
 function _hi_keep_start() {
   local n target_q _hi_esc _hi_nc argv="" drop=""
   _hi_esc_pair _hi_esc _hi_nc
@@ -806,7 +814,7 @@ function _hi_keep_start() {
   done
   cat <<REMOTE
         _hi_k=
-        for _hi_s in tmux screen; do command -v "\$_hi_s" >/dev/null 2>&1 && { _hi_k=\$_hi_s; break; }; done
+        for _hi_s in tmux zellij screen; do command -v "\$_hi_s" >/dev/null 2>&1 && { _hi_k=\$_hi_s; break; }; done
         if [ -n "\$_hi_k" ] && [ -t 0 ]; then
           set -- env _HI_KEEP_MUX="\$_hi_k" _HI_KEEP_NAME="\$_hi_kn" _HI_HOME="\$_HI_HOME" _HI_CONFIG_DIR="\$_HI_CONFIG_DIR"$argv bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
           (
@@ -817,6 +825,22 @@ function _hi_keep_start() {
               [ ! -f "\$_hi_kc" ] || exec tmux -f "\$_hi_kc" new-session -s "\$_hi_kn" "\$@"
               exec tmux new-session -s "\$_hi_kn" "\$@"
               ;;
+            zellij)
+              _hi_kc="\$_hi_rc_dir/hi.keep.kdl"
+              {
+                printf '%s\n' 'layout {' 'default_tab_template {' 'pane size=1 borderless=true {' 'plugin location="zellij:tab-bar"' '}' children 'pane size=2 borderless=true {' 'plugin location="zellij:status-bar"' '}' '}' 'tab {' 'pane command="env" close_on_exit=true {'
+                shift
+                printf args
+                for _hi_s; do printf ' "%s"' "\$(printf '%s' "\$_hi_s" | sed 's/[\\\\"]/\\\\&/g')"; done
+                printf '\n}\n}\n}\n'
+              } >"\$_hi_kc"
+              set -- -s "\$_hi_kn" -n "\$_hi_kc" options --session-serialization false --on-force-close detach
+              for _hi_s in startup-tips release-notes; do
+                ! zellij options --help 2>/dev/null | grep -q -- "--show-\$_hi_s" || set -- "\$@" "--show-\$_hi_s" false
+              done
+              [ ! -d "\$_HI_CONFIG_DIR/zellij" ] || set -- --config-dir "\$_HI_CONFIG_DIR/zellij" "\$@"
+              exec zellij "\$@"
+              ;;
             screen)
               _hi_kc="\$_HI_CONFIG_DIR/screenrc"
               [ ! -f "\$_hi_kc" ] || exec screen -c "\$_hi_kc" -S "\$_hi_kn" "\$@"
@@ -826,7 +850,7 @@ function _hi_keep_start() {
           )
           _hi_kept_note ' |'
         else
-          [ -n "\$_hi_k" ] || printf '%s --keep needs tmux or screen on [%s], connecting without it %s\n' "$_hi_esc" $target_q "$_hi_nc" >&2
+          [ -n "\$_hi_k" ] || printf '%s --keep needs tmux, zellij, or screen on [%s], connecting without it %s\n' "$_hi_esc" $target_q "$_hi_nc" >&2
           bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
         fi
 REMOTE
@@ -841,6 +865,7 @@ function _hi_keep_end_script() {
       _hi_kept || exit 3
       case \$_hi_k in
       tmux) tmux kill-session -t "=\$_hi_kn" ;;
+      zellij) zellij kill-session "\$_hi_kn" ;;
       screen) screen -S "\$_hi_ks" -X quit ;;
       esac
 REMOTE

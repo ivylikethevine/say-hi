@@ -231,10 +231,11 @@ the last of the two flags wins.
 .TP
 .B \-\-keep
 keep the session on an ssh target past a disconnect: it runs in a
-.BR tmux (1)
+.BR tmux (1),
+.BR zellij (1),
 or
 .BR screen (1)
-session there, the first of the two the target has, named
+session there, the first of the three the target has, named
 .BI hi\- target\fR,
 and every later
 .B hi
@@ -243,7 +244,7 @@ multiplexer's own key. Leaving the first pane's shell asks before it closes
 the session; with nobody attached for
 .B _HI_KEEP_TIMEOUT
 (24h) it closes itself. Either way the session directory is removed.
-The target needs bash and one of the two multiplexers, and you a terminal;
+The target needs bash and one of the three multiplexers, and you a terminal;
 otherwise hi says so and connects as usual.
 .B _HI_KEEP=1
 makes this the default.

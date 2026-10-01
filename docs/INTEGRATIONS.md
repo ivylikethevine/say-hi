@@ -257,20 +257,23 @@ default and `--no-mux` skips it once. The target sees an ordinary session;
 [HI.52](GLOSSARY.md#hi52-client-multiplexer-wrap) is how the wrap works.
 
 `hi --keep <target>` puts the multiplexer on the **target** instead: the
-session runs in tmux or screen there, the first of the two it has, as
-`hi-<target>`, and outlives the connection, your machine sleeping, or a move
-to another one. Every later `hi <target>` reattaches rather than starting
+session runs in tmux, zellij, or screen there, the first of the three it has,
+as `hi-<target>`, and outlives the connection, your machine sleeping, or a
+move to another one. Every later `hi <target>` reattaches rather than starting
 over; `--no-keep` asks for an ordinary session beside it. It ends three ways:
 
 - `exit` in the first pane, which asks first (`close the kept session? [y/N]`);
-  anything but `y` detaches you and leaves a fresh shell in the pane;
+  anything but `y` detaches you and leaves a fresh shell in the pane (zellij
+  cannot be told to detach, so there you stay attached to the fresh shell);
 - `hi --end <target>`, from your side, without attaching;
 - nobody attached for [`_HI_KEEP_TIMEOUT`](SETTINGS.md#every-setting) (24h).
 
 Each removes the session directory, as any session's end does
 ([SECURITY.md](SECURITY.md#footprint-and-cleanup-on-the-target)). Detach with
-the multiplexer's own key. It needs an ssh target with bash and tmux or screen,
-and a terminal on your side; anywhere else hi says so and connects as usual.
+the multiplexer's own key. It needs an ssh target with bash and one of the
+three, and a terminal on your side; anywhere else hi says so and connects as
+usual. A zellij session starts under zellij's own two bars, kept off the disk
+(nothing to resurrect) and with its startup popups off.
 `_HI_KEEP=1` makes it the default. The two flags combine: under
 `hi --mux --keep` both ends hold a session, and the inner multiplexer's prefix
 key has to be sent through the outer one.

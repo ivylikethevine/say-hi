@@ -1527,7 +1527,7 @@ exports no `$EDITOR`.
 ## HI.65 kept session
 
 `hi --keep <target>` (or `_HI_KEEP=1`) runs the session inside the target's
-tmux or screen, so it outlives the connection;
+tmux, zellij, or screen, so it outlives the connection;
 [HI.52](#hi52-client-multiplexer-wrap) is the same idea on the client. All of
 it is the ssh arm's and the bash tier's: a container arm, `--plain`, and a
 bash-less target connect as usual.
@@ -1537,15 +1537,17 @@ bash-less target connect as usual.
   host the same thing reach one session.
 - **Reattach comes first.** Every interactive connect, `--keep` or not,
   carries `_hi_keep_attach` between the preamble and the unpack. Its
-  `_hi_kept` asks tmux (`has-session -t =<name>`), then screen (`-ls`, Dead
-  entries dropped), and a hit is attached and the script exits there, with
-  nothing unpacked. `--no-keep` and `hi <target> <cmd>` leave the block out;
-  without a terminal it does nothing.
+  `_hi_kept` asks tmux (`has-session -t =<name>`), then zellij (`ls -n`,
+  exited sessions dropped: attaching one would resurrect it), then screen
+  (`-ls`, Dead entries dropped), and a hit is attached and the script exits
+  there, with nothing unpacked. `--no-keep` and `hi <target> <cmd>` leave the
+  block out; without a terminal it does nothing.
 - **The owner pane.** With no session to attach, `_hi_keep_start` replaces
-  the bash handoff with `tmux new-session -s <name>` (or `screen -S`) running
-  the same `bash --rcfile hi.bashrc -i`, under the config hi carried. `load.sh`
-  runs in that pane as in any session, so its exit hook is still the one
-  thing that removes the tree: on `exit`, a killed session, or the timeout.
+  the bash handoff with `tmux new-session -s <name>` (or zellij's or screen's
+  start) running the same `bash --rcfile hi.bashrc -i`, under the config hi
+  carried, in the first of the three the target has. `load.sh` runs in that
+  pane as in any session, so its exit hook is still the one thing that
+  removes the tree: on `exit`, a killed session, or the timeout.
 - **The environment is an argv.** A multiplexer server already running hands
   a new pane its own environment, not the caller's, so the session's
   variables ride as `env NAME=value ...` ahead of bash. The subshell that
@@ -1553,20 +1555,35 @@ bash-less target connect as usual.
   otherwise carry the client's verdicts to every other pane
   ([HI.47](#hi47-what-a-child-inherits)). `$_HI_KEEP_MUX` and `$_HI_KEEP_NAME`
   are how `load.sh` knows it is the owner.
+- **zellij starts from a layout.** It takes a first pane's command from a
+  layout and nowhere else, so the start writes `hi.keep.kdl` beside the rc:
+  zellij's own tab and status bars around one pane whose `args` are that `env`
+  argv, each word a KDL string with its `"` and `\` escaped. Its options keep
+  the session off the disk (`--session-serialization false`: nothing under
+  `~/.cache/zellij` to resurrect), make a dropped client a detach whatever
+  the config says (`--on-force-close detach`), and turn off the startup-tip
+  and release-notes popups, which would take the first prompt's keys - those
+  two only where `zellij options --help` lists them, since a zellij handed an
+  option it does not know refuses to start.
 - **The trap stands down.** On a connect that keeps, the bootstrap's
   `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
   runs an exit trap on a hangup, and a dropped link would otherwise take the
   tree from under the session.
 - **Closing.** `load()` loops: when the pane's shell exits with a client
   attached, `_hi_keep_stays` asks, and anything but `y` detaches the client
-  and starts a fresh shell. With nobody attached it closes.
+  and starts a fresh shell. zellij has no command for that - its
+  `action detach` leaves an attached client where it is - so there the fresh
+  shell comes with a line naming the key. With nobody attached it closes.
   `hi --end <target>` kills the session over one ssh call, and the pane's
   bash takes the hangup.
 - **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
   polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
   that rode) with no client attached, and it kills the session. `clean_all`
   kills the job by process group, so its `sleep` does not outlive a session
-  closed another way.
+  closed another way. zellij's clients are the rows of `action list-clients`
+  under its header; an answer with no header - a zellij too old to list them,
+  or one in its first second - counts as attached, so neither the timeout nor
+  an early `exit` closes a session somebody is in.
 
 ## HI.66 the packer stays home
 

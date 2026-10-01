@@ -117,9 +117,9 @@ membership) - `ci` above, and:
   `_say_hi_container`). `ssh_wire` counts one session's bytes through a
   `ProxyCommand` and checks them against the figure hi prints on its connect
   line. `ssh_keep` holds a [kept session](GLOSSARY.md#hi65-kept-session) in
-  tmux and in screen through a dropped link and a reattach, `hi --end`, and
-  its timeout, reading each answer off the target rather than the
-  multiplexer's redrawn transcript. Two are not about sessions: `repo` builds
+  tmux, in screen, and in zellij (alpine's package) through a dropped link and
+  a reattach, `hi --end`, and its timeout, reading each answer off the target
+  rather than the multiplexer's redrawn transcript. Two are not about sessions: `repo` builds
   the package repository with throwaway keys and installs from it as apt, dnf,
   and apk clients, signatures verified, and `home_prompt` installs hi over
   each distro's stock `/etc/skel` rc to check which prompt wins at home.
