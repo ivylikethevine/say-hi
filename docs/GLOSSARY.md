@@ -1569,6 +1569,23 @@ bash-less target connect as usual.
   `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
   runs an exit trap on a hangup, and a dropped link would otherwise take the
   tree from under the session.
+- **Kept from inside.** `hi --keep` with no target, typed in a session, keeps
+  that session: `_hi_keep_here` runs the same attach and start under `sh`,
+  from where a connect starts the pane. Three things make that possible. The
+  attach block exports `$_HI_KEEP_AS`, the target as the client typed it, so
+  the name is the one a later `hi <target>` looks for. `load()` writes
+  `hi.keep` in the tree, a `NAME=value` a line: that name, the client's
+  verdicts, the tree, and its own pid as `$_HI_KEEP_OUTER`; `hi.sh`, a child
+  that inherits none of them ([HI.47](#hi47-what-a-child-inherits)), reads
+  the pane's argv off it, and drops its own exports first so the multiplexer
+  it starts inherits a child's environment and no more. And the tree now has
+  two sessions on it, so the last one out removes it: the start leaves
+  `hi.kept` as the kept session's claim, which stops the first session's
+  `clean_all` and its bootstrap trap (`[ -e hi.kept ] ||`, on every connect
+  that could be kept); the owner pane's `clean_all` gives the claim up and
+  leaves the tree while `$_HI_KEEP_OUTER` is still running. A session with
+  no `hi.keep` - a container's, a `--no-keep` one, an owner pane - says it
+  cannot be kept, as does one already inside a multiplexer.
 - **Closing.** `load()` loops: when the pane's shell exits with a client
   attached, `_hi_keep_stays` asks, and anything but `y` detaches the client
   and starts a fresh shell. zellij has no command for that - its

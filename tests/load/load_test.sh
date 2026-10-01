@@ -998,6 +998,50 @@ function test_keep_stays_names_zellij_s_detach_key() {
   [ "$(_hi_keep_stays_answer y 1 zellij)" = "RC=1" ] || _hi_because "y: $(_hi_keep_stays_answer y 1 zellij)"
 }
 
+# what `hi --keep` typed in a session reads: a NAME=value a line, only the
+# set ones, and this shell's pid last
+function test_keep_file_lists_what_an_owner_pane_needs() {
+  local out
+  out="$(
+    unset "${_HI_SESSION_VARS[@]}" NO_COLOR _HI_CONNECT_TIME _HI_COPY_TIME
+    _HI_KEEP_AS=box _HI_TARGET_COLOR=salmon _HI_LOCAL_USER='o p$HOME' _HI_ROOT=/t/say-hi _HI_CLEANUP=/t
+    _HI_CONNECT_PREFIX=' 1K' _HI_TARGET_TAG=''
+    _hi_keep_file
+  )"
+  [ "$out" = "$(printf '%s\n' '_HI_KEEP_AS=box' '_HI_TARGET_COLOR=salmon' '_HI_LOCAL_USER=o p$HOME' \
+    '_HI_ROOT=/t/say-hi' '_HI_CLEANUP=/t' '_HI_CONNECT_PREFIX= 1K' "_HI_KEEP_OUTER=$$")" ] || _hi_because "$out"
+}
+
+# _hi_clean_tree <name> [marker] - a disposable tree for clean_all, printed
+function _hi_clean_tree() {
+  local t="$_HI_WORKDIR/$1"
+  mkdir -p "$t/say-hi"
+  [ -z "${2:-}" ] || : >"$t/say-hi/hi.kept"
+  printf '%s' "$t"
+}
+
+# a session kept from inside another shares its tree, and the last of the two
+# to go removes it: the marker stops the first one's exit, and the kept one's
+# gives the marker up and waits out a shell that is still there
+function test_clean_all_leaves_a_shared_tree_to_the_last_one_out() {
+  local t
+  t="$(_hi_clean_tree shared-outer marker)"
+  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" clean_all)
+  [ -d "$t/say-hi" ] || _hi_because "the outer session took a tree a kept one holds" || return 1
+  t="$(_hi_clean_tree shared-owner marker)"
+  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="$$" clean_all)
+  [ -d "$t/say-hi" ] && [ ! -e "$t/say-hi/hi.kept" ] ||
+    _hi_because "the kept session took the tree from under a live shell, or kept its marker" || return 1
+  # ...and with that shell gone, or with no marker, the tree goes
+  sleep 0 &
+  wait "$!"
+  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="$!" clean_all)
+  [ ! -e "$t" ] || _hi_because "the last one out left the tree" || return 1
+  t="$(_hi_clean_tree shared-plain)"
+  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" clean_all)
+  [ ! -e "$t" ] || _hi_because "an ordinary session left its tree"
+}
+
 # an ordinary session never asks: load()'s loop is one pass
 function test_keep_stays_is_no_outside_a_kept_session() {
   (
@@ -1122,6 +1166,8 @@ EOF
   _hi_check_capable pty "The owner pane's exit asks first" test_keep_stays_asks_before_the_owner_pane_closes
   _hi_check_capable pty "...and under zellij an n names the key that detaches" test_keep_stays_names_zellij_s_detach_key
   _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
+  _hi_check "hi.keep lists what an owner pane needs, a line each" test_keep_file_lists_what_an_owner_pane_needs
+  _hi_check "A tree two sessions share goes with the last one out" test_clean_all_leaves_a_shared_tree_to_the_last_one_out
 
   _hi_h2 "Testing: this checkout"
   _hi_check "Still intact after every clean_all above" test_this_checkout_was_never_touched

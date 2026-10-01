@@ -10,6 +10,10 @@
 #            detach key), `hi --end` closes it from here, and a second
 #            `hi --end` finds nothing
 #   timeout  attached, it outlives $_HI_KEEP_TIMEOUT; detached, it does not
+#   inside   `hi --keep` typed in an ordinary session keeps it under the same
+#            name; the detach lands back in the shell it was typed in, that
+#            shell's `exit` leaves the tree to the kept session, and the next
+#            `hi <target>` is in the kept shell, whose `exit` and `y` close it
 #
 # Each ends with no session and no tree on the target. A multiplexer redraws,
 # so its transcript is text with cursor moves through it: a case types at the
@@ -130,19 +134,31 @@ function _hi_keep_feed_mark() {
   _hi_poll_bool 40 0.5 _hi_keep_is attached || true
 }
 
+# _hi_keep_feed_detach <transcript> - the multiplexer's own detach key.
+# zellij's is Ctrl+o, then d once its status bar offers the detach: typed in
+# one write, the d lands ahead of the mode it needs.
+function _hi_keep_feed_detach() {
+  case "$_HI_KEEPTEST_MUX" in
+  tmux) printf '\002d' ;;
+  screen) printf '\001d' ;;
+  zellij)
+    printf '\017'
+    _hi_poll_bool 20 0.5 grep -q 'Detach' "$1" || true
+    printf 'd'
+    ;;
+  esac
+}
+
 # _hi_keep_feed_exit <transcript> <y|n> - `exit` in the owner pane, and the
 # answer to what it asks. zellij leaves an `n` attached, in a fresh shell,
-# naming the key that detaches: Ctrl+o, then d once its status bar offers
-# the detach - typed in one write, the d lands ahead of the mode it needs.
+# naming the key that detaches.
 function _hi_keep_feed_exit() {
   printf 'exit\n'
   _hi_poll_bool 40 0.5 grep -q 'close the kept session' "$1" || true
   printf '%s\n' "$2"
   [ "$_HI_KEEPTEST_MUX:$2" = zellij:n ] || return 0
   _hi_poll_bool 40 0.5 grep -q 'own key detaches' "$1" || true
-  printf '\017'
-  _hi_poll_bool 20 0.5 grep -q 'Detach' "$1" || true
-  printf 'd'
+  _hi_keep_feed_detach "$1"
 }
 
 # ...marked, then left by `exit` and an `n`
@@ -158,10 +174,34 @@ function _hi_keep_feed_hold() {
   _hi_keep_feed_exit "$1" n
 }
 
+# an ordinary session that types `hi --keep`: the shell it is typed in is
+# marked, then the owner pane's; the detach lands back in the first, which
+# says so through its mark and exits
+function _hi_keep_feed_inside() {
+  _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
+  printf '%s\n' '_hi_keep_mark=outer; hi --keep'
+  _hi_poll_bool 120 0.5 _hi_keep_is attached || true
+  printf '%s\n' '_hi_keep_mark=owner; : >/tmp/keep.up'
+  _hi_poll_bool 120 0.5 _hi_keep_left keep.up || true
+  _hi_keep_feed_detach "$1"
+  _hi_poll_bool 60 0.5 _hi_keep_is detached || true
+  # shellcheck disable=SC2016 # the outer shell expands it
+  printf '%s\n' 'printf "%s\n" "$_hi_keep_mark" >/tmp/keep.outer'
+  _hi_poll_bool 60 0.5 _hi_keep_left keep.outer || true
+  printf 'exit\n'
+}
+
 # a later connect: the mark comes back out of the shell it reattached, the
 # tree count is taken while attached, and `exit` with a `y` closes it
 function _hi_keep_feed_back() {
   _hi_poll_bool 120 0.5 _hi_keep_is attached || true
+  # zellij comes back in the mode its last client left by, the one its
+  # detach key lives in: Enter is the way out (an empty line elsewhere), and
+  # a key typed before the mode has changed is still that mode's
+  if [ "$_HI_KEEPTEST_MUX" = zellij ]; then
+    printf '\n'
+    sleep 1
+  fi
   # shellcheck disable=SC2016 # the kept shell expands it
   printf '%s\n' 'printf "%s\n" "$_hi_keep_mark" >/tmp/keep.back'
   _hi_poll_bool 60 0.5 _hi_keep_left keep.back || true
@@ -260,11 +300,35 @@ function _hi_keep_timeout() {
     _hi_keep_fail "$label" "detached past ${_HI_KEEPTEST_LIMIT}s, the session or its tree is still there" "$out"
 }
 
+function _hi_keep_inside() {
+  local label="$1" out="$_HI_WORKDIR/$1.out"
+  _hi_ssh_launch "$_HI_SSH_PORT"
+  _hi_keep_typed "$out" _hi_keep_feed_inside "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_ended "$label" "$out" 240 "the session hi --keep was typed in never ended" || return 1
+  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.up /tmp/keep.outer 2>/dev/null)" = outer ] ||
+    _hi_keep_fail "$label" "the detach did not land back in the shell hi --keep was typed in" "$out" || return 1
+  grep -q 'detached, the session on .* is kept' "$out" ||
+    _hi_keep_fail "$label" "detaching did not say the session is kept" "$out" || return 1
+  _hi_keep_is detached || _hi_keep_fail "$label" "the kept session went with the one it was typed in" "$out" || return 1
+  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) session trees, not the one the two share" || return 1
+
+  _hi_ssh_launch "$_HI_SSH_PORT"
+  _hi_keep_typed "$out.back" _hi_keep_feed_back "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_ended "$label" "$out.back" 240 "the reattached session never closed" || return 1
+  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = owner ] ||
+    _hi_keep_fail "$label" "the next connect was not in the kept shell" "$out.back" || return 1
+  [ "$(cat "$out.back.trees" 2>/dev/null)" = 1 ] ||
+    _hi_keep_fail "$label" "reattaching unpacked a tree of its own" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone ||
+    _hi_keep_fail "$label" "exit and y left the session or its tree" "$out.back"
+}
+
 # <scenario>:<what a pass showed>
 _HI_KEEP_CASES=(
   "drop:outlived a dropped link, reattached, closed on y"
   "end:detached on n, closed by hi --end"
   "timeout:outlived its timeout attached, not detached"
+  "inside:kept from inside a session, reattached, closed on y"
 )
 
 # _hi_keep_case <mux> <scenario> <what a pass showed> - one container holding

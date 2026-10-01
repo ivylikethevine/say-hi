@@ -84,8 +84,18 @@ function clean_all() {
   # the rc directory nests under $_HI_CLEANUP when there is one; this removal
   # is for a session with no disposable tree - a local install's own shells
   [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
+  [ -n "${_HI_CLEANUP:-}" ] || return 0
+  # a session kept from inside another shares that one's tree, and the last
+  # of the two to go removes it: hi.kept is the kept one's claim, which it
+  # gives up here, and $_HI_KEEP_OUTER the shell it was kept from
+  if [ -n "${_HI_KEEP_OUTER:-}" ]; then
+    rm -f "$_HI_ROOT/hi.kept"
+    ! kill -0 "$_HI_KEEP_OUTER" 2>/dev/null || return 0
+  elif [ -e "$_HI_ROOT/hi.kept" ]; then
+    return 0
+  fi
   # $_HI_CLEANUP is $_HI_ROOT's parent - the whole disposable tree
-  [ -n "${_HI_CLEANUP:-}" ] && rm -rf "$_HI_CLEANUP"
+  rm -rf "$_HI_CLEANUP"
   return 0
 }
 
@@ -385,6 +395,19 @@ $1 == "extendsyntax" && !($2 in have) {
   mv -f "$rc.hi" "$rc"
 }
 
+# What `hi --keep` typed in this session starts its owner pane with, a
+# NAME=value a line for hi.sh's _hi_keep_here: the target's name as the
+# client typed it, the client's verdicts, the tree, and this shell, whose
+# exit that pane waits out before it removes the tree. GLOSSARY: HI.65
+function _hi_keep_file() {
+  local v
+  for v in _HI_KEEP_AS "${_HI_SESSION_VARS[@]}" NO_COLOR _HI_ROOT _HI_CLEANUP \
+    _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME; do
+    [ -z "${!v-}" ] || printf '%s=%s\n' "$v" "${!v}"
+  done
+  printf '_HI_KEEP_OUTER=%s\n' "$$"
+}
+
 # A kept session (GLOSSARY: HI.65) runs load() in the owner pane of a tmux,
 # zellij, or screen session hi.sh started: $_HI_KEEP_MUX names the multiplexer
 # and $_HI_KEEP_NAME the session. The three functions below are that pane's.
@@ -476,6 +499,9 @@ function load() {
   _hi_on_exit clean_all
 
   set +euo pipefail
+
+  # an ordinary ssh session can be kept from inside; an owner pane already is
+  [ -z "${_HI_KEEP_AS:-}" ] || [ -n "${_HI_KEEP_MUX:-}" ] || _hi_keep_file >"$_HI_ROOT/hi.keep"
 
   # connect (the client's leg) plus copy (this one), each measured wholly on
   # one machine, since clock skew makes a client/target subtraction

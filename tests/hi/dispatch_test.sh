@@ -245,11 +245,18 @@ function test_remote_middle_exports_the_tree_variables() {
 }
 
 # the one thing clean_all cannot survive is bash killed by a signal nothing
-# can trap, which is the only reason this trap is on the wire at all
+# can trap, which is the only reason this trap is on the wire at all. A
+# session that may be kept from inside leaves the tree to the one that was
+# (GLOSSARY: HI.65); a command and a --no-keep session cannot be.
 function test_remote_middle_traps_the_tree_removal_on_exit() {
   local out
-  out="$(_hi_ds_middle)"
-  printf '%s\n' "$out" | grep -q "trap 'rm -rf \$_HI_CLEANUP' exit"
+  out="$(CMDARG="" KEEP="" _hi_ds_middle)"
+  printf '%s\n' "$out" | grep -qF "trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || rm -rf \$_HI_CLEANUP' exit" ||
+    _hi_because "a session's trap: $(printf '%s\n' "$out" | grep trap)" || return 1
+  for out in "$(CMDARG="ls; exit" KEEP="" _hi_ds_middle)" "$(CMDARG="" KEEP=0 _hi_ds_middle)"; do
+    printf '%s\n' "$out" | grep -q "trap 'rm -rf \$_HI_CLEANUP' exit" ||
+      _hi_because "a command's or --no-keep's trap: $(printf '%s\n' "$out" | grep trap)" || return 1
+  done
 }
 
 function test_remote_middle_carries_the_overlay_line_when_there_is_one() {

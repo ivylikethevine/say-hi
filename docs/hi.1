@@ -246,6 +246,10 @@ the session; with nobody attached for
 (24h) it closes itself. Either way the session directory is removed.
 The target needs bash and one of the three multiplexers, and you a terminal;
 otherwise hi says so and connects as usual.
+Typed with no target inside a session,
+.B hi \-\-keep
+keeps that session: a fresh shell in a multiplexer there, under the same
+name; detaching returns to the shell it was typed in.
 .B _HI_KEEP=1
 makes this the default.
 .TP

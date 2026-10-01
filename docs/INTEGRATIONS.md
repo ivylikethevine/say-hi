@@ -274,6 +274,10 @@ the multiplexer's own key. It needs an ssh target with bash and one of the
 three, and a terminal on your side; anywhere else hi says so and connects as
 usual. A zellij session starts under zellij's own two bars, kept off the disk
 (nothing to resurrect) and with its startup popups off.
+Typed with no target inside a session you already have, `hi --keep` keeps
+that one: a fresh shell in a multiplexer there, under the same name, sharing
+the session's directory. Detaching lands you back in the shell you typed it
+in, and whichever of the two ends last removes the directory.
 `_HI_KEEP=1` makes it the default. The two flags combine: under
 `hi --mux --keep` both ends hold a session, and the inner multiplexer's prefix
 key has to be sent through the outer one.

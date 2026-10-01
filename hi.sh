@@ -768,7 +768,8 @@ REMOTE
 
 # Ahead of the unpack: a kept session is attached and the script ends there,
 # so nothing new lands on the target. _hi_kept_note is the line a detach
-# leaves, for this path and the start below.
+# leaves, for this path and the start below. A session that does start is
+# told the target's name, for a `hi --keep` typed in it (_hi_keep_here).
 function _hi_keep_attach() {
   local target_q _hi_esc _hi_nc
   _hi_esc_pair _hi_esc _hi_nc
@@ -785,6 +786,7 @@ function _hi_keep_attach() {
         _hi_kept_note ' hi:'
         exit 0
       fi
+      export _HI_KEEP_AS=$target_q
 REMOTE
 }
 
@@ -800,18 +802,22 @@ REMOTE
 # its options keep the session off the disk and a dropped client a detach,
 # and turn off the popups that would take the first prompt's keys, each asked
 # for only where this zellij lists it.
+# _hi_keep_start [note prefix [name...]] - the names are the pane's variables
+# where a session starts it, which has them in a file and not in a connect.
 function _hi_keep_start() {
-  local n target_q _hi_esc _hi_nc argv="" drop=""
+  local n target_q _hi_esc _hi_nc argv="" drop="" note="${1:- |}"
+  local -a names=("${@:2}")
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
-  while IFS=$'\t' read -r n _; do
+  if [ "${#names[@]}" -eq 0 ]; then
+    while IFS=$'\t' read -r n _; do names+=("$n"); done < <(_hi_session_env)
+    names+=(_HI_ROOT _HI_CLEANUP _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME)
+  fi
+  for n in "${names[@]}"; do
     argv="$argv $n=\"\$$n\""
     [ "$n" = NO_COLOR ] || drop="$drop $n"
-  done < <(_hi_session_env)
-  for n in _HI_ROOT _HI_CLEANUP _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME; do
-    argv="$argv $n=\"\$$n\""
-    drop="$drop $n"
   done
+  drop="$drop _HI_KEEP_AS"
   cat <<REMOTE
         _hi_k=
         for _hi_s in tmux zellij screen; do command -v "\$_hi_s" >/dev/null 2>&1 && { _hi_k=\$_hi_s; break; }; done
@@ -848,7 +854,7 @@ function _hi_keep_start() {
               ;;
             esac
           )
-          _hi_kept_note ' |'
+          _hi_kept_note '$note'
         else
           [ -n "\$_hi_k" ] || printf '%s --keep needs tmux, zellij, or screen on [%s], connecting without it %s\n' "$_hi_esc" $target_q "$_hi_nc" >&2
           bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
@@ -883,6 +889,39 @@ function _hi_keep_end() {
     ;;
   esac
   return "$ec"
+}
+
+# hi --keep typed in a session: the session's tree gets an owner pane in the
+# first multiplexer here, under the name its client looks for, by the script
+# a keeping connect runs from where it starts the pane. load.sh left what the
+# pane needs in hi.keep, a NAME=value a line, the target's name among them.
+# The hi.kept marker is the pane's claim on the tree: this session's exit
+# leaves the tree to it (load.sh's clean_all). GLOSSARY: HI.65
+function _hi_keep_here() {
+  local file="$_HI_ROOT/hi.keep" line tool
+  local -a names=()
+  [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session over ssh, into bash, started without --no-keep"
+  [ -t 0 ] || _hi_die "--keep needs a terminal"
+  [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ] || _hi_die "--keep: already inside a multiplexer here, and hi does not nest one"
+  for tool in tmux zellij screen ""; do
+    [ -z "$tool" ] || ! command -v "$tool" >/dev/null 2>&1 || break
+  done
+  [ -n "$tool" ] || _hi_die "--keep needs tmux, zellij, or screen on this machine"
+  # The script's environment, in the shell _hi is about to leave: a child's
+  # (GLOSSARY: HI.47) and the file's, so the multiplexer started here
+  # inherits what one a connect starts does, and none of this launcher's own.
+  _hi_unexport
+  while IFS= read -r line; do
+    export "${line?}"
+    [ "${line%%=*}" = _HI_KEEP_AS ] || names+=("${line%%=*}")
+  done <"$file"
+  DOMAIN="$_HI_KEEP_AS" KEEP=1 CMDARG=""
+  # shellcheck disable=SC2016 # the script's sh expands these
+  sh -c "$(_hi_keep_attach)"'
+      _hi_rc_dir=$_HI_ROOT
+      : >"$_HI_ROOT/hi.kept"
+'"$(_hi_keep_start ' hi:' "${names[@]}")"'
+      _hi_kept || rm -f "$_HI_ROOT/hi.kept"'
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
@@ -972,9 +1011,12 @@ REMOTE
 # survive - bash killed by a signal nothing can trap - and only has to remove
 # the tree, since $_HI_SESSION_RC_DIR nests inside it. A connect that keeps
 # its session leaves a tree whose session is still running to that session's
-# owner pane (GLOSSARY: HI.65).
+# owner pane, and one kept later from inside leaves a marker for the same
+# (GLOSSARY: HI.65).
 function _hi_remote_middle() {
   local tmpl _hi_esc _hi_nc kept=""
+  # shellcheck disable=SC2016 # the target's to expand, when the trap runs
+  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || '
   ! _hi_keep_starts || kept='_hi_kept || '
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
@@ -1547,6 +1589,8 @@ function _hi_parse() {
     # none of them and has nothing to say
     if [ "${#SSHARGS[@]}" -eq 0 ]; then
       [ -z "$own" ] && _hi_help && exit 0
+      # in a session, --keep alone keeps the session it is typed in
+      [ "${KEEP:-}" = 1 ] && [ "${END:-0}" != 1 ] && [ "${_HI_REMOTE_SESSION:-0}" = 1 ] && return 0
       _hi_die "no target to connect to (hi [options] <target> [command ...])"
     fi
     # not an exec, so the exit hook still runs
@@ -1753,6 +1797,10 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
+  if [ -z "${DOMAIN:-}" ]; then
+    _hi_keep_here
+    exit $?
+  fi
   # Primed in the shell that keeps them: a caller that reads one through $( )
   # would fill the memo in a subshell and lose it there, and the script
   # builders ask six times between them. GLOSSARY: HI.05

@@ -48,7 +48,7 @@ rm -r|scripts/install.sh|4
 rm -r|scripts/pack.sh|2
 sh -c|common/config.fish|4
 sh -c|common/zsh.zsh|1
-sh -c|hi.sh|17
+sh -c|hi.sh|18
 sh -c|scripts/doctor.sh|1
 source|common/aliases.sh|2
 source|common/bash.sh|7

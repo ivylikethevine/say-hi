@@ -173,14 +173,17 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   out="$(_hi_keep_script_for '' '')"
   _hi_before "$out" 'tmux attach-session' 'mktemp -d' || _hi_because "no reattach ahead of the unpack" || return 1
   _hi_before "$out" 'export TERM=xterm-256color' 'tmux attach-session' || _hi_because "the reattach is ahead of the TERM fallback" || return 1
-  [[ "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_because "a plain connect's trap is guarded" || return 1
+  [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
+    _hi_because "a plain connect's trap does not stand down for a session kept from inside" || return 1
+  [[ "$out" == *"export _HI_KEEP_AS='box'"* ]] || _hi_because "the session is not told its target's name" || return 1
   [[ "$out" != *'new-session'* ]] || _hi_because "a plain connect starts a session"
 }
 
 function test_keep_leaves_a_command_and_no_keep_alone() {
   local out
   for out in "$(_hi_keep_script_for 1 'ls; exit')" "$(_hi_keep_script_for 0 '')"; do
-    [[ "$out" != *_hi_kept* && "$out" != *attach-session* ]] || return 1
+    [[ "$out" != *_hi_kept* && "$out" != *attach-session* && "$out" != *_HI_KEEP_AS* &&
+      "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || return 1
   done
 }
 
@@ -250,7 +253,7 @@ function test_keep_start_hands_the_pane_its_environment() {
   [[ "$out" == *" _HI_LOCAL_USER="*" _HI_CLEANUP=/t "*" bash --rcfile /t/say-hi/hi.bashrc -i"* ]] ||
     _hi_because "the argv lost a variable: $out" || return 1
   grep -q '^_HI_HOME=/t$' "$log.env" || _hi_because "the multiplexer lost \$_HI_HOME" || return 1
-  ! grep -qE '^_HI_(LOCAL_USER|LOCAL_HOSTNAME|CLEANUP|ROOT|TARGET_COLOR)=' "$log.env" ||
+  ! grep -qE '^_HI_(LOCAL_USER|LOCAL_HOSTNAME|CLEANUP|ROOT|TARGET_COLOR|KEEP_AS)=' "$log.env" ||
     _hi_because "the multiplexer kept: $(grep -E '^_HI_' "$log.env" | tr '\n' ' ')"
 }
 
@@ -351,6 +354,133 @@ function test_keep_end_reports_what_the_target_answered() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"no kept session on [box]"* ]] || _hi_because "none: $rc, $out"
 }
 
+# --- hi --keep typed in a session (_hi_keep_here) ---------------------------
+
+# _hi_keep_here_tree <name> - a session's tree as load.sh leaves it for
+# _hi_keep_here: no scripts/, and hi.keep, with one value a shell would split
+# or expand
+function _hi_keep_here_tree() {
+  local t="$_HI_WORKDIR/$1"
+  mkdir -p "$t/say-hi/config"
+  ln -sfn "$_HI_ROOT/common" "$t/say-hi/common"
+  printf '%s\n' '_HI_KEEP_AS=box' '_HI_TARGET_COLOR=salmon' '_HI_LOCAL_USER=o p$HOME' "_HI_ROOT=$t/say-hi" \
+    "_HI_CLEANUP=$t" '_HI_CONNECT_PREFIX= 1K' '_HI_KEEP_OUTER=4242' >"$t/say-hi/hi.keep"
+  printf '%s' "$t"
+}
+
+# _hi_keep_here_run <log> <tree> [NAME=value...] - `hi --keep` as a session
+# types it, on a terminal; prints what hi said, then the log. hi hands the
+# multiplexer a child's environment, with none of the shims' $_HI_TEST_*, so
+# each stand-in is wrapped with its own: the log, and the pairs named so.
+# $_HI_KEEP_HERE_SHIMS is the directory wrapped, _hi_keep_shims' by default.
+_HI_KEEP_HERE_SHIMS=""
+function _hi_keep_here_run() {
+  local log="$1" t="$2" wrap="$_HI_WORKDIR/herewrap" shims tool pair baked
+  local -a rest=()
+  shift 2
+  shims="${_HI_KEEP_HERE_SHIMS:-$(_hi_keep_shims)}"
+  printf -v baked 'export _HI_TEST_LOG=%q\n' "$log"
+  for pair in "$@"; do
+    case "$pair" in
+    _HI_TEST_*) printf -v baked '%sexport %s=%q\n' "$baked" "${pair%%=*}" "${pair#*=}" ;;
+    *) rest+=("$pair") ;;
+    esac
+  done
+  mkdir -p "$wrap"
+  for tool in tmux zellij screen; do
+    printf '#!/bin/sh\n%sexec %q "$@"\n' "$baked" "$shims/$tool" >"$wrap/$tool"
+    chmod +x "$wrap/$tool"
+  done
+  : >"$log"
+  env -u TMUX -u ZELLIJ -u STY PATH="$wrap:$PATH" _HI_HOME="$t" _HI_ROOT="$t/say-hi" \
+    _HI_CONFIG_DIR="$t/say-hi/config" _HI_REMOTE_SESSION=1 ${rest[@]+"${rest[@]}"} \
+    python3 -c "$_HI_PTY_SPAWN" "$BASH" -c 'source "$1"; _hi_keep_here' _ "$_HI_LAUNCHER" </dev/null 2>&1 || true
+  cat "$log"
+}
+
+# the owner pane is started under the name the client looks for, with the
+# variables load.sh left, each one word; the marker is the pane's claim, and
+# with no session left when the multiplexer returns it is taken back
+function test_keep_here_starts_the_owner_pane_from_the_session_s_file() {
+  local log="$_HI_WORKDIR/here.log" t out
+  t="$(_hi_keep_here_tree here)"
+  out="$(_hi_keep_here_run "$log" "$t")"
+  [[ "$out" == *"TMUX new-session -s hi-box env _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_HOME=$t _HI_CONFIG_DIR=$t/say-hi/config _HI_TARGET_COLOR=salmon _HI_LOCAL_USER=o p\$HOME _HI_ROOT=$t/say-hi _HI_CLEANUP=$t _HI_CONNECT_PREFIX= 1K _HI_KEEP_OUTER=4242 bash --rcfile $t/say-hi/hi.bashrc -i"* ]] ||
+    _hi_because "no owner pane: $out" || return 1
+  # the multiplexer's own environment is a session child's and no more: the
+  # launcher's fifty-odd paths stay behind with the client's verdicts
+  ! grep -E '^_HI_' "$log.env" | grep -qvE '^_HI_(HOME|CONFIG_DIR|REMOTE_SESSION|SESSION_RC|TARGETS_TTL|PROBE_TIMEOUT|TEST_[A-Z]*)=' ||
+    _hi_because "the multiplexer kept: $(grep -E '^_HI_' "$log.env" | cut -d= -f1 | tr '\n' ' ')" || return 1
+  [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "the marker outlived a session that is not there"
+}
+
+# ...and stays while the session does: this session's exit leaves the tree
+function test_keep_here_leaves_the_marker_while_the_session_lives() {
+  local log="$_HI_WORKDIR/herekept.log" t out
+  t="$(_hi_keep_here_tree herekept)"
+  # a tmux stand-in with no session until it is asked to start one
+  mkdir -p "$_HI_WORKDIR/herekeptbin"
+  cp "$(_hi_keep_shims)/zellij" "$(_hi_keep_shims)/screen" "$_HI_WORKDIR/herekeptbin/"
+  cat >"$_HI_WORKDIR/herekeptbin/tmux" <<'SHIM'
+#!/bin/sh
+printf 'TMUX %s\n' "$*" >>"$_HI_TEST_LOG"
+case "$1" in
+has-session) [ -e "$_HI_TEST_LOG.started" ] ;;
+new-session) : >"$_HI_TEST_LOG.started" ;;
+esac
+SHIM
+  chmod +x "$_HI_WORKDIR/herekeptbin/tmux"
+  rm -f "$log.started"
+  out="$(_HI_KEEP_HERE_SHIMS="$_HI_WORKDIR/herekeptbin" _hi_keep_here_run "$log" "$t")"
+  [[ "$out" == *"TMUX new-session -s hi-box env "* ]] || _hi_because "no start: $out" || return 1
+  [ -e "$t/say-hi/hi.kept" ] || _hi_because "no marker beside a live session" || return 1
+  [[ "$out" == *" hi: detached, the session on [box] is kept"* ]] || _hi_because "no note on the way back: $out"
+}
+
+# a session of that name already kept here (another client's) is attached,
+# and this session's tree is not claimed for it
+function test_keep_here_attaches_a_session_already_kept() {
+  local log="$_HI_WORKDIR/hereatt.log" t out
+  t="$(_hi_keep_here_tree hereatt)"
+  out="$(_hi_keep_here_run "$log" "$t" _HI_TEST_HAS=0)"
+  [[ "$out" == *"TMUX attach-session -t =hi-box"* && "$out" != *new-session* ]] || _hi_because "$out" || return 1
+  [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "the tree was claimed for a session it does not hold"
+}
+
+# what cannot be kept says why: no file (a container's session, --no-keep,
+# an owner pane), a multiplexer already around it, none to start, no terminal
+function test_keep_here_refuses_what_it_cannot_keep() {
+  local log="$_HI_WORKDIR/hereno.log" t out bare="$_HI_WORKDIR/herebare"
+  t="$(_hi_keep_here_tree hereno)"
+  out="$(_hi_keep_here_run "$log" "$t" TMUX=/tmp/tmux-1/default,1,0)"
+  [[ "$out" == *"already inside a multiplexer here"* && "$out" != *new-session* ]] || _hi_because "nested: $out" || return 1
+  mkdir -p "$bare"
+  out="$(_hi_keep_here_run "$log" "$t" PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"
+  [[ "$out" == *"--keep needs tmux, zellij, or screen on this machine"* ]] || _hi_because "no multiplexer: $out" || return 1
+  out="$(env -u TMUX -u ZELLIJ -u STY PATH="$(_hi_keep_shims):$PATH" _HI_HOME="$t" _HI_ROOT="$t/say-hi" \
+    _HI_CONFIG_DIR="$t/say-hi/config" _HI_REMOTE_SESSION=1 "$BASH" -c 'source "$1"; _hi_keep_here' _ "$_HI_LAUNCHER" </dev/null 2>&1)" || true
+  [[ "$out" == *"--keep needs a terminal"* ]] || _hi_because "no terminal: $out" || return 1
+  rm -f "$t/say-hi/hi.keep"
+  out="$(_hi_keep_here_run "$log" "$t")"
+  [[ "$out" == *"nothing to keep here"* && "$out" != *new-session* ]] || _hi_because "no file: $out"
+}
+
+# `hi --keep` with no target is this in a session, and no target anywhere else
+function test_keep_alone_is_a_session_s_and_an_error_elsewhere() {
+  local out rc=0
+  out="$(
+    _HI_REMOTE_SESSION=1 _hi_parse --keep 2>&1
+    printf 'DOMAIN=[%s] KEEP=%s' "${DOMAIN:-}" "${KEEP:-}"
+  )" || rc=$?
+  [ "$rc" -eq 0 ] && [ "$out" = "DOMAIN=[] KEEP=1" ] || _hi_because "in a session: $rc, $out" || return 1
+  rc=0
+  out="$( (_HI_REMOTE_SESSION=0 _hi_parse --keep 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]] || _hi_because "at home: $rc, $out" || return 1
+  rc=0
+  out="$( (_HI_REMOTE_SESSION=1 _hi_parse --end 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]] || _hi_because "--end alone: $rc, $out"
+}
+
 # a hostile target name is one quoted word wherever the scripts name it
 function test_keep_scripts_quote_the_target() {
   local out mean='a$(id)b'\''c'
@@ -385,6 +515,12 @@ function run_hi_keep_tests() {
   _hi_check "No multiplexer: said, then the plain handoff" test_keep_start_without_a_multiplexer_says_so
   _hi_check "--end kills the session, or exits 3 with none" test_keep_end_kills_the_session_or_says_there_is_none
   _hi_check "...which hi --end reports, exiting 1" test_keep_end_reports_what_the_target_answered
+  _hi_h2 "Testing: hi --keep typed in a session"
+  _hi_check "--keep alone is a session's; elsewhere, no target" test_keep_alone_is_a_session_s_and_an_error_elsewhere
+  _hi_check_capable pty "The owner pane starts from the session's own file" test_keep_here_starts_the_owner_pane_from_the_session_s_file
+  _hi_check_capable pty "...its marker staying while the session lives" test_keep_here_leaves_the_marker_while_the_session_lives
+  _hi_check_capable pty "A session already kept there is attached, unclaimed" test_keep_here_attaches_a_session_already_kept
+  _hi_check_capable pty "What cannot be kept says why" test_keep_here_refuses_what_it_cannot_keep
   _hi_suite_end "hi.sh (kept session)"
 }
 run_hi_keep_tests
