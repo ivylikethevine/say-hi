@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-79KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-77KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -230,7 +230,7 @@ row, and everything answered **no**, and why:
 - `hi --plugins` lists every config hi carries to a target, and what rides;
   `hi --plugin-off lazygit editors` keeps a plugin or a whole group home and
   `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
-  carry a config of a tool hi does not know
+  carry the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
 - The whole surface is twenty-five flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
@@ -345,7 +345,8 @@ myself.
 ## Roadmap
 
 What's left; nothing here is parked or descoped. One list, in the order the
-work is best done: what CI has yet to show, then the 1.0 tag. An entry is
+work is best done: what CI has yet to show, then the plugins and extensions
+formats 1.0 freezes, then the 1.0 tag. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
@@ -389,28 +390,74 @@ checkout: an account or an upstream review that lands when it lands.
        those over a real sshd. What is left is seeing it in CI. **Ticks
        when:** that suite is green in CI for tmux, screen, and zellij.
 
-5. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
+5. [ ] _Before 1.0:_ **The plugins files stay home** — shipped:
+       `config/plugins` is cut from every payload and the overlay's `plugins`
+       is no member, the packer being their one reader
+       ([HI.66](docs/GLOSSARY.md#hi66-the-packer-stays-home)), which takes
+       1.4 KB off the wire. What is left is seeing it in CI. **Ticks when:**
+       the `fast` and `bench` groups are green on it.
 
-6. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-       upstream style. **Do:** open the PR against tldr-pages. **Ticks
-       when:** merged.
+6. [ ] _Before 1.0:_ **Every plugin in one file** — shipped:
+       `scripts/pack.sh`'s table holds hi's own files alone, the prompt
+       programs and `extensions/` are `config/plugins`', and `--plugin-off`
+       completes from the plugins files alone. What is left is
+       seeing it in CI. **Ticks when:** the `fast` group is green on it.
 
-7. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
+7. [ ] _Before 1.0:_ **A plugin is a tool's table** — shipped: a plugins
+       file names each tool once, a `[<group>.<name>]` table of `files`,
+       `tool`, `wire`, `home`, and `dialect`, with a table of its own for a
+       file that differs
+       ([docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know));
+       `hi --add-plugin` and `hi --remove-plugin` write one, `hi --configure`
+       converts a file of the rows before it, and
+       [_What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
+       names keys, not columns. What is left is seeing it in CI, and the two
+       `docs/USAGE.md` images of the commands whose arguments changed.
+       **Ticks when:** the `fast`, `lint`, and `e2e` groups are green on it
+       and a `usage.yml` dispatch has redrawn `usage-add-plugin.svg` and
+       `usage-remove-plugin.svg`.
 
-8. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-       `publish-external.yml`'s `aur` job is written but unexercised. **When
-       it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package once by hand
-       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-       packages are live and a dispatch has kept `say-hi` current for one
-       release.
+8. [ ] _Before 1.0:_ **One reading of a wire** — shipped: the check that
+       admits a wire and the writer of the line every target sources both
+       take it apart through `_hi_wire_read`, and the check now covers a
+       wire's names and environment, which it let through unread. What is
+       left is seeing it in CI. **Ticks when:** the `fast` group is green on
+       it.
+
+9. [ ] _Before 1.0:_ **One loader for a directory of code** — shipped:
+       `extensions/`, `header/`, and `hi --doctor` list a directory through
+       `_hi_dir_members`, and a header cell bash cannot parse is skipped with
+       a line and named by `hi --doctor`, as an extension is. What is left is
+       seeing it in CI. **Ticks when:** the `fast` and `lint` groups are
+       green on it.
+
+10. [ ] _Before 1.0:_ **One extension off** — shipped:
+        `hi --plugin-off extensions/<name>` keeps one file of a directory
+        member home. What is left is seeing it in CI. **Ticks when:** the
+        `fast` group is green on it.
+
+11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+        versions_ prose into its version table.
+
+12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+        upstream style. **Do:** open the PR against tldr-pages. **Ticks
+        when:** merged.
+
+13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+        settle its three flagged rows (`small_tasks`, `secure_2FA`,
+        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+        the live entry matches the sheet.
+
+14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+        `publish-external.yml`'s `aur` job is written but unexercised. **When
+        it reopens:** register, add `AUR_SSH_KEY` to the `release`
+        environment, and push each package once by hand
+        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+        packages are live and a dispatch has kept `say-hi` current for one
+        release.
 
 ## License
 

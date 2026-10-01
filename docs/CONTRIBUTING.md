@@ -219,7 +219,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `extensions/` and its hook names, `header/` and its `_hi_cell_<word>`
-  functions, `plugins` and its columns, `vim/vimrc`,
+  functions, `plugins` and its keys, `vim/vimrc`,
   `nvim/init.lua`, `helix/config.toml`/`languages.toml`, `kak/kakrc`/`colors/`,
   `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`, `screenrc`, `micro/`'s
   `settings.json`/`bindings.json`/`init.lua`, `zellij/`'s

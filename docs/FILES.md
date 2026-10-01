@@ -65,26 +65,26 @@ Each file is marked with where it goes:
 
 ### common/ and config/
 
-All **payload**. `common/` is hi's code; `config/` holds the shipped
-defaults an overlay copy replaces.
+All **payload** but `config/plugins`. `common/` is hi's code; `config/` holds
+the shipped defaults an overlay copy replaces.
 
-| File                                    | What it is                                                                                                                                                                                    |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                        | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.                                                                                        |
-| `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                                                                                 |
-| `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                                                                                |
-| `common/zsh.zsh`                        | The same for zsh.                                                                                                                                                                             |
-| `common/_hi`                            | zsh's completion for `hi`, autoloaded off `$fpath` by the rc's own `compinit`.                                                                                                                |
-| `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                                                                                                      |
-| `common/fw_<name>.<ext>`                | One prompt framework's loader each, sourced by its shell's rc; a target not handed that framework is not sent it.                                                                             |
-| `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                                                                                     |
-| `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                                                                                                     |
-| `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                                                                             |
-| `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                                                                                 |
-| `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                                                                                                     |
-| `config/colors`                         | Color pins, in TOML.                                                                                                                                                                          |
-| `config/packages`                       | What the package check looks for, in TOML, a table per group: `core`, `useful`, and `deprecated` run by default; `extras`, `trivia`, `base`, and `platform` wait to be switched on.           |
-| `config/plugins`                        | Every tool's config hi carries, in TOML: a table per group, a row a member with its tool, its wire, its places at home, and its dialect ([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know)). |
+| File                                    | What it is                                                                                                                                                                                                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                        | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions.                                                                                                                                      |
+| `common/paths.sh`                       | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                                                                                                                                                               |
+| `common/bash.sh`                        | hi's bash rc: prompt, completion, plugins, the local greeting.                                                                                                                                                                              |
+| `common/zsh.zsh`                        | The same for zsh.                                                                                                                                                                                                                           |
+| `common/_hi`                            | zsh's completion for `hi`, autoloaded off `$fpath` by the rc's own `compinit`.                                                                                                                                                              |
+| `common/config.fish`                    | The same for fish, with its own copies of what fish cannot call in bash.                                                                                                                                                                    |
+| `common/fw_<name>.<ext>`                | One prompt framework's loader each, sourced by its shell's rc; a target not handed that framework is not sent it.                                                                                                                           |
+| `common/env_prompt.sh`, `git_prompt.sh` | The `(myproj)` environment segment and the git segment, for bash and zsh.                                                                                                                                                                   |
+| `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                                                                                                                                                   |
+| `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                                                                                                                           |
+| `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                                                                                                                               |
+| `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                                                                                                                                                   |
+| `config/colors`                         | Color pins, in TOML.                                                                                                                                                                                                                        |
+| `config/packages`                       | What the package check looks for, in TOML, a table per group: `core`, `useful`, and `deprecated` run by default; `extras`, `trivia`, `base`, and `platform` wait to be switched on.                                                         |
+| `config/plugins`                        | Every tool's configs hi carries, in TOML: a table per plugin, with its files, its tool, its wire, its places at home, and its dialect ([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know)). Read where the payload is packed, and not sent. |
 
 ### scripts/
 
@@ -100,8 +100,8 @@ All **package**, never in the payload.
 | `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                                                                                                                     |
 | `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                                                                                                                     |
 | `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                                                                                                          |
-| `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                                                                                           |
-| `scripts/plugins.sh`              | `hi --plugins`, `--plugin-off`, `--plugin-on`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes rows of `~/.config/say-hi/plugins`.                                                                  |
+| `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, `plugins`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                                                                                |
+| `scripts/plugins.sh`              | `hi --plugins`, `--plugin-off`, `--plugin-on`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes tables of `~/.config/say-hi/plugins`.                                                                |
 | `scripts/pack.sh`                 | The packer `hi.sh` sources on a client: the overlay table and the plugins rows, the include scan, the comment strip, and the cached tars a connect sends. A session has none, and relays its tree as it stands ([HI.66](GLOSSARY.md#hi66-the-packer-stays-home)). |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                                                                                      |
 | `scripts/table.sh`                | The display the scripts draw through: column padding, the pieces a line is painted from, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                                                   |
@@ -166,9 +166,9 @@ settings table, and USAGE.md's commands as prettier formats them).
 ### The overlay
 
 Everything in `$_HI_CONFIG_DIR` that hi knows by name (`hi.sh`'s
-`_HI_OVERLAY_FILES`). All of it is optional, rides to every target in its own
-small stream, and lands there in `$_HI_ROOT/config/`, over the defaults it
-replaces. `extensions/`, and zellij's `layouts/` and `themes/`, ride member by
+`_HI_OVERLAY_FILES`). All of it is optional and, `plugins` aside, rides to
+every target in its own small stream, and lands there in `$_HI_ROOT/config/`,
+over the defaults it replaces. `extensions/`, and zellij's `layouts/` and `themes/`, ride member by
 member; a member name is a letter or digit, then `[A-Za-z0-9_.-]`, never ending
 `.bak`, `.orig`, `.rej`, or `.tmp`.
 
@@ -178,7 +178,7 @@ member; a member name is a letter or digit, then `[A-Za-z0-9_.-]`, never ending
 | `colors`                                                                                                  | `_HI_COLORS`       | `config/colors`   | prompt and header colors                                                                               |
 | `packages`                                                                                                | `_HI_PACKAGES`     | `config/packages` | the header's package check, wholesale over the tree's                                                  |
 | `aliases.sh`                                                                                              | -                  | -                 | `common/aliases.sh`, sourced last                                                                      |
-| `plugins`                                                                                                 | -                  | -                 | hi, for the members your own rows add or replace ([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know))  |
+| `plugins`                                                                                                 | -                  | -                 | hi here, for the plugins yours add or replace ([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know))     |
 | `extensions/`                                                                                             | `_HI_EXTENSIONS`   | -                 | every shell, after the aliases, in name order                                                          |
 | `header/`                                                                                                 | `_HI_HEADER_CELLS` | -                 | the header, a cell a file ([INTEGRATIONS.md](INTEGRATIONS.md#header-cells-of-your-own))                |
 | `bashrc`, `zshrc`, `config.fish`                                                                          | -                  | -                 | the end of hi's rc for that shell                                                                      |
@@ -290,7 +290,7 @@ reads none of their config files.
 | `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish` | lines tagged `# added by hi during install`; the file and its directory are created if missing                                             |
 | `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                          |
 | `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                        |
-| `$_HI_CONFIG_DIR/plugins`                                                             | the rows `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                       |
+| `$_HI_CONFIG_DIR/plugins`                                                             | the tables `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                     |
 | `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --plugin-off` keeps                                         |
 | `~/.local/bin/hi` (`--link user`), `/usr/bin/hi` (`--link system`)                    | a symlink to `hi.sh`; `$_HI_LINK`; a link that is not hi's, or a package's, is left alone                                                  |
 | the checkout                                                                          | `hi --update` fetches tags and checks one out; refused on a dirty tree                                                                     |

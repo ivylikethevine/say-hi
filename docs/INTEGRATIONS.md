@@ -157,7 +157,9 @@ neighbor's color takes the next hue round from its own
 ([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). The function runs
 on every header hi draws, a local shell's greeting included, so a command it
 starts costs that fork each time; the built-in items' probes are not shared
-with it. `hi --configure` lists the words that loaded beside hi's own, and a
+with it. A file bash cannot parse is skipped with a yellow line saying so,
+and `hi --doctor` lists the cells in the order they load and flags that one.
+`hi --configure` lists the words that loaded beside hi's own, and a
 line sourcing a file outside `~/.config/say-hi` goes out disabled, as in
 every overlay file
 ([SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).

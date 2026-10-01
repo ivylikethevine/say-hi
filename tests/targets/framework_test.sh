@@ -195,7 +195,7 @@ function _hi_tools_client_home() {
   printf 'declare-option str hi_scheme HITHEME\n' >"$1/.config/kak/colors/hitheme.kak"
   printf 'gui:\n  language: zh-CN\n' >"$1/.config/lazygit/config.yml"
   printf '[hi]\n\tmark = HIGIT\n' >"$1/.config/git/config"
-  printf '[mine]\n"git/config" = "git | env:GIT_CONFIG_GLOBAL | $XDG_CONFIG_HOME/git/config"\n' >"$1/.config/say-hi/plugins"
+  printf '[mine.git]\nwire = "env:GIT_CONFIG_GLOBAL"\nhome = "$XDG_CONFIG_HOME/git/config"\nfiles = "git/config"\n' >"$1/.config/say-hi/plugins"
 }
 
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with

@@ -204,6 +204,14 @@ function _hi_data_shape() {
   fi
 }
 
+# _hi_plugins_shape <outvar> <file> - `rows` for a plugins file of the shape
+# before the tables, `"member" = "tool | wire | home"` rows under a `[group]`
+# line; empty for no file, and for the shape this hi reads
+function _hi_plugins_shape() {
+  printf -v "$1" '%s' ''
+  [ ! -f "$2" ] || ! grep -Eq '^[[:space:]]*\[[^].]+\][[:space:]]*(#.*)?$' "$2" || printf -v "$1" rows
+}
+
 # _hi_packages_drift <file> <tree's> - what a packages file of the user's own
 # gets wrong unseen, a `<severity>|<sentence>` line each: a row with a name
 # led by - or +, which is part of a name nothing matches (a table says what
@@ -472,16 +480,14 @@ else
   _HI_BOX_H="─" _HI_BOX_V="│"
 fi
 
-# _hi_plugin_rows - every row that can be switched, the table's and the
-# plugins files' (so only where hi.sh is sourced), as
-# `<plugin>|<group>|<member>` lines, the files' rows first: what hi
-# --plugins lists
+# _hi_plugin_rows - every row that can be switched, the plugins files' (so
+# only where hi.sh is sourced), as `<plugin>|<group>|<member>` lines: what
+# hi --plugins lists
 function _hi_plugin_rows() {
   local _hi_pw_r _hi_pw_g _hi_pw_n
   _hi_plugins_load
-  for _hi_pw_r in ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"} "${_HI_OVERLAY_TABLE[@]}"; do
+  for _hi_pw_r in ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
     _hi_row_col "$_hi_pw_r" group _hi_pw_g
-    [ "$_hi_pw_g" != - ] || continue
     _hi_plugin_name "${_hi_pw_r%%|*}" _hi_pw_n "$_hi_pw_r"
     printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "${_hi_pw_r%%|*}"
   done
@@ -503,12 +509,11 @@ function _hi_unsent_why() {
   [ -n "$_hi_uw" ]
 }
 
-# _hi_member_label <member> <outvar> - <member> with the program that reads
-# it, `vim/vimrc (vim)`, as a row names it; hi's own files go bare. The program
-# is the first name in the member's tool column.
+# _hi_member_label <member> <outvar> - <member> with the plugin it is of,
+# `vim/vimrc (vim)`, as a row names it; hi's own files go bare.
 function _hi_member_label() {
   local _hi_ml_t
-  _hi_tool_label "$1" _hi_ml_t || true
+  _hi_plugin_name "$1" _hi_ml_t || true
   printf -v "$2" '%s' "$1${_hi_ml_t:+ ($_hi_ml_t)}"
 }
 
@@ -596,7 +601,22 @@ function _hi_member_rows() {
   "$draw" "none anywhere" "$text"
 }
 
-# _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold, one a line
+# _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold that a row names,
+# one a line
 function _hi_plugin_words() {
   _hi_plugin_rows | tr '|' '\n' | sort -u
+}
+
+# _hi_plugin_word_ok <word> [words] - may $_HI_PLUGINS_OFF hold it: a word of
+# _hi_plugin_words (handed in, space-bounded, by a caller with several to
+# ask about), or one file of a directory row the list switches
+# (extensions/10-kube), there or not
+function _hi_plugin_word_ok() {
+  local _hi_pk_r _hi_pk_g
+  case "${2:- $(_hi_plugin_words | tr '\n' ' ')}" in *" $1 "*) return 0 ;; esac
+  _hi_overlay_row "$1" _hi_pk_r || return 1
+  case "${_hi_pk_r%%|*}" in */) ;; *) return 1 ;; esac
+  [ "${_hi_pk_r%%|*}${1##*/}" = "$1" ] || return 1
+  _hi_row_col "$_hi_pk_r" group _hi_pk_g
+  [ "$_hi_pk_g" != - ] && _hi_dir_member_ok "${1##*/}"
 }

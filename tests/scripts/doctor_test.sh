@@ -321,20 +321,21 @@ function test_config_counts_a_tool_config_copy_as_an_override() {
     [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]]
 }
 
-# a plugins row hi turned down is a row, by file and line, and a member a
-# good row carries from home is named by its path (GLOSSARY: HI.63)
+# what hi turned down of a plugins file is a row, by file and line, and a
+# member a good plugin carries from home is named by its path (GLOSSARY:
+# HI.63)
 function test_config_reports_the_carry_rows() {
   local dir out h="$_HI_WORKDIR/carry-doc-home"
   dir="$(mktemp -d "$_HI_WORKDIR/carrydoc.XXXXXX")"
   mkdir -p "$h"
   printf 'x\n' >"$h/.taskrc"
-  printf '[mine]\ntaskrc = "- | env:TASKRC | %s/.taskrc"\nvimrc = "vim | - | ~/.vimrc"\n' "$h" >"$dir/plugins"
+  printf '[mine.task]\ntool = "-"\nwire = "env:TASKRC"\nhome = "%s/.taskrc"\nfiles = "taskrc"\n[mine.old]\nfiles = "vimrc"\n' "$h" >"$dir/plugins"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"plugins:3"*"ignored - 'vimrc' is a member already"* ]] || _hi_because "no row for the bad line: $out" || return 1
+  [[ "$out" == *"plugins:6"*"ignored - 'vimrc' is a member already"* ]] || _hi_because "no row for the bad table: $out" || return 1
   [[ "$out" == *"taskrc"*"$(_hi_doc_path "$h/.taskrc")"* ]] || _hi_because "no row for the member: $out"
 }
 
@@ -661,6 +662,23 @@ function test_config_lists_the_extensions() {
     [[ "$out" == *"extensions/20-broken"*"does not parse in bash"*"skipped there"* ]] &&
     [[ "$out" == *"extensions/30-c.bak"*"ignored"* ]] &&
     [[ "$out" != *"extensions/10-a"* ]]
+}
+
+# header/ (HI.58) is listed the same way, by bash alone, and not at all with
+# the header off, when no cell loads
+function test_config_lists_the_header_cells() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/celldir.XXXXXX")"
+  mkdir -p "$dir/header"
+  printf '_hi_cell_sky() { :; }\n' >"$dir/header/sky"
+  printf '_hi_cell_torn() {\n' >"$dir/header/torn"
+  printf 'x\n' >"$dir/header/sea.orig"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_HEADER_CELLS="$dir/header" doctor_config)"
+  [[ "$out" == *"header/"*"loads in order: sky, torn"* ]] &&
+    [[ "$out" == *"header/torn"*"does not parse in bash - skipped there"* ]] &&
+    [[ "$out" == *"header/sea.orig"*"ignored"* ]] || _hi_because "rows: $out" || return 1
+  out="$(_HI_DISABLE_HEADER=1 _HI_CONFIG_DIR="$dir" _HI_HEADER_CELLS="$dir/header" doctor_config)"
+  [[ "$out" != *header/* ]] || _hi_because "listed with the header off: $out"
 }
 
 # packages is an overlay file like colors: the tree's default until the
@@ -1760,6 +1778,7 @@ function run_doctor_tests() {
     _hi_check "Config names what a packages copy lacks" test_config_names_what_a_packages_copy_lacks
     _hi_check "Config flags a colors file of either old format" test_config_flags_an_old_format_colors_file
     _hi_check "Config lists the plugins, and flags them" test_config_lists_the_extensions
+    _hi_check "...and the header cells, by bash alone" test_config_lists_the_header_cells
     _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
     _hi_check "Lists an opt-in turned on" test_config_lists_an_opt_in_turned_on
     _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore

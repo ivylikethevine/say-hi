@@ -6,8 +6,10 @@
 #                [group] lines -> TOML tables of name = [...] rows
 #   colors       "type,name,color[,rrggbb]" rows, or "name color [rrggbb]"
 #                rows under [type] lines -> TOML tables of name = "..." rows
-#   carry        "member | tool | wire | home" lines -> plugins, TOML rows
-#                of the same columns under [carry]
+#   carry        "member | tool | wire | home" lines -> plugins, a
+#                [carry.<name>] table for each tool
+#   plugins      "member" = "tool | wire | home | dialect" rows under [group]
+#                lines -> a [group.<name>] table for each tool
 #   settings.sh  _HI_PACKAGES_MIN_PRIORITY -> _HI_PACKAGES_GROUPS; the
 #                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped;
 #                an editor's or a multiplexer's _HI_DISABLE_* -> its word in
@@ -233,11 +235,12 @@ function _hi_toml_colors() {
   ' | _hi_pad_cols 15
 }
 
-# _hi_convert_carry - stdin's `member | tool | wire | home` lines as TOML on
-# stdout: `"member" = "tool | wire | home"` rows under [carry], the group the
-# lines had, a name TOML would not read bare in quotes; comments stay where
-# they were, and a line of the wrong shape becomes one
-function _hi_convert_carry() {
+# _hi_convert_plugins - stdin's `member | tool | wire | home` lines, a carry
+# file's, as the rows the plugins file had next on stdout:
+# `"member" = "tool | wire | home"` under [carry], the group the lines had, a
+# name TOML would not read bare in quotes; comments stay where they were, and
+# a line of the wrong shape becomes one
+function _hi_convert_plugins() {
   awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
     /^[ \t]*$/ { next }
@@ -249,6 +252,76 @@ function _hi_convert_carry() {
       k = trim(f[1])
       if (k !~ /^[A-Za-z0-9_-]+$/) k = "\"" k "\""
       printf "%s = \"%s | %s | %s\"\n", k, trim(f[2]), trim(f[3]), trim(f[4])
+    }
+  '
+}
+
+# _hi_toml_plugins - stdin's `[group]` tables of
+# `"member" = "tool | wire | home | dialect"` rows as the plugins hi reads on
+# stdout: a `[group.<name>]` table for each tool, named as the rows named
+# their plugin (the tool column's first word, else the member's first name,
+# what a bare key cannot hold as a -), with its rows' members as `files`. A
+# row whose wire, home, or dialect is not its plugin's gets a table of its
+# own under it. A name a second group uses takes that group behind it.
+# Comments travel with the plugin below them, and a line that is no row
+# becomes one.
+function _hi_toml_plugins() {
+  awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    function bare(s) { gsub(/[^A-Za-z0-9_-]/, "-", s); sub(/^-+/, "", s); return (s == "") ? "plugin" : s }
+    function key(n, v) { return (v == "-") ? "" : n " = \"" v "\"\n" }
+    /^[ \t]*$/ { next }
+    /^[ \t]*#/ { pend = pend trim($0) "\n"; next }
+    /^[ \t]*\[/ {
+      g = $0; sub(/^[ \t]*\[/, "", g); sub(/\].*/, "", g); g = trim(g)
+      raw = (g ~ /[.]/)
+      if (raw) { tail = tail "\n" pend trim($0) "\n"; pend = "" } else g = bare(g)
+      next
+    }
+    raw { tail = tail pend trim($0) "\n"; pend = ""; next }
+    {
+      line = trim($0); k = ""
+      if (match(line, /^"[^"]*"/)) { k = substr(line, 2, RLENGTH - 2); rest = substr(line, RLENGTH + 1) }
+      else if (match(line, /^[A-Za-z0-9_-]+/)) { k = substr(line, 1, RLENGTH); rest = substr(line, RLENGTH + 1) }
+      n = 0
+      if (k != "" && g != "" && rest ~ /^[ \t]*=[ \t]*"[^"]*"/) {
+        sub(/^[ \t]*=[ \t]*"/, "", rest); sub(/".*/, "", rest)
+        n = split(rest, c, "|")
+      }
+      if (n < 3 || n > 4) { pend = pend "# " line "\n"; next }
+      tool = trim(c[1]); wire = trim(c[2]); home = trim(c[3]); dia = (n == 4) ? trim(c[4]) : "-"
+      if (dia == "") dia = "-"
+      if (tool == "-") { name = k; sub(/\/.*/, "", name); tool = "-" }
+      else if (tool ~ /^\(.*\)$/) { name = substr(tool, 2, length(tool) - 2); tool = "-" }
+      else { name = tool; sub(/ .*/, "", name) }
+      name = bare(name)
+      if ((name in grp) && grp[name] != g) name = name "-" g
+      if (!(name in grp)) {
+        grp[name] = g; order[++nr] = name; above[name] = pend
+        rtool[name] = tool; rwire[name] = wire; rhome[name] = home; rdia[name] = dia
+        files[name] = k
+      } else {
+        files[name] = files[name] " " k
+        own = ""
+        if (wire != rwire[name]) own = own "wire = \"" wire "\"\n"
+        if (home != rhome[name]) own = own "home = \"" home "\"\n"
+        if (dia != rdia[name]) own = own "dialect = \"" dia "\"\n"
+        if (own != "") subs[name] = subs[name] "\n" pend "[" g "." name ".\"" k "\"]\n" own
+        else above[name] = above[name] pend
+      }
+      pend = ""
+    }
+    END {
+      for (i = 1; i <= nr; i++) {
+        name = order[i]
+        printf "%s%s[%s.%s]\n", (i > 1 ? "\n" : ""), above[name], grp[name], name
+        if (rtool[name] != name) printf "tool = \"%s\"\n", rtool[name]
+        printf "%s%s%s", key("wire", rwire[name]), key("home", rhome[name]), key("dialect", rdia[name])
+        printf "files = \"%s\"\n%s", files[name], subs[name]
+      }
+      if (nr == 0) sub(/^\n/, "", tail)
+      printf "%s", tail
+      if (pend != "") printf "%s%s", (nr > 0 || tail != "" ? "\n" : ""), pend
     }
   '
 }
@@ -367,7 +440,7 @@ dir="$_HI_CONFIG_DIR"
 while [ $# -gt 0 ]; do
   case "$1" in
   -h | --help)
-    printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, carry, and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' convert_settings.sh "$_HI_CONFIG_DIR"
+    printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, plugins (or carry), and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' convert_settings.sh "$_HI_CONFIG_DIR"
     exit 0
     ;;
   -n | --dry-run) _HI_DRY_RUN=1 ;;
@@ -380,7 +453,10 @@ done
 _hi_old_settings="^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_($_HI_OLD_TOGGLES))="
 _hi_convert_data "$dir/packages" packages "$_HI_FLAT_PACKAGES"
 _hi_convert_data "$dir/colors" colors "$_HI_FLAT_COLORS"
-# a carry file is the plugins file's old name; nothing where there is one already
-[ ! -f "$dir/carry" ] || [ -e "$dir/plugins" ] || _hi_convert_one "$dir/carry" carry _hi_convert_carry "$dir/plugins"
+# a carry file is the plugins file's first name; nothing where there is one already
+[ ! -f "$dir/carry" ] || [ -e "$dir/plugins" ] || _hi_convert_one "$dir/carry" flat _hi_convert_plugins "$dir/plugins"
+_hi_shape=""
+_hi_plugins_shape _hi_shape "$dir/plugins"
+_hi_convert_one "$dir/plugins" "$_hi_shape" _hi_toml_plugins
 [ ! -f "$dir/settings.sh" ] || ! grep -Eq "$_hi_old_settings" "$dir/settings.sh" ||
   _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings

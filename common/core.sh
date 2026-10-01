@@ -271,17 +271,26 @@ function _hi_dir_member_ok() {
   esac
 }
 
-# _hi_extension_files - $_HI_EXTENSIONS's entries into $_hi_pl, in name order. Its
-# own function so zsh's null_glob stays local: set in the loader, local_options
-# would also undo every setopt an extension makes.
-function _hi_extension_files() {
-  # the -d first: unset, "$_HI_EXTENSIONS"/* is /*, and the loader below would
-  # source whatever parses at the root of the disk. header.sh's package walk
-  # guards its own directory the same way. GLOSSARY: HI.60
-  _hi_pl=()
-  [ -d "${_HI_EXTENSIONS:-}" ] || return 0
+# _hi_dir_members <dir> - an overlay directory's members into the caller's
+# $_hi_members, in name order: its plain files _hi_dir_member_ok admits. Every
+# other entry goes into $_hi_strays, for hi --doctor to name. The one listing
+# extensions/, header/, and their doctor rows share. Its own function so
+# zsh's null_glob stays local: set in a loader, local_options would also undo
+# every setopt an extension makes.
+function _hi_dir_members() {
+  local _hi_dm_f
+  # the -d first: unset, "$1"/* is /*, and a loader would source whatever
+  # parses at the root of the disk. GLOSSARY: HI.60
+  _hi_members=() _hi_strays=()
+  [ -d "${1:-}" ] || return 0
   [ -z "${ZSH_VERSION:-}" ] || setopt local_options null_glob
-  _hi_pl=("$_HI_EXTENSIONS"/*)
+  for _hi_dm_f in "$1"/*; do
+    if [ -f "$_hi_dm_f" ] && _hi_dir_member_ok "${_hi_dm_f##*/}"; then
+      _hi_members+=("$_hi_dm_f")
+    elif [ -e "$_hi_dm_f" ]; then
+      _hi_strays+=("$_hi_dm_f")
+    fi
+  done
 }
 
 # _hi_load_extensions - source each extensions/ member once the aliases are built
@@ -291,12 +300,11 @@ function _hi_extension_files() {
 # extension's own `f=` would otherwise land in them. GLOSSARY: HI.59
 function _hi_load_extensions() {
   local _hi_pl_f _hi_pl_sh="${BASH:-bash}"
-  local -a _hi_pl=()
+  local -a _hi_members=() _hi_strays=()
   [ -z "${ZSH_VERSION:-}" ] || _hi_pl_sh=zsh
   _hi_segments=()
-  _hi_extension_files
-  for _hi_pl_f in ${_hi_pl[@]+"${_hi_pl[@]}"}; do
-    { [ -f "$_hi_pl_f" ] && _hi_dir_member_ok "${_hi_pl_f##*/}"; } || continue
+  _hi_dir_members "${_HI_EXTENSIONS:-}"
+  for _hi_pl_f in ${_hi_members[@]+"${_hi_members[@]}"}; do
     "$_hi_pl_sh" -n "$_hi_pl_f" 2>/dev/null || {
       _hi_cecho "hi: extension ${_hi_pl_f##*/} does not parse in ${_hi_pl_sh##*/}; skipped" "${YELLOW:-}" >&2
       continue

@@ -19,20 +19,20 @@
 # the target (GLOSSARY: HI.41), and every member's one resolution order
 # (HI.61): the overlay's copy, else the user's own file at home, else the
 # tree's default, which the payload already carries. One row per member:
-# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<wire>|<off>|<dialect>|<home>.
-# This table is hi's own members' - its files, and the prompt configs whose
-# home is a lookup (@fn) no path list can say. The tools' rows are
-# config/plugins' and the overlay's plugins (_hi_plugins_load): the same
-# columns, of which a file holds <member>, <tool>, <wire>, <home> and
-# <dialect>, and the table it sits under is its <group>.
+# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<plugin>|<wire>|<off>|<dialect>|<home>.
+# This table is hi's own files', which $_HI_PLUGINS_OFF never switches. The
+# rows it does switch are the plugins files' (_hi_plugins_load), config/plugins
+# and the overlay's plugins: a `[<group>.<plugin>]` table there is a row here
+# for each of its files, of its `tool`, `wire`, `home`, and `dialect`.
 # <paths.sh variable> is hi's own files' alone: a tool's member has none, and
 # what hi's code reads of one on a target is an env: wire of its row.
-# <tool> is the binaries that read it, its name in a report first: home's
-# copy rides with any of them on $PATH. In parentheses it is a name alone,
-# for what nothing looks for - a shell, readline, a prompt program
-# (_hi_prompt_list asks about those).
+# <tool> is the binaries that read it: home's copy rides with any of them on
+# $PATH, and - asks about nothing (a shell, readline, a prompt program:
+# _hi_prompt_list asks about those).
 # <group> is the word that switches it with its kind in $_HI_PLUGINS_OFF
 # (_hi_plugin_off), or - for a member of hi's own, which nothing switches.
+# <plugin> is its own word there and the name a report gives what reads it,
+# or - for none.
 # <wire> is what points the tool at the member on a target, written there by
 # _hi_overlay_wiring (HI.62), whose comment is the grammar: env: and envdir:
 # export variables, flag: and flagdir: alias a command, and - leaves the
@@ -44,7 +44,8 @@
 # <dialect> is the $_HI_DIALECTS row the include scan and the comment strip
 # read it by, or - for a file that rides as written.
 # <home> is the candidates, best first, in _hi_path_list's grammar - or @fn
-# for a lookup no path list can say, or - for none: a shell's own rc
+# for a lookup no path list can say, a function of this file that only this
+# table and the tree's config/plugins may name, or - for none: a shell's own rc
 # (bashrc, zshrc, config.fish) rides only from the overlay, since the rc a
 # target runs should be asked for, not found. A member is <tool>/<file>
 # where its tool keeps a directory under ~/.config, the file named as the
@@ -53,26 +54,18 @@
 # member with a trailing / is a directory whose files ride one by one
 # (HI.58), from the overlay alone where the row has no home.
 _HI_OVERLAY_TABLE=(
-  'settings.sh|_HI_SETTINGS|-|-|-|-|-|sh|-'
-  'colors|_HI_COLORS|tree|-|-|-|-|conf|-'
-  'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|conf|-'
-  'extensions/|_HI_EXTENSIONS|-|-|shell|-|-|sh|-'
-  'header/|_HI_HEADER_CELLS|-|-|-|-|$_HI_DISABLE_HEADER|sh|-'
-  'plugins|-|-|-|-|-|-|conf|-'
-  'oh-my-posh.json|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp-json|@_hi_posh_home'
-  'oh-my-posh.yaml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp|@_hi_posh_home'
-  'oh-my-posh.toml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp|@_hi_posh_home'
-  'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|prompt|-|-|omz|@_hi_theme_home'
-  'oh-my-bash.theme.sh|-|-|(oh-my-bash)|prompt|-|-|omb|@_hi_theme_home'
-  'bash-it.theme.bash|-|-|(bash-it)|prompt|-|-|bash-it|@_hi_theme_home'
-  'ssh_tags|-|-|(ssh)|-|-|-|-|@_hi_ssh_tags_file'
+  'settings.sh|_HI_SETTINGS|-|-|-|-|-|-|sh|-'
+  'colors|_HI_COLORS|tree|-|-|-|-|-|conf|-'
+  'packages|_HI_PACKAGES|tree|-|-|-|-|$_HI_DISABLE_HEADER|conf|-'
+  'header/|_HI_HEADER_CELLS|-|-|-|-|-|$_HI_DISABLE_HEADER|sh|-'
+  'ssh_tags|-|-|-|-|ssh|-|-|-|@_hi_ssh_tags_file'
 )
 
 # _hi_row_col <row> <column> <outvar> - one column of a row, by the name the
 # table's comment gives it
 function _hi_row_col() {
   local _hi_rc_r="$1" _hi_rc_n
-  for _hi_rc_n in member variable tree tool group wire off dialect home; do
+  for _hi_rc_n in member variable tree tool group plugin wire off dialect home; do
     [ "$_hi_rc_n" != "$2" ] || break
     _hi_rc_r="${_hi_rc_r#*|}"
   done
@@ -150,11 +143,12 @@ for _hi_r in "${_HI_OVERLAY_TABLE[@]}"; do
 done
 unset _hi_r _hi_w
 
-# The tools' rows, read from config/plugins and the overlay's plugins by
-# _hi_plugins_load: the table's shape. $_HI_PLUGIN_BAD is the lines it
-# turned down, `<file>:<line>|<why>` each, for scripts/doctor.sh.
+# The plugins files' rows, in the table's shape, read from config/plugins and
+# the overlay's plugins by _hi_plugins_load, with each row's member in
+# $_HI_PLUGIN_FILES and its plugin in $_HI_PLUGIN_NAMES. $_HI_PLUGIN_BAD is
+# what it turned down, `<file>:<line>|<why>` each, for scripts/doctor.sh.
 # GLOSSARY: HI.63
-_HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_KEY="" _HI_PLUGIN_TREE_ROWS=0
+_HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_KEY=""
 
 # The overlay members renamed before 1.0, old:new. hi reads only the new
 # name; scripts/doctor.sh names a file still under the old one, since it
@@ -380,170 +374,280 @@ function _hi_path_list() {
   done
 }
 
-# _hi_plugins_load - the tools' rows into $_HI_PLUGIN_ROWS, once per tree
-# and overlay: the tree's config/plugins, then the overlay's plugins, whose
-# row of a member the tree's has replaces it. Each is TOML in the subset
-# core.sh's _hi_toml_row reads: `[group]` tables of
-# `"<member>" = "<tool> | <wire> | <home> | <dialect>"` rows, the last column
-# - when left out. A row the table could not hold is left out and noted in
-# $_HI_PLUGIN_BAD: one above the first table, a member that is no <name>,
-# <dir>/<name> or <dir>/, or that is hi's own or a row's already, a tool, a
-# wire, or a dialect that is not the table's, a fifth column. GLOSSARY: HI.63
+# _hi_plugins_load - the plugins files into $_HI_PLUGIN_ROWS, a row a member,
+# once per tree and overlay: the tree's config/plugins, then the overlay's
+# plugins, whose plugin of a name the tree's has replaces it whole. Each is
+# TOML in the subset core.sh's _hi_toml_row reads. A `[<group>.<name>]` table
+# is a plugin, its keys `files` (the members, a space apart), `tool` (left
+# out, the name), and `wire`, `home`, and `dialect` (left out, -); a
+# `[<group>.<name>."<member>"]` table under it is the wire, home, or dialect
+# one of its files has of its own. What the table could not hold is left out
+# and noted in $_HI_PLUGIN_BAD: a line that is no table and no key =
+# "value", a key above the first plugin or of no name hi reads, a table of
+# the rows before these, a second plugin of a name, a plugin of no files, a
+# member that is no <name>, <dir>/<name> or <dir>/, or that is hi's own or
+# another plugin's, a tool, a wire, or a dialect that is not the table's, a
+# home naming a function. GLOSSARY: HI.63
 function _hi_plugins_load() {
-  local _hi_cy_k="$_HI_ROOT|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_g _hi_cy_m _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d _hi_cy_x _hi_cy_why _hi_cy_n _hi_cy_i
+  local _hi_cy_k="$_HI_ROOT|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_n _hi_cy_h _hi_cy_g _hi_cy_p _hi_cy_m _hi_cy_v _hi_cy_i _hi_cy_seen _hi_cy_old
+  # the plugin being read: where it opened, its group, name, and keys, its
+  # files with the keys each has of its own, and where a key lands - the
+  # plugin (-1), one of its files (an index), a table that was turned down
+  # (-2), or above the first table (-3)
+  local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to
+  local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
   [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
-  _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_TREE_ROWS=0
+  _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
   for _hi_cy_s in config/plugins plugins; do
     case "$_hi_cy_s" in config/*) _hi_cy_f="$_HI_ROOT/$_hi_cy_s" ;; *) _hi_cy_f="${_HI_CONFIG_DIR:-}/$_hi_cy_s" ;; esac
     [ -f "$_hi_cy_f" ] || continue
-    _hi_cy_n=0 _hi_cy_g=""
+    _hi_cy_n=0 _hi_cy_seen=" " _hi_cy_old="" _hi_rc_n="" _hi_rc_to=-3
     while IFS= read -r _hi_cy_l || [ -n "$_hi_cy_l" ]; do
       _hi_cy_n=$((_hi_cy_n + 1))
       _hi_trim _hi_cy_l
-      _hi_cy_why=""
       case "$_hi_cy_l" in
       '' | '#'*) continue ;;
       '['*']'*)
-        _hi_cy_g="${_hi_cy_l#\[}"
-        _hi_cy_g="${_hi_cy_g%%\]*}"
-        _hi_trim _hi_cy_g
-        _hi_words_ok "$_hi_cy_g" 'A-Za-z0-9_' 'A-Za-z0-9_-' && [ "${_hi_cy_g% *}" = "$_hi_cy_g" ] || {
-          _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'[$_hi_cy_g]' is no group name")
-          _hi_cy_g=""
-        }
+        _hi_cy_h="${_hi_cy_l#\[}"
+        _hi_cy_h="${_hi_cy_h%%\]*}"
+        _hi_cy_g="${_hi_cy_h%%.*}" _hi_cy_p="" _hi_cy_m=""
+        case "$_hi_cy_h" in *.*) _hi_cy_p="${_hi_cy_h#*.}" ;; esac
+        case "$_hi_cy_p" in *.*) _hi_cy_m="${_hi_cy_p#*.}" _hi_cy_p="${_hi_cy_p%%.*}" ;; esac
+        _hi_trim _hi_cy_g _hi_cy_p _hi_cy_m
+        _hi_cy_m="${_hi_cy_m#\"}"
+        _hi_cy_m="${_hi_cy_m%\"}"
+        # a file of the plugin being read
+        if [ -n "$_hi_cy_m" ] && [ -n "$_hi_rc_n" ] && [ "$_hi_cy_g.$_hi_cy_p" = "$_hi_rc_g.$_hi_rc_n" ]; then
+          _hi_rc_to=-2
+          for _hi_cy_i in ${_hi_rc_m[@]+"${!_hi_rc_m[@]}"}; do
+            [ "${_hi_rc_m[_hi_cy_i]}" != "$_hi_cy_m" ] || _hi_rc_to="$_hi_cy_i"
+          done
+          [ "$_hi_rc_to" != -2 ] || _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_m' is no file of $_hi_rc_n")
+          continue
+        fi
+        _hi_plugins_close
+        _hi_rc_to=-2
+        if [ -z "$_hi_cy_p" ]; then
+          # the rows before the tables, said once a file
+          [ -n "$_hi_cy_old" ] || _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'[$_hi_cy_h]' is no [<group>.<name>]: rows of the shape before it, which hi --configure converts")
+          _hi_cy_old=1
+        elif [ -n "$_hi_cy_m" ]; then
+          _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'[$_hi_cy_h]' follows no [$_hi_cy_g.$_hi_cy_p]")
+        elif [ "${_hi_cy_g% *}${_hi_cy_p% *}" != "$_hi_cy_g$_hi_cy_p" ] || ! _hi_words_ok "$_hi_cy_g" 'A-Za-z0-9_' 'A-Za-z0-9_-' || ! _hi_words_ok "$_hi_cy_p" 'A-Za-z0-9_' 'A-Za-z0-9_-'; then
+          _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'[$_hi_cy_h]' is no [<group>.<name>]")
+        elif [ "${_hi_cy_seen#* "$_hi_cy_p" }" != "$_hi_cy_seen" ]; then
+          _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_p' is a plugin of this file already")
+        else
+          _hi_cy_seen="$_hi_cy_seen$_hi_cy_p "
+          _hi_rc_at="$_hi_cy_s:$_hi_cy_n" _hi_rc_g="$_hi_cy_g" _hi_rc_n="$_hi_cy_p" _hi_rc_to=-1
+          _hi_rc_t="" _hi_rc_w="" _hi_rc_h="" _hi_rc_d=""
+          _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
+        fi
         continue
         ;;
       esac
-      _hi_cy_x="" _hi_cy_t="" _hi_cy_w="" _hi_cy_h="" _hi_cy_d=""
-      if ! _hi_toml_row "$_hi_cy_l" _hi_cy_m _hi_cy_t; then
-        _hi_cy_why="not a row: \"<member>\" = \"<tool> | <wire> | <home> | <dialect>\""
-      else
-        IFS='|' read -r _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d _hi_cy_x <<<"$_hi_cy_t"
-        _hi_trim _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d
-        _hi_cy_d="${_hi_cy_d:--}"
-      fi
-      if [ -n "$_hi_cy_why" ]; then
-        :
-      elif [ -z "$_hi_cy_g" ]; then
-        _hi_cy_why="no [group] above it"
-      elif [ -n "$_hi_cy_x" ] || [ -z "$_hi_cy_h" ]; then
-        _hi_cy_why="not three or four columns: <tool> | <wire> | <home> | <dialect>"
-      elif ! _hi_plugin_member_ok "$_hi_cy_m"; then
-        _hi_cy_why="'$_hi_cy_m' is no <name>, <dir>/<name>, or <dir>/"
-      elif _hi_plugin_taken "$_hi_cy_m" _hi_cy_i "$_hi_cy_s"; then
-        _hi_cy_why="'$_hi_cy_m' is a member already"
-      elif [ "${_hi_cy_h#@}" != "$_hi_cy_h" ]; then
-        # the table's @fn is a function's name, which no line of a file is
-        _hi_cy_why="'$_hi_cy_h' is no list of paths"
-      elif ! _hi_plugin_tools_ok "$_hi_cy_t"; then
-        _hi_cy_why="'$_hi_cy_t' is no list of commands, a (name), or -"
-      elif [ "$_hi_cy_d" != - ] && ! _hi_dialect_row "$_hi_cy_d" _hi_cy_x; then
-        _hi_cy_why="'$_hi_cy_d' is no dialect hi reads, or -"
-      else
-        _hi_plugin_wire_ok "$_hi_cy_w" _hi_cy_why || :
-      fi
-      if [ -n "$_hi_cy_why" ]; then
-        _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|$_hi_cy_why")
+      if ! _hi_toml_row "$_hi_cy_l" _hi_cy_h _hi_cy_v; then
+        # under a table that was turned down, its lines say nothing more
+        [ "$_hi_rc_to" = -2 ] || _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|not a line of a plugin: <key> = \"<value>\"")
         continue
       fi
-      _hi_cy_l="$_hi_cy_m|-|-|$_hi_cy_t|$_hi_cy_g|$_hi_cy_w|-|$_hi_cy_d|$_hi_cy_h"
-      if [ "$_hi_cy_i" -ge 0 ]; then
-        _HI_PLUGIN_ROWS[_hi_cy_i]="$_hi_cy_l"
-      else
-        _HI_PLUGIN_ROWS+=("$_hi_cy_l")
-        _HI_PLUGIN_FILES+=("$_hi_cy_m")
-      fi
+      case "$_hi_rc_to:$_hi_cy_h" in
+      -3:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|no [<group>.<name>] above it") ;;
+      -2:*) ;;
+      -1:files)
+        _hi_rc_m=() _hi_cy_v="$_hi_cy_v "
+        while [ -n "$_hi_cy_v" ]; do
+          _hi_cy_m="${_hi_cy_v%% *}" _hi_cy_v="${_hi_cy_v#* }"
+          [ -z "$_hi_cy_m" ] || _hi_rc_m+=("$_hi_cy_m")
+        done
+        ;;
+      -1:tool) _hi_rc_t="$_hi_cy_v" ;;
+      -1:wire) _hi_rc_w="$_hi_cy_v" ;;
+      -1:home) _hi_rc_h="$_hi_cy_v" ;;
+      -1:dialect) _hi_rc_d="$_hi_cy_v" ;;
+      -1:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin: files, tool, wire, home, dialect") ;;
+      *:wire) _hi_rc_mw[_hi_rc_to]="$_hi_cy_v" ;;
+      *:home) _hi_rc_mh[_hi_rc_to]="$_hi_cy_v" ;;
+      *:dialect) _hi_rc_md[_hi_rc_to]="$_hi_cy_v" ;;
+      *) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin's file: wire, home, dialect") ;;
+      esac
     done <"$_hi_cy_f"
-    [ "$_hi_cy_s" != config/plugins ] || _HI_PLUGIN_TREE_ROWS="${#_HI_PLUGIN_ROWS[@]}"
+    _hi_plugins_close
   done
 }
 
-# _hi_plugin_tools_ok <tool> - the table's <tool> column: -, commands a
-# space apart, or one (name) nothing looks for
+# _hi_plugins_close - the plugin _hi_plugins_load has read, into the rows: a
+# row a file, with the plugin's keys or the file's own. Reads that
+# function's locals, and ends its plugin. An overlay's plugin takes the place
+# of the tree's of its name once it has a row to stand there.
+function _hi_plugins_close() {
+  local _hi_cl_i _hi_cl_m _hi_cl_t _hi_cl_w _hi_cl_h _hi_cl_d _hi_cl_why _hi_cl_x _hi_cl_put=""
+  local -a _hi_cl_rows=() _hi_cl_files=() _hi_cl_r=() _hi_cl_f=() _hi_cl_n=()
+  [ -n "$_hi_rc_n" ] || return 0
+  _hi_cl_t="${_hi_rc_t:-$_hi_rc_n}"
+  if ! _hi_plugin_tools_ok "$_hi_cl_t"; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: '$_hi_cl_t' is no list of commands, or -")
+  elif ((${#_hi_rc_m[@]} == 0)); then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n names no files")
+  else
+    for _hi_cl_i in "${!_hi_rc_m[@]}"; do
+      _hi_cl_m="${_hi_rc_m[_hi_cl_i]}" _hi_cl_why=""
+      _hi_cl_w="${_hi_rc_mw[_hi_cl_i]:-${_hi_rc_w:--}}"
+      _hi_cl_h="${_hi_rc_mh[_hi_cl_i]:-${_hi_rc_h:--}}"
+      _hi_cl_d="${_hi_rc_md[_hi_cl_i]:-${_hi_rc_d:--}}"
+      if ! _hi_plugin_member_ok "$_hi_cl_m"; then
+        _hi_cl_why="is no <name>, <dir>/<name>, or <dir>/"
+      elif _hi_plugin_taken "$_hi_cl_m" "$_hi_rc_n" ${_hi_cl_files[@]+"${_hi_cl_files[@]}"}; then
+        _hi_cl_why="is a member already"
+      elif [ "${_hi_cl_h#@}" != "$_hi_cl_h" ] && { [ "${_hi_rc_at%%:*}" != config/plugins ] || ! declare -F "${_hi_cl_h#@}" >/dev/null; }; then
+        # an @fn is a function of this file, which only the tree's plugins name
+        _hi_cl_why="has a home, '$_hi_cl_h', that is no list of paths"
+      elif [ "$_hi_cl_d" != - ] && ! _hi_dialect_row "$_hi_cl_d" _hi_cl_x; then
+        _hi_cl_why="has a dialect, '$_hi_cl_d', that hi does not read"
+      elif ! _hi_plugin_wire_ok "$_hi_cl_w" _hi_cl_x; then
+        _hi_cl_why="has a wire hi does not read: $_hi_cl_x"
+      fi
+      if [ -n "$_hi_cl_why" ]; then
+        _HI_PLUGIN_BAD+=("$_hi_rc_at|'$_hi_cl_m' $_hi_cl_why")
+        continue
+      fi
+      _hi_cl_rows+=("$_hi_cl_m|-|-|$_hi_cl_t|$_hi_rc_g|$_hi_rc_n|$_hi_cl_w|-|$_hi_cl_d|$_hi_cl_h")
+      _hi_cl_files+=("$_hi_cl_m")
+    done
+  fi
+  if ((${#_hi_cl_rows[@]})); then
+    # where the tree's plugin of this name stood, else last
+    for _hi_cl_i in ${_HI_PLUGIN_NAMES[@]+"${!_HI_PLUGIN_NAMES[@]}"}; do
+      if [ "${_HI_PLUGIN_NAMES[_hi_cl_i]}" != "$_hi_rc_n" ]; then
+        _hi_cl_r+=("${_HI_PLUGIN_ROWS[_hi_cl_i]}") _hi_cl_f+=("${_HI_PLUGIN_FILES[_hi_cl_i]}") _hi_cl_n+=("${_HI_PLUGIN_NAMES[_hi_cl_i]}")
+      elif [ -z "$_hi_cl_put" ]; then
+        _hi_cl_put=1
+        for _hi_cl_x in "${!_hi_cl_rows[@]}"; do
+          _hi_cl_r+=("${_hi_cl_rows[_hi_cl_x]}") _hi_cl_f+=("${_hi_cl_files[_hi_cl_x]}") _hi_cl_n+=("$_hi_rc_n")
+        done
+      fi
+    done
+    [ -n "$_hi_cl_put" ] || for _hi_cl_x in "${!_hi_cl_rows[@]}"; do
+      _hi_cl_r+=("${_hi_cl_rows[_hi_cl_x]}") _hi_cl_f+=("${_hi_cl_files[_hi_cl_x]}") _hi_cl_n+=("$_hi_rc_n")
+    done
+    _HI_PLUGIN_ROWS=("${_hi_cl_r[@]}") _HI_PLUGIN_FILES=("${_hi_cl_f[@]}") _HI_PLUGIN_NAMES=("${_hi_cl_n[@]}")
+  fi
+  _hi_rc_n=""
+}
+
+# _hi_plugin_tools_ok <tool> - a plugin's tool: -, or commands a space apart
 function _hi_plugin_tools_ok() {
+  [ "$1" = - ] || _hi_words_ok "$1" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
+}
+
+# _hi_wire_read <wire> - one wire of a <wire> column, taken apart into the
+# caller's locals: $_hi_wr_kind (env, envdir, flag, flagdir, xdg) and, for an
+# env or envdir, $_hi_wr_vars; for the rest $_hi_wr_names (what the alias
+# answers to, a , apart: `<names>=` ahead of the command, else the command),
+# $_hi_wr_env (the words ahead of the command that hold a =, a space after
+# each), $_hi_wr_cmd, and $_hi_wr_words (what follows it). An xdg is one
+# word, the command or <names>=<command>, with $XDG_CONFIG_HOME for its
+# environment. 1 for a wire of no kind, or of no command. The one reading of
+# the grammar: _hi_plugin_wire_ok admits what this takes apart, and
+# _hi_overlay_wiring writes it. Builtins only. GLOSSARY: HI.62
+function _hi_wire_read() {
+  local _hi_wr_b="${1#*:} " _hi_wr_x
+  _hi_wr_kind="${1%%:*}" _hi_wr_vars="" _hi_wr_names="" _hi_wr_env="" _hi_wr_cmd="" _hi_wr_words=""
   case "$1" in
-  -) return 0 ;;
-  '('*')') _hi_words_ok "${1#\(}" 'A-Za-z0-9_' 'A-Za-z0-9._+)-' && [ "${1% *}" = "$1" ] ;;
-  *) _hi_words_ok "$1" 'A-Za-z0-9_' 'A-Za-z0-9._+-' ;;
+  env:?* | envdir:?*)
+    _hi_wr_vars="${1#*:}"
+    return 0
+    ;;
+  xdg:?*)
+    _hi_wr_cmd="${_hi_wr_b% }"
+    case "$_hi_wr_cmd" in *' '*) return 1 ;; *=*) _hi_wr_names="${_hi_wr_cmd%%=*}" _hi_wr_cmd="${_hi_wr_cmd#*=}" ;; esac
+    _hi_wr_env='XDG_CONFIG_HOME=$_HI_CONFIG_DIR '
+    ;;
+  flag:?* | flagdir:?*)
+    case "${_hi_wr_b%% *}" in *=*) _hi_wr_names="${_hi_wr_b%%=*}" _hi_wr_b="${_hi_wr_b#*=}" ;; esac
+    while [ -n "$_hi_wr_b" ] && [ -z "$_hi_wr_cmd" ]; do
+      _hi_wr_x="${_hi_wr_b%% *}" _hi_wr_b="${_hi_wr_b#* }"
+      case "$_hi_wr_x" in
+      [!-]*=*) _hi_wr_env="$_hi_wr_env$_hi_wr_x " ;;
+      *) _hi_wr_cmd="$_hi_wr_x" ;;
+      esac
+    done
+    _hi_wr_words="${_hi_wr_b% }"
+    ;;
+  *) return 1 ;;
   esac
+  [ -n "$_hi_wr_cmd" ] || return 1
+  _hi_wr_names="${_hi_wr_names:-$_hi_wr_cmd}"
 }
 
 # _hi_plugin_wire_ok <wire> <outvar> - the table's <wire> column, wires a ;
-# apart, as _hi_overlay_wiring reads them; why not into <outvar>, and 1
+# apart, each as _hi_wire_read takes it apart; why not into <outvar>, and 1.
+# Every part is checked, since each becomes a word of a line a target
+# sources: nothing that could run or expand there beyond a $NAME.
 function _hi_plugin_wire_ok() {
-  local _hi_wk_s="$1;" _hi_wk_w _hi_wk_x _hi_wk_c
+  local _hi_wk_s="$1;" _hi_wk_w _hi_wk_why
+  local _hi_wr_kind _hi_wr_vars _hi_wr_names _hi_wr_env _hi_wr_cmd _hi_wr_words
   [ "$1" != - ] || return 0
   while [ -n "$_hi_wk_s" ]; do
-    _hi_wk_w="${_hi_wk_s%%;*}" _hi_wk_s="${_hi_wk_s#*;}"
-    _hi_wk_x="${_hi_wk_w#*:}"
+    _hi_wk_w="${_hi_wk_s%%;*}" _hi_wk_s="${_hi_wk_s#*;}" _hi_wk_why=""
+    _hi_wire_read "$_hi_wk_w" || _hi_wr_cmd=""
     case "$_hi_wk_w" in
     env:?* | envdir:?*)
-      _hi_words_ok "$_hi_wk_x" 'A-Za-z_' 'A-Za-z0-9_' || {
-        printf -v "$2" '%s' "'$_hi_wk_x' is no list of variable names"
-        return 1
-      }
+      _hi_words_ok "$_hi_wr_vars" 'A-Za-z_' 'A-Za-z0-9_' || _hi_wk_why="is no list of variable names"
       ;;
-    flag:?*' '?* | flagdir:?*' '?*)
-      # <names>=, the environment, then the command and its words
-      _hi_wk_c="${_hi_wk_x%% *}"
-      case "$_hi_wk_c" in *=*) _hi_wk_c="${_hi_wk_c#*=}" _hi_wk_x="${_hi_wk_x#*=}" ;; esac
-      while :; do
-        case "$_hi_wk_x" in [!-]*=*' '*) _hi_wk_x="${_hi_wk_x#* }" _hi_wk_c="${_hi_wk_x%% *}" ;; *) break ;; esac
-      done
-      if ! _hi_words_ok "$_hi_wk_c" 'A-Za-z0-9_' 'A-Za-z0-9._+-' || ! _hi_words_ok "$_hi_wk_x" 'A-Za-z0-9=,._+/$-' 'A-Za-z0-9=,._+/$-'; then
-        printf -v "$2" '%s' "'$_hi_wk_x' is not a command and its words"
-        return 1
-      fi
+    flag:?* | flagdir:?*)
+      # a command, at least one word after it, and nothing else in a part
+      _hi_words_ok "$_hi_wr_cmd" 'A-Za-z0-9_' 'A-Za-z0-9._+-' &&
+        _hi_words_ok "$_hi_wr_words" 'A-Za-z0-9=,._+/$-' 'A-Za-z0-9=,._+/$-' &&
+        _hi_words_ok "${_hi_wr_names//,/ }" 'A-Za-z0-9_' 'A-Za-z0-9._+-' &&
+        { [ -z "$_hi_wr_env" ] || _hi_words_ok "${_hi_wr_env% }" 'A-Za-z_' 'A-Za-z0-9=,._+/$-'; } ||
+        _hi_wk_why="is not a command and its words"
       ;;
     xdg:?*)
-      # one word: the command, or <names>=<command>
-      if [ "${_hi_wk_x% *}" != "$_hi_wk_x" ] || ! _hi_words_ok "${_hi_wk_x#*=}" 'A-Za-z0-9_' 'A-Za-z0-9._+-' ||
-        ! _hi_words_ok "${_hi_wk_x%%=*}" 'A-Za-z0-9_' 'A-Za-z0-9,._+-'; then
-        printf -v "$2" '%s' "'$_hi_wk_x' is not a command, or <names>=<command>"
-        return 1
-      fi
+      _hi_words_ok "$_hi_wr_cmd" 'A-Za-z0-9_' 'A-Za-z0-9._+-' &&
+        _hi_words_ok "${_hi_wr_names//,/ }" 'A-Za-z0-9_' 'A-Za-z0-9._+-' ||
+        _hi_wk_why="is not a command, or <names>=<command>"
       ;;
     *)
       printf -v "$2" '%s' "'$_hi_wk_w' is not env:, envdir:, flag:, flagdir:, xdg:, or -"
       return 1
       ;;
     esac
+    [ -z "$_hi_wk_why" ] || {
+      printf -v "$2" '%s' "'${_hi_wk_w#*:}' $_hi_wk_why"
+      return 1
+    }
   done
 }
 
 # _hi_plugin_member_ok <member> - a plain name, <dir>/<name>, or a directory
-# <dir>/ or <dir>/<dir>/, each part _hi_dir_member_ok's, and never a name of
-# a file hi writes itself
+# <dir>/ or <dir>/<dir>/, each part _hi_dir_member_ok's, and never the name
+# of a file hi writes itself or of the overlay's rows, which stay home
 function _hi_plugin_member_ok() {
   local _hi_pm="$1"
-  case "$_hi_pm" in */*/*/* | wiring.sh) return 1 ;; esac
+  case "$_hi_pm" in */*/*/* | wiring.sh | plugins | plugins/*) return 1 ;; esac
   _hi_pm="${_hi_pm%/}"
   _hi_dir_member_ok "${_hi_pm%%/*}" && _hi_dir_member_ok "${_hi_pm##*/}"
 }
 
-# _hi_plugin_taken <member> <outvar> [file] - is <member> the table's or a
-# name a member had before ($_HI_OVERLAY_RENAMES), a plugins row's already,
-# or the directory entry one sits under or that sits under it? A row of the
-# tree's file that the overlay's <file> names again is not taken: its index
-# in $_HI_PLUGIN_ROWS goes to <outvar>, -1 otherwise, for the overlay's row
-# to replace it.
+# _hi_plugin_taken <member> <plugin> [member...] - is <member> the table's or
+# a name a member had before ($_HI_OVERLAY_RENAMES), one of the <member...>
+# its own plugin has already, another plugin's, or the directory entry any of
+# those sits under or that sits under it? A row of <plugin>'s own does not
+# count: an overlay's plugin replaces the tree's of its name.
 function _hi_plugin_taken() {
-  local _hi_ct _hi_ct_i=0
-  printf -v "$2" '%s' -1
-  for _hi_ct in "${_HI_OVERLAY_FILES[@]}" $_HI_OVERLAY_RENAMES; do
+  local _hi_ct _hi_ct_m="$1" _hi_ct_n="$2" _hi_ct_i
+  shift 2
+  for _hi_ct in "${_HI_OVERLAY_FILES[@]}" $_HI_OVERLAY_RENAMES "$@"; do
     _hi_ct="${_hi_ct%%:*}"
-    case "$1" in "$_hi_ct" | "${_hi_ct%/}"/*) return 0 ;; esac
-    case "$_hi_ct" in "${1%/}"/*) return 0 ;; esac
+    case "$_hi_ct_m" in "$_hi_ct" | "${_hi_ct%/}"/*) return 0 ;; esac
+    case "$_hi_ct" in "${_hi_ct_m%/}"/*) return 0 ;; esac
   done
-  for _hi_ct in ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
-    if [ "$_hi_ct" = "$1" ]; then
-      [ "${3:-}" = plugins ] && [ "$_hi_ct_i" -lt "${_HI_PLUGIN_TREE_ROWS:-0}" ] || return 0
-      printf -v "$2" '%s' "$_hi_ct_i"
-      return 1
-    fi
-    case "$1" in "${_hi_ct%/}"/*) return 0 ;; esac
-    case "$_hi_ct" in "${1%/}"/*) return 0 ;; esac
-    _hi_ct_i=$((_hi_ct_i + 1))
+  for _hi_ct_i in ${_HI_PLUGIN_FILES[@]+"${!_HI_PLUGIN_FILES[@]}"}; do
+    [ "${_HI_PLUGIN_NAMES[_hi_ct_i]}" != "$_hi_ct_n" ] || continue
+    _hi_ct="${_HI_PLUGIN_FILES[_hi_ct_i]}"
+    case "$_hi_ct_m" in "$_hi_ct" | "${_hi_ct%/}"/*) return 0 ;; esac
+    case "$_hi_ct" in "${_hi_ct_m%/}"/*) return 0 ;; esac
   done
   return 1
 }
@@ -651,20 +755,15 @@ function _hi_overlay_tools() {
   [ "$_hi_tc" != - ] && _hi_out "${2:-}" "$_hi_tc"
 }
 
-# _hi_tool_label <member> <outvar> [row] - the name a report gives its tool,
-# the column's first without its parentheses; 1 and empty with no tool
-function _hi_tool_label() {
-  local _hi_tb=""
-  _hi_overlay_tools "$1" _hi_tb "${3:-}" || true
-  _hi_tb="${_hi_tb#\(}"
-  printf -v "$2" '%s' "${_hi_tb%%[ \)]*}"
-  [ -n "$_hi_tb" ]
-}
-
-# _hi_plugin_name <member> <outvar> [row] - the plugin a member is of: its
-# tool's label, else the member's own name
+# _hi_plugin_name <member> <outvar> [row] - the plugin a member is of, which
+# is the name a report gives what reads it (the row looked up unless handed
+# in); 1 and empty for a member of none
 function _hi_plugin_name() {
-  _hi_tool_label "$@" || printf -v "$2" '%s' "${1%%/*}"
+  local _hi_tb="${3:-}"
+  printf -v "$2" '%s' ''
+  [ -n "$_hi_tb" ] || _hi_overlay_row "$1" _hi_tb || return 1
+  _hi_row_col "$_hi_tb" plugin _hi_tb
+  [ "$_hi_tb" != - ] && printf -v "$2" '%s' "$_hi_tb"
 }
 
 # _hi_toggle_on <NAME> - is that toggle 1 for a target? The environment's
@@ -689,8 +788,9 @@ function _hi_toggle_on() {
 }
 
 # _hi_plugin_off <member> [outvar] - is it switched off, and by what, into
-# <outvar>? By $_HI_PLUGINS_OFF naming its plugin, its group, or the member
-# (words a space or a comma apart), or by a toggle of its row's <off> column;
+# <outvar>? By $_HI_PLUGINS_OFF naming its plugin, its group, or the member -
+# its row's, or its own where it is one file of a directory row - (words a
+# space or a comma apart), or by a toggle of its row's <off> column;
 # a row of hi's own (group -) is never off. Read where the overlay is
 # packed, so what is off neither rides nor is wired, and the target is handed
 # the result. GLOSSARY: HI.64
@@ -719,7 +819,7 @@ function _hi_plugin_off() {
   [ -n "${_HI_PLUGINS_OFF:-}" ] || return 1
   _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
   case " ${_HI_PLUGINS_OFF//,/ } " in
-  *" $_hi_po_n "* | *" $_hi_po_g "* | *" ${_hi_po_r%%|*} "*)
+  *" $_hi_po_n "* | *" $_hi_po_g "* | *" ${_hi_po_r%%|*} "* | *" $1 "*)
     [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
     return 0
     ;;
@@ -730,12 +830,11 @@ function _hi_plugin_off() {
 # _hi_overlay_wiring <outvar> <member...> - the lines that point each tool at
 # its member on a target, in common/paths.sh's four-shell dialect, which
 # sources them there. A row's wire column holds one wire or several, a ;
-# between them: env:<variables> exports each as the member's path and
-# envdir: as its directory; flag:<command> <words> aliases the command to
-# itself, the words, and the path, where the target has the command, and
-# flagdir: the same with the directory. <command> is `<names>=<command>` to
-# answer to other names (a , between them), and words before it that hold a =
-# are its environment. A flag ending in = takes the path in the same word.
+# between them, each read by _hi_wire_read: env:<variables> exports each as
+# the member's path and envdir: as its directory; flag:<command> <words>
+# aliases the command to itself, the words, and the path, where the target
+# has the command, and flagdir: the same with the directory. A flag ending
+# in = takes the path in the same word.
 # xdg:<command> aliases the command to itself with $XDG_CONFIG_HOME set to
 # the overlay, whose <tool>/<file> members are laid out as ~/.config is: the
 # fallback for a file no variable or flag reaches, since everything the
@@ -750,8 +849,8 @@ function _hi_plugin_off() {
 # shell starts. A line is written once, however many members ask
 # for it. Builtins only: every connect runs it. GLOSSARY: HI.62
 function _hi_overlay_wiring() {
-  local _hi_ow_out="$1" _hi_ow_m _hi_ow_r _hi_ow_ws _hi_ow_w _hi_ow_g _hi_ow_p _hi_ow_v _hi_ow_l
-  local _hi_ow_n _hi_ow_c _hi_ow_e _hi_ow_all=$'\n'
+  local _hi_ow_out="$1" _hi_ow_m _hi_ow_r _hi_ow_ws _hi_ow_g _hi_ow_p _hi_ow_v _hi_ow_l _hi_ow_n _hi_ow_all=$'\n'
+  local _hi_wr_kind _hi_wr_vars _hi_wr_names _hi_wr_env _hi_wr_cmd _hi_wr_words
   shift
   for _hi_ow_m; do
     _hi_overlay_row "$_hi_ow_m" _hi_ow_r || continue
@@ -764,59 +863,43 @@ function _hi_overlay_wiring() {
       _hi_ow_g="${_hi_ow_g}[ \"$_hi_ow_v\" != 1 ] && "
     done
     while [ -n "$_hi_ow_ws" ]; do
-      _hi_ow_w="${_hi_ow_ws%%;*}" _hi_ow_ws="${_hi_ow_ws#*;}"
-      case "$_hi_ow_w" in
-      env:* | flag:*) _hi_ow_p="\$_HI_CONFIG_DIR/$_hi_ow_m" ;;
-      envdir:* | flagdir:*)
+      _hi_wire_read "${_hi_ow_ws%%;*}" || _hi_wr_kind=""
+      _hi_ow_ws="${_hi_ow_ws#*;}"
+      case "$_hi_wr_kind" in
+      env | flag) _hi_ow_p="\$_HI_CONFIG_DIR/$_hi_ow_m" ;;
+      envdir | flagdir)
         _hi_ow_p="\$_HI_CONFIG_DIR"
         case "$_hi_ow_m" in */*) _hi_ow_p="$_hi_ow_p/${_hi_ow_m%%/*}" ;; esac
         ;;
-      xdg:*)
-        # flag:'s alias with the variable for its environment, and no path
-        _hi_ow_n="${_hi_ow_w#xdg:}" _hi_ow_p=""
-        case "$_hi_ow_n" in *=*) ;; *) _hi_ow_n="$_hi_ow_n=$_hi_ow_n" ;; esac
-        _hi_ow_w="flag:${_hi_ow_n%%=*}=XDG_CONFIG_HOME=\$_HI_CONFIG_DIR ${_hi_ow_n#*=}"
-        ;;
+      xdg) _hi_ow_p="" ;;
       *) continue ;;
       esac
       _hi_ow_l="$_hi_ow_g"
-      case "$_hi_ow_w" in
-      flag*)
-        # <names>=, then the environment, the command, and its words
-        _hi_ow_w="${_hi_ow_w#*:} "
-        _hi_ow_n="" _hi_ow_e="" _hi_ow_c=""
-        case "${_hi_ow_w%% *}" in *=*) _hi_ow_n="${_hi_ow_w%%=*}" _hi_ow_w="${_hi_ow_w#*=}" ;; esac
-        while [ -z "$_hi_ow_c" ]; do
-          case "${_hi_ow_w%% *}" in
-          [!-]*=*) _hi_ow_e="$_hi_ow_e${_hi_ow_w%% *} " ;;
-          *) _hi_ow_c="${_hi_ow_w%% *}" ;;
-          esac
-          _hi_ow_w="${_hi_ow_w#* }"
-        done
-        case "$_hi_ow_w" in *'= ') _hi_ow_w="${_hi_ow_w% }" ;; esac
-        # the path bare, as an alias of hi's always had it: load.sh reads a
-        # body back for $EDITOR, and a quote inside one does not survive that
-        _hi_ow_v="${_hi_ow_e:+env $_hi_ow_e}$_hi_ow_c $_hi_ow_w$_hi_ow_p"
-        # no trailing blank, which would have the shell expand the next word
-        # as an alias too
-        _hi_ow_v="${_hi_ow_v% }"
-        _hi_ow_l="${_hi_ow_l}command -v $_hi_ow_c >/dev/null 2>&1"
-        _hi_ow_n="${_hi_ow_n:-$_hi_ow_c},"
-        while [ -n "$_hi_ow_n" ]; do
-          _hi_ow_l="$_hi_ow_l && alias ${_hi_ow_n%%,*}=\"$_hi_ow_v\""
-          _hi_ow_n="${_hi_ow_n#*,}"
-        done
-        _hi_ow_l="$_hi_ow_l || true"
-        ;;
-      *)
+      case "$_hi_wr_kind" in
+      env | envdir)
         _hi_ow_l="${_hi_ow_l}export"
         # shellcheck disable=SC2086 # the split is the column
-        for _hi_ow_v in ${_hi_ow_w#*:}; do
+        for _hi_ow_v in $_hi_wr_vars; do
           _hi_ow_l="$_hi_ow_l $_hi_ow_v=\"$_hi_ow_p\""
         done
         # a line behind a toggle ends true, or a sourcer under set -e would
         # stop at the file whose last line a toggle turned down
         [ -z "$_hi_ow_g" ] || _hi_ow_l="$_hi_ow_l || true"
+        ;;
+      *)
+        # the path bare, as an alias of hi's always had it: load.sh reads a
+        # body back for $EDITOR, and a quote inside one does not survive
+        # that. No trailing blank either, which would have the shell expand
+        # the next word as an alias too.
+        _hi_ow_v="${_hi_wr_env:+env $_hi_wr_env}$_hi_wr_cmd${_hi_wr_words:+ $_hi_wr_words}"
+        case "$_hi_wr_words" in *=) _hi_ow_v="$_hi_ow_v$_hi_ow_p" ;; *) _hi_ow_v="$_hi_ow_v${_hi_ow_p:+ $_hi_ow_p}" ;; esac
+        _hi_ow_l="${_hi_ow_l}command -v $_hi_wr_cmd >/dev/null 2>&1"
+        _hi_ow_n="$_hi_wr_names,"
+        while [ -n "$_hi_ow_n" ]; do
+          _hi_ow_l="$_hi_ow_l && alias ${_hi_ow_n%%,*}=\"$_hi_ow_v\""
+          _hi_ow_n="${_hi_ow_n#*,}"
+        done
+        _hi_ow_l="$_hi_ow_l || true"
         ;;
       esac
       case "$_hi_ow_all" in *$'\n'"$_hi_ow_l"$'\n'*) ;; *) _hi_ow_all="$_hi_ow_all$_hi_ow_l"$'\n' ;; esac
@@ -827,13 +910,12 @@ function _hi_overlay_wiring() {
 
 # _hi_tool_here <member> [row] - is the tool that reads <member> on this
 # machine? The table's binaries, which are the names common/aliases.sh gates
-# each alias on; a member of no tool's, or of one nothing looks for, is a yes.
+# each alias on; a member of no tool's is a yes.
 # The client is asked because only it can be, before a connect
 # (docs/INTEGRATIONS.md's _Which side is asked_).
 function _hi_tool_here() {
   local _hi_tl_t _hi_tl_b
   _hi_overlay_tools "$1" _hi_tl_t "${2:-}" || return 0
-  case "$_hi_tl_t" in '('*) return 0 ;; esac
   # shellcheck disable=SC2086 # the split is the column
   for _hi_tl_b in $_hi_tl_t; do
     ! command -v "$_hi_tl_b" >/dev/null 2>&1 || return 0
@@ -1106,6 +1188,10 @@ function _hi_overlay_files() {
 # What the comment-stripper is pointed at in the tree; an overlay member is
 # stripped by its dialect's <strip>. GLOSSARY: HI.35
 _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags '*/config/*')
+# What of $_HI_PAYLOAD never rides: the plugins rows, which this file alone
+# reads (GLOSSARY: HI.63). Part of the payload cache's key, so a cache built
+# with them in it is not served.
+_HI_PAYLOAD_CUT=(say-hi/config/plugins)
 
 # _hi_stage_carry - the overlay stager's carry, over its staged file $f
 # (member $_hi_st_m, dialect row $_hi_st_d): each include the scan finds whose
@@ -1334,13 +1420,14 @@ function _hi_overlay_cached() {
 # The tree twin, against the ~70-130ms _hi_payload_tar otherwise costs on
 # every connect. _hi_payload_tar takes no arguments - the roster is its own -
 # but is handed one anyway: that list is what _hi_cached watches for staleness.
-# Keyed on the tree's own path and the caller's $payload_excl: two trees on
+# Keyed on the tree's own path, $_HI_PAYLOAD_CUT, and the caller's
+# $payload_excl: two trees on
 # one machine share the runtime dir, and staleness is only "no file newer
 # than the cache", so a tree keyed by name alone was served the other tree's
 # payload; and a tree cut for one overlay is never served beside another.
 function _hi_payload_cached() {
   local _hi_pc_key
-  _hi_hash "$_HI_HOME|${payload_excl[*]-}" _hi_pc_key
+  _hi_hash "$_HI_HOME|${_HI_PAYLOAD_CUT[*]} ${payload_excl[*]-}" _hi_pc_key
   _hi_pc_key="tree.$_hi_pc_key"
   _hi_cached "$1" payload "$_hi_pc_key" \
     "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
@@ -1442,9 +1529,9 @@ function _hi_payload_excl() {
 # The tree, comment-stripped through a staging copy; both size budgets
 # measure this. GLOSSARY: HI.39 + HI.35. Whole unless the caller holds a
 # $payload_excl - a connect that ships the overlay too; _hi_wire_bytes has
-# none, and measures the stock tree.
+# none, and measures the stock tree, less $_HI_PAYLOAD_CUT.
 function _hi_payload_tar() {
-  local -a stage_in stage_out=(say-hi) stage_excl=(${payload_excl[@]+"${payload_excl[@]}"})
+  local -a stage_in stage_out=(say-hi) stage_excl=("${_HI_PAYLOAD_CUT[@]}" ${payload_excl[@]+"${payload_excl[@]}"})
   stage_in=("${_HI_PAYLOAD[@]/#/say-hi/}")
   _hi_stage_tar "$_HI_HOME" say-hi
 }
