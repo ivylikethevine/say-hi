@@ -93,14 +93,16 @@ function clean_all() {
 
 function _hi_clean_tree() {
   [ -n "${_HI_CLEANUP:-}" ] || return 0
-  # a session kept from inside another shares that one's tree, and the last
-  # of the two to go removes it: hi.kept is the kept one's claim, which it
-  # gives up here, and $_HI_KEEP_OUTER the shell it was kept from
-  if [ -n "${_HI_KEEP_OUTER:-}" ]; then
+  # hi.kept is an owner pane's claim on the tree (_hi_keep_claim). A session
+  # kept from inside another shares that one's tree, and the last of the two
+  # to go removes it: the first leaves a claimed tree be, and the pane gives
+  # its claim up and leaves the tree while $_HI_KEEP_OUTER, the shell it was
+  # kept from, still runs
+  if [ -z "${_HI_KEEP_MUX:-}" ]; then
+    [ ! -e "$_HI_ROOT/hi.kept" ] || return 0
+  elif [ -n "${_HI_KEEP_OUTER:-}" ]; then
     rm -f "$_HI_ROOT/hi.kept"
     ! kill -0 "$_HI_KEEP_OUTER" 2>/dev/null || return 0
-  elif [ -e "$_HI_ROOT/hi.kept" ]; then
-    return 0
   fi
   # $_HI_CLEANUP is $_HI_ROOT's parent - the whole disposable tree
   rm -rf "$_HI_CLEANUP"
@@ -416,6 +418,13 @@ function _hi_keep_file() {
   printf '_HI_KEEP_OUTER=%s\n' "$$"
 }
 
+# An owner pane's claim on its tree: its pid, then that of the shell it was
+# kept from. A later connect reads it (hi.sh's _hi_keep_sweep) and removes
+# the tree of a pane that died with no exit hook. GLOSSARY: HI.65
+function _hi_keep_claim() {
+  [ -z "${_HI_KEEP_MUX:-}" ] || printf '%s %s\n' "$$" "${_HI_KEEP_OUTER:-}" >"$_HI_ROOT/hi.kept"
+}
+
 # A kept session (GLOSSARY: HI.65) runs load() in the owner pane of a tmux,
 # zellij, or screen session hi.sh started: $_HI_KEEP_MUX names the multiplexer
 # and $_HI_KEEP_NAME the session. The three functions below are that pane's.
@@ -550,6 +559,7 @@ function load() {
 
   # an ordinary ssh session can be kept from inside; an owner pane already is
   [ -z "${_HI_KEEP_AS:-}" ] || [ -n "${_HI_KEEP_MUX:-}" ] || _hi_keep_file >"$_HI_ROOT/hi.keep"
+  _hi_keep_claim
 
   # connect (the client's leg) plus copy (this one), each measured wholly on
   # one machine, since clock skew makes a client/target subtraction

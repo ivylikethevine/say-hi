@@ -280,6 +280,8 @@ Typed with no target inside a session you already have, `hi --keep` keeps
 that one: a fresh shell in a multiplexer there, under the same name, sharing
 the session's directory. Detaching lands you back in the shell you typed it
 in, and whichever of the two ends last removes the directory.
+A kept session that dies with its target - a reboot that keeps `/tmp` - leaves
+its directory behind; your next `hi <target>` removes it.
 `_HI_KEEP=1` makes it the default. The two flags combine: under
 `hi --mux --keep` both ends hold a session, and the inner multiplexer's prefix
 key has to be sent through the outer one.

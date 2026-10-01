@@ -248,6 +248,10 @@ The target needs bash and one of the three multiplexers, and you a terminal;
 otherwise hi says so and connects as usual.
 Panes opened in the session start hi's session shell as well, and close
 with the first.
+The directory of a kept session that died with its target is removed by the
+next
+.B hi
+to it.
 Typed with no target inside a session,
 .B hi \-\-keep
 keeps that session: a fresh shell in a multiplexer there, under the same

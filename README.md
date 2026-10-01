@@ -383,10 +383,10 @@ checkout: an account or an upstream review that lands when it lands.
        ([HI.65](docs/GLOSSARY.md#hi65-kept-session)), and the `ssh_keep` e2e
        suite drives it over a real sshd in each of the three (a dropped
        link, the reattach, `--end`, the timeout), `hi --keep` typed inside
-       a running session keeps that session, and a pane opened in a kept
-       session is hi's session shell. What is left, in order: a tree whose
-       session died with the target removed by the next connect; and, for a
-       connect run inside a local multiplexer, a reconnect loop bounded by a
+       a running session keeps that session, a pane opened in a kept
+       session is hi's session shell, and a tree whose session died with the
+       target is removed by the next connect. What is left: for a connect
+       run inside a local multiplexer, a reconnect loop bounded by a
        `_HI_KEEP_RETRY` window, warning when the kept session is gone.
        **Ticks when:** each of those has landed and the e2e suite is green in
        CI for tmux, screen, and zellij.

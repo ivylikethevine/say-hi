@@ -1604,6 +1604,18 @@ bash-less target connect as usual.
   shell comes with a line naming the key. With nobody attached it closes.
   `hi --end <target>` kills the session over one ssh call, and the pane's
   bash takes the hangup.
+- **A session that died.** A target that goes down kills the owner pane
+  with no exit hook run, and a `/tmp` that outlasts the reboot keeps its
+  tree. So every owner pane's `load()` writes `hi.kept` (`_hi_keep_claim`):
+  its pid, then `$_HI_KEEP_OUTER`'s where it was kept from inside. A connect
+  that looks for a kept session and attaches none runs `_hi_keep_sweep` once
+  it has a tree of its own: each sibling of that tree (`<user>.hi.*`, the
+  same `mktemp` template in the same directory) whose claim names no process
+  still running is removed. Liveness is asked of the pids and not of the
+  multiplexer, which a connect with another socket directory cannot see; a
+  pid some other process of the account's now holds leaves the tree for a
+  later connect. An empty claim - `hi --keep` typed inside, its pane not up
+  yet - and a tree with none are left alone.
 - **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
   polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
   that rode) with no client attached, and it kills the session. `clean_all`

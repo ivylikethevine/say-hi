@@ -128,8 +128,10 @@ command.
   timer in that pane, which ends the session once nobody has been attached
   for `_HI_KEEP_TIMEOUT`. Nothing of hi's runs outside the multiplexer
   session, and the bootstrap's backstop leaves a tree alone while its session
-  is running. What that cannot cover is a target that goes down under a kept
-  session and keeps `/tmp` across the reboot: the tree is left there.
+  is running. A target that goes down under a kept session and keeps `/tmp`
+  across the reboot is left with the tree until the account's next
+  `hi <target>`, which removes every tree of its own whose kept session's
+  processes are gone ([HI.65](GLOSSARY.md#hi65-kept-session)).
 - The session tree is **not** added to `$PATH`; `hi` inside a session is an
   alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
   any host that is scanned for one.

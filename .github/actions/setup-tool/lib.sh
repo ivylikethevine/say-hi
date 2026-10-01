@@ -11,7 +11,7 @@ _CI_TOOLS_TXT="${CI_TOOLS_TXT:-$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/
 
 # _ci_tool_rows - every data row, comments and blank lines dropped
 function _ci_tool_rows() {
-  grep -v '^[[:space:]]*\(#\|$\)' "$_CI_TOOLS_TXT"
+  grep -Ev '^[[:space:]]*(#|$)' "$_CI_TOOLS_TXT"
 }
 
 # _ci_tool_row <tool> - that tool's row, or a message and non-zero

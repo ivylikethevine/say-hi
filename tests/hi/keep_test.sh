@@ -176,13 +176,46 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
     _hi_because "a plain connect's trap does not stand down for a session kept from inside" || return 1
   [[ "$out" == *"export _HI_KEEP_AS='box'"* ]] || _hi_because "the session is not told its target's name" || return 1
+  _hi_before "$out" 'mkdir "$_HI_ROOT"' '/say-hi/hi.kept; do' || _hi_because "no sweep once it has a tree" || return 1
   [[ "$out" != *'new-session'* ]] || _hi_because "a plain connect starts a session"
+}
+
+# the next connect removes the tree of an owner pane that died with no exit
+# hook: one whose claim names no process still running, the pane's or that
+# of the shell it was kept from. A claim not written yet, a tree with none,
+# and another account's are left.
+function test_keep_sweep_removes_the_tree_of_a_dead_owner_pane() {
+  local d="$_HI_WORKDIR/sweep" dead n out
+  sleep 0 &
+  wait "$!"
+  dead=$!
+  for n in u.hi.dead u.hi.both u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other; do
+    mkdir -p "$d/$n/say-hi"
+  done
+  printf '%s \n' "$dead" >"$d/u.hi.dead/say-hi/hi.kept"
+  printf '%s %s\n' "$dead" "$dead" >"$d/u.hi.both/say-hi/hi.kept"
+  printf '%s \n' "$$" >"$d/u.hi.live/say-hi/hi.kept"
+  printf '%s %s\n' "$dead" "$$" >"$d/u.hi.outer/say-hi/hi.kept"
+  : >"$d/u.hi.unclaimed/say-hi/hi.kept"
+  printf '%s \n' "$dead" >"$d/v.hi.other/say-hi/hi.kept"
+  out="$(_HI_HOME="$d/u.hi.new" sh -c "$(_hi_keep_sweep)" 2>&1)" || _hi_because "the sweep failed: $out" || return 1
+  [ -z "$out" ] || _hi_because "the sweep said: $out" || return 1
+  for n in u.hi.dead u.hi.both; do
+    [ ! -e "$d/$n" ] || _hi_because "$n is still there" || return 1
+  done
+  for n in u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other; do
+    [ -d "$d/$n/say-hi" ] || _hi_because "$n was taken" || return 1
+  done
+  # ...and with nothing beside it, nothing is said
+  mkdir -p "$d/alone/u.hi.new"
+  out="$(_HI_HOME="$d/alone/u.hi.new" sh -c "$(_hi_keep_sweep)" 2>&1)" || _hi_because "alone, the sweep failed: $out" || return 1
+  [ -z "$out" ] || _hi_because "alone, the sweep said: $out"
 }
 
 function test_keep_leaves_a_command_and_no_keep_alone() {
   local out
   for out in "$(_hi_keep_script_for 1 'ls; exit')" "$(_hi_keep_script_for 0 '')"; do
-    [[ "$out" != *_hi_kept* && "$out" != *attach-session* && "$out" != *_HI_KEEP_AS* &&
+    [[ "$out" != *_hi_kept* && "$out" != *attach-session* && "$out" != *_HI_KEEP_AS* && "$out" != *hi.kept* &&
       "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || return 1
   done
 }
@@ -499,6 +532,7 @@ function run_hi_keep_tests() {
   _hi_h2 "Testing: what a connect carries"
   _hi_check "The reattach rides ahead of the unpack" test_keep_reattach_rides_ahead_of_the_unpack
   _hi_check "A command and --no-keep carry neither block" test_keep_leaves_a_command_and_no_keep_alone
+  _hi_check "The next connect removes a dead owner pane's tree" test_keep_sweep_removes_the_tree_of_a_dead_owner_pane
   _hi_check "A keeping connect guards the trap and starts the pane" test_keep_start_guards_the_trap_and_starts_the_owner_pane
   _hi_check "A hostile target name stays one quoted word" test_keep_scripts_quote_the_target
   _hi_h2 "Testing: the scripts, under sh"

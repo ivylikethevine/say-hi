@@ -863,6 +863,20 @@ function _hi_keep_start() {
 REMOTE
 }
 
+# What a connect that looks for a kept session runs once it has a tree of its
+# own. An owner pane killed with no exit hook - the target went down under
+# it - left its tree, and hi.kept in it holds the pane's pid and that of the
+# shell it was kept from (load.sh's _hi_keep_claim): a tree neither still
+# runs on is removed. GLOSSARY: HI.65
+function _hi_keep_sweep() {
+  # shellcheck disable=SC2016 # the target's to expand
+  printf '%s\n' \
+    '      for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.kept; do' \
+    '        read -r _hi_ko _hi_kp 2>/dev/null <"$_hi_s" && [ -n "$_hi_ko" ] || continue' \
+    '        kill -0 "$_hi_ko" 2>/dev/null || kill -0 "${_hi_kp:-$_hi_ko}" 2>/dev/null || rm -rf "${_hi_s%/say-hi/hi.kept}"' \
+    '      done'
+}
+
 # What `hi --end` runs on the target: 3 when there is no kept session to
 # close. The owner pane's bash takes the hangup and its exit hook removes the
 # tree, as on a dropped connection.
@@ -1012,10 +1026,12 @@ REMOTE
 # survive - bash killed by a signal nothing can trap - and only has to remove
 # the tree, since $_HI_SESSION_RC_DIR nests inside it. A connect that keeps
 # its session leaves a tree whose session is still running to that session's
-# owner pane, and one kept later from inside leaves a marker for the same
+# owner pane, and one kept later from inside leaves a marker for the same;
+# the tree of an owner pane that died goes here, by the next connect
 # (GLOSSARY: HI.65).
 function _hi_remote_middle() {
-  local tmpl _hi_esc _hi_nc kept=""
+  local tmpl _hi_esc _hi_nc kept="" sweep=""
+  ! _hi_keep_probes || sweep="$(_hi_keep_sweep)"
   # shellcheck disable=SC2016 # the target's to expand, when the trap runs
   ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || '
   ! _hi_keep_starts || kept='_hi_kept || '
@@ -1028,6 +1044,7 @@ function _hi_remote_middle() {
       export _HI_CONFIG_DIR=\$_HI_ROOT/config
       export _HI_CLEANUP=\$_HI_HOME
       mkdir "\$_HI_ROOT"
+$sweep
       trap '${kept}rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
       printf '%s %s%s' "$_hi_esc" "$_hi_nc" "$size" >&2

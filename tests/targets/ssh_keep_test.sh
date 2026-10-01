@@ -16,6 +16,9 @@
 #            `hi <target>` is in the kept shell, whose `exit` and `y` close it
 #   pane     a pane opened beside the first is hi's session shell too, and
 #            the first pane's `exit` and `y` close it with the session
+#   dead     detached, every process of the account's is killed at once, as
+#            a target going down kills them: the tree that leaves is gone
+#            once the next `hi <target>` is up
 #
 # Each ends with no session and no tree on the target. A multiplexer redraws,
 # so its transcript is text with cursor moves through it: a case types at the
@@ -252,6 +255,14 @@ function _hi_keep_feed_pane() {
   _hi_keep_feed_exit "$1" y
 }
 
+# a connect that finds nothing kept: the tree count is taken while its own
+# session is up, then `exit`
+function _hi_keep_feed_count() {
+  _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
+  _hi_keep_trees >"$1.trees"
+  printf 'exit\n'
+}
+
 # a later connect: the mark comes back out of the shell it reattached, the
 # tree count is taken while attached, and `exit` with a `y` closes it
 function _hi_keep_feed_back() {
@@ -404,6 +415,31 @@ function _hi_keep_pane() {
     _hi_keep_fail "$label" "exit and y left the session or its tree" "$out"
 }
 
+function _hi_keep_dead() {
+  local label="$1" out="$_HI_WORKDIR/$1.out"
+  _hi_ssh_launch "$_HI_SSH_PORT" --keep
+  _hi_keep_typed "$out" _hi_keep_feed_leave "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_ended "$label" "$out" 240 "exit and n never detached" || return 1
+  _hi_keep_is detached || _hi_keep_fail "$label" "exit and n closed the session" "$out" || return 1
+
+  docker exec "$_HI_KEEPTEST_C" sh -c 'test -s /tmp/*.hi.*/say-hi/hi.kept' ||
+    _hi_keep_fail "$label" "the owner pane left no claim to find it dead by" || return 1
+  # the multiplexer, the pane, its watcher: no exit hook runs, so nothing of
+  # the session's own removes the tree
+  docker exec -u hitest "$_HI_KEEPTEST_C" sh -c 'kill -9 -1' || true
+  _hi_poll_bool 40 0.5 _hi_keep_is "" ||
+    _hi_keep_fail "$label" "the session outlived its processes" || return 1
+  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) trees after the kill, not the one it leaves" || return 1
+
+  _hi_ssh_launch "$_HI_SSH_PORT"
+  _hi_keep_typed "$out.next" _hi_keep_feed_count "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_ended "$label" "$out.next" 240 "the next connect never ended" || return 1
+  [ "$(cat "$out.next.trees" 2>/dev/null)" = 1 ] ||
+    _hi_keep_fail "$label" "$(cat "$out.next.trees" 2>/dev/null) trees under the next connect, not its own alone" "$out.next" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone ||
+    _hi_keep_fail "$label" "the next connect left a tree" "$out.next"
+}
+
 # <scenario>:<what a pass showed>
 _HI_KEEP_CASES=(
   "drop:outlived a dropped link, reattached, closed on y"
@@ -411,6 +447,7 @@ _HI_KEEP_CASES=(
   "timeout:outlived its timeout attached, not detached"
   "inside:kept from inside a session, reattached, closed on y"
   "pane:a second pane opened hi's shell, closed with the session"
+  "dead:killed outright, its tree removed by the next connect"
 )
 
 # _hi_keep_case <mux> <scenario> <what a pass showed> - one container holding

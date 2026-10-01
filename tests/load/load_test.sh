@@ -1022,25 +1022,41 @@ function _hi_shared_tree() {
   printf '%s' "$t"
 }
 
-# a session kept from inside another shares its tree, and the last of the two
-# to go removes it: the marker stops the first one's exit, and the kept one's
-# gives the marker up and waits out a shell that is still there
-function test_clean_all_leaves_a_shared_tree_to_the_last_one_out() {
+# an owner pane claims its tree by pid, its own and that of the shell it was
+# kept from, for the connect that finds it dead; an ordinary session's tree
+# carries no claim
+function test_keep_claim_names_the_pane_and_the_shell_it_was_kept_from() {
   local t
+  t="$(_hi_shared_tree claim)"
+  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX="" _HI_KEEP_OUTER="" _hi_keep_claim)
+  [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "an ordinary session claimed its tree" || return 1
+  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER="" _hi_keep_claim)
+  [ "$(cat "$t/say-hi/hi.kept")" = "$$ " ] || _hi_because "a keeping connect's pane: $(cat "$t/say-hi/hi.kept")" || return 1
+  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER=4242 _hi_keep_claim)
+  [ "$(cat "$t/say-hi/hi.kept")" = "$$ 4242" ] || _hi_because "a pane kept from inside: $(cat "$t/say-hi/hi.kept")"
+}
+
+# a session kept from inside another shares its tree, and the last of the two
+# to go removes it: the claim stops the first one's exit, and the owner pane's
+# gives the claim up and waits out a shell that is still there
+function test_clean_all_leaves_a_shared_tree_to_the_last_one_out() {
+  local t log="$_HI_WORKDIR/shared.log"
   t="$(_hi_shared_tree shared-outer marker)"
-  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" clean_all)
+  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" _HI_KEEP_MUX="" clean_all)
   [ -d "$t/say-hi" ] || _hi_because "the outer session took a tree a kept one holds" || return 1
   t="$(_hi_shared_tree shared-owner marker)"
-  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="$$" clean_all)
+  (PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" \
+  _HI_KEEP_OUTER="$$" _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box clean_all)
   [ -d "$t/say-hi" ] && [ ! -e "$t/say-hi/hi.kept" ] ||
-    _hi_because "the kept session took the tree from under a live shell, or kept its marker" || return 1
-  # ...and with that shell gone, or with no marker, the tree goes
+    _hi_because "the kept session took the tree from under a live shell, or kept its claim" || return 1
+  # ...and with that shell gone, or with no claim, the tree goes
   sleep 0 &
   wait "$!"
-  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="$!" clean_all)
+  (PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" \
+  _HI_KEEP_OUTER="$!" _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box clean_all)
   [ ! -e "$t" ] || _hi_because "the last one out left the tree" || return 1
   t="$(_hi_shared_tree shared-plain)"
-  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" clean_all)
+  (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" _HI_KEEP_MUX="" clean_all)
   [ ! -e "$t" ] || _hi_because "an ordinary session left its tree"
 }
 
@@ -1083,11 +1099,12 @@ function test_keep_panes_leaves_a_launcher_the_multiplexer_opens() {
 }
 
 # the owner pane is its session: its end takes the session's other panes
-# with it, which run on the tree it removes; an ordinary session ends alone
+# with it, which run on the tree it removes, its own claim on it no bar; an
+# ordinary session ends alone
 function test_clean_all_ends_the_session_an_owner_pane_holds() {
   local log="$_HI_WORKDIR/endall.log" t
   : >"$log"
-  t="$(_hi_shared_tree endall-owner)"
+  t="$(_hi_shared_tree endall-owner marker)"
   (PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" \
   _HI_KEEP_OUTER="" _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box clean_all)
   [ ! -e "$t" ] && grep -qx 'kill-session -t =hi-box' "$log" || _hi_because "an owner pane: $(cat "$log")" || return 1
@@ -1223,6 +1240,7 @@ EOF
   _hi_check_capable pty "...and under zellij an n names the key that detaches" test_keep_stays_names_zellij_s_detach_key
   _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
   _hi_check "hi.keep lists what an owner pane needs, a line each" test_keep_file_lists_what_an_owner_pane_needs
+  _hi_check "An owner pane claims its tree by pid" test_keep_claim_names_the_pane_and_the_shell_it_was_kept_from
   _hi_check "A tree two sessions share goes with the last one out" test_clean_all_leaves_a_shared_tree_to_the_last_one_out
   _hi_check "An owner pane leaves a launcher its multiplexer opens panes on" test_keep_panes_leaves_a_launcher_the_multiplexer_opens
   _hi_check "...and its end is the session's, every pane of it" test_clean_all_ends_the_session_an_owner_pane_holds

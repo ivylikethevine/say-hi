@@ -42,7 +42,7 @@ eval|scripts/configure.sh|name|eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
 
 rm -r|common/header.sh|1
 rm -r|common/targets.sh|3
-rm -r|hi.sh|4
+rm -r|hi.sh|5
 rm -r|load.sh|2
 rm -r|scripts/install.sh|4
 rm -r|scripts/pack.sh|2

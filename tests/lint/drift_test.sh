@@ -55,6 +55,7 @@ _HI_PORTABLE_LINT=(
   '\bxargs[[:space:]]+(-[a-zA-Z0-9]+[[:space:]]+)*-[a-zA-Z0-9]*r\b|xargs -r (GNU) - guard the empty input instead'
   '\bhead[[:space:]]+-n[[:space:]]*-[0-9]|head -n -N (GNU) - use sed to drop the tail'
   "\\bsed[[:space:]]+(-[a-zA-DF-Z]+[[:space:]]+)*(-e[[:space:]]+)?'[^']*\\\\\\||sed backslash-bar alternation (GNU) - use sed -E"
+  "\\bgrep[[:space:]]+(-[a-zA-DF-Z]+[[:space:]]+)*(-e[[:space:]]+)?'[^']*\\\\\\||grep backslash-bar alternation (GNU) - use grep -E, or an -e each"
   "\\bprintf[[:space:]]+-v[[:space:]]+[^[:space:]]+[[:space:]]+(''|\"\")([[:space:];)]|\$)|printf -v x '' - bash 3.2 skips it; printf -v x '%s' '' (HI.05)"
   '\b(gensub|strftime|systime|asorti?|patsplit)[[:space:]]*\(|a gawk-only awk function - mawk, busybox, and BSD awk have none'
   "\\bmktemp\\b[^;|]*-t[[:space:]]+[A-Za-z0-9._/-]*[A-WYZa-z0-9._/-]([[:space:])\"']|\$)|mktemp -t with no X template - GNU refuses it"
