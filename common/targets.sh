@@ -22,7 +22,7 @@
 # as a background job - so "never invoked" is true of the file, not of five
 # lines in it.
 
-# ssh_config_flat file|files <path> | ssh_config_flat include <words> - an ssh config
+# ssh_config_flat config|files <path> | ssh_config_flat include <words> - an ssh config
 # with every `Include` followed in place by the files it names (the line is
 # kept, so a `# Tags:` above it still ends there), the way ssh
 # reads it: `~` is $HOME, a relative path is under ~/.ssh, a glob expands in
@@ -68,7 +68,7 @@ ssh_config_flat() {
 ssh_hosts() {
   _hi_ssh_config="${_HI_SSH_CONFIG:-$HOME/.ssh/config}"
   [ -f "$_hi_ssh_config" ] || return 0
-  ssh_config_flat file "$_hi_ssh_config" | awk -v help="$1" 'tolower($1) == "host" {
+  ssh_config_flat config "$_hi_ssh_config" | awk -v help="$1" 'tolower($1) == "host" {
     for (i = 2; i <= NF; i++) {
       if ($i ~ /^#/) break
       if ($i !~ /[*?]/) printf "%s\t%s\n", $i, help
@@ -80,12 +80,8 @@ kind="${1:-all}"
 # `ssh-config`/`ssh-files [file]` and `ssh-include <words>`: ssh_config_flat
 # for the shells, which walk a config for tags and cannot source this file
 case "$kind" in
-ssh-config)
-  ssh_config_flat file "${2:-${_HI_SSH_CONFIG:-$HOME/.ssh/config}}"
-  exit 0
-  ;;
-ssh-files)
-  ssh_config_flat files "${2:-${_HI_SSH_CONFIG:-$HOME/.ssh/config}}"
+ssh-config | ssh-files)
+  ssh_config_flat "${kind#ssh-}" "${2:-${_HI_SSH_CONFIG:-$HOME/.ssh/config}}"
   exit 0
   ;;
 ssh-include)
@@ -157,13 +153,6 @@ fi
 # other); --preset's is configure.sh's table, pinned the same way by
 # targets_test.sh. Answered before the probes, like the flags. The membership
 # test is paths.sh's $_HI_WORD_FLAGS.
-# toml_keys <file> <what> - the keys of a TOML file's rows, bare or quoted, as
-# completions described as <what>; nothing when there is no file
-toml_keys() {
-  [ -f "$1" ] || return 0
-  sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$1" |
-    while IFS= read -r line; do printf '%s\t%s\n' "$line" "$2"; done
-}
 
 # plugin_tables <file> - the `[<group>.<name>]` tables of a plugins file, a
 # `<group>|<name>` line each; nothing when there is no file
@@ -200,8 +189,10 @@ if [ "$kind" = words ]; then
     ssh_hosts 'an ssh host to tag'
     ;;
   --remove-package)
-    # each row's key, its first package and the name remove matches on
-    toml_keys "$pkgs" 'a package check row'
+    # each row's key, bare or quoted: its first package and the name remove matches on
+    [ -f "$pkgs" ] &&
+      sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$pkgs" |
+      while IFS= read -r line; do printf '%s\ta package check row\n' "$line"; done
     ;;
   --set-color | --unset-color)
     # the four [type] sections of a colors file
@@ -276,9 +267,6 @@ if [ "$kind" = words ]; then
 fi
 
 ttl="${_HI_TARGETS_TTL:-5}"
-# the fallback outside the substitution, and `exec` inside it: a `||` in
-# there defeats the run-in-place optimisation and costs a second process
-now="$(exec date +%s 2>/dev/null)" || now=0
 
 # `timeout` is GNU/busybox, absent on stock macOS - optional. `-k 0.2`: the
 # cap is a SIGTERM, which rootless podman defers while its runtime initialises
@@ -311,19 +299,6 @@ cache_body() {
   } <"$1"
 }
 
-# The roster, "<label>:<bin>", in the order the rows are emitted: the
-# docker-compatible family first, each CLI its own lane and its own kind, then
-# nomad and kube. A member that is not on $PATH costs backend_wanted's builtin
-# `command -v` and nothing else, so the default list can name every CLI that
-# takes docker's `ps`/`exec`/`inspect` grammar without charging the hosts that
-# have none of them.
-backends=""
-# shellcheck disable=SC2086 # the split is the roster
-for _hi_cli in $clis; do
-  backends="$backends$_hi_cli:$_hi_cli "
-done
-backends="${backends}nomad:nomad kube:kubectl"
-
 # Private per-run scratch for a fan-out's output, made at most once and only
 # on a path that fans out (a host with no backends never reaches for `mkdir`).
 # `mkdir -m 700` and no `-p`: -p succeeds on a path somebody else got to first,
@@ -336,11 +311,13 @@ scratch_dir() {
   scratch="$_hi_scratch"
 }
 
-# backend_wanted <label> <bin> - does the kind gate pass, and is the CLI here?
-# Both halves are builtins, so the roster is sized before anything forks.
+# backend_wanted <label> - does the kind gate pass, and is its CLI (kube's is
+# kubectl) here? Both halves are builtins, so the roster is sized before
+# anything forks.
 backend_wanted() {
   { [ "$kind" = "$1" ] || [ "$kind" = all ]; } || return 1
-  command -v "$2" >/dev/null 2>&1
+  case "$1" in kube) set -- kubectl ;; esac
+  command -v "$1" >/dev/null 2>&1
 }
 
 # run_lister <label> - that backend's rows on stdout, in turn or backgrounded.
@@ -381,14 +358,11 @@ dedupe_family() {
   _hi_seen=" "
   while read -r _hi_name _hi_kind || [ -n "$_hi_name" ]; do
     [ -n "$_hi_name" ] || continue
-    case "$_hi_kind" in
-    nomad | kube)
-      printf '%s\t%s\n' "$_hi_name" "$_hi_kind"
-      continue
-      ;;
+    case "$_hi_kind:$_hi_seen" in
+    nomad:* | kube:*) ;;
+    *" $_hi_name "*) continue ;;
+    *) _hi_seen="$_hi_seen$_hi_name " ;;
     esac
-    case "$_hi_seen" in *" $_hi_name "*) continue ;; esac
-    _hi_seen="$_hi_seen$_hi_name "
     printf '%s\t%s\n' "$_hi_name" "$_hi_kind"
   done
 }
@@ -400,12 +374,16 @@ emit_targets() {
     ssh_hosts ssh
   fi
 
+  # The roster, in the order the rows are emitted: the docker-compatible
+  # family, each CLI its own lane and kind, then nomad and kube. One that is
+  # not on $PATH costs a builtin `command -v` and nothing else.
   wanted="" n_wanted=0 n_family=0
-  for spec in $backends; do
-    backend_wanted "${spec%%:*}" "${spec#*:}" || continue
-    wanted="${wanted}${wanted:+ }${spec%%:*}"
+  # shellcheck disable=SC2086 # the split is the roster
+  for label in $clis nomad kube; do
+    backend_wanted "$label" || continue
+    wanted="${wanted}${wanted:+ }$label"
     n_wanted=$((n_wanted + 1))
-    case "${spec%%:*}" in nomad | kube) ;; *) n_family=$((n_family + 1)) ;; esac
+    case "$label" in nomad | kube) ;; *) n_family=$((n_family + 1)) ;; esac
   done
   [ "$n_wanted" -gt 0 ] || return 0
 
@@ -528,6 +506,9 @@ if [ "$ttl" -le 0 ]; then
   emit_targets
   exit 0
 fi
+# the fallback outside the substitution, and `exec` inside it: a `||` in
+# there defeats the run-in-place optimisation and costs a second process
+now="$(exec date +%s 2>/dev/null)" || now=0
 
 # $XDG_RUNTIME_DIR is per-user and 0700 where it exists; the fallback makes a
 # private directory of its own, not a predictable name in a shared /tmp.
@@ -549,20 +530,12 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   # prints the owner as a number always, so the uid we already have answers
   # for a host with a passwd entry and for one without alike, and no second
   # `id -un` fork is needed to cover the difference.
-  # Spelled as a flag rather than one `[ ] || [ ] && [ ]` chain, so the
-  # grouping is visible.
-  _hi_cache_ok=1
-  [ -d "$cache_dir" ] || _hi_cache_ok=0
-  if [ -L "$cache_dir" ]; then _hi_cache_ok=0; fi
   # shellcheck disable=SC2012 # `find -maxdepth` is not POSIX and `find -user`
   # takes a user *name*, which is exactly what a host with no passwd entry for
   # the caller cannot supply. SC2012's hazard is parsing file *names* out of
   # ls; this reads a fixed column off one path this script built itself.
   _hi_owner="$(ls -ldn "$cache_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
-  if [ -z "$_hi_owner" ] || [ "$_hi_owner" != "$_hi_uid" ]; then
-    _hi_cache_ok=0
-  fi
-  if [ "$_hi_cache_ok" = 0 ]; then
+  if [ ! -d "$cache_dir" ] || [ -L "$cache_dir" ] || [ -z "$_hi_owner" ] || [ "$_hi_owner" != "$_hi_uid" ]; then
     emit_targets
     exit 0
   fi

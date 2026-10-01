@@ -140,13 +140,9 @@ _hi_git_prompt() {
   local out="(${branch_color}${ref}${NC}"
   [[ -n "$state" ]] && out+="|${state}"
   [[ -n "$upstream" ]] && out+="|${upstream}"
-  local lead=" "
-  [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && lead=""
-  if [[ -n "${1:-}" ]]; then
-    printf -v "$1" "${lead}%b" "$out|${flags})"
-  else
-    printf "${lead}%b" "$out|${flags})"
-  fi
+  [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] || out=" $out"
+  printf -v out '%b' "$out|${flags})"
+  _hi_out "${1:-}" "$out"
 }
 
 # see the top of the file; a caller that sourced this without core.sh (a

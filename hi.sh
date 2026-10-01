@@ -298,10 +298,6 @@ function _hi_probe_is() {
     [ "$(_hi_probe "$@" 2>/dev/null)" = "$want" ]
 }
 
-function _hi_is_container_running() {
-  _hi_probe_is true "$1" container inspect -f '{{.State.Running}}' "$2"
-}
-
 # The predicate every member of the docker-compatible family shares
 # (GLOSSARY: HI.51). The roster wraps it once per member, since a predicate
 # column is one word run with the target as its only argument.
@@ -317,7 +313,7 @@ function _hi_is_family_container() {
 # family are left out on purpose, see _hi_compose_container.
 # GLOSSARY: HI.43, HI.51.
 function _hi_container_target() {
-  if _hi_is_container_running "$1" "$2"; then
+  if _hi_probe_is true "$1" container inspect -f '{{.State.Running}}' "$2"; then
     printf -v "$3" '%s' "$2"
     return 0
   fi
@@ -480,18 +476,14 @@ function _hi_ctl_open() {
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
       _hi_conn_key key
-      ctl_path="$dir/hi.ctl.$key"
-      ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
-      ctl_shared=1
+      ctl_path="$dir/hi.ctl.$key" persist="${_HI_CTL_PERSIST:-60}" ctl_shared=1
     fi
   fi
   if [ "$ctl_shared" != 1 ]; then
     ctl_dir="$(mktemp -d -t hi.cm.XXXXXX 2>/dev/null)" || ctl_dir=""
-    if [ -n "$ctl_dir" ]; then
-      ctl_path="$ctl_dir/s"
-      ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$persist")
-    fi
+    [ -z "$ctl_dir" ] || ctl_path="$ctl_dir/s"
   fi
+  [ -z "$ctl_path" ] || ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$persist")
   ctl_opts+=("$@")
 }
 
@@ -707,14 +699,9 @@ function _hi_version() {
 # and where - the next thing a bug report asks. _hi_version alone rides the
 # wire as _HI_RELEASE.
 function _hi_version_line() {
-  local kind
-  if [ -d "$_HI_ROOT/.git" ]; then
-    kind=checkout
-  elif [ -n "${_HI_RELEASE:-}" ]; then
-    kind=package
-  else
-    kind=tree
-  fi
+  local kind=tree
+  [ -z "${_HI_RELEASE:-}" ] || kind=package
+  [ ! -d "$_HI_ROOT/.git" ] || kind=checkout
   printf '%s (%s at %s)\n' "$(_hi_version)" "$kind" "$_HI_ROOT"
 }
 
@@ -931,10 +918,7 @@ function _hi_keep_here() {
   [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session over ssh, into bash, started without --no-keep"
   [ -t 0 ] || _hi_die "--keep needs a terminal"
   [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ] || _hi_die "--keep: already inside a multiplexer here, and hi does not nest one"
-  for tool in tmux zellij screen ""; do
-    [ -z "$tool" ] || ! command -v "$tool" >/dev/null 2>&1 || break
-  done
-  [ -n "$tool" ] || _hi_die "--keep needs tmux, zellij, or screen on this machine"
+  _hi_mux_tool tool 2>/dev/null || _hi_die "--keep needs tmux, zellij, or screen on this machine"
   # The script's environment, in the shell _hi is about to leave: a child's
   # (GLOSSARY: HI.47) and the file's, so the multiplexer started here
   # inherits what one a connect starts does, and none of this launcher's own.
@@ -1119,8 +1103,11 @@ function _hi_remote_middle() {
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
+  # busybox mktemp takes exactly six X. hi.bashrc names its own tree: a target
+  # with a say-hi of its own exports _HI_HOME from the startup files bash
+  # reads before an --rcfile.
   cat <<REMOTE
-      export _HI_HOME=\$(mktemp -d -t $tmpl) # busybox mktemp needs exactly six X
+      export _HI_HOME=\$(mktemp -d -t $tmpl)
       export _HI_ROOT=\$_HI_HOME/say-hi
       export _HI_CONFIG_DIR=\$_HI_ROOT/config
       export _HI_CLEANUP=\$_HI_HOME
@@ -1132,14 +1119,8 @@ $sweep
       { printf 'export _HI_HOME="%s"\nexport _HI_ROOT="%s"\n' "\$_HI_HOME" "\$_HI_ROOT"
         echo "$bootloader" | $_HI_UNARMOR
       } > "\$_hi_rc_dir/hi.bashrc"
-      # ^ the rc names this session's tree itself rather than trusting the
-      # environment to still hold it: a target that carries a say-hi of its own
-      # exports _HI_HOME for it from the startup files bash reads before an
-      # --rcfile (load.sh's _hi_restore_profile guards the same thing on the
-      # chain it sources itself). The fallback rc below needs no such line - no
-      # profile chain runs on that tier.
 REMOTE
-  # Both lines below are printf'd rather than left in the heredoc above, and
+  # The lines below are printf'd rather than left in the heredoc above, and
   # that is load-bearing on Git Bash: splicing a value of 800-odd lines into
   # the middle of a heredoc line wedges it outright - no output, no error, and
   # `timeout` is what ends the session. Measured on windows-2025: the same
@@ -1151,10 +1132,7 @@ REMOTE
   # values itself, so it comes out the same way.
   printf '      echo "%s" | %s | tar -x -m -z -f - -C "$_HI_HOME"\n' \
     "$tree" "$_HI_UNARMOR"
-  printf '      %s\n' "$overlay_line"
-  cat <<REMOTE
-      export _HI_CONNECT_PREFIX=" $size"
-REMOTE
+  printf '      %s\n      export _HI_CONNECT_PREFIX=" %s"\n' "$overlay_line" "$size"
 }
 
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
@@ -1471,14 +1449,11 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   fi
 
   # Staged to a file so the announced size is the one actually sent, and asked
-  # of the cache first, which already holds that shape. $cached says whether
-  # the file is the cache's (leave it) or ours (delete it).
-  local cached=1
+  # of the cache first, which already holds that shape.
   local -a payload_excl=()
   _hi_read_lines overlay < <(_hi_overlay_files)
   _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
   if ! _hi_payload_cached tarball; then
-    cached=""
     tarball="$tmp.tar.gz"
     _hi_payload_tar >"$tarball" || _hi_container_abort " failed to archive say-hi for [$DOMAIN]" || return 1
   fi
@@ -1486,12 +1461,11 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   prefix=" $size" # the shape the ssh path's prefix reads
   printf '%s' "$prefix" >&2
 
-  if ! "${cp[@]}" sh -c "tar -x -m -z -f - -C '$root'" <"$tarball"; then
-    [ -n "$cached" ] || rm -f "$tarball"
-    _hi_container_abort " failed to copy say-hi into [$DOMAIN]"
-    return 1
-  fi
-  [ -n "$cached" ] || rm -f "$tarball"
+  exit_code=0
+  "${cp[@]}" sh -c "tar -x -m -z -f - -C '$root'" <"$tarball" || exit_code=$?
+  # the cache's file stays, a staged one goes
+  [ "$tarball" != "$tmp.tar.gz" ] || rm -f "$tarball"
+  [ "$exit_code" = 0 ] || _hi_container_abort " failed to copy say-hi into [$DOMAIN]" || return 1
 
   if ((${#overlay[@]})) &&
     ! _hi_overlay_bytes "${overlay[@]}" |
@@ -1599,17 +1573,12 @@ function _hi_parse_command() {
   CMDARG="$*$sep exit"
 }
 
-# --help and --version take nothing after them: `hi --help extra` is a mistake
-# worth naming, the way a stray word after --preview <subject> is
-function _hi_only_word() {
-  [ $# -le 1 ] || _hi_die "$1 takes no arguments (got: ${*:2})"
-}
-
 # _hi_help_or_version "$@" - -h/--help/-V/--version, wherever they are read
 # from: _hi_parse answers them ahead of the target, and the top-level dispatch
-# answers them again when they are hi's only argument. One arm for the pair.
+# answers them again when they are hi's only argument. One arm for the pair,
+# which takes nothing after it: `hi --help extra` is a mistake worth naming.
 function _hi_help_or_version() {
-  _hi_only_word "$@"
+  [ $# -le 1 ] || _hi_die "$1 takes no arguments (got: ${*:2})"
   case $1 in -h | --help) _hi_help ;; *) _hi_version_line ;; esac
   exit 0
 }
@@ -1643,39 +1612,31 @@ function _hi_parse() {
     -h | --help | -V | --version)
       _hi_help_or_version "$@"
       ;;
-    # ssh takes no `--word` option, so each is hi's or an error in hi's
-    # voice; a single-dash one is ssh's
+    # the arm by name, as the next word or after an =
+    --use | --use=*)
+      _hi_flag_word use_word "$@" || case $? in
+      2) shift ;;
+      *) _hi_die "--use needs a backend name (ssh counts as one)" ;;
+      esac
+      BACKEND="$(_hi_use_backend "$use_word" "${BACKEND:-}")" || exit 1
+      own=1
+      ;;
+    --plain) PLAIN=1 own=1 ;;
+    --mux) MUX=1 own=1 ;;
+    # the last of --mux/--no-mux wins, and either beats _HI_MUX=1 - which is
+    # what makes --no-mux useful behind that setting
+    --no-mux) MUX=0 own=1 ;;
+    --keep) KEEP=1 own=1 ;;
+    # the same pair, over _HI_KEEP=1; this one also leaves a session the
+    # target is already keeping alone, for an ordinary one beside it
+    --no-keep) KEEP=0 own=1 ;;
+    --end) END=1 own=1 ;;
+    # ssh's own option terminator, passed along as-is
+    --) SSHARGS+=("$1") ;;
+    # ssh takes no other `--word` option, so each is an error in hi's voice;
+    # a single-dash one is ssh's
     -*)
-      if [ "${1%%=*}" = --use ]; then
-        # the arm by name, as the next word or after an =
-        _hi_flag_word use_word "$@" || case $? in
-        2) shift ;;
-        *)
-          _hi_die "--use needs a backend name (ssh counts as one)"
-          ;;
-        esac
-        BACKEND="$(_hi_use_backend "$use_word" "${BACKEND:-}")" || exit 1
-        own=1
-      elif [ "$1" = --plain ]; then
-        PLAIN=1 own=1
-      elif [ "$1" = --mux ]; then
-        MUX=1 own=1
-      elif [ "$1" = --no-mux ]; then
-        # the last of --mux/--no-mux wins, and either beats _HI_MUX=1 - which
-        # is what makes --no-mux useful behind that setting
-        MUX=0 own=1
-      elif [ "$1" = --keep ]; then
-        KEEP=1 own=1
-      elif [ "$1" = --no-keep ]; then
-        # the same pair, over _HI_KEEP=1; this one also leaves a session the
-        # target is already keeping alone, for an ordinary one beside it
-        KEEP=0 own=1
-      elif [ "$1" = --end ]; then
-        END=1 own=1
-      elif [ "$1" = -- ]; then
-        # ssh's own option terminator, passed along as-is
-        SSHARGS+=("$1")
-      elif _hi_is_ssh_value_opt "$1"; then
+      if _hi_is_ssh_value_opt "$1"; then
         # its value is never read as the target
         [ "$#" -ge 2 ] || _hi_die "$1 needs a value"
         SSHARGS+=("$1" "$2")
@@ -1928,7 +1889,7 @@ function _hi() {
   # builders ask six times between them. GLOSSARY: HI.05
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
-  [ -z "${DOMAIN:-}" ] || { _hi_target_color >/dev/null && _hi_prompt_list >/dev/null; }
+  _hi_target_color >/dev/null && _hi_prompt_list >/dev/null
   if [ "${END:-0}" = 1 ]; then
     # a kept session is the ssh arm's alone, and closing one runs no command
     [ -z "${RAWCMD:-}" ] || _hi_die "--end takes a target and nothing after it"
@@ -1999,16 +1960,16 @@ unset _hi_row
 # the table names one; returns 1 otherwise. ${!var} is bash 2, not a bash-4 form.
 function _hi_dispatch_subcommand() {
   local row flag var arg
-  # Every row is a `--word`, so a target name can never match one. Answered
-  # before the walk because this runs on every invocation and each row costs a
-  # here-string, which is a temp file on the bash 3.2 floor.
+  # Every row is a `--word`, so a target name can never match one: answered
+  # before the walk, which runs on every invocation. Only the row that matches
+  # costs a here-string, a temp file on the bash 3.2 floor.
   case "${1:-}" in --*) ;; *) return 1 ;; esac
   # `--update=v1.0.0` is `--update v1.0.0`, for every row alike
-  local word="${1%%=*}" joined="" shape w positional
+  local word="${1%%=*}" joined="" shape w
   [ "$word" = "$1" ] || joined="${1#*=}"
   for row in "${_HI_FLAGS[@]}"; do
+    [ "${row%%|*}" = "$word" ] || continue
     IFS='|' read -r flag shape _ var arg _ <<<"$row"
-    [ "$flag" = "$word" ] || continue
     [ -n "$var" ] || return 1
     # The joined word stands for the row's *first* argument, and only when
     # that is a positional (--preview=colors, --update=v1.0.0). A row whose
@@ -2016,12 +1977,8 @@ function _hi_dispatch_subcommand() {
     # refused here rather than reaching the script as a stray first argument,
     # and --doctor=json is an error rather than a host named json to probe.
     if [ -n "$joined" ]; then
-      positional=""
-      for w in ${shape//[][]/}; do
-        case "$w" in --*) ;; *) positional=1 ;; esac
-        break
-      done
-      [ -n "$positional" ] || _hi_die "$word takes no joined value (hi $word${shape:+ $shape})"
+      w="${shape//[][]/}"
+      case "${w%% *}" in '' | --*) _hi_die "$word takes no joined value (hi $word${shape:+ $shape})" ;; esac
     fi
     shift
     _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} ${joined:+"$joined"} "$@"

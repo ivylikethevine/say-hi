@@ -291,7 +291,7 @@ function _hi_toml_plugins() {
       if (n < 3 || n > 4) { pend = pend "# " line "\n"; next }
       tool = trim(c[1]); wire = trim(c[2]); home = trim(c[3]); dia = (n == 4) ? trim(c[4]) : "-"
       if (dia == "") dia = "-"
-      if (tool == "-") { name = k; sub(/\/.*/, "", name); tool = "-" }
+      if (tool == "-") { name = k; sub(/\/.*/, "", name) }
       else if (tool ~ /^\(.*\)$/) { name = substr(tool, 2, length(tool) - 2); tool = "-" }
       else { name = tool; sub(/ .*/, "", name) }
       name = bare(name)
