@@ -1111,10 +1111,28 @@ function test_config_dir_explicit_value_wins() {
 function test_extension_files_never_glob_the_root() {
   (
     _HI_EXTENSIONS=""
-    _hi_pl=(x)
-    _hi_extension_files
-    [ "${#_hi_pl[@]}" -eq 0 ]
+    _hi_members=(x) _hi_strays=(y)
+    _hi_dir_members "$_HI_EXTENSIONS"
+    [ "${#_hi_members[@]}" -eq 0 ] && [ "${#_hi_strays[@]}" -eq 0 ]
   )
+}
+
+# one listing for every directory of code (GLOSSARY: HI.58): the plain files
+# in name order are its members, and what else is there is named apart, for
+# hi --doctor - a backup, a directory, a name with a space
+function test_dir_members_lists_members_and_strays() {
+  local dir="$_HI_WORKDIR/dir-members"
+  local -a _hi_members=() _hi_strays=()
+  mkdir -p "$dir/sub"
+  : >"$dir/20-b"
+  : >"$dir/10-a.sh"
+  : >"$dir/30-c.bak"
+  : >"$dir/a b"
+  _hi_dir_members "$dir"
+  [ "${_hi_members[*]}" = "$dir/10-a.sh $dir/20-b" ] || _hi_because "members: ${_hi_members[*]}" || return 1
+  [ "${#_hi_strays[@]}" = 3 ] || _hi_because "strays: ${_hi_strays[*]}" || return 1
+  _hi_dir_members "$dir/none"
+  [ "${#_hi_members[@]}" -eq 0 ] && [ "${#_hi_strays[@]}" -eq 0 ]
 }
 
 # common/zsh.zsh sources core.sh directly, so its functions run in zsh too - and
@@ -1734,6 +1752,7 @@ function run_core_tests() {
   _hi_check_eq "Uses say-hi when it exists" say-hi _hi_cfg_answer new
   _hi_check "An explicit \$_HI_CONFIG_DIR wins" test_config_dir_explicit_value_wins
   _hi_check "An empty extensions/ globs nothing, never /" test_extension_files_never_glob_the_root
+  _hi_check "A directory of code lists its members, and its strays apart" test_dir_members_lists_members_and_strays
 
   _hi_h2 "Testing: the same answers in zsh"
   _hi_check_requires zsh "_hi_hash_color agrees with bash" test_zsh_hash_color_agrees_with_bash

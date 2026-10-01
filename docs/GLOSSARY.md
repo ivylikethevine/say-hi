@@ -1275,6 +1275,11 @@ the same function, so a file hi would not send is one hi would not read either.
 The archive carries no directory entry; every tar hi unpacks with creates the
 parent, busybox's included.
 
+The two directories of code, `extensions/` and `header/`, are listed by one
+function, `core.sh`'s `_hi_dir_members`: the members in name order, and every
+other entry apart, for `hi --doctor` to name. Each loader parses a member
+before it sources it, and skips one that does not parse with a line on stderr.
+
 ## HI.59 extensions
 
 `extensions/` is a directory of [HI.58](#hi58-overlay-directory-members) with no
@@ -1295,9 +1300,10 @@ parse is skipped with a yellow
 `hi: extension <name> does not parse in <shell>; skipped` on stderr rather than
 half-run, which is also what a fish-only or sh-only construct costs in the other
 shell. The parse is a fork per extension per shell start, and nothing without
-one. The zsh glob sits in its own function (`_hi_extension_files`) so
+one. The glob sits in its own function (`_hi_dir_members`, the listing
+[HI.58](#hi58-overlay-directory-members)'s `header/` shares) so zsh's
 `null_glob` can be local there: `local_options` in the loader would also undo
-every `setopt` an extension makes. That function tests `-d "$_HI_EXTENSIONS"`
+every `setopt` an extension makes. That function tests `-d` on the directory
 before it globs: unset, the pattern is `/*` and the loader would source what
 parses at the root of the disk ([HI.60](#hi60-a-shell-that-outlives-the-tree) is
 how it comes to be unset). fish's copy needs no such test - an empty variable
@@ -1312,7 +1318,8 @@ extensions compose without `${var:+...}`, which fish lacks. The set:
 | `_HI_SEGMENT` | a command and its words, split at spaces and run as they stand (no shell syntax, no glob, no `eval`) on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
 
 `hi --doctor` lists the extensions in load order and warns for each a shell on
-this machine cannot parse, and for a directory entry that is not a member.
+this machine cannot parse, and for a directory entry that is not a member
+(`doctor_code_dir`, which reads `header/` the same way, by bash alone).
 
 ## HI.60 a shell that outlives the tree
 
@@ -1346,8 +1353,8 @@ So `common/bash.sh` and `common/zsh.zsh` `unset _hi_core_loaded` before they
 source core.sh. `load.sh` already did, for the same reason on the far side (a
 target whose own `~/.bashrc` wires a say-hi of its own loads that tree's
 core.sh first), and `common/config.fish` never had a guard to clear.
-`_hi_extension_files` tests `-d "$_HI_EXTENSIONS"` before it globs, so no later
-name arriving empty can reach the root of the disk again.
+`_hi_dir_members` tests `-d` on the directory it is handed before it globs, so
+no later name arriving empty can reach the root of the disk again.
 
 ## HI.61 one overlay priority
 
@@ -1358,13 +1365,13 @@ at home, else the tree's default where `config/` holds one. A row names the
 member, the `common/paths.sh` variable that carries one of hi's own files to
 the shells (`-` for a tool's member), whether `config/` holds a default
 (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that reads it
-(the binaries `_hi_tool_here` looks for, the first of them its name in
-`hi --doctor`; in parentheses, a name nothing looks for), its wire and the
+(the binaries `_hi_tool_here` looks for, `-` where nothing is looked for), its
+group and its plugin, which is its name in `hi --doctor`, its wire and the
 toggles that keep one of hi's own files home, and the home tier: candidate
 paths best first, a `@function` where no list can say it (oh-my-posh's
 rc-named config, the theme a framework's rc variable names, ssh's tag map),
-or `-` for none. `hi.sh` holds hi's own rows alone: its files, and the
-prompt configs a `@function` finds; every tool's row is the file's.
+or `-` for none. The table holds hi's own files alone, which the list never
+switches; every row it does switch is a plugins file's.
 `_hi_overlay_src` - the stager, the cache, the include scan - and
 `hi --doctor` read the table, and a tool's member is resolved nowhere else:
 `_hi_overlay_home` walks its row's candidates as the overlay is packed.
@@ -1455,19 +1462,26 @@ file's status is its last line's, and `core.sh` sources `paths.sh` under
 
 ## HI.63 plugins rows
 
-The tools' rows are a file, the tree's `config/plugins`, and the user's rows
-another of the same shape, the overlay's `plugins`: TOML in the subset
-`core.sh`'s `_hi_toml_row` reads, `[group]` tables of
-`"<member>" = "<tool> | <wire> | <home> | <dialect>"` rows, the last column `-`
-when left out, spaces around a column ignored, `#` lines and blank ones skipped.
-`scripts/pack.sh`'s `_hi_plugins_load` reads both into `$_HI_PLUGIN_ROWS` in
-the table's own shape ([HI.61](#hi61-one-overlay-priority)), the group the table's name, so
-the order, the tool check, the include scan, the cache, the wiring
-([HI.62](#hi62-generated-wiring)), and `hi --doctor` take a row of the user's as
-they take one of hi's. The overlay's file is read after the tree's, and a row of
-a member the tree's has, a directory entry included, replaces the tree's row.
-Both are read once per tree and `$_HI_CONFIG_DIR`, the first time a row is asked
-for.
+The tools' rows are written as plugins, in a file: the tree's
+`config/plugins`, and the user's in another of the same shape, the overlay's
+`plugins`. Each is TOML in the subset `core.sh`'s `_hi_toml_row` reads, a
+`key = "value"` to a line, `#` lines and blank ones skipped. A
+`[<group>.<name>]` table is a plugin: `files` is its members, a space apart,
+`tool` the commands that read them (left out, the name; `-` for none), and
+`wire`, `home`, and `dialect` what each file has unless a
+`[<group>.<name>."<member>"]` table under the plugin gives that file its own.
+`scripts/pack.sh`'s `_hi_plugins_load` reads both files into
+`$_HI_PLUGIN_ROWS`, a row a file in the table's own shape
+([HI.61](#hi61-one-overlay-priority)), so the order, the tool check, the
+include scan, the cache, the wiring ([HI.62](#hi62-generated-wiring)), and
+`hi --doctor` take a row of the user's as they take one of hi's. The overlay's
+file is read after the tree's, and a plugin of a name the tree's has replaces
+the tree's whole, where it stood. Both are read once per tree and
+`$_HI_CONFIG_DIR`, the first time a row is asked for.
+
+The tool is the record because the tool is what is switched, wired, and named
+in a report: a key written once serves every file of it, and a new key is a
+line a 1.x can add, where a column was a break.
 
 A home column, the table's or a file's, is data and is never evaluated.
 `_hi_path_list` reads it as candidates a `:` apart, best first, each a path
@@ -1477,32 +1491,45 @@ a `,` apart, of which the first not dropped is the one: `$NAME/rc , ~/.rc`
 is `${NAME:-$HOME}`'s place, where a tool looks once its variable is unset.
 Nothing else expands: no `${NAME:-default}`, no command substitution, no
 glob. A grammar can grow in a 1.x where an `eval` could never be narrowed.
+A home of `@<function>` is a lookup of the packer's own; the tree's file may
+name one and the overlay's may not.
 
-A row the table cannot hold is left out and kept, with its file, its line and
-the reason, in `$_HI_PLUGIN_BAD` for `hi --doctor`: a row above the first table
-or under a name that is no group, a line that is no row, a member that is no
-`<name>`, `<dir>/<name>` or `<dir>/` (`_hi_plugin_member_ok`), that is hi's own,
-an earlier row's, or the directory one sits under, or that is `wiring.sh`; a
-tool that is not command names or one `(name)`; a wire that is not `env:` or
-`envdir:` over variable names, `flag:` or `flagdir:` over a command and its
-words, or `xdg:` over one command, wires a `;` apart; a dialect `$_HI_DIALECTS`
-has no row of; a fifth column. The wire is checked because its words become a
-line every target sources.
+What the table cannot hold is left out and kept, with its file, its line and
+the reason, in `$_HI_PLUGIN_BAD` for `hi --doctor`: a key above the first
+table or of no name hi reads, a line that is neither, a table that is no
+`[<group>.<name>]` (the rows this shape replaced among them, which
+`hi --configure` converts), a second plugin of a name in one file, a file's
+table under no plugin or for a file it has not, a plugin of no files; a member
+that is no `<name>`, `<dir>/<name>` or `<dir>/` (`_hi_plugin_member_ok`), that
+is hi's own, another plugin's, or the directory one sits under, or that is
+`wiring.sh` or `plugins`; a tool that is not command names or `-`; a wire that
+is not `env:` or `envdir:` over variable names, `flag:` or `flagdir:` over a
+command and its words, or `xdg:` over one command, wires a `;` apart; a
+dialect `$_HI_DIALECTS` has no row of. A file that is turned down takes
+nothing of its plugin with it. The wire is checked because its words become a
+line every target sources: its names, its environment, its command, and its
+words each hold nothing that runs or expands there beyond a `$NAME`. The check
+and `_hi_overlay_wiring` take a wire apart through one function,
+`_hi_wire_read`, so what is admitted is what is written.
 
-The overlay's `plugins` is itself a member. A hop taken from a target sends
-the session's `config/` as it stands ([HI.66](#hi66-the-packer-stays-home)),
-so the members that rode, their rows, and their wiring arrive again, and
+Neither file rides. The packer is their one reader and stays home
+([HI.66](#hi66-the-packer-stays-home)), so the tree's is cut from every
+payload (`$_HI_PAYLOAD_CUT`) and the overlay's is no member, `plugins` being a
+name no row may take. A hop taken from a target sends the session's `config/`
+as it stands, so the members that rode and their wiring arrive again, and
 nothing of that machine's home does.
 
 ## HI.64 what is switched off
 
-A plugin is a row's tool, or the member where it has none; its group is the
-row's group column, the table a row sits under in a plugins file (`editors`,
-`mux`, `prompt`, `cli`, `shell`, or one the user names). A row with no group is
+A plugin is a `[<group>.<name>]` table of a plugins file
+([HI.63](#hi63-plugins-rows)), its name the row's plugin column and its group
+the row's group column (`editors`, `mux`, `prompt`, `cli`, `shell`, or one the
+user names). A row with no group is
 hi's own file, which the list never switches; only its off column can
 (`packages`, under `_HI_DISABLE_HEADER`). `_hi_plugin_off` answers for a member:
-off when `$_HI_PLUGINS_OFF` names its plugin, its group, or the member itself,
-or when a toggle of its off column is 1.
+off when `$_HI_PLUGINS_OFF` names its plugin, its group, or the member itself
+(its row's, or its own where it is one file of a directory row,
+`extensions/10-kube`), or when a toggle of its off column is 1.
 
 It is asked in `_hi_overlay_src` and `_hi_overlay_files`, the two gates
 every member passes on its way out, so what is off is not packed, has no

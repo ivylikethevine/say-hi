@@ -323,28 +323,31 @@ function doctor_local() {
   doctor_flush
 }
 
-# extensions/ (GLOSSARY: HI.59): one row naming the extensions in the order
-# they load, then a row for each a wired shell on this machine cannot parse -
-# that shell skips it - and each that never travels. Quiet without one.
-function doctor_extensions() {
-  local f n sh bad order=""
-  for f in "$_HI_EXTENSIONS"/*; do
-    [ -e "$f" ] || continue
+# doctor_code_dir <member/> <dir> <shell...> - a directory of code, extensions/
+# (GLOSSARY: HI.59) or header/ (HI.58): a row for each entry that never
+# travels, one for each member a <shell> on this machine cannot parse - that
+# shell skips it - and one naming the members in the order they load. Quiet
+# without one.
+function doctor_code_dir() {
+  local label="$1" dir="$2" f n sh bad order=""
+  local -a _hi_members=() _hi_strays=()
+  shift 2
+  _hi_dir_members "$dir"
+  for f in ${_hi_strays[@]+"${_hi_strays[@]}"}; do
+    doctor_row "$label${f##*/}" "ignored - a backup, a temp file, or not a plain name, so it never loads" warn
+  done
+  for f in ${_hi_members[@]+"${_hi_members[@]}"}; do
     n="${f##*/}"
-    if ! { [ -f "$f" ] && _hi_dir_member_ok "$n"; }; then
-      doctor_row "extensions/$n" "ignored - a backup, a temp file, or not a plain name, so it never loads" warn
-      continue
-    fi
     order="$order, $n"
     bad=""
-    for sh in bash zsh fish; do
+    for sh; do
       command -v "$sh" >/dev/null 2>&1 || continue
       case "$sh" in fish) fish --no-config -n "$f" ;; *) "$sh" -n "$f" ;; esac >/dev/null 2>&1 ||
         bad="${bad:+$bad, }$sh"
     done
-    [ -z "$bad" ] || doctor_row "extensions/$n" "does not parse in $bad - skipped there" warn
+    [ -z "$bad" ] || doctor_row "$label$n" "does not parse in $bad - skipped there" warn
   done
-  [ -z "$order" ] || doctor_row extensions/ "loads in order: ${order#, }"
+  [ -z "$order" ] || doctor_row "$label" "loads in order: ${order#, }"
 }
 
 function doctor_config() {
@@ -373,7 +376,7 @@ function doctor_config() {
     # needs the directory first
     f=""
     case "$t" in
-    carry:*) f="hi --configure converts it, or hi --add-plugin writes its rows there" ;;
+    carry:*) f="hi --configure converts it, or hi --add-plugin writes its plugins there" ;;
     *)
       case "${t#*:}" in */*) f="mkdir -p $_HI_CONFIG_DIR/${t#*:}" f="${f%/*} && " ;; esac
       f="${f}mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}"
@@ -393,7 +396,12 @@ function doctor_config() {
   for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
     [ "$f" = settings.sh ] && continue
     [ "$f" = extensions/ ] && {
-      doctor_extensions
+      doctor_code_dir "$f" "$_HI_EXTENSIONS" bash zsh fish
+      continue
+    }
+    # header.sh is bash's, and with the header off no cell loads
+    [ "$f" = header/ ] && {
+      _hi_plugin_off "$f" || doctor_code_dir "$f" "$_HI_HEADER_CELLS" bash
       continue
     }
     [ "$f" = ssh_tags ] && {
@@ -510,12 +518,12 @@ function doctor_config() {
 }
 
 # _hi_is_plugin_list <value> - is every word of it a plugin, a group, or a
-# member that can be switched: one of a row hi.sh's _hi_plugin_words lists?
+# member that can be switched (lib.sh's _hi_plugin_word_ok)?
 function _hi_is_plugin_list() {
   local w known
   known=" $(_hi_plugin_words | tr '\n' ' ')"
   for w in ${1//,/ }; do
-    case "$known" in *" $w "*) ;; *) return 1 ;; esac
+    _hi_plugin_word_ok "$w" "$known" || return 1
   done
 }
 

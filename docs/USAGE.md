@@ -184,12 +184,12 @@ No image: its output depends on the network and the release tags.
 
 ### `hi --add-plugin`
 
-`hi --add-plugin <group> <member> <tool> <wire> <home> [--dry-run]`: carry a config of a tool hi does not know.
+`hi --add-plugin <group> <name> <file>... [<key>=<value>...] [--dry-run]`: carry the configs of a tool hi does not know.
 
-![hi --add-plugin cli lnav/config.json lnav - ~/.config/lnav/config.json --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-add-plugin.svg)
+![hi --add-plugin cli lnav lnav/config.json home=~/.config/lnav/config.json --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-add-plugin.svg)
 
 ### `hi --remove-plugin`
 
-`hi --remove-plugin <member> [--dry-run]`: stop carrying it.
+`hi --remove-plugin <name> [--dry-run]`: stop carrying them.
 
-![hi --remove-plugin lnav/config.json --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-plugin.svg)
+![hi --remove-plugin lnav --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-plugin.svg)

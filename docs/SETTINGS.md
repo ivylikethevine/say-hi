@@ -122,7 +122,7 @@ step: it rides only from here, never found at home
 | `~/.config/say-hi/zellij/`              | -                 | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                         |
 | `~/.config/say-hi/micro/`               | -                 | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                         |
 | `~/.config/say-hi/aliases.sh`           | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                         |
-| `~/.config/say-hi/plugins`              | -                 | a row for each config of a tool hi does not know, or your own row for one it does; see [below](#a-tool-hi-does-not-know)                                                                                       |
+| `~/.config/say-hi/plugins`              | -                 | a plugin for each tool hi does not know, or your own for one it does; read here and not sent; see [below](#a-tool-hi-does-not-know)                                                                            |
 | `~/.config/say-hi/extensions/`          | -                 | extensions in the same subset, sourced after the aliases in name order; see [below](#extensions)                                                                                                               |
 | `~/.config/say-hi/header/`              | -                 | header cells of your own, a bash file each defining `_hi_cell_<word>` for `_HI_HEADER_ORDER` to name; see [Integrations](INTEGRATIONS.md#header-cells-of-your-own)                                             |
 | `~/.config/say-hi/bashrc`               | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session)) |
@@ -494,8 +494,8 @@ directory was `plugins.d`; one still under that name is not read, and
 
 ### Switching a plugin off
 
-Every config hi carries to a target is a plugin: a file, the tool that
-reads it, and what points the tool at it there. `hi --plugins` lists them,
+A plugin is the configs of one tool that hi carries to a target: its files,
+the tool that reads them, and what points the tool at them there. `hi --plugins` lists them,
 a table a group and a row a member, drawn as `hi --doctor` draws its files:
 where the file is found, and whether it is sent or why not:
 
@@ -509,7 +509,8 @@ where the file is found, and whether it is sent or why not:
 ```
 
 `hi --plugin-off lazygit` keeps it home, and `hi --plugin-on lazygit` lets
-it ride again. A name is a plugin, a member (`bat/config`), or a group, which
+it ride again. A name is a plugin, a member (`bat/config`), one file of a
+member that is a directory (`extensions/10-kube`), or a group, which
 switches all of its kind: `editors`, `mux`, `prompt`, `cli`, `shell`, or
 a table of your own `plugins` file. What is off sends no file, an overlay
 copy included, and sets nothing on a target, so the tool there keeps the
@@ -524,39 +525,51 @@ With `editors` in it a target also keeps its own `$EDITOR`, `$VISUAL`, and
 
 ### A tool hi does not know
 
-Every config hi carries is a row of the tree's `config/plugins`, in as much
-of TOML as hi reads: a `[group]` table, and under it a row a member,
-`"<member>" = "<tool> | <wire> | <home> | <dialect>"`. A config hi has no
-row for rides once `~/.config/say-hi/plugins` has one, written by hand or by
-`hi --add-plugin`, and a row there of a member the tree's file has replaces
-the tree's row:
+Every config hi carries belongs to a plugin of the tree's `config/plugins`,
+in as much of TOML as hi reads: a `[<group>.<name>]` table for each tool, a
+`key = "value"` to a line. A config hi has no plugin for rides once
+`~/.config/say-hi/plugins` has one, written by hand or by `hi --add-plugin`,
+and a plugin there of a name the tree's file has replaces the tree's whole:
 
 ```toml
-[cli]
-taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc"
-"mytool.rc" = "mytool | flag:mytool --rc | ~/.config/mytool/rc | sh"
+[cli.task]
+wire = "env:TASKRC"
+home = "$TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc"
+files = "taskrc"
 
-[mine]
-"notes.txt" = "- | - | ~/notes.txt"
+[cli.mytool]
+wire = "flagdir:mytool --config-dir"
+home = "~/.config/mytool/"
+files = "mytool/rc mytool/keys.lua"
+
+[cli.mytool."mytool/keys.lua"]
+dialect = "lua"
+
+[mine.notes]
+tool = "-"
+home = "~/notes.txt"
+files = "notes.txt"
 ```
 
-- **group** is the table, the word that switches every row under it with
-  `hi --plugin-off`: one of hi's (`editors`, `mux`, `prompt`, `cli`,
-  `shell`) or one of your own.
-- **member** is the name it rides under: a file name hi does not use
-  already, in double quotes where TOML would not read it bare, a tool's own
-  file under its directory (`vim/vimrc`), or a directory whose files ride
-  one by one (`zellij/layouts/`). A file of that name in `~/.config/say-hi/`
-  is carried instead of home's.
-- **tool** is the command that reads it, or several: home's copy rides only
-  with one of them on this machine. `-` asks about nothing, and a name in
-  parentheses (`(readline)`) is one nothing looks for.
-- **wire** is how a target's tool finds it: `env:` and the variables to set
-  to the file's path, `envdir:` and the variable to set to its directory,
+- **group** is the table's first name, the word that switches every plugin
+  under it with `hi --plugin-off`: one of hi's (`editors`, `mux`, `prompt`,
+  `cli`, `shell`) or one of your own.
+- **name** is its second, the plugin: its own word for `hi --plugin-off`, and
+  what a report calls it. Letters, digits, `_`, and `-`.
+- **files** is the members, a space apart, each the name a file rides under:
+  one hi does not use already, a tool's own file under its directory
+  (`vim/vimrc`), or a directory whose files ride one by one
+  (`zellij/layouts/`). A file of that name in `~/.config/say-hi/` is carried
+  instead of home's.
+- **tool** is the command that reads them, or several: home's copy rides only
+  with one of them on this machine. Left out, it is the plugin's name; `-`
+  asks about nothing.
+- **wire** is how a target's tool finds a file: `env:` and the variables to
+  set to the file's path, `envdir:` and the variable to set to its directory,
   `flag:` and the command and flag to alias it with (`flagdir:` for the
   directory; a flag written `--rc=` takes the path in the same word;
   several wires a `;` apart), `xdg:` and the command to alias with
-  `$XDG_CONFIG_HOME` set to the overlay, or `-` when something of yours
+  `$XDG_CONFIG_HOME` set to the overlay, or nothing when something of yours
   points at `$_HI_CONFIG_DIR/<member>`, an [extension](#extensions)'s alias
   say. `xdg:` is the fallback, for a file a tool has no variable and no
   flag for, such as helix's `languages.toml`: it reads the file as
@@ -564,27 +577,36 @@ taskrc = "task | env:TASKRC | $TASKRC : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc
   the command starts inherits the variable, so a `git` under lazygit would
   not read the target's `~/.config/git`
   ([INTEGRATIONS.md](INTEGRATIONS.md#a-tool-with-no-variable-and-no-flag)).
-- **home** is where the file is here, candidates a `:` apart, the first that
+- **home** is where a file is here, candidates a `:` apart, the first that
   exists winning. A candidate starts at `/`, at `~/`, or at a variable's name
   (`$XDG_CONFIG_HOME/...`), and is skipped while that variable is unset; written
   as several a `,` apart (`$TASKRC , ~/.taskrc`), it is the first of them not
   skipped, the way a tool looks in its default place only once its variable is
-  unset. Nothing else in it expands, and nothing in it runs.
-- **dialect**, left out or `-`, has the file ride as written. Named, it is
-  read the way hi reads its own configs: a line that sources a file no
-  target has is disabled on the way out and named by `hi --doctor`, and
-  comments are stripped. The dialects are `sh`, `fish`, `vim`, `lua`,
-  `elisp`, `nano`, `tmux`, `screen`, `readline`, `kak`, `kdl`, `omp`,
-  `omp-json`, and `conf` (`#` comments and nothing to source).
+  unset. One ending in `/` is a directory each file is looked for in, by its
+  name under the tool's own. Nothing else in it expands, and nothing in it
+  runs.
+- **dialect**, left out, has a file ride as written. Named, it is read the
+  way hi reads its own configs: a line that sources a file no target has is
+  disabled on the way out and named by `hi --doctor`, and comments are
+  stripped. The dialects are `sh`, `fish`, `vim`, `lua`, `elisp`, `nano`,
+  `tmux`, `screen`, `readline`, `kak`, `kdl`, `omp`, `omp-json`, and `conf`
+  (`#` comments and nothing to source).
 
-`hi --add-plugin cli taskrc task env:TASKRC '$TASKRC : ~/.taskrc'` writes the
-first row above (a dialect goes after the home), quoted so the shell leaves its
-`$` and `~` alone, and refuses a row hi could not read;
-`hi --remove-plugin taskrc` takes it out. To change one, edit the file.
-`hi --plugins` and `hi --doctor` name each file a row carries, and each row hi
-could not read, with the reason. The variable or alias is set on a target only;
-at home the tool goes on reading its own config. The whole contract is
-[HI.63](GLOSSARY.md#hi63-plugins-rows).
+A file whose wire, home, or dialect is not its plugin's has a table of its own
+under it, `[<group>.<name>."<member>"]`, holding the keys that differ; a wire
+of `-` there gives that file none.
+
+`hi --add-plugin cli task taskrc wire=env:TASKRC 'home=$TASKRC : ~/.taskrc'`
+writes a table like the first above, the files first and any of `tool=`,
+`wire=`, `home=`, and `dialect=` after them, quoted so the shell leaves a `$`
+and a `~` alone, and refuses one hi could not read;
+`hi --remove-plugin task` takes it out, its files' tables with it. A file's
+own table is written by hand. `hi --plugins` and `hi --doctor` name each file
+a plugin carries, and each line hi could not read, with the reason. The
+variable or alias is set on a target only; at home the tool goes on reading
+its own config. `hi --configure` rewrites a file of the rows this replaced,
+`"<member>" = "<tool> | <wire> | <home> | <dialect>"` under a `[group]`
+line. The whole contract is [HI.63](GLOSSARY.md#hi63-plugins-rows).
 
 ## The editor rcs come from where you keep them
 
@@ -678,8 +700,8 @@ directory as one link.
 **Nothing but the overlay files travels.** `$_HI_OVERLAY_FILES` is an allow
 list, so your manager's metadata (`.chezmoiignore`, templates), a `.git` of
 your own, editor swap files, and anything private sharing that directory stay
-on your machine. What a row of your `plugins` names rides too, since the
-row is you asking. The one file beside them is hi's own `wiring.sh`
+on your machine. What a plugin of your `plugins` names rides too, since the
+plugin is you asking, and the file itself stays home. The one file beside them is hi's own `wiring.sh`
 ([HI.62](GLOSSARY.md#hi62-generated-wiring)), written as the overlay is
 packed.
 

@@ -160,18 +160,46 @@ function test_colors_comments_travel_with_their_row() {
   [ "$(printf '%s\n' "$got" | grep -v '^$' | sed 's/  */ /g')" = "$(printf '# top\n[hostname]\na red\n[username]\n# about b\nb blue')" ]
 }
 
-# --- carry -------------------------------------------------------------------
+# --- plugins -----------------------------------------------------------------
 
-# the lines become rows of one [carry] table, a name TOML would not read
-# bare in quotes; comments stay, and a line of the wrong shape becomes one
+# a carry file's lines become rows of one [carry] table, a name TOML would
+# not read bare in quotes; comments stay, and a line of the wrong shape
+# becomes one
 # shellcheck disable=SC2016 # the home column holds its $ unexpanded
 function test_carry_lines_become_rows() {
-  _hi_conv_is _hi_convert_carry '# member | tool | wire | home\n\n  taskrc | task | env:TASKRC | $TASKRC : ~/.taskrc  \nmy.rc|-|-|~/.myrc\n# about b\nb | x\n' \
+  _hi_conv_is _hi_convert_plugins '# member | tool | wire | home\n\n  taskrc | task | env:TASKRC | $TASKRC : ~/.taskrc  \nmy.rc|-|-|~/.myrc\n# about b\nb | x\n' \
     '# member | tool | wire | home\n[carry]\ntaskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc"\n"my.rc" = "- | - | ~/.myrc"\n# about b\n# b | x\n'
 }
 
-# the entry point writes the carry as plugins and keeps it as carry.old,
-# unless a plugins file is there already
+# rows become a table a tool, named as the rows named their plugin: the
+# tool's first word, a (name)'s name, else the member's first name. Rows of
+# one tool share a table, one whose wire, home, or dialect differs getting a
+# table of its own under it; a name a second group uses takes that group
+# behind it; comments travel, and a line that is no row becomes one.
+# shellcheck disable=SC2016,SC2088 # the home column holds its $ and ~ unexpanded
+function test_plugins_rows_become_tables() {
+  _hi_conv_is _hi_toml_plugins '# mine\n[cli]\n  taskrc = "task | env:TASKRC | $TASKRC : ~/.taskrc"\n# about b\n"b.rc" = "- | flag:btool -C | ~/b | sh"\nbad line\n\n[mine]\n"x/a" = "x y | flagdir:x -d | ~/.x/"\n"x/b.lua" = "x y | flagdir:x -d | ~/.x/ | lua"\n"x/c" = "x y | - | ~/.x/"\ninputrc = "(readline) | env:INPUTRC | ~/.inputrc"\ntask2 = "task | - | -"\n# last\n' \
+    '# mine\n[cli.task]\nwire = "env:TASKRC"\nhome = "$TASKRC : ~/.taskrc"\nfiles = "taskrc"\n\n# about b\n[cli.b-rc]\ntool = "-"\nwire = "flag:btool -C"\nhome = "~/b"\ndialect = "sh"\nfiles = "b.rc"\n\n# bad line\n[mine.x]\ntool = "x y"\nwire = "flagdir:x -d"\nhome = "~/.x/"\nfiles = "x/a x/b.lua x/c"\n\n[mine.x."x/b.lua"]\ndialect = "lua"\n\n[mine.x."x/c"]\nwire = "-"\n\n[mine.readline]\ntool = "-"\nwire = "env:INPUTRC"\nhome = "~/.inputrc"\nfiles = "inputrc"\n\n[mine.task-mine]\ntool = "task"\nfiles = "task2"\n\n# last\n'
+}
+
+# ...and what comes out is what hi reads: every row's member, with the tool,
+# the wire, the home, and the dialect its row had
+# shellcheck disable=SC2016,SC2088 # the home column holds its $ and ~ unexpanded
+function test_converted_plugins_read_as_their_rows_did() {
+  local dir="$_HI_WORKDIR/conv-read" out
+  mkdir -p "$dir"
+  printf '[mine]\n"x/a" = "xtool | flagdir:xtool -d | ~/.x/"\n"x/b.lua" = "xtool | - | ~/.y/ | lua"\ninputrc2 = "(readline) | env:INPUTRC2 | ~/.inputrc2"\n' | _hi_toml_plugins >"$dir/plugins"
+  out="$(env -u _hi_core_loaded _HI_CONFIG_DIR="$dir" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_plugins_load &&
+    printf "%s\n" "${#_HI_PLUGIN_BAD[@]}" && for m in x/a x/b.lua inputrc2; do _hi_overlay_row "$m"; echo; done')"
+  [ "$out" = '0
+x/a|-|-|xtool|mine|xtool|flagdir:xtool -d|-|-|~/.x/
+x/b.lua|-|-|xtool|mine|xtool|-|-|lua|~/.y/
+inputrc2|-|-|-|mine|readline|env:INPUTRC2|-|-|~/.inputrc2' ] || _hi_because "read back: $out"
+}
+
+# the entry point writes the carry as plugins, in tables, and keeps it as
+# carry.old, unless a plugins file is there already; a plugins file of rows
+# is converted where it is, and one of tables is left alone
 function test_entry_converts_the_carry() {
   local dir="$_HI_WORKDIR/conv-carry" out
   mkdir -p "$dir"
@@ -181,10 +209,17 @@ function test_entry_converts_the_carry() {
   out="$(_hi_conv_run "$dir")" || return 1
   [[ "$out" == *"converted $dir/carry to $dir/plugins"* ]] && [ ! -e "$dir/carry" ] &&
     [ "$(cat "$dir/carry.old")" = 'taskrc | - | env:TASKRC | ~/.taskrc' ] &&
-    [ "$(cat "$dir/plugins")" = "$(printf '[carry]\ntaskrc = "- | env:TASKRC | ~/.taskrc"')" ] || _hi_because "$out: $(cat "$dir/plugins")" || return 1
+    [ "$(cat "$dir/plugins")" = "$(printf '[carry.taskrc]\ntool = "-"\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"')" ] || _hi_because "$out: $(cat "$dir/plugins")" || return 1
   printf 'b | - | - | ~/b\n' >"$dir/carry"
   out="$(_hi_conv_run "$dir")" || return 1
-  [ -z "$out" ] && [ -f "$dir/carry" ]
+  [ -z "$out" ] && [ -f "$dir/carry" ] || _hi_because "a second carry: $out" || return 1
+  printf '[mine]\ntaskrc = "task | env:TASKRC | ~/.taskrc"\n' >"$dir/plugins"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/plugins to the current format"* ]] &&
+    [ "$(cat "$dir/plugins.old")" = "$(printf '[mine]\ntaskrc = "task | env:TASKRC | ~/.taskrc"')" ] &&
+    [ "$(cat "$dir/plugins")" = "$(printf '[mine.task]\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"')" ] || _hi_because "$out: $(cat "$dir/plugins")" || return 1
+  out="$(_hi_conv_run "$dir")" || return 1
+  [ -z "$out" ] || _hi_because "a second run: $out"
 }
 
 # --- settings.sh -------------------------------------------------------------
@@ -479,9 +514,11 @@ function run_convert_settings_tests() {
   _hi_check "Types in first-appearance order, rows in file order" test_colors_group_rows_by_type_in_order
   _hi_check "Comments travel with the row below" test_colors_comments_travel_with_their_row
 
-  _hi_h2 "Testing: the carry"
-  _hi_check "Its lines become rows of a [carry] table" test_carry_lines_become_rows
-  _hi_check "The entry point writes it as plugins, keeping carry.old" test_entry_converts_the_carry
+  _hi_h2 "Testing: the plugins"
+  _hi_check "A carry's lines become rows of a [carry] table" test_carry_lines_become_rows
+  _hi_check "Rows become a table a tool" test_plugins_rows_become_tables
+  _hi_check "...which hi reads as it read the rows" test_converted_plugins_read_as_their_rows_did
+  _hi_check "The entry point converts a carry and a plugins file of rows" test_entry_converts_the_carry
 
   _hi_h2 "Testing: _hi_convert_settings"
   _hi_check "The floor maps to groups; 2 goes" test_settings_map_the_floor_to_groups

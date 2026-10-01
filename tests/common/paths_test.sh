@@ -380,28 +380,30 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
   }
 }
 
-# Every overlay file hi ships (pack.sh's _HI_OVERLAY_FILES) that no line of the
-# generated wiring.sh covers (GLOSSARY: HI.62) needs its overlay lookup in
-# paths.sh - except settings.sh, extensions/, and header/ (the overlay is
-# their only home, so each is an unguarded export instead) and the ones read by name from
-# $_HI_CONFIG_DIR rather than through a path var: aliases.sh and the three
-# per-shell files (bashrc, zshrc, config.fish), the prompt frameworks' five,
-# which only a target reads, ssh_tags, and the plugins file. A missed lookup fails
+# Every overlay file hi ships (pack.sh's _HI_OVERLAY_FILES and the plugins
+# files' rows) that no line of the generated wiring.sh covers (GLOSSARY:
+# HI.62) needs its overlay lookup in paths.sh - except settings.sh,
+# extensions/, and header/ (the overlay is their only home, so each is an
+# unguarded export instead) and the ones read by name from $_HI_CONFIG_DIR
+# rather than through a path var: aliases.sh and the three per-shell files
+# (bashrc, zshrc, config.fish), the prompt frameworks' five, which only a
+# target reads, kakoune's colors/, and ssh_tags. A missed lookup fails
 # asymmetrically: the file works on targets but local sessions ignore the
 # overlay's copy - the same silent drift the toggle-gate pin above catches.
 # shellcheck disable=SC2016 # the child bash expands its own script
 function test_overlay_guards_match_the_roster() {
   local f roster
-  roster="$(bash -c 'set -- && source "$_HI_LAUNCHER" && for m in "${_HI_OVERLAY_FILES[@]}"; do
+  roster="$(bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_plugins_load &&
+    for m in "${_HI_OVERLAY_FILES[@]}" "${_HI_PLUGIN_FILES[@]}"; do
     _hi_overlay_wiring w "$m" && [ -n "$w" ] || printf "%s\n" "$m"; done')"
-  [ -n "$roster" ] || return 1
+  [[ $'\n'"$roster"$'\n' == *$'\n'extensions/$'\n'* ]] || return 1
   while IFS= read -r f; do
     case "$f" in
     settings.sh | aliases.sh) continue ;;
     extensions/ | header/)
       grep -qF "\"\$_HI_CONFIG_DIR/${f%/}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
-    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | ssh_tags | plugins) continue ;;
+    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | bash-it.theme.bash | tide.vars | kak/colors/ | ssh_tags) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"
@@ -414,7 +416,8 @@ function test_overlay_guards_match_the_roster() {
 # variable, hi's own files, a line per candidate - so each is walked down its
 # tiers in a fabricated $HOME: the overlay's copy, then the tree's default
 # (or the overlay path itself, for the members with no other home), and
-# the variable has to follow.
+# the variable has to follow. extensions/ is a plugins row, which has no
+# variable column, so its row is spelled here.
 # GLOSSARY: HI.61
 # shellcheck disable=SC2016 # the walk is the child bash's to expand
 function test_paths_follow_the_overlay_table() {
@@ -430,7 +433,7 @@ function test_paths_follow_the_overlay_table() {
       . "$_HI_ROOT/common/paths.sh"
       [ "${!v}" = "$1" ] || { echo "   $v on $2: got [${!v}], want [$1]"; fail=1; }
     }
-    for row in "${_HI_OVERLAY_TABLE[@]}"; do
+    for row in "${_HI_OVERLAY_TABLE[@]}" "extensions/|_HI_EXTENSIONS|-|-|shell|-|-|sh|-"; do
       m="${row%%|*}" v="${row#*|}" h="${row##*|}"
       v="${v%%|*}"
       [ "$v" != - ] || continue

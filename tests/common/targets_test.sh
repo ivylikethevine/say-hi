@@ -1157,16 +1157,17 @@ function test_words_color_types_match_set_color() {
   [ -n "$types" ] && [ "$out" = "$types " ]
 }
 
-# --plugin-off: every group and plugin of pack.sh's table, read as text, then
-# the overlay plugins rows; hi's own files (colors, settings.sh) are no words
+# --plugin-off: every group and plugin of the tree's plugins file, read as
+# text, then the overlay's; a file's own table, a member, and hi's own files
+# (colors, settings.sh) are no words
 function test_words_plugin_off_lists_groups_plugins_and_carry_members() {
   local out cfg="$_HI_WORKDIR/words-plugins"
   mkdir -p "$cfg"
-  printf '# mine\n[mine]\n  taskrc   =   "task | env:TASKRC | ~/.taskrc"\n"b.rc" = "- | - | ~/b"\nbad line\n' >"$cfg/plugins"
+  printf '# mine\n[mine.task]\n  wire   =   "env:TASKRC"\nfiles = "taskrc"\n  [ mine . b ] # mine too\nfiles = "b.rc b.d/"\nbad line\n[mine.b."b.d/"]\nwire = "-"\n' >"$cfg/plugins"
   out=" $(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --plugin-off | cut -f1 | tr '\n' ' ')"
   [[ "$out" == *" editors "* && "$out" == *" vim "* && "$out" == *" hx "* && "$out" == *" readline "* ]] &&
-    [[ "$out" == *" micro "* && "$out" == *" extensions "* && "$out" == *" mine "* && "$out" == *" task "* && "$out" == *" taskrc "* && "$out" == *" b.rc "* ]] &&
-    [[ "$out" != *" colors "* && "$out" != *" settings.sh "* && "$out" != *" bad "* ]] ||
+    [[ "$out" == *" micro "* && "$out" == *" extensions "* && "$out" == *" mine "* && "$out" == *" task "* && "$out" == *" b "* ]] &&
+    [[ "$out" != *" colors "* && "$out" != *" settings.sh "* && "$out" != *" bad "* && "$out" != *" taskrc "* && "$out" != *"b.d"* ]] ||
     _hi_because "offered: $out"
 }
 
@@ -1184,16 +1185,16 @@ function test_words_plugin_off_match_the_table() {
 }
 
 # --plugin-on: the words that are off, as settings.sh's last list has them;
-# --remove-plugin: the overlay's plugins rows' members; --add-plugin: nothing
+# --remove-plugin: the plugins of the overlay's file; --add-plugin: nothing
 function test_words_plugin_on_and_remove_read_the_overlay() {
   local out cfg="$_HI_WORKDIR/words-plugins-on"
   mkdir -p "$cfg"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=old\nexport _HI_PLUGINS_OFF="bat, editors"\n' >"$cfg/settings.sh"
-  printf '[mine]\ntaskrc = "task | env:TASKRC | ~/.taskrc"\n"b.rc"="- | - | ~/b"\n' >"$cfg/plugins"
+  printf '[mine.task]\nfiles = "taskrc"\n[cli.b]\nfiles = "b.rc b.d/"\n[cli.b."b.d/"]\nwire = "-"\n' >"$cfg/plugins"
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --plugin-on | cut -f1 | tr '\n' ' ')"
   [ "$out" = "bat editors " ] || _hi_because "--plugin-on offered: $out" || return 1
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --remove-plugin | cut -f1 | tr '\n' ' ')"
-  [ "$out" = "taskrc b.rc " ] || _hi_because "--remove-plugin offered: $out" || return 1
+  [ "$out" = "task b " ] || _hi_because "--remove-plugin offered: $out" || return 1
   [ -z "$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --add-plugin)" ] &&
     [ -z "$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --plugin-on)" ]
 }
@@ -1294,7 +1295,7 @@ function run_targets_tests() {
   _hi_check "--remove-package lists each row's key" test_words_remove_package_lists_first_packages
   _hi_check "--set-color and --unset-color list the four types" test_words_set_and_unset_color_list_the_four_types
   _hi_check "...which are set_color.sh's own" test_words_color_types_match_set_color
-  _hi_check "--plugin-off lists groups, plugins, and the overlay's rows" test_words_plugin_off_lists_groups_plugins_and_carry_members
+  _hi_check "--plugin-off lists groups and plugins, the overlay's too" test_words_plugin_off_lists_groups_plugins_and_carry_members
   _hi_check "...every word hi.sh's own reading gives" test_words_plugin_off_match_the_table
   _hi_check "--plugin-on and --remove-plugin read the overlay" test_words_plugin_on_and_remove_read_the_overlay
 

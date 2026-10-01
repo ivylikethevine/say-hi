@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# `hi --plugins`: every plugin - a config hi carries to a target, a row of
-# config/plugins or of your own plugins file - with what rides and what is
-# off. `hi --plugin-off` and `--plugin-on` (a leading --off, --on) switch
-# plugins through $_HI_PLUGINS_OFF in settings.sh; `hi --add-plugin` and
-# `--remove-plugin` (--add, --remove) write a row of ~/.config/say-hi/plugins.
+# `hi --plugins`: every plugin - the configs of a tool's hi carries to a
+# target, a table of config/plugins or of your own plugins file - with what
+# rides and what is off. `hi --plugin-off` and `--plugin-on` (a leading
+# --off, --on) switch plugins through $_HI_PLUGINS_OFF in settings.sh; `hi
+# --add-plugin` and `--remove-plugin` (--add, --remove) write a table of
+# ~/.config/say-hi/plugins.
 # set_color.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
 # GLOSSARY: HI.63, HI.64
 #
@@ -45,8 +46,8 @@ esac
 case "$mode" in
 list) me="hi --plugins" usage="hi --plugins" ;;
 off | on) me="hi --plugin-$mode" usage="hi --plugin-$mode <name>... [--dry-run]" ;;
-add) me="hi --add-plugin" usage="hi --add-plugin <group> <member> <tool> <wire> <home> [<dialect>] [--dry-run]" ;;
-remove) me="hi --remove-plugin" usage="hi --remove-plugin <member> [--dry-run]" ;;
+add) me="hi --add-plugin" usage="hi --add-plugin <group> <name> <file>... [<key>=<value>...] [--dry-run]" ;;
+remove) me="hi --remove-plugin" usage="hi --remove-plugin <name> [--dry-run]" ;;
 esac
 me="${_HI_ARGV0:-$me}"
 _HI_ME="$me"
@@ -59,18 +60,20 @@ function _hi_plugins_help() {
     cat <<EOF
 Usage: $usage
 
-Lists every plugin: a config hi carries to a target and points its tool at.
-A table a group and a row a member, as hi --doctor draws it: where its file
-is found, and whether it rides or why not - its plugin is switched off, or
-its tool is not installed here. Members found nowhere share one last row.
+Lists every plugin: the configs of a tool's hi carries to a target and points
+the tool at. A table a group and a row a member, as hi --doctor draws it:
+where its file is found, and whether it rides or why not - its plugin is
+switched off, or its tool is not installed here. Members found nowhere share
+one last row.
 
   hi --plugin-off <name>...     switch plugins off: nothing of theirs rides
   hi --plugin-on <name>...      switch them back on
-  hi --add-plugin <group> <member> <tool> <wire> <home> [<dialect>]
-                                carry a config of a tool hi does not know
-  hi --remove-plugin <member>   stop carrying it
+  hi --add-plugin <group> <name> <file>... [<key>=<value>...]
+                                carry the configs of a tool hi does not know
+  hi --remove-plugin <name>     stop carrying them
 
-A <name> is a plugin, a group, or a member, as listed here.
+A <name> is a plugin, a group, or a member, as listed here, or one file of
+a member that is a directory (extensions/10-kube).
 EOF
     ;;
   off | on)
@@ -79,7 +82,8 @@ Usage: $usage
 
 Switches plugins $mode for every target: a plugin that is off sends no file
 and sets nothing there, so the tool keeps the target's own config. <name> is
-a plugin, a group, or a member, as \`hi --plugins\` lists them. The list is
+a plugin, a group, or a member, as \`hi --plugins\` lists them, or one file
+of a member that is a directory (extensions/10-kube). The list is
 _HI_PLUGINS_OFF in ~/.config/say-hi/settings.sh.
 
   -n, --dry-run    say what would be written, and write nothing
@@ -89,31 +93,42 @@ EOF
     cat <<EOF
 Usage: $usage
 
-Adds a row to the [<group>] table of ~/.config/say-hi/plugins, which adds
-to the tree's config/plugins or replaces its row of the same <member>.
-<group> is the word that switches the row with its kind (editors, mux,
-prompt, cli, shell, or one of your own), <member> the name the file rides
-under, <tool> the command that reads it (or -), <wire> how a target's tool
-finds it (env:<variables>, envdir:<variable>, 'flag:<command> <flag>',
-'flagdir:<command> <flag>', xdg:<command> for a file it has no variable or
-flag for, or -), and <home> where the file is here: paths
-a : apart, each starting at /, ~/, or \$NAME; several a , apart are one
-place, the first whose variable is set. Quote <home>, or the shell expands
-it first. <dialect> is how its includes are found and its comments stripped
-(sh, fish, vim, lua, elisp, nano, tmux, screen, readline, kak, kdl, omp,
-omp-json, conf); left out, it rides as written.
+Writes the [<group>.<name>] table of ~/.config/say-hi/plugins, which adds a
+plugin to the tree's config/plugins or replaces its plugin of that <name>.
+<group> is the word that switches it with its kind (editors, mux, prompt,
+cli, shell, or one of your own), <name> the plugin's own word and its name
+in a report, and each <file> the name a config rides under. The keys:
+
+  tool=<commands>     what reads them; home's copy rides with any of them on
+                      this machine. Left out, it is <name>; - asks nothing.
+  wire=<wire>         how a target's tool finds a file: env:<variables>,
+                      envdir:<variable>, 'flag:<command> <flag>',
+                      'flagdir:<command> <flag>', or xdg:<command> for a file
+                      it has no variable or flag for
+  home=<paths>        where a file is here: paths a : apart, each starting at
+                      /, ~/, or \$NAME; several a , apart are one place, the
+                      first whose variable is set. Quote it, or the shell
+                      expands it first.
+  dialect=<dialect>   how its includes are found and its comments stripped
+                      (sh, fish, vim, lua, elisp, nano, tmux, screen,
+                      readline, kak, kdl, omp, omp-json, conf); left out, it
+                      rides as written
+
+A file whose wire, home, or dialect differs from the rest has a table of its
+own under the plugin's, [<group>.<name>."<file>"], written by hand.
 
   -n, --dry-run    say what would be written, and write nothing
 
-  hi --add-plugin cli taskrc task env:TASKRC '\$TASKRC : ~/.taskrc'
+  hi --add-plugin cli task taskrc wire=env:TASKRC home='\$TASKRC : ~/.taskrc'
 EOF
     ;;
   remove)
     cat <<EOF
 Usage: $usage
 
-Removes <member>'s row from ~/.config/say-hi/plugins. A plugin of hi's own
-has no row there to remove: \`hi --plugin-off\` switches it off.
+Removes the plugin <name>, its table and its files' tables, from
+~/.config/say-hi/plugins. A plugin of hi's own has no table there to remove:
+\`hi --plugin-off\` switches it off.
 
   -n, --dry-run    say what would be written, and write nothing
 EOF
@@ -128,8 +143,6 @@ while [ $# -gt 0 ]; do
     exit 0
     ;;
   -n | --dry-run) _HI_DRY_RUN=1 ;;
-  # a wire or a home of - is a word, and so is a flag: wire's own
-  - | flag*) args+=("$1") ;;
   -*) _hi_die "unknown option $1 ($usage)" ;;
   *) args+=("$1") ;;
   esac
@@ -202,7 +215,7 @@ function _hi_plugins_switch() {
   now="${now//,/ }"
   next=" $now "
   for word in "${args[@]}"; do
-    case "$known" in *" $word "*) ;; *) _hi_die "not a plugin, a group, or a member: $word (hi --plugins lists them)" ;; esac
+    _hi_plugin_word_ok "$word" "$known" || _hi_die "not a plugin, a group, or a member: $word (hi --plugins lists them)"
     case "$mode:$next" in
     off:*" $word "*) _hi_cecho " $word is off already" "$GREEN" ;;
     off:*)
@@ -225,69 +238,122 @@ function _hi_plugins_switch() {
   _hi_plugins_write_off "$now"
 }
 
+# _hi_plugin_span <name> - <name>'s table in `_hi_rows` and the tables of its
+# files, as the caller's $from and $to (the line after its last): 1 when the
+# file has none. The comments and blank lines ahead of the next table are
+# that table's.
+function _hi_plugin_span() {
+  local i t
+  from=-1 to="${#_hi_rows[@]}"
+  for ((i = 0; i < ${#_hi_rows[@]}; i++)); do
+    _hi_toml_table t "${_hi_rows[i]}" || continue
+    t="${t//[[:space:]]/}"
+    case "${t#*.}" in
+    "$1") [ "$t" = "${t#*.}" ] || from="$i" ;;
+    "$1".*) ;;
+    *)
+      [ "$from" -lt 0 ] || {
+        to="$i"
+        break
+      }
+      ;;
+    esac
+  done
+  [ "$from" -ge 0 ] || return 1
+  while [ "$to" -gt $((from + 1)) ]; do
+    case "${_hi_rows[to - 1]}" in '' | '#'*) to=$((to - 1)) ;; *) break ;; esac
+  done
+}
+
 function _hi_plugins_add() {
-  local group member key row tmpdir at=-1 table="" why="" line said=""
-  [ "${#args[@]}" -eq 5 ] || [ "${#args[@]}" -eq 6 ] ||
-    _hi_die "needs a group, a member, a tool, a wire, and a home, then a dialect or nothing ($me --help)"
-  group="${args[0]}" member="${args[1]}"
-  _hi_words_ok "$group" 'A-Za-z0-9_' 'A-Za-z0-9_-' && [ "${group% *}" = "$group" ] ||
-    _hi_die "not a group name: $group (letters, digits, _ -)"
-  case "${args[2]}${args[3]}${args[4]}${args[5]:-}" in *['"'\\]*) _hi_die "a column cannot hold a quote or a backslash ($me --help)" ;; esac
-  _hi_toml_key key "$member"
-  row="$key = \"${args[2]} | ${args[3]} | ${args[4]}${args[5]:+ | ${args[5]}}\""
+  local group name word key files="" tmpdir why="" line said="" from to n
+  local -a table=() keys=()
+  [ "${#args[@]}" -ge 3 ] || _hi_die "needs a group, a name, and a file, then any of tool=, wire=, home=, dialect= ($me --help)"
+  group="${args[0]}" name="${args[1]}"
+  for word in "$group" "$name"; do
+    _hi_words_ok "$word" 'A-Za-z0-9_' 'A-Za-z0-9_-' && [ "${word% *}" = "$word" ] ||
+      _hi_die "not a group or a plugin's name: $word (letters, digits, _ -)"
+  done
+  for word in "${args[@]:2}"; do
+    case "$word" in *['"'\\]*) _hi_die "a value cannot hold a quote or a backslash ($me --help)" ;; esac
+    case "$word" in
+    tool=* | wire=* | home=* | dialect=*) keys+=("$word") ;;
+    *) files="$files${files:+ }$word" ;;
+    esac
+  done
+  [ -n "$files" ] || _hi_die "needs a file for $name to carry ($me --help)"
+  # the tree's own order of keys, whatever order they were typed in
+  table=("[$group.$name]")
+  for key in tool wire home dialect; do
+    for word in ${keys[@]+"${keys[@]}"}; do
+      [ "${word%%=*}" != "$key" ] || table+=("$key = \"${word#*=}\"")
+    done
+  done
+  table+=("files = \"$files\"")
   _hi_rows_read "$plugins"
-  _hi_rows_index at "$member"
-  if [ "$at" -ge 0 ]; then
-    _hi_section_of table "$at"
-    if [ "${_hi_rows[at]}" = "$row" ] && [ "$table" = "$group" ]; then
-      _hi_cecho "$plugins: that row is there already - nothing to write" "$GREEN"
+  if _hi_plugin_span "$name"; then
+    if [ "$(printf '%s\n' "${_hi_rows[@]:from:to-from}")" = "$(printf '%s\n' "${table[@]}")" ]; then
+      _hi_cecho "$plugins: that plugin is there already - nothing to write" "$GREEN"
       exit 0
     fi
-    said=" ~ $row (replacing the row for $member in [${table:-no group}])|$YELLOW"
-    if [ "$table" = "$group" ]; then
-      _hi_rows[at]="$row"
-    else
-      _hi_rows=("${_hi_rows[@]:0:at}" "${_hi_rows[@]:at+1}")
-      _hi_section_add "$group" "$row"
-    fi
+    _hi_toml_table line "${_hi_rows[from]}"
+    said=" ~ [$group.$name] (replacing [$line])|$YELLOW"
+    _hi_rows=("${_hi_rows[@]:0:from}" "${table[@]}" "${_hi_rows[@]:to}")
   else
-    said=" + $row in [$group]|$GREEN"
-    [ "${#_hi_rows[@]}" -gt 0 ] || _hi_rows=('# a row a config of yours rides by: "<member>" = "<tool> | <wire> | <home> | <dialect>"')
-    _hi_section_add "$group" "$row"
+    said=" + [$group.$name]|$GREEN"
+    from="${#_hi_rows[@]}"
+    if [ "$from" -eq 0 ]; then
+      _hi_rows=('# a plugin of yours: a [<group>.<name>] table, its files and any of tool, wire, home, dialect' '')
+    elif [ -n "${_hi_rows[from - 1]}" ]; then
+      _hi_rows+=('')
+    fi
+    from="${#_hi_rows[@]}"
+    _hi_rows+=("${table[@]}")
   fi
   # through the reader a connect uses, over the file as it would be: good
-  # when that reader turns the row down for nothing
+  # when that reader turns nothing of the table down
   tmpdir="$(mktemp -d -t hi.plugins.XXXXXX)"
   printf '%s\n' "${_hi_rows[@]}" >"$tmpdir/plugins"
-  _hi_rows_index at "$member"
-  at=$((at + 1))
   why="$(
     _HI_CONFIG_DIR="$tmpdir" _hi_plugins_load
     for line in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do
-      [ "${line%%|*}" != "plugins:$at" ] || printf '%s' "${line#*|}"
+      n="${line%%|*}"
+      [ "${n%%:*}" = plugins ] && [ "${n#*:}" -gt "$from" ] && [ "${n#*:}" -le $((from + ${#table[@]})) ] || continue
+      printf '%s' "${line#*|}"
+      break
     done
   )"
   command rm -f "$tmpdir/plugins"
   rmdir "$tmpdir"
   [ -z "$why" ] || _hi_die "$why ($me --help)"
   _hi_cecho "${said%|*}" "${said##*|}"
+  for line in "${table[@]:1}"; do _hi_cecho "     $line" "${said##*|}"; done
   _hi_rows_write "$plugins"
 }
 
 function _hi_plugins_remove() {
-  local at=-1 table=""
-  [ "${#args[@]}" -eq 1 ] || _hi_die "needs one member ($me --help)"
+  local from to line
+  [ "${#args[@]}" -eq 1 ] || _hi_die "needs one plugin's name ($me --help)"
   _hi_rows_read "$plugins"
-  _hi_rows_index at "${args[0]}"
-  if [ "$at" -lt 0 ]; then
-    _hi_overlay_row "${args[0]}" >/dev/null &&
-      _hi_die "${args[0]} is hi's own, with no row of yours to remove: hi --plugin-off ${args[0]} switches it off"
-    _hi_cecho "$plugins has no row for ${args[0]} - nothing to write" "$GREEN"
+  if ! _hi_plugin_span "${args[0]}"; then
+    while IFS='|' read -r line _; do
+      [ "$line" != "${args[0]}" ] ||
+        _hi_die "${args[0]} is hi's own, with no table of yours to remove: hi --plugin-off ${args[0]} switches it off"
+    done < <(_hi_plugin_rows)
+    _hi_cecho "$plugins has no plugin ${args[0]} - nothing to write" "$GREEN"
     exit 0
   fi
-  _hi_section_of table "$at"
-  _hi_cecho " - ${_hi_rows[at]} (from [${table:-no group}])" "$YELLOW"
-  _hi_rows=("${_hi_rows[@]:0:at}" "${_hi_rows[@]:at+1}")
+  _hi_toml_table line "${_hi_rows[from]}"
+  _hi_cecho " - [$line]" "$YELLOW"
+  # the comment lines right above it are about it, and go with it; so does
+  # the blank line above those where one below, or nothing, follows
+  while [ "$from" -gt 0 ]; do
+    case "${_hi_rows[from - 1]}" in '#'*) from=$((from - 1)) ;; *) break ;; esac
+  done
+  if [ "$from" -gt 0 ] && [ -z "${_hi_rows[from - 1]}" ] && { [ "$to" -ge "${#_hi_rows[@]}" ] || [ -z "${_hi_rows[to]}" ]; }; then
+    from=$((from - 1))
+  fi
+  _hi_rows=("${_hi_rows[@]:0:from}" "${_hi_rows[@]:to}")
   dry_run_say "write $plugins without it" && exit 0
   _hi_rows_write "$plugins"
 }

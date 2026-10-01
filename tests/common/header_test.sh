@@ -1655,6 +1655,21 @@ function test_a_header_cell_of_your_own_draws() {
   [ "$out" = " sea sky" ] || _hi_because "the words that loaded: [$out]"
 }
 
+# ...and one bash cannot parse is skipped with a line saying so, not half-run,
+# and the cells beside it still load
+function test_a_header_cell_that_does_not_parse_is_skipped() {
+  local dir out
+  dir="$(_hi_header_cells_fixture)"
+  printf 'echo HALF-RUN\n_hi_cell_torn() {\n' >"$dir/torn"
+  out="$(
+    unset _HI_HEADER_WORDS
+    _HI_HEADER_CELLS="$dir" _hi_header_vocab v 2>&1 && printf '|%s' "${v#"$_HI_HEADER_ORDER_DEFAULT"}"
+  )"
+  rm -f "$dir/torn"
+  [[ "$out" == *"header cell torn does not parse in bash; skipped"*"| sea sky" && "$out" != *HALF-RUN* ]] ||
+    _hi_because "got: [$out]"
+}
+
 # a cell with no $_HI_HEADER_ALTS row takes the next bright hue round the
 # ring from its own, so two of them side by side never share one
 function test_a_header_cell_of_your_own_gets_an_alternate() {
@@ -2433,6 +2448,7 @@ function run_header_tests() {
   _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_24_word_scheme
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
   _hi_check "A header/ member's cell draws where the order puts it" test_a_header_cell_of_your_own_draws
+  _hi_check "...one that does not parse is skipped, and says so" test_a_header_cell_that_does_not_parse_is_skipped
   _hi_check "...and takes an alternate from its own hue" test_a_header_cell_of_your_own_gets_an_alternate
   _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
   _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color

@@ -72,11 +72,12 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-add\-plugin
-.I group member tool wire home
+.IR "group name file" ...
+.RI [ key = value ...]
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-remove\-plugin
-.I member
+.I name
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-preview
@@ -547,9 +548,9 @@ under
 says what would be written and writes nothing.
 .TP
 .B \-\-plugins
-list every plugin, a config hi carries to a target and points its tool at:
-its name, its group, each member, and the file that rides, or why none
-does. A plugin is a row of the tree's
+list every plugin, the configs of a tool's hi carries to a target and points
+the tool at: its name, its group, each member, and the file that rides, or
+why none does. A plugin is a table of the tree's
 .B config/plugins
 or of
 .BR ~/.config/say-hi/plugins .
@@ -567,7 +568,9 @@ is a plugin, a group
 or a table of your own plugins file),
 or a member, as
 .B hi \-\-plugins
-lists them. The list is
+lists them, or one file of a member that is a directory
+.RB ( extensions/10\-kube ).
+The list is
 .B _HI_PLUGINS_OFF
 in
 .BR ~/.config/say-hi/settings.sh .
@@ -581,32 +584,39 @@ back out of that list.
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
-.B \-\-add\-plugin \fIgroup member tool wire home\fR [\fB\-\-dry\-run\fR]
-add a row to the
-.BI [ group ]
+.B \-\-add\-plugin \fIgroup name file\fR... [\fIkey\fR=\fIvalue\fR...] [\fB\-\-dry\-run\fR]
+write the
+.BI [ group . name ]
 table of
 .BR ~/.config/say-hi/plugins ,
-for a config of a tool hi does not know, or your own row for one it does:
+for the configs of a tool hi does not know, or your own plugin for one it
+does:
 .I group
-is the word that switches it,
-.I member
-the name the file rides under,
-.I tool
-the command that reads it (or
-.BR \- ),
-.I wire
-how a target's tool finds it, and
-.I home
-where the file is here (see
+is the word that switches it with its kind,
+.I name
+its own word and its name in a report, and each
+.I file
+the name a config rides under. The keys are
+.BR tool= ,
+the command that reads them (left out,
+.IR name ;
+.B \-
+for none),
+.BR wire= ,
+how a target's tool finds a file,
+.BR home= ,
+where a file is here, and
+.BR dialect=
+(see
 .BR FILES ).
-A row hi could not read is refused, with the reason.
+A table hi could not read is refused, with the reason.
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
-.B \-\-remove\-plugin \fImember\fR [\fB\-\-dry\-run\fR]
-remove
-.IR member 's
-row from
+.B \-\-remove\-plugin \fIname\fR [\fB\-\-dry\-run\fR]
+remove the plugin
+.IR name ,
+its table and its files' tables, from
 .BR ~/.config/say-hi/plugins .
 .B \-\-dry\-run
 says what would be written and writes nothing.
@@ -853,17 +863,29 @@ values set here arrive too late: they belong in
 .BR settings.sh .
 .TP
 .B ~/.config/say-hi/plugins
-a row for each config of a tool hi does not know, or your own row for one
-it does, in TOML under a
-.BI [ group ]
-table:
-.RI \(dq member "\(dq = \(dq" tool " | " wire " | " home \(dq.
-The file is carried from the first of the
+a plugin for each tool hi does not know, or your own for one it does, in
+TOML: a
+.BI [ group . name ]
+table of
+.BR files ,
+.BR tool ,
+.BR wire ,
+.BR home ,
+and
+.B dialect
+keys, a quoted value each, and a
+.BI [ group . name .\(dq file \(dq]
+table under it for a file whose wire, home, or dialect differs. Each of the
+.B files
+is carried from the first of the
 .BR : \-separated
-home paths that exists (each starting at
+.B home
+paths that exists (each starting at
 .BR / ,
 .BR ~/ ,
-or a variable's name), under the member's name, with the tool installed here;
+or a variable's name), under its own name, with the
+.B tool
+installed here;
 .B env:
 and
 .B envdir:
@@ -875,8 +897,8 @@ the command and flag a target aliases with it, and
 .B xdg:
 the command a target aliases with
 .B XDG_CONFIG_HOME
-set to the overlay, for a file no variable or flag reaches. Nothing in a row
-is evaluated.
+set to the overlay, for a file no variable or flag reaches. Nothing in a
+table is evaluated.
 .TP
 .B ~/.config/say-hi/extensions/
 extensions in the aliases.sh subset, sourced in name order after the aliases

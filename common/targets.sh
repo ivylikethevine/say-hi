@@ -165,6 +165,13 @@ toml_keys() {
     while IFS= read -r line; do printf '%s\t%s\n' "$line" "$2"; done
 }
 
+# plugin_tables <file> - the `[<group>.<name>]` tables of a plugins file, a
+# `<group>|<name>` line each; nothing when there is no file
+plugin_tables() {
+  [ -f "$1" ] || return 0
+  sed -n 's/^[[:space:]]*\[[[:space:]]*\([A-Za-z0-9_-]\{1,\}\)[[:space:]]*\.[[:space:]]*\([A-Za-z0-9_-]\{1,\}\)[[:space:]]*\].*/\1|\2/p' "$1"
+}
+
 if [ "$kind" = words ]; then
   # The packages file this session would actually read/write: the overlay's
   # when one exists, else the tree's (common/paths.sh's cascade, reimplemented
@@ -204,34 +211,17 @@ if [ "$kind" = words ]; then
     printf 'hostname\ta hostname, or a * or ? pattern\n'
     ;;
   --plugin-off)
-    # pack.sh's table and the plugins files read as text, since this file
-    # cannot source them: a row's group, and its plugin - its tool's first
-    # name, else its member's first name. The overlay's file last, so a row
-    # of its own is offered as it stands. A session has no scripts/, and no
-    # use for the flag.
-    {
-      [ ! -f "$hi_tree/scripts/pack.sh" ] || awk -F'|' '
-        /^_HI_OVERLAY_TABLE=\(/ { on = 1; next }
-        on && /^\)/ { exit }
-        !on || $5 == "-" { next }
-        { name = $1; sub(/^[ \t]*\047/, "", name); print $5 "|" $4 "|" name }
-      ' "$hi_tree/scripts/pack.sh"
-      for f in "$hi_tree/config/plugins" "${_HI_CONFIG_DIR:-}/plugins"; do
-        [ -f "$f" ] || continue
-        sed -n 's/^[[:space:]]*\[\([^]]*\)\].*/[\1]/p; s/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=[[:space:]]*"\([^"|]*\)|.*/\2|\1/p' "$f" |
-          awk -F'|' '/^\[/ { g = substr($0, 2, length($0) - 2); next } { t = $1; sub(/ *$/, "", t); print g "|" t "|" $2 }'
-      done
-    } | awk -F'|' '
-      $1 == "" { next }
+    # the plugins files read as text, since this file cannot source the
+    # packer: each table's group and its plugin. A session has neither
+    # file, and no use for the flag.
+    for f in "$hi_tree/config/plugins" "${_HI_CONFIG_DIR:-}/plugins"; do
+      plugin_tables "$f"
+    done | awk -F'|' '
       {
-        name = $2
-        if (name == "-" || name == "") { name = $3; sub(/\/.*/, "", name) }
-        gsub(/[()]/, "", name); sub(/ .*/, "", name)
         if (!seen[$1]++) printf "%s\tevery plugin of that group\n", $1
-        if (!seen[name]++) printf "%s\ta plugin\n", name
+        if (!seen[$2]++) printf "%s\ta plugin\n", $2
       }
     '
-    toml_keys "${_HI_CONFIG_DIR:-}/plugins" 'a row of your plugins file'
     ;;
   --plugin-on)
     # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line
@@ -242,11 +232,13 @@ if [ "$kind" = words ]; then
       done
     ;;
   --add-plugin)
-    # a member's name is the user's to make up: nothing to offer, and no
+    # a plugin's name is the user's to make up: nothing to offer, and no
     # target names either
     ;;
   --remove-plugin)
-    toml_keys "${_HI_CONFIG_DIR:-}/plugins" 'a row of your plugins file'
+    plugin_tables "${_HI_CONFIG_DIR:-}/plugins" | while IFS='|' read -r _ line; do
+      printf '%s\ta plugin of your plugins file\n' "$line"
+    done
     ;;
   --add-package)
     # the file's groups, add_package.sh's first argument: its tables, less

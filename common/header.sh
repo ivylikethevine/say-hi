@@ -858,17 +858,22 @@ _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid c
 # The header/ overlay member's cells (GLOSSARY: HI.58, HI.48): a file each,
 # its word the name up to the first `.`, defining _hi_cell_<word> the way the
 # built-ins below do. Sourced in name order on the header's first word, not
-# with this file, so a caller that never draws one runs none of them; a
-# file whose function did not come out of it adds no word. A word already
+# with this file, so a caller that never draws one runs none of them; one
+# bash cannot parse is skipped with a line on stderr, as an extension is, and
+# a file whose function did not come out of it adds no word. A word already
 # the default's replaces that built-in. $_HI_HEADER_WORDS is the words that
 # loaded, space-bounded, and set once this has run.
 function _hi_header_cells_load() {
   local _hi_hc_f _hi_hc_w
+  local -a _hi_members=() _hi_strays=()
   _HI_HEADER_WORDS=" "
-  [ -d "${_HI_HEADER_CELLS:-}" ] || return 0
-  for _hi_hc_f in "$_HI_HEADER_CELLS"/*; do
+  _hi_dir_members "${_HI_HEADER_CELLS:-}"
+  for _hi_hc_f in ${_hi_members[@]+"${_hi_members[@]}"}; do
     _hi_hc_w="${_hi_hc_f##*/}"
-    { [ -f "$_hi_hc_f" ] && _hi_dir_member_ok "$_hi_hc_w"; } || continue
+    "${BASH:-bash}" -n "$_hi_hc_f" 2>/dev/null || {
+      _hi_cecho "hi: header cell $_hi_hc_w does not parse in bash; skipped" "${YELLOW:-}" >&2
+      continue
+    }
     _hi_hc_w="${_hi_hc_w%%.*}"
     # shellcheck source=/dev/null
     source "$_hi_hc_f" || true

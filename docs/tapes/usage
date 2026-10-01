@@ -35,5 +35,5 @@
 --plugins||--plugin-off mux
 --plugin-off|prompt --dry-run|
 --plugin-on|mux --dry-run|--plugin-off mux
---add-plugin|cli lnav/config.json lnav - ~/.config/lnav/config.json --dry-run|
---remove-plugin|lnav/config.json --dry-run|--add-plugin cli lnav/config.json lnav - ~/.config/lnav/config.json
+--add-plugin|cli lnav lnav/config.json home=~/.config/lnav/config.json --dry-run|
+--remove-plugin|lnav --dry-run|--add-plugin cli lnav lnav/config.json home=~/.config/lnav/config.json

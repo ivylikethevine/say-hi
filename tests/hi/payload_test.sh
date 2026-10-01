@@ -492,8 +492,8 @@ function test_overlay_tar_wires_the_members_it_carries() {
   dir="$(_hi_overlay_fixture wired colors inputrc bat/config eza/theme.yml oh-my-posh.toml kak/kakrc)"
   d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || return 1
   _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
-  want='export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
-export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR/kak"
+  want='export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR/kak"
+export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
 export EZA_CONFIG_DIR="$_HI_CONFIG_DIR/eza"
 export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat/config"
 export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
@@ -540,12 +540,12 @@ function test_overlay_tar_has_no_wiring_without_a_wired_member() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "aliases.sh,bashrc,colors" ]
 }
 
-# a row of the user's own, in the overlay's plugins: the member rides from the
-# first of its places that is there, with its tool on this machine, beside
-# its wiring.sh line and the carry itself, which a next hop reads. The two
+# a plugin of the user's own, in the overlay's plugins: a file of it rides
+# from the first of its places that is there, with its tool on this machine,
+# beside its wiring.sh line, and the tables themselves stay home. The two
 # tools are names no runner has, one stubbed and one never: the suite's stub
 # directory is on $PATH for the whole run. (GLOSSARY: HI.63)
-# shellcheck disable=SC2016 # the rows and the wanted lines hold their $ unexpanded
+# shellcheck disable=SC2016 # the tables and the wanted lines hold their $ unexpanded
 function test_carry_row_rides_from_home_with_its_wiring() {
   local dir d h="$_HI_WORKDIR/tool-home" stubs
   dir="$(_hi_overlay_fixture carry-rides)"
@@ -553,15 +553,16 @@ function test_carry_row_rides_from_home_with_its_wiring() {
   printf 'data.location=~/.task\n' >"$h/.config/task/taskrc"
   printf 'second\n' >"$h/with space/b.conf"
   {
-    printf '# mine\n[mine]\ntaskrc = "hi-carry-here | env:TASKRC | $NOWHERE/taskrc : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc"\n'
-    printf '"b.conf" = "- | envdir:B_DIR | ~/with space/b.conf"\n'
-    printf '"c.toml" = "- | flag:ctool --config= | ~/with space/b.conf"\n'
-    printf '"gone.rc" = "hi-carry-absent | env:GONERC | ~/with space/b.conf"\n'
+    printf '# mine\n[mine.hi-carry-here]\nwire = "env:TASKRC"\nfiles = "taskrc"\n'
+    printf 'home = "$NOWHERE/taskrc : $XDG_CONFIG_HOME/task/taskrc : ~/.taskrc"\n'
+    printf '[mine.b]\ntool = "-"\nhome = "~/with space/b.conf"\nwire = "envdir:B_DIR"\nfiles = "b.conf c.toml"\n'
+    printf '[mine.b."c.toml"]\nwire = "flag:ctool --config="\n'
+    printf '[mine.hi-carry-absent]\nwire = "env:GONERC"\nhome = "~/with space/b.conf"\nfiles = "gone.rc"\n'
   } >"$dir/plugins"
   stubs="$(_hi_stub_tools hi-carry-here)"
   d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH")" || return 1
   # gone.rc stays home: its tool is nowhere on this machine
-  [ "$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)" = "b.conf,c.toml,plugins,taskrc,wiring.sh" ] ||
+  [ "$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)" = "b.conf,c.toml,taskrc,wiring.sh" ] ||
     _hi_because "carried: $(ls "$d")" || return 1
   [ "$(cat "$d/taskrc" "$d/b.conf")" = "$(printf 'data.location=~/.task\nsecond')" ] ||
     _hi_because "members: $(cat "$d/taskrc" "$d/b.conf" 2>&1)" || return 1
@@ -618,56 +619,81 @@ function test_table_home_columns_are_the_grammar() {
   done
 }
 
-# a row the table cannot hold is left out, its file, line and reason kept
-# for hi --doctor: one above the first table or under a name that is no
-# group, no row at all, a name that is no member, one of hi's own or the
-# directory of one, one the file has already, a tool or a wire of another
-# shape, a dialect hi does not read, a fifth column, a home that names a
-# function. A row of the tree's member, a directory entry included, replaces
-# the tree's row.
+# what the table cannot hold is left out, its file, line and reason kept for
+# hi --doctor: a key above the first table, a table of the rows before these
+# or of no [<group>.<name>], a second plugin of a name, a file's table under
+# no plugin or for a file it has not, a key hi does not read, a plugin of no
+# files, a tool of another shape, and a file that is no member, is hi's own or
+# the directory of one, the plugins file's, another plugin's, or has a wire, a
+# dialect, or a home hi does not read. The rest of a plugin rides without the
+# file that was turned down, and a plugin of a name the tree has replaces the
+# tree's whole.
+# shellcheck disable=SC2088 # the ~ is the file's to read, not the shell's
 function test_carry_turns_down_a_row_the_table_cannot_hold() {
   local dir
   dir="$(_hi_overlay_fixture carry-bad)"
   {
-    printf 'top = "- | - | ~/x"\n'
-    printf '[mine]\n'
-    printf 'good = "- | - | ~/x"\n'
-    printf '"vim/vimrc" = "vim | - | ~/.vimrc"\n'
-    printf 'micro = "- | - | ~/x"\n'
-    printf '"zellij/layouts/" = "- | - | ~/x"\n'
-    printf '"../up" = "- | - | ~/x"\n'
-    printf '"wiring.sh" = "- | - | ~/x"\n'
-    printf 'good = "- | - | ~/y"\n'
-    printf 'w1 = "- | env:A;rm | ~/x"\n'
-    printf 'w2 = "- | flag:-f | ~/x"\n'
-    printf 'w3 = "- | xdg:a b | ~/x"\n'
-    printf 'w4 = "- | xdg:a,b=c;xdg:d | ~/x"\n'
-    printf 't1 = "a;b | - | ~/x"\n'
-    printf 'four = "- | - | ~/x | sh"\n'
-    printf 'd1 = "- | - | ~/x | nodialect"\n'
-    printf 'five = "- | - | ~/x | sh | more"\n'
-    printf 'two = "- | -"\n'
-    printf 'fn = "- | - | @_hi_posh_home"\n'
-    printf 'arr = ["-", "-", "~/x"]\n'
-    printf 'bare words\n'
-    printf '[bad group]\n'
-    printf 'under = "- | - | ~/x"\n'
+    printf 'top = "x"\n'                                             # 1: no table above it
+    printf '[mine]\nold = "- | - | ~/x"\n'                           # 2: the rows before the tables
+    printf '[bad group.x]\nfiles = "x"\n'                            # 4: no [<group>.<name>]
+    printf '[mine.sub."f"]\nwire = "-"\n'                            # 6: follows no [mine.sub]
+    printf '[mine.good]\ntool = "-"\nhome = "~/x"\nfiles = "good"\n' # 8
+    printf 'color = "red"\n'                                         # 12: no key of a plugin
+    printf 'bare words\n'                                            # 13: no line of a plugin
+    printf '[mine.good."other"]\nwire = "-"\n'                       # 14: no file of good
+    printf '[mine.good."good"]\ntool = "x"\n'                        # 16, 17: no key of a file
+    printf '[mine.good]\nfiles = "again"\n'                          # 18: a plugin already
+    printf '[mine.empty]\ntool = "-"\n'                              # 20: no files
+    printf '[mine.tools]\ntool = "a;b"\nfiles = "t1"\n'              # 22: a tool of another shape
+    # 25: eight files turned down for the reason each has, two kept
+    printf '[mine.files]\ntool = "-"\nhome = "~/x"\n'
+    printf 'files = "../up wiring.sh plugins colors micro zellij/layouts/x good w1 d1 fn kept kept four"\n'
+    printf '[mine.files."w1"]\nwire = "env:A;rm"\n'
+    printf '[mine.files."d1"]\ndialect = "nodialect"\n'
+    printf '[mine.files."fn"]\nhome = "@_hi_posh_home"\n'
+    printf '[mine.files."four"]\nwire = "xdg:a,b=c;xdg:d"\ndialect = "sh"\n'
+    # the tree's plugins of these names give way whole
+    printf '[editors.vim]\nhome = "~/.vimrc"\nfiles = "vim/vimrc"\n'
+    printf '[mux.zellij]\nhome = "~/x/"\nfiles = "zellij/layouts/"\n'
   } >"$dir/plugins"
   (
     _HI_CONFIG_DIR="$dir"
     _hi_plugins_load
     case " ${_HI_PLUGIN_FILES[*]} " in
-    *" good w4 four "*) ;;
+    *" good kept four "*) ;;
     *) _hi_because "kept: ${_HI_PLUGIN_FILES[*]}" || exit 1 ;;
     esac
-    [ "${#_HI_PLUGIN_BAD[@]}" = 17 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
-    case "${_HI_PLUGIN_BAD[0]}" in 'plugins:1|no [group] above it') ;; *) _hi_because "first: ${_HI_PLUGIN_BAD[0]}" || exit 1 ;; esac
+    [ "${#_HI_PLUGIN_BAD[@]}" = 22 ] || _hi_because "turned down ${#_HI_PLUGIN_BAD[@]}: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    case "${_HI_PLUGIN_BAD[0]}" in 'plugins:1|no [<group>.<name>] above it') ;; *) _hi_because "first: ${_HI_PLUGIN_BAD[0]}" || exit 1 ;; esac
+    case "${_HI_PLUGIN_BAD[1]}" in 'plugins:2|'*'hi --configure converts') ;; *) _hi_because "second: ${_HI_PLUGIN_BAD[1]}" || exit 1 ;; esac
     local r="" tilde='~'
     _hi_overlay_row vim/vimrc r
-    [ "${r##*|}" = "$tilde/.vimrc" ] || _hi_because "the tree's vim/vimrc row was not replaced: $r" || exit 1
+    [ "${r##*|}" = "$tilde/.vimrc" ] || _hi_because "the tree's vim was not replaced: $r" || exit 1
     _hi_overlay_row zellij/layouts/x r
-    [ "${r##*|}" = "$tilde/x" ] || _hi_because "the tree's zellij/layouts/ row was not replaced: $r"
+    [ "${r##*|}" = "$tilde/x/" ] || _hi_because "the tree's zellij was not replaced: $r" || exit 1
+    ! _hi_overlay_row zellij/config.kdl r || _hi_because "a file of the tree's zellij outlived it: $r"
   )
+}
+
+# the check and the writer take a wire apart through one function
+# (_hi_wire_read), so what the check admits is what is written: a word after
+# a `--flag=`, a = inside a later word, names and an environment ahead of
+# the command - and no part that would run where a target sources the line
+# shellcheck disable=SC2016 # the wires and the wanted lines hold their $ unexpanded
+function test_a_wire_is_checked_as_it_is_written() {
+  local dir w why
+  dir="$(_hi_overlay_fixture wire-read a.rc b.rc)"
+  {
+    printf '[mine.a]\ntool = "-"\nwire = "flag:atool --config= extra"\nhome = "/etc/a"\nfiles = "a.rc"\n'
+    printf '[mine.b]\ntool = "-"\nwire = "flag:b1,b2=X=$HOME/x btool -o k=v -f"\nhome = "/etc/b"\nfiles = "b.rc"\n'
+  } >"$dir/plugins"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat wiring.sh)" = 'command -v atool >/dev/null 2>&1 && alias atool="atool --config= extra $_HI_CONFIG_DIR/a.rc" || true
+command -v btool >/dev/null 2>&1 && alias b1="env X=$HOME/x btool -o k=v -f $_HI_CONFIG_DIR/b.rc" && alias b2="env X=$HOME/x btool -o k=v -f $_HI_CONFIG_DIR/b.rc" || true' ] ||
+    _hi_because "wiring.sh: $(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat wiring.sh 2>&1)" || return 1
+  for w in 'flag:$(x)=cmd -f' 'flag:v=X=$(rm) vim -u' 'flag:a,,b=c -f' 'flag:vim' 'flag:c -f;rm' 'xdg:$(x)=c' 'flag:c `x`' 'env:A=$(x)'; do
+    ! _hi_plugin_wire_ok "$w" why || _hi_because "admitted: $w" || return 1
+    [ -n "$why" ] || _hi_because "no reason for: $w" || return 1
+  done
 }
 
 # ...the tree's own file is read by the same rules, and every row of it
@@ -679,7 +705,8 @@ function test_the_tree_plugins_file_holds() {
     _HI_CONFIG_DIR="$dir"
     _hi_plugins_load
     [ "${#_HI_PLUGIN_BAD[@]}" = 0 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
-    [ "${#_HI_PLUGIN_ROWS[@]}" = "$(grep -c '^[^#].* = "' "$_HI_ROOT/config/plugins")" ] || _hi_because "rows: ${#_HI_PLUGIN_ROWS[@]}"
+    [ "${#_HI_PLUGIN_ROWS[@]}" = "$(sed -n 's/^files = "\(.*\)"$/\1/p' "$_HI_ROOT/config/plugins" | wc -w | tr -d ' ')" ] ||
+      _hi_because "rows: ${#_HI_PLUGIN_ROWS[@]}"
   )
 }
 
@@ -692,13 +719,21 @@ function test_plugin_off_keeps_its_members_home() {
   dir="$(_hi_overlay_fixture plugins-off colors vim/vimrc nano/nanorc tmux/tmux.conf bat/config lazygit/config.yml mine.rc)"
   mkdir -p "$dir/micro"
   printf '{}\n' >"$dir/micro/settings.json"
-  printf '[mine]\n"mine.rc" = "- | env:MINE | /etc/mine"\n' >"$dir/plugins"
-  [ "$(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors plugins bat/config tmux/tmux.conf mine.rc " ] ||
+  printf '[mine.mine]\ntool = "-"\nwire = "env:MINE"\nhome = "/etc/mine"\nfiles = "mine.rc"\n' >"$dir/plugins"
+  [ "$(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors bat/config tmux/tmux.conf mine.rc " ] ||
     _hi_because "a plugin and a group off: $(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_PLUGINS_OFF="mux,cli,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors plugins vim/vimrc micro/settings.json " ] ||
+  [ "$(_HI_PLUGINS_OFF="mux,cli,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors vim/vimrc micro/settings.json " ] ||
     _hi_because "commas, a member, a group of the user's: $(_HI_PLUGINS_OFF="mux,cli,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_PLUGINS_OFF="colors plugins settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x -e colors -e plugins)" = 2 ] ||
-    _hi_because "one of hi's own was switched off"
+  [ "$(_HI_PLUGINS_OFF="colors settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x colors)" = 1 ] ||
+    _hi_because "one of hi's own was switched off" || return 1
+  # one file of a directory member, by its own name: the rest of it rides
+  mkdir -p "$dir/extensions"
+  printf 'export A=1\n' >"$dir/extensions/10-a"
+  printf 'export B=1\n' >"$dir/extensions/20-b"
+  [ "$(_HI_PLUGINS_OFF="extensions/10-a editors cli mux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors extensions/20-b " ] ||
+    _hi_because "one extension off: $(_HI_PLUGINS_OFF="extensions/10-a editors cli mux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ -z "$(_HI_PLUGINS_OFF="extensions" _HI_CONFIG_DIR="$dir" _hi_overlay_files extensions/)" ] ||
+    _hi_because "the directory's plugin off left a file riding"
 }
 
 # ...nor its wiring line: what a tool is not to use has no business on the
@@ -1089,6 +1124,21 @@ function test_the_payload_is_whole_without_a_cut_list() {
   [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
 }
 
+# the plugins rows are the packer's alone to read, and it never rides: the
+# tree's file is cut from every payload, and the overlay's is no member
+function test_the_plugins_rows_stay_home() {
+  local dir="$_HI_WORKDIR/rows-home" listing
+  mkdir -p "$dir"
+  printf '[mine.mine]\ntool = "-"\nwire = "env:MINE"\nhome = "/etc/mine"\nfiles = "mine.rc"\n' >"$dir/plugins"
+  printf 'x\n' >"$dir/mine.rc"
+  [ -f "$_HI_ROOT/config/plugins" ] || return 1
+  listing="$(_hi_payload_tar | tar tzf -)"
+  [[ "$listing" != *config/plugins* && "$listing" == *config/colors* ]] ||
+    _hi_because "the tree's rows rode" || return 1
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "mine.rc,wiring.sh" ] ||
+    _hi_because "the overlay's rows rode: $(_HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+}
+
 # a framework's prompt loader rides only to a target handed that framework:
 # none with starship alone, the one named beside it, and each name the cut
 # gives is a file of the tree
@@ -1469,7 +1519,7 @@ function test_framework_and_extension_includes_are_neutralized() {
   printf 'source ~/.p10k-local.zsh\n' >"$dir/p10k.zsh"
   printf 'export Y=1\n[ -f ~/.kube-extra ] && . ~/.kube-extra\n' >"$dir/extensions/10-kube"
   out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
-  [ "$out" = "extensions/10-kube|2|include,oh-my-bash.theme.sh|2|include,p10k.zsh|1|include" ] || {
+  [ "$out" = "extensions/10-kube|2|include,p10k.zsh|1|include,oh-my-bash.theme.sh|2|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
@@ -1704,7 +1754,7 @@ emacs/init.el|2' ] || {
   }
 }
 
-# a row of the user's is scanned and stripped in the dialect it names: its
+# a plugin of the user's is scanned and stripped in the dialect it names: its
 # include goes out disabled and is reported; with no dialect the same file
 # rides as written
 function test_a_users_row_is_read_in_its_dialect() {
@@ -1714,8 +1764,8 @@ function test_a_users_row_is_read_in_its_dialect() {
 set_it=1
 ')"
   bare="$(_hi_lint_fixture user-no-dialect mine.rc "$(cat "$dir/mine.rc")")"
-  printf '[mine]\n"mine.rc" = "- | env:MINERC | - | sh"\n' >"$dir/plugins"
-  printf '[mine]\n"mine.rc" = "- | env:MINERC | -"\n' >"$bare/plugins"
+  printf '[mine.mine]\ntool = "-"\nwire = "env:MINERC"\ndialect = "sh"\nfiles = "mine.rc"\n' >"$dir/plugins"
+  printf '[mine.mine]\ntool = "-"\nwire = "env:MINERC"\nfiles = "mine.rc"\n' >"$bare/plugins"
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3)"
   [ "$out" = 'mine.rc|2|include' ] || _hi_because "reported: [$out]" || return 1
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat mine.rc)"
@@ -2117,6 +2167,7 @@ function run_hi_payload_tests() {
   _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
   _hi_check "With the header off, header.sh and the package list stay home" test_header_off_keeps_the_header_home
   _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
+  _hi_check "The plugins rows stay home" test_the_plugins_rows_stay_home
   _hi_check "A prompt framework's loader rides only where handed" test_a_prompt_loader_rides_only_where_handed
   _hi_check "The shadow roster is paths.sh's cascade" test_the_shadow_roster_matches_paths_sh
 
@@ -2146,11 +2197,12 @@ function run_hi_payload_tests() {
   _hi_check "A wired member rides with its wiring.sh line" test_overlay_tar_wires_the_members_it_carries
   _hi_check "...an editor's or a multiplexer's with its alias" test_overlay_tar_aliases_the_editors_and_multiplexers
   _hi_check "...and there is no wiring.sh without one" test_overlay_tar_has_no_wiring_without_a_wired_member
-  _hi_check "A plugins row of the user's rides from home, wired" test_carry_row_rides_from_home_with_its_wiring
+  _hi_check "A plugin of the user's rides from home, wired" test_carry_row_rides_from_home_with_its_wiring
   _hi_check "...its home list expands three starts and runs nothing" test_carry_home_list_expands_three_starts_and_runs_nothing
   _hi_check "...paths a , apart are one place, the first set" test_home_list_takes_the_first_set_of_a_place
   _hi_check "...and the table's own rows are that grammar" test_table_home_columns_are_the_grammar
-  _hi_check "...a row the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
+  _hi_check "...what the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
+  _hi_check "...a wire is checked as it is written" test_a_wire_is_checked_as_it_is_written
   _hi_check "...and the tree's own file holds whole" test_the_tree_plugins_file_holds
   _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
@@ -2208,7 +2260,7 @@ function run_hi_payload_tests() {
   _hi_check "An unclosed start decides nothing and is a row" test_an_unclosed_start_decides_nothing_and_is_reported
   _hi_check "...and a lone marker still decides one line" test_a_single_marker_still_decides_one_line
   _hi_check "A commented line is no finding" test_the_scan_skips_a_commented_line
-  _hi_check "A row of the user's is read in its dialect" test_a_users_row_is_read_in_its_dialect
+  _hi_check "A plugin of the user's is read in its dialect" test_a_users_row_is_read_in_its_dialect
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded
