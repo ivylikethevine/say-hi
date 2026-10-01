@@ -73,6 +73,8 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.62 generated wiring](#hi62-generated-wiring)
 - [HI.63 plugins rows](#hi63-plugins-rows)
 - [HI.64 what is switched off](#hi64-what-is-switched-off)
+- [HI.65 kept session](#hi65-kept-session)
+- [HI.66 the packer stays home](#hi66-the-packer-stays-home)
 
 ## HI.01 empty-array guard
 
@@ -552,8 +554,8 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment and whitespace strip
 
-Every tree file `hi.sh`'s `$_HI_STRIP_NAMES` matches — the shell files and
-the data files under `config/` — and every overlay member whose dialect
+Every tree file `scripts/pack.sh`'s `$_HI_STRIP_NAMES` matches — the shell
+files and the data files under `config/` — and every overlay member whose dialect
 (`$_HI_DIALECTS`) has `<strip>` 1, such as `vim/vimrc` and `tmux/tmux.conf`,
 whose prose headers document the _installed_ copies, is comment-stripped by
 `_hi_strip_awk` on its way into the payload or overlay; about 40% of the
@@ -606,7 +608,7 @@ than wrong; the cost, a wrongly-colored excluded host, is cosmetic.
 
 ## HI.38 split tar and gzip
 
-`_hi_tar_gz` (`hi.sh`) runs `tar -c -f - | gzip -n` rather than
+`_hi_tar_gz` (`hi.sh`) runs `tar -c -f - | gzip -9 -n` rather than
 `tar -c -z -f -`. The two userlands pad differently, and only one pads something
 that survives compression: GNU tar rounds the _uncompressed_ archive up to the
 10240-byte blocking factor and then gzips it, so its trailing NULs cost about
@@ -615,7 +617,8 @@ stream_, appending raw NULs after the gzip member, so a one-step payload built
 on a BSD client is a multiple of 10240: about 27% waste on a stock payload and a
 flat 54× on a two-file overlay (189 B against 10240). Split, the steps agree
 with GNU tar to within a few bytes under both userlands and are byte-stable run
-to run.
+to run. `-9`, since the cache pays for the slower pass once and every connect
+sends the result.
 
 `${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail` back off for
 interactive sourcing, so a failing tar would otherwise hide behind a
@@ -638,12 +641,13 @@ so `tar cf - -C dir` archives a file called `-C` there.
 
 ## HI.39 payload staging
 
-`_hi_payload_tar` (`hi.sh`) ships the tree, comment-stripped (HI.35), through
-`_hi_stage_tar`, which the overlay shares. What ships never depends on a
-toggle: `$_HI_PAYLOAD` is whole directories, every toggle is read where it
-applies, and a session that switched something off carries the file and
-leaves it alone (a per-toggle trim would save about a kilobyte at the cost of
-a cache key, a second table, and an exclusion list).
+`_hi_payload_tar` (`scripts/pack.sh`) ships the tree, comment-stripped
+(HI.35), through `_hi_stage_tar`, which the overlay shares; a session's own
+`_hi_payload_tar` stages nothing ([HI.66](#hi66-the-packer-stays-home)). What
+ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
+toggle is read where it applies, and a session that switched something off
+carries the file and leaves it alone (a per-toggle trim would save about a
+kilobyte at the cost of a cache key, a second table, and an exclusion list).
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so it is copied to a `mktemp -d` stage through an
@@ -686,8 +690,9 @@ quoting is one decision rather than one per transport.
 
 ## HI.41 overlay stream
 
-The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) lives outside the
-tree, so it travels as a second, much smaller archive rather than inside the
+The user's config overlay (`$_HI_OVERLAY_FILES` in `scripts/pack.sh`) lives
+outside the tree, so it travels as a second, much smaller archive rather than
+inside the
 payload. It unpacks into the tree's `config/`, over the defaults it shadows
 (which the payload already left out), and `$_HI_CONFIG_DIR` is that
 directory: one place a session reads config from. hi's own aliases are
@@ -821,7 +826,8 @@ function of that name, and without it `fish` would call itself forever.
 
 The wrappers cannot cover a bash or fish shell nothing typed — a `tmux` pane
 spawning a login shell, an editor's shell-out — which comes up as the host's
-own. hi writes nothing into a target's login files
+own. The panes of a session hi keeps are the exception
+([HI.65](#hi65-kept-session)). hi writes nothing into a target's login files
 ([COMPATIBILITY.md](COMPATIBILITY.md#what-would-change-an-answer) has the
 reasoning).
 
@@ -1022,9 +1028,8 @@ the family is reachable with no second spelling. Names stay plain identifiers
 `hi --mux <target>` re-executes the connect inside a local multiplexer
 session named `hi-<target>` and never returns; a second `hi --mux` to the same
 target joins the running session. It is the client-side answer to a dropped
-link - a disposable tree cannot outlive its own session, so there is no
-target-side multiplexer. `_hi_mux_tool` picks the first of tmux, zellij, and
-screen on `PATH`, each driven in its own idiom:
+link; [HI.65](#hi65-kept-session) is the target-side one. `_hi_mux_tool` picks
+the first of tmux, zellij, and screen on `PATH`, each driven in its own idiom:
 
 - **tmux**: `new-session -A -s <name> <one string>`; the `-A` is the reattach.
 - **screen**: `-D -R -S <name> sh -c <one string>`; `-D -R` reattaches a
@@ -1040,9 +1045,9 @@ Five rules in `_hi_mux_wrap`:
 
 - **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
   insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
-  inner argv is rebuilt from the parsed state (`--use`, `--plain`, the ssh
-  options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
-  settled on rides along.
+  inner argv is rebuilt from the parsed state (`--use`, `--plain`, `--keep` or
+  `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
+  `"$@"`, so the target it settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
   the wrap returns at once when that is set. The inner argv carries no
   `--mux`/`--no-mux` of its own, so the inner hi re-reads `$_HI_MUX` - without
@@ -1187,14 +1192,14 @@ Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into the
 target's `config/`, so a line naming a _path_ - a second rc beside it, a plugin
 directory, a manager's bootstrap - names something no target has, and the editor
-or shell fails on it rather than hi. `hi.sh`'s `_hi_lint_awk` finds exactly
-those lines; the per-dialect grammar, and what it deliberately leaves alone, is
+or shell fails on it rather than hi. `scripts/pack.sh`'s `_hi_lint_awk` finds
+exactly those lines; the per-dialect grammar, and what it deliberately leaves alone, is
 the comment above it. One pass serves both readers: `_hi_stage_tar` runs it in
 `fix` mode ahead of [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
 stripper, so a finding goes out disabled in its own dialect and the strip drops
 it for free, and `hi --doctor` runs it in `report` mode, so its yellow rows name
-exactly what went missing. The grammar is a row of `hi.sh`'s `$_HI_DIALECTS` -
-its comment leader, where a statement ends, what is an include, a plugin
+exactly what went missing. The grammar is a row of `scripts/pack.sh`'s
+`$_HI_DIALECTS` - its comment leader, where a statement ends, what is an include, a plugin
 manager, or allowed, and how a finding is disabled - named by the member's row's
 `<dialect>`, so doctor reads `~/.vimrc` as vim, a row of the user's is read in
 the dialect it names, and a member with none (an `eza/theme.yml`) passes through
@@ -1233,9 +1238,9 @@ directory (not `$HOME` itself), and at home `$XDG_CONFIG_HOME/<tool>`,
 its own includes carry too, and the include's path becomes
 `@@HI_CONFIG@@/<tool>/...`, a word the target makes its overlay directory as the
 overlay lands (`_hi_overlay_fixup`, one `grep -rl` and a `sed` per file that has
-it). The line is not a finding, so `hi --doctor` does not name it. On a target
-the source's own directory is the only one, and the carried copy sits in it, so
-a relayed hop is sent the file again under the same name. The overlay cache
+it). The line is not a finding, so `hi --doctor` does not name it. A relay
+sends the carried copy with the rest of its tree, and its own overlay directory
+as the word ([HI.66](#hi66-the-packer-stays-home)). The overlay cache
 watches the carried files through the list the last build left beside it. An
 include naming a module rather than a path - lua's `require("x")` - is not one
 this reads, and is dropped as before.
@@ -1256,8 +1261,8 @@ next hop's target, which may have a different set.
 ## HI.58 overlay directory members
 
 A `$_HI_OVERLAY_FILES` entry ending in `/` names a directory, and its members
-ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as `<dir>/<name>`, in
-name order, over the overlay's directory and home's, each name once and the
+ride one by one: `scripts/pack.sh`'s `_hi_overlay_files` lists each as
+`<dir>/<name>`, in name order, over the overlay's directory and home's, each name once and the
 overlay's copy first (zellij's `layouts/` and `themes/`, kakoune's `colors/`),
 or over the overlay's alone where the row has no home (`extensions/`,
 `header/`), and the rest of the stream - `_hi_overlay_src`, the cache key, the
@@ -1346,7 +1351,7 @@ name arriving empty can reach the root of the disk again.
 
 ## HI.61 one overlay priority
 
-Every overlay member resolves in one order, written once as `hi.sh`'s
+Every overlay member resolves in one order, written once as `scripts/pack.sh`'s
 `$_HI_OVERLAY_TABLE` and the rows `config/plugins` adds to it
 ([HI.63](#hi63-plugins-rows)): the overlay's copy, else the user's own file
 at home, else the tree's default where `config/` holds one. A row names the
@@ -1371,9 +1376,10 @@ section (`doctor_files`) walks the same rows, naming each member's tool and
 marking every location that holds something used or passed over, and why
 nothing is sent when something is there.
 
-The home tier is the config in force _here_: client-only, like every home
-read (a relay never packs the middle box's), and only with the member's tool
-on this machine (`_hi_tool_here`). Whichever tier answers, the include scan
+The home tier is the config in force _here_: client-only, since a relay
+packs nothing of the middle box's
+([HI.66](#hi66-the-packer-stays-home)), and only with the member's tool on
+this machine (`_hi_tool_here`). Whichever tier answers, the include scan
 ([HI.57](#hi57-carried-configs-and-the-include-scan)) runs over it on the way
 out.
 
@@ -1431,13 +1437,14 @@ tool's own config is already in force.
 
 A target therefore knows no wired member by name, tests no file per member
 per shell start, and gets no line for a member that stayed home. The paths
-are written under `$_HI_CONFIG_DIR`, unexpanded, so a hop taken from inside a
-session writes the same lines from the same list. `wiring.sh` is no member:
+are written under `$_HI_CONFIG_DIR`, unexpanded, so the file holds on a hop
+taken from inside a session, which sends it as it stands. `wiring.sh` is no
+member:
 one in the overlay is not read, and the archive has none when no member it
 carries has a wire.
 
 The lines are part of `_hi_overlay_cache_key`. The member list alone would
-hand an archive cached by an older `hi.sh` to a newer one that wires the same
+hand an archive cached by an older packer to a newer one that wires the same
 members another way.
 
 No line is written behind a test of a setting: what is switched off is
@@ -1453,8 +1460,8 @@ another of the same shape, the overlay's `plugins`: TOML in the subset
 `core.sh`'s `_hi_toml_row` reads, `[group]` tables of
 `"<member>" = "<tool> | <wire> | <home> | <dialect>"` rows, the last column `-`
 when left out, spaces around a column ignored, `#` lines and blank ones skipped.
-`hi.sh`'s `_hi_plugins_load` reads both into `$_HI_PLUGIN_ROWS` in the table's
-own shape ([HI.61](#hi61-one-overlay-priority)), the group the table's name, so
+`scripts/pack.sh`'s `_hi_plugins_load` reads both into `$_HI_PLUGIN_ROWS` in
+the table's own shape ([HI.61](#hi61-one-overlay-priority)), the group the table's name, so
 the order, the tool check, the include scan, the cache, the wiring
 ([HI.62](#hi62-generated-wiring)), and `hi --doctor` take a row of the user's as
 they take one of hi's. The overlay's file is read after the tree's, and a row of
@@ -1482,10 +1489,10 @@ words, or `xdg:` over one command, wires a `;` apart; a dialect `$_HI_DIALECTS`
 has no row of; a fifth column. The wire is checked because its words become a
 line every target sources.
 
-The overlay's `plugins` is itself a member. On a target the copy that rode
-names the members that rode with it, so a hop taken from there carries and
-wires them again, from the session's `config/` and never from that machine's
-home.
+The overlay's `plugins` is itself a member. A hop taken from a target sends
+the session's `config/` as it stands ([HI.66](#hi66-the-packer-stays-home)),
+so the members that rode, their rows, and their wiring arrive again, and
+nothing of that machine's home does.
 
 ## HI.64 what is switched off
 
@@ -1517,3 +1524,157 @@ machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
 spelling, so each rewrites the line the other left. `load.sh` reads one word
 of it on a target, from the `settings.sh` that rode: with `editors` off it
 exports no `$EDITOR`.
+
+## HI.65 kept session
+
+`hi --keep <target>` (or `_HI_KEEP=1`) runs the session inside the target's
+tmux, zellij, or screen, so it outlives the connection;
+[HI.52](#hi52-client-multiplexer-wrap) is the same idea on the client. All of
+it is the ssh arm's and the bash tier's: a container arm, `--plain`, and a
+bash-less target connect as usual.
+
+- **The name.** `hi-<target>`, from `_hi_mux_name` as `--mux` names its local
+  session: the target as typed on this client, so two clients that call a
+  host the same thing reach one session.
+- **Reattach comes first.** Every interactive connect, `--keep` or not,
+  carries `_hi_keep_attach` between the preamble and the unpack. Its
+  `_hi_kept` asks tmux (`has-session -t =<name>`), then zellij (`ls -n`,
+  exited sessions dropped: attaching one would resurrect it), then screen
+  (`-ls`, Dead entries dropped), and a hit is attached and the script exits
+  there, with nothing unpacked. `--no-keep` and `hi <target> <cmd>` leave the
+  block out; without a terminal it does nothing.
+- **The owner pane.** With no session to attach, `_hi_keep_start` replaces
+  the bash handoff with `tmux new-session -s <name>` (or zellij's or screen's
+  start) running the same `bash --rcfile hi.bashrc -i`, under the config hi
+  carried, in the first of the three the target has. `load.sh` runs in that
+  pane as in any session, so its exit hook is still the one thing that
+  removes the tree: on `exit`, a killed session, or the timeout.
+- **The environment is an argv.** A multiplexer server already running hands
+  a new pane its own environment, not the caller's, so the session's
+  variables ride as `env NAME=value ...` ahead of bash. The subshell that
+  execs the multiplexer unsets them first: a server started here would
+  otherwise carry the client's verdicts to every other pane
+  ([HI.47](#hi47-what-a-child-inherits)). `$_HI_KEEP_MUX` and `$_HI_KEEP_NAME`
+  are how `load.sh` knows it is the owner.
+- **zellij starts from a layout.** It takes a first pane's command from a
+  layout and nowhere else, so the start writes `hi.keep.kdl` beside the rc:
+  zellij's own tab and status bars around one pane whose `args` are that `env`
+  argv, each word a KDL string with its `"` and `\` escaped. Its options keep
+  the session off the disk (`--session-serialization false`: nothing under
+  `~/.cache/zellij` to resurrect), make a dropped client a detach whatever
+  the config says (`--on-force-close detach`), and turn off the startup-tip
+  and release-notes popups, which would take the first prompt's keys - those
+  two only where `zellij options --help` lists them, since a zellij handed an
+  option it does not know refuses to start.
+- **The trap stands down.** On a connect that keeps, the bootstrap's
+  `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
+  runs an exit trap on a hangup, and a dropped link would otherwise take the
+  tree from under the session.
+- **Kept from inside.** `hi --keep` with no target, typed in a session, keeps
+  that session: `_hi_keep_here` runs the same attach and start under `sh`,
+  from where a connect starts the pane. Three things make that possible. The
+  attach block exports `$_HI_KEEP_AS`, the target as the client typed it, so
+  the name is the one a later `hi <target>` looks for. `load()` writes
+  `hi.keep` in the tree, a `NAME=value` a line: that name, the client's
+  verdicts, the tree, and its own pid as `$_HI_KEEP_OUTER`; `hi.sh`, a child
+  that inherits none of them ([HI.47](#hi47-what-a-child-inherits)), reads
+  the pane's argv off it, and drops its own exports first so the multiplexer
+  it starts inherits a child's environment and no more. And the tree now has
+  two sessions on it, so the last one out removes it: the start leaves
+  `hi.kept` as the kept session's claim, which stops the first session's
+  `clean_all` and its bootstrap trap (`[ -e hi.kept ] ||`, on every connect
+  that could be kept); the owner pane's `clean_all` gives the claim up and
+  leaves the tree while `$_HI_KEEP_OUTER` is still running. A session with
+  no `hi.keep` - a container's, a `--no-keep` one, an owner pane - says it
+  cannot be kept, as does one already inside a multiplexer.
+- **The other panes.** A multiplexer opens a new pane on its default shell,
+  the host's own, which reads none of hi's rc
+  ([HI.46](#hi46-session-rc-directory)). The owner pane's `_hi_keep_panes`
+  leaves a launcher, `hi.pane`, beside the rc - what `load()` exported for
+  the session shell, then that shell's own command - and makes it the
+  session's: tmux's `default-command` and screen's `shell`, set for this
+  session alone, and zellij's `--default-shell`, which it takes at the start
+  only, so `hi.sh` names the path there. Those panes run on the owner's
+  tree, so the owner's end is the session's: `clean_all` kills the session
+  after it removes the tree.
+- **Closing.** `load()` loops: when the pane's shell exits with a client
+  attached, `_hi_keep_stays` asks, and anything but `y` detaches the client
+  and starts a fresh shell. zellij has no command for that - its
+  `action detach` leaves an attached client where it is - so there the fresh
+  shell comes with a line naming the key. With nobody attached it closes.
+  `hi --end <target>` kills the session over one ssh call, and the pane's
+  bash takes the hangup.
+- **A session that died.** A target that goes down kills the owner pane
+  with no exit hook run, and a `/tmp` that outlasts the reboot keeps its
+  tree. So every owner pane's `load()` writes `hi.kept` (`_hi_keep_claim`):
+  its pid, then `$_HI_KEEP_OUTER`'s where it was kept from inside. A connect
+  that looks for a kept session and attaches none runs `_hi_keep_sweep` once
+  it has a tree of its own: each sibling of that tree (`<user>.hi.*`, the
+  same `mktemp` template in the same directory) whose claim names no process
+  still running is removed. Liveness is asked of the pids and not of the
+  multiplexer, which a connect with another socket directory cannot see; a
+  pid some other process of the account's now holds leaves the tree for a
+  later connect. An empty claim - `hi --keep` typed inside, its pane not up
+  yet - and a tree with none are left alone.
+- **The client's record.** A client cannot see a target's sessions without
+  connecting, so it notes the ones it has seen: an empty `hi.kept.<key>` in
+  hi's runtime directory, `<key>` the hash of the target and the ssh options
+  that names the connection's control socket. The target's script is what
+  writes it. A connect that looks for a kept session runs it as
+  `sh -c '...; e=$?; rm -rf <scratch>; exit $e'` rather than the bare pair
+  of commands, so its status outlasts the scratch directory's removal, and
+  the script ends 86 with a kept session left behind - off the attach, or at
+  its end, which covers a `hi --keep` typed inside - and 0 otherwise, never
+  the session shell's own status. `_hi_keep_connect` turns 86 into 0 and
+  the record on, 0 into the record off, and leaves it alone on anything else
+  (255, a link that dropped). A connect that keeps writes it before it
+  connects, since a drop says nothing; `hi --end` removes it. With the
+  record there, the next connect's script carries one more line after the
+  attach: no session by that name, and it says the kept session is gone
+  before it goes on. The runtime directory does not outlive a logout, and a
+  client that forgot expects nothing.
+- **The retry.** In a pane of a local multiplexer (`$TMUX`, `$ZELLIJ`, or
+  `$STY`, and a terminal) nobody may be watching when a link drops. There,
+  a session that was up, ends 255, and has the record is retried: every
+  five seconds for `$_HI_KEEP_RETRY` (5m; 0 is never) from the drop, then
+  one line saying the target did not come back. A try is `_say_hi` again
+  with `ConnectTimeout=10`; the boot call's stderr goes to a file until the
+  target answers, and a boot call ssh itself failed ends the try there, with
+  no PowerShell fallback for a host that was not reached. A try that gets in
+  and drops within ten seconds does not restart the window. A connect that
+  never got in is not retried.
+- **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
+  polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
+  that rode) with no client attached, and it kills the session. `clean_all`
+  kills the job by process group, so its `sleep` does not outlive a session
+  closed another way. zellij's clients are the rows of `action list-clients`
+  under its header; an answer with no header - a zellij too old to list them,
+  or one in its first second - counts as attached, so neither the timeout nor
+  an early `exit` closes a session somebody is in.
+
+## HI.66 the packer stays home
+
+What a connect sends is built by `scripts/pack.sh`, which `hi.sh` sources
+where it finds it: the overlay table and the plugins rows, home's lookups, the
+include scan, the comment strip, the staged tars and their caches. Only the
+machine that owns the config runs any of it, and `scripts/` never rides, so
+none of it costs a byte on the wire.
+
+A session's tree has no `scripts/`, and needs no packer: the tree _is_ the
+payload, already stripped, with the overlay unpacked over `config/`. There
+`hi.sh` defines the packer's side of a connect itself, in five short
+functions: no overlay members, no cut list, no cache, and a `_hi_payload_tar`
+that tars `$_HI_PAYLOAD` as it stands. A relay sends what it was sent.
+
+- **The seam.** `_say_hi` and `_say_hi_container` reach the packer through
+  `_hi_overlay_files`, `_hi_payload_excl`, `_hi_payload_cached`,
+  `_hi_payload_tar`, and `_hi_payload_stream`, the five a session defines, and
+  through four that run only with an overlay to send or outside a session
+  (`_hi_overlay_cached`, `_hi_overlay_stream`, `_hi_overlay_bytes`,
+  `_hi_prompt_here`). `payload_test.sh` holds `hi.sh` to that list.
+- **Carried includes.** An include the client carried names the config
+  directory of the hop it landed on, once `_hi_overlay_fixup` has run there.
+  A relay hands that path on as the token, so the next hop's fixup makes it its
+  own; a path a script cannot hold bare is no token, and nothing is rewritten.
+- **Not a broken install.** Outside a session a tree without the packer is
+  incomplete, and `_hi` refuses before anything is sent.

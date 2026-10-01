@@ -192,6 +192,17 @@ function test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state() {
   esac
 }
 
+# --keep and --no-keep are the inner connect's to act on, so each rides
+function test_mux_wrap_carries_the_keep_flag() {
+  local log="$_HI_WORKDIR/keep.log" out
+  out="$(_hi_mux_run "$log" 0 'KEEP=1')"
+  case "$out" in *"'--keep' 'myhost'"*) ;; *) return 1 ;; esac
+  out="$(_hi_mux_run "$log" 0 'KEEP=0')"
+  case "$out" in *"'--no-keep' 'myhost'"*) ;; *) return 1 ;; esac
+  out="$(_hi_mux_run "$log" 0 'KEEP=""')"
+  case "$out" in *keep*) return 1 ;; esac
+}
+
 # --- screen and zellij -----------------------------------------------------
 
 # the first of tmux, zellij, screen on PATH - here tmux is absent from the
@@ -290,6 +301,7 @@ function run_hi_mux_tests() {
   _hi_check "Outside tmux: exec new-session -A -s hi-<target>" test_mux_wrap_execs_new_session_A_named_for_the_target
   _hi_check "Inside tmux: create detached, then switch-client" test_mux_wrap_inside_tmux_creates_then_switches
   _hi_check "The inner argv is the parsed state, quoted" test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state
+  _hi_check "...--keep and --no-keep included" test_mux_wrap_carries_the_keep_flag
   _hi_h2 "Testing: screen and zellij"
   _hi_check "No setting: first of tmux, zellij, screen on PATH" test_mux_tool_picks_the_first_present_in_order
   _hi_check "screen, outside: exec screen -D -R -S hi-<target>" test_mux_screen_outside_execs_D_R_named_for_the_target

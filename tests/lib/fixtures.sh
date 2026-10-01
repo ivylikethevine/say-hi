@@ -513,7 +513,7 @@ function _hi_subcmd_run() {
 }
 
 # _hi_wiring_for <member...> - the wiring.sh a client packs for those members
-# (hi.sh's _hi_overlay_wiring), on stdout: from a child bash with no
+# (pack.sh's _hi_overlay_wiring), on stdout: from a child bash with no
 # arguments left, since sourcing hi.sh runs it on them
 function _hi_wiring_for() {
   # shellcheck disable=SC2016 # the child bash expands its own script

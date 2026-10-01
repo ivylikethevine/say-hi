@@ -1157,7 +1157,7 @@ function test_words_color_types_match_set_color() {
   [ -n "$types" ] && [ "$out" = "$types " ]
 }
 
-# --plugin-off: every group and plugin of hi.sh's table, read as text, then
+# --plugin-off: every group and plugin of pack.sh's table, read as text, then
 # the overlay plugins rows; hi's own files (colors, settings.sh) are no words
 function test_words_plugin_off_lists_groups_plugins_and_carry_members() {
   local out cfg="$_HI_WORKDIR/words-plugins"

@@ -52,159 +52,35 @@ _HI_RELEASE="${_HI_RELEASE:-}"
 # Kept identical to docs/hi.1's SYNOPSIS (parse_test.sh compares the two);
 # folded so --help fits 80 columns
 _HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain] [--mux|--no-mux]
-          <target> [command ...]"
+          [--keep|--no-keep|--end] <target> [command ...]"
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
 # session has a launcher to relay onward with.
 _HI_PAYLOAD=(common config load.sh hi.sh)
 
-# The user's config overlay: a second, smaller stream into its own overlay/ on
-# the target (GLOSSARY: HI.41), and every member's one resolution order
-# (HI.61): the overlay's copy, else the user's own file at home, else the
-# tree's default, which the payload already carries. One row per member:
-# <member>|<paths.sh variable>|<tree, when config/ has a default>|<tool>|<group>|<wire>|<off>|<dialect>|<home>.
-# This table is hi's own members' - its files, and the prompt configs whose
-# home is a lookup (@fn) no path list can say. The tools' rows are
-# config/plugins' and the overlay's plugins (_hi_plugins_load): the same
-# columns, of which a file holds <member>, <tool>, <wire>, <home> and
-# <dialect>, and the table it sits under is its <group>.
-# <paths.sh variable> is hi's own files' alone: a tool's member has none, and
-# what hi's code reads of one on a target is an env: wire of its row.
-# <tool> is the binaries that read it, its name in a report first: home's
-# copy rides with any of them on $PATH. In parentheses it is a name alone,
-# for what nothing looks for - a shell, readline, a prompt program
-# (_hi_prompt_list asks about those).
-# <group> is the word that switches it with its kind in $_HI_PLUGINS_OFF
-# (_hi_plugin_off), or - for a member of hi's own, which nothing switches.
-# <wire> is what points the tool at the member on a target, written there by
-# _hi_overlay_wiring (HI.62), whose comment is the grammar: env: and envdir:
-# export variables, flag: and flagdir: alias a command, and - leaves the
-# member to hi's own code.
-# <off> is the toggles that keep one of hi's own files home, spelled as a
-# wiring line reads them, or - for none: with any of them at 1 the member
-# stays home (_hi_plugin_off). A tool's member has none: $_HI_PLUGINS_OFF
-# switches it.
-# <dialect> is the $_HI_DIALECTS row the include scan and the comment strip
-# read it by, or - for a file that rides as written.
-# <home> is the candidates, best first, in _hi_path_list's grammar - or @fn
-# for a lookup no path list can say, or - for none: a shell's own rc
-# (bashrc, zshrc, config.fish) rides only from the overlay, since the rc a
-# target runs should be asked for, not found. A member is <tool>/<file>
-# where its tool keeps a directory under ~/.config, the file named as the
-# tool names it, and its own name where the tool keeps none. A candidate
-# ending in / is a directory, the member's file looked for inside it. A
-# member with a trailing / is a directory whose files ride one by one
-# (HI.58), from the overlay alone where the row has no home.
-_HI_OVERLAY_TABLE=(
-  'settings.sh|_HI_SETTINGS|-|-|-|-|-|sh|-'
-  'colors|_HI_COLORS|tree|-|-|-|-|conf|-'
-  'packages|_HI_PACKAGES|tree|-|-|-|$_HI_DISABLE_HEADER|conf|-'
-  'extensions/|_HI_EXTENSIONS|-|-|shell|-|-|sh|-'
-  'header/|_HI_HEADER_CELLS|-|-|-|-|$_HI_DISABLE_HEADER|sh|-'
-  'plugins|-|-|-|-|-|-|conf|-'
-  'oh-my-posh.json|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp-json|@_hi_posh_home'
-  'oh-my-posh.yaml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp|@_hi_posh_home'
-  'oh-my-posh.toml|-|-|(oh-my-posh)|prompt|env:POSH_CONFIG POSH_THEME|-|omp|@_hi_posh_home'
-  'oh-my-zsh.zsh-theme|-|-|(oh-my-zsh)|prompt|-|-|omz|@_hi_theme_home'
-  'oh-my-bash.theme.sh|-|-|(oh-my-bash)|prompt|-|-|omb|@_hi_theme_home'
-  'bash-it.theme.bash|-|-|(bash-it)|prompt|-|-|bash-it|@_hi_theme_home'
-  'ssh_tags|-|-|(ssh)|-|-|-|-|@_hi_ssh_tags_file'
-)
-
-# _hi_row_col <row> <column> <outvar> - one column of a row, by the name the
-# table's comment gives it
-function _hi_row_col() {
-  local _hi_rc_r="$1" _hi_rc_n
-  for _hi_rc_n in member variable tree tool group wire off dialect home; do
-    [ "$_hi_rc_n" != "$2" ] || break
-    _hi_rc_r="${_hi_rc_r#*|}"
-  done
-  printf -v "$3" '%s' "${_hi_rc_r%%|*}"
-}
-
-# The dialects a row's <dialect> names, for _hi_lint_awk and _hi_strip_awk:
-# <name> | <leader> | <strip> | <end> | <disable> | <plugin> | <include> | <allow>,
-# no column holding a ` | `, - for none. <leader> starts a comment line; with
-# <strip> 1 the strip drops those, blank lines, and indentation. <end> is
-# where a statement ends: line, \ (a line ending in one continues it), ()
-# (the brackets balance, strings "-quoted), or ()' ('-quoted too).
-# <disable> is how a finding goes out: comment (a <leader> line, the whole
-# statement), : or true (the verb and its file word become that no-op, a
-# plugin line is prefixed with it), or "" (the value is emptied). <plugin>,
-# <include>, and <allow> are EREs, \t a tab: a line matching <plugin> is a
-# plugin manager, and one matching <include> is an include, once the text
-# <allow> matches is taken out - for a : or true disable, <include> is the
-# verb in command position and <allow> the file words it leaves alone.
-_HI_DIALECTS=()
-
-# _hi_dialect_row <name> <outvar> - its $_HI_DIALECTS row; 1 for none
-function _hi_dialect_row() {
-  local _hi_dr
-  ((${#_HI_DIALECTS[@]})) || _hi_read_lines _HI_DIALECTS <<'ROWS'
-sh | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"]
-omz | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|ZSH)[}/"]
-omb | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|OSH)[}/"]
-bash-it | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|BASH_IT)[}/"]
-fish | # | 1 | line | true | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"]
-vim | " | 1 | line | comment | ^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]|(plug|vundle|dein|minpac)# | ^[ \t]*(source|so)!?[ \t] | .*[$]VIMRUNTIME.*
-lua | -- | 1 | ()' | comment | lazypath|rtp:prepend|vim[.]pack[.]add|require[ \t]*[(]?[ \t]*["'](lazy|packer|paq)|AddRuntimeFile.*RTPlugin | AddRuntimeFile|(dofile|loadfile)[ \t]*[(]|vim[.]cmd.*source[ \t]|require[ \t]*[(]?[ \t]*["'] | require[ \t]*[(]?[ \t]*["']vim[.]
-elisp | ; | 1 | () | comment | [(](package-initialize|package-install|use-package|straight-|elpaca) | [(]load(-file)?[ \t]+"|add-to-list[ \t]+'load-path | -
-nano | # | 1 | line | comment | - | ^[ \t]*include[ \t] | ^[ \t]*include[ \t]+["']?/usr/share/nano/?[^/"' \t]*(["' \t].*)?$
-tmux | # | 1 | \ | comment | @plugin|(^|[ \t;{"'])run(-shell)?[ \t].*tpm | (^|[ \t;{"'])source(-file)?[ \t] | -
-screen | # | 1 | line | comment | - | ^[ \t]*source[ \t] | -
-readline | # | 1 | line | comment | - | ^[ \t]*[$]include[ \t] | ^[ \t]*[$]include[ \t]+/etc/inputrc([ \t].*)?$
-kak | # | 0 | line | comment | ^[ \t]*(plug|bundle)[ \t]|(plug|bundle)[.]kak | (^|[ \t;{])source[ \t] | .*%val[{]runtime[}].*
-kdl | // | 0 | () | comment | location[ \t]*=[ \t]*"file: | ^[ \t]*(layout_dir|theme_dir)[ \t] | -
-omp | # | 0 | line | comment | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?://
-omp-json | - | 0 | line | "" | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?://
-conf | # | 1 | line | comment | - | - | -
-ROWS
-  for _hi_dr in "${_HI_DIALECTS[@]}"; do
-    [ "${_hi_dr%% | *}" != "$1" ] || {
-      printf -v "$2" '%s' "$_hi_dr"
-      return 0
-    }
-  done
-  return 1
-}
-
-# _hi_member_dialect <member> <outvar> - the dialect row its overlay row
-# names; 1 for a member that rides as written
-function _hi_member_dialect() {
-  local _hi_md
-  _hi_overlay_row "$1" _hi_md || return 1
-  _hi_row_col "$_hi_md" dialect _hi_md
-  _hi_dialect_row "$_hi_md" "$2"
-}
-
-# the members alone, and those with a tree default the overlay's copy
-# replaces wholesale on a target (aliases.sh is not one - the overlay's is
-# sourced on top of the tree's); _hi_payload_excl reads the second
-_HI_OVERLAY_FILES=() _HI_OVERLAY_SHADOWS=" "
-# ...and every toggle an <off> column names, once each, for _hi_plugin_off
-_HI_OFF_TOGGLES=" "
-for _hi_r in "${_HI_OVERLAY_TABLE[@]}"; do
-  _HI_OVERLAY_FILES+=("${_hi_r%%|*}")
-  case "$_hi_r" in *'|tree|'*) _HI_OVERLAY_SHADOWS="$_HI_OVERLAY_SHADOWS${_hi_r%%|*} " ;; esac
-  _hi_row_col "$_hi_r" off _hi_r
-  for _hi_w in $_hi_r; do
-    case "$_hi_w$_HI_OFF_TOGGLES" in -* | *" ${_hi_w#?} "*) ;; *) _HI_OFF_TOGGLES="$_HI_OFF_TOGGLES${_hi_w#?} " ;; esac
-  done
-done
-unset _hi_r _hi_w
-
-# The tools' rows, read from config/plugins and the overlay's plugins by
-# _hi_plugins_load: the table's shape. $_HI_PLUGIN_BAD is the lines it
-# turned down, `<file>:<line>|<why>` each, for scripts/doctor.sh.
-# GLOSSARY: HI.63
-_HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_KEY="" _HI_PLUGIN_TREE_ROWS=0
-
-# The overlay members renamed before 1.0, old:new. hi reads only the new
-# name; scripts/doctor.sh names a file still under the old one, since it
-# would otherwise be silently ignored.
-_HI_OVERLAY_RENAMES="carry:plugins plugins.d:extensions vim.rc:vim/vimrc vimrc:vim/vimrc init.lua:nvim/init.lua nano.rc:nano/nanorc nanorc:nano/nanorc
-  emacs.el:emacs/init.el init.el:emacs/init.el config.toml:helix/config.toml kakrc:kak/kakrc tmux.conf:tmux/tmux.conf theme.yml:eza/theme.yml
-  bat.conf:bat/config lazygit.yml:lazygit/config.yml bash.sh:bashrc zsh.zsh:zshrc omz-theme.zsh:oh-my-zsh.zsh-theme omb-theme.sh:oh-my-bash.theme.sh"
+# What a connect sends is built by scripts/pack.sh, on the machine that owns
+# the config. scripts/ never rides, so a session has none: its tree is the
+# payload already - stripped, the overlay unpacked over config/ - and a relay
+# sends it as it stands, which makes the packer's side of a connect these few
+# lines. An include that was carried names this hop's config directory by
+# now, so that path is the token the next hop's _hi_overlay_fixup rewrites,
+# when it is one a script can hold bare. GLOSSARY: HI.66
+_HI_RELAY=""
+if [ -r "$_HI_ROOT/scripts/pack.sh" ]; then
+  # shellcheck source=./scripts/pack.sh
+  source "$_HI_ROOT/scripts/pack.sh"
+else
+  _HI_RELAY=1
+  case "$_HI_CONFIG_DIR" in
+  [!/]* | *[!A-Za-z0-9._/+@-]*) _HI_CARRY_TOKEN="" ;;
+  *) _HI_CARRY_TOKEN="$_HI_CONFIG_DIR" ;;
+  esac
+  function _hi_overlay_files() { :; }
+  function _hi_payload_excl() { payload_excl=(); }
+  function _hi_payload_cached() { return 1; }
+  function _hi_payload_tar() { _hi_tar_gz -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}"; }
+  function _hi_payload_stream() { _hi_payload_tar | $_HI_ARMOR; }
+fi
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -212,13 +88,6 @@ export _HI_SHELL_LADDER="${_HI_SHELL_TREE//bash /}"
 
 # stands in for the size until the script is measured. GLOSSARY: HI.44
 _HI_SIZE_TOKEN="@@SIZE@@"
-
-# stands in for the target's overlay directory in a carried include's path
-# until the overlay lands there (_hi_overlay_fixup)
-_HI_CARRY_TOKEN="@@HI_CONFIG@@"
-# a path an include may name: from ~/, $HOME, $XDG_CONFIG_HOME, or /, to the
-# first character no config file puts in a bare path
-_HI_CARRY_RE='(~/|[$][{]?(HOME|XDG_CONFIG_HOME)[}]?/|/)[^]{}[:space:]"'"'"';,()<>|&\[]+'
 
 # GLOSSARY: HI.17 - base64 over openssl (and openssl where base64 is
 # missing), the -d/-D ladder, and the `tr` fold
@@ -297,961 +166,36 @@ function _hi_target_color() {
   printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
-# _hi_prompt_handed <member> - is that prompt config's program one a target
-# is handed (_hi_prompt_list)? Nothing else starts it, so no copy of it rides
-# otherwise. GLOSSARY: HI.32
-function _hi_prompt_handed() {
-  local _hi_ph_t
-  _hi_prompt_row "$1" _hi_ph_t || return 1
-  _hi_prompt_list >/dev/null
-  case " $_HI_PROMPT_LIST_MEMO " in *[\ :]"${_hi_ph_t%%|*} "*) ;; *) return 1 ;; esac
-}
-
-# _hi_posh_home <member> [outvar] - oh-my-posh's config at home, under the
-# member its extension names: oh-my-posh parses by extension and paths.sh
-# cannot rename, hence three members for one program - and one config a
-# target, so an overlay copy in any format outranks home's. oh-my-posh has no
-# default file: $POSH_CONFIG ($POSH_THEME in older releases), else the rc's
-# `init --config`.
-function _hi_posh_home() {
-  local _hi_ph_f
-  for _hi_ph_f in "$_HI_CONFIG_DIR"/oh-my-posh.{json,yaml,toml}; do
-    [ ! -f "$_hi_ph_f" ] || return 1
-  done
-  _hi_ph_f="${POSH_CONFIG:-${POSH_THEME:-}}"
-  [ -n "$_hi_ph_f" ] || _hi_posh_rc_config _hi_ph_f || return 1
-  case "$1:$_hi_ph_f" in
-  oh-my-posh.json:*.json | oh-my-posh.yaml:*.yaml | oh-my-posh.yaml:*.yml | oh-my-posh.toml:*.toml) ;;
-  *) return 1 ;;
-  esac
-  [ -f "$_hi_ph_f" ] && _hi_out "${2:-}" "$_hi_ph_f"
-}
-
-# _hi_theme_home <member> [outvar] - the theme file the rc's ZSH_THEME /
-# OSH_THEME / BASH_IT_THEME names, looked up the way oh-my-zsh, oh-my-bash,
-# and bash-it look
-function _hi_theme_home() {
-  local _hi_th_t _hi_th_d _hi_th_f=""
-  case "$1" in
-  oh-my-zsh.zsh-theme)
-    # powerlevel10k/powerlevel10k is p10k's own entry point, not a theme file
-    _hi_rc_theme ZSH_THEME "${ZDOTDIR:-$HOME}/.zshrc" _hi_th_t || return 1
-    case "$_hi_th_t" in */* | random) return 1 ;; esac
-    _hi_th_d="${ZSH_CUSTOM:-${ZSH:-$HOME/.oh-my-zsh}/custom}"
-    for _hi_th_f in {"$_hi_th_d","$_hi_th_d/themes","${ZSH:-$HOME/.oh-my-zsh}/themes"}/"$_hi_th_t".zsh-theme; do
-      [ -f "$_hi_th_f" ] && break
-    done
-    ;;
-  oh-my-bash.theme.sh)
-    _hi_rc_theme OSH_THEME "$HOME/.bashrc" _hi_th_t || return 1
-    _hi_th_d="${OSH_CUSTOM:-${OSH:-$HOME/.oh-my-bash}/custom}"
-    for _hi_th_f in {"$_hi_th_d","$_hi_th_d/themes","${OSH:-$HOME/.oh-my-bash}/themes"}/"$_hi_th_t/$_hi_th_t".theme.{sh,bash}; do
-      [ -f "$_hi_th_f" ] && break
-    done
-    ;;
-  bash-it.theme.bash)
-    # bash_it.sh's own loader checks exactly these two, in this order, for a
-    # bare theme name - the custom themes dir, then the built-in one
-    _hi_rc_theme BASH_IT_THEME "$HOME/.bashrc" _hi_th_t || return 1
-    for _hi_th_f in {"${BASH_IT_CUSTOM:-${BASH_IT:-$HOME/.bash_it}/custom}/themes","${BASH_IT:-$HOME/.bash_it}/themes"}/"$_hi_th_t/$_hi_th_t".theme.bash; do
-      [ -f "$_hi_th_f" ] && break
-    done
-    ;;
-  esac
-  [ -f "$_hi_th_f" ] && _hi_out "${2:-}" "$_hi_th_f"
-}
-
 # _hi_prompt_list [outvar] - the prompt programs a target is handed:
 # $_HI_PROMPT_TOOL, followed, when it has no entry but <shell>:<program>
-# ones, by every one this machine has - the programs on $PATH, tide where
-# fisher put it, and a framework with a theme or config to ship. Memoized:
-# the members and the session env each ask. GLOSSARY: HI.32
+# ones, by every one this machine has (scripts/pack.sh's _hi_prompt_here); a
+# session hands on the list it was handed. Memoized: the members and the
+# session env each ask. GLOSSARY: HI.32
 function _hi_prompt_list() {
-  local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_p="" _hi_pl_out="${_HI_PROMPT_TOOL:-}"
+  local _hi_pl_t _hi_pl_p="" _hi_pl_out="${_HI_PROMPT_TOOL:-}"
   if [ "${_HI_PROMPT_LIST_KEY-}" != "$_hi_pl_out|$HOME" ]; then
     _HI_PROMPT_LIST_KEY="$_hi_pl_out|$HOME" _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
     # shellcheck disable=SC2086 # the value is a space-separated word list
     for _hi_pl_t in $_hi_pl_out; do
       case "$_hi_pl_t" in *:*) ;; *) _hi_pl_p=1 ;; esac
     done
-    if [ -z "$_hi_pl_p" ] && [ "$_HI_REMOTE_SESSION" != 1 ]; then
-      # _hi_overlay_src asks this list too: all of it while it is being built
-      _HI_PROMPT_LIST_MEMO="$_hi_pl_out${_hi_pl_out:+ }$_HI_PROMPT_TOOLS"
-      for _hi_pl_r in "${_HI_PROMPT_TABLE[@]}"; do
-        _hi_pl_t="${_hi_pl_r%%|*}"
-        case "$_hi_pl_r" in
-        *'|bin|'*) command -v "$_hi_pl_t" >/dev/null 2>&1 ;;
-        tide'|'*) [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/tide.fish" ] ;;
-        powerlevel10k'|'*) _hi_p10k_in_use && _hi_overlay_src "${_hi_pl_r##*|}" _hi_pl_f ;;
-        *) _hi_overlay_src "${_hi_pl_r##*|}" _hi_pl_f ;;
-        esac && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
-      done
-      _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
-    fi
+    [ -n "$_hi_pl_p" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_prompt_here "$_hi_pl_out"
   fi
   _hi_out "${1:-}" "$_HI_PROMPT_LIST_MEMO"
 }
 
-# _hi_rc_last_match <regex> <outvar> <file...> - the second group of the last
-# line of <file...> the regex matches, into <outvar>; 1 when none does. What
-# an rc *sets* - a theme name, a flag on an init line - lives in a shell
-# variable or a command line no child of the rc sees, so the file is read,
-# never sourced. An absent file is skipped.
-function _hi_rc_last_match() {
-  local _hi_rl_re="$1" _hi_rl_out="$2" _hi_rl_f _hi_rl_l _hi_rl_v=""
-  shift 2
-  for _hi_rl_f; do
-    [ -f "$_hi_rl_f" ] || continue
-    while IFS= read -r _hi_rl_l || [ -n "$_hi_rl_l" ]; do
-      [[ "$_hi_rl_l" =~ $_hi_rl_re ]] && _hi_rl_v="${BASH_REMATCH[2]}"
-    done <"$_hi_rl_f"
-  done
-  [ -n "$_hi_rl_v" ] && printf -v "$_hi_rl_out" '%s' "$_hi_rl_v"
-}
-
-# _hi_rc_value <NAME> <outvar> <file...> - what the last NAME= line of
-# <file...> sets, its quotes dropped; 1 when none does, or it sets nothing
-function _hi_rc_value() {
-  local _hi_rv=""
-  _hi_rc_last_match "^[[:space:]]*(export[[:space:]]+)?$1=(\"[^\"]*\"|'[^']*'|[^[:space:]#]*)" _hi_rv "${@:3}" || return 1
-  _hi_rv="${_hi_rv#[\"\']}"
-  _hi_rv="${_hi_rv%[\"\']}"
-  [ -n "$_hi_rv" ] && printf -v "$2" '%s' "$_hi_rv"
-}
-
-# _hi_rc_theme <NAME> <rc> [outvar] - $NAME when exported, else what <rc>
-# sets it to: a framework's theme.
-function _hi_rc_theme() {
-  local _hi_rt_v="${!1:-}"
-  [ -n "$_hi_rt_v" ] || _hi_rc_value "$1" _hi_rt_v "$2" || return 1
-  _hi_out "${3:-}" "$_hi_rt_v"
-}
-
-# _hi_posh_rc_config [outvar] - the local file an rc's `oh-my-posh init ...
-# --config <file>` names: oh-my-posh has no default file. The last such line
-# of the bash, zsh, and fish rcs, `~` and $HOME expanded.
-function _hi_posh_rc_config() {
-  local _hi_pc_v=""
-  _hi_rc_last_match "^[^#]*oh-my-posh[^#]*[[:space:]]init[[:space:]][^#]*(--config[=[:space:]]|-c[[:space:]])[[:space:]]*[\"']?([^\"'[:space:])]+)" \
-    _hi_pc_v "$HOME/.bashrc" "${ZDOTDIR:-$HOME}/.zshrc" "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
-  _hi_pc_v="${_hi_pc_v/#\~/$HOME}"
-  _hi_pc_v="${_hi_pc_v/#\$HOME/$HOME}"
-  _hi_pc_v="${_hi_pc_v/#\$\{HOME\}/$HOME}"
-  [ -n "$_hi_pc_v" ] && _hi_out "${1:-}" "$_hi_pc_v"
-}
-
-# _hi_p10k_in_use - does the zsh rc load powerlevel10k *as the theme*? Its
-# config file is not that signal. p10k's wizard appends
-# `[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh`, guarded so it goes inert
-# when the file is gone - so a `~/.p10k.zsh` left behind by a theme switch
-# outlives the theme it configured, and the file alone read as "in use"
-# shipped p10k over the `ZSH_THEME` actually in force. What loads the theme is
-# one of three shapes, and all of them name it twice or name its repo:
-# `ZSH_THEME=powerlevel10k/powerlevel10k` (oh-my-zsh's entry point for it, the
-# one _hi_theme_home turns down as "not a theme file"), a
-# source of `powerlevel10k.zsh-theme` wherever it is installed, or a plugin
-# manager naming `romkatv/powerlevel10k`. Missed: an rc that loads it from a
-# file it sources - the cheaper failure of the two, since it costs the p10k
-# prompt on a target rather than drawing a prompt the user does not use, and
-# `_HI_PROMPT_TOOL=powerlevel10k` names it past any detection. Every other
-# framework here is found the same way, by what the rc sets
-# (docs/INTEGRATIONS.md's _counts as installed here_).
-function _hi_p10k_in_use() {
-  local _hi_pk=""
-  _hi_rc_last_match '^[^#]*(powerlevel10k|romkatv)(/powerlevel10k|\.zsh-theme)' \
-    _hi_pk "${ZDOTDIR:-$HOME}/.zshrc"
-  [ -n "$_hi_pk" ]
-}
-
-# _hi_trim <var...> - each variable's value without the spaces around it
-function _hi_trim() {
-  local _hi_tr_v _hi_tr
-  for _hi_tr_v; do
-    _hi_tr="${!_hi_tr_v}"
-    _hi_tr="${_hi_tr#"${_hi_tr%%[! ]*}"}"
-    printf -v "$_hi_tr_v" '%s' "${_hi_tr%"${_hi_tr##*[! ]}"}"
-  done
-}
-
-# _hi_words_ok <words> <first> <rest> - is <words> one or more words, a space
-# between them, each a character of the bracket class <first> and then of
-# <rest> alone? The shape of a tool or a variable list in a plugins row.
-function _hi_words_ok() {
-  local _hi_wo_s="$1 " _hi_wo_w
-  [ -n "$1" ] || return 1
-  while [ -n "$_hi_wo_s" ]; do
-    _hi_wo_w="${_hi_wo_s%% *}" _hi_wo_s="${_hi_wo_s#* }"
-    # shellcheck disable=SC2254 # the classes are patterns, and ours
-    case "$_hi_wo_w" in '' | [!$2]* | *[!$3]*) return 1 ;; esac
-  done
-}
-
-# _hi_path_list <list> - a row's home column into the caller's $_hi_paths:
-# candidates a : apart, best first, each a path that starts at /, at ~/ (this
-# $HOME), or at $NAME (that variable, the path dropped while it is unset or
-# empty). A candidate is one path or several a , apart, of which the first
-# not dropped is the one: where a tool looks once its variable is unset.
-# Nothing else expands and nothing runs. GLOSSARY: HI.63
-function _hi_path_list() {
-  local _hi_pa_s="$1:" _hi_pa_a _hi_pa_c _hi_pa_n
-  _hi_paths=()
-  while [ -n "$_hi_pa_s" ]; do
-    _hi_pa_a="${_hi_pa_s%%:*}," _hi_pa_s="${_hi_pa_s#*:}"
-    while [ -n "$_hi_pa_a" ]; do
-      _hi_pa_c="${_hi_pa_a%%,*}" _hi_pa_a="${_hi_pa_a#*,}"
-      _hi_trim _hi_pa_c
-      case "$_hi_pa_c" in
-      /*) ;;
-      \~/*) _hi_pa_c="$HOME/${_hi_pa_c#??}" ;;
-      '$'*)
-        _hi_pa_n="${_hi_pa_c#?}"
-        _hi_pa_n="${_hi_pa_n%%/*}"
-        _hi_words_ok "$_hi_pa_n" 'A-Za-z_' 'A-Za-z0-9_' && [ "${_hi_pa_n% *}" = "$_hi_pa_n" ] || continue
-        [ -n "${!_hi_pa_n:-}" ] || continue
-        _hi_pa_c="${!_hi_pa_n}${_hi_pa_c#"\$$_hi_pa_n"}"
-        ;;
-      *) continue ;;
-      esac
-      _hi_paths+=("$_hi_pa_c")
-      break
-    done
-  done
-}
-
-# _hi_plugins_load - the tools' rows into $_HI_PLUGIN_ROWS, once per tree
-# and overlay: the tree's config/plugins, then the overlay's plugins, whose
-# row of a member the tree's has replaces it. Each is TOML in the subset
-# core.sh's _hi_toml_row reads: `[group]` tables of
-# `"<member>" = "<tool> | <wire> | <home> | <dialect>"` rows, the last column
-# - when left out. A row the table could not hold is left out and noted in
-# $_HI_PLUGIN_BAD: one above the first table, a member that is no <name>,
-# <dir>/<name> or <dir>/, or that is hi's own or a row's already, a tool, a
-# wire, or a dialect that is not the table's, a fifth column. On a target the overlay's file is the one that rode, so a next hop
-# carries the same members. GLOSSARY: HI.63
-function _hi_plugins_load() {
-  local _hi_cy_k="$_HI_ROOT|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_g _hi_cy_m _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d _hi_cy_x _hi_cy_why _hi_cy_n _hi_cy_i
-  [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
-  _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_TREE_ROWS=0
-  for _hi_cy_s in config/plugins plugins; do
-    case "$_hi_cy_s" in config/*) _hi_cy_f="$_HI_ROOT/$_hi_cy_s" ;; *) _hi_cy_f="${_HI_CONFIG_DIR:-}/$_hi_cy_s" ;; esac
-    [ -f "$_hi_cy_f" ] || continue
-    _hi_cy_n=0 _hi_cy_g=""
-    while IFS= read -r _hi_cy_l || [ -n "$_hi_cy_l" ]; do
-      _hi_cy_n=$((_hi_cy_n + 1))
-      _hi_trim _hi_cy_l
-      _hi_cy_why=""
-      case "$_hi_cy_l" in
-      '' | '#'*) continue ;;
-      '['*']'*)
-        _hi_cy_g="${_hi_cy_l#\[}"
-        _hi_cy_g="${_hi_cy_g%%\]*}"
-        _hi_trim _hi_cy_g
-        _hi_words_ok "$_hi_cy_g" 'A-Za-z0-9_' 'A-Za-z0-9_-' && [ "${_hi_cy_g% *}" = "$_hi_cy_g" ] || {
-          _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'[$_hi_cy_g]' is no group name")
-          _hi_cy_g=""
-        }
-        continue
-        ;;
-      esac
-      _hi_cy_x="" _hi_cy_t="" _hi_cy_w="" _hi_cy_h="" _hi_cy_d=""
-      if ! _hi_toml_row "$_hi_cy_l" _hi_cy_m _hi_cy_t; then
-        _hi_cy_why="not a row: \"<member>\" = \"<tool> | <wire> | <home> | <dialect>\""
-      else
-        IFS='|' read -r _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d _hi_cy_x <<<"$_hi_cy_t"
-        _hi_trim _hi_cy_t _hi_cy_w _hi_cy_h _hi_cy_d
-        _hi_cy_d="${_hi_cy_d:--}"
-      fi
-      if [ -n "$_hi_cy_why" ]; then
-        :
-      elif [ -z "$_hi_cy_g" ]; then
-        _hi_cy_why="no [group] above it"
-      elif [ -n "$_hi_cy_x" ] || [ -z "$_hi_cy_h" ]; then
-        _hi_cy_why="not three or four columns: <tool> | <wire> | <home> | <dialect>"
-      elif ! _hi_plugin_member_ok "$_hi_cy_m"; then
-        _hi_cy_why="'$_hi_cy_m' is no <name>, <dir>/<name>, or <dir>/"
-      elif _hi_plugin_taken "$_hi_cy_m" _hi_cy_i "$_hi_cy_s"; then
-        _hi_cy_why="'$_hi_cy_m' is a member already"
-      elif [ "${_hi_cy_h#@}" != "$_hi_cy_h" ]; then
-        # the table's @fn is a function's name, which no line of a file is
-        _hi_cy_why="'$_hi_cy_h' is no list of paths"
-      elif ! _hi_plugin_tools_ok "$_hi_cy_t"; then
-        _hi_cy_why="'$_hi_cy_t' is no list of commands, a (name), or -"
-      elif [ "$_hi_cy_d" != - ] && ! _hi_dialect_row "$_hi_cy_d" _hi_cy_x; then
-        _hi_cy_why="'$_hi_cy_d' is no dialect hi reads, or -"
-      else
-        _hi_plugin_wire_ok "$_hi_cy_w" _hi_cy_why || :
-      fi
-      if [ -n "$_hi_cy_why" ]; then
-        _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|$_hi_cy_why")
-        continue
-      fi
-      _hi_cy_l="$_hi_cy_m|-|-|$_hi_cy_t|$_hi_cy_g|$_hi_cy_w|-|$_hi_cy_d|$_hi_cy_h"
-      if [ "$_hi_cy_i" -ge 0 ]; then
-        _HI_PLUGIN_ROWS[_hi_cy_i]="$_hi_cy_l"
-      else
-        _HI_PLUGIN_ROWS+=("$_hi_cy_l")
-        _HI_PLUGIN_FILES+=("$_hi_cy_m")
-      fi
-    done <"$_hi_cy_f"
-    [ "$_hi_cy_s" != config/plugins ] || _HI_PLUGIN_TREE_ROWS="${#_HI_PLUGIN_ROWS[@]}"
-  done
-}
-
-# _hi_plugin_tools_ok <tool> - the table's <tool> column: -, commands a
-# space apart, or one (name) nothing looks for
-function _hi_plugin_tools_ok() {
-  case "$1" in
-  -) return 0 ;;
-  '('*')') _hi_words_ok "${1#\(}" 'A-Za-z0-9_' 'A-Za-z0-9._+)-' && [ "${1% *}" = "$1" ] ;;
-  *) _hi_words_ok "$1" 'A-Za-z0-9_' 'A-Za-z0-9._+-' ;;
-  esac
-}
-
-# _hi_plugin_wire_ok <wire> <outvar> - the table's <wire> column, wires a ;
-# apart, as _hi_overlay_wiring reads them; why not into <outvar>, and 1
-function _hi_plugin_wire_ok() {
-  local _hi_wk_s="$1;" _hi_wk_w _hi_wk_x _hi_wk_c
-  [ "$1" != - ] || return 0
-  while [ -n "$_hi_wk_s" ]; do
-    _hi_wk_w="${_hi_wk_s%%;*}" _hi_wk_s="${_hi_wk_s#*;}"
-    _hi_wk_x="${_hi_wk_w#*:}"
-    case "$_hi_wk_w" in
-    env:?* | envdir:?*)
-      _hi_words_ok "$_hi_wk_x" 'A-Za-z_' 'A-Za-z0-9_' || {
-        printf -v "$2" '%s' "'$_hi_wk_x' is no list of variable names"
-        return 1
-      }
-      ;;
-    flag:?*' '?* | flagdir:?*' '?*)
-      # <names>=, the environment, then the command and its words
-      _hi_wk_c="${_hi_wk_x%% *}"
-      case "$_hi_wk_c" in *=*) _hi_wk_c="${_hi_wk_c#*=}" _hi_wk_x="${_hi_wk_x#*=}" ;; esac
-      while :; do
-        case "$_hi_wk_x" in [!-]*=*' '*) _hi_wk_x="${_hi_wk_x#* }" _hi_wk_c="${_hi_wk_x%% *}" ;; *) break ;; esac
-      done
-      if ! _hi_words_ok "$_hi_wk_c" 'A-Za-z0-9_' 'A-Za-z0-9._+-' || ! _hi_words_ok "$_hi_wk_x" 'A-Za-z0-9=,._+/$-' 'A-Za-z0-9=,._+/$-'; then
-        printf -v "$2" '%s' "'$_hi_wk_x' is not a command and its words"
-        return 1
-      fi
-      ;;
-    xdg:?*)
-      # one word: the command, or <names>=<command>
-      if [ "${_hi_wk_x% *}" != "$_hi_wk_x" ] || ! _hi_words_ok "${_hi_wk_x#*=}" 'A-Za-z0-9_' 'A-Za-z0-9._+-' ||
-        ! _hi_words_ok "${_hi_wk_x%%=*}" 'A-Za-z0-9_' 'A-Za-z0-9,._+-'; then
-        printf -v "$2" '%s' "'$_hi_wk_x' is not a command, or <names>=<command>"
-        return 1
-      fi
-      ;;
-    *)
-      printf -v "$2" '%s' "'$_hi_wk_w' is not env:, envdir:, flag:, flagdir:, xdg:, or -"
-      return 1
-      ;;
-    esac
-  done
-}
-
-# _hi_plugin_member_ok <member> - a plain name, <dir>/<name>, or a directory
-# <dir>/ or <dir>/<dir>/, each part _hi_dir_member_ok's, and never a name of
-# a file hi writes itself
-function _hi_plugin_member_ok() {
-  local _hi_pm="$1"
-  case "$_hi_pm" in */*/*/* | wiring.sh) return 1 ;; esac
-  _hi_pm="${_hi_pm%/}"
-  _hi_dir_member_ok "${_hi_pm%%/*}" && _hi_dir_member_ok "${_hi_pm##*/}"
-}
-
-# _hi_plugin_taken <member> <outvar> [file] - is <member> the table's or a
-# name a member had before ($_HI_OVERLAY_RENAMES), a plugins row's already,
-# or the directory entry one sits under or that sits under it? A row of the
-# tree's file that the overlay's <file> names again is not taken: its index
-# in $_HI_PLUGIN_ROWS goes to <outvar>, -1 otherwise, for the overlay's row
-# to replace it.
-function _hi_plugin_taken() {
-  local _hi_ct _hi_ct_i=0
-  printf -v "$2" '%s' -1
-  for _hi_ct in "${_HI_OVERLAY_FILES[@]}" $_HI_OVERLAY_RENAMES; do
-    _hi_ct="${_hi_ct%%:*}"
-    case "$1" in "$_hi_ct" | "${_hi_ct%/}"/*) return 0 ;; esac
-    case "$_hi_ct" in "${1%/}"/*) return 0 ;; esac
-  done
-  for _hi_ct in ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
-    if [ "$_hi_ct" = "$1" ]; then
-      [ "${3:-}" = plugins ] && [ "$_hi_ct_i" -lt "${_HI_PLUGIN_TREE_ROWS:-0}" ] || return 0
-      printf -v "$2" '%s' "$_hi_ct_i"
-      return 1
-    fi
-    case "$1" in "${_hi_ct%/}"/*) return 0 ;; esac
-    case "$_hi_ct" in "${1%/}"/*) return 0 ;; esac
-    _hi_ct_i=$((_hi_ct_i + 1))
-  done
-  return 1
-}
-
-# _hi_overlay_row <member> [outvar] - its row, $_HI_OVERLAY_TABLE's then the
-# plugins files' ($_HI_PLUGIN_ROWS): its own or the directory entry (a
-# trailing /) it sits under
-function _hi_overlay_row() {
-  local _hi_or
-  _hi_plugins_load
-  for _hi_or in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
-    case "$1" in "${_hi_or%%|*}" | "${_hi_or%%/|*}"/?*)
-      _hi_out "${2:-}" "$_hi_or"
-      return 0
-      ;;
-    esac
-  done
-  return 1
-}
-
-# _hi_overlay_src <member> [outvar] - where an overlay member is packed from,
-# in the table's order: the overlay's copy, else home's (_hi_overlay_home) -
-# a target gets the config in force here with no copy to keep in step - else
-# nothing, since a tree default rides in the payload already. A prompt
-# config rides only for a program a target is handed, and nothing of a
-# plugin that is switched off. Fails, printing nothing, when there is no
-# file either way.
-function _hi_overlay_src() {
-  local _hi_os_f="$_HI_CONFIG_DIR/$1"
-  ! _hi_plugin_off "$1" || return 1
-  ! _hi_prompt_row "$1" >/dev/null || _hi_prompt_handed "$1" || return 1
-  [ -f "$_hi_os_f" ] || _hi_overlay_home "$1" _hi_os_f || return 1
-  _hi_out "${2:-}" "$_hi_os_f"
-}
-
-# _hi_overlay_home <member> [outvar] - the home tier alone, on this machine
-# only (a relay must not pack the middle box's) and with the member's tool
-# here to read it: the first of its row's candidates that exists. A directory
-# entry answers with the directory.
-function _hi_overlay_home() {
-  local _hi_oh_r _hi_oh_c
-  local -a _hi_paths=()
-  [ "$_HI_REMOTE_SESSION" != 1 ] && _hi_overlay_row "$1" _hi_oh_r && _hi_tool_here "$1" "$_hi_oh_r" || return 1
-  _hi_overlay_places "$1" "$_hi_oh_r"
-  for _hi_oh_c in ${_hi_paths[@]+"${_hi_paths[@]}"}; do
-    if [ -f "$_hi_oh_c" ] || { [ -z "${1##*/}" ] && [ -d "$_hi_oh_c" ]; }; then
-      _hi_out "${2:-}" "$_hi_oh_c"
-      return 0
-    fi
-  done
-  return 1
-}
-
-# _hi_overlay_places <member> <row> - the row's home candidates into the
-# caller's $_hi_paths, best first, a candidate ending in / as the member's
-# file inside it
-function _hi_overlay_places() {
-  local _hi_op_h="${2##*|}" _hi_op_c="" _hi_op_i
-  _hi_paths=()
-  case "$_hi_op_h" in
-  -) ;;
-  @*) ! "${_hi_op_h#@}" "$1" _hi_op_c || _hi_paths=("$_hi_op_c") ;;
-  *) _hi_path_list "$_hi_op_h" ;;
-  esac
-  for _hi_op_i in ${_hi_paths[@]+"${!_hi_paths[@]}"}; do
-    case "${_hi_paths[_hi_op_i]}" in */) _hi_paths[_hi_op_i]="${_hi_paths[_hi_op_i]}${1#*/}" ;; esac
-  done
-}
-
-# _hi_ssh_tags_file <member> [outvar] - the tag map a relayed hop colors by
-# (ssh_tags' home, so the table's calling shape): every
-# `# Tags:` line of ~/.ssh/config and the files it Includes, with the Host or
-# Match line under it and nothing else of the block, so the middle box's
-# _hi_ssh_host_tag can walk it as the config it is cut from. Kept in the
-# runtime dir, recut when the config is newer or has an Include; fails with no
-# config, no runtime dir, or no tag.
-function _hi_ssh_tags_file() {
-  local _hi_tf_d="" _hi_tf _hi_tf_tmp
-  [ -f "$_HI_SSH_CONFIG" ] || return 1
-  _hi_runtime_dir _hi_tf_d
-  [ -n "$_hi_tf_d" ] || return 1
-  _hi_tf="$_hi_tf_d/hi.ssh_tags"
-  # an Include's files have mtimes of their own, so a config with one is recut
-  if [ ! "$_hi_tf" -nt "$_HI_SSH_CONFIG" ] || grep -qi '^[[:space:]]*include[[:space:]=]' "$_HI_SSH_CONFIG"; then
-    # mktemp, not `.$$`: every subshell of one shell shares its $$
-    _hi_tf_tmp="$(mktemp "$_hi_tf.XXXXXX")" || return 1
-    sh "$_HI_TARGETS" ssh-config "$_HI_SSH_CONFIG" | awk '{ t = $0; sub(/^[ \t]+/, "", t); l = tolower(t) }
-      l ~ /^#[ \t]*tags[:=]/ { tag = t; next }
-      l ~ /^#/ || l == "" { next }
-      tag != "" && l ~ /^(host|match[ \t]+host)[ \t]/ { print tag; print t }
-      { tag = "" }' >"$_hi_tf_tmp" && mv -f "$_hi_tf_tmp" "$_hi_tf" && _hi_tf_tmp=""
-    [ -z "$_hi_tf_tmp" ] || {
-      rm -f "$_hi_tf_tmp"
-      return 1
-    }
-  fi
-  [ -s "$_hi_tf" ] && _hi_out "${2:-}" "$_hi_tf"
-}
-
-# _hi_overlay_tools <member> [outvar] [row] - its row's tool column (the row
-# looked up unless handed in); 1 for a member of no tool's, or of no row
-function _hi_overlay_tools() {
-  local _hi_tc="${3:-}"
-  [ -n "$_hi_tc" ] || _hi_overlay_row "$1" _hi_tc || return 1
-  _hi_row_col "$_hi_tc" tool _hi_tc
-  [ "$_hi_tc" != - ] && _hi_out "${2:-}" "$_hi_tc"
-}
-
-# _hi_tool_label <member> <outvar> [row] - the name a report gives its tool,
-# the column's first without its parentheses; 1 and empty with no tool
-function _hi_tool_label() {
-  local _hi_tb=""
-  _hi_overlay_tools "$1" _hi_tb "${3:-}" || true
-  _hi_tb="${_hi_tb#\(}"
-  printf -v "$2" '%s' "${_hi_tb%%[ \)]*}"
-  [ -n "$_hi_tb" ]
-}
-
-# _hi_plugin_name <member> <outvar> [row] - the plugin a member is of: its
-# tool's label, else the member's own name
-function _hi_plugin_name() {
-  _hi_tool_label "$@" || printf -v "$2" '%s' "${1%%/*}"
-}
-
-# _hi_toggle_on <NAME> - is that toggle 1 for a target? The environment's
-# value - except at home under _HI_DISABLE_LOCAL=1, where common/paths.sh has
-# set every toggle for this machine alone: there, only a toggle settings.sh
-# sets itself, read off its last `export NAME=value` line (_hi_rc_value)
-# without running it.
-function _hi_toggle_on() {
-  local _hi_tg_n _hi_tg_v
-  if [ "${_HI_DISABLE_LOCAL:-0}" != 1 ] || [ "$_HI_REMOTE_SESSION" = 1 ]; then
-    [ "${!1:-0}" = 1 ]
-    return
-  fi
-  if [ "${_HI_SET_ON_KEY-}" != "$_HI_SETTINGS" ]; then
-    _HI_SET_ON_KEY="$_HI_SETTINGS" _HI_SET_ON=" "
-    for _hi_tg_n in $_HI_OFF_TOGGLES; do
-      ! _hi_rc_value "$_hi_tg_n" _hi_tg_v "$_HI_SETTINGS" || [ "$_hi_tg_v" != 1 ] || _HI_SET_ON="$_HI_SET_ON$_hi_tg_n "
-    done
-  fi
-  case "$_HI_SET_ON" in *" $1 "*) return 0 ;; esac
-  return 1
-}
-
-# _hi_plugin_off <member> [outvar] - is it switched off, and by what, into
-# <outvar>? By $_HI_PLUGINS_OFF naming its plugin, its group, or the member
-# (words a space or a comma apart), or by a toggle of its row's <off> column;
-# a row of hi's own (group -) is never off. Read where the overlay is
-# packed, so what is off neither rides nor is wired, and the target is handed
-# the result. GLOSSARY: HI.64
-function _hi_plugin_off() {
-  local _hi_po_r _hi_po_g _hi_po_n _hi_po_t
-  # nothing is off, most connects: said once for the values in force, since
-  # every member asks, several times a connect
-  _hi_po_t="${_HI_PLUGINS_OFF:-}|${_HI_DISABLE_LOCAL:-0}|${_HI_REMOTE_SESSION:-0}|${_HI_SETTINGS:-}|"
-  for _hi_po_n in $_HI_OFF_TOGGLES; do _hi_po_t="$_hi_po_t${!_hi_po_n:-0}"; done
-  if [ "${_HI_OFF_KEY-}" != "$_hi_po_t" ]; then
-    _HI_OFF_KEY="$_hi_po_t" _HI_OFF_ANY="${_HI_PLUGINS_OFF:-}"
-    for _hi_po_n in $_HI_OFF_TOGGLES; do ! _hi_toggle_on "$_hi_po_n" || _HI_OFF_ANY=1; done
-  fi
-  [ -n "$_HI_OFF_ANY" ] && _hi_overlay_row "$1" _hi_po_r || return 1
-  _hi_row_col "$_hi_po_r" group _hi_po_g
-  _hi_row_col "$_hi_po_r" off _hi_po_t
-  # shellcheck disable=SC2086 # the split is the column
-  [ "$_hi_po_t" = - ] || for _hi_po_n in $_hi_po_t; do
-    ! _hi_toggle_on "${_hi_po_n#?}" || {
-      [ -z "${2:-}" ] || printf -v "$2" '%s' "${_hi_po_n#?}=1"
-      return 0
-    }
-  done
-  # hi's own file: its toggles above, never the list
-  [ "$_hi_po_g" != - ] || return 1
-  [ -n "${_HI_PLUGINS_OFF:-}" ] || return 1
-  _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
-  case " ${_HI_PLUGINS_OFF//,/ } " in
-  *" $_hi_po_n "* | *" $_hi_po_g "* | *" ${_hi_po_r%%|*} "*)
-    [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
-    return 0
-    ;;
-  esac
-  return 1
-}
-
-# _hi_overlay_wiring <outvar> <member...> - the lines that point each tool at
-# its member on a target, in common/paths.sh's four-shell dialect, which
-# sources them there. A row's wire column holds one wire or several, a ;
-# between them: env:<variables> exports each as the member's path and
-# envdir: as its directory; flag:<command> <words> aliases the command to
-# itself, the words, and the path, where the target has the command, and
-# flagdir: the same with the directory. <command> is `<names>=<command>` to
-# answer to other names (a , between them), and words before it that hold a =
-# are its environment. A flag ending in = takes the path in the same word.
-# xdg:<command> aliases the command to itself with $XDG_CONFIG_HOME set to
-# the overlay, whose <tool>/<file> members are laid out as ~/.config is: the
-# fallback for a file no variable or flag reaches, since everything the
-# command starts inherits the variable too.
-# The directory of a member under a / is the one its first name names.
-# Wires run in order and a later alias replaces an earlier one, so helix's
-# languages.toml row follows its config.toml row: with both riding, the xdg
-# alias is the one a target keeps.
-#
-# The paths stay under $_HI_CONFIG_DIR for the target to expand, so a next
-# hop writes the same lines, and a row's <off> toggles are tested there,
-# where the shell starts. A line is written once, however many members ask
-# for it. Builtins only: every connect runs it. GLOSSARY: HI.62
-function _hi_overlay_wiring() {
-  local _hi_ow_out="$1" _hi_ow_m _hi_ow_r _hi_ow_ws _hi_ow_w _hi_ow_g _hi_ow_p _hi_ow_v _hi_ow_l
-  local _hi_ow_n _hi_ow_c _hi_ow_e _hi_ow_all=$'\n'
-  shift
-  for _hi_ow_m; do
-    _hi_overlay_row "$_hi_ow_m" _hi_ow_r || continue
-    _hi_row_col "$_hi_ow_r" wire _hi_ow_ws
-    _hi_row_col "$_hi_ow_r" off _hi_ow_r
-    [ "$_hi_ow_ws" != - ] || continue
-    _hi_ow_ws="$_hi_ow_ws;" _hi_ow_g=""
-    # shellcheck disable=SC2086 # the split is the column
-    [ "$_hi_ow_r" = - ] || for _hi_ow_v in $_hi_ow_r; do
-      _hi_ow_g="${_hi_ow_g}[ \"$_hi_ow_v\" != 1 ] && "
-    done
-    while [ -n "$_hi_ow_ws" ]; do
-      _hi_ow_w="${_hi_ow_ws%%;*}" _hi_ow_ws="${_hi_ow_ws#*;}"
-      case "$_hi_ow_w" in
-      env:* | flag:*) _hi_ow_p="\$_HI_CONFIG_DIR/$_hi_ow_m" ;;
-      envdir:* | flagdir:*)
-        _hi_ow_p="\$_HI_CONFIG_DIR"
-        case "$_hi_ow_m" in */*) _hi_ow_p="$_hi_ow_p/${_hi_ow_m%%/*}" ;; esac
-        ;;
-      xdg:*)
-        # flag:'s alias with the variable for its environment, and no path
-        _hi_ow_n="${_hi_ow_w#xdg:}" _hi_ow_p=""
-        case "$_hi_ow_n" in *=*) ;; *) _hi_ow_n="$_hi_ow_n=$_hi_ow_n" ;; esac
-        _hi_ow_w="flag:${_hi_ow_n%%=*}=XDG_CONFIG_HOME=\$_HI_CONFIG_DIR ${_hi_ow_n#*=}"
-        ;;
-      *) continue ;;
-      esac
-      _hi_ow_l="$_hi_ow_g"
-      case "$_hi_ow_w" in
-      flag*)
-        # <names>=, then the environment, the command, and its words
-        _hi_ow_w="${_hi_ow_w#*:} "
-        _hi_ow_n="" _hi_ow_e="" _hi_ow_c=""
-        case "${_hi_ow_w%% *}" in *=*) _hi_ow_n="${_hi_ow_w%%=*}" _hi_ow_w="${_hi_ow_w#*=}" ;; esac
-        while [ -z "$_hi_ow_c" ]; do
-          case "${_hi_ow_w%% *}" in
-          [!-]*=*) _hi_ow_e="$_hi_ow_e${_hi_ow_w%% *} " ;;
-          *) _hi_ow_c="${_hi_ow_w%% *}" ;;
-          esac
-          _hi_ow_w="${_hi_ow_w#* }"
-        done
-        case "$_hi_ow_w" in *'= ') _hi_ow_w="${_hi_ow_w% }" ;; esac
-        # the path bare, as an alias of hi's always had it: load.sh reads a
-        # body back for $EDITOR, and a quote inside one does not survive that
-        _hi_ow_v="${_hi_ow_e:+env $_hi_ow_e}$_hi_ow_c $_hi_ow_w$_hi_ow_p"
-        # no trailing blank, which would have the shell expand the next word
-        # as an alias too
-        _hi_ow_v="${_hi_ow_v% }"
-        _hi_ow_l="${_hi_ow_l}command -v $_hi_ow_c >/dev/null 2>&1"
-        _hi_ow_n="${_hi_ow_n:-$_hi_ow_c},"
-        while [ -n "$_hi_ow_n" ]; do
-          _hi_ow_l="$_hi_ow_l && alias ${_hi_ow_n%%,*}=\"$_hi_ow_v\""
-          _hi_ow_n="${_hi_ow_n#*,}"
-        done
-        _hi_ow_l="$_hi_ow_l || true"
-        ;;
-      *)
-        _hi_ow_l="${_hi_ow_l}export"
-        # shellcheck disable=SC2086 # the split is the column
-        for _hi_ow_v in ${_hi_ow_w#*:}; do
-          _hi_ow_l="$_hi_ow_l $_hi_ow_v=\"$_hi_ow_p\""
-        done
-        # a line behind a toggle ends true, or a sourcer under set -e would
-        # stop at the file whose last line a toggle turned down
-        [ -z "$_hi_ow_g" ] || _hi_ow_l="$_hi_ow_l || true"
-        ;;
-      esac
-      case "$_hi_ow_all" in *$'\n'"$_hi_ow_l"$'\n'*) ;; *) _hi_ow_all="$_hi_ow_all$_hi_ow_l"$'\n' ;; esac
-    done
-  done
-  printf -v "$_hi_ow_out" '%s' "${_hi_ow_all#$'\n'}"
-}
-
-# _hi_tool_here <member> [row] - is the tool that reads <member> on this
-# machine? The table's binaries, which are the names common/aliases.sh gates
-# each alias on; a member of no tool's, or of one nothing looks for, is a yes.
-# The client is asked because only it can be, before a connect
-# (docs/INTEGRATIONS.md's _Which side is asked_).
-function _hi_tool_here() {
-  local _hi_tl_t _hi_tl_b
-  _hi_overlay_tools "$1" _hi_tl_t "${2:-}" || return 0
-  case "$_hi_tl_t" in '('*) return 0 ;; esac
-  # shellcheck disable=SC2086 # the split is the column
-  for _hi_tl_b in $_hi_tl_t; do
-    ! command -v "$_hi_tl_b" >/dev/null 2>&1 || return 0
-  done
-  return 1
-}
-
-# The include scanner, in the dialect of each file it reads. Every member
-# ships into the target's `config/`, so a line naming a *path* - a second rc
-# beside it, a plugin directory, a manager's bootstrap - names something no
-# target has, and the editor or shell fails on it rather than hi. The
-# grammars are $_HI_DIALECTS rows, the file's read from ENVIRON[_hi_dialect];
-# what each finds, and what it deliberately leaves alone:
-#
-#   vim     `source`/`so` (a path), the managers' verbs (`Plug`, `packadd`,
-#           `plug#`/`vundle#`/`dein#`). `runtime` is *not* flagged: it
-#           searches the target vim's own &runtimepath, which is there.
-#           `source $VIMRUNTIME/...` is the same argument.
-#   lua     `dofile`/`loadfile`, a `vim.cmd` carrying `source`, `require` of
-#           anything but a `vim.` module, and the managers (lazy, packer,
-#           paq, neovim's own `vim.pack.add`, an `rtp:prepend` bootstrap).
-#           micro's init.lua reads the same, plus `AddRuntimeFile` (a plugin
-#           with `RTPlugin`); its `import` names micro's own Go packages and
-#           is left alone.
-#   nano    `include` of anything but a path *directly* under
-#           /usr/share/nano, which the nano package itself ships. A
-#           subdirectory of it is not: /usr/share/nano/extra is a Debian
-#           split that Fedora, Alpine, and macOS do not have, and a glob
-#           matching nothing costs the whole rcfile - nano says "Mistakes in
-#           '<rcfile>'" on the status bar and rings the bell. The path is
-#           read as one word, so a trailing comment cannot fool the rule.
-#   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
-#           of tpm). Line-oriented, but a finding ending in `\` takes its
-#           continuation lines with it.
-#   screen  `source` of a file.
-#   inputrc `$include` of anything but /etc/inputrc, the system file an
-#           $INPUTRC stops readline reading on its own.
-#   kak     `source` of anything but %val{runtime}'s (the target's own), and
-#           the managers (plug.kak's `plug`, kak-bundle's `bundle`).
-#   kdl     zellij's `layout_dir`/`theme_dir` (its own layouts/ and themes/
-#           ride beside config.kdl) and a plugin `location="file:..."`.
-#   omp     oh-my-posh's `extends` naming a local file; a URL or a theme name
-#           resolves on the target. JSON has no comment, so there the value is
-#           emptied, which oh-my-posh reads as no base; yaml and toml comment it.
-#   elisp   `load`/`load-file`, `add-to-list 'load-path`, and the managers
-#           (`package-initialize`, `use-package`, straight, elpaca). A bare
-#           `require` is left alone: nearly every one names a built-in.
-#   sh/fish `source`/`.` of anything but a path under $_HI_CONFIG_DIR or
-#           $_HI_ROOT (which ride along), a process substitution, or - in a
-#           framework's theme only (omz, omb, bash-it) - under that
-#           framework's own tree ($ZSH, $OSH, $BASH_IT): hi sources a theme only once
-#           _hi_prompt_fw has found the tree on the target, where every other
-#           member runs with it unset. Also the zsh/fish managers' verbs
-#           (zinit, zplug, antigen, fisher, ...). An extension is sh.
-#
-# A line directly under a `hi-allow` comment, in the file's own comment
-# syntax, is neither reported nor touched; one under `hi-quiet` is still
-# disabled, just not reported - a line you know no target has. A pair,
-# `hi-allow-start` and `hi-allow-end` or `hi-quiet-start` and `hi-quiet-end`,
-# decides every line inside it the same way. Each word pairs on its own, a
-# start with the next end of its word, so an allow pair inside a quiet one
-# keeps its lines. A start with no end below it, or with a second start of
-# its word before one, decides nothing and is an `unclosed` row; an end with
-# no start is ignored. Whether a start is closed is known only at the end of
-# the file, so FNR == 1 reads the file through once with getline before the
-# scan: blk holds the lines inside a closed pair, bad the starts with no end.
-# mark() is the marker a comment line opens with, whole, so `hi-allow` and
-# `hi-allow-start` are never read as each other.
-#
-# mode=report prints one `<member>|<line>|<kind>|<text>` row per finding and
-# leaves the file alone; mode=fix also writes <file>.lint with each finding
-# disabled - which strip.awk then drops, so a dropped line costs no wire bytes.
-# vim and nano are line-oriented, so one line is the whole statement; lua,
-# elisp, and kdl are not, so the comment runs to the end of the bracket-balanced
-# expression the finding opened, or a `require("x").setup {` would leave its
-# closing brace behind as a syntax error. sh and fish get neither: commenting
-# a line can empty a `then`/`do` body, which does not parse, so only the verb
-# and its file word become `:` (fish: `true`), and the rest of the line stays.
-# `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name.
-#
-# bal() counts that depth blind to anything inside a quoted string, and takes
-# ' as a string delimiter only where <end> says so (lua): in elisp it is the
-# quote operator, and reading `'load-path` as an opening quote swallows the
-# rest of the file.
-# wlen() is the length of one shell word, quotes and $(...) nesting included.
-# Nothing in the AWK body carries a `#` comment - strip.awk spares a heredoc
-# body, so every one of them would ride the wire on every connect.
-function _hi_lint_awk() {
-  cat <<'AWK'
-function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-function mark(s) {
-  if (!match(s, /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-(allow|quiet)(-start|-end)?/)) return ""
-  s = substr(s, RSTART, RLENGTH); sub(/.*hi-/, "", s)
-  return s
-}
-function bal(s,   i, c, q, d) {
-  d = 0; q = ""
-  for (i = 1; i <= length(s); i++) {
-    c = substr(s, i, 1)
-    if (q != "") { if (c == "\\") i++; else if (c == q) q = ""; continue }
-    if (c == "\"" || (stmt == "()'" && c == "'")) { q = c; continue }
-    if (c == "(" || c == "{" || c == "[") d++
-    else if (c == ")" || c == "}" || c == "]") d--
-  }
-  return d
-}
-function wlen(s,   i, c, q, d) {
-  q = ""; d = 0
-  for (i = 1; i <= length(s); i++) {
-    c = substr(s, i, 1)
-    if (q == "'") { if (c == q) q = ""; continue }
-    if (c == "\\") { i++; continue }
-    if (c == "\"") { q = (q == "" ? c : ""); continue }
-    if (c == "'" && q == "") { q = c; continue }
-    if (c == "(" || c == "{") d++
-    else if (c == ")" || c == "}") { if (--d < 0) return i - 1 }
-    else if (q == "" && d == 0 && c ~ /[ \t;&|]/) return i - 1
-  }
-  return length(s)
-}
-function shfix(s,   o, p, r, n, w) {
-  o = ""; s = ";" s
-  while (match(s, inc)) {
-    p = substr(s, 1, RSTART + RLENGTH - 1); r = substr(s, RSTART + RLENGTH)
-    n = wlen(r); w = substr(r, 1, n)
-    if (w == "" || w ~ /^\\/ || (allow != "-" && w ~ allow) || w ~ /^[<=]?\(/) { o = o p; s = r; continue }
-    sub(/[^;&|{() \t]+[ \t]+$/, "", p)
-    o = o p noop; s = substr(r, n + 1)
-  }
-  return substr(o s, 2)
-}
-function kindof(s,   t) {
-  if (lead != "-" && s ~ ("^[ \t]*" lead)) return ""
-  if (index(s, "@@HI_CONFIG@@")) return ""
-  if (plug != "-" && s ~ plug) { fixed = noop " " s; return "plugin" }
-  if (inc == "-") return ""
-  if (noop != "") { fixed = shfix(s); return (fixed != s) ? "include" : "" }
-  t = s
-  if (allow != "-") gsub(allow, "", t)
-  if (t !~ inc) return ""
-  if (blank && match(s, inc)) { t = substr(s, RSTART); sub(/:[ \t]*"[^"]*"/, ": \"\"", t); fixed = substr(s, 1, RSTART - 1) t }
-  return "include"
-}
-FNR == 1 {
-  close(out); out = FILENAME ".lint"; depth = allow_l = quiet = n = 0
-  split("", blk); split("", bad); split("", from)
-  while ((getline l < FILENAME) > 0) {
-    n++; w = k = mark(l); sub(/-.*/, "", k)
-    if (w ~ /-start/) { if (k in from) bad[from[k]] = 1; from[k] = n }
-    else if (w ~ /-end/ && (k in from)) { for (i = from[k] + 1; i < n; i++) blk[k, i] = 1; delete from[k] }
-  }
-  close(FILENAME)
-  for (k in from) bad[from[k]] = 1
-  split(ENVIRON["_hi_dialect"], f, / [|] /)
-  for (i = 6; i <= 8; i++) gsub(/\\t/, "\t", f[i])
-  lead = f[2]; stmt = f[4]; noop = f[5]; plug = f[6]; inc = f[7]; allow = f[8]
-  blank = (noop == "\"\""); if (noop == "comment" || blank) noop = ""
-}
-FNR in bad { printf "%s|%d|unclosed|%s\n", name, FNR, trim($0) }
-depth > 0 {
-  depth = (stmt == "\\") ? ($0 ~ /\\$/) : depth + bal($0)
-  if (depth < 0) depth = 0
-  if (mode == "fix") print lead " hi dropped: " $0 > out
-  allow_l = quiet = 0
-  next
-}
-{
-  kind = (allow_l || (("allow", FNR) in blk)) ? "" : kindof($0)
-  hush = quiet || (("quiet", FNR) in blk)
-  w = mark($0); allow_l = (w == "allow"); quiet = (w == "quiet")
-  if (kind == "") { if (mode == "fix") print > out; next }
-  if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
-  if (mode == "fix") print ((noop != "" || blank) ? fixed : lead " hi dropped: " $0) > out
-  if (stmt ~ /^\(\)/) { depth = bal($0); if (depth < 0) depth = 0 }
-  if (stmt == "\\") depth = ($0 ~ /\\$/)
-}
-AWK
-}
-
-# _hi_include_lint - every finding in the overlay members that would actually
-# ship, one row each (see _hi_lint_awk); a member with no dialect has none, and
-# an include the packer carries (_hi_include_carry) is no finding.
-function _hi_include_lint() {
-  local f src prog row m n k t
-  local -a _hi_dirs=() _hi_carried=()
-  prog="$(_hi_lint_awk)"
-  while IFS= read -r f; do
-    if ! _hi_member_dialect "$f" row || ! _hi_overlay_src "$f" src; then continue; fi
-    _hi_tool_dirs "$f" "$src"
-    while IFS='|' read -r m n k t; do
-      [ "$k" = include ] && ((${#_hi_dirs[@]})) && _hi_include_carry row "$t" "${f%%/*}" && continue
-      printf '%s|%s|%s|%s\n' "$m" "$n" "$k" "$t"
-    done < <(_hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src")
-  done < <(_hi_overlay_files)
-  return 0
-}
-
-# _hi_tool_dirs <member> <source> - the directories an include in <member> is
-# carried from, into the caller's $_hi_dirs: the source's own directory (not
-# $HOME's), and here $XDG_CONFIG_HOME/<tool>, ~/.<tool>, and ~/.<tool>.d for
-# the member's directory <tool>. None for a member with no directory; on a
-# target, the source's alone, which is where the client's copy landed.
-function _hi_tool_dirs() {
-  local _hi_td_t="${1%%/*}" _hi_td_s="${2%/*}"
-  _hi_dirs=()
-  [ "$_hi_td_t" != "$1" ] || return 0
-  [ "$_hi_td_s" = "$HOME" ] || [ "$_hi_td_s" = "$2" ] || _hi_dirs+=("$_hi_td_s")
-  [ "$_HI_REMOTE_SESSION" = 1 ] ||
-    _hi_dirs+=("${XDG_CONFIG_HOME:-$HOME/.config}/$_hi_td_t" "$HOME/.$_hi_td_t" "$HOME/.$_hi_td_t.d")
-}
-
-# _hi_include_carry <outvar> <line> <tool> - <line> with each path in it that
-# names a file under one of the caller's $_hi_dirs rewritten to
-# $_HI_CARRY_TOKEN/<tool>/<its path under that directory>, into <outvar>,
-# and each such file appended to the caller's $_hi_carried as a <member>
-# <source> pair; 1 when no path is carried. ~, $HOME, and $XDG_CONFIG_HOME
-# are read as they are here.
-function _hi_include_carry() {
-  local _hi_ic_rest="$2" _hi_ic_out="" _hi_ic_t _hi_ic_p _hi_ic_d _hi_ic_r _hi_ic_n=0
-  while [[ $_hi_ic_rest =~ $_HI_CARRY_RE ]]; do
-    _hi_ic_t="${BASH_REMATCH[0]}"
-    _hi_ic_out+="${_hi_ic_rest%%"$_hi_ic_t"*}"
-    _hi_ic_rest="${_hi_ic_rest#*"$_hi_ic_t"}"
-    # shellcheck disable=SC2088 # a ~ the include wrote, matched as text
-    case "$_hi_ic_t" in
-    '~/'*) _hi_ic_p="$HOME/${_hi_ic_t#'~/'}" ;;
-    '$HOME/'* | '${HOME}/'*) _hi_ic_p="$HOME/${_hi_ic_t#*/}" ;;
-    '$XDG_CONFIG_HOME/'* | '${XDG_CONFIG_HOME}/'*) _hi_ic_p="${XDG_CONFIG_HOME:-$HOME/.config}/${_hi_ic_t#*/}" ;;
-    *) _hi_ic_p="$_hi_ic_t" ;;
-    esac
-    for _hi_ic_d in ${_hi_dirs[@]+"${_hi_dirs[@]}"}; do
-      _hi_ic_r="${_hi_ic_p#"$_hi_ic_d"/}"
-      [ "$_hi_ic_r" != "$_hi_ic_p" ] && [ -f "$_hi_ic_p" ] || continue
-      case "/$_hi_ic_r/" in */../* | */./*) continue ;; esac
-      _hi_carried+=("$3/$_hi_ic_r" "$_hi_ic_p")
-      _hi_ic_t="$_HI_CARRY_TOKEN/$3/$_hi_ic_r" _hi_ic_n=1
-      break
-    done
-    _hi_ic_out+="$_hi_ic_t"
-  done
-  printf -v "$1" '%s' "$_hi_ic_out$_hi_ic_rest"
-  [ "$_hi_ic_n" = 1 ]
-}
-
 # _hi_overlay_fixup <dir> - the target's half of a carried include: every
 # $_HI_CARRY_TOKEN in the overlay unpacked at <dir> (a word of sh) made that
-# directory. sh, busybox's included.
+# directory; a no-op for a relay whose own path is no token. sh, busybox's
+# included.
 # shellcheck disable=SC2016 # the target's own expansions
 function _hi_overlay_fixup() {
+  [ -n "$_HI_CARRY_TOKEN" ] || {
+    printf ':'
+    return 0
+  }
   printf '{ d=%s; grep -rl %s "$d" 2>/dev/null | while IFS= read -r f; do sed "s|%s|$d|g" "$f" >"$f.hi" && mv -f "$f.hi" "$f"; done; }' \
     "$1" "$_HI_CARRY_TOKEN" "$_HI_CARRY_TOKEN"
-}
-
-# _hi_overlay_files [member...] - the members (default $_HI_OVERLAY_FILES and
-# the plugins files', $_HI_PLUGIN_FILES) that have a source, one per line;
-# callers read it once and hand the list to _hi_overlay_tar. A trailing-/ entry lists its members as <dir>/<name>, in
-# name order, only those _hi_dir_member_ok admits, over the overlay's
-# directory and home's, each name once.
-function _hi_overlay_files() {
-  local f src home seen
-  _hi_plugins_load
-  [ $# -gt 0 ] || set -- "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}
-  for f; do
-    ! _hi_plugin_off "$f" || continue
-    case "$f" in
-    */)
-      _hi_overlay_home "$f" home || home=""
-      seen=" "
-      for src in "$_HI_CONFIG_DIR/$f"* ${home:+"$home"*}; do
-        case "$seen" in *" ${src##*/} "*) continue ;; esac
-        [ -f "$src" ] && _hi_dir_member_ok "${src##*/}" && _hi_overlay_src "$f${src##*/}" >/dev/null &&
-          seen="$seen${src##*/} " && printf '%s\n' "$f${src##*/}"
-      done
-      ;;
-    *) _hi_overlay_src "$f" src && printf '%s\n' "$f" ;;
-    esac
-  done
-  return 0
 }
 
 # Whether this client can gzip at all: gzip itself, or a tar that compresses
@@ -1273,13 +217,14 @@ function _hi_can_gzip() {
 # tar's own arguments, gzip in a second process rather than `z`: bsdtar pads
 # the compressed stream to 10240. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip.
 # The -z arm is for a tar that compresses on its own; _hi_can_gzip is what
-# keeps a client whose tar cannot from reaching it.
+# keeps a client whose tar cannot from reaching it. -9: the cache pays for it
+# once, and every connect sends the smaller file.
 function _hi_tar_gz() {
   if ! command -v gzip >/dev/null 2>&1; then
     tar -c -z -f - "$@"
     return $?
   fi
-  tar -c -f - "$@" | gzip -n
+  tar -c -f - "$@" | gzip -9 -n
   local -a st=("${PIPESTATUS[@]}")
   [ "${st[0]}" = 0 ] || return "${st[0]}"
   return "${st[1]}"
@@ -1290,165 +235,6 @@ function _hi_tar_gz() {
 function _hi_require_packer() {
   _hi_require tar "to pack the payload" &&
     { _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z"; }
-}
-
-# What the comment-stripper is pointed at in the tree; an overlay member is
-# stripped by its dialect's <strip>. GLOSSARY: HI.35
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags '*/config/*')
-
-# _hi_stage_carry - the overlay stager's carry, over its staged file $f
-# (member $_hi_st_m, dialect row $_hi_st_d): each include the scan finds whose
-# path names a file under the member's tool directories (_hi_tool_dirs) is
-# rewritten to the copy that rides (_hi_include_carry), and the file staged
-# as a member of its own, queued for the same scan. The source it came from
-# is kept in $_hi_st_carry. Reads and grows _hi_stage_tar's locals.
-function _hi_stage_carry() {
-  local _hi_sc_src="${_hi_st_qs[_hi_st_i]:-}" _hi_sc_at=" " _hi_sc_l _hi_sc_n=0 _hi_sc_out="" _hi_sc_k _hi_sc_j _hi_sc_m
-  local -a _hi_dirs=() _hi_carried=()
-  [ -n "$_hi_sc_src" ] || _hi_overlay_src "$_hi_st_m" _hi_sc_src || return 0
-  _hi_tool_dirs "$_hi_st_m" "$_hi_sc_src"
-  ((${#_hi_dirs[@]})) || return 0
-  while IFS='|' read -r _ _hi_sc_l _hi_sc_k _; do
-    [ "$_hi_sc_k" != include ] || _hi_sc_at="$_hi_sc_at$_hi_sc_l "
-  done < <(_hi_dialect="$_hi_st_d" awk -v mode=report -v name="$_hi_st_m" "$_hi_st_prog" "$f")
-  [ "$_hi_sc_at" != " " ] || return 0
-  while IFS= read -r _hi_sc_l || [ -n "$_hi_sc_l" ]; do
-    _hi_sc_n=$((_hi_sc_n + 1))
-    case "$_hi_sc_at" in *" $_hi_sc_n "*) _hi_include_carry _hi_sc_l "$_hi_sc_l" "${_hi_st_m%%/*}" || true ;; esac
-    _hi_sc_out+="$_hi_sc_l"$'\n'
-  done <"$f"
-  ((${#_hi_carried[@]})) || return 0
-  printf '%s' "$_hi_sc_out" >"$f" || return 1
-  for ((_hi_sc_j = 0; _hi_sc_j < ${#_hi_carried[@]}; _hi_sc_j += 2)); do
-    _hi_sc_m="${_hi_carried[_hi_sc_j]}"
-    # one already staged - a member, or a file carried before - rides once
-    [ ! -e "$_hi_st_root/$_hi_sc_m" ] || continue
-    mkdir -p "$_hi_st_root/${_hi_sc_m%/*}" && cp "${_hi_carried[_hi_sc_j + 1]}" "$_hi_st_root/$_hi_sc_m" || return 1
-    _hi_st_q+=("$_hi_st_root/$_hi_sc_m")
-    _hi_st_qd[${#_hi_st_q[@]} - 1]="$_hi_st_d"
-    _hi_st_qs[${#_hi_st_q[@]} - 1]="${_hi_carried[_hi_sc_j + 1]}"
-    _hi_st_carry+=("${_hi_carried[_hi_sc_j + 1]}")
-    stage_out+=("$_hi_sc_m")
-  done
-}
-
-# _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
-# below: pull the members out of <src-dir> into a scratch stage, strip their
-# comments, gzip what comes out. Reads $stage_in (members to pull), $stage_out
-# (members to emit), $stage_excl (stage paths dropped once pulled - not tar's
-# --exclude, which OpenBSD's has none of) and $stage_add
-# (<member> <path> pairs copied in from outside <src-dir>) and $stage_lint (1
-# for the overlay: the include scan runs over the stage, and each member is
-# stripped by its dialect rather than $_HI_STRIP_NAMES) from
-# its caller, the convention _hi_container_cleanup and _hi_remote_middle also
-# use.
-#
-# A subshell, so cleanup is a trap and a ^C mid-build leaves nothing behind
-# (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): `root` is
-# _say_hi_container's name for the target's tree, and this runs inside it.
-function _hi_stage_tar() {
-  local stage f _hi_st_root _hi_st_i _hi_st_prog _hi_st_m _hi_st_d _hi_st_n
-  local -a _hi_st_names=() _hi_st_strip=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
-  local -a _hi_st_q=() _hi_st_qd=() _hi_st_qs=() _hi_st_carry=()
-  local _hi_st_lint="${stage_lint:-0}"
-  for f in "${_HI_STRIP_NAMES[@]}"; do
-    ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
-    case "$f" in */*) _hi_st_names+=(-path "$f") ;; *) _hi_st_names+=(-name "$f") ;; esac
-  done
-  (
-    stage="$(mktemp -d -t hi.stage.XXXXXX)" || exit 1
-    trap 'rm -rf "$stage"' EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
-    _hi_st_root="$stage${2:+/$2}"
-    # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
-    # marker while a GNU writer still has record padding to send, which is an
-    # EPIPE and a "tar: Write error" on stderr. Skipped when every member is
-    # a $stage_add one: GNU tar refuses to write an empty archive.
-    if ((${#stage_in[@]})); then
-      tar -c -h -f "$stage/in.tar" -C "$1" "${stage_in[@]}" || exit 1
-      tar -x -f "$stage/in.tar" -C "$stage" || exit 1
-      rm -rf "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]/#/$stage/}"}
-    fi
-    for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
-      case "${_hi_st_add[_hi_st_i]}" in */*) mkdir -p "$_hi_st_root/${_hi_st_add[_hi_st_i]%/*}" || exit 1 ;; esac
-      cp "${_hi_st_add[_hi_st_i + 1]}" "$_hi_st_root/${_hi_st_add[_hi_st_i]}" || exit 1
-    done
-    # fish's universal variables are everything `set -U` ever kept, secrets
-    # included: tide's lines ride and nothing else
-    if [ -f "$_hi_st_root/tide.vars" ]; then
-      grep '^SETUVAR tide_' "$_hi_st_root/tide.vars" >"$stage/tide.keep" || true
-      mv -f "$stage/tide.keep" "$_hi_st_root/tide.vars" || exit 1
-    fi
-    # ahead of the stripper, over the staged copies rather than the user's
-    # own files: an include hi cannot carry goes out commented, or made inert
-    # in a shell or JSON file, and the strip below drops a comment
-    if [ "$_hi_st_lint" = 1 ]; then
-      _hi_st_prog="$(_hi_lint_awk)"
-      _hi_read_lines _hi_st_q < <(find "$_hi_st_root" -type f ! -name '*.lint')
-      # a queue, not the find's lines: a carried file joins it, in the
-      # dialect of the member that named it
-      for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_q[@]}; _hi_st_i++)); do
-        f="${_hi_st_q[_hi_st_i]}" _hi_st_m="${_hi_st_q[_hi_st_i]#"$_hi_st_root"/}" _hi_st_d="${_hi_st_qd[_hi_st_i]:-}"
-        [ -n "$_hi_st_d" ] || _hi_member_dialect "$_hi_st_m" _hi_st_d || continue
-        _hi_stage_carry || exit 1
-        _hi_dialect="$_hi_st_d" awk -v mode=fix -v name="$_hi_st_m" "$_hi_st_prog" "$f" >/dev/null || exit 1
-        # no .lint at all means an empty member: awk never ran a rule on it
-        [ ! -f "$f.lint" ] || mv -f "$f.lint" "$f" || exit 1
-        # <name> | <leader> | <strip> | ...: strip.awk's d= and c= per file
-        _hi_st_n="${_hi_st_d%% | *}" _hi_st_d="${_hi_st_d#* | }"
-        case "${_hi_st_d#* | }" in 1' | '*) _hi_st_strip+=("d=$_hi_st_n" "c=${_hi_st_d%% | *}" "$f") ;; esac
-      done
-      # what the overlay cache watches besides the members (_hi_overlay_cached)
-      [ -z "${_hi_carry_list:-}" ] ||
-        printf '%s\n' ${_hi_st_carry[@]+"${_hi_st_carry[@]}"} >"$_hi_carry_list" || exit 1
-    fi
-    _hi_strip_awk >"$stage/strip.awk"
-    # one awk over every file (GLOSSARY: HI.35); strip.awk sits at $stage and
-    # matches no name above, so the stripper never eats its own script. It
-    # buffers each file and writes it back over itself once the batch has been
-    # read, so there is no `<file>.strip` left to rename: that rename was one
-    # `mv` a file - 40 of them in a `hi --doctor`, which stages twice, and the
-    # largest external cost it had - and renaming over a file still held open
-    # is what broke the Windows runners. Writing in place also leaves every
-    # mode alone, so hi.sh stays 0755 for the relay with nothing to restore.
-    if [ "$_hi_st_lint" = 1 ]; then
-      ((${#_hi_st_strip[@]} == 0)) || awk -f "$stage/strip.awk" "${_hi_st_strip[@]}" || exit 1
-    else
-      find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
-    fi
-    # the overlay's generated member, last: hi wrote it, so there is nothing
-    # in it to scan or strip
-    [ -z "${stage_wiring:-}" ] || printf '%s' "$stage_wiring" >"$_hi_st_root/wiring.sh" || exit 1
-    _hi_tar_gz -C "$stage" "${stage_out[@]}"
-  )
-}
-
-# _hi_overlay_tar [file...] - the overlay archive over the given members, or
-# over _hi_overlay_files when called bare; nothing when there are none.
-# Comment-stripped through a staging copy like the payload (GLOSSARY: HI.35):
-# the overlay is the user's prose-heavy files and every byte rides each
-# connect. The first tar's -h resolves a dotfile manager's symlinks into
-# content; the final tar names the members, so strip.awk never ships. A
-# member _hi_overlay_src packs from elsewhere is copied in under its own name.
-# wiring.sh rides beside the members it has a line for (GLOSSARY: HI.62).
-function _hi_overlay_tar() {
-  local -a present=("$@")
-  [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
-  ((${#present[@]})) || return 0
-  local -a stage_in=() stage_out=("${present[@]}") stage_excl=() stage_add=()
-  local stage_lint=1 stage_wiring=""
-  local f src
-  _hi_overlay_wiring stage_wiring "${present[@]}"
-  [ -z "$stage_wiring" ] || stage_out+=(wiring.sh)
-  for f in "${present[@]}"; do
-    if _hi_overlay_src "$f" src && [ "$src" != "$_HI_CONFIG_DIR/$f" ]; then
-      stage_add+=("$f" "$src")
-    else
-      stage_in+=("$f")
-    fi
-  done
-  _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
 
 # _hi_hash <value> [outvar] - 32-bit FNV-1a of <value>, in decimal: a cache or
@@ -1465,155 +251,6 @@ function _hi_hash() {
     done
   done
   _hi_out "${2:-}" "$_hi_hs_h"
-}
-
-# What changes an overlay tar without touching any member's mtime: the member
-# list itself, and the wiring written from it, which a newer hi.sh can change
-# under the same list. Hashed, not spelled out, to keep the cache filename
-# short.
-function _hi_overlay_cache_key() {
-  local _hi_ok_w
-  _hi_overlay_wiring _hi_ok_w "$@"
-  _hi_hash "$*$_hi_ok_w"
-}
-
-# _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two
-# callers. Rebuilt when missing, when any <watch> or $cache_also path (from its
-# caller) is newer than it - a symlink's target counts, so a dotfile manager's
-# edit does - or when _HI_PAYLOAD_CACHE=0; written under a temp name and mv'd into place, so a
-# concurrent reader sees the old file or the new one and never a half-written
-# archive. rc 1 means "no cache, build it yourself".
-#
-# Prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` would shadow a
-# caller's outvar and the printf -v would never leave this function.
-function _hi_cached() {
-  local _hi_c_outvar="$1" _hi_c_tag="$2" _hi_c_key="$3" _hi_c_pre="$4" _hi_c_build="$5"
-  shift 5
-  local _hi_c_dir _hi_c_cache _hi_c_tmp
-  local -a _hi_c_watch=("${@/#/$_hi_c_pre}" ${cache_also[@]+"${cache_also[@]}"})
-  [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
-  _hi_runtime_dir _hi_c_dir
-  [ -n "$_hi_c_dir" ] || return 1
-  _hi_c_cache="$_hi_c_dir/hi.$_hi_c_tag.$_hi_c_key"
-  if [ -f "$_hi_c_cache" ] &&
-    [ -z "$(find -H "${_hi_c_watch[@]}" -newer "$_hi_c_cache" -print 2>/dev/null)" ]; then
-    printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
-    return 0
-  fi
-  # mktemp, not `.$$`: every subshell of one shell shares its $$
-  _hi_c_tmp="$(mktemp "$_hi_c_cache.XXXXXX")" || return 1
-  "$_hi_c_build" "$@" >"$_hi_c_tmp" || {
-    rm -f "$_hi_c_tmp"
-    return 1
-  }
-  mv -f "$_hi_c_tmp" "$_hi_c_cache"
-  printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
-}
-
-# _hi_cached over exactly these overlay members, keyed on the list. Fails when
-# there is no member at all, on top of _hi_cached's own refusals. A member
-# _hi_overlay_src packs from elsewhere is watched there and keyed by its path,
-# so pointing the tool at another file never serves the old one's cache. The
-# files the last build carried (_hi_stage_carry) are watched from the list it
-# left beside the cache, $_hi_carry_list.
-function _hi_overlay_cached() {
-  local _hi_oc_outvar="$1" _hi_oc_f _hi_oc_src _hi_oc_key _hi_oc_dir _hi_carry_list=""
-  shift
-  (($#)) || return 1
-  local -a cache_also=()
-  for _hi_oc_f; do
-    _hi_overlay_src "$_hi_oc_f" _hi_oc_src && [ "$_hi_oc_src" != "$_HI_CONFIG_DIR/$_hi_oc_f" ] &&
-      cache_also+=("$_hi_oc_src")
-  done
-  _hi_oc_key="$(_hi_overlay_cache_key "$@" ${cache_also[@]+"${cache_also[@]}"})"
-  _hi_runtime_dir _hi_oc_dir
-  if [ -n "$_hi_oc_dir" ]; then
-    _hi_carry_list="$_hi_oc_dir/hi.overlay.$_hi_oc_key.carry"
-    [ ! -f "$_hi_carry_list" ] || while IFS= read -r _hi_oc_f; do
-      [ -z "$_hi_oc_f" ] || cache_also+=("$_hi_oc_f")
-    done <"$_hi_carry_list"
-  fi
-  _hi_cached "$_hi_oc_outvar" overlay "$_hi_oc_key" "$_HI_CONFIG_DIR/" _hi_overlay_tar "$@"
-}
-
-# The tree twin, against the ~70-130ms _hi_payload_tar otherwise costs on
-# every connect. _hi_payload_tar takes no arguments - the roster is its own -
-# but is handed one anyway: that list is what _hi_cached watches for staleness.
-# Keyed on the tree's own path and the caller's $payload_excl: two trees on
-# one machine share the runtime dir, and staleness is only "no file newer
-# than the cache", so a tree keyed by name alone was served the other tree's
-# payload; and a tree cut for one overlay is never served beside another.
-function _hi_payload_cached() {
-  local _hi_pc_key
-  _hi_hash "$_HI_HOME|${payload_excl[*]-}" _hi_pc_key
-  _hi_pc_key="tree.$_hi_pc_key"
-  _hi_cached "$1" payload "$_hi_pc_key" \
-    "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
-}
-
-# The overlay tar on stdout: the cache when warm and clean, a fresh build
-# otherwise. An if/else and not `cat && || tar`, which would emit both halves
-# if the cat died partway through. Prefixed local: GLOSSARY: HI.04.
-function _hi_overlay_bytes() {
-  local _hi_ob_cache=""
-  if _hi_overlay_cached _hi_ob_cache "$@"; then
-    cat "$_hi_ob_cache"
-  else
-    _hi_overlay_tar "$@"
-  fi
-}
-
-# _hi_overlay_bytes armored into the line that unpacks it on the target.
-function _hi_overlay_stream() {
-  _hi_overlay_bytes "$@" | _hi_armored_line '|' "tar -x -m -z -f - -C \"\$_HI_ROOT/config\" && $(_hi_overlay_fixup '"$_HI_ROOT/config"')"
-}
-
-# The comment stripper every payload file goes through: their prose headers
-# are for the installed copy a user reads, not the wire. A comment line starts
-# with `#`, or with c=, an overlay member's dialect <leader>, set on the
-# command line ahead of its file with its d=, and blank lines and indentation
-# go with them - no dialect with <strip> 1 reads either, and the indentation
-# alone is 3% of the payload - except on a line continuing a `word\`, where it
-# is the only separator. A nanorc's dropped syntax include and extendsyntax
-# ride as comments, for load.sh's _hi_nano_fallback to find.
-# GLOSSARY: HI.35 - the rules, and why their order is the argument
-function _hi_strip_awk() {
-  cat <<'AWK'
-FNR == 1 { out = FILENAME; seen[out] = 1; buf[out] = ""; tag = ""; dash = cont = 0; lc = (c != "" && c != "#") ? "^[ \t]*" c : ""; nano = (d == "nano") }
-FNR == 1 && /^#!/ { buf[out] = buf[out] $0 "\n"; next }
-nano && /^# hi dropped: (include .*\.nanorc|extendsyntax )/ { buf[out] = buf[out] $0 "\n"; next }
-lc != "" && $0 ~ lc { next }
-tag != "" {
-  line = $0
-  if (dash) sub(/^\t+/, "", line)
-  if (line == tag) tag = ""
-  buf[out] = buf[out] $0 "\n"
-  next
-}
-/^[ \t]*#/ { next }
-/^[ \t]*$/ { next }
-{
-  if (!cont) sub(/^[ \t]+/, "")
-  cont = /[^ \t\\]\\$/
-  s = $0
-  while (match(s, /<<-?[ \t]*("[A-Za-z_][A-Za-z0-9_]*"|'[A-Za-z_][A-Za-z0-9_]*'|[A-Za-z_][A-Za-z0-9_]*)/)) {
-    m = substr(s, RSTART, RLENGTH)
-    s = substr(s, RSTART + RLENGTH)
-    dash = (m ~ /^<<-/)
-    sub(/^<<-?[ \t]*/, "", m)
-    sub(/^["']/, "", m)
-    sub(/["']$/, "", m)
-    tag = m
-  }
-  buf[out] = buf[out] $0 "\n"
-}
-END {
-  for (f in seen) {
-    printf "%s", buf[f] > (f)
-    close(f)
-  }
-}
-AWK
 }
 
 # _hi_require <tool> <why> - the tool, or a refusal that names it: the
@@ -1637,55 +274,6 @@ function _hi_fail() {
 function _hi_die() {
   _hi_cecho "hi: $1" "$RED" >&2
   exit 1
-}
-
-# _hi_payload_excl <member...> - the tree files those overlay members shadow
-# (GLOSSARY: HI.41), into the caller's $payload_excl: one copy on the wire,
-# not the default beside the file that beats it. Only a member that ships
-# counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
-# With the header off the target never draws one, so header.sh and the
-# package list it checks stay home too. A framework's prompt loader,
-# common/fw_<name>.<ext>, rides only to a target handed that framework
-# (_hi_prompt_list): the shell there picks from that list alone. GLOSSARY: HI.32
-function _hi_payload_excl() {
-  local f s
-  payload_excl=()
-  ! _hi_toggle_on _HI_DISABLE_HEADER || payload_excl=(say-hi/common/header.sh say-hi/config/packages)
-  for f; do
-    f="${f%%/*}"
-    case "$_HI_OVERLAY_SHADOWS${payload_excl[*]-} " in
-    *" say-hi/config/$f "*) ;;
-    *" $f "*) payload_excl+=("say-hi/config/$f") ;;
-    esac
-  done
-  _hi_prompt_list >/dev/null
-  for f in "${_HI_PROMPT_TABLE[@]}"; do
-    case "$f" in *'|fw|'*) ;; *) continue ;; esac
-    case " $_HI_PROMPT_LIST_MEMO " in *[\ :]"${f%%|*} "*) continue ;; esac
-    s="${f#*|}" s="${s%%|*}"
-    payload_excl+=("say-hi/common/fw_${f%%|*}.${s/bash/sh}")
-  done
-}
-
-# The tree, comment-stripped through a staging copy; both size budgets
-# measure this. GLOSSARY: HI.39 + HI.35. Whole unless the caller holds a
-# $payload_excl - a connect that ships the overlay too; _hi_wire_bytes has
-# none, and measures the stock tree.
-function _hi_payload_tar() {
-  local -a stage_in stage_out=(say-hi) stage_excl=(${payload_excl[@]+"${payload_excl[@]}"})
-  stage_in=("${_HI_PAYLOAD[@]/#/say-hi/}")
-  _hi_stage_tar "$_HI_HOME" say-hi
-}
-
-# The tree twin of _hi_overlay_stream: the armored payload tar, through the
-# cache when it is warm and clean.
-function _hi_payload_stream() {
-  local cache=""
-  if _hi_payload_cached cache; then
-    $_HI_ARMOR <"$cache"
-  else
-    _hi_payload_tar | $_HI_ARMOR
-  fi
 }
 
 # The walker's rc 2 means "known host, no tag"; only 1 means not in the config.
@@ -1870,7 +458,7 @@ function _hi_ssh_sh() {
 # $SSHARGS, so a `-p`/`-l`/`-o` naming a different connection to the same
 # target gets its own socket rather than joining the wrong one.
 function _hi_ctl_open() {
-  local persist="$1" scope="$2" dir key words
+  local persist="$1" scope="$2" dir key
   shift 2
   ctl_dir=""
   ctl_path=""
@@ -1891,9 +479,7 @@ function _hi_ctl_open() {
   if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
-      # printf -v and outvars, not $( ): this key costs no fork
-      printf -v words '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"}
-      _hi_hash "$words" key
+      _hi_conn_key key
       ctl_path="$dir/hi.ctl.$key"
       ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
       ctl_shared=1
@@ -1907,6 +493,15 @@ function _hi_ctl_open() {
     fi
   fi
   ctl_opts+=("$@")
+}
+
+# _hi_conn_key <outvar> - a hash of $DOMAIN and $SSHARGS, one connection's
+# name under the runtime directory. printf -v and outvars, not $( ): it costs
+# no fork.
+function _hi_conn_key() {
+  local _hi_ck_words
+  printf -v _hi_ck_words '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"}
+  _hi_hash "$_hi_ck_words" "$1"
 }
 
 function _hi_ctl_close() {
@@ -2077,29 +672,6 @@ function _hi_fallback_prompt() {
     "$user_esc" "$nc" "$ce" "$host" "$nc" "$cwd_esc" '\${PWD}' "$nc" "$pe"
 }
 
-function _hi_size() {
-  _hi_du_size "${_HI_PAYLOAD[@]/#/$_HI_ROOT/}"
-}
-
-# What a fresh session puts on the wire, without connecting: the real script,
-# assembled as _say_hi assembles it, through the same payload cache - a warm
-# one stages nothing. GLOSSARY: HI.44 - why not a sum of streams
-function _hi_wire_bytes() {
-  local overlay_line="" bootloader tree script
-  local size="$_HI_SIZE_TOKEN"
-  local DOMAIN="${DOMAIN:-target}"
-  bootloader="$(_hi_bootloader | $_HI_ARMOR)"
-  tree="$(_hi_payload_stream)"
-  _hi_remote_script script
-  printf '%s' "${#script}"
-}
-
-# the same figure for humans; the bench suite takes the bytes, so the README
-# badge is checked against a number and not a rounded string
-function _hi_wire_estimate() {
-  _hi_human_bytes "$(_hi_wire_bytes)"
-}
-
 function _hi_file_bytes() {
   # ${n// /} rather than a `tr` fork to strip BSD wc's padding
   local n
@@ -2159,9 +731,289 @@ function _hi_env_each() {
 }
 
 # _hi_remote_script <outvar> - the script _say_hi sends and _hi_wire_bytes
-# measures: preamble, middle, suffix. One assembly, so the two agree (HI.44).
+# measures: preamble, the kept-session reattach where this connect looks for
+# one, middle, suffix. One assembly, so the two agree (HI.44).
 function _hi_remote_script() {
-  printf -v "$1" '%s\n%s\n%s' "$(_hi_remote_preamble)" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
+  local _hi_rs_keep=""
+  ! _hi_keep_probes || _hi_rs_keep="$(_hi_keep_attach)"$'\n'
+  printf -v "$1" '%s\n%s%s\n%s' "$(_hi_remote_preamble)" "$_hi_rs_keep" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
+}
+
+# Whether this connect looks on the target for a kept session to reattach:
+# every session, not a command, unless --no-keep asked for one beside it.
+function _hi_keep_probes() {
+  [ -z "${CMDARG:-}" ] && [ "${KEEP:-}" != 0 ]
+}
+
+# ...and whether it starts one where the target has none: --keep, or
+# _HI_KEEP=1 with neither flag typed.
+function _hi_keep_starts() {
+  _hi_keep_probes && [ "${KEEP:-${_HI_KEEP:-0}}" = 1 ]
+}
+
+# How the target finds its kept session: $_hi_kn is the name, and _hi_kept
+# answers with the multiplexer holding it in $_hi_k (screen's own id for it
+# in $_hi_ks). GLOSSARY: HI.65
+function _hi_keep_find() {
+  local name_q
+  _hi_shquote name_q "$(_hi_mux_name "$DOMAIN")"
+  cat <<REMOTE
+      _hi_kn=$name_q
+      _hi_kept() {
+        _hi_k=tmux
+        tmux has-session -t "=\$_hi_kn" 2>/dev/null && return
+        _hi_k=zellij
+        zellij ls -n 2>/dev/null | grep -v '(EXITED' | grep -q "^\$_hi_kn " && return
+        _hi_k=screen
+        _hi_ks=\$(screen -ls 2>/dev/null | sed -n "/Dead/d; s/^[[:space:]]*\\([0-9][0-9]*[.]\$_hi_kn\\)[[:space:]].*/\\1/p")
+        [ -n "\$_hi_ks" ] && return
+        _hi_k=
+        return 1
+      }
+REMOTE
+}
+
+# Ahead of the unpack: a kept session is attached and the script ends there,
+# so nothing new lands on the target. _hi_kept_note is the line a detach
+# leaves, for this path and the start below, and the script's status says
+# whether a kept session is left behind (86, _hi_keep_connect). A client that
+# expected one says so where there is none. A session that does start is
+# told the target's name, for a `hi --keep` typed in it (_hi_keep_here).
+function _hi_keep_attach() {
+  local target_q _hi_esc _hi_nc gone=""
+  _hi_esc_pair _hi_esc _hi_nc
+  _hi_shquote target_q "$DOMAIN"
+  [ "${_HI_KEEP_EXPECTED:-}" != 1 ] ||
+    gone="      _hi_kept || printf '%s hi: the kept session on [%s] is gone %s\\n' \"$_hi_esc\" $target_q \"$_hi_nc\" >&2"$'\n'
+  _hi_keep_find
+  cat <<REMOTE
+      _hi_kept_note() { _hi_kept && printf '%s%s detached, the session on [%s] is kept %s\n' "$_hi_esc" "\$1" $target_q "$_hi_nc" >&2; }
+      if [ -t 0 ] && _hi_kept; then
+        case \$_hi_k in
+        tmux) tmux attach-session -t "=\$_hi_kn" ;;
+        zellij) zellij attach "\$_hi_kn" ;;
+        screen) screen -x "\$_hi_ks" ;;
+        esac
+        _hi_kept_note ' hi:' && exit 86
+        exit 0
+      fi
+$gone      export _HI_KEEP_AS=$target_q
+REMOTE
+}
+
+# The bash handoff of a connect that keeps its session: the same
+# `bash --rcfile` as the owner pane of a tmux, zellij, or screen session, the
+# first of the three on the target. The session's variables reach the pane as
+# an `env` argv, since a multiplexer server already running hands a pane its
+# own environment, and the subshell drops them before the exec so a server
+# started here carries none of them to its other panes (GLOSSARY: HI.47).
+# The multiplexer reads the config hi carried, as the session's alias does.
+# zellij takes a first pane's command from a layout alone, so that argv is
+# written into one beside the rc, as KDL strings, under zellij's own two bars;
+# its options keep the session off the disk and a dropped client a detach,
+# open new panes on the launcher load.sh writes (_hi_keep_panes), and turn
+# off the popups that would take the first prompt's keys, each asked for only
+# where this zellij lists it.
+# _hi_keep_start [note prefix [name...]] - the names are the pane's variables
+# where a session starts it, which has them in a file and not in a connect.
+function _hi_keep_start() {
+  local n target_q _hi_esc _hi_nc argv="" drop="" note="${1:- |}"
+  local -a names=("${@:2}")
+  _hi_esc_pair _hi_esc _hi_nc
+  _hi_shquote target_q "$DOMAIN"
+  if [ "${#names[@]}" -eq 0 ]; then
+    while IFS=$'\t' read -r n _; do names+=("$n"); done < <(_hi_session_env)
+    names+=(_HI_ROOT _HI_CLEANUP _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME)
+  fi
+  for n in "${names[@]}"; do
+    argv="$argv $n=\"\$$n\""
+    [ "$n" = NO_COLOR ] || drop="$drop $n"
+  done
+  drop="$drop _HI_KEEP_AS"
+  cat <<REMOTE
+        _hi_k=
+        for _hi_s in tmux zellij screen; do command -v "\$_hi_s" >/dev/null 2>&1 && { _hi_k=\$_hi_s; break; }; done
+        if [ -n "\$_hi_k" ] && [ -t 0 ]; then
+          set -- env _HI_KEEP_MUX="\$_hi_k" _HI_KEEP_NAME="\$_hi_kn" _HI_HOME="\$_HI_HOME" _HI_CONFIG_DIR="\$_HI_CONFIG_DIR"$argv bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
+          (
+            unset$drop
+            case \$_hi_k in
+            tmux)
+              _hi_kc="\$_HI_CONFIG_DIR/tmux/tmux.conf"
+              [ ! -f "\$_hi_kc" ] || exec tmux -f "\$_hi_kc" new-session -s "\$_hi_kn" "\$@"
+              exec tmux new-session -s "\$_hi_kn" "\$@"
+              ;;
+            zellij)
+              _hi_kc="\$_hi_rc_dir/hi.keep.kdl"
+              {
+                printf '%s\n' 'layout {' 'default_tab_template {' 'pane size=1 borderless=true {' 'plugin location="zellij:tab-bar"' '}' children 'pane size=2 borderless=true {' 'plugin location="zellij:status-bar"' '}' '}' 'tab {' 'pane command="env" close_on_exit=true {'
+                shift
+                printf args
+                for _hi_s; do printf ' "%s"' "\$(printf '%s' "\$_hi_s" | sed 's/[\\\\"]/\\\\&/g')"; done
+                printf '\n}\n}\n}\n'
+              } >"\$_hi_kc"
+              set -- -s "\$_hi_kn" -n "\$_hi_kc" options --session-serialization false --on-force-close detach --default-shell "\$_hi_rc_dir/hi.pane"
+              for _hi_s in startup-tips release-notes; do
+                ! zellij options --help 2>/dev/null | grep -q -- "--show-\$_hi_s" || set -- "\$@" "--show-\$_hi_s" false
+              done
+              [ ! -d "\$_HI_CONFIG_DIR/zellij" ] || set -- --config-dir "\$_HI_CONFIG_DIR/zellij" "\$@"
+              exec zellij "\$@"
+              ;;
+            screen)
+              _hi_kc="\$_HI_CONFIG_DIR/screenrc"
+              [ ! -f "\$_hi_kc" ] || exec screen -c "\$_hi_kc" -S "\$_hi_kn" "\$@"
+              exec screen -S "\$_hi_kn" "\$@"
+              ;;
+            esac
+          )
+          _hi_kept_note '$note'
+        else
+          [ -n "\$_hi_k" ] || printf '%s --keep needs tmux, zellij, or screen on [%s], connecting without it %s\n' "$_hi_esc" $target_q "$_hi_nc" >&2
+          bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
+        fi
+REMOTE
+}
+
+# What a connect that looks for a kept session runs once it has a tree of its
+# own. An owner pane killed with no exit hook - the target went down under
+# it - left its tree, and hi.kept in it holds the pane's pid and that of the
+# shell it was kept from (load.sh's _hi_keep_claim): a tree neither still
+# runs on is removed. GLOSSARY: HI.65
+function _hi_keep_sweep() {
+  # shellcheck disable=SC2016 # the target's to expand
+  printf '%s\n' \
+    '      for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.kept; do' \
+    '        read -r _hi_ko _hi_kp 2>/dev/null <"$_hi_s" && [ -n "$_hi_ko" ] || continue' \
+    '        kill -0 "$_hi_ko" 2>/dev/null || kill -0 "${_hi_kp:-$_hi_ko}" 2>/dev/null || rm -rf "${_hi_s%/say-hi/hi.kept}"' \
+    '      done'
+}
+
+# What `hi --end` runs on the target: 3 when there is no kept session to
+# close. The owner pane's bash takes the hangup and its exit hook removes the
+# tree, as on a dropped connection.
+function _hi_keep_end_script() {
+  _hi_keep_find
+  cat <<REMOTE
+      _hi_kept || exit 3
+      case \$_hi_k in
+      tmux) tmux kill-session -t "=\$_hi_kn" ;;
+      zellij) zellij kill-session "\$_hi_kn" ;;
+      screen) screen -S "\$_hi_ks" -X quit ;;
+      esac
+REMOTE
+}
+
+# hi --end <target>: close the kept session there, without attaching
+function _hi_keep_end() {
+  local ec=0 rec
+  _hi_ssh_sh "$(_hi_keep_end_script)" </dev/null || ec=$?
+  # closed, or not there: either way this client no longer expects it
+  case "$ec" in 0 | 3) ! _hi_keep_record rec || rm -f "$rec" ;; esac
+  case "$ec" in
+  0) _hi_cecho "hi: closed the kept session on [$DOMAIN]" "$GREEN" ;;
+  3)
+    _hi_cecho "hi: no kept session on [$DOMAIN]" "$YELLOW" >&2
+    ec=1
+    ;;
+  esac
+  return "$ec"
+}
+
+# hi --keep typed in a session: the session's tree gets an owner pane in the
+# first multiplexer here, under the name its client looks for, by the script
+# a keeping connect runs from where it starts the pane. load.sh left what the
+# pane needs in hi.keep, a NAME=value a line, the target's name among them.
+# The hi.kept marker is the pane's claim on the tree: this session's exit
+# leaves the tree to it (load.sh's clean_all). GLOSSARY: HI.65
+function _hi_keep_here() {
+  local file="$_HI_ROOT/hi.keep" line tool
+  local -a names=()
+  [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session over ssh, into bash, started without --no-keep"
+  [ -t 0 ] || _hi_die "--keep needs a terminal"
+  [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ] || _hi_die "--keep: already inside a multiplexer here, and hi does not nest one"
+  for tool in tmux zellij screen ""; do
+    [ -z "$tool" ] || ! command -v "$tool" >/dev/null 2>&1 || break
+  done
+  [ -n "$tool" ] || _hi_die "--keep needs tmux, zellij, or screen on this machine"
+  # The script's environment, in the shell _hi is about to leave: a child's
+  # (GLOSSARY: HI.47) and the file's, so the multiplexer started here
+  # inherits what one a connect starts does, and none of this launcher's own.
+  _hi_unexport
+  while IFS= read -r line; do
+    export "${line?}"
+    [ "${line%%=*}" = _HI_KEEP_AS ] || names+=("${line%%=*}")
+  done <"$file"
+  DOMAIN="$_HI_KEEP_AS" KEEP=1 CMDARG=""
+  # 86 is the attach block's word to a client that a session is kept
+  # shellcheck disable=SC2016 # the script's sh expands these
+  sh -c "$(_hi_keep_attach)"'
+      _hi_rc_dir=$_HI_ROOT
+      : >"$_HI_ROOT/hi.kept"
+'"$(_hi_keep_start ' hi:' "${names[@]}")"'
+      _hi_kept || rm -f "$_HI_ROOT/hi.kept"' || [ "$?" = 86 ]
+}
+
+# _hi_keep_record <outvar> - where this client notes that the target holds a
+# kept session: an empty file in hi's runtime directory, named for the
+# connection, so a logout forgets it. False with no such directory.
+function _hi_keep_record() {
+  local _hi_kr_dir _hi_kr_key
+  _hi_runtime_dir _hi_kr_dir
+  [ -n "$_hi_kr_dir" ] || return 1
+  _hi_conn_key _hi_kr_key
+  printf -v "$1" '%s/hi.kept.%s' "$_hi_kr_dir" "$_hi_kr_key"
+}
+
+# A pane of a local multiplexer, which nobody may be watching
+function _hi_keep_in_mux() {
+  [ -t 0 ] && [ -n "${TMUX:-}${ZELLIJ:-}${STY:-}" ]
+}
+
+# _hi_keep_connect <log> - _say_hi, for a session that may be kept. The
+# target's script ends 86 when it leaves a kept session behind and 0 when it
+# does not, and the record follows; a connect that keeps writes it up front,
+# since a dropped link says nothing. The record is what the next connect's
+# script warns by when the session is gone (_hi_keep_attach), and what a
+# dropped session is retried by: in a local multiplexer's pane, for
+# $_HI_KEEP_RETRY from the drop, each try quiet (its words in <log>) until
+# the target answers. A try that gets in and drops within ten seconds does
+# not restart the window. GLOSSARY: HI.65
+function _hi_keep_connect() {
+  local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-5m}" limit t0="" t1 expected=""
+  ! _hi_keep_probes || probes=1
+  [ "$probes" = 0 ] || _hi_keep_record rec || rec=""
+  [ -z "$rec" ] || [ ! -e "$rec" ] || expected=1
+  [ -z "$rec" ] || ! _hi_keep_starts || : >"$rec"
+  _hi_keep_seconds "$window" limit || window=5m limit=300
+  while :; do
+    ec=0 t1=$SECONDS _HI_LINK_UP=0 _HI_KEEP_EXPECTED="$expected"
+    _say_hi || ec=$?
+    if [ "$probes" = 1 ]; then
+      case "$ec" in
+      86)
+        ec=0
+        [ -z "$rec" ] || : >"$rec"
+        ;;
+      0) [ -z "$rec" ] || rm -f "$rec" ;;
+      esac
+    fi
+    { [ "$ec" = 255 ] && [ -n "$rec" ] && [ -e "$rec" ] && ((limit > 0)) && _hi_keep_in_mux; } || break
+    if [ "$_HI_LINK_UP" = 1 ] && { [ -z "$t0" ] || ((SECONDS - t1 >= 10)); }; then
+      t0=$SECONDS
+      [ ! -t 1 ] || _hi_reset_terminal "$ec"
+      _hi_cecho " hi: lost [$DOMAIN], where the session is kept - retrying for $window, Ctrl+C stops" "$YELLOW" >&2
+    elif [ -z "$t0" ]; then
+      break
+    elif ((SECONDS - t0 >= limit)); then
+      _hi_cecho "hi: [$DOMAIN] did not come back in $window; a later hi to it reattaches the session it kept" "$YELLOW" >&2
+      _HI_SAID=1
+      break
+    fi
+    sleep 5
+    expected=1 _HI_CONNECT_T0="$(_hi_now)" _HI_KEEP_QUIET="$log"
+  done
+  _HI_KEEP_QUIET=""
+  return "$ec"
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
@@ -2209,13 +1061,19 @@ function _hi_esc_pair() {
 function _hi_remote_suffix() {
   # single-quoted here so the fallback line can name the target without the
   # session carrying a variable for it
-  local target_q _hi_esc _hi_nc
+  local target_q _hi_esc _hi_nc tail=""
+  # shellcheck disable=SC2016 # the target's to expand
+  local handoff='        bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
+  ! _hi_keep_starts || handoff="$(_hi_keep_start)"
+  # 86 for a kept session left behind, by this connect or by a `hi --keep`
+  # typed in it, and never the session's own status (_hi_keep_connect)
+  ! _hi_keep_probes || tail=$'      _hi_kept && exit 86\n      exit 0'
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
       if command -v bash >/dev/null 2>&1; then
-        bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
+$handoff
       else
         _hi_fallback=sh
         $(_hi_ladder_probe '_hi_fallback="$_hi_s"')
@@ -2235,6 +1093,7 @@ function _hi_remote_suffix() {
           ;;
         esac
       fi
+$tail
 REMOTE
 }
 
@@ -2246,9 +1105,17 @@ REMOTE
 # knows how to undo everything hi did on the target and runs on a normal exit
 # and an abrupt disconnect alike. This trap covers the one thing it cannot
 # survive - bash killed by a signal nothing can trap - and only has to remove
-# the tree, since $_HI_SESSION_RC_DIR nests inside it.
+# the tree, since $_HI_SESSION_RC_DIR nests inside it. A connect that keeps
+# its session leaves a tree whose session is still running to that session's
+# owner pane, and one kept later from inside leaves a marker for the same;
+# the tree of an owner pane that died goes here, by the next connect
+# (GLOSSARY: HI.65).
 function _hi_remote_middle() {
-  local tmpl _hi_esc _hi_nc
+  local tmpl _hi_esc _hi_nc kept="" sweep=""
+  ! _hi_keep_probes || sweep="$(_hi_keep_sweep)"
+  # shellcheck disable=SC2016 # the target's to expand, when the trap runs
+  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || '
+  ! _hi_keep_starts || kept='_hi_kept || '
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
@@ -2258,7 +1125,8 @@ function _hi_remote_middle() {
       export _HI_CONFIG_DIR=\$_HI_ROOT/config
       export _HI_CLEANUP=\$_HI_HOME
       mkdir "\$_HI_ROOT"
-      trap 'rm -rf \$_HI_CLEANUP' exit
+$sweep
+      trap '${kept}rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
       printf '%s %s%s' "$_hi_esc" "$_hi_nc" "$size" >&2
       { printf 'export _HI_HOME="%s"\nexport _HI_ROOT="%s"\n' "\$_HI_HOME" "\$_HI_ROOT"
@@ -2292,9 +1160,9 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size script boot_tmp ctl_path ctl_dir ctl_shared ct ec=0
+  local size script boot_tmp ctl_path ctl_dir ctl_shared ct run ec=0
   local bootloader="" tree="" overlay_line=""
-  local -a ctl_opts overlay=()
+  local -a ctl_opts overlay=() retry=()
 
   # Asked here rather than at the pipeline that needs them: a
   # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
@@ -2320,17 +1188,22 @@ function _say_hi() {
   # multiplex the bootloader write and the real session over one ssh
   # connection; `shared` tries to reuse one already authenticated for this
   # target
-  _hi_ctl_open 30 shared
+  # a retry (_hi_keep_connect) does not wait out a network that is not there
+  [ -z "${_HI_KEEP_QUIET:-}" ] || retry=(-o ConnectTimeout=10)
+  _hi_ctl_open 30 shared ${retry[@]+"${retry[@]}"}
 
   # the tars the script carries. The orphaned warm finishes its own atomic mv
   # after hi has moved on.
   wait "$warm_bg" 2>/dev/null || true
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
   tree="$(_hi_payload_stream)"
-  # the overlay's own stream, omitted when empty (GLOSSARY: HI.41)
+  # the overlay's own stream, omitted when empty (GLOSSARY: HI.41); a relay's
+  # rode in its tree, and only the paths of what it carried are left to fix
   if ((${#overlay[@]})); then
     overlay_line="mkdir -p \"\$_HI_ROOT/config\"
 $(_hi_overlay_stream "${overlay[@]}")"
+  elif [ -n "$_HI_RELAY" ]; then
+    overlay_line="$(_hi_overlay_fixup '"$_HI_ROOT/config"')"
   fi
   size="$_HI_SIZE_TOKEN"
   _hi_remote_script script
@@ -2355,8 +1228,21 @@ $(_hi_overlay_stream "${overlay[@]}")"
   # login shell, /var/folders/../T - which does not exist on a Linux target,
   # so the whole session would fall through to the PowerShell branch on a host
   # that has bash, invisibly to a CI job that only connects to 127.0.0.1.
-  local boot_out boot_ec=0
-  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}")" || boot_ec=$?
+  #
+  # A retry holds the transport's words back until the target has answered,
+  # and ends here when it has not: a host ssh could not reach has no shell to
+  # fall back on.
+  local boot_out boot_ec=0 boot_fd=2
+  [ -z "${_HI_KEEP_QUIET:-}" ] || { exec 8>"$_HI_KEEP_QUIET" && boot_fd=8; }
+  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}" 2>&"$boot_fd")" || boot_ec=$?
+  if [ "$boot_fd" = 8 ]; then
+    exec 8>&-
+    if [ "$boot_ec" = 255 ]; then
+      _hi_ctl_close
+      return 255
+    fi
+    cat "$_HI_KEEP_QUIET" >&2
+  fi
 
   # Tagged rather than taken whole: a target whose sh writes anything of its
   # own to stdout would otherwise prepend it to the path.
@@ -2384,8 +1270,16 @@ $(_hi_overlay_stream "${overlay[@]}")"
     # $ct is our own _hi_elapsed digits-and-a-dot, never text a target sent
     # back, so it interpolates straight into the command line
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
-    ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
-      "_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
+    run="_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\""
+    # a session that drops from here on was up (_hi_keep_connect)
+    _HI_LINK_UP=1
+    if _hi_keep_probes; then
+      # the script's status is its word on a kept session, so it outlasts
+      # the removal - under sh, whatever the login shell
+      _hi_ssh_sh "$run; _hi_e=\$?; rm -rf \"$boot_tmp\"; exit \$_hi_e" ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" || ec=$?
+    else
+      ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" "$run; rm -rf \"$boot_tmp\"" || ec=$?
+    fi
   elif [ -n "$why" ]; then
     _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
     _say_hi_plain "${ctl_opts[@]}" || ec=$?
@@ -2613,6 +1507,9 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     ! ((${#config_defaults[@]})) || tar -c -f - -C "$_HI_HOME" "${config_defaults[@]}" |
       "${cp[@]}" sh -c "tar -x -m -f - -C '$root'" 2>>"$tmp" || true
   fi
+  # a relay's overlay rode in its tree: the paths of what it carried, as in
+  # _say_hi
+  [ -z "$_HI_RELAY" ] || "${probe[@]}" sh -c "$(_hi_overlay_fixup "'$root/say-hi/config'")" 2>>"$tmp" || true
 
   # hi.sh rides the payload tar unpacked above, mode and all - no separate
   # copy. Put like the fallback rc. An empty hi.bashrc is the worst failure
@@ -2731,7 +1628,7 @@ function _hi_parse() {
   local use_word takes own=""
   # plain globals, so an inherited MUX=1 or PLAIN=1 must not stand in for a
   # flag that was never typed
-  DOMAIN="" BACKEND="" PLAIN="" MUX="" RAWCMD="" CMDARG=""
+  DOMAIN="" BACKEND="" PLAIN="" MUX="" KEEP="" END="" RAWCMD="" CMDARG=""
   SSHARGS=()
   while [ $# -gt 0 ]; do
     # the target ends the options: every word after it, dashed or not, is
@@ -2767,6 +1664,14 @@ function _hi_parse() {
         # the last of --mux/--no-mux wins, and either beats _HI_MUX=1 - which
         # is what makes --no-mux useful behind that setting
         MUX=0 own=1
+      elif [ "$1" = --keep ]; then
+        KEEP=1 own=1
+      elif [ "$1" = --no-keep ]; then
+        # the same pair, over _HI_KEEP=1; this one also leaves a session the
+        # target is already keeping alone, for an ordinary one beside it
+        KEEP=0 own=1
+      elif [ "$1" = --end ]; then
+        END=1 own=1
       elif [ "$1" = -- ]; then
         # ssh's own option terminator, passed along as-is
         SSHARGS+=("$1")
@@ -2806,6 +1711,8 @@ function _hi_parse() {
     # none of them and has nothing to say
     if [ "${#SSHARGS[@]}" -eq 0 ]; then
       [ -z "$own" ] && _hi_help && exit 0
+      # in a session, --keep alone keeps the session it is typed in
+      [ "${KEEP:-}" = 1 ] && [ "${END:-0}" != 1 ] && [ "${_HI_REMOTE_SESSION:-0}" = 1 ] && return 0
       _hi_die "no target to connect to (hi [options] <target> [command ...])"
     fi
     # not an exec, so the exit hook still runs
@@ -2944,8 +1851,9 @@ function _hi_mux_wrap() {
   # string: tmux hands it to its default-shell, which may be fish, and screen
   # to `sh -c`, and single quotes are the one form every shell reads alike
   # (%q's $'...' is bash's alone). zellij takes the words, in a layout.
+  case "${KEEP:-}" in 1) word=--keep ;; 0) word=--no-keep ;; *) word="" ;; esac
   inner=(env _HI_MUX_INNER=1 "$_HI_LAUNCHER"
-    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain}
+    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain} ${word:+"$word"}
     ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"})
   for word in "${inner[@]}"; do
     _hi_shquote q "$word"
@@ -3002,18 +1910,33 @@ function _hi() {
   local tmp exit_code arm
 
   [ -d "$_HI_ROOT" ] || _hi_die "no such directory: $_HI_ROOT"
+  # only a session's tree goes without the packer
+  [ -z "$_HI_RELAY" ] || [ "$_HI_REMOTE_SESSION" = 1 ] ||
+    _hi_die "no scripts/pack.sh in $_HI_ROOT - this say-hi is incomplete"
 
   tmp="$(mktemp -t hi.log.XXXXXX)"
   # $tmp is resolved when the trap fires, not now
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
+  if [ -z "${DOMAIN:-}" ]; then
+    _hi_keep_here
+    exit $?
+  fi
   # Primed in the shell that keeps them: a caller that reads one through $( )
   # would fill the memo in a subshell and lose it there, and the script
   # builders ask six times between them. GLOSSARY: HI.05
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   [ -z "${DOMAIN:-}" ] || { _hi_target_color >/dev/null && _hi_prompt_list >/dev/null; }
+  if [ "${END:-0}" = 1 ]; then
+    # a kept session is the ssh arm's alone, and closing one runs no command
+    [ -z "${RAWCMD:-}" ] || _hi_die "--end takes a target and nothing after it"
+    [ "${PLAIN:-0}" != 1 ] && [ -z "$(_hi_select_arm)" ] ||
+      _hi_die "--end closes a kept session, which only an ssh target has"
+    _hi_keep_end
+    exit $?
+  fi
   # only with a terminal to attach: a piped `hi host cmd` keeps working
   if [ -t 0 ]; then _hi_mux_wrap; fi
   # No `2>"$tmp"` around this block: catching a failure to reprint in red
@@ -3024,6 +1947,11 @@ function _hi() {
   # better claim on the terminal. $tmp still reaches _say_hi_container, which
   # redirects the commands whose noise is genuinely hi's.
   arm="$(_hi_select_arm)"
+  # said for the flag alone: _HI_KEEP=1 is a default, and silent where it
+  # does not apply
+  if [ "${KEEP:-}" = 1 ] && { [ "${PLAIN:-0}" = 1 ] || [ -n "$arm" ]; }; then
+    _hi_cecho "hi: --keep needs an ssh target and hi's own session; connecting without it" "$YELLOW" >&2
+  fi
   if [ "${PLAIN:-0}" = 1 ]; then
     if [ -n "$arm" ]; then
       _say_hi_container_plain "$arm"
@@ -3033,7 +1961,7 @@ function _hi() {
   elif [ -n "$arm" ]; then
     _say_hi_container "$arm" "$tmp"
   else
-    _say_hi
+    _hi_keep_connect "$tmp"
   fi
   exit_code="$?"
 

@@ -45,9 +45,10 @@ rm -r|common/targets.sh|3
 rm -r|hi.sh|6
 rm -r|load.sh|2
 rm -r|scripts/install.sh|4
+rm -r|scripts/pack.sh|2
 sh -c|common/config.fish|4
 sh -c|common/zsh.zsh|1
-sh -c|hi.sh|16
+sh -c|hi.sh|18
 sh -c|scripts/doctor.sh|1
 source|common/aliases.sh|2
 source|common/bash.sh|7
@@ -60,7 +61,7 @@ source|common/fw_powerlevel10k.zsh|2
 source|common/header.sh|2
 source|common/paths.sh|1
 source|common/zsh.zsh|7
-source|hi.sh|2
+source|hi.sh|3
 source|load.sh|7
 source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2

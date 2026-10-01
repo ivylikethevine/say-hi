@@ -380,7 +380,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
   }
 }
 
-# Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) that no line of the
+# Every overlay file hi ships (pack.sh's _HI_OVERLAY_FILES) that no line of the
 # generated wiring.sh covers (GLOSSARY: HI.62) needs its overlay lookup in
 # paths.sh - except settings.sh, extensions/, and header/ (the overlay is
 # their only home, so each is an unguarded export instead) and the ones read by name from
@@ -410,7 +410,7 @@ function test_overlay_guards_match_the_roster() {
   done <<<"$roster"
 }
 
-# paths.sh spells out the rows of hi.sh's $_HI_OVERLAY_TABLE that name a
+# paths.sh spells out the rows of pack.sh's $_HI_OVERLAY_TABLE that name a
 # variable, hi's own files, a line per candidate - so each is walked down its
 # tiers in a fabricated $HOME: the overlay's copy, then the tree's default
 # (or the overlay path itself, for the members with no other home), and

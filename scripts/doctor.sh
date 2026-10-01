@@ -68,8 +68,8 @@ real connect authenticates with, so \`hi --doctor -J bastion host\`
 diagnoses the connect that needed the jump host; for a container,
 allocation, or pod target they are reported as ignored. --use <backend>
 names the target's arm outright, as a real \`hi --use <backend> <target>\`
-would, and skips the probe chain. --plain, --mux, and --no-mux are
-accepted and ignored - doctor never opens a session.
+would, and skips the probe chain. --plain, --mux, --no-mux, --keep,
+--no-keep, and --end are accepted and ignored - doctor never opens a session.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -136,7 +136,7 @@ while [ $# -gt 0 ]; do
     ;;
   # doctor never opens a session, so the connect-time flags have nothing to report
   # and are silently accepted rather than misread as a target name
-  --plain | --mux | --no-mux) ;;
+  --plain | --mux | --no-mux | --keep | --no-keep | --end) ;;
   # asked for anywhere on the line, not only first
   -h | --help)
     _hi_doctor_help
@@ -381,13 +381,13 @@ function doctor_config() {
     esac
     doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: $f" bad
   done
-  # a plugins row hi.sh's _hi_plugins_load turned down: the member it names
+  # a plugins row pack.sh's _hi_plugins_load turned down: the member it names
   # rides nowhere, and nothing else says so (GLOSSARY: HI.63)
   _hi_plugins_load
   for t in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do
     doctor_row "${t%%|*}" "ignored - ${t#*|}" warn
   done
-  # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract,
+  # every overlay file hi ships (pack.sh's _HI_OVERLAY_FILES is the contract,
   # and the plugins rows' members after it), minus settings.sh, which got
   # its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
@@ -487,7 +487,7 @@ function doctor_config() {
   # here, so those read as one row and only a toggle settings.sh sets on its
   # own is a row of its own.
   local gate=0
-  [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && gate=1
+  [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && gate=1
   for t in "${_HI_TOGGLES[@]}"; do
     v="${!t:-0}"
     [ "$v" = 0 ] && continue
@@ -534,7 +534,10 @@ function doctor_settings_values() {
     "_HI_PLUGINS_OFF|_hi_is_plugin_list|plugins, groups, or members that hi --plugins lists" \
     "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
-    "_HI_MUX|_hi_is_flag|1 or 0"; do
+    "_HI_MUX|_hi_is_flag|1 or 0" \
+    "_HI_KEEP|_hi_is_flag|1 or 0" \
+    "_HI_KEEP_TIMEOUT|_hi_is_duration|seconds, or a number with s, m, h, or d" \
+    "_HI_KEEP_RETRY|_hi_is_duration|seconds, or a number with s, m, h, or d"; do
     name="${spec%%|*}" pred="${spec#*|}"
     why="${pred#*|}" pred="${pred%%|*}"
     v="${!name:-}"

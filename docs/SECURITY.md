@@ -83,7 +83,10 @@ session's opens. All three are `tests/targets/ssh_test.sh` cases.
 ## What hi writes on a target
 
 Default answer: one directory (two over ssh), and only for the life of the
-session.
+session. A session is as long as its connection unless you ask otherwise:
+`hi --keep` runs it in tmux, zellij, or screen on the target, where it and
+its directory last until you close it or nobody has been attached for
+`_HI_KEEP_TIMEOUT` (24h).
 
 | what              | where, in the target's temp directory, mode 0700                                             | when                                                               |
 | ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -120,6 +123,15 @@ command.
   (`tests/targets/ssh_disconnect_test.sh` verifies the latter). Over ssh the
   bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is a backstop for the one
   thing the hook cannot survive: bash killed by a signal nothing can trap.
+- A kept session ([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers))
+  moves the same hook into the session's first pane, and adds one process: a
+  timer in that pane, which ends the session once nobody has been attached
+  for `_HI_KEEP_TIMEOUT`. Nothing of hi's runs outside the multiplexer
+  session, and the bootstrap's backstop leaves a tree alone while its session
+  is running. A target that goes down under a kept session and keeps `/tmp`
+  across the reboot is left with the tree until the account's next
+  `hi <target>`, which removes every tree of its own whose kept session's
+  processes are gone ([HI.65](GLOSSARY.md#hi65-kept-session)).
 - The session tree is **not** added to `$PATH`; `hi` inside a session is an
   alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
   any host that is scanned for one.
@@ -154,13 +166,14 @@ command.
 - **What hi writes on the client.** The rc lines and `settings.sh` the install
   asked about - `install.sh` checks your rc files with each shell's own syntax
   checker before touching them, and `--uninstall` removes exactly what it
-  wrote - plus `hi <TAB>`'s target cache, the payload/overlay cache, and the
-  ssh `ControlMaster` socket, in a private runtime directory:
+  wrote - plus `hi <TAB>`'s target cache, the payload/overlay cache, the
+  ssh `ControlMaster` socket, and an empty file per target seen holding a
+  kept session, in a private runtime directory:
   `$XDG_RUNTIME_DIR`, or a per-uid directory hi creates with `mkdir -m 700`.
   Its name is predictable - the next `hi` has to find it - so if it already
-  exists and is not owned by you, or is a symlink, all three are skipped:
-  completion sweeps the backends and a connect builds afresh over a fresh
-  socket, slower and correct.
+  exists and is not owned by you, or is a symlink, all four are skipped:
+  completion sweeps the backends, a connect builds afresh over a fresh
+  socket, slower and correct, and a kept session that dies is not missed.
 - The `ControlMaster` socket is never at a `mktemp -u` name in a shared temp
   directory: `ControlMaster=auto` _joins_ a socket it finds at its path, and a
   name that was unused when printed promises nothing about the moment it is

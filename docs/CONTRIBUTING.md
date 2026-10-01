@@ -163,7 +163,9 @@ These are constraints the tree enforces, not requests:
   are CI-enforced against separate numbers. Touch a shipped file, run
   `--group bench`, and check both; when README's payload badge goes red,
   `packaging/stamp_badge.sh` restamps it. Tooling-only helpers do not belong in
-  `common/core.sh`.
+  `common/core.sh`, and what only builds the payload belongs in
+  `scripts/pack.sh`, not `hi.sh`: a session relays its tree as it stands
+  (`GLOSSARY: HI.66`).
 - **A new suite has a home and a registration** —
   [TESTING.md's _Where a suite lives_](TESTING.md#where-a-suite-lives).
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
@@ -183,7 +185,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The twenty-two flags in `common/flags`** — name, argument shape, and what
+- **The twenty-five flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -234,7 +236,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   for packages, the rc lines `install.sh` writes, and `_HI_RELEASE` as the
   version stamp `packaging/stamp.sh` fills.
 - **Target behaviour** — nothing hi writes outside the session directory,
-  and the directory removed on any exit
+  and the directory removed on any exit, a kept session's when it closes
   ([SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)).
 
 Versioning is semver: a fix is a patch, an addition a minor, a break to the

@@ -112,14 +112,19 @@ membership) - `ci` above, and:
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
   budgets.
 - **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `ssh_wire`,
-  `install_methods`, `repo`, `docker`, `framework`, `home_prompt`: throwaway
-  containers driving `hi.sh`'s real connection paths (`_say_hi` and
+  `install_methods`, `repo`, `docker`, `framework`, `home_prompt`, `ssh_keep`:
+  throwaway containers driving `hi.sh`'s real connection paths (`_say_hi` and
   `_say_hi_container`). `ssh_wire` counts one session's bytes through a
   `ProxyCommand` and checks them against the figure hi prints on its connect
-  line. Two are not about sessions: `repo` builds the package repository with
-  throwaway keys and installs from it as apt, dnf, and apk clients, signatures
-  verified, and `home_prompt` installs hi over each distro's stock `/etc/skel`
-  rc to check which prompt wins at home.
+  line. `ssh_keep` holds a [kept session](GLOSSARY.md#hi65-kept-session) in
+  tmux, in screen, and in zellij (alpine's package) through a dropped link and
+  a reattach, `hi --end`, its timeout, a `hi --keep` typed inside a session,
+  a second pane, a session killed outright, and a link cut inside a local
+  multiplexer with the session left or lost, reading each answer off the
+  target rather than the multiplexer's redrawn transcript. Two are not about sessions: `repo` builds
+  the package repository with throwaway keys and installs from it as apt, dnf,
+  and apk clients, signatures verified, and `home_prompt` installs hi over
+  each distro's stock `/etc/skel` rc to check which prompt wins at home.
 - **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
   need extra runner setup.
 
@@ -161,9 +166,9 @@ nothing else ([HI.34](GLOSSARY.md#hi34-test-suite-preamble)).
 
 ### The container suites run their cases in parallel
 
-`ssh`, `ssh_relay`, `install_methods`, `docker`, `podman`, `framework`, and
-`kube` spend nearly all their wall clock waiting on containers, so their
-cases run in batches: `_hi_par_case` (`tests/lib/parallel.sh`) submits a case
+`ssh`, `ssh_relay`, `ssh_keep`, `install_methods`, `docker`, `podman`,
+`framework`, and `kube` spend nearly all their wall clock waiting on
+containers, so their cases run in batches: `_hi_par_case` (`tests/lib/parallel.sh`) submits a case
 to a background subshell, `_hi_par_wait` collects the batch. Each case writes
 its verdict to a file the parent tallies, registers what it started on a
 teardown ledger the exit trap sweeps, and buffers its output to replay **in

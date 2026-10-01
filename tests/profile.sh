@@ -90,7 +90,7 @@ _HI_PROF_WHAT=(
   "common/bash.sh sourced once - what every prompt-shell start pays"
   "common/header.sh then hi_header Online - the banner and its probes"
   "common/git_prompt.sh, 50 calls in one shell - the per-prompt cost"
-  "hi.sh's payload assembly - what a connect spends before it sends"
+  "pack.sh's payload assembly - what a connect spends before it sends"
 )
 # shellcheck disable=SC2016 # every body expands in the child bash, not here
 _HI_PROF_BODY=(

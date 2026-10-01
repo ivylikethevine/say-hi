@@ -64,7 +64,7 @@ Four arms, one of which answers to four CLIs.
 
 | target                               | what a name resolves as                                                                        | proven by                                                                                                                                                                                                                                                                                            |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ssh host ✅                          | a `Host` entry in `~/.ssh/config`, or any name ssh will take                                   | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop), `ssh_relay_test.sh` (`hi` again from inside a session), and `ssh_wire_test.sh` (bytes on the wire vs the printed size)                                                                                       |
+| ssh host ✅                          | a `Host` entry in `~/.ssh/config`, or any name ssh will take                                   | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop), `ssh_relay_test.sh` (`hi` again from inside a session), `ssh_wire_test.sh` (bytes on the wire vs the printed size), and `ssh_keep_test.sh` (a kept session, in tmux, screen, and zellij)                     |
 | docker ✅, podman ✅, nerdctl, finch | a running container, through the one docker-grammar arm (all four, always on; GLOSSARY: HI.51) | `tests/targets/docker_test.sh` and `podman_test.sh` - six shell environments each (bash, bash interactive, zsh, fish, dash, busybox `sh`), plus docker's compose-alias, read-only-root, and no-writable-tmp cases. nerdctl and finch have no hosted runner, so those suites prove the arm they share |
 | nomad ✅                             | a running allocation, or `alloc/task`                                                          | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                                                                                                                                                                                     |
 | kubernetes ✅                        | a running pod, `pod/container`, `ns:pod`, `ctx:ns:pod`                                         | `tests/targets/kube_test.sh`, against a real kind cluster                                                                                                                                                                                                                                            |
@@ -206,10 +206,6 @@ these, how often, and what they do today instead — enough to be worth what
 exec CLI, a cleaner API, or an easier integration moves nothing, because
 nothing here is a "no" for being hard.
 
-Two proposals about hi itself were declined: **persistent sessions on a target**
-(`hi --session <name>`, a tree that outlives a dropped connection) — a
-multiplexer on the client (`hi --mux`) already survives a drop, and a tree that
-outlives its session breaks
-[SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)'s footprint promise; and
-**a bash 4 floor for the client** — the 3.2 plumbing is tested on both ends, and
-a split floor is two dialects in one tree.
+One proposal about hi itself was declined: **a bash 4 floor for the client** —
+the 3.2 plumbing is tested on both ends, and a split floor is two dialects in
+one tree.

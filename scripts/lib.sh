@@ -365,6 +365,8 @@ function _hi_is_package_groups() {
 }
 # a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
 function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
+# $_HI_KEEP_TIMEOUT, $_HI_KEEP_RETRY: seconds, or a number with s, m, h, or d
+function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }
 # one of core.sh's $_HI_EDITORS
 function _hi_is_editor() {
   case " $_HI_EDITORS " in *" $1 "*) return 0 ;; esac
@@ -572,8 +574,6 @@ function _hi_member_rows() {
       "$draw" "$label" "$text" ok
     else
       _hi_unsent_why "$m" p || p="not the file in force here"
-      # inside a session no home file is sent, whatever is installed
-      case "$_HI_REMOTE_SESSION:$p" in 1:its\ tool* | 1:not\ the*) p="a session reads no home file" ;; esac
       "$draw" "$label" "$text - not sent: $p"
     fi
   done

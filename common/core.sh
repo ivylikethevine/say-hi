@@ -55,7 +55,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # ...and the base it came from, which a home column of hi.sh's table
+  # ...and the base it came from, which a home column of pack.sh's table
   # starts at. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG
@@ -515,6 +515,20 @@ function _hi_human_duration() {
     printf -v _hi_hd '%dm' "$((_hi_hd_s / 60))"
   fi
   _hi_out "${2:-}" "$_hi_hd"
+}
+
+# _hi_keep_seconds <duration> <outvar> - <n>, or <n> with s, m, h, or d, as
+# seconds; false for anything else
+function _hi_keep_seconds() {
+  local _hi_kd_n="${1%[smhd]}" _hi_kd_u="${1#"${1%?}"}"
+  case "$_hi_kd_n" in '' | *[!0-9]*) return 1 ;; esac
+  _hi_kd_n=$((10#$_hi_kd_n))
+  case "$_hi_kd_u" in
+  m) _hi_kd_n=$((_hi_kd_n * 60)) ;;
+  h) _hi_kd_n=$((_hi_kd_n * 3600)) ;;
+  d) _hi_kd_n=$((_hi_kd_n * 86400)) ;;
+  esac
+  printf -v "$2" '%s' "$_hi_kd_n"
 }
 
 # _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral

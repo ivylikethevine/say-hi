@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-79KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -232,13 +232,15 @@ row, and everything answered **no**, and why:
   `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry a config of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-two flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty-five flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
-  outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
-  a flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
-  `zellij`, or `screen`, which survives the drop.
+  outlives it, unless you ask: `hi --keep <target>` runs the session in `tmux`
+  or `screen` on the target, the next `hi <target>` reattaches, and
+  `hi --end <target>` or a day unattended closes it. `hi --mux <target>` does
+  the wrapping on your side instead, in a local `tmux`, `zellij`, or `screen`
+  ([both](docs/INTEGRATIONS.md#terminal-multiplexers)).
 - Done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `~/.local/bin/hi` (or a `/usr/bin/hi` of its own making; a
@@ -372,22 +374,37 @@ checkout: an account or an upstream review that lands when it lands.
        draws starship in bash and hi's prompt in zsh and fish on an ssh
        target.
 
-4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+4. [ ] _Before 1.0:_ **A session that outlives its connection** — shipped:
+       `hi --keep <target>` (or `_HI_KEEP=1`) runs the session in the
+       target's tmux, zellij, or screen as `hi-<target>`, any later
+       `hi <target>` reattaches, the first pane's `exit` asks before closing,
+       a session nobody is attached to closes after `_HI_KEEP_TIMEOUT`, and
+       `hi --end <target>` closes it from here
+       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)); `hi --keep` typed
+       inside a running session keeps that session; a pane opened in a kept
+       session is hi's session shell; a tree whose session died with the
+       target is removed by the next connect, which says the session is
+       gone; and a connect inside a local multiplexer retries a dropped
+       link for `_HI_KEEP_RETRY`. The `ssh_keep` e2e suite drives each of
+       those over a real sshd. What is left is seeing it in CI. **Ticks
+       when:** that suite is green in CI for tmux, screen, and zellij.
+
+5. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+6. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+7. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+8. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

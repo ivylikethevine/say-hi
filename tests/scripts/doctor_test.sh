@@ -428,10 +428,8 @@ function test_files_table_walks_every_tier() {
   }
 }
 
-# a directory member counts the files that ride from it; a prompt program's
-# config is named but not sent while the prompt is hi's own; and inside a
-# session no home file is sent at all, which the row says instead of blaming
-# the tool
+# a directory member counts the files that ride from it, and a prompt
+# program's config is named but not sent while the prompt is hi's own
 function test_files_table_names_why_a_found_file_is_not_sent() {
   local h out
   h="$(mktemp -d "$_HI_WORKDIR/files-why.XXXXXX")"
@@ -448,17 +446,6 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
     [[ "$out" == *"zellij/themes/ (zellij)"*"present ~/.config/zellij/themes/ - no file rides"* ]] &&
     [[ "$out" == *"starship.toml (starship)"*"not sent: its prompt program is not one a target is handed"* ]] &&
     [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* ]] || {
-    printf '%s\n' "$out"
-    return 1
-  }
-  out="$(
-    function _hi_tool_here() { return 0; }
-    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_PROMPT_TOOL=hi \
-      _HI_REMOTE_SESSION=1 doctor_files
-  )"
-  out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"vim/vimrc (vim)"*"passed over ~/.vimrc - not sent: a session reads no home file"* ]] &&
-    [[ "$out" == *"zellij/layouts/ (zellij)"*"- no file rides"* ]] || {
     printf '%s\n' "$out"
     return 1
   }
@@ -519,7 +506,7 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
   [[ "$out" == *"colors"*"a copy of the tree's, unchanged - edit it to override"* && "$out" != *overridden* ]]
 }
 
-# The include scan's rows. hi.sh's _hi_include_lint is the same pass that does
+# The include scan's rows. pack.sh's _hi_include_lint is the same pass that does
 # the dropping on the way out, so what the report names is exactly what went
 # missing. GLOSSARY: HI.57
 function test_config_names_an_unresolvable_include() {
@@ -1502,19 +1489,35 @@ function test_install_section_reads_the_hi_on_path() {
   [[ "$out" == *"hi on PATH is ~/bin/hi, which runs ~/bin/other - not this tree"* ]]
 }
 
+# _hi_darwin_login_row <home> <text> - the report for <home> on a macOS holds
+# <text>. One doctor run a case: three in one took a slow runner past the
+# traced rerun's limit, and failed there with nothing said.
+function _hi_darwin_login_row() {
+  local out rc=0
+  out="$(_hi_doctor_install_out "$1" _HI_UNAME=Darwin)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"$2"* ]] || _hi_because "exit $rc, no \"$2\" in: $out"
+}
+
 function test_install_section_warns_about_a_darwin_login_bash() {
-  local home="$_HI_WORKDIR/inst-darwin" out
+  _hi_darwin_login_row "$_HI_WORKDIR/inst-darwin" "never reaches ~/.bashrc"
+}
+
+# a ~/.bash_login with no .bash_profile ahead of it is the file bash reads,
+# and nobody's to edit: the row hands over the line instead
+function test_install_section_hands_a_darwin_bash_login_the_line() {
+  local home="$_HI_WORKDIR/inst-darwin-login"
   mkdir -p "$home"
-  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"never reaches ~/.bashrc"* ]] || return 1
-  # a ~/.bash_login with no .bash_profile ahead of it is the file bash reads,
-  # and nobody's to edit: the row hands over the line instead
   printf 'umask 022\n' >"$home/.bash_login"
-  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"~/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"* ]] || return 1
+  # shellcheck disable=SC2088 # the ~ is the report's own, for $HOME
+  _hi_darwin_login_row "$home" "~/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"
+}
+
+function test_install_section_passes_a_darwin_profile_that_reads_bashrc() {
+  local home="$_HI_WORKDIR/inst-darwin-profile"
+  mkdir -p "$home"
   printf '. ~/.bashrc\n' >"$home/.bash_profile"
-  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
-  [[ "$out" == *"~/.bash_profile reads ~/.bashrc"* ]]
+  # shellcheck disable=SC2088 # the ~ is the report's own, for $HOME
+  _hi_darwin_login_row "$home" "~/.bash_profile reads ~/.bashrc"
 }
 
 function test_install_section_warns_on_a_zdotdir_mismatch() {
@@ -1824,6 +1827,8 @@ function run_doctor_tests() {
     _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
     _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path
     _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
+    _hi_check "...a ~/.bash_login is handed the line to add" test_install_section_hands_a_darwin_bash_login_the_line
+    _hi_check "...and a ~/.bash_profile that reads .bashrc is green" test_install_section_passes_a_darwin_profile_that_reads_bashrc
     _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
     _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
     _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report

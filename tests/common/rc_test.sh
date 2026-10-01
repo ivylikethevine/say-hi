@@ -791,7 +791,7 @@ function test_prompt_program_draws() {
   }
 }
 
-# a target is sent only the loaders of the frameworks it is handed (hi.sh's
+# a target is sent only the loaders of the frameworks it is handed (pack.sh's
 # _hi_payload_excl), so a framework whose loader is missing is passed over
 # for the next in the list, hi's prompt at the end of it
 function test_prompt_framework_without_its_loader_is_passed_over() {

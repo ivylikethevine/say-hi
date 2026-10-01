@@ -38,7 +38,7 @@ command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ 
 command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_LS_BIN" ] || export _HI_LS_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v exa || command -v ls)"
 
 # The editors', tmux's, screen's, and zellij's aliases are not here: each is
-# a line of the overlay's wiring.sh, written from hi.sh's table for the
+# a line of the overlay's wiring.sh, written from pack.sh's table for the
 # configs that rode, and common/paths.sh sources it on a target
 # (GLOSSARY: HI.62). At home every tool reads its own config, unaliased.
 

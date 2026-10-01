@@ -34,7 +34,7 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # exported path of your own does not survive: the overlay's copy, else the
 # tree's where there is one. A line per candidate, lowest priority first,
 # since this dialect has no if/elif and no ${var:-...} and the last
-# assignment wins; paths_test.sh pins the lines to hi.sh's $_HI_OVERLAY_TABLE
+# assignment wins; paths_test.sh pins the lines to pack.sh's $_HI_OVERLAY_TABLE
 # (GLOSSARY: HI.61).
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
 export _HI_COLORS="$_HI_ROOT/config/colors"
@@ -49,7 +49,7 @@ export _HI_EXTENSIONS="$_HI_CONFIG_DIR/extensions"
 export _HI_HEADER_CELLS="$_HI_CONFIG_DIR/header"
 # A tool's config has no line here. On a target, what points a tool at the
 # config that rode - a variable of the tool's, an alias, or a path hi's own
-# code reads - is a line of wiring.sh, written by hi.sh's _hi_overlay_wiring
+# code reads - is a line of wiring.sh, written by pack.sh's _hi_overlay_wiring
 # as the overlay is packed, for the members that rode. At home each tool's
 # own config is already in force, and hi.sh finds it when it packs.
 # GLOSSARY: HI.62
