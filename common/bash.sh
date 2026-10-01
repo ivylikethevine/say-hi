@@ -15,9 +15,8 @@ _hi_rc_aliases=0
 shopt -u expand_aliases
 # $_HI_HOME first, this file's own path as the fallback for a hand-written
 # `source` (hi.sh and install.sh's rc line set it). GLOSSARY: HI.33
-# `${BASH_SOURCE%/*}` and not `$(dirname ...)`: header.sh:14 and core.sh:21
-# already spell it this way, and a fork here is one every hand-written
-# `source` pays.
+# `${BASH_SOURCE%/*}` and not `$(dirname ...)`: a fork here is one every
+# hand-written `source` pays.
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 : "${_HI_HOME:=$(CDPATH='' builtin cd -P "$_hi_d/../.." && pwd)}"
@@ -54,10 +53,8 @@ _hi_user_escape >/dev/null
 # a theme from home to draw - the overlay's copy, so only on a target. Either
 # needs its loader, common/fw_<name>.sh, which rides only to a target handed
 # that framework.
-_hi_omb_theme=""
-_hi_bashit_theme=""
-[ "$_HI_REMOTE_SESSION" = 1 ] && _hi_omb_theme="$_HI_CONFIG_DIR/oh-my-bash.theme.sh"
-[ "$_HI_REMOTE_SESSION" = 1 ] && _hi_bashit_theme="$_HI_CONFIG_DIR/bash-it.theme.bash"
+_hi_omb_theme="" _hi_bashit_theme=""
+[ "$_HI_REMOTE_SESSION" = 1 ] && _hi_omb_theme="$_HI_CONFIG_DIR/oh-my-bash.theme.sh" _hi_bashit_theme="$_HI_CONFIG_DIR/bash-it.theme.bash"
 function _hi_prompt_fw() {
   [ -f "$_HI_ROOT/common/fw_$1.sh" ] || return 1
   case "$1" in
@@ -274,14 +271,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
     _HI_ENV_DEFER=0
     if _hi_has_color; then
-      # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
-      # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
-      _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
-      _hi_user_escape _hi_ps1_u
-      _hi_host_escape _hi_ps1_h
+      # the two escapes primed at the top of the file; file scope, no `local`
+      _hi_ps1_at="$NC"
       [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
-      HI_PS1="${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
-      unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
+      HI_PS1="${debian_chroot:-}\[$_HI_USER_ESC\]\u\[$_hi_ps1_at\]@\[$_HI_HOST_ESC\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
+      unset _hi_ps1_at
     else
       HI_PS1="${debian_chroot:-}\u@\h:\w"
     fi
@@ -312,8 +306,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       "declare -a"*)
         # eval'd for the same reason as the loop above: a literal array
         # assignment here would have the linter treat every later scalar
-        # PROMPT_COMMAND assignment in this file, line 355's included, as
-        # the wrong type
+        # PROMPT_COMMAND assignment in this file as the wrong type
         eval 'for _hi_i in "${!PROMPT_COMMAND[@]}"; do [ "${PROMPT_COMMAND[_hi_i]}" = prompt_command ] && PROMPT_COMMAND[_hi_i]=:; done'
         unset _hi_i
         ;;
@@ -421,18 +414,15 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       [ "$_hi_marks_live" = 1 ] && [ -t 1 ] && printf '\e]133;C\a\e]133;D;%s\a' "$1"
       return "$1"
     }
-    # <the EXIT trap's command>: chains ahead of any trap already set, once
-    function _hi_marks_trap() {
-      [[ "${1:-}" == _hi_marks_exit* ]] && return
-      # shellcheck disable=SC2064 # the prior trap is spliced in now, on purpose
-      trap "_hi_marks_exit \$?${1:+; $1}" EXIT
-    }
-    # trap -p's one line, `trap -- '<command>' EXIT`, read back as text: a '
-    # in the command is '\''
+    # Chained ahead of any EXIT trap already set, once. trap -p's one line,
+    # `trap -- '<command>' EXIT`, is read back as text: a ' in the command is
+    # '\''
     _hi_t="$(trap -p EXIT)" _hi_q="'" _hi_e="'\\''"
     _hi_t="${_hi_t#"trap -- $_hi_q"}"
     _hi_t="${_hi_t%"$_hi_q EXIT"}"
-    _hi_marks_trap "${_hi_t//"$_hi_e"/$_hi_q}"
+    _hi_t="${_hi_t//"$_hi_e"/$_hi_q}"
+    # shellcheck disable=SC2064 # the prior trap is spliced in now, on purpose
+    [[ "$_hi_t" == _hi_marks_exit* ]] || trap "_hi_marks_exit \$?${_hi_t:+; $_hi_t}" EXIT
     unset _hi_t _hi_q _hi_e
   fi
 fi

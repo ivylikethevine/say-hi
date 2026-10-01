@@ -482,7 +482,7 @@ function _hi_plugins_load() {
 # of the tree's of its name once it has a row to stand there.
 function _hi_plugins_close() {
   local _hi_cl_i _hi_cl_m _hi_cl_t _hi_cl_w _hi_cl_h _hi_cl_d _hi_cl_why _hi_cl_x _hi_cl_put=""
-  local -a _hi_cl_rows=() _hi_cl_files=() _hi_cl_r=() _hi_cl_f=() _hi_cl_n=()
+  local -a _hi_cl_rows=() _hi_cl_files=() _hi_cl_names=() _hi_cl_r=() _hi_cl_f=() _hi_cl_n=()
   [ -n "$_hi_rc_n" ] || return 0
   _hi_cl_t="${_hi_rc_t:-$_hi_rc_n}"
   if ! _hi_plugin_tools_ok "$_hi_cl_t"; then
@@ -512,7 +512,7 @@ function _hi_plugins_close() {
         continue
       fi
       _hi_cl_rows+=("$_hi_cl_m|-|-|$_hi_cl_t|$_hi_rc_g|$_hi_rc_n|$_hi_cl_w|-|$_hi_cl_d|$_hi_cl_h")
-      _hi_cl_files+=("$_hi_cl_m")
+      _hi_cl_files+=("$_hi_cl_m") _hi_cl_names+=("$_hi_rc_n")
     done
   fi
   if ((${#_hi_cl_rows[@]})); then
@@ -522,14 +522,10 @@ function _hi_plugins_close() {
         _hi_cl_r+=("${_HI_PLUGIN_ROWS[_hi_cl_i]}") _hi_cl_f+=("${_HI_PLUGIN_FILES[_hi_cl_i]}") _hi_cl_n+=("${_HI_PLUGIN_NAMES[_hi_cl_i]}")
       elif [ -z "$_hi_cl_put" ]; then
         _hi_cl_put=1
-        for _hi_cl_x in "${!_hi_cl_rows[@]}"; do
-          _hi_cl_r+=("${_hi_cl_rows[_hi_cl_x]}") _hi_cl_f+=("${_hi_cl_files[_hi_cl_x]}") _hi_cl_n+=("$_hi_rc_n")
-        done
+        _hi_cl_r+=("${_hi_cl_rows[@]}") _hi_cl_f+=("${_hi_cl_files[@]}") _hi_cl_n+=("${_hi_cl_names[@]}")
       fi
     done
-    [ -n "$_hi_cl_put" ] || for _hi_cl_x in "${!_hi_cl_rows[@]}"; do
-      _hi_cl_r+=("${_hi_cl_rows[_hi_cl_x]}") _hi_cl_f+=("${_hi_cl_files[_hi_cl_x]}") _hi_cl_n+=("$_hi_rc_n")
-    done
+    [ -n "$_hi_cl_put" ] || _hi_cl_r+=("${_hi_cl_rows[@]}") _hi_cl_f+=("${_hi_cl_files[@]}") _hi_cl_n+=("${_hi_cl_names[@]}")
     _HI_PLUGIN_ROWS=("${_hi_cl_r[@]}") _HI_PLUGIN_FILES=("${_hi_cl_f[@]}") _HI_PLUGIN_NAMES=("${_hi_cl_n[@]}")
   fi
   _hi_rc_n=""
@@ -746,15 +742,6 @@ function _hi_ssh_tags_file() {
   [ -s "$_hi_tf" ] && _hi_out "${2:-}" "$_hi_tf"
 }
 
-# _hi_overlay_tools <member> [outvar] [row] - its row's tool column (the row
-# looked up unless handed in); 1 for a member of no tool's, or of no row
-function _hi_overlay_tools() {
-  local _hi_tc="${3:-}"
-  [ -n "$_hi_tc" ] || _hi_overlay_row "$1" _hi_tc || return 1
-  _hi_row_col "$_hi_tc" tool _hi_tc
-  [ "$_hi_tc" != - ] && _hi_out "${2:-}" "$_hi_tc"
-}
-
 # _hi_plugin_name <member> <outvar> [row] - the plugin a member is of, which
 # is the name a report gives what reads it (the row looked up unless handed
 # in); 1 and empty for a member of none
@@ -914,8 +901,10 @@ function _hi_overlay_wiring() {
 # The client is asked because only it can be, before a connect
 # (docs/INTEGRATIONS.md's _Which side is asked_).
 function _hi_tool_here() {
-  local _hi_tl_t _hi_tl_b
-  _hi_overlay_tools "$1" _hi_tl_t "${2:-}" || return 0
+  local _hi_tl_t="${2:-}" _hi_tl_b
+  [ -n "$_hi_tl_t" ] || _hi_overlay_row "$1" _hi_tl_t || return 0
+  _hi_row_col "$_hi_tl_t" tool _hi_tl_t
+  [ "$_hi_tl_t" != - ] || return 0
   # shellcheck disable=SC2086 # the split is the column
   for _hi_tl_b in $_hi_tl_t; do
     ! command -v "$_hi_tl_b" >/dev/null 2>&1 || return 0
@@ -1185,9 +1174,9 @@ function _hi_overlay_files() {
   return 0
 }
 
-# What the comment-stripper is pointed at in the tree; an overlay member is
-# stripped by its dialect's <strip>. GLOSSARY: HI.35
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags '*/config/*')
+# What the comment-stripper is pointed at in the tree, as find's tests; an
+# overlay member is stripped by its dialect's <strip>. GLOSSARY: HI.35
+_HI_STRIP_NAMES=(-name '*.sh' -o -name '*.zsh' -o -name '*.fish' -o -name flags -o -path '*/config/*')
 # What of $_HI_PAYLOAD never rides: the plugins rows, which this file alone
 # reads (GLOSSARY: HI.63). Part of the payload cache's key, so a cache built
 # with them in it is not served.
@@ -1245,13 +1234,9 @@ function _hi_stage_carry() {
 # _say_hi_container's name for the target's tree, and this runs inside it.
 function _hi_stage_tar() {
   local stage f _hi_st_root _hi_st_i _hi_st_prog _hi_st_m _hi_st_d _hi_st_n
-  local -a _hi_st_names=() _hi_st_strip=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
+  local -a _hi_st_strip=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
   local -a _hi_st_q=() _hi_st_qd=() _hi_st_qs=() _hi_st_carry=()
   local _hi_st_lint="${stage_lint:-0}"
-  for f in "${_HI_STRIP_NAMES[@]}"; do
-    ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
-    case "$f" in */*) _hi_st_names+=(-path "$f") ;; *) _hi_st_names+=(-name "$f") ;; esac
-  done
   (
     stage="$(mktemp -d -t hi.stage.XXXXXX)" || exit 1
     trap 'rm -rf "$stage"' EXIT
@@ -1312,7 +1297,7 @@ function _hi_stage_tar() {
     if [ "$_hi_st_lint" = 1 ]; then
       ((${#_hi_st_strip[@]} == 0)) || awk -f "$stage/strip.awk" "${_hi_st_strip[@]}" || exit 1
     else
-      find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
+      find "$_hi_st_root" -type f \( "${_HI_STRIP_NAMES[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
     fi
     # the overlay's generated member, last: hi wrote it, so there is nothing
     # in it to scan or strip

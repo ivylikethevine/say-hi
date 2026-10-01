@@ -1278,7 +1278,7 @@ function _hi_ssh_try_patterns() {
 # in place, its files flattened by targets.sh - a fork only for a config that
 # has one.
 function _hi_ssh_host_tag_walk() {
-  local line trimmed rc known=1
+  local line trimmed known=1
   _hi_sw_tag=""
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
@@ -1287,17 +1287,13 @@ function _hi_ssh_host_tag_walk() {
     [Ii][Nn][Cc][Ll][Uu][Dd][Ee][[:space:]=]*)
       _hi_sw_tag=""
       while IFS= read -r line || [ -n "$line" ]; do
-        rc=0
-        _hi_ssh_walk_line "$line" "$1" || rc=$?
-        [ "$rc" -ne 0 ] || return 0
-        [ "$rc" -eq 1 ] || known=2
+        _hi_ssh_walk_line "$line" "$1" && return 0
+        [ $? -eq 1 ] || known=2
       done < <(sh "$_HI_TARGETS" ssh-include "${trimmed#*[[:space:]=]}" 2>/dev/null)
       ;;
     *)
-      rc=0
-      _hi_ssh_walk_line "$line" "$1" || rc=$?
-      [ "$rc" -ne 0 ] || return 0
-      [ "$rc" -eq 1 ] || known=2
+      _hi_ssh_walk_line "$line" "$1" && return 0
+      [ $? -eq 1 ] || known=2
       ;;
     esac
   done <"$_HI_SSH_CONFIG"

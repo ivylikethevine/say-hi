@@ -113,7 +113,7 @@ _HI_PREV_HUE=""
 # a color left open would otherwise bleed onto the next physical line.
 # Returns 1 and prints nothing for zero cells.
 function _hi_row_line() {
-  local cell out="" max vislen count=0 width=0 i n close=1 pad=""
+  local cell out="" max vislen width=0 i close=1 pad=""
   _hi_draw_width max
   # The closing " |" owns the last two columns, so every cell is budgeted
   # against a width that short and the row still ends where the banner does.
@@ -121,28 +121,25 @@ function _hi_row_line() {
   [[ "${_HI_DISABLE_RIGHT_EDGE:-0}" == 1 ]] && close=0
   ((close)) && ((max -= 2))
   _HI_ROW_CARRY=()
-  local -a args=("$@")
-  n=${#args[@]}
-  for ((i = 0; i < n; i++)); do
-    cell="${args[$i]}"
+  for ((i = 1; i <= $#; i++)); do
+    cell="${!i}"
     _hi_visible_width vislen "$cell"
     vislen=$((vislen + 3)) # " | " - the join this has always used
-    if ((count > 0 && width + vislen > max)); then
-      _HI_ROW_CARRY=("${args[@]:$i}")
+    if ((i > 1 && width + vislen > max)); then
+      _HI_ROW_CARRY=("${@:$i}")
       break
     fi
     # $_HI_DISABLE_LEAD_SPACE drops just the first cell's leading space - the
     # "| " between later cells is the structural separator, not "the initial
     # space", and stays either way
-    if ((count == 0)) && [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then
+    if ((i == 1)) && [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then
       out+="$NC| $cell"
     else
       out+="$NC | $cell"
     fi
     width=$((width + vislen))
-    ((++count))
   done
-  ((count)) || return 1
+  (($#)) || return 1
   # An oversized lone cell is placed anyway (above), so the pad can be asked
   # for a negative width - _hi_repeat treats that as none, and the pipe lands
   # right after the cell rather than being dropped.
@@ -236,11 +233,8 @@ function _hi_cell_version() {
 
 function _hi_cell_localtime() { _hi_cell_clock "$1" "$BRYELLOW"; }
 
-# The group wrapper, kept for hi_footer's disconnect row and for
-# tests/common/header_test.sh, which drives the clock cells through it. Not a
-# compatibility surface for anything else: scripts/doctor.sh does not call it,
-# and neither does hi.sh - naming a caller that does not exist is what stops
-# the next reader from removing generality nothing wants.
+# The utc/version/localtime row in one call, for hi_footer's disconnect row
+# and tests/common/header_test.sh.
 function timestamp() {
   local utc version localtime
   _hi_cell_utc utc
@@ -315,10 +309,9 @@ function _hi_uname() {
 function _hi_system_info_probe() {
   [ -z "${_HI_SI_PROBED:-}" ] || return 0
   _HI_SI_PROBED=1
-  local kernel arch os="" cpus="" ram="" base_mhz="" load="" load_pct="" plat
+  local os="" cpus="" ram="" base_mhz="" load="" load_pct="" plat
   _hi_platform plat
   _hi_uname
-  kernel="$_HI_KERNEL" arch="$_HI_ARCH"
   if [ "$plat" = linux ]; then
     local cpufreq=/sys/devices/system/cpu/cpu0/cpufreq
     # also covers WSL - a real Linux kernel with its own /etc/os-release.
@@ -381,16 +374,13 @@ function _hi_system_info_probe() {
     done
   elif [ "$plat" = windows ]; then
     # git-bash/MSYS2/Cygwin on native Windows - no /etc/os-release, no sysctl
-    os="Windows ($kernel)"
+    os="Windows ($_HI_KERNEL)"
     cpus="${NUMBER_OF_PROCESSORS:-?}"
     ram=$(wmic ComputerSystem get TotalPhysicalMemory 2>/dev/null |
       awk 'NR==2 && $1 ~ /^[0-9]+$/ { printf "%.0fG", $1 / 1073741824 }' || true)
     # wmic only exposes the rated (base) clock
     base_mhz=$(wmic cpu get MaxClockSpeed 2>/dev/null | awk 'NR==2 && $1 ~ /^[0-9]+$/ { print $1 }' || true)
-  elif [ "$plat" = unknown ]; then
-    # no /etc/os-release and no uname: nothing to guess from
-    os=""
-  else
+  elif [ "$plat" = bsd ]; then
     os="macOS $(sw_vers -productVersion 2>/dev/null || true)"
     cpus=$(exec sysctl -n hw.ncpu 2>/dev/null) || true
     # total from sysctl, used from vm_stat: active + wired + compressed pages,
@@ -427,7 +417,7 @@ function _hi_system_info_probe() {
   # closed to "?", not a garbled cell
   case "$load" in '' | *[!0-9.]*) load="" ;; esac
   _hi_load_pct load_pct "$load" "${cpus:-}"
-  _HI_SI_ARCH="$PURPLE${arch:-?}"
+  _HI_SI_ARCH="$PURPLE${_HI_ARCH:-?}"
   _HI_SI_OS="$GREEN${os:-?}"
   _HI_SI_CORES="${YELLOW}Cores: ${cpus:-?}${load_pct:+ ($load_pct%)}"
   _HI_SI_CPU="${BRBLUE}CPU: ${base_mhz:-?} GHz"
@@ -475,14 +465,8 @@ function _hi_cell_uptime() {
   printf -v "$1" '%s' "${BRBLUE}Up: ${up:-?}"
 }
 
-# <var> gets the ip cell: every routable IPv4 address this box has, comma-
-# joined. Its own minimal probe for the same reason _hi_cell_uptime gives for
-# its own uname call - duplicating it here is cheaper than sharing state with
-# system_info's. `ip` is tried first (present on every target this project
-# already assumes iproute2 for, and on Alpine's busybox too - both answer the
-# same `-o` field layout); `hostname -I` is the fallback where it prints
-# nothing. Scope global excludes loopback and link-local, so a bare "?" means
-# neither this box has a routable address nor either tool exists to say so.
+# <var> gets the ip cell: _hi_ip_list's addresses less $_HI_IP_HIDE's,
+# comma-joined, "?" where nothing routable was found.
 function _hi_cell_ip() {
   local ips
   _hi_slow_out ips ips
@@ -705,9 +689,7 @@ function _hi_probe_launch() {
 
 # git identity (domain masked) and ssh key counts - the detection the
 # gitid/auth/pub cells share, memoized into $_HI_ID_* the same way
-# _hi_system_info_probe memoizes the sysinfo cells'. Uptime is not part of
-# this probe: _hi_cell_uptime already has its own minimal, independent one
-# (see its own comment) and stays that way.
+# _hi_system_info_probe memoizes the sysinfo cells'.
 function _hi_identity_probe() {
   [ -z "${_HI_ID_PROBED:-}" ] || return 0
   _HI_ID_PROBED=1
@@ -1192,13 +1174,9 @@ function check_line() {
   rendered="$color $best $symbol"
   # 5 = the "| " lead, the spaces around the item, and the mark - one visible
   # column in either glyph set (core.sh's _hi_choose_glyphs)
-  # shellcheck disable=SC2034 # read by the eval below, which the linter
-  # cannot see into - the point of building the record out here is that
-  # everything *it* reads stays visible
+  # shellcheck disable=SC2034 # read by the eval below
   local record="$rank"$'\x1f'"$((${#best} + 5))"$'\x1f'"$rendered"
-  # appended by name, the idiom core.sh's _hi_read_lines uses. The record is
-  # built first rather than inside the eval, which keeps the eval'd string
-  # trivial and leaves every variable it reads visible to the linter.
+  # appended by name, as core.sh's _hi_read_lines does
   eval "$1+=(\"\$record\")"
 }
 
@@ -1236,7 +1214,7 @@ function _hi_check_close() {
 # scripts/preview.sh calls check_line directly and needs the rows of groups
 # that are off.
 function full_check() {
-  local width_item count=0 max cell vislen piece i pkg_start close=1 line rank rec us=$'\x1f'
+  local width_item max cell vislen piece i pkg_start close=1 line rank rec us=$'\x1f'
   local on=1 tier=1 group mark="" name alts
   _hi_draw_width max
   # $_HI_DISABLE_RIGHT_EDGE reaches this loop too, now - one column reserved,
@@ -1298,7 +1276,7 @@ function full_check() {
       width_item=$((width_item + 1))
     }
     if ((width + width_item > max)); then # start of a row
-      if ((count)); then
+      if ((i)); then
         ((close)) && _hi_check_close "$max" "$width"
         printf '\n'
       fi
@@ -1311,11 +1289,7 @@ function full_check() {
     fi
     printf '%b' "$NC$piece$NC"
     width=$((width + width_item))
-    ((++count))
   done
-  # guarded: groups that show nothing printed a bare newline otherwise
-  if ((count)); then
-    ((close)) && _hi_check_close "$max" "$width"
-    printf '\n'
-  fi
+  ((close)) && _hi_check_close "$max" "$width"
+  printf '\n'
 }
