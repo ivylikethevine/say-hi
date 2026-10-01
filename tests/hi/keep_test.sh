@@ -187,15 +187,20 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   _hi_before "$out" 'is gone' 'export _HI_KEEP_AS' || _hi_because "the warning is not ahead of the unpack"
 }
 
-# 86 off a session still kept once its client is back; and where the client
-# expected one and the target holds none, the script says so and goes on
-function test_keep_script_says_how_it_ends_and_what_is_gone() {
-  local log="$_HI_WORKDIR/ends.log" script out
+# 86 off a session still kept once its client is back
+function test_keep_script_ends_86_off_a_kept_session() {
+  local log="$_HI_WORKDIR/ends86.log" script out
   script="$(DOMAIN=box KEEP='' CMDARG='' _hi_keep_attach)"
   # shellcheck disable=SC2016 # the shim's sh expands it
   out="$(_hi_keep_pty "$log" 'sh -c "$S"; echo "RC=$?"' S="$script" _HI_TEST_HAS=0)"
-  [[ "$out" == *"is kept"*"RC=86"* ]] || _hi_because "detached from a kept session: $out" || return 1
-  # shellcheck disable=SC2016
+  [[ "$out" == *"is kept"*"RC=86"* ]] || _hi_because "detached from a kept session: $out"
+}
+
+# 0 where it leaves none; and where the client expected one and the target
+# holds none, the script says so and goes on
+function test_keep_script_says_how_it_ends_and_what_is_gone() {
+  local log="$_HI_WORKDIR/ends.log" script out
+  # shellcheck disable=SC2016 # the shim's sh expands it
   out="$(_hi_keep_sh "$log" 'sh -c "$S"; echo "RC=$?"' S="$(DOMAIN=box _hi_keep_find)"$'\n_hi_kept && exit 86\nexit 0' _HI_TEST_HAS=1)"
   [[ "$out" == *"RC=0"* ]] || _hi_because "a script that leaves no session: $out" || return 1
   script="$(DOMAIN=box KEEP='' CMDARG='' _HI_KEEP_EXPECTED=1 _hi_keep_attach)"
@@ -667,7 +672,8 @@ function run_hi_keep_tests() {
   _hi_check "The reattach rides ahead of the unpack" test_keep_reattach_rides_ahead_of_the_unpack
   _hi_check "A command and --no-keep carry neither block" test_keep_leaves_a_command_and_no_keep_alone
   _hi_check "The next connect removes a dead owner pane's tree" test_keep_sweep_removes_the_tree_of_a_dead_owner_pane
-  _hi_check "The script ends 86 on a kept session, and says one is gone" test_keep_script_says_how_it_ends_and_what_is_gone
+  _hi_check_capable pty "The script ends 86 off a session still kept" test_keep_script_ends_86_off_a_kept_session
+  _hi_check "...0 where it leaves none, and says one is gone" test_keep_script_says_how_it_ends_and_what_is_gone
   _hi_check "The client's record follows the script's status" test_keep_connect_keeps_the_record_by_the_script_s_status
   _hi_check "In a multiplexer's pane a dropped kept session is retried" test_keep_connect_retries_a_dropped_kept_session
   _hi_check "...for _HI_KEEP_RETRY, then said to be out of reach" test_keep_connect_gives_up_after_the_window
