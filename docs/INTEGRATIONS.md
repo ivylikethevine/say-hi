@@ -274,6 +274,8 @@ the multiplexer's own key. It needs an ssh target with bash and one of the
 three, and a terminal on your side; anywhere else hi says so and connects as
 usual. A zellij session starts under zellij's own two bars, kept off the disk
 (nothing to resurrect) and with its startup popups off.
+A pane or window you open in a kept session is hi's session shell too, not
+the host's bare one, and closing the first pane (a `y`) closes them all.
 Typed with no target inside a session you already have, `hi --keep` keeps
 that one: a fresh shell in a multiplexer there, under the same name, sharing
 the session's directory. Detaching lands you back in the shell you typed it

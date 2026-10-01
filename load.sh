@@ -84,6 +84,14 @@ function clean_all() {
   # the rc directory nests under $_HI_CLEANUP when there is one; this removal
   # is for a session with no disposable tree - a local install's own shells
   [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
+  _hi_clean_tree
+  # an owner pane is its session: the panes opened beside it run on this
+  # tree's rc (_hi_keep_panes), and go with it
+  [ -z "${_HI_KEEP_MUX:-}" ] || _hi_keep_kill >/dev/null 2>&1
+  return 0
+}
+
+function _hi_clean_tree() {
   [ -n "${_HI_CLEANUP:-}" ] || return 0
   # a session kept from inside another shares that one's tree, and the last
   # of the two to go removes it: hi.kept is the kept one's claim, which it
@@ -465,13 +473,53 @@ function _hi_keep_watch() {
         ((idle < limit)) || break
       fi
     done
-    case "$_HI_KEEP_MUX" in
-    tmux) tmux kill-session -t "=$_HI_KEEP_NAME" ;;
-    zellij) zellij kill-session "$_HI_KEEP_NAME" ;;
-    screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X quit ;;
-    esac
+    _hi_keep_kill
   ) </dev/null >/dev/null 2>&1 &
   _hi_keep_watch_pid=$!
+}
+
+# End the session this pane owns, every pane of it.
+function _hi_keep_kill() {
+  case "$_HI_KEEP_MUX" in
+  tmux) tmux kill-session -t "=$_HI_KEEP_NAME" ;;
+  zellij) zellij kill-session "$_HI_KEEP_NAME" ;;
+  screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X quit ;;
+  esac
+}
+
+# _hi_keep_panes <session shell command...> - the session's other panes. A
+# multiplexer opens each on its default shell, the host's own, which reads
+# none of hi's rc (GLOSSARY: HI.46). So the owner pane leaves a launcher
+# beside the rc - what load() exported for the session shell, then that shell
+# - and names it the session's: tmux's default-command and screen's shell,
+# set here for this session alone; zellij takes a default shell at its start
+# only, where hi.sh named this path. $SHELL is written back since screen
+# hands a window its `shell` as $SHELL. GLOSSARY: HI.65
+function _hi_keep_panes() {
+  local v q file="$_HI_ROOT/hi.pane"
+  [ -n "${_HI_KEEP_MUX:-}" ] || return 0
+  {
+    printf '#!%s\n' "$BASH"
+    for v in "${_HI_CHILD_ENV[@]}" ZDOTDIR ENV VIMINIT EDITOR SUDO_EDITOR VISUAL NO_COLOR SHELL; do
+      [ -n "${!v+x}" ] || continue
+      printf -v q '%q' "${!v}"
+      printf 'export %s=%s\n' "$v" "$q"
+    done
+    printf 'exec'
+    printf ' %q' "$@"
+    printf '\n'
+  } >"$file" && chmod +x "$file" || return 0
+  case "$_HI_KEEP_MUX" in
+  tmux)
+    # run by tmux's default-shell, whichever that is: %q's backslashes are
+    # the one quoting sh, zsh, and fish all read. The colon: set-option's
+    # target is a pane, and takes the session's exact name only before one.
+    printf -v q '%q' "$file"
+    tmux set-option -t "=$_HI_KEEP_NAME:" default-command "$q" >/dev/null 2>&1
+    ;;
+  screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X shell "$file" >/dev/null 2>&1 ;;
+  esac
+  return 0
 }
 
 # Asked when the owner pane's shell exits with a client attached, since an
@@ -588,6 +636,7 @@ function load() {
   local -a shell_cmd=()
   _hi_session_rc_setup
   _hi_session_shell_cmd "$shell" shell_cmd
+  _hi_keep_panes "${shell_cmd[@]}"
   _hi_keep_watch
   while :; do
     shell_ec=0

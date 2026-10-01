@@ -14,6 +14,8 @@
 #            name; the detach lands back in the shell it was typed in, that
 #            shell's `exit` leaves the tree to the kept session, and the next
 #            `hi <target>` is in the kept shell, whose `exit` and `y` close it
+#   pane     a pane opened beside the first is hi's session shell too, and
+#            the first pane's `exit` and `y` close it with the session
 #
 # Each ends with no session and no tree on the target. A multiplexer redraws,
 # so its transcript is text with cursor moves through it: a case types at the
@@ -81,6 +83,27 @@ function _hi_keep_link_gone() {
   ! docker exec "$_HI_KEEPTEST_C" sh -c 'grep -qs "hitest@pt[s]" /proc/[0-9]*/cmdline'
 }
 
+# how many shells on the target are reading hi's session rc, off /proc
+function _hi_keep_shells() {
+  { docker exec "$_HI_KEEPTEST_C" sh -c 'grep -ls "hi[.]rc[.].*/bashrc" /proc/[0-9]*/cmdline' 2>/dev/null || true; } |
+    awk 'END { print NR }'
+}
+
+function _hi_keep_shells_are() { [ "$(_hi_keep_shells)" = "$1" ]; }
+
+# a pane more in the kept session, opened the way its multiplexer's own key
+# would: on the session's default shell
+function _hi_keep_new_pane() {
+  case "$_HI_KEEPTEST_MUX" in
+  tmux) docker exec -u hitest "$_HI_KEEPTEST_C" tmux new-window -t "=$_HI_KEEP_SESSION" ;;
+  zellij) docker exec -u hitest "$_HI_KEEPTEST_C" zellij --session "$_HI_KEEP_SESSION" action new-pane ;;
+  screen)
+    # shellcheck disable=SC2016 # the container's sh expands it
+    docker exec -u hitest "$_HI_KEEPTEST_C" sh -c 'screen -S "$(screen -ls | sed -n "s/^[[:space:]]*\([0-9][0-9]*[.]$1\)[[:space:]].*/\1/p")" -X screen' sh "$_HI_KEEP_SESSION"
+    ;;
+  esac
+}
+
 # _hi_keep_left <name> - a typed line left /tmp/<name> on the target
 function _hi_keep_left() { docker exec "$_HI_KEEPTEST_C" test -e "/tmp/$1"; }
 
@@ -124,6 +147,27 @@ function _hi_keep_typed() {
 
 # The feeders. A typed line is assembled by the shell that runs it and
 # answers through a file, so its echo proves nothing.
+
+# The transcript is a multiplexer's bytes, not text in any one encoding, so
+# these two read it in the C locale.
+
+# _hi_keep_loaded_twice <transcript> - a second header is out: the owner
+# pane's, under the one of the session `hi --keep` was typed in
+function _hi_keep_loaded_twice() {
+  local n
+  n="$(LC_ALL=C grep -c "$_HI_SESSION_LOADED_RE" "$1" 2>/dev/null)" || true
+  [ "${n:-0}" -ge 2 ]
+}
+
+# _hi_keep_zellij_normal <transcript> - zellij's status bar, as last drawn,
+# offers no detach. Asked twice, since a frame lands in pieces.
+function _hi_keep_zellij_normal() {
+  local _
+  for _ in 1 2; do
+    [ "$(LC_ALL=C grep -a -o -e 'Ctrl +' -e Detach "$1" 2>/dev/null | tail -n 1)" = 'Ctrl +' ] || return 1
+    sleep 0.2
+  done
+}
 
 # the first connect: the owner pane's shell is marked, and left attached
 function _hi_keep_feed_mark() {
@@ -181,6 +225,9 @@ function _hi_keep_feed_inside() {
   _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
   printf '%s\n' '_hi_keep_mark=outer; hi --keep'
   _hi_poll_bool 120 0.5 _hi_keep_is attached || true
+  # zellij lists its client while it is still asking the terminal about
+  # itself, and what is typed then is lost: the pane's header comes after
+  _hi_poll_bool 120 0.5 _hi_keep_loaded_twice "$1" || true
   printf '%s\n' '_hi_keep_mark=owner; : >/tmp/keep.up'
   _hi_poll_bool 120 0.5 _hi_keep_left keep.up || true
   _hi_keep_feed_detach "$1"
@@ -191,16 +238,33 @@ function _hi_keep_feed_inside() {
   printf 'exit\n'
 }
 
+# the owner pane marked, then - once the case has opened a second pane, which
+# has the keys - that pane's shell asked for what only hi's rc gives it, and
+# closed; back in the first, `exit` and a `y`
+function _hi_keep_feed_pane() {
+  _hi_keep_feed_mark "$1"
+  _hi_poll_bool 240 0.5 test -e "$1.go" || true
+  # shellcheck disable=SC2016 # the pane's shell expands it
+  printf '%s\n' '[ -n "$_HI_SESSION_RC" ] && alias hi >/dev/null && [ -z "${_hi_keep_mark:-}" ] && : >/tmp/keep.pane'
+  _hi_poll_bool 60 0.5 _hi_keep_left keep.pane || true
+  printf 'exit\n'
+  _hi_poll_bool 60 0.5 _hi_keep_shells_are 1 || true
+  _hi_keep_feed_exit "$1" y
+}
+
 # a later connect: the mark comes back out of the shell it reattached, the
 # tree count is taken while attached, and `exit` with a `y` closes it
 function _hi_keep_feed_back() {
   _hi_poll_bool 120 0.5 _hi_keep_is attached || true
   # zellij comes back in the mode its last client left by, the one its
-  # detach key lives in: Enter is the way out (an empty line elsewhere), and
-  # a key typed before the mode has changed is still that mode's
+  # detach key lives in: Enter is the way out (an empty line elsewhere),
+  # typed once a frame is drawn, since the terminal queries ahead of it take
+  # what is typed. A key typed before the mode has changed is still that
+  # mode's.
   if [ "$_HI_KEEPTEST_MUX" = zellij ]; then
+    _hi_poll_bool 40 0.5 grep -q 'Ctrl +' "$1" || true
     printf '\n'
-    sleep 1
+    _hi_poll_bool 40 0.5 _hi_keep_zellij_normal "$1" || true
   fi
   # shellcheck disable=SC2016 # the kept shell expands it
   printf '%s\n' 'printf "%s\n" "$_hi_keep_mark" >/tmp/keep.back'
@@ -305,7 +369,8 @@ function _hi_keep_inside() {
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out" _hi_keep_feed_inside "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_keep_ended "$label" "$out" 240 "the session hi --keep was typed in never ended" || return 1
-  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.up /tmp/keep.outer 2>/dev/null)" = outer ] ||
+  _hi_keep_left keep.up || _hi_keep_fail "$label" "the kept session's shell never took a line" "$out" || return 1
+  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.outer 2>/dev/null)" = outer ] ||
     _hi_keep_fail "$label" "the detach did not land back in the shell hi --keep was typed in" "$out" || return 1
   grep -q 'detached, the session on .* is kept' "$out" ||
     _hi_keep_fail "$label" "detaching did not say the session is kept" "$out" || return 1
@@ -323,12 +388,29 @@ function _hi_keep_inside() {
     _hi_keep_fail "$label" "exit and y left the session or its tree" "$out.back"
 }
 
+function _hi_keep_pane() {
+  local label="$1" out="$_HI_WORKDIR/$1.out"
+  _hi_ssh_launch "$_HI_SSH_PORT" --keep
+  _hi_keep_typed "$out" _hi_keep_feed_pane "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_keep_up "$label" "$out" || return 1
+  _hi_keep_new_pane >/dev/null 2>&1 || _hi_keep_fail "$label" "$_HI_KEEPTEST_MUX would not open a pane" "$out" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_shells_are 2 ||
+    _hi_keep_fail "$label" "$(_hi_keep_shells) shells on hi's rc with a second pane open, not 2" "$out" || return 1
+  : >"$out.go"
+  _hi_keep_ended "$label" "$out" 240 "the session never closed" || return 1
+  _hi_keep_left keep.pane ||
+    _hi_keep_fail "$label" "the second pane's shell had none of hi's rc, or was the first one's" "$out" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone ||
+    _hi_keep_fail "$label" "exit and y left the session or its tree" "$out"
+}
+
 # <scenario>:<what a pass showed>
 _HI_KEEP_CASES=(
   "drop:outlived a dropped link, reattached, closed on y"
   "end:detached on n, closed by hi --end"
   "timeout:outlived its timeout attached, not detached"
   "inside:kept from inside a session, reattached, closed on y"
+  "pane:a second pane opened hi's shell, closed with the session"
 )
 
 # _hi_keep_case <mux> <scenario> <what a pass showed> - one container holding

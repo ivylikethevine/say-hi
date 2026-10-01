@@ -826,7 +826,8 @@ function of that name, and without it `fish` would call itself forever.
 
 The wrappers cannot cover a bash or fish shell nothing typed — a `tmux` pane
 spawning a login shell, an editor's shell-out — which comes up as the host's
-own. hi writes nothing into a target's login files
+own. The panes of a session hi keeps are the exception
+([HI.65](#hi65-kept-session)). hi writes nothing into a target's login files
 ([COMPATIBILITY.md](COMPATIBILITY.md#what-would-change-an-answer) has the
 reasoning).
 
@@ -1586,6 +1587,16 @@ bash-less target connect as usual.
   leaves the tree while `$_HI_KEEP_OUTER` is still running. A session with
   no `hi.keep` - a container's, a `--no-keep` one, an owner pane - says it
   cannot be kept, as does one already inside a multiplexer.
+- **The other panes.** A multiplexer opens a new pane on its default shell,
+  the host's own, which reads none of hi's rc
+  ([HI.46](#hi46-session-rc-directory)). The owner pane's `_hi_keep_panes`
+  leaves a launcher, `hi.pane`, beside the rc - what `load()` exported for
+  the session shell, then that shell's own command - and makes it the
+  session's: tmux's `default-command` and screen's `shell`, set for this
+  session alone, and zellij's `--default-shell`, which it takes at the start
+  only, so `hi.sh` names the path there. Those panes run on the owner's
+  tree, so the owner's end is the session's: `clean_all` kills the session
+  after it removes the tree.
 - **Closing.** `load()` loops: when the pane's shell exits with a client
   attached, `_hi_keep_stays` asks, and anything but `y` detaches the client
   and starts a fresh shell. zellij has no command for that - its

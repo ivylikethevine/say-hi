@@ -267,12 +267,12 @@ function test_keep_start_reads_the_carried_tmux_config() {
 
 # zellij takes the pane's command from a layout: the same argv, each word a
 # KDL string with its quotes and backslashes escaped, and the session started
-# off the disk, a dropped client a detach
+# off the disk, a dropped client a detach, new panes on load.sh's launcher
 function test_keep_start_writes_zellij_a_layout() {
   local log="$_HI_WORKDIR/zstart.log" out root="$_HI_WORKDIR/ztree" kdl
   mkdir -p "$root/say-hi"
   out="$(_hi_keep_zpty "$log" "$(_hi_keep_start_script "$root" | sed 's|_HI_CONNECT_PREFIX=" 1K"|_HI_CONNECT_PREFIX='"'"' a"b\\c'"'"'|')")"
-  [[ "$out" == *"ZELLIJ -s hi-box -n $root/say-hi/hi.keep.kdl options --session-serialization false --on-force-close detach"$'\n'* ]] ||
+  [[ "$out" == *"ZELLIJ -s hi-box -n $root/say-hi/hi.keep.kdl options --session-serialization false --on-force-close detach --default-shell $root/say-hi/hi.pane"$'\n'* ]] ||
     _hi_because "no session start: $out" || return 1
   kdl="$(cat "$log.kdl" 2>/dev/null)"
   [[ "$kdl" == *'pane command="env" close_on_exit=true {'*'args "_HI_KEEP_MUX=zellij" "_HI_KEEP_NAME=hi-box" "_HI_HOME='"$root"'" '* ]] ||
@@ -291,10 +291,10 @@ function test_keep_start_turns_off_the_zellij_popups_it_knows() {
   local log="$_HI_WORKDIR/zopts.log" out root="$_HI_WORKDIR/ztree"
   mkdir -p "$root/say-hi"
   out="$(_hi_keep_zpty "$log" "$(_hi_keep_start_script "$root")" _HI_TEST_ZOPTS='  --show-startup-tips <SHOW_STARTUP_TIPS>\n')"
-  [[ "$out" == *"--on-force-close detach --show-startup-tips false"$'\n'* ]] || _hi_because "one known: $out" || return 1
+  [[ "$out" == *"/hi.pane --show-startup-tips false"$'\n'* ]] || _hi_because "one known: $out" || return 1
   out="$(_hi_keep_zpty "$log" "$(_hi_keep_start_script "$root")" \
     _HI_TEST_ZOPTS='  --show-startup-tips <B>\n  --show-release-notes <B>\n')"
-  [[ "$out" == *"--on-force-close detach --show-startup-tips false --show-release-notes false"$'\n'* ]] || _hi_because "both known: $out"
+  [[ "$out" == *"/hi.pane --show-startup-tips false --show-release-notes false"$'\n'* ]] || _hi_because "both known: $out"
 }
 
 function test_keep_start_reads_the_carried_zellij_config() {

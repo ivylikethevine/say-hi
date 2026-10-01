@@ -873,11 +873,12 @@ function test_nano_fallback_resolves_extendsyntax() {
 
 # --- a kept session's owner pane (GLOSSARY: HI.65) ---------------------------
 
-# _hi_keep_tmux - a directory holding tmux and zellij stand-ins, printed: each
-# appends its argv to $_HI_TEST_LOG and answers from $_HI_TEST_ATTACHED, a
-# file a case rewrites while the watcher runs. tmux prints it for
-# display-message. zellij's client list is a header and a client for 1, the
-# header alone for 0, nothing for `starting`, and a refusal for `old`.
+# _hi_keep_tmux - a directory holding tmux, zellij and screen stand-ins,
+# printed: each appends its argv to $_HI_TEST_LOG, and tmux and zellij answer
+# from $_HI_TEST_ATTACHED, a file a case rewrites while the watcher runs. tmux
+# prints it for display-message. zellij's client list is a header and a
+# client for 1, the header alone for 0, nothing for `starting`, and a refusal
+# for `old`.
 function _hi_keep_tmux() {
   local bin="$_HI_WORKDIR/keeptmux"
   if [ ! -d "$bin" ]; then
@@ -898,7 +899,8 @@ case "$*" in
   ;;
 esac
 SHIM
-    chmod +x "$bin/tmux" "$bin/zellij"
+    printf '%s\n' '#!/bin/sh' 'printf '\''screen %s\n'\'' "$*" >>"$_HI_TEST_LOG"' >"$bin/screen"
+    chmod +x "$bin/tmux" "$bin/zellij" "$bin/screen"
   fi
   printf '%s' "$bin"
 }
@@ -975,8 +977,8 @@ function _hi_keep_stays_answer() {
   printf '%s\n' "$1" | env PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_TEST_ATTACHED="$flag" \
     _HI_KEEP_MUX="${3:-tmux}" _HI_KEEP_NAME=hi-box _HI_LOAD_NO_INIT=1 _HI_HOME="$_HI_HOME" \
     python3 -c "$_HI_PTY_SPAWN" bash -c 'source "$_HI_HOME/say-hi/load.sh"; set +euo pipefail
-_hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o 'RC=[0-9]*\|own key detaches' || true
-  grep -v 'display-message\|list-clients' "$log" || true
+_hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o -e 'RC=[0-9]*' -e 'own key detaches' || true
+  grep -v -e display-message -e list-clients "$log" || true
 }
 
 # anything but y keeps the session: the client is detached and load() goes
@@ -1012,8 +1014,8 @@ function test_keep_file_lists_what_an_owner_pane_needs() {
     '_HI_ROOT=/t/say-hi' '_HI_CLEANUP=/t' '_HI_CONNECT_PREFIX= 1K' "_HI_KEEP_OUTER=$$")" ] || _hi_because "$out"
 }
 
-# _hi_clean_tree <name> [marker] - a disposable tree for clean_all, printed
-function _hi_clean_tree() {
+# _hi_shared_tree <name> [marker] - a disposable tree for clean_all, printed
+function _hi_shared_tree() {
   local t="$_HI_WORKDIR/$1"
   mkdir -p "$t/say-hi"
   [ -z "${2:-}" ] || : >"$t/say-hi/hi.kept"
@@ -1025,10 +1027,10 @@ function _hi_clean_tree() {
 # gives the marker up and waits out a shell that is still there
 function test_clean_all_leaves_a_shared_tree_to_the_last_one_out() {
   local t
-  t="$(_hi_clean_tree shared-outer marker)"
+  t="$(_hi_shared_tree shared-outer marker)"
   (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" clean_all)
   [ -d "$t/say-hi" ] || _hi_because "the outer session took a tree a kept one holds" || return 1
-  t="$(_hi_clean_tree shared-owner marker)"
+  t="$(_hi_shared_tree shared-owner marker)"
   (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="$$" clean_all)
   [ -d "$t/say-hi" ] && [ ! -e "$t/say-hi/hi.kept" ] ||
     _hi_because "the kept session took the tree from under a live shell, or kept its marker" || return 1
@@ -1037,9 +1039,63 @@ function test_clean_all_leaves_a_shared_tree_to_the_last_one_out() {
   wait "$!"
   (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="$!" clean_all)
   [ ! -e "$t" ] || _hi_because "the last one out left the tree" || return 1
-  t="$(_hi_clean_tree shared-plain)"
+  t="$(_hi_shared_tree shared-plain)"
   (_HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" clean_all)
   [ ! -e "$t" ] || _hi_because "an ordinary session left its tree"
+}
+
+# _hi_keep_panes_in <mux> - _hi_keep_panes for an owner pane of <mux>, in a
+# tree of its own under a path with a space: prints what the multiplexer was
+# told, then the launcher
+function _hi_keep_panes_in() {
+  local t="$_HI_WORKDIR/pane $1" log="$_HI_WORKDIR/panes.log"
+  mkdir -p "$t/say-hi"
+  rm -f "$t/say-hi/hi.pane"
+  : >"$log"
+  (
+    unset ZDOTDIR ENV VIMINIT EDITOR SUDO_EDITOR VISUAL NO_COLOR STY "${_HI_CHILD_ENV[@]}"
+    _HI_KEEP_MUX="$1" _HI_KEEP_NAME=hi-box _HI_ROOT="$t/say-hi" _HI_HOME="$t" _HI_SESSION_RC="$t/hi.rc.x" \
+      EDITOR='vim -u "a b"' SHELL=/bin/bash PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" \
+      _hi_keep_panes bash --rcfile "$t/hi.rc.x/bashrc" -i
+  )
+  cat "$log"
+  [ ! -f "$t/say-hi/hi.pane" ] || cat "$t/say-hi/hi.pane"
+}
+
+# the launcher is the session shell behind what load() exported for it, each
+# value one quoted word, and the session's multiplexer is told to open its
+# panes on it - tmux and screen here, zellij at its start
+function test_keep_panes_leaves_a_launcher_the_multiplexer_opens() {
+  local out t q
+  out="$(_hi_keep_panes_in tmux)"
+  t="$_HI_WORKDIR/pane tmux"
+  printf -v q '%q' "$t"
+  [ "$out" = "$(printf '%s\n' "set-option -t =hi-box: default-command $q/say-hi/hi.pane" "#!$BASH" \
+    "export _HI_HOME=$q" "export _HI_SESSION_RC=$q/hi.rc.x" 'export EDITOR=vim\ -u\ \"a\ b\"' 'export SHELL=/bin/bash' \
+    "exec bash --rcfile $q/hi.rc.x/bashrc -i")" ] || _hi_because "tmux: $out" || return 1
+  [ -x "$t/say-hi/hi.pane" ] || _hi_because "the launcher is not executable" || return 1
+  out="$(_hi_keep_panes_in screen)"
+  [[ "$out" == "screen -S hi-box -X shell $_HI_WORKDIR/pane screen/say-hi/hi.pane"$'\n'"#!$BASH"$'\n'* ]] ||
+    _hi_because "screen: $out" || return 1
+  out="$(_hi_keep_panes_in zellij)"
+  [[ "$out" == "#!$BASH"$'\n'* ]] || _hi_because "zellij was told something, or has no launcher: $out" || return 1
+  [ -z "$(_hi_keep_panes_in '')" ] || _hi_because "an ordinary session left a launcher"
+}
+
+# the owner pane is its session: its end takes the session's other panes
+# with it, which run on the tree it removes; an ordinary session ends alone
+function test_clean_all_ends_the_session_an_owner_pane_holds() {
+  local log="$_HI_WORKDIR/endall.log" t
+  : >"$log"
+  t="$(_hi_shared_tree endall-owner)"
+  (PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" \
+  _HI_KEEP_OUTER="" _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box clean_all)
+  [ ! -e "$t" ] && grep -qx 'kill-session -t =hi-box' "$log" || _hi_because "an owner pane: $(cat "$log")" || return 1
+  : >"$log"
+  t="$(_hi_shared_tree endall-plain)"
+  (PATH="$(_hi_keep_tmux):$PATH" _HI_TEST_LOG="$log" _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" \
+  _HI_KEEP_OUTER="" _HI_KEEP_MUX="" clean_all)
+  [ ! -s "$log" ] || _hi_because "an ordinary session told a multiplexer: $(cat "$log")"
 }
 
 # an ordinary session never asks: load()'s loop is one pass
@@ -1168,6 +1224,8 @@ EOF
   _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
   _hi_check "hi.keep lists what an owner pane needs, a line each" test_keep_file_lists_what_an_owner_pane_needs
   _hi_check "A tree two sessions share goes with the last one out" test_clean_all_leaves_a_shared_tree_to_the_last_one_out
+  _hi_check "An owner pane leaves a launcher its multiplexer opens panes on" test_keep_panes_leaves_a_launcher_the_multiplexer_opens
+  _hi_check "...and its end is the session's, every pane of it" test_clean_all_ends_the_session_an_owner_pane_holds
 
   _hi_h2 "Testing: this checkout"
   _hi_check "Still intact after every clean_all above" test_this_checkout_was_never_touched

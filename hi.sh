@@ -800,8 +800,9 @@ REMOTE
 # zellij takes a first pane's command from a layout alone, so that argv is
 # written into one beside the rc, as KDL strings, under zellij's own two bars;
 # its options keep the session off the disk and a dropped client a detach,
-# and turn off the popups that would take the first prompt's keys, each asked
-# for only where this zellij lists it.
+# open new panes on the launcher load.sh writes (_hi_keep_panes), and turn
+# off the popups that would take the first prompt's keys, each asked for only
+# where this zellij lists it.
 # _hi_keep_start [note prefix [name...]] - the names are the pane's variables
 # where a session starts it, which has them in a file and not in a connect.
 function _hi_keep_start() {
@@ -840,7 +841,7 @@ function _hi_keep_start() {
                 for _hi_s; do printf ' "%s"' "\$(printf '%s' "\$_hi_s" | sed 's/[\\\\"]/\\\\&/g')"; done
                 printf '\n}\n}\n}\n'
               } >"\$_hi_kc"
-              set -- -s "\$_hi_kn" -n "\$_hi_kc" options --session-serialization false --on-force-close detach
+              set -- -s "\$_hi_kn" -n "\$_hi_kc" options --session-serialization false --on-force-close detach --default-shell "\$_hi_rc_dir/hi.pane"
               for _hi_s in startup-tips release-notes; do
                 ! zellij options --help 2>/dev/null | grep -q -- "--show-\$_hi_s" || set -- "\$@" "--show-\$_hi_s" false
               done
