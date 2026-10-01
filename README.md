@@ -4,7 +4,7 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-89KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -380,9 +380,10 @@ checkout: an account or an upstream review that lands when it lands.
        reattaches, the first pane's `exit` asks before closing, a session
        nobody is attached to closes after `_HI_KEEP_TIMEOUT`, and
        `hi --end <target>` closes it from here
-       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is left, in order:
-       an e2e suite over a real sshd (start, drop, reattach, `--end`,
-       timeout); zellij as a third multiplexer on the target, started from a
+       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)), and the `ssh_keep` e2e
+       suite drives it over a real sshd in tmux and in screen (a dropped
+       link, the reattach, `--end`, the timeout). What is left, in order:
+       zellij as a third multiplexer on the target, started from a
        layout with session serialization off; `hi --keep` typed inside a
        running session; new panes opening hi's session shell; a tree whose
        session died with the target removed by the next connect; and, for a

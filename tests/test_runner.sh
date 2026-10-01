@@ -111,6 +111,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "e2e:docker:targets/docker_test.sh"
     "e2e:framework:targets/framework_test.sh"
     "e2e:home_prompt:targets/home_prompt_test.sh"
+    "e2e:ssh_keep:targets/ssh_keep_test.sh"
     "backends:podman:targets/podman_test.sh"
     "backends:nomad:targets/nomad_test.sh"
     "backends:kube:targets/kube_test.sh"
