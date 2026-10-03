@@ -1188,6 +1188,45 @@ function test_groups_preview_says_when_nothing_shows() {
   [[ "$(_hi_strip_ansi "$out")" == *"these groups show nothing here"* ]]
 }
 
+# _hi_plugins_grid_cells <grid> - a plugins grid's cell names, in order
+function _hi_plugins_grid_cells() {
+  printf '%s\n' "$1" | grep -oE '[0-9]+\) \[[x ]\] [^ ]+' | sed 's/.*\] //' | paste -sd' ' -
+}
+
+# the plugins grid: a group leads its line and its plugins wrap under the
+# first of them at the menu's width, two cells a line at the narrowest, with
+# the numbers running on in --numbered's order; a group in the list shows
+# off, and so do its plugins
+function test_plugins_off_preview_wraps_at_the_menu_width() {
+  local narrow wide want
+  narrow="$(_hi_strip_ansi "$(_HI_MENU_W=40 _hi_plugins_off_preview '')")"
+  wide="$(_hi_strip_ansi "$(_HI_MENU_W=200 _hi_plugins_off_preview '')")"
+  want="$(_hi_plugins_off_preview --numbered | paste -sd' ' -)"
+  [ -n "$want" ] && [ "$(_hi_plugins_grid_cells "$narrow")" = "$want" ] &&
+    [ "$(_hi_plugins_grid_cells "$wide")" = "$want" ] || _hi_because "cells: [$narrow] want [$want]" || return 1
+  [ "$(printf '%s\n' "$narrow" | awk '{ n = gsub(/[0-9]+\) \[[x ]\] /, "&"); if (n > m) m = n } END { print m }')" = 2 ] &&
+    [ "$(printf '%s\n' "$narrow" | wc -l)" -gt "$(printf '%s\n' "$wide" | wc -l)" ] || _hi_because "no wrap: [$narrow]" || return 1
+  [[ "$wide" == *"[x] editors"* && "$wide" == *"[x] nano"* ]] || _hi_because "all on: [$wide]" || return 1
+  wide="$(_hi_strip_ansi "$(_HI_MENU_W=200 _hi_plugins_off_preview editors)")"
+  [[ "$wide" == *"[ ] editors"* && "$wide" == *"[ ] nano"* ]] || _hi_because "editors off: [$wide]"
+}
+
+# with no plugin's file in the overlay or at home, the grid says so and
+# numbers nothing
+function test_plugins_off_preview_says_when_nothing_rides() {
+  local h="$_HI_WORKDIR/plugins-none" out
+  mkdir -p "$h/cfg"
+  out="$(
+    # the home candidates test_lib.sh leaves set
+    unset RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_XDG_CONFIG="$h/.config" _HI_CONFIG_DIR="$h/cfg" _HI_MENU_W=80 \
+      _hi_plugins_off_preview ''
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_XDG_CONFIG="$h/.config" _HI_CONFIG_DIR="$h/cfg" \
+      _hi_plugins_off_preview --numbered
+  )"
+  [ "$out" = " nothing here to send - hi --plugins lists every plugin" ] || _hi_because "grid: [$out]"
+}
+
 # the whole run with neither a preset nor a tty: config_preset stands down,
 # every question keeps what the file holds, and the rewrite reproduces the
 # block it found rather than dropping it
@@ -1919,6 +1958,8 @@ function run_configure_tests() {
   _hi_check "...and a sample with nothing active" test_env_status_preview_samples_with_nothing_active
   _hi_check "Groups preview renders the candidate groups" test_groups_preview_renders_the_candidate
   _hi_check "...and says when they show nothing" test_groups_preview_says_when_nothing_shows
+  _hi_check "Plugins grid wraps at the menu's width" test_plugins_off_preview_wraps_at_the_menu_width
+  _hi_check "...and says when nothing here rides" test_plugins_off_preview_says_when_nothing_rides
 
   # Every pty case fans out together: each drives its own child under its own
   # $_HI_WORKDIR/<label> and the children re-source configure.sh themselves,

@@ -823,6 +823,24 @@ function test_config_flags_the_old_package_floor() {
   [[ "$out" != *_HI_PACKAGES_MIN_PRIORITY* ]]
 }
 
+# the editors' and multiplexers' old toggles are words of $_HI_PLUGINS_OFF
+# now: each one set is a bad row naming the way off; one unset, no row
+function test_config_flags_an_old_plugin_toggle() {
+  local out t
+  out="$(
+    for t in ${_HI_OLD_TOGGLES//|/ }; do unset "_HI_DISABLE_$t"; done
+    _HI_DISABLE_VIM=1 _HI_DISABLE_TMUX=0
+    _hi_doc_values_json
+  )"
+  for t in VIM TMUX; do
+    case "$out" in
+    *'"label": "_HI_DISABLE_'"$t"'", "text": "is ignored - hi --plugin-off keeps a config home, and hi --configure converts this line", "severity": "bad"'*) ;;
+    *) _hi_because "no row for _HI_DISABLE_$t: $out" || return 1 ;;
+    esac
+  done
+  [[ "$out" != *_HI_DISABLE_NANO* ]] || _hi_because "a row for an unset toggle: $out"
+}
+
 # a packages file still in name:N rows, or in bare rows under [group] lines,
 # is read as no rows at all, so it is a bad row naming which; a `:N` or a bare
 # row inside a comment is not, in a file of TOML rows
@@ -1774,6 +1792,7 @@ function run_doctor_tests() {
     _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
     _hi_check "Config reports the packages file like colors" test_config_reports_the_packages_file
     _hi_check "Config flags a leftover _HI_PACKAGES_MIN_PRIORITY" test_config_flags_the_old_package_floor
+    _hi_check "...and a leftover editor or multiplexer toggle" test_config_flags_an_old_plugin_toggle
     _hi_check "Config flags a packages file of either old format" test_config_flags_an_old_format_packages_file
     _hi_check "Config names what a packages copy lacks" test_config_names_what_a_packages_copy_lacks
     _hi_check "Config flags a colors file of either old format" test_config_flags_an_old_format_colors_file

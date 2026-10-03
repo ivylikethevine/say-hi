@@ -709,6 +709,20 @@ function test_bash_it_from_the_rc_hands_over_its_precmd() {
   [ "$out" = "BASHIT|other_hook" ] || _hi_because "bash drew: [$out]"
 }
 
+# oh-my-bash loaded by hi takes every alias with `unalias -a`, its libraries'
+# included, and puts back each one set before it as it was, a quote in the
+# value too
+function test_oh_my_bash_puts_the_aliases_back() {
+  local h out want
+  h="$(_hi_fw_home)"
+  out="$(_hi_rc_shell dumb bash 'alias q="echo it'"'"'s" ll="ls -l"
+    source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1
+    alias q ll; alias ls 2>&1' \
+    HOME="$h" _HI_CONFIG_DIR="$h/cfg" _HI_PROMPT_TOOL=oh-my-bash _HI_REMOTE_SESSION=1)"
+  want="alias q='echo it'\\''s'"$'\n'"alias ll='ls -l'"
+  [[ "$out" == "$want"* && "$out" != *FW-LS* ]] || _hi_because "aliases: [$out]"
+}
+
 # <shell> <before-rc script> - a prompt hi has no hand-over for (a framework's
 # marker, or fish_prompt in the user's own functions/) stays the user's, and
 # `hi` in $_HI_PROMPT_TOOL takes it anyway. powerlevel10k in the list fits no
@@ -1552,6 +1566,7 @@ function run_rc_tests() {
     test_prompt_program_draws bash 'PLGO -shell bash -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
   _hi_check "[bash] oh-my-bash, loaded by hi, draws the home theme on a target" \
     test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL=oh-my-bash _HI_REMOTE_SESSION=1
+  _hi_check "[bash] ...and puts back the aliases set before it" test_oh_my_bash_puts_the_aliases_back
   _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
     test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
   _hi_check "[bash] ...loaded by the rc, its prompt stays at home" \
