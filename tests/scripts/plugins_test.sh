@@ -295,6 +295,19 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   [[ "$out" == *" ignored "*"$cfg/plugins line 3"*"not a line of a plugin"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }
 
+# a row of the tree's own config/plugins that hi turns down is named under
+# the tree, not the overlay
+function test_plugins_names_a_bad_tree_row_under_the_tree() {
+  local tree cfg out n
+  tree="$(_hi_scratch_tree plugins-badtree common config load.sh hi.sh link:scripts)"
+  printf 'bad line\n' >>"$tree/say-hi/config/plugins"
+  n=$(($(wc -l <"$tree/say-hi/config/plugins")))
+  cfg="$(_hi_plugins_cfg badtree)"
+  out="$(_hi_strip_ansi "$(_HI_PLUGINS_TREE="$tree" _hi_plugins_run "$cfg" --plugins)")" || return 1
+  [[ "$out" == *" ignored "*"$tree/say-hi/config/plugins line $n"*"not a line of a plugin"* && "$out" != *"$cfg/"* ]] ||
+    _hi_because "listed: $out"
+}
+
 function run_plugins_tests() {
   _hi_workdir plugins
   _hi_suite_begin
@@ -324,6 +337,7 @@ function run_plugins_tests() {
 
   _hi_h2 "Testing: --plugins"
   _hi_check "Lists what rides and what is off" test_plugins_lists_what_rides_and_what_is_off
+  _hi_check "...and names a bad row of the tree's under the tree" test_plugins_names_a_bad_tree_row_under_the_tree
 
   _hi_suite_end "scripts/plugins.sh"
 }
