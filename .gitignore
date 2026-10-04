@@ -11,6 +11,29 @@
 .claude/settings.local.json
 .claude/worktrees/
 CLAUDE.local.md
+# Claude Code's sandbox bind-mounts /dev/null over these denied paths while a
+# session runs; none is a file of this repo
+/.bash_profile
+/.bashrc
+/.gitconfig
+/.gitmodules
+/.idea
+/.mcp.json
+/.profile
+/.ripgreprc
+/.zprofile
+/.zshrc
+/.claude/agents
+/.claude/commands
+/.claude/hooks
+/.claude/launch.json
+/.claude/loop.md
+/.claude/output-styles
+/.claude/routines
+/.claude/scheduled_tasks.json
+/.claude/skills
+/.claude/workflows
+/.claude/.cc-writes
 
 *.js
 *.ts
