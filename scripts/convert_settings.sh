@@ -15,7 +15,8 @@
 #                an editor's or a multiplexer's _HI_DISABLE_* -> its word in
 #                _HI_PLUGINS_OFF
 # A file already in the current shape is left alone, so a second run is a
-# no-op. scripts/install.sh (--install, --configure) and scripts/update.sh
+# no-op; a packages or colors file holding one TOML row is in it, whatever
+# else it holds. scripts/install.sh (--install, --configure) and scripts/update.sh
 # run it; add_package.sh's shape: HI.33 the standalone entry, HI.09 the
 # commit step.
 

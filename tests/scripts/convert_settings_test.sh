@@ -389,6 +389,22 @@ function test_entry_leaves_current_files_alone() {
     [ ! -e "$dir/settings.sh" ]
 }
 
+# a file of TOML rows holding a line hi reads nothing of (a dotted key, a
+# stray word) is still the current shape: converting it would take every row
+# for a name
+function test_entry_leaves_a_toml_file_with_an_unread_line_alone() {
+  local dir="$_HI_WORKDIR/conv-unread" out
+  mkdir -p "$dir"
+  printf '[core]\nbat = ["batcat"]\nlesspipe.sh = []\nstray\n' >"$dir/packages"
+  printf '[hostname]\nbox = "red"\nweb.* = "blue"\n' >"$dir/colors"
+  cp "$dir/packages" "$dir/packages.orig"
+  cp "$dir/colors" "$dir/colors.orig"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [ -z "$out" ] || _hi_because "said: $out" || return 1
+  [ ! -e "$dir/packages.old" ] && [ ! -e "$dir/colors.old" ] &&
+    cmp -s "$dir/packages" "$dir/packages.orig" && cmp -s "$dir/colors" "$dir/colors.orig"
+}
+
 # with no directory, $_HI_CONFIG_DIR is the one converted
 function test_entry_defaults_to_the_overlay() {
   local dir out
@@ -536,6 +552,7 @@ function run_convert_settings_tests() {
   _hi_check "A second run is a no-op" test_entry_is_idempotent
   _hi_check "The rows under [section] lines are converted too" test_entry_converts_the_sections
   _hi_check "Current or absent files are left alone" test_entry_leaves_current_files_alone
+  _hi_check "...and so is a TOML file with a line hi does not read" test_entry_leaves_a_toml_file_with_an_unread_line_alone
   _hi_check "No directory means the overlay" test_entry_defaults_to_the_overlay
   _hi_check "--help, and an unknown option refused" test_entry_help_and_unknown_option
 

@@ -874,13 +874,14 @@ function test_config_flags_an_old_format_packages_file() {
   esac
 }
 
-# a packages file of the user's own names the tree's groups it lacks and a
-# row with a marker leading a name, which its table says instead; the tree's
-# own names neither
+# a packages file of the user's own names the tree's groups it lacks, a row
+# with a marker leading a name, which its table says instead, and a line that
+# is no row, which does not make the file an old one; the tree's own names
+# none
 function test_config_names_what_a_packages_copy_lacks() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/driftpkgs.XXXXXX")"
-  printf '[core]\nbat = []\neza = ["-exa", "lsd"]\n[extras.required]\n' >"$dir/packages"
+  printf '[core]\nbat = []\neza = ["-exa", "lsd"]\nlesspipe.sh = []\n[extras.required]\n' >"$dir/packages"
   out="$(
     _HI_PACKAGES="$dir/packages"
     _hi_doc_values_json
@@ -889,6 +890,8 @@ function test_config_names_what_a_packages_copy_lacks() {
     _hi_because "groups: $out" || return 1
   [[ "$out" == *'"text": "the row eza,-exa,lsd never matches'*'"severity": "warn"'* ]] ||
     _hi_because "marker: $out" || return 1
+  [[ "$out" == *'"text": "the line lesspipe.sh = [] is never checked'*'"severity": "warn"'* && "$out" != *"that are not TOML"* ]] ||
+    _hi_because "unread line: $out" || return 1
   out="$(
     _HI_PACKAGES="$_HI_ROOT/config/packages"
     _hi_doc_values_json

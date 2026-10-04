@@ -182,9 +182,11 @@ _HI_OLD_TOGGLES='EDITORS|VIM|NANO|EMACS|MICRO|HELIX|KAKOUNE|TMUX|SCREEN|ZELLIJ'
 # _hi_data_shape <outvar> <file> <flat rows' pattern> - which hi wrote the
 # rows of a packages or colors file: `toml`, this one, also of a file with no
 # rows; `sections` for bare rows under `[section]` lines; `flat` for the rows
-# before those, which <flat rows' pattern> matches. Empty for no file.
+# before those, which <flat rows' pattern> matches. Empty for no file. One
+# TOML row makes the file this hi's, whatever else it holds: no older shape
+# had one, and a converter would take every row of it for a name.
 function _hi_data_shape() {
-  local _hi_ds_l _hi_ds_k _hi_ds_v _hi_ds_heads=0 _hi_ds_old=0
+  local _hi_ds_l _hi_ds_k _hi_ds_v _hi_ds_heads=0 _hi_ds_old=0 _hi_ds_new=0
   printf -v "$1" '%s' ''
   [ -f "$2" ] || return 0
   while IFS= read -r _hi_ds_l || [ -n "$_hi_ds_l" ]; do
@@ -192,10 +194,10 @@ function _hi_data_shape() {
     case "$_hi_ds_l" in
     '' | '#'*) ;;
     '['*']'*) _hi_ds_heads=1 ;;
-    *) _hi_toml_row "$_hi_ds_l" _hi_ds_k _hi_ds_v || _hi_ds_old=1 ;;
+    *) if _hi_toml_row "$_hi_ds_l" _hi_ds_k _hi_ds_v; then _hi_ds_new=1; else _hi_ds_old=1; fi ;;
     esac
   done <"$2"
-  if ! ((_hi_ds_old)); then
+  if ((_hi_ds_new)) || ! ((_hi_ds_old)); then
     printf -v "$1" toml
   elif ! ((_hi_ds_heads)) && grep -Eq "$3" "$2"; then
     printf -v "$1" flat
@@ -215,17 +217,24 @@ function _hi_plugins_shape() {
 # _hi_packages_drift <file> <tree's> - what a packages file of the user's own
 # gets wrong unseen, a `<severity>|<sentence>` line each: a row with a name
 # led by - or +, which is part of a name nothing matches (a table says what
-# its rows are), then the groups the tree's has and <file> lacks, since a copy
-# replaces the tree's and never gains one added later
+# its rows are), and a line that is no row, which is never checked, then the
+# groups the tree's has and <file> lacks, since a copy replaces the tree's and
+# never gains one added later
 function _hi_packages_drift() {
   local _hi_pd_l _hi_pd_g _hi_pd_k _hi_pd_v _hi_pd_have=" " _hi_pd_lack=""
   [ -f "$1" ] || return 0
   while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
+    _hi_pd_l="${_hi_pd_l#"${_hi_pd_l%%[![:space:]]*}"}"
     if _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k; then
       _hi_pd_have="$_hi_pd_have$_hi_pd_g "
     elif _hi_toml_row "$_hi_pd_l" _hi_pd_k _hi_pd_v; then
       case ",$_hi_pd_k,$_hi_pd_v" in *,[-+]*)
         printf 'warn|the row %s never matches: a - or + leading a name is read as part of that name\n' "$_hi_pd_k${_hi_pd_v:+,$_hi_pd_v}"
+        ;;
+      esac
+    else
+      case "$_hi_pd_l" in '' | '#'*) ;; *)
+        printf 'warn|the line %s is never checked: a row is name = ["alternative", ...] on one line, a name holding more than letters, digits, - and _ in double quotes\n' "$_hi_pd_l"
         ;;
       esac
     fi

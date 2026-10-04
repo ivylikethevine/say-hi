@@ -172,10 +172,13 @@ before the menu opens, and `hi --update` does so with the new tag's converter
 after checking it out; by hand,
 `scripts/convert_settings.sh [--dry-run] [<dir>]`. Each converted file keeps its
 original beside it as `<file>.old`, a file already in the current shape is left
-alone, and `hi --doctor` flags one still in the old shape. A packages row goes
-to the group its highest `N` named (3 `core`, 2 `useful`, 1 `extras`, 0
-`trivia`), alternatives sorted highest `N` first; an old `-` row becomes a `+`
-row (in `base` at `N` 0-1), and an old `+` row a plain row in `platform`.
+alone, and `hi --doctor` flags one still in the old shape. A `packages` or
+`colors` file holding one TOML row is in the current shape, whatever else it
+holds; a `packages` line hi does not read is `hi --doctor`'s to name. A
+packages row goes to the group its highest `N` named (3 `core`, 2 `useful`, 1
+`extras`, 0 `trivia`), alternatives sorted highest `N` first; an old `-` row
+becomes a `+` row (in `base` at `N` 0-1), and an old `+` row a plain row in
+`platform`.
 `_HI_PACKAGES_MIN_PRIORITY` becomes a `_HI_PACKAGES_GROUPS` line - 0 all seven
 groups, 1 `core useful deprecated extras base`, 3 `core deprecated`, 4 or more
 `none` - and is dropped at 2, the default, or when `settings.sh` already sets
