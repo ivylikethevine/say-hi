@@ -83,8 +83,8 @@ function test_hand_written_colors_survive_a_run() {
 }
 
 # an unset ramp is the shipped one, so a run that was never told otherwise
-# writes no line for it - the rule config_max_width and config_packages_groups
-# use for their own defaults
+# writes no line for it - the rule config_max_width and _hi_group_flip use
+# for their own defaults
 function test_packages_palette_does_not_write_the_default() {
   local out
   out="$(_hi_collected_lines palette_default)"
@@ -269,75 +269,46 @@ function test_shebang_replaces_a_different_one_and_keeps_content() {
     grep -qF "export _HI_MAX_WIDTH=120" "$f"
 }
 
-# config_packages_groups: the only prompt that loops, so the parts worth
-# pinning without a pty are the ones that do not need one - what it writes for
-# the set it ends on. The loop itself needs a terminal and is skipped when
-# there is none, which is what makes these callable here - provided stdin
-# really is not one: run by hand from a terminal it would be, and the case
-# would sit at the prompt, so it is fed /dev/null explicitly.
-# _hi_settings_fixture swallows stdout (its other users assert against the
-# file it wrote), so the collected lines go to a file inside the fixture
-# instead - otherwise "no lines" and "lines nobody saw" look identical and the
-# write-nothing cases would pass without asserting anything.
-function _hi_groups_run() {
-  mkdir -p "$_HI_CONFIG_DIR"
-  printf '#!/bin/sh\n%s\n' "$1" >"$_HI_SETTINGS"
-  _HI_SETTING_LINES=()
-  _HI_SETTING_PENDING=()
-  config_packages_groups </dev/null
+# _hi_groups_flipped <stored value> <group...> - the lines a run writes after
+# _hi_group_flip flips each <group> in turn over a settings.sh holding
+# <stored value>, as the Package check page's numbers do
+function _hi_groups_flipped() {
+  local g dir line="" _HI_SETTINGS _HI_MENU_NOTE=""
+  local -a _HI_SETTING_LINES=() _HI_SETTING_PENDING=()
+  dir="$(mktemp -d "$_HI_WORKDIR/groupsflip.XXXXXX")" || return 1
+  _HI_SETTINGS="$dir/settings.sh"
+  [ -z "$1" ] || line="export _HI_PACKAGES_GROUPS='$1'"
+  printf '#!/bin/sh\n%s\n' "$line" >"$_HI_SETTINGS"
+  shift
+  for g; do _hi_group_flip "$g"; done
   collect_setting_lines
-  printf '%s\n' ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} >"$_HI_CONFIG_DIR/lines.out"
+  printf '%s\n' ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}
 }
 
-function _hi_groups_lines() { cat "$_HI_WORKDIR/$1/overlay/lines.out" 2>/dev/null; }
-
-function test_packages_groups_keeps_a_configured_value() {
-  _hi_settings_fixture groups_keep _hi_groups_run "export _HI_PACKAGES_GROUPS='core extras'"
-  [ "$(_hi_groups_lines groups_keep)" = "export _HI_PACKAGES_GROUPS='core extras'" ]
+# a group that is off goes on after the ones that run, and one that runs off
+function test_packages_groups_flip_one() {
+  [ "$(_hi_groups_flipped '' extras)" = "export _HI_PACKAGES_GROUPS='core useful deprecated extras'" ] || return 1
+  [ "$(_hi_groups_flipped '' useful)" = "export _HI_PACKAGES_GROUPS='core deprecated'" ]
 }
 
 # a comma-separated value is read as a list and written back space-separated
 function test_packages_groups_normalises_commas() {
-  _hi_settings_fixture groups_comma _hi_groups_run "export _HI_PACKAGES_GROUPS='core,extras'"
-  [ "$(_hi_groups_lines groups_comma)" = "export _HI_PACKAGES_GROUPS='core extras'" ]
+  [ "$(_hi_groups_flipped 'core,extras' useful)" = "export _HI_PACKAGES_GROUPS='core extras useful'" ]
 }
 
 # the shipped set is header.sh's own default, so writing it out would be a
-# line that means nothing - in any order or spelling, the same rule
-# config_max_width has for 80
+# line that means nothing - in any order, the same rule config_max_width has
+# for 80
 function test_packages_groups_does_not_write_the_default() {
-  _hi_settings_fixture groups_default _hi_groups_run "export _HI_PACKAGES_GROUPS='deprecated,useful core'"
-  [ -f "$_HI_WORKDIR/groups_default/overlay/lines.out" ] || return 1
-  [ -z "$(_hi_groups_lines groups_default | tr -d '[:space:]')" ] || return 1
-  _hi_settings_fixture groups_unset _hi_groups_run ''
-  [ -f "$_HI_WORKDIR/groups_unset/overlay/lines.out" ] || return 1
-  [ -z "$(_hi_groups_lines groups_unset | tr -d '[:space:]')" ]
+  [ -z "$(_hi_groups_flipped 'useful deprecated' core | tr -d '[:space:]')" ]
 }
 
 # ...and the other side of that rule: no group at all is an answer, spelled
-# `none`, not an empty value that would read as the default
+# `none`, not an empty value that would read as the default - and one flipped
+# on from there is the whole list
 function test_packages_groups_writes_none() {
-  _hi_settings_fixture groups_none _hi_groups_run "export _HI_PACKAGES_GROUPS='none'"
-  [ "$(_hi_groups_lines groups_none)" = "export _HI_PACKAGES_GROUPS='none'" ]
-}
-
-# a fresh shell with only install.sh sourced, the way a caller other than
-# run_configure reaches it: the default set is header.sh's, so the section
-# loads it first - the shipped set in another order still writes nothing
-function test_packages_groups_loads_its_own_default() {
-  local dir="$_HI_WORKDIR/groups_fresh" out
-  mkdir -p "$dir"
-  printf '#!/bin/sh\n%s\n' "export _HI_PACKAGES_GROUPS='useful,core deprecated'" >"$dir/settings.sh"
-  # shellcheck disable=SC2016 # expanded by the child
-  out="$(_HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" bash -c '
-    set --
-    source "$_HI_INSTALL"
-    _HI_SETTINGS="$1/settings.sh" _HI_CONFIG_DIR="$1"
-    _HI_SETTING_LINES=() _HI_SETTING_PENDING=()
-    config_packages_groups </dev/null
-    collect_setting_lines
-    printf "LINES:%s\n" "${_HI_SETTING_LINES[*]:-}"' bash "$dir" 2>&1)" || return 1
-  [[ "$out" == *"LINES:"* && "$out" != *_HI_PACKAGES_GROUPS* ]]
+  [ "$(_hi_groups_flipped '' core useful deprecated)" = "export _HI_PACKAGES_GROUPS='none'" ] || return 1
+  [ "$(_hi_groups_flipped none core)" = "export _HI_PACKAGES_GROUPS='core'" ]
 }
 
 # the check is off, so which groups it runs is moot - the stored value is kept
@@ -348,56 +319,8 @@ function test_packages_groups_kept_when_the_check_is_off() {
   [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* && "$out" == *"export _HI_PACKAGES_GROUPS='core'"* ]]
 }
 
-# The loop itself, which none of the cases above can reach: `[ -t 0 ]`
-# guards it, so exercising it at all needs a pty. An unbounded retry is the
-# failure to fear: an answer that never names a group re-asking forever, with
-# no way out but ^C and a full re-render of the package check on every pass.
-# What these pin is that it *stops*, by counting
-# the prompts rather than trusting a wall clock: a bound that regressed would
-# show up as more prompts, not as a slower suite - and that each reply toggles
-# the groups it names.
-#
-# The child reads a fixture packages file with five groups, one of them
-# capitalised, so the offered names do not follow the shipped roster.
-#
-# $_HI_PTY_FORCED is empty when there is no usable pty - no python3 at all, or
-# a python3 without the Unix-only `pty` module - which is why these register
-# through `_hi_check_capable pty` and skip yellow rather than fail: the
-# backend suites' doctrine, for the same reason.
-# shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
-# is the child shell's to make, after the pty has put it on the other side
-_HI_GROUPS_CHILD='
-  _hi_dir="$1"
-  source "$_HI_TEST_LIB"
-  set --
-  source "$_HI_INSTALL"
-  _HI_ROOT="$_hi_dir"
-  # the packer and the shipped plugins rows, which hi.sh reads under $_HI_ROOT
-  mkdir -p "$_hi_dir/config" "$_hi_dir/scripts"
-  ln -sfn "${_HI_LAUNCHER%/*}/scripts/pack.sh" "$_hi_dir/scripts/pack.sh"
-  ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
-  # the editor rcs an overlay carries, the only ones common/aliases.sh flags
-  mkdir -p "$_hi_dir/overlay"
-  mkdir -p "$_hi_dir/overlay/nano"
-  : >"$_hi_dir/overlay/nano/nanorc"
-  _HI_CONFIG_DIR="$_hi_dir/overlay"
-  _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
-  printf "%s\n" "[core]" "sh = []" "[useful]" "sh = []" "[deprecated.unwanted]" "zz-hi-absent = []" "[extras]" "sh = []" "[Work]" "sh = []" \
-    >"$_hi_dir/overlay/packages"
-  _HI_PACKAGES="$_hi_dir/overlay/packages"
-  _HI_SETTING_LINES=()
-  _HI_SETTING_PENDING=()
-  config_packages_groups
-  collect_setting_lines
-  printf "GROUPLINES:%s\n" "${_HI_SETTING_LINES[*]:-}" | tee "$_hi_dir/verdict"
-'
-
-# _hi_groups_pty <label> <input> [settings-line] - run config_packages_groups
-# under a pty with <input> (printf %b, so \n and \004 work) on its stdin.
-# Transcript lands in $_HI_WORKDIR/<label>.groups.out. Non-zero when the child
-# had to be killed, which is the regression this is here to catch.
 # _hi_pty_run <child-script> <suffix> <label> <input> <line> [args...] - the
-# pty rig _hi_groups_pty and _hi_cfg_pty both run: a scratch settings.sh, the
+# pty rig _hi_cfg_pty runs: a scratch settings.sh, the
 # input typed at a forced pty, the transcript captured to
 # $_HI_WORKDIR/<label>.<suffix>.out, timed out rather than hung forever.
 function _hi_pty_run() {
@@ -414,24 +337,12 @@ function _hi_pty_run() {
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
-function _hi_groups_pty() { _hi_pty_run "$_HI_GROUPS_CHILD" groups "$1" "$2" "${3:-}"; }
-
-# a pty writes CR-LF, so all three readers normalise before matching. The
-# marker is deliberately not anchored to the start of a line: `read -p` leaves
-# the cursor on its prompt, so when the loop exits on EOF the marker is
-# printed onto the tail of that same prompt line.
-function _hi_groups_prompts() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.groups.out" | grep -c 'Toggle which groups' || true
-}
-function _hi_groups_finished() {
-  [ -s "$_HI_WORKDIR/$1/verdict" ] || tr '\r' '\n' <"$_HI_WORKDIR/$1.groups.out" | grep -q 'GROUPLINES:'
-}
 # _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
 # a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
 # everything to the end of the line by default, or just what <capture>
 # matches (a sed bracket expression body) when the tag's value can have
-# trailing text of its own. The one shape behind _hi_groups_pty_lines,
-# _hi_cfg_rc, and _hi_cfg_lines. The child also writes that line to
+# trailing text of its own. The one shape behind _hi_cfg_rc and
+# _hi_cfg_lines. The child also writes that line to
 # <label>/verdict, which is read first: a BSD pty can drop the last output of
 # a child that exits at once, and the transcript is only the fallback.
 function _hi_pty_field() {
@@ -439,82 +350,6 @@ function _hi_pty_field() {
   [ -s "$src" ] || src="$_HI_WORKDIR/$1.$2.out"
   tr '\r' '\n' <"$src" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
 }
-function _hi_groups_pty_lines() { _hi_pty_field "$1" groups 'GROUPLINES:'; }
-
-# eight junk answers, three prompts: the bound, not the patience - and the
-# set it gives up on is the one it started with, the default, so nothing is
-# written
-function test_packages_groups_stops_asking_for_a_name() {
-  _hi_groups_pty groups_junk 'zz\nyy\nxx\nww\nvv\nuu\ntt\nss\n' || return 1
-  _hi_groups_finished groups_junk || return 1
-  [ "$(_hi_groups_prompts groups_junk)" -le 3 ] &&
-    tr '\r' '\n' <"$_HI_WORKDIR/groups_junk.groups.out" | grep -q 'no group zz' &&
-    [ -z "$(_hi_groups_pty_lines groups_junk)" ]
-}
-
-# EOF is not an answer: one prompt, then out.
-function test_packages_groups_ends_on_eof() {
-  _hi_groups_pty groups_eof '\004' || return 1
-  _hi_groups_finished groups_eof || return 1
-  [ "$(_hi_groups_prompts groups_eof)" -le 1 ]
-}
-
-# the list numbers the file's groups in file order, the ones that run checked
-function test_packages_groups_offers_the_files_groups() {
-  _hi_groups_pty groups_offer '\n' || return 1
-  local out
-  out="$(_hi_strip_ansi "$(tr '\r' '\n' <"$_HI_WORKDIR/groups_offer.groups.out")")"
-  [[ "$out" == *"1) [x] core"*"2) [x] useful"*"3) [x] deprecated"*"4) [ ] extras"*"5) [ ] Work"* ]] ||
-    _hi_because "list: $out"
-}
-
-# ...and a number flips the group it lists: 4 is extras, 2 useful
-function test_packages_groups_toggles_by_number() {
-  _hi_groups_pty groups_num '4 2\n\n' || return 1
-  [ "$(_hi_groups_pty_lines groups_num)" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ]
-}
-
-# a reply flips each group it names: extras on, useful off, in one answer
-function test_packages_groups_toggles_each_named_group() {
-  _hi_groups_pty groups_flip 'extras useful\n\n' || return 1
-  [ "$(_hi_groups_pty_lines groups_flip)" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ]
-}
-
-# a comma-separated reply is a list too
-function test_packages_groups_splits_a_comma_reply() {
-  _hi_groups_pty groups_comma_reply 'extras,useful\n\n' || return 1
-  [ "$(_hi_groups_pty_lines groups_comma_reply)" = "export _HI_PACKAGES_GROUPS='core deprecated extras'" ]
-}
-
-# a reply is matched whatever its case, and the group is toggled under the
-# file's own spelling
-function test_packages_groups_matches_any_case() {
-  _hi_groups_pty groups_case 'WORK\n\n' || return 1
-  [ "$(_hi_groups_pty_lines groups_case)" = "export _HI_PACKAGES_GROUPS='core useful deprecated Work'" ]
-}
-
-# every group toggled off is `none`, written out
-function test_packages_groups_all_off_is_none() {
-  _hi_groups_pty groups_alloff 'core useful deprecated\n\n' || return 1
-  [ "$(_hi_groups_pty_lines groups_alloff)" = "export _HI_PACKAGES_GROUPS='none'" ]
-}
-
-# ...and toggling back to the shipped set writes nothing
-function test_packages_groups_back_to_the_default_writes_nothing() {
-  _hi_groups_pty groups_back 'core\n\n' "export _HI_PACKAGES_GROUPS='useful deprecated'" || return 1
-  _hi_groups_finished groups_back || return 1
-  [ -z "$(_hi_groups_pty_lines groups_back)" ]
-}
-
-# a reply naming one unknown group toggles none of it, and a rejected answer
-# must not poison the ones after it: extras is flipped once, by the second
-# reply, not twice
-function test_packages_groups_takes_a_name_after_a_rejection() {
-  _hi_groups_pty groups_recover 'extras zz\nextras\n\n' || return 1
-  tr '\r' '\n' <"$_HI_WORKDIR/groups_recover.groups.out" | grep -q 'no group zz' || return 1
-  [ "$(_hi_groups_pty_lines groups_recover)" = "export _HI_PACKAGES_GROUPS='core useful deprecated extras'" ]
-}
-
 # same mode-preservation contract as config_shell, and the same reason its own
 # check compares a file to its earlier self rather than to a separately
 # chmod'd reference: two files that never shared a history can end up with
@@ -1163,29 +998,32 @@ function test_prompt_tool_preview_reports_none() {
   [[ "$out" == *"no prompt program is installed here"* ]]
 }
 
-# the preview renders the groups it is handed, not the ones configured: a
-# group that is off in the file's setting shows when named
-function test_groups_preview_renders_the_candidate() {
-  _hi_load_preview_sources
-  local out
-  printf '[mine]\nsh = []\n' >"$_HI_WORKDIR/groups_fixture"
-  out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview mine)"
-  [[ "$(_hi_strip_ansi "$out")" == *" sh "* ]]
+# _hi_check_preview_at <settings line> - the Package check page's preview
+# over a packages file of one group, [mine], and a settings.sh of that line
+function _hi_check_preview_at() {
+  local dir _HI_SETTINGS _HI_PACKAGES _HI_MENU_W=80
+  local -a _HI_SETTING_PENDING=()
+  dir="$(mktemp -d "$_HI_WORKDIR/checkpreview.XXXXXX")" || return 1
+  _HI_SETTINGS="$dir/settings.sh" _HI_PACKAGES="$dir/packages"
+  printf '[mine]\nsh = []\n' >"$_HI_PACKAGES"
+  printf '#!/bin/sh\n%s\n' "$1" >"$_HI_SETTINGS"
+  _hi_strip_ansi "$(_hi_check_preview)"
 }
 
-# an empty render is a real answer - every group off, or the named ones
-# silent - and the preview says so rather than handing show_preview a blank
-# to drop
-function test_groups_preview_says_when_nothing_shows() {
+# the preview is the check at the groups this run holds
+function test_check_preview_renders_the_groups_that_run() {
   _hi_load_preview_sources
-  local out
-  printf '[mine]\nsh = []\n' >"$_HI_WORKDIR/groups_fixture"
-  # the candidate is an argument, not a global the caller sets; the fixture
-  # file is scoped to the render itself, not to the strip around it
-  out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview none)"
-  [[ "$(_hi_strip_ansi "$out")" == *"these groups show nothing here"* ]] || return 1
-  out="$(_HI_PACKAGES="$_HI_WORKDIR/groups_fixture" _hi_packages_groups_preview)"
-  [[ "$(_hi_strip_ansi "$out")" == *"these groups show nothing here"* ]]
+  [[ "$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='mine'")" == *" sh "* ]]
+}
+
+# an empty render is a real answer - every group off, or the ones that run
+# silent - and so is a header without the check item: the preview says which,
+# rather than handing show_preview a blank to drop
+function test_check_preview_says_when_nothing_shows() {
+  _hi_load_preview_sources
+  [[ "$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='none'")" == *"these groups show nothing here"* ]] || return 1
+  [[ "$(_hi_check_preview_at '')" == *"these groups show nothing here"* ]] || return 1
+  [[ "$(_hi_check_preview_at "export _HI_HEADER_ORDER='utc gitid'")" == *"the check item is off"* ]]
 }
 
 # _hi_plugins_grid_cells <grid> - a plugins grid's cell names, in order
@@ -1193,38 +1031,64 @@ function _hi_plugins_grid_cells() {
   printf '%s\n' "$1" | grep -oE '[0-9]+\) \[[x ]\] [^ ]+' | sed 's/.*\] //' | paste -sd' ' -
 }
 
+# _hi_plugins_page <width> <kept> - the Plugins page's rows at that width,
+# with <kept> the list kept home
+function _hi_plugins_page() {
+  local dir line="" _HI_SETTINGS _HI_MENU_DRAW=1 _HI_MENU_W="$1" _HI_MENU_SUM_VALS=""
+  local -a _HI_SETTING_PENDING=() _HI_MENU_ITEMS=() _HI_MENU_PLUGINS=()
+  dir="$(mktemp -d "$_HI_WORKDIR/pluginspage.XXXXXX")" || return 1
+  _HI_SETTINGS="$dir/settings.sh"
+  [ -z "$2" ] || line="export _HI_PLUGINS_OFF='$2'"
+  printf '#!/bin/sh\n%s\n' "$line" >"$_HI_SETTINGS"
+  _hi_strip_ansi "$(_hi_menu_plugins)"
+}
+
 # the plugins grid: a group leads its line and its plugins wrap under the
-# first of them at the menu's width, two cells a line at the narrowest, with
-# the numbers running on in --numbered's order; a group in the list shows
-# off, and so do its plugins
-function test_plugins_off_preview_wraps_at_the_menu_width() {
+# first of them at the menu's width, two cells a line at the narrowest, in
+# _hi_plugin_states' order; a group in the list shows off, and so do its
+# plugins
+function test_plugins_page_wraps_at_the_menu_width() {
   local narrow wide want
-  narrow="$(_hi_strip_ansi "$(_HI_MENU_W=40 _hi_plugins_off_preview '')")"
-  wide="$(_hi_strip_ansi "$(_HI_MENU_W=200 _hi_plugins_off_preview '')")"
-  want="$(_hi_plugins_off_preview --numbered | paste -sd' ' -)"
+  narrow="$(_hi_plugins_page 40 '')"
+  wide="$(_hi_plugins_page 200 '')"
+  want="$(_hi_plugin_states '' | awk -F'|' '{ print ($2 == "" ? $1 : $2) }' | paste -sd' ' -)"
   [ -n "$want" ] && [ "$(_hi_plugins_grid_cells "$narrow")" = "$want" ] &&
     [ "$(_hi_plugins_grid_cells "$wide")" = "$want" ] || _hi_because "cells: [$narrow] want [$want]" || return 1
   [ "$(printf '%s\n' "$narrow" | awk '{ n = gsub(/[0-9]+\) \[[x ]\] /, "&"); if (n > m) m = n } END { print m }')" = 2 ] &&
     [ "$(printf '%s\n' "$narrow" | wc -l)" -gt "$(printf '%s\n' "$wide" | wc -l)" ] || _hi_because "no wrap: [$narrow]" || return 1
   [[ "$wide" == *"[x] editors"* && "$wide" == *"[x] nano"* ]] || _hi_because "all on: [$wide]" || return 1
-  wide="$(_hi_strip_ansi "$(_HI_MENU_W=200 _hi_plugins_off_preview editors)")"
+  wide="$(_hi_plugins_page 200 editors)"
   [[ "$wide" == *"[ ] editors"* && "$wide" == *"[ ] nano"* ]] || _hi_because "editors off: [$wide]"
 }
 
-# with no plugin's file in the overlay or at home, the grid says so and
+# a number flips the word it stands for in the list kept home; a plugin
+# switched on under a group that is kept home takes the group off the list
+# and leaves the group's other plugins on it
+function test_plugin_flip_edits_the_list_kept_home() {
+  local dir out="" _HI_SETTINGS _HI_MENU_NOTE=""
+  local -a _HI_SETTING_PENDING=()
+  local -a _HI_MENU_PLUGINS=("cli||1" "cli|bat|1" "editors||0" "editors|nano|0" "editors|vim|0" "mux||0" "mux|tmux|0")
+  dir="$(mktemp -d "$_HI_WORKDIR/pluginflip.XXXXXX")" || return 1
+  _HI_SETTINGS="$dir/settings.sh"
+  printf '#!/bin/sh\n%s\n' "export _HI_PLUGINS_OFF='editors mux'" >"$_HI_SETTINGS"
+  _hi_plugin_flip nano
+  _hi_plugin_flip bat
+  _hi_plugin_flip mux
+  setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" out
+  [ "$out" = "vim bat" ] || _hi_because "the list: [$out]"
+}
+
+# with no plugin's file in the overlay or at home, the page says so and
 # numbers nothing
-function test_plugins_off_preview_says_when_nothing_rides() {
+function test_plugins_page_says_when_nothing_rides() {
   local h="$_HI_WORKDIR/plugins-none" out
   mkdir -p "$h/cfg"
   out="$(
     # the home candidates test_lib.sh leaves set
     unset RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE
-    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_XDG_CONFIG="$h/.config" _HI_CONFIG_DIR="$h/cfg" _HI_MENU_W=80 \
-      _hi_plugins_off_preview ''
-    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_XDG_CONFIG="$h/.config" _HI_CONFIG_DIR="$h/cfg" \
-      _hi_plugins_off_preview --numbered
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_XDG_CONFIG="$h/.config" _HI_CONFIG_DIR="$h/cfg" _hi_plugins_page 80 ''
   )"
-  [ "$out" = " nothing here to send - hi --plugins lists every plugin" ] || _hi_because "grid: [$out]"
+  [ "$out" = " Nothing here to send - hi --plugins lists every plugin" ] || _hi_because "page: [$out]"
 }
 
 # the whole run with neither a preset nor a tty: config_preset stands down,
@@ -1246,11 +1110,10 @@ function test_run_configure_without_a_preset_keeps_the_block() {
 }
 
 # The interactive arms proper: ask_value's typed answers, the menu,
-# config_preset, and the intro are all `[ -t 0 ]`-gated the same way
-# the groups loop is, and the same pty harness reaches them. The child is
-# _HI_GROUPS_CHILD's shape generalised - point the settings at a scratch dir,
-# run the one configure function named on its argv with the pty as stdin, and
-# report the exit code, the preset-final flag, and the collected lines on one
+# config_preset, and the intro are all `[ -t 0 ]`-gated, and a pty harness
+# reaches them. The child points the settings at a scratch dir, runs the one
+# configure function named on its argv with the pty as stdin, and reports
+# the exit code, the preset-final flag, and the collected lines on one
 # greppable tail line. Feeding a question an extra newline is harmless (it
 # sits unread); feeding one too few hangs the child, which _hi_wait_pid turns
 # into the kill this helper reports.
@@ -1314,14 +1177,15 @@ function _hi_cfg_screen_has() {
 # _hi_cfg_titles <label> - every draw's title, in order, comma-joined
 function _hi_cfg_titles() {
   _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
-    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?|Header|Prompt|Plugins|Aliases|This machine|Advanced)  -.*/\1/p' |
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?|Header|Package check|Prompt|Plugins|Aliases|This machine|Advanced)  -.*/\1/p' |
     paste -sd, -
 }
 
-# every section's letter in order, then b: the six pages and the main page
+# every section's letter in order, then b: the seven pages and the main page
 # again, each drawn once
-_HI_MENU_EVERY_PAGE='i\nr\ng\na\nm\nv\nb\ns\n'
-_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Prompt,hi --configure: Plugins"
+_HI_MENU_EVERY_PAGE='i\nc\nr\ng\na\nm\nv\nb\ns\n'
+_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Package check"
+_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Prompt,hi --configure: Plugins"
 _HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Aliases,hi --configure: This machine"
 _HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Advanced,hi --configure"
 
@@ -1350,6 +1214,11 @@ function test_ask_value_typed_default_clears_the_override() {
 # the wrong number
 function _hi_item() {
   local i _HI_SETTINGS=/dev/null
+  # the plugins number by what has a file, so under the overlay the pty
+  # child ($_HI_CFG_CHILD) makes: nano's rc alone
+  local _HI_CONFIG_DIR="$_HI_WORKDIR/item-overlay"
+  mkdir -p "$_HI_CONFIG_DIR/nano"
+  : >"$_HI_CONFIG_DIR/nano/nanorc"
   _HI_SETTING_PENDING=()
   _hi_header_edit_load
   _hi_menu_list >/dev/null
@@ -1515,35 +1384,33 @@ function test_menu_lists_missing_header_items_off() {
     _hi_cfg_has hdr_list "$((w + 2))) [ ] utc"
 }
 
-# the package groups item opens the groups loop; useful is toggled off
-function test_menu_opens_the_package_groups() {
-  _hi_cfg_pty hdr_groups "$(_hi_item groups)\nuseful\n\ns\n" '' config_hub || return 1
-  [[ "$(_hi_cfg_lines hdr_groups)" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]]
+# a package group's number flips it: useful, off
+function test_menu_flips_a_package_group() {
+  _hi_cfg_pty hdr_groups "$(_hi_item 'group|useful')\ns\n" '' config_hub || return 1
+  _hi_cfg_has hdr_groups "package group useful: now off" &&
+    [[ "$(_hi_cfg_lines hdr_groups)" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]]
 }
 
-# the plugins kept home are a list of words, toggled by name: a group goes
-# in, Enter keeps it, and the editors' aliases that are left preview under
-# the list - none, with every editor home
-function test_menu_toggles_the_plugins_kept_home() {
-  _hi_cfg_pty plug_toggle "$(_hi_item plugins)\neditors\n\ns\n" '' config_hub || return 1
-  _hi_cfg_has plug_toggle "plugins kept home: editors" &&
-    ! _hi_cfg_has plug_toggle "nano --rcfile" 2>/dev/null &&
+# a group of plugins has a number, and it keeps the whole group home
+function test_menu_keeps_a_plugin_group_home() {
+  _hi_cfg_pty plug_toggle "$(_hi_item 'plugin|editors')\ns\n" '' config_hub || return 1
+  _hi_cfg_has plug_toggle "editors: stays home" &&
     [[ "$(_hi_cfg_lines plug_toggle)" == *"export _HI_PLUGINS_OFF='editors'"* ]]
 }
 
-# ...or by the number the list gives it: the rig's one file is nano's, so
-# the editors group is 1 and nano 2
-function test_menu_toggles_a_plugin_by_number() {
-  _hi_cfg_pty plug_num "$(_hi_item plugins)\n2\n\ns\n" '' config_hub || return 1
-  _hi_cfg_has plug_num "1) [x] editors" && _hi_cfg_has plug_num "2) [ ] nano" &&
+# ...and so has each plugin: the rig's one file is nano's
+function test_menu_keeps_a_plugin_home() {
+  _hi_cfg_pty plug_num "g\n$(_hi_item 'plugin|nano')\ns\n" '' config_hub || return 1
+  _hi_cfg_has plug_num ") [x] editors" && _hi_cfg_has plug_num ") [ ] nano" &&
     [[ "$(_hi_cfg_lines plug_num)" == *"export _HI_PLUGINS_OFF='nano'"* ]]
 }
 
-# ...a word that names nothing is asked again, and the list keeps what it had
-function test_menu_plugins_refuse_a_stranger() {
-  _hi_cfg_pty plug_stranger "$(_hi_item plugins)\nnosuch\n\ns\n" "export _HI_PLUGINS_OFF='mux'" config_hub || return 1
-  _hi_cfg_has plug_stranger "no plugin or group nosuch" &&
-    [[ "$(_hi_cfg_lines plug_stranger)" == *"export _HI_PLUGINS_OFF='mux'"* ]]
+# ...a plugin sent again while its group is kept home takes the group off the
+# list: nano is the group's one plugin here, so nothing is left to write
+function test_menu_sends_a_plugin_of_a_kept_group() {
+  _hi_cfg_pty plug_back "$(_hi_item 'plugin|nano')\ns\n" "export _HI_PLUGINS_OFF='editors'" config_hub || return 1
+  _hi_cfg_has plug_back "nano: is sent" &&
+    [[ "$(_hi_cfg_lines plug_back)" != *"_HI_PLUGINS_OFF"* ]]
 }
 
 # The indices here are positions in $_HI_FEATURE_PROMPTS, so inserting a row
@@ -1697,33 +1564,39 @@ function test_menu_main_page_sums_up_every_section() {
   _HI_TERM_COLS=80 _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
   main="$(_hi_cfg_screen hub_all 0)"
   keys="$(printf '%s\n' "$main" | sed -n 's/^ \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
-  [ "$keys" = "i,r,g,a,m,v" ] || _hi_because "the main page's sections: [$keys]" || return 1
-  [[ "$main" == *"preview"* && "$main" == *" [i] Header       1-"*" on, width 80, packages "* ]] &&
-    [[ "$main" == *" [m] This machine $(printf '%-6s' "$m") 1 of 1 on"* ]] &&
-    [[ "$main" == *" [v] Advanced     "*", 24-bit color auto"* ]] &&
+  [ "$keys" = "i,c,r,g,a,m,v" ] || _hi_because "the main page's sections: [$keys]" || return 1
+  [[ "$main" == *"preview"* && "$main" == *" [i] Header        1-"*" on, width 80"* ]] &&
+    [[ "$main" == *" [c] Package check "*" core useful deprecated"* && "$main" == *" [g] Plugins "*" all sent"* ]] &&
+    [[ "$main" == *" [m] This machine  $(printf '%-6s' "$m") 1 of 1 on"* ]] &&
+    [[ "$main" == *" [v] Advanced      "*", 24-bit color auto"* ]] &&
     [[ "$main" != *") ["* && "$main" != *"hi --configure:"* && "$main" != *"[b]ack"* ]] &&
     _hi_cfg_has hub_all "CFGQUIT=none"
 }
 
 # a section's letter opens its page - titled, [b]ack leading the keys, only its
-# own rows - and b comes back to the main page
+# own rows, and a preview of what they change or none - and b comes back to
+# the main page
 function test_menu_section_letters_open_their_pages() {
-  local titles end kept sudo
-  end="$(_hi_item 'end|bash')" && kept="$(_hi_item plugins)" &&
+  local titles end kept sudo core
+  end="$(_hi_item 'end|bash')" && kept="$(_hi_item 'plugin|editors')" && core="$(_hi_item 'group|core')" &&
     sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|5')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
   titles="$(_hi_cfg_titles hub_pages)"
   [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || _hi_because "titles: [$titles]" || return 1
-  _hi_cfg_screen_has hub_pages 1 " [b]ack  [p]reset" &&
+  _hi_cfg_screen_has hub_pages 1 " [b]ack  [h]eader preset" &&
     _hi_cfg_screen_has hub_pages 1 " 1) [x] header" &&
-    _hi_cfg_screen_has hub_pages 1 "    packages      " &&
-    _hi_cfg_screen_has hub_pages 2 "$end)     bash prompt ends with" &&
-    _hi_cfg_screen_has hub_pages 3 "$kept)     kept home" &&
-    _hi_cfg_screen_has hub_pages 4 "$sudo) [ ] sudo alias" &&
-    _hi_cfg_screen_has hub_pages 6 "24-bit color" &&
-    _hi_cfg_screen_has hub_pages 7 " [i] Header" &&
-    ! _hi_cfg_screen_has hub_pages 2 " 1) [x] header" 2>/dev/null &&
-    ! _hi_cfg_screen_has hub_pages 7 "[b]ack" 2>/dev/null
+    _hi_cfg_screen_has hub_pages 1 "Connected" &&
+    _hi_cfg_screen_has hub_pages 2 "$core) [x] core" &&
+    _hi_cfg_screen_has hub_pages 3 "$end)     bash prompt ends with" &&
+    _hi_cfg_screen_has hub_pages 4 "$kept) [x] editors" &&
+    _hi_cfg_screen_has hub_pages 5 "$sudo) [ ] sudo alias" &&
+    _hi_cfg_screen_has hub_pages 7 "24-bit color" &&
+    _hi_cfg_screen_has hub_pages 8 " [i] Header" &&
+    ! _hi_cfg_screen_has hub_pages 3 " 1) [x] header" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 3 "Connected" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 4 "preview" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 6 "preview" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 8 "[b]ack" 2>/dev/null
 }
 
 # This machine's page draws _HI_DISABLE_LOCAL, the one row it holds
@@ -1733,6 +1606,16 @@ function test_menu_this_machine_page_holds_here_too() {
   _HI_TERM_COLS=80 _hi_cfg_pty hub_local 'm\ns\n' '' run_configure "" || return 1
   _hi_cfg_screen_has hub_local 1 "hi --configure: This machine" &&
     _hi_cfg_screen_has hub_local 1 "$m) [x] here too"
+}
+
+# a row whose <needs> command is not here says so, and any one of its
+# alternatives being here is enough to say nothing
+function test_menu_row_notes_an_absent_needs_command() {
+  local out
+  local -a _HI_NEEDS_ROWS=('_HI_NO_SUCH|1|||hi-no-such-cmd/hi-none-either|needy - a row' '_HI_NO_SUCH|1|||hi-no-such-cmd/bash|easy - a row')
+  out="$(_HI_MENU_ITEMS=() _HI_MENU_DRAW=1 _HI_MENU_W=80 _HI_MENU_SUM_N=0 && _hi_menu_row _HI_NEEDS_ROWS 0 && _hi_menu_row _HI_NEEDS_ROWS 1)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"needy"*"(no hi-no-such-cmd here)"*"easy"* && "${out#*easy}" != *" here)"* ]] || _hi_because "the rows: $out"
 }
 
 # every row of every table gets a number, whichever page draws it
@@ -1762,14 +1645,14 @@ function test_menu_number_works_from_any_page() {
     [[ "$lines" == *"export _HI_DISABLE_PROMPT=1"* && "$lines" == *"export _HI_TOOL_ALIASES=1"* ]]
 }
 
-# The Header page's grid: the three switches and the header items, 4 cells to
-# a line at 80 columns, folding to 2 at 40, every one drawn
+# The Header page's grids: the three switches, then the header items, 4 cells
+# to a line at 80 columns, folding to 2 at 40, every one drawn
 function _hi_menu_grid_at() {
   local w="$1" want="$2" label="grid_$1" cells page first
   cells=$(($(_hi_item width) - 1))
   _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 'i\ns\n' '' run_configure "" || return 1
   page="$(_hi_cfg_screen "$label" 1)"
-  first="$(printf '%s\n' "$page" | grep -F ' 1) [x] header' | grep -o ') \[[x ]\] ' | wc -l)"
+  first="$(printf '%s\n' "$page" | grep -F " $(_hi_item 'word|0')) [x] utc" | grep -o ') \[[x ]\] ' | wc -l)"
   page="$(printf '%s\n' "$page" | grep -o ') \[[x ]\] ' | wc -l)"
   ((first == want)) || _hi_because "the grid's first line at $w holds $first cells" || return 1
   ((page == cells)) || _hi_because "the grid at $w holds $page cells, not $cells"
@@ -1782,7 +1665,7 @@ function test_menu_header_grid_at_40() { _hi_menu_grid_at 40 2; }
 function test_menu_pages_fit_24_rows() {
   local k rows
   _HI_TERM_COLS=80 _hi_cfg_pty hub_rows "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
-  for k in 1 2 3 4 5 6 7; do
+  for k in 1 2 3 4 5 6 7 8; do
     rows=$(($(_hi_cfg_screen hub_rows "$k" | wc -l) + 1))
     ((rows <= 24)) || _hi_because "draw $k is $rows rows" || return 1
   done
@@ -1820,9 +1703,9 @@ function test_menu_layout_at_40() { _hi_menu_layout_at 40; }
 
 # a value away from its default says the default beside it; one at it does not
 function test_menu_value_shows_its_default() {
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 'i\ns\n' "export _HI_PACKAGES_GROUPS='core'" run_configure "" || return 1
-  _hi_cfg_has hub_def "packages              core (default core useful deprecated)" &&
-    ! _hi_cfg_has hub_def "(default 80)"
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_def 'i\ns\n' "export _HI_MAX_WIDTH=100" run_configure "" || return 1
+  _hi_cfg_has hub_def "width                 100 (default 80)" &&
+    ! _hi_cfg_has hub_def "(default 172.*)"
 }
 
 function run_configure_tests() {
@@ -1873,16 +1756,16 @@ function run_configure_tests() {
   _hi_check "Written to a new settings.sh" test_shebang_is_written_to_a_new_settings_file
   _hi_check "Stays first under the settings block" test_shebang_stays_first_under_the_settings_block
   _hi_check "Not duplicated on reruns" test_shebang_is_not_duplicated_on_reruns
-  _hi_check "Package groups: an existing value survives" test_packages_groups_keeps_a_configured_value
+  _hi_check "Package groups: a flip turns one on or off" test_packages_groups_flip_one
   _hi_check "Package groups: commas are written as spaces" test_packages_groups_normalises_commas
   _hi_check "Package groups: the default set is not written" test_packages_groups_does_not_write_the_default
   _hi_check "Package groups: none is written out" test_packages_groups_writes_none
   _hi_check "Package groups: kept when the check is off" test_packages_groups_kept_when_the_check_is_off
-  _hi_check "Package groups: loads its own default" test_packages_groups_loads_its_own_default
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
   _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
+  _hi_check "Menu: a row names the command it needs and this machine lacks" test_menu_row_notes_an_absent_needs_command
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"
@@ -1956,10 +1839,11 @@ function run_configure_tests() {
   _hi_check "eza/exa preview names the ls it aliases" test_eza_preview_names_the_ls_it_aliases
   _hi_check "Env segment preview draws the live segment" test_env_status_preview_draws_the_live_segment
   _hi_check "...and a sample with nothing active" test_env_status_preview_samples_with_nothing_active
-  _hi_check "Groups preview renders the candidate groups" test_groups_preview_renders_the_candidate
-  _hi_check "...and says when they show nothing" test_groups_preview_says_when_nothing_shows
-  _hi_check "Plugins grid wraps at the menu's width" test_plugins_off_preview_wraps_at_the_menu_width
-  _hi_check "...and says when nothing here rides" test_plugins_off_preview_says_when_nothing_rides
+  _hi_check "Check preview renders the groups that run" test_check_preview_renders_the_groups_that_run
+  _hi_check "...and says when they show nothing" test_check_preview_says_when_nothing_shows
+  _hi_check "Plugins grid wraps at the menu's width" test_plugins_page_wraps_at_the_menu_width
+  _hi_check "...and says when nothing here rides" test_plugins_page_says_when_nothing_rides
+  _hi_check "A plugin's number edits the list kept home" test_plugin_flip_edits_the_list_kept_home
 
   # Every pty case fans out together: each drives its own child under its own
   # $_HI_WORKDIR/<label> and the children re-source configure.sh themselves,
@@ -1969,16 +1853,6 @@ function run_configure_tests() {
   # because they are pty cases too.
   _hi_h2 "Testing: the interactive arms and the menu (pty)"
   _hi_par_begin "pty cases"
-  _hi_par_check_capable pty "Package groups: junk stops the loop" test_packages_groups_stops_asking_for_a_name
-  _hi_par_check_capable pty "Package groups: EOF ends the prompt" test_packages_groups_ends_on_eof
-  _hi_par_check_capable pty "Package groups: offers the file's groups" test_packages_groups_offers_the_files_groups
-  _hi_par_check_capable pty "Package groups: a reply toggles each name" test_packages_groups_toggles_each_named_group
-  _hi_par_check_capable pty "Package groups: a number toggles the group it lists" test_packages_groups_toggles_by_number
-  _hi_par_check_capable pty "Package groups: a comma reply is split" test_packages_groups_splits_a_comma_reply
-  _hi_par_check_capable pty "Package groups: a reply matches any case" test_packages_groups_matches_any_case
-  _hi_par_check_capable pty "Package groups: all off is none" test_packages_groups_all_off_is_none
-  _hi_par_check_capable pty "Package groups: back to the default writes nothing" test_packages_groups_back_to_the_default_writes_nothing
-  _hi_par_check_capable pty "Package groups: a name lands after a rejection" test_packages_groups_takes_a_name_after_a_rejection
   _hi_par_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number
   _hi_par_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
   _hi_par_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
@@ -1996,9 +1870,9 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: fits 80 columns, pages in order" test_menu_layout_at_80
   _hi_par_check_capable pty "Menu: fits 40 columns, pages in order" test_menu_layout_at_40
   _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
-  _hi_par_check_capable pty "Menu: the plugins kept home toggle by name" test_menu_toggles_the_plugins_kept_home
-  _hi_par_check_capable pty "Menu: ...or by number" test_menu_toggles_a_plugin_by_number
-  _hi_par_check_capable pty "Menu: ...and a word that names nothing is refused" test_menu_plugins_refuse_a_stranger
+  _hi_par_check_capable pty "Menu: a plugin group's number keeps it home" test_menu_keeps_a_plugin_group_home
+  _hi_par_check_capable pty "Menu: ...and a plugin's its own" test_menu_keeps_a_plugin_home
+  _hi_par_check_capable pty "Menu: ...and one sent again takes its group off the list" test_menu_sends_a_plugin_of_a_kept_group
   _hi_par_check_capable pty "Menu: an opt-in row writes its on-value" test_menu_opt_in_row_writes_its_on_value
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "Menu: the header row previews the whole header" test_menu_header_row_previews_the_header
@@ -2014,7 +1888,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: h takes a header preset by name" test_menu_takes_a_header_preset_by_name
   _hi_par_check_capable pty "Menu: h refuses a stranger" test_menu_header_preset_refuses_a_stranger
   _hi_par_check_capable pty "Menu: the width item takes a width" test_menu_takes_a_width
-  _hi_par_check_capable pty "Menu: package groups opens its loop" test_menu_opens_the_package_groups
+  _hi_par_check_capable pty "Menu: a package group's number flips it" test_menu_flips_a_package_group
   _hi_par_check_capable pty "Menu: hidden addresses" test_menu_takes_hidden_addresses
   _hi_par_check_capable pty "Menu: a prompt program is picked per shell" test_menu_picks_a_prompt_program_per_shell
   _hi_par_check_capable pty "Menu: auto for every shell clears the line" test_menu_prompt_program_back_to_auto

@@ -19,7 +19,7 @@ that is not letters, digits, `_` and `-` alone goes in double quotes.
 
 ```toml
 [username]
-root = "red"
+root = "red b00020"
 
 [hostname]
 bastion = "yellow"
@@ -145,7 +145,9 @@ falls back to the shipped ramp, `hi --doctor` says so, and
 
 The check reads one file, `config/packages`, which is TOML: a table per
 group, and a row per tool, its value the alternatives in order of
-preference, on one line.
+preference, on one line. The shipped file is short;
+[packages.example](packages.example) is a longer one, with `extras`,
+`trivia`, and `platform` groups, to copy to `~/.config/say-hi/packages`.
 
 ```toml
 [useful]

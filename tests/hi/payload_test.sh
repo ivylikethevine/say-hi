@@ -360,6 +360,20 @@ function test_overlay_carries_the_prompt_frameworks_home_files() {
   [ ! -e "$d/oh-my-zsh.zsh-theme" ]
 }
 
+# p10k's wizard writes under $ZDOTDIR, which a ~/.zshenv sets for zsh alone:
+# hi run from bash or fish finds that file, not a stale ~/.p10k.zsh
+function test_p10k_rides_from_a_zshenv_zdotdir() {
+  local dir d h="$_HI_WORKDIR/p10k-zshenv"
+  mkdir -p "$h/zd"
+  # shellcheck disable=SC2016 # zsh's to expand
+  printf 'export ZDOTDIR="$HOME/zd"\n' >"$h/.zshenv"
+  printf 'typeset -g POWERLEVEL9K_MODE=stale\n' >"$h/.p10k.zsh"
+  printf 'typeset -g POWERLEVEL9K_MODE=zdotdir\n' >"$h/zd/.p10k.zsh"
+  dir="$(_hi_overlay_fixture p10k-zshenv colors)"
+  d="$(_hi_tool_home_unpacked "$dir" HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL=powerlevel10k)" || return 1
+  [ "$(cat "$d/p10k.zsh")" = 'typeset -g POWERLEVEL9K_MODE=zdotdir' ] || _hi_because "p10k.zsh arrived as: [$(cat "$d/p10k.zsh" 2>&1)]"
+}
+
 # bash-it's theme is found where bash_it.sh's loader looks for a bare name:
 # the custom themes dir ($BASH_IT_CUSTOM, else ~/.bash_it/custom) over the
 # built-in one; oh-my-bash takes a .theme.bash where there is no .theme.sh
@@ -1245,6 +1259,18 @@ function test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir() {
   [ "$out" = "rc 1" ] && [ -z "$(find "$dir/rt" -name 'hi.ssh_tags*')" ] || _hi_because "read-only runtime dir: [$out]"
 }
 
+# a cut that cannot be moved into place leaves no temp file beside it
+function test_ssh_tags_leaves_no_temp_file_when_the_cut_fails() {
+  local dir="$_HI_WORKDIR/tags-mv" out
+  mkdir -p "$dir/rt"
+  printf '# Tags: one\nHost a\n' >"$dir/config"
+  out="$(
+    mv() { return 1; }
+    _hi_tags_at "$dir"
+  )"
+  [ "$out" = "rc 1" ] && [ -z "$(find "$dir/rt" -name 'hi.ssh_tags*')" ] || _hi_because "a failed mv: [$out] $(ls "$dir/rt")"
+}
+
 # the rows hi --doctor prints come from the same pass that does the dropping,
 # so what the report names is exactly what went missing
 function test_the_scan_reports_every_dialect() {
@@ -1419,6 +1445,76 @@ source-file -q ~/.tmux.kept' ] || {
   }
 }
 
+# a multiplexer's default shell is a path on the client: dropped, a pane
+# opens on the session's $SHELL; a line that only names the option stays
+function test_a_multiplexers_default_shell_stays_home() {
+  local dir out
+  dir="$(_hi_lint_fixture muxshell tmux/tmux.conf 'set -g mouse on
+set -g default-shell /usr/bin/fish
+set-option -g -q default-shell /opt/zsh
+set -g status-left "default-shell"
+')"
+  printf 'defscrollback 100\nshell /usr/bin/fish\ndefshell -fish\n' >"$dir/screenrc"
+  mkdir -p "$dir/zellij"
+  printf 'theme "x"\ndefault_shell "/usr/bin/fish"\n' >"$dir/zellij/config.kdl"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux/tmux.conf)"
+  [ "$out" = 'set -g mouse on
+set -g status-left "default-shell"' ] || _hi_because "tmux.conf arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat screenrc)"
+  [ "$out" = 'defscrollback 100' ] || _hi_because "screenrc arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/config.kdl | grep -v '^// hi dropped: ')"
+  [ "$out" = 'theme "x"' ] || _hi_because "config.kdl arrived as: [$out]"
+}
+
+# zellij names a plugin's .wasm in more places than a layout's location=: a
+# key's LaunchOrFocusPlugin and load_plugins go the same way, each whole. A
+# layout's borderless pane that loses its plugin was a bar, and an empty pane
+# opens as a shell, so zellij's own bar stands in, a marker comment above
+# the plugin or not; any other pane is left
+function test_every_zellij_plugin_path_is_dropped() {
+  local dir out
+  dir="$(_hi_lint_fixture zjplug zellij/config.kdl 'keybinds {
+  bind "s" {
+    LaunchOrFocusPlugin "file:/home/me/zsm.wasm" {
+      floating true
+    }
+    SwitchToMode "normal"
+  }
+}
+load_plugins {
+  "file:/home/me/auto.wasm"
+}
+theme "x"
+')"
+  mkdir -p "$dir/zellij/layouts"
+  printf '%s\n' 'layout {' '  pane size=1 borderless=true {' '    // hi-quiet' '    plugin location="file:/home/me/bar.wasm" {' '      format "x"' '    }' '  }' \
+    '  pane {' '    plugin location="file:/home/me/tree.wasm"' '  }' '  pane borderless=true {' '    plugin location="zellij:tab-bar"' '  }' '}' >"$dir/zellij/layouts/default.kdl"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3 | paste -sd, -)"
+  [ "$out" = "zellij/config.kdl|3|plugin,zellij/config.kdl|10|plugin,zellij/layouts/default.kdl|9|plugin" ] ||
+    _hi_because "the scan reported: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/config.kdl | grep -v '^// hi dropped: ')"
+  [ "$out" = 'keybinds {
+  bind "s" {
+    SwitchToMode "normal"
+  }
+}
+load_plugins {
+}
+theme "x"' ] || _hi_because "config.kdl arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/layouts/default.kdl | grep -v '^// hi dropped: ')"
+  [ "$out" = 'layout {
+  pane size=1 borderless=true {
+    // hi-quiet
+    plugin location="zellij:compact-bar"
+  }
+  pane {
+  }
+  pane borderless=true {
+    plugin location="zellij:tab-bar"
+  }
+}' ] || _hi_because "default.kdl arrived as: [$out]"
+}
+
 # _hi_carry_home <name> - a home whose tmux directory holds a theme that
 # sources a part of its own, and an overlay tmux.conf including both a file
 # there and one that is not: the fixture of the carry cases below
@@ -1445,6 +1541,33 @@ source-file $_HI_CARRY_TOKEN/tmux/theme.conf" ] || _hi_because "tmux.conf: [$(ca
   [ "$(cat "$d/tmux/theme.conf")" = "set -g @theme HI
 source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.conf: [$(cat "$d/tmux/theme.conf")]" || return 1
   [ "$(cat "$d/tmux/parts/bar.conf")" = 'set -g @bar HI' ]
+}
+
+# a line under hi-carry rides the files under $HOME it names, as written and
+# beside the member (a member with no directory gets <member>.carried), with
+# the path held for the target's overlay directory; a path outside $HOME is
+# the target's own, and one that is no file is the scan's to name
+function test_a_marked_line_rides_the_files_it_names() {
+  local h="$_HI_WORKDIR/marked" d out
+  mkdir -p "$h/.config/fd" "$h/.local/share" "$h/overlay/tmux"
+  printf '# mine\n*.log\n' >"$h/.config/fd/ignore"
+  printf 'Keys\n\n  ?  this sheet\n' >"$h/.local/share/keys.txt"
+  printf -- '--smart-case\n# hi-carry\n--ignore-file=%s/.config/fd/ignore\n' "$h" >"$h/overlay/ripgreprc"
+  printf '%s\n' 'set -g mouse on' '# hi-carry' 'bind ? display-popup "/usr/bin/less ~/.local/share/keys.txt"' \
+    '# hi-carry' 'bind g display-popup "less ~/gone.txt"' >"$h/overlay/tmux/tmux.conf"
+  set -- HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" PATH="$(_hi_fake_path marked-bins rg tmux):$PATH"
+  out="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_include_lint' | paste -sd, -)"
+  # shellcheck disable=SC2088 # the ~ the line wrote
+  [ "$out" = 'tmux/tmux.conf|5|carry|~/gone.txt is no file here' ] || _hi_because "the scan reported: [$out]" || return 1
+  d="$(mktemp -d "$_HI_WORKDIR/marked-unpacked.XXXXXX")" || return 1
+  env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_tar ripgreprc tmux/tmux.conf' | tar -x -z -f - -C "$d" || return 1
+  [ "$(cat "$d/ripgreprc")" = "--smart-case
+--ignore-file=$_HI_CARRY_TOKEN/ripgreprc.carried/ignore" ] || _hi_because "ripgreprc: [$(cat "$d/ripgreprc")]" || return 1
+  [ "$(cat "$d/ripgreprc.carried/ignore")" = "$(cat "$h/.config/fd/ignore")" ] || _hi_because "the ignore file did not ride as written" || return 1
+  [ "$(cat "$d/tmux/tmux.conf")" = "set -g mouse on
+bind ? display-popup \"/usr/bin/less $_HI_CARRY_TOKEN/tmux/carried/keys.txt\"
+bind g display-popup \"less ~/gone.txt\"" ] || _hi_because "tmux.conf: [$(cat "$d/tmux/tmux.conf")]" || return 1
+  [ "$(cat "$d/tmux/carried/keys.txt")" = "$(cat "$h/.local/share/keys.txt")" ] || _hi_because "the sheet did not ride as written"
 }
 
 # the target's half: a real sh makes every held path the directory the
@@ -2220,6 +2343,7 @@ function run_hi_payload_tests() {
   _hi_check "An overlay copy of a prompt framework's file wins" test_overlay_copy_of_a_prompt_framework_file_wins
   _hi_check "oh-my-posh's config rides from \$POSH_CONFIG, the rc, or the overlay" test_oh_my_posh_config_rides_from_home_or_overlay
   _hi_check "The prompt frameworks' home files ride, tide's lines alone" test_overlay_carries_the_prompt_frameworks_home_files
+  _hi_check "...p10k's from the ZDOTDIR a ~/.zshenv sets" test_p10k_rides_from_a_zshenv_zdotdir
   _hi_check "bash-it's theme is found in its loader's order" test_overlay_carries_the_bash_it_theme_by_loader_order
   _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
@@ -2231,13 +2355,17 @@ function run_hi_payload_tests() {
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
   _hi_check "...kept, and recut once the config is newer or Includes" test_ssh_tags_cut_is_reused_until_the_config_is_newer
   _hi_check_capable lockout "...and failing cleanly with no tag or no writable dir" test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir
+  _hi_check "...and leaving no temp file when the cut cannot land" test_ssh_tags_leaves_no_temp_file_when_the_cut_fails
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
   _hi_check "...and so does neovim's own vim.pack.add" test_vim_pack_add_is_a_plugin_finding
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
+  _hi_check "A multiplexer's default shell stays home" test_a_multiplexers_default_shell_stays_home
+  _hi_check "Every zellij plugin path is dropped, a bar's pane keeps a bar" test_every_zellij_plugin_path_is_dropped
   _hi_check "An include under the tool's own directory rides" test_an_include_under_the_tools_directory_rides
+  _hi_check "A line under hi-carry rides the files it names" test_a_marked_line_rides_the_files_it_names
   _hi_check "...its path lands on the target's overlay" test_a_carried_path_lands_on_the_target
   _hi_check "...it is no doctor finding" test_a_carried_include_is_no_finding
   _hi_check "An edit to a carried file rebuilds the cache" test_an_edit_to_a_carried_file_rebuilds_the_cache

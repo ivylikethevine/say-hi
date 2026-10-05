@@ -541,6 +541,16 @@ function test_install_gate_accepted_at_a_terminal_continues() {
     grep -qF "$_HI_MARKER" "$home/.bashrc"
 }
 
+# hi --configure quit at its menu writes nothing and says so
+function test_features_only_quit_leaves_the_settings() {
+  local home="$_HI_WORKDIR/feat-quit"
+  _hi_run_install_pty feat-quit 'q\n' --configure || return 1
+  grep -qF 'Settings left as they were' "$_HI_WORKDIR/feat-quit.pty.out" &&
+    ! grep -qF 'Features updated!' "$_HI_WORKDIR/feat-quit.pty.out" &&
+    [ ! -e "$home/.config/say-hi/settings.sh" ] ||
+    _hi_because "the run said: $(tail -5 "$_HI_WORKDIR/feat-quit.pty.out")"
+}
+
 # hi's own rc lines never read as a framework: a fresh configure over an
 # already-wired .zshrc (uninstall leaves the rc lines' backup, and a user may
 # keep hi's lines) finds nothing
@@ -1041,6 +1051,7 @@ function run_install_tests() {
   _hi_check_capable lockout "...and says when it cannot" test_uninstall_purge_says_when_it_cannot_remove
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
+  _hi_check_capable pty "...and quit at its menu, leaves them as they were" test_features_only_quit_leaves_the_settings
   _hi_check "--configure converts an old overlay first" test_configure_converts_an_old_overlay
   _hi_check "...and under --dry-run only says it would" test_configure_dry_run_converts_nothing
   _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written

@@ -345,8 +345,7 @@ myself.
 ## Roadmap
 
 What's left; nothing here is parked or descoped. One list, in the order the
-work is best done: what CI has yet to show, then the plugins and extensions
-formats 1.0 freezes, then the 1.0 tag. An entry is
+work is best done: what CI has yet to show, then the 1.0 tag. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
@@ -357,107 +356,28 @@ checkout: an account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
-       the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
-       `update.sh` and `preview.sh` from a scratch-tree copy (the first four
-       read 0% in run 36341616721, 91.11% overall) now link the real
-       `scripts/`, and each other gap has a test or is a blind spot
-       `tests/coverage_v2.sh`'s header lists. What is left is the
-       measurement. **Ticks when:** the first bashcov sweep on `main` after
-       this lands reads at least 95% and no shipped line at 0 that is
-       neither tested nor in that header.
+2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
 
-3. [ ] _Before 1.0:_ **A prompt program per shell** — shipped: a
-       `<shell>:<program>` entry in `_HI_PROMPT_TOOL` is tried first, by that
-       shell alone, so `bash:starship hi` draws starship in bash and hi's
-       prompt in zsh and fish; `hi --configure`'s Prompt page asks shell by
-       shell. What is left is a real connect. **Ticks when:** that setting
-       draws starship in bash and hi's prompt in zsh and fish on an ssh
-       target.
+3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+       upstream style. **Do:** open the PR against tldr-pages. **Ticks
+       when:** merged.
 
-4. [ ] _Before 1.0:_ **A session that outlives its connection** — shipped:
-       `hi --keep <target>` (or `_HI_KEEP=1`) runs the session in the
-       target's tmux, zellij, or screen as `hi-<target>`, any later
-       `hi <target>` reattaches, the first pane's `exit` asks before closing,
-       a session nobody is attached to closes after `_HI_KEEP_TIMEOUT`, and
-       `hi --end <target>` closes it from here
-       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)); `hi --keep` typed
-       inside a running session keeps that session; a pane opened in a kept
-       session is hi's session shell; a tree whose session died with the
-       target is removed by the next connect, which says the session is
-       gone; and a connect inside a local multiplexer retries a dropped
-       link for `_HI_KEEP_RETRY`. The `ssh_keep` e2e suite drives each of
-       those over a real sshd. What is left is seeing it in CI. **Ticks
-       when:** that suite is green in CI for tmux, screen, and zellij.
+4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+       the live entry matches the sheet.
 
-5. [ ] _Before 1.0:_ **The plugins files stay home** — shipped:
-       `config/plugins` is cut from every payload and the overlay's `plugins`
-       is no member, the packer being their one reader
-       ([HI.66](docs/GLOSSARY.md#hi66-the-packer-stays-home)), which takes
-       1.4 KB off the wire. What is left is seeing it in CI. **Ticks when:**
-       the `fast` and `bench` groups are green on it.
-
-6. [ ] _Before 1.0:_ **Every plugin in one file** — shipped:
-       `scripts/pack.sh`'s table holds hi's own files alone, the prompt
-       programs and `extensions/` are `config/plugins`', and `--plugin-off`
-       completes from the plugins files alone. What is left is
-       seeing it in CI. **Ticks when:** the `fast` group is green on it.
-
-7. [ ] _Before 1.0:_ **A plugin is a tool's table** — shipped: a plugins
-       file names each tool once, a `[<group>.<name>]` table of `files`,
-       `tool`, `wire`, `home`, and `dialect`, with a table of its own for a
-       file that differs
-       ([docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know));
-       `hi --add-plugin` and `hi --remove-plugin` write one, `hi --configure`
-       converts a file of the rows before it, and
-       [_What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
-       names keys, not columns. What is left is seeing it in CI, and the two
-       `docs/USAGE.md` images of the commands whose arguments changed.
-       **Ticks when:** the `fast`, `lint`, and `e2e` groups are green on it
-       and a `usage.yml` dispatch has redrawn `usage-add-plugin.svg` and
-       `usage-remove-plugin.svg`.
-
-8. [ ] _Before 1.0:_ **One reading of a wire** — shipped: the check that
-       admits a wire and the writer of the line every target sources both
-       take it apart through `_hi_wire_read`, and the check now covers a
-       wire's names and environment, which it let through unread. What is
-       left is seeing it in CI. **Ticks when:** the `fast` group is green on
-       it.
-
-9. [ ] _Before 1.0:_ **One loader for a directory of code** — shipped:
-       `extensions/`, `header/`, and `hi --doctor` list a directory through
-       `_hi_dir_members`, and a header cell bash cannot parse is skipped with
-       a line and named by `hi --doctor`, as an extension is. What is left is
-       seeing it in CI. **Ticks when:** the `fast` and `lint` groups are
-       green on it.
-
-10. [ ] _Before 1.0:_ **One extension off** — shipped:
-        `hi --plugin-off extensions/<name>` keeps one file of a directory
-        member home. What is left is seeing it in CI. **Ticks when:** the
-        `fast` group is green on it.
-
-11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-        versions_ prose into its version table.
-
-12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-        upstream style. **Do:** open the PR against tldr-pages. **Ticks
-        when:** merged.
-
-13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-        settle its three flagged rows (`small_tasks`, `secure_2FA`,
-        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-        the live entry matches the sheet.
-
-14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-        `publish-external.yml`'s `aur` job is written but unexercised. **When
-        it reopens:** register, add `AUR_SSH_KEY` to the `release`
-        environment, and push each package once by hand
-        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-        packages are live and a dispatch has kept `say-hi` current for one
-        release.
+5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+       `publish-external.yml`'s `aur` job is written but unexercised. **When
+       it reopens:** register, add `AUR_SSH_KEY` to the `release`
+       environment, and push each package once by hand
+       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+       packages are live and a dispatch has kept `say-hi` current for one
+       release.
 
 ## License
 

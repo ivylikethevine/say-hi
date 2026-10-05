@@ -173,6 +173,7 @@ files = "bat/config"
 [cli.rg]
 wire = "env:RIPGREP_CONFIG_PATH"
 home = "$RIPGREP_CONFIG_PATH"
+dialect = "conf"
 files = "ripgreprc"
 
 [cli.fzf]

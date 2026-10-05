@@ -245,8 +245,8 @@ function test_set_color_shipped_pin_is_a_no_op() {
   local home cfg out
   home="$(_hi_setcolor_fixture setcolor-shipped)"
   cfg="$_HI_WORKDIR/setcolor-shipped-cfg"
-  grep -Eq '^root += "red"$' "$home/say-hi/config/colors" || return 1
-  out="$(_hi_setcolor_run "$home" "$cfg" username root red)" || return 1
+  grep -Eq '^root += "red b00020"$' "$home/say-hi/config/colors" || return 1
+  out="$(_hi_setcolor_run "$home" "$cfg" username root red b00020)" || return 1
   [[ "$out" == *"is already in [username] - nothing to write"* ]] && [ ! -d "$cfg" ]
 }
 

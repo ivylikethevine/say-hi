@@ -38,7 +38,7 @@ work            = "brgreen"
 windows         = "bryellow"
 
 [username]
-root            = "red"
+root            = "red b00020"
 admin           = "magenta"
 ubuntu          = "yellow"
 debian          = "blue"

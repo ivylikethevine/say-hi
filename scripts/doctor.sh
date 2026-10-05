@@ -456,6 +456,10 @@ function doctor_config() {
       doctor_row "$member:$lineno" "$text has no ${text%%-start*}-end below it, so it decides nothing" warn
       continue
       ;;
+    carry)
+      doctor_row "$member:$lineno" "under hi-carry, $text - nothing rides for it" warn
+      continue
+      ;;
     plugin) said="names a plugin manager" ;;
     *) said="reads a file hi does not carry" ;;
     esac
@@ -646,7 +650,7 @@ function _hi_rc_names_tree() {
 
 # The install's own footprint, as rows: is each shell's rc wired, and to this
 # tree; is there a hi link, and where does `hi` on PATH lead; and the two
-# ways a wired rc file is never read (a macOS login bash, a ZDOTDIR). The
+# ways a wired rc file is never read (a macOS login bash, a moved .zshrc). The
 # section a half-finished `hi --install` shows up in - the one thing
 # "something is off, run hi --doctor" could not answer before.
 function doctor_install() {
@@ -675,11 +679,14 @@ function doctor_install() {
       doctor_row "$shell" "$target names ${other:-another tree}, this is $_HI_HOME (hi --install repairs it)" bad
     fi
   done
-  # zsh reads $ZDOTDIR/.zshrc and never ~/.zshrc when ZDOTDIR is set: lines
-  # in the wrong one are the usual way a working install stops working
-  if [ -n "${ZDOTDIR:-}" ] && _hi_has_marker "$HOME/.zshrc" && ! _hi_has_marker "$ZDOTDIR/.zshrc"; then
-    doctor_row zdotdir "$HOME/.zshrc has hi's lines, but ZDOTDIR points zsh at $ZDOTDIR/.zshrc (hi --install writes there now)" warn
-  fi
+  # zsh reads one .zshrc, under $ZDOTDIR or in ~ (_hi_zshrc_here): lines in
+  # the other are the usual way a working install stops working
+  _hi_zshrc_here target
+  for other in "$HOME/.zshrc" "${XDG_CONFIG_HOME:-$HOME/.config}/zsh/.zshrc"; do
+    if [ "$other" != "$target" ] && _hi_has_marker "$other" && ! _hi_has_marker "$target"; then
+      doctor_row zdotdir "$other has hi's lines, but zsh reads $target (hi --install writes there now)" warn
+    fi
+  done
   # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login,
   # and ~/.profile that exists - bash's own order - and never ~/.bashrc, so
   # the bashrc row above can be green and a Terminal.app shell still see

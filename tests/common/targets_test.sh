@@ -1091,7 +1091,7 @@ function test_word_flags_match_the_words_roster() {
 function test_words_add_package_with_no_overlay_lists_the_tree_groups() {
   local out
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --add-package)"
-  [[ "$out" == *"core$(printf '\t')a package check group"* && "$out" == *"platform$(printf '\t')"* ]] &&
+  [[ "$out" == *"core$(printf '\t')a package check group"* && "$out" == *"base$(printf '\t')"* ]] &&
     [[ "$out" != *bat* ]]
 }
 

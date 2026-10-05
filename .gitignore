@@ -34,6 +34,7 @@ CLAUDE.local.md
 /.claude/skills
 /.claude/workflows
 /.claude/.cc-writes
+/.vscode
 
 *.js
 *.ts

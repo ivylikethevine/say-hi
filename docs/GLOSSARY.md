@@ -1210,7 +1210,12 @@ finding but not reported. A pair, `hi-allow-start` and `hi-allow-end` or
 each word pairs on its own, a start with the next end of its word, so an allow
 pair inside a quiet one keeps its lines. A start with no such end decides
 nothing and is a row of its own kind, `unclosed`, which `hi --doctor` names; an
-end with no start is ignored. The scan cannot know a start is closed until the
+end with no start is ignored. A line under `hi-carry` is the one marked line
+that is never a finding: each file under `$HOME` it names rides as written -
+no scan, no strip, since it is no config of the member's dialect - under
+`<tool>/carried/`, or `<member>.carried/` where the member has no directory,
+and the line holds the carried path as a carried include does. What of it
+cannot ride is a row of the kind `carry`. The scan cannot know a start is closed until the
 file ends, so it reads the file through once for the pairs before it reads it
 for findings. There is no setting that turns the scan off: the comments are the
 per-line and per-block answer.

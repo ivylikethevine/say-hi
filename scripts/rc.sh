@@ -179,13 +179,16 @@ function tmpdir_line() {
 #
 # The rows come from core.sh's _HI_SHELL_TABLE, so a shell added to the
 # roster cannot miss this half. The substituted rc file
-# is where *this* user's shell reads it: zsh under $ZDOTDIR and fish under
-# $XDG_CONFIG_HOME when those are set. core.sh's column stays the plain
+# is where *this* user's shell reads it: zsh under its $ZDOTDIR, the
+# environment's or ~/.zshenv's (_hi_zshrc_here), and fish under
+# $XDG_CONFIG_HOME when that is set. core.sh's column stays the plain
 # $HOME form.
+# shellcheck source=./zshrc.sh
+source "$_HI_ROOT/scripts/zshrc.sh"
 _HI_RC_TABLE=()
 while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_dialect; do
   case "$_hi_shell" in
-  zsh) _hi_home_rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
+  zsh) _hi_zshrc_here _hi_home_rc ;;
   fish) _hi_home_rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish" ;;
   esac
   _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_tree_rc|$_hi_home_rc|$_hi_check|$_hi_dialect")

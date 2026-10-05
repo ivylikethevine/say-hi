@@ -369,6 +369,15 @@ function _hi_in_pkglib() {
   )
 }
 
+# a workflow secret lands in a file only its owner reads, whatever the umask
+function test_lib_write_key_writes_an_owner_only_file() {
+  local f="$_HI_WORKDIR/write-key"
+  (umask 022 && _hi_in_pkglib write_key "$f" 'the secret') || return 1
+  [ "$(cat "$f")" = 'the secret' ] || return 1
+  # shellcheck disable=SC2012 # the mode column, of a name this case chose
+  case "$(ls -l "$f")" in -rw-------*) ;; *) _hi_because "mode: $(ls -l "$f")" ;; esac
+}
+
 function test_lib_sha256_agrees_with_openssl() {
   local f="$_HI_WORKDIR/sum.probe"
   printf 'hash me\n' >"$f"
@@ -696,6 +705,7 @@ function run_packaging_tests() {
   _hi_check_requires gpg "verify_signing_key refuses a non-key secret" test_lib_verify_signing_key_refuses_a_non_key_secret
   _hi_check_requires openssl "verify_signing_key's rsa verdicts" test_lib_verify_signing_key_rsa_verdicts
   _hi_check_requires git "src_tarball carries the versioned prefix" test_lib_src_tarball_carries_the_versioned_prefix
+  _hi_check_capable mode_bits "write_key writes a file only its owner reads" test_lib_write_key_writes_an_owner_only_file
 
   _hi_h2 "Testing: mkpkg.sh's BSD fallbacks"
   _hi_check_capable symlink "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
