@@ -345,10 +345,9 @@ myself.
 ## Roadmap
 
 What's left; nothing here is parked or descoped. One list, in the order the
-work is best done: what CI has yet to show, then the plugins and extensions
-formats 1.0 freezes, then what a carried config still names that no target
-has, then the 1.0 tag. An entry is
-deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
+work is best done: what CI has yet to show, then what a carried config
+still names that no target has, then the 1.0 tag. An entry is deleted once
+its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
 1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
@@ -391,126 +390,62 @@ checkout: an account or an upstream review that lands when it lands.
        those over a real sshd. What is left is seeing it in CI. **Ticks
        when:** that suite is green in CI for tmux, screen, and zellij.
 
-5. [ ] _Before 1.0:_ **The plugins files stay home** — shipped:
-       `config/plugins` is cut from every payload and the overlay's `plugins`
-       is no member, the packer being their one reader
-       ([HI.66](docs/GLOSSARY.md#hi66-the-packer-stays-home)), which takes
-       1.4 KB off the wire. What is left is seeing it in CI. **Ticks when:**
-       the `fast` and `bench` groups are green on it.
+5. [ ] _Before 1.0:_ **zsh's rc is found where zsh reads it** — shipped:
+       `hi --install`, `hi --doctor`, and the packer's theme lookups read
+       the `.zshrc` under `ZDOTDIR`, the environment's or the one
+       `~/.zshenv` sets (read by a grammar, never sourced), else
+       `~/.zshrc`, and doctor names hi's lines left in the one zsh does not
+       read. What is left is seeing it in CI. **Ticks when:** the `fast`
+       and `lint` groups are green on it.
 
-6. [ ] _Before 1.0:_ **Every plugin in one file** — shipped:
-       `scripts/pack.sh`'s table holds hi's own files alone, the prompt
-       programs and `extensions/` are `config/plugins`', and `--plugin-off`
-       completes from the plugins files alone. What is left is
-       seeing it in CI. **Ticks when:** the `fast` group is green on it.
+6. [ ] _Before 1.0:_ **A carried config names nothing a target lacks** —
+       shipped: a plugin's `home` reads the `ZDOTDIR` a `~/.zshenv` sets, so
+       `p10k.zsh` rides from there; the `kdl` scan drops a plugin at a `file:`
+       path wherever zellij names one, and a layout's bar that loses its plugin
+       gets zellij's own compact-bar; tmux's `default-shell`, zellij's
+       `default_shell`, and screen's `shell` stay home, so a pane opens on the
+       session's `$SHELL`. What is left is seeing it in CI. **Ticks when:** the
+       `fast` and `lint` groups are green on it.
 
-7. [ ] _Before 1.0:_ **A plugin is a tool's table** — shipped: a plugins
-       file names each tool once, a `[<group>.<name>]` table of `files`,
-       `tool`, `wire`, `home`, and `dialect`, with a table of its own for a
-       file that differs
-       ([docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know));
-       `hi --add-plugin` and `hi --remove-plugin` write one, `hi --configure`
-       converts a file of the rows before it, and
-       [_What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
-       names keys, not columns. What is left is seeing it in CI, and the two
-       `docs/USAGE.md` images of the commands whose arguments changed.
-       **Ticks when:** the `fast`, `lint`, and `e2e` groups are green on it
-       and a `usage.yml` dispatch has redrawn `usage-add-plugin.svg` and
-       `usage-remove-plugin.svg`.
+7. [ ] _Before 1.0:_ **A pane is hi's session shell** — a multiplexer started
+       by hand in a session opens its panes on `$SHELL`, which reads hi's rc when
+       it is zsh or sh and none of it when it is bash or fish; `hi --keep` names
+       hi's own pane launcher
+       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). **Ticks when:** tmux,
+       zellij, and screen started by hand in a bash session open their panes with
+       hi's prompt and aliases.
 
-8. [ ] _Before 1.0:_ **One reading of a wire** — shipped: the check that
-       admits a wire and the writer of the line every target sources both
-       take it apart through `_hi_wire_read`, and the check now covers a
-       wire's names and environment, which it let through unread. What is
-       left is seeing it in CI. **Ticks when:** the `fast` group is green on
-       it.
+8. [ ] _Before 1.0:_ **`hi-carry`: a file a config reads rides with it** —
+       the scan carries an include and nothing else, so ripgrep's
+       `--ignore-file=<a path at home>` prints an error on every `rg` on a
+       target, and a key that opens a file from home (a cheatsheet in
+       `less`) opens nothing. The plan: a `hi-carry` comment, in the file's
+       own syntax like `hi-allow` and `hi-quiet` and with their `-start` and
+       `-end` pair, under which each path on the line rides as
+       `<tool>/carried/<name>` and is rewritten the way a carried include is
+       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)).
+       Still to settle, since 1.0 freezes both: the word itself, and where
+       the file of a member with no directory of its own (`ripgreprc`)
+       lands. **Ticks when:** a `ripgreprc` whose `--ignore-file` line sits
+       under the marker runs `rg` on a target with that file read and no
+       error, and `hi --doctor` names a marked path that is not there.
 
-9. [ ] _Before 1.0:_ **One loader for a directory of code** — shipped:
-       `extensions/`, `header/`, and `hi --doctor` list a directory through
-       `_hi_dir_members`, and a header cell bash cannot parse is skipped with
-       a line and named by `hi --doctor`, as an extension is. What is left is
-       seeing it in CI. **Ticks when:** the `fast` and `lint` groups are
-       green on it.
+9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
 
-10. [ ] _Before 1.0:_ **One extension off** — shipped:
-        `hi --plugin-off extensions/<name>` keeps one file of a directory
-        member home. What is left is seeing it in CI. **Ticks when:** the
-        `fast` group is green on it.
-
-11. [ ] _Before 1.0:_ **zsh's rc is found where zsh reads it** — shipped:
-        `hi --install`, `hi --doctor`, and the packer's theme lookups read
-        the `.zshrc` under `ZDOTDIR`, the environment's or the one
-        `~/.zshenv` sets (read by a grammar, never sourced), else
-        `~/.zshrc`, and doctor names hi's lines left in the one zsh does not
-        read. What is left is seeing it in CI. **Ticks when:** the `fast`
-        and `lint` groups are green on it.
-
-12. [ ] _Before 1.0:_ **A `home` path reads the `ZDOTDIR` zsh has** — a
-        plugin's `home` expands `$ZDOTDIR` from the environment alone, so a
-        `.p10k.zsh` under a `ZDOTDIR` that `~/.zshenv` sets is passed over
-        for `~/.p10k.zsh` when hi runs from bash or fish. **Ticks when:**
-        `p10k.zsh` rides from that directory with `ZDOTDIR` unset in hi's
-        environment.
-
-13. [ ] _Before 1.0:_ **Every zellij plugin path is scanned** — the `kdl`
-        dialect finds `plugin location="file:..."` alone, so a key bound to
-        `LaunchOrFocusPlugin "file:..."`, a `load_plugins` entry, or a
-        `MessagePlugin` rides naming a `.wasm` no target has, and opens an
-        error pane there. **Ticks when:** each of those is a finding the
-        scan drops, with a test for each.
-
-14. [ ] _Before 1.0:_ **A dropped zellij plugin takes its pane with it** —
-        a layout whose bar is a `pane size=1 borderless=true` holding a
-        `plugin location="file:..."` loses the plugin and keeps the pane,
-        which a target opens as a one-row shell above every tab, with no tab
-        bar.
-        **Ticks when:** such a layout opens on a target with zellij's own
-        bar, or with no pane, in its place.
-
-15. [ ] _Before 1.0:_ **A multiplexer's shell is the target's** — a carried
-        `tmux.conf`'s `default-shell`, zellij's `default_shell`, and
-        screen's `shell` name a path on the client: tmux reports the line on
-        every start where the target lacks it, zellij opens no pane, and
-        where the path exists the pane runs that shell without hi's rc.
-        `hi --keep` already names hi's own pane launcher
-        ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). **Ticks when:** tmux,
-        zellij, and screen started by hand in a session, on a target without
-        the client's shell, open their panes in hi's session shell.
-
-16. [ ] _Before 1.0:_ **A file a config reads rides with it** — the scan
-        carries an include and nothing else, so ripgrep's
-        `--ignore-file=<a path at home>` prints an error on every `rg` on a
-        target, and a key that opens a file from home (a cheatsheet in
-        `less`) opens nothing. **Ticks when:** a line under a marker of its
-        own rides each path it names beside the member, rewritten as a
-        carried include is
-        ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)).
-
-17. [ ] _Before 1.0:_ **nano: what needs a dropped include goes with it** —
-        an `extendsyntax` naming a syntax a dropped `include` defined is an
-        error, and nano answers one with `Mistakes in '<rcfile>'` and the
-        bell on every start; the target's own `/usr/share/nano/*.nanorc` is
-        not read in the dropped include's place either, so nothing is
-        highlighted. **Ticks when:** a nanorc whose syntax include is
-        dropped opens on a target without that message, and highlights with
-        the target's own syntax files where it has them.
-
-18. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-        versions_ prose into its version table.
-
-19. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-20. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-21. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

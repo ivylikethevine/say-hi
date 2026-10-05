@@ -77,7 +77,7 @@ function _hi_row_col() {
 }
 
 # The dialects a row's <dialect> names, for _hi_lint_awk and _hi_strip_awk:
-# <name> | <leader> | <strip> | <end> | <disable> | <plugin> | <include> | <allow>,
+# <name> | <leader> | <strip> | <end> | <disable> | <plugin> | <include> | <allow> | <stand-in>,
 # no column holding a ` | `, - for none. <leader> starts a comment line; with
 # <strip> 1 the strip drops those, blank lines, and indentation. <end> is
 # where a statement ends: line, \ (a line ending in one continues it), ()
@@ -89,29 +89,31 @@ function _hi_row_col() {
 # plugin manager, and one matching <include> is an include, once the text
 # <allow> matches is taken out - for a : or true disable, <include> is the
 # verb in command position and <allow> the file words it leaves alone.
+# <stand-in> is `<ERE> => <line>`: a dropped plugin directly under a line the
+# ERE matches leaves <line> in its place.
 _HI_DIALECTS=()
 
 # _hi_dialect_row <name> <outvar> - its $_HI_DIALECTS row; 1 for none
 function _hi_dialect_row() {
   local _hi_dr
   ((${#_HI_DIALECTS[@]})) || _hi_read_lines _HI_DIALECTS <<'ROWS'
-sh | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"]
-omz | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|ZSH)[}/"]
-omb | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|OSH)[}/"]
-bash-it | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|BASH_IT)[}/"]
-fish | # | 1 | line | true | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"]
-vim | " | 1 | line | comment | ^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]|(plug|vundle|dein|minpac)# | ^[ \t]*(source|so)!?[ \t] | .*[$]VIMRUNTIME.*
-lua | -- | 1 | ()' | comment | lazypath|rtp:prepend|vim[.]pack[.]add|require[ \t]*[(]?[ \t]*["'](lazy|packer|paq)|AddRuntimeFile.*RTPlugin | AddRuntimeFile|(dofile|loadfile)[ \t]*[(]|vim[.]cmd.*source[ \t]|require[ \t]*[(]?[ \t]*["'] | require[ \t]*[(]?[ \t]*["']vim[.]
-elisp | ; | 1 | () | comment | [(](package-initialize|package-install|use-package|straight-|elpaca) | [(]load(-file)?[ \t]+"|add-to-list[ \t]+'load-path | -
-nano | # | 1 | line | comment | - | ^[ \t]*include[ \t] | ^[ \t]*include[ \t]+["']?/usr/share/nano/?[^/"' \t]*(["' \t].*)?$
-tmux | # | 1 | \ | comment | @plugin|(^|[ \t;{"'])run(-shell)?[ \t].*tpm | (^|[ \t;{"'])source(-file)?[ \t] | -
-screen | # | 1 | line | comment | - | ^[ \t]*source[ \t] | -
-readline | # | 1 | line | comment | - | ^[ \t]*[$]include[ \t] | ^[ \t]*[$]include[ \t]+/etc/inputrc([ \t].*)?$
-kak | # | 0 | line | comment | ^[ \t]*(plug|bundle)[ \t]|(plug|bundle)[.]kak | (^|[ \t;{])source[ \t] | .*%val[{]runtime[}].*
-kdl | // | 0 | () | comment | location[ \t]*=[ \t]*"file: | ^[ \t]*(layout_dir|theme_dir)[ \t] | -
-omp | # | 0 | line | comment | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?://
-omp-json | - | 0 | line | "" | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?://
-conf | # | 1 | line | comment | - | - | -
+sh | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"] | -
+omz | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|ZSH)[}/"] | -
+omb | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|OSH)[}/"] | -
+bash-it | # | 1 | line | : | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT|BASH_IT)[}/"] | -
+fish | # | 1 | line | true | ^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t] | ([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|[.])[ \t]+ | ^"?[$][{]?(_HI_CONFIG_DIR|_HI_ROOT)[}/"] | -
+vim | " | 1 | line | comment | ^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]|(plug|vundle|dein|minpac)# | ^[ \t]*(source|so)!?[ \t] | .*[$]VIMRUNTIME.* | -
+lua | -- | 1 | ()' | comment | lazypath|rtp:prepend|vim[.]pack[.]add|require[ \t]*[(]?[ \t]*["'](lazy|packer|paq)|AddRuntimeFile.*RTPlugin | AddRuntimeFile|(dofile|loadfile)[ \t]*[(]|vim[.]cmd.*source[ \t]|require[ \t]*[(]?[ \t]*["'] | require[ \t]*[(]?[ \t]*["']vim[.] | -
+elisp | ; | 1 | () | comment | [(](package-initialize|package-install|use-package|straight-|elpaca) | [(]load(-file)?[ \t]+"|add-to-list[ \t]+'load-path | - | -
+nano | # | 1 | line | comment | - | ^[ \t]*include[ \t] | ^[ \t]*include[ \t]+["']?/usr/share/nano/?[^/"' \t]*(["' \t].*)?$ | -
+tmux | # | 1 | \ | comment | @plugin|(^|[ \t;{"'])run(-shell)?[ \t].*tpm | (^|[ \t;{"'])(source(-file)?|set(-option)?[ \t]+(-[A-Za-z]+[ \t]+)*default-shell)[ \t] | - | -
+screen | # | 1 | line | comment | - | ^[ \t]*(source|shell|defshell)[ \t] | - | -
+readline | # | 1 | line | comment | - | ^[ \t]*[$]include[ \t] | ^[ \t]*[$]include[ \t]+/etc/inputrc([ \t].*)?$ | -
+kak | # | 0 | line | comment | ^[ \t]*(plug|bundle)[ \t]|(plug|bundle)[.]kak | (^|[ \t;{])source[ \t] | .*%val[{]runtime[}].* | -
+kdl | // | 0 | () | comment | "file: | ^[ \t]*(layout_dir|theme_dir|default_shell)[ \t] | - | ^[ \t]*pane[ \t].*borderless[ \t]*=[ \t]*true => plugin location="zellij:compact-bar"
+omp | # | 0 | line | comment | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?:// | -
+omp-json | - | 0 | line | "" | - | (^|[ \t{,"'])extends["']?[ \t]*[:=][ \t]*["']?[^"' \t,}]*([/~\\][^"' \t,}]*|[.](json|jsonc|ya?ml|toml))(["' \t,}]|$) | extends["']?[ \t]*[:=][ \t]*["']?https?:// | -
+conf | # | 1 | line | comment | - | - | - | -
 ROWS
   for _hi_dr in "${_HI_DIALECTS[@]}"; do
     [ "${_hi_dr%% | *}" != "$1" ] || {
@@ -351,11 +353,11 @@ function _hi_words_ok() {
 # _hi_path_list <list> - a row's home column into the caller's $_hi_paths:
 # candidates a : apart, best first, each a path that starts at /, at ~/ (this
 # $HOME), or at $NAME (that variable, the path dropped while it is unset or
-# empty). A candidate is one path or several a , apart, of which the first
+# empty; $ZDOTDIR is also the one ~/.zshenv sets). A candidate is one path or several a , apart, of which the first
 # not dropped is the one: where a tool looks once its variable is unset.
 # Nothing else expands and nothing runs. GLOSSARY: HI.63
 function _hi_path_list() {
-  local _hi_pa_s="$1:" _hi_pa_a _hi_pa_c _hi_pa_n
+  local _hi_pa_s="$1:" _hi_pa_a _hi_pa_c _hi_pa_n _hi_pa_v
   _hi_paths=()
   while [ -n "$_hi_pa_s" ]; do
     _hi_pa_a="${_hi_pa_s%%:*}," _hi_pa_s="${_hi_pa_s#*:}"
@@ -369,8 +371,15 @@ function _hi_path_list() {
         _hi_pa_n="${_hi_pa_c#?}"
         _hi_pa_n="${_hi_pa_n%%/*}"
         _hi_words_ok "$_hi_pa_n" 'A-Za-z_' 'A-Za-z0-9_' && [ "${_hi_pa_n% *}" = "$_hi_pa_n" ] || continue
-        [ -n "${!_hi_pa_n:-}" ] || continue
-        _hi_pa_c="${!_hi_pa_n}${_hi_pa_c#"\$$_hi_pa_n"}"
+        _hi_pa_v="${!_hi_pa_n:-}"
+        # a ~/.zshenv's ZDOTDIR is in no environment but a zsh's
+        if [ -z "$_hi_pa_v" ] && [ "$_hi_pa_n" = ZDOTDIR ]; then
+          _hi_zshrc_here _hi_pa_v
+          _hi_pa_v="${_hi_pa_v%/.zshrc}"
+          [ "$_hi_pa_v" != "$HOME" ] || _hi_pa_v=""
+        fi
+        [ -n "$_hi_pa_v" ] || continue
+        _hi_pa_c="$_hi_pa_v${_hi_pa_c#"\$$_hi_pa_n"}"
         ;;
       *) continue ;;
       esac
@@ -942,16 +951,21 @@ function _hi_tool_here() {
 #           matching nothing costs the whole rcfile - nano says "Mistakes in
 #           '<rcfile>'" on the status bar and rings the bell. The path is
 #           read as one word, so a trailing comment cannot fool the rule.
-#   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
-#           of tpm). Line-oriented, but a finding ending in `\` takes its
-#           continuation lines with it.
-#   screen  `source` of a file.
+#   tmux    `source-file`/`source` of a path, a `default-shell` (a path on
+#           the client: without it a pane opens on the session's $SHELL), and
+#           TPM (`@plugin`, a `run` of tpm). Line-oriented, but a finding
+#           ending in `\` takes its continuation lines with it.
+#   screen  `source` of a file, and `shell`/`defshell`, as tmux's.
 #   inputrc `$include` of anything but /etc/inputrc, the system file an
 #           $INPUTRC stops readline reading on its own.
 #   kak     `source` of anything but %val{runtime}'s (the target's own), and
 #           the managers (plug.kak's `plug`, kak-bundle's `bundle`).
 #   kdl     zellij's `layout_dir`/`theme_dir` (its own layouts/ and themes/
-#           ride beside config.kdl) and a plugin `location="file:..."`.
+#           ride beside config.kdl), its `default_shell`, as tmux's, and a
+#           plugin at a `"file:..."` wherever one is named: a layout's
+#           `location=`, a `LaunchOrFocusPlugin`, `load_plugins`. A layout's
+#           borderless pane that loses its plugin is a bar, and gets
+#           zellij's own compact-bar: left empty, it opens as a shell.
 #   omp     oh-my-posh's `extends` naming a local file; a URL or a theme name
 #           resolves on the target. JSON has no comment, so there the value is
 #           emptied, which oh-my-posh reads as no base; yaml and toml comment it.
@@ -1068,6 +1082,8 @@ FNR == 1 {
   for (i = 6; i <= 8; i++) gsub(/\\t/, "\t", f[i])
   lead = f[2]; stmt = f[4]; noop = f[5]; plug = f[6]; inc = f[7]; allow = f[8]
   blank = (noop == "\"\""); if (noop == "comment" || blank) noop = ""
+  under = standin = prev = ""; i = index(f[9], " => ")
+  if (i) { under = substr(f[9], 1, i - 1); standin = substr(f[9], i + 4); gsub(/\\t/, "\t", under) }
 }
 FNR in bad { printf "%s|%d|unclosed|%s\n", name, FNR, trim($0) }
 depth > 0 {
@@ -1081,8 +1097,9 @@ depth > 0 {
   kind = (allow_l || (("allow", FNR) in blk)) ? "" : kindof($0)
   hush = quiet || (("quiet", FNR) in blk)
   w = mark($0); allow_l = (w == "allow"); quiet = (w == "quiet")
-  if (kind == "") { if (mode == "fix") print > out; next }
+  if (kind == "") { if (mode == "fix") print > out; if ($0 ~ /[^ \t]/) prev = $0; next }
   if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
+  if (mode == "fix" && kind == "plugin" && under != "" && prev ~ under) { match($0, /^[ \t]*/); print substr($0, 1, RLENGTH) standin > out }
   if (mode == "fix") print ((noop != "" || blank) ? fixed : lead " hi dropped: " $0) > out
   if (stmt ~ /^\(\)/) { depth = bal($0); if (depth < 0) depth = 0 }
   if (stmt == "\\") depth = ($0 ~ /\\$/)

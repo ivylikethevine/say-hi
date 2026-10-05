@@ -360,6 +360,20 @@ function test_overlay_carries_the_prompt_frameworks_home_files() {
   [ ! -e "$d/oh-my-zsh.zsh-theme" ]
 }
 
+# p10k's wizard writes under $ZDOTDIR, which a ~/.zshenv sets for zsh alone:
+# hi run from bash or fish finds that file, not a stale ~/.p10k.zsh
+function test_p10k_rides_from_a_zshenv_zdotdir() {
+  local dir d h="$_HI_WORKDIR/p10k-zshenv"
+  mkdir -p "$h/zd"
+  # shellcheck disable=SC2016 # zsh's to expand
+  printf 'export ZDOTDIR="$HOME/zd"\n' >"$h/.zshenv"
+  printf 'typeset -g POWERLEVEL9K_MODE=stale\n' >"$h/.p10k.zsh"
+  printf 'typeset -g POWERLEVEL9K_MODE=zdotdir\n' >"$h/zd/.p10k.zsh"
+  dir="$(_hi_overlay_fixture p10k-zshenv colors)"
+  d="$(_hi_tool_home_unpacked "$dir" HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL=powerlevel10k)" || return 1
+  [ "$(cat "$d/p10k.zsh")" = 'typeset -g POWERLEVEL9K_MODE=zdotdir' ] || _hi_because "p10k.zsh arrived as: [$(cat "$d/p10k.zsh" 2>&1)]"
+}
+
 # bash-it's theme is found where bash_it.sh's loader looks for a bare name:
 # the custom themes dir ($BASH_IT_CUSTOM, else ~/.bash_it/custom) over the
 # built-in one; oh-my-bash takes a .theme.bash where there is no .theme.sh
@@ -1419,6 +1433,74 @@ source-file -q ~/.tmux.kept' ] || {
   }
 }
 
+# a multiplexer's default shell is a path on the client: dropped, a pane
+# opens on the session's $SHELL; a line that only names the option stays
+function test_a_multiplexers_default_shell_stays_home() {
+  local dir out
+  dir="$(_hi_lint_fixture muxshell tmux/tmux.conf 'set -g mouse on
+set -g default-shell /usr/bin/fish
+set-option -g -q default-shell /opt/zsh
+set -g status-left "default-shell"
+')"
+  printf 'defscrollback 100\nshell /usr/bin/fish\ndefshell -fish\n' >"$dir/screenrc"
+  mkdir -p "$dir/zellij"
+  printf 'theme "x"\ndefault_shell "/usr/bin/fish"\n' >"$dir/zellij/config.kdl"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux/tmux.conf)"
+  [ "$out" = 'set -g mouse on
+set -g status-left "default-shell"' ] || _hi_because "tmux.conf arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat screenrc)"
+  [ "$out" = 'defscrollback 100' ] || _hi_because "screenrc arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/config.kdl | grep -v '^// hi dropped: ')"
+  [ "$out" = 'theme "x"' ] || _hi_because "config.kdl arrived as: [$out]"
+}
+
+# zellij names a plugin's .wasm in more places than a layout's location=: a
+# key's LaunchOrFocusPlugin and load_plugins go the same way, each whole. A
+# layout's borderless pane that loses its plugin was a bar, and an empty pane
+# opens as a shell, so zellij's own bar stands in; any other pane is left
+function test_every_zellij_plugin_path_is_dropped() {
+  local dir out
+  dir="$(_hi_lint_fixture zjplug zellij/config.kdl 'keybinds {
+  bind "s" {
+    LaunchOrFocusPlugin "file:/home/me/zsm.wasm" {
+      floating true
+    }
+    SwitchToMode "normal"
+  }
+}
+load_plugins {
+  "file:/home/me/auto.wasm"
+}
+theme "x"
+')"
+  mkdir -p "$dir/zellij/layouts"
+  printf '%s\n' 'layout {' '  pane size=1 borderless=true {' '    plugin location="file:/home/me/bar.wasm" {' '      format "x"' '    }' '  }' \
+    '  pane {' '    plugin location="file:/home/me/tree.wasm"' '  }' '  pane borderless=true {' '    plugin location="zellij:tab-bar"' '  }' '}' >"$dir/zellij/layouts/default.kdl"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3 | paste -sd, -)"
+  [ "$out" = "zellij/config.kdl|3|plugin,zellij/config.kdl|10|plugin,zellij/layouts/default.kdl|3|plugin,zellij/layouts/default.kdl|8|plugin" ] ||
+    _hi_because "the scan reported: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/config.kdl | grep -v '^// hi dropped: ')"
+  [ "$out" = 'keybinds {
+  bind "s" {
+    SwitchToMode "normal"
+  }
+}
+load_plugins {
+}
+theme "x"' ] || _hi_because "config.kdl arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/layouts/default.kdl | grep -v '^// hi dropped: ')"
+  [ "$out" = 'layout {
+  pane size=1 borderless=true {
+    plugin location="zellij:compact-bar"
+  }
+  pane {
+  }
+  pane borderless=true {
+    plugin location="zellij:tab-bar"
+  }
+}' ] || _hi_because "default.kdl arrived as: [$out]"
+}
+
 # _hi_carry_home <name> - a home whose tmux directory holds a theme that
 # sources a part of its own, and an overlay tmux.conf including both a file
 # there and one that is not: the fixture of the carry cases below
@@ -2220,6 +2302,7 @@ function run_hi_payload_tests() {
   _hi_check "An overlay copy of a prompt framework's file wins" test_overlay_copy_of_a_prompt_framework_file_wins
   _hi_check "oh-my-posh's config rides from \$POSH_CONFIG, the rc, or the overlay" test_oh_my_posh_config_rides_from_home_or_overlay
   _hi_check "The prompt frameworks' home files ride, tide's lines alone" test_overlay_carries_the_prompt_frameworks_home_files
+  _hi_check "...p10k's from the ZDOTDIR a ~/.zshenv sets" test_p10k_rides_from_a_zshenv_zdotdir
   _hi_check "bash-it's theme is found in its loader's order" test_overlay_carries_the_bash_it_theme_by_loader_order
   _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
@@ -2237,6 +2320,8 @@ function run_hi_payload_tests() {
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
   _hi_check "...and so does neovim's own vim.pack.add" test_vim_pack_add_is_a_plugin_finding
   _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
+  _hi_check "A multiplexer's default shell stays home" test_a_multiplexers_default_shell_stays_home
+  _hi_check "Every zellij plugin path is dropped, a bar's pane keeps a bar" test_every_zellij_plugin_path_is_dropped
   _hi_check "An include under the tool's own directory rides" test_an_include_under_the_tools_directory_rides
   _hi_check "...its path lands on the target's overlay" test_a_carried_path_lands_on_the_target
   _hi_check "...it is no doctor finding" test_a_carried_include_is_no_finding

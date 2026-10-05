@@ -649,9 +649,11 @@ has none. So hi reads each of these files — and the overlay's `settings.sh`,
 `aliases.sh`, `extensions/` and `header/` members, per-shell rc files, and the
 prompt configs it carries — for lines naming something it cannot carry: vim's
 `source`, lua's `require`/`dofile` (and micro's `AddRuntimeFile`), nano's
-`include`, elisp's `load`, tmux's `source-file` and TPM, screen's `source`,
-readline's `$include` of anything but `/etc/inputrc`, zellij's
-`layout_dir`/`theme_dir` and file plugins, oh-my-posh's `extends` of a local
+`include`, elisp's `load`, tmux's `source-file`, `default-shell`, and TPM,
+screen's `source` and `shell`, readline's `$include` of anything but
+`/etc/inputrc`, zellij's `layout_dir`/`theme_dir`, `default_shell`, and every
+plugin at a `file:` path (a layout's bar gets zellij's own compact-bar in its
+place), oh-my-posh's `extends` of a local
 file (emptied, since JSON has no comment), a shell's `source`/`.` of a file
 outside `$_HI_CONFIG_DIR` (a framework theme may also source its own tree -
 `$ZSH`, `$OSH`, `$BASH_IT` - see
