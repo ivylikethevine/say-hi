@@ -1102,7 +1102,7 @@ depth > 0 {
   hush = quiet || (("quiet", FNR) in blk)
   allow_l = (w == "allow"); quiet = (w == "quiet"); carry_l = (w == "carry")
   if (carry) printf "%s|%d|carry|%s\n", name, FNR, trim($0)
-  if (kind == "") { if (mode == "fix") print > out; if ($0 ~ /[^ \t]/) prev = $0; next }
+  if (kind == "") { if (mode == "fix") print > out; if ($0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))) prev = $0; next }
   if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
   if (mode == "fix" && kind == "plugin" && under != "" && prev ~ under) { match($0, /^[ \t]*/); print substr($0, 1, RLENGTH) standin > out }
   if (mode == "fix") print ((noop != "" || blank) ? fixed : lead " hi dropped: " $0) > out

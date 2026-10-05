@@ -1469,7 +1469,8 @@ set -g status-left "default-shell"' ] || _hi_because "tmux.conf arrived as: [$ou
 # zellij names a plugin's .wasm in more places than a layout's location=: a
 # key's LaunchOrFocusPlugin and load_plugins go the same way, each whole. A
 # layout's borderless pane that loses its plugin was a bar, and an empty pane
-# opens as a shell, so zellij's own bar stands in; any other pane is left
+# opens as a shell, so zellij's own bar stands in, a marker comment above
+# the plugin or not; any other pane is left
 function test_every_zellij_plugin_path_is_dropped() {
   local dir out
   dir="$(_hi_lint_fixture zjplug zellij/config.kdl 'keybinds {
@@ -1486,10 +1487,10 @@ load_plugins {
 theme "x"
 ')"
   mkdir -p "$dir/zellij/layouts"
-  printf '%s\n' 'layout {' '  pane size=1 borderless=true {' '    plugin location="file:/home/me/bar.wasm" {' '      format "x"' '    }' '  }' \
+  printf '%s\n' 'layout {' '  pane size=1 borderless=true {' '    // hi-quiet' '    plugin location="file:/home/me/bar.wasm" {' '      format "x"' '    }' '  }' \
     '  pane {' '    plugin location="file:/home/me/tree.wasm"' '  }' '  pane borderless=true {' '    plugin location="zellij:tab-bar"' '  }' '}' >"$dir/zellij/layouts/default.kdl"
   out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1-3 | paste -sd, -)"
-  [ "$out" = "zellij/config.kdl|3|plugin,zellij/config.kdl|10|plugin,zellij/layouts/default.kdl|3|plugin,zellij/layouts/default.kdl|8|plugin" ] ||
+  [ "$out" = "zellij/config.kdl|3|plugin,zellij/config.kdl|10|plugin,zellij/layouts/default.kdl|9|plugin" ] ||
     _hi_because "the scan reported: [$out]" || return 1
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/config.kdl | grep -v '^// hi dropped: ')"
   [ "$out" = 'keybinds {
@@ -1503,6 +1504,7 @@ theme "x"' ] || _hi_because "config.kdl arrived as: [$out]" || return 1
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat zellij/layouts/default.kdl | grep -v '^// hi dropped: ')"
   [ "$out" = 'layout {
   pane size=1 borderless=true {
+    // hi-quiet
     plugin location="zellij:compact-bar"
   }
   pane {
