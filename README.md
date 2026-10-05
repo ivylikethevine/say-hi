@@ -345,9 +345,8 @@ myself.
 ## Roadmap
 
 What's left; nothing here is parked or descoped. One list, in the order the
-work is best done: what CI has yet to show, then what a carried config
-still names that no target has, then the 1.0 tag. An entry is deleted once
-its **Ticks when** holds. _Post 1.0_ entries are outside this
+work is best done: what CI has yet to show, then the 1.0 tag. An entry is
+deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
 1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
@@ -357,42 +356,22 @@ checkout: an account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _Before 1.0:_ **A prompt program per shell** — shipped: a
-       `<shell>:<program>` entry in `_HI_PROMPT_TOOL` is tried first, by that
-       shell alone, so `bash:starship hi` draws starship in bash and hi's
-       prompt in zsh and fish; `hi --configure`'s Prompt page asks shell by
-       shell. What is left is a real connect. **Ticks when:** that setting
-       draws starship in bash and hi's prompt in zsh and fish on an ssh
-       target.
-
-3. [ ] _Before 1.0:_ **`hi-carry`: a file a config reads rides with it** —
-       shipped: under a `hi-carry` comment, in the file's own syntax and
-       with a `-start` and `-end` pair like `hi-allow`'s, each file under
-       your home directory a line names rides as written, in
-       `<tool>/carried/` or `<member>.carried/`, and the line is pointed at
-       the copy; `hi --doctor` names one that is not there
-       ([docs/SETTINGS.md](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
-       `ripgreprc` is read as `conf`, so its comments stay home. What is
-       left is a real connect. **Ticks when:** a `ripgreprc` whose
-       `--ignore-file` line sits under the marker runs `rg` on an ssh target
-       with that file read and no error.
-
-4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

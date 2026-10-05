@@ -83,7 +83,7 @@ the shipped defaults an overlay copy replaces.
 | `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                                                                                                                               |
 | `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                                                                                                                                                   |
 | `config/colors`                         | Color pins, in TOML.                                                                                                                                                                                                                        |
-| `config/packages`                       | What the package check looks for, in TOML, a table per group: `core`, `useful`, and `deprecated` run by default; `extras`, `trivia`, `base`, and `platform` wait to be switched on.                                                         |
+| `config/packages`                       | What the package check looks for, in TOML, a table per group: `core`, `useful`, and `deprecated` run by default; `base` waits to be switched on. `docs/packages.example` is a longer list to copy.                                          |
 | `config/plugins`                        | Every tool's configs hi carries, in TOML: a table per plugin, with its files, its tool, its wire, its places at home, and its dialect ([SETTINGS.md](SETTINGS.md#a-tool-hi-does-not-know)). Read where the payload is packed, and not sent. |
 
 ### scripts/

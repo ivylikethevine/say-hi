@@ -87,6 +87,15 @@ _HI_PROMPT_HI=(
   "bashit:/bin/bash:bash-it"
 )
 
+# <shell>:<login shell>. The starship image once per shell, the prompt handed
+# out shell by shell (pershell:<shell>, `bash:starship hi`): starship draws
+# in bash alone, and hi's own prompt in zsh and fish. GLOSSARY: HI.32
+_HI_PROMPT_PER_SHELL=(
+  "bash:/bin/bash"
+  "zsh:/usr/bin/zsh"
+  "fish:/usr/bin/fish"
+)
+
 # The line each case types into the live session, once hi and the framework are
 # both loaded. Built from two arguments because a pty echoes the input, so the
 # token must be assembled by the shell. zsh checks the array base (hi must not
@@ -131,13 +140,21 @@ function _hi_framework_probe() {
   # the carried include's; the alias is the first word, so it expands. nano, on a pty of its own and
   # closed by a ^X, has to paint a shell script in a color: under --rcfile
   # the carried nanorc is the only one read, so the target's set is what did.
+  # rg leaves out what the ignore file under the ripgreprc's hi-carry names,
+  # and says nothing on stderr about a file it could not read;
   # fzf filters with the client's --exact, so only the exact match comes back
-  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && tmux -L hi show-options -gv @hi_carried | grep -qx HICARRY && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && test \"\$(printf 'axb\\nab\\n' | fzf --filter ab)\" = ab && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && tmux -L hi show-options -gv @hi_carried | grep -qx HICARRY && grep -qs 7 \"\$_HI_CONFIG_DIR/micro/settings.json\" && grep -qs '^include \"/usr/share/nano/\*\.nanorc\"\$' \"\$_HI_NANORC\" && printf '# a note\\nexit 0\\n' >/tmp/hiprobe.sh && (sleep 2; printf '\\030') | TERM=xterm script -qec \"stty rows 24 cols 80; nano --rcfile \$_HI_NANORC /tmp/hiprobe.sh\" /dev/null | grep -Eq \"\$(printf '\\033')\\[(3[0-7]|9[0-7]|38;)\" && rg --type-list | grep -q '^hitest:' && mkdir -p /tmp/hirg && printf 'HIRGWORD\\n' >/tmp/hirg/a.hiskip && printf 'HIRGWORD\\n' >/tmp/hirg/b.txt && test \"\$(rg -l HIRGWORD /tmp/hirg 2>&1)\" = /tmp/hirg/b.txt && test \"\$(printf 'axb\\nab\\n' | fzf --filter ab)\" = ab && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # the tools case: hx names the language server the carried languages.toml
   # configures, kak's own colorscheme sets its option, lazygit draws in the
   # language its carried config asks for (U+6587, spelled in octal so the pty
   # carries ASCII), and git reads the overlay's own row
   tools) printf '%s\n' "hx --health toml 2>&1 | grep -q hitest-ls && timeout 20 kak -ui dummy -e 'echo -to-file /tmp/hikak %opt{hi_scheme}; kill' && grep -q HITHEME /tmp/hikak && git init -q /tmp/hilg && (sleep 5; printf q) | TERM=xterm timeout 30 script -qec 'stty rows 30 cols 100; lazygit -p /tmp/hilg' /dev/null | grep -q \"\$(printf '\\346\\226\\207')\" && git config --global --get hi.mark | grep -qx HIGIT && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # `bash:starship hi`: bash hands its prompt to starship, started by hi or
+  # by the rc, with no __hi_ps1 of hi's; zsh and fish read past bash's entry
+  # to `hi` and draw hi's own
+  pershell:bash) printf '%s\n' "command -v starship >/dev/null && [[ \${PROMPT_COMMAND[*]} == *starship_precmd* && \$(type -t __hi_ps1) != function ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  pershell:zsh) printf '%s\n' "[[ \$PROMPT == *__hi_env_info* ]] && (( \${precmd_functions[(I)*starship*]} == 0 )) && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  pershell:fish) printf '%s\n' "functions -q __hi_env_prompt; and not functions -q starship_transient_prompt_func; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' LOST" ;;
   prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
 }
@@ -165,8 +182,9 @@ function _hi_prompt_client_home() {
 # _hi_config_client_home <dir> - a client home with a tmux config, a micro
 # settings file, a nanorc, a ripgreprc, and an fzfrc ($RIPGREP_CONFIG_PATH and
 # $FZF_DEFAULT_OPTS_FILE, set by the case) of its own, each a marker the
-# config probe looks for; the nanorc's include is one hi drops, and the tmux
-# config's, a file of tmux's own directory, one hi carries. Its overlay
+# config probe looks for; the nanorc's include is one hi drops, the tmux
+# config's, a file of tmux's own directory, one hi carries, and the
+# ripgreprc's ignore file one a hi-carry comment sends. Its overlay
 # has a header/ cell of its own, which $_HI_HEADER_ORDER puts in the header.
 # shellcheck disable=SC2016 # the cell's own code, expanded on the target
 function _hi_config_client_home() {
@@ -178,7 +196,9 @@ function _hi_config_client_home() {
   printf 'set -g @hi_carried HICARRY\n' >"$1/.config/tmux/hi.conf"
   printf '{"tabsize": 7}\n' >"$1/.config/micro/settings.json"
   printf 'include "~/.nano/*.nanorc"\nset tabsize 4\n' >"$1/.nanorc"
-  printf -- '--type-add=hitest:*.hitest\n' >"$1/.ripgreprc"
+  mkdir -p "$1/.config/fd"
+  printf '*.hiskip\n' >"$1/.config/fd/ignore"
+  printf -- '--type-add=hitest:*.hitest\n# hi-carry\n--ignore-file=%s/.config/fd/ignore\n' "$1" >"$1/.ripgreprc"
   printf -- '--exact\n' >"$1/.fzfrc"
 }
 
@@ -266,6 +286,11 @@ function _hi_run_framework_case() {
     local -x HOME="$_HI_WORKDIR/home-$label" _HI_PROMPT_TOOL="${prompt_tool%%:*}"
     local -x XDG_CONFIG_HOME="$HOME/.config"
     _hi_prompt_client_home "$HOME"
+    ;;
+  pershell:*)
+    local -x HOME="$_HI_WORKDIR/home-$label" _HI_PROMPT_TOOL="bash:starship hi"
+    local -x XDG_CONFIG_HOME="$HOME/.config"
+    mkdir -p "$HOME"
     ;;
   config)
     local -x HOME="$_HI_WORKDIR/home-$label"
@@ -363,6 +388,16 @@ function run_framework_tests() {
       _hi_par_case "$label-hi" _hi_run_framework_case "$label-hi" "$shell" "$family" "$label"
     else
       _hi_skip "[$label-hi]" "image did not build"
+    fi
+  done
+  # ...and three off the starship image, one per login shell, the prompt
+  # handed out shell by shell
+  for spec in "${_HI_PROMPT_PER_SHELL[@]}"; do
+    label="starship-as-${spec%%:*}" shell="${spec#*:}"
+    if [ "$(_hi_kv_get _HI_FRAMEWORK_OK starship)" = 1 ]; then
+      _hi_par_case "$label" _hi_run_framework_case "$label" "$shell" "pershell:${spec%%:*}" starship
+    else
+      _hi_skip "[$label]" "image did not build"
     fi
   done
   _hi_par_wait

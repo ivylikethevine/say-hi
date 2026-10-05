@@ -29,27 +29,30 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
 `hi --configure` opens on the keys (`[p]reset`, `[h]eader preset`, `[s]ave`,
 `[q]uit`) and a preview - the header and the prompt line as they would draw
 at your current settings - over one summary line per section: its letter,
-its item numbers, and how many of its switches are on. The letter opens the
-section's page, with the same preview over just that section's settings,
-and `[b]` comes back. Every setting keeps one number across the pages, and
-a number works from any of them:
+its item numbers, and where its settings stand. The letter opens the
+section's page, under a preview of what that page's settings change, or
+none where they change nothing to draw, and `[b]` comes back. Every setting
+keeps one number across the pages, and a number works from any of them:
 
-- **Header** `[i]` — the header and the greeting on or off, then everything
-  in [Header details](#header-details): the banner, the header's items in
-  the order they print (`up N`/`down N` moves one), all as a grid, then the
-  width, the package groups (each listed with what it holds, flipped by
-  number or name), and the hidden addresses. Outside the menu,
-  `hi --preview header` prints the header at the saved settings, and
-  `hi --preview packages` the check's legend.
-- **Prompt** `[r]` — the preview's last line: the colored prompt on or off, git
+- **Header** `[i]` — under the header alone: the header, the greeting, and
+  the banner on or off, then the header's items in
+  [Header details](#header-details), a grid in the order they print
+  (`up N`/`down N` moves one), then the width and the hidden addresses.
+  Outside the menu, `hi --preview header` prints the header at the saved
+  settings.
+- **Package check** `[c]` — under the check alone: each group of the
+  packages file with what it holds, a number flipping whether it runs.
+  `hi --preview packages` prints the check's legend.
+- **Prompt** `[r]` — under the prompt line: the colored prompt on or off, git
   status and the environment segment, who draws each shell's prompt (auto,
   hi's own, or one of the prompt programs), and the character each of the
   three shells' prompts ends with, wired up on this machine or not.
-- **Plugins** `[g]` — the carried configs that stay home, listed by group
-  and checked while they ride: a number, or a plugin, member, or group by
-  name, flips one ([Switching a plugin off](#switching-a-plugin-off)).
+- **Plugins** `[g]` — every group with a config here to send, and its
+  plugins, a checkbox each: checked rides to a target, unchecked stays
+  home, and a group's box is all of its plugins
+  ([Switching a plugin off](#switching-a-plugin-off)).
 - **Aliases** `[a]` — whether `cat`, `ls`, and `sudo` get hi's aliases; both
-  opt-ins, off until turned on.
+  opt-ins, off until turned on, under what `ls` and `cat` become.
 - **This machine** `[m]` — whether hi styles the machine you run it on as well
   (`_HI_DISABLE_LOCAL`).
 - **Advanced** `[v]` — the leading space, the header's right edge, the `--mux`
@@ -225,7 +228,7 @@ takes an answer by.
 | `_HI_DISABLE_GREETING`   | `0`                                                                               | `hi --configure`          | hides the `hi loaded:` line and its init/copy/load timers; not part of the header, so `_HI_DISABLE_HEADER` leaves it alone ([Header details](#header-details))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `_HI_HEADER_ORDER`       | the table in [Header details](#header-details)                                    | `hi --configure`          | which header items show, in what order; empty is the default list                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `_HI_MAX_WIDTH`          | `80`                                                                              | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `_HI_PACKAGES_GROUPS`    | `core useful deprecated`                                                          | `hi --configure`          | the `config/packages` groups the header's check runs, space- or comma-separated, or `none`, and the main dial on its length: `extras` adds optional tools, `trivia`, `base`, and `platform` the rest of the file. A group of your own is named the same way; drop `check` from `_HI_HEADER_ORDER` to turn the check off. See [The package check's rows](COLORS.md#the-package-checks-rows)                                                                                                                                                                                                                                                                                                                                                                                    |
+| `_HI_PACKAGES_GROUPS`    | `core useful deprecated`                                                          | `hi --configure`          | the `config/packages` groups the header's check runs, space- or comma-separated, or `none`, and the main dial on its length: `base` adds the tools hi itself leans on, and a file started from `docs/packages.example` has `extras`, `trivia`, and `platform` besides. A group of your own is named the same way; drop `check` from `_HI_HEADER_ORDER` to turn the check off. See [The package check's rows](COLORS.md#the-package-checks-rows)                                                                                                                                                                                                                                                                                                                               |
 | `_HI_IP_HIDE`            | `172.*`                                                                           | `hi --configure`          | globs the header's `ip` cell drops; `none` hides nothing ([Header details](#header-details))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `_HI_DISABLE_GIT_STATUS` | `0`                                                                               | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `_HI_DISABLE_ENV_STATUS` | `0`                                                                               | `hi --configure`          | turns off the prompt's environment segment - the leading `(myproj)` naming the active venv, conda, direnv, nix, guix, devbox, or version-manager environment. See [Integrations](INTEGRATIONS.md#the-environment-segment)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |

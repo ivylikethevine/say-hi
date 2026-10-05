@@ -250,7 +250,12 @@ while [ "$_hi_i" -lt "${#_HI_PROF_NAMES[@]}" ]; do
     case " ${_HI_PROF_WANT[*]} " in *" $_hi_name "*) ;; *) continue ;; esac
   fi
   _HI_PROF_RAN=$((_HI_PROF_RAN + 1))
+  # once more on a failure: timep's log post-processing reads its workers'
+  # finished-log numbers off a pipe on a timeout, and a number cut in two
+  # there (`409` read as `09`: "value too great for base") fails a profile
+  # the next run of it produces
   prof_one "$_hi_name" "${_HI_PROF_WHAT[$((_hi_i - 1))]}" "${_HI_PROF_BODY[$((_hi_i - 1))]}" ||
+    prof_one "$_hi_name" "${_HI_PROF_WHAT[$((_hi_i - 1))]}" "${_HI_PROF_BODY[$((_hi_i - 1))]}" ||
     _HI_PROF_FAILED=$((_HI_PROF_FAILED + 1))
 done
 
