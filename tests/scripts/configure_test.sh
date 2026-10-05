@@ -1735,6 +1735,16 @@ function test_menu_this_machine_page_holds_here_too() {
     _hi_cfg_screen_has hub_local 1 "$m) [x] here too"
 }
 
+# a row whose <needs> command is not here says so, and any one of its
+# alternatives being here is enough to say nothing
+function test_menu_row_notes_an_absent_needs_command() {
+  local out
+  local -a _HI_NEEDS_ROWS=('_HI_NO_SUCH|1|||hi-no-such-cmd/hi-none-either|needy - a row' '_HI_NO_SUCH|1|||hi-no-such-cmd/bash|easy - a row')
+  out="$(_HI_MENU_ITEMS=() _HI_MENU_DRAW=1 _HI_MENU_W=80 _HI_MENU_SUM_N=0 && _hi_menu_row _HI_NEEDS_ROWS 0 && _hi_menu_row _HI_NEEDS_ROWS 1)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"needy"*"(no hi-no-such-cmd here)"*"easy"* && "${out#*easy}" != *" here)"* ]] || _hi_because "the rows: $out"
+}
+
 # every row of every table gets a number, whichever page draws it
 function test_menu_numbers_every_row() {
   local t i
@@ -1883,6 +1893,7 @@ function run_configure_tests() {
   _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
+  _hi_check "Menu: a row names the command it needs and this machine lacks" test_menu_row_notes_an_absent_needs_command
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"

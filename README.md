@@ -357,17 +357,7 @@ checkout: an account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _Before 1.0:_ **Close the coverage gaps bashcov can see** — shipped:
-       the suites that ran `add_package.sh`, `add_tag.sh`, `set_color.sh`,
-       `update.sh` and `preview.sh` from a scratch-tree copy (the first four
-       read 0% in run 36341616721, 91.11% overall) now link the real
-       `scripts/`, and each other gap has a test or is a blind spot
-       `tests/coverage_v2.sh`'s header lists. What is left is the
-       measurement. **Ticks when:** the first bashcov sweep on `main` after
-       this lands reads at least 95% and no shipped line at 0 that is
-       neither tested nor in that header.
-
-3. [ ] _Before 1.0:_ **A prompt program per shell** — shipped: a
+2. [ ] _Before 1.0:_ **A prompt program per shell** — shipped: a
        `<shell>:<program>` entry in `_HI_PROMPT_TOOL` is tried first, by that
        shell alone, so `bash:starship hi` draws starship in bash and hi's
        prompt in zsh and fish; `hi --configure`'s Prompt page asks shell by
@@ -375,39 +365,7 @@ checkout: an account or an upstream review that lands when it lands.
        draws starship in bash and hi's prompt in zsh and fish on an ssh
        target.
 
-4. [ ] _Before 1.0:_ **A session that outlives its connection** — shipped:
-       `hi --keep <target>` (or `_HI_KEEP=1`) runs the session in the
-       target's tmux, zellij, or screen as `hi-<target>`, any later
-       `hi <target>` reattaches, the first pane's `exit` asks before closing,
-       a session nobody is attached to closes after `_HI_KEEP_TIMEOUT`, and
-       `hi --end <target>` closes it from here
-       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)); `hi --keep` typed
-       inside a running session keeps that session; a pane opened in a kept
-       session is hi's session shell; a tree whose session died with the
-       target is removed by the next connect, which says the session is
-       gone; and a connect inside a local multiplexer retries a dropped
-       link for `_HI_KEEP_RETRY`. The `ssh_keep` e2e suite drives each of
-       those over a real sshd. What is left is seeing it in CI. **Ticks
-       when:** that suite is green in CI for tmux, screen, and zellij.
-
-5. [ ] _Before 1.0:_ **zsh's rc is found where zsh reads it** — shipped:
-       `hi --install`, `hi --doctor`, and the packer's theme lookups read
-       the `.zshrc` under `ZDOTDIR`, the environment's or the one
-       `~/.zshenv` sets (read by a grammar, never sourced), else
-       `~/.zshrc`, and doctor names hi's lines left in the one zsh does not
-       read. What is left is seeing it in CI. **Ticks when:** the `fast`
-       and `lint` groups are green on it.
-
-6. [ ] _Before 1.0:_ **A carried config names nothing a target lacks** —
-       shipped: a plugin's `home` reads the `ZDOTDIR` a `~/.zshenv` sets, so
-       `p10k.zsh` rides from there; the `kdl` scan drops a plugin at a `file:`
-       path wherever zellij names one, and a layout's bar that loses its plugin
-       gets zellij's own compact-bar; tmux's `default-shell`, zellij's
-       `default_shell`, and screen's `shell` stay home, so a pane opens on the
-       session's `$SHELL`. What is left is seeing it in CI. **Ticks when:** the
-       `fast` and `lint` groups are green on it.
-
-7. [ ] _Before 1.0:_ **A pane is hi's session shell** — a multiplexer started
+3. [ ] _Before 1.0:_ **A pane is hi's session shell** — a multiplexer started
        by hand in a session opens its panes on `$SHELL`, which reads hi's rc when
        it is zsh or sh and none of it when it is bash or fish; `hi --keep` names
        hi's own pane launcher
@@ -415,7 +373,7 @@ checkout: an account or an upstream review that lands when it lands.
        zellij, and screen started by hand in a bash session open their panes with
        hi's prompt and aliases.
 
-8. [ ] _Before 1.0:_ **`hi-carry`: a file a config reads rides with it** —
+4. [ ] _Before 1.0:_ **`hi-carry`: a file a config reads rides with it** —
        the scan carries an include and nothing else, so ripgrep's
        `--ignore-file=<a path at home>` prints an error on every `rg` on a
        target, and a key that opens a file from home (a cheatsheet in
@@ -430,28 +388,28 @@ checkout: an account or an upstream review that lands when it lands.
        under the marker runs `rg` on a target with that file read and no
        error, and `hi --doctor` names a marked path that is not there.
 
-9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+5. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-        upstream style. **Do:** open the PR against tldr-pages. **Ticks
-        when:** merged.
+6. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+       upstream style. **Do:** open the PR against tldr-pages. **Ticks
+       when:** merged.
 
-11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-        settle its three flagged rows (`small_tasks`, `secure_2FA`,
-        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-        the live entry matches the sheet.
+7. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+       the live entry matches the sheet.
 
-12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-        `publish-external.yml`'s `aur` job is written but unexercised. **When
-        it reopens:** register, add `AUR_SSH_KEY` to the `release`
-        environment, and push each package once by hand
-        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-        packages are live and a dispatch has kept `say-hi` current for one
-        release.
+8. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+       `publish-external.yml`'s `aur` job is written but unexercised. **When
+       it reopens:** register, add `AUR_SSH_KEY` to the `release`
+       environment, and push each package once by hand
+       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+       packages are live and a dispatch has kept `say-hi` current for one
+       release.
 
 ## License
 

@@ -1259,6 +1259,18 @@ function test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir() {
   [ "$out" = "rc 1" ] && [ -z "$(find "$dir/rt" -name 'hi.ssh_tags*')" ] || _hi_because "read-only runtime dir: [$out]"
 }
 
+# a cut that cannot be moved into place leaves no temp file beside it
+function test_ssh_tags_leaves_no_temp_file_when_the_cut_fails() {
+  local dir="$_HI_WORKDIR/tags-mv" out
+  mkdir -p "$dir/rt"
+  printf '# Tags: one\nHost a\n' >"$dir/config"
+  out="$(
+    mv() { return 1; }
+    _hi_tags_at "$dir"
+  )"
+  [ "$out" = "rc 1" ] && [ -z "$(find "$dir/rt" -name 'hi.ssh_tags*')" ] || _hi_because "a failed mv: [$out] $(ls "$dir/rt")"
+}
+
 # the rows hi --doctor prints come from the same pass that does the dropping,
 # so what the report names is exactly what went missing
 function test_the_scan_reports_every_dialect() {
@@ -2314,6 +2326,7 @@ function run_hi_payload_tests() {
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
   _hi_check "...kept, and recut once the config is newer or Includes" test_ssh_tags_cut_is_reused_until_the_config_is_newer
   _hi_check_capable lockout "...and failing cleanly with no tag or no writable dir" test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir
+  _hi_check "...and leaving no temp file when the cut cannot land" test_ssh_tags_leaves_no_temp_file_when_the_cut_fails
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out

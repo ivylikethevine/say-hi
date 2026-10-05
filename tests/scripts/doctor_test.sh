@@ -303,6 +303,22 @@ function test_config_names_a_home_tool_config() {
   [[ "$out" == *"bat/config (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]]
 }
 
+# oh-my-posh reads one config, so an overlay copy of one format puts home's
+# file of another out of the running: found, and said to be not the one
+function test_config_names_a_file_that_is_not_the_one_in_force() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/notforce.XXXXXX")"
+  mkdir -p "$dir/overlay"
+  printf 'version: 3\n' >"$dir/overlay/oh-my-posh.yaml"
+  printf '{}\n' >"$dir/home.omp.json"
+  out="$(
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_SETTINGS="$dir/overlay/settings.sh"
+    _HI_PROMPT_TOOL=oh-my-posh POSH_CONFIG="$dir/home.omp.json" doctor_config
+  )"
+  [[ "$out" == *"oh-my-posh.json"*"not sent: not the file in force here"* ]] || _hi_because "doctor said: $out"
+}
+
 # a tool config copy in the overlay is the override, over the file the tool
 # reads here; a prompt program's copy with that program out of the list is
 # flagged, since nothing ships it
@@ -1880,6 +1896,7 @@ function run_doctor_tests() {
     _hi_check "...a ~/.bash_login is handed the line to add" test_install_section_hands_a_darwin_bash_login_the_line
     _hi_check "...and a ~/.bash_profile that reads .bashrc is green" test_install_section_passes_a_darwin_profile_that_reads_bashrc
     _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
+    _hi_check "A file that is not the one in force is said to be" test_config_names_a_file_that_is_not_the_one_in_force
     _hi_check "...and so are lines left under a ZDOTDIR nothing sets" test_install_section_warns_on_a_stale_zdotdir_rc
     _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
     _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
