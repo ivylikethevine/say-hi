@@ -456,6 +456,10 @@ function doctor_config() {
       doctor_row "$member:$lineno" "$text has no ${text%%-start*}-end below it, so it decides nothing" warn
       continue
       ;;
+    carry)
+      doctor_row "$member:$lineno" "under hi-carry, $text - nothing rides for it" warn
+      continue
+      ;;
     plugin) said="names a plugin manager" ;;
     *) said="reads a file hi does not carry" ;;
     esac

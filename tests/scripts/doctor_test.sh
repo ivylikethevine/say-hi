@@ -303,20 +303,17 @@ function test_config_names_a_home_tool_config() {
   [[ "$out" == *"bat/config (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]]
 }
 
-# oh-my-posh reads one config, so an overlay copy of one format puts home's
-# file of another out of the running: found, and said to be not the one
-function test_config_names_a_file_that_is_not_the_one_in_force() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/notforce.XXXXXX")"
-  mkdir -p "$dir/overlay"
-  printf 'version: 3\n' >"$dir/overlay/oh-my-posh.yaml"
-  printf '{}\n' >"$dir/home.omp.json"
+# a candidate that is there but is no file (a directory named as the rc is)
+# is found, passed over, and said to be not the one a connect sends
+function test_files_names_a_place_that_is_no_file() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/nofile.XXXXXX")"
+  mkdir -p "$h/overlay" "$h/.vimrc"
   out="$(
-    _HI_CONFIG_DIR="$dir/overlay"
-    _HI_SETTINGS="$dir/overlay/settings.sh"
-    _HI_PROMPT_TOOL=oh-my-posh POSH_CONFIG="$dir/home.omp.json" doctor_config
+    PATH="$(_hi_fake_path nofile-bins vim):$PATH"
+    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _HI_PROMPT_TOOL=hi doctor_files
   )"
-  [[ "$out" == *"oh-my-posh.json"*"not sent: not the file in force here"* ]] || _hi_because "doctor said: $out"
+  [[ "$out" == *"vim/vimrc (vim)"*"passed over"*".vimrc"*"not sent: not the file in force here"* ]] || _hi_because "doctor said: $out"
 }
 
 # a tool config copy in the overlay is the override, over the file the tool
@@ -538,6 +535,22 @@ function test_config_names_an_unresolvable_include() {
   )"
   [[ "$out" == *"vim/vimrc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
     [[ "$out" == *"vim/vimrc:3"*"names a plugin manager"* ]]
+}
+
+# a line under hi-carry is a row only for the file it names that is not there
+function test_config_names_a_marked_file_that_is_not_there() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/marked.XXXXXX")"
+  mkdir -p "$dir/overlay/tmux"
+  : >"$dir/there.txt"
+  printf '%s\n' '# hi-carry' 'bind a run "cat ~/there.txt"' '# hi-carry' 'bind b run "cat ~/gone.txt"' >"$dir/overlay/tmux/tmux.conf"
+  out="$(
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_SETTINGS="$dir/overlay/settings.sh"
+    HOME="$dir" doctor_config
+  )"
+  [[ "$out" == *"tmux/tmux.conf:4"*"under hi-carry"*"gone.txt is no file here - nothing rides for it"* && "$out" != *"tmux/tmux.conf:2"* ]] ||
+    _hi_because "doctor said: $out"
 }
 
 # a shell overlay file gets the same yellow row, and a `# hi-allow` or
@@ -1801,6 +1814,7 @@ function run_doctor_tests() {
     _hi_check "What is switched off says so, and by what" test_config_reports_what_is_switched_off
     _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
     _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
+    _hi_check "A place that is there but is no file is said to be passed over" test_files_names_a_place_that_is_no_file
     _hi_check "An overlay copy of one is overridden, or not sent" test_config_counts_a_tool_config_copy_as_an_override
     _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
     _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
@@ -1810,6 +1824,7 @@ function run_doctor_tests() {
     _hi_check "The box folds alike rows, drops its header, and writes ~" test_the_box_folds_and_shortens
     _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
     _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
+    _hi_check "A file under hi-carry that is not there is named" test_config_names_a_marked_file_that_is_not_there
     _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
     _hi_check "A block marker's start with no end is named" test_config_names_an_unclosed_block_marker
     _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
@@ -1896,7 +1911,6 @@ function run_doctor_tests() {
     _hi_check "...a ~/.bash_login is handed the line to add" test_install_section_hands_a_darwin_bash_login_the_line
     _hi_check "...and a ~/.bash_profile that reads .bashrc is green" test_install_section_passes_a_darwin_profile_that_reads_bashrc
     _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
-    _hi_check "A file that is not the one in force is said to be" test_config_names_a_file_that_is_not_the_one_in_force
     _hi_check "...and so are lines left under a ZDOTDIR nothing sets" test_install_section_warns_on_a_stale_zdotdir_rc
     _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
     _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report

@@ -408,7 +408,10 @@ Two things no wrapper reaches. A bash or fish shell nothing typed - a `tmux`
 pane spawning a login shell, an editor shelling out - comes up as the host's
 own, because hi writes to no login file on any host you visit
 ([COMPATIBILITY.md](COMPATIBILITY.md#what-would-change-an-answer) has the
-reasoning). Nor does a change of user: `sudo -i`, `sudo -s`, `su -`, and
+reasoning). A multiplexer whose panes should be hi's is a kept session:
+`hi --keep <target>`, or `hi --keep` typed in a session already running,
+opens every pane in hi's session shell
+([HI.65](GLOSSARY.md#hi65-kept-session)). Nor does a change of user: `sudo -i`, `sudo -s`, `su -`, and
 `doas -s` start _that_ user's login shell from _that_ user's rc files. What
 survives is `sudo <command>`, whose one command gets hi's aliases through the
 `sudo` alias.
@@ -686,6 +689,21 @@ call plug#end()
 A start with no end of its own below it decides nothing, and `hi --doctor`
 names it; an end with no start is ignored. An allow pair inside a quiet one
 keeps its lines.
+
+A third comment is for a line that names a file which is no include - an
+ignore file, a cheatsheet a key opens:
+
+- `hi-carry` sends each file under your home directory the line names, as
+  written, and points the line at the copy. It rides beside the member, in
+  `<tool>/carried/`, or `<member>.carried/` for a member with no directory
+  (`ripgreprc`). A path outside your home directory is the target's own and
+  stays as written; `hi --doctor` names one under it that is no file.
+  `hi-carry-start` and `hi-carry-end` take a block.
+
+```sh
+# hi-carry
+--ignore-file=/home/you/.config/fd/ignore
+```
 
 There is no switch that sends them all.
 [HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan) is the whole

@@ -365,45 +365,34 @@ checkout: an account or an upstream review that lands when it lands.
        draws starship in bash and hi's prompt in zsh and fish on an ssh
        target.
 
-3. [ ] _Before 1.0:_ **A pane is hi's session shell** — a multiplexer started
-       by hand in a session opens its panes on `$SHELL`, which reads hi's rc when
-       it is zsh or sh and none of it when it is bash or fish; `hi --keep` names
-       hi's own pane launcher
-       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). **Ticks when:** tmux,
-       zellij, and screen started by hand in a bash session open their panes with
-       hi's prompt and aliases.
+3. [ ] _Before 1.0:_ **`hi-carry`: a file a config reads rides with it** —
+       shipped: under a `hi-carry` comment, in the file's own syntax and
+       with a `-start` and `-end` pair like `hi-allow`'s, each file under
+       your home directory a line names rides as written, in
+       `<tool>/carried/` or `<member>.carried/`, and the line is pointed at
+       the copy; `hi --doctor` names one that is not there
+       ([docs/SETTINGS.md](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
+       `ripgreprc` is read as `conf`, so its comments stay home. What is
+       left is a real connect. **Ticks when:** a `ripgreprc` whose
+       `--ignore-file` line sits under the marker runs `rg` on an ssh target
+       with that file read and no error.
 
-4. [ ] _Before 1.0:_ **`hi-carry`: a file a config reads rides with it** —
-       the scan carries an include and nothing else, so ripgrep's
-       `--ignore-file=<a path at home>` prints an error on every `rg` on a
-       target, and a key that opens a file from home (a cheatsheet in
-       `less`) opens nothing. The plan: a `hi-carry` comment, in the file's
-       own syntax like `hi-allow` and `hi-quiet` and with their `-start` and
-       `-end` pair, under which each path on the line rides as
-       `<tool>/carried/<name>` and is rewritten the way a carried include is
-       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)).
-       Still to settle, since 1.0 freezes both: the word itself, and where
-       the file of a member with no directory of its own (`ripgreprc`)
-       lands. **Ticks when:** a `ripgreprc` whose `--ignore-file` line sits
-       under the marker runs `rg` on a target with that file read and no
-       error, and `hi --doctor` names a marked path that is not there.
-
-5. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-6. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-7. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-8. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

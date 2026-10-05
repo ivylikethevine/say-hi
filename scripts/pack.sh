@@ -986,7 +986,9 @@ function _hi_tool_here() {
 # `hi-allow-start` and `hi-allow-end` or `hi-quiet-start` and `hi-quiet-end`,
 # decides every line inside it the same way. Each word pairs on its own, a
 # start with the next end of its word, so an allow pair inside a quiet one
-# keeps its lines. A start with no end below it, or with a second start of
+# keeps its lines. A line under `hi-carry`, or inside its pair, is neither: it
+# is a `carry` row in either mode, never dropped, and the stager rides the
+# files it names (_hi_marked_carry). A start with no end below it, or with a second start of
 # its word before one, decides nothing and is an `unclosed` row; an end with
 # no start is ignored. Whether a start is closed is known only at the end of
 # the file, so FNR == 1 reads the file through once with getline before the
@@ -1016,7 +1018,7 @@ function _hi_lint_awk() {
   cat <<'AWK'
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
 function mark(s) {
-  if (!match(s, /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-(allow|quiet)(-start|-end)?/)) return ""
+  if (!match(s, /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-(allow|quiet|carry)(-start|-end)?/)) return ""
   s = substr(s, RSTART, RLENGTH); sub(/.*hi-/, "", s)
   return s
 }
@@ -1090,13 +1092,16 @@ depth > 0 {
   depth = (stmt == "\\") ? ($0 ~ /\\$/) : depth + bal($0)
   if (depth < 0) depth = 0
   if (mode == "fix") print lead " hi dropped: " $0 > out
-  allow_l = quiet = 0
+  allow_l = quiet = carry_l = 0
   next
 }
 {
-  kind = (allow_l || (("allow", FNR) in blk)) ? "" : kindof($0)
+  w = mark($0)
+  carry = (carry_l || (("carry", FNR) in blk)) && w == "" && $0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))
+  kind = (carry || allow_l || (("allow", FNR) in blk)) ? "" : kindof($0)
   hush = quiet || (("quiet", FNR) in blk)
-  w = mark($0); allow_l = (w == "allow"); quiet = (w == "quiet")
+  allow_l = (w == "allow"); quiet = (w == "quiet"); carry_l = (w == "carry")
+  if (carry) printf "%s|%d|carry|%s\n", name, FNR, trim($0)
   if (kind == "") { if (mode == "fix") print > out; if ($0 ~ /[^ \t]/) prev = $0; next }
   if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
   if (mode == "fix" && kind == "plugin" && under != "" && prev ~ under) { match($0, /^[ \t]*/); print substr($0, 1, RLENGTH) standin > out }
@@ -1109,16 +1114,23 @@ AWK
 
 # _hi_include_lint - every finding in the overlay members that would actually
 # ship, one row each (see _hi_lint_awk); a member with no dialect has none, and
-# an include the packer carries (_hi_include_carry) is no finding.
+# an include the packer carries (_hi_include_carry) is no finding. A line
+# under `hi-carry` is a row only for what of it cannot ride.
 function _hi_include_lint() {
   local f src prog row m n k t
-  local -a _hi_dirs=() _hi_carried=()
+  local -a _hi_dirs=() _hi_carried=() _hi_marked=() _hi_unmarked=()
   prog="$(_hi_lint_awk)"
   while IFS= read -r f; do
     if ! _hi_member_dialect "$f" row || ! _hi_overlay_src "$f" src; then continue; fi
     _hi_tool_dirs "$f" "$src"
     while IFS='|' read -r m n k t; do
       [ "$k" = include ] && ((${#_hi_dirs[@]})) && _hi_include_carry row "$t" "${f%%/*}" && continue
+      if [ "$k" = carry ]; then
+        _hi_unmarked=()
+        _hi_marked_carry t "$t" "$f" || true
+        for t in ${_hi_unmarked[@]+"${_hi_unmarked[@]}"}; do printf '%s|%s|%s|%s\n' "$m" "$n" "$k" "$t"; done
+        continue
+      fi
       printf '%s|%s|%s|%s\n' "$m" "$n" "$k" "$t"
     done < <(_hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src")
   done < <(_hi_overlay_files)
@@ -1137,6 +1149,57 @@ function _hi_tool_dirs() {
   _hi_dirs+=("${XDG_CONFIG_HOME:-$HOME/.config}/$_hi_td_t" "$HOME/.$_hi_td_t" "$HOME/.$_hi_td_t.d")
 }
 
+# _hi_carry_path <text> <outvar> - a path $_HI_CARRY_RE matched, as it is
+# here: ~, $HOME, and $XDG_CONFIG_HOME read as this machine's
+function _hi_carry_path() {
+  # shellcheck disable=SC2088 # a ~ the line wrote, matched as text
+  case "$1" in
+  '~/'*) printf -v "$2" '%s' "$HOME/${1#'~/'}" ;;
+  '$HOME/'* | '${HOME}/'*) printf -v "$2" '%s' "$HOME/${1#*/}" ;;
+  '$XDG_CONFIG_HOME/'* | '${XDG_CONFIG_HOME}/'*) printf -v "$2" '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/${1#*/}" ;;
+  *) printf -v "$2" '%s' "$1" ;;
+  esac
+}
+
+# _hi_marked_carry <outvar> <line> <member> - a line under `hi-carry`: each
+# path in it that names a file under $HOME is rewritten to
+# $_HI_CARRY_TOKEN/<dir>/<name> - <dir> the member's directory's carried/,
+# or <member>.carried for a member with no directory - and appended to the
+# caller's $_hi_marked as a <member> <source> pair; a second file of a name
+# rides under its directory's name too. A path under $HOME that is no file,
+# or a line naming none, is said in the caller's $_hi_unmarked. A path
+# outside $HOME is the target's own, and left as written. 1 when no path is
+# carried. GLOSSARY: HI.57
+function _hi_marked_carry() {
+  local _hi_mc_rest="$2" _hi_mc_out="" _hi_mc_t _hi_mc_p _hi_mc_d _hi_mc_f _hi_mc_i _hi_mc_n=0 _hi_mc_h=0
+  case "$3" in */*) _hi_mc_d="${3%%/*}/carried" ;; *) _hi_mc_d="$3.carried" ;; esac
+  while [[ $_hi_mc_rest =~ $_HI_CARRY_RE ]]; do
+    _hi_mc_t="${BASH_REMATCH[0]}"
+    _hi_mc_out+="${_hi_mc_rest%%"$_hi_mc_t"*}"
+    _hi_mc_rest="${_hi_mc_rest#*"$_hi_mc_t"}"
+    _hi_carry_path "$_hi_mc_t" _hi_mc_p
+    if [ "${_hi_mc_p#"$HOME"/}" != "$_hi_mc_p" ]; then
+      _hi_mc_h=1
+      if [ -f "$_hi_mc_p" ]; then
+        _hi_mc_f="${_hi_mc_p##*/}"
+        for ((_hi_mc_i = 0; _hi_mc_i < ${#_hi_marked[@]}; _hi_mc_i += 2)); do
+          [ "${_hi_marked[_hi_mc_i]}" = "$_hi_mc_d/$_hi_mc_f" ] && [ "${_hi_marked[_hi_mc_i + 1]}" != "$_hi_mc_p" ] || continue
+          _hi_mc_f="${_hi_mc_p%/*}"
+          _hi_mc_f="${_hi_mc_f##*/}-${_hi_mc_p##*/}"
+        done
+        _hi_marked+=("$_hi_mc_d/$_hi_mc_f" "$_hi_mc_p")
+        _hi_mc_t="$_HI_CARRY_TOKEN/$_hi_mc_d/$_hi_mc_f" _hi_mc_n=1
+      else
+        _hi_unmarked+=("$_hi_mc_t is no file here")
+      fi
+    fi
+    _hi_mc_out+="$_hi_mc_t"
+  done
+  [ "$_hi_mc_h" = 1 ] || _hi_unmarked+=("names no path under your home directory")
+  printf -v "$1" '%s' "$_hi_mc_out$_hi_mc_rest"
+  [ "$_hi_mc_n" = 1 ]
+}
+
 # _hi_include_carry <outvar> <line> <tool> - <line> with each path in it that
 # names a file under one of the caller's $_hi_dirs rewritten to
 # $_HI_CARRY_TOKEN/<tool>/<its path under that directory>, into <outvar>,
@@ -1149,13 +1212,7 @@ function _hi_include_carry() {
     _hi_ic_t="${BASH_REMATCH[0]}"
     _hi_ic_out+="${_hi_ic_rest%%"$_hi_ic_t"*}"
     _hi_ic_rest="${_hi_ic_rest#*"$_hi_ic_t"}"
-    # shellcheck disable=SC2088 # a ~ the include wrote, matched as text
-    case "$_hi_ic_t" in
-    '~/'*) _hi_ic_p="$HOME/${_hi_ic_t#'~/'}" ;;
-    '$HOME/'* | '${HOME}/'*) _hi_ic_p="$HOME/${_hi_ic_t#*/}" ;;
-    '$XDG_CONFIG_HOME/'* | '${XDG_CONFIG_HOME}/'*) _hi_ic_p="${XDG_CONFIG_HOME:-$HOME/.config}/${_hi_ic_t#*/}" ;;
-    *) _hi_ic_p="$_hi_ic_t" ;;
-    esac
+    _hi_carry_path "$_hi_ic_t" _hi_ic_p
     for _hi_ic_d in ${_hi_dirs[@]+"${_hi_dirs[@]}"}; do
       _hi_ic_r="${_hi_ic_p#"$_hi_ic_d"/}"
       [ "$_hi_ic_r" != "$_hi_ic_p" ] && [ -f "$_hi_ic_p" ] || continue
@@ -1209,25 +1266,37 @@ _HI_PAYLOAD_CUT=(say-hi/config/plugins)
 # (member $_hi_st_m, dialect row $_hi_st_d): each include the scan finds whose
 # path names a file under the member's tool directories (_hi_tool_dirs) is
 # rewritten to the copy that rides (_hi_include_carry), and the file staged
-# as a member of its own, queued for the same scan. The source it came from
-# is kept in $_hi_st_carry. Reads and grows _hi_stage_tar's locals.
+# as a member of its own, queued for the same scan; each file a line under
+# `hi-carry` names rides too, as written (_hi_marked_carry). The source each
+# came from is kept in $_hi_st_carry. Reads and grows _hi_stage_tar's locals.
 function _hi_stage_carry() {
-  local _hi_sc_src="${_hi_st_qs[_hi_st_i]:-}" _hi_sc_at=" " _hi_sc_l _hi_sc_n=0 _hi_sc_out="" _hi_sc_k _hi_sc_j _hi_sc_m
-  local -a _hi_dirs=() _hi_carried=()
+  local _hi_sc_src="${_hi_st_qs[_hi_st_i]:-}" _hi_sc_at=" " _hi_sc_ct=" " _hi_sc_l _hi_sc_n=0 _hi_sc_out="" _hi_sc_k _hi_sc_j _hi_sc_m
+  local -a _hi_dirs=() _hi_carried=() _hi_marked=() _hi_unmarked=()
   [ -n "$_hi_sc_src" ] || _hi_overlay_src "$_hi_st_m" _hi_sc_src || return 0
   _hi_tool_dirs "$_hi_st_m" "$_hi_sc_src"
-  ((${#_hi_dirs[@]})) || return 0
   while IFS='|' read -r _ _hi_sc_l _hi_sc_k _; do
-    [ "$_hi_sc_k" != include ] || _hi_sc_at="$_hi_sc_at$_hi_sc_l "
+    case "$_hi_sc_k" in
+    include) ((! ${#_hi_dirs[@]})) || _hi_sc_at="$_hi_sc_at$_hi_sc_l " ;;
+    carry) _hi_sc_ct="$_hi_sc_ct$_hi_sc_l " ;;
+    esac
   done < <(_hi_dialect="$_hi_st_d" awk -v mode=report -v name="$_hi_st_m" "$_hi_st_prog" "$f")
-  [ "$_hi_sc_at" != " " ] || return 0
+  [ "$_hi_sc_at$_hi_sc_ct" != "  " ] || return 0
   while IFS= read -r _hi_sc_l || [ -n "$_hi_sc_l" ]; do
     _hi_sc_n=$((_hi_sc_n + 1))
     case "$_hi_sc_at" in *" $_hi_sc_n "*) _hi_include_carry _hi_sc_l "$_hi_sc_l" "${_hi_st_m%%/*}" || true ;; esac
+    case "$_hi_sc_ct" in *" $_hi_sc_n "*) _hi_marked_carry _hi_sc_l "$_hi_sc_l" "$_hi_st_m" || true ;; esac
     _hi_sc_out+="$_hi_sc_l"$'\n'
   done <"$f"
-  ((${#_hi_carried[@]})) || return 0
+  ((${#_hi_carried[@]} + ${#_hi_marked[@]})) || return 0
   printf '%s' "$_hi_sc_out" >"$f" || return 1
+  # a marked file rides as written: it is no config of the member's dialect
+  for ((_hi_sc_j = 0; _hi_sc_j < ${#_hi_marked[@]}; _hi_sc_j += 2)); do
+    _hi_sc_m="${_hi_marked[_hi_sc_j]}"
+    [ ! -e "$_hi_st_root/$_hi_sc_m" ] || continue
+    mkdir -p "$_hi_st_root/${_hi_sc_m%/*}" && cp "${_hi_marked[_hi_sc_j + 1]}" "$_hi_st_root/$_hi_sc_m" || return 1
+    _hi_st_carry+=("${_hi_marked[_hi_sc_j + 1]}")
+    stage_out+=("$_hi_sc_m")
+  done
   for ((_hi_sc_j = 0; _hi_sc_j < ${#_hi_carried[@]}; _hi_sc_j += 2)); do
     _hi_sc_m="${_hi_carried[_hi_sc_j]}"
     # one already staged - a member, or a file carried before - rides once

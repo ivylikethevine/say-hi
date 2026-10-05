@@ -1541,6 +1541,33 @@ source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.co
   [ "$(cat "$d/tmux/parts/bar.conf")" = 'set -g @bar HI' ]
 }
 
+# a line under hi-carry rides the files under $HOME it names, as written and
+# beside the member (a member with no directory gets <member>.carried), with
+# the path held for the target's overlay directory; a path outside $HOME is
+# the target's own, and one that is no file is the scan's to name
+function test_a_marked_line_rides_the_files_it_names() {
+  local h="$_HI_WORKDIR/marked" d out
+  mkdir -p "$h/.config/fd" "$h/.local/share" "$h/overlay/tmux"
+  printf '# mine\n*.log\n' >"$h/.config/fd/ignore"
+  printf 'Keys\n\n  ?  this sheet\n' >"$h/.local/share/keys.txt"
+  printf -- '--smart-case\n# hi-carry\n--ignore-file=%s/.config/fd/ignore\n' "$h" >"$h/overlay/ripgreprc"
+  printf '%s\n' 'set -g mouse on' '# hi-carry' 'bind ? display-popup "/usr/bin/less ~/.local/share/keys.txt"' \
+    '# hi-carry' 'bind g display-popup "less ~/gone.txt"' >"$h/overlay/tmux/tmux.conf"
+  set -- HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" PATH="$(_hi_fake_path marked-bins rg tmux):$PATH"
+  out="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_include_lint' | paste -sd, -)"
+  # shellcheck disable=SC2088 # the ~ the line wrote
+  [ "$out" = 'tmux/tmux.conf|5|carry|~/gone.txt is no file here' ] || _hi_because "the scan reported: [$out]" || return 1
+  d="$(mktemp -d "$_HI_WORKDIR/marked-unpacked.XXXXXX")" || return 1
+  env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_tar ripgreprc tmux/tmux.conf' | tar -x -z -f - -C "$d" || return 1
+  [ "$(cat "$d/ripgreprc")" = "--smart-case
+--ignore-file=$_HI_CARRY_TOKEN/ripgreprc.carried/ignore" ] || _hi_because "ripgreprc: [$(cat "$d/ripgreprc")]" || return 1
+  [ "$(cat "$d/ripgreprc.carried/ignore")" = "$(cat "$h/.config/fd/ignore")" ] || _hi_because "the ignore file did not ride as written" || return 1
+  [ "$(cat "$d/tmux/tmux.conf")" = "set -g mouse on
+bind ? display-popup \"/usr/bin/less $_HI_CARRY_TOKEN/tmux/carried/keys.txt\"
+bind g display-popup \"less ~/gone.txt\"" ] || _hi_because "tmux.conf: [$(cat "$d/tmux/tmux.conf")]" || return 1
+  [ "$(cat "$d/tmux/carried/keys.txt")" = "$(cat "$h/.local/share/keys.txt")" ] || _hi_because "the sheet did not ride as written"
+}
+
 # the target's half: a real sh makes every held path the directory the
 # overlay landed in
 function test_a_carried_path_lands_on_the_target() {
@@ -2336,6 +2363,7 @@ function run_hi_payload_tests() {
   _hi_check "A multiplexer's default shell stays home" test_a_multiplexers_default_shell_stays_home
   _hi_check "Every zellij plugin path is dropped, a bar's pane keeps a bar" test_every_zellij_plugin_path_is_dropped
   _hi_check "An include under the tool's own directory rides" test_an_include_under_the_tools_directory_rides
+  _hi_check "A line under hi-carry rides the files it names" test_a_marked_line_rides_the_files_it_names
   _hi_check "...its path lands on the target's overlay" test_a_carried_path_lands_on_the_target
   _hi_check "...it is no doctor finding" test_a_carried_include_is_no_finding
   _hi_check "An edit to a carried file rebuilds the cache" test_an_edit_to_a_carried_file_rebuilds_the_cache
