@@ -1564,7 +1564,16 @@ function test_install_section_warns_on_a_zdotdir_mismatch() {
   mkdir -p "$home/zdot"
   _hi_wired_line sh >"$home/.zshrc"
   out="$(_hi_doctor_install_out "$home" ZDOTDIR="$home/zdot")" || return 1
-  [[ "$out" == *"ZDOTDIR points zsh at ~/zdot/.zshrc"* ]]
+  [[ "$out" == *"~/.zshrc has hi's lines, but zsh reads ~/zdot/.zshrc"* ]]
+}
+
+# the reverse: a ~/.config/zsh/.zshrc left wired once nothing sets ZDOTDIR
+function test_install_section_warns_on_a_stale_zdotdir_rc() {
+  local home="$_HI_WORKDIR/inst-zstale" out
+  mkdir -p "$home/.config/zsh"
+  _hi_wired_line sh >"$home/.config/zsh/.zshrc"
+  out="$(_hi_doctor_install_out "$home" XDG_CONFIG_HOME="$home/.config")" || return 1
+  [[ "$out" == *"~/.config/zsh/.zshrc has hi's lines, but zsh reads ~/.zshrc"* ]]
 }
 
 # sections present and the exit code is the red-finding count (0 here -
@@ -1871,6 +1880,7 @@ function run_doctor_tests() {
     _hi_check "...a ~/.bash_login is handed the line to add" test_install_section_hands_a_darwin_bash_login_the_line
     _hi_check "...and a ~/.bash_profile that reads .bashrc is green" test_install_section_passes_a_darwin_profile_that_reads_bashrc
     _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
+    _hi_check "...and so are lines left under a ZDOTDIR nothing sets" test_install_section_warns_on_a_stale_zdotdir_rc
     _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
     _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
 

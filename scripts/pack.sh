@@ -15,6 +15,10 @@
 # in single quotes is that reader's to expand (SC2016).
 # shellcheck disable=SC2016
 
+# _hi_zshrc_here: the .zshrc a framework's theme or init line is read from
+# shellcheck source=./zshrc.sh
+source "$_HI_ROOT/scripts/zshrc.sh"
+
 # The user's config overlay: a second, smaller stream into its own overlay/ on
 # the target (GLOSSARY: HI.41), and every member's one resolution order
 # (HI.61): the overlay's copy, else the user's own file at home, else the
@@ -202,7 +206,8 @@ function _hi_theme_home() {
   case "$1" in
   oh-my-zsh.zsh-theme)
     # powerlevel10k/powerlevel10k is p10k's own entry point, not a theme file
-    _hi_rc_theme ZSH_THEME "${ZDOTDIR:-$HOME}/.zshrc" _hi_th_t || return 1
+    _hi_zshrc_here _hi_th_f
+    _hi_rc_theme ZSH_THEME "$_hi_th_f" _hi_th_t || return 1
     case "$_hi_th_t" in */* | random) return 1 ;; esac
     _hi_th_d="${ZSH_CUSTOM:-${ZSH:-$HOME/.oh-my-zsh}/custom}"
     for _hi_th_f in {"$_hi_th_d","$_hi_th_d/themes","${ZSH:-$HOME/.oh-my-zsh}/themes"}/"$_hi_th_t".zsh-theme; do
@@ -287,9 +292,10 @@ function _hi_rc_theme() {
 # --config <file>` names: oh-my-posh has no default file. The last such line
 # of the bash, zsh, and fish rcs, `~` and $HOME expanded.
 function _hi_posh_rc_config() {
-  local _hi_pc_v=""
+  local _hi_pc_v="" _hi_pc_z
+  _hi_zshrc_here _hi_pc_z
   _hi_rc_last_match "^[^#]*oh-my-posh[^#]*[[:space:]]init[[:space:]][^#]*(--config[=[:space:]]|-c[[:space:]])[[:space:]]*[\"']?([^\"'[:space:])]+)" \
-    _hi_pc_v "$HOME/.bashrc" "${ZDOTDIR:-$HOME}/.zshrc" "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
+    _hi_pc_v "$HOME/.bashrc" "$_hi_pc_z" "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
   _hi_pc_v="${_hi_pc_v/#\~/$HOME}"
   _hi_pc_v="${_hi_pc_v/#\$HOME/$HOME}"
   _hi_pc_v="${_hi_pc_v/#\$\{HOME\}/$HOME}"
@@ -313,9 +319,9 @@ function _hi_posh_rc_config() {
 # framework here is found the same way, by what the rc sets
 # (docs/INTEGRATIONS.md's _counts as installed here_).
 function _hi_p10k_in_use() {
-  local _hi_pk=""
-  _hi_rc_last_match '^[^#]*(powerlevel10k|romkatv)(/powerlevel10k|\.zsh-theme)' \
-    _hi_pk "${ZDOTDIR:-$HOME}/.zshrc"
+  local _hi_pk="" _hi_pk_z
+  _hi_zshrc_here _hi_pk_z
+  _hi_rc_last_match '^[^#]*(powerlevel10k|romkatv)(/powerlevel10k|\.zsh-theme)' _hi_pk "$_hi_pk_z"
   [ -n "$_hi_pk" ]
 }
 

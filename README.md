@@ -346,7 +346,8 @@ myself.
 
 What's left; nothing here is parked or descoped. One list, in the order the
 work is best done: what CI has yet to show, then the plugins and extensions
-formats 1.0 freezes, then the 1.0 tag. An entry is
+formats 1.0 freezes, then what a carried config still names that no target
+has, then the 1.0 tag. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
@@ -436,22 +437,80 @@ checkout: an account or an upstream review that lands when it lands.
         member home. What is left is seeing it in CI. **Ticks when:** the
         `fast` group is green on it.
 
-11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+11. [ ] _Before 1.0:_ **zsh's rc is found where zsh reads it** — shipped:
+        `hi --install`, `hi --doctor`, and the packer's theme lookups read
+        the `.zshrc` under `ZDOTDIR`, the environment's or the one
+        `~/.zshenv` sets (read by a grammar, never sourced), else
+        `~/.zshrc`, and doctor names hi's lines left in the one zsh does not
+        read. What is left is seeing it in CI. **Ticks when:** the `fast`
+        and `lint` groups are green on it.
+
+12. [ ] _Before 1.0:_ **A `home` path reads the `ZDOTDIR` zsh has** — a
+        plugin's `home` expands `$ZDOTDIR` from the environment alone, so a
+        `.p10k.zsh` under a `ZDOTDIR` that `~/.zshenv` sets is passed over
+        for `~/.p10k.zsh` when hi runs from bash or fish. **Ticks when:**
+        `p10k.zsh` rides from that directory with `ZDOTDIR` unset in hi's
+        environment.
+
+13. [ ] _Before 1.0:_ **Every zellij plugin path is scanned** — the `kdl`
+        dialect finds `plugin location="file:..."` alone, so a key bound to
+        `LaunchOrFocusPlugin "file:..."`, a `load_plugins` entry, or a
+        `MessagePlugin` rides naming a `.wasm` no target has, and opens an
+        error pane there. **Ticks when:** each of those is a finding the
+        scan drops, with a test for each.
+
+14. [ ] _Before 1.0:_ **A dropped zellij plugin takes its pane with it** —
+        a layout whose bar is a `pane size=1 borderless=true` holding a
+        `plugin location="file:..."` loses the plugin and keeps the pane,
+        which a target opens as a one-row shell above every tab, with no tab
+        bar.
+        **Ticks when:** such a layout opens on a target with zellij's own
+        bar, or with no pane, in its place.
+
+15. [ ] _Before 1.0:_ **A multiplexer's shell is the target's** — a carried
+        `tmux.conf`'s `default-shell`, zellij's `default_shell`, and
+        screen's `shell` name a path on the client: tmux reports the line on
+        every start where the target lacks it, zellij opens no pane, and
+        where the path exists the pane runs that shell without hi's rc.
+        `hi --keep` already names hi's own pane launcher
+        ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). **Ticks when:** tmux,
+        zellij, and screen started by hand in a session, on a target without
+        the client's shell, open their panes in hi's session shell.
+
+16. [ ] _Before 1.0:_ **A file a config reads rides with it** — the scan
+        carries an include and nothing else, so ripgrep's
+        `--ignore-file=<a path at home>` prints an error on every `rg` on a
+        target, and a key that opens a file from home (a cheatsheet in
+        `less`) opens nothing. **Ticks when:** a line under a marker of its
+        own rides each path it names beside the member, rewritten as a
+        carried include is
+        ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)).
+
+17. [ ] _Before 1.0:_ **nano: what needs a dropped include goes with it** —
+        an `extendsyntax` naming a syntax a dropped `include` defined is an
+        error, and nano answers one with `Mistakes in '<rcfile>'` and the
+        bell on every start; the target's own `/usr/share/nano/*.nanorc` is
+        not read in the dropped include's place either, so nothing is
+        highlighted. **Ticks when:** a nanorc whose syntax include is
+        dropped opens on a target without that message, and highlights with
+        the target's own syntax files where it has them.
+
+18. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
         [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
         **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
         versions_ prose into its version table.
 
-12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+19. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+20. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+21. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

@@ -225,6 +225,38 @@ function test_install_rc_lines_honours_zdotdir() {
   grep -qF "$_HI_MARKER" "$home/zdot/.zshrc" && [ ! -e "$home/.zshrc" ]
 }
 
+# ...or under the ZDOTDIR a ~/.zshenv sets, which only a zsh has in its
+# environment: install runs from any shell
+function test_install_rc_lines_follows_a_zshenv_zdotdir() {
+  local home="$_HI_WORKDIR/zshenv"
+  mkdir -p "$home"
+  # shellcheck disable=SC2016 # zsh's to expand
+  printf 'export ZDOTDIR="$HOME/.config/zsh"\n' >"$home/.zshenv"
+  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
+  grep -qF "$_HI_MARKER" "$home/.config/zsh/.zshrc" && [ ! -e "$home/.zshrc" ]
+}
+
+# the file is read, never sourced: the last ZDOTDIR= line counts, a path
+# from ~, $HOME, or $XDG_CONFIG_HOME expands, and a value that would run or
+# expand anything else reads as unset. Each row: <line>|<the rc, under $HOME>
+function test_zshrc_here_reads_a_zshenv_by_grammar() {
+  local home="$_HI_WORKDIR/zgrammar" line want
+  mkdir -p "$home"
+  [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/.zshrc" ] || return 1
+  while IFS='|' read -r line want; do
+    printf 'ZDOTDIR=/first\n%s\n' "$line" >"$home/.zshenv"
+    [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/$want" ] || return 1
+  done <<'ROWS'
+ZDOTDIR=~/z|z/.zshrc
+  export ZDOTDIR="$HOME/z" # moved|z/.zshrc
+ZDOTDIR=${HOME}/z/|z/.zshrc
+export ZDOTDIR='${XDG_CONFIG_HOME:-$HOME/.config}/zsh'|.config/zsh/.zshrc
+ZDOTDIR=$XDG_CONFIG_HOME/zsh|.config/zsh/.zshrc
+ZDOTDIR="$(dirname "$0")"|.zshrc
+ZDOTDIR=/opt/$USER/zsh|.zshrc
+ROWS
+}
+
 function test_install_rc_lines_honours_fish_xdg_dir() {
   local home="$_HI_WORKDIR/fishxdg"
   _hi_rc_in "$home" XDG_CONFIG_HOME="$home/xdg" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
@@ -505,6 +537,8 @@ function run_rc_lines_test() {
   _hi_check "Strip restores the originals byte for byte" test_strip_rc_lines_restores_the_originals
   _hi_check "A shell that is not installed gets no rc file" test_install_rc_lines_skips_an_absent_shell
   _hi_check "zsh's rc lives under \$ZDOTDIR" test_install_rc_lines_honours_zdotdir
+  _hi_check "...the one a ~/.zshenv sets too" test_install_rc_lines_follows_a_zshenv_zdotdir
+  _hi_check "...read by a grammar, never sourced" test_zshrc_here_reads_a_zshenv_by_grammar
   _hi_check "fish's rc lives under \$XDG_CONFIG_HOME" test_install_rc_lines_honours_fish_xdg_dir
   _hi_check "--dry-run writes nothing" test_config_shell_dry_run_writes_nothing
   _hi_check "macOS: .bash_profile learns to read .bashrc, and forgets on strip" test_darwin_bash_profile_sources_bashrc
