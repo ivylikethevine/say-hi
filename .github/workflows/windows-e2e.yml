@@ -74,8 +74,12 @@ jobs:
       # 64) - and PowerShell greets. That whole ladder is the case.
       # -NoExit holds the session open, so an `exit` is piped in and a timeout
       # backstops it; the marker in the transcript is the assertion either way.
+      # The transcript goes to a file, never a `$(...)`: a capture waits for
+      # every holder of its pipe, so an ssh the timeout's kill left behind
+      # hangs the step until the job's own timeout, with nothing printed.
       - name: Say hi (expect the PowerShell fallback)
         shell: bash
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           # belt and braces (hi.sh derives its tree, HI.33): a wrong one under
@@ -83,9 +87,11 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           rc=0
-          out="$(printf 'exit\n' | timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
+          said="$(mktemp)"
+          printf 'exit\n' | timeout -k 10 120 ./hi.sh -i "$HOME/.ssh/loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 2>&1)" || rc=$?
+            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" >"$said" 2>&1 || rc=$?
+          out="$(cat "$said")"
           printf '%s\n' "$out"
           # the banner first, since it names what is missing; then the status,
           # never discarded - a `timeout` kill is rc 124 with the banner already
@@ -147,14 +153,17 @@ jobs:
       # back, run out of the tree hi shipped, and the status never discarded
       - name: Say hi (expect a hi session in Git Bash)
         shell: bash
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           rc=0
-          out="$(timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
+          said="$(mktemp)"
+          timeout -k 10 120 ./hi.sh -i "$HOME/.ssh/loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 'echo HI_GITBASH_OK; hi_info' 2>&1)" || rc=$?
+            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 'echo HI_GITBASH_OK; hi_info' >"$said" 2>&1 </dev/null || rc=$?
+          out="$(cat "$said")"
           printf '%s\n' "$out"
           grep -q HI_GITBASH_OK <<<"$out"
           if grep -q "hi from PowerShell" <<<"$out"; then
@@ -322,6 +331,7 @@ jobs:
       - name: Say hi into WSL from Git Bash
         if: matrix.shard == '1/2'
         shell: bash
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           _HI_HOME="$(cd .. && pwd)"
@@ -333,18 +343,22 @@ jobs:
           # WSL 2's NAT relays Windows 127.0.0.1 into the distribution for
           # ports it listens on; the address the previous step recorded is
           # the fallback when that relay is not there, said out loud so the
-          # log shows which path ran
+          # log shows which path ran. ConnectTimeout bounds the connect alone,
+          # so the probe has a timeout of its own: a relay that accepts and
+          # then says nothing would hold it open
           host=127.0.0.1
-          ssh -p 2222 -i "$HOME/wsl-loop" -o BatchMode=yes -o StrictHostKeyChecking=no \
+          timeout -k 5 20 ssh -p 2222 -i "$HOME/wsl-loop" -o BatchMode=yes -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR \
-            "$user@$host" true 2>/dev/null || {
+            "$user@$host" true </dev/null 2>/dev/null || {
             host="$(cat "$HOME/wsl-host")"
             echo "127.0.0.1:2222 is not relayed into WSL - using the distribution's address $host"
           }
           rc=0
-          out="$(timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
+          said="$(mktemp)"
+          timeout -k 10 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || rc=$?
+            -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' >"$said" 2>&1 </dev/null || rc=$?
+          out="$(cat "$said")"
           printf '%s\n' "$out"
           grep -q HI_WSL_OK <<<"$out"
           # the session runs out of the tree hi shipped - $_HI_HOME is a
