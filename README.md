@@ -429,22 +429,32 @@ checkout: an account or an upstream review that lands when it lands.
        one fits. **Ticks when:** `strace -f -c` over `scripts/doctor.sh`
        counts under 100 `clone` calls.
 
-9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
+9. [ ] _Before 1.0:_ **hi's prompt in a tmux started by hand** — `tmux`
+       typed in a session that is not a kept one opens each pane on the
+       host's own shell, which reads none of hi's rc; only `hi --keep`
+       writes the `hi.pane` launcher and names it the session's
+       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). **Do:** a setting that
+       has a tmux started inside any session open its panes on hi's session
+       shell, through the same launcher, and screen and zellij where theirs
+       can be named the same way. **Ticks when:** with it on, `tmux` typed in
+       a plain `hi <target>` session opens a pane that shows hi's prompt.
 
-10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+10. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+        versions_ prose into its version table.
+
+11. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+12. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+13. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand
