@@ -26,15 +26,15 @@ source "$_HI_LAUNCHER"
 # "unexpected end of file"), and a verdict needs the exit status and stderr
 # the pipe into _hi_tar_cat would otherwise lose
 eval "$(declare -f _hi_overlay_tar | sed '1s/_hi_overlay_tar/_hi_overlay_tar_unwrapped/')"
+# One file for every call, truncated by the redirect: no case builds two
+# streams at once, and a mktemp and an rm a call were two forks of each build.
 function _hi_overlay_tar() {
-  local err rc=0
-  err="$(mktemp "$_HI_WORKDIR/overlay.err.XXXXXX")"
+  local err="$_HI_WORKDIR/overlay.err" rc=0
   _hi_overlay_tar_unwrapped "$@" 2>"$err" || rc=$?
   if [ "$rc" != 0 ] || [ -s "$err" ]; then
     _hi_cecho " | _hi_overlay_tar exited $rc; its stderr:" "$YELLOW" >&2
     sed 's/^/ |   /' "$err" >&2
   fi
-  rm -f "$err"
   return "$rc"
 }
 
@@ -152,11 +152,12 @@ function test_overlay_sends_nothing_outside_the_roster() {
 # the overlay's packages file rides as packages, comment-stripped like the
 # tree's, every table and row intact - a quoted key included
 function test_overlay_carries_packages_stripped() {
-  local dir="$_HI_WORKDIR/packages-overlay" out
-  mkdir -p "$dir"
+  local dir="$_HI_WORKDIR/packages-overlay" got="$_HI_WORKDIR/packages-sent" out
+  mkdir -p "$dir" "$got"
   printf '# a note\n[core]\nbat = ["batcat"]\n\n  # indented\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []\n' >"$dir/packages"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages ] || return 1
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat packages)"
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || return 1
+  [ "$(cd "$got" && printf '%s,' *)" = packages, ] || return 1
+  out="$(<"$got/packages")"
   [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat = ["batcat"]\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []')" ] || {
     _hi_cecho " | packages arrived as: [$out]" "$RED"
     return 1
@@ -166,13 +167,14 @@ function test_overlay_carries_packages_stripped() {
 # an extension rides as extensions/<name>, comment-stripped, and only the
 # ones _hi_dir_member_ok admits (GLOSSARY: HI.59)
 function test_overlay_carries_extensions() {
-  local dir out
+  local dir got="$_HI_WORKDIR/plugins-sent" out
   dir="$_HI_WORKDIR/plugins"
-  mkdir -p "$dir/extensions"
+  mkdir -p "$dir/extensions" "$got"
   printf '#!/bin/sh\n# a comment\nexport _HI_SEGMENT="printf x"\n' >"$dir/extensions/10-x"
   printf 'export Y=1\n' >"$dir/extensions/10-x.orig"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = extensions/10-x ] || return 1
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat extensions/10-x)"
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || return 1
+  [ "$(cd "$got" && printf '%s,' * */*)" = extensions,extensions/10-x, ] || return 1
+  out="$(<"$got/extensions/10-x")"
   [ "$out" = '#!/bin/sh
 export _HI_SEGMENT="printf x"' ] || {
     _hi_cecho " | extensions/10-x arrived as: [$out]" "$RED"
@@ -2092,18 +2094,44 @@ function _hi_strip_unpack() {
 function test_strip_leaves_no_full_line_comments() {
   local dir f rel n bad=0
   dir="$(_hi_strip_unpack stripped)"
-  while IFS= read -r f; do
+  # one awk over every file, a line for each that kept a comment
+  while read -r n f; do
     rel="${f#"$dir/say-hi/"}"
-    n="$(sed -n '2,$p' "$f" | grep -cE '^[[:space:]]*#' || true)"
-    [ "$n" -eq 0 ] && continue
     if [ "$rel" = hi.sh ]; then
       # the heredoc bodies; a jump here means the strip started skipping files
       [ "$n" -le 8 ] && continue
     fi
     _hi_cecho " | $rel kept $n comment line(s) through the strip" "$RED"
     bad=1
-  done < <(find "$dir/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \))
+  done < <(find "$dir/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \) \
+    -exec awk "$_HI_STRIP_KEPT_AWK" {} +)
   [ "$bad" -eq 0 ]
+}
+
+# <count> <file> for each file with a full-line comment below its line 1
+_HI_STRIP_KEPT_AWK='FNR > 1 && /^[[:space:]]*#/ { n[FILENAME]++ } END { for (f in n) print n[f], f }'
+
+# _hi_strip_differs <unpacked> <rel...> - the files among <rel...> whose
+# stripped copy lost or changed a line that is no comment and not blank,
+# indentation aside, one a line: an awk a side and one diff for the lot
+function _hi_strip_differs() {
+  local sent="$1/say-hi/" rel line seen=" "
+  local prog='/^[[:space:]]*#/ || $0 == "" { next } { sub(/^[[:space:]]*/, ""); print substr(FILENAME, n) ":" $0 }'
+  local -a a=() b=()
+  shift
+  [ $# -gt 0 ] || return 0
+  for rel; do
+    a+=("$_HI_ROOT/$rel")
+    b+=("$sent$rel")
+  done
+  while IFS= read -r line; do
+    case "$line" in '< '* | '> '*) ;; *) continue ;; esac
+    rel="${line#? }"
+    rel="${rel%%:*}"
+    case "$seen" in *" $rel "*) continue ;; esac
+    seen="$seen$rel "
+    printf '%s\n' "$rel"
+  done < <(diff <(awk -v n=$((${#_HI_ROOT} + 2)) "$prog" "${a[@]}") <(awk -v n=$((${#sent} + 1)) "$prog" "${b[@]}") || :)
 }
 
 # common/_hi, zsh's completion function, is found by compinit off its first
@@ -2122,16 +2150,16 @@ function test_zsh_completion_ships_with_its_compdef_line() {
 # body owns are spared is the case below, not this one.
 function test_strip_keeps_every_code_line() {
   local dir f rel bad=0
+  local -a rels=()
   dir="$(_hi_strip_unpack stripped)"
   while IFS= read -r f; do
     rel="${f#"$dir/say-hi/"}"
-    [ -f "$_HI_ROOT/$rel" ] || continue
-    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$rel" | sed 's/^[[:space:]]*//') \
-      <(grep -vE '^[[:space:]]*#|^$' "$f" | sed 's/^[[:space:]]*//') >/dev/null || {
-      _hi_cecho " | $rel lost or changed a code line" "$RED"
-      bad=1
-    }
+    [ ! -f "$_HI_ROOT/$rel" ] || rels+=("$rel")
   done < <(find "$dir/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \))
+  while IFS= read -r rel; do
+    _hi_cecho " | $rel lost or changed a code line" "$RED"
+    bad=1
+  done < <(_hi_strip_differs "$dir" ${rels[@]+"${rels[@]}"})
   [ "$bad" -eq 0 ]
 }
 
@@ -2267,26 +2295,24 @@ function test_an_install_without_the_packer_refuses_to_connect() {
 # own rules for vim's `"`, elisp's `;`, and lua's `--`, keeping every other
 # line.
 function test_strip_covers_the_data_files() {
-  local dir f n out ov="$_HI_WORKDIR/strip-overlay" bad=0
+  local dir f n out ov="$_HI_WORKDIR/strip-overlay" got="$_HI_WORKDIR/strip-overlay-sent" bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags config/colors config/packages; do
-    n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
-    [ "$n" -eq 0 ] || {
-      _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
-      bad=1
-    }
-  done
+  while read -r n f; do
+    _hi_cecho " | ${f#"$dir/say-hi/"} kept $n comment line(s) through the strip" "$RED"
+    bad=1
+  done < <(awk "$_HI_STRIP_KEPT_AWK" "$dir/say-hi/common/flags" "$dir/say-hi/config/colors" "$dir/say-hi/config/packages")
   # the files with a comment character of their own: <file>:<char>
-  mkdir -p "$ov"
-  mkdir -p "$ov/vim" "$ov/emacs" "$ov/nvim"
+  mkdir -p "$ov/vim" "$ov/emacs" "$ov/nvim" "$got"
   for f in 'vim/vimrc:"' 'emacs/init.el:;' 'nvim/init.lua:--'; do
     printf '%s a comment\nkept %s\n' "${f#*:}" "${f%%:*}" >"$ov/${f%%:*}"
   done
-  for f in 'vim/vimrc:"' 'emacs/init.el:;' 'nvim/init.lua:--'; do
-    out="$(_HI_CONFIG_DIR="$ov" \
-      _hi_overlay_tar | _hi_tar_cat "${f%%:*}")"
-    [ "$out" = "kept ${f%%:*}" ] || {
-      _hi_cecho " | ${f%%:*} rode as [$out]" "$RED"
+  # one build for the three
+  _HI_CONFIG_DIR="$ov" _hi_overlay_tar | tar -x -z -f - -C "$got" || return 1
+  for f in vim/vimrc emacs/init.el nvim/init.lua; do
+    out=""
+    [ ! -f "$got/$f" ] || out="$(<"$got/$f")"
+    [ "$out" = "kept $f" ] || {
+      _hi_cecho " | $f rode as [$out]" "$RED"
       bad=1
     }
   done
@@ -2297,13 +2323,10 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags config/colors config/packages; do
-    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
-      <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
-      _hi_cecho " | $f lost or changed a data line" "$RED"
-      bad=1
-    }
-  done
+  while IFS= read -r f; do
+    _hi_cecho " | $f lost or changed a data line" "$RED"
+    bad=1
+  done < <(_hi_strip_differs "$dir" common/flags config/colors config/packages)
   [ "$bad" -eq 0 ]
 }
 
@@ -2350,8 +2373,13 @@ function run_hi_payload_tests() {
   HOME="$_HI_WORKDIR/bare-home"
   mkdir -p "$HOME"
   # home's configs ride only with their tools on this machine (_hi_tool_here),
-  # and no runner has all of them
-  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$PATH"
+  # and no runner has all of them. The rest of $PATH is cut to the
+  # directories of the tools a case runs: every build probes for some twenty
+  # tools the runner lacks, down every directory of $PATH
+  PATH="$(_hi_stub_tools vim nvim hx nano emacs tmux micro bat eza):$(_hi_path_dirs_of bash sh dash zsh fish \
+    tar bsdtar gzip awk sed grep cat rm rmdir mkdir mktemp mv cp ln chmod find sort tr paste wc cut head tail \
+    tee touch ls od cmp diff env date dirname basename uname id whoami hostname stat base64 openssl ssh git \
+    gpg python3 perl sleep timeout du xargs uniq expr readlink tput getconf nproc sysctl sw_vers ps pgrep)"
 
   _hi_suite_begin
 

@@ -439,22 +439,48 @@ checkout: an account or an upstream review that lands when it lands.
        can be named the same way. **Ticks when:** with it on, `tmux` typed in
        a plain `hi <target>` session opens a pane that shows hi's prompt.
 
-10. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+10. [ ] _Before 1.0:_ **No file runs past a thousand lines** — 24 do,
+        the lockfile aside. Suites: `packaging_ci_test.sh` (3553),
+        `header_test.sh` (2528), `payload_test.sh` (2485), `doctor_test.sh`
+        (2015), `configure_test.sh` (1963), `core_test.sh` (1826),
+        `rc_test.sh` (1750), `parse_test.sh` (1504), `targets_test.sh`
+        (1330), `load_test.sh` (1254), `preview_test.sh` (1202),
+        `install_test.sh` (1177), `drift_test.sh` (1050), `runner_test.sh`
+        (1006). Shipped: `hi.sh` (2056), `scripts/pack.sh` (1802),
+        `scripts/configure.sh` (1796), `common/core.sh` (1493),
+        `common/header.sh` (1295), `scripts/doctor.sh` (1080). Workflows:
+        `ci.yml` (1306), `release.yml` (1083). Docs: `docs/GLOSSARY.md`
+        (1745), `docs/hi.1` (1216). **Do:** split each along the sections it
+        already has, a suite into one file a section so a Windows shard takes
+        a part of it. **Ticks when:** `git ls-files` names no hand-written
+        file over 1,000 lines.
+
+11. [ ] _Before 1.0:_ **The release's GIF shows the package check** — the
+        GIF on a release page is `packages.tape`'s (`demos.yml`'s `attach`
+        job), picked for the header's check, and the one attached draws the
+        header without it. The fixture (`docs/tapes/fixtures.sh`,
+        `up:packages`) sets `_HI_PACKAGES_GROUPS` and leaves the default
+        header order, so why the row is missing is not yet known. **Do:**
+        find where the check is lost between the fixture and the render, and
+        have the render fail when the row is not drawn. **Ticks when:** a
+        release's `demo.gif` shows the check's row on both boxes.
+
+12. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
         [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
         **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
         versions_ prose into its version table.
 
-11. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-12. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-13. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand
