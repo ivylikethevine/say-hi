@@ -1243,19 +1243,29 @@ function test_ask_value_typed_default_clears_the_override() {
 # _hi_item <kind> - the number the menu gives an item ("word|0" the first
 # header item, "end|bash", "width", ...), read off the list itself rather
 # than counted by hand, so a row added above it cannot leave a case typing
-# the wrong number
+# the wrong number. The list is the same for every case, so it is built once,
+# ahead of the batches: a build forks over a hundred times, and the case that
+# walks every row paid that per row.
+_HI_ITEM_LIST=()
+function _hi_items_load() {
+  _hi_read_lines _HI_ITEM_LIST < <(
+    _HI_SETTINGS=/dev/null
+    # the plugins number by what has a file, so under the overlay the pty
+    # child ($_HI_CFG_CHILD) makes: nano's rc alone
+    _HI_CONFIG_DIR="$_HI_WORKDIR/item-overlay"
+    mkdir -p "$_HI_CONFIG_DIR/nano"
+    : >"$_HI_CONFIG_DIR/nano/nanorc"
+    _HI_SETTING_PENDING=()
+    _hi_header_edit_load
+    _hi_menu_list >/dev/null
+    printf '%s\n' "${_HI_MENU_ITEMS[@]}"
+  )
+}
 function _hi_item() {
-  local i _HI_SETTINGS=/dev/null
-  # the plugins number by what has a file, so under the overlay the pty
-  # child ($_HI_CFG_CHILD) makes: nano's rc alone
-  local _HI_CONFIG_DIR="$_HI_WORKDIR/item-overlay"
-  mkdir -p "$_HI_CONFIG_DIR/nano"
-  : >"$_HI_CONFIG_DIR/nano/nanorc"
-  _HI_SETTING_PENDING=()
-  _hi_header_edit_load
-  _hi_menu_list >/dev/null
-  for i in "${!_HI_MENU_ITEMS[@]}"; do
-    [ "${_HI_MENU_ITEMS[$i]}" = "$1" ] || continue
+  local i
+  ((${#_HI_ITEM_LIST[@]})) || _hi_items_load
+  for i in "${!_HI_ITEM_LIST[@]}"; do
+    [ "${_HI_ITEM_LIST[$i]}" = "$1" ] || continue
     printf '%d' "$((i + 1))"
     return 0
   done
@@ -1668,7 +1678,7 @@ function test_menu_numbers_every_row() {
   for t in _HI_FEATURE_PROMPTS _HI_HEADER_PROMPTS _HI_PROMPT_PROMPTS _HI_ADVANCED_PROMPTS; do
     _hi_prompt_rows "$t" rows
     for i in "${!rows[@]}"; do
-      [ -n "$(_hi_item "row|$t|$i")" ] || _hi_because "no menu number for $t row $i" || return 1
+      _hi_item "row|$t|$i" >/dev/null || _hi_because "no menu number for $t row $i" || return 1
     done
   done
 }
@@ -1764,6 +1774,7 @@ function run_configure_tests() {
   mkdir -p "$_HI_CONFIG_DIR/micro"
   : >"$_HI_CONFIG_DIR/micro/settings.json"
   : >"$_HI_CONFIG_DIR/micro/bindings.json"
+  _hi_items_load
 
   _hi_h1 "Testing scripts/configure.sh's reusable logic"
 

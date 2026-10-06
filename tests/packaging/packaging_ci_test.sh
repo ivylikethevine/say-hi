@@ -1465,7 +1465,8 @@ function test_apt_update_retries_over_a_cleared_cache() {
   mkdir -p "$dir/bin"
   cat >"$dir/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$1 $2 ${3%%/lists/*}" >>"$HI_APT_LOG"
+dir="${3:-}"
+printf '%s\n' "$1 $2 ${dir%%/lists/*}" >>"$HI_APT_LOG"
 [ "$1 $2" != "apt-get update" ] || [ "$(grep -c '^apt-get update' "$HI_APT_LOG")" -gt "$HI_APT_FAILS" ]
 EOF
   # shellcheck disable=SC2016 # the stub expands these, not this shell

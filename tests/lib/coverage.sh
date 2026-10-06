@@ -113,9 +113,10 @@ function _hi_cov_trace_all() {
     _hi_cecho " | coverage: tracing $_hi_suite" "$BRCYAN"
     "$1" "$_hi_suite" "$_hi_path" >"$_hi_log" 2>&1 || {
       # the transcript's tail, since a case that fails only under the tracer
-      # cannot be seen by running the suite without one
+      # cannot be seen by running the suite without one - less bashcov's line
+      # for each fixture script a case ran and removed, which outnumber it
       _hi_cecho " | coverage: $_hi_suite failed while being traced - stopping, no report; its last lines:" "$RED"
-      tail -n 40 "$_hi_log" | sed 's/^/ |   /'
+      grep -v '^bashcov: warning: .* has been deleted since then' "$_hi_log" | tail -n 40 | sed 's/^/ |   /'
       return 1
     }
   done

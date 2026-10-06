@@ -389,22 +389,41 @@ checkout: an account or an upstream review that lands when it lands.
        no `tr` on `PATH`. **Ticks when:** the macOS fast job's log has no
        `command not found` line from `pack.sh`.
 
-4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+4. [ ] _Before 1.0:_ **The secret lint passes a reference and a color** —
+       `scripts/doctor.sh`'s `_HI_SECRET_AWK` flags two lines that hold no
+       secret: an alias that names a variable behind a backslash
+       (`alias c="GH_TOKEN=\$RO_TOKEN cmd"`), since only a bare `$` reads as
+       a reference, and an `LS_COLORS` value, whose `*passwd=0;38` entry
+       reads as a password being set. **Do:** read `\$` as a reference and
+       take a name only where an assignment starts, not inside another
+       variable's value, with a case for each in `doctor_test.sh`. **Ticks
+       when:** `hi --doctor` gives neither line a row with no `hi-allow`
+       comment above it.
+
+5. [ ] _Before 1.0:_ **A listed plugin is colored** — `hi --plugins`
+       draws a plugin's row with a mark for its state and the name plain, so
+       what rides and what stays home read alike down the name column.
+       **Do:** paint the name by its state wherever a plugin is listed, and
+       not at all where color is off. **Ticks when:** `hi --plugins` shows a
+       plugin that rides and one kept home in different colors, and prints
+       no escape under `NO_COLOR`.
+
+6. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+7. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+8. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+9. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand
