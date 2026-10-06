@@ -117,6 +117,19 @@ function test_update_on_dev_refuses_a_diverged_branch() {
   [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ]
 }
 
+# a dev that tracks nothing has nowhere to pull from: refused, with the
+# command that gives it an upstream, and nothing moves
+function test_update_on_dev_refuses_a_branch_with_no_upstream() {
+  local home before out rc=0
+  home="$(_hi_update_dev_fixture upd-dev-bare)" || return 1
+  git -C "$home/say-hi" branch -q --unset-upstream dev >/dev/null 2>&1 || return 1
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update 2>&1)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"dev in $home/say-hi has no upstream"*"--set-upstream-to=origin/dev dev"* ]] ||
+    _hi_because "rc $rc: $out" || return 1
+  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ]
+}
+
 # a tag named on dev is still a tag checkout
 function test_update_on_dev_with_a_tag_checks_it_out() {
   local home out
@@ -189,6 +202,30 @@ function test_update_dry_run_reports_the_signature() {
   home="$(_hi_update_fixture upd-drysig)" || return 1
   out="$(_hi_subcmd_run "$home" --update --dry-run v0.0.2)" || return 1
   [[ "$out" == *"v0.0.2 is not signed"* && "$out" == *"dry run"* ]]
+}
+
+# A signed tag on a machine with no gpg to ask: the tag object is written by
+# hand, a signature block and all, and gpg.program names a file that is not
+# there. The check says it could not be made and the update goes on - unless
+# _HI_UPDATE_SIGNED=1 wants a signature vouched for.
+function test_update_says_when_the_signature_cannot_be_checked() {
+  local home out sha rc=0
+  home="$(_hi_update_fixture upd-nogpg)" || return 1
+  sha="$(printf 'object %s\ntype commit\ntag v0.0.3\ntagger hi <hi@example.invalid> 0 +0000\n\nthree\n%s\n\nabc\n%s\n' \
+    "$(git -C "$home/work" rev-parse HEAD)" '-----BEGIN PGP SIGNATURE-----' '-----END PGP SIGNATURE-----' |
+    git -C "$home/work" hash-object -t tag -w --stdin)" || return 1
+  {
+    git -C "$home/work" update-ref refs/tags/v0.0.3 "$sha" &&
+      git -C "$home/work" push -q origin v0.0.3 &&
+      git -C "$home/say-hi" config gpg.program "$home/no-such-gpg"
+  } >/dev/null 2>&1 || return 1
+  out="$(_HI_UPDATE_SIGNED=1 _hi_subcmd_run "$home" --update v0.0.3)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"could not check the signature on v0.0.3"* ]] &&
+    [[ "$out" == *"refusing to check it out"* && "$out" != *"now on v0.0.3"* ]] ||
+    _hi_because "strict, rc $rc: $out" || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.3)" || return 1
+  [[ "$out" == *"could not check the signature on v0.0.3"* && "$out" == *"now on v0.0.3"* ]] ||
+    _hi_because "it said: $out"
 }
 
 # _hi_update_gpg_home <name> - a throwaway keyring with one key in it (via
@@ -480,12 +517,14 @@ function run_update_tests() {
   _hi_check_requires git "...a dry run counts the commits, moves nothing" test_update_on_dev_dry_run_moves_nothing
   _hi_check_requires git "...an up-to-date dev says so" test_update_on_dev_up_to_date_says_so
   _hi_check_requires git "...a diverged dev is refused, untouched" test_update_on_dev_refuses_a_diverged_branch
+  _hi_check_requires git "...a dev with no upstream is refused, untouched" test_update_on_dev_refuses_a_branch_with_no_upstream
   _hi_check_requires git "...a named tag is still a tag checkout" test_update_on_dev_with_a_tag_checks_it_out
 
   _hi_h2 "Testing: the tag's signature"
   _hi_check_requires git "An unsigned tag is said to be, and checked out" test_update_says_an_unsigned_tag_is_unsigned
   _hi_check_requires git "...and refused under _HI_UPDATE_SIGNED=1" test_update_signed_refuses_an_unsigned_tag
   _hi_check_requires git "--dry-run reports the signature verdict" test_update_dry_run_reports_the_signature
+  _hi_check_requires git "A signature with no gpg to check it: said, allowed" test_update_says_when_the_signature_cannot_be_checked
   # gpg_agent, not `gpg`: the three need a keyring, which needs an agent gpg
   # can reach - a facility, not a binary (Git Bash has the binary and no agent)
   _hi_check_capable gpg_agent "A good signature is named with its signer" test_update_names_a_good_signature

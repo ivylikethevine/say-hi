@@ -1008,6 +1008,32 @@ function test_config_flags_a_secret_in_a_riding_file() {
     _hi_because "the report said: $out"
 }
 
+# neovim's init.lua rides alone: the modules beside it are counted, at any
+# depth, as staying home, and an init.lua with none gets no row
+function test_config_names_the_nvim_modules_that_stay_home() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/nvimlua.XXXXXX")"
+  mkdir -p "$dir/nvim"
+  printf 'require("mine")\n' >"$dir/nvim/init.lua"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" != *"nvim/lua"* ]] || _hi_because "a row with no lua directory: $out" || return 1
+  mkdir -p "$dir/nvim/lua/mine"
+  printf 'return {}\n' >"$dir/nvim/lua/mine.lua"
+  printf 'return {}\n' >"$dir/nvim/lua/mine/keys.lua"
+  printf 'notes\n' >"$dir/nvim/lua/README"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"nvim/lua"*"2 file(s) under $dir/nvim/lua stay home"* ]] ||
+    _hi_because "the report said: $out"
+}
+
 # the tag files are listed by tag, and one no tag can name is said to be unread
 function test_config_lists_the_tag_settings() {
   local dir out
@@ -1898,6 +1924,7 @@ function run_doctor_tests() {
     _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
     _hi_check "A secret-shaped line in a riding file is named" test_config_flags_a_secret_in_a_riding_file
     _hi_check "...in the set spelling of fish too" test_secret_awk_reads_a_fish_set
+    _hi_check "neovim's modules are named as staying home" test_config_names_the_nvim_modules_that_stay_home
     _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
     _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
 

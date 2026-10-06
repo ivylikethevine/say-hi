@@ -390,6 +390,21 @@ function test_bash_exa_completion_clones_ezas_spec() {
   [[ "$out" == '124|'*'-W'*'--grid --tree'*' exa' ]]
 }
 
+# ...a word of the spec that holds a quote, which `complete -p` writes as
+# '...'\''...', is cloned as that one word
+function test_bash_exa_completion_clones_a_quoted_word() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    unset -f _completion_loader 2>/dev/null
+    complete -o nospace -W "it'\''s --grid" eza
+    _hi_load_exa_completion
+    eza="$(complete -p eza)" exa="$(complete -p exa)"
+    printf "%s" "${exa% exa}"
+    [ "${exa% exa}" = "${eza% eza}" ] && printf "|same"' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
+  [[ "$out" == *"it'\''s --grid"*'|same' ]] || _hi_because "exa's spec: $out"
+}
+
 # ...and with no eza spec to clone (and no loader to fetch one) it reports
 # failure and leaves its own registration armed for the next TAB.
 function test_bash_exa_completion_fails_without_an_eza_spec() {
@@ -803,6 +818,17 @@ function test_prompt_program_draws() {
     _hi_cecho " | $shell drew: [$out]" "$RED"
     return 1
   }
+}
+
+# oh-my-bash, loaded by hi, takes every alias down with its own; the ones
+# there before it are put back as they were, a quote in a value included
+function test_oh_my_bash_keeps_an_alias_with_a_quote() {
+  local out h
+  h="$(_hi_fw_home)"
+  out="$(_hi_rc_shell dumb bash 'alias say="$RC_ALIAS"; source "$_HI_HOME/say-hi/common/bash.sh" 2>&1
+    printf "%s|%s" "$(alias say)" "$(alias ls)"' HOME="$h" _HI_CONFIG_DIR="$h/cfg" _HI_TOOL_ALIASES=1 \
+    _HI_PROMPT_TOOL=oh-my-bash _HI_REMOTE_SESSION=1 RC_ALIAS="echo it's 'here'")"
+  [[ "$out" == "alias say='echo it'\\''s '\\''here'\\'''|"* && "$out" != *FW-LS* ]] || _hi_because "the aliases: [$out]"
 }
 
 # a target is sent only the loaders of the frameworks it is handed (pack.sh's
@@ -1452,6 +1478,7 @@ function run_rc_tests() {
   _hi_check "bash target TAB reuses its names within the TTL" test_bash_target_names_are_held_for_the_ttl
   _hi_check "ble.sh's as-you-type completion runs no sweep" test_bash_ble_auto_complete_runs_no_sweep
   _hi_check "the first exa TAB clones eza's spec (124)" test_bash_exa_completion_clones_ezas_spec
+  _hi_check "...a word holding a quote included" test_bash_exa_completion_clones_a_quoted_word
   _hi_check "...and fails armed without an eza spec" test_bash_exa_completion_fails_without_an_eza_spec
   _hi_check "[bash] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias bash
   _hi_check_requires zsh "[zsh] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias zsh
@@ -1566,6 +1593,7 @@ function run_rc_tests() {
     test_prompt_program_draws bash 'PLGO -shell bash -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
   _hi_check "[bash] oh-my-bash, loaded by hi, draws the home theme on a target" \
     test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL=oh-my-bash _HI_REMOTE_SESSION=1
+  _hi_check "[bash] ...putting back an alias whose value holds a quote" test_oh_my_bash_keeps_an_alias_with_a_quote
   _hi_check "[bash] ...and puts back the aliases set before it" test_oh_my_bash_puts_the_aliases_back
   _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
     test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
@@ -1653,6 +1681,11 @@ function run_rc_tests() {
     '\[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
   _hi_check "[bash] ...and its plain one" test_rc_prompt bash drawn '${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
   _hi_check "[bash] ...and Fedora's and Arch's" test_rc_prompt bash drawn '[\u@\h \W]\$ '
+  _hi_check "[bash] ...and Git Bash's, by its title" test_rc_prompt bash drawn \
+    '\[\033]0;$TITLEPREFIX:$PWD\007\]\n\[\033[32m\]\u@\h \[\033[35m\]$MSYSTEM \[\033[33m\]\w\[\033[0m\]\n$ '
+  _hi_check "[bash] ...and MSYS2's and Cygwin's" test_rc_prompt bash drawn \
+    '\[\e]0;\w\a\]\n\[\e[32m\]\u@\h \[\e[35m\]$MSYSTEM\[\e[0m\] \[\e[33m\]\w\[\e[0m\]\n\$ '
+  _hi_check "[bash] ...and Termux's" test_rc_prompt bash drawn '\[\e[0;32m\]\w\[\e[0m\] \[\e[0;97m\]\$\[\e[0m\] '
   _hi_check "[bash] the rc sourced again draws over hi's own" test_rc_prompt_redraws_on_a_re_source bash
   _hi_check_requires zsh "[zsh] a PROMPT of the user's own stays at home" test_rc_prompt zsh stays '%F{green}%n%f %~ %# '
   _hi_check_requires zsh "[zsh] ...unless hi is named" test_rc_prompt zsh drawn '%F{green}%n%f %~ %# ' _HI_PROMPT_TOOL=hi

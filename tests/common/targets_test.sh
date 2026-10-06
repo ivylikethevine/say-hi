@@ -986,6 +986,19 @@ function test_complete_the_word_after_link_preset_and_update() {
   [ "$(_hi_completions_after --update "")" = "$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)" ]
 }
 
+# --shell completes the names install.sh's own check takes, the list spelled
+# in both files
+function test_shell_words_match_what_install_takes() {
+  local want got
+  want="$(sed -n 's/^      \(bash | zsh | fish | all\)) ;;$/\1/p' "$_HI_ROOT/scripts/install.sh" | tr -d '|' | tr -s ' ' '\n' | sort | tr '\n' ' ')"
+  got="$(_hi_completions_after --shell "" | sort | tr '\n' ' ')"
+  [ -n "$want" ] && [ "$got" = "$want" ] || {
+    _hi_cecho " | install.sh takes [$want], targets.sh offers [$got]" "$RED"
+    return 1
+  }
+  [ "$(_hi_completions_after --shell z)" = zsh ]
+}
+
 # the preset names targets.sh offers are configure.sh's table, spelled twice
 function test_preset_words_match_the_presets_table() {
   local want got
@@ -1293,6 +1306,7 @@ function run_targets_tests() {
   _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
   _hi_check "words: --link, --preset, and --update too" test_complete_the_word_after_link_preset_and_update
   _hi_check "words: --preset's names are configure.sh's" test_preset_words_match_the_presets_table
+  _hi_check "words: --shell's names are install.sh's" test_shell_words_match_what_install_takes
   _hi_check "words: the roster and \$_HI_WORD_FLAGS agree" test_word_flags_match_the_words_roster
   _hi_check "words: \$_HI_WORD_FLAGS is common/flags' <word> column" test_word_flags_match_the_flags_table
   _hi_check "words: --preview's subjects agree in all three files" test_preview_subjects_agree_everywhere

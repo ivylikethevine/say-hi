@@ -88,6 +88,33 @@ function test_add_tag_refuses_an_unknown_host_and_a_bad_tag() {
   [ "$(cat "$home/.ssh/config")" = "$before" ]
 }
 
+function test_add_tag_help_is_its_own() {
+  local home out
+  home="$(_hi_addtag_fixture addtag-help)"
+  out="$(_hi_addtag_run "$home" --help)" || return 1
+  [[ "$out" == "Usage: hi --add-tag <host> <tag> [--dry-run]"* ]] &&
+    [[ "$out" == *"$home/.ssh/config"* && "$out" == *"-n, --dry-run"* ]]
+}
+
+function test_add_tag_refuses_an_unknown_option() {
+  local home before out rc=0
+  home="$(_hi_addtag_fixture addtag-opt)"
+  before="$(cat "$home/.ssh/config")"
+  out="$(_hi_addtag_run "$home" web2 lab --bogus)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"unknown option --bogus"* ]] &&
+    [ "$(cat "$home/.ssh/config")" = "$before" ]
+}
+
+# the tag a host already carries is said, and nothing is written
+function test_add_tag_leaves_a_host_already_tagged() {
+  local home before out
+  home="$(_hi_addtag_fixture addtag-same)"
+  before="$(cat "$home/.ssh/config")"
+  out="$(_hi_addtag_run "$home" web1 old)" || return 1
+  [[ "$out" == *"web1 is already tagged old"* && "$out" != *updated* ]] &&
+    [ "$(cat "$home/.ssh/config")" = "$before" ]
+}
+
 function test_add_tag_dry_run_writes_nothing() {
   local home before out
   home="$(_hi_addtag_fixture addtag-dry)"
@@ -136,6 +163,9 @@ function run_add_tag_tests() {
   _hi_check "Refuses a wildcard-only host, naming the block" test_add_tag_refuses_a_wildcard_only_host
   _hi_check "Tags a pattern" test_add_tag_tags_a_pattern
   _hi_check "Refuses an unknown host and a bad tag" test_add_tag_refuses_an_unknown_host_and_a_bad_tag
+  _hi_check "--help is its own text" test_add_tag_help_is_its_own
+  _hi_check "Refuses an unknown option, nothing written" test_add_tag_refuses_an_unknown_option
+  _hi_check "Leaves a host that already carries the tag" test_add_tag_leaves_a_host_already_tagged
   _hi_check "--dry-run writes nothing" test_add_tag_dry_run_writes_nothing
   _hi_check_capable mode_bits "Keeps the config's mode" test_add_tag_keeps_the_config_mode
   _hi_check "Round-trips through hi --preview colors" test_add_tag_round_trips_through_preview_colors

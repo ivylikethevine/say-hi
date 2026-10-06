@@ -1500,6 +1500,17 @@ function test_menu_prompt_program_back_to_auto() {
     [[ "$(_hi_cfg_lines pe_star_off)" != *"_HI_PROMPT_TOOL"* ]]
 }
 
+# a name off the list is said and asked again, and the third in a row leaves
+# the shell's entry as it was
+function test_menu_prompt_program_rejects_a_stranger() {
+  _hi_cfg_pty pe_stranger "$(_hi_item 'tool|bash')\nnope\nstarship\ns\n" '' config_hub || return 1
+  _hi_cfg_has pe_stranger "no choice nope - type a number or a name from the list" &&
+    [[ "$(_hi_cfg_lines pe_stranger)" == *"export _HI_PROMPT_TOOL=bash:starship"* ]] || return 1
+  _hi_cfg_pty pe_strangers "$(_hi_item 'tool|bash')\nnope\n99\nnah\ns\n" "export _HI_PROMPT_TOOL='bash:starship'" config_hub || return 1
+  _hi_cfg_has pe_strangers "no choice 99" && ! _hi_cfg_has pe_strangers "no choice nah" &&
+    [[ "$(_hi_cfg_lines pe_strangers)" == *"export _HI_PROMPT_TOOL=bash:starship"* ]]
+}
+
 # the menu's reading of a value: a shell's own entry first, then the plain
 # ones, auto with only other shells' entries, hi when none fits
 function test_prompt_choice_reads_the_value() {
@@ -1925,6 +1936,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: hidden addresses" test_menu_takes_hidden_addresses
   _hi_par_check_capable pty "Menu: a prompt program is picked per shell" test_menu_picks_a_prompt_program_per_shell
   _hi_par_check_capable pty "Menu: auto for every shell clears the line" test_menu_prompt_program_back_to_auto
+  _hi_par_check_capable pty "Menu: a prompt program off the list is asked again" test_menu_prompt_program_rejects_a_stranger
   _hi_par_check_capable pty "Menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Menu: a quoted separator is refused" test_menu_refuses_a_quoted_separator
   _hi_par_check_capable pty "Menu: the advanced rows" test_menu_advanced_rows

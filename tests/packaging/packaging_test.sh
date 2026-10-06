@@ -196,6 +196,16 @@ function test_stamp_writes_the_th_line() {
     grep -qF '.TH HI 1 "2026-01-02" "say-hi 9.9.9" "User Commands"'
 }
 
+# a .TH that sed wrote wrong is caught with the line it wrote, not shipped:
+# an & in the date is sed's "the whole match", so the old line lands inside
+function test_stamp_refuses_a_th_line_that_came_out_wrong() {
+  local d out rc=0
+  d="$(_hi_stamp_fixture)"
+  out="$(_hi_stamp --root "$d" --version 9.9.9 --date '2026&01' 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"the man page's .TH line came out wrong: .TH HI 1 \"2026.TH HI 1 "* ]] ||
+    _hi_because "rc $rc: $out"
+}
+
 # no --date: the day of $SOURCE_DATE_EPOCH, which is what makes the packaged
 # page reproducible rather than "whenever this built"
 function test_stamp_dates_from_source_date_epoch() {
@@ -675,6 +685,7 @@ function run_packaging_tests() {
   _hi_h2 "Testing: packaging/stamp.sh"
   _hi_check "Writes the release line" test_stamp_writes_the_release_line
   _hi_check "Writes the .TH line" test_stamp_writes_the_th_line
+  _hi_check "...and refuses one that came out wrong" test_stamp_refuses_a_th_line_that_came_out_wrong
   _hi_check "Dates from SOURCE_DATE_EPOCH" test_stamp_dates_from_source_date_epoch
   _hi_check "Refuses to guess a date" test_stamp_refuses_to_guess_a_date
   _hi_check "Is idempotent" test_stamp_is_idempotent

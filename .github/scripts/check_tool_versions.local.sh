@@ -64,7 +64,7 @@ function ci_local_checks() {
   for floor in $_HI_FLOOR_PINS; do
     image="${floor%:*}"
     # a literal prefix match, not grep: the tag's dots are not wildcards
-    case "$'\n'$pins" in
+    case $'\n'"$pins" in
     *$'\n'"$floor@sha256:"*) pinned=1 ;;
     *) pinned="" ;;
     esac

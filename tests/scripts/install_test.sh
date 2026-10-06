@@ -418,6 +418,44 @@ function test_run_uninstall_fails_on_a_read_only_rc() {
 }
 
 # ...and --purge is --uninstall's alone
+# ...and so does the whole run: its closing line says the rc is still wired,
+# and the status is the one a script can act on
+function test_uninstall_mode_fails_on_a_read_only_rc() {
+  local home="$_HI_WORKDIR/un-locked" out rc=0
+  mkdir -p "$home"
+  printf 'echo before\nsource hi %s\n' "$_HI_MARKER" >"$home/.bashrc"
+  chmod 444 "$home/.bashrc"
+  out="$(_hi_run_install un-locked --uninstall 2>&1)" || rc=$?
+  chmod 644 "$home/.bashrc"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"Uninstalled, but for the rc files named above"* ]] &&
+    [[ "$out" != *"Uninstalled!"* ]] && grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
+# an install that meets one writes the settings, leaves the rc as it was, and
+# fails the same way
+function test_install_mode_fails_on_a_read_only_rc() {
+  local home="$_HI_WORKDIR/in-locked" out rc=0
+  mkdir -p "$home"
+  printf 'echo mine\n' >"$home/.bashrc"
+  chmod 444 "$home/.bashrc"
+  out="$(_hi_run_install_here in-locked --link none --yes --preset balanced 2>&1)" || rc=$?
+  chmod 644 "$home/.bashrc"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
+    [[ "$out" == *"Installed, but for the rc files named above"* && "$out" != *"Installed!"* ]] &&
+    [ "$(cat "$home/.bashrc")" = "echo mine" ] && [ -f "$home/.config/say-hi/settings.sh" ]
+}
+
+# --shell takes bash, zsh, fish, or all, comma- or space-separated: a name
+# outside those is refused by name, and the flag alone asks for its list
+function test_shell_flag_refuses_a_stranger() {
+  local out rc=0
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --shell bash,tcsh 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--shell wants bash, zsh, fish, or all (got tcsh)"* ]] || return 1
+  rc=0
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --shell 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--shell needs a list of bash, zsh, and fish, or all"* ]]
+}
+
 function test_purge_is_refused_outside_uninstall() {
   local out rc=0
   out="$(_hi_run_install un-purge-mode --install --purge 2>&1)" || rc=$?
@@ -1106,6 +1144,9 @@ function run_install_tests() {
   _hi_check_capable lockout "...and says when it cannot" test_uninstall_purge_says_when_it_cannot_remove
   _hi_check_capable lockout "config_shell refuses a read-only rc" test_config_shell_refuses_a_read_only_rc
   _hi_check_capable lockout "run_uninstall fails on a read-only rc" test_run_uninstall_fails_on_a_read_only_rc
+  _hi_check_capable lockout "...and so does the whole --uninstall run" test_uninstall_mode_fails_on_a_read_only_rc
+  _hi_check_capable lockout "An install fails on one too, settings written" test_install_mode_fails_on_a_read_only_rc
+  _hi_check "--shell refuses a name that is no shell of hi's" test_shell_flag_refuses_a_stranger
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check_capable pty "...and quit at its menu, leaves them as they were" test_features_only_quit_leaves_the_settings
