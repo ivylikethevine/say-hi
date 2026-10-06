@@ -71,6 +71,7 @@ function _hi_assert() {
   # a failed case is run once more, traced (_hi_trace_rerun): a pass the
   # second time is a flake - FLAKY in yellow, noted for the runner's recap,
   # and not a failure - and a second failure is FAILED with the trace's tail
+  [ "${_HI_TRACE_RERUN:-1}" != 1 ] || ! _hi_flaky_allowed || _hi_pipe_probe
   if _hi_trace_rerun $((SECONDS - t0)) "$@"; then
     if _hi_flaky_allowed; then
       _hi_align " | $label" "FLAKY" "$YELLOW"
@@ -124,6 +125,32 @@ function _hi_trace_rerun() {
   [ "$rc" = 0 ] && return 0
   _HI_RERUN_OUT="      traced rerun (exit $rc), its last lines:"$'\n'"$(printf '%s\n' "$out" | tail -n 40 | sed 's/^/      /')"
   return 1
+}
+
+# _hi_pipe_probe - is this host losing output right now, and from which kind
+# of writer: 20 rounds each of a subshell, a child bash, and a process
+# substitution into a capture, and a child bash into a file, counted when the
+# words come back short. One stderr line with the runtime's version and the
+# load, ahead of the rerun of a failed case where a flake may pass: the
+# flakes of Windows arm64 are captures that came back empty with no error.
+function _hi_pipe_probe() {
+  local i got want=0123456789abcdef sub=0 child=0 psub=0 file=0 died=0 f="${_HI_WORKDIR:-${TMPDIR:-/tmp}}/pipe-probe" load=""
+  for ((i = 0; i < 20; i++)); do
+    got="$(printf '%s' "$want")" || died=$((died + 1))
+    [ "$got" = "$want" ] || sub=$((sub + 1))
+    got="$("$BASH" -c 'printf 0123456789abcdef')" || died=$((died + 1))
+    [ "$got" = "$want" ] || child=$((child + 1))
+    got=""
+    IFS= read -r got < <(printf '%s\n' "$want") || :
+    [ "$got" = "$want" ] || psub=$((psub + 1))
+    got=""
+    "$BASH" -c 'printf "0123456789abcdef\n"' >"$f" 2>/dev/null || died=$((died + 1))
+    IFS= read -r got <"$f" 2>/dev/null || :
+    [ "$got" = "$want" ] || file=$((file + 1))
+  done
+  [ ! -r /proc/loadavg ] || IFS= read -r load </proc/loadavg || :
+  printf '      output probe, short of 20: subshell %s, child bash %s, process substitution %s, child bash to a file %s; %s exited non-zero (%s%s)\n' \
+    "$sub" "$child" "$psub" "$file" "$died" "$(uname -srm 2>/dev/null || true)" "${load:+, load $load}" >&2
 }
 
 # _hi_flaky_allowed - whether a flake may pass here. Not on native Linux x64:

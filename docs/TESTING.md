@@ -62,6 +62,10 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   x64, the least loaded platform, a flake is a failure like any other
   (`_HI_FLAKY_OK=1`/`0` overrides either way). Not for a failure
   that took over 20s, nor under the coverage sweeps (`_HI_TRACE_RERUN=0`).
+  Where a flake may pass, an _output probe_ line comes ahead of the rerun:
+  how many of 20 captures came back short from a subshell, a child bash, and
+  a process substitution, and from a child bash writing a file, with the
+  runtime's version and the load.
 - Suites running side by side replay only once the last one finishes, so a
   progress line fills the wait (finished suites, cases, failures, elapsed,
   what is still running): redrawn in place at a terminal, a line per finished
@@ -337,7 +341,12 @@ Instrumented, not yet explained: on Windows arm64, `hi_payload`'s include
 scan cases have left an empty overlay stream with no error of their own
 (gzip then reports "unexpected end of file"). The suite wraps
 `_hi_overlay_tar` to print its exit status and stderr, so the next one names
-its cause.
+its cause. The same runners (an x64 MSYS runtime, emulated) have handed a
+capture nothing from a `hi` run that exited 0, and a process substitution
+nothing from a list that was there a call earlier. The output probe above
+says whether the host is dropping output at that moment and from which
+writer; `plugins_test.sh` runs `hi` into a file and names a run that wrote
+nothing, which tells a silent run from a capture that lost its words.
 
 ### The images are files; the build contexts are not
 
