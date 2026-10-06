@@ -381,6 +381,42 @@ function test_uninstall_purge_says_when_it_cannot_remove() {
   [[ "$out" == *"couldn't remove all of it"* && "$out" != *"removed"* ]] && [ -d "$dir/say-hi" ]
 }
 
+# an rc hi cannot write is refused by name, with the lines to add by hand and
+# no backup left beside it - never "updated"
+function test_config_shell_refuses_a_read_only_rc() {
+  local dir="$_HI_WORKDIR/rc-locked" out rc=0
+  mkdir -p "$dir"
+  printf 'echo mine\n' >"$dir/.bashrc"
+  chmod 444 "$dir/.bashrc"
+  out="$(config_shell bashrc "$dir/.bashrc" "source hi" 2>&1)" || rc=$?
+  chmod 644 "$dir/.bashrc"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $dir/.bashrc"* && "$out" == *"source hi"* ]] &&
+    [[ "$out" != *"updated"* ]] && [ ! -e "$dir/.bashrc.hi-orig" ] &&
+    [ "$(cat "$dir/.bashrc")" = "echo mine" ]
+}
+
+# ...and an uninstall that meets one fails, having still done the rest
+function test_run_uninstall_fails_on_a_read_only_rc() {
+  local home="$_HI_WORKDIR/run-uninstall-locked" out rc=0
+  mkdir -p "$home/.config/say-hi"
+  printf 'echo before\nsource hi %s\n' "$_HI_MARKER" >"$home/.bashrc"
+  chmod 444 "$home/.bashrc"
+  printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$home/.config/say-hi/settings.sh"
+  # shellcheck disable=SC2016 # single quotes on purpose: the child expands these
+  out="$(env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
+    _HI_SETTINGS="$home/.config/say-hi/settings.sh" _HI_HOME_BASHRC="$home/.bashrc" \
+    _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/.config/fish/config.fish" \
+    _HI_UNINSTALL_SCRIPT="$_HI_INSTALL" bash -c '
+      set --
+      source "$_HI_UNINSTALL_SCRIPT"
+      function unlink_hi() { :; }
+      run_uninstall 2>&1
+    ')" || rc=$?
+  chmod 644 "$home/.bashrc"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
+    [ ! -e "$home/.config/say-hi/settings.sh" ] && grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
 # ...and --purge is --uninstall's alone
 function test_purge_is_refused_outside_uninstall() {
   local out rc=0
@@ -1049,6 +1085,8 @@ function run_install_tests() {
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--uninstall --purge removes the overlay, dry-run keeps it" test_uninstall_purge_removes_the_overlay
   _hi_check_capable lockout "...and says when it cannot" test_uninstall_purge_says_when_it_cannot_remove
+  _hi_check_capable lockout "config_shell refuses a read-only rc" test_config_shell_refuses_a_read_only_rc
+  _hi_check_capable lockout "run_uninstall fails on a read-only rc" test_run_uninstall_fails_on_a_read_only_rc
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check_capable pty "...and quit at its menu, leaves them as they were" test_features_only_quit_leaves_the_settings

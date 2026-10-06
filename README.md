@@ -210,8 +210,8 @@ row, and everything answered **no**, and why:
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any setting
-  on its pages — Header, Prompt, Plugins, Aliases, This machine, Advanced — and
-  save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+  on its pages — Header, Package check, Prompt, Plugins, Aliases, This machine,
+  Advanced — and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
@@ -345,7 +345,8 @@ myself.
 ## Roadmap
 
 What's left; nothing here is parked or descoped. One list, in the order the
-work is best done: what CI has yet to show, then the 1.0 tag. An entry is
+work is best done: what CI has yet to show, what a first install and a
+minimal one still lack, then the 1.0 tag. An entry is
 deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
 checkout: an account or an upstream review that lands when it lands.
 
@@ -356,28 +357,88 @@ checkout: an account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
+2. [ ] _Before 1.0:_ **The rc lines survive a missing tree** — the `source`
+       line `hi --install` writes has no existence check, so a checkout
+       deleted without `hi --uninstall` errors on every shell start.
+       **Ticks when:** each shell's line tests for the file first, and
+       `hi --doctor` still reads the block as its own.
 
-3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-       upstream style. **Do:** open the PR against tldr-pages. **Ticks
-       when:** merged.
+3. [ ] _Before 1.0:_ **An rc file somebody else manages** — a dotfile
+       manager's rc is rewritten in its deployed copy and reverted on the
+       next apply, and the line names an absolute home. **Ticks when:**
+       `hi --install` can print a `$HOME`-relative block instead of writing
+       it, and `hi --doctor` accepts that block as wired.
 
-4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
+4. [ ] _Before 1.0:_ **Choosing which shells are wired** — every installed
+       shell gets hi's lines, so a bash user with zsh on the box gains a
+       `~/.zshrc`. **Ticks when:** `hi --install` takes a list of shells and
+       defaults to the login shell plus every shell that already has an rc.
 
-5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-       `publish-external.yml`'s `aur` job is written but unexercised. **When
-       it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package once by hand
-       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-       packages are live and a dispatch has kept `say-hi` current for one
-       release.
+5. [ ] _Before 1.0:_ **One question at install, not the menu** — a first
+       install opens the whole settings menu and styles this machine by
+       default. **Ticks when:** it asks only whether to style this machine
+       too, and leaves the rest to `hi --configure`.
+
+6. [ ] _Before 1.0:_ **A least-footprint preset** — `minimal` still carries
+       the `cli`, `mux`, `shell`, and `prompt` plugins and lets a prompt
+       program from home start on a target. **Ticks when:** one preset
+       sends hi's own files alone, draws hi's prompt, and probes no backend
+       but ssh.
+
+7. [ ] _Before 1.0:_ **Settings for the backend roster and the shared
+       connection** — a name outside `~/.ssh/config` is put to every
+       installed backend CLI before ssh, `hi <TAB>` lists pods across every
+       namespace, and hi's `ControlMaster` outranks a `ControlMaster no` of
+       your own. **Ticks when:** a setting names the backends hi may ask,
+       and another turns the shared connection off.
+
+8. [ ] _Before 1.0:_ **Signatures that can be insisted on** —
+       `hi --update` checks out an unsigned or unlisted-key tag with a
+       warning, and the package keys are published without a fingerprint.
+       **Ticks when:** `hi --update` can be told to refuse both, and
+       [docs/PACKAGING.md](docs/PACKAGING.md) prints each key's fingerprint.
+
+9. [ ] _Before 1.0:_ **The doctor names what should not ride** — a shell rc
+       linked into the overlay can carry a token to every target, and a
+       neovim config split over `lua/` rides as `init.lua` alone, both in
+       silence. **Ticks when:** `hi --doctor` has a row for a secret-shaped
+       line in a riding file and one for neovim files left home.
+
+10. [ ] _Before 1.0:_ **Settings by host tag** — every setting is global, so
+        a prod host cannot get a quieter session than a dev one. **Ticks
+        when:** a `# Tags:` value can carry its own settings, `--plain`
+        among them.
+
+11. [ ] _Before 1.0:_ **Docs a first-time reader can follow** — the README
+        opens on sshrc, the docs use _overlay_, _payload_, _target_, and
+        _rides_ undefined, and nothing lists symptoms with their fixes.
+        **Ticks when:** the README opens with what hi is in plain words,
+        and the docs have a user glossary, a troubleshooting page, a
+        starting path for each kind of reader, and an unattended-install
+        recipe.
+
+12. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+        versions_ prose into its version table.
+
+13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+        upstream style. **Do:** open the PR against tldr-pages. **Ticks
+        when:** merged.
+
+14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+        settle its three flagged rows (`small_tasks`, `secure_2FA`,
+        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+        the live entry matches the sheet.
+
+15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+        `publish-external.yml`'s `aur` job is written but unexercised. **When
+        it reopens:** register, add `AUR_SSH_KEY` to the `release`
+        environment, and push each package once by hand
+        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+        packages are live and a dispatch has kept `say-hi` current for one
+        release.
 
 ## License
 

@@ -61,13 +61,15 @@ function dry_run_say() {
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
 # lands on the destination and severs any hardlink/ACL. The mode is captured
 # and reapplied too, since truncate-in-place alone did not preserve it on
-# Windows Git Bash. GLOSSARY: HI.09
+# Windows Git Bash. Fails when dest could not be written, the tmp file gone
+# either way. GLOSSARY: HI.09
 function _hi_write_back() {
-  local mode=""
+  local mode="" rc=0
   [ -e "$2" ] && mode="$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)"
-  cat "$1" >"$2"
-  [ -n "$mode" ] && chmod "$mode" "$2" 2>/dev/null
+  cat "$1" >"$2" || rc=1
+  [ "$rc" -ne 0 ] || [ -z "$mode" ] || chmod "$mode" "$2" 2>/dev/null || true
   command rm -f "$1"
+  return "$rc"
 }
 
 # The TOML files (config/packages, config/colors) as the editing scripts hold

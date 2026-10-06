@@ -96,8 +96,9 @@ EOF
   configure)
     cat <<EOF
 Revisit the settings, leaving the rc wiring and the hi link alone: a preview
-of the header and prompt, then Features / Header / Prompt / Advanced, p for
-a preset, s to save, q to leave the file alone. Answers go to
+of the header and prompt, then a page each for Header, Package check, Prompt,
+Plugins, Aliases, This machine, and Advanced, p for a preset, s to save, q to
+leave the file alone. Answers go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
   --preset <name>  Answer the feature and header settings from a
@@ -436,11 +437,12 @@ function _hi_unlink_one() {
 # settings file, and unlinks /usr/bin/hi if it points at this say-hi. Leaves the
 # checkout itself in place - delete that yourself once you're done with it.
 function run_uninstall() {
-  strip_rc_lines
+  local bad=0
+  strip_rc_lines || bad=1
   strip_settings
   unlink_hi
-  [ -n "${_HI_PURGE:-}" ] && purge_overlay
-  return 0
+  [ -z "${_HI_PURGE:-}" ] || purge_overlay
+  return "$bad"
 }
 
 # --purge: the overlay directory too - the user's settings.sh and aliases.sh,
@@ -571,7 +573,10 @@ function _hi_done() {
 }
 
 if [ -n "$_HI_UNINSTALL_MODE" ]; then
-  run_uninstall
+  run_uninstall || {
+    _hi_h1 "Uninstalled, but for the rc files named above"
+    exit 1
+  }
   _hi_done "Uninstalled!"
   _hi_cecho " | say-hi itself is still at $_HI_ROOT - rm -rf it yourself if you're done with it" "$BLUE"
   exit 0
@@ -604,8 +609,13 @@ if [ -n "$_HI_FEATURES_ONLY" ]; then
   exit 0
 fi
 
-install_rc_lines
+_hi_rc_failed=""
+install_rc_lines || _hi_rc_failed=1
 config_hi
+[ -z "$_hi_rc_failed" ] || {
+  _hi_h1 "Installed, but for the rc files named above"
+  exit 1
+}
 
 _hi_done "Installed!"
 _hi_cecho " next: reload your shell (exec \$SHELL), then \`hi --configure\` to tune it and \`hi --doctor\` to check it" "$BLUE"

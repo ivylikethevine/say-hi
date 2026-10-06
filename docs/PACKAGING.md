@@ -153,7 +153,8 @@ to move a packaged tree and points at the package manager.
 **Saying `hi` _to_ a packaged machine works whether or not anyone ran that.**
 A session ships its own tree to every ssh target and runs out of that, so the
 package on the far end is neither needed nor read — it is there for that
-machine's own shells, which its `/etc/profile.d/say-hi.sh` wires up at login.
+machine's own shells, once a user there has run `hi --install`; its
+`/etc/profile.d/say-hi.sh` only tells a login shell where the tree is.
 `tests/targets/install_methods_test.sh` installs a real `.deb`, `.rpm`, and
 `.apk` on real targets and asserts exactly that: the session works, out of its
 own tree, and the installed one is untouched afterwards. Where every packaged

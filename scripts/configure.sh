@@ -1759,6 +1759,6 @@ function run_configure() {
   # ${a[@]+"${a[@]}"}, not a plain "${a[@]}": on bash 3.2 (macOS) expanding
   # an *empty* array under `set -u` is a fatal "unbound variable", and
   # every setting at its default leaves exactly that - no lines to write.
-  config_shell settings "$_HI_SETTINGS" ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}
+  config_shell settings "$_HI_SETTINGS" ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || return 1
   settings_diff_report
 }

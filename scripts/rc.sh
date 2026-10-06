@@ -36,8 +36,14 @@ function config_shell() {
   else
     _hi_cecho " local $name has hi's lines, taking them out..." "$YELLOW"
   fi
-  mkdir -p "$(dirname "$target")"
-  touch "$target"
+  mkdir -p "$(dirname "$target")" 2>/dev/null || true
+  [ -e "$target" ] || touch "$target" 2>/dev/null || true
+  # a file hi cannot write (a dotfile manager's read-only store) is said
+  # ahead of the backup, so a refused run leaves nothing behind
+  [ -w "$target" ] || {
+    _hi_rc_unwritable "$target" "$desired"
+    return 1
+  }
   # one-time backup on hi's first write to a non-empty file; never overwritten,
   # so it stays the pre-hi original (uninstall's prune_backup settles it). Not
   # for settings.sh: that file is hi's own, and its shebang line is no
@@ -50,7 +56,10 @@ function config_shell() {
   tmpfile="$(mktemp -t hi.append.XXXXXX)"
   grep -vF "$_HI_MARKER" "$target" >"$tmpfile" || true
   printf '%s' "$desired" >>"$tmpfile"
-  _hi_write_back "$tmpfile" "$target"
+  _hi_write_back "$tmpfile" "$target" 2>/dev/null || {
+    _hi_rc_unwritable "$target" "$desired"
+    return 1
+  }
   # A strip that leaves nothing behind in a file hi itself created (no
   # backup was ever taken, so there was nothing there before) takes the
   # file with it: an empty ~/.bash_profile would still stop a login bash
@@ -64,6 +73,20 @@ function config_shell() {
     _hi_cecho " local $name updated :)" "$GREEN"
   else
     _hi_cecho " local $name cleaned :)" "$GREEN"
+  fi
+}
+
+# _hi_rc_unwritable <target> <desired> - config_shell's refusal: the file,
+# where a symlink leads, and the lines for whoever does own it
+function _hi_rc_unwritable() {
+  local link
+  link="$(readlink "$1" 2>/dev/null || true)"
+  _hi_cecho " can't write $1${link:+ (-> $link)} - left as it was" "$RED"
+  if [ -n "$2" ]; then
+    _hi_cecho " add these lines where that file is managed, then re-run:" "$YELLOW"
+    printf '%s' "$2" | sed 's/^/   /'
+  else
+    _hi_cecho " take the lines ending '$_HI_MARKER' out where that file is managed" "$YELLOW"
   fi
 }
 
@@ -371,7 +394,7 @@ function rc_lines() {
 }
 
 function install_rc_lines() {
-  local row shell label target tree_rc dialect
+  local row shell label target tree_rc dialect bad=0
   local -a lines
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
@@ -383,9 +406,11 @@ function install_rc_lines() {
       continue
     }
     _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect")
-    config_shell "$label" "$target" "${lines[@]}"
+    # one unwritable rc does not stop the others; the run still fails
+    config_shell "$label" "$target" "${lines[@]}" || bad=1
   done
-  install_bash_profile_line
+  install_bash_profile_line || bad=1
+  return "$bad"
 }
 
 # prune_backup <target> - after the strip, <target>.hi-orig is either what the
@@ -414,14 +439,15 @@ function prune_backup() {
 # marker says it was written - not only on macOS, since a home directory can
 # travel.
 function strip_rc_lines() {
-  local row shell label target profile="$HOME/.bash_profile"
+  local row shell label target profile="$HOME/.bash_profile" bad=0
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label _ target _ _ <<<"$row"
-    strip_marker "$label" "$target"
+    strip_marker "$label" "$target" || bad=1
     prune_backup "$target"
   done
   if _hi_is_darwin || _hi_has_marker "$profile"; then
-    strip_marker bash_profile "$profile"
+    strip_marker bash_profile "$profile" || bad=1
     prune_backup "$profile"
   fi
+  return "$bad"
 }
