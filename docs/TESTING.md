@@ -190,10 +190,13 @@ _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisect
 _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can take it
 ```
 
-The pty-driven cases (`configure`, `install`, `rc_lines`) kill their child
-after 60s and count it a failure; `_HI_CASE_TIMEOUT` raises that deadline on a
-host slow for reasons the suites cannot fix, as `_HI_SSH_CASE_TIMEOUT` (90s)
-does for the ssh cases. The login shells `_hi_login_env` starts
+The pty-driven cases (`configure_pty`, `install_run`) kill a child that has
+written nothing to its transcript for 60s, or has run five times that, and
+count it a failure: a slow host still drawing is not a wedge. A killed case
+prints the host's load and the last lines it drew. `rc_lines`' one pty case
+keeps a plain 60s. `_HI_CASE_TIMEOUT` raises the deadline on a host slow for
+reasons the suites cannot fix, as `_HI_SSH_CASE_TIMEOUT` (90s) does for the
+ssh cases. The login shells `_hi_login_env` starts
 (`install_location`'s dialect pass) are bounded the same way at 180s by
 `_HI_LOGIN_TIMEOUT`: unbounded, one that wedges shows only as a case count that
 stops moving, for as long as the job allows.

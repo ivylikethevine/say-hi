@@ -192,6 +192,51 @@ function _hi_wait_pid() {
   fi
 }
 
+# _hi_wait_quiet <pid> <quiet_s> <transcript> <label> - _hi_wait_pid for a
+# child that writes <transcript> as it goes, as every pty case does. The
+# deadline is <quiet_s> with nothing new written, so a slow host that is
+# still drawing is not taken for a wedge, under a cap of five times that for
+# a child that never stops. Killed, it is named with how long it ran, and
+# _hi_wedge_report says what it was left at.
+function _hi_wait_quiet() {
+  local pid="$1" quiet_s="$2" file="$3" label="$4" t0=$SECONDS last=$SECONDS tick="" size="" now
+  _HI_WAIT_EXIT=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ $((SECONDS - last)) -gt "$quiet_s" ] || [ $((SECONDS - t0)) -gt $((quiet_s * 5)) ]; then
+      _hi_h3 " | [$label] -- TIMED OUT: $((SECONDS - last))s with nothing new, $((SECONDS - t0))s in all, killing" "$RED"
+      _hi_wedge_report "$file"
+      kill -9 "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+      _HI_WAIT_EXIT=124
+      return 0
+    fi
+    sleep 0.05
+    # the size once a second, not once a poll: reading it is a fork
+    if [ "$tick" != "$SECONDS" ]; then
+      tick=$SECONDS
+      now="$(wc -c <"$file" 2>/dev/null || true)"
+      if [ "$now" != "$size" ]; then
+        size="$now" last=$SECONDS
+      fi
+    fi
+  done
+  wait "$pid" 2>/dev/null || _HI_WAIT_EXIT=$?
+}
+
+# _hi_wedge_report [transcript] - what a killed case leaves to read: the
+# host's load, and the last lines the child drew, which is the question or
+# the page it stopped at
+function _hi_wedge_report() {
+  local load=""
+  if command -v uptime >/dev/null 2>&1; then
+    load="$(uptime 2>/dev/null || true)"
+  fi
+  [ -z "$load" ] || printf '      host: %s\n' "${load#"${load%%[![:space:]]*}"}"
+  [ -s "${1:-}" ] || return 0
+  printf '      the last of its %s bytes:\n' "$(wc -c <"$1" | tr -d ' ')"
+  _hi_strip_ansi "$(tail -c 1500 "$1" | tr '\r' '\n')" | grep -v '^[[:space:]]*$' | tail -n 12 | sed 's/^/      | /' || true
+}
+
 # _hi_timed_out <label> <timeout_s> [hook] - _hi_wait_pid's timeout callback,
 # reached through its "$@". One top-level function: a per-runner
 # `_hi_on_timeout` would be global anyway, and the second definition would
@@ -199,6 +244,7 @@ function _hi_wait_pid() {
 # shellcheck disable=SC2329
 function _hi_timed_out() {
   _hi_h3 " | [$1] -- TIMED OUT after ${2}s, killing" "$RED"
+  _hi_wedge_report
   [ -n "${3:-}" ] && "$3"
   return 0
 }

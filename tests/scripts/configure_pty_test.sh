@@ -17,7 +17,8 @@ source "${BASH_SOURCE[0]%/*}/configure_test.sh"
 # _hi_pty_run <child-script> <suffix> <label> <input> <line> [args...] - the
 # pty rig _hi_cfg_pty runs: a scratch settings.sh, the
 # input typed at a forced pty, the transcript captured to
-# $_HI_WORKDIR/<label>.<suffix>.out, timed out rather than hung forever.
+# $_HI_WORKDIR/<label>.<suffix>.out, killed once it has written nothing for
+# the deadline rather than hung forever.
 function _hi_pty_run() {
   local child="$1" suffix="$2" label="$3" input="$4" line="${5:-}"
   local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.$suffix.out"
@@ -28,7 +29,7 @@ function _hi_pty_run() {
   rm -f "$dir/verdict"
   printf '%b' "$input" |
     "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-60}"
+  _hi_wait_quiet "$!" "${_HI_CASE_TIMEOUT:-60}" "$out" "$label"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
