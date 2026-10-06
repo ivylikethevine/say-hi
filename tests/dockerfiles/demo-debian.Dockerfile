@@ -13,7 +13,7 @@
 # hands the prompt over only where the binary is): the same pinned installer
 # and version as tests/dockerfiles/frameworks/starship.sh, into /usr/local/bin
 # so every account has it.
-FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 # The checksum assertion below is a pipe, and a pipe in a RUN needs pipefail or
 # a failing `echo` is masked by sha256sum's status - DL4006, which
 # .hadolint.yaml records as a finding that was real and got fixed. Same
