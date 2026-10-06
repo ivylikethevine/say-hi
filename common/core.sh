@@ -867,7 +867,7 @@ unset _hi_pt_row
 # that program, or the one whose members include that overlay file; 1 when
 # none does. Fields come off it with ${row%%|*} and the like.
 function _hi_prompt_row() {
-  local _hi_pr
+  local _hi_pr _hi_prs="${_HI_PROMPT_PLUGINS:-}"
   for _hi_pr in "${_HI_PROMPT_TABLE[@]}"; do
     case "|${_hi_pr%%|*}| ${_hi_pr##*|} " in
     *"|$1|"* | *" $1 "*)
@@ -876,7 +876,68 @@ function _hi_prompt_row() {
       ;;
     esac
   done
+  # the prompt plugins the client handed over, rows of the table's shape a ;
+  # apart (HI.67); their configs are their plugin's files, not this column's
+  while [ -n "$_hi_prs" ]; do
+    _hi_pr="${_hi_prs%%;*}" _hi_prs="${_hi_prs#"${_hi_prs%%;*}"}" _hi_prs="${_hi_prs#;}"
+    [ "${_hi_pr%%|*}" = "$1" ] || continue
+    _hi_out "${2:-}" "$_hi_pr"
+    return 0
+  done
   return 1
+}
+
+# _hi_hook_on <group> <name> - does the target's settings leave a plugin's
+# shell hook on: not in $_HI_PLUGINS_OFF, and in $_HI_PLUGINS_ON where the
+# client said it is off by default (the hook's row carries a leading - then).
+# pack.sh's _hi_hook_off is the client's reading of the same lists.
+function _hi_hook_on() {
+  local _hi_ho_off="${_HI_PLUGINS_OFF:-}" _hi_ho_on="${_HI_PLUGINS_ON:-}" _hi_ho_n="${2#-}"
+  case " ${_hi_ho_off//,/ } " in *" $_hi_ho_n "* | *" $1 "*) return 1 ;; esac
+  [ "${2#-}" != "$2" ] || return 0
+  case " ${_hi_ho_on//,/ } " in *" $_hi_ho_n "* | *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# _hi_run_init <shell> <command...> - a tool's shell hook (HI.67): the
+# command with {shell} filled in, run where its first word is here, and what
+# it prints run as this shell's code - the way each tool's README wires it
+# into an rc. The one place a tool's own text comes in.
+function _hi_run_init() {
+  local _hi_ri_sh="$1" _hi_ri_c
+  shift
+  # zsh splits nothing unasked; the command's words are meant to split
+  [ -z "${ZSH_VERSION:-}" ] || setopt localoptions shwordsplit
+  _hi_ri_c="${*//\{shell\}/$_hi_ri_sh}"
+  command -v "${_hi_ri_c%% *}" >/dev/null 2>&1 || return 1
+  # shellcheck disable=SC2086 # the words are the command's
+  eval "$($_hi_ri_c)"
+}
+
+# _hi_run_hooks <shell> - every hook of $_HI_HOOKS (`<group>.<name>=<init>`
+# rows a ; apart, written by the client as the overlay was packed) whose
+# plugin the settings leave on, in the client's order
+function _hi_run_hooks() {
+  local _hi_rh_l="${_HI_HOOKS:-}" _hi_rh_r _hi_rh_k
+  while [ -n "$_hi_rh_l" ]; do
+    _hi_rh_r="${_hi_rh_l%%;*}" _hi_rh_l="${_hi_rh_l#"${_hi_rh_l%%;*}"}" _hi_rh_l="${_hi_rh_l#;}"
+    _hi_rh_k="${_hi_rh_r%%=*}"
+    _hi_hook_on "${_hi_rh_k%%.*}" "${_hi_rh_k#*.}" || continue
+    _hi_run_init "$1" "${_hi_rh_r#*=}" || true
+  done
+  return 0
+}
+
+# _hi_prompt_init <program> [outvar] - the init of a prompt program: its
+# row of $_HI_PROMPT_INITS (`<name>=<init>`, a ; apart, the client's), else
+# `<program> init <shell>`, the shape every one of the table's binaries takes
+function _hi_prompt_init() {
+  local _hi_pi_l="${_HI_PROMPT_INITS:-}" _hi_pi_r
+  while [ -n "$_hi_pi_l" ]; do
+    _hi_pi_r="${_hi_pi_l%%;*}" _hi_pi_l="${_hi_pi_l#"${_hi_pi_l%%;*}"}" _hi_pi_l="${_hi_pi_l#;}"
+    [ "${_hi_pi_r%%=*}" != "$1" ] || { _hi_out "${2:-}" "${_hi_pi_r#*=}" && return 0; }
+  done
+  _hi_out "${2:-}" "$1 init {shell}"
 }
 
 # _hi_prompt_tool <bash|zsh> [outvar] - the first of $_HI_PROMPT_TOOL's prompt

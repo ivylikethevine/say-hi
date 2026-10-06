@@ -1645,6 +1645,7 @@ function collect_setting_lines() {
   _hi_collect_value _HI_MAX_WIDTH 80
   _hi_collect_group _HI_FEATURE_PROMPTS
   _hi_collect_value _HI_PLUGINS_OFF "" quoted
+  _hi_collect_value _HI_PLUGINS_ON "" quoted
   _hi_collect_group _HI_PROMPT_PROMPTS
   _hi_collect_value _HI_PROMPT_TOOL ""
   _hi_collect_value _HI_BACKENDS_OFF "" quoted

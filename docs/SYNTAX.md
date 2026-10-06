@@ -63,6 +63,7 @@ first time a spelling costs a CI round trip.
 | `mktemp -t hi.name.XXXXXX`, or a path template    | `mktemp -t name` with no X's | GNU refuses a template without X's; BSD takes `-t` as a prefix, so an X template is the one spelling both read | `drift`   |
 | test for empty input, then `xargs`                | `xargs -r`                   | BSD `xargs` has no `-r`                                                                                        | `drift`   |
 | `tar -c -f - … \| gzip -n`                        | `tar -c -z -f -`             | bsdtar pads the compressed stream ([HI.38](GLOSSARY.md#hi38-split-tar-and-gzip))                               | a suite   |
+| `tar -x -f … -C <dir>`, then read the file        | `tar -x -O -f …` to stdout   | OpenBSD's tar: `-O` writes an old-style archive, so the extract prints nothing                                 | a suite   |
 
 ## bash 3.2
 

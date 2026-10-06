@@ -19,7 +19,6 @@
 # shell handed a script in a word, `rm -r` a recursive delete.
 
 eval|common/aliases.sh|const|eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${
-eval|common/bash.sh|tool|eval "$("$_hi_pt" init bash)" ;;
 eval|common/bash.sh|name|eval "$1=(\${_hi_pf[@]+\"\${_hi_pf[@]}\"})"
 eval|common/bash.sh|const|eval 'PROMPT_COMMAND=("${PROMPT_COMMAND[@]//$_hi_h/:}")' ;;
 eval|common/bash.sh|const|eval 'for _hi_i in "${!PROMPT_COMMAND[@]}"; do [ "${PROMPT_COMMAND[_hi_i
@@ -34,8 +33,8 @@ eval|common/core.sh|const|eval '_hi_names=("${!_HI_@}")'
 eval|common/core.sh|const|eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
 eval|common/core.sh|const|eval '_hi_self=${(%):-%x}'
 eval|common/core.sh|const|eval 'case "$name" in ${~pat}) hit=0 ;; esac'
+eval|common/core.sh|tool|eval "$($_hi_ri_c)"
 eval|common/header.sh|name|eval "$1+=(\"\$record\")"
-eval|common/zsh.zsh|tool|eval "$("$_hi_pt" init zsh)" ;;
 eval|hi.sh|name|eval "function _hi_is_${_hi_cli}_container() { _hi_is_family_container $
 eval|load.sh|name|eval "$2=(\"\${_hi_sc[@]}\")"
 eval|scripts/configure.sh|name|eval "$2=(\${$1[@]+\"\${$1[@]}\"})"

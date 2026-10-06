@@ -26,6 +26,8 @@ source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"
 source "$_HI_ALIASES"
 _hi_load_extensions
+# the shell hooks the client packed (HI.67), where this box has the tool
+_hi_run_hooks zsh
 
 # NOT setopt KSH_ARRAYS: it is global, hi's block runs after oh-my-zsh's, and
 # their code assumes zsh's 1-based arrays - core.sh counts instead.
@@ -82,8 +84,16 @@ _hi_ps1_stock() {
 }
 
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  _hi_pt=""
-  if _hi_prompt_tool zsh _hi_pt; then
+  _hi_pt="" _hi_pdone=""
+  # an extension's decision first (HI.59), as in common/bash.sh
+  if [[ "${_HI_PROMPT_DRAWN:-0}" == 1 ]]; then
+    _hi_pdone=1
+  elif [[ -n "${_HI_PROMPT_INIT:-}" ]]; then
+    _hi_run_init zsh ${=_HI_PROMPT_INIT} && _hi_pdone=1
+  fi
+  if [[ -n "$_hi_pdone" ]]; then
+    :
+  elif _hi_prompt_tool zsh _hi_pt; then
     # each the way its own README wires it into an rc. GLOSSARY: HI.32
     case $_hi_pt in
     powerline-go)
@@ -92,7 +102,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       precmd_functions=(__hi_plgo_precmd "${precmd_functions[@]}")
       ;;
     powerlevel10k | oh-my-zsh) source "$_HI_ROOT/common/fw_$_hi_pt.zsh" ;;
-    *) eval "$("$_hi_pt" init zsh)" ;;
+    *)
+      _hi_prompt_init "$_hi_pt" _hi_init
+      _hi_run_init zsh ${=_hi_init} || true
+      unset _hi_init
+      ;;
     esac
   elif ! _hi_prompt_named_hi zsh && { (( ${+_LP_VERSION} || ${+SPACESHIP_VERSION} ||
     ${+functions[prompt_pure_setup]} )) || [[ -n ${prompt_theme-} ]] ||
@@ -213,7 +227,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     fi
   fi
 fi
-unset _hi_pt _hi_omz_theme _hi_p10k_cfg
+unset _hi_pt _hi_pdone _hi_omz_theme _hi_p10k_cfg
 
 # completion: `hi` from the shared target list, `exa` the same way as `eza`.
 # compinit is the rc's own call: common/_hi is a `#compdef` function on

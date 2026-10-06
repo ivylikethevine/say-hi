@@ -574,7 +574,8 @@ function test_carry_row_rides_from_home_with_its_wiring() {
     printf '[mine.hi-carry-absent]\nwire = "env:GONERC"\nhome = "~/with space/b.conf"\nfiles = "gone.rc"\n'
   } >"$dir/plugins"
   stubs="$(_hi_stub_tools hi-carry-here)"
-  d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH")" || return 1
+  # hi's own prompt: a prompt program on this machine would add its init line
+  d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" _HI_PROMPT_TOOL=hi)" || return 1
   # gone.rc stays home: its tool is nowhere on this machine
   [ "$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)" = "b.conf,c.toml,taskrc,wiring.sh" ] ||
     _hi_because "carried: $(ls "$d")" || return 1
