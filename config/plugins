@@ -33,7 +33,8 @@
 # init    the tool's shell hook: a command printing a shell's code, {shell}
 #         in it the shell's name (zoxide init {shell}). A target runs it,
 #         where it has the tool, after the aliases and extensions; a
-#         plugin with an init needs no files. HI.67.
+#         plugin with an init needs no files, and with a tool of - the
+#         init's own command is the one asked for. HI.67.
 # prompt  yes when the init draws the prompt: the plugin is then a prompt
 #         program of $_HI_PROMPT_TOOL's, and hi stands its own prompt down.
 # default off keeps the plugin home, hook and files, until $_HI_PLUGINS_ON
@@ -123,6 +124,7 @@ dialect = "sh"
 files = "extensions/"
 
 [prompt.starship]
+tool = "-"
 init = "starship init {shell}"
 prompt = "yes"
 wire = "env:STARSHIP_CONFIG"
@@ -141,6 +143,7 @@ home = "$XDG_CONFIG_HOME/fish/fish_variables , ~/.config/fish/fish_variables"
 files = "tide.vars"
 
 [prompt.oh-my-posh]
+tool = "-"
 init = "oh-my-posh init {shell}"
 prompt = "yes"
 wire = "env:POSH_CONFIG POSH_THEME"

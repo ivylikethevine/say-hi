@@ -761,6 +761,69 @@ function test_a_plugin_off_has_no_wiring_line() {
   [[ "$w" != *KAKOUNE* ]]
 }
 
+# _hi_hooks_wiring <overlay> <stubs> [VAR=value...] - wiring.sh's text for an
+# overlay with no member, the stubs on PATH and the lists as given
+function _hi_hooks_wiring() {
+  local dir="$1" stubs="$2"
+  shift 2
+  env PATH="$stubs:$PATH" _HI_CONFIG_DIR="$dir" _HI_PLUGINS_OFF= _HI_PLUGINS_ON= _HI_PROMPT_TOOL=hi ${1+"$@"} \
+    bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w && printf %s "$w"'
+}
+
+# a shell hook rides as a row of _HI_HOOKS, its tool here and its plugin on;
+# one off by default rides with a leading - once _HI_PLUGINS_ON names it or
+# its group, and never when _HI_PLUGINS_OFF does; a prompt plugin's init
+# rides as _HI_PROMPT_INITS and a _HI_PROMPT_PLUGINS row instead, only when
+# a target is handed the program (GLOSSARY: HI.67)
+function test_hook_plugins_ride_as_wiring_rows() {
+  local dir stubs w
+  dir="$(_hi_overlay_fixture hooks-wire)"
+  {
+    printf '[mine.hi-hook-here]\ninit = "hi-hook-here init {shell}"\n'
+    printf '[mine.hi-hook-off]\ninit = "hi-hook-off hook {shell}"\ndefault = "off"\n'
+    printf '[mine.hi-hook-gone]\ninit = "hi-hook-gone init {shell}"\n'
+    printf '[mine.hi-prompt-here]\ninit = "hi-prompt-here init {shell}"\nprompt = "yes"\n'
+  } >"$dir/plugins"
+  stubs="$(_hi_stub_tools hi-hook-here hi-hook-off hi-prompt-here)"
+  w="$(_hi_hooks_wiring "$dir" "$stubs")" || return 1
+  [[ "$w" == *'export _HI_HOOKS="'*'mine.hi-hook-here=hi-hook-here init {shell}'*'"'* ]] || _hi_because "no hook row: $w" || return 1
+  [[ "$w" != *hi-hook-off* && "$w" != *hi-hook-gone* && "$w" != *hi-prompt-here* && "$w" != *_HI_PROMPT_INITS* ]] ||
+    _hi_because "rode unasked: $w" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off)" || return 1
+  [[ "$w" == *'mine.-hi-hook-off=hi-hook-off hook {shell}'* ]] || _hi_because "on by name: $w" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=mine)" || return 1
+  [[ "$w" == *'mine.-hi-hook-off=hi-hook-off hook {shell}'* ]] || _hi_because "on by group: $w" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off _HI_PLUGINS_OFF=hi-hook-off)" || return 1
+  [[ "$w" != *hi-hook-off* ]] || _hi_because "off list lost: $w" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_OFF=mine)" || return 1
+  [[ "$w" != *_HI_HOOKS* ]] || _hi_because "group off left a row: $w" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PROMPT_TOOL="hi-prompt-here hi")" || return 1
+  [[ "$w" == *'export _HI_PROMPT_INITS="hi-prompt-here=hi-prompt-here init {shell}"'*'export _HI_PROMPT_PLUGINS="hi-prompt-here|bash zsh fish|bin|-"'* ]] ||
+    _hi_because "prompt plugin: $w" || return 1
+  [[ "$w" != *'mine.hi-prompt-here'* ]] || _hi_because "a prompt plugin is no hook: $w"
+}
+
+# an init is a command and its words: one the shell would read as more, or
+# a prompt = yes with no init, is a row turned down with its reason
+function test_hook_plugin_rows_hold_a_command_alone() {
+  local dir
+  dir="$(_hi_overlay_fixture hooks-bad)"
+  {
+    printf '[mine.a]\ninit = "a init {shell}; touch x"\n'
+    printf '[mine.b]\ninit = "b init $(x)"\n'
+    printf '[mine.c]\nprompt = "yes"\nfiles = "c.rc"\n'
+    printf '[mine.d]\ninit = "d-tool hook {shell} --flag"\n'
+  } >"$dir/plugins"
+  (
+    _HI_CONFIG_DIR="$dir"
+    _hi_plugins_load
+    [ "${#_HI_PLUGIN_BAD[@]}" = 3 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    [[ "${_HI_PLUGIN_BAD[0]}" == *"a: init is a command and its words"* && "${_HI_PLUGIN_BAD[1]}" == *"b: init is a command"* &&
+      "${_HI_PLUGIN_BAD[2]}" == *"c: prompt = yes needs an init"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    [[ " ${_HI_PLUGIN_HOOKS[*]} " == *" mine|d|d-tool|d-tool hook {shell} --flag|no "* ]] || _hi_because "rows: ${_HI_PLUGIN_HOOKS[*]}"
+  )
+}
+
 # one of hi's own files answers to its toggle alone, and under
 # _HI_DISABLE_LOCAL=1 common/paths.sh has set every toggle on this machine:
 # only a toggle settings.sh sets itself keeps the file home, its last line
@@ -2330,6 +2393,8 @@ function run_hi_payload_tests() {
   _hi_check "...and the tree's own file holds whole" test_the_tree_plugins_file_holds
   _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
+  _hi_check "A shell hook rides as a wiring row, by the lists and the tool here" test_hook_plugins_ride_as_wiring_rows
+  _hi_check "...an init is a command and its words, or the row is turned down" test_hook_plugin_rows_hold_a_command_alone
   _hi_check "...while local-only's toggles keep nothing home" test_local_only_toggles_keep_nothing_home
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files

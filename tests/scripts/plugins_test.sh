@@ -166,6 +166,25 @@ function test_plugin_on_says_a_word_is_on() {
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n"
 }
 
+# a plugin off by default moves through _HI_PLUGINS_ON: on adds it, by name
+# or by its group, off takes it out, and neither touches _HI_PLUGINS_OFF
+function test_plugin_on_moves_a_default_off_plugin() {
+  local cfg out
+  cfg="$(_hi_plugins_cfg on-default)"
+  out="$(_hi_plugins_run "$cfg" --plugin-on zoxide)" || return 1
+  [[ "$out" == *" + zoxide"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='zoxide'" "$_HI_MARKER")\n" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-on zoxide)" || return 1
+  [[ "$out" == *"zoxide is on already"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_run "$cfg" --plugin-on hooks >/dev/null && _hi_plugins_run "$cfg" --plugin-off zoxide >/dev/null || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='hooks'" "$_HI_MARKER")\n" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off hooks)" || return 1
+  [[ "$out" == *" - hooks"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off atuin)" || return 1
+  [[ "$out" == *"atuin is off already (off by default)"* ]] || _hi_because "said: $out"
+}
+
 function test_plugin_off_dry_run_writes_nothing() {
   local cfg out
   cfg="$(_hi_plugins_cfg off-dry)"
@@ -190,6 +209,21 @@ function test_add_plugin_writes_a_carry_line() {
   _hi_plugins_run "$cfg" --add-plugin cli btool b.rc b.d/ tool=- 'wire=flag:btool -C' >/dev/null || return 1
   _hi_plugins_run "$cfg" --add-plugin mine c c.rc home=/etc/c dialect=sh tool=- >/dev/null || return 1
   _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[cli.task]\nwire = "env:TASKRC"\nhome = "$TASKRC : ~/.taskrc"\nfiles = "taskrc"\n\n[cli.btool]\ntool = "-"\nwire = "flag:btool -C"\nfiles = "b.rc b.d/"\n\n[mine.c]\ntool = "-"\nhome = "/etc/c"\ndialect = "sh"\nfiles = "c.rc"\n'
+}
+
+# a table with an init needs no file; its keys lead the table in the tree's
+# order, and an init the shell would read as more than words is refused
+function test_add_plugin_writes_a_hook_table() {
+  local cfg out
+  cfg="$(_hi_plugins_cfg add-hook)"
+  out="$(_hi_plugins_run "$cfg" --add-plugin hooks fnm default=off 'init=fnm env --use-on-cd --shell {shell}')" || return 1
+  [[ "$out" == *' + [hooks.fnm]'*'init = "fnm env --use-on-cd --shell {shell}"'*'default = "off"'* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_run "$cfg" --add-plugin prompt fancy 'init=fancy init {shell}' prompt=yes fancy.toml wire=env:FANCY_CONFIG >/dev/null || return 1
+  _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[hooks.fnm]\ninit = "fnm env --use-on-cd --shell {shell}"\ndefault = "off"\n\n[prompt.fancy]\ninit = "fancy init {shell}"\nprompt = "yes"\nwire = "env:FANCY_CONFIG"\nfiles = "fancy.toml"\n' || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin hooks bad 'init=bad init {shell}; touch x')" && _hi_because "took: $out" && return 1
+  [[ "$out" == *"init is a command and its words"* ]] || _hi_because "said: $out" || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin hooks nofile tool=-)" && _hi_because "took: $out" && return 1
+  [[ "$out" == *"needs a file for nofile to carry, or an init="* ]] || _hi_because "said: $out"
 }
 
 # a file whose last line was never ended gets the new table on lines of its
@@ -295,6 +329,28 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   [[ "$out" == *" ignored "*"$cfg/plugins line 3"*"not a line of a plugin"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }
 
+# the hooks section: a row a hook, saying whether a target gets it - the
+# tool missing here, the plugin off (by default, or by the list), or on
+function test_plugins_lists_the_hooks() {
+  local cfg out stubs
+  cfg="$(_hi_plugins_cfg hooks)"
+  mkdir -p "$cfg"
+  {
+    printf '[mine.hi-hook-on]\ninit = "hi-hook-on init {shell}"\n'
+    printf '[mine.hi-hook-dflt]\ninit = "hi-hook-dflt init {shell}"\ndefault = "off"\n'
+    printf '[mine.hi-hook-gone]\ninit = "hi-hook-gone init {shell}"\n'
+    printf '[mine.hi-hook-listed]\ninit = "hi-hook-listed init {shell}"\n'
+  } >"$cfg/plugins"
+  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="hi-hook-listed"\n' >"$cfg/settings.sh"
+  stubs="$(_hi_stub_tools hi-hook-on hi-hook-dflt hi-hook-listed)"
+  out="$(_hi_strip_ansi "$(PATH="$stubs:$PATH" _hi_plugins_run "$cfg" --plugins)")" || return 1
+  [[ "$out" == *" hooks "*"hi-hook-on"*"hi-hook-on init {shell} - runs on a target that has it"* ]] || _hi_because "on: $out" || return 1
+  [[ "$out" == *"hi-hook-dflt"*"- off by default (hi --plugin-on hi-hook-dflt)"* ]] || _hi_because "default off: $out" || return 1
+  [[ "$out" == *"hi-hook-gone"*"- not installed here, so not sent"* ]] || _hi_because "gone: $out" || return 1
+  [[ "$out" == *"hi-hook-listed"*"- switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "listed: $out" || return 1
+  [[ "$out" == *"zoxide"*"zoxide init {shell} - "* ]] || _hi_because "the tree's: $out"
+}
+
 # a row of the tree's own config/plugins that hi turns down is named under
 # the tree, not the overlay
 function test_plugins_names_a_bad_tree_row_under_the_tree() {
@@ -324,10 +380,12 @@ function run_plugins_tests() {
   _hi_check "...a word that is off already writes nothing" test_plugin_off_twice_writes_nothing
   _hi_check "--plugin-on takes a word back, and the line with the last" test_plugin_on_takes_a_word_back
   _hi_check "...and says so of a word that is on" test_plugin_on_says_a_word_is_on
+  _hi_check "...a plugin off by default moves through _HI_PLUGINS_ON" test_plugin_on_moves_a_default_off_plugin
   _hi_check "--dry-run names the write and writes nothing" test_plugin_off_dry_run_writes_nothing
 
   _hi_h2 "Testing: --add-plugin and --remove-plugin"
   _hi_check "--add-plugin writes a table of its own" test_add_plugin_writes_a_carry_line
+  _hi_check "...a hook's table, with an init and no file" test_add_plugin_writes_a_hook_table
   _hi_check "...on lines of its own after an unended one" test_add_plugin_starts_its_own_line
   _hi_check "...never one hi could not read" test_add_plugin_refuses_a_line_hi_cannot_read
   _hi_check "...a plugin the file has is replaced, and one of the tree's" test_add_plugin_refuses_a_member_the_carry_has
@@ -337,6 +395,7 @@ function run_plugins_tests() {
 
   _hi_h2 "Testing: --plugins"
   _hi_check "Lists what rides and what is off" test_plugins_lists_what_rides_and_what_is_off
+  _hi_check "...and the hooks, with whether a target gets each" test_plugins_lists_the_hooks
   _hi_check "...and names a bad row of the tree's under the tree" test_plugins_names_a_bad_tree_row_under_the_tree
 
   _hi_suite_end "scripts/plugins.sh"

@@ -515,7 +515,9 @@ function _hi_plugins_close() {
   local _hi_cl_i _hi_cl_m _hi_cl_t _hi_cl_w _hi_cl_h _hi_cl_d _hi_cl_why _hi_cl_x _hi_cl_put=""
   local -a _hi_cl_rows=() _hi_cl_files=() _hi_cl_names=() _hi_cl_r=() _hi_cl_f=() _hi_cl_n=()
   [ -n "$_hi_rc_n" ] || return 0
-  _hi_cl_t="${_hi_rc_t:-$_hi_rc_n}"
+  # the tool, left out, is the plugin's name - or its init's command
+  _hi_cl_t="${_hi_rc_t:-${_hi_rc_i:+${_hi_rc_i%% *}}}"
+  _hi_cl_t="${_hi_cl_t:-$_hi_rc_n}"
   # the shell hook (HI.67): a command printing the shell's code, {shell} in
   # it the shell's name; `prompt = "yes"` says it draws the prompt; `default
   # = "off"` keeps the plugin home until $_HI_PLUGINS_ON names it
@@ -530,8 +532,6 @@ function _hi_plugins_close() {
   if [ -n "$_hi_rc_i" ]; then
     if ! _hi_plugin_init_ok "$_hi_rc_i"; then
       _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: init is a command and its words, no quote, ; | & or \$ among them: '$_hi_rc_i'")
-    elif [ "$_hi_cl_t" = - ]; then
-      _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: an init needs a tool to ask for")
     else
       _hi_plugin_hook_put "$_hi_rc_g|$_hi_rc_n|$_hi_cl_t|$_hi_rc_i|${_hi_rc_p:-no}"
     fi
@@ -597,7 +597,10 @@ function _hi_plugin_tools_ok() {
 # _hi_plugin_init_ok <init> - a command and its words: nothing the shell
 # would read as more than words, since a target runs what the command prints
 function _hi_plugin_init_ok() {
-  case "$1" in '' | *[\;\|\&\$\`\"\'\(\)\<\>]*) return 1 ;; esac
+  local _hi_io_bad=';|&$`"()<>'"'"
+  [ -n "$1" ] || return 1
+  # tr, not a bracket expression: one holding every quote is a bash 3.2 trap
+  [ "$(printf '%s' "$1" | tr -d "$_hi_io_bad")" = "$1" ] || return 1
   _hi_words_ok "${1%% *}" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
 }
 
@@ -623,10 +626,13 @@ function _hi_hook_col() {
   printf '%s' "${_hi_hc_r%%|*}"
 }
 
-# _hi_hook_here <row> - is the hook's tool on this machine
+# _hi_hook_here <row> - is the hook's tool on this machine; with a tool of
+# -, the init's own command
 function _hi_hook_here() {
-  local _hi_hh_t
-  for _hi_hh_t in $(_hi_hook_col "$1" tool); do
+  local _hi_hh_t _hi_hh_l
+  _hi_hh_l="$(_hi_hook_col "$1" tool)"
+  [ "$_hi_hh_l" != - ] || { _hi_hh_l="$(_hi_hook_col "$1" init)" && _hi_hh_l="${_hi_hh_l%% *}"; }
+  for _hi_hh_t in $_hi_hh_l; do
     ! command -v "$_hi_hh_t" >/dev/null 2>&1 || return 0
   done
   return 1
@@ -1015,7 +1021,7 @@ function _hi_overlay_wiring() {
       case "$_hi_ow_all" in *$'\n'"$_hi_ow_l"$'\n'*) ;; *) _hi_ow_all="$_hi_ow_all$_hi_ow_l"$'\n' ;; esac
     done
   done
-  # the shell hooks (HI.67): every init plugin whose tool is here and whose
+  # the shell hooks (GLOSSARY: HI.67): every init plugin whose tool is here and whose
   # plugin is on, the target running each whose tool it has (and whose
   # settings, the ones that rode, still leave it on); and the prompt programs
   # a target is handed (_hi_prompt_list), as rows core.sh's _hi_prompt_row

@@ -21,6 +21,7 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
   - [Extensions](#extensions)
   - [Switching a plugin off](#switching-a-plugin-off)
+  - [Shell hooks](#shell-hooks)
   - [A tool hi does not know](#a-tool-hi-does-not-know)
 - [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
@@ -252,6 +253,7 @@ takes an answer by.
 | `_HI_PROMPT_END_FISH`       | `\|`                                                                              | `hi --configure`          | fish's prompt separator; unset, root gets `#` in its place, and a value you set is used for root too                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `_HI_DISABLE_LEAD_SPACE`    | `0`                                                                               | `hi --configure` advanced | `1` drops the leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_DISABLE_RIGHT_EDGE`    | `0`                                                                               | `hi --configure` advanced | `1` drops the closing \| from every header row and the greeting line, so each ends at its last cell instead of at the banner's column                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `_HI_PLUGINS_ON`            | unset                                                                             | `hi --configure`          | the plugins or groups that are off by default (`default = "off"` in their table: the shipped `hooks`, whose tools keep state on a target) and should ride and run anyway, a space or a comma apart; `hi --plugin-on` and `hi --plugin-off` write it ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `_HI_PLUGINS_OFF`           | unset                                                                             | `hi --configure`          | the plugins, groups, or members that stay home, a space or a comma apart; `hi --plugin-off` and `hi --plugin-on` write it too ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `_HI_MUX`                   | `0`                                                                               | `hi --configure` advanced | `1` makes every connect a `--mux` one, in a local tmux, zellij, or screen session; `--no-mux` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_KEEP`                  | `0`                                                                               | `hi --configure` advanced | `1` makes every ssh connect a `--keep` one: the session runs in tmux, zellij, or screen on the target and outlives the connection ([Integrations](INTEGRATIONS.md#terminal-multiplexers)); `--no-keep` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -546,6 +548,10 @@ command -v kubectl >/dev/null 2>&1 &&
 It is a command and its words, split at spaces and run as they stand - no pipe,
 quote, `$( )`, or glob - before every prompt, so keep it fast; for more, name a
 script of your own. Each extension sets its own; hi collects them in load order.
+Two more decide the prompt: `_HI_PROMPT_INIT`, a program's init with `{shell}`
+for the shell's name (`export _HI_PROMPT_INIT='oh-my-posh init {shell}'`), run
+in place of hi's prompt where the command is there; and `_HI_PROMPT_DRAWN=1`,
+for an extension that drew the prompt itself. Either stands hi's prompt down.
 The whole contract is [HI.59](GLOSSARY.md#hi59-extensions). Before 1.0 the
 directory was `plugins.d`; one still under that name is not read, and
 `hi --doctor` names it with the `mv` that fixes it.
@@ -567,7 +573,10 @@ where the file is found, and whether it is sent or why not:
 ```
 
 `hi --plugin-off lazygit` keeps it home, and `hi --plugin-on lazygit` lets
-it ride again. A name is a plugin, a member (`bat/config`), one file of a
+it ride again. A plugin that is off by default (`default = "off"` in its table:
+the shipped `hooks`) moves the other way, through `_HI_PLUGINS_ON`:
+`hi --plugin-on zoxide` adds it there and `hi --plugin-off zoxide` takes it
+out; the wizard's Plugins page does not switch those. A name is a plugin, a member (`bat/config`), one file of a
 member that is a directory (`extensions/10-kube`), or a group, which
 switches all of its kind: `editors`, `mux`, `prompt`, `cli`, `shell`, or
 a table of your own `plugins` file. What is off sends no file, an overlay
@@ -580,6 +589,28 @@ apart, and the wizard's Plugins page toggles the same words. It is about
 what rides: at home a tool reads its own config, whatever the list says.
 With `editors` in it a target also keeps its own `$EDITOR`, `$VISUAL`, and
 `$SUDO_EDITOR`.
+
+### Shell hooks
+
+A plugin with an `init` runs its tool's shell hook on a target: zoxide's,
+atuin's, direnv's and mise's are shipped under the `hooks` group, off by
+default because each keeps state under a target's `$HOME` (zoxide's database,
+atuin's history and its sync, direnv's allow list, mise's shims).
+`hi --plugin-on zoxide` turns one on, `hi --plugin-on hooks` all four, and
+`hi --plugins` lists each with whether a target gets it. A hook runs only on a
+target that has the tool, after the aliases and extensions and before the
+prompt; starship's and oh-my-posh's inits are plugins of the same shape with
+`prompt = "yes"`, started through the prompt hand-over alone. A tool of your
+own is one table, or one command:
+
+```sh
+hi --add-plugin hooks fnm 'init=fnm env --use-on-cd --shell {shell}' default=off
+```
+
+An extension can make the prompt decision itself: `_HI_PROMPT_INIT` names a
+program's init to run in hi's place, `_HI_PROMPT_DRAWN=1` says it drew the
+prompt ([Extensions](#extensions)). [HI.67](GLOSSARY.md#hi67-shell-hooks) is
+the whole mechanism.
 
 ### A tool hi does not know
 
@@ -649,6 +680,17 @@ files = "notes.txt"
   stripped. The dialects are `sh`, `fish`, `vim`, `lua`, `elisp`, `nano`,
   `tmux`, `screen`, `readline`, `kak`, `kdl`, `omp`, `omp-json`, and `conf`
   (`#` comments and nothing to source).
+- **init** is the tool's shell hook: a command that prints a shell's code,
+  `{shell}` in it the shell's name (`zoxide init {shell}`,
+  `direnv hook {shell}`). A target that has the tool runs it after the aliases
+  and extensions. A plugin with an init needs no **files**, and with no
+  **tool** the init's command is the one asked for. It is a command and its
+  words, no quote, `;`, `|`, `&`, `$`, backtick or bracket among them.
+- **prompt**, `yes`, says the init draws the prompt: the plugin joins
+  `_HI_PROMPT_TOOL`'s programs and hi's own prompt stands down for it
+  ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)).
+- **default**, `off`, keeps the plugin home, hook and files, until
+  `_HI_PLUGINS_ON` names it or its group: `hi --plugin-on <name>`.
 
 A file whose wire, home, or dialect is not its plugin's has a table of its own
 under it, `[<group>.<name>."<member>"]`, holding the keys that differ; a wire

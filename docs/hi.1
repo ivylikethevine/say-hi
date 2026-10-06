@@ -639,9 +639,19 @@ for none),
 .BR wire= ,
 how a target's tool finds a file,
 .BR home= ,
-where a file is here, and
-.BR dialect=
-(see
+where a file is here,
+.BR dialect= ,
+.BR init= ,
+the tool's shell hook (a command printing a shell's code,
+.B {shell}
+for the shell's name, run on a target that has the tool; a plugin with one
+needs no file),
+.BR prompt=yes ,
+when that init draws the prompt, and
+.BR default=off ,
+for a plugin kept home until
+.B \-\-plugin\-on
+names it (see
 .BR FILES ).
 A table hi could not read is refused, with the reason.
 .B \-\-dry\-run
@@ -1095,6 +1105,13 @@ makes every ssh connect a
 one;
 .B \-\-no\-keep
 overrides it once.
+.TP
+.B _HI_PLUGINS_ON
+the plugins or groups that are off by default (the shipped
+.BR hooks :
+zoxide, atuin, direnv, mise) and should ride and run anyway;
+.B \-\-plugin\-on
+writes it.
 .TP
 .B _HI_PLAIN
 .B 1

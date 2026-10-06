@@ -879,7 +879,8 @@ function _hi_prompt_row() {
   # the prompt plugins the client handed over, rows of the table's shape a ;
   # apart (HI.67); their configs are their plugin's files, not this column's
   while [ -n "$_hi_prs" ]; do
-    _hi_pr="${_hi_prs%%;*}" _hi_prs="${_hi_prs#"${_hi_prs%%;*}"}" _hi_prs="${_hi_prs#;}"
+    _hi_pr="${_hi_prs%%;*}"
+    case "$_hi_prs" in *\;*) _hi_prs="${_hi_prs#*;}" ;; *) _hi_prs="" ;; esac
     [ "${_hi_pr%%|*}" = "$1" ] || continue
     _hi_out "${2:-}" "$_hi_pr"
     return 0
@@ -899,7 +900,7 @@ function _hi_hook_on() {
   return 1
 }
 
-# _hi_run_init <shell> <command...> - a tool's shell hook (HI.67): the
+# _hi_run_init <shell> <command...> - a tool's shell hook (GLOSSARY: HI.67): the
 # command with {shell} filled in, run where its first word is here, and what
 # it prints run as this shell's code - the way each tool's README wires it
 # into an rc. The one place a tool's own text comes in.
@@ -908,7 +909,8 @@ function _hi_run_init() {
   shift
   # zsh splits nothing unasked; the command's words are meant to split
   [ -z "${ZSH_VERSION:-}" ] || setopt localoptions shwordsplit
-  _hi_ri_c="${*//\{shell\}/$_hi_ri_sh}"
+  _hi_ri_c="$*"
+  _hi_ri_c="${_hi_ri_c//\{shell\}/$_hi_ri_sh}"
   command -v "${_hi_ri_c%% *}" >/dev/null 2>&1 || return 1
   # shellcheck disable=SC2086 # the words are the command's
   eval "$($_hi_ri_c)"
@@ -920,7 +922,8 @@ function _hi_run_init() {
 function _hi_run_hooks() {
   local _hi_rh_l="${_HI_HOOKS:-}" _hi_rh_r _hi_rh_k
   while [ -n "$_hi_rh_l" ]; do
-    _hi_rh_r="${_hi_rh_l%%;*}" _hi_rh_l="${_hi_rh_l#"${_hi_rh_l%%;*}"}" _hi_rh_l="${_hi_rh_l#;}"
+    _hi_rh_r="${_hi_rh_l%%;*}"
+    case "$_hi_rh_l" in *\;*) _hi_rh_l="${_hi_rh_l#*;}" ;; *) _hi_rh_l="" ;; esac
     _hi_rh_k="${_hi_rh_r%%=*}"
     _hi_hook_on "${_hi_rh_k%%.*}" "${_hi_rh_k#*.}" || continue
     _hi_run_init "$1" "${_hi_rh_r#*=}" || true
@@ -934,7 +937,8 @@ function _hi_run_hooks() {
 function _hi_prompt_init() {
   local _hi_pi_l="${_HI_PROMPT_INITS:-}" _hi_pi_r
   while [ -n "$_hi_pi_l" ]; do
-    _hi_pi_r="${_hi_pi_l%%;*}" _hi_pi_l="${_hi_pi_l#"${_hi_pi_l%%;*}"}" _hi_pi_l="${_hi_pi_l#;}"
+    _hi_pi_r="${_hi_pi_l%%;*}"
+    case "$_hi_pi_l" in *\;*) _hi_pi_l="${_hi_pi_l#*;}" ;; *) _hi_pi_l="" ;; esac
     [ "${_hi_pi_r%%=*}" != "$1" ] || { _hi_out "${2:-}" "${_hi_pi_r#*=}" && return 0; }
   done
   _hi_out "${2:-}" "$1 init {shell}"

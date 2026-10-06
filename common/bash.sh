@@ -266,6 +266,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       source "$_HI_ROOT/common/fw_$_hi_pt.sh"
       ;;
     *)
+      _hi_init=""
       _hi_prompt_init "$_hi_pt" _hi_init
       # shellcheck disable=SC2086 # the words are the command's
       _hi_run_init bash $_hi_init || true
