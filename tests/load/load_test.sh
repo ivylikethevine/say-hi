@@ -303,21 +303,21 @@ function test_session_rc_setup_stands_alone_without_cleanup() {
 # that would read the target's $HOME. zsh is the one arm with no flag, because
 # _hi_session_rc_setup exported $ZDOTDIR for it.
 function test_session_shell_cmd_points_each_shell_at_his_rc() {
-  local -a cmd=()
+  local -a shell_cmd=()
   local _HI_SESSION_RC_DIR="$_HI_WORKDIR/rcdir"
-  _hi_session_shell_cmd bash cmd
-  [ "${cmd[*]}" = "bash --rcfile $_HI_SESSION_RC_DIR/bashrc -i" ] || {
-    _hi_cecho " | bash: ${cmd[*]}" "$RED"
+  _hi_session_shell_cmd bash
+  [ "${shell_cmd[*]}" = "bash --rcfile $_HI_SESSION_RC_DIR/bashrc -i" ] || {
+    _hi_cecho " | bash: ${shell_cmd[*]}" "$RED"
     return 1
   }
-  _hi_session_shell_cmd zsh cmd
-  [ "${cmd[*]}" = "zsh -i" ] || {
-    _hi_cecho " | zsh: ${cmd[*]}" "$RED"
+  _hi_session_shell_cmd zsh
+  [ "${shell_cmd[*]}" = "zsh -i" ] || {
+    _hi_cecho " | zsh: ${shell_cmd[*]}" "$RED"
     return 1
   }
-  _hi_session_shell_cmd fish cmd
-  [ "${cmd[*]}" = "fish -C source $_HI_SESSION_RC_DIR/fish.config -i" ] || {
-    _hi_cecho " | fish: ${cmd[*]}" "$RED"
+  _hi_session_shell_cmd fish
+  [ "${shell_cmd[*]}" = "fish -C source $_HI_SESSION_RC_DIR/fish.config -i" ] || {
+    _hi_cecho " | fish: ${shell_cmd[*]}" "$RED"
     return 1
   }
 }

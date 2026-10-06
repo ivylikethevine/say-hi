@@ -232,12 +232,14 @@ function test_an_ssh_option_without_a_target_reaches_ssh() {
   [[ "$out" == *"ssh-stub: -4"* ]] && [[ "$out" != *"hi's own options"* ]]
 }
 
-# test_backend_predicate <fn> <yes|no> - against the shims, a predicate
-# accepts the running target (yes) and rejects the stopped or pending one (no)
+# test_backend_predicate <predicate> <yes|no> - against the shims, a
+# predicate (a command line, as the roster holds it) accepts the running
+# target (yes) and rejects the stopped or pending one (no)
+# shellcheck disable=SC2086 # the predicate's word split is the point
 function test_backend_predicate() {
   if [ "$2" = yes ]; then
-    PATH="$_HI_SHIM_PATH" "$1" yes
-  elif PATH="$_HI_SHIM_PATH" "$1" no; then
+    PATH="$_HI_SHIM_PATH" $1 yes
+  elif PATH="$_HI_SHIM_PATH" $1 no; then
     return 1
   fi
 }
@@ -247,8 +249,8 @@ function test_backend_predicate() {
 function test_predicates_are_false_without_their_cli() {
   local empty="$_HI_WORKDIR/empty"
   mkdir -p "$empty"
-  ! PATH="$empty" _hi_is_docker_container yes &&
-    ! PATH="$empty" _hi_is_podman_container yes &&
+  ! PATH="$empty" _hi_is_family_container docker yes &&
+    ! PATH="$empty" _hi_is_family_container podman yes &&
     ! PATH="$empty" _hi_is_nomad_alloc yes &&
     ! PATH="$empty" _hi_is_k8s_pod yes
 }
@@ -1403,9 +1405,9 @@ function run_hi_parse_tests() {
   _hi_check "An ssh option with no target still reaches ssh" test_an_ssh_option_without_a_target_reaches_ssh
 
   _hi_h2 "Testing: backend predicates"
-  _hi_check "docker: running" test_backend_predicate _hi_is_docker_container yes
-  _hi_check "docker: stopped" test_backend_predicate _hi_is_docker_container no
-  _hi_check "podman: running" test_backend_predicate _hi_is_podman_container yes
+  _hi_check "docker: running" test_backend_predicate "_hi_is_family_container docker" yes
+  _hi_check "docker: stopped" test_backend_predicate "_hi_is_family_container docker" no
+  _hi_check "podman: running" test_backend_predicate "_hi_is_family_container podman" yes
   _hi_check "nomad: running" test_backend_predicate _hi_is_nomad_alloc yes
   _hi_check "nomad: pending" test_backend_predicate _hi_is_nomad_alloc no
   _hi_check "kube: running" test_backend_predicate _hi_is_k8s_pod yes

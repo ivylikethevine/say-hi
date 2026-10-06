@@ -5,20 +5,16 @@
 # `bash --rcfile` skips the startup chain; restore it before strict mode
 # (profile scripts aren't -e/-u safe), at source time ($CMDARG needs PATH too).
 #
-# $_HI_HOME and $_HI_ROOT are taken back afterwards. A target with a say-hi of
-# its own announces it in this very chain - a package's
-# /etc/profile.d/say-hi.sh exports `_HI_HOME=/usr/share` - and that export
-# would otherwise point this session at a tree hi did not ship: every path
-# below is derived from $_HI_HOME, so the session would unpack one tree and
-# then load another (a different version, in the general case) while its own
-# cleanup still removed the one it unpacked. hi does not read a target's
-# install; that tree is for that machine's own shells. Nothing else the
-# profile sets is touched.
+# $_HI_HOME and $_HI_ROOT are taken back afterwards: a target with a say-hi of
+# its own exports them in this very chain (a package's
+# /etc/profile.d/say-hi.sh sets `_HI_HOME=/usr/share`), and every path below
+# derives from $_HI_HOME, so the session would unpack one tree, load another,
+# and still remove the one it unpacked. Nothing else the profile sets is
+# touched.
 #
 # $_HI_ROOT is deliberately *not* put on $PATH: on a disposable session it is
-# a directory under /tmp, which every hardening baseline greps for, and it
-# would buy nothing - paths.sh already aliases `hi` to $_HI_LAUNCHER in all
-# four shells.
+# under /tmp, which every hardening baseline greps for, and paths.sh already
+# aliases `hi` to $_HI_LAUNCHER in all four shells.
 function _hi_restore_profile() {
   local _hi_rp_home="${_HI_HOME:-}" _hi_rp_root="${_HI_ROOT:-}"
   if [ -r /etc/profile ]; then source /etc/profile; fi
@@ -66,10 +62,9 @@ source "$_HI_HOME/say-hi/common/core.sh"
 [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || source "$_HI_HEADER"
 
 # The bootloader shell: `hi <target> <cmd>` runs <cmd> here and load() starts
-# the session shell from here, so what is exported now is what both inherit.
-# Everything above still has the full set as shell variables; children get
-# _HI_CHILD_ENV. The session's own pointers are exported later by
-# _hi_session_rc_setup. Not under _HI_LOAD_NO_INIT: install.sh and the suites
+# the session shell from here, so what is exported now is what both inherit:
+# children get _HI_CHILD_ENV, and _hi_session_rc_setup exports the session's
+# own pointers later. Not under _HI_LOAD_NO_INIT: install.sh and the suites
 # source this file for its functions and keep their environment.
 # GLOSSARY: HI.47
 [ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_unexport
@@ -109,8 +104,8 @@ function _hi_clean_tree() {
   return 0
 }
 
-# [outvar]: with $SHELL set the body is all builtins, so a $( ) around it was
-# a fork for a value the shell already had. GLOSSARY: HI.05
+# [outvar]: with $SHELL set the body is all builtins, so a $( ) would fork
+# for a value the shell already has. GLOSSARY: HI.05
 function _hi_login_shell() {
   local shell="${SHELL:-}" user
   if [ -z "$shell" ]; then
@@ -174,22 +169,6 @@ function _hi_fishquote() {
   printf -v "$1" "'%s'" "$_out"
 }
 
-# _hi_session_rc_setup - write every shell's rc into one directory and export
-# the three variables that point the session, and anything started inside it,
-# at them. Idempotent; safe to call more than once.
-#
-# How hi's rc reaches the session without writing to the target's own rc
-# files. `bash --rcfile` in hi.sh starts the *bootloader*; the shell the user
-# types at is started below, and a bare `bash -i` would read ~/.bashrc, so it
-# is pointed here instead. Every mechanism is one hi already relies on for a
-# bash-less target: --rcfile, ZDOTDIR, $ENV, and fish's -C.
-#
-# Each file sources the target's own rc *first*, then hi's on top.
-#
-# mktemp rather than a path under $_HI_ROOT: a *permanent* say-hi tree is
-# often root-owned and read-only. %q on every interpolated path, since
-# $TMPDIR is the target's to choose.
-#
 # _hi_session_sh_rc <target lines> <hi rc> <out> - the shape bash and zsh
 # share: the lines that source the target's own rc, the client's verdicts
 # ($sh_vars, the caller's local), then hi's rc
@@ -203,6 +182,19 @@ function _hi_session_sh_rc() {
   } >"$3"
 }
 
+# _hi_session_rc_setup - write every shell's rc into one directory and export
+# the three variables that point the session, and anything started inside it,
+# at them. Idempotent.
+#
+# `bash --rcfile` in hi.sh starts the *bootloader*; a bare `bash -i` for the
+# shell the user types at would read ~/.bashrc, so it is pointed here by what
+# a bash-less target already relies on: --rcfile, ZDOTDIR, $ENV, and fish's
+# -C. Each file sources the target's own rc *first*, then hi's on top.
+#
+# mktemp rather than a path under $_HI_ROOT: a *permanent* say-hi tree is
+# often root-owned and read-only. %q on every interpolated path, since
+# $TMPDIR is the target's to choose.
+#
 # shellcheck disable=SC2016 # the single quotes are the point: $HOME and
 # $ZDOTDIR are the *target's* to expand when it reads these files, not this
 # script's to expand while writing them
@@ -216,9 +208,8 @@ function _hi_session_rc_setup() {
   local dir="$_HI_SESSION_RC_DIR" q zsh_rc
 
   # The client's verdicts ($_HI_SESSION_VARS, exported into this process by
-  # hi.sh) as plain assignments in each rc. The session shell unexports every
-  # _HI_* name outside _HI_CHILD_ENV - two of these name the operator's
-  # workstation - so a nested shell gets them from here, not the environment.
+  # hi.sh) as plain assignments in each rc: the session shell unexports every
+  # _HI_* name outside _HI_CHILD_ENV, so a nested shell gets them from here.
   # Only the set ones: an empty tag and an absent one read the same.
   # GLOSSARY: HI.47
   local v sh_vars="" fish_vars=""
@@ -243,12 +234,10 @@ function _hi_session_rc_setup() {
   _hi_session_sh_rc '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"' "$_HI_BASHRC" "$dir/bashrc"
 
   # ZDOTDIR moves *all* of zsh's startup files, so the target's .zshenv needs
-  # a shim or the environment it sets is lost. .zprofile/.zlogin are
-  # login-shell only, and this is `zsh -i`. A .zshenv that sets ZDOTDIR
-  # itself (a ~/.config/zsh layout) would have zsh read that directory's
-  # .zshrc and never hi's, so the shim runs it with ZDOTDIR unset, as a plain
-  # zsh would, keeps what it chose, and points zsh back here. The .zshrc
-  # sources the target's from there, under that ZDOTDIR.
+  # a shim (.zprofile/.zlogin are login-shell only). A .zshenv that sets
+  # ZDOTDIR itself would have zsh read that directory's .zshrc and never
+  # hi's, so the shim runs it with ZDOTDIR unset, keeps what it chose, and
+  # points zsh back here; the .zshrc sources the target's under that ZDOTDIR.
   printf -v q '%q' "$dir"
   {
     printf 'unset ZDOTDIR\n'
@@ -294,31 +283,26 @@ function _hi_session_rc_setup() {
   return 0
 }
 
-# How to start the session's shell so that it reads hi's rc without that rc
-# having been written into the target's $HOME.
+# _hi_session_shell_cmd <shell> - how to start the session's shell so that it
+# reads hi's rc without that rc having been written into the target's $HOME,
+# into the caller's shell_cmd
 function _hi_session_shell_cmd() {
-  local _hi_sc_shell="$1" _hi_sc_dir="$_HI_SESSION_RC_DIR"
-  local -a _hi_sc=()
-  case "$_hi_sc_shell" in
-  bash) _hi_sc=(bash --rcfile "$_hi_sc_dir/bashrc" -i) ;;
-  fish) _hi_sc=(fish -C "source $_hi_sc_dir/fish.config" -i) ;;
+  case "$1" in
+  bash) shell_cmd=(bash --rcfile "$_HI_SESSION_RC_DIR/bashrc" -i) ;;
+  fish) shell_cmd=(fish -C "source $_HI_SESSION_RC_DIR/fish.config" -i) ;;
   # zsh included: _hi_session_rc_setup already exported ZDOTDIR, so `zsh -i`
   # needs nothing more than any other shell here
-  *) _hi_sc=("$_hi_sc_shell" -i) ;;
+  *) shell_cmd=("$1" -i) ;;
   esac
-  # one eval, and only to copy out: bash 3.2 has no namerefs
-  eval "$2=(\"\${_hi_sc[@]}\")"
 }
 
 # _hi_session_editor [name...] - the editor a session exports, with hi's
 # config flags: the first installed here of $_HI_EDITOR, the names given (the
-# client's own $EDITOR and $VISUAL), and the ladder. The flags
-# are read off the alias wiring.sh gave it, or the overlay's aliases.sh
-# (sourced here, in the caller's $( ) subshell, so nothing leaks into load())
-# - one spelling of each editor's invocation, so an overlay's own
-# `alias vim=...` reaches $EDITOR the way it reaches the alias. An editor
-# with no alias (one whose config stayed home) goes bare, hence the
-# ${body:-$e} tail.
+# client's own $EDITOR and $VISUAL), and the ladder. The flags are read off
+# the alias wiring.sh or the overlay's aliases.sh gave it (sourced here, in
+# the caller's $( ) subshell, so nothing leaks into load()), so an overlay's
+# `alias vim=...` reaches $EDITOR too. An editor with no alias goes bare,
+# hence the ${body:-$e} tail.
 function _hi_session_editor() {
   local e body
   # shellcheck source=./common/aliases.sh
@@ -334,11 +318,10 @@ function _hi_session_editor() {
   return 0
 }
 
-# The connect and disconnect lines are each assembled by several writers that
-# print no newline of their own - hi.sh's payload size, the totals in load()
-# below, and banner(), which widens its fill by the prefix already on the
-# line instead of starting a new one. Whoever writes last closes it, so with
-# the header off (no banner) and nothing optional left to print, this does.
+# The connect and disconnect lines are assembled by several writers that
+# print no newline of their own - hi.sh's payload size, load()'s totals, and
+# banner(). Whoever writes last closes it, so with the header off (no banner)
+# this does.
 function _hi_line_close() {
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] && printf '\n'
   return 0
@@ -565,32 +548,29 @@ function load() {
   if [[ "${off//,/ }" != *" editors "* ]]; then
     _hi_nano_fallback
     # vim only: VIMINIT breaks a target that has just vi. Only with the rc
-    # here: a client without the editor, or with vim switched off, sends none
-    # and wiring.sh names none. nvim reads $VIMINIT too and `:source`
-    # runs a .lua file as lua, so a box with nvim and no vim gets init.lua
-    # here; a command-line `-u` beats $VIMINIT, so the aliases decide on a box
-    # that has both, and this is only for the vim nothing else invokes.
+    # here: a client without the editor, or with vim switched off, sends
+    # none. nvim reads $VIMINIT too and `:source` runs a .lua file as lua, so
+    # a box with nvim and no vim gets init.lua; a command-line `-u` beats
+    # $VIMINIT, so the aliases decide on a box that has both.
     local vimrc=""
     [[ -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
     [[ -z "$vimrc" && -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
     [[ -n "$vimrc" ]] &&
       export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
     # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
-    # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e` on
-    # the target would still open whatever vi it has. Exported for the
-    # session shell to inherit, carrying the same flags the alias does. The
-    # client's own two stay two - each tried first for its own variable, the
-    # other one next - and sudo -e takes $EDITOR's.
+    # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e`
+    # would still open whatever vi the target has. The client's own two stay
+    # two - each tried first for its own variable, the other next - and
+    # sudo -e takes $EDITOR's.
     local editor visual
     editor="$(_hi_session_editor "${_HI_CLIENT_EDITOR:-}" "${_HI_CLIENT_VISUAL:-}")"
     visual="$(_hi_session_editor "${_HI_CLIENT_VISUAL:-}" "${_HI_CLIENT_EDITOR:-}")"
     [[ -n "$editor" ]] && export EDITOR="$editor" SUDO_EDITOR="$editor"
     [[ -n "$visual" ]] && export VISUAL="$visual"
   fi
-  # $shell is needed either way - _hi_session_shell_cmd below runs it - but
-  # the greeting and its three timers are a line of their own, and not part of
-  # the header: they survive $_HI_DISABLE_HEADER, which is why they answer to a
-  # toggle of their own rather than that one.
+  # the greeting and its three timers are a line of their own, not part of
+  # the header: they survive $_HI_DISABLE_HEADER and answer to their own
+  # toggle
   local shell greeting color timer max width close=0 pad=""
   _hi_session_shell shell
   if [[ "${_HI_DISABLE_GREETING:-0}" != 1 ]]; then
@@ -631,7 +611,7 @@ function load() {
   local shell_ec
   local -a shell_cmd=()
   _hi_session_rc_setup
-  _hi_session_shell_cmd "$shell" shell_cmd
+  _hi_session_shell_cmd "$shell"
   _hi_keep_panes "${shell_cmd[@]}"
   _hi_keep_watch
   while :; do

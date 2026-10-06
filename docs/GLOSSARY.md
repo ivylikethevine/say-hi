@@ -1000,7 +1000,7 @@ docker, podman, nerdctl, and finch take the same `ps --format`, `exec -i[t]`,
 and `container inspect -f` grammar, so hi has one container arm and tries all
 four, in that order. Each member is its own kind: `common/targets.sh` builds
 its roster from the family and emits `<name>\t<cli>` per lane, `hi.sh`
-generates one `_HI_BACKENDS` row and one predicate per member at load, and
+generates one `_HI_BACKENDS` row per member at load, and
 `common/header.sh` starts one probe lane per member on `$PATH`. A member that
 is absent costs a builtin `command -v` on TAB and one background subshell per
 `hi <target>` in `_hi_resolve_backend`; a present one is one parallel lane,

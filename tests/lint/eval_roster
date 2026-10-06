@@ -35,8 +35,6 @@ eval|common/core.sh|const|eval '_hi_self=${(%):-%x}'
 eval|common/core.sh|const|eval 'case "$name" in ${~pat}) hit=0 ;; esac'
 eval|common/core.sh|tool|eval "$($_hi_ri_c)"
 eval|common/header.sh|name|eval "$1+=(\"\$record\")"
-eval|hi.sh|name|eval "function _hi_is_${_hi_cli}_container() { _hi_is_family_container $
-eval|load.sh|name|eval "$2=(\"\${_hi_sc[@]}\")"
 eval|scripts/configure.sh|name|eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
 
 rm -r|common/header.sh|1
