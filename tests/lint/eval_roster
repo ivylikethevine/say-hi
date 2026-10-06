@@ -61,7 +61,7 @@ source|common/fw_powerlevel10k.zsh|2
 source|common/header.sh|2
 source|common/paths.sh|1
 source|common/zsh.zsh|7
-source|hi.sh|3
+source|hi.sh|4
 source|load.sh|7
 source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2

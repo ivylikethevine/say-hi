@@ -262,16 +262,17 @@ function test_rc_lines_portable_spells_home() {
 }
 
 # --print-rc prints that block and writes no rc file; once it is in the rc,
-# an install leaves it alone and says so
+# an install leaves it alone and says so. Not Darwin: there the bash_profile
+# line is printed too, and this reads the output back as one block
 function test_print_rc_writes_nothing_and_its_block_is_kept() {
   local home="$_HI_WORKDIR/print-rc" out
-  out="$(_hi_rc_out "$home" _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
   [ ! -e "$home/.bashrc" ] && [[ "$out" == *"Lines for bashrc"* && "$out" == *'&& -r "$_HI_HOME/say-hi/common/bash.sh" ]]'* ]] || return 1
   printf '%s\n' "$out" | grep -F "$_HI_MARKER" >"$home/.bashrc"
   cp "$home/.bashrc" "$home/printed"
-  out="$(_hi_rc_out "$home" _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
   cmp -s "$home/.bashrc" "$home/printed" && [[ "$out" == *"carries the --print-rc block"* ]] || return 1
-  out="$(_hi_rc_out "$home" _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
   [[ "$out" == *"has them already"* ]]
 }
 

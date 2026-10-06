@@ -683,14 +683,18 @@ function test_preset_shorthand_rejects_multiple_characters() {
   ! preset_shorthand ev 2>/dev/null
 }
 
+# ...or a setting outside it, as lean names _HI_PROMPT_TOOL and
+# _HI_BACKENDS_OFF: a row of scripts/settings, never an invented name
 function test_every_preset_names_only_vocabulary() {
-  local row values pair vocab
+  local row values pair vocab settings
   vocab="$(_hi_preset_vocab)"
+  settings="$(sed -n 's/^[a-z]* | \(_HI_[A-Z0-9_]*\) |.*/\1/p' "$_HI_ROOT/scripts/settings")"
   # shellcheck disable=SC2153 # _HI_PRESETS is configure.sh's table, not a typo of --preset's var
   for row in "${_HI_PRESETS[@]}"; do
     values="${row##*|}"
     for pair in $values; do
-      case "$vocab" in *"${pair%%=*}"*) ;; *) return 1 ;; esac
+      case "$vocab" in *"${pair%%=*}"*) continue ;; esac
+      case $'\n'"$settings"$'\n' in *$'\n'"${pair%%=*}"$'\n'*) ;; *) return 1 ;; esac
     done
   done
 }
