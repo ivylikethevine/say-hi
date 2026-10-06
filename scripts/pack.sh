@@ -244,7 +244,7 @@ function _hi_theme_home() {
 # machine has - the ones on $PATH, tide where fisher put it, and a framework
 # with a theme or config to ship - into $_HI_PROMPT_LIST_MEMO. GLOSSARY: HI.32
 function _hi_prompt_here() {
-  local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_out="$1"
+  local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_p _hi_pl_out="$1"
   # _hi_overlay_src asks this list too: all of it while it is being built
   _HI_PROMPT_LIST_MEMO="$_hi_pl_out${_hi_pl_out:+ }$_HI_PROMPT_TOOLS"
   for _hi_pl_r in "${_HI_PROMPT_TABLE[@]}"; do
@@ -259,8 +259,9 @@ function _hi_prompt_here() {
   # a prompt plugin of the plugins files (HI.67), with its tool here and on
   _hi_plugins_load
   for _hi_pl_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
-    [ "$(_hi_hook_col "$_hi_pl_r" prompt)" = yes ] || continue
-    _hi_pl_t="$(_hi_hook_col "$_hi_pl_r" name)"
+    _hi_hook_col "$_hi_pl_r" prompt _hi_pl_p
+    [ "$_hi_pl_p" = yes ] || continue
+    _hi_hook_col "$_hi_pl_r" name _hi_pl_t
     case " $_hi_pl_out " in *" $_hi_pl_t "*) continue ;; esac
     _hi_hook_here "$_hi_pl_r" && ! _hi_hook_off "$_hi_pl_r" && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
   done
@@ -597,18 +598,23 @@ function _hi_plugin_tools_ok() {
 # _hi_plugin_init_ok <init> - a command and its words: nothing the shell
 # would read as more than words, since a target runs what the command prints
 function _hi_plugin_init_ok() {
-  local _hi_io_bad=';|&$`"()<>'"'"
+  local _hi_io_bad=';|&$`"()<>'"'" _hi_io_i
   [ -n "$1" ] || return 1
-  # tr, not a bracket expression: one holding every quote is a bash 3.2 trap
-  [ "$(printf '%s' "$1" | tr -d "$_hi_io_bad")" = "$1" ] || return 1
+  # a character at a time, not a bracket expression: one holding every quote
+  # is a bash 3.2 trap
+  for ((_hi_io_i = 0; _hi_io_i < ${#_hi_io_bad}; _hi_io_i++)); do
+    case "$1" in *"${_hi_io_bad:_hi_io_i:1}"*) return 1 ;; esac
+  done
   _hi_words_ok "${1%% *}" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
 }
 
 # _hi_plugin_hook_put <row> - a hook row, in place of the tree's of its name
 function _hi_plugin_hook_put() {
-  local _hi_hp_i
+  local _hi_hp_i _hi_hp_n _hi_hp_o
+  _hi_hook_col "$1" name _hi_hp_n
   for _hi_hp_i in ${_HI_PLUGIN_HOOKS[@]+"${!_HI_PLUGIN_HOOKS[@]}"}; do
-    [ "$(_hi_hook_col "${_HI_PLUGIN_HOOKS[_hi_hp_i]}" name)" != "$(_hi_hook_col "$1" name)" ] || {
+    _hi_hook_col "${_HI_PLUGIN_HOOKS[_hi_hp_i]}" name _hi_hp_o
+    [ "$_hi_hp_o" != "$_hi_hp_n" ] || {
       _HI_PLUGIN_HOOKS[_hi_hp_i]="$1"
       return 0
     }
@@ -616,22 +622,23 @@ function _hi_plugin_hook_put() {
   _HI_PLUGIN_HOOKS+=("$1")
 }
 
-# _hi_hook_col <row> <group|name|tool|init|prompt> - one column of a hook row
+# _hi_hook_col <row> <group|name|tool|init|prompt> [outvar] - one column of a
+# hook row
 function _hi_hook_col() {
   local _hi_hc_r="$1" _hi_hc_n
   for _hi_hc_n in group name tool init prompt; do
     [ "$_hi_hc_n" != "$2" ] || break
     _hi_hc_r="${_hi_hc_r#*|}"
   done
-  printf '%s' "${_hi_hc_r%%|*}"
+  _hi_out "${3:-}" "${_hi_hc_r%%|*}"
 }
 
 # _hi_hook_here <row> - is the hook's tool on this machine; with a tool of
 # -, the init's own command
 function _hi_hook_here() {
   local _hi_hh_t _hi_hh_l
-  _hi_hh_l="$(_hi_hook_col "$1" tool)"
-  [ "$_hi_hh_l" != - ] || { _hi_hh_l="$(_hi_hook_col "$1" init)" && _hi_hh_l="${_hi_hh_l%% *}"; }
+  _hi_hook_col "$1" tool _hi_hh_l
+  [ "$_hi_hh_l" != - ] || { _hi_hook_col "$1" init _hi_hh_l && _hi_hh_l="${_hi_hh_l%% *}"; }
   for _hi_hh_t in $_hi_hh_l; do
     ! command -v "$_hi_hh_t" >/dev/null 2>&1 || return 0
   done
@@ -642,7 +649,10 @@ function _hi_hook_here() {
 # $_HI_PLUGINS_OFF, or off by default and not in $_HI_PLUGINS_ON (its name or
 # group, either list). core.sh's _hi_hook_on is the target's reading.
 function _hi_hook_off() {
-  _hi_plugin_switched_off "$(_hi_hook_col "$1" name)" "$(_hi_hook_col "$1" group)"
+  local _hi_ho_n _hi_ho_g
+  _hi_hook_col "$1" name _hi_ho_n
+  _hi_hook_col "$1" group _hi_ho_g
+  _hi_plugin_switched_off "$_hi_ho_n" "$_hi_ho_g"
 }
 
 # _hi_plugin_switched_off <name> <group> - the two lists' verdict on a plugin
@@ -1026,23 +1036,26 @@ function _hi_overlay_wiring() {
   # settings, the ones that rode, still leave it on); and the prompt programs
   # a target is handed (_hi_prompt_list), as rows core.sh's _hi_prompt_row
   # reads beside its own table
-  local _hi_ow_h="" _hi_ow_pp="" _hi_ow_pi=""
+  local _hi_ow_h="" _hi_ow_pp="" _hi_ow_pi="" _hi_ow_i
   _hi_plugins_load
   _hi_prompt_list >/dev/null
   for _hi_ow_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
     _hi_hook_here "$_hi_ow_r" || continue
-    _hi_ow_n="$(_hi_hook_col "$_hi_ow_r" name)"
-    if [ "$(_hi_hook_col "$_hi_ow_r" prompt)" = yes ]; then
+    _hi_hook_col "$_hi_ow_r" name _hi_ow_n
+    _hi_hook_col "$_hi_ow_r" init _hi_ow_i
+    _hi_hook_col "$_hi_ow_r" prompt _hi_ow_p
+    if [ "$_hi_ow_p" = yes ]; then
       # a prompt program: its init runs through the prompt hand-over alone
       case " $_HI_PROMPT_LIST_MEMO " in *[\ :]"$_hi_ow_n "*) ;; *) continue ;; esac
-      _hi_ow_pi="$_hi_ow_pi${_hi_ow_pi:+;}$_hi_ow_n=$(_hi_hook_col "$_hi_ow_r" init)"
+      _hi_ow_pi="$_hi_ow_pi${_hi_ow_pi:+;}$_hi_ow_n=$_hi_ow_i"
       _hi_ow_pp="$_hi_ow_pp${_hi_ow_pp:+;}$_hi_ow_n|bash zsh fish|bin|-"
       continue
     fi
     _hi_hook_off "$_hi_ow_r" && continue
     # a leading - on the name says off by default, for the target's _hi_hook_on
     case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_ow_n "*) _hi_ow_n="-$_hi_ow_n" ;; esac
-    _hi_ow_h="$_hi_ow_h${_hi_ow_h:+;}$(_hi_hook_col "$_hi_ow_r" group).$_hi_ow_n=$(_hi_hook_col "$_hi_ow_r" init)"
+    _hi_hook_col "$_hi_ow_r" group _hi_ow_p
+    _hi_ow_h="$_hi_ow_h${_hi_ow_h:+;}$_hi_ow_p.$_hi_ow_n=$_hi_ow_i"
   done
   [ -z "$_hi_ow_h" ] || _hi_ow_all="${_hi_ow_all}export _HI_HOOKS=\"$_hi_ow_h\""$'\n'
   [ -z "$_hi_ow_pi" ] || _hi_ow_all="${_hi_ow_all}export _HI_PROMPT_INITS=\"$_hi_ow_pi\""$'\n'

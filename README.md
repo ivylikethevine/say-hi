@@ -381,13 +381,10 @@ checkout: an account or an upstream review that lands when it lands.
        turns zoxide on and the next connect runs its init.
 
 3. [ ] _Before 1.0:_ **A plugin's init is checked without `tr`** —
-       `scripts/pack.sh`'s `_hi_plugin_init_ok` pipes the init through `tr`,
-       and the macOS fast suites print `tr: command not found` from it where
-       a case runs with a cut-down `PATH`; the cases pass, so nothing shows
-       whether an init is then turned away. **Do:** make the check with
-       builtins that parse under bash 3.2, and add a case that runs it with
-       no `tr` on `PATH`. **Ticks when:** the macOS fast job's log has no
-       `command not found` line from `pack.sh`.
+       shipped: `scripts/pack.sh`'s `_hi_plugin_init_ok` reads the init with
+       builtins alone, and a case runs it with nothing on `PATH`. What is
+       left is seeing it in CI. **Ticks when:** the macOS fast job's log has
+       no `command not found` line from `pack.sh`.
 
 4. [ ] _Before 1.0:_ **The secret lint passes a reference and a color** —
        `scripts/doctor.sh`'s `_HI_SECRET_AWK` flags two lines that hold no
@@ -408,28 +405,52 @@ checkout: an account or an upstream review that lands when it lands.
        plugin that rides and one kept home in different colors, and prints
        no escape under `NO_COLOR`.
 
-6. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+6. [ ] _Before 1.0:_ **A slow case is named** — the runner times a suite,
+       not its cases, so the wizard's menu-number case forking 2,000 times
+       (67s on Git Bash arm64) showed only once it failed there. **Do:**
+       record each case's wall time where its verdict is counted, and have
+       the runner list a run's slowest. **Ticks when:** a Windows shard's
+       log names its ten slowest cases.
+
+7. [ ] _Before 1.0:_ **The doctor suites run the report once a question** —
+       `doctor_json` runs the whole of `scripts/doctor.sh` nine times in
+       seven cases and is the slowest suite on the Git Bash arm64 shards
+       (390s); two of those runs ask for the same bare `--json` document.
+       **Do:** memoize that document as `_hi_doctor_plain_report` does the
+       text report, and put cases that differ only in what they assert on
+       one run. **Ticks when:** no two cases of the doctor suites run the
+       same command line.
+
+8. [ ] _Before 1.0:_ **`hi --doctor` forks under a hundred times** — a run
+       is about 130 forks, down from 710 under `--json`; what is left is
+       git, the payload build, and the remote script, where `hi.sh`'s
+       `_hi_remote_suffix` alone is eight subshells. **Do:** give the
+       helpers those builders call through `$( )` an out-variable where
+       one fits. **Ticks when:** `strace -f -c` over `scripts/doctor.sh`
+       counts under 100 `clone` calls.
+
+9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-7. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-       upstream style. **Do:** open the PR against tldr-pages. **Ticks
-       when:** merged.
+10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+        upstream style. **Do:** open the PR against tldr-pages. **Ticks
+        when:** merged.
 
-8. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
+11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+        settle its three flagged rows (`small_tasks`, `secure_2FA`,
+        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+        the live entry matches the sheet.
 
-9. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-       `publish-external.yml`'s `aur` job is written but unexercised. **When
-       it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package once by hand
-       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-       packages are live and a dispatch has kept `say-hi` current for one
-       release.
+12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+        `publish-external.yml`'s `aur` job is written but unexercised. **When
+        it reopens:** register, add `AUR_SSH_KEY` to the `release`
+        environment, and push each package once by hand
+        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+        packages are live and a dispatch has kept `say-hi` current for one
+        release.
 
 ## License
 

@@ -824,6 +824,16 @@ function test_hook_plugin_rows_hold_a_command_alone() {
   )
 }
 
+# the init check is builtins alone, so a cut-down PATH turns the same rows
+# away: each character the shell reads as more than a word, and no init
+function test_plugin_init_check_runs_no_command() {
+  local bad
+  PATH=/nonexistent _hi_plugin_init_ok 'd-tool hook {shell} --flag' || _hi_because "a command and its words turned away" || return 1
+  for bad in 'a; b' 'a | b' 'a & b' 'a $x' 'a `b`' 'a "b"' 'a (b' 'a b)' 'a <b' 'a >b' "a 'b'" ''; do
+    ! PATH=/nonexistent _hi_plugin_init_ok "$bad" || _hi_because "passed: $bad" || return 1
+  done
+}
+
 # one of hi's own files answers to its toggle alone, and under
 # _HI_DISABLE_LOCAL=1 common/paths.sh has set every toggle on this machine:
 # only a toggle settings.sh sets itself keeps the file home, its last line
@@ -2395,6 +2405,7 @@ function run_hi_payload_tests() {
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
   _hi_check "A shell hook rides as a wiring row, by the lists and the tool here" test_hook_plugins_ride_as_wiring_rows
   _hi_check "...an init is a command and its words, or the row is turned down" test_hook_plugin_rows_hold_a_command_alone
+  _hi_check "...checked with no command at all" test_plugin_init_check_runs_no_command
   _hi_check "...while local-only's toggles keep nothing home" test_local_only_toggles_keep_nothing_home
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files

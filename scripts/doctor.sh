@@ -213,13 +213,17 @@ function doctor_findings() {
   _hi_rows_flush
 }
 
-# _hi_json_str <text> - <text> as a JSON string literal, quotes included.
-# Backslash and quote escaped, control characters folded to spaces: a row's
-# text is one line of prose, and the one multi-line thing that reaches here
-# (ssh's stderr on a failed connect) reads fine flattened. sed + tr, since
-# there is no bash-3.2-safe way to walk bytes without forking anyway.
+# _hi_json_str <outvar> <text> - <text> as a JSON string literal, quotes
+# included. Backslash and quote escaped (hi.sh's _hi_kdl_quote: the same two),
+# newline, tab and CR folded to spaces: a row's text is one line of prose,
+# and the one multi-line thing that reaches here (ssh's stderr on a failed
+# connect) reads fine flattened. No fork: a document is three of these a row.
 function _hi_json_str() {
-  printf '"%s"' "$(printf '%s' "$1" | tr '\n\t\r' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+  local _hi_js="$2" _hi_js_nl=$'\n' _hi_js_tab=$'\t' _hi_js_cr=$'\r'
+  _hi_js="${_hi_js//"$_hi_js_nl"/ }"
+  _hi_js="${_hi_js//"$_hi_js_tab"/ }"
+  _hi_js="${_hi_js//"$_hi_js_cr"/ }"
+  _hi_kdl_quote "$1" "$_hi_js"
 }
 
 # doctor_row <label> <text> [severity] - one row of the open section. Severity
@@ -230,11 +234,14 @@ function _hi_json_str() {
 # document, the severity word the one in it with "" spelled info; otherwise
 # it is buffered for doctor_flush, and a warn or bad one for doctor_findings.
 function doctor_row() {
-  local sev="${3:-info}"
+  local sev="${3:-info}" section label text
   [ "$sev" != bad ] || _HI_DOC_BAD=$((_HI_DOC_BAD + 1))
   if [ "$_HI_DOC_JSON" = 1 ]; then
+    _hi_json_str section "$_HI_DOC_SECTION"
+    _hi_json_str label "$1"
+    _hi_json_str text "$2"
     _HI_DOC_ROWS="$_HI_DOC_ROWS${_HI_DOC_ROWS:+,
-}    {\"section\": $(_hi_json_str "$_HI_DOC_SECTION"), \"label\": $(_hi_json_str "$1"), \"text\": $(_hi_json_str "$2"), \"severity\": \"$sev\"}"
+}    {\"section\": $section, \"label\": $label, \"text\": $text, \"severity\": \"$sev\"}"
     return 0
   fi
   _hi_row "$1" "$2" "$sev"
@@ -533,10 +540,13 @@ function doctor_config() {
   local toggles asrc="" atext=""
   _hi_overlay_src aliases.sh asrc || true
   [ -z "$asrc" ] || atext="$(grep -v '^[[:space:]]*#' "$asrc")" || true
-  toggles="$(grep -oE '_HI_(DISABLE_[A-Z_]+|TOOL_ALIASES|SUDO_ALIAS)' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
-  late="$(printf '%s\n' "$atext" |
-    grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
-    tr -d = | sort -u | tr '\n' ' ')" || true
+  late=""
+  if [ -n "$atext" ]; then
+    toggles="$(grep -oE '_HI_(DISABLE_[A-Z_]+|TOOL_ALIASES|SUDO_ALIAS)' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
+    late="$(printf '%s\n' "$atext" |
+      grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
+      tr -d = | sort -u | tr '\n' ' ')" || true
+  fi
   [ -z "$late" ] ||
     doctor_row alias-vars "aliases.sh sets ${late% } - hi's aliases are built before it loads, so it does nothing; move it to settings.sh" bad
   # ...and an alias it defines replaces a wiring line's of the same name
@@ -1046,10 +1056,11 @@ doctor_install
 doctor_backends
 [ -n "${_HI_DOC_TARGET:-}" ] && doctor_target "$_HI_DOC_TARGET"
 if [ "$_HI_DOC_JSON" = 1 ]; then
-  _hi_target_json=null
-  [ -z "$_HI_DOC_TARGET" ] || _hi_target_json="$(_hi_json_str "$_HI_DOC_TARGET")"
+  _hi_target_json=null _hi_version_json=""
+  [ -z "$_HI_DOC_TARGET" ] || _hi_json_str _hi_target_json "$_HI_DOC_TARGET"
+  _hi_json_str _hi_version_json "$(_hi_version)"
   printf '{\n  "version": %s,\n  "target": %s,\n  "findings": %s,\n  "rows": [\n%s\n  ]\n}\n' \
-    "$(_hi_json_str "$(_hi_version)")" "$_hi_target_json" "$_HI_DOC_BAD" "$_HI_DOC_ROWS"
+    "$_hi_version_json" "$_hi_target_json" "$_HI_DOC_BAD" "$_HI_DOC_ROWS"
 else
   # --problems' box is its whole answer, and the full report has no second
   # copy of its rows; the closing line stands in for an empty one

@@ -504,28 +504,32 @@ function _hi_plugin_rows() {
   done
   # a plugin with a hook and no file is a word too, under its own name
   for _hi_pw_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
-    _hi_pw_n="$(_hi_hook_col "$_hi_pw_r" name)"
-    printf '%s|%s|%s\n' "$_hi_pw_n" "$(_hi_hook_col "$_hi_pw_r" group)" "$_hi_pw_n"
+    _hi_hook_col "$_hi_pw_r" name _hi_pw_n
+    _hi_hook_col "$_hi_pw_r" group _hi_pw_g
+    printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "$_hi_pw_n"
   done
 }
 
 # _hi_hook_rows - every shell hook as a report row (HI.67): the plugin, its
 # init, and whether a target gets it - the tool here, the plugin on
 function _hi_hook_rows() {
-  local _hi_hr_r _hi_hr_n _hi_hr_why
+  local _hi_hr_r _hi_hr_n _hi_hr_i _hi_hr_p _hi_hr_why
   _hi_plugins_load
   for _hi_hr_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
-    _hi_hr_n="$(_hi_hook_col "$_hi_hr_r" name)"
+    _hi_hook_col "$_hi_hr_r" name _hi_hr_n
+    _hi_hook_col "$_hi_hr_r" init _hi_hr_i
     if ! _hi_hook_here "$_hi_hr_r"; then
-      _hi_row "$_hi_hr_n" "$(_hi_hook_col "$_hi_hr_r" init) - not installed here, so not sent"
+      _hi_row "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent"
     elif _hi_hook_off "$_hi_hr_r"; then
       case "$_HI_PLUGIN_DEFAULT_OFF" in
       *" $_hi_hr_n "*) _hi_hr_why="off by default (hi --plugin-on $_hi_hr_n)" ;;
       *) _hi_hr_why="switched off (_HI_PLUGINS_OFF)" ;;
       esac
-      _hi_row "$_hi_hr_n" "$(_hi_hook_col "$_hi_hr_r" init) - $_hi_hr_why"
+      _hi_row "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why"
     else
-      _hi_row "$_hi_hr_n" "$(_hi_hook_col "$_hi_hr_r" init) - runs on a target that has it$([ "$(_hi_hook_col "$_hi_hr_r" prompt)" != yes ] || printf ', and draws the prompt')" ok
+      _hi_hook_col "$_hi_hr_r" prompt _hi_hr_p
+      [ "$_hi_hr_p" != yes ] && _hi_hr_p="" || _hi_hr_p=", and draws the prompt"
+      _hi_row "$_hi_hr_n" "$_hi_hr_i - runs on a target that has it$_hi_hr_p" ok
     fi
   done
 }

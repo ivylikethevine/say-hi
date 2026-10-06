@@ -1244,14 +1244,14 @@ function test_ask_value_typed_default_clears_the_override() {
 # header item, "end|bash", "width", ...), read off the list itself rather
 # than counted by hand, so a row added above it cannot leave a case typing
 # the wrong number. The list is the same for every case, so it is built once,
-# ahead of the batches: a build forks over a hundred times, and the case that
-# walks every row paid that per row.
+# ahead of the batches: a build is some thirty forks, and the case that
+# walks every row paid them per row.
 _HI_ITEM_LIST=()
 function _hi_items_load() {
+  # the plugins number by what has a file, so under the overlay the pty
+  # child ($_HI_CFG_CHILD) makes: nano's rc alone
   _hi_read_lines _HI_ITEM_LIST < <(
     _HI_SETTINGS=/dev/null
-    # the plugins number by what has a file, so under the overlay the pty
-    # child ($_HI_CFG_CHILD) makes: nano's rc alone
     _HI_CONFIG_DIR="$_HI_WORKDIR/item-overlay"
     mkdir -p "$_HI_CONFIG_DIR/nano"
     : >"$_HI_CONFIG_DIR/nano/nanorc"

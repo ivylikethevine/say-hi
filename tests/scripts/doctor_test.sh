@@ -1112,9 +1112,10 @@ function test_config_flags_aliases_that_replace_a_wired_one() {
 # _hi_json_str is what makes --json parseable whatever a target wrote into a
 # row: quotes and backslashes escaped, control characters flattened to spaces
 function test_json_str_escapes_and_flattens() {
-  [ "$(_hi_json_str 'plain text')" = '"plain text"' ] || return 1
-  [ "$(_hi_json_str 'a "quoted" \path')" = '"a \"quoted\" \\path"' ] || return 1
-  [ "$(_hi_json_str $'two\nlines\tand tab')" = '"two lines and tab"' ]
+  local s
+  _hi_json_str s 'plain text' && [ "$s" = '"plain text"' ] || return 1
+  _hi_json_str s 'a "quoted" \path' && [ "$s" = '"a \"quoted\" \\path"' ] || return 1
+  _hi_json_str s $'two\nlines\tand tab\rcr' && [ "$s" = '"two lines and tab cr"' ]
 }
 
 # severity is doctor_row's own argument: bad counts as a finding, the rest
