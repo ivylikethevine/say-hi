@@ -270,12 +270,17 @@ jobs:
           # and the job goes back to audit rather than growing a row that
           # rotates. tuf-repo-cdn.sigstore.dev is belt and braces: the run read
           # here signed off an embedded TUF root, and a cold one would not.
+          # salsa.debian.org and mandoc.bsd.lv are checkbashisms' and mandoc's
+          # download hosts from setup-tool/tools.txt, for a tag whose pins no
+          # run on main has cached.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
             raw.githubusercontent.com:443
             release-assets.githubusercontent.com:443
             objects.githubusercontent.com:443
+            salsa.debian.org:443
+            mandoc.bsd.lv:443
             token.actions.githubusercontent.com:443
             results-receiver.actions.githubusercontent.com:443
             fulcio.sigstore.dev:443
