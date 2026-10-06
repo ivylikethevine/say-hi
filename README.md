@@ -380,22 +380,31 @@ checkout: an account or an upstream review that lands when it lands.
        `_HI_PLUGINS_ON` as `--plugin-on` does. **Ticks when:** `hi --configure`
        turns zoxide on and the next connect runs its init.
 
-3. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+3. [ ] _Before 1.0:_ **A plugin's init is checked without `tr`** —
+       `scripts/pack.sh`'s `_hi_plugin_init_ok` pipes the init through `tr`,
+       and the macOS fast suites print `tr: command not found` from it where
+       a case runs with a cut-down `PATH`; the cases pass, so nothing shows
+       whether an init is then turned away. **Do:** make the check with
+       builtins that parse under bash 3.2, and add a case that runs it with
+       no `tr` on `PATH`. **Ticks when:** the macOS fast job's log has no
+       `command not found` line from `pack.sh`.
+
+4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-4. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-5. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-6. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

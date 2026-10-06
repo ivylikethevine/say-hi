@@ -549,7 +549,7 @@ function test_tag_settings_ride_in_the_overlay_tar() {
     _hi_tag_settings "$dir/fallback"
     _hi_overlay_tar settings.sh >"$dir/overlay.tgz" || exit 1
     tar -t -z -f "$dir/overlay.tgz" | tr '\n' ' '
-    # unpacked and read back: OpenBSD's tar has no -O to extract to stdout
+    # unpacked and read back: the tar of OpenBSD has no -O to extract to stdout
     mkdir -p "$dir/out" && tar -x -z -f "$dir/overlay.tgz" -C "$dir/out" && tr '\n' ';' <"$dir/out/settings.sh"
   )" || return 1
   [[ "$out" == "settings.sh "*"export _HI_MAX_WIDTH=100;export _HI_PLAIN=1;" && "$out" != *prod* ]] ||
