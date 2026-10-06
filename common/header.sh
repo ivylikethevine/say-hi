@@ -669,10 +669,10 @@ function _hi_probe_launch() {
   # $_HI_CONTAINER_CLIS (core.sh); common/targets.sh spells the same four
   # words again and the drift suite pins the two together.
   for cli in $_HI_CONTAINER_CLIS; do
-    command -v "$cli" &>/dev/null && clis="$clis${clis:+ }$cli"
+    command -v "$cli" &>/dev/null && ! _hi_backend_off "$cli" && clis="$clis${clis:+ }$cli"
   done
-  command -v nomad &>/dev/null && nomad=1
-  command -v kubectl &>/dev/null && kube=1
+  command -v nomad &>/dev/null && ! _hi_backend_off nomad && nomad=1
+  command -v kubectl &>/dev/null && ! _hi_backend_off kube && kube=1
   [ -n "$clis" ] || ((nomad || kube)) || return 0
   _hi_probe_dir || return 0
   _HI_PROBE_LAUNCHED=1

@@ -206,7 +206,9 @@ the payload leaves out a default your overlay shadows, so the wire holds one
 home too, so a client without emacs sends no `emacs/init.el`. `aliases.sh` is
 the exception by design - yours is sourced on top of the tree's, so both ride.
 The `<file>.old` copies `scripts/convert_settings.sh` keeps are not members and
-stay home.
+stay home. Nor is a `settings.<tag>.sh`: a host carrying the tag is sent a
+`settings.sh` with it joined on
+([SETTINGS.md](SETTINGS.md#settings-by-host-tag)).
 
 What happens to a line in one of these that reads a file no target has is
 [SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)'s.
@@ -309,6 +311,7 @@ into place.
 | `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                                                                                                                               |
 | `hi.payload.tree.<key>` | the gzipped payload, rebuilt when a tree file changes, keyed on the tree's path and its cut list (the defaults an overlay shadows, or whose tool is not installed here, and the prompt loaders a target is not handed); off with `_HI_PAYLOAD_CACHE=0` |
 | `hi.overlay.<key>`      | the overlay stream, keyed on its member list and the home paths any member was packed from                                                                                                                                                             |
+| `hi.settings.<key>`     | `settings.sh` with a tagged target's `settings.<tag>.sh` files joined on, what that target is sent; rewritten only when its content changes                                                                                                            |
 | `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                                                                             |
 | `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                                                                  |
 | `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                                                                                                                                                                                   |

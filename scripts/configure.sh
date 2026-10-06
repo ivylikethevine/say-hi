@@ -713,14 +713,17 @@ _HI_PRESETS=(
   "everything|the shipped defaults - every feature and header item on, the alias opt-ins off|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
   "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=editors _HI_DISABLE_LOCAL=1"
+  "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=editors,cli,mux,shell,prompt _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
 # plus the two lists - so "not named by the preset" can mean "back to the
 # default". _HI_PROMPT_TOOL (hi's prompt) stays out, like the color scheme and the
-# packages ramp: those are taste, not a feature level, and no preset has an
-# opinion on them. Neither is asked here at all - both are written into
-# settings.sh by hand (GLOSSARY: HI.50).
+# packages ramp: those are taste, not a feature level, and no preset resets
+# them. Neither is asked here at all - both are written into settings.sh by
+# hand (GLOSSARY: HI.50). A preset may still name a variable outside this
+# vocabulary, as `lean` does _HI_PROMPT_TOOL and _HI_BACKENDS_OFF: that one
+# is set, and no other preset changes it back.
 function _hi_preset_vocab() {
   local row
   for row in "${_HI_FEATURE_PROMPTS[@]}" "${_HI_HEADER_PROMPTS[@]}"; do
@@ -781,7 +784,7 @@ function preset_shorthand() {
 # vocabulary variable (empty for "the default"), so the menu starts there and
 # a --preset run writes exactly the preset.
 function apply_preset() {
-  local row values var value pair
+  local row values var value pair vocab extra=""
   row="$(preset_row "$1")" || {
     _hi_cecho " no such preset: $1 (one of: $(preset_names))" "$RED" >&2
     return 1
@@ -795,7 +798,31 @@ function apply_preset() {
     done
     _hi_pending_set "$var" "$value"
   done < <(_hi_preset_vocab)
+  vocab=" $(_hi_preset_vocab | tr '\n' ' ')"
+  # shellcheck disable=SC2086
+  for pair in $values; do
+    case "$vocab" in *" ${pair%%=*} "*) continue ;; esac
+    _hi_pending_set "${pair%%=*}" "${pair#*=}"
+    extra="$extra${extra:+, }${pair%%=*}"
+  done
   _hi_cecho " starting from the '$1' preset" "$GREEN"
+  [ -z "$extra" ] || _hi_cecho " it also sets $extra, which no other preset changes back" "$BLUE"
+}
+
+# config_first_install - all an install asks a terminal, and only while
+# there is no settings.sh: whether hi styles this machine as well as the
+# hosts it connects to. The menu is hi --configure's.
+function config_first_install() {
+  local reply=""
+  if [ -f "$_HI_SETTINGS" ]; then
+    _hi_cecho " your settings stay as they are - hi --configure changes them" "$GREEN"
+    return 0
+  fi
+  menu_read " Style this machine's own shells too, not only the hosts you hi to? [Y/n] " reply || reply=""
+  case "$reply" in
+  n | no) _hi_pending_set _HI_DISABLE_LOCAL 1 ;;
+  esac
+  _hi_cecho " hi --configure has every other setting" "$BLUE"
 }
 
 # The menu's [p]: pick a preset to start from, or Enter to leave things as
@@ -1620,6 +1647,7 @@ function collect_setting_lines() {
   _hi_collect_value _HI_PLUGINS_OFF "" quoted
   _hi_collect_group _HI_PROMPT_PROMPTS
   _hi_collect_value _HI_PROMPT_TOOL ""
+  _hi_collect_value _HI_BACKENDS_OFF "" quoted
   for row in "${_HI_SHELL_TABLE[@]}"; do
     name="${row%%|*}"
     _hi_shell_var shell "$name"
@@ -1730,9 +1758,12 @@ function run_configure() {
   local preset="${1:-}"
   _HI_CONFIGURE_QUIT=""
   _hi_load_preview_sources
-  configure_intro
+  # the menu's own instructions, for the runs that can open it
+  [ -z "$preset" ] && [ -z "${_HI_FEATURES_ONLY:-}" ] || configure_intro
   if [ -n "$preset" ]; then
     apply_preset "$preset" || return 1
+  elif [ -t 0 ] && [ -z "${_HI_FEATURES_ONLY:-}" ]; then
+    config_first_install
   elif [ -t 0 ]; then
     config_hub
   elif [ -n "${_HI_FEATURES_ONLY:-}" ]; then

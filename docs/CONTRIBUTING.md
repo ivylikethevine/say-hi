@@ -194,8 +194,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   every `--word` is hi's (an unknown one is hi's error); and everything after
   the target is the remote command.
 - **The sub-command switches** — `--doctor --json` and `--doctor --problems`,
-  `--install`'s `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`,
-  and `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
+  `--install`'s `-y`/`--yes`, `--link {none,user,system}`, `--shell <list>`,
+  `--print-rc`, `--preset <name>`, and `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
   `--update --dry-run`, `--add-package --dry-run`, `--remove-package --dry-run`,
   `--add-tag --dry-run`, `--set-color --dry-run`, `--unset-color --dry-run`,

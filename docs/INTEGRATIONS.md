@@ -429,4 +429,5 @@ files shrink the most: powerlevel10k's wizard output is three-quarters comments.
 | all of it: powerlevel10k, tide, neovim, vim, bash, starship | everything above that ships at once                | ~200 KB  | ~75 KB   | ~20 KB             |
 
 A neovim config spread over many files under `~/.config/nvim/lua/` does not
-ride at all - only `nvim/init.lua` does - so its size here is the single file.
+ride at all - only `nvim/init.lua` does - so its size here is the single file,
+and `hi --doctor` says how many files stay home.

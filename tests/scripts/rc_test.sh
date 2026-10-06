@@ -20,7 +20,8 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # _hi_rc_probe <silent|output> <home> <env...> -- <args...> - the rc.sh case
 # rig both _hi_rc_in and _hi_rc_out run: a fabricated $HOME and
 # $XDG_CONFIG_HOME (the latter follows the former - the harness points it at
-# a throwaway, and fish's rc lives under it), $_HI_RC_PRELUDE eval'd after
+# a throwaway, and fish's rc lives under it), every shell wanted
+# ($_HI_SHELLS=all, which a case about the choice overrides), $_HI_RC_PRELUDE eval'd after
 # the sources for a case that has to stage a box (a shell that is not there,
 # a platform this is not), then <args...>. <silent> discards stdout, for
 # _hi_rc_in's callers, which read the filesystem instead; <output> captures
@@ -43,9 +44,9 @@ function _hi_rc_probe() {
     eval "${_HI_RC_PRELUDE:-}"
     "$@"'
   if [ "$capture" = silent ]; then
-    env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c "$script" rc_probe "$@" >/dev/null
+    env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_SHELLS=all ${envs[@]+"${envs[@]}"} bash -c "$script" rc_probe "$@" >/dev/null
   else
-    env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c "$script" rc_probe "$@" 2>&1
+    env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_SHELLS=all ${envs[@]+"${envs[@]}"} bash -c "$script" rc_probe "$@" 2>&1
   fi
 }
 
@@ -176,7 +177,7 @@ function test_install_rc_lines_covers_the_roster() {
     # sh spells it `export _HI_HOME="..."`, fish `set -gx _HI_HOME "..."`
     grep -qF '_HI_HOME' "$home/$f" || return 1
   done
-  grep -qF '[[ $- == *i* ]] && source ' "$home/.bashrc" || return 1
+  grep -qF '[[ $- == *i* && -r ' "$home/.bashrc" || return 1
   ! grep -qF '[[ $- ' "$home/.zshrc" || return 1
   grep -qF 'if status is-interactive' "$home/.config/fish/config.fish" || return 1
   grep -qF 'set -gx _HI_HOME' "$home/.config/fish/config.fish"
@@ -215,6 +216,63 @@ function test_install_rc_lines_skips_an_absent_shell() {
   _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
   grep -qF "$_HI_MARKER" "$home/.bashrc" &&
     [ ! -e "$home/.zshrc" ] && [ ! -e "$home/.config/fish/config.fish" ]
+}
+
+# with no --shell: the login shell and any shell with an rc already. The rest
+# are left alone, and named
+function test_install_rc_lines_wires_the_shells_in_use() {
+  local home="$_HI_WORKDIR/in-use" out
+  mkdir -p "$home"
+  printf 'echo zsh-mine\n' >"$home/.zshrc"
+  out="$(_hi_rc_out "$home" _HI_SHELLS= SHELL=/bin/bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  grep -qF "$_HI_MARKER" "$home/.bashrc" && grep -qF "$_HI_MARKER" "$home/.zshrc" &&
+    [ ! -e "$home/.config/fish/config.fish" ] && [[ "$out" == *"--shell fish wires it"* ]]
+}
+
+# ...--shell names them instead...
+function test_install_rc_lines_takes_a_shell_list() {
+  local home="$_HI_WORKDIR/shell-list"
+  _hi_rc_in "$home" _HI_SHELLS=fish SHELL=/bin/bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
+  [ ! -e "$home/.bashrc" ] && grep -qF "$_HI_MARKER" "$home/.config/fish/config.fish"
+}
+
+# ...and a login shell hi does not wire, in a home with no rc, gets them all
+function test_install_rc_lines_falls_back_to_every_shell() {
+  local home="$_HI_WORKDIR/shell-none"
+  _hi_rc_in "$home" _HI_SHELLS= SHELL=/bin/ksh _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
+  grep -qF "$_HI_MARKER" "$home/.bashrc" && grep -qF "$_HI_MARKER" "$home/.zshrc"
+}
+
+# a tree that is gone costs a shell nothing: the source tests for its file
+function test_rc_lines_survive_a_missing_tree() {
+  local home="$_HI_WORKDIR/gone" out
+  mkdir -p "$home"
+  _hi_rc_out "$home" -- rc_lines zsh /nowhere/say-hi/common/zsh.zsh sh | tail -n +2 >"$home/rc"
+  out="$(bash -c '. "$1"; echo STILL' _ "$home/rc" 2>&1)"
+  [ "$out" = STILL ]
+}
+
+# the portable block leaves $HOME to the shell and names the tree through
+# the $_HI_HOME it just exported
+function test_rc_lines_portable_spells_home() {
+  local home="$_HI_WORKDIR/portable"
+  [ "$(_hi_rc_out "$home" -- eval '_HI_HOME="$HOME/opt"
+    rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')" = 'export _HI_HOME="$HOME/opt"
+[[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' ]
+}
+
+# --print-rc prints that block and writes no rc file; once it is in the rc,
+# an install leaves it alone and says so
+function test_print_rc_writes_nothing_and_its_block_is_kept() {
+  local home="$_HI_WORKDIR/print-rc" out
+  out="$(_hi_rc_out "$home" _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  [ ! -e "$home/.bashrc" ] && [[ "$out" == *"Lines for bashrc"* && "$out" == *'&& -r "$_HI_HOME/say-hi/common/bash.sh" ]]'* ]] || return 1
+  printf '%s\n' "$out" | grep -F "$_HI_MARKER" >"$home/.bashrc"
+  cp "$home/.bashrc" "$home/printed"
+  out="$(_hi_rc_out "$home" _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  cmp -s "$home/.bashrc" "$home/printed" && [[ "$out" == *"carries the --print-rc block"* ]] || return 1
+  out="$(_hi_rc_out "$home" _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  [[ "$out" == *"has them already"* ]]
 }
 
 # the rc file is where the user's shell reads it: zsh under $ZDOTDIR, fish
@@ -536,6 +594,12 @@ function run_rc_lines_test() {
   _hi_check "A non-interactive bash runs the rest of .bashrc, hi skipped" test_install_bash_line_leaves_the_rest_of_bashrc
   _hi_check "Strip restores the originals byte for byte" test_strip_rc_lines_restores_the_originals
   _hi_check "A shell that is not installed gets no rc file" test_install_rc_lines_skips_an_absent_shell
+  _hi_check "No --shell: the login shell and shells with an rc" test_install_rc_lines_wires_the_shells_in_use
+  _hi_check "--shell names them instead" test_install_rc_lines_takes_a_shell_list
+  _hi_check "A login shell hi does not wire gets them all" test_install_rc_lines_falls_back_to_every_shell
+  _hi_check "A missing tree costs a shell nothing" test_rc_lines_survive_a_missing_tree
+  _hi_check "The portable block spells \$HOME" test_rc_lines_portable_spells_home
+  _hi_check "--print-rc writes nothing, and its block is kept" test_print_rc_writes_nothing_and_its_block_is_kept
   _hi_check "zsh's rc lives under \$ZDOTDIR" test_install_rc_lines_honours_zdotdir
   _hi_check "...the one a ~/.zshenv sets too" test_install_rc_lines_follows_a_zshenv_zdotdir
   _hi_check "...read by a grammar, never sourced" test_zshrc_here_reads_a_zshenv_by_grammar

@@ -835,14 +835,14 @@ reasoning).
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is six names:
+is seven names:
 
 - `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
   `hi.sh` put it, and cannot be re-derived;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
-- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT` — the knobs `sh targets.sh` reads
-  straight off its environment from a completion.
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_BACKENDS_OFF` — the knobs
+  `sh targets.sh` reads straight off its environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
 `common/paths.sh` alongside sh, zsh, and bash, and the one assignment all four
@@ -1045,8 +1045,8 @@ Five rules in `_hi_mux_wrap`:
 
 - **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
   insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
-  inner argv is rebuilt from the parsed state (`--use`, `--plain`, `--keep` or
-  `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
+  inner argv is rebuilt from the parsed state (`--use`, `--plain` or
+  `--no-plain`, `--keep` or `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
   `"$@"`, so the target it settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
   the wrap returns at once when that is set. The inner argv carries no

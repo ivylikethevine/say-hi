@@ -729,6 +729,31 @@ function test_preset_run_writes_the_preset() {
     "$block" == *"export _HI_MAX_WIDTH=120"* && "$block" != *"_HI_PLUGINS_OFF"* ]]
 }
 
+# lean names two variables outside the vocabulary: they are written with the
+# rest, and a later preset that does not name them leaves them be
+function _hi_preset_lean_run() {
+  mkdir -p "$_HI_CONFIG_DIR"
+  _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  run_configure lean </dev/null || return 1
+  _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  cp "$_HI_SETTINGS" "$_HI_SETTINGS.lean"
+  run_configure everything </dev/null
+}
+
+function test_preset_lean_sets_what_no_other_resets() {
+  local f lean block
+  _hi_settings_fixture preset_lean _hi_preset_lean_run
+  f="$(_hi_fixture_settings preset_lean)"
+  lean="$(grep -F "$_HI_MARKER" "$f.lean")"
+  block="$(grep -F "$_HI_MARKER" "$f")"
+  [[ "$lean" == *"export _HI_PLUGINS_OFF='editors,cli,mux,shell,prompt'"* &&
+    "$lean" == *"export _HI_PROMPT_TOOL=hi"* && "$lean" == *"export _HI_BACKENDS_OFF='all'"* ]] &&
+    [[ "$block" != *"_HI_PLUGINS_OFF"* && "$block" == *"export _HI_PROMPT_TOOL=hi"* &&
+      "$block" == *"export _HI_BACKENDS_OFF='all'"* ]]
+}
+
 function test_install_rejects_an_unknown_preset() {
   ! bash "$_HI_INSTALL" --configure --preset nope </dev/null >/dev/null 2>&1
 }
@@ -1139,6 +1164,9 @@ _HI_CFG_CHILD='
   _HI_SETTINGS="$_hi_dir/overlay/settings.sh"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
+  # the menu belongs to hi --configure: an install-mode run_configure asks one
+  # question at a terminal and never opens it
+  _HI_FEATURES_ONLY=1
   _hi_cfg_rc=0
   "${_hi_cfg_argv[@]}" || _hi_cfg_rc=$?
   collect_setting_lines
@@ -1802,6 +1830,7 @@ function run_configure_tests() {
 
   _hi_h2 "Testing: presets"
   _hi_check "A preset seeds every answer in its vocabulary" test_apply_preset_seeds_every_answer
+  _hi_check "lean sets what no other preset resets" test_preset_lean_sets_what_no_other_resets
   _hi_check "An unknown preset is refused" test_apply_preset_rejects_a_stranger
   _hi_check "Shorthand resolves each preset's first letter" test_preset_shorthand_resolves_each_first_letter
   _hi_check "Shorthand is table-agnostic and refuses ambiguity" test_preset_shorthand_is_table_agnostic_and_refuses_ambiguity

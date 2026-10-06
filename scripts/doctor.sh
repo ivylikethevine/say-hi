@@ -350,6 +350,53 @@ function doctor_code_dir() {
   [ -z "$order" ] || doctor_row "$label" "loads in order: ${order#, }"
 }
 
+# The lines of a file that set something secret-shaped, by number: a name
+# holding TOKEN, SECRET, PASSWORD, or an API, ACCESS, or PRIVATE key, given a
+# literal value (not a $variable, and not a path's _FILE or _DIR), fish's
+# `set` form of the same, a token a known issuer prefixes, or a private key's
+# header. A comment is skipped, and so is a line under a `hi-allow` comment
+# or inside a `hi-allow-start`/`-end` pair. toupper(), not IGNORECASE: mawk
+# and busybox awk have only the first.
+# shellcheck disable=SC2016 # awk's own $0
+_HI_SECRET_AWK='
+/hi-allow-start/ { blk = 1 }
+/hi-allow-end/ { blk = 0; prev = $0; next }
+{
+  up = toupper($0)
+  hit = 0
+  if (!blk && prev !~ /hi-allow/ && $0 !~ /^[ \t]*(#|--|;|\/\/)/) {
+    if (up ~ /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY)[A-Z0-9_]*[ \t]*[=:][ \t]*["\047]?[^ \t"\047$]/ &&
+      up !~ /(TOKEN|SECRET|PASSWORD|PASSWD|KEY)[A-Z0-9_]*_(DIR|FILE|PATH|CMD|COMMAND|HELPER|STORE)[A-Z0-9_]*[ \t]*[=:]/) hit = 1
+    if (up ~ /^[ \t]*SET[ \t]+(-[A-Z]+[ \t]+)*[A-Z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY)[A-Z0-9_]*[ \t]+[^ \t$(]/) hit = 1
+    if ($0 ~ /(ghp_|gho_|github_pat_|xox[baprs]-|AKIA[0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z])[A-Za-z0-9_]/) hit = 1
+    if ($0 ~ /-----BEGIN [A-Z ]*PRIVATE KEY/) hit = 1
+  }
+  if (hit) print FNR
+  prev = $0
+}'
+
+# doctor_riding - what rides that should not, and what does not that will be
+# missed. A secret-shaped line in a file that rides reaches every host hi
+# connects to: named by file and line, its value unprinted. And neovim's
+# init.lua rides alone, a `require` in it left as written, so the modules
+# beside it are named as staying home.
+function doctor_riding() {
+  local member src n dir
+  while IFS= read -r member; do
+    _hi_overlay_src "$member" src || continue
+    while IFS= read -r n; do
+      [ -n "$n" ] || continue
+      doctor_row "$member:$n" "sets something secret-shaped, and $src rides to every host you hi to - keep it in an rc that stays home (a hi-allow comment above the line says it is meant)" warn
+    done < <(awk "$_HI_SECRET_AWK" "$src" 2>/dev/null)
+  done < <(_hi_overlay_files)
+  _hi_overlay_src nvim/init.lua src || return 0
+  dir="${src%/*}/lua"
+  [ -d "$dir" ] || return 0
+  n="$(find "$dir" -type f -name '*.lua' 2>/dev/null | grep -c . || true)"
+  [ "${n:-0}" -gt 0 ] || return 0
+  doctor_row nvim/lua "$n file(s) under $dir stay home - only init.lua rides, so a require of one fails on a target (an overlay nvim/init.lua that needs none is the way round)" warn
+}
+
 function doctor_config() {
   local f t v label late any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR) - what targets get"
@@ -358,6 +405,19 @@ function doctor_config() {
   # doctor_configs walks that table below, so settings.sh gets one verdict.
   [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
+  # settings.<tag>.sh: read for a host carrying that tag, never sent as itself
+  local tags=""
+  for f in "$_HI_CONFIG_DIR"/settings.*.sh; do
+    [ -f "$f" ] || continue
+    t="${f##*/settings.}"
+    t="${t%.sh}"
+    case "$t" in
+    *[!A-Za-z0-9_-]*) doctor_row "settings.$t.sh" "never read - a tag's file is named by a tag of letters, digits, _ and -" warn ;;
+    *) tags="$tags${tags:+ }$t" ;;
+    esac
+  done
+  [ -z "$tags" ] ||
+    doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: line names it, and joined to the settings.sh that host gets"
   # a scheme nothing renders, and a packages ramp nothing paints (HI.50):
   # both are written into settings.sh by hand, so a typo is silent otherwise.
   # settings.sh is already sourced, so the exported values are the ones to judge
@@ -465,6 +525,7 @@ function doctor_config() {
     esac
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
   done < <(_hi_include_lint)
+  doctor_riding
   # common/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
@@ -639,6 +700,12 @@ function doctor_configs() {
     # shellcheck disable=SC2086
     doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
   done
+  # a tag's settings are joined to settings.sh, so the same two parsers
+  for target in "$_HI_CONFIG_DIR"/settings.*.sh; do
+    [ -f "$target" ] || continue
+    doctor_config_row "${target##*/}" "$target" sh -n
+    doctor_config_row "${target##*/}" "$target" fish --no-execute
+  done
   doctor_flush
 }
 
@@ -654,26 +721,25 @@ function _hi_rc_names_tree() {
 # section a half-finished `hi --install` shows up in - the one thing
 # "something is off, run hi --doctor" could not answer before.
 function doctor_install() {
-  local row shell label target tree_rc dialect other found owner bindir profile want
-  local -a lines
+  local row shell label target tree_rc dialect other found owner bindir profile form
   doctor_section install "The install (what hi --install wired up)"
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
     if ! rc_shell_present "$shell"; then
       doctor_row "$shell" "not installed here, nothing to wire"
+    elif ! _hi_has_marker "$target" && ! rc_shell_wanted "$shell" "$target"; then
+      # a shell nobody uses here: the install leaves it alone on purpose
+      doctor_row "$shell" "not wired - not your login shell, and no $target (hi --install --shell $shell wires it)"
     elif ! _hi_has_marker "$target"; then
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
+    elif rc_block_form form "$shell" "$tree_rc" "$dialect" "$target" && [ -n "$form" ]; then
+      doctor_row "$shell" "$target is wired to this tree" ok
     elif grep -qF "$(tmpdir_line "$dialect")" "$target"; then
       # an older hi's block names this tree too, but not the lines this one
-      # writes: bash's `return` ends the rc for `ssh host cmd`, and fish's
-      # bare is-interactive block is a parse error on every fish 3.0-3.3 start
-      _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect")
-      rc_tagged want "${lines[@]}"
-      if [ "$(grep -F "$_HI_MARKER" "$target")" = "${want%$'\n'}" ]; then
-        doctor_row "$shell" "$target is wired to this tree" ok
-      else
-        doctor_row "$shell" "$target is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)" warn
-      fi
+      # writes: bash's `return` ends the rc for `ssh host cmd`, fish's bare
+      # is-interactive block is a parse error on every fish 3.0-3.3 start,
+      # and a source with no test for its file errors once the tree is gone
+      doctor_row "$shell" "$target is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)" warn
     else
       other="$(_hi_rc_names_tree "$target")"
       doctor_row "$shell" "$target names ${other:-another tree}, this is $_HI_HOME (hi --install repairs it)" bad
@@ -756,13 +822,18 @@ function doctor_backends() {
     doctor_row ssh "no $_HI_SSH_CONFIG - names still reach ssh, just without completion or tags"
   fi
   # only name and probe here; doctor_target below reads the other two columns
-  local row name probe
+  local row name probe off=""
   for row in "${_HI_BACKENDS[@]}"; do
     IFS='|' read -r name _ probe _ <<<"$row"
+    if _hi_backend_off "$name"; then
+      off="$off${off:+ }$name"
+      continue
+    fi
     # the probe column's word split is the point - it is a command line
     # shellcheck disable=SC2086
     doctor_backend "$name" $probe
   done
+  [ -z "$off" ] || doctor_row "switched off" "$off (_HI_BACKENDS_OFF) - never asked; --use still reaches one by name"
   t0="$(_hi_now)"
   _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" >/dev/null 2>&1 || true
   t1="$(_hi_now)"
@@ -818,6 +889,17 @@ function doctor_target() {
     fi
   fi
   if [ "$kind" = "ssh host" ]; then
+    # what _hi_tag_settings would read for it, by the same rule
+    local tag tagged=""
+    local -a tags=()
+    if _hi_ssh_host_tag "${target##*@}" >/dev/null; then
+      IFS=' ,' read -r -a tags <<<"$_HI_TAG_VALUE" || true
+      for tag in ${tags[@]+"${tags[@]}"}; do
+        case "$tag" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
+        [ ! -f "$_HI_CONFIG_DIR/settings.$tag.sh" ] || tagged="$tagged${tagged:+ }settings.$tag.sh"
+      done
+    fi
+    [ -z "$tagged" ] || doctor_row "tag settings" "$tagged - read over settings.sh for this host, and sent joined to it"
     doctor_ssh_target "$target"
   else
     if [ "${#_HI_DOC_SSHARGS[@]}" -gt 0 ]; then

@@ -34,7 +34,10 @@ to report what slipped through it.
   `$_HI_OVERLAY_FILES` (the roster is
   [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break)), and
   the files your own `plugins` rows name, each listed by `hi --doctor`;
-  nothing else in `~/.config/say-hi/` leaves the client. A `plugins` row is
+  nothing else in `~/.config/say-hi/` leaves the client. A
+  `settings.<tag>.sh` is the one file sent under another name: joined to the
+  `settings.sh` of a host carrying that tag, and to no other
+  ([SETTINGS.md](SETTINGS.md#settings-by-host-tag)). A `plugins` row is
   read as data: its paths are never evaluated
   ([HI.63](GLOSSARY.md#hi63-plugins-rows)).
 - **base64 is armor, not crypto.** It gets the payload through the target's
@@ -57,6 +60,8 @@ to report what slipped through it.
   with its signer, and a key nobody lists, an unsigned tag (a fork, a mirror),
   or no `gpg` is said out loud and allowed, since refusing there would strand
   every first install. `--dry-run` reports the same verdict.
+  [`_HI_UPDATE_SIGNED=1`](SETTINGS.md#every-setting) refuses those three as
+  well, so only a tag signed by a key the checkout already trusts moves it.
 
 ## What runs where
 
@@ -147,10 +152,15 @@ command.
   nothing, and anyone positioned to intercept or control your ssh/container
   session could do so without hi in it. Backend dispatch trusts your local
   `~/.ssh/config` and your `docker`/`podman`/`nerdctl`/`finch`/`nomad`/`kubectl`
-  CLIs — the same ones you already run.
+  CLIs — the same ones you already run. A name that is no `Host` entry is put
+  to each of those CLIs before it goes to ssh, and `hi <TAB>` lists through
+  them, `kubectl get pods -A` included;
+  [`_HI_BACKENDS_OFF`](SETTINGS.md#every-setting) names the ones hi is never
+  to start, and `all` leaves ssh alone.
 - A malicious target gets what any interactive session gives it: your payload
   and a terminal. Treat every overlay file as public to every host you visit,
-  `ssh_tags` included: it names the hosts your `~/.ssh/config` tags, and only
+  `ssh_tags` included (`hi --doctor` flags a secret-shaped line in a file that
+  rides): it names the hosts your `~/.ssh/config` tags, and only
   those, with nothing of how to reach them. Nothing a target sends back is
   executed on the client. The one string hi reads back and uses - the scratch
   directory the target made (the ssh bootstrap's, or a container's session
@@ -183,7 +193,9 @@ command.
   default); `scripts/doctor.sh`'s probe, `_HI_CTL_PERSIST=0`, and a runtime
   directory hi cannot vouch for take a fresh socket in a `mktemp -d` of their
   own, closed when done. Passed as `-o`, either outranks a `ControlMaster no`
-  in your `~/.ssh/config`.
+  in your `~/.ssh/config`;
+  [`_HI_DISABLE_CONTROLMASTER=1`](SETTINGS.md#every-setting) passes neither,
+  at the cost of a second authentication a connect.
 
 ### What a process started from a session inherits
 
@@ -216,11 +228,12 @@ where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 | No secret ever needs to be in the payload                    | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop and `ci.yml`'s `secret scan (gitleaks)` sweeping the full history on every PR and push to `main`, findings redacted from the log                                                                                                                                                                                                                                                                                                   |
 | The build and release path is defended, not just the product | every CI and release job starts with `step-security/harden-runner` but the arm64 Linux one, which has no agent (egress blocked to an allowlist on every Ubuntu x64 job, each list taken from a real run; audited only on macOS and Windows, which have no block mode, and on the link checker); third-party actions are pinned by SHA; `dependency review` fails a PR that adds a dependency with a high or critical advisory; `release.yml`'s `gate` builds only a tag signed by a key in `.github/allowed_signers`, on `main`, with green CI; the signing keys are `release` environment secrets no other job can read ([RELEASING.md](RELEASING.md#the-release-environment)) |
 
-**What is not (yet) countered.** `hi --update` refuses a tampered signature,
-not a missing or foreign one: a tag re-signed with a key
-`.github/allowed_signers` does not list, or stripped of its signature, is
-named in yellow and checked out. The allowed-signers file is trusted on first
-use - the copy already checked out, which a later release can change.
+**What is not (yet) countered.** Unless `_HI_UPDATE_SIGNED=1` is set,
+`hi --update` refuses a tampered signature, not a missing or foreign one: a
+tag re-signed with a key `.github/allowed_signers` does not list, or stripped
+of its signature, is named in yellow and checked out. On the `dev` branch it
+fast-forwards commits, which carry no check under either setting. The
+allowed-signers file is trusted on first use - the copy already checked out, which a later release can change.
 A packaged install updates through its package manager instead
 ([PACKAGING.md](PACKAGING.md)).
 

@@ -88,7 +88,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # shells need it and this is the only file all four read - spelled per shell,
 # a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use --update --link --preset --add-package --remove-package --add-tag --set-color --unset-color --plugin-off --plugin-on --add-plugin --remove-plugin"
+export _HI_WORD_FLAGS="--preview --use --update --link --shell --preset --add-package --remove-package --add-tag --set-color --unset-color --plugin-off --plugin-on --add-plugin --remove-plugin"
 alias hi="$_HI_LAUNCHER"
 # The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

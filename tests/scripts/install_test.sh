@@ -577,6 +577,25 @@ function test_install_gate_accepted_at_a_terminal_continues() {
     grep -qF "$_HI_MARKER" "$home/.bashrc"
 }
 
+# a first install asks a terminal one thing, and "n" keeps hi off this
+# machine; the menu is hi --configure's
+function test_first_install_asks_only_about_this_machine() {
+  local home="$_HI_WORKDIR/first-q" out="$_HI_WORKDIR/first-q.pty.out"
+  _hi_run_install_pty first-q 'n\n' --link none || return 1
+  grep -qF "Style this machine's own shells too" "$out" && grep -qF 'Installed!' "$out" &&
+    ! grep -qF 'Nothing is written until you save' "$out" &&
+    grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"
+}
+
+# ...and nothing at all once there is a settings.sh
+function test_a_later_install_asks_nothing() {
+  local home="$_HI_WORKDIR/later-q" out="$_HI_WORKDIR/later-q.pty.out"
+  mkdir -p "$home/.config/say-hi"
+  printf '#!/bin/sh\n' >"$home/.config/say-hi/settings.sh"
+  _hi_run_install_pty later-q '' --link none || return 1
+  ! grep -qF 'Style this machine' "$out" && grep -qF 'Installed!' "$out"
+}
+
 # hi --configure quit at its menu writes nothing and says so
 function test_features_only_quit_leaves_the_settings() {
   local home="$_HI_WORKDIR/feat-quit"
@@ -765,7 +784,7 @@ function test_configure_help_is_its_own() {
 function test_configure_without_a_terminal_says_so() {
   local out rc=0
   out="$(_hi_run_install_here nomenu --configure 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || return 1
   rc=0
   out="$(_hi_run_install_here nomenu-install --dry-run --link none 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]]
@@ -1100,6 +1119,8 @@ function run_install_tests() {
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
   _hi_check_capable pty "Declined at a terminal, the gate aborts" test_install_gate_declined_at_a_terminal_aborts
   _hi_check_capable pty "Accepted at a terminal, the install goes on" test_install_gate_accepted_at_a_terminal_continues
+  _hi_check_capable pty "A first install asks only about this machine" test_first_install_asks_only_about_this_machine
+  _hi_check_capable pty "A later install asks nothing" test_a_later_install_asks_nothing
   # install_tree links usr/bin/hi, so a host without symlinks cannot stage
   _hi_check_capable symlink "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir
   _hi_check "hi's own rc lines never read as a framework" test_install_ignores_its_own_rc_lines

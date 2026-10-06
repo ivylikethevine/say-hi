@@ -60,7 +60,7 @@ wrong tree.
 
 **Clear inherited `_HI_*` first.** A session launched from a shell with hi
 installed inherits that install's `_HI_*` (`_HI_HOME`, `_HI_ROOT`,
-`_HI_TEST_LIB`, … — around sixty names, or six from an install carrying
+`_HI_TEST_LIB`, … — around sixty names, or seven from an install carrying
 HI.47). Those paths exist, so nothing fails loudly. Check with
 `env | grep '^_HI_'` and clear with:
 

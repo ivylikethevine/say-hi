@@ -694,7 +694,17 @@ function _hi_interactive_extras() {
 # (paths.sh's dialect can only `export`). config.fish mirrors it;
 # exports_test.sh pins the two. GLOSSARY: HI.47
 _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
-  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT)
+  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF)
+
+# _hi_backend_off <name> - is <name> a backend $_HI_BACKENDS_OFF keeps hi
+# from asking: its word there, or `all`. common/targets.sh has its own copy.
+function _hi_backend_off() {
+  local _hi_bo="${_HI_BACKENDS_OFF:-}"
+  case " ${_hi_bo//,/ } " in
+  *" $1 "* | *" all "*) return 0 ;;
+  esac
+  return 1
+}
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER

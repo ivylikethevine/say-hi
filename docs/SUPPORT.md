@@ -3,8 +3,9 @@
 Where to ask about say-hi, what to bring, and what to expect back. Whether hi
 answers to a given OS, shell, or backend at all is
 [COMPATIBILITY.md](COMPATIBILITY.md)'s job; read it first, since a "no" there
-comes with its reason, and _Already turned down_ below is the same service for
-changes: what was proposed and declined, with the reasoning, so a request
+comes with its reason. A symptom with a known fix is in
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md), and _Already turned down_ below is
+the same service for changes: what was proposed and declined, with the reasoning, so a request
 already settled comes back only with something new behind it.
 
 ## Contents

@@ -688,6 +688,12 @@ function _hi_overlay_row() {
 # file either way.
 function _hi_overlay_src() {
   local _hi_os_f="$_HI_CONFIG_DIR/$1"
+  # a tagged target's settings.sh is settings.sh and its tags' files joined
+  # (hi.sh's _hi_tag_settings), with or without a settings.sh of its own
+  if [ "$1" = settings.sh ] && [ -n "${_HI_TAG_SETTINGS:-}" ]; then
+    _hi_out "${2:-}" "$_HI_TAG_SETTINGS"
+    return 0
+  fi
   ! _hi_plugin_off "$1" || return 1
   ! _hi_prompt_row "$1" >/dev/null || _hi_prompt_handed "$1" || return 1
   [ -f "$_hi_os_f" ] || _hi_overlay_home "$1" _hi_os_f || return 1

@@ -170,6 +170,18 @@ function test_update_says_an_unsigned_tag_is_unsigned() {
   [[ "$out" == *"v0.0.2 is not signed"* && "$out" == *"now on v0.0.2"* ]]
 }
 
+# ...unless _HI_UPDATE_SIGNED=1 asks for a signature the checkout can vouch
+# for: then the tag is refused, a dry run included, and nothing moves
+function test_update_signed_refuses_an_unsigned_tag() {
+  local home out rc=0
+  home="$(_hi_update_fixture upd-strict)" || return 1
+  out="$(_HI_UPDATE_SIGNED=1 _hi_subcmd_run "$home" --update v0.0.2)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"refusing to check it out"* && "$out" != *"now on v0.0.2"* ]] || return 1
+  rc=0
+  out="$(_HI_UPDATE_SIGNED=1 _hi_subcmd_run "$home" --update --dry-run v0.0.2)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" != *"would check out"* ]]
+}
+
 # the verdict is part of what a dry run reports, since it is the one thing the
 # checkout would have refused on
 function test_update_dry_run_reports_the_signature() {
@@ -472,6 +484,7 @@ function run_update_tests() {
 
   _hi_h2 "Testing: the tag's signature"
   _hi_check_requires git "An unsigned tag is said to be, and checked out" test_update_says_an_unsigned_tag_is_unsigned
+  _hi_check_requires git "...and refused under _HI_UPDATE_SIGNED=1" test_update_signed_refuses_an_unsigned_tag
   _hi_check_requires git "--dry-run reports the signature verdict" test_update_dry_run_reports_the_signature
   # gpg_agent, not `gpg`: the three need a keyring, which needs an agent gpg
   # can reach - a facility, not a binary (Git Bash has the binary and no agent)

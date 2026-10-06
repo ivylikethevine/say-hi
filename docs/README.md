@@ -5,18 +5,20 @@ home, the doc named for it below, and every other page links there.
 
 ## Using hi
 
-| Doc                                                                          | Covers                                                                                                                                  |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| [Usage](USAGE.md)                                                            | Every `hi --flag` with an example and a picture of what it prints, generated from `common/flags`.                                       |
-| [Settings](SETTINGS.md)                                                      | The wizard, presets, and the config overlay: every toggle and environment variable hi reads.                                            |
-| [Integrations](INTEGRATIONS.md)                                              | The tools hi wires in where a target has them: your prompt program, mise, direnv, bat, eza, tmux, and the rest.                         |
-| [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and rows.                                                  |
-| [Compatibility](COMPATIBILITY.md)                                            | Every target, OS, and shell hi answers to, and every runtime, shell, and feature answered **no**, and why.                              |
-| [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, and what a package leaves for you to do.                                            |
-| [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, what response to expect, and the changes already turned down, with the reasons. |
-| [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, supported versions, and how to report a vulnerability.                                   |
-| [Man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1)     | `man hi`: every flag, setting, and exit status; `hi --help` is its short form. A roff page, so not on the site.                         |
-| [tldr page](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md) | The eight-example draft for tldr-pages, kept in step with `common/flags` by the lint gate. Not on the site either.                      |
+| Doc                                                                          | Covers                                                                                                                                                    |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Getting started](GETTING-STARTED.md)                                        | What hi is, the words these docs use, a starting path for a first install, for a dotfiles repo, and for a minimal one, and installing without a terminal. |
+| [Usage](USAGE.md)                                                            | Every `hi --flag` with an example and a picture of what it prints, generated from `common/flags`.                                                         |
+| [Settings](SETTINGS.md)                                                      | The wizard, presets, and the config overlay: every toggle and environment variable hi reads.                                                              |
+| [Integrations](INTEGRATIONS.md)                                              | The tools hi wires in where a target has them: your prompt program, mise, direnv, bat, eza, tmux, and the rest.                                           |
+| [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and rows.                                                                    |
+| [Compatibility](COMPATIBILITY.md)                                            | Every target, OS, and shell hi answers to, and every runtime, shell, and feature answered **no**, and why.                                                |
+| [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, and what a package leaves for you to do.                                                              |
+| [Troubleshooting](TROUBLESHOOTING.md)                                        | Symptom, cause, and fix: installing, your own machine, connecting, and inside a session.                                                                  |
+| [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, what response to expect, and the changes already turned down, with the reasons.                   |
+| [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, supported versions, and how to report a vulnerability.                                                     |
+| [Man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1)     | `man hi`: every flag, setting, and exit status; `hi --help` is its short form. A roff page, so not on the site.                                           |
+| [tldr page](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md) | The eight-example draft for tldr-pages, kept in step with `common/flags` by the lint gate. Not on the site either.                                        |
 
 ## Understanding it
 

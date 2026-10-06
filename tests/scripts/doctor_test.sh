@@ -982,6 +982,55 @@ function test_config_collapses_the_local_gates_toggles() {
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
 # value they read does nothing there: each named once, and neither a comment
 # nor an alias that reads one (the add-a-flag idiom) counts. The opt-ins are
+# a secret-shaped line in a file that rides is named by its number and
+# never by its value; a $variable, a path, a comment, and a line under
+# hi-allow are not
+function test_config_flags_a_secret_in_a_riding_file() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/secret.XXXXXX")"
+  # shellcheck disable=SC2016 # written, not run
+  printf '%s\n' 'export GITHUB_TOKEN=abc123def' \
+    'export NPM_TOKEN="$(pass show npm)"' \
+    'export PASSWORD_STORE_DIR=~/.pass' \
+    '# export API_KEY=nope' \
+    '# hi-allow' \
+    'export DEMO_SECRET=public' \
+    'alias gh="GH_HOST=x gh"' \
+    'export X=ghp_abcdefghij' >"$dir/bashrc"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"bashrc:1"*"secret-shaped"* && "$out" == *"bashrc:8"* ]] &&
+    [[ "$out" != *"bashrc:2"* && "$out" != *"bashrc:3"* && "$out" != *"bashrc:4"* &&
+      "$out" != *"bashrc:6"* && "$out" != *"bashrc:7"* && "$out" != *"abc123def"* ]] ||
+    _hi_because "the report said: $out"
+}
+
+# the tag files are listed by tag, and one no tag can name is said to be unread
+function test_config_lists_the_tag_settings() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/tagfiles.XXXXXX")"
+  printf 'export _HI_PLAIN=1\n' >"$dir/settings.prod.sh"
+  printf 'export _HI_KEEP=1\n' >"$dir/settings.my tag.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"tag settings"*"prod - each settings.<tag>.sh"* && "$out" == *"settings.my tag.sh"*"never read"* ]] ||
+    _hi_because "the report said: $out"
+}
+
+# fish's `set` spelling of the same, read by the one awk
+function test_secret_awk_reads_a_fish_set() {
+  local f="$_HI_WORKDIR/secret.fish"
+  # shellcheck disable=SC2016
+  printf '%s\n' 'set -gx OPENAI_API_KEY abc' 'set -gx EDITOR vim' 'set -gx MY_TOKEN $other' >"$f"
+  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "1 " ]
+}
+
 # in the fixture because the row reads their names off common/aliases.sh.
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_values_set_in_aliases_sh() {
@@ -1518,7 +1567,7 @@ function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() 
   local home="$_HI_WORKDIR/inst-bare" out rc=0
   mkdir -p "$home"
   : >"$home/.bashrc"
-  out="$(_hi_doctor_install_out "$home")" || rc=$?
+  out="$(_hi_doctor_install_out "$home" SHELL=/bin/bash)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"~/.bashrc has no hi lines"* ]] &&
     [[ "$out" == *"no ~/.local/bin/hi"* ]] && [[ "$out" == *"zsh"*"not installed here"* ]]
 }
@@ -1847,6 +1896,9 @@ function run_doctor_tests() {
     _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
     _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
     _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
+    _hi_check "A secret-shaped line in a riding file is named" test_config_flags_a_secret_in_a_riding_file
+    _hi_check "...in the set spelling of fish too" test_secret_awk_reads_a_fish_set
+    _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
     _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
 
     _hi_h2 "Testing: the report primitives"

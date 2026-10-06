@@ -42,6 +42,17 @@ the apt/rpm repository metadata; an RSA key, served as `say-hi.rsa.pub`, signs
 the apk and its `APKINDEX`. Which secret signs what, and how the keys were
 made, is [RELEASING.md's Package repository](RELEASING.md#package-repository).
 
+**Check a key before trusting it.** Both are served from the site the
+packages come from, so compare what you downloaded with the copies in this
+repository (`packaging/gpg/say-hi.asc`, `packaging/apk/say-hi.rsa.pub`):
+
+```sh
+gpg --show-keys --with-fingerprint say-hi.asc
+#   A46E 27A7 F7BF 9BEC 059A  0758 DD0F 9D76 EA22 6F65
+sha256sum say-hi.rsa.pub
+#   2349552c01eda6a5f5247c339894c5de676e0c0d19991240c289e5fb2cc2b42f
+```
+
 **No maintainer scripts, no `conffiles`, on purpose.** Everything a user
 writes lives outside the package's paths - the overlay under
 `$XDG_CONFIG_HOME` - and the package owns only

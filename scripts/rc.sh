@@ -83,7 +83,7 @@ function _hi_rc_unwritable() {
   link="$(readlink "$1" 2>/dev/null || true)"
   _hi_cecho " can't write $1${link:+ (-> $link)} - left as it was" "$RED"
   if [ -n "$2" ]; then
-    _hi_cecho " add these lines where that file is managed, then re-run:" "$YELLOW"
+    _hi_cecho " add these lines where that file is managed, then re-run (--print-rc has them for a shared rc):" "$YELLOW"
     printf '%s' "$2" | sed 's/^/   /'
   else
     _hi_cecho " take the lines ending '$_HI_MARKER' out where that file is managed" "$YELLOW"
@@ -255,7 +255,10 @@ function install_bash_profile_line() {
   _hi_is_darwin || return 0
   local profile
   _hi_login_bash_profile profile
-  if [ "$profile" = "$HOME/.bash_profile" ]; then
+  if [ -n "${_HI_RC_PRINT:-}" ]; then
+    grep -v -F "$_HI_MARKER" "$profile" 2>/dev/null | grep -F '.bashrc' >/dev/null ||
+      rc_print bash_profile "$profile" "$_HI_BASH_PROFILE_LINE"
+  elif [ "$profile" = "$HOME/.bash_profile" ]; then
     if grep -v -F "$_HI_MARKER" "$profile" | grep -F '.bashrc' >/dev/null; then
       _hi_h2 "Checking bash_profile"
       _hi_cecho " local bash_profile already reads .bashrc :)" "$GREEN"
@@ -369,33 +372,110 @@ function config_validate_shells() {
 # a `return`, which would end all of ~/.bashrc for `ssh host cmd`, scp, and
 # rsync, lines other installers append below hi's included. doctor_install
 # compares a wired rc against these, so a block an older hi wrote is named.
+#
+# Every source is behind a test for the file, so a tree deleted without
+# `hi --uninstall` costs a shell nothing. A fourth argument of `portable`
+# spells the block for an rc shared between machines: $HOME left for the
+# shell to expand, and the tree named through the $_HI_HOME just exported.
 function rc_lines() {
-  tmpdir_line "$3"
+  local home="$_HI_HOME" rc="$2"
+  if [ "${4:-}" = portable ]; then
+    rc_home_spelled home
+    rc="\$_HI_HOME${2#"$_HI_HOME"}"
+  fi
+  tmpdir_line "$3" "$home"
   printf '\n'
   case "$3" in
   fish)
     # fish before 3.4 cannot parse hi's config.fish: one line saying so
     # rather than a parse error on every start
     # shellcheck disable=SC2016 # $version is fish's, read at its start
-    printf '%s\n' "if status is-interactive; and string match -qr '^([4-9]|3\.([4-9]|[1-9][0-9]))\.' -- \$version" \
-      "  source \"$2\"" \
-      'else if status is-interactive' \
-      '  echo "hi needs fish 3.4 or newer (this is $version); not loaded" >&2' \
+    printf '%s\n' "if status is-interactive; and test -r \"$rc\"" \
+      "  if string match -qr '^([4-9]|3\.([4-9]|[1-9][0-9]))\.' -- \$version" \
+      "    source \"$rc\"" \
+      '  else' \
+      '    echo "hi needs fish 3.4 or newer (this is $version); not loaded" >&2' \
+      '  end' \
       'end'
     ;;
   *)
     if [ "$1" = bash ]; then
-      printf '%s\n' "[[ \$- == *i* ]] && source \"$2\""
+      printf '%s\n' "[[ \$- == *i* && -r \"$rc\" ]] && source \"$rc\""
     else
-      printf '%s\n' "source \"$2\""
+      printf '%s\n' "[ -r \"$rc\" ] && source \"$rc\""
     fi
     ;;
   esac
 }
 
+# rc_home_spelled <outvar> - $_HI_HOME as a shared rc says it: under $HOME,
+# with $HOME left unexpanded; anywhere else, as it is
+function rc_home_spelled() {
+  # shellcheck disable=SC2016 # the rc's shell expands it
+  case "$_HI_HOME" in
+  "$HOME") printf -v "$1" '%s' '$HOME' ;;
+  "$HOME"/*) printf -v "$1" '%s' "\$HOME${_HI_HOME#"$HOME"}" ;;
+  *) printf -v "$1" '%s' "$_HI_HOME" ;;
+  esac
+}
+
+# rc_block_form <outvar> <shell> <tree_rc> <dialect> <target> - which of
+# rc_lines' two blocks <target>'s tagged lines are: `written`, `portable`,
+# or empty for neither. install and doctor both ask, so a block
+# `--print-rc` handed out is left alone by one and read as wired by the other.
+function rc_block_form() {
+  local _hi_bf_have _hi_bf_want _hi_bf_form
+  local -a _hi_bf_lines
+  printf -v "$1" '%s' ''
+  _hi_bf_have="$(grep -F "$_HI_MARKER" "$5" 2>/dev/null || true)"
+  [ -n "$_hi_bf_have" ] || return 0
+  for _hi_bf_form in written portable; do
+    _hi_read_lines _hi_bf_lines < <(rc_lines "$2" "$3" "$4" "$_hi_bf_form")
+    rc_tagged _hi_bf_want "${_hi_bf_lines[@]}"
+    [ "$_hi_bf_have" = "${_hi_bf_want%$'\n'}" ] || continue
+    printf -v "$1" '%s' "$_hi_bf_form"
+    return 0
+  done
+}
+
+# rc_shell_wanted <shell> <target> - is <shell> one this install wires:
+# named by --shell ($_HI_SHELLS, a list or `all`), else the login shell and
+# any shell with an rc file already
+function rc_shell_wanted() {
+  case " ${_HI_SHELLS:-} " in
+  "  ") [ "${SHELL##*/}" = "$1" ] || [ -s "$2" ] ;;
+  *" all "* | *" $1 "*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# rc_print <label> <target> <line...> - --print-rc's half of config_shell:
+# the block, tagged as it would be written, for whoever manages <target>
+function rc_print() {
+  local label="$1" target="$2" block
+  shift 2
+  rc_tagged block "$@"
+  _hi_h2 "Lines for $label"
+  if [ "$(grep -F "$_HI_MARKER" "$target" 2>/dev/null || true)" = "${block%$'\n'}" ]; then
+    _hi_cecho " $target has them already :)" "$GREEN"
+    return 0
+  fi
+  _hi_cecho " for $target, added where that file is managed:" "$BLUE"
+  printf '%s' "$block"
+}
+
 function install_rc_lines() {
-  local row shell label target tree_rc dialect bad=0
+  local row shell label target tree_rc dialect form bad=0 any=0
   local -a lines
+  # nothing named, no login shell hi wires, and no rc file yet: every shell
+  # here, rather than an install that wires none
+  if [ -z "${_HI_SHELLS:-}" ]; then
+    for row in "${_HI_RC_TABLE[@]}"; do
+      IFS='|' read -r shell _ _ target _ _ <<<"$row"
+      rc_shell_present "$shell" && rc_shell_wanted "$shell" "$target" && any=1
+    done
+    [ "$any" = 1 ] || local _HI_SHELLS=all
+  fi
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
     # a shell that is not here gets no rc file invented for it; the next
@@ -405,6 +485,24 @@ function install_rc_lines() {
       _hi_cecho " $shell is not installed here - leaving $target alone (re-run hi --install once it is)" "$BLUE"
       continue
     }
+    # a shell nobody uses here keeps its rc, lines of an earlier install
+    # included: uninstall is what takes those out
+    rc_shell_wanted "$shell" "$target" || _hi_has_marker "$target" || {
+      _hi_h2 "Checking $label"
+      _hi_cecho " $shell is not your login shell and has no $target - left alone (--shell $shell wires it)" "$BLUE"
+      continue
+    }
+    if [ -n "${_HI_RC_PRINT:-}" ]; then
+      _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect" portable)
+      rc_print "$label" "$target" "${lines[@]}"
+      continue
+    fi
+    rc_block_form form "$shell" "$tree_rc" "$dialect" "$target"
+    if [ "$form" = portable ]; then
+      _hi_h2 "Checking $label"
+      _hi_cecho " local $label carries the --print-rc block, left as it is :)" "$GREEN"
+      continue
+    fi
     _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect")
     # one unwritable rc does not stop the others; the run still fails
     config_shell "$label" "$target" "${lines[@]}" || bad=1
