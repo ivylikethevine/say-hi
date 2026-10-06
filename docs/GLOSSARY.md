@@ -527,9 +527,11 @@ packager reads.
 ## HI.34 test suite preamble
 
 Every suite under `tests/` opens with the same four lines — four separate
-mechanisms, not boilerplate. Two kinds differ, on purpose: a split suite
-(`*_ci_test.sh`, `doctor_*_test.sh`) sources its parent suite in place of the
-harness, which the parent then sources once; and a suite with no function it
+mechanisms, not boilerplate. Two kinds differ, on purpose: a part of a
+split suite (`<suite>_<part>_test.sh`, as `doctor_json_test.sh` is to
+`doctor_test.sh`) names its part and sources its parent suite in place of the
+harness, which the parent then sources once, for the helpers the parts share;
+and a suite with no function it
 reaches only indirectly (the lint suites, docker's and podman's) drops the
 SC2329 line:
 

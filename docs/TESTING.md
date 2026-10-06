@@ -45,8 +45,8 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 
 - `ci` is the checks a second platform could only repeat - the workflows and
   manifests read as text, and the release tooling only Ubuntu runs
-  (`packaging_ci`, a file of its own beside `packaging`'s portable half, and
-  `test_runner_ci`, `runner_test.sh`'s ci part). Ubuntu's fast job runs it;
+  (`packaging_ci` and its four parts, files of their own beside `packaging`'s
+  portable half, and `test_runner_ci`, `runner_test.sh`'s ci part). Ubuntu's fast job runs it;
   `release.yml` runs it against the bumped manifests.
 - A passing suite's transcript collapses to one status line; failures replay
   in full and are recapped under the summary table. `--verbose`
@@ -337,7 +337,7 @@ Written down as not races:
   their callers are serial, as every caller is; build one before a
   `_hi_par_begin`, never inside a parallel case.
 
-Instrumented, not yet explained: on Windows arm64, `hi_payload`'s include
+Instrumented, not yet explained: on Windows arm64, `hi_payload_scan`'s include
 scan cases have left an empty overlay stream with no error of their own
 (gzip then reports "unexpected end of file"). The suite wraps
 `_hi_overlay_tar` to print its exit status and stderr, so the next one names
@@ -413,9 +413,9 @@ shipping an image with the framework missing.
 
 ## The lint gate
 
-`--group lint` is four suites, twenty-eight checks between them. Each suite is
-its own process (`shellcheck`, `dialects`, `tools`, `drift`) with its own
-tally in the summary table, so a failure in one never hides what the others
+`--group lint` is five suites, twenty-eight checks between them. Each suite is
+its own process (`shellcheck`, `dialects`, `tools`, `drift`, `drift_docs`)
+with its own tally in the summary table, so a failure in one never hides what the others
 found.
 
 CI's `lint suites` job passes `--require-run`, so a check that skips yellow
@@ -493,8 +493,9 @@ skipping yellow when its tool isn't installed (CI has all seven):
   `prettier --write --plugin ./.github/prettier-plugin-docs.mjs` on the paths
   it names.
 
-**`drift`** (`tests/lint/drift_test.sh`) — sixteen repo-consistency sweeps,
-each checking that something written down elsewhere still agrees with the tree:
+**`drift`** (`tests/lint/drift_test.sh`, and `drift_docs_test.sh` for the five
+over the docs: 18, 19, 22, 23, 24) — sixteen repo-consistency sweeps, each
+checking that something written down elsewhere still agrees with the tree:
 
 - **13. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
   `${x,,}`, `wait -n`, or `${!a[@]+…}` — each explained in

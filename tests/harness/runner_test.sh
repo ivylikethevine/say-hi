@@ -613,262 +613,8 @@ function _hi_runner_list() {
   printf '%s\n' "$_HI_LIST_OUT"
 }
 
-function test_shipped_table_lists_a_group_and_name_per_suite() {
-  local group name count=0
-  while read -r group name; do
-    [ -n "$group" ] && [ -n "$name" ] || {
-      _hi_cecho " | malformed --list row: $group $name" "$RED"
-      return 1
-    }
-    count=$((count + 1))
-  done < <(_hi_runner_list)
-  [ "$count" -gt 0 ] || {
-    _hi_cecho " | --list returned nothing" "$RED"
-    return 1
-  }
-}
-
-# --list-paths is --list plus the suite's absolute path, for tests/coverage.sh,
-# which has to launch each suite script itself. It is a separate flag rather
-# than a third column on --list because every --list consumer reads rows with
-# `read -r group name` - two of them in this file - where a third field would
-# land silently inside $name.
-function test_list_paths_adds_a_readable_path_per_suite() {
-  local group name path count=0
-  while read -r group name path; do
-    [ -n "$path" ] && [ -f "$path" ] || {
-      _hi_cecho " | --list-paths row has no readable path: $group $name $path" "$RED"
-      return 1
-    }
-    count=$((count + 1))
-  done < <(printf '%s\n' "$_HI_LIST_PATHS_OUT")
-  [ "$count" -gt 0 ]
-}
-
-# the two listings have to describe the same table, or coverage.sh and CI are
-# reading different things
-function test_list_paths_matches_list() {
-  [ "$(printf '%s\n' "$_HI_LIST_PATHS_OUT" | awk '{print $1, $2}')" = "$_HI_LIST_OUT" ]
-}
-
-# Every suite has to be in a group CI actually runs, or it never runs on a push
-# and nothing says so. CI invokes groups by name (see ci.yml's `--group fast`/
-# `e2e`/`backends`), so this checks the workflow runs every group the table
-# uses rather than every suite.
-function test_ci_runs_every_group_in_the_table() {
-  local workflow="$_HI_ROOT/.github/workflows/ci.yml" group name missing=""
-  local -a groups=()
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
-  while read -r group name; do
-    [[ " ${groups[*]} " == *" $group "* ]] || groups+=("$group")
-  done < <(_hi_runner_list)
-  [ "${#groups[@]}" -gt 0 ] || {
-    _hi_cecho " | couldn't read the suite table back out of the runner" "$RED"
-    return 1
-  }
-  for group in "${groups[@]}"; do
-    # a comma list names several
-    grep -qE -- "--group ([a-z]+,)*$group(,[a-z]+)*( |\"|$)" "$workflow" || missing+=" $group"
-  done
-  [ -z "$missing" ] || {
-    _hi_cecho " | groups in the runner but not run by CI:$missing" "$RED"
-    return 1
-  }
-}
-
-# `kcov --merge` re-reads every source file at the absolute path its shard
-# recorded, so a gather job with no working tree merges to `"files": []` and a
-# run-wide 0.00 - a well-formed report, and a badge reading 0.00% rather than
-# an error. coverage.yml's kcov gather job shipped without a checkout and
-# published exactly that; nothing else in the tree would have caught it, since
-# the merge, the upload, and the badge step all exit 0. Measured on kcov 43:
-# the same parts directory merges to 41.06% with the sources present and to
-# 0.00% with one moved away. The merge itself lives in
-# `tests/coverage.sh --merge` (a local sweep's own tail, reused), but the
-# checkout requirement travels with the *job*, not the script.
-function test_coverage_merge_jobs_check_out_the_tree() {
-  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job block missing=""
-  local seen=0 jobs
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
-  jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
-  while read -r job; do
-    block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
-    printf '%s\n' "$block" | grep -qE 'tests/coverage\.sh --merge' || continue
-    seen=$((seen + 1))
-    printf '%s\n' "$block" | grep -q 'uses: actions/checkout' || missing="$missing $job"
-  done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
-  [ "$seen" -gt 0 ] || {
-    _hi_cecho " | no coverage.yml job calls tests/coverage.sh --merge - has it moved?" "$RED"
-    return 1
-  }
-  [ -z "$missing" ] || {
-    _hi_cecho " | coverage.yml jobs that merge kcov output without checking out the tree:$missing" "$RED"
-    return 1
-  }
-}
-
-# Neither tracer follows a non-bash child, and ubuntu's sh is dash, so the
-# `#!/bin/sh` files the suites execute as `sh <file>` (common/targets.sh)
-# read 0% unless a bash-as-sh sits first on PATH - three points of the
-# badge, and nothing else would notice the shim going. Each driver shims its
-# own PATH (tests/lib/coverage.sh's _hi_cov_shim_sh_to_bash, called
-# before either starts sweeping), rather than every CI job building one on
-# PATH by hand (not GITHUB_PATH - zizmor's github-env audit rejects that on
-# a workflow_run workflow) - so this checks the drivers, not the workflow.
-function test_coverage_drivers_shim_sh_to_bash() {
-  local lib="$_HI_ROOT/tests/lib/coverage.sh" driver missing=""
-  local -a drivers=("$_HI_ROOT/tests/coverage.sh" "$_HI_ROOT/tests/coverage_v2.sh")
-  [ -f "$lib" ] || return 0 # a shipped tree has no tests/
-  grep -qE 'ln -sf .*bash.*/sh"?$' "$lib" || {
-    _hi_cecho " | tests/lib/coverage.sh's shim does not symlink bash as sh - has it moved?" "$RED"
-    return 1
-  }
-  for driver in "${drivers[@]}"; do
-    [ -f "$driver" ] || continue
-    grep -q '_hi_cov_shim_sh_to_bash' "$driver" || missing="$missing ${driver##*/}"
-  done
-  [ -z "$missing" ] || {
-    _hi_cecho " | drivers that sweep without shimming sh to bash first:$missing" "$RED"
-    return 1
-  }
-}
-
-# coverage.yml's pull_request path is for same-repo PRs only: pages.yml reads
-# the badge figures off the newest green run of it on branch `main`, which a
-# fork PR opened from its own `main` is - its sweep would publish as the
-# README's figure. The guard lives once, in `reuse`'s own gate step, and
-# every sharded or gathering job reads its `sweep` output instead of
-# re-deriving "a green push or a same-repo non-draft PR" itself
-# - so a same-repo omission can only happen in the one place, not per job.
-# `comment` is the one job that never reads `sweep` (it runs off the gather
-# jobs' results, on a same-repo PR whether or not this run swept), so it
-# keeps the direct check the loop below falls back to.
-function test_coverage_pr_runs_are_same_repo_only() {
-  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" gate job block bad=""
-  local seen=0 jobs
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
-  jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
-  gate="$(printf '%s\n' "$jobs" | sed -n "/^  reuse:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
-  # shellcheck disable=SC2016 # coverage.yml's literal source text
-  if [[ "$gate" != *"head.repo.full_name == github.repository"* ]] ||
-    [[ "$gate" != *'"$WR_EVENT" = push'* ]]; then
-    _hi_cecho " | reuse's gate step is missing the same-repo or green-push clause" "$RED"
-    return 1
-  fi
-  while read -r job; do
-    [ "$job" = reuse ] && continue
-    block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
-    seen=$((seen + 1))
-    printf '%s\n' "$block" | grep -q 'needs\.reuse\.outputs\.sweep' && continue
-    printf '%s\n' "$block" | grep -qE "head\.repo\.full_name == github\.repository|event_name != 'pull_request'" ||
-      bad="$bad $job"
-  done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
-  [ "$seen" -gt 0 ] || {
-    _hi_cecho " | no jobs read out of coverage.yml - has the file moved?" "$RED"
-    return 1
-  }
-  [ -z "$bad" ] || {
-    _hi_cecho " | coverage.yml jobs a fork's PR could run:$bad" "$RED"
-    return 1
-  }
-}
-
-# Each suite selectable on its own, and every group non-empty: together these
-# are what makes `--group` a safe thing for CI to depend on.
-# --group is what ci.yml invokes, so every group the table uses has to select
-# at least one suite - and only suites of that group
-#
-# One check for every sharded workflow job: the runner's --shard slices its
-# matrix names have to partition the group, or a suite never runs (or runs
-# twice). Each entry is a whole i/n slice, and n may differ between them
-# (windows-client.yml mixes /4 and /8). <job> scopes the sed extraction to
-# that job's own block (through to the next top-level key) when several
-# sharded jobs share a file (ci.yml); "-" reads the whole file
-# (windows-client.yml holds just the one).
-function _hi_shards_cover_group() {
-  local workflow="$_HI_ROOT/.github/workflows/$1" job="$2" group="$3"
-  local where="$1" block entry slices=""
-  [ "$job" = - ] || where="$1's $job"
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
-  if [ "$job" = - ]; then
-    block="$(<"$workflow")"
-  else
-    block="$(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow")"
-  fi
-  for entry in $(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
-    slices="$slices$("$_HI_TEST_RUN" --group "$group" --shard "$entry" --list 2>/dev/null)"$'\n'
-  done
-  [ "$(printf '%s' "$slices" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ] || {
-    _hi_cecho " | $where's shard matrix does not partition the $group group" "$RED"
-    return 1
-  }
-}
-
-function test_every_group_selects_only_its_own_suites() {
-  local group rows
-  while read -r group; do
-    rows="$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null)"
-    [ -n "$rows" ] || {
-      _hi_cecho " | group selects nothing: $group" "$RED"
-      return 1
-    }
-    [ -z "$(printf '%s\n' "$rows" | awk -v g="$group" '$1 != g')" ] || {
-      _hi_cecho " | --group $group returned another group's suites" "$RED"
-      return 1
-    }
-  done < <(_hi_runner_list | awk '!seen[$1]++ {print $1}')
-}
-
-function test_every_shipped_suite_script_exists_and_is_executable() {
-  local entry path count=0
-  local -a entries=()
-  _hi_read_lines entries < <(grep -oE '^[[:space:]]*"[^":]+:[^":]+:[^"]+\.sh"$' "$_HI_TEST_RUN" | tr -d '" ')
-  while read -r _ _; do count=$((count + 1)); done < <(_hi_runner_list)
-
-  if [ "${#entries[@]}" -eq 0 ] || [ "${#entries[@]}" -ne "$count" ]; then
-    _hi_cecho " | parsed ${#entries[@]} table entries out of $_HI_TEST_RUN, runner reports $count suites" "$RED"
-    return 1
-  fi
-
-  for entry in "${entries[@]}"; do
-    path="$_HI_ROOT/tests/${entry##*:}"
-    [ -x "$path" ] || {
-      _hi_cecho " | not executable: $path" "$RED"
-      return 1
-    }
-  done
-}
-
-# The reverse direction, which is the one that rots quietly: a
-# tests/*/foo_test.sh on disk but missing from the table never runs anywhere,
-# and nothing else would say so. Same parse of the table as the check above,
-# diffed against what the tree actually holds.
-function test_every_suite_script_on_disk_is_in_the_table() {
-  local path rel missing=""
-  local -a entries=()
-  _hi_read_lines entries < <(grep -oE '^[[:space:]]*"[^":]+:[^":]+:[^"]+\.sh"$' "$_HI_TEST_RUN" | tr -d '" ')
-  [ "${#entries[@]}" -gt 0 ] || {
-    _hi_cecho " | parsed no table entries out of $_HI_TEST_RUN" "$RED"
-    return 1
-  }
-  for path in "$_HI_ROOT"/tests/*/*_test.sh; do
-    rel="${path#"$_HI_ROOT/tests/"}"
-    case " ${entries[*]} " in
-    *":$rel "*) ;;
-    *) missing="$missing $rel" ;;
-    esac
-  done
-  [ -z "$missing" ] || {
-    _hi_cecho " | suites on disk but not in the runner's table:$missing" "$RED"
-    return 1
-  }
-}
-
-# Two suites over this one file: the runner's own behaviour, on every
-# platform (it runs there), and - runner_ci_test.sh, the ci group, once - the
-# shipped table checked against the workflows, which reads only repo text.
-function run_runner_tests() {
-  local part="${_HI_RUNNER_PART:-host}"
+# _hi_runner_begin - what every part of this suite starts from, and the tally
+function _hi_runner_begin() {
   _hi_workdir runnertest
 
   _HI_FIXTURES="$_HI_WORKDIR/fixtures"
@@ -882,125 +628,104 @@ function run_runner_tests() {
   _HI_LIST_OUT="$("$_HI_TEST_RUN" --list 2>/dev/null)"
   _HI_LIST_PATHS_OUT="$("$_HI_TEST_RUN" --list-paths 2>/dev/null)"
   _HI_HELP_OUT="$("$_HI_TEST_RUN" --help)"
-
   _hi_suite_begin
-
-  _hi_h1 "Testing tests/test_runner.sh ($part)"
-
-  if [ "$part" = host ]; then
-    _hi_h2 "Testing: suite selection"
-    _hi_check "Runs everything with no arguments" test_runs_every_suite_when_given_no_arguments
-    _hi_check "Runs only the named suites" test_runs_only_the_named_suites
-    _hi_check "Keeps table order regardless of argument order" test_selecting_several_suites_keeps_table_order
-    _hi_check "An unknown name is an error" test_unknown_suite_name_is_an_error
-    _hi_check "An unknown name lists the known ones" test_unknown_suite_name_lists_the_known_ones
-    _hi_check "--shard slices are a partition in table order" test_shards_partition_the_selection_in_table_order
-    _hi_check "A shard runs only its own suites" test_a_shard_runs_only_its_own_suites
-    _hi_check "--shard slices the selected group" test_shards_slice_the_selected_group
-    _hi_check "--group takes a comma list" test_a_group_list_selects_each_group
-    _hi_check "A malformed or out-of-range --shard is an error" test_a_malformed_or_out_of_range_shard_is_an_error
-    _hi_check "An empty shard is an error" test_an_empty_shard_is_an_error
-    _hi_check "--shard appears in --help" test_shard_is_listed_in_help
-
-    _hi_h2 "Testing: results and exit codes"
-    _hi_check "All passing -> exit 0, green summary" test_all_passing_exits_zero_with_a_green_summary
-    _hi_check "A failing suite shows its exit code" test_a_failing_suite_is_reported_with_its_exit_code
-    _hi_check "Exits with the failed-suite count" test_runner_exits_with_the_failed_suite_count
-    _hi_check "A failure doesn't stop later suites" test_a_failure_does_not_stop_later_suites
-    _hi_check "Failure summary counts failed/total" test_failure_summary_counts_failed_over_total
-
-    _hi_h2 "Testing: missing scripts"
-    _hi_check "Reported as MISSING" test_a_missing_script_is_reported_as_missing
-    _hi_check "Counts as a failed suite" test_a_missing_script_counts_as_a_failed_suite
-    _hi_check "Doesn't stop the run" test_a_missing_script_does_not_stop_the_run
-
-    _hi_h2 "Testing: per-suite status lines"
-    _hi_check "Status lines span _HI_MAX_WIDTH" test_status_lines_span_hi_max_width
-    _hi_check "Verdicts align in one column" test_status_lines_align_verdicts_in_one_column
-    _hi_check "A narrow width keeps the verdict" test_status_line_narrow_width_keeps_the_verdict
-
-    _hi_h2 "Testing: summary table"
-    _hi_check "Lists every suite with a duration" test_summary_lists_every_suite_with_a_duration
-    _hi_check "Pads names to the widest" test_summary_pads_names_to_the_widest
-    _hi_check "Rows span _HI_MAX_WIDTH" test_summary_rows_span_hi_max_width
-    _hi_check "Tracks a wider _HI_MAX_WIDTH" test_summary_tracks_a_wider_hi_max_width
-    _hi_check "A narrow width doesn't truncate names" test_summary_narrow_width_does_not_truncate_names
-
-    _hi_h2 "Testing: collapsed output and the recap"
-    _hi_check "A passing suite's output is collapsed" test_passing_suite_output_is_collapsed
-    _hi_check "A failing suite's output replays" test_failing_suite_output_replays
-    _hi_check "_HI_VERBOSE=1 streams passing output" test_verbose_streams_passing_output
-    _hi_check "--verbose streams passing output" test_verbose_flag_streams_passing_output
-    _hi_check "CI folds passing output into a ::group::" test_ci_folds_passing_output_into_a_group
-    _hi_check "CI annotates failures, unfolded" test_ci_annotates_failures_unfolded
-    _hi_check "Failing cases recapped under the summary" test_failing_cases_are_recapped_under_the_summary
-    _hi_check "A green run has no recap" test_a_green_run_has_no_recap
-
-    _hi_h2 "Testing: the progress line"
-    _hi_check "Counts finished suites and cases, ahead of the replay" test_progress_line_counts_suites_and_cases
-    _hi_check "Off without CI or a terminal" test_progress_line_is_off_by_default
-    _hi_check "CI turns it on" test_ci_turns_the_progress_line_on
-
-    _hi_h2 "Testing: summary case counts"
-    _hi_check "Has a column header" test_summary_has_a_column_header
-    _hi_check "Shows each suite's pass/fail counts" test_summary_shows_each_suites_case_counts
-    _hi_check "Shows each suite's skip count" test_summary_shows_suite_skip_counts
-    _hi_check "Shows - when a suite reported no counts" test_summary_shows_dashes_when_no_counts_were_reported
-    _hi_check "Totals sum every suite's cases" test_summary_totals_sum_every_suites_cases
-    _hi_check "Totals sum the skip counts" test_summary_totals_sum_skip_counts
-    _hi_check "Totals ignore suites without counts" test_summary_totals_ignore_suites_without_counts
-    _hi_check "--totals-file carries the summary numbers" test_totals_file_carries_the_summary_numbers
-    _hi_check "--totals-file only when asked" test_totals_file_is_written_only_when_asked
-
-    _hi_h2 "Testing: skipped suites"
-    _hi_check "Reported as SKIPPED, not PASS" test_a_skipping_suite_is_reported_as_skipped
-    _hi_check "Not a failure" test_a_skipping_suite_is_not_a_failure
-    _hi_check "Not counted as passed" test_a_skipping_suite_is_not_counted_as_passed
-    _hi_check "Contributes no cases" test_a_skipping_suite_contributes_no_cases
-    _hi_check "--require-run turns a skip into a failure" test_require_run_fails_when_a_suite_skips
-    _hi_check "--require-run passes when nothing skips" test_require_run_passes_when_nothing_skips
-    _hi_check "--require-run adds skips to the exit code" test_require_run_adds_skips_to_the_failure_exit_code
-    _hi_check "--require-run turns a skipped case into a failure" test_require_run_fails_when_a_case_skips
-    _hi_check "a skipped case is not a failure by default" test_case_skips_are_not_failures_by_default
-    _hi_check "--require-run appears in --help" test_require_run_is_listed_in_help
-
-    _hi_h2 "Testing: the host report"
-    _hi_check "Off by default" test_host_report_is_off_by_default
-    _hi_check "--host-report prints the block" test_host_report_flag_prints_the_block
-    _hi_check "_HI_HOST_REPORT=1 prints the block" test_host_report_env_var_prints_the_block
-    _hi_check "Printed before the first suite" test_host_report_precedes_the_first_suite
-    _hi_check "Printed once per run" test_host_report_prints_once_per_run
-    _hi_check "--host-report appears in --help" test_host_report_is_listed_in_help
-    _hi_check "An unflagged run stays quiet about the tree" test_unflagged_run_stays_quiet_about_the_tree
-
-  fi
-
-  if [ "$part" = ci ]; then
-    _hi_h2 "Testing: the shipped table"
-    _hi_check "Lists a group and name per suite" test_shipped_table_lists_a_group_and_name_per_suite
-    _hi_check "--list-paths adds a readable path" test_list_paths_adds_a_readable_path_per_suite
-    _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
-    # A contract with every sharded job: the slices CI runs under Git Bash,
-    # inside WSL, and on ci.yml's e2e runners are exactly their group.
-    _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
-    _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
-    _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
-    # Also the shape "one backend per runner" depends on: three suites, three
-    # shards, so every shard really is exactly one backend - not asserted here
-    # (that's install-step reasoning, not a suite-list one), but a shard count
-    # that ever drifted from the group's suite count would fail this the same
-    # way an incomplete matrix would.
-    _hi_check "ci.yml's e2e-backends shards cover the backends group" _hi_shards_cover_group ci.yml e2e-backends backends
-    _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
-    _hi_check "Every suite on disk is in the table" test_every_suite_script_on_disk_is_in_the_table
-    _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
-    _hi_check "coverage.yml merges with the tree checked out" test_coverage_merge_jobs_check_out_the_tree
-    _hi_check "the coverage drivers shim sh to bash before sweeping" test_coverage_drivers_shim_sh_to_bash
-    _hi_check "coverage.yml runs a PR's sweep for same-repo PRs only" test_coverage_pr_runs_are_same_repo_only
-    _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites
-  fi
-
-  _hi_suite_end "test_runner.sh ($part)"
 }
 
-run_runner_tests
+# Two suites over this one file: the runner's own behaviour, on every
+# platform (it runs there), and - runner_ci_test.sh, the ci group, once - the
+# shipped table checked against the workflows, which reads only repo text.
+function run_runner_tests() {
+  _hi_runner_begin
+
+  _hi_h1 "Testing tests/test_runner.sh (host)"
+
+  _hi_h2 "Testing: suite selection"
+  _hi_check "Runs everything with no arguments" test_runs_every_suite_when_given_no_arguments
+  _hi_check "Runs only the named suites" test_runs_only_the_named_suites
+  _hi_check "Keeps table order regardless of argument order" test_selecting_several_suites_keeps_table_order
+  _hi_check "An unknown name is an error" test_unknown_suite_name_is_an_error
+  _hi_check "An unknown name lists the known ones" test_unknown_suite_name_lists_the_known_ones
+  _hi_check "--shard slices are a partition in table order" test_shards_partition_the_selection_in_table_order
+  _hi_check "A shard runs only its own suites" test_a_shard_runs_only_its_own_suites
+  _hi_check "--shard slices the selected group" test_shards_slice_the_selected_group
+  _hi_check "--group takes a comma list" test_a_group_list_selects_each_group
+  _hi_check "A malformed or out-of-range --shard is an error" test_a_malformed_or_out_of_range_shard_is_an_error
+  _hi_check "An empty shard is an error" test_an_empty_shard_is_an_error
+  _hi_check "--shard appears in --help" test_shard_is_listed_in_help
+
+  _hi_h2 "Testing: results and exit codes"
+  _hi_check "All passing -> exit 0, green summary" test_all_passing_exits_zero_with_a_green_summary
+  _hi_check "A failing suite shows its exit code" test_a_failing_suite_is_reported_with_its_exit_code
+  _hi_check "Exits with the failed-suite count" test_runner_exits_with_the_failed_suite_count
+  _hi_check "A failure doesn't stop later suites" test_a_failure_does_not_stop_later_suites
+  _hi_check "Failure summary counts failed/total" test_failure_summary_counts_failed_over_total
+
+  _hi_h2 "Testing: missing scripts"
+  _hi_check "Reported as MISSING" test_a_missing_script_is_reported_as_missing
+  _hi_check "Counts as a failed suite" test_a_missing_script_counts_as_a_failed_suite
+  _hi_check "Doesn't stop the run" test_a_missing_script_does_not_stop_the_run
+
+  _hi_h2 "Testing: per-suite status lines"
+  _hi_check "Status lines span _HI_MAX_WIDTH" test_status_lines_span_hi_max_width
+  _hi_check "Verdicts align in one column" test_status_lines_align_verdicts_in_one_column
+  _hi_check "A narrow width keeps the verdict" test_status_line_narrow_width_keeps_the_verdict
+
+  _hi_h2 "Testing: summary table"
+  _hi_check "Lists every suite with a duration" test_summary_lists_every_suite_with_a_duration
+  _hi_check "Pads names to the widest" test_summary_pads_names_to_the_widest
+  _hi_check "Rows span _HI_MAX_WIDTH" test_summary_rows_span_hi_max_width
+  _hi_check "Tracks a wider _HI_MAX_WIDTH" test_summary_tracks_a_wider_hi_max_width
+  _hi_check "A narrow width doesn't truncate names" test_summary_narrow_width_does_not_truncate_names
+
+  _hi_h2 "Testing: collapsed output and the recap"
+  _hi_check "A passing suite's output is collapsed" test_passing_suite_output_is_collapsed
+  _hi_check "A failing suite's output replays" test_failing_suite_output_replays
+  _hi_check "_HI_VERBOSE=1 streams passing output" test_verbose_streams_passing_output
+  _hi_check "--verbose streams passing output" test_verbose_flag_streams_passing_output
+  _hi_check "CI folds passing output into a ::group::" test_ci_folds_passing_output_into_a_group
+  _hi_check "CI annotates failures, unfolded" test_ci_annotates_failures_unfolded
+  _hi_check "Failing cases recapped under the summary" test_failing_cases_are_recapped_under_the_summary
+  _hi_check "A green run has no recap" test_a_green_run_has_no_recap
+
+  _hi_h2 "Testing: the progress line"
+  _hi_check "Counts finished suites and cases, ahead of the replay" test_progress_line_counts_suites_and_cases
+  _hi_check "Off without CI or a terminal" test_progress_line_is_off_by_default
+  _hi_check "CI turns it on" test_ci_turns_the_progress_line_on
+
+  _hi_h2 "Testing: summary case counts"
+  _hi_check "Has a column header" test_summary_has_a_column_header
+  _hi_check "Shows each suite's pass/fail counts" test_summary_shows_each_suites_case_counts
+  _hi_check "Shows each suite's skip count" test_summary_shows_suite_skip_counts
+  _hi_check "Shows - when a suite reported no counts" test_summary_shows_dashes_when_no_counts_were_reported
+  _hi_check "Totals sum every suite's cases" test_summary_totals_sum_every_suites_cases
+  _hi_check "Totals sum the skip counts" test_summary_totals_sum_skip_counts
+  _hi_check "Totals ignore suites without counts" test_summary_totals_ignore_suites_without_counts
+  _hi_check "--totals-file carries the summary numbers" test_totals_file_carries_the_summary_numbers
+  _hi_check "--totals-file only when asked" test_totals_file_is_written_only_when_asked
+
+  _hi_h2 "Testing: skipped suites"
+  _hi_check "Reported as SKIPPED, not PASS" test_a_skipping_suite_is_reported_as_skipped
+  _hi_check "Not a failure" test_a_skipping_suite_is_not_a_failure
+  _hi_check "Not counted as passed" test_a_skipping_suite_is_not_counted_as_passed
+  _hi_check "Contributes no cases" test_a_skipping_suite_contributes_no_cases
+  _hi_check "--require-run turns a skip into a failure" test_require_run_fails_when_a_suite_skips
+  _hi_check "--require-run passes when nothing skips" test_require_run_passes_when_nothing_skips
+  _hi_check "--require-run adds skips to the exit code" test_require_run_adds_skips_to_the_failure_exit_code
+  _hi_check "--require-run turns a skipped case into a failure" test_require_run_fails_when_a_case_skips
+  _hi_check "a skipped case is not a failure by default" test_case_skips_are_not_failures_by_default
+  _hi_check "--require-run appears in --help" test_require_run_is_listed_in_help
+
+  _hi_h2 "Testing: the host report"
+  _hi_check "Off by default" test_host_report_is_off_by_default
+  _hi_check "--host-report prints the block" test_host_report_flag_prints_the_block
+  _hi_check "_HI_HOST_REPORT=1 prints the block" test_host_report_env_var_prints_the_block
+  _hi_check "Printed before the first suite" test_host_report_precedes_the_first_suite
+  _hi_check "Printed once per run" test_host_report_prints_once_per_run
+  _hi_check "--host-report appears in --help" test_host_report_is_listed_in_help
+  _hi_check "An unflagged run stays quiet about the tree" test_unflagged_run_stays_quiet_about_the_tree
+
+  _hi_suite_end "test_runner.sh (host)"
+}
+
+# a part (runner_*_test.sh) sources this file for what is above and runs its own
+[ -n "${_HI_RUNNER_PART:-}" ] || run_runner_tests

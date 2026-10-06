@@ -439,21 +439,14 @@ checkout: an account or an upstream review that lands when it lands.
        can be named the same way. **Ticks when:** with it on, `tmux` typed in
        a plain `hi <target>` session opens a pane that shows hi's prompt.
 
-10. [ ] _Before 1.0:_ **No file runs past a thousand lines** — 24 do,
-        the lockfile aside. Suites: `packaging_ci_test.sh` (3553),
-        `header_test.sh` (2528), `payload_test.sh` (2485), `doctor_test.sh`
-        (2015), `configure_test.sh` (1963), `core_test.sh` (1826),
-        `rc_test.sh` (1750), `parse_test.sh` (1504), `targets_test.sh`
-        (1330), `load_test.sh` (1254), `preview_test.sh` (1202),
-        `install_test.sh` (1177), `drift_test.sh` (1050), `runner_test.sh`
-        (1006). Shipped: `hi.sh` (2056), `scripts/pack.sh` (1802),
-        `scripts/configure.sh` (1796), `common/core.sh` (1493),
-        `common/header.sh` (1295), `scripts/doctor.sh` (1080). Workflows:
-        `ci.yml` (1306), `release.yml` (1083). Docs: `docs/GLOSSARY.md`
-        (1745), `docs/hi.1` (1216). **Do:** split each along the sections it
-        already has, a suite into one file a section so a Windows shard takes
-        a part of it. **Ticks when:** `git ls-files` names no hand-written
-        file over 1,000 lines.
+10. [ ] _Before 1.0:_ **No file runs past a thousand lines** — ten do,
+        the lockfile aside; every suite is under it. Shipped: `hi.sh` (2056),
+        `scripts/pack.sh` (1802), `scripts/configure.sh` (1796),
+        `common/core.sh` (1493), `common/header.sh` (1295),
+        `scripts/doctor.sh` (1080). Workflows: `ci.yml` (1306), `release.yml`
+        (1083). Docs: `docs/GLOSSARY.md` (1747), `docs/hi.1` (1216). **Do:**
+        split each along the sections it already has. **Ticks when:**
+        `git ls-files` names no hand-written file over 1,000 lines.
 
 11. [ ] _Before 1.0:_ **The release's GIF shows the package check** — the
         GIF on a release page is `packages.tape`'s (`demos.yml`'s `attach`

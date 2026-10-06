@@ -224,7 +224,7 @@ function _hi_skip() {
 # runner, so a suite executed on its own is a no-op here. A suite that exits
 # before reporting (_hi_require_bin's skip path) contributes nothing, which is why
 # the runner renders "-" rather than 0 for those. _hi_suite_end calls this for
-# every suite built on the standard counters; the four tests/lint/*_test.sh
+# every suite built on the standard counters; the tests/lint/*_test.sh
 # suites, whose unit is files rather than cases, report through
 # _hi_lint_suite_end (tests/lib/lint.sh) instead.
 function _hi_report_counts() {
