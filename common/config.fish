@@ -51,6 +51,36 @@ for __hi_f in $_HI_EXTENSIONS/*
 end
 set -e _HI_SEGMENT __hi_f
 
+# core.sh's _hi_run_init, _hi_hook_on, _hi_run_hooks and _hi_prompt_init, in
+# fish (HI.67): a plugin's shell hook is a command printing fish's code,
+# {shell} in it this shell's name, run where this box has the command
+function __hi_run_init --description 'run a tool init for fish, its output sourced'
+  set -l cmd (string split -n ' ' -- (string replace -a '{shell}' fish -- "$argv"))
+  command -q $cmd[1]; or return 1
+  $cmd | source
+end
+function __hi_hook_on --description 'is a hook group.name left on by the settings'
+  set -l name (string replace -r '^-' '' -- $argv[2])
+  set -l off (string split -n ' ' -- (string replace -a ',' ' ' -- "$_HI_PLUGINS_OFF"))
+  contains -- $name $off; or contains -- $argv[1] $off; and return 1
+  string match -q -- '-*' $argv[2]; or return 0
+  set -l on (string split -n ' ' -- (string replace -a ',' ' ' -- "$_HI_PLUGINS_ON"))
+  contains -- $name $on; or contains -- $argv[1] $on
+end
+function __hi_prompt_init --description 'a prompt program init: its $_HI_PROMPT_INITS row, else <program> init {shell}'
+  for row in (string split -n ';' -- "$_HI_PROMPT_INITS")
+    set -l key (string split -m1 '=' -- $row)
+    test "$key[1]" = "$argv[1]"; and echo $key[2]; and return 0
+  end
+  echo "$argv[1] init {shell}"
+end
+for __hi_row in (string split -n ';' -- "$_HI_HOOKS")
+  set -l __hi_key (string split -m1 '=' -- $__hi_row)
+  set -l __hi_gn (string split -m1 '.' -- $__hi_key[1])
+  __hi_hook_on $__hi_gn[1] $__hi_gn[2]; and __hi_run_init $__hi_key[2]
+end
+set -e __hi_row
+
 # core.sh's _HI_CHILD_ENV and _HI_SESSION_VARS, mirrored (fish cannot read a
 # bash array); exports_test.sh pins both. The first is what a child inherits
 # after the un-export loop at the end of the required block. The second is
@@ -59,7 +89,7 @@ set -e _HI_SEGMENT __hi_f
 # scope) rather than `-l`: a `-l` inside the `for` is gone by the time the
 # command runs. GLOSSARY: HI.47
 set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
-    _HI_TARGETS_TTL _HI_PROBE_TIMEOUT
+    _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
     _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_CLIENT_EDITOR \
     _HI_CLIENT_VISUAL _HI_ASCII _HI_TRUECOLOR
@@ -194,6 +224,19 @@ if test "$_HI_DISABLE_PROMPT" != 1
   end
   test -z "$_hi_plain"; and test "$_HI_REMOTE_SESSION" != 1; and set _hi_plain tide starship oh-my-posh powerline-go
   set _hi_tools $_hi_tools $_hi_plain
+  # the prompt plugins the client handed over (HI.67), by name
+  set -l _hi_pplugins
+  for _hi_t in (string split -n ';' -- "$_HI_PROMPT_PLUGINS")
+    set -a _hi_pplugins (string split -m1 '|' -- $_hi_t)[1]
+  end
+  # an extension's decision first (HI.59), as in common/bash.sh
+  set -l _hi_pdone
+  if test "$_HI_PROMPT_DRAWN" = 1
+    set _hi_pdone 1
+  else if test -n "$_HI_PROMPT_INIT"
+    __hi_run_init $_HI_PROMPT_INIT; and set _hi_pdone 1
+  end
+  test -n "$_hi_pdone"; and set _hi_tools hi
   for _hi_t in $_hi_tools
     switch $_hi_t
       case hi
@@ -202,6 +245,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
         command -q $_hi_t; and set _hi_pt $_hi_t; and break
       case tide
         functions -q tide; and set _hi_pt tide; and break
+      case '*'
+        contains -- $_hi_t $_hi_pplugins; and command -q $_hi_t; and set _hi_pt $_hi_t; and break
     end
   end
   set -e _hi_t
@@ -215,7 +260,9 @@ if test "$_HI_DISABLE_PROMPT" != 1
       powerline-go -shell bare -error $status -jobs (count (jobs -p)) (string split -n ' ' -- "$_HI_POWERLINE_GO_OPTS")
     end
   else if test -n "$_hi_pt"
-    $_hi_pt init fish | source
+    __hi_run_init (__hi_prompt_init $_hi_pt)
+  else if test -n "$_hi_pdone"
+    # an extension drew it, or started a program that did
   else if not contains -- hi $_hi_tools
     and not contains -- (functions --details fish_prompt) $__fish_data_dir/functions/fish_prompt.fish \
       embedded:functions/fish_prompt.fish (status filename) n/a

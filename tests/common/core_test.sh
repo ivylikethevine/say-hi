@@ -1412,6 +1412,57 @@ function test_prompt_table_is_the_one_roster() {
   }
 }
 
+# ...and after it, the prompt plugins the client handed over as
+# _HI_PROMPT_PLUGINS rows, by name alone (GLOSSARY: HI.67)
+function test_prompt_row_reads_the_plugin_rows() {
+  local row=""
+  _HI_PROMPT_PLUGINS="fancy|bash zsh|bin|-;plain|fish|bin|-" _hi_prompt_row plain row && [ "$row" = "plain|fish|bin|-" ] || return 1
+  _HI_PROMPT_PLUGINS="fancy|bash zsh|bin|-" _hi_prompt_row fancy row && [ "$row" = "fancy|bash zsh|bin|-" ] || return 1
+  _HI_PROMPT_PLUGINS="fancy|bash zsh|bin|-" _hi_prompt_row oh-my-posh row && [ "${row%%|*}" = oh-my-posh ] || return 1
+  ! _HI_PROMPT_PLUGINS="fancy|bash zsh|bin|-" _hi_prompt_row bin row 2>/dev/null
+}
+
+# _hi_hook_on: the off list wins by name or group, a plain name is on, and a
+# name with a leading - (off by default) needs the on list to name it or its
+# group, commas or spaces apart
+function test_hook_on_reads_both_lists() {
+  _hi_hook_on hooks zoxide &&
+    ! _HI_PLUGINS_OFF=zoxide _hi_hook_on hooks zoxide &&
+    ! _HI_PLUGINS_OFF="cli,hooks" _hi_hook_on hooks zoxide &&
+    ! _hi_hook_on hooks -zoxide &&
+    _HI_PLUGINS_ON=zoxide _hi_hook_on hooks -zoxide &&
+    _HI_PLUGINS_ON="cli,hooks" _hi_hook_on hooks -zoxide &&
+    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=hooks _hi_hook_on hooks -zoxide &&
+    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=zoxide _hi_hook_on hooks -zoxide
+}
+
+# _hi_run_init fills {shell} in, runs the command only where its first word
+# is here, and runs what it prints in this shell; _hi_run_hooks walks the
+# rows the lists leave on; _hi_prompt_init answers from _HI_PROMPT_INITS,
+# else with the `<program> init {shell}` shape (GLOSSARY: HI.67)
+function test_run_init_runs_what_the_tool_prints() {
+  local p="$_HI_WORKDIR/init-bins" got=""
+  mkdir -p "$p"
+  printf '%s\n' '#!/bin/sh' 'printf "_hi_ri_got=\"%s\"\n" "$*"' >"$p/hi-init-tool"
+  chmod +x "$p/hi-init-tool"
+  unset _hi_ri_got
+  PATH="$p:$PATH" _hi_run_init zsh hi-init-tool init "{shell}" --flag || return 1
+  [ "${_hi_ri_got:-}" = "init zsh --flag" ] || _hi_because "ran: ${_hi_ri_got:-}" || return 1
+  ! PATH="$p" _hi_run_init bash hi-no-such-tool init "{shell}" || _hi_because "a tool not here ran" || return 1
+  unset _hi_ri_got
+  _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell};x.-off=hi-init-tool off {shell};x.gone=hi-no-such init {shell}" \
+    PATH="$p:$PATH" _hi_run_hooks bash || return 1
+  [ "${_hi_ri_got:-}" = "init bash" ] || _hi_because "hooks ran: ${_hi_ri_got:-}" || return 1
+  _HI_HOOKS="x.-off=hi-init-tool off {shell}" _HI_PLUGINS_ON=x PATH="$p:$PATH" _hi_run_hooks fish || return 1
+  [ "${_hi_ri_got:-}" = "off fish" ] || _hi_because "a default-off hook on: ${_hi_ri_got:-}" || return 1
+  unset _hi_ri_got
+  _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell}" _HI_PLUGINS_OFF=x PATH="$p:$PATH" _hi_run_hooks bash || return 1
+  [ -z "${_hi_ri_got:-}" ] || _hi_because "a hook off ran" || return 1
+  _HI_PROMPT_INITS="a=a start {shell};omp=oh-my-posh init {shell} --config x" _hi_prompt_init omp got &&
+    [ "$got" = "oh-my-posh init {shell} --config x" ] || _hi_because "init row: $got" || return 1
+  _hi_prompt_init starship got && [ "$got" = "starship init {shell}" ]
+}
+
 function test_colors_lookup_verdicts() {
   local colors="$_HI_WORKDIR/colors.lookup"
   printf '[username]\nalice = "red"\n[hostname]\nbox = "blue"\n' >"$colors"
@@ -1683,6 +1734,9 @@ function run_core_tests() {
   _hi_check "_hi_prompt_tool needs the setting, the program, and its shell" test_prompt_tool_needs_setting_program_and_shell
   _hi_check "...and walks a shell's own entries first" test_prompt_tool_per_shell_entries
   _hi_check "the prompt table is the one roster, fish's copy included" test_prompt_table_is_the_one_roster
+  _hi_check "...and the client's prompt plugin rows are read after it" test_prompt_row_reads_the_plugin_rows
+  _hi_check "_hi_hook_on reads the off list, then the on list for a default-off hook" test_hook_on_reads_both_lists
+  _hi_check "_hi_run_init runs what the tool prints, where the tool is here" test_run_init_runs_what_the_tool_prints
 
   _hi_h2 "Testing: the colors file readers and the identity memos"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts

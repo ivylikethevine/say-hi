@@ -201,6 +201,9 @@ function test_mux_wrap_carries_the_keep_flag() {
   case "$out" in *"'--no-keep' 'myhost'"*) ;; *) return 1 ;; esac
   out="$(_hi_mux_run "$log" 0 'KEEP=""')"
   case "$out" in *keep*) return 1 ;; esac
+  # ...and --no-plain, which the inner connect needs past a tag's _HI_PLAIN=1
+  out="$(_hi_mux_run "$log" 0 'PLAIN=0')"
+  case "$out" in *"'--no-plain' 'myhost'"*) ;; *) return 1 ;; esac
 }
 
 # --- screen and zellij -----------------------------------------------------

@@ -20,6 +20,7 @@
 --version||-|||hi's version: the packaging stamp, or git describe
 --use|<backend>|-|||skip probing and force that backend (ssh counts as one)
 --plain||-|||a bare shell, nothing copied: no tar or /tmp needed
+--no-plain||-|||hi's own session this once, past _HI_PLAIN=1
 --mux||-|||a local tmux/zellij/screen session; a repeat reattaches
 --no-mux||-|||skip the multiplexer this once, past --mux or _HI_MUX=1
 --keep||-|||keep the session on the target, in tmux/zellij/screen
@@ -27,7 +28,7 @@
 --end||-|||close the session <target> is keeping
 --preview|<subject>|scripts|_HI_PREVIEW||colors, packages, or header, as printed here
 --doctor|[--json] [--problems] [--use <backend>] [ssh-options] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report, or just its problems
---install|[--yes] [--link {none,user,system}] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
+--install|[--yes] [--link {none,user,system}] [--shell <list>] [--print-rc] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
 --uninstall|[--purge] [--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines out; --purge removes the overlay too
 --configure|[--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--configure|revisit the settings, leaving the rc wiring be
 --update|[<tag>] [--dry-run]|git|_HI_UPDATE||move the checkout to the newest release tag, or <tag>

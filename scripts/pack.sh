@@ -155,6 +155,10 @@ unset _hi_r _hi_w
 # what it turned down, `<file>:<line>|<why>` each, for scripts/doctor.sh.
 # GLOSSARY: HI.63
 _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_KEY=""
+# The plugins with a shell hook, `<group>|<name>|<tool>|<init>|<prompt>` each
+# (HI.67), and the names and groups whose `default` is off, a space around
+# each: on only once $_HI_PLUGINS_ON names them
+_HI_PLUGIN_HOOKS=() _HI_PLUGIN_DEFAULT_OFF=" "
 
 # The overlay members renamed before 1.0, old:new. hi reads only the new
 # name; scripts/doctor.sh names a file still under the old one, since it
@@ -251,6 +255,14 @@ function _hi_prompt_here() {
     powerlevel10k'|'*) _hi_p10k_in_use && _hi_overlay_src "${_hi_pl_r##*|}" _hi_pl_f ;;
     *) _hi_overlay_src "${_hi_pl_r##*|}" _hi_pl_f ;;
     esac && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
+  done
+  # a prompt plugin of the plugins files (HI.67), with its tool here and on
+  _hi_plugins_load
+  for _hi_pl_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
+    [ "$(_hi_hook_col "$_hi_pl_r" prompt)" = yes ] || continue
+    _hi_pl_t="$(_hi_hook_col "$_hi_pl_r" name)"
+    case " $_hi_pl_out " in *" $_hi_pl_t "*) continue ;; esac
+    _hi_hook_here "$_hi_pl_r" && ! _hi_hook_off "$_hi_pl_r" && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
   done
   _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
 }
@@ -409,10 +421,11 @@ function _hi_plugins_load() {
   # files with the keys each has of its own, and where a key lands - the
   # plugin (-1), one of its files (an index), a table that was turned down
   # (-2), or above the first table (-3)
-  local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to
+  local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df
   local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
   [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
+  _HI_PLUGIN_HOOKS=() _HI_PLUGIN_DEFAULT_OFF=" "
   for _hi_cy_s in config/plugins plugins; do
     case "$_hi_cy_s" in config/*) _hi_cy_f="$_HI_ROOT/$_hi_cy_s" ;; *) _hi_cy_f="${_HI_CONFIG_DIR:-}/$_hi_cy_s" ;; esac
     [ -f "$_hi_cy_f" ] || continue
@@ -455,7 +468,7 @@ function _hi_plugins_load() {
         else
           _hi_cy_seen="$_hi_cy_seen$_hi_cy_p "
           _hi_rc_at="$_hi_cy_s:$_hi_cy_n" _hi_rc_g="$_hi_cy_g" _hi_rc_n="$_hi_cy_p" _hi_rc_to=-1
-          _hi_rc_t="" _hi_rc_w="" _hi_rc_h="" _hi_rc_d=""
+          _hi_rc_t="" _hi_rc_w="" _hi_rc_h="" _hi_rc_d="" _hi_rc_i="" _hi_rc_p="" _hi_rc_df=""
           _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
         fi
         continue
@@ -480,7 +493,10 @@ function _hi_plugins_load() {
       -1:wire) _hi_rc_w="$_hi_cy_v" ;;
       -1:home) _hi_rc_h="$_hi_cy_v" ;;
       -1:dialect) _hi_rc_d="$_hi_cy_v" ;;
-      -1:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin: files, tool, wire, home, dialect") ;;
+      -1:init) _hi_rc_i="$_hi_cy_v" ;;
+      -1:prompt) _hi_rc_p="$_hi_cy_v" ;;
+      -1:default) _hi_rc_df="$_hi_cy_v" ;;
+      -1:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin: files, tool, wire, home, dialect, init, prompt, default") ;;
       *:wire) _hi_rc_mw[_hi_rc_to]="$_hi_cy_v" ;;
       *:home) _hi_rc_mh[_hi_rc_to]="$_hi_cy_v" ;;
       *:dialect) _hi_rc_md[_hi_rc_to]="$_hi_cy_v" ;;
@@ -499,11 +515,38 @@ function _hi_plugins_close() {
   local _hi_cl_i _hi_cl_m _hi_cl_t _hi_cl_w _hi_cl_h _hi_cl_d _hi_cl_why _hi_cl_x _hi_cl_put=""
   local -a _hi_cl_rows=() _hi_cl_files=() _hi_cl_names=() _hi_cl_r=() _hi_cl_f=() _hi_cl_n=()
   [ -n "$_hi_rc_n" ] || return 0
-  _hi_cl_t="${_hi_rc_t:-$_hi_rc_n}"
+  # the tool, left out, is the plugin's name - or its init's command
+  _hi_cl_t="${_hi_rc_t:-${_hi_rc_i:+${_hi_rc_i%% *}}}"
+  _hi_cl_t="${_hi_cl_t:-$_hi_rc_n}"
+  # the shell hook (HI.67): a command printing the shell's code, {shell} in
+  # it the shell's name; `prompt = "yes"` says it draws the prompt; `default
+  # = "off"` keeps the plugin home until $_HI_PLUGINS_ON names it
+  if [ -n "$_hi_rc_p" ] && [ "$_hi_rc_p" != yes ] && [ "$_hi_rc_p" != no ]; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: prompt is yes or no, not '$_hi_rc_p'")
+    _hi_rc_p=""
+  fi
+  if [ -n "$_hi_rc_df" ] && [ "$_hi_rc_df" != off ] && [ "$_hi_rc_df" != on ]; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: default is on or off, not '$_hi_rc_df'")
+    _hi_rc_df=""
+  fi
+  if [ -n "$_hi_rc_i" ]; then
+    if ! _hi_plugin_init_ok "$_hi_rc_i"; then
+      _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: init is a command and its words, no quote, ; | & or \$ among them: '$_hi_rc_i'")
+    else
+      _hi_plugin_hook_put "$_hi_rc_g|$_hi_rc_n|$_hi_cl_t|$_hi_rc_i|${_hi_rc_p:-no}"
+    fi
+  elif [ "$_hi_rc_p" = yes ]; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: prompt = yes needs an init")
+  fi
+  if [ "$_hi_rc_df" = off ]; then
+    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_rc_n "*) ;; *) _HI_PLUGIN_DEFAULT_OFF="$_HI_PLUGIN_DEFAULT_OFF$_hi_rc_n " ;; esac
+  else
+    _HI_PLUGIN_DEFAULT_OFF="${_HI_PLUGIN_DEFAULT_OFF// $_hi_rc_n / }"
+  fi
   if ! _hi_plugin_tools_ok "$_hi_cl_t"; then
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: '$_hi_cl_t' is no list of commands, or -")
   elif ((${#_hi_rc_m[@]} == 0)); then
-    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n names no files")
+    [ -n "$_hi_rc_i" ] || _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n names no files")
   else
     for _hi_cl_i in "${!_hi_rc_m[@]}"; do
       _hi_cl_m="${_hi_rc_m[_hi_cl_i]}" _hi_cl_why=""
@@ -549,6 +592,66 @@ function _hi_plugins_close() {
 # _hi_plugin_tools_ok <tool> - a plugin's tool: -, or commands a space apart
 function _hi_plugin_tools_ok() {
   [ "$1" = - ] || _hi_words_ok "$1" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
+}
+
+# _hi_plugin_init_ok <init> - a command and its words: nothing the shell
+# would read as more than words, since a target runs what the command prints
+function _hi_plugin_init_ok() {
+  local _hi_io_bad=';|&$`"()<>'"'"
+  [ -n "$1" ] || return 1
+  # tr, not a bracket expression: one holding every quote is a bash 3.2 trap
+  [ "$(printf '%s' "$1" | tr -d "$_hi_io_bad")" = "$1" ] || return 1
+  _hi_words_ok "${1%% *}" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
+}
+
+# _hi_plugin_hook_put <row> - a hook row, in place of the tree's of its name
+function _hi_plugin_hook_put() {
+  local _hi_hp_i
+  for _hi_hp_i in ${_HI_PLUGIN_HOOKS[@]+"${!_HI_PLUGIN_HOOKS[@]}"}; do
+    [ "$(_hi_hook_col "${_HI_PLUGIN_HOOKS[_hi_hp_i]}" name)" != "$(_hi_hook_col "$1" name)" ] || {
+      _HI_PLUGIN_HOOKS[_hi_hp_i]="$1"
+      return 0
+    }
+  done
+  _HI_PLUGIN_HOOKS+=("$1")
+}
+
+# _hi_hook_col <row> <group|name|tool|init|prompt> - one column of a hook row
+function _hi_hook_col() {
+  local _hi_hc_r="$1" _hi_hc_n
+  for _hi_hc_n in group name tool init prompt; do
+    [ "$_hi_hc_n" != "$2" ] || break
+    _hi_hc_r="${_hi_hc_r#*|}"
+  done
+  printf '%s' "${_hi_hc_r%%|*}"
+}
+
+# _hi_hook_here <row> - is the hook's tool on this machine; with a tool of
+# -, the init's own command
+function _hi_hook_here() {
+  local _hi_hh_t _hi_hh_l
+  _hi_hh_l="$(_hi_hook_col "$1" tool)"
+  [ "$_hi_hh_l" != - ] || { _hi_hh_l="$(_hi_hook_col "$1" init)" && _hi_hh_l="${_hi_hh_l%% *}"; }
+  for _hi_hh_t in $_hi_hh_l; do
+    ! command -v "$_hi_hh_t" >/dev/null 2>&1 || return 0
+  done
+  return 1
+}
+
+# _hi_hook_off <row> - is the hook's plugin switched off: named in
+# $_HI_PLUGINS_OFF, or off by default and not in $_HI_PLUGINS_ON (its name or
+# group, either list). core.sh's _hi_hook_on is the target's reading.
+function _hi_hook_off() {
+  _hi_plugin_switched_off "$(_hi_hook_col "$1" name)" "$(_hi_hook_col "$1" group)"
+}
+
+# _hi_plugin_switched_off <name> <group> - the two lists' verdict on a plugin
+function _hi_plugin_switched_off() {
+  local _hi_so_off="${_HI_PLUGINS_OFF:-}" _hi_so_on="${_HI_PLUGINS_ON:-}"
+  case " ${_hi_so_off//,/ } " in *" $1 "* | *" $2 "*) return 0 ;; esac
+  case "$_HI_PLUGIN_DEFAULT_OFF" in *" $1 "*) ;; *) return 1 ;; esac
+  case " ${_hi_so_on//,/ } " in *" $1 "* | *" $2 "*) return 1 ;; esac
+  return 0
 }
 
 # _hi_wire_read <wire> - one wire of a <wire> column, taken apart into the
@@ -688,6 +791,12 @@ function _hi_overlay_row() {
 # file either way.
 function _hi_overlay_src() {
   local _hi_os_f="$_HI_CONFIG_DIR/$1"
+  # a tagged target's settings.sh is settings.sh and its tags' files joined
+  # (hi.sh's _hi_tag_settings), with or without a settings.sh of its own
+  if [ "$1" = settings.sh ] && [ -n "${_HI_TAG_SETTINGS:-}" ]; then
+    _hi_out "${2:-}" "$_HI_TAG_SETTINGS"
+    return 0
+  fi
   ! _hi_plugin_off "$1" || return 1
   ! _hi_prompt_row "$1" >/dev/null || _hi_prompt_handed "$1" || return 1
   [ -f "$_hi_os_f" ] || _hi_overlay_home "$1" _hi_os_f || return 1
@@ -800,10 +909,11 @@ function _hi_plugin_off() {
   local _hi_po_r _hi_po_g _hi_po_n _hi_po_t
   # nothing is off, most connects: said once for the values in force, since
   # every member asks, several times a connect
-  _hi_po_t="${_HI_PLUGINS_OFF:-}|${_HI_DISABLE_LOCAL:-0}|${_HI_SETTINGS:-}|"
+  _hi_plugins_load
+  _hi_po_t="${_HI_PLUGINS_OFF:-}|${_HI_PLUGINS_ON:-}|${_HI_DISABLE_LOCAL:-0}|${_HI_SETTINGS:-}|$_HI_PLUGIN_DEFAULT_OFF|"
   for _hi_po_n in $_HI_OFF_TOGGLES; do _hi_po_t="$_hi_po_t${!_hi_po_n:-0}"; done
   if [ "${_HI_OFF_KEY-}" != "$_hi_po_t" ]; then
-    _HI_OFF_KEY="$_hi_po_t" _HI_OFF_ANY="${_HI_PLUGINS_OFF:-}"
+    _HI_OFF_KEY="$_hi_po_t" _HI_OFF_ANY="${_HI_PLUGINS_OFF:-}${_HI_PLUGIN_DEFAULT_OFF# }"
     for _hi_po_n in $_HI_OFF_TOGGLES; do ! _hi_toggle_on "$_hi_po_n" || _HI_OFF_ANY=1; done
   fi
   [ -n "$_HI_OFF_ANY" ] && _hi_overlay_row "$1" _hi_po_r || return 1
@@ -818,15 +928,19 @@ function _hi_plugin_off() {
   done
   # hi's own file: its toggles above, never the list
   [ "$_hi_po_g" != - ] || return 1
-  [ -n "${_HI_PLUGINS_OFF:-}" ] || return 1
   _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
-  case " ${_HI_PLUGINS_OFF//,/ } " in
-  *" $_hi_po_n "* | *" $_hi_po_g "* | *" ${_hi_po_r%%|*} "* | *" $1 "*)
-    [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
-    return 0
-    ;;
-  esac
-  return 1
+  if [ -n "${_HI_PLUGINS_OFF:-}" ]; then
+    case " ${_HI_PLUGINS_OFF//,/ } " in
+    *" $_hi_po_n "* | *" $_hi_po_g "* | *" ${_hi_po_r%%|*} "* | *" $1 "*)
+      [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
+      return 0
+      ;;
+    esac
+  fi
+  # off by default, until $_HI_PLUGINS_ON names the plugin or its group
+  _hi_plugin_switched_off "$_hi_po_n" "$_hi_po_g" || return 1
+  [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_ON, off by default"
+  return 0
 }
 
 # _hi_overlay_wiring <outvar> <member...> - the lines that point each tool at
@@ -907,6 +1021,32 @@ function _hi_overlay_wiring() {
       case "$_hi_ow_all" in *$'\n'"$_hi_ow_l"$'\n'*) ;; *) _hi_ow_all="$_hi_ow_all$_hi_ow_l"$'\n' ;; esac
     done
   done
+  # the shell hooks (GLOSSARY: HI.67): every init plugin whose tool is here and whose
+  # plugin is on, the target running each whose tool it has (and whose
+  # settings, the ones that rode, still leave it on); and the prompt programs
+  # a target is handed (_hi_prompt_list), as rows core.sh's _hi_prompt_row
+  # reads beside its own table
+  local _hi_ow_h="" _hi_ow_pp="" _hi_ow_pi=""
+  _hi_plugins_load
+  _hi_prompt_list >/dev/null
+  for _hi_ow_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
+    _hi_hook_here "$_hi_ow_r" || continue
+    _hi_ow_n="$(_hi_hook_col "$_hi_ow_r" name)"
+    if [ "$(_hi_hook_col "$_hi_ow_r" prompt)" = yes ]; then
+      # a prompt program: its init runs through the prompt hand-over alone
+      case " $_HI_PROMPT_LIST_MEMO " in *[\ :]"$_hi_ow_n "*) ;; *) continue ;; esac
+      _hi_ow_pi="$_hi_ow_pi${_hi_ow_pi:+;}$_hi_ow_n=$(_hi_hook_col "$_hi_ow_r" init)"
+      _hi_ow_pp="$_hi_ow_pp${_hi_ow_pp:+;}$_hi_ow_n|bash zsh fish|bin|-"
+      continue
+    fi
+    _hi_hook_off "$_hi_ow_r" && continue
+    # a leading - on the name says off by default, for the target's _hi_hook_on
+    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_ow_n "*) _hi_ow_n="-$_hi_ow_n" ;; esac
+    _hi_ow_h="$_hi_ow_h${_hi_ow_h:+;}$(_hi_hook_col "$_hi_ow_r" group).$_hi_ow_n=$(_hi_hook_col "$_hi_ow_r" init)"
+  done
+  [ -z "$_hi_ow_h" ] || _hi_ow_all="${_hi_ow_all}export _HI_HOOKS=\"$_hi_ow_h\""$'\n'
+  [ -z "$_hi_ow_pi" ] || _hi_ow_all="${_hi_ow_all}export _HI_PROMPT_INITS=\"$_hi_ow_pi\""$'\n'
+  [ -z "$_hi_ow_pp" ] || _hi_ow_all="${_hi_ow_all}export _HI_PROMPT_PLUGINS=\"$_hi_ow_pp\""$'\n'
   printf -v "$_hi_ow_out" '%s' "${_hi_ow_all#$'\n'}"
 }
 

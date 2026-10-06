@@ -113,6 +113,13 @@ in a report, and each <file> the name a config rides under. The keys:
                       (sh, fish, vim, lua, elisp, nano, tmux, screen,
                       readline, kak, kdl, omp, omp-json, conf); left out, it
                       rides as written
+  init=<command>      the tool's shell hook, a command printing a shell's
+                      code with {shell} for the shell's name ('zoxide init
+                      {shell}'): a target with the tool runs it after the
+                      aliases and extensions. A plugin with one needs no file.
+  prompt=yes          the init draws the prompt: the plugin joins
+                      _HI_PROMPT_TOOL's programs, and hi's prompt stands down
+  default=off         off until hi --plugin-on names it or its group
 
 A file whose wire, home, or dialect differs from the rest has a table of its
 own under the plugin's, [<group>.<name>."<file>"], written by hand.
@@ -171,6 +178,12 @@ function _hi_plugins_list() {
     _hi_member_rows "${members[@]}"
     _hi_rows_flush
   done
+  # the shell hooks, prompt programs among them (HI.67)
+  if [ "${#_HI_PLUGIN_HOOKS[@]}" -gt 0 ]; then
+    _hi_section "hooks"
+    _hi_hook_rows
+    _hi_rows_flush
+  fi
   [ "${#_HI_PLUGIN_BAD[@]}" -gt 0 ] || return 0
   _hi_section "ignored"
   for line in "${_HI_PLUGIN_BAD[@]}"; do
@@ -183,39 +196,68 @@ function _hi_plugins_list() {
   _hi_rows_flush
 }
 
-# _hi_plugins_write_off <list> - settings.sh with that list as its one
-# _HI_PLUGINS_OFF line, among the lines hi --configure writes, or with none
-# when the list is empty
-function _hi_plugins_write_off() {
-  local tmpfile line
-  dry_run_say "write _HI_PLUGINS_OFF='$1' to $_HI_SETTINGS" && return 0
+# _hi_plugins_write_list <_HI_PLUGINS_OFF|_HI_PLUGINS_ON> <list> - settings.sh
+# with that list as its one line of that name, among the lines hi --configure
+# writes, or with none when the list is empty
+function _hi_plugins_write_list() {
+  local var="$1" tmpfile line
+  shift
+  dry_run_say "write $var='$1' to $_HI_SETTINGS" && return 0
   mkdir -p "$_HI_CONFIG_DIR"
   tmpfile="$(mktemp -t hi.plugins.XXXXXX)"
   if [ -f "$_HI_SETTINGS" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
-      [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?_HI_PLUGINS_OFF= ]] || printf '%s\n' "$line"
+      [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?$var= ]] || printf '%s\n' "$line"
     done <"$_HI_SETTINGS" >"$tmpfile"
   else
     printf '#!/bin/sh\n' >"$tmpfile"
   fi
   # the wizard's own spelling of the line, so its block holds it
   local tagged
-  [ -z "$1" ] || rc_tagged tagged "export _HI_PLUGINS_OFF='$1'"
+  [ -z "$1" ] || rc_tagged tagged "export $var='$1'"
   printf '%s' "${tagged:-}" >>"$tmpfile"
   _hi_write_back "$tmpfile" "$_HI_SETTINGS"
   _hi_cecho "$_HI_SETTINGS updated" "$GREEN"
 }
 
 function _hi_plugins_switch() {
-  local word known now="" next="" w changed=""
+  local word known now="" next="" w changed="" on="" nexton="" changedon=""
   [ "${#args[@]}" -gt 0 ] || _hi_die "needs a plugin, a group, or a member ($me --help)"
+  _hi_plugins_load
   known=" $(_hi_plugin_words | tr '\n' ' ')"
-  # settings.sh's last _HI_PLUGINS_OFF line, read without running it
+  # settings.sh's last _HI_PLUGINS_OFF and _HI_PLUGINS_ON lines, read without
+  # running them
   _hi_rc_value _HI_PLUGINS_OFF now "$_HI_SETTINGS" || true
-  now="${now//,/ }"
-  next=" $now "
+  _hi_rc_value _HI_PLUGINS_ON on "$_HI_SETTINGS" || true
+  now="${now//,/ }" on="${on//,/ }"
+  next=" $now " nexton=" $on "
   for word in "${args[@]}"; do
     _hi_plugin_word_ok "$word" "$known" || _hi_die "not a plugin, a group, or a member: $word (hi --plugins lists them)"
+    # a plugin off by default, or the group holding one, moves through the
+    # on list: on adds it there, off takes it out (and never into the off
+    # list, which would say more than it needs to)
+    case "$_HI_PLUGIN_DEFAULT_OFF" in
+    *" $word "*) ;;
+    *) [ "$(_hi_plugin_group_default "$word")" = off ] || word="$word|" ;;
+    esac
+    if [ "${word%|}" = "$word" ]; then
+      case "$mode:$nexton" in
+      on:*" $word "*) _hi_cecho " $word is on already" "$GREEN" ;;
+      on:*)
+        nexton="$nexton$word "
+        changedon=1
+        _hi_cecho " + $word" "$GREEN"
+        ;;
+      off:*" $word "*)
+        nexton="${nexton// $word / }"
+        changedon=1
+        _hi_cecho " - $word" "$YELLOW"
+        ;;
+      off:*) _hi_cecho " $word is off already (off by default)" "$GREEN" ;;
+      esac
+      continue
+    fi
+    word="${word%|}"
     case "$mode:$next" in
     off:*" $word "*) _hi_cecho " $word is off already" "$GREEN" ;;
     off:*)
@@ -231,11 +273,29 @@ function _hi_plugins_switch() {
     on:*) _hi_cecho " $word is not in the list - nothing to switch" "$GREEN" ;;
     esac
   done
-  [ -n "$changed" ] || exit 0
+  [ -n "$changed" ] || [ -n "$changedon" ] || exit 0
   # one space between words, none at the ends
-  now=""
+  now="" on=""
   for w in $next; do now="$now${now:+ }$w"; done
-  _hi_plugins_write_off "$now"
+  for w in $nexton; do on="$on${on:+ }$w"; done
+  [ -z "$changed" ] || _hi_plugins_write_list _HI_PLUGINS_OFF "$now"
+  [ -z "$changedon" ] || _hi_plugins_write_list _HI_PLUGINS_ON "$on"
+}
+
+# _hi_plugin_group_default <group> - off when every hook plugin of that
+# group is off by default and the group has one; else on
+function _hi_plugin_group_default() {
+  local _hi_gd_r _hi_gd_any=""
+  for _hi_gd_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
+    [ "$(_hi_hook_col "$_hi_gd_r" group)" = "$1" ] || continue
+    _hi_gd_any=1
+    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $(_hi_hook_col "$_hi_gd_r" name) "*) ;; *)
+      printf on
+      return 0
+      ;;
+    esac
+  done
+  [ -n "$_hi_gd_any" ] && printf off || printf on
 }
 
 # _hi_plugin_span <name> - <name>'s table in `_hi_rows` and the tables of its
@@ -268,7 +328,7 @@ function _hi_plugin_span() {
 function _hi_plugins_add() {
   local group name word key files="" tmpdir why="" line said="" from to n
   local -a table=() keys=()
-  [ "${#args[@]}" -ge 3 ] || _hi_die "needs a group, a name, and a file, then any of tool=, wire=, home=, dialect= ($me --help)"
+  [ "${#args[@]}" -ge 3 ] || _hi_die "needs a group, a name, and a file or an init=, then any of tool=, wire=, home=, dialect=, prompt=, default= ($me --help)"
   group="${args[0]}" name="${args[1]}"
   for word in "$group" "$name"; do
     _hi_words_ok "$word" 'A-Za-z0-9_' 'A-Za-z0-9_-' && [ "${word% *}" = "$word" ] ||
@@ -277,19 +337,19 @@ function _hi_plugins_add() {
   for word in "${args[@]:2}"; do
     case "$word" in *['"'\\]*) _hi_die "a value cannot hold a quote or a backslash ($me --help)" ;; esac
     case "$word" in
-    tool=* | wire=* | home=* | dialect=*) keys+=("$word") ;;
+    tool=* | wire=* | home=* | dialect=* | init=* | prompt=* | default=*) keys+=("$word") ;;
     *) files="$files${files:+ }$word" ;;
     esac
   done
-  [ -n "$files" ] || _hi_die "needs a file for $name to carry ($me --help)"
+  [ -n "$files" ] || [[ " ${keys[*]-} " == *" init="* ]] || _hi_die "needs a file for $name to carry, or an init= ($me --help)"
   # the tree's own order of keys, whatever order they were typed in
   table=("[$group.$name]")
-  for key in tool wire home dialect; do
+  for key in init prompt default tool wire home dialect; do
     for word in ${keys[@]+"${keys[@]}"}; do
       [ "${word%%=*}" != "$key" ] || table+=("$key = \"${word#*=}\"")
     done
   done
-  table+=("files = \"$files\"")
+  [ -z "$files" ] || table+=("files = \"$files\"")
   _hi_rows_read "$plugins"
   if _hi_plugin_span "$name"; then
     if [ "$(printf '%s\n' "${_hi_rows[@]:from:to-from}")" = "$(printf '%s\n' "${table[@]}")" ]; then

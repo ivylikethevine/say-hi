@@ -467,6 +467,116 @@ function test_ctl_open_shared_falls_back_when_persist_is_zero() {
     _hi_ctl_has_opt "ControlPersist=45"
 }
 
+# ---------------------------------------------------------------------------
+# _hi_tag_settings
+# ---------------------------------------------------------------------------
+
+# _hi_tag_fixture <name> - an overlay whose settings.prod.sh sets _HI_PLAIN,
+# and an ssh config tagging web1 `prod, web` and dev1 nothing; the directory
+# on stdout
+function _hi_tag_fixture() {
+  local dir="$_HI_WORKDIR/$1"
+  mkdir -p "$dir"
+  printf 'export _HI_PLAIN=1\n' >"$dir/settings.prod.sh"
+  printf '# Tags: prod, web\nHost web1\n  HostName 10.0.0.1\n\nHost dev1\n  HostName 10.0.0.2\n' >"$dir/ssh_config"
+  printf '%s' "$dir"
+}
+
+# _hi_tag_run <dir> <runtime-dir> <domain> - _hi_tag_settings for <domain>,
+# then what it left: $_HI_PLAIN, the path settings.sh rides from, whether
+# that is $_HI_TAG_SETTINGS, and the file's lines `;`-joined
+function _hi_tag_run() {
+  (
+    local src=""
+    _HI_CONFIG_DIR="$1" _HI_SETTINGS="$1/settings.sh" _HI_SSH_CONFIG="$1/ssh_config"
+    XDG_RUNTIME_DIR="$2" DOMAIN="$3" _HI_PLAIN=0
+    unset _HI_TAG_NAME
+    _hi_tag_settings "$1/fallback"
+    _hi_overlay_src settings.sh src || src=""
+    printf '%s|%s|%s|' "$_HI_PLAIN" "$src" "$([ -n "$src" ] && [ "$src" = "$_HI_TAG_SETTINGS" ] && echo joined)"
+    [ -z "$src" ] || tr '\n' ';' <"$src"
+  )
+}
+
+# a tagged host: its tag's file is read here, and settings.sh rides joined to
+# it, from the runtime directory
+function test_tag_settings_join_and_ride_for_a_tagged_host() {
+  local dir rt out
+  dir="$(_hi_tag_fixture tag.join)"
+  rt="$(_hi_cache_rt tag.join.rt)"
+  printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(_hi_tag_run "$dir" "$rt" me@web1)"
+  [[ "$out" == "1|$rt/hi.settings."*"|joined|export _HI_MAX_WIDTH=100;export _HI_PLAIN=1;" ]] ||
+    _hi_because "got: $out"
+}
+
+# an untagged host, and a relay from inside a session: settings.sh as it is
+function test_tag_settings_leave_other_hosts_alone() {
+  local dir rt out
+  dir="$(_hi_tag_fixture tag.other)"
+  rt="$(_hi_cache_rt tag.other.rt)"
+  printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(_hi_tag_run "$dir" "$rt" dev1)"
+  [ "$out" = "0|$dir/settings.sh||export _HI_MAX_WIDTH=100;" ] || _hi_because "untagged: $out" || return 1
+  out="$(_HI_REMOTE_SESSION=1 _hi_tag_run "$dir" "$rt" web1)"
+  [ "$out" = "0|$dir/settings.sh||export _HI_MAX_WIDTH=100;" ] || _hi_because "relay: $out"
+}
+
+# with no settings.sh the tag's file is all of it and still rides; a second
+# connect leaves the joined file be, so the overlay cache built over it holds
+function test_tag_settings_stand_alone_and_keep_their_file() {
+  local dir rt out first
+  dir="$(_hi_tag_fixture tag.alone)"
+  rt="$(_hi_cache_rt tag.alone.rt)"
+  out="$(_hi_tag_run "$dir" "$rt" web1)"
+  [[ "$out" == "1|$rt/hi.settings."*"|joined|export _HI_PLAIN=1;" ]] || _hi_because "got: $out" || return 1
+  first="$(ls -i "$rt"/hi.settings.*)"
+  _hi_tag_run "$dir" "$rt" web1 >/dev/null
+  [ "$(ls -i "$rt"/hi.settings.*)" = "$first" ]
+}
+
+# ...and the archive a tagged host is sent holds the joined settings.sh, with
+# no member of the tag file's own name
+function test_tag_settings_ride_in_the_overlay_tar() {
+  local dir rt out
+  dir="$(_hi_tag_fixture tag.tar)"
+  rt="$(_hi_cache_rt tag.tar.rt)"
+  printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" _HI_SSH_CONFIG="$dir/ssh_config"
+    XDG_RUNTIME_DIR="$rt" DOMAIN=web1
+    unset _HI_TAG_NAME
+    _hi_tag_settings "$dir/fallback"
+    _hi_overlay_tar settings.sh >"$dir/overlay.tgz" || exit 1
+    tar -t -z -f "$dir/overlay.tgz" | tr '\n' ' '
+    # unpacked and read back: the tar of OpenBSD has no -O to extract to stdout
+    mkdir -p "$dir/out" && tar -x -z -f "$dir/overlay.tgz" -C "$dir/out" && tr '\n' ';' <"$dir/out/settings.sh"
+  )" || return 1
+  [[ "$out" == "settings.sh "*"export _HI_MAX_WIDTH=100;export _HI_PLAIN=1;" && "$out" != *prod* ]] ||
+    _hi_because "got: $out"
+}
+
+# no runtime directory hi can vouch for: the caller's own file, which it removes
+function test_tag_settings_fall_back_without_a_runtime_dir() {
+  local dir out base="$_HI_WORKDIR/tag.nodir"
+  dir="$(_hi_tag_fixture tag.fallback)"
+  printf 'not a directory\n' >"$base"
+  out="$(TMPDIR="$base" _hi_tag_run "$dir" "" web1)"
+  [ "$out" = "1|$dir/fallback|joined|export _HI_PLAIN=1;" ] || _hi_because "got: $out"
+}
+
+# _HI_DISABLE_CONTROLMASTER=1 passes ssh no option of hi's and makes no
+# socket; the caller's own options still go through
+function test_ctl_open_passes_nothing_when_disabled() {
+  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
+  _hi_ctl_vars
+  dir="$(_hi_cache_rt ctl.off)"
+  XDG_RUNTIME_DIR="$dir" _HI_DISABLE_CONTROLMASTER=1 _hi_ctl_open 60 shared -o BatchMode=yes
+  [ -z "$ctl_path" ] && [ -z "$ctl_dir" ] && [ "${ctl_opts[*]}" = "-o BatchMode=yes" ]
+}
+
 # so does a runtime directory hi will not vouch for - the temp dir is
 # perfectly good here, so `run`'s fresh socket still gets made; only the
 # sharing is given up. The unreadable owner is the no-passwd-entry host
@@ -652,6 +762,14 @@ function run_cache_tests() {
   _hi_check "Shared key splits on ssh args" test_ctl_open_shared_key_splits_on_ssh_args
   _hi_check "Shared key splits on the target" test_ctl_open_shared_key_splits_on_the_target
   _hi_check "Shared falls back when persist is 0" test_ctl_open_shared_falls_back_when_persist_is_zero
+  _hi_check "_HI_DISABLE_CONTROLMASTER passes ssh nothing" test_ctl_open_passes_nothing_when_disabled
+
+  _hi_h2 "Testing: _hi_tag_settings"
+  _hi_check "A tagged host reads its tag's file, joined to settings.sh" test_tag_settings_join_and_ride_for_a_tagged_host
+  _hi_check "An untagged host and a relay are left alone" test_tag_settings_leave_other_hosts_alone
+  _hi_check "A tag's file stands alone, and is not rewritten" test_tag_settings_stand_alone_and_keep_their_file
+  _hi_check "The overlay archive holds the joined settings.sh" test_tag_settings_ride_in_the_overlay_tar
+  _hi_check "No runtime dir: the caller's own file" test_tag_settings_fall_back_without_a_runtime_dir
   _hi_check "Shared falls back without a runtime dir" test_ctl_open_shared_falls_back_without_a_runtime_dir
   _hi_check "Gives up quietly with nowhere to put a socket" test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket
   _hi_check "No multiplexing on an MSYS client" test_ctl_open_declines_to_multiplex_on_msys

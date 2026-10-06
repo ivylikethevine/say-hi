@@ -381,6 +381,42 @@ function test_uninstall_purge_says_when_it_cannot_remove() {
   [[ "$out" == *"couldn't remove all of it"* && "$out" != *"removed"* ]] && [ -d "$dir/say-hi" ]
 }
 
+# an rc hi cannot write is refused by name, with the lines to add by hand and
+# no backup left beside it - never "updated"
+function test_config_shell_refuses_a_read_only_rc() {
+  local dir="$_HI_WORKDIR/rc-locked" out rc=0
+  mkdir -p "$dir"
+  printf 'echo mine\n' >"$dir/.bashrc"
+  chmod 444 "$dir/.bashrc"
+  out="$(config_shell bashrc "$dir/.bashrc" "source hi" 2>&1)" || rc=$?
+  chmod 644 "$dir/.bashrc"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $dir/.bashrc"* && "$out" == *"source hi"* ]] &&
+    [[ "$out" != *"updated"* ]] && [ ! -e "$dir/.bashrc.hi-orig" ] &&
+    [ "$(cat "$dir/.bashrc")" = "echo mine" ]
+}
+
+# ...and an uninstall that meets one fails, having still done the rest
+function test_run_uninstall_fails_on_a_read_only_rc() {
+  local home="$_HI_WORKDIR/run-uninstall-locked" out rc=0
+  mkdir -p "$home/.config/say-hi"
+  printf 'echo before\nsource hi %s\n' "$_HI_MARKER" >"$home/.bashrc"
+  chmod 444 "$home/.bashrc"
+  printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$home/.config/say-hi/settings.sh"
+  # shellcheck disable=SC2016 # single quotes on purpose: the child expands these
+  out="$(env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
+    _HI_SETTINGS="$home/.config/say-hi/settings.sh" _HI_HOME_BASHRC="$home/.bashrc" \
+    _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/.config/fish/config.fish" \
+    _HI_UNINSTALL_SCRIPT="$_HI_INSTALL" bash -c '
+      set --
+      source "$_HI_UNINSTALL_SCRIPT"
+      function unlink_hi() { :; }
+      run_uninstall 2>&1
+    ')" || rc=$?
+  chmod 644 "$home/.bashrc"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
+    [ ! -e "$home/.config/say-hi/settings.sh" ] && grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
 # ...and --purge is --uninstall's alone
 function test_purge_is_refused_outside_uninstall() {
   local out rc=0
@@ -539,6 +575,25 @@ function test_install_gate_accepted_at_a_terminal_continues() {
   _hi_run_install_pty gate-y 'y\n' --link none --preset everything || return 1
   grep -qF 'Installed!' "$_HI_WORKDIR/gate-y.pty.out" &&
     grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
+# a first install asks a terminal one thing, and "n" keeps hi off this
+# machine; the menu is hi --configure's
+function test_first_install_asks_only_about_this_machine() {
+  local home="$_HI_WORKDIR/first-q" out="$_HI_WORKDIR/first-q.pty.out"
+  _hi_run_install_pty first-q 'n\n' --link none || return 1
+  grep -qF "Style this machine's own shells too" "$out" && grep -qF 'Installed!' "$out" &&
+    ! grep -qF 'Nothing is written until you save' "$out" &&
+    grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"
+}
+
+# ...and nothing at all once there is a settings.sh
+function test_a_later_install_asks_nothing() {
+  local home="$_HI_WORKDIR/later-q" out="$_HI_WORKDIR/later-q.pty.out"
+  mkdir -p "$home/.config/say-hi"
+  printf '#!/bin/sh\n' >"$home/.config/say-hi/settings.sh"
+  _hi_run_install_pty later-q '' --link none || return 1
+  ! grep -qF 'Style this machine' "$out" && grep -qF 'Installed!' "$out"
 }
 
 # hi --configure quit at its menu writes nothing and says so
@@ -729,7 +784,7 @@ function test_configure_help_is_its_own() {
 function test_configure_without_a_terminal_says_so() {
   local out rc=0
   out="$(_hi_run_install_here nomenu --configure 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || return 1
   rc=0
   out="$(_hi_run_install_here nomenu-install --dry-run --link none 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]]
@@ -1049,6 +1104,8 @@ function run_install_tests() {
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--uninstall --purge removes the overlay, dry-run keeps it" test_uninstall_purge_removes_the_overlay
   _hi_check_capable lockout "...and says when it cannot" test_uninstall_purge_says_when_it_cannot_remove
+  _hi_check_capable lockout "config_shell refuses a read-only rc" test_config_shell_refuses_a_read_only_rc
+  _hi_check_capable lockout "run_uninstall fails on a read-only rc" test_run_uninstall_fails_on_a_read_only_rc
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check_capable pty "...and quit at its menu, leaves them as they were" test_features_only_quit_leaves_the_settings
@@ -1062,6 +1119,8 @@ function run_install_tests() {
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
   _hi_check_capable pty "Declined at a terminal, the gate aborts" test_install_gate_declined_at_a_terminal_aborts
   _hi_check_capable pty "Accepted at a terminal, the install goes on" test_install_gate_accepted_at_a_terminal_continues
+  _hi_check_capable pty "A first install asks only about this machine" test_first_install_asks_only_about_this_machine
+  _hi_check_capable pty "A later install asks nothing" test_a_later_install_asks_nothing
   # install_tree links usr/bin/hi, so a host without symlinks cannot stage
   _hi_check_capable symlink "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir
   _hi_check "hi's own rc lines never read as a framework" test_install_ignores_its_own_rc_lines

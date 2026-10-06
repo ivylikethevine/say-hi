@@ -206,7 +206,9 @@ the payload leaves out a default your overlay shadows, so the wire holds one
 home too, so a client without emacs sends no `emacs/init.el`. `aliases.sh` is
 the exception by design - yours is sourced on top of the tree's, so both ride.
 The `<file>.old` copies `scripts/convert_settings.sh` keeps are not members and
-stay home.
+stay home. Nor is a `settings.<tag>.sh`: a host carrying the tag is sent a
+`settings.sh` with it joined on
+([SETTINGS.md](SETTINGS.md#settings-by-host-tag)).
 
 What happens to a line in one of these that reads a file no target has is
 [SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)'s.
@@ -286,16 +288,16 @@ reads none of their config files.
 
 ### Install, configure, update, uninstall
 
-| Path                                                                                  | What                                                                                                                                                          |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish` | lines tagged `# added by hi during install`; `ZDOTDIR` is the environment's, else the one `~/.zshenv` sets; the file and its directory are created if missing |
-| `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                                             |
-| `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                                           |
-| `$_HI_CONFIG_DIR/plugins`                                                             | the tables `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                                        |
-| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --plugin-off` keeps                                                            |
-| `~/.local/bin/hi` (`--link user`), `/usr/bin/hi` (`--link system`)                    | a symlink to `hi.sh`; `$_HI_LINK`; a link that is not hi's, or a package's, is left alone                                                                     |
-| the checkout                                                                          | `hi --update` fetches tags and checks one out; refused on a dirty tree                                                                                        |
-| uninstall                                                                             | removes the tagged lines (and an rc hi created that is now empty), `settings.sh`, and hi's links; `--purge` also removes `$_HI_CONFIG_DIR`                    |
+| Path                                                                                  | What                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish` | lines tagged `# added by hi during install`, in the login shell's rc and any other that exists already (`--shell` chooses); `ZDOTDIR` is the environment's, else the one `~/.zshenv` sets; the file and its directory are created if missing; `--print-rc` prints the lines instead |
+| `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                                                                                                                                                                   |
+| `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                                                                                                                                                                 |
+| `$_HI_CONFIG_DIR/plugins`                                                             | the tables `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                                                                                                                                                              |
+| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --plugin-off` keeps                                                                                                                                                                                  |
+| `~/.local/bin/hi` (`--link user`), `/usr/bin/hi` (`--link system`)                    | a symlink to `hi.sh`; `$_HI_LINK`; a link that is not hi's, or a package's, is left alone                                                                                                                                                                                           |
+| the checkout                                                                          | `hi --update` fetches tags and checks one out; refused on a dirty tree                                                                                                                                                                                                              |
+| uninstall                                                                             | removes the tagged lines (and an rc hi created that is now empty), `settings.sh`, and hi's links; `--purge` also removes `$_HI_CONFIG_DIR`                                                                                                                                          |
 
 ### Caches and sockets
 
@@ -309,6 +311,7 @@ into place.
 | `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                                                                                                                               |
 | `hi.payload.tree.<key>` | the gzipped payload, rebuilt when a tree file changes, keyed on the tree's path and its cut list (the defaults an overlay shadows, or whose tool is not installed here, and the prompt loaders a target is not handed); off with `_HI_PAYLOAD_CACHE=0` |
 | `hi.overlay.<key>`      | the overlay stream, keyed on its member list and the home paths any member was packed from                                                                                                                                                             |
+| `hi.settings.<key>`     | `settings.sh` with a tagged target's `settings.<tag>.sh` files joined on, what that target is sent; rewritten only when its content changes                                                                                                            |
 | `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                                                                             |
 | `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                                                                  |
 | `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                                                                                                                                                                                   |

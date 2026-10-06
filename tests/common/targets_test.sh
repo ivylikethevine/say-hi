@@ -299,6 +299,16 @@ function test_docker_kind_lists_running_containers() {
   _hi_has_row "$out" alpha docker && _hi_has_row "$out" beta docker
 }
 
+# ...unless $_HI_BACKENDS_OFF names it, which leaves the others listing
+function test_a_backend_switched_off_is_not_listed() {
+  local out
+  [ -z "$(_HI_BACKENDS_OFF=docker _hi_targets "$_HI_CONFIG" docker)" ] || return 1
+  out="$(_HI_BACKENDS_OFF="nomad,docker" _hi_targets "$_HI_CONFIG" all)"
+  ! printf '%s\n' "$out" | grep -q $'\tdocker$' && printf '%s\n' "$out" | grep -q $'\tssh$' || return 1
+  out="$(_HI_BACKENDS_OFF=all _hi_targets "$_HI_CONFIG" all)"
+  [ -n "$out" ] && ! printf '%s\n' "$out" | grep -qv $'\tssh$'
+}
+
 # beta's compose label rides in as a third row - the friendlier name a real
 # session resolves back to "beta" through hi.sh's _hi_compose_container
 function test_docker_kind_lists_compose_service_alias() {
@@ -902,7 +912,7 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
 function test_flags_behind_a_local_command_are_its_switches() {
   local out
   out="$(sh "$_HI_TARGETS" flags --install | cut -f1 | tr '\n' ' ')"
-  [ "$out" = "--yes --link --preset --dry-run " ] || {
+  [ "$out" = "--yes --link --shell --print-rc --preset --dry-run " ] || {
     _hi_cecho "   flags --install gave: $out" "$RED"
     return 1
   }
@@ -969,7 +979,7 @@ function test_complete_the_word_after_link_preset_and_update() {
     return 1
   }
   out="$(_hi_completions_after --preset "" | sort | tr '\n' ' ')"
-  [ "$out" = "balanced everything minimal " ] || {
+  [ "$out" = "balanced everything lean minimal " ] || {
     _hi_cecho "   --preset: $out" "$RED"
     return 1
   }
@@ -1218,6 +1228,7 @@ function run_targets_tests() {
   _hi_check "Trailing comment isn't a host" test_trailing_comment_is_not_a_host
   _hi_check "Missing config -> empty, exit 0" test_missing_config_is_empty_and_succeeds
   _hi_check "'ssh' argument excludes other kinds" test_ssh_kind_excludes_container_backends
+  _hi_check "A backend switched off is not listed" test_a_backend_switched_off_is_not_listed
   _hi_check "ssh hosts follow Include" test_ssh_hosts_follow_include
   _hi_check "ssh-files lists the config and its Includes, in order" test_ssh_files_lists_the_config_and_its_includes_in_order
   _hi_check "--add-tag completes the literal ssh hosts" test_add_tag_words_are_the_literal_ssh_hosts

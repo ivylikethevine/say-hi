@@ -51,7 +51,7 @@ _HI_RELEASE="${_HI_RELEASE:-}"
 
 # Kept identical to docs/hi.1's SYNOPSIS (parse_test.sh compares the two);
 # folded so --help fits 80 columns
-_HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain] [--mux|--no-mux]
+_HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain|--no-plain] [--mux|--no-mux]
           [--keep|--no-keep|--end] <target> [command ...]"
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
@@ -157,6 +157,59 @@ function _hi_client_verdicts() {
     printf "$1" _HI_TRUECOLOR "$_hi_cv_t"
     [ -z "${NO_COLOR:-}" ] || printf "$1" NO_COLOR 1
   }
+}
+
+# _hi_tag_settings <fallback> - the settings of the target's tags: each
+# `settings.<tag>.sh` of the overlay whose tag the `# Tags:` line above
+# $DOMAIN names, in that line's order. Read here, over settings.sh, so every
+# choice this run makes sees it; and joined to settings.sh in one file that
+# rides as the target's settings.sh ($_HI_TAG_SETTINGS, which pack.sh's
+# _hi_overlay_src answers with), so the target reads the same. The file is
+# kept in the runtime directory, rewritten only when its content changes -
+# the overlay cache watches its mtime - else at <fallback>, the caller's to
+# remove. A tag file never rides as itself, and a session's relay has none:
+# it inherits the settings it was sent.
+function _hi_tag_settings() {
+  local _hi_ts_t _hi_ts_f _hi_ts_dir _hi_ts_out _hi_ts_tmp _hi_ts_o=$-
+  local -a _hi_ts_tags=() _hi_ts_files=()
+  _HI_TAG_SETTINGS=""
+  [ "$_HI_REMOTE_SESSION" != 1 ] || return 0
+  _hi_ssh_host_tag "${DOMAIN##*@}" >/dev/null || return 0
+  IFS=' ,' read -r -a _hi_ts_tags <<<"$_HI_TAG_VALUE" || true
+  for _hi_ts_t in ${_hi_ts_tags[@]+"${_hi_ts_tags[@]}"}; do
+    # a tag is free text; a file is named only by one that is a plain word
+    case "$_hi_ts_t" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
+    _hi_ts_f="$_HI_CONFIG_DIR/settings.$_hi_ts_t.sh"
+    [ -f "$_hi_ts_f" ] || continue
+    # as core.sh reads settings.sh: one failing line must not end the connect
+    set +eu
+    # shellcheck source=/dev/null # user config
+    . "$_hi_ts_f"
+    case "$_hi_ts_o" in *e*) set -e ;; esac
+    case "$_hi_ts_o" in *u*) set -u ;; esac
+    _hi_ts_files+=("$_hi_ts_f")
+  done
+  ((${#_hi_ts_files[@]})) || return 0
+  _hi_runtime_dir _hi_ts_dir
+  if [ -n "$_hi_ts_dir" ]; then
+    _hi_hash "$_HI_CONFIG_DIR ${_hi_ts_files[*]}" _hi_ts_out
+    _hi_ts_out="$_hi_ts_dir/hi.settings.$_hi_ts_out"
+    _hi_ts_tmp="$(mktemp "$_hi_ts_out.XXXXXX")" || return 0
+  else
+    _hi_ts_out="$1" _hi_ts_tmp="$1.new"
+  fi
+  {
+    [ ! -f "$_HI_CONFIG_DIR/settings.sh" ] || cat "$_HI_CONFIG_DIR/settings.sh"
+    cat "${_hi_ts_files[@]}"
+  } >"$_hi_ts_tmp" || return 0
+  if cmp -s "$_hi_ts_tmp" "$_hi_ts_out"; then
+    rm -f "$_hi_ts_tmp"
+  else
+    mv -f "$_hi_ts_tmp" "$_hi_ts_out"
+  fi
+  # what reads a setting off the file rather than the environment
+  # (_hi_toggle_on) reads the joined one too
+  _HI_TAG_SETTINGS="$_hi_ts_out" _HI_SETTINGS="$_hi_ts_out"
 }
 
 # memoized: three callers, $DOMAIN is fixed for the run
@@ -466,8 +519,10 @@ function _hi_ctl_open() {
   # connection dies rather than degrading. Answered from $OSTYPE (bash sets it
   # at build time, "msys" for both MSYS2 and Git Bash) rather than a `uname`
   # fork. Lands in the same state as a host with nowhere to put a socket.
-  case "${OSTYPE:-}" in
-  msys* | cygwin*)
+  # $_HI_DISABLE_CONTROLMASTER asks for that state: no option of hi's, so
+  # the ssh config's own ControlMaster line decides.
+  case "${_HI_DISABLE_CONTROLMASTER:-0}:${OSTYPE:-}" in
+  1:* | *:msys* | *:cygwin*)
     ctl_opts+=("$@")
     return 0
     ;;
@@ -1622,6 +1677,8 @@ function _hi_parse() {
       own=1
       ;;
     --plain) PLAIN=1 own=1 ;;
+    # the last of the pair wins, and either beats _HI_PLAIN=1, a tag's included
+    --no-plain) PLAIN=0 own=1 ;;
     --mux) MUX=1 own=1 ;;
     # the last of --mux/--no-mux wins, and either beats _HI_MUX=1 - which is
     # what makes --no-mux useful behind that setting
@@ -1693,10 +1750,16 @@ function _hi_resolve_backend() {
     # that substitution's stdout open would keep the parent from seeing EOF
     # until the *slowest* probe finished. The predicates answer with their
     # exit status alone, so nothing is lost by muting them.
+    # a backend switched off is not asked; its slot keeps the rows aligned
+    if _hi_backend_off "${_HI_BACKENDS[i]%%|*}"; then
+      pids+=("")
+      continue
+    fi
     "${_HI_BACKENDS[i]##*|}" "$target" >/dev/null 2>&1 &
     pids+=("$!")
   done
   for i in "${!_HI_BACKENDS[@]}"; do
+    [ -n "${pids[i]}" ] || continue
     if wait "${pids[i]}"; then
       printf '%s' "${_HI_BACKENDS[i]%%|*}"
       return 0
@@ -1801,7 +1864,7 @@ function _hi_kdl_quote() {
 # `hi --mux <target>` joins the one already running. All client-side - the
 # target sees the same session it always does. GLOSSARY: HI.52
 function _hi_mux_wrap() {
-  local name tool cmd="" word q layout
+  local name tool cmd="" word plain q layout
   local -a inner=()
   [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
   [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0 # already inside: connect as usual
@@ -1813,8 +1876,9 @@ function _hi_mux_wrap() {
   # to `sh -c`, and single quotes are the one form every shell reads alike
   # (%q's $'...' is bash's alone). zellij takes the words, in a layout.
   case "${KEEP:-}" in 1) word=--keep ;; 0) word=--no-keep ;; *) word="" ;; esac
+  case "${PLAIN:-}" in 1) plain=--plain ;; 0) plain=--no-plain ;; *) plain="" ;; esac
   inner=(env _HI_MUX_INNER=1 "$_HI_LAUNCHER"
-    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain} ${word:+"$word"}
+    ${BACKEND:+--use "$BACKEND"} ${plain:+"$plain"} ${word:+"$word"}
     ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"})
   for word in "${inner[@]}"; do
     _hi_shquote q "$word"
@@ -1877,13 +1941,17 @@ function _hi() {
 
   tmp="$(mktemp -t hi.log.XXXXXX)"
   # $tmp is resolved when the trap fires, not now
-  _hi_on_exit 'rm -f "$tmp"'
+  _hi_on_exit 'rm -f "$tmp" "$tmp.settings"'
 
   _hi_parse "$@"
   if [ -z "${DOMAIN:-}" ]; then
     _hi_keep_here
     exit $?
   fi
+  # ahead of everything that reads a setting: the prompt list, the members,
+  # --mux, --keep, and --plain itself
+  _hi_tag_settings "$tmp.settings"
+  [ -n "${PLAIN:-}" ] || [ "${_HI_PLAIN:-0}" != 1 ] || PLAIN=1
   # Primed in the shell that keeps them: a caller that reads one through $( )
   # would fill the memo in a subshell and lose it there, and the script
   # builders ask six times between them. GLOSSARY: HI.05
@@ -1990,7 +2058,7 @@ function _hi_dispatch_subcommand() {
 # part of the tree the payload does not carry. A label wider than the gutter
 # gets its own line, the way GNU --help does, so the block fits 80 columns.
 function _hi_flag_help() {
-  local row flag arg needs help label
+  local row flag arg needs help label head
   for row in "${_HI_FLAGS[@]}"; do
     IFS='|' read -r flag arg needs _ _ help <<<"$row"
     case "$1:$needs" in
@@ -2006,6 +2074,13 @@ function _hi_flag_help() {
     if [ "${#label}" -le 22 ]; then
       printf '  %-22s %s\n' "$label" "$help"
     else
+      # a shape wider than the page folds at a `[`, under its first
+      while [ "${#label}" -gt 78 ]; do
+        head="${label:0:78}"
+        head="${head% \[*}"
+        printf '  %s\n' "$head"
+        label="${flag//?/ }${label:${#head}}"
+      done
       printf '  %s\n  %-22s %s\n' "$label" "" "$help"
     fi
   done

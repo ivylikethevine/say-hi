@@ -435,6 +435,14 @@ function _hi_plain_parse_out() {
   _hi_var_parse_out PLAIN 0 "$@"
 }
 
+# --no-plain is the pair's other half: the last of the two wins
+function test_parse_no_plain_is_the_other_half() {
+  [ "$(_hi_var_parse_out PLAIN unset --no-plain myhost)" = "$(printf 'myhost\n0\n')" ] &&
+    [ "$(_hi_plain_parse_out --no-plain --plain myhost)" = "$(printf 'myhost\n1\n')" ] &&
+    [ "$(_hi_var_parse_out PLAIN unset --plain --no-plain myhost)" = "$(printf 'myhost\n0\n')" ] &&
+    [ "$(_hi_var_parse_out PLAIN unset myhost)" = "$(printf 'myhost\nunset\n')" ]
+}
+
 function test_parse_plain_sets_plain_not_sshargs() {
   [ "$(_hi_plain_parse_out --plain myhost)" = "$(printf 'myhost\n1\n')" ] &&
     [ "$(_hi_parse_out --plain myhost)" = "$(printf 'myhost\n\n')" ]
@@ -479,6 +487,15 @@ function test_select_arm_backend_flag_names_the_arm_with_no_probe() {
 function test_select_arm_falls_back_to_resolution_when_backend_unset() {
   local DOMAIN=yes BACKEND=
   [ "$(PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ]
+}
+
+# a backend $_HI_BACKENDS_OFF names is not asked, so the name is ssh's: by
+# word, a comma or a space apart, and by `all`
+function test_select_arm_skips_a_backend_switched_off() {
+  local DOMAIN=yes BACKEND=
+  [ -z "$(_HI_BACKENDS_OFF="docker,podman nerdctl finch nomad kube" PATH="$_HI_SHIM_PATH" _hi_select_arm)" ] &&
+    [ -z "$(_HI_BACKENDS_OFF=all PATH="$_HI_SHIM_PATH" _hi_select_arm)" ] &&
+    [ "$(_HI_BACKENDS_OFF=nomad PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ]
 }
 
 # The alternate-screen exit is the one mode byte a terminal still on its
@@ -1298,6 +1315,15 @@ function test_hi_exits_1_when_root_is_missing() {
   [ "$ec" -eq 1 ] && [[ "$out" == *"no such directory"* ]]
 }
 
+# _HI_PLAIN=1 is --plain where neither flag was typed, and --no-plain beats it
+function test_hi_dispatch_plain_setting_is_a_default() {
+  local out
+  out="$(_HI_PLAIN=1 _hi_dispatch_probe "" "" 0)"
+  [[ "$out" == *say_hi_plain* ]] || return 1
+  out="$(_HI_PLAIN=1 _hi_dispatch_probe 0 "" 0)"
+  [[ "$out" != *say_hi_plain* ]]
+}
+
 function test_hi_dispatch_plain0_no_arm_calls_say_hi() {
   local out
   out="$(_hi_dispatch_probe 0 "" 0)"
@@ -1407,11 +1433,13 @@ function run_hi_parse_tests() {
   _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
   _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
   _hi_check "--plain sets PLAIN, not SSHARGS" test_parse_plain_sets_plain_not_sshargs
+  _hi_check "--no-plain is the pair's other half" test_parse_no_plain_is_the_other_half
   _hi_check "--plain combines with --use" test_parse_plain_combines_with_use
   _hi_check "RAWCMD carries no \"; exit\" suffix" test_parse_rawcmd_has_no_exit_suffix
   _hi_check "select_arm: the flag wins over a real match" test_select_arm_backend_flag_wins_over_a_real_match
   _hi_check "select_arm: the flag names the arm with no probe" test_select_arm_backend_flag_names_the_arm_with_no_probe
   _hi_check "select_arm: unset falls back to resolution" test_select_arm_falls_back_to_resolution_when_backend_unset
+  _hi_check "select_arm: a backend switched off is not asked" test_select_arm_skips_a_backend_switched_off
   _hi_check "select_arm: a Host * block does not shadow a container" test_select_arm_wildcard_host_does_not_shadow_a_container
   _hi_check "reset_terminal: the alt-screen exit rides in DECSC/DECRC" test_reset_terminal_wraps_the_alt_screen_exit_in_decsc_decrc
   _hi_check "reset_terminal: closes the prompt mark with the status" test_reset_terminal_closes_the_prompt_mark_with_the_status
@@ -1438,6 +1466,7 @@ function run_hi_parse_tests() {
   _hi_check "PLAIN=0, no arm -> _say_hi" test_hi_dispatch_plain0_no_arm_calls_say_hi
   _hi_check "PLAIN=0, an arm -> _say_hi_container" test_hi_dispatch_plain0_with_arm_calls_say_hi_container
   _hi_check "PLAIN=1, no arm -> _say_hi_plain" test_hi_dispatch_plain1_no_arm_calls_say_hi_plain
+  _hi_check "_HI_PLAIN=1 is the default, --no-plain past it" test_hi_dispatch_plain_setting_is_a_default
   _hi_check "PLAIN=1, an arm -> _say_hi_container_plain" test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain
   _hi_check "Exits with the arm's own status" test_hi_exit_code_is_the_arms
   _hi_check "Reports failure only on non-zero, with arm+tmp" test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp

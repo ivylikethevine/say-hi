@@ -61,13 +61,15 @@ function dry_run_say() {
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
 # lands on the destination and severs any hardlink/ACL. The mode is captured
 # and reapplied too, since truncate-in-place alone did not preserve it on
-# Windows Git Bash. GLOSSARY: HI.09
+# Windows Git Bash. Fails when dest could not be written, the tmp file gone
+# either way. GLOSSARY: HI.09
 function _hi_write_back() {
-  local mode=""
+  local mode="" rc=0
   [ -e "$2" ] && mode="$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)"
-  cat "$1" >"$2"
-  [ -n "$mode" ] && chmod "$mode" "$2" 2>/dev/null
+  cat "$1" >"$2" || rc=1
+  [ "$rc" -ne 0 ] || [ -z "$mode" ] || chmod "$mode" "$2" 2>/dev/null || true
   command rm -f "$1"
+  return "$rc"
 }
 
 # The TOML files (config/packages, config/colors) as the editing scripts hold
@@ -499,6 +501,32 @@ function _hi_plugin_rows() {
     _hi_row_col "$_hi_pw_r" group _hi_pw_g
     _hi_plugin_name "${_hi_pw_r%%|*}" _hi_pw_n "$_hi_pw_r"
     printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "${_hi_pw_r%%|*}"
+  done
+  # a plugin with a hook and no file is a word too, under its own name
+  for _hi_pw_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
+    _hi_pw_n="$(_hi_hook_col "$_hi_pw_r" name)"
+    printf '%s|%s|%s\n' "$_hi_pw_n" "$(_hi_hook_col "$_hi_pw_r" group)" "$_hi_pw_n"
+  done
+}
+
+# _hi_hook_rows - every shell hook as a report row (HI.67): the plugin, its
+# init, and whether a target gets it - the tool here, the plugin on
+function _hi_hook_rows() {
+  local _hi_hr_r _hi_hr_n _hi_hr_why
+  _hi_plugins_load
+  for _hi_hr_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
+    _hi_hr_n="$(_hi_hook_col "$_hi_hr_r" name)"
+    if ! _hi_hook_here "$_hi_hr_r"; then
+      _hi_row "$_hi_hr_n" "$(_hi_hook_col "$_hi_hr_r" init) - not installed here, so not sent"
+    elif _hi_hook_off "$_hi_hr_r"; then
+      case "$_HI_PLUGIN_DEFAULT_OFF" in
+      *" $_hi_hr_n "*) _hi_hr_why="off by default (hi --plugin-on $_hi_hr_n)" ;;
+      *) _hi_hr_why="switched off (_HI_PLUGINS_OFF)" ;;
+      esac
+      _hi_row "$_hi_hr_n" "$(_hi_hook_col "$_hi_hr_r" init) - $_hi_hr_why"
+    else
+      _hi_row "$_hi_hr_n" "$(_hi_hook_col "$_hi_hr_r" init) - runs on a target that has it$([ "$(_hi_hook_col "$_hi_hr_r" prompt)" != yes ] || printf ', and draws the prompt')" ok
+    fi
   done
 }
 

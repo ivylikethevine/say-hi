@@ -16,6 +16,7 @@ in a session.
   - [`hi --version`](#hi---version)
   - [`hi --use`](#hi---use)
   - [`hi --plain`](#hi---plain)
+  - [`hi --no-plain`](#hi---no-plain)
   - [`hi --mux`](#hi---mux)
   - [`hi --no-mux`](#hi---no-mux)
   - [`hi --keep`](#hi---keep)
@@ -61,6 +62,12 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 ### `hi --plain`
 
 `hi --plain`: a bare shell, nothing copied: no tar or /tmp needed. Works in a session too.
+
+It changes how a connect runs, which the [README's demos](../README.md) show.
+
+### `hi --no-plain`
+
+`hi --no-plain`: hi's own session this once, past \_HI\_PLAIN=1. Works in a session too.
 
 It changes how a connect runs, which the [README's demos](../README.md) show.
 
@@ -112,7 +119,7 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 
 ### `hi --install`
 
-`hi --install [--yes] [--link {none,user,system}] [--preset <name>] [--dry-run]`: install or repair say-hi's lines in your shell rc files.
+`hi --install [--yes] [--link {none,user,system}] [--shell <list>] [--print-rc] [--preset <name>] [--dry-run]`: install or repair say-hi's lines in your shell rc files.
 
 ![hi --install --yes --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-install.svg)
 

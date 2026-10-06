@@ -20,6 +20,12 @@ _HI_ASSUME_YES=0
 # config_hi's symlink where something else already owns the `hi` on $PATH
 # (see the note on config_hi itself). One tri-state, the last on the line wins.
 _HI_LINK_MODE=user
+# --shell: which shells' rc files get hi's lines (rc.sh's rc_shell_wanted);
+# empty is the login shell plus every shell with an rc already
+_HI_SHELLS=""
+# --print-rc: print each rc's block for a file somebody else manages, and
+# write no rc file (rc.sh's rc_print)
+_HI_RC_PRINT=""
 # --dry-run: every writer says what it would do and stops (rc.sh's dry_run_say)
 _HI_DRY_RUN=""
 # --prefix, or a non-empty $DESTDIR, puts this script in packaging mode: lay the
@@ -63,7 +69,8 @@ function _hi_install_usage() {
   *)
     # wrapped under the same 80 columns hi --help keeps
     printf 'Usage: %s [--yes] [--link {none,user,system}]\n' "$me"
-    printf '       %s [--preset <name>] [--dry-run]\n' "${me//?/ }"
+    printf '       %s [--shell <list>] [--print-rc] [--preset <name>]\n' "${me//?/ }"
+    printf '       %s [--dry-run]\n' "${me//?/ }"
     [ -n "${_HI_ARGV0:-}" ] ||
       printf '       %s --configure [--preset <name>] [--dry-run]\n       %s --uninstall [--purge] [--dry-run] | --prefix <dir>\n' "$me" "$me"
     ;;
@@ -96,12 +103,13 @@ EOF
   configure)
     cat <<EOF
 Revisit the settings, leaving the rc wiring and the hi link alone: a preview
-of the header and prompt, then Features / Header / Prompt / Advanced, p for
-a preset, s to save, q to leave the file alone. Answers go to
+of the header and prompt, then a page each for Header, Package check, Prompt,
+Plugins, Aliases, This machine, and Advanced, p for a preset, s to save, q to
+leave the file alone. Answers go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
   --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced, or minimal - without the
+                   preset - everything, balanced, minimal, or lean - without the
                    menu, and write that. The same presets are the menu's
                    first item. The header order, the width, the prompt
                    separators, the prompt program, and the advanced
@@ -112,9 +120,11 @@ EOF
     ;;
   *)
     cat <<EOF
-Wires up the local shells to source this say-hi checkout and links hi.sh
-into ~/.local/bin, then opens the settings menu at a terminal (--preset
-answers it without one). Nothing else is copied into
+Wires up your shells to source this say-hi checkout - the login shell, and
+any other with an rc file already - and links hi.sh into ~/.local/bin. A
+first install asks a terminal one thing, whether hi styles this machine too
+(--preset answers without asking); hi --configure has the settings menu.
+Nothing else is copied into
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi: the tree's colors and packages stay
 in force until you copy one there yourself and edit it
 (cp <say-hi>/config/colors \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/), and
@@ -137,12 +147,17 @@ you don't own.
                    is read-only under SIP), or none (no link at all - the
                    wired shells alias hi to this tree either way; the link is
                    for scripts and other programs).
+  --shell <list>   Wire these shells instead: bash, zsh, and fish, a comma
+                   apart, or all for every one installed here.
+  --print-rc       Print each rc file's lines and write none of them, for an
+                   rc file a dotfile manager owns: the block names the tree
+                   through \$HOME, so one rc serves every machine, and a later
+                   install leaves it alone. Everything else is done as usual.
   --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced, or minimal - without the
-                   menu. The same presets are the menu's first item.
+                   preset - everything, balanced, minimal, or lean - and ask
+                   nothing. The same presets are the menu's first item.
   -n, --dry-run    Say what would be written - rc lines, settings.sh, the
-                   link - and write nothing. The menu still opens; s then
-                   reports instead of saving.
+                   link - and write nothing. The question is still asked.
 EOF
     [ -n "${_HI_ARGV0:-}" ] || cat <<EOF
 
@@ -225,6 +240,19 @@ while [ $# -gt 0 ]; do
     esac
     _HI_SEEN="$_HI_SEEN --link"
     ;;
+  --shell | --shell=*)
+    _hi_flag_word_or_die _HI_SHELLS "--shell needs a list of bash, zsh, and fish, or all" "$@"
+    [ $? -eq 2 ] && shift
+    _HI_SHELLS="${_HI_SHELLS//,/ }"
+    for _hi_flag in $_HI_SHELLS; do
+      case "$_hi_flag" in
+      bash | zsh | fish | all) ;;
+      *) _hi_die "--shell wants bash, zsh, fish, or all (got $_hi_flag)" ;;
+      esac
+    done
+    _HI_SEEN="$_HI_SEEN --shell"
+    ;;
+  --print-rc) _HI_RC_PRINT=1 _HI_SEEN="$_HI_SEEN --print-rc" ;;
   -n | --dry-run) _HI_DRY_RUN=1 _HI_SEEN="$_HI_SEEN --dry-run" ;;
   --purge) _HI_PURGE=1 _HI_SEEN="$_HI_SEEN --purge" ;;
   -y | --yes) _HI_ASSUME_YES=1 _HI_SEEN="$_HI_SEEN --yes" ;;
@@ -261,7 +289,7 @@ fi
 case "$(_hi_install_mode)" in
 uninstall) _hi_allowed=" --dry-run --purge " ;;
 configure) _hi_allowed=" --preset --dry-run " ;;
-*) _hi_allowed=" --yes --link --preset --dry-run --prefix " ;;
+*) _hi_allowed=" --yes --link --shell --print-rc --preset --dry-run --prefix " ;;
 esac
 for _hi_flag in $_HI_SEEN; do
   case "$_hi_allowed" in
@@ -436,11 +464,12 @@ function _hi_unlink_one() {
 # settings file, and unlinks /usr/bin/hi if it points at this say-hi. Leaves the
 # checkout itself in place - delete that yourself once you're done with it.
 function run_uninstall() {
-  strip_rc_lines
+  local bad=0
+  strip_rc_lines || bad=1
   strip_settings
   unlink_hi
-  [ -n "${_HI_PURGE:-}" ] && purge_overlay
-  return 0
+  [ -z "${_HI_PURGE:-}" ] || purge_overlay
+  return "$bad"
 }
 
 # --purge: the overlay directory too - the user's settings.sh and aliases.sh,
@@ -571,7 +600,10 @@ function _hi_done() {
 }
 
 if [ -n "$_HI_UNINSTALL_MODE" ]; then
-  run_uninstall
+  run_uninstall || {
+    _hi_h1 "Uninstalled, but for the rc files named above"
+    exit 1
+  }
   _hi_done "Uninstalled!"
   _hi_cecho " | say-hi itself is still at $_HI_ROOT - rm -rf it yourself if you're done with it" "$BLUE"
   exit 0
@@ -604,8 +636,17 @@ if [ -n "$_HI_FEATURES_ONLY" ]; then
   exit 0
 fi
 
-install_rc_lines
+_hi_rc_failed=""
+install_rc_lines || _hi_rc_failed=1
 config_hi
+[ -z "$_hi_rc_failed" ] || {
+  _hi_h1 "Installed, but for the rc files named above"
+  exit 1
+}
 
-_hi_done "Installed!"
+if [ -n "$_HI_RC_PRINT" ]; then
+  _hi_done "Installed, once those lines are in your rc files"
+else
+  _hi_done "Installed!"
+fi
 _hi_cecho " next: reload your shell (exec \$SHELL), then \`hi --configure\` to tune it and \`hi --doctor\` to check it" "$BLUE"

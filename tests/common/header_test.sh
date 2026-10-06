@@ -911,6 +911,25 @@ function test_probe_launch_takes_podman_when_docker_is_absent() {
   [ "$out" = PODMAN_PROBED ]
 }
 
+# ...and a backend $_HI_BACKENDS_OFF names is not started at all
+function test_probe_launch_skips_a_backend_switched_off() {
+  local dir out
+  dir="$_HI_WORKDIR/podman-off"
+  [ -d "$dir" ] || _hi_probe_shims "$dir" runningbox
+  rm -f "$dir/docker" "$dir/nomad" "$dir/kubectl"
+  printf '#!/bin/sh\necho abc123\n' >"$dir/podman"
+  chmod +x "$dir/podman"
+  out="$(
+    PATH="$dir:$(_hi_identity_path)"
+    _HI_PROBE_DIR=""
+    _HI_PROBE_PIDS=()
+    _HI_BACKENDS_OFF=podman
+    _hi_probe_launch
+    [ -z "$_HI_PROBE_DIR" ] && echo NOT_PROBED
+  )"
+  [ "$out" = NOT_PROBED ]
+}
+
 function test_hi_header_skips_probe_launch_once_backends_are_memoized() {
   local out
   out="$(
@@ -2423,6 +2442,7 @@ function run_header_tests() {
   _hi_check "...but not once the backends are memoized" test_hi_header_skips_probe_launch_once_backends_are_memoized
   _hi_check "gitid/auth/pub never start a backend probe" test_hi_header_identity_cells_skip_the_backends
   _hi_check "podman probes when docker is absent" test_probe_launch_takes_podman_when_docker_is_absent
+  _hi_check "A backend switched off is not probed" test_probe_launch_skips_a_backend_switched_off
   _hi_check_capable pty "_hi_draw_width: COLUMNS, then tput, never past the max" test_draw_width_reads_columns_then_tput_under_a_tty
   _hi_check "Default feature order: timestamp, sysinfo, identity, check" test_hi_header_default_order
   _hi_check "_HI_HEADER_ORDER reorders, and omitting a feature hides it" test_hi_header_order_setting_reorders_and_can_omit

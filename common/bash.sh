@@ -36,6 +36,8 @@ source "$_HI_ENV_PROMPT"
 # shellcheck source=../common/aliases.sh
 source "$_HI_ALIASES"
 _hi_load_extensions
+# the shell hooks the client packed (HI.67), where this box has the tool
+_hi_run_hooks bash
 
 _hi_interactive_extras
 
@@ -235,7 +237,19 @@ function _hi_ps1_stock() {
 
 # modified from: https://github.com/riobard/bash-powerline/blob/master/bash-powerline.sh
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  if [ -n "$_hi_pt" ]; then
+  # an extension's decision first (HI.59): $_HI_PROMPT_DRAWN=1 says it drew
+  # the prompt itself, $_HI_PROMPT_INIT names a program's init to run where
+  # this box has it; either way hi stands down, else the list below decides
+  _hi_pdone=""
+  if [[ "${_HI_PROMPT_DRAWN:-0}" == 1 ]]; then
+    _hi_pdone=1
+  elif [ -n "${_HI_PROMPT_INIT:-}" ]; then
+    # shellcheck disable=SC2086 # the words are the command's
+    _hi_run_init bash $_HI_PROMPT_INIT && _hi_pdone=1
+  fi
+  if [ -n "$_hi_pdone" ]; then
+    :
+  elif [ -n "$_hi_pt" ]; then
     # each the way its own README wires it into an rc. GLOSSARY: HI.32
     case "$_hi_pt" in
     powerline-go)
@@ -251,7 +265,13 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # shellcheck source=/dev/null
       source "$_HI_ROOT/common/fw_$_hi_pt.sh"
       ;;
-    *) eval "$("$_hi_pt" init bash)" ;;
+    *)
+      _hi_init=""
+      _hi_prompt_init "$_hi_pt" _hi_init
+      # shellcheck disable=SC2086 # the words are the command's
+      _hi_run_init bash $_hi_init || true
+      unset _hi_init
+      ;;
     esac
   elif ! _hi_prompt_named_hi bash && { [[ -n ${_LP_VERSION-} ]] || declare -F setGitPrompt >/dev/null ||
     { [ "$_HI_REMOTE_SESSION" != 1 ] && ! _hi_ps1_stock; }; }; then
@@ -426,7 +446,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     unset _hi_t _hi_q _hi_e
   fi
 fi
-unset _hi_pt _hi_omb_theme _hi_bashit_theme
+unset _hi_pt _hi_pdone _hi_omb_theme _hi_bashit_theme
 
 # Last in the required block, once every alias has expanded its paths:
 # children inherit core.sh's _HI_CHILD_ENV and nothing else with the prefix.

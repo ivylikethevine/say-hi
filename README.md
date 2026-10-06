@@ -4,6 +4,12 @@
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
+`hi <host>` is `ssh <host>` with your shell setup along: the session opens
+with your prompt, your aliases, and your editor configs, on a host that has
+none of them, and what hi put there is removed when it ends. Nothing is
+installed on the host. The same command opens a session in a container, a
+Nomad allocation, or a Kubernetes pod.
+
 ![Payload](https://img.shields.io/badge/ssh_payload-77KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
@@ -15,6 +21,8 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 > View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
 >
+> New here: [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) has the words
+> these docs use and a starting path for the way you work.
 > [docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
 > draft included.
 
@@ -46,14 +54,15 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ```sh
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
-~/say-hi/scripts/install.sh    # wires your rc files, then the settings menu (s saves, q skips)
+~/say-hi/scripts/install.sh    # wires your shell's rc file and asks one question
 exec $SHELL                    # reload
 hi <anything>                  # ssh, with your prompt, aliases, and editors along
 ```
 
 No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
-and `~/.config/say-hi`. `--preset balanced` answers the menu without opening
-it, `--dry-run` shows every write first.
+and `~/.config/say-hi`. `--preset balanced` answers without asking,
+`--dry-run` shows every write first, and `hi --configure` has the settings
+menu.
 
 ## What You Get
 
@@ -202,19 +211,25 @@ row, and everything answered **no**, and why:
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It syntax-checks `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish`
   with each shell's own checker first and asks before continuing if any fails
-  (the one question before the settings menu; `--yes` answers it). A shell
-  that is not installed gets no rc file; on macOS `~/.bash_profile` is taught
-  to read `~/.bashrc`. `hi` is linked at `~/.local/bin/hi` (`--link system`
+  (`--yes` answers it). Your login shell is wired, and any other of the three
+  with an rc file already; `--shell bash,zsh` names them instead, and `all` is
+  every one installed. Each line tests for the tree first, so a deleted
+  checkout costs a shell nothing. On macOS `~/.bash_profile` is taught to read
+  `~/.bashrc`. A first install asks whether hi styles this machine too, and
+  nothing else. For an rc file a dotfile manager owns, `--print-rc` prints
+  each block and writes none
+  ([docs/SETTINGS.md](docs/SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)). `hi` is linked at `~/.local/bin/hi` (`--link system`
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
   either way). Then reload your shell. zsh completes `hi` through the
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any setting
-  on its pages — Header, Prompt, Plugins, Aliases, This machine, Advanced — and
-  save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+  on its pages — Header, Package check, Prompt, Plugins, Aliases, This machine,
+  Advanced — and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
+  [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) goes symptom by symptom.
 - `hi --update` moves a cloned install to the newest release tag, or on the
   `dev` branch fast-forwards it (`--dry-run` says what it would do; a package
   upgrades through its package manager).
@@ -232,7 +247,7 @@ row, and everything answered **no**, and why:
   `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-five flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty-six flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
@@ -356,22 +371,40 @@ checkout: an account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+2. [ ] _Before 1.0:_ **The wizard switches a default-off plugin on** — the
+       `hooks` plugins (`default = "off"`) move through `_HI_PLUGINS_ON`,
+       which only `hi --plugin-on` writes; the wizard's _Plugins_ page shows
+       them but cannot turn one on
+       ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)). **Do:**
+       give the page a third state for a default-off plugin and have it write
+       `_HI_PLUGINS_ON` as `--plugin-on` does. **Ticks when:** `hi --configure`
+       turns zoxide on and the next connect runs its init.
+
+3. [ ] _Before 1.0:_ **A plugin's init is checked without `tr`** —
+       `scripts/pack.sh`'s `_hi_plugin_init_ok` pipes the init through `tr`,
+       and the macOS fast suites print `tr: command not found` from it where
+       a case runs with a cut-down `PATH`; the cases pass, so nothing shows
+       whether an init is then turned away. **Do:** make the check with
+       builtins that parse under bash 3.2, and add a case that runs it with
+       no `tr` on `PATH`. **Ticks when:** the macOS fast job's log has no
+       `command not found` line from `pack.sh`.
+
+4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

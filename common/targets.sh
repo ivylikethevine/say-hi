@@ -174,10 +174,17 @@ if [ "$kind" = words ]; then
     printf 'system\t/usr/bin/hi, through sudo\n'
     printf 'none\tno link; the wired shells alias hi either way\n'
     ;;
+  --shell)
+    printf 'bash\t~/.bashrc\n'
+    printf 'zsh\t.zshrc, under ZDOTDIR when that is set\n'
+    printf 'fish\tconfig.fish\n'
+    printf 'all\tevery one of them installed here\n'
+    ;;
   --preset)
     printf 'everything\tthe shipped defaults, every feature on\n'
     printf 'balanced\teverything but the noise\n'
     printf 'minimal\ton targets only the colored prompt\n'
+    printf 'lean\tminimal, and nothing of yours rides\n'
     ;;
   --update)
     # the release tags a checkout knows of, newest first; a package has no
@@ -311,11 +318,15 @@ scratch_dir() {
   scratch="$_hi_scratch"
 }
 
-# backend_wanted <label> - does the kind gate pass, and is its CLI (kube's is
-# kubectl) here? Both halves are builtins, so the roster is sized before
+# backend_wanted <label> - does the kind gate pass, is it left on, and is
+# its CLI (kube's is kubectl) here? Every half is a builtin, so the roster is sized before
 # anything forks.
 backend_wanted() {
   { [ "$kind" = "$1" ] || [ "$kind" = all ]; } || return 1
+  # $_HI_BACKENDS_OFF, as core.sh's _hi_backend_off reads it
+  case " ${_HI_BACKENDS_OFF:-} " in
+  *[\ ,]"$1"[\ ,]* | *[\ ,]all[\ ,]*) return 1 ;;
+  esac
   case "$1" in kube) set -- kubectl ;; esac
   command -v "$1" >/dev/null 2>&1
 }

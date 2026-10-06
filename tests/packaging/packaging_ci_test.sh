@@ -206,6 +206,22 @@ function test_no_private_key_is_committed() {
 }
 
 # ...and the committed GPG half, when it exists, is a public key block
+# docs/PACKAGING.md prints what a downloaded key is compared with, so each
+# figure there has to be the committed key's own
+function test_packaging_doc_has_the_apk_key_hash() {
+  local pub="$_HI_PKG_DIR/apk/say-hi.rsa.pub" sum
+  [ -f "$pub" ] || return 0
+  sum="$(sha256sum "$pub" 2>/dev/null || shasum -a 256 "$pub")"
+  grep -qF -- "${sum%% *}" "$_HI_ROOT/docs/PACKAGING.md"
+}
+
+function test_packaging_doc_has_the_gpg_fingerprint() {
+  local asc="$_HI_PKG_DIR/gpg/say-hi.asc" fpr
+  [ -f "$asc" ] || return 0
+  fpr="$(gpg --homedir "$_HI_WORKDIR" --show-keys --with-fingerprint "$asc" 2>/dev/null | sed -n 's/^ *\([0-9A-F ]\{40,\}\)$/\1/p' | head -n 1)"
+  [ -n "$fpr" ] && grep -qF -- "$fpr" "$_HI_ROOT/docs/PACKAGING.md"
+}
+
 function test_committed_gpg_key_is_public() {
   local asc="$_HI_PKG_DIR/gpg/say-hi.asc"
   [ -f "$asc" ] || return 0 # not generated yet - docs/RELEASING.md's runbook
@@ -2390,6 +2406,8 @@ function run_packaging_ci_tests() {
   _hi_check "rpm signature block is declared" test_nfpm_declares_the_rpm_signature
   _hi_check "No private key under packaging/" test_no_private_key_is_committed
   _hi_check "The committed GPG key is the public half" test_committed_gpg_key_is_public
+  _hi_check "PACKAGING.md prints the apk key's sha256" test_packaging_doc_has_the_apk_key_hash
+  _hi_check_requires gpg "...and the GPG key's fingerprint" test_packaging_doc_has_the_gpg_fingerprint
 
   _hi_h2 "Testing: the Homebrew formula"
   _hi_check "File list matches _HI_PACKAGE_CONTENTS" test_formula_file_list_matches_package_contents

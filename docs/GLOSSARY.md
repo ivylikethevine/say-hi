@@ -75,6 +75,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.64 what is switched off](#hi64-what-is-switched-off)
 - [HI.65 kept session](#hi65-kept-session)
 - [HI.66 the packer stays home](#hi66-the-packer-stays-home)
+- [HI.67 shell hooks](#hi67-shell-hooks)
 
 ## HI.01 empty-array guard
 
@@ -835,14 +836,14 @@ reasoning).
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is six names:
+is seven names:
 
 - `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
   `hi.sh` put it, and cannot be re-derived;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
-- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT` — the knobs `sh targets.sh` reads
-  straight off its environment from a completion.
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_BACKENDS_OFF` — the knobs
+  `sh targets.sh` reads straight off its environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
 `common/paths.sh` alongside sh, zsh, and bash, and the one assignment all four
@@ -1045,8 +1046,8 @@ Five rules in `_hi_mux_wrap`:
 
 - **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
   insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
-  inner argv is rebuilt from the parsed state (`--use`, `--plain`, `--keep` or
-  `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
+  inner argv is rebuilt from the parsed state (`--use`, `--plain` or
+  `--no-plain`, `--keep` or `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
   `"$@"`, so the target it settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
   the wrap returns at once when that is set. The inner argv carries no
@@ -1318,9 +1319,11 @@ Hooks are variables, since the subset cannot define a function all three shells
 read. The loader unsets each before an extension runs and collects it after, so
 extensions compose without `${var:+...}`, which fish lacks. The set:
 
-| hook          | what hi does with it                                                                                                                                                                                                                                                                                   |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `_HI_SEGMENT` | a command and its words, split at spaces and run as they stand (no shell syntax, no glob, no `eval`) on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
+| hook               | what hi does with it                                                                                                                                                                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `_HI_SEGMENT`      | a command and its words, split at spaces and run as they stand (no shell syntax, no glob, no `eval`) on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
+| `_HI_PROMPT_INIT`  | a prompt program's init in [HI.67](#hi67-shell-hooks)'s shape (`oh-my-posh init {shell}`, `{shell}` the shell's name), run in place of hi's prompt where its command is on the target.                                                                                                                 |
+| `_HI_PROMPT_DRAWN` | `1` says the extension drew the prompt itself; hi's prompt stands down, as it does for a program a target's rc started.                                                                                                                                                                                |
 
 `hi --doctor` lists the extensions in load order and warns for each a shell on
 this machine cannot parse, and for a directory entry that is not a member
@@ -1710,3 +1713,33 @@ that tars `$_HI_PAYLOAD` as it stands. A relay sends what it was sent.
   own; a path a script cannot hold bare is no token, and nothing is rewritten.
 - **Not a broken install.** Outside a session a tree without the packer is
   incomplete, and `_hi` refuses before anything is sent.
+
+---
+
+## HI.67 shell hooks
+
+A plugin's `init` is how its tool installs itself into a shell: a command
+printing that shell's code, `{shell}` in it the shell's name, which every such
+tool documents as `eval "$(<tool> init bash)"` and `<tool> init fish | source`.
+hi runs it in one place, `core.sh`'s `_hi_run_init` (and its fish copy), where
+the command's first word is on the target, after the aliases and extensions
+and before the prompt - the one site in the tree that evaluates a tool's own
+text, which `tests/lint/eval_roster` holds as its `tool` row.
+
+The client decides what rides, as for every member: `_hi_overlay_wiring`
+writes `_HI_HOOKS` (`<group>.<name>=<init>` rows a `;` apart) for every init
+plugin whose tool is here and whose plugin the lists leave on, and for a
+prompt plugin (`prompt = "yes"`) `_HI_PROMPT_INITS` and `_HI_PROMPT_PLUGINS`
+instead, so the prompt hand-over ([HI.32](#hi32-starship-deference)) starts it
+and nothing else does. A target runs a hook only where it has the tool, and
+only when the settings it was sent leave it on (`_hi_hook_on`): a leading `-`
+on the name says the plugin is off by default, and then `_HI_PLUGINS_ON` has
+to name it or its group. The shipped `hooks` group is off that way, since each
+of its tools keeps state under a target's `$HOME`. `_hi_prompt_row` reads
+`_HI_PROMPT_PLUGINS` beside `_HI_PROMPT_TABLE`, so a prompt program the table
+never heard of is picked the same way; its configs ride as its plugin's files,
+with no table column to name them.
+
+The decision stays data: an init is a command and its words, refused with a
+quote, `;`, `|`, `&`, `$`, a backtick or a bracket in it, since what runs is
+what the command prints and not the line itself.

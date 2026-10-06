@@ -68,7 +68,7 @@ function _hi_loc_install() {
   _HI_LOC_PARENT="$_HI_LOC_HOME/opt/nested"
   _HI_LOC_ROOT="$(_hi_loc_tree home/opt/nested)"
   _hi_loc_quiet_home "$_HI_LOC_HOME"
-  _hi_login_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --link none -y \
+  _hi_login_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --link none --shell all -y \
     >"$_HI_WORKDIR/install.log" 2>&1
 }
 

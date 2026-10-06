@@ -613,10 +613,11 @@ function lint_settings_table() {
   # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
   # a row for a variable nothing reads. A *read* - `$NAME`, `${NAME`,
   # fish's `$$NAME`, or `set -q NAME` - not any mention: an assignment or a
-  # comment would keep a dead name green. Only the shipped tree counts (common/, config/, load.sh, hi.sh):
-  # a setting is what a *session* honours, and scripts/ never rides in the
-  # payload, so a name only the wizard or doctor reads is a row that promises
-  # nothing on a target. Names hi assembles at run time never appear whole
+  # comment would keep a dead name green. Only the shipped tree counts (common/, config/, load.sh, hi.sh),
+  # plus scripts/update.sh: a setting is what a *session* or a connect
+  # honours, and scripts/ never rides in the payload, so a name only the
+  # wizard or doctor reads is a row that promises nothing on a target.
+  # `hi --update` is the one local command with a setting of its own. Names hi assembles at run time never appear whole
   # in the tree - core.sh reads `_HI_PROMPT_END_$1` through an eval - and
   # those, and only those, are excused by name in _hi_settings_dynamic. No
   # retry of a miss against the stem up to the last `_`: that would let
@@ -625,7 +626,7 @@ function lint_settings_table() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local tree stale=0 dynamic
   tree="$(grep -rhoE '(\$\{?|\$\$|set -q )_HI_[A-Z0-9_]+' "$_HI_ROOT/common" \
-    "$_HI_ROOT/config" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    "$_HI_ROOT/config" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" "$_HI_ROOT/scripts/update.sh" \
     2>/dev/null | grep -oE '_HI_[A-Z0-9_]+' | sort -u)"
   dynamic="$(_hi_settings_dynamic)"
   while IFS= read -r name; do

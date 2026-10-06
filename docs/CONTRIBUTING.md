@@ -185,7 +185,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The twenty-five flags in `common/flags`** — name, argument shape, and what
+- **The twenty-six flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -194,8 +194,9 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   every `--word` is hi's (an unknown one is hi's error); and everything after
   the target is the remote command.
 - **The sub-command switches** — `--doctor --json` and `--doctor --problems`,
-  `--install`'s `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`,
-  and `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
+  `--install`'s `-y`/`--yes`, `--link {none,user,system}`, `--shell <list>`,
+  `--print-rc`, `--preset <name>`, and `-n`/`--dry-run`, `--uninstall --purge`
+  and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
   `--update --dry-run`, `--add-package --dry-run`, `--remove-package --dry-run`,
   `--add-tag --dry-run`, `--set-color --dry-run`, `--unset-color --dry-run`,
@@ -227,13 +228,14 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`, `starship.toml`, `p10k.zsh`,
   `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
   `tide.vars`, `eza/theme.yml`, `bat/config`, `ripgreprc`, `fzfrc`,
-  `lazygit/config.yml`, `inputrc`, and `ssh_tags`), their formats, the XDG path,
-  and the `_HI_CONFIG_DIR` override. The rule behind the names: a member is
+  `lazygit/config.yml`, `inputrc`, and `ssh_tags`), `settings.<tag>.sh` beside
+  them, their formats, the XDG path, and the `_HI_CONFIG_DIR` override. The rule behind the names: a member is
   called what its tool calls the file, under a directory of the tool's name
   where the tool keeps one in `~/.config`; where the tool has no fixed name the
   member carries the tool's name and extension.
 - **The installed layout** — `$_HI_HOME/say-hi` and `/etc/profile.d/say-hi.sh`
-  for packages, the rc lines `install.sh` writes, and `_HI_RELEASE` as the
+  for packages, the rc lines `install.sh` writes and the `--print-rc` block, and
+  `_HI_RELEASE` as the
   version stamp `packaging/stamp.sh` fills.
 - **Target behaviour** — nothing hi writes outside the session directory,
   and the directory removed on any exit, a kept session's when it closes

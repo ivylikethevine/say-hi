@@ -7,7 +7,7 @@ hi \- your shell config, on every host you say hi to
 .B hi
 .RI [ ssh\-options ]
 .RB [ \-\-use " " \fIbackend\fR]
-.RB [ \-\-plain ]
+.RB [ \-\-plain | \-\-no\-plain ]
 .RB [ \-\-mux | \-\-no\-mux ]
 .RB [ \-\-keep | \-\-no\-keep | \-\-end ]
 .I target
@@ -25,6 +25,8 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-install
 .RB [ \-\-yes ]
 .RB [ \-\-link " " {none|user|system}]
+.RB [ \-\-shell " " \fIlist\fR]
+.RB [ \-\-print\-rc ]
 .RB [ \-\-preset " " \fIname\fR]
 .RB [ \-\-dry\-run ]
 .br
@@ -206,6 +208,15 @@ no writable
 or
 .BR $HOME .
 .TP
+.B \-\-no\-plain
+hi's own session for this connect, past
+.B _HI_PLAIN=1
+in settings.sh or in the file of a tag the target carries. The last of
+.B \-\-plain
+and
+.B \-\-no\-plain
+wins.
+.TP
 .B \-\-mux
 run the session in a local
 .BR tmux (1),
@@ -328,6 +339,7 @@ ignored for a non\-ssh target.
 .B \-\-use
 forces the backend as a connect would.
 .BR \-\-plain ,
+.BR \-\-no\-plain ,
 .BR \-\-mux ,
 .BR \-\-no\-mux ,
 .BR \-\-keep ,
@@ -341,17 +353,19 @@ prints the same rows as one JSON document on stdout, with the finding count
 as
 .BR findings .
 .TP
-.B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-link\fR {\fBnone\fR|\fBuser\fR|\fBsystem\fR}] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
-add or repair say-hi's lines in the bash, zsh, and fish rc files (each shell
-only if installed; on macOS also a
+.B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-link\fR {\fBnone\fR|\fBuser\fR|\fBsystem\fR}] [\fB\-\-shell\fR \fIlist\fR] [\fB\-\-print\-rc\fR] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
+add or repair say-hi's lines in your shells' rc files (the login shell's, and
+that of any other of bash, zsh, and fish with an rc file already; on macOS
+also a
 .B ~/.bash_profile
 line so a login bash reads
 .BR ~/.bashrc ),
-link
-.BR hi ,
-and open the
+and link
+.BR hi .
+Each line tests for the tree before sourcing it. A first install asks a
+terminal whether hi styles this machine too, and nothing else:
 .B \-\-configure
-menu at a terminal. An rc file that fails its syntax check stops the install:
+has the menu. An rc file that fails its syntax check stops the install:
 with a question at a terminal, outright without one;
 .BR \-y / \-\-yes
 installs anyway.
@@ -370,10 +384,29 @@ regardless; the link is for scripts). No link is made when a
 .B hi
 on PATH already runs this tree, and a link owned by a package or anyone else
 is left alone.
+.B \-\-shell
+.I list
+names the shells instead:
+.BR bash ,
+.BR zsh ,
+and
+.BR fish ,
+a comma apart, or
+.B all
+for every one installed.
+.B \-\-print\-rc
+prints each rc file's lines and writes none, for an rc file a dotfile
+manager owns: the block names the tree through
+.BR $HOME ,
+so one rc serves every machine,
+.B \-\-doctor
+reads it as wired, and a later install leaves it alone. An rc file hi
+cannot write is named, with its lines, and the run ends at 1.
 .B \-\-preset
 .I name
-answers the menu as under
-.BR \-\-configure .
+answers the settings as under
+.B \-\-configure
+and asks nothing.
 .B \-\-dry\-run
 prints every write (rc lines, settings.sh, the link) and makes none.
 .B scripts/install.sh \-\-prefix
@@ -406,13 +439,14 @@ lines that differ are printed.
 edit the settings alone, leaving the rc wiring and the link be: a numbered
 menu under a live preview of the header and prompt, grouped by what a
 setting changes: Header (its items to toggle and reorder, header presets,
-width, package groups, hidden addresses, right under the header they
-change), Prompt, Plugins, Aliases, This machine, and Advanced.
+width, hidden addresses, right under the header they change), Package
+check (its groups), Prompt, Plugins, Aliases, This machine, and Advanced.
 .B p
 picks a preset
 .RB ( everything ,
 .BR balanced ,
-.BR minimal ),
+.BR minimal ,
+.BR lean ),
 .B s
 saves, and
 .B q
@@ -605,9 +639,19 @@ for none),
 .BR wire= ,
 how a target's tool finds a file,
 .BR home= ,
-where a file is here, and
-.BR dialect=
-(see
+where a file is here,
+.BR dialect= ,
+.BR init= ,
+the tool's shell hook (a command printing a shell's code,
+.B {shell}
+for the shell's name, run on a target that has the tool; a plugin with one
+needs no file),
+.BR prompt=yes ,
+when that init draws the prompt, and
+.BR default=off ,
+for a plugin kept home until
+.B \-\-plugin\-on
+names it (see
 .BR FILES ).
 A table hi could not read is refused, with the reason.
 .B \-\-dry\-run
@@ -689,7 +733,10 @@ plus every running container, allocation, and pod, each with its backend's
 symbol (the
 .B _HI_SYMBOL_*
 settings; bash shows it only when bash 4 or later lists the matches). The
-list is reused for five seconds, and each backend gets two seconds to answer.
+list is reused for five seconds, each backend gets two seconds to answer, and
+one named in
+.B _HI_BACKENDS_OFF
+is not asked.
 zsh colors it by backend (ssh hosts yellow, containers blue, nomad green,
 kubernetes light purple) through the
 .B hi\-targets
@@ -754,6 +801,14 @@ works the same.
 .B ~/.config/say-hi/settings.sh
 settings, written by
 .BR "hi \-\-configure" .
+.TP
+.B ~/.config/say-hi/settings.\fItag\fB.sh
+settings for the hosts whose
+.B # Tags:
+line names
+.IR tag ,
+in settings.sh's shape: read after it on a connect, and sent to that host
+joined to it. Written by hand.
 .TP
 .B ~/.config/say-hi/colors
 your copy of
@@ -1050,6 +1105,53 @@ makes every ssh connect a
 one;
 .B \-\-no\-keep
 overrides it once.
+.TP
+.B _HI_PLUGINS_ON
+the plugins or groups that are off by default (the shipped
+.BR hooks :
+zoxide, atuin, direnv, mise) and should ride and run anyway;
+.B \-\-plugin\-on
+writes it.
+.TP
+.B _HI_PLAIN
+.B 1
+makes every connect a
+.B \-\-plain
+one;
+.B \-\-no\-plain
+overrides it once. Its place is a tag's settings file.
+.TP
+.B _HI_UPDATE_SIGNED
+.B 1
+has
+.B \-\-update
+refuse a release tag unless its signature verifies against a key the checkout
+already trusts; unset, an unsigned tag or an unknown key is said and allowed.
+.TP
+.B _HI_BACKENDS_OFF
+the backends hi never asks, a space or a comma apart:
+.BR docker ,
+.BR podman ,
+.BR nerdctl ,
+.BR finch ,
+.BR nomad ,
+.BR kube ,
+or
+.B all
+for ssh alone. One named here is left out of target resolution, completion,
+and the header's counts;
+.B \-\-use
+still reaches it by name.
+.TP
+.B _HI_DISABLE_CONTROLMASTER
+.B 1
+keeps hi from passing ssh its
+.BR ControlMaster ,
+.BR ControlPath ,
+and
+.B ControlPersist
+options, so your ssh config's own decide; the bootstrap and the session are
+then two connections, each authenticating.
 .TP
 .B _HI_KEEP_TIMEOUT
 how long a kept session waits with nobody attached before it closes: seconds,

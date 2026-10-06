@@ -132,6 +132,10 @@ fi
 # allowed-signers file, so one is always named: this checkout's own
 # .github/allowed_signers - the copy already trusted, not the tag's - else
 # git config's, else an empty one, which still catches a tampered signature.
+#
+# $_HI_UPDATE_SIGNED=1 is the strict form: only a signature that verified
+# against a key this checkout already trusts moves it.
+verified=""
 signers="$root/.github/allowed_signers"
 [ -f "$signers" ] || signers="$(exec git -C "$root" config --path --get gpg.ssh.allowedSignersFile)" || signers=""
 sig="$(git -C "$root" -c gpg.ssh.allowedSignersFile="$signers" verify-tag --raw "refs/tags/$tag" 2>&1)" || true
@@ -153,12 +157,14 @@ case "$sig" in
   signer="${signer#* }"
   signer="${signer%%$'\n'*}"
   _hi_cecho "$me: $tag has a good signature from $signer" "$GREEN"
+  verified=1
   ;;
 *'Good "git" signature for '*)
   # an ssh-signed tag the allowed-signers file vouches for
   signer="${sig#*Good \"git\" signature for }"
   signer="${signer%% with*}"
   _hi_cecho "$me: $tag has a good ssh signature from $signer" "$GREEN"
+  verified=1
   ;;
 *'Good "git" signature with '*)
   # intact, but from a key no allowed signer names: the ssh twin of NO_PUBKEY
@@ -176,6 +182,10 @@ case "$sig" in
   _hi_cecho "$me: could not check the signature on $tag (${sig:-no gpg?})" "$YELLOW"
   ;;
 esac
+if [ "${_HI_UPDATE_SIGNED:-0}" = 1 ] && [ -z "$verified" ]; then
+  _hi_cecho "$me: _HI_UPDATE_SIGNED=1 and $tag has no signature this checkout can vouch for - refusing to check it out" "$RED" >&2
+  exit 1
+fi
 [ -z "$dry_run" ] || {
   _hi_cecho "$me: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
   exit 0

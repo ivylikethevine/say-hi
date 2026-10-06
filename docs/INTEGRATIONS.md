@@ -109,21 +109,22 @@ each program is started, is [HI.32](GLOSSARY.md#hi32-starship-deference).
 
 ## Shell hooks of your own
 
-hi runs no tool's shell hook for you - zoxide's and atuin's `init`, a
-`direnv hook`, a `mise activate` are yours to add, in the per-shell files the
-overlay carries (`~/.config/say-hi/bashrc`, `zshrc`, and `config.fish`),
-which every session sources after hi's own:
+zoxide's and atuin's `init`, `direnv hook`, and `mise activate` are plugins of
+the `hooks` group, off by default: `hi --plugin-on zoxide` has a target that
+has zoxide run its init after the aliases and extensions, and
+`hi --plugin-on hooks` turns on all four
+([SETTINGS.md](SETTINGS.md#shell-hooks)). A tool of your own is one
+`hi --add-plugin hooks <name> 'init=<command> {shell}'`. Once started, a tool
+keeps state of its own under the target's `$HOME` - zoxide's directory
+database, atuin's history - which hi neither writes nor cleans up, and which is
+why none is on until you say so. The per-shell files the overlay carries
+(`~/.config/say-hi/bashrc`, `zshrc`, `config.fish`) still take a line of your
+own for anything else:
 
 ```sh
 # ~/.config/say-hi/bashrc
-command -v zoxide >/dev/null && eval "$(zoxide init bash)"
-command -v atuin >/dev/null && eval "$(atuin init bash)"
+command -v fzf >/dev/null && eval "$(fzf --bash)"
 ```
-
-In `config.fish` the same line is
-`command -q zoxide; and zoxide init fish | source`. Once started, a tool keeps
-state of its own under the target's `$HOME` - zoxide's directory database,
-atuin's history - which hi neither writes nor cleans up.
 
 ## Header cells of your own
 
@@ -429,4 +430,5 @@ files shrink the most: powerlevel10k's wizard output is three-quarters comments.
 | all of it: powerlevel10k, tide, neovim, vim, bash, starship | everything above that ships at once                | ~200 KB  | ~75 KB   | ~20 KB             |
 
 A neovim config spread over many files under `~/.config/nvim/lua/` does not
-ride at all - only `nvim/init.lua` does - so its size here is the single file.
+ride at all - only `nvim/init.lua` does - so its size here is the single file,
+and `hi --doctor` says how many files stay home.
