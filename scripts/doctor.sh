@@ -874,7 +874,8 @@ function doctor_target() {
     for pair in "${chain[@]}"; do
       IFS=':' read -r name label predicate <<<"$pair"
       t0="$(_hi_now)"
-      if "$predicate" "$target" >/dev/null 2>&1; then
+      # shellcheck disable=SC2086 # a command line, as the probe column is
+      if $predicate "$target" >/dev/null 2>&1; then
         t1="$(_hi_now)"
         kind="$name"
         doctor_row resolves "$name ($(_hi_elapsed "$t0" "$t1")s)" ok
