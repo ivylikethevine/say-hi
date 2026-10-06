@@ -723,7 +723,10 @@ plus every running container, allocation, and pod, each with its backend's
 symbol (the
 .B _HI_SYMBOL_*
 settings; bash shows it only when bash 4 or later lists the matches). The
-list is reused for five seconds, and each backend gets two seconds to answer.
+list is reused for five seconds, each backend gets two seconds to answer, and
+one named in
+.B _HI_BACKENDS_OFF
+is not asked.
 zsh colors it by backend (ssh hosts yellow, containers blue, nomad green,
 kubernetes light purple) through the
 .B hi\-targets

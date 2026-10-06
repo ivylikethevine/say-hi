@@ -39,8 +39,10 @@ function config_shell() {
   mkdir -p "$(dirname "$target")" 2>/dev/null || true
   [ -e "$target" ] || touch "$target" 2>/dev/null || true
   # a file hi cannot write (a dotfile manager's read-only store) is said
-  # ahead of the backup, so a refused run leaves nothing behind
-  [ -w "$target" ] || {
+  # ahead of the backup, so a refused run leaves nothing behind. Opened for
+  # append and written nothing, not `[ -w ]`: that asks access(), which
+  # Git Bash answers from the ACL and gets wrong for a file it can write.
+  { : >>"$target"; } 2>/dev/null || {
     _hi_rc_unwritable "$target" "$desired"
     return 1
   }

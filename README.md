@@ -247,7 +247,7 @@ row, and everything answered **no**, and why:
   `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-five flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty-six flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target

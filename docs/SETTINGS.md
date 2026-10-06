@@ -181,7 +181,7 @@ that fixes it. Versioning the directory is yours to do — a `git init` there, o
 `packages` in `name:N` rows, `colors` in `type,name,color` rows, and a
 `settings.sh` setting `_HI_PACKAGES_MIN_PRIORITY` are an older hi's shapes,
 which this one does not read. `hi --install` and `hi --configure` convert them
-before the menu opens, and `hi --update` does so with the new tag's converter
+before reading them, and `hi --update` does so with the new tag's converter
 after checking it out; by hand,
 `scripts/convert_settings.sh [--dry-run] [<dir>]`. Each converted file keeps its
 original beside it as `<file>.old`, a file already in the current shape is left
