@@ -625,6 +625,10 @@ function run_install_run_tests() {
 
   _hi_h1 "Testing scripts/install.sh's reusable logic (run for real)"
 
+  # the scratch tree every real run below executes out of
+  _HI_RUN_TREE="$(_hi_scratch_tree realrun common config scripts hi.sh load.sh)/say-hi"
+  chmod +x "$_HI_RUN_TREE/hi.sh"
+
   _hi_h2 "Testing: install.sh run for real (flags and modes)"
   _hi_check "--prefix requires a path" test_prefix_flag_requires_a_path
   _hi_check "--prefix is refused through hi --install" test_prefix_is_refused_through_hi_install

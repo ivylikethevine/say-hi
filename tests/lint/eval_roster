@@ -42,11 +42,11 @@ rm -r|common/targets.sh|3
 rm -r|hi.sh|6
 rm -r|load.sh|2
 rm -r|scripts/install.sh|4
-rm -r|scripts/pack.sh|2
+rm -r|scripts/pack_stream.sh|2
 sh -c|common/config.fish|4
 sh -c|common/zsh.zsh|1
 sh -c|hi.sh|18
-sh -c|scripts/doctor.sh|1
+sh -c|scripts/doctor_target.sh|1
 source|common/aliases.sh|2
 source|common/bash.sh|7
 source|common/config.fish|8
@@ -62,12 +62,14 @@ source|hi.sh|4
 source|load.sh|7
 source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2
-source|scripts/configure.sh|7
+source|scripts/configure.sh|5
+source|scripts/configure_menu.sh|1
+source|scripts/configure_preview.sh|3
 source|scripts/convert_settings.sh|3
-source|scripts/doctor.sh|6
+source|scripts/doctor.sh|7
 source|scripts/install.sh|5
 source|scripts/lib.sh|1
-source|scripts/pack.sh|1
+source|scripts/pack.sh|4
 source|scripts/plugins.sh|5
 source|scripts/preview.sh|4
 source|scripts/rc.sh|3

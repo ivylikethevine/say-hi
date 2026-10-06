@@ -470,9 +470,12 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  # the packer and the shipped plugins rows, which hi.sh reads under $_HI_ROOT
+  # the packer, with the files it sources, and the shipped plugins rows,
+  # which hi.sh reads under $_HI_ROOT
   mkdir -p "$_hi_dir/config" "$_hi_dir/scripts"
-  ln -sfn "${_HI_LAUNCHER%/*}/scripts/pack.sh" "$_hi_dir/scripts/pack.sh"
+  for _hi_part in "${_HI_LAUNCHER%/*}"/scripts/pack*.sh "${_HI_LAUNCHER%/*}/scripts/zshrc.sh"; do
+    ln -sfn "$_hi_part" "$_hi_dir/scripts/${_hi_part##*/}"
+  done
   ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
   # the editor rcs an overlay carries, the only ones common/aliases.sh flags
   mkdir -p "$_hi_dir/overlay"

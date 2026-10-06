@@ -20,7 +20,7 @@ source "${BASH_SOURCE[0]%/*}/payload_test.sh"
 # see - `hi --help` - is intact.
 # The include scan. Every editor rc and shell file ships into a config/ of its
 # own, so a line naming a path names something no target has and the editor
-# or shell fails, not hi. pack.sh's _hi_lint_awk reads every dialect; these pin
+# or shell fails, not hi. pack_scan.sh's _hi_lint_awk reads every dialect; these pin
 # what it drops, what it deliberately leaves alone, that a lua or elisp
 # finding takes its whole expression with it rather than leaving a stray
 # brace, and that a shell finding leaves the file parseable.

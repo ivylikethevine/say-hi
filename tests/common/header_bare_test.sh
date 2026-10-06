@@ -14,8 +14,6 @@ _HI_HEADER_PART=bare
 # shellcheck source=./header_test.sh
 source "${BASH_SOURCE[0]%/*}/header_test.sh"
 
-eval "$_HI_ROW_FNS"
-
 # A target with a shell and awk and nothing else - core_test.sh's barebones
 # box, one layer up. The header is the first thing a session prints, so a
 # missing uname greeting the user with "command not found" across the

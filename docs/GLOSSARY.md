@@ -644,7 +644,7 @@ so `tar cf - -C dir` archives a file called `-C` there.
 
 ## HI.39 payload staging
 
-`_hi_payload_tar` (`scripts/pack.sh`) ships the tree, comment-stripped
+`_hi_payload_tar` (`scripts/pack_stream.sh`) ships the tree, comment-stripped
 (HI.35), through `_hi_stage_tar`, which the overlay shares; a session's own
 `_hi_payload_tar` stages nothing ([HI.66](#hi66-the-packer-stays-home)). What
 ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
@@ -1195,7 +1195,7 @@ Carrying a real config makes a second problem real with it. Every overlay
 member - these rcs, the shell overlay files, the prompt configs - ships into the
 target's `config/`, so a line naming a _path_ - a second rc beside it, a plugin
 directory, a manager's bootstrap - names something no target has, and the editor
-or shell fails on it rather than hi. `scripts/pack.sh`'s `_hi_lint_awk` finds
+or shell fails on it rather than hi. `scripts/pack_scan.sh`'s `_hi_lint_awk` finds
 exactly those lines; the per-dialect grammar, and what it deliberately leaves alone, is
 the comment above it. One pass serves both readers: `_hi_stage_tar` runs it in
 `fix` mode ahead of [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
@@ -1480,7 +1480,7 @@ The tools' rows are written as plugins, in a file: the tree's
 `tool` the commands that read them (left out, the name; `-` for none), and
 `wire`, `home`, and `dialect` what each file has unless a
 `[<group>.<name>."<member>"]` table under the plugin gives that file its own.
-`scripts/pack.sh`'s `_hi_plugins_load` reads both files into
+`scripts/pack_plugins.sh`'s `_hi_plugins_load` reads both files into
 `$_HI_PLUGIN_ROWS`, a row a file in the table's own shape
 ([HI.61](#hi61-one-overlay-priority)), so the order, the tool check, the
 include scan, the cache, the wiring ([HI.62](#hi62-generated-wiring)), and

@@ -30,6 +30,7 @@ source "$_HI_LAUNCHER"
 eval "$(declare -f _hi_overlay_tar | sed '1s/_hi_overlay_tar/_hi_overlay_tar_unwrapped/')"
 # One file for every call, truncated by the redirect: no case builds two
 # streams at once, and a mktemp and an rm a call were two forks of each build.
+# shellcheck disable=SC2120 # the scan part's cases pass a member
 function _hi_overlay_tar() {
   local err="$_HI_WORKDIR/overlay.err" rc=0
   _hi_overlay_tar_unwrapped "$@" 2>"$err" || rc=$?
@@ -565,7 +566,7 @@ function test_hi_sh_reaches_the_packer_only_through_the_seam() {
     grep -E "(^|[^A-Za-z0-9_])$n([^A-Za-z0-9_]|\$)" "$dir/say-hi/hi.sh" >/dev/null || continue
     case "$have _hi_overlay_cached _hi_overlay_stream _hi_overlay_bytes _hi_prompt_here " in *" $n "*) continue ;; esac
     _hi_because "hi.sh calls $n, which only scripts/pack.sh defines" || return 1
-  done < <(sed -n 's/^function \(_hi_[a-z0-9_]*\)().*/\1/p' "$_HI_ROOT/scripts/pack.sh")
+  done < <(sed -n 's/^function \(_hi_[a-z0-9_]*\)().*/\1/p' "$_HI_ROOT"/scripts/pack.sh "$_HI_ROOT"/scripts/pack_*.sh)
 }
 
 # only a session goes without the packer: anywhere else its absence is a

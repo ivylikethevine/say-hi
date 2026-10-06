@@ -511,10 +511,6 @@ function run_install_tests() {
   _hi_check_capable lockout "Instructs when sudo is refused" test_unlink_hi_instructs_when_sudo_is_refused
   _hi_check_capable lockout "Instructs with no sudo at all" test_unlink_hi_instructs_with_no_sudo_at_all
 
-  # the scratch tree every real run below executes out of
-  _HI_RUN_TREE="$(_hi_scratch_tree realrun common config scripts hi.sh load.sh)/say-hi"
-  chmod +x "$_HI_RUN_TREE/hi.sh"
-
   _hi_suite_end "install.sh logic"
 }
 

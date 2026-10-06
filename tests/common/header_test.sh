@@ -327,6 +327,7 @@ function _hi_identity_row() {
   cells+=("$auth" "$pub" "$up_cell")
   header_row "${cells[@]}"
 }'
+eval "$_HI_ROW_FNS"
 
 function test_system_info_includes_static_labels() {
   local out

@@ -334,7 +334,7 @@ split|split/*.yml|ver: \([0-9.]*\)|github:o/old||' \
     '^registry\.npmjs\.org +UNREAD \(1 lookup\(s\), none answered' \
     '^::warning title=old outdated::pinned 1\.2\.0, latest 1\.3\.0 - bump it in ' \
     '^::warning title=busybox%3A1\.36 outdated::busybox:1\.36 now resolves to '; do
-    printf '%s\n' "$out" | grep -qE -- "$line" || _hi_because "no line /$line/ in: $out" || return 1
+    grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $out" || return 1
   done
   [[ "$out" != *"o/moving"* ]] || _hi_because "a moving alias was compared: $out" || return 1
   [ "$(printf '%s\n' "$out" | grep -c '^github/codeql-action ')" -eq 1 ] || _hi_because "codeql-action is not one row" || return 1
@@ -495,7 +495,7 @@ EOF
     '^postgres:16 +0{12}\.\.\. +\(could not read the current tag digest\)$' \
     '^## The hook ran$' \
     '^::warning title=local checks::ci_local_checks in check_tool_versions\.local\.sh returned non-zero$'; do
-    printf '%s\n' "$out" | grep -qE -- "$line" || _hi_because "no line /$line/ in: $(printf '%s\n' "$out" | grep -vE '^t[0-9]|title=t[0-9]')" || return 1
+    grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $(printf '%s\n' "$out" | grep -vE '^t[0-9]|title=t[0-9]')" || return 1
   done
   [[ "$out" != *"local-build"* && "$out" != *"UNREAD"* ]] || _hi_because "a tagless image, or a host read as unread" || return 1
   [ "$(printf '%s\n' "$out" | grep -c 'ERROR (malformed row')" -eq 300 ] && [ "$rc" -eq 255 ] || _hi_because "exit $rc"

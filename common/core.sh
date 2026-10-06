@@ -891,7 +891,7 @@ function _hi_prompt_row() {
 # _hi_hook_on <group> <name> - does the target's settings leave a plugin's
 # shell hook on: not in $_HI_PLUGINS_OFF, and in $_HI_PLUGINS_ON where the
 # client said it is off by default (the hook's row carries a leading - then).
-# pack.sh's _hi_hook_off is the client's reading of the same lists.
+# pack_plugins.sh's _hi_hook_off is the client's reading of the same lists.
 function _hi_hook_on() {
   local _hi_ho_off="${_HI_PLUGINS_OFF:-}" _hi_ho_on="${_HI_PLUGINS_ON:-}" _hi_ho_n="${2#-}"
   case " ${_hi_ho_off//,/ } " in *" $_hi_ho_n "* | *" $1 "*) return 1 ;; esac

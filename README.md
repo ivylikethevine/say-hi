@@ -381,7 +381,7 @@ checkout: an account or an upstream review that lands when it lands.
        turns zoxide on and the next connect runs its init.
 
 3. [ ] _Before 1.0:_ **A plugin's init is checked without `tr`** —
-       shipped: `scripts/pack.sh`'s `_hi_plugin_init_ok` reads the init with
+       shipped: `scripts/pack_plugins.sh`'s `_hi_plugin_init_ok` reads the init with
        builtins alone, and a case runs it with nothing on `PATH`. What is
        left is seeing it in CI. **Ticks when:** the macOS fast job's log has
        no `command not found` line from `pack.sh`.
@@ -439,14 +439,15 @@ checkout: an account or an upstream review that lands when it lands.
        can be named the same way. **Ticks when:** with it on, `tmux` typed in
        a plain `hi <target>` session opens a pane that shows hi's prompt.
 
-10. [ ] _Before 1.0:_ **No file runs past a thousand lines** — ten do,
-        the lockfile aside; every suite is under it. Shipped: `hi.sh` (2056),
-        `scripts/pack.sh` (1802), `scripts/configure.sh` (1796),
-        `common/core.sh` (1493), `common/header.sh` (1295),
-        `scripts/doctor.sh` (1080). Workflows: `ci.yml` (1306), `release.yml`
+10. [ ] _Before 1.0:_ **No file runs past a thousand lines** — seven do,
+        the lockfile aside; every suite and everything under `scripts/` is
+        under it. The payload's: `hi.sh` (2056), `common/core.sh` (1493),
+        `common/header.sh` (1295). Workflows: `ci.yml` (1306), `release.yml`
         (1083). Docs: `docs/GLOSSARY.md` (1747), `docs/hi.1` (1216). **Do:**
-        split each along the sections it already has. **Ticks when:**
-        `git ls-files` names no hand-written file over 1,000 lines.
+        split each along the sections it already has; a part of the
+        payload's three rides to every target, so each costs a file there.
+        **Ticks when:** `git ls-files` names no hand-written file over 1,000
+        lines.
 
 11. [ ] _Before 1.0:_ **The release's GIF shows the package check** — the
         GIF on a release page is `packages.tape`'s (`demos.yml`'s `attach`
