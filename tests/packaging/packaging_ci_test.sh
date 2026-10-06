@@ -1147,7 +1147,7 @@ function test_tool_versions_reports_each_pin() {
   printf 'ver: 1.3.0\n' >"$dir/split/b.yml"
   printf '      - uses: actions/checkout@%s # v4.1.0\n      - uses: github/codeql-action/init@%s # v3.0.0\n      - uses: github/codeql-action/analyze@%s # v3.0.0\n      - uses: o/moving@%s # main\n' \
     "$h" "$h" "$h" "$h" >"$dir/.github/workflows/w.yml"
-  printf 'FROM alpine:3.20@sha256:%s\nFROM --platform=linux/amd64 debian:12@sha256:%s AS base\nFROM ghcr.io/o/i:1@sha256:%s\nFROM redis:7@sha256:%s\nFROM base\n' \
+  printf 'FROM busybox:1.36@sha256:%s\nFROM --platform=linux/amd64 postgres:16@sha256:%s AS base\nFROM ghcr.io/o/i:1@sha256:%s\nFROM redis:7@sha256:%s\nFROM base\n' \
     "$a" "$b" "$a" "$a" >"$dir/a.Dockerfile"
   git -C "$dir" init -q >/dev/null 2>&1 && git -C "$dir" add a.Dockerfile >/dev/null 2>&1 || return 1
   cat >"$dir/bin/curl" <<EOF
@@ -1161,8 +1161,8 @@ case "\$u" in
 */repos/actions/checkout/releases*) echo '[{"tag_name":"v4.1.0","published_at":"2020-01-01T00:00:00Z"}]' ;;
 */repos/github/codeql-action/releases*) echo '[{"tag_name":"v3.1.0","published_at":"2020-01-01T00:00:00Z"}]' ;;
 https://gitlab.com/api/v4/projects/g%2Fn/repository/tags*) echo '[{"name":"rel-1.0.0","created_at":"2020-01-01T00:00:00.000+02:00"},{"name":"other-9.0.0","created_at":"2020-01-01T00:00:00Z"}]' ;;
-*/repositories/library/alpine/tags/3.20) echo '{"digest":"sha256:$c","tag_last_pushed":"2020-01-01T00:00:00.123456Z"}' ;;
-*/repositories/library/debian/tags/12) echo '{"digest":"sha256:$b","tag_last_pushed":"2020-01-01T00:00:00.123456Z"}' ;;
+*/repositories/library/busybox/tags/1.36) echo '{"digest":"sha256:$c","tag_last_pushed":"2020-01-01T00:00:00.123456Z"}' ;;
+*/repositories/library/postgres/tags/16) echo '{"digest":"sha256:$b","tag_last_pushed":"2020-01-01T00:00:00.123456Z"}' ;;
 */repositories/library/redis/tags/7) echo '{"digest":"sha256:$c","tag_last_pushed":"'"\$now"'.5Z"}' ;;
 *) exit 22 ;;
 esac
@@ -1187,13 +1187,13 @@ split|split/*.yml|ver: \([0-9.]*\)|github:o/old||' \
     '^split +- +ERROR \(pins disagree: 1\.2\.0 1\.3\.0\)$' \
     '^actions/checkout +4\.1\.0 +current$' \
     '^github/codeql-action +3\.0\.0 +OUTDATED \(latest: 3\.1\.0\)$' \
-    '^alpine:3\.20 +0{12}\.\.\. +OUTDATED \(tag now resolves to 0{12}\.\.\.\)$' \
-    '^debian:12 +0{12}\.\.\. +current$' \
+    '^busybox:1\.36 +0{12}\.\.\. +OUTDATED \(tag now resolves to 0{12}\.\.\.\)$' \
+    '^postgres:16 +0{12}\.\.\. +current$' \
     '^ghcr\.io/o/i:1 +0{12}\.\.\. +\(not on Docker Hub - not checked\)$' \
     '^redis:7 +0{12}\.\.\. +current \(tag re-pushed 0 day\(s\) ago, inside the 7-day cooldown\)$' \
     '^registry\.npmjs\.org +UNREAD \(1 lookup\(s\), none answered' \
     '^::warning title=old outdated::pinned 1\.2\.0, latest 1\.3\.0 - bump it in ' \
-    '^::warning title=alpine%3A3\.20 outdated::alpine:3\.20 now resolves to '; do
+    '^::warning title=busybox%3A1\.36 outdated::busybox:1\.36 now resolves to '; do
     printf '%s\n' "$out" | grep -qE -- "$line" || _hi_because "no line /$line/ in: $out" || return 1
   done
   [[ "$out" != *"o/moving"* ]] || _hi_because "a moving alias was compared: $out" || return 1
@@ -1395,7 +1395,7 @@ function test_setup_backends_adds_hashicorp_only_for_nomad() {
   [ -d "$dir/cache/partial" ] && grep -qx "apt-get -o Dir::Cache::Archives=$dir/cache install -y podman uidmap" "$dir/podman.log" &&
     grep -qx "rm -rf $dir/cache/partial $dir/cache/lock" "$dir/podman.log" &&
     grep -qx "chown -R $(id -u):$(id -g) $dir/cache" "$dir/podman.log" &&
-    ! grep -q 'hashicorp\|^nomad\|^curl' "$dir/podman.log" || _hi_because "podman alone: $(cat "$dir/podman.log")" || return 1
+    ! grep -qE 'hashicorp|^nomad|^curl' "$dir/podman.log" || _hi_because "podman alone: $(cat "$dir/podman.log")" || return 1
   out="$(env -u HI_BACKENDS HI_BE_LOG="$dir/both.log" HI_EXTRA_PACKAGES="" HI_APT_CACHE="$dir/cache" \
     GITHUB_ACTION_PATH="$_HI_ROOT/.github/actions/setup-backends" PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/actions/setup-backends/install.sh" 2>&1)" || _hi_because "the default failed: $out" || return 1
@@ -1492,6 +1492,7 @@ function test_setup_tool_resolve_names_the_pin() {
   local dir out rc=0 a b plat
   dir="$(_hi_tool_dir resolve)"
   a="$(printf '%064d' 1)" b="$(printf '%064d' 2)"
+  # shellcheck source=../../.github/actions/setup-tool/lib.sh
   plat="$(source "$_HI_ROOT/.github/actions/setup-tool/lib.sh" && _ci_platform)"
   printf '%s\n' "one|1.2.3|raw|https://x/one-%v||-||$a" "two|2.0|raw|https://x/%a||-||$plat:slug=$b" \
     "far|1|raw|https://x/%a||-||plan9-mips=$a" >"$dir/tools.txt"
@@ -1522,6 +1523,7 @@ function test_setup_tool_resolve_names_the_pin() {
 function test_setup_tool_installs_a_verified_binary() {
   local dir out rc=0 plat
   dir="$(_hi_tool_dir raw)"
+  # shellcheck source=../../.github/actions/setup-tool/lib.sh
   plat="$(source "$_HI_ROOT/.github/actions/setup-tool/lib.sh" && _ci_platform)"
   # shellcheck disable=SC2016 # the installed tool expands these
   printf '#!/bin/sh\necho "ran $*"\n' >"$dir/src/one-1.2.3-slug"
@@ -1569,6 +1571,7 @@ function test_setup_tool_refuses_a_row_that_cannot_work() {
   local dir out rc=0 a plat
   dir="$(_hi_tool_dir rows)"
   a="$(printf '%064d' 1)"
+  # shellcheck source=../../.github/actions/setup-tool/lib.sh
   plat="$(source "$_HI_ROOT/.github/actions/setup-tool/lib.sh" && _ci_platform)"
   printf '%s\n' "slugless|1|raw|https://x/%a||-||$a" "urlless|1|raw|https://x/u||-||$plat=$a" \
     "odd|1|deb|https://x/odd||-||$a" >"$dir/tools.txt"
@@ -1738,7 +1741,7 @@ function test_tool_versions_reads_compose_runs_the_hook_and_caps_the_status() {
   cp "$_HI_ROOT/.github/actions/setup-tool/lib.sh" "$dir/.github/actions/setup-tool/"
   for ((i = 0; i < 300; i++)); do printf 't%s|1|raw|https://x||-||nothex\n' "$i"; done >"$dir/.github/actions/setup-tool/tools.txt"
   printf '%s\n' 'services:' '  web:' "    image: \"nginx:1.27@sha256:$a\"" '  cache:' "    image: redis:7@sha256:$a # the cache" \
-    "  - image: debian:12@sha256:$b" '  built:' '    image: local-build' >"$dir/deploy/compose.yml"
+    "  - image: postgres:16@sha256:$b" '  built:' '    image: local-build' >"$dir/deploy/compose.yml"
   # shellcheck disable=SC2016 # the hook's own text
   printf '%s\n' 'CI_IMAGE_GLOBS="**/compose*.y*ml"' 'function ci_local_checks() {' '  echo "## The hook ran"' '  return 1' '}' \
     >"$dir/.github/scripts/check_tool_versions.local.sh"
@@ -1757,10 +1760,10 @@ EOF
   for line in \
     '^nginx:1\.27 +0{12}\.\.\. +current$' \
     '^redis:7 +0{12}\.\.\. +OUTDATED \(tag now resolves to 0{12}\.\.\.\)$' \
-    '^debian:12 +0{12}\.\.\. +\(could not read the current tag digest\)$' \
+    '^postgres:16 +0{12}\.\.\. +\(could not read the current tag digest\)$' \
     '^## The hook ran$' \
     '^::warning title=local checks::ci_local_checks in check_tool_versions\.local\.sh returned non-zero$'; do
-    printf '%s\n' "$out" | grep -qE -- "$line" || _hi_because "no line /$line/ in: $(printf '%s\n' "$out" | grep -v '^t[0-9]\|title=t[0-9]')" || return 1
+    printf '%s\n' "$out" | grep -qE -- "$line" || _hi_because "no line /$line/ in: $(printf '%s\n' "$out" | grep -vE '^t[0-9]|title=t[0-9]')" || return 1
   done
   [[ "$out" != *"local-build"* && "$out" != *"UNREAD"* ]] || _hi_because "a tagless image, or a host read as unread" || return 1
   [ "$(printf '%s\n' "$out" | grep -c 'ERROR (malformed row')" -eq 300 ] && [ "$rc" -eq 255 ] || _hi_because "exit $rc"
@@ -1772,12 +1775,12 @@ EOF
 # an error, and a floor is held only when a fixture pins it and dependabot
 # ignores it - an ignore no floor names being stale
 function test_local_tool_checks_name_each_parting() {
-  local dir="$_HI_WORKDIR/localchecks" out a b
+  local dir="$_HI_WORKDIR/localchecks" pins="$_HI_WORKDIR/localchecks/tests/dockerfiles" out a b
   a="$(printf '%064d' 1)" b="$(printf '%064d' 2)"
-  mkdir -p "$dir/tests/dockerfiles" "$dir/packaging" "$dir/.github/workflows"
-  printf 'FROM bash:3.2@sha256:%s AS base\n' "$a" >"$dir/tests/dockerfiles/floor.Dockerfile"
-  printf 'FROM ubuntu:24.04@sha256:%s\n' "$a" >"$dir/tests/dockerfiles/ubuntu.Dockerfile"
-  printf 'img=bash:3.2@sha256:%s\nold=alpine:3.20@sha256:%s\n' "$a" "$b" >"$dir/packaging/mkrepo.sh"
+  mkdir -p "$pins" "$dir/packaging" "$dir/.github/workflows"
+  printf 'FROM bash:3.2@sha256:%s AS base\n' "$a" >"$pins/floor.Dockerfile"
+  printf 'FROM ubuntu:24.04@sha256:%s\n' "$a" >"$pins/ubuntu.Dockerfile"
+  printf 'img=bash:3.2@sha256:%s\nold=busybox:1.36@sha256:%s\n' "$a" "$b" >"$dir/packaging/mkrepo.sh"
   printf 'jobs: {}\n' >"$dir/.github/workflows/ci.yml"
   printf '      - dependency-name: "bash"\n      - dependency-name: alpine\n' >"$dir/.github/dependabot.yml"
   out="$(
@@ -1789,7 +1792,7 @@ function test_local_tool_checks_name_each_parting() {
     ci_local_checks
   )" || return 1
   [[ "$out" == *"bash:3.2 "*"current (packaging/mkrepo.sh, a tests/dockerfiles pin)"* ]] &&
-    [[ "$out" == *"alpine:3.20 "*"OUTDATED"* && "$out" == *"PROBLEM alpine:3.20 in packaging/mkrepo.sh"* ]] &&
+    [[ "$out" == *"busybox:1.36 "*"OUTDATED"* && "$out" == *"PROBLEM busybox:1.36 in packaging/mkrepo.sh"* ]] &&
     [[ "$out" == *"PROBLEM .github/workflows/ci.yml"* ]] &&
     [[ "$out" == *"bash:3.2 "*"pinned and ignored"* ]] &&
     [[ "$out" == *"ubuntu:24.04 "*"ERROR (no dependabot ignore holds it)"* ]] &&
