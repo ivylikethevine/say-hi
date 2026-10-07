@@ -1331,10 +1331,11 @@ The overlay's `aliases.sh` takes the same parse first, through the same
 function (`_hi_parses`, and fish's copy): its home tier is a file a bash rc
 sourced, `~/.aliases` or `~/.bash_aliases`, which is as likely to hold a
 function as an alias. `common/aliases.sh` is in the four-shell dialect and
-cannot ask which shell it is, so it asks whether the function is defined
-(`$_HI_ALIAS_GUARD`): a plain `sh` has none and sources the file as written.
-`load.sh` reads the aliases back for `$EDITOR` with the function unset, since
-the session's shell parses the file anyway.
+cannot ask which shell it is, so the check is a command it is handed
+(`$_HI_ALIAS_GUARD`): each of the three names its own, and a plain `sh`, which
+has none, is left `true` and sources the file as written. `load.sh` reads the
+aliases back for `$EDITOR` under `true` as well, since the session's shell
+parses the file anyway.
 
 `hi --doctor` lists the extensions in load order and warns for each a shell on
 this machine cannot parse, and for a directory entry that is not a member

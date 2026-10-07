@@ -297,6 +297,8 @@ function _hi_dir_members() {
 # cannot is said on stderr, for the caller to skip: the overlay's aliases.sh
 # and each extension are written for three shells, and a construct of one
 # costs the others that file, not a half-run of it. A fork a file.
+# $_HI_ALIAS_GUARD names it to common/aliases.sh, which cannot ask.
+_HI_ALIAS_GUARD=_hi_parses
 function _hi_parses() {
   local _hi_pa_sh="${BASH:-bash}"
   [ -z "${ZSH_VERSION:-}" ] || _hi_pa_sh=zsh

@@ -372,23 +372,7 @@ account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _Before 1.0:_ **The wizard switches a default-off plugin on** —
-       shipped: a group's page of the wizard lists every plugin, the `hooks`
-       (`default = "off"`) among them, and such a plugin's box writes
-       `_HI_PLUGINS_ON` as `hi --plugin-on` does
-       ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)), and the
-       `framework` suite's `zoxide-on` case connects with that line in the
-       settings. What is left is seeing it through a connect. **Ticks when:**
-       `hi --configure` turns zoxide on and the next connect runs its init.
-
-3. [ ] _Before 1.0:_ **A slow case is named** — shipped: a case that
-       takes a second or more is noted where its verdict is counted, and the
-       runner lists a run's ten slowest under its summary
-       ([docs/TESTING.md](docs/TESTING.md#running-the-tests)). What is left
-       is seeing it in CI. **Ticks when:** a Windows shard's log names its
-       ten slowest cases.
-
-4. [ ] _Before 1.0:_ **hi's prompt in a tmux started by hand** — `tmux`
+2. [ ] _Before 1.0:_ **hi's prompt in a tmux started by hand** — `tmux`
        typed in a session that is not a kept one opens each pane on the
        host's own shell, which reads none of hi's rc; only `hi --keep`
        writes the `hi.pane` launcher and names it the session's
@@ -398,17 +382,7 @@ account or an upstream review that lands when it lands.
        can be named the same way. **Ticks when:** with it on, `tmux` typed in
        a plain `hi <target>` session opens a pane that shows hi's prompt.
 
-5. [ ] _Before 1.0:_ **No file runs past a thousand lines** — seven do,
-       the lockfile aside; every suite and everything under `scripts/` is
-       under it. The payload's: `hi.sh` (2089), `common/core.sh` (1508),
-       `common/header.sh` (1295). Workflows: `ci.yml` (1306), `release.yml`
-       (1083). Docs: `docs/GLOSSARY.md` (1772), `docs/hi.1` (1215). **Do:**
-       split each along the sections it already has; a part of the
-       payload's three rides to every target, so each costs a file there.
-       **Ticks when:** `git ls-files` names no hand-written file over 1,000
-       lines.
-
-6. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
+3. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
        shipped: the fixture's `packages` overlay
        (`docs/tapes/fixtures.sh`, `up:packages`) was rows of a shape hi no
        longer reads, so the check had nothing to draw; it is TOML rows now,
@@ -417,12 +391,12 @@ account or an upstream review that lands when it lands.
        left is a render. **Ticks when:** a release's `demo.gif` shows the
        check's row on both boxes.
 
-7. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-8. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
+5. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
        `nvim/init.lua` rides, and a `require` of a module under the config's
        `lua/` is dropped with the plugin managers', so a config split into
        modules starts nearly bare; an `init.vim` does not ride at all.
@@ -434,7 +408,7 @@ account or an upstream review that lands when it lands.
        dialect. **Ticks when:** a target's `nvim` opens on an `init.lua`
        that requires two modules of its own, both loaded.
 
-9. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
+6. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
        rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
        directory of the overlay
        ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
@@ -442,45 +416,45 @@ account or an upstream review that lands when it lands.
        script in `~/.config/say-hi/bin/` runs by name in a session, and
        `hi --doctor` names a binary there as left home.
 
-10. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
-        git has no plugin: a config that rode whole would bring identity,
-        signing, and credential helpers to a box that must not have them.
-        **Do:** a `git` plugin, off by default, added over the target's own
-        config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
-        place, read in a dialect that drops `[user]`, `[credential]`, every
-        signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
-        those rides only under a `hi-allow` line the user wrote above it,
-        and `hi --plugins` names each that does. **Ticks when:** a carried
-        alias runs on a target, `git config user.email` there is the
-        target's own, and a `signingkey` rides only with its `hi-allow`.
+7. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
+       git has no plugin: a config that rode whole would bring identity,
+       signing, and credential helpers to a box that must not have them.
+       **Do:** a `git` plugin, off by default, added over the target's own
+       config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
+       place, read in a dialect that drops `[user]`, `[credential]`, every
+       signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
+       those rides only under a `hi-allow` line the user wrote above it,
+       and `hi --plugins` names each that does. **Ticks when:** a carried
+       alias runs on a target, `git config user.email` there is the
+       target's own, and a `signingkey` rides only with its `hi-allow`.
 
-11. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
-        AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
-        a flake with the package and a home-manager module that writes the
-        rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
-        the flake.
+8. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
+       AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
+       a flake with the package and a home-manager module that writes the
+       rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
+       the flake.
 
-12. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
-        `hi --install --print-rc`'s block looks in `$HOME`,
-        `/usr/local/share`, and `/usr/share`, and whether an install from
-        the formula writes its versioned keg into an rc is not yet known.
-        **Do:** read what `hi --install` writes under a real `brew install`,
-        name the tree through the formula's `opt` path where it is the keg,
-        and add that path to the block. **Ticks when:** one rc loads hi on a
-        machine with a clone and on one with the formula, across a
-        `brew upgrade`.
+9. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
+       `hi --install --print-rc`'s block looks in `$HOME`,
+       `/usr/local/share`, and `/usr/share`, and whether an install from
+       the formula writes its versioned keg into an rc is not yet known.
+       **Do:** read what `hi --install` writes under a real `brew install`,
+       name the tree through the formula's `opt` path where it is the keg,
+       and add that path to the block. **Ticks when:** one rc loads hi on a
+       machine with a clone and on one with the formula, across a
+       `brew upgrade`.
 
-13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand
