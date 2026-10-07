@@ -158,7 +158,9 @@ header saying when it runs; `actions/` the composite actions they share
 (shells, backends, `setup-tool/tools.txt`'s pinned tool roster); `scripts/`
 the helpers they call; plus the issue and pull request templates, `CODEOWNERS`,
 `dependabot.yml`, `allowed_signers` (the keys a release tag may be signed
-with), `package.json`/`package-lock.json` (the pinned Markdown linters), and
+with), `package.json`/`package-lock.json` (the pinned Markdown linters),
+`osv-scanner.toml` (the advisories against that lockfile Scorecard's
+Vulnerabilities check skips, each with its reason and an expiry), and
 `prettier-plugin-docs.mjs` (writes each doc's `## Contents` list, the
 settings table, and USAGE.md's commands as prettier formats them).
 

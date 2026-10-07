@@ -79,6 +79,8 @@ CLAUDE.local.md
 !.moxide.toml
 # lychee's link-check config, read by ci.yml and link-check.yml
 !lychee.toml
+# the advisories Scorecard's Vulnerabilities check skips in package-lock.json
+!.github/osv-scanner.toml
 # everything under the payload directories ships, whatever it is named: the
 # blanket rules above once swallowed a config/*.toml (drift_test.sh's
 # lint_ignored_payload keeps it that way)
