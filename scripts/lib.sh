@@ -519,6 +519,11 @@ function _hi_plugin_rows() {
     _hi_hook_col "$_hi_pw_r" group _hi_pw_g
     printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "$_hi_pw_n"
   done
+  # ...and so is one that sends variables
+  for _hi_pw_r in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do
+    _hi_pw_n="${_hi_pw_r#*|}"
+    printf '%s|%s|%s\n' "${_hi_pw_n%%|*}" "${_hi_pw_r%%|*}" "${_hi_pw_n%%|*}"
+  done
 }
 
 # _hi_hook_rows - every shell hook as a report row (HI.67): the plugin, its
@@ -546,6 +551,39 @@ function _hi_hook_rows() {
       _hi_plugin_color _hi_hr_c rides
       _hi_row "$_hi_hr_n" "$_hi_hr_i - runs on a target that has it$_hi_hr_p" ok "$_hi_hr_c"
     fi
+  done
+}
+
+# _hi_env_rows - every variable a plugin's `env` names as a report row
+# (HI.62): the variable under its plugin, in its state's color, and whether
+# a target gets its value - set here, a value a line can hold, the plugin on
+function _hi_env_rows() {
+  local _hi_er_r _hi_er_n _hi_er_v _hi_er_c _hi_er_off
+  _hi_plugins_load
+  for _hi_er_r in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do
+    _hi_er_n="${_hi_er_r#*|}"
+    _hi_er_n="${_hi_er_n%%|*}" _hi_er_off=""
+    if _hi_plugin_switched_off "$_hi_er_n"; then
+      case "$_HI_PLUGIN_DEFAULT_OFF" in
+      *" $_hi_er_n "*) _hi_er_off="off by default (hi --plugin-on $_hi_er_n)" ;;
+      *) _hi_er_off="switched off (_HI_PLUGINS_OFF)" ;;
+      esac
+    fi
+    for _hi_er_v in ${_hi_er_r##*|}; do
+      if [ -z "${!_hi_er_v:-}" ]; then
+        _hi_plugin_color _hi_er_c absent
+        _hi_row "$_hi_er_v ($_hi_er_n)" "not set here, so not sent" info "$_hi_er_c"
+      elif [ -n "$_hi_er_off" ]; then
+        _hi_plugin_color _hi_er_c off
+        _hi_row "$_hi_er_v ($_hi_er_n)" "$_hi_er_off" info "$_hi_er_c"
+      elif ! _hi_env_rides "$_hi_er_v"; then
+        _hi_plugin_color _hi_er_c absent
+        _hi_row "$_hi_er_v ($_hi_er_n)" "its value holds a quote, a backslash, or a line break - not sent" warn "$_hi_er_c"
+      else
+        _hi_plugin_color _hi_er_c rides
+        _hi_row "$_hi_er_v ($_hi_er_n)" "its value here is exported on a target" ok "$_hi_er_c"
+      fi
+    done
   done
 }
 

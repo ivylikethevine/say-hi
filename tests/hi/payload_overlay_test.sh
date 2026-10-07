@@ -471,7 +471,42 @@ function test_hook_plugin_rows_hold_a_command_alone() {
     [ "${#_HI_PLUGIN_BAD[@]}" = 3 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
     [[ "${_HI_PLUGIN_BAD[0]}" == *"a: init is a command and its words"* && "${_HI_PLUGIN_BAD[1]}" == *"b: init is a command"* &&
       "${_HI_PLUGIN_BAD[2]}" == *"c: prompt = yes needs an init"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
-    [[ " ${_HI_PLUGIN_HOOKS[*]} " == *" mine|d|d-tool|d-tool hook {shell} --flag|no "* ]] || _hi_because "rows: ${_HI_PLUGIN_HOOKS[*]}"
+    [[ " ${_HI_PLUGIN_HOOKS[*]} " == *" mine|d|d-tool|d-tool hook {shell} --flag|no|- "* ]] || _hi_because "rows: ${_HI_PLUGIN_HOOKS[*]}"
+  )
+}
+
+# `shells` keeps a hook to the shells it names, a , apart after its name in
+# the row, and is a prompt plugin's shells; `env` sends a variable set here
+# as its value: not one holding a quote, one unset, or one of a plugin that
+# is off. A shells with no init, a shell hi does not style, and a variable
+# whose name reads as a secret are each turned down (GLOSSARY: HI.62, HI.67)
+function test_plugin_shells_and_env_ride_in_the_wiring() {
+  local dir stubs w
+  dir="$(_hi_overlay_fixture shells-env)"
+  {
+    printf '[mine.hi-hook-here]\ninit = "hi-hook-here init {shell}"\nshells = "zsh fish"\n'
+    printf '[mine.hi-prompt-here]\ninit = "hi-prompt-here init {shell}"\nprompt = "yes"\nshells = "bash"\n'
+    printf '[mine.vars]\nenv = "HI_T_PLAIN HI_T_QUOTE HI_T_UNSET"\n'
+    printf '[mine.later]\nenv = "HI_T_LATER"\ndefault = "off"\n'
+    printf '[mine.a]\nenv = "MY_TOKEN"\n'
+    printf '[mine.b]\nshells = "zsh"\nfiles = "b.rc"\n'
+    printf '[mine.c]\ninit = "c init {shell}"\nshells = "ksh"\n'
+  } >"$dir/plugins"
+  stubs="$(_hi_stub_tools hi-hook-here hi-prompt-here)"
+  w="$(_hi_hooks_wiring "$dir" "$stubs" "HI_T_PLAIN=a b;c" "HI_T_QUOTE=it's" HI_T_LATER=x)" || return 1
+  [[ "$w" == *'mine.hi-hook-here:zsh,fish=hi-hook-here init {shell}'* ]] || _hi_because "no shells on the row: $w" || return 1
+  [[ "$w" == *"export HI_T_PLAIN='a b;c'"* ]] || _hi_because "no variable: $w" || return 1
+  [[ "$w" != *HI_T_QUOTE* && "$w" != *HI_T_UNSET* && "$w" != *HI_T_LATER* ]] || _hi_because "rode unasked: $w" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" HI_T_PLAIN=a HI_T_LATER=x _HI_PLUGINS_ON=later _HI_PLUGINS_OFF=vars)" || return 1
+  [[ "$w" == *"export HI_T_LATER='x'"* && "$w" != *HI_T_PLAIN* ]] || _hi_because "the lists: $w" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PROMPT_TOOL="hi-prompt-here hi")" || return 1
+  [[ "$w" == *'export _HI_PROMPT_PLUGINS="hi-prompt-here|bash|bin|-"'* ]] || _hi_because "prompt plugin's shells: $w" || return 1
+  (
+    _HI_CONFIG_DIR="$dir"
+    _hi_plugins_load
+    [ "${#_HI_PLUGIN_BAD[@]}" = 3 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    [[ "${_HI_PLUGIN_BAD[0]}" == *"a: env is variable names"* && "${_HI_PLUGIN_BAD[1]}" == *"b: shells needs an init"* &&
+      "${_HI_PLUGIN_BAD[2]}" == *"c: shells is any of bash, zsh, and fish"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")"
   )
 }
 
@@ -581,6 +616,7 @@ function run_hi_payload_overlay_tests() {
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
   _hi_check "A shell hook rides as a wiring row, by the lists and the tool here" test_hook_plugins_ride_as_wiring_rows
   _hi_check "...an init is a command and its words, or the row is turned down" test_hook_plugin_rows_hold_a_command_alone
+  _hi_check "...shells keeps a hook to its shells, and env sends a variable's value" test_plugin_shells_and_env_ride_in_the_wiring
   _hi_check "...checked with no command at all" test_plugin_init_check_runs_no_command
   _hi_check "...while local-only's toggles keep nothing home" test_local_only_toggles_keep_nothing_home
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments

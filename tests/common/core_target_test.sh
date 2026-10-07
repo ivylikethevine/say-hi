@@ -331,6 +331,11 @@ function test_run_init_runs_what_the_tool_prints() {
   unset _hi_ri_got
   _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell}" _HI_PLUGINS_OFF=hi-init-tool PATH="$p:$PATH" _hi_run_hooks bash || return 1
   [ -z "${_hi_ri_got:-}" ] || _hi_because "a hook off ran" || return 1
+  # a :<shells> after the name keeps the hook to those
+  _HI_HOOKS="x.hi-init-tool:zsh,fish=hi-init-tool init {shell}" PATH="$p:$PATH" _hi_run_hooks bash || return 1
+  [ -z "${_hi_ri_got:-}" ] || _hi_because "a zsh and fish hook ran in bash" || return 1
+  _HI_HOOKS="x.-off:zsh,fish=hi-init-tool kept {shell}" _HI_PLUGINS_ON=off PATH="$p:$PATH" _hi_run_hooks zsh || return 1
+  [ "${_hi_ri_got:-}" = "kept zsh" ] || _hi_because "a zsh hook in zsh: ${_hi_ri_got:-}" || return 1
   _HI_PROMPT_INITS="a=a start {shell};omp=oh-my-posh init {shell} --config x" _hi_prompt_init omp got &&
     [ "$got" = "oh-my-posh init {shell} --config x" ] || _hi_because "init row: $got" || return 1
   _hi_prompt_init starship got && [ "$got" = "starship init {shell}" ]

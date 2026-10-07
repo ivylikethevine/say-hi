@@ -917,6 +917,28 @@ function test_config_flags_aliases_that_replace_a_wired_one() {
   [[ "$out" != *"alias-wired"* ]] || _hi_because "kept home: $out"
 }
 
+# ...and an $EDITOR or $VISUAL it exports replaces the session's, flags and
+# all: named for either, and not for a comment or a name that only ends so
+# shellcheck disable=SC2016 # the aliases.sh lines are written, not run
+function test_config_flags_an_editor_set_in_aliases_sh() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/editoralias.XXXXXX")"
+  printf '%s\n' 'alias ll="ls -l"' 'export VISUAL="$(command -v nvim)"' >"$dir/aliases.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"alias-editor"*"_HI_EDITOR"* ]] || _hi_because "set: $out" || return 1
+  printf '%s\n' '# export EDITOR=vi' 'export GIT_EDITOR=vi' >"$dir/aliases.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" != *"alias-editor"* ]] || _hi_because "not set: $out"
+}
+
 function run_doctor_config_tests() {
   _hi_doctor_begin
 
@@ -971,6 +993,7 @@ function run_doctor_config_tests() {
   _hi_check "neovim's modules are named as staying home" test_config_names_the_nvim_modules_that_stay_home
   _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
   _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
+  _hi_check "...and an \$EDITOR it exports" test_config_flags_an_editor_set_in_aliases_sh
 
   _hi_suite_end "doctor.sh (config)"
 }

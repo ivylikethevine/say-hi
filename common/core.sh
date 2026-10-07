@@ -918,13 +918,20 @@ function _hi_run_init() {
 
 # _hi_run_hooks <shell> - every hook of $_HI_HOOKS (`<group>.<name>=<init>`
 # rows a ; apart, written by the client as the overlay was packed) whose
-# plugin the settings leave on, in the client's order
+# plugin the settings leave on, in the client's order; a `:<shells>` after
+# the name, a , apart, keeps a hook to those shells
 function _hi_run_hooks() {
   local _hi_rh_l="${_HI_HOOKS:-}" _hi_rh_r _hi_rh_k
   while [ -n "$_hi_rh_l" ]; do
     _hi_rh_r="${_hi_rh_l%%;*}"
     case "$_hi_rh_l" in *\;*) _hi_rh_l="${_hi_rh_l#*;}" ;; *) _hi_rh_l="" ;; esac
     _hi_rh_k="${_hi_rh_r%%=*}"
+    case "$_hi_rh_k" in
+    *:*)
+      case ",${_hi_rh_k#*:}," in *",$1,"*) ;; *) continue ;; esac
+      _hi_rh_k="${_hi_rh_k%%:*}"
+      ;;
+    esac
     _hi_hook_on "${_hi_rh_k#*.}" || continue
     _hi_run_init "$1" "${_hi_rh_r#*=}" || true
   done

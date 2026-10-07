@@ -378,15 +378,23 @@ function config_validate_shells() {
 # Every source is behind a test for the file, so a tree deleted without
 # `hi --uninstall` costs a shell nothing. A fourth argument of `portable`
 # spells the block for an rc shared between machines: $HOME left for the
-# shell to expand, and the tree named through the $_HI_HOME just exported.
+# shell to expand, the tree looked for where an install puts one
+# (rc_probe_lines), and named through the $_HI_HOME that found. `legacy` is
+# the block --print-rc handed out before it looked: this tree's home alone.
 function rc_lines() {
   local home="$_HI_HOME" rc="$2"
-  if [ "${4:-}" = portable ]; then
+  case "${4:-}" in
+  portable | legacy)
     rc_home_spelled home
     rc="\$_HI_HOME${2#"$_HI_HOME"}"
+    ;;
+  esac
+  if [ "${4:-}" = portable ]; then
+    rc_probe_lines "$3" "$home" "${2#"$_HI_HOME"}"
+  else
+    tmpdir_line "$3" "$home"
+    printf '\n'
   fi
-  tmpdir_line "$3" "$home"
-  printf '\n'
   case "$3" in
   fish)
     # fish before 3.4 cannot parse hi's config.fish: one line saying so
@@ -410,6 +418,34 @@ function rc_lines() {
   esac
 }
 
+# rc_probe_lines <dialect> <home> <rc under it> - the portable block's first
+# lines: $_HI_HOME is the first directory that holds the tree's rc, of a
+# clone's ($HOME), a package's (/usr/local/share, /usr/share), and ahead of
+# them <home> where this install is in none. The same lines on every machine
+# with one of those, so one rc serves a clone here and a package there.
+function rc_probe_lines() {
+  # shellcheck disable=SC2016 # the rc's shell expands them
+  local dirs='"$HOME" /usr/local/share /usr/share'
+  # shellcheck disable=SC2016
+  case "$2" in '$HOME' | /usr/local/share | /usr/share) ;; *) dirs="\"$2\" $dirs" ;; esac
+  case "$1" in
+  fish)
+    # shellcheck disable=SC2016
+    printf '%s\n' "for _hi_d in $dirs" \
+      "  if test -r \"\$_hi_d$3\"" \
+      '    set -gx _HI_HOME "$_hi_d"' \
+      '    break' \
+      '  end' \
+      'end' \
+      'set -e _hi_d'
+    ;;
+  *)
+    # shellcheck disable=SC2016
+    printf '%s\n' "for _hi_d in $dirs; do [ -r \"\$_hi_d$3\" ] && export _HI_HOME=\"\$_hi_d\" && break; done; unset _hi_d"
+    ;;
+  esac
+}
+
 # rc_home_spelled <outvar> - $_HI_HOME as a shared rc says it: under $HOME,
 # with $HOME left unexpanded; anywhere else, as it is
 function rc_home_spelled() {
@@ -422,19 +458,21 @@ function rc_home_spelled() {
 }
 
 # rc_block_form <outvar> <shell> <tree_rc> <dialect> <target> - which of
-# rc_lines' two blocks <target>'s tagged lines are: `written`, `portable`,
-# or empty for neither. install and doctor both ask, so a block
-# `--print-rc` handed out is left alone by one and read as wired by the other.
+# rc_lines' blocks <target>'s tagged lines are: `written`, `portable` (the
+# one --print-rc hands out, or the one it did), or empty for neither.
+# install and doctor both ask, so a block `--print-rc` handed out is left
+# alone by one and read as wired by the other.
 function rc_block_form() {
   local _hi_bf_have _hi_bf_want _hi_bf_form
   local -a _hi_bf_lines
   printf -v "$1" '%s' ''
   _hi_bf_have="$(grep -F "$_HI_MARKER" "$5" 2>/dev/null || true)"
   [ -n "$_hi_bf_have" ] || return 0
-  for _hi_bf_form in written portable; do
+  for _hi_bf_form in written portable legacy; do
     _hi_read_lines _hi_bf_lines < <(rc_lines "$2" "$3" "$4" "$_hi_bf_form")
     rc_tagged _hi_bf_want "${_hi_bf_lines[@]}"
     [ "$_hi_bf_have" = "${_hi_bf_want%$'\n'}" ] || continue
+    [ "$_hi_bf_form" != legacy ] || _hi_bf_form=portable
     printf -v "$1" '%s' "$_hi_bf_form"
     return 0
   done

@@ -86,7 +86,9 @@ the prompt anyway. Under powerlevel10k's instant prompt, hi calls
 for an rc that prints, so it does not warn about console output on every start.
 The list is worked out on this machine and handed to the target, which never
 looks for programs of its own - a shared box with powerlevel10k installed does
-not change your prompt unless you use it too.
+not change your prompt unless you use it too. A program whose plugin is
+switched off (`hi --plugin-off starship`) is left off that list, config and
+all, unless `_HI_PROMPT_TOOL` names it.
 
 `_HI_PROMPT_TOOL=hi` keeps hi's prompt everywhere: it starts no program on any
 target, and takes the prompt back from one the _target's_ own rc started,
@@ -116,7 +118,8 @@ has zoxide run its init after the aliases and extensions
 `hi --add-plugin hooks <name> 'init=<command> {shell}'`. Once started, a tool
 keeps state of its own under the target's `$HOME` - zoxide's directory
 database, atuin's history - which hi neither writes nor cleans up, and which is
-why none is on until you say so. The per-shell files the overlay carries
+why none is on until you say so. A hook of your own can name the shells it
+runs in (`shells=zsh fish`). The per-shell files the overlay carries
 (`~/.config/say-hi/bashrc`, `zshrc`, `config.fish`) still take a line of your
 own for anything else:
 
@@ -310,7 +313,8 @@ have, so they go out disabled and `hi --doctor` names the line.
 A chroot's `/etc/debian_chroot` leads the prompt, as the distro's own
 `~/.bashrc` sets it up: `(name)` in bash and zsh, `(chroot:name)` in fish.
 hi sets no `$LESSOPEN`, `$GCC_COLORS`, `$CLICOLOR`, or `$LSCOLORS`: those
-stay your rc's.
+stay your rc's, and `hi --plugin-on env` sends a target the values the color
+ones have here ([SETTINGS.md](SETTINGS.md#variables-that-ride)).
 
 ## readline
 

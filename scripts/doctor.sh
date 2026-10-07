@@ -567,6 +567,12 @@ function doctor_config() {
   done
   [ -z "$shadowed" ] ||
     doctor_row alias-wired "aliases.sh aliases${shadowed} - on a target that replaces hi's alias, so the config hi carries for it goes unused there; drop the alias, or keep that config home with its _HI_DISABLE_ toggle" warn
+  # ...and an $EDITOR or $VISUAL it exports replaces the session's, which
+  # holds the flags of the config hi carried (load.sh's _hi_session_editor).
+  # warn: it may be meant.
+  re='(^|[[:space:];&|])(export[[:space:]]+)?(EDITOR|VISUAL)='
+  [[ ! "$atext" =~ $re ]] ||
+    doctor_row alias-editor "aliases.sh sets \$EDITOR or \$VISUAL - on a target that replaces the one hi exports, so git and sudo -e start the editor without the config hi carries; _HI_EDITOR in settings.sh names an editor instead" warn
   # only the non-default settings: a default setup stays one quiet line.
   # Under _HI_DISABLE_LOCAL=1 paths.sh's gate has set every other toggle
   # here, so those read as one row and only a toggle settings.sh sets on its

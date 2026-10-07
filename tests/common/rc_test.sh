@@ -219,6 +219,47 @@ function test_bash_marks_only_where_they_belong() {
   [[ "$out" != *$'\e]133'* && "$out" != *$'\e]7;'* && "$out" == *"/sp%20ace" ]]
 }
 
+# Under a prompt program hi has no $PS1 to hold the marks: D, the cwd, and A
+# go out ahead of its hook, the status handed on; oh-my-posh, which can send
+# its own, gets none. The programs are stubs whose init prints nothing.
+function test_bash_marks_ride_a_prompt_programs_draw() {
+  local out p
+  p="$(_hi_fake_path rc-mark-programs starship oh-my-posh):$PATH"
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    _hi_marks_on() { :; }
+    (exit 7)
+    __hi_marks_pc
+    printf "|st=%s|%s" "$?" "${PROMPT_COMMAND%%;*}"' PATH="$p" _HI_PROMPT_TOOL=starship)"
+  [[ "$out" == *$'\e]133;D;7\a'*$'\e]133;A\a|st=7|__hi_marks_pc' ]] || _hi_because "starship: $out" || return 1
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    declare -F __hi_marks_pc _hi_marks_exit' PATH="$p" _HI_PROMPT_TOOL=oh-my-posh)"
+  [ -z "$out" ] || _hi_because "oh-my-posh: $out"
+}
+
+# the zsh half: the precmd sends A itself under a program, and leaves it to
+# $PS1 under hi's own prompt
+function test_zsh_marks_ride_a_prompt_programs_draw() {
+  local out p
+  p="$(_hi_fake_path rc-mark-programs starship oh-my-posh):$PATH"
+  out="$(_hi_rc_shell xterm-256color zsh \
+    'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null
+     __hi_marks_on() { : }
+     (exit 7); __hi_marks_precmd
+     print -rn -- "|$precmd_functions[1]"' PATH="$p" _HI_PROMPT_TOOL=starship)"
+  [[ "$out" == *$'\e]133;D;7\a'*$'\e]133;A\a|__hi_marks_precmd' ]] || _hi_because "starship: $out" || return 1
+  out="$(_hi_rc_shell xterm-256color zsh \
+    'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null
+     __hi_marks_on() { : }
+     __hi_marks_precmd' PATH="$p" _HI_PROMPT_TOOL=hi)"
+  [[ "$out" == *$'\e]133;D;'* && "$out" != *$'\e]133;A'* ]] || _hi_because "hi: $out" || return 1
+  out="$(_hi_rc_shell xterm-256color zsh \
+    'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null
+     print -rn -- "${+functions[__hi_marks_precmd]}"' PATH="$p" _HI_PROMPT_TOOL=oh-my-posh)"
+  [ "$out" = 0 ] || _hi_because "oh-my-posh: $out"
+}
+
 # <shell>: a settings.sh line that fails or reads an unset variable never
 # stops the shell starting, and an interactive shell's own set -u and
 # pipefail survive hi's strict load
@@ -825,6 +866,8 @@ function run_rc_tests() {
   _hi_check "__hi_ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
   _hi_check "...and hands the status on to the hooks after it" test_bash_ps1_hands_on_the_status
   _hi_check "...but no marks off a terminal, on TERM=dumb, or beside kitty's" test_bash_marks_only_where_they_belong
+  _hi_check "...and under a prompt program's draw, oh-my-posh's apart" test_bash_marks_ride_a_prompt_programs_draw
+  _hi_check_requires zsh "...in zsh too" test_zsh_marks_ride_a_prompt_programs_draw
   _hi_check_requires zsh "zsh's prompt_subst stays the user's with the prompt off" test_zsh_keeps_the_users_prompt_subst
   _hi_check "[bash] no other tool's variables, no exported palette" test_rc_exports_nothing_for_other_tools bash
   _hi_check_requires zsh "[zsh] no other tool's variables, no exported palette" test_rc_exports_nothing_for_other_tools zsh

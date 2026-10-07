@@ -214,6 +214,11 @@ function test_prompt_list_is_what_home_has() {
       "zsh:hi oh-my-zsh oh-my-bash starship powerline-go" ] &&
     [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ] ||
     return 1
+  # a program whose plugin is switched off is not handed over, unless named
+  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_PLUGINS_OFF=starship _hi_prompt_list)" = \
+    "oh-my-zsh oh-my-bash powerline-go" ] &&
+    [ "$(HOME="$h" _HI_PROMPT_TOOL="starship hi" _HI_PLUGINS_OFF=starship _hi_prompt_list)" = "starship hi" ] ||
+    return 1
   # ...and it is, the moment the rc loads the theme rather than just its
   # config. Appended last: the fixture truncates .zshrc, so every other case
   # that calls it gets the unloaded rc back.

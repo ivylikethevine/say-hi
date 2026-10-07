@@ -641,7 +641,12 @@ the tool's shell hook (a command printing a shell's code,
 for the shell's name, run on a target that has the tool; a plugin with one
 needs no file),
 .BR prompt=yes ,
-when that init draws the prompt, and
+when that init draws the prompt,
+.BR shells= ,
+the shells the init runs in (left out, bash, zsh, and fish),
+.BR env= ,
+variables whose values on this machine a target's session exports (a plugin
+with one needs no file), and
 .BR default=off ,
 for a plugin kept home until
 .B \-\-plugin\-on

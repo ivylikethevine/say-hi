@@ -106,11 +106,6 @@ permanent - it is the argument to beat.
   not inherit from a config file that rode over the wire - closer to the
   `~/.bashrc` reasoning above (tokens a config file can carry) than to the
   prompt-config precedent (a file with nothing secret in it).
-- **zoxide / atuin / fzf configs.** Already the documented answer for their
-  shell hooks ([INTEGRATIONS.md](INTEGRATIONS.md#shell-hooks-of-your-own):
-  "yours to add"); the same reasoning extends to a config file none of the
-  three needs hi to carry - each reads its own on `$PATH` discovery, no rc
-  line required for the config half.
 - **prezto's prompt as a `_HI_PROMPT_TABLE` row.** Unlike oh-my-zsh's or
   bash-it's self-contained theme file, a prezto theme is an autoloaded
   function depending on prezto's own modules (`pmodload`) being loaded

@@ -236,7 +236,7 @@ function test_add_plugin_writes_a_hook_table() {
   out="$(_hi_plugins_run "$cfg" --add-plugin hooks bad 'init=bad init {shell}; touch x')" && _hi_because "took: $out" && return 1
   [[ "$out" == *"init is a command and its words"* ]] || _hi_because "said: $out" || return 1
   out="$(_hi_plugins_run "$cfg" --add-plugin hooks nofile tool=-)" && _hi_because "took: $out" && return 1
-  [[ "$out" == *"needs a file for nofile to carry, or an init="* ]] || _hi_because "said: $out"
+  [[ "$out" == *"needs a file for nofile to carry, an init=, or an env="* ]] || _hi_because "said: $out"
 }
 
 # a file whose last line was never ended gets the new table on lines of its

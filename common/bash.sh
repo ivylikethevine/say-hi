@@ -240,7 +240,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   # an extension's decision first (HI.59): $_HI_PROMPT_DRAWN=1 says it drew
   # the prompt itself, $_HI_PROMPT_INIT names a program's init to run where
   # this box has it; either way hi stands down, else the list below decides
-  _hi_pdone=""
+  _hi_pdone="" _hi_marks_for=""
   if [[ "${_HI_PROMPT_DRAWN:-0}" == 1 ]]; then
     _hi_pdone=1
   elif [ -n "${_HI_PROMPT_INIT:-}" ]; then
@@ -273,6 +273,9 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       unset _hi_init
       ;;
     esac
+    # the marks under its prompt (below), but not beside the ones
+    # oh-my-posh can send itself
+    [ "$_hi_pt" = oh-my-posh ] || _hi_marks_for=program
   elif ! _hi_prompt_named_hi bash && { [[ -n ${_LP_VERSION-} ]] || declare -F setGitPrompt >/dev/null ||
     { [ "$_HI_REMOTE_SESSION" != 1 ] && ! _hi_ps1_stock; }; }; then
     # liquidprompt or bash-git-prompt draws this prompt, and hi has no hand-over
@@ -365,25 +368,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       done
       printf -v "$1" '%s' "$out$s"
     }
-    # Semantic prompt marks (OSC 133) and cwd reporting (OSC 7) for terminals
-    # that read them (kitty, WezTerm, ghostty, foot, iTerm2). D (last status)
-    # and A from PROMPT_COMMAND, B at the end of PS1, C from PS0 (bash 4.4+;
-    # 3.2 simply lacks it). Raw, never multiplexer-wrapped: an unknown OSC is
-    # dropped, and tmux passes 133 through.
-    _hi_marks_a=$'\[\e]133;A\a\]'
-    _hi_marks_b=$'\[\e]133;B\a\]'
-    _hi_mark_c=$'\e]133;C\a'
-    _hi_marks_live=0
-    # Whether a draw carries the marks: not on a dumb terminal or off one, and
-    # not while a terminal's own integration sends its set (kitty, ghostty,
-    # WezTerm, iTerm2) - some load after this rc, so asked per draw
-    # shellcheck disable=SC2154 # _ksi_prompt is kitty's
-    function _hi_marks_on() {
-      [[ $TERM != dumb && -t 1 && -z ${ITERM_SHELL_INTEGRATION_INSTALLED-} ]] &&
-        ! declare -p _ksi_prompt &>/dev/null &&
-        ! declare -F __ghostty_precmd >/dev/null &&
-        ! declare -F __wezterm_semantic_precmd >/dev/null
-    }
+    # the marks' own setup follows the prompt: a program's draw has them too
+    _hi_marks_for=hi
     function __hi_ps1() {
       local _hi_ec=$? _hi_ma="" _hi_mb="" _hi_u
       if _hi_marks_on; then
@@ -426,6 +412,46 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       return "$_hi_ec"
     }
     PROMPT_COMMAND="__hi_ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+  fi
+  # Semantic prompt marks (OSC 133) and cwd reporting (OSC 7) for terminals
+  # that read them (kitty, WezTerm, ghostty, foot, iTerm2). D (last status)
+  # and A from PROMPT_COMMAND, B at the end of PS1, C from PS0 (bash 4.4+;
+  # 3.2 simply lacks it). Raw, never multiplexer-wrapped: an unknown OSC is
+  # dropped, and tmux passes 133 through.
+  if [ -n "$_hi_marks_for" ]; then
+    _hi_marks_a=$'\[\e]133;A\a\]'
+    _hi_marks_b=$'\[\e]133;B\a\]'
+    _hi_mark_c=$'\e]133;C\a'
+    _hi_marks_live=0
+    # Whether a draw carries the marks: not on a dumb terminal or off one, and
+    # not while a terminal's own integration sends its set (kitty, ghostty,
+    # WezTerm, iTerm2) - some load after this rc, so asked per draw
+    # shellcheck disable=SC2154 # _ksi_prompt is kitty's
+    function _hi_marks_on() {
+      [[ $TERM != dumb && -t 1 && -z ${ITERM_SHELL_INTEGRATION_INSTALLED-} ]] &&
+        ! declare -p _ksi_prompt &>/dev/null &&
+        ! declare -F __ghostty_precmd >/dev/null &&
+        ! declare -F __wezterm_semantic_precmd >/dev/null
+    }
+    # A prompt program's $PS1 is its own, so there D, the cwd, and A go out
+    # ahead of its hook, C from PS0 as above, and no B. The status it found
+    # is handed on, as __hi_ps1 hands it.
+    if [ "$_hi_marks_for" = program ]; then
+      function __hi_marks_pc() {
+        local _hi_ec=$? _hi_u
+        if _hi_marks_on; then
+          _hi_marks_live=1
+          _hi_url_path _hi_u "$PWD"
+          printf '\e]133;D;%s\a\e]7;file://%s%s\a\e]133;A\a' "$_hi_ec" "${HOSTNAME:-}" "$_hi_u"
+          [[ ${PS0-} == *"$_hi_mark_c"* ]] || PS0="$_hi_mark_c${PS0-}"
+        else
+          _hi_marks_live=0
+          [ -z "${PS0-}" ] || PS0="${PS0/"$_hi_mark_c"/}"
+        fi
+        return "$_hi_ec"
+      }
+      [[ ${PROMPT_COMMAND-} == *__hi_marks_pc* ]] || PROMPT_COMMAND="__hi_marks_pc${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    fi
     # Leaving from the prompt (Ctrl-D) never reaches PS0, so the last A/B pair
     # stays open and Konsole's semantic hints shade every later line, the
     # parent shell's too: close it on the way out. Returns the status it was
@@ -446,7 +472,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     unset _hi_t _hi_q _hi_e
   fi
 fi
-unset _hi_pt _hi_pdone _hi_omb_theme _hi_bashit_theme
+unset _hi_pt _hi_pdone _hi_omb_theme _hi_bashit_theme _hi_marks_for
 
 # Last in the required block, once every alias has expanded its paths:
 # children inherit core.sh's _HI_CHILD_ENV and nothing else with the prefix.

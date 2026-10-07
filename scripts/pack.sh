@@ -159,10 +159,11 @@ unset _hi_r _hi_w
 # what it turned down, `<file>:<line>|<why>` each, for scripts/doctor.sh.
 # GLOSSARY: HI.63
 _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_KEY=""
-# The plugins with a shell hook, `<group>|<name>|<tool>|<init>|<prompt>` each
-# (HI.67), and the names and groups whose `default` is off, a space around
-# each: on only once $_HI_PLUGINS_ON names them
-_HI_PLUGIN_HOOKS=() _HI_PLUGIN_DEFAULT_OFF=" "
+# The plugins with a shell hook, `<group>|<name>|<tool>|<init>|<prompt>|<shells>`
+# each (HI.67), those with variables to send, `<group>|<name>|<variables>`
+# (HI.62), and the names whose `default` is off, a space around each: on only
+# once $_HI_PLUGINS_ON names them
+_HI_PLUGIN_HOOKS=() _HI_PLUGIN_ENVS=() _HI_PLUGIN_DEFAULT_OFF=" "
 
 # The overlay members renamed before 1.0, old:new. hi reads only the new
 # name; scripts/doctor.sh names a file still under the old one, since it
@@ -246,13 +247,18 @@ function _hi_theme_home() {
 # _hi_prompt_here <list> - hi.sh's _hi_prompt_list, where $_HI_PROMPT_TOOL
 # names no program for every shell: <list>, then every prompt program this
 # machine has - the ones on $PATH, tide where fisher put it, and a framework
-# with a theme or config to ship - into $_HI_PROMPT_LIST_MEMO. GLOSSARY: HI.32
+# with a theme or config to ship - into $_HI_PROMPT_LIST_MEMO. One whose
+# plugin is switched off is left out: off sets nothing on a target, and
+# naming it in $_HI_PROMPT_TOOL is how it is handed over all the same.
+# GLOSSARY: HI.32
 function _hi_prompt_here() {
   local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_p _hi_pl_out="$1"
   # _hi_overlay_src asks this list too: all of it while it is being built
   _HI_PROMPT_LIST_MEMO="$_hi_pl_out${_hi_pl_out:+ }$_HI_PROMPT_TOOLS"
+  _hi_plugins_load
   for _hi_pl_r in "${_HI_PROMPT_TABLE[@]}"; do
     _hi_pl_t="${_hi_pl_r%%|*}"
+    ! _hi_plugin_switched_off "$_hi_pl_t" || continue
     case "$_hi_pl_r" in
     *'|bin|'*) command -v "$_hi_pl_t" >/dev/null 2>&1 ;;
     tide'|'*) [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/tide.fish" ] ;;
@@ -261,7 +267,6 @@ function _hi_prompt_here() {
     esac && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
   done
   # a prompt plugin of the plugins files (HI.67), with its tool here and on
-  _hi_plugins_load
   for _hi_pl_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
     _hi_hook_col "$_hi_pl_r" prompt _hi_pl_p
     [ "$_hi_pl_p" = yes ] || continue
@@ -608,7 +613,7 @@ function _hi_overlay_wiring() {
   # settings, the ones that rode, still leave it on); and the prompt programs
   # a target is handed (_hi_prompt_list), as rows core.sh's _hi_prompt_row
   # reads beside its own table
-  local _hi_ow_h="" _hi_ow_pp="" _hi_ow_pi="" _hi_ow_i
+  local _hi_ow_h="" _hi_ow_pp="" _hi_ow_pi="" _hi_ow_i _hi_ow_s
   _hi_plugins_load
   _hi_prompt_list >/dev/null
   for _hi_ow_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
@@ -616,18 +621,32 @@ function _hi_overlay_wiring() {
     _hi_hook_col "$_hi_ow_r" name _hi_ow_n
     _hi_hook_col "$_hi_ow_r" init _hi_ow_i
     _hi_hook_col "$_hi_ow_r" prompt _hi_ow_p
+    _hi_hook_col "$_hi_ow_r" shells _hi_ow_s
     if [ "$_hi_ow_p" = yes ]; then
       # a prompt program: its init runs through the prompt hand-over alone
       case " $_HI_PROMPT_LIST_MEMO " in *[\ :]"$_hi_ow_n "*) ;; *) continue ;; esac
+      [ "$_hi_ow_s" != - ] || _hi_ow_s="bash zsh fish"
       _hi_ow_pi="$_hi_ow_pi${_hi_ow_pi:+;}$_hi_ow_n=$_hi_ow_i"
-      _hi_ow_pp="$_hi_ow_pp${_hi_ow_pp:+;}$_hi_ow_n|bash zsh fish|bin|-"
+      _hi_ow_pp="$_hi_ow_pp${_hi_ow_pp:+;}$_hi_ow_n|$_hi_ow_s|bin|-"
       continue
     fi
     _hi_hook_off "$_hi_ow_r" && continue
     # a leading - on the name says off by default, for the target's _hi_hook_on
     case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_ow_n "*) _hi_ow_n="-$_hi_ow_n" ;; esac
+    # ...and a :<shells> after it, a , apart, the shells the hook is kept to
+    [ "$_hi_ow_s" = - ] || _hi_ow_n="$_hi_ow_n:${_hi_ow_s// /,}"
     _hi_hook_col "$_hi_ow_r" group _hi_ow_p
     _hi_ow_h="$_hi_ow_h${_hi_ow_h:+;}$_hi_ow_p.$_hi_ow_n=$_hi_ow_i"
+  done
+  # the variables a plugin's `env` names, each that is set here as its value
+  # in single quotes: one holding a quote, a backslash, or a line break
+  # stays home (_hi_env_rides), and so does a plugin that is off
+  for _hi_ow_r in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do
+    _hi_ow_n="${_hi_ow_r#*|}"
+    ! _hi_plugin_switched_off "${_hi_ow_n%%|*}" || continue
+    for _hi_ow_v in ${_hi_ow_r##*|}; do
+      ! _hi_env_rides "$_hi_ow_v" || _hi_ow_all="${_hi_ow_all}export $_hi_ow_v='${!_hi_ow_v}'"$'\n'
+    done
   done
   [ -z "$_hi_ow_h" ] || _hi_ow_all="${_hi_ow_all}export _HI_HOOKS=\"$_hi_ow_h\""$'\n'
   [ -z "$_hi_ow_pi" ] || _hi_ow_all="${_hi_ow_all}export _HI_PROMPT_INITS=\"$_hi_ow_pi\""$'\n'

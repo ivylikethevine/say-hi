@@ -252,13 +252,48 @@ function test_rc_lines_survive_a_missing_tree() {
   [ "$out" = STILL ]
 }
 
-# the portable block leaves $HOME to the shell and names the tree through
-# the $_HI_HOME it just exported
+# the portable block leaves $HOME to the shell, looks for the tree where a
+# clone or a package puts one, this install's own place first when it is
+# neither, and names it through the $_HI_HOME that found
 function test_rc_lines_portable_spells_home() {
   local home="$_HI_WORKDIR/portable"
   [ "$(_hi_rc_out "$home" -- eval '_HI_HOME="$HOME/opt"
-    rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')" = 'export _HI_HOME="$HOME/opt"
+    rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')" = 'for _hi_d in "$HOME/opt" "$HOME" /usr/local/share /usr/share; do [ -r "$_hi_d/say-hi/common/bash.sh" ] && export _HI_HOME="$_hi_d" && break; done; unset _hi_d
 [[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' ]
+}
+
+# ...the same lines from a clone in $HOME and from a package, so one rc
+# serves both machines; sourced, they find the tree that is there and leave
+# nothing else behind
+function test_rc_lines_portable_is_one_block_for_every_install() {
+  local home="$_HI_WORKDIR/portable-same" a b out
+  a="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"' -- rc_lines zsh "$home/say-hi/common/zsh.zsh" sh portable)" || return 1
+  b="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME=/usr/share' -- rc_lines zsh /usr/share/say-hi/common/zsh.zsh sh portable)" || return 1
+  [ -n "$a" ] && [ "$a" = "$b" ] || _hi_because "clone: $a / package: $b" || return 1
+  mkdir -p "$home/say-hi/common"
+  printf 'printf LOADED\n' >"$home/say-hi/common/zsh.zsh"
+  printf '%s\n' "$a" >"$home/rc"
+  out="$(HOME="$home" bash -c 'unset _HI_HOME; . "$HOME/rc"; printf "|%s|%s" "$_HI_HOME" "${_hi_d-gone}"')"
+  [ "$out" = "LOADED|$home|gone" ] || _hi_because "sourced: $out"
+}
+
+# ...and the block --print-rc handed out before it looked still reads as
+# wired, so an install leaves a managed rc alone
+function test_rc_block_form_knows_the_older_portable_block() {
+  local home="$_HI_WORKDIR/portable-old" form
+  mkdir -p "$home"
+  form="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"
+    older_block() {
+      local -a l
+      local b f
+      _hi_read_lines l < <(rc_lines bash "$HOME/say-hi/common/bash.sh" sh legacy)
+      rc_tagged b "${l[@]}"
+      printf %s "$b" >"$HOME/.bashrc"
+      rc_block_form f bash "$HOME/say-hi/common/bash.sh" sh "$HOME/.bashrc"
+      printf %s "$f"
+    }' -- older_block)" || return 1
+  [ "$form" = portable ] || _hi_because "form: $form" || return 1
+  grep -qF 'export _HI_HOME="$HOME"' "$home/.bashrc"
 }
 
 # --print-rc prints that block and writes no rc file; once it is in the rc,
@@ -600,6 +635,8 @@ function run_rc_lines_test() {
   _hi_check "A login shell hi does not wire gets them all" test_install_rc_lines_falls_back_to_every_shell
   _hi_check "A missing tree costs a shell nothing" test_rc_lines_survive_a_missing_tree
   _hi_check "The portable block spells \$HOME" test_rc_lines_portable_spells_home
+  _hi_check "...is the same from a clone and a package" test_rc_lines_portable_is_one_block_for_every_install
+  _hi_check "...and its older form still reads as wired" test_rc_block_form_knows_the_older_portable_block
   _hi_check "--print-rc writes nothing, and its block is kept" test_print_rc_writes_nothing_and_its_block_is_kept
   _hi_check "zsh's rc lives under \$ZDOTDIR" test_install_rc_lines_honours_zdotdir
   _hi_check "...the one a ~/.zshenv sets too" test_install_rc_lines_follows_a_zshenv_zdotdir

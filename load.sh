@@ -550,14 +550,17 @@ function load() {
   # here, and its plugin on in the settings.sh that rode: a client without
   # the editor, or with vim switched off, sends none. nvim reads $VIMINIT
   # too and `:source` runs a .lua file as lua, so a box with nvim and no vim
-  # gets init.lua; a command-line `-u` beats $VIMINIT, so the aliases decide
-  # on a box that has both.
-  local vimrc="" off=" ${_HI_PLUGINS_OFF:-} "
+  # gets init.lua, and one with both has each read its own: an $EDITOR an
+  # overlay file set bare, with no `-u`, still opens on the right rc.
+  local vimrc="" nvimrc="" off=" ${_HI_PLUGINS_OFF:-} "
   off="${off//,/ }"
   [[ "$off" != *" vim "* && -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
-  [[ -z "$vimrc" && "$off" != *" nvim "* && -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
-  [[ -n "$vimrc" ]] &&
-    export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
+  [[ "$off" != *" nvim "* && -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && nvimrc="$_HI_NVIMRC"
+  if [[ -n "$vimrc" && -n "$nvimrc" ]]; then
+    export VIMINIT="let \$MYVIMRC = has('nvim') ? '$nvimrc' : '$vimrc' | source \$MYVIMRC"
+  elif [[ -n "$vimrc$nvimrc" ]]; then
+    export VIMINIT="let \$MYVIMRC='$vimrc$nvimrc' | source \$MYVIMRC"
+  fi
   # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
   # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e`
   # would still open whatever vi the target has. The client's own two stay

@@ -129,7 +129,20 @@ function test_load_exports_viminit_for_vim_sessions() {
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
     "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
-  case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
+  # this box's own nvim, where it has one, makes it the two-editor form
+  case "$out" in *"VIM=let \$MYVIMRC"*"'$_HI_VIMRC'"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# ...and a box with both has each editor read its own rc, so an $EDITOR set
+# bare, with no `-u`, never opens nvim on the vimrc
+function test_load_viminit_with_both_editors_picks_by_editor() {
+  local out
+  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
+    "PATH=$(_hi_fake_path withvimnvim vim nvim):$(_hi_editorless_path)")" || return 1
+  case "$out" in *"VIM=let \$MYVIMRC = has('nvim') ? '$_HI_NVIMRC' : '$_HI_VIMRC' | source"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
   return 1
 }
@@ -561,6 +574,7 @@ function run_load_session_tests() {
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
+  _hi_check "...each editor's own on a box with both" test_load_viminit_with_both_editors_picks_by_editor
   _hi_check "vim and nvim off leave VIMINIT unset" test_load_vim_off_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$vim|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"

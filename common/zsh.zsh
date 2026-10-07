@@ -84,7 +84,7 @@ _hi_ps1_stock() {
 }
 
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  _hi_pt="" _hi_pdone=""
+  _hi_pt="" _hi_pdone="" _hi_marks_for=""
   # an extension's decision first (HI.59), as in common/bash.sh
   if [[ "${_HI_PROMPT_DRAWN:-0}" == 1 ]]; then
     _hi_pdone=1
@@ -108,6 +108,9 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       unset _hi_init
       ;;
     esac
+    # the marks under its prompt (below), but not beside the ones
+    # powerlevel10k and oh-my-posh can send themselves
+    [[ $_hi_pt == (powerlevel10k|oh-my-posh) ]] || _hi_marks_for=program
   elif ! _hi_prompt_named_hi zsh && { (( ${+_LP_VERSION} || ${+SPACESHIP_VERSION} ||
     ${+functions[prompt_pure_setup]} )) || [[ -n ${prompt_theme-} ]] ||
     { [[ $_HI_REMOTE_SESSION != 1 ]] && ! _hi_ps1_stock; }; }; then
@@ -162,37 +165,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       done
     }
     ((${#_hi_segments[@]})) && precmd_functions+=(__hi_segment_precmd)
-    # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's __hi_ps1()
-    # emits them
-    _hi_marks_a=$'%{\e]133;A\a%}'
-    _hi_marks_b=$'%{\e]133;B\a%}'
-    __hi_ma="" __hi_mb=""
-    # whether a draw carries them, as bash.sh's _hi_marks_on asks
-    __hi_marks_on() {
-      [[ $TERM != dumb && -t 1 && -z ${ITERM_SHELL_INTEGRATION_INSTALLED-} ]] &&
-        (( ! ${+_ksi_state} && ! ${+_ghostty_state} && ! ${+functions[__wezterm_semantic_precmd]} ))
-    }
-    __hi_marks_precmd() {
-      local ec=$? u
-      emulate -L zsh
-      if __hi_marks_on; then
-        __hi_ma=$_hi_marks_a __hi_mb=$_hi_marks_b
-        _hi_url_path u "$PWD"
-        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$u"
-      else
-        __hi_ma="" __hi_mb=""
-      fi
-    }
-    __hi_marks_preexec() { [[ -z $__hi_ma ]] || printf '\e]133;C\a'; }
-    # a shell left from its prompt (Ctrl-D) runs no preexec, so close the last
-    # A/B pair on the way out, as bash.sh's _hi_marks_exit does
-    __hi_marks_zshexit() {
-      local ec=$?
-      [[ -n $__hi_ma && -t 1 ]] && printf '\e]133;C\a\e]133;D;%s\a' "$ec"
-    }
-    precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
-    preexec_functions+=(__hi_marks_preexec)
-    zshexit_functions+=(__hi_marks_zshexit)
+    # the marks' own setup follows the prompt: a program's draw has them too
+    _hi_marks_for=hi
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
     # expansion happens at render time rather than at assignment - the lead
     # too, which __hi_env_precmd re-decides per draw.
@@ -226,8 +200,45 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       PS1=$'${__hi_ma}${__hi_lead}${__hi_env_info}${debian_chroot:-}%n@%m %~${__hi_git_info} '"$HI_PS1_END "$'${__hi_mb}'
     fi
   fi
+  # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh emits them
+  if [[ -n $_hi_marks_for ]]; then
+    _hi_marks_a=$'%{\e]133;A\a%}'
+    _hi_marks_b=$'%{\e]133;B\a%}'
+    __hi_ma="" __hi_mb=""
+    # a prompt program's $PS1 is its own: A goes out from the precmd there,
+    # ahead of its draw, and no B
+    unset __hi_marks_bare
+    [[ $_hi_marks_for != program ]] || __hi_marks_bare=1
+    # whether a draw carries them, as bash.sh's _hi_marks_on asks
+    __hi_marks_on() {
+      [[ $TERM != dumb && -t 1 && -z ${ITERM_SHELL_INTEGRATION_INSTALLED-} ]] &&
+        (( ! ${+_ksi_state} && ! ${+_ghostty_state} && ! ${+functions[__wezterm_semantic_precmd]} ))
+    }
+    __hi_marks_precmd() {
+      local ec=$? u
+      emulate -L zsh
+      if __hi_marks_on; then
+        __hi_ma=$_hi_marks_a __hi_mb=$_hi_marks_b
+        _hi_url_path u "$PWD"
+        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$u"
+        (( ! ${+__hi_marks_bare} )) || printf '\e]133;A\a'
+      else
+        __hi_ma="" __hi_mb=""
+      fi
+    }
+    __hi_marks_preexec() { [[ -z $__hi_ma ]] || printf '\e]133;C\a'; }
+    # a shell left from its prompt (Ctrl-D) runs no preexec, so close the last
+    # A/B pair on the way out, as bash.sh's _hi_marks_exit does
+    __hi_marks_zshexit() {
+      local ec=$?
+      [[ -n $__hi_ma && -t 1 ]] && printf '\e]133;C\a\e]133;D;%s\a' "$ec"
+    }
+    precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
+    preexec_functions+=(__hi_marks_preexec)
+    zshexit_functions+=(__hi_marks_zshexit)
+  fi
 fi
-unset _hi_pt _hi_pdone _hi_omz_theme _hi_p10k_cfg
+unset _hi_pt _hi_pdone _hi_omz_theme _hi_p10k_cfg _hi_marks_for
 
 # completion: `hi` from the shared target list, `exa` the same way as `eza`.
 # compinit is the rc's own call: common/_hi is a `#compdef` function on

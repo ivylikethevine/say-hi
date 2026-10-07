@@ -77,7 +77,8 @@ function _hi_path_list() {
 # is a plugin, its keys `files` (the members, a space apart), `tool` (left
 # out, the name), and `wire`, `home`, and `dialect` (left out, -); a
 # `[<group>.<name>."<member>"]` table under it is the wire, home, or dialect
-# one of its files has of its own. What the table could not hold is left out
+# one of its files has of its own. `init`, `prompt`, and `shells` are its
+# shell hook (HI.67), and `env` the variables whose values here ride (HI.62). What the table could not hold is left out
 # and noted in $_HI_PLUGIN_BAD: a line that is no table and no key =
 # "value", a key above the first plugin or of no name hi reads, a table of
 # the rows before these, a second plugin of a name, a plugin of no files, a
@@ -90,11 +91,11 @@ function _hi_plugins_load() {
   # files with the keys each has of its own, and where a key lands - the
   # plugin (-1), one of its files (an index), a table that was turned down
   # (-2), or above the first table (-3)
-  local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df
+  local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df _hi_rc_sh _hi_rc_e
   local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
   [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
-  _HI_PLUGIN_HOOKS=() _HI_PLUGIN_DEFAULT_OFF=" "
+  _HI_PLUGIN_HOOKS=() _HI_PLUGIN_ENVS=() _HI_PLUGIN_DEFAULT_OFF=" "
   for _hi_cy_s in config/plugins plugins; do
     case "$_hi_cy_s" in config/*) _hi_cy_f="$_HI_ROOT/$_hi_cy_s" ;; *) _hi_cy_f="${_HI_CONFIG_DIR:-}/$_hi_cy_s" ;; esac
     [ -f "$_hi_cy_f" ] || continue
@@ -137,7 +138,7 @@ function _hi_plugins_load() {
         else
           _hi_cy_seen="$_hi_cy_seen$_hi_cy_p "
           _hi_rc_at="$_hi_cy_s:$_hi_cy_n" _hi_rc_g="$_hi_cy_g" _hi_rc_n="$_hi_cy_p" _hi_rc_to=-1
-          _hi_rc_t="" _hi_rc_w="" _hi_rc_h="" _hi_rc_d="" _hi_rc_i="" _hi_rc_p="" _hi_rc_df=""
+          _hi_rc_t="" _hi_rc_w="" _hi_rc_h="" _hi_rc_d="" _hi_rc_i="" _hi_rc_p="" _hi_rc_df="" _hi_rc_sh="" _hi_rc_e=""
           _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
         fi
         continue
@@ -165,7 +166,9 @@ function _hi_plugins_load() {
       -1:init) _hi_rc_i="$_hi_cy_v" ;;
       -1:prompt) _hi_rc_p="$_hi_cy_v" ;;
       -1:default) _hi_rc_df="$_hi_cy_v" ;;
-      -1:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin: files, tool, wire, home, dialect, init, prompt, default") ;;
+      -1:shells) _hi_rc_sh="$_hi_cy_v" ;;
+      -1:env) _hi_rc_e="$_hi_cy_v" ;;
+      -1:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin: files, tool, wire, home, dialect, init, prompt, shells, default, env") ;;
       *:wire) _hi_rc_mw[_hi_rc_to]="$_hi_cy_v" ;;
       *:home) _hi_rc_mh[_hi_rc_to]="$_hi_cy_v" ;;
       *:dialect) _hi_rc_md[_hi_rc_to]="$_hi_cy_v" ;;
@@ -198,15 +201,31 @@ function _hi_plugins_close() {
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: default is on or off, not '$_hi_rc_df'")
     _hi_rc_df=""
   fi
+  # `shells` keeps the hook to the shells it names, of bash, zsh, and fish
+  if [ -n "$_hi_rc_sh" ] && ! _hi_plugin_shells_ok "$_hi_rc_sh"; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: shells is any of bash, zsh, and fish, a space apart, not '$_hi_rc_sh'")
+    _hi_rc_sh=""
+  fi
   if [ -n "$_hi_rc_i" ]; then
     if ! _hi_plugin_init_ok "$_hi_rc_i"; then
       _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: init is a command and its words, no quote, ; | & or \$ among them: '$_hi_rc_i'")
     else
-      _hi_plugin_hook_put "$_hi_rc_g|$_hi_rc_n|$_hi_cl_t|$_hi_rc_i|${_hi_rc_p:-no}"
+      _hi_plugin_hook_put "$_hi_rc_g|$_hi_rc_n|$_hi_cl_t|$_hi_rc_i|${_hi_rc_p:-no}|${_hi_rc_sh:--}"
     fi
   elif [ "$_hi_rc_p" = yes ]; then
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: prompt = yes needs an init")
+  elif [ -n "$_hi_rc_sh" ]; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: shells needs an init")
   fi
+  # `env` names variables whose values here ride to a target (HI.62); a
+  # plugin of this name read before has its row replaced, or dropped
+  if [ -n "$_hi_rc_e" ] && ! _hi_plugin_env_ok "$_hi_rc_e"; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: env is variable names a space apart, none of hi's own and none that reads as a secret: '$_hi_rc_e'")
+    _hi_cl_x=""
+  else
+    _hi_cl_x="$_hi_rc_e"
+  fi
+  _hi_plugin_env_put "$_hi_rc_n" "${_hi_cl_x:+$_hi_rc_g|$_hi_rc_n|$_hi_cl_x}"
   if [ "$_hi_rc_df" = off ]; then
     case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_rc_n "*) ;; *) _HI_PLUGIN_DEFAULT_OFF="$_HI_PLUGIN_DEFAULT_OFF$_hi_rc_n " ;; esac
   else
@@ -215,7 +234,7 @@ function _hi_plugins_close() {
   if ! _hi_plugin_tools_ok "$_hi_cl_t"; then
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: '$_hi_cl_t' is no list of commands, or -")
   elif ((${#_hi_rc_m[@]} == 0)); then
-    [ -n "$_hi_rc_i" ] || _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n names no files")
+    [ -n "$_hi_rc_i$_hi_rc_e" ] || _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n names no files")
   else
     for _hi_cl_i in "${!_hi_rc_m[@]}"; do
       _hi_cl_m="${_hi_rc_m[_hi_cl_i]}" _hi_cl_why=""
@@ -276,6 +295,48 @@ function _hi_plugin_init_ok() {
   _hi_words_ok "${1%% *}" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
 }
 
+# _hi_plugin_shells_ok <shells> - a hook's shells: of bash, zsh, and fish
+function _hi_plugin_shells_ok() {
+  local _hi_sk
+  [ -n "$1" ] || return 1
+  for _hi_sk in $1; do
+    case "$_hi_sk" in bash | zsh | fish) ;; *) return 1 ;; esac
+  done
+}
+
+# _hi_plugin_env_ok <names> - a plugin's env: variable names a space apart,
+# none hi's own, and none whose name says its value is a secret
+function _hi_plugin_env_ok() {
+  local _hi_ek
+  _hi_words_ok "$1" 'A-Za-z_' 'A-Za-z0-9_' || return 1
+  for _hi_ek in $1; do
+    case "$_hi_ek" in
+    _HI_* | *TOKEN* | *SECRET* | *PASSWORD* | *PASSWD* | *CREDENTIAL* | *_KEY | *_PAT) return 1 ;;
+    esac
+  done
+}
+
+# _hi_plugin_env_put <name> <row> - <name>'s `<group>|<name>|<variables>` row
+# of $_HI_PLUGIN_ENVS in place of the one it had; an empty <row> leaves none
+function _hi_plugin_env_put() {
+  local _hi_ep_r _hi_ep_n
+  local -a _hi_ep_all=()
+  for _hi_ep_r in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do
+    _hi_ep_n="${_hi_ep_r#*|}"
+    [ "${_hi_ep_n%%|*}" = "$1" ] || _hi_ep_all+=("$_hi_ep_r")
+  done
+  [ -z "$2" ] || _hi_ep_all+=("$2")
+  _HI_PLUGIN_ENVS=(${_hi_ep_all[@]+"${_hi_ep_all[@]}"})
+}
+
+# _hi_env_rides <NAME> - is that variable set here to a value a line of
+# wiring.sh can hold in single quotes: no quote, backslash, or line break
+function _hi_env_rides() {
+  local _hi_er="${!1:-}"
+  [ -n "$_hi_er" ] || return 1
+  case "$_hi_er" in *\'* | *\\* | *$'\n'*) return 1 ;; esac
+}
+
 # _hi_plugin_hook_put <row> - a hook row, in place of the tree's of its name
 function _hi_plugin_hook_put() {
   local _hi_hp_i _hi_hp_n _hi_hp_o
@@ -290,11 +351,11 @@ function _hi_plugin_hook_put() {
   _HI_PLUGIN_HOOKS+=("$1")
 }
 
-# _hi_hook_col <row> <group|name|tool|init|prompt> [outvar] - one column of a
-# hook row
+# _hi_hook_col <row> <group|name|tool|init|prompt|shells> [outvar] - one
+# column of a hook row; shells is - for every shell
 function _hi_hook_col() {
   local _hi_hc_r="$1" _hi_hc_n
-  for _hi_hc_n in group name tool init prompt; do
+  for _hi_hc_n in group name tool init prompt shells; do
     [ "$_hi_hc_n" != "$2" ] || break
     _hi_hc_r="${_hi_hc_r#*|}"
   done

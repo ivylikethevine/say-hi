@@ -1460,6 +1460,13 @@ member:
 one in the overlay is not read, and the archive has none when no member it
 carries has a wire.
 
+A plugin's `env` is the one line that holds a value of this machine's: each
+variable it names that is set here becomes `export NAME='value'`, its plugin
+on, read as the overlay is packed. Single quotes hold a value in all four
+dialects only without a quote, a backslash, or a line break in it, so one
+with any stays home (`_hi_env_rides`), and a name that reads as a secret is
+turned down with its plugin's row ([HI.63](#hi63-plugins-rows)).
+
 The lines are part of `_hi_overlay_cache_key`. The member list alone would
 hand an archive cached by an older packer to a newer one that wires the same
 members another way.
@@ -1515,7 +1522,10 @@ is hi's own, another plugin's, or the directory one sits under, or that is
 `wiring.sh` or `plugins`; a tool that is not command names or `-`; a wire that
 is not `env:` or `envdir:` over variable names, `flag:` or `flagdir:` over a
 command and its words, or `xdg:` over one command, wires a `;` apart; a
-dialect `$_HI_DIALECTS` has no row of. A file that is turned down takes
+dialect `$_HI_DIALECTS` has no row of; a `shells` that is not of bash, zsh,
+and fish, or with no `init`; an `env` that is not variable names, or that
+names one of hi's own or one that reads as a secret. A file that is turned
+down takes
 nothing of its plugin with it. The wire is checked because its words become a
 line every target sources: its names, its environment, its command, and its
 words each hold nothing that runs or expands there beyond a `$NAME`. The check
@@ -1546,7 +1556,10 @@ every member passes on its way out, so what is off is not packed, has no
 line in `wiring.sh` ([HI.62](#hi62-generated-wiring)), and is not in the
 cache key's member list. The target is handed the result and needs neither
 the list nor the table. An overlay copy stays home too: off is the user
-saying no, which outranks a file saying yes.
+saying no, which outranks a file saying yes. A prompt program that is off is
+left out of the list a target is handed (`_hi_prompt_here`) unless
+`_HI_PROMPT_TOOL` names it: [HI.32](#hi32-starship-deference)'s default is
+every program found here, and off is the user saying not that one.
 
 Two things keep it cheap and right. Every member asks, several times a
 connect, and nearly always nothing is off, so that verdict is kept for the
@@ -1737,7 +1750,10 @@ and nothing else does. A target runs a hook only where it has the tool, and
 only when the settings it was sent leave it on (`_hi_hook_on`): a leading `-`
 on the name says the plugin is off by default, and then `_HI_PLUGINS_ON` has
 to name it. The shipped `hooks` group is off that way, since each
-of its tools keeps state under a target's `$HOME`. `_hi_prompt_row` reads
+of its tools keeps state under a target's `$HOME`. A plugin's `shells` rides
+as `:<shells>` after its name in the row, a `,` apart, and a shell not among
+them passes the row over; for a prompt plugin it is the shells column of its
+`_HI_PROMPT_PLUGINS` row. `_hi_prompt_row` reads
 `_HI_PROMPT_PLUGINS` beside `_HI_PROMPT_TABLE`, so a prompt program the table
 never heard of is picked the same way; its configs ride as its plugin's files,
 with no table column to name them.
