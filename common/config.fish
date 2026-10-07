@@ -34,6 +34,7 @@ end
 source $_HI_HOME/say-hi/common/paths.sh
 # core.sh's _hi_parses, in fish: the overlay's aliases.sh and each extension
 # are parsed before they are sourced, and one fish cannot parse is skipped
+set -e _HI_ALIAS_GUARD
 set -g _HI_ALIAS_GUARD _hi_parses
 function _hi_parses --description 'does fish parse this file; said when not'
   command fish --no-config -n $argv[1] 2>/dev/null; and return 0

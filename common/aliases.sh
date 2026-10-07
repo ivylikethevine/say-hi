@@ -100,12 +100,14 @@ command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_H
 # and `hi --doctor` says so. Same POSIX+fish subset as this file: bash, zsh,
 # and fish parse it first, and one that cannot skips it with a line saying so
 # rather than half-running it. $_HI_ALIAS_GUARD is that check's command, each
-# of the three's own _hi_parses, and `true` in a plain sh, which has none
-# (the backstop above). GLOSSARY: HI.59
+# of the three's own _hi_parses, and `true` where this file is sourced with
+# no rc of hi's around it: the backstop above for a plain sh, the line below
+# for a fish, which that backstop's gate keeps out. GLOSSARY: HI.59
 #
 # The path test stops $_HI_CONFIG_DIR pointed at config/ from sourcing this
 # file forever; the shellcheck directive is the static half of the same hazard
 # (see common/bash.sh).
+command -v shift >/dev/null 2>&1 || [ -n "$_HI_ALIAS_GUARD" ] || export _HI_ALIAS_GUARD=true
 # shellcheck source=/dev/null # user config, may not exist
 [ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/common/aliases.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && $_HI_ALIAS_GUARD "$_HI_CONFIG_DIR/aliases.sh" aliases.sh &&
