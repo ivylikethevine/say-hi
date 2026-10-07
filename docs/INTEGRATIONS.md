@@ -298,6 +298,13 @@ a keepalive, unless your ssh config sets a `ServerAliveInterval` of its own.
 key has to be sent through the outer one.
 [HI.65](GLOSSARY.md#hi65-kept-session) is how it works.
 
+`tmux`, `zellij`, or `screen` typed on its own in a session does the same
+thing as `hi --keep` typed there, in the one you named: it becomes the
+session's kept one, its panes are hi's shell, and the next `hi <target>`
+attaches it, so a multiplexer started by habit is not left running on a
+directory that goes when the connection does. With words of its own
+(`tmux attach`, `tmux new -s work`) it is yours, started as you typed it.
+
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux/tmux.conf` over
 both) rides along and the session's `tmux` alias is `tmux -f` it. screen the

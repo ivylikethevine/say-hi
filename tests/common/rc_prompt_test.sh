@@ -66,11 +66,11 @@ function test_remote_session_exports_overlay_config() {
   [ "$out" = "$want" ] && [ -z "$home" ]
 }
 
-# on a target, tmux, screen, micro, and zellij reach the overlay's copies
-# through their aliases, each a wiring.sh line (GLOSSARY: HI.62): tmux -f the
-# tmux.conf, screen -c the screenrc, zellij --config-dir the zellij/
-# directory, micro -config-dir the micro/ one. With no overlay copy the tool
-# is left alone: the target's own ~/.tmux.conf is not picked up in its place.
+# on a target, micro reaches the overlay's copy through its alias, a
+# wiring.sh line (GLOSSARY: HI.62): micro -config-dir the micro/ directory.
+# tmux, screen, and zellij are common/mux.sh's there, which names the
+# overlay's copy itself (hi/keep_test.sh has what it runs). With no overlay
+# copy the target's own ~/.tmux.conf is not picked up in its place.
 # <shell> <overlay file, or - for none> <alias> <wanted> [unwanted]
 function test_remote_session_aliases_overlay_config() {
   local shell="$1" file="$2" name="$3" want="$4" bad="${5:-}" script out
@@ -699,10 +699,10 @@ function run_rc_prompt_tests() {
   _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
   _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
-  _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux/tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux/tmux.conf"
+  _hi_check "[bash] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash tmux/tmux.conf tmux "common/mux.sh tmux"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
-  _hi_check "[bash] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config bash screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
-  _hi_check "[bash] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
+  _hi_check "[bash] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash screenrc screen "common/mux.sh screen"
+  _hi_check "[bash] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "common/mux.sh zellij"
   _hi_check "[bash] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config bash - micro "" micro
   _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -backup false -savehistory false -config-dir $_HI_WORKDIR/cfg/micro"
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
@@ -719,9 +719,9 @@ function run_rc_prompt_tests() {
   _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
   _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
-  _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux/tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux/tmux.conf"
-  _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
-  _hi_check_requires fish "[fish] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
+  _hi_check_requires fish "[fish] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish tmux/tmux.conf tmux "common/mux.sh tmux"
+  _hi_check_requires fish "[fish] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish screenrc screen "common/mux.sh screen"
+  _hi_check_requires fish "[fish] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "common/mux.sh zellij"
   _hi_check_requires fish "[fish] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config fish - micro "" micro
   _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -backup false -savehistory false -config-dir $_HI_WORKDIR/cfg/micro"
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle

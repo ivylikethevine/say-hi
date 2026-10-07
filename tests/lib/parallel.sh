@@ -115,6 +115,7 @@ function _hi_par_case() {
   _hi_par_slot
   _HI_PAR_N=$((_HI_PAR_N + 1))
   _HI_PAR_LABELS+=("$label")
+  _hi_note_case "$label"
   local out="$_HI_PAR_DIR/$_HI_PAR_N.out" res="$_HI_PAR_DIR/$_HI_PAR_N.res"
   _hi_cecho " | [$label] started" "$BLUE"
   (

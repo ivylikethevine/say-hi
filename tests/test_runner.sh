@@ -234,6 +234,10 @@ Actions, passing transcripts fold into ::group:: blocks and failing cases
 are emitted as ::error annotations. While suites run side by side, a progress
 line counts finished suites and cases - redrawn in place at a terminal, a line
 per finished suite (and every 30s) on CI; _HI_PROGRESS=0/1 overrides.
+A suite side by side that starts and finishes no case for ten minutes is
+ended and reported FAILED (hung), with the case it was in;
+_HI_SUITE_STALL=<seconds> moves the limit, for suites one by one too, and 0
+lifts it.
 
 Suites, in the order they run:
 $(_hi_test_listing)
@@ -496,6 +500,8 @@ function _hi_collect_suite() {
     _hi_status="PASS"
   else
     _hi_status="FAILED ($_hi_code)"
+    # _hi_run_suite_watched's verdict
+    [ "$_hi_code" != 124 ] || _hi_status="FAILED (hung)"
     _HI_SUITE_FAILED=$((_HI_SUITE_FAILED + 1))
   fi
   _HI_ROWS+=("$_hi_name"$'\t'"$_hi_status"$'\t'"$_hi_pass"$'\t'"$_hi_fail"$'\t'"$_hi_skipcnt"$'\t'"$_hi_dur")
@@ -589,6 +595,60 @@ function _hi_run_suite() {
     _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
 }
 
+# _hi_run_suite_watched <stall> - _hi_run_suite, ended where it hangs: a
+# suite that neither starts nor finishes a case for <stall> seconds is
+# killed, with every process it started, and exits 124 with the case it was
+# in named for the recap - a hung case otherwise costs the whole job its
+# timeout and leaves no name. The suite is started under job control, and
+# only it: a process group of its own is what lets the kill reach its
+# children, and costs it the terminal's input and its interrupt, which the
+# trap hands on. 0 runs it unwatched.
+function _hi_run_suite_watched() {
+  local stall="$1"
+  case "$stall" in '' | 0 | *[!0-9]*)
+    _hi_run_suite
+    return
+    ;;
+  esac
+  (
+    rm -f "$_hi_progress.hung"
+    set -m
+    _hi_run_suite </dev/null &
+    pid=$!
+    set +m
+    trap 'kill -TERM -- "-$pid" 2>/dev/null; exit 130' INT TERM HUP
+    (
+      seen="" last=$SECONDS
+      while kill -0 "$pid" 2>/dev/null; do
+        # nothing of its own on the suite's output, which a reader waits on
+        sleep 1 >/dev/null 2>&1
+        now="" label=""
+        [ ! -s "$_hi_progress" ] || read -r now <"$_hi_progress" || :
+        [ ! -s "$_hi_progress.case" ] || IFS= read -r label <"$_hi_progress.case" || :
+        if [ "$now|$label" != "$seen" ]; then
+          seen="$now|$label" last=$SECONDS
+        elif ((SECONDS - last >= stall)); then
+          : >"$_hi_progress.hung"
+          printf ' | no case started or finished in %ss: the suite is ended here, in: %s\n' "$stall" "${label:-a case it never named}"
+          printf 'hung for %ss in: %s\n' "$stall" "${label:-a case it never named}" >>"$_hi_fails"
+          kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+          sleep 2 >/dev/null 2>&1
+          kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+          exit 0
+        fi
+      done
+    ) &
+    watch=$!
+    wait "$pid"
+    code=$?
+    # a watcher that ended the suite has its second, harder kill to send yet
+    [ -f "$_hi_progress.hung" ] || kill "$watch" 2>/dev/null
+    wait "$watch" 2>/dev/null
+    [ ! -f "$_hi_progress.hung" ] || code=124
+    exit "$code"
+  )
+}
+
 # _hi_progress_line <index-before-batch> <suite-entry...> - the batch's state
 # as one line in $_hi_pg_line, and its finished-suite count in $_hi_pg_done.
 # Read off the batch's $_HI_RUN_DIR files: .rc once a suite is done, .counts
@@ -607,6 +667,10 @@ function _hi_progress_line() {
       _hi_pg_done=$((_hi_pg_done + 1))
     elif [ -f "$_HI_RUN_DIR/$k.progress" ]; then
       running="$running $name"
+      # ...and the case it is in, so a suite that hangs is seen to, and where
+      t=""
+      [ ! -s "$_HI_RUN_DIR/$k.progress.case" ] || IFS= read -r t <"$_HI_RUN_DIR/$k.progress.case" || :
+      [ -z "$t" ] || running="$running (${t:0:40})"
     fi
     file="$_HI_RUN_DIR/$k.counts"
     [ -s "$file" ] || file="$_HI_RUN_DIR/$k.progress"
@@ -668,6 +732,11 @@ function _hi_progress_tick() {
 function _hi_run_batch() {
   local width="$1" _hi_t _hi_rest _hi_name _hi_path _hi_counts _hi_fails _hi_log
   local _hi_t0 _hi_code _hi_dur _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1" _hi_pid _hi_ticker="" _hi_progress=""
+  # the stall a suite is ended at: ten minutes side by side, where a suite
+  # is plain processes, and never one by one unless asked, where a case may
+  # build an image
+  local _hi_stall="${_HI_SUITE_STALL:-}"
+  [ -n "$_hi_stall" ] || { [ "$width" -le 1 ] && _hi_stall=0 || _hi_stall=600; }
   local -a _HI_PAR_RUNNING=() _hi_batch_names=()
   shift
   if [ "$width" -gt 1 ] && [ "$_HI_PROGRESS" = 1 ] && [ "$#" -gt 0 ]; then
@@ -687,7 +756,7 @@ function _hi_run_batch() {
     : >"$_hi_counts"
     : >"$_hi_fails"
     rm -f "$_hi_fails.flaky" "$_hi_fails.times"
-    [ -z "$_hi_ticker" ] || _hi_progress="$_HI_RUN_DIR/$_hi_i.progress"
+    _hi_progress="$_HI_RUN_DIR/$_hi_i.progress"
     _hi_batch_names+=("$_hi_name")
 
     if [ ! -f "$_hi_path" ]; then
@@ -703,7 +772,7 @@ function _hi_run_batch() {
         # its presence is what the progress line reads as "running"
         [ -z "$_hi_progress" ] || : >"$_hi_progress"
         _hi_t0="$(_hi_now)"
-        if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+        if _hi_run_suite_watched "$_hi_stall" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
         printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
       ) &
       _HI_PAR_RUNNING+=("$!")
@@ -713,9 +782,9 @@ function _hi_run_batch() {
     _hi_h2 "Running $_hi_name"
     _hi_t0="$(_hi_now)"
     if [ "$_HI_VERBOSE" = 1 ]; then
-      if _hi_run_suite; then _hi_code=0; else _hi_code=$?; fi
+      if _hi_run_suite_watched "$_hi_stall"; then _hi_code=0; else _hi_code=$?; fi
     else
-      if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+      if _hi_run_suite_watched "$_hi_stall" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
     fi
     _hi_restore_tty
     _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"

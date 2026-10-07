@@ -91,6 +91,18 @@ command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_H
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_SESSION_RC/fish.config" ] &&
   alias fish="command fish -C 'source $_HI_SESSION_RC/fish.config'" || true
 
+# A multiplexer typed bare in a session is the session's kept one, and with
+# words of its own starts on the config hi carried: common/mux.sh decides,
+# so these replace wiring.sh's aliases for the three. A session's alone, and
+# only where that file rode (the container fallback carries this one alone).
+# GLOSSARY: HI.65
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_ROOT/common/mux.sh" ] && command -v tmux >/dev/null 2>&1 &&
+  alias tmux="sh $_HI_ROOT/common/mux.sh tmux" || true
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_ROOT/common/mux.sh" ] && command -v zellij >/dev/null 2>&1 &&
+  alias zellij="sh $_HI_ROOT/common/mux.sh zellij" || true
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_ROOT/common/mux.sh" ] && command -v screen >/dev/null 2>&1 &&
+  alias screen="sh $_HI_ROOT/common/mux.sh screen" || true
+
 # Your own aliases.sh (~/.config/say-hi/aliases.sh, or the overlay's copy on a
 # target), sourced LAST: an `alias` there replaces the same name above, can
 # build on what this file resolved (`alias ls="$_HI_LS_BIN $_HI_LS_OPTS

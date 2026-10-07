@@ -652,6 +652,67 @@ function test_keep_here_attaches_a_session_already_kept() {
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "the tree was claimed for a session it does not hold"
 }
 
+# a multiplexer typed bare in a session names itself to `hi --keep`, and the
+# start takes that one of the three over the first on PATH
+function test_keep_here_starts_the_multiplexer_that_was_typed() {
+  local log="$_HI_WORKDIR/herewith.log" t out
+  t="$(_hi_keep_here_tree herewith)"
+  out="$(_hi_keep_here_run "$log" "$t" _HI_KEEP_WITH=screen)"
+  [[ "$out" == *"SCREEN -S hi-box env "* && "$out" != *"TMUX new-session"* ]] || _hi_because "screen typed: $out" || return 1
+  rm -f "$t/say-hi/hi.kept"
+  out="$(_hi_keep_here_run "$log" "$t" _HI_KEEP_WITH='tmux; touch x')"
+  [[ "$out" == *"TMUX new-session -s hi-box env "* ]] || _hi_because "a word that is none of the three: $out"
+}
+
+# _hi_mux_alias_tree - a session's tree for common/mux.sh, whose tools and
+# hi.sh say what they were run with; prints the tree
+function _hi_mux_alias_tree() {
+  local t="$_HI_WORKDIR/muxalias" bin
+  mkdir -p "$t/say-hi/common" "$t/say-hi/config/tmux" "$t/bin"
+  cp "$_HI_ROOT/common/mux.sh" "$t/say-hi/common/mux.sh"
+  : >"$t/say-hi/config/tmux/tmux.conf"
+  for bin in tmux screen zellij; do
+    printf '#!/bin/sh\nprintf "%%s\\n" "%s $*"\n' "$bin" >"$t/bin/$bin"
+  done
+  # shellcheck disable=SC2016 # the stub's sh expands it
+  printf '#!/bin/sh\nprintf "%%s\\n" "HI $* with=$_HI_KEEP_WITH"\n' >"$t/say-hi/hi.sh"
+  chmod +x "$t/bin/tmux" "$t/bin/screen" "$t/bin/zellij" "$t/say-hi/hi.sh"
+  : >"$t/say-hi/hi.keep"
+  printf '%s' "$t"
+}
+
+# common/mux.sh, what the three are aliased to in a session: with words of
+# its own, or with no terminal, it is the tool itself, on the config hi
+# carried where one rode
+function test_mux_alias_passes_a_multiplexer_with_words_through() {
+  local t out
+  t="$(_hi_mux_alias_tree)"
+  out="$(env -u TMUX -u ZELLIJ -u STY -u _HI_CONFIG_DIR PATH="$t/bin:$PATH" sh "$t/say-hi/common/mux.sh" tmux new -s work </dev/null)"
+  [ "$out" = "tmux -f $t/say-hi/config/tmux/tmux.conf new -s work" ] || _hi_because "with words: $out" || return 1
+  out="$(env -u TMUX -u ZELLIJ -u STY PATH="$t/bin:$PATH" sh "$t/say-hi/common/mux.sh" screen </dev/null)"
+  [ "$out" = "screen " ] || _hi_because "bare, with no terminal: $out" || return 1
+  # ...the session's own $_HI_CONFIG_DIR where it has one
+  mkdir -p "$t/elsewhere/zellij"
+  : >"$t/elsewhere/screenrc"
+  out="$(env -u TMUX -u ZELLIJ -u STY PATH="$t/bin:$PATH" _HI_CONFIG_DIR="$t/elsewhere" sh "$t/say-hi/common/mux.sh" screen -ls </dev/null)"
+  out="$out|$(env -u TMUX -u ZELLIJ -u STY PATH="$t/bin:$PATH" _HI_CONFIG_DIR="$t/elsewhere" sh "$t/say-hi/common/mux.sh" zellij ls </dev/null)"
+  [ "$out" = "screen -c $t/elsewhere/screenrc -ls|zellij --config-dir $t/elsewhere/zellij ls" ] || _hi_because "the session's config dir: $out"
+}
+
+# ...and bare, at a terminal, outside a multiplexer, with hi.keep, it is
+# `hi --keep` in that tool; inside one, or with no hi.keep, the tool again
+function test_mux_alias_keeps_a_bare_multiplexer() {
+  local t out
+  t="$(_hi_mux_alias_tree)"
+  out="$(env -u TMUX -u ZELLIJ -u STY PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" screen </dev/null 2>&1)"
+  [[ "$out" == *"HI --keep with=screen"* ]] || _hi_because "bare, at a terminal: $out" || return 1
+  out="$(env -u ZELLIJ -u STY TMUX=/tmp/tmux-1/default,1,0 PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" zellij </dev/null 2>&1)"
+  [[ "$out" == *"zellij "* && "$out" != *"HI --keep"* ]] || _hi_because "inside a multiplexer: $out" || return 1
+  rm -f "$t/say-hi/hi.keep"
+  out="$(env -u TMUX -u ZELLIJ -u STY -u _HI_CONFIG_DIR PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" tmux </dev/null 2>&1)"
+  [[ "$out" == *"tmux -f $t/say-hi/config/tmux/tmux.conf"* && "$out" != *"HI --keep"* ]] || _hi_because "a session that cannot be kept: $out"
+}
+
 # what cannot be kept says why: no file (a container's session, --no-keep,
 # an owner pane), a multiplexer already around it, none to start, no terminal
 function test_keep_here_refuses_what_it_cannot_keep() {
@@ -733,6 +794,9 @@ function run_hi_keep_tests() {
   _hi_check_capable pty "...its marker staying while the session lives" test_keep_here_leaves_the_marker_while_the_session_lives
   _hi_check_capable pty "A session already kept there is attached, unclaimed" test_keep_here_attaches_a_session_already_kept
   _hi_check_capable pty "What cannot be kept says why" test_keep_here_refuses_what_it_cannot_keep
+  _hi_check_capable pty "...the multiplexer that was typed is the one started" test_keep_here_starts_the_multiplexer_that_was_typed
+  _hi_check "A multiplexer's alias passes one with words through" test_mux_alias_passes_a_multiplexer_with_words_through
+  _hi_check_capable pty "...and keeps a bare one, where the session can be kept" test_mux_alias_keeps_a_bare_multiplexer
   _hi_suite_end "hi.sh (kept session)"
 }
 run_hi_keep_tests

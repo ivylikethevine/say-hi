@@ -36,12 +36,21 @@ function _hi_align() {
 # cases failed" instead of a bare pass/fail.
 function _hi_case() {
   local _hi_cs_t0=$SECONDS _hi_cs_l
-  _HI_TOTAL=$((_HI_TOTAL + 1))
-  "$@" || _HI_FAILED=$((_HI_FAILED + 1))
   # its label where _hi_assert or _hi_expect_eq ran it, else its command
   case "$1" in _hi_assert | _hi_expect_eq) _hi_cs_l="${2:-}" ;; *) _hi_cs_l="$*" ;; esac
+  _hi_note_case "$_hi_cs_l"
+  _HI_TOTAL=$((_HI_TOTAL + 1))
+  "$@" || _HI_FAILED=$((_HI_FAILED + 1))
   _hi_note_time $((SECONDS - _hi_cs_t0)) "$_hi_cs_l"
   _hi_report_progress
+}
+
+# _hi_note_case <label> - the case about to run, beside the progress file:
+# what the runner's progress line names a running suite by, and what it names
+# a suite that hangs by. One write and no fork, and never a failure.
+function _hi_note_case() {
+  [ -n "${_HI_PROGRESS_FILE:-}" ] || return 0
+  printf '%s\n' "${1:0:100}" 2>/dev/null >"$_HI_PROGRESS_FILE.case" || :
 }
 
 # _hi_note_time <seconds> <label> - a case that took a second or more, beside

@@ -404,16 +404,14 @@ account or an upstream review that lands when it lands.
        with no reconnect the tree is gone at the window's end.
 
 5. [ ] _Before 1.0:_ **A multiplexer started in a session is the kept
-       session** — `tmux` typed in a session that is not a kept one opens
-       each pane on the host's own shell, which reads none of hi's rc, and
-       outlives a drop on a tree that is then removed under it. **Do:** a
-       bare `tmux`, `zellij`, or `screen` typed in a session runs what
-       `hi --keep` typed there runs (`_hi_keep_here`): the session is
-       `hi-<target>`, its panes hi's shell, the tree its own. One started
-       with words of its own (`tmux new -s work`, `tmux attach`) is the
-       user's, and passes through. **Ticks when:** `tmux` typed in a plain
-       `hi <target>` session opens a pane that shows hi's prompt, and the
-       next `hi <target>` after a drop attaches it.
+       session** — shipped: `tmux`, `zellij`, or `screen` typed bare in a
+       session runs what `hi --keep` typed there runs, in the one that was
+       named (`common/mux.sh`), so the session is `hi-<target>`, its panes
+       hi's shell, and the tree its own; one started with words of its own
+       passes through ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is
+       left is seeing it on a target. **Ticks when:** `tmux` typed in a
+       plain `hi <target>` session opens a pane that shows hi's prompt, and
+       the next `hi <target>` after a drop attaches it.
 
 6. [ ] _Before 1.0:_ **`--mux` goes** — it wraps the connect in a local
        multiplexer ([HI.52](docs/GLOSSARY.md#hi52-client-multiplexer-wrap)),

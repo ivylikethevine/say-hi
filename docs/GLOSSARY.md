@@ -1630,6 +1630,14 @@ bash-less target connect as usual.
   `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
   runs an exit trap on a hangup, and a dropped link would otherwise take the
   tree from under the session.
+- **A multiplexer typed bare.** In a session `tmux`, `zellij`, and `screen`
+  are aliases to `common/mux.sh` (`common/aliases.sh`, over the wiring's
+  aliases for the three). Typed with no word after it, at a terminal, outside
+  a multiplexer, in a session with `hi.keep`, it runs `hi --keep` with
+  `$_HI_KEEP_WITH` naming the tool, and the start block takes that one of
+  the three; anything else passes through to the tool on the config hi
+  carried. So a multiplexer started by habit is the kept session, not one
+  left on a tree its connect removes at the drop.
 - **Kept from inside.** `hi --keep` with no target, typed in a session, keeps
   that session: `_hi_keep_here` runs the same attach and start under `sh`,
   from where a connect starts the pane. Three things make that possible. The

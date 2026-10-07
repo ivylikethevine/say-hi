@@ -590,6 +590,46 @@ function test_progress_line_counts_suites_and_cases() {
     _hi_before "$_HI_RUN_OUT" "2/2 suites" "Running prog_counted"
 }
 
+# A suite that hangs is ended at $_HI_SUITE_STALL, with what it started, and
+# named by the case it was in, on the progress line while it runs and in the
+# recap once it is ended; the suite beside it is still collected. That one
+# finishes only once the other has named its case, so the line it prompts
+# holds the name.
+function _hi_stall_run() {
+  local _HI_RUNNER_WIDTH=2 _HI_SUITE_STALL=4
+  {
+    printf '#!/usr/bin/env bash\nn=0\n'
+    # shellcheck disable=SC2016 # resolves when the fixture runs
+    printf 'until [ -s "${_HI_PROGRESS_FILE%%/*}/2.progress.case" ] || [ "$n" -ge 20 ]; do\n'
+    # shellcheck disable=SC2016
+    printf '  sleep 1\n  n=$((n + 1))\ndone\n'
+    # shellcheck disable=SC2016
+    printf 'printf "ran:stall_ok\\n"\nprintf "2 0\\n" >"$_HI_COUNTS_FILE"\n'
+  } >"$_HI_FIXTURES/stall_ok.sh"
+  {
+    printf '#!/usr/bin/env bash\n'
+    # shellcheck disable=SC2016
+    printf 'printf "1 0 0\\n" >"$_HI_PROGRESS_FILE"\n'
+    # shellcheck disable=SC2016
+    printf 'printf "the case that hangs\\n" >"$_HI_PROGRESS_FILE.case"\n'
+    printf 'sleep 300 &\nwait\n'
+  } >"$_HI_FIXTURES/stall_hung.sh"
+  chmod +x "$_HI_FIXTURES/stall_ok.sh" "$_HI_FIXTURES/stall_hung.sh"
+  _HI_RUN_WITH="_HI_PROGRESS=1" _hi_run_runner $'stall_ok:stall_ok.sh\nstall_hung:stall_hung.sh'
+}
+
+function test_a_hung_suite_is_ended_and_named_by_its_case() {
+  _hi_stall_run
+  [[ "$_HI_RUN_EXIT" == 1 && "$_HI_RUN_OUT" == *"FAILED (hung)"* &&
+    "$_HI_RUN_OUT" == *"hung for 4s in: the case that hangs"* &&
+    "$_HI_RUN_OUT" == *"stall_ok "*"PASS (2 passed"* ]]
+}
+
+function test_progress_line_names_the_running_case() {
+  _hi_stall_run
+  [[ "$_HI_RUN_OUT" == *"running: stall_hung (the case that hangs)"* ]]
+}
+
 function test_progress_line_is_off_by_default() {
   _hi_progress_run
   [[ "$_HI_RUN_OUT" != *" suites, "* ]]
@@ -714,6 +754,8 @@ function run_runner_tests() {
   _hi_check "Counts finished suites and cases, ahead of the replay" test_progress_line_counts_suites_and_cases
   _hi_check "Off without CI or a terminal" test_progress_line_is_off_by_default
   _hi_check "CI turns it on" test_ci_turns_the_progress_line_on
+  _hi_check "Names the case a running suite is in" test_progress_line_names_the_running_case
+  _hi_check "A hung suite is ended and named by its case" test_a_hung_suite_is_ended_and_named_by_its_case
 
   _hi_h2 "Testing: summary case counts"
   _hi_check "Has a column header" test_summary_has_a_column_header

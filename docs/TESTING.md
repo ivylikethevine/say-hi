@@ -71,8 +71,15 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   runtime's version and the load.
 - Suites running side by side replay only once the last one finishes, so a
   progress line fills the wait (finished suites, cases, failures, elapsed,
-  what is still running): redrawn in place at a terminal, a line per finished
-  suite plus a 30s heartbeat on CI. `_HI_PROGRESS=0`/`1` overrides.
+  what is still running, and the case each is in): redrawn in place at a
+  terminal, a line per finished suite plus a 30s heartbeat on CI.
+  `_HI_PROGRESS=0`/`1` overrides.
+- A suite that neither starts nor finishes a case for ten minutes is ended,
+  with what it started, and reported **FAILED (hung)** with that case named
+  in the recap; the other suites carry on. `_HI_SUITE_STALL=<seconds>` moves
+  the limit, and `0` lifts it. Suites that run one at a time (e2e, backends,
+  bench) are watched only where it is set, since a case there may build an
+  image.
 - A suite whose backend is missing reports **SKIPPED**, never green; so does a
   single case (an image that would not build, a tool not installed).
   `--require-run` (CI's lint, e2e, and backends jobs pass it) turns both into

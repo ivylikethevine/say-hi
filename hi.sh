@@ -839,6 +839,7 @@ REMOTE
 # where this zellij lists it.
 # _hi_keep_start [note prefix [name...]] - the names are the pane's variables
 # where a session starts it, which has them in a file and not in a connect.
+# $_HI_KEEP_WITH, there, is the one of the three that was typed.
 function _hi_keep_start() {
   local n target_q _hi_esc _hi_nc argv="" drop="" note="${1:- |}"
   local -a names=("${@:2}")
@@ -852,10 +853,10 @@ function _hi_keep_start() {
     argv="$argv $n=\"\$$n\""
     [ "$n" = NO_COLOR ] || drop="$drop $n"
   done
-  drop="$drop _HI_KEEP_AS"
+  drop="$drop _HI_KEEP_AS _HI_KEEP_WITH"
   cat <<REMOTE
         _hi_k=
-        for _hi_s in tmux zellij screen; do command -v "\$_hi_s" >/dev/null 2>&1 && { _hi_k=\$_hi_s; break; }; done
+        for _hi_s in tmux zellij screen; do [ "\$_hi_s" = "\${_HI_KEEP_WITH:-\$_hi_s}" ] && command -v "\$_hi_s" >/dev/null 2>&1 && { _hi_k=\$_hi_s; break; }; done
         if [ -n "\$_hi_k" ] && [ -t 0 ]; then
           set -- env _HI_KEEP_MUX="\$_hi_k" _HI_KEEP_NAME="\$_hi_kn" _HI_HOME="\$_HI_HOME" _HI_CONFIG_DIR="\$_HI_CONFIG_DIR"$argv bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
           (
@@ -949,9 +950,12 @@ function _hi_keep_end() {
 # a keeping connect runs from where it starts the pane. load.sh left what the
 # pane needs in hi.keep, a NAME=value a line, the target's name among them.
 # The hi.kept marker is the pane's claim on the tree: this session's exit
-# leaves the tree to it (load.sh's clean_all). GLOSSARY: HI.65
+# leaves the tree to it (load.sh's clean_all). A multiplexer typed bare in a
+# session comes here too (common/mux.sh), naming itself in $_HI_KEEP_WITH,
+# and is the one started where the name is one of the three. GLOSSARY: HI.65
 function _hi_keep_here() {
-  local file="$_HI_ROOT/hi.keep" line tool
+  local file="$_HI_ROOT/hi.keep" line tool with=""
+  case "${_HI_KEEP_WITH:-}" in tmux | zellij | screen) with="$_HI_KEEP_WITH" ;; esac
   local -a names=()
   [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session over ssh, into bash, started without --no-keep"
   [ -t 0 ] || _hi_die "--keep needs a terminal"
@@ -968,7 +972,7 @@ function _hi_keep_here() {
   DOMAIN="$_HI_KEEP_AS" KEEP=1 CMDARG=""
   # 86 is the attach block's word to a client that a session is kept
   # shellcheck disable=SC2016 # the script's sh expands these
-  sh -c "$(_hi_keep_attach)"'
+  _HI_KEEP_WITH="$with" sh -c "$(_hi_keep_attach)"'
       _hi_rc_dir=$_HI_ROOT
       : >"$_HI_ROOT/hi.kept"
 '"$(_hi_keep_start ' hi:' "${names[@]}")"'
