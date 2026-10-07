@@ -118,10 +118,8 @@ function test_full_report_draws_tables_and_no_findings_box() {
 # _hi_doctor_problems [args...] - `--problems` on the shims, output then exit
 # status on the last line
 function _hi_doctor_problems() {
-  local home rc=0
-  home="$(_hi_doctor_home)"
-  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --problems "$@" || rc=$?
+  local rc=0
+  _hi_doctor_run --problems "$@" || rc=$?
   printf 'rc=%s\n' "$rc"
 }
 
