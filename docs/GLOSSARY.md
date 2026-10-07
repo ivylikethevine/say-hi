@@ -1664,10 +1664,12 @@ bash-less target connect as usual.
   shell comes with a line naming the key. With nobody attached it closes.
   `hi --end <target>` kills the session over one ssh call, and the pane's
   bash takes the hangup.
-- **A session that died.** A target that goes down kills the owner pane
-  with no exit hook run, and a `/tmp` that outlasts the reboot keeps its
-  tree. So every owner pane's `load()` writes `hi.kept` (`_hi_keep_claim`):
-  its pid, then `$_HI_KEEP_OUTER`'s where it was kept from inside. A connect
+- **A session that died.** A target that goes down kills a session with no
+  exit hook run, and a `/tmp` that outlasts the reboot keeps its tree. So
+  every session's `load()` claims its tree (`_hi_keep_claim`): an owner pane
+  writes `hi.kept`, its pid, then `$_HI_KEEP_OUTER`'s where it was kept from
+  inside, and any other session `hi.pid`, its own, and only into a tree it
+  may remove. A connect
   that looks for a kept session and attaches none runs `_hi_keep_sweep` once
   it has a tree of its own: each sibling of that tree (`<user>.hi.*`, the
   same `mktemp` template in the same directory) whose claim names no process
@@ -1675,7 +1677,14 @@ bash-less target connect as usual.
   multiplexer, which a connect with another socket directory cannot see; a
   pid some other process of the account's now holds leaves the tree for a
   later connect. An empty claim - `hi --keep` typed inside, its pane not up
-  yet - and a tree with none are left alone.
+  yet - and a tree with none are left alone, and a tree a kept session
+  claims is judged by that claim, whatever its first session's says. Between
+  the two sits `_hi_tree_watch`: a job `load()` starts apart from the
+  session, which ignores the hangup, holds no terminal, polls for the
+  shell's pid once a minute, and runs the exit hook itself where the shell
+  is gone and the tree is not - both the shell and the bootstrap's `sh`
+  killed outright. The hook kills it on an ordinary exit, and a target that
+  goes down takes it too, which is what the sweep is for.
 - **The client's record.** A client cannot see a target's sessions without
   connecting, so it notes the ones it has seen: an empty `hi.kept.<key>` in
   hi's runtime directory, `<key>` the hash of the target and the ssh options
@@ -1690,19 +1699,26 @@ bash-less target connect as usual.
   (255, a link that dropped). A connect that keeps writes it before it
   connects, since a drop says nothing; `hi --end` removes it. With the
   record there, the next connect's script carries one more line after the
-  attach: no session by that name, and it says the kept session is gone
-  before it goes on. The runtime directory does not outlive a logout, and a
+  attach: no session by that name, on a target that has a multiplexer to
+  have held one, and it says the kept session is gone before it goes on. A
+  keeping connect writes the record before it knows what the target has, so
+  one with none of the three is not told of a session it never kept. The runtime directory does not outlive a logout, and a
   client that forgot expects nothing.
-- **The retry.** In a pane of a local multiplexer (`$TMUX`, `$ZELLIJ`, or
-  `$STY`, and a terminal) nobody may be watching when a link drops. There,
-  a session that was up, ends 255, and has the record is retried: every
+- **The retry.** At a terminal, a session that was up, ends 255, and has
+  the record is retried, whether or not a local multiplexer holds the pane:
+  the session is the target's, and a connect is all that brings it back. Every
   five seconds for `$_HI_KEEP_RETRY` (5m; 0 is never) from the drop, then
   one line saying the target did not come back. A try is `_say_hi` again
   with `ConnectTimeout=10`; the boot call's stderr goes to a file until the
   target answers, and a boot call ssh itself failed ends the try there, with
   no PowerShell fallback for a host that was not reached. A try that gets in
   and drops within ten seconds does not restart the window. A connect that
-  never got in is not retried.
+  never got in is not retried. A link that freezes is no drop until ssh
+  says so, so a connect that keeps, or comes back to a kept session, asks
+  for `ServerAliveInterval=15` and `ServerAliveCountMax=3` where the ssh
+  config sets no interval (`_hi_keep_alive`, by `ssh -G`): forty-five
+  seconds of silence ends the session 255, and the retry takes it from
+  there.
 - **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
   polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
   that rode) with no client attached, and it kills the session. `clean_all`

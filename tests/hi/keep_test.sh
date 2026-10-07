@@ -176,7 +176,7 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
     _hi_because "a plain connect's trap does not stand down for a session kept from inside" || return 1
   [[ "$out" == *"export _HI_KEEP_AS='box'"* ]] || _hi_because "the session is not told its target's name" || return 1
-  _hi_before "$out" 'mkdir "$_HI_ROOT"' '/say-hi/hi.kept; do' || _hi_because "no sweep once it has a tree" || return 1
+  _hi_before "$out" 'mkdir "$_HI_ROOT"' '/say-hi/hi.pid; do' || _hi_because "no sweep once it has a tree" || return 1
   [[ "$out" != *'new-session'* ]] || _hi_because "a plain connect starts a session" || return 1
   # its status is its word on a kept session, off the attach and at its end
   [[ "$out" == *"_hi_kept_note ' hi:' && exit 86"* && "$out" == *$'      _hi_kept && exit 86\n      exit 0' ]] ||
@@ -207,21 +207,30 @@ function test_keep_script_says_how_it_ends_and_what_is_gone() {
   out="$(_hi_keep_sh "$log" "$script" _HI_TEST_HAS=1)"
   [[ "$out" == *"hi: the kept session on [box] is gone"* ]] || _hi_because "an expected session that is gone: $out" || return 1
   out="$(_hi_keep_sh "$log" "$script" _HI_TEST_HAS=0)"
-  [[ "$out" != *"is gone"* ]] || _hi_because "a session that is there was called gone: $out"
+  [[ "$out" != *"is gone"* ]] || _hi_because "a session that is there was called gone: $out" || return 1
+  # ...and a target with none of the three held none to lose
+  out="$(env PATH="$(_hi_real_path keepnomux sh)" sh -c "$script" </dev/null 2>&1 || true)"
+  [[ "$out" != *"is gone"* ]] || _hi_because "a target with no multiplexer was told of one gone: $out"
 }
 
-# the next connect removes the tree of an owner pane that died with no exit
-# hook: one whose claim names no process still running, the pane's or that
-# of the shell it was kept from. A claim not written yet, a tree with none,
-# and another account's are left.
+# the next connect removes the tree of a session that died with no exit
+# hook: one whose claim names no process still running - an owner pane's or
+# that of the shell it was kept from in hi.kept, any other session's in
+# hi.pid. A claim not written yet, a tree with none, another account's, and
+# a dead session's that a live kept one claims are left.
 function test_keep_sweep_removes_the_tree_of_a_dead_owner_pane() {
   local d="$_HI_WORKDIR/sweep" dead n out
   sleep 0 &
   wait "$!"
   dead=$!
-  for n in u.hi.dead u.hi.both u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other; do
+  for n in u.hi.dead u.hi.both u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other \
+    u.hi.gone u.hi.here u.hi.handed; do
     mkdir -p "$d/$n/say-hi"
   done
+  printf '%s\n' "$dead" >"$d/u.hi.gone/say-hi/hi.pid"
+  printf '%s\n' "$$" >"$d/u.hi.here/say-hi/hi.pid"
+  printf '%s\n' "$dead" >"$d/u.hi.handed/say-hi/hi.pid"
+  printf '%s \n' "$$" >"$d/u.hi.handed/say-hi/hi.kept"
   printf '%s \n' "$dead" >"$d/u.hi.dead/say-hi/hi.kept"
   printf '%s %s\n' "$dead" "$dead" >"$d/u.hi.both/say-hi/hi.kept"
   printf '%s \n' "$$" >"$d/u.hi.live/say-hi/hi.kept"
@@ -230,10 +239,10 @@ function test_keep_sweep_removes_the_tree_of_a_dead_owner_pane() {
   printf '%s \n' "$dead" >"$d/v.hi.other/say-hi/hi.kept"
   out="$(_HI_HOME="$d/u.hi.new" sh -c "$(_hi_keep_sweep)" 2>&1)" || _hi_because "the sweep failed: $out" || return 1
   [ -z "$out" ] || _hi_because "the sweep said: $out" || return 1
-  for n in u.hi.dead u.hi.both; do
+  for n in u.hi.dead u.hi.both u.hi.gone; do
     [ ! -e "$d/$n" ] || _hi_because "$n is still there" || return 1
   done
-  for n in u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other; do
+  for n in u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other u.hi.here u.hi.handed; do
     [ -d "$d/$n/say-hi" ] || _hi_because "$n was taken" || return 1
   done
   # ...and with nothing beside it, nothing is said
@@ -437,7 +446,7 @@ function test_keep_end_reports_what_the_target_answered() {
 
 # --- the client's record and the retry (_hi_keep_connect) -------------------
 
-# _hi_keep_connect_run <KEEP> <CMDARG> <in a multiplexer: 0|1> <call>... -
+# _hi_keep_connect_run <KEEP> <CMDARG> <at a terminal: 0|1> <call>... -
 # _hi_keep_connect for target box, over a _say_hi that answers each call with
 # the next <status>:<up>[:<seconds it ran>], the last one repeating. `sleep`
 # moves the clock and nothing waits. Prints what was said, then one line:
@@ -445,7 +454,7 @@ function test_keep_end_reports_what_the_target_answered() {
 # whether a session was expected (q: a quiet retry). For a `$( )`: it
 # redefines _say_hi and sleep.
 function _hi_keep_connect_run() {
-  local mux="$3" calls=0 seen="" rc=0 rec
+  local tty="$3" calls=0 seen="" rc=0 rec
   local DOMAIN=box KEEP="$1" CMDARG="$2" _HI_SAID=0
   local -a SSHARGS=() script=("${@:4}")
   function _say_hi() {
@@ -458,7 +467,7 @@ function _hi_keep_connect_run() {
     return "${s%%:*}"
   }
   function sleep() { SECONDS=$((SECONDS + $1)); }
-  function _hi_keep_in_mux() { [ "$mux" = 1 ]; }
+  function _hi_keep_at_tty() { [ "$tty" = 1 ]; }
   function _hi_reset_terminal() { :; }
   _hi_keep_connect "$_HI_WORKDIR/connect.log" 2>&1 || rc=$?
   _hi_keep_record rec
@@ -474,7 +483,7 @@ function test_keep_connect_keeps_the_record_by_the_script_s_status() {
   out="$(_hi_keep_connect_run 1 '' 0 86:1)"
   [ "$out" = "rc=0 calls=1 record=1 said=0 seen=0" ] || _hi_because "a keeping connect, detached: $out" || return 1
   out="$(_hi_keep_connect_run '' '' 0 255:1)"
-  [ "$out" = "rc=255 calls=1 record=1 said=0 seen=1" ] || _hi_because "a dropped link outside a multiplexer: $out" || return 1
+  [ "$out" = "rc=255 calls=1 record=1 said=0 seen=1" ] || _hi_because "a dropped link with no terminal: $out" || return 1
   out="$(_hi_keep_connect_run '' '' 0 0:1)"
   [ "$out" = "rc=0 calls=1 record=0 said=0 seen=1" ] || _hi_because "a session that closed: $out" || return 1
   out="$(_hi_keep_connect_run '' '' 0 86:1)"
@@ -488,8 +497,8 @@ function test_keep_connect_keeps_the_record_by_the_script_s_status() {
   rm -f "$XDG_RUNTIME_DIR"/hi.kept.*
 }
 
-# in a local multiplexer's pane a session that drops with the record set is
-# retried, quietly, until it is back
+# at a terminal, a multiplexer's pane or none, a session that drops with the
+# record set is retried, quietly, until it is back
 function test_keep_connect_retries_a_dropped_kept_session() {
   local out
   rm -f "$XDG_RUNTIME_DIR"/hi.kept.*
@@ -497,10 +506,10 @@ function test_keep_connect_retries_a_dropped_kept_session() {
   [[ "$out" == *"hi: lost [box], where the session is kept - retrying for 5m, Ctrl+C stops"* ]] ||
     _hi_because "no word of the retry: $out" || return 1
   [[ "$out" == *"rc=0 calls=3 record=1 said=0 seen=0 1q 1q" ]] || _hi_because "back on the second retry: $out" || return 1
-  # ...and what does not retry: no multiplexer, a target never reached, a
+  # ...and what does not retry: no terminal, a target never reached, a
   # connect with no record, a window of 0
   out="$(_hi_keep_connect_run '' '' 0 255:1:60 86:1)"
-  [[ "$out" == *" calls=1 "* && "$out" != *retrying* ]] || _hi_because "outside a multiplexer: $out" || return 1
+  [[ "$out" == *" calls=1 "* && "$out" != *retrying* ]] || _hi_because "with no terminal: $out" || return 1
   out="$(_hi_keep_connect_run '' '' 1 255:0 86:1)"
   [[ "$out" == *" calls=1 "* && "$out" != *retrying* ]] || _hi_because "a target never reached: $out" || return 1
   out="$(_HI_KEEP_RETRY=0 _hi_keep_connect_run '' '' 1 255:1:60 86:1)"
@@ -524,6 +533,30 @@ function test_keep_connect_gives_up_after_the_window() {
   out="$(_HI_KEEP_RETRY=soon _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
   [[ "$out" == *"retrying for 5m,"* ]] || _hi_because "a window hi cannot read: $out"
   rm -f "$XDG_RUNTIME_DIR"/hi.kept.*
+}
+
+# a connect that keeps, or comes back to a kept session, asks ssh for a
+# keepalive where the config sets no interval: none over one the config has,
+# none for a plain connect, none from an ssh that does not answer -G
+function test_keep_alive_is_asked_where_the_config_sets_none() {
+  local out
+  out="$(_hi_keep_alive_run 1 '' 'user x' 'serveraliveinterval 0' 'port 22')"
+  [ "$out" = "-o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3" ] || _hi_because "a keeping connect: $out" || return 1
+  out="$(_HI_KEEP_EXPECTED=1 _hi_keep_alive_run '' '' 'serveraliveinterval 0')"
+  [[ "$out" == *"ServerAliveInterval=15"* ]] || _hi_because "a connect back to a kept session: $out" || return 1
+  out="$(_hi_keep_alive_run 1 '' 'serveraliveinterval 60')$(_hi_keep_alive_run '' '' 'serveraliveinterval 0')"
+  out="$out$(_hi_keep_alive_run 1 'ls' 'serveraliveinterval 0')$(_hi_keep_alive_run 1 '')"
+  [[ "$out" != *ServerAlive* ]] || _hi_because "asked where it should not be: $out"
+}
+
+# _hi_keep_alive_run <KEEP> <CMDARG> [line of ssh -G...] - the caller's
+# options after _hi_keep_alive, over an ssh that answers -G with the lines
+function _hi_keep_alive_run() {
+  local DOMAIN=box KEEP="$1" CMDARG="$2"
+  local -a SSHARGS=() retry=(-o ConnectTimeout=10) lines=("${@:3}")
+  function ssh() { [ "${#lines[@]}" -gt 0 ] && printf '%s\n' "${lines[@]}"; }
+  _hi_keep_alive
+  printf '%s' "${retry[*]}"
 }
 
 # --- hi --keep typed in a session (_hi_keep_here) ---------------------------
@@ -674,6 +707,7 @@ function run_hi_keep_tests() {
   _hi_check "The next connect removes a dead owner pane's tree" test_keep_sweep_removes_the_tree_of_a_dead_owner_pane
   _hi_check_capable pty "The script ends 86 off a session still kept" test_keep_script_ends_86_off_a_kept_session
   _hi_check "...0 where it leaves none, and says one is gone" test_keep_script_says_how_it_ends_and_what_is_gone
+  _hi_check "A keepalive is asked for where the ssh config sets none" test_keep_alive_is_asked_where_the_config_sets_none
   _hi_check "The client's record follows the script's status" test_keep_connect_keeps_the_record_by_the_script_s_status
   _hi_check "In a multiplexer's pane a dropped kept session is retried" test_keep_connect_retries_a_dropped_kept_session
   _hi_check "...for _HI_KEEP_RETRY, then said to be out of reach" test_keep_connect_gives_up_after_the_window

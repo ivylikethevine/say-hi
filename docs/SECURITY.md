@@ -129,6 +129,10 @@ command.
   (`tests/targets/ssh_disconnect_test.sh` verifies the latter). Over ssh the
   bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is a backstop for the one
   thing the hook cannot survive: bash killed by a signal nothing can trap.
+  Behind both, each session leaves one process apart from itself that does
+  the hook's work should both be killed, and its pid in the tree, by which
+  the account's next `hi <target>` removes a tree whose session is gone
+  ([HI.65](GLOSSARY.md#hi65-kept-session)).
 - A kept session ([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers))
   moves the same hook into the session's first pane, and adds one process: a
   timer in that pane, which ends the session once nobody has been attached

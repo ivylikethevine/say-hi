@@ -264,7 +264,7 @@ The directory of a kept session that died with its target is removed by the
 next
 .B hi
 to it, which says the session is gone if this machine had seen it.
-In a pane of a local multiplexer, a dropped link to a kept session is retried
+At a terminal, a dropped link to a kept session is retried
 for
 .B _HI_KEEP_RETRY
 (5m).
@@ -1167,7 +1167,7 @@ Read on the target, so set it in
 .BR settings.sh .
 .TP
 .B _HI_KEEP_RETRY
-how long a connect inside a local tmux, zellij, or screen keeps retrying a
+how long a connect at a terminal keeps retrying a
 target whose kept session it lost the link to: a duration as above;
 .B 0
 is never. Default

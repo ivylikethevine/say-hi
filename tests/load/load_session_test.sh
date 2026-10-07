@@ -213,6 +213,34 @@ function test_load_vim_off_blocks_viminit() {
   return 1
 }
 
+# A session of a disposable tree leaves its pid in hi.pid, and a watcher
+# apart from it: killed outright, with no exit hook run, the tree is gone a
+# poll later, the watcher with it; and no claim lands in a tree the session
+# could not remove. A child bash, since the claim is the shell's own pid.
+function test_load_claims_its_tree_and_a_watcher_outlives_it() {
+  local t="$_HI_WORKDIR/claim/u.hi.aaaaaa" other="$_HI_WORKDIR/claim/install" pid w
+  mkdir -p "$t/say-hi" "$other"
+  # shellcheck disable=SC2016 # the child's to expand
+  "$BASH" -c 'source "$1/common/core.sh" && source "$1/load.sh" || exit 1
+    _HI_CLEANUP="$2" _HI_ROOT="$3" _HI_KEEP_MUX=""
+    _hi_keep_claim
+    _HI_ROOT="$2/say-hi"
+    _hi_keep_claim
+    _hi_tree_watch 1
+    printf "%s\n" "$_hi_tree_watch_pid" >"$2.watch"
+    exec sleep 60' claim "${_HI_LAUNCHER%/*}" "$t" "$other" >/dev/null 2>&1 &
+  pid=$!
+  _hi_poll_bool 40 0.25 test -s "$t.watch" || _hi_because "the child never started its watcher" || return 1
+  w="$(cat "$t.watch")"
+  [ "$(cat "$t/say-hi/hi.pid" 2>/dev/null)" = "$pid" ] || _hi_because "the claim is not the session's pid" || return 1
+  [ ! -e "$other/hi.pid" ] || _hi_because "a claim landed outside the tree" || return 1
+  kill -9 "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null || true
+  _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "the tree outlived its killed session" || return 1
+  _hi_poll_bool 20 0.25 _hi_pid_gone "$w" || _hi_because "the watcher outlived the tree"
+}
+function _hi_pid_gone() { ! kill -0 "$1" 2>/dev/null; }
+
 # the trap wired by load() itself: the rc directory is live while the session
 # runs (the shell proves it from inside) and gone once load() has exited
 function test_load_cleans_up_its_session_rc_dir() {
@@ -589,6 +617,7 @@ function run_load_session_tests() {
   _hi_check "Every editor off leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" "_HI_PLUGINS_OFF=nvim vim micro hx kak nano emacs"
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
+  _hi_check "A session claims its tree, and a watcher removes it after a kill" test_load_claims_its_tree_and_a_watcher_outlives_it
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
   _hi_check "Closes the OSC 133 mark pair with the shell's status" test_load_closes_the_prompt_mark_pair_on_exit
   _hi_check "Disconnect clock row follows \$_HI_HEADER_ORDER" test_load_disconnect_timestamp_follows_the_header_order

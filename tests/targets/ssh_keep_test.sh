@@ -19,11 +19,11 @@
 #   dead     detached, every process of the account's is killed at once, as
 #            a target going down kills them: the tree that leaves is gone
 #            once the next `hi <target>` is up
-#   retry    in a local multiplexer's pane, as far as hi can tell, the link is
-#            cut from the target's end: hi says so, retries, and is back in
-#            the kept shell
-#   lost     the same pane, and the session dies with the link: the retry
-#            says the kept session is gone and keeps a new one
+#   retry    at a terminal with no local multiplexer, the link is cut from
+#            the target's end: hi says so, retries, and is back in the kept
+#            shell
+#   lost     the same, and the session dies with the link: the retry says
+#            the kept session is gone and keeps a new one
 #
 # Each ends with no session and no tree on the target. A multiplexer redraws,
 # so its transcript is text with cursor moves through it: a case types at the
@@ -495,8 +495,6 @@ function _hi_keep_cut_link() {
 
 function _hi_keep_retry() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  # the pane of a local multiplexer, as far as hi can tell
-  local -x STY=hi-keeptest
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_retry "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_keep_up "$label" "$out" || return 1
@@ -515,7 +513,6 @@ function _hi_keep_retry() {
 
 function _hi_keep_lost() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  local -x STY=hi-keeptest
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_lost "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_keep_up "$label" "$out" || return 1

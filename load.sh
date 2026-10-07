@@ -72,6 +72,8 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # Everything hi put on the target and nothing the target had. hi never writes
 # to a target's own login files, so there is nothing to strip back out.
 function clean_all() {
+  # the tree's watcher (_hi_tree_watch), which takes its own sleep with it
+  [ -z "${_hi_tree_watch_pid:-}" ] || kill "$_hi_tree_watch_pid" 2>/dev/null
   # a kept session's timeout watcher, by process group: its `sleep` goes too
   if [ -n "${_hi_keep_watch_pid:-}" ]; then
     kill -- "-$_hi_keep_watch_pid" 2>/dev/null || kill "$_hi_keep_watch_pid" 2>/dev/null
@@ -407,11 +409,44 @@ function _hi_keep_file() {
   printf '_HI_KEEP_OUTER=%s\n' "$$"
 }
 
-# An owner pane's claim on its tree: its pid, then that of the shell it was
-# kept from. A later connect reads it (hi.sh's _hi_keep_sweep) and removes
-# the tree of a pane that died with no exit hook. GLOSSARY: HI.65
+# A session's claim on its tree. An owner pane's is hi.kept: its pid, then
+# that of the shell it was kept from. Any other session of a disposable tree
+# leaves its pid in hi.pid. A later connect reads both (hi.sh's
+# _hi_keep_sweep) and removes the tree of a session that died with no exit
+# hook. GLOSSARY: HI.65
 function _hi_keep_claim() {
-  [ -z "${_HI_KEEP_MUX:-}" ] || printf '%s %s\n' "$$" "${_HI_KEEP_OUTER:-}" >"$_HI_ROOT/hi.kept"
+  if [ -n "${_HI_KEEP_MUX:-}" ]; then
+    printf '%s %s\n' "$$" "${_HI_KEEP_OUTER:-}" >"$_HI_ROOT/hi.kept"
+  elif [[ -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]]; then
+    # only into a tree this session may remove: never an install's
+    printf '%s\n' "$$" >"$_HI_ROOT/hi.pid"
+  fi
+}
+
+# _hi_tree_watch [step] - the tree's last resort: a job apart from this shell
+# that waits it out and, should the tree still be there, does what its exit
+# hook would have. The hook and the bootstrap's trap remove the tree on every
+# exit a shell can see; this is for the one neither sees, both killed
+# outright. It ignores the hangup that ends a session, holds no terminal, and
+# is killed by the hook on the way out; <step> is the poll, a test's to
+# shorten. GLOSSARY: HI.65
+function _hi_tree_watch() {
+  local pid="$$" step="${1:-60}"
+  [ -n "${_HI_CLEANUP:-}" ] && [ -d "$_HI_CLEANUP" ] || return 0
+  {
+    (
+      trap '' HUP
+      trap 'kill "$!" 2>/dev/null; exit 0' TERM
+      unset _hi_tree_watch_pid
+      while kill -0 "$pid" 2>/dev/null; do
+        sleep "$step" &
+        wait "$!"
+      done
+      [ ! -d "$_HI_CLEANUP" ] || clean_all
+    ) </dev/null >/dev/null 2>&1 &
+  } 2>/dev/null
+  _hi_tree_watch_pid=$!
+  disown "$_hi_tree_watch_pid" 2>/dev/null || true
 }
 
 # A kept session (GLOSSARY: HI.65) runs load() in the owner pane of a tmux,
@@ -620,6 +655,7 @@ function load() {
   _hi_session_shell_cmd "$shell"
   _hi_keep_panes "${shell_cmd[@]}"
   _hi_keep_watch
+  _hi_tree_watch
   while :; do
     shell_ec=0
     "${shell_cmd[@]}" || shell_ec=$?

@@ -798,14 +798,16 @@ REMOTE
 # so nothing new lands on the target. _hi_kept_note is the line a detach
 # leaves, for this path and the start below, and the script's status says
 # whether a kept session is left behind (86, _hi_keep_connect). A client that
-# expected one says so where there is none. A session that does start is
-# told the target's name, for a `hi --keep` typed in it (_hi_keep_here).
+# expected one says so where there is none - on a target with a multiplexer
+# to have held it, since a keeping connect expects one before it knows. A
+# session that does start is told the target's name, for a `hi --keep` typed
+# in it (_hi_keep_here).
 function _hi_keep_attach() {
   local target_q _hi_esc _hi_nc gone=""
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
   [ "${_HI_KEEP_EXPECTED:-}" != 1 ] ||
-    gone="      _hi_kept || printf '%s hi: the kept session on [%s] is gone %s\\n' \"$_hi_esc\" $target_q \"$_hi_nc\" >&2"$'\n'
+    gone="      _hi_kept || ! { command -v tmux || command -v zellij || command -v screen; } >/dev/null 2>&1 || printf '%s hi: the kept session on [%s] is gone %s\\n' \"$_hi_esc\" $target_q \"$_hi_nc\" >&2"$'\n'
   _hi_keep_find
   cat <<REMOTE
       _hi_kept_note() { _hi_kept && printf '%s%s detached, the session on [%s] is kept %s\n' "$_hi_esc" "\$1" $target_q "$_hi_nc" >&2; }
@@ -896,16 +898,18 @@ REMOTE
 }
 
 # What a connect that looks for a kept session runs once it has a tree of its
-# own. An owner pane killed with no exit hook - the target went down under
-# it - left its tree, and hi.kept in it holds the pane's pid and that of the
-# shell it was kept from (load.sh's _hi_keep_claim): a tree neither still
-# runs on is removed. GLOSSARY: HI.65
+# own. A session killed with no exit hook - the target went down under it -
+# left its tree, and its claim in it (load.sh's _hi_keep_claim): hi.kept, an
+# owner pane's pid and that of the shell it was kept from, or hi.pid, any
+# other session's. A tree no process of its claim still runs on is removed,
+# and one a kept session claims is that claim's alone. GLOSSARY: HI.65
 function _hi_keep_sweep() {
   # shellcheck disable=SC2016 # the target's to expand
   printf '%s\n' \
-    '      for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.kept; do' \
+    '      for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.kept "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.pid; do' \
+    '        case "$_hi_s" in */hi.pid) [ ! -e "${_hi_s%pid}kept" ] || continue ;; esac' \
     '        read -r _hi_ko _hi_kp 2>/dev/null <"$_hi_s" && [ -n "$_hi_ko" ] || continue' \
-    '        kill -0 "$_hi_ko" 2>/dev/null || kill -0 "${_hi_kp:-$_hi_ko}" 2>/dev/null || rm -rf "${_hi_s%/say-hi/hi.kept}"' \
+    '        kill -0 "$_hi_ko" 2>/dev/null || kill -0 "${_hi_kp:-$_hi_ko}" 2>/dev/null || rm -rf "${_hi_s%/say-hi/hi.*}"' \
     '      done'
 }
 
@@ -982,9 +986,30 @@ function _hi_keep_record() {
   printf -v "$1" '%s/hi.kept.%s' "$_hi_kr_dir" "$_hi_kr_key"
 }
 
-# A pane of a local multiplexer, which nobody may be watching
-function _hi_keep_in_mux() {
-  [ -t 0 ] && [ -n "${TMUX:-}${ZELLIJ:-}${STY:-}" ]
+# _hi_keep_alive - a keepalive, into the caller's retry array, for a connect
+# that keeps its session or comes back to one: a link that freezes is a drop,
+# and so retried, only once ssh says so, and ssh says nothing unasked. Fifteen
+# seconds three times over, and only where the ssh config sets no interval of
+# its own (`ssh -G`, one fork, on these connects alone); an ssh too old to
+# answer that gets none.
+function _hi_keep_alive() {
+  local _hi_ka
+  _hi_keep_starts || [ "${_HI_KEEP_EXPECTED:-}" = 1 ] || return 0
+  while read -r _hi_ka; do
+    case "$_hi_ka" in
+    'serveraliveinterval 0')
+      retry+=(-o ServerAliveInterval=15 -o ServerAliveCountMax=3)
+      return 0
+      ;;
+    serveraliveinterval\ *) return 0 ;;
+    esac
+  done < <(ssh -G ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" 2>/dev/null)
+  return 0
+}
+
+# A terminal for a retry to come back to: a connect with none ends at the drop
+function _hi_keep_at_tty() {
+  [ -t 0 ]
 }
 
 # _hi_keep_connect <log> - _say_hi, for a session that may be kept. The
@@ -992,9 +1017,8 @@ function _hi_keep_in_mux() {
 # does not, and the record follows; a connect that keeps writes it up front,
 # since a dropped link says nothing. The record is what the next connect's
 # script warns by when the session is gone (_hi_keep_attach), and what a
-# dropped session is retried by: in a local multiplexer's pane, for
-# $_HI_KEEP_RETRY from the drop, each try quiet (its words in <log>) until
-# the target answers. A try that gets in and drops within ten seconds does
+# dropped session is retried by: at a terminal, for $_HI_KEEP_RETRY from the
+# drop, each try quiet (its words in <log>) until the target answers. A try that gets in and drops within ten seconds does
 # not restart the window. GLOSSARY: HI.65
 function _hi_keep_connect() {
   local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-5m}" limit t0="" t1 expected=""
@@ -1015,7 +1039,7 @@ function _hi_keep_connect() {
       0) [ -z "$rec" ] || rm -f "$rec" ;;
       esac
     fi
-    { [ "$ec" = 255 ] && [ -n "$rec" ] && [ -e "$rec" ] && ((limit > 0)) && _hi_keep_in_mux; } || break
+    { [ "$ec" = 255 ] && [ -n "$rec" ] && [ -e "$rec" ] && ((limit > 0)) && _hi_keep_at_tty; } || break
     if [ "$_HI_LINK_UP" = 1 ] && { [ -z "$t0" ] || ((SECONDS - t1 >= 10)); }; then
       t0=$SECONDS
       [ ! -t 1 ] || _hi_reset_terminal "$ec"
@@ -1204,6 +1228,7 @@ function _say_hi() {
   # target
   # a retry (_hi_keep_connect) does not wait out a network that is not there
   [ -z "${_HI_KEEP_QUIET:-}" ] || retry=(-o ConnectTimeout=10)
+  _hi_keep_alive
   _hi_ctl_open 30 shared ${retry[@]+"${retry[@]}"}
 
   # the tars the script carries. The orphaned warm finishes its own atomic mv

@@ -288,10 +288,11 @@ in, and whichever of the two ends last removes the directory.
 A kept session that dies with its target - a reboot that keeps `/tmp` - leaves
 its directory behind; your next `hi <target>` removes it, and says the kept
 session is gone if this machine had seen it. When the link to a kept session
-drops and hi is itself running in a pane of a local tmux, zellij, or screen,
-it retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and lands
-back in the session; anywhere else it ends as ssh does, and `hi <target>`
-reattaches.
+drops, hi retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and
+lands back in the session, in any terminal; Ctrl+C stops it, with no terminal
+it ends as ssh does, and `hi <target>` reattaches either way. A link that
+goes quiet counts as dropped after 45 seconds: a keeping connect asks ssh for
+a keepalive, unless your ssh config sets a `ServerAliveInterval` of its own.
 `_HI_KEEP=1` makes it the default. The two flags combine: under
 `hi --mux --keep` both ends hold a session, and the inner multiplexer's prefix
 key has to be sent through the outer one.

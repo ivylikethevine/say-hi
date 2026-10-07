@@ -126,8 +126,8 @@ membership) - `ci` above, and:
   line. `ssh_keep` holds a [kept session](GLOSSARY.md#hi65-kept-session) in
   tmux, in screen, and in zellij (alpine's package) through a dropped link and
   a reattach, `hi --end`, its timeout, a `hi --keep` typed inside a session,
-  a second pane, a session killed outright, and a link cut inside a local
-  multiplexer with the session left or lost, reading each answer off the
+  a second pane, a session killed outright, and a link cut at a terminal
+  with the session left or lost, reading each answer off the
   target rather than the multiplexer's redrawn transcript. Two are not about sessions: `repo` builds
   the package repository with throwaway keys and installs from it as apt, dnf,
   and apk clients, signatures verified, and `home_prompt` installs hi over

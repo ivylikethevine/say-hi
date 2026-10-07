@@ -373,29 +373,23 @@ account or an upstream review that lands when it lands.
        `allowed-endpoints` opens the tracking issue naming it.
 
 2. [ ] _Before 1.0:_ **A dropped session is retried from any terminal** —
-       the retry runs only in a pane of a local tmux, zellij, or screen, so a
-       `hi --keep` in a bare terminal ends at the drop
-       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)); hi sets no keepalive,
-       so a link that freezes is never a drop; and a keeping connect writes
-       its record before it connects, so a target with no multiplexer is
-       later told its kept session is gone. **Do:** retry wherever the
-       session was up and ssh ended 255, for `_HI_KEEP_RETRY`; pass
-       `ServerAliveInterval` on a connect that keeps unless the ssh config
-       sets one; write the record from what the target's script answers.
-       **Ticks when:** the `ssh_keep` suite drops a kept session's link in a
-       terminal with no multiplexer and lands back in it, and a target with
-       none of the three is never told a session is gone.
+       shipped: the retry runs at any terminal, with no local multiplexer; a
+       connect that keeps asks ssh for a keepalive where the config sets
+       none, so a link that freezes becomes a drop; and a target with none
+       of the three is no longer told a kept session is gone
+       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is left is
+       seeing it in CI. **Ticks when:** the `ssh_keep` suite's `retry` and
+       `lost` cases pass with no multiplexer around the client.
 
-3. [ ] _Before 1.0:_ **Every tree has a claim and a timer** — a tree is
-       removed by its session's exit hook, so a shell killed outright leaves
-       it, and only an owner pane writes the `hi.kept` claim a later
-       connect's sweep reads. **Do:** every session's `load()` writes the
-       claim, and starts a watcher apart from the session that removes the
-       tree once no shell has run on it for `_HI_KEEP_TIMEOUT`; the sweep
-       reads every sibling tree's claim. **Ticks when:** a session shell
-       killed with `kill -9` has its tree gone after the timeout with no
-       connect in between, and a tree a reboot left is gone after the next
-       connect.
+3. [ ] _Before 1.0:_ **Every tree has a claim and a timer** — shipped:
+       every session leaves its pid in its tree, the next connect's sweep
+       reads it, and a watcher apart from the session removes the tree of a
+       shell killed outright. Its timer is what
+       _`--keep` holds on a target with no multiplexer_ adds. What is left
+       is seeing it on a target. **Ticks when:** a session whose shell and
+       bootstrap are killed with `kill -9` has its tree gone within two
+       minutes and no connect in between, and a tree a reboot left is gone
+       after the next connect.
 
 4. [ ] _Before 1.0:_ **`--keep` holds on a target with no multiplexer** —
        there `--keep` warns and connects as usual, and the drop takes the
