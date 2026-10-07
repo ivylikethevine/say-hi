@@ -37,10 +37,10 @@ source "$_HI_ROOT/scripts/zshrc.sh"
 # <tool> is the binaries that read it: home's copy rides with any of them on
 # $PATH, and - asks about nothing (a shell, readline, a prompt program:
 # _hi_prompt_list asks about those).
-# <group> is the word that switches it with its kind in $_HI_PLUGINS_OFF
-# (_hi_plugin_off), or - for a member of hi's own, which nothing switches.
-# <plugin> is its own word there and the name a report gives what reads it,
-# or - for none.
+# <group> is the section a list draws it under, or - for a member of hi's
+# own, which nothing switches.
+# <plugin> is its word in $_HI_PLUGINS_OFF (_hi_plugin_off) and the name a
+# report gives what reads it, or - for none.
 # <wire> is what points the tool at the member on a target, written there by
 # _hi_overlay_wiring (HI.62), whose comment is the grammar: env: and envdir:
 # export variables, flag: and flagdir: alias a command, and - leaves the
@@ -481,9 +481,9 @@ function _hi_toggle_on() {
 }
 
 # _hi_plugin_off <member> [outvar] - is it switched off, and by what, into
-# <outvar>? By $_HI_PLUGINS_OFF naming its plugin, its group, or the member -
-# its row's, or its own where it is one file of a directory row - (words a
-# space or a comma apart), or by a toggle of its row's <off> column;
+# <outvar>? By $_HI_PLUGINS_OFF naming its plugin or the member - its row's,
+# or its own where it is one file of a directory row - (words a space or a
+# comma apart), or by a toggle of its row's <off> column;
 # a row of hi's own (group -) is never off. Read where the overlay is
 # packed, so what is off neither rides nor is wired, and the target is handed
 # the result. GLOSSARY: HI.64
@@ -513,14 +513,14 @@ function _hi_plugin_off() {
   _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
   if [ -n "${_HI_PLUGINS_OFF:-}" ]; then
     case " ${_HI_PLUGINS_OFF//,/ } " in
-    *" $_hi_po_n "* | *" $_hi_po_g "* | *" ${_hi_po_r%%|*} "* | *" $1 "*)
+    *" $_hi_po_n "* | *" ${_hi_po_r%%|*} "* | *" $1 "*)
       [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
       return 0
       ;;
     esac
   fi
-  # off by default, until $_HI_PLUGINS_ON names the plugin or its group
-  _hi_plugin_switched_off "$_hi_po_n" "$_hi_po_g" || return 1
+  # off by default, until $_HI_PLUGINS_ON names the plugin
+  _hi_plugin_switched_off "$_hi_po_n" || return 1
   [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_ON, off by default"
   return 0
 }

@@ -658,9 +658,9 @@ function _hi_member_rows() {
 }
 
 # _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold that a row names,
-# one a line
+# its plugin and its member, one a line
 function _hi_plugin_words() {
-  _hi_plugin_rows | tr '|' '\n' | sort -u
+  _hi_plugin_rows | cut -d'|' -f1,3 | tr '|' '\n' | sort -u
 }
 
 # _hi_plugin_word_ok <word> [words] - may $_HI_PLUGINS_OFF hold it: a word of

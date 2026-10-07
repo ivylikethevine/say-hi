@@ -93,9 +93,11 @@ function test_plugins_help_is_each_command_s_own() {
 
 function test_plugins_refuse_what_they_cannot_take() {
   _hi_plugins_refused "$(_hi_plugins_cfg r1)" "takes no argument" --plugins vim &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r2)" "needs a plugin, a group, or a member" --plugin-off &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r3)" "not a plugin, a group, or a member: nosuch" --plugin-off nosuch &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r4)" "not a plugin, a group, or a member: colors" --plugin-off colors &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r2)" "needs a plugin or a member" --plugin-off &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r3)" "not a plugin or a member: nosuch" --plugin-off nosuch &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r4)" "not a plugin or a member: colors" --plugin-off colors &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r4g)" "not a plugin or a member: editors" --plugin-off editors &&
+    _hi_plugins_refused "$(_hi_plugins_cfg r4h)" "not a plugin or a member: hooks" --plugin-on hooks &&
     _hi_plugins_refused "$(_hi_plugins_cfg r5)" "unknown option --force" --plugin-on vim --force &&
     _hi_plugins_refused "$(_hi_plugins_cfg r6)" "needs a group, a name, and a file" --add-plugin cli task &&
     _hi_plugins_refused "$(_hi_plugins_cfg r9)" "needs a file for task to carry" --add-plugin cli task wire=env:TASKRC &&
@@ -109,13 +111,13 @@ function test_plugins_refuse_what_they_cannot_take() {
 # ---------------------------------------------------------------------------
 
 # the list is one line of settings.sh, made with its shebang when there is
-# no file, a plugin, a group, and a member alike
+# no file, a plugin and a member alike
 function test_plugin_off_writes_the_list() {
   local cfg out
   cfg="$(_hi_plugins_cfg off)"
-  out="$(_hi_plugins_run "$cfg" --plugin-off lazygit editors tmux/tmux.conf)" || return 1
-  [[ "$out" == *" - lazygit"* && "$out" == *" - editors"* && "$out" == *"settings.sh updated"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'lazygit editors tmux/tmux.conf')\n"
+  out="$(_hi_plugins_run "$cfg" --plugin-off lazygit vim tmux/tmux.conf)" || return 1
+  [[ "$out" == *" - lazygit"* && "$out" == *" - vim"* && "$out" == *"settings.sh updated"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'lazygit vim tmux/tmux.conf')\n"
 }
 
 # one file of a directory member is a word too, there or not; a file of
@@ -128,10 +130,10 @@ function test_plugin_off_takes_one_file_of_a_directory() {
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'extensions/10-kube zellij/layouts/work.kdl')\n" || return 1
   _hi_plugins_run "$cfg" --plugin-on extensions/10-kube zellij/layouts/work.kdl >/dev/null || return 1
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || return 1
-  _hi_plugins_refused "$(_hi_plugins_cfg off-file-r1)" "not a plugin, a group, or a member: header/sky" --plugin-off header/sky &&
-    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r2)" "not a plugin, a group, or a member: extensions/sub/x" --plugin-off extensions/sub/x &&
-    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r3)" "not a plugin, a group, or a member: extensions/x.bak" --plugin-off extensions/x.bak &&
-    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r4)" "not a plugin, a group, or a member: vim/other" --plugin-off vim/other
+  _hi_plugins_refused "$(_hi_plugins_cfg off-file-r1)" "not a plugin or a member: header/sky" --plugin-off header/sky &&
+    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r2)" "not a plugin or a member: extensions/sub/x" --plugin-off extensions/sub/x &&
+    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r3)" "not a plugin or a member: extensions/x.bak" --plugin-off extensions/x.bak &&
+    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r4)" "not a plugin or a member: vim/other" --plugin-off vim/other
 }
 
 # every other line of a settings.sh stays where it was, and a second list
@@ -158,9 +160,9 @@ function test_plugin_off_twice_writes_nothing() {
 function test_plugin_on_takes_a_word_back() {
   local cfg out
   cfg="$(_hi_plugins_cfg on)"
-  _hi_plugins_run "$cfg" --plugin-off bat editors >/dev/null || return 1
-  out="$(_hi_plugins_run "$cfg" --plugin-on editors)" || return 1
-  [[ "$out" == *" + editors"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_run "$cfg" --plugin-off bat vim >/dev/null || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-on vim)" || return 1
+  [[ "$out" == *" + vim"* ]] || _hi_because "said: $out" || return 1
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'bat')\n" || return 1
   _hi_plugins_run "$cfg" --plugin-on bat >/dev/null || return 1
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n"
@@ -177,8 +179,8 @@ function test_plugin_on_says_a_word_is_on() {
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n"
 }
 
-# a plugin off by default moves through _HI_PLUGINS_ON: on adds it, by name
-# or by its group, off takes it out, and neither touches _HI_PLUGINS_OFF
+# a plugin off by default moves through _HI_PLUGINS_ON: on adds it, off
+# takes it out, and neither touches _HI_PLUGINS_OFF
 function test_plugin_on_moves_a_default_off_plugin() {
   local cfg out
   cfg="$(_hi_plugins_cfg on-default)"
@@ -187,10 +189,10 @@ function test_plugin_on_moves_a_default_off_plugin() {
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='zoxide'" "$_HI_MARKER")\n" || return 1
   out="$(_hi_plugins_run "$cfg" --plugin-on zoxide)" || return 1
   [[ "$out" == *"zoxide is on already"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_run "$cfg" --plugin-on hooks >/dev/null && _hi_plugins_run "$cfg" --plugin-off zoxide >/dev/null || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='hooks'" "$_HI_MARKER")\n" || return 1
-  out="$(_hi_plugins_run "$cfg" --plugin-off hooks)" || return 1
-  [[ "$out" == *" - hooks"* ]] || _hi_because "said: $out" || return 1
+  _hi_plugins_run "$cfg" --plugin-on mise >/dev/null && _hi_plugins_run "$cfg" --plugin-off zoxide >/dev/null || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='mise'" "$_HI_MARKER")\n" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off mise)" || return 1
+  [[ "$out" == *" - mise"* ]] || _hi_because "said: $out" || return 1
   _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || return 1
   out="$(_hi_plugins_run "$cfg" --plugin-off atuin)" || return 1
   [[ "$out" == *"atuin is off already (off by default)"* ]] || _hi_because "said: $out"
@@ -331,11 +333,11 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   printf 'x\n' >"$cfg/nano/nanorc"
   printf 'x\n' >"$cfg.home/.taskrc"
   printf '[mine.task]\ntool = "-"\nbad line\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"\n' >"$cfg/plugins"
-  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="mux nano"\n' >"$cfg/settings.sh"
+  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="tmux nano"\n' >"$cfg/settings.sh"
   out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || return 1
   [[ "$out" == *" cli "*"bat/config (bat)"*"used $cfg/bat/config"* ]] || _hi_because "bat: $out" || return 1
   [[ "$out" == *" editors "*"nano/nanorc (nano)"*"not sent: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
-  [[ "$out" == *" mux "*"switched off (_HI_PLUGINS_OFF)"*"tmux/tmux.conf (tmux)"* ]] || _hi_because "tmux: $out" || return 1
+  [[ "$out" == *" mux "*"tmux/tmux.conf (tmux)"*"switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
   [[ "$out" == *" mine "*"taskrc (task)"*"used ~/.taskrc"* ]] || _hi_because "taskrc: $out" || return 1
   [[ "$out" == *" ignored "*"$cfg/plugins line 3"*"not a line of a plugin"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }

@@ -156,6 +156,9 @@ function _hi_framework_probe() {
   pershell:zsh) printf '%s\n' "[[ \$PROMPT == *__hi_env_info* ]] && (( \${precmd_functions[(I)*starship*]} == 0 )) && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   pershell:fish) printf '%s\n' "functions -q __hi_env_prompt; and not functions -q starship_transient_prompt_func; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' LOST" ;;
   prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # a hook hi ran itself: zoxide's z in a zsh whose own rc never starts
+  # zoxide, an alias or a function by zoxide's version
+  hookon) printf '%s\n' "whence z >/dev/null && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
 }
 
@@ -315,6 +318,17 @@ function _hi_run_framework_case() {
     local -x PATH="$stubs:$PATH"
     _hi_tools_client_home "$HOME"
     ;;
+  hookon)
+    local -x HOME="$_HI_WORKDIR/home-$label"
+    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
+    # the line the wizard's box and `hi --plugin-on zoxide` write; a hook
+    # rides only with its tool here, and a runner has no zoxide
+    local stubs
+    stubs="$(_hi_stub_tools zoxide)"
+    local -x PATH="$stubs:$PATH"
+    mkdir -p "$_HI_CONFIG_DIR"
+    printf "export _HI_PLUGINS_ON='zoxide'\n" >"$_HI_CONFIG_DIR/settings.sh"
+    ;;
   esac
 
   name="hi-fwtest-$label-c-$$"
@@ -400,6 +414,14 @@ function run_framework_tests() {
       _hi_skip "[$label]" "image did not build"
     fi
   done
+  # ...and one off the zoxide image under zsh, where only its ~/.bashrc
+  # starts zoxide: the hook is off by default, the client's settings name it
+  # in $_HI_PLUGINS_ON, and hi runs its init
+  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK zoxide)" = 1 ]; then
+    _hi_par_case zoxide-on _hi_run_framework_case zoxide-on /usr/bin/zsh hookon zoxide
+  else
+    _hi_skip "[zoxide-on]" "image did not build"
+  fi
   _hi_par_wait
 
   for spec in "${_HI_FRAMEWORKS[@]}"; do

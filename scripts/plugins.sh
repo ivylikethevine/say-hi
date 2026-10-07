@@ -72,8 +72,8 @@ one last row.
                                 carry the configs of a tool hi does not know
   hi --remove-plugin <name>     stop carrying them
 
-A <name> is a plugin, a group, or a member, as listed here, or one file of
-a member that is a directory (extensions/10-kube).
+A <name> is a plugin or a member, as listed here, or one file of a member
+that is a directory (extensions/10-kube).
 EOF
     ;;
   off | on)
@@ -82,9 +82,9 @@ Usage: $usage
 
 Switches plugins $mode for every target: a plugin that is off sends no file
 and sets nothing there, so the tool keeps the target's own config. <name> is
-a plugin, a group, or a member, as \`hi --plugins\` lists them, or one file
-of a member that is a directory (extensions/10-kube). The list is
-_HI_PLUGINS_OFF in ~/.config/say-hi/settings.sh.
+a plugin or a member, as \`hi --plugins\` lists them, or one file of a member
+that is a directory (extensions/10-kube). The list is _HI_PLUGINS_OFF in
+~/.config/say-hi/settings.sh.
 
   -n, --dry-run    say what would be written, and write nothing
 EOF
@@ -95,9 +95,9 @@ Usage: $usage
 
 Writes the [<group>.<name>] table of ~/.config/say-hi/plugins, which adds a
 plugin to the tree's config/plugins or replaces its plugin of that <name>.
-<group> is the word that switches it with its kind (editors, mux, prompt,
-cli, shell, or one of your own), <name> the plugin's own word and its name
-in a report, and each <file> the name a config rides under. The keys:
+<group> is the section it is listed under (editors, mux, prompt, cli, shell,
+or one of your own), <name> the plugin's own word and its name in a report,
+and each <file> the name a config rides under. The keys:
 
   tool=<commands>     what reads them; home's copy rides with any of them on
                       this machine. Left out, it is <name>; - asks nothing.
@@ -119,7 +119,7 @@ in a report, and each <file> the name a config rides under. The keys:
                       aliases and extensions. A plugin with one needs no file.
   prompt=yes          the init draws the prompt: the plugin joins
                       _HI_PROMPT_TOOL's programs, and hi's prompt stands down
-  default=off         off until hi --plugin-on names it or its group
+  default=off         off until hi --plugin-on names it
 
 A file whose wire, home, or dialect differs from the rest has a table of its
 own under the plugin's, [<group>.<name>."<file>"], written by hand.
@@ -231,7 +231,7 @@ function _hi_plugins_write_list() {
 
 function _hi_plugins_switch() {
   local word known now="" next="" w changed="" on="" nexton="" changedon=""
-  [ "${#args[@]}" -gt 0 ] || _hi_die "needs a plugin, a group, or a member ($me --help)"
+  [ "${#args[@]}" -gt 0 ] || _hi_die "needs a plugin or a member ($me --help)"
   _hi_plugins_load
   known=" $(_hi_plugin_words | tr '\n' ' ')"
   # settings.sh's last _HI_PLUGINS_OFF and _HI_PLUGINS_ON lines, read without
@@ -241,14 +241,11 @@ function _hi_plugins_switch() {
   now="${now//,/ }" on="${on//,/ }"
   next=" $now " nexton=" $on "
   for word in "${args[@]}"; do
-    _hi_plugin_word_ok "$word" "$known" || _hi_die "not a plugin, a group, or a member: $word (hi --plugins lists them)"
-    # a plugin off by default, or the group holding one, moves through the
-    # on list: on adds it there, off takes it out (and never into the off
-    # list, which would say more than it needs to)
-    case "$_HI_PLUGIN_DEFAULT_OFF" in
-    *" $word "*) ;;
-    *) [ "$(_hi_plugin_group_default "$word")" = off ] || word="$word|" ;;
-    esac
+    _hi_plugin_word_ok "$word" "$known" || _hi_die "not a plugin or a member: $word (hi --plugins lists them)"
+    # a plugin off by default moves through the on list: on adds it there,
+    # off takes it out (and never into the off list, which would say more
+    # than it needs to)
+    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $word "*) ;; *) word="$word|" ;; esac
     if [ "${word%|}" = "$word" ]; then
       case "$mode:$nexton" in
       on:*" $word "*) _hi_cecho " $word is on already" "$GREEN" ;;
@@ -289,24 +286,6 @@ function _hi_plugins_switch() {
   for w in $nexton; do on="$on${on:+ }$w"; done
   [ -z "$changed" ] || _hi_plugins_write_list _HI_PLUGINS_OFF "$now"
   [ -z "$changedon" ] || _hi_plugins_write_list _HI_PLUGINS_ON "$on"
-}
-
-# _hi_plugin_group_default <group> - off when every hook plugin of that
-# group is off by default and the group has one; else on
-function _hi_plugin_group_default() {
-  local _hi_gd_r _hi_gd_c _hi_gd_any=""
-  for _hi_gd_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
-    _hi_hook_col "$_hi_gd_r" group _hi_gd_c
-    [ "$_hi_gd_c" = "$1" ] || continue
-    _hi_gd_any=1
-    _hi_hook_col "$_hi_gd_r" name _hi_gd_c
-    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_gd_c "*) ;; *)
-      printf on
-      return 0
-      ;;
-    esac
-  done
-  [ -n "$_hi_gd_any" ] && printf off || printf on
 }
 
 # _hi_plugin_span <name> - <name>'s table in `_hi_rows` and the tables of its

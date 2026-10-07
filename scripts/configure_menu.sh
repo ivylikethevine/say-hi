@@ -13,7 +13,7 @@
 # _HI_MENU_ITEMS says what each number is, rebuilt as the list draws:
 # row|<table>|<index> a yes/no row, word|<index> a header item, end|<shell> a
 # prompt separator, tool|<shell> who draws a prompt, group|<name> a package
-# group, plugin|<word> a plugin or a group of them, or width, iphide,
+# group, plugin|<word> a plugin, or width, iphide,
 # truecolor. _HI_MENU_WORD0 is the first header item's number, for up/down.
 # _HI_MENU_PLUGINS is _hi_plugin_states' lines as the list last drew them,
 # and _HI_MENU_GROUPS their groups in order: g<N> is the page of the Nth.
@@ -422,9 +422,8 @@ function _hi_menu_mark() {
 
 # The plugins, every one of the plugins files. The main page's table has a
 # row for the section and one under it a group, the group's plugins named in
-# their state's color; the Plugins page the same rows with each group's
-# checkbox, which is all of its plugins. A group's page, g<N>, is a row a
-# plugin: its checkbox - [x] rides to a target, [ ] stays home - its name in
+# their state's color; the Plugins page the same rows. A group's page, g<N>,
+# is a row a plugin: its checkbox - [x] rides to a target, [ ] stays home - its name in
 # its state's color, whether its program and a config of its are found on
 # this machine, and what a target gets of it. Under 60 columns a plugin's row
 # is its checkbox, its name, and the two marks.
@@ -460,10 +459,9 @@ function _hi_menu_plugins() {
     fi
     _hi_menu_trow "$key" "Plugins" "$text"
   fi
-  _hi_menu_heading "A group's key opens its plugins - its box here is all of them"
+  _hi_menu_heading "A group's key opens its plugins"
   for entry in ${_HI_MENU_PLUGINS[@]+"${_HI_MENU_PLUGINS[@]}"}; do
     IFS='|' read -r group name s d prog here cfg about <<<"$entry"
-    _HI_MENU_ITEMS+=("plugin|${name:-$group}")
     if [ -z "$name" ]; then
       gi=$((gi + 1))
       _HI_MENU_DRAW=0
@@ -474,21 +472,20 @@ function _hi_menu_plugins() {
         _hi_fit cell "  $group" "$_HI_MENU_NW"
         _hi_menu_trow "$key" "$cell" "$text"
       elif [ "$_HI_MENU_PAGE" = g ]; then
-        _hi_ask_item cell "${#_HI_MENU_ITEMS[@]}" "$s" "$group" "$wg"
         _hi_pad_to key 3 "$key"
-        _hi_menu_group_names text "$group" $((_HI_MENU_W - wg - 16))
-        printf '  %s  %s %s\n' "$cell" "$key" "$text"
+        _hi_pad_to cell "$wg" "$group"
+        _hi_menu_group_names text "$group" $((_HI_MENU_W - wg - 9))
+        printf '  %s %s  %s\n' "$key" "$cell" "$text"
       elif [ "$_HI_MENU_DRAW" = 1 ]; then
-        # the columns' widths: the group's own name and its plugins', and
-        # the programs that go by another name than their plugin
-        wn=${#group}
+        # the columns' widths: the plugins' names, and the programs that go
+        # by another name than their plugin
+        wn=6
         for cell in "${_HI_MENU_PLUGINS[@]}"; do
           IFS='|' read -r m1 m2 _ _ text _ <<<"$cell"
           [ "$m1" = "$group" ] && [ -n "$m2" ] || continue
           ((${#m2} > wn)) && wn=${#m2}
           [ "$text" = "$m2" ] || [ "$text" = - ] || ((${#text} <= wp)) || wp=${#text}
         done
-        ((wn >= 6)) || wn=6
         room=$((_HI_MENU_W - wn - wp - 26))
         _hi_menu_heading "[x] rides to a target, [ ] stays home - program, config: found here or not"
         if ((_HI_MENU_W >= 60)); then
@@ -496,14 +493,10 @@ function _hi_menu_plugins() {
           _hi_pad_to m1 $((wp + 2)) "program"
           _hi_cecho "          $cell  $m1  config  on a target" "$BLUE"
         fi
-        _hi_ask_item cell "${#_HI_MENU_ITEMS[@]}" "$s" "$group" "$wn"
-        text=""
-        ((_HI_MENU_W < 60)) || _hi_paint text "$BLUE" "all of the plugins below"
-        _hi_repeat m1 $((wp + 14)) ' '
-        printf '  %s%s%s\n' "$cell" "${text:+$m1}" "$text"
       fi
       continue
     fi
+    _HI_MENU_ITEMS+=("plugin|$name")
     [ "$_HI_MENU_DRAW" = 1 ] || continue
     _hi_menu_num num
     if [ "$s" = 1 ]; then _hi_paint box "$BRGREEN" "[x]"; else _hi_paint box "$RED" "[ ]"; fi
@@ -845,12 +838,10 @@ function _hi_plugin_notes() {
 }
 
 # _hi_plugin_states <kept home> <switched on> - every plugin of the plugins
-# files under those two lists, a line for its group, `<group>||<on>|<off by
-# default>`, and under it one a plugin: `<group>|<plugin>|<on>|<off by
-# default>|<program>|<here>|<config>|<about>`. <on> is 1 for one a target is
-# sent, a group's for one neither list keeps home; <off by default> is 1 for
-# a plugin $_HI_PLUGINS_ON has to name, a group's when all of its plugins
-# are. <program> is what reads the plugin's config, the first of its commands
+# files under those two lists, a line for its group, `<group>|`, and under it
+# one a plugin: `<group>|<plugin>|<on>|<off by default>|<program>|<here>|
+# <config>|<about>`. <on> is 1 for one a target is sent; <off by default> is
+# 1 for a plugin $_HI_PLUGINS_ON has to name. <program> is what reads the plugin's config, the first of its commands
 # found here, or - with none to look for, and <here> whether this machine has
 # it; <config> is whether a file of the plugin's is found here, - for a
 # plugin of no files; <about> is _hi_plugin_notes' line, else what its hook
@@ -859,7 +850,7 @@ function _hi_plugin_states() {
   (
     # shellcheck source=/dev/null # hi.sh, whose functions alone are wanted
     source "$_HI_LAUNCHER" >/dev/null 2>&1
-    local name group last="" seen=" " nl=$'\n' i r p m on d gd=1 tool wire hook prog here cfg about prompts notes
+    local name group last="" seen=" " nl=$'\n' i r p m on d tool wire hook prog here cfg about prompts notes
     local -a members=() buf=() plugs=() _hi_paths=()
     _HI_PLUGINS_OFF="$1" _HI_PLUGINS_ON="${2:-}"
     _hi_plugins_load
@@ -873,10 +864,7 @@ function _hi_plugin_states() {
     # a group's line, then its plugins'
     function _hi_ps_flush() {
       [ -n "$last" ] || return 0
-      on=1
-      case " ${_HI_PLUGINS_OFF//,/ } " in *" $last "*) on=0 ;; esac
-      [ "$gd" != 1 ] || case " ${_HI_PLUGINS_ON//,/ } " in *" $last "*) ;; *) on=0 ;; esac
-      printf '%s||%s|%s\n' "$last" "$on" "$gd"
+      printf '%s|\n' "$last"
       printf '%s\n' "${buf[@]}"
     }
     while IFS='|' read -r name group _; do
@@ -884,7 +872,7 @@ function _hi_plugin_states() {
       seen="$seen$group|$name "
       if [ "$group" != "$last" ]; then
         _hi_ps_flush
-        last="$group" gd=1 buf=()
+        last="$group" buf=()
       fi
       members=() tool="" wire="" hook=""
       for i in ${plugs[@]+"${!plugs[@]}"}; do
@@ -901,8 +889,8 @@ function _hi_plugin_states() {
         [ "$p" != "$name" ] || hook="$r"
       done
       on=1 d=0
-      ! _hi_plugin_switched_off "$name" "$group" || on=0
-      case "$_HI_PLUGIN_DEFAULT_OFF" in *" $name "*) d=1 ;; *) gd=0 ;; esac
+      ! _hi_plugin_switched_off "$name" || on=0
+      case "$_HI_PLUGIN_DEFAULT_OFF" in *" $name "*) d=1 ;; esac
       # a hook's tool, where it has no command, is its init's
       if [ -n "$hook" ]; then
         _hi_hook_col "$hook" tool tool
@@ -960,64 +948,35 @@ function _hi_plugin_states() {
   )
 }
 
-# _hi_plugin_list_drop <listvar> <word> <group> [on] - <word> out of the list
-# named <listvar>, left with a space around each word. Where the list names
-# <word>'s <group>, the group goes too and its other plugins take its place:
-# all of them, or with <on>, the list that switches plugins on, those off by
-# default.
-function _hi_plugin_list_drop() {
-  local _hi_ld=" ${!1//,/ } " _hi_ld_e _hi_ld_g _hi_ld_n _hi_ld_d
-  _hi_ld="${_hi_ld/" $2 "/ }"
-  case "$3:$_hi_ld" in
-  ?*:*" $3 "*)
-    _hi_ld="${_hi_ld/" $3 "/ }"
-    for _hi_ld_e in "${_HI_MENU_PLUGINS[@]}"; do
-      IFS='|' read -r _hi_ld_g _hi_ld_n _ _hi_ld_d _ <<<"$_hi_ld_e"
-      [ "$_hi_ld_g" = "$3" ] && [ -n "$_hi_ld_n" ] && [ "$_hi_ld_n" != "$2" ] || continue
-      [ -z "${4:-}" ] || [ "$_hi_ld_d" = 1 ] || continue
-      case "$_hi_ld" in *" $_hi_ld_n "*) ;; *) _hi_ld="$_hi_ld$_hi_ld_n " ;; esac
-    done
-    ;;
-  esac
-  printf -v "$1" '%s' "$_hi_ld"
-}
-
-# _hi_plugin_flip <word> - a group or a plugin of the Plugins pages, sent or
-# kept home, in this run's $_HI_PLUGINS_OFF and $_HI_PLUGINS_ON: the lists `hi
+# _hi_plugin_flip <plugin> - a plugin of the Plugins pages, sent or kept home,
+# in this run's $_HI_PLUGINS_OFF and $_HI_PLUGINS_ON: the lists `hi
 # --plugin-off` and `--plugin-on` keep too (GLOSSARY: HI.64). One that is off
-# by default moves through the second, as there; a plugin switched on while
-# its group is kept home takes the group off the list and puts the group's
-# other plugins on it.
+# by default moves through the second, as there.
 function _hi_plugin_flip() {
-  local kept="" on="" w entry g n s d group="" state=1 dflt="" said="stays home" next=""
+  local kept="" on="" w entry n s d state=1 dflt="" said="stays home" next=""
   setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
   setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" on
   for entry in ${_HI_MENU_PLUGINS[@]+"${_HI_MENU_PLUGINS[@]}"}; do
-    IFS='|' read -r g n s d _ <<<"$entry"
-    [ "${n:-$g}" = "$1" ] || continue
+    IFS='|' read -r _ n s d _ <<<"$entry"
+    [ "$n" = "$1" ] || continue
     state="$s" dflt="$d"
-    [ -z "$n" ] || group="$g"
     break
   done
+  kept=" ${kept//,/ } " on=" ${on//,/ } "
   if [ "$state" != 1 ]; then
     said="is sent"
-    _hi_plugin_list_drop kept "$1" "$group"
-    [ "$dflt" != 1 ] || case " ${on//,/ } " in *" $1 "*) ;; *) on="$on $1" ;; esac
+    kept="${kept/" $1 "/ }"
+    [ "$dflt" != 1 ] || case "$on" in *" $1 "*) ;; *) on="$on$1 " ;; esac
   elif [ "$dflt" = 1 ]; then
-    _hi_plugin_list_drop on "$1" "$group" on
-    # a group's plugins named one by one go with it
-    [ -n "$group" ] || for entry in "${_HI_MENU_PLUGINS[@]}"; do
-      IFS='|' read -r g n _ <<<"$entry"
-      [ "$g" != "$1" ] || [ -z "$n" ] || on="${on/" $n "/ }"
-    done
+    on="${on/" $1 "/ }"
   else
-    kept="$kept $1"
+    kept="$kept$1 "
   fi
-  for w in ${kept//,/ }; do next="$next${next:+ }$w"; done
+  for w in $kept; do next="$next${next:+ }$w"; done
   _hi_pending_set _HI_PLUGINS_OFF "$next"
   if [ "$dflt" = 1 ]; then
     next=""
-    for w in ${on//,/ }; do next="$next${next:+ }$w"; done
+    for w in $on; do next="$next${next:+ }$w"; done
     _hi_pending_set _HI_PLUGINS_ON "$next"
   fi
   _hi_menu_note " $1: $said" "$GREEN"

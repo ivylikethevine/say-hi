@@ -33,8 +33,8 @@
 --add-tag|web-dev dev --dry-run|
 --set-color|hosttag prod red --dry-run|
 --unset-color|username root --dry-run|
---plugins||--plugin-off mux
---plugin-off|prompt --dry-run|
---plugin-on|mux --dry-run|--plugin-off mux
+--plugins||--plugin-off tmux
+--plugin-off|bat --dry-run|
+--plugin-on|tmux --dry-run|--plugin-off tmux
 --add-plugin|cli lnav lnav/config.json home=~/.config/lnav/config.json --dry-run|
 --remove-plugin|lnav --dry-run|--add-plugin cli lnav lnav/config.json home=~/.config/lnav/config.json

@@ -240,27 +240,28 @@ function test_menu_flips_a_package_group() {
     [[ "$(_hi_cfg_lines hdr_groups)" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]]
 }
 
-# a group of plugins has a number, and it keeps the whole group home
-function test_menu_keeps_a_plugin_group_home() {
-  _hi_cfg_pty plug_toggle "$(_hi_item 'plugin|editors')\ns\n" '' config_hub || return 1
-  _hi_cfg_has plug_toggle "editors: stays home" &&
-    [[ "$(_hi_cfg_lines plug_toggle)" == *"export _HI_PLUGINS_OFF='editors'"* ]]
+# a group of plugins has a key and no box: the Plugins page names it beside
+# its plugins, and nothing numbers it
+function test_menu_lists_a_plugin_group_without_a_box() {
+  ! _hi_item 'plugin|editors' >/dev/null || _hi_because "the group has a number" || return 1
+  _hi_cfg_pty plug_group 'g\ns\n' '' config_hub || return 1
+  _hi_cfg_has plug_group "g2  editors  vim nvim nano" && ! _hi_cfg_has plug_group "] editors" &&
+    [[ "$(_hi_cfg_lines plug_group)" != *"_HI_PLUGINS_OFF"* ]]
 }
 
-# ...and so has each plugin, on its group's page: editors is g2, the second
-# group by name
+# a plugin's number keeps it home, on its group's page: editors is g2, the
+# second group by name
 function test_menu_keeps_a_plugin_home() {
   _hi_cfg_pty plug_num "g2\n$(_hi_item 'plugin|nano')\ns\n" '' config_hub || return 1
-  _hi_cfg_has plug_num ") [x] editors" && _hi_cfg_has plug_num ") [ ] nano" &&
+  _hi_cfg_has plug_num ") [ ] nano" &&
     [[ "$(_hi_cfg_lines plug_num)" == *"export _HI_PLUGINS_OFF='nano'"* ]]
 }
 
-# ...a plugin sent again while its group is kept home takes the group off the
-# list and leaves the group's other plugins on it
-function test_menu_sends_a_plugin_of_a_kept_group() {
-  _hi_cfg_pty plug_back "$(_hi_item 'plugin|nano')\ns\n" "export _HI_PLUGINS_OFF='editors'" config_hub || return 1
+# ...and sends it again, the list's other plugins left on it
+function test_menu_sends_a_plugin_kept_home() {
+  _hi_cfg_pty plug_back "$(_hi_item 'plugin|nano')\ns\n" "export _HI_PLUGINS_OFF='nano vim'" config_hub || return 1
   _hi_cfg_has plug_back "nano: is sent" &&
-    [[ "$(_hi_cfg_lines plug_back)" == *"export _HI_PLUGINS_OFF='vim nvim emacs hx kak micro'"* ]]
+    [[ "$(_hi_cfg_lines plug_back)" == *"export _HI_PLUGINS_OFF='vim'"* ]]
 }
 
 # a plugin that is off by default moves through the other list: zoxide's box
@@ -384,7 +385,7 @@ function test_full_run_preset_then_save() {
     _hi_cfg_has full_walk "starting from the 'minimal' preset" &&
     _hi_cfg_has full_walk "CFGQUIT=none" &&
     [[ "$block" == *"export _HI_DISABLE_HEADER=1"* && "$block" == *"export _HI_DISABLE_LOCAL=1"* &&
-      "$block" == *"export _HI_PLUGINS_OFF='editors'"* ]]
+      "$block" == *"export _HI_PLUGINS_OFF='vim,nvim,nano,emacs,hx,kak,micro'"* ]]
 }
 
 # q after the same preset writes nothing at all - no block, not even the
@@ -438,8 +439,8 @@ function test_menu_main_page_is_a_table_of_its_pages() {
 # rows, and a preview of what they change or none - and b comes back to the
 # main page
 function test_menu_keys_open_their_pages() {
-  local titles end kept sudo core hdr utc bat
-  end="$(_hi_item 'end|bash')" && kept="$(_hi_item 'plugin|editors')" && core="$(_hi_item 'group|core')" &&
+  local titles end sudo core hdr utc bat
+  end="$(_hi_item 'end|bash')" && core="$(_hi_item 'group|core')" &&
     sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|5')" && hdr="$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')" &&
     utc="$(_hi_item 'word|0')" && bat="$(_hi_item 'plugin|bat')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
@@ -453,7 +454,7 @@ function test_menu_keys_open_their_pages() {
     _hi_cfg_screen_has hub_pages 2 " $utc) [x] utc" &&
     _hi_cfg_screen_has hub_pages 3 "$core) [x] core" &&
     _hi_cfg_screen_has hub_pages 4 "$end)     bash prompt ends with" &&
-    _hi_cfg_screen_has hub_pages 5 "$kept) [x] editors" &&
+    _hi_cfg_screen_has hub_pages 5 "g2  editors  vim nvim nano" &&
     _hi_cfg_screen_has hub_pages 6 "$bat) [x] bat" &&
     _hi_cfg_screen_has hub_pages 6 "program  config  on a target" &&
     _hi_cfg_screen_has hub_pages 7 "$sudo) [ ] sudo alias" &&
@@ -592,9 +593,9 @@ function run_configure_pty_tests() {
   _hi_par_check_capable pty "Menu: fits 80 columns, pages in order" test_menu_layout_at_80
   _hi_par_check_capable pty "Menu: fits 40 columns, pages in order" test_menu_layout_at_40
   _hi_par_check_capable pty "Menu: a changed value names its default" test_menu_value_shows_its_default
-  _hi_par_check_capable pty "Menu: a plugin group's number keeps it home" test_menu_keeps_a_plugin_group_home
-  _hi_par_check_capable pty "Menu: ...and a plugin's its own" test_menu_keeps_a_plugin_home
-  _hi_par_check_capable pty "Menu: ...and one sent again takes its group off the list" test_menu_sends_a_plugin_of_a_kept_group
+  _hi_par_check_capable pty "Menu: a plugin group has a key and no box" test_menu_lists_a_plugin_group_without_a_box
+  _hi_par_check_capable pty "Menu: a plugin's number keeps it home" test_menu_keeps_a_plugin_home
+  _hi_par_check_capable pty "Menu: ...and sends it again" test_menu_sends_a_plugin_kept_home
   _hi_par_check_capable pty "Menu: ...and one off by default is switched on" test_menu_switches_a_default_off_plugin_on
   _hi_par_check_capable pty "Menu: an opt-in row writes its on-value" test_menu_opt_in_row_writes_its_on_value
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews

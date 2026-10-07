@@ -13,7 +13,8 @@
 #   settings.sh  _HI_PACKAGES_MIN_PRIORITY -> _HI_PACKAGES_GROUPS; the
 #                _HI_DISABLE_TOOL_ALIASES/_HI_DISABLE_SUDO_ALIAS lines dropped;
 #                an editor's or a multiplexer's _HI_DISABLE_* -> its word in
-#                _HI_PLUGINS_OFF
+#                _HI_PLUGINS_OFF; a group's word in _HI_PLUGINS_OFF or
+#                _HI_PLUGINS_ON -> its plugins'
 # A file already in the current shape is left alone, so a second run is a
 # no-op; a packages or colors file holding one TOML row is in it, whatever
 # else it holds. scripts/install.sh (--install, --configure) and scripts/update.sh
@@ -331,22 +332,32 @@ function _hi_toml_plugins() {
 # line replaced by the _HI_PACKAGES_GROUPS that shows the same tiers, its
 # trailing comment (install's marker among them) kept, or dropped where that
 # is the default (2) or a _HI_PACKAGES_GROUPS line already says what to show;
-# and with every editor's and multiplexer's toggle gone, the ones at 1 as
-# words of the _HI_PLUGINS_OFF line, which is written where the file's own
-# was, or last, under the marker any of them carried
+# with every editor's and multiplexer's toggle gone, the ones at 1 as words
+# of the _HI_PLUGINS_OFF line, which is written where the file's own was, or
+# last, under the marker any of them carried; and with a group's word in
+# either plugins list replaced by its plugins, $_HI_GROUP_MAP's or the
+# tree's
 function _hi_convert_settings() {
-  awk -v old="$_HI_OLD_TOGGLES" '
+  awk -v old="$_HI_OLD_TOGGLES" -v gmap="${_HI_GROUP_MAP:-$(_hi_group_map "$_HI_ROOT/config/plugins")}" '
     BEGIN {
       word["EDITORS"] = "editors"; word["VIM"] = "vim nvim"; word["NANO"] = "nano"
       word["EMACS"] = "emacs"; word["MICRO"] = "micro"; word["HELIX"] = "hx"
       word["KAKOUNE"] = "kak"; word["TMUX"] = "tmux"; word["SCREEN"] = "screen"
       word["ZELLIJ"] = "zellij"
+      m = split(gmap, w, ";")
+      for (k = 1; k <= m; k++) if (split(w[k], kv, ":") == 2) grp[kv[1]] = kv[2]
     }
-    function add(words,   k, w, m) {
+    # a list with <words> behind it, a group among them as its plugins, each
+    # word once
+    function join(list, words,   k, w, m) {
       m = split(words, w, /[ ,]+/)
-      for (k = 1; k <= m; k++)
-        if (w[k] != "" && index(" " off " ", " " w[k] " ") == 0) off = off (off == "" ? "" : " ") w[k]
+      for (k = 1; k <= m; k++) {
+        if (w[k] in grp) list = join(list, grp[w[k]])
+        else if (w[k] != "" && index(" " list " ", " " w[k] " ") == 0) list = list (list == "" ? "" : " ") w[k]
+      }
+      return list
     }
+    function add(words) { off = join(off, words) }
     # the line as the wizard pads it (rc_tagged), so its block takes it as its own
     function listed(   l) {
       l = "export _HI_PLUGINS_OFF=\047" off "\047"
@@ -363,6 +374,11 @@ function _hi_convert_settings() {
     { lines[++n] = $0 }
     /^[ \t]*(export[ \t]+)?_HI_PACKAGES_GROUPS=/ { has = 1 }
     /^[ \t]*(export[ \t]+)?_HI_PLUGINS_OFF=/ { at = n }
+    /^[ \t]*(export[ \t]+)?_HI_PLUGINS_ON=/ {
+      t = ""
+      if (match($0, /[ \t]+#.*/)) { t = substr($0, RSTART); sub(/^[ \t]+/, "\037", t) }
+      lines[n] = "export _HI_PLUGINS_ON=\047" join("", value($0)) "\047" t
+    }
     $0 ~ "^[ \t]*(export[ \t]+)?_HI_DISABLE_(" old ")=" {
       t = $0; sub(/^[ \t]*(export[ \t]+)?_HI_DISABLE_/, "", t); sub(/=.*/, "", t)
       if (value($0) == 1) { moved = moved " " word[t]; marked($0) }
@@ -393,6 +409,22 @@ function _hi_convert_settings() {
       if (!at && off != "") listed()
     }
   ' | _hi_pad_cols 45
+}
+
+# _hi_group_map <plugins file...> - the files' `[<group>.<plugin>]` tables as
+# `<group>:<plugin> <plugin>;` rows on one line, less a group a plugin is
+# named like: what a group's word in a plugins list once meant
+function _hi_group_map() {
+  local f
+  for f; do [ ! -f "$f" ] || cat "$f"; done | awk '
+    /^[ \t]*\[[^].]+\.[^].]+\][ \t]*$/ {
+      t = $0; gsub(/[][ \t]/, "", t)
+      g = t; sub(/\..*/, "", g); sub(/^[^.]*\./, "", t)
+      if (!(g in names)) order[++n] = g
+      names[g] = names[g] (names[g] == "" ? "" : " ") t; plugin[t] = 1
+    }
+    END { for (i = 1; i <= n; i++) if (!(order[i] in plugin)) printf "%s:%s;", order[i], names[order[i]] }
+  '
 }
 
 # _hi_convert_one <file> <shape> <converter> [dst] - <file> through
@@ -459,5 +491,10 @@ _hi_convert_data "$dir/colors" colors "$_HI_FLAT_COLORS"
 _hi_shape=""
 _hi_plugins_shape _hi_shape "$dir/plugins"
 _hi_convert_one "$dir/plugins" "$_hi_shape" _hi_toml_plugins
+# a group no plugin shares its name with, once a word of the two lists
+_HI_GROUP_MAP="$(_hi_group_map "$_HI_ROOT/config/plugins" "$dir/plugins")"
+_hi_groups="$(printf '%s' "$_HI_GROUP_MAP" | tr ';' '\n' | sed -n 's/:.*//p' | tr '\n' '|')"
+[ -z "$_hi_groups" ] ||
+  _hi_old_settings="$_hi_old_settings|^[[:space:]]*(export[[:space:]]+)?_HI_PLUGINS_(OFF|ON)=(.*[^A-Za-z0-9_./-])?(${_hi_groups%|})([^A-Za-z0-9_./-]|\$)"
 [ ! -f "$dir/settings.sh" ] || ! grep -Eq "$_hi_old_settings" "$dir/settings.sh" ||
   _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings

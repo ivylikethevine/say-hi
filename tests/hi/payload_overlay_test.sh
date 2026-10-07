@@ -191,8 +191,8 @@ command -v helix >/dev/null 2>&1 && alias helix="env XDG_CONFIG_HOME=$_HI_CONFIG
 command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux/tmux.conf" || true
 command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONFIG_DIR/zellij" || true'
   [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
-  [ "$(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml " ] ||
-    _hi_because "with mux off: $(_HI_PLUGINS_OFF=mux _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$(_HI_PLUGINS_OFF="tmux zellij" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml " ] ||
+    _hi_because "with the multiplexers off: $(_HI_PLUGINS_OFF="tmux zellij" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
 }
 
 # ...and only with them: an overlay of members hi's own code reads has no
@@ -374,28 +374,29 @@ function test_the_tree_plugins_file_holds() {
   )
 }
 
-# a plugin that is switched off sends nothing: $_HI_PLUGINS_OFF names it, its
-# group, or the member, a row of the user's own by its own group too - and
-# never one of hi's own files, which only their toggles switch (GLOSSARY:
-# HI.64)
+# a plugin that is switched off sends nothing: $_HI_PLUGINS_OFF names it or
+# the member, a row of the user's own too - never its group, and never one
+# of hi's own files, which only their toggles switch (GLOSSARY: HI.64)
 function test_plugin_off_keeps_its_members_home() {
   local dir
   dir="$(_hi_overlay_fixture plugins-off colors vim/vimrc nano/nanorc tmux/tmux.conf bat/config lazygit/config.yml mine.rc)"
   mkdir -p "$dir/micro"
   printf '{}\n' >"$dir/micro/settings.json"
   printf '[mine.mine]\ntool = "-"\nwire = "env:MINE"\nhome = "/etc/mine"\nfiles = "mine.rc"\n' >"$dir/plugins"
-  [ "$(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors bat/config tmux/tmux.conf mine.rc " ] ||
-    _hi_because "a plugin and a group off: $(_HI_PLUGINS_OFF="lazygit editors" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_PLUGINS_OFF="mux,cli,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors vim/vimrc micro/settings.json " ] ||
-    _hi_because "commas, a member, a group of the user's: $(_HI_PLUGINS_OFF="mux,cli,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_PLUGINS_OFF="lazygit vim nano micro" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors bat/config tmux/tmux.conf mine.rc " ] ||
+    _hi_because "four plugins off: $(_HI_PLUGINS_OFF="lazygit vim nano micro" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_PLUGINS_OFF="tmux,bat,lazygit,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors vim/vimrc micro/settings.json " ] ||
+    _hi_because "commas, a member, a plugin of the user's: $(_HI_PLUGINS_OFF="tmux,bat,lazygit,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_PLUGINS_OFF="editors mux cli" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x -e vim/vimrc -e tmux/tmux.conf -e bat/config)" = 3 ] ||
+    _hi_because "a group's word kept a plugin home" || return 1
   [ "$(_HI_PLUGINS_OFF="colors settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x colors)" = 1 ] ||
     _hi_because "one of hi's own was switched off" || return 1
   # one file of a directory member, by its own name: the rest of it rides
   mkdir -p "$dir/extensions"
   printf 'export A=1\n' >"$dir/extensions/10-a"
   printf 'export B=1\n' >"$dir/extensions/20-b"
-  [ "$(_HI_PLUGINS_OFF="extensions/10-a editors cli mux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors extensions/20-b " ] ||
-    _hi_because "one extension off: $(_HI_PLUGINS_OFF="extensions/10-a editors cli mux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
+  [ "$(_HI_PLUGINS_OFF="extensions/10-a vim nano micro bat lazygit tmux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors extensions/20-b " ] ||
+    _hi_because "one extension off: $(_HI_PLUGINS_OFF="extensions/10-a vim nano micro bat lazygit tmux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
   [ -z "$(_HI_PLUGINS_OFF="extensions" _HI_CONFIG_DIR="$dir" _hi_overlay_files extensions/)" ] ||
     _hi_because "the directory's plugin off left a file riding"
 }
@@ -420,8 +421,9 @@ function _hi_hooks_wiring() {
 }
 
 # a shell hook rides as a row of _HI_HOOKS, its tool here and its plugin on;
-# one off by default rides with a leading - once _HI_PLUGINS_ON names it or
-# its group, and never when _HI_PLUGINS_OFF does; a prompt plugin's init
+# one off by default rides with a leading - once _HI_PLUGINS_ON names it,
+# and never when _HI_PLUGINS_OFF does, its group's word switching nothing in
+# either; a prompt plugin's init
 # rides as _HI_PROMPT_INITS and a _HI_PROMPT_PLUGINS row instead, only when
 # a target is handed the program (GLOSSARY: HI.67)
 function test_hook_plugins_ride_as_wiring_rows() {
@@ -441,11 +443,11 @@ function test_hook_plugins_ride_as_wiring_rows() {
   w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off)" || return 1
   [[ "$w" == *'mine.-hi-hook-off=hi-hook-off hook {shell}'* ]] || _hi_because "on by name: $w" || return 1
   w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=mine)" || return 1
-  [[ "$w" == *'mine.-hi-hook-off=hi-hook-off hook {shell}'* ]] || _hi_because "on by group: $w" || return 1
+  [[ "$w" != *hi-hook-off* ]] || _hi_because "on by its group's word: $w" || return 1
   w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off _HI_PLUGINS_OFF=hi-hook-off)" || return 1
   [[ "$w" != *hi-hook-off* ]] || _hi_because "off list lost: $w" || return 1
   w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_OFF=mine)" || return 1
-  [[ "$w" != *_HI_HOOKS* ]] || _hi_because "group off left a row: $w" || return 1
+  [[ "$w" == *'mine.hi-hook-here='* ]] || _hi_because "off by its group's word: $w" || return 1
   w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PROMPT_TOOL="hi-prompt-here hi")" || return 1
   [[ "$w" == *'export _HI_PROMPT_INITS="hi-prompt-here=hi-prompt-here init {shell}"'*'export _HI_PROMPT_PLUGINS="hi-prompt-here|bash zsh fish|bin|-"'* ]] ||
     _hi_because "prompt plugin: $w" || return 1

@@ -115,9 +115,9 @@ function test_dispatch_hands_the_plugin_flags_their_switches() {
   _hi_ds_dispatch --plugins
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugins
 args=" ] || return 1
-  _hi_ds_dispatch --plugin-off editors bat --dry-run
+  _hi_ds_dispatch --plugin-off vim bat --dry-run
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugin-off
-args=--off editors bat --dry-run" ] || return 1
+args=--off vim bat --dry-run" ] || return 1
   _hi_ds_dispatch --add-plugin taskrc task env:TASKRC '/opt/taskrc : /etc/taskrc'
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-plugin
 args=--add taskrc task env:TASKRC /opt/taskrc : /etc/taskrc" ]

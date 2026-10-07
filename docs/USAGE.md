@@ -181,13 +181,13 @@ No image: its output depends on the network and the release tags.
 
 `hi --plugin-off <name>... [--dry-run]`: switch plugins off: nothing of theirs rides.
 
-![hi --plugin-off prompt --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugin-off.svg)
+![hi --plugin-off bat --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugin-off.svg)
 
 ### `hi --plugin-on`
 
 `hi --plugin-on <name>... [--dry-run]`: switch them back on.
 
-![hi --plugin-on mux --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugin-on.svg)
+![hi --plugin-on tmux --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugin-on.svg)
 
 ### `hi --add-plugin`
 

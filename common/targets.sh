@@ -210,16 +210,11 @@ if [ "$kind" = words ]; then
     ;;
   --plugin-off)
     # the plugins files read as text, since this file cannot source the
-    # packer: each table's group and its plugin. A session has neither
-    # file, and no use for the flag.
+    # packer: each table's plugin. A session has neither file, and no use
+    # for the flag.
     for f in "$hi_tree/config/plugins" "${_HI_CONFIG_DIR:-}/plugins"; do
       plugin_tables "$f"
-    done | awk -F'|' '
-      {
-        if (!seen[$1]++) printf "%s\tevery plugin of that group\n", $1
-        if (!seen[$2]++) printf "%s\ta plugin\n", $2
-      }
-    '
+    done | awk -F'|' '!seen[$2]++ { printf "%s\ta plugin\n", $2 }'
     ;;
   --plugin-on)
     # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line

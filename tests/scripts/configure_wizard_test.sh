@@ -250,7 +250,7 @@ function test_preset_vocab_excludes_palette_and_order() {
 # so the before-state is the marked block a real run would find.
 function _hi_preset_run() {
   mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_PLUGINS_OFF='editors'" "export _HI_MAX_WIDTH=120"
+  config_shell settings "$_HI_SETTINGS" "export _HI_PLUGINS_OFF='nano'" "export _HI_MAX_WIDTH=120"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   run_configure balanced </dev/null
@@ -265,7 +265,8 @@ function test_preset_run_writes_the_preset() {
 }
 
 # lean names two variables outside the vocabulary: they are written with the
-# rest, and a later preset that does not name them leaves them be
+# rest, and a later preset that does not name them leaves them be. Its list
+# kept home is every plugin of config/plugins but the hooks, in its order.
 function _hi_preset_lean_run() {
   mkdir -p "$_HI_CONFIG_DIR"
   _HI_SETTING_LINES=()
@@ -278,12 +279,13 @@ function _hi_preset_lean_run() {
 }
 
 function test_preset_lean_sets_what_no_other_resets() {
-  local f lean block
+  local f lean block all
   _hi_settings_fixture preset_lean _hi_preset_lean_run
   f="$(_hi_fixture_settings preset_lean)"
   lean="$(grep -F "$_HI_MARKER" "$f.lean")"
   block="$(grep -F "$_HI_MARKER" "$f")"
-  [[ "$lean" == *"export _HI_PLUGINS_OFF='editors,cli,mux,shell,prompt'"* &&
+  all="$(sed -n 's/^\[\([^].]*\)\.\([^].]*\)\]$/\1 \2/p' "$_HI_ROOT/config/plugins" | grep -v '^hooks ' | cut -d' ' -f2 | tr '\n' ',')"
+  [[ "$lean" == *"export _HI_PLUGINS_OFF='${all%,}'"* &&
     "$lean" == *"export _HI_PROMPT_TOOL=hi"* && "$lean" == *"export _HI_BACKENDS_OFF='all'"* ]] &&
     [[ "$block" != *"_HI_PLUGINS_OFF"* && "$block" == *"export _HI_PROMPT_TOOL=hi"* &&
       "$block" == *"export _HI_BACKENDS_OFF='all'"* ]]
@@ -607,14 +609,16 @@ function _hi_plugins_page() {
 function test_plugin_states_list_every_plugin() {
   local out
   out="$(_hi_plugin_states '' '')"
-  [[ "$out" == *$'\n'"editors||1|0"$'\n'* && "$out" == *$'\n'"hooks||0|1"$'\n'* ]] || _hi_because "groups: $out" || return 1
+  [[ "$out" == *$'\n'"editors|"$'\n'* && "$out" == *$'\n'"hooks|"$'\n'* ]] || _hi_because "groups: $out" || return 1
   [[ "$out" == *$'\n'"editors|nano|1|0|nano|"[01]"|1|nano starts on your nanorc"$'\n'* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *$'\n'"editors|kak|1|0|kak|"[01]"|0|"* ]] || _hi_because "kak: $out" || return 1
   [[ "$out" == *$'\n'"hooks|zoxide|0|1|zoxide|"[01]"|-|z jumps to the directories you visit"* ]] || _hi_because "zoxide: $out" || return 1
   [[ "$out" == *$'\n'"shell|bash|1|0|-|-|0|"* ]] || _hi_because "bash: $out" || return 1
-  out="$(_hi_plugin_states 'editors' 'zoxide')"
-  [[ "$out" == *$'\n'"editors||0|0"$'\n'* && "$out" == *"editors|nano|0|0|"* && "$out" == *"hooks|zoxide|1|1|"* ]] ||
-    _hi_because "under the lists: $out"
+  out="$(_hi_plugin_states 'nano' 'zoxide')"
+  [[ "$out" == *"editors|nano|0|0|"* && "$out" == *"editors|vim|1|0|"* && "$out" == *"hooks|zoxide|1|1|"* ]] ||
+    _hi_because "under the lists: $out" || return 1
+  out="$(_hi_plugin_states 'editors' 'hooks')"
+  [[ "$out" == *"editors|nano|1|0|"* && "$out" == *"hooks|zoxide|0|1|"* ]] || _hi_because "a group's word switched one: $out"
 }
 
 # a plugin of the user's own file says what its hook or its wire does, and
@@ -636,14 +640,14 @@ function test_plugin_states_describe_a_plugin_of_yours() {
 function test_plugins_page_draws_a_row_a_plugin() {
   local page line
   page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g2 '')")"
-  [[ "$page" == *"plugin "*"program  config  on a target"* && "$page" == *") [x] editors "* ]] || _hi_because "head: [$page]" || return 1
+  [[ "$page" == *"plugin "*"program  config  on a target"* && "$page" != *"] editors"* ]] || _hi_because "head: [$page]" || return 1
   line="$(grep -F ') [x] nano ' <<<"$page")"
   [[ "$line" == *"$_HI_MARK_OK       nano starts on your nanorc" ]] || _hi_because "nano: [$line]" || return 1
   line="$(grep -F ') [x] kak ' <<<"$page")"
   [[ "$line" == *"$_HI_MARK_NO       kakoune reads your kakrc and colors" ]] || _hi_because "kak: [$line]" || return 1
   [[ "$page" != *") [x] bat"* ]] || _hi_because "another group's plugin: [$page]" || return 1
-  page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g2 editors)")"
-  [[ "$page" == *") [ ] editors "* && "$page" == *") [ ] nano "* ]] || _hi_because "editors off: [$page]" || return 1
+  page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g2 nano)")"
+  [[ "$page" == *") [ ] nano "* && "$page" == *") [x] kak "* ]] || _hi_because "nano off: [$page]" || return 1
   page="$(_hi_strip_ansi "$(_hi_plugins_page 40 g2 '')")"
   [[ "$page" == *") [x] nano "* && "$page" != *"nano starts"* && "$page" != *"on a target"* ]] || _hi_because "narrow: [$page]"
 }
@@ -655,38 +659,37 @@ function test_plugins_rows_name_each_group() {
   page="$(_hi_strip_ansi "$(_hi_plugins_page 80 '' '')")"
   [[ "$page" == *" Plugins "*" ride"*" g2 "*" editors "*" vim nvim nano "* ]] || _hi_because "main: [$page]" || return 1
   page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g '')")"
-  [[ "$page" == *") [x] editors  g2  vim nvim nano "* ]] || _hi_because "the Plugins page: [$page]" || return 1
+  [[ "$page" == *" g2  editors  vim nvim nano "* && "$page" != *"] editors"* ]] || _hi_because "the Plugins page: [$page]" || return 1
   _hi_plugin_color off off
   _hi_plugin_color rides rides
   [ -z "$off" ] || [ "$off" != "$rides" ] || _hi_because "one color for two states" || return 1
-  page="$(_hi_plugins_page 80 g editors)"
+  page="$(_hi_plugins_page 80 g nano)"
   [[ "$page" == *"$(printf '%b' "$off")nano"* ]] || _hi_because "nano, kept home: $(printf '%q' "$page")"
 }
 
-# a number flips the word it stands for in the list kept home; a plugin
-# switched on under a group that is kept home takes the group off the list
-# and leaves the group's other plugins on it
+# a number flips the plugin it stands for in the list kept home: one there
+# comes off it, one that rides goes on
 function test_plugin_flip_edits_the_list_kept_home() {
   local dir out="" _HI_SETTINGS _HI_MENU_NOTE=""
   local -a _HI_SETTING_PENDING=()
-  local -a _HI_MENU_PLUGINS=("cli||1" "cli|bat|1" "editors||0" "editors|nano|0" "editors|vim|0" "mux||0" "mux|tmux|0")
+  local -a _HI_MENU_PLUGINS=("cli|" "cli|bat|1|0" "editors|" "editors|nano|0|0" "editors|vim|0|0" "mux|" "mux|tmux|1|0")
   dir="$(mktemp -d "$_HI_WORKDIR/pluginflip.XXXXXX")" || return 1
   _HI_SETTINGS="$dir/settings.sh"
-  printf '#!/bin/sh\n%s\n' "export _HI_PLUGINS_OFF='editors mux'" >"$_HI_SETTINGS"
+  printf '#!/bin/sh\n%s\n' "export _HI_PLUGINS_OFF='nano, vim'" >"$_HI_SETTINGS"
   _hi_plugin_flip nano
   _hi_plugin_flip bat
-  _hi_plugin_flip mux
+  _hi_plugin_flip tmux
   setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" out
-  [ "$out" = "vim bat" ] || _hi_because "the list: [$out]"
+  [ "$out" = "vim bat tmux" ] || _hi_because "the list: [$out]"
 }
 
 # a plugin that is off by default moves through $_HI_PLUGINS_ON, as `hi
-# --plugin-on` moves it: switched on it is named there, and switched off
-# under a group named there, the group gives way to its other plugins
+# --plugin-on` moves it: switched on it is named there, and switched off it
+# is taken out
 function test_plugin_flip_moves_a_default_off_plugin_through_the_on_list() {
   local dir out="" kept="" _HI_SETTINGS _HI_MENU_NOTE=""
   local -a _HI_SETTING_PENDING=()
-  local -a _HI_MENU_PLUGINS=("hooks||0|1" "hooks|zoxide|0|1" "hooks|mise|0|1")
+  local -a _HI_MENU_PLUGINS=("hooks|" "hooks|zoxide|0|1" "hooks|mise|0|1")
   dir="$(mktemp -d "$_HI_WORKDIR/pluginon.XXXXXX")" || return 1
   _HI_SETTINGS="$dir/settings.sh"
   printf '#!/bin/sh\n' >"$_HI_SETTINGS"
@@ -695,11 +698,11 @@ function test_plugin_flip_moves_a_default_off_plugin_through_the_on_list() {
   setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
   [ "$out" = zoxide ] && [ -z "$kept" ] || _hi_because "on: [$out], kept home: [$kept]" || return 1
   _HI_SETTING_PENDING=()
-  _HI_MENU_PLUGINS=("hooks||1|1" "hooks|zoxide|1|1" "hooks|mise|1|1")
-  printf '#!/bin/sh\n%s\n' "export _HI_PLUGINS_ON='hooks'" >"$_HI_SETTINGS"
+  _HI_MENU_PLUGINS=("hooks|" "hooks|zoxide|1|1" "hooks|mise|1|1")
+  printf '#!/bin/sh\n%s\n' "export _HI_PLUGINS_ON='zoxide mise'" >"$_HI_SETTINGS"
   _hi_plugin_flip zoxide
   setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" out
-  [ "$out" = mise ] || _hi_because "the group's other plugin: [$out]"
+  [ "$out" = mise ] || _hi_because "the on list: [$out]"
 }
 
 # the whole run with neither a preset nor a tty: config_preset stands down,

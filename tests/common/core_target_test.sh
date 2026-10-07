@@ -294,18 +294,19 @@ function test_prompt_row_reads_the_plugin_rows() {
   ! _HI_PROMPT_PLUGINS="fancy|bash zsh|bin|-" _hi_prompt_row bin row 2>/dev/null
 }
 
-# _hi_hook_on: the off list wins by name or group, a plain name is on, and a
-# name with a leading - (off by default) needs the on list to name it or its
-# group, commas or spaces apart
+# _hi_hook_on: the off list wins by name, a plain name is on, and a name
+# with a leading - (off by default) needs the on list to name it, commas or
+# spaces apart; its group's word switches nothing in either
 function test_hook_on_reads_both_lists() {
-  _hi_hook_on hooks zoxide &&
-    ! _HI_PLUGINS_OFF=zoxide _hi_hook_on hooks zoxide &&
-    ! _HI_PLUGINS_OFF="cli,hooks" _hi_hook_on hooks zoxide &&
-    ! _hi_hook_on hooks -zoxide &&
-    _HI_PLUGINS_ON=zoxide _hi_hook_on hooks -zoxide &&
-    _HI_PLUGINS_ON="cli,hooks" _hi_hook_on hooks -zoxide &&
-    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=hooks _hi_hook_on hooks -zoxide &&
-    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=zoxide _hi_hook_on hooks -zoxide
+  _hi_hook_on zoxide &&
+    ! _HI_PLUGINS_OFF=zoxide _hi_hook_on zoxide &&
+    ! _HI_PLUGINS_OFF="bat,zoxide" _hi_hook_on zoxide &&
+    _HI_PLUGINS_OFF="cli,hooks" _hi_hook_on zoxide &&
+    ! _hi_hook_on -zoxide &&
+    _HI_PLUGINS_ON=zoxide _hi_hook_on -zoxide &&
+    _HI_PLUGINS_ON="atuin zoxide" _hi_hook_on -zoxide &&
+    ! _HI_PLUGINS_ON="cli,hooks" _hi_hook_on -zoxide &&
+    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=zoxide _hi_hook_on -zoxide
 }
 
 # _hi_run_init fills {shell} in, runs the command only where its first word

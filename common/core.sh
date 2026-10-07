@@ -888,15 +888,15 @@ function _hi_prompt_row() {
   return 1
 }
 
-# _hi_hook_on <group> <name> - does the target's settings leave a plugin's
-# shell hook on: not in $_HI_PLUGINS_OFF, and in $_HI_PLUGINS_ON where the
-# client said it is off by default (the hook's row carries a leading - then).
+# _hi_hook_on <name> - does the target's settings leave a plugin's shell
+# hook on: not in $_HI_PLUGINS_OFF, and in $_HI_PLUGINS_ON where the client
+# said it is off by default (the hook's row carries a leading - then).
 # pack_plugins.sh's _hi_hook_off is the client's reading of the same lists.
 function _hi_hook_on() {
-  local _hi_ho_off="${_HI_PLUGINS_OFF:-}" _hi_ho_on="${_HI_PLUGINS_ON:-}" _hi_ho_n="${2#-}"
-  case " ${_hi_ho_off//,/ } " in *" $_hi_ho_n "* | *" $1 "*) return 1 ;; esac
-  [ "${2#-}" != "$2" ] || return 0
-  case " ${_hi_ho_on//,/ } " in *" $_hi_ho_n "* | *" $1 "*) return 0 ;; esac
+  local _hi_ho_off="${_HI_PLUGINS_OFF:-}" _hi_ho_on="${_HI_PLUGINS_ON:-}" _hi_ho_n="${1#-}"
+  case " ${_hi_ho_off//,/ } " in *" $_hi_ho_n "*) return 1 ;; esac
+  [ "${1#-}" != "$1" ] || return 0
+  case " ${_hi_ho_on//,/ } " in *" $_hi_ho_n "*) return 0 ;; esac
   return 1
 }
 
@@ -925,7 +925,7 @@ function _hi_run_hooks() {
     _hi_rh_r="${_hi_rh_l%%;*}"
     case "$_hi_rh_l" in *\;*) _hi_rh_l="${_hi_rh_l#*;}" ;; *) _hi_rh_l="" ;; esac
     _hi_rh_k="${_hi_rh_r%%=*}"
-    _hi_hook_on "${_hi_rh_k%%.*}" "${_hi_rh_k#*.}" || continue
+    _hi_hook_on "${_hi_rh_k#*.}" || continue
     _hi_run_init "$1" "${_hi_rh_r#*=}" || true
   done
   return 0

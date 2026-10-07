@@ -360,11 +360,12 @@ function doctor_code_dir() {
 
 # The lines of a file that set something secret-shaped, by number: a name
 # holding TOKEN, SECRET, PASSWORD, or an API, ACCESS, or PRIVATE key, given a
-# literal value (not a $variable, and not a path's _FILE or _DIR), fish's
-# `set` form of the same, a token a known issuer prefixes, or a private key's
-# header. A comment is skipped, and so is a line under a `hi-allow` comment
-# or inside a `hi-allow-start`/`-end` pair. toupper(), not IGNORECASE: mawk
-# and busybox awk have only the first.
+# literal value (not a $variable or an alias's \$variable, and not a path's
+# _FILE or _DIR) where an assignment starts - not inside another's value, as
+# LS_COLORS's `*passwd=0;38` is - fish's `set` form of the same, a token a
+# known issuer prefixes, or a private key's header. A comment is skipped, and
+# so is a line under a `hi-allow` comment or inside a `hi-allow-start`/`-end`
+# pair. toupper(), not IGNORECASE: mawk and busybox awk have only the first.
 # shellcheck disable=SC2016 # awk's own $0
 _HI_SECRET_AWK='
 /hi-allow-start/ { blk = 1 }
@@ -373,7 +374,7 @@ _HI_SECRET_AWK='
   up = toupper($0)
   hit = 0
   if (!blk && prev !~ /hi-allow/ && $0 !~ /^[ \t]*(#|--|;|\/\/)/) {
-    if (up ~ /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY)[A-Z0-9_]*[ \t]*[=:][ \t]*["\047]?[^ \t"\047$]/ &&
+    if (up ~ /(^|[ \t"\047;&|({,])[A-Z0-9_.-]*(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY)[A-Z0-9_]*[ \t]*[=:][ \t]*["\047]?\\?[^ \t"\047$\\]/ &&
       up !~ /(TOKEN|SECRET|PASSWORD|PASSWD|KEY)[A-Z0-9_]*_(DIR|FILE|PATH|CMD|COMMAND|HELPER|STORE)[A-Z0-9_]*[ \t]*[=:]/) hit = 1
     if (up ~ /^[ \t]*SET[ \t]+(-[A-Z]+[ \t]+)*[A-Z0-9_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY)[A-Z0-9_]*[ \t]+[^ \t$(]/) hit = 1
     if ($0 ~ /(ghp_|gho_|github_pat_|xox[baprs]-|AKIA[0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z])[A-Za-z0-9_]/) hit = 1
@@ -593,8 +594,8 @@ function doctor_config() {
   doctor_flush
 }
 
-# _hi_is_plugin_list <value> - is every word of it a plugin, a group, or a
-# member that can be switched (lib.sh's _hi_plugin_word_ok)?
+# _hi_is_plugin_list <value> - is every word of it a plugin or a member
+# that can be switched (lib.sh's _hi_plugin_word_ok)?
 function _hi_is_plugin_list() {
   local w known
   known=" $(_hi_plugin_words | tr '\n' ' ')"
@@ -615,7 +616,8 @@ function doctor_settings_values() {
     "_HI_IP_HIDE|_hi_is_ip_hide|none, or globs like 172.* 10.0.*" \
     "_HI_HEADER_ORDER|_hi_is_header_order|words from $_HI_HEADER_ORDER_DEFAULT" \
     "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS, each optionally bash:, zsh:, or fish: for a shell it fits" \
-    "_HI_PLUGINS_OFF|_hi_is_plugin_list|plugins, groups, or members that hi --plugins lists" \
+    "_HI_PLUGINS_OFF|_hi_is_plugin_list|plugins or members that hi --plugins lists (hi --configure converts a group's word)" \
+    "_HI_PLUGINS_ON|_hi_is_plugin_list|plugins that hi --plugins lists (hi --configure converts a group's word)" \
     "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
     "_HI_MUX|_hi_is_flag|1 or 0" \

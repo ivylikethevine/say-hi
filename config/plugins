@@ -1,8 +1,8 @@
 # The plugins: every config of a tool's that hi carries to a target and
 # points the tool at, a `[<group>.<name>]` table each, in as much of TOML as
-# hi reads: one `key = "value"` to a line. <group> is the word that switches
-# every plugin under it in $_HI_PLUGINS_OFF (editors, mux, prompt, cli,
-# shell); <name> is the plugin, its own word there and its name in a report.
+# hi reads: one `key = "value"` to a line. <group> is the section a list
+# draws it under (editors, mux, prompt, cli, shell, hooks); <name> is the
+# plugin, its word in $_HI_PLUGINS_OFF and its name in a report.
 #
 # files   the members, a space apart, each the name a file rides under: a
 #         tool's own file name under its directory (vim/vimrc), its own name
@@ -38,7 +38,7 @@
 # prompt  yes when the init draws the prompt: the plugin is then a prompt
 #         program of $_HI_PROMPT_TOOL's, and hi stands its own prompt down.
 # default off keeps the plugin home, hook and files, until $_HI_PLUGINS_ON
-#         names it or its group (hi --plugin-on); left out, on.
+#         names it (hi --plugin-on); left out, on.
 #
 # A `[<group>.<name>."<member>"]` table under a plugin gives that one of its
 # files a wire, a home, or a dialect of its own.
@@ -258,7 +258,7 @@ files = "zellij/config.kdl zellij/layouts/ zellij/themes/"
 # Shell hooks (HI.67): tools that install themselves into a shell and keep
 # state under a target's $HOME (zoxide's database, atuin's history and its
 # sync, direnv's allow list, mise's shims), so each is off until named in
-# $_HI_PLUGINS_ON: `hi --plugin-on zoxide`, or `hi --plugin-on hooks`.
+# $_HI_PLUGINS_ON: `hi --plugin-on zoxide`.
 
 # z jumps to the directories you visit
 [hooks.zoxide]
