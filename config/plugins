@@ -116,7 +116,7 @@ dialect = "lua"
 # your ~/.aliases, after hi's own
 [shell.aliases]
 tool = "-"
-home = "~/.aliases"
+home = "~/.aliases : ~/.bash_aliases"
 dialect = "sh"
 files = "aliases.sh"
 

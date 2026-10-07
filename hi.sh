@@ -122,11 +122,12 @@ function _hi_session_env() {
   printf '_HI_TARGET_TAG\t%s\n' "$_HI_TAG_VALUE"
   printf '_HI_LOCAL_USER\t%s\n' "$_HI_WHOAMI_CACHE"
   printf '_HI_LOCAL_HOSTNAME\t%s\n' "$_HI_HOSTNAME_CACHE"
-  printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
+  local _hi_se_v
+  _hi_version _hi_se_v
+  printf '_HI_RELEASE\t%s\n' "$_hi_se_v"
   _hi_prompt_list >/dev/null
   printf '_HI_PROMPT_TOOL\t%s\n' "$_HI_PROMPT_LIST_MEMO"
   # the client's own editors, for load.sh's _hi_session_editor to try first
-  local _hi_se_v
   ! _hi_cmd_name "${EDITOR:-}" _hi_se_v || printf '_HI_CLIENT_EDITOR\t%s\n' "$_hi_se_v"
   ! _hi_cmd_name "${VISUAL:-}" _hi_se_v || printf '_HI_CLIENT_VISUAL\t%s\n' "$_hi_se_v"
   _hi_client_verdicts '%s\t%s\n'
@@ -632,17 +633,17 @@ function _hi_command_append() {
 # ` -c '<cmd>'` for the fish arm: fish runs -c after -C and exits from it
 # (GLOSSARY: HI.23). Quoted for the target's sh.
 function _hi_command_fish_flag() {
-  local q
+  local _hi_ff_q
   [ -n "${CMDARG:-}" ] || return 0
-  _hi_shquote q "$CMDARG"
-  printf ' -c %s' "$q"
+  _hi_shquote _hi_ff_q "$CMDARG"
+  _hi_out "${1:-}" " -c $_hi_ff_q"
 }
 
 # The fallback-shell probe both transports interpolate: one sh loop over
 # $_HI_SHELL_LADDER running $1 at the first shell found ($_hi_s names the hit).
+# _hi_ladder_probe <command> [outvar]
 function _hi_ladder_probe() {
-  printf 'for _hi_s in %s; do command -v "$_hi_s" >/dev/null 2>&1 && { %s; break; }; done' \
-    "$_HI_SHELL_LADDER" "$1"
+  _hi_out "${2:-}" "for _hi_s in $_HI_SHELL_LADDER; do command -v \"\$_hi_s\" >/dev/null 2>&1 && { $1; break; }; done"
 }
 
 # A prompt for the bash-less tiers (sh, ash, dash), baked on the client.
@@ -683,28 +684,48 @@ function _hi_file_bytes() {
   printf '%s' "${n// /}"
 }
 
+# _hi_human_bytes <bytes> [outvar] - 512B, 1.5K, 77K, 1.2M: one decimal
+# under ten of a unit, none from there. Integers alone, where an awk was a
+# fork a size, and rounded as its %.1f and %.0f round: a tie is exact in
+# binary, since the divisor is a power of two, and goes to the even digit.
 function _hi_human_bytes() {
-  awk -v b="$1" 'BEGIN {
-    split("B K M G", unit, " ")
-    i = 1
-    while (b >= 1024 && i < 4) { b /= 1024; i++ }
-    if (i == 1) printf "%dB", b
-    else if (b < 10) printf "%.1f%s", b, unit[i]
-    else printf "%.0f%s", b, unit[i]
-  }'
+  local _hi_hb_b="$1" _hi_hb_d=1 _hi_hb_u=B _hi_hb_q _hi_hb_r _hi_hb_n
+  case "$_hi_hb_b" in '' | *[!0-9]*) _hi_hb_b=0 ;; esac
+  for _hi_hb_n in K M G; do
+    [ "$_hi_hb_b" -ge $((_hi_hb_d * 1024)) ] || break
+    _hi_hb_d=$((_hi_hb_d * 1024)) _hi_hb_u="$_hi_hb_n"
+  done
+  if [ "$_hi_hb_u" = B ]; then
+    _hi_out "${2:-}" "${_hi_hb_b}B"
+    return 0
+  fi
+  # in tenths under ten of the unit, in units from there
+  _hi_hb_n="$_hi_hb_b"
+  [ "$_hi_hb_b" -ge $((_hi_hb_d * 10)) ] || _hi_hb_n=$((_hi_hb_b * 10))
+  _hi_hb_q=$((_hi_hb_n / _hi_hb_d)) _hi_hb_r=$((_hi_hb_n % _hi_hb_d * 2))
+  if [ "$_hi_hb_r" -gt "$_hi_hb_d" ] || { [ "$_hi_hb_r" -eq "$_hi_hb_d" ] && [ $((_hi_hb_q % 2)) -eq 1 ]; }; then
+    _hi_hb_q=$((_hi_hb_q + 1))
+  fi
+  [ "$_hi_hb_n" = "$_hi_hb_b" ] || _hi_hb_q="$((_hi_hb_q / 10)).$((_hi_hb_q % 10))"
+  _hi_out "${2:-}" "$_hi_hb_q$_hi_hb_u"
 }
 
-# core.sh's ladder, plus the diagnostic the header's cell has no room for
+# _hi_version [outvar] - core.sh's ladder, plus the diagnostic the header's
+# cell has no room for. Asked of git once a tree and stamp: a report names
+# the version in two places, and each was a describe.
 function _hi_version() {
-  local v
-  v="$(_hi_release_or_describe)"
-  if [ -n "$v" ]; then
-    printf '%s\n' "$v"
-  elif [ -d "$_HI_ROOT/.git" ]; then
-    printf 'unknown (git would not answer)\n'
-  else
-    printf 'unknown (no stamp, no git)\n'
+  if [ "${_HI_VERSION_KEY-}" != "$_HI_ROOT|${_HI_RELEASE:-}" ]; then
+    _HI_VERSION_KEY="$_HI_ROOT|${_HI_RELEASE:-}"
+    _HI_VERSION_MEMO="$(_hi_release_or_describe)"
+    if [ -n "$_HI_VERSION_MEMO" ]; then
+      :
+    elif [ -d "$_HI_ROOT/.git" ]; then
+      _HI_VERSION_MEMO='unknown (git would not answer)'
+    else
+      _HI_VERSION_MEMO='unknown (no stamp, no git)'
+    fi
   fi
+  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_VERSION_MEMO"; else printf '%s\n' "$_HI_VERSION_MEMO"; fi
 }
 
 # What `hi --version` prints: the version, then which kind of tree answered
@@ -755,7 +776,8 @@ function _hi_keep_starts() {
 # in $_hi_ks). GLOSSARY: HI.65
 function _hi_keep_find() {
   local name_q
-  _hi_shquote name_q "$(_hi_mux_name "$DOMAIN")"
+  _hi_mux_name "$DOMAIN" name_q
+  _hi_shquote name_q "$name_q"
   cat <<REMOTE
       _hi_kn=$name_q
       _hi_kept() {
@@ -1057,11 +1079,21 @@ function _hi_esc_pair() {
 function _hi_remote_suffix() {
   # single-quoted here so the fallback line can name the target without the
   # session carrying a variable for it
-  local target_q _hi_esc _hi_nc tail=""
+  local target_q _hi_esc _hi_nc tail="" ladder fish_flag="" zsh_cmd="" sh_cmd=""
   # shellcheck disable=SC2016 # the target's to expand
   local handoff='        bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
+  # the pieces a connect with no command leaves empty, without a fork each
+  # shellcheck disable=SC2016 # the target's to expand
+  _hi_ladder_probe '_hi_fallback="$_hi_s"' ladder
+  _hi_command_fish_flag fish_flag
+  if [ -n "${CMDARG:-}" ]; then
+    # shellcheck disable=SC2016
+    zsh_cmd="$(_hi_command_append '"$_hi_rc_dir/.zshrc"')"
+    # shellcheck disable=SC2016
+    sh_cmd="$(_hi_command_append '"$_hi_rc_dir/.hi_fallback_rc"')"
+  fi
   ! _hi_keep_starts || handoff="$(_hi_keep_start)"
   # 86 for a kept session left behind, by this connect or by a `hi --keep`
   # typed in it, and never the session's own status (_hi_keep_connect)
@@ -1072,19 +1104,19 @@ function _hi_remote_suffix() {
 $handoff
       else
         _hi_fallback=sh
-        $(_hi_ladder_probe '_hi_fallback="$_hi_s"')
+        $ladder
         printf '%s no bash on [%s], dropping into plain %s w/ aliases only %s\n' "$_hi_esc" $target_q "\$_hi_fallback" "$_hi_nc" >&2
         $(_hi_fallback_rc | _hi_armored_line '>' '"$_hi_rc_dir/.hi_fallback_rc"')
         case "\$_hi_fallback" in
         zsh)
           cp "\$_hi_rc_dir/.hi_fallback_rc" "\$_hi_rc_dir/.zshrc"
-          $(_hi_command_append '"$_hi_rc_dir/.zshrc"')
+          $zsh_cmd
           ZDOTDIR="\$_hi_rc_dir" zsh -i
           ;;
-        fish) fish -C "\$(cat "\$_hi_rc_dir/.hi_fallback_rc")"$(_hi_command_fish_flag) ;;
+        fish) fish -C "\$(cat "\$_hi_rc_dir/.hi_fallback_rc")"$fish_flag ;;
         *)
           $(_hi_fallback_prompt | _hi_armored_line '>>' '"$_hi_rc_dir/.hi_fallback_rc"')
-          $(_hi_command_append '"$_hi_rc_dir/.hi_fallback_rc"')
+          $sh_cmd
           ENV="\$_hi_rc_dir/.hi_fallback_rc" "\$_hi_fallback" -i
           ;;
         esac
@@ -1191,7 +1223,7 @@ $(_hi_overlay_stream "${overlay[@]}")"
   _hi_remote_script script
 
   # the true byte count, substituted for the token (GLOSSARY: HI.44)
-  size="$(_hi_human_bytes "${#script}")"
+  _hi_human_bytes "${#script}" size
   script="${script//$_HI_SIZE_TOKEN/$size}"
 
   # The bootloader rides stdin of the first of two calls on one connection,
@@ -1444,7 +1476,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     tarball="$tmp.tar.gz"
     _hi_payload_tar >"$tarball" || _hi_container_abort " failed to archive say-hi for [$DOMAIN]" || return 1
   fi
-  size="$(_hi_human_bytes "$(_hi_file_bytes "$tarball")")"
+  _hi_human_bytes "$(_hi_file_bytes "$tarball")" size
   prefix=" $size" # the shape the ssh path's prefix reads
   printf '%s' "$prefix" >&2
 
@@ -1749,8 +1781,9 @@ function _hi_report_failure() {
 
 # The session name for a target: every character tmux's rules reject, or that
 # reads badly in a status line, becomes `-`. `ctx:ns:pod/ctr` -> `hi-ctx-ns-pod-ctr`.
+# _hi_mux_name <target> [outvar]
 function _hi_mux_name() {
-  printf 'hi-%s' "${1//[^[:alnum:]_-]/-}"
+  _hi_out "${2:-}" "hi-${1//[^[:alnum:]_-]/-}"
 }
 
 # _hi_mux_tool <outvar> - which multiplexer wraps the session: the first of

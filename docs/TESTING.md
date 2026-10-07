@@ -52,6 +52,9 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   in full and are recapped under the summary table. `--verbose`
   (`_HI_VERBOSE=1`) streams every transcript live, for a case that fails only
   under the runner.
+- A case that takes a second or more is noted with its time, and the ten
+  slowest of a run are listed under the summary as _Slowest cases_, each
+  under its suite: a suite's time alone does not say which case spent it.
 - A failed case is run once more under `set -x` - once, never more. A second
   failure is FAILED, with the last lines of that trace under it: the
   comparison that failed, with its values, so a case with no message of its

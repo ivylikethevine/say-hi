@@ -1327,6 +1327,15 @@ extensions compose without `${var:+...}`, which fish lacks. The set:
 | `_HI_PROMPT_INIT`  | a prompt program's init in [HI.67](#hi67-shell-hooks)'s shape (`oh-my-posh init {shell}`, `{shell}` the shell's name), run in place of hi's prompt where its command is on the target.                                                                                                                 |
 | `_HI_PROMPT_DRAWN` | `1` says the extension drew the prompt itself; hi's prompt stands down, as it does for a program a target's rc started.                                                                                                                                                                                |
 
+The overlay's `aliases.sh` takes the same parse first, through the same
+function (`_hi_parses`, and fish's copy): its home tier is a file a bash rc
+sourced, `~/.aliases` or `~/.bash_aliases`, which is as likely to hold a
+function as an alias. `common/aliases.sh` is in the four-shell dialect and
+cannot ask which shell it is, so it asks whether the function is defined
+(`$_HI_ALIAS_GUARD`): a plain `sh` has none and sources the file as written.
+`load.sh` reads the aliases back for `$EDITOR` with the function unset, since
+the session's shell parses the file anyway.
+
 `hi --doctor` lists the extensions in load order and warns for each a shell on
 this machine cannot parse, and for a directory entry that is not a member
 (`doctor_code_dir`, which reads `header/` the same way, by bash alone).

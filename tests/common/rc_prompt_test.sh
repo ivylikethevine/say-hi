@@ -169,6 +169,29 @@ function test_extensions_load_in_order_skip_loudly_and_draw() {
   fi
 }
 
+# <shell>: the overlay's aliases.sh is parsed before it is sourced. One
+# holding a function is bash's and zsh's to load and fish's to skip, with a
+# line saying so, and one all three parse loads in each.
+function test_overlay_aliases_are_parsed_before_they_load() {
+  local shell="$1" cfg="$_HI_WORKDIR/aliases-guard" script out
+  mkdir -p "$cfg"
+  case "$shell" in
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>&1; functions -q hi_guard_ok; and echo -n LOADED' ;;
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; alias hi_guard_ok >/dev/null 2>&1 && printf LOADED' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>&1; alias hi_guard_ok >/dev/null 2>&1 && printf LOADED' ;;
+  esac
+  printf '%s\n' 'alias hi_guard_ok="echo ok"' >"$cfg/aliases.sh"
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$cfg")"
+  [[ "$out" == *LOADED* && "$out" != *"does not parse"* ]] || _hi_because "$shell, the subset: [$out]" || return 1
+  printf '%s\n' 'alias hi_guard_ok="echo ok"' 'hi_guard_fn() { echo fn; }' >"$cfg/aliases.sh"
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$cfg")"
+  if [ "$shell" = fish ]; then
+    [[ "$out" == *"aliases.sh does not parse in fish; skipped"* && "$out" != *LOADED* ]] || _hi_because "fish, a function: [$out]"
+  else
+    [[ "$out" == *LOADED* && "$out" != *"does not parse"* ]] || _hi_because "$shell, a function: [$out]"
+  fi
+}
+
 # fish's sudo wrapper is a function behind _HI_SUDO_ALIAS, the same opt-in
 # as the POSIX alias; unset, `sudo` is the command and nothing else
 function test_fish_sudo_wrapper_follows_the_toggle() {
@@ -817,6 +840,9 @@ function run_rc_prompt_tests() {
   _hi_check "[bash] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw bash
   _hi_check_requires zsh "[zsh] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw zsh
   _hi_check_requires fish "[fish] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw fish
+  _hi_check "[bash] the overlay's aliases.sh is parsed before it loads" test_overlay_aliases_are_parsed_before_they_load bash
+  _hi_check_requires zsh "[zsh] the overlay's aliases.sh is parsed before it loads" test_overlay_aliases_are_parsed_before_they_load zsh
+  _hi_check_requires fish "[fish] ...and one fish cannot parse is skipped, in a line" test_overlay_aliases_are_parsed_before_they_load fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
   _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options

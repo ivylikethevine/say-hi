@@ -924,18 +924,10 @@ function test_config_flags_an_editor_set_in_aliases_sh() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/editoralias.XXXXXX")"
   printf '%s\n' 'alias ll="ls -l"' 'export VISUAL="$(command -v nvim)"' >"$dir/aliases.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
   [[ "$out" == *"alias-editor"*"_HI_EDITOR"* ]] || _hi_because "set: $out" || return 1
   printf '%s\n' '# export EDITOR=vi' 'export GIT_EDITOR=vi' >"$dir/aliases.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
   [[ "$out" != *"alias-editor"* ]] || _hi_because "not set: $out"
 }
 

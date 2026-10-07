@@ -275,13 +275,20 @@ function doctor_row() {
 _HI_LOCAL_FLOOR=(base64 tar)
 
 function doctor_local() {
-  local branch changes wire missing nice_missing
+  local branch="" changes=0 wire missing nice_missing line
   doctor_section local "The local tree"
   doctor_row tree "$_HI_ROOT"
-  doctor_row version "$(_hi_version)"
+  _hi_version line
+  doctor_row version "$line"
   if [ -d "$_HI_ROOT/.git" ]; then
-    branch="$(git -C "$_HI_ROOT" symbolic-ref --short -q HEAD 2>/dev/null || true)"
-    changes="$(git -C "$_HI_ROOT" status --short 2>/dev/null | grep -c . || true)"
+    # the branch off HEAD itself, and the changes counted here: a git and a
+    # grep fewer
+    line=""
+    [ ! -r "$_HI_ROOT/.git/HEAD" ] || IFS= read -r line <"$_HI_ROOT/.git/HEAD" || true
+    case "$line" in 'ref: refs/heads/'*) branch="${line#ref: refs/heads/}" ;; esac
+    while IFS= read -r line; do
+      [ -z "$line" ] || changes=$((changes + 1))
+    done < <(git -C "$_HI_ROOT" status --short 2>/dev/null)
     doctor_row checkout "git, ${branch:-detached HEAD (a release tag?)}, $changes local change(s)"
   else
     doctor_row checkout "no .git - a package or tarball install (hi --update names the way forward for each)"
@@ -299,8 +306,8 @@ function doctor_local() {
   local -a floor=("${_HI_LOCAL_FLOOR[@]}")
   command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 ||
     floor=("${floor[@]/#base64/openssl}")
-  missing="$(_hi_missing_tools "${floor[@]}")"
-  nice_missing="$(_hi_missing_tools gzip)"
+  _hi_missing_into missing "${floor[@]}"
+  _hi_missing_into nice_missing gzip
   if [ -n "$missing" ]; then
     doctor_row tools "MISSING locally: $missing - hi cannot ship a payload without them" bad
   elif ! _hi_can_gzip; then
@@ -315,8 +322,9 @@ function doctor_local() {
   # (a gzipped tar, base64-armored for the ssh path) and how big the thing is
   # once it lands. The first is the one people mean by "what does hi cost".
   if [ -z "$missing" ]; then
-    wire="$(_hi_wire_bytes)"
-    doctor_row payload "$(_hi_human_bytes "$wire") over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
+    _hi_wire_bytes wire
+    _hi_human_bytes "$wire" wire
+    doctor_row payload "$wire over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
   else
     doctor_row payload "unknown - needs $missing to measure (${_HI_PAYLOAD[*]})" bad
   fi
@@ -384,20 +392,30 @@ _HI_SECRET_AWK='
   prev = $0
 }'
 
-# doctor_riding - what rides that should not, and what does not that will be
-# missed. A secret-shaped line in a file that rides reaches every host hi
+# _hi_doc_now <outvar> - core.sh's _hi_now, with no fork where bash keeps
+# the clock itself
+function _hi_doc_now() {
+  if [ -n "${EPOCHREALTIME:-}" ]; then
+    printf -v "$1" '%s' "$EPOCHREALTIME"
+  else
+    printf -v "$1" '%s' "$(_hi_now)"
+  fi
+}
+
+# doctor_riding <member...> - what rides that should not, and what does not
+# that will be missed. A secret-shaped line in a file that rides reaches every host hi
 # connects to: named by file and line, its value unprinted. And neovim's
 # init.lua rides alone, a `require` in it left as written, so the modules
 # beside it are named as staying home.
 function doctor_riding() {
   local member src n dir
-  while IFS= read -r member; do
+  for member; do
     _hi_overlay_src "$member" src || continue
     while IFS= read -r n; do
       [ -n "$n" ] || continue
       doctor_row "$member:$n" "sets something secret-shaped, and $src rides to every host you hi to - keep it in an rc that stays home (a hi-allow comment above the line says it is meant)" warn
     done < <(awk "$_HI_SECRET_AWK" "$src" 2>/dev/null)
-  done < <(_hi_overlay_files)
+  done
   _hi_overlay_src nvim/init.lua src || return 0
   dir="${src%/*}/lua"
   [ -d "$dir" ] || return 0
@@ -534,7 +552,10 @@ function doctor_config() {
     esac
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
   done < <(_hi_include_lint)
-  doctor_riding
+  # the members that ride, listed once for the two readers below
+  local -a members=()
+  _hi_read_lines members < <(_hi_overlay_files)
+  doctor_riding ${members[@]+"${members[@]}"}
   # common/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
@@ -555,8 +576,6 @@ function doctor_config() {
   # (GLOSSARY: HI.62) on a target, so that tool starts without the config hi
   # carried for it. warn: it may be meant.
   local wired="" shadowed="" re
-  local -a members=()
-  _hi_read_lines members < <(_hi_overlay_files)
   _hi_overlay_wiring wired ${members[@]+"${members[@]}"}
   while [ "${wired#* alias }" != "$wired" ]; do
     wired="${wired#* alias }"
@@ -786,7 +805,10 @@ function doctor_install() {
       doctor_row login-bash "a login bash reads $profile, which never reaches ~/.bashrc (hi --install adds the line to ~/.bash_profile)" warn
     fi
   fi
-  found="$(command -v hi 2>/dev/null || true)"
+  local runs=""
+  _hi_path_lookup found hi || true
+  # asked once: both rows below read it
+  [ -z "$found" ] || ! _hi_link_runs_this_tree "$found" || runs=1
   # shellcheck disable=SC2153 # $_HI_LINK is paths.sh's, exported
   if _hi_link_is_ours "$_HI_LINK"; then
     doctor_row link "$_HI_LINK -> $_HI_LAUNCHER" ok
@@ -795,14 +817,14 @@ function doctor_install() {
   elif [ -e "$_HI_LINK" ] || [ -L "$_HI_LINK" ]; then
     owner="$(link_owner "$_HI_LINK" 2>/dev/null || true)"
     doctor_row link "$_HI_LINK is not this tree's: $(readlink "$_HI_LINK" 2>/dev/null || echo 'a regular file')${owner:+, the $owner package}" bad
-  elif [ -n "$found" ] && _hi_link_runs_this_tree "$found"; then
+  elif [ -n "$runs" ]; then
     doctor_row link "no $_HI_LINK, none needed: $found runs this tree" ok
   else
     doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes one; --link none chose none)" warn
   fi
   if [ -z "$found" ]; then
     doctor_row command "no hi on PATH (the wired shells alias it)"
-  elif _hi_link_runs_this_tree "$found"; then
+  elif [ -n "$runs" ]; then
     doctor_row command "hi on PATH is $found, and runs this tree" ok
   else
     doctor_row command "hi on PATH is $found, which runs $(readlink "$found" 2>/dev/null || echo 'something else') - not this tree" warn
@@ -819,9 +841,9 @@ function doctor_backend() {
     doctor_row "$name" "not installed"
     return 0
   fi
-  t0="$(_hi_now)"
+  _hi_doc_now t0
   _hi_probe "$@" >/dev/null 2>&1 || rc=$?
-  t1="$(_hi_now)"
+  _hi_doc_now t1
   if [ "$rc" -eq 0 ]; then
     doctor_row "$name" "answering ($(_hi_elapsed "$t0" "$t1")s)" ok
   else
@@ -853,9 +875,9 @@ function doctor_backends() {
     doctor_backend "$name" $probe
   done
   [ -z "$off" ] || doctor_row "switched off" "$off (_HI_BACKENDS_OFF) - never asked; --use still reaches one by name"
-  t0="$(_hi_now)"
+  _hi_doc_now t0
   _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" >/dev/null 2>&1 || true
-  t1="$(_hi_now)"
+  _hi_doc_now t1
   doctor_row completion "full target list built in $(_hi_elapsed "$t0" "$t1")s cold (TAB reuses it for ${_HI_TARGETS_TTL:-5}s)"
   doctor_flush
 }
@@ -885,7 +907,8 @@ doctor_backends
 if [ "$_HI_DOC_JSON" = 1 ]; then
   _hi_target_json=null _hi_version_json=""
   [ -z "$_HI_DOC_TARGET" ] || _hi_json_str _hi_target_json "$_HI_DOC_TARGET"
-  _hi_json_str _hi_version_json "$(_hi_version)"
+  _hi_version _hi_version_json
+  _hi_json_str _hi_version_json "$_hi_version_json"
   printf '{\n  "version": %s,\n  "target": %s,\n  "findings": %s,\n  "rows": [\n%s\n  ]\n}\n' \
     "$_hi_version_json" "$_hi_target_json" "$_HI_DOC_BAD" "$_HI_DOC_ROWS"
 else

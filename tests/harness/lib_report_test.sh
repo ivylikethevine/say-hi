@@ -121,6 +121,28 @@ function _hi_rr_stderr_flake() {
   return 1
 }
 
+# A case that took a second or more is noted with its label beside the
+# failures file, for the runner's slowest cases; a quicker one is not, and
+# nothing is outside a run. The case moves $SECONDS on where a sleep would
+# wait, in a subshell, so this one is not itself noted as slow.
+function test_case_notes_the_time_a_slow_case_took() {
+  local fails="$_HI_WORKDIR/times.fails"
+  rm -f "$fails.times"
+  (_hi_times_run "$fails")
+  [ "$(wc -l <"$fails.times")" -eq 2 ] || _hi_because "noted: $(cat "$fails.times" 2>&1)" || return 1
+  grep -qE "^[34]$(printf '\t')a slow one\$" "$fails.times" &&
+    grep -qE "^[23]$(printf '\t')_hi_takes 2\$" "$fails.times"
+}
+function _hi_times_run() {
+  local _HI_TOTAL=0 _HI_FAILED=0 _HI_PROGRESS_FILE=""
+  _hi_note_time 3 "outside a run"
+  local _HI_FAILS_FILE="$1"
+  _hi_note_time 0 "a quick one"
+  _hi_case _hi_assert "a slow one" _hi_takes 3 >/dev/null
+  _hi_case _hi_takes 2
+}
+function _hi_takes() { SECONDS=$((SECONDS + $1)); }
+
 # _hi_run_said: a run's words and exit status come through as they are, and a
 # run that said anything - wrong words, a non-zero exit - is never made twice.
 # Only one that wrote nothing is, once, where a flake may pass, and it is
@@ -569,6 +591,7 @@ function run_lib_report_tests() {
   _hi_check "Assert reports OK" test_assert_reports_ok_and_returns_zero
   _hi_check "Assert reports FAILED and returns non-zero" test_assert_reports_failed_and_returns_nonzero
   _hi_check "...reruns it once, traced; a pass there is FLAKY" test_a_failed_case_reruns_with_a_trace
+  _hi_check "A case of a second or more is noted with its time" test_case_notes_the_time_a_slow_case_took
   _hi_check "Run_said passes words and exit status through" test_run_said_passes_a_run_through
   _hi_check "...reruns only a run that wrote nothing, as a flake" test_run_said_reruns_only_a_silent_run
   _hi_check "...and a run silent to the end still fails" test_run_said_leaves_a_silent_run_failing

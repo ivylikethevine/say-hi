@@ -333,11 +333,15 @@ local config = import("micro/config")' ] || {
 }
 
 # aliases.sh rides from the ~/.aliases a bash or zsh rc here already sources
-# when the overlay has none - nothing copied into ~/.config/say-hi - and an
-# overlay copy wins over it
+# when the overlay has none - nothing copied into ~/.config/say-hi - from
+# ~/.bash_aliases where there is no ~/.aliases, and an overlay copy wins
+# over both
 function test_home_aliases_ride_as_aliases_sh() {
   local dir="$_HI_WORKDIR/aliases-home" out=""
   mkdir -p "$dir/overlay"
+  printf 'alias la="ls -a"\n' >"$dir/.bash_aliases"
+  out="$(HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat aliases.sh)"
+  [ "$out" = 'alias la="ls -a"' ] || _hi_because "from ~/.bash_aliases: [$out]" || return 1
   printf 'alias ll="ls -l"\n' >"$dir/.aliases"
   out="$(HOME="$dir" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_tar | _hi_tar_cat aliases.sh)"
   [ "$out" = 'alias ll="ls -l"' ] || {

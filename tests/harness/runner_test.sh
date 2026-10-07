@@ -393,6 +393,29 @@ function test_summary_totals_ignore_suites_without_counts() {
 # The honest half of the summary: a suite that ran nothing exits 0, so
 # without a status of its own it would render as a green PASS and a run could
 # report every suite passing while several never executed a case.
+# the cases a suite noted as slow are listed under the summary, slowest
+# first and ten at most, each under its suite's name; a run that noted none
+# has no such section
+function test_summary_lists_the_slowest_cases() {
+  local i out
+  {
+    printf '#!/usr/bin/env bash\n'
+    # shellcheck disable=SC2016 # $_HI_FAILS_FILE is resolved when the fixture runs
+    for i in 2 67 3 4 5 6 7 8 9 10 11 12; do
+      printf 'printf "%%s\\tcase %%s\\n" %s %s >>"$_HI_FAILS_FILE.times"\n' "$i" "$i"
+    done
+    printf 'exit 0\n'
+  } >"$_HI_FIXTURES/timed.sh"
+  chmod +x "$_HI_FIXTURES/timed.sh"
+  _hi_run_runner $'timed:timed.sh'
+  out="$(_hi_strip_ansi "$_HI_RUN_OUT")"
+  [[ "$out" == *"Slowest cases"*"67s  timed: case 67"*"12s  timed: case 12"*" 4s  timed: case 4"* ]] ||
+    _hi_because "listed: ${out##*Summary}" || return 1
+  [[ "$out" != *"timed: case 3"* && "$out" != *"timed: case 2"* ]] || _hi_because "more than ten: ${out##*Summary}" || return 1
+  _hi_run_runner $'a:green.sh'
+  [[ "$_HI_RUN_OUT" != *"Slowest cases"* ]]
+}
+
 function test_a_skipping_suite_is_reported_as_skipped() {
   _hi_skipping_fixture stood_down "no docker"
   _hi_run_runner $'stood_down:stood_down.sh'
@@ -702,6 +725,7 @@ function run_runner_tests() {
   _hi_check "Totals ignore suites without counts" test_summary_totals_ignore_suites_without_counts
   _hi_check "--totals-file carries the summary numbers" test_totals_file_carries_the_summary_numbers
   _hi_check "--totals-file only when asked" test_totals_file_is_written_only_when_asked
+  _hi_check "The ten slowest cases are listed under it" test_summary_lists_the_slowest_cases
 
   _hi_h2 "Testing: skipped suites"
   _hi_check "Reported as SKIPPED, not PASS" test_a_skipping_suite_is_reported_as_skipped

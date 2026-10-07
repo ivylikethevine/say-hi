@@ -423,6 +423,9 @@ declare -a _HI_FAIL_NOTES=()
 # cases that failed and passed on their traced rerun (report.sh's _hi_assert):
 # not failures, listed in their own recap so a flake is never lost
 declare -a _HI_FLAKY_NOTES=()
+# cases that took a second or more (report.sh's _hi_note_time),
+# `<seconds>\t<suite>: <label>` each, for the recap's ten slowest
+declare -a _HI_TIME_NOTES=()
 _HI_SUITE_FAILED=0
 _HI_SUITE_SKIPPED=0
 _HI_CASES_PASSED=0
@@ -502,6 +505,12 @@ function _hi_collect_suite() {
     while IFS= read -r _hi_line; do
       [ -n "$_hi_line" ] && _HI_FLAKY_NOTES+=("$_hi_name: $_hi_line")
     done <"$_hi_fails.flaky"
+  fi
+
+  if [ -s "$_hi_fails.times" ]; then
+    while IFS=$'\t' read -r _hi_rest _hi_line; do
+      [ -n "$_hi_line" ] && _HI_TIME_NOTES+=("$_hi_rest"$'\t'"$_hi_name: $_hi_line")
+    done <"$_hi_fails.times"
   fi
 
   # collect the failing case labels the suite noted; a suite that failed
@@ -677,7 +686,7 @@ function _hi_run_batch() {
     _hi_log="$_HI_RUN_DIR/$_hi_i.log"
     : >"$_hi_counts"
     : >"$_hi_fails"
-    rm -f "$_hi_fails.flaky"
+    rm -f "$_hi_fails.flaky" "$_hi_fails.times"
     [ -z "$_hi_ticker" ] || _hi_progress="$_HI_RUN_DIR/$_hi_i.progress"
     _hi_batch_names+=("$_hi_name")
 
@@ -806,6 +815,15 @@ if [ "${#_HI_FLAKY_NOTES[@]}" -gt 0 ]; then
     _hi_cecho " | $_hi_note" "$YELLOW"
     [ -n "$_HI_CI" ] && printf '::warning title=%s::%s\n' "flaky test" "$_hi_note"
   done
+fi
+
+# where the time went, case by case: the ten that took longest, of those
+# that took a second or more
+if [ "${#_HI_TIME_NOTES[@]}" -gt 0 ]; then
+  _hi_h2 "Slowest cases"
+  while IFS=$'\t' read -r _hi_dur _hi_note; do
+    _hi_cecho " | $(printf '%5ss' "$_hi_dur")  $_hi_note"
+  done < <(printf '%s\n' "${_HI_TIME_NOTES[@]}" | sort -t "$(printf '\t')" -k 1,1nr | head -n 10)
 fi
 
 _HI_SKIP_NOTE=""

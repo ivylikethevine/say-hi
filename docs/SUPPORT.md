@@ -100,12 +100,6 @@ permanent - it is the argument to beat.
   would then disable it and ship the rest of `fish_variables`.
 - **Stripping comments from `.toml` and `.yml`.** The stripper also drops
   indentation, which breaks YAML.
-- **A carried `.gitconfig`.** git has no overlay member at all despite being
-  the most config-sensitive tool in a session; identity, signing, and
-  credential-helper settings are exactly what a shared or visited box must
-  not inherit from a config file that rode over the wire - closer to the
-  `~/.bashrc` reasoning above (tokens a config file can carry) than to the
-  prompt-config precedent (a file with nothing secret in it).
 - **prezto's prompt as a `_HI_PROMPT_TABLE` row.** Unlike oh-my-zsh's or
   bash-it's self-contained theme file, a prezto theme is an autoloaded
   function depending on prezto's own modules (`pmodload`) being loaded

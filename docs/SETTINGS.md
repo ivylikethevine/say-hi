@@ -531,10 +531,13 @@ arrive too late, and `hi --doctor` flags them. It also names an alias of yours
 that replaces one hi points at a carried config (`alias nano=...` over
 `nano --rcfile`), since that config then goes unused on a target.
 
-Keep your aliases in `~/.aliases` already? With no `aliases.sh` in the
-overlay, that file is what rides to targets, where it loads in the same place
-and keeps to the same subset bash, zsh, and fish all parse. At home your own
-rc goes on sourcing it; hi does not source it again.
+Keep your aliases in `~/.aliases` already, or in `~/.bash_aliases`? With no
+`aliases.sh` in the overlay, the first of those two is what rides to targets,
+where it loads in the same place. Each shell parses the file before sourcing
+it, so one written for bash - a function, an `if` - still loads in bash and
+zsh, and fish skips it whole with one line saying so; keep to the subset all
+three parse and it loads in each. At home your own rc goes on sourcing it; hi
+does not source it again.
 
 ### Extensions
 

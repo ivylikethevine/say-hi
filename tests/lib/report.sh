@@ -35,9 +35,22 @@ function _hi_align() {
 # the first case runs, so _hi_suite_end can report "$_HI_FAILED/$_HI_TOTAL
 # cases failed" instead of a bare pass/fail.
 function _hi_case() {
+  local _hi_cs_t0=$SECONDS _hi_cs_l
   _HI_TOTAL=$((_HI_TOTAL + 1))
   "$@" || _HI_FAILED=$((_HI_FAILED + 1))
+  # its label where _hi_assert or _hi_expect_eq ran it, else its command
+  case "$1" in _hi_assert | _hi_expect_eq) _hi_cs_l="${2:-}" ;; *) _hi_cs_l="$*" ;; esac
+  _hi_note_time $((SECONDS - _hi_cs_t0)) "$_hi_cs_l"
   _hi_report_progress
+}
+
+# _hi_note_time <seconds> <label> - a case that took a second or more, beside
+# the failures file, for the runner's "Slowest cases": a suite's time says
+# nothing of which case spent it. $SECONDS, so whole seconds and no fork; the
+# cases under one are the many and are not written.
+function _hi_note_time() {
+  [ -n "${_HI_FAILS_FILE:-}" ] && [ "$1" -ge 1 ] || return 0
+  printf '%s\t%s\n' "$1" "${2:0:100}" >>"$_HI_FAILS_FILE.times"
 }
 
 # The fixed predicates every harness suite's own cases feed _hi_check/

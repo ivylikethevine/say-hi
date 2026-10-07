@@ -393,7 +393,7 @@ function _hi_wire_bytes() {
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
   tree="$(_hi_payload_stream)"
   _hi_remote_script script
-  printf '%s' "${#script}"
+  _hi_out "${1:-}" "${#script}"
 }
 
 # the same figure for humans; the bench suite takes the bytes, so the README

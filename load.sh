@@ -307,6 +307,9 @@ function _hi_session_shell_cmd() {
 # hence the ${body:-$e} tail.
 function _hi_session_editor() {
   local e body off=" ${_HI_PLUGINS_OFF:-} "
+  # no parse of the overlay's aliases.sh first: the session's shell does
+  # that, and here it would be a fork a call
+  unset -f _hi_parses
   # shellcheck source=./common/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} "$@" $_HI_EDITORS; do

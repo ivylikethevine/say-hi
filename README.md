@@ -361,8 +361,9 @@ myself.
 
 What's left; nothing here is parked or descoped. One list, in the order the
 work is best done: what CI has yet to show, then the 1.0 tag. An entry is
-deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
-checkout: an account or an upstream review that lands when it lands.
+deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the tag:
+what more a session carries first, then what is outside this checkout, an
+account or an upstream review that lands when it lands.
 
 1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
@@ -380,31 +381,14 @@ checkout: an account or an upstream review that lands when it lands.
        settings. What is left is seeing it through a connect. **Ticks when:**
        `hi --configure` turns zoxide on and the next connect runs its init.
 
-3. [ ] _Before 1.0:_ **A slow case is named** — the runner times a suite,
-       not its cases, so the wizard's menu-number case forking 2,000 times
-       (67s on Git Bash arm64) showed only once it failed there. **Do:**
-       record each case's wall time where its verdict is counted, and have
-       the runner list a run's slowest. **Ticks when:** a Windows shard's
-       log names its ten slowest cases.
+3. [ ] _Before 1.0:_ **A slow case is named** — shipped: a case that
+       takes a second or more is noted where its verdict is counted, and the
+       runner lists a run's ten slowest under its summary
+       ([docs/TESTING.md](docs/TESTING.md#running-the-tests)). What is left
+       is seeing it in CI. **Ticks when:** a Windows shard's log names its
+       ten slowest cases.
 
-4. [ ] _Before 1.0:_ **The doctor suites run the report once a question** —
-       `doctor_json` runs the whole of `scripts/doctor.sh` nine times in
-       seven cases and is the slowest suite on the Git Bash arm64 shards
-       (390s); two of those runs ask for the same bare `--json` document.
-       **Do:** memoize that document as `_hi_doctor_plain_report` does the
-       text report, and put cases that differ only in what they assert on
-       one run. **Ticks when:** no two cases of the doctor suites run the
-       same command line.
-
-5. [ ] _Before 1.0:_ **`hi --doctor` forks under a hundred times** — a run
-       is about 130 forks, down from 710 under `--json`; what is left is
-       git, the payload build, and the remote script, where `hi.sh`'s
-       `_hi_remote_suffix` alone is eight subshells. **Do:** give the
-       helpers those builders call through `$( )` an out-variable where
-       one fits. **Ticks when:** `strace -f -c` over `scripts/doctor.sh`
-       counts under 100 `clone` calls.
-
-6. [ ] _Before 1.0:_ **hi's prompt in a tmux started by hand** — `tmux`
+4. [ ] _Before 1.0:_ **hi's prompt in a tmux started by hand** — `tmux`
        typed in a session that is not a kept one opens each pane on the
        host's own shell, which reads none of hi's rc; only `hi --keep`
        writes the `hi.pane` launcher and names it the session's
@@ -414,42 +398,89 @@ checkout: an account or an upstream review that lands when it lands.
        can be named the same way. **Ticks when:** with it on, `tmux` typed in
        a plain `hi <target>` session opens a pane that shows hi's prompt.
 
-7. [ ] _Before 1.0:_ **No file runs past a thousand lines** — seven do,
+5. [ ] _Before 1.0:_ **No file runs past a thousand lines** — seven do,
        the lockfile aside; every suite and everything under `scripts/` is
-       under it. The payload's: `hi.sh` (2056), `common/core.sh` (1493),
+       under it. The payload's: `hi.sh` (2089), `common/core.sh` (1508),
        `common/header.sh` (1295). Workflows: `ci.yml` (1306), `release.yml`
-       (1083). Docs: `docs/GLOSSARY.md` (1747), `docs/hi.1` (1216). **Do:**
+       (1083). Docs: `docs/GLOSSARY.md` (1772), `docs/hi.1` (1215). **Do:**
        split each along the sections it already has; a part of the
        payload's three rides to every target, so each costs a file there.
        **Ticks when:** `git ls-files` names no hand-written file over 1,000
        lines.
 
-8. [ ] _Before 1.0:_ **The release's GIF shows the package check** — the
-       GIF on a release page is `packages.tape`'s (`demos.yml`'s `attach`
-       job), picked for the header's check, and the one attached draws the
-       header without it. The fixture (`docs/tapes/fixtures.sh`,
-       `up:packages`) sets `_HI_PACKAGES_GROUPS` and leaves the default
-       header order, so why the row is missing is not yet known. **Do:**
-       find where the check is lost between the fixture and the render, and
-       have the render fail when the row is not drawn. **Ticks when:** a
-       release's `demo.gif` shows the check's row on both boxes.
+6. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
+       shipped: the fixture's `packages` overlay
+       (`docs/tapes/fixtures.sh`, `up:packages`) was rows of a shape hi no
+       longer reads, so the check had nothing to draw; it is TOML rows now,
+       its `colors` overlay with it, and `packages.tape` waits on the
+       check's row after each connect, so a render without it fails. What is
+       left is a render. **Ticks when:** a release's `demo.gif` shows the
+       check's row on both boxes.
 
-9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+7. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+8. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
+       `nvim/init.lua` rides, and a `require` of a module under the config's
+       `lua/` is dropped with the plugin managers', so a config split into
+       modules starts nearly bare; an `init.vim` does not ride at all.
+       **Do:** carry a module a `require` resolves under `lua/` the way an
+       include is carried
+       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)),
+       put the overlay's `nvim/` on `runtimepath` with no quote in the
+       alias's body, and add `nvim/init.vim` as a member in the vim
+       dialect. **Ticks when:** a target's `nvim` opens on an `init.lua`
+       that requires two modules of its own, both loaded.
+
+9. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
+       rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
+       directory of the overlay
+       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
+       alone and under a size cap, on a session's `$PATH`. **Ticks when:** a
+       script in `~/.config/say-hi/bin/` runs by name in a session, and
+       `hi --doctor` names a binary there as left home.
+
+10. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
+        git has no plugin: a config that rode whole would bring identity,
+        signing, and credential helpers to a box that must not have them.
+        **Do:** a `git` plugin, off by default, added over the target's own
+        config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
+        place, read in a dialect that drops `[user]`, `[credential]`, every
+        signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
+        those rides only under a `hi-allow` line the user wrote above it,
+        and `hi --plugins` names each that does. **Ticks when:** a carried
+        alias runs on a target, `git config user.email` there is the
+        target's own, and a `signingkey` rides only with its `hi-allow`.
+
+11. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
+        AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
+        a flake with the package and a home-manager module that writes the
+        rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
+        the flake.
+
+12. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
+        `hi --install --print-rc`'s block looks in `$HOME`,
+        `/usr/local/share`, and `/usr/share`, and whether an install from
+        the formula writes its versioned keg into an rc is not yet known.
+        **Do:** read what `hi --install` writes under a real `brew install`,
+        name the tree through the formula's `opt` path where it is the keg,
+        and add that path to the block. **Ticks when:** one rc loads hi on a
+        machine with a clone and on one with the formula, across a
+        `brew upgrade`.
+
+13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

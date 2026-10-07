@@ -293,22 +293,30 @@ function _hi_dir_members() {
   done
 }
 
+# _hi_parses <file> <what it is> - does this shell parse <file>? One it
+# cannot is said on stderr, for the caller to skip: the overlay's aliases.sh
+# and each extension are written for three shells, and a construct of one
+# costs the others that file, not a half-run of it. A fork a file.
+function _hi_parses() {
+  local _hi_pa_sh="${BASH:-bash}"
+  [ -z "${ZSH_VERSION:-}" ] || _hi_pa_sh=zsh
+  "$_hi_pa_sh" -n "$1" 2>/dev/null && return 0
+  _hi_cecho "hi: $2 does not parse in ${_hi_pa_sh##*/}; skipped" "${YELLOW:-}" >&2
+  return 1
+}
+
 # _hi_load_extensions - source each extensions/ member once the aliases are built
 # and before the prompt is. One this shell cannot parse is skipped with a line
 # on stderr rather than half-run; one that sets $_HI_SEGMENT adds that command
 # to $_hi_segments, which the prompt runs per draw. Prefixed locals: an
 # extension's own `f=` would otherwise land in them. GLOSSARY: HI.59
 function _hi_load_extensions() {
-  local _hi_pl_f _hi_pl_sh="${BASH:-bash}"
+  local _hi_pl_f
   local -a _hi_members=() _hi_strays=()
-  [ -z "${ZSH_VERSION:-}" ] || _hi_pl_sh=zsh
   _hi_segments=()
   _hi_dir_members "${_HI_EXTENSIONS:-}"
   for _hi_pl_f in ${_hi_members[@]+"${_hi_members[@]}"}; do
-    "$_hi_pl_sh" -n "$_hi_pl_f" 2>/dev/null || {
-      _hi_cecho "hi: extension ${_hi_pl_f##*/} does not parse in ${_hi_pl_sh##*/}; skipped" "${YELLOW:-}" >&2
-      continue
-    }
+    _hi_parses "$_hi_pl_f" "extension ${_hi_pl_f##*/}" || continue
     unset _HI_SEGMENT
     # shellcheck source=/dev/null
     source "$_hi_pl_f"

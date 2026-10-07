@@ -41,11 +41,18 @@ function _hi_on_path() {
 # _hi_missing_tools <name...> - those of <name...> this machine does not have,
 # space-separated, in the order given.
 function _hi_missing_tools() {
-  local tool missing=""
-  for tool in "$@"; do
-    command -v "$tool" >/dev/null 2>&1 || missing="$missing$tool "
+  local _hi_mi
+  _hi_missing_into _hi_mi "$@"
+  printf '%s' "$_hi_mi"
+}
+
+# _hi_missing_into <outvar> <name...> - the same, with no fork
+function _hi_missing_into() {
+  local _hi_mt _hi_mt_out=""
+  for _hi_mt in "${@:2}"; do
+    command -v "$_hi_mt" >/dev/null 2>&1 || _hi_mt_out="$_hi_mt_out$_hi_mt "
   done
-  printf '%s' "${missing% }"
+  printf -v "$1" '%s' "${_hi_mt_out% }"
 }
 
 # dry_run_say <what> - under --dry-run ($_HI_DRY_RUN: install.sh's flag, and
@@ -318,7 +325,9 @@ function _hi_h2() {
 # _hi_is_darwin - macOS, where a login bash reads ~/.bash_profile and never
 # ~/.bashrc. $_HI_UNAME lets a suite stage the other platform.
 function _hi_is_darwin() {
-  [ "${_HI_UNAME:-$(uname -s 2>/dev/null)}" = Darwin ]
+  # bash's own word for the platform where no suite names one: no fork
+  case "${_HI_UNAME:-$OSTYPE}" in Darwin | darwin*) return 0 ;; esac
+  return 1
 }
 
 # _hi_rewrite <file> <sed-expr>... - every expression in one pass, in place.

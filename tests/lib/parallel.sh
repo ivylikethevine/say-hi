@@ -124,8 +124,9 @@ function _hi_par_case() {
     # shellcheck disable=SC2030
     _HI_SKIPPED=0
     _HI_PROGRESS_FILE="" # this copy's tally is partial; _hi_par_wait reports
-    _hi_par_rc=0
+    _hi_par_rc=0 _hi_par_t0=$SECONDS
     "$@" || _hi_par_rc=$?
+    _hi_note_time $((SECONDS - _hi_par_t0)) "$label"
     printf '%s %s\n' "$_hi_par_rc" "${_HI_SKIPPED:-0}" >"$res"
   ) >"$out" 2>&1 &
   _HI_PAR_RUNNING+=("$!")

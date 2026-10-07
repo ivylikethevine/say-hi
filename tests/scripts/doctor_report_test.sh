@@ -115,6 +115,14 @@ function test_full_report_draws_tables_and_no_findings_box() {
   [[ "$out" != *"Findings:"* && "$out" != *"$_HI_BOX_V FINDING"* ]]
 }
 
+# ...and it is the text report: --json's document is asked for, never what a
+# bare run prints
+function test_json_is_off_by_default() {
+  _hi_doctor_plain_report
+  [ "$_HI_DOC_PLAIN_RC" -eq 0 ] || return 1
+  [[ "$_HI_DOC_PLAIN_OUT" != *'"rows"'* && "$_HI_DOC_PLAIN_OUT" == *"hi doctor"* ]]
+}
+
 # _hi_doctor_problems [args...] - `--problems` on the shims, output then exit
 # status on the last line
 function _hi_doctor_problems() {
@@ -153,6 +161,7 @@ function run_doctor_report_tests() {
   _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
   _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
+  _hi_check "--json is off by default" test_json_is_off_by_default
   _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
 
   _hi_suite_end "doctor.sh (report)"

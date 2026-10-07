@@ -97,11 +97,20 @@ command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_H
 # --icons"`), and `alias cat=cat` takes one back. The values the aliases above
 # read (_HI_*_OPTS, _HI_*_BIN, the two opt-ins) belong in
 # settings.sh, which every shell sources first; set here they arrive too late,
-# and `hi --doctor` says so. Same POSIX+fish subset as this file.
+# and `hi --doctor` says so. Same POSIX+fish subset as this file: bash, zsh,
+# and fish parse it first (_hi_parses, theirs to define), and one that cannot
+# skips it with a line saying so rather than half-running it; a plain sh has
+# no such check, and $_HI_ALIAS_GUARD says which this is. GLOSSARY: HI.59
 #
 # The path test stops $_HI_CONFIG_DIR pointed at config/ from sourcing this
 # file forever; the shellcheck directive is the static half of the same hazard
 # (see common/bash.sh).
+export _HI_ALIAS_GUARD=""
+type _hi_parses >/dev/null 2>&1 && export _HI_ALIAS_GUARD=1 || true
 # shellcheck source=/dev/null # user config, may not exist
-[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/common/aliases.sh" ] &&
+[ -n "$_HI_ALIAS_GUARD" ] && [ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/common/aliases.sh" ] &&
+  [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && _hi_parses "$_HI_CONFIG_DIR/aliases.sh" aliases.sh &&
+  . "$_HI_CONFIG_DIR/aliases.sh" || true
+# shellcheck source=/dev/null
+[ -z "$_HI_ALIAS_GUARD" ] && [ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/common/aliases.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true
