@@ -7,27 +7,43 @@
 # point of its own.
 
 # The menu numbers every setting the wizard asks once, across all its
-# sections, and draws one section a page: the main page has a summary line a
-# section, each section page its rows. A number works from any page.
+# sections, and draws one section a page: the main page is a table, a row a
+# section saying what it holds, each section page its rows. A number works
+# from any page.
 # _HI_MENU_ITEMS says what each number is, rebuilt as the list draws:
 # row|<table>|<index> a yes/no row, word|<index> a header item, end|<shell> a
 # prompt separator, tool|<shell> who draws a prompt, group|<name> a package
-# group, plugin|<word> a plugin or a group of them, or width, iphide,
+# group, plugin|<word> a plugin, or width, iphide,
 # truecolor. _HI_MENU_WORD0 is the first header item's number, for up/down.
-# _HI_MENU_PLUGINS is _hi_plugin_states' lines as the list last drew them.
+# _HI_MENU_PLUGINS is _hi_plugin_states' lines as the list last drew them,
+# and _HI_MENU_GROUPS their groups in order: g<N> is the page of the Nth.
 _HI_MENU_ITEMS=()
 _HI_MENU_WORD0=0
 _HI_MENU_PLUGINS=()
+_HI_MENU_GROUPS=()
 # how many checkboxes the grid being drawn holds so far
 _HI_MENU_GRID_N=0
-# The page drawn: empty for the main page, else a section's key. The sections,
-# "<key>|<name>", in the order they number.
+# The page drawn: empty for the main page, else a section's key, or g<N> for
+# a group of plugins. The sections, in the order they number:
+# "<key>|<title>|<its row of the main page's table>|<what that row leads with>",
+# a row indented under the section it is a page of.
 _HI_MENU_PAGE=""
-_HI_MENU_SECTIONS=("i|Header" "c|Package check" "r|Prompt" "g|Plugins" "a|Aliases" "m|This machine" "v|Advanced")
-# While a section builds: whether its rows draw, and what its summary line
-# on the main page says - its first number, its [x] count, its values.
+_HI_MENU_SECTIONS=(
+  "i|Header|Header|header, greeting, banner"
+  "e|Header cells|  cells|"
+  "c|Package check|  package check|"
+  "r|Prompt|Prompt|prompt, git, env"
+  "g|Plugins|Plugins|"
+  "a|Aliases|Aliases|ls/cat and sudo aliases"
+  "v|Advanced|Advanced|edges, mux, keep"
+)
+# While a section builds: whether its rows draw, and what its row of the main
+# page's table says - its [x] count, its values.
 _HI_MENU_DRAW=0
-_HI_MENU_SUM_KEY="" _HI_MENU_SUM_FIRST=0 _HI_MENU_SUM_ON=0 _HI_MENU_SUM_N=0 _HI_MENU_SUM_VALS=""
+_HI_MENU_SUM_KEY="" _HI_MENU_SUM_ON=0 _HI_MENU_SUM_N=0 _HI_MENU_SUM_VALS=""
+# The main page's table: a key, a name, and a text column, the last what is
+# left of the menu's width
+_HI_MENU_NW=16 _HI_MENU_TW=50
 
 # What the last command said, printed under the next list rather than as it
 # happened, so the redraw does not scroll it away: the colored line, and a
@@ -53,12 +69,12 @@ function _hi_menu_cols() {
 }
 
 # _hi_menu_say <text> <color> - one line of prose, wrapped at word breaks to
-# the menu's width, every piece indented one space
+# the menu's width or 80 columns, the narrower, every piece indented one space
 function _hi_menu_say() {
-  local line
+  local line w=$((_HI_MENU_W < 80 ? _HI_MENU_W : 80))
   while IFS= read -r line; do
     _hi_cecho " $line" "$2"
-  done < <(printf '%s\n' "$1" | fold -s -w $((_HI_MENU_W - 2)) | sed 's/ *$//')
+  done < <(printf '%s\n' "$1" | fold -s -w $((w - 2)) | sed 's/ *$//')
 }
 
 # _hi_menu_num <outvar> - the last item's number as the list prints it,
@@ -90,32 +106,78 @@ function _hi_menu_check() {
   if [ "$2" = 1 ]; then _hi_paint "$1" "$BRGREEN" "[x]"; else _hi_paint "$1" "$RED" "[ ]"; fi
 }
 
-# _hi_menu_section [key] - close the section being built (its summary line,
-# on the main page) and open the one named <key>; no key closes the last
+# _hi_menu_trow <key> <name> <text> - a row of the main page's table, each
+# cell padded by what it prints as; the caller fits the text
+function _hi_menu_trow() {
+  local k n t
+  _hi_pad_to k 3 "$1"
+  _hi_pad_to n "$_HI_MENU_NW" "$2"
+  _hi_pad_to t "$_HI_MENU_TW" "$3"
+  printf ' %s %s %s %s %s %s %s\n' "$_HI_BOX_V" "$k" "$_HI_BOX_V" "$n" "$_HI_BOX_V" "$t" "$_HI_BOX_V"
+}
+
+# _hi_menu_section [key] - close the section being built (its row of the
+# main page's table) and open the one named <key>; no key closes the last
 function _hi_menu_section() {
-  local row name range sum
+  local row name lead sum key
   if [ -n "$_HI_MENU_SUM_KEY" ] && [ -z "$_HI_MENU_PAGE" ]; then
     for row in "${_HI_MENU_SECTIONS[@]}"; do
-      [ "${row%%|*}" != "$_HI_MENU_SUM_KEY" ] || name="${row#*|}"
+      [ "${row%%|*}" = "$_HI_MENU_SUM_KEY" ] || continue
+      lead="${row##*|}" name="${row%|*}"
+      name="${name##*|}"
     done
-    range="$_HI_MENU_SUM_FIRST"
-    ((_HI_MENU_SUM_FIRST == ${#_HI_MENU_ITEMS[@]})) || range="$range-${#_HI_MENU_ITEMS[@]}"
-    # a section with nothing to number
-    ((_HI_MENU_SUM_FIRST <= ${#_HI_MENU_ITEMS[@]})) || range=""
     sum=""
     ((_HI_MENU_SUM_N == 0)) || sum="$_HI_MENU_SUM_ON of $_HI_MENU_SUM_N on"
     [ -z "$_HI_MENU_SUM_VALS" ] || sum="$sum${sum:+, }$_HI_MENU_SUM_VALS"
-    _hi_fit sum "$sum" $((_HI_MENU_W - 28 > 8 ? _HI_MENU_W - 28 : 8))
-    _hi_pad_to name 14 "$name"
-    _hi_pad_to range 6 "$range"
-    printf ' %b[%s]%b %s%b%s%b %s\n' "$BRYELLOW" "$_HI_MENU_SUM_KEY" "$NC" "$name" \
-      "$BLUE" "$range" "$NC" "$sum"
+    _hi_fit sum "${lead:+$lead: }$sum" "$_HI_MENU_TW"
+    _hi_paint key "$BRYELLOW" "[$_HI_MENU_SUM_KEY]"
+    _hi_menu_trow "$key" "$name" "$sum"
   fi
-  _HI_MENU_SUM_KEY="${1:-}" _HI_MENU_SUM_FIRST=$((${#_HI_MENU_ITEMS[@]} + 1))
-  _HI_MENU_SUM_ON=0 _HI_MENU_SUM_N=0 _HI_MENU_SUM_VALS=""
+  _HI_MENU_SUM_KEY="${1:-}" _HI_MENU_SUM_ON=0 _HI_MENU_SUM_N=0 _HI_MENU_SUM_VALS=""
   _HI_MENU_DRAW=0
   [ -n "${1:-}" ] && [ "$1" = "$_HI_MENU_PAGE" ] && _HI_MENU_DRAW=1
   return 0
+}
+
+# _hi_feature_index <var> <outvar> - where <var>'s row sits in
+# $_HI_FEATURE_PROMPTS; 1 for none
+function _hi_feature_index() {
+  local _hi_fi
+  for _hi_fi in "${!_HI_FEATURE_PROMPTS[@]}"; do
+    [ "${_HI_FEATURE_PROMPTS[$_hi_fi]%%|*}" = "$1" ] || continue
+    printf -v "$2" '%s' "$_hi_fi"
+    return 0
+  done
+  return 1
+}
+
+# _hi_menu_where <key> <var> - one of the two switches for where hi styles a
+# shell at all, this machine and the targets: <var>'s row of
+# $_HI_FEATURE_PROMPTS, numbered like any other and drawn on the main page
+# alone, where <key> flips it too
+function _hi_menu_where() {
+  local i var off on label state key text
+  _hi_feature_index "$2" i || return 0
+  IFS='|' read -r var off on _ _ label <<<"${_HI_FEATURE_PROMPTS[$i]}"
+  _HI_MENU_ITEMS+=("row|_HI_FEATURE_PROMPTS|$i")
+  [ -z "$_HI_MENU_PAGE" ] || return 0
+  setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+  if [ "$state" = 1 ]; then _hi_paint state "$BRGREEN" "[x]"; else _hi_paint state "$RED" "[ ]"; fi
+  _hi_paint key "$BRYELLOW" "[$1]"
+  _hi_fit text "${label#* - }" "$_HI_MENU_TW"
+  _hi_menu_trow "$key" "$state ${label%% - *}" "$text"
+}
+
+# _hi_menu_sub <key> <name> <text> - a page under the one drawn: its key, its
+# name, and what it holds
+function _hi_menu_sub() {
+  local k n t
+  [ "$_HI_MENU_DRAW" = 1 ] || return 0
+  _hi_paint k "$BRYELLOW" "[$1]"
+  _hi_pad_to n 14 "$2"
+  _hi_fit t "$3" $((_HI_MENU_W > 32 ? _HI_MENU_W - 24 : 8))
+  _hi_paint t "$BLUE" "$t"
+  printf '  %s %s %s\n' "$k" "$n" "$t"
 }
 
 # _hi_menu_heading <text> - a line over the rows that follow, on the page
@@ -192,26 +254,37 @@ function _hi_menu_rows() {
 }
 
 # The list, grouped by what a setting changes, a heading over each part of a
-# page. Header: the switch for the whole of it, the greeting and the banner;
-# the header's items in the order they print, a grid of as many to a line as
-# the width holds, four at most; then its width and hidden addresses. Package
-# check: the groups of the packages file, a row each. Prompt: its switches, then who draws
-# each shell's and what it ends with. Plugins: each group with something here
-# to send and its plugins, a checkbox each. The aliases, the one "here too"
-# switch, and Advanced follow. Every section numbers whichever page is drawn;
-# only the page's own rows print. The rows keep their tables (and so their
-# item kinds): this is only the order they draw in.
+# page. First the two switches for where hi styles a shell at all, rows of
+# the main page alone. Header: the switch for the whole of it, the greeting
+# and the banner, its width and hidden addresses, and the two pages under it
+# - its cells in the order they print, a grid of as many to a line as the
+# width holds, four at most, and the package check's groups, a row each.
+# Prompt: its switches, then who draws each shell's and what it ends with.
+# Plugins: a row a group, and a page a group with a row a plugin. The aliases
+# and Advanced follow. Every section numbers whichever page is drawn; only
+# the page's own rows print, and the main page draws a row of its table a
+# section. The rows keep their tables (and so their item kinds): this is only
+# the order they draw in.
 function _hi_menu_list() {
   local i state word width groups iphide tc row name shell end def cols var off on tool all g note w same
   local -a rows=() notes=()
   _HI_MENU_ITEMS=()
   _HI_MENU_SUM_KEY=""
+  # no wider than the prose over it; the indent, the key, and the table's
+  # edges and padding are 14 columns
+  _HI_MENU_TW=$(((_HI_MENU_W < 80 ? _HI_MENU_W : 80) - _HI_MENU_NW - 14))
+  ((_HI_MENU_TW >= 4)) || _HI_MENU_TW=4
   # " NN) [x] containers " is twenty columns, the last on a line nineteen
   cols=$(((_HI_MENU_W + 1) / 20))
   ((cols > 4)) && cols=4
   ((cols < 1)) && cols=1
+  if [ -z "$_HI_MENU_PAGE" ]; then
+    printf ' '
+    _hi_hbar top 3 "$_HI_MENU_NW" "$_HI_MENU_TW"
+  fi
+  _hi_menu_where l _HI_DISABLE_LOCAL
+  _hi_menu_where t _HI_PLAIN
   _hi_menu_section i
-  _hi_menu_heading "Switches"
   for row in _HI_FEATURE_PROMPTS:0:header _HI_FEATURE_PROMPTS:1:greeting _HI_HEADER_PROMPTS:0:banner; do
     IFS=: read -r name i word <<<"$row"
     _hi_prompt_rows "$name" rows
@@ -220,23 +293,29 @@ function _hi_menu_list() {
     _hi_menu_grid_item "row|$name|$i" "$state" "$word" "$cols"
   done
   _hi_menu_grid_end "$cols"
-  _hi_menu_heading "Items, in the order they print - up N or down N moves one"
-  _HI_MENU_WORD0=$((${#_HI_MENU_ITEMS[@]} + 1))
-  for i in "${!_HI_HDR_WORDS[@]}"; do
-    _hi_menu_grid_item "word|$i" "${_HI_HDR_ON[$i]}" "${_HI_HDR_WORDS[$i]}" "$cols"
-  done
-  _hi_menu_grid_end "$cols"
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   _hi_menu_value width "width" "${width:-80}" 80
   _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}" '172.*' quiet
+  _hi_menu_sub e "cells" "which items the header prints, and in what order"
+  _hi_menu_sub c "package check" "the groups its check item runs"
+  _hi_menu_section e
+  _hi_menu_heading "In the order they print - up N or down N moves one"
+  _HI_MENU_WORD0=$((${#_HI_MENU_ITEMS[@]} + 1))
+  note=""
+  for i in "${!_HI_HDR_WORDS[@]}"; do
+    _hi_menu_grid_item "word|$i" "${_HI_HDR_ON[$i]}" "${_HI_HDR_WORDS[$i]}" "$cols"
+    [ "${_HI_HDR_ON[$i]}" != 1 ] || note="$note${note:+ }${_HI_HDR_WORDS[$i]}"
+  done
+  _hi_menu_grid_end "$cols"
+  _hi_menu_sum "$note"
   # the package check's groups, each a row: its name and what its comment in
   # the packages file says of it
   _hi_menu_section c
   _hi_menu_heading "The groups the header's check item runs - [x] runs"
   groups="${groups:-$_HI_PACKAGES_GROUPS_DEFAULT}"
-  _hi_menu_sum "${groups//,/ }"
+  [ "$groups" = none ] || _hi_menu_sum "${groups//,/ }"
   _hi_package_groups all
   w=0
   for g in $all; do ((${#g} > w)) && w=${#g}; done
@@ -247,7 +326,7 @@ function _hi_menu_list() {
       [ "${row%%|*}" != "$g" ] || note="${row#*|}"
     done
     case " ${groups//,/ } " in *" $g "*) state=1 ;; *) state=0 ;; esac
-    if [ "$state" = 1 ]; then _hi_paint state "$BRGREEN" "[x]"; else _hi_paint state "$RED" "[ ]"; fi
+    _hi_menu_check state "$state"
     _hi_pad_to name "$w" "$g"
     _hi_fit note "$note" $((_HI_MENU_W - w - 14 > 8 ? _HI_MENU_W - w - 14 : 8))
     _hi_paint note "$BLUE" "$note"
@@ -279,61 +358,165 @@ function _hi_menu_list() {
     def="$(_hi_prompt_end_default "$shell")"
     _hi_menu_value "end|$name" "$name prompt ends with" "$end" "${def#\\}" quiet
   done
+  # the Plugins rows of the main page's table are _hi_menu_plugins' own
   _hi_menu_section g
   _hi_menu_plugins
+  _HI_MENU_SUM_KEY=""
   _hi_menu_section a
   _hi_menu_rows _HI_FEATURE_PROMPTS 4 5
-  _hi_menu_section m
-  _hi_menu_rows _HI_FEATURE_PROMPTS 6
   _hi_menu_section v
   _hi_menu_rows _HI_ADVANCED_PROMPTS
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" tc
   case "$tc" in 1) tc=on ;; 0) tc=off ;; *) tc=auto ;; esac
   _hi_menu_value truecolor "24-bit color" "$tc" auto
   _hi_menu_section
+  if [ -z "$_HI_MENU_PAGE" ]; then
+    printf ' '
+    _hi_hbar bottom 3 "$_HI_MENU_NW" "$_HI_MENU_TW"
+  fi
 }
 
-# The Plugins page: each group with something here to send leads a line, its
-# plugins after it and wrapping under the first of them, a checkbox each -
-# [x] rides to a target, [ ] stays home
-function _hi_menu_plugins() {
-  local kept="" entry group name on item line="" w=0 i=0 cols
-  setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
-  _HI_MENU_PLUGINS=()
-  _hi_read_lines _HI_MENU_PLUGINS < <(_hi_plugin_states "$kept")
-  if ((${#_HI_MENU_PLUGINS[@]} == 0)); then
-    _hi_menu_sum "nothing here to send"
-    _hi_menu_heading "Nothing here to send - hi --plugins lists every plugin"
-    return 0
+# _hi_plugin_state <outvar> <on> <here> <config> - a plugin's state off its
+# _hi_plugin_states flags: off when switched off, absent with its program or
+# its config missing here, else rides
+function _hi_plugin_state() {
+  if [ "$2" != 1 ]; then
+    printf -v "$1" off
+  elif [ "$3" = 0 ] || [ "$4" = 0 ]; then
+    printf -v "$1" absent
+  else
+    printf -v "$1" rides
   fi
-  if [ -n "$kept" ]; then _hi_menu_sum "kept home: $kept"; else _hi_menu_sum "all sent"; fi
-  _hi_menu_heading "What rides to a target - [x] sent, [ ] stays home; a group's box is all of its plugins"
-  for entry in "${_HI_MENU_PLUGINS[@]}"; do
-    IFS='|' read -r group name on <<<"$entry"
-    name="${name:-$group}"
-    ((${#name} > w)) && w=${#name}
+}
+
+# _hi_menu_group_names <outvar> <group> <room> - the group's plugins, a space
+# apart, each in its state's color (lib.sh's _hi_plugin_color), as many as
+# <room> columns hold and "..." for the rest
+function _hi_menu_group_names() {
+  local _hi_gn_e _hi_gn_g _hi_gn_n _hi_gn_s _hi_gn_h _hi_gn_c _hi_gn_out="" _hi_gn_used=0 _hi_gn_p
+  for _hi_gn_e in "${_HI_MENU_PLUGINS[@]}"; do
+    IFS='|' read -r _hi_gn_g _hi_gn_n _hi_gn_s _ _ _hi_gn_h _hi_gn_c _ <<<"$_hi_gn_e"
+    [ "$_hi_gn_g" = "$2" ] && [ -n "$_hi_gn_n" ] || continue
+    # room kept for the "..." a later name may need
+    if ((_hi_gn_used + ${#_hi_gn_n} + 5 > $3)); then
+      _hi_gn_out="$_hi_gn_out${_hi_gn_out:+ }..."
+      break
+    fi
+    _hi_plugin_state _hi_gn_p "$_hi_gn_s" "$_hi_gn_h" "$_hi_gn_c"
+    _hi_plugin_color _hi_gn_p "$_hi_gn_p"
+    _hi_paint _hi_gn_p "$_hi_gn_p" "$_hi_gn_n"
+    _hi_gn_out="$_hi_gn_out${_hi_gn_out:+ }$_hi_gn_p"
+    _hi_gn_used=$((_hi_gn_used + ${#_hi_gn_n} + 1))
   done
-  # a cell is " NN) [x] <name>"
-  cols=$(((_HI_MENU_W - 1) / (w + 9)))
-  ((cols < 2)) && cols=2
-  for entry in "${_HI_MENU_PLUGINS[@]}"; do
-    IFS='|' read -r group name on <<<"$entry"
-    _HI_MENU_ITEMS+=("plugin|${name:-$group}")
-    [ "$_HI_MENU_DRAW" = 1 ] || continue
-    _hi_ask_item item "${#_HI_MENU_ITEMS[@]}" "$on" "${name:-$group}" "$w"
+  printf -v "$1" '%s' "$_hi_gn_out"
+}
+
+# _hi_menu_mark <outvar> <1|0|-> - found here, not found, or nothing to find
+function _hi_menu_mark() {
+  case "$2" in
+  1) _hi_paint "$1" "$BRGREEN" "$_HI_MARK_OK" ;;
+  0) _hi_paint "$1" "$RED" "$_HI_MARK_NO" ;;
+  *) printf -v "$1" '%s' "-" ;;
+  esac
+}
+
+# The plugins, every one of the plugins files. The main page's table has a
+# row for the section and one under it a group, the group's plugins named in
+# their state's color; the Plugins page the same rows. A group's page, g<N>,
+# is a row a plugin: its checkbox - [x] rides to a target, [ ] stays home - its name in
+# its state's color, whether its program and a config of its are found on
+# this machine, and what a target gets of it. Under 60 columns a plugin's row
+# is its checkbox, its name, and the two marks.
+function _hi_menu_plugins() {
+  local kept="" on="" entry group name s d prog here cfg about gi=0 rides=0 total=0
+  local text key state num box cell m1 m2 wn=6 wp=5 wg=0 room
+  setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
+  setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" on
+  _HI_MENU_PLUGINS=() _HI_MENU_GROUPS=()
+  _hi_read_lines _HI_MENU_PLUGINS < <(_hi_plugin_states "$kept" "$on")
+  for entry in ${_HI_MENU_PLUGINS[@]+"${_HI_MENU_PLUGINS[@]}"}; do
+    IFS='|' read -r group name s d prog here cfg about <<<"$entry"
     if [ -z "$name" ]; then
-      [ -z "$line" ] || printf '%s\n' "${line%"${line##*[! ]}"}"
-      line=" $item" i=1
+      _HI_MENU_GROUPS+=("$group")
+      ((${#group} > wg)) && wg=${#group}
       continue
     fi
-    if ((i == cols)); then
-      printf '%s\n' "${line%"${line##*[! ]}"}"
-      _hi_repeat line $((w + 9)) ' '
-      i=1
-    fi
-    line="$line $item" i=$((i + 1))
+    total=$((total + 1))
+    _hi_plugin_state state "$s" "$here" "$cfg"
+    [ "$state" != rides ] || rides=$((rides + 1))
   done
-  [ -z "$line" ] || printf '%s\n' "${line%"${line##*[! ]}"}"
+  if [ -z "$_HI_MENU_PAGE" ]; then
+    _hi_paint key "$BRYELLOW" "[g]"
+    _hi_fit text "$rides of $total ride" "$_HI_MENU_TW"
+    if ((_HI_MENU_TW >= 46)); then
+      _hi_plugin_color m1 rides
+      _hi_paint m1 "$m1" "rides"
+      _hi_plugin_color m2 off
+      _hi_paint m2 "$m2" "stays home"
+      _hi_plugin_color cell absent
+      _hi_paint cell "$cell" "nothing here"
+      text="$text: $m1, $m2, $cell"
+    fi
+    _hi_menu_trow "$key" "Plugins" "$text"
+  fi
+  _hi_menu_heading "A group's key opens its plugins"
+  for entry in ${_HI_MENU_PLUGINS[@]+"${_HI_MENU_PLUGINS[@]}"}; do
+    IFS='|' read -r group name s d prog here cfg about <<<"$entry"
+    if [ -z "$name" ]; then
+      gi=$((gi + 1))
+      _HI_MENU_DRAW=0
+      [ "$_HI_MENU_PAGE" != "g$gi" ] || _HI_MENU_DRAW=1
+      _hi_paint key "$BRYELLOW" "g$gi"
+      if [ -z "$_HI_MENU_PAGE" ]; then
+        _hi_menu_group_names text "$group" "$_HI_MENU_TW"
+        _hi_fit cell "  $group" "$_HI_MENU_NW"
+        _hi_menu_trow "$key" "$cell" "$text"
+      elif [ "$_HI_MENU_PAGE" = g ]; then
+        _hi_pad_to key 3 "$key"
+        _hi_pad_to cell "$wg" "$group"
+        _hi_menu_group_names text "$group" $((_HI_MENU_W - wg - 9))
+        printf '  %s %s  %s\n' "$key" "$cell" "$text"
+      elif [ "$_HI_MENU_DRAW" = 1 ]; then
+        # the columns' widths: the plugins' names, and the programs that go
+        # by another name than their plugin
+        wn=6
+        for cell in "${_HI_MENU_PLUGINS[@]}"; do
+          IFS='|' read -r m1 m2 _ _ text _ <<<"$cell"
+          [ "$m1" = "$group" ] && [ -n "$m2" ] || continue
+          ((${#m2} > wn)) && wn=${#m2}
+          [ "$text" = "$m2" ] || [ "$text" = - ] || ((${#text} <= wp)) || wp=${#text}
+        done
+        room=$((_HI_MENU_W - wn - wp - 26))
+        _hi_menu_heading "[x] rides to a target, [ ] stays home - program, config: found here or not"
+        if ((_HI_MENU_W >= 60)); then
+          _hi_pad_to cell "$wn" "plugin"
+          _hi_pad_to m1 $((wp + 2)) "program"
+          _hi_cecho "          $cell  $m1  config  on a target" "$BLUE"
+        fi
+      fi
+      continue
+    fi
+    _HI_MENU_ITEMS+=("plugin|$name")
+    [ "$_HI_MENU_DRAW" = 1 ] || continue
+    _hi_menu_num num
+    if [ "$s" = 1 ]; then _hi_paint box "$BRGREEN" "[x]"; else _hi_paint box "$RED" "[ ]"; fi
+    _hi_plugin_state state "$s" "$here" "$cfg"
+    _hi_plugin_color state "$state"
+    _hi_pad_to cell "$wn" "$name"
+    _hi_paint cell "$state" "$cell"
+    _hi_menu_mark m1 "$here"
+    _hi_menu_mark m2 "$cfg"
+    if ((_HI_MENU_W < 60)); then
+      printf '  %s %s %s %s%s\n' "$num" "$box" "$cell" "$m1" "$m2"
+      continue
+    fi
+    [ "$prog" != "$name" ] && [ "$prog" != - ] || prog=""
+    _hi_pad_to prog "$wp" "$prog"
+    text=""
+    ((room < 8)) || _hi_fit text "$about" "$room"
+    _hi_paint text "$BLUE" "$text"
+    printf '  %s %s %s  %s %s  %s       %s\n' "$num" "$box" "$cell" "$m1" "$prog" "$m2" "$text"
+  done
 }
 
 # _hi_menu_grid_item <kind> <1|0> <name> <cols> - one checkbox in a grid of
@@ -357,20 +540,21 @@ function _hi_menu_grid_end() {
   _HI_MENU_GRID_N=0
 }
 
-# _hi_menu_pick <n> - act on item <n>: flip a yes/no row, a header item, a
-# package group, or a plugin, or ask for a value
+# _hi_menu_pick <item> - act on an item of $_HI_MENU_ITEMS: flip a yes/no
+# row, a header item, a package group, or a plugin, or ask for a value
 function _hi_menu_pick() {
   local kind a b var off on preview label state
   local -a rows=()
-  IFS='|' read -r kind a b <<<"${_HI_MENU_ITEMS[$(($1 - 1))]}"
+  IFS='|' read -r kind a b <<<"$1"
   case "$kind" in
   row)
     _hi_prompt_rows "$a" rows
     IFS='|' read -r var off on preview _ label <<<"${rows[$b]}"
     _hi_setting_flip "$var" "$off" "$on" state
-    # not boxed again where the page's own preview already shows it
+    # not boxed again where the page's own preview already shows it, and
+    # never under the main page's table
     case "$_HI_MENU_PAGE:$preview" in
-    a:_hi_tool_alias_preview | [rv]:_hi_prompt_preview | [rv]:_hi_git_status_preview | :_hi_prompt_preview | :_hi_git_status_preview) preview="" ;;
+    a:_hi_tool_alias_preview | [rv]:_hi_prompt_preview | [rv]:_hi_git_status_preview | :*) preview="" ;;
     esac
     _hi_menu_note " ${label%% - *}: now $state" "$GREEN" "$preview"
     ;;
@@ -378,7 +562,7 @@ function _hi_menu_pick() {
     # an empty $_HI_HEADER_ORDER means the default order at runtime, not
     # none, so the last item stays on
     if [ "${_HI_HDR_ON[$a]}" = 1 ] && [ "$(_hi_header_edit_count_on)" -le 1 ]; then
-      _hi_menu_note " keep at least one header item - item 1 turns the whole header off" "$YELLOW"
+      _hi_menu_note " keep at least one header item - the Header page's header switch turns it all off" "$YELLOW"
     else
       [ "${_HI_HDR_ON[$a]}" = 1 ] && _HI_HDR_ON[a]=0 || _HI_HDR_ON[a]=1
       _hi_header_edit_commit
@@ -394,8 +578,8 @@ function _hi_menu_pick() {
   esac
 }
 
-# The menu: the page's preview, the list, save, or quit. A command redraws both with
-# whatever it changed; a reply that is not one only says so, under the list
+# The menu: the page's preview, where it has one, the list, save, or quit. A
+# command redraws both with whatever it changed; a reply that is not one only says so, under the list
 # it was typed against. EOF saves - the same "no answer keeps what you have
 # and the run completes" that every question here has always meant. The
 # third junk answer in a row ends the run too, but as a quit: three words
@@ -413,10 +597,12 @@ function config_hub() {
       title="hi --configure"
       for row in "${_HI_MENU_SECTIONS[@]}"; do
         [ "${row%%|*}" = "$_HI_MENU_PAGE" ] || continue
-        # under 60 columns a page's title is its name alone
         title="${row#*|}"
-        ((_HI_MENU_W < 60)) || title="hi --configure: $title"
+        title="${title%%|*}"
       done
+      case "$_HI_MENU_PAGE" in g?*) title="Plugins: ${_HI_MENU_GROUPS[${_HI_MENU_PAGE#g} - 1]}" ;; esac
+      # under 60 columns a page's title is its name alone
+      [ -z "$_HI_MENU_PAGE" ] || ((_HI_MENU_W < 60)) || title="hi --configure: $title"
       _hi_h2 "$title"
       # the keys first, so they are read before the list; short under 60.
       # Each works from any page: a page names the ones that are its own
@@ -435,19 +621,17 @@ function config_hub() {
       b=""
       case "$_HI_MENU_PAGE" in
       '') ;;
-      i) p="" ;;
+      e) p="" ;;
       *) p="" h="" ;;
       esac
       [ -z "$_HI_MENU_PAGE" ] || _hi_hotkey "$back" b b
       printf ' %s%s%s%s%s%s%s  %s\n' "$b" "${b:+  }" "$p" "${p:+  }" "$h" "${h:+  }" "$s" "$q"
       # the picture is of what the page's settings change, or there is none
       case "$_HI_MENU_PAGE" in
-      i) show_preview _hi_header_preview ;;
+      i | e) show_preview _hi_header_preview ;;
       c) show_preview _hi_check_preview ;;
       r) show_preview _hi_prompt_sample_preview ;;
       a) show_preview _hi_aliases_preview ;;
-      g | m) ;;
-      *) show_preview _hi_config_preview ;;
       esac
       _hi_menu_list
       if [ -n "$_HI_MENU_NOTE" ]; then
@@ -479,14 +663,21 @@ function config_hub() {
       return 0
       ;;
     b | back) _HI_MENU_PAGE="" ;;
-    i | c | r | g | a | m | v) _HI_MENU_PAGE="$cmd" ;;
+    i | e | c | r | g | a | v) _HI_MENU_PAGE="$cmd" ;;
+    l | t)
+      row=_HI_DISABLE_LOCAL
+      [ "$cmd" = l ] || row=_HI_PLAIN
+      ! _hi_feature_index "$row" idx || _hi_menu_pick "row|_HI_FEATURE_PROMPTS|$idx"
+      ;;
     *)
       if _hi_is_number "$cmd" && [ "$cmd" -ge 1 ] && [ "$cmd" -le "${#_HI_MENU_ITEMS[@]}" ]; then
-        _hi_menu_pick "$cmd"
+        _hi_menu_pick "${_HI_MENU_ITEMS[cmd - 1]}"
+      elif [[ "$cmd" =~ ^g[1-9][0-9]?$ ]] && [ "${cmd#g}" -le "${#_HI_MENU_GROUPS[@]}" ]; then
+        _HI_MENU_PAGE="$cmd"
       else
         draw=""
         _hi_menu_reject rejects "$max_rejects" \
-          "type an item number (1-${#_HI_MENU_ITEMS[@]}), a section's letter, up N / down N, or [p] [h] [s] [q]" && continue
+          "type an item number (1-${#_HI_MENU_ITEMS[@]}), a page's key, up N / down N, or [p] [h] [s] [q]" && continue
         _hi_cecho " not a menu item three times - leaving $_HI_SETTINGS as it was" "$YELLOW"
         _HI_CONFIGURE_QUIT=1
         return 0
@@ -629,67 +820,164 @@ function _hi_group_flip() {
   _hi_menu_note " package group $1: now $said" "$GREEN"
 }
 
-# _hi_plugin_states <list> - with <list> kept home, a line for each group
-# with something here to send, `<group>||<1|0>`, and under it one for each of
-# its plugins, `<group>|<plugin>|<1|0>`: 1 rides, 0 stays home. What is
-# listed is what has a file here, whatever the list says, so the menu's
-# numbers hold while it changes. hi.sh is sourced in the one place.
+# _hi_plugin_notes - "<plugin>|<note>" for each plugin of the plugins files
+# with a comment right above its table: that comment's first sentence
+function _hi_plugin_notes() {
+  local f
+  for f in "$_HI_ROOT/config/plugins" "${_HI_CONFIG_DIR:-}/plugins"; do
+    [ ! -f "$f" ] || awk '
+      /^[ \t]*#/ { c = $0; sub(/^[ \t]*#[ \t]*/, "", c); com = com == "" ? c : com " " c; next }
+      /^[ \t]*\[[^].]+\.[^].]+\]/ && com != "" {
+        t = $0; sub(/^[ \t]*\[[^].]+\./, "", t); sub(/\].*/, "", t); gsub(/[ \t]/, "", t)
+        sub(/\. .*/, "", com); sub(/\.$/, "", com); gsub(/\|/, "/", com)
+        print t "|" com
+      }
+      { com = "" }
+    ' "$f"
+  done
+}
+
+# _hi_plugin_states <kept home> <switched on> - every plugin of the plugins
+# files under those two lists, a line for its group, `<group>|`, and under it
+# one a plugin: `<group>|<plugin>|<on>|<off by default>|<program>|<here>|
+# <config>|<about>`. <on> is 1 for one a target is sent; <off by default> is
+# 1 for a plugin $_HI_PLUGINS_ON has to name. <program> is what reads the plugin's config, the first of its commands
+# found here, or - with none to look for, and <here> whether this machine has
+# it; <config> is whether a file of the plugin's is found here, - for a
+# plugin of no files; <about> is _hi_plugin_notes' line, else what its hook
+# or its wire does. hi.sh is sourced in the one place.
 function _hi_plugin_states() {
   (
     # shellcheck source=/dev/null # hi.sh, whose functions alone are wanted
     source "$_HI_LAUNCHER" >/dev/null 2>&1
-    local name group member last="" seen=" " on
-    _HI_PLUGINS_OFF="$1"
-    while IFS='|' read -r name group member; do
-      case "$member" in
-      */) [ -n "$(_HI_PLUGINS_OFF='' _hi_overlay_files "$member")" ] || continue ;;
-      *) _HI_PLUGINS_OFF='' _hi_overlay_src "$member" >/dev/null || continue ;;
-      esac
-      if [ "$group" != "$last" ]; then
-        case " ${1//,/ } " in *" $group "*) on=0 ;; *) on=1 ;; esac
-        printf '%s||%s\n' "$group" "$on"
-        last="$group"
-      fi
+    local name group last="" seen=" " nl=$'\n' i r p m on d tool wire hook prog here cfg about prompts notes
+    local -a members=() buf=() plugs=() _hi_paths=()
+    _HI_PLUGINS_OFF="$1" _HI_PLUGINS_ON="${2:-}"
+    _hi_plugins_load
+    for r in ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
+      _hi_row_col "$r" plugin p
+      plugs+=("$p")
+    done
+    # the prompt programs this machine has, whatever is switched off
+    prompts=" $(unset _HI_PROMPT_TOOL _HI_PROMPT_LIST_KEY && _HI_PLUGINS_OFF='' _hi_prompt_list) "
+    notes="$nl$(_hi_plugin_notes)"
+    # a group's line, then its plugins'
+    function _hi_ps_flush() {
+      [ -n "$last" ] || return 0
+      printf '%s|\n' "$last"
+      printf '%s\n' "${buf[@]}"
+    }
+    while IFS='|' read -r name group _; do
       case "$seen" in *" $group|$name "*) continue ;; esac
       seen="$seen$group|$name "
-      _hi_plugin_off "$member" && on=0 || on=1
-      printf '%s|%s|%s\n' "$group" "$name" "$on"
+      if [ "$group" != "$last" ]; then
+        _hi_ps_flush
+        last="$group" buf=()
+      fi
+      members=() tool="" wire="" hook=""
+      for i in ${plugs[@]+"${!plugs[@]}"}; do
+        [ "${plugs[i]}" = "$name" ] || continue
+        r="${_HI_PLUGIN_ROWS[i]}"
+        members+=("${r%%|*}")
+        [ -n "$tool" ] || {
+          _hi_row_col "$r" tool tool
+          _hi_row_col "$r" wire wire
+        }
+      done
+      for r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
+        _hi_hook_col "$r" name p
+        [ "$p" != "$name" ] || hook="$r"
+      done
+      on=1 d=0
+      ! _hi_plugin_switched_off "$name" || on=0
+      case "$_HI_PLUGIN_DEFAULT_OFF" in *" $name "*) d=1 ;; esac
+      # a hook's tool, where it has no command, is its init's
+      if [ -n "$hook" ]; then
+        _hi_hook_col "$hook" tool tool
+        [ "$tool" != - ] || {
+          _hi_hook_col "$hook" init tool
+          tool="${tool%% *}"
+        }
+      fi
+      prog=- here=-
+      if [ -n "$tool" ] && [ "$tool" != - ]; then
+        prog="${tool%% *}" here=0
+        for p in $tool; do
+          command -v "$p" >/dev/null 2>&1 || continue
+          prog="$p" here=1
+          break
+        done
+      elif _hi_prompt_row "$name" >/dev/null; then
+        prog="$name" here=0
+        case "$prompts" in *" $name "*) here=1 ;; esac
+      fi
+      cfg=-
+      ((${#members[@]} == 0)) || cfg=0
+      for m in ${members[@]+"${members[@]}"}; do
+        _hi_overlay_row "$m" r || continue
+        _hi_overlay_places "$m" "$r"
+        for p in "$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"}; do
+          [ -f "$p" ] || { [ -z "${m##*/}" ] && [ -d "$p" ]; } || continue
+          cfg=1
+          break 2
+        done
+      done
+      about=""
+      case "$notes" in
+      *"$nl$name|"*)
+        about="${notes##*"$nl$name|"}"
+        about="${about%%"$nl"*}"
+        ;;
+      esac
+      if [ -z "$about" ] && [ -n "$hook" ]; then
+        _hi_hook_col "$hook" init about
+        about="runs \`$about\` in a target's shell"
+      elif [ -z "$about" ]; then
+        case "$wire" in
+        env:* | envdir:*)
+          about="${wire#*:}"
+          about="points \$${about%%[ ;]*} at your config"
+          ;;
+        flag:* | flagdir:* | xdg:*) about="aliases $name to read your config" ;;
+        *) about="your ${members[0]:-$name} rides" ;;
+        esac
+      fi
+      buf+=("$group|$name|$on|$d|$prog|$here|$cfg|$about")
     done < <(_hi_plugin_rows | sort -s -t'|' -k2,2)
+    _hi_ps_flush
   )
 }
 
-# _hi_plugin_flip <word> - a group or a plugin of the Plugins page, sent or
-# kept home, in this run's $_HI_PLUGINS_OFF: the list `hi --plugin-off` keeps
-# too (GLOSSARY: HI.64). A plugin switched on while its group is kept home
-# takes the group off the list and puts the group's other plugins on it.
+# _hi_plugin_flip <plugin> - a plugin of the Plugins pages, sent or kept home,
+# in this run's $_HI_PLUGINS_OFF and $_HI_PLUGINS_ON: the lists `hi
+# --plugin-off` and `--plugin-on` keep too (GLOSSARY: HI.64). One that is off
+# by default moves through the second, as there.
 function _hi_plugin_flip() {
-  local kept="" off=" " w entry g n s group="" state=1 said="stays home" next
+  local kept="" on="" w entry n s d state=1 dflt="" said="stays home" next=""
   setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
-  for w in ${kept//,/ }; do off="$off$w "; done
+  setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" on
   for entry in ${_HI_MENU_PLUGINS[@]+"${_HI_MENU_PLUGINS[@]}"}; do
-    IFS='|' read -r g n s <<<"$entry"
-    [ "${n:-$g}" = "$1" ] || continue
-    state="$s"
-    [ -z "$n" ] || group="$g"
+    IFS='|' read -r _ n s d _ <<<"$entry"
+    [ "$n" = "$1" ] || continue
+    state="$s" dflt="$d"
     break
   done
-  if [ "$state" = 1 ]; then
-    off="$off$1 "
-  else
+  kept=" ${kept//,/ } " on=" ${on//,/ } "
+  if [ "$state" != 1 ]; then
     said="is sent"
-    off="${off/" $1 "/ }"
-    case "$group:$off" in
-    ?*:*" $group "*)
-      off="${off/" $group "/ }"
-      for entry in "${_HI_MENU_PLUGINS[@]}"; do
-        IFS='|' read -r g n s <<<"$entry"
-        [ "$g" = "$group" ] && [ -n "$n" ] && [ "$n" != "$1" ] || continue
-        case "$off" in *" $n "*) ;; *) off="$off$n " ;; esac
-      done
-      ;;
-    esac
+    kept="${kept/" $1 "/ }"
+    [ "$dflt" != 1 ] || case "$on" in *" $1 "*) ;; *) on="$on$1 " ;; esac
+  elif [ "$dflt" = 1 ]; then
+    on="${on/" $1 "/ }"
+  else
+    kept="$kept$1 "
   fi
-  next="${off# }" next="${next% }"
+  for w in $kept; do next="$next${next:+ }$w"; done
   _hi_pending_set _HI_PLUGINS_OFF "$next"
+  if [ "$dflt" = 1 ]; then
+    next=""
+    for w in $on; do next="$next${next:+ }$w"; done
+    _hi_pending_set _HI_PLUGINS_ON "$next"
+  fi
   _hi_menu_note " $1: $said" "$GREEN"
 }

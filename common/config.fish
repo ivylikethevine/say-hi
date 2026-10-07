@@ -59,13 +59,13 @@ function __hi_run_init --description 'run a tool init for fish, its output sourc
   command -q $cmd[1]; or return 1
   $cmd | source
 end
-function __hi_hook_on --description 'is a hook group.name left on by the settings'
-  set -l name (string replace -r '^-' '' -- $argv[2])
+function __hi_hook_on --description 'is a hook left on by the settings'
+  set -l name (string replace -r '^-' '' -- $argv[1])
   set -l off (string split -n ' ' -- (string replace -a ',' ' ' -- "$_HI_PLUGINS_OFF"))
-  contains -- $name $off; or contains -- $argv[1] $off; and return 1
-  string match -q -- '-*' $argv[2]; or return 0
+  contains -- $name $off; and return 1
+  string match -q -- '-*' $argv[1]; or return 0
   set -l on (string split -n ' ' -- (string replace -a ',' ' ' -- "$_HI_PLUGINS_ON"))
-  contains -- $name $on; or contains -- $argv[1] $on
+  contains -- $name $on
 end
 function __hi_prompt_init --description 'a prompt program init: its $_HI_PROMPT_INITS row, else <program> init {shell}'
   for row in (string split -n ';' -- "$_HI_PROMPT_INITS")
@@ -77,7 +77,7 @@ end
 for __hi_row in (string split -n ';' -- "$_HI_HOOKS")
   set -l __hi_key (string split -m1 '=' -- $__hi_row)
   set -l __hi_gn (string split -m1 '.' -- $__hi_key[1])
-  __hi_hook_on $__hi_gn[1] $__hi_gn[2]; and __hi_run_init $__hi_key[2]
+  __hi_hook_on $__hi_gn[2]; and __hi_run_init $__hi_key[2]
 end
 set -e __hi_row
 

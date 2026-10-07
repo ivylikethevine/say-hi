@@ -106,6 +106,16 @@ EOF
   printf '%s' "$dir"
 }
 
+# _hi_doctor_run [args...] - doctor.sh as a program, on the shims and the
+# fixture $HOME. Through _hi_run_said: a whole report outlasts the 20s past
+# which a failed case gets no second try, so a silent run gets its own.
+function _hi_doctor_run() {
+  local home
+  home="$(_hi_doctor_home)"
+  _hi_run_said "doctor.sh $*" env PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+    _HI_SSH_CONFIG=/nonexistent _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" "$@"
+}
+
 # _hi_doc_rows <fn> [args...] - a row helper that is not a section of its
 # own, with its rows drawn: they buffer until doctor_flush, which only the
 # section functions call
@@ -364,35 +374,49 @@ function test_doctor_probe_snippet_runs_under_sh() {
 
 # The whole plain report, end to end, on the restricted PATH. Two cases
 # assert against it with identical inputs, so it runs once and the transcript
-# and exit code are memoized here.
+# and exit code are memoized here - once the report ran to its closing line.
+# One that stopped short is not kept, so the next call (the other case, or a
+# failed case's traced rerun) runs it again; where a flake may pass it is run
+# once more here too, a whole report outlasting the 20s a rerun is given.
 _HI_DOC_PLAIN_OUT=""
 
 _HI_DOC_PLAIN_RC=""
 
+_HI_DOC_PLAIN_DONE=""
+
 function _hi_doctor_plain_report() {
-  [ -n "$_HI_DOC_PLAIN_RC" ] && return 0
-  _HI_DOC_PLAIN_RC=0
+  [ -z "$_HI_DOC_PLAIN_DONE" ] || return 0
   # the fixture $HOME, as --json's runs use: the install section reads the
   # rc files, and the real ones on a developer's box name another tree
-  local home trace="$_HI_WORKDIR/plain.trace"
+  local home trace="$_HI_WORKDIR/plain.trace" try
   home="$(_hi_doctor_home)"
-  # bash 3.2 has no BASH_XTRACEFD, and a trace on stderr is no report
-  if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 1))); then
-    _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
-    _HI_SSH_CONFIG=/nonexistent \
-    _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || _HI_DOC_PLAIN_RC=$?
-    return 0
-  fi
-  # traced to a file: Windows arm64 has ended this run inside a section, exit
-  # 0 and nothing on stderr, and the trace's tail is the one word of where
-  # shellcheck disable=SC2016 # PS4 is the traced bash's to expand
-  _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
-  _HI_SSH_CONFIG=/nonexistent PS4='+ $BASHPID ${BASH_SOURCE[0]##*/}:${LINENO}: ' BASH_XTRACEFD=7 \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$BASH" -x "$_HI_DOCTOR" 7>"$trace")" || _HI_DOC_PLAIN_RC=$?
-  [[ "$_HI_DOC_PLAIN_OUT" == *"Nothing looks broken"* ]] || {
+  for try in 1 2; do
+    _HI_DOC_PLAIN_RC=0
+    # bash 3.2 has no BASH_XTRACEFD, and a trace on stderr is no report
+    if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 1))); then
+      _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+      _HI_SSH_CONFIG=/nonexistent \
+      _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || _HI_DOC_PLAIN_RC=$?
+    else
+      # traced to a file: Windows arm64 has ended this run inside a section,
+      # exit 0 and nothing on stderr, and the trace's tail is the one word of
+      # where
+      # shellcheck disable=SC2016 # PS4 is the traced bash's to expand
+      _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+      _HI_SSH_CONFIG=/nonexistent PS4='+ $BASHPID ${BASH_SOURCE[0]##*/}:${LINENO}: ' BASH_XTRACEFD=7 \
+      _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$BASH" -x "$_HI_DOCTOR" 7>"$trace")" || _HI_DOC_PLAIN_RC=$?
+    fi
+    if [[ "$_HI_DOC_PLAIN_OUT" == *"Nothing looks broken"* ]]; then
+      _HI_DOC_PLAIN_DONE=1
+      return 0
+    fi
     _hi_cecho " | the report stopped short (exit $_HI_DOC_PLAIN_RC); the last of its trace:" "$YELLOW" >&2
-    tail -n 40 "$trace" | sed 's/^/      /' >&2
-  }
+    [ ! -s "$trace" ] || tail -n 40 "$trace" | sed 's/^/      /' >&2
+    [ "$try" = 1 ] || break
+    _hi_flaky_allowed || break
+    _hi_note_flaky "doctor.sh's report stopped short (exit $_HI_DOC_PLAIN_RC), and was run again"
+  done
+  return 0
 }
 
 # _hi_doctor_begin - what every part of this suite starts from, and the tally

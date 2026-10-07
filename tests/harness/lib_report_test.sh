@@ -121,6 +121,60 @@ function _hi_rr_stderr_flake() {
   return 1
 }
 
+# _hi_run_said: a run's words and exit status come through as they are, and a
+# run that said anything - wrong words, a non-zero exit - is never made twice.
+# Only one that wrote nothing is, once, where a flake may pass, and it is
+# listed as flaky. Silent to the end, or where no flake may pass, it stays
+# silent and is named on stderr: the caller's assertion fails as before.
+# _hi_said_prog <silent-runs> <exit> - says "run <n>" unless <n> is listed
+function _hi_said_prog() {
+  local n=0
+  [ ! -f "$_HI_WORKDIR/said.n" ] || read -r n <"$_HI_WORKDIR/said.n"
+  n=$((n + 1))
+  printf '%s\n' "$n" >"$_HI_WORKDIR/said.n"
+  case " $1 " in *" $n "*) ;; *) printf 'run %s\n' "$n" ;; esac
+  return "$2"
+}
+# _hi_said_try <flaky-ok> <silent-runs> <exit> - "<words>|<exit>|<runs>|<flaky notes>"
+function _hi_said_try() {
+  local out rc=0 n=0 flaky=0 fails="$_HI_WORKDIR/said.fails"
+  rm -f "$_HI_WORKDIR/said.n" "$fails.flaky"
+  out="$(_HI_FLAKY_OK="$1" _HI_FAILS_FILE="$fails" _hi_run_said "the prog" _hi_said_prog "$2" "$3" 2>"$_HI_WORKDIR/said.err")" || rc=$?
+  read -r n <"$_HI_WORKDIR/said.n"
+  [ ! -f "$fails.flaky" ] || flaky="$(grep -c 'the prog wrote nothing' "$fails.flaky" || true)"
+  printf '%s|%s|%s|%s' "$out" "$rc" "$n" "$flaky"
+}
+function _hi_said_is() {
+  local want="$1" got
+  shift
+  got="$(_hi_said_try "$@")"
+  [ "$got" = "$want" ] || _hi_because "_hi_said_try $*: want [$want], got [$got]"
+}
+function test_run_said_passes_a_run_through() {
+  _hi_said_is "run 1|0|1|0" 1 "" 0 || return 1
+  _hi_said_is "run 1|3|1|0" 1 "" 3 || return 1
+  [ ! -s "$_HI_WORKDIR/said.err" ]
+}
+function test_run_said_reruns_only_a_silent_run() {
+  _hi_said_is "run 2|0|2|1" 1 "1" 0 || return 1
+  [ ! -s "$_HI_WORKDIR/said.err" ]
+}
+function test_run_said_leaves_a_silent_run_failing() {
+  _hi_said_is "|0|2|1" 1 "1 2" 0 || return 1
+  grep -qF 'the prog wrote nothing and exited 0' "$_HI_WORKDIR/said.err" || return 1
+  _hi_said_is "|4|2|1" 1 "1 2" 4 || return 1
+  _hi_said_is "|0|1|0" 0 "1" 0 || return 1
+  grep -qF 'the prog wrote nothing and exited 0' "$_HI_WORKDIR/said.err"
+}
+function _hi_said_stderr_only() {
+  printf 'only stderr\n' >&2
+}
+function test_run_said_both_counts_stderr_as_said() {
+  local out
+  out="$(_HI_FLAKY_OK=1 _hi_run_said --both "the prog" _hi_said_stderr_only 2>/dev/null)" || return 1
+  [ "$out" = "only stderr" ]
+}
+
 function test_assert_reports_failed_and_returns_nonzero() {
   local out rc=0
   # the capture stays on _hi_assert itself: wrapping it in _hi_strip_ansi would
@@ -515,6 +569,10 @@ function run_lib_report_tests() {
   _hi_check "Assert reports OK" test_assert_reports_ok_and_returns_zero
   _hi_check "Assert reports FAILED and returns non-zero" test_assert_reports_failed_and_returns_nonzero
   _hi_check "...reruns it once, traced; a pass there is FLAKY" test_a_failed_case_reruns_with_a_trace
+  _hi_check "Run_said passes words and exit status through" test_run_said_passes_a_run_through
+  _hi_check "...reruns only a run that wrote nothing, as a flake" test_run_said_reruns_only_a_silent_run
+  _hi_check "...and a run silent to the end still fails" test_run_said_leaves_a_silent_run_failing
+  _hi_check "...with --both, stderr counts as said" test_run_said_both_counts_stderr_as_said
   _hi_check "Assert forwards extra arguments" test_assert_passes_through_arguments
   _hi_check "Check counts and labels in one call" _hi_sandboxed test_check_counts_and_labels_in_one_call
 

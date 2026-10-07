@@ -178,6 +178,44 @@ function _hi_note_flaky() {
   printf '%s\n' "$1" >>"$_HI_FAILS_FILE.flaky"
 }
 
+# _hi_run_said [--both] <what> <cmd...> - <cmd>'s stdout (--both: stderr too)
+# through a file, then printed, with <cmd>'s exit status: for a whole run of a
+# program that always says something. Windows arm64 has ended such a run
+# early, exit 0 and nothing said, in cases too long for _hi_assert's rerun.
+# Where a flake may pass, a run that wrote nothing is made once more and
+# listed under "Flaky cases" as <what>; one silent to the end is named on
+# stderr. Whatever a run did write is passed on as it is, never run again.
+function _hi_run_said() {
+  local both=0 what said rc try
+  [ "$1" != --both ] || {
+    both=1
+    shift
+  }
+  what="$1"
+  shift
+  said="$(mktemp "${_HI_WORKDIR:-${TMPDIR:-/tmp}}/said.XXXXXX")" || said=""
+  if [ -z "$said" ]; then
+    "$@"
+    return
+  fi
+  for try in 1 2; do
+    rc=0
+    if [ "$both" = 1 ]; then
+      "$@" >"$said" 2>&1 || rc=$?
+    else
+      "$@" >"$said" || rc=$?
+    fi
+    [ ! -s "$said" ] || break
+    [ "$try" = 1 ] || break
+    _hi_flaky_allowed || break
+    _hi_note_flaky "$what wrote nothing (exit $rc), and was run again"
+  done
+  [ -s "$said" ] || printf ' | %s wrote nothing and exited %s\n' "$what" "$rc" >&2
+  cat "$said"
+  rm -f "$said"
+  return "$rc"
+}
+
 # _hi_check <label> <predicate...> - one counted, labelled assertion.
 function _hi_check() {
   _hi_case _hi_assert "$@"

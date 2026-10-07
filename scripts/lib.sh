@@ -491,6 +491,17 @@ else
   _HI_BOX_H="─" _HI_BOX_V="│"
 fi
 
+# _hi_plugin_color <outvar> <rides|off|absent> - the color a listed plugin's
+# name takes by its state, set here alone: one that rides to a target, one
+# switched off, one with nothing on this machine to send
+function _hi_plugin_color() {
+  case "$2" in
+  rides) printf -v "$1" '%s' "$BRGREEN" ;;
+  off) printf -v "$1" '%s' "$YELLOW" ;;
+  *) printf -v "$1" '%s' "$BLUE" ;;
+  esac
+}
+
 # _hi_plugin_rows - every row that can be switched, the plugins files' (so
 # only where hi.sh is sourced), as `<plugin>|<group>|<member>` lines: what
 # hi --plugins lists
@@ -511,25 +522,29 @@ function _hi_plugin_rows() {
 }
 
 # _hi_hook_rows - every shell hook as a report row (HI.67): the plugin, its
-# init, and whether a target gets it - the tool here, the plugin on
+# name in its state's color, its init, and whether a target gets it - the
+# tool here, the plugin on
 function _hi_hook_rows() {
-  local _hi_hr_r _hi_hr_n _hi_hr_i _hi_hr_p _hi_hr_why
+  local _hi_hr_r _hi_hr_n _hi_hr_i _hi_hr_p _hi_hr_why _hi_hr_c
   _hi_plugins_load
   for _hi_hr_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
     _hi_hook_col "$_hi_hr_r" name _hi_hr_n
     _hi_hook_col "$_hi_hr_r" init _hi_hr_i
     if ! _hi_hook_here "$_hi_hr_r"; then
-      _hi_row "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent"
+      _hi_plugin_color _hi_hr_c absent
+      _hi_row "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent" info "$_hi_hr_c"
     elif _hi_hook_off "$_hi_hr_r"; then
       case "$_HI_PLUGIN_DEFAULT_OFF" in
       *" $_hi_hr_n "*) _hi_hr_why="off by default (hi --plugin-on $_hi_hr_n)" ;;
       *) _hi_hr_why="switched off (_HI_PLUGINS_OFF)" ;;
       esac
-      _hi_row "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why"
+      _hi_plugin_color _hi_hr_c off
+      _hi_row "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why" info "$_hi_hr_c"
     else
       _hi_hook_col "$_hi_hr_r" prompt _hi_hr_p
       [ "$_hi_hr_p" != yes ] && _hi_hr_p="" || _hi_hr_p=", and draws the prompt"
-      _hi_row "$_hi_hr_n" "$_hi_hr_i - runs on a target that has it$_hi_hr_p" ok
+      _hi_plugin_color _hi_hr_c rides
+      _hi_row "$_hi_hr_n" "$_hi_hr_i - runs on a target that has it$_hi_hr_p" ok "$_hi_hr_c"
     fi
   done
 }
@@ -643,9 +658,9 @@ function _hi_member_rows() {
 }
 
 # _hi_plugin_words - every word $_HI_PLUGINS_OFF may hold that a row names,
-# one a line
+# its plugin and its member, one a line
 function _hi_plugin_words() {
-  _hi_plugin_rows | tr '|' '\n' | sort -u
+  _hi_plugin_rows | cut -d'|' -f1,3 | tr '|' '\n' | sort -u
 }
 
 # _hi_plugin_word_ok <word> [words] - may $_HI_PLUGINS_OFF hold it: a word of

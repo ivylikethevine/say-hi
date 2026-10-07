@@ -166,19 +166,15 @@ SHIM
 # the text report's closing line: green with nothing to say, red with the
 # count when a row went bad - and that count is the exit code
 function test_a_finding_turns_the_closing_line_red_and_is_the_exit_code() {
-  local out rc=0 home
-  home="$(_hi_doctor_home)"
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" somehost)" || rc=$?
+  local out rc=0
+  out="$(_hi_doctor_run somehost)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"1 finding(s) above in red"* ]]
 }
 
 # --plain is accepted on the text report too, and is not read as a target
 function test_plain_flag_is_accepted_on_the_text_report() {
-  local out rc=0 home
-  home="$(_hi_doctor_home)"
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --plain)" || rc=$?
+  local out rc=0
+  out="$(_hi_doctor_run --plain)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
 }
 
@@ -192,8 +188,8 @@ function _hi_doctor_install_out() {
   local home="$1"
   shift
   mkdir -p "$home"
-  env PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" "$@" HOME="$home" \
-    _HI_SSH_CONFIG=/nonexistent _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" 2>&1
+  _hi_run_said --both "doctor.sh at ${home##*/}" env PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" "$@" HOME="$home" \
+    _HI_SSH_CONFIG=/nonexistent _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR"
 }
 
 # _hi_wired_line <dialect> [home] - one marker-tagged _HI_HOME line, as

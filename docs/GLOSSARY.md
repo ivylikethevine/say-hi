@@ -1537,7 +1537,7 @@ the row's group column (`editors`, `mux`, `prompt`, `cli`, `shell`, or one the
 user names). A row with no group is
 hi's own file, which the list never switches; only its off column can
 (`packages`, under `_HI_DISABLE_HEADER`). `_hi_plugin_off` answers for a member:
-off when `$_HI_PLUGINS_OFF` names its plugin, its group, or the member itself
+off when `$_HI_PLUGINS_OFF` names its plugin or the member itself
 (its row's, or its own where it is one file of a directory row,
 `extensions/10-kube`), or when a toggle of its off column is 1.
 
@@ -1558,9 +1558,9 @@ machine alone, so there `_hi_toggle_on` reads `settings.sh`'s own
 
 `scripts/plugins.sh` and `hi --configure` both write the list, as one
 `_HI_PLUGINS_OFF` line of `settings.sh` in the wizard's padded, marked
-spelling, so each rewrites the line the other left. `load.sh` reads one word
-of it on a target, from the `settings.sh` that rode: with `editors` off it
-exports no `$EDITOR`.
+spelling, so each rewrites the line the other left. `load.sh` reads it on a
+target, from the `settings.sh` that rode: an editor it names is passed over
+for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 
 ## HI.65 kept session
 
@@ -1736,7 +1736,7 @@ instead, so the prompt hand-over ([HI.32](#hi32-starship-deference)) starts it
 and nothing else does. A target runs a hook only where it has the tool, and
 only when the settings it was sent leave it on (`_hi_hook_on`): a leading `-`
 on the name says the plugin is off by default, and then `_HI_PLUGINS_ON` has
-to name it or its group. The shipped `hooks` group is off that way, since each
+to name it. The shipped `hooks` group is off that way, since each
 of its tools keeps state under a target's `$HOME`. `_hi_prompt_row` reads
 `_HI_PROMPT_PLUGINS` beside `_HI_PROMPT_TABLE`, so a prompt program the table
 never heard of is picked the same way; its configs ride as its plugin's files,

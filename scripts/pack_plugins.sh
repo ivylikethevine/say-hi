@@ -314,21 +314,20 @@ function _hi_hook_here() {
 }
 
 # _hi_hook_off <row> - is the hook's plugin switched off: named in
-# $_HI_PLUGINS_OFF, or off by default and not in $_HI_PLUGINS_ON (its name or
-# group, either list). core.sh's _hi_hook_on is the target's reading.
+# $_HI_PLUGINS_OFF, or off by default and not in $_HI_PLUGINS_ON. core.sh's
+# _hi_hook_on is the target's reading.
 function _hi_hook_off() {
-  local _hi_ho_n _hi_ho_g
+  local _hi_ho_n
   _hi_hook_col "$1" name _hi_ho_n
-  _hi_hook_col "$1" group _hi_ho_g
-  _hi_plugin_switched_off "$_hi_ho_n" "$_hi_ho_g"
+  _hi_plugin_switched_off "$_hi_ho_n"
 }
 
-# _hi_plugin_switched_off <name> <group> - the two lists' verdict on a plugin
+# _hi_plugin_switched_off <name> - the two lists' verdict on a plugin
 function _hi_plugin_switched_off() {
   local _hi_so_off="${_HI_PLUGINS_OFF:-}" _hi_so_on="${_HI_PLUGINS_ON:-}"
-  case " ${_hi_so_off//,/ } " in *" $1 "* | *" $2 "*) return 0 ;; esac
+  case " ${_hi_so_off//,/ } " in *" $1 "*) return 0 ;; esac
   case "$_HI_PLUGIN_DEFAULT_OFF" in *" $1 "*) ;; *) return 1 ;; esac
-  case " ${_hi_so_on//,/ } " in *" $1 "* | *" $2 "*) return 1 ;; esac
+  case " ${_hi_so_on//,/ } " in *" $1 "*) return 1 ;; esac
   return 0
 }
 

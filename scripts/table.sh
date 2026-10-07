@@ -193,11 +193,11 @@ function _hi_cell_raw() {
 }
 
 # The report every listing draws: a section's rows buffered as parallel arrays
-# (bash 3.2 has no other kind) - a label, a text, and a severity: "" or info
-# plain, ok green, warn yellow, bad red - and drawn as one boxed table by
-# _hi_rows_flush once every width is known. `hi --doctor` and `hi --plugins`
-# both draw through it.
-_HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=()
+# (bash 3.2 has no other kind) - a label, a text, a severity: "" or info
+# plain, ok green, warn yellow, bad red - and the label's own color, where a
+# row has one - and drawn as one boxed table by _hi_rows_flush once every
+# width is known. `hi --doctor` and `hi --plugins` both draw through it.
+_HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=() _HI_ROWS_COLOR=()
 
 # _hi_section <title> - a section's banner, $HOME shortened to ~
 function _hi_section() {
@@ -205,16 +205,16 @@ function _hi_section() {
   _hi_h2 "$_HI_TILDED"
 }
 
-# _hi_row <label> <text> [severity] - one row of the open section
+# _hi_row <label> <text> [severity] [label-color] - one row of the open section
 function _hi_row() {
-  _HI_ROWS_LABEL+=("$1") _HI_ROWS_TEXT+=("$2") _HI_ROWS_SEV+=("${3:-info}")
+  _HI_ROWS_LABEL+=("$1") _HI_ROWS_TEXT+=("$2") _HI_ROWS_SEV+=("${3:-info}") _HI_ROWS_COLOR+=("${4:-}")
 }
 
 # _hi_rows_flush - draw the open section's rows and empty the buffer; nothing
 # for a section with no rows
 function _hi_rows_flush() {
   _hi_rows_box
-  _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=()
+  _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=() _HI_ROWS_COLOR=()
 }
 
 # _hi_tilde <text> - <text> with $HOME shortened to ~, into
@@ -304,7 +304,7 @@ function _hi_rows_box() {
     for line in "${pieces[@]}"; do
       if [ "$first" = 1 ]; then
         _hi_cell 1 "$color" "$glyph"
-        _hi_cell "$wl" "" "${_HI_ROWS_LABEL[i]}"
+        _hi_cell "$wl" "${_HI_ROWS_COLOR[i]:-}" "${_HI_ROWS_LABEL[i]}"
         first=0
       else
         _hi_cell 1 "" ""
@@ -324,7 +324,7 @@ function _hi_rows_box() {
 # row per check.
 function _hi_rows_fold() {
   local i j n="${#_HI_ROWS_SEV[@]}" names
-  local -a f_label=() f_text=() f_sev=() f_used=()
+  local -a f_label=() f_text=() f_sev=() f_color=() f_used=()
   for ((i = 0; i < n; i++)); do
     [ -z "${f_used[i]:-}" ] || continue
     names=""
@@ -341,6 +341,8 @@ function _hi_rows_fold() {
     else
       f_label+=("${_HI_ROWS_LABEL[i]}") f_text+=("${_HI_ROWS_TEXT[i]}") f_sev+=("${_HI_ROWS_SEV[i]}")
     fi
+    f_color+=("${_HI_ROWS_COLOR[i]:-}")
   done
   _HI_ROWS_LABEL=(${f_label[@]+"${f_label[@]}"}) _HI_ROWS_TEXT=(${f_text[@]+"${f_text[@]}"}) _HI_ROWS_SEV=(${f_sev[@]+"${f_sev[@]}"})
+  _HI_ROWS_COLOR=(${f_color[@]+"${f_color[@]}"})
 }

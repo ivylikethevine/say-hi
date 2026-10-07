@@ -111,8 +111,7 @@ each program is started, is [HI.32](GLOSSARY.md#hi32-starship-deference).
 
 zoxide's and atuin's `init`, `direnv hook`, and `mise activate` are plugins of
 the `hooks` group, off by default: `hi --plugin-on zoxide` has a target that
-has zoxide run its init after the aliases and extensions, and
-`hi --plugin-on hooks` turns on all four
+has zoxide run its init after the aliases and extensions
 ([SETTINGS.md](SETTINGS.md#shell-hooks)). A tool of your own is one
 `hi --add-plugin hooks <name> 'init=<command> {shell}'`. Once started, a tool
 keeps state of its own under the target's `$HOME` - zoxide's directory

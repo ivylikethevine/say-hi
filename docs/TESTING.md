@@ -350,6 +350,10 @@ nothing from a list that was there a call earlier. The output probe above
 says whether the host is dropping output at that moment and from which
 writer; `plugins_test.sh` runs `hi` into a file and names a run that wrote
 nothing, which tells a silent run from a capture that lost its words.
+`_hi_run_said` (`tests/lib/report.sh`) does the same for the whole runs of
+`doctor.sh` and `install.sh`, which outlast the 20s a rerun is given: where a
+flake may pass, a run that wrote nothing is made once more and listed under
+_Flaky cases_. A run that said anything is never made twice.
 
 ### The images are files; the build contexts are not
 

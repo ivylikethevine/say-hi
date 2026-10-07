@@ -270,8 +270,17 @@ function test_settings_move_the_tool_toggles_to_the_list() {
   _hi_conv_is _hi_convert_settings "#!/bin/sh\nexport _HI_DISABLE_VIM=1\nexport _HI_DISABLE_NANO='0'\nexport _HI_MAX_WIDTH=100\n  _HI_DISABLE_TMUX=\"1\"\n" \
     "#!/bin/sh\nexport _HI_MAX_WIDTH=100\nexport _HI_PLUGINS_OFF='vim nvim tmux'" || return 1
   _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_OFF='lazygit, vim'\nexport _HI_DISABLE_EDITORS=1\nexport _HI_DISABLE_VIM=1\nexport _HI_MUX=1\n" \
-    "export _HI_PLUGINS_OFF='lazygit vim editors nvim'\nexport _HI_MUX=1" || return 1
+    "export _HI_PLUGINS_OFF='lazygit vim nvim nano emacs hx kak micro'\nexport _HI_MUX=1" || return 1
   _hi_conv_is _hi_convert_settings "export _HI_DISABLE_EMACS=0\n" ""
+}
+
+# a group's word in either list is its plugins' words, each once, where the
+# line stands; a plugin's word stays
+function test_settings_spell_a_group_as_its_plugins() {
+  _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_ON=\"hooks\"\nexport _HI_PLUGINS_OFF='lazygit, mux tmux'\nexport _HI_MUX=1\n" \
+    "export _HI_PLUGINS_ON='zoxide atuin direnv mise'\nexport _HI_PLUGINS_OFF='lazygit tmux screen zellij'\nexport _HI_MUX=1" || return 1
+  _HI_GROUP_MAP="mine:task note;" _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_OFF='mine bat'\n" \
+    "export _HI_PLUGINS_OFF='task note bat'"
 }
 
 # ...under the marker the toggle's line carried, padded as the wizard pads
@@ -332,6 +341,24 @@ function test_entry_converts_a_tool_toggle() {
     _hi_cecho " | said: $out" "$RED"
     return 1
   }
+}
+
+# ...and a group's word in a list, a group of the overlay's plugins file
+# among them, though not one a plugin shares its name with; a second run
+# finds nothing to do
+function test_entry_converts_a_group_word() {
+  local dir="$_HI_WORKDIR/conv-group-word" out
+  mkdir -p "$dir"
+  printf '[mine.task]\nfiles = "taskrc"\n[own.own]\nfiles = "ownrc"\n' >"$dir/plugins"
+  printf "export _HI_PLUGINS_OFF='mine own mux'\n" >"$dir/settings.sh"
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" == *"converted $dir/settings.sh to the current format"* ]] &&
+    [ "$(cat "$dir/settings.sh")" = "export _HI_PLUGINS_OFF='task own tmux screen zellij'" ] || {
+    _hi_cecho " | said: $out, wrote: $(cat "$dir/settings.sh")" "$RED"
+    return 1
+  }
+  out="$(_hi_conv_run "$dir")" || return 1
+  [[ "$out" != *converted* ]] || _hi_because "a second run said: $out"
 }
 
 # --dry-run names each conversion and writes nothing
@@ -542,12 +569,14 @@ function run_convert_settings_tests() {
   _hi_check "A trailing comment, install's marker too, is kept" test_settings_keep_the_trailing_comment
   _hi_check "The old alias toggles go, a comment naming one stays" test_settings_drop_the_old_alias_toggles
   _hi_check "An editor's toggle becomes its word in the list" test_settings_move_the_tool_toggles_to_the_list
+  _hi_check "A group's word becomes its plugins'" test_settings_spell_a_group_as_its_plugins
   _hi_check "...on a line the wizard's block takes as its own" test_settings_list_line_keeps_the_marker
 
   _hi_h2 "Testing: convert_settings.sh"
   _hi_check "Converts each old file, keeping <file>.old" test_entry_converts_each_old_file
   _hi_check "An old alias toggle alone makes settings.sh old-format" test_entry_converts_the_old_alias_toggles
   _hi_check "...and so does an editor's" test_entry_converts_a_tool_toggle
+  _hi_check "...and a group's word in a list" test_entry_converts_a_group_word
   _hi_check "--dry-run writes nothing" test_entry_dry_run_writes_nothing
   _hi_check "A second run is a no-op" test_entry_is_idempotent
   _hi_check "The rows under [section] lines are converted too" test_entry_converts_the_sections

@@ -298,16 +298,19 @@ function _hi_session_shell_cmd() {
 
 # _hi_session_editor [name...] - the editor a session exports, with hi's
 # config flags: the first installed here of $_HI_EDITOR, the names given (the
-# client's own $EDITOR and $VISUAL), and the ladder. The flags are read off
+# client's own $EDITOR and $VISUAL), and the ladder, less any $_HI_PLUGINS_OFF
+# names (the settings.sh that rode says so): with every editor off, $EDITOR
+# stays the target's own. The flags are read off
 # the alias wiring.sh or the overlay's aliases.sh gave it (sourced here, in
 # the caller's $( ) subshell, so nothing leaks into load()), so an overlay's
 # `alias vim=...` reaches $EDITOR too. An editor with no alias goes bare,
 # hence the ${body:-$e} tail.
 function _hi_session_editor() {
-  local e body
+  local e body off=" ${_HI_PLUGINS_OFF:-} "
   # shellcheck source=./common/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} "$@" $_HI_EDITORS; do
+    [[ "${off//,/ }" != *" ${e/#helix/hx} "* ]] || continue
     type -P "$e" &>/dev/null || continue
     body="$(alias "$e" 2>/dev/null)"
     body="${body#alias "$e"=\'}"
@@ -542,32 +545,29 @@ function load() {
   _hi_cecho " | ${total}s" "$NC" 1
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
-  # with the editors off (the settings.sh that rode says so) nothing of
-  # theirs rode, and $EDITOR stays the target's own
-  local off=" ${_HI_PLUGINS_OFF:-} "
-  if [[ "${off//,/ }" != *" editors "* ]]; then
-    _hi_nano_fallback
-    # vim only: VIMINIT breaks a target that has just vi. Only with the rc
-    # here: a client without the editor, or with vim switched off, sends
-    # none. nvim reads $VIMINIT too and `:source` runs a .lua file as lua, so
-    # a box with nvim and no vim gets init.lua; a command-line `-u` beats
-    # $VIMINIT, so the aliases decide on a box that has both.
-    local vimrc=""
-    [[ -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
-    [[ -z "$vimrc" && -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
-    [[ -n "$vimrc" ]] &&
-      export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
-    # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
-    # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e`
-    # would still open whatever vi the target has. The client's own two stay
-    # two - each tried first for its own variable, the other next - and
-    # sudo -e takes $EDITOR's.
-    local editor visual
-    editor="$(_hi_session_editor "${_HI_CLIENT_EDITOR:-}" "${_HI_CLIENT_VISUAL:-}")"
-    visual="$(_hi_session_editor "${_HI_CLIENT_VISUAL:-}" "${_HI_CLIENT_EDITOR:-}")"
-    [[ -n "$editor" ]] && export EDITOR="$editor" SUDO_EDITOR="$editor"
-    [[ -n "$visual" ]] && export VISUAL="$visual"
-  fi
+  _hi_nano_fallback
+  # vim only: VIMINIT breaks a target that has just vi. Only with the rc
+  # here, and its plugin on in the settings.sh that rode: a client without
+  # the editor, or with vim switched off, sends none. nvim reads $VIMINIT
+  # too and `:source` runs a .lua file as lua, so a box with nvim and no vim
+  # gets init.lua; a command-line `-u` beats $VIMINIT, so the aliases decide
+  # on a box that has both.
+  local vimrc="" off=" ${_HI_PLUGINS_OFF:-} "
+  off="${off//,/ }"
+  [[ "$off" != *" vim "* && -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
+  [[ -z "$vimrc" && "$off" != *" nvim "* && -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
+  [[ -n "$vimrc" ]] &&
+    export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
+  # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
+  # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e`
+  # would still open whatever vi the target has. The client's own two stay
+  # two - each tried first for its own variable, the other next - and
+  # sudo -e takes $EDITOR's.
+  local editor visual
+  editor="$(_hi_session_editor "${_HI_CLIENT_EDITOR:-}" "${_HI_CLIENT_VISUAL:-}")"
+  visual="$(_hi_session_editor "${_HI_CLIENT_VISUAL:-}" "${_HI_CLIENT_EDITOR:-}")"
+  [[ -n "$editor" ]] && export EDITOR="$editor" SUDO_EDITOR="$editor"
+  [[ -n "$visual" ]] && export VISUAL="$visual"
   # the greeting and its three timers are a line of their own, not part of
   # the header: they survive $_HI_DISABLE_HEADER and answer to their own
   # toggle

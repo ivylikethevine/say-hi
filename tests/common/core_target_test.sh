@@ -294,18 +294,19 @@ function test_prompt_row_reads_the_plugin_rows() {
   ! _HI_PROMPT_PLUGINS="fancy|bash zsh|bin|-" _hi_prompt_row bin row 2>/dev/null
 }
 
-# _hi_hook_on: the off list wins by name or group, a plain name is on, and a
-# name with a leading - (off by default) needs the on list to name it or its
-# group, commas or spaces apart
+# _hi_hook_on: the off list wins by name, a plain name is on, and a name
+# with a leading - (off by default) needs the on list to name it, commas or
+# spaces apart; its group's word switches nothing in either
 function test_hook_on_reads_both_lists() {
-  _hi_hook_on hooks zoxide &&
-    ! _HI_PLUGINS_OFF=zoxide _hi_hook_on hooks zoxide &&
-    ! _HI_PLUGINS_OFF="cli,hooks" _hi_hook_on hooks zoxide &&
-    ! _hi_hook_on hooks -zoxide &&
-    _HI_PLUGINS_ON=zoxide _hi_hook_on hooks -zoxide &&
-    _HI_PLUGINS_ON="cli,hooks" _hi_hook_on hooks -zoxide &&
-    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=hooks _hi_hook_on hooks -zoxide &&
-    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=zoxide _hi_hook_on hooks -zoxide
+  _hi_hook_on zoxide &&
+    ! _HI_PLUGINS_OFF=zoxide _hi_hook_on zoxide &&
+    ! _HI_PLUGINS_OFF="bat,zoxide" _hi_hook_on zoxide &&
+    _HI_PLUGINS_OFF="cli,hooks" _hi_hook_on zoxide &&
+    ! _hi_hook_on -zoxide &&
+    _HI_PLUGINS_ON=zoxide _hi_hook_on -zoxide &&
+    _HI_PLUGINS_ON="atuin zoxide" _hi_hook_on -zoxide &&
+    ! _HI_PLUGINS_ON="cli,hooks" _hi_hook_on -zoxide &&
+    ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=zoxide _hi_hook_on -zoxide
 }
 
 # _hi_run_init fills {shell} in, runs the command only where its first word
@@ -325,10 +326,10 @@ function test_run_init_runs_what_the_tool_prints() {
   _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell};x.-off=hi-init-tool off {shell};x.gone=hi-no-such init {shell}" \
     PATH="$p:$PATH" _hi_run_hooks bash || return 1
   [ "${_hi_ri_got:-}" = "init bash" ] || _hi_because "hooks ran: ${_hi_ri_got:-}" || return 1
-  _HI_HOOKS="x.-off=hi-init-tool off {shell}" _HI_PLUGINS_ON=x PATH="$p:$PATH" _hi_run_hooks fish || return 1
+  _HI_HOOKS="x.-off=hi-init-tool off {shell}" _HI_PLUGINS_ON=off PATH="$p:$PATH" _hi_run_hooks fish || return 1
   [ "${_hi_ri_got:-}" = "off fish" ] || _hi_because "a default-off hook on: ${_hi_ri_got:-}" || return 1
   unset _hi_ri_got
-  _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell}" _HI_PLUGINS_OFF=x PATH="$p:$PATH" _hi_run_hooks bash || return 1
+  _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell}" _HI_PLUGINS_OFF=hi-init-tool PATH="$p:$PATH" _hi_run_hooks bash || return 1
   [ -z "${_hi_ri_got:-}" ] || _hi_because "a hook off ran" || return 1
   _HI_PROMPT_INITS="a=a start {shell};omp=oh-my-posh init {shell} --config x" _hi_prompt_init omp got &&
     [ "$got" = "oh-my-posh init {shell} --config x" ] || _hi_because "init row: $got" || return 1

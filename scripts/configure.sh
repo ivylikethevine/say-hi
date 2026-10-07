@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # The settings wizard behind `hi --configure` (and the second half of a plain
-# install): one flat menu of every setting under a live preview, and the one
-# write to $_HI_SETTINGS. Sourced by scripts/install.sh after
+# install): one menu of every setting, a page a section under a live preview,
+# and the one write to $_HI_SETTINGS. Sourced by scripts/install.sh after
 # common/core.sh and scripts/table.sh; not an entry point of its own.
 # run_configure at the bottom is the sequence. The live previews are
 # configure_preview.sh and the menu configure_menu.sh, each sourced from here
@@ -377,8 +377,8 @@ function _hi_prompt_rows() {
 _HI_PRESETS=(
   "everything|the shipped defaults - every feature and header item on, the alias opt-ins off|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
-  "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=editors _HI_DISABLE_LOCAL=1"
-  "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=editors,cli,mux,shell,prompt _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
+  "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
+  "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
@@ -517,7 +517,7 @@ function configure_intro() {
   [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
   case "$file" in "$HOME"/*) file="~${file#"$HOME"}" ;; esac
   _hi_menu_cols _HI_MENU_W
-  _hi_menu_say "The preview shows a session at your current settings. A section's letter opens its page, [b] comes back; a number flips a setting or asks for its value, from any page." "$BLUE"
+  _hi_menu_say "A row's key opens its page and [b] comes back; a number flips a setting or asks for its value, from any page." "$BLUE"
   _hi_menu_say "Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
   _hi_menu_say "settings: $file ($state)" "$BLUE"
 }

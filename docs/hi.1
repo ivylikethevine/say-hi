@@ -437,10 +437,11 @@ lines that differ are printed.
 .TP
 .B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
 edit the settings alone, leaving the rc wiring and the link be: a numbered
-menu under a live preview of the header and prompt, grouped by what a
-setting changes: Header (its items to toggle and reorder, header presets,
-width, hidden addresses, right under the header they change), Package
-check (its groups), Prompt, Plugins, Aliases, This machine, and Advanced.
+menu, a table of its pages by what a setting changes: whether this machine
+and the targets are styled at all, Header (its width and hidden addresses,
+its cells to toggle and reorder, header presets, and the package check's
+groups, each under a live preview), Prompt, Plugins (a page a group, a row
+a plugin), Aliases, and Advanced.
 .B p
 picks a preset
 .RB ( everything ,
@@ -593,14 +594,7 @@ or of
 switch plugins off for every target: a plugin that is off sends no file and
 sets nothing there, so the tool keeps the target's own config.
 .I name
-is a plugin, a group
-.RB ( editors ,
-.BR mux ,
-.BR prompt ,
-.BR cli ,
-.BR shell ,
-or a table of your own plugins file),
-or a member, as
+is a plugin or a member, as
 .B hi \-\-plugins
 lists them, or one file of a member that is a directory
 .RB ( extensions/10\-kube ).
@@ -626,7 +620,7 @@ table of
 for the configs of a tool hi does not know, or your own plugin for one it
 does:
 .I group
-is the word that switches it with its kind,
+is the section it is listed under,
 .I name
 its own word and its name in a report, and each
 .I file
@@ -767,7 +761,7 @@ and
 .B \-\-unset\-color
 the four pin types,
 .B \-\-plugin\-off
-the plugins and their groups,
+the plugins,
 .B \-\-plugin\-on
 the ones that are off,
 .B \-\-remove\-plugin
@@ -1107,7 +1101,7 @@ one;
 overrides it once.
 .TP
 .B _HI_PLUGINS_ON
-the plugins or groups that are off by default (the shipped
+the plugins that are off by default (the shipped
 .BR hooks :
 zoxide, atuin, direnv, mise) and should ride and run anyway;
 .B \-\-plugin\-on

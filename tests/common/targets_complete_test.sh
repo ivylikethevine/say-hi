@@ -522,17 +522,17 @@ function test_words_color_types_match_set_color() {
   [ -n "$types" ] && [ "$out" = "$types " ]
 }
 
-# --plugin-off: every group and plugin of the tree's plugins file, read as
-# text, then the overlay's; a file's own table, a member, and hi's own files
+# --plugin-off: every plugin of the tree's plugins file, read as text, then
+# the overlay's; a group, a file's own table, a member, and hi's own files
 # (colors, settings.sh) are no words
-function test_words_plugin_off_lists_groups_plugins_and_carry_members() {
+function test_words_plugin_off_lists_the_plugins() {
   local out cfg="$_HI_WORKDIR/words-plugins"
   mkdir -p "$cfg"
   printf '# mine\n[mine.task]\n  wire   =   "env:TASKRC"\nfiles = "taskrc"\n  [ mine . b ] # mine too\nfiles = "b.rc b.d/"\nbad line\n[mine.b."b.d/"]\nwire = "-"\n' >"$cfg/plugins"
   out=" $(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --plugin-off | cut -f1 | tr '\n' ' ')"
-  [[ "$out" == *" editors "* && "$out" == *" vim "* && "$out" == *" hx "* && "$out" == *" readline "* ]] &&
-    [[ "$out" == *" micro "* && "$out" == *" extensions "* && "$out" == *" mine "* && "$out" == *" task "* && "$out" == *" b "* ]] &&
-    [[ "$out" != *" colors "* && "$out" != *" settings.sh "* && "$out" != *" bad "* && "$out" != *" taskrc "* && "$out" != *"b.d"* ]] ||
+  [[ "$out" == *" vim "* && "$out" == *" hx "* && "$out" == *" readline "* ]] &&
+    [[ "$out" == *" micro "* && "$out" == *" extensions "* && "$out" == *" task "* && "$out" == *" b "* ]] &&
+    [[ "$out" != *" editors "* && "$out" != *" mine "* && "$out" != *" colors "* && "$out" != *" settings.sh "* && "$out" != *" bad "* && "$out" != *" taskrc "* && "$out" != *"b.d"* ]] ||
     _hi_because "offered: $out"
 }
 
@@ -542,7 +542,7 @@ function test_words_plugin_off_match_the_table() {
   local out want w
   out=" $(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --plugin-off | cut -f1 | tr '\n' ' ')"
   want="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" bash -c '
-    set -- && source "$_HI_LAUNCHER" && source "$_HI_ROOT/scripts/lib.sh" && _hi_plugin_rows' | cut -d"|" -f1,2 | tr "|" "\n" | sort -u)"
+    set -- && source "$_HI_LAUNCHER" && source "$_HI_ROOT/scripts/lib.sh" && _hi_plugin_rows' | cut -d"|" -f1 | sort -u)"
   [ -n "$want" ] || return 1
   for w in $want; do
     case "$out" in *" $w "*) ;; *) _hi_because "targets.sh does not offer $w: $out" || return 1 ;; esac
@@ -554,10 +554,10 @@ function test_words_plugin_off_match_the_table() {
 function test_words_plugin_on_and_remove_read_the_overlay() {
   local out cfg="$_HI_WORKDIR/words-plugins-on"
   mkdir -p "$cfg"
-  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=old\nexport _HI_PLUGINS_OFF="bat, editors"\n' >"$cfg/settings.sh"
+  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=old\nexport _HI_PLUGINS_OFF="bat, vim"\n' >"$cfg/settings.sh"
   printf '[mine.task]\nfiles = "taskrc"\n[cli.b]\nfiles = "b.rc b.d/"\n[cli.b."b.d/"]\nwire = "-"\n' >"$cfg/plugins"
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --plugin-on | cut -f1 | tr '\n' ' ')"
-  [ "$out" = "bat editors " ] || _hi_because "--plugin-on offered: $out" || return 1
+  [ "$out" = "bat vim " ] || _hi_because "--plugin-on offered: $out" || return 1
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --remove-plugin | cut -f1 | tr '\n' ' ')"
   [ "$out" = "task b " ] || _hi_because "--remove-plugin offered: $out" || return 1
   [ -z "$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --add-plugin)" ] &&
@@ -607,7 +607,7 @@ function run_targets_complete_tests() {
   _hi_check "--remove-package lists each row's key" test_words_remove_package_lists_first_packages
   _hi_check "--set-color and --unset-color list the four types" test_words_set_and_unset_color_list_the_four_types
   _hi_check "...which are set_color.sh's own" test_words_color_types_match_set_color
-  _hi_check "--plugin-off lists groups and plugins, the overlay's too" test_words_plugin_off_lists_groups_plugins_and_carry_members
+  _hi_check "--plugin-off lists the plugins, the overlay's too" test_words_plugin_off_lists_the_plugins
   _hi_check "...every word hi.sh's own reading gives" test_words_plugin_off_match_the_table
   _hi_check "--plugin-on and --remove-plugin read the overlay" test_words_plugin_on_and_remove_read_the_overlay
 

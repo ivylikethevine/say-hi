@@ -27,10 +27,11 @@ function _hi_run_env() {
 # _hi_run_install <home-name> <flag...> - the scratch tree's install.sh, for
 # the modes that reach outside $HOME: --uninstall walks unlink_hi past
 # /usr/bin/hi, which on a box with say-hi installed points at the real one.
+# Both streams as one, through _hi_run_said: every mode says something.
 function _hi_run_install() {
   local home="$1"
   shift
-  _hi_run_env "$home" bash "$_HI_RUN_TREE/scripts/install.sh" "$@"
+  _hi_run_said --both "install.sh $*" _hi_run_env "$home" bash "$_HI_RUN_TREE/scripts/install.sh" "$@"
 }
 
 # _hi_run_install_here <home-name> <flag...> - this checkout's own install.sh
@@ -46,7 +47,7 @@ function _hi_run_install_here() {
   local home="$_HI_WORKDIR/$1"
   shift
   mkdir -p "$home"
-  env HOME="$home" TERM="${TERM:-xterm-256color}" SHELL=/bin/bash \
+  _hi_run_said --both "install.sh $*" env HOME="$home" TERM="${TERM:-xterm-256color}" SHELL=/bin/bash \
     XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
     bash "$_HI_ROOT/scripts/install.sh" "$@" </dev/null
 }

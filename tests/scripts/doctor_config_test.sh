@@ -161,12 +161,12 @@ function test_config_reports_what_is_switched_off() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="cli nosuch" doctor_config
+    _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="bat nosuch" doctor_config
   )"
   [[ "$out" == *"bat/config (bat)"*"not sent - switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "bat: $out" || return 1
   [[ "$out" == *"nano/nanorc (nano)"* && "$out" != *"nano/nanorc (nano)"*"not sent"*"_HI_DISABLE_NANO"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *"_HI_DISABLE_NANO"*"is ignored"* ]] || _hi_because "the old toggle: $out" || return 1
-  [[ "$out" == *"_HI_PLUGINS_OFF"*"'cli nosuch' is ignored"* ]] || _hi_because "the list: $out"
+  [[ "$out" == *"_HI_PLUGINS_OFF"*"'bat nosuch' is ignored"* ]] || _hi_because "the list: $out"
 }
 
 # tmux's and micro's configs come from home like a tool's: the file in force
@@ -846,6 +846,25 @@ function test_secret_awk_reads_a_fish_set() {
   [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "1 " ]
 }
 
+# an alias that names a variable behind a backslash sets nothing, and the
+# same alias with a literal does
+function test_secret_awk_passes_an_escaped_reference() {
+  local f="$_HI_WORKDIR/secret.alias"
+  # shellcheck disable=SC2016
+  printf '%s\n' 'alias c="GH_TOKEN=\$RO_TOKEN cmd"' 'alias d="GH_TOKEN=abc123 cmd"' >"$f"
+  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "2 " ]
+}
+
+# a name inside another variable's value starts no assignment: LS_COLORS's
+# entry for a file called passwd, in either spelling, against a flag's value
+function test_secret_awk_passes_a_name_inside_a_value() {
+  local f="$_HI_WORKDIR/secret.colors"
+  printf '%s\n' "export LS_COLORS='di=01;34:*passwd=0;38:*.token=1;31'" \
+    "set -gx LS_COLORS 'di=01;34:*passwd=0;38'" \
+    'alias m="mysql --password=abc123"' >"$f"
+  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "3 " ]
+}
+
 # in the fixture because the row reads their names off common/aliases.sh.
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_values_set_in_aliases_sh() {
@@ -947,6 +966,8 @@ function run_doctor_config_tests() {
   _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
   _hi_check "A secret-shaped line in a riding file is named" test_config_flags_a_secret_in_a_riding_file
   _hi_check "...in the set spelling of fish too" test_secret_awk_reads_a_fish_set
+  _hi_check "...but not an alias's escaped \$variable" test_secret_awk_passes_an_escaped_reference
+  _hi_check "...nor a name inside another variable's value" test_secret_awk_passes_a_name_inside_a_value
   _hi_check "neovim's modules are named as staying home" test_config_names_the_nvim_modules_that_stay_home
   _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
   _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one

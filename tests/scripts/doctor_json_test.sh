@@ -18,11 +18,7 @@ source "${BASH_SOURCE[0]%/*}/doctor_test.sh"
 # not in whoever reads the bug report. The shims give it rows of every
 # severity but bad, so the count is asserted at 0 against the exit code.
 function _hi_doctor_json() {
-  local home
-  home="$(_hi_doctor_home)"
-  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
-  _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --json "$@"
+  _hi_doctor_run --json "$@"
 }
 
 function test_json_is_a_document_with_the_report_in_it() {
@@ -49,12 +45,9 @@ assert any(r["label"] == "nomad" and "not installed" in r["text"] for r in d["ro
 # resolves to the ssh shim, which answers the tool probe from $HI_FAKE_TOOLS -
 # both named, so the report is clean and the exit code 0
 function test_json_takes_a_target_either_side_of_the_flag() {
-  local a b home
-  home="$(_hi_doctor_home)"
+  local a b
   a="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_json 'run"ning\box')" || return 1
-  b="$(HI_FAKE_TOOLS="base64 bash" PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
-  _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" 'run"ning\box' --json)" || return 1
+  b="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_run 'run"ning\box' --json)" || return 1
   # each parsed on its own rather than compared as text: the probe timings
   # in the rows differ run to run
   printf '%s' "$a" | python3 -c '
@@ -132,13 +125,14 @@ function test_json_is_off_by_default() {
 # generous (the shims answer or fail at once, but a loaded VM is slow), and a
 # difference prints. It found the payload cache serving another tree's
 # payload to one of the two runs - a wire size off by 1K on FreeBSD.
+# Compared as files: a capture is one more place a document can go missing.
 function test_problems_leaves_json_unchanged() {
-  local a b
-  a="$(_HI_PROBE_TIMEOUT=30 _hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
-  b="$(_HI_PROBE_TIMEOUT=30 _hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g')" || true
-  [ -n "$a" ] && [ "$a" = "$b" ] && return 0
+  local a="$_HI_WORKDIR/json.a" b="$_HI_WORKDIR/json.b"
+  _HI_PROBE_TIMEOUT=30 _hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' >"$a" || true
+  _HI_PROBE_TIMEOUT=30 _hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' >"$b" || true
+  [ -s "$a" ] && cmp -s "$a" "$b" && return 0
   _hi_cecho " | the two documents differ:" "$RED"
-  diff <(printf '%s\n' "$a" | tr ',' '\n') <(printf '%s\n' "$b" | tr ',' '\n') | sed 's/^/      /' || true
+  diff <(tr ',' '\n' <"$a") <(tr ',' '\n' <"$b") | sed 's/^/      /' || true
   return 1
 }
 

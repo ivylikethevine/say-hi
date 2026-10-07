@@ -188,12 +188,12 @@ function _hi_editorless_path() {
   _hi_real_path editorless bash sh date awk du mktemp rm mkdir cat sed grep tr cut id hostname uname cksum
 }
 
-# ...and the list's `editors` is the gate, not vim's absence: same fake vim,
-# the editors off, no export
-function test_load_editors_off_blocks_viminit() {
+# ...and the list is the gate, not vim's absence: same fake vim, its plugin
+# and nvim's off (a box may carry a real nvim), no export
+function test_load_vim_off_blocks_viminit() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_PLUGINS_OFF=lazygit,editors \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_PLUGINS_OFF=lazygit,vim,nvim \
     "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
   case "$out" in *"VIM=unset"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
@@ -561,7 +561,7 @@ function run_load_session_tests() {
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
-  _hi_check "The editors off leaves VIMINIT unset" test_load_editors_off_blocks_viminit
+  _hi_check "vim and nvim off leave VIMINIT unset" test_load_vim_off_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$vim|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
@@ -570,7 +570,9 @@ function run_load_session_tests() {
   _hi_check "...one set stands in for the other" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=nano --rcfile $_HI_NANORC|" _HI_CLIENT_EDITOR=nano
   _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$nvim|" _HI_CLIENT_EDITOR=no-such-editor
   _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -config-dir $_HI_WORKDIR/overlay/micro|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
-  _hi_check "The editors off leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_PLUGINS_OFF=editors
+  _hi_check "An editor that is off is passed over" _hi_load_editor_on "E=nano --rcfile $_HI_NANORC|" "$(_hi_fake_path withnvimnano nvim nano):$(_hi_editorless_path)" _HI_PLUGINS_OFF=bat,nvim
+  _hi_check "...its group's word switches none" _hi_load_editor_is "E=$nvim|" _HI_PLUGINS_OFF=editors
+  _hi_check "Every editor off leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" "_HI_PLUGINS_OFF=nvim vim micro hx kak nano emacs"
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
