@@ -21,20 +21,31 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_PLUGINS_TREE=""
 
 # _hi_plugins_run <config> <flag> <args...> - `hi <flag>` over that overlay,
-# at a home of the case's own, with no toggle or list inherited
+# at a home of the case's own, with no toggle or list inherited. What it says
+# goes through a file, so a run that wrote nothing is told on stderr from one
+# whose words the caller's capture lost: Windows arm64 has shown an empty
+# capture from a run that exited 0.
 function _hi_plugins_run() {
-  local cfg="$1"
+  local cfg="$1" rc=0
   shift
   mkdir -p "$cfg.home"
   env -u _HI_PLUGINS_OFF -u _HI_DISABLE_LOCAL \
     HOME="$cfg.home" XDG_CONFIG_HOME="$cfg.home/.config" _HI_CONFIG_DIR="$cfg" \
     _HI_HOME="$_HI_PLUGINS_TREE" NO_COLOR=1 \
-    "$_HI_PLUGINS_TREE/say-hi/hi.sh" "$@" 2>&1
+    "$_HI_PLUGINS_TREE/say-hi/hi.sh" "$@" >"$cfg.said" 2>&1 || rc=$?
+  cat "$cfg.said"
+  [ -s "$cfg.said" ] ||
+    printf ' | hi %s wrote nothing and exited %s; its overlay holds: %s\n' "$*" "$rc" "$(printf '%s ' "$cfg"/*)" >&2
+  return "$rc"
 }
 
-# _hi_plugins_cfg <name> - a fresh overlay directory's path; nothing is made
+# _hi_plugins_cfg <name> - a fresh overlay directory's path; nothing is made.
+# Numbered past what an earlier try of the case left, so a traced rerun
+# starts as clean as the first.
 function _hi_plugins_cfg() {
-  printf '%s' "$_HI_WORKDIR/$1-cfg"
+  local n=1
+  while [ -e "$_HI_WORKDIR/$1-cfg.$n" ] || [ -e "$_HI_WORKDIR/$1-cfg.$n.home" ]; do n=$((n + 1)); done
+  printf '%s' "$_HI_WORKDIR/$1-cfg.$n"
 }
 
 # _hi_plugins_off_line <list> - the line the list is kept on, as the wizard

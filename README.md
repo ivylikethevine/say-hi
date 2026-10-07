@@ -381,36 +381,106 @@ checkout: an account or an upstream review that lands when it lands.
        turns zoxide on and the next connect runs its init.
 
 3. [ ] _Before 1.0:_ **A plugin's init is checked without `tr`** —
-       `scripts/pack.sh`'s `_hi_plugin_init_ok` pipes the init through `tr`,
-       and the macOS fast suites print `tr: command not found` from it where
-       a case runs with a cut-down `PATH`; the cases pass, so nothing shows
-       whether an init is then turned away. **Do:** make the check with
-       builtins that parse under bash 3.2, and add a case that runs it with
-       no `tr` on `PATH`. **Ticks when:** the macOS fast job's log has no
-       `command not found` line from `pack.sh`.
+       shipped: `scripts/pack_plugins.sh`'s `_hi_plugin_init_ok` reads the init with
+       builtins alone, and a case runs it with nothing on `PATH`. What is
+       left is seeing it in CI. **Ticks when:** the macOS fast job's log has
+       no `command not found` line from `pack.sh`.
 
-4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
+4. [ ] _Before 1.0:_ **The secret lint passes a reference and a color** —
+       `scripts/doctor.sh`'s `_HI_SECRET_AWK` flags two lines that hold no
+       secret: an alias that names a variable behind a backslash
+       (`alias c="GH_TOKEN=\$RO_TOKEN cmd"`), since only a bare `$` reads as
+       a reference, and an `LS_COLORS` value, whose `*passwd=0;38` entry
+       reads as a password being set. **Do:** read `\$` as a reference and
+       take a name only where an assignment starts, not inside another
+       variable's value, with a case for each in `doctor_test.sh`. **Ticks
+       when:** `hi --doctor` gives neither line a row with no `hi-allow`
+       comment above it.
 
-5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-       upstream style. **Do:** open the PR against tldr-pages. **Ticks
-       when:** merged.
+5. [ ] _Before 1.0:_ **A listed plugin is colored** — `hi --plugins`
+       draws a plugin's row with a mark for its state and the name plain, so
+       what rides and what stays home read alike down the name column.
+       **Do:** paint the name by its state wherever a plugin is listed, and
+       not at all where color is off. **Ticks when:** `hi --plugins` shows a
+       plugin that rides and one kept home in different colors, and prints
+       no escape under `NO_COLOR`.
 
-6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
+6. [ ] _Before 1.0:_ **A slow case is named** — the runner times a suite,
+       not its cases, so the wizard's menu-number case forking 2,000 times
+       (67s on Git Bash arm64) showed only once it failed there. **Do:**
+       record each case's wall time where its verdict is counted, and have
+       the runner list a run's slowest. **Ticks when:** a Windows shard's
+       log names its ten slowest cases.
 
-7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-       `publish-external.yml`'s `aur` job is written but unexercised. **When
-       it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package once by hand
-       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-       packages are live and a dispatch has kept `say-hi` current for one
-       release.
+7. [ ] _Before 1.0:_ **The doctor suites run the report once a question** —
+       `doctor_json` runs the whole of `scripts/doctor.sh` nine times in
+       seven cases and is the slowest suite on the Git Bash arm64 shards
+       (390s); two of those runs ask for the same bare `--json` document.
+       **Do:** memoize that document as `_hi_doctor_plain_report` does the
+       text report, and put cases that differ only in what they assert on
+       one run. **Ticks when:** no two cases of the doctor suites run the
+       same command line.
+
+8. [ ] _Before 1.0:_ **`hi --doctor` forks under a hundred times** — a run
+       is about 130 forks, down from 710 under `--json`; what is left is
+       git, the payload build, and the remote script, where `hi.sh`'s
+       `_hi_remote_suffix` alone is eight subshells. **Do:** give the
+       helpers those builders call through `$( )` an out-variable where
+       one fits. **Ticks when:** `strace -f -c` over `scripts/doctor.sh`
+       counts under 100 `clone` calls.
+
+9. [ ] _Before 1.0:_ **hi's prompt in a tmux started by hand** — `tmux`
+       typed in a session that is not a kept one opens each pane on the
+       host's own shell, which reads none of hi's rc; only `hi --keep`
+       writes the `hi.pane` launcher and names it the session's
+       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). **Do:** a setting that
+       has a tmux started inside any session open its panes on hi's session
+       shell, through the same launcher, and screen and zellij where theirs
+       can be named the same way. **Ticks when:** with it on, `tmux` typed in
+       a plain `hi <target>` session opens a pane that shows hi's prompt.
+
+10. [ ] _Before 1.0:_ **No file runs past a thousand lines** — seven do,
+        the lockfile aside; every suite and everything under `scripts/` is
+        under it. The payload's: `hi.sh` (2056), `common/core.sh` (1493),
+        `common/header.sh` (1295). Workflows: `ci.yml` (1306), `release.yml`
+        (1083). Docs: `docs/GLOSSARY.md` (1747), `docs/hi.1` (1216). **Do:**
+        split each along the sections it already has; a part of the
+        payload's three rides to every target, so each costs a file there.
+        **Ticks when:** `git ls-files` names no hand-written file over 1,000
+        lines.
+
+11. [ ] _Before 1.0:_ **The release's GIF shows the package check** — the
+        GIF on a release page is `packages.tape`'s (`demos.yml`'s `attach`
+        job), picked for the header's check, and the one attached draws the
+        header without it. The fixture (`docs/tapes/fixtures.sh`,
+        `up:packages`) sets `_HI_PACKAGES_GROUPS` and leaves the default
+        header order, so why the row is missing is not yet known. **Do:**
+        find where the check is lost between the fixture and the render, and
+        have the render fail when the row is not drawn. **Ticks when:** a
+        release's `demo.gif` shows the check's row on both boxes.
+
+12. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+        versions_ prose into its version table.
+
+13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+        upstream style. **Do:** open the PR against tldr-pages. **Ticks
+        when:** merged.
+
+14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+        settle its three flagged rows (`small_tasks`, `secure_2FA`,
+        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+        the live entry matches the sheet.
+
+15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+        `publish-external.yml`'s `aur` job is written but unexercised. **When
+        it reopens:** register, add `AUR_SSH_KEY` to the `release`
+        environment, and push each package once by hand
+        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+        packages are live and a dispatch has kept `say-hi` current for one
+        release.
 
 ## License
 

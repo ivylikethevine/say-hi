@@ -28,8 +28,10 @@ fi
 mkdir -p "$_HI_USAGE_OUT"
 
 _HI_USAGE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/hi-usage.XXXXXX")"
+# Never the exit status: a rootless podman a preview asks leaves storage in
+# the fixture home that only its user namespace can remove
 function usage_cleanup() {
-  case "$_HI_USAGE_TMP" in */hi-usage.??????) rm -rf "$_HI_USAGE_TMP" ;; esac
+  case "$_HI_USAGE_TMP" in */hi-usage.??????) rm -rf "$_HI_USAGE_TMP" 2>/dev/null || : ;; esac
 }
 trap usage_cleanup EXIT
 

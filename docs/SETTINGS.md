@@ -808,7 +808,7 @@ mechanism, including what it cannot see.
 There is no say-hi plugin for chezmoi, yadm, GNU Stow, or a bare `$HOME` repo,
 and there should not be: the overlay is a **plain directory of plain files**,
 so pointing your tool at `~/.config/say-hi` is the whole integration. The
-first two properties below are pinned by `tests/hi/payload_test.sh`.
+first two properties below are pinned by `tests/hi/payload_overlay_test.sh`.
 
 **Symlinks are fine, so Stow works.** hi dereferences on the way out, so a
 target receives real file contents — a symlink per file, or the whole `say-hi`

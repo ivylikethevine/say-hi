@@ -415,6 +415,28 @@ function _hi_real_path() {
   printf '%s' "$dir"
 }
 
+# _hi_path_dirs_of <tool...> - the directories of $PATH holding the named tools,
+# in $PATH's order, colon-joined and printed: a short $PATH for a suite whose
+# code under test probes for tools no runner has. Each miss is a stat of every
+# directory, some 45 on a Windows runner and twice over for `.exe`. Real
+# directories, not _hi_real_path's toolbox, whose wrappers where MSYS makes no
+# symlink cost a fork a call. A tool this machine lacks adds nothing, and
+# `type -P` to a file is no fork.
+function _hi_path_dirs_of() {
+  local real d found=":" out="" IFS
+  type -P "$@" >"$_HI_WORKDIR/tool-dirs" 2>/dev/null || :
+  while IFS= read -r real; do
+    found="$found${real%/*}:"
+  done <"$_HI_WORKDIR/tool-dirs"
+  IFS=:
+  for d in $PATH; do
+    case "$found" in *":$d:"*) ;; *) continue ;; esac
+    case ":$out:" in *":$d:"*) continue ;; esac
+    out="$out${out:+:}$d"
+  done
+  printf '%s' "${out:-$PATH}"
+}
+
 # _hi_git_fixture - a fresh one-commit repo on a branch literally named "main"
 # (forced via symbolic-ref, so git's initial-branch config can't decide it),
 # printed. Built once per suite as a template, then copied per call: every

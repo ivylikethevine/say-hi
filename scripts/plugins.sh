@@ -285,11 +285,13 @@ function _hi_plugins_switch() {
 # _hi_plugin_group_default <group> - off when every hook plugin of that
 # group is off by default and the group has one; else on
 function _hi_plugin_group_default() {
-  local _hi_gd_r _hi_gd_any=""
+  local _hi_gd_r _hi_gd_c _hi_gd_any=""
   for _hi_gd_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
-    [ "$(_hi_hook_col "$_hi_gd_r" group)" = "$1" ] || continue
+    _hi_hook_col "$_hi_gd_r" group _hi_gd_c
+    [ "$_hi_gd_c" = "$1" ] || continue
     _hi_gd_any=1
-    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $(_hi_hook_col "$_hi_gd_r" name) "*) ;; *)
+    _hi_hook_col "$_hi_gd_r" name _hi_gd_c
+    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_gd_c "*) ;; *)
       printf on
       return 0
       ;;

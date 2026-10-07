@@ -45,8 +45,8 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 
 - `ci` is the checks a second platform could only repeat - the workflows and
   manifests read as text, and the release tooling only Ubuntu runs
-  (`packaging_ci`, a file of its own beside `packaging`'s portable half, and
-  `test_runner_ci`, `runner_test.sh`'s ci part). Ubuntu's fast job runs it;
+  (`packaging_ci` and its four parts, files of their own beside `packaging`'s
+  portable half, and `test_runner_ci`, `runner_test.sh`'s ci part). Ubuntu's fast job runs it;
   `release.yml` runs it against the bumped manifests.
 - A passing suite's transcript collapses to one status line; failures replay
   in full and are recapped under the summary table. `--verbose`
@@ -62,6 +62,10 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   x64, the least loaded platform, a flake is a failure like any other
   (`_HI_FLAKY_OK=1`/`0` overrides either way). Not for a failure
   that took over 20s, nor under the coverage sweeps (`_HI_TRACE_RERUN=0`).
+  Where a flake may pass, an _output probe_ line comes ahead of the rerun:
+  how many of 20 captures came back short from a subshell, a child bash, and
+  a process substitution, and from a child bash writing a file, with the
+  runtime's version and the load.
 - Suites running side by side replay only once the last one finishes, so a
   progress line fills the wait (finished suites, cases, failures, elapsed,
   what is still running): redrawn in place at a terminal, a line per finished
@@ -186,10 +190,13 @@ _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisect
 _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can take it
 ```
 
-The pty-driven cases (`configure`, `install`, `rc_lines`) kill their child
-after 60s and count it a failure; `_HI_CASE_TIMEOUT` raises that deadline on a
-host slow for reasons the suites cannot fix, as `_HI_SSH_CASE_TIMEOUT` (90s)
-does for the ssh cases. The login shells `_hi_login_env` starts
+The pty-driven cases (`configure_pty`, `install_run`) kill a child that has
+written nothing to its transcript for 60s, or has run five times that, and
+count it a failure: a slow host still drawing is not a wedge. A killed case
+prints the host's load and the last lines it drew. `rc_lines`' one pty case
+keeps a plain 60s. `_HI_CASE_TIMEOUT` raises the deadline on a host slow for
+reasons the suites cannot fix, as `_HI_SSH_CASE_TIMEOUT` (90s) does for the
+ssh cases. The login shells `_hi_login_env` starts
 (`install_location`'s dialect pass) are bounded the same way at 180s by
 `_HI_LOGIN_TIMEOUT`: unbounded, one that wedges shows only as a case count that
 stops moving, for as long as the job allows.
@@ -333,11 +340,16 @@ Written down as not races:
   their callers are serial, as every caller is; build one before a
   `_hi_par_begin`, never inside a parallel case.
 
-Instrumented, not yet explained: on Windows arm64, `hi_payload`'s include
+Instrumented, not yet explained: on Windows arm64, `hi_payload_scan`'s include
 scan cases have left an empty overlay stream with no error of their own
 (gzip then reports "unexpected end of file"). The suite wraps
 `_hi_overlay_tar` to print its exit status and stderr, so the next one names
-its cause.
+its cause. The same runners (an x64 MSYS runtime, emulated) have handed a
+capture nothing from a `hi` run that exited 0, and a process substitution
+nothing from a list that was there a call earlier. The output probe above
+says whether the host is dropping output at that moment and from which
+writer; `plugins_test.sh` runs `hi` into a file and names a run that wrote
+nothing, which tells a silent run from a capture that lost its words.
 
 ### The images are files; the build contexts are not
 
@@ -404,9 +416,9 @@ shipping an image with the framework missing.
 
 ## The lint gate
 
-`--group lint` is four suites, twenty-eight checks between them. Each suite is
-its own process (`shellcheck`, `dialects`, `tools`, `drift`) with its own
-tally in the summary table, so a failure in one never hides what the others
+`--group lint` is five suites, twenty-eight checks between them. Each suite is
+its own process (`shellcheck`, `dialects`, `tools`, `drift`, `drift_docs`)
+with its own tally in the summary table, so a failure in one never hides what the others
 found.
 
 CI's `lint suites` job passes `--require-run`, so a check that skips yellow
@@ -484,8 +496,9 @@ skipping yellow when its tool isn't installed (CI has all seven):
   `prettier --write --plugin ./.github/prettier-plugin-docs.mjs` on the paths
   it names.
 
-**`drift`** (`tests/lint/drift_test.sh`) — sixteen repo-consistency sweeps,
-each checking that something written down elsewhere still agrees with the tree:
+**`drift`** (`tests/lint/drift_test.sh`, and `drift_docs_test.sh` for the five
+over the docs: 18, 19, 22, 23, 24) — sixteen repo-consistency sweeps, each
+checking that something written down elsewhere still agrees with the tree:
 
 - **13. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
   `${x,,}`, `wait -n`, or `${!a[@]+…}` — each explained in

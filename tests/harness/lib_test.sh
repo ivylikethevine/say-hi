@@ -355,6 +355,39 @@ function test_wait_pid_skips_the_hook_on_a_clean_exit() {
   [ ! -f "$marker" ]
 }
 
+# _hi_wait_quiet's deadline is silence, not age: a child still writing its
+# transcript outlives it, a silent one is killed and what it had drawn is
+# shown, and one that never stops meets the cap at five times the deadline
+function test_wait_quiet_outlives_the_deadline_while_writing() {
+  local out="$_HI_WORKDIR/quiet-writing.out"
+  : >"$out"
+  bash -c 'for i in 1 2 3 4 5 6; do echo "line $i"; sleep 0.5; done' >"$out" &
+  _hi_wait_quiet "$!" 1 "$out" writing >/dev/null
+  [ "$_HI_WAIT_EXIT" -eq 0 ] && [ "$(wc -l <"$out")" -eq 6 ]
+}
+
+function test_wait_quiet_kills_a_silent_child_and_shows_its_last_lines() {
+  local out="$_HI_WORKDIR/quiet-silent.out" said pid
+  : >"$out"
+  bash -c 'echo "the question it was left at"; sleep 30' >"$out" &
+  pid=$!
+  said="$(_hi_wait_quiet "$pid" 1 "$out" silent 2>&1 && printf 'exit=%s' "$_HI_WAIT_EXIT")"
+  # the kill was a subshell's: reaped here, or the pid still answers
+  wait "$pid" 2>/dev/null || true
+  [[ "$said" == *"[silent] -- TIMED OUT"*"the question it was left at"*"exit=124" ]] ||
+    _hi_because "said: $said" || return 1
+  ! kill -0 "$pid" 2>/dev/null
+}
+
+function test_wait_quiet_caps_a_child_that_never_stops() {
+  local out="$_HI_WORKDIR/quiet-endless.out" pid t0=$SECONDS
+  : >"$out"
+  bash -c 'while :; do echo more; sleep 0.3; done' >"$out" &
+  pid=$!
+  _hi_wait_quiet "$pid" 1 "$out" endless >/dev/null
+  [ "$_HI_WAIT_EXIT" -eq 124 ] && [ $((SECONDS - t0)) -ge 5 ] && ! kill -0 "$pid" 2>/dev/null
+}
+
 # The verdict's one look at the exit code. A case that was SIGKILLed at its
 # deadline (124) fails even with every marker in the transcript - a case that
 # echoes its marker and then hangs would otherwise read OK. Any other status
@@ -660,6 +693,9 @@ function run_lib_process_tests() {
   _hi_check "Case result keeps OK on an odd exit with the marker" test_case_result_keeps_ok_on_an_odd_exit_with_the_marker
   _hi_check "Case result names a timeout" test_case_result_says_timed_out_by_name
   _hi_check "Skips the hook on a clean exit" test_wait_pid_skips_the_hook_on_a_clean_exit
+  _hi_check "Wait_quiet lets a child that is still writing run on" test_wait_quiet_outlives_the_deadline_while_writing
+  _hi_check "...kills a silent one, and shows what it had drawn" test_wait_quiet_kills_a_silent_child_and_shows_its_last_lines
+  _hi_check "...and caps one that never stops" test_wait_quiet_caps_a_child_that_never_stops
 
   _hi_h2 "Testing: _hi_exec_case retries"
   _hi_check "A markerless first attempt succeeds on the retry" test_exec_case_retries_a_markerless_first_attempt
