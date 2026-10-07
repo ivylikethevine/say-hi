@@ -102,10 +102,11 @@ EOF
     ;;
   configure)
     cat <<EOF
-Revisit the settings, leaving the rc wiring and the hi link alone: a preview
-of the header and prompt, then a page each for Header, Package check, Prompt,
-Plugins, Aliases, This machine, and Advanced, p for a preset, s to save, q to
-leave the file alone. Answers go to
+Revisit the settings, leaving the rc wiring and the hi link alone: a table of
+the pages - Header with its cells and package check, Prompt, Plugins and a
+page a group of them, Aliases, and Advanced - with l and t for whether this
+machine and the targets are styled, p for a preset, s to save, q to leave
+the file alone. Answers go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
   --preset <name>  Answer the feature and header settings from a

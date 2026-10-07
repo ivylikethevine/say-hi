@@ -587,39 +587,80 @@ function test_check_preview_says_when_nothing_shows() {
   [[ "$(_hi_check_preview_at "export _HI_HEADER_ORDER='utc gitid'")" == *"the check item is off"* ]]
 }
 
-# _hi_plugins_grid_cells <grid> - a plugins grid's cell names, in order
-function _hi_plugins_grid_cells() {
-  printf '%s\n' "$1" | grep -oE '[0-9]+\) \[[x ]\] [^ ]+' | sed 's/.*\] //' | paste -sd' ' -
-}
-
-# _hi_plugins_page <width> <kept> - the Plugins page's rows at that width,
-# with <kept> the list kept home
+# _hi_plugins_page <width> <page> <kept> - the plugins' rows of <page> ("" the
+# main page's table, g the Plugins page, g<N> a group's) at that width, with
+# <kept> the list kept home
 function _hi_plugins_page() {
-  local dir line="" _HI_SETTINGS _HI_MENU_DRAW=1 _HI_MENU_W="$1" _HI_MENU_SUM_VALS=""
-  local -a _HI_SETTING_PENDING=() _HI_MENU_ITEMS=() _HI_MENU_PLUGINS=()
+  local dir line="" _HI_SETTINGS _HI_MENU_DRAW=0 _HI_MENU_W="$1" _HI_MENU_PAGE="$2" _HI_MENU_TW=$(($1 - 30))
+  local -a _HI_SETTING_PENDING=() _HI_MENU_ITEMS=() _HI_MENU_PLUGINS=() _HI_MENU_GROUPS=()
   dir="$(mktemp -d "$_HI_WORKDIR/pluginspage.XXXXXX")" || return 1
   _HI_SETTINGS="$dir/settings.sh"
-  [ -z "$2" ] || line="export _HI_PLUGINS_OFF='$2'"
+  [ -z "$3" ] || line="export _HI_PLUGINS_OFF='$3'"
   printf '#!/bin/sh\n%s\n' "$line" >"$_HI_SETTINGS"
-  _hi_strip_ansi "$(_hi_menu_plugins)"
+  [ "$2" != g ] || _HI_MENU_DRAW=1
+  _hi_menu_plugins
 }
 
-# the plugins grid: a group leads its line and its plugins wrap under the
-# first of them at the menu's width, two cells a line at the narrowest, in
-# _hi_plugin_states' order; a group in the list shows off, and so do its
-# plugins
-function test_plugins_page_wraps_at_the_menu_width() {
-  local narrow wide want
-  narrow="$(_hi_plugins_page 40 '')"
-  wide="$(_hi_plugins_page 200 '')"
-  want="$(_hi_plugin_states '' | awk -F'|' '{ print ($2 == "" ? $1 : $2) }' | paste -sd' ' -)"
-  [ -n "$want" ] && [ "$(_hi_plugins_grid_cells "$narrow")" = "$want" ] &&
-    [ "$(_hi_plugins_grid_cells "$wide")" = "$want" ] || _hi_because "cells: [$narrow] want [$want]" || return 1
-  [ "$(printf '%s\n' "$narrow" | awk '{ n = gsub(/[0-9]+\) \[[x ]\] /, "&"); if (n > m) m = n } END { print m }')" = 2 ] &&
-    [ "$(printf '%s\n' "$narrow" | wc -l)" -gt "$(printf '%s\n' "$wide" | wc -l)" ] || _hi_because "no wrap: [$narrow]" || return 1
-  [[ "$wide" == *"[x] editors"* && "$wide" == *"[x] nano"* ]] || _hi_because "all on: [$wide]" || return 1
-  wide="$(_hi_plugins_page 200 editors)"
-  [[ "$wide" == *"[ ] editors"* && "$wide" == *"[ ] nano"* ]] || _hi_because "editors off: [$wide]"
+# every plugin of the plugins files has a line, under its group's: whether it
+# rides, whether it is off by default, its program and config as found here,
+# and what its table's comment says of it
+function test_plugin_states_list_every_plugin() {
+  local out
+  out="$(_hi_plugin_states '' '')"
+  [[ "$out" == *$'\n'"editors||1|0"$'\n'* && "$out" == *$'\n'"hooks||0|1"$'\n'* ]] || _hi_because "groups: $out" || return 1
+  [[ "$out" == *$'\n'"editors|nano|1|0|nano|"[01]"|1|nano starts on your nanorc"$'\n'* ]] || _hi_because "nano: $out" || return 1
+  [[ "$out" == *$'\n'"editors|kak|1|0|kak|"[01]"|0|"* ]] || _hi_because "kak: $out" || return 1
+  [[ "$out" == *$'\n'"hooks|zoxide|0|1|zoxide|"[01]"|-|z jumps to the directories you visit"* ]] || _hi_because "zoxide: $out" || return 1
+  [[ "$out" == *$'\n'"shell|bash|1|0|-|-|0|"* ]] || _hi_because "bash: $out" || return 1
+  out="$(_hi_plugin_states 'editors' 'zoxide')"
+  [[ "$out" == *$'\n'"editors||0|0"$'\n'* && "$out" == *"editors|nano|0|0|"* && "$out" == *"hooks|zoxide|1|1|"* ]] ||
+    _hi_because "under the lists: $out"
+}
+
+# a plugin of the user's own file says what its hook or its wire does, and
+# takes the comment above its table once it has one
+function test_plugin_states_describe_a_plugin_of_yours() {
+  local h="$_HI_WORKDIR/plugins-own" out
+  mkdir -p "$h"
+  printf '%s\n' '[cli.task]' 'wire = "env:TASKRC"' 'files = "taskrc"' '' \
+    '# task lists what is due. And more.' '[cli.due]' 'init = "due init {shell}"' >"$h/plugins"
+  out="$(_HI_CONFIG_DIR="$h" _hi_plugin_states '' '')"
+  [[ "$out" == *"cli|task|1|0|task|"[01]"|0|points \$TASKRC at your config"* ]] || _hi_because "task: $out" || return 1
+  [[ "$out" == *"cli|due|1|0|due|"[01]"|-|task lists what is due"$'\n'* ]] || _hi_because "due: $out"
+}
+
+# a group's page is a row a plugin: its box, its name, the marks for its
+# program and its config, and what a target gets; under 60 columns the box,
+# the name, and the marks. editors is g2, the second group by name; the
+# suite's overlay holds nano's rc and none of kak's.
+function test_plugins_page_draws_a_row_a_plugin() {
+  local page line
+  page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g2 '')")"
+  [[ "$page" == *"plugin "*"program  config  on a target"* && "$page" == *") [x] editors "* ]] || _hi_because "head: [$page]" || return 1
+  line="$(grep -F ') [x] nano ' <<<"$page")"
+  [[ "$line" == *"$_HI_MARK_OK       nano starts on your nanorc" ]] || _hi_because "nano: [$line]" || return 1
+  line="$(grep -F ') [x] kak ' <<<"$page")"
+  [[ "$line" == *"$_HI_MARK_NO       kakoune reads your kakrc and colors" ]] || _hi_because "kak: [$line]" || return 1
+  [[ "$page" != *") [x] bat"* ]] || _hi_because "another group's plugin: [$page]" || return 1
+  page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g2 editors)")"
+  [[ "$page" == *") [ ] editors "* && "$page" == *") [ ] nano "* ]] || _hi_because "editors off: [$page]" || return 1
+  page="$(_hi_strip_ansi "$(_hi_plugins_page 40 g2 '')")"
+  [[ "$page" == *") [x] nano "* && "$page" != *"nano starts"* && "$page" != *"on a target"* ]] || _hi_because "narrow: [$page]"
+}
+
+# the main page's table and the Plugins page have a row a group, its plugins
+# named in the color of their state: one kept home is not one that rides
+function test_plugins_rows_name_each_group() {
+  local page off rides
+  page="$(_hi_strip_ansi "$(_hi_plugins_page 80 '' '')")"
+  [[ "$page" == *" Plugins "*" ride"*" g2 "*" editors "*" vim nvim nano "* ]] || _hi_because "main: [$page]" || return 1
+  page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g '')")"
+  [[ "$page" == *") [x] editors  g2  vim nvim nano "* ]] || _hi_because "the Plugins page: [$page]" || return 1
+  _hi_plugin_color off off
+  _hi_plugin_color rides rides
+  [ -z "$off" ] || [ "$off" != "$rides" ] || _hi_because "one color for two states" || return 1
+  page="$(_hi_plugins_page 80 g editors)"
+  [[ "$page" == *"$(printf '%b' "$off")nano"* ]] || _hi_because "nano, kept home: $(printf '%q' "$page")"
 }
 
 # a number flips the word it stands for in the list kept home; a plugin
@@ -639,17 +680,26 @@ function test_plugin_flip_edits_the_list_kept_home() {
   [ "$out" = "vim bat" ] || _hi_because "the list: [$out]"
 }
 
-# with no plugin's file in the overlay or at home, the page says so and
-# numbers nothing
-function test_plugins_page_says_when_nothing_rides() {
-  local h="$_HI_WORKDIR/plugins-none" out
-  mkdir -p "$h/cfg"
-  out="$(
-    # the home candidates test_lib.sh leaves set
-    unset RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE
-    HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_XDG_CONFIG="$h/.config" _HI_CONFIG_DIR="$h/cfg" _hi_plugins_page 80 ''
-  )"
-  [ "$out" = " Nothing here to send - hi --plugins lists every plugin" ] || _hi_because "page: [$out]"
+# a plugin that is off by default moves through $_HI_PLUGINS_ON, as `hi
+# --plugin-on` moves it: switched on it is named there, and switched off
+# under a group named there, the group gives way to its other plugins
+function test_plugin_flip_moves_a_default_off_plugin_through_the_on_list() {
+  local dir out="" kept="" _HI_SETTINGS _HI_MENU_NOTE=""
+  local -a _HI_SETTING_PENDING=()
+  local -a _HI_MENU_PLUGINS=("hooks||0|1" "hooks|zoxide|0|1" "hooks|mise|0|1")
+  dir="$(mktemp -d "$_HI_WORKDIR/pluginon.XXXXXX")" || return 1
+  _HI_SETTINGS="$dir/settings.sh"
+  printf '#!/bin/sh\n' >"$_HI_SETTINGS"
+  _hi_plugin_flip zoxide
+  setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" out
+  setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
+  [ "$out" = zoxide ] && [ -z "$kept" ] || _hi_because "on: [$out], kept home: [$kept]" || return 1
+  _HI_SETTING_PENDING=()
+  _HI_MENU_PLUGINS=("hooks||1|1" "hooks|zoxide|1|1" "hooks|mise|1|1")
+  printf '#!/bin/sh\n%s\n' "export _HI_PLUGINS_ON='hooks'" >"$_HI_SETTINGS"
+  _hi_plugin_flip zoxide
+  setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" out
+  [ "$out" = mise ] || _hi_because "the group's other plugin: [$out]"
 }
 
 # the whole run with neither a preset nor a tty: config_preset stands down,
@@ -744,9 +794,12 @@ function run_configure_wizard_tests() {
   _hi_check "...and a sample with nothing active" test_env_status_preview_samples_with_nothing_active
   _hi_check "Check preview renders the groups that run" test_check_preview_renders_the_groups_that_run
   _hi_check "...and says when they show nothing" test_check_preview_says_when_nothing_shows
-  _hi_check "Plugins grid wraps at the menu's width" test_plugins_page_wraps_at_the_menu_width
-  _hi_check "...and says when nothing here rides" test_plugins_page_says_when_nothing_rides
+  _hi_check "Every plugin has a line of its state" test_plugin_states_list_every_plugin
+  _hi_check "...a plugin of yours by its wire, or its comment" test_plugin_states_describe_a_plugin_of_yours
+  _hi_check "A group's page draws a row a plugin" test_plugins_page_draws_a_row_a_plugin
+  _hi_check "...and the main and Plugins pages a row a group" test_plugins_rows_name_each_group
   _hi_check "A plugin's number edits the list kept home" test_plugin_flip_edits_the_list_kept_home
+  _hi_check "...and one off by default, the list switched on" test_plugin_flip_moves_a_default_off_plugin_through_the_on_list
 
   _hi_suite_end "configure.sh logic (the wizard's pages)"
 }

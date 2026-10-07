@@ -199,7 +199,7 @@ function doctor_section() {
 # --problems, whose only box is doctor_findings'.
 function doctor_flush() {
   [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_rows_flush
-  _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=()
+  _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=() _HI_ROWS_COLOR=()
   _HI_DOC_IN_FINDING=0
 }
 

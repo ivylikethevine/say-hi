@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # The settings wizard behind `hi --configure` (and the second half of a plain
-# install): one flat menu of every setting under a live preview, and the one
-# write to $_HI_SETTINGS. Sourced by scripts/install.sh after
+# install): one menu of every setting, a page a section under a live preview,
+# and the one write to $_HI_SETTINGS. Sourced by scripts/install.sh after
 # common/core.sh and scripts/table.sh; not an entry point of its own.
 # run_configure at the bottom is the sequence. The live previews are
 # configure_preview.sh and the menu configure_menu.sh, each sourced from here
@@ -517,7 +517,7 @@ function configure_intro() {
   [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
   case "$file" in "$HOME"/*) file="~${file#"$HOME"}" ;; esac
   _hi_menu_cols _HI_MENU_W
-  _hi_menu_say "The preview shows a session at your current settings. A section's letter opens its page, [b] comes back; a number flips a setting or asks for its value, from any page." "$BLUE"
+  _hi_menu_say "A row's key opens its page and [b] comes back; a number flips a setting or asks for its value, from any page." "$BLUE"
   _hi_menu_say "Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
   _hi_menu_say "settings: $file ($state)" "$BLUE"
 }

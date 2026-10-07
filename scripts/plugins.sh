@@ -156,11 +156,20 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# _hi_plugin_row <label> <text> [severity] - a member's row, its label in the
+# color of its plugin's state (lib.sh's _hi_plugin_color)
+function _hi_plugin_row() {
+  local c state=absent
+  if [ "${3:-}" = ok ]; then state=rides; elif _hi_plugin_off "${1%% (*}"; then state=off; fi
+  _hi_plugin_color c "$state"
+  _hi_row "$1" "$2" "${3:-}" "$c"
+}
+
 # a section a group, in the order the rows name them, and a member's row as
-# `hi --doctor` draws it (lib.sh's _hi_member_rows); the rows hi could not
-# read last, a warn each
+# `hi --doctor` draws it (lib.sh's _hi_member_rows), its label colored; the
+# rows hi could not read last, a warn each
 function _hi_plugins_list() {
-  local name group groups=" " row line
+  local name group groups=" " row line _HI_ROW_FN=_hi_plugin_row
   local -a rows members
   _hi_plugins_load
   _hi_read_lines rows < <(_hi_plugin_rows)

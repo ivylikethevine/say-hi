@@ -495,13 +495,13 @@ _HI_CFG_CHILD='
     tee "$_hi_dir/verdict"
 '
 
-_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Package check"
+_HI_MENU_EVERY_TITLE="hi --configure,hi --configure: Header,hi --configure: Header cells"
 
-_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Prompt,hi --configure: Plugins"
+_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Package check,hi --configure: Prompt"
 
-_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Aliases,hi --configure: This machine"
+_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Plugins,hi --configure: Plugins: cli"
 
-_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Advanced,hi --configure"
+_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Aliases,hi --configure: Advanced,hi --configure"
 
 # _hi_item <kind> - the number the menu gives an item ("word|0" the first
 # header item, "end|bash", "width", ...), read off the list itself rather

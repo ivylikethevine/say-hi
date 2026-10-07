@@ -82,13 +82,14 @@ function _hi_cfg_screen_has() {
 # _hi_cfg_titles <label> - every draw's title, in order, comma-joined
 function _hi_cfg_titles() {
   _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
-    sed -E -n 's/.*-  (hi --configure(: [A-Za-z ]+)?|Header|Package check|Prompt|Plugins|Aliases|This machine|Advanced)  -.*/\1/p' |
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z: ]+)?|Header( cells)?|Package check|Prompt|Plugins(: [a-z]+)?|Aliases|Advanced)  -.*/\1/p' |
     paste -sd, -
 }
 
-# every section's letter in order, then b: the seven pages and the main page
-# again, each drawn once
-_HI_MENU_EVERY_PAGE='i\nc\nr\ng\na\nm\nv\nb\ns\n'
+# every page's key in order, g1 the first group of plugins (cli) standing
+# for the groups', then b: the eight pages and the main page again, each
+# drawn once
+_HI_MENU_EVERY_PAGE='i\ne\nc\nr\ng\ng1\na\nv\nb\ns\n'
 
 function test_ask_value_takes_a_typed_number() {
   _hi_cfg_pty width_typed '120\n' '' config_max_width || return 1
@@ -109,13 +110,13 @@ function test_ask_value_typed_default_clears_the_override() {
   [ -z "$(_hi_cfg_lines width_default | tr -d '[:space:]')" ]
 }
 
-# The menu: the real header boxed above the list, and every command
+# The menu: the real header boxed above the cells' page, and every command
 # re-renders. Toggling the first header item off (utc) writes the default
 # order minus that word, quoted - read off header.sh's own
 # $_HI_HEADER_ORDER_DEFAULT rather than a second copy of it, so a reorder
 # there cannot leave this expectation stale.
 function test_menu_header_item_toggle_writes_the_order() {
-  _hi_cfg_pty hdr_toggle "$(_hi_item 'word|0')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty hdr_toggle "e\n$(_hi_item 'word|0')\ns\n" '' config_hub || return 1
   local lines want
   want="$(bash -c 'source "$_HI_HEADER"; printf %s "$_HI_HEADER_ORDER_DEFAULT"')"
   want="${want/utc /}"
@@ -205,10 +206,10 @@ function test_menu_takes_a_header_preset_by_name() {
   [[ "$(_hi_cfg_lines hdr_preset_name)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]]
 }
 
-# the header feature row turns the whole header off, and the preview says
-# so in words rather than showing an empty box
+# the header feature row turns the whole header off, and its page's preview
+# says so in words rather than showing an empty box
 function test_menu_header_off_previews_as_words() {
-  _hi_cfg_pty hdr_off "$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty hdr_off "i\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || return 1
   _hi_cfg_has hdr_off "header off - nothing prints" &&
     [[ "$(_hi_cfg_lines hdr_off)" == *"export _HI_DISABLE_HEADER=1"* ]]
 }
@@ -226,7 +227,7 @@ function test_menu_keeps_the_last_header_item() {
 function test_menu_lists_missing_header_items_off() {
   local w
   w="$(_hi_item 'word|0')"
-  _hi_cfg_pty hdr_list 'i\ns\n' "export _HI_HEADER_ORDER='check gitid'" config_hub || return 1
+  _hi_cfg_pty hdr_list 'e\ns\n' "export _HI_HEADER_ORDER='check gitid'" config_hub || return 1
   _hi_cfg_has hdr_list "$w) [x] check" &&
     _hi_cfg_has hdr_list "$((w + 1))) [x] gitid" &&
     _hi_cfg_has hdr_list "$((w + 2))) [ ] utc"
@@ -246,19 +247,30 @@ function test_menu_keeps_a_plugin_group_home() {
     [[ "$(_hi_cfg_lines plug_toggle)" == *"export _HI_PLUGINS_OFF='editors'"* ]]
 }
 
-# ...and so has each plugin: the rig's one file is nano's
+# ...and so has each plugin, on its group's page: editors is g2, the second
+# group by name
 function test_menu_keeps_a_plugin_home() {
-  _hi_cfg_pty plug_num "g\n$(_hi_item 'plugin|nano')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty plug_num "g2\n$(_hi_item 'plugin|nano')\ns\n" '' config_hub || return 1
   _hi_cfg_has plug_num ") [x] editors" && _hi_cfg_has plug_num ") [ ] nano" &&
     [[ "$(_hi_cfg_lines plug_num)" == *"export _HI_PLUGINS_OFF='nano'"* ]]
 }
 
 # ...a plugin sent again while its group is kept home takes the group off the
-# list: nano is the group's one plugin here, so nothing is left to write
+# list and leaves the group's other plugins on it
 function test_menu_sends_a_plugin_of_a_kept_group() {
   _hi_cfg_pty plug_back "$(_hi_item 'plugin|nano')\ns\n" "export _HI_PLUGINS_OFF='editors'" config_hub || return 1
   _hi_cfg_has plug_back "nano: is sent" &&
-    [[ "$(_hi_cfg_lines plug_back)" != *"_HI_PLUGINS_OFF"* ]]
+    [[ "$(_hi_cfg_lines plug_back)" == *"export _HI_PLUGINS_OFF='vim nvim emacs hx kak micro'"* ]]
+}
+
+# a plugin that is off by default moves through the other list: zoxide's box
+# writes it to $_HI_PLUGINS_ON, and nothing to the list kept home
+function test_menu_switches_a_default_off_plugin_on() {
+  local lines
+  _hi_cfg_pty plug_on "$(_hi_item 'plugin|zoxide')\ns\n" '' config_hub || return 1
+  lines="$(_hi_cfg_lines plug_on)"
+  _hi_cfg_has plug_on "zoxide: is sent" &&
+    [[ "$lines" == *"export _HI_PLUGINS_ON='zoxide'"* && "$lines" != *"_HI_PLUGINS_OFF"* ]]
 }
 
 # The indices here are positions in $_HI_FEATURE_PROMPTS, so inserting a row
@@ -273,12 +285,12 @@ function test_menu_opt_in_row_writes_its_on_value() {
     [[ "$(_hi_cfg_lines feat_opt_in)" == *"export _HI_TOOL_ALIASES=1"* ]]
 }
 
-# The environment segment sits after git status. Its preview
-# falls back to the shape when nothing is active here, which is what a run on
-# a bare CI box sees - so the case asserts the toggle and the paren shape, not
-# a name only this machine would have.
+# The environment segment sits after git status. Its preview, boxed under
+# the Prompt page, falls back to the shape when nothing is active here, which
+# is what a run on a bare CI box sees - so the case asserts the toggle and the
+# paren shape, not a name only this machine would have.
 function test_menu_env_segment_toggles_and_previews() {
-  _hi_cfg_pty feat_env "$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty feat_env "r\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_env "environment segment: now off" &&
     _hi_cfg_has feat_env "myproj" &&
     [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]]
@@ -286,7 +298,7 @@ function test_menu_env_segment_toggles_and_previews() {
 
 # ...and the header row, off and back on, previews the whole header both ways
 function test_menu_header_row_previews_the_header() {
-  _hi_cfg_pty feat_header "$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty feat_header "i\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_header "header off - nothing prints" &&
     _hi_cfg_has feat_header "Connected" &&
     [ -z "$(_hi_cfg_lines feat_header | tr -d '[:space:]')" ]
@@ -403,57 +415,69 @@ function test_menu_junk_is_bounded_and_quits() {
     _hi_cfg_has hub_junk "CFGQUIT=1"
 }
 
-# the main page is a summary line a section, in order, under the preview box
-# - its key, name, numbers, [x] count, and values - and none of their rows.
-# This machine's one number is _HI_DISABLE_LOCAL's, read off the list.
-function test_menu_main_page_sums_up_every_section() {
-  local m main keys
-  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|6')" || return 1
+# the main page is a table and no preview: the two switches for where hi
+# styles a shell, then a row a page, in order - its key, its name, and what
+# it holds - a group of plugins under Plugins with its plugins named, and
+# none of the pages' own rows
+function test_menu_main_page_is_a_table_of_its_pages() {
+  local main keys
   _HI_TERM_COLS=80 _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
   main="$(_hi_cfg_screen hub_all 0)"
-  keys="$(printf '%s\n' "$main" | sed -n 's/^ \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
-  [ "$keys" = "i,c,r,g,a,m,v" ] || _hi_because "the main page's sections: [$keys]" || return 1
-  [[ "$main" == *"preview"* && "$main" == *" [i] Header        1-"*" on, width 80"* ]] &&
-    [[ "$main" == *" [c] Package check "*" core useful deprecated"* && "$main" == *" [g] Plugins "*" all sent"* ]] &&
-    [[ "$main" == *" [m] This machine  $(printf '%-6s' "$m") 1 of 1 on"* ]] &&
-    [[ "$main" == *" [v] Advanced      "*", 24-bit color auto"* ]] &&
+  keys="$(printf '%s\n' "$main" | sed -n 's/^ [^ ]* \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
+  [ "$keys" = "l,t,i,e,c,r,g,a,v" ] || _hi_because "the main page's rows: [$keys]" || return 1
+  [[ "$main" != *"preview"* && "$main" == *"[l] "*"[x] this machine "*"[t] "*"[x] targets "* ]] &&
+    [[ "$main" == *"[i] "*" Header "*"3 of 3 on, width 80"*"[e] "*" cells "*" utc version "* ]] &&
+    [[ "$main" == *"[c] "*" package check "*" core useful deprecated"* && "$main" == *"[g] "*" Plugins "*" ride"* ]] &&
+    [[ "$main" == *" g1 "*" cli "*" bat "*" g2 "*" editors "*" nano "* ]] &&
+    [[ "$main" == *"[v] "*" Advanced "*", 24-bit color auto"* ]] &&
     [[ "$main" != *") ["* && "$main" != *"hi --configure:"* && "$main" != *"[b]ack"* ]] &&
     _hi_cfg_has hub_all "CFGQUIT=none"
 }
 
-# a section's letter opens its page - titled, [b]ack leading the keys, only its
-# own rows, and a preview of what they change or none - and b comes back to
-# the main page
-function test_menu_section_letters_open_their_pages() {
-  local titles end kept sudo core
+# a row's key opens its page - titled, [b]ack leading the keys, only its own
+# rows, and a preview of what they change or none - and b comes back to the
+# main page
+function test_menu_keys_open_their_pages() {
+  local titles end kept sudo core hdr utc bat
   end="$(_hi_item 'end|bash')" && kept="$(_hi_item 'plugin|editors')" && core="$(_hi_item 'group|core')" &&
-    sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|5')" || return 1
+    sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|5')" && hdr="$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')" &&
+    utc="$(_hi_item 'word|0')" && bat="$(_hi_item 'plugin|bat')" || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
   titles="$(_hi_cfg_titles hub_pages)"
   [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || _hi_because "titles: [$titles]" || return 1
-  _hi_cfg_screen_has hub_pages 1 " [b]ack  [h]eader preset" &&
-    _hi_cfg_screen_has hub_pages 1 " 1) [x] header" &&
+  _hi_cfg_screen_has hub_pages 1 " [b]ack  [s]ave" &&
+    _hi_cfg_screen_has hub_pages 1 " $hdr) [x] header" &&
     _hi_cfg_screen_has hub_pages 1 "Connected" &&
-    _hi_cfg_screen_has hub_pages 2 "$core) [x] core" &&
-    _hi_cfg_screen_has hub_pages 3 "$end)     bash prompt ends with" &&
-    _hi_cfg_screen_has hub_pages 4 "$kept) [x] editors" &&
-    _hi_cfg_screen_has hub_pages 5 "$sudo) [ ] sudo alias" &&
-    _hi_cfg_screen_has hub_pages 7 "24-bit color" &&
-    _hi_cfg_screen_has hub_pages 8 " [i] Header" &&
-    ! _hi_cfg_screen_has hub_pages 3 " 1) [x] header" 2>/dev/null &&
-    ! _hi_cfg_screen_has hub_pages 3 "Connected" 2>/dev/null &&
-    ! _hi_cfg_screen_has hub_pages 4 "preview" 2>/dev/null &&
+    _hi_cfg_screen_has hub_pages 1 "[e] cells" &&
+    _hi_cfg_screen_has hub_pages 2 " [b]ack  [h]eader preset" &&
+    _hi_cfg_screen_has hub_pages 2 " $utc) [x] utc" &&
+    _hi_cfg_screen_has hub_pages 3 "$core) [x] core" &&
+    _hi_cfg_screen_has hub_pages 4 "$end)     bash prompt ends with" &&
+    _hi_cfg_screen_has hub_pages 5 "$kept) [x] editors" &&
+    _hi_cfg_screen_has hub_pages 6 "$bat) [x] bat" &&
+    _hi_cfg_screen_has hub_pages 6 "program  config  on a target" &&
+    _hi_cfg_screen_has hub_pages 7 "$sudo) [ ] sudo alias" &&
+    _hi_cfg_screen_has hub_pages 8 "24-bit color" &&
+    _hi_cfg_screen_has hub_pages 9 "[x] this machine" &&
+    ! _hi_cfg_screen_has hub_pages 4 " $hdr) [x] header" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 4 "Connected" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 5 "preview" 2>/dev/null &&
     ! _hi_cfg_screen_has hub_pages 6 "preview" 2>/dev/null &&
-    ! _hi_cfg_screen_has hub_pages 8 "[b]ack" 2>/dev/null
+    ! _hi_cfg_screen_has hub_pages 9 "preview" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 9 "[b]ack" 2>/dev/null
 }
 
-# This machine's page draws _HI_DISABLE_LOCAL, the one row it holds
-function test_menu_this_machine_page_holds_here_too() {
-  local m
-  m="$(_hi_item 'row|_HI_FEATURE_PROMPTS|6')" || return 1
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_local 'm\ns\n' '' run_configure "" || return 1
-  _hi_cfg_screen_has hub_local 1 "hi --configure: This machine" &&
-    _hi_cfg_screen_has hub_local 1 "$m) [x] here too"
+# the main page's two switches flip by their keys: this machine's writes
+# _HI_DISABLE_LOCAL, the targets' _HI_PLAIN
+function test_menu_main_page_switches_where_hi_styles() {
+  local lines
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_where 'l\nt\ns\n' '' run_configure "" || return 1
+  lines="$(_hi_cfg_lines hub_where)"
+  _hi_cfg_screen_has hub_where 1 "this machine: now off" &&
+    _hi_cfg_screen_has hub_where 1 "[ ] this machine" &&
+    _hi_cfg_screen_has hub_where 2 "targets: now off" &&
+    _hi_cfg_screen_has hub_where 2 "[ ] targets" &&
+    [[ "$lines" == *"export _HI_DISABLE_LOCAL=1"* && "$lines" == *"export _HI_PLAIN=1"* ]]
 }
 
 # a number works from any page: the main page's flips a Prompt row and stays
@@ -465,18 +489,18 @@ function test_menu_number_works_from_any_page() {
   local lines
   lines="$(_hi_cfg_lines hub_num)"
   _hi_cfg_screen_has hub_num 1 "colored user@host prompt: now off" &&
-    _hi_cfg_screen_has hub_num 1 " [i] Header" &&
+    _hi_cfg_screen_has hub_num 1 "[x] this machine" &&
     _hi_cfg_screen_has hub_num 3 "styled tool aliases: now on" &&
     _hi_cfg_screen_has hub_num 3 "hi --configure: Advanced" &&
     [[ "$lines" == *"export _HI_DISABLE_PROMPT=1"* && "$lines" == *"export _HI_TOOL_ALIASES=1"* ]]
 }
 
-# The Header page's grids: the three switches, then the header items, 4 cells
-# to a line at 80 columns, folding to 2 at 40, every one drawn
+# The Header cells page's grid: the header items, numbered up to the package
+# groups, 4 cells to a line at 80 columns, folding to 2 at 40, every one drawn
 function _hi_menu_grid_at() {
   local w="$1" want="$2" label="grid_$1" cells page first
-  cells=$(($(_hi_item width) - 1))
-  _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 'i\ns\n' '' run_configure "" || return 1
+  cells=$(($(_hi_item 'group|core') - $(_hi_item 'word|0')))
+  _HI_TERM_COLS="$w" _hi_cfg_pty "$label" 'e\ns\n' '' run_configure "" || return 1
   page="$(_hi_cfg_screen "$label" 1)"
   first="$(printf '%s\n' "$page" | grep -F " $(_hi_item 'word|0')) [x] utc" | grep -o ') \[[x ]\] ' | wc -l)"
   page="$(printf '%s\n' "$page" | grep -o ') \[[x ]\] ' | wc -l)"
@@ -493,7 +517,7 @@ function test_menu_header_grid_at_40() { _hi_menu_grid_at 40 2; }
 function test_menu_pages_fit_24_rows() {
   local k rows
   _HI_TERM_COLS=80 _hi_cfg_pty hub_rows "$_HI_MENU_EVERY_PAGE" '' run_configure "" || return 1
-  for k in 1 2 3 4 5 6 7 8; do
+  for k in 1 2 3 4 5 6 7 8 9; do
     rows=$(($(_hi_cfg_screen hub_rows "$k" | wc -l) + 1))
     ((rows <= 24)) || _hi_because "draw $k is $rows rows" || return 1
   done
@@ -558,12 +582,12 @@ function run_configure_pty_tests() {
   _hi_par_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
   _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
-  _hi_par_check_capable pty "Menu: the main page sums up every section" test_menu_main_page_sums_up_every_section
-  _hi_par_check_capable pty "Menu: a section's letter opens its page, b comes back" test_menu_section_letters_open_their_pages
-  _hi_par_check_capable pty "Menu: This machine's page holds here too" test_menu_this_machine_page_holds_here_too
+  _hi_par_check_capable pty "Menu: the main page is a table of its pages" test_menu_main_page_is_a_table_of_its_pages
+  _hi_par_check_capable pty "Menu: a row's key opens its page, b comes back" test_menu_keys_open_their_pages
+  _hi_par_check_capable pty "Menu: l and t switch where hi styles a shell" test_menu_main_page_switches_where_hi_styles
   _hi_par_check_capable pty "Menu: a number works from any page" test_menu_number_works_from_any_page
-  _hi_par_check_capable pty "Menu: the Header grid holds 4 columns at 80" test_menu_header_grid_at_80
-  _hi_par_check_capable pty "Menu: the Header grid folds to 2 at 40" test_menu_header_grid_at_40
+  _hi_par_check_capable pty "Menu: the cells' grid holds 4 columns at 80" test_menu_header_grid_at_80
+  _hi_par_check_capable pty "Menu: the cells' grid folds to 2 at 40" test_menu_header_grid_at_40
   _hi_par_check_capable pty "Menu: every page fits 24 rows at 80 columns" test_menu_pages_fit_24_rows
   _hi_par_check_capable pty "Menu: fits 80 columns, pages in order" test_menu_layout_at_80
   _hi_par_check_capable pty "Menu: fits 40 columns, pages in order" test_menu_layout_at_40
@@ -571,10 +595,11 @@ function run_configure_pty_tests() {
   _hi_par_check_capable pty "Menu: a plugin group's number keeps it home" test_menu_keeps_a_plugin_group_home
   _hi_par_check_capable pty "Menu: ...and a plugin's its own" test_menu_keeps_a_plugin_home
   _hi_par_check_capable pty "Menu: ...and one sent again takes its group off the list" test_menu_sends_a_plugin_of_a_kept_group
+  _hi_par_check_capable pty "Menu: ...and one off by default is switched on" test_menu_switches_a_default_off_plugin_on
   _hi_par_check_capable pty "Menu: an opt-in row writes its on-value" test_menu_opt_in_row_writes_its_on_value
   _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "Menu: the header row previews the whole header" test_menu_header_row_previews_the_header
-  _hi_par_check_capable pty "Menu: item 1 turns the header off, in words" test_menu_header_off_previews_as_words
+  _hi_par_check_capable pty "Menu: the header switch turns the header off, in words" test_menu_header_off_previews_as_words
   _hi_par_check_capable pty "Menu: a header item toggle writes the order" test_menu_header_item_toggle_writes_the_order
   _hi_par_check_capable pty "Menu: back to the default order writes nothing" test_menu_default_order_writes_nothing
   _hi_par_check_capable pty "Menu: down N moves a header item" test_menu_moves_a_header_item

@@ -201,14 +201,6 @@ function _hi_check_preview() {
   fi
 }
 
-# The hub's picture: the header as it would print, then the prompt line as
-# it would draw under it - the two things every session shows. Each half
-# says "off" in words when it is, so the box always has something to show.
-function _hi_config_preview() {
-  _hi_header_preview
-  _hi_prompt_sample_preview
-}
-
 # what each editor's alias is on a target: the lines
 # pack.sh's _hi_overlay_wiring writes for the editor configs that would ride
 # (GLOSSARY: HI.62), read off that writer rather than restated here, each

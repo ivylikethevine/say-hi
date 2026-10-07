@@ -29,42 +29,47 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
 ## The wizard
 
 `hi --configure` opens on the keys (`[p]reset`, `[h]eader preset`, `[s]ave`,
-`[q]uit`) and a preview - the header and the prompt line as they would draw
-at your current settings - over one summary line per section: its letter,
-its item numbers, and where its settings stand. The letter opens the
-section's page, under a preview of what that page's settings change, or
-none where they change nothing to draw, and `[b]` comes back. Every setting
-keeps one number across the pages, and a number works from any of them:
+`[q]uit`) over a table, a row a page: its key, its name, and what it holds
+and where that stands, a page of another indented under it. A row's key
+opens its page, under a preview of what that page's settings change, or none
+where they change nothing to draw, and `[b]` comes back. Every setting keeps
+one number across the pages, and a number works from any of them:
 
-- **Header** `[i]` — under the header alone: the header, the greeting, and
-  the banner on or off, then the header's items in
-  [Header details](#header-details), a grid in the order they print
-  (`up N`/`down N` moves one), then the width and the hidden addresses.
-  Outside the menu, `hi --preview header` prints the header at the saved
-  settings.
-- **Package check** `[c]` — under the check alone: each group of the
-  packages file with what it holds, a number flipping whether it runs.
-  `hi --preview packages` prints the check's legend.
+- **this machine** `[l]` and **targets** `[t]` — the table's first two rows,
+  switches flipped by their key: whether hi styles the machine you run it on
+  (`_HI_DISABLE_LOCAL`), and the hosts and containers you connect to
+  (`_HI_PLAIN`).
+- **Header** `[i]` — under the header: the header, the greeting, and the
+  banner on or off, then the width and the hidden addresses. Outside the
+  menu, `hi --preview header` prints the header at the saved settings. Two
+  pages sit under it:
+  - **cells** `[e]` — the header's items in
+    [Header details](#header-details), a grid in the order they print
+    (`up N`/`down N` moves one).
+  - **package check** `[c]` — under the check alone: each group of the
+    packages file with what it holds, a number flipping whether it runs.
+    `hi --preview packages` prints the check's legend.
 - **Prompt** `[r]` — under the prompt line: the colored prompt on or off, git
   status and the environment segment, who draws each shell's prompt (auto,
   hi's own, or one of the prompt programs), and the character each of the
   three shells' prompts ends with, wired up on this machine or not.
-- **Plugins** `[g]` — every group with a config here to send, and its
-  plugins, a checkbox each: checked rides to a target, unchecked stays
-  home, and a group's box is all of its plugins
-  ([Switching a plugin off](#switching-a-plugin-off)).
+- **Plugins** `[g]` — a row a group, its plugins named in the color of their
+  state: one that rides, one that stays home, one with nothing on this
+  machine to send. A group's box is all of its plugins, and its key (`g1`,
+  `g2`, ...) opens its page, a row a plugin: a checkbox - checked rides to a
+  target, unchecked stays home - whether its program and a config of its are
+  found here, and what a target gets of it, which is the comment above its
+  table in the plugins file ([Switching a plugin off](#switching-a-plugin-off)).
 - **Aliases** `[a]` — whether `cat`, `ls`, and `sudo` get hi's aliases; both
   opt-ins, off until turned on, under what `ls` and `cat` become.
-- **This machine** `[m]` — whether hi styles the machine you run it on as well
-  (`_HI_DISABLE_LOCAL`).
 - **Advanced** `[v]` — the leading space, the header's right edge, the `--mux`
   and `--keep` defaults, and 24-bit color.
 
 A row away from its default says the default beside it (`(default 2)`,
-`(default on)`). The menu draws to your terminal's width: help text is cut
-rather than wrapped, the header grid folds to fewer columns when narrow, and
-the preview box clips a line wider than the room. At 80 columns every page
-fits a 24-row terminal.
+`(default on)`). The menu draws to your terminal's width, its prose and the
+table to 80 columns at most: help text is cut rather than wrapped, the
+header grid folds to fewer columns when narrow, and the preview box clips a
+line wider than the room. At 80 columns every page fits a 24-row terminal.
 
 A number flips a yes/no item or asks for a value, and the preview and list
 redraw with the change. `[p]` applies a preset (`[e]verything`, `[b]alanced`,
@@ -258,7 +263,7 @@ takes an answer by.
 | `_HI_MUX`                   | `0`                                                                               | `hi --configure` advanced | `1` makes every connect a `--mux` one, in a local tmux, zellij, or screen session; `--no-mux` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_KEEP`                  | `0`                                                                               | `hi --configure` advanced | `1` makes every ssh connect a `--keep` one: the session runs in tmux, zellij, or screen on the target and outlives the connection ([Integrations](INTEGRATIONS.md#terminal-multiplexers)); `--no-keep` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `_HI_UPDATE_SIGNED`         | `0`                                                                               | you                       | `1` has `hi --update` refuse a release tag unless its signature verifies against a key the checkout already trusts (`.github/allowed_signers`, or your gpg keyring); unset, only a signature that fails to verify refuses, and an unsigned tag or an unknown key is said and allowed ([Security](SECURITY.md#what-hi-does---and-deliberately-doesnt))                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `_HI_PLAIN`                 | `0`                                                                               | you                       | `1` makes every connect a `--plain` one, a bare shell with nothing sent; `--no-plain` overrides it for one connect. Its place is a tag's file, `settings.<tag>.sh`, where it holds for the hosts carrying that tag ([Settings by host tag](#settings-by-host-tag))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `_HI_PLAIN`                 | `0`                                                                               | `hi --configure`          | `1` makes every connect a `--plain` one, a bare shell with nothing sent; `--no-plain` overrides it for one connect. The wizard's targets switch writes it for every target; in a tag's file, `settings.<tag>.sh`, it holds for the hosts carrying that tag ([Settings by host tag](#settings-by-host-tag))                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_KEEP_TIMEOUT`          | `24h`                                                                             | you                       | how long a kept session waits with nobody attached before it closes and its directory is removed: a number of seconds, or one with `s`, `m`, `h`, or `d`; `0` is never. Read on the target, so it belongs in `settings.sh`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_KEEP_RETRY`            | `5m`                                                                              | you                       | how long a connect inside a local tmux, zellij, or screen keeps retrying a target whose kept session it lost the link to: a duration as above; `0` is never                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `_HI_BACKENDS_OFF`          | unset                                                                             | you                       | the backends hi never asks, a space or a comma apart: any of `docker`, `podman`, `nerdctl`, `finch`, `nomad`, and `kube`, or `all` for ssh alone. One named here is left out of target resolution, `hi <TAB>`, and the header's counts, so its CLI is never started; `--use <backend>` still reaches it by name ([Compatibility](COMPATIBILITY.md#what-ships))                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -576,7 +581,7 @@ where the file is found, and whether it is sent or why not:
 it ride again. A plugin that is off by default (`default = "off"` in its table:
 the shipped `hooks`) moves the other way, through `_HI_PLUGINS_ON`:
 `hi --plugin-on zoxide` adds it there and `hi --plugin-off zoxide` takes it
-out; the wizard's Plugins page does not switch those. A name is a plugin, a member (`bat/config`), one file of a
+out, as its box in the wizard does. A name is a plugin, a member (`bat/config`), one file of a
 member that is a directory (`extensions/10-kube`), or a group, which
 switches all of its kind: `editors`, `mux`, `prompt`, `cli`, `shell`, or
 a table of your own `plugins` file. What is off sends no file, an overlay
@@ -585,7 +590,7 @@ target's own config. hi's own files (`settings.sh`, `colors`, `packages`)
 are not plugins and always ride.
 
 The list is `_HI_PLUGINS_OFF` in `settings.sh`, words a space or a comma
-apart, and the wizard's Plugins page toggles the same words. It is about
+apart, and the wizard's Plugins pages toggle the same words. It is about
 what rides: at home a tool reads its own config, whatever the list says.
 With `editors` in it a target also keeps its own `$EDITOR`, `$VISUAL`, and
 `$SUDO_EDITOR`.

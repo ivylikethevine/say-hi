@@ -224,8 +224,8 @@ row, and everything answered **no**, and why:
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any setting
-  on its pages — Header, Package check, Prompt, Plugins, Aliases, This machine,
-  Advanced — and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+  on its pages — Header, its cells and package check, Prompt, Plugins,
+  Aliases, Advanced — and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.
@@ -371,13 +371,12 @@ checkout: an account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _Before 1.0:_ **The wizard switches a default-off plugin on** — the
-       `hooks` plugins (`default = "off"`) move through `_HI_PLUGINS_ON`,
-       which only `hi --plugin-on` writes; the wizard's _Plugins_ page shows
-       them but cannot turn one on
-       ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)). **Do:**
-       give the page a third state for a default-off plugin and have it write
-       `_HI_PLUGINS_ON` as `--plugin-on` does. **Ticks when:** `hi --configure`
+2. [ ] _Before 1.0:_ **The wizard switches a default-off plugin on** —
+       shipped: a group's page of the wizard lists every plugin, the `hooks`
+       (`default = "off"`) among them, and such a plugin's box writes
+       `_HI_PLUGINS_ON` as `hi --plugin-on` does
+       ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)). What is
+       left is seeing it through a connect. **Ticks when:** `hi --configure`
        turns zoxide on and the next connect runs its init.
 
 3. [ ] _Before 1.0:_ **A plugin's init is checked without `tr`** —
@@ -397,13 +396,13 @@ checkout: an account or an upstream review that lands when it lands.
        when:** `hi --doctor` gives neither line a row with no `hi-allow`
        comment above it.
 
-5. [ ] _Before 1.0:_ **A listed plugin is colored** — `hi --plugins`
-       draws a plugin's row with a mark for its state and the name plain, so
-       what rides and what stays home read alike down the name column.
-       **Do:** paint the name by its state wherever a plugin is listed, and
-       not at all where color is off. **Ticks when:** `hi --plugins` shows a
-       plugin that rides and one kept home in different colors, and prints
-       no escape under `NO_COLOR`.
+5. [ ] _Before 1.0:_ **A listed plugin is colored** — shipped:
+       `hi --plugins` and the wizard paint a plugin's name by its state -
+       rides, stays home, nothing here to send - the three colors set in
+       `scripts/lib.sh`'s `_hi_plugin_color` alone. What is left is seeing
+       it at a terminal. **Ticks when:** `hi --plugins` shows a plugin that
+       rides and one kept home in different colors, and prints no escape
+       under `NO_COLOR`.
 
 6. [ ] _Before 1.0:_ **A slow case is named** — the runner times a suite,
        not its cases, so the wizard's menu-number case forking 2,000 times

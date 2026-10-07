@@ -43,34 +43,42 @@
 # A `[<group>.<name>."<member>"]` table under a plugin gives that one of its
 # files a wire, a home, or a dialect of its own.
 #
+# The comment right above a plugin's table is what `hi --configure` says of
+# it, to its first full stop.
+#
 # `hi --add-plugin` writes a table to ~/.config/say-hi/plugins, which adds to
 # this file, or replaces the plugin of the same name; `hi --plugins` lists
 # what rides.
 
+# vim starts on your vimrc
 [editors.vim]
 wire = "env:_HI_VIMRC;flag:vim=XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u"
 home = "~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc"
 dialect = "vim"
 files = "vim/vimrc"
 
+# nvim starts on your init.lua
 [editors.nvim]
 wire = "env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u"
 home = "$_HI_XDG_CONFIG/nvim/init.lua"
 dialect = "lua"
 files = "nvim/init.lua"
 
+# nano starts on your nanorc
 [editors.nano]
 wire = "env:_HI_NANORC;flag:nano --rcfile"
 home = "~/.nanorc : $_HI_XDG_CONFIG/nano/nanorc"
 dialect = "nano"
 files = "nano/nanorc"
 
+# emacs -nw starts on your init.el
 [editors.emacs]
 wire = "flag:emacs -nw -q -l"
 home = "~/.emacs.el : ~/.emacs : ~/.emacs.d/init.el : $_HI_XDG_CONFIG/emacs/init.el"
 dialect = "elisp"
 files = "emacs/init.el"
 
+# helix starts on your config.toml
 [editors.hx]
 tool = "hx helix"
 wire = "flag:hx -c;flag:helix -c"
@@ -80,6 +88,7 @@ files = "helix/config.toml helix/languages.toml"
 [editors.hx."helix/languages.toml"]
 wire = "xdg:hx;xdg:helix"
 
+# kakoune reads your kakrc and colors
 [editors.kak]
 wire = "envdir:KAKOUNE_CONFIG_DIR"
 home = "$KAKOUNE_CONFIG_DIR/ , $XDG_CONFIG_HOME/kak/ , ~/.config/kak/"
@@ -89,6 +98,7 @@ files = "kak/kakrc kak/colors/"
 [editors.kak."kak/colors/"]
 wire = "-"
 
+# micro starts on your settings
 [editors.micro]
 wire = "flagdir:micro -backup false -savehistory false -config-dir"
 home = "$MICRO_CONFIG_HOME/ , $XDG_CONFIG_HOME/micro/ , ~/.config/micro/"
@@ -97,32 +107,38 @@ files = "micro/settings.json micro/bindings.json micro/init.lua"
 [editors.micro."micro/init.lua"]
 dialect = "lua"
 
+# your ~/.aliases, after hi's own
 [shell.aliases]
 tool = "-"
 home = "~/.aliases"
 dialect = "sh"
 files = "aliases.sh"
 
+# the overlay's bashrc, read by bash
 [shell.bash]
 tool = "-"
 dialect = "sh"
 files = "bashrc"
 
+# the overlay's zshrc, read by zsh
 [shell.zsh]
 tool = "-"
 dialect = "sh"
 files = "zshrc"
 
+# the overlay's config.fish, read by fish
 [shell.fish]
 tool = "-"
 dialect = "fish"
 files = "config.fish"
 
+# your extensions/ scripts, each sourced
 [shell.extensions]
 tool = "-"
 dialect = "sh"
 files = "extensions/"
 
+# the prompt, by your starship.toml
 [prompt.starship]
 tool = "-"
 init = "starship init {shell}"
@@ -131,17 +147,20 @@ wire = "env:STARSHIP_CONFIG"
 home = "$STARSHIP_CONFIG , ~/.config/starship.toml"
 files = "starship.toml"
 
+# zsh's prompt, by your p10k.zsh
 [prompt.powerlevel10k]
 tool = "-"
 home = "$POWERLEVEL9K_CONFIG_FILE , $ZDOTDIR/.p10k.zsh , ~/.p10k.zsh"
 dialect = "sh"
 files = "p10k.zsh"
 
+# fish's prompt, by your tide setup
 [prompt.tide]
 tool = "-"
 home = "$XDG_CONFIG_HOME/fish/fish_variables , ~/.config/fish/fish_variables"
 files = "tide.vars"
 
+# the prompt, by your theme file
 [prompt.oh-my-posh]
 tool = "-"
 init = "oh-my-posh init {shell}"
@@ -154,51 +173,60 @@ files = "oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml"
 [prompt.oh-my-posh."oh-my-posh.json"]
 dialect = "omp-json"
 
+# zsh's prompt, by your theme
 [prompt.oh-my-zsh]
 tool = "-"
 home = "@_hi_theme_home"
 dialect = "omz"
 files = "oh-my-zsh.zsh-theme"
 
+# bash's prompt, by your theme
 [prompt.oh-my-bash]
 tool = "-"
 home = "@_hi_theme_home"
 dialect = "omb"
 files = "oh-my-bash.theme.sh"
 
+# bash's prompt, by your theme
 [prompt.bash-it]
 tool = "-"
 home = "@_hi_theme_home"
 dialect = "bash-it"
 files = "bash-it.theme.bash"
 
+# eza colors listings by your theme.yml
 [cli.eza]
 wire = "envdir:EZA_CONFIG_DIR"
 home = "$EZA_CONFIG_DIR/theme.yml , $XDG_CONFIG_HOME/eza/theme.yml , ~/.config/eza/theme.yml"
 files = "eza/theme.yml"
 
+# bat reads your config: theme, style
 [cli.bat]
 tool = "bat batcat"
 wire = "env:BAT_CONFIG_PATH"
 home = "$BAT_CONFIG_PATH , $BAT_CONFIG_DIR/config , $XDG_CONFIG_HOME/bat/config , ~/.config/bat/config"
 files = "bat/config"
 
+# ripgrep reads your ripgreprc
 [cli.rg]
 wire = "env:RIPGREP_CONFIG_PATH"
 home = "$RIPGREP_CONFIG_PATH"
 dialect = "conf"
 files = "ripgreprc"
 
+# fzf's default options are yours
 [cli.fzf]
 wire = "env:FZF_DEFAULT_OPTS_FILE"
 home = "$FZF_DEFAULT_OPTS_FILE"
 files = "fzfrc"
 
+# lazygit reads your config.yml
 [cli.lazygit]
 wire = "env:LG_CONFIG_FILE"
 home = "$LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml"
 files = "lazygit/config.yml"
 
+# line editing follows your inputrc
 [cli.readline]
 tool = "-"
 wire = "env:INPUTRC"
@@ -206,18 +234,21 @@ home = "$INPUTRC , ~/.inputrc"
 dialect = "readline"
 files = "inputrc"
 
+# tmux starts on your tmux.conf
 [mux.tmux]
 wire = "flag:tmux -f"
 home = "~/.tmux.conf : $_HI_XDG_CONFIG/tmux/tmux.conf"
 dialect = "tmux"
 files = "tmux/tmux.conf"
 
+# screen starts on your screenrc
 [mux.screen]
 wire = "flag:screen -c"
 home = "$SCREENRC , ~/.screenrc"
 dialect = "screen"
 files = "screenrc"
 
+# zellij starts on your config and layouts
 [mux.zellij]
 wire = "flagdir:zellij --config-dir"
 home = "$ZELLIJ_CONFIG_DIR/ , $XDG_CONFIG_HOME/zellij/ , ~/.config/zellij/"
@@ -228,10 +259,13 @@ files = "zellij/config.kdl zellij/layouts/ zellij/themes/"
 # state under a target's $HOME (zoxide's database, atuin's history and its
 # sync, direnv's allow list, mise's shims), so each is off until named in
 # $_HI_PLUGINS_ON: `hi --plugin-on zoxide`, or `hi --plugin-on hooks`.
+
+# z jumps to the directories you visit
 [hooks.zoxide]
 init = "zoxide init {shell}"
 default = "off"
 
+# history search by atuin, on your config
 [hooks.atuin]
 init = "atuin init {shell}"
 default = "off"
@@ -239,10 +273,12 @@ wire = "envdir:ATUIN_CONFIG_DIR"
 home = "$ATUIN_CONFIG_DIR/config.toml , $XDG_CONFIG_HOME/atuin/config.toml , ~/.config/atuin/config.toml"
 files = "atuin/config.toml"
 
+# loads a directory's .envrc on entry
 [hooks.direnv]
 init = "direnv hook {shell}"
 default = "off"
 
+# activates the tools a directory pins
 [hooks.mise]
 init = "mise activate {shell}"
 default = "off"
