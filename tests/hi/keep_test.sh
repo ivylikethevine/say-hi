@@ -477,17 +477,22 @@ function test_keep_end_kills_the_session_or_says_there_is_none() {
 }
 
 # with no session, a tree a drop left under the name is ended through its
-# timer: hi.end beside the claim, and 0
+# timer: hi.end beside the claim, and 0. mktemp is a shim that answers in the
+# case's own directory, since macOS's -t goes to the account's temp
+# directory whatever $TMPDIR says.
 function test_keep_end_ends_a_held_tree_through_its_timer() {
-  local d="$_HI_WORKDIR/endheld" out t
-  _hi_whoami >/dev/null
-  t="$d/$_HI_WHOAMI_CACHE.hi.zzzzzz/say-hi"
-  mkdir -p "$t"
+  local d="$_HI_WORKDIR/endheld" out t path
+  t="$d/u.hi.zzzzzz/say-hi"
+  mkdir -p "$t" "$d/bin"
+  # shellcheck disable=SC2016 # the shim's sh expands it
+  printf '%s\n' '#!/bin/sh' 'mkdir -p "$_HI_TEST_TMP/u.hi.probe" && printf "%s\n" "$_HI_TEST_TMP/u.hi.probe"' >"$d/bin/mktemp"
+  chmod +x "$d/bin/mktemp"
+  path="$d/bin:$(_hi_keep_shims):$PATH"
   printf '1 1 hi-box\n' >"$t/hi.held"
-  out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?" TMPDIR="$d")"
+  out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?" PATH="$path" _HI_TEST_TMP="$d")"
   [[ "$out" == *RC=0* ]] && [ -e "$t/hi.end" ] || _hi_because "a held tree: $out" || return 1
   rm -f "$t/hi.end"
-  out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=elsewhere _hi_keep_end_script)); echo RC=\$?" TMPDIR="$d")"
+  out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=elsewhere _hi_keep_end_script)); echo RC=\$?" PATH="$path" _HI_TEST_TMP="$d")"
   [[ "$out" == *RC=3* ]] && [ ! -e "$t/hi.end" ] || _hi_because "another name's: $out"
 }
 
