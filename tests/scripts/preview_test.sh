@@ -167,51 +167,64 @@ EOF
 # usernames have no ssh config to carry tags, so the tag branch must not fire
 # for them even when a usertag of that name exists
 function test_source_never_reports_a_tag_for_a_username() {
-  [[ "$(_hi_color_source username ops)" != tag:* ]] || _hi_why
+  local got
+  got="$(_hi_color_source username ops)"
+  [[ "$got" != tag:* ]] || _hi_why got
 }
 
 # the preview exists to show what the prompt will do; if these two ever
 # disagree the table is confidently wrong, which is worse than no table
 function test_source_agrees_with_resolve_color_on_overrides() {
-  [ "$(_hi_resolve_color hostname pinned)" = brcyan ] &&
-    [ "$(_hi_color_source hostname pinned)" = "override:hostname" ] || _hi_why
+  local got got2
+  got="$(_hi_resolve_color hostname pinned)"
+  got2="$(_hi_color_source hostname pinned)"
+  [ "$got" = brcyan ] && [ "$got2" = "override:hostname" ] || _hi_why got got2
 }
 
 function test_source_agrees_with_resolve_color_on_tags() {
-  [ "$(_hi_resolve_color hostname tagged)" = bryellow ] &&
-    [ "$(_hi_color_source hostname tagged)" = "tag:work" ] || _hi_why
+  local got got2
+  got="$(_hi_resolve_color hostname tagged)"
+  got2="$(_hi_color_source hostname tagged)"
+  [ "$got" = bryellow ] && [ "$got2" = "tag:work" ] || _hi_why got got2
 }
 
 function test_source_agrees_with_resolve_color_on_patterns() {
-  [ "$(_hi_resolve_color hostname pat-1)" = brblue ] &&
-    [ "$(_hi_color_source hostname pat-1)" = "pattern:pat-*" ] || _hi_why
+  local got got2
+  got="$(_hi_resolve_color hostname pat-1)"
+  got2="$(_hi_color_source hostname pat-1)"
+  [ "$got" = brblue ] && [ "$got2" = "pattern:pat-*" ] || _hi_why got got2
 }
 
 function test_default_source_still_resolves_to_a_palette_color() {
-  local color
+  local color got
   color="$(_hi_resolve_color hostname plain)"
-  { [ "$(_hi_color_source hostname plain)" = hash ] &&
-    printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qxF "$color"; } || _hi_why color _HI_COLOR_NAMES
+  got="$(_hi_color_source hostname plain)"
+  { [ "$got" = hash ] && printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qxF "$color"; } || _hi_why got color _HI_COLOR_NAMES
 }
 
 function test_colors_names_dedupes_and_skips() {
+  local got
   local colors="$_HI_WORKDIR/colors.names" out
   printf '[hostname]\na = "red"\nb = "blue"\na = "green"\n[username]\nc = "red"\n' >"$colors"
   out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
   [ "$out" = "a
 b" ] || _hi_why out || return 1
-  [ "$(_HI_COLORS="$colors" _hi_colors_names hostname a)" = b ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_colors_names hostname a)"
+  [ "$got" = b ] || _hi_why got colors
 }
 
 # _hi_colors_rows reads the [type] sections core.sh's scan does: a name only
 # under its own section, a row above the first one nowhere, comments and
 # blank lines skipped, a section named twice read both times
 function test_colors_rows_are_scoped_to_their_section() {
+  local got got2 got3 got4
   local colors="$_HI_WORKDIR/colors.rows"
   printf 'stray = "red"\n[hostname]\n# a note\n\nshared = "red"\n  h1   =   "blue" # padded\n[username]\nshared = "green"\n[hostname]\nh2 = "cyan ff0000"\nold red\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_colors_rows hostname)" = "$(printf 'shared\nh1\nh2')" ] &&
-    [ "$(_HI_COLORS="$colors" _hi_colors_rows username)" = shared ] &&
-    [ -z "$(_HI_COLORS="$colors" _hi_colors_rows hosttag)" ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_colors_rows hostname)"
+  got2="$(printf 'shared\nh1\nh2')"
+  got3="$(_HI_COLORS="$colors" _hi_colors_rows username)"
+  got4="$(_HI_COLORS="$colors" _hi_colors_rows hosttag)"
+  [ "$got" = "$got2" ] && [ "$got3" = shared ] && [ -z "$got4" ] || _hi_why got got2 got3 got4 colors
 }
 
 function test_known_users_includes_the_current_user() {
@@ -229,7 +242,9 @@ function test_known_users_excludes_the_localuser_placeholder() {
 }
 
 function test_known_users_are_deduplicated() {
-  [ "$(_hi_known_users | sort | uniq -d | wc -l)" -eq 0 ] || _hi_why
+  local got
+  got="$(_hi_known_users | sort | uniq -d | wc -l)"
+  [ "$got" -eq 0 ] || _hi_why got
 }
 
 function test_known_usertags_lists_only_usertags() {
@@ -245,7 +260,9 @@ function test_preview_users_adds_a_row_per_usertag() {
 }
 
 function test_preview_users_are_deduplicated() {
-  [ "$(_hi_preview_users | sort | uniq -d | wc -l)" -eq 0 ] || _hi_why
+  local got
+  got="$(_hi_preview_users | sort | uniq -d | wc -l)"
+  [ "$got" -eq 0 ] || _hi_why got
 }
 
 # `plain` is covered by no glob, and `pinned`'s exact row must not answer
@@ -258,24 +275,31 @@ function test_pattern_for_misses_uncovered_names() {
 # every subnet-style pin once, in file order; exact rows and other types
 # don't qualify
 function test_pattern_pins_dedupe_in_file_order() {
+  local got
   local colors="$_HI_WORKDIR/colors.pins"
   printf '[hostname]\n"net-*" = "red"\nexact = "blue"\n"db-?" = "cyan"\n"net-*" = "green"\n[username]\n"u-*" = "green"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_pattern_pins)" = 'net-*
-db-?' ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_pattern_pins)"
+  [ "$got" = 'net-*
+db-?' ] || _hi_why got colors
 }
 
 # no colors file: no glob to answer with, no pins to list, and no error
 # under set -e
 function test_pattern_helpers_tolerate_a_missing_colors_file() {
+  local got
   ! _HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_for pat-1 || _hi_why || return 1
-  [ -z "$(_HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_pins)" ] || _hi_why
+  got="$(_HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_pins)"
+  [ -z "$got" ] || _hi_why got
 }
 
 # _hi_group_index reads the caller's group_order through dynamic scoping,
 # exactly as _hi_print_hosts_table uses it
 function test_group_index_finds_an_existing_key() {
+  local got got2
   local group_order=(alpha beta gamma)
-  [ "$(_hi_group_index beta)" = 1 ] && [ "$(_hi_group_index gamma)" = 2 ] || _hi_why
+  got="$(_hi_group_index beta)"
+  got2="$(_hi_group_index gamma)"
+  [ "$got" = 1 ] && [ "$got2" = 2 ] || _hi_why got got2
 }
 
 function test_group_index_misses_a_new_key() {
@@ -293,8 +317,10 @@ function test_group_index_handles_an_empty_table() {
 # widths are per-host: user_width + a space + the host name, plus two spaces
 # between each pair of groups
 function test_group_preview_width_sums_its_hosts() {
+  local got
   local user_width=4
-  [ "$(_hi_group_preview_width abc de)" = "$((4 + 1 + 3 + 4 + 1 + 2 + 2))" ] || _hi_why
+  got="$(_hi_group_preview_width abc de)"
+  [ "$got" = "$((4 + 1 + 3 + 4 + 1 + 2 + 2))" ] || _hi_why got
 }
 
 # The two table renderers, called in-process against the exported fixtures
@@ -364,9 +390,11 @@ function _hi_render_hosts_table() {
 # tagged and a-considerably-longer-hostname share a tag and a color, so they
 # collapse into one tag:work group row - grouping is the table's whole point
 function test_hosts_table_groups_identical_renders() {
+  local got
   _hi_hosts_out || _hi_why || return 1
   [[ "$_HI_HOSTS_OUT" == *tagged* && "$_HI_HOSTS_OUT" == *a-considerably-longer-hostname* ]] || _hi_why _HI_HOSTS_OUT || return 1
-  [ "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'tag:work')" -eq 1 ] || _hi_why _HI_HOSTS_OUT
+  got="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'tag:work')"
+  [ "$got" -eq 1 ] || _hi_why got _HI_HOSTS_OUT
 }
 
 # the glob seeds its own example row, and a real host it covers joins that

@@ -279,13 +279,15 @@ function test_ssh_files_lists_the_config_and_its_includes_in_order() {
 # the word after --add-tag is a literal Host from the config or an Include;
 # a pattern names no host to tag
 function test_add_tag_words_are_the_literal_ssh_hosts() {
+  local got
   local h="$_HI_WORKDIR/addtag-home" out
   mkdir -p "$h/.ssh/config.d"
   printf 'Include config.d/*\nHost top *.example web?\n' >"$h/.ssh/config"
   printf 'Host alpha # a note\n' >"$h/.ssh/config.d/01-a"
   out="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" sh "$_HI_TARGETS" words --add-tag | cut -f1 | sort | tr '\n' ' ')"
   [ "$out" = "alpha top " ] || _hi_because "--add-tag words: [$out]" || return 1
-  [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/none" sh "$_HI_TARGETS" words --add-tag)" ] || _hi_why h _HI_TARGETS
+  got="$(HOME="$h" _HI_SSH_CONFIG="$h/none" sh "$_HI_TARGETS" words --add-tag)"
+  [ -z "$got" ] || _hi_why got h _HI_TARGETS
 }
 
 function test_ssh_kind_excludes_container_backends() {
@@ -303,8 +305,9 @@ function test_docker_kind_lists_running_containers() {
 
 # ...unless $_HI_BACKENDS_OFF names it, which leaves the others listing
 function test_a_backend_switched_off_is_not_listed() {
-  local out
-  [ -z "$(_HI_BACKENDS_OFF=docker _hi_targets "$_HI_CONFIG" docker)" ] || _hi_why _HI_CONFIG || return 1
+  local out got
+  got="$(_HI_BACKENDS_OFF=docker _hi_targets "$_HI_CONFIG" docker)"
+  [ -z "$got" ] || _hi_why got _HI_CONFIG || return 1
   out="$(_HI_BACKENDS_OFF="nomad,docker" _hi_targets "$_HI_CONFIG" all)"
   ! printf '%s\n' "$out" | grep -q $'\tdocker$' && printf '%s\n' "$out" | grep -q $'\tssh$' || _hi_why out || return 1
   out="$(_HI_BACKENDS_OFF=all _hi_targets "$_HI_CONFIG" all)"
@@ -356,9 +359,10 @@ function test_absent_family_member_is_silent() {
 # nothing in the environment reorders or narrows it - a stale
 # _HI_CONTAINER_CLIS from an older install is just another unread name
 function test_family_order_is_emission_order() {
-  local out
+  local out got
   out="$(_HI_CONTAINER_CLIS=podman _hi_targets "$_HI_CONFIG" | grep -v $'\tssh$')"
-  [ "$(printf '%s\n' "$out" | sed -n '1p')" = "alpha"$'\t'"docker" ] || _hi_why out || return 1
+  got="$(printf '%s\n' "$out" | sed -n '1p')"
+  [ "$got" = "alpha"$'\t'"docker" ] || _hi_why got out || return 1
   printf '%s\n' "$out" | grep -qxF "pod-one"$'\t'"podman" || _hi_why out || return 1
   printf '%s\n' "$out" | grep -qxF "nerd-one"$'\t'"nerdctl" || _hi_why out
 }
@@ -366,9 +370,10 @@ function test_family_order_is_emission_order() {
 # podman-docker's `docker` is podman: both lanes list the same container, and
 # the row is emitted once, as the earlier lane's kind
 function test_duplicate_daemon_rows_are_emitted_once() {
-  local out
+  local out got
   out="$(PATH="$_HI_TWIN_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS")"
-  [ "$(printf '%s\n' "$out" | grep -c $'^twin\t')" -eq 1 ] || _hi_why out || return 1
+  got="$(printf '%s\n' "$out" | grep -c $'^twin\t')"
+  [ "$got" -eq 1 ] || _hi_why got out || return 1
   _hi_has_row "$out" twin docker || _hi_why out || return 1
   _hi_has_row "$out" only-docker docker || _hi_why out || return 1
   _hi_has_row "$out" only-podman podman || _hi_why out
@@ -470,13 +475,14 @@ function test_backends_are_swept_together() {
 # which is slow and must still be right. TMPDIR under /dev/null can never be
 # mkdir'd, so scratch_dir fails the way an unwritable host would.
 function test_no_scratch_dir_falls_back_in_turn() {
-  local out
+  local out got
   out="$(_hi_targets_slow /dev/null/nope)" || _hi_why || return 1
   _hi_has_row "$out" slow-docker docker || _hi_why out || return 1
   _hi_has_row "$out" slow-podman podman || _hi_why out || return 1
   _hi_has_row "$out" slow-pod kube || _hi_why out || return 1
   # one backend finished before the next started, i.e. really the in-turn arm
-  [ "$(sed -n '2p' "$_HI_PROBE_LOG")" = "docker end" ] || _hi_why _HI_PROBE_LOG
+  got="$(sed -n '2p' "$_HI_PROBE_LOG")"
+  [ "$got" = "docker end" ] || _hi_why got _HI_PROBE_LOG
 }
 
 # ...and nomad's per-job calls fall back the same way: nomad alone would fan
@@ -609,6 +615,7 @@ function test_cache_does_not_leak_its_timestamp() {
 # got to first is never trusted: the sweep runs and nothing is read from or
 # written to the hijacked path.
 function test_cache_dir_symlink_is_not_trusted() {
+  local got
   local tmp="$_HI_WORKDIR/symlink-hijack" elsewhere out uid
   mkdir -p "$tmp"
   elsewhere="$_HI_WORKDIR/symlink-hijack-target"
@@ -618,7 +625,8 @@ function test_cache_dir_symlink_is_not_trusted() {
   out="$(PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker)"
   _hi_has_row "$out" alpha docker || _hi_why out || return 1
-  [ -z "$(ls -A "$elsewhere" 2>/dev/null)" ] || _hi_why elsewhere
+  got="$(ls -A "$elsewhere" 2>/dev/null)"
+  [ -z "$got" ] || _hi_why got elsewhere
 }
 
 # No root here to actually own a directory as somebody else, so `ls -ld` is
@@ -651,6 +659,7 @@ SHIM
 # denied" stays off stderr - write_cache's 2>/dev/null sits before the `>` it
 # has to silence, or every TAB would print it over the prompt.
 function test_unwritable_cache_dir_still_answers() {
+  local got
   local tmp="$_HI_WORKDIR/cache-readonly" err="$_HI_WORKDIR/cache-readonly.err" uid out rc=0
   uid="$(id -u)"
   mkdir -m 700 "$tmp"
@@ -661,7 +670,8 @@ function test_unwritable_cache_dir_still_answers() {
   chmod 700 "$tmp/hi-$uid"
   [ "$rc" = 0 ] || _hi_why rc || return 1
   _hi_has_row "$out" alpha docker || _hi_why out || return 1
-  [ -z "$(ls -A "$tmp/hi-$uid")" ] || _hi_why tmp uid || return 1
+  got="$(ls -A "$tmp/hi-$uid")"
+  [ -z "$got" ] || _hi_why got tmp uid || return 1
   [ ! -s "$err" ] || {
     _hi_cecho "   stderr: $(cat "$err")" "$RED"
     return 1

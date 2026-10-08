@@ -18,13 +18,14 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 source "$_HI_LAUNCHER"
 
 function test_mux_name_drops_what_tmux_rejects() {
-  local out
+  local out got got2
   for out in "$(_hi_mux_name user@host)" "$(_hi_mux_name ctx:ns:pod/ctr)" "$(_hi_mux_name 'db.example.com')"; do
     case "$out" in hi-*) ;; *) _hi_why out || return 1 ;; esac
     case "$out" in *[:./@]*) _hi_why out || return 1 ;; esac
   done
-  [ "$(_hi_mux_name ctx:ns:pod/ctr)" = hi-ctx-ns-pod-ctr ] &&
-    [ "$(_hi_mux_name user@host)" = hi-user-host ] || _hi_why
+  got="$(_hi_mux_name ctx:ns:pod/ctr)"
+  got2="$(_hi_mux_name user@host)"
+  [ "$got" = hi-ctx-ns-pod-ctr ] && [ "$got2" = hi-user-host ] || _hi_why got got2
 }
 
 function test_mux_name_is_a_session_name_tmux_accepts() {

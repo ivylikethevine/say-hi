@@ -39,8 +39,11 @@ function _hi_parse_out() {
 }
 
 function test_parse_handles_several_flags_before_the_target() {
-  [ "$(_hi_parse_out -4 -o StrictHostKeyChecking=no -i /tmp/k myhost)" = \
-    "$(printf 'myhost\n\n-4\n-o\nStrictHostKeyChecking=no\n-i\n/tmp/k\n')" ] || _hi_why
+  local got got2
+  got="$(_hi_parse_out -4 -o StrictHostKeyChecking=no -i /tmp/k myhost)"
+  got2="$(printf 'myhost\n\n-4\n-o\nStrictHostKeyChecking=no\n-i\n/tmp/k\n')"
+  [ "$got" = \
+    "$got2" ] || _hi_why got got2
 }
 
 # a trailing command becomes CMDARG - suffixed with "; exit" so the target
@@ -55,13 +58,16 @@ function test_parse_turns_trailing_words_into_a_command() {
 # ...dashed or not: the target ends the options, and `hi host -la` is ssh's
 # `ssh host -la` - the command's word, never an ssh argument
 function test_parse_dashed_word_after_the_target_is_the_command() {
-  local out
+  local out got
   out="$(_hi_parse_out myhost -la)"
-  [[ "$out" == myhost*"-la;"*exit* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 2 ] || _hi_why out
+  got="$(printf '%s\n' "$out" | wc -l)"
+  [[ "$out" == myhost*"-la;"*exit* ]] && [ "$got" -eq 2 ] || _hi_why got out
 }
 
 function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
-  [ "$(_hi_parse_out myhost | sed -n 2p)" = "" ] || _hi_why
+  local got
+  got="$(_hi_parse_out myhost | sed -n 2p)"
+  [ "$got" = "" ] || _hi_why got
 }
 
 # "--" is ssh's own option terminator and rides along as one more ssh
@@ -71,6 +77,7 @@ function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
 # status - it never returns to _hi_parse_out, so this shims ssh to log its
 # argv and exit 3, and asserts both.
 function test_parse_dashdash_does_not_end_option_parsing() {
+  local got
   local bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
   mkdir -p "$bin"
   cat >"$bin/ssh" <<SHIM
@@ -81,7 +88,8 @@ SHIM
   chmod +x "$bin/ssh"
   (PATH="$bin:$PATH" _hi_parse -- -oddtarget >/dev/null 2>&1) || rc=$?
   [ "$rc" -eq 3 ] || _hi_why rc || return 1
-  [ "$(cat "$log")" = "-- -oddtarget" ] || _hi_why log
+  got="$(cat "$log")"
+  [ "$got" = "-- -oddtarget" ] || _hi_why got log
 }
 
 # ssh takes no option that starts with two dashes, so every --word is hi's:
@@ -151,9 +159,11 @@ function test_parse_help_is_honoured_behind_an_ssh_option() {
 # the bare words help and version are targets like any other: -h and -V are
 # the only spellings hi claims, so a host called help needs no escaping
 function test_bare_help_and_version_words_are_targets() {
-  [ "$(_hi_parse_out help | sed -n 1p)" = help ] &&
-    [ "$(_hi_parse_out version | sed -n 1p)" = version ] &&
-    [ "$(_hi_parse_out -4 help | sed -n 1p)" = help ] || _hi_why
+  local got got2 got3
+  got="$(_hi_parse_out help | sed -n 1p)"
+  got2="$(_hi_parse_out version | sed -n 1p)"
+  got3="$(_hi_parse_out -4 help | sed -n 1p)"
+  [ "$got" = help ] && [ "$got2" = version ] && [ "$got3" = help ] || _hi_why got got2 got3
 }
 
 # _hi_is_ssh_host reads literal Host entries only: a `Host *` block claims
@@ -174,8 +184,10 @@ function test_is_ssh_host_ignores_a_wildcard_block() {
 }
 
 function test_select_arm_wildcard_host_does_not_shadow_a_container() {
+  local got
   local DOMAIN=yes BACKEND=
-  [ "$(_HI_SSH_CONFIG="$(_hi_wild_ssh_config)" PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ] || _hi_why _HI_SHIM_PATH
+  got="$(_HI_SSH_CONFIG="$(_hi_wild_ssh_config)" PATH="$_HI_SHIM_PATH" _hi_select_arm)"
+  [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
 }
 
 # a value-taking flag with nothing after it must report itself, not die on an
@@ -262,7 +274,9 @@ function test_predicates_are_false_without_their_cli() {
 # $_HI_BACKENDS.
 
 function test_resolve_backend_picks_the_first_matching_row() {
-  [ "$(PATH="$_HI_SHIM_PATH" _hi_resolve_backend yes)" = docker ] || _hi_why _HI_SHIM_PATH
+  local got
+  got="$(PATH="$_HI_SHIM_PATH" _hi_resolve_backend yes)"
+  [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
 }
 
 # ...and the roster order is the thing being asserted, not "docker": prove it
@@ -301,11 +315,11 @@ function test_header_probes_every_backend_in_the_roster() {
     # name is a member of that one list, and that _hi_probe_launch reads it
     # rather than spelling its own - GLOSSARY: HI.51.
     case "$name" in
-    kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || return 1 ;;
-    nomad) [[ "$launch" == *nomad* ]] || return 1 ;;
+    kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || _hi_why launch || return 1 ;;
+    nomad) [[ "$launch" == *nomad* ]] || _hi_why launch || return 1 ;;
     *)
       case " $_HI_CONTAINER_CLIS " in
-      *" $name "*) [[ "$launch" == *'_HI_CONTAINER_CLIS'* ]] || return 1 ;;
+      *" $name "*) [[ "$launch" == *'_HI_CONTAINER_CLIS'* ]] || _hi_why name launch || return 1 ;;
       *) _hi_why -3 name launch _HI_CONTAINER_CLIS || return 1 ;;
       esac
       ;;
@@ -317,22 +331,27 @@ function test_header_probes_every_backend_in_the_roster() {
 # environment edits it: every member always has a row to resolve through, and
 # a stale _HI_CONTAINER_CLIS from an older install changes nothing
 function test_backend_roster_is_the_whole_family() {
-  local names
+  local names got
   # sourced in a child bash with $0 left as "bash", so hi.sh's
   # `[[ BASH_SOURCE == $0 ]]` hatch reads it as a library, not a run
   names="$(_HI_CONTAINER_CLIS=nerdctl bash -c 'source "$1" >/dev/null 2>&1; printf "%s\n" "${_HI_BACKENDS[@]%%|*}"' bash "$_HI_LAUNCHER")"
-  [ "$names" = "$(printf 'docker\npodman\nnerdctl\nfinch\nnomad\nkube\n')" ] || _hi_why names
+  got="$(printf 'docker\npodman\nnerdctl\nfinch\nnomad\nkube\n')"
+  [ "$names" = "$got" ] || _hi_why got names
 }
 
 function test_resolve_backend_prints_nothing_for_a_stranger() {
-  [ -z "$(PATH="$_HI_SHIM_PATH" _hi_resolve_backend no)" ] || _hi_why _HI_SHIM_PATH
+  local got
+  got="$(PATH="$_HI_SHIM_PATH" _hi_resolve_backend no)"
+  [ -z "$got" ] || _hi_why got _HI_SHIM_PATH
 }
 
 # no CLI at all: every predicate is false, and _hi falls through to ssh
 function test_resolve_backend_prints_nothing_without_any_cli() {
+  local got
   local empty="$_HI_WORKDIR/empty"
   mkdir -p "$empty"
-  [ -z "$(PATH="$empty" _hi_resolve_backend yes)" ] || _hi_why empty
+  got="$(PATH="$empty" _hi_resolve_backend yes)"
+  [ -z "$got" ] || _hi_why got empty
 }
 
 # --use is the one way to force an arm: every roster name and ssh resolve
@@ -342,10 +361,11 @@ function test_resolve_backend_prints_nothing_without_any_cli() {
 # SC2031: the roster swap above (test_resolve_backend_follows_the_roster_order)
 # happens inside a $( ) and never reaches here; this reads the file-scope table
 function test_every_arm_resolves_through_use() {
-  local name
+  local name got
   # shellcheck disable=SC2031
   for name in ssh "${_HI_BACKENDS[@]%%|*}"; do
-    [ "$(_hi_use_backend "$name" 2>/dev/null)" = "$name" ] || _hi_why name || return 1
+    got="$(_hi_use_backend "$name" 2>/dev/null)"
+    [ "$got" = "$name" ] || _hi_why got name || return 1
     ! grep -q "^--$name|" "$_HI_ROOT/common/flags" || _hi_why name || return 1
   done
   grep -q '^--use|' "$_HI_ROOT/common/flags" || _hi_why
@@ -359,8 +379,9 @@ function test_use_backend_rejects_a_stranger() {
 # is refused here, once, for _hi_parse and doctor both - on stderr, with
 # nothing on stdout for a caller's $( ) to take as an arm
 function test_use_backend_refuses_a_second_arm() {
-  local out err
-  [ "$(_hi_use_backend docker docker 2>/dev/null)" = docker ] || _hi_why || return 1
+  local out err got
+  got="$(_hi_use_backend docker docker 2>/dev/null)"
+  [ "$got" = docker ] || _hi_why got || return 1
   err="$(_hi_use_backend podman docker 2>&1 >/dev/null)" && return 1
   out="$(_hi_use_backend podman docker 2>/dev/null)" && return 1
   [ -z "$out" ] && [[ "$err" == *"--use podman and --use docker both name a backend; pick one"* ]] || _hi_why out err
@@ -370,8 +391,12 @@ function test_use_backend_refuses_a_second_arm() {
 # install.sh's --prefix and --preset already take, and must not fall through
 # to ssh as an unknown option
 function test_parse_use_takes_the_equals_spelling() {
-  [ "$(_hi_backend_parse_out --use=nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ] &&
-    [ "$(_hi_parse_out --use=podman myhost)" = "$(printf 'myhost\n\n')" ] || _hi_why
+  local got got2 got3 got4
+  got="$(_hi_backend_parse_out --use=nerdctl myhost)"
+  got2="$(printf 'myhost\nnerdctl\n')"
+  got3="$(_hi_parse_out --use=podman myhost)"
+  got4="$(printf 'myhost\n\n')"
+  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] || _hi_why got got2 got3 got4
 }
 
 function test_parse_use_equals_rejects_a_stranger() {
@@ -390,9 +415,11 @@ function test_parse_use_rejects_a_stranger() {
 # --use reaches every arm, not only the family: ssh (the empty arm) and the
 # orchestrators too, the same values their shorthand flags set
 function test_parse_use_names_every_arm() {
-  local name
+  local name got got2
   for name in ssh docker podman nomad kube; do
-    [ "$(_hi_backend_parse_out --use "$name" myhost)" = "$(printf 'myhost\n%s\n' "$name")" ] || _hi_why name || return 1
+    got="$(_hi_backend_parse_out --use "$name" myhost)"
+    got2="$(printf 'myhost\n%s\n' "$name")"
+    [ "$got" = "$got2" ] || _hi_why got got2 name || return 1
   done
 }
 
@@ -405,8 +432,11 @@ function test_parse_use_without_a_word_exits_one() {
 # the same arm twice is no conflict; two different arms are one, and the
 # message names both
 function test_parse_use_twice_agrees_or_refuses() {
+  local got got2
   local rc=0 out
-  [ "$(_hi_backend_parse_out --use docker --use docker myhost)" = "$(printf 'myhost\ndocker\n')" ] || _hi_why || return 1
+  got="$(_hi_backend_parse_out --use docker --use docker myhost)"
+  got2="$(printf 'myhost\ndocker\n')"
+  [ "$got" = "$got2" ] || _hi_why got got2 || return 1
   (_hi_parse --use podman --use docker myhost >/dev/null 2>&1) || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc || return 1
   out="$( (_hi_parse --use docker --use ssh myhost 2>&1 >/dev/null) || true)"
@@ -439,65 +469,87 @@ function _hi_plain_parse_out() {
 
 # --no-plain is the pair's other half: the last of the two wins
 function test_parse_no_plain_is_the_other_half() {
-  [ "$(_hi_var_parse_out PLAIN unset --no-plain myhost)" = "$(printf 'myhost\n0\n')" ] &&
-    [ "$(_hi_plain_parse_out --no-plain --plain myhost)" = "$(printf 'myhost\n1\n')" ] &&
-    [ "$(_hi_var_parse_out PLAIN unset --plain --no-plain myhost)" = "$(printf 'myhost\n0\n')" ] &&
-    [ "$(_hi_var_parse_out PLAIN unset myhost)" = "$(printf 'myhost\nunset\n')" ] || _hi_why
+  local got got2 got3 got4 got5 got6 got7
+  got="$(_hi_var_parse_out PLAIN unset --no-plain myhost)"
+  got2="$(printf 'myhost\n0\n')"
+  got3="$(_hi_plain_parse_out --no-plain --plain myhost)"
+  got4="$(printf 'myhost\n1\n')"
+  got5="$(_hi_var_parse_out PLAIN unset --plain --no-plain myhost)"
+  got6="$(_hi_var_parse_out PLAIN unset myhost)"
+  got7="$(printf 'myhost\nunset\n')"
+  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] && [ "$got5" = "$got2" ] && [ "$got6" = "$got7" ] || _hi_why got got2 got3 got4 got5 got6 got7
 }
 
 function test_parse_plain_sets_plain_not_sshargs() {
-  [ "$(_hi_plain_parse_out --plain myhost)" = "$(printf 'myhost\n1\n')" ] &&
-    [ "$(_hi_parse_out --plain myhost)" = "$(printf 'myhost\n\n')" ] || _hi_why
+  local got got2 got3 got4
+  got="$(_hi_plain_parse_out --plain myhost)"
+  got2="$(printf 'myhost\n1\n')"
+  got3="$(_hi_parse_out --plain myhost)"
+  got4="$(printf 'myhost\n\n')"
+  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] || _hi_why got got2 got3 got4
 }
 
 # combines freely with --use - orthogonal, checked in either order
 function test_parse_plain_combines_with_use() {
-  [ "$(_hi_plain_parse_out --plain --use docker myhost)" = "$(printf 'myhost\n1\n')" ] &&
-    [ "$(_hi_backend_parse_out --use docker --plain myhost)" = "$(printf 'myhost\ndocker\n')" ] || _hi_why
+  local got got2 got3 got4
+  got="$(_hi_plain_parse_out --plain --use docker myhost)"
+  got2="$(printf 'myhost\n1\n')"
+  got3="$(_hi_backend_parse_out --use docker --plain myhost)"
+  got4="$(printf 'myhost\ndocker\n')"
+  [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] || _hi_why got got2 got3 got4
 }
 
 # RAWCMD is CMDARG's raw material, without the "; exit" suffix baked in for
 # the bootloader's own embedding - --plain execs the words directly and has
 # no bootloader to close out
 function test_parse_rawcmd_has_no_exit_suffix() {
-  local out
+  local out got got2
   out="$(
     unset RAWCMD CMDARG
     _hi_parse myhost echo hello >/dev/null 2>&1
     printf '%s\n%s\n' "$RAWCMD" "$CMDARG"
   )"
-  [ "$(printf '%s\n' "$out" | sed -n 1p)" = "echo hello" ] &&
-    [[ "$(printf '%s\n' "$out" | sed -n 2p)" == *"exit"* ]] || _hi_why out
+  got="$(printf '%s\n' "$out" | sed -n 1p)"
+  got2="$(printf '%s\n' "$out" | sed -n 2p)"
+  [ "$got" = "echo hello" ] && [[ "$got2" == *"exit"* ]] || _hi_why got got2 out
 }
 
 # _hi_select_arm is what _hi calls to choose $arm; testing it directly means
 # asserting the choice without a real connect
 function test_select_arm_backend_flag_wins_over_a_real_match() {
+  local got
   local DOMAIN=yes BACKEND=ssh
-  [ -z "$(PATH="$_HI_SHIM_PATH" _hi_select_arm)" ] || _hi_why _HI_SHIM_PATH
+  got="$(PATH="$_HI_SHIM_PATH" _hi_select_arm)"
+  [ -z "$got" ] || _hi_why got _HI_SHIM_PATH
 }
 
 function test_select_arm_backend_flag_names_the_arm_with_no_probe() {
+  local got
   local DOMAIN=no BACKEND=docker
   # PATH has nothing at all: a probe would find no CLI and print nothing, so
   # a printed "docker" here can only have come from $BACKEND
   local empty="$_HI_WORKDIR/empty"
   mkdir -p "$empty"
-  [ "$(PATH="$empty" _hi_select_arm)" = docker ] || _hi_why empty
+  got="$(PATH="$empty" _hi_select_arm)"
+  [ "$got" = docker ] || _hi_why got empty
 }
 
 function test_select_arm_falls_back_to_resolution_when_backend_unset() {
+  local got
   local DOMAIN=yes BACKEND=
-  [ "$(PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ] || _hi_why _HI_SHIM_PATH
+  got="$(PATH="$_HI_SHIM_PATH" _hi_select_arm)"
+  [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
 }
 
 # a backend $_HI_BACKENDS_OFF names is not asked, so the name is ssh's: by
 # word, a comma or a space apart, and by `all`
 function test_select_arm_skips_a_backend_switched_off() {
+  local got got2 got3
   local DOMAIN=yes BACKEND=
-  [ -z "$(_HI_BACKENDS_OFF="docker,podman nerdctl finch nomad kube" PATH="$_HI_SHIM_PATH" _hi_select_arm)" ] &&
-    [ -z "$(_HI_BACKENDS_OFF=all PATH="$_HI_SHIM_PATH" _hi_select_arm)" ] &&
-    [ "$(_HI_BACKENDS_OFF=nomad PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ] || _hi_why _HI_SHIM_PATH
+  got="$(_HI_BACKENDS_OFF="docker,podman nerdctl finch nomad kube" PATH="$_HI_SHIM_PATH" _hi_select_arm)"
+  got2="$(_HI_BACKENDS_OFF=all PATH="$_HI_SHIM_PATH" _hi_select_arm)"
+  got3="$(_HI_BACKENDS_OFF=nomad PATH="$_HI_SHIM_PATH" _hi_select_arm)"
+  [ -z "$got" ] && [ -z "$got2" ] && [ "$got3" = docker ] || _hi_why got got2 got3 _HI_SHIM_PATH
 }
 
 # The alternate-screen exit is the one mode byte a terminal still on its
@@ -520,29 +572,37 @@ function test_reset_terminal_closes_the_prompt_mark_with_the_status() {
 }
 
 function test_report_failure_is_silent_once_hi_already_said_it() {
+  local got
   local _HI_SAID=1
-  [ -z "$(_hi_report_failure 255 "" "" 2>&1)" ] || _hi_why
+  got="$(_hi_report_failure 255 "" "" 2>&1)"
+  [ -z "$got" ] || _hi_why got
 }
 
 # ssh reserves 255 for its own failures; anything else through the ssh arm is
 # the session's or the remote command's own exit status, which ssh itself
 # never announces either
 function test_report_failure_is_silent_for_a_non_255_ssh_exit() {
-  [ -z "$(_hi_report_failure 1 "" "" 2>&1)" ] || _hi_why
+  local got
+  got="$(_hi_report_failure 1 "" "" 2>&1)"
+  [ -z "$got" ] || _hi_why got
 }
 
 function test_report_failure_speaks_on_255() {
+  local got
   local DOMAIN=myhost f="$_HI_WORKDIR/ssh255.log"
   : >"$f"
-  [[ "$(_hi_report_failure 255 "" "$f" 2>&1)" == *"could not reach [myhost]"* ]] || _hi_why f
+  got="$(_hi_report_failure 255 "" "$f" 2>&1)"
+  [[ "$got" == *"could not reach [myhost]"* ]] || _hi_why got f
 }
 
 # a container arm with nothing filed in its errlog means nothing hi ran on
 # the way in complained, so the exit is the session's, not hi's to announce
 function test_report_failure_is_silent_for_a_quiet_container_errlog() {
+  local got
   local f="$_HI_WORKDIR/empty.log"
   : >"$f"
-  [ -z "$(_hi_report_failure 1 docker "$f" 2>&1)" ] || _hi_why f
+  got="$(_hi_report_failure 1 docker "$f" 2>&1)"
+  [ -z "$got" ] || _hi_why got f
 }
 
 function test_report_failure_speaks_with_a_filed_container_error() {
@@ -556,9 +616,11 @@ function test_report_failure_speaks_with_a_filed_container_error() {
 # no \r anywhere when stderr is not a terminal - a captured/piped failure
 # gets a plain newline instead of a cursor move that has nothing to move
 function test_report_failure_has_no_carriage_return_off_a_tty() {
+  local got
   local DOMAIN=myhost f="$_HI_WORKDIR/notty.log"
   : >"$f"
-  [[ "$(_hi_report_failure 255 "" "$f" 2>&1)" != *$'\r'* ]] || _hi_why f
+  got="$(_hi_report_failure 255 "" "$f" 2>&1)"
+  [[ "$got" != *$'\r'* ]] || _hi_why got f
 }
 
 # _hi_attach_is <tty> <backend> <domain> <want-glob> - run _hi_container_cmds

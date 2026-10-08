@@ -81,6 +81,7 @@ reports. All but the last five rows are `ci.yml`'s.
 | `hot-path benchmarks`                                                   | Always                                                                     | Gate                                                             |
 | `hot-path profiles (timep)`                                             | Skipped on a workflow- or docs-only diff                                   | Advisory — `continue-on-error`                                   |
 | `package build (deb, rpm, apk)`                                         | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
+| `nix flake` (builds the flake, then `nix run`)                          | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
 | `e2e (ssh, docker)`                                                     | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
 | `e2e (podman, nomad, kube)`                                             | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
 | `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                     | Same-repo PRs, after both ubuntu fast-suite jobs pass                      | Gate, but see below                                              |
@@ -123,9 +124,9 @@ lives in this repository: each stands up an sshd and authorizes a throwaway
 key, which is not something to hand a fork's PR (the first three sit behind
 `e2e-gate`; the macOS job's loopback steps skip on a fork for the same reason).
 A fork's PR would never report them, so they stay off the required list;
-`fast suites (Alpine client)` and `fast suites (ubuntu-24.04-arm)` are off it
-until they have a track record. None carries `continue-on-error`, so a red one
-still fails the run.
+`fast suites (Alpine client)`, `fast suites (ubuntu-24.04-arm)`, and
+`nix flake` are off it until they have a track record. None carries
+`continue-on-error`, so a red one still fails the run.
 
 Every other workflow runs on a schedule, after CI on `main`, on a tag, or on
 dispatch, never on your pull request — except `cancel-closed-pr.yml`, which
@@ -220,15 +221,15 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `extensions/` and its hook names, `header/` and its `_hi_cell_<word>`
-  functions, `plugins` and its keys, `vim/vimrc`,
-  `nvim/init.lua`, `helix/config.toml`/`languages.toml`, `kak/kakrc`/`colors/`,
+  functions, `bin/`, `plugins` and its keys, `vim/vimrc`,
+  `nvim/init.lua`/`init.vim`, `helix/config.toml`/`languages.toml`, `kak/kakrc`/`colors/`,
   `nano/nanorc`, `emacs/init.el`, `tmux/tmux.conf`, `screenrc`, `micro/`'s
   `settings.json`/`bindings.json`/`init.lua`, `zellij/`'s
   `config.kdl`/`layouts/`/`themes/`, `aliases.sh`, `bashrc`, `zshrc`,
   `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`, `starship.toml`, `p10k.zsh`,
   `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
   `tide.vars`, `eza/theme.yml`, `bat/config`, `ripgreprc`, `fzfrc`,
-  `lazygit/config.yml`, `inputrc`, and `ssh_tags`), `settings.<tag>.sh` beside
+  `lazygit/config.yml`, `git/config`, `inputrc`, and `ssh_tags`), `settings.<tag>.sh` beside
   them, their formats, the XDG path, and the `_HI_CONFIG_DIR` override. The rule behind the names: a member is
   called what its tool calls the file, under a directory of the tool's name
   where the tool keeps one in `~/.config`; where the tool has no fixed name the

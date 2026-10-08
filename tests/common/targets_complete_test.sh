@@ -59,7 +59,9 @@ function test_complete_drops_the_kind_column() {
 }
 
 function test_complete_is_empty_for_an_unmatched_prefix() {
-  [ -z "$(_hi_completions_for zzz-no-such-target)" ] || _hi_why
+  local got
+  got="$(_hi_completions_for zzz-no-such-target)"
+  [ -z "$got" ] || _hi_why got
 }
 
 # The in-shell TTL cache: targets.sh's own file cache already makes a repeat
@@ -251,20 +253,24 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
 # behind a local command the roster is that command's own switches, read off
 # common/flags' argument column; behind anything else it is hi's own, as before
 function test_flags_behind_a_local_command_are_its_switches() {
-  local out
+  local out got got2 got3
   out="$(sh "$_HI_TARGETS" flags --install | cut -f1 | tr '\n' ' ')"
   [ "$out" = "--yes --link --shell --print-rc --preset --dry-run " ] || {
     _hi_cecho "   flags --install gave: $out" "$RED"
     return 1
   }
-  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --problems --use " ] || _hi_why _HI_TARGETS || return 1
+  got="$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')"
+  [ "$got" = "--json --problems --use " ] || _hi_why got _HI_TARGETS || return 1
   # a row with no switches offers nothing; a connect flag or a target first
   # is not a local command, so the top-level roster stands
   ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || _hi_why _HI_TARGETS || return 1
   # --preview acts locally too but has no switches: nothing, not hi's roster
-  [ -z "$(sh "$_HI_TARGETS" flags --preview)" ] || _hi_why _HI_TARGETS || return 1
-  [ "$(sh "$_HI_TARGETS" flags --plain)" = "$(sh "$_HI_TARGETS" flags)" ] &&
-    [ "$(sh "$_HI_TARGETS" flags somehost)" = "$(sh "$_HI_TARGETS" flags)" ] || _hi_why _HI_TARGETS
+  got="$(sh "$_HI_TARGETS" flags --preview)"
+  [ -z "$got" ] || _hi_why got _HI_TARGETS || return 1
+  got="$(sh "$_HI_TARGETS" flags --plain)"
+  got2="$(sh "$_HI_TARGETS" flags)"
+  got3="$(sh "$_HI_TARGETS" flags somehost)"
+  [ "$got" = "$got2" ] && [ "$got3" = "$got2" ] || _hi_why got got2 got3 _HI_TARGETS
 }
 
 function test_complete_offers_a_local_commands_switches() {
@@ -314,7 +320,7 @@ function test_complete_the_word_after_preview_and_use() {
 # --link and --preset complete their values; --update the checkout's release
 # tags, exactly git's own list (empty on a shallow, tagless CI checkout)
 function test_complete_the_word_after_link_preset_and_update() {
-  local out
+  local out got got2
   out="$(_hi_completions_after --link "" | sort | tr '\n' ' ')"
   [ "$out" = "none system user " ] || {
     _hi_cecho "   --link: $out" "$RED"
@@ -325,20 +331,23 @@ function test_complete_the_word_after_link_preset_and_update() {
     _hi_cecho "   --preset: $out" "$RED"
     return 1
   }
-  [ "$(_hi_completions_after --update "")" = "$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)" ] || _hi_why
+  got="$(_hi_completions_after --update "")"
+  got2="$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)"
+  [ "$got" = "$got2" ] || _hi_why got got2
 }
 
 # --shell completes the names install.sh's own check takes, the list spelled
 # in both files
 function test_shell_words_match_what_install_takes() {
-  local want got
+  local want got got2
   want="$(sed -n 's/^      \(bash | zsh | fish | all\)) ;;$/\1/p' "$_HI_ROOT/scripts/install.sh" | tr -d '|' | tr -s ' ' '\n' | sort | tr '\n' ' ')"
   got="$(_hi_completions_after --shell "" | sort | tr '\n' ' ')"
   [ -n "$want" ] && [ "$got" = "$want" ] || {
     _hi_cecho " | install.sh takes [$want], targets.sh offers [$got]" "$RED"
     return 1
   }
-  [ "$(_hi_completions_after --shell z)" = zsh ] || _hi_why
+  got2="$(_hi_completions_after --shell z)"
+  [ "$got2" = zsh ] || _hi_why got2
 }
 
 # the preset names targets.sh offers are configure.sh's table, spelled twice
@@ -454,63 +463,69 @@ function test_word_flags_match_the_words_roster() {
 # each row's first package.
 
 function test_words_add_package_with_no_overlay_lists_the_tree_groups() {
-  local out
+  local out got
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --add-package)"
-  [[ "$out" == *"core$(printf '\t')a package check group"* && "$out" == *"base$(printf '\t')"* ]] &&
-    [[ "$out" != *bat* ]] || _hi_why out
+  got="$(printf '\t')"
+  [[ "$out" == *"core${got}a package check group"* && "$out" == *"base$got"* ]] && [[ "$out" != *bat* ]] || _hi_why got out
 }
 
 function test_words_add_package_with_an_overlay_lists_only_its_own() {
-  local dir out
+  local dir out got
   dir="$_HI_WORKDIR/addpkg-overlay"
   mkdir -p "$dir"
   printf '[mine]\nfoo = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [ "$out" = "$(printf 'mine\ta package check group')" ] || _hi_why out
+  got="$(printf 'mine\ta package check group')"
+  [ "$out" = "$got" ] || _hi_why got out
 }
 
 # the overlay directory alone is not an override - the guard is on the file,
 # as paths.sh's is, so an overlay without one still offers the tree's groups
 function test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_groups() {
-  local dir out
+  local dir out got
   dir="$_HI_WORKDIR/addpkg-overlay-nofile"
   mkdir -p "$dir"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [[ "$out" == *"core$(printf '\t')"* ]] || _hi_why out
+  got="$(printf '\t')"
+  [[ "$out" == *"core$got"* ]] || _hi_why got out
 }
 
 # groups only, in file order, each once: rows are not offered, nor a
 # commented table, and a table of required or unwanted rows is its group's
 function test_words_add_package_lists_only_clean_group_headers() {
-  local dir out
+  local dir out got
   dir="$_HI_WORKDIR/addpkg-hash"
   mkdir -p "$dir"
   printf '# [commented]\ntop = []\n[b.unwanted]\nx = []\n[required]\nz = []\n[b]\n  [a] # a note\ny = []\n[a.required]\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [ "$out" = "$(printf 'b\ta package check group\na\ta package check group')" ] || _hi_why out
+  got="$(printf 'b\ta package check group\na\ta package check group')"
+  [ "$out" = "$got" ] || _hi_why got out
 }
 
 # --remove-package: each row's key, quoted or bare, whatever table it sits
 # in; tables, comments and blanks are not rows
 function test_words_remove_package_lists_first_packages() {
-  local dir out
+  local dir out got
   dir="$_HI_WORKDIR/rmpkg-words"
   mkdir -p "$dir"
   printf '# a note\ntop = []\n[a]\nbat = ["batcat"]\n"g++" = []\n\n[a.unwanted]\nexa = []\n[b.required]\n  bash = [] # a trailing note\n# x = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --remove-package)"
-  [ "$out" = "$(printf 'top\ta package check row\nbat\ta package check row\ng++\ta package check row\nexa\ta package check row\nbash\ta package check row')" ] || _hi_why out
+  got="$(printf 'top\ta package check row\nbat\ta package check row\ng++\ta package check row\nexa\ta package check row\nbash\ta package check row')"
+  [ "$out" = "$got" ] || _hi_why got out
 }
 
 # --set-color and --unset-color: the four types, the same list for both, and
 # no overlay read - the types are set_color.sh's, not a file's
 function test_words_set_and_unset_color_list_the_four_types() {
-  local out want
+  local out want got
   want="$(printf 'hosttag\nusertag\nusername\nhostname')"
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --set-color)"
-  [ "$(printf '%s\n' "$out" | cut -f1)" = "$want" ] || _hi_why out want || return 1
+  got="$(printf '%s\n' "$out" | cut -f1)"
+  [ "$got" = "$want" ] || _hi_why got out want || return 1
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --unset-color)"
-  [ "$(printf '%s\n' "$out" | cut -f1)" = "$want" ] || _hi_why out want
+  got="$(printf '%s\n' "$out" | cut -f1)"
+  [ "$got" = "$want" ] || _hi_why got out want
 }
 
 # ...and they are set_color.sh's own list, so neither can name a type the
@@ -552,6 +567,7 @@ function test_words_plugin_off_match_the_table() {
 # --plugin-on: the words that are off, as settings.sh's last list has them;
 # --remove-plugin: the plugins of the overlay's file; --add-plugin: nothing
 function test_words_plugin_on_and_remove_read_the_overlay() {
+  local got got2
   local out cfg="$_HI_WORKDIR/words-plugins-on"
   mkdir -p "$cfg"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=old\nexport _HI_PLUGINS_OFF="bat, vim"\n' >"$cfg/settings.sh"
@@ -560,8 +576,9 @@ function test_words_plugin_on_and_remove_read_the_overlay() {
   [ "$out" = "bat vim " ] || _hi_because "--plugin-on offered: $out" || return 1
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --remove-plugin | cut -f1 | tr '\n' ' ')"
   [ "$out" = "task b " ] || _hi_because "--remove-plugin offered: $out" || return 1
-  [ -z "$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --add-plugin)" ] &&
-    [ -z "$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --plugin-on)" ] || _hi_why cfg _HI_TARGETS
+  got="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --add-plugin)"
+  got2="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --plugin-on)"
+  [ -z "$got" ] && [ -z "$got2" ] || _hi_why got got2 cfg _HI_TARGETS
 }
 
 function run_targets_complete_tests() {

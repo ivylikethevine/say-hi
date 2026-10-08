@@ -80,21 +80,25 @@ function _hi_update_dev_fixture() {
 
 # on dev, a bare --update fast-forwards the branch instead of moving to a tag
 function test_update_on_dev_pulls() {
-  local home out
+  local home out got got2
   home="$(_hi_update_dev_fixture upd-dev)" || _hi_why || return 1
   out="$(_hi_subcmd_run "$home" --update)" || _hi_why home || return 1
   [[ "$out" == *"(2 new commit(s))"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" symbolic-ref --short -q HEAD)" = dev ] || _hi_why home || return 1
-  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$(git -C "$home/say-hi" rev-parse origin/dev)" ] || _hi_why home
+  got="$(git -C "$home/say-hi" symbolic-ref --short -q HEAD)"
+  [ "$got" = dev ] || _hi_why got home || return 1
+  got="$(git -C "$home/say-hi" rev-parse HEAD)"
+  got2="$(git -C "$home/say-hi" rev-parse origin/dev)"
+  [ "$got" = "$got2" ] || _hi_why got got2 home
 }
 
 function test_update_on_dev_dry_run_moves_nothing() {
-  local home before out
+  local home before out got
   home="$(_hi_update_dev_fixture upd-dev-dry)" || _hi_why || return 1
   before="$(git -C "$home/say-hi" rev-parse HEAD)"
   out="$(_hi_subcmd_run "$home" --update --dry-run)" || _hi_why home || return 1
   [[ "$out" == *"would pull 2 commit(s) into dev"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ] || _hi_why home before
+  got="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [ "$got" = "$before" ] || _hi_why got home before
 }
 
 function test_update_on_dev_up_to_date_says_so() {
@@ -107,6 +111,7 @@ function test_update_on_dev_up_to_date_says_so() {
 
 # a dev with commits of its own is left for a human: no merge, no reset
 function test_update_on_dev_refuses_a_diverged_branch() {
+  local got
   local home before out rc=0
   home="$(_hi_update_dev_fixture upd-dev-div)" || _hi_why || return 1
   git -C "$home/say-hi" -c user.name=hi -c user.email=hi@example.invalid -c commit.gpgsign=false \
@@ -114,12 +119,14 @@ function test_update_on_dev_refuses_a_diverged_branch() {
   before="$(git -C "$home/say-hi" rev-parse HEAD)"
   out="$(_hi_subcmd_run "$home" --update 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"has diverged from its upstream (1 ahead, 2 behind)"* ]] || _hi_why rc out || return 1
-  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ] || _hi_why home before
+  got="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [ "$got" = "$before" ] || _hi_why got home before
 }
 
 # a dev that tracks nothing has nowhere to pull from: refused, with the
 # command that gives it an upstream, and nothing moves
 function test_update_on_dev_refuses_a_branch_with_no_upstream() {
+  local got
   local home before out rc=0
   home="$(_hi_update_dev_fixture upd-dev-bare)" || _hi_why || return 1
   git -C "$home/say-hi" branch -q --unset-upstream dev >/dev/null 2>&1 || _hi_why home || return 1
@@ -127,7 +134,8 @@ function test_update_on_dev_refuses_a_branch_with_no_upstream() {
   out="$(_hi_subcmd_run "$home" --update 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"dev in $home/say-hi has no upstream"*"--set-upstream-to=origin/dev dev"* ]] ||
     _hi_because "rc $rc: $out" || return 1
-  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ] || _hi_why home before
+  got="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [ "$got" = "$before" ] || _hi_why got home before
 }
 
 # a tag named on dev is still a tag checkout
@@ -140,11 +148,12 @@ function test_update_on_dev_with_a_tag_checks_it_out() {
 }
 
 function test_update_to_a_tag_detaches_there() {
-  local home out
+  local home out got
   home="$(_hi_update_fixture upd-tag)" || _hi_why || return 1
   out="$(_hi_subcmd_run "$home" --update v0.0.2)" || _hi_why home || return 1
   [[ "$out" == *"now on v0.0.2"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.2 ] || _hi_why home || return 1
+  got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
+  [ "$got" = v0.0.2 ] || _hi_why got home || return 1
   ! git -C "$home/say-hi" symbolic-ref -q HEAD >/dev/null 2>&1 || _hi_why home
 }
 
@@ -163,14 +172,14 @@ function test_update_converts_an_old_overlay() {
 
 # ...and a dry run, which checks nothing out, converts nothing either
 function test_update_dry_run_converts_nothing() {
-  local home cfg out
+  local home cfg out got
   home="$(_hi_update_fixture upd-convert-dry)" || _hi_why || return 1
   cfg="$home/overlay"
   mkdir -p "$cfg"
   printf 'bat:3,batcat:3\n' >"$cfg/packages"
   out="$(_HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --update --dry-run v0.0.2)" || _hi_why cfg home || return 1
-  [[ "$out" != *converted* ]] && [ ! -e "$cfg/packages.old" ] &&
-    [ "$(cat "$cfg/packages")" = 'bat:3,batcat:3' ] || _hi_why out cfg
+  got="$(cat "$cfg/packages")"
+  [[ "$out" != *converted* ]] && [ ! -e "$cfg/packages.old" ] && [ "$got" = 'bat:3,batcat:3' ] || _hi_why got out cfg
 }
 
 # The signature check reads gpg's status lines, so the fixture's unsigned tags
@@ -306,6 +315,7 @@ function test_update_allows_a_signature_it_cannot_check() {
 # refuses. The tag object is rewritten with a changed message under the same
 # signature, then the ref moved onto it - what a tampered mirror looks like.
 function test_update_refuses_a_bad_signature() {
+  local got
   local gh home out rc=0 obj
   gh="$(_hi_update_gpg_home bad)" || _hi_why || return 1
   home="$(_hi_update_signed_fixture upd-bad "$gh")" || _hi_why gh || return 1
@@ -316,7 +326,8 @@ function test_update_refuses_a_bad_signature() {
   out="$(GNUPGHOME="$gh" _hi_subcmd_run "$home" --update v0.0.3)" || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc || return 1
   [[ "$out" == *"does not verify"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ] || _hi_why home
+  got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
+  [ "$got" = v0.0.1 ] || _hi_why got home
 }
 
 # _hi_update_ssh_fixture <name> <signer-key> <listed-key> - the fixture plus a
@@ -360,6 +371,7 @@ function test_update_allows_an_ssh_key_not_listed() {
 
 # tampered after ssh-signing, as test_update_refuses_a_bad_signature does it
 function test_update_refuses_a_bad_ssh_signature() {
+  local got
   local home out rc=0 obj
   home="$(_hi_update_ssh_fixture upd-ssh-bad sshkey sshkey)" || _hi_why || return 1
   obj="$(git -C "$home/say-hi" fetch -q --tags && git -C "$home/say-hi" cat-file tag v0.0.3 | sed 's/^three$/tampered/' | git -C "$home/say-hi" hash-object -t tag -w --stdin)" || _hi_why home || return 1
@@ -368,19 +380,20 @@ function test_update_refuses_a_bad_ssh_signature() {
   out="$(_hi_subcmd_run "$home" --update v0.0.3)" || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc || return 1
   [[ "$out" == *"does not verify"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ] || _hi_why home
+  got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
+  [ "$got" = v0.0.1 ] || _hi_why got home
 }
 
 # bare: the newest tag by version, which the fetch brings in - and that
 # leaves a branch checkout detached too, since releases are tags and nothing
 # else
 function test_bare_update_moves_to_the_newest_tag() {
-  local home out
+  local home out got
   home="$(_hi_update_fixture upd-bare)" || _hi_why || return 1
   out="$(_hi_subcmd_run "$home" --update)" || _hi_why home || return 1
   [[ "$out" == *"now on v0.0.2"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.2 ] &&
-    [ -f "$home/say-hi/two.txt" ] || _hi_why home
+  got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
+  [ "$got" = v0.0.2 ] && [ -f "$home/say-hi/two.txt" ] || _hi_why got home
 }
 
 # ...by version, not by name: v0.0.10 beats v0.0.9, and a pre-release of the
@@ -422,13 +435,14 @@ function test_update_on_the_tag_already_says_so() {
 }
 
 function test_update_refuses_a_dirty_tree() {
-  local home out before
+  local home out before got
   home="$(_hi_update_fixture upd-dirty)" || _hi_why || return 1
   printf '# hacked\n' >>"$home/say-hi/hi.sh"
   before="$(git -C "$home/say-hi" rev-parse HEAD)"
   out="$(_hi_subcmd_run "$home" --update v0.0.2)" && return 1
   [[ "$out" == *"uncommitted changes"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ] || _hi_why home before || return 1
+  got="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [ "$got" = "$before" ] || _hi_why got home before || return 1
   tail -n 1 "$home/say-hi/hi.sh" | grep -q '^# hacked$' || _hi_why home
 }
 
@@ -445,25 +459,26 @@ function test_update_refuses_an_unknown_tag() {
 # no git-pull options, and no second word: both are errors before
 # anything moves
 function test_update_takes_one_tag_at_most() {
-  local home out
+  local home out got
   home="$(_hi_update_fixture upd-opts)" || _hi_why || return 1
   out="$(_hi_subcmd_run "$home" --update v0.0.2 --ff-only)" && return 1
   [[ "$out" == *"one release tag at most"* ]] || _hi_why out || return 1
   out="$(_hi_subcmd_run "$home" --update --ff-only)" && return 1
   [[ "$out" == *"unknown option --ff-only"* ]] || _hi_why out || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ] || _hi_why home
+  got="$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)"
+  [ "$got" = v0.0.1 ] || _hi_why got home
 }
 
 # the fetch comes before the tag is resolved, so a fetch that fails stops
 # the run there rather than moving to whatever tag was already local
 function test_update_stops_when_the_fetch_fails() {
-  local home out before
+  local home out before got
   home="$(_hi_update_fixture upd-fetch)" || _hi_why || return 1
   git -C "$home/say-hi" remote set-url origin "$home/nonexistent.git" || _hi_why home || return 1
   before="$(git -C "$home/say-hi" rev-parse HEAD)"
   out="$(_hi_subcmd_run "$home" --update)" && return 1
-  [[ "$out" == *"git fetch failed in $home/say-hi"* ]] &&
-    [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ] || _hi_why out home before
+  got="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [[ "$out" == *"git fetch failed in $home/say-hi"* ]] && [ "$got" = "$before" ] || _hi_why got out home before
 }
 
 # a clone with commits and no v* tag anywhere has no release to move to

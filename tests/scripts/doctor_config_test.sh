@@ -41,13 +41,14 @@ function test_config_counts_an_overlay_file() {
 # an ssh config with a `# Tags:` line is a row saying the tags ride; one
 # without, or no config at all, is none
 function test_config_says_the_ssh_tags_ride() {
-  local dir out
+  local dir out got
   dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
   mkdir -p "$dir/rt"
   printf '# Tags: prod\nHost web\n' >"$dir/ssh_config"
   out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
     _HI_SETTINGS="$dir/settings.sh" doctor_config)"
-  [[ "$out" == *"the # Tags: lines of $(_hi_doc_path "$dir/ssh_config") ride along"* ]] || _hi_because "tagged: $out" || return 1
+  got="$(_hi_doc_path "$dir/ssh_config")"
+  [[ "$out" == *"the # Tags: lines of $got ride along"* ]] || _hi_because "tagged: $out" || return 1
   printf 'Host web\n' >"$dir/ssh_config"
   out="$(XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/ssh_config" _HI_CONFIG_DIR="$dir" \
     _HI_SETTINGS="$dir/settings.sh" doctor_config)"
@@ -90,7 +91,7 @@ function test_config_has_no_tree_default_for_a_member_without_one() {
 
 # a tool config the overlay lacks names the file that travels in its place
 function test_config_names_a_home_tool_config() {
-  local dir out
+  local dir out got
   dir="$(mktemp -d "$_HI_WORKDIR/homecfg.XXXXXX")"
   printf -- '--theme=x\n' >"$dir/bat-flags"
   out="$(
@@ -98,7 +99,8 @@ function test_config_names_a_home_tool_config() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
   )"
-  [[ "$out" == *"bat/config (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]] || _hi_why out dir
+  got="$(_hi_doc_path "$dir/bat-flags")"
+  [[ "$out" == *"bat/config (bat)"*"$got"* && "$out" != *"the one in force here"* ]] || _hi_why got out dir
 }
 
 # a candidate that is there but is no file (a directory named as the rc is)
@@ -136,6 +138,7 @@ function test_config_counts_a_tool_config_copy_as_an_override() {
 # member a good plugin carries from home is named by its path (GLOSSARY:
 # HI.63)
 function test_config_reports_the_carry_rows() {
+  local got
   local dir out h="$_HI_WORKDIR/carry-doc-home"
   dir="$(mktemp -d "$_HI_WORKDIR/carrydoc.XXXXXX")"
   mkdir -p "$h"
@@ -147,7 +150,8 @@ function test_config_reports_the_carry_rows() {
     doctor_config
   )"
   [[ "$out" == *"plugins:6"*"ignored - 'vimrc' is a member already"* ]] || _hi_because "no row for the bad table: $out" || return 1
-  [[ "$out" == *"taskrc"*"$(_hi_doc_path "$h/.taskrc")"* ]] || _hi_because "no row for the member: $out"
+  got="$(_hi_doc_path "$h/.taskrc")"
+  [[ "$out" == *"taskrc"*"$got"* ]] || _hi_because "no row for the member: $out"
 }
 
 # a member of a plugin that is switched off says so, a word of the list that
@@ -394,7 +398,7 @@ function test_config_names_the_editor_config_in_force_here() {
 # row per parser that reads the file. doctor_config only says when it is
 # absent, so a present settings.sh is reported once.
 function test_config_reports_a_settings_file_that_parses() {
-  local dir out
+  local dir out got
   dir="$(mktemp -d "$_HI_WORKDIR/goodcfg.XXXXXX")"
   printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
   out="$(
@@ -405,7 +409,8 @@ function test_config_reports_a_settings_file_that_parses() {
   )"
   [[ "$out" == *"settings.sh"*"parses (sh)"* && "$out" == *"all defaults"* ]] || _hi_why out || return 1
   # and exactly once per parser, not once more from a hand-written arm
-  [ "$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")" -eq 1 ] || _hi_why out
+  got="$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")"
+  [ "$got" -eq 1 ] || _hi_why got out
 }
 
 # what the aliases.sh fish row of _HI_OVERLAY_CHECKS pins: an `if` block is
@@ -561,7 +566,7 @@ function test_config_lists_an_opt_in_turned_on() {
 # the mv that fixes it, a directory too; the new name beside it is an
 # ordinary override
 function test_config_names_a_file_under_an_old_member_name() {
-  local dir out
+  local dir out got got2 got3 got4
   dir="$(mktemp -d "$_HI_WORKDIR/oldname.XXXXXX")"
   printf 'set number\n' >"$dir/vim.rc"
   printf 'export X=1\n' >"$dir/bash.sh"
@@ -575,13 +580,20 @@ function test_config_names_a_file_under_an_old_member_name() {
     _HI_EXTENSIONS="$dir/extensions"
     doctor_config
   )"
-  [[ "$out" == *"plugins.d"*"old name"*"mv $(_hi_doc_path "$dir/plugins.d") $(_hi_doc_path "$dir/extensions")"* &&
-  "$out" != *"loads in order"* ]] || _hi_because "the old directory: $out" || return 1
-  [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $(_hi_doc_path "$dir/vim.rc") $(_hi_doc_path "$dir/vim/vimrc")"* &&
-  "$out" == *"bash.sh"*"old name"*"mv $(_hi_doc_path "$dir/bash.sh") $(_hi_doc_path "$dir/bashrc")"* &&
-  "$out" == *"bashrc"*"overridden (1 lines)"* ]] || _hi_why out dir || return 1
+  got="$(_hi_doc_path "$dir/plugins.d")"
+  got2="$(_hi_doc_path "$dir/extensions")"
+  [[ "$out" == *"plugins.d"*"old name"*"mv $got $got2"* &&
+    "$out" != *"loads in order"* ]] || _hi_because "the old directory: $out" || return 1
+  got="$(_hi_doc_path "$dir/vim.rc")"
+  got2="$(_hi_doc_path "$dir/vim/vimrc")"
+  got3="$(_hi_doc_path "$dir/bash.sh")"
+  got4="$(_hi_doc_path "$dir/bashrc")"
+  [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $got $got2"* &&
+    "$out" == *"bash.sh"*"old name"*"mv $got3 $got4"* &&
+    "$out" == *"bashrc"*"overridden (1 lines)"* ]] || _hi_why got got2 got3 got4 out dir || return 1
   # the carry's lines are rewritten, not moved
-  [[ "$out" == *"carry"*"old name hi no longer reads - it is plugins now: hi --configure converts it"* && "$out" != *"mv $(_hi_doc_path "$dir/carry")"* ]] ||
+  got="$(_hi_doc_path "$dir/carry")"
+  [[ "$out" == *"carry"*"old name hi no longer reads - it is plugins now: hi --configure converts it"* && "$out" != *"mv $got"* ]] ||
     _hi_because "the carry: $out"
 }
 
@@ -797,30 +809,45 @@ function test_config_flags_a_secret_in_a_riding_file() {
     _hi_because "the report said: $out"
 }
 
-# neovim's init.lua rides alone: the modules beside it are counted, at any
-# depth, as staying home, and an init.lua with none gets no row
-function test_config_names_the_nvim_modules_that_stay_home() {
+# a module neovim's init.lua requires from its lua/ rides with it, so the
+# require is no finding; one that resolves to no file there still is
+function test_config_passes_a_require_of_a_module_that_rides() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/nvimlua.XXXXXX")"
-  mkdir -p "$dir/nvim"
-  printf 'require("mine")\n' >"$dir/nvim/init.lua"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
-  [[ "$out" != *"nvim/lua"* ]] || _hi_because "a row with no lua directory: $out" || return 1
   mkdir -p "$dir/nvim/lua/mine"
-  printf 'return {}\n' >"$dir/nvim/lua/mine.lua"
+  printf 'require("mine.keys")\nrequire("absent")\n' >"$dir/nvim/init.lua"
   printf 'return {}\n' >"$dir/nvim/lua/mine/keys.lua"
-  printf 'notes\n' >"$dir/nvim/lua/README"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"nvim/lua"*"2 file(s) under $dir/nvim/lua stay home"* ]] ||
+  [[ "$out" != *"nvim/init.lua:1"* && "$out" == *"nvim/init.lua:2"*"reads a file hi does not carry"* ]] ||
     _hi_because "the report said: $out"
+}
+
+# the overlay's bin/: a script rides, and each entry that cannot is named
+# with why - a binary, one not executable, one over the cap. Git Bash has no
+# mode bit to read and calls any #! file executable, so there the plain
+# script rides too.
+function test_config_names_what_bin_leaves_home() {
+  local dir out rides=1 plain="left home - not executable"
+  dir="$(mktemp -d "$_HI_WORKDIR/bin.XXXXXX")"
+  mkdir -p "$dir/bin"
+  printf '#!/bin/sh\necho mine\n' >"$dir/bin/mine"
+  printf '#!/bin/sh\necho plain\n' >"$dir/bin/plain"
+  printf 'ELF\0\0\0' >"$dir/bin/tool"
+  { printf '#!/bin/sh\n# ' && printf '%*s\n' "$_HI_BIN_MAX" ''; } >"$dir/bin/big"
+  chmod +x "$dir/bin/mine" "$dir/bin/tool" "$dir/bin/big"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [ ! -x "$dir/bin/plain" ] || rides=2 plain=""
+  [[ "$out" == *"bin/tool"*"left home - a binary"* && "$out" == *"$plain"* &&
+    "$out" == *"bin/big"*"left home - over $_HI_BIN_MAX characters"* && "$out" != *"bin/mine"* &&
+    "$out" == *"$rides file(s) ride"* ]] || _hi_because "the report said: $out"
 }
 
 # the tag files are listed by tag, and one no tag can name is said to be unread
@@ -840,29 +867,35 @@ function test_config_lists_the_tag_settings() {
 
 # fish's `set` spelling of the same, read by the one awk
 function test_secret_awk_reads_a_fish_set() {
+  local got
   local f="$_HI_WORKDIR/secret.fish"
   # shellcheck disable=SC2016
   printf '%s\n' 'set -gx OPENAI_API_KEY abc' 'set -gx EDITOR vim' 'set -gx MY_TOKEN $other' >"$f"
-  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "1 " ] || _hi_why f _HI_SECRET_AWK
+  got="$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')"
+  [ "$got" = "1 " ] || _hi_why got f _HI_SECRET_AWK
 }
 
 # an alias that names a variable behind a backslash sets nothing, and the
 # same alias with a literal does
 function test_secret_awk_passes_an_escaped_reference() {
+  local got
   local f="$_HI_WORKDIR/secret.alias"
   # shellcheck disable=SC2016
   printf '%s\n' 'alias c="GH_TOKEN=\$RO_TOKEN cmd"' 'alias d="GH_TOKEN=abc123 cmd"' >"$f"
-  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "2 " ] || _hi_why f _HI_SECRET_AWK
+  got="$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')"
+  [ "$got" = "2 " ] || _hi_why got f _HI_SECRET_AWK
 }
 
 # a name inside another variable's value starts no assignment: LS_COLORS's
 # entry for a file called passwd, in either spelling, against a flag's value
 function test_secret_awk_passes_a_name_inside_a_value() {
+  local got
   local f="$_HI_WORKDIR/secret.colors"
   printf '%s\n' "export LS_COLORS='di=01;34:*passwd=0;38:*.token=1;31'" \
     "set -gx LS_COLORS 'di=01;34:*passwd=0;38'" \
     'alias m="mysql --password=abc123"' >"$f"
-  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "3 " ] || _hi_why f _HI_SECRET_AWK
+  got="$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')"
+  [ "$got" = "3 " ] || _hi_why got f _HI_SECRET_AWK
 }
 
 # in the fixture because the row reads their names off common/aliases.sh.
@@ -982,7 +1015,8 @@ function run_doctor_config_tests() {
   _hi_check "...in the set spelling of fish too" test_secret_awk_reads_a_fish_set
   _hi_check "...but not an alias's escaped \$variable" test_secret_awk_passes_an_escaped_reference
   _hi_check "...nor a name inside another variable's value" test_secret_awk_passes_a_name_inside_a_value
-  _hi_check "neovim's modules are named as staying home" test_config_names_the_nvim_modules_that_stay_home
+  _hi_check "A require of a neovim module that rides is no finding" test_config_passes_a_require_of_a_module_that_rides
+  _hi_check "What the overlay's bin/ leaves home is named, with why" test_config_names_what_bin_leaves_home
   _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
   _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
   _hi_check "...and an \$EDITOR it exports" test_config_flags_an_editor_set_in_aliases_sh

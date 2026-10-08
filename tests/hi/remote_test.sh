@@ -71,7 +71,9 @@ function test_fallback_rc_carries_the_alias_opt_ins() {
 # -C, where an `exit` does not stop its interactive reader (GLOSSARY: HI.23),
 # and the podman suite's fish case hung the full timeout for as long as it was
 function test_fallback_rc_leaves_the_command_out() {
-  [[ "$(CMDARG='echo hi; exit' _hi_fallback_rc)" != *'echo hi'* ]] || _hi_why
+  local got
+  got="$(CMDARG='echo hi; exit' _hi_fallback_rc)"
+  [[ "$got" != *'echo hi'* ]] || _hi_why got
 }
 
 # ...so each arm of the suffix takes it its own way: fish as a -c flag after
@@ -88,8 +90,10 @@ function test_remote_suffix_hands_fish_the_command_as_a_flag() {
 
 # an apostrophe in the command survives the trip as data - _hi_shquote's job
 function test_remote_suffix_quotes_the_fish_command() {
+  local got
   # shellcheck disable=SC2016 # the target's sh reads this, not ours
-  [[ "$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="echo it's; exit" _hi_remote_suffix)" == *" -c 'echo it'\\''s; exit'"* ]] || _hi_why
+  got="$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="echo it's; exit" _hi_remote_suffix)"
+  [[ "$got" == *" -c 'echo it'\\''s; exit'"* ]] || _hi_why got
 }
 
 function test_remote_suffix_without_a_command_adds_nothing() {
@@ -117,8 +121,10 @@ function test_fallback_rc_sources_settings_before_paths() {
 # $hi_esc/$nc_esc/$DOMAIN are _say_hi's locals, supplied here because this file
 # runs under `set -u`.
 function test_remote_suffix_forces_an_interactive_bash() {
+  local got
   # shellcheck disable=SC2016 # $_hi_rc_dir is the target's to expand, not ours
-  [[ "$(hi_esc="" nc_esc="" DOMAIN=host _hi_remote_suffix)" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* ]] || _hi_why
+  got="$(hi_esc="" nc_esc="" DOMAIN=host _hi_remote_suffix)"
+  [[ "$got" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* ]] || _hi_why got
 }
 
 # the mirror of the above: every fallback shell already starts explicitly
@@ -148,30 +154,40 @@ function test_version_falls_back_to_git_describe() {
 
 # ...and with neither stamp nor git, it says so instead of printing nothing
 function test_version_stamp_wins() {
-  [[ "$(_HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version)" == "1.2.3 ("* ]] || _hi_why
+  local got
+  got="$(_HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version)"
+  [[ "$got" == "1.2.3 ("* ]] || _hi_why got
 }
 
 function test_version_is_candid_without_stamp_or_git() {
-  [[ "$(_HI_RELEASE="" _HI_ROOT="$_HI_WORKDIR" _hi_version)" == unknown* ]] || _hi_why
+  local got
+  got="$(_HI_RELEASE="" _HI_ROOT="$_HI_WORKDIR" _hi_version)"
+  [[ "$got" == unknown* ]] || _hi_why got
 }
 
 # the version rides the preamble so the target's header can show it
 function test_remote_preamble_exports_the_version() {
-  [[ "$(DOMAIN=host _hi_remote_preamble)" == *'export _HI_RELEASE='* ]] || _hi_why
+  local got
+  got="$(DOMAIN=host _hi_remote_preamble)"
+  [[ "$got" == *'export _HI_RELEASE='* ]] || _hi_why got
 }
 
 # ...and so does the client's glyph verdict: the glyphs render in the
 # client's terminal, so the target must not re-probe its own locale
 function test_remote_preamble_ships_the_glyph_verdict() {
-  [[ "$(DOMAIN=host _HI_ASCII=1 _hi_remote_preamble)" == *"export _HI_ASCII='1'"* ]] &&
-    [[ "$(DOMAIN=host _HI_ASCII="" LC_ALL=en_US.UTF-8 _hi_remote_preamble)" == *"export _HI_ASCII='0'"* ]] || _hi_why
+  local got got2
+  got="$(DOMAIN=host _HI_ASCII=1 _hi_remote_preamble)"
+  got2="$(DOMAIN=host _HI_ASCII="" LC_ALL=en_US.UTF-8 _hi_remote_preamble)"
+  [[ "$got" == *"export _HI_ASCII='1'"* ]] && [[ "$got2" == *"export _HI_ASCII='0'"* ]] || _hi_why got got2
 }
 
 # ...and its 24-bit verdict, for the same reason: the escapes a scheme
 # paints with render in the client's terminal, and ssh drops COLORTERM
 function test_remote_preamble_ships_the_truecolor_verdict() {
-  [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM=truecolor _hi_remote_preamble)" == *"export _HI_TRUECOLOR='1'"* ]] &&
-    [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM="" _hi_remote_preamble)" == *"export _HI_TRUECOLOR='0'"* ]] || _hi_why
+  local got got2
+  got="$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM=truecolor _hi_remote_preamble)"
+  got2="$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM="" _hi_remote_preamble)"
+  [[ "$got" == *"export _HI_TRUECOLOR='1'"* ]] && [[ "$got2" == *"export _HI_TRUECOLOR='0'"* ]] || _hi_why got got2
 }
 
 # user@host is the host's tag, not a miss on the whole word: the session env
@@ -220,10 +236,11 @@ printf %s "$'"$1"'"' 2>/dev/null
 # ...and the container transport folds the same stream into one `sh -c export`
 # line, so it gets the same round trip rather than trusting the shared helper
 function test_container_env_quotes_a_hostile_hostname() {
-  local kv
+  local kv got
   kv="$(DOMAIN=host _HI_HOSTNAME_CACHE="$_HI_MEAN" _hi_env_each ' %s=%s')"
-  [ "$(sh -c "export$kv"'
-printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)" = "$_HI_MEAN" ] || _hi_why kv _HI_LOCAL_HOSTNAME _HI_MEAN
+  got="$(sh -c "export$kv"'
+printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)"
+  [ "$got" = "$_HI_MEAN" ] || _hi_why got kv _HI_LOCAL_HOSTNAME _HI_MEAN
 }
 
 # ...and the target as typed reaches the no-bash fallback line as one quoted
@@ -258,10 +275,12 @@ printf %s "$TERM"' 2>/dev/null
 }
 
 function test_term_fallback_keeps_a_term_with_terminfo() {
+  local got
   local ti="$_HI_WORKDIR/terminfo"
   mkdir -p "$ti/h"
   : >"$ti/h/hi-test-present-term"
-  [ "$(_hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti")" = hi-test-present-term ] || _hi_why ti
+  got="$(_hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti")"
+  [ "$got" = hi-test-present-term ] || _hi_why got ti
 }
 
 # On a target, $_HI_CONFIG_DIR is the overlay/ the overlay was unpacked into,
@@ -270,8 +289,10 @@ function test_term_fallback_keeps_a_term_with_terminfo() {
 # be config/, which holds the *shipped* aliases.sh - pointed there,
 # common/aliases.sh's tail line sources itself forever.
 function test_fallback_rc_points_config_dir_at_the_overlay() {
+  local got
   # shellcheck disable=SC2016 # $_HI_ROOT is the target's to expand, not ours
-  [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]] || _hi_why
+  got="$(CMDARG="" _hi_fallback_rc)"
+  [[ "$got" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]] || _hi_why got
 }
 
 # The bootstrap directory is the *target's* to name. A client-side
@@ -331,13 +352,20 @@ function test_boot_probe_bakes_no_client_path() {
 # that exited non-zero and printed nothing gets none (the PowerShell notice
 # is the caller's)
 function test_boot_why_names_each_failure() {
+  local got
   local DOMAIN=h
-  [ "$(_hi_boot_why 64 '')" = "no base64 or openssl on [h]" ] || _hi_why || return 1
-  [ "$(_hi_boot_why 65 x)" = "no writable temp directory on [h]" ] || _hi_why || return 1
-  [ "$(_hi_boot_why 1 'HIBOOT:/nope')" = "[h] named a scratch directory hi will not use" ] || _hi_why || return 1
-  [[ "$(_hi_boot_why 0 '')" == "a forced command answered for [h]"* ]] || _hi_why || return 1
-  [[ "$(_hi_boot_why 1 motd)" == "a forced command answered for [h]"* ]] || _hi_why || return 1
-  [ -z "$(_hi_boot_why 1 '')" ] || _hi_why
+  got="$(_hi_boot_why 64 '')"
+  [ "$got" = "no base64 or openssl on [h]" ] || _hi_why got || return 1
+  got="$(_hi_boot_why 65 x)"
+  [ "$got" = "no writable temp directory on [h]" ] || _hi_why got || return 1
+  got="$(_hi_boot_why 1 'HIBOOT:/nope')"
+  [ "$got" = "[h] named a scratch directory hi will not use" ] || _hi_why got || return 1
+  got="$(_hi_boot_why 0 '')"
+  [[ "$got" == "a forced command answered for [h]"* ]] || _hi_why got || return 1
+  got="$(_hi_boot_why 1 motd)"
+  [[ "$got" == "a forced command answered for [h]"* ]] || _hi_why got || return 1
+  got="$(_hi_boot_why 1 '')"
+  [ -z "$got" ] || _hi_why got
 }
 
 function test_boot_probe_says_no_base64() {

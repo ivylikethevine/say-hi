@@ -59,11 +59,15 @@ function _hi_mise_case() {
 }
 
 function test_no_environment_produces_no_output() {
-  [ -z "$(_hi_env_case)" ] || _hi_why
+  local got
+  got="$(_hi_env_case)"
+  [ -z "$got" ] || _hi_why got
 }
 
 function test_disabled_flag_produces_no_output() {
-  [ -z "$(_hi_env_case VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1)" ] || _hi_why
+  local got
+  got="$(_hi_env_case VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1)"
+  [ -z "$got" ] || _hi_why got
 }
 
 # The out-var form is what bash.sh's __hi_ps1() and zsh.zsh's precmd call: it must
@@ -78,10 +82,12 @@ function test_out_var_form_fills_variable_not_stdout() {
 }
 
 function test_out_var_and_stdout_form_agree() {
+  local got
   local captured=""
   export VIRTUAL_ENV_PROMPT=myproj DIRENV_DIR=-/home/x/proj
   _hi_env_prompt captured
-  [ "$captured" = "$(_hi_env_prompt)" ] && [ -n "$captured" ] || _hi_why captured
+  got="$(_hi_env_prompt)"
+  [ "$captured" = "$got" ] && [ -n "$captured" ] || _hi_why got captured
 }
 
 # The early returns have to *clear* a stale out-var, not leave the previous
@@ -118,7 +124,7 @@ function test_zsh_walks_the_order_list_the_same_way() {
       MISE_SHELL=zsh DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj \
       zsh -c "cd '$_hi_mise_project' && source '$_HI_ENV_PROMPT' && _hi_env_prompt"
   )"
-  [ -n "$want" ] && [ "$want" = "$got" ]
+  [ -n "$want" ] && [ "$want" = "$got" ] || _hi_why want got
 }
 
 # Every _hi_env_case is a fresh subshell, so none of them reads the memo back.

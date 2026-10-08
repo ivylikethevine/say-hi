@@ -93,6 +93,10 @@ dist/
 # this project's own publishing keys
 !packaging/apk/*.rsa.pub
 
+# `nix build`'s link to what it built
+/result
+/result-*
+
 # npm installs of the pinned CI Markdown tools (.github/package.json)
 node_modules/
 # the coverage drivers' reports (tests/coverage.sh, tests/coverage_v2.sh), as

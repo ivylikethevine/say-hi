@@ -64,7 +64,9 @@ function test_nfpm_staging_sources_all_exist() {
 # rename of dist/staging that updated mkpkg.sh but not nfpm.yaml would leave
 # every assertion above vacuously true.
 function test_nfpm_references_the_staging_root() {
-  [ "$(grep -c 'src: \./dist/staging' "$_HI_NFPM")" -ge 2 ] || _hi_why _HI_NFPM
+  local got
+  got="$(grep -c 'src: \./dist/staging' "$_HI_NFPM")"
+  [ "$got" -ge 2 ] || _hi_why got _HI_NFPM
 }
 
 # the symlink nfpm declares must be the one install_tree makes, target and all
@@ -183,6 +185,41 @@ function test_formula_ships_a_wrapper_that_exports_hi_home() {
   { grep -qF '(bin/"hi").write' "$_HI_FORMULA" &&
     grep -qF 'export _HI_HOME="#{libexec}"' "$_HI_FORMULA" &&
     ! grep -vE '^[[:space:]]*#' "$_HI_FORMULA" | grep -F 'bin.install_symlink' >/dev/null; } || _hi_why _HI_FORMULA
+}
+
+# The nix package stages through install.sh and stamps through stamp.sh, as
+# the PKGBUILDs do, so it holds no copy of _HI_PACKAGE_CONTENTS; the unpacked
+# source is renamed because install.sh wants a checkout named say-hi.
+# shellcheck disable=SC2016 # $stage and $sourceRoot are the nix build's
+function test_nix_package_calls_install_sh() {
+  { grep -qF 'DESTDIR="$stage" bash scripts/install.sh --prefix /usr/share' "$_HI_NIX_PKG" &&
+    grep -qF 'bash packaging/stamp.sh --root "$stage" --version "$version" --date' "$_HI_NIX_PKG" &&
+    grep -qF 'mv "$sourceRoot" say-hi' "$_HI_NIX_PKG"; } || _hi_why _HI_NIX_PKG
+}
+
+# The wrapper exports _HI_HOME, as the formula's does, and the tree keeps its
+# own shebangs: a session sends it to targets with no nix store.
+# shellcheck disable=SC2016 # $out is the nix build's
+function test_nix_package_exports_hi_home_and_keeps_shebangs() {
+  { grep -qF 'export _HI_HOME="$out/share"' "$_HI_NIX_PKG" &&
+    grep -qF 'dontPatchShebangs = true;' "$_HI_NIX_PKG"; } || _hi_why _HI_NIX_PKG
+}
+
+# The home-manager module spells rc.sh's block in Nix. Asked for the module's
+# own ${home} and ${rc}, each shell's rc_lines has to be in it line for line,
+# beside rc_tagged's marker and pad width.
+# shellcheck disable=SC2016 # ${home} and ${rc} are Nix's to expand
+function test_home_manager_block_matches_rc_lines() {
+  local shell dialect line
+  while IFS='|' read -r shell _ _ _ _ dialect; do
+    while IFS= read -r line; do
+      grep -qF -- "$line" "$_HI_NIX_MODULE" ||
+        _hi_because "${_HI_NIX_MODULE##*/} lacks $shell's line: $line" || return 1
+    done < <(_HI_HOME='${home}' && rc_lines "$shell" '${rc}' "$dialect")
+  done < <(_hi_shell_rows)
+  { grep -qF -- "marker = \"$_HI_MARKER\";" "$_HI_NIX_MODULE" &&
+    grep -qF -- '(45 - builtins.stringLength line)' "$_HI_NIX_MODULE" &&
+    grep -qF -- '_hi_pad_to _hi_rt_line 45 ' "$_HI_ROOT/scripts/rc.sh"; } || _hi_why _HI_NIX_MODULE
 }
 
 # The rpm's signature block, on the apk's pattern: the key file from the env,
@@ -329,9 +366,11 @@ function _hi_srcinfo_depends() {
 }
 
 function test_srcinfo_depends_match_their_pkgbuild() {
-  local f
+  local f got got2
   for f in "$_HI_PKGBUILD" "$_HI_PKGBUILD_GIT"; do
-    [ "$(_hi_pkgbuild_depends "$f")" = "$(_hi_srcinfo_depends "${f%PKGBUILD}.SRCINFO")" ] || _hi_why f || return 1
+    got="$(_hi_pkgbuild_depends "$f")"
+    got2="$(_hi_srcinfo_depends "${f%PKGBUILD}.SRCINFO")"
+    [ "$got" = "$got2" ] || _hi_why got got2 f || return 1
   done
 }
 
@@ -412,6 +451,11 @@ function run_packaging_ci_tests() {
   # the caveats send people to the per-user install, which sees Homebrew's own
   # hi on PATH and makes no link of its own
   _hi_check "Caveats point at hi --install" grep -qF 'hi --install' "$_HI_FORMULA"
+
+  _hi_h2 "Testing: the nix flake"
+  _hi_check "The package stages through install.sh" test_nix_package_calls_install_sh
+  _hi_check "Wrapper exports _HI_HOME, shebangs stay" test_nix_package_exports_hi_home_and_keeps_shebangs
+  _hi_check "The home-manager block is rc_lines'" test_home_manager_block_matches_rc_lines
 
   _hi_h2 "Testing: the PKGBUILDs"
   _hi_check "Both call install.sh --prefix" test_pkgbuilds_call_install_sh

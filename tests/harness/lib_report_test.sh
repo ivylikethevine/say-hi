@@ -173,10 +173,12 @@ function test_why_names_the_statement_and_its_values() {
 # The end of a transcript under a failure line, without the escapes a prompt
 # wrote; one that is empty or missing is said to be
 function test_show_transcript_prints_the_tail_as_text() {
+  local got
   local f="$_HI_WORKDIR/shown.out" out
   printf 'first\n\033[2J\033[1;32mgreen\033[0m words\r\n\033]0;title\alast\n' >"$f"
   out="$(_hi_show_transcript "the transcript" "$f" 2)"
-  [ "$out" = "$(printf '      the transcript, its last 2 lines:\n        green words\n        last')" ] ||
+  got="$(printf '      the transcript, its last 2 lines:\n        green words\n        last')"
+  [ "$out" = "$got" ] ||
     _hi_because "shown: [$out]" || return 1
   out="$(_hi_show_transcript "the transcript" "$f.none")"
   [[ "$out" == *"the transcript: nothing was written ($f.none)"* ]] || _hi_because "a missing one: [$out]"
@@ -187,10 +189,12 @@ function test_show_transcript_prints_the_tail_as_text() {
 # nothing is outside a run. The case moves $SECONDS on where a sleep would
 # wait, in a subshell, so this one is not itself noted as slow.
 function test_case_notes_the_time_a_slow_case_took() {
+  local got
   local fails="$_HI_WORKDIR/times.fails"
   rm -f "$fails.times"
   (_hi_times_run "$fails")
-  [ "$(wc -l <"$fails.times")" -eq 2 ] || _hi_because "noted: $(cat "$fails.times" 2>&1)" || return 1
+  got="$(wc -l <"$fails.times")"
+  [ "$got" -eq 2 ] || _hi_because "noted: $(cat "$fails.times" 2>&1)" || return 1
   { grep -qE "^[34]$(printf '\t')a slow one\$" "$fails.times" &&
     grep -qE "^[23]$(printf '\t')_hi_takes 2\$" "$fails.times"; } || _hi_why fails
 }
@@ -333,33 +337,37 @@ function test_suite_end_honours_custom_banners() {
 }
 
 function test_report_counts_writes_total_and_failed() {
-  local file
+  local file got
   file="$_HI_WORKDIR/counts.reported"
   (
     _HI_COUNTS_FILE="$file"
     _hi_report_counts 9 2
   )
-  [ "$(cat "$file")" = "9 2 0" ] || _hi_why file
+  got="$(cat "$file")"
+  [ "$got" = "9 2 0" ] || _hi_why got file
 }
 
 function test_report_counts_writes_the_skip_tally() {
-  local file
+  local file got
   file="$_HI_WORKDIR/counts.skiptally"
   (
     _HI_COUNTS_FILE="$file"
     _hi_report_counts 9 2 3
   )
-  [ "$(cat "$file")" = "9 2 3" ] || _hi_why file
+  got="$(cat "$file")"
+  [ "$got" = "9 2 3" ] || _hi_why got file
 }
 
 function test_case_keeps_the_progress_file_current() {
+  local got
   local file="$_HI_WORKDIR/progress.live"
   (
     _HI_PROGRESS_FILE="$file" _HI_TOTAL=0 _HI_FAILED=0 _HI_SKIPPED=1
     _hi_case _hi_true
     _hi_case _hi_false
   )
-  [ "$(cat "$file")" = "2 1 1" ] || _hi_why file
+  got="$(cat "$file")"
+  [ "$got" = "2 1 1" ] || _hi_why got file
 }
 
 function test_case_names_itself_before_it_runs() {
@@ -374,15 +382,16 @@ function test_case_names_itself_before_it_runs() {
 }
 
 function test_note_failure_appends_the_label() {
-  local file
+  local file got
   file="$_HI_WORKDIR/fails.noted"
   (
     _HI_FAILS_FILE="$file"
     _hi_note_failure "first case"
     _hi_note_failure "second case"
   )
-  [ "$(cat "$file")" = "first case
-second case" ] || _hi_why file
+  got="$(cat "$file")"
+  [ "$got" = "first case
+second case" ] || _hi_why got file
 }
 
 function test_note_failure_is_a_noop_without_a_fails_file() {
@@ -402,13 +411,14 @@ function test_report_counts_is_a_noop_without_a_counts_file() {
 }
 
 function test_report_skip_marks_the_suite_as_skipped() {
-  local file
+  local file got
   file="$_HI_WORKDIR/counts.skipped"
   (
     _HI_COUNTS_FILE="$file"
     _hi_report_skip "no docker"
   )
-  [ "$(cat "$file")" = "SKIP no docker" ] || _hi_why file
+  got="$(cat "$file")"
+  [ "$got" = "SKIP no docker" ] || _hi_why got file
 }
 
 function test_report_skip_is_a_noop_without_a_counts_file() {
@@ -421,13 +431,14 @@ function test_report_skip_is_a_noop_without_a_counts_file() {
 # _hi_require_bin's skip path has to reach the runner, or a suite that never ran
 # a case still renders as a green PASS - the whole point of the status
 function test_require_reports_a_skip_for_a_missing_binary() {
-  local file
+  local file got
   file="$_HI_WORKDIR/counts.require"
   (
     _HI_COUNTS_FILE="$file"
     _hi_require_bin definitely-not-a-real-binary >/dev/null 2>&1
   ) || true
-  [[ "$(cat "$file")" == SKIP* ]] || _hi_why file
+  got="$(cat "$file")"
+  [[ "$got" == SKIP* ]] || _hi_why got file
 }
 
 # the counter has to be bumped in the *caller's* shell, so the output goes to
@@ -489,7 +500,7 @@ function test_suite_end_adds_skips_to_real_failures() {
 # did not fail an assertion, and the summary's two columns have to keep saying
 # which is which
 function test_require_run_leaves_the_counts_alone() {
-  local file
+  local file got
   file="$_HI_WORKDIR/counts.require_run"
   (
     _HI_REQUIRE_RUN=1
@@ -499,13 +510,14 @@ function test_require_run_leaves_the_counts_alone() {
     _HI_SKIPPED=2
     _hi_suite_end thing >/dev/null
   ) || true
-  [ "$(cat "$file")" = "4 1 2" ] || _hi_why file
+  got="$(cat "$file")"
+  [ "$got" = "4 1 2" ] || _hi_why got file
 }
 
 # the label and the reason are only in hand inside _hi_skip, so that is where
 # the runner's recap has to be told which case went missing
 function test_skip_names_the_case_under_require_run() {
-  local file fails
+  local file fails got got2
   file="$_HI_WORKDIR/skip.requirerun.out"
   fails="$_HI_WORKDIR/skip.requirerun.fails"
   : >"$fails"
@@ -515,9 +527,9 @@ function test_skip_names_the_case_under_require_run() {
     _HI_SKIPPED=0
     _hi_skip "[mise]" "image did not build" >"$file"
   )
-  [[ "$(cat "$fails")" == *"[mise]"* ]] &&
-    [[ "$(cat "$fails")" == *"image did not build"* ]] &&
-    [[ "$(cat "$file")" == *SKIPPED* ]] || _hi_why fails file
+  got="$(cat "$fails")"
+  got2="$(cat "$file")"
+  [[ "$got" == *"[mise]"* ]] && [[ "$got" == *"image did not build"* ]] && [[ "$got2" == *SKIPPED* ]] || _hi_why got got2 fails file
 }
 
 function test_suite_end_stays_quiet_with_nothing_skipped() {
@@ -532,7 +544,7 @@ function test_suite_end_stays_quiet_with_nothing_skipped() {
 }
 
 function test_suite_end_reports_its_counts() {
-  local file
+  local file got
   file="$_HI_WORKDIR/counts.suite_end"
   (
     _HI_COUNTS_FILE="$file"
@@ -541,7 +553,8 @@ function test_suite_end_reports_its_counts() {
     _HI_SKIPPED=1
     _hi_suite_end thing >/dev/null
   ) || true
-  [ "$(cat "$file")" = "5 2 1" ] || _hi_why file
+  got="$(cat "$file")"
+  [ "$got" = "5 2 1" ] || _hi_why got file
 }
 
 # _hi_dump_log prints a log's text, never its *path*: every log is under

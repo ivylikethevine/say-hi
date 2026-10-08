@@ -20,9 +20,10 @@ function _hi_mux_name() {
 }
 
 # Whether this connect looks on the target for a kept session to reattach:
-# every session, not a command, unless --no-keep asked for one beside it.
+# every session, not a command, unless --no-keep asked for one beside it, and
+# none with the kept session switched off (hi.sh's _hi_keep_off).
 function _hi_keep_probes() {
-  [ -z "${CMDARG:-}" ] && [ "${KEEP:-}" != 0 ]
+  [ -z "${CMDARG:-}" ] && [ "${KEEP:-}" != 0 ] && ! _hi_keep_off
 }
 
 # ...and whether it starts one where the target has none: --keep, or

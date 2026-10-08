@@ -378,7 +378,7 @@ function test_oh_my_bash_keeps_an_alias_with_a_quote() {
 # for the next in the list, hi's prompt at the end of it
 function test_prompt_framework_without_its_loader_is_passed_over() {
   local shell="$1" fw="$2" want="$3" base
-  base="$(mktemp -d "$_HI_WORKDIR/noloader.XXXXXX")" || return 1
+  base="$(mktemp -d "$_HI_WORKDIR/noloader.XXXXXX")" || _hi_why base || return 1
   mkdir -p "$base/say-hi"
   cp -R "$_HI_ROOT/common" "$_HI_ROOT/config" "$base/say-hi/"
   rm -f "$base/say-hi/common/fw_$fw".*
@@ -533,11 +533,14 @@ function _hi_greet() {
 # once; never `-i -c` or a script (fish greets neither), a target session,
 # or under the toggle
 function test_local_shell_prints_the_header() {
+  local got got2 got3 got4 got5
   local shell=$1
-  [ "$(_hi_greet "$shell" i)" = 1 ] && [ "$(_hi_greet "$shell" c)" = 0 ] &&
-    [ "$(_hi_greet "$shell" s)" = 0 ] &&
-    [ "$(_hi_greet "$shell" i _HI_REMOTE_SESSION=1)" = 0 ] &&
-    [ "$(_hi_greet "$shell" i _HI_DISABLE_HEADER=1)" = 0 ] || _hi_why shell
+  got="$(_hi_greet "$shell" i)"
+  got2="$(_hi_greet "$shell" c)"
+  got3="$(_hi_greet "$shell" s)"
+  got4="$(_hi_greet "$shell" i _HI_REMOTE_SESSION=1)"
+  got5="$(_hi_greet "$shell" i _HI_DISABLE_HEADER=1)"
+  [ "$got" = 1 ] && [ "$got2" = 0 ] && [ "$got3" = 0 ] && [ "$got4" = 0 ] && [ "$got5" = 0 ] || _hi_why got got2 got3 got4 got5 shell
 }
 
 # fish does its own prefix matching, so `--preview-c` narrows to one flag, and
@@ -562,14 +565,15 @@ function test_fish_flag_completion_offers_hi_options() {
 # the word after --preview: fish's own condition picks the words roster, and
 # the target sweep (any line not in the roster) stays out
 function test_fish_completes_the_word_after_preview() {
-  local out
+  local out got
   out="$(_hi_rc_shell xterm-256color fish '
     source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
     complete -C "hi --preview "
   ')"
   printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || _hi_why out || return 1
   printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || _hi_why out || return 1
-  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 3 ] || _hi_why out
+  got="$(printf '%s\n' "$out" | grep -c .)"
+  [ "$got" -eq 3 ] || _hi_why got out
 }
 
 function _hi_rc_reentry() {
@@ -586,11 +590,15 @@ function _hi_rc_reentry() {
 
 # test_sh_rc_reentry_returns <shell> <rc>
 function test_sh_rc_reentry_returns() {
-  [ "$(_hi_rc_reentry "$1" "$2" 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ] || _hi_why _hi_rc_loading
+  local got
+  got="$(_hi_rc_reentry "$1" "$2" 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')"
+  [ "$got" = done:root ] || _hi_why got _hi_rc_loading
 }
 
 function test_fish_rc_reentry_returns() {
-  [ "$(_hi_rc_reentry fish config.fish 'set -q _hi_rc_loading; or printf done; test -n "$_HI_ROOT"; and printf :root')" = done:root ] || _hi_why
+  local got
+  got="$(_hi_rc_reentry fish config.fish 'set -q _hi_rc_loading; or printf done; test -n "$_HI_ROOT"; and printf :root')"
+  [ "$got" = done:root ] || _hi_why got
 }
 
 # test_sh_rc_re_source_after_an_upgrade <shell> <rc>
@@ -602,6 +610,7 @@ function test_fish_rc_reentry_returns() {
 # tree grows a path between the two sources, which is exactly what an upgrade
 # looks like from inside such a shell.
 function test_sh_rc_re_source_after_an_upgrade() {
+  local got
   local shell="$1" rc="$2" base="$_HI_WORKDIR/upgrade-$1"
   rm -rf "$base" "$base.out"
   mkdir -p "$base/say-hi" "$base/cfg"
@@ -615,7 +624,8 @@ function test_sh_rc_re_source_after_an_upgrade() {
       printf '%s' \"\${_HI_ADDED_LATER-unset}\"" \
     </dev/null >"$base.out" 2>/dev/null) &
   _hi_wait_pid $! 20
-  [ "$(cat "$base.out")" = "unset|$base/say-hi/added" ] || _hi_why base
+  got="$(cat "$base.out")"
+  [ "$got" = "unset|$base/say-hi/added" ] || _hi_why got base
 }
 
 function test_fish_flag_completion_does_not_also_sweep_targets() {
@@ -664,8 +674,10 @@ function _hi_fish_cfg_answer() {
 }
 
 function test_fish_config_dir_matches_bash() {
-  [ "$(_hi_fish_cfg_answer neither)" = say-hi ] &&
-    [ "$(_hi_fish_cfg_answer new)" = say-hi ] || _hi_why
+  local got got2
+  got="$(_hi_fish_cfg_answer neither)"
+  got2="$(_hi_fish_cfg_answer new)"
+  [ "$got" = say-hi ] && [ "$got2" = say-hi ] || _hi_why got got2
 }
 
 # hi.sh points a target at its shipped overlay; fish must honour that too

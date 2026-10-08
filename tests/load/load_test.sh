@@ -222,12 +222,14 @@ function _hi_shrc_toggle_in() {
 }
 
 function test_session_shrc_reads_the_settings_first() {
+  local got
   local root="$_HI_WORKDIR/shrc-root"
   mkdir -p "$root/config"
   ln -sfn "$_HI_ROOT/common" "$root/common"
   printf 'export _HI_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
   # in a subshell: the setup exports ZDOTDIR and ENV
-  [ "$(_hi_shrc_toggle_in "$root")" = 1 ] || _hi_why root
+  got="$(_hi_shrc_toggle_in "$root")"
+  [ "$got" = 1 ] || _hi_why got root
 }
 
 # Only the *set* session vars are written - an unset one is skipped rather
@@ -436,7 +438,10 @@ function _hi_old_fish_answer() {
 }
 
 function test_session_shell_passes_over_a_fish_too_old() {
-  [ "$(_hi_old_fish_answer 3.3.1)" = zsh ] && [ "$(_hi_old_fish_answer 3.4.1)" = fish ] || _hi_why
+  local got got2
+  got="$(_hi_old_fish_answer 3.3.1)"
+  got2="$(_hi_old_fish_answer 3.4.1)"
+  [ "$got" = zsh ] && [ "$got2" = fish ] || _hi_why got got2
 }
 
 # _hi_shell_case <installed> <env-string> - _hi_shell_answer with the env
@@ -488,7 +493,9 @@ function test_login_shell_falls_back_to_etc_passwd_without_getent() {
 # SHELL= prefix from sticking to this shell (a NAME=VALUE prefix on a
 # *function* call persists, unlike on a command).
 function test_login_shell_answers_with_the_basename_of_shell() {
-  [ "$(SHELL=/opt/odd/bin/tcsh _hi_login_shell)" = tcsh ] || _hi_why
+  local got
+  got="$(SHELL=/opt/odd/bin/tcsh _hi_login_shell)"
+  [ "$got" = tcsh ] || _hi_why got
 }
 
 # Exported-but-empty $SHELL (a minimal container's shape) falls back the same
@@ -525,12 +532,13 @@ function test_login_shell_steps_past_a_silent_getent() {
 # has a bash *installed*): with no styled shell on $PATH at all, the answer is
 # still bash - this file only runs where bash exists, PATH notwithstanding.
 function test_session_shell_floors_at_bash_even_off_path() {
-  local fakes
+  local fakes got
   fakes="$(_hi_fake_path no-shells-here true)"
-  [ "$(
+  got="$(
     hash -r 2>/dev/null
     SHELL=/bin/mksh PATH="$fakes" _hi_session_shell
-  )" = bash ] || _hi_why fakes
+  )"
+  [ "$got" = bash ] || _hi_why got fakes
 }
 
 # _hi_nano_case <tree> <nanorc text> [cleanup] - _hi_nano_fallback over a

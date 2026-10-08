@@ -74,8 +74,10 @@ unset _HI_COLORS _HI_PACKAGES
 # suite builds. ZDOTDIR also moves the .zshrc scripts/rc.sh writes out of a
 # fixture home. The prompt programs are pinned to hi's own for the same
 # reason - unset, whatever this box has installed would draw every prompt -
-# and a case about them names its list.
+# and a case about them names its list. payload_overlay_test.sh pins the list
+# to the plugins file's home columns.
 unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME ZELLIJ_CONFIG_DIR KAKOUNE_CONFIG_DIR POSH_CONFIG POSH_THEME INPUTRC SCREENRC \
+  RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE ATUIN_CONFIG_DIR \
   POWERLEVEL9K_CONFIG_FILE ZDOTDIR ZSH ZSH_CUSTOM ZSH_THEME OSH OSH_CUSTOM OSH_THEME _HI_POWERLINE_GO_OPTS
 export _HI_PROMPT_TOOL=hi
 # The backend probe cap, pinned: the default 2s is a user's budget for a CLI

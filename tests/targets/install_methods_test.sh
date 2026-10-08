@@ -42,7 +42,8 @@ function _hi_pkg_context() {
   # shellcheck disable=SC2206 # the glob is the point
   found=($_HI_PKG_DIST/$glob)
   [ -f "${found[0]:-}" ] || {
-    _hi_cecho " | no $glob in $_HI_PKG_DIST" "$RED"
+    ls -l "$_HI_PKG_DIST" >"$ctx/dist.ls" 2>&1 || true
+    _hi_dump_log "no $glob in $_HI_PKG_DIST, which holds:" "$ctx/dist.ls"
     return 1
   }
   cp "${found[0]}" "$ctx/$dest"

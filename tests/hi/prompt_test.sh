@@ -145,17 +145,23 @@ function test_fallback_prompt_carries_user_host_and_color() {
 
 # the separator is a setting everywhere else, so it is one here too
 function test_fallback_prompt_honors_the_separator_setting() {
-  [[ "$(_HI_PROMPT_END_BASH='>>' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'>> "'* ]] || _hi_why
+  local got
+  got="$(_HI_PROMPT_END_BASH='>>' DOMAIN=hitest@myhost _hi_fallback_prompt)"
+  [[ "$got" == *'>> "'* ]] || _hi_why got
 }
 
 # ...and the bash-less prompt takes bash's own separator, not one of its own:
 # the two look alike on purpose, and one row fewer to freeze
 function test_fallback_prompt_takes_the_bash_separator() {
-  [[ "$(_HI_PROMPT_END_BASH='%%' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'%% "'* ]] || _hi_why
+  local got
+  got="$(_HI_PROMPT_END_BASH='%%' DOMAIN=hitest@myhost _hi_fallback_prompt)"
+  [[ "$got" == *'%% "'* ]] || _hi_why got
 }
 
 function test_fallback_prompt_respects_the_toggle() {
-  [ -z "$(_HI_DISABLE_PROMPT=1 DOMAIN=hitest@myhost _hi_fallback_prompt)" ] || _hi_why
+  local got
+  got="$(_HI_DISABLE_PROMPT=1 DOMAIN=hitest@myhost _hi_fallback_prompt)"
+  [ -z "$got" ] || _hi_why got
 }
 
 # the whole point: a real POSIX shell renders it without complaint

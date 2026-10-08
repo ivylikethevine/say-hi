@@ -259,7 +259,11 @@ keeps that session: a fresh shell in a multiplexer there, under the same
 name; detaching returns to the shell it was typed in. With no multiplexer
 there, the session holds its directory through a drop from then on.
 .B _HI_KEEP=1
-makes this the default.
+makes this the default, and
+.B _HI_DISABLE_KEEP=1
+switches the kept session off: this flag and
+.B \-\-end
+are then refused.
 .TP
 .B \-\-no\-keep
 an ordinary session, past
@@ -828,7 +832,7 @@ or
 .B \-\-update
 converts it.
 .TP
-.B ~/.config/say-hi/vim/vimrc, nvim/init.lua, helix/config.toml, helix/languages.toml, kak/kakrc, kak/colors/, nano/nanorc, emacs/init.el
+.B ~/.config/say-hi/vim/vimrc, nvim/init.lua, nvim/init.vim, helix/config.toml, helix/languages.toml, kak/kakrc, kak/colors/, nano/nanorc, emacs/init.el
 replacements for vim's, neovim's, helix's, kakoune's, nano's, and emacs's configs, used
 whole. Without one, hi carries the config each editor already reads here
 .RB ( ~/.vimrc ,
@@ -840,7 +844,10 @@ and its
 .BR colors/ ,
 .BR ~/.nanorc ,
 .BR ~/.emacs ,
-and their alternates), else none. A line that reads a file no target
+and their alternates), else none. neovim's config rides with the modules it
+requires from the
+.B lua/
+beside it. A line that reads a file no target
 has is dropped and named by
 .BR \-\-doctor ;
 a
@@ -944,6 +951,32 @@ and before the prompt; one a shell cannot parse is skipped with a warning. An
 extension's
 .B _HI_SEGMENT
 command is drawn in the prompt.
+.TP
+.B ~/.config/say-hi/bin/
+executable scripts of your own, each a command by its name in a session:
+the directory is last on the session's
+.BR PATH .
+A file that is not executable, is no script, or runs past 16384 characters
+stays home, and
+.B \-\-doctor
+names it.
+.TP
+.B ~/.config/say-hi/git/config
+with the
+.B git
+plugin on
+.RB ( "hi \-\-plugin\-on git" ),
+your global git config, here or from
+.BR ~/.gitconfig ,
+added over a target's own through
+.BR GIT_CONFIG_COUNT .
+Credentials, signing settings, keys and paths to them,
+.BR includeIf ,
+and a url's
+.B insteadOf
+stay home; one rides only under a
+.B # hi-allow
+line.
 .TP
 .B ~/.config/say-hi/header/
 header cells of your own, in bash: a file each, named for its word, defining
@@ -1147,6 +1180,20 @@ unless set, and
 holds nothing: the directory goes with the connection.
 Read on the target, so set it in
 .BR settings.sh .
+.TP
+.B _HI_DISABLE_KEEP
+.B 1
+switches the kept session off:
+.B \-\-keep
+and
+.B \-\-end
+are refused, no connect looks for a session to reattach, and a session's
+.BR tmux ,
+.BR zellij ,
+and
+.B screen
+are the tools themselves. Default
+.BR 0 .
 .TP
 .B _HI_KEEP_RETRY
 how long a connect at a terminal keeps retrying a

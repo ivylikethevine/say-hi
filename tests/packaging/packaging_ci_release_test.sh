@@ -260,16 +260,19 @@ function _hi_release_note_of() {
 }
 
 function test_release_note_extract_takes_the_section() {
-  local body
+  local body got
   body=$'# What\'s New\n\n## What Changed & Why\n\nstuff\n\n## Release note\n\n<!-- one or two sentences -->\n\nhi keeps your prompt.\n\n## Issue/Discussion Links\n\nnone'
-  [ "$(_hi_release_note_of "$body")" = "hi keeps your prompt." ] || _hi_why s
+  got="$(_hi_release_note_of "$body")"
+  [ "$got" = "hi keeps your prompt." ] || _hi_why got s
 }
 
 function test_release_note_extract_treats_none_as_empty() {
-  [ -z "$(_hi_release_note_of $'## Release note\n\nnone\n\n## Next')" ] &&
-    [ -z "$(_hi_release_note_of $'## Release note\n\nNone.\n')" ] &&
-    [ -z "$(_hi_release_note_of $'## Release note\n\n<!-- a\nmulti-line comment -->\n\n## Next')" ] &&
-    [ -z "$(_hi_release_note_of $'## What Changed\n\nno section here')" ] || _hi_why
+  local got got2 got3 got4
+  got="$(_hi_release_note_of $'## Release note\n\nnone\n\n## Next')"
+  got2="$(_hi_release_note_of $'## Release note\n\nNone.\n')"
+  got3="$(_hi_release_note_of $'## Release note\n\n<!-- a\nmulti-line comment -->\n\n## Next')"
+  got4="$(_hi_release_note_of $'## What Changed\n\nno section here')"
+  [ -z "$got" ] && [ -z "$got2" ] && [ -z "$got3" ] && [ -z "$got4" ] || _hi_why got got2 got3 got4
 }
 
 # --check, release-note.yml's lint: the section has to be there and say
@@ -278,16 +281,18 @@ function test_release_note_extract_treats_none_as_empty() {
 # as does one whose section holds only whitespace and comments, and one whose
 # heading is followed straight by the next section
 function test_release_note_check_requires_a_written_section() {
+  local got got2
   local script="$_HI_ROOT/.github/scripts/release_notes.sh"
-  { bash "$script" --check <"$_HI_PR_TEMPLATE" >/dev/null &&
-    printf '## Release note\n\nnone\n' | bash "$script" --check >/dev/null &&
-    [ -z "$(printf '## Release note\n\nN/A\n' | bash "$script" --check)" ] &&
-    [ "$(printf '## Release note\r\n\r\nhi keeps your prompt.\r\n' | bash "$script" --check)" = "hi keeps your prompt." ] &&
+  { bash "$script" --check <"$_HI_PR_TEMPLATE" >/dev/null && printf '## Release note\n\nnone\n' | bash "$script" --check >/dev/null; } || _hi_why script _HI_PR_TEMPLATE || return 1
+  got="$(printf '## Release note\n\nN/A\n' | bash "$script" --check)"
+  got2="$(printf '## Release note\r\n\r\nhi keeps your prompt.\r\n' | bash "$script" --check)"
+  { [ -z "$got" ] &&
+    [ "$got2" = "hi keeps your prompt." ] &&
     ! printf '## What changed\n\nno section\n' | bash "$script" --check 2>/dev/null &&
     ! printf '' | bash "$script" --check 2>/dev/null &&
     ! printf '## Release note\n\n   \n\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null &&
     ! printf '## Release note\r\n\r\n<!-- a\r\nmulti-line comment -->\r\n' | bash "$script" --check 2>/dev/null &&
-    ! printf '## Release note\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null; } || _hi_why script _HI_PR_TEMPLATE
+    ! printf '## Release note\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null; } || _hi_why got got2 script _HI_PR_TEMPLATE
 }
 
 # ...and release-note.yml runs it on every body edit, the body through env,
@@ -518,7 +523,7 @@ function test_write_checksums_lists_the_artifacts() {
   # every built file, plus SHA256SUMS, basenames only - and nothing else
   diff <(sort "$d/ARTIFACTS") \
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
-    return 1 || _hi_why d || return 1
+    _hi_why d || return 1
   # ...and it agrees with what SHA256SUMS covers
   diff <(awk "$_HI_SUMS_NAMES" "$d/SHA256SUMS" | sort) \
     <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort) || _hi_why d _HI_SUMS_NAMES
@@ -593,7 +598,7 @@ function test_write_checksums_ships_the_source_tarball() {
   }
   diff <(sort "$d/ARTIFACTS") \
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.tar.gz say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
-    return 1 || _hi_why d || return 1
+    _hi_why d || return 1
   diff <(awk "$_HI_SUMS_NAMES" "$d/SHA256SUMS" | sort) \
     <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort) || _hi_why d _HI_SUMS_NAMES
 }

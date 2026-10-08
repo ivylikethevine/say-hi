@@ -44,7 +44,9 @@ function test_setting_on_toggle_absent_is_on() {
 # the shipped defaults are core.sh's own, so writing them out would be noise
 # that then has to be kept in sync - the same rule config_max_width has for 80
 function test_opt_in_off_writes_nothing() {
-  [ -z "$(_hi_collected_lines prompt_default | tr -d ' ')" ] || _hi_why
+  local got
+  got="$(_hi_collected_lines prompt_default | tr -d ' ')"
+  [ -z "$got" ] || _hi_why got
 }
 
 function test_hi_prompt_kept_when_chosen() {
@@ -67,7 +69,9 @@ function test_advanced_declined_keeps_every_value() {
 
 # and with nothing set, writes nothing - the defaults live in the code
 function test_advanced_defaults_write_nothing() {
-  [ -z "$(_hi_section_lines adv_default config_truecolor | tr -d ' ')" ] || _hi_why
+  local got
+  got="$(_hi_section_lines adv_default config_truecolor | tr -d ' ')"
+  [ -z "$got" ] || _hi_why got
 }
 
 # _hi_run_in <name> [settings-line ...] - run_configure with no tty against a
@@ -92,25 +96,29 @@ function _hi_run_in() {
 # a line written by hand - the way SETTINGS.md says to set a scheme of your
 # own - is adopted into the block rather than written again beside itself
 function test_configure_adopts_a_hand_written_line() {
-  local out
+  local out got got2
   out="$(_hi_run_in adopt "export _HI_COLOR_SCHEME='$_HI_TEST_L24'")" || _hi_why || return 1
-  [ "$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)" -eq 1 ] &&
-    [[ "$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)" == *"$_HI_TEST_L24"*"$_HI_MARKER" ]] || _hi_why out _HI_MARKER
+  got="$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)"
+  got2="$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)"
+  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_L24"*"$_HI_MARKER" ]] || _hi_why got got2 out _HI_MARKER
 }
 
 # ...and a hand line for a name this run does not write is left as it is
 function test_configure_leaves_a_hand_line_it_does_not_write() {
-  local out
+  local out got got2
   out="$(_hi_run_in keephand "export _HI_MY_OWN_LINE='>'")" || _hi_why || return 1
-  [ "$(printf '%s\n' "$out" | grep -c _HI_MY_OWN_LINE)" -eq 1 ] &&
-    [[ "$(printf '%s\n' "$out" | grep _HI_MY_OWN_LINE)" != *"$_HI_MARKER"* ]] || _hi_why out _HI_MARKER
+  got="$(printf '%s\n' "$out" | grep -c _HI_MY_OWN_LINE)"
+  got2="$(printf '%s\n' "$out" | grep _HI_MY_OWN_LINE)"
+  [ "$got" -eq 1 ] && [[ "$got2" != *"$_HI_MARKER"* ]] || _hi_why got got2 out _HI_MARKER
 }
 
 # no tty, no preset, no file, and nothing to say: no file - a shebang alone
 # would be a decision record with no decision in it, and its existence is
 # what stops the one-shot prompt-framework detection asking again
 function test_no_tty_run_with_defaults_writes_no_file() {
-  [ -z "$(_hi_run_in notty)" ] && [ ! -e "$_HI_WORKDIR/run_notty/settings.sh" ] || _hi_why
+  local got
+  got="$(_hi_run_in notty)"
+  [ -z "$got" ] && [ ! -e "$_HI_WORKDIR/run_notty/settings.sh" ] || _hi_why got
 }
 
 # a preset is a decision, so that run creates the file
@@ -166,15 +174,16 @@ function test_settings_diff_says_no_changes() {
 # outside it (width, separators, the advanced section) is touched.
 
 function test_apply_preset_seeds_every_answer() {
+  local got
   local target="$_HI_WORKDIR/preset_seed"
   printf 'export _HI_DISABLE_PROMPT=1\nexport _HI_MAX_WIDTH=120\n' >"$target"
   _HI_SETTING_PENDING=()
   apply_preset minimal >/dev/null || _hi_why || return 1
   # named by the preset: off; not named: back to on, even though the file
   # says off; outside the vocabulary: still the file's
-  setting_off _HI_DISABLE_HEADER "$target" 1 &&
-    ! setting_off _HI_DISABLE_PROMPT "$target" 1 &&
-    [ "$(setting_value _HI_MAX_WIDTH "$target")" = 120 ] || _hi_why target
+  { setting_off _HI_DISABLE_HEADER "$target" 1 && ! setting_off _HI_DISABLE_PROMPT "$target" 1; } || _hi_why target || return 1
+  got="$(setting_value _HI_MAX_WIDTH "$target")"
+  [ "$got" = 120 ] || _hi_why got target
 }
 
 function test_apply_preset_rejects_a_stranger() {
@@ -187,23 +196,29 @@ function test_apply_preset_rejects_a_stranger() {
 # loop it feeds, on the same precedent as apply_preset above: config_preset
 # is `[ -t 0 ]`-gated, and the resolution it does has nothing to do with a tty.
 function test_preset_shorthand_resolves_each_first_letter() {
-  [ "$(preset_shorthand e)" = "everything" ] &&
-    [ "$(preset_shorthand b)" = "balanced" ] &&
-    [ "$(preset_shorthand m)" = "minimal" ] || _hi_why
+  local got got2 got3
+  got="$(preset_shorthand e)"
+  got2="$(preset_shorthand b)"
+  got3="$(preset_shorthand m)"
+  [ "$got" = "everything" ] && [ "$got2" = "balanced" ] && [ "$got3" = "minimal" ] || _hi_why got got2 got3
 }
 
 # the header presets go through the same two helpers as the main ones, so
 # they get the ambiguity guard and the exact-name-first order: two presets
 # sharing a letter must refuse, and an exact name must beat a later prefix.
 function test_preset_shorthand_is_table_agnostic_and_refuses_ambiguity() {
+  local got
   local -a _HI_TEST_PRESETS=("alpha|first|a b" "apex|second|c d" "zulu|third|e f")
   # unambiguous letter and exact name both resolve
-  [ "$(preset_shorthand z _HI_TEST_PRESETS)" = zulu ] || _hi_why || return 1
-  [ "$(preset_row apex _HI_TEST_PRESETS)" = "apex|second|c d" ] || _hi_why || return 1
+  got="$(preset_shorthand z _HI_TEST_PRESETS)"
+  [ "$got" = zulu ] || _hi_why got || return 1
+  got="$(preset_row apex _HI_TEST_PRESETS)"
+  [ "$got" = "apex|second|c d" ] || _hi_why got || return 1
   # two names share "a", so the letter is refused rather than guessed
   ! preset_shorthand a _HI_TEST_PRESETS 2>/dev/null || _hi_why || return 1
   # and the real header table still answers through the same helpers
-  [ -n "$(preset_names _HI_HEADER_PRESETS)" ] || _hi_why
+  got="$(preset_names _HI_HEADER_PRESETS)"
+  [ -n "$got" ] || _hi_why got
 }
 
 function test_preset_shorthand_rejects_unknown_letter() {
@@ -344,6 +359,7 @@ function test_config_hi_skips_chmod_when_already_executable() {
 
 # a writable bindir needs no sudo at all - root installs, userland prefixes
 function test_config_hi_links_plainly_when_bindir_is_writable() {
+  local got
   local dir="$_HI_WORKDIR/writablebin"
   mkdir -p "$dir/bin"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
@@ -357,7 +373,8 @@ function test_config_hi_links_plainly_when_bindir_is_writable() {
     _HI_LINK="$dir/bin/hi"
     config_hi
   ) >/dev/null
-  [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] || _hi_why dir
+  got="$(readlink "$dir/bin/hi")"
+  [ "$got" = "$dir/hi.sh" ] || _hi_why got dir
 }
 
 # config_hi's own lockout degradation (both the refused-sudo and the
@@ -373,10 +390,13 @@ function test_config_hi_links_plainly_when_bindir_is_writable() {
 # their arms run here whatever this machine has installed.
 
 function test_prompt_preview_shows_this_user_and_host() {
+  local got got2
   _hi_load_preview_sources
   local out
   out="$(_hi_strip_ansi "$(_hi_prompt_preview)")"
-  [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* ]] || _hi_why out
+  got="$(_hi_whoami)"
+  got2="$(_hi_hostname)"
+  [[ "$out" == *"$got@$got2"* ]] || _hi_why got got2 out
 }
 
 # The composite sample (as opposed to _hi_prompt_preview above, which is
@@ -394,12 +414,15 @@ function test_prompt_sample_preview_says_off_when_disabled() {
 # ...and with it on (an empty settings.sh), it draws the line: this
 # user@host, ending in bash's shipped end character
 function test_prompt_sample_preview_draws_the_prompt_when_on() {
+  local got got2
   _hi_load_preview_sources
   local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-on.settings.sh"
   : >"$_HI_SETTINGS"
   local out
   out="$(_hi_strip_ansi "$(_hi_prompt_sample_preview)")"
-  [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]] || _hi_why out
+  got="$(_hi_whoami)"
+  got2="$(_hi_hostname)"
+  [[ "$out" == *"$got@$got2"* && "$out" == *' $' && "$out" != *"prompt off"* ]] || _hi_why got got2 out
 }
 
 # the sample paints with the settings file's scheme, not the running shell's,
@@ -434,7 +457,7 @@ function test_prompt_sample_preview_shortens_the_cwd_in_a_narrow_menu() {
 # the preview lists an editor for every config that would ride, whether or
 # not this machine has the editor: the alias is a target's.
 function test_editors_preview_names_every_override() {
-  local out
+  local out got
   out="$(_hi_editors_preview)"
   [[ "$out" == *"nano  -> nano --rcfile $_HI_CONFIG_DIR/nano/nanorc"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *"emacs -> emacs -nw -q -l $_HI_CONFIG_DIR/emacs/init.el"* ]] || _hi_because "emacs: $out" || return 1
@@ -446,7 +469,8 @@ function test_editors_preview_names_every_override() {
   [[ "$out" == *"hx    -> hx -c $_HI_CONFIG_DIR/helix/config.toml"* && "$out" == *"helix -> helix -c $_HI_CONFIG_DIR/helix/config.toml"* ]] || _hi_because "helix: $out" || return 1
   # micro's three files share one line
   [[ "$out" == *"micro -> micro -backup false -savehistory false -config-dir $_HI_CONFIG_DIR/micro"* ]] || _hi_because "micro: $out" || return 1
-  [ "$(grep -c '^micro ' <<<"$out")" = 1 ] || _hi_because "micro, more than once: $out"
+  got="$(grep -c '^micro ' <<<"$out")"
+  [ "$got" = 1 ] || _hi_because "micro, more than once: $out"
 }
 
 # the preview has no second spelling to drift out of step: its line for
@@ -514,20 +538,24 @@ _HI_CFG_ENV_ROSTER="MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION NODENV_VERSI
   CONDA_DEFAULT_ENV VIRTUAL_ENV VIRTUAL_ENV_PROMPT"
 
 function test_env_status_preview_draws_the_live_segment() {
+  local got
   _hi_load_preview_sources
   local out
   # shellcheck disable=SC2086 # the roster is a word list on purpose
   out="$(unset $_HI_CFG_ENV_ROSTER && export VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1 &&
     _hi_env_status_preview)"
-  [ "$(_hi_strip_ansi "$out")" = "(myproj) " ] || _hi_because "preview: $out"
+  got="$(_hi_strip_ansi "$out")"
+  [ "$got" = "(myproj) " ] || _hi_because "preview: $out"
 }
 
 function test_env_status_preview_samples_with_nothing_active() {
+  local got
   _hi_load_preview_sources
   local out
   # shellcheck disable=SC2086 # the roster is a word list on purpose
   out="$(unset $_HI_CFG_ENV_ROSTER && _hi_env_status_preview)"
-  [ "$(_hi_strip_ansi "$out")" = "(mise|direnv:proj|myproj) " ] || _hi_because "preview: $out"
+  got="$(_hi_strip_ansi "$out")"
+  [ "$got" = "(mise|direnv:proj|myproj) " ] || _hi_because "preview: $out"
 }
 
 # the preview names what draws the prompt without the setting - hi.sh's
@@ -575,18 +603,24 @@ function _hi_check_preview_at() {
 
 # the preview is the check at the groups this run holds
 function test_check_preview_renders_the_groups_that_run() {
+  local got
   _hi_load_preview_sources
-  [[ "$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='mine'")" == *" sh "* ]] || _hi_why
+  got="$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='mine'")"
+  [[ "$got" == *" sh "* ]] || _hi_why got
 }
 
 # an empty render is a real answer - every group off, or the ones that run
 # silent - and so is a header without the check item: the preview says which,
 # rather than handing show_preview a blank to drop
 function test_check_preview_says_when_nothing_shows() {
+  local got
   _hi_load_preview_sources
-  [[ "$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='none'")" == *"these groups show nothing here"* ]] || _hi_why || return 1
-  [[ "$(_hi_check_preview_at '')" == *"these groups show nothing here"* ]] || _hi_why || return 1
-  [[ "$(_hi_check_preview_at "export _HI_HEADER_ORDER='utc gitid'")" == *"the check item is off"* ]] || _hi_why
+  got="$(_hi_check_preview_at "export _HI_PACKAGES_GROUPS='none'")"
+  [[ "$got" == *"these groups show nothing here"* ]] || _hi_why got || return 1
+  got="$(_hi_check_preview_at '')"
+  [[ "$got" == *"these groups show nothing here"* ]] || _hi_why got || return 1
+  got="$(_hi_check_preview_at "export _HI_HEADER_ORDER='utc gitid'")"
+  [[ "$got" == *"the check item is off"* ]] || _hi_why got
 }
 
 # _hi_plugins_page <width> <page> <kept> - the plugins' rows of <page> ("" the
@@ -655,7 +689,7 @@ function test_plugins_page_draws_a_row_a_plugin() {
 # the main page's table and the Plugins page have a row a group, its plugins
 # named in the color of their state: one kept home is not one that rides
 function test_plugins_rows_name_each_group() {
-  local page off rides
+  local page off rides got
   page="$(_hi_strip_ansi "$(_hi_plugins_page 80 '' '')")"
   [[ "$page" == *" Plugins "*" ride"*" g2 "*" editors "*" vim nvim nano "* ]] || _hi_because "main: [$page]" || return 1
   page="$(_hi_strip_ansi "$(_hi_plugins_page 80 g '')")"
@@ -664,7 +698,8 @@ function test_plugins_rows_name_each_group() {
   _hi_plugin_color rides rides
   [ -z "$off" ] || [ "$off" != "$rides" ] || _hi_because "one color for two states" || return 1
   page="$(_hi_plugins_page 80 g nano)"
-  [[ "$page" == *"$(printf '%b' "$off")nano"* ]] || _hi_because "nano, kept home: $(printf '%q' "$page")"
+  got="$(printf '%b' "$off")"
+  [[ "$page" == *"${got}nano"* ]] || _hi_because "nano, kept home: $(printf '%q' "$page")"
 }
 
 # a number flips the plugin it stands for in the list kept home: one there

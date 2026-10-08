@@ -50,6 +50,13 @@
 #   omp     oh-my-posh's `extends` naming a local file; a URL or a theme name
 #           resolves on the target. JSON has no comment, so there the value is
 #           emptied, which oh-my-posh reads as no base; yaml and toml comment it.
+#   git     an `[include]`'s `path`, and what is private, which is no finding
+#           but the dialect's job: every key of `[credential]`, `[gpg]`,
+#           `[includeIf]`, and `[sendemail]`, a `[url]`'s `insteadOf`, and any
+#           section's `signingkey`, `gpgsign`, `forceSignAnnotated`,
+#           `sshCommand`, `sslKey`, `sslCert`, `cookieFile`, `extraHeader`,
+#           `askPass`, `proxy`, and `password`. Read by `<section>.<key>`,
+#           lower-cased, so a key is found under any header; a header stays.
 #   elisp   `load`/`load-file`, `add-to-list 'load-path`, and the managers
 #           (`package-initialize`, `use-package`, straight, elpaca). A bare
 #           `require` is left alone: nearly every one names a built-in.
@@ -76,6 +83,9 @@
 # scan: blk holds the lines inside a closed pair, bad the starts with no end.
 # mark() is the marker a comment line opens with, whole, so `hi-allow` and
 # `hi-allow-start` are never read as each other.
+#
+# A private line is a `private` row and is dropped like any finding; under a
+# `hi-allow` it rides, and is an `allowed` row (_hi_allowed_lines).
 #
 # mode=report prints one `<member>|<line>|<kind>|<text>` row per finding and
 # leaves the file alone; mode=fix also writes <file>.lint with each finding
@@ -139,10 +149,21 @@ function shfix(s,   o, p, r, n, w) {
   }
   return substr(o s, 2)
 }
+function subj(s,   k) {
+  sub(/^[ \t]+/, "", s)
+  if (s ~ /^\[/) {
+    k = s; sub(/^\[[ \t]*/, "", k); sub(/[] \t"].*/, "", k); sect = tolower(k)
+    sub(/^\[[^]]*\][ \t]*/, "", s)
+    if (s == "") return ""
+  }
+  sub(/[ \t]*=.*/, "", s); sub(/[ \t].*/, "", s)
+  return sect "." tolower(s)
+}
 function kindof(s,   t) {
   if (lead != "-" && s ~ ("^[ \t]*" lead)) return ""
   if (index(s, "@@HI_CONFIG@@")) return ""
-  if (plug != "-" && s ~ plug) { fixed = noop " " s; return "plugin" }
+  if (stmt == "[]") { if (vcont) return ""; s = subj(s); if (s == "") return "" }
+  if (plug != "-" && s ~ plug) { fixed = noop " " s; return (stmt == "[]") ? "private" : "plugin" }
   if (inc == "-") return ""
   if (noop != "") { fixed = shfix(s); return (fixed != s) ? "include" : "" }
   t = s
@@ -152,7 +173,7 @@ function kindof(s,   t) {
   return "include"
 }
 FNR == 1 {
-  close(out); out = FILENAME ".lint"; depth = allow_l = quiet = n = 0
+  close(out); out = FILENAME ".lint"; depth = allow_l = quiet = n = vcont = 0; sect = ""
   split("", blk); split("", bad); split("", from)
   while ((getline l < FILENAME) > 0) {
     n++; w = k = mark(l); sub(/-.*/, "", k)
@@ -170,7 +191,7 @@ FNR == 1 {
 }
 FNR in bad { printf "%s|%d|unclosed|%s\n", name, FNR, trim($0) }
 depth > 0 {
-  depth = (stmt == "\\") ? ($0 ~ /\\$/) : depth + bal($0)
+  depth = (stmt == "\\" || stmt == "[]") ? ($0 ~ /\\$/) : depth + bal($0)
   if (depth < 0) depth = 0
   if (mode == "fix") print lead " hi dropped: " $0 > out
   allow_l = quiet = carry_l = 0
@@ -179,16 +200,19 @@ depth > 0 {
 {
   w = mark($0)
   carry = (carry_l || (("carry", FNR) in blk)) && w == "" && $0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))
-  kind = (carry || allow_l || (("allow", FNR) in blk)) ? "" : kindof($0)
+  spare = carry || allow_l || (("allow", FNR) in blk)
+  kind = (spare && stmt != "[]") ? "" : kindof($0)
+  if (spare && kind != "") { if (kind == "private") printf "%s|%d|allowed|%s\n", name, FNR, trim($0); kind = "" }
   hush = quiet || (("quiet", FNR) in blk)
   allow_l = (w == "allow"); quiet = (w == "quiet"); carry_l = (w == "carry")
   if (carry) printf "%s|%d|carry|%s\n", name, FNR, trim($0)
-  if (kind == "") { if (mode == "fix") print > out; if ($0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))) prev = $0; next }
+  if (kind == "") { vcont = ($0 ~ /\\$/); if (mode == "fix") print > out; if ($0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))) prev = $0; next }
   if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
   if (mode == "fix" && kind == "plugin" && under != "" && prev ~ under) { match($0, /^[ \t]*/); print substr($0, 1, RLENGTH) standin > out }
+  if (mode == "fix" && stmt == "[]" && match($0, /^[ \t]*\[[^]]*\]/)) print substr($0, 1, RLENGTH) > out
   if (mode == "fix") print ((noop != "" || blank) ? fixed : lead " hi dropped: " $0) > out
   if (stmt ~ /^\(\)/) { depth = bal($0); if (depth < 0) depth = 0 }
-  if (stmt == "\\") depth = ($0 ~ /\\$/)
+  if (stmt == "\\" || stmt == "[]") depth = ($0 ~ /\\$/)
 }
 AWK
 }
@@ -206,6 +230,10 @@ function _hi_include_lint() {
     _hi_tool_dirs "$f" "$src"
     while IFS='|' read -r m n k t; do
       [ "$k" = include ] && ((${#_hi_dirs[@]})) && _hi_include_carry row "$t" "${f%%/*}" && continue
+      # neovim's require of a module that rides (_hi_require_carry)
+      [ "$k:${f%%/*}" = include:nvim ] && _hi_require_carry "$t" nvim && continue
+      # what a dialect keeps home as private is its job, and no finding
+      case "$k" in private | allowed) continue ;; esac
       if [ "$k" = carry ]; then
         _hi_unmarked=()
         _hi_marked_carry t "$t" "$f" || true
@@ -214,6 +242,19 @@ function _hi_include_lint() {
       fi
       printf '%s|%s|%s|%s\n' "$m" "$n" "$k" "$t"
     done < <(_hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src")
+  done < <(_hi_overlay_files)
+  return 0
+}
+
+# _hi_allowed_lines - the private lines that ride under a `hi-allow`, a
+# `<member>|<line>|allowed|<text>` row each, for `hi --plugins` to name
+function _hi_allowed_lines() {
+  local f src prog row
+  prog="$(_hi_lint_awk)"
+  while IFS= read -r f; do
+    if ! _hi_member_dialect "$f" row || ! _hi_overlay_src "$f" src; then continue; fi
+    case "$row" in *' | [] | '*) ;; *) continue ;; esac
+    _hi_dialect="$row" awk -v mode=report -v name="$f" "$prog" "$src" | awk -F'|' '$3 == "allowed"'
   done < <(_hi_overlay_files)
   return 0
 }
@@ -279,6 +320,34 @@ function _hi_marked_carry() {
   [ "$_hi_mc_h" = 1 ] || _hi_unmarked+=("names no path under your home directory")
   printf -v "$1" '%s' "$_hi_mc_out$_hi_mc_rest"
   [ "$_hi_mc_n" = 1 ]
+}
+
+# _hi_require_carry <line> <tool> - each `require` in <line> of a module
+# under lua/ in one of the caller's $_hi_dirs, or in the config a module was
+# itself carried from, appended to the caller's $_hi_carried as a <member>
+# <source> pair, <tool>/lua/<its path>. The line stays as written: the module
+# is found on the runtimepath (_hi_stage_carry). 1 when none is carried.
+# GLOSSARY: HI.57
+function _hi_require_carry() {
+  local _hi_rq_rest="$1" _hi_rq_m _hi_rq_d _hi_rq_f _hi_rq_n=0
+  local _hi_rq_re='require[[:space:]]*[(]?[[:space:]]*["'"'"']([A-Za-z0-9_][A-Za-z0-9_./-]*)["'"'"']'
+  while [[ $_hi_rq_rest =~ $_hi_rq_re ]]; do
+    _hi_rq_m="${BASH_REMATCH[1]}"
+    _hi_rq_rest="${_hi_rq_rest#*"${BASH_REMATCH[0]}"}"
+    case "$_hi_rq_m" in vim.* | *..*) continue ;; esac
+    _hi_rq_m="${_hi_rq_m//.//}"
+    for _hi_rq_d in ${_hi_dirs[@]+"${_hi_dirs[@]}"}; do
+      _hi_rq_d="${_hi_rq_d%%/lua/*}"
+      _hi_rq_d="${_hi_rq_d%/lua}"
+      for _hi_rq_f in "lua/$_hi_rq_m.lua" "lua/$_hi_rq_m/init.lua"; do
+        [ -f "$_hi_rq_d/$_hi_rq_f" ] || continue
+        _hi_carried+=("$2/$_hi_rq_f" "$_hi_rq_d/$_hi_rq_f")
+        _hi_rq_n=1
+        break 2
+      done
+    done
+  done
+  [ "$_hi_rq_n" = 1 ]
 }
 
 # _hi_include_carry <outvar> <line> <tool> - <line> with each path in it that

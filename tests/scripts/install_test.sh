@@ -83,8 +83,10 @@ function test_install_tree_skips_the_man_page_without_a_source() {
 # the link has to point where hi.sh will be on the installed system, not into
 # the staging root, which won't exist by then
 function test_install_tree_links_hi_without_destdir_in_the_target() {
+  local got
   _hi_package_fixture link
-  [ "$(readlink "$_HI_WORKDIR/link/dest/usr/bin/hi")" = "/usr/share/say-hi/hi.sh" ] || _hi_why
+  got="$(readlink "$_HI_WORKDIR/link/dest/usr/bin/hi")"
+  [ "$got" = "/usr/share/say-hi/hi.sh" ] || _hi_why got
 }
 
 # a package can't rewrite anyone's rc file, so profile.d is the only place it
@@ -154,8 +156,10 @@ function _hi_strip_written_settings() {
 }
 
 function test_strip_settings_removes_what_install_wrote() {
+  local got
   _hi_settings_fixture strip _hi_strip_written_settings
-  [ ! -e "$(_hi_fixture_settings strip)" ] || _hi_why
+  got="$(_hi_fixture_settings strip)"
+  [ ! -e "$got" ] || _hi_why got
 }
 
 # colors and packages are the user's own writing, not something install.sh
@@ -167,8 +171,10 @@ function _hi_strip_beside_colors() {
 }
 
 function test_strip_settings_leaves_the_rest_of_the_overlay() {
+  local got
   _hi_settings_fixture keep _hi_strip_beside_colors
-  [ -f "$_HI_WORKDIR/keep/overlay/colors" ] && [ ! -e "$(_hi_fixture_settings keep)" ] || _hi_why
+  got="$(_hi_fixture_settings keep)"
+  [ -f "$_HI_WORKDIR/keep/overlay/colors" ] && [ ! -e "$got" ] || _hi_why got
 }
 
 # The only path through config_hi a test may take: every other one ends in
@@ -209,13 +215,14 @@ function test_unlink_hi_skips_when_link_missing() {
 # --link system on an uninstall names /usr/bin/hi once, not never: the
 # dedupe against the default link once skipped the only link there was
 function test_unlink_hi_with_the_system_link_checks_it_once() {
-  local out
+  local out got
   out="$(
     _HI_LINK=/usr/bin/hi
     _HI_DRY_RUN=1
     unlink_hi
   )" || _hi_why || return 1
-  [ "$(printf '%s\n' "$out" | grep -c '/usr/bin/hi')" -eq 1 ] || _hi_why out
+  got="$(printf '%s\n' "$out" | grep -c '/usr/bin/hi')"
+  [ "$got" -eq 1 ] || _hi_why got out
 }
 
 function test_unlink_hi_skips_when_link_points_elsewhere() {
@@ -287,6 +294,7 @@ function test_unlink_hi_instructs_with_no_sudo_at_all() {
 # config_hi's user-local default: the bindir is made when it is missing, and
 # a bindir off $PATH is said so, once
 function test_config_hi_creates_the_user_bindir() {
+  local got
   local dir="$_HI_WORKDIR/userbin" out
   mkdir -p "$dir"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
@@ -296,10 +304,12 @@ function test_config_hi_creates_the_user_bindir() {
     _HI_LINK="$dir/.local/bin/hi"
     config_hi
   )" || _hi_why dir || return 1
-  [ "$(readlink "$dir/.local/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" == *"not on your PATH"* ]] || _hi_why dir out
+  got="$(readlink "$dir/.local/bin/hi")"
+  [ "$got" = "$dir/hi.sh" ] && [[ "$out" == *"not on your PATH"* ]] || _hi_why got dir out
 }
 
 function test_config_hi_is_quiet_when_the_bindir_is_on_path() {
+  local got
   local dir="$_HI_WORKDIR/onpathbin" out
   mkdir -p "$dir/bin"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
@@ -311,7 +321,8 @@ function test_config_hi_is_quiet_when_the_bindir_is_on_path() {
     _HI_LINK="$dir/bin/hi"
     config_hi
   )" || _hi_why dir || return 1
-  [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" != *"not on your PATH"* ]] || _hi_why dir out
+  got="$(readlink "$dir/bin/hi")"
+  [ "$got" = "$dir/hi.sh" ] && [[ "$out" != *"not on your PATH"* ]] || _hi_why got dir out
 }
 
 # something on PATH already runs this tree - Homebrew's wrapper, a package's
@@ -348,6 +359,7 @@ function _hi_pkg_shim() {
 }
 
 function test_config_hi_refuses_a_package_owned_link() {
+  local got
   local dir="$_HI_WORKDIR/pkgowned" out
   mkdir -p "$dir/bin"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
@@ -359,10 +371,12 @@ function test_config_hi_refuses_a_package_owned_link() {
     _HI_LINK="$dir/bin/hi"
     config_hi
   )" || _hi_why dir || return 1
-  [[ "$out" == *"belongs to the say-hi package"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ] || _hi_why out dir
+  got="$(readlink "$dir/bin/hi")"
+  [[ "$out" == *"belongs to the say-hi package"* ]] && [ "$got" = /bin/true ] || _hi_why got out dir
 }
 
 function test_config_hi_refuses_a_foreign_link() {
+  local got
   local dir="$_HI_WORKDIR/foreign" out
   mkdir -p "$dir/bin"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
@@ -372,7 +386,8 @@ function test_config_hi_refuses_a_foreign_link() {
     _HI_LINK="$dir/bin/hi"
     config_hi
   )" || _hi_why dir || return 1
-  [[ "$out" == *"is not hi's"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ] || _hi_why out dir
+  got="$(readlink "$dir/bin/hi")"
+  [[ "$out" == *"is not hi's"* ]] && [ "$got" = /bin/true ] || _hi_why got out dir
 }
 
 function test_unlink_hi_names_the_owning_package() {
@@ -391,6 +406,7 @@ function test_unlink_hi_names_the_owning_package() {
 # an earlier hi on PATH that runs some other tree: the link is still made,
 # and the shadowing is said, since scripts will reach the other one
 function test_config_hi_warns_when_another_hi_shadows_the_link() {
+  local got
   local dir="$_HI_WORKDIR/shadowed" out
   mkdir -p "$dir/other" "$dir/bin"
   printf '#!/bin/bash\n' >"$dir/hi.sh"
@@ -404,8 +420,8 @@ function test_config_hi_warns_when_another_hi_shadows_the_link() {
     _HI_LINK="$dir/bin/hi"
     config_hi
   )" || _hi_why dir || return 1
-  [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] &&
-    [[ "$out" == *"$dir/other/hi comes first on your PATH"* ]] || _hi_why dir out
+  got="$(readlink "$dir/bin/hi")"
+  [ "$got" = "$dir/hi.sh" ] && [[ "$out" == *"$dir/other/hi comes first on your PATH"* ]] || _hi_why got dir out
 }
 
 # config_hi's own sudo ladder, the mirror of unlink_hi's below: a bindir

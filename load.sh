@@ -14,7 +14,8 @@
 #
 # $_HI_ROOT is deliberately *not* put on $PATH: on a disposable session it is
 # under /tmp, which every hardening baseline greps for, and paths.sh already
-# aliases `hi` to $_HI_LAUNCHER in all four shells.
+# aliases `hi` to $_HI_LAUNCHER in all four shells. An overlay's bin/ is the
+# one directory of it that is, where the user put scripts there (below).
 function _hi_restore_profile() {
   local _hi_rp_home="${_HI_HOME:-}" _hi_rp_root="${_HI_ROOT:-}"
   if [ -r /etc/profile ]; then source /etc/profile; fi
@@ -68,6 +69,12 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # source this file for its functions and keep their environment.
 # GLOSSARY: HI.47
 [ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_unexport
+
+# The overlay's bin/ (GLOSSARY: HI.58), last on $PATH so nothing in it stands
+# in for a command of the target's. Set here, where `hi <target> <cmd>` and
+# the session shell both inherit it.
+# Never on an unset $_HI_CONFIG_DIR, which would name /bin (GLOSSARY: HI.60).
+[ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || [ -z "${_HI_CONFIG_DIR:-}" ] || [ ! -d "$_HI_CONFIG_DIR/bin" ] || PATH="$PATH:$_HI_CONFIG_DIR/bin"
 
 # Everything hi put on the target and nothing the target had. hi never writes
 # to a target's own login files, so there is nothing to strip back out.
@@ -587,6 +594,12 @@ function _hi_keep_panes() {
       printf -v q '%q' "${!v}"
       printf 'export %s=%s\n' "$v" "$q"
     done
+    # the overlay's bin/, which the multiplexer's server never had on $PATH
+    if [ -n "${_HI_CONFIG_DIR:-}" ] && [ -d "$_HI_CONFIG_DIR/bin" ]; then
+      printf -v q '%q' "$_HI_CONFIG_DIR/bin"
+      # shellcheck disable=SC2016 # the launcher's to expand
+      printf 'export PATH="$PATH":%s\n' "$q"
+    fi
     printf 'exec'
     printf ' %q' "$@"
     printf '\n'

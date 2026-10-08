@@ -366,6 +366,20 @@ function doctor_code_dir() {
   [ -z "$order" ] || doctor_row "$label" "loads in order: ${order#, }"
 }
 
+# doctor_bin_dir - the overlay's bin/ (GLOSSARY: HI.58): a row for each entry
+# that stays home, with why (pack.sh's _hi_bin_ok)
+function doctor_bin_dir() {
+  local f why
+  for f in "$_HI_CONFIG_DIR"/bin/*; do
+    [ -e "$f" ] || continue
+    why="not a plain file of a plain name"
+    if [ -f "$f" ] && _hi_dir_member_ok "${f##*/}"; then
+      ! _hi_bin_ok "$f" why || continue
+    fi
+    doctor_row "bin/${f##*/}" "left home - $why" warn
+  done
+}
+
 # The lines of a file that set something secret-shaped, by number: a name
 # holding TOKEN, SECRET, PASSWORD, or an API, ACCESS, or PRIVATE key, given a
 # literal value (not a $variable or an alias's \$variable, and not a path's
@@ -402,13 +416,11 @@ function _hi_doc_now() {
   fi
 }
 
-# doctor_riding <member...> - what rides that should not, and what does not
-# that will be missed. A secret-shaped line in a file that rides reaches every host hi
-# connects to: named by file and line, its value unprinted. And neovim's
-# init.lua rides alone, a `require` in it left as written, so the modules
-# beside it are named as staying home.
+# doctor_riding <member...> - what rides that should not: a secret-shaped
+# line in a file that rides reaches every host hi connects to, so it is named
+# by file and line, its value unprinted.
 function doctor_riding() {
-  local member src n dir
+  local member src n
   for member; do
     _hi_overlay_src "$member" src || continue
     while IFS= read -r n; do
@@ -416,12 +428,6 @@ function doctor_riding() {
       doctor_row "$member:$n" "sets something secret-shaped, and $src rides to every host you hi to - keep it in an rc that stays home (a hi-allow comment above the line says it is meant)" warn
     done < <(awk "$_HI_SECRET_AWK" "$src" 2>/dev/null)
   done
-  _hi_overlay_src nvim/init.lua src || return 0
-  dir="${src%/*}/lua"
-  [ -d "$dir" ] || return 0
-  n="$(find "$dir" -type f -name '*.lua' 2>/dev/null | grep -c . || true)"
-  [ "${n:-0}" -gt 0 ] || return 0
-  doctor_row nvim/lua "$n file(s) under $dir stay home - only init.lua rides, so a require of one fails on a target (an overlay nvim/init.lua that needs none is the way round)" warn
 }
 
 function doctor_config() {
@@ -496,6 +502,8 @@ function doctor_config() {
         doctor_row "$f" "the # Tags: lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
       continue
     }
+    # bin/: what stays home, and why, ahead of the count of what rides
+    [ "$f" != bin/ ] || _hi_plugin_off "$f" || doctor_bin_dir
     # a directory entry: how many of its files ride, and from where
     case "$f" in */)
       _hi_count_lines t < <(_hi_overlay_files "$f")
@@ -758,7 +766,7 @@ function _hi_rc_names_tree() {
 # section a half-finished `hi --install` shows up in - the one thing
 # "something is off, run hi --doctor" could not answer before.
 function doctor_install() {
-  local row shell label target tree_rc dialect other found owner bindir profile form
+  local row shell label target tree_rc dialect other found owner bindir profile form home
   doctor_section install "The install (what hi --install wired up)"
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
@@ -771,15 +779,17 @@ function doctor_install() {
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif rc_block_form form "$shell" "$tree_rc" "$dialect" "$target" && [ -n "$form" ]; then
       doctor_row "$shell" "$target is wired to this tree" ok
-    elif grep -qF "$(tmpdir_line "$dialect")" "$target"; then
+    elif grep -qF "$(tmpdir_line "$dialect")" "$target" || [ "$(_hi_rc_names_tree "$target")" -ef "$_HI_HOME" ]; then
       # an older hi's block names this tree too, but not the lines this one
       # writes: bash's `return` ends the rc for `ssh host cmd`, fish's bare
       # is-interactive block is a parse error on every fish 3.0-3.3 start,
-      # and a source with no test for its file errors once the tree is gone
+      # a source with no test for its file errors once the tree is gone, and
+      # a Homebrew keg named by its versioned path is gone after an upgrade
       doctor_row "$shell" "$target is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)" warn
     else
       other="$(_hi_rc_names_tree "$target")"
-      doctor_row "$shell" "$target names ${other:-another tree}, this is $_HI_HOME (hi --install repairs it)" bad
+      rc_home home
+      doctor_row "$shell" "$target names ${other:-another tree}, this is $home (hi --install repairs it)" bad
     fi
   done
   # zsh reads one .zshrc, under $ZDOTDIR or in ~ (_hi_zshrc_here): lines in

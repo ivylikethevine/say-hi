@@ -94,12 +94,13 @@ function test_header_row_closes_every_wrapped_line() {
 # $_HI_DISABLE_RIGHT_EDGE gives back the open-ended row: no closing pipe, and
 # a row stops short of the pinned width rather than being padded out to it
 function test_disable_right_edge_gives_back_the_open_row() {
-  local out
+  local out got
   out="$(_HI_DISABLE_RIGHT_EDGE=1 _HI_MAX_WIDTH=40 header_row cell-one-x cell-two-x cell-three)"
   local line n
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || _hi_why line || return 1
+    got="$(_hi_strip_ansi "$line")"
+    [[ "$got" != *"|" ]] || _hi_why got line || return 1
     _hi_visible_width n "$(_hi_strip_ansi "$line")"
     ((n < 40)) || _hi_why || return 1
   done <<<"$out"
@@ -245,29 +246,32 @@ function test_header_flush_drains_across_multiple_overflow_rounds() {
 }
 
 function test_timestamp_runs_and_has_three_cells() {
-  local out
+  local out got
   out="$(_HI_RELEASE="" timestamp)"
   # four pipes for three cells: the one that opens the row, the two that join
   # the cells, and the one that closes it on the right - and that last one
   # sits in the banner's own column, not merely somewhere in the row
-  { [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 4 ] && _hi_all_lines_are "$out" 80; } || _hi_why out
+  got="$(grep -o '|' <<<"$out" | wc -l)"
+  { [ "$got" -eq 4 ] && _hi_all_lines_are "$out" 80; } || _hi_why got out
 }
 
 # the version is the middle cell, between the two clocks, and is printed bare
 # - no "say-hi" in front of it. The palette is blanked for the row rather than
 # stripped after: the cells are `| `-joined and field 1 is the empty lead.
 function test_timestamp_puts_the_version_between_the_clocks() {
-  local out
+  local out got
   out="$(NC='' GREEN='' BRBLUE='' BRYELLOW='' _HI_RELEASE=1.2.3 timestamp)"
-  [ "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" = "1.2.3" ] && [[ "$out" != *"say-hi"* ]] || _hi_why out
+  got="$(cut -d'|' -f3 <<<"$out" | tr -d ' ')"
+  [ "$got" = "1.2.3" ] && [[ "$out" != *"say-hi"* ]] || _hi_why got out
 }
 
 # ...and a shell with no stamp still gets one: this checkout answers with git
 # describe, and only a stampless, gitless install falls through to "unknown"
 function test_timestamp_version_falls_back_without_a_stamp() {
-  local out
+  local out got
   out="$(NC='' GREEN='' BRBLUE='' BRYELLOW='' _HI_RELEASE="" timestamp)"
-  [ -n "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" ] || _hi_why out
+  got="$(cut -d'|' -f3 <<<"$out" | tr -d ' ')"
+  [ -n "$got" ] || _hi_why got out
 }
 
 # _hi_header_version's own memo - "resolved once per shell (the row prints
@@ -541,9 +545,10 @@ function test_identity_hides_all_backend_cells_when_none_found() {
 # shows even at zero: a probed-and-idle backend is distinguishable from an
 # absent one
 function test_identity_shows_count() {
-  local shim
+  local shim got
   if [ "$1" = kube ]; then shim="$(_hi_kube_shim "$2")"; else shim="$(_hi_backend_shim "$1" "$2")"; fi
-  [[ "$(_hi_identity_with "$shim")" == *"$3: $2"* ]] || _hi_why shim
+  got="$(_hi_identity_with "$shim")"
+  [[ "$got" == *"$3: $2"* ]] || _hi_why got shim
 }
 
 # shellcheck disable=SC2209 # the literal command name "sh" is intentional, not a botched `sh` invocation
@@ -622,7 +627,7 @@ function test_full_check_closes_a_row_that_absorbed_a_carry() {
 }
 
 function test_full_check_right_edge_disabled_stays_under_max_width() {
-  local out line n
+  local out line n got
   out="$(
     _HI_PACKAGES="$(_hi_pkg_one no-edge "$_HI_REAL_CMD = []\nbash = []\n")"
     _HI_MAX_WIDTH=20
@@ -631,7 +636,8 @@ function test_full_check_right_edge_disabled_stays_under_max_width() {
   )"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || _hi_why line || return 1
+    got="$(_hi_strip_ansi "$line")"
+    [[ "$got" != *"|" ]] || _hi_why got line || return 1
     _hi_visible_width n "$(_hi_strip_ansi "$line")"
     ((n < 20)) || _hi_why || return 1
   done <<<"$out"

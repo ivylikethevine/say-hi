@@ -12,7 +12,8 @@
 #         any of them on this machine. Left out, it is <name>; - asks about
 #         nothing (a shell, readline, a prompt program).
 # wire    points the tool at a member on a target: env:<variables> exports
-#         each as the member's path, envdir:<variables> as its directory,
+#         each as the member's path, envdir:<variables> as its directory
+#         (<variable>=<word> among them exports that word),
 #         flag:<command> <flag> aliases the command to itself, the flag and
 #         the path (<names>=<command> to answer to other names, words holding
 #         a = before the command its environment), flagdir: the same with the
@@ -28,7 +29,8 @@
 # dialect how the include scan and the comment strip read a file, a row of
 #         scripts/pack.sh's $_HI_DIALECTS: sh, fish, vim, lua, elisp, nano,
 #         tmux, screen, readline, kak, kdl, omp, omp-json, omz, omb, bash-it
-#         (a framework's theme), or conf (# comments, no includes); left out
+#         (a framework's theme), git (keys and credentials stay home), or
+#         conf (# comments, no includes); left out
 #         or -, it rides as written.
 # init    the tool's shell hook: a command printing a shell's code, {shell}
 #         in it the shell's name (zoxide init {shell}). A target runs it,
@@ -63,12 +65,15 @@ home = "~/.vimrc : ~/.vim/vimrc : $_HI_XDG_CONFIG/vim/vimrc"
 dialect = "vim"
 files = "vim/vimrc"
 
-# nvim starts on your init.lua
+# nvim starts on your init.lua or init.vim
 [editors.nvim]
 wire = "env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u"
-home = "$_HI_XDG_CONFIG/nvim/init.lua"
+home = "$_HI_XDG_CONFIG/nvim/"
 dialect = "lua"
-files = "nvim/init.lua"
+files = "nvim/init.vim nvim/init.lua"
+
+[editors.nvim."nvim/init.vim"]
+dialect = "vim"
 
 # nano starts on your nanorc
 [editors.nano]
@@ -143,6 +148,11 @@ files = "config.fish"
 tool = "-"
 dialect = "sh"
 files = "extensions/"
+
+# your bin/ scripts, on $PATH there
+[shell.bin]
+tool = "-"
+files = "bin/"
 
 # your pager and color variables
 [shell.env]
@@ -237,6 +247,14 @@ files = "fzfrc"
 wire = "env:LG_CONFIG_FILE"
 home = "$LG_CONFIG_FILE : $XDG_CONFIG_HOME/lazygit/config.yml , ~/.config/lazygit/config.yml : ~/Library/Application Support/lazygit/config.yml"
 files = "lazygit/config.yml"
+
+# git's aliases and settings, no keys
+[cli.git]
+default = "off"
+wire = "env:GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0"
+home = "$GIT_CONFIG_GLOBAL , ~/.gitconfig : $XDG_CONFIG_HOME/git/config , ~/.config/git/config"
+dialect = "git"
+files = "git/config"
 
 # line editing follows your inputrc
 [cli.readline]

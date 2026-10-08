@@ -18,21 +18,28 @@ source "${BASH_SOURCE[0]%/*}/core_test.sh"
 function _hi_fixture_tag() { _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag "$@"; }
 
 function test_ssh_host_tag_leftmost_of_multiple() {
-  [ "$(_hi_fixture_tag myhost)" = "prod" ] || _hi_why
+  local got
+  got="$(_hi_fixture_tag myhost)"
+  [ "$got" = "prod" ] || _hi_why got
 }
 
 # A relayed hop: the middle box's config knows the host and carries no tag,
 # so the client's tag map (the overlay's ssh_tags) answers - on a target only,
 # and the rc of a host neither file tags is still the local walk's.
 function test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay() {
+  local got
   local dir="$_HI_WORKDIR/relaytags"
   mkdir -p "$dir"
   unset _HI_TAG_NAME # the one-deep memo is keyed on the name, not on these
   printf '# Tags: fromclient\nHost untaggedhost far-*\n' >"$dir/ssh_tags"
-  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)" = fromclient ] || _hi_why dir || return 1
-  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag far-1)" = fromclient ] || _hi_why dir || return 1
-  [ "$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag myhost)" = prod ] || _hi_why dir || return 1
-  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)" ] || _hi_why dir || return 1
+  got="$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)"
+  [ "$got" = fromclient ] || _hi_why got dir || return 1
+  got="$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag far-1)"
+  [ "$got" = fromclient ] || _hi_why got dir || return 1
+  got="$(_HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag myhost)"
+  [ "$got" = prod ] || _hi_why got dir || return 1
+  got="$(_HI_CONFIG_DIR="$dir" _hi_fixture_tag untaggedhost)"
+  [ -z "$got" ] || _hi_why got dir || return 1
   local rc=0
   _HI_REMOTE_SESSION=1 _HI_CONFIG_DIR="$dir" _hi_fixture_tag nope >/dev/null || rc=$?
   [ "$rc" = 1 ] || _hi_why rc
@@ -41,24 +48,29 @@ function test_ssh_host_tag_falls_back_to_the_clients_map_on_a_relay() {
 # a tag set in an Included file colors its host, and an Include between a tag
 # and a Host ends the tag there, as any other line does
 function test_ssh_host_tag_follows_include() {
+  local got
   local h="$_HI_WORKDIR/inc-tags"
   mkdir -p "$h/.ssh/config.d"
   printf 'Include config.d/*\n# Tags: orphan\nInclude none/*\nHost after\n' >"$h/.ssh/config"
   printf '# Tags: inc\nHost included\n' >"$h/.ssh/config.d/01"
   unset _HI_TAG_NAME
-  [ "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag included)" = inc ] || _hi_why h || return 1
+  got="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag included)"
+  [ "$got" = inc ] || _hi_why got h || return 1
   unset _HI_TAG_NAME
-  [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag after)" ] || _hi_why h
+  got="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag after)"
+  [ -z "$got" ] || _hi_why got h
 }
 
 # a matching untagged block earlier in the file does not end the walk: a
 # leading `Host *` of defaults marks every name known (rc 2) and the walk
 # goes on to the tagged block below it, as ssh reads on past a first match
 function test_ssh_host_tag_survives_a_leading_untagged_wildcard() {
+  local got
   local cfg="$_HI_WORKDIR/ssh_config.leadingstar" rc=0
   printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: prod\nHost behind\n' >"$cfg"
   unset _HI_TAG_NAME
-  [ "$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag behind)" = prod ] || _hi_why cfg || return 1
+  got="$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag behind)"
+  [ "$got" = prod ] || _hi_why got cfg || return 1
   unset _HI_TAG_NAME
   _HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag elsewhere >/dev/null || rc=$?
   [ "$rc" -eq 2 ] || _hi_why rc
@@ -67,10 +79,12 @@ function test_ssh_host_tag_survives_a_leading_untagged_wildcard() {
 # a blank line between the Tags comment and its Host does not drop the tag -
 # only another Host or Match line does
 function test_ssh_host_tag_survives_a_blank_line_before_its_host() {
+  local got
   local cfg="$_HI_WORKDIR/ssh_config.blankline"
   printf '# Tags: spaced\n\nHost gap\n' >"$cfg"
   unset _HI_TAG_NAME
-  [ "$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag gap)" = spaced ] || _hi_why cfg
+  got="$(_HI_SSH_CONFIG="$cfg" _hi_ssh_host_tag gap)"
+  [ "$got" = spaced ] || _hi_why got cfg
 }
 
 function test_ssh_host_tag_untagged_host_fails() {
@@ -78,8 +92,11 @@ function test_ssh_host_tag_untagged_host_fails() {
 }
 
 function test_ssh_host_tag_equals_syntax_and_multialias() {
-  [ "$(_hi_fixture_tag devhost)" = "dev" ] || _hi_why || return 1
-  [ "$(_hi_fixture_tag otheralias)" = "dev" ] || _hi_why
+  local got
+  got="$(_hi_fixture_tag devhost)"
+  [ "$got" = "dev" ] || _hi_why got || return 1
+  got="$(_hi_fixture_tag otheralias)"
+  [ "$got" = "dev" ] || _hi_why got
 }
 
 function test_ssh_host_tag_unknown_host_fails() {
@@ -90,7 +107,9 @@ function test_ssh_host_tag_unknown_host_fails() {
 # lowercase `host` entry once completed and dispatched as ssh while its tag
 # was silently never found
 function test_ssh_host_tag_matches_lowercase_host_keyword() {
-  [ "$(_hi_fixture_tag lowerhost)" = "lower" ] || _hi_why
+  local got
+  got="$(_hi_fixture_tag lowerhost)"
+  [ "$got" = "lower" ] || _hi_why got
 }
 
 # the walker's rc is a three-way contract: 0 tagged, 2 known-but-untagged,
@@ -106,7 +125,9 @@ function test_ssh_host_tag_return_codes() {
 }
 
 function test_ssh_host_tag_wildcard_host_block() {
-  [ "$(_hi_fixture_tag prod-web1)" = "prod" ] || _hi_why
+  local got
+  got="$(_hi_fixture_tag prod-web1)"
+  [ "$got" = "prod" ] || _hi_why got
 }
 
 # "prod" alone is not "prod-anything" - a bare miss must not fall through to
@@ -116,8 +137,11 @@ function test_ssh_host_tag_wildcard_requires_the_dash() {
 }
 
 function test_ssh_host_tag_match_host_comma_patterns() {
-  [ "$(_hi_fixture_tag staging-db1)" = "staging" ] || _hi_why || return 1
-  [ "$(_hi_fixture_tag staging2-x)" = "staging" ] || _hi_why
+  local got
+  got="$(_hi_fixture_tag staging-db1)"
+  [ "$got" = "staging" ] || _hi_why got || return 1
+  got="$(_hi_fixture_tag staging2-x)"
+  [ "$got" = "staging" ] || _hi_why got
 }
 
 function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
@@ -131,14 +155,18 @@ function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
 # ssh's own negation, so web-99 still inherits the block's tag despite being
 # explicitly excluded there. Pinned so a future change to this is deliberate.
 function test_ssh_host_tag_negation_token_is_inert_not_exclusionary() {
-  [ "$(_hi_fixture_tag web-99)" = "excluded" ] || _hi_why
+  local got
+  got="$(_hi_fixture_tag web-99)"
+  [ "$got" = "excluded" ] || _hi_why got
 }
 
 # `Match host` takes further criteria after its patterns (user, exec,
 # canonical, ...); those words are not host patterns, so a host that happens
 # to be called "deploy" must not inherit the block's tag - only bastion-* does
 function test_ssh_host_tag_match_criteria_are_not_patterns() {
-  [ "$(_hi_fixture_tag bastion-2)" = "bastion" ] || _hi_why || return 1
+  local got
+  got="$(_hi_fixture_tag bastion-2)"
+  [ "$got" = "bastion" ] || _hi_why got || return 1
   local rc=0
   _hi_fixture_tag deploy >/dev/null || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc
@@ -153,14 +181,18 @@ function test_ssh_host_tag_match_criteria_are_not_patterns() {
 # with the word "final", which the last truncation would otherwise also
 # strip as if it were the keyword.
 function test_ssh_host_tag_match_criteria_localuser_exec_canonical_final() {
-  [ "$(_hi_fixture_tag canary-1)" = "canary" ] || _hi_why || return 1
+  local got
+  got="$(_hi_fixture_tag canary-1)"
+  [ "$got" = "canary" ] || _hi_why got || return 1
   local rc=0
   _hi_fixture_tag build >/dev/null || rc=$?
   [ "$rc" -eq 1 ] || _hi_why rc || return 1
 
-  [ "$(_hi_fixture_tag robot-1)" = "robot" ] || _hi_why || return 1
+  got="$(_hi_fixture_tag robot-1)"
+  [ "$got" = "robot" ] || _hi_why got || return 1
 
-  [ "$(_hi_fixture_tag lastcall-1)" = "lastword" ] || _hi_why
+  got="$(_hi_fixture_tag lastcall-1)"
+  [ "$got" = "lastword" ] || _hi_why got
 }
 
 # a Match on anything but host opens a block of its own, so the tag comment
@@ -172,69 +204,91 @@ function test_ssh_host_tag_non_host_match_ends_its_tag() {
 }
 
 function test_resolve_color_override_wins() {
+  local got
   local colors="$_HI_WORKDIR/colors.resolve1"
   printf '[username]\nbob = "red"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color username bob)" = "red" ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_resolve_color username bob)"
+  [ "$got" = "red" ] || _hi_why got colors
 }
 
 function test_resolve_color_hosttag_via_ssh_config() {
+  local got
   local colors="$_HI_WORKDIR/colors.resolve2"
   printf '[hosttag]\nprod = "blue"\n' >"$colors"
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = "blue" ] || _hi_why colors _HI_SSH_TAG_FIXTURE
+  got="$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)"
+  [ "$got" = "blue" ] || _hi_why got colors _HI_SSH_TAG_FIXTURE
 }
 
 function test_resolve_color_usertag_when_no_exact_override() {
+  local got
   local colors="$_HI_WORKDIR/colors.resolve3"
   printf '[usertag]\nprodtag = "green"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color username someuser prodtag)" = "green" ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_resolve_color username someuser prodtag)"
+  [ "$got" = "green" ] || _hi_why got colors
 }
 
 function test_resolve_color_falls_back_to_hash() {
+  local got got2
   local colors="$_HI_WORKDIR/colors.missing" # never created - no override file
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color username unknownxyz)" = "$(_hi_hash_color unknownxyz)" ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_resolve_color username unknownxyz)"
+  got2="$(_hi_hash_color unknownxyz)"
+  [ "$got" = "$got2" ] || _hi_why got got2 colors
 }
 
 # Subnet-style pins: a hostname row whose name field holds * or ? matches the
 # target through _hi_ssh_pattern_hit. Structural precedence: exact pin >
 # hosttag > pattern > hash.
 function test_pattern_pin_colors_a_subnet() {
+  local got
   local colors="$_HI_WORKDIR/colors.pattern"
   printf '[hostname]\n"10.0.1.*" = "red"\n"*.prod.example" = "blue"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = red ] || _hi_why colors || return 1
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname db.prod.example)" = blue ] || _hi_why colors || return 1
+  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)"
+  [ "$got" = red ] || _hi_why got colors || return 1
+  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname db.prod.example)"
+  [ "$got" = blue ] || _hi_why got colors || return 1
   ! _HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.2.7 || _hi_why colors
 }
 
 function test_pattern_first_row_wins() {
+  local got
   local colors="$_HI_WORKDIR/colors.patorder"
   printf '[hostname]\n"10.0.*" = "green"\n"10.0.1.*" = "red"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = green ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)"
+  [ "$got" = green ] || _hi_why got colors
 }
 
 function test_exact_pin_beats_pattern() {
+  local got
   local colors="$_HI_WORKDIR/colors.patexact"
   printf '[hostname]\n"10.0.1.*" = "red"\n"10.0.1.7" = "cyan"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = cyan ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)"
+  [ "$got" = cyan ] || _hi_why got colors
 }
 
 function test_hosttag_beats_pattern() {
+  local got
   local colors="$_HI_WORKDIR/colors.pattag"
   printf '[hostname]\n"myhost*" = "red"\n[hosttag]\nprod = "blue"\n' >"$colors"
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = blue ] || _hi_why colors _HI_SSH_TAG_FIXTURE
+  got="$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)"
+  [ "$got" = blue ] || _hi_why got colors _HI_SSH_TAG_FIXTURE
 }
 
 function test_pattern_beats_hash() {
+  local got got2
   local colors="$_HI_WORKDIR/colors.pathash"
   printf '[hostname]\n"unhashed-*" = "brred"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname unhashed-9)" = brred ] || _hi_why colors || return 1
-  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname other-9)" = "$(_hi_hash_color other-9)" ] || _hi_why colors
+  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname unhashed-9)"
+  [ "$got" = brred ] || _hi_why got colors || return 1
+  got="$(_HI_COLORS="$colors" _hi_resolve_color hostname other-9)"
+  got2="$(_hi_hash_color other-9)"
+  [ "$got" = "$got2" ] || _hi_why got got2 colors
 }
 
 # A Host token that is not a hostname pattern - a `)` or `;;` in it - is
 # skipped, never eval'd: the zsh arm re-parses its pattern as case syntax
 # otherwise, and ~/.ssh/config is a file the user edits by hand.
 function test_pattern_hit_skips_a_token_that_is_not_a_hostname() {
-  _hi_ssh_pattern_hit myhost 'x) hit=0 ;; case y in y' && return 1
+  ! _hi_ssh_pattern_hit myhost 'x) hit=0 ;; case y in y' || _hi_why hit || return 1
   _hi_ssh_pattern_hit myhost 'my*' || _hi_why || return 1
   _hi_ssh_pattern_hit fe80::1 'fe80:*' || _hi_why || return 1
   ! _hi_ssh_pattern_hit myhost 'other?' || _hi_why
@@ -280,9 +334,11 @@ function test_zsh_pattern_pins_agree_with_bash() {
 # checkout's own $_HI_HOME rather than a scratch tree, since the point is
 # that the derivation is correct, not merely that it runs.
 function test_hi_home_self_derives_when_unset() {
+  local got
   local real="$_HI_HOME/say-hi/common/core.sh"
-  [ "$(env -u _HI_HOME -u _hi_core_loaded bash -c \
-    "source '$real'; printf '%s' \"\$_HI_HOME\"")" = "$_HI_HOME" ] || _hi_why
+  got="$(env -u _HI_HOME -u _hi_core_loaded bash -c \
+    "source '$real'; printf '%s' \"\$_HI_HOME\"")"
+  [ "$got" = "$_HI_HOME" ] || _hi_why got
 }
 
 # The other half of HI.33's case: BASH_SOURCE[0] carries no slash at all when
@@ -292,8 +348,10 @@ function test_hi_home_self_derives_when_unset() {
 # directory component off $_hi_self has nothing to strip, and takes the
 # `*) _hi_self="."` arm instead.
 function test_hi_home_self_derives_from_a_bare_relative_source() {
-  [ "$(cd "$_HI_HOME/say-hi/common" && env -u _HI_HOME -u _hi_core_loaded bash -c \
-    'source core.sh; printf "%s" "$_HI_HOME"')" = "$_HI_HOME" ] || _hi_why
+  local got
+  got="$(cd "$_HI_HOME/say-hi/common" && env -u _HI_HOME -u _hi_core_loaded bash -c \
+    'source core.sh; printf "%s" "$_HI_HOME"')"
+  [ "$got" = "$_HI_HOME" ] || _hi_why got
 }
 
 # hi.sh derives the same tree through its own symlink walk (the /usr/bin/hi
@@ -357,12 +415,14 @@ function _hi_cfg_answer() {
 # hi.sh points a target at the overlay it shipped, so an explicit value has to
 # beat the derived one
 function test_config_dir_explicit_value_wins() {
+  local got
   local base="$_HI_WORKDIR/xdg.explicit"
   rm -rf "$base"
   mkdir -p "$base/say-hi"
-  [ "$(env -u _hi_core_loaded _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$base" \
+  got="$(env -u _hi_core_loaded _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$base" \
     _HI_CONFIG_DIR="$base/shipped" \
-    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_CONFIG_DIR"')" = "$base/shipped" ] || _hi_why base
+    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_CONFIG_DIR"')"
+  [ "$got" = "$base/shipped" ] || _hi_why got base
 }
 
 # GLOSSARY: HI.60. $_HI_EXTENSIONS empty - a shell that loaded a tree from
@@ -475,11 +535,13 @@ function test_on_exit_installs_a_trap_that_fires_in_bash() {
 # the two ways a value is not there: no file at all, and a file that never
 # sets the name - both rc 1, and neither says anything
 function test_setting_get_fails_for_a_missing_file_and_an_unset_name() {
+  local got
   local f="$_HI_WORKDIR/sg.sh" out
   printf 'export _HI_PROBE_SG=yes\n' >"$f"
   ! _hi_setting_get "$_HI_WORKDIR/absent.sh" _HI_PROBE_SG >/dev/null || _hi_why || return 1
   out="$(_hi_setting_get "$f" _HI_NEVER_SET_SG)" && return 1
-  [ -z "$out" ] && [ "$(_hi_setting_get "$f" _HI_PROBE_SG)" = yes ] || _hi_why out f
+  got="$(_hi_setting_get "$f" _HI_PROBE_SG)"
+  [ -z "$out" ] && [ "$got" = yes ] || _hi_why got out f
 }
 
 # _hi_unexport <shell> - the _HI_* names a child of <shell> sees, sorted,

@@ -17,9 +17,10 @@ source "${BASH_SOURCE[0]%/*}/payload_test.sh"
 # The three per-shell overrides, which take the shell file's own basename so a
 # user reading common/bash.sh knows what ~/.config/say-hi/bash.sh extends.
 function test_overlay_tar_carries_shell_files() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_fixture withshells bashrc zshrc config.fish)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | tr '\n' ' ')" = "bashrc config.fish zshrc " ] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | tr '\n' ' ')"
+  [ "$got" = "bashrc config.fish zshrc " ] || _hi_why got dir
 }
 
 #
@@ -84,11 +85,13 @@ function test_overlay_sends_nothing_outside_the_roster() {
 # the overlay's packages file rides as packages, comment-stripped like the
 # tree's, every table and row intact - a quoted key included
 function test_overlay_carries_packages_stripped() {
+  local got2
   local dir="$_HI_WORKDIR/packages-overlay" got="$_HI_WORKDIR/packages-sent" out
   mkdir -p "$dir" "$got"
   printf '# a note\n[core]\nbat = ["batcat"]\n\n  # indented\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []\n' >"$dir/packages"
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
-  [ "$(cd "$got" && printf '%s,' *)" = packages, ] || _hi_why got || return 1
+  got2="$(cd "$got" && printf '%s,' *)"
+  [ "$got2" = packages, ] || _hi_why got2 got || return 1
   out="$(<"$got/packages")"
   [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat = ["batcat"]\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []')" ] || {
     _hi_cecho " | packages arrived as: [$out]" "$RED"
@@ -99,13 +102,15 @@ function test_overlay_carries_packages_stripped() {
 # an extension rides as extensions/<name>, comment-stripped, and only the
 # ones _hi_dir_member_ok admits (GLOSSARY: HI.59)
 function test_overlay_carries_extensions() {
+  local got2
   local dir got="$_HI_WORKDIR/plugins-sent" out
   dir="$_HI_WORKDIR/plugins"
   mkdir -p "$dir/extensions" "$got"
   printf '#!/bin/sh\n# a comment\nexport _HI_SEGMENT="printf x"\n' >"$dir/extensions/10-x"
   printf 'export Y=1\n' >"$dir/extensions/10-x.orig"
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
-  [ "$(cd "$got" && printf '%s,' * */*)" = extensions,extensions/10-x, ] || _hi_why got || return 1
+  got2="$(cd "$got" && printf '%s,' * */*)"
+  [ "$got2" = extensions,extensions/10-x, ] || _hi_why got2 got || return 1
   out="$(<"$got/extensions/10-x")"
   [ "$out" = '#!/bin/sh
 export _HI_SEGMENT="printf x"' ] || {
@@ -115,34 +120,39 @@ export _HI_SEGMENT="printf x"' ] || {
 }
 
 function test_overlay_is_empty_without_one() {
+  local got got2
   local dir="$_HI_WORKDIR/no-overlay"
   mkdir -p "$dir"
-  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)" ] &&
-    [ -z "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar)" ] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  got2="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar)"
+  [ -z "$got" ] && [ -z "$got2" ] || _hi_why got got2 dir
 }
 
 function test_overlay_is_seen_when_present() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_fixture some colors)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)" = colors ] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  [ "$got" = colors ] || _hi_why got dir
 }
 
 # members land at the archive's top level under their plain names, since it is
 # unpacked straight into the target's config/ - a "colors" that arrived as
 # "say-hi/colors" or "./config/colors" would be invisible to paths.sh
 function test_overlay_tar_members_are_bare_names() {
-  local dir listing
+  local dir listing got
   dir="$(_hi_overlay_fixture members colors aliases.sh settings.sh)"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
-  [ "$(printf '%s\n' "$listing" | sort | paste -sd, -)" = "aliases.sh,colors,settings.sh" ] || _hi_why listing
+  got="$(printf '%s\n' "$listing" | sort | paste -sd, -)"
+  [ "$got" = "aliases.sh,colors,settings.sh" ] || _hi_why got listing
 }
 
 # only what the user actually has - an overlay holding one file must not carry
 # a placeholder for the other two, which would shadow the tree's defaults
 function test_overlay_tar_carries_only_what_exists() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_fixture partial colors)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "colors" ] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
+  [ "$got" = "colors" ] || _hi_why got dir
 }
 
 # a member a variable points its tool at rides with the line that does it:
@@ -151,7 +161,7 @@ function test_overlay_tar_carries_only_what_exists() {
 # (GLOSSARY: HI.62)
 # shellcheck disable=SC2016 # the wanted lines hold $_HI_CONFIG_DIR unexpanded
 function test_overlay_tar_wires_the_members_it_carries() {
-  local dir d want
+  local dir d want got
   dir="$(_hi_overlay_fixture wired colors inputrc bat/config eza/theme.yml oh-my-posh.toml kak/kakrc)"
   d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || _hi_why || return 1
   _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
@@ -160,7 +170,8 @@ export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR
 export EZA_CONFIG_DIR="$_HI_CONFIG_DIR/eza"
 export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat/config"
 export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
-  [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
+  got="$(cat "$d/wiring.sh")"
+  [ "$got" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
   [ -f "$d/colors" ] && [ -f "$d/oh-my-posh.toml" ] || _hi_because "unpacked: $(ls "$d")"
 }
 
@@ -173,7 +184,7 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 # aliased once for all its files
 # shellcheck disable=SC2016 # the wanted lines hold their $ unexpanded
 function test_overlay_tar_aliases_the_editors_and_multiplexers() {
-  local dir d want
+  local dir d want got
   dir="$(_hi_overlay_fixture aliased vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml tmux/tmux.conf)"
   mkdir -p "$dir/zellij/themes"
   printf 'x\n' >"$dir/zellij/config.kdl"
@@ -190,17 +201,20 @@ command -v hx >/dev/null 2>&1 && alias hx="env XDG_CONFIG_HOME=$_HI_CONFIG_DIR h
 command -v helix >/dev/null 2>&1 && alias helix="env XDG_CONFIG_HOME=$_HI_CONFIG_DIR helix" || true
 command -v tmux >/dev/null 2>&1 && alias tmux="tmux -f $_HI_CONFIG_DIR/tmux/tmux.conf" || true
 command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONFIG_DIR/zellij" || true'
-  [ "$(cat "$d/wiring.sh")" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
-  [ "$(_HI_PLUGINS_OFF="tmux zellij" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml " ] ||
-    _hi_because "with the multiplexers off: $(_HI_PLUGINS_OFF="tmux zellij" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  got="$(cat "$d/wiring.sh")"
+  [ "$got" = "$want" ] || _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)" || return 1
+  got="$(_HI_PLUGINS_OFF="tmux zellij" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$got" = "vim/vimrc nvim/init.lua helix/config.toml helix/languages.toml " ] ||
+    _hi_because "with the multiplexers off: $got"
 }
 
 # ...and only with them: an overlay of members hi's own code reads has no
 # wiring.sh, and one written into the overlay by hand is no member
 function test_overlay_tar_has_no_wiring_without_a_wired_member() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_fixture unwired colors bashrc aliases.sh wiring.sh)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "aliases.sh,bashrc,colors" ] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)"
+  [ "$got" = "aliases.sh,bashrc,colors" ] || _hi_why got dir
 }
 
 # a plugin of the user's own, in the overlay's plugins: a file of it rides
@@ -210,6 +224,7 @@ function test_overlay_tar_has_no_wiring_without_a_wired_member() {
 # directory is on $PATH for the whole run. (GLOSSARY: HI.63)
 # shellcheck disable=SC2016 # the tables and the wanted lines hold their $ unexpanded
 function test_carry_row_rides_from_home_with_its_wiring() {
+  local got got2
   local dir d h="$_HI_WORKDIR/tool-home" stubs
   dir="$(_hi_overlay_fixture carry-rides)"
   mkdir -p "$h/.config/task" "$h/with space"
@@ -226,11 +241,15 @@ function test_carry_row_rides_from_home_with_its_wiring() {
   # hi's own prompt: a prompt program on this machine would add its init line
   d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" _HI_PROMPT_TOOL=hi)" || _hi_why dir stubs || return 1
   # gone.rc stays home: its tool is nowhere on this machine
-  [ "$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)" = "b.conf,c.toml,taskrc,wiring.sh" ] ||
+  got="$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)"
+  [ "$got" = "b.conf,c.toml,taskrc,wiring.sh" ] ||
     _hi_because "carried: $(ls "$d")" || return 1
-  [ "$(cat "$d/taskrc" "$d/b.conf")" = "$(printf 'data.location=~/.task\nsecond')" ] ||
+  got="$(cat "$d/taskrc" "$d/b.conf")"
+  got2="$(printf 'data.location=~/.task\nsecond')"
+  [ "$got" = "$got2" ] ||
     _hi_because "members: $(cat "$d/taskrc" "$d/b.conf" 2>&1)" || return 1
-  [ "$(cat "$d/wiring.sh")" = 'export TASKRC="$_HI_CONFIG_DIR/taskrc"
+  got="$(cat "$d/wiring.sh")"
+  [ "$got" = 'export TASKRC="$_HI_CONFIG_DIR/taskrc"
 export B_DIR="$_HI_CONFIG_DIR"
 command -v ctool >/dev/null 2>&1 && alias ctool="ctool --config=$_HI_CONFIG_DIR/c.toml" || true' ] ||
     _hi_because "wiring.sh: $(cat "$d/wiring.sh" 2>&1)"
@@ -345,13 +364,14 @@ function test_carry_turns_down_a_row_the_table_cannot_hold() {
 # the command - and no part that would run where a target sources the line
 # shellcheck disable=SC2016 # the wires and the wanted lines hold their $ unexpanded
 function test_a_wire_is_checked_as_it_is_written() {
-  local dir w why
+  local dir w why got
   dir="$(_hi_overlay_fixture wire-read a.rc b.rc)"
   {
     printf '[mine.a]\ntool = "-"\nwire = "flag:atool --config= extra"\nhome = "/etc/a"\nfiles = "a.rc"\n'
     printf '[mine.b]\ntool = "-"\nwire = "flag:b1,b2=X=$HOME/x btool -o k=v -f"\nhome = "/etc/b"\nfiles = "b.rc"\n'
   } >"$dir/plugins"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat wiring.sh)" = 'command -v atool >/dev/null 2>&1 && alias atool="atool --config= extra $_HI_CONFIG_DIR/a.rc" || true
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat wiring.sh)"
+  [ "$got" = 'command -v atool >/dev/null 2>&1 && alias atool="atool --config= extra $_HI_CONFIG_DIR/a.rc" || true
 command -v btool >/dev/null 2>&1 && alias b1="env X=$HOME/x btool -o k=v -f $_HI_CONFIG_DIR/b.rc" && alias b2="env X=$HOME/x btool -o k=v -f $_HI_CONFIG_DIR/b.rc" || true' ] ||
     _hi_because "wiring.sh: $(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat wiring.sh 2>&1)" || return 1
   for w in 'flag:$(x)=cmd -f' 'flag:v=X=$(rm) vim -u' 'flag:a,,b=c -f' 'flag:vim' 'flag:c -f;rm' 'xdg:$(x)=c' 'flag:c `x`' 'env:A=$(x)'; do
@@ -363,13 +383,14 @@ command -v btool >/dev/null 2>&1 && alias b1="env X=$HOME/x btool -o k=v -f $_HI
 # ...the tree's own file is read by the same rules, and every row of it
 # holds
 function test_the_tree_plugins_file_holds() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_fixture tree-plugins)"
   (
     _HI_CONFIG_DIR="$dir"
     _hi_plugins_load
     [ "${#_HI_PLUGIN_BAD[@]}" = 0 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
-    [ "${#_HI_PLUGIN_ROWS[@]}" = "$(sed -n 's/^files = "\(.*\)"$/\1/p' "$_HI_ROOT/config/plugins" | wc -w | tr -d ' ')" ] ||
+    got="$(sed -n 's/^files = "\(.*\)"$/\1/p' "$_HI_ROOT/config/plugins" | wc -w | tr -d ' ')"
+    [ "${#_HI_PLUGIN_ROWS[@]}" = "$got" ] ||
       _hi_because "rows: ${#_HI_PLUGIN_ROWS[@]}"
   ) || _hi_why _HI_PLUGIN_ROWS
 }
@@ -378,35 +399,43 @@ function test_the_tree_plugins_file_holds() {
 # the member, a row of the user's own too - never its group, and never one
 # of hi's own files, which only their toggles switch (GLOSSARY: HI.64)
 function test_plugin_off_keeps_its_members_home() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_fixture plugins-off colors vim/vimrc nano/nanorc tmux/tmux.conf bat/config lazygit/config.yml mine.rc)"
   mkdir -p "$dir/micro"
   printf '{}\n' >"$dir/micro/settings.json"
   printf '[mine.mine]\ntool = "-"\nwire = "env:MINE"\nhome = "/etc/mine"\nfiles = "mine.rc"\n' >"$dir/plugins"
-  [ "$(_HI_PLUGINS_OFF="lazygit vim nano micro" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors bat/config tmux/tmux.conf mine.rc " ] ||
-    _hi_because "four plugins off: $(_HI_PLUGINS_OFF="lazygit vim nano micro" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_PLUGINS_OFF="tmux,bat,lazygit,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors vim/vimrc micro/settings.json " ] ||
-    _hi_because "commas, a member, a plugin of the user's: $(_HI_PLUGINS_OFF="tmux,bat,lazygit,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ "$(_HI_PLUGINS_OFF="editors mux cli" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x -e vim/vimrc -e tmux/tmux.conf -e bat/config)" = 3 ] ||
+  got="$(_HI_PLUGINS_OFF="lazygit vim nano micro" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$got" = "colors bat/config tmux/tmux.conf mine.rc " ] ||
+    _hi_because "four plugins off: $got" || return 1
+  got="$(_HI_PLUGINS_OFF="tmux,bat,lazygit,mine,nano/nanorc" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$got" = "colors vim/vimrc micro/settings.json " ] ||
+    _hi_because "commas, a member, a plugin of the user's: $got" || return 1
+  got="$(_HI_PLUGINS_OFF="editors mux cli" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x -e vim/vimrc -e tmux/tmux.conf -e bat/config)"
+  [ "$got" = 3 ] ||
     _hi_because "a group's word kept a plugin home" || return 1
-  [ "$(_HI_PLUGINS_OFF="colors settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x colors)" = 1 ] ||
+  got="$(_HI_PLUGINS_OFF="colors settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | grep -c -x colors)"
+  [ "$got" = 1 ] ||
     _hi_because "one of hi's own was switched off" || return 1
   # one file of a directory member, by its own name: the rest of it rides
   mkdir -p "$dir/extensions"
   printf 'export A=1\n' >"$dir/extensions/10-a"
   printf 'export B=1\n' >"$dir/extensions/20-b"
-  [ "$(_HI_PLUGINS_OFF="extensions/10-a vim nano micro bat lazygit tmux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "colors extensions/20-b " ] ||
-    _hi_because "one extension off: $(_HI_PLUGINS_OFF="extensions/10-a vim nano micro bat lazygit tmux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" || return 1
-  [ -z "$(_HI_PLUGINS_OFF="extensions" _HI_CONFIG_DIR="$dir" _hi_overlay_files extensions/)" ] ||
+  got="$(_HI_PLUGINS_OFF="extensions/10-a vim nano micro bat lazygit tmux mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$got" = "colors extensions/20-b " ] ||
+    _hi_because "one extension off: $got" || return 1
+  got="$(_HI_PLUGINS_OFF="extensions" _HI_CONFIG_DIR="$dir" _hi_overlay_files extensions/)"
+  [ -z "$got" ] ||
     _hi_because "the directory's plugin off left a file riding"
 }
 
 # ...nor its wiring line: what a tool is not to use has no business on the
 # wire
 function test_a_plugin_off_has_no_wiring_line() {
+  local got
   local dir w=""
   dir="$(_hi_overlay_fixture wire-off vim/vimrc nvim/init.lua nano/nanorc kak/kakrc bat/config)"
-  [ "$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat/config,nano/nanorc,nvim/init.lua,vim/vimrc,wiring.sh" ] || _hi_why dir || return 1
+  got="$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)"
+  [ "$got" = "bat/config,nano/nanorc,nvim/init.lua,vim/vimrc,wiring.sh" ] || _hi_why got dir || return 1
   _HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_wiring w bat/config
   [[ "$w" != *KAKOUNE* ]] || _hi_why w
 }
@@ -525,13 +554,15 @@ function test_plugin_init_check_runs_no_command() {
 # only a toggle settings.sh sets itself keeps the file home, its last line
 # winning, quoted or not
 function test_local_only_toggles_keep_nothing_home() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_fixture local-only packages vim/vimrc)"
   printf '#!/bin/sh\nexport _HI_DISABLE_LOCAL=1\n' >"$dir/settings.sh"
-  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh packages vim/vimrc " ] ||
+  got="$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$got" = "settings.sh packages vim/vimrc " ] ||
     _hi_because "local only kept the package list home" || return 1
   printf 'export _HI_DISABLE_HEADER=0\nexport _HI_DISABLE_HEADER="1"\n' >>"$dir/settings.sh"
-  [ "$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')" = "settings.sh vim/vimrc " ] ||
+  got="$(_HI_DISABLE_LOCAL=1 _HI_DISABLE_HEADER=1 _HI_SETTINGS="$dir/settings.sh" _HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
+  [ "$got" = "settings.sh vim/vimrc " ] ||
     _hi_because "settings.sh's own toggle did not keep the package list home"
 }
 
@@ -591,6 +622,67 @@ function test_overlay_tar_carries_aliases() {
     _hi_because "the overlay tar listed [$listed], wanted [aliases.sh]"
 }
 
+# a variable a plugin's home starts at is one the harness clears
+# (tests/test_lib.sh), or a developer's own config would ride in every
+# overlay a suite builds; the config base and git's global file are pinned
+# there instead
+function test_the_harness_clears_every_home_variable() {
+  local row home name left=""
+  _hi_plugins_load
+  for row in "${_HI_PLUGIN_ROWS[@]}"; do
+    home="${row##*|}"
+    while [[ $home =~ [$]([A-Za-z_][A-Za-z0-9_]*) ]]; do
+      name="${BASH_REMATCH[1]}"
+      home="${home#*"$name"}"
+      case "$name" in XDG_CONFIG_HOME | _HI_XDG_CONFIG | GIT_CONFIG_GLOBAL) continue ;; esac
+      [ -z "${!name:-}" ] || left="$left $name"
+    done
+  done
+  [ -z "$left" ] || _hi_because "set in a suite's environment:$left"
+}
+
+# an overlay read-only by mode, directories included - one a nix store holds -
+# packs, and what unpacks is its owner's to write and remove
+function test_a_read_only_overlay_packs_and_unpacks_writable() {
+  local got2
+  local dir="$_HI_WORKDIR/ro-overlay" got="$_HI_WORKDIR/ro-got" rc=0
+  mkdir -p "$dir/zellij/layouts" "$got"
+  printf 'theme "x"\n' >"$dir/zellij/config.kdl"
+  printf 'layout {\n}\n' >"$dir/zellij/layouts/mine.kdl"
+  printf '# mine\nalias a=b\n' >"$dir/aliases.sh"
+  chmod -R a-w "$dir"
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || rc=$?
+  # the workdir's own removal needs it back
+  chmod -R u+w "$dir"
+  [ "$rc" = 0 ] || _hi_why rc dir || return 1
+  got2="$(cat "$got/aliases.sh")"
+  [ -w "$got/zellij/layouts" ] && [ -w "$got/zellij/layouts/mine.kdl" ] && [ "$got2" = 'alias a=b' ] ||
+    _hi_why got2 got
+}
+
+# the overlay's bin/ rides its scripts alone, as written and still executable:
+# not a binary, a file that is not executable, or one over the cap; and
+# nothing of it with its plugin off. Git Bash has no mode bit to read and
+# calls any #! file executable, so there the plain script rides too.
+function test_bin_rides_its_scripts_alone() {
+  local dir="$_HI_WORKDIR/bin-overlay" got="$_HI_WORKDIR/bin-got" out want=bin/mine
+  mkdir -p "$dir/bin" "$got"
+  printf '#!/bin/sh\n# mine\necho mine\n' >"$dir/bin/mine"
+  printf '#!/bin/sh\necho plain\n' >"$dir/bin/plain"
+  printf 'ELF\0\0\0' >"$dir/bin/tool"
+  printf '#!/bin/sh\0payload' >"$dir/bin/packed"
+  { printf '#!/bin/sh\n# ' && printf '%*s\n' "$_HI_BIN_MAX" ''; } >"$dir/bin/big"
+  chmod +x "$dir/bin/mine" "$dir/bin/tool" "$dir/bin/packed" "$dir/bin/big"
+  [ ! -x "$dir/bin/plain" ] || want=$'bin/mine\nbin/plain'
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  [ "$out" = "$want" ] || _hi_because "what rides: [$out]" || return 1
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
+  [ -x "$got/bin/mine" ] && cmp -s "$dir/bin/mine" "$got/bin/mine" ||
+    _hi_because "the script did not arrive as written, executable" || return 1
+  out="$(_HI_PLUGINS_OFF=bin _HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  [ -z "$out" ] || _hi_because "bin switched off still sent: $out"
+}
+
 function run_hi_payload_overlay_tests() {
   _hi_payload_begin
 
@@ -612,6 +704,7 @@ function run_hi_payload_overlay_tests() {
   _hi_check "...what the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
   _hi_check "...a wire is checked as it is written" test_a_wire_is_checked_as_it_is_written
   _hi_check "...and the tree's own file holds whole" test_the_tree_plugins_file_holds
+  _hi_check "...and the harness clears each variable a home starts at" test_the_harness_clears_every_home_variable
   _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
   _hi_check "A shell hook rides as a wiring row, by the lists and the tool here" test_hook_plugins_ride_as_wiring_rows
@@ -625,6 +718,8 @@ function run_hi_payload_overlay_tests() {
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
   _hi_check "The overlay's packages rides stripped" test_overlay_carries_packages_stripped
   _hi_check "Extensions ride stripped" test_overlay_carries_extensions
+  _hi_check "bin/ rides its scripts alone, as written" test_bin_rides_its_scripts_alone
+  _hi_check "A read-only overlay packs, and unpacks writable" test_a_read_only_overlay_packs_and_unpacks_writable
   _hi_suite_end "hi.sh (the overlay stream)"
 }
 

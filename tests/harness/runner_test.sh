@@ -307,15 +307,19 @@ function test_summary_rows_span_hi_max_width() {
 }
 
 function test_summary_tracks_a_wider_hi_max_width() {
+  local got
   _HI_RUN_WITH="_HI_MAX_WIDTH=110" _hi_run_runner $'a:green.sh'
-  [ "$(_hi_summary_field TOTAL len)" = 110 ] || _hi_why
+  got="$(_hi_summary_field TOTAL len)"
+  [ "$got" = 110 ] || _hi_why got
 }
 
 # too narrow to fit the names, the column keeps its natural size and the row
 # overflows - a truncated suite name would be worse than a long line
 function test_summary_narrow_width_does_not_truncate_names() {
+  local got
   _HI_RUN_WITH="_HI_MAX_WIDTH=20" _hi_run_runner $'averylongsuitename:green.sh'
-  [ -n "$(_hi_summary_field averylongsuitename len)" ] || _hi_why
+  got="$(_hi_summary_field averylongsuitename len)"
+  [ -n "$got" ] || _hi_why got
 }
 
 function test_summary_has_a_column_header() {
@@ -363,7 +367,7 @@ function test_summary_totals_sum_every_suites_cases() {
 # --totals-file is what CI reads to keep README's tests badge honest, so the
 # four numbers have to be the table's own and in a fixed order.
 function test_totals_file_carries_the_summary_numbers() {
-  local out
+  local out got
   _hi_counting_fixture six 6 1
   _hi_counting_fixture four 4 0
   out="$_HI_WORKDIR/totals.out"
@@ -373,7 +377,8 @@ function test_totals_file_carries_the_summary_numbers() {
     return 1
   }
   # 9 passed, 1 failed, 0 skipped, 2 suites
-  [ "$(cat "$out")" = "9 1 0 2" ] || _hi_why out
+  got="$(cat "$out")"
+  [ "$got" = "9 1 0 2" ] || _hi_why got out
 }
 
 # without a path it must stay silent rather than write somewhere of its own
@@ -502,8 +507,10 @@ function test_host_report_precedes_the_first_suite() {
 }
 
 function test_host_report_prints_once_per_run() {
+  local got
   _hi_run_runner $'a:green.sh\nb:green.sh' --host-report
-  [ "$(printf '%s\n' "$_HI_RUN_OUT" | grep -c 'The host')" -eq 1 ] || _hi_why _HI_RUN_OUT
+  got="$(printf '%s\n' "$_HI_RUN_OUT" | grep -c 'The host')"
+  [ "$got" -eq 1 ] || _hi_why got _HI_RUN_OUT
 }
 
 function test_host_report_is_listed_in_help() {

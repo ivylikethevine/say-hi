@@ -22,6 +22,7 @@ function _hi_doc_target() {
 # the folded-in rc check: each rc or overlay file through its parser,
 # one row each, with the same skip rule install.sh's pre-flight has
 function test_config_rows_parse_the_files() {
+  local got
   local dir="$_HI_WORKDIR/cfgrows" out
   mkdir -p "$dir"
   printf 'alias ll="ls -l"\n' >"$dir/good.bash"
@@ -30,8 +31,10 @@ function test_config_rows_parse_the_files() {
   [[ "$out" == *"good"*"parses (bash)"* ]] || _hi_why out || return 1
   out="$(_hi_doc_rows doctor_config_row bad "$dir/bad.bash" bash -n)" || _hi_why dir || return 1
   [[ "$out" == *"bad"*"has issues (bash)"* ]] || _hi_why out || return 1
-  [ -z "$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)" ] || _hi_why dir || return 1
-  [ -z "$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ] || _hi_why dir
+  got="$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)"
+  [ -z "$got" ] || _hi_why got dir || return 1
+  got="$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)"
+  [ -z "$got" ] || _hi_why got dir
 }
 
 function test_target_resolves_a_running_container() {
@@ -238,14 +241,14 @@ function test_install_section_names_an_older_hi_block() {
   # shellcheck disable=SC2016 # the old lines, verbatim
   _hi_wired_block "$(tmpdir_line sh)" '[[ $- != *i* ]] && return' "source \"$_HI_BASHRC\"" >"$home/.bashrc"
   _hi_wired_block "$(tmpdir_line fish)" 'if status is-interactive' "  source \"$_HI_FISH_CONFIG\"" end >"$fishrc"
-  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || _hi_why out home path || return 1
   [[ "$out" == *"~/.bashrc is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)"* &&
-    "$out" == *"config.fish is wired to this tree, but not with the lines this hi writes"* ]] || return 1
+    "$out" == *"config.fish is wired to this tree, but not with the lines this hi writes"* ]] || _hi_why out || return 1
   _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
   _hi_rc_block fish "$_HI_FISH_CONFIG" fish >"$fishrc"
-  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || _hi_why out home path || return 1
   [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" == *"config.fish is wired to this tree"* &&
-    "$out" != *"lines this hi writes"* ]]
+    "$out" != *"lines this hi writes"* ]] || _hi_why out
 }
 
 function test_install_section_flags_a_foreign_tree() {
@@ -254,6 +257,19 @@ function test_install_section_flags_a_foreign_tree() {
   _hi_wired_line sh /elsewhere >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"~/.bashrc names /elsewhere, this is $_HI_HOME"* ]] || _hi_why rc out
+}
+
+# an rc naming this tree by another path - a Homebrew keg's versioned one,
+# where hi now writes the opt link - is this tree's, with lines to refresh
+function test_install_section_knows_this_tree_by_another_path() {
+  local home="$_HI_WORKDIR/inst-alias" out rc=0
+  mkdir -p "$home"
+  # a rerun starts where the first try did: without the link
+  rm -f "$home/alias"
+  ln -s "$_HI_HOME" "$home/alias"
+  _hi_wired_line sh "$home/alias" >"$home/.bashrc"
+  out="$(_hi_doctor_install_out "$home")" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"~/.bashrc is wired to this tree, but not with the lines this hi writes"* ]] || _hi_why rc out
 }
 
 function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() {
@@ -372,6 +388,7 @@ function run_doctor_target_tests() {
   _hi_h2 "Testing: the install section"
   _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
   _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
+  _hi_check_capable symlink "...one naming this tree by another path is not" test_install_section_knows_this_tree_by_another_path
   _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
   _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
   _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link

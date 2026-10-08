@@ -59,23 +59,29 @@ function _hi_ds_dispatch() {
 # ---------------------------------------------------------------------------
 
 function test_dispatch_hands_a_flag_to_its_script() {
+  local got
   _hi_ds_dispatch --doctor --json
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --doctor
-args=--json" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --doctor
+args=--json" ] || _hi_why got _HI_DS_OUT
 }
 
 # the row's <first arg> column goes in front of whatever was typed: one script
 # backs three flags and reads that word to tell them apart
 function test_dispatch_prepends_the_rows_first_argument() {
+  local got
   _hi_ds_dispatch --uninstall
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --uninstall
-args=--uninstall" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --uninstall
+args=--uninstall" ] || _hi_why got _HI_DS_OUT
 }
 
 function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
+  local got
   _hi_ds_dispatch --configure --preset dev
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --configure
-args=--configure --preset dev" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --configure
+args=--configure --preset dev" ] || _hi_why got _HI_DS_OUT
 }
 
 # --add-package has no <first arg> column (its group and rows are
@@ -83,44 +89,56 @@ args=--configure --preset dev" ] || _hi_why _HI_DS_OUT
 # untouched - the row this covers alongside --doctor's (no first-arg column
 # either) and --uninstall's/--configure's (one each, above)
 function test_dispatch_hands_add_package_its_rows() {
+  local got
   _hi_ds_dispatch --add-package core 'bat,batcat' -exa --dry-run
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-package
-args=core bat,batcat -exa --dry-run" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --add-package
+args=core bat,batcat -exa --dry-run" ] || _hi_why got _HI_DS_OUT
 }
 
 # --remove-package shares the script, told apart by its first-arg column
 function test_dispatch_hands_remove_package_its_switch() {
+  local got
   _hi_ds_dispatch --remove-package exa --dry-run
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --remove-package
-args=--remove exa --dry-run" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --remove-package
+args=--remove exa --dry-run" ] || _hi_why got _HI_DS_OUT
 }
 
 # --set-color's words reach the script untouched, a hex and all
 function test_dispatch_hands_set_color_its_words() {
+  local got
   _hi_ds_dispatch --set-color hostname 'web-*' orange fd971f --dry-run
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --set-color
-args=hostname web-* orange fd971f --dry-run" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --set-color
+args=hostname web-* orange fd971f --dry-run" ] || _hi_why got _HI_DS_OUT
 }
 
 # --unset-color shares the script, told apart by its first-arg column
 function test_dispatch_hands_unset_color_its_switch() {
+  local got
   _hi_ds_dispatch --unset-color username root
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --unset-color
-args=--unset username root" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --unset-color
+args=--unset username root" ] || _hi_why got _HI_DS_OUT
 }
 
 # the five plugin flags share one script too: --plugins reaches it bare, the
 # rest behind the word that tells them apart
 function test_dispatch_hands_the_plugin_flags_their_switches() {
+  local got
   _hi_ds_dispatch --plugins
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugins
-args=" ] || _hi_why _HI_DS_OUT || return 1
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --plugins
+args=" ] || _hi_why got _HI_DS_OUT || return 1
   _hi_ds_dispatch --plugin-off vim bat --dry-run
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugin-off
-args=--off vim bat --dry-run" ] || _hi_why _HI_DS_OUT || return 1
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --plugin-off
+args=--off vim bat --dry-run" ] || _hi_why got _HI_DS_OUT || return 1
   _hi_ds_dispatch --add-plugin taskrc task env:TASKRC '/opt/taskrc : /etc/taskrc'
-  [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-plugin
-args=--add taskrc task env:TASKRC /opt/taskrc : /etc/taskrc" ] || _hi_why _HI_DS_OUT
+  got="$(cat "$_HI_DS_OUT")"
+  [ "$got" = "argv0=hi --add-plugin
+args=--add taskrc task env:TASKRC /opt/taskrc : /etc/taskrc" ] || _hi_why got _HI_DS_OUT
 }
 
 # test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no
@@ -183,6 +201,7 @@ sh -c 'echo hi'" ] || _hi_why out
 # the whole script is one sh word after the target unquotes it - the contract
 # _hi_shquote exists for, checked by running it rather than by reading it
 function test_ssh_sh_script_survives_as_one_word() {
+  local got
   local DOMAIN=liona out bin last
   local -a SSHARGS=()
   bin="$(_hi_ds_fake_ssh)"
@@ -190,17 +209,21 @@ function test_ssh_sh_script_survives_as_one_word() {
   last="${out##*$'\n'}"
   # the target runs that whole last argument through its own sh; the script
   # has to come back out of the quoting byte-identical
-  [ "$(sh -c "$last")" = "it's a word" ] || _hi_why last
+  got="$(sh -c "$last")"
+  [ "$got" = "it's a word" ] || _hi_why got last
 }
 
 function test_ssh_sh_needs_no_ssh_options_at_all() {
+  local got
   local DOMAIN=liona out bin
   local -a SSHARGS=()
   bin="$(_hi_ds_fake_ssh)"
   out="$(PATH="$bin:$PATH" _hi_ssh_sh 'true')"
-  [ "$(printf '%s\n' "$out" | head -1)" = liona ] || _hi_why out || return 1
+  got="$(printf '%s\n' "$out" | head -1)"
+  [ "$got" = liona ] || _hi_why got out || return 1
   case "$(printf '%s\n' "$out" | tail -1)" in "sh -c "*) ;; *) _hi_why out || return 1 ;; esac
-  [ "$(printf '%s\n' "$out" | wc -l)" -eq 2 ] || _hi_why out
+  got="$(printf '%s\n' "$out" | wc -l)"
+  [ "$got" -eq 2 ] || _hi_why got out
 }
 
 # ---------------------------------------------------------------------------
