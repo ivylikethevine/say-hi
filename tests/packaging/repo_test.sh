@@ -120,7 +120,7 @@ function test_tarball_is_the_repository() {
   local unpacked="$_HI_WORKDIR/unpacked"
   mkdir -p "$unpacked"
   tar -xzf "$_HI_WORKDIR/package-repo.tar.gz" -C "$unpacked"
-  diff -r "$_HI_REPO" "$unpacked" >/dev/null
+  diff -r "$_HI_REPO" "$unpacked" >/dev/null || _hi_why unpacked _HI_REPO
 }
 
 # _hi_repo_client <label> <image> <shell> <script> - one throwaway client
@@ -163,7 +163,7 @@ function test_apt_client_installs_from_the_repository() {
     apt-get -qq update
     DEBIAN_FRONTEND=noninteractive apt-get -qq install -y say-hi >/dev/null
     dpkg -s say-hi | grep -q "^Status: install ok installed"
-    bash -lc "hi --version"'
+    bash -lc "hi --version"' || _hi_why _HI_APT_IMAGE
 }
 
 # dnf: gpgcheck=1 verifies the rpm nfpm signed, repo_gpgcheck=1 the
@@ -174,7 +174,7 @@ function test_dnf_client_installs_from_the_repository() {
     dnf -y -q install say-hi >/dev/null
     rpm -q say-hi >/dev/null
     rpm -K /repo/rpm/*.rpm | grep -q "signatures OK"
-    bash -lc "hi --version"'
+    bash -lc "hi --version"' || _hi_why _HI_DNF_PIN
 }
 
 # apk: the served say-hi.rsa.pub into /etc/apk/keys, the repository line, and
@@ -186,7 +186,7 @@ function test_apk_client_installs_from_the_repository() {
     echo /repo/apk >>/etc/apk/repositories
     apk add -q say-hi
     apk info -e say-hi >/dev/null
-    sh -lc "hi --version"'
+    sh -lc "hi --version"' || _hi_why
 }
 
 # The upgrade every subscriber takes: the previous release installed from its
@@ -215,7 +215,7 @@ function test_apt_client_upgrades_in_place() {
     apt-get -qq update
     DEBIAN_FRONTEND=noninteractive apt-get -qq install -y say-hi >/dev/null
     dpkg -s say-hi | grep -q "^Status: install ok installed"'"$_HI_UPGRADE_ASSERT"'
-    bash -lc "hi --version"'
+    bash -lc "hi --version"' || _hi_why _HI_APT_IMAGE _HI_PREV_VERSION _HI_UPGRADE_CONFIG _HI_UPGRADE_ASSERT
 }
 
 function test_dnf_client_upgrades_in_place() {
@@ -227,7 +227,7 @@ function test_dnf_client_upgrades_in_place() {
     printf "[say-hi]\nname=say-hi\nbaseurl=file:///repo/rpm\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///repo/say-hi.asc\n" >/etc/yum.repos.d/say-hi.repo
     dnf -y -q upgrade say-hi >/dev/null
     rpm -q say-hi >/dev/null'"$_HI_UPGRADE_ASSERT"'
-    bash -lc "hi --version"'
+    bash -lc "hi --version"' || _hi_why _HI_DNF_PIN _HI_PREV_VERSION _HI_UPGRADE_CONFIG _HI_UPGRADE_ASSERT
 }
 
 function test_apk_client_upgrades_in_place() {
@@ -239,7 +239,7 @@ function test_apk_client_upgrades_in_place() {
     echo /repo/apk >>/etc/apk/repositories
     apk add -q -u say-hi
     apk info -e say-hi >/dev/null'"$_HI_UPGRADE_ASSERT"'
-    sh -lc "hi --version"'
+    sh -lc "hi --version"' || _hi_why _HI_PREV_VERSION _HI_UPGRADE_CONFIG _HI_UPGRADE_ASSERT
 }
 
 function run_repo_tests() {

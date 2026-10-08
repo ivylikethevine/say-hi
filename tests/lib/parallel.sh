@@ -115,6 +115,7 @@ function _hi_par_case() {
   _hi_par_slot
   _HI_PAR_N=$((_HI_PAR_N + 1))
   _HI_PAR_LABELS+=("$label")
+  _hi_note_case "$label"
   local out="$_HI_PAR_DIR/$_HI_PAR_N.out" res="$_HI_PAR_DIR/$_HI_PAR_N.res"
   _hi_cecho " | [$label] started" "$BLUE"
   (
@@ -124,8 +125,9 @@ function _hi_par_case() {
     # shellcheck disable=SC2030
     _HI_SKIPPED=0
     _HI_PROGRESS_FILE="" # this copy's tally is partial; _hi_par_wait reports
-    _hi_par_rc=0
+    _hi_par_rc=0 _hi_par_t0=$SECONDS
     "$@" || _hi_par_rc=$?
+    _hi_note_time $((SECONDS - _hi_par_t0)) "$label"
     printf '%s %s\n' "$_hi_par_rc" "${_HI_SKIPPED:-0}" >"$res"
   ) >"$out" 2>&1 &
   _HI_PAR_RUNNING+=("$!")
@@ -209,6 +211,7 @@ function _hi_par_wait() {
       read -r rc skipped <"$_HI_PAR_DIR/$i.res"
     else
       _hi_align " | [$label] -- the case left no verdict (killed, or it exited the subshell)" "FAILED" "$RED"
+      [ -s "$_HI_PAR_DIR/$i.out" ] || printf '      it printed nothing before it went: look for a kill or an exit ahead of its first line\n'
       _hi_note_failure "[$label] left no verdict"
     fi
     # $_HI_TOTAL counts cases that reached a verdict, pass or fail - a skipped

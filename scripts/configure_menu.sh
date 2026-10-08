@@ -35,7 +35,7 @@ _HI_MENU_SECTIONS=(
   "r|Prompt|Prompt|prompt, git, env"
   "g|Plugins|Plugins|"
   "a|Aliases|Aliases|ls/cat and sudo aliases"
-  "v|Advanced|Advanced|edges, mux, keep"
+  "v|Advanced|Advanced|edges, keep"
 )
 # While a section builds: whether its rows draw, and what its row of the main
 # page's table says - its [x] count, its values.

@@ -370,16 +370,16 @@ function up_colors() {
   demo_overlay colors <<'EOF'
 # pins beat the name hash; everything unpinned still resolves on its own
 [username]
-root      red
+root      = "red"
 
 [hostname]
-bastion   yellow
+bastion   = "yellow"
 
 [hosttag]
-prod      red
-dev       green
-staging   yellow
-desktop   green
+prod      = "red"
+dev       = "green"
+staging   = "yellow"
+desktop   = "green"
 EOF
 }
 
@@ -629,14 +629,14 @@ EOF
   demo_overlay packages <<'EOF'
 # the homelab toolbox, and how loudly to miss each piece
 [core]
-git
-vim,nano
-rsync
-curl
+git = []
+vim = ["nano"]
+rsync = []
+curl = []
 [useful]
-htop
-tmux
-smartctl
+htop = []
+tmux = []
+smartctl = []
 EOF
   up_container docker nas tools admin
   # shellcheck disable=SC2016 # the prompt's own text, never expanded

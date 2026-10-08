@@ -22,6 +22,7 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
   - [Extensions](#extensions)
   - [Switching a plugin off](#switching-a-plugin-off)
   - [Shell hooks](#shell-hooks)
+  - [Variables that ride](#variables-that-ride)
   - [A tool hi does not know](#a-tool-hi-does-not-know)
 - [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
@@ -62,8 +63,8 @@ one number across the pages, and a number works from any of them:
   table in the plugins file ([Switching a plugin off](#switching-a-plugin-off)).
 - **Aliases** `[a]` — whether `cat`, `ls`, and `sudo` get hi's aliases; both
   opt-ins, off until turned on, under what `ls` and `cat` become.
-- **Advanced** `[v]` — the leading space, the header's right edge, the `--mux`
-  and `--keep` defaults, and 24-bit color.
+- **Advanced** `[v]` — the leading space, the header's right edge, the
+  `--keep` default, and 24-bit color.
 
 A row away from its default says the default beside it (`(default 2)`,
 `(default on)`). The menu draws to your terminal's width, its prose and the
@@ -260,14 +261,13 @@ takes an answer by.
 | `_HI_PROMPT_END_FISH`       | `\|`                                                                              | `hi --configure`          | fish's prompt separator; unset, root gets `#` in its place, and a value you set is used for root too                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `_HI_DISABLE_LEAD_SPACE`    | `0`                                                                               | `hi --configure` advanced | `1` drops the leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_DISABLE_RIGHT_EDGE`    | `0`                                                                               | `hi --configure` advanced | `1` drops the closing \| from every header row and the greeting line, so each ends at its last cell instead of at the banner's column                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `_HI_PLUGINS_ON`            | unset                                                                             | `hi --configure`          | the plugins that are off by default (`default = "off"` in their table: the shipped `hooks`, whose tools keep state on a target) and should ride and run anyway, a space or a comma apart; `hi --plugin-on` and `hi --plugin-off` write it ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `_HI_PLUGINS_ON`            | unset                                                                             | `hi --configure`          | the plugins that are off by default (`default = "off"` in their table: the shipped `hooks`, whose tools keep state on a target, and `env`, whose variables are this machine's) and should ride and run anyway, a space or a comma apart; `hi --plugin-on` and `hi --plugin-off` write it ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `_HI_PLUGINS_OFF`           | unset                                                                             | `hi --configure`          | the plugins or members that stay home, a space or a comma apart; `hi --plugin-off` and `hi --plugin-on` write it too ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `_HI_MUX`                   | `0`                                                                               | `hi --configure` advanced | `1` makes every connect a `--mux` one, in a local tmux, zellij, or screen session; `--no-mux` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `_HI_KEEP`                  | `0`                                                                               | `hi --configure` advanced | `1` makes every ssh connect a `--keep` one: the session runs in tmux, zellij, or screen on the target and outlives the connection ([Integrations](INTEGRATIONS.md#terminal-multiplexers)); `--no-keep` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `_HI_KEEP`                  | `0`                                                                               | `hi --configure` advanced | `1` makes every ssh connect a `--keep` one: the session runs in tmux, zellij, or screen on the target and outlives the connection, and on a target with none of the three its directory does ([Integrations](INTEGRATIONS.md#terminal-multiplexers)); `--no-keep` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `_HI_UPDATE_SIGNED`         | `0`                                                                               | you                       | `1` has `hi --update` refuse a release tag unless its signature verifies against a key the checkout already trusts (`.github/allowed_signers`, or your gpg keyring); unset, only a signature that fails to verify refuses, and an unsigned tag or an unknown key is said and allowed ([Security](SECURITY.md#what-hi-does---and-deliberately-doesnt))                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_PLAIN`                 | `0`                                                                               | `hi --configure`          | `1` makes every connect a `--plain` one, a bare shell with nothing sent; `--no-plain` overrides it for one connect. The wizard's targets switch writes it for every target; in a tag's file, `settings.<tag>.sh`, it holds for the hosts carrying that tag ([Settings by host tag](#settings-by-host-tag))                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `_HI_KEEP_TIMEOUT`          | `24h`                                                                             | you                       | how long a kept session waits with nobody attached before it closes and its directory is removed: a number of seconds, or one with `s`, `m`, `h`, or `d`; `0` is never. Read on the target, so it belongs in `settings.sh`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `_HI_KEEP_RETRY`            | `5m`                                                                              | you                       | how long a connect inside a local tmux, zellij, or screen keeps retrying a target whose kept session it lost the link to: a duration as above; `0` is never                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `_HI_KEEP_TIMEOUT`          | `24h`                                                                             | you                       | how long a kept session waits with nobody attached before it closes and its directory is removed: a number of seconds, or one with `s`, `m`, `h`, or `d`; `0` is never. On a target with no multiplexer it is how long a dropped session's directory waits for a reconnect: 15m unless set, and `0` holds nothing. Read on the target, so it belongs in `settings.sh`                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `_HI_KEEP_RETRY`            | `5m`                                                                              | you                       | how long a connect at a terminal keeps retrying a target whose kept session it lost the link to: a duration as above; `0` is never                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `_HI_BACKENDS_OFF`          | unset                                                                             | you                       | the backends hi never asks, a space or a comma apart: any of `docker`, `podman`, `nerdctl`, `finch`, `nomad`, and `kube`, or `all` for ssh alone. One named here is left out of target resolution, `hi <TAB>`, and the header's counts, so its CLI is never started; `--use <backend>` still reaches it by name ([Compatibility](COMPATIBILITY.md#what-ships))                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `_HI_DISABLE_CONTROLMASTER` | `0`                                                                               | you                       | `1` keeps hi from passing ssh its `ControlMaster`, `ControlPath`, and `ControlPersist` options, so a `ControlMaster` line of your own `~/.ssh/config` decides; the bootstrap and the session are then two connections, each authenticating ([Security](SECURITY.md#trust-boundaries))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_TRUECOLOR`             | by terminal                                                                       | `hi --configure` advanced | `1`/`0` forces or refuses 24-bit color; unset, the client decides ([Colors](COLORS.md))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -445,7 +445,10 @@ marks where each prompt, command, and output begins, and OSC 7 with the working
 directory (percent-encoded), for terminals that read them — kitty, WezTerm,
 ghostty, foot, iTerm2, Konsole; the rest drop them. None go out on `TERM=dumb`,
 to anything but a terminal, or while kitty's, ghostty's, WezTerm's, or iTerm2's
-own shell integration is sending its set, which each prompt checks for. A shell
+own shell integration is sending its set, which each prompt checks for. A
+[prompt program](INTEGRATIONS.md#prompt-programs) hi starts gets the same
+marks around its draw, less the one that ends the prompt's text - but not
+powerlevel10k or oh-my-posh, which can send their own. A shell
 left from its prompt (Ctrl-D) closes the last prompt's pair on its way out, so
 Konsole's semantic hints stop there instead of shading the parent shell's lines.
 `load.sh` sends the closing "command finished" mark a session's `exit` never
@@ -527,10 +530,13 @@ arrive too late, and `hi --doctor` flags them. It also names an alias of yours
 that replaces one hi points at a carried config (`alias nano=...` over
 `nano --rcfile`), since that config then goes unused on a target.
 
-Keep your aliases in `~/.aliases` already? With no `aliases.sh` in the
-overlay, that file is what rides to targets, where it loads in the same place
-and keeps to the same subset bash, zsh, and fish all parse. At home your own
-rc goes on sourcing it; hi does not source it again.
+Keep your aliases in `~/.aliases` already, or in `~/.bash_aliases`? With no
+`aliases.sh` in the overlay, the first of those two is what rides to targets,
+where it loads in the same place. Each shell parses the file before sourcing
+it, so one written for bash - a function, an `if` - still loads in bash and
+zsh, and fish skips it whole with one line saying so; keep to the subset all
+three parse and it loads in each. At home your own rc goes on sourcing it; hi
+does not source it again.
 
 ### Extensions
 
@@ -586,7 +592,8 @@ the shipped `hooks`) moves the other way, through `_HI_PLUGINS_ON`:
 out, as its box in the wizard does. A name is a plugin, a member (`bat/config`), or one file of a
 member that is a directory (`extensions/10-kube`). What is off sends no file, an overlay
 copy included, and sets nothing on a target, so the tool there keeps the
-target's own config. hi's own files (`settings.sh`, `colors`, `packages`)
+target's own config. A prompt program that is off is not handed to a target
+either, unless `_HI_PROMPT_TOOL` names it. hi's own files (`settings.sh`, `colors`, `packages`)
 are not plugins and always ride.
 
 The list is `_HI_PLUGINS_OFF` in `settings.sh`, words a space or a comma
@@ -613,10 +620,35 @@ own is one table, or one command:
 hi --add-plugin hooks fnm 'init=fnm env --use-on-cd --shell {shell}' default=off
 ```
 
+`shells` keeps a hook to the shells it names, for a tool you run in some and
+not others: `shells = "zsh fish"` under an atuin table of your own leaves bash
+its own Ctrl-R.
+
 An extension can make the prompt decision itself: `_HI_PROMPT_INIT` names a
 program's init to run in hi's place, `_HI_PROMPT_DRAWN=1` says it drew the
 prompt ([Extensions](#extensions)). [HI.67](GLOSSARY.md#hi67-shell-hooks) is
 the whole mechanism.
+
+### Variables that ride
+
+A plugin's `env` names variables whose values on this machine a target's
+session exports, read as you connect: `$LESS`, `$LS_COLORS`, the things an rc
+sets at home and no target's rc knows. The shipped `env` plugin names the
+pager's and the color variables and is off by default:
+
+```sh
+hi --plugin-on env
+```
+
+`hi --plugins` lists each variable with whether it rides. One that is unset
+here sends nothing; a value holding a quote, a backslash, or a line break
+stays home, and so does a name that reads as a secret (`*TOKEN*`, `*SECRET*`,
+`*PASSWORD*`, `*_KEY`), which the plugin is turned down for. Variables of your
+own are a table of your `plugins`, or one command:
+
+```sh
+hi --add-plugin shell mine 'env=PAGER MANROFFOPT TZ'
+```
 
 ### A tool hi does not know
 
@@ -695,6 +727,10 @@ files = "notes.txt"
 - **prompt**, `yes`, says the init draws the prompt: the plugin joins
   `_HI_PROMPT_TOOL`'s programs and hi's own prompt stands down for it
   ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)).
+- **shells** is the shells the init runs in, of `bash`, `zsh`, and `fish`, a
+  space apart; left out, all three.
+- **env** is variables, a space apart, whose values here a target exports
+  ([above](#variables-that-ride)). A plugin with an env needs no **files**.
 - **default**, `off`, keeps the plugin home, hook and files, until
   `_HI_PLUGINS_ON` names it: `hi --plugin-on <name>`.
 
@@ -831,10 +867,12 @@ packed.
 **The rc lines can be the manager's too.** `hi --install` writes its lines
 into the deployed `~/.bashrc`, which the manager's next apply takes back out.
 `hi --install --print-rc` prints each shell's block instead and writes no rc
-file: add it to the manager's copy. The block names the tree through `$HOME`
-and tests for it before sourcing, so one rc serves a machine with say-hi and
-one without, and `hi --doctor` and a later `hi --install` both read it as
-wired.
+file: add it to the manager's copy. The block looks for the tree in `$HOME`,
+then where a package puts it (`/usr/local/share`, `/usr/share`), and tests for
+it before sourcing, so one rc serves a machine with a clone, one with a
+package, and one without say-hi, and `hi --doctor` and a later `hi --install`
+both read it as wired. The block an older hi printed, naming `$HOME` alone,
+still reads as wired too.
 
 **Pick one keeper for the files a manager owns.** `hi --configure` writes
 `settings.sh` in the **live** directory; if your manager also owns it, the two

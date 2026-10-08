@@ -23,7 +23,7 @@ function test_config_flags_a_settings_file_that_does_not_parse() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_configs
   )"
-  [[ "$out" == *"settings.sh"*"has issues (sh)"* ]]
+  [[ "$out" == *"settings.sh"*"has issues (sh)"* ]] || _hi_why out
 }
 
 function test_config_counts_an_overlay_file() {
@@ -35,7 +35,7 @@ function test_config_counts_an_overlay_file() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]]
+  [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]] || _hi_why out
 }
 
 # an ssh config with a `# Tags:` line is a row saying the tags ride; one
@@ -83,9 +83,9 @@ function test_config_has_no_tree_default_for_a_member_without_one() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  printf '%s\n' "$out" | grep -qE 'colors.*tree default|tree default.*colors' &&
+  { printf '%s\n' "$out" | grep -qE 'colors.*tree default|tree default.*colors' &&
     ! printf '%s\n' "$out" | grep -q 'bash\.sh.*tree default' &&
-    ! printf '%s\n' "$out" | grep -q 'starship\.toml.*tree default'
+    ! printf '%s\n' "$out" | grep -q 'starship\.toml.*tree default'; } || _hi_why out
 }
 
 # a tool config the overlay lacks names the file that travels in its place
@@ -98,7 +98,7 @@ function test_config_names_a_home_tool_config() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
   )"
-  [[ "$out" == *"bat/config (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]]
+  [[ "$out" == *"bat/config (bat)"*"$(_hi_doc_path "$dir/bat-flags")"* && "$out" != *"the one in force here"* ]] || _hi_why out dir
 }
 
 # a candidate that is there but is no file (a directory named as the rc is)
@@ -129,7 +129,7 @@ function test_config_counts_a_tool_config_copy_as_an_override() {
     BAT_CONFIG_PATH="$dir/elsewhere" doctor_config
   )"
   [[ "$out" == *"bat/config"*"overridden (1 lines)"* ]] &&
-    [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]]
+    [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]] || _hi_why out
 }
 
 # what hi turned down of a plugins file is a row, by file and line, and a
@@ -185,7 +185,7 @@ function test_config_names_tmux_and_micro_configs() {
   )"
   [[ "$out" == *"tmux/tmux.conf (tmux)"*"~/.tmux.conf"* ]] &&
     [[ "$out" == *"micro/settings.json (micro)"*"~/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
-    [[ "$out" == *"tmux/tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
+    [[ "$out" == *"tmux/tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]] || _hi_why out
 }
 
 # ...and only with the tool here: home's config for a tool this machine lacks
@@ -200,7 +200,7 @@ function test_config_is_silent_on_a_config_for_an_absent_tool() {
     _HI_SETTINGS="$dir/overlay/settings.sh"
     HOME="$dir" doctor_config
   )"
-  [[ "$out" != *tmux/tmux.conf* ]]
+  [[ "$out" != *tmux/tmux.conf* ]] || _hi_why out
 }
 
 # The files table walks every tier of a member in the table's order and marks
@@ -227,7 +227,7 @@ function test_files_table_walks_every_tier() {
     [[ "$out" == *"emacs/init.el (emacs)"*"passed over ~/.emacs - not sent: its tool is not installed here"* ]] &&
     [[ "$out" == *"none anywhere"*screenrc* ]] || {
     printf '%s\n' "$out"
-    return 1
+    _hi_why -3 out || return 1
   }
 }
 
@@ -250,7 +250,7 @@ function test_files_table_names_why_a_found_file_is_not_sent() {
     [[ "$out" == *"starship.toml (starship)"*"not sent: its prompt program is not one a target is handed"* ]] &&
     [[ "$out" == *"vim/vimrc (vim)"*"used ~/.vimrc"* ]] || {
     printf '%s\n' "$out"
-    return 1
+    _hi_why -3 out || return 1
   }
 }
 
@@ -270,7 +270,7 @@ function test_files_table_hides_the_tree_default_behind_a_copy() {
   [[ "$out" == *"used ~/overlay/colors"* && "$out" != *"the tree's config/colors"* ]] &&
     [[ "$out" == *"used the tree's config/packages"* ]] || {
     printf '%s\n' "$out"
-    return 1
+    _hi_why -3 out || return 1
   }
 }
 
@@ -291,7 +291,7 @@ function test_the_box_folds_and_shortens() {
   [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 5 ] &&
     [[ "$out" == *"not installed"*"podman finch"* && "$out" == *"~/.vimrc"* && "$out" != *"/h/.vimrc"* ]] || {
     printf '%s\n' "$out"
-    return 1
+    _hi_why -3 out || return 1
   }
 }
 
@@ -306,7 +306,7 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"colors"*"a copy of the tree's, unchanged - edit it to override"* && "$out" != *overridden* ]]
+  [[ "$out" == *"colors"*"a copy of the tree's, unchanged - edit it to override"* && "$out" != *overridden* ]] || _hi_why out
 }
 
 # The include scan's rows. pack_scan.sh's _hi_include_lint is the same pass that does
@@ -323,7 +323,7 @@ function test_config_names_an_unresolvable_include() {
     doctor_config
   )"
   [[ "$out" == *"vim/vimrc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
-    [[ "$out" == *"vim/vimrc:3"*"names a plugin manager"* ]]
+    [[ "$out" == *"vim/vimrc:3"*"names a plugin manager"* ]] || _hi_why out
 }
 
 # a line under hi-carry is a row only for the file it names that is not there
@@ -354,7 +354,7 @@ function test_config_names_a_shell_include_unless_allowed() {
     doctor_config
   )"
   [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"*"hi-quiet"* ]] &&
-    [[ "$out" != *"aliases.sh:3"* && "$out" != *"aliases.sh:5"* ]]
+    [[ "$out" != *"aliases.sh:3"* && "$out" != *"aliases.sh:5"* ]] || _hi_why out
 }
 
 # a block marker's start with no end below it decides nothing, so it gets a
@@ -371,7 +371,7 @@ function test_config_names_an_unclosed_block_marker() {
     doctor_config
   )"
   [[ "$out" == *"aliases.sh:1"*"# hi-quiet-start has no # hi-quiet-end below it, so it decides nothing"* ]] &&
-    [[ "$out" == *"aliases.sh:2"*"reads a file hi does not carry"* && "$out" != *"vim/vimrc:"* ]]
+    [[ "$out" == *"aliases.sh:2"*"reads a file hi does not carry"* && "$out" != *"vim/vimrc:"* ]] || _hi_why out
 }
 
 # an editor rc hi picked up from where that editor reads it says where it came
@@ -385,7 +385,7 @@ function test_config_names_the_editor_config_in_force_here() {
     _HI_SETTINGS="$dir/settings.sh"
     HOME="$dir" doctor_config
   )"
-  [[ "$out" == *"vim/vimrc (vim)"*"~/.vimrc"* ]]
+  [[ "$out" == *"vim/vimrc (vim)"*"~/.vimrc"* ]] || _hi_why out
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
@@ -403,9 +403,9 @@ function test_config_reports_a_settings_file_that_parses() {
     doctor_config
     doctor_configs
   )"
-  [[ "$out" == *"settings.sh"*"parses (sh)"* && "$out" == *"all defaults"* ]] || return 1
+  [[ "$out" == *"settings.sh"*"parses (sh)"* && "$out" == *"all defaults"* ]] || _hi_why out || return 1
   # and exactly once per parser, not once more from a hand-written arm
-  [ "$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")" -eq 1 ]
+  [ "$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")" -eq 1 ] || _hi_why out
 }
 
 # what the aliases.sh fish row of _HI_OVERLAY_CHECKS pins: an `if` block is
@@ -415,7 +415,7 @@ function test_configs_fish_row_catches_sh_only_aliases() {
   dir="$(mktemp -d "$_HI_WORKDIR/shonly.XXXXXX")"
   printf 'if true; then alias ll=ls; fi\n' >"$dir/aliases.sh"
   out="$(_HI_CONFIG_DIR="$dir" doctor_configs)"
-  [[ "$out" == *"aliases.sh"*"parses (sh)"* && "$out" == *"aliases.sh"*"has issues (fish)"* ]]
+  [[ "$out" == *"aliases.sh"*"parses (sh)"* && "$out" == *"aliases.sh"*"has issues (fish)"* ]] || _hi_why out
 }
 
 # a scheme that is neither a name nor 24/48 hex words renders nothing, and
@@ -430,14 +430,14 @@ function test_config_flags_a_scheme_nothing_renders() {
     _HI_COLOR_SCHEME=solarized
     doctor_config
   )"
-  [[ "$out" == *"color-scheme"*"'solarized' is ignored"* ]] || return 1
+  [[ "$out" == *"color-scheme"*"'solarized' is ignored"* ]] || _hi_why out || return 1
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_COLOR_SCHEME="$_HI_TEST_L24"
     doctor_config
   )"
-  [[ "$out" != *"color-scheme"* ]]
+  [[ "$out" != *"color-scheme"* ]] || _hi_why out
 }
 
 # ...and the same for a ramp nothing paints: both are hand-written into
@@ -453,14 +453,14 @@ function test_config_flags_a_ramp_nothing_paints() {
     _HI_PACKAGES_PALETTE=mono
     doctor_config
   )"
-  [[ "$out" == *"pkg-palette"*"'mono' is ignored"* ]] || return 1
+  [[ "$out" == *"pkg-palette"*"'mono' is ignored"* ]] || _hi_why out || return 1
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP"
     doctor_config
   )"
-  [[ "$out" != *"pkg-palette"* ]]
+  [[ "$out" != *"pkg-palette"* ]] || _hi_why out
 }
 
 # extensions/ (HI.59): the load order in one row, a warn for an extension a
@@ -470,7 +470,7 @@ function test_config_lists_the_extensions() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/extdir.XXXXXX")"
   out="$(_HI_CONFIG_DIR="$dir" _HI_EXTENSIONS="$dir/extensions" doctor_config)"
-  [[ "$out" != *extensions/* ]] || return 1
+  [[ "$out" != *extensions/* ]] || _hi_why out || return 1
   mkdir -p "$dir/extensions"
   printf 'export A=1\n' >"$dir/extensions/10-a"
   printf 'foo() {\n' >"$dir/extensions/20-broken"
@@ -479,7 +479,7 @@ function test_config_lists_the_extensions() {
   [[ "$out" == *"extensions/"*"loads in order: 10-a, 20-broken"* ]] &&
     [[ "$out" == *"extensions/20-broken"*"does not parse in bash"*"skipped there"* ]] &&
     [[ "$out" == *"extensions/30-c.bak"*"ignored"* ]] &&
-    [[ "$out" != *"extensions/10-a"* ]]
+    [[ "$out" != *"extensions/10-a"* ]] || _hi_why out
 }
 
 # header/ (HI.58) is listed the same way, by bash alone, and not at all with
@@ -506,13 +506,13 @@ function test_config_reports_the_packages_file() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/packages.XXXXXX")"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
-  [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]] || return 1
+  [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]] || _hi_why out || return 1
   cp "$_HI_ROOT/config/packages" "$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
-  [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || return 1
+  [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || _hi_why out || return 1
   printf '# a note\n[core]\nsh = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
-  [[ "$out" == *"packages"*"overridden (3 lines)"* ]]
+  [[ "$out" == *"packages"*"overridden (3 lines)"* ]] || _hi_why out
 }
 
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
@@ -526,8 +526,8 @@ function test_config_flags_a_settings_file_that_is_not_fish() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_configs
   )"
-  [[ "$out" == *"settings.sh"*"parses (sh)"* ]] || return 1
-  [[ "$out" == *"settings.sh"*"has issues (fish)"* ]]
+  [[ "$out" == *"settings.sh"*"parses (sh)"* ]] || _hi_why out || return 1
+  [[ "$out" == *"settings.sh"*"has issues (fish)"* ]] || _hi_why out
 }
 
 # a non-default toggle is a row of its own - the one thing about a session
@@ -541,7 +541,7 @@ function test_config_lists_a_non_default_toggle() {
     _HI_DISABLE_BANNER=1
     doctor_config
   )"
-  [[ "$out" == *"toggle"*"_HI_DISABLE_BANNER=1"* && "$out" != *"all defaults"* ]]
+  [[ "$out" == *"toggle"*"_HI_DISABLE_BANNER=1"* && "$out" != *"all defaults"* ]] || _hi_why out
 }
 
 # an opt-in turned on is the non-default, so it gets a row; off is silent
@@ -554,7 +554,7 @@ function test_config_lists_an_opt_in_turned_on() {
     _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=0
     doctor_config
   )"
-  [[ "$out" == *"toggle"*"_HI_TOOL_ALIASES=1"* && "$out" != *"_HI_SUDO_ALIAS"* && "$out" != *"all defaults"* ]]
+  [[ "$out" == *"toggle"*"_HI_TOOL_ALIASES=1"* && "$out" != *"_HI_SUDO_ALIAS"* && "$out" != *"all defaults"* ]] || _hi_why out
 }
 
 # an overlay file still under a name renamed before 1.0 is a red row with
@@ -579,7 +579,7 @@ function test_config_names_a_file_under_an_old_member_name() {
   "$out" != *"loads in order"* ]] || _hi_because "the old directory: $out" || return 1
   [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $(_hi_doc_path "$dir/vim.rc") $(_hi_doc_path "$dir/vim/vimrc")"* &&
   "$out" == *"bash.sh"*"old name"*"mv $(_hi_doc_path "$dir/bash.sh") $(_hi_doc_path "$dir/bashrc")"* &&
-  "$out" == *"bashrc"*"overridden (1 lines)"* ]] || return 1
+  "$out" == *"bashrc"*"overridden (1 lines)"* ]] || _hi_why out dir || return 1
   # the carry's lines are rewritten, not moved
   [[ "$out" == *"carry"*"old name hi no longer reads - it is plugins now: hi --configure converts it"* && "$out" != *"mv $(_hi_doc_path "$dir/carry")"* ]] ||
     _hi_because "the carry: $out"
@@ -594,11 +594,11 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=12 _HI_PACKAGES_GROUPS='core;x' _HI_IP_HIDE='10.*;x' _HI_HEADER_ORDER='utc bogus'
-    _HI_PROMPT_TOOL='bash:tide hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes
+    _HI_PROMPT_TOOL='bash:tide hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_KEEP=yes
     doctor_config
   )"
   local n
-  for n in _HI_MAX_WIDTH _HI_PACKAGES_GROUPS _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX; do
+  for n in _HI_MAX_WIDTH _HI_PACKAGES_GROUPS _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_KEEP; do
     printf '%s\n' "$out" | grep -q "$n.*is ignored" || {
       _hi_cecho " | no row for $n" "$RED"
       return 1
@@ -608,10 +608,10 @@ function test_config_flags_a_value_the_code_would_ignore() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_MAX_WIDTH=100 _HI_PACKAGES_GROUPS='core,extras' _HI_IP_HIDE='10.* 192.168.?.*' _HI_HEADER_ORDER='utc check'
-    _HI_PROMPT_TOOL='fish:tide bash:starship hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0
+    _HI_PROMPT_TOOL='fish:tide bash:starship hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_KEEP=0
     doctor_config
   )"
-  [[ "$out" != *"is ignored"* ]]
+  [[ "$out" != *"is ignored"* ]] || _hi_why out
 }
 
 # _hi_doc_values_json - doctor_settings_values' rows as --json collects them,
@@ -632,13 +632,13 @@ function test_config_flags_the_old_package_floor() {
   )"
   case "$out" in
   *'"label": "_HI_PACKAGES_MIN_PRIORITY", "text": "is ignored - name the groups to show in _HI_PACKAGES_GROUPS", "severity": "bad"'*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
   out="$(
     unset _HI_PACKAGES_MIN_PRIORITY
     _hi_doc_values_json
   )"
-  [[ "$out" != *_HI_PACKAGES_MIN_PRIORITY* ]]
+  [[ "$out" != *_HI_PACKAGES_MIN_PRIORITY* ]] || _hi_why out
 }
 
 # the editors' and multiplexers' old toggles are words of $_HI_PLUGINS_OFF
@@ -674,21 +674,21 @@ function test_config_flags_an_old_format_packages_file() {
   )"
   case "$out" in
   *'"label": "packages", "text": "'"$dir/old"' has name:priority rows'*'hi --configure converts it", "severity": "bad"'*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
   out="$(
     _HI_PACKAGES="$dir/new"
     _hi_doc_values_json
   )"
-  [[ "$out" != *'has name:priority rows'* ]] || return 1
-  [[ "$out" != *'has name:priority rows'* && "$out" != *"that are not TOML"* ]] || return 1
+  [[ "$out" != *'has name:priority rows'* ]] || _hi_why out || return 1
+  [[ "$out" != *'has name:priority rows'* && "$out" != *"that are not TOML"* ]] || _hi_why out || return 1
   out="$(
     _HI_PACKAGES="$dir/sectioned"
     _hi_doc_values_json
   )"
   case "$out" in
   *'"label": "packages", "text": "'"$dir/sectioned"' has rows that are not TOML'*'hi --configure converts it", "severity": "bad"'*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
 }
 
@@ -714,7 +714,7 @@ function test_config_names_what_a_packages_copy_lacks() {
     _HI_PACKAGES="$_HI_ROOT/config/packages"
     _hi_doc_values_json
   )"
-  [[ "$out" != *'"label": "packages"'* ]]
+  [[ "$out" != *'"label": "packages"'* ]] || _hi_why out
 }
 
 # a colors file still in type,name,color rows, or in bare rows under [type]
@@ -732,20 +732,20 @@ function test_config_flags_an_old_format_colors_file() {
   )"
   case "$out" in
   *'"label": "colors", "text": "'"$dir/old"' has type,name,color rows'*'hi --configure converts it", "severity": "bad"'*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
   out="$(
     _HI_COLORS="$dir/new"
     _hi_doc_values_json
   )"
-  [[ "$out" != *'"label": "colors"'* ]] || return 1
+  [[ "$out" != *'"label": "colors"'* ]] || _hi_why out || return 1
   out="$(
     _HI_COLORS="$dir/sectioned"
     _hi_doc_values_json
   )"
   case "$out" in
   *'"label": "colors", "text": "'"$dir/sectioned"' has rows that are not TOML'*'hi --configure converts it", "severity": "bad"'*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
 }
 
@@ -843,7 +843,7 @@ function test_secret_awk_reads_a_fish_set() {
   local f="$_HI_WORKDIR/secret.fish"
   # shellcheck disable=SC2016
   printf '%s\n' 'set -gx OPENAI_API_KEY abc' 'set -gx EDITOR vim' 'set -gx MY_TOKEN $other' >"$f"
-  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "1 " ]
+  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "1 " ] || _hi_why f _HI_SECRET_AWK
 }
 
 # an alias that names a variable behind a backslash sets nothing, and the
@@ -852,7 +852,7 @@ function test_secret_awk_passes_an_escaped_reference() {
   local f="$_HI_WORKDIR/secret.alias"
   # shellcheck disable=SC2016
   printf '%s\n' 'alias c="GH_TOKEN=\$RO_TOKEN cmd"' 'alias d="GH_TOKEN=abc123 cmd"' >"$f"
-  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "2 " ]
+  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "2 " ] || _hi_why f _HI_SECRET_AWK
 }
 
 # a name inside another variable's value starts no assignment: LS_COLORS's
@@ -862,7 +862,7 @@ function test_secret_awk_passes_a_name_inside_a_value() {
   printf '%s\n' "export LS_COLORS='di=01;34:*passwd=0;38:*.token=1;31'" \
     "set -gx LS_COLORS 'di=01;34:*passwd=0;38'" \
     'alias m="mysql --password=abc123"' >"$f"
-  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "3 " ]
+  [ "$(awk "$_HI_SECRET_AWK" "$f" | tr '\n' ' ')" = "3 " ] || _hi_why f _HI_SECRET_AWK
 }
 
 # in the fixture because the row reads their names off common/aliases.sh.
@@ -879,14 +879,14 @@ function test_config_flags_values_set_in_aliases_sh() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_SUDO_ALIAS _HI_TOOL_ALIASES - "* ]] || return 1
+  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_SUDO_ALIAS _HI_TOOL_ALIASES - "* ]] || _hi_why out || return 1
   printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" != *"alias-vars"* ]]
+  [[ "$out" != *"alias-vars"* ]] || _hi_why out
 }
 
 # ...and an alias of its own under a name hi wires replaces hi's on a target,
@@ -915,6 +915,20 @@ function test_config_flags_aliases_that_replace_a_wired_one() {
     doctor_config
   )"
   [[ "$out" != *"alias-wired"* ]] || _hi_because "kept home: $out"
+}
+
+# ...and an $EDITOR or $VISUAL it exports replaces the session's, flags and
+# all: named for either, and not for a comment or a name that only ends so
+# shellcheck disable=SC2016 # the aliases.sh lines are written, not run
+function test_config_flags_an_editor_set_in_aliases_sh() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/editoralias.XXXXXX")"
+  printf '%s\n' 'alias ll="ls -l"' 'export VISUAL="$(command -v nvim)"' >"$dir/aliases.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" == *"alias-editor"*"_HI_EDITOR"* ]] || _hi_because "set: $out" || return 1
+  printf '%s\n' '# export EDITOR=vi' 'export GIT_EDITOR=vi' >"$dir/aliases.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" != *"alias-editor"* ]] || _hi_because "not set: $out"
 }
 
 function run_doctor_config_tests() {
@@ -971,6 +985,7 @@ function run_doctor_config_tests() {
   _hi_check "neovim's modules are named as staying home" test_config_names_the_nvim_modules_that_stay_home
   _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
   _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
+  _hi_check "...and an \$EDITOR it exports" test_config_flags_an_editor_set_in_aliases_sh
 
   _hi_suite_end "doctor.sh (config)"
 }

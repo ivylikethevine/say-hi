@@ -85,14 +85,14 @@ function test_plugins_help_is_each_command_s_own() {
     "--plugin-on:Usage: hi --plugin-on <name>... [--dry-run]" \
     "--add-plugin:Usage: hi --add-plugin <group> <name> <file>... [<key>=<value>...] [--dry-run]" \
     "--remove-plugin:Usage: hi --remove-plugin <name> [--dry-run]"; do
-    out="$(_hi_plugins_run "$cfg" "${flag%%:*}" --help)" || return 1
+    out="$(_hi_plugins_run "$cfg" "${flag%%:*}" --help)" || _hi_why cfg flag || return 1
     [[ "$out" == "${flag#*:}"* ]] || _hi_because "${flag%%:*} --help: $out" || return 1
   done
-  [ ! -e "$cfg" ]
+  [ ! -e "$cfg" ] || _hi_why cfg
 }
 
 function test_plugins_refuse_what_they_cannot_take() {
-  _hi_plugins_refused "$(_hi_plugins_cfg r1)" "takes no argument" --plugins vim &&
+  { _hi_plugins_refused "$(_hi_plugins_cfg r1)" "takes no argument" --plugins vim &&
     _hi_plugins_refused "$(_hi_plugins_cfg r2)" "needs a plugin or a member" --plugin-off &&
     _hi_plugins_refused "$(_hi_plugins_cfg r3)" "not a plugin or a member: nosuch" --plugin-off nosuch &&
     _hi_plugins_refused "$(_hi_plugins_cfg r4)" "not a plugin or a member: colors" --plugin-off colors &&
@@ -103,7 +103,7 @@ function test_plugins_refuse_what_they_cannot_take() {
     _hi_plugins_refused "$(_hi_plugins_cfg r9)" "needs a file for task to carry" --add-plugin cli task wire=env:TASKRC &&
     _hi_plugins_refused "$(_hi_plugins_cfg r8)" "not a group or a plugin's name: my group" --add-plugin "my group" task taskrc &&
     _hi_plugins_refused "$(_hi_plugins_cfg r10)" "not a group or a plugin's name: my.task" --add-plugin cli my.task taskrc &&
-    _hi_plugins_refused "$(_hi_plugins_cfg r7)" "needs one plugin's name" --remove-plugin
+    _hi_plugins_refused "$(_hi_plugins_cfg r7)" "needs one plugin's name" --remove-plugin; } || _hi_why
 }
 
 # ---------------------------------------------------------------------------
@@ -115,9 +115,9 @@ function test_plugins_refuse_what_they_cannot_take() {
 function test_plugin_off_writes_the_list() {
   local cfg out
   cfg="$(_hi_plugins_cfg off)"
-  out="$(_hi_plugins_run "$cfg" --plugin-off lazygit vim tmux/tmux.conf)" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off lazygit vim tmux/tmux.conf)" || _hi_why cfg || return 1
   [[ "$out" == *" - lazygit"* && "$out" == *" - vim"* && "$out" == *"settings.sh updated"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'lazygit vim tmux/tmux.conf')\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'lazygit vim tmux/tmux.conf')\n" || _hi_why cfg
 }
 
 # one file of a directory member is a word too, there or not; a file of
@@ -125,15 +125,15 @@ function test_plugin_off_writes_the_list() {
 function test_plugin_off_takes_one_file_of_a_directory() {
   local cfg out
   cfg="$(_hi_plugins_cfg off-file)"
-  out="$(_hi_plugins_run "$cfg" --plugin-off extensions/10-kube zellij/layouts/work.kdl)" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off extensions/10-kube zellij/layouts/work.kdl)" || _hi_why cfg || return 1
   [[ "$out" == *" - extensions/10-kube"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'extensions/10-kube zellij/layouts/work.kdl')\n" || return 1
-  _hi_plugins_run "$cfg" --plugin-on extensions/10-kube zellij/layouts/work.kdl >/dev/null || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || return 1
-  _hi_plugins_refused "$(_hi_plugins_cfg off-file-r1)" "not a plugin or a member: header/sky" --plugin-off header/sky &&
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'extensions/10-kube zellij/layouts/work.kdl')\n" || _hi_why cfg || return 1
+  _hi_plugins_run "$cfg" --plugin-on extensions/10-kube zellij/layouts/work.kdl >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || _hi_why cfg || return 1
+  { _hi_plugins_refused "$(_hi_plugins_cfg off-file-r1)" "not a plugin or a member: header/sky" --plugin-off header/sky &&
     _hi_plugins_refused "$(_hi_plugins_cfg off-file-r2)" "not a plugin or a member: extensions/sub/x" --plugin-off extensions/sub/x &&
     _hi_plugins_refused "$(_hi_plugins_cfg off-file-r3)" "not a plugin or a member: extensions/x.bak" --plugin-off extensions/x.bak &&
-    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r4)" "not a plugin or a member: vim/other" --plugin-off vim/other
+    _hi_plugins_refused "$(_hi_plugins_cfg off-file-r4)" "not a plugin or a member: vim/other" --plugin-off vim/other; } || _hi_why
 }
 
 # every other line of a settings.sh stays where it was, and a second list
@@ -142,30 +142,30 @@ function test_plugin_off_keeps_the_other_settings() {
   local cfg
   cfg="$(_hi_plugins_cfg off-keeps)"
   mkdir -p "$cfg"
-  printf '#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_PLUGINS_OFF="bat, rg"\nexport _HI_MUX=1\n' >"$cfg/settings.sh"
-  _hi_plugins_run "$cfg" --plugin-off fzf >/dev/null || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_MUX=1\n$(_hi_plugins_off_line 'bat rg fzf')\n"
+  printf '#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_PLUGINS_OFF="bat, rg"\nexport _HI_KEEP=1\n' >"$cfg/settings.sh"
+  _hi_plugins_run "$cfg" --plugin-off fzf >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_KEEP=1\n$(_hi_plugins_off_line 'bat rg fzf')\n" || _hi_why cfg
 }
 
 function test_plugin_off_twice_writes_nothing() {
   local cfg out
   cfg="$(_hi_plugins_cfg off-twice)"
-  _hi_plugins_run "$cfg" --plugin-off bat >/dev/null || return 1
-  out="$(_hi_plugins_run "$cfg" --plugin-off bat)" || return 1
+  _hi_plugins_run "$cfg" --plugin-off bat >/dev/null || _hi_why cfg || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off bat)" || _hi_why cfg || return 1
   [[ "$out" == *"bat is off already"* && "$out" != *updated* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'bat')\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'bat')\n" || _hi_why cfg
 }
 
 # switching the last one back on takes the line with it
 function test_plugin_on_takes_a_word_back() {
   local cfg out
   cfg="$(_hi_plugins_cfg on)"
-  _hi_plugins_run "$cfg" --plugin-off bat vim >/dev/null || return 1
-  out="$(_hi_plugins_run "$cfg" --plugin-on vim)" || return 1
+  _hi_plugins_run "$cfg" --plugin-off bat vim >/dev/null || _hi_why cfg || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-on vim)" || _hi_why cfg || return 1
   [[ "$out" == *" + vim"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'bat')\n" || return 1
-  _hi_plugins_run "$cfg" --plugin-on bat >/dev/null || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(_hi_plugins_off_line 'bat')\n" || _hi_why cfg || return 1
+  _hi_plugins_run "$cfg" --plugin-on bat >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || _hi_why cfg
 }
 
 # a word that is on says so, and nothing is written
@@ -174,9 +174,9 @@ function test_plugin_on_says_a_word_is_on() {
   cfg="$(_hi_plugins_cfg on-already)"
   mkdir -p "$cfg"
   printf '#!/bin/sh\n' >"$cfg/settings.sh"
-  out="$(_hi_plugins_run "$cfg" --plugin-on bat)" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-on bat)" || _hi_why cfg || return 1
   [[ "$out" == *"bat is not in the list"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || _hi_why cfg
 }
 
 # a plugin off by default moves through _HI_PLUGINS_ON: on adds it, off
@@ -184,25 +184,25 @@ function test_plugin_on_says_a_word_is_on() {
 function test_plugin_on_moves_a_default_off_plugin() {
   local cfg out
   cfg="$(_hi_plugins_cfg on-default)"
-  out="$(_hi_plugins_run "$cfg" --plugin-on zoxide)" || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-on zoxide)" || _hi_why cfg || return 1
   [[ "$out" == *" + zoxide"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='zoxide'" "$_HI_MARKER")\n" || return 1
-  out="$(_hi_plugins_run "$cfg" --plugin-on zoxide)" || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='zoxide'" "$_HI_MARKER")\n" || _hi_why cfg _HI_MARKER || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-on zoxide)" || _hi_why cfg || return 1
   [[ "$out" == *"zoxide is on already"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_run "$cfg" --plugin-on mise >/dev/null && _hi_plugins_run "$cfg" --plugin-off zoxide >/dev/null || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='mise'" "$_HI_MARKER")\n" || return 1
-  out="$(_hi_plugins_run "$cfg" --plugin-off mise)" || return 1
+  _hi_plugins_run "$cfg" --plugin-on mise >/dev/null && _hi_plugins_run "$cfg" --plugin-off zoxide >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n$(printf '%-45s %s' "export _HI_PLUGINS_ON='mise'" "$_HI_MARKER")\n" || _hi_why cfg _HI_MARKER || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off mise)" || _hi_why cfg || return 1
   [[ "$out" == *" - mise"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || return 1
-  out="$(_hi_plugins_run "$cfg" --plugin-off atuin)" || return 1
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || _hi_why cfg || return 1
+  out="$(_hi_plugins_run "$cfg" --plugin-off atuin)" || _hi_why cfg || return 1
   [[ "$out" == *"atuin is off already (off by default)"* ]] || _hi_because "said: $out"
 }
 
 function test_plugin_off_dry_run_writes_nothing() {
   local cfg out
   cfg="$(_hi_plugins_cfg off-dry)"
-  out="$(_hi_plugins_run "$cfg" --plugin-off bat --dry-run)" || return 1
-  [[ "$out" == *"dry run"*"_HI_PLUGINS_OFF='bat'"* ]] && [ ! -e "$cfg" ]
+  out="$(_hi_plugins_run "$cfg" --plugin-off bat --dry-run)" || _hi_why cfg || return 1
+  [[ "$out" == *"dry run"*"_HI_PLUGINS_OFF='bat'"* ]] && [ ! -e "$cfg" ] || _hi_why out cfg
 }
 
 # ---------------------------------------------------------------------------
@@ -217,11 +217,11 @@ _HI_PLUGINS_HEAD='# a plugin of yours: a [<group>.<name>] table, its files and a
 function test_add_plugin_writes_a_carry_line() {
   local cfg out
   cfg="$(_hi_plugins_cfg add)"
-  out="$(_hi_plugins_run "$cfg" --add-plugin cli task taskrc 'home=$TASKRC : ~/.taskrc' wire=env:TASKRC)" || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin cli task taskrc 'home=$TASKRC : ~/.taskrc' wire=env:TASKRC)" || _hi_why cfg TASKRC || return 1
   [[ "$out" == *' + [cli.task]'*'wire = "env:TASKRC"'*'home = "$TASKRC : ~/.taskrc"'*'files = "taskrc"'* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_run "$cfg" --add-plugin cli btool b.rc b.d/ tool=- 'wire=flag:btool -C' >/dev/null || return 1
-  _hi_plugins_run "$cfg" --add-plugin mine c c.rc home=/etc/c dialect=sh tool=- >/dev/null || return 1
-  _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[cli.task]\nwire = "env:TASKRC"\nhome = "$TASKRC : ~/.taskrc"\nfiles = "taskrc"\n\n[cli.btool]\ntool = "-"\nwire = "flag:btool -C"\nfiles = "b.rc b.d/"\n\n[mine.c]\ntool = "-"\nhome = "/etc/c"\ndialect = "sh"\nfiles = "c.rc"\n'
+  _hi_plugins_run "$cfg" --add-plugin cli btool b.rc b.d/ tool=- 'wire=flag:btool -C' >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_run "$cfg" --add-plugin mine c c.rc home=/etc/c dialect=sh tool=- >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[cli.task]\nwire = "env:TASKRC"\nhome = "$TASKRC : ~/.taskrc"\nfiles = "taskrc"\n\n[cli.btool]\ntool = "-"\nwire = "flag:btool -C"\nfiles = "b.rc b.d/"\n\n[mine.c]\ntool = "-"\nhome = "/etc/c"\ndialect = "sh"\nfiles = "c.rc"\n' || _hi_why cfg _HI_PLUGINS_HEAD
 }
 
 # a table with an init needs no file; its keys lead the table in the tree's
@@ -229,14 +229,14 @@ function test_add_plugin_writes_a_carry_line() {
 function test_add_plugin_writes_a_hook_table() {
   local cfg out
   cfg="$(_hi_plugins_cfg add-hook)"
-  out="$(_hi_plugins_run "$cfg" --add-plugin hooks fnm default=off 'init=fnm env --use-on-cd --shell {shell}')" || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin hooks fnm default=off 'init=fnm env --use-on-cd --shell {shell}')" || _hi_why cfg || return 1
   [[ "$out" == *' + [hooks.fnm]'*'init = "fnm env --use-on-cd --shell {shell}"'*'default = "off"'* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_run "$cfg" --add-plugin prompt fancy 'init=fancy init {shell}' prompt=yes fancy.toml wire=env:FANCY_CONFIG >/dev/null || return 1
-  _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[hooks.fnm]\ninit = "fnm env --use-on-cd --shell {shell}"\ndefault = "off"\n\n[prompt.fancy]\ninit = "fancy init {shell}"\nprompt = "yes"\nwire = "env:FANCY_CONFIG"\nfiles = "fancy.toml"\n' || return 1
+  _hi_plugins_run "$cfg" --add-plugin prompt fancy 'init=fancy init {shell}' prompt=yes fancy.toml wire=env:FANCY_CONFIG >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[hooks.fnm]\ninit = "fnm env --use-on-cd --shell {shell}"\ndefault = "off"\n\n[prompt.fancy]\ninit = "fancy init {shell}"\nprompt = "yes"\nwire = "env:FANCY_CONFIG"\nfiles = "fancy.toml"\n' || _hi_why cfg _HI_PLUGINS_HEAD || return 1
   out="$(_hi_plugins_run "$cfg" --add-plugin hooks bad 'init=bad init {shell}; touch x')" && _hi_because "took: $out" && return 1
   [[ "$out" == *"init is a command and its words"* ]] || _hi_because "said: $out" || return 1
   out="$(_hi_plugins_run "$cfg" --add-plugin hooks nofile tool=-)" && _hi_because "took: $out" && return 1
-  [[ "$out" == *"needs a file for nofile to carry, or an init="* ]] || _hi_because "said: $out"
+  [[ "$out" == *"needs a file for nofile to carry, an init=, or an env="* ]] || _hi_because "said: $out"
 }
 
 # a file whose last line was never ended gets the new table on lines of its
@@ -246,14 +246,14 @@ function test_add_plugin_starts_its_own_line() {
   cfg="$(_hi_plugins_cfg add-unended)"
   mkdir -p "$cfg"
   printf '[mine.a]\ntool = "-"\nfiles = "a.rc"' >"$cfg/plugins"
-  _hi_plugins_run "$cfg" --add-plugin mine b b.rc tool=- >/dev/null || return 1
-  _hi_plugins_is "$cfg/plugins" '[mine.a]\ntool = "-"\nfiles = "a.rc"\n\n[mine.b]\ntool = "-"\nfiles = "b.rc"\n'
+  _hi_plugins_run "$cfg" --add-plugin mine b b.rc tool=- >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/plugins" '[mine.a]\ntool = "-"\nfiles = "a.rc"\n\n[mine.b]\ntool = "-"\nfiles = "b.rc"\n' || _hi_why cfg
 }
 
 # a table hi's own reader would turn down is never written, and says why
 # shellcheck disable=SC2088 # the ~ is the file's to read, not the shell's
 function test_add_plugin_refuses_a_line_hi_cannot_read() {
-  _hi_plugins_refused "$(_hi_plugins_cfg add-r1)" "'colors' is a member already" --add-plugin cli x colors tool=- &&
+  { _hi_plugins_refused "$(_hi_plugins_cfg add-r1)" "'colors' is a member already" --add-plugin cli x colors tool=- &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r8)" "'vim/vimrc' is a member already" --add-plugin cli x vim/vimrc tool=- &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r2)" "'B' is not env:, envdir:, flag:, flagdir:, xdg:, or -" --add-plugin cli x x.rc tool=- 'wire=env:A;B' &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r6)" "'9x' is no list of variable names" --add-plugin cli x x.rc tool=- wire=env:9x &&
@@ -261,7 +261,7 @@ function test_add_plugin_refuses_a_line_hi_cannot_read() {
     _hi_plugins_refused "$(_hi_plugins_cfg add-r4)" "'a;b' is no list of commands, or -" --add-plugin cli x x.rc 'tool=a;b' &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r7)" "has a dialect, 'y', that hi does not read" --add-plugin cli x x.rc tool=- dialect=y &&
     _hi_plugins_refused "$(_hi_plugins_cfg add-r9)" "has a home, '@_hi_posh_home', that is no list of paths" --add-plugin cli x x.rc tool=- home=@_hi_posh_home &&
-    _hi_plugins_refused "$(_hi_plugins_cfg add-r5)" "cannot hold a quote or a backslash" --add-plugin cli x x.rc tool=- 'home=~/"x"'
+    _hi_plugins_refused "$(_hi_plugins_cfg add-r5)" "cannot hold a quote or a backslash" --add-plugin cli x x.rc tool=- 'home=~/"x"'; } || _hi_why
 }
 
 # a plugin the file has already is replaced where it stands, its group the
@@ -270,16 +270,16 @@ function test_add_plugin_refuses_a_line_hi_cannot_read() {
 function test_add_plugin_refuses_a_member_the_carry_has() {
   local cfg out
   cfg="$(_hi_plugins_cfg add-twice)"
-  _hi_plugins_run "$cfg" --add-plugin cli task taskrc tool=- wire=env:TASKRC 'home=~/.taskrc' >/dev/null || return 1
-  _hi_plugins_run "$cfg" --add-plugin cli other other.rc tool=- >/dev/null || return 1
-  out="$(_hi_plugins_run "$cfg" --add-plugin cli task taskrc tool=- wire=env:TASKRC 'home=~/.taskrc')" || return 1
+  _hi_plugins_run "$cfg" --add-plugin cli task taskrc tool=- wire=env:TASKRC 'home=~/.taskrc' >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_run "$cfg" --add-plugin cli other other.rc tool=- >/dev/null || _hi_why cfg || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin cli task taskrc tool=- wire=env:TASKRC 'home=~/.taskrc')" || _hi_why cfg || return 1
   [[ "$out" == *"that plugin is there already"* ]] || _hi_because "said: $out" || return 1
-  out="$(_hi_plugins_run "$cfg" --add-plugin mine task taskrc tool=- wire=env:OTHER 'home=~/.other')" || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin mine task taskrc tool=- wire=env:OTHER 'home=~/.other')" || _hi_why cfg || return 1
   [[ "$out" == *" ~ [mine.task] (replacing [cli.task])"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[mine.task]\ntool = "-"\nwire = "env:OTHER"\nhome = "~/.other"\nfiles = "taskrc"\n\n[cli.other]\ntool = "-"\nfiles = "other.rc"\n' || return 1
-  out="$(_hi_plugins_run "$cfg" --add-plugin editors vim vim/vimrc 'home=~/.vimrc')" || return 1
+  _hi_plugins_is "$cfg/plugins" "$_HI_PLUGINS_HEAD"'\n[mine.task]\ntool = "-"\nwire = "env:OTHER"\nhome = "~/.other"\nfiles = "taskrc"\n\n[cli.other]\ntool = "-"\nfiles = "other.rc"\n' || _hi_why cfg _HI_PLUGINS_HEAD || return 1
+  out="$(_hi_plugins_run "$cfg" --add-plugin editors vim vim/vimrc 'home=~/.vimrc')" || _hi_why cfg || return 1
   [[ "$out" == *' + [editors.vim]'* ]] || _hi_because "said: $out" || return 1
-  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || return 1
+  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || _hi_why cfg || return 1
   [[ "$out" == *" editors "*" vim/"* ]] && [ "$(printf '%s\n' "$out" | grep -c ' vim/')" = 1 ] ||
     _hi_because "listed: $out"
 }
@@ -288,8 +288,8 @@ function test_add_plugin_refuses_a_member_the_carry_has() {
 function test_add_plugin_dry_run_writes_nothing() {
   local cfg out
   cfg="$(_hi_plugins_cfg add-dry)"
-  out="$(_hi_plugins_run "$cfg" --add-plugin cli task taskrc tool=- wire=env:TASKRC 'home=~/.taskrc' -n)" || return 1
-  [[ "$out" == *"dry run"*"write $cfg/plugins"* ]] && [ ! -e "$cfg" ]
+  out="$(_hi_plugins_run "$cfg" --add-plugin cli task taskrc tool=- wire=env:TASKRC 'home=~/.taskrc' -n)" || _hi_why cfg || return 1
+  [[ "$out" == *"dry run"*"write $cfg/plugins"* ]] && [ ! -e "$cfg" ] || _hi_why out cfg
 }
 
 # the plugin's table goes, with the tables of its files and the comment
@@ -300,11 +300,11 @@ function test_remove_plugin_takes_the_line_out() {
   cfg="$(_hi_plugins_cfg remove)"
   mkdir -p "$cfg"
   printf '# mine\n[cli.a]\ntool = "-"\nfiles = "a.rc"\n\n# about task\n[cli.task]\nfiles = "taskrc t.d/"\n[cli.task."t.d/"]\nwire = "-"\n\n# kept\n[cli.b]\ntool = "-"\nfiles = "b.rc"\n' >"$cfg/plugins"
-  out="$(_hi_plugins_run "$cfg" --remove-plugin task)" || return 1
+  out="$(_hi_plugins_run "$cfg" --remove-plugin task)" || _hi_why cfg || return 1
   [[ "$out" == *" - [cli.task]"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/plugins" '# mine\n[cli.a]\ntool = "-"\nfiles = "a.rc"\n\n# kept\n[cli.b]\ntool = "-"\nfiles = "b.rc"\n' || return 1
-  _hi_plugins_run "$cfg" --remove-plugin b >/dev/null || return 1
-  _hi_plugins_is "$cfg/plugins" '# mine\n[cli.a]\ntool = "-"\nfiles = "a.rc"\n'
+  _hi_plugins_is "$cfg/plugins" '# mine\n[cli.a]\ntool = "-"\nfiles = "a.rc"\n\n# kept\n[cli.b]\ntool = "-"\nfiles = "b.rc"\n' || _hi_why cfg || return 1
+  _hi_plugins_run "$cfg" --remove-plugin b >/dev/null || _hi_why cfg || return 1
+  _hi_plugins_is "$cfg/plugins" '# mine\n[cli.a]\ntool = "-"\nfiles = "a.rc"\n' || _hi_why cfg
 }
 
 # one of hi's own has no table of the user's: the answer is --plugin-off. A
@@ -314,8 +314,8 @@ function test_remove_plugin_knows_hi_s_own_from_nothing() {
   cfg="$(_hi_plugins_cfg remove-own)"
   out="$(_hi_plugins_run "$cfg" --remove-plugin vim)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"hi --plugin-off vim switches it off"* ]] || _hi_because "rc $rc: $out" || return 1
-  out="$(_hi_plugins_run "$cfg" --remove-plugin nosuch)" || return 1
-  [[ "$out" == *"has no plugin nosuch"* ]] && [ ! -e "$cfg" ]
+  out="$(_hi_plugins_run "$cfg" --remove-plugin nosuch)" || _hi_why cfg || return 1
+  [[ "$out" == *"has no plugin nosuch"* ]] && [ ! -e "$cfg" ] || _hi_why out cfg
 }
 
 # ---------------------------------------------------------------------------
@@ -334,7 +334,7 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   printf 'x\n' >"$cfg.home/.taskrc"
   printf '[mine.task]\ntool = "-"\nbad line\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"\n' >"$cfg/plugins"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="tmux nano"\n' >"$cfg/settings.sh"
-  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || return 1
+  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || _hi_why cfg || return 1
   [[ "$out" == *" cli "*"bat/config (bat)"*"used $cfg/bat/config"* ]] || _hi_because "bat: $out" || return 1
   [[ "$out" == *" editors "*"nano/nanorc (nano)"*"not sent: switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *" mux "*"tmux/tmux.conf (tmux)"*"switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "tmux: $out" || return 1
@@ -356,7 +356,7 @@ function test_plugins_lists_the_hooks() {
   } >"$cfg/plugins"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="hi-hook-listed"\n' >"$cfg/settings.sh"
   stubs="$(_hi_stub_tools hi-hook-on hi-hook-dflt hi-hook-listed)"
-  out="$(_hi_strip_ansi "$(PATH="$stubs:$PATH" _hi_plugins_run "$cfg" --plugins)")" || return 1
+  out="$(_hi_strip_ansi "$(PATH="$stubs:$PATH" _hi_plugins_run "$cfg" --plugins)")" || _hi_why stubs cfg || return 1
   [[ "$out" == *" hooks "*"hi-hook-on"*"hi-hook-on init {shell} - runs on a target that has it"* ]] || _hi_because "on: $out" || return 1
   [[ "$out" == *"hi-hook-dflt"*"- off by default (hi --plugin-on hi-hook-dflt)"* ]] || _hi_because "default off: $out" || return 1
   [[ "$out" == *"hi-hook-gone"*"- not installed here, so not sent"* ]] || _hi_because "gone: $out" || return 1
@@ -372,7 +372,7 @@ function test_plugins_names_a_bad_tree_row_under_the_tree() {
   printf 'bad line\n' >>"$tree/say-hi/config/plugins"
   n=$(($(wc -l <"$tree/say-hi/config/plugins")))
   cfg="$(_hi_plugins_cfg badtree)"
-  out="$(_hi_strip_ansi "$(_HI_PLUGINS_TREE="$tree" _hi_plugins_run "$cfg" --plugins)")" || return 1
+  out="$(_hi_strip_ansi "$(_HI_PLUGINS_TREE="$tree" _hi_plugins_run "$cfg" --plugins)")" || _hi_why tree cfg || return 1
   [[ "$out" == *" ignored "*"$tree/say-hi/config/plugins line $n"*"not a line of a plugin"* && "$out" != *"$cfg/"* ]] ||
     _hi_because "listed: $out"
 }

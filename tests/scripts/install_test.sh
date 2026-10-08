@@ -51,7 +51,7 @@ function test_install_tree_copies_the_tree_under_destdir() {
   _hi_package_fixture copies
   local dest="$_HI_WORKDIR/copies/dest/usr/share/say-hi"
   [ -d "$dest/common" ] && [ -d "$dest/config" ] &&
-    [ -f "$dest/load.sh" ] && [ -x "$dest/hi.sh" ]
+    [ -f "$dest/load.sh" ] && [ -x "$dest/hi.sh" ] || _hi_why dest
 }
 
 # scripts/ is the one place this list differs from hi.sh's $_HI_PAYLOAD: a
@@ -59,7 +59,7 @@ function test_install_tree_copies_the_tree_under_destdir() {
 # every user of that package has to run once) would not be there to run.
 function test_install_tree_ships_scripts() {
   _hi_package_fixture scripts
-  [ -d "$_HI_WORKDIR/scripts/dest/usr/share/say-hi/scripts" ]
+  [ -d "$_HI_WORKDIR/scripts/dest/usr/share/say-hi/scripts" ] || _hi_why
 }
 
 # the man page: gzipped outside the tree when the source has one (a checkout
@@ -72,32 +72,32 @@ function test_install_tree_stages_the_man_page() {
   mkdir -p "$_HI_ROOT/docs"
   printf '.TH HI 1\n' >"$_HI_ROOT/docs/hi.1"
   install_tree >/dev/null
-  [ -f "$dir/dest/usr/share/man/man1/hi.1.gz" ]
+  [ -f "$dir/dest/usr/share/man/man1/hi.1.gz" ] || _hi_why dir
 }
 
 function test_install_tree_skips_the_man_page_without_a_source() {
   _hi_package_fixture noman
-  [ ! -e "$_HI_WORKDIR/noman/dest/usr/share/man" ]
+  [ ! -e "$_HI_WORKDIR/noman/dest/usr/share/man" ] || _hi_why
 }
 
 # the link has to point where hi.sh will be on the installed system, not into
 # the staging root, which won't exist by then
 function test_install_tree_links_hi_without_destdir_in_the_target() {
   _hi_package_fixture link
-  [ "$(readlink "$_HI_WORKDIR/link/dest/usr/bin/hi")" = "/usr/share/say-hi/hi.sh" ]
+  [ "$(readlink "$_HI_WORKDIR/link/dest/usr/bin/hi")" = "/usr/share/say-hi/hi.sh" ] || _hi_why
 }
 
 # a package can't rewrite anyone's rc file, so profile.d is the only place it
 # can put the _HI_HOME every shell needs before it sources anything
 function test_install_tree_writes_the_profile_snippet() {
   _hi_package_fixture profile
-  grep -qF 'export _HI_HOME="/usr/share"' "$_HI_WORKDIR/profile/dest/etc/profile.d/say-hi.sh"
+  grep -qF 'export _HI_HOME="/usr/share"' "$_HI_WORKDIR/profile/dest/etc/profile.d/say-hi.sh" || _hi_why
 }
 
 function test_install_tree_touches_no_rc_file() {
   _hi_package_fixture norc
   local dest="$_HI_WORKDIR/norc/dest"
-  [ ! -e "$dest/root" ] && [ ! -e "$dest$HOME" ] && [ ! -e "$dest/etc/bash.bashrc" ]
+  [ ! -e "$dest/root" ] && [ ! -e "$dest$HOME" ] && [ ! -e "$dest/etc/bash.bashrc" ] || _hi_why dest
 }
 
 # cp -R merges, so a re-stage must clear the dest or removed files keep shipping
@@ -107,7 +107,7 @@ function test_install_tree_clears_a_stale_destination() {
   printf 'stale\n' >"$dir/dest/usr/share/say-hi/leftover"
   local _HI_ROOT="$dir/src/say-hi" _HI_PREFIX="/usr/share" DESTDIR="$dir/dest"
   install_tree >/dev/null
-  [ ! -e "$dir/dest/usr/share/say-hi/leftover" ] && [ -f "$dir/dest/usr/share/say-hi/load.sh" ]
+  [ ! -e "$dir/dest/usr/share/say-hi/leftover" ] && [ -f "$dir/dest/usr/share/say-hi/load.sh" ] || _hi_why dir
 }
 
 # clearing the dest removes a pre-existing symlink itself, never its target
@@ -120,7 +120,7 @@ function test_install_tree_replaces_a_symlinked_dest_without_following() {
   local _HI_ROOT="$dir/src/say-hi" _HI_PREFIX="/usr/share" DESTDIR="$dir/dest"
   install_tree >/dev/null
   [ -f "$dir/elsewhere/precious" ] && [ ! -L "$dir/dest/usr/share/say-hi" ] &&
-    [ -f "$dir/dest/usr/share/say-hi/load.sh" ]
+    [ -f "$dir/dest/usr/share/say-hi/load.sh" ] || _hi_why dir
 }
 
 # a live root (no DESTDIR) whose hi.sh a package owns is refused before the
@@ -145,7 +145,7 @@ function test_install_tree_leaves_a_package_owned_live_root_alone() {
     install_tree 2>&1
   )" || rc=$?
   [ "$rc" -eq 1 ] && [ -f "$dir/prefix/say-hi/hi.sh" ] &&
-    [[ "$out" == *"$dir/prefix/say-hi belongs to the say-hi package - leave it to the package manager"* ]]
+    [[ "$out" == *"$dir/prefix/say-hi belongs to the say-hi package - leave it to the package manager"* ]] || _hi_why rc dir out
 }
 
 function _hi_strip_written_settings() {
@@ -155,7 +155,7 @@ function _hi_strip_written_settings() {
 
 function test_strip_settings_removes_what_install_wrote() {
   _hi_settings_fixture strip _hi_strip_written_settings
-  [ ! -e "$(_hi_fixture_settings strip)" ]
+  [ ! -e "$(_hi_fixture_settings strip)" ] || _hi_why
 }
 
 # colors and packages are the user's own writing, not something install.sh
@@ -168,7 +168,7 @@ function _hi_strip_beside_colors() {
 
 function test_strip_settings_leaves_the_rest_of_the_overlay() {
   _hi_settings_fixture keep _hi_strip_beside_colors
-  [ -f "$_HI_WORKDIR/keep/overlay/colors" ] && [ ! -e "$(_hi_fixture_settings keep)" ]
+  [ -f "$_HI_WORKDIR/keep/overlay/colors" ] && [ ! -e "$(_hi_fixture_settings keep)" ] || _hi_why
 }
 
 # The only path through config_hi a test may take: every other one ends in
@@ -182,20 +182,20 @@ function test_config_hi_no_link_skips_the_symlink() {
     _HI_LINK_MODE=none
     config_hi
   ) | grep -q "leaving $link alone"
-  [ ! -e "$link" ]
+  [ ! -e "$link" ] || _hi_why link
 }
 
 # the flag has to be a real flag, not just a variable an internal caller
 # sets: --link none / user / system, joined too, and nothing else
 function test_link_flag_is_parsed_and_documented() {
   local out rc
-  grep -qF -- '--link <where>' <("$_HI_INSTALL" --help) || return 1
+  grep -qF -- '--link <where>' <("$_HI_INSTALL" --help) || _hi_why _HI_INSTALL || return 1
   rc=0
   out="$(bash "$_HI_INSTALL" --link 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link needs one of none, user, or system"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--link needs one of none, user, or system"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(bash "$_HI_INSTALL" --link=sideways 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link wants one of none, user, or system (got sideways)"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--link wants one of none, user, or system (got sideways)"* ]] || _hi_why rc out
 }
 
 function test_unlink_hi_skips_when_link_missing() {
@@ -203,7 +203,7 @@ function test_unlink_hi_skips_when_link_missing() {
   (
     _HI_LINK="$link"
     unlink_hi
-  ) | grep -q "no $link to remove"
+  ) | grep -q "no $link to remove" || _hi_why link
 }
 
 # --link system on an uninstall names /usr/bin/hi once, not never: the
@@ -214,8 +214,8 @@ function test_unlink_hi_with_the_system_link_checks_it_once() {
     _HI_LINK=/usr/bin/hi
     _HI_DRY_RUN=1
     unlink_hi
-  )" || return 1
-  [ "$(printf '%s\n' "$out" | grep -c '/usr/bin/hi')" -eq 1 ]
+  )" || _hi_why || return 1
+  [ "$(printf '%s\n' "$out" | grep -c '/usr/bin/hi')" -eq 1 ] || _hi_why out
 }
 
 function test_unlink_hi_skips_when_link_points_elsewhere() {
@@ -224,7 +224,7 @@ function test_unlink_hi_skips_when_link_points_elsewhere() {
   (
     _HI_LINK="$link"
     unlink_hi
-  ) | grep -q "leaving it alone"
+  ) | grep -q "leaving it alone" || _hi_why link
 }
 
 # The real-run half: the flag errors, the mode banners, and the locator walk
@@ -248,7 +248,7 @@ function test_unlink_hi_removes_its_own_link() {
     _HI_LINK="$dir/hi"
     unlink_hi
   ) | grep -q "removed $dir/hi" &&
-    [ ! -e "$dir/hi" ]
+    [ ! -e "$dir/hi" ] || _hi_why dir
 }
 
 function test_unlink_hi_instructs_when_sudo_is_refused() {
@@ -262,7 +262,7 @@ function test_unlink_hi_instructs_when_sudo_is_refused() {
     unlink_hi
   )" || rc=$?
   chmod 755 "$dir/bin"
-  [ "$rc" -eq 0 ] && [[ "$out" == *"couldn't remove it"* ]] && [ -L "$dir/bin/hi" ]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"couldn't remove it"* ]] && [ -L "$dir/bin/hi" ] || _hi_why rc out dir
 }
 
 # readlink and dirname ride along as real binaries: swapping PATH to lose
@@ -281,7 +281,7 @@ function test_unlink_hi_instructs_with_no_sudo_at_all() {
     unlink_hi
   )" || rc=$?
   chmod 755 "$dir/bin"
-  [ "$rc" -eq 0 ] && [[ "$out" == *"no sudo here"* ]] && [ -L "$dir/bin/hi" ]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no sudo here"* ]] && [ -L "$dir/bin/hi" ] || _hi_why rc out dir
 }
 
 # config_hi's user-local default: the bindir is made when it is missing, and
@@ -295,8 +295,8 @@ function test_config_hi_creates_the_user_bindir() {
     _HI_LAUNCHER="$dir/hi.sh"
     _HI_LINK="$dir/.local/bin/hi"
     config_hi
-  )" || return 1
-  [ "$(readlink "$dir/.local/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" == *"not on your PATH"* ]]
+  )" || _hi_why dir || return 1
+  [ "$(readlink "$dir/.local/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" == *"not on your PATH"* ]] || _hi_why dir out
 }
 
 function test_config_hi_is_quiet_when_the_bindir_is_on_path() {
@@ -310,8 +310,8 @@ function test_config_hi_is_quiet_when_the_bindir_is_on_path() {
     _HI_LAUNCHER="$dir/hi.sh"
     _HI_LINK="$dir/bin/hi"
     config_hi
-  )" || return 1
-  [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" != *"not on your PATH"* ]]
+  )" || _hi_why dir || return 1
+  [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" != *"not on your PATH"* ]] || _hi_why dir out
 }
 
 # something on PATH already runs this tree - Homebrew's wrapper, a package's
@@ -329,8 +329,8 @@ function test_config_hi_skips_when_hi_on_path_runs_this_tree() {
     _HI_LAUNCHER="$dir/hi.sh"
     _HI_LINK="$dir/bin/hi"
     config_hi
-  )" || return 1
-  [[ "$out" == *"already on your PATH at $dir/wrap/hi"* ]] && [ ! -e "$dir/bin/hi" ]
+  )" || _hi_why dir || return 1
+  [[ "$out" == *"already on your PATH at $dir/wrap/hi"* ]] && [ ! -e "$dir/bin/hi" ] || _hi_why out dir
 }
 
 # _hi_pkg_shim - a dpkg that says every path belongs to say-hi, first on
@@ -358,8 +358,8 @@ function test_config_hi_refuses_a_package_owned_link() {
     _HI_LAUNCHER="$dir/hi.sh"
     _HI_LINK="$dir/bin/hi"
     config_hi
-  )" || return 1
-  [[ "$out" == *"belongs to the say-hi package"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ]
+  )" || _hi_why dir || return 1
+  [[ "$out" == *"belongs to the say-hi package"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ] || _hi_why out dir
 }
 
 function test_config_hi_refuses_a_foreign_link() {
@@ -371,8 +371,8 @@ function test_config_hi_refuses_a_foreign_link() {
     _HI_LAUNCHER="$dir/hi.sh"
     _HI_LINK="$dir/bin/hi"
     config_hi
-  )" || return 1
-  [[ "$out" == *"is not hi's"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ]
+  )" || _hi_why dir || return 1
+  [[ "$out" == *"is not hi's"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ] || _hi_why out dir
 }
 
 function test_unlink_hi_names_the_owning_package() {
@@ -384,8 +384,8 @@ function test_unlink_hi_names_the_owning_package() {
     PATH="$(_hi_pkg_shim):$PATH"
     _HI_LINK="$dir/bin/hi"
     unlink_hi
-  )" || return 1
-  [[ "$out" == *"(owned by the say-hi package), leaving it alone"* ]] && [ -L "$dir/bin/hi" ]
+  )" || _hi_why dir || return 1
+  [[ "$out" == *"(owned by the say-hi package), leaving it alone"* ]] && [ -L "$dir/bin/hi" ] || _hi_why out dir
 }
 
 # an earlier hi on PATH that runs some other tree: the link is still made,
@@ -403,9 +403,9 @@ function test_config_hi_warns_when_another_hi_shadows_the_link() {
     _HI_LAUNCHER="$dir/hi.sh"
     _HI_LINK="$dir/bin/hi"
     config_hi
-  )" || return 1
+  )" || _hi_why dir || return 1
   [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] &&
-    [[ "$out" == *"$dir/other/hi comes first on your PATH"* ]]
+    [[ "$out" == *"$dir/other/hi comes first on your PATH"* ]] || _hi_why dir out
 }
 
 # config_hi's own sudo ladder, the mirror of unlink_hi's below: a bindir
@@ -424,7 +424,7 @@ function test_config_hi_instructs_when_sudo_is_refused() {
   )" || rc=$?
   chmod 755 "$dir/bin"
   [ "$rc" -eq 0 ] && [[ "$out" == *"finish it as root with: ln -sfn '$dir/hi.sh' '$dir/bin/hi'"* ]] &&
-    [ ! -e "$dir/bin/hi" ]
+    [ ! -e "$dir/bin/hi" ] || _hi_why rc out dir
 }
 
 function test_config_hi_instructs_with_no_sudo_at_all() {
@@ -443,7 +443,7 @@ function test_config_hi_instructs_with_no_sudo_at_all() {
     config_hi
   )" || rc=$?
   chmod 755 "$dir/bin"
-  [ "$rc" -eq 0 ] && [[ "$out" == *"couldn't link $dir/bin/hi"* ]] && [ ! -e "$dir/bin/hi" ]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"couldn't link $dir/bin/hi"* ]] && [ ! -e "$dir/bin/hi" ] || _hi_why rc out dir
 }
 
 function test_config_hi_dry_run_makes_no_link() {
@@ -455,8 +455,8 @@ function test_config_hi_dry_run_makes_no_link() {
     _HI_LAUNCHER="$dir/hi.sh"
     _HI_LINK="$dir/bin/hi"
     config_hi
-  )" || return 1
-  [[ "$out" == *"would link $dir/bin/hi"* ]] && [ ! -e "$dir/bin/hi" ]
+  )" || _hi_why dir || return 1
+  [[ "$out" == *"would link $dir/bin/hi"* ]] && [ ! -e "$dir/bin/hi" ] || _hi_why out dir
 }
 
 # _hi_install_begin - what every part of this suite starts from, and the tally

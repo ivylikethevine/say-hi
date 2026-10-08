@@ -35,9 +35,31 @@ function _hi_align() {
 # the first case runs, so _hi_suite_end can report "$_HI_FAILED/$_HI_TOTAL
 # cases failed" instead of a bare pass/fail.
 function _hi_case() {
+  local _hi_cs_t0=$SECONDS _hi_cs_l
+  # its label where _hi_assert or _hi_expect_eq ran it, else its command
+  case "$1" in _hi_assert | _hi_expect_eq) _hi_cs_l="${2:-}" ;; *) _hi_cs_l="$*" ;; esac
+  _hi_note_case "$_hi_cs_l"
   _HI_TOTAL=$((_HI_TOTAL + 1))
   "$@" || _HI_FAILED=$((_HI_FAILED + 1))
+  _hi_note_time $((SECONDS - _hi_cs_t0)) "$_hi_cs_l"
   _hi_report_progress
+}
+
+# _hi_note_case <label> - the case about to run, beside the progress file:
+# what the runner's progress line names a running suite by, and what it names
+# a suite that hangs by. One write and no fork, and never a failure.
+function _hi_note_case() {
+  [ -n "${_HI_PROGRESS_FILE:-}" ] || return 0
+  printf '%s\n' "${1:0:100}" 2>/dev/null >"$_HI_PROGRESS_FILE.case" || :
+}
+
+# _hi_note_time <seconds> <label> - a case that took a second or more, beside
+# the failures file, for the runner's "Slowest cases": a suite's time says
+# nothing of which case spent it. $SECONDS, so whole seconds and no fork; the
+# cases under one are the many and are not written.
+function _hi_note_time() {
+  [ -n "${_HI_FAILS_FILE:-}" ] && [ "$1" -ge 1 ] || return 0
+  printf '%s\t%s\n' "$1" "${2:0:100}" >>"$_HI_FAILS_FILE.times"
 }
 
 # The fixed predicates every harness suite's own cases feed _hi_check/
@@ -58,6 +80,44 @@ function _hi_false() { return 1; }
 # onto four lines of its own.
 function _hi_because() {
   printf '%s\n' "$1" >&2
+  return 1
+}
+
+# _hi_why [-N] [name...] - _hi_because for an assertion with no words of its
+# own: the statement that failed, read off the suite's file at the caller's
+# line, and each named variable as the case had it, cut at 300 characters.
+# With -N, the N lines above it too, for a bare `return 1` or a block's end,
+# whose condition is up there. What a trace would have shown, said by the
+# first failure, so a flake has it too. Run only once the assertion has
+# failed: a passing case never reaches it.
+function _hi_why() {
+  local _hi_w_file="${BASH_SOURCE[1]:-}" _hi_w_line="${BASH_LINENO[0]:-0}" _hi_w_text="" _hi_w_n _hi_w_v _hi_w_cut _hi_w_up=0
+  case "${1:-}" in -[0-9]*)
+    _hi_w_up="${1#-}"
+    shift
+    ;;
+  esac
+  if [ -r "$_hi_w_file" ]; then
+    _hi_w_text="$(awk -v n="$_hi_w_line" -v up="$_hi_w_up" '
+      NR > n - 8 - up && NR <= n { buf[NR] = $0 }
+      END {
+        s = n
+        while (((s - 1) in buf) && buf[s - 1] ~ /(\|\||&&|\\|\|)[ \t]*$/) s--
+        for (i = s - up; i < s; i++) if (i in buf) printf "%s\n       ", buf[i]
+        for (i = s; i <= n; i++) {
+          sub(/^[ \t]+/, "", buf[i])
+          printf "%s%s", (i > s ? " " : ""), buf[i]
+        }
+      }' "$_hi_w_file" 2>/dev/null)" || _hi_w_text=""
+  fi
+  printf '      not so, at %s:%s: %s\n' "${_hi_w_file##*/}" "$_hi_w_line" "${_hi_w_text:0:700}" >&2
+  for _hi_w_n in "$@"; do
+    case "$_hi_w_n" in '' | [0-9]* | *[!A-Za-z0-9_]*) continue ;; esac
+    _hi_w_v="${!_hi_w_n-<unset>}"
+    _hi_w_cut=""
+    [ "${#_hi_w_v}" -le 300 ] || _hi_w_cut=" (${#_hi_w_v} characters, cut)"
+    printf '        %s=[%s]%s\n' "$_hi_w_n" "${_hi_w_v:0:300}" "$_hi_w_cut" >&2
+  done
   return 1
 }
 
@@ -96,18 +156,31 @@ function _hi_assert() {
 # passed (a flake), 1 when it failed too or was not run; the trace's tail is
 # left in $_HI_RERUN_OUT for the FAILED line to print. A subshell, so nothing
 # the rerun sets survives it - files it writes do, so a rerun can differ from
-# the first try. Not run for a case whose failure took over 20s (a timeout
-# would be paid twice), nor when $_HI_TRACE_RERUN is 0 - the coverage sweeps
-# set that, their tracers owning xtrace.
+# the first try.
+#
+# A failure that took over 20s is rerun all the same, since a slow failure is
+# the likeliest kind on an emulated runner and the one a label explains
+# least: apart from this shell and into a file, so it can be ended once it
+# has had that time again and half a minute, with the trace it got to - where
+# a hung case stands - in place of a second timeout paid in full. It is for
+# the trace alone: a slow failure is a failure whatever its rerun does, never
+# a flake. All of it is a failure's cost; a pass forks nothing and opens no
+# file.
+#
+# Not when $_HI_TRACE_RERUN is 0: the coverage sweeps set that, their tracers
+# owning xtrace, and the line says where the same case is traced.
 _HI_RERUN_OUT=""
 function _hi_trace_rerun() {
   local took="$1" out rc=0
   shift
   _HI_RERUN_OUT=""
-  [ "${_HI_TRACE_RERUN:-1}" = 1 ] || return 1
-  if [ "$took" -gt 20 ]; then
-    _HI_RERUN_OUT="      (no traced rerun: the failure took ${took}s)"
+  if [ "${_HI_TRACE_RERUN:-1}" != 1 ]; then
+    _HI_RERUN_OUT="      (no trace here: a coverage tracer owns xtrace; the fast suites job of this commit runs the case with one)"
     return 1
+  fi
+  if [ "$took" -gt 20 ]; then
+    _hi_trace_rerun_slow "$took" "$@"
+    return
   fi
   # xtrace on fd 9, a copy of the capture: on stderr it would land in every
   # `$(... 2>&1)` the case makes, and a case that reads its own stderr would
@@ -124,6 +197,43 @@ function _hi_trace_rerun() {
   )" || rc=$?
   [ "$rc" = 0 ] && return 0
   _HI_RERUN_OUT="      traced rerun (exit $rc), its last lines:"$'\n'"$(printf '%s\n' "$out" | tail -n 40 | sed 's/^/      /')"
+  return 1
+}
+
+# ...the slow failure's: the same rerun as a job of its own, on this shell's
+# stdin, its trace in a file under the suite's work directory. Always false.
+function _hi_trace_rerun_slow() {
+  local took="$1" limit rc=0 pid t0=$SECONDS ended="" file="${_HI_WORKDIR:-${TMPDIR:-/tmp}}/hi.rerun.$$"
+  shift
+  limit=$((took + 30))
+  (
+    PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '
+    exec 9>&1
+    BASH_XTRACEFD=9
+    {
+      set -x
+      "$@"
+    } 2>&1
+  ) <&0 >"$file" 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if ((SECONDS - t0 >= limit)); then
+      kill "$pid" 2>/dev/null
+      ended=1
+      break
+    fi
+    sleep 1
+  done
+  wait "$pid" 2>/dev/null || rc=$?
+  if [ -n "$ended" ]; then
+    _HI_RERUN_OUT="      traced rerun, ended at ${limit}s (the failure took ${took}s) - where it stood, its last lines:"
+  elif [ "$rc" = 0 ]; then
+    _HI_RERUN_OUT="      traced rerun passed in $((SECONDS - t0))s where the failure took ${took}s - a slow failure is a failure, never a flake; the pass's last lines:"
+  else
+    _HI_RERUN_OUT="      traced rerun (exit $rc, the failure took ${took}s), its last lines:"
+  fi
+  _HI_RERUN_OUT="$_HI_RERUN_OUT"$'\n'"$(tail -n 40 "$file" 2>/dev/null | sed 's/^/      /')"
+  rm -f "$file"
   return 1
 }
 
@@ -356,6 +466,49 @@ function _hi_dump_log() {
   else
     _hi_cecho "      (the command wrote nothing)" "$color"
   fi
+}
+
+# _hi_show_transcript <title> <file> [lines] - the end of a session's
+# transcript under a failure line, at _hi_dump_log's indent, with the cursor
+# moves, clears, and titles a prompt or a multiplexer wrote taken out so the
+# dump reads as text and does not redraw the terminal it lands on. Says so
+# where there is none: an empty transcript is a finding too.
+function _hi_show_transcript() {
+  local esc=$'\e' bel=$'\a' n="${3:-60}"
+  if [ ! -s "$2" ]; then
+    printf '      %s: nothing was written (%s)\n' "$1" "$2"
+    return 0
+  fi
+  printf '      %s, its last %s lines:\n' "$1" "$n"
+  tail -n "$n" "$2" | tr -d '\r' | sed \
+    -e "s/${esc}\[[0-9;?<=>]*[ -/]*[@-~]//g" \
+    -e "s/${esc}\][^${bel}${esc}]*${bel}//g" \
+    -e "s/${esc}[()][0-9A-Za-z]//g" \
+    -e "s/${esc}[=>78cM]//g" \
+    -e 's/^/        /' || true
+}
+
+# _hi_show_target <container> - what a target holds when a case about its
+# sessions or its trees fails: hi's trees and the claims in them, the
+# multiplexers' sessions, and the account's processes. Read off the
+# container, so it is the state the assertion saw and not a guess at it.
+function _hi_show_target() {
+  [ -n "${1:-}" ] || return 0
+  printf '      the target (%s) at the failure:\n' "$1"
+  # shellcheck disable=SC2016 # the container's sh expands it
+  "${_HI_BACKEND:-docker}" exec "$1" sh -c '
+    echo "trees:"
+    ls -ld /tmp/*.hi.* /tmp/hi.boot.* 2>/dev/null || echo "  (none)"
+    for f in /tmp/*.hi.*/say-hi/hi.kept /tmp/*.hi.*/say-hi/hi.pid /tmp/*.hi.*/say-hi/hi.held /tmp/*.hi.*/say-hi/hi.hold /tmp/*.hi.*/say-hi/hi.cwd; do
+      [ -e "$f" ] && echo "  $f: $(cat "$f" 2>&1)"
+    done
+    echo "sessions:"
+    { command -v tmux >/dev/null 2>&1 && su hitest -c "tmux list-sessions" 2>&1; } | sed "s/^/  tmux: /"
+    { command -v zellij >/dev/null 2>&1 && su hitest -c "zellij ls -n" 2>&1; } | sed "s/^/  zellij: /"
+    { command -v screen >/dev/null 2>&1 && su hitest -c "screen -ls" 2>&1; } | sed "s/^/  screen: /"
+    echo "processes:"
+    ps -eo pid,ppid,user,args 2>/dev/null || ps
+  ' 2>&1 | head -n 80 | sed 's/^/        /' || true
 }
 
 # _hi_report_skip <reason> - the same channel, saying "this suite ran nothing"

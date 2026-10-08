@@ -40,26 +40,26 @@ function _hi_completions_for() {
 function test_complete_offers_every_target() {
   local out
   out="$(_hi_completions_for "")"
-  printf '%s\n' "$out" | grep -qx alpha &&
+  { printf '%s\n' "$out" | grep -qx alpha &&
     printf '%s\n' "$out" | grep -qx pod-one &&
-    printf '%s\n' "$out" | grep -qx abc12345
+    printf '%s\n' "$out" | grep -qx abc12345; } || _hi_why out
 }
 
 function test_complete_filters_by_the_typed_prefix() {
   local out
   out="$(_hi_completions_for pod-)"
-  printf '%s\n' "$out" | grep -qx pod-one || return 1
-  ! printf '%s\n' "$out" | grep -qx alpha
+  printf '%s\n' "$out" | grep -qx pod-one || _hi_why out || return 1
+  ! printf '%s\n' "$out" | grep -qx alpha || _hi_why out
 }
 
 # targets.sh emits "<name>\t<kind>"; only the name is a completion, or every
 # suggestion would arrive with a literal tab and its backend glued on
 function test_complete_drops_the_kind_column() {
-  ! _hi_completions_for "" | grep -q $'\t'
+  ! _hi_completions_for "" | grep -q $'\t' || _hi_why
 }
 
 function test_complete_is_empty_for_an_unmatched_prefix() {
-  [ -z "$(_hi_completions_for zzz-no-such-target)" ]
+  [ -z "$(_hi_completions_for zzz-no-such-target)" ] || _hi_why
 }
 
 # The in-shell TTL cache: targets.sh's own file cache already makes a repeat
@@ -115,7 +115,7 @@ function test_complete_still_answers_from_the_cache() {
         printf "%s\n" ${COMPREPLY[@]+"${COMPREPLY[@]}"}
       '
   )"
-  printf '%s\n' "$out" | grep -qx alpha
+  printf '%s\n' "$out" | grep -qx alpha || _hi_why out
 }
 
 # The drift check the roster exists for. hi.sh's --help heredoc and docs/hi.1
@@ -134,7 +134,7 @@ function test_flags_all_appear_in_help() {
       ;;
     esac
   done < <(sh "$_HI_ROOT/common/targets.sh" flags)
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # ...and the other direction, which is the one that rots quietly: a flag added
@@ -155,7 +155,7 @@ function test_help_flags_all_appear_in_roster() {
     esac
   done < <(_HI_HOME="$_HI_HOME" bash "$_HI_ROOT/hi.sh" --help 2>&1 |
     sed -n 's/^ *\(--[a-z-]\{2,\}\).*/\1/p' | sort -u)
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # Every row carries its help clause after a tab - what fish shows beside the
@@ -176,8 +176,8 @@ function test_flags_carry_their_help_as_a_second_column() {
       return 1
     }
   done <<<"$out"
-  case "$out" in *'--plain'$'\t'*) ;; *) return 1 ;; esac
-  case "$out" in *'--doctor'$'\t'*) ;; *) return 1 ;; esac
+  case "$out" in *'--plain'$'\t'*) ;; *) _hi_why out || return 1 ;; esac
+  case "$out" in *'--doctor'$'\t'*) ;; *) _hi_why out || return 1 ;; esac
 }
 
 # $0 with no slash - `sh targets.sh` run from inside common/ - still finds
@@ -185,8 +185,8 @@ function test_flags_carry_their_help_as_a_second_column() {
 function test_flags_answer_when_run_from_common() {
   local out
   out="$(cd "$_HI_ROOT/common" && sh targets.sh flags)"
-  case "$out" in *'--plain'$'\t'*) ;; *) return 1 ;; esac
-  case "$out" in *'--doctor'$'\t'*) ;; *) return 1 ;; esac
+  case "$out" in *'--plain'$'\t'*) ;; *) _hi_why out || return 1 ;; esac
+  case "$out" in *'--doctor'$'\t'*) ;; *) _hi_why out || return 1 ;; esac
 }
 
 # Inside a session the local sub-commands need a checkout the payload does not
@@ -244,8 +244,8 @@ function test_flags_drop_what_a_package_lacks() {
 function test_complete_offers_hi_flags_for_a_dash_word() {
   local out
   out="$(_hi_completions_for --)"
-  printf '%s\n' "$out" | grep -qx -- --doctor &&
-    printf '%s\n' "$out" | grep -qx -- --preview
+  { printf '%s\n' "$out" | grep -qx -- --doctor &&
+    printf '%s\n' "$out" | grep -qx -- --preview; } || _hi_why out
 }
 
 # behind a local command the roster is that command's own switches, read off
@@ -257,22 +257,22 @@ function test_flags_behind_a_local_command_are_its_switches() {
     _hi_cecho "   flags --install gave: $out" "$RED"
     return 1
   }
-  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --problems --use " ] || return 1
+  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --problems --use " ] || _hi_why _HI_TARGETS || return 1
   # a row with no switches offers nothing; a connect flag or a target first
   # is not a local command, so the top-level roster stands
-  ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || return 1
+  ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || _hi_why _HI_TARGETS || return 1
   # --preview acts locally too but has no switches: nothing, not hi's roster
-  [ -z "$(sh "$_HI_TARGETS" flags --preview)" ] || return 1
+  [ -z "$(sh "$_HI_TARGETS" flags --preview)" ] || _hi_why _HI_TARGETS || return 1
   [ "$(sh "$_HI_TARGETS" flags --plain)" = "$(sh "$_HI_TARGETS" flags)" ] &&
-    [ "$(sh "$_HI_TARGETS" flags somehost)" = "$(sh "$_HI_TARGETS" flags)" ]
+    [ "$(sh "$_HI_TARGETS" flags somehost)" = "$(sh "$_HI_TARGETS" flags)" ] || _hi_why _HI_TARGETS
 }
 
 function test_complete_offers_a_local_commands_switches() {
   local out
   out="$(_hi_completions_after --install --)"
-  printf '%s\n' "$out" | grep -qx -- --dry-run &&
+  { printf '%s\n' "$out" | grep -qx -- --dry-run &&
     printf '%s\n' "$out" | grep -qx -- --link &&
-    ! printf '%s\n' "$out" | grep -qx -- --doctor
+    ! printf '%s\n' "$out" | grep -qx -- --doctor; } || _hi_why out
 }
 
 # _hi_completions_after <prev> <cur> - _hi_complete with a flag already typed
@@ -295,8 +295,8 @@ function _hi_completions_after() {
 function test_complete_the_word_after_preview_and_use() {
   local out
   out="$(_hi_completions_after --preview "")"
-  printf '%s\n' "$out" | grep -qx header || return 1
-  printf '%s\n' "$out" | grep -qx colors || return 1
+  printf '%s\n' "$out" | grep -qx header || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -qx colors || _hi_why out || return 1
   if printf '%s\n' "$out" | grep -qx alpha; then
     _hi_cecho "   --preview's word reached the target list" "$RED"
     return 1
@@ -308,7 +308,7 @@ function test_complete_the_word_after_preview_and_use() {
   }
   # ...and once the word is taken, the next one is a target again
   out="$(_hi_completions_after docker "")"
-  printf '%s\n' "$out" | grep -qx alpha
+  printf '%s\n' "$out" | grep -qx alpha || _hi_why out
 }
 
 # --link and --preset complete their values; --update the checkout's release
@@ -325,7 +325,7 @@ function test_complete_the_word_after_link_preset_and_update() {
     _hi_cecho "   --preset: $out" "$RED"
     return 1
   }
-  [ "$(_hi_completions_after --update "")" = "$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)" ]
+  [ "$(_hi_completions_after --update "")" = "$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)" ] || _hi_why
 }
 
 # --shell completes the names install.sh's own check takes, the list spelled
@@ -338,7 +338,7 @@ function test_shell_words_match_what_install_takes() {
     _hi_cecho " | install.sh takes [$want], targets.sh offers [$got]" "$RED"
     return 1
   }
-  [ "$(_hi_completions_after --shell z)" = zsh ]
+  [ "$(_hi_completions_after --shell z)" = zsh ] || _hi_why
 }
 
 # the preset names targets.sh offers are configure.sh's table, spelled twice
@@ -360,7 +360,7 @@ function test_preset_words_match_the_presets_table() {
 function test_complete_flags_filter_by_prefix_and_never_reach_targets() {
   local out
   out="$(_hi_completions_for --pl)"
-  printf '%s\n' "$out" | grep -qx -- --plain || return 1
+  printf '%s\n' "$out" | grep -qx -- --plain || _hi_why out || return 1
   if printf '%s\n' "$out" | grep -qx -- --preview; then
     _hi_cecho "   --pl also offered --preview" "$RED"
     return 1
@@ -457,7 +457,7 @@ function test_words_add_package_with_no_overlay_lists_the_tree_groups() {
   local out
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --add-package)"
   [[ "$out" == *"core$(printf '\t')a package check group"* && "$out" == *"base$(printf '\t')"* ]] &&
-    [[ "$out" != *bat* ]]
+    [[ "$out" != *bat* ]] || _hi_why out
 }
 
 function test_words_add_package_with_an_overlay_lists_only_its_own() {
@@ -466,7 +466,7 @@ function test_words_add_package_with_an_overlay_lists_only_its_own() {
   mkdir -p "$dir"
   printf '[mine]\nfoo = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [ "$out" = "$(printf 'mine\ta package check group')" ]
+  [ "$out" = "$(printf 'mine\ta package check group')" ] || _hi_why out
 }
 
 # the overlay directory alone is not an override - the guard is on the file,
@@ -477,7 +477,7 @@ function test_words_add_package_with_an_overlay_but_no_file_lists_the_tree_group
   mkdir -p "$dir"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [[ "$out" == *"core$(printf '\t')"* ]]
+  [[ "$out" == *"core$(printf '\t')"* ]] || _hi_why out
 }
 
 # groups only, in file order, each once: rows are not offered, nor a
@@ -488,7 +488,7 @@ function test_words_add_package_lists_only_clean_group_headers() {
   mkdir -p "$dir"
   printf '# [commented]\ntop = []\n[b.unwanted]\nx = []\n[required]\nz = []\n[b]\n  [a] # a note\ny = []\n[a.required]\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --add-package)"
-  [ "$out" = "$(printf 'b\ta package check group\na\ta package check group')" ]
+  [ "$out" = "$(printf 'b\ta package check group\na\ta package check group')" ] || _hi_why out
 }
 
 # --remove-package: each row's key, quoted or bare, whatever table it sits
@@ -499,7 +499,7 @@ function test_words_remove_package_lists_first_packages() {
   mkdir -p "$dir"
   printf '# a note\ntop = []\n[a]\nbat = ["batcat"]\n"g++" = []\n\n[a.unwanted]\nexa = []\n[b.required]\n  bash = [] # a trailing note\n# x = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" sh "$_HI_TARGETS" words --remove-package)"
-  [ "$out" = "$(printf 'top\ta package check row\nbat\ta package check row\ng++\ta package check row\nexa\ta package check row\nbash\ta package check row')" ]
+  [ "$out" = "$(printf 'top\ta package check row\nbat\ta package check row\ng++\ta package check row\nexa\ta package check row\nbash\ta package check row')" ] || _hi_why out
 }
 
 # --set-color and --unset-color: the four types, the same list for both, and
@@ -508,9 +508,9 @@ function test_words_set_and_unset_color_list_the_four_types() {
   local out want
   want="$(printf 'hosttag\nusertag\nusername\nhostname')"
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --set-color)"
-  [ "$(printf '%s\n' "$out" | cut -f1)" = "$want" ] || return 1
+  [ "$(printf '%s\n' "$out" | cut -f1)" = "$want" ] || _hi_why out want || return 1
   out="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --unset-color)"
-  [ "$(printf '%s\n' "$out" | cut -f1)" = "$want" ]
+  [ "$(printf '%s\n' "$out" | cut -f1)" = "$want" ] || _hi_why out want
 }
 
 # ...and they are set_color.sh's own list, so neither can name a type the
@@ -519,7 +519,7 @@ function test_words_color_types_match_set_color() {
   local out types
   out="$(sh "$_HI_TARGETS" words --set-color | cut -f1 | tr '\n' ' ')"
   types="$(sed -n 's/^types="\(.*\)"$/\1/p' "$_HI_ROOT/scripts/set_color.sh")"
-  [ -n "$types" ] && [ "$out" = "$types " ]
+  [ -n "$types" ] && [ "$out" = "$types " ] || _hi_why types out
 }
 
 # --plugin-off: every plugin of the tree's plugins file, read as text, then
@@ -543,7 +543,7 @@ function test_words_plugin_off_match_the_table() {
   out=" $(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --plugin-off | cut -f1 | tr '\n' ' ')"
   want="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" bash -c '
     set -- && source "$_HI_LAUNCHER" && source "$_HI_ROOT/scripts/lib.sh" && _hi_plugin_rows' | cut -d"|" -f1 | sort -u)"
-  [ -n "$want" ] || return 1
+  [ -n "$want" ] || _hi_why want || return 1
   for w in $want; do
     case "$out" in *" $w "*) ;; *) _hi_because "targets.sh does not offer $w: $out" || return 1 ;; esac
   done
@@ -561,7 +561,7 @@ function test_words_plugin_on_and_remove_read_the_overlay() {
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --remove-plugin | cut -f1 | tr '\n' ' ')"
   [ "$out" = "task b " ] || _hi_because "--remove-plugin offered: $out" || return 1
   [ -z "$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --add-plugin)" ] &&
-    [ -z "$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --plugin-on)" ]
+    [ -z "$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --plugin-on)" ] || _hi_why cfg _HI_TARGETS
 }
 
 function run_targets_complete_tests() {

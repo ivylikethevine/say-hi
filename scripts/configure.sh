@@ -378,7 +378,7 @@ _HI_PRESETS=(
   "everything|the shipped defaults - every feature and header item on, the alias opt-ins off|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
   "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
-  "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
+  "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,env,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,

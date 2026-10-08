@@ -59,11 +59,11 @@ function _hi_mise_case() {
 }
 
 function test_no_environment_produces_no_output() {
-  [ -z "$(_hi_env_case)" ]
+  [ -z "$(_hi_env_case)" ] || _hi_why
 }
 
 function test_disabled_flag_produces_no_output() {
-  [ -z "$(_hi_env_case VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1)" ]
+  [ -z "$(_hi_env_case VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1)" ] || _hi_why
 }
 
 # The out-var form is what bash.sh's __hi_ps1() and zsh.zsh's precmd call: it must
@@ -74,14 +74,14 @@ function test_out_var_form_fills_variable_not_stdout() {
     VIRTUAL_ENV_PROMPT=myproj _hi_env_prompt captured
     printf '%s' "$captured"
   )"
-  [ "$out" = "(myproj) " ] && [ -z "$captured" ]
+  [ "$out" = "(myproj) " ] && [ -z "$captured" ] || _hi_why out captured
 }
 
 function test_out_var_and_stdout_form_agree() {
   local captured=""
   export VIRTUAL_ENV_PROMPT=myproj DIRENV_DIR=-/home/x/proj
   _hi_env_prompt captured
-  [ "$captured" = "$(_hi_env_prompt)" ] && [ -n "$captured" ]
+  [ "$captured" = "$(_hi_env_prompt)" ] && [ -n "$captured" ] || _hi_why captured
 }
 
 # The early returns have to *clear* a stale out-var, not leave the previous
@@ -90,7 +90,7 @@ function test_out_var_and_stdout_form_agree() {
 function test_out_var_is_precleared_when_disabled() {
   local captured="(stale) "
   _HI_DISABLE_ENV_STATUS=1 _hi_env_prompt captured
-  [ -z "$captured" ]
+  [ -z "$captured" ] || _hi_why captured
 }
 
 function test_out_var_is_precleared_with_nothing_active() {
@@ -100,7 +100,7 @@ function test_out_var_is_precleared_with_nothing_active() {
     unset $_HI_ENV_ROSTER
     _hi_env_prompt captured
     [ -z "$captured" ]
-  )
+  ) || _hi_why captured _HI_ENV_ROSTER
 }
 
 # zsh sources this file too, and does *not* word-split an unquoted expansion:

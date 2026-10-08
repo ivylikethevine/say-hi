@@ -37,6 +37,12 @@
 #         init's own command is the one asked for. HI.67.
 # prompt  yes when the init draws the prompt: the plugin is then a prompt
 #         program of $_HI_PROMPT_TOOL's, and hi stands its own prompt down.
+# shells  the shells the init runs in, a space apart, of bash, zsh, and
+#         fish; left out, all three.
+# env     variables, a space apart, whose values on this machine a target's
+#         session exports: each that is set here, as it is when you connect.
+#         A plugin with an env needs no files; a value holding a quote, a
+#         backslash, or a line break stays home. HI.62.
 # default off keeps the plugin home, hook and files, until $_HI_PLUGINS_ON
 #         names it (hi --plugin-on); left out, on.
 #
@@ -110,7 +116,7 @@ dialect = "lua"
 # your ~/.aliases, after hi's own
 [shell.aliases]
 tool = "-"
-home = "~/.aliases"
+home = "~/.aliases : ~/.bash_aliases"
 dialect = "sh"
 files = "aliases.sh"
 
@@ -137,6 +143,12 @@ files = "config.fish"
 tool = "-"
 dialect = "sh"
 files = "extensions/"
+
+# your pager and color variables
+[shell.env]
+tool = "-"
+default = "off"
+env = "LESS CLICOLOR LSCOLORS LS_COLORS EZA_COLORS GREP_COLORS GCC_COLORS JQ_COLORS BAT_THEME"
 
 # the prompt, by your starship.toml
 [prompt.starship]

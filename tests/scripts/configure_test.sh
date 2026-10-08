@@ -51,7 +51,7 @@ function _hi_sources_settings_before_paths() {
 function test_prompt_ends_keeps_an_existing_override() {
   local out
   out="$(_hi_collected_lines prompt_keep "export _HI_PROMPT_END_ZSH='::'")"
-  [[ "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]]
+  [[ "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]] || _hi_why out
 }
 
 # quoted on the way out: a separator is as likely to be $ or > as a letter, and
@@ -59,7 +59,7 @@ function test_prompt_ends_keeps_an_existing_override() {
 function test_prompt_ends_quotes_what_it_writes() {
   local out
   out="$(_hi_collected_lines prompt_quote "export _HI_PROMPT_END_BASH='>'")"
-  [[ "$out" == *"_HI_PROMPT_END_BASH='>'"* ]]
+  [[ "$out" == *"_HI_PROMPT_END_BASH='>'"* ]] || _hi_why out
 }
 
 # the prompt is off, so what it ends with is moot right now - and kept, so
@@ -67,7 +67,7 @@ function test_prompt_ends_quotes_what_it_writes() {
 function test_prompt_ends_kept_when_the_prompt_is_off() {
   local out
   out="$(_hi_collected_lines prompt_off "export _HI_DISABLE_PROMPT=1" "export _HI_PROMPT_END_ZSH='::'")"
-  [[ "$out" == *"export _HI_DISABLE_PROMPT=1"* && "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]]
+  [[ "$out" == *"export _HI_DISABLE_PROMPT=1"* && "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]] || _hi_why out
 }
 
 # The wizard asks about neither the scheme nor the packages ramp -
@@ -79,7 +79,7 @@ function test_hand_written_colors_survive_a_run() {
   out="$(_hi_collected_lines colors_hand \
     "export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'" "export _HI_COLOR_SCHEME='$_HI_TEST_L48'")"
   [[ "$out" == *"export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'"* ]] &&
-    [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_L48'"* ]]
+    [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_L48'"* ]] || _hi_why out
 }
 
 # an unset ramp is the shipped one, so a run that was never told otherwise
@@ -88,22 +88,22 @@ function test_hand_written_colors_survive_a_run() {
 function test_packages_palette_does_not_write_the_default() {
   local out
   out="$(_hi_collected_lines palette_default)"
-  [[ "$out" != *_HI_PACKAGES_PALETTE* ]] && [[ "$out" != *_HI_COLOR_SCHEME* ]]
+  [[ "$out" != *_HI_PACKAGES_PALETTE* ]] && [[ "$out" != *_HI_COLOR_SCHEME* ]] || _hi_why out
 }
 
 function test_ip_hide_keeps_an_existing_override() {
   local out
   out="$(_hi_section_lines iphide_keep config_ip_hide "export _HI_IP_HIDE='none'")"
-  [[ "$out" == *"export _HI_IP_HIDE='none'"* ]]
+  [[ "$out" == *"export _HI_IP_HIDE='none'"* ]] || _hi_why out
 }
 
 # 172.* is header.sh's own default, so it is never written out
 function test_ip_hide_does_not_write_the_default() {
   local out
   out="$(_hi_section_lines iphide_default config_ip_hide)"
-  [ -z "$(printf '%s' "$out" | tr -d ' ')" ] || return 1
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ] || _hi_why out || return 1
   out="$(_hi_section_lines iphide_default2 config_ip_hide "export _HI_IP_HIDE='172.*'")"
-  [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ] || _hi_why out
 }
 
 # the check itself is off, so which colors it would use is moot - the stored
@@ -113,13 +113,13 @@ function test_packages_palette_kept_when_the_check_is_off() {
   out="$(_hi_collected_lines palette_off \
     "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'")"
   [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* ]] &&
-    [[ "$out" == *"export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'"* ]]
+    [[ "$out" == *"export _HI_PACKAGES_PALETTE='$_HI_TEST_RAMP'"* ]] || _hi_why out
 }
 
 function test_header_order_keeps_an_existing_override() {
   local out
   out="$(_hi_collected_lines order_keep "export _HI_HEADER_ORDER='check gitid'")"
-  [[ "$out" == *"export _HI_HEADER_ORDER='check gitid'"* ]]
+  [[ "$out" == *"export _HI_HEADER_ORDER='check gitid'"* ]] || _hi_why out
 }
 
 # header.sh's own default order, so writing it out would be a line that means
@@ -128,14 +128,14 @@ function test_header_order_does_not_write_the_default() {
   local out
   _hi_load_preview_sources
   out="$(_hi_collected_lines order_default "export _HI_HEADER_ORDER='$_HI_HEADER_ORDER_DEFAULT'")"
-  [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ] || _hi_why out
 }
 
 # the header is off, so its order is moot - and kept, like the separators
 function test_header_order_kept_when_the_header_is_off() {
   local out
   out="$(_hi_collected_lines order_off "export _HI_DISABLE_HEADER=1" "export _HI_HEADER_ORDER='check gitid'")"
-  [[ "$out" == *"export _HI_DISABLE_HEADER=1"* && "$out" == *"export _HI_HEADER_ORDER='check gitid'"* ]]
+  [[ "$out" == *"export _HI_DISABLE_HEADER=1"* && "$out" == *"export _HI_HEADER_ORDER='check gitid'"* ]] || _hi_why out
 }
 
 # _hi_pending_set replaces an earlier answer for the same var in place - a
@@ -150,7 +150,7 @@ function test_pending_set_replaces_in_place() {
     [ "${#_HI_SETTING_PENDING[@]}" = 2 ] &&
       [ -z "$(pending_answer _HI_A)" ] && pending_answer _HI_A &&
       [ "$(pending_answer _HI_B)" = two ]
-  )
+  ) || _hi_why _HI_SETTING_PENDING
 }
 
 # every header preset's word list validates, and the empty one is the
@@ -163,42 +163,42 @@ function test_header_presets_hold_the_vocabulary() {
     [ -z "$words" ] && continue
     # shellcheck disable=SC2086 # the split is the point: one word per feature
     for word in $words; do
-      _hi_is_header_word "$word" || return 1
+      _hi_is_header_word "$word" || _hi_why word || return 1
     done
   done
-  [ "$(preset_names)" != "" ]
+  [ "$(preset_names)" != "" ] || _hi_why
 }
 
 # The input validators guarding what ask_value will write into settings.sh -
 # the single-quote one is what keeps a typed value from ending the sh word the
 # written `export NAME='value'` line wraps it in.
 function test_validators_hold_their_grammars() {
-  _hi_is_number 42 || return 1
-  ! _hi_is_number 4.2 || return 1
-  _hi_is_width 80 || return 1
-  _hi_is_width 40 || return 1
-  ! _hi_is_width 39 || return 1
-  ! _hi_is_width 0 || return 1
-  ! _hi_is_number '' || return 1
-  ! _hi_is_number 4x || return 1
-  _hi_has_no_single_quote "plain value" || return 1
-  ! _hi_has_no_single_quote "don't" || return 1
-  _hi_is_ip_hide none || return 1
-  _hi_is_ip_hide '172.*' || return 1
-  _hi_is_ip_hide '10.* 192.168.?.*' || return 1
-  ! _hi_is_ip_hide "" || return 1
-  ! _hi_is_ip_hide "172.*;rm" || return 1
-  ! _hi_is_ip_hide "all" || return 1
-  _hi_is_package_groups none || return 1
-  _hi_is_package_groups 'core useful' || return 1
-  _hi_is_package_groups 'core,my-tools.2' || return 1
-  ! _hi_is_package_groups "" || return 1
-  ! _hi_is_package_groups 'core;rm' || return 1
-  ! _hi_is_package_groups "[core]" || return 1
-  _hi_is_header_word utc || return 1
-  _hi_is_header_word check || return 1
-  ! _hi_is_header_word bogus || return 1
-  ! _hi_is_header_word ""
+  _hi_is_number 42 || _hi_why || return 1
+  ! _hi_is_number 4.2 || _hi_why || return 1
+  _hi_is_width 80 || _hi_why || return 1
+  _hi_is_width 40 || _hi_why || return 1
+  ! _hi_is_width 39 || _hi_why || return 1
+  ! _hi_is_width 0 || _hi_why || return 1
+  ! _hi_is_number '' || _hi_why || return 1
+  ! _hi_is_number 4x || _hi_why || return 1
+  _hi_has_no_single_quote "plain value" || _hi_why || return 1
+  ! _hi_has_no_single_quote "don't" || _hi_why || return 1
+  _hi_is_ip_hide none || _hi_why || return 1
+  _hi_is_ip_hide '172.*' || _hi_why || return 1
+  _hi_is_ip_hide '10.* 192.168.?.*' || _hi_why || return 1
+  ! _hi_is_ip_hide "" || _hi_why || return 1
+  ! _hi_is_ip_hide "172.*;rm" || _hi_why || return 1
+  ! _hi_is_ip_hide "all" || _hi_why || return 1
+  _hi_is_package_groups none || _hi_why || return 1
+  _hi_is_package_groups 'core useful' || _hi_why || return 1
+  _hi_is_package_groups 'core,my-tools.2' || _hi_why || return 1
+  ! _hi_is_package_groups "" || _hi_why || return 1
+  ! _hi_is_package_groups 'core;rm' || _hi_why || return 1
+  ! _hi_is_package_groups "[core]" || _hi_why || return 1
+  _hi_is_header_word utc || _hi_why || return 1
+  _hi_is_header_word check || _hi_why || return 1
+  ! _hi_is_header_word bogus || _hi_why || return 1
+  ! _hi_is_header_word "" || _hi_why
 }
 
 function test_pending_answer_reads_this_runs_answers() {
@@ -207,16 +207,16 @@ function test_pending_answer_reads_this_runs_answers() {
     [ "$(pending_answer _HI_A)" = 1 ] &&
       [ "$(pending_answer _HI_B)" = "two words" ] &&
       ! pending_answer _HI_C
-  )
+  ) || _hi_why
 }
 
 # non-interactive ask_value never prompts: it keeps the current value, and an
 # answer equal to the default comes back empty - "write nothing, the default
 # applies" is the contract the settings writer relies on
 function test_ask_value_non_interactive_keeps_current() {
-  [ "$(ask_value "width?" 100 80 _hi_is_number "not a number" </dev/null)" = 100 ] || return 1
-  [ -z "$(ask_value "width?" "" 80 _hi_is_number "not a number" </dev/null)" ] || return 1
-  [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ]
+  [ "$(ask_value "width?" 100 80 _hi_is_number "not a number" </dev/null)" = 100 ] || _hi_why || return 1
+  [ -z "$(ask_value "width?" "" 80 _hi_is_number "not a number" </dev/null)" ] || _hi_why || return 1
+  [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ] || _hi_why
 }
 
 # settings.sh is sourced by sh, bash, zsh, and fish, so line 1 has to be the
@@ -226,7 +226,7 @@ function _hi_shebang_fresh() { ensure_settings_shebang; }
 
 function test_shebang_is_written_to_a_new_settings_file() {
   _hi_settings_fixture shebang_new _hi_shebang_fresh
-  [ "$(head -n 1 "$(_hi_fixture_settings shebang_new)")" = "#!/bin/sh" ]
+  [ "$(head -n 1 "$(_hi_fixture_settings shebang_new)")" = "#!/bin/sh" ] || _hi_why
 }
 
 function _hi_shebang_then_settings() {
@@ -238,7 +238,7 @@ function test_shebang_stays_first_under_the_settings_block() {
   _hi_settings_fixture shebang_block _hi_shebang_then_settings
   local f
   f="$(_hi_fixture_settings shebang_block)"
-  [ "$(head -n 1 "$f")" = "#!/bin/sh" ] && grep -qF "export _HI_DISABLE_PROMPT=1" "$f"
+  { [ "$(head -n 1 "$f")" = "#!/bin/sh" ] && grep -qF "export _HI_DISABLE_PROMPT=1" "$f"; } || _hi_why f
 }
 
 # re-running must not stack a second shebang
@@ -249,7 +249,7 @@ function _hi_shebang_twice() {
 
 function test_shebang_is_not_duplicated_on_reruns() {
   _hi_settings_fixture shebang_twice _hi_shebang_twice
-  [ "$(grep -c '^#!' "$(_hi_fixture_settings shebang_twice)")" -eq 1 ]
+  [ "$(grep -c '^#!' "$(_hi_fixture_settings shebang_twice)")" -eq 1 ] || _hi_why
 }
 
 # a hand-edited shebang for the wrong shell is replaced, not left alongside:
@@ -264,9 +264,9 @@ function test_shebang_replaces_a_different_one_and_keeps_content() {
   _hi_settings_fixture shebang_wrong _hi_shebang_wrong
   local f
   f="$(_hi_fixture_settings shebang_wrong)"
-  [ "$(head -n 1 "$f")" = "#!/bin/sh" ] &&
+  { [ "$(head -n 1 "$f")" = "#!/bin/sh" ] &&
     [ "$(grep -c '^#!' "$f")" -eq 1 ] &&
-    grep -qF "export _HI_MAX_WIDTH=120" "$f"
+    grep -qF "export _HI_MAX_WIDTH=120" "$f"; } || _hi_why f
 }
 
 # _hi_groups_flipped <stored value> <group...> - the lines a run writes after
@@ -287,28 +287,28 @@ function _hi_groups_flipped() {
 
 # a group that is off goes on after the ones that run, and one that runs off
 function test_packages_groups_flip_one() {
-  [ "$(_hi_groups_flipped '' extras)" = "export _HI_PACKAGES_GROUPS='core useful deprecated extras'" ] || return 1
-  [ "$(_hi_groups_flipped '' useful)" = "export _HI_PACKAGES_GROUPS='core deprecated'" ]
+  [ "$(_hi_groups_flipped '' extras)" = "export _HI_PACKAGES_GROUPS='core useful deprecated extras'" ] || _hi_why || return 1
+  [ "$(_hi_groups_flipped '' useful)" = "export _HI_PACKAGES_GROUPS='core deprecated'" ] || _hi_why
 }
 
 # a comma-separated value is read as a list and written back space-separated
 function test_packages_groups_normalises_commas() {
-  [ "$(_hi_groups_flipped 'core,extras' useful)" = "export _HI_PACKAGES_GROUPS='core extras useful'" ]
+  [ "$(_hi_groups_flipped 'core,extras' useful)" = "export _HI_PACKAGES_GROUPS='core extras useful'" ] || _hi_why
 }
 
 # the shipped set is header.sh's own default, so writing it out would be a
 # line that means nothing - in any order, the same rule config_max_width has
 # for 80
 function test_packages_groups_does_not_write_the_default() {
-  [ -z "$(_hi_groups_flipped 'useful deprecated' core | tr -d '[:space:]')" ]
+  [ -z "$(_hi_groups_flipped 'useful deprecated' core | tr -d '[:space:]')" ] || _hi_why
 }
 
 # ...and the other side of that rule: no group at all is an answer, spelled
 # `none`, not an empty value that would read as the default - and one flipped
 # on from there is the whole list
 function test_packages_groups_writes_none() {
-  [ "$(_hi_groups_flipped '' core useful deprecated)" = "export _HI_PACKAGES_GROUPS='none'" ] || return 1
-  [ "$(_hi_groups_flipped none core)" = "export _HI_PACKAGES_GROUPS='core'" ]
+  [ "$(_hi_groups_flipped '' core useful deprecated)" = "export _HI_PACKAGES_GROUPS='none'" ] || _hi_why || return 1
+  [ "$(_hi_groups_flipped none core)" = "export _HI_PACKAGES_GROUPS='core'" ] || _hi_why
 }
 
 # the check is off, so which groups it runs is moot - the stored value is kept
@@ -316,7 +316,7 @@ function test_packages_groups_writes_none() {
 function test_packages_groups_kept_when_the_check_is_off() {
   local out
   out="$(_hi_collected_lines groups_off "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_GROUPS='core'")"
-  [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* && "$out" == *"export _HI_PACKAGES_GROUPS='core'"* ]]
+  [[ "$out" == *"export _HI_HEADER_ORDER='gitid'"* && "$out" == *"export _HI_PACKAGES_GROUPS='core'"* ]] || _hi_why out
 }
 
 # same mode-preservation contract as config_shell, and the same reason its own
@@ -338,7 +338,7 @@ function _hi_shebang_mode() {
 
 function test_settings_shebang_preserves_mode() {
   _hi_settings_fixture shebang_mode _hi_shebang_mode
-  [ "$(_hi_mode_string "$(_hi_fixture_settings shebang_mode)")" = "$(cat "$_HI_WORKDIR/shebang_mode.before")" ]
+  [ "$(_hi_mode_string "$(_hi_fixture_settings shebang_mode)")" = "$(cat "$_HI_WORKDIR/shebang_mode.before")" ] || _hi_why
 }
 
 # the three config_* groups accumulate rather than each calling config_shell,
@@ -354,14 +354,14 @@ function test_config_settings_writes_every_group_at_once() {
   _hi_settings_fixture onewrite _hi_settings_one_write
   local f
   f="$(_hi_fixture_settings onewrite)"
-  grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_DISABLE_BANNER=1" "$f"
+  { grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_DISABLE_BANNER=1" "$f"; } || _hi_why f
 }
 
 # the whole point of the overlay: a fresh install leaves the tree untouched, so
 # `hi --update`'s tag checkout still applies and a root-owned tree still works
 function test_settings_are_written_outside_the_tree() {
   _hi_settings_fixture outside _hi_shebang_fresh
-  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/config/settings.sh" ]
+  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/config/settings.sh" ] || _hi_why
 }
 
 # this run's answer wins over the file, which still holds the previous run's
@@ -369,26 +369,26 @@ function test_setting_off_sees_this_runs_answer() {
   local target="$_HI_WORKDIR/pending"
   : >"$target"
   local _HI_SETTING_PENDING=("_HI_DISABLE_HEADER=1")
-  setting_off _HI_DISABLE_HEADER "$target" 1 &&
-    ! setting_off _HI_DISABLE_PROMPT "$target" 1
+  { setting_off _HI_DISABLE_HEADER "$target" 1 &&
+    ! setting_off _HI_DISABLE_PROMPT "$target" 1; } || _hi_why target
 }
 
 function test_setting_off_false_when_absent() {
   local target="$_HI_WORKDIR/absent"
   : >"$target"
-  ! setting_off _HI_DISABLE_FOO "$target"
+  ! setting_off _HI_DISABLE_FOO "$target" || _hi_why target
 }
 
 function test_setting_off_true_when_off_present() {
   local target="$_HI_WORKDIR/off"
   printf 'export _HI_DISABLE_FOO=1\n' >"$target"
-  setting_off _HI_DISABLE_FOO "$target"
+  setting_off _HI_DISABLE_FOO "$target" || _hi_why target
 }
 
 function test_setting_off_respects_custom_off_value() {
   local target="$_HI_WORKDIR/customoff"
   printf 'export _HI_DISABLE_BANNER=1\n' >"$target"
-  setting_off _HI_DISABLE_BANNER "$target" 1
+  setting_off _HI_DISABLE_BANNER "$target" 1 || _hi_why target
 }
 
 # the line as config_shell really writes it: marker-padded, unquoted - the
@@ -397,7 +397,7 @@ function test_setting_off_reads_marker_padded_line() {
   local target="$_HI_WORKDIR/padded"
   printf '%-45s %s\n' 'export _HI_DISABLE_FOO=1' "$_HI_MARKER" >"$target"
   setting_off _HI_DISABLE_FOO "$target" &&
-    [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
+    [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ] || _hi_why target
 }
 
 # _hi_setting_get sources the file for real rather than hand-scanning
@@ -407,7 +407,7 @@ function test_setting_get_reads_a_computed_value() {
   local target="$_HI_WORKDIR/computed"
   # shellcheck disable=SC2016 # the file's own text, for it to expand when sourced - not ours to expand now
   printf 'export _HI_DISABLE_FOO=$((1))\n' >"$target"
-  [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
+  [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ] || _hi_why target
 }
 
 # ...and a two-statement assignment, which a bare `export NAME=` line-start
@@ -415,7 +415,7 @@ function test_setting_get_reads_a_computed_value() {
 function test_setting_get_reads_a_two_statement_assignment() {
   local target="$_HI_WORKDIR/twostatement"
   printf '_HI_DISABLE_FOO=1\nexport _HI_DISABLE_FOO\n' >"$target"
-  [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
+  [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ] || _hi_why target
 }
 
 # a settings.sh that references another real variable ($_HI_CONFIG_DIR, say)
@@ -424,7 +424,7 @@ function test_setting_get_leaves_other_variables_ambient() {
   local target="$_HI_WORKDIR/ambient"
   # shellcheck disable=SC2016 # the file's own text, for it to expand when sourced - not ours to expand now
   printf 'export _HI_DISABLE_FOO="$_HI_CONFIG_DIR/marker"\n' >"$target"
-  [ "$(_HI_CONFIG_DIR=/probe-dir _hi_setting_get "$target" _HI_DISABLE_FOO)" = /probe-dir/marker ]
+  [ "$(_HI_CONFIG_DIR=/probe-dir _hi_setting_get "$target" _HI_DISABLE_FOO)" = /probe-dir/marker ] || _hi_why target
 }
 
 # _hi_section_lines <name> <fn> [settings-line ...] - what the run would
@@ -544,8 +544,8 @@ function test_header_edit_preset_refuses_a_stranger() {
     _HI_SETTING_PENDING=()
     _hi_header_edit_preset nope && exit 1
     printf '%s' "${_HI_SETTING_PENDING[*]:-}"
-  )" || return 1
-  [ -z "$out" ]
+  )" || _hi_why _HI_SETTING_PENDING || return 1
+  [ -z "$out" ] || _hi_why out
 }
 
 # a header preset: its words on and first, in its order, the rest off after,
@@ -555,17 +555,17 @@ function test_header_edit_preset_turns_on_its_words_in_order() {
   (
     _HI_SETTINGS=/dev/null
     _HI_SETTING_PENDING=()
-    _hi_header_edit_preset quiet || exit 1
+    _hi_header_edit_preset quiet || _hi_why || exit 1
     [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=utc localtime gitid" ] &&
       [ "${_HI_HDR_WORDS[*]:0:3}" = "utc localtime gitid" ] &&
       [ "$(_hi_header_edit_count_on)" = 3 ] &&
       [[ "$_HI_MENU_NOTE" == *"the 'quiet' preset"* ]] ||
       _hi_because "quiet: pending [${_HI_SETTING_PENDING[*]}], words [${_HI_HDR_WORDS[*]}]" || exit 1
-    _hi_header_edit_preset full || exit 1
+    _hi_header_edit_preset full || _hi_why || exit 1
     [ "${_HI_SETTING_PENDING[*]}" = "_HI_HEADER_ORDER=" ] &&
       [ "$(_hi_header_edit_count_on)" = "${#_HI_HDR_WORDS[@]}" ] ||
       _hi_because "full: pending [${_HI_SETTING_PENDING[*]}]"
-  )
+  ) || _hi_why _HI_HDR_WORDS _HI_SETTING_PENDING
 }
 
 # a row whose <needs> command is not here says so, and any one of its

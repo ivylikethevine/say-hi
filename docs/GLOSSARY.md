@@ -60,7 +60,6 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
 - [HI.50 truecolor color schemes](#hi50-truecolor-color-schemes)
 - [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
-- [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
 - [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
 - [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
 - [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
@@ -1026,51 +1025,6 @@ and is the only way to: there is no per-backend flag, so a member added to
 the family is reachable with no second spelling. Names stay plain identifiers
 (`[A-Za-z0-9_]`): `hi.sh`'s per-member predicate is `eval`-defined.
 
-## HI.52 client multiplexer wrap
-
-`hi --mux <target>` re-executes the connect inside a local multiplexer
-session named `hi-<target>` and never returns; a second `hi --mux` to the same
-target joins the running session. It is the client-side answer to a dropped
-link; [HI.65](#hi65-kept-session) is the target-side one. `_hi_mux_tool` picks
-the first of tmux, zellij, and screen on `PATH`, each driven in its own idiom:
-
-- **tmux**: `new-session -A -s <name> <one string>`; the `-A` is the reattach.
-- **screen**: `-D -R -S <name> sh -c <one string>`; `-D -R` reattaches a
-  session of that name (detaching it elsewhere first) or creates it running
-  the command.
-- **zellij**: takes a session's command only from a layout file, never from
-  argv, so `_hi_mux_wrap` writes `hi.mux.<name>.kdl` under hi's runtime
-  directory (one per target, rewritten each connect, each word a KDL string
-  via `_hi_kdl_quote`) and starts it with `--new-session-with-layout`; a name
-  already in `list-sessions --short` is `attach`ed instead.
-
-Five rules in `_hi_mux_wrap`:
-
-- **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
-  insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
-  inner argv is rebuilt from the parsed state (`--use`, `--plain` or
-  `--no-plain`, `--keep` or `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
-  `"$@"`, so the target it settled on rides along.
-- **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
-  the wrap returns at once when that is set. The inner argv carries no
-  `--mux`/`--no-mux` of its own, so the inner hi re-reads `$_HI_MUX` - without
-  the guard, `_HI_MUX=1` would nest forever. `_hi` also skips the wrap without
-  a terminal on stdin (nothing to attach), and it stands down without a
-  multiplexer to use.
-- **One string.** tmux hands the command to its `default-shell`, which may be
-  fish, and screen to `sh -c`, so the argv is joined into one string with
-  `_hi_shquote` (HI.40): single quotes are the one form every shell reads the
-  same way, where `%q`'s `$'...'` is bash's alone. zellij gets the words.
-- **The name.** `_hi_mux_name` keeps `[[:alnum:]_-]` and turns everything
-  else into `-`: tmux refuses `:` and `.` in a session name, zellij takes
-  the same class, and `/` and `@` read badly in a status line, so a kube
-  `ctx:ns:pod/ctr` is `hi-ctx-ns-pod-ctr`.
-- **Already inside one.** tmux (`$TMUX` set) refuses to nest, so the session
-  is created detached and the client switched to it. screen (`$STY`) has no
-  client switch: a new window in the current session (`screen -t <name>`),
-  and hi exits once it is made. zellij (`$ZELLIJ`) likewise gets a new tab
-  from the same layout (`zellij action new-tab --name <name> --layout`).
-
 ## HI.53 terminal reset after a failed session
 
 `_hi_reset_terminal` (hi.sh) runs when a connect's exit status is not 0 and
@@ -1327,6 +1281,16 @@ extensions compose without `${var:+...}`, which fish lacks. The set:
 | `_HI_PROMPT_INIT`  | a prompt program's init in [HI.67](#hi67-shell-hooks)'s shape (`oh-my-posh init {shell}`, `{shell}` the shell's name), run in place of hi's prompt where its command is on the target.                                                                                                                 |
 | `_HI_PROMPT_DRAWN` | `1` says the extension drew the prompt itself; hi's prompt stands down, as it does for a program a target's rc started.                                                                                                                                                                                |
 
+The overlay's `aliases.sh` takes the same parse first, through the same
+function (`_hi_parses`, and fish's copy): its home tier is a file a bash rc
+sourced, `~/.aliases` or `~/.bash_aliases`, which is as likely to hold a
+function as an alias. `common/aliases.sh` is in the four-shell dialect and
+cannot ask which shell it is, so the check is a command it is handed
+(`$_HI_ALIAS_GUARD`): each of the three names its own, and a plain `sh`, which
+has none, is left `true` and sources the file as written. `load.sh` reads the
+aliases back for `$EDITOR` under `true` as well, since the session's shell
+parses the file anyway.
+
 `hi --doctor` lists the extensions in load order and warns for each a shell on
 this machine cannot parse, and for a directory entry that is not a member
 (`doctor_code_dir`, which reads `header/` the same way, by bash alone).
@@ -1460,6 +1424,13 @@ member:
 one in the overlay is not read, and the archive has none when no member it
 carries has a wire.
 
+A plugin's `env` is the one line that holds a value of this machine's: each
+variable it names that is set here becomes `export NAME='value'`, its plugin
+on, read as the overlay is packed. Single quotes hold a value in all four
+dialects only without a quote, a backslash, or a line break in it, so one
+with any stays home (`_hi_env_rides`), and a name that reads as a secret is
+turned down with its plugin's row ([HI.63](#hi63-plugins-rows)).
+
 The lines are part of `_hi_overlay_cache_key`. The member list alone would
 hand an archive cached by an older packer to a newer one that wires the same
 members another way.
@@ -1515,7 +1486,10 @@ is hi's own, another plugin's, or the directory one sits under, or that is
 `wiring.sh` or `plugins`; a tool that is not command names or `-`; a wire that
 is not `env:` or `envdir:` over variable names, `flag:` or `flagdir:` over a
 command and its words, or `xdg:` over one command, wires a `;` apart; a
-dialect `$_HI_DIALECTS` has no row of. A file that is turned down takes
+dialect `$_HI_DIALECTS` has no row of; a `shells` that is not of bash, zsh,
+and fish, or with no `init`; an `env` that is not variable names, or that
+names one of hi's own or one that reads as a secret. A file that is turned
+down takes
 nothing of its plugin with it. The wire is checked because its words become a
 line every target sources: its names, its environment, its command, and its
 words each hold nothing that runs or expands there beyond a `$NAME`. The check
@@ -1546,7 +1520,10 @@ every member passes on its way out, so what is off is not packed, has no
 line in `wiring.sh` ([HI.62](#hi62-generated-wiring)), and is not in the
 cache key's member list. The target is handed the result and needs neither
 the list nor the table. An overlay copy stays home too: off is the user
-saying no, which outranks a file saying yes.
+saying no, which outranks a file saying yes. A prompt program that is off is
+left out of the list a target is handed (`_hi_prompt_here`) unless
+`_HI_PROMPT_TOOL` names it: [HI.32](#hi32-starship-deference)'s default is
+every program found here, and off is the user saying not that one.
 
 Two things keep it cheap and right. Every member asks, several times a
 connect, and nearly always nothing is off, so that verdict is kept for the
@@ -1565,14 +1542,18 @@ for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 ## HI.65 kept session
 
 `hi --keep <target>` (or `_HI_KEEP=1`) runs the session inside the target's
-tmux, zellij, or screen, so it outlives the connection;
-[HI.52](#hi52-client-multiplexer-wrap) is the same idea on the client. All of
-it is the ssh arm's and the bash tier's: a container arm, `--plain`, and a
-bash-less target connect as usual.
+tmux, zellij, or screen, so it outlives the connection, and where the target
+has none of the three holds the session's tree through a drop. All of it is
+the ssh arm's and the bash tier's: a container arm, `--plain`, and a
+bash-less target connect as usual. The client's half is `common/keep.sh`,
+which `hi.sh` sources, and the target's is `load.sh`'s.
 
-- **The name.** `hi-<target>`, from `_hi_mux_name` as `--mux` names its local
-  session: the target as typed on this client, so two clients that call a
-  host the same thing reach one session.
+- **The name.** `hi-<target>`, from `_hi_mux_name`: the target as typed on
+  this client, so two clients that call a host the same thing reach one
+  session. It keeps `[[:alnum:]_-]` and turns everything else into `-`: tmux
+  refuses `:` and `.` in a session name, zellij takes the same class, and `/`
+  and `@` read badly in a status line, so a kube `ctx:ns:pod/ctr` would be
+  `hi-ctx-ns-pod-ctr`.
 - **Reattach comes first.** Every interactive connect, `--keep` or not,
   carries `_hi_keep_attach` between the preamble and the unpack. Its
   `_hi_kept` asks tmux (`has-session -t =<name>`), then zellij (`ls -n`,
@@ -1607,6 +1588,45 @@ bash-less target connect as usual.
   `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
   runs an exit trap on a hangup, and a dropped link would otherwise take the
   tree from under the session.
+- **A target with none of the three.** A shell cannot outlive its connection
+  with nothing holding its terminal, and its tree can. There the start block
+  hands off to bash as usual with `$_HI_KEEP_HOLD` set to the name, and traps
+  the hangup (`trap : HUP`) so the bootstrap waits for `load()` instead of
+  dying under it. `load()` may hold where it is no owner pane, has a
+  disposable tree and a terminal, and `$_HI_KEEP_TIMEOUT` is not 0
+  (`_hi_keep_holds`), and does hold once `hi.hold` carries the name: written
+  by `load()` for that connect, or later by `hi --keep` typed in the session
+  (`_hi_keep_hold_here`), which is how a session started without `--keep`
+  turns it on. Each shell's rc has a hook that, while `hi.hold` is there,
+  writes `$PWD` to `hi.cwd` (a prompt hook in bash and zsh, an
+  `--on-variable PWD` function in fish), and the exit hook, where the
+  terminal is gone, leaves the tree under `hi.held` - the watcher's pid, the
+  shell's, the name - in place of removing it. An `exit` still has its
+  terminal, and takes the tree. The bootstrap's trap leaves a tree with
+  `hi.hold` alone, since bash as `sh` runs it on the hangup, ahead of that
+  hook.
+- **The timer.** `_hi_tree_watch`, which every session already runs, is the
+  held tree's: once the shell is gone and `hi.held` names it, the watcher
+  waits `$_HI_KEEP_TIMEOUT` (15m here) and removes the tree. It stops early
+  for `hi.end`, which `hi --end` leaves, and goes without touching a tree
+  whose `hi.pid` is no longer that shell's.
+- **Taking a held tree.** A connect that looks for a kept session runs
+  `_hi_keep_held` after the sweep, at a terminal: a sibling tree whose
+  `hi.held` carries its name, in a directory the account owns that is no
+  symlink, becomes its own. It writes its pid to that tree's `hi.pid`,
+  removes `hi.held` - the step one of two connects wins - drops the empty
+  tree it had made, re-points `$_HI_HOME` and the rest, and changes to the
+  directory in `hi.cwd`. The unpack is skipped (`$_hi_held`), the session
+  holds as the dropped one did, and its header reads `Resumed`. The payload
+  still crossed the wire: one script serves both answers.
+- **A multiplexer typed bare.** In a session `tmux`, `zellij`, and `screen`
+  are aliases to `common/mux.sh` (`common/aliases.sh`, over the wiring's
+  aliases for the three). Typed with no word after it, at a terminal, outside
+  a multiplexer, in a session with `hi.keep`, it runs `hi --keep` with
+  `$_HI_KEEP_WITH` naming the tool, and the start block takes that one of
+  the three; anything else passes through to the tool on the config hi
+  carried. So a multiplexer started by habit is the kept session, not one
+  left on a tree its connect removes at the drop.
 - **Kept from inside.** `hi --keep` with no target, typed in a session, keeps
   that session: `_hi_keep_here` runs the same attach and start under `sh`,
   from where a connect starts the pane. Three things make that possible. The
@@ -1623,7 +1643,8 @@ bash-less target connect as usual.
   that could be kept); the owner pane's `clean_all` gives the claim up and
   leaves the tree while `$_HI_KEEP_OUTER` is still running. A session with
   no `hi.keep` - a container's, a `--no-keep` one, an owner pane - says it
-  cannot be kept, as does one already inside a multiplexer.
+  cannot be kept, as does one already inside a multiplexer. On a machine
+  with none of the three the session holds its tree instead (below).
 - **The other panes.** A multiplexer opens a new pane on its default shell,
   the host's own, which reads none of hi's rc
   ([HI.46](#hi46-session-rc-directory)). The owner pane's `_hi_keep_panes`
@@ -1641,10 +1662,12 @@ bash-less target connect as usual.
   shell comes with a line naming the key. With nobody attached it closes.
   `hi --end <target>` kills the session over one ssh call, and the pane's
   bash takes the hangup.
-- **A session that died.** A target that goes down kills the owner pane
-  with no exit hook run, and a `/tmp` that outlasts the reboot keeps its
-  tree. So every owner pane's `load()` writes `hi.kept` (`_hi_keep_claim`):
-  its pid, then `$_HI_KEEP_OUTER`'s where it was kept from inside. A connect
+- **A session that died.** A target that goes down kills a session with no
+  exit hook run, and a `/tmp` that outlasts the reboot keeps its tree. So
+  every session's `load()` claims its tree (`_hi_keep_claim`): an owner pane
+  writes `hi.kept`, its pid, then `$_HI_KEEP_OUTER`'s where it was kept from
+  inside, and any other session `hi.pid`, its own, and only into a tree it
+  may remove; a held tree's claim is `hi.held`, its watcher's pid first. A connect
   that looks for a kept session and attaches none runs `_hi_keep_sweep` once
   it has a tree of its own: each sibling of that tree (`<user>.hi.*`, the
   same `mktemp` template in the same directory) whose claim names no process
@@ -1652,7 +1675,14 @@ bash-less target connect as usual.
   multiplexer, which a connect with another socket directory cannot see; a
   pid some other process of the account's now holds leaves the tree for a
   later connect. An empty claim - `hi --keep` typed inside, its pane not up
-  yet - and a tree with none are left alone.
+  yet - and a tree with none are left alone, and a tree a kept session
+  claims is judged by that claim, whatever its first session's says. Between
+  the two sits `_hi_tree_watch`: a job `load()` starts apart from the
+  session, which ignores the hangup, holds no terminal, polls for the
+  shell's pid once a minute, and runs the exit hook itself where the shell
+  is gone and the tree is not - both the shell and the bootstrap's `sh`
+  killed outright. The hook kills it on an ordinary exit, and a target that
+  goes down takes it too, which is what the sweep is for.
 - **The client's record.** A client cannot see a target's sessions without
   connecting, so it notes the ones it has seen: an empty `hi.kept.<key>` in
   hi's runtime directory, `<key>` the hash of the target and the ssh options
@@ -1667,19 +1697,26 @@ bash-less target connect as usual.
   (255, a link that dropped). A connect that keeps writes it before it
   connects, since a drop says nothing; `hi --end` removes it. With the
   record there, the next connect's script carries one more line after the
-  attach: no session by that name, and it says the kept session is gone
-  before it goes on. The runtime directory does not outlive a logout, and a
+  attach: no session by that name, on a target that has a multiplexer to
+  have held one, and it says the kept session is gone before it goes on. A
+  keeping connect writes the record before it knows what the target has, so
+  one with none of the three is not told of a session it never kept. The runtime directory does not outlive a logout, and a
   client that forgot expects nothing.
-- **The retry.** In a pane of a local multiplexer (`$TMUX`, `$ZELLIJ`, or
-  `$STY`, and a terminal) nobody may be watching when a link drops. There,
-  a session that was up, ends 255, and has the record is retried: every
+- **The retry.** At a terminal, a session that was up, ends 255, and has
+  the record is retried, whether or not a local multiplexer holds the pane:
+  the session is the target's, and a connect is all that brings it back. Every
   five seconds for `$_HI_KEEP_RETRY` (5m; 0 is never) from the drop, then
   one line saying the target did not come back. A try is `_say_hi` again
   with `ConnectTimeout=10`; the boot call's stderr goes to a file until the
   target answers, and a boot call ssh itself failed ends the try there, with
   no PowerShell fallback for a host that was not reached. A try that gets in
   and drops within ten seconds does not restart the window. A connect that
-  never got in is not retried.
+  never got in is not retried. A link that freezes is no drop until ssh
+  says so, so a connect that keeps, or comes back to a kept session, asks
+  for `ServerAliveInterval=15` and `ServerAliveCountMax=3` where the ssh
+  config sets no interval (`_hi_keep_alive`, by `ssh -G`): forty-five
+  seconds of silence ends the session 255, and the retry takes it from
+  there.
 - **The timeout.** `_hi_keep_watch` is a background job of the owner pane,
   polling once a minute: `$_HI_KEEP_TIMEOUT` (24h, read from the `settings.sh`
   that rode) with no client attached, and it kills the session. `clean_all`
@@ -1737,7 +1774,10 @@ and nothing else does. A target runs a hook only where it has the tool, and
 only when the settings it was sent leave it on (`_hi_hook_on`): a leading `-`
 on the name says the plugin is off by default, and then `_HI_PLUGINS_ON` has
 to name it. The shipped `hooks` group is off that way, since each
-of its tools keeps state under a target's `$HOME`. `_hi_prompt_row` reads
+of its tools keeps state under a target's `$HOME`. A plugin's `shells` rides
+as `:<shells>` after its name in the row, a `,` apart, and a shell not among
+them passes the row over; for a prompt plugin it is the shells column of its
+`_HI_PROMPT_PLUGINS` row. `_hi_prompt_row` reads
 `_HI_PROMPT_PLUGINS` beside `_HI_PROMPT_TABLE`, so a prompt program the table
 never heard of is picked the same way; its configs ride as its plugin's files,
 with no table column to name them.

@@ -344,6 +344,7 @@ function _hi_run_framework_case() {
     # the config case's header drew the overlay's header/ cell
     [ "$3" != config ] || grep -q HITESTCELL "$_HI_WORKDIR/$label.interactive.out" || {
       _hi_h3 " | [$label] -- FAILED: the overlay's header/ cell did not draw" "$RED"
+      _hi_show_transcript "the session's transcript (no HITESTCELL in it)" "$_HI_WORKDIR/$label.interactive.out"
       _hi_note_failure "[$label] header/ cell missing"
       ok=0
     }

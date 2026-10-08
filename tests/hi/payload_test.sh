@@ -181,7 +181,7 @@ _HI_BLOCK=10240
 function test_payload_is_not_block_padded() {
   local n
   n="$(_hi_payload_tar | wc -c)"
-  [ "$n" -gt 0 ] && [ "$((n % _HI_BLOCK))" -ne 0 ]
+  [ "$n" -gt 0 ] && [ "$((n % _HI_BLOCK))" -ne 0 ] || _hi_why n
 }
 
 # a one-file overlay is a few hundred bytes of content; a whole block means the
@@ -190,7 +190,7 @@ function test_overlay_is_well_under_one_block() {
   local dir n
   dir="$(_hi_overlay_fixture blockcheck colors)"
   n="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | wc -c)"
-  [ "$n" -gt 0 ] && [ "$n" -lt $((_HI_BLOCK / 4)) ]
+  [ "$n" -gt 0 ] && [ "$n" -lt $((_HI_BLOCK / 4)) ] || _hi_why n
 }
 
 # tar shimmed to bsdtar for the duration of one call: same libarchive macOS's
@@ -212,17 +212,17 @@ function _hi_bsdtar_shim() {
 
 function test_payload_is_not_block_padded_under_bsdtar() {
   local shim n
-  shim="$(_hi_bsdtar_shim)" || return 1
+  shim="$(_hi_bsdtar_shim)" || _hi_why || return 1
   n="$(PATH="$shim:$PATH" _hi_payload_tar | wc -c)"
-  [ "$n" -gt 0 ] && [ "$((n % _HI_BLOCK))" -ne 0 ]
+  [ "$n" -gt 0 ] && [ "$((n % _HI_BLOCK))" -ne 0 ] || _hi_why n
 }
 
 function test_overlay_is_not_block_padded_under_bsdtar() {
   local shim dir n
-  shim="$(_hi_bsdtar_shim)" || return 1
+  shim="$(_hi_bsdtar_shim)" || _hi_why || return 1
   dir="$(_hi_overlay_fixture blockcheck_bsd colors)"
   n="$(PATH="$shim:$PATH" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | wc -c)"
-  [ "$n" -gt 0 ] && [ "$n" -lt $((_HI_BLOCK / 4)) ]
+  [ "$n" -gt 0 ] && [ "$n" -lt $((_HI_BLOCK / 4)) ] || _hi_why n
 }
 
 # Two numbers guarded here: the connect line must report the wire bytes, not
@@ -232,11 +232,11 @@ function test_overlay_is_not_block_padded_under_bsdtar() {
 # ceiling is a tripwire on what every session pays, beside bench's budget.
 
 function test_human_bytes_matches_du_shapes() {
-  [ "$(_hi_human_bytes 0)" = 0B ] || return 1
-  [ "$(_hi_human_bytes 1023)" = 1023B ] || return 1
-  [ "$(_hi_human_bytes 1024)" = 1.0K ] || return 1
-  [ "$(_hi_human_bytes 34559)" = 34K ] || return 1
-  [ "$(_hi_human_bytes 5000000)" = 4.8M ]
+  [ "$(_hi_human_bytes 0)" = 0B ] || _hi_why || return 1
+  [ "$(_hi_human_bytes 1023)" = 1023B ] || _hi_why || return 1
+  [ "$(_hi_human_bytes 1024)" = 1.0K ] || _hi_why || return 1
+  [ "$(_hi_human_bytes 34559)" = 34K ] || _hi_why || return 1
+  [ "$(_hi_human_bytes 5000000)" = 4.8M ] || _hi_why
 }
 
 # the reported number counts what is sent, not what is on disk: it must be
@@ -245,7 +245,7 @@ function test_wire_size_is_not_the_disk_size() {
   local wire disk
   wire="$(_hi_wire_estimate)"
   disk="$(_hi_size)"
-  [ -n "$wire" ] && [ "$wire" != "$disk" ]
+  [ -n "$wire" ] && [ "$wire" != "$disk" ] || _hi_why wire disk
 }
 
 # The guard with teeth: the assembled script is what every session pays in
@@ -255,7 +255,7 @@ function test_payload_stays_under_the_tripwire() {
   local bytes
   bytes="$(_hi_wire_bytes)"
   # 256KB: the "this has doubled, come and look" line
-  [ "$bytes" -lt 262144 ]
+  [ "$bytes" -lt 262144 ] || _hi_why bytes
 }
 
 # One copy of a file the overlay and the tree both hold: a member that
@@ -280,8 +280,8 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   }
   listing="$(_hi_payload_tar | tar tzf -)"
   [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
-    [[ "$listing" == *common/aliases.sh* ]] || return 1
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ]
+    [[ "$listing" == *common/aliases.sh* ]] || _hi_why listing || return 1
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ] || _hi_why dir
 }
 
 # with the header off no target draws one, so header.sh, the tree's package
@@ -315,7 +315,7 @@ function test_the_payload_is_whole_without_a_cut_list() {
   local dir="$_HI_WORKDIR/excl-none"
   mkdir -p "$dir"
   printf '[hosttag]\nx = "red"\n' >"$dir/colors"
-  [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]]
+  [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]] || _hi_why dir
 }
 
 # the plugins rows are the packer's alone to read, and it never rides: the
@@ -325,7 +325,7 @@ function test_the_plugins_rows_stay_home() {
   mkdir -p "$dir"
   printf '[mine.mine]\ntool = "-"\nwire = "env:MINE"\nhome = "/etc/mine"\nfiles = "mine.rc"\n' >"$dir/plugins"
   printf 'x\n' >"$dir/mine.rc"
-  [ -f "$_HI_ROOT/config/plugins" ] || return 1
+  [ -f "$_HI_ROOT/config/plugins" ] || _hi_why || return 1
   listing="$(_hi_payload_tar | tar tzf -)"
   [[ "$listing" != *config/plugins* && "$listing" == *config/colors* ]] ||
     _hi_because "the tree's rows rode" || return 1
@@ -365,8 +365,8 @@ function test_the_shadow_roster_matches_paths_sh() {
   done
   for f in "$_HI_ROOT"/config/*; do
     case "${f##*/}" in aliases.sh | plugins) continue ;; esac
-    case "$_HI_OVERLAY_SHADOWS" in *" ${f##*/} "*) ;; *) return 1 ;; esac
-  done
+    case "$_HI_OVERLAY_SHADOWS" in *" ${f##*/} "*) ;; *) _hi_why f _HI_OVERLAY_SHADOWS || return 1 ;; esac
+  done || _hi_why -6 f _HI_OVERLAY_SHADOWS
 }
 
 function _hi_strip_unpack() {
@@ -395,7 +395,7 @@ function test_strip_leaves_no_full_line_comments() {
     bad=1
   done < <(find "$dir/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \) \
     -exec awk "$_HI_STRIP_KEPT_AWK" {} +)
-  [ "$bad" -eq 0 ]
+  [ "$bad" -eq 0 ] || _hi_why bad
 }
 
 # <count> <file> for each file with a full-line comment below its line 1
@@ -450,7 +450,7 @@ function test_strip_keeps_every_code_line() {
     _hi_cecho " | $rel lost or changed a code line" "$RED"
     bad=1
   done < <(_hi_strip_differs "$dir" ${rels[@]+"${rels[@]}"})
-  [ "$bad" -eq 0 ]
+  [ "$bad" -eq 0 ] || _hi_why bad
 }
 
 # The two halves of the whitespace trim, on the file that has both: nothing
@@ -486,7 +486,7 @@ function test_strip_leaves_valid_shell() {
       bad=1
     }
   done < <(find "$dir/say-hi" -type f -name '*.sh')
-  [ "$bad" -eq 0 ]
+  [ "$bad" -eq 0 ] || _hi_why bad
 }
 
 # a plain `mv` of the stripped copy would put mktemp's 0600 here, and the
@@ -494,13 +494,13 @@ function test_strip_leaves_valid_shell() {
 function test_strip_keeps_hi_sh_executable() {
   local dir
   dir="$(_hi_strip_unpack stripped)"
-  [ -x "$dir/say-hi/hi.sh" ]
+  [ -x "$dir/say-hi/hi.sh" ] || _hi_why dir
 }
 
 function test_strip_spares_heredoc_bodies() {
   local dir
   dir="$(_hi_strip_unpack stripped)"
-  grep -q 'passed to ssh unchanged' "$dir/say-hi/hi.sh"
+  grep -q 'passed to ssh unchanged' "$dir/say-hi/hi.sh" || _hi_why dir
 }
 
 # A session's tree is the payload unpacked: no scripts/, so no packer, and
@@ -532,7 +532,7 @@ function test_a_session_relays_its_tree_as_it_stands() {
   dir="$(_hi_session_tree)"
   [ ! -e "$dir/say-hi/scripts" ] || _hi_because "the payload carries scripts/" || return 1
   mkdir -p "$out"
-  _hi_in_session "$dir" "$dir/say-hi/config" _hi_payload_tar | tar -x -z -f - -C "$out" || return 1
+  _hi_in_session "$dir" "$dir/say-hi/config" _hi_payload_tar | tar -x -z -f - -C "$out" || _hi_why dir out || return 1
   for m in "${_HI_PAYLOAD[@]}"; do
     diff -r "$dir/say-hi/$m" "$out/say-hi/$m" >/dev/null || _hi_because "$m is not the session's own" || return 1
   done
@@ -546,12 +546,12 @@ function test_a_relay_hands_on_what_it_carried() {
   dir="$(_hi_session_tree)"
   mkdir -p "$next/vim"
   cp "$dir/say-hi/config/vim/vimrc" "$next/vim/vimrc"
-  fix="$(_hi_in_session "$dir" "$dir/say-hi/config" _hi_overlay_fixup "'$next'")" || return 1
-  sh -c "$fix" || return 1
+  fix="$(_hi_in_session "$dir" "$dir/say-hi/config" _hi_overlay_fixup "'$next'")" || _hi_why dir || return 1
+  sh -c "$fix" || _hi_why fix || return 1
   [ "$(cat "$next/vim/vimrc")" = "source $next/vim/extra.vim" ] ||
     _hi_because "the include on the next hop: $(cat "$next/vim/vimrc")" || return 1
   # a path no script can hold bare is no token: nothing is rewritten
-  [ "$(_hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'")" = : ]
+  [ "$(_hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'")" = : ] || _hi_why dir
 }
 
 # hi.sh reaches the packer through the five functions a session defines for
@@ -597,7 +597,7 @@ function test_strip_covers_the_data_files() {
     printf '%s a comment\nkept %s\n' "${f#*:}" "${f%%:*}" >"$ov/${f%%:*}"
   done
   # one build for the three
-  _HI_CONFIG_DIR="$ov" _hi_overlay_tar | tar -x -z -f - -C "$got" || return 1
+  _HI_CONFIG_DIR="$ov" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why ov got || return 1
   for f in vim/vimrc emacs/init.el nvim/init.lua; do
     out=""
     [ ! -f "$got/$f" ] || out="$(<"$got/$f")"
@@ -606,7 +606,7 @@ function test_strip_covers_the_data_files() {
       bad=1
     }
   done
-  [ "$bad" -eq 0 ]
+  [ "$bad" -eq 0 ] || _hi_why bad
 }
 
 # ...and stripping is all it does: every data line survives byte for byte
@@ -617,7 +617,7 @@ function test_strip_keeps_every_data_line() {
     _hi_cecho " | $f lost or changed a data line" "$RED"
     bad=1
   done < <(_hi_strip_differs "$dir" common/flags config/colors config/packages)
-  [ "$bad" -eq 0 ]
+  [ "$bad" -eq 0 ] || _hi_why bad
 }
 
 # _hi_tar_gz's fallback when gzip is absent: tar's own -z instead of piping
@@ -632,8 +632,8 @@ echo "\$*" >"$log"
 exit 0
 SHIM
   chmod +x "$bin/tar"
-  PATH="$bin" _hi_tar_gz somefile >/dev/null 2>&1 || return 1
-  case "$(cat "$log")" in '-c -z -f'*) ;; *) return 1 ;; esac
+  PATH="$bin" _hi_tar_gz somefile >/dev/null 2>&1 || _hi_why bin || return 1
+  case "$(cat "$log")" in '-c -z -f'*) ;; *) return 1 ;; esac || _hi_why bin log
 }
 
 # ...and whether that fallback is worth taking is _hi_can_gzip's question:
@@ -646,14 +646,14 @@ function test_can_gzip_reads_the_tar_it_has() {
   mkdir -p "$bin"
   printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/tar"
   chmod +x "$bin/tar"
-  PATH="$bin" _hi_can_gzip || return 1
+  PATH="$bin" _hi_can_gzip || _hi_why bin || return 1
   printf '%s\n' '#!/bin/sh' 'exit 1' >"$bin/tar"
   PATH="$bin" _hi_can_gzip && return 1
   # gzip present: the answer is yes whatever that tar says
   printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/gzip"
   chmod +x "$bin/gzip"
-  PATH="$bin" _hi_can_gzip || return 1
-  [ -n "$real" ]
+  PATH="$bin" _hi_can_gzip || _hi_why bin || return 1
+  [ -n "$real" ] || _hi_why real
 }
 
 # _hi_payload_begin - what every payload suite starts from: its workdir, a

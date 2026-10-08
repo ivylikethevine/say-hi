@@ -35,7 +35,7 @@ function test_clean_all_keeps_permanent_install() {
   mkdir -p "$root"
   printf 'colors\n' >"$root/keepme"
   _hi_clean_all "$root"
-  [ -f "$root/keepme" ]
+  [ -f "$root/keepme" ] || _hi_why root
 }
 
 function test_clean_all_removes_disposable_copy() {
@@ -43,7 +43,7 @@ function test_clean_all_removes_disposable_copy() {
   mkdir -p "$root"
   printf 'copied\n' >"$root/keepme"
   _hi_clean_all "$root" "$root"
-  [ ! -e "$root" ]
+  [ ! -e "$root" ] || _hi_why root
 }
 
 # clean_all removes the whole $_HI_CLEANUP tree, not just $_HI_ROOT under
@@ -54,7 +54,7 @@ function test_clean_all_removes_the_whole_cleanup_tree_not_just_root() {
   mkdir -p "$root"
   printf 'sibling\n' >"$cleanup/sibling-file"
   _hi_clean_all "$root" "$cleanup"
-  [ ! -e "$cleanup" ]
+  [ ! -e "$cleanup" ] || _hi_why cleanup
 }
 
 function _hi_source_load() {
@@ -68,7 +68,7 @@ function test_source_restores_profile() {
   mkdir -p "$home"
   printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
   out="$(_hi_source_load "$home" 0)"
-  [[ "${out%%|*}" == 1 ]]
+  [[ "${out%%|*}" == 1 ]] || _hi_why out
 }
 
 function test_no_init_guard_skips_profile() {
@@ -76,7 +76,7 @@ function test_no_init_guard_skips_profile() {
   mkdir -p "$home"
   printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
   out="$(_hi_source_load "$home" 1)"
-  [[ -z "${out%%|*}" ]]
+  [[ -z "${out%%|*}" ]] || _hi_why out
 }
 
 # The elif ladder is login bash's documented order - .bash_profile, then
@@ -89,7 +89,7 @@ function test_profile_prefers_bash_profile_first() {
   printf 'export HI_LOAD_TEST_PROFILE=bash_login\n' >"$home/.bash_login"
   printf 'export HI_LOAD_TEST_PROFILE=profile\n' >"$home/.profile"
   out="$(_hi_source_load "$home" 0)"
-  [[ "${out%%|*}" == bash_profile ]]
+  [[ "${out%%|*}" == bash_profile ]] || _hi_why out
 }
 
 function test_profile_falls_back_to_bash_login() {
@@ -98,7 +98,7 @@ function test_profile_falls_back_to_bash_login() {
   printf 'export HI_LOAD_TEST_PROFILE=bash_login\n' >"$home/.bash_login"
   printf 'export HI_LOAD_TEST_PROFILE=profile\n' >"$home/.profile"
   out="$(_hi_source_load "$home" 0)"
-  [[ "${out%%|*}" == bash_login ]]
+  [[ "${out%%|*}" == bash_login ]] || _hi_why out
 }
 
 # A target that carries a say-hi of its own says so in this very chain - a
@@ -115,7 +115,7 @@ function test_profile_cannot_move_the_session_tree() {
   printf 'export _HI_HOME=/somewhere/else\nexport _HI_ROOT=/somewhere/else/say-hi\n' >"$home/.profile"
   out="$(_HI_LOAD_NO_INIT=0 HOME="$home" bash -c \
     'source "$1/load.sh"; printf "%s|%s" "$_HI_HOME" "$_HI_ROOT"' _ "$_HI_ROOT")"
-  [ "${out%%|*}" = "$_HI_HOME" ] && [ "${out#*|}" = "$_HI_ROOT" ]
+  [ "${out%%|*}" = "$_HI_HOME" ] && [ "${out#*|}" = "$_HI_ROOT" ] || _hi_why out
 }
 
 # The session bash is interactive, so a profile's aliases would expand into
@@ -126,7 +126,7 @@ function test_profile_aliases_stay_out_of_load_functions() {
   printf "shopt -s expand_aliases\nalias mv='mv -v'\n" >"$home/.profile"
   out="$(_HI_LOAD_NO_INIT=0 HOME="$home" bash -c \
     'source "$1/load.sh"; declare -f _hi_nano_fallback' _ "$_HI_ROOT")"
-  [[ "$out" == *'mv -f '* && "$out" != *'mv -v'* ]]
+  [[ "$out" == *'mv -f '* && "$out" != *'mv -v'* ]] || _hi_why out
 }
 
 # ...yet the `hi <target> <cmd>` line the bootloader runs after load.sh still
@@ -187,7 +187,7 @@ function _hi_rc_setup_in_a_subshell() {
 
 function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
   local out dir rc zdot env_ first
-  out="$(_hi_rc_setup_in_a_subshell)" || return 1
+  out="$(_hi_rc_setup_in_a_subshell)" || _hi_why || return 1
   case "$out" in *MISSING*)
     _hi_cecho " | $out" "$RED"
     return 1
@@ -198,7 +198,7 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
   zdot="$(printf '%s' "$out" | sed -n 3p)"
   env_="$(printf '%s' "$out" | sed -n 4p)"
   first="$(printf '%s' "$out" | sed -n 5p)"
-  [ -n "$dir" ] || return 1
+  [ -n "$dir" ] || _hi_why dir || return 1
   # $_HI_SESSION_RC and $ZDOTDIR are the directory; $ENV is the POSIX rc in it
   [ "$rc" = "$dir" ] && [ "$zdot" = "$dir" ] && [ "$env_" = "$dir/shrc" ] || {
     _hi_cecho " | rc=$rc zdotdir=$zdot env=$env_ dir=$dir" "$RED"
@@ -227,7 +227,7 @@ function test_session_shrc_reads_the_settings_first() {
   ln -sfn "$_HI_ROOT/common" "$root/common"
   printf 'export _HI_TOOL_ALIASES=1\n' >"$root/config/settings.sh"
   # in a subshell: the setup exports ZDOTDIR and ENV
-  [ "$(_hi_shrc_toggle_in "$root")" = 1 ]
+  [ "$(_hi_shrc_toggle_in "$root")" = 1 ] || _hi_why root
 }
 
 # Only the *set* session vars are written - an unset one is skipped rather
@@ -239,7 +239,7 @@ function test_session_rc_setup_writes_only_the_set_vars() {
   (
     local _HI_SESSION_RC_DIR="" _HI_LOCAL_USER=myself _HI_TARGET_COLOR=blue
     unset _HI_TARGET_TAG _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
-    _hi_session_rc_setup || exit 1
+    _hi_session_rc_setup || _hi_why || exit 1
     printf '%s\n' "$_HI_SESSION_RC_DIR"
   ) >"$_HI_WORKDIR/onlyset_out"
   dir="$(cat "$_HI_WORKDIR/onlyset_out")"
@@ -252,7 +252,7 @@ function test_session_rc_setup_writes_only_the_set_vars() {
   case "$fish_config" in *"set -g _HI_LOCAL_USER 'myself'"*) ;; *) ok=0 ;; esac
   case "$fish_config" in *"set -g _HI_TARGET_COLOR 'blue'"*) ;; *) ok=0 ;; esac
   case "$fish_config" in *_HI_TARGET_TAG*) ok=0 ;; esac
-  [ "$ok" -eq 1 ]
+  [ "$ok" -eq 1 ] || _hi_why ok
 }
 
 # With $_HI_CLEANUP set (the ephemeral shape), the rc directory nests
@@ -264,7 +264,7 @@ function test_session_rc_setup_nests_under_cleanup_when_set() {
   (
     local _HI_SESSION_RC_DIR="" _HI_CLEANUP="$_HI_WORKDIR/nesttest"
     mkdir -p "$_HI_CLEANUP"
-    _hi_session_rc_setup || exit 1
+    _hi_session_rc_setup || _hi_why || exit 1
     printf '%s\n' "$_HI_SESSION_RC_DIR"
   ) >"$_HI_WORKDIR/nest_out"
   dir="$(cat "$_HI_WORKDIR/nest_out")"
@@ -285,7 +285,7 @@ function test_session_rc_setup_stands_alone_without_cleanup() {
   (
     local _HI_SESSION_RC_DIR=""
     unset _HI_CLEANUP
-    _hi_session_rc_setup || exit 1
+    _hi_session_rc_setup || _hi_why || exit 1
     printf '%s\n' "$_HI_SESSION_RC_DIR"
   ) >"$_HI_WORKDIR/nofollow_out"
   dir="$(cat "$_HI_WORKDIR/nofollow_out")"
@@ -296,7 +296,7 @@ function test_session_rc_setup_stands_alone_without_cleanup() {
     return 1
     ;;
   esac
-  rm -rf "$dir"
+  rm -rf "$dir" || _hi_why dir
 }
 
 # The session shell must be started against hi's rc, not a bare `$shell -i`
@@ -334,18 +334,18 @@ function _hi_fishquote_roundtrip() {
 }
 
 function test_fishquote_roundtrips_the_hard_cases() {
-  _hi_fishquote_roundtrip "plain" &&
+  { _hi_fishquote_roundtrip "plain" &&
     _hi_fishquote_roundtrip "with space" &&
     _hi_fishquote_roundtrip "don't" &&
     _hi_fishquote_roundtrip 'back\slash' &&
-    _hi_fishquote_roundtrip "a\\'mix\\\\of'both"
+    _hi_fishquote_roundtrip "a\\'mix\\\\of'both"; } || _hi_why
 }
 
 # the sh-dialect session rc shape bash and zsh share: the target's own rc
 # first, this run's verdicts, then hi's rc - in that order
 function test_session_sh_rc_writes_the_three_layers() {
   local out="$_HI_WORKDIR/session.rc" sh_vars=$'_HI_TARGET_COLOR=probe\n'
-  _hi_session_sh_rc '[ -r "$HOME/.proberc" ] && . "$HOME/.proberc"' "/some tree/rc file.sh" "$out" || return 1
+  _hi_session_sh_rc '[ -r "$HOME/.proberc" ] && . "$HOME/.proberc"' "/some tree/rc file.sh" "$out" || _hi_why out || return 1
   diff "$out" - <<'EOF' || return 1
 [ -r "$HOME/.proberc" ] && . "$HOME/.proberc"
 _HI_TARGET_COLOR=probe
@@ -383,7 +383,7 @@ function test_session_zsh_reads_the_home_zshrc_then_his() {
   local h="$_HI_WORKDIR/zsh-home"
   mkdir -p "$h"
   printf 'print -rn -- "target:$ZDOTDIR "\n' >"$h/.zshrc"
-  _hi_session_zsh_layers "$h" "$h"
+  _hi_session_zsh_layers "$h" "$h" || _hi_why h
 }
 
 # A ~/.zshenv that moves ZDOTDIR (a ~/.config/zsh layout) had zsh read that
@@ -393,7 +393,7 @@ function test_session_zsh_follows_a_zshenv_that_moves_zdotdir() {
   mkdir -p "$h/.config/zsh"
   printf 'export ZDOTDIR="$HOME/.config/zsh"\n' >"$h/.zshenv"
   printf 'print -rn -- "target:$ZDOTDIR "\n' >"$h/.config/zsh/.zshrc"
-  _hi_session_zsh_layers "$h" "$h/.config/zsh"
+  _hi_session_zsh_layers "$h" "$h/.config/zsh" || _hi_why h
 }
 
 # Which shell the session runs in - the login shell when hi styles it, else
@@ -436,7 +436,7 @@ function _hi_old_fish_answer() {
 }
 
 function test_session_shell_passes_over_a_fish_too_old() {
-  [ "$(_hi_old_fish_answer 3.3.1)" = zsh ] && [ "$(_hi_old_fish_answer 3.4.1)" = fish ]
+  [ "$(_hi_old_fish_answer 3.3.1)" = zsh ] && [ "$(_hi_old_fish_answer 3.4.1)" = fish ] || _hi_why
 }
 
 # _hi_shell_case <installed> <env-string> - _hi_shell_answer with the env
@@ -463,9 +463,9 @@ function test_login_shell_falls_back_to_getent_when_shell_unset() {
   local want got
   want="$(getent passwd "$(id -un)" | awk -F: '{ print $NF }')"
   want="${want##*/}"
-  [ -n "$want" ] || return 1
+  [ -n "$want" ] || _hi_why want || return 1
   got="$(_hi_login_shell_answer "$(_hi_real_path shell-tools-getent id awk getent sh)")"
-  [ "$got" = "$want" ]
+  [ "$got" = "$want" ] || _hi_why got want
 }
 
 function test_login_shell_falls_back_to_etc_passwd_without_getent() {
@@ -480,7 +480,7 @@ function test_login_shell_falls_back_to_etc_passwd_without_getent() {
   # the fallback rung has to say, with no getent on this PATH at all to
   # answer for it.
   got="$(_hi_login_shell_answer "$(_hi_real_path shell-tools-nogetent id awk sh)")"
-  [ "$got" = "$want" ]
+  [ "$got" = "$want" ] || _hi_why got want
 }
 
 # $SHELL is trusted as spoken, and only its basename survives - the tail
@@ -488,7 +488,7 @@ function test_login_shell_falls_back_to_etc_passwd_without_getent() {
 # SHELL= prefix from sticking to this shell (a NAME=VALUE prefix on a
 # *function* call persists, unlike on a command).
 function test_login_shell_answers_with_the_basename_of_shell() {
-  [ "$(SHELL=/opt/odd/bin/tcsh _hi_login_shell)" = tcsh ]
+  [ "$(SHELL=/opt/odd/bin/tcsh _hi_login_shell)" = tcsh ] || _hi_why
 }
 
 # Exported-but-empty $SHELL (a minimal container's shape) falls back the same
@@ -497,9 +497,9 @@ function test_login_shell_treats_an_empty_shell_as_unset() {
   local want got
   want="$(getent passwd "$(id -un)" | awk -F: '{ print $NF }')"
   want="${want##*/}"
-  [ -n "$want" ] || return 1
+  [ -n "$want" ] || _hi_why want || return 1
   got="$(SHELL="" _hi_login_shell)"
-  [ "$got" = "$want" ]
+  [ "$got" = "$want" ] || _hi_why got want
 }
 
 # getent present but silent (an NSS-only misconfiguration, or a user the DB
@@ -518,7 +518,7 @@ function test_login_shell_steps_past_a_silent_getent() {
     hash -r 2>/dev/null
     SHELL="" PATH="$stub:$PATH" _hi_login_shell
   )"
-  [ "$got" = "$want" ]
+  [ "$got" = "$want" ] || _hi_why got want
 }
 
 # The printf floor itself, below even the table's "Floors at bash" row (which
@@ -530,7 +530,7 @@ function test_session_shell_floors_at_bash_even_off_path() {
   [ "$(
     hash -r 2>/dev/null
     SHELL=/bin/mksh PATH="$fakes" _hi_session_shell
-  )" = bash ]
+  )" = bash ] || _hi_why fakes
 }
 
 # _hi_nano_case <tree> <nanorc text> [cleanup] - _hi_nano_fallback over a
@@ -567,9 +567,9 @@ function test_nano_fallback_follows_the_target() {
     return 1
   }
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-c" $'set tabsize 4\n')"
-  [ "$out" = "set tabsize 4" ] || return 1
+  [ "$out" = "set tabsize 4" ] || _hi_why out || return 1
   out="$(_hi_nano_case "$_HI_WORKDIR/nano-d" "$dropped"$'\n' "")"
-  [ "$out" = "$dropped" ]
+  [ "$out" = "$dropped" ] || _hi_why out dropped
 }
 
 # a dropped include whose files the target has comes back in its own place,

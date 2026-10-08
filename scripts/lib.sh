@@ -41,11 +41,18 @@ function _hi_on_path() {
 # _hi_missing_tools <name...> - those of <name...> this machine does not have,
 # space-separated, in the order given.
 function _hi_missing_tools() {
-  local tool missing=""
-  for tool in "$@"; do
-    command -v "$tool" >/dev/null 2>&1 || missing="$missing$tool "
+  local _hi_mi
+  _hi_missing_into _hi_mi "$@"
+  printf '%s' "$_hi_mi"
+}
+
+# _hi_missing_into <outvar> <name...> - the same, with no fork
+function _hi_missing_into() {
+  local _hi_mt _hi_mt_out=""
+  for _hi_mt in "${@:2}"; do
+    command -v "$_hi_mt" >/dev/null 2>&1 || _hi_mt_out="$_hi_mt_out$_hi_mt "
   done
-  printf '%s' "${missing% }"
+  printf -v "$1" '%s' "${_hi_mt_out% }"
 }
 
 # dry_run_say <what> - under --dry-run ($_HI_DRY_RUN: install.sh's flag, and
@@ -318,7 +325,9 @@ function _hi_h2() {
 # _hi_is_darwin - macOS, where a login bash reads ~/.bash_profile and never
 # ~/.bashrc. $_HI_UNAME lets a suite stage the other platform.
 function _hi_is_darwin() {
-  [ "${_HI_UNAME:-$(uname -s 2>/dev/null)}" = Darwin ]
+  # bash's own word for the platform where no suite names one: no fork
+  case "${_HI_UNAME:-$OSTYPE}" in Darwin | darwin*) return 0 ;; esac
+  return 1
 }
 
 # _hi_rewrite <file> <sed-expr>... - every expression in one pass, in place.
@@ -382,7 +391,7 @@ function _hi_is_package_groups() {
   '' | *[!A-Za-z0-9_.,\ -]*) return 1 ;;
   esac
 }
-# a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
+# a 0/1 switch (_HI_KEEP, _HI_TRUECOLOR, the toggles)
 function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
 # $_HI_KEEP_TIMEOUT, $_HI_KEEP_RETRY: seconds, or a number with s, m, h, or d
 function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }
@@ -519,6 +528,11 @@ function _hi_plugin_rows() {
     _hi_hook_col "$_hi_pw_r" group _hi_pw_g
     printf '%s|%s|%s\n' "$_hi_pw_n" "$_hi_pw_g" "$_hi_pw_n"
   done
+  # ...and so is one that sends variables
+  for _hi_pw_r in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do
+    _hi_pw_n="${_hi_pw_r#*|}"
+    printf '%s|%s|%s\n' "${_hi_pw_n%%|*}" "${_hi_pw_r%%|*}" "${_hi_pw_n%%|*}"
+  done
 }
 
 # _hi_hook_rows - every shell hook as a report row (HI.67): the plugin, its
@@ -546,6 +560,39 @@ function _hi_hook_rows() {
       _hi_plugin_color _hi_hr_c rides
       _hi_row "$_hi_hr_n" "$_hi_hr_i - runs on a target that has it$_hi_hr_p" ok "$_hi_hr_c"
     fi
+  done
+}
+
+# _hi_env_rows - every variable a plugin's `env` names as a report row
+# (HI.62): the variable under its plugin, in its state's color, and whether
+# a target gets its value - set here, a value a line can hold, the plugin on
+function _hi_env_rows() {
+  local _hi_er_r _hi_er_n _hi_er_v _hi_er_c _hi_er_off
+  _hi_plugins_load
+  for _hi_er_r in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do
+    _hi_er_n="${_hi_er_r#*|}"
+    _hi_er_n="${_hi_er_n%%|*}" _hi_er_off=""
+    if _hi_plugin_switched_off "$_hi_er_n"; then
+      case "$_HI_PLUGIN_DEFAULT_OFF" in
+      *" $_hi_er_n "*) _hi_er_off="off by default (hi --plugin-on $_hi_er_n)" ;;
+      *) _hi_er_off="switched off (_HI_PLUGINS_OFF)" ;;
+      esac
+    fi
+    for _hi_er_v in ${_hi_er_r##*|}; do
+      if [ -z "${!_hi_er_v:-}" ]; then
+        _hi_plugin_color _hi_er_c absent
+        _hi_row "$_hi_er_v ($_hi_er_n)" "not set here, so not sent" info "$_hi_er_c"
+      elif [ -n "$_hi_er_off" ]; then
+        _hi_plugin_color _hi_er_c off
+        _hi_row "$_hi_er_v ($_hi_er_n)" "$_hi_er_off" info "$_hi_er_c"
+      elif ! _hi_env_rides "$_hi_er_v"; then
+        _hi_plugin_color _hi_er_c absent
+        _hi_row "$_hi_er_v ($_hi_er_n)" "its value holds a quote, a backslash, or a line break - not sent" warn "$_hi_er_c"
+      else
+        _hi_plugin_color _hi_er_c rides
+        _hi_row "$_hi_er_v ($_hi_er_n)" "its value here is exported on a target" ok "$_hi_er_c"
+      fi
+    done
   done
 }
 

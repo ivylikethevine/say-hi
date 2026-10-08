@@ -78,24 +78,24 @@ function _hi_bench() {
 
 function bench_bash_startup() {
   _hi_bench "bash rc (common/bash.sh)" 500 10 \
-    _hi_bench_env bash -c 'source "$_HI_HOME/say-hi/common/bash.sh"'
+    _hi_bench_env bash -c 'source "$_HI_HOME/say-hi/common/bash.sh"' || _hi_why
 }
 
 function bench_zsh_startup() {
   _hi_bench "zsh rc (common/zsh.zsh)" 500 10 \
-    _hi_bench_env zsh -c 'source "$_HI_HOME/say-hi/common/zsh.zsh"'
+    _hi_bench_env zsh -c 'source "$_HI_HOME/say-hi/common/zsh.zsh"' || _hi_why
 }
 
 function bench_fish_startup() {
   _hi_bench "fish rc (common/config.fish)" 500 10 \
-    _hi_bench_env fish -c 'source $_HI_HOME/say-hi/common/config.fish'
+    _hi_bench_env fish -c 'source $_HI_HOME/say-hi/common/config.fish' || _hi_why
 }
 
 # the connect banner the user watches before getting a shell; backend probes
 # are capped at 1s each by the env above
 function bench_header() {
   _hi_bench "header (hi_header Online)" 3000 3 \
-    _hi_bench_env bash -c 'source "$_HI_HOME/say-hi/common/header.sh"; hi_header Online'
+    _hi_bench_env bash -c 'source "$_HI_HOME/say-hi/common/header.sh"; hi_header Online' || _hi_why
 }
 
 # per-prompt cost: many calls inside ONE shell, so the number is the
@@ -106,7 +106,7 @@ function bench_git_prompt() {
       source "$_HI_HOME/say-hi/common/core.sh"
       source "$_HI_HOME/say-hi/common/git_prompt.sh"
       cd "$_HI_HOME/say-hi" || exit 1
-      for ((i = 0; i < 50; i++)); do _hi_git_prompt out; done'
+      for ((i = 0; i < 50; i++)); do _hi_git_prompt out; done' || _hi_why
 }
 
 # what every TAB after `hi ` pays: once cold, then against the warm cache.
@@ -133,7 +133,7 @@ function bench_git_prompt() {
 # swept together, not in turn" does that, deterministically, in the fast group.
 function bench_targets_cold() {
   _hi_bench "targets.sh, cold cache" $((_HI_BENCH_PROBE * 1000 + 800)) 3 \
-    _hi_bench_env env _HI_TARGETS_TTL=0 sh "$_HI_TARGETS"
+    _hi_bench_env env _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" || _hi_why _HI_TARGETS
 }
 
 # TTL 60, not the env's 5: this primes once and then times five more runs, and
@@ -143,7 +143,7 @@ function bench_targets_cold() {
 function bench_targets_warm() {
   _hi_bench_env env _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" >/dev/null 2>&1 || true # prime
   _hi_bench "targets.sh, warm cache" 500 5 \
-    _hi_bench_env env _HI_TARGETS_TTL=60 sh "$_HI_TARGETS"
+    _hi_bench_env env _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" || _hi_why _HI_TARGETS
 }
 
 # The wire budget: the payload built exactly the way hi.sh builds it, against

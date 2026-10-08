@@ -15,7 +15,7 @@ _HI_LOAD_PART=session
 source "${BASH_SOURCE[0]%/*}/load_test.sh"
 
 function test_this_checkout_was_never_touched() {
-  [ -f "$_HI_ROOT/load.sh" ] && [ -f "$_HI_ROOT/hi.sh" ] && [ -d "$_HI_ROOT/common" ]
+  [ -f "$_HI_ROOT/load.sh" ] && [ -f "$_HI_ROOT/hi.sh" ] && [ -d "$_HI_ROOT/common" ] || _hi_why
 }
 
 # load() itself, run for real in a subshell: it traps clean_all, exports the
@@ -69,7 +69,7 @@ function test_load_propagates_the_session_shells_exit_code() {
 # disconnect line still has to land.
 function test_load_greeting_toggle_hides_the_line() {
   local out
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_GREETING=1)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_GREETING=1)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in
   *"hi loaded:"* | *"init: "*)
@@ -91,7 +91,7 @@ function test_load_greeting_toggle_hides_the_line() {
 function test_load_greeting_line_takes_the_right_edge() {
   local width="$1" edge="$2" want="$3" out line n=0
   out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=none \
-    "_HI_MAX_WIDTH=$width" "_HI_TERM_COLS=$width" "_HI_DISABLE_RIGHT_EDGE=$edge")" || return 1
+    "_HI_MAX_WIDTH=$width" "_HI_TERM_COLS=$width" "_HI_DISABLE_RIGHT_EDGE=$edge")" || _hi_why width edge || return 1
   while IFS= read -r line; do
     ((++n))
     if ((edge)); then
@@ -112,7 +112,7 @@ function test_load_greeting_line_takes_the_right_edge() {
 # actually got, in that shell's own words
 function test_load_greets_the_chosen_shell() {
   local shell="$1" want="$2" out
-  out="$(_hi_load_run 'exit 0' "SHELL=$(command -v "$shell")" _HI_DISABLE_HEADER=1)" || return 1
+  out="$(_hi_load_run 'exit 0' "SHELL=$(command -v "$shell")" _HI_DISABLE_HEADER=1)" || _hi_why shell || return 1
   case "$(_hi_strip_ansi "$out")" in
   *"$want"*) return 0 ;;
   esac
@@ -128,8 +128,21 @@ function test_load_exports_viminit_for_vim_sessions() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
-    "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
-  case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
+    "PATH=$(_hi_fake_path withvim vim):$PATH")" || _hi_why VIMINIT || return 1
+  # this box's own nvim, where it has one, makes it the two-editor form
+  case "$out" in *"VIM=let \$MYVIMRC"*"'$_HI_VIMRC'"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# ...and a box with both has each editor read its own rc, so an $EDITOR set
+# bare, with no `-u`, never opens nvim on the vimrc
+function test_load_viminit_with_both_editors_picks_by_editor() {
+  local out
+  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
+    "PATH=$(_hi_fake_path withvimnvim vim nvim):$(_hi_editorless_path)")" || _hi_why VIMINIT || return 1
+  case "$out" in *"VIM=let \$MYVIMRC = has('nvim') ? '$_HI_NVIMRC' : '$_HI_VIMRC' | source"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
   return 1
 }
@@ -142,7 +155,7 @@ function test_load_exports_viminit_for_nvim_only_sessions() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
-    "PATH=$(_hi_fake_path withnvimonly nvim):$(_hi_editorless_path)")" || return 1
+    "PATH=$(_hi_fake_path withnvimonly nvim):$(_hi_editorless_path)")" || _hi_why VIMINIT || return 1
   case "$out" in *"VIM=let \$MYVIMRC='$_HI_NVIMRC'"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
   return 1
@@ -154,7 +167,7 @@ function test_load_viminit_on_a_vim_only_box_is_vim_rc() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
-    "PATH=$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)")" || return 1
+    "PATH=$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)")" || _hi_why VIMINIT || return 1
   case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
   return 1
@@ -194,10 +207,117 @@ function test_load_vim_off_blocks_viminit() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_PLUGINS_OFF=lazygit,vim,nvim \
-    "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
+    "PATH=$(_hi_fake_path withvim vim):$PATH")" || _hi_why VIMINIT || return 1
   case "$out" in *"VIM=unset"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
   return 1
+}
+
+# A session of a disposable tree leaves its pid in hi.pid, and a watcher
+# apart from it: killed outright, with no exit hook run, the tree is gone a
+# poll later, the watcher with it; and no claim lands in a tree the session
+# could not remove. A child bash, since the claim is the shell's own pid.
+function test_load_claims_its_tree_and_a_watcher_outlives_it() {
+  local t="$_HI_WORKDIR/claim/u.hi.aaaaaa" other="$_HI_WORKDIR/claim/install" pid w
+  mkdir -p "$t/say-hi" "$other"
+  # shellcheck disable=SC2016 # the child's to expand
+  "$BASH" -c 'source "$1/common/core.sh" && source "$1/load.sh" || exit 1
+    _HI_CLEANUP="$2" _HI_ROOT="$3" _HI_KEEP_MUX=""
+    _hi_keep_claim
+    _HI_ROOT="$2/say-hi"
+    _hi_keep_claim
+    _hi_tree_watch 1
+    printf "%s\n" "$_hi_tree_watch_pid" >"$2.watch"
+    exec sleep 60' claim "${_HI_LAUNCHER%/*}" "$t" "$other" >/dev/null 2>&1 &
+  pid=$!
+  _hi_poll_bool 40 0.25 test -s "$t.watch" || _hi_because "the child never started its watcher" || return 1
+  w="$(cat "$t.watch")"
+  [ "$(cat "$t/say-hi/hi.pid" 2>/dev/null)" = "$pid" ] || _hi_because "the claim is not the session's pid" || return 1
+  [ ! -e "$other/hi.pid" ] || _hi_because "a claim landed outside the tree" || return 1
+  kill -9 "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null || true
+  _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "the tree outlived its killed session" || return 1
+  _hi_poll_bool 20 0.25 _hi_pid_gone "$w" || _hi_because "the watcher outlived the tree"
+}
+function _hi_pid_gone() { ! kill -0 "$1" 2>/dev/null; }
+
+# _hi_held_session <tree> <timeout> - a session that holds its tree and ends
+# with its terminal gone, as a dropped one does: its pid and its watcher's
+# land in <tree>.ids. A child bash, since the claim is the shell's own pid.
+function _hi_held_session() {
+  mkdir -p "$1/say-hi"
+  # shellcheck disable=SC2016 # the child's to expand
+  "$BASH" -c 'source "$1/common/core.sh" && source "$1/load.sh" || exit 1
+    _HI_CLEANUP="$2" _HI_ROOT="$2/say-hi" _HI_KEEP_MUX="" _HI_SESSION_RC_DIR=""
+    _hi_keep_claim
+    _hi_keep_tty="$4" _hi_keep_limit="$3"
+    printf "hi-box\n" >"$_HI_ROOT/hi.hold"
+    _hi_tree_watch 1 1
+    printf "%s %s\n" "$$" "$_hi_tree_watch_pid" >"$2.ids"
+    clean_all' held "${_HI_LAUNCHER%/*}" "$1" "$2" "${3-1}" </dev/null >/dev/null 2>&1
+}
+
+# A session that holds its tree and loses its terminal leaves the tree to the
+# watcher, under a claim that names the two of them: there through the
+# window, gone at its end. One that does not hold takes its tree as it goes.
+function test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer() {
+  local t="$_HI_WORKDIR/held/u.hi.aaaaaa" pid w
+  _hi_held_session "$t" 3 || _hi_because "the session failed" || return 1
+  read -r pid w <"$t.ids"
+  [ "$(cat "$t/say-hi/hi.held" 2>/dev/null)" = "$w $pid hi-box" ] || _hi_because "the claim: $(cat "$t/say-hi/hi.held" 2>&1)" || return 1
+  sleep 1
+  [ -d "$t" ] || _hi_because "the tree went before its window" || return 1
+  _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "the tree outlived its window" || return 1
+  _hi_poll_bool 20 0.25 _hi_pid_gone "$w" || _hi_because "the watcher outlived the tree" || return 1
+  t="$_HI_WORKDIR/held/u.hi.bbbbbb"
+  _hi_held_session "$t" 3 "" || _hi_why t || return 1
+  [ ! -d "$t" ] || _hi_because "a session that does not hold left its tree"
+}
+
+# ...a tree a later connect took - its pid in hi.pid, the claim gone - is that
+# session's, and the watcher goes without it; and hi.end ends the wait
+function test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end() {
+  local t="$_HI_WORKDIR/held/u.hi.cccccc" w
+  _hi_held_session "$t" 2 || _hi_why t || return 1
+  read -r _ w <"$t.ids"
+  printf '%s\n' "$$" >"$t/say-hi/hi.pid"
+  rm -f "$t/say-hi/hi.held"
+  _hi_poll_bool 40 0.25 _hi_pid_gone "$w" || _hi_because "the watcher of a taken tree stayed" || return 1
+  [ -d "$t/say-hi" ] || _hi_because "a taken tree was removed" || return 1
+  t="$_HI_WORKDIR/held/u.hi.dddddd"
+  _hi_held_session "$t" 3600 || _hi_why t || return 1
+  : >"$t/say-hi/hi.end"
+  _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "hi.end did not end the wait"
+}
+
+# A session that holds notes the directory it is in for the connect that
+# takes its tree: each shell's rc gets the hook, and bash's keeps the last
+# command's status for the hooks behind it
+function test_session_rc_notes_the_directory_of_a_session_that_holds() {
+  local t="$_HI_WORKDIR/held/u.hi.eeeeee" dir out
+  mkdir -p "$t/say-hi"
+  dir="$(
+    _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=1
+    _hi_session_rc_setup || exit 1
+    printf '%s' "$_HI_SESSION_RC_DIR"
+  )" || _hi_why t _HI_SESSION_RC_DIR || return 1
+  grep -q '^function _hi_held_cwd --on-variable PWD' "$dir/fish.config" || _hi_because "no hook in fish's rc" || return 1
+  grep -q '_hi_held_cwd' "$dir/.zshrc" || _hi_because "no hook in zsh's rc" || return 1
+  grep _hi_held_cwd "$dir/bashrc" >"$t/hook"
+  # ...which writes only once hi.hold says the session holds
+  # shellcheck disable=SC2016 # the child's to expand
+  out="$("$BASH" -c 'PROMPT_COMMAND=later; source "$1"; builtin cd /; false; _hi_held_cwd; echo "after=$? $PROMPT_COMMAND"' _ "$t/hook")"
+  [ "$out" = "after=1 _hi_held_cwd; later" ] && [ ! -e "$t/say-hi/hi.cwd" ] || _hi_because "bash, not holding: $out" || return 1
+  : >"$t/say-hi/hi.hold"
+  # shellcheck disable=SC2016
+  out="$("$BASH" -c 'source "$1"; builtin cd /; false; _hi_held_cwd; echo "after=$?"' _ "$t/hook")"
+  [ "$out" = "after=1" ] && [ "$(cat "$t/say-hi/hi.cwd")" = / ] || _hi_because "bash: $out, $(cat "$t/say-hi/hi.cwd" 2>&1)" || return 1
+  dir="$(
+    _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=""
+    _hi_session_rc_setup || exit 1
+    printf '%s' "$_HI_SESSION_RC_DIR"
+  )" || _hi_why t _HI_SESSION_RC_DIR || return 1
+  ! grep -q _hi_held_cwd "$dir/bashrc" "$dir/fish.config" || _hi_because "a session that cannot hold got the hook"
 }
 
 # the trap wired by load() itself: the rc directory is live while the session
@@ -206,7 +326,7 @@ function test_load_cleans_up_its_session_rc_dir() {
   local marker="$_HI_WORKDIR/load.rcdir" dir
   rm -f "$marker"
   _hi_load_run "[ -d \"\$_HI_SESSION_RC\" ] && printf 'live:%s' \"\$_HI_SESSION_RC\" >\"$marker\"; exit 0" \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 || return 1
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 || _hi_why marker _HI_SESSION_RC || return 1
   dir="$(cat "$marker" 2>/dev/null)"
   case "$dir" in live:?*) dir="${dir#live:}" ;; *)
     _hi_cecho " | the session never saw a live rc dir" "$RED"
@@ -227,7 +347,7 @@ function test_load_cleans_up_its_session_rc_dir() {
 function test_load_prints_the_disconnect_banner_and_footer() {
   local out
   out="$(_hi_load_run 'exit 0' SHELL=/bin/bash \
-    "_HI_HEADER_ORDER= ")" || return 1
+    "_HI_HEADER_ORDER= ")" || _hi_why || return 1
   case "$(_hi_strip_ansi "$out")" in
   *"| session: "*" Disconnected ["*) return 0 ;;
   esac
@@ -253,14 +373,14 @@ function test_load_closes_the_prompt_mark_pair_on_exit() {
 # drops the clock row (the UTC cell is the marker - `date -u` prints it)
 function test_load_disconnect_timestamp_follows_the_header_order() {
   local out
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=utc)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=utc)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*" UTC"*) ;; *)
     _hi_cecho " | no UTC cell under _HI_HEADER_ORDER=utc: $out" "$RED"
     return 1
     ;;
   esac
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=os)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=os)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*) ;; *)
     _hi_cecho " | banner missing under _HI_HEADER_ORDER=os: $out" "$RED"
@@ -278,7 +398,7 @@ function test_load_disconnect_timestamp_follows_the_header_order() {
 # line stays - the session summary is not the header's to hide
 function test_load_disable_header_skips_the_banner() {
   local out
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1)" || _hi_why || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected"*)
     _hi_cecho " | banner printed despite _HI_DISABLE_HEADER=1" "$RED"
@@ -370,7 +490,7 @@ function _hi_keep_watch_ends() {
 }
 
 function test_keep_watch_ends_a_session_nobody_is_attached_to() {
-  _hi_keep_watch_ends tmux 'kill-session -t =hi-box' && _hi_keep_watch_ends zellij 'kill-session hi-box'
+  { _hi_keep_watch_ends tmux 'kill-session -t =hi-box' && _hi_keep_watch_ends zellij 'kill-session hi-box'; } || _hi_why
 }
 
 # no session, or a timeout of 0, is no watcher at all
@@ -378,11 +498,11 @@ function test_keep_watch_is_off_outside_a_kept_session() {
   (
     unset _HI_KEEP_NAME _hi_keep_watch_pid
     _hi_keep_watch 1
-    [ -z "${_hi_keep_watch_pid:-}" ] || exit 1
+    [ -z "${_hi_keep_watch_pid:-}" ] || _hi_why _hi_keep_watch_pid || exit 1
     _HI_KEEP_MUX=tmux _HI_KEEP_NAME=hi-box _HI_KEEP_TIMEOUT=0
     _hi_keep_watch 1
     [ -z "${_hi_keep_watch_pid:-}" ]
-  )
+  ) || _hi_why _hi_keep_watch_pid
 }
 
 # _hi_keep_stays_answer <reply> <attached: 0|1> [mux] - one ask at a terminal:
@@ -539,7 +659,7 @@ function test_keep_stays_is_no_outside_a_kept_session() {
   (
     unset _HI_KEEP_NAME
     ! _hi_keep_stays </dev/null
-  )
+  ) || _hi_why
 }
 
 function run_load_session_tests() {
@@ -561,6 +681,7 @@ function run_load_session_tests() {
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
   _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
+  _hi_check "...each editor's own on a box with both" test_load_viminit_with_both_editors_picks_by_editor
   _hi_check "vim and nvim off leave VIMINIT unset" test_load_vim_off_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "E=$nvim|V=$nvim|S=$nvim"
   _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$vim|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
@@ -575,6 +696,7 @@ function run_load_session_tests() {
   _hi_check "Every editor off leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" "_HI_PLUGINS_OFF=nvim vim micro hx kak nano emacs"
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
+  _hi_check "A session claims its tree, and a watcher removes it after a kill" test_load_claims_its_tree_and_a_watcher_outlives_it
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
   _hi_check "Closes the OSC 133 mark pair with the shell's status" test_load_closes_the_prompt_mark_pair_on_exit
   _hi_check "Disconnect clock row follows \$_HI_HEADER_ORDER" test_load_disconnect_timestamp_follows_the_header_order
@@ -593,6 +715,9 @@ function run_load_session_tests() {
   _hi_check "A tree two sessions share goes with the last one out" test_clean_all_leaves_a_shared_tree_to_the_last_one_out
   _hi_check "An owner pane leaves a launcher its multiplexer opens panes on" test_keep_panes_leaves_a_launcher_the_multiplexer_opens
   _hi_check "...and its end is the session's, every pane of it" test_clean_all_ends_the_session_an_owner_pane_holds
+  _hi_check "A dropped session that holds leaves its tree to the timer" test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer
+  _hi_check "...which leaves a taken tree, and ends on hi.end" test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end
+  _hi_check "A session that holds notes its directory, each prompt" test_session_rc_notes_the_directory_of_a_session_that_holds
 
   _hi_h2 "Testing: this checkout"
   _hi_check "Still intact after every clean_all above" test_this_checkout_was_never_touched

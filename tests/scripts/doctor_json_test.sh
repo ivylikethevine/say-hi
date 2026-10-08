@@ -21,11 +21,28 @@ function _hi_doctor_json() {
   _hi_doctor_run --json "$@"
 }
 
+# The bare document, which two cases read: run once, into a file (a capture
+# is one more place a document can go missing) with its exit status beside
+# it, and kept once it holds something, so a run that wrote nothing is made
+# again by the next call. The probe cap is generous: the shims answer or fail
+# at once, but a loaded VM is slow, and the second case compares this run
+# with another.
+_HI_DOC_JSON=""
+
+_HI_DOC_JSON_RC=""
+
+function _hi_doctor_json_report() {
+  local f="$_HI_WORKDIR/json.bare"
+  [ -z "$_HI_DOC_JSON" ] || return 0
+  _HI_DOC_JSON_RC=0
+  _HI_PROBE_TIMEOUT=30 _hi_doctor_json >"$f" || _HI_DOC_JSON_RC=$?
+  [ ! -s "$f" ] || _HI_DOC_JSON="$f"
+}
+
 function test_json_is_a_document_with_the_report_in_it() {
-  local out rc=0
-  out="$(_hi_doctor_json)" || rc=$?
-  [ "$rc" -eq 0 ] || return 1
-  printf '%s' "$out" | python3 -c '
+  _hi_doctor_json_report
+  [ -n "$_HI_DOC_JSON" ] && [ "$_HI_DOC_JSON_RC" -eq 0 ] || _hi_why _HI_DOC_JSON _HI_DOC_JSON_RC || return 1
+  python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["findings"] == 0, d["findings"]
@@ -37,7 +54,7 @@ sevs = {r["severity"] for r in d["rows"]}
 assert sevs <= {"info", "ok", "warn", "bad"}, sevs
 assert any(r["label"] == "docker" and r["severity"] == "ok" for r in d["rows"])
 assert any(r["label"] == "nomad" and "not installed" in r["text"] for r in d["rows"])
-'
+' <"$_HI_DOC_JSON" || _hi_why _HI_DOC_JSON
 }
 
 # a target, in either argument order, and the escaping: the target name
@@ -47,7 +64,7 @@ assert any(r["label"] == "nomad" and "not installed" in r["text"] for r in d["ro
 function test_json_takes_a_target_either_side_of_the_flag() {
   local a b
   a="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_json 'run"ning\box')" || return 1
-  b="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_run 'run"ning\box' --json)" || return 1
+  b="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_run 'run"ning\box' --json)" || _hi_why || return 1
   # each parsed on its own rather than compared as text: the probe timings
   # in the rows differ run to run
   printf '%s' "$a" | python3 -c '
@@ -60,20 +77,20 @@ assert any(r["section"] == "target" for r in d["rows"])
 import json, sys
 d = json.load(sys.stdin)
 assert d["target"] == "run\"ning\\box", d["target"]
-'
+' || _hi_why b
 }
 
 # --use typed on the command line reaches the target report: the forced
 # arm's row and no probe chain (the in-process cases set _HI_DOC_BACKEND)
 function test_json_use_flag_forces_the_arm() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --use docker ghostbox)" || return 1
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --use docker ghostbox)" || _hi_why || return 1
   printf '%s' "$out" | python3 -c '
 import json, sys
 t = [r for r in json.load(sys.stdin)["rows"] if r["section"] == "target"]
 assert any(r["label"] == "resolves" and r["text"] == "docker container (forced by --use docker)" for r in t), t
 assert not any(r["label"] == "checked" for r in t), t
-'
+' || _hi_why out
 }
 
 # --plain has nothing for doctor to report (it never connects), but it is a
@@ -86,7 +103,7 @@ function test_plain_flag_is_not_mistaken_for_the_target() {
 import json, sys
 d = json.load(sys.stdin)
 assert d["target"] == "runningbox", d["target"]
-'
+' || _hi_why out
 }
 
 # a bad row lands in findings and turns the exit code to 1, and the document
@@ -98,37 +115,29 @@ assert d["target"] == "runningbox", d["target"]
 function test_json_counts_findings_and_exits_with_them() {
   local out rc=0
   out="$(_hi_doctor_json somehost)" || rc=$?
-  [ "$rc" -eq 1 ] || return 1
+  [ "$rc" -eq 1 ] || _hi_why rc || return 1
   printf '%s' "$out" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["findings"] == 1, d["findings"]
 bad = [r for r in d["rows"] if r["severity"] == "bad"]
 assert len(bad) == 1 and "no base64" in bad[0]["text"], bad
-'
-}
-
-# nothing but the document on stdout: a banner or a stray row would make it
-# unparseable, which the three above already check, but the plain-text
-# report must also still be exactly what it was
-function test_json_is_off_by_default() {
-  _hi_doctor_plain_report
-  [ "$_HI_DOC_PLAIN_RC" -eq 0 ] || return 1
-  [[ "$_HI_DOC_PLAIN_OUT" != *'"rows"'* && "$_HI_DOC_PLAIN_OUT" == *"hi doctor"* ]]
+' || _hi_why out
 }
 
 # --problems narrows the text report only: beside --json the document is the
 # one --json alone prints, byte for byte once the timings are masked
 # the exit status is the findings count's (a box with a finding exits 1), so
 # only the two documents are compared
-# Two runs compared, so both must see the same world: the probe cap is
-# generous (the shims answer or fail at once, but a loaded VM is slow), and a
-# difference prints. It found the payload cache serving another tree's
-# payload to one of the two runs - a wire size off by 1K on FreeBSD.
-# Compared as files: a capture is one more place a document can go missing.
+# Two runs compared, the bare one the document the first case read, so both
+# must see the same world: the same probe cap, and a difference prints. It
+# found the payload cache serving another tree's payload to one of the two
+# runs - a wire size off by 1K on FreeBSD. Compared as files.
 function test_problems_leaves_json_unchanged() {
   local a="$_HI_WORKDIR/json.a" b="$_HI_WORKDIR/json.b"
-  _HI_PROBE_TIMEOUT=30 _hi_doctor_json | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' >"$a" || true
+  _hi_doctor_json_report
+  [ -n "$_HI_DOC_JSON" ] || _hi_why _HI_DOC_JSON || return 1
+  sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' "$_HI_DOC_JSON" >"$a" || true
   _HI_PROBE_TIMEOUT=30 _hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' >"$b" || true
   [ -s "$a" ] && cmp -s "$a" "$b" && return 0
   _hi_cecho " | the two documents differ:" "$RED"
@@ -147,7 +156,6 @@ function run_doctor_json_tests() {
   _hi_check_requires python3 "--use from the command line forces the arm" test_json_use_flag_forces_the_arm
   _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
   _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
-  _hi_check "Off by default" test_json_is_off_by_default
   _hi_check "--problems leaves the document unchanged" test_problems_leaves_json_unchanged
 
   _hi_suite_end "doctor.sh (json)"

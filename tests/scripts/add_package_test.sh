@@ -77,8 +77,8 @@ function test_add_package_help_is_its_own() {
   local home cfg out
   home="$(_hi_addpkg_fixture addpkg-help)"
   cfg="$_HI_WORKDIR/addpkg-help-cfg"
-  out="$(_hi_addpkg_run "$home" "$cfg" --help)" || return 1
-  [[ "$out" == "Usage: hi --add-package <group> <pkg>[,...]"* && "$out" == *"-n, --dry-run"* && "$out" != *"--group"* ]]
+  out="$(_hi_addpkg_run "$home" "$cfg" --help)" || _hi_why home cfg || return 1
+  [[ "$out" == "Usage: hi --add-package <group> <pkg>[,...]"* && "$out" == *"-n, --dry-run"* && "$out" != *"--group"* ]] || _hi_why out
 }
 
 function test_add_package_needs_a_group_and_a_row() {
@@ -86,10 +86,10 @@ function test_add_package_needs_a_group_and_a_row() {
   home="$(_hi_addpkg_fixture addpkg-norows)"
   cfg="$_HI_WORKDIR/addpkg-norows-cfg"
   out="$(_hi_addpkg_run "$home" "$cfg" --dry-run)" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"needs a group and at least one row"* ]] || return 1
+  [ "$rc" -ne 0 ] && [[ "$out" == *"needs a group and at least one row"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(_hi_addpkg_run "$home" "$cfg" core --dry-run)" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"needs a group and at least one row"* ]]
+  [ "$rc" -ne 0 ] && [[ "$out" == *"needs a group and at least one row"* ]] || _hi_why rc out
 }
 
 # a group name is what a `[...]` line holds and $_HI_PACKAGES_GROUPS lists:
@@ -107,7 +107,7 @@ function test_add_package_rejects_a_bad_group_name() {
       return 1
     }
   done
-  [ ! -e "$cfg/packages" ]
+  [ ! -e "$cfg/packages" ] || _hi_why cfg
 }
 
 # every spelling check_line would misread is refused before anything is
@@ -126,7 +126,7 @@ function test_add_package_rejects_a_bad_row() {
       return 1
     }
   done
-  [ ! -e "$cfg/packages" ]
+  [ ! -e "$cfg/packages" ] || _hi_why cfg
 }
 
 # the group is positional, so no --group: it is an unknown option like any
@@ -136,7 +136,7 @@ function test_add_package_rejects_group() {
   home="$(_hi_addpkg_fixture addpkg-group)"
   cfg="$_HI_WORKDIR/addpkg-group-cfg"
   out="$(_hi_addpkg_run "$home" "$cfg" core foo --group lang)" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"unknown option --group"* ]] && [ ! -e "$cfg/packages" ]
+  [ "$rc" -ne 0 ] && [[ "$out" == *"unknown option --group"* ]] && [ ! -e "$cfg/packages" ] || _hi_why rc out cfg
 }
 
 # with no overlay file yet, --dry-run names the copy the real run would make
@@ -145,9 +145,9 @@ function test_add_package_dry_run_writes_nothing() {
   local home cfg out
   home="$(_hi_addpkg_fixture addpkg-dry)"
   cfg="$_HI_WORKDIR/addpkg-dry-cfg"
-  out="$(_hi_addpkg_run "$home" "$cfg" mine foo --dry-run)" || return 1
+  out="$(_hi_addpkg_run "$home" "$cfg" mine foo --dry-run)" || _hi_why home cfg || return 1
   [[ "$out" == *"dry run"* && "$out" == *"copy $home/say-hi/config/packages to $cfg/packages, then change it there"* ]] &&
-    [ ! -d "$cfg" ]
+    [ ! -d "$cfg" ] || _hi_why out home cfg
 }
 
 # ...and with one, it names a plain write, leaving the file as it was
@@ -156,9 +156,9 @@ function test_add_package_dry_run_over_an_overlay() {
   home="$(_hi_addpkg_fixture addpkg-dry-overlay)"
   cfg="$_HI_WORKDIR/addpkg-dry-overlay-cfg"
   _hi_addpkg_overlay "$cfg" '[core]\ngo = []\n'
-  out="$(_hi_addpkg_run "$home" "$cfg" core foo --dry-run)" || return 1
-  [[ "$out" == *"write $cfg/packages"* && "$out" != *"copy "* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[core]\ngo = []'
+  out="$(_hi_addpkg_run "$home" "$cfg" core foo --dry-run)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"write $cfg/packages"* && "$out" != *"copy "* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[core]\ngo = []'; } || _hi_why out cfg
 }
 
 # --- where a row lands -------------------------------------------------------
@@ -168,9 +168,9 @@ function test_add_package_creates_the_overlay_file_and_group() {
   local home cfg out
   home="$(_hi_addpkg_fixture addpkg-default)"
   cfg="$_HI_WORKDIR/addpkg-default-cfg"
-  out="$(_hi_addpkg_run "$home" "$cfg" mine 'hi-no-such,hi-no-such-alt')" || return 1
-  [[ "$out" == *"+ hi-no-such,hi-no-such-alt in [mine]"* && "$out" == *"$cfg/packages updated"* ]] || return 1
-  [ "$(tail -n 3 "$cfg/packages")" = "$(printf '\n[mine]\nhi-no-such = ["hi-no-such-alt"]')" ]
+  out="$(_hi_addpkg_run "$home" "$cfg" mine 'hi-no-such,hi-no-such-alt')" || _hi_why home cfg || return 1
+  [[ "$out" == *"+ hi-no-such,hi-no-such-alt in [mine]"* && "$out" == *"$cfg/packages updated"* ]] || _hi_why out cfg || return 1
+  [ "$(tail -n 3 "$cfg/packages")" = "$(printf '\n[mine]\nhi-no-such = ["hi-no-such-alt"]')" ] || _hi_why cfg
 }
 
 # a row's marker is the table it lands in, made beside its group's when the
@@ -180,10 +180,10 @@ function test_add_package_several_arguments_are_several_rows() {
   home="$(_hi_addpkg_fixture addpkg-multi)"
   cfg="$_HI_WORKDIR/addpkg-multi-cfg"
   _hi_addpkg_overlay "$cfg" '[core]\ngo = []\n\n[last]\nz = []\n'
-  _hi_addpkg_run "$home" "$cfg" mine foo -baz +qux ssh-keygen,x-y,z +g++ >/dev/null || return 1
-  _hi_addpkg_is "$cfg/packages" '[core]\ngo = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []' || return 1
-  _hi_addpkg_run "$home" "$cfg" core +need >/dev/null || return 1
-  _hi_addpkg_is "$cfg/packages" '[core]\ngo = []\n\n[core.required]\nneed = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []'
+  _hi_addpkg_run "$home" "$cfg" mine foo -baz +qux ssh-keygen,x-y,z +g++ >/dev/null || _hi_why home cfg || return 1
+  _hi_addpkg_is "$cfg/packages" '[core]\ngo = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []' || _hi_why cfg || return 1
+  _hi_addpkg_run "$home" "$cfg" core +need >/dev/null || _hi_why home cfg || return 1
+  _hi_addpkg_is "$cfg/packages" '[core]\ngo = []\n\n[core.required]\nneed = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []' || _hi_why cfg
 }
 
 # into an existing group: after its last row, ahead of a comment or blank
@@ -193,9 +193,9 @@ function test_add_package_joins_an_existing_group() {
   home="$(_hi_addpkg_fixture addpkg-join)"
   cfg="$_HI_WORKDIR/addpkg-join-cfg"
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n# about b\n\n[b]\ny = []\n'
-  out="$(_hi_addpkg_run "$home" "$cfg" a z)" || return 1
-  [[ "$out" == *"+ z in [a]"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\nz = []\n# about b\n\n[b]\ny = []'
+  out="$(_hi_addpkg_run "$home" "$cfg" a z)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"+ z in [a]"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\nz = []\n# about b\n\n[b]\ny = []'; } || _hi_why out cfg
 }
 
 # a row naming the same first package in the same group replaces it rather
@@ -206,12 +206,12 @@ function test_add_package_replaces_same_first_package() {
   home="$(_hi_addpkg_fixture addpkg-replace)"
   cfg="$_HI_WORKDIR/addpkg-replace-cfg"
   _hi_addpkg_overlay "$cfg" '[a]\nbat = ["batcat"] # mine\nx = []\n[b]\ny = []\n'
-  out="$(_hi_addpkg_run "$home" "$cfg" a 'bat,ccat')" || return 1
+  out="$(_hi_addpkg_run "$home" "$cfg" a 'bat,ccat')" || _hi_why home cfg || return 1
   [[ "$out" == *"~ bat,ccat (replacing the row for bat in [a])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nbat = ["ccat"]\nx = []\n[b]\ny = []' || return 1
-  out="$(_hi_addpkg_run "$home" "$cfg" a '-bat')" || return 1
-  [[ "$out" == *"~ -bat (replacing the row for bat in [a])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n\n[a.unwanted]\nbat = []\n\n[b]\ny = []'
+    _hi_addpkg_is "$cfg/packages" '[a]\nbat = ["ccat"]\nx = []\n[b]\ny = []' || _hi_why out cfg || return 1
+  out="$(_hi_addpkg_run "$home" "$cfg" a '-bat')" || _hi_why home cfg || return 1
+  { [[ "$out" == *"~ -bat (replacing the row for bat in [a])"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n\n[a.unwanted]\nbat = []\n\n[b]\ny = []'; } || _hi_why out cfg
 }
 
 # ...and in another group, it moves there - even an identical row, which is
@@ -221,9 +221,9 @@ function test_add_package_moves_a_row_between_groups() {
   home="$(_hi_addpkg_fixture addpkg-move)"
   cfg="$_HI_WORKDIR/addpkg-move-cfg"
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n[a.required]\nbat = []\n[b]\ny = []\n'
-  out="$(_hi_addpkg_run "$home" "$cfg" b +bat)" || return 1
-  [[ "$out" == *"~ +bat (moving the row for bat from [a] to [b])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n[a.required]\n[b]\ny = []\n\n[b.required]\nbat = []'
+  out="$(_hi_addpkg_run "$home" "$cfg" b +bat)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"~ +bat (moving the row for bat from [a] to [b])"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n[a.required]\n[b]\ny = []\n\n[b.required]\nbat = []'; } || _hi_why out cfg
 }
 
 # a row above the first header is in no group, and moves out of there too
@@ -232,9 +232,9 @@ function test_add_package_moves_an_ungrouped_row() {
   home="$(_hi_addpkg_fixture addpkg-move-top)"
   cfg="$_HI_WORKDIR/addpkg-move-top-cfg"
   _hi_addpkg_overlay "$cfg" 'top = []\n[b]\ny = []\n'
-  out="$(_hi_addpkg_run "$home" "$cfg" b top)" || return 1
-  [[ "$out" == *"moving the row for top from [no group] to [b]"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[b]\ny = []\ntop = []'
+  out="$(_hi_addpkg_run "$home" "$cfg" b top)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"moving the row for top from [no group] to [b]"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[b]\ny = []\ntop = []'; } || _hi_why out cfg
 }
 
 # the same row in the same group changes nothing and writes nothing, however
@@ -244,9 +244,9 @@ function test_add_package_identical_row_is_a_no_op() {
   home="$(_hi_addpkg_fixture addpkg-noop)"
   cfg="$_HI_WORKDIR/addpkg-noop-cfg"
   _hi_addpkg_overlay "$cfg" '[a.required]\n  foo   =   [ "bar","baz" ]  # mine\n'
-  out="$(_hi_addpkg_run "$home" "$cfg" a +foo,bar,baz)" || return 1
-  [[ "$out" == *"$cfg/packages: +foo,bar,baz is already in [a]"* && "$out" == *"needs no change - nothing to write"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a.required]\n  foo   =   [ "bar","baz" ]  # mine'
+  out="$(_hi_addpkg_run "$home" "$cfg" a +foo,bar,baz)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"$cfg/packages: +foo,bar,baz is already in [a]"* && "$out" == *"needs no change - nothing to write"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[a.required]\n  foo   =   [ "bar","baz" ]  # mine'; } || _hi_why out cfg
 }
 
 # comments already in an overlay file survive a write - the read-rewrite loop
@@ -257,9 +257,9 @@ function test_add_package_preserves_comments() {
   home="$(_hi_addpkg_fixture addpkg-comment)"
   cfg="$_HI_WORKDIR/addpkg-comment-cfg"
   _hi_addpkg_overlay "$cfg" '# a hand-written note\n[a] # the first\ngo = [] # a compiler\n'
-  out="$(_hi_addpkg_run "$home" "$cfg" a cargo)" || return 1
-  [[ "$out" == *"+ cargo in [a]"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '# a hand-written note\n[a] # the first\ngo = [] # a compiler\ncargo = []'
+  out="$(_hi_addpkg_run "$home" "$cfg" a cargo)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"+ cargo in [a]"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '# a hand-written note\n[a] # the first\ngo = [] # a compiler\ncargo = []'; } || _hi_why out cfg
 }
 
 # the written row is what the check itself reads back, not just a file that
@@ -270,13 +270,13 @@ function test_add_package_written_row_reaches_the_check() {
   local home cfg out
   home="$(_hi_addpkg_fixture addpkg-integration)"
   cfg="$_HI_WORKDIR/addpkg-integration-cfg"
-  _hi_addpkg_run "$home" "$cfg" mine "$_HI_REAL_CMD" >/dev/null || return 1
+  _hi_addpkg_run "$home" "$cfg" mine "$_HI_REAL_CMD" >/dev/null || _hi_why home cfg _HI_REAL_CMD || return 1
   out="$(NO_COLOR=1 _HI_CONFIG_DIR="$cfg" _HI_PACKAGES_GROUPS=mine \
     bash -c 'source "$_HI_HEADER"; full_check')"
-  [[ "$out" == *" $_HI_REAL_CMD "* ]] || return 1
+  [[ "$out" == *" $_HI_REAL_CMD "* ]] || _hi_why out _HI_REAL_CMD || return 1
   out="$(NO_COLOR=1 _HI_CONFIG_DIR="$cfg" _HI_PACKAGES_GROUPS=none \
     bash -c 'source "$_HI_HEADER"; full_check')"
-  [[ "$out" != *" $_HI_REAL_CMD "* ]]
+  [[ "$out" != *" $_HI_REAL_CMD "* ]] || _hi_why out _HI_REAL_CMD
 }
 
 # --- the overlay file replaces the tree's wholesale, so the first write
@@ -287,11 +287,11 @@ function test_add_package_first_call_copies_the_tree_in() {
   local home cfg n
   home="$(_hi_addpkg_fixture addpkg-seed)"
   cfg="$_HI_WORKDIR/addpkg-seed-cfg"
-  _hi_addpkg_run "$home" "$cfg" mine foo >/dev/null || return 1
+  _hi_addpkg_run "$home" "$cfg" mine foo >/dev/null || _hi_why home cfg || return 1
   n="$(_hi_addpkg_tree_lines "$home")"
   # the tree's lines, then a blank, [mine], and the row
-  [ "$(wc -l <"$cfg/packages")" -eq "$((n + 3))" ] &&
-    head -n "$n" "$cfg/packages" | cmp -s - "$home/say-hi/config/packages"
+  { [ "$(wc -l <"$cfg/packages")" -eq "$((n + 3))" ] &&
+    head -n "$n" "$cfg/packages" | cmp -s - "$home/say-hi/config/packages"; } || _hi_why cfg n home
 }
 
 # a second call does not re-copy or clobber what the first one wrote
@@ -299,10 +299,10 @@ function test_add_package_second_call_does_not_recopy() {
   local home cfg
   home="$(_hi_addpkg_fixture addpkg-noreseed)"
   cfg="$_HI_WORKDIR/addpkg-noreseed-cfg"
-  _hi_addpkg_run "$home" "$cfg" a foo >/dev/null || return 1
+  _hi_addpkg_run "$home" "$cfg" a foo >/dev/null || _hi_why home cfg || return 1
   printf '[a]\ntruncated = []\n' >"$cfg/packages"
-  _hi_addpkg_run "$home" "$cfg" a bar >/dev/null || return 1
-  _hi_addpkg_is "$cfg/packages" '[a]\ntruncated = []\nbar = []'
+  _hi_addpkg_run "$home" "$cfg" a bar >/dev/null || _hi_why home cfg || return 1
+  _hi_addpkg_is "$cfg/packages" '[a]\ntruncated = []\nbar = []' || _hi_why cfg
 }
 
 # --dry-run reads through the cascade too: a row already in the tree's file
@@ -312,9 +312,9 @@ function test_add_package_dry_run_reads_through_the_cascade() {
   local home cfg out
   home="$(_hi_addpkg_fixture addpkg-dry-cascade)"
   cfg="$_HI_WORKDIR/addpkg-dry-cascade-cfg"
-  out="$(_hi_addpkg_run "$home" "$cfg" core "$_HI_ADDPKG_KNOWN_ROW" --dry-run)" || return 1
+  out="$(_hi_addpkg_run "$home" "$cfg" core "$_HI_ADDPKG_KNOWN_ROW" --dry-run)" || _hi_why home cfg _HI_ADDPKG_KNOWN_ROW || return 1
   [[ "$out" == *"config/packages: $_HI_ADDPKG_KNOWN_ROW is already in [core]"* && "$out" != *"+ $_HI_ADDPKG_KNOWN_ROW"* ]] &&
-    [ ! -d "$cfg" ]
+    [ ! -d "$cfg" ] || _hi_why out cfg _HI_ADDPKG_KNOWN_ROW
 }
 
 # ...and without --dry-run: a true no-op (the row is already covered by the
@@ -323,8 +323,8 @@ function test_add_package_true_noop_creates_no_overlay() {
   local home cfg out
   home="$(_hi_addpkg_fixture addpkg-true-noop)"
   cfg="$_HI_WORKDIR/addpkg-true-noop-cfg"
-  out="$(_hi_addpkg_run "$home" "$cfg" core "$_HI_ADDPKG_KNOWN_ROW")" || return 1
-  [[ "$out" == *"config/packages needs no change - nothing to write"* ]] && [ ! -d "$cfg" ]
+  out="$(_hi_addpkg_run "$home" "$cfg" core "$_HI_ADDPKG_KNOWN_ROW")" || _hi_why home cfg _HI_ADDPKG_KNOWN_ROW || return 1
+  [[ "$out" == *"config/packages needs no change - nothing to write"* ]] && [ ! -d "$cfg" ] || _hi_why out cfg
 }
 
 # --- --remove-package -------------------------------------------------------
@@ -333,8 +333,8 @@ function test_remove_package_help_is_its_own() {
   local home cfg out
   home="$(_hi_addpkg_fixture rmpkg-help)"
   cfg="$_HI_WORKDIR/rmpkg-help-cfg"
-  out="$(_hi_rmpkg_run "$home" "$cfg" --help)" || return 1
-  [[ "$out" == "Usage: hi --remove-package <pkg>..."* && "$out" == *"-n, --dry-run"* ]]
+  out="$(_hi_rmpkg_run "$home" "$cfg" --help)" || _hi_why home cfg || return 1
+  [[ "$out" == "Usage: hi --remove-package <pkg>..."* && "$out" == *"-n, --dry-run"* ]] || _hi_why out
 }
 
 function test_remove_package_needs_a_package() {
@@ -342,7 +342,7 @@ function test_remove_package_needs_a_package() {
   home="$(_hi_addpkg_fixture rmpkg-none)"
   cfg="$_HI_WORKDIR/rmpkg-none-cfg"
   out="$(_hi_rmpkg_run "$home" "$cfg" --dry-run)" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"needs at least one package"* ]]
+  [ "$rc" -ne 0 ] && [[ "$out" == *"needs at least one package"* ]] || _hi_why rc out
 }
 
 # a row goes by its first package, whatever table it sits in; the tables
@@ -352,9 +352,9 @@ function test_remove_package_removes_by_first_package() {
   home="$(_hi_addpkg_fixture rmpkg-rows)"
   cfg="$_HI_WORKDIR/rmpkg-rows-cfg"
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n[a.unwanted]\nexa = []\n[b]\nbat = ["batcat"]\n'
-  out="$(_hi_rmpkg_run "$home" "$cfg" -exa bat)" || return 1
-  [[ "$out" == *"- -exa (from [a])"* && "$out" == *"- bat,batcat (from [b])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n[a.unwanted]\n[b]'
+  out="$(_hi_rmpkg_run "$home" "$cfg" -exa bat)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"- -exa (from [a])"* && "$out" == *"- bat,batcat (from [b])"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n[a.unwanted]\n[b]'; } || _hi_why out cfg
 }
 
 # a package with no row is said so, and nothing is written
@@ -363,9 +363,9 @@ function test_remove_package_without_a_row_is_a_no_op() {
   home="$(_hi_addpkg_fixture rmpkg-miss)"
   cfg="$_HI_WORKDIR/rmpkg-miss-cfg"
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n'
-  out="$(_hi_rmpkg_run "$home" "$cfg" nope)" || return 1
-  [[ "$out" == *"no row for nope"* && "$out" == *"needs no change - nothing to write"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []'
+  out="$(_hi_rmpkg_run "$home" "$cfg" nope)" || _hi_why home cfg || return 1
+  { [[ "$out" == *"no row for nope"* && "$out" == *"needs no change - nothing to write"* ]] &&
+    _hi_addpkg_is "$cfg/packages" '[a]\nx = []'; } || _hi_why out cfg
 }
 
 # with no overlay yet, removing a shipped row copies the tree in without it
@@ -373,12 +373,12 @@ function test_remove_package_copies_the_tree_in_without_the_row() {
   local home cfg n
   home="$(_hi_addpkg_fixture rmpkg-seed)"
   cfg="$_HI_WORKDIR/rmpkg-seed-cfg"
-  _hi_rmpkg_run "$home" "$cfg" bat >/dev/null || return 1
+  _hi_rmpkg_run "$home" "$cfg" bat >/dev/null || _hi_why home cfg || return 1
   n="$(_hi_addpkg_tree_lines "$home")"
-  [ "$(wc -l <"$cfg/packages")" -eq "$((n - 1))" ] &&
+  { [ "$(wc -l <"$cfg/packages")" -eq "$((n - 1))" ] &&
     grep -qxF "$_HI_ADDPKG_KNOWN_TOML" "$home/say-hi/config/packages" &&
     ! grep -qxF "$_HI_ADDPKG_KNOWN_TOML" "$cfg/packages" &&
-    grep -qxF '[core]' "$cfg/packages"
+    grep -qxF '[core]' "$cfg/packages"; } || _hi_why cfg home _HI_ADDPKG_KNOWN_TOML
 }
 
 function run_add_package_tests() {

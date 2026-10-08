@@ -38,7 +38,7 @@ function test_defers_to_prompt_tool_when_asked() {
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
     PATH="$(_hi_prompt_stub_dir "$tool"):$PATH" _HI_PROMPT_TOOL="$tool")"
   # shellcheck disable=SC2053 # $want is a pattern (fish's is a glob)
-  [[ "$out" == $want ]]
+  [[ "$out" == $want ]] || _hi_why out want
 }
 
 # on a target, a tool's config in the overlay becomes the tool's own variable
@@ -55,7 +55,7 @@ function test_remote_session_exports_overlay_config() {
   mkdir -p "$_HI_WORKDIR/cfg"
   case "$file" in */*) mkdir -p "$_HI_WORKDIR/cfg/${file%/*}" ;; esac
   printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
-  _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
+  _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || _hi_why file || return 1
   case "$shell" in
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${'"$var"':-}"' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $'"$var" ;;
@@ -63,21 +63,21 @@ function test_remote_session_exports_overlay_config() {
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@" _HI_REMOTE_SESSION=1)"
   home="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")"
   rm -f "$_HI_WORKDIR/cfg/$file" "$_HI_WORKDIR/cfg/wiring.sh"
-  [ "$out" = "$want" ] && [ -z "$home" ]
+  [ "$out" = "$want" ] && [ -z "$home" ] || _hi_why out want home
 }
 
-# on a target, tmux, screen, micro, and zellij reach the overlay's copies
-# through their aliases, each a wiring.sh line (GLOSSARY: HI.62): tmux -f the
-# tmux.conf, screen -c the screenrc, zellij --config-dir the zellij/
-# directory, micro -config-dir the micro/ one. With no overlay copy the tool
-# is left alone: the target's own ~/.tmux.conf is not picked up in its place.
+# on a target, micro reaches the overlay's copy through its alias, a
+# wiring.sh line (GLOSSARY: HI.62): micro -config-dir the micro/ directory.
+# tmux, screen, and zellij are common/mux.sh's there, which names the
+# overlay's copy itself (hi/keep_test.sh has what it runs). With no overlay
+# copy the target's own ~/.tmux.conf is not picked up in its place.
 # <shell> <overlay file, or - for none> <alias> <wanted> [unwanted]
 function test_remote_session_aliases_overlay_config() {
   local shell="$1" file="$2" name="$3" want="$4" bad="${5:-}" script out
   [ "$file" = - ] || {
     mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux"
     printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
-    _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || return 1
+    _hi_wiring_for "$file" >"$_HI_WORKDIR/cfg/wiring.sh" || _hi_why file || return 1
   }
   printf 'set -g @mine target\n' >"$_HI_WORKDIR/.tmux.conf"
   case "$shell" in
@@ -169,13 +169,36 @@ function test_extensions_load_in_order_skip_loudly_and_draw() {
   fi
 }
 
+# <shell>: the overlay's aliases.sh is parsed before it is sourced. One
+# holding a function is bash's and zsh's to load and fish's to skip, with a
+# line saying so, and one all three parse loads in each.
+function test_overlay_aliases_are_parsed_before_they_load() {
+  local shell="$1" cfg="$_HI_WORKDIR/aliases-guard" script out
+  mkdir -p "$cfg"
+  case "$shell" in
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>&1; functions -q hi_guard_ok; and echo -n LOADED' ;;
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; alias hi_guard_ok >/dev/null 2>&1 && printf LOADED' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>&1; alias hi_guard_ok >/dev/null 2>&1 && printf LOADED' ;;
+  esac
+  printf '%s\n' 'alias hi_guard_ok="echo ok"' >"$cfg/aliases.sh"
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$cfg")"
+  [[ "$out" == *LOADED* && "$out" != *"does not parse"* ]] || _hi_because "$shell, the subset: [$out]" || return 1
+  printf '%s\n' 'alias hi_guard_ok="echo ok"' 'hi_guard_fn() { echo fn; }' >"$cfg/aliases.sh"
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$cfg")"
+  if [ "$shell" = fish ]; then
+    [[ "$out" == *"aliases.sh does not parse in fish; skipped"* && "$out" != *LOADED* ]] || _hi_because "fish, a function: [$out]"
+  else
+    [[ "$out" == *LOADED* && "$out" != *"does not parse"* ]] || _hi_because "$shell, a function: [$out]"
+  fi
+}
+
 # fish's sudo wrapper is a function behind _HI_SUDO_ALIAS, the same opt-in
 # as the POSIX alias; unset, `sudo` is the command and nothing else
 function test_fish_sudo_wrapper_follows_the_toggle() {
   local script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; functions -q sudo; and echo wrapped; or echo bare' on off
   on="$(_hi_rc_shell xterm-256color fish "$script" _HI_SUDO_ALIAS=1)"
   off="$(_hi_rc_shell xterm-256color fish "$script")"
-  [ "$on" = wrapped ] && [ "$off" = bare ]
+  [ "$on" = wrapped ] && [ "$off" = bare ] || _hi_why on off
 }
 
 function test_bash_keeps_hi_prompt_without_the_setting() {
@@ -183,7 +206,7 @@ function test_bash_keeps_hi_prompt_without_the_setting() {
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
     PATH="$(_hi_prompt_stub_dir starship):$PATH")"
-  [[ "$out" == *'\u'* ]]
+  [[ "$out" == *'\u'* ]] || _hi_why out
 }
 
 # Asked for, not installed: hi's prompt, and nothing on stderr. "Not
@@ -196,7 +219,7 @@ function test_bash_falls_back_when_starship_is_absent() {
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
     PATH="$(_hi_real_path starshipless bash sh sed awk grep tr cut hostname uname cksum git)" \
     _HI_PROMPT_TOOL=starship 2>&1)"
-  [[ "$out" == *'\u'* ]]
+  [[ "$out" == *'\u'* ]] || _hi_why out
 }
 
 # The prompt programs without `init <shell>` (GLOSSARY: HI.32), each faked
@@ -315,7 +338,7 @@ function test_rc_prompt_redraws_on_a_re_source() {
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; unfunction __hi_git_precmd; source "$_HI_HOME/say-hi/common/zsh.zsh" >/dev/null 2>&1; print -rn -- "${+functions[__hi_git_precmd]}"' ;;
   esac
   out="$(_hi_rc_shell dumb "$shell" "$script" _HI_PROMPT_TOOL=powerlevel10k)"
-  [ "$out" = __hi_ps1 ] || [ "$out" = 1 ]
+  [ "$out" = __hi_ps1 ] || [ "$out" = 1 ] || _hi_why out
 }
 
 # <shell> <want glob> <before-rc script> [NAME=VALUE...] - the prompt drawn
@@ -367,7 +390,7 @@ function test_fish_registers_hi_completion() {
   # target-list wiring instead
   _hi_rc_shell xterm-256color fish \
     'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; complete -c hi' |
-    grep -qF '$_HI_TARGETS'
+    grep -qF '$_HI_TARGETS' || _hi_why
 }
 
 # zsh colors the target list by backend through the hi-targets tag's
@@ -386,12 +409,12 @@ function test_zsh_target_list_colors_per_backend() {
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
     zstyle -g lc ":completion:*:hi-targets" list-colors; print -r -- ${#lc}' NO_COLOR=1)"
-  [ "$out" = 0 ] || return 1
+  [ "$out" = 0 ] || _hi_why out || return 1
   out="$(_hi_rc_shell xterm-256color zsh '
     zstyle ":completion:*:hi-targets" list-colors "=*=31"
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
     zstyle -g lc ":completion:*:hi-targets" list-colors; print -r -- "$lc"')"
-  [ "$out" = "=*=31" ]
+  [ "$out" = "=*=31" ] || _hi_why out
 }
 
 # zsh expands hi's own `hi` alias before completing, so the launcher's name
@@ -473,7 +496,7 @@ function test_bash_target_symbols_only_when_listing() {
     return 1
   }
   out="$(_hi_bash_listing 63 '' LANG=C.UTF-8 _HI_SYMBOL_KUBE=k8s)"
-  [[ "$out" == *"|podx k8s|"* ]]
+  [[ "$out" == *"|podx k8s|"* ]] || _hi_why out
 }
 
 # fish's target rows carry the backend's symbol ahead of the kind, the
@@ -514,7 +537,7 @@ function test_local_shell_prints_the_header() {
   [ "$(_hi_greet "$shell" i)" = 1 ] && [ "$(_hi_greet "$shell" c)" = 0 ] &&
     [ "$(_hi_greet "$shell" s)" = 0 ] &&
     [ "$(_hi_greet "$shell" i _HI_REMOTE_SESSION=1)" = 0 ] &&
-    [ "$(_hi_greet "$shell" i _HI_DISABLE_HEADER=1)" = 0 ]
+    [ "$(_hi_greet "$shell" i _HI_DISABLE_HEADER=1)" = 0 ] || _hi_why shell
 }
 
 # fish does its own prefix matching, so `--preview-c` narrows to one flag, and
@@ -528,7 +551,7 @@ function test_fish_flag_completion_offers_hi_options() {
     source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
     complete -C "hi --pl"
   ')"
-  printf '%s\n' "$out" | grep -q "^--plain$(printf '\t')a bare shell" || return 1
+  printf '%s\n' "$out" | grep -q "^--plain$(printf '\t')a bare shell" || _hi_why out || return 1
   if printf '%s\n' "$out" | grep -qv '^-'; then
     _hi_cecho "   a dash word also swept the targets" "$RED"
     return 1
@@ -544,9 +567,9 @@ function test_fish_completes_the_word_after_preview() {
     source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
     complete -C "hi --preview "
   ')"
-  printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || return 1
-  printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || return 1
-  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 3 ]
+  printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || _hi_why out || return 1
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 3 ] || _hi_why out
 }
 
 function _hi_rc_reentry() {
@@ -563,11 +586,11 @@ function _hi_rc_reentry() {
 
 # test_sh_rc_reentry_returns <shell> <rc>
 function test_sh_rc_reentry_returns() {
-  [ "$(_hi_rc_reentry "$1" "$2" 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
+  [ "$(_hi_rc_reentry "$1" "$2" 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ] || _hi_why _hi_rc_loading
 }
 
 function test_fish_rc_reentry_returns() {
-  [ "$(_hi_rc_reentry fish config.fish 'set -q _hi_rc_loading; or printf done; test -n "$_HI_ROOT"; and printf :root')" = done:root ]
+  [ "$(_hi_rc_reentry fish config.fish 'set -q _hi_rc_loading; or printf done; test -n "$_HI_ROOT"; and printf :root')" = done:root ] || _hi_why
 }
 
 # test_sh_rc_re_source_after_an_upgrade <shell> <rc>
@@ -592,7 +615,7 @@ function test_sh_rc_re_source_after_an_upgrade() {
       printf '%s' \"\${_HI_ADDED_LATER-unset}\"" \
     </dev/null >"$base.out" 2>/dev/null) &
   _hi_wait_pid $! 20
-  [ "$(cat "$base.out")" = "unset|$base/say-hi/added" ]
+  [ "$(cat "$base.out")" = "unset|$base/say-hi/added" ] || _hi_why base
 }
 
 function test_fish_flag_completion_does_not_also_sweep_targets() {
@@ -600,8 +623,8 @@ function test_fish_flag_completion_does_not_also_sweep_targets() {
   out="$(_hi_rc_shell xterm-256color fish \
     'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; complete -c hi')"
   # the bare-target line is guarded, and the flags line still is too
-  printf '%s\n' "$out" | grep -qF 'not string match -q -- "-*"' &&
-    printf '%s\n' "$out" | grep -qF '$_HI_TARGETS flags'
+  { printf '%s\n' "$out" | grep -qF 'not string match -q -- "-*"' &&
+    printf '%s\n' "$out" | grep -qF '$_HI_TARGETS flags'; } || _hi_why out
 }
 
 # _hi_prompt_ends <as_root> <shell> <want> [NAME=VALUE ...] - does the prompt
@@ -642,7 +665,7 @@ function _hi_fish_cfg_answer() {
 
 function test_fish_config_dir_matches_bash() {
   [ "$(_hi_fish_cfg_answer neither)" = say-hi ] &&
-    [ "$(_hi_fish_cfg_answer new)" = say-hi ]
+    [ "$(_hi_fish_cfg_answer new)" = say-hi ] || _hi_why
 }
 
 # hi.sh points a target at its shipped overlay; fish must honour that too
@@ -653,7 +676,7 @@ function test_fish_config_dir_explicit_value_wins() {
   out="$(env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
     _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$base" _HI_CONFIG_DIR="$base/shipped" \
     fish -c 'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s $_HI_CONFIG_DIR' </dev/null)"
-  [ "$out" = "$base/shipped" ]
+  [ "$out" = "$base/shipped" ] || _hi_why out base
 }
 
 function run_rc_prompt_tests() {
@@ -676,10 +699,10 @@ function run_rc_prompt_tests() {
   _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
   _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
   _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
-  _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux/tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux/tmux.conf"
+  _hi_check "[bash] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash tmux/tmux.conf tmux "common/mux.sh tmux"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
-  _hi_check "[bash] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config bash screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
-  _hi_check "[bash] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
+  _hi_check "[bash] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash screenrc screen "common/mux.sh screen"
+  _hi_check "[bash] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "common/mux.sh zellij"
   _hi_check "[bash] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config bash - micro "" micro
   _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -backup false -savehistory false -config-dir $_HI_WORKDIR/cfg/micro"
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
@@ -696,9 +719,9 @@ function run_rc_prompt_tests() {
   _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
   _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
   _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
-  _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux/tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux/tmux.conf"
-  _hi_check_requires fish "[fish] a target's screen reads the overlay's screenrc" test_remote_session_aliases_overlay_config fish screenrc screen "screen -c $_HI_WORKDIR/cfg/screenrc"
-  _hi_check_requires fish "[fish] a target's zellij reads the overlay's zellij/" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "zellij --config-dir $_HI_WORKDIR/cfg/zellij"
+  _hi_check_requires fish "[fish] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish tmux/tmux.conf tmux "common/mux.sh tmux"
+  _hi_check_requires fish "[fish] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish screenrc screen "common/mux.sh screen"
+  _hi_check_requires fish "[fish] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "common/mux.sh zellij"
   _hi_check_requires fish "[fish] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config fish - micro "" micro
   _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -backup false -savehistory false -config-dir $_HI_WORKDIR/cfg/micro"
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
@@ -817,6 +840,9 @@ function run_rc_prompt_tests() {
   _hi_check "[bash] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw bash
   _hi_check_requires zsh "[zsh] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw zsh
   _hi_check_requires fish "[fish] extensions load in order, skip loudly, draw a segment" test_extensions_load_in_order_skip_loudly_and_draw fish
+  _hi_check "[bash] the overlay's aliases.sh is parsed before it loads" test_overlay_aliases_are_parsed_before_they_load bash
+  _hi_check_requires zsh "[zsh] the overlay's aliases.sh is parsed before it loads" test_overlay_aliases_are_parsed_before_they_load zsh
+  _hi_check_requires fish "[fish] ...and one fish cannot parse is skipped, in a line" test_overlay_aliases_are_parsed_before_they_load fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
   _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options

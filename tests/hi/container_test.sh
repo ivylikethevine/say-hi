@@ -190,7 +190,7 @@ function test_cmds_docker_uses_docker_exec() {
   out="$(PATH="$_HI_CT_BIN:$PATH" _hi_ct_cmds mybox docker)"
   [ "$out" = "probe=docker exec mybox
 cp=docker exec -i mybox
-attach=docker exec -i mybox" ]
+attach=docker exec -i mybox" ] || _hi_why out
 }
 
 # the CLI is the arm's own name and the grammar is docker's (GLOSSARY: HI.51)
@@ -199,7 +199,7 @@ function test_cmds_podman_is_a_drop_in_for_docker() {
   out="$(PATH="$_HI_CT_BIN:$PATH" _hi_ct_cmds mybox podman)"
   [ "$out" = "probe=podman exec mybox
 cp=podman exec -i mybox
-attach=podman exec -i mybox" ]
+attach=podman exec -i mybox" ] || _hi_why out
 }
 
 # nomad wants -i/-t spelled out either way: its stdin-is-a-tty guess lands
@@ -209,7 +209,7 @@ function test_cmds_nomad_spells_out_both_flags() {
   out="$(_hi_ct_cmds alloc123 nomad)"
   [ "$out" = "probe=nomad alloc exec -i=false -t=false alloc123
 cp=nomad alloc exec -i=true -t=false alloc123
-attach=nomad alloc exec -i=true -t=false alloc123" ]
+attach=nomad alloc exec -i=true -t=false alloc123" ] || _hi_why out
 }
 
 function test_cmds_nomad_names_the_task_when_one_is_given() {
@@ -217,7 +217,7 @@ function test_cmds_nomad_names_the_task_when_one_is_given() {
   out="$(_hi_ct_cmds alloc123/web nomad)"
   case "$out" in
   "probe=nomad alloc exec -task web -i=false -t=false alloc123"*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
 }
 
@@ -226,7 +226,7 @@ function test_cmds_kube_ends_every_shape_with_a_double_dash() {
   out="$(_hi_ct_cmds mypod kube)"
   [ "$out" = "probe=kubectl exec mypod --
 cp=kubectl exec -i mypod --
-attach=kubectl exec -i mypod --" ]
+attach=kubectl exec -i mypod --" ] || _hi_why out
 }
 
 function test_cmds_kube_names_the_container_when_one_is_given() {
@@ -234,7 +234,7 @@ function test_cmds_kube_names_the_container_when_one_is_given() {
   out="$(_hi_ct_cmds mypod/side kube)"
   case "$out" in
   "probe=kubectl exec mypod -c side --"*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
 }
 
@@ -261,7 +261,7 @@ EOF
 function test_fallback_shell_answer() {
   local -a probe
   probe=("$(_hi_ct_word)" "$1")
-  [ "$(_hi_container_fallback_shell)" = "${2-}" ]
+  [ "$(_hi_container_fallback_shell)" = "${2-}" ] || _hi_why
 }
 
 # ---------------------------------------------------------------------------
@@ -274,8 +274,8 @@ function test_put_lands_the_file() {
   mkdir -p "$dir"
   tmp="$dir/err"
   printf 'payload\n' >"$dir/src"
-  _hi_container_put "$dir/src" "$dir/dest" || return 1
-  [ "$(cat "$dir/dest")" = payload ]
+  _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir || return 1
+  [ "$(cat "$dir/dest")" = payload ] || _hi_why dir
 }
 
 # the write can succeed at the transport and still deliver nothing - an
@@ -295,7 +295,7 @@ exit 0
 EOF
   chmod +x "$dir/blackhole"
   cp=("$dir/blackhole")
-  ! _hi_container_put "$dir/src" "$dir/dest"
+  ! _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir
 }
 
 # the race is transient, so a second try is given rather than failing on the
@@ -322,8 +322,8 @@ exec sh -c "$3"
 EOF
   chmod +x "$dir/flaky"
   cp=(env "FLAKY_COUNT=$dir/count" "$dir/flaky")
-  _hi_container_put "$dir/src" "$dir/dest" || return 1
-  [ "$(cat "$dir/dest")" = payload ] && [ "$(cat "$dir/count")" = 2 ]
+  _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir || return 1
+  [ "$(cat "$dir/dest")" = payload ] && [ "$(cat "$dir/count")" = 2 ] || _hi_why dir
 }
 
 # ---------------------------------------------------------------------------
@@ -334,8 +334,8 @@ function test_cleanup_removes_the_scratch_tree() {
   local root="$_HI_WORKDIR/clean.root"
   local -a probe=(env)
   mkdir -p "$root/say-hi"
-  _hi_container_cleanup || return 1
-  [ ! -d "$root" ]
+  _hi_container_cleanup || _hi_why || return 1
+  [ ! -d "$root" ] || _hi_why root
 }
 
 # it runs on paths that are already gone, so it must never be the thing that
@@ -343,7 +343,7 @@ function test_cleanup_removes_the_scratch_tree() {
 function test_cleanup_is_quiet_when_there_is_nothing_there() {
   local root="$_HI_WORKDIR/clean.gone"
   local -a probe=(env)
-  _hi_container_cleanup
+  _hi_container_cleanup || _hi_why
 }
 
 # ---------------------------------------------------------------------------
@@ -356,8 +356,8 @@ function test_cleanup_is_quiet_when_there_is_nothing_there() {
 function test_ladder_no_writable_temp_directory() {
   printf 'not a directory\n' >"$_HI_WORKDIR/ct.notmp.file"
   _hi_ct_run notmp "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.notmp.file"
-  [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "no writable temp directory" &&
-    _hi_ct_said "--plain needs none"
+  { [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "no writable temp directory" &&
+    _hi_ct_said "--plain needs none"; } || _hi_why _HI_CT_RC
 }
 
 # the path comes back from the target and is interpolated into every command
@@ -368,16 +368,16 @@ function test_ladder_no_writable_temp_directory() {
 function test_ladder_refuses_a_scratch_path_it_will_not_use() {
   mkdir -p "$_HI_WORKDIR/ct.badroot/od,ir"
   _hi_ct_run badroot "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.badroot/od,ir"
-  [ "$_HI_CT_RC" != 0 ] &&
-    _hi_ct_said "named a scratch directory hi will not use"
+  { [ "$_HI_CT_RC" != 0 ] &&
+    _hi_ct_said "named a scratch directory hi will not use"; } || _hi_why _HI_CT_RC
 }
 
 # no bash and nothing on the ladder either: hi says so rather than guessing a
 # shell out of thin air
 function test_ladder_no_shell_hi_asked_about() {
   _hi_ct_run noshell _HI_CT_NO_BASH=1 _HI_CT_LADDER=bogusshell
-  [ "$_HI_CT_RC" != 0 ] &&
-    _hi_ct_said "named no shell hi asked about - not falling back"
+  { [ "$_HI_CT_RC" != 0 ] &&
+    _hi_ct_said "named no shell hi asked about - not falling back"; } || _hi_why _HI_CT_RC
 }
 
 # aliases.sh is the whole point of the fallback, so failing to land it is
@@ -385,8 +385,8 @@ function test_ladder_no_shell_hi_asked_about() {
 function test_ladder_aliases_copy_failure_still_attaches() {
   _hi_ct_run noalias _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh \
     _HI_CT_PUT_FAIL=aliases.sh
-  _hi_ct_said "failed to copy aliases.sh into" &&
-    _hi_ct_logged '^attach:'
+  { _hi_ct_said "failed to copy aliases.sh into" &&
+    _hi_ct_logged '^attach:'; } || _hi_why
 }
 
 # the rc carries $CMDARG, so dropping it would leave a bare, uncommanded shell
@@ -394,21 +394,21 @@ function test_ladder_aliases_copy_failure_still_attaches() {
 function test_ladder_fallback_rc_write_failure_is_fatal() {
   _hi_ct_run norc _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh \
     _HI_CT_PUT_FAIL=.hi_fallback_rc
-  [ "$_HI_CT_RC" != 0 ] &&
+  { [ "$_HI_CT_RC" != 0 ] &&
     _hi_ct_said "failed to write the fallback rc into" &&
-    ! grep -q '^attach:' "$_HI_CT_LOG"
+    ! grep -q '^attach:' "$_HI_CT_LOG"; } || _hi_why _HI_CT_RC _HI_CT_LOG
 }
 
 # zsh reads $ZDOTDIR/.zshrc and nothing else, so the copy is the handoff
 function test_ladder_zshrc_write_failure_is_fatal() {
   _hi_ct_run nozshrc _HI_CT_NO_BASH=1 _HI_CT_LADDER=zsh _HI_CT_CP_FAIL=1
-  [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "failed to write .zshrc into"
+  { [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "failed to write .zshrc into"; } || _hi_why _HI_CT_RC
 }
 
 # the tree itself failing to land is the last of the fallback-free arms
 function test_ladder_payload_copy_failure_is_fatal() {
   _hi_ct_run notar _HI_CT_TAR_FAIL=1
-  [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "failed to copy say-hi into"
+  { [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "failed to copy say-hi into"; } || _hi_why _HI_CT_RC
 }
 
 # Every fatal arm past the probe sweeps the scratch tree: it exists on the
@@ -416,9 +416,9 @@ function test_ladder_payload_copy_failure_is_fatal() {
 # the container. The shim logs the cleanup as an ordinary command.
 function test_ladder_every_fatal_arm_sweeps_the_scratch_tree() {
   _hi_ct_run noshell2 _HI_CT_NO_BASH=1 _HI_CT_LADDER=bogusshell
-  _hi_ct_logged '^cmd:rm -rf ' || return 1
+  _hi_ct_logged '^cmd:rm -rf ' || _hi_why || return 1
   _hi_ct_run notar2 _HI_CT_TAR_FAIL=1
-  _hi_ct_logged '^cmd:rm -rf '
+  _hi_ct_logged '^cmd:rm -rf ' || _hi_why
 }
 
 # the bootloader is the file `bash --rcfile` reads: landing it empty would
@@ -426,22 +426,22 @@ function test_ladder_every_fatal_arm_sweeps_the_scratch_tree() {
 # _hi_container_put's retry-and-verify like every other copy
 function test_ladder_bootloader_write_failure_is_fatal() {
   _hi_ct_run noboot _HI_CT_PUT_FAIL=hi.bashrc
-  [ "$_HI_CT_RC" != 0 ] &&
+  { [ "$_HI_CT_RC" != 0 ] &&
     _hi_ct_said "failed to write hi's bootloader into" &&
-    ! grep -q '^attach:' "$_HI_CT_LOG"
+    ! grep -q '^attach:' "$_HI_CT_LOG"; } || _hi_why _HI_CT_RC _HI_CT_LOG
 }
 
 # a fish fallback takes the rc through -C and the command through -c, as
 # _hi_remote_suffix does - never through $ENV, which fish does not read
 function test_ladder_fish_fallback_passes_the_rc_through_dash_c() {
   _hi_ct_run fish _HI_CT_NO_BASH=1 _HI_CT_LADDER=fish
-  _hi_ct_logged '^attach:fish -C'
+  _hi_ct_logged '^attach:fish -C' || _hi_why
 }
 
 # every other ladder shell gets it through $ENV instead
 function test_ladder_posix_fallback_passes_the_rc_through_env() {
   _hi_ct_run posix _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh
-  _hi_ct_logged 'attach:export ENV='
+  _hi_ct_logged 'attach:export ENV=' || _hi_why
 }
 
 function run_container_tests() {

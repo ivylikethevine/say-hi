@@ -114,7 +114,7 @@ function test_the_editor_config_in_force_here_rides_the_stream() {
   printf 'set number\n' >"$home/.vimrc"
   p="$(_hi_fake_path in-force-bins vim):$PATH"
   [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_files vim/vimrc)" = vim/vimrc ] &&
-    [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_tar vim/vimrc | _hi_tar_cat vim/vimrc)" = "set number" ]
+    [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_tar vim/vimrc | _hi_tar_cat vim/vimrc)" = "set number" ] || _hi_why home p dir
 }
 
 # ...in the tool's own order of precedence, each place answering once the
@@ -131,7 +131,7 @@ function test_a_home_config_is_found_in_its_tools_order() {
   set -- HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_XDG_CONFIG="$home/.config" PATH="$p" _HI_CONFIG_DIR="$dir"
   for f in $places; do
     f="$home/${f#*:}"
-    mkdir -p "${f%/*}" && printf 'x\n' >"$f" || return 1
+    mkdir -p "${f%/*}" && printf 'x\n' >"$f" || _hi_why f || return 1
   done
   for f in $places; do
     m="${f%%:*}" f="$home/${f#*:}"
@@ -157,12 +157,12 @@ function test_a_home_config_needs_its_tool_here() {
   printf 'set number\n' >"$home/.vimrc"
   printf 'set -g mouse on\n' >"$home/.tmux.conf"
   p="$(_hi_fake_path gate-bins vim)"
-  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc || return 1
-  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux/tmux.conf || return 1
-  HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc out && [ "$out" = "$home/.vimrc" ] || return 1
+  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc || _hi_why home none dir || return 1
+  ! HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src tmux/tmux.conf || _hi_why home none dir || return 1
+  HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc out && [ "$out" = "$home/.vimrc" ] || _hi_why home p dir out || return 1
   mkdir -p "$dir/vim"
   printf 'set ruler\n' >"$dir/vim/vimrc"
-  HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc out && [ "$out" = "$dir/vim/vimrc" ]
+  HOME="$home" PATH="$none" _HI_CONFIG_DIR="$dir" _hi_overlay_src vim/vimrc out && [ "$out" = "$dir/vim/vimrc" ] || _hi_why home none dir out
 }
 
 # the rows hi --doctor prints come from the same pass that does the dropping,
@@ -239,7 +239,7 @@ function test_the_scan_is_silent_on_a_clean_config() {
   mkdir -p "$dir/vim" "$dir/emacs"
   printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vim/vimrc"
   printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/emacs/init.el"
-  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_include_lint)" ]
+  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_include_lint)" ] || _hi_why dir
 }
 
 # the dialect comes from the member, not the path: doctor reads ~/.vimrc under
@@ -293,7 +293,7 @@ source ~/.kept
     _hi_cecho " | bashrc arrived as: [$out]" "$RED"
     return 1
   }
-  printf '%s\n' "$out" | bash -n
+  printf '%s\n' "$out" | bash -n || _hi_why out
 }
 
 # fish has no `:`, so its stand-in is `true`
@@ -427,14 +427,14 @@ function _hi_carry_home() {
 function test_an_include_under_the_tools_directory_rides() {
   local h d
   h="$(_hi_carry_home rides)"
-  d="$(mktemp -d "$_HI_WORKDIR/carry-unpacked.XXXXXX")" || return 1
+  d="$(mktemp -d "$_HI_WORKDIR/carry-unpacked.XXXXXX")" || _hi_why || return 1
   HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _hi_overlay_tar tmux/tmux.conf |
-    tar -x -z -f - -C "$d" || return 1
+    tar -x -z -f - -C "$d" || _hi_why h d || return 1
   [ "$(cat "$d/tmux/tmux.conf")" = "set -g mouse on
 source-file $_HI_CARRY_TOKEN/tmux/theme.conf" ] || _hi_because "tmux.conf: [$(cat "$d/tmux/tmux.conf")]" || return 1
   [ "$(cat "$d/tmux/theme.conf")" = "set -g @theme HI
 source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.conf: [$(cat "$d/tmux/theme.conf")]" || return 1
-  [ "$(cat "$d/tmux/parts/bar.conf")" = 'set -g @bar HI' ]
+  [ "$(cat "$d/tmux/parts/bar.conf")" = 'set -g @bar HI' ] || _hi_why d
 }
 
 # a line under hi-carry rides the files under $HOME it names, as written and
@@ -453,8 +453,8 @@ function test_a_marked_line_rides_the_files_it_names() {
   out="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_include_lint' | paste -sd, -)"
   # shellcheck disable=SC2088 # the ~ the line wrote
   [ "$out" = 'tmux/tmux.conf|5|carry|~/gone.txt is no file here' ] || _hi_because "the scan reported: [$out]" || return 1
-  d="$(mktemp -d "$_HI_WORKDIR/marked-unpacked.XXXXXX")" || return 1
-  env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_tar ripgreprc tmux/tmux.conf' | tar -x -z -f - -C "$d" || return 1
+  d="$(mktemp -d "$_HI_WORKDIR/marked-unpacked.XXXXXX")" || _hi_why || return 1
+  env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_tar ripgreprc tmux/tmux.conf' | tar -x -z -f - -C "$d" || _hi_why d || return 1
   [ "$(cat "$d/ripgreprc")" = "--smart-case
 --ignore-file=$_HI_CARRY_TOKEN/ripgreprc.carried/ignore" ] || _hi_because "ripgreprc: [$(cat "$d/ripgreprc")]" || return 1
   [ "$(cat "$d/ripgreprc.carried/ignore")" = "$(cat "$h/.config/fd/ignore")" ] || _hi_because "the ignore file did not ride as written" || return 1
@@ -470,7 +470,7 @@ function test_a_carried_path_lands_on_the_target() {
   local d="$_HI_WORKDIR/carry-fixup/config"
   mkdir -p "$d/tmux"
   printf 'source-file %s/tmux/theme.conf\nset -g mouse on\n' "$_HI_CARRY_TOKEN" >"$d/tmux/tmux.conf"
-  sh -c "$(_hi_overlay_fixup "'$d'")" || return 1
+  sh -c "$(_hi_overlay_fixup "'$d'")" || _hi_why || return 1
   [ "$(cat "$d/tmux/tmux.conf")" = "source-file $d/tmux/theme.conf
 set -g mouse on" ] || _hi_because "after the fixup: [$(cat "$d/tmux/tmux.conf")]"
 }
@@ -490,13 +490,13 @@ function test_an_edit_to_a_carried_file_rebuilds_the_cache() {
   h="$(_hi_carry_home cache)"
   mkdir -p "$h/run"
   HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" XDG_RUNTIME_DIR="$h/run" \
-    _hi_overlay_cached c1 tmux/tmux.conf || return 1
+    _hi_overlay_cached c1 tmux/tmux.conf || _hi_why h || return 1
   grep -qx "$h/.config/tmux/parts/bar.conf" "$c1.carry" || _hi_because "no carry list beside $c1" || return 1
   # dated ahead, so the edit is newer than the cache on any clock grain
   printf 'set -g @bar EDITED\n' >"$h/.config/tmux/parts/bar.conf"
   touch -t 203001010000 "$h/.config/tmux/parts/bar.conf"
   HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" XDG_RUNTIME_DIR="$h/run" \
-    _hi_overlay_cached c2 tmux/tmux.conf || return 1
+    _hi_overlay_cached c2 tmux/tmux.conf || _hi_why h || return 1
   [ "$(_hi_tar_cat tmux/parts/bar.conf <"$c2")" = 'set -g @bar EDITED' ] || _hi_because "the cache kept the old carried file"
 }
 
@@ -526,7 +526,7 @@ function test_framework_and_extension_includes_are_neutralized() {
   out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat oh-my-bash.theme.sh)"
   [ "$out" = '. "$OSH/themes/base.theme.sh"
 :
-PS1=x' ]
+PS1=x' ] || _hi_why out
 }
 
 # ...and that pass is the theme's alone, for its own framework: an extension

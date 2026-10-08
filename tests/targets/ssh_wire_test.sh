@@ -218,6 +218,8 @@ function _hi_wire_case() {
   # itself has returned
   if ! _hi_poll_bool 40 0.25 _hi_wire_counted "$counts"; then
     _hi_cecho " | [$label] the proxy never reported its counts" "$RED"
+    _hi_show_transcript "the session's transcript" "$out_file"
+    _hi_show_transcript "the proxy's counts file" "$counts"
     _hi_note_failure "[$label] no wire counts"
     _hi_rm_container "$name"
     return 1

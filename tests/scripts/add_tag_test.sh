@@ -40,26 +40,26 @@ function _hi_addtag_run() {
 function test_add_tag_writes_above_the_host() {
   local home
   home="$(_hi_addtag_fixture addtag-new)"
-  _hi_addtag_run "$home" web2 lab >/dev/null || return 1
-  grep -A1 -x '# Tags: lab' "$home/.ssh/config" | grep -qx 'Host web2'
+  _hi_addtag_run "$home" web2 lab >/dev/null || _hi_why home || return 1
+  grep -A1 -x '# Tags: lab' "$home/.ssh/config" | grep -qx 'Host web2' || _hi_why home
 }
 
 # a tag already there is replaced, not stacked - the walk reads only one
 function test_add_tag_replaces_an_existing_tag() {
   local home
   home="$(_hi_addtag_fixture addtag-replace)"
-  _hi_addtag_run "$home" web1 prod >/dev/null || return 1
-  [ "$(grep -c '^# Tags:' "$home/.ssh/config")" -eq 1 ] &&
-    grep -A1 -x '# Tags: prod' "$home/.ssh/config" | grep -qx 'Host web1'
+  _hi_addtag_run "$home" web1 prod >/dev/null || _hi_why home || return 1
+  { [ "$(grep -c '^# Tags:' "$home/.ssh/config")" -eq 1 ] &&
+    grep -A1 -x '# Tags: prod' "$home/.ssh/config" | grep -qx 'Host web1'; } || _hi_why home
 }
 
 # a host that lives in an Included file is tagged there
 function test_add_tag_writes_the_included_file() {
   local home
   home="$(_hi_addtag_fixture addtag-include)"
-  _hi_addtag_run "$home" inc1 lab >/dev/null || return 1
-  [ "$(cat "$home/.ssh/config.d/01-inc")" = '# Tags: lab
-Host inc1' ] && ! grep -q lab "$home/.ssh/config"
+  _hi_addtag_run "$home" inc1 lab >/dev/null || _hi_why home || return 1
+  { [ "$(cat "$home/.ssh/config.d/01-inc")" = '# Tags: lab
+Host inc1' ] && ! grep -q lab "$home/.ssh/config"; } || _hi_why home
 }
 
 # a name only a wildcard covers is refused, naming the block to tag instead
@@ -67,33 +67,33 @@ function test_add_tag_refuses_a_wildcard_only_host() {
   local home out
   home="$(_hi_addtag_fixture addtag-wild)"
   out="$(_hi_addtag_run "$home" db.prod prod)" && return 1
-  [[ "$out" == *"only 'Host *.prod' covers it"* ]] && ! grep -q '^# Tags: prod' "$home/.ssh/config"
+  { [[ "$out" == *"only 'Host *.prod' covers it"* ]] && ! grep -q '^# Tags: prod' "$home/.ssh/config"; } || _hi_why out home
 }
 
 # ...and the pattern itself can be tagged
 function test_add_tag_tags_a_pattern() {
   local home
   home="$(_hi_addtag_fixture addtag-pattern)"
-  _hi_addtag_run "$home" '*.prod' prod >/dev/null || return 1
-  grep -A1 -x '# Tags: prod' "$home/.ssh/config" | grep -qx 'Host \*.prod'
+  _hi_addtag_run "$home" '*.prod' prod >/dev/null || _hi_why home || return 1
+  grep -A1 -x '# Tags: prod' "$home/.ssh/config" | grep -qx 'Host \*.prod' || _hi_why home
 }
 
 function test_add_tag_refuses_an_unknown_host_and_a_bad_tag() {
   local home before
   home="$(_hi_addtag_fixture addtag-refuse)"
   before="$(cat "$home/.ssh/config")"
-  ! _hi_addtag_run "$home" nothere lab >/dev/null || return 1
-  ! _hi_addtag_run "$home" web2 'two words' >/dev/null || return 1
-  ! _hi_addtag_run "$home" web2 >/dev/null || return 1
-  [ "$(cat "$home/.ssh/config")" = "$before" ]
+  ! _hi_addtag_run "$home" nothere lab >/dev/null || _hi_why home || return 1
+  ! _hi_addtag_run "$home" web2 'two words' >/dev/null || _hi_why home || return 1
+  ! _hi_addtag_run "$home" web2 >/dev/null || _hi_why home || return 1
+  [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why home before
 }
 
 function test_add_tag_help_is_its_own() {
   local home out
   home="$(_hi_addtag_fixture addtag-help)"
-  out="$(_hi_addtag_run "$home" --help)" || return 1
+  out="$(_hi_addtag_run "$home" --help)" || _hi_why home || return 1
   [[ "$out" == "Usage: hi --add-tag <host> <tag> [--dry-run]"* ]] &&
-    [[ "$out" == *"$home/.ssh/config"* && "$out" == *"-n, --dry-run"* ]]
+    [[ "$out" == *"$home/.ssh/config"* && "$out" == *"-n, --dry-run"* ]] || _hi_why out home
 }
 
 function test_add_tag_refuses_an_unknown_option() {
@@ -102,7 +102,7 @@ function test_add_tag_refuses_an_unknown_option() {
   before="$(cat "$home/.ssh/config")"
   out="$(_hi_addtag_run "$home" web2 lab --bogus)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"unknown option --bogus"* ]] &&
-    [ "$(cat "$home/.ssh/config")" = "$before" ]
+    [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why rc out home before
 }
 
 # the tag a host already carries is said, and nothing is written
@@ -110,25 +110,25 @@ function test_add_tag_leaves_a_host_already_tagged() {
   local home before out
   home="$(_hi_addtag_fixture addtag-same)"
   before="$(cat "$home/.ssh/config")"
-  out="$(_hi_addtag_run "$home" web1 old)" || return 1
+  out="$(_hi_addtag_run "$home" web1 old)" || _hi_why home || return 1
   [[ "$out" == *"web1 is already tagged old"* && "$out" != *updated* ]] &&
-    [ "$(cat "$home/.ssh/config")" = "$before" ]
+    [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why out home before
 }
 
 function test_add_tag_dry_run_writes_nothing() {
   local home before out
   home="$(_hi_addtag_fixture addtag-dry)"
   before="$(cat "$home/.ssh/config")"
-  out="$(_hi_addtag_run "$home" web2 lab --dry-run)" || return 1
-  [[ "$out" == *"dry run: would write"* ]] && [ "$(cat "$home/.ssh/config")" = "$before" ]
+  out="$(_hi_addtag_run "$home" web2 lab --dry-run)" || _hi_why home || return 1
+  [[ "$out" == *"dry run: would write"* ]] && [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why out home before
 }
 
 # the file keeps its mode through the rewrite (ssh refuses a loose config)
 function test_add_tag_keeps_the_config_mode() {
   local home
   home="$(_hi_addtag_fixture addtag-mode)"
-  _hi_addtag_run "$home" web2 lab >/dev/null || return 1
-  [ "$(_hi_mode_string "$home/.ssh/config")" = -rw------- ]
+  _hi_addtag_run "$home" web2 lab >/dev/null || _hi_why home || return 1
+  [ "$(_hi_mode_string "$home/.ssh/config")" = -rw------- ] || _hi_why home
 }
 
 # The round trip the command exists for: tagged, then drawn by
@@ -142,14 +142,14 @@ function test_add_tag_round_trips_through_preview_colors() {
   mv "$home/.ssh/config.new" "$home/.ssh/config"
   mkdir -p "$home/overlay"
   printf '[hosttag]\nlab = "brred"\n' >"$home/overlay/colors"
-  _hi_addtag_run "$home" web2 lab >/dev/null || return 1
+  _hi_addtag_run "$home" web2 lab >/dev/null || _hi_why home || return 1
   out="$(HOME="$home" _HI_HOME="$home" _HI_CONFIG_DIR="$home/overlay" _HI_TARGETS_TTL=0 \
-    "$home/say-hi/scripts/preview.sh" colors 2>&1)" || return 1
+    "$home/say-hi/scripts/preview.sh" colors 2>&1)" || _hi_why home || return 1
   _hi_color_escape_var esc brred
   printf -v esc '%b' "$esc"
   [[ "$out" == *"${esc}web2"* ]] || _hi_because "web2 is not painted brred" || return 1
   out="$(_hi_strip_ansi "$out")"
-  printf '%s\n' "$out" | grep 'web2' | grep -q 'tag:lab'
+  printf '%s\n' "$out" | grep 'web2' | grep -q 'tag:lab' || _hi_why out
 }
 
 function run_add_tag_tests() {

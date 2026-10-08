@@ -18,7 +18,7 @@ function test_banner_includes_label_and_host() {
   local out host
   host="$(_hi_hostname)"
   out="$(banner TestBanner)"
-  [[ "$out" == *"TestBanner"* && "$out" == *"$host"* ]]
+  [[ "$out" == *"TestBanner"* && "$out" == *"$host"* ]] || _hi_why out host
 }
 
 # a longer prefix reserves more of the (already-printed) line, so it should
@@ -46,7 +46,7 @@ function test_banner_prefix_shrinks_padding() {
     unset _HI_BANNER_HOST
     banner TestBanner "$BRGREEN" "$(printf 'x%.0s' {1..50})"
   )"
-  [ "${#prefixed}" -lt "${#plain}" ]
+  [ "${#prefixed}" -lt "${#plain}" ] || _hi_why prefixed plain
 }
 
 # ...and the floor itself, reached on purpose with the hostname pinned long
@@ -58,7 +58,7 @@ function test_banner_floors_padding_on_a_long_hostname() {
     unset _HI_BANNER_HOST
     banner TestBanner
   )"
-  [[ "$out" == *"$_HI_HOSTNAME_CACHE"* && "$out" == *"="* ]]
+  [[ "$out" == *"$_HI_HOSTNAME_CACHE"* && "$out" == *"="* ]] || _hi_why out _HI_HOSTNAME_CACHE
 }
 
 # One arm per half, each naming itself: the fill cannot go missing by
@@ -78,7 +78,7 @@ function test_banner_floors_fill_on_long_label() {
 function test_banner_narrow_width_does_not_error() {
   local out
   out="$(_HI_MAX_WIDTH=10 banner Narrow)"
-  [ -n "$out" ]
+  [ -n "$out" ] || _hi_why out
 }
 
 # the C-locale fallback: same banner, ASCII ^ in place of ↑ (the subshell
@@ -90,7 +90,7 @@ function test_banner_ascii_fallback_uses_caret() {
     _hi_choose_glyphs
     banner TestBanner
   )"
-  [[ "$out" == *"^"* ]] && [[ "$out" != *"↑"* ]]
+  [[ "$out" == *"^"* ]] && [[ "$out" != *"↑"* ]] || _hi_why out
 }
 
 # ...and the marks swap with it. All four are one visible column in either
@@ -101,20 +101,20 @@ function test_marks_swap_to_ascii_with_the_set() {
     _hi_choose_glyphs
     [ "$_HI_MARK_OK" = "+" ] && [ "$_HI_MARK_NO" = x ] &&
       [ "$_HI_MARK_ALT" = "~" ] && [ "$_HI_MARK_WARN" = "!" ]
-  )
+  ) || _hi_why _HI_MARK_OK _HI_MARK_NO _HI_MARK_ALT _HI_MARK_WARN
 }
 
 function test_banner_disabled_produces_no_output() {
   local out
   out="$(_HI_DISABLE_BANNER=1 banner TestBanner)"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 # guards the default: the toggle is opt-out, so an unset var must still print
 function test_banner_prints_when_toggle_unset() {
   local out
   out="$(unset _HI_DISABLE_BANNER && banner TestBanner)"
-  [[ "$out" == *"TestBanner"* ]]
+  [[ "$out" == *"TestBanner"* ]] || _hi_why out
 }
 
 # banner runs twice a session (connect, then load.sh's disconnect) for a change
@@ -141,7 +141,7 @@ function test_banner_change_count_is_computed_once() {
   banner TestBanner >"$file"
   second="$(cat "$file")"
   unset _HI_BANNER_CHANGES _HI_BANNER_HOST
-  [ -n "$first" ] && [[ "$second" == *4242* ]]
+  [ -n "$first" ] && [[ "$second" == *4242* ]] || _hi_why first second
 }
 
 # ...but only when there is a checkout to count. A shipped tree has no .git,
@@ -155,7 +155,7 @@ function test_banner_omits_the_count_without_a_git_dir() {
     unset _HI_BANNER_CHANGES
     banner TestBanner
   )"
-  [[ "$out" == *"TestBanner"* ]] && [[ "$out" != *"↑"* ]]
+  [[ "$out" == *"TestBanner"* ]] && [[ "$out" != *"↑"* ]] || _hi_why out
 }
 
 # The branch-indicator cases below each stand a tiny checkout up via
@@ -184,7 +184,7 @@ function test_banner_online_names_an_off_main_branch() {
   dir="$(_hi_git_fixture)"
   git -C "$dir" checkout -qb feature-x
   out="$(_hi_fixture_banner "$dir" Online)"
-  [[ "$out" == *"(feature-x)"* ]]
+  [[ "$out" == *"(feature-x)"* ]] || _hi_why out
 }
 
 # ...but main is the expected state and earns no callout
@@ -192,7 +192,7 @@ function test_banner_online_stays_quiet_on_main() {
   local dir out
   dir="$(_hi_git_fixture)"
   out="$(_hi_fixture_banner "$dir" Online)"
-  [[ "$out" == *"↑"* && "$out" != *"("* ]]
+  [[ "$out" == *"↑"* && "$out" != *"("* ]] || _hi_why out
 }
 
 # ...nor does a detached HEAD, which is what a release-tag checkout is
@@ -201,7 +201,7 @@ function test_banner_online_stays_quiet_when_detached() {
   dir="$(_hi_git_fixture)"
   git -C "$dir" checkout -q --detach
   out="$(_hi_fixture_banner "$dir" Online)"
-  [[ "$out" == *"↑"* && "$out" != *"("* ]]
+  [[ "$out" == *"↑"* && "$out" != *"("* ]] || _hi_why out
 }
 
 # Online only: the same branch stays out of the Connected and Disconnected
@@ -212,7 +212,7 @@ function test_banner_branch_stays_out_of_remote_banners() {
   git -C "$dir" checkout -qb feature-x
   for label in Connected Disconnected; do
     out="$(_hi_fixture_banner "$dir" "$label")"
-    [[ "$out" == *"↑"* && "$out" != *"("* ]] || return 1
+    [[ "$out" == *"↑"* && "$out" != *"("* ]] || _hi_why out || return 1
   done
 }
 
@@ -225,7 +225,7 @@ function test_banner_branch_shrinks_padding() {
   plain="$(_hi_fixture_banner "$dir" Online)"
   git -C "$dir" checkout -qb feature-x
   branched="$(_hi_fixture_banner "$dir" Online)"
-  [ "$(tr -dc '=' <<<"$branched" | wc -c)" -lt "$(tr -dc '=' <<<"$plain" | wc -c)" ]
+  [ "$(tr -dc '=' <<<"$branched" | wc -c)" -lt "$(tr -dc '=' <<<"$plain" | wc -c)" ] || _hi_why branched plain
 }
 
 # the regression this toggle exists for: silencing the banner must leave the
@@ -233,13 +233,13 @@ function test_banner_branch_shrinks_padding() {
 function test_hi_header_banner_off_keeps_detail_lines() {
   local out
   out="$(_HI_DISABLE_BANNER=1 hi_header Connected)"
-  [[ "$out" != *"Connected"* && "$out" == *"Cores:"* && "$out" == *"RAM:"* ]]
+  [[ "$out" != *"Connected"* && "$out" == *"Cores:"* && "$out" == *"RAM:"* ]] || _hi_why out
 }
 
 function test_hi_header_disabled_produces_no_output() {
   local out
   out="$(_HI_DISABLE_HEADER=1 hi_header Connected)"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 # On a failure, what it rendered instead - the bare glob cannot tell an empty
@@ -262,7 +262,7 @@ function test_hi_header_launches_probes_for_a_backend_word() {
     function _hi_probe_launch() { echo LAUNCHED; }
     _HI_HEADER_ORDER="containers gitid" hi_header Connected
   )"
-  [[ "$out" == *LAUNCHED* ]]
+  [[ "$out" == *LAUNCHED* ]] || _hi_why out
 }
 
 # ...and stands down once it is: configure.sh renders hi_header over and over
@@ -288,7 +288,7 @@ function test_draw_width_reads_columns_then_tput_under_a_tty() {
     _HI_TERM_COLS=""
     _HI_MAX_WIDTH=30 COLUMNS=40 _hi_draw_width w
     printf "max=%s\n" "$w"' 2>&1 | tr -d '\r')"
-  [[ "$out" == *"cols=40 tput=50 memo=50 max=30"* ]]
+  [[ "$out" == *"cols=40 tput=50 memo=50 max=30"* ]] || _hi_why out
 }
 
 # with no docker on the PATH, podman is the container prober - and the probe
@@ -310,7 +310,7 @@ function test_probe_launch_takes_podman_when_docker_is_absent() {
     [ -f "$_HI_PROBE_DIR/containers.podman" ] && [ ! -e "$_HI_PROBE_DIR/containers.docker" ] && [ ! -e "$_HI_PROBE_DIR/nomad" ] && echo PODMAN_PROBED
     rm -rf "$_HI_PROBE_DIR"
   )"
-  [ "$out" = PODMAN_PROBED ]
+  [ "$out" = PODMAN_PROBED ] || _hi_why out
 }
 
 # ...and a backend $_HI_BACKENDS_OFF names is not started at all
@@ -329,7 +329,7 @@ function test_probe_launch_skips_a_backend_switched_off() {
     _hi_probe_launch
     [ -z "$_HI_PROBE_DIR" ] && echo NOT_PROBED
   )"
-  [ "$out" = NOT_PROBED ]
+  [ "$out" = NOT_PROBED ] || _hi_why out
 }
 
 function test_hi_header_skips_probe_launch_once_backends_are_memoized() {
@@ -340,7 +340,7 @@ function test_hi_header_skips_probe_launch_once_backends_are_memoized() {
     _HI_BK_PROBED=1 _HI_ID_CONTAINERS="" _HI_ID_JOBS="" _HI_ID_PODS=
     _HI_HEADER_ORDER="containers gitid" hi_header Connected
   )"
-  [[ "$out" != *LAUNCHED* && "$out" == *gitid* ]]
+  [[ "$out" != *LAUNCHED* && "$out" == *gitid* ]] || _hi_why out
 }
 
 # gitid/auth/pub read git and ~/.ssh only: an order without a backend word
@@ -351,7 +351,7 @@ function test_hi_header_identity_cells_skip_the_backends() {
     function _hi_probe_launch() { echo LAUNCHED; }
     _HI_HEADER_ORDER="gitid auth pub" hi_header Connected
   )"
-  [[ "$out" != *LAUNCHED* && "$out" == *Auth:* ]]
+  [[ "$out" != *LAUNCHED* && "$out" == *Auth:* ]] || _hi_why out
 }
 
 # hi_header's default row order: timestamp, then sysinfo, then identity
@@ -372,8 +372,8 @@ function test_hi_header_default_order() {
   si="$(_hi_pos "$out" "Cores:")"
   id="$(_hi_pos "$out" "Auth:")"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
-  [ -n "$ts" ] && [ -n "$si" ] && [ -n "$id" ] && [ -n "$ck" ] &&
-    ((ts < si)) && ((si < id)) && ((id < ck))
+  { [ -n "$ts" ] && [ -n "$si" ] && [ -n "$id" ] && [ -n "$ck" ] &&
+    ((ts < si)) && ((si < id)) && ((id < ck)); } || _hi_why ts si id ck
 }
 
 # a reordered $_HI_HEADER_ORDER moves the features to match, and a feature
@@ -388,29 +388,29 @@ function test_hi_header_order_setting_reorders_and_can_omit() {
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
   up="$(_hi_pos "$out" "Up:")"
   si="$(_hi_pos "$out" "Cores:")"
-  [[ "$out" != *orderprobe* ]] &&
+  { [[ "$out" != *orderprobe* ]] &&
     [ -n "$ck" ] && [ -n "$up" ] && [ -n "$si" ] &&
-    ((ck < up)) && ((up < si))
+    ((ck < up)) && ((up < si)); } || _hi_why out ck up si
 }
 
 # an unknown word is ignored rather than erroring or printing anything for it
 function test_hi_header_order_ignores_an_unknown_word() {
   local out
   out="$(_HI_HEADER_ORDER="bogus cores" hi_header Connected)"
-  [[ "$out" == *"Cores:"* ]]
+  [[ "$out" == *"Cores:"* ]] || _hi_why out
 }
 
 # uptime is its own word, independent of every other identity cell
 function test_hi_header_order_uptime_is_its_own_word() {
   local out
   out="$(_HI_HEADER_ORDER="uptime cores" hi_header Connected)"
-  [[ "$out" == *"Up:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
+  [[ "$out" == *"Up:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]] || _hi_why out
 }
 
 function test_hi_header_order_ip_is_its_own_word() {
   local out
   out="$(_HI_IP_HIDE=none _HI_HEADER_ORDER="ip cores" hi_header Connected)"
-  [[ "$out" == *"IP:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
+  [[ "$out" == *"IP:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]] || _hi_why out
 }
 
 # leaving uptime out of the order hides just that cell - the other identity
@@ -418,7 +418,7 @@ function test_hi_header_order_ip_is_its_own_word() {
 function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
   local out
   out="$(_HI_HEADER_ORDER="gitid auth" hi_header Connected)"
-  [[ "$out" != *"Up:"* && "$out" == *"Auth:"* ]]
+  [[ "$out" != *"Up:"* && "$out" == *"Auth:"* ]] || _hi_why out
 }
 
 # End to end: hi_header arms the cascade for its own accumulate/flush loop,
@@ -435,11 +435,11 @@ function test_hi_header_cascades_identity_overflow_into_check() {
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_CONFIG_DIR="$cfg" \
   _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="gitid auth pub uptime check" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
-  [[ "$out" == *"Up:"* && "$out" == *"$_HI_REAL_CMD"* ]] || return 1
+  [[ "$out" == *"Up:"* && "$out" == *"$_HI_REAL_CMD"* ]] || _hi_why out _HI_REAL_CMD || return 1
   while IFS= read -r line; do
     case "$line" in *"Up:"*) [[ "$line" == *"$_HI_REAL_CMD"* ]] && return 0 ;; esac
   done <<<"$out"
-  return 1
+  _hi_why -3 line out _HI_REAL_CMD || return 1
 }
 
 # ...and when "check" is left out of the order entirely, the same leftover
@@ -450,7 +450,7 @@ function test_hi_header_flushes_leftover_when_check_is_absent() {
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
   _HI_MAX_WIDTH=20 _HI_HEADER_ORDER="gitid auth pub uptime" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
-  [[ "$out" == *"Auth:"* && "$out" == *"Up:"* ]]
+  [[ "$out" == *"Auth:"* && "$out" == *"Up:"* ]] || _hi_why out
 }
 
 # a reordered $_HI_HEADER_ORDER packs onto one line like any other order -
@@ -461,7 +461,7 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
   lines="$(printf '%s\n' "$out" | grep -c .)"
   # banner + one packed line (cpu, gitid, and utc all short enough to share it)
   [ "$lines" -eq 2 ] &&
-    [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]]
+    [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]] || _hi_why lines out
 }
 
 # _hi_cell_hue: the leading escape's hue digit (1 red .. 6 cyan), ignoring
@@ -469,7 +469,7 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
 function test_hi_cell_hue_reads_the_leading_escape() {
   local h
   _hi_cell_hue h "${CYAN}x"
-  [ "$h" = 6 ]
+  [ "$h" = 6 ] || _hi_why h
 }
 
 # shellcheck disable=SC2153 # $BRCYAN is core.sh's palette variable; `brcyan`
@@ -479,7 +479,7 @@ function test_hi_cell_hue_ignores_the_bold_bit() {
   _hi_cell_hue cyan "${CYAN}x"
   _hi_cell_hue brcyan "${BRCYAN}x"
   _hi_cell_hue blue "${BLUE}x"
-  [ "$cyan" = "$brcyan" ] && [ "$cyan" != "$blue" ]
+  [ "$cyan" = "$brcyan" ] && [ "$cyan" != "$blue" ] || _hi_why cyan brcyan blue
 }
 
 # NO_COLOR blanks the whole palette (core.sh), so a cell like $_HI_SI_OS is
@@ -488,7 +488,7 @@ function test_hi_cell_hue_ignores_the_bold_bit() {
 function test_hi_cell_hue_is_empty_without_an_escape() {
   local h
   _hi_cell_hue h "macOS 15.1"
-  [ -z "$h" ]
+  [ -z "$h" ] || _hi_why h
 }
 
 # under a scheme the escape runs on past the slot digit (HI.50); the digit is
@@ -496,11 +496,11 @@ function test_hi_cell_hue_is_empty_without_an_escape() {
 function test_hi_cell_hue_reads_a_truecolor_escape() {
   local h
   _hi_cell_hue h '\e[1;36;38;2;107;215;202mIP: x'
-  [ "$h" = 6 ] || return 1
+  [ "$h" = 6 ] || _hi_why h || return 1
   _hi_cell_hue h '\e[0;33;38;2;249;226;175mUp: 1h'
-  [ "$h" = 3 ] || return 1
+  [ "$h" = 3 ] || _hi_why h || return 1
   _hi_cell_hue h 'RAM: \e[0;33;38;2;1;2;3m6G'
-  [ -z "$h" ]
+  [ -z "$h" ] || _hi_why h
 }
 
 function test_header_hues_never_repeat_under_a_scheme() {
@@ -512,13 +512,13 @@ function test_header_hues_never_repeat_under_a_scheme() {
     _hi_packages_palette
     test_header_hues_never_repeat_in_the_default_order
   ) && ok=1
-  [ "$ok" = 1 ]
+  [ "$ok" = 1 ] || _hi_why ok
 }
 
 function test_hi_cell_hue_ignores_a_non_leading_escape() {
   local h
   _hi_cell_hue h "RAM: ${CYAN}6/60G"
-  [ -z "$h" ]
+  [ -z "$h" ] || _hi_why h
 }
 
 # The correctness argument for skipping a ring-walk fallback: a substitution
@@ -541,7 +541,7 @@ function test_header_word_alt_differs_from_its_own_primary() {
     _hi_header_word_alt "$w" alt
     alt_hue=""
     _hi_cell_hue alt_hue "${alt}x"
-    [ -n "$alt_hue" ] && [ "$alt_hue" != "$primary_hue" ] || return 1
+    [ -n "$alt_hue" ] && [ "$alt_hue" != "$primary_hue" ] || _hi_why alt_hue primary_hue || return 1
   done
 }
 
@@ -551,7 +551,7 @@ function test_header_word_alt_is_defined_for_every_order_word() {
   for w in $words; do
     alt=""
     _hi_header_word_alt "$w" alt
-    [ -n "$alt" ] || return 1
+    [ -n "$alt" ] || _hi_why alt || return 1
   done
 }
 
@@ -584,7 +584,7 @@ function test_header_default_order_needs_no_alternate() {
     [ -n "$raw" ] || continue
     _hi_lead_escape want "$raw"
     _hi_lead_escape got "${_HI_PENDING_CELLS[$i]}"
-    [ "$got" = "$want" ] || return 1
+    [ "$got" = "$want" ] || _hi_why got want || return 1
     i=$((i + 1))
   done
 }
@@ -601,7 +601,7 @@ function test_header_hues_never_repeat_in_the_default_order() {
     [ -n "$hue" ] || continue
     [ "$hue" = "$prev" ] && return 1
     prev="$hue"
-  done
+  done || _hi_why -6 words w cell hue
 }
 
 # A worst case no real order would ship: every word the same hue (utc, cpu,
@@ -618,7 +618,7 @@ function test_header_hues_never_repeat_in_a_pathological_order() {
     [ -n "$hue" ] || continue
     [ "$hue" = "$prev" ] && return 1
     prev="$hue"
-  done
+  done || _hi_why -6 words w cell hue
 }
 
 # _hi_header_cells_fixture - a header/ directory: `sky` and `sea` draw cyan
@@ -687,10 +687,10 @@ function test_a_header_cell_of_your_own_gets_an_alternate() {
     for cell in "${_HI_PENDING_CELLS[@]}"; do
       hue=""
       _hi_cell_hue hue "$cell"
-      [ -n "$hue" ] && [ "$hue" != "$prev" ] || exit 1
+      { [ -n "$hue" ] && [ "$hue" != "$prev" ]; } || _hi_why hue prev || exit 1
       prev="$hue"
     done
-  )
+  ) || _hi_why dir cell hue prev
 }
 
 # containers/jobs/pods render only when their own backend answered, so any
@@ -714,7 +714,7 @@ function test_header_backend_trio_hues_are_three_families() {
   _hi_cell_hue hj "$jobs"
   _hi_cell_hue hp "$pods"
   [ -n "$hc" ] && [ -n "$hj" ] && [ -n "$hp" ] &&
-    [ "$hc" != "$hj" ] && [ "$hc" != "$hp" ] && [ "$hj" != "$hp" ]
+    [ "$hc" != "$hj" ] && [ "$hc" != "$hp" ] && [ "$hj" != "$hp" ] || _hi_why hc hj hp
 }
 
 # Under NO_COLOR every color var is blank (core.sh), so _hi_cell_hue reads
@@ -724,7 +724,7 @@ function test_header_hues_are_inert_under_no_color() {
   local out
   out="$(NO_COLOR=1 PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
     bash -c 'source "$_HI_HEADER"; hi_header Online' 2>&1)"
-  [[ "$out" != *$'\e['* ]]
+  [[ "$out" != *$'\e['* ]] || _hi_why out
 }
 
 function test_header_hues_never_repeat_under_a_24_word_scheme() {
@@ -736,7 +736,7 @@ function test_header_hues_never_repeat_under_a_24_word_scheme() {
     _hi_packages_palette
     test_header_hues_never_repeat_in_the_default_order
   ) && ok=1
-  [ "$ok" = 1 ]
+  [ "$ok" = 1 ] || _hi_why ok
 }
 
 function run_header_whole_tests() {

@@ -27,12 +27,12 @@ function _hi_shquote_roundtrip() {
 }
 
 function test_shquote_roundtrips_the_hard_cases() {
-  _hi_shquote_roundtrip "plain" &&
+  { _hi_shquote_roundtrip "plain" &&
     _hi_shquote_roundtrip "with space" &&
     _hi_shquote_roundtrip "don't" &&
     _hi_shquote_roundtrip "''leading and trailing''" &&
     _hi_shquote_roundtrip 'a\$b`c"d' &&
-    _hi_shquote_roundtrip '$(reboot)'
+    _hi_shquote_roundtrip '$(reboot)'; } || _hi_why
 }
 
 # the armor line is `echo "<base64>" | <unarmor> <op> <word>` - proven by
@@ -40,8 +40,8 @@ function test_shquote_roundtrips_the_hard_cases() {
 function test_armored_line_roundtrips_through_sh() {
   local f="$_HI_WORKDIR/armored.out" line
   line="$(printf 'hello armored world\n' | _hi_armored_line '>' "'$f'")"
-  sh -c "$line" || return 1
-  [ "$(cat "$f")" = "hello armored world" ]
+  sh -c "$line" || _hi_why line || return 1
+  [ "$(cat "$f")" = "hello armored world" ] || _hi_why f
 }
 
 # openssl stands in for a missing base64 on either end (stock OpenBSD):
@@ -61,18 +61,18 @@ function test_armor_falls_back_to_openssl() {
   dir="$(_hi_real_path onlyssl-armor openssl tr)"
   want="$(seq 1 400 | tr '\n' ' ')"
   line="$(printf '%s\n' "$want" | _hi_armored_line '>' "'$f'")"
-  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || return 1
+  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || _hi_why dir sh_bin line f || return 1
   line="$(printf 'echo "%s" | %s > %s' "$(printf '%s\n' "$want" | $_HI_ARMOR | tr -d '\n')" "$_HI_UNARMOR" "'$f'")"
-  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || return 1
+  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || _hi_why dir sh_bin line f || return 1
   line="$(printf '%s\n' "$want" | _HI_ARMOR="openssl base64" _hi_armored_line '>' "'$f'")"
-  sh -c "$line" && [ "$(cat "$f")" = "$want" ]
+  sh -c "$line" && [ "$(cat "$f")" = "$want" ] || _hi_why line f want
 }
 
 function test_outer_inner_split() {
   [ "$(_hi_outer pod/ctr)" = pod ] &&
     [ "$(_hi_inner pod/ctr)" = ctr ] &&
     [ "$(_hi_outer plain)" = plain ] &&
-    [ -z "$(_hi_inner plain)" ]
+    [ -z "$(_hi_inner plain)" ] || _hi_why
 }
 
 function _hi_kube_case() {
@@ -83,23 +83,23 @@ function _hi_kube_case() {
 }
 
 function test_kube_split_grammar() {
-  _hi_kube_case pod "" pod &&
+  { _hi_kube_case pod "" pod &&
     _hi_kube_case pod "--namespace ns" ns:pod &&
     _hi_kube_case pod "--context ctx --namespace ns" ctx:ns:pod &&
-    _hi_kube_case pod "--namespace ns" ns:pod/ctr
+    _hi_kube_case pod "--namespace ns" ns:pod/ctr; } || _hi_why
 }
 
 function test_human_bytes_units() {
   [ "$(_hi_human_bytes 512)" = "512B" ] &&
     [ "$(_hi_human_bytes 1024)" = "1.0K" ] &&
     [ "$(_hi_human_bytes 10240)" = "10K" ] &&
-    [ "$(_hi_human_bytes 1048576)" = "1.0M" ]
+    [ "$(_hi_human_bytes 1048576)" = "1.0M" ] || _hi_why
 }
 
 function test_file_bytes_counts() {
   local f="$_HI_WORKDIR/five.bytes"
   printf '12345' >"$f"
-  [ "$(_hi_file_bytes "$f")" = 5 ]
+  [ "$(_hi_file_bytes "$f")" = 5 ] || _hi_why f
 }
 
 # FNV-1a's published vectors, across the 64-character slice boundary, with an
@@ -111,7 +111,7 @@ function test_hash_is_fnv1a_in_the_shell() {
   PATH="" _hi_hash foobar b
   PATH="" _hi_hash "$long" c
   d="$(PATH="" _hi_hash "$long!")"
-  [ "$a $b $c $d" = "2166136261 3214735720 1422867810 3309138041" ]
+  [ "$a $b $c $d" = "2166136261 3214735720 1422867810 3309138041" ] || _hi_why a b c d
 }
 
 function test_target_color_memoizes_the_domain() {
@@ -119,7 +119,7 @@ function test_target_color_memoizes_the_domain() {
     unset _HI_TARGET_COLOR_MEMO
     DOMAIN="user@somehost.example"
     [ "$(_hi_target_color)" = "$(_hi_resolve_color hostname somehost.example)" ]
-  )
+  ) || _hi_why
 }
 
 # nothing without a command; with one, the line lands the command in the rc
@@ -127,48 +127,48 @@ function test_command_append_shapes() {
   (
     unset CMDARG
     [ -z "$(_hi_command_append x)" ]
-  ) || return 1
+  ) || _hi_why || return 1
   (
     local f="$_HI_WORKDIR/append.rc" line
     CMDARG='ls -la; exit'
     printf 'existing\n' >"$f"
     line="$(_hi_command_append "'$f'")"
-    sh -c "$line" || return 1
+    sh -c "$line" || _hi_why line || return 1
     [ "$(cat "$f")" = "existing
 ls -la; exit" ]
-  )
+  ) || _hi_why f line
 }
 
 function test_command_fish_flag_quotes_for_sh() {
   (
     unset CMDARG
     [ -z "$(_hi_command_fish_flag)" ]
-  ) || return 1
+  ) || _hi_why || return 1
   (
     CMDARG="echo don't; exit"
     eval "set -- $(_hi_command_fish_flag)"
     [ "$1" = -c ] && [ "$2" = "echo don't; exit" ]
-  )
+  ) || _hi_why
 }
 
 # the ladder probe is sh the target runs; here the target is this box
 function test_ladder_probe_names_a_ladder_shell() {
   local out
   out="$(sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')")"
-  case " $_HI_SHELL_LADDER " in *" $out "*) ;; *) return 1 ;; esac
+  case " $_HI_SHELL_LADDER " in *" $out "*) ;; *) _hi_why out _HI_SHELL_LADDER || return 1 ;; esac
 }
 
 function test_flag_help_splits_local_from_anywhere() {
   local anywhere local_rows
   anywhere="$(_hi_flag_help -)"
   local_rows="$(_hi_flag_help local)"
-  case "$anywhere" in *"-h, --help"*) ;; *) return 1 ;; esac
-  case "$local_rows" in *--help*) return 1 ;; *) ;; esac
+  case "$anywhere" in *"-h, --help"*) ;; *) _hi_why anywhere || return 1 ;; esac
+  case "$local_rows" in *--help*) _hi_why local_rows || return 1 ;; *) ;; esac
   # every common/flags row lands on exactly one side: one label line each
   # (a wide label's help sits on its own line, indented past the flag column)
   local total
   total="$(grep -Ecv '^(#|$)' "$_HI_ROOT/common/flags")"
-  [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')" = "$total" ]
+  [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')" = "$total" ] || _hi_why anywhere local_rows total
 }
 
 # The stripper, run the way _hi_payload_tar runs it: shebang kept, full-line
@@ -198,16 +198,16 @@ FIXTURE
   case "$out" in *"a full-line comment"*) return 1 ;; *) ;; esac
   case "$out" in *"trailing comments stay"*) ;; *) return 1 ;; esac
   case "$out" in *"inside a heredoc, this line is data"*) ;; *) return 1 ;; esac
-  [ "$(sh -c '. "$1" >/dev/null; printf %s "$table"' _ "$dir/x.sh" 2>/dev/null)" = "a:b c:d" ]
+  [ "$(sh -c '. "$1" >/dev/null; printf %s "$table"' _ "$dir/x.sh" 2>/dev/null)" = "a:b c:d" ] || _hi_why table dir
 }
 
 function test_safe_path_rejects_relative_paths() {
-  [ -z "$(_hi_safe_path tmp/relative A-Za-z0-9/._-)" ]
+  [ -z "$(_hi_safe_path tmp/relative A-Za-z0-9/._-)" ] || _hi_why
 }
 
 function test_safe_path_rejects_chars_outside_the_class() {
   [ -z "$(_hi_safe_path '/tmp/x;rm -rf ~' A-Za-z0-9/._-)" ] &&
-    [ -z "$(_hi_safe_path '/tmp/`whoami`' A-Za-z0-9/._-)" ]
+    [ -z "$(_hi_safe_path '/tmp/`whoami`' A-Za-z0-9/._-)" ] || _hi_why
 }
 
 # _hi_container_put's contract: retry a landing the target reports empty,
@@ -242,8 +242,8 @@ function test_container_put_retries_an_empty_landing() {
   printf 'payload\n' >"$src"
   rm -f "$dest"
   _HI_PUT_STUB_CALLS=0 _HI_PUT_STUB_TRY=2
-  _hi_container_put "$src" "$dest" || return 1
-  [ "$_HI_PUT_STUB_CALLS" -eq 2 ] && [ "$(cat "$dest")" = payload ]
+  _hi_container_put "$src" "$dest" || _hi_why src dest || return 1
+  [ "$_HI_PUT_STUB_CALLS" -eq 2 ] && [ "$(cat "$dest")" = payload ] || _hi_why dest _HI_PUT_STUB_CALLS
 }
 
 function test_container_put_gives_up_after_three_empty_landings() {
@@ -253,7 +253,7 @@ function test_container_put_gives_up_after_three_empty_landings() {
   printf 'payload\n' >"$src"
   rm -f "$dest"
   _HI_PUT_STUB_CALLS=0 _HI_PUT_STUB_TRY=99
-  ! _hi_container_put "$src" "$dest" && [ "$_HI_PUT_STUB_CALLS" -eq 3 ]
+  ! _hi_container_put "$src" "$dest" && [ "$_HI_PUT_STUB_CALLS" -eq 3 ] || _hi_why src dest _HI_PUT_STUB_CALLS
 }
 
 function test_container_put_costs_one_call_on_the_happy_path() {
@@ -263,20 +263,20 @@ function test_container_put_costs_one_call_on_the_happy_path() {
   printf 'payload\n' >"$src"
   rm -f "$dest"
   _HI_PUT_STUB_CALLS=0 _HI_PUT_STUB_TRY=1
-  _hi_container_put "$src" "$dest" || return 1
-  [ "$_HI_PUT_STUB_CALLS" -eq 1 ]
+  _hi_container_put "$src" "$dest" || _hi_why src dest || return 1
+  [ "$_HI_PUT_STUB_CALLS" -eq 1 ] || _hi_why _HI_PUT_STUB_CALLS
 }
 
 # _hi_require is the missing-tool refusal every transport leans on
 function test_require_finds_an_installed_tool() {
-  _hi_require sh "for this case" 2>/dev/null
+  _hi_require sh "for this case" 2>/dev/null || _hi_why
 }
 
 function test_require_refuses_and_names_a_missing_tool() {
   local out rc=0
   out="$(_hi_require definitely-not-a-real-hi-helpers-tool-xyz "to do the thing" 2>&1 >/dev/null)" || rc=$?
-  [ "$rc" -eq 1 ] || return 1
-  case "$out" in *"requires definitely-not-a-real-hi-helpers-tool-xyz"*"to do the thing"*"not installed"*) ;; *) return 1 ;; esac
+  [ "$rc" -eq 1 ] || _hi_why rc || return 1
+  case "$out" in *"requires definitely-not-a-real-hi-helpers-tool-xyz"*"to do the thing"*"not installed"*) ;; *) _hi_why out || return 1 ;; esac
 }
 
 # _hi_compose_shim - docker and podman shims into $_HI_COMPOSE_BIN, printed.
@@ -325,7 +325,7 @@ function test_container_target_takes_a_running_name_as_is() {
   _hi_compose_shim
   : >"$_HI_WORKDIR/compose.log"
   [ "$(_hi_compose_resolve docker web _HI_CS_RUNNING=web _HI_CS_MATCHES='other-1\n')" = web ] &&
-    [ ! -s "$_HI_WORKDIR/compose.log" ]
+    [ ! -s "$_HI_WORKDIR/compose.log" ] || _hi_why
 }
 
 # a compose service name resolves to the one container carrying its label,
@@ -335,7 +335,7 @@ function test_container_target_resolves_a_compose_service() {
   _hi_compose_shim
   for cli in docker podman; do
     : >"$_HI_WORKDIR/compose.log"
-    [ "$(_hi_compose_resolve "$cli" web _HI_CS_MATCHES='proj-web-1\n')" = proj-web-1 ] || return 1
+    [ "$(_hi_compose_resolve "$cli" web _HI_CS_MATCHES='proj-web-1\n')" = proj-web-1 ] || _hi_why cli || return 1
     grep -qxF 'ps --filter label=com.docker.compose.service=web --format {{.Names}}' "$_HI_WORKDIR/compose.log" ||
       _hi_because "$cli asked: $(cat "$_HI_WORKDIR/compose.log")"
   done
@@ -346,7 +346,7 @@ function test_container_target_resolves_a_compose_service() {
 function test_container_target_declines_an_ambiguous_or_empty_service() {
   _hi_compose_shim
   [ "$(_hi_compose_resolve docker web _HI_CS_MATCHES='proj-web-1\nproj-web-2\n')" = "rc 1" ] &&
-    [ "$(_hi_compose_resolve docker web _HI_CS_MATCHES='')" = "rc 1" ]
+    [ "$(_hi_compose_resolve docker web _HI_CS_MATCHES='')" = "rc 1" ] || _hi_why
 }
 
 # the other family members never ask about compose labels, and a CLI that is
@@ -354,9 +354,9 @@ function test_container_target_declines_an_ambiguous_or_empty_service() {
 function test_container_target_asks_only_docker_and_podman_about_compose() {
   _hi_compose_shim
   : >"$_HI_WORKDIR/compose.log"
-  [ "$(_hi_compose_resolve nerdctl web _HI_CS_MATCHES='proj-web-1\n')" = "rc 1" ] &&
+  { [ "$(_hi_compose_resolve nerdctl web _HI_CS_MATCHES='proj-web-1\n')" = "rc 1" ] &&
     [ ! -s "$_HI_WORKDIR/compose.log" ] &&
-    ! _hi_compose_container hi-no-such-cli web
+    ! _hi_compose_container hi-no-such-cli web; } || _hi_why
 }
 
 function run_hi_helpers_test() {

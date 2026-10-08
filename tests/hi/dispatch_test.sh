@@ -61,7 +61,7 @@ function _hi_ds_dispatch() {
 function test_dispatch_hands_a_flag_to_its_script() {
   _hi_ds_dispatch --doctor --json
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --doctor
-args=--json" ]
+args=--json" ] || _hi_why _HI_DS_OUT
 }
 
 # the row's <first arg> column goes in front of whatever was typed: one script
@@ -69,13 +69,13 @@ args=--json" ]
 function test_dispatch_prepends_the_rows_first_argument() {
   _hi_ds_dispatch --uninstall
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --uninstall
-args=--uninstall" ]
+args=--uninstall" ] || _hi_why _HI_DS_OUT
 }
 
 function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
   _hi_ds_dispatch --configure --preset dev
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --configure
-args=--configure --preset dev" ]
+args=--configure --preset dev" ] || _hi_why _HI_DS_OUT
 }
 
 # --add-package has no <first arg> column (its group and rows are
@@ -85,28 +85,28 @@ args=--configure --preset dev" ]
 function test_dispatch_hands_add_package_its_rows() {
   _hi_ds_dispatch --add-package core 'bat,batcat' -exa --dry-run
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-package
-args=core bat,batcat -exa --dry-run" ]
+args=core bat,batcat -exa --dry-run" ] || _hi_why _HI_DS_OUT
 }
 
 # --remove-package shares the script, told apart by its first-arg column
 function test_dispatch_hands_remove_package_its_switch() {
   _hi_ds_dispatch --remove-package exa --dry-run
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --remove-package
-args=--remove exa --dry-run" ]
+args=--remove exa --dry-run" ] || _hi_why _HI_DS_OUT
 }
 
 # --set-color's words reach the script untouched, a hex and all
 function test_dispatch_hands_set_color_its_words() {
   _hi_ds_dispatch --set-color hostname 'web-*' orange fd971f --dry-run
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --set-color
-args=hostname web-* orange fd971f --dry-run" ]
+args=hostname web-* orange fd971f --dry-run" ] || _hi_why _HI_DS_OUT
 }
 
 # --unset-color shares the script, told apart by its first-arg column
 function test_dispatch_hands_unset_color_its_switch() {
   _hi_ds_dispatch --unset-color username root
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --unset-color
-args=--unset username root" ]
+args=--unset username root" ] || _hi_why _HI_DS_OUT
 }
 
 # the five plugin flags share one script too: --plugins reaches it bare, the
@@ -114,21 +114,21 @@ args=--unset username root" ]
 function test_dispatch_hands_the_plugin_flags_their_switches() {
   _hi_ds_dispatch --plugins
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugins
-args=" ] || return 1
+args=" ] || _hi_why _HI_DS_OUT || return 1
   _hi_ds_dispatch --plugin-off vim bat --dry-run
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --plugin-off
-args=--off vim bat --dry-run" ] || return 1
+args=--off vim bat --dry-run" ] || _hi_why _HI_DS_OUT || return 1
   _hi_ds_dispatch --add-plugin taskrc task env:TASKRC '/opt/taskrc : /etc/taskrc'
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --add-plugin
-args=--add taskrc task env:TASKRC /opt/taskrc : /etc/taskrc" ]
+args=--add taskrc task env:TASKRC /opt/taskrc : /etc/taskrc" ] || _hi_why _HI_DS_OUT
 }
 
 # test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no
-# argument, or a row with no script var (--plain, --mux, and the like), which
+# argument, or a row with no script var (--plain, --keep, and the like), which
 # is hi.sh's own case arm further down
 function test_dispatch_declines() {
   _hi_ds_dispatch "$@"
-  [ ! -s "$_HI_DS_OUT" ] && [ "$_HI_DS_RC" = 1 ]
+  [ ! -s "$_HI_DS_OUT" ] && [ "$_HI_DS_RC" = 1 ] || _hi_why _HI_DS_OUT _HI_DS_RC
 }
 
 # The payload ships neither scripts/ nor tests/, so in a session the file is
@@ -137,17 +137,17 @@ function test_dispatch_declines() {
 function test_run_script_says_which_flag_wanted_the_checkout() {
   local out rc=0
   out="$(_hi_run_script --doctor "$_HI_WORKDIR/not-here.sh" 2>&1)" || rc=$?
-  [ "$rc" = 1 ] || return 1
+  [ "$rc" = 1 ] || _hi_why rc || return 1
   case "$out" in
   *"hi --doctor"*"$_HI_NO_CHECKOUT"*) ;;
-  *) return 1 ;;
+  *) _hi_why || return 1 ;;
   esac
 }
 
 function test_run_script_reports_the_missing_checkout_on_stderr() {
   local out
   out="$( (_hi_run_script --doctor "$_HI_WORKDIR/not-here.sh" 2>/dev/null) || true)"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 # ---------------------------------------------------------------------------
@@ -177,7 +177,7 @@ BatchMode=yes
 -p
 2222
 liona
-sh -c 'echo hi'" ]
+sh -c 'echo hi'" ] || _hi_why out
 }
 
 # the whole script is one sh word after the target unquotes it - the contract
@@ -190,7 +190,7 @@ function test_ssh_sh_script_survives_as_one_word() {
   last="${out##*$'\n'}"
   # the target runs that whole last argument through its own sh; the script
   # has to come back out of the quoting byte-identical
-  [ "$(sh -c "$last")" = "it's a word" ]
+  [ "$(sh -c "$last")" = "it's a word" ] || _hi_why last
 }
 
 function test_ssh_sh_needs_no_ssh_options_at_all() {
@@ -198,9 +198,9 @@ function test_ssh_sh_needs_no_ssh_options_at_all() {
   local -a SSHARGS=()
   bin="$(_hi_ds_fake_ssh)"
   out="$(PATH="$bin:$PATH" _hi_ssh_sh 'true')"
-  [ "$(printf '%s\n' "$out" | head -1)" = liona ] || return 1
-  case "$(printf '%s\n' "$out" | tail -1)" in "sh -c "*) ;; *) return 1 ;; esac
-  [ "$(printf '%s\n' "$out" | wc -l)" -eq 2 ]
+  [ "$(printf '%s\n' "$out" | head -1)" = liona ] || _hi_why out || return 1
+  case "$(printf '%s\n' "$out" | tail -1)" in "sh -c "*) ;; *) _hi_why out || return 1 ;; esac
+  [ "$(printf '%s\n' "$out" | wc -l)" -eq 2 ] || _hi_why out
 }
 
 # ---------------------------------------------------------------------------
@@ -219,7 +219,7 @@ function _hi_ds_middle() {
 function test_remote_middle_parses_as_posix_sh() {
   local out="$_HI_WORKDIR/middle.sh"
   _hi_ds_middle >"$out"
-  sh -n "$out"
+  sh -n "$out" || _hi_why out
 }
 
 # busybox mktemp needs exactly six X and silently misbehaves on any other
@@ -230,9 +230,9 @@ function test_remote_middle_template_has_exactly_six_x() {
   case "$out" in
   *".hi.XXXXXX'"*) ;;
   *".hi.XXXXXX "*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 out || return 1 ;;
   esac
-  ! printf '%s\n' "$out" | grep -q 'XXXXXXX'
+  ! printf '%s\n' "$out" | grep -q 'XXXXXXX' || _hi_why out
 }
 
 # the four names load.sh and everything under it resolve against
@@ -240,18 +240,19 @@ function test_remote_middle_exports_the_tree_variables() {
   local out name
   out="$(_hi_ds_middle)"
   for name in _HI_HOME _HI_ROOT _HI_CONFIG_DIR _HI_CLEANUP; do
-    printf '%s\n' "$out" | grep -q "export $name=" || return 1
+    printf '%s\n' "$out" | grep -q "export $name=" || _hi_why out name || return 1
   done
 }
 
 # the one thing clean_all cannot survive is bash killed by a signal nothing
 # can trap, which is the only reason this trap is on the wire at all. A
-# session that may be kept from inside leaves the tree to the one that was
-# (GLOSSARY: HI.65); a command and a --no-keep session cannot be.
+# session that may be kept from inside leaves the tree to the one that was,
+# and one that holds its tree to its own exit hook (GLOSSARY: HI.65); a command
+# and a --no-keep session have neither.
 function test_remote_middle_traps_the_tree_removal_on_exit() {
   local out
   out="$(CMDARG="" KEEP="" _hi_ds_middle)"
-  printf '%s\n' "$out" | grep -qF "trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || rm -rf \$_HI_CLEANUP' exit" ||
+  printf '%s\n' "$out" | grep -qF "trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit" ||
     _hi_because "a session's trap: $(printf '%s\n' "$out" | grep trap)" || return 1
   for out in "$(CMDARG="ls; exit" KEEP="" _hi_ds_middle)" "$(CMDARG="" KEEP=0 _hi_ds_middle)"; do
     printf '%s\n' "$out" | grep -q "trap 'rm -rf \$_HI_CLEANUP' exit" ||
@@ -263,8 +264,8 @@ function test_remote_middle_carries_the_overlay_line_when_there_is_one() {
   local with without
   with="$(_hi_ds_middle 'echo overlay | base64 -d | tar mxzf -')"
   without="$(_hi_ds_middle)"
-  printf '%s\n' "$with" | grep -q 'echo overlay' || return 1
-  ! printf '%s\n' "$without" | grep -q 'echo overlay'
+  printf '%s\n' "$with" | grep -q 'echo overlay' || _hi_why with || return 1
+  ! printf '%s\n' "$without" | grep -q 'echo overlay' || _hi_why without
 }
 
 # ---------------------------------------------------------------------------
@@ -277,16 +278,16 @@ function test_fail_writes_to_stderr_and_marks_it_said() {
   local _HI_SAID=0 err
   _hi_fail "something broke" >"$_HI_WORKDIR/fail.out" 2>"$_HI_WORKDIR/fail.err"
   err="$(cat "$_HI_WORKDIR/fail.err")"
-  [ ! -s "$_HI_WORKDIR/fail.out" ] || return 1
-  case "$err" in *"something broke"*) ;; *) return 1 ;; esac
-  [ "$_HI_SAID" = 1 ]
+  [ ! -s "$_HI_WORKDIR/fail.out" ] || _hi_why || return 1
+  case "$err" in *"something broke"*) ;; *) _hi_why err || return 1 ;; esac
+  [ "$_HI_SAID" = 1 ] || _hi_why _HI_SAID
 }
 
 function test_require_is_quiet_for_a_tool_that_is_there() {
   local _HI_SAID=0 err
-  _hi_require sh "to run anything" 2>"$_HI_WORKDIR/req.ok" || return 1
+  _hi_require sh "to run anything" 2>"$_HI_WORKDIR/req.ok" || _hi_why || return 1
   err="$(cat "$_HI_WORKDIR/req.ok")"
-  [ -z "$err" ] && [ "$_HI_SAID" = 0 ]
+  [ -z "$err" ] && [ "$_HI_SAID" = 0 ] || _hi_why err _HI_SAID
 }
 
 # the message names the tool, the host, and what it was wanted for - a bare
@@ -294,13 +295,13 @@ function test_require_is_quiet_for_a_tool_that_is_there() {
 function test_require_names_the_tool_and_the_reason() {
   local _HI_SAID=0 err rc=0
   _hi_require hi-no-such-tool "to pack the payload" 2>"$_HI_WORKDIR/req.err" || rc=$?
-  [ "$rc" = 1 ] || return 1
+  [ "$rc" = 1 ] || _hi_why rc || return 1
   err="$(cat "$_HI_WORKDIR/req.err")"
   case "$err" in
   *"hi-no-such-tool"*"to pack the payload"*) ;;
-  *) return 1 ;;
+  *) _hi_why -3 err || return 1 ;;
   esac
-  [ "$_HI_SAID" = 1 ]
+  [ "$_HI_SAID" = 1 ] || _hi_why _HI_SAID
 }
 
 function run_dispatch_tests() {

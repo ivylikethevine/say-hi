@@ -81,6 +81,8 @@ the shipped defaults an overlay copy replaces.
 | `common/header.sh`                      | The connect and disconnect banner, and the package check.                                                                                                                                                                                   |
 | `common/targets.sh`                     | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                                                                                                                                                           |
 | `common/flags`                          | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                                                                                                                                                               |
+| `common/keep.sh`                        | The kept session, client half: what `hi.sh` sends a target to reattach, start, or hold one, `hi --end`, and the retry of a dropped link.                                                                                                    |
+| `common/mux.sh`                         | What `tmux`, `zellij`, and `screen` run in a session: bare, the kept session; with words, the tool on your config.                                                                                                                          |
 | `common/aliases.sh`                     | The aliases, in the subset bash, zsh, and fish all parse.                                                                                                                                                                                   |
 | `config/colors`                         | Color pins, in TOML.                                                                                                                                                                                                                        |
 | `config/packages`                       | What the package check looks for, in TOML, a table per group: `core`, `useful`, and `deprecated` run by default; `base` waits to be switched on. `docs/packages.example` is a longer list to copy.                                          |
@@ -158,7 +160,9 @@ header saying when it runs; `actions/` the composite actions they share
 (shells, backends, `setup-tool/tools.txt`'s pinned tool roster); `scripts/`
 the helpers they call; plus the issue and pull request templates, `CODEOWNERS`,
 `dependabot.yml`, `allowed_signers` (the keys a release tag may be signed
-with), `package.json`/`package-lock.json` (the pinned Markdown linters), and
+with), `package.json`/`package-lock.json` (the pinned Markdown linters),
+`osv-scanner.toml` (the advisories against that lockfile Scorecard's
+Vulnerabilities check skips, each with its reason and an expiry), and
 `prettier-plugin-docs.mjs` (writes each doc's `## Contents` list, the
 settings table, and USAGE.md's commands as prettier formats them).
 
@@ -232,7 +236,7 @@ and readline's always; an overlay copy rides either way.
 
 | Member                 | Looked for, in order                                                                                                                                                                                                                                             |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `aliases.sh`           | `~/.aliases`, the file your bash or zsh rc sources here; sourced last on a target, so it keeps to the subset bash, zsh, and fish all parse                                                                                                                       |
+| `aliases.sh`           | `~/.aliases`, else `~/.bash_aliases`, the file your bash or zsh rc sources here; sourced last on a target, by each shell that parses it                                                                                                                          |
 | `vim/vimrc`            | `~/.vimrc`, `~/.vim/vimrc`, `$XDG_CONFIG_HOME/vim/vimrc`                                                                                                                                                                                                         |
 | `nvim/init.lua`        | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                                                                                                                                                                 |
 | `kak/kakrc`            | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/kakrc`                                                                                                                                                                                                              |
@@ -314,7 +318,6 @@ into place.
 | `hi.settings.<key>`     | `settings.sh` with a tagged target's `settings.<tag>.sh` files joined on, what that target is sent; rewritten only when its content changes                                                                                                            |
 | `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                                                                             |
 | `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                                                                  |
-| `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                                                                                                                                                                                   |
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per

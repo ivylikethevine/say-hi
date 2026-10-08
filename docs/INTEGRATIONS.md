@@ -34,7 +34,7 @@ machine only ([On your own machine](#on-your-own-machine)).
 | [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [bash-it](https://github.com/Bash-it/bash-it) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                                                                                                                                                                                                               | yes, where installed here    | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                                               |
 | mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                                                                               | names the active ones in the prompt's leading `(myproj)` segment                                                                                                                                                                                                         | yes                          | `_HI_DISABLE_ENV_STATUS`                                                                            |
 | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa                                                                                                                                                                                                                                                                                                        | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home                                                                                                                                                                                       | no - opt-in, where installed | `_HI_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s                                                    |
-| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --mux` runs the connect inside one, on the client, and `hi --keep` the session inside tmux or screen on the target; a tmux on a target reads your `tmux/tmux.conf`                                                                                                   | no - per connect             | `--mux`, `--no-mux`, `--keep`, `--no-keep`, `--end`                                                 |
+| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                                                                           | `hi --keep` runs the session inside one on the target, and one typed bare in a session becomes the kept one; a tmux on a target reads your `tmux/tmux.conf`                                                                                                              | no - per connect             | `--keep`, `--no-keep`, `--end`                                                                      |
 | vim/neovim, nano, emacs, micro, [helix](https://helix-editor.com), [kakoune](https://kakoune.org)                                                                                                                                                                                                                                                                                              | opened with hi's config, or yours, through an alias - neovim reads `nvim/init.lua`, vim `vim/vimrc`, micro your micro directory's files, helix `helix/config.toml` and `languages.toml`, kakoune `kak/kakrc` and its `colors/` through `$KAKOUNE_CONFIG_DIR` on a target | yes                          | `hi --plugin-off editors`, or one by name; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
 | oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                                                                         | loads after them and leaves their hooks working                                                                                                                                                                                                                          | -                            | [Shell frameworks](#shell-frameworks)                                                               |
 
@@ -86,7 +86,9 @@ the prompt anyway. Under powerlevel10k's instant prompt, hi calls
 for an rc that prints, so it does not warn about console output on every start.
 The list is worked out on this machine and handed to the target, which never
 looks for programs of its own - a shared box with powerlevel10k installed does
-not change your prompt unless you use it too.
+not change your prompt unless you use it too. A program whose plugin is
+switched off (`hi --plugin-off starship`) is left off that list, config and
+all, unless `_HI_PROMPT_TOOL` names it.
 
 `_HI_PROMPT_TOOL=hi` keeps hi's prompt everywhere: it starts no program on any
 target, and takes the prompt back from one the _target's_ own rc started,
@@ -116,7 +118,8 @@ has zoxide run its init after the aliases and extensions
 `hi --add-plugin hooks <name> 'init=<command> {shell}'`. Once started, a tool
 keeps state of its own under the target's `$HOME` - zoxide's directory
 database, atuin's history - which hi neither writes nor cleans up, and which is
-why none is on until you say so. The per-shell files the overlay carries
+why none is on until you say so. A hook of your own can name the shells it
+runs in (`shells=zsh fish`). The per-shell files the overlay carries
 (`~/.config/say-hi/bashrc`, `zshrc`, `config.fish`) still take a line of your
 own for anything else:
 
@@ -249,18 +252,9 @@ so a bare `command eza` matches too.
 
 ## Terminal multiplexers
 
-`hi --mux <target>` starts the connect inside a session of the first of tmux,
-zellij, and screen on **your** `PATH`, named `hi-<target>`, and a second
-`hi --mux <target>` joins the one already running - so a dropped link leaves a
-session to reattach to, on your side. Already inside tmux, hi switches the
-client to that session rather than nesting; inside screen or zellij it opens a
-new window or tab. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the
-default and `--no-mux` skips it once. The target sees an ordinary session;
-[HI.52](GLOSSARY.md#hi52-client-multiplexer-wrap) is how the wrap works.
-
-`hi --keep <target>` puts the multiplexer on the **target** instead: the
-session runs in tmux, zellij, or screen there, the first of the three it has,
-as `hi-<target>`, and outlives the connection, your machine sleeping, or a
+`hi --keep <target>` runs the session in a multiplexer on the **target**:
+tmux, zellij, or screen there, the first of the three it has, as
+`hi-<target>`, where it outlives the connection, your machine sleeping, or a
 move to another one. Every later `hi <target>` reattaches rather than starting
 over; `--no-keep` asks for an ordinary session beside it. It ends three ways:
 
@@ -272,27 +266,48 @@ over; `--no-keep` asks for an ordinary session beside it. It ends three ways:
 
 Each removes the session directory, as any session's end does
 ([SECURITY.md](SECURITY.md#footprint-and-cleanup-on-the-target)). Detach with
-the multiplexer's own key. It needs an ssh target with bash and one of the
-three, and a terminal on your side; anywhere else hi says so and connects as
-usual. A zellij session starts under zellij's own two bars, kept off the disk
+the multiplexer's own key. It needs an ssh target with bash, and a terminal
+on your side; anywhere else hi says so and connects as usual. A zellij session starts under zellij's own two bars, kept off the disk
 (nothing to resurrect) and with its startup popups off.
 A pane or window you open in a kept session is hi's session shell too, not
 the host's bare one, and closing the first pane (a `y`) closes them all.
 Typed with no target inside a session you already have, `hi --keep` keeps
 that one: a fresh shell in a multiplexer there, under the same name, sharing
 the session's directory. Detaching lands you back in the shell you typed it
-in, and whichever of the two ends last removes the directory.
+in, and whichever of the two ends last removes the directory. Where there
+is no multiplexer, it turns on the hold described below for that session.
 A kept session that dies with its target - a reboot that keeps `/tmp` - leaves
 its directory behind; your next `hi <target>` removes it, and says the kept
 session is gone if this machine had seen it. When the link to a kept session
-drops and hi is itself running in a pane of a local tmux, zellij, or screen,
-it retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and lands
-back in the session; anywhere else it ends as ssh does, and `hi <target>`
-reattaches.
-`_HI_KEEP=1` makes it the default. The two flags combine: under
-`hi --mux --keep` both ends hold a session, and the inner multiplexer's prefix
-key has to be sent through the outer one.
+drops, hi retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and
+lands back in the session, in any terminal; Ctrl+C stops it, with no terminal
+it ends as ssh does, and `hi <target>` reattaches either way. A link that
+goes quiet counts as dropped after 45 seconds: a keeping connect asks ssh for
+a keepalive, unless your ssh config sets a `ServerAliveInterval` of its own.
+`_HI_KEEP=1` makes it the default.
 [HI.65](GLOSSARY.md#hi65-kept-session) is how it works.
+
+On a target with none of the three, a shell has nothing to hold its terminal
+and ends with the connection, so `--keep` holds what can outlive it: the
+session directory, and the directory you were in. A dropped link leaves both
+for [`_HI_KEEP_TIMEOUT`](SETTINGS.md#every-setting), 15 minutes there unless
+you set it (`0` turns the hold off), and the retry, or any `hi <target>` inside that window, starts a
+shell on the same files where the last one stood, with nothing unpacked; its
+header says `Resumed`. What was running is gone, and the shell's history is
+where the target's own shell keeps it. `exit` removes the directory as in any
+session, `hi --end <target>` removes one that is waiting, and with no
+reconnect it is gone at the window's end.
+
+A session that has to outlive your terminal where none of this applies - a
+container, or `--plain` - goes in a multiplexer of your own:
+`tmux new -A -s <name> hi <target>`.
+
+`tmux`, `zellij`, or `screen` typed on its own in a session does the same
+thing as `hi --keep` typed there, in the one you named: it becomes the
+session's kept one, its panes are hi's shell, and the next `hi <target>`
+attaches it, so a multiplexer started by habit is not left running on a
+directory that goes when the connection does. With words of its own
+(`tmux attach`, `tmux new -s work`) it is yours, started as you typed it.
 
 A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux/tmux.conf` over
@@ -310,7 +325,8 @@ have, so they go out disabled and `hi --doctor` names the line.
 A chroot's `/etc/debian_chroot` leads the prompt, as the distro's own
 `~/.bashrc` sets it up: `(name)` in bash and zsh, `(chroot:name)` in fish.
 hi sets no `$LESSOPEN`, `$GCC_COLORS`, `$CLICOLOR`, or `$LSCOLORS`: those
-stay your rc's.
+stay your rc's, and `hi --plugin-on env` sends a target the values the color
+ones have here ([SETTINGS.md](SETTINGS.md#variables-that-ride)).
 
 ## readline
 

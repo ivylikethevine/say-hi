@@ -119,6 +119,11 @@ and each <file> the name a config rides under. The keys:
                       aliases and extensions. A plugin with one needs no file.
   prompt=yes          the init draws the prompt: the plugin joins
                       _HI_PROMPT_TOOL's programs, and hi's prompt stands down
+  shells=<shells>     the shells the init runs in, of bash, zsh, and fish
+                      ('zsh fish'); left out, all three
+  env=<variables>     variables whose values on this machine a target's
+                      session exports ('LESS LS_COLORS'). A plugin with one
+                      needs no file.
   default=off         off until hi --plugin-on names it
 
 A file whose wire, home, or dialect differs from the rest has a table of its
@@ -191,6 +196,12 @@ function _hi_plugins_list() {
   if [ "${#_HI_PLUGIN_HOOKS[@]}" -gt 0 ]; then
     _hi_section "hooks"
     _hi_hook_rows
+    _hi_rows_flush
+  fi
+  # the variables whose values ride (HI.62)
+  if [ "${#_HI_PLUGIN_ENVS[@]}" -gt 0 ]; then
+    _hi_section "variables"
+    _hi_env_rows
     _hi_rows_flush
   fi
   [ "${#_HI_PLUGIN_BAD[@]}" -gt 0 ] || return 0
@@ -318,7 +329,7 @@ function _hi_plugin_span() {
 function _hi_plugins_add() {
   local group name word key files="" tmpdir why="" line said="" from to n
   local -a table=() keys=()
-  [ "${#args[@]}" -ge 3 ] || _hi_die "needs a group, a name, and a file or an init=, then any of tool=, wire=, home=, dialect=, prompt=, default= ($me --help)"
+  [ "${#args[@]}" -ge 3 ] || _hi_die "needs a group, a name, and a file, an init=, or an env=, then any of tool=, wire=, home=, dialect=, prompt=, shells=, default= ($me --help)"
   group="${args[0]}" name="${args[1]}"
   for word in "$group" "$name"; do
     _hi_words_ok "$word" 'A-Za-z0-9_' 'A-Za-z0-9_-' && [ "${word% *}" = "$word" ] ||
@@ -327,14 +338,15 @@ function _hi_plugins_add() {
   for word in "${args[@]:2}"; do
     case "$word" in *['"'\\]*) _hi_die "a value cannot hold a quote or a backslash ($me --help)" ;; esac
     case "$word" in
-    tool=* | wire=* | home=* | dialect=* | init=* | prompt=* | default=*) keys+=("$word") ;;
+    tool=* | wire=* | home=* | dialect=* | init=* | prompt=* | shells=* | default=* | env=*) keys+=("$word") ;;
     *) files="$files${files:+ }$word" ;;
     esac
   done
-  [ -n "$files" ] || [[ " ${keys[*]-} " == *" init="* ]] || _hi_die "needs a file for $name to carry, or an init= ($me --help)"
+  [ -n "$files" ] || [[ " ${keys[*]-} " == *" init="* || " ${keys[*]-} " == *" env="* ]] ||
+    _hi_die "needs a file for $name to carry, an init=, or an env= ($me --help)"
   # the tree's own order of keys, whatever order they were typed in
   table=("[$group.$name]")
-  for key in init prompt default tool wire home dialect; do
+  for key in init prompt shells default tool wire home dialect env; do
     for word in ${keys[@]+"${keys[@]}"}; do
       [ "${word%%=*}" != "$key" ] || table+=("$key = \"${word#*=}\"")
     done

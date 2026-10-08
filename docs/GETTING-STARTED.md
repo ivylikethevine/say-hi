@@ -76,8 +76,9 @@ the overlay.
 
 - **The rc lines.** `scripts/install.sh --print-rc` prints each shell's block
   and writes no rc file. Put the block in the rc your dotfile manager deploys:
-  it names the tree through `$HOME` and tests for it first, so the one rc
-  works on a machine without say-hi.
+  it looks for the tree in `$HOME` and where a package puts it, and tests for
+  it first, so the one rc works on a machine with either and on one without
+  say-hi.
 - **The overlay.** Point the manager at `~/.config/say-hi/`; it is plain
   files, symlinks included
   ([SETTINGS.md](SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager) on who

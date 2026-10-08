@@ -108,7 +108,8 @@ the key), so nothing hi sends is run. That is the host's policy, not a fault
 
 A session lasts as long as its connection, and its files go with it.
 `hi --keep <host>` runs it in a multiplexer on the host, where the next
-`hi <host>` reattaches; `hi --mux <host>` does the same on your side
+`hi <host>` reattaches; on a host with none, its files and directory wait
+fifteen minutes for you
 ([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers)).
 
 ## In a session

@@ -1,0 +1,8 @@
+# Advisories OSV-Scanner skips in package-lock.json beside this file, which is
+# what Scorecard's Vulnerabilities check reads. Each entry says why it does not
+# reach this repo and expires, so one that gets a fix comes back.
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2027-01-07
+reason = "braces <= 3.0.3 (markdownlint-cli2 > micromatch), no fixed release: a stack-exhaustion DoS from a deeply nested glob, and the only globs it sees are the lint gate's own arguments, in a dev-only tool that is never shipped."

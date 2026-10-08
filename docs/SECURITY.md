@@ -91,7 +91,8 @@ Default answer: one directory (two over ssh), and only for the life of the
 session. A session is as long as its connection unless you ask otherwise:
 `hi --keep` runs it in tmux, zellij, or screen on the target, where it and
 its directory last until you close it or nobody has been attached for
-`_HI_KEEP_TIMEOUT` (24h).
+`_HI_KEEP_TIMEOUT` (24h); on a target with none of the three, a dropped
+link leaves the directory for fifteen minutes, for a reconnect to take.
 
 | what              | where, in the target's temp directory, mode 0700                                             | when                                                               |
 | ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -129,6 +130,10 @@ command.
   (`tests/targets/ssh_disconnect_test.sh` verifies the latter). Over ssh the
   bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is a backstop for the one
   thing the hook cannot survive: bash killed by a signal nothing can trap.
+  Behind both, each session leaves one process apart from itself that does
+  the hook's work should both be killed, and its pid in the tree, by which
+  the account's next `hi <target>` removes a tree whose session is gone
+  ([HI.65](GLOSSARY.md#hi65-kept-session)).
 - A kept session ([INTEGRATIONS.md](INTEGRATIONS.md#terminal-multiplexers))
   moves the same hook into the session's first pane, and adds one process: a
   timer in that pane, which ends the session once nobody has been attached
@@ -138,6 +143,11 @@ command.
   across the reboot is left with the tree until the account's next
   `hi <target>`, which removes every tree of its own whose kept session's
   processes are gone ([HI.65](GLOSSARY.md#hi65-kept-session)).
+- Where `--keep` finds no multiplexer, a dropped link leaves the tree to the
+  one process each session already runs apart from itself, which removes it
+  after `_HI_KEEP_TIMEOUT` (15m there; `0` holds nothing). A connect takes
+  such a tree only from a directory its own account owns, and never through
+  a symlink, since it runs the rc inside.
 - The session tree is **not** added to `$PATH`; `hi` inside a session is an
   alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
   any host that is scanned for one.

@@ -32,6 +32,15 @@ if test -f $_HI_CONFIG_DIR/settings.sh
   source $_HI_CONFIG_DIR/settings.sh
 end
 source $_HI_HOME/say-hi/common/paths.sh
+# core.sh's _hi_parses, in fish: the overlay's aliases.sh and each extension
+# are parsed before they are sourced, and one fish cannot parse is skipped
+set -e _HI_ALIAS_GUARD
+set -g _HI_ALIAS_GUARD _hi_parses
+function _hi_parses --description 'does fish parse this file; said when not'
+  command fish --no-config -n $argv[1] 2>/dev/null; and return 0
+  echo -s (set_color yellow) "hi: $argv[2] does not parse in fish; skipped" (set_color normal) >&2
+  return 1
+end
 source $_HI_ALIASES
 # core.sh's _hi_load_extensions, in fish: each extensions/ member in name order,
 # skipped loudly when fish cannot parse it, its $_HI_SEGMENT collected.
@@ -41,10 +50,7 @@ for __hi_f in $_HI_EXTENSIONS/*
   set -l __hi_n (string replace -r '.*/' '' -- $__hi_f)
   test -f $__hi_f; and string match -qr '^[A-Za-z0-9][A-Za-z0-9_.-]*$' -- $__hi_n
   and not string match -qr '\.(bak|orig|rej|tmp)$' -- $__hi_n; or continue
-  if not command fish --no-config -n $__hi_f 2>/dev/null
-    echo -s (set_color yellow) "hi: extension $__hi_n does not parse in fish; skipped" (set_color normal) >&2
-    continue
-  end
+  _hi_parses $__hi_f "extension $__hi_n"; or continue
   set -e _HI_SEGMENT
   source $__hi_f
   test -n "$_HI_SEGMENT"; and set -ga _hi_segments $_HI_SEGMENT
@@ -76,7 +82,10 @@ function __hi_prompt_init --description 'a prompt program init: its $_HI_PROMPT_
 end
 for __hi_row in (string split -n ';' -- "$_HI_HOOKS")
   set -l __hi_key (string split -m1 '=' -- $__hi_row)
-  set -l __hi_gn (string split -m1 '.' -- $__hi_key[1])
+  # a :<shells> after the name keeps the hook to those
+  set -l __hi_ks (string split -m1 ':' -- $__hi_key[1])
+  set -q __hi_ks[2]; and not contains -- fish (string split ',' -- $__hi_ks[2]); and continue
+  set -l __hi_gn (string split -m1 '.' -- $__hi_ks[1])
   __hi_hook_on $__hi_gn[2]; and __hi_run_init $__hi_key[2]
 end
 set -e __hi_row
@@ -432,9 +441,18 @@ if test "$_HI_DISABLE_PROMPT" != 1
         (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $mb
     end
 
+    set -g _hi_marks_for hi
+  end
+  test -n "$_hi_pt"; and test "$_hi_pt" != oh-my-posh; and set -g _hi_marks_for program
+  if set -q _hi_marks_for
+    set -e __hi_marks_bare
+    test $_hi_marks_for = program; and set -g __hi_marks_bare 1
+    set -e _hi_marks_for
     # OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
-    # common/bash.sh's __hi_ps1() emits. fish 4 emits both itself, so only fish 3 gets
-    # hi's copy - two sets of marks would confuse the terminal.
+    # common/bash.sh emits, under hi's prompt and under a prompt program's
+    # ($_hi_pt), but not beside the ones oh-my-posh can send itself. fish 4
+    # emits both itself, so only fish 3 gets hi's copy - two sets of marks
+    # would confuse the terminal.
     # whether marks go out, as bash.sh's _hi_marks_on asks: not on a dumb
     # terminal or off one, and not beside kitty's, ghostty's, or iTerm2's own
     function __hi_marks_on
@@ -468,6 +486,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
       if __hi_marks_on
         set -g __hi_marks_live 1
         set -g __hi_marks_open 1
+        # a prompt program's fish_prompt is its own: A goes out ahead of it
+        set -q __hi_marks_bare; and printf '%s' $_hi_marks_a
       else
         set -e __hi_marks_live __hi_marks_open
       end

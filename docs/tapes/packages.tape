@@ -12,6 +12,10 @@
 # The nas (the tools debian) answers it with one quiet line; the pihole (a
 # bare debian) does not.
 #
+# After each connect the tape waits on the check's own row (`|| git`, which
+# the file printed above does not hold), so a header drawn without it fails
+# the render.
+#
 # The Hide block paces itself with Wait+Screen on sentinel text instead of
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
 # matching its own sentinel. Visible sleeps are reading time only.
@@ -47,6 +51,7 @@ Sleep 3s
 Type "hi nas"
 Enter
 Wait+Screen@60s /hi loaded:/
+Wait+Screen@5s /\|\| git/
 Sleep 4s
 Type "exit"
 Enter
@@ -60,6 +65,7 @@ Enter
 Type "hi pihole"
 Enter
 Wait+Screen@60s /hi loaded:/
+Wait+Screen@5s /\|\| git/
 Sleep 5s
 Type "exit"
 Enter

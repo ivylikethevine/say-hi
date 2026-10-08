@@ -14,34 +14,34 @@ _HI_DOCTOR_PART=report
 source "${BASH_SOURCE[0]%/*}/doctor_test.sh"
 
 function test_help_exits_zero() {
-  "$_HI_DOCTOR" --help >/dev/null
+  "$_HI_DOCTOR" --help >/dev/null || _hi_why
 }
 
 # reached as `hi --doctor`, the usage line says so; run by hand it names the
 # file
 function test_help_names_what_was_typed() {
   [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] &&
-    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]" ]
+    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] || _hi_why
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
-# is an error rather than the target; --mux and --no-mux
+# is an error rather than the target; --keep and --no-keep
 # are the connect-time flags with nothing to report here, like --plain
 function test_unknown_flag_is_refused_not_taken_as_the_target() {
   local out rc=0 home
   out="$("$_HI_DOCTOR" --bogus 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* ]] || _hi_why rc out || return 1
   rc=0
   home="$(_hi_doctor_home)"
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --mux --no-mux)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" != *"Target: --"* ]]
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --keep --no-keep)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" != *"Target: --"* ]] || _hi_why rc out
 }
 
 function test_a_second_target_is_refused() {
   local out rc=0
   out="$("$_HI_DOCTOR" one two 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time"* ]] || _hi_why rc out
 }
 
 # an ssh option that takes a value takes the next word with it, so that word is
@@ -49,26 +49,26 @@ function test_a_second_target_is_refused() {
 function test_an_ssh_value_option_takes_its_word() {
   local out rc=0
   out="$("$_HI_DOCTOR" -p 2222 -J bastion one two 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]] || _hi_why rc out || return 1
   rc=0
   out="$("$_HI_DOCTOR" -4 one -A two 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one target at a time (one and two)"* ]] || _hi_why rc out
 }
 
 # ...and one that ends the line with no value is refused, not read as a flag
 function test_a_trailing_ssh_value_option_is_refused() {
   local out rc=0
   out="$("$_HI_DOCTOR" host -p 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"-p needs a value"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"-p needs a value"* ]] || _hi_why rc out
 }
 
 function test_use_equals_spelling_names_the_arm() {
   local out rc=0
   out="$("$_HI_DOCTOR" --use=frobnicate host 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--use"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use"* ]] || _hi_why rc out || return 1
   rc=0
   out="$("$_HI_DOCTOR" --use= host 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ]
+  [ "$rc" -eq 1 ] || _hi_why rc
 }
 
 # --use last on the line, with nothing after it, is the one arm the loop
@@ -76,21 +76,21 @@ function test_use_equals_spelling_names_the_arm() {
 function test_use_needs_a_backend_name() {
   local out rc=0
   out="$("$_HI_DOCTOR" --use 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--use needs a backend name"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use needs a backend name"* ]] || _hi_why rc out
 }
 
 # two --use naming different arms are refused, not resolved last-wins
 function test_use_twice_naming_two_backends_is_refused() {
   local out rc=0
   out="$("$_HI_DOCTOR" --use docker --use podman host 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--use podman and --use docker both name a backend; pick one"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use podman and --use docker both name a backend; pick one"* ]] || _hi_why rc out
 }
 
 # --help anywhere on the line, not only first: after a flag, after a target
 function test_help_is_read_anywhere_on_the_line() {
   local out want="Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]"
-  out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || return 1
-  out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ]
+  out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || _hi_why out want || return 1
+  out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ] || _hi_why out want
 }
 
 # sections present and the exit code is the red-finding count (0 here -
@@ -99,7 +99,7 @@ function test_full_report_runs_clean() {
   _hi_doctor_plain_report
   [ "$_HI_DOC_PLAIN_RC" -eq 0 ] &&
     [[ "$_HI_DOC_PLAIN_OUT" == *"The local tree"* && "$_HI_DOC_PLAIN_OUT" == *"Backends"* &&
-      "$_HI_DOC_PLAIN_OUT" == *"Nothing looks broken"* ]]
+      "$_HI_DOC_PLAIN_OUT" == *"Nothing looks broken"* ]] || _hi_why _HI_DOC_PLAIN_RC _HI_DOC_PLAIN_OUT
 }
 
 # every section of the whole report is a boxed table, square on the page, and
@@ -109,10 +109,18 @@ function test_full_report_draws_tables_and_no_findings_box() {
   local out
   _hi_doctor_plain_report
   out="$(_hi_strip_ansi "$_HI_DOC_PLAIN_OUT")"
-  _hi_table_is_rectangular "$out" || return 1
+  _hi_table_is_rectangular "$out" || _hi_why out || return 1
   # boxed, with no header row: the section heading says what the table is
-  [[ "$out" == *"$_HI_BOX_V"* && "$out" != *"$_HI_BOX_V CHECK"* ]] || return 1
-  [[ "$out" != *"Findings:"* && "$out" != *"$_HI_BOX_V FINDING"* ]]
+  [[ "$out" == *"$_HI_BOX_V"* && "$out" != *"$_HI_BOX_V CHECK"* ]] || _hi_why out _HI_BOX_V || return 1
+  [[ "$out" != *"Findings:"* && "$out" != *"$_HI_BOX_V FINDING"* ]] || _hi_why out _HI_BOX_V
+}
+
+# ...and it is the text report: --json's document is asked for, never what a
+# bare run prints
+function test_json_is_off_by_default() {
+  _hi_doctor_plain_report
+  [ "$_HI_DOC_PLAIN_RC" -eq 0 ] || _hi_why _HI_DOC_PLAIN_RC || return 1
+  [[ "$_HI_DOC_PLAIN_OUT" != *'"rows"'* && "$_HI_DOC_PLAIN_OUT" == *"hi doctor"* ]] || _hi_why _HI_DOC_PLAIN_OUT
 }
 
 # _hi_doctor_problems [args...] - `--problems` on the shims, output then exit
@@ -128,11 +136,11 @@ function _hi_doctor_problems() {
 function test_problems_prints_only_the_findings() {
   local out
   out="$(_hi_strip_ansi "$(_hi_doctor_problems somehost)")"
-  [[ "$out" == *"rc=1" && "$out" == *"Findings: 1 bad, "*"$_HI_BOX_V"* ]] || return 1
-  [[ "$out" != *"hi doctor"* && "$out" != *"The local tree"* && "$out" != *RESULT* ]] || return 1
+  [[ "$out" == *"rc=1" && "$out" == *"Findings: 1 bad, "*"$_HI_BOX_V"* ]] || _hi_why out _HI_BOX_V || return 1
+  [[ "$out" != *"hi doctor"* && "$out" != *"The local tree"* && "$out" != *RESULT* ]] || _hi_why out || return 1
   out="$(_hi_strip_ansi "$(_hi_doctor_problems)")"
-  [[ "$out" == *"rc=0" && "$out" == *"Findings: 0 bad, "* ]] || return 1
-  [[ "$out" != *"The local tree"* && "$out" != *RESULT* && "$out" != *"Nothing looks broken"* ]]
+  [[ "$out" == *"rc=0" && "$out" == *"Findings: 0 bad, "* ]] || _hi_why out || return 1
+  [[ "$out" != *"The local tree"* && "$out" != *RESULT* && "$out" != *"Nothing looks broken"* ]] || _hi_why out
 }
 
 function run_doctor_report_tests() {
@@ -153,6 +161,7 @@ function run_doctor_report_tests() {
   _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
   _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
+  _hi_check "--json is off by default" test_json_is_off_by_default
   _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
 
   _hi_suite_end "doctor.sh (report)"

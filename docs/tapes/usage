@@ -15,8 +15,6 @@
 --use|-|
 --plain|-|
 --no-plain|-|
---mux|-|
---no-mux|-|
 --keep|-|
 --no-keep|-|
 --end|-|
