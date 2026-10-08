@@ -119,18 +119,21 @@ function _hi_release_slot() {
 # replaces it again), leaves the other slot alone, and appends to a body that
 # has no marker at all; the markdown reaches the body verbatim
 function test_release_slot_fills_only_its_own_line() {
+  local got
   local body=$'badges\n<!-- hi:demo -->\n- apk\n<!-- hi:tap -->' once twice
   # shellcheck disable=SC2016 # markdown, not substitution
   once="$(printf '%s\n' "$body" | _hi_release_slot --fill tap '- Homebrew: `brew` ([PR](u1)) \n $x')"
   [ "$once" = $'badges\n<!-- hi:demo -->\n- apk\n- Homebrew: `brew` ([PR](u1)) \\n $x <!-- hi:tap -->' ] || _hi_why once || return 1
   twice="$(printf '%s\n' "$once" | _hi_release_slot --fill tap '- Homebrew: ([PR](u2))')"
   [ "$twice" = $'badges\n<!-- hi:demo -->\n- apk\n- Homebrew: ([PR](u2)) <!-- hi:tap -->' ] || _hi_why twice || return 1
-  [ "$(printf 'old body\n' | _hi_release_slot --fill demo '![d](g)')" = $'old body\n\n![d](g) <!-- hi:demo -->' ] || _hi_why
+  got="$(printf 'old body\n' | _hi_release_slot --fill demo '![d](g)')"
+  [ "$got" = $'old body\n\n![d](g) <!-- hi:demo -->' ] || _hi_why got
 }
 
 # the network mode, against a stand-in gh: the body it reads is the body it
 # writes back, filled, to the same tag and repo
 function test_release_slot_writes_the_body_back_through_gh() {
+  local got
   local dir="$_HI_WORKDIR/relslot"
   mkdir -p "$dir/bin"
   cat >"$dir/bin/gh" <<'EOF'
@@ -143,7 +146,8 @@ esac
 EOF
   chmod +x "$dir/bin/gh"
   HI_SLOT_OUT="$dir/out" PATH="$dir/bin:$PATH" _hi_release_slot o/r v1.2.3 demo '![d](g)' || _hi_why dir || return 1
-  [ "$(cat "$dir/out")" = $'top\n![d](g) <!-- hi:demo -->\nend' ] || _hi_why dir
+  got="$(cat "$dir/out")"
+  [ "$got" = $'top\n![d](g) <!-- hi:demo -->\nend' ] || _hi_why got dir
 }
 
 # gh_asset.sh against a stand-in gh: the first upload is refused the way
@@ -273,26 +277,31 @@ function _hi_tool_run() {
 # by platform (the slug defaulting to the platform's name), and a column that
 # is neither, or names a platform nobody has, is not well-formed
 function test_setup_tool_lib_reads_the_roster() {
-  local dir a b
+  local dir a b got got2 got3
   dir="$(_hi_tool_dir lib)"
   a="$(printf '%064d' 1)" b="$(printf '%064d' 2)"
   printf '%s\n' '# a comment' '' "a.b|1|raw|u||-||$a" "axb|2|raw|u||-||$b" >"$dir/tools.txt"
   (
     # shellcheck source=../../.github/actions/setup-tool/lib.sh
     CI_TOOLS_TXT="$dir/tools.txt" source "$_HI_ROOT/.github/actions/setup-tool/lib.sh"
-    [ "$(_ci_tool_rows | grep -c .)" -eq 2 ] || _hi_because "rows: $(_ci_tool_rows)" || exit 1
-    [ "$(_ci_tool_row axb)" = "axb|2|raw|u||-||$b" ] && [ "$(_ci_tool_row a.b)" = "a.b|1|raw|u||-||$a" ] ||
+    got="$(_ci_tool_rows | grep -c .)"
+    [ "$got" -eq 2 ] || _hi_because "rows: $(_ci_tool_rows)" || exit 1
+    got="$(_ci_tool_row axb)"
+    got2="$(_ci_tool_row a.b)"
+    [ "$got" = "axb|2|raw|u||-||$b" ] && [ "$got2" = "a.b|1|raw|u||-||$a" ] ||
       _hi_because "a dot in a name matched as a wildcard" || exit 1
-    [[ "$(_ci_tool_row nope 2>&1)" == "setup-tool: no row for 'nope' in "* ]] && ! _ci_tool_row nope 2>/dev/null ||
+    got="$(_ci_tool_row nope 2>&1)"
+    { [[ "$got" == "setup-tool: no row for 'nope' in "* ]] && ! _ci_tool_row nope 2>/dev/null; } ||
       _hi_because "an unknown tool" || exit 1
     # one spelling per CPU, whichever uname this is
     case "$(uname -m):$(_ci_platform)" in
     x86_64:*-x86_64 | amd64:*-x86_64 | aarch64:*-aarch64 | arm64:*-aarch64) ;;
     x86_64:* | amd64:* | aarch64:* | arm64:*) _hi_because "platform: $(_ci_platform)" || exit 1 ;;
     esac
-    [ "$(_ci_sha256_pick "$a" linux-x86_64)" = "$a|" ] &&
-      [ "$(_ci_sha256_pick "linux-x86_64=$a,darwin-aarch64:arm64=$b" linux-x86_64)" = "$a|linux-x86_64" ] &&
-      [ "$(_ci_sha256_pick "linux-x86_64=$a,darwin-aarch64:arm64=$b" darwin-aarch64)" = "$b|arm64" ] ||
+    got="$(_ci_sha256_pick "$a" linux-x86_64)"
+    got2="$(_ci_sha256_pick "linux-x86_64=$a,darwin-aarch64:arm64=$b" linux-x86_64)"
+    got3="$(_ci_sha256_pick "linux-x86_64=$a,darwin-aarch64:arm64=$b" darwin-aarch64)"
+    [ "$got" = "$a|" ] && [ "$got2" = "$a|linux-x86_64" ] && [ "$got3" = "$b|arm64" ] ||
       _hi_because "a pick" || exit 1
     ! _ci_sha256_pick "linux-x86_64=$a" darwin-x86_64 2>/dev/null && ! _ci_sha256_pick "" linux-x86_64 2>/dev/null &&
       ! _ci_sha256_pick nothex linux-x86_64 2>/dev/null && ! _ci_sha256_pick "linux-x86_64=nothex" linux-x86_64 2>/dev/null ||
@@ -386,7 +395,7 @@ function test_setup_tool_assumes_build_deps_without_apt() {
 # a bin directory this user cannot make is made, and the binary moved in,
 # through sudo - and only then
 function test_setup_tool_reaches_for_sudo_only_for_a_locked_bin_dir() {
-  local dir out
+  local dir out got
   dir="$(_hi_tool_dir locked)"
   _hi_tool_build_stubs "$dir"
   printf '#!/bin/sh\necho one\n' >"$dir/src/one"
@@ -397,8 +406,8 @@ function test_setup_tool_reaches_for_sudo_only_for_a_locked_bin_dir() {
   chmod 555 "$dir/locked"
   out="$(_hi_tool_run "$dir" install CI_TOOL=one CI_TOOL_BIN_DIR="$dir/locked/bin")"
   chmod 755 "$dir/locked"
-  [ "$out" = one ] && [ -x "$dir/locked/bin/one" ] &&
-    [ "$(cut -d' ' -f1 "$dir/sudo.log" | tr '\n' ',')" = "mkdir,mv," ] ||
+  got="$(cut -d' ' -f1 "$dir/sudo.log" | tr '\n' ',')"
+  [ "$out" = one ] && [ -x "$dir/locked/bin/one" ] && [ "$got" = "mkdir,mv," ] ||
     _hi_because "said [$out], sudo ran: $(cat "$dir/sudo.log")"
 }
 
@@ -407,6 +416,7 @@ function test_setup_tool_reaches_for_sudo_only_for_a_locked_bin_dir() {
 # list - after the vendor lists are dropped, or the drop would take it out -
 # and is asked its version; the cache directory is handed back to the runner
 function test_setup_backends_adds_hashicorp_only_for_nomad() {
+  local got
   local dir="$_HI_WORKDIR/backends" out drop list
   mkdir -p "$dir/bin"
   # shellcheck disable=SC2016 # the stubs expand these, not this shell
@@ -430,11 +440,14 @@ function test_setup_backends_adds_hashicorp_only_for_nomad() {
     bash "$_HI_ROOT/.github/actions/setup-backends/install.sh" 2>&1)" || _hi_because "the default failed: $out" || return 1
   drop="$(grep -n '^rm -f /etc/apt/sources.list.d/' "$dir/both.log" | cut -d: -f1)"
   list="$(grep -n '^tee /etc/apt/sources.list.d/hashicorp.list$' "$dir/both.log" | cut -d: -f1)"
-  [ -n "$drop" ] && [ -n "$list" ] && [ "$drop" -lt "$list" ] &&
+  { [ -n "$drop" ] &&
+    [ -n "$list" ] &&
+    [ "$drop" -lt "$list" ] &&
     grep -qx 'curl -sSfL https://apt.releases.hashicorp.com/gpg' "$dir/both.log" &&
     grep -qx 'tee /usr/share/keyrings/hashicorp-archive-keyring.gpg' "$dir/both.log" &&
-    grep -qx "apt-get -o Dir::Cache::Archives=$dir/cache install -y podman nomad" "$dir/both.log" &&
-    [ "$(tail -n 1 "$dir/both.log")" = "nomad version" ] || _hi_because "the default: $(cat "$dir/both.log")"
+    grep -qx "apt-get -o Dir::Cache::Archives=$dir/cache install -y podman nomad" "$dir/both.log"; } || _hi_because "the default: $(cat "$dir/both.log")" || return 1
+  got="$(tail -n 1 "$dir/both.log")"
+  [ "$got" = "nomad version" ] || _hi_because "the default: $(cat "$dir/both.log")"
 }
 
 # _hi_bsd_loop <dir> [NAME=VALUE...] - bsd_loopback.sh in a workspace of
@@ -490,6 +503,7 @@ function test_bsd_loopback_wants_the_marker_a_clean_exit_and_no_session() {
 # the vendor lists are removed, and an update that fails is retried over a
 # cleared index cache - twice, then the step fails
 function test_apt_update_retries_over_a_cleared_cache() {
+  local got got2 got3
   local dir="$_HI_WORKDIR/aptlib" out rc=0
   mkdir -p "$dir/bin"
   cat >"$dir/bin/sudo" <<'EOF'
@@ -504,14 +518,21 @@ EOF
   out="$(HI_APT_LOG="$dir/once" HI_APT_FAILS=1 PATH="$dir/bin:$PATH" bash -c '
     source "$1/.github/actions/apt/lib.sh"
     _ci_apt_drop_vendor_lists && _ci_apt_update' _ "$_HI_ROOT" 2>&1)" || _hi_because "one failure was fatal: $out" || return 1
-  [[ "$(sed -n 1p "$dir/once")" == "rm -f /etc/apt/sources.list.d/"* ]] &&
-    [ "$(sed 1d "$dir/once")" = $'apt-get update \nrm -rf /var/lib/apt\nsleep 5\napt-get update ' ] &&
+  got="$(sed -n 1p "$dir/once")"
+  got2="$(sed 1d "$dir/once")"
+  [[ "$got" == "rm -f /etc/apt/sources.list.d/"* ]] &&
+    [ "$got2" = $'apt-get update \nrm -rf /var/lib/apt\nsleep 5\napt-get update ' ] &&
     [[ "$out" == *"(attempt 1/3), clearing the index cache"* ]] || _hi_because "one failure: $(cat "$dir/once") | $out" || return 1
   out="$(HI_APT_LOG="$dir/never" HI_APT_FAILS=9 PATH="$dir/bin:$PATH" bash -c '
     source "$1/.github/actions/apt/lib.sh"
     _ci_apt_update' _ "$_HI_ROOT" 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [ "$(grep -c '^apt-get update' "$dir/never")" -eq 3 ] &&
-    [ "$(grep -c '^rm -rf' "$dir/never")" -eq 2 ] && [ "$(grep '^sleep' "$dir/never" | tr '\n' ' ')" = "sleep 5 sleep 10 " ] &&
+  got="$(grep -c '^apt-get update' "$dir/never")"
+  got2="$(grep -c '^rm -rf' "$dir/never")"
+  got3="$(grep '^sleep' "$dir/never" | tr '\n' ' ')"
+  [ "$rc" -eq 1 ] &&
+    [ "$got" -eq 3 ] &&
+    [ "$got2" -eq 2 ] &&
+    [ "$got3" = "sleep 5 sleep 10 " ] &&
     [[ "$out" == *"apt-get update failed three times"* ]] || _hi_because "three failures, rc $rc: $(cat "$dir/never") | $out"
 }
 
@@ -519,6 +540,7 @@ EOF
 # version override needs a checksum of its own, and an unknown tool, a
 # platform the row has no asset for, and a stray subcommand each fail by name
 function test_setup_tool_resolve_names_the_pin() {
+  local got2
   local dir out rc=0 a b plat
   dir="$(_hi_tool_dir resolve)"
   a="$(printf '%064d' 1)" b="$(printf '%064d' 2)"
@@ -527,12 +549,14 @@ function test_setup_tool_resolve_names_the_pin() {
   printf '%s\n' "one|1.2.3|raw|https://x/one-%v||-||$a" "two|2.0|raw|https://x/%a||-||$plat:slug=$b" \
     "far|1|raw|https://x/%a||-||plan9-mips=$a" >"$dir/tools.txt"
   _hi_tool_run "$dir" resolve CI_TOOL=one >/dev/null || _hi_why dir || return 1
-  [ "$(cat "$dir/output")" = "version=1.2.3"$'\n'"sha256=$a"$'\n'"path=$dir/out/one" ] || _hi_because "one: $(cat "$dir/output")" || return 1
+  got2="$(cat "$dir/output")"
+  [ "$got2" = "version=1.2.3"$'\n'"sha256=$a"$'\n'"path=$dir/out/one" ] || _hi_because "one: $got2" || return 1
   : >"$dir/output"
   _hi_tool_run "$dir" resolve CI_TOOL=two >/dev/null && grep -qx "sha256=$b" "$dir/output" || _hi_why dir b || return 1
   : >"$dir/output"
-  _hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9 CI_TOOL_SHA256="$b" >/dev/null &&
-    [ "$(cat "$dir/output")" = "version=9.9"$'\n'"sha256=$b"$'\n'"path=$dir/out/one" ] || _hi_because "an override: $(cat "$dir/output")" || return 1
+  _hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9 CI_TOOL_SHA256="$b" >/dev/null || _hi_because "an override: $(cat "$dir/output")" || return 1
+  got2="$(cat "$dir/output")"
+  [ "$got2" = "version=9.9"$'\n'"sha256=$b"$'\n'"path=$dir/out/one" ] || _hi_because "an override: $got2" || return 1
   out="$(_hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"one version 9.9 overrides the pin (1.2.3) without a sha256"* ]] || _hi_because "a bare override: $out" || return 1
   rc=0
@@ -551,6 +575,7 @@ function test_setup_tool_resolve_names_the_pin() {
 # executable, and run with the row's verify flags; bytes that do not match
 # are refused and nothing lands
 function test_setup_tool_installs_a_verified_binary() {
+  local got2 got3
   local dir out rc=0 plat
   dir="$(_hi_tool_dir raw)"
   # shellcheck source=../../.github/actions/setup-tool/lib.sh
@@ -561,11 +586,12 @@ function test_setup_tool_installs_a_verified_binary() {
   printf '%s\n' "one|1.2.3|raw|https://x/dl/v%v/one-%v-%a|--version -q|-||$plat:slug=$(_hi_tool_sum "$dir/src/one-1.2.3-slug")" \
     "bad|1|raw|https://x/bad-%v||-||$(printf '%064d' 1)" >"$dir/tools.txt"
   out="$(_hi_tool_run "$dir" install CI_TOOL=one)" || _hi_because "the install failed: $out" || return 1
-  [ "$out" = "ran --version -q" ] && [ -x "$dir/out/one" ] &&
-    [ "$(cat "$dir/urls")" = "https://x/dl/v1.2.3/one-1.2.3-slug" ] || _hi_because "said [$out], asked for $(cat "$dir/urls")" || return 1
+  got2="$(cat "$dir/urls")"
+  [ "$out" = "ran --version -q" ] && [ -x "$dir/out/one" ] && [ "$got2" = "https://x/dl/v1.2.3/one-1.2.3-slug" ] || _hi_because "said [$out], asked for $got2" || return 1
   out="$(_hi_tool_run "$dir" install CI_TOOL=bad)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"bad@1 checksum mismatch for https://x/bad-1 - expected $(printf '%064d' 1), got $(_hi_tool_sum "$dir/src/bad-1")"* ]] &&
-    [ ! -e "$dir/out/bad" ] || _hi_because "a mismatch, rc $rc: $out"
+  got2="$(printf '%064d' 1)"
+  got3="$(_hi_tool_sum "$dir/src/bad-1")"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"bad@1 checksum mismatch for https://x/bad-1 - expected $got2, got $got3"* ]] && [ ! -e "$dir/out/bad" ] || _hi_because "a mismatch, rc $rc: $out"
 }
 
 # an archive is unpacked whole and searched for the tool by name: inside a
@@ -619,7 +645,7 @@ function test_setup_tool_refuses_a_row_that_cannot_work() {
 # into one cache key (name, pin, the checksum's first twelve digits) and one
 # path list, and the install step fetches only what the cache did not restore
 function test_setup_tools_batches_resolve_and_install() {
-  local dir out sum
+  local dir out sum got got2 got3
   dir="$(_hi_tool_dir batch)"
   printf '#!/bin/sh\necho one\n' >"$dir/src/one"
   printf '#!/bin/sh\necho two\n' >"$dir/src/two"
@@ -628,15 +654,19 @@ function test_setup_tools_batches_resolve_and_install() {
   env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     GITHUB_OUTPUT="$dir/output" bash "$_HI_ROOT/.github/actions/setup-tools/resolve.sh" || _hi_why dir || return 1
   out="$(cat "$dir/output")"
-  [ "$out" = "key= one=1.0@$(_hi_tool_sum "$dir/src/one" | cut -c1-12) two=2.5@${sum:0:12}"$'\n'"paths<<CI_TOOLS_EOF"$'\n'"$dir/out/one"$'\n'"$dir/out/two"$'\n'"CI_TOOLS_EOF" ] ||
+  got="$(_hi_tool_sum "$dir/src/one" | cut -c1-12)"
+  [ "$out" = "key= one=1.0@$got two=2.5@${sum:0:12}"$'\n'"paths<<CI_TOOLS_EOF"$'\n'"$dir/out/one"$'\n'"$dir/out/two"$'\n'"CI_TOOLS_EOF" ] ||
     _hi_because "the outputs: $out" || return 1
   printf '#!/bin/sh\necho restored\n' >"$dir/out/one"
   chmod +x "$dir/out/one"
   out="$(env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     HI_TOOL_SRC="$dir/src" PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/actions/setup-tools/install-missing.sh" 2>&1)" ||
     _hi_because "the batch install failed: $out" || return 1
-  [ "$("$dir/out/one")" = restored ] && [ "$("$dir/out/two")" = two ] && [ "$(cat "$dir/urls")" = "https://x/two" ] ||
-    _hi_because "fetched: $(cat "$dir/urls")"
+  got="$("$dir/out/one")"
+  got2="$("$dir/out/two")"
+  got3="$(cat "$dir/urls")"
+  [ "$got" = restored ] && [ "$got2" = two ] && [ "$got3" = "https://x/two" ] ||
+    _hi_because "fetched: $got3"
 }
 
 # A release asset name may not begin with a dot: GitHub stores `.SRCINFO` as

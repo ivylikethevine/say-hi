@@ -220,12 +220,15 @@ function test_banner_branch_stays_out_of_remote_banners() {
 # less fill once the indicator is on the line - the hostname pinned so the
 # padding being compared is a controlled fixture (see _hi_fixture_banner)
 function test_banner_branch_shrinks_padding() {
+  local got got2
   local dir plain branched _HI_HOSTNAME_CACHE="pinned-host"
   dir="$(_hi_git_fixture)"
   plain="$(_hi_fixture_banner "$dir" Online)"
   git -C "$dir" checkout -qb feature-x
   branched="$(_hi_fixture_banner "$dir" Online)"
-  [ "$(tr -dc '=' <<<"$branched" | wc -c)" -lt "$(tr -dc '=' <<<"$plain" | wc -c)" ] || _hi_why branched plain
+  got="$(tr -dc '=' <<<"$branched" | wc -c)"
+  got2="$(tr -dc '=' <<<"$plain" | wc -c)"
+  [ "$got" -lt "$got2" ] || _hi_why got got2 branched plain
 }
 
 # the regression this toggle exists for: silencing the banner must leave the

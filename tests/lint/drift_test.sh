@@ -630,9 +630,13 @@ function lint_dockerfiles() {
 #
 #   return  a statement holding `return 1` with no reporter in it and none in
 #           the three statements above it (a block that prints, then cleans
-#           up, then returns)
+#           up, then returns), or one with its reporter after the return
 #   last    a last statement that is a bare assertion: its status is the
 #           case's, and nothing follows to explain it
+#   subst   an assertion that compares a command substitution and reports:
+#           _hi_why prints the statement and its variables, so the value
+#           that was wrong is in neither. Captured into a variable on the
+#           line above, the reason has it.
 #
 # A reporter is _hi_because, _hi_why, _hi_cecho, _hi_show_*, _hi_dump_*, or a
 # printf or echo that is neither captured nor sent to a file. Statements are
@@ -641,7 +645,7 @@ function lint_dockerfiles() {
 # `return 1` (a stub's `{ return 1; }`, a fixture's text) is not one. What it
 # cannot see: an arm inside a loop or an `if` that the function ends on, and
 # a helper the case calls. One row a finding:
-# <file>:<line>|<case>|<return|last>|<statement>. No awk comments inside: the
+# <file>:<line>|<case>|<return|last|subst>|<statement>. No awk comments inside: the
 # portable-spelling sweep above reads this file too.
 function _hi_reasons_awk() {
   cat <<'AWK'
@@ -698,6 +702,10 @@ d == 0 && /^\}/ { flush(); next }
   n++; st[n] = s; ln[n] = start
   if (bare(s) ~ /(^|[^A-Za-z0-9_])return 1([^0-9]|$)/ && !says(s) && !(n > 1 && says(st[n - 1])) && !(n > 2 && says(st[n - 2])) && !(n > 3 && says(st[n - 3])))
     hit("return", n)
+  else if (bare(s) ~ /(^|[^A-Za-z0-9_])return 1 *\|\|/) hit("return", n)
+  t = s; sub(/ *\|\| *_hi_(why|because)([^A-Za-z0-9_]|$).*/, "", t)
+  if (t != s) { gsub(/'[^']*'/, "", t); gsub(/\\\$/, "", t) }
+  if (t != s && t ~ /(^|[ !({])\[\[? [^]]*\$\([^(]/) hit("subst", n)
 }
 END { flush() }
 AWK
@@ -726,8 +734,9 @@ function _hi_reasons_rows() {
 }
 
 # The scan is first run on a case written to fail it, so a scan that stopped
-# seeing anything is itself a finding: a bare assertion as a last line and a
-# silent `|| return 1` are both named, and their repaired twins are not.
+# seeing anything is itself a finding: a bare assertion as a last line, a
+# silent `|| return 1`, and a compared substitution are each named, and their
+# repaired twins are not.
 function lint_case_reasons() {
   local dir="$_HI_WORKDIR/reasons" rows row bad=0
   local -a suites=()
@@ -737,13 +746,15 @@ function lint_case_reasons() {
   printf '%s\n' 'function test_fixture_ends_bare() {' '  local a=1 b=2' '  [ "$a" = "$b" ]' '}' \
     'function test_fixture_returns_silently() {' '  true || return 1' '  [ -n "$a" ] || _hi_why a' '}' \
     'function test_fixture_says_why() {' '  true || _hi_because "it was false" || return 1' '  [ -n "$a" ] || _hi_why a' '}' \
+    'function test_fixture_compares_a_substitution() {' '  [ "$(cat "$a")" = x ] || _hi_why a' '}' \
     >"$dir/fixture_test.sh"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   rows="$(awk "$(_hi_reasons_awk)" "$dir/fixture_test.sh" | sed "s|^$dir/||")"
   # shellcheck disable=SC2016
   if [ "$rows" = 'fixture_test.sh:3|test_fixture_ends_bare|last|[ "$a" = "$b" ]
-fixture_test.sh:6|test_fixture_returns_silently|return|true || return 1' ]; then
-    _hi_align " | the scan names a bare last line and a silent return 1" "OK" "$GREEN"
+fixture_test.sh:6|test_fixture_returns_silently|return|true || return 1
+fixture_test.sh:14|test_fixture_compares_a_substitution|subst|[ "$(cat "$a")" = x ] || _hi_why a' ]; then
+    _hi_align " | the scan names a bare last line, a silent return 1, and a compared substitution" "OK" "$GREEN"
   else
     _hi_align " | the scan read its own fixture as: $rows" "FAILED" "$RED"
     _hi_note_failure "case reasons: the scan no longer sees its fixture"
@@ -754,13 +765,13 @@ fixture_test.sh:6|test_fixture_returns_silently|return|true || return 1' ]; then
   rows="$(_hi_reasons_rows "$(_hi_reasons_awk)" "${suites[@]}")"
   while IFS= read -r row; do
     [ -n "$row" ] || continue
-    _hi_align " | ${row%%|*}: says nothing when it fails - ${row#*|}" "FOUND" "$RED"
+    _hi_align " | ${row%%|*}: says nothing, or not the value, when it fails - ${row#*|}" "FOUND" "$RED"
     bad=$((bad + 1))
   done <<<"$rows"
   if [ -z "$rows" ]; then
     _hi_align " | every failing arm of ${#suites[@]} suites' cases says why" "OK" "$GREEN"
   else
-    _hi_note_failure "case reasons: an arm that says nothing - end it in _hi_because \"<why>\" or _hi_why <variable>..."
+    _hi_note_failure "case reasons: an arm that says nothing, or compares a \$( ) it cannot show - end it in _hi_because \"<why>\" or _hi_why <variable>..., the substitution captured first"
   fi
   suites=("$_HI_ROOT"/tests/targets/*_test.sh)
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))

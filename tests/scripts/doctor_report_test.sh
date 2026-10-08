@@ -20,8 +20,11 @@ function test_help_exits_zero() {
 # reached as `hi --doctor`, the usage line says so; run by hand it names the
 # file
 function test_help_names_what_was_typed() {
-  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] &&
-    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] || _hi_why
+  local got got2
+  got="$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)"
+  got2="$("$_HI_DOCTOR" --help | head -1)"
+  [ "$got" = "Usage: hi --doctor [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] &&
+    [ "$got2" = "Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] || _hi_why got got2
 }
 
 # a target never starts with a dash, so a dash word the parser does not know

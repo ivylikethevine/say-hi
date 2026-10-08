@@ -833,13 +833,18 @@ function _hi_shell_override_probe() {
 # value would make this case a report on the local fish build; as a
 # difference it still fails the day a preference lands in a shipped rc.
 function test_shell_ships_no_preference_default() {
-  [ "$(_hi_shell_override_probe "$1" none)" = "$(_hi_shell_override_probe "$1" bare)" ] || _hi_why
+  local got got2
+  got="$(_hi_shell_override_probe "$1" none)"
+  got2="$(_hi_shell_override_probe "$1" bare)"
+  [ "$got" = "$got2" ] || _hi_why got got2
 }
 
 function test_shell_user_file_applies() {
+  local got
   local row="$1" shell file script line value
   IFS='|' read -r shell file script line value <<<"$row"
-  [ "$(_hi_shell_override_probe "$row" user)" = "$value" ] || _hi_why row value
+  got="$(_hi_shell_override_probe "$row" user)"
+  [ "$got" = "$value" ] || _hi_why got row value
 }
 
 # _hi_rc_begin - what every part of this suite starts from, and the tally

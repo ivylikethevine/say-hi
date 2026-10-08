@@ -66,6 +66,7 @@ function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
 # has to be there for the *parent's* exit trap to find. An array cannot do it:
 # the append dies with the subshell, and the container leaks.
 function test_track_container_records_from_a_subshell_too() {
+  local got
   local _HI_LEDGER="$_HI_WORKDIR/ledger-track" rows
   : >"$_HI_LEDGER"
   _hi_track_container one
@@ -74,7 +75,8 @@ function test_track_container_records_from_a_subshell_too() {
   _hi_track_network relaynet
   rows="$(_hi_ledger_rows container | tr '\n' ' ')"
   [ "$rows" = "one two " ] || _hi_why rows || return 1
-  [ "$(_hi_ledger_rows network)" = relaynet ] || _hi_why
+  got="$(_hi_ledger_rows network)"
+  [ "$got" = relaynet ] || _hi_why got
 }
 
 # ...and the sweep that consumes it, through a fake backend that records what it
@@ -140,6 +142,7 @@ function test_par_case_tallies_pass_fail_and_skip() {
 # false assertion. A backstop that looks only for the bracketed "[label]"
 # _hi_case_result writes recaps every failed parallel case twice.
 function test_par_failed_assertion_is_recapped_once() {
+  local got
   local fails="$_HI_WORKDIR/par-fails-once"
   : >"$fails"
   (
@@ -149,7 +152,8 @@ function test_par_failed_assertion_is_recapped_once() {
     _hi_par_check "a failing case" _hi_false
     _hi_par_wait
   ) >/dev/null 2>&1 || true
-  { [ "$(grep -c . "$fails")" -eq 1 ] && grep -qxF "a failing case" "$fails"; } || _hi_why fails
+  got="$(grep -c . "$fails")"
+  { [ "$got" -eq 1 ] && grep -qxF "a failing case" "$fails"; } || _hi_why got fails
 }
 
 # a case that never reaches its verdict is a failure, not a case that vanishes

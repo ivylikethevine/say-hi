@@ -268,7 +268,7 @@ function test_add_plugin_refuses_a_line_hi_cannot_read() {
 # one named now; one of the tree's is replaced by a table of the file's own
 # shellcheck disable=SC2088 # the ~ is the file's to read, not the shell's
 function test_add_plugin_refuses_a_member_the_carry_has() {
-  local cfg out
+  local cfg out got
   cfg="$(_hi_plugins_cfg add-twice)"
   _hi_plugins_run "$cfg" --add-plugin cli task taskrc tool=- wire=env:TASKRC 'home=~/.taskrc' >/dev/null || _hi_why cfg || return 1
   _hi_plugins_run "$cfg" --add-plugin cli other other.rc tool=- >/dev/null || _hi_why cfg || return 1
@@ -280,7 +280,8 @@ function test_add_plugin_refuses_a_member_the_carry_has() {
   out="$(_hi_plugins_run "$cfg" --add-plugin editors vim vim/vimrc 'home=~/.vimrc')" || _hi_why cfg || return 1
   [[ "$out" == *' + [editors.vim]'* ]] || _hi_because "said: $out" || return 1
   out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || _hi_why cfg || return 1
-  [[ "$out" == *" editors "*" vim/"* ]] && [ "$(printf '%s\n' "$out" | grep -c ' vim/')" = 1 ] ||
+  got="$(printf '%s\n' "$out" | grep -c ' vim/')"
+  [[ "$out" == *" editors "*" vim/"* ]] && [ "$got" = 1 ] ||
     _hi_because "listed: $out"
 }
 

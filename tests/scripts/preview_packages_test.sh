@@ -138,10 +138,11 @@ function test_groups_table_keeps_file_order() {
 
 # STATE is whether $_HI_PACKAGES_GROUPS runs the group
 function test_groups_table_says_on_and_off() {
-  local stripped
+  local stripped got got2
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
-  [[ "$(printf '%s\n' "$stripped" | grep '^| core ')" == *"| on "* ]] &&
-    [[ "$(printf '%s\n' "$stripped" | grep '^| extras ')" == *"| off "* ]] || _hi_why stripped
+  got="$(printf '%s\n' "$stripped" | grep '^| core ')"
+  got2="$(printf '%s\n' "$stripped" | grep '^| extras ')"
+  [[ "$got" == *"| on "* ]] && [[ "$got2" == *"| off "* ]] || _hi_why got got2 stripped
 }
 
 # the INSTALLED/MISSING cells name the colors of the group's tier: core is
@@ -157,21 +158,23 @@ function test_groups_table_names_the_ramp_colors() {
 
 # the EXAMPLE column shows the fixture's own rows, an off group's included
 function test_groups_table_shows_the_real_examples() {
-  local stripped
+  local stripped got got2
   stripped="$(_hi_strip_ansi "$_HI_GROUPS_OUT")"
-  [[ "$(printf '%s\n' "$stripped" | grep '^| core ')" == *hialpha*highost3* ]] &&
-    [[ "$(printf '%s\n' "$stripped" | grep '^| extras ')" == *hicharlie*highost1* ]] || _hi_why stripped
+  got="$(printf '%s\n' "$stripped" | grep '^| core ')"
+  got2="$(printf '%s\n' "$stripped" | grep '^| extras ')"
+  [[ "$got" == *hialpha*highost3* ]] && [[ "$got2" == *hicharlie*highost1* ]] || _hi_why got got2 stripped
 }
 
 # the "(no group)" row is there only when the file has rows above its first
 # header
 function test_groups_table_drops_an_empty_no_group_row() {
-  local out
+  local out got
   out="$(
     _HI_PG_ROWS[0]=0
     _hi_print_groups_table
   )" || _hi_why || return 1
-  [[ "$(_hi_strip_ansi "$out")" != *"(no group)"* && "$out" == *core* ]] || _hi_why out
+  got="$(_hi_strip_ansi "$out")"
+  [[ "$got" != *"(no group)"* && "$out" == *core* ]] || _hi_why got out
 }
 
 # the two lines under the table: the tally, and the note naming the setting
@@ -371,12 +374,12 @@ function test_preview_ends_with_the_real_check() {
 # in the legend and in the check, extras on, and the rows above the first
 # header still print
 function test_preview_follows_the_groups_setting() {
-  local out stripped tail
+  local out stripped tail got got2
   out="$(_HI_PACKAGES_GROUPS=extras _hi_render_packages)" || _hi_why || return 1
   stripped="$(_hi_strip_ansi "$out")"
-  [[ "$(printf '%s\n' "$stripped" | grep '^| core ')" == *"| off "* ]] &&
-    [[ "$(printf '%s\n' "$stripped" | grep '^| extras ')" == *"| on "* ]] &&
-    [[ "$out" == *"(extras run)"* ]] || _hi_why stripped out || return 1
+  got="$(printf '%s\n' "$stripped" | grep '^| core ')"
+  got2="$(printf '%s\n' "$stripped" | grep '^| extras ')"
+  [[ "$got" == *"| off "* ]] && [[ "$got2" == *"| on "* ]] && [[ "$out" == *"(extras run)"* ]] || _hi_why got got2 stripped out || return 1
   tail="$(printf '%s\n' "$out" | tail -3)"
   [[ "$tail" == *hicharlie* && "$tail" == *hitop* && "$tail" != *hialpha* ]] || _hi_why tail
 }

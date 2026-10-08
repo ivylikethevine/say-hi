@@ -218,11 +218,13 @@ function test_outside_launcher_runs() {
 # directory is the answer and the tree is invisible - so this asks doctor for
 # the tree it resolved rather than merely for a zero exit.
 function test_outside_launcher_runs_through_a_symlink() {
+  local got
   local link="$_HI_WORKDIR/bin/hi" out
   mkdir -p "$_HI_WORKDIR/bin"
   ln -sfn "$_HI_LOC_OUT_ROOT/hi.sh" "$link"
   out="$(_hi_loc_outside_env "$link" --doctor 2>/dev/null)" || true
-  [[ "$(_hi_strip_ansi "$out")" == *"$_HI_LOC_OUT_ROOT"* ]] || _hi_why out
+  got="$(_hi_strip_ansi "$out")"
+  [[ "$got" == *"$_HI_LOC_OUT_ROOT"* ]] || _hi_why got out
 }
 
 # a tree that genuinely isn't there says so, rather than sourcing a stranger

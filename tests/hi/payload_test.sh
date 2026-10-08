@@ -232,11 +232,17 @@ function test_overlay_is_not_block_padded_under_bsdtar() {
 # ceiling is a tripwire on what every session pays, beside bench's budget.
 
 function test_human_bytes_matches_du_shapes() {
-  [ "$(_hi_human_bytes 0)" = 0B ] || _hi_why || return 1
-  [ "$(_hi_human_bytes 1023)" = 1023B ] || _hi_why || return 1
-  [ "$(_hi_human_bytes 1024)" = 1.0K ] || _hi_why || return 1
-  [ "$(_hi_human_bytes 34559)" = 34K ] || _hi_why || return 1
-  [ "$(_hi_human_bytes 5000000)" = 4.8M ] || _hi_why
+  local got
+  got="$(_hi_human_bytes 0)"
+  [ "$got" = 0B ] || _hi_why got || return 1
+  got="$(_hi_human_bytes 1023)"
+  [ "$got" = 1023B ] || _hi_why got || return 1
+  got="$(_hi_human_bytes 1024)"
+  [ "$got" = 1.0K ] || _hi_why got || return 1
+  got="$(_hi_human_bytes 34559)"
+  [ "$got" = 34K ] || _hi_why got || return 1
+  got="$(_hi_human_bytes 5000000)"
+  [ "$got" = 4.8M ] || _hi_why got
 }
 
 # the reported number counts what is sent, not what is on disk: it must be
@@ -264,6 +270,7 @@ function test_payload_stays_under_the_tripwire() {
 # under a pre-1.0 name is no
 # member, so the default it no longer overrides keeps riding.
 function test_a_shadowed_tree_default_is_cut_from_the_payload() {
+  local got
   # shellcheck disable=SC2153 # core.sh's derived roster, not a typo of the setting
   local dir="$_HI_WORKDIR/excl" listing _HI_PROMPT_TOOL="$_HI_PROMPT_TOOLS"
   local -a payload_excl=() members=()
@@ -281,20 +288,23 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   listing="$(_hi_payload_tar | tar tzf -)"
   [[ "$listing" != *config/colors* && "$listing" != *config/packages* ]] &&
     [[ "$listing" == *common/aliases.sh* ]] || _hi_why listing || return 1
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')" = 1 ] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | grep -c '^colors$')"
+  [ "$got" = 1 ] || _hi_why got dir
 }
 
 # with the header off no target draws one, so header.sh, the tree's package
 # list, and the overlay's copy of it all stay home; under _HI_DISABLE_LOCAL=1
 # only a line of settings.sh's own says so
 function test_header_off_keeps_the_header_home() {
+  local got
   local dir="$_HI_WORKDIR/excl-header" listing _HI_PROMPT_TOOL="$_HI_PROMPT_TOOLS"
   local -a payload_excl=()
   mkdir -p "$dir"
   printf '[core]\ngit = []\n' >"$dir/packages"
   printf '#!/bin/sh\n' >"$dir/local.sh"
   printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$dir/local-off.sh"
-  [ -z "$(_HI_DISABLE_HEADER=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ] ||
+  got="$(_HI_DISABLE_HEADER=1 _HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  [ -z "$got" ] ||
     _hi_because "the overlay's packages rode" || return 1
   _HI_DISABLE_HEADER=1 _hi_payload_excl
   [ "${payload_excl[*]}" = "say-hi/common/header.sh say-hi/config/packages" ] ||
@@ -312,15 +322,18 @@ function test_header_off_keeps_the_header_home() {
 # ...and only there: _hi_wire_bytes and `hi --doctor` hold no $payload_excl,
 # so the figure the badge tracks is the stock tree whatever overlay is present
 function test_the_payload_is_whole_without_a_cut_list() {
+  local got
   local dir="$_HI_WORKDIR/excl-none"
   mkdir -p "$dir"
   printf '[hosttag]\nx = "red"\n' >"$dir/colors"
-  [[ "$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)" == *say-hi/config/colors* ]] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf -)"
+  [[ "$got" == *say-hi/config/colors* ]] || _hi_why got dir
 }
 
 # the plugins rows are the packer's alone to read, and it never rides: the
 # tree's file is cut from every payload, and the overlay's is no member
 function test_the_plugins_rows_stay_home() {
+  local got
   local dir="$_HI_WORKDIR/rows-home" listing
   mkdir -p "$dir"
   printf '[mine.mine]\ntool = "-"\nwire = "env:MINE"\nhome = "/etc/mine"\nfiles = "mine.rc"\n' >"$dir/plugins"
@@ -329,7 +342,8 @@ function test_the_plugins_rows_stay_home() {
   listing="$(_hi_payload_tar | tar tzf -)"
   [[ "$listing" != *config/plugins* && "$listing" == *config/colors* ]] ||
     _hi_because "the tree's rows rode" || return 1
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "mine.rc,wiring.sh" ] ||
+  got="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)"
+  [ "$got" = "mine.rc,wiring.sh" ] ||
     _hi_because "the overlay's rows rode: $(_HI_CONFIG_DIR="$dir" _hi_overlay_files | tr '\n' ' ')"
 }
 
@@ -592,16 +606,19 @@ function test_a_session_relays_its_tree_as_it_stands() {
 # ...and what an include of it names is the relaying hop's directory, which
 # the next hop makes its own
 function test_a_relay_hands_on_what_it_carried() {
+  local got
   local dir next="$_HI_WORKDIR/nexthop/config" fix
   dir="$(_hi_session_tree)"
   mkdir -p "$next/vim"
   cp "$dir/say-hi/config/vim/vimrc" "$next/vim/vimrc"
   fix="$(_hi_in_session "$dir" "$dir/say-hi/config" _hi_overlay_fixup "'$next'")" || _hi_why dir || return 1
   sh -c "$fix" || _hi_why fix || return 1
-  [ "$(cat "$next/vim/vimrc")" = "source $next/vim/extra.vim" ] ||
-    _hi_because "the include on the next hop: $(cat "$next/vim/vimrc")" || return 1
+  got="$(cat "$next/vim/vimrc")"
+  [ "$got" = "source $next/vim/extra.vim" ] ||
+    _hi_because "the include on the next hop: $got" || return 1
   # a path no script can hold bare is no token: nothing is rewritten
-  [ "$(_hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'")" = : ] || _hi_why dir
+  got="$(_hi_in_session "$dir" "$dir/say hi/config" _hi_overlay_fixup "'$next'")"
+  [ "$got" = : ] || _hi_why got dir
 }
 
 # hi.sh reaches the packer through the five functions a session defines for

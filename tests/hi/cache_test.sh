@@ -62,13 +62,15 @@ function test_runtime_dir_takes_xdg_runtime_dir_as_is() {
 # an $XDG_RUNTIME_DIR naming something that is not a directory is not hi's to
 # trust either - it falls through to the private one below
 function test_runtime_dir_ignores_a_missing_xdg_runtime_dir() {
+  local got
   local out=""
   XDG_RUNTIME_DIR="$_HI_WORKDIR/rt.nope" TMPDIR="$_HI_WORKDIR/rt.tmp1" \
     _hi_runtime_dir out
   mkdir -p "$_HI_WORKDIR/rt.tmp1"
   XDG_RUNTIME_DIR="$_HI_WORKDIR/rt.nope" TMPDIR="$_HI_WORKDIR/rt.tmp1" \
     _hi_runtime_dir out
-  [ "$out" = "$_HI_WORKDIR/rt.tmp1/hi-$(id -u)" ] && [ -d "$out" ] || _hi_why out
+  got="$(id -u)"
+  [ "$out" = "$_HI_WORKDIR/rt.tmp1/hi-$got" ] && [ -d "$out" ] || _hi_why got out
 }
 
 # made with `mkdir -m 700`, never adopted from whatever mode was there. The
@@ -176,30 +178,36 @@ function test_overlay_cached_refuses_without_a_runtime_dir() {
 }
 
 function test_overlay_cached_builds_cold_and_names_the_file() {
+  local got
   local out="" dir
   dir="$(_hi_cache_rt oc.cold)"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS || return 1
-  [ "$out" = "$dir/hi.overlay.$(_hi_overlay_cache_key "${_HI_CACHE_MEMBERS[@]}")" ] || _hi_why out dir _HI_CACHE_MEMBERS || return 1
+  got="$(_hi_overlay_cache_key "${_HI_CACHE_MEMBERS[@]}")"
+  [ "$out" = "$dir/hi.overlay.$got" ] || _hi_why got out dir _HI_CACHE_MEMBERS || return 1
   [ -s "$out" ] || _hi_why out
 }
 
 # the write is `>$cache.$$` then `mv`, so a reader never sees a half-built
 # archive - and nothing is left behind under the temp name
 function test_overlay_cached_leaves_no_temp_file() {
+  local got
   local out="" dir
   dir="$(_hi_cache_rt oc.tmp)"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS || return 1
-  [ -z "$(find "$dir" -name 'hi.overlay.*.[0-9]*' -print)" ] || _hi_why dir
+  got="$(find "$dir" -name 'hi.overlay.*.[0-9]*' -print)"
+  [ -z "$got" ] || _hi_why got dir
 }
 
 # a builder that fails leaves nothing behind - not the temp file it was
 # writing, not a cache under the real name - and answers rc 1, "build it
 # yourself", with the outvar untouched
 function test_cached_cleans_up_after_a_failed_build() {
+  local got
   local out="" dir
   dir="$(_hi_cache_rt c.fail)"
   ! XDG_RUNTIME_DIR="$dir" _hi_cached out fail k "$_HI_CONFIG_DIR/" false settings.sh || _hi_why dir || return 1
-  [ -z "$out" ] && [ -z "$(find "$dir" -name 'hi.fail.k*' -print)" ] || _hi_why out dir
+  got="$(find "$dir" -name 'hi.fail.k*' -print)"
+  [ -z "$out" ] && [ -z "$got" ] || _hi_why got out dir
 }
 
 function test_overlay_cached_reuses_a_warm_cache() {
@@ -228,13 +236,15 @@ function test_overlay_cached_rebuilds_when_a_member_is_newer() {
 # path and watched where it lives - through a symlink, the dotfile-manager
 # shape, whose own mtime predates the cache while its target's does not
 function test_overlay_cached_rebuilds_when_a_home_config_is_newer() {
+  local got
   local out="" dir home="$_HI_WORKDIR/oc.home"
   dir="$(_hi_cache_rt oc.home.rt)"
   mkdir -p "$home"
   printf -- '--theme=a\n' >"$home/real"
   ln -sf "$home/real" "$home/config"
   XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat/config || _hi_why dir home || return 1
-  [ "$out" = "$dir/hi.overlay.$(_hi_overlay_cache_key bat/config "$home/config")" ] || _hi_why out dir home || return 1
+  got="$(_hi_overlay_cache_key bat/config "$home/config")"
+  [ "$out" = "$dir/hi.overlay.$got" ] || _hi_why got out dir home || return 1
   _hi_cache_mark "$out"
   touch -t 203001010000 "$out"
   touch -t 203101010000 "$home/real"
@@ -306,14 +316,16 @@ function test_payload_cached_builds_cold_then_reuses_it() {
 # a tree cut for an overlay (_hi_payload_excl) is its own cache file, so a
 # changed overlay is never served the last one's tar, nor the whole tree's
 function test_payload_cached_is_keyed_on_the_cut_list() {
+  local got got2
   local whole="" cut="" dir
   local -a payload_excl=()
   dir="$(_hi_cache_rt pc.excl)"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached whole || _hi_why dir || return 1
   _hi_payload_excl colors
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached cut || _hi_why dir || return 1
-  [[ "$whole" == "$dir/hi.payload.tree."* ]] && [ "$cut" != "$whole" ] &&
-    [[ "$(tar tzf "$whole")" == *config/colors* && "$(tar tzf "$cut")" != *config/colors* ]] || _hi_why whole dir cut
+  got="$(tar tzf "$whole")"
+  got2="$(tar tzf "$cut")"
+  [[ "$whole" == "$dir/hi.payload.tree."* ]] && [ "$cut" != "$whole" ] && [[ "$got" == *config/colors* && "$got2" != *config/colors* ]] || _hi_why got got2 whole dir cut
 }
 
 # two trees on one machine share the runtime dir, and each is served its
@@ -525,14 +537,15 @@ function test_tag_settings_leave_other_hosts_alone() {
 # with no settings.sh the tag's file is all of it and still rides; a second
 # connect leaves the joined file be, so the overlay cache built over it holds
 function test_tag_settings_stand_alone_and_keep_their_file() {
-  local dir rt out first
+  local dir rt out first got2
   dir="$(_hi_tag_fixture tag.alone)"
   rt="$(_hi_cache_rt tag.alone.rt)"
   out="$(_hi_tag_run "$dir" "$rt" web1)"
   [[ "$out" == "1|$rt/hi.settings."*"|joined|export _HI_PLAIN=1;" ]] || _hi_because "got: $out" || return 1
   first="$(ls -i "$rt"/hi.settings.*)"
   _hi_tag_run "$dir" "$rt" web1 >/dev/null
-  [ "$(ls -i "$rt"/hi.settings.*)" = "$first" ] || _hi_why rt first
+  got2="$(ls -i "$rt"/hi.settings.*)"
+  [ "$got2" = "$first" ] || _hi_why got2 rt first
 }
 
 # ...and the archive a tagged host is sent holds the joined settings.sh, with

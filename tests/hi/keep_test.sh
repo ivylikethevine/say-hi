@@ -153,10 +153,11 @@ function _hi_keep_verdict() {
 # every session looks for a kept one; only --keep or the setting starts one;
 # --no-keep and a command do neither
 function test_keep_verdicts_follow_the_flags_and_the_setting() {
-  local row k s c want
+  local row k s c want got
   for row in '|0||10' '1|0||11' '|1||11' '0|1||00' '1|1|ls; exit|00' '|0|ls; exit|00'; do
     IFS='|' read -r k s c want <<<"$row"
-    [ "$(_hi_keep_verdict "$k" "$s" "$c")" = "$want" ] || _hi_because "KEEP='$k' _HI_KEEP='$s' CMDARG='$c': not $want" || return 1
+    got="$(_hi_keep_verdict "$k" "$s" "$c")"
+    [ "$got" = "$want" ] || _hi_because "KEEP='$k' _HI_KEEP='$s' CMDARG='$c': not $want" || return 1
   done
 }
 
@@ -314,21 +315,29 @@ _hi_kept; printf "%s|%s|%s\n" "$?" "$_hi_k" "${_hi_ks:-}"' "$@" | sed -n '1p'
 }
 
 function test_kept_asks_tmux_then_zellij_then_screen() {
+  local got
   local screens='There is a screen on:\n\t411.hi-box\t(Detached)\n1 Socket in /run/screen.\n'
-  [ "$(_hi_kept_answer _HI_TEST_HAS=0)" = "0|tmux|" ] || _hi_because "tmux has it: $(_hi_kept_answer _HI_TEST_HAS=0)" || return 1
-  [ "$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 3s ago] \n')" = "0|zellij|" ] ||
-    _hi_because "zellij has it: $(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 3s ago] \n')" || return 1
-  [ "$(_hi_kept_answer _HI_TEST_SCREENS="$screens")" = "0|screen|411.hi-box" ] ||
-    _hi_because "screen has it: $(_hi_kept_answer _HI_TEST_SCREENS="$screens")" || return 1
-  [ "$(_hi_kept_answer)" = "1||" ] || _hi_because "neither has it: $(_hi_kept_answer)"
+  got="$(_hi_kept_answer _HI_TEST_HAS=0)"
+  [ "$got" = "0|tmux|" ] || _hi_because "tmux has it: $got" || return 1
+  got="$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 3s ago] \n')"
+  [ "$got" = "0|zellij|" ] ||
+    _hi_because "zellij has it: $got" || return 1
+  got="$(_hi_kept_answer _HI_TEST_SCREENS="$screens")"
+  [ "$got" = "0|screen|411.hi-box" ] ||
+    _hi_because "screen has it: $got" || return 1
+  got="$(_hi_kept_answer)"
+  [ "$got" = "1||" ] || _hi_because "neither has it: $got"
 }
 
 # a longer name that starts the same, and a session its multiplexer calls
 # dead (screen) or exited (zellij, which would resurrect it), are not this
 # target's
 function test_kept_passes_over_a_dead_or_longer_named_session() {
-  [ "$(_hi_kept_answer _HI_TEST_SCREENS='\t7.hi-box\t(Dead ???)\n\t8.hi-boxes\t(Detached)\n')" = "1||" ] || _hi_why || return 1
-  [ "$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 1h ago] (EXITED - attach to resurrect)\nhi-boxes [Created 2s ago] \n')" = "1||" ] || _hi_why
+  local got
+  got="$(_hi_kept_answer _HI_TEST_SCREENS='\t7.hi-box\t(Dead ???)\n\t8.hi-boxes\t(Detached)\n')"
+  [ "$got" = "1||" ] || _hi_why got || return 1
+  got="$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 1h ago] (EXITED - attach to resurrect)\nhi-boxes [Created 2s ago] \n')"
+  [ "$got" = "1||" ] || _hi_why got
 }
 
 function test_keep_attaches_a_kept_session_and_stops() {
@@ -421,6 +430,7 @@ function test_keep_start_without_a_terminal_is_the_plain_handoff() {
 }
 
 function test_keep_start_without_a_multiplexer_holds_the_tree() {
+  local got
   local log="$_HI_WORKDIR/nomux.log" out bare
   bare="$_HI_WORKDIR/keepbare"
   mkdir -p "$bare"
@@ -433,7 +443,8 @@ function test_keep_start_without_a_multiplexer_holds_the_tree() {
   [[ "$out" != *"needs tmux"* ]] || _hi_because "a target that holds the tree was told what it lacks: $out" || return 1
   grep -q '^BASH --rcfile /t/say-hi/hi.bashrc -i hold=hi-box$' "$log" || _hi_because "the session is not told to hold: $(cat "$log")" || return 1
   # ...and its bootstrap outlasts the hangup, so the session's exit decides
-  [[ "$(_hi_keep_start_script)" == *'export _HI_KEEP_HOLD="$_hi_kn" && trap : HUP'* ]] || _hi_because "the bootstrap does not outlast a hangup"
+  got="$(_hi_keep_start_script)"
+  [[ "$got" == *'export _HI_KEEP_HOLD="$_hi_kn" && trap : HUP'* ]] || _hi_because "the bootstrap does not outlast a hangup"
 }
 
 # _hi_keep_held_run <dir> [pty] - the take, as a connect named hi-box runs it
@@ -471,13 +482,15 @@ function _hi_keep_held_trees() {
 # its own empty one goes, the claim is its pid, the timer's is gone, and it
 # starts where that session was, holding as it did
 function test_keep_held_takes_the_tree_a_drop_left() {
+  local got
   local d="$_HI_WORKDIR/held" dead out
   dead="$(_hi_keep_held_trees "$d")"
   out="$(_hi_keep_held_run "$d" pty)"
   [ "$out" = "HELD=1 HOME=$d/u.hi.old PWD=$d/where it was HOLD=hi-box" ] || _hi_because "the take: $out" || return 1
   [ ! -e "$d/u.hi.new" ] || _hi_because "its own empty tree is still there" || return 1
   [ ! -e "$d/u.hi.old/say-hi/hi.held" ] || _hi_because "the timer still claims the tree" || return 1
-  [ "$(cat "$d/u.hi.old/say-hi/hi.pid")" != "$dead" ] || _hi_because "the claim is still the dropped session's" || return 1
+  got="$(cat "$d/u.hi.old/say-hi/hi.pid")"
+  [ "$got" != "$dead" ] || _hi_because "the claim is still the dropped session's" || return 1
   [ -e "$d/u.hi.else/say-hi/hi.held" ] || _hi_because "a tree held under another name was taken"
 }
 
@@ -831,14 +844,17 @@ function test_mux_alias_keeps_a_bare_multiplexer() {
 # an owner pane), a multiplexer already around it, no terminal; with none to
 # start the session holds its tree instead, unless its window is 0
 function test_keep_here_refuses_what_it_cannot_keep() {
+  local got
   local log="$_HI_WORKDIR/hereno.log" t out bare="$_HI_WORKDIR/herebare"
   t="$(_hi_keep_here_tree hereno)"
   out="$(_hi_keep_here_run "$log" "$t" TMUX=/tmp/tmux-1/default,1,0)"
   [[ "$out" == *"already inside a multiplexer here"* && "$out" != *new-session* ]] || _hi_because "nested: $out" || return 1
   mkdir -p "$bare"
   out="$(_hi_keep_here_run "$log" "$t" PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"
+  got="$(cat "$t/say-hi/hi.hold" 2>/dev/null)"
   [[ "$out" == *"a dropped link leaves this session's files for 15m, and hi box comes back"* ]] &&
-    [ "$(cat "$t/say-hi/hi.hold" 2>/dev/null)" = hi-box ] && [ -s "$t/say-hi/hi.cwd" ] ||
+    [ "$got" = hi-box ] &&
+    [ -s "$t/say-hi/hi.cwd" ] ||
     _hi_because "no multiplexer, so the tree is held: $out" || return 1
   rm -f "$t/say-hi/hi.hold" "$t/say-hi/hi.cwd"
   out="$(_hi_keep_here_run "$log" "$t" _HI_KEEP_TIMEOUT=0 PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"

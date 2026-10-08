@@ -23,17 +23,20 @@ function _hi_tool_home_fixture() {
 }
 
 function test_overlay_carries_the_home_tool_configs() {
-  local dir d
+  local dir d got got2 got3
   _hi_tool_home_fixture
   dir="$(_hi_overlay_fixture tool-none colors)"
   d="$(_hi_tool_home_unpacked "$dir")" || _hi_why dir || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "bat colors eza starship.toml wiring.sh " ] &&
-    [ "$(cat "$d/starship.toml" "$d/eza/theme.yml" "$d/bat/config")" = "$(printf 'format = "home"\nfilekinds: home\n--theme=home')" ] || _hi_why d
+  got="$(cd "$d" && printf '%s ' *)"
+  got2="$(cat "$d/starship.toml" "$d/eza/theme.yml" "$d/bat/config")"
+  got3="$(printf 'format = "home"\nfilekinds: home\n--theme=home')"
+  [ "$got" = "bat colors eza starship.toml wiring.sh " ] && [ "$got2" = "$got3" ] || _hi_why got got2 got3 d
 }
 
 # each tool's own variable names the file, whatever it is called - here with
 # no overlay member of its own, so nothing comes from the overlay directory
 function test_overlay_home_configs_follow_the_tools_variables() {
+  local got got2
   local o="$_HI_WORKDIR/tool-vars" dir d
   mkdir -p "$o/ezadir"
   printf 'format = "var"\n' >"$o/prompt.toml"
@@ -42,13 +45,16 @@ function test_overlay_home_configs_follow_the_tools_variables() {
   dir="$(_hi_overlay_fixture tool-empty)"
   d="$(_hi_tool_home_unpacked "$dir" STARSHIP_CONFIG="$o/prompt.toml" \
     EZA_CONFIG_DIR="$o/ezadir" BAT_CONFIG_PATH="$o/bat-flags")" || _hi_why dir o || return 1
-  [ "$(cat "$d/starship.toml" "$d/eza/theme.yml" "$d/bat/config")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ] || _hi_why d
+  got="$(cat "$d/starship.toml" "$d/eza/theme.yml" "$d/bat/config")"
+  got2="$(printf 'format = "var"\nfilekinds: var\n--theme=var')"
+  [ "$got" = "$got2" ] || _hi_why got got2 d
 }
 
 # ripgrep's and fzf's config is wherever their variable says, and nowhere
 # without it; lazygit's is its variable's, else its XDG file. Each rides
 # only with its tool here.
 function test_overlay_home_configs_of_the_cli_tools() {
+  local got got2
   local o="$_HI_WORKDIR/cli-vars" dir d stubs lg="$_HI_WORKDIR/tool-home/.config/lazygit/config.yml"
   mkdir -p "$o" "${lg%/*}"
   printf -- '--smart-case\n' >"$o/rg"
@@ -59,10 +65,14 @@ function test_overlay_home_configs_of_the_cli_tools() {
   dir="$(_hi_overlay_fixture cli-empty)"
   d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" RIPGREP_CONFIG_PATH="$o/rg" \
     FZF_DEFAULT_OPTS_FILE="$o/fzf")" || _hi_why dir stubs o || return 1
-  [ "$(cat "$d/ripgreprc" "$d/fzfrc" "$d/lazygit/config.yml")" = "$(printf -- '--smart-case\n--height=40%%\ngui:\n  theme: xdg')" ] ||
+  got="$(cat "$d/ripgreprc" "$d/fzfrc" "$d/lazygit/config.yml")"
+  got2="$(printf -- '--smart-case\n--height=40%%\ngui:\n  theme: xdg')"
+  [ "$got" = "$got2" ] ||
     _hi_because "home: $(cat "$d"/* 2>&1)" || return 1
   d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" LG_CONFIG_FILE="$o/lg.yml")" || _hi_why dir stubs o || return 1
-  [ ! -e "$d/ripgreprc" ] && [ ! -e "$d/fzfrc" ] && [ "$(cat "$d/lazygit/config.yml")" = "$(printf 'gui:\n  theme: var')" ] ||
+  got="$(cat "$d/lazygit/config.yml")"
+  got2="$(printf 'gui:\n  theme: var')"
+  [ ! -e "$d/ripgreprc" ] && [ ! -e "$d/fzfrc" ] && [ "$got" = "$got2" ] ||
     _hi_because "variable: $(ls "$d")" || return 1
   rm -f "$lg"
   ! PATH="$_HI_WORKDIR/no-such-dir" _hi_tool_here ripgreprc || _hi_because "rg found on an empty PATH" || return 1
@@ -72,13 +82,17 @@ function test_overlay_home_configs_of_the_cli_tools() {
 # an overlay copy wins over home's - and starship's still rides only with
 # starship in the list, which is the only thing that starts it
 function test_overlay_copy_of_a_tool_config_wins() {
-  local dir d
+  local dir d got got2
   _hi_tool_home_fixture
   dir="$(_hi_overlay_fixture tool-copy bat/config eza/theme.yml starship.toml)"
   d="$(_hi_tool_home_unpacked "$dir")" || _hi_why dir || return 1
-  [ "$(cat "$d/bat/config" "$d/eza/theme.yml" "$d/starship.toml")" = "$(printf 'x\nx\nx')" ] || _hi_why d || return 1
+  got="$(cat "$d/bat/config" "$d/eza/theme.yml" "$d/starship.toml")"
+  got2="$(printf 'x\nx\nx')"
+  [ "$got" = "$got2" ] || _hi_why got got2 d || return 1
   d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=hi)" || _hi_why dir || return 1
-  [ "$(cat "$d/bat/config" "$d/eza/theme.yml")" = "$(printf 'x\nx')" ] && [ ! -e "$d/starship.toml" ] || _hi_why d
+  got="$(cat "$d/bat/config" "$d/eza/theme.yml")"
+  got2="$(printf 'x\nx')"
+  [ "$got" = "$got2" ] && [ ! -e "$d/starship.toml" ] || _hi_why got got2 d
 }
 
 # the prompt frameworks' files the same way: an overlay copy of each rides over
@@ -108,6 +122,7 @@ function test_overlay_copy_of_a_prompt_framework_file_wins() {
 # `extends` naming a local file goes out emptied - a URL or a theme name
 # resolves on the target and stays.
 function test_oh_my_posh_config_rides_from_home_or_overlay() {
+  local got
   local h="$_HI_WORKDIR/omp-home" dir d
   mkdir -p "$h"
   printf '{\n  "extends": "~/base.omp.json",\n  "version": 3\n}\n' >"$h/mine.omp.json"
@@ -129,18 +144,22 @@ function test_oh_my_posh_config_rides_from_home_or_overlay() {
   }
   printf 'version = 3\n' >"$dir/oh-my-posh.toml"
   d="$(_hi_tool_home_unpacked "$dir" "$@" POSH_CONFIG="$h/mine.omp.json")" || _hi_why dir h || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.toml wiring.sh " ] || _hi_why d
+  got="$(cd "$d" && printf '%s ' *)"
+  [ "$got" = "oh-my-posh.toml wiring.sh " ] || _hi_why got d
 }
 
 function test_overlay_carries_the_prompt_frameworks_home_files() {
+  local got got2 got3
   local dir d h="$_HI_WORKDIR/fw-home"
   set -- HOME="$h" XDG_CONFIG_HOME="$h/.config"
   _hi_fw_home_fixture
   dir="$(_hi_overlay_fixture fw-none colors)"
   d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL="powerlevel10k oh-my-zsh oh-my-bash tide")" || _hi_why dir || return 1
-  [ "$(cd "$d" && printf '%s ' *)" = "colors oh-my-bash.theme.sh oh-my-zsh.zsh-theme p10k.zsh tide.vars " ] &&
-    [ "$(cat "$d/p10k.zsh" "$d/oh-my-zsh.zsh-theme" "$d/oh-my-bash.theme.sh" "$d/tide.vars")" = \
-      "$(printf 'typeset -g POWERLEVEL9K_MODE=home\nPROMPT=custom\nPS1=font\nSETUVAR tide_character_icon:\\u276f')" ] || _hi_why d || return 1
+  got="$(cd "$d" && printf '%s ' *)"
+  got2="$(cat "$d/p10k.zsh" "$d/oh-my-zsh.zsh-theme" "$d/oh-my-bash.theme.sh" "$d/tide.vars")"
+  got3="$(printf 'typeset -g POWERLEVEL9K_MODE=home\nPROMPT=custom\nPS1=font\nSETUVAR tide_character_icon:\\u276f')"
+  [ "$got" = "colors oh-my-bash.theme.sh oh-my-zsh.zsh-theme p10k.zsh tide.vars " ] && [ "$got2" = \
+    "$got3" ] || _hi_why got got2 got3 d || return 1
   # unnamed, nothing rides; and powerlevel10k as oh-my-zsh's theme is no theme file
   d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL=hi)" || _hi_why dir || return 1
   [ "$(cd "$d" && printf '%s' *)" = colors ] || {
@@ -155,6 +174,7 @@ function test_overlay_carries_the_prompt_frameworks_home_files() {
 # p10k's wizard writes under $ZDOTDIR, which a ~/.zshenv sets for zsh alone:
 # hi run from bash or fish finds that file, not a stale ~/.p10k.zsh
 function test_p10k_rides_from_a_zshenv_zdotdir() {
+  local got
   local dir d h="$_HI_WORKDIR/p10k-zshenv"
   mkdir -p "$h/zd"
   # shellcheck disable=SC2016 # zsh's to expand
@@ -163,13 +183,15 @@ function test_p10k_rides_from_a_zshenv_zdotdir() {
   printf 'typeset -g POWERLEVEL9K_MODE=zdotdir\n' >"$h/zd/.p10k.zsh"
   dir="$(_hi_overlay_fixture p10k-zshenv colors)"
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL=powerlevel10k)" || _hi_why dir h || return 1
-  [ "$(cat "$d/p10k.zsh")" = 'typeset -g POWERLEVEL9K_MODE=zdotdir' ] || _hi_because "p10k.zsh arrived as: [$(cat "$d/p10k.zsh" 2>&1)]"
+  got="$(cat "$d/p10k.zsh")"
+  [ "$got" = 'typeset -g POWERLEVEL9K_MODE=zdotdir' ] || _hi_because "p10k.zsh arrived as: [$(cat "$d/p10k.zsh" 2>&1)]"
 }
 
 # bash-it's theme is found where bash_it.sh's loader looks for a bare name:
 # the custom themes dir ($BASH_IT_CUSTOM, else ~/.bash_it/custom) over the
 # built-in one; oh-my-bash takes a .theme.bash where there is no .theme.sh
 function test_overlay_carries_the_bash_it_theme_by_loader_order() {
+  local got
   local h="$_HI_WORKDIR/bashit-home" dir d f
   mkdir -p "$h/.bash_it/themes/bobby" "$h/.bash_it/custom/themes/bobby" "$h/elsewhere/themes/bobby" "$h/.oh-my-bash/themes/font"
   printf 'export BASH_IT_THEME="bobby"\nOSH_THEME=font\n' >"$h/.bashrc"
@@ -179,7 +201,8 @@ function test_overlay_carries_the_bash_it_theme_by_loader_order() {
   printf 'PS1=font\n' >"$h/.oh-my-bash/themes/font/font.theme.bash"
   dir="$(_hi_overlay_fixture bashit-none colors)"
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL="bash-it oh-my-bash")" || _hi_why dir h || return 1
-  [ "$(cat "$d/bash-it.theme.bash" "$d/oh-my-bash.theme.sh")" = $'PS1=custom\nPS1=font' ] ||
+  got="$(cat "$d/bash-it.theme.bash" "$d/oh-my-bash.theme.sh")"
+  [ "$got" = $'PS1=custom\nPS1=font' ] ||
     _hi_because "carried: $(cat "$d"/*.theme.* 2>&1)" || return 1
   f="$(unset BASH_IT_CUSTOM BASH_IT && HOME="$h" _hi_theme_home bash-it.theme.bash && echo)" || _hi_why h || return 1
   [ "$f" = "$h/.bash_it/custom/themes/bobby/bobby.theme.bash" ] || _hi_because "default custom: [$f]" || return 1
@@ -197,6 +220,7 @@ function test_overlay_carries_the_bash_it_theme_by_loader_order() {
 # ships; set, the setting as written; and a target passes its own along
 # rather than looking. GLOSSARY: HI.32
 function test_prompt_list_is_what_home_has() {
+  local got got2 got3 got4 got5
   local h="$_HI_WORKDIR/fw-home" p
   _hi_fw_home_fixture
   p="$(_hi_fake_path list-bins starship powerline-go)"
@@ -206,25 +230,32 @@ function test_prompt_list_is_what_home_has() {
   # between these calls.
   # prefix assignments, not a subshell's exports: _hi_tool_home_unpacked's
   # own already are, and the linter tracks the two as one
-  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
+  got="$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)"
+  got2="$(HOME="$h" _HI_PROMPT_TOOL="tide hi" _hi_prompt_list)"
+  got3="$(HOME="$h" _HI_PROMPT_TOOL="bash:starship hi" _hi_prompt_list)"
+  got4="$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL="zsh:hi" _hi_prompt_list)"
+  got5="$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)"
+  [ "$got" = \
     "oh-my-zsh oh-my-bash starship powerline-go" ] &&
-    [ "$(HOME="$h" _HI_PROMPT_TOOL="tide hi" _hi_prompt_list)" = "tide hi" ] &&
-    [ "$(HOME="$h" _HI_PROMPT_TOOL="bash:starship hi" _hi_prompt_list)" = "bash:starship hi" ] &&
-    [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL="zsh:hi" _hi_prompt_list)" = \
+    [ "$got2" = "tide hi" ] &&
+    [ "$got3" = "bash:starship hi" ] &&
+    [ "$got4" = \
       "zsh:hi oh-my-zsh oh-my-bash starship powerline-go" ] &&
-    [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ] ||
-    return 1 || _hi_why h p || return 1
+    [ -z "$got5" ] ||
+    _hi_why got got2 got3 got4 got5 h p || return 1
   # a program whose plugin is switched off is not handed over, unless named
-  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_PLUGINS_OFF=starship _hi_prompt_list)" = \
-    "oh-my-zsh oh-my-bash powerline-go" ] &&
-    [ "$(HOME="$h" _HI_PROMPT_TOOL="starship hi" _HI_PLUGINS_OFF=starship _hi_prompt_list)" = "starship hi" ] ||
-    return 1 || _hi_why h p || return 1
+  got="$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_PLUGINS_OFF=starship _hi_prompt_list)"
+  got2="$(HOME="$h" _HI_PROMPT_TOOL="starship hi" _HI_PLUGINS_OFF=starship _hi_prompt_list)"
+  [ "$got" = \
+    "oh-my-zsh oh-my-bash powerline-go" ] && [ "$got2" = "starship hi" ] ||
+    _hi_why got got2 h p || return 1
   # ...and it is, the moment the rc loads the theme rather than just its
   # config. Appended last: the fixture truncates .zshrc, so every other case
   # that calls it gets the unloaded rc back.
   printf 'source ~/powerlevel10k/powerlevel10k.zsh-theme\n' >>"$h/.zshrc"
-  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
-    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ] || _hi_why h p
+  got="$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)"
+  [ "$got" = \
+    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ] || _hi_why got h p
 }
 
 # The tag map a relayed hop colors by: the `# Tags:` lines of ~/.ssh/config
@@ -263,42 +294,51 @@ function _hi_tags_at() {
 # config; an older one is recut, and a config with an Include is recut every
 # time, since the Included files have mtimes of their own
 function test_ssh_tags_cut_is_reused_until_the_config_is_newer() {
+  local got
   local dir="$_HI_WORKDIR/tags-cache" cut
   mkdir -p "$dir/rt" "$dir/.ssh"
   printf '# Tags: one\nHost a\n' >"$dir/config"
   touch -t 202001010000 "$dir/config"
-  [ "$(_hi_tags_at "$dir")" = $'# Tags: one\nHost a' ] || _hi_why dir || return 1
+  got="$(_hi_tags_at "$dir")"
+  [ "$got" = $'# Tags: one\nHost a' ] || _hi_why got dir || return 1
   cut="$dir/rt/hi.ssh_tags"
   printf '# Tags: kept\nHost a\n' >"$cut"
   touch -t 202001020000 "$cut"
-  [ "$(_hi_tags_at "$dir")" = $'# Tags: kept\nHost a' ] || _hi_because "a newer cut was not reused" || return 1
+  got="$(_hi_tags_at "$dir")"
+  [ "$got" = $'# Tags: kept\nHost a' ] || _hi_because "a newer cut was not reused" || return 1
   touch -t 202001030000 "$dir/config"
-  [ "$(_hi_tags_at "$dir")" = $'# Tags: one\nHost a' ] || _hi_because "an older cut was not recut" || return 1
+  got="$(_hi_tags_at "$dir")"
+  [ "$got" = $'# Tags: one\nHost a' ] || _hi_because "an older cut was not recut" || return 1
   printf '# Tags: inc\nHost b\n' >"$dir/.ssh/extra"
   printf 'Include extra\n' >>"$dir/config"
   touch -t 202001030000 "$dir/config"
   touch -t 202001040000 "$cut"
-  [ "$(HOME="$dir" _hi_tags_at "$dir")" = $'# Tags: one\nHost a\n# Tags: inc\nHost b' ] ||
+  got="$(HOME="$dir" _hi_tags_at "$dir")"
+  [ "$got" = $'# Tags: one\nHost a\n# Tags: inc\nHost b' ] ||
     _hi_because "a config with an Include was not recut"
 }
 
 # a config with no tag makes no cut, and a runtime dir the cut cannot be
 # written into fails cleanly, leaving no temp file behind
 function test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir() {
+  local got
   local dir="$_HI_WORKDIR/tags-fail" out
   mkdir -p "$dir/rt"
   printf 'Host untagged\n' >"$dir/config"
-  [ "$(_hi_tags_at "$dir")" = "rc 1" ] || _hi_why dir || return 1
+  got="$(_hi_tags_at "$dir")"
+  [ "$got" = "rc 1" ] || _hi_why got dir || return 1
   rm -f "$dir/rt"/hi.ssh_tags*
   printf '# Tags: one\nHost a\n' >"$dir/config"
   chmod 555 "$dir/rt"
   out="$(_hi_tags_at "$dir" 2>/dev/null)"
   chmod 755 "$dir/rt"
-  [ "$out" = "rc 1" ] && [ -z "$(find "$dir/rt" -name 'hi.ssh_tags*')" ] || _hi_because "read-only runtime dir: [$out]"
+  got="$(find "$dir/rt" -name 'hi.ssh_tags*')"
+  [ "$out" = "rc 1" ] && [ -z "$got" ] || _hi_because "read-only runtime dir: [$out]"
 }
 
 # a cut that cannot be moved into place leaves no temp file beside it
 function test_ssh_tags_leaves_no_temp_file_when_the_cut_fails() {
+  local got
   local dir="$_HI_WORKDIR/tags-mv" out
   mkdir -p "$dir/rt"
   printf '# Tags: one\nHost a\n' >"$dir/config"
@@ -306,7 +346,8 @@ function test_ssh_tags_leaves_no_temp_file_when_the_cut_fails() {
     mv() { return 1; }
     _hi_tags_at "$dir"
   )"
-  [ "$out" = "rc 1" ] && [ -z "$(find "$dir/rt" -name 'hi.ssh_tags*')" ] || _hi_because "a failed mv: [$out] $(ls "$dir/rt")"
+  got="$(find "$dir/rt" -name 'hi.ssh_tags*')"
+  [ "$out" = "rc 1" ] && [ -z "$got" ] || _hi_because "a failed mv: [$out] $(ls "$dir/rt")"
 }
 
 # micro's files ride under micro/ - micro fixes their names, so -config-dir
@@ -376,6 +417,7 @@ function test_shell_rcs_ride_only_from_the_overlay() {
 # and themes/ files ride one by one, the overlay's winning name by name -
 # with the tool here
 function test_screen_and_zellij_ride_like_tmux() {
+  local got
   local h="$_HI_WORKDIR/mux-home" o="$_HI_WORKDIR/mux-home/overlay" z p out
   z="$h/zj"
   mkdir -p "$o/zellij/layouts" "$z/layouts" "$z/themes"
@@ -387,12 +429,14 @@ function test_screen_and_zellij_ride_like_tmux() {
   printf 'layout { overlay }\n' >"$o/zellij/layouts/ops.kdl"
   p="$(_hi_fake_path mux-bins screen zellij)"
   set -- HOME="$h" ZELLIJ_CONFIG_DIR="$z" PATH="$p:$PATH" _HI_CONFIG_DIR="$o"
-  [ "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl zellij/layouts/ zellij/themes/' | tr '\n' ' ')" = \
-    "screenrc zellij/config.kdl zellij/layouts/ops.kdl zellij/layouts/dev.kdl zellij/themes/mine.kdl " ] || _hi_why || return 1
+  got="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files screenrc zellij/config.kdl zellij/layouts/ zellij/themes/' | tr '\n' ' ')"
+  [ "$got" = \
+    "screenrc zellij/config.kdl zellij/layouts/ops.kdl zellij/layouts/dev.kdl zellij/themes/mine.kdl " ] || _hi_why got || return 1
   out="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_src zellij/layouts/ops.kdl o && printf %s "$o"')"
   [ "$out" = "$o/zellij/layouts/ops.kdl" ] || _hi_why out o || return 1
   # no zellij here: nothing from home
-  [ -z "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && PATH=/nonexistent _hi_overlay_files zellij/config.kdl zellij/themes/')" ] || _hi_why
+  got="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && PATH=/nonexistent _hi_overlay_files zellij/config.kdl zellij/themes/')"
+  [ -z "$got" ] || _hi_why got
 }
 
 # kakoune's colors/ rides file by file from the directory kak reads, so the
@@ -400,6 +444,7 @@ function test_screen_and_zellij_ride_like_tmux() {
 # kakrc's $KAKOUNE_CONFIG_DIR is what points kak at it
 # shellcheck disable=SC2016 # the wanted line holds $_HI_CONFIG_DIR unexpanded
 function test_kak_colors_ride_beside_the_kakrc() {
+  local got
   local h="$_HI_WORKDIR/kak-home" k p w
   k="$h/kk"
   mkdir -p "$h/overlay" "$k/colors"
@@ -407,11 +452,13 @@ function test_kak_colors_ride_beside_the_kakrc() {
   printf 'face global Default red\n' >"$k/colors/mine.kak"
   p="$(_hi_fake_path kak-bins kak)"
   set -- HOME="$h" KAKOUNE_CONFIG_DIR="$k" PATH="$p:$PATH" _HI_CONFIG_DIR="$h/overlay"
-  [ "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files kak/kakrc kak/colors/' | tr '\n' ' ')" = \
-    "kak/kakrc kak/colors/mine.kak " ] || _hi_why || return 1
+  got="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_files kak/kakrc kak/colors/' | tr '\n' ' ')"
+  [ "$got" = \
+    "kak/kakrc kak/colors/mine.kak " ] || _hi_why got || return 1
   w="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w kak/kakrc kak/colors/mine.kak && printf %s "$w"')"
   [ "$w" = 'export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR/kak"' ] || _hi_because "wiring: $w" || return 1
-  [ -z "$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w kak/colors/mine.kak && printf %s "$w"')" ] || _hi_why w
+  got="$(env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w kak/colors/mine.kak && printf %s "$w"')"
+  [ -z "$got" ] || _hi_why got w
 }
 
 # readline's inputrc rides like bat's config: the overlay's copy, else the file
@@ -419,6 +466,7 @@ function test_kak_colors_ride_beside_the_kakrc() {
 # /etc/inputrc names a file no target has, so it is dropped unless allowed
 # shellcheck disable=SC2016 # readline's $include, not an expansion
 function test_inputrc_rides_like_the_tool_configs() {
+  local got
   local h="$_HI_WORKDIR/rl-home" dir d
   mkdir -p "$h"
   printf '$include /etc/inputrc\n# a comment\n$include ~/.inputrc.local\nset editing-mode vi\n# hi-allow\n$include ~/.inputrc.kept\n' >"$h/.inputrc"
@@ -432,10 +480,12 @@ $include ~/.inputrc.kept' ] || {
     return 1
   }
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h" INPUTRC="$h/named")" || _hi_why dir h || return 1
-  [ "$(cat "$d/inputrc")" = 'set bell-style none' ] || _hi_why d || return 1
+  got="$(cat "$d/inputrc")"
+  [ "$got" = 'set bell-style none' ] || _hi_why got d || return 1
   dir="$(_hi_overlay_fixture rl-copy inputrc)"
   d="$(_hi_tool_home_unpacked "$dir" HOME="$h")" || _hi_why dir h || return 1
-  [ "$(cat "$d/inputrc")" = x ] || _hi_why d
+  got="$(cat "$d/inputrc")"
+  [ "$got" = x ] || _hi_why got d
 }
 
 function run_hi_payload_home_tests() {

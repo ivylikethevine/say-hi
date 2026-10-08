@@ -22,6 +22,7 @@ function _hi_doc_target() {
 # the folded-in rc check: each rc or overlay file through its parser,
 # one row each, with the same skip rule install.sh's pre-flight has
 function test_config_rows_parse_the_files() {
+  local got
   local dir="$_HI_WORKDIR/cfgrows" out
   mkdir -p "$dir"
   printf 'alias ll="ls -l"\n' >"$dir/good.bash"
@@ -30,8 +31,10 @@ function test_config_rows_parse_the_files() {
   [[ "$out" == *"good"*"parses (bash)"* ]] || _hi_why out || return 1
   out="$(_hi_doc_rows doctor_config_row bad "$dir/bad.bash" bash -n)" || _hi_why dir || return 1
   [[ "$out" == *"bad"*"has issues (bash)"* ]] || _hi_why out || return 1
-  [ -z "$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)" ] || _hi_why dir || return 1
-  [ -z "$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ] || _hi_why dir
+  got="$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)"
+  [ -z "$got" ] || _hi_why got dir || return 1
+  got="$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)"
+  [ -z "$got" ] || _hi_why got dir
 }
 
 function test_target_resolves_a_running_container() {

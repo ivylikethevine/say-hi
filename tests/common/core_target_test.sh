@@ -38,10 +38,12 @@ _HI_NO_ESCAPE='_hi_prompt_escape() { return 1; };'
 # _hi_prompt_escape: the shell expands the escape itself - bash 4.4+'s
 # ${x@P} - into the named variable, and an older bash says 1
 function test_prompt_escape_answers_in_the_shell() {
+  local got
   local out="" rc=0
   _hi_prompt_escape out '\u' || rc=$?
   if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
-    [ "$rc" = 0 ] && [ "$out" = "$(id -un)" ] || _hi_because "\\u: rc $rc, [$out]"
+    got="$(id -un)"
+    [ "$rc" = 0 ] && [ "$out" = "$got" ] || _hi_because "\\u: rc $rc, [$out]"
   else
     [ "$rc" = 1 ] || _hi_because "bash $BASH_VERSION: rc $rc"
   fi
@@ -49,27 +51,30 @@ function test_prompt_escape_answers_in_the_shell() {
 
 # ...and zsh's (%) flag, any zsh
 function test_zsh_prompt_escape_answers_in_the_shell() {
-  local out
+  local out got
   out="$(env _HI_HOME="$_HI_HOME" zsh -c 'source "$_HI_HOME/say-hi/common/core.sh"
     _hi_prompt_escape v "%n" && print -rn -- "$v"' 2>&1)"
-  [ "$out" = "$(id -un)" ] || _hi_because "%n: [$out]"
+  got="$(id -un)"
+  [ "$out" = "$got" ] || _hi_because "%n: [$out]"
 }
 
 # the host's name is the kernel's, from bash's \H or the binaries: an
 # exported $HOSTNAME from somewhere else cannot rename it (zsh forks for it)
 function test_hostname_ignores_an_inherited_hostname() {
-  local out
+  local out got
   out="$(env -u _HI_HOSTNAME_CACHE _HI_HOME="$_HI_HOME" HOSTNAME=fake-inherited bash -c \
     'source "$_HI_HOME/say-hi/common/core.sh"; _hi_hostname' 2>&1)"
-  [ "$out" = "$(uname -n)" ] || _hi_because "_hi_hostname: [$out]"
+  got="$(uname -n)"
+  [ "$out" = "$got" ] || _hi_because "_hi_hostname: [$out]"
 }
 
 # <shell>: the user is the passwd entry's, never an inherited $USER/$LOGNAME
 function test_whoami_ignores_an_inherited_user() {
-  local out
+  local out got
   out="$(env -u _HI_WHOAMI_CACHE _HI_HOME="$_HI_HOME" USER=fake-inherited LOGNAME=fake-inherited "$1" -c \
     'source "$_HI_HOME/say-hi/common/core.sh"; _hi_whoami' 2>&1)"
-  [ "$out" = "$(id -un)" ] || _hi_because "$1 _hi_whoami: [$out]"
+  got="$(id -un)"
+  [ "$out" = "$got" ] || _hi_because "$1 _hi_whoami: [$out]"
 }
 
 # $EPOCHREALTIME unset is bash 3.2 (macOS) as much as it is a stripped box:
@@ -167,12 +172,12 @@ function test_repeat_makes_count_copies() {
 }
 
 function test_human_duration_formats() {
-  local out
+  local out got got2 got3
   _hi_human_duration 90000 out
-  [ "$out" = "1d 1h" ] &&
-    [ "$(_hi_human_duration 5400)" = "1h 30m" ] &&
-    [ "$(_hi_human_duration 179.9)" = "2m" ] &&
-    [ "$(_hi_human_duration 59)" = "0m" ] || _hi_why out
+  got="$(_hi_human_duration 5400)"
+  got2="$(_hi_human_duration 179.9)"
+  got3="$(_hi_human_duration 59)"
+  [ "$out" = "1d 1h" ] && [ "$got" = "1h 30m" ] && [ "$got2" = "2m" ] && [ "$got3" = "0m" ] || _hi_why got got2 got3 out
 }
 
 function test_du_size_answers_for_a_real_path() {
@@ -186,8 +191,11 @@ function test_du_size_answers_for_a_real_path() {
 
 # the shipped verdicts win; the local binaries are only the fallback
 function test_local_identity_prefers_the_shipped_verdict() {
-  [ "$(_HI_LOCAL_USER=shipped-user _hi_local_username)" = shipped-user ] || _hi_why || return 1
-  [ "$(_HI_LOCAL_HOSTNAME=shipped-host _hi_local_hostname)" = shipped-host ] || _hi_why || return 1
+  local got
+  got="$(_HI_LOCAL_USER=shipped-user _hi_local_username)"
+  [ "$got" = shipped-user ] || _hi_why got || return 1
+  got="$(_HI_LOCAL_HOSTNAME=shipped-host _hi_local_hostname)"
+  [ "$got" = shipped-host ] || _hi_why got || return 1
   (
     unset _HI_LOCAL_USER _HI_LOCAL_HOSTNAME
     [ "$(_hi_local_username)" = "$(_hi_whoami)" ] &&
@@ -210,6 +218,7 @@ function test_ascii_flag_ships_the_verdict() {
 # first entry that fits the shell - a framework through the shell's own
 # _hi_prompt_fw
 function test_prompt_tool_needs_setting_program_and_shell() {
+  local got2
   local got="" p
   mkdir -p "$_HI_WORKDIR/empty.path"
   p="$(_hi_fake_path pgo powerline-go):$(_hi_fake_path posh oh-my-posh)"
@@ -217,7 +226,8 @@ function test_prompt_tool_needs_setting_program_and_shell() {
   # hi.sh hands home's answer; `hi` is hi's own prompt, ending the walk
   (
     unset _HI_PROMPT_TOOL
-    [ "$(PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || _hi_why p || exit 1
+    got2="$(PATH="$p" _hi_prompt_tool bash)"
+    [ "$got2" = oh-my-posh ] || _hi_why got2 p || exit 1
     ! _HI_REMOTE_SESSION=1 PATH="$p" _hi_prompt_tool bash
   ) || _hi_why p || return 1
   ! _HI_PROMPT_TOOL="hi powerline-go" PATH="$p" _hi_prompt_tool bash || _hi_why p || return 1
@@ -231,11 +241,13 @@ function test_prompt_tool_needs_setting_program_and_shell() {
   (
     function _hi_prompt_fw() { [ "$1" = oh-my-bash ] || [ "$1" = bash-it ]; }
     ! _HI_PROMPT_TOOL="tide powerlevel10k oh-my-zsh" _hi_prompt_tool zsh || _hi_why || exit 1
-    [ "$(_HI_PROMPT_TOOL="tide oh-my-bash" _hi_prompt_tool bash)" = oh-my-bash ] || _hi_why || exit 1
+    got2="$(_HI_PROMPT_TOOL="tide oh-my-bash" _hi_prompt_tool bash)"
+    [ "$got2" = oh-my-bash ] || _hi_why got2 || exit 1
     ! _HI_PROMPT_TOOL=oh-my-bash _hi_prompt_tool zsh || _hi_why || exit 1
     # two bash fw rows: the walk picks the first that fits, by $1, not either
     # answering for the other (common/bash.sh's _hi_prompt_fw once did)
-    [ "$(_HI_PROMPT_TOOL="oh-my-bash bash-it" _hi_prompt_tool bash)" = oh-my-bash ] || _hi_why || exit 1
+    got2="$(_HI_PROMPT_TOOL="oh-my-bash bash-it" _hi_prompt_tool bash)"
+    [ "$got2" = oh-my-bash ] || _hi_why got2 || exit 1
     [ "$(_HI_PROMPT_TOOL="bash-it oh-my-bash" _hi_prompt_tool bash)" = bash-it ]
   ) || _hi_why
 }
@@ -245,13 +257,15 @@ function test_prompt_tool_needs_setting_program_and_shell() {
 # and nothing more on a target. No framework is loaded, so the walk passes
 # over them.
 function test_prompt_tool_per_shell_entries() {
-  local p
+  local p got
   p="$(_hi_fake_path star2 starship):$(_hi_fake_path posh2 oh-my-posh)"
   (
     function _hi_prompt_fw() { return 1; }
-    [ "$(_HI_PROMPT_TOOL="hi bash:oh-my-posh" PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || _hi_why p || exit 1
+    got="$(_HI_PROMPT_TOOL="hi bash:oh-my-posh" PATH="$p" _hi_prompt_tool bash)"
+    [ "$got" = oh-my-posh ] || _hi_why got p || exit 1
     ! _HI_PROMPT_TOOL="bash:starship hi" PATH="$p" _hi_prompt_tool zsh || _hi_why p || exit 1
-    [ "$(_HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool bash)" = starship ] || _hi_why p || exit 1
+    got="$(_HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool bash)"
+    [ "$got" = starship ] || _hi_why got p || exit 1
     ! _HI_PROMPT_TOOL="zsh:hi" PATH="$p" _hi_prompt_tool zsh || _hi_why p || exit 1
     ! _HI_PROMPT_TOOL="zsh:starship" _HI_REMOTE_SESSION=1 PATH="$p" _hi_prompt_tool bash || _hi_why p || exit 1
     # a missing pick falls through to the rest
@@ -342,9 +356,11 @@ function test_run_init_runs_what_the_tool_prints() {
 }
 
 function test_colors_lookup_verdicts() {
+  local got
   local colors="$_HI_WORKDIR/colors.lookup"
   printf '[username]\nalice = "red"\n[hostname]\nbox = "blue"\n' >"$colors"
-  [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)" = blue ] || _hi_why colors || return 1
+  got="$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)"
+  [ "$got" = blue ] || _hi_why got colors || return 1
   ! _HI_COLORS="$colors" _hi_colors_lookup hostname nobox || _hi_why colors || return 1
   ! _HI_COLORS="$_HI_WORKDIR/colors.absent" _hi_colors_lookup hostname box || _hi_why
 }
@@ -352,10 +368,12 @@ function test_colors_lookup_verdicts() {
 # the memo pair: a shipped _HI_TARGET_COLOR wins outright, and the escape is
 # the escape of whatever the color half answered
 function test_host_color_memo_and_escape_agree() {
+  local got
   (
     unset _HI_HOST_COLOR _HI_HOST_ESC
     _HI_TARGET_COLOR=blue
-    [ "$(_hi_host_color)" = blue ] || _hi_why || exit 1
+    got="$(_hi_host_color)"
+    [ "$got" = blue ] || _hi_why got || exit 1
     [ "$(_hi_host_escape)" = "$(_hi_color_escape blue)" ]
   ) || _hi_why
 }
@@ -400,16 +418,19 @@ function test_release_or_describe_falls_back_to_git() {
 # _hi_git_version against a scratch repo: on the tag, past it, dirty, and a
 # snapshot-<sha> tag nearer than the v* one, which must not count
 function test_git_version_names_commits_past_the_tag() {
-  local dir g
+  local dir g got
   dir="$(mktemp -d "$_HI_WORKDIR/gitversion.XXXXXX")"
   g=(git -C "$dir" -c commit.gpgsign=false -c tag.gpgsign=false -c user.name=t -c user.email=t@t)
   "${g[@]}" init -q && "${g[@]}" commit -q --allow-empty -m a && "${g[@]}" tag v1.2.3 || _hi_why g || return 1
-  [ "$(_hi_git_version "$dir")" = v1.2.3 ] || _hi_why dir || return 1
+  got="$(_hi_git_version "$dir")"
+  [ "$got" = v1.2.3 ] || _hi_why got dir || return 1
   "${g[@]}" commit -q --allow-empty -m b && "${g[@]}" tag snapshot-abc1234 &&
     "${g[@]}" commit -q --allow-empty -m c || _hi_why g || return 1
-  [ "$(_hi_git_version "$dir")" = v1.2.3+2 ] || _hi_why dir || return 1
+  got="$(_hi_git_version "$dir")"
+  [ "$got" = v1.2.3+2 ] || _hi_why got dir || return 1
   : >"$dir/f" && "${g[@]}" add f || _hi_why dir g || return 1
-  [ "$(_hi_git_version "$dir")" = v1.2.3+2-dirty ] || _hi_why dir
+  got="$(_hi_git_version "$dir")"
+  [ "$got" = v1.2.3+2-dirty ] || _hi_why got dir
 }
 
 function test_release_or_describe_empty_without_either() {

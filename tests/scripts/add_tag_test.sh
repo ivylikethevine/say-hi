@@ -46,20 +46,21 @@ function test_add_tag_writes_above_the_host() {
 
 # a tag already there is replaced, not stacked - the walk reads only one
 function test_add_tag_replaces_an_existing_tag() {
-  local home
+  local home got
   home="$(_hi_addtag_fixture addtag-replace)"
   _hi_addtag_run "$home" web1 prod >/dev/null || _hi_why home || return 1
-  { [ "$(grep -c '^# Tags:' "$home/.ssh/config")" -eq 1 ] &&
-    grep -A1 -x '# Tags: prod' "$home/.ssh/config" | grep -qx 'Host web1'; } || _hi_why home
+  got="$(grep -c '^# Tags:' "$home/.ssh/config")"
+  { [ "$got" -eq 1 ] && grep -A1 -x '# Tags: prod' "$home/.ssh/config" | grep -qx 'Host web1'; } || _hi_why got home
 }
 
 # a host that lives in an Included file is tagged there
 function test_add_tag_writes_the_included_file() {
-  local home
+  local home got
   home="$(_hi_addtag_fixture addtag-include)"
   _hi_addtag_run "$home" inc1 lab >/dev/null || _hi_why home || return 1
-  { [ "$(cat "$home/.ssh/config.d/01-inc")" = '# Tags: lab
-Host inc1' ] && ! grep -q lab "$home/.ssh/config"; } || _hi_why home
+  got="$(cat "$home/.ssh/config.d/01-inc")"
+  { [ "$got" = '# Tags: lab
+Host inc1' ] && ! grep -q lab "$home/.ssh/config"; } || _hi_why got home
 }
 
 # a name only a wildcard covers is refused, naming the block to tag instead
@@ -79,13 +80,14 @@ function test_add_tag_tags_a_pattern() {
 }
 
 function test_add_tag_refuses_an_unknown_host_and_a_bad_tag() {
-  local home before
+  local home before got
   home="$(_hi_addtag_fixture addtag-refuse)"
   before="$(cat "$home/.ssh/config")"
   ! _hi_addtag_run "$home" nothere lab >/dev/null || _hi_why home || return 1
   ! _hi_addtag_run "$home" web2 'two words' >/dev/null || _hi_why home || return 1
   ! _hi_addtag_run "$home" web2 >/dev/null || _hi_why home || return 1
-  [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why home before
+  got="$(cat "$home/.ssh/config")"
+  [ "$got" = "$before" ] || _hi_why got home before
 }
 
 function test_add_tag_help_is_its_own() {
@@ -97,38 +99,41 @@ function test_add_tag_help_is_its_own() {
 }
 
 function test_add_tag_refuses_an_unknown_option() {
+  local got
   local home before out rc=0
   home="$(_hi_addtag_fixture addtag-opt)"
   before="$(cat "$home/.ssh/config")"
   out="$(_hi_addtag_run "$home" web2 lab --bogus)" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"unknown option --bogus"* ]] &&
-    [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why rc out home before
+  got="$(cat "$home/.ssh/config")"
+  [ "$rc" -ne 0 ] && [[ "$out" == *"unknown option --bogus"* ]] && [ "$got" = "$before" ] || _hi_why got rc out home before
 }
 
 # the tag a host already carries is said, and nothing is written
 function test_add_tag_leaves_a_host_already_tagged() {
-  local home before out
+  local home before out got
   home="$(_hi_addtag_fixture addtag-same)"
   before="$(cat "$home/.ssh/config")"
   out="$(_hi_addtag_run "$home" web1 old)" || _hi_why home || return 1
-  [[ "$out" == *"web1 is already tagged old"* && "$out" != *updated* ]] &&
-    [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why out home before
+  got="$(cat "$home/.ssh/config")"
+  [[ "$out" == *"web1 is already tagged old"* && "$out" != *updated* ]] && [ "$got" = "$before" ] || _hi_why got out home before
 }
 
 function test_add_tag_dry_run_writes_nothing() {
-  local home before out
+  local home before out got
   home="$(_hi_addtag_fixture addtag-dry)"
   before="$(cat "$home/.ssh/config")"
   out="$(_hi_addtag_run "$home" web2 lab --dry-run)" || _hi_why home || return 1
-  [[ "$out" == *"dry run: would write"* ]] && [ "$(cat "$home/.ssh/config")" = "$before" ] || _hi_why out home before
+  got="$(cat "$home/.ssh/config")"
+  [[ "$out" == *"dry run: would write"* ]] && [ "$got" = "$before" ] || _hi_why got out home before
 }
 
 # the file keeps its mode through the rewrite (ssh refuses a loose config)
 function test_add_tag_keeps_the_config_mode() {
-  local home
+  local home got
   home="$(_hi_addtag_fixture addtag-mode)"
   _hi_addtag_run "$home" web2 lab >/dev/null || _hi_why home || return 1
-  [ "$(_hi_mode_string "$home/.ssh/config")" = -rw------- ] || _hi_why home
+  got="$(_hi_mode_string "$home/.ssh/config")"
+  [ "$got" = -rw------- ] || _hi_why got home
 }
 
 # The round trip the command exists for: tagged, then drawn by

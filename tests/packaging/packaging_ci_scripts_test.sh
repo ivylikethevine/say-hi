@@ -69,6 +69,7 @@ EOF
 # before it, a conclusion that is neither pass nor fail is shown by name, and
 # a check no commit in the window ran is "no runs", with a warning naming it
 function test_platform_badges_walk_back_past_a_skip() {
+  local got
   local dir="$_HI_WORKDIR/badges" out rc=0
   mkdir -p "$dir/bin"
   cat >"$dir/bin/gh" <<'EOF'
@@ -90,8 +91,9 @@ EOF
   chmod +x "$dir/bin/gh"
   out="$(GITHUB_REPOSITORY=o/r PLATFORM_BADGE_COMMITS=2 PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/platform_badges.sh" "$dir/out" 2>&1)" || _hi_why dir || return 1
-  [ "$(cat "$dir/out/linux.json")" = '{"schemaVersion":1,"label":"Linux","message":"passing","color":"4c1","cacheSeconds":300}' ] ||
-    _hi_because "linux.json: $(cat "$dir/out/linux.json")" || return 1
+  got="$(cat "$dir/out/linux.json")"
+  [ "$got" = '{"schemaVersion":1,"label":"Linux","message":"passing","color":"4c1","cacheSeconds":300}' ] ||
+    _hi_because "linux.json: $got" || return 1
   grep -qF '"message":"failing","color":"e05d44"' "$dir/out/macos.json" &&
     grep -qF '"message":"failing","color":"e05d44"' "$dir/out/alpine.json" &&
     grep -qF '"label":"FreeBSD","message":"passing"' "$dir/out/freebsd.json" &&
@@ -122,6 +124,7 @@ function test_no_hi_session_left_passes_a_clean_tmpdir() {
 # ten seconds cost nothing: one gone by the third look passes, one that
 # outlasts all twenty fails, named
 function test_no_hi_session_left_waits_then_fails() {
+  local got
   local dir="$_HI_WORKDIR/leftsession" out rc=0
   mkdir -p "$dir/bin" "$dir/tmp/ab.hi.cd"
   # shellcheck disable=SC2016 # the stub expands these, not this shell
@@ -129,12 +132,13 @@ function test_no_hi_session_left_waits_then_fails() {
   chmod +x "$dir/bin/sleep"
   out="$(HI_LEFT_LOG="$dir/slow" HI_LEFT_GONE=xxx TMPDIR="$dir/tmp" PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" 2>&1)" || _hi_because "a slow cleanup failed: $out" || return 1
-  [ "$(cat "$dir/slow")" = xxx ] || _hi_because "looked $(cat "$dir/slow") times" || return 1
+  got="$(cat "$dir/slow")"
+  [ "$got" = xxx ] || _hi_because "looked $got times" || return 1
   mkdir -p "$dir/tmp/ab.hi.cd"
   out="$(HI_LEFT_LOG="$dir/never" HI_LEFT_GONE=never TMPDIR="$dir/tmp" PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [ "$(wc -c <"$dir/never" | tr -d ' ')" -eq 20 ] &&
-    [[ "$out" == *"$dir/tmp/ab.hi.cd"*"session directory survived the exit"* ]] || _hi_because "rc $rc after $(cat "$dir/never"): $out"
+  got="$(wc -c <"$dir/never" | tr -d ' ')"
+  [ "$rc" -eq 1 ] && [ "$got" -eq 20 ] && [[ "$out" == *"$dir/tmp/ab.hi.cd"*"session directory survived the exit"* ]] || _hi_because "rc $rc after $(cat "$dir/never"): $out"
 }
 
 # _hi_gh_api <dir> - a stand-in gh in <dir>/bin that answers `gh api` from
@@ -237,6 +241,7 @@ function test_platform_badges_read_the_check_runs_themselves() {
 # stood in so the waits cost nothing: one failure is retried after 5s and
 # the run passes; three end it red, by name, after 5s and 10s
 function test_gh_dispatch_retries_twice_then_fails() {
+  local got got2
   local dir="$_HI_WORKDIR/dispatch" out rc=0
   mkdir -p "$dir/bin"
   cat >"$dir/bin/gh" <<'EOF'
@@ -249,13 +254,19 @@ EOF
   chmod +x "$dir/bin/gh" "$dir/bin/sleep"
   out="$(HI_DISPATCH_LOG="$dir/once" HI_DISPATCH_FAILS=1 PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/gh_dispatch.sh" demos.yml v1.2.3 2>&1)" || _hi_why dir || return 1
-  [ "$(cat "$dir/once")" = $'workflow run demos.yml --ref v1.2.3\nworkflow run demos.yml --ref v1.2.3' ] &&
-    [ "$(cat "$dir/once.sleeps")" = "sleep 5" ] && [[ "$out" == *"(attempt 1/3), retrying"* ]] ||
+  got="$(cat "$dir/once")"
+  got2="$(cat "$dir/once.sleeps")"
+  [ "$got" = $'workflow run demos.yml --ref v1.2.3\nworkflow run demos.yml --ref v1.2.3' ] &&
+    [ "$got2" = "sleep 5" ] &&
+    [[ "$out" == *"(attempt 1/3), retrying"* ]] ||
     _hi_because "one failure: $out" || return 1
   out="$(HI_DISPATCH_LOG="$dir/never" HI_DISPATCH_FAILS=9 PATH="$dir/bin:$PATH" \
     bash "$_HI_ROOT/.github/scripts/gh_dispatch.sh" pages.yml main 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [ "$(grep -c . "$dir/never")" -eq 3 ] &&
-    [ "$(cat "$dir/never.sleeps")" = $'sleep 5\nsleep 10' ] &&
+  got="$(grep -c . "$dir/never")"
+  got2="$(cat "$dir/never.sleeps")"
+  [ "$rc" -eq 1 ] &&
+    [ "$got" -eq 3 ] &&
+    [ "$got2" = $'sleep 5\nsleep 10' ] &&
     [[ "$out" == *"::error::could not dispatch pages.yml at main after three attempts"* ]] ||
     _hi_because "three failures, rc $rc: $out" || return 1
   rc=0
@@ -267,6 +278,7 @@ EOF
 # tree it sits in) with a stand-in curl for every upstream: each row's verdict
 # and the exit status, which is the number of problems
 function test_tool_versions_reports_each_pin() {
+  local got
   local dir="$_HI_WORKDIR/toolversions" out rc=0 line a b c h
   a="$(printf '%064d' 1)" b="$(printf '%064d' 2)" c="$(printf '%064d' 3)" h="$(printf '%040d' 1)"
   mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/actions/setup-tool" "$dir/.github/workflows" \
@@ -337,7 +349,8 @@ split|split/*.yml|ver: \([0-9.]*\)|github:o/old||' \
     grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $out" || return 1
   done
   [[ "$out" != *"o/moving"* ]] || _hi_because "a moving alias was compared: $out" || return 1
-  [ "$(printf '%s\n' "$out" | grep -c '^github/codeql-action ')" -eq 1 ] || _hi_because "codeql-action is not one row" || return 1
+  got="$(printf '%s\n' "$out" | grep -c '^github/codeql-action ')"
+  [ "$got" -eq 1 ] || _hi_because "codeql-action is not one row" || return 1
   [ "$rc" -eq 8 ] || _hi_because "exit $rc, with 8 problems: $out"
 }
 
@@ -428,6 +441,7 @@ function test_image_scan_reports_the_repin_that_closes_a_finding() {
 # no repin improves, 3 when the database cannot be fetched, and 127 when the
 # globs match no file or no file names an image
 function test_image_scan_exits_by_what_it_found() {
+  local got
   local dir out rc=0 report
   dir="$(_hi_scan_fixture)" || _hi_why || return 1
   out="$(_hi_scan 'clean.Dockerfile nodata.Dockerfile')" || rc=$?
@@ -436,7 +450,8 @@ function test_image_scan_exits_by_what_it_found() {
     _hi_because "clean, exit $rc: $out | $report" || return 1
   rc=0
   out="$(_hi_scan 'same.Dockerfile nogain.Dockerfile' SCAN_JOBS=1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$(cat "$dir/report.md")" == "### A pinned base image has a fixable finding, but no repin helps yet"* ]] ||
+  got="$(cat "$dir/report.md")"
+  [ "$rc" -eq 1 ] && [[ "$got" == "### A pinned base image has a fixable finding, but no repin helps yet"* ]] ||
     _hi_because "no gain, exit $rc: $out" || return 1
   rc=0
   out="$(_hi_scan 'win.Dockerfile' HI_SCAN_NO_DB=1)" || rc=$?
@@ -466,6 +481,7 @@ function test_image_scan_exits_by_what_it_found() {
 # lines are pins like a FROM, a hook that returns non-zero is one more
 # problem, and the status stops at 255 however many there are
 function test_tool_versions_reads_compose_runs_the_hook_and_caps_the_status() {
+  local got
   local dir="$_HI_WORKDIR/toolhook" out rc=0 i a b c line
   a="$(printf '%064d' 1)" b="$(printf '%064d' 2)" c="$(printf '%064d' 3)"
   mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/actions/setup-tool" "$dir/deploy"
@@ -498,7 +514,8 @@ EOF
     grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $(printf '%s\n' "$out" | grep -vE '^t[0-9]|title=t[0-9]')" || return 1
   done
   [[ "$out" != *"local-build"* && "$out" != *"UNREAD"* ]] || _hi_because "a tagless image, or a host read as unread" || return 1
-  [ "$(printf '%s\n' "$out" | grep -c 'ERROR (malformed row')" -eq 300 ] && [ "$rc" -eq 255 ] || _hi_because "exit $rc"
+  got="$(printf '%s\n' "$out" | grep -c 'ERROR (malformed row')"
+  [ "$got" -eq 300 ] && [ "$rc" -eq 255 ] || _hi_because "exit $rc"
 }
 
 # check_tool_versions.local.sh's ci_local_checks over a fixture tree, its
@@ -507,6 +524,7 @@ EOF
 # an error, and a floor is held only when a fixture pins it and dependabot
 # ignores it - an ignore no floor names being stale
 function test_local_tool_checks_name_each_parting() {
+  local got
   local dir="$_HI_WORKDIR/localchecks" pins="$_HI_WORKDIR/localchecks/tests/dockerfiles" out a b
   a="$(printf '%064d' 1)" b="$(printf '%064d' 2)"
   mkdir -p "$pins" "$dir/packaging" "$dir/.github/workflows"
@@ -523,6 +541,7 @@ function test_local_tool_checks_name_each_parting() {
     _HI_FLOOR_PINS='bash:3.2 ubuntu:24.04 zshusers/zsh:5.5.1'
     ci_local_checks
   )" || _hi_why dir || return 1
+  got="$(printf '%s\n' "$out" | grep -c '^PROBLEM ')"
   [[ "$out" == *"bash:3.2 "*"current (packaging/mkrepo.sh, a tests/dockerfiles pin)"* ]] &&
     [[ "$out" == *"busybox:1.36 "*"OUTDATED"* && "$out" == *"PROBLEM busybox:1.36 in packaging/mkrepo.sh"* ]] &&
     [[ "$out" == *"PROBLEM .github/workflows/ci.yml"* ]] &&
@@ -530,7 +549,7 @@ function test_local_tool_checks_name_each_parting() {
     [[ "$out" == *"ubuntu:24.04 "*"ERROR (no dependabot ignore holds it)"* ]] &&
     [[ "$out" == *"zshusers/zsh:5.5.1 "*"ERROR (no tests/dockerfiles FROM pins it)"* ]] &&
     [[ "$out" == *"alpine "*"ERROR (ignored, but no floor names it)"* ]] &&
-    [ "$(printf '%s\n' "$out" | grep -c '^PROBLEM ')" -eq 5 ] || _hi_because "the report: $out"
+    [ "$got" -eq 5 ] || _hi_because "the report: $out"
 }
 
 # --- packaging/srctar.sh, run as the command release.yml runs ---------------
@@ -578,31 +597,35 @@ function _hi_badge_of() {
 
 # the restamp rewrites the figure to the measured one and nothing else
 function test_stamp_badge_restamps_only_the_badge() {
-  local f out
+  local f out got got2 got3
   f="$(_hi_badge_readme 0.1KB)"
   out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f")" || _hi_why f || return 1
   [[ "$out" == "${f##*/}: ssh_payload-"*KB ]] ||
     _hi_because "restamp said: $out" || return 1
-  [ "$(_hi_badge_of "$f")" != 0.1KB ] && [ -n "$(_hi_badge_of "$f")" ] ||
+  got="$(_hi_badge_of "$f")"
+  [ "$got" != 0.1KB ] && [ -n "$got" ] ||
     _hi_because "badge not restamped: $(cat "$f")" || return 1
-  [ "$(sed -n 1p "$f")" = "# title" ] && [ "$(sed -n 3p "$f")" = "last line" ] &&
-    [ "$(wc -l <"$f" | tr -d ' ')" = 3 ] || _hi_why f
+  got="$(sed -n 1p "$f")"
+  got2="$(sed -n 3p "$f")"
+  got3="$(wc -l <"$f" | tr -d ' ')"
+  [ "$got" = "# title" ] && [ "$got2" = "last line" ] && [ "$got3" = 3 ] || _hi_why got got2 got3 f
 }
 
 # --check on a freshly stamped badge passes, and rewrites nothing
 function test_stamp_badge_check_passes_within_the_slack() {
-  local f before
+  local f before got
   f="$(_hi_badge_readme 0.1KB)"
   "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || _hi_why f || return 1
   before="$(cat "$f")"
   "$_HI_ROOT/packaging/stamp_badge.sh" --check "$f" >/dev/null || _hi_why f || return 1
-  [ "$(cat "$f")" = "$before" ] || _hi_why f before
+  got="$(cat "$f")"
+  [ "$got" = "$before" ] || _hi_why got f before
 }
 
 # 10KB off is past the 5KB slack: --check fails, says to restamp, and still
 # rewrites nothing
 function test_stamp_badge_check_fails_past_the_slack() {
-  local f far before out
+  local f far before out got
   f="$(_hi_badge_readme 0.1KB)"
   "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || _hi_why f || return 1
   far="$(awk -v b="$(_hi_badge_of "$f")" 'BEGIN { printf "%.1f", b + 10 }')KB"
@@ -611,7 +634,8 @@ function test_stamp_badge_check_fails_past_the_slack() {
   ! out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check "$f.far" 2>&1)" || _hi_why out f || return 1
   [[ "$out" == *"says $far"*"run packaging/stamp_badge.sh"* ]] ||
     _hi_because "--check said: $out" || return 1
-  [ "$(cat "$f.far")" = "$before" ] || _hi_why f before
+  got="$(cat "$f.far")"
+  [ "$got" = "$before" ] || _hi_why got f before
 }
 
 function test_stamp_badge_refuses_a_readme_with_no_badge() {
@@ -652,11 +676,13 @@ function _hi_in_mkrepo_gpg() {
 }
 
 function test_mkrepo_one_package_rule() {
+  local got
   local d="$_HI_WORKDIR/one-pkg"
   mkdir -p "$d"
   ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null || _hi_why d || return 1
   : >"$d/a.deb"
-  [ "$(_hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null)" = "$d/a.deb" ] || _hi_why d || return 1
+  got="$(_hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null)"
+  [ "$got" = "$d/a.deb" ] || _hi_why got d || return 1
   : >"$d/b.deb"
   ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null || _hi_why d
 }

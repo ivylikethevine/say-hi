@@ -68,9 +68,10 @@ function test_pad_to_pads_either_side_by_printed_width() {
 # the awk writers' column: only a line with a \037 is padded, and a last line
 # with no newline keeps none
 function test_pad_cols_pads_the_marked_lines() {
-  local out
+  local out got
   out="$(printf '# note\nab\037= "x"\nabcdef\037y' | _hi_pad_cols 4 | od -An -c | tr -s ' \n' ' ')"
-  [ "$out" = "$(printf '# note\nab   = "x"\nabcdef y' | od -An -c | tr -s ' \n' ' ')" ] || _hi_why out
+  got="$(printf '# note\nab   = "x"\nabcdef y' | od -An -c | tr -s ' \n' ' ')"
+  [ "$out" = "$got" ] || _hi_why got out
 }
 
 function test_fit_cuts_with_an_ellipsis() {
@@ -106,16 +107,21 @@ function _hi_rule() { # <left> <junction> <right> <width...>
 }
 
 function test_hbar_pads_each_column_by_two() {
+  local got got2
   # width n renders n+2 fills per segment
   local l="$_HI_BOX_L" x="$_HI_BOX_X" r="$_HI_BOX_R"
-  [ "$(_hi_hbar mid 1)" = "$(_hi_rule "$l" "$x" "$r" 1)" ] || _hi_why l x r || return 1
-  [ "$(_hi_hbar mid 2 3)" = "$(_hi_rule "$l" "$x" "$r" 2 3)" ] || _hi_why l x r
+  got="$(_hi_hbar mid 1)"
+  got2="$(_hi_rule "$l" "$x" "$r" 1)"
+  [ "$got" = "$got2" ] || _hi_why got got2 l x r || return 1
+  got="$(_hi_hbar mid 2 3)"
+  got2="$(_hi_rule "$l" "$x" "$r" 2 3)"
+  [ "$got" = "$got2" ] || _hi_why got got2 l x r
 }
 
 # ASCII spells all nine corners `+`, so the three positions are one rule there.
 # Forced through a child shell, since scripts/lib.sh decides the set at source time.
 function test_hbar_positions_are_one_rule_in_ascii() {
-  local out
+  local out got
   out="$(_HI_ASCII=1 bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/scripts/lib.sh"
@@ -123,11 +129,12 @@ function test_hbar_positions_are_one_rule_in_ascii() {
     _hi_hbar top 2 3
     _hi_hbar mid 2 3
     _hi_hbar bottom 2 3')" || _hi_why || return 1
-  [ "$out" = "$(printf '%s\n%s\n%s' '+----+-----+' '+----+-----+' '+----+-----+')" ] || _hi_why out
+  got="$(printf '%s\n%s\n%s' '+----+-----+' '+----+-----+' '+----+-----+')"
+  [ "$out" = "$got" ] || _hi_why got out
 }
 
 function test_hbar_positions_differ_on_the_glyph_set() {
-  local out
+  local out got
   out="$(_HI_ASCII=0 bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/scripts/lib.sh"
@@ -135,14 +142,16 @@ function test_hbar_positions_differ_on_the_glyph_set() {
     _hi_hbar top 1 1
     _hi_hbar mid 1 1
     _hi_hbar bottom 1 1')" || _hi_why || return 1
-  [ "$out" = "$(printf '%s\n%s\n%s' '┌───┬───┐' '├───┼───┤' '└───┴───┘')" ] || _hi_why out
+  got="$(printf '%s\n%s\n%s' '┌───┬───┐' '├───┼───┤' '└───┴───┘')"
+  [ "$out" = "$got" ] || _hi_why got out
 }
 
 function test_cell_pads_to_the_width() {
-  local want padded
+  local want padded got
   printf -v padded '%-5s' ab
   printf -v want '%s %b ' "$_HI_BOX_V" "${RED}${padded}${NC}"
-  [ "$(_hi_cell 5 "$RED" ab)" = "$want" ] || _hi_why want
+  got="$(_hi_cell 5 "$RED" ab)"
+  [ "$got" = "$want" ] || _hi_why got want
 }
 
 function test_cell_visible_width_is_stable() {
@@ -154,18 +163,20 @@ function test_cell_visible_width_is_stable() {
 }
 
 function test_cell_empty_renders_the_continuation_blank() {
-  local want padded
+  local want padded got
   printf -v padded '%-4s' ''
   printf -v want '%s %b ' "$_HI_BOX_V" "${padded}${NC}"
-  [ "$(_hi_cell 4 '' '')" = "$want" ] || _hi_why want
+  got="$(_hi_cell 4 '' '')"
+  [ "$got" = "$want" ] || _hi_why got want
 }
 
 function test_cell_raw_pads_by_the_declared_width() {
-  local text want
+  local text want got
   printf -v text '%b' "${BRCYAN}ab${NC}"
   # caller says the text prints as 2 columns; the cell pads the other 4
   printf -v want '%s %b%*s ' "$_HI_BOX_V" "${text}${NC}" 4 ''
-  [ "$(_hi_cell_raw 6 2 "$text")" = "$want" ] || _hi_why text want
+  got="$(_hi_cell_raw 6 2 "$text")"
+  [ "$got" = "$want" ] || _hi_why got text want
 }
 
 # _hi_hrule/_hi_h1/_hi_h2 (scripts/lib.sh) draw every section heading

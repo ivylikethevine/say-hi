@@ -94,22 +94,28 @@ function _hi_cfg_titles() {
 _HI_MENU_EVERY_PAGE='i\ne\nc\nr\ng\ng1\na\nv\nb\ns\n'
 
 function test_ask_value_takes_a_typed_number() {
+  local got
   _hi_cfg_pty width_typed '120\n' '' config_max_width || _hi_why || return 1
-  [ "$(_hi_cfg_lines width_typed)" = "export _HI_MAX_WIDTH=120" ] || _hi_why
+  got="$(_hi_cfg_lines width_typed)"
+  [ "$got" = "export _HI_MAX_WIDTH=120" ] || _hi_why got
 }
 
 # a rejected answer says why and keeps the current value rather than dropping
 # it - the message names the value kept, so both halves are one substring
 function test_ask_value_rejects_junk_and_keeps_current() {
+  local got
   _hi_cfg_pty width_junk 'abc\n' 'export _HI_MAX_WIDTH=100' config_max_width || _hi_why || return 1
-  _hi_cfg_has width_junk "a number, 40 or more, leaving it at 100" &&
-    [ "$(_hi_cfg_lines width_junk)" = "export _HI_MAX_WIDTH=100" ] || _hi_why
+  _hi_cfg_has width_junk "a number, 40 or more, leaving it at 100" || _hi_why || return 1
+  got="$(_hi_cfg_lines width_junk)"
+  [ "$got" = "export _HI_MAX_WIDTH=100" ] || _hi_why got
 }
 
 # typing the shipped default is how an override is cleared interactively
 function test_ask_value_typed_default_clears_the_override() {
+  local got
   _hi_cfg_pty width_default '80\n' 'export _HI_MAX_WIDTH=100' config_max_width || _hi_why || return 1
-  [ -z "$(_hi_cfg_lines width_default | tr -d '[:space:]')" ] || _hi_why
+  got="$(_hi_cfg_lines width_default | tr -d '[:space:]')"
+  [ -z "$got" ] || _hi_why got
 }
 
 # The menu: the real header boxed above the cells' page, and every command
@@ -130,16 +136,19 @@ function test_menu_header_item_toggle_writes_the_order() {
 # toggled off and back on, the order is the shipped one again and writes
 # nothing - the same rule the typed default follows everywhere else
 function test_menu_default_order_writes_nothing() {
-  local w
+  local w got
   w="$(_hi_item 'word|0')"
   _hi_cfg_pty hdr_default "$w\n$w\ns\n" '' config_hub || _hi_why w || return 1
-  [ -z "$(_hi_cfg_lines hdr_default | tr -d '[:space:]')" ] || _hi_why
+  got="$(_hi_cfg_lines hdr_default | tr -d '[:space:]')"
+  [ -z "$got" ] || _hi_why got
 }
 
 # `down N` swaps utc with its neighbor
 function test_menu_moves_a_header_item() {
+  local got
   _hi_cfg_pty hdr_move "down $(_hi_item 'word|0')\ns\n" '' config_hub || _hi_why || return 1
-  [[ "$(_hi_cfg_lines hdr_move)" == *"export _HI_HEADER_ORDER='version utc localtime"* ]] || _hi_why
+  got="$(_hi_cfg_lines hdr_move)"
+  [[ "$got" == *"export _HI_HEADER_ORDER='version utc localtime"* ]] || _hi_why got
 }
 
 # the banner always leads: it toggles but never moves
@@ -163,29 +172,37 @@ function test_menu_refuses_a_move_that_cannot_happen() {
 
 # h, then a name off the roster: said, nothing written, the menu goes on
 function test_menu_header_preset_refuses_a_stranger() {
+  local got
   _hi_cfg_pty hdr_pstranger 'h\nnope\ns\n' '' config_hub || _hi_why || return 1
-  _hi_cfg_has hdr_pstranger "no such header preset: nope" &&
-    [ -z "$(_hi_cfg_lines hdr_pstranger | tr -d '[:space:]')" ] || _hi_why
+  _hi_cfg_has hdr_pstranger "no such header preset: nope" || _hi_why || return 1
+  got="$(_hi_cfg_lines hdr_pstranger | tr -d '[:space:]')"
+  [ -z "$got" ] || _hi_why got
 }
 
 function test_menu_takes_a_width() {
+  local got
   _hi_cfg_pty hdr_width "$(_hi_item width)\n120\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has hdr_width "Terminal width for the header/banner (40 or more)?" &&
-    [[ "$(_hi_cfg_lines hdr_width)" == *"export _HI_MAX_WIDTH=120"* ]] || _hi_why
+  _hi_cfg_has hdr_width "Terminal width for the header/banner (40 or more)?" || _hi_why || return 1
+  got="$(_hi_cfg_lines hdr_width)"
+  [[ "$got" == *"export _HI_MAX_WIDTH=120"* ]] || _hi_why got
 }
 
 function test_menu_takes_hidden_addresses() {
+  local got
   _hi_cfg_pty hdr_iphide "$(_hi_item iphide)\nnone\ns\n" "export _HI_HEADER_ORDER='ip utc'" config_hub || _hi_why || return 1
-  _hi_cfg_has hdr_iphide "Hide which addresses from the ip cell" &&
-    [[ "$(_hi_cfg_lines hdr_iphide)" == *"export _HI_IP_HIDE='none'"* ]] || _hi_why
+  _hi_cfg_has hdr_iphide "Hide which addresses from the ip cell" || _hi_why || return 1
+  got="$(_hi_cfg_lines hdr_iphide)"
+  [[ "$got" == *"export _HI_IP_HIDE='none'"* ]] || _hi_why got
 }
 
 # a separator with a quote in it is refused rather than written into
 # settings.sh
 function test_menu_refuses_a_quoted_separator() {
+  local got
   _hi_cfg_pty pe_quote "$(_hi_item 'end|bash')\n'\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has pe_quote "a single quote can't be written to settings.sh" &&
-    [[ "$(_hi_cfg_lines pe_quote)" != *"_HI_PROMPT_END_"* ]] || _hi_why
+  _hi_cfg_has pe_quote "a single quote can't be written to settings.sh" || _hi_why || return 1
+  got="$(_hi_cfg_lines pe_quote)"
+  [[ "$got" != *"_HI_PROMPT_END_"* ]] || _hi_why got
 }
 
 # the truecolor question maps its words both ways: `off` is stored as 0, and
@@ -198,30 +215,38 @@ function test_truecolor_maps_its_words() {
 }
 
 function test_menu_takes_a_header_preset() {
+  local got
   _hi_cfg_pty hdr_preset 'h\nq\ns\n' '' config_hub || _hi_why || return 1
-  [[ "$(_hi_cfg_lines hdr_preset)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]] || _hi_why
+  got="$(_hi_cfg_lines hdr_preset)"
+  [[ "$got" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]] || _hi_why got
 }
 
 # ...by its full name too, which the one-letter shorthand would refuse
 function test_menu_takes_a_header_preset_by_name() {
+  local got
   _hi_cfg_pty hdr_preset_name 'h\nquiet\ns\n' '' config_hub || _hi_why || return 1
-  [[ "$(_hi_cfg_lines hdr_preset_name)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]] || _hi_why
+  got="$(_hi_cfg_lines hdr_preset_name)"
+  [[ "$got" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]] || _hi_why got
 }
 
 # the header feature row turns the whole header off, and its page's preview
 # says so in words rather than showing an empty box
 function test_menu_header_off_previews_as_words() {
+  local got
   _hi_cfg_pty hdr_off "i\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has hdr_off "header off - nothing prints" &&
-    [[ "$(_hi_cfg_lines hdr_off)" == *"export _HI_DISABLE_HEADER=1"* ]] || _hi_why
+  _hi_cfg_has hdr_off "header off - nothing prints" || _hi_why || return 1
+  got="$(_hi_cfg_lines hdr_off)"
+  [[ "$got" == *"export _HI_DISABLE_HEADER=1"* ]] || _hi_why got
 }
 
 # an empty $_HI_HEADER_ORDER means the default at runtime, so the last item
 # cannot be turned off - the menu says how to get an empty header instead
 function test_menu_keeps_the_last_header_item() {
+  local got
   _hi_cfg_pty hdr_last "$(_hi_item 'word|0')\ns\n" "export _HI_HEADER_ORDER='gitid'" config_hub || _hi_why || return 1
-  _hi_cfg_has hdr_last "keep at least one header item" &&
-    [[ "$(_hi_cfg_lines hdr_last)" == *"export _HI_HEADER_ORDER='gitid'"* ]] || _hi_why
+  _hi_cfg_has hdr_last "keep at least one header item" || _hi_why || return 1
+  got="$(_hi_cfg_lines hdr_last)"
+  [[ "$got" == *"export _HI_HEADER_ORDER='gitid'"* ]] || _hi_why got
 }
 
 # a stored order lists its words first, in its order, then every word it
@@ -237,33 +262,41 @@ function test_menu_lists_missing_header_items_off() {
 
 # a package group's number flips it: useful, off
 function test_menu_flips_a_package_group() {
+  local got
   _hi_cfg_pty hdr_groups "$(_hi_item 'group|useful')\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has hdr_groups "package group useful: now off" &&
-    [[ "$(_hi_cfg_lines hdr_groups)" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]] || _hi_why
+  _hi_cfg_has hdr_groups "package group useful: now off" || _hi_why || return 1
+  got="$(_hi_cfg_lines hdr_groups)"
+  [[ "$got" == *"export _HI_PACKAGES_GROUPS='core deprecated'"* ]] || _hi_why got
 }
 
 # a group of plugins has a key and no box: the Plugins page names it beside
 # its plugins, and nothing numbers it
 function test_menu_lists_a_plugin_group_without_a_box() {
+  local got
   ! _hi_item 'plugin|editors' >/dev/null || _hi_because "the group has a number" || return 1
   _hi_cfg_pty plug_group 'g\ns\n' '' config_hub || return 1
-  _hi_cfg_has plug_group "g2  editors  vim nvim nano" && ! _hi_cfg_has plug_group "] editors" &&
-    [[ "$(_hi_cfg_lines plug_group)" != *"_HI_PLUGINS_OFF"* ]] || _hi_why
+  { _hi_cfg_has plug_group "g2  editors  vim nvim nano" && ! _hi_cfg_has plug_group "] editors"; } || _hi_why || return 1
+  got="$(_hi_cfg_lines plug_group)"
+  [[ "$got" != *"_HI_PLUGINS_OFF"* ]] || _hi_why got
 }
 
 # a plugin's number keeps it home, on its group's page: editors is g2, the
 # second group by name
 function test_menu_keeps_a_plugin_home() {
+  local got
   _hi_cfg_pty plug_num "g2\n$(_hi_item 'plugin|nano')\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has plug_num ") [ ] nano" &&
-    [[ "$(_hi_cfg_lines plug_num)" == *"export _HI_PLUGINS_OFF='nano'"* ]] || _hi_why
+  _hi_cfg_has plug_num ") [ ] nano" || _hi_why || return 1
+  got="$(_hi_cfg_lines plug_num)"
+  [[ "$got" == *"export _HI_PLUGINS_OFF='nano'"* ]] || _hi_why got
 }
 
 # ...and sends it again, the list's other plugins left on it
 function test_menu_sends_a_plugin_kept_home() {
+  local got
   _hi_cfg_pty plug_back "$(_hi_item 'plugin|nano')\ns\n" "export _HI_PLUGINS_OFF='nano vim'" config_hub || _hi_why || return 1
-  _hi_cfg_has plug_back "nano: is sent" &&
-    [[ "$(_hi_cfg_lines plug_back)" == *"export _HI_PLUGINS_OFF='vim'"* ]] || _hi_why
+  _hi_cfg_has plug_back "nano: is sent" || _hi_why || return 1
+  got="$(_hi_cfg_lines plug_back)"
+  [[ "$got" == *"export _HI_PLUGINS_OFF='vim'"* ]] || _hi_why got
 }
 
 # a plugin that is off by default moves through the other list: zoxide's box
@@ -283,9 +316,11 @@ function test_menu_switches_a_default_off_plugin_on() {
 
 # an opt-in row (the tool aliases, 4) flips on to its on-value
 function test_menu_opt_in_row_writes_its_on_value() {
+  local got
   _hi_cfg_pty feat_opt_in "$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has feat_opt_in "styled tool aliases: now on" &&
-    [[ "$(_hi_cfg_lines feat_opt_in)" == *"export _HI_TOOL_ALIASES=1"* ]] || _hi_why
+  _hi_cfg_has feat_opt_in "styled tool aliases: now on" || _hi_why || return 1
+  got="$(_hi_cfg_lines feat_opt_in)"
+  [[ "$got" == *"export _HI_TOOL_ALIASES=1"* ]] || _hi_why got
 }
 
 # The environment segment sits after git status. Its preview, boxed under
@@ -293,18 +328,20 @@ function test_menu_opt_in_row_writes_its_on_value() {
 # is what a run on a bare CI box sees - so the case asserts the toggle and the
 # paren shape, not a name only this machine would have.
 function test_menu_env_segment_toggles_and_previews() {
+  local got
   _hi_cfg_pty feat_env "r\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has feat_env "environment segment: now off" &&
-    _hi_cfg_has feat_env "myproj" &&
-    [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]] || _hi_why
+  { _hi_cfg_has feat_env "environment segment: now off" && _hi_cfg_has feat_env "myproj"; } || _hi_why || return 1
+  got="$(_hi_cfg_lines feat_env)"
+  [[ "$got" == *"export _HI_DISABLE_ENV_STATUS=1"* ]] || _hi_why got
 }
 
 # ...and the header row, off and back on, previews the whole header both ways
 function test_menu_header_row_previews_the_header() {
+  local got
   _hi_cfg_pty feat_header "i\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has feat_header "header off - nothing prints" &&
-    _hi_cfg_has feat_header "Connected" &&
-    [ -z "$(_hi_cfg_lines feat_header | tr -d '[:space:]')" ] || _hi_why
+  { _hi_cfg_has feat_header "header off - nothing prints" && _hi_cfg_has feat_header "Connected"; } || _hi_why || return 1
+  got="$(_hi_cfg_lines feat_header | tr -d '[:space:]')"
+  [ -z "$got" ] || _hi_why got
 }
 
 # a separator typed for bash is single-quoted; zsh's, asked but left alone,
@@ -319,27 +356,34 @@ function test_prompt_end_typed_interactively_is_quoted() {
 # who draws each shell's prompt is asked shell by shell: starship for bash,
 # by name, hi for zsh and fish, by number, is one plain `hi` and bash's entry
 function test_menu_picks_a_prompt_program_per_shell() {
+  local got
   _hi_cfg_pty pe_star "$(_hi_item 'tool|bash')\nstarship\n$(_hi_item 'tool|zsh')\n2\n$(_hi_item 'tool|fish')\n2\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has pe_star "bash prompt: starship" &&
-    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL='bash:starship hi'"* ]] || _hi_why
+  _hi_cfg_has pe_star "bash prompt: starship" || _hi_why || return 1
+  got="$(_hi_cfg_lines pe_star)"
+  [[ "$got" == *"export _HI_PROMPT_TOOL='bash:starship hi'"* ]] || _hi_why got
 }
 
 # ...and auto for every shell clears the line rather than writing one
 function test_menu_prompt_program_back_to_auto() {
+  local got
   _hi_cfg_pty pe_star_off "$(_hi_item 'tool|bash')\nauto\ns\n" "export _HI_PROMPT_TOOL='bash:starship'" config_hub || _hi_why || return 1
-  _hi_cfg_has pe_star_off "bash prompt: auto" && _hi_cfg_has pe_star_off "CFGLINES=" &&
-    [[ "$(_hi_cfg_lines pe_star_off)" != *"_HI_PROMPT_TOOL"* ]] || _hi_why
+  { _hi_cfg_has pe_star_off "bash prompt: auto" && _hi_cfg_has pe_star_off "CFGLINES="; } || _hi_why || return 1
+  got="$(_hi_cfg_lines pe_star_off)"
+  [[ "$got" != *"_HI_PROMPT_TOOL"* ]] || _hi_why got
 }
 
 # a name off the list is said and asked again, and the third in a row leaves
 # the shell's entry as it was
 function test_menu_prompt_program_rejects_a_stranger() {
+  local got
   _hi_cfg_pty pe_stranger "$(_hi_item 'tool|bash')\nnope\nstarship\ns\n" '' config_hub || _hi_why || return 1
-  _hi_cfg_has pe_stranger "no choice nope - type a number or a name from the list" &&
-    [[ "$(_hi_cfg_lines pe_stranger)" == *"export _HI_PROMPT_TOOL=bash:starship"* ]] || _hi_why || return 1
+  _hi_cfg_has pe_stranger "no choice nope - type a number or a name from the list" || _hi_why || return 1
+  got="$(_hi_cfg_lines pe_stranger)"
+  [[ "$got" == *"export _HI_PROMPT_TOOL=bash:starship"* ]] || _hi_why got || return 1
   _hi_cfg_pty pe_strangers "$(_hi_item 'tool|bash')\nnope\n99\nnah\ns\n" "export _HI_PROMPT_TOOL='bash:starship'" config_hub || _hi_why || return 1
-  _hi_cfg_has pe_strangers "no choice 99" && ! _hi_cfg_has pe_strangers "no choice nah" &&
-    [[ "$(_hi_cfg_lines pe_strangers)" == *"export _HI_PROMPT_TOOL=bash:starship"* ]] || _hi_why
+  { _hi_cfg_has pe_strangers "no choice 99" && ! _hi_cfg_has pe_strangers "no choice nah"; } || _hi_why || return 1
+  got="$(_hi_cfg_lines pe_strangers)"
+  [[ "$got" == *"export _HI_PROMPT_TOOL=bash:starship"* ]] || _hi_why got
 }
 
 # the Advanced rows: an opt-in toggle and a value typed for real, including
@@ -356,24 +400,28 @@ function test_menu_advanced_rows() {
 # Enter at the preset question keeps the current settings: nothing seeded,
 # and the run carries on rather than failing
 function test_preset_question_enter_keeps_current() {
+  local got
   _hi_cfg_pty pre_enter '\n' '' config_preset || _hi_why || return 1
-  [ "$(_hi_cfg_rc pre_enter)" = 0 ] &&
-    _hi_cfg_has pre_enter "Start from a preset?" &&
-    ! _hi_cfg_has pre_enter "starting from the" || _hi_why
+  got="$(_hi_cfg_rc pre_enter)"
+  { [ "$got" = 0 ] && _hi_cfg_has pre_enter "Start from a preset?" && ! _hi_cfg_has pre_enter "starting from the"; } || _hi_why got
 }
 
 # a typo gets the full name list back and the run carries on unseeded - the
 # question is an offer, not a gate
 function test_preset_question_refuses_a_stranger_and_carries_on() {
+  local got
   _hi_cfg_pty pre_unknown 'zzz\n' '' config_preset || _hi_why || return 1
-  [ "$(_hi_cfg_rc pre_unknown)" = 0 ] && _hi_cfg_has pre_unknown "no such preset: zzz" || _hi_why
+  got="$(_hi_cfg_rc pre_unknown)"
+  { [ "$got" = 0 ] && _hi_cfg_has pre_unknown "no such preset: zzz"; } || _hi_why got
 }
 
 # a shorthand letter resolves and seeds the run
 function test_preset_shorthand_seeds_the_run() {
+  local got
   _hi_cfg_pty pre_walk 'b\n' '' config_preset || _hi_why || return 1
-  _hi_cfg_has pre_walk "starting from the 'balanced' preset" &&
-    [[ "$(_hi_cfg_lines pre_walk)" == *"export _HI_PACKAGES_GROUPS='core,deprecated'"* ]] || _hi_why
+  _hi_cfg_has pre_walk "starting from the 'balanced' preset" || _hi_why || return 1
+  got="$(_hi_cfg_lines pre_walk)"
+  [[ "$got" == *"export _HI_PACKAGES_GROUPS='core,deprecated'"* ]] || _hi_why got
 }
 
 # The whole run. The shortest: the intro orients, p opens the presets, m

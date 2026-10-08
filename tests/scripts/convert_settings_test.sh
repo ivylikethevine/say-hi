@@ -125,14 +125,18 @@ function test_toml_packages_comments_travel() {
 # read bare is quoted, a type named twice is one table, and what followed the
 # color and was no hex is a comment behind the row
 function test_toml_colors_rows_become_strings() {
+  local got got2 got3
   local f="$_HI_WORKDIR/colors.toml"
   printf '# top\n\n[hostname]\nweb-* red\nbox brred #ff5f5f the office\nodd blue note\n[username]\nme green 3ba55d\n[hostname]\nlate cyan\n' |
     _hi_toml_colors >"$f"
-  [ "$(sed 's/  */ /g' "$f")" = "$(printf '# top\n\n[hostname]\n"web-*" = "red"\nbox = "brred #ff5f5f" # the office\nodd = "blue" # note\nlate = "cyan"\n\n[username]\nme = "green 3ba55d"')" ] ||
+  got="$(sed 's/  */ /g' "$f")"
+  got2="$(printf '# top\n\n[hostname]\n"web-*" = "red"\nbox = "brred #ff5f5f" # the office\nodd = "blue" # note\nlate = "cyan"\n\n[username]\nme = "green 3ba55d"')"
+  [ "$got" = "$got2" ] ||
     _hi_because "$(cat "$f")" || return 1
-  [ "$(_HI_COLORS="$f" _hi_colors_pattern hostname web-2)" = red ] &&
-    [ "$(_HI_COLORS="$f" _hi_colors_lookup hostname box)" = 'brred#ff5f5f' ] &&
-    [ "$(_HI_COLORS="$f" _hi_colors_lookup username me)" = 'green#3ba55d' ] || _hi_why f
+  got="$(_HI_COLORS="$f" _hi_colors_pattern hostname web-2)"
+  got2="$(_HI_COLORS="$f" _hi_colors_lookup hostname box)"
+  got3="$(_HI_COLORS="$f" _hi_colors_lookup username me)"
+  [ "$got" = red ] && [ "$got2" = 'brred#ff5f5f' ] && [ "$got3" = 'green#3ba55d' ] || _hi_why got got2 got3 f
 }
 
 # --- colors ------------------------------------------------------------------
@@ -141,23 +145,28 @@ function test_toml_colors_rows_become_strings() {
 # one - so a pattern keeps its place ahead of an exact row after it - and the
 # result reads back through core.sh as the old rows did
 function test_colors_group_rows_by_type_in_order() {
+  local got got2 got3 got4
   local f="$_HI_WORKDIR/colors.converted"
   printf 'hostname,web-*,red\nusername,me,blue\nhostname,web-1,green,#ff0000\nhosttag,prod,brred,ff5f5f\n' |
     _hi_convert_colors | _hi_toml_colors >"$f"
-  [ "$(grep '^\[' "$f" | tr '\n' ' ')" = "[hostname] [username] [hosttag] " ] || _hi_why f || return 1
+  got="$(grep '^\[' "$f" | tr '\n' ' ')"
+  [ "$got" = "[hostname] [username] [hosttag] " ] || _hi_why got f || return 1
   _hi_before "$(cat "$f")" '^"web-\*"' '^web-1 ' || _hi_why f || return 1
-  [ "$(_HI_COLORS="$f" _hi_colors_pattern hostname web-2)" = red ] &&
-    [ "$(_HI_COLORS="$f" _hi_colors_lookup hostname web-1)" = 'green#ff0000' ] &&
-    [ "$(_HI_COLORS="$f" _hi_colors_lookup username me)" = blue ] &&
-    [ "$(_HI_COLORS="$f" _hi_colors_lookup hosttag prod)" = 'brred#ff5f5f' ] || _hi_why f
+  got="$(_HI_COLORS="$f" _hi_colors_pattern hostname web-2)"
+  got2="$(_HI_COLORS="$f" _hi_colors_lookup hostname web-1)"
+  got3="$(_HI_COLORS="$f" _hi_colors_lookup username me)"
+  got4="$(_HI_COLORS="$f" _hi_colors_lookup hosttag prod)"
+  [ "$got" = red ] && [ "$got2" = 'green#ff0000' ] && [ "$got3" = blue ] && [ "$got4" = 'brred#ff5f5f' ] || _hi_why got got2 got3 got4 f
 }
 
 # the same comment rule as packages: the leading block on top, the rest with
 # the row below
 function test_colors_comments_travel_with_their_row() {
-  local got
+  local got got2 got3
   got="$(printf '# top\nhostname,a,red\n# about b\nusername,b,blue\n' | _hi_convert_colors)"
-  [ "$(printf '%s\n' "$got" | grep -v '^$' | sed 's/  */ /g')" = "$(printf '# top\n[hostname]\na red\n[username]\n# about b\nb blue')" ] || _hi_why got
+  got2="$(printf '%s\n' "$got" | grep -v '^$' | sed 's/  */ /g')"
+  got3="$(printf '# top\n[hostname]\na red\n[username]\n# about b\nb blue')"
+  [ "$got2" = "$got3" ] || _hi_why got2 got3 got
 }
 
 # --- plugins -----------------------------------------------------------------
@@ -201,23 +210,30 @@ inputrc2|-|-|-|mine|readline|env:INPUTRC2|-|-|~/.inputrc2' ] || _hi_because "rea
 # carry.old, unless a plugins file is there already; a plugins file of rows
 # is converted where it is, and one of tables is left alone
 function test_entry_converts_the_carry() {
+  local got got2 got3 got4
   local dir="$_HI_WORKDIR/conv-carry" out
   mkdir -p "$dir"
   printf 'taskrc | - | env:TASKRC | ~/.taskrc\n' >"$dir/carry"
   out="$(_hi_conv_run --dry-run "$dir")" || _hi_why dir || return 1
   [[ "$out" == *"would convert $dir/carry to $dir/plugins"* ]] && [ ! -e "$dir/plugins" ] || _hi_because "dry: $out" || return 1
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
-  [[ "$out" == *"converted $dir/carry to $dir/plugins"* ]] && [ ! -e "$dir/carry" ] &&
-    [ "$(cat "$dir/carry.old")" = 'taskrc | - | env:TASKRC | ~/.taskrc' ] &&
-    [ "$(cat "$dir/plugins")" = "$(printf '[carry.taskrc]\ntool = "-"\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"')" ] || _hi_because "$out: $(cat "$dir/plugins")" || return 1
+  got="$(cat "$dir/carry.old")"
+  got2="$(cat "$dir/plugins")"
+  got3="$(printf '[carry.taskrc]\ntool = "-"\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"')"
+  [[ "$out" == *"converted $dir/carry to $dir/plugins"* ]] &&
+    [ ! -e "$dir/carry" ] &&
+    [ "$got" = 'taskrc | - | env:TASKRC | ~/.taskrc' ] &&
+    [ "$got2" = "$got3" ] || _hi_because "$out: $got2" || return 1
   printf 'b | - | - | ~/b\n' >"$dir/carry"
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
   [ -z "$out" ] && [ -f "$dir/carry" ] || _hi_because "a second carry: $out" || return 1
   printf '[mine]\ntaskrc = "task | env:TASKRC | ~/.taskrc"\n' >"$dir/plugins"
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
-  [[ "$out" == *"converted $dir/plugins to the current format"* ]] &&
-    [ "$(cat "$dir/plugins.old")" = "$(printf '[mine]\ntaskrc = "task | env:TASKRC | ~/.taskrc"')" ] &&
-    [ "$(cat "$dir/plugins")" = "$(printf '[mine.task]\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"')" ] || _hi_because "$out: $(cat "$dir/plugins")" || return 1
+  got="$(cat "$dir/plugins.old")"
+  got2="$(printf '[mine]\ntaskrc = "task | env:TASKRC | ~/.taskrc"')"
+  got3="$(cat "$dir/plugins")"
+  got4="$(printf '[mine.task]\nwire = "env:TASKRC"\nhome = "~/.taskrc"\nfiles = "taskrc"')"
+  [[ "$out" == *"converted $dir/plugins to the current format"* ]] && [ "$got" = "$got2" ] && [ "$got3" = "$got4" ] || _hi_because "$out: $got3" || return 1
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
   [ -z "$out" ] || _hi_because "a second run: $out"
 }
@@ -241,9 +257,10 @@ function test_settings_map_the_floor_to_groups() {
 # a trailing comment rides onto the replacement - the marker install writes
 # on its own lines included, so the line stays install's to rewrite
 function test_settings_keep_the_trailing_comment() {
-  local line
+  local line got
   printf -v line '%-45s %s' 'export _HI_PACKAGES_MIN_PRIORITY=3' "$_HI_MARKER"
-  [ "$(printf '%s\n' "$line" | _hi_convert_settings)" = "export _HI_PACKAGES_GROUPS='core deprecated' ${line##*=3 }" ] || _hi_why line || return 1
+  got="$(printf '%s\n' "$line" | _hi_convert_settings)"
+  [ "$got" = "export _HI_PACKAGES_GROUPS='core deprecated' ${line##*=3 }" ] || _hi_why got line || return 1
   _hi_conv_is _hi_convert_settings 'export _HI_PACKAGES_MIN_PRIORITY=1 # mine\n' \
     "export _HI_PACKAGES_GROUPS='core useful deprecated extras base' # mine" || _hi_why
 }
@@ -286,10 +303,11 @@ function test_settings_spell_a_group_as_its_plugins() {
 # ...under the marker the toggle's line carried, padded as the wizard pads
 # its own, so its block takes the line for one of its own
 function test_settings_list_line_keeps_the_marker() {
-  local line want
+  local line want got
   printf -v line '%-45s %s' 'export _HI_DISABLE_HELIX=1' "$_HI_MARKER"
   printf -v want '%-45s %s' "export _HI_PLUGINS_OFF='hx'" "$_HI_MARKER"
-  [ "$(printf '%s\n' "$line" | _hi_convert_settings)" = "$want" ] || _hi_why line want
+  got="$(printf '%s\n' "$line" | _hi_convert_settings)"
+  [ "$got" = "$want" ] || _hi_why got line want
 }
 
 # --- the entry point ---------------------------------------------------------
@@ -392,6 +410,7 @@ function test_entry_is_idempotent() {
 # the rows under [section] lines, the shape between the first and this one,
 # are converted the same way
 function test_entry_converts_the_sections() {
+  local got got2
   local dir="$_HI_WORKDIR/conv-sections" out
   mkdir -p "$dir"
   printf '# mine\n[core]\nbat,batcat\n+sudo\n' >"$dir/packages"
@@ -399,8 +418,10 @@ function test_entry_converts_the_sections() {
   out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
   [[ "$out" == *"converted $dir/packages to the current format"* && "$out" == *"converted $dir/colors to"* ]] &&
     grep -qx 'bat,batcat' "$dir/packages.old" && grep -qx '10.0.\* red' "$dir/colors.old" || _hi_why out dir || return 1
-  [ "$(cat "$dir/packages")" = "$(printf '# mine\n[core]\nbat = ["batcat"]\n\n[core.required]\nsudo = []')" ] ||
-    _hi_because "$(cat "$dir/packages")" || return 1
+  got="$(cat "$dir/packages")"
+  got2="$(printf '# mine\n[core]\nbat = ["batcat"]\n\n[core.required]\nsudo = []')"
+  [ "$got" = "$got2" ] ||
+    _hi_because "$got" || return 1
   grep -q '^"10.0.\*"  *= "red"$' "$dir/colors" || _hi_why dir
 }
 

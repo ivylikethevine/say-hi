@@ -305,12 +305,12 @@ function test_full_check_reads_real_packages_file_without_erroring() {
 # this file shadow $_HI_HEADER_VERSION, and the call is not wrapped in
 # $(...) where inspecting its post-call state is needed.
 function test_full_check_absorbs_an_incoming_carry() {
-  local out
+  local out got got2
   local -a _HI_ROW_CARRY=(carriedcell)
   out="$(_HI_PACKAGES="$(_hi_pkg_one carry-absorb "$_HI_REAL_CMD = []\n")" full_check)"
-  [[ "$out" == *carriedcell* ]] && [[ "$out" == *"$_HI_REAL_CMD"* ]] &&
-    [ -n "$(_hi_pos "$out" carriedcell)" ] && [ -n "$(_hi_pos "$out" "$_HI_REAL_CMD")" ] &&
-    [ "$(_hi_pos "$out" carriedcell)" -lt "$(_hi_pos "$out" "$_HI_REAL_CMD")" ] || _hi_why out _HI_REAL_CMD
+  got="$(_hi_pos "$out" carriedcell)"
+  got2="$(_hi_pos "$out" "$_HI_REAL_CMD")"
+  [[ "$out" == *carriedcell* ]] && [[ "$out" == *"$_HI_REAL_CMD"* ]] && [ -n "$got" ] && [ -n "$got2" ] && [ "$got" -lt "$got2" ] || _hi_why got got2 out _HI_REAL_CMD
 }
 
 # ...and takes ownership of it: nothing is left for a caller after it to
@@ -365,16 +365,20 @@ function test_full_check_emits_a_row_for_an_installed_package() {
 # ls (core, 3) prints ahead of sh (useful, 2) ahead of cat (extras, 1),
 # though the file lists them the other way round
 function test_full_check_orders_by_tier_then_file_order() {
-  local out
+  local out got got2 got3
   out="$(
     _HI_PACKAGES="$(_hi_pkg_one rank-order "[extras]\ncat = []\n[useful]\nsh = []\n[core]\nls = []\n")"
     _HI_PACKAGES_GROUPS="extras useful core"
     full_check
   )"
-  [ -n "$(_hi_pos "$out" " cat ")" ] && [ -n "$(_hi_pos "$out" " ls ")" ] &&
-    [ -n "$(_hi_pos "$out" " sh ")" ] || _hi_why out || return 1
-  [ "$(_hi_pos "$out" " ls ")" -lt "$(_hi_pos "$out" " sh ")" ] &&
-    [ "$(_hi_pos "$out" " sh ")" -lt "$(_hi_pos "$out" " cat ")" ] || _hi_why out
+  got="$(_hi_pos "$out" " cat ")"
+  got2="$(_hi_pos "$out" " ls ")"
+  got3="$(_hi_pos "$out" " sh ")"
+  [ -n "$got" ] && [ -n "$got2" ] && [ -n "$got3" ] || _hi_why got got2 got3 out || return 1
+  got="$(_hi_pos "$out" " ls ")"
+  got2="$(_hi_pos "$out" " sh ")"
+  got3="$(_hi_pos "$out" " cat ")"
+  [ "$got" -lt "$got2" ] && [ "$got2" -lt "$got3" ] || _hi_why got got2 got3 out
 }
 
 # Warnings and alarms (rank 4) lead even a core row listed before them, in

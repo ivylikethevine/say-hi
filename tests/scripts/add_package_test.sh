@@ -165,12 +165,14 @@ function test_add_package_dry_run_over_an_overlay() {
 
 # a group the file does not have is created at the end, after a blank line
 function test_add_package_creates_the_overlay_file_and_group() {
-  local home cfg out
+  local home cfg out got got2
   home="$(_hi_addpkg_fixture addpkg-default)"
   cfg="$_HI_WORKDIR/addpkg-default-cfg"
   out="$(_hi_addpkg_run "$home" "$cfg" mine 'hi-no-such,hi-no-such-alt')" || _hi_why home cfg || return 1
   [[ "$out" == *"+ hi-no-such,hi-no-such-alt in [mine]"* && "$out" == *"$cfg/packages updated"* ]] || _hi_why out cfg || return 1
-  [ "$(tail -n 3 "$cfg/packages")" = "$(printf '\n[mine]\nhi-no-such = ["hi-no-such-alt"]')" ] || _hi_why cfg
+  got="$(tail -n 3 "$cfg/packages")"
+  got2="$(printf '\n[mine]\nhi-no-such = ["hi-no-such-alt"]')"
+  [ "$got" = "$got2" ] || _hi_why got got2 cfg
 }
 
 # a row's marker is the table it lands in, made beside its group's when the
@@ -284,14 +286,14 @@ function test_add_package_written_row_reaches_the_check() {
 # added ---------------------------------------------------------------------
 
 function test_add_package_first_call_copies_the_tree_in() {
-  local home cfg n
+  local home cfg n got
   home="$(_hi_addpkg_fixture addpkg-seed)"
   cfg="$_HI_WORKDIR/addpkg-seed-cfg"
   _hi_addpkg_run "$home" "$cfg" mine foo >/dev/null || _hi_why home cfg || return 1
   n="$(_hi_addpkg_tree_lines "$home")"
   # the tree's lines, then a blank, [mine], and the row
-  { [ "$(wc -l <"$cfg/packages")" -eq "$((n + 3))" ] &&
-    head -n "$n" "$cfg/packages" | cmp -s - "$home/say-hi/config/packages"; } || _hi_why cfg n home
+  got="$(wc -l <"$cfg/packages")"
+  { [ "$got" -eq "$((n + 3))" ] && head -n "$n" "$cfg/packages" | cmp -s - "$home/say-hi/config/packages"; } || _hi_why got cfg n home
 }
 
 # a second call does not re-copy or clobber what the first one wrote
@@ -370,15 +372,16 @@ function test_remove_package_without_a_row_is_a_no_op() {
 
 # with no overlay yet, removing a shipped row copies the tree in without it
 function test_remove_package_copies_the_tree_in_without_the_row() {
-  local home cfg n
+  local home cfg n got
   home="$(_hi_addpkg_fixture rmpkg-seed)"
   cfg="$_HI_WORKDIR/rmpkg-seed-cfg"
   _hi_rmpkg_run "$home" "$cfg" bat >/dev/null || _hi_why home cfg || return 1
   n="$(_hi_addpkg_tree_lines "$home")"
-  { [ "$(wc -l <"$cfg/packages")" -eq "$((n - 1))" ] &&
+  got="$(wc -l <"$cfg/packages")"
+  { [ "$got" -eq "$((n - 1))" ] &&
     grep -qxF "$_HI_ADDPKG_KNOWN_TOML" "$home/say-hi/config/packages" &&
     ! grep -qxF "$_HI_ADDPKG_KNOWN_TOML" "$cfg/packages" &&
-    grep -qxF '[core]' "$cfg/packages"; } || _hi_why cfg home _HI_ADDPKG_KNOWN_TOML
+    grep -qxF '[core]' "$cfg/packages"; } || _hi_why got cfg home _HI_ADDPKG_KNOWN_TOML
 }
 
 function run_add_package_tests() {

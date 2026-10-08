@@ -218,6 +218,7 @@ function test_load_vim_off_blocks_viminit() {
 # poll later, the watcher with it; and no claim lands in a tree the session
 # could not remove. A child bash, since the claim is the shell's own pid.
 function test_load_claims_its_tree_and_a_watcher_outlives_it() {
+  local got
   local t="$_HI_WORKDIR/claim/u.hi.aaaaaa" other="$_HI_WORKDIR/claim/install" pid w
   mkdir -p "$t/say-hi" "$other"
   # shellcheck disable=SC2016 # the child's to expand
@@ -232,7 +233,8 @@ function test_load_claims_its_tree_and_a_watcher_outlives_it() {
   pid=$!
   _hi_poll_bool 40 0.25 test -s "$t.watch" || _hi_because "the child never started its watcher" || return 1
   w="$(cat "$t.watch")"
-  [ "$(cat "$t/say-hi/hi.pid" 2>/dev/null)" = "$pid" ] || _hi_because "the claim is not the session's pid" || return 1
+  got="$(cat "$t/say-hi/hi.pid" 2>/dev/null)"
+  [ "$got" = "$pid" ] || _hi_because "the claim is not the session's pid" || return 1
   [ ! -e "$other/hi.pid" ] || _hi_because "a claim landed outside the tree" || return 1
   kill -9 "$pid" 2>/dev/null
   wait "$pid" 2>/dev/null || true
@@ -261,10 +263,12 @@ function _hi_held_session() {
 # watcher, under a claim that names the two of them: there through the
 # window, gone at its end. One that does not hold takes its tree as it goes.
 function test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer() {
+  local got
   local t="$_HI_WORKDIR/held/u.hi.aaaaaa" pid w
   _hi_held_session "$t" 3 || _hi_because "the session failed" || return 1
   read -r pid w <"$t.ids"
-  [ "$(cat "$t/say-hi/hi.held" 2>/dev/null)" = "$w $pid hi-box" ] || _hi_because "the claim: $(cat "$t/say-hi/hi.held" 2>&1)" || return 1
+  got="$(cat "$t/say-hi/hi.held" 2>/dev/null)"
+  [ "$got" = "$w $pid hi-box" ] || _hi_because "the claim: $(cat "$t/say-hi/hi.held" 2>&1)" || return 1
   sleep 1
   [ -d "$t" ] || _hi_because "the tree went before its window" || return 1
   _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "the tree outlived its window" || return 1
@@ -294,6 +298,7 @@ function test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end() {
 # takes its tree: each shell's rc gets the hook, and bash's keeps the last
 # command's status for the hooks behind it
 function test_session_rc_notes_the_directory_of_a_session_that_holds() {
+  local got2
   local t="$_HI_WORKDIR/held/u.hi.eeeeee" dir out
   mkdir -p "$t/say-hi"
   dir="$(
@@ -311,7 +316,8 @@ function test_session_rc_notes_the_directory_of_a_session_that_holds() {
   : >"$t/say-hi/hi.hold"
   # shellcheck disable=SC2016
   out="$("$BASH" -c 'source "$1"; builtin cd /; false; _hi_held_cwd; echo "after=$?"' _ "$t/hook")"
-  [ "$out" = "after=1" ] && [ "$(cat "$t/say-hi/hi.cwd")" = / ] || _hi_because "bash: $out, $(cat "$t/say-hi/hi.cwd" 2>&1)" || return 1
+  got2="$(cat "$t/say-hi/hi.cwd")"
+  [ "$out" = "after=1" ] && [ "$got2" = / ] || _hi_because "bash: $out, $(cat "$t/say-hi/hi.cwd" 2>&1)" || return 1
   dir="$(
     _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=""
     _hi_session_rc_setup || exit 1
@@ -523,34 +529,46 @@ _hi_keep_stays; printf "RC=%s\n" "$?"' 2>&1 | grep -o -e 'RC=[0-9]*' -e 'own key
 # anything but y keeps the session: the client is detached and load() goes
 # round again. y closes it, and with nobody attached nobody is asked.
 function test_keep_stays_asks_before_the_owner_pane_closes() {
-  [ "$(_hi_keep_stays_answer n 1)" = "$(printf 'RC=0\ndetach-client -s =hi-box')" ] ||
-    _hi_because "n: $(_hi_keep_stays_answer n 1)" || return 1
-  [ "$(_hi_keep_stays_answer '' 1)" = "$(printf 'RC=0\ndetach-client -s =hi-box')" ] ||
-    _hi_because "Enter: $(_hi_keep_stays_answer '' 1)" || return 1
-  [ "$(_hi_keep_stays_answer y 1)" = "RC=1" ] || _hi_because "y: $(_hi_keep_stays_answer y 1)" || return 1
-  [ "$(_hi_keep_stays_answer n 0)" = "RC=1" ] || _hi_because "unattended: $(_hi_keep_stays_answer n 0)"
+  local got got2
+  got="$(_hi_keep_stays_answer n 1)"
+  got2="$(printf 'RC=0\ndetach-client -s =hi-box')"
+  [ "$got" = "$got2" ] ||
+    _hi_because "n: $got" || return 1
+  got="$(_hi_keep_stays_answer '' 1)"
+  got2="$(printf 'RC=0\ndetach-client -s =hi-box')"
+  [ "$got" = "$got2" ] ||
+    _hi_because "Enter: $got" || return 1
+  got="$(_hi_keep_stays_answer y 1)"
+  [ "$got" = "RC=1" ] || _hi_because "y: $got" || return 1
+  got="$(_hi_keep_stays_answer n 0)"
+  [ "$got" = "RC=1" ] || _hi_because "unattended: $got"
 }
 
 # zellij has no command that detaches a client: an `n` keeps the session and
 # the client both, and names the key
 function test_keep_stays_names_zellij_s_detach_key() {
-  [ "$(_hi_keep_stays_answer n 1 zellij)" = "$(printf 'own key detaches\nRC=0')" ] ||
-    _hi_because "n: $(_hi_keep_stays_answer n 1 zellij)" || return 1
-  [ "$(_hi_keep_stays_answer y 1 zellij)" = "RC=1" ] || _hi_because "y: $(_hi_keep_stays_answer y 1 zellij)"
+  local got got2
+  got="$(_hi_keep_stays_answer n 1 zellij)"
+  got2="$(printf 'own key detaches\nRC=0')"
+  [ "$got" = "$got2" ] ||
+    _hi_because "n: $got" || return 1
+  got="$(_hi_keep_stays_answer y 1 zellij)"
+  [ "$got" = "RC=1" ] || _hi_because "y: $got"
 }
 
 # what `hi --keep` typed in a session reads: a NAME=value a line, only the
 # set ones, and this shell's pid last
 function test_keep_file_lists_what_an_owner_pane_needs() {
-  local out
+  local out got
   out="$(
     unset "${_HI_SESSION_VARS[@]}" NO_COLOR _HI_CONNECT_TIME _HI_COPY_TIME
     _HI_KEEP_AS=box _HI_TARGET_COLOR=salmon _HI_LOCAL_USER='o p$HOME' _HI_ROOT=/t/say-hi _HI_CLEANUP=/t
     _HI_CONNECT_PREFIX=' 1K' _HI_TARGET_TAG=''
     _hi_keep_file
   )"
-  [ "$out" = "$(printf '%s\n' '_HI_KEEP_AS=box' '_HI_TARGET_COLOR=salmon' '_HI_LOCAL_USER=o p$HOME' \
-    '_HI_ROOT=/t/say-hi' '_HI_CLEANUP=/t' '_HI_CONNECT_PREFIX= 1K' "_HI_KEEP_OUTER=$$")" ] || _hi_because "$out"
+  got="$(printf '%s\n' '_HI_KEEP_AS=box' '_HI_TARGET_COLOR=salmon' '_HI_LOCAL_USER=o p$HOME' \
+    '_HI_ROOT=/t/say-hi' '_HI_CLEANUP=/t' '_HI_CONNECT_PREFIX= 1K' "_HI_KEEP_OUTER=$$")"
+  [ "$out" = "$got" ] || _hi_because "$out"
 }
 
 # _hi_shared_tree <name> [marker] - a disposable tree for clean_all, printed
@@ -565,14 +583,16 @@ function _hi_shared_tree() {
 # kept from, for the connect that finds it dead; an ordinary session's tree
 # carries no claim
 function test_keep_claim_names_the_pane_and_the_shell_it_was_kept_from() {
-  local t
+  local t got
   t="$(_hi_shared_tree claim)"
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX="" _HI_KEEP_OUTER="" _hi_keep_claim)
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "an ordinary session claimed its tree" || return 1
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER="" _hi_keep_claim)
-  [ "$(cat "$t/say-hi/hi.kept")" = "$$ " ] || _hi_because "a keeping connect's pane: $(cat "$t/say-hi/hi.kept")" || return 1
+  got="$(cat "$t/say-hi/hi.kept")"
+  [ "$got" = "$$ " ] || _hi_because "a keeping connect's pane: $got" || return 1
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER=4242 _hi_keep_claim)
-  [ "$(cat "$t/say-hi/hi.kept")" = "$$ 4242" ] || _hi_because "a pane kept from inside: $(cat "$t/say-hi/hi.kept")"
+  got="$(cat "$t/say-hi/hi.kept")"
+  [ "$got" = "$$ 4242" ] || _hi_because "a pane kept from inside: $got"
 }
 
 # a session kept from inside another shares its tree, and the last of the two
@@ -621,20 +641,22 @@ function _hi_keep_panes_in() {
 # value one quoted word, and the session's multiplexer is told to open its
 # panes on it - tmux and screen here, zellij at its start
 function test_keep_panes_leaves_a_launcher_the_multiplexer_opens() {
-  local out t q
+  local out t q got
   out="$(_hi_keep_panes_in tmux)"
   t="$_HI_WORKDIR/pane tmux"
   printf -v q '%q' "$t"
-  [ "$out" = "$(printf '%s\n' "set-option -t =hi-box: default-command $q/say-hi/hi.pane" "#!$BASH" \
+  got="$(printf '%s\n' "set-option -t =hi-box: default-command $q/say-hi/hi.pane" "#!$BASH" \
     "export _HI_HOME=$q" "export _HI_SESSION_RC=$q/hi.rc.x" 'export EDITOR=vim\ -u\ \"a\ b\"' 'export SHELL=/bin/bash' \
-    "exec bash --rcfile $q/hi.rc.x/bashrc -i")" ] || _hi_because "tmux: $out" || return 1
+    "exec bash --rcfile $q/hi.rc.x/bashrc -i")"
+  [ "$out" = "$got" ] || _hi_because "tmux: $out" || return 1
   [ -x "$t/say-hi/hi.pane" ] || _hi_because "the launcher is not executable" || return 1
   out="$(_hi_keep_panes_in screen)"
   [[ "$out" == "screen -S hi-box -X shell $_HI_WORKDIR/pane screen/say-hi/hi.pane"$'\n'"#!$BASH"$'\n'* ]] ||
     _hi_because "screen: $out" || return 1
   out="$(_hi_keep_panes_in zellij)"
   [[ "$out" == "#!$BASH"$'\n'* ]] || _hi_because "zellij was told something, or has no launcher: $out" || return 1
-  [ -z "$(_hi_keep_panes_in '')" ] || _hi_because "an ordinary session left a launcher"
+  got="$(_hi_keep_panes_in '')"
+  [ -z "$got" ] || _hi_because "an ordinary session left a launcher"
 }
 
 # ...and puts the overlay's bin/ on a pane's $PATH, which the multiplexer's

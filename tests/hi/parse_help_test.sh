@@ -660,33 +660,38 @@ function test_hi_dispatch_plain_setting_is_a_default() {
 }
 
 function test_hi_dispatch_plain0_no_arm_calls_say_hi() {
-  local out
+  local out got
   out="$(_hi_dispatch_probe 0 "" 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == say_hi ]] || _hi_why out
+  got="$(printf '%s\n' "$out" | sed -n 2p)"
+  [[ "$got" == say_hi ]] || _hi_why got out
 }
 
 function test_hi_dispatch_plain0_with_arm_calls_say_hi_container() {
-  local out
+  local out got
   out="$(_hi_dispatch_probe 0 docker 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == "say_hi_container:docker" ]] || _hi_why out
+  got="$(printf '%s\n' "$out" | sed -n 2p)"
+  [[ "$got" == "say_hi_container:docker" ]] || _hi_why got out
 }
 
 function test_hi_dispatch_plain1_no_arm_calls_say_hi_plain() {
-  local out
+  local out got
   out="$(_hi_dispatch_probe 1 "" 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == say_hi_plain ]] || _hi_why out
+  got="$(printf '%s\n' "$out" | sed -n 2p)"
+  [[ "$got" == say_hi_plain ]] || _hi_why got out
 }
 
 function test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain() {
-  local out
+  local out got
   out="$(_hi_dispatch_probe 1 docker 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == "say_hi_container_plain:docker" ]] || _hi_why out
+  got="$(printf '%s\n' "$out" | sed -n 2p)"
+  [[ "$got" == "say_hi_container_plain:docker" ]] || _hi_why got out
 }
 
 function test_hi_exit_code_is_the_arms() {
-  local out
+  local out got
   out="$(_hi_dispatch_probe 0 "" 7)"
-  [ "$(printf '%s\n' "$out" | sed -n 1p)" = 7 ] || _hi_why out
+  got="$(printf '%s\n' "$out" | sed -n 1p)"
+  [ "$got" = 7 ] || _hi_why got out
 }
 
 function test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp() {

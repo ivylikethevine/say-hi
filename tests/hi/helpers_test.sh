@@ -38,10 +38,12 @@ function test_shquote_roundtrips_the_hard_cases() {
 # the armor line is `echo "<base64>" | <unarmor> <op> <word>` - proven by
 # running it, not by parsing it
 function test_armored_line_roundtrips_through_sh() {
+  local got
   local f="$_HI_WORKDIR/armored.out" line
   line="$(printf 'hello armored world\n' | _hi_armored_line '>' "'$f'")"
   sh -c "$line" || _hi_why line || return 1
-  [ "$(cat "$f")" = "hello armored world" ] || _hi_why f
+  got="$(cat "$f")"
+  [ "$got" = "hello armored world" ] || _hi_why got f
 }
 
 # openssl stands in for a missing base64 on either end (stock OpenBSD):
@@ -56,23 +58,32 @@ function test_armored_line_roundtrips_through_sh() {
 # remote_test.sh's `onlyssl`: the builder is build-once-per-name and the two
 # name different tools.
 function test_armor_falls_back_to_openssl() {
+  local got
   local f="$_HI_WORKDIR/armored-ssl.out" dir sh_bin want line
   sh_bin="$(command -v sh)"
   dir="$(_hi_real_path onlyssl-armor openssl tr)"
   want="$(seq 1 400 | tr '\n' ' ')"
   line="$(printf '%s\n' "$want" | _hi_armored_line '>' "'$f'")"
-  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || _hi_why dir sh_bin line f || return 1
+  PATH="$dir" "$sh_bin" -c "$line" || _hi_why dir sh_bin line f || return 1
+  got="$(cat "$f")"
+  [ "$got" = "$want" ] || _hi_why got dir sh_bin line f || return 1
   line="$(printf 'echo "%s" | %s > %s' "$(printf '%s\n' "$want" | $_HI_ARMOR | tr -d '\n')" "$_HI_UNARMOR" "'$f'")"
-  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || _hi_why dir sh_bin line f || return 1
+  PATH="$dir" "$sh_bin" -c "$line" || _hi_why dir sh_bin line f || return 1
+  got="$(cat "$f")"
+  [ "$got" = "$want" ] || _hi_why got dir sh_bin line f || return 1
   line="$(printf '%s\n' "$want" | _HI_ARMOR="openssl base64" _hi_armored_line '>' "'$f'")"
-  sh -c "$line" && [ "$(cat "$f")" = "$want" ] || _hi_why line f want
+  sh -c "$line" || _hi_why line f want || return 1
+  got="$(cat "$f")"
+  [ "$got" = "$want" ] || _hi_why got line f want
 }
 
 function test_outer_inner_split() {
-  [ "$(_hi_outer pod/ctr)" = pod ] &&
-    [ "$(_hi_inner pod/ctr)" = ctr ] &&
-    [ "$(_hi_outer plain)" = plain ] &&
-    [ -z "$(_hi_inner plain)" ] || _hi_why
+  local got got2 got3 got4
+  got="$(_hi_outer pod/ctr)"
+  got2="$(_hi_inner pod/ctr)"
+  got3="$(_hi_outer plain)"
+  got4="$(_hi_inner plain)"
+  [ "$got" = pod ] && [ "$got2" = ctr ] && [ "$got3" = plain ] && [ -z "$got4" ] || _hi_why got got2 got3 got4
 }
 
 function _hi_kube_case() {
@@ -90,16 +101,20 @@ function test_kube_split_grammar() {
 }
 
 function test_human_bytes_units() {
-  [ "$(_hi_human_bytes 512)" = "512B" ] &&
-    [ "$(_hi_human_bytes 1024)" = "1.0K" ] &&
-    [ "$(_hi_human_bytes 10240)" = "10K" ] &&
-    [ "$(_hi_human_bytes 1048576)" = "1.0M" ] || _hi_why
+  local got got2 got3 got4
+  got="$(_hi_human_bytes 512)"
+  got2="$(_hi_human_bytes 1024)"
+  got3="$(_hi_human_bytes 10240)"
+  got4="$(_hi_human_bytes 1048576)"
+  [ "$got" = "512B" ] && [ "$got2" = "1.0K" ] && [ "$got3" = "10K" ] && [ "$got4" = "1.0M" ] || _hi_why got got2 got3 got4
 }
 
 function test_file_bytes_counts() {
+  local got
   local f="$_HI_WORKDIR/five.bytes"
   printf '12345' >"$f"
-  [ "$(_hi_file_bytes "$f")" = 5 ] || _hi_why f
+  got="$(_hi_file_bytes "$f")"
+  [ "$got" = 5 ] || _hi_why got f
 }
 
 # FNV-1a's published vectors, across the 64-character slice boundary, with an
@@ -159,7 +174,7 @@ function test_ladder_probe_names_a_ladder_shell() {
 }
 
 function test_flag_help_splits_local_from_anywhere() {
-  local anywhere local_rows
+  local anywhere local_rows got
   anywhere="$(_hi_flag_help -)"
   local_rows="$(_hi_flag_help local)"
   case "$anywhere" in *"-h, --help"*) ;; *) _hi_why anywhere || return 1 ;; esac
@@ -168,7 +183,8 @@ function test_flag_help_splits_local_from_anywhere() {
   # (a wide label's help sits on its own line, indented past the flag column)
   local total
   total="$(grep -Ecv '^(#|$)' "$_HI_ROOT/common/flags")"
-  [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')" = "$total" ] || _hi_why anywhere local_rows total
+  got="$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')"
+  [ "$got" = "$total" ] || _hi_why got anywhere local_rows total
 }
 
 # The stripper, run the way _hi_payload_tar runs it: shebang kept, full-line
@@ -176,6 +192,7 @@ function test_flag_help_splits_local_from_anywhere() {
 # a `word\` continuation keeps the indentation that separates it
 # (_HI_HEADER_ALTS once reached a target as "gitid:BRREDcontainers:BRYELLOW").
 function test_strip_awk_rules() {
+  local got
   local dir="$_HI_WORKDIR/strip" out
   mkdir -p "$dir"
   cat >"$dir/x.sh" <<'FIXTURE'
@@ -198,16 +215,21 @@ FIXTURE
   case "$out" in *"a full-line comment"*) _hi_why out || return 1 ;; *) ;; esac
   case "$out" in *"trailing comments stay"*) ;; *) _hi_why out || return 1 ;; esac
   case "$out" in *"inside a heredoc, this line is data"*) ;; *) _hi_why out || return 1 ;; esac
-  [ "$(sh -c '. "$1" >/dev/null; printf %s "$table"' _ "$dir/x.sh" 2>/dev/null)" = "a:b c:d" ] || _hi_why table dir
+  got="$(sh -c '. "$1" >/dev/null; printf %s "$table"' _ "$dir/x.sh" 2>/dev/null)"
+  [ "$got" = "a:b c:d" ] || _hi_why got table dir
 }
 
 function test_safe_path_rejects_relative_paths() {
-  [ -z "$(_hi_safe_path tmp/relative A-Za-z0-9/._-)" ] || _hi_why
+  local got
+  got="$(_hi_safe_path tmp/relative A-Za-z0-9/._-)"
+  [ -z "$got" ] || _hi_why got
 }
 
 function test_safe_path_rejects_chars_outside_the_class() {
-  [ -z "$(_hi_safe_path '/tmp/x;rm -rf ~' A-Za-z0-9/._-)" ] &&
-    [ -z "$(_hi_safe_path '/tmp/`whoami`' A-Za-z0-9/._-)" ] || _hi_why
+  local got got2
+  got="$(_hi_safe_path '/tmp/x;rm -rf ~' A-Za-z0-9/._-)"
+  got2="$(_hi_safe_path '/tmp/`whoami`' A-Za-z0-9/._-)"
+  [ -z "$got" ] && [ -z "$got2" ] || _hi_why got got2
 }
 
 # _hi_container_put's contract: retry a landing the target reports empty,
@@ -236,6 +258,7 @@ function _hi_put_stub_cp() {
 function _hi_put_stub_probe() { "$@"; }
 
 function test_container_put_retries_an_empty_landing() {
+  local got
   local -a cp=(_hi_put_stub_cp) probe=(_hi_put_stub_probe)
   local tmp="$_HI_WORKDIR/put.retry.err" src="$_HI_WORKDIR/put.retry.src" \
     dest="$_HI_WORKDIR/put.retry.dest"
@@ -243,7 +266,8 @@ function test_container_put_retries_an_empty_landing() {
   rm -f "$dest"
   _HI_PUT_STUB_CALLS=0 _HI_PUT_STUB_TRY=2
   _hi_container_put "$src" "$dest" || _hi_why src dest || return 1
-  [ "$_HI_PUT_STUB_CALLS" -eq 2 ] && [ "$(cat "$dest")" = payload ] || _hi_why dest _HI_PUT_STUB_CALLS
+  got="$(cat "$dest")"
+  [ "$_HI_PUT_STUB_CALLS" -eq 2 ] && [ "$got" = payload ] || _hi_why got dest _HI_PUT_STUB_CALLS
 }
 
 function test_container_put_gives_up_after_three_empty_landings() {
@@ -322,20 +346,22 @@ function _hi_compose_resolve() {
 
 # a running container is taken by its own name, with no compose lookup
 function test_container_target_takes_a_running_name_as_is() {
+  local got
   _hi_compose_shim
   : >"$_HI_WORKDIR/compose.log"
-  [ "$(_hi_compose_resolve docker web _HI_CS_RUNNING=web _HI_CS_MATCHES='other-1\n')" = web ] &&
-    [ ! -s "$_HI_WORKDIR/compose.log" ] || _hi_why
+  got="$(_hi_compose_resolve docker web _HI_CS_RUNNING=web _HI_CS_MATCHES='other-1\n')"
+  [ "$got" = web ] && [ ! -s "$_HI_WORKDIR/compose.log" ] || _hi_why got
 }
 
 # a compose service name resolves to the one container carrying its label,
 # for docker and podman alike, and the filter names the label exactly
 function test_container_target_resolves_a_compose_service() {
-  local cli
+  local cli got
   _hi_compose_shim
   for cli in docker podman; do
     : >"$_HI_WORKDIR/compose.log"
-    [ "$(_hi_compose_resolve "$cli" web _HI_CS_MATCHES='proj-web-1\n')" = proj-web-1 ] || _hi_why cli || return 1
+    got="$(_hi_compose_resolve "$cli" web _HI_CS_MATCHES='proj-web-1\n')"
+    [ "$got" = proj-web-1 ] || _hi_why got cli || return 1
     grep -qxF 'ps --filter label=com.docker.compose.service=web --format {{.Names}}' "$_HI_WORKDIR/compose.log" ||
       _hi_because "$cli asked: $(cat "$_HI_WORKDIR/compose.log")"
   done
@@ -344,19 +370,21 @@ function test_container_target_resolves_a_compose_service() {
 # two replicas behind one service is ambiguous, and none is no answer: both
 # decline rather than guess
 function test_container_target_declines_an_ambiguous_or_empty_service() {
+  local got got2
   _hi_compose_shim
-  [ "$(_hi_compose_resolve docker web _HI_CS_MATCHES='proj-web-1\nproj-web-2\n')" = "rc 1" ] &&
-    [ "$(_hi_compose_resolve docker web _HI_CS_MATCHES='')" = "rc 1" ] || _hi_why
+  got="$(_hi_compose_resolve docker web _HI_CS_MATCHES='proj-web-1\nproj-web-2\n')"
+  got2="$(_hi_compose_resolve docker web _HI_CS_MATCHES='')"
+  [ "$got" = "rc 1" ] && [ "$got2" = "rc 1" ] || _hi_why got got2
 }
 
 # the other family members never ask about compose labels, and a CLI that is
 # not installed declines without running anything
 function test_container_target_asks_only_docker_and_podman_about_compose() {
+  local got
   _hi_compose_shim
   : >"$_HI_WORKDIR/compose.log"
-  { [ "$(_hi_compose_resolve nerdctl web _HI_CS_MATCHES='proj-web-1\n')" = "rc 1" ] &&
-    [ ! -s "$_HI_WORKDIR/compose.log" ] &&
-    ! _hi_compose_container hi-no-such-cli web; } || _hi_why
+  got="$(_hi_compose_resolve nerdctl web _HI_CS_MATCHES='proj-web-1\n')"
+  { [ "$got" = "rc 1" ] && [ ! -s "$_HI_WORKDIR/compose.log" ] && ! _hi_compose_container hi-no-such-cli web; } || _hi_why got
 }
 
 function run_hi_helpers_test() {

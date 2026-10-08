@@ -114,9 +114,10 @@ function _hi_host_report_out() {
 }
 
 function test_host_report_names_this_bash_and_kernel() {
-  local out
+  local out got
   out="$(_hi_host_report_out)"
-  [[ "$out" == *"$BASH_VERSION"* ]] && [[ "$out" == *"$(uname -s)"* ]] || _hi_why out BASH_VERSION
+  got="$(uname -s)"
+  [[ "$out" == *"$BASH_VERSION"* ]] && [[ "$out" == *"$got"* ]] || _hi_why got out BASH_VERSION
 }
 
 function test_host_report_carries_the_tree_variables() {
@@ -215,7 +216,9 @@ function test_host_report_marks_absent_tools_absent() {
 }
 
 function test_tool_version_reports_a_number_for_a_real_tool() {
-  [[ "$(_hi_tool_version bash)" =~ ^bash\ [0-9]+\.[0-9]+ ]] || _hi_why
+  local got
+  got="$(_hi_tool_version bash)"
+  [[ "$got" =~ ^bash\ [0-9]+\.[0-9]+ ]] || _hi_why got
 }
 
 function test_tool_version_says_absent_rather_than_failing() {
@@ -231,13 +234,15 @@ function test_probe_cmd_rejects_an_unknown_shape() {
 }
 
 function test_probe_cmd_every_shape_ends_with_the_marker() {
-  local shape
+  local shape got
   for shape in bash fallback fallback_fish ssh_fallback ssh_fallback_fish; do
-    [[ "$(_hi_probe_cmd HI_MARKER_XYZ "$shape")" == *"HI_MARKER_XYZ" ]] || _hi_why shape || return 1
+    got="$(_hi_probe_cmd HI_MARKER_XYZ "$shape")"
+    [[ "$got" == *"HI_MARKER_XYZ" ]] || _hi_why got shape || return 1
   done
   # rooted_elsewhere takes a path; rooted_under is not here because its `case`
   # wraps the marker and ends with `esac`
-  [[ "$(_hi_probe_cmd HI_MARKER_XYZ rooted_elsewhere /tmp/tree)" == *"HI_MARKER_XYZ" ]] || _hi_why
+  got="$(_hi_probe_cmd HI_MARKER_XYZ rooted_elsewhere /tmp/tree)"
+  [[ "$got" == *"HI_MARKER_XYZ" ]] || _hi_why got
 }
 
 function test_poll_bool_returns_one_when_never_true() {
@@ -245,6 +250,7 @@ function test_poll_bool_returns_one_when_never_true() {
 }
 
 function test_poll_bool_succeeds_on_a_later_attempt() {
+  local got
   local counter="$_HI_WORKDIR/poll-count"
   : >"$counter"
   # shellcheck disable=SC2317 # invoked by _hi_poll_bool through "$@"
@@ -252,7 +258,9 @@ function test_poll_bool_succeeds_on_a_later_attempt() {
     printf 'x' >>"$counter"
     [ "$(wc -c <"$counter")" -ge 3 ]
   }
-  _hi_poll_bool 300 0.01 _hi_third_time_lucky && [ "$(wc -c <"$counter")" -eq 3 ] || _hi_why counter
+  _hi_poll_bool 300 0.01 _hi_third_time_lucky || _hi_why counter || return 1
+  got="$(wc -c <"$counter")"
+  [ "$got" -eq 3 ] || _hi_why got counter
 }
 
 function test_poll_bool_passes_arguments_through() {
@@ -260,6 +268,7 @@ function test_poll_bool_passes_arguments_through() {
 }
 
 function test_poll_bool_abort_predicate_stops_early() {
+  local got
   local counter="$_HI_WORKDIR/abort-count"
   : >"$counter"
   # shellcheck disable=SC2317 # invoked by _hi_poll_bool through "$@"
@@ -268,10 +277,12 @@ function test_poll_bool_abort_predicate_stops_early() {
     _hi_why -3 counter || return 1
   }
   ! _hi_poll_bool -a _hi_false 50 0.01 _hi_never_true || _hi_why || return 1
-  [ "$(wc -c <"$counter")" -eq 1 ] || _hi_why counter
+  got="$(wc -c <"$counter")"
+  [ "$got" -eq 1 ] || _hi_why got counter
 }
 
 function test_poll_bool_stops_at_the_wall_clock_budget() {
+  local got
   local counter="$_HI_WORKDIR/slow-count"
   : >"$counter"
   # shellcheck disable=SC2317 # invoked by _hi_poll_bool through "$@"
@@ -281,7 +292,8 @@ function test_poll_bool_stops_at_the_wall_clock_budget() {
     return 1
   }
   ! _hi_poll_bool 100 0.01 _hi_slow_false || _hi_why || return 1
-  [ "$(wc -c <"$counter")" -lt 20 ] || _hi_why counter
+  got="$(wc -c <"$counter")"
+  [ "$got" -lt 20 ] || _hi_why got counter
 }
 
 # $SECONDS is whole seconds and already truncated when it is read, so a naive
@@ -306,6 +318,7 @@ function test_poll_value_fails_when_output_stays_empty() {
 }
 
 function test_poll_value_keeps_polling_past_empty_output() {
+  local got
   local counter="$_HI_WORKDIR/value-count"
   : >"$counter"
   # shellcheck disable=SC2317 # invoked by _hi_poll_value through "$@"
@@ -314,7 +327,8 @@ function test_poll_value_keeps_polling_past_empty_output() {
     [ "$(wc -c <"$counter")" -ge 2 ] && printf 'ready'
     return 0
   }
-  [ "$(_hi_poll_value 300 0.01 _hi_late_value)" = ready ] || _hi_why
+  got="$(_hi_poll_value 300 0.01 _hi_late_value)"
+  [ "$got" = ready ] || _hi_why got
 }
 
 function test_wait_pid_reports_a_clean_exit() {
@@ -361,11 +375,13 @@ function test_wait_pid_skips_the_hook_on_a_clean_exit() {
 # transcript outlives it, a silent one is killed and what it had drawn is
 # shown, and one that never stops meets the cap at five times the deadline
 function test_wait_quiet_outlives_the_deadline_while_writing() {
+  local got
   local out="$_HI_WORKDIR/quiet-writing.out"
   : >"$out"
   bash -c 'for i in 1 2 3 4 5 6; do echo "line $i"; sleep 0.5; done' >"$out" &
   _hi_wait_quiet "$!" 1 "$out" writing >/dev/null
-  [ "$_HI_WAIT_EXIT" -eq 0 ] && [ "$(wc -l <"$out")" -eq 6 ] || _hi_why out _HI_WAIT_EXIT
+  got="$(wc -l <"$out")"
+  [ "$_HI_WAIT_EXIT" -eq 0 ] && [ "$got" -eq 6 ] || _hi_why got out _HI_WAIT_EXIT
 }
 
 function test_wait_quiet_kills_a_silent_child_and_shows_its_last_lines() {
@@ -409,9 +425,11 @@ function test_case_result_keeps_ok_on_an_odd_exit_with_the_marker() {
 }
 
 function test_case_result_says_timed_out_by_name() {
+  local got
   local out="$_HI_WORKDIR/case-result.out"
   printf 'HI_MARK\n' >"$out"
-  [[ "$(_HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK 2>&1 || true)" == *'TIMED OUT'* ]] || _hi_why out
+  got="$(_HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK 2>&1 || true)"
+  [[ "$got" == *'TIMED OUT'* ]] || _hi_why got out
 }
 
 # _hi_retry_run <label> <timeout_s> <shim line>... - one _hi_exec_case run
@@ -448,8 +466,10 @@ function test_exec_case_retries_a_markerless_first_attempt() {
 }
 
 function test_exec_case_exhausts_retries_and_fails() {
+  local got
   _hi_retry_run retryexhaust 10 'echo not-the-marker' 'exit 0'
-  [ "$_HI_RETRY_RC" -eq 1 ] && [ "$(grep -c retrying <<<"$_HI_RETRY_OUT" || true)" -eq 1 ] || _hi_why _HI_RETRY_RC _HI_RETRY_OUT
+  got="$(grep -c retrying <<<"$_HI_RETRY_OUT" || true)"
+  [ "$_HI_RETRY_RC" -eq 1 ] && [ "$got" -eq 1 ] || _hi_why got _HI_RETRY_RC _HI_RETRY_OUT
 }
 
 function test_exec_case_never_retries_a_timeout() {
@@ -462,9 +482,10 @@ function test_exec_case_never_retries_a_timeout() {
 # colored table took seconds. Timed with $SECONDS, so the bound is loose - and
 # loose enough for emulated Git Bash: the quadratic version took minutes.
 function test_strip_ansi_strips_every_form_and_stays_linear() {
-  local s big i out t0
+  local s big i out t0 got
   s="$(printf 'a\033[1;32mb\033[0mc\033]7;file:///x\007d\033]0;t\033\\e')"
-  [ "$(_hi_strip_ansi "$s")" = abcde ] || _hi_why s || return 1
+  got="$(_hi_strip_ansi "$s")"
+  [ "$got" = abcde ] || _hi_why got s || return 1
   big=""
   for ((i = 0; i < 4000; i++)); do big="$big"$'\e[31m'"word$i"$'\e[0m '; done
   t0=$SECONDS
@@ -559,35 +580,36 @@ function test_ssh_reachable_fails_against_a_dead_port() {
 # that names none of that.
 
 function test_real_path_builds_a_usable_toolbox() {
-  local dir
+  local dir got
   dir="$(_hi_real_path caplinked sh awk)"
-  [ -x "$dir/sh" ] && [ -x "$dir/awk" ] &&
-    [ "$(PATH="$dir" sh -c 'echo built')" = built ] || _hi_why dir
+  got="$(PATH="$dir" sh -c 'echo built')"
+  [ -x "$dir/sh" ] && [ -x "$dir/awk" ] && [ "$got" = built ] || _hi_why got dir
 }
 
 # `ln` shadowed by a failing function is Git Bash without Developer Mode, where
 # the real one cannot make a link. The toolbox still has to work.
 function test_real_path_falls_back_to_a_wrapper_when_ln_fails() {
-  local dir
+  local dir got
   dir="$(
     function ln() { return 1; }
     _hi_real_path capfallback sh awk
   )"
-  [ ! -L "$dir/sh" ] && [ -x "$dir/sh" ] && [ -x "$dir/awk" ] &&
-    [ "$(PATH="$dir" sh -c 'echo wrapped')" = wrapped ] || _hi_why dir
+  got="$(PATH="$dir" sh -c 'echo wrapped')"
+  [ ! -L "$dir/sh" ] && [ -x "$dir/sh" ] && [ -x "$dir/awk" ] && [ "$got" = wrapped ] || _hi_why got dir
 }
 
 # and the build-once guard must not hand a later caller the empty directory a
 # failed build would otherwise leave behind
 function test_real_path_never_caches_an_empty_toolbox() {
-  local first second
+  local first second got got2
   first="$(
     function ln() { return 1; }
     _hi_real_path capcached sh
   )"
   second="$(_hi_real_path capcached sh)"
-  [ "$first" = "$second" ] && [ -n "$(ls -A "$second")" ] &&
-    [ "$(PATH="$second" sh -c 'echo cached')" = cached ] || _hi_why first second
+  got="$(ls -A "$second")"
+  got2="$(PATH="$second" sh -c 'echo cached')"
+  [ "$first" = "$second" ] && [ -n "$got" ] && [ "$got2" = cached ] || _hi_why got got2 first second
 }
 
 function test_check_capable_runs_the_predicate_when_able() {

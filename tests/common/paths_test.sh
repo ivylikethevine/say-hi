@@ -141,12 +141,15 @@ function test_paths_sources_cleanly_under_strict_mode() {
 # a client with the header off sends no header.sh, and every shell on that
 # target reads the missing file as the header off, whatever settings.sh says
 function test_no_header_file_turns_the_header_off() {
+  local got
   # shellcheck disable=SC2016 # the child sh expands it
   local home="$_HI_WORKDIR/headerless" script='. "$1"; printf %s "$_HI_DISABLE_HEADER"'
   mkdir -p "$home/say-hi/common"
-  [ "$(_HI_HOME="$home" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")" = 1 ] ||
+  got="$(_HI_HOME="$home" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")"
+  [ "$got" = 1 ] ||
     _hi_because "a tree with no header.sh kept the header on" || return 1
-  [ "$(_HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")" = 0 ] ||
+  got="$(_HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")"
+  [ "$got" = 0 ] ||
     _hi_because "a whole tree turned the header off"
 }
 
@@ -203,18 +206,21 @@ function test_aliases_do_not_source_themselves() {
 }
 
 function test_settings_beat_the_defaults() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_dir)"
   printf 'export _HI_DISABLE_PROMPT=1\n' >"$dir/settings.sh"
-  [ "$(_HI_CONFIG_DIR="$dir" bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_PROMPT"')" = 1 ] || _hi_why dir _HI_DISABLE_PROMPT
+  got="$(_HI_CONFIG_DIR="$dir" bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_PROMPT"')"
+  [ "$got" = 1 ] || _hi_why got dir _HI_DISABLE_PROMPT
 }
 
 # an explicit export from the caller's environment outranks the default too,
 # which is what makes `_HI_DISABLE_PROMPT=1 bash` work as a one-off
 function test_environment_beats_the_defaults() {
-  [ "$(_HI_DISABLE_GIT_STATUS=1 bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_GIT_STATUS"')" = 1 ] || _hi_why _HI_DISABLE_GIT_STATUS
+  local got
+  got="$(_HI_DISABLE_GIT_STATUS=1 bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_GIT_STATUS"')"
+  [ "$got" = 1 ] || _hi_why got _HI_DISABLE_GIT_STATUS
 }
 
 # colors and packages each resolve to $_HI_CONFIG_DIR's copy when the user has
@@ -253,41 +259,48 @@ function _hi_overlay_dir() {
 }
 
 function test_settings_resolve_to_the_overlay() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_dir)"
   printf '#!/bin/sh\n' >"$dir/settings.sh"
-  [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ] || _hi_why dir
+  got="$(_hi_resolved _HI_SETTINGS "$dir")"
+  [ "$got" = "$dir/settings.sh" ] || _hi_why got dir
 }
 
 function test_overlay_colors_win() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_dir)"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
-  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ] || _hi_why dir
+  got="$(_hi_resolved _HI_COLORS "$dir")"
+  [ "$got" = "$dir/colors" ] || _hi_why got dir
 }
 
 # per file, not all-or-nothing: an overlay holding only colors must leave
 # packages tracking the tree, or `hi --update` would stop delivering new
 # defaults for everything the user never overrode
 function test_overlay_falls_back_per_file() {
-  local dir
+  local dir got
   dir="$(_hi_overlay_dir)"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   rm -f "$dir/packages"
-  [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ] || _hi_why dir
+  got="$(_hi_resolved _HI_PACKAGES "$dir")"
+  [ "$got" = "$_HI_ROOT/config/packages" ] || _hi_why got dir
 }
 
 function test_no_overlay_uses_the_tree() {
+  local got got2
   local dir="$_HI_WORKDIR/no-such-overlay"
-  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$_HI_ROOT/config/colors" ] &&
-    [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ] || _hi_why dir
+  got="$(_hi_resolved _HI_COLORS "$dir")"
+  got2="$(_hi_resolved _HI_PACKAGES "$dir")"
+  [ "$got" = "$_HI_ROOT/config/colors" ] && [ "$got2" = "$_HI_ROOT/config/packages" ] || _hi_why got got2 dir
 }
 
 # ...but settings.sh still points into the overlay on a machine that has no
 # overlay yet, unguarded, because that is where install.sh has to write it
 function test_settings_point_at_the_overlay_before_it_exists() {
+  local got
   local dir="$_HI_WORKDIR/no-such-overlay"
-  [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ] || _hi_why dir
+  got="$(_hi_resolved _HI_SETTINGS "$dir")"
+  [ "$got" = "$dir/settings.sh" ] || _hi_why got dir
 }
 
 # The two files with a path variable of their own and a tree default, which
@@ -337,10 +350,11 @@ function test_an_exported_path_does_not_survive() {
 # ...and the same through settings.sh: a line there is read before paths.sh
 # and re-derived over just the same
 function test_a_settings_path_does_not_survive() {
-  local dir
+  local dir got
   dir="$(_hi_full_overlay_dir)"
   printf 'export _HI_COLORS=/dotfiles/hi-colors\n' >"$dir/settings.sh"
-  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ] || _hi_why dir
+  got="$(_hi_resolved _HI_COLORS "$dir")"
+  [ "$got" = "$dir/colors" ] || _hi_why got dir
 }
 
 # with nothing exported, the overlay's copy wins over the tree's, which is the

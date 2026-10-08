@@ -64,7 +64,9 @@ function test_nfpm_staging_sources_all_exist() {
 # rename of dist/staging that updated mkpkg.sh but not nfpm.yaml would leave
 # every assertion above vacuously true.
 function test_nfpm_references_the_staging_root() {
-  [ "$(grep -c 'src: \./dist/staging' "$_HI_NFPM")" -ge 2 ] || _hi_why _HI_NFPM
+  local got
+  got="$(grep -c 'src: \./dist/staging' "$_HI_NFPM")"
+  [ "$got" -ge 2 ] || _hi_why got _HI_NFPM
 }
 
 # the symlink nfpm declares must be the one install_tree makes, target and all
@@ -364,9 +366,11 @@ function _hi_srcinfo_depends() {
 }
 
 function test_srcinfo_depends_match_their_pkgbuild() {
-  local f
+  local f got got2
   for f in "$_HI_PKGBUILD" "$_HI_PKGBUILD_GIT"; do
-    [ "$(_hi_pkgbuild_depends "$f")" = "$(_hi_srcinfo_depends "${f%PKGBUILD}.SRCINFO")" ] || _hi_why f || return 1
+    got="$(_hi_pkgbuild_depends "$f")"
+    got2="$(_hi_srcinfo_depends "${f%PKGBUILD}.SRCINFO")"
+    [ "$got" = "$got2" ] || _hi_why got got2 f || return 1
   done
 }
 

@@ -259,9 +259,11 @@ EOF
 # come from the probe, and a busybox echo with a mind of its own (or a shell
 # that wrote something extra on the way past) is one word or it is nothing
 function test_fallback_shell_answer() {
+  local got
   local -a probe
   probe=("$(_hi_ct_word)" "$1")
-  [ "$(_hi_container_fallback_shell)" = "${2-}" ] || _hi_why
+  got="$(_hi_container_fallback_shell)"
+  [ "$got" = "${2-}" ] || _hi_why got
 }
 
 # ---------------------------------------------------------------------------
@@ -269,13 +271,15 @@ function test_fallback_shell_answer() {
 # ---------------------------------------------------------------------------
 
 function test_put_lands_the_file() {
+  local got
   local dir="$_HI_WORKDIR/put.ok" tmp
   local -a cp=(env) probe=(env)
   mkdir -p "$dir"
   tmp="$dir/err"
   printf 'payload\n' >"$dir/src"
   _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir || return 1
-  [ "$(cat "$dir/dest")" = payload ] || _hi_why dir
+  got="$(cat "$dir/dest")"
+  [ "$got" = payload ] || _hi_why got dir
 }
 
 # the write can succeed at the transport and still deliver nothing - an
@@ -302,6 +306,7 @@ EOF
 # first empty landing - and $src is a regular file precisely so the retry can
 # replay the same bytes
 function test_put_retries_and_succeeds_on_a_later_try() {
+  local got got2
   local dir="$_HI_WORKDIR/put.retry" tmp
   local -a cp probe=(env)
   mkdir -p "$dir"
@@ -323,7 +328,9 @@ EOF
   chmod +x "$dir/flaky"
   cp=(env "FLAKY_COUNT=$dir/count" "$dir/flaky")
   _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir || return 1
-  [ "$(cat "$dir/dest")" = payload ] && [ "$(cat "$dir/count")" = 2 ] || _hi_why dir
+  got="$(cat "$dir/dest")"
+  got2="$(cat "$dir/count")"
+  [ "$got" = payload ] && [ "$got2" = 2 ] || _hi_why got got2 dir
 }
 
 # ---------------------------------------------------------------------------

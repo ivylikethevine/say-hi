@@ -57,20 +57,24 @@ function _hi_rc_in() { _hi_rc_probe silent "$@"; }
 _HI_RC_ALL='rc_shell_present() { return 0; }'
 
 function test_config_shell_fresh_write() {
+  local got
   local home="$_HI_WORKDIR/fresh"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' '' 'source b' || _hi_why home || return 1
   grep -qF 'export A=1' "$home/.bashrc" || _hi_why home || return 1
   grep -qF 'source b' "$home/.bashrc" || _hi_why home || return 1
   # two lines tagged; the empty argument contributed nothing
-  [ "$(grep -cF "$_HI_MARKER" "$home/.bashrc")" = 2 ] || _hi_why home _HI_MARKER
+  got="$(grep -cF "$_HI_MARKER" "$home/.bashrc")"
+  [ "$got" = 2 ] || _hi_why got home _HI_MARKER
 }
 
 function test_config_shell_is_idempotent() {
+  local got
   local home="$_HI_WORKDIR/idem" before
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
   before="$(cat "$home/.bashrc")"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
-  [ "$(cat "$home/.bashrc")" = "$before" ] || _hi_why home before
+  got="$(cat "$home/.bashrc")"
+  [ "$got" = "$before" ] || _hi_why got home before
 }
 
 function test_config_shell_repairs_stale_lines() {
@@ -93,13 +97,16 @@ function test_config_shell_preserves_foreign_lines() {
 # the backup is one-time and pre-hi: taken on the first write to a non-empty
 # file, never overwritten by later rewrites
 function test_config_shell_one_time_backup() {
+  local got
   local home="$_HI_WORKDIR/backup"
   mkdir -p "$home"
   printf 'echo original\n' >"$home/.bashrc"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
-  [ "$(cat "$home/.bashrc.hi-orig")" = "echo original" ] || _hi_why home || return 1
+  got="$(cat "$home/.bashrc.hi-orig")"
+  [ "$got" = "echo original" ] || _hi_why got home || return 1
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export B=2' || _hi_why home || return 1
-  [ "$(cat "$home/.bashrc.hi-orig")" = "echo original" ] || _hi_why home
+  got="$(cat "$home/.bashrc.hi-orig")"
+  [ "$got" = "echo original" ] || _hi_why got home
 }
 
 function test_config_shell_no_backup_of_an_empty_file() {
@@ -112,21 +119,25 @@ function test_config_shell_no_backup_of_an_empty_file() {
 
 # the block goes at the end, after whatever the file already had
 function test_config_shell_appends_at_the_end() {
+  local got
   local home="$_HI_WORKDIR/appends"
   mkdir -p "$home"
   printf 'first line\n' >"$home/.bashrc"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
-  [[ "$(tail -1 "$home/.bashrc")" == *'export A=1'* ]] || _hi_why home
+  got="$(tail -1 "$home/.bashrc")"
+  [[ "$got" == *'export A=1'* ]] || _hi_why got home
 }
 
 function test_config_shell_preserves_the_mode() {
+  local got
   local home="$_HI_WORKDIR/mode" before
   mkdir -p "$home"
   printf 'content\n' >"$home/.bashrc"
   chmod 640 "$home/.bashrc"
   before="$(_hi_mode_string "$home/.bashrc")"
   _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
-  [ "$(_hi_mode_string "$home/.bashrc")" = "$before" ] || _hi_why home before
+  got="$(_hi_mode_string "$home/.bashrc")"
+  [ "$got" = "$before" ] || _hi_why got home before
 }
 
 # a dotfile manager's hardlinked ~/.bashrc must not be severed by a mv
@@ -158,11 +169,13 @@ function test_strip_marker_missing_file_is_fine() {
 # each dialect, and a tree at $HOME still states itself: nothing defaults to
 # $HOME (GLOSSARY: HI.33)
 function test_tmpdir_line_dialects() {
+  local got
   local home="$_HI_WORKDIR/tmpdirline"
-  [ "$(_hi_rc_out "$home" -- eval 'tmpdir_line fish /custom; echo; tmpdir_line sh /custom; echo
-    _HI_HOME="$HOME" tmpdir_line sh')" = "set -gx _HI_HOME \"/custom\"
+  got="$(_hi_rc_out "$home" -- eval 'tmpdir_line fish /custom; echo; tmpdir_line sh /custom; echo
+    _HI_HOME="$HOME" tmpdir_line sh')"
+  [ "$got" = "set -gx _HI_HOME \"/custom\"
 export _HI_HOME=\"/custom\"
-export _HI_HOME=\"$home\"" ] || _hi_why home
+export _HI_HOME=\"$home\"" ] || _hi_why got home
 }
 
 # the roster loop: every local shell's rc gets its marker block, in its own
@@ -198,6 +211,7 @@ function test_install_bash_line_leaves_the_rest_of_bashrc() {
 }
 
 function test_strip_rc_lines_restores_the_originals() {
+  local got got2 got3
   local home="$_HI_WORKDIR/inverse"
   mkdir -p "$home/.config/fish"
   printf 'echo bash-mine\n' >"$home/.bashrc"
@@ -205,9 +219,10 @@ function test_strip_rc_lines_restores_the_originals() {
   printf 'echo fish-mine\n' >"$home/.config/fish/config.fish"
   _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
   _hi_rc_in "$home" -- strip_rc_lines || _hi_why home || return 1
-  [ "$(cat "$home/.bashrc")" = "echo bash-mine" ] &&
-    [ "$(cat "$home/.zshrc")" = "echo zsh-mine" ] &&
-    [ "$(cat "$home/.config/fish/config.fish")" = "echo fish-mine" ] || _hi_why home
+  got="$(cat "$home/.bashrc")"
+  got2="$(cat "$home/.zshrc")"
+  got3="$(cat "$home/.config/fish/config.fish")"
+  [ "$got" = "echo bash-mine" ] && [ "$got2" = "echo zsh-mine" ] && [ "$got3" = "echo fish-mine" ] || _hi_why got got2 got3 home
 }
 
 # a shell that is not here gets no rc file invented for it
@@ -257,9 +272,11 @@ function test_rc_lines_survive_a_missing_tree() {
 # neither, and names it through the $_HI_HOME that found
 function test_rc_lines_portable_spells_home() {
   local home="$_HI_WORKDIR/portable"
-  [ "$(_hi_rc_out "$home" -- eval '_HI_HOME="$HOME/opt"
-    rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')" = 'for _hi_d in "$HOME/opt" "$HOME" /usr/local/share /usr/share /opt/homebrew/opt/say-hi/libexec /usr/local/opt/say-hi/libexec /home/linuxbrew/.linuxbrew/opt/say-hi/libexec; do [ -r "$_hi_d/say-hi/common/bash.sh" ] && export _HI_HOME="$_hi_d" && break; done; unset _hi_d
-[[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' ] || _hi_why home
+  local got
+  got="$(_hi_rc_out "$home" -- eval '_HI_HOME="$HOME/opt"
+    rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')"
+  [ "$got" = 'for _hi_d in "$HOME/opt" "$HOME" /usr/local/share /usr/share /opt/homebrew/opt/say-hi/libexec /usr/local/opt/say-hi/libexec /home/linuxbrew/.linuxbrew/opt/say-hi/libexec; do [ -r "$_hi_d/say-hi/common/bash.sh" ] && export _HI_HOME="$_hi_d" && break; done; unset _hi_d
+[[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' ] || _hi_why got home
 }
 
 # ...the same lines from a clone in $HOME, from a package, and from Homebrew
@@ -424,11 +441,12 @@ function test_config_shell_dry_run_writes_nothing() {
 # chain too, one that already reads .bashrc is left alone, and ~/.bash_login
 # (which wins over both) is only pointed at
 function test_darwin_bash_profile_sources_bashrc() {
+  local got
   local home="$_HI_WORKDIR/darwin-fresh"
   _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
-  grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" &&
-    grep -qF '. "$HOME/.profile"' "$home/.bash_profile" &&
-    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 2 ] || _hi_why home _HI_MARKER || return 1
+  { grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" && grep -qF '. "$HOME/.profile"' "$home/.bash_profile"; } || _hi_why home _HI_MARKER || return 1
+  got="$(grep -c "$_HI_MARKER" "$home/.bash_profile")"
+  [ "$got" -eq 2 ] || _hi_why got home _HI_MARKER || return 1
   # ...and uninstall takes the file with it: hi created it, and an empty
   # .bash_profile would still keep a login bash from reading ~/.profile
   _hi_rc_in "$home" _HI_UNAME=Darwin -- strip_rc_lines || _hi_why home || return 1
@@ -438,12 +456,14 @@ function test_darwin_bash_profile_sources_bashrc() {
 # a file hi wrote into, not created, keeps existing after the strip even
 # when the strip leaves it empty: the backup is the sign it was theirs
 function test_strip_keeps_a_file_that_was_not_his() {
+  local got
   local home="$_HI_WORKDIR/theirs"
   mkdir -p "$home"
   printf '# mine\n' >"$home/.bashrc"
   _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
   _hi_rc_in "$home" -- strip_rc_lines || _hi_why home || return 1
-  [ -f "$home/.bashrc" ] && [ "$(cat "$home/.bashrc")" = "# mine" ] || _hi_why home
+  got="$(cat "$home/.bashrc")"
+  [ -f "$home/.bashrc" ] && [ "$got" = "# mine" ] || _hi_why got home
 }
 
 # uninstall settles each .hi-orig: an rc that matches it again (a missing
@@ -466,24 +486,27 @@ function test_strip_prunes_the_backups() {
 }
 
 function test_darwin_bash_profile_that_reads_bashrc_is_left_alone() {
+  local got
   local home="$_HI_WORKDIR/darwin-has"
   mkdir -p "$home"
   printf 'source ~/.bashrc\n' >"$home/.bash_profile"
   _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
-  [ "$(cat "$home/.bash_profile")" = 'source ~/.bashrc' ] || _hi_why home
+  got="$(cat "$home/.bash_profile")"
+  [ "$got" = 'source ~/.bashrc' ] || _hi_why got home
 }
 
 # one that does not gets the .bashrc line under its own content - and only
 # that line: the file already exists, so ~/.profile is not hi's to chain in
 function test_darwin_bash_profile_without_bashrc_gets_the_line() {
+  local got got2
   local home="$_HI_WORKDIR/darwin-lacks"
   mkdir -p "$home"
   printf 'export FOO=1\n' >"$home/.bash_profile"
   _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
-  [ "$(head -1 "$home/.bash_profile")" = 'export FOO=1' ] &&
-    grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" &&
-    ! grep -qF '. "$HOME/.profile"' "$home/.bash_profile" &&
-    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 1 ] || _hi_why home _HI_MARKER
+  got="$(head -1 "$home/.bash_profile")"
+  { [ "$got" = 'export FOO=1' ] && grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" && ! grep -qF '. "$HOME/.profile"' "$home/.bash_profile"; } || _hi_why got home _HI_MARKER || return 1
+  got2="$(grep -c "$_HI_MARKER" "$home/.bash_profile")"
+  [ "$got2" -eq 1 ] || _hi_why got2 home _HI_MARKER
 }
 
 function test_darwin_bash_login_is_only_pointed_at() {

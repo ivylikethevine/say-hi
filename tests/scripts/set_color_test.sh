@@ -300,14 +300,14 @@ function test_unset_color_without_a_pin_is_a_no_op() {
 # copies the tree's pins in -------------------------------------------------
 
 function test_set_color_first_call_copies_the_tree_in() {
-  local home cfg n
+  local home cfg n got
   home="$(_hi_setcolor_fixture setcolor-seed)"
   cfg="$_HI_WORKDIR/setcolor-seed-cfg"
   _hi_setcolor_run "$home" "$cfg" hostname box cyan >/dev/null || _hi_why home cfg || return 1
   n="$(_hi_setcolor_tree_lines "$home")"
   # the tree's lines plus the one pin, which taken out again leaves the tree
-  { [ "$(wc -l <"$cfg/colors")" -eq "$((n + 1))" ] &&
-    grep -vxF 'box = "cyan"' "$cfg/colors" | cmp -s - "$home/say-hi/config/colors"; } || _hi_why cfg home
+  got="$(wc -l <"$cfg/colors")"
+  { [ "$got" -eq "$((n + 1))" ] && grep -vxF 'box = "cyan"' "$cfg/colors" | cmp -s - "$home/say-hi/config/colors"; } || _hi_why got cfg home
 }
 
 # a second call does not re-copy or clobber what the first one wrote
@@ -324,13 +324,14 @@ function test_set_color_second_call_does_not_recopy() {
 # unsetting a shipped pin reads through the cascade and copies the tree in
 # without it
 function test_unset_color_copies_the_tree_in_without_the_pin() {
-  local home cfg n
+  local home cfg n got
   home="$(_hi_setcolor_fixture unsetcolor-seed)"
   cfg="$_HI_WORKDIR/unsetcolor-seed-cfg"
   grep -q '^root ' "$home/say-hi/config/colors" || _hi_why home || return 1
   _hi_unsetcolor_run "$home" "$cfg" username root >/dev/null || _hi_why home cfg || return 1
   n="$(_hi_setcolor_tree_lines "$home")"
-  { [ "$(wc -l <"$cfg/colors")" -eq "$((n - 1))" ] && ! grep -q '^root ' "$cfg/colors"; } || _hi_why cfg
+  got="$(wc -l <"$cfg/colors")"
+  { [ "$got" -eq "$((n - 1))" ] && ! grep -q '^root ' "$cfg/colors"; } || _hi_why got cfg
 }
 
 # --dry-run reads through the cascade too: an unset of a name the tree does

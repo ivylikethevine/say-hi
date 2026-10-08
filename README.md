@@ -440,38 +440,22 @@ when it lands.
        real `brew install`. **Ticks when:** one rc loads hi on a machine with a
        clone and on one with the formula, across a `brew upgrade`.
 
-9. [ ] _Before 1.0:_ **A read-only tree stages under busybox's tar** —
-       shipped: the packer fills its staging copy with `cp -R -L`, which sets a
-       directory's mode last, so a tree or an overlay with read-only
-       directories (the nix store's) packs on a client whose `tar` is
-       busybox. What is left is seeing it in CI. **Ticks when:** `hi_payload`'s
-       read-only case passes on the Alpine client.
+9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
 
-10. [ ] _Before 1.0:_ **A failed comparison shows what it got** — `_hi_why`
-        prints the statement and its variables, so an assertion on a command
-        substitution (`[ "$(cmd)" = want ]`, some three hundred of them)
-        names itself and not the value that was wrong; only the traced rerun
-        shows it, which a flake's first failure does not have. **Do:** capture
-        each into a variable ahead of its assertion, so the reason prints it.
-        **Ticks when:** no registered case compares a command substitution
-        inside the assertion that reports it.
-
-11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-        versions_ prose into its version table.
-
-12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

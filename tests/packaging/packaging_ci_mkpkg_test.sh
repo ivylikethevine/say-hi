@@ -51,14 +51,16 @@ function test_pages_workflow_serves_the_package_repository() {
 # head_branch is main, none a tag). So a release has to ask for its own
 # redeploy instead, and Release must not claim a trigger that cannot fire.
 function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
+  local got
   [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_DEMOS_WF" ] || return 0
   local refresh
   refresh="$(_hi_wf_job "$_HI_DEMOS_WF" refresh-pages)"
-  ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
+  { ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
     [[ "$refresh" == *'gh_dispatch.sh pages.yml main'* ]] &&
-    [[ "$refresh" == *'needs: [collect, attach]'* ]] &&
-    [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" != *'gh_dispatch.sh pages.yml'* ]] || _hi_why refresh _HI_PAGES_WF _HI_RELEASE_WF
+    [[ "$refresh" == *'needs: [collect, attach]'* ]]; } || _hi_why refresh _HI_PAGES_WF _HI_RELEASE_WF || return 1
+  got="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  [[ "$got" != *'gh_dispatch.sh pages.yml'* ]] || _hi_why got refresh _HI_PAGES_WF _HI_RELEASE_WF
 }
 
 # coverage.yml is chained off CI and is the last producer to finish, so it is
@@ -76,8 +78,10 @@ function test_pages_deploys_once_after_coverage() {
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
+  local got
   [ -f "$_HI_CI_WF" ] || return 0
-  [[ "$(_hi_wf_job "$_HI_CI_WF" packaging-smoke)" == *'packaging/mkrepo.sh'* ]] || _hi_why _HI_CI_WF
+  got="$(_hi_wf_job "$_HI_CI_WF" packaging-smoke)"
+  [[ "$got" == *'packaging/mkrepo.sh'* ]] || _hi_why got _HI_CI_WF
 }
 
 # mkrepo.sh answers --help before it asks for docker, so the flags the
@@ -91,7 +95,9 @@ function test_mkrepo_documents_the_flags_the_workflows_pass() {
 # the version of record has to exist where mkpkg.sh reads it back from;
 # the actual plumbing is covered by test_package_sh_version_flag_wins
 function test_package_sh_reads_the_version_from_the_pkgbuild() {
-  [ -n "$(_hi_in_pkglib pkgbuild_version)" ] || _hi_why
+  local got
+  got="$(_hi_in_pkglib pkgbuild_version)"
+  [ -n "$got" ] || _hi_why got
 }
 
 function test_bump_check_rejects_a_version_the_manifests_do_not_carry() {
@@ -355,9 +361,11 @@ function test_bump_requires_a_version() {
 
 # a wrong tool or wrong output field shows up as a wrong constant
 function test_bump_sha256_matches_a_known_vector() {
+  local got
   local f="$_HI_WORKDIR/vector"
   printf 'hello\n' >"$f"
-  [ "$(sha256_of "$f")" = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03" ] || _hi_why f
+  got="$(sha256_of "$f")"
+  [ "$got" = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03" ] || _hi_why got f
 }
 
 # the two b2 implementations (coreutils b2sum, openssl fallback) must agree,
@@ -365,9 +373,12 @@ function test_bump_sha256_matches_a_known_vector() {
 # the registration; openssl is bump.sh's optional mac fallback only - hi
 # itself needs it nowhere, since the wire armor is base64.
 function test_bump_b2_fallback_agrees_with_b2sum() {
+  local got got2
   local f="$_HI_WORKDIR/vector2"
   printf 'hello\n' >"$f"
-  [ "$(b2_of "$f")" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ] || _hi_why f NF
+  got="$(b2_of "$f")"
+  got2="$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')"
+  [ "$got" = "$got2" ] || _hi_why got got2 f NF
 }
 
 # a value flag typed with its value left off must refuse loudly - the
@@ -427,10 +438,12 @@ function test_staged_launcher_shims_a_misnamed_checkout() {
 }
 
 function test_release_workflow_uploads_sha256sums() {
+  local got
   # mkpkg.sh writes it (the artifact list's single home); the workflow only
   # has to carry it as an artifact and attach it to the release
-  grep -q 'SHA256SUMS' "$_HI_PKG_DIR/mkpkg.sh" &&
-    [ "$(grep -c 'SHA256SUMS' "$_HI_RELEASE_WF")" -ge 2 ] || _hi_why _HI_PKG_DIR _HI_RELEASE_WF
+  grep -q 'SHA256SUMS' "$_HI_PKG_DIR/mkpkg.sh" || _hi_why _HI_PKG_DIR _HI_RELEASE_WF || return 1
+  got="$(grep -c 'SHA256SUMS' "$_HI_RELEASE_WF")"
+  [ "$got" -ge 2 ] || _hi_why got _HI_PKG_DIR _HI_RELEASE_WF
 }
 
 function test_mkpkg_help_names_its_flags() {
@@ -482,6 +495,7 @@ function test_mkpkg_without_git_history_stamps_now_and_warns() {
 # zero-byte artifact (its own case above), so an empty stand-in would fail
 # this case for that reason instead of the one it is about.
 function test_mkpkg_builds_every_packager_and_ships_the_tarball() {
+  local got got2
   local bin="$_HI_WORKDIR/fakenfpm" dist="$_HI_WORKDIR/fakenfpm-dist" out
   mkdir -p "$bin"
   printf 'tarball\n' >"$_HI_WORKDIR/say-hi-9.9.9.tar.gz"
@@ -501,10 +515,12 @@ EOF
     _hi_dump_log "mkpkg.sh with a stand-in nfpm" "$dist.log"
     return 1
   }
+  got="$(cat "$dist.calls")"
+  got2="$(printf '%s 9.9.9\n' deb rpm apk)"
   { [[ "$out" == *"Packaged!"* ]] &&
-    [ "$(cat "$dist.calls")" = "$(printf '%s 9.9.9\n' deb rpm apk)" ] &&
+    [ "$got" = "$got2" ] &&
     diff <(sort "$dist/ARTIFACTS") \
-      <(printf '%s\n' say-hi-9.9.9.apk say-hi-9.9.9.deb say-hi-9.9.9.rpm say-hi-9.9.9.tar.gz SHA256SUMS | sort); } || _hi_why out dist
+      <(printf '%s\n' say-hi-9.9.9.apk say-hi-9.9.9.deb say-hi-9.9.9.rpm say-hi-9.9.9.tar.gz SHA256SUMS | sort); } || _hi_why got got2 out dist
 }
 
 # _hi_mkrepo_docker - a PATH whose `docker` answers `info` and, on `run`,

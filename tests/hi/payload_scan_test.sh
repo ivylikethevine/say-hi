@@ -109,12 +109,14 @@ vim.opt.tabstop = 2' ] || {
 # configs above do, from where its row's home column finds it: there is one
 # copy to edit and no duplicate in the overlay to keep in step
 function test_the_editor_config_in_force_here_rides_the_stream() {
+  local got got2
   local dir="$_HI_WORKDIR/lint-in-force" home="$_HI_WORKDIR/in-force-home" p
   mkdir -p "$dir" "$home"
   printf 'set number\n' >"$home/.vimrc"
   p="$(_hi_fake_path in-force-bins vim):$PATH"
-  [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_files vim/vimrc)" = vim/vimrc ] &&
-    [ "$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_tar vim/vimrc | _hi_tar_cat vim/vimrc)" = "set number" ] || _hi_why home p dir
+  got="$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_files vim/vimrc)"
+  got2="$(HOME="$home" PATH="$p" _HI_CONFIG_DIR="$dir" _hi_overlay_tar vim/vimrc | _hi_tar_cat vim/vimrc)"
+  [ "$got" = vim/vimrc ] && [ "$got2" = "set number" ] || _hi_why got got2 home p dir
 }
 
 # ...in the tool's own order of precedence, each place answering once the
@@ -233,13 +235,14 @@ set tabsize 4' ] || {
 # a config with nothing to resolve is silent - the scan is a report of danglers,
 # not an inventory of every include
 function test_the_scan_is_silent_on_a_clean_config() {
-  local dir
+  local dir got
   dir="$_HI_WORKDIR/lint-clean"
   mkdir -p "$dir"
   mkdir -p "$dir/vim" "$dir/emacs"
   printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vim/vimrc"
   printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/emacs/init.el"
-  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_include_lint)" ] || _hi_why dir
+  got="$(_HI_CONFIG_DIR="$dir" _hi_include_lint)"
+  [ -z "$got" ] || _hi_why got dir
 }
 
 # the dialect comes from the member, not the path: doctor reads ~/.vimrc under
@@ -425,16 +428,19 @@ function _hi_carry_home() {
 # member, its path held for the target's overlay directory, and the file's
 # own includes the same; one naming nothing there is dropped as ever
 function test_an_include_under_the_tools_directory_rides() {
-  local h d
+  local h d got
   h="$(_hi_carry_home rides)"
   d="$(mktemp -d "$_HI_WORKDIR/carry-unpacked.XXXXXX")" || _hi_why || return 1
   HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" _hi_overlay_tar tmux/tmux.conf |
     tar -x -z -f - -C "$d" || _hi_why h d || return 1
-  [ "$(cat "$d/tmux/tmux.conf")" = "set -g mouse on
-source-file $_HI_CARRY_TOKEN/tmux/theme.conf" ] || _hi_because "tmux.conf: [$(cat "$d/tmux/tmux.conf")]" || return 1
-  [ "$(cat "$d/tmux/theme.conf")" = "set -g @theme HI
-source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.conf: [$(cat "$d/tmux/theme.conf")]" || return 1
-  [ "$(cat "$d/tmux/parts/bar.conf")" = 'set -g @bar HI' ] || _hi_why d
+  got="$(cat "$d/tmux/tmux.conf")"
+  [ "$got" = "set -g mouse on
+source-file $_HI_CARRY_TOKEN/tmux/theme.conf" ] || _hi_because "tmux.conf: [$got]" || return 1
+  got="$(cat "$d/tmux/theme.conf")"
+  [ "$got" = "set -g @theme HI
+source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.conf: [$got]" || return 1
+  got="$(cat "$d/tmux/parts/bar.conf")"
+  [ "$got" = 'set -g @bar HI' ] || _hi_why got d
 }
 
 # a line under hi-carry rides the files under $HOME it names, as written and
@@ -442,6 +448,7 @@ source-file \"$_HI_CARRY_TOKEN/tmux/parts/bar.conf\"" ] || _hi_because "theme.co
 # the path held for the target's overlay directory; a path outside $HOME is
 # the target's own, and one that is no file is the scan's to name
 function test_a_marked_line_rides_the_files_it_names() {
+  local got got2
   local h="$_HI_WORKDIR/marked" d out
   mkdir -p "$h/.config/fd" "$h/.local/share" "$h/overlay/tmux"
   printf '# mine\n*.log\n' >"$h/.config/fd/ignore"
@@ -455,24 +462,32 @@ function test_a_marked_line_rides_the_files_it_names() {
   [ "$out" = 'tmux/tmux.conf|5|carry|~/gone.txt is no file here' ] || _hi_because "the scan reported: [$out]" || return 1
   d="$(mktemp -d "$_HI_WORKDIR/marked-unpacked.XXXXXX")" || _hi_why || return 1
   env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_tar ripgreprc tmux/tmux.conf' | tar -x -z -f - -C "$d" || _hi_why d || return 1
-  [ "$(cat "$d/ripgreprc")" = "--smart-case
---ignore-file=$_HI_CARRY_TOKEN/ripgreprc.carried/ignore" ] || _hi_because "ripgreprc: [$(cat "$d/ripgreprc")]" || return 1
-  [ "$(cat "$d/ripgreprc.carried/ignore")" = "$(cat "$h/.config/fd/ignore")" ] || _hi_because "the ignore file did not ride as written" || return 1
-  [ "$(cat "$d/tmux/tmux.conf")" = "set -g mouse on
+  got="$(cat "$d/ripgreprc")"
+  [ "$got" = "--smart-case
+--ignore-file=$_HI_CARRY_TOKEN/ripgreprc.carried/ignore" ] || _hi_because "ripgreprc: [$got]" || return 1
+  got="$(cat "$d/ripgreprc.carried/ignore")"
+  got2="$(cat "$h/.config/fd/ignore")"
+  [ "$got" = "$got2" ] || _hi_because "the ignore file did not ride as written" || return 1
+  got="$(cat "$d/tmux/tmux.conf")"
+  [ "$got" = "set -g mouse on
 bind ? display-popup \"/usr/bin/less $_HI_CARRY_TOKEN/tmux/carried/keys.txt\"
-bind g display-popup \"less ~/gone.txt\"" ] || _hi_because "tmux.conf: [$(cat "$d/tmux/tmux.conf")]" || return 1
-  [ "$(cat "$d/tmux/carried/keys.txt")" = "$(cat "$h/.local/share/keys.txt")" ] || _hi_because "the sheet did not ride as written"
+bind g display-popup \"less ~/gone.txt\"" ] || _hi_because "tmux.conf: [$got]" || return 1
+  got="$(cat "$d/tmux/carried/keys.txt")"
+  got2="$(cat "$h/.local/share/keys.txt")"
+  [ "$got" = "$got2" ] || _hi_because "the sheet did not ride as written"
 }
 
 # the target's half: a real sh makes every held path the directory the
 # overlay landed in
 function test_a_carried_path_lands_on_the_target() {
+  local got
   local d="$_HI_WORKDIR/carry-fixup/config"
   mkdir -p "$d/tmux"
   printf 'source-file %s/tmux/theme.conf\nset -g mouse on\n' "$_HI_CARRY_TOKEN" >"$d/tmux/tmux.conf"
   sh -c "$(_hi_overlay_fixup "'$d'")" || _hi_why || return 1
-  [ "$(cat "$d/tmux/tmux.conf")" = "source-file $d/tmux/theme.conf
-set -g mouse on" ] || _hi_because "after the fixup: [$(cat "$d/tmux/tmux.conf")]"
+  got="$(cat "$d/tmux/tmux.conf")"
+  [ "$got" = "source-file $d/tmux/theme.conf
+set -g mouse on" ] || _hi_because "after the fixup: [$got]"
 }
 
 # hi --doctor names what is dropped and nothing the packer carries
@@ -486,6 +501,7 @@ function test_a_carried_include_is_no_finding() {
 # the overlay cache keeps the carried files' list beside it, so an edit to
 # one alone rebuilds it
 function test_an_edit_to_a_carried_file_rebuilds_the_cache() {
+  local got
   local h c1="" c2=""
   h="$(_hi_carry_home cache)"
   mkdir -p "$h/run"
@@ -497,7 +513,8 @@ function test_an_edit_to_a_carried_file_rebuilds_the_cache() {
   touch -t 203001010000 "$h/.config/tmux/parts/bar.conf"
   HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" XDG_RUNTIME_DIR="$h/run" \
     _hi_overlay_cached c2 tmux/tmux.conf || _hi_why h || return 1
-  [ "$(_hi_tar_cat tmux/parts/bar.conf <"$c2")" = 'set -g @bar EDITED' ] || _hi_because "the cache kept the old carried file"
+  got="$(_hi_tar_cat tmux/parts/bar.conf <"$c2")"
+  [ "$got" = 'set -g @bar EDITED' ] || _hi_because "the cache kept the old carried file"
 }
 
 # the prompt frameworks' files and the extensions are shell like the
@@ -752,7 +769,7 @@ emacs/init.el|2' ] || {
 # include goes out disabled and is reported; with no dialect the same file
 # rides as written
 function test_a_users_row_is_read_in_its_dialect() {
-  local dir bare out
+  local dir bare out got
   dir="$(_hi_lint_fixture user-dialect mine.rc '# about it
 . ~/.mine-extra
 set_it=1
@@ -765,7 +782,8 @@ set_it=1
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat mine.rc)"
   [ "$out" = ':
 set_it=1' ] || _hi_because "arrived as: [$out]" || return 1
-  [ -z "$(_HI_CONFIG_DIR="$bare" _hi_include_lint)" ] || _hi_because "reported with no dialect" || return 1
+  got="$(_HI_CONFIG_DIR="$bare" _hi_include_lint)"
+  [ -z "$got" ] || _hi_because "reported with no dialect" || return 1
   out="$(_HI_CONFIG_DIR="$bare" _hi_overlay_tar | _hi_tar_cat mine.rc)"
   [ "$out" = '# about it
 . ~/.mine-extra
@@ -818,6 +836,7 @@ function _hi_real_nvim() {
 # ...and a real neovim, started on the init.lua as a target has it, loads
 # each from the overlay
 function test_neovim_loads_the_modules_that_rode() {
+  local got2
   local dir got="$_HI_WORKDIR/nvim-got" out nvim
   _hi_real_nvim nvim
   dir="$(_hi_lint_fixture nvimrun nvim/init.lua 'require("one")
@@ -832,7 +851,8 @@ require("two.deep")
     XDG_CACHE_HOME="$got/cache" "$nvim" --headless -u "$got/nvim/init.lua" \
     -c 'lua vim.fn.writefile({ tostring(vim.g.hi_one) .. tostring(vim.g.hi_two) }, vim.env.HI_TEST_OUT)' -c 'qa!' 2>&1 </dev/null)" ||
     _hi_because "nvim failed: $out" || return 1
-  [ "$(cat "$got/loaded" 2>/dev/null)" = 12 ] || _hi_because "nvim said [$out] and loaded [$(cat "$got/loaded" 2>&1)]"
+  got2="$(cat "$got/loaded" 2>/dev/null)"
+  [ "$got2" = 12 ] || _hi_because "nvim said [$out] and loaded [$(cat "$got/loaded" 2>&1)]"
 }
 
 # an init.vim rides as a member of its own, read as vim script

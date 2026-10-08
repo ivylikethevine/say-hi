@@ -77,7 +77,10 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   run only once the assertion has failed. Every failing arm of a case ends
   in one of the two, and the lint group's `drift` suite reads each `test_*`
   function for one that does not: a `return 1` with nothing printed in or
-  just above it, or a bare assertion as the last statement.
+  just above it, or a bare assertion as the last statement. It fails an
+  assertion that compares a command substitution too (`[ "$(cmd)" = want ]`):
+  `_hi_why` prints the statement and its variables, so the value goes into
+  one first (`got="$(cmd)"`), and the reason has it.
 - An end-to-end case that fails prints the end of its session's transcript
   and, where it is about sessions or trees, what the target held:
   its trees and their claims, its multiplexers' sessions, its processes

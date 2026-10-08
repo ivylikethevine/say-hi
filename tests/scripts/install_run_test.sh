@@ -61,8 +61,10 @@ function test_two_modes_are_refused() {
 }
 
 function test_usage_names_what_was_typed() {
-  [[ "$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: hi --install "* ]] &&
-    [[ "$(bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: install.sh "* ]] || _hi_why
+  local got got2
+  got="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --help | head -1)"
+  got2="$(bash "$_HI_ROOT/scripts/install.sh" --help | head -1)"
+  [[ "$got" == "Usage: hi --install "* ]] && [[ "$got2" == "Usage: install.sh "* ]] || _hi_why got got2
 }
 
 function test_prefix_flag_requires_a_path() {
@@ -94,10 +96,14 @@ function test_preset_flag_requires_a_name() {
 # one red line naming --help, no usage dump: the shape every command's
 # refusal has
 function test_an_unknown_argument_gets_the_usage() {
+  local got
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --bogus 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus (install.sh --help lists them)"* ]] &&
-    [[ "$out" != *"Usage:"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ] || _hi_why rc out
+  got="$(printf '%s\n' "$out" | wc -l)"
+  [ "$rc" -eq 1 ] &&
+    [[ "$out" == *"unknown option --bogus (install.sh --help lists them)"* ]] &&
+    [[ "$out" != *"Usage:"* ]] &&
+    [ "$got" -eq 1 ] || _hi_why got rc out
 }
 
 # --configure is the script-side spelling too, and names itself in its usage
@@ -164,15 +170,19 @@ function test_uninstall_purge_says_when_it_cannot_remove() {
 # an rc hi cannot write is refused by name, with the lines to add by hand and
 # no backup left beside it - never "updated"
 function test_config_shell_refuses_a_read_only_rc() {
+  local got
   local dir="$_HI_WORKDIR/rc-locked" out rc=0
   mkdir -p "$dir"
   printf 'echo mine\n' >"$dir/.bashrc"
   chmod 444 "$dir/.bashrc"
   out="$(config_shell bashrc "$dir/.bashrc" "source hi" 2>&1)" || rc=$?
   chmod 644 "$dir/.bashrc"
-  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $dir/.bashrc"* && "$out" == *"source hi"* ]] &&
-    [[ "$out" != *"updated"* ]] && [ ! -e "$dir/.bashrc.hi-orig" ] &&
-    [ "$(cat "$dir/.bashrc")" = "echo mine" ] || _hi_why rc out dir
+  got="$(cat "$dir/.bashrc")"
+  [ "$rc" -eq 1 ] &&
+    [[ "$out" == *"can't write $dir/.bashrc"* && "$out" == *"source hi"* ]] &&
+    [[ "$out" != *"updated"* ]] &&
+    [ ! -e "$dir/.bashrc.hi-orig" ] &&
+    [ "$got" = "echo mine" ] || _hi_why got rc out dir
 }
 
 # ...and an uninstall that meets one fails, having still done the rest
@@ -214,15 +224,19 @@ function test_uninstall_mode_fails_on_a_read_only_rc() {
 # an install that meets one writes the settings, leaves the rc as it was, and
 # fails the same way
 function test_install_mode_fails_on_a_read_only_rc() {
+  local got
   local home="$_HI_WORKDIR/in-locked" out rc=0
   mkdir -p "$home"
   printf 'echo mine\n' >"$home/.bashrc"
   chmod 444 "$home/.bashrc"
   out="$(_hi_run_install_here in-locked --link none --yes --preset balanced 2>&1)" || rc=$?
   chmod 644 "$home/.bashrc"
-  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
+  got="$(cat "$home/.bashrc")"
+  [ "$rc" -eq 1 ] &&
+    [[ "$out" == *"can't write $home/.bashrc"* ]] &&
     [[ "$out" == *"Installed, but for the rc files named above"* && "$out" != *"Installed!"* ]] &&
-    [ "$(cat "$home/.bashrc")" = "echo mine" ] && [ -f "$home/.config/say-hi/settings.sh" ] || _hi_why rc out home
+    [ "$got" = "echo mine" ] &&
+    [ -f "$home/.config/say-hi/settings.sh" ] || _hi_why got rc out home
 }
 
 # --shell takes bash, zsh, fish, or all, comma- or space-separated: a name
@@ -270,23 +284,26 @@ function test_configure_converts_an_old_overlay() {
 
 # ...and under --dry-run it only says it would
 function test_configure_dry_run_converts_nothing() {
+  local got
   local home="$_HI_WORKDIR/convert-dry" cfg out
   cfg="$home/.config/say-hi"
   mkdir -p "$cfg"
   printf 'bat:3,batcat:3\n' >"$cfg/packages"
   out="$(_hi_run_install_here convert-dry --configure --preset=balanced --dry-run 2>&1)" || _hi_why || return 1
-  [[ "$out" == *"would convert $cfg/packages"* ]] && [ ! -e "$cfg/packages.old" ] &&
-    [ "$(cat "$cfg/packages")" = 'bat:3,batcat:3' ] || _hi_why out cfg
+  got="$(cat "$cfg/packages")"
+  [[ "$out" == *"would convert $cfg/packages"* ]] && [ ! -e "$cfg/packages.old" ] && [ "$got" = 'bat:3,batcat:3' ] || _hi_why got out cfg
 }
 
 # a preset name is checked before a question is asked or a byte written: the
 # typo costs an exit 1 that names the real ones, and no settings.sh appears
 # the refusal is the first and only line: no section banner ahead of it
 function test_a_stranger_preset_is_refused_before_the_banner() {
+  local got got2
   local out rc=0
   out="$(_hi_run_install_here preset-banner --configure --preset=minimalist 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$(_hi_strip_ansi "$out")" == *"no such preset: minimalist"* ]] &&
-    [[ "$out" != *"Configuring"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ] || _hi_why rc out
+  got="$(_hi_strip_ansi "$out")"
+  got2="$(printf '%s\n' "$out" | wc -l)"
+  [ "$rc" -eq 1 ] && [[ "$got" == *"no such preset: minimalist"* ]] && [[ "$out" != *"Configuring"* ]] && [ "$got2" -eq 1 ] || _hi_why got got2 rc out
 }
 
 function test_a_stranger_preset_is_refused_before_anything_is_written() {

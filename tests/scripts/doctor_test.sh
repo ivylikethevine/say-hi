@@ -215,10 +215,12 @@ function test_backend_dead_reports_not_answering() {
 # the ssh row counts literal Host names through targets.sh: two here, and a
 # wildcard pattern is not a host
 function test_backends_count_literal_ssh_hosts() {
+  local got
   local cfg="$_HI_WORKDIR/ssh_config" out
   printf 'Host alpha beta\n  HostName 192.0.2.1\nHost *.wild\n' >"$cfg"
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG="$cfg" doctor_backends)"
-  [[ "$out" == *"2 literal host(s) in $(_hi_doc_path "$cfg")"* ]] || _hi_why out cfg
+  got="$(_hi_doc_path "$cfg")"
+  [[ "$out" == *"2 literal host(s) in $got"* ]] || _hi_why got out cfg
 }
 
 # _hi_doc_path <path> - <path> as the boxed report writes it: ~ for $HOME, so
@@ -293,11 +295,12 @@ function test_doctor_row_marks_each_severity() {
 # with the section they came from, plus the unlabeled detail row under one -
 # and nothing else; with no such row it prints nothing at all
 function test_findings_box_holds_only_warn_and_bad() {
-  local out
-  [ -z "$(
+  local out got
+  got="$(
     _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
     doctor_findings
-  )" ] || _hi_why || return 1
+  )"
+  [ -z "$got" ] || _hi_why got || return 1
   out="$(
     _HI_DOC_BAD=0 _HI_DOC_WARN=0
     _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
@@ -325,7 +328,7 @@ function test_findings_box_holds_only_warn_and_bad() {
 # the width wraps inside its cell instead of widening the box past it; the
 # words all survive, and a word longer than the column is split
 function test_a_long_row_wraps_to_the_terminal() {
-  local out line n long word
+  local out line n long word got
   long="$(printf 'word%s ' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18)"
   word="$(printf 'x%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40)"
   out="$(
@@ -341,7 +344,8 @@ function test_a_long_row_wraps_to_the_terminal() {
     [ "$n" -le 50 ] || _hi_why n || return 1
   done <<<"$out"
   [[ "$out" == *word1*word18* ]] || _hi_why out || return 1
-  [ "$(printf '%s\n' "$out" | grep -c 'xxxx')" -ge 2 ] || _hi_why out
+  got="$(printf '%s\n' "$out" | grep -c 'xxxx')"
+  [ "$got" -ge 2 ] || _hi_why got out
 }
 
 function test_missing_tools_lists_only_the_absent() {
@@ -351,6 +355,7 @@ function test_missing_tools_lists_only_the_absent() {
 }
 
 function test_ladder_first_picks_in_ladder_order() {
+  local got
   local have=" dash zsh fish " want=""
   for s in $_HI_SHELL_LADDER; do
     case "$have" in *" $s "*)
@@ -360,8 +365,10 @@ function test_ladder_first_picks_in_ladder_order() {
     esac
   done
   [ -n "$want" ] || _hi_why want || return 1
-  [ "$(_hi_ladder_first "dash zsh fish")" = "$want" ] || _hi_why want || return 1
-  [ -z "$(_hi_ladder_first "nothing known")" ] || _hi_why
+  got="$(_hi_ladder_first "dash zsh fish")"
+  [ "$got" = "$want" ] || _hi_why got want || return 1
+  got="$(_hi_ladder_first "nothing known")"
+  [ -z "$got" ] || _hi_why got
 }
 
 # the probe snippet is sh the target runs; here the target is this box
