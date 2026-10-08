@@ -414,12 +414,31 @@ account or an upstream review that lands when it lands.
        left is a render. **Ticks when:** a release's `demo.gif` shows the
        check's row on both boxes.
 
-6. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+6. [ ] _Before 1.0:_ **A case without a reason does not get in** — every
+       failing arm of a unit case now ends in `_hi_because` or `_hi_why`
+       ([docs/TESTING.md](docs/TESTING.md#running-the-tests)), and nothing
+       holds a new case to it. **Do:** a check in the lint group that reads
+       each registered case and fails on a failing arm - a `|| return 1`, a
+       bare `return 1`, a last statement - that prints nothing, and on an
+       end-to-end failure line with no transcript beside it. **Ticks when:**
+       a case added with a bare `[ "$a" = "$b" ]` as its last line turns
+       the lint group red, with the case named.
+
+7. [ ] _Before 1.0:_ **A failed comparison shows what it got** — `_hi_why`
+       prints the statement and its variables, so an assertion on a command
+       substitution (`[ "$(cmd)" = want ]`, some three hundred of them)
+       names itself and not the value that was wrong; only the traced rerun
+       shows it, which a flake's first failure does not have. **Do:** capture
+       each into a variable ahead of its assertion, so the reason prints it.
+       **Ticks when:** no registered case compares a command substitution
+       inside the assertion that reports it.
+
+8. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-7. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
+9. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
        `nvim/init.lua` rides, and a `require` of a module under the config's
        `lua/` is dropped with the plugin managers', so a config split into
        modules starts nearly bare; an `init.vim` does not ride at all.
@@ -431,33 +450,33 @@ account or an upstream review that lands when it lands.
        dialect. **Ticks when:** a target's `nvim` opens on an `init.lua`
        that requires two modules of its own, both loaded.
 
-8. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
-       rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
-       directory of the overlay
-       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
-       alone and under a size cap, on a session's `$PATH`. **Ticks when:** a
-       script in `~/.config/say-hi/bin/` runs by name in a session, and
-       `hi --doctor` names a binary there as left home.
+10. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
+        rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
+        directory of the overlay
+        ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
+        alone and under a size cap, on a session's `$PATH`. **Ticks when:** a
+        script in `~/.config/say-hi/bin/` runs by name in a session, and
+        `hi --doctor` names a binary there as left home.
 
-9. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
-       git has no plugin: a config that rode whole would bring identity,
-       signing, and credential helpers to a box that must not have them.
-       **Do:** a `git` plugin, off by default, added over the target's own
-       config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
-       place, read in a dialect that drops `[user]`, `[credential]`, every
-       signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
-       those rides only under a `hi-allow` line the user wrote above it,
-       and `hi --plugins` names each that does. **Ticks when:** a carried
-       alias runs on a target, `git config user.email` there is the
-       target's own, and a `signingkey` rides only with its `hi-allow`.
+11. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
+        git has no plugin: a config that rode whole would bring identity,
+        signing, and credential helpers to a box that must not have them.
+        **Do:** a `git` plugin, off by default, added over the target's own
+        config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
+        place, read in a dialect that drops `[user]`, `[credential]`, every
+        signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
+        those rides only under a `hi-allow` line the user wrote above it,
+        and `hi --plugins` names each that does. **Ticks when:** a carried
+        alias runs on a target, `git config user.email` there is the
+        target's own, and a `signingkey` rides only with its `hi-allow`.
 
-10. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
+12. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
         AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
         a flake with the package and a home-manager module that writes the
         rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
         the flake.
 
-11. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
+13. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
         `hi --install --print-rc`'s block looks in `$HOME`,
         `/usr/local/share`, and `/usr/share`, and whether an install from
         the formula writes its versioned keg into an rc is not yet known.
@@ -467,17 +486,17 @@ account or an upstream review that lands when it lands.
         machine with a clone and on one with the formula, across a
         `brew upgrade`.
 
-12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+14. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+15. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+16. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

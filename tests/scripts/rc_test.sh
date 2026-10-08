@@ -334,12 +334,16 @@ function test_install_rc_lines_follows_a_zshenv_zdotdir() {
 # from ~, $HOME, or $XDG_CONFIG_HOME expands, and a value that would run or
 # expand anything else reads as unset. Each row: <line>|<the rc, under $HOME>
 function test_zshrc_here_reads_a_zshenv_by_grammar() {
-  local home="$_HI_WORKDIR/zgrammar" line want
+  local home="$_HI_WORKDIR/zgrammar" line want got
   mkdir -p "$home"
-  [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/.zshrc" ] || _hi_why home || return 1
+  # a rerun starts where the first try did: with no .zshenv from a row
+  rm -f "$home/.zshenv"
+  got="$(_hi_rc_out "$home" -- _hi_zshrc_here)"
+  [ "$got" = "$home/.zshrc" ] || _hi_because "with no .zshenv: [$got], not [$home/.zshrc]" || return 1
   while IFS='|' read -r line want; do
     printf 'ZDOTDIR=/first\n%s\n' "$line" >"$home/.zshenv"
-    [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/$want" ] || _hi_why home want || return 1
+    got="$(_hi_rc_out "$home" -- _hi_zshrc_here)"
+    [ "$got" = "$home/$want" ] || _hi_because "for the line [$line]: [$got], not [$home/$want]" || return 1
   done <<'ROWS'
 ZDOTDIR=~/z|z/.zshrc
   export ZDOTDIR="$HOME/z" # moved|z/.zshrc
