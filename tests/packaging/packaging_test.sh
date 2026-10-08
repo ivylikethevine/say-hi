@@ -221,7 +221,7 @@ function test_stamp_refuses_to_guess_a_date() {
   local d
   d="$(_hi_stamp_fixture)"
   env -u SOURCE_DATE_EPOCH "$_HI_PKG_DIR/stamp.sh" --root "$d" --version 1.0.0 >/dev/null 2>&1 &&
-    _hi_why -3 d _HI_PKG_DIR || return 1
+    { _hi_why -3 d _HI_PKG_DIR || return 1; }
   return 0
 }
 
