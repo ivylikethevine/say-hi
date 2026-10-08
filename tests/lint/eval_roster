@@ -38,14 +38,16 @@ eval|common/header.sh|name|eval "$1+=(\"\$record\")"
 eval|scripts/configure.sh|name|eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
 
 rm -r|common/header.sh|1
+rm -r|common/keep.sh|1
 rm -r|common/targets.sh|3
-rm -r|hi.sh|6
+rm -r|hi.sh|5
 rm -r|load.sh|2
 rm -r|scripts/install.sh|4
 rm -r|scripts/pack_stream.sh|2
 sh -c|common/config.fish|4
+sh -c|common/keep.sh|1
 sh -c|common/zsh.zsh|1
-sh -c|hi.sh|16
+sh -c|hi.sh|15
 sh -c|scripts/doctor_target.sh|1
 source|common/aliases.sh|2
 source|common/bash.sh|7
@@ -58,7 +60,7 @@ source|common/fw_powerlevel10k.zsh|2
 source|common/header.sh|2
 source|common/paths.sh|1
 source|common/zsh.zsh|7
-source|hi.sh|4
+source|hi.sh|5
 source|load.sh|7
 source|scripts/add_package.sh|2
 source|scripts/add_tag.sh|2

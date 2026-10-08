@@ -423,7 +423,7 @@ $1 == "extendsyntax" && !($2 in have) {
 }
 
 # What `hi --keep` typed in this session starts its owner pane with, a
-# NAME=value a line for hi.sh's _hi_keep_here: the target's name as the
+# NAME=value a line for common/keep.sh's _hi_keep_here: the target's name as the
 # client typed it, the client's verdicts, the tree, and this shell, whose
 # exit that pane waits out before it removes the tree. GLOSSARY: HI.65
 function _hi_keep_file() {
@@ -437,7 +437,7 @@ function _hi_keep_file() {
 
 # A session's claim on its tree. An owner pane's is hi.kept: its pid, then
 # that of the shell it was kept from. Any other session of a disposable tree
-# leaves its pid in hi.pid. A later connect reads both (hi.sh's
+# leaves its pid in hi.pid. A later connect reads both (common/keep.sh's
 # _hi_keep_sweep) and removes the tree of a session that died with no exit
 # hook. GLOSSARY: HI.65
 function _hi_keep_claim() {
@@ -633,7 +633,7 @@ function load() {
   # an ordinary ssh session can be kept from inside; an owner pane already is
   [ -z "${_HI_KEEP_AS:-}" ] || [ -n "${_HI_KEEP_MUX:-}" ] || _hi_keep_file >"$_HI_ROOT/hi.keep"
   _hi_keep_claim
-  # a tree a dropped session left, taken by this connect (hi.sh's
+  # a tree a dropped session left, taken by this connect (common/keep.sh's
   # _hi_keep_held), still has the directory that session was in
   local banner=Connected
   [ ! -s "$_HI_ROOT/hi.cwd" ] || [ -z "${_HI_KEEP_HOLD:-}" ] || banner=Resumed

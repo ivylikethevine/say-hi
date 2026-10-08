@@ -6,7 +6,7 @@
 # children inherit, or the tree's config/.
 #
 # Typed bare, the multiplexer becomes the session's kept one: `hi --keep` as
-# typed there (hi.sh's _hi_keep_here), in the tool that was named, so its
+# typed there (common/keep.sh's _hi_keep_here), in the tool that was named, so its
 # panes are hi's shell, it owns the tree, and the next `hi <target>` attaches
 # it. Only where that can hold: a terminal, no multiplexer around this shell
 # already, and a session load.sh left hi.keep for.

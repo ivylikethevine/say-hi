@@ -1545,7 +1545,8 @@ for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 tmux, zellij, or screen, so it outlives the connection, and where the target
 has none of the three holds the session's tree through a drop. All of it is
 the ssh arm's and the bash tier's: a container arm, `--plain`, and a
-bash-less target connect as usual.
+bash-less target connect as usual. The client's half is `common/keep.sh`,
+which `hi.sh` sources, and the target's is `load.sh`'s.
 
 - **The name.** `hi-<target>`, from `_hi_mux_name`: the target as typed on
   this client, so two clients that call a host the same thing reach one
