@@ -112,7 +112,8 @@ function _hi_stage_tar() {
       tar -x -f "$stage/in.tar" -C "$stage" || exit 1
       # a source read-only by mode (the nix store's 0444 files in 0555
       # directories) is cut and stripped here, and removed on the target, by
-      # its owner
+      # its owner. Not under busybox's tar, which sets a directory's mode as
+      # it makes it and fails the extraction above.
       chmod -R u+w "$stage" || exit 1
       rm -rf "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]/#/$stage/}"}
     fi

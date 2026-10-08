@@ -815,9 +815,11 @@ function test_config_passes_a_require_of_a_module_that_rides() {
 }
 
 # the overlay's bin/: a script rides, and each entry that cannot is named
-# with why - a binary, one not executable, one over the cap
+# with why - a binary, one not executable, one over the cap. Git Bash has no
+# mode bit to read and calls any #! file executable, so there the plain
+# script rides too.
 function test_config_names_what_bin_leaves_home() {
-  local dir out
+  local dir out rides=1 plain="left home - not executable"
   dir="$(mktemp -d "$_HI_WORKDIR/bin.XXXXXX")"
   mkdir -p "$dir/bin"
   printf '#!/bin/sh\necho mine\n' >"$dir/bin/mine"
@@ -830,9 +832,10 @@ function test_config_names_what_bin_leaves_home() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"bin/tool"*"left home - a binary"* && "$out" == *"bin/plain"*"left home - not executable"* &&
+  [ ! -x "$dir/bin/plain" ] || rides=2 plain=""
+  [[ "$out" == *"bin/tool"*"left home - a binary"* && "$out" == *"$plain"* &&
     "$out" == *"bin/big"*"left home - over $_HI_BIN_MAX characters"* && "$out" != *"bin/mine"* &&
-    "$out" == *"1 file(s) ride"* ]] || _hi_because "the report said: $out"
+    "$out" == *"$rides file(s) ride"* ]] || _hi_because "the report said: $out"
 }
 
 # the tag files are listed by tag, and one no tag can name is said to be unread

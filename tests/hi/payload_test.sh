@@ -753,7 +753,13 @@ function run_hi_payload_tests() {
   _hi_check "Heredoc bodies are spared" test_strip_spares_heredoc_bodies
   _hi_check "The data-file headers strip too" test_strip_covers_the_data_files
   _hi_check "Every data line survives" test_strip_keeps_every_data_line
-  _hi_check "A read-only tree packs, and unpacks writable" test_a_read_only_tree_packs_and_unpacks_writable
+  # busybox's tar sets a directory's mode as it makes it, so the stage of a
+  # tree with 0555 directories cannot be filled there
+  if tar --version 2>&1 | grep -i busybox >/dev/null; then
+    _hi_skip "A read-only tree packs, and unpacks writable" "busybox tar"
+  else
+    _hi_check "A read-only tree packs, and unpacks writable" test_a_read_only_tree_packs_and_unpacks_writable
+  fi
 
   _hi_h2 "Testing: a session's relay"
   _hi_check "A session runs a script of the overlay's bin/ by name" test_a_session_runs_the_overlay_s_bin_by_name

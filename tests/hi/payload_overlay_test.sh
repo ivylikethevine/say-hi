@@ -593,9 +593,10 @@ function test_overlay_tar_carries_aliases() {
 
 # the overlay's bin/ rides its scripts alone, as written and still executable:
 # not a binary, a file that is not executable, or one over the cap; and
-# nothing of it with its plugin off
+# nothing of it with its plugin off. Git Bash has no mode bit to read and
+# calls any #! file executable, so there the plain script rides too.
 function test_bin_rides_its_scripts_alone() {
-  local dir="$_HI_WORKDIR/bin-overlay" got="$_HI_WORKDIR/bin-got" out
+  local dir="$_HI_WORKDIR/bin-overlay" got="$_HI_WORKDIR/bin-got" out want=bin/mine
   mkdir -p "$dir/bin" "$got"
   printf '#!/bin/sh\n# mine\necho mine\n' >"$dir/bin/mine"
   printf '#!/bin/sh\necho plain\n' >"$dir/bin/plain"
@@ -603,8 +604,9 @@ function test_bin_rides_its_scripts_alone() {
   printf '#!/bin/sh\0payload' >"$dir/bin/packed"
   { printf '#!/bin/sh\n# ' && printf '%*s\n' "$_HI_BIN_MAX" ''; } >"$dir/bin/big"
   chmod +x "$dir/bin/mine" "$dir/bin/tool" "$dir/bin/packed" "$dir/bin/big"
+  [ ! -x "$dir/bin/plain" ] || want=$'bin/mine\nbin/plain'
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
-  [ "$out" = bin/mine ] || _hi_because "what rides: [$out]" || return 1
+  [ "$out" = "$want" ] || _hi_because "what rides: [$out]" || return 1
   _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
   [ -x "$got/bin/mine" ] && cmp -s "$dir/bin/mine" "$got/bin/mine" ||
     _hi_because "the script did not arrive as written, executable" || return 1
