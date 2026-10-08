@@ -26,18 +26,18 @@ function test_config_rows_parse_the_files() {
   mkdir -p "$dir"
   printf 'alias ll="ls -l"\n' >"$dir/good.bash"
   printf 'if [ 1 ]; then\n' >"$dir/bad.bash"
-  out="$(_hi_doc_rows doctor_config_row good "$dir/good.bash" bash -n)" || return 1
-  [[ "$out" == *"good"*"parses (bash)"* ]] || return 1
-  out="$(_hi_doc_rows doctor_config_row bad "$dir/bad.bash" bash -n)" || return 1
-  [[ "$out" == *"bad"*"has issues (bash)"* ]] || return 1
-  [ -z "$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)" ] || return 1
-  [ -z "$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ]
+  out="$(_hi_doc_rows doctor_config_row good "$dir/good.bash" bash -n)" || _hi_why dir || return 1
+  [[ "$out" == *"good"*"parses (bash)"* ]] || _hi_why out || return 1
+  out="$(_hi_doc_rows doctor_config_row bad "$dir/bad.bash" bash -n)" || _hi_why dir || return 1
+  [[ "$out" == *"bad"*"has issues (bash)"* ]] || _hi_why out || return 1
+  [ -z "$(_hi_doc_rows doctor_config_row gone "$dir/missing.bash" bash -n)" ] || _hi_why dir || return 1
+  [ -z "$(_hi_doc_rows doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ] || _hi_why dir
 }
 
 function test_target_resolves_a_running_container() {
   local out
   out="$(_hi_doc_target runningbox)"
-  [[ "$out" == *"resolves"*"docker container"* ]]
+  [[ "$out" == *"resolves"*"docker container"* ]] || _hi_why out
 }
 
 # ssh options on the line (-p 2222) mean nothing to a container, and the
@@ -57,7 +57,7 @@ function test_target_says_ssh_options_skip_a_container() {
 function test_container_target_reports_the_full_tier() {
   local out
   out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doc_target runningbox)"
-  [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]]
+  [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]] || _hi_why out
 }
 
 # no bash means hi copies common/aliases.sh alone and drops into the best of the
@@ -66,7 +66,7 @@ function test_container_target_reports_the_full_tier() {
 function test_container_target_names_the_fallback_shell() {
   local out
   out="$(HI_FAKE_TOOLS="base64 ash sh " _hi_doc_target runningbox)"
-  [[ "$out" == *"aliases only"* && "$out" == *"lands in ash"* ]]
+  [[ "$out" == *"aliases only"* && "$out" == *"lands in ash"* ]] || _hi_why out
 }
 
 # base64 but no shell on the whole ladder: there is nowhere for a session to
@@ -74,7 +74,7 @@ function test_container_target_names_the_fallback_shell() {
 function test_container_target_flags_no_known_shell() {
   local out
   out="$(HI_FAKE_TOOLS="base64 " _hi_doc_target runningbox)"
-  [[ "$out" == *"no shell hi knows"* ]]
+  [[ "$out" == *"no shell hi knows"* ]] || _hi_why out
 }
 
 # a container that answers nothing is not running, and saying so beats an empty
@@ -82,13 +82,13 @@ function test_container_target_flags_no_known_shell() {
 function test_container_target_flags_a_silent_target() {
   local out
   out="$(HI_FAKE_TOOLS="" _hi_doc_target runningbox)"
-  [[ "$out" == *"not running"* ]]
+  [[ "$out" == *"not running"* ]] || _hi_why out
 }
 
 function test_target_falls_through_to_ssh() {
   local out
   out="$(HI_FAKE_TOOLS="base64 bash " _hi_doc_target unknownbox)"
-  [[ "$out" == *"nothing matched"* && "$out" == *"connect"*ok* ]]
+  [[ "$out" == *"nothing matched"* && "$out" == *"connect"*ok* ]] || _hi_why out
 }
 
 # --use docker forces the arm and skips the probe chain entirely: "ghostbox" would
@@ -97,7 +97,7 @@ function test_target_falls_through_to_ssh() {
 function test_target_honors_a_forced_backend() {
   local out
   out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=docker _hi_doc_target ghostbox)"
-  [[ "$out" == *"resolves"*"docker container"*"forced by --use docker"* && "$out" != *checked* ]]
+  [[ "$out" == *"resolves"*"docker container"*"forced by --use docker"* && "$out" != *checked* ]] || _hi_why out
 }
 
 # a family member with no flag row of its own was forced through --use, and
@@ -105,7 +105,7 @@ function test_target_honors_a_forced_backend() {
 function test_target_names_use_for_a_rowless_member() {
   local out
   out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=nerdctl _hi_doc_target ghostbox)"
-  [[ "$out" == *"resolves"*"nerdctl container"*"forced by --use nerdctl"* && "$out" != *checked* ]]
+  [[ "$out" == *"resolves"*"nerdctl container"*"forced by --use nerdctl"* && "$out" != *checked* ]] || _hi_why out
 }
 
 # --use ssh overrides the other way too: "runningbox" answers docker's predicate
@@ -114,7 +114,7 @@ function test_target_names_use_for_a_rowless_member() {
 function test_forced_ssh_overrides_a_real_container() {
   local out
   out="$(HI_FAKE_TOOLS="base64 bash " _HI_DOC_BACKEND=ssh _hi_doc_target runningbox)"
-  [[ "$out" == *"resolves"*"ssh host (forced by --use ssh)"* && "$out" == *"connect"*ok* ]]
+  [[ "$out" == *"resolves"*"ssh host (forced by --use ssh)"* && "$out" == *"connect"*ok* ]] || _hi_why out
 }
 
 # every session ships the tree, so the install row is the wire figure - a
@@ -123,19 +123,19 @@ function test_ssh_target_reports_the_wire_cost() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" \
   HI_FAKE_TOOLS="base64 bash " _hi_doc_rows doctor_ssh_target somewhere)"
-  [[ "$out" == *install*"each session"* ]]
+  [[ "$out" == *install*"each session"* ]] || _hi_why out
 }
 
 function test_ssh_target_flags_a_missing_base64() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_ssh_target somewhere)"
-  [[ "$out" == *"no base64"* ]]
+  [[ "$out" == *"no base64"* ]] || _hi_why out
 }
 
 function test_ssh_target_flags_a_missing_bash() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " _hi_doc_rows doctor_ssh_target somewhere)"
-  [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]]
+  [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]] || _hi_why out
 }
 
 # The connect-FAILED branch itself - every case above uses _hi_doctor_shims'
@@ -157,8 +157,8 @@ SHIM
     _hi_doc_rows doctor_ssh_target somewhere
     echo "bad=$_HI_DOC_BAD"
   )"
-  [[ "$out" == *"FAILED after"* ]] || return 1
-  [[ "$out" == *"Permission denied"* ]] || return 1
+  [[ "$out" == *"FAILED after"* ]] || _hi_why out || return 1
+  [[ "$out" == *"Permission denied"* ]] || _hi_why out || return 1
   case "$out" in *'bad=1'*) return 0 ;; esac
   return 1
 }
@@ -168,14 +168,14 @@ SHIM
 function test_a_finding_turns_the_closing_line_red_and_is_the_exit_code() {
   local out rc=0
   out="$(_hi_doctor_run somehost)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"1 finding(s) above in red"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"1 finding(s) above in red"* ]] || _hi_why rc out
 }
 
 # --plain is accepted on the text report too, and is not read as a target
 function test_plain_flag_is_accepted_on_the_text_report() {
   local out rc=0
   out="$(_hi_doctor_run --plain)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]] || _hi_why rc out
 }
 
 # The install section, against a $HOME staged per case: doctor.sh runs as a
@@ -218,8 +218,8 @@ function test_install_section_reports_a_wired_shell() {
   local home="$_HI_WORKDIR/inst-wired" out
   mkdir -p "$home"
   _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
-  out="$(_hi_doctor_install_out "$home")" || return 1
-  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]]
+  out="$(_hi_doctor_install_out "$home")" || _hi_why home || return 1
+  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]] || _hi_why out
 }
 
 # the blocks an older hi wrote name this tree, so only a comparison with
@@ -253,7 +253,7 @@ function test_install_section_flags_a_foreign_tree() {
   mkdir -p "$home"
   _hi_wired_line sh /elsewhere >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"~/.bashrc names /elsewhere, this is $_HI_HOME"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"~/.bashrc names /elsewhere, this is $_HI_HOME"* ]] || _hi_why rc out
 }
 
 function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() {
@@ -262,15 +262,15 @@ function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() 
   : >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home" SHELL=/bin/bash)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"~/.bashrc has no hi lines"* ]] &&
-    [[ "$out" == *"no ~/.local/bin/hi"* ]] && [[ "$out" == *"zsh"*"not installed here"* ]]
+    [[ "$out" == *"no ~/.local/bin/hi"* ]] && [[ "$out" == *"zsh"*"not installed here"* ]] || _hi_why rc out
 }
 
 function test_install_section_reports_the_link() {
   local home="$_HI_WORKDIR/inst-link" out
   mkdir -p "$home/.local/bin"
   ln -sfn "$_HI_LAUNCHER" "$home/.local/bin/hi"
-  out="$(_hi_doctor_install_out "$home")" || return 1
-  [[ "$out" == *"~/.local/bin/hi -> $_HI_LAUNCHER"* && "$out" == *"not on PATH"* ]]
+  out="$(_hi_doctor_install_out "$home")" || _hi_why home || return 1
+  [[ "$out" == *"~/.local/bin/hi -> $_HI_LAUNCHER"* && "$out" == *"not on PATH"* ]] || _hi_why out
 }
 
 function test_install_section_flags_a_foreign_link() {
@@ -278,7 +278,7 @@ function test_install_section_flags_a_foreign_link() {
   mkdir -p "$home/.local/bin"
   ln -sfn /bin/true "$home/.local/bin/hi"
   out="$(_hi_doctor_install_out "$home")" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"~/.local/bin/hi is not this tree's: /bin/true"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"~/.local/bin/hi is not this tree's: /bin/true"* ]] || _hi_why rc out
 }
 
 # `hi` found on PATH and no ~/.local/bin/hi: a link to this tree's hi.sh
@@ -289,14 +289,14 @@ function test_install_section_reads_the_hi_on_path() {
   path="$bin:$(_hi_doctor_shims):$(_hi_doctor_path)"
   mkdir -p "$bin"
   ln -sfn "$_HI_LAUNCHER" "$bin/hi"
-  out="$(_hi_doctor_install_out "$home" PATH="$path")" || return 1
+  out="$(_hi_doctor_install_out "$home" PATH="$path")" || _hi_why home path || return 1
   [[ "$out" == *"no ~/.local/bin/hi, none needed: ~/bin/hi runs this tree"* &&
-    "$out" == *"hi on PATH is ~/bin/hi, and runs this tree"* ]] || return 1
+    "$out" == *"hi on PATH is ~/bin/hi, and runs this tree"* ]] || _hi_why out || return 1
   printf '#!/bin/sh\nexit 0\n' >"$bin/other"
   chmod +x "$bin/other"
   ln -sfn "$bin/other" "$bin/hi"
-  out="$(_hi_doctor_install_out "$home" PATH="$path")" || return 1
-  [[ "$out" == *"hi on PATH is ~/bin/hi, which runs ~/bin/other - not this tree"* ]]
+  out="$(_hi_doctor_install_out "$home" PATH="$path")" || _hi_why home path || return 1
+  [[ "$out" == *"hi on PATH is ~/bin/hi, which runs ~/bin/other - not this tree"* ]] || _hi_why out
 }
 
 # _hi_darwin_login_row <home> <text> - the report for <home> on a macOS holds
@@ -309,7 +309,7 @@ function _hi_darwin_login_row() {
 }
 
 function test_install_section_warns_about_a_darwin_login_bash() {
-  _hi_darwin_login_row "$_HI_WORKDIR/inst-darwin" "never reaches ~/.bashrc"
+  _hi_darwin_login_row "$_HI_WORKDIR/inst-darwin" "never reaches ~/.bashrc" || _hi_why
 }
 
 # a ~/.bash_login with no .bash_profile ahead of it is the file bash reads,
@@ -319,7 +319,7 @@ function test_install_section_hands_a_darwin_bash_login_the_line() {
   mkdir -p "$home"
   printf 'umask 022\n' >"$home/.bash_login"
   # shellcheck disable=SC2088 # the ~ is the report's own, for $HOME
-  _hi_darwin_login_row "$home" "~/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"
+  _hi_darwin_login_row "$home" "~/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE" || _hi_why home _HI_BASH_PROFILE_LINE
 }
 
 function test_install_section_passes_a_darwin_profile_that_reads_bashrc() {
@@ -327,15 +327,15 @@ function test_install_section_passes_a_darwin_profile_that_reads_bashrc() {
   mkdir -p "$home"
   printf '. ~/.bashrc\n' >"$home/.bash_profile"
   # shellcheck disable=SC2088 # the ~ is the report's own, for $HOME
-  _hi_darwin_login_row "$home" "~/.bash_profile reads ~/.bashrc"
+  _hi_darwin_login_row "$home" "~/.bash_profile reads ~/.bashrc" || _hi_why home
 }
 
 function test_install_section_warns_on_a_zdotdir_mismatch() {
   local home="$_HI_WORKDIR/inst-zdot" out
   mkdir -p "$home/zdot"
   _hi_wired_line sh >"$home/.zshrc"
-  out="$(_hi_doctor_install_out "$home" ZDOTDIR="$home/zdot")" || return 1
-  [[ "$out" == *"~/.zshrc has hi's lines, but zsh reads ~/zdot/.zshrc"* ]]
+  out="$(_hi_doctor_install_out "$home" ZDOTDIR="$home/zdot")" || _hi_why home || return 1
+  [[ "$out" == *"~/.zshrc has hi's lines, but zsh reads ~/zdot/.zshrc"* ]] || _hi_why out
 }
 
 # the reverse: a ~/.config/zsh/.zshrc left wired once nothing sets ZDOTDIR
@@ -343,8 +343,8 @@ function test_install_section_warns_on_a_stale_zdotdir_rc() {
   local home="$_HI_WORKDIR/inst-zstale" out
   mkdir -p "$home/.config/zsh"
   _hi_wired_line sh >"$home/.config/zsh/.zshrc"
-  out="$(_hi_doctor_install_out "$home" XDG_CONFIG_HOME="$home/.config")" || return 1
-  [[ "$out" == *"~/.config/zsh/.zshrc has hi's lines, but zsh reads ~/.zshrc"* ]]
+  out="$(_hi_doctor_install_out "$home" XDG_CONFIG_HOME="$home/.config")" || _hi_why home || return 1
+  [[ "$out" == *"~/.config/zsh/.zshrc has hi's lines, but zsh reads ~/.zshrc"* ]] || _hi_why out
 }
 
 function run_doctor_target_tests() {

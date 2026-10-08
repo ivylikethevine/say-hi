@@ -50,11 +50,11 @@ function _hi_all_gated() {
 # the link a plain install makes is the user's own, so no sudo stands in a
 # first install; /usr/bin/hi is install.sh's --link system, asked for by name
 function test_link_is_under_home() {
-  [[ "$_HI_LINK" == "$HOME/"* ]]
+  [[ "$_HI_LINK" == "$HOME/"* ]] || _hi_why _HI_LINK
 }
 
 function test_local_only_disables_every_toggle_locally() {
-  _hi_all_gated "$(_hi_gate 1 0)" 1
+  _hi_all_gated "$(_hi_gate 1 0)" 1 || _hi_why
 }
 
 # ...but the same setting must not follow the user onto a target, which is the
@@ -64,7 +64,7 @@ function test_local_only_disables_every_toggle_locally() {
 # default every toggle so that aliases.sh and config.fish, which read them
 # bare, can't blow up under `set -u`. Asserting 0 here is what keeps that true.
 function test_local_only_leaves_a_remote_session_alone() {
-  _hi_all_gated "$(_hi_gate 1 1)" 0
+  _hi_all_gated "$(_hi_gate 1 1)" 0 || _hi_why
 }
 
 # the opt-ins go the other way: local-only forces them to 0 at home, over a
@@ -84,11 +84,11 @@ function test_local_only_turns_the_opt_ins_off_locally() {
 }
 
 function test_toggles_stay_on_without_local_only() {
-  _hi_all_gated "$(_hi_gate 0 0)" 0
+  _hi_all_gated "$(_hi_gate 0 0)" 0 || _hi_why
 }
 
 function test_toggles_stay_on_remotely_without_local_only() {
-  _hi_all_gated "$(_hi_gate 0 1)" 0
+  _hi_all_gated "$(_hi_gate 0 1)" 0 || _hi_why
 }
 
 # The gate's list has to be core.sh's _HI_TOGGLES minus the gates' own two
@@ -135,7 +135,7 @@ function test_paths_sources_cleanly_under_strict_mode() {
     set -euo pipefail
     source "$_HI_HOME/say-hi/common/core.sh"
     [ -n "$_HI_ROOT" ]
-  '
+  ' || _hi_why
 }
 
 # a client with the header off sends no header.sh, and every shell on that
@@ -176,14 +176,14 @@ function _hi_none_unset() {
 # `bash -c` reaches directly
 function test_core_defines_every_toggle() {
   # shellcheck disable=SC2016 # this is source for a child bash, not for us
-  _hi_none_unset "$(_hi_defaults_via 'source "$_HI_HOME/say-hi/common/core.sh"')"
+  _hi_none_unset "$(_hi_defaults_via 'source "$_HI_HOME/say-hi/common/core.sh"')" || _hi_why
 }
 
 # the whole point: sourcing aliases.sh under `set -u` must not be fatal
 function test_aliases_source_cleanly_under_nounset() {
   BASH_ENV='' bash -c 'set -euo pipefail
     source "$_HI_HOME/say-hi/common/core.sh"
-    source "$_HI_ALIASES"' 2>/dev/null
+    source "$_HI_ALIASES"' 2>/dev/null || _hi_why
 }
 
 # The overlay's aliases.sh is additive - common/aliases.sh's last line sources
@@ -199,7 +199,7 @@ function test_aliases_do_not_source_themselves() {
     . "$_HI_HOME/say-hi/common/paths.sh"
     . "$_HI_ALIASES"' >/dev/null 2>&1 &
   _hi_wait_pid "$!" 10
-  [ "$_HI_WAIT_EXIT" != 124 ]
+  [ "$_HI_WAIT_EXIT" != 124 ] || _hi_why _HI_WAIT_EXIT
 }
 
 function test_settings_beat_the_defaults() {
@@ -207,14 +207,14 @@ function test_settings_beat_the_defaults() {
   dir="$(_hi_overlay_dir)"
   printf 'export _HI_DISABLE_PROMPT=1\n' >"$dir/settings.sh"
   [ "$(_HI_CONFIG_DIR="$dir" bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_PROMPT"')" = 1 ]
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_PROMPT"')" = 1 ] || _hi_why dir _HI_DISABLE_PROMPT
 }
 
 # an explicit export from the caller's environment outranks the default too,
 # which is what makes `_HI_DISABLE_PROMPT=1 bash` work as a one-off
 function test_environment_beats_the_defaults() {
   [ "$(_HI_DISABLE_GIT_STATUS=1 bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_GIT_STATUS"')" = 1 ]
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_DISABLE_GIT_STATUS"')" = 1 ] || _hi_why _HI_DISABLE_GIT_STATUS
 }
 
 # colors and packages each resolve to $_HI_CONFIG_DIR's copy when the user has
@@ -256,14 +256,14 @@ function test_settings_resolve_to_the_overlay() {
   local dir
   dir="$(_hi_overlay_dir)"
   printf '#!/bin/sh\n' >"$dir/settings.sh"
-  [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
+  [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ] || _hi_why dir
 }
 
 function test_overlay_colors_win() {
   local dir
   dir="$(_hi_overlay_dir)"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
-  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ]
+  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ] || _hi_why dir
 }
 
 # per file, not all-or-nothing: an overlay holding only colors must leave
@@ -274,20 +274,20 @@ function test_overlay_falls_back_per_file() {
   dir="$(_hi_overlay_dir)"
   printf '[hostname]\nfoo = "brred"\n' >"$dir/colors"
   rm -f "$dir/packages"
-  [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ]
+  [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ] || _hi_why dir
 }
 
 function test_no_overlay_uses_the_tree() {
   local dir="$_HI_WORKDIR/no-such-overlay"
   [ "$(_hi_resolved _HI_COLORS "$dir")" = "$_HI_ROOT/config/colors" ] &&
-    [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ]
+    [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/config/packages" ] || _hi_why dir
 }
 
 # ...but settings.sh still points into the overlay on a machine that has no
 # overlay yet, unguarded, because that is where install.sh has to write it
 function test_settings_point_at_the_overlay_before_it_exists() {
   local dir="$_HI_WORKDIR/no-such-overlay"
-  [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
+  [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ] || _hi_why dir
 }
 
 # The two files with a path variable of their own and a tree default, which
@@ -340,7 +340,7 @@ function test_a_settings_path_does_not_survive() {
   local dir
   dir="$(_hi_full_overlay_dir)"
   printf 'export _HI_COLORS=/dotfiles/hi-colors\n' >"$dir/settings.sh"
-  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ]
+  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$dir/colors" ] || _hi_why dir
 }
 
 # with nothing exported, the overlay's copy wins over the tree's, which is the
@@ -396,7 +396,7 @@ function test_overlay_guards_match_the_roster() {
   roster="$(bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_plugins_load &&
     for m in "${_HI_OVERLAY_FILES[@]}" "${_HI_PLUGIN_FILES[@]}"; do
     _hi_overlay_wiring w "$m" && [ -n "$w" ] || printf "%s\n" "$m"; done')"
-  [[ $'\n'"$roster"$'\n' == *$'\n'extensions/$'\n'* ]] || return 1
+  [[ $'\n'"$roster"$'\n' == *$'\n'extensions/$'\n'* ]] || _hi_why roster extensions || return 1
   while IFS= read -r f; do
     case "$f" in
     settings.sh | aliases.sh) continue ;;
@@ -458,7 +458,7 @@ function test_paths_follow_the_overlay_table() {
       done
       chk "$none" "nothing"
     done
-    exit "$fail"'
+    exit "$fail"' || _hi_why home
 }
 
 # the gate reads what install.sh wrote, and after this change that file is the
@@ -468,7 +468,7 @@ function test_overlay_settings_are_visible_to_the_gate() {
   dir="$(_hi_overlay_dir)"
   home="$(_hi_scratch_tree overlaygate common config)"
   printf 'export _HI_DISABLE_LOCAL=1\n' >"$dir/settings.sh"
-  _hi_all_gated "$(_HI_HOME="$home" _HI_CONFIG_DIR="$dir" _hi_gate 0 0)" 1
+  _hi_all_gated "$(_HI_HOME="$home" _HI_CONFIG_DIR="$dir" _hi_gate 0 0)" 1 || _hi_why home dir
 }
 
 function run_paths_tests() {

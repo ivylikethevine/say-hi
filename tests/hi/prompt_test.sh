@@ -69,7 +69,7 @@ function test_fish_ascii_glyphs_match_core() {
     name="${pair#*:}"
     want="$want$role=$(_hi_core_values _HI_GLYPH_ 1 "$name" | sed 's/^[A-Z_]*=//')"$'\n'
   done
-  _hi_fish_agrees "ascii glyphs" "$(_hi_fish_settings char)" "$(printf '%s' "$want")"
+  _hi_fish_agrees "ascii glyphs" "$(_hi_fish_settings char)" "$(printf '%s' "$want")" || _hi_why want
 }
 
 # the palette copy: fish names colors, core.sh spells escapes, and
@@ -138,32 +138,32 @@ function test_fallback_prompt_carries_user_host_and_color() {
   local out ps1
   out="$(DOMAIN=hitest@myhost _hi_fallback_prompt)"
   ps1="$(printf '%s\n' "$out" | sed -n 's/^PS1=//p')"
-  [[ "$out" == *'_hi_u=$(id -un'* ]] || return 1
-  [[ "$ps1" == *myhost* && "$ps1" == *$'\e['* ]] || return 1
-  [[ "$ps1" == *'\$ "'* && "$ps1" != *'$('* ]]
+  [[ "$out" == *'_hi_u=$(id -un'* ]] || _hi_why out || return 1
+  [[ "$ps1" == *myhost* && "$ps1" == *$'\e['* ]] || _hi_why ps1 || return 1
+  [[ "$ps1" == *'\$ "'* && "$ps1" != *'$('* ]] || _hi_why ps1
 }
 
 # the separator is a setting everywhere else, so it is one here too
 function test_fallback_prompt_honors_the_separator_setting() {
-  [[ "$(_HI_PROMPT_END_BASH='>>' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'>> "'* ]]
+  [[ "$(_HI_PROMPT_END_BASH='>>' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'>> "'* ]] || _hi_why
 }
 
 # ...and the bash-less prompt takes bash's own separator, not one of its own:
 # the two look alike on purpose, and one row fewer to freeze
 function test_fallback_prompt_takes_the_bash_separator() {
-  [[ "$(_HI_PROMPT_END_BASH='%%' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'%% "'* ]]
+  [[ "$(_HI_PROMPT_END_BASH='%%' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'%% "'* ]] || _hi_why
 }
 
 function test_fallback_prompt_respects_the_toggle() {
-  [ -z "$(_HI_DISABLE_PROMPT=1 DOMAIN=hitest@myhost _hi_fallback_prompt)" ]
+  [ -z "$(_HI_DISABLE_PROMPT=1 DOMAIN=hitest@myhost _hi_fallback_prompt)" ] || _hi_why
 }
 
 # the whole point: a real POSIX shell renders it without complaint
 function test_fallback_prompt_renders_in_dash() {
   local out
   out="$(DOMAIN=hitest@myhost _hi_fallback_prompt |
-    dash -s -c '. /dev/stdin; printf %s "$PS1"' 2>&1)" || return 1
-  [[ "$out" == *myhost* && "$out" != *'id -un'* ]]
+    dash -s -c '. /dev/stdin; printf %s "$PS1"' 2>&1)" || _hi_why PS1 || return 1
+  [[ "$out" == *myhost* && "$out" != *'id -un'* ]] || _hi_why out
 }
 
 # Each escape between the line editor's own markers - bash's \[ \] for
@@ -178,12 +178,12 @@ function test_fallback_prompt_marks_its_escapes_per_editor() {
   mk="$(KSH_VERSION='@(#)MIRBSD KSH R59' sh -c "$rc"'; printf %s "$PS1"')"
   # shellcheck disable=SC2016
   plain="$(env -u BB_ASH_VERSION -u KSH_VERSION sh -c "$rc"'; printf %s "$PS1"')"
-  [[ "$bb" == *'\['$'\e['*'\]'* && "$bb" == *'${PWD}'* ]] || return 1
-  [[ "$mk" == $'\001\r'* && "$mk" == *$'\001\e['* ]] || return 1
+  [[ "$bb" == *'\['$'\e['*'\]'* && "$bb" == *'${PWD}'* ]] || _hi_why bb || return 1
+  [[ "$mk" == $'\001\r'* && "$mk" == *$'\001\e['* ]] || _hi_why mk || return 1
   # a busybox sh (Alpine's) sets BB_ASH_VERSION itself: no plain case there
   # shellcheck disable=SC2016
   [ -z "$(sh -c 'printf %s "${BB_ASH_VERSION-}"')" ] || return 0
-  [[ "$plain" != *'\['* && "$plain" != *$'\001'* ]]
+  [[ "$plain" != *'\['* && "$plain" != *$'\001'* ]] || _hi_why plain
 }
 
 # The shared rc must NOT carry it: that file is also fed to fish, which has no
@@ -192,7 +192,7 @@ function test_fallback_prompt_marks_its_escapes_per_editor() {
 function test_fallback_rc_stays_shell_agnostic() {
   local out
   out="$(DOMAIN=hitest@myhost CMDARG="" _hi_fallback_rc)"
-  [[ "$out" != *PS1=* ]]
+  [[ "$out" != *PS1=* ]] || _hi_why out
 }
 
 function test_remote_suffix_appends_the_prompt_for_posix_shells() {
@@ -200,8 +200,8 @@ function test_remote_suffix_appends_the_prompt_for_posix_shells() {
   out="$(DOMAIN=hitest@myhost _hi_remote_suffix)"
   # the append lands after the fish arm - on the POSIX arm, which is the
   # first one past fish - and every arm that appends also exports ENV
-  _hi_before "$out" 'fish -C' '>> "\$_hi_rc_dir/.hi_fallback_rc"' &&
-    _hi_before "$out" '>> "\$_hi_rc_dir/.hi_fallback_rc"' 'ENV='
+  { _hi_before "$out" 'fish -C' '>> "\$_hi_rc_dir/.hi_fallback_rc"' &&
+    _hi_before "$out" '>> "\$_hi_rc_dir/.hi_fallback_rc"' 'ENV='; } || _hi_why out
 }
 
 # --- the environment segment's fish copy (GLOSSARY: HI.54) -------------------
@@ -226,7 +226,7 @@ function _hi_env_sources_fish() {
 
 function test_fish_env_order_default_matches_env_prompt() {
   _hi_fish_agrees "environment sources" \
-    "$(_hi_env_sources_fish)" "$(_hi_env_sources_core)"
+    "$(_hi_env_sources_fish)" "$(_hi_env_sources_core)" || _hi_why
 }
 
 # the default list is also the roster both files branch on: a word in the
@@ -275,7 +275,7 @@ function _hi_mise_configs() {
 function test_fish_mise_walks_the_same_config_names() {
   _hi_fish_agrees "mise config names" \
     "$(_hi_mise_configs "$_HI_ROOT/common/config.fish")" \
-    "$(_hi_mise_configs "$_HI_ROOT/common/env_prompt.sh")"
+    "$(_hi_mise_configs "$_HI_ROOT/common/env_prompt.sh")" || _hi_why
 }
 
 # the segment is truncated at the same width, with core.sh's own ellipsis in

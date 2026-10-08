@@ -20,17 +20,17 @@ source "$_HI_LAUNCHER"
 function test_mux_name_drops_what_tmux_rejects() {
   local out
   for out in "$(_hi_mux_name user@host)" "$(_hi_mux_name ctx:ns:pod/ctr)" "$(_hi_mux_name 'db.example.com')"; do
-    case "$out" in hi-*) ;; *) return 1 ;; esac
-    case "$out" in *[:./@]*) return 1 ;; esac
+    case "$out" in hi-*) ;; *) _hi_why out || return 1 ;; esac
+    case "$out" in *[:./@]*) _hi_why out || return 1 ;; esac
   done
   [ "$(_hi_mux_name ctx:ns:pod/ctr)" = hi-ctx-ns-pod-ctr ] &&
-    [ "$(_hi_mux_name user@host)" = hi-user-host ]
+    [ "$(_hi_mux_name user@host)" = hi-user-host ] || _hi_why
 }
 
 function test_mux_name_is_a_session_name_tmux_accepts() {
   local sock="$_HI_WORKDIR/tmux.sock" name
   name="$(_hi_mux_name 'ctx:ns:pod/ctr')"
-  tmux -S "$sock" new-session -d -s "$name" true || return 1
+  tmux -S "$sock" new-session -d -s "$name" true || _hi_why sock name || return 1
   tmux -S "$sock" kill-server 2>/dev/null || true
 }
 
@@ -46,9 +46,9 @@ function test_mux_flags_are_unknown_options() {
 function test_kdl_quote_escapes_the_two_characters_kdl_reads() {
   local q
   _hi_kdl_quote q 'plain'
-  [ "$q" = '"plain"' ] || return 1
+  [ "$q" = '"plain"' ] || _hi_why q || return 1
   _hi_kdl_quote q 'a\b "c" $d'
-  [ "$q" = '"a\\b \"c\" $d"' ]
+  [ "$q" = '"a\\b \"c\" $d"' ] || _hi_why q
 }
 
 function run_hi_mux_tests() {

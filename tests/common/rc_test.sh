@@ -37,7 +37,7 @@ function test_bash_hi_ps1_contains_user_host_cwd() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"')"
-  [[ "$out" == *'\u'* && "$out" == *@* && "$out" == *'\h'* && "$out" == *'\w'* ]]
+  [[ "$out" == *'\u'* && "$out" == *@* && "$out" == *'\h'* && "$out" == *'\w'* ]] || _hi_why out
 }
 
 # no color -> the exact plain form (common/bash.sh's else branch)
@@ -45,7 +45,7 @@ function test_bash_hi_ps1_plain_without_color() {
   local out
   out="$(_hi_rc_shell dumb bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"')"
-  [[ "$out" == *'\u@\h:\w' ]]
+  [[ "$out" == *'\u@\h:\w' ]] || _hi_why out
 }
 
 # readline counts every $PS1 byte it isn't told to ignore; an unmarked escape
@@ -59,14 +59,14 @@ function test_bash_ps_mark_wraps_color_escapes() {
      _hi_ps_mark x
      printf %s "$x"')"
   want=$'\001\e[31m\002red\001\e[0m\002'
-  [ "$out" = "$want" ]
+  [ "$out" = "$want" ] || _hi_why out want
 }
 
 function test_bash_prompt_disabled_leaves_ps1_alone() {
   local out
   out="$(_HI_DISABLE_PROMPT=1 _hi_rc_shell xterm-256color bash \
     'export _HI_DISABLE_PROMPT=1; source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${HI_PS1:-}"')"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 # Even with hi's own prompt off, the color hashing it would have used is
@@ -80,7 +80,7 @@ function test_bash_prompt_disabled_still_primes_color_variables() {
     'export _HI_DISABLE_PROMPT=1; source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
      printf "%s\t%s\t%s\t%s" "$_HI_HOST_ESC" "$_HI_USER_ESC" "$_HI_HOST_COLOR" "$_HI_USER_COLOR"')"
   IFS=$'\t' read -r host_esc user_esc host_color user_color <<<"$out"
-  [ -n "$host_esc" ] && [ -n "$user_esc" ] && [ -n "$host_color" ] && [ -n "$user_color" ]
+  [ -n "$host_esc" ] && [ -n "$user_esc" ] && [ -n "$host_color" ] && [ -n "$user_color" ] || _hi_why host_esc user_esc host_color user_color
 }
 
 function test_zsh_prompt_disabled_still_primes_color_variables() {
@@ -89,13 +89,13 @@ function test_zsh_prompt_disabled_still_primes_color_variables() {
     'export _HI_DISABLE_PROMPT=1; source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null
      printf "%s\t%s" "$_HI_HOST_COLOR" "$_HI_USER_COLOR"')"
   IFS=$'\t' read -r host_color user_color <<<"$out"
-  [ -n "$host_color" ] && [ -n "$user_color" ]
+  [ -n "$host_color" ] && [ -n "$user_color" ] || _hi_why host_color user_color
 }
 
 function test_bash_registers_hi_completion() {
   _hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; complete -p hi' |
-    grep -qF '_hi_complete'
+    grep -qF '_hi_complete' || _hi_why
 }
 
 # What this case is really for: common/bash.sh's `source "$_HI_ALIASES"` line
@@ -151,7 +151,7 @@ function test_bash_ps1_reports_status_and_cwd_marks() {
     printf %s "$PS1"')"
   [[ "$out" == *$'\e]133;D;7\a'* ]] &&
     [[ "$out" == *$'\e]7;file://'*"$_HI_WORKDIR"$'\a'* ]] &&
-    [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]]
+    [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]] || _hi_why out
 }
 
 # zsh's prompt_subst stays the user's with the prompt disabled
@@ -159,7 +159,7 @@ function test_zsh_keeps_the_users_prompt_subst() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh \
     '_HI_DISABLE_PROMPT=1 zsh -fc "source \$_HI_HOME/say-hi/common/zsh.zsh >/dev/null 2>&1; [[ -o prompt_subst ]] || printf off"')"
-  [ "$out" = off ]
+  [ "$out" = off ] || _hi_why out
 }
 
 # <shell>: hi exports nothing for other tools (GCC_COLORS, CLICOLOR, LSCOLORS,
@@ -216,7 +216,7 @@ function test_bash_marks_only_where_they_belong() {
     printf "%s|" "$PS1"
     _hi_url_path u "$HOME/sp ace"
     printf "%s" "$u"')"
-  [[ "$out" != *$'\e]133'* && "$out" != *$'\e]7;'* && "$out" == *"/sp%20ace" ]]
+  [[ "$out" != *$'\e]133'* && "$out" != *$'\e]7;'* && "$out" == *"/sp%20ace" ]] || _hi_why out
 }
 
 # Under a prompt program hi has no $PS1 to hold the marks: D, the cwd, and A
@@ -275,7 +275,7 @@ function test_rc_keeps_the_callers_shell_options() {
     _HI_CONFIG_DIR="$cfg" _HI_DISABLE_HEADER=1 "$shell" -ic \
     'set -u; set -o pipefail; source "$1" >/dev/null 2>&1; [[ $- == *u* && -o pipefail ]] && echo kept' \
     "$shell" "$rc" 2>/dev/null </dev/null)"
-  [ "$out" = kept ]
+  [ "$out" = kept ] || _hi_why out
 }
 
 # A shell left from its prompt (Ctrl-D) never reaches PS0, so the EXIT trap
@@ -291,7 +291,7 @@ function test_bash_exit_trap_closes_the_prompt_mark() {
     trap -p EXIT
     exit 5')"
   want="$(printf "trap -- '_hi_marks_exit \$?; echo prev:\$?' EXIT\nprev:5")"
-  [ "$out" = "$want" ]
+  [ "$out" = "$want" ] || _hi_why out want
 }
 
 # the zsh half: a zshexit hook, which a terminal-less exit leaves silent
@@ -299,7 +299,7 @@ function test_zsh_exit_hook_closes_the_prompt_mark() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh \
     'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -r -- "$zshexit_functions"; exit 5')"
-  [ "$out" = __hi_marks_zshexit ]
+  [ "$out" = __hi_marks_zshexit ] || _hi_why out
 }
 
 # the fish half: `exit` is a command whose own C and D went out, so the
@@ -314,7 +314,7 @@ function test_fish_exit_closes_the_prompt_mark_only_from_the_prompt() {
      functions -q __hi_marks_exit; and echo -n ,hooked')"
   # fish 3 prints its handlers' C past `emit`'s redirect, and a bracketed-paste
   # reset on its way out, between and after the words
-  [[ "$out" == *open*,ran*,hooked* ]]
+  [[ "$out" == *open*,ran*,hooked* ]] || _hi_why out
 }
 
 # __hi_ps1 runs first in PROMPT_COMMAND, so it hands on the status it found:
@@ -326,7 +326,7 @@ function test_bash_ps1_hands_on_the_status() {
     (exit 7)
     __hi_ps1 >/dev/null
     echo "st=$?"')"
-  [[ "$out" == *st=7 ]]
+  [[ "$out" == *st=7 ]] || _hi_why out
 }
 
 # The pw3nage guard (the comment in __hi_ps1 says why): with promptvars on, the
@@ -340,7 +340,7 @@ function test_bash_ps1_references_git_info_under_promptvars() {
     shopt -s promptvars
     __hi_ps1
     printf %s "$PS1"')"
-  [[ "$out" == *'${__powerline_git_info}'* ]]
+  [[ "$out" == *'${__powerline_git_info}'* ]] || _hi_why out
 }
 
 # ...and with promptvars off no expansion would ever happen, so the value
@@ -376,7 +376,7 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
     COMPREPLY=()
     _hi_complete
     printf "%s|%s" "${COMPREPLY[*]}" "$_HI_TARGET_ROWS_AT"' _HI_DISABLE_PROMPT=1)"
-  [ "$out" = "--plain|-1" ]
+  [ "$out" = "--plain|-1" ] || _hi_why out
 }
 
 # ...and the target TAB's names are held in the shell for $_HI_TARGETS_TTL
@@ -394,7 +394,7 @@ function test_bash_target_names_are_held_for_the_ttl() {
     printf "%s|%s|" "${_HI_TARGET_ROWS[0]%%[[:space:]]*}" "$(cat "$HI_TEST_COUNT")"
     _HI_TARGETS_TTL=0 _hi_target_rows
     cat "$HI_TEST_COUNT"' _HI_DISABLE_PROMPT=1 HI_TEST_STUB="$stub" HI_TEST_COUNT="$count")"
-  [ "$out" = "stub|x|xx" ]
+  [ "$out" = "stub|x|xx" ] || _hi_why out
 }
 
 # ble.sh's as-you-type completion (`auto` in its comp_type) never sweeps:
@@ -412,7 +412,7 @@ function test_bash_ble_auto_complete_runs_no_sweep() {
     _hi_complete
     auto
     printf "%s" "$(cat "$HI_TEST_COUNT")"' _HI_DISABLE_PROMPT=1 HI_TEST_STUB="$stub" HI_TEST_COUNT="$count")"
-  [ "$out" = "[][web]x" ]
+  [ "$out" = "[][web]x" ] || _hi_why out
 }
 
 # The deferred exa completion, registered only where hi's tool aliases made
@@ -429,7 +429,7 @@ function test_bash_exa_completion_clones_ezas_spec() {
     _hi_load_exa_completion
     printf "%s|" "$?"
     complete -p exa' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
-  [[ "$out" == '124|'*'-W'*'--grid --tree'*' exa' ]]
+  [[ "$out" == '124|'*'-W'*'--grid --tree'*' exa' ]] || _hi_why out
 }
 
 # ...a word of the spec that holds a quote, which `complete -p` writes as
@@ -458,7 +458,7 @@ function test_bash_exa_completion_fails_without_an_eza_spec() {
     _hi_load_exa_completion
     printf "%s|" "$?"
     complete -p exa' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
-  [[ "$out" == '1|'*'_hi_load_exa_completion exa' ]]
+  [[ "$out" == '1|'*'_hi_load_exa_completion exa' ]] || _hi_why out
 }
 
 # <shell>: exa completes as eza only where hi's tool aliases made exa an
@@ -506,7 +506,7 @@ function test_bash_starship_handoff_installs_no_ps1_hook() {
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     printf "%s|%s" "${PROMPT_COMMAND-}" "$(type -t __hi_ps1 || true)"' \
     "PATH=$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship)"
-  [[ "$out" != *__hi_ps1* ]]
+  [[ "$out" != *__hi_ps1* ]] || _hi_why out
 }
 
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
@@ -590,7 +590,7 @@ function test_zsh_git_segment_counts_its_text() {
     setopt extended_glob
     v=${(S)__hi_git_info//\%\{*\%\}/}
     print -rn -- "[$v][${${(%)__hi_git_info}//$'"'"'\e'"'"'\[[0-9;]#m/}]"')"
-  [[ "$out" == *"[ (50%%)][ (50%)]" && "$out" != *$'\e'* ]]
+  [[ "$out" == *"[ (50%%)][ (50%)]" && "$out" != *$'\e'* ]] || _hi_why out
 }
 
 # An activate script's "(name) " ahead of hi's prompt brings its own space,
@@ -602,7 +602,7 @@ function test_zsh_lead_yields_to_an_activate_prefix() {
     __hi_env_precmd; a="[$__hi_lead]"
     PS1="(proj) $PS1"; __hi_env_precmd
     print -rn -- "${a}[${__hi_lead}]"')"
-  [[ "$out" == *"[ ][]" ]]
+  [[ "$out" == *"[ ][]" ]] || _hi_why out
 }
 
 function test_fish_lead_yields_to_an_activate_prefix() {
@@ -612,7 +612,7 @@ function test_fish_lead_yields_to_an_activate_prefix() {
     function _old_fish_prompt; end
     set -l b (prompt_login | string replace -ra "\e\[[0-9;]*m|\e\(B" "")
     echo -n "[$a][$b]"')"
-  [[ "$out" == *"[ "[!\ ]*"]["[!\ ]* ]]
+  [[ "$out" == *"[ "[!\ ]*"]["[!\ ]* ]] || _hi_why out
 }
 
 function test_env_defers_to_an_activate_that_ran_here() {
@@ -626,7 +626,7 @@ function test_env_defers_to_an_activate_that_ran_here() {
 function test_fish_prompt_leads_with_the_environment() {
   local out
   out="$(_HI_AS_ROOT=no _hi_prompt_tail fish VIRTUAL_ENV=/x/proj/.venv)"
-  [[ "$out" == " (proj) "* ]]
+  [[ "$out" == " (proj) "* ]] || _hi_why out
 }
 
 # ...and with no environment active at all - every prompt outside a venv - the
@@ -647,7 +647,7 @@ function test_fish_prompt_keeps_the_lead_without_an_environment() {
 function test_fish_prompt_drops_the_lead_when_asked() {
   local out
   out="$(_HI_AS_ROOT=no _hi_prompt_tail fish _HI_DISABLE_LEAD_SPACE=1)"
-  [[ "$out" != " "* ]]
+  [[ "$out" != " "* ]] || _hi_why out
 }
 
 # bash and zsh reach $PS1 through a reference filled by the hook, so what their
@@ -656,21 +656,21 @@ function test_bash_ps1_leads_with_the_environment_reference() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; __hi_ps1; printf %s "$PS1"')"
-  [[ "$out" == *'${__hi_env_info}'*'\u'* ]]
+  [[ "$out" == *'${__hi_env_info}'*'\u'* ]] || _hi_why out
 }
 
 function test_zsh_ps1_leads_with_the_environment_reference() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh \
     'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -rn -- "$PS1"')"
-  [[ "$out" == *'${__hi_env_info}'*%n* ]]
+  [[ "$out" == *'${__hi_env_info}'*%n* ]] || _hi_why out
 }
 
 function test_zsh_prompt_is_built() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh \
     'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -r -- "$PS1"')"
-  [[ "$out" == *%n* && "$out" == *@* && "$out" == *%m* ]]
+  [[ "$out" == *%n* && "$out" == *@* && "$out" == *%m* ]] || _hi_why out
 }
 
 # bash and zsh answer a `-*` word from targets.sh's flags roster and never
@@ -696,8 +696,8 @@ function test_zsh_flag_completion_offers_hi_options() {
     words=(hi --c); CURRENT=2
     _hi
   ')"
-  printf '%s\n' "$out" | grep -qx -- --doctor &&
-    printf '%s\n' "$out" | grep -qx -- --preview
+  { printf '%s\n' "$out" | grep -qx -- --doctor &&
+    printf '%s\n' "$out" | grep -qx -- --preview; } || _hi_why out
 }
 
 # An rc that runs no compinit gets none from hi: no compinit, promptinit, or
@@ -745,8 +745,8 @@ function test_zsh_completes_the_word_after_preview() {
     words=(hi --preview ""); CURRENT=3
     _hi
   ')"
-  printf '%s\n' "$out" | grep -qx header &&
-    printf '%s\n' "$out" | grep -qx packages
+  { printf '%s\n' "$out" | grep -qx header &&
+    printf '%s\n' "$out" | grep -qx packages; } || _hi_why out
 }
 
 # _hi_rc_reentry <shell> <rc> <probe> - <shell> sources hi's <rc> with an

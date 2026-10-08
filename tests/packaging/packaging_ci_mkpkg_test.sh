@@ -26,7 +26,7 @@ function test_build_job_signs_the_rpm() {
   build="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
   [[ "$build" == *'GPG_SIGNING_KEY'* ]] &&
     [[ "$build" == *'HI_GPG_KEY='* ]] &&
-    [[ "$build" == *'packaging/gpg/say-hi.asc'* ]]
+    [[ "$build" == *'packaging/gpg/say-hi.asc'* ]] || _hi_why build
 }
 
 # shellcheck disable=SC2016 # matching release.yml's literal source text
@@ -35,14 +35,14 @@ function test_publish_job_ships_the_package_repository() {
   publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   [[ "$publish" == *'packaging/mkrepo.sh'* ]] &&
     [[ "$publish" == *'--public-key packaging/gpg/say-hi.asc'* ]] &&
-    [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" dist/package-repo.tar.gz'* ]]
+    [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" dist/package-repo.tar.gz'* ]] || _hi_why publish
 }
 
 function test_pages_workflow_serves_the_package_repository() {
   [ -f "$_HI_PAGES_WF" ] || return 0
-  grep -qF 'gh release download' "$_HI_PAGES_WF" &&
+  { grep -qF 'gh release download' "$_HI_PAGES_WF" &&
     grep -qF 'package-repo.tar.gz' "$_HI_PAGES_WF" &&
-    grep -qF -- '-C _site' "$_HI_PAGES_WF"
+    grep -qF -- '-C _site' "$_HI_PAGES_WF"; } || _hi_why _HI_PAGES_WF
 }
 
 # pages.yml's workflow_run trigger filters branches: [main], which a tag
@@ -58,7 +58,7 @@ function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
     [[ "$refresh" == *'gh_dispatch.sh pages.yml main'* ]] &&
     [[ "$refresh" == *'needs: [collect, attach]'* ]] &&
-    [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" != *'gh_dispatch.sh pages.yml'* ]]
+    [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" != *'gh_dispatch.sh pages.yml'* ]] || _hi_why refresh _HI_PAGES_WF _HI_RELEASE_WF
 }
 
 # coverage.yml is chained off CI and is the last producer to finish, so it is
@@ -72,30 +72,30 @@ function test_pages_deploys_once_after_coverage() {
   grep -qE '^ *workflows: \[Coverage\]$' "$_HI_PAGES_WF" &&
     [[ "$build" == *"workflow_run.conclusion == 'success'"* ]] &&
     [[ "$build" == *"workflow_run.event != 'pull_request'"* ]] &&
-    [[ "$build" == *"needs.release-pending.outputs.tagged != 'true'"* ]]
+    [[ "$build" == *"needs.release-pending.outputs.tagged != 'true'"* ]] || _hi_why build _HI_PAGES_WF
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
   [ -f "$_HI_CI_WF" ] || return 0
-  [[ "$(_hi_wf_job "$_HI_CI_WF" packaging-smoke)" == *'packaging/mkrepo.sh'* ]]
+  [[ "$(_hi_wf_job "$_HI_CI_WF" packaging-smoke)" == *'packaging/mkrepo.sh'* ]] || _hi_why _HI_CI_WF
 }
 
 # mkrepo.sh answers --help before it asks for docker, so the flags the
 # workflows pass can be checked without a daemon
 function test_mkrepo_documents_the_flags_the_workflows_pass() {
   local help
-  help="$("$_HI_MKREPO" --help 2>/dev/null)" || return 1
-  [[ "$help" == *"--gpg-key"* && "$help" == *"--public-key"* && "$help" == *"--apk-key"* && "$help" == *"--tarball"* ]]
+  help="$("$_HI_MKREPO" --help 2>/dev/null)" || _hi_why _HI_MKREPO || return 1
+  [[ "$help" == *"--gpg-key"* && "$help" == *"--public-key"* && "$help" == *"--apk-key"* && "$help" == *"--tarball"* ]] || _hi_why help
 }
 
 # the version of record has to exist where mkpkg.sh reads it back from;
 # the actual plumbing is covered by test_package_sh_version_flag_wins
 function test_package_sh_reads_the_version_from_the_pkgbuild() {
-  [ -n "$(_hi_in_pkglib pkgbuild_version)" ]
+  [ -n "$(_hi_in_pkglib pkgbuild_version)" ] || _hi_why
 }
 
 function test_bump_check_rejects_a_version_the_manifests_do_not_carry() {
-  ! "$_HI_PKG_DIR/bump.sh" --check 999.999.999 >/dev/null 2>&1
+  ! "$_HI_PKG_DIR/bump.sh" --check 999.999.999 >/dev/null 2>&1 || _hi_why _HI_PKG_DIR
 }
 
 # Fixture manifests (in packaging/'s own layout) plus a local tarball stand in
@@ -135,7 +135,7 @@ function test_bump_write_rewrites_pkgver_and_b2sums() {
     _hi_bump_written
     grep -q '^pkgver=9\.9\.9$' "$_HI_PKGBUILD" &&
       grep -qF "b2sums=('$(b2_of "$_HI_TB")')" "$_HI_PKGBUILD"
-  )
+  ) || _hi_why _HI_PKGBUILD _HI_TB
 }
 
 function test_bump_write_rewrites_formula_url_and_sha256() {
@@ -144,7 +144,7 @@ function test_bump_write_rewrites_formula_url_and_sha256() {
     _hi_bump_written
     grep -qF "$(asset_url 9.9.9)" "$_HI_FORMULA" &&
       grep -qF "sha256 \"$(sha256_of "$_HI_TB")\"" "$_HI_FORMULA"
-  )
+  ) || _hi_why _HI_FORMULA _HI_TB
 }
 
 # asset_url derives its host from the PKGBUILD's url= (the line makepkg
@@ -156,7 +156,7 @@ function test_bump_asset_url_follows_the_pkgbuild_url() {
     _hi_bump_env
     _hi_rewrite "$_HI_PKGBUILD" 's|^url=.*|url="https://example.invalid/renamed"|'
     [ "$(asset_url 9.9.9)" = "https://example.invalid/renamed/releases/download/v9.9.9/say-hi-9.9.9.tar.gz" ]
-  )
+  ) || _hi_why _HI_PKGBUILD
 }
 
 # the no-makepkg path (any non-Arch box, incl. the release runner) has to fix
@@ -170,7 +170,7 @@ function test_bump_srcinfo_fallback_rewrites_the_three_lines() {
       grep -qF "source = $(asset_url 9.9.9)" "$_HI_SRCINFO" &&
       grep -qF 'b2sums = feedbeef' "$_HI_SRCINFO" &&
       grep -q $'^\tpkgver' "$_HI_SRCINFO" # the leading tab survived the sed
-  )
+  ) || _hi_why -6 _HI_SRCINFO
 }
 
 function test_bump_check_passes_after_a_write() {
@@ -178,7 +178,7 @@ function test_bump_check_passes_after_a_write() {
   (
     _hi_bump_written
     check_manifests >/dev/null 2>&1
-  )
+  ) || _hi_why
 }
 
 # corrupt one .SRCINFO line after a good write; --check has to catch it
@@ -201,11 +201,11 @@ function test_bump_check_handles_a_pkgbuild_missing_pkgver() {
     _hi_bump_written
     _hi_rewrite "$_HI_PKGBUILD" '/^pkgver=/d'
     ! check_manifests >/dev/null 2>&1
-  )
+  ) || _hi_why _HI_PKGBUILD
 }
 
 function test_bump_check_catches_stale_srcinfo_source() {
-  _hi_bump_check_rejects 's|^\([[:space:]]*\)source = .*|\1source = x/releases/download/v0.0.1/say-hi-0.0.1.tar.gz|'
+  _hi_bump_check_rejects 's|^\([[:space:]]*\)source = .*|\1source = x/releases/download/v0.0.1/say-hi-0.0.1.tar.gz|' || _hi_why
 }
 
 # bump.sh run as the command release.yml runs, against the fixture: the
@@ -256,11 +256,11 @@ function test_bump_write_builds_from_a_local_tag() {
     _hi_bump_env
     shim="$(_hi_bump_git_shim ok)"
     printf 'tag bytes\n' >"$_HI_WORKDIR/tagbytes"
-    out="$(PATH="$shim:$PATH" write_manifests 2>&1)" || exit 1
+    out="$(PATH="$shim:$PATH" write_manifests 2>&1)" || _hi_why shim || exit 1
     [[ "$out" == *"Building the source tarball from refs/tags/v9.9.9"* ]] &&
       grep -qF "b2sums=('$(b2_of "$_HI_WORKDIR/tagbytes")')" "$_HI_PKGBUILD" &&
       grep -qF "sha256 \"$(sha256_of "$_HI_WORKDIR/tagbytes")\"" "$_HI_FORMULA"
-  )
+  ) || _hi_why shim out _HI_PKGBUILD _HI_FORMULA
 }
 
 function test_bump_write_reports_a_failed_git_archive() {
@@ -270,7 +270,7 @@ function test_bump_write_reports_a_failed_git_archive() {
     shim="$(_hi_bump_git_shim fail)"
     out="$(PATH="$shim:$PATH" write_manifests 2>&1)" && exit 1
     [[ "$out" == *"git archive failed"* ]]
-  )
+  ) || _hi_why shim out
 }
 
 # no --tarball and no local tag falls back to fetching the released asset,
@@ -285,7 +285,7 @@ function test_bump_write_reports_a_failed_asset_fetch() {
     out="$(write_manifests 2>&1)" && exit 1
     [[ "$out" == *"No local v9.9.9 tag - fetching file:///hi-suite-absent/releases/download/v9.9.9/say-hi-9.9.9.tar.gz"* ]] &&
       [[ "$out" == *"could not fetch it"* ]]
-  )
+  ) || _hi_why out _HI_PKGBUILD
 }
 
 # --tarball pointing at nothing is a named refusal, and it travels out of the
@@ -294,7 +294,7 @@ function test_bump_cli_refuses_a_missing_tarball() {
   bump_fixture
   local out
   out="$(_hi_bump_cli --tarball "$_HI_WORKDIR/bump/absent.tar.gz" 9.9.9 2>&1)" && return 1
-  [[ "$out" == *"no such file: $_HI_WORKDIR/bump/absent.tar.gz"* ]]
+  [[ "$out" == *"no such file: $_HI_WORKDIR/bump/absent.tar.gz"* ]] || _hi_why out
 }
 
 # the write path's *dispatch* into the no-makepkg fallback (the rewrite
@@ -305,10 +305,10 @@ function test_bump_write_falls_back_without_makepkg() {
   (
     _hi_bump_env
     box="$(_hi_real_path nomakepkg sh sed awk head grep cat rm chmod stat mktemp sha256sum shasum sha256 b2sum openssl python3)"
-    out="$(PATH="$box" write_manifests "$_HI_TB" 2>&1)" || exit 1
+    out="$(PATH="$box" write_manifests "$_HI_TB" 2>&1)" || _hi_why box _HI_TB || exit 1
     [[ "$out" == *"pkgver/source/b2sums only"* ]] &&
       grep -qF "b2sums = $(b2_of "$_HI_TB")" "$_HI_SRCINFO"
-  )
+  ) || _hi_why box out _HI_TB _HI_SRCINFO
 }
 
 # the whole command in one pass: the --tarball parse, the v-prefix strip, the
@@ -316,48 +316,48 @@ function test_bump_write_falls_back_without_makepkg() {
 function test_bump_cli_write_bumps_the_fixture() {
   bump_fixture
   local out tb="$_HI_WORKDIR/bump/src.tar.gz"
-  out="$(_hi_bump_cli --tarball "$tb" v9.9.9 2>&1)" || return 1
-  [[ "$out" == *"Bumping say-hi to 9.9.9"*"Bumped!"* ]] || return 1
-  grep -q '^pkgver=9\.9\.9$' "$_HI_WORKDIR/bump/aur/say-hi/PKGBUILD" &&
-    grep -qF "sha256 \"$(sha256_of "$tb")\"" "$_HI_WORKDIR/bump/homebrew/say-hi.rb"
+  out="$(_hi_bump_cli --tarball "$tb" v9.9.9 2>&1)" || _hi_why tb || return 1
+  [[ "$out" == *"Bumping say-hi to 9.9.9"*"Bumped!"* ]] || _hi_why out || return 1
+  { grep -q '^pkgver=9\.9\.9$' "$_HI_WORKDIR/bump/aur/say-hi/PKGBUILD" &&
+    grep -qF "sha256 \"$(sha256_of "$tb")\"" "$_HI_WORKDIR/bump/homebrew/say-hi.rb"; } || _hi_why tb
 }
 
 # --check's green tail, run as the command CI runs it as
 function test_bump_cli_check_agrees_after_a_write() {
   bump_fixture
-  (_hi_bump_written) || return 1
+  (_hi_bump_written) || _hi_why || return 1
   local out
-  out="$(_hi_bump_cli --check 9.9.9 2>&1)" || return 1
-  [[ "$out" == *"Manifests agree!"* ]]
+  out="$(_hi_bump_cli --check 9.9.9 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"Manifests agree!"* ]] || _hi_why out
 }
 
 function test_bump_help_names_both_modes() {
   local out
-  out="$("$_HI_PKG_DIR/bump.sh" --help)" || return 1
-  [[ "$out" == *"Usage: bump.sh [--check] [--tarball <file>] <version>"*"--check"*"--tarball <file>"* ]] || return 1
+  out="$("$_HI_PKG_DIR/bump.sh" --help)" || _hi_why _HI_PKG_DIR || return 1
+  [[ "$out" == *"Usage: bump.sh [--check] [--tarball <file>] <version>"*"--check"*"--tarball <file>"* ]] || _hi_why out || return 1
   # -h is the same door
-  out="$("$_HI_PKG_DIR/bump.sh" -h)" || return 1
-  [[ "$out" == *"Usage: bump.sh"* ]]
+  out="$("$_HI_PKG_DIR/bump.sh" -h)" || _hi_why _HI_PKG_DIR || return 1
+  [[ "$out" == *"Usage: bump.sh"* ]] || _hi_why out
 }
 
 function test_bump_rejects_an_unknown_flag() {
   local out
   out="$("$_HI_PKG_DIR/bump.sh" --bogus 2>&1)" && return 1
-  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: bump.sh"* ]]
+  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: bump.sh"* ]] || _hi_why out
 }
 
 # flags alone are not a run - the version check sits below the parse loop
 function test_bump_requires_a_version() {
   local out
   out="$("$_HI_PKG_DIR/bump.sh" --check 2>&1)" && return 1
-  [[ "$out" == *"a version is required"*"Usage: bump.sh"* ]]
+  [[ "$out" == *"a version is required"*"Usage: bump.sh"* ]] || _hi_why out
 }
 
 # a wrong tool or wrong output field shows up as a wrong constant
 function test_bump_sha256_matches_a_known_vector() {
   local f="$_HI_WORKDIR/vector"
   printf 'hello\n' >"$f"
-  [ "$(sha256_of "$f")" = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03" ]
+  [ "$(sha256_of "$f")" = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03" ] || _hi_why f
 }
 
 # the two b2 implementations (coreutils b2sum, openssl fallback) must agree,
@@ -367,7 +367,7 @@ function test_bump_sha256_matches_a_known_vector() {
 function test_bump_b2_fallback_agrees_with_b2sum() {
   local f="$_HI_WORKDIR/vector2"
   printf 'hello\n' >"$f"
-  [ "$(b2_of "$f")" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ]
+  [ "$(b2_of "$f")" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ] || _hi_why f NF
 }
 
 # a value flag typed with its value left off must refuse loudly - the
@@ -397,17 +397,17 @@ function test_parsers_refuse_a_flag_with_no_value() {
 function test_package_sh_stage_only_needs_no_nfpm() {
   local out
   out="$(_hi_staged_999)" &&
-    [ -f "$out/staging/usr/share/say-hi/hi.sh" ]
+    [ -f "$out/staging/usr/share/say-hi/hi.sh" ] || _hi_why out
 }
 
 function test_package_sh_version_flag_wins() {
   local out
   out="$("$_HI_PKG_DIR/mkpkg.sh" --version 7.7.7 --stage-only --outdir "$_HI_WORKDIR/pkgdist2" 2>&1)"
-  [[ "$out" == *"Packaging say-hi 7.7.7"* ]]
+  [[ "$out" == *"Packaging say-hi 7.7.7"* ]] || _hi_why out
 }
 
 function test_package_sh_rejects_unknown_arguments() {
-  ! "$_HI_PKG_DIR/mkpkg.sh" --bogus >/dev/null 2>&1
+  ! "$_HI_PKG_DIR/mkpkg.sh" --bogus >/dev/null 2>&1 || _hi_why _HI_PKG_DIR
 }
 
 # a checkout not named say-hi (CI paths, worktrees) gets the shim
@@ -423,20 +423,20 @@ function test_staged_launcher_shims_a_misnamed_checkout() {
     _HI_DIST="$_HI_WORKDIR/pkgdist3"
     out="$(staged_launcher)"
     [ "$out" = "$_HI_DIST/shim/say-hi/scripts/install.sh" ] && [ -x "$out" ]
-  )
+  ) || _hi_why -6 out _HI_PKG_DIR _HI_DIST
 }
 
 function test_release_workflow_uploads_sha256sums() {
   # mkpkg.sh writes it (the artifact list's single home); the workflow only
   # has to carry it as an artifact and attach it to the release
   grep -q 'SHA256SUMS' "$_HI_PKG_DIR/mkpkg.sh" &&
-    [ "$(grep -c 'SHA256SUMS' "$_HI_RELEASE_WF")" -ge 2 ]
+    [ "$(grep -c 'SHA256SUMS' "$_HI_RELEASE_WF")" -ge 2 ] || _hi_why _HI_PKG_DIR _HI_RELEASE_WF
 }
 
 function test_mkpkg_help_names_its_flags() {
   local out
-  out="$("$_HI_PKG_DIR/mkpkg.sh" --help 2>&1)" || return 1
-  [[ "$out" == *"--stage-only"*"--outdir <dir>"*"--source-tarball <file>"* ]]
+  out="$("$_HI_PKG_DIR/mkpkg.sh" --help 2>&1)" || _hi_why _HI_PKG_DIR || return 1
+  [[ "$out" == *"--stage-only"*"--outdir <dir>"*"--source-tarball <file>"* ]] || _hi_why out
 }
 
 # a flag without its value and a flag nobody knows both stop before anything
@@ -444,9 +444,9 @@ function test_mkpkg_help_names_its_flags() {
 function test_mkpkg_refuses_a_bare_flag_and_a_stranger() {
   local out
   out="$("$_HI_PKG_DIR/mkpkg.sh" --outdir 2>&1)" && return 1
-  [[ "$out" == *"--outdir requires a value"* ]] || return 1
+  [[ "$out" == *"--outdir requires a value"* ]] || _hi_why out || return 1
   out="$("$_HI_PKG_DIR/mkpkg.sh" --bogus 2>&1)" && return 1
-  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkpkg.sh"* ]]
+  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkpkg.sh"* ]] || _hi_why out
 }
 
 # no nfpm on the PATH: the refusal says where to get it, and nothing builds
@@ -454,7 +454,7 @@ function test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it() {
   local out
   out="$(PATH="$(_hi_real_path nonfpm sh bash awk sed grep cat printf)" \
     _hi_in_mkpkg "$_HI_WORKDIR/nonfpm" run_nfpm 2>&1)" && return 1
-  [[ "$out" == *"nfpm is not installed"*"go install github.com/goreleaser/nfpm"* ]]
+  [[ "$out" == *"nfpm is not installed"*"go install github.com/goreleaser/nfpm"* ]] || _hi_why out
 }
 
 # with no git history to read a commit time from, the build still stages -
@@ -472,7 +472,7 @@ function test_mkpkg_without_git_history_stamps_now_and_warns() {
     return 1
   }
   [[ "$out" == *"no git history - SOURCE_DATE_EPOCH stamps 'now'"* ]] &&
-    [ -f "$_HI_WORKDIR/nogit-dist/staging/usr/share/say-hi/hi.sh" ]
+    [ -f "$_HI_WORKDIR/nogit-dist/staging/usr/share/say-hi/hi.sh" ] || _hi_why out
 }
 
 # the whole build as the command runs it, past staging, with a stand-in nfpm:
@@ -501,10 +501,10 @@ EOF
     _hi_dump_log "mkpkg.sh with a stand-in nfpm" "$dist.log"
     return 1
   }
-  [[ "$out" == *"Packaged!"* ]] &&
+  { [[ "$out" == *"Packaged!"* ]] &&
     [ "$(cat "$dist.calls")" = "$(printf '%s 9.9.9\n' deb rpm apk)" ] &&
     diff <(sort "$dist/ARTIFACTS") \
-      <(printf '%s\n' say-hi-9.9.9.apk say-hi-9.9.9.deb say-hi-9.9.9.rpm say-hi-9.9.9.tar.gz SHA256SUMS | sort)
+      <(printf '%s\n' say-hi-9.9.9.apk say-hi-9.9.9.deb say-hi-9.9.9.rpm say-hi-9.9.9.tar.gz SHA256SUMS | sort); } || _hi_why out dist
 }
 
 # _hi_mkrepo_docker - a PATH whose `docker` answers `info` and, on `run`,
@@ -559,10 +559,10 @@ function test_mkrepo_in_container_hands_over_uid_gid_and_arches() {
   local d="$_HI_WORKDIR/ic"
   mkdir -p "$d/work"
   PATH="$(_hi_mkrepo_docker)" HI_ARCHES="x86_64 aarch64" \
-    _hi_in_mkrepo "$d" "$d/repo" in_container img "$d/work" 'true' || return 1
-  grep -qx "HI_UID=$(id -u)" "$d/work/.docker.env" &&
+    _hi_in_mkrepo "$d" "$d/repo" in_container img "$d/work" 'true' || _hi_why d || return 1
+  { grep -qx "HI_UID=$(id -u)" "$d/work/.docker.env" &&
     grep -qx "HI_GID=$(id -g)" "$d/work/.docker.env" &&
-    grep -qx "HI_ARCHES=x86_64 aarch64" "$d/work/.docker.env"
+    grep -qx "HI_ARCHES=x86_64 aarch64" "$d/work/.docker.env"; } || _hi_why d
 }
 
 # build_rpm lays out rpm/<package>, has the container index it, writes the
@@ -572,12 +572,12 @@ function test_mkrepo_build_rpm_lays_out_the_repo_and_warns_unsigned() {
   local d="$_HI_WORKDIR/rpm-build" out
   mkdir -p "$d/dist" "$d/repo"
   : >"$d/dist/say-hi-9.9.9-1.noarch.rpm"
-  out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" build_rpm 2>&1)" || return 1
-  [ -f "$d/repo/rpm/say-hi-9.9.9-1.noarch.rpm" ] && [ -f "$d/repo/rpm/repodata/repomd.xml" ] &&
+  out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" build_rpm 2>&1)" || _hi_why d || return 1
+  { [ -f "$d/repo/rpm/say-hi-9.9.9-1.noarch.rpm" ] && [ -f "$d/repo/rpm/repodata/repomd.xml" ] &&
     [ ! -e "$d/repo/rpm/repodata/repomd.xml.asc" ] &&
     [[ "$out" == *"repomd.xml is unsigned"* ]] &&
     grep -q '^baseurl=https://ivylikethevine.github.io/say-hi/rpm$' "$d/repo/say-hi.repo" &&
-    grep -q '^repo_gpgcheck=1$' "$d/repo/say-hi.repo"
+    grep -q '^repo_gpgcheck=1$' "$d/repo/say-hi.repo"; } || _hi_why d out
 }
 
 # ...and with a key, repomd.xml gets its detached signature and the public
@@ -585,7 +585,7 @@ function test_mkrepo_build_rpm_lays_out_the_repo_and_warns_unsigned() {
 # shellcheck disable=SC2016 # single quotes on purpose: the eval'd subshell expands these
 function test_mkrepo_build_rpm_signs_repomd_with_a_key() {
   local d="$_HI_WORKDIR/rpm-signed"
-  _hi_mkrepo_keys || return 1
+  _hi_mkrepo_keys || _hi_why || return 1
   mkdir -p "$d/dist" "$d/repo"
   : >"$d/dist/say-hi-9.9.9-1.noarch.rpm"
   PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" eval '
@@ -593,25 +593,25 @@ function test_mkrepo_build_rpm_signs_repomd_with_a_key() {
     gpg_setup && build_rpm
     rc=$?
     rm -rf "$_HI_GNUPGHOME"
-    exit $rc' >/dev/null 2>&1 || return 1
-  [ -s "$d/repo/rpm/repodata/repomd.xml.asc" ] && [ -s "$d/repo/say-hi.asc" ]
+    exit $rc' >/dev/null 2>&1 || _hi_why d || return 1
+  [ -s "$d/repo/rpm/repodata/repomd.xml.asc" ] && [ -s "$d/repo/say-hi.asc" ] || _hi_why d
 }
 
 # build_apt with a key: the Release file gets both signature shapes apt reads
 # shellcheck disable=SC2016 # single quotes on purpose: the eval'd subshell expands these
 function test_mkrepo_build_apt_signs_the_release_with_a_key() {
   local d="$_HI_WORKDIR/apt-signed"
-  _hi_mkrepo_keys || return 1
+  _hi_mkrepo_keys || _hi_why || return 1
   mkdir -p "$d/dist" "$d/repo"
-  _hi_fake_deb "$d/dist" >/dev/null || return 1
+  _hi_fake_deb "$d/dist" >/dev/null || _hi_why d || return 1
   _hi_in_mkrepo "$d/dist" "$d/repo" eval '
     _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
     gpg_setup && build_apt
     rc=$?
     rm -rf "$_HI_GNUPGHOME"
-    exit $rc' >/dev/null 2>&1 || return 1
-  [ -s "$d/repo/apt/dists/stable/InRelease" ] && [ -s "$d/repo/apt/dists/stable/Release.gpg" ] &&
-    grep -q 'BEGIN PGP SIGNED MESSAGE' "$d/repo/apt/dists/stable/InRelease"
+    exit $rc' >/dev/null 2>&1 || _hi_why d || return 1
+  { [ -s "$d/repo/apt/dists/stable/InRelease" ] && [ -s "$d/repo/apt/dists/stable/Release.gpg" ] &&
+    grep -q 'BEGIN PGP SIGNED MESSAGE' "$d/repo/apt/dists/stable/InRelease"; } || _hi_why d
 }
 
 # build_apk without a key: the committed public key is served, the package is
@@ -621,12 +621,12 @@ function test_mkrepo_build_apk_without_a_key_serves_the_committed_key() {
   local d="$_HI_WORKDIR/apk-nokey" out arch
   mkdir -p "$d/dist" "$d/repo"
   _hi_fake_apk "$d/dist" >/dev/null
-  out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" build_apk 2>&1)" || return 1
-  [[ "$out" == *"APKINDEX files are unsigned"* ]] || return 1
+  out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" build_apk 2>&1)" || _hi_why d || return 1
+  [[ "$out" == *"APKINDEX files are unsigned"* ]] || _hi_why out || return 1
   # shellcheck disable=SC2031 # _hi_in_mkrepo's subshell is the one that sets it
-  cmp -s "$d/repo/say-hi.rsa.pub" "$_HI_ROOT/packaging/apk/say-hi.rsa.pub" || return 1
+  cmp -s "$d/repo/say-hi.rsa.pub" "$_HI_ROOT/packaging/apk/say-hi.rsa.pub" || _hi_why d || return 1
   for arch in x86_64 aarch64; do
-    [ -f "$d/repo/apk/$arch/say-hi-9.9.9-r0.apk" ] && [ -f "$d/repo/apk/$arch/APKINDEX.tar.gz" ] || return 1
+    [ -f "$d/repo/apk/$arch/say-hi-9.9.9-r0.apk" ] && [ -f "$d/repo/apk/$arch/APKINDEX.tar.gz" ] || _hi_why d arch || return 1
   done
 }
 
@@ -637,16 +637,16 @@ function test_mkrepo_build_apk_with_a_key_derives_the_public_half() {
   local d="$_HI_WORKDIR/apk-key" out
   mkdir -p "$d/dist" "$d/repo"
   _hi_fake_apk "$d/dist" >/dev/null
-  openssl genrsa -out "$d/key.pem" 2048 >/dev/null 2>&1 || return 1
+  openssl genrsa -out "$d/key.pem" 2048 >/dev/null 2>&1 || _hi_why d || return 1
   PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" eval '
     _HI_APK_KEY="'"$d/key.pem"'"
-    build_apk' >/dev/null 2>&1 || return 1
+    build_apk' >/dev/null 2>&1 || _hi_why d || return 1
   [ -s "$d/repo/say-hi.rsa.pub" ] && grep -q 'BEGIN PUBLIC KEY' "$d/repo/say-hi.rsa.pub" &&
-    [ ! -e "$d/repo/apk/.keys" ] && [ -f "$d/repo/apk/x86_64/APKINDEX.tar.gz" ] || return 1
+    [ ! -e "$d/repo/apk/.keys" ] && [ -f "$d/repo/apk/x86_64/APKINDEX.tar.gz" ] || _hi_why d || return 1
   out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo2" eval '
     _HI_APK_KEY=/nonexistent/key.pem
     build_apk' 2>&1)" && return 1
-  [[ "$out" == *"no such apk key file"* ]] && [ ! -e "$d/repo2/apk" ]
+  [[ "$out" == *"no such apk key file"* ]] && [ ! -e "$d/repo2/apk" ] || _hi_why out d
 }
 
 # the argument parser: --x=y is the one-token spelling, a bare flag and a
@@ -654,9 +654,9 @@ function test_mkrepo_build_apk_with_a_key_derives_the_public_half() {
 function test_mkrepo_parses_flags_before_asking_for_docker() {
   local out
   out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" --outdir="$_HI_WORKDIR/x" --bogus 2>&1)" && return 1
-  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkrepo.sh"* ]] || return 1
+  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkrepo.sh"* ]] || _hi_why out || return 1
   out="$("$_HI_MKREPO" --dist 2>&1)" && return 1
-  [[ "$out" == *"--dist requires a value"* ]]
+  [[ "$out" == *"--dist requires a value"* ]] || _hi_why out
 }
 
 # the main guard's two refusals: no docker at all, and a docker whose daemon
@@ -664,12 +664,12 @@ function test_mkrepo_parses_flags_before_asking_for_docker() {
 function test_mkrepo_main_refuses_without_a_reachable_docker() {
   local out dir="$_HI_WORKDIR/deaddocker"
   out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" && return 1
-  [[ "$out" == *"docker is not installed"* ]] || return 1
+  [[ "$out" == *"docker is not installed"* ]] || _hi_why out || return 1
   mkdir -p "$dir"
   printf '#!/bin/sh\nexit 1\n' >"$dir/docker"
   chmod +x "$dir/docker"
   out="$(PATH="$dir:$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" && return 1
-  [[ "$out" == *"docker is installed but not reachable"* ]]
+  [[ "$out" == *"docker is installed but not reachable"* ]] || _hi_why out
 }
 
 function run_packaging_ci_mkpkg_tests() {

@@ -130,25 +130,16 @@ function _hi_keep_new_pane() {
 # _hi_keep_left <name> - a typed line left /tmp/<name> on the target
 function _hi_keep_left() { docker exec "$_HI_KEEPTEST_C" test -e "/tmp/$1"; }
 
-# _hi_keep_transcript <file> - a multiplexer's transcript with its cursor
-# moves, clears, and titles taken out, so a failure's dump reads as text and
-# does not redraw the terminal it lands on
-function _hi_keep_transcript() {
-  local esc=$'\e' bel=$'\a'
-  [ -f "$1" ] || return 0
-  tr -d '\r' <"$1" | sed \
-    -e "s/${esc}\[[0-9;?<=>]*[ -/]*[@-~]//g" \
-    -e "s/${esc}\][^${bel}${esc}]*${bel}//g" \
-    -e "s/${esc}[()][0-9A-Za-z]//g" \
-    -e "s/${esc}[=>78cM]//g" \
-    -e 's/^/      /' || true
-}
-
-# _hi_keep_fail <label> <why> [transcript] - the case's red line, the
-# transcript that explains it, and its name for the runner's recap
+# _hi_keep_fail <label> <why> [transcript] - the case's red line and what
+# explains it: the transcript (the case's own $out where none is named), then
+# what the target holds - its trees, their claims, its sessions, its
+# processes - and the case's name for the runner's recap. Every failure, so
+# none is a label alone.
 function _hi_keep_fail() {
+  local file="${3:-${out:-}}"
   _hi_h3 " | [$1] -- FAILED: $2" "$RED"
-  [ -z "${3:-}" ] || _hi_keep_transcript "$3"
+  [ -z "$file" ] || _hi_show_transcript "the session's transcript" "$file"
+  _hi_show_target "${_HI_KEEPTEST_C:-}"
   _hi_note_failure "[$1] $2"
   return 1
 }

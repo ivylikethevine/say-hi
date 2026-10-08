@@ -60,14 +60,14 @@ function test_plain_container_attaches_with_no_write() {
   local out DOMAIN RAWCMD=""
   DOMAIN=mybox
   out="$(PATH="$(_hi_plain_container_shim):$PATH" HI_FAKE_BASH=1 _say_hi_container_plain docker)"
-  [[ "$out" == "ATTACHED:bash" ]]
+  [[ "$out" == "ATTACHED:bash" ]] || _hi_why out
 }
 
 function test_plain_container_falls_back_to_the_ladder_without_bash() {
   local out DOMAIN RAWCMD=""
   DOMAIN=mybox
   out="$(PATH="$(_hi_plain_container_shim):$PATH" HI_FAKE_BASH=0 _say_hi_container_plain docker)"
-  [[ "$out" == "ATTACHED:dash" ]]
+  [[ "$out" == "ATTACHED:dash" ]] || _hi_why out
 }
 
 function test_plain_container_runs_rawcmd_with_dash_c() {
@@ -75,7 +75,7 @@ function test_plain_container_runs_rawcmd_with_dash_c() {
   DOMAIN=mybox
   RAWCMD="echo hi"
   out="$(PATH="$(_hi_plain_container_shim):$PATH" HI_FAKE_BASH=1 _say_hi_container_plain docker)"
-  [[ "$out" == "ATTACHED:bash -c echo hi" ]]
+  [[ "$out" == "ATTACHED:bash -c echo hi" ]] || _hi_why out
 }
 
 # ssh itself is "just get me a shell" with no target, so --plain's ssh path
@@ -93,7 +93,7 @@ EOF
     DOMAIN=myhost SSHARGS=() RAWCMD="echo hi"
     PATH="$dir:$PATH" _say_hi_plain </dev/null
   )"
-  [[ "$out" == "SSH:myhost echo hi" ]]
+  [[ "$out" == "SSH:myhost echo hi" ]] || _hi_why out
 }
 
 function test_plain_ssh_with_no_command_passes_none() {
@@ -106,23 +106,23 @@ function test_plain_ssh_with_no_command_passes_none() {
     unset RAWCMD
     PATH="$dir:$PATH" _say_hi_plain </dev/null
   )"
-  [[ "$out" == "SSH:myhost" ]]
+  [[ "$out" == "SSH:myhost" ]] || _hi_why out
 }
 
 # -V is hi's version, not ssh's: the one short option claimed beside -h
 function test_version_short_flag_is_hi_s_own() {
   local short long
-  short="$(_hi_help_out -V)" || return 1
-  long="$(_hi_help_out --version)" || return 1
-  [ -n "$short" ] && [ "$short" = "$long" ] && [[ "$short" != OpenSSH* ]]
+  short="$(_hi_help_out -V)" || _hi_why || return 1
+  long="$(_hi_help_out --version)" || _hi_why || return 1
+  [ -n "$short" ] && [ "$short" = "$long" ] && [[ "$short" != OpenSSH* ]] || _hi_why short long
 }
 
 # the version line also says which kind of tree answered, and where - the
 # next thing a bug report asks; this tree has a .git, so it is a checkout
 function test_version_line_names_the_tree() {
   local out
-  out="$(_hi_help_out --version)" || return 1
-  [[ "$out" == *" (checkout at $_HI_ROOT)" ]]
+  out="$(_hi_help_out --version)" || _hi_why || return 1
+  [[ "$out" == *" (checkout at $_HI_ROOT)" ]] || _hi_why out
 }
 
 # --help and --version take nothing after them, the short forms alike; the
@@ -142,19 +142,19 @@ function test_help_and_version_refuse_a_trailing_word() {
 
 function test_help_long_flag_prints_usage() {
   local out
-  out="$(_hi_help_out --help)" || return 1
-  [[ "$out" == "Usage: hi "* && "$out" != *"ssh was called"* ]]
+  out="$(_hi_help_out --help)" || _hi_why || return 1
+  [[ "$out" == "Usage: hi "* && "$out" != *"ssh was called"* ]] || _hi_why out
 }
 
 # the two things a usage block is for: what the flags are, and how a name is
 # resolved - hi's target ladder is the part no ssh user can guess
 function test_help_lists_hi_s_own_flags() {
   local out flag
-  out="$(_hi_help_out --help)" || return 1
+  out="$(_hi_help_out --help)" || _hi_why || return 1
   for flag in --doctor --version; do
-    [[ "$out" == *"$flag"* ]] || return 1
+    [[ "$out" == *"$flag"* ]] || _hi_why out flag || return 1
   done
-  [[ "$out" == *docker* && "$out" == *podman* && "$out" == *nomad* && "$out" == *kubernetes* ]]
+  [[ "$out" == *docker* && "$out" == *podman* && "$out" == *nomad* && "$out" == *kubernetes* ]] || _hi_why out
 }
 
 # The same drift guard tests/test_runner.sh's suite table gets: a flag hi
@@ -165,13 +165,13 @@ function test_help_lists_hi_s_own_flags() {
 # scrape's size, so a broken scrape can't pass as an empty loop.
 function test_help_flags_are_all_in_the_man_page() {
   local man="$_HI_HOME/say-hi/docs/hi.1" out flags flag
-  [ -f "$man" ] || return 1
-  out="$(_hi_help_out --help)" || return 1
+  [ -f "$man" ] || _hi_why man || return 1
+  out="$(_hi_help_out --help)" || _hi_why || return 1
   _hi_read_lines flags < <(printf '%s\n' "$out" | grep -oE -- '\-\-[a-z][a-z-]+' | sort -u)
-  [ "${#flags[@]}" -ge 4 ] || return 1
+  [ "${#flags[@]}" -ge 4 ] || _hi_why flags || return 1
   for flag in -h "${flags[@]}"; do
     # the man page escapes every dash as \- for roff
-    grep -q -- "${flag//-/\\\\-}" "$man" || return 1
+    grep -q -- "${flag//-/\\\\-}" "$man" || _hi_why flag man || return 1
   done
 }
 
@@ -216,12 +216,12 @@ function _hi_local_flags() {
 # on the whole word, so --used cannot ride on --use.
 function test_man_page_options_are_all_hi_s() {
   local man="$_HI_HOME/say-hi/docs/hi.1" text known flag name bad=0
-  [ -f "$man" ] || return 1
+  [ -f "$man" ] || _hi_why man || return 1
   # common/flags' own columns rather than the live roster, which withholds
   # --update on a checkout without .git and would report the page for it
   known="$(grep -vE '^(#|$)' "$_HI_ROOT/common/flags" | cut -d'|' -f1,2 |
     grep -oE -- '--[a-z][a-z-]*')"$'\n'"--prefix"
-  [ -n "$known" ] || return 1
+  [ -n "$known" ] || _hi_why known || return 1
   # the synopsis lines, and the OPTIONS headings (the `.B`/`.BR` line that
   # follows a `.TP`), nothing else - the prose names ssh's and kubectl's
   # options too, and those are not hi's to keep
@@ -231,17 +231,17 @@ function test_man_page_options_are_all_hi_s() {
     opt && prev == ".TP" && /^\.BR? / { print }
     { prev = $0 }
   ' "$man")"
-  [ -n "$text" ] || return 1
+  [ -n "$text" ] || _hi_why text || return 1
   # a scrape that found no option at all would pass as an empty loop
   name="$(_hi_roff_switches "$text")"
-  [ -n "$name" ] || return 1
+  [ -n "$name" ] || _hi_why name || return 1
   while IFS= read -r flag; do
     [ -n "$flag" ] || continue
     case $'\n'"$known"$'\n' in *$'\n'"$flag"$'\n'*) continue ;; esac
     _hi_cecho "   hi.1 names $flag in its synopsis or an OPTIONS heading, and neither hi nor common/flags knows it" "$RED"
     bad=1
   done <<<"$name"
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # The synopsis check above stops at the first `.br`, which leaves every local
@@ -252,7 +252,7 @@ function test_man_page_options_are_all_hi_s() {
 # order them for reading; `--link " " {none|user|system}` counts as --link.
 function test_local_synopsis_forms_match_common_flags() {
   local man="$_HI_HOME/say-hi/docs/hi.1" flag block page want bad=0
-  [ -f "$man" ] || return 1
+  [ -f "$man" ] || _hi_why man || return 1
   while IFS= read -r flag; do
     [ -n "$flag" ] || continue
     # the form is `.B hi \-\-<flag>` up to the next `.br`
@@ -269,13 +269,13 @@ function test_local_synopsis_forms_match_common_flags() {
       continue
     fi
     page="$(_hi_roff_switches "$block")"
-    want="$(_hi_flag_switches "$flag")" || return 1
+    want="$(_hi_flag_switches "$flag")" || _hi_why flag || return 1
     [ "$page" = "$want" ] || {
       _hi_cecho "   $flag: hi.1's synopsis says '${page//$'\n'/ }', common/flags says '${want//$'\n'/ }'" "$RED"
       bad=1
     }
   done < <(_hi_local_flags)
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # ...and the OPTIONS heading for each is the same column a third time
@@ -284,7 +284,7 @@ function test_local_synopsis_forms_match_common_flags() {
 # with the flag's own name; the name itself is dropped before comparing.
 function test_local_option_headings_match_common_flags() {
   local man="$_HI_HOME/say-hi/docs/hi.1" flag head page want bad=0
-  [ -f "$man" ] || return 1
+  [ -f "$man" ] || _hi_why man || return 1
   while IFS= read -r flag; do
     [ -n "$flag" ] || continue
     head="$(awk -v name="${flag//-/\\\\-}" '
@@ -298,13 +298,13 @@ function test_local_option_headings_match_common_flags() {
       continue
     fi
     page="$(_hi_roff_switches "$head" | grep -vx -- "$flag")"
-    want="$(_hi_flag_switches "$flag")" || return 1
+    want="$(_hi_flag_switches "$flag")" || _hi_why flag || return 1
     [ "$page" = "$want" ] || {
       _hi_cecho "   $flag: hi.1's OPTIONS heading says '${page//$'\n'/ }', common/flags says '${want//$'\n'/ }'" "$RED"
       bad=1
     }
   done < <(_hi_local_flags)
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # The synopsis is one sentence written twice - $_HI_USAGE and the page's
@@ -338,7 +338,7 @@ function test_usage_line_matches_the_man_page_synopsis() {
 # nothing wrapped those. Every line of --help is held to the width.
 function test_help_fits_eighty_columns() {
   local out wide
-  out="$(_hi_help_out --help)" || return 1
+  out="$(_hi_help_out --help)" || _hi_why || return 1
   wide="$(printf '%s\n' "$out" | awk 'length > 80')"
   [ -z "$wide" ] || {
     _hi_cecho "   over 80 columns: $wide" "$RED"
@@ -354,9 +354,9 @@ function test_help_fits_eighty_columns() {
 # makes the same split at runtime, so the two are one fact written twice.
 function test_man_page_option_groups_match_the_roster() {
   local man="$_HI_HOME/say-hi/docs/hi.1" zones all session flag bad=0
-  [ -f "$man" ] || return 1
-  all="$(sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)" || return 1
-  session="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)" || return 1
+  [ -f "$man" ] || _hi_why man || return 1
+  all="$(sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)" || _hi_why || return 1
+  session="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)" || _hi_why || return 1
   # One "<flag> <zone>" line per mention. top = its own entry above the
   # paragraph, grouped = its own entry below it, named = spelled out inside the
   # paragraph as an exception. A flag can be both grouped and named, which is
@@ -377,9 +377,9 @@ function test_man_page_option_groups_match_the_roster() {
     zone == "para" { emit($0, "named") }
     (zone == "top" || zone == "grouped") && prev == ".TP" && /^\.BR? / { emit($0, zone) }
     { prev = $0 }
-  ' "$man")" || return 1
+  ' "$man")" || _hi_why man || return 1
   # a scrape that found nothing would pass every case below as an empty loop
-  [ -n "$zones" ] || return 1
+  [ -n "$zones" ] || _hi_why zones || return 1
   while read -r flag; do
     [ -n "$flag" ] || continue
     case $'\n'"$session"$'\n' in
@@ -406,7 +406,7 @@ function test_man_page_option_groups_match_the_roster() {
       ;;
     esac
   done < <(printf '%s\n' "$all")
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # The ladders drift the same way the flags do - doctor.sh once still promised
@@ -418,10 +418,10 @@ function test_man_page_option_groups_match_the_roster() {
 # a stale copy of it fails this test the same way a stale man page would.
 function test_shell_ladders_are_in_the_man_page() {
   local man="$_HI_HOME/say-hi/docs/hi.1" shell
-  [ -f "$man" ] || return 1
+  [ -f "$man" ] || _hi_why man || return 1
   for shell in $_HI_SHELL_LADDER fish zsh bash; do
     # -w keeps "sh" from riding on "ssh"
-    grep -Eqw -- "$shell" "$man" || return 1
+    grep -Eqw -- "$shell" "$man" || _hi_why shell man || return 1
   done
 }
 
@@ -431,8 +431,8 @@ function test_shell_ladders_are_in_the_man_page() {
 # tree and the cut have to match it. The ladder is the tree minus bash because
 # a missing bash is the only thing that makes the ladder reachable at all.
 function test_the_shell_tree_is_the_documented_order() {
-  [ "$_HI_SHELL_TREE" = "fish zsh bash dash ash sh" ] || return 1
-  [ "$_HI_SHELL_LADDER" = "fish zsh dash ash sh" ]
+  [ "$_HI_SHELL_TREE" = "fish zsh bash dash ash sh" ] || _hi_why _HI_SHELL_TREE || return 1
+  [ "$_HI_SHELL_LADDER" = "fish zsh dash ash sh" ] || _hi_why _HI_SHELL_LADDER
 }
 
 # hi's local sub-commands - `hi --install` and friends - are the case block at
@@ -523,7 +523,7 @@ function test_local_subcommands_exec_the_right_script() {
     flag="${spec%%|*}"
     want="${spec#*|}"
     # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
-    out="$(_hi_subcmd_run "$home" $flag)" || return 1
+    out="$(_hi_subcmd_run "$home" $flag)" || _hi_why home flag || return 1
     [ "$out" = "$want" ] || {
       _hi_cecho " | $flag ran '$out', wanted '$want'" "$RED"
       return 1
@@ -542,16 +542,16 @@ function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
   home="$(_hi_scratch_tree preview-real common config load.sh hi.sh link:scripts)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why out || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why out || return 1
   out="$(_hi_subcmd_run "$home" --preview)" && return 1
-  [[ "$out" == *"one of colors, packages, or header"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why out || return 1
   # a retired subject is refused like any other: hi <TAB> lists the targets
   out="$(_hi_subcmd_run "$home" --preview targets)" && return 1
-  [[ "$out" == *"unknown subject 'targets'"* ]] || return 1
+  [[ "$out" == *"unknown subject 'targets'"* ]] || _hi_why out || return 1
   out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == "Usage: hi --preview"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == "Usage: hi --preview"* ]] || _hi_why rc out
 }
 
 # `hi --use <TAB>` completes from targets.sh's words roster, which spells the
@@ -571,12 +571,12 @@ function test_use_words_match_the_backend_roster() {
 function test_local_subcommands_forward_extra_arguments() {
   local home out
   home="$(_hi_subcmd_stubs)"
-  out="$(_hi_subcmd_run "$home" --doctor myhost)" || return 1
-  [ "$out" = "STUB doctor myhost" ] || return 1
-  out="$(_hi_subcmd_run "$home" --preview colors --help)" || return 1
-  [ "$out" = "STUB preview colors --help" ] || return 1
-  out="$(_hi_subcmd_run "$home" --preview header --help)" || return 1
-  [ "$out" = "STUB preview header --help" ]
+  out="$(_hi_subcmd_run "$home" --doctor myhost)" || _hi_why home || return 1
+  [ "$out" = "STUB doctor myhost" ] || _hi_why out || return 1
+  out="$(_hi_subcmd_run "$home" --preview colors --help)" || _hi_why home || return 1
+  [ "$out" = "STUB preview colors --help" ] || _hi_why out || return 1
+  out="$(_hi_subcmd_run "$home" --preview header --help)" || _hi_why home || return 1
+  [ "$out" = "STUB preview header --help" ] || _hi_why out
 }
 
 # the other half of the move: paths.sh must not grow them back. hi_info is the
@@ -647,52 +647,52 @@ function test_hi_exits_1_when_root_is_missing() {
     _hi 2>&1
   )"
   ec=$?
-  [ "$ec" -eq 1 ] && [[ "$out" == *"no such directory"* ]]
+  [ "$ec" -eq 1 ] && [[ "$out" == *"no such directory"* ]] || _hi_why ec out
 }
 
 # _HI_PLAIN=1 is --plain where neither flag was typed, and --no-plain beats it
 function test_hi_dispatch_plain_setting_is_a_default() {
   local out
   out="$(_HI_PLAIN=1 _hi_dispatch_probe "" "" 0)"
-  [[ "$out" == *say_hi_plain* ]] || return 1
+  [[ "$out" == *say_hi_plain* ]] || _hi_why out || return 1
   out="$(_HI_PLAIN=1 _hi_dispatch_probe 0 "" 0)"
-  [[ "$out" != *say_hi_plain* ]]
+  [[ "$out" != *say_hi_plain* ]] || _hi_why out
 }
 
 function test_hi_dispatch_plain0_no_arm_calls_say_hi() {
   local out
   out="$(_hi_dispatch_probe 0 "" 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == say_hi ]]
+  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == say_hi ]] || _hi_why out
 }
 
 function test_hi_dispatch_plain0_with_arm_calls_say_hi_container() {
   local out
   out="$(_hi_dispatch_probe 0 docker 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == "say_hi_container:docker" ]]
+  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == "say_hi_container:docker" ]] || _hi_why out
 }
 
 function test_hi_dispatch_plain1_no_arm_calls_say_hi_plain() {
   local out
   out="$(_hi_dispatch_probe 1 "" 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == say_hi_plain ]]
+  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == say_hi_plain ]] || _hi_why out
 }
 
 function test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain() {
   local out
   out="$(_hi_dispatch_probe 1 docker 0)"
-  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == "say_hi_container_plain:docker" ]]
+  [[ "$(printf '%s\n' "$out" | sed -n 2p)" == "say_hi_container_plain:docker" ]] || _hi_why out
 }
 
 function test_hi_exit_code_is_the_arms() {
   local out
   out="$(_hi_dispatch_probe 0 "" 7)"
-  [ "$(printf '%s\n' "$out" | sed -n 1p)" = 7 ]
+  [ "$(printf '%s\n' "$out" | sed -n 1p)" = 7 ] || _hi_why out
 }
 
 function test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp() {
   local out
   out="$(_hi_dispatch_probe 0 docker 3)"
-  [[ "$out" == *"report_failure:3:docker"* ]]
+  [[ "$out" == *"report_failure:3:docker"* ]] || _hi_why out
 }
 
 function run_hi_parse_help_tests() {

@@ -26,7 +26,7 @@ function test_bootloader_calls_load_for_a_session() {
   local out
   out="$(CMDARG="" _hi_bootloader)"
   # shellcheck disable=SC2016 # the rc must carry a literal $_HI_ROOT for the target to expand
-  [[ "$out" == *'source $_HI_ROOT/load.sh'* && "$out" == *$'\nload'* ]]
+  [[ "$out" == *'source $_HI_ROOT/load.sh'* && "$out" == *$'\nload'* ]] || _hi_why out
 }
 
 # ...and a one-off command replaces that call outright, so load() - and with
@@ -34,7 +34,7 @@ function test_bootloader_calls_load_for_a_session() {
 function test_bootloader_replaces_load_with_the_command() {
   local out
   out="$(CMDARG='echo hi; exit' _hi_bootloader)"
-  [[ "$out" == *'echo hi; exit'* && "$out" != *$'\nload\n'* ]]
+  [[ "$out" == *'echo hi; exit'* && "$out" != *$'\nload\n'* ]] || _hi_why out
 }
 
 # load.sh sets `-euo pipefail` at source time and only load() clears it, but
@@ -43,20 +43,20 @@ function test_bootloader_replaces_load_with_the_command() {
 # any non-zero status ending the session. That killed `source $_HI_ALIASES` on
 # any target without explicit toggles, which is the default.
 function test_bootloader_drops_strict_mode_before_the_command() {
-  _hi_before "$(CMDARG='echo hi' _hi_bootloader)" 'set +euo pipefail' 'echo hi'
+  _hi_before "$(CMDARG='echo hi' _hi_bootloader)" 'set +euo pipefail' 'echo hi' || _hi_why
 }
 
 # ...and the strict-mode reset must land after load.sh is sourced, not before,
 # or it's simply overwritten by load.sh's own `set -euo pipefail`
 function test_bootloader_drops_strict_mode_after_sourcing_load() {
-  _hi_before "$(CMDARG='echo hi' _hi_bootloader)" 'load\.sh' 'set +euo pipefail'
+  _hi_before "$(CMDARG='echo hi' _hi_bootloader)" 'load\.sh' 'set +euo pipefail' || _hi_why
 }
 
 function test_fallback_rc_sources_paths_and_aliases() {
   local out
   out="$(CMDARG="" _hi_fallback_rc)"
   # shellcheck disable=SC2016 # same as above - $_HI_ROOT is the target's to expand
-  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/common/aliases.sh'* ]]
+  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/common/aliases.sh'* ]] || _hi_why out
 }
 
 # no settings.sh reaches the aliases-only tier, so the client's alias opt-ins
@@ -64,14 +64,14 @@ function test_fallback_rc_sources_paths_and_aliases() {
 function test_fallback_rc_carries_the_alias_opt_ins() {
   local out
   out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=yes CMDARG="" _hi_fallback_rc --aliases-only /x)"
-  [[ "$out" == *"export _HI_TOOL_ALIASES=1"* && "$out" == *"export _HI_SUDO_ALIAS=0"* ]]
+  [[ "$out" == *"export _HI_TOOL_ALIASES=1"* && "$out" == *"export _HI_SUDO_ALIAS=0"* ]] || _hi_why out
 }
 
 # The command is NOT in the shared rc - fish reads that file through
 # -C, where an `exit` does not stop its interactive reader (GLOSSARY: HI.23),
 # and the podman suite's fish case hung the full timeout for as long as it was
 function test_fallback_rc_leaves_the_command_out() {
-  [[ "$(CMDARG='echo hi; exit' _hi_fallback_rc)" != *'echo hi'* ]]
+  [[ "$(CMDARG='echo hi; exit' _hi_fallback_rc)" != *'echo hi'* ]] || _hi_why
 }
 
 # ...so each arm of the suffix takes it its own way: fish as a -c flag after
@@ -81,29 +81,29 @@ function test_remote_suffix_hands_fish_the_command_as_a_flag() {
   local out
   out="$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="echo hi; exit" _hi_remote_suffix)"
   # shellcheck disable=SC2016 # the target's expansion, and the quoting is the point
-  [[ "$out" == *'fish -C "$(cat "$_hi_rc_dir/.hi_fallback_rc")" -c '"'"'echo hi; exit'"'"* ]] &&
+  { [[ "$out" == *'fish -C "$(cat "$_hi_rc_dir/.hi_fallback_rc")" -c '"'"'echo hi; exit'"'"* ]] &&
     [[ "$out" == *'>> "$_hi_rc_dir/.zshrc"'* ]] &&
-    _hi_before "$out" '>> "\$_hi_rc_dir/.hi_fallback_rc"' 'ENV='
+    _hi_before "$out" '>> "\$_hi_rc_dir/.hi_fallback_rc"' 'ENV='; } || _hi_why out
 }
 
 # an apostrophe in the command survives the trip as data - _hi_shquote's job
 function test_remote_suffix_quotes_the_fish_command() {
   # shellcheck disable=SC2016 # the target's sh reads this, not ours
-  [[ "$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="echo it's; exit" _hi_remote_suffix)" == *" -c 'echo it'\\''s; exit'"* ]]
+  [[ "$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="echo it's; exit" _hi_remote_suffix)" == *" -c 'echo it'\\''s; exit'"* ]] || _hi_why
 }
 
 function test_remote_suffix_without_a_command_adds_nothing() {
   local out
   out="$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="" _hi_remote_suffix)"
   # shellcheck disable=SC2016 # the target's path
-  [[ "$out" != *'.hi_fallback_rc")" -c'* && "$out" != *'>> "$_hi_rc_dir/.zshrc"'* ]]
+  [[ "$out" != *'.hi_fallback_rc")" -c'* && "$out" != *'>> "$_hi_rc_dir/.zshrc"'* ]] || _hi_why out
 }
 
 # the no-bash target is one of the four entry points that has to source the
 # settings ahead of paths.sh - paths.sh's local-only gate reads them, so lines
 # arriving after it would be set too late to have any effect
 function test_fallback_rc_sources_settings_before_paths() {
-  _hi_before "$(CMDARG="" _hi_fallback_rc)" 'config/settings\.sh' 'common/paths\.sh'
+  _hi_before "$(CMDARG="" _hi_fallback_rc)" 'config/settings\.sh' 'common/paths\.sh' || _hi_why
 }
 
 # bash reads an --rcfile only when it is interactive, and decides that from its
@@ -118,7 +118,7 @@ function test_fallback_rc_sources_settings_before_paths() {
 # runs under `set -u`.
 function test_remote_suffix_forces_an_interactive_bash() {
   # shellcheck disable=SC2016 # $_hi_rc_dir is the target's to expand, not ours
-  [[ "$(hi_esc="" nc_esc="" DOMAIN=host _hi_remote_suffix)" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* ]]
+  [[ "$(hi_esc="" nc_esc="" DOMAIN=host _hi_remote_suffix)" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* ]] || _hi_why
 }
 
 # the mirror of the above: every fallback shell already starts explicitly
@@ -126,7 +126,7 @@ function test_remote_suffix_forces_an_interactive_bash() {
 function test_remote_suffix_fallbacks_are_interactive() {
   local out
   out="$(hi_esc="" nc_esc="" DOMAIN=host _hi_remote_suffix)"
-  [[ "$out" == *'zsh -i'* && "$out" == *'sh -i'* && "$out" == *'fish -C'* ]]
+  [[ "$out" == *'zsh -i'* && "$out" == *'sh -i'* && "$out" == *'fish -C'* ]] || _hi_why out
 }
 
 # The dispatch is executed, not sourced: --version lives in the trailing case
@@ -143,35 +143,35 @@ function test_version_falls_back_to_git_describe() {
   git -C "$_HI_ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 0
   local out
   out="$(_HI_RELEASE="" _hi_version)"
-  [ -n "$out" ] && [[ "$out" != unknown* ]]
+  [ -n "$out" ] && [[ "$out" != unknown* ]] || _hi_why out
 }
 
 # ...and with neither stamp nor git, it says so instead of printing nothing
 function test_version_stamp_wins() {
-  [[ "$(_HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version)" == "1.2.3 ("* ]]
+  [[ "$(_HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version)" == "1.2.3 ("* ]] || _hi_why
 }
 
 function test_version_is_candid_without_stamp_or_git() {
-  [[ "$(_HI_RELEASE="" _HI_ROOT="$_HI_WORKDIR" _hi_version)" == unknown* ]]
+  [[ "$(_HI_RELEASE="" _HI_ROOT="$_HI_WORKDIR" _hi_version)" == unknown* ]] || _hi_why
 }
 
 # the version rides the preamble so the target's header can show it
 function test_remote_preamble_exports_the_version() {
-  [[ "$(DOMAIN=host _hi_remote_preamble)" == *'export _HI_RELEASE='* ]]
+  [[ "$(DOMAIN=host _hi_remote_preamble)" == *'export _HI_RELEASE='* ]] || _hi_why
 }
 
 # ...and so does the client's glyph verdict: the glyphs render in the
 # client's terminal, so the target must not re-probe its own locale
 function test_remote_preamble_ships_the_glyph_verdict() {
   [[ "$(DOMAIN=host _HI_ASCII=1 _hi_remote_preamble)" == *"export _HI_ASCII='1'"* ]] &&
-    [[ "$(DOMAIN=host _HI_ASCII="" LC_ALL=en_US.UTF-8 _hi_remote_preamble)" == *"export _HI_ASCII='0'"* ]]
+    [[ "$(DOMAIN=host _HI_ASCII="" LC_ALL=en_US.UTF-8 _hi_remote_preamble)" == *"export _HI_ASCII='0'"* ]] || _hi_why
 }
 
 # ...and its 24-bit verdict, for the same reason: the escapes a scheme
 # paints with render in the client's terminal, and ssh drops COLORTERM
 function test_remote_preamble_ships_the_truecolor_verdict() {
   [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM=truecolor _hi_remote_preamble)" == *"export _HI_TRUECOLOR='1'"* ]] &&
-    [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM="" _hi_remote_preamble)" == *"export _HI_TRUECOLOR='0'"* ]]
+    [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM="" _hi_remote_preamble)" == *"export _HI_TRUECOLOR='0'"* ]] || _hi_why
 }
 
 # user@host is the host's tag, not a miss on the whole word: the session env
@@ -180,7 +180,7 @@ function test_session_env_tags_a_user_at_host_target() {
   local cfg="$_HI_WORKDIR/ssh_config.userhost"
   printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: prod\nHost taggedbox\n' >"$cfg"
   unset _HI_TAG_NAME
-  DOMAIN=deploy@taggedbox _HI_SSH_CONFIG="$cfg" _hi_session_env | grep -qx "$(printf '_HI_TARGET_TAG\tprod')"
+  DOMAIN=deploy@taggedbox _HI_SSH_CONFIG="$cfg" _hi_session_env | grep -qx "$(printf '_HI_TARGET_TAG\tprod')" || _hi_why cfg
 }
 
 # the client's $EDITOR and $VISUAL ride by command name alone: no path, no
@@ -189,10 +189,10 @@ function test_session_env_carries_the_editor_names() {
   local out
   out="$(DOMAIN=host EDITOR='/usr/bin/nvim -p' VISUAL='hx' _hi_session_env)"
   printf '%s\n' "$out" | grep -qx "$(printf '_HI_CLIENT_EDITOR\tnvim')" &&
-    printf '%s\n' "$out" | grep -qx "$(printf '_HI_CLIENT_VISUAL\thx')" || return 1
+    printf '%s\n' "$out" | grep -qx "$(printf '_HI_CLIENT_VISUAL\thx')" || _hi_why out || return 1
   # shellcheck disable=SC2016 # the literal text is the point
   out="$(DOMAIN=host EDITOR='$(true)' VISUAL='' _hi_session_env)"
-  [[ "$out" != *_HI_CLIENT_* ]]
+  [[ "$out" != *_HI_CLIENT_* ]] || _hi_why out
 }
 
 # Every value the preamble exports is data the client picked up rather than
@@ -223,7 +223,7 @@ function test_container_env_quotes_a_hostile_hostname() {
   local kv
   kv="$(DOMAIN=host _HI_HOSTNAME_CACHE="$_HI_MEAN" _hi_env_each ' %s=%s')"
   [ "$(sh -c "export$kv"'
-printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)" = "$_HI_MEAN" ]
+printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)" = "$_HI_MEAN" ] || _hi_why kv _HI_LOCAL_HOSTNAME _HI_MEAN
 }
 
 # ...and the target as typed reaches the no-bash fallback line as one quoted
@@ -231,7 +231,7 @@ printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)" = "$_HI_MEAN" ]
 function test_suffix_quotes_a_hostile_target_name() {
   local out
   out="$(hi_esc="" nc_esc="" DOMAIN="$_HI_MEAN" _hi_remote_suffix)"
-  [[ "$out" == *"'we\$(id)ird\"ho'\\''st\`whoami\`\\\\%s'"* ]]
+  [[ "$out" == *"'we\$(id)ird\"ho'\\''st\`whoami\`\\\\%s'"* ]] || _hi_why out
 }
 
 # The sh-tier prompt bakes the host into a double-quoted PS1 on the client, so
@@ -241,7 +241,7 @@ function test_fallback_prompt_escapes_a_hostile_host() {
   local ps1
   ps1="$(DOMAIN="$_HI_MEAN" bash -c 'source "$_HI_LAUNCHER"; _hi_fallback_prompt' |
     sh -c 'IFS= read -r _; IFS= read -r l; eval "$l"; printf %s "$PS1"' 2>/dev/null)"
-  [[ "$ps1" == *"$_HI_MEAN"* ]]
+  [[ "$ps1" == *"$_HI_MEAN"* ]] || _hi_why ps1 _HI_MEAN
 }
 
 # The generated preamble is executed under a real sh with a controlled TERM
@@ -261,7 +261,7 @@ function test_term_fallback_keeps_a_term_with_terminfo() {
   local ti="$_HI_WORKDIR/terminfo"
   mkdir -p "$ti/h"
   : >"$ti/h/hi-test-present-term"
-  [ "$(_hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti")" = hi-test-present-term ]
+  [ "$(_hi_preamble_final_term TERM=hi-test-present-term TERMINFO="$ti")" = hi-test-present-term ] || _hi_why ti
 }
 
 # On a target, $_HI_CONFIG_DIR is the overlay/ the overlay was unpacked into,
@@ -271,7 +271,7 @@ function test_term_fallback_keeps_a_term_with_terminfo() {
 # common/aliases.sh's tail line sources itself forever.
 function test_fallback_rc_points_config_dir_at_the_overlay() {
   # shellcheck disable=SC2016 # $_HI_ROOT is the target's to expand, not ours
-  [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]]
+  [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]] || _hi_why
 }
 
 # The bootstrap directory is the *target's* to name. A client-side
@@ -332,19 +332,19 @@ function test_boot_probe_bakes_no_client_path() {
 # is the caller's)
 function test_boot_why_names_each_failure() {
   local DOMAIN=h
-  [ "$(_hi_boot_why 64 '')" = "no base64 or openssl on [h]" ] || return 1
-  [ "$(_hi_boot_why 65 x)" = "no writable temp directory on [h]" ] || return 1
-  [ "$(_hi_boot_why 1 'HIBOOT:/nope')" = "[h] named a scratch directory hi will not use" ] || return 1
-  [[ "$(_hi_boot_why 0 '')" == "a forced command answered for [h]"* ]] || return 1
-  [[ "$(_hi_boot_why 1 motd)" == "a forced command answered for [h]"* ]] || return 1
-  [ -z "$(_hi_boot_why 1 '')" ]
+  [ "$(_hi_boot_why 64 '')" = "no base64 or openssl on [h]" ] || _hi_why || return 1
+  [ "$(_hi_boot_why 65 x)" = "no writable temp directory on [h]" ] || _hi_why || return 1
+  [ "$(_hi_boot_why 1 'HIBOOT:/nope')" = "[h] named a scratch directory hi will not use" ] || _hi_why || return 1
+  [[ "$(_hi_boot_why 0 '')" == "a forced command answered for [h]"* ]] || _hi_why || return 1
+  [[ "$(_hi_boot_why 1 motd)" == "a forced command answered for [h]"* ]] || _hi_why || return 1
+  [ -z "$(_hi_boot_why 1 '')" ] || _hi_why
 }
 
 function test_boot_probe_says_no_base64() {
   local ec=0 sh_bin
   sh_bin="$(command -v sh)"
   PATH=/nonexistent "$sh_bin" -c "$(_hi_boot_probe)" </dev/null >/dev/null 2>&1 || ec=$?
-  [ "$ec" -eq 64 ]
+  [ "$ec" -eq 64 ] || _hi_why ec
 }
 
 # stock OpenBSD: no base64, but LibreSSL's openssl, which the probe takes.
@@ -356,7 +356,7 @@ function test_boot_probe_takes_openssl() {
   dir="$(_hi_real_path onlyssl openssl mktemp cat)"
   out="$(PATH="$dir" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || ec=$?
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
-  [ "$ec" -eq 0 ]
+  [ "$ec" -eq 0 ] || _hi_why ec
 }
 
 function test_boot_probe_says_no_scratch_dir() {
@@ -366,14 +366,14 @@ function test_boot_probe_says_no_scratch_dir() {
   printf '%s\n' '#!/bin/sh' 'exit 1' >"$dir/mktemp"
   chmod +x "$dir/mktemp"
   PATH="$dir:$PATH" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null >/dev/null 2>&1 || ec=$?
-  [ "$ec" -eq 65 ]
+  [ "$ec" -eq 65 ] || _hi_why ec
 }
 
 function test_boot_probe_reports_its_dir_on_success() {
   local out dir
-  out="$(printf 'echo boot\n' | TMPDIR="$_HI_WORKDIR" sh -c "$(_hi_boot_probe)" 2>/dev/null)" || return 1
+  out="$(printf 'echo boot\n' | TMPDIR="$_HI_WORKDIR" sh -c "$(_hi_boot_probe)" 2>/dev/null)" || _hi_why || return 1
   dir="${out##*HIBOOT:}"
-  [ -f "$dir/bootloader" ] && rm -rf "$dir"
+  { [ -f "$dir/bootloader" ] && rm -rf "$dir"; } || _hi_why dir
 }
 
 function run_hi_remote_tests() {

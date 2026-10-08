@@ -58,36 +58,36 @@ _HI_RC_ALL='rc_shell_present() { return 0; }'
 
 function test_config_shell_fresh_write() {
   local home="$_HI_WORKDIR/fresh"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' '' 'source b' || return 1
-  grep -qF 'export A=1' "$home/.bashrc" || return 1
-  grep -qF 'source b' "$home/.bashrc" || return 1
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' '' 'source b' || _hi_why home || return 1
+  grep -qF 'export A=1' "$home/.bashrc" || _hi_why home || return 1
+  grep -qF 'source b' "$home/.bashrc" || _hi_why home || return 1
   # two lines tagged; the empty argument contributed nothing
-  [ "$(grep -cF "$_HI_MARKER" "$home/.bashrc")" = 2 ]
+  [ "$(grep -cF "$_HI_MARKER" "$home/.bashrc")" = 2 ] || _hi_why home _HI_MARKER
 }
 
 function test_config_shell_is_idempotent() {
   local home="$_HI_WORKDIR/idem" before
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
   before="$(cat "$home/.bashrc")"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  [ "$(cat "$home/.bashrc")" = "$before" ]
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  [ "$(cat "$home/.bashrc")" = "$before" ] || _hi_why home before
 }
 
 function test_config_shell_repairs_stale_lines() {
   local home="$_HI_WORKDIR/repair"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export OLD=1' || return 1
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export NEW=1' || return 1
-  grep -qF 'export NEW=1' "$home/.bashrc" || return 1
-  ! grep -qF 'export OLD=1' "$home/.bashrc"
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export OLD=1' || _hi_why home || return 1
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export NEW=1' || _hi_why home || return 1
+  grep -qF 'export NEW=1' "$home/.bashrc" || _hi_why home || return 1
+  ! grep -qF 'export OLD=1' "$home/.bashrc" || _hi_why home
 }
 
 function test_config_shell_preserves_foreign_lines() {
   local home="$_HI_WORKDIR/foreign"
   mkdir -p "$home"
   printf 'echo mine\n' >"$home/.bashrc"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  grep -qF 'echo mine' "$home/.bashrc" || return 1
-  grep -qF 'export A=1' "$home/.bashrc"
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  grep -qF 'echo mine' "$home/.bashrc" || _hi_why home || return 1
+  grep -qF 'export A=1' "$home/.bashrc" || _hi_why home
 }
 
 # the backup is one-time and pre-hi: taken on the first write to a non-empty
@@ -96,18 +96,18 @@ function test_config_shell_one_time_backup() {
   local home="$_HI_WORKDIR/backup"
   mkdir -p "$home"
   printf 'echo original\n' >"$home/.bashrc"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  [ "$(cat "$home/.bashrc.hi-orig")" = "echo original" ] || return 1
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export B=2' || return 1
-  [ "$(cat "$home/.bashrc.hi-orig")" = "echo original" ]
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  [ "$(cat "$home/.bashrc.hi-orig")" = "echo original" ] || _hi_why home || return 1
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export B=2' || _hi_why home || return 1
+  [ "$(cat "$home/.bashrc.hi-orig")" = "echo original" ] || _hi_why home
 }
 
 function test_config_shell_no_backup_of_an_empty_file() {
   local home="$_HI_WORKDIR/nobackup"
   mkdir -p "$home"
   : >"$home/.bashrc"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  [ ! -e "$home/.bashrc.hi-orig" ]
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  [ ! -e "$home/.bashrc.hi-orig" ] || _hi_why home
 }
 
 # the block goes at the end, after whatever the file already had
@@ -115,8 +115,8 @@ function test_config_shell_appends_at_the_end() {
   local home="$_HI_WORKDIR/appends"
   mkdir -p "$home"
   printf 'first line\n' >"$home/.bashrc"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  [[ "$(tail -1 "$home/.bashrc")" == *'export A=1'* ]]
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  [[ "$(tail -1 "$home/.bashrc")" == *'export A=1'* ]] || _hi_why home
 }
 
 function test_config_shell_preserves_the_mode() {
@@ -125,8 +125,8 @@ function test_config_shell_preserves_the_mode() {
   printf 'content\n' >"$home/.bashrc"
   chmod 640 "$home/.bashrc"
   before="$(_hi_mode_string "$home/.bashrc")"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  [ "$(_hi_mode_string "$home/.bashrc")" = "$before" ]
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  [ "$(_hi_mode_string "$home/.bashrc")" = "$before" ] || _hi_why home before
 }
 
 # a dotfile manager's hardlinked ~/.bashrc must not be severed by a mv
@@ -135,24 +135,24 @@ function test_config_shell_preserves_hardlinks() {
   mkdir -p "$home"
   printf 'content\n' >"$home/.bashrc"
   ln "$home/.bashrc" "$home/twin"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  grep -qF 'export A=1' "$home/twin"
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  grep -qF 'export A=1' "$home/twin" || _hi_why home
 }
 
 function test_strip_marker_removes_only_hi_lines() {
   local home="$_HI_WORKDIR/strip"
   mkdir -p "$home"
   printf 'echo mine\n' >"$home/.bashrc"
-  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  _hi_rc_in "$home" -- strip_marker bashrc "$home/.bashrc" || return 1
-  ! grep -qF "$_HI_MARKER" "$home/.bashrc" || return 1
-  grep -qF 'echo mine' "$home/.bashrc"
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  _hi_rc_in "$home" -- strip_marker bashrc "$home/.bashrc" || _hi_why home || return 1
+  ! grep -qF "$_HI_MARKER" "$home/.bashrc" || _hi_why home _HI_MARKER || return 1
+  grep -qF 'echo mine' "$home/.bashrc" || _hi_why home
 }
 
 function test_strip_marker_missing_file_is_fine() {
   local home="$_HI_WORKDIR/stripnone"
-  _hi_rc_in "$home" -- strip_marker bashrc "$home/.bashrc" || return 1
-  [ ! -e "$home/.bashrc" ]
+  _hi_rc_in "$home" -- strip_marker bashrc "$home/.bashrc" || _hi_why home || return 1
+  [ ! -e "$home/.bashrc" ] || _hi_why home
 }
 
 # each dialect, and a tree at $HOME still states itself: nothing defaults to
@@ -162,7 +162,7 @@ function test_tmpdir_line_dialects() {
   [ "$(_hi_rc_out "$home" -- eval 'tmpdir_line fish /custom; echo; tmpdir_line sh /custom; echo
     _HI_HOME="$HOME" tmpdir_line sh')" = "set -gx _HI_HOME \"/custom\"
 export _HI_HOME=\"/custom\"
-export _HI_HOME=\"$home\"" ]
+export _HI_HOME=\"$home\"" ] || _hi_why home
 }
 
 # the roster loop: every local shell's rc gets its marker block, in its own
@@ -170,17 +170,17 @@ export _HI_HOME=\"$home\"" ]
 function test_install_rc_lines_covers_the_roster() {
   local home="$_HI_WORKDIR/roster"
   mkdir -p "$home/.config/fish"
-  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
+  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
   local f
   for f in .bashrc .zshrc .config/fish/config.fish; do
-    grep -qF "$_HI_MARKER" "$home/$f" || return 1
+    grep -qF "$_HI_MARKER" "$home/$f" || _hi_why home f _HI_MARKER || return 1
     # sh spells it `export _HI_HOME="..."`, fish `set -gx _HI_HOME "..."`
-    grep -qF '_HI_HOME' "$home/$f" || return 1
+    grep -qF '_HI_HOME' "$home/$f" || _hi_why home f || return 1
   done
-  grep -qF '[[ $- == *i* && -r ' "$home/.bashrc" || return 1
-  ! grep -qF '[[ $- ' "$home/.zshrc" || return 1
-  grep -qF 'if status is-interactive' "$home/.config/fish/config.fish" || return 1
-  grep -qF 'set -gx _HI_HOME' "$home/.config/fish/config.fish"
+  grep -qF '[[ $- == *i* && -r ' "$home/.bashrc" || _hi_why home || return 1
+  ! grep -qF '[[ $- ' "$home/.zshrc" || _hi_why home || return 1
+  grep -qF 'if status is-interactive' "$home/.config/fish/config.fish" || _hi_why home || return 1
+  grep -qF 'set -gx _HI_HOME' "$home/.config/fish/config.fish" || _hi_why home
 }
 
 # A non-interactive bash that reads ~/.bashrc (ssh host cmd, scp, rsync)
@@ -190,11 +190,11 @@ function test_install_bash_line_leaves_the_rest_of_bashrc() {
   local home="$_HI_WORKDIR/below" out
   mkdir -p "$home"
   printf '%-45s %s\n' '[[ $- != *i* ]] && return' "$_HI_MARKER" >"$home/.bashrc"
-  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
-  ! grep -qF '&& return' "$home/.bashrc" || return 1
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
+  ! grep -qF '&& return' "$home/.bashrc" || _hi_why home || return 1
   printf 'echo BELOW\n' >>"$home/.bashrc"
   out="$(env -i HOME="$home" PATH="$PATH" bash -c '. ~/.bashrc; echo "${_hi_core_loaded-}"' 2>&1 </dev/null)"
-  [ "$out" = BELOW ]
+  [ "$out" = BELOW ] || _hi_why out
 }
 
 function test_strip_rc_lines_restores_the_originals() {
@@ -203,19 +203,19 @@ function test_strip_rc_lines_restores_the_originals() {
   printf 'echo bash-mine\n' >"$home/.bashrc"
   printf 'echo zsh-mine\n' >"$home/.zshrc"
   printf 'echo fish-mine\n' >"$home/.config/fish/config.fish"
-  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
-  _hi_rc_in "$home" -- strip_rc_lines || return 1
+  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
+  _hi_rc_in "$home" -- strip_rc_lines || _hi_why home || return 1
   [ "$(cat "$home/.bashrc")" = "echo bash-mine" ] &&
     [ "$(cat "$home/.zshrc")" = "echo zsh-mine" ] &&
-    [ "$(cat "$home/.config/fish/config.fish")" = "echo fish-mine" ]
+    [ "$(cat "$home/.config/fish/config.fish")" = "echo fish-mine" ] || _hi_why home
 }
 
 # a shell that is not here gets no rc file invented for it
 function test_install_rc_lines_skips_an_absent_shell() {
   local home="$_HI_WORKDIR/bash-only"
-  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
   grep -qF "$_HI_MARKER" "$home/.bashrc" &&
-    [ ! -e "$home/.zshrc" ] && [ ! -e "$home/.config/fish/config.fish" ]
+    [ ! -e "$home/.zshrc" ] && [ ! -e "$home/.config/fish/config.fish" ] || _hi_why home _HI_MARKER
 }
 
 # with no --shell: the login shell and any shell with an rc already. The rest
@@ -224,23 +224,23 @@ function test_install_rc_lines_wires_the_shells_in_use() {
   local home="$_HI_WORKDIR/in-use" out
   mkdir -p "$home"
   printf 'echo zsh-mine\n' >"$home/.zshrc"
-  out="$(_hi_rc_out "$home" _HI_SHELLS= SHELL=/bin/bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
+  out="$(_hi_rc_out "$home" _HI_SHELLS= SHELL=/bin/bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || _hi_why home _HI_RC_ALL || return 1
   grep -qF "$_HI_MARKER" "$home/.bashrc" && grep -qF "$_HI_MARKER" "$home/.zshrc" &&
-    [ ! -e "$home/.config/fish/config.fish" ] && [[ "$out" == *"--shell fish wires it"* ]]
+    [ ! -e "$home/.config/fish/config.fish" ] && [[ "$out" == *"--shell fish wires it"* ]] || _hi_why home out _HI_MARKER
 }
 
 # ...--shell names them instead...
 function test_install_rc_lines_takes_a_shell_list() {
   local home="$_HI_WORKDIR/shell-list"
-  _hi_rc_in "$home" _HI_SHELLS=fish SHELL=/bin/bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
-  [ ! -e "$home/.bashrc" ] && grep -qF "$_HI_MARKER" "$home/.config/fish/config.fish"
+  _hi_rc_in "$home" _HI_SHELLS=fish SHELL=/bin/bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
+  { [ ! -e "$home/.bashrc" ] && grep -qF "$_HI_MARKER" "$home/.config/fish/config.fish"; } || _hi_why home _HI_MARKER
 }
 
 # ...and a login shell hi does not wire, in a home with no rc, gets them all
 function test_install_rc_lines_falls_back_to_every_shell() {
   local home="$_HI_WORKDIR/shell-none"
-  _hi_rc_in "$home" _HI_SHELLS= SHELL=/bin/ksh _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
-  grep -qF "$_HI_MARKER" "$home/.bashrc" && grep -qF "$_HI_MARKER" "$home/.zshrc"
+  _hi_rc_in "$home" _HI_SHELLS= SHELL=/bin/ksh _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
+  { grep -qF "$_HI_MARKER" "$home/.bashrc" && grep -qF "$_HI_MARKER" "$home/.zshrc"; } || _hi_why home _HI_MARKER
 }
 
 # a tree that is gone costs a shell nothing: the source tests for its file
@@ -249,7 +249,7 @@ function test_rc_lines_survive_a_missing_tree() {
   mkdir -p "$home"
   _hi_rc_out "$home" -- rc_lines zsh /nowhere/say-hi/common/zsh.zsh sh | tail -n +2 >"$home/rc"
   out="$(bash -c '. "$1"; echo STILL' _ "$home/rc" 2>&1)"
-  [ "$out" = STILL ]
+  [ "$out" = STILL ] || _hi_why out
 }
 
 # the portable block leaves $HOME to the shell, looks for the tree where a
@@ -259,7 +259,7 @@ function test_rc_lines_portable_spells_home() {
   local home="$_HI_WORKDIR/portable"
   [ "$(_hi_rc_out "$home" -- eval '_HI_HOME="$HOME/opt"
     rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')" = 'for _hi_d in "$HOME/opt" "$HOME" /usr/local/share /usr/share; do [ -r "$_hi_d/say-hi/common/bash.sh" ] && export _HI_HOME="$_hi_d" && break; done; unset _hi_d
-[[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' ]
+[[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' ] || _hi_why home
 }
 
 # ...the same lines from a clone in $HOME and from a package, so one rc
@@ -267,8 +267,8 @@ function test_rc_lines_portable_spells_home() {
 # nothing else behind
 function test_rc_lines_portable_is_one_block_for_every_install() {
   local home="$_HI_WORKDIR/portable-same" a b out
-  a="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"' -- rc_lines zsh "$home/say-hi/common/zsh.zsh" sh portable)" || return 1
-  b="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME=/usr/share' -- rc_lines zsh /usr/share/say-hi/common/zsh.zsh sh portable)" || return 1
+  a="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"' -- rc_lines zsh "$home/say-hi/common/zsh.zsh" sh portable)" || _hi_why home || return 1
+  b="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME=/usr/share' -- rc_lines zsh /usr/share/say-hi/common/zsh.zsh sh portable)" || _hi_why home || return 1
   [ -n "$a" ] && [ "$a" = "$b" ] || _hi_because "clone: $a / package: $b" || return 1
   mkdir -p "$home/say-hi/common"
   printf 'printf LOADED\n' >"$home/say-hi/common/zsh.zsh"
@@ -291,9 +291,9 @@ function test_rc_block_form_knows_the_older_portable_block() {
       printf %s "$b" >"$HOME/.bashrc"
       rc_block_form f bash "$HOME/say-hi/common/bash.sh" sh "$HOME/.bashrc"
       printf %s "$f"
-    }' -- older_block)" || return 1
+    }' -- older_block)" || _hi_why home l b f || return 1
   [ "$form" = portable ] || _hi_because "form: $form" || return 1
-  grep -qF 'export _HI_HOME="$HOME"' "$home/.bashrc"
+  grep -qF 'export _HI_HOME="$HOME"' "$home/.bashrc" || _hi_why home
 }
 
 # --print-rc prints that block and writes no rc file; once it is in the rc,
@@ -301,22 +301,22 @@ function test_rc_block_form_knows_the_older_portable_block() {
 # line is printed too, and this reads the output back as one block
 function test_print_rc_writes_nothing_and_its_block_is_kept() {
   local home="$_HI_WORKDIR/print-rc" out
-  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
-  [ ! -e "$home/.bashrc" ] && [[ "$out" == *"Lines for bashrc"* && "$out" == *'&& -r "$_HI_HOME/say-hi/common/bash.sh" ]]'* ]] || return 1
+  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || _hi_why home _HI_RC_ALL || return 1
+  [ ! -e "$home/.bashrc" ] && [[ "$out" == *"Lines for bashrc"* && "$out" == *'&& -r "$_HI_HOME/say-hi/common/bash.sh" ]]'* ]] || _hi_why home out || return 1
   printf '%s\n' "$out" | grep -F "$_HI_MARKER" >"$home/.bashrc"
   cp "$home/.bashrc" "$home/printed"
-  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
-  cmp -s "$home/.bashrc" "$home/printed" && [[ "$out" == *"carries the --print-rc block"* ]] || return 1
-  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || return 1
-  [[ "$out" == *"has them already"* ]]
+  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || _hi_why home _HI_RC_ALL || return 1
+  cmp -s "$home/.bashrc" "$home/printed" && [[ "$out" == *"carries the --print-rc block"* ]] || _hi_why home out || return 1
+  out="$(_hi_rc_out "$home" _HI_UNAME=Linux _HI_RC_PRINT=1 _HI_SHELLS=bash _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || _hi_why home _HI_RC_ALL || return 1
+  [[ "$out" == *"has them already"* ]] || _hi_why out
 }
 
 # the rc file is where the user's shell reads it: zsh under $ZDOTDIR, fish
 # under $XDG_CONFIG_HOME - ~/.zshrc is not written when zsh never opens it
 function test_install_rc_lines_honours_zdotdir() {
   local home="$_HI_WORKDIR/zdot"
-  _hi_rc_in "$home" ZDOTDIR="$home/zdot" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
-  grep -qF "$_HI_MARKER" "$home/zdot/.zshrc" && [ ! -e "$home/.zshrc" ]
+  _hi_rc_in "$home" ZDOTDIR="$home/zdot" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
+  grep -qF "$_HI_MARKER" "$home/zdot/.zshrc" && [ ! -e "$home/.zshrc" ] || _hi_why home _HI_MARKER
 }
 
 # ...or under the ZDOTDIR a ~/.zshenv sets, which only a zsh has in its
@@ -326,8 +326,8 @@ function test_install_rc_lines_follows_a_zshenv_zdotdir() {
   mkdir -p "$home"
   # shellcheck disable=SC2016 # zsh's to expand
   printf 'export ZDOTDIR="$HOME/.config/zsh"\n' >"$home/.zshenv"
-  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
-  grep -qF "$_HI_MARKER" "$home/.config/zsh/.zshrc" && [ ! -e "$home/.zshrc" ]
+  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
+  grep -qF "$_HI_MARKER" "$home/.config/zsh/.zshrc" && [ ! -e "$home/.zshrc" ] || _hi_why home _HI_MARKER
 }
 
 # the file is read, never sourced: the last ZDOTDIR= line counts, a path
@@ -336,10 +336,10 @@ function test_install_rc_lines_follows_a_zshenv_zdotdir() {
 function test_zshrc_here_reads_a_zshenv_by_grammar() {
   local home="$_HI_WORKDIR/zgrammar" line want
   mkdir -p "$home"
-  [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/.zshrc" ] || return 1
+  [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/.zshrc" ] || _hi_why home || return 1
   while IFS='|' read -r line want; do
     printf 'ZDOTDIR=/first\n%s\n' "$line" >"$home/.zshenv"
-    [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/$want" ] || return 1
+    [ "$(_hi_rc_out "$home" -- _hi_zshrc_here)" = "$home/$want" ] || _hi_why home want || return 1
   done <<'ROWS'
 ZDOTDIR=~/z|z/.zshrc
   export ZDOTDIR="$HOME/z" # moved|z/.zshrc
@@ -353,15 +353,15 @@ ROWS
 
 function test_install_rc_lines_honours_fish_xdg_dir() {
   local home="$_HI_WORKDIR/fishxdg"
-  _hi_rc_in "$home" XDG_CONFIG_HOME="$home/xdg" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
-  grep -qF "$_HI_MARKER" "$home/xdg/fish/config.fish" && [ ! -e "$home/.config/fish/config.fish" ]
+  _hi_rc_in "$home" XDG_CONFIG_HOME="$home/xdg" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || _hi_why home _HI_RC_ALL || return 1
+  grep -qF "$_HI_MARKER" "$home/xdg/fish/config.fish" && [ ! -e "$home/.config/fish/config.fish" ] || _hi_why home _HI_MARKER
 }
 
 # --dry-run: the block is reported, the file never touched - not even created
 function test_config_shell_dry_run_writes_nothing() {
   local home="$_HI_WORKDIR/dry"
-  _hi_rc_in "$home" _HI_DRY_RUN=1 -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
-  [ ! -e "$home/.bashrc" ]
+  _hi_rc_in "$home" _HI_DRY_RUN=1 -- config_shell bashrc "$home/.bashrc" 'export A=1' || _hi_why home || return 1
+  [ ! -e "$home/.bashrc" ] || _hi_why home
 }
 
 # macOS: a login bash reads ~/.bash_profile, never ~/.bashrc, so the install
@@ -370,14 +370,14 @@ function test_config_shell_dry_run_writes_nothing() {
 # (which wins over both) is only pointed at
 function test_darwin_bash_profile_sources_bashrc() {
   local home="$_HI_WORKDIR/darwin-fresh"
-  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
   grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" &&
     grep -qF '. "$HOME/.profile"' "$home/.bash_profile" &&
-    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 2 ] || return 1
+    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 2 ] || _hi_why home _HI_MARKER || return 1
   # ...and uninstall takes the file with it: hi created it, and an empty
   # .bash_profile would still keep a login bash from reading ~/.profile
-  _hi_rc_in "$home" _HI_UNAME=Darwin -- strip_rc_lines || return 1
-  [ ! -e "$home/.bash_profile" ]
+  _hi_rc_in "$home" _HI_UNAME=Darwin -- strip_rc_lines || _hi_why home || return 1
+  [ ! -e "$home/.bash_profile" ] || _hi_why home
 }
 
 # a file hi wrote into, not created, keeps existing after the strip even
@@ -386,9 +386,9 @@ function test_strip_keeps_a_file_that_was_not_his() {
   local home="$_HI_WORKDIR/theirs"
   mkdir -p "$home"
   printf '# mine\n' >"$home/.bashrc"
-  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
-  _hi_rc_in "$home" -- strip_rc_lines || return 1
-  [ -f "$home/.bashrc" ] && [ "$(cat "$home/.bashrc")" = "# mine" ]
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
+  _hi_rc_in "$home" -- strip_rc_lines || _hi_why home || return 1
+  [ -f "$home/.bashrc" ] && [ "$(cat "$home/.bashrc")" = "# mine" ] || _hi_why home
 }
 
 # uninstall settles each .hi-orig: an rc that matches it again (a missing
@@ -399,23 +399,23 @@ function test_strip_prunes_the_backups() {
   mkdir -p "$home"
   printf 'echo bash-mine\n' >"$home/.bashrc"
   printf 'echo zsh-mine' >"$home/.zshrc"
-  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" != fish ]; }' -- install_rc_lines || return 1
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" != fish ]; }' -- install_rc_lines || _hi_why home || return 1
   printf 'echo later\n' >>"$home/.bashrc"
-  out="$(_hi_rc_out "$home" _HI_DRY_RUN=1 -- strip_rc_lines)" || return 1
+  out="$(_hi_rc_out "$home" _HI_DRY_RUN=1 -- strip_rc_lines)" || _hi_why home || return 1
   [[ "$out" == *"would remove $home/.zshrc.hi-orig"* ]] &&
     [[ "$out" == *"would keep $home/.bashrc.hi-orig"* ]] &&
-    [ -e "$home/.zshrc.hi-orig" ] || return 1
-  out="$(_hi_rc_out "$home" -- strip_rc_lines)" || return 1
+    [ -e "$home/.zshrc.hi-orig" ] || _hi_why out home || return 1
+  out="$(_hi_rc_out "$home" -- strip_rc_lines)" || _hi_why home || return 1
   [[ "$out" == *"   +echo later"* ]] &&
-    [ ! -e "$home/.zshrc.hi-orig" ] && [ -e "$home/.bashrc.hi-orig" ]
+    [ ! -e "$home/.zshrc.hi-orig" ] && [ -e "$home/.bashrc.hi-orig" ] || _hi_why out home
 }
 
 function test_darwin_bash_profile_that_reads_bashrc_is_left_alone() {
   local home="$_HI_WORKDIR/darwin-has"
   mkdir -p "$home"
   printf 'source ~/.bashrc\n' >"$home/.bash_profile"
-  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
-  [ "$(cat "$home/.bash_profile")" = 'source ~/.bashrc' ]
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
+  [ "$(cat "$home/.bash_profile")" = 'source ~/.bashrc' ] || _hi_why home
 }
 
 # one that does not gets the .bashrc line under its own content - and only
@@ -424,19 +424,19 @@ function test_darwin_bash_profile_without_bashrc_gets_the_line() {
   local home="$_HI_WORKDIR/darwin-lacks"
   mkdir -p "$home"
   printf 'export FOO=1\n' >"$home/.bash_profile"
-  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
   [ "$(head -1 "$home/.bash_profile")" = 'export FOO=1' ] &&
     grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" &&
     ! grep -qF '. "$HOME/.profile"' "$home/.bash_profile" &&
-    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 1 ]
+    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 1 ] || _hi_why home _HI_MARKER
 }
 
 function test_darwin_bash_login_is_only_pointed_at() {
   local home="$_HI_WORKDIR/darwin-login"
   mkdir -p "$home"
   : >"$home/.bash_login"
-  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
-  [ ! -e "$home/.bash_profile" ] && [ ! -s "$home/.bash_login" ]
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
+  [ ! -e "$home/.bash_profile" ] && [ ! -s "$home/.bash_login" ] || _hi_why home
 }
 
 # hi's ~/.bash_profile lines hold $_hi_login while they source, so a
@@ -446,7 +446,7 @@ function test_darwin_bash_login_is_only_pointed_at() {
 # shellcheck disable=SC2016 # the fixtures are the login shell's to expand
 function test_bash_profile_lines_end_a_sourcing_loop() {
   local home="$_HI_WORKDIR/pingpong"
-  _hi_rc_in "$home" _HI_UNAME=Darwin -- install_bash_profile_line || return 1
+  _hi_rc_in "$home" _HI_UNAME=Darwin -- install_bash_profile_line || _hi_why home || return 1
   printf '. "$HOME/.bash_profile"\necho profile\n' >"$home/.profile"
   printf '. "$HOME/.bash_profile"\necho rc\n' >"$home/.bashrc"
   (exec env -i HOME="$home" PATH="$PATH" bash -l -c 'echo "done:${_hi_login-unset}"' \
@@ -462,8 +462,8 @@ function test_bash_profile_lines_end_a_sourcing_loop() {
 # ...and nowhere else: Linux gets no .bash_profile
 function test_linux_gets_no_bash_profile() {
   local home="$_HI_WORKDIR/linux"
-  _hi_rc_in "$home" _HI_UNAME=Linux _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
-  [ ! -e "$home/.bash_profile" ]
+  _hi_rc_in "$home" _HI_UNAME=Linux _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || _hi_why home || return 1
+  [ ! -e "$home/.bash_profile" ] || _hi_why home
 }
 
 # check_shell_configs walks the whole roster and names the one that is
@@ -476,7 +476,7 @@ function test_check_shell_configs_names_the_broken_roster_file() {
   printf 'echo fine\n' >"$home/.zshrc"
   printf 'if true\n' >"$home/.config/fish/config.fish"
   out="$(_hi_rc_out "$home" -- check_shell_configs)" && return 1
-  [[ "$out" == *"config.fish) has issues"* && "$out" != *".bashrc) has issues"* && "$out" != *".zshrc) has issues"* ]]
+  [[ "$out" == *"config.fish) has issues"* && "$out" != *".bashrc) has issues"* && "$out" != *".zshrc) has issues"* ]] || _hi_why out
 }
 
 # _hi_rc_out - _hi_rc_in with the transcript kept, for the cases that assert
@@ -499,12 +499,12 @@ function test_config_validate_shells_asks_at_a_terminal() {
         source "$_HI_HOME/say-hi/scripts/rc.sh"
         config_validate_shells && echo GATE_WENT_ON' >"$_HI_WORKDIR/gate-tty.$reply.out" 2>&1 &
     _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-60}"
-    [ "$_HI_WAIT_EXIT" != 124 ] || return 1
+    [ "$_HI_WAIT_EXIT" != 124 ] || _hi_why _HI_WAIT_EXIT || return 1
   done
-  grep -q "Continue installing anyway" "$_HI_WORKDIR/gate-tty.y.out" &&
+  { grep -q "Continue installing anyway" "$_HI_WORKDIR/gate-tty.y.out" &&
     grep -q GATE_WENT_ON "$_HI_WORKDIR/gate-tty.y.out" &&
     grep -q "aborting install" "$_HI_WORKDIR/gate-tty.n.out" &&
-    ! grep -q GATE_WENT_ON "$_HI_WORKDIR/gate-tty.n.out"
+    ! grep -q GATE_WENT_ON "$_HI_WORKDIR/gate-tty.n.out"; } || _hi_why
 }
 
 function test_check_one_config_verdicts() {
@@ -513,12 +513,12 @@ function test_check_one_config_verdicts() {
   printf 'echo fine\n' >"$home/good.sh"
   printf 'if true; then\n' >"$home/bad.sh"
   : >"$home/empty.sh"
-  _hi_rc_in "$home" -- check_one_config bash "$home/good.sh" bash -n || return 1
-  ! _hi_rc_in "$home" -- check_one_config bash "$home/bad.sh" bash -n || return 1
+  _hi_rc_in "$home" -- check_one_config bash "$home/good.sh" bash -n || _hi_why home || return 1
+  ! _hi_rc_in "$home" -- check_one_config bash "$home/bad.sh" bash -n || _hi_why home || return 1
   # a missing or empty file and a missing checker are silent skips, not failures
-  _hi_rc_in "$home" -- check_one_config bash "$home/absent.sh" bash -n || return 1
-  _hi_rc_in "$home" -- check_one_config bash "$home/empty.sh" bash -n || return 1
-  _hi_rc_in "$home" -- check_one_config x "$home/good.sh" no-such-tool-9x -n
+  _hi_rc_in "$home" -- check_one_config bash "$home/absent.sh" bash -n || _hi_why home || return 1
+  _hi_rc_in "$home" -- check_one_config bash "$home/empty.sh" bash -n || _hi_why home || return 1
+  _hi_rc_in "$home" -- check_one_config x "$home/good.sh" no-such-tool-9x -n || _hi_why home
 }
 
 # On the message and not on the bare exit status, the way the roster case
@@ -552,8 +552,8 @@ function test_config_validate_shells_gate() {
   local home="$_HI_WORKDIR/gate"
   mkdir -p "$home"
   printf 'if true; then\n' >"$home/.bashrc"
-  _hi_rc_in "$home" _HI_ASSUME_YES=1 -- config_validate_shells || return 1
-  ! _hi_rc_in "$home" _HI_ASSUME_YES=0 -- config_validate_shells </dev/null 2>/dev/null
+  _hi_rc_in "$home" _HI_ASSUME_YES=1 -- config_validate_shells || _hi_why home || return 1
+  ! _hi_rc_in "$home" _HI_ASSUME_YES=0 -- config_validate_shells </dev/null 2>/dev/null || _hi_why home
 }
 
 # link_owner asks whichever package manager is on PATH, first answer wins.
@@ -601,7 +601,7 @@ function test_link_owner_per_package_manager() {
     }
   done
   # no manager at all: failure, not a crash
-  ! _hi_link_owner_with "$home/none.bin" /usr/bin/hi >/dev/null
+  ! _hi_link_owner_with "$home/none.bin" /usr/bin/hi >/dev/null || _hi_why home
 }
 
 function run_rc_lines_test() {

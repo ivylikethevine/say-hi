@@ -133,10 +133,13 @@ function _hi_sshd_container() {
 # passes. Goes through $_HI_BACKEND like the rest of the harness, where the two
 # copies it replaces both said `docker` outright.
 function _hi_post_check() {
-  local label="$1" name="$2" post="$3"
+  local label="$1" name="$2" post="$3" said rc=0
   [ -n "$post" ] || return 0
-  "${_HI_BACKEND:-docker}" exec "$name" sh -c "$post" >/dev/null 2>&1 && return 0
+  said="$("${_HI_BACKEND:-docker}" exec "$name" sh -c "$post" 2>&1)" || rc=$?
+  [ "$rc" != 0 ] || return 0
   _hi_h3 " | [$label] -- post-check FAILED: $post" "$RED"
+  printf '      exit %s, and it said: %s\n' "$rc" "${said:-nothing}"
+  _hi_show_target "$name"
   return 1
 }
 

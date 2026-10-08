@@ -106,21 +106,21 @@ function _hi_loc_rc_states_the_tree() {
   grep -qF "_HI_HOME" "$_HI_LOC_HOME/$1" && grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/$1"
 }
 
-function test_bashrc_states_the_tree() { _hi_loc_rc_states_the_tree .bashrc; }
-function test_zshrc_states_the_tree() { _hi_loc_rc_states_the_tree .zshrc; }
-function test_fish_config_states_the_tree() { _hi_loc_rc_states_the_tree .config/fish/config.fish; }
+function test_bashrc_states_the_tree() { _hi_loc_rc_states_the_tree .bashrc || _hi_why; }
+function test_zshrc_states_the_tree() { _hi_loc_rc_states_the_tree .zshrc || _hi_why; }
+function test_fish_config_states_the_tree() { _hi_loc_rc_states_the_tree .config/fish/config.fish || _hi_why; }
 
 # the install itself has to have said it finished: a run that died between
 # wiring the rc files and its closing banner would leave every case below
 # asserting against a half-made install
 function test_the_install_reported_success() {
-  grep -q "Installed!" "$_HI_WORKDIR/install.log"
+  grep -q "Installed!" "$_HI_WORKDIR/install.log" || _hi_why
 }
 
 # the tree stays where it is: an install writes the user's rc files and the
 # overlay, never the checkout it was run from
 function test_the_install_wrote_nothing_into_the_tree() {
-  [ ! -e "$_HI_LOC_ROOT/overlay" ] && [ ! -e "$_HI_LOC_ROOT/config/settings.sh" ]
+  [ ! -e "$_HI_LOC_ROOT/overlay" ] && [ ! -e "$_HI_LOC_ROOT/config/settings.sh" ] || _hi_why _HI_LOC_ROOT
 }
 
 function test_fish_resolves_the_nested_tree() {
@@ -237,9 +237,9 @@ function test_a_missing_tree_is_named_and_refused() {
 # tree is - the half that would rot if only the install were tested
 function test_uninstall_removes_the_tree_line() {
   _hi_login_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --uninstall >/dev/null 2>&1
-  ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.bashrc" &&
+  { ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.bashrc" &&
     ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.zshrc" &&
-    ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.config/fish/config.fish"
+    ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.config/fish/config.fish"; } || _hi_why _HI_LOC_PARENT _HI_LOC_HOME
 }
 
 function run_install_location_tests() {

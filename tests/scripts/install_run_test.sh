@@ -57,18 +57,18 @@ function _hi_run_install_here() {
 function test_two_modes_are_refused() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --configure --uninstall 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --configure --uninstall"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --configure --uninstall"* ]] || _hi_why rc out
 }
 
 function test_usage_names_what_was_typed() {
   [[ "$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: hi --install "* ]] &&
-    [[ "$(bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: install.sh "* ]]
+    [[ "$(bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: install.sh "* ]] || _hi_why
 }
 
 function test_prefix_flag_requires_a_path() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs a path"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs a path"* ]] || _hi_why rc out
 }
 
 # --prefix is the packager's flag: reached through `hi --install` it would
@@ -76,19 +76,19 @@ function test_prefix_flag_requires_a_path() {
 function test_prefix_is_refused_through_hi_install() {
   local out rc=0
   out="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --prefix /opt 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix is packaging mode"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix is packaging mode"* ]] || _hi_why rc out
 }
 
 function test_prefix_must_be_absolute() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix opt 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs an absolute path (got opt)"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs an absolute path (got opt)"* ]] || _hi_why rc out
 }
 
 function test_preset_flag_requires_a_name() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --preset 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--preset needs a name"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--preset needs a name"* ]] || _hi_why rc out
 }
 
 # one red line naming --help, no usage dump: the shape every command's
@@ -97,14 +97,14 @@ function test_an_unknown_argument_gets_the_usage() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --bogus 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus (install.sh --help lists them)"* ]] &&
-    [[ "$out" != *"Usage:"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ]
+    [[ "$out" != *"Usage:"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ] || _hi_why rc out
 }
 
 # --configure is the script-side spelling too, and names itself in its usage
 function test_configure_is_features_only() {
   local out
-  out="$(bash "$_HI_ROOT/scripts/install.sh" --configure --help)" || return 1
-  [[ "$out" == "Usage: install.sh --configure ["* ]]
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --configure --help)" || _hi_why || return 1
+  [[ "$out" == "Usage: install.sh --configure ["* ]] || _hi_why out
 }
 
 # a full install copies no default into the overlay: the tree's colors,
@@ -113,14 +113,14 @@ function test_configure_is_features_only() {
 function test_install_copies_no_default_into_the_overlay() {
   local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0 f
   out="$(_hi_run_install_here ovl-mode --link none --yes 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"Installed!"* ]] || return 1
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Installed!"* ]] || _hi_why rc out || return 1
   for f in colors packages vim nvim nano emacs; do
     [ ! -e "$ovl/$f" ] || {
       _hi_cecho " | $f was copied into the overlay" "$RED"
       return 1
     }
   done
-  [ ! -d "$ovl/.git" ]
+  [ ! -d "$ovl/.git" ] || _hi_why ovl
 }
 
 # --uninstall against a home that never installed: every half reports clean
@@ -128,7 +128,7 @@ function test_install_copies_no_default_into_the_overlay() {
 function test_uninstall_mode_is_safe_on_a_fresh_home() {
   local out rc=0
   out="$(_hi_run_install un-fresh --uninstall 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"Uninstalled!"* && "$out" == *"no settings.sh to remove"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Uninstalled!"* && "$out" == *"no settings.sh to remove"* ]] || _hi_why rc out
 }
 
 # --uninstall --purge takes the overlay directory with it; without the flag
@@ -138,16 +138,16 @@ function test_uninstall_purge_removes_the_overlay() {
   mkdir -p "$home/.config/say-hi"
   printf '[hostname]\nmine = "red"\n' >"$home/.config/say-hi/colors"
   out="$(_hi_run_install un-purge --uninstall 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ -f "$home/.config/say-hi/colors" ] || return 1
+  [ "$rc" -eq 0 ] && [ -f "$home/.config/say-hi/colors" ] || _hi_why rc home || return 1
   out="$(_hi_run_install un-purge --uninstall --purge --dry-run 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"would remove $home/.config/say-hi"* ]] &&
-    [ -f "$home/.config/say-hi/colors" ] || return 1
+    [ -f "$home/.config/say-hi/colors" ] || _hi_why rc out home || return 1
   out="$(_hi_run_install un-purge --uninstall --purge 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"removed $home/.config/say-hi"* ]] &&
-    [ ! -e "$home/.config/say-hi" ] || return 1
+    [ ! -e "$home/.config/say-hi" ] || _hi_why rc out home || return 1
   # a second purge has nothing to do and says so
   out="$(_hi_run_install un-purge --uninstall --purge 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"no $home/.config/say-hi to remove"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no $home/.config/say-hi to remove"* ]] || _hi_why rc out home
 }
 
 # a purge that cannot delete everything says so, rather than "removed"
@@ -158,7 +158,7 @@ function test_uninstall_purge_says_when_it_cannot_remove() {
   chmod 555 "$dir/say-hi/locked"
   out="$(_HI_CONFIG_DIR="$dir/say-hi" purge_overlay)"
   chmod 755 "$dir/say-hi/locked"
-  [[ "$out" == *"couldn't remove all of it"* && "$out" != *"removed"* ]] && [ -d "$dir/say-hi" ]
+  [[ "$out" == *"couldn't remove all of it"* && "$out" != *"removed"* ]] && [ -d "$dir/say-hi" ] || _hi_why out dir
 }
 
 # an rc hi cannot write is refused by name, with the lines to add by hand and
@@ -172,7 +172,7 @@ function test_config_shell_refuses_a_read_only_rc() {
   chmod 644 "$dir/.bashrc"
   [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $dir/.bashrc"* && "$out" == *"source hi"* ]] &&
     [[ "$out" != *"updated"* ]] && [ ! -e "$dir/.bashrc.hi-orig" ] &&
-    [ "$(cat "$dir/.bashrc")" = "echo mine" ]
+    [ "$(cat "$dir/.bashrc")" = "echo mine" ] || _hi_why rc out dir
 }
 
 # ...and an uninstall that meets one fails, having still done the rest
@@ -193,8 +193,8 @@ function test_run_uninstall_fails_on_a_read_only_rc() {
       run_uninstall 2>&1
     ')" || rc=$?
   chmod 644 "$home/.bashrc"
-  [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
-    [ ! -e "$home/.config/say-hi/settings.sh" ] && grep -qF "$_HI_MARKER" "$home/.bashrc"
+  { [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
+    [ ! -e "$home/.config/say-hi/settings.sh" ] && grep -qF "$_HI_MARKER" "$home/.bashrc"; } || _hi_why rc out home _HI_MARKER
 }
 
 # ...and --purge is --uninstall's alone
@@ -207,8 +207,8 @@ function test_uninstall_mode_fails_on_a_read_only_rc() {
   chmod 444 "$home/.bashrc"
   out="$(_hi_run_install un-locked --uninstall 2>&1)" || rc=$?
   chmod 644 "$home/.bashrc"
-  [ "$rc" -eq 1 ] && [[ "$out" == *"Uninstalled, but for the rc files named above"* ]] &&
-    [[ "$out" != *"Uninstalled!"* ]] && grep -qF "$_HI_MARKER" "$home/.bashrc"
+  { [ "$rc" -eq 1 ] && [[ "$out" == *"Uninstalled, but for the rc files named above"* ]] &&
+    [[ "$out" != *"Uninstalled!"* ]] && grep -qF "$_HI_MARKER" "$home/.bashrc"; } || _hi_why rc out home _HI_MARKER
 }
 
 # an install that meets one writes the settings, leaves the rc as it was, and
@@ -222,7 +222,7 @@ function test_install_mode_fails_on_a_read_only_rc() {
   chmod 644 "$home/.bashrc"
   [ "$rc" -eq 1 ] && [[ "$out" == *"can't write $home/.bashrc"* ]] &&
     [[ "$out" == *"Installed, but for the rc files named above"* && "$out" != *"Installed!"* ]] &&
-    [ "$(cat "$home/.bashrc")" = "echo mine" ] && [ -f "$home/.config/say-hi/settings.sh" ]
+    [ "$(cat "$home/.bashrc")" = "echo mine" ] && [ -f "$home/.config/say-hi/settings.sh" ] || _hi_why rc out home
 }
 
 # --shell takes bash, zsh, fish, or all, comma- or space-separated: a name
@@ -230,16 +230,16 @@ function test_install_mode_fails_on_a_read_only_rc() {
 function test_shell_flag_refuses_a_stranger() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --shell bash,tcsh 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--shell wants bash, zsh, fish, or all (got tcsh)"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--shell wants bash, zsh, fish, or all (got tcsh)"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --shell 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--shell needs a list of bash, zsh, and fish, or all"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--shell needs a list of bash, zsh, and fish, or all"* ]] || _hi_why rc out
 }
 
 function test_purge_is_refused_outside_uninstall() {
   local out rc=0
   out="$(_hi_run_install un-purge-mode --install --purge 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--purge does not apply here"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--purge does not apply here"* ]] || _hi_why rc out
 }
 
 # --configure (the `hi --configure` shape) writes the overlay's settings
@@ -250,7 +250,7 @@ function test_features_only_writes_settings_and_no_rc() {
   out="$(_hi_run_install_here feat --configure --preset=minimal 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Features updated!"* ]] &&
     grep -qF "export _HI_DISABLE_HEADER=1" "$home/.config/say-hi/settings.sh" &&
-    [ ! -e "$home/.bashrc" ]
+    [ ! -e "$home/.bashrc" ] || _hi_why rc out home
 }
 
 # an overlay an older hi wrote is converted before any setting is read: the
@@ -262,10 +262,10 @@ function test_configure_converts_an_old_overlay() {
   mkdir -p "$cfg"
   printf 'bat:3,batcat:3\n' >"$cfg/packages"
   printf 'hostname,box,red\n' >"$cfg/colors"
-  out="$(_hi_run_install_here convert-old --configure --preset=balanced 2>&1)" || return 1
-  [[ "$out" == *"converted $cfg/packages"* && "$out" == *"converted $cfg/colors"* ]] &&
+  out="$(_hi_run_install_here convert-old --configure --preset=balanced 2>&1)" || _hi_why || return 1
+  { [[ "$out" == *"converted $cfg/packages"* && "$out" == *"converted $cfg/colors"* ]] &&
     grep -qx 'bat = \["batcat"\]' "$cfg/packages" && grep -qx 'bat:3,batcat:3' "$cfg/packages.old" &&
-    grep -q '^box  *= "red"$' "$cfg/colors" && grep -qx 'hostname,box,red' "$cfg/colors.old"
+    grep -q '^box  *= "red"$' "$cfg/colors" && grep -qx 'hostname,box,red' "$cfg/colors.old"; } || _hi_why out cfg
 }
 
 # ...and under --dry-run it only says it would
@@ -274,9 +274,9 @@ function test_configure_dry_run_converts_nothing() {
   cfg="$home/.config/say-hi"
   mkdir -p "$cfg"
   printf 'bat:3,batcat:3\n' >"$cfg/packages"
-  out="$(_hi_run_install_here convert-dry --configure --preset=balanced --dry-run 2>&1)" || return 1
+  out="$(_hi_run_install_here convert-dry --configure --preset=balanced --dry-run 2>&1)" || _hi_why || return 1
   [[ "$out" == *"would convert $cfg/packages"* ]] && [ ! -e "$cfg/packages.old" ] &&
-    [ "$(cat "$cfg/packages")" = 'bat:3,batcat:3' ]
+    [ "$(cat "$cfg/packages")" = 'bat:3,batcat:3' ] || _hi_why out cfg
 }
 
 # a preset name is checked before a question is asked or a byte written: the
@@ -286,14 +286,14 @@ function test_a_stranger_preset_is_refused_before_the_banner() {
   local out rc=0
   out="$(_hi_run_install_here preset-banner --configure --preset=minimalist 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$(_hi_strip_ansi "$out")" == *"no such preset: minimalist"* ]] &&
-    [[ "$out" != *"Configuring"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ]
+    [[ "$out" != *"Configuring"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ] || _hi_why rc out
 }
 
 function test_a_stranger_preset_is_refused_before_anything_is_written() {
   local home="$_HI_WORKDIR/preset-typo" out rc=0
   out="$(_hi_run_install_here preset-typo --configure --preset=minimalist 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"no such preset: minimalist"* && "$out" == *"minimal"* ]] &&
-    [ ! -e "$home/.config/say-hi/settings.sh" ]
+    [ ! -e "$home/.config/say-hi/settings.sh" ] || _hi_why rc out home
 }
 
 # run_uninstall in order: the rc lines go, then the settings file, then the
@@ -319,11 +319,11 @@ function test_run_uninstall_strips_rc_then_settings_then_the_link() {
       source "$_HI_UNINSTALL_SCRIPT"
       function unlink_hi() { echo UNLINK_CALLED; }
       run_uninstall 2>&1
-    ')" || return 1
-  [[ "$out" == *UNLINK_CALLED* ]] &&
+    ')" || _hi_why home _HI_INSTALL _HI_UNINSTALL_SCRIPT || return 1
+  { [[ "$out" == *UNLINK_CALLED* ]] &&
     [ ! -e "$home/.config/say-hi/settings.sh" ] &&
     ! grep -qF "$_HI_MARKER" "$home/.bashrc" &&
-    grep -qx 'echo before' "$home/.bashrc" && grep -qx 'echo after' "$home/.bashrc"
+    grep -qx 'echo before' "$home/.bashrc" && grep -qx 'echo after' "$home/.bashrc"; } || _hi_why out home _HI_MARKER
 }
 
 # the validation gate, both ways: a broken .bashrc stops a non-interactive
@@ -350,8 +350,8 @@ function test_install_with_yes_continues_over_broken_configs() {
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
   out="$(_hi_run_install_here gate-yes --link none --yes 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"continuing anyway"* && "$out" == *"Installed!"* ]] &&
-    grep -qF "$_HI_MARKER" "$home/.bashrc"
+  { [ "$rc" -eq 0 ] && [[ "$out" == *"continuing anyway"* && "$out" == *"Installed!"* ]] &&
+    grep -qF "$_HI_MARKER" "$home/.bashrc"; } || _hi_why rc out home _HI_MARKER
 }
 
 # _hi_run_install_pty <home-name> <input> <flag...> - _hi_run_install under a
@@ -377,11 +377,11 @@ function test_install_gate_declined_at_a_terminal_aborts() {
   local home="$_HI_WORKDIR/gate-no"
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
-  _hi_run_install_pty gate-no 'n\n' --link none || return 1
-  grep -qF 'Continue installing anyway?' "$_HI_WORKDIR/gate-no.pty.out" &&
+  _hi_run_install_pty gate-no 'n\n' --link none || _hi_why || return 1
+  { grep -qF 'Continue installing anyway?' "$_HI_WORKDIR/gate-no.pty.out" &&
     grep -qF 'aborting install' "$_HI_WORKDIR/gate-no.pty.out" &&
     ! grep -qF 'Installed!' "$_HI_WORKDIR/gate-no.pty.out" &&
-    ! grep -qF "$_HI_MARKER" "$home/.bashrc"
+    ! grep -qF "$_HI_MARKER" "$home/.bashrc"; } || _hi_why home _HI_MARKER
 }
 
 # ...and "y" goes on to a full install that wires that same .bashrc. A preset
@@ -390,19 +390,19 @@ function test_install_gate_accepted_at_a_terminal_continues() {
   local home="$_HI_WORKDIR/gate-y"
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
-  _hi_run_install_pty gate-y 'y\n' --link none --preset everything || return 1
-  grep -qF 'Installed!' "$_HI_WORKDIR/gate-y.pty.out" &&
-    grep -qF "$_HI_MARKER" "$home/.bashrc"
+  _hi_run_install_pty gate-y 'y\n' --link none --preset everything || _hi_why || return 1
+  { grep -qF 'Installed!' "$_HI_WORKDIR/gate-y.pty.out" &&
+    grep -qF "$_HI_MARKER" "$home/.bashrc"; } || _hi_why home _HI_MARKER
 }
 
 # a first install asks a terminal one thing, and "n" keeps hi off this
 # machine; the menu is hi --configure's
 function test_first_install_asks_only_about_this_machine() {
   local home="$_HI_WORKDIR/first-q" out="$_HI_WORKDIR/first-q.pty.out"
-  _hi_run_install_pty first-q 'n\n' --link none || return 1
-  grep -qF "Style this machine's own shells too" "$out" && grep -qF 'Installed!' "$out" &&
+  _hi_run_install_pty first-q 'n\n' --link none || _hi_why || return 1
+  { grep -qF "Style this machine's own shells too" "$out" && grep -qF 'Installed!' "$out" &&
     ! grep -qF 'Nothing is written until you save' "$out" &&
-    grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"
+    grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"; } || _hi_why out home
 }
 
 # ...and nothing at all once there is a settings.sh
@@ -410,14 +410,14 @@ function test_a_later_install_asks_nothing() {
   local home="$_HI_WORKDIR/later-q" out="$_HI_WORKDIR/later-q.pty.out"
   mkdir -p "$home/.config/say-hi"
   printf '#!/bin/sh\n' >"$home/.config/say-hi/settings.sh"
-  _hi_run_install_pty later-q '' --link none || return 1
-  ! grep -qF 'Style this machine' "$out" && grep -qF 'Installed!' "$out"
+  _hi_run_install_pty later-q '' --link none || _hi_why || return 1
+  { ! grep -qF 'Style this machine' "$out" && grep -qF 'Installed!' "$out"; } || _hi_why out
 }
 
 # hi --configure quit at its menu writes nothing and says so
 function test_features_only_quit_leaves_the_settings() {
   local home="$_HI_WORKDIR/feat-quit"
-  _hi_run_install_pty feat-quit 'q\n' --configure || return 1
+  _hi_run_install_pty feat-quit 'q\n' --configure || _hi_why || return 1
   grep -qF 'Settings left as they were' "$_HI_WORKDIR/feat-quit.pty.out" &&
     ! grep -qF 'Features updated!' "$_HI_WORKDIR/feat-quit.pty.out" &&
     [ ! -e "$home/.config/say-hi/settings.sh" ] ||
@@ -430,10 +430,10 @@ function test_features_only_quit_leaves_the_settings() {
 function test_install_ignores_its_own_rc_lines() {
   local home="$_HI_WORKDIR/rerun" out rc=0
   _hi_run_install rerun --link none --yes >/dev/null 2>&1 || rc=$?
-  [ "$rc" -eq 0 ] || return 1
+  [ "$rc" -eq 0 ] || _hi_why rc || return 1
   rm -f "$home/.config/say-hi/settings.sh"
   out="$(_hi_run_install rerun --link none --yes 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" != *"in your shell config"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" != *"in your shell config"* ]] || _hi_why rc out
 }
 
 # --prefix=<dir> (the one-token spelling) enters packaging mode: the tree
@@ -443,9 +443,9 @@ function test_prefix_equals_spelling_stages_under_destdir() {
   local stage="$_HI_WORKDIR/stage" out rc=0
   out="$(_hi_run_env pack env DESTDIR="$stage" \
     bash "$_HI_RUN_TREE/scripts/install.sh" --prefix=/opt 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"Packaged!"* ]] &&
+  { [ "$rc" -eq 0 ] && [[ "$out" == *"Packaged!"* ]] &&
     [ -f "$stage/opt/say-hi/hi.sh" ] &&
-    grep -qF 'export _HI_HOME="/opt"' "$stage/etc/profile.d/say-hi.sh"
+    grep -qF 'export _HI_HOME="/opt"' "$stage/etc/profile.d/say-hi.sh"; } || _hi_why rc out stage
 }
 
 # The locator walk (GLOSSARY: HI.33), driven for real through each symlink
@@ -463,7 +463,7 @@ function test_locator_walks_an_absolute_symlink() {
   mkdir -p "$_HI_WORKDIR/loc-bin"
   ln -sfn "$_HI_RUN_TREE/scripts/install.sh" "$_HI_WORKDIR/loc-bin/hi-install"
   out="$(_hi_run_env loc-abs bash "$_HI_WORKDIR/loc-bin/hi-install" --uninstall --dry-run 2>&1)" || true
-  _hi_run_named_the_tree "$out"
+  _hi_run_named_the_tree "$out" || _hi_why out
 }
 
 function test_locator_walks_a_relative_symlink() {
@@ -471,7 +471,7 @@ function test_locator_walks_a_relative_symlink() {
   mkdir -p "$parent/bin"
   ln -sfn ../say-hi/scripts/install.sh "$parent/bin/hi-install"
   out="$(_hi_run_env loc-rel bash "$parent/bin/hi-install" --uninstall --dry-run 2>&1)" || true
-  _hi_run_named_the_tree "$out"
+  _hi_run_named_the_tree "$out" || _hi_why out
 }
 
 function test_locator_walks_a_bare_name_symlink() {
@@ -479,7 +479,7 @@ function test_locator_walks_a_bare_name_symlink() {
   ln -sfn install.sh "$_HI_RUN_TREE/scripts/reinstall.sh"
   out="$(cd "$_HI_RUN_TREE/scripts" &&
     _hi_run_env loc-bare bash reinstall.sh --uninstall --dry-run 2>&1)" || true
-  _hi_run_named_the_tree "$out"
+  _hi_run_named_the_tree "$out" || _hi_why out
 }
 
 # The first command a fresh clone runs has to answer a checkout that is not
@@ -490,7 +490,7 @@ function test_a_misnamed_clone_is_refused_by_name() {
   mkdir -p "$dir"
   cp -R "$_HI_RUN_TREE" "$dir/sayhi"
   out="$(_hi_run_env misnamed-home bash "$dir/sayhi/scripts/install.sh" --uninstall --dry-run 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"has to be a directory named say-hi"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"has to be a directory named say-hi"* ]] || _hi_why rc out
 }
 
 # reached as `hi --uninstall`, every message says so - the usage line, the
@@ -499,7 +499,7 @@ function test_a_misnamed_clone_is_refused_by_name() {
 function test_errors_name_what_was_typed() {
   local out rc=0
   out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --bogus 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unknown option --bogus (hi --uninstall --help lists them)"* && "$out" != *"Usage:"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unknown option --bogus (hi --uninstall --help lists them)"* && "$out" != *"Usage:"* ]] || _hi_why rc out
 }
 
 # every mode is a word, --install included, so a second one is refused
@@ -507,7 +507,7 @@ function test_errors_name_what_was_typed() {
 function test_install_plus_another_mode_is_refused() {
   local out rc=0
   out="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --install --uninstall --dry-run 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --install --uninstall"* && "$out" != *"Uninstalling"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --install --uninstall"* && "$out" != *"Uninstalling"* ]] || _hi_why rc out
 }
 
 # a switch that is not the mode's own is refused by name: `--uninstall --yes`
@@ -515,10 +515,10 @@ function test_install_plus_another_mode_is_refused() {
 function test_a_switch_outside_its_mode_is_refused() {
   local out rc=0
   out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --yes 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--yes does not apply here"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--yes does not apply here"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(_HI_ARGV0="hi --configure" bash "$_HI_ROOT/scripts/install.sh" --configure --link none 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link does not apply here"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--link does not apply here"* ]] || _hi_why rc out
 }
 
 # _hi_mode_help_is_its_own <mode> <usage-prefix> <body-phrase> - the mode's own
@@ -542,11 +542,11 @@ function _hi_mode_help_is_its_own() {
 }
 
 function test_uninstall_help_is_its_own() {
-  _hi_mode_help_is_its_own uninstall "Usage: hi --uninstall [--purge] [--dry-run]" "inverse of the install"
+  _hi_mode_help_is_its_own uninstall "Usage: hi --uninstall [--purge] [--dry-run]" "inverse of the install" || _hi_why
 }
 
 function test_configure_help_is_its_own() {
-  _hi_mode_help_is_its_own configure "Usage: hi --configure [--preset <name>]" "Revisit the settings"
+  _hi_mode_help_is_its_own configure "Usage: hi --configure [--preset <name>]" "Revisit the settings" || _hi_why
 }
 
 # no terminal and no --preset: --configure has nothing to do and says so,
@@ -554,25 +554,25 @@ function test_configure_help_is_its_own() {
 function test_configure_without_a_terminal_says_so() {
   local out rc=0
   out="$(_hi_run_install_here nomenu --configure 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(_hi_run_install_here nomenu-install --dry-run --link none 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]] || _hi_why rc out
 }
 
 # the last --link on the line wins, the way --keep/--no-keep do
 function test_last_link_flag_wins() {
   local out
-  out="$(_hi_run_install_here lastlink --dry-run --link system --link none --preset balanced 2>&1)" || return 1
-  [[ "$out" == *"--link none given"* && "$out" != *"/usr/bin/hi"* ]]
+  out="$(_hi_run_install_here lastlink --dry-run --link system --link none --preset balanced 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"--link none given"* && "$out" != *"/usr/bin/hi"* ]] || _hi_why out
 }
 
 # ...and `user` is a word of its own, not only the default: after a none it
 # puts the link back in $HOME
 function test_link_user_undoes_an_earlier_none() {
   local home="$_HI_WORKDIR/lastuser" out
-  out="$(_hi_run_install_here lastuser --dry-run --link none --link user --preset balanced 2>&1)" || return 1
-  [[ "$out" == *"would link $home/.local/bin/hi"* && "$out" != *"--link none given"* ]]
+  out="$(_hi_run_install_here lastuser --dry-run --link none --link user --preset balanced 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"would link $home/.local/bin/hi"* && "$out" != *"--link none given"* ]] || _hi_why out home
 }
 
 # --dry-run through the whole install: every write is named, none is made -
@@ -580,45 +580,45 @@ function test_link_user_undoes_an_earlier_none() {
 function test_dry_run_install_writes_nothing() {
   local home="$_HI_WORKDIR/dry" out rc=0
   out="$(_hi_run_install_here dry --dry-run --preset balanced 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] || return 1
+  [ "$rc" -eq 0 ] || _hi_why rc || return 1
   [[ "$out" == *"dry run: would rewrite hi's lines in $home/.bashrc"* ]] &&
     [[ "$out" == *"would rewrite hi's lines in $home/.config/say-hi/settings.sh"* ]] &&
     [[ "$out" == *"would link $home/.local/bin/hi"* ]] &&
     [ ! -e "$home/.bashrc" ] && [ ! -e "$home/.config/say-hi/colors" ] &&
-    [ ! -e "$home/.config/say-hi/settings.sh" ] && [ ! -e "$home/.local/bin/hi" ]
+    [ ! -e "$home/.config/say-hi/settings.sh" ] && [ ! -e "$home/.local/bin/hi" ] || _hi_why out home
 }
 
 # -n is --dry-run's short form on every mode
 function test_dry_run_short_form_is_the_same() {
   local home="$_HI_WORKDIR/dryn" long short
-  _hi_run_install_here dryn --link none --yes --preset balanced >/dev/null 2>&1 || return 1
-  long="$(_hi_run_install_here dryn --uninstall --dry-run 2>&1)" || return 1
-  short="$(_hi_run_install_here dryn --uninstall -n 2>&1)" || return 1
+  _hi_run_install_here dryn --link none --yes --preset balanced >/dev/null 2>&1 || _hi_why || return 1
+  long="$(_hi_run_install_here dryn --uninstall --dry-run 2>&1)" || _hi_why || return 1
+  short="$(_hi_run_install_here dryn --uninstall -n 2>&1)" || _hi_why || return 1
   [ "$long" = "$short" ] && [[ "$short" == *"would remove $home/.config/say-hi/settings.sh"* ]] &&
-    [ -f "$home/.config/say-hi/settings.sh" ]
+    [ -f "$home/.config/say-hi/settings.sh" ] || _hi_why long short home
 }
 
 function test_dry_run_uninstall_removes_nothing() {
   local home="$_HI_WORKDIR/dryun" out rc=0
-  _hi_run_install_here dryun --link none --yes --preset balanced >/dev/null 2>&1 || return 1
+  _hi_run_install_here dryun --link none --yes --preset balanced >/dev/null 2>&1 || _hi_why || return 1
   out="$(_hi_run_install_here dryun --uninstall --dry-run 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"would rewrite hi's lines in $home/.bashrc"* ]] &&
     [[ "$out" == *"would remove $home/.config/say-hi/settings.sh"* ]] &&
-    grep -qF "$_HI_MARKER" "$home/.bashrc" && [ -f "$home/.config/say-hi/settings.sh" ]
+    grep -qF "$_HI_MARKER" "$home/.bashrc" && [ -f "$home/.config/say-hi/settings.sh" ] || _hi_why rc out home _HI_MARKER
 }
 
 # --link system is the one link that reaches for /usr/bin; under --dry-run
 # the hi.sh step names that path and never the user's
 function test_system_link_flag_targets_usr_bin() {
   local home="$_HI_WORKDIR/syslink" out
-  out="$(_hi_run_install_here syslink --dry-run --link system --preset balanced 2>&1)" || return 1
-  [[ "$out" == *"/usr/bin/hi"* && "$out" != *"$home/.local/bin/hi"* ]]
+  out="$(_hi_run_install_here syslink --dry-run --link system --preset balanced 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"/usr/bin/hi"* && "$out" != *"$home/.local/bin/hi"* ]] || _hi_why out home
 }
 
 function test_install_reports_the_version() {
   local out
-  out="$(_HI_RELEASE=v9.9.9 _hi_run_install_here ver --dry-run --preset balanced 2>&1)" || return 1
-  [[ "$out" == *"version: v9.9.9"* ]]
+  out="$(_HI_RELEASE=v9.9.9 _hi_run_install_here ver --dry-run --preset balanced 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"version: v9.9.9"* ]] || _hi_why out
 }
 
 function run_install_run_tests() {

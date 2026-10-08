@@ -63,22 +63,22 @@ function test_a_missing_subject_is_refused() {
   local out rc=0
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, or header"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why rc out
 }
 
 function test_an_unknown_subject_is_refused() {
   local out rc=0
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" swatches 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown subject 'swatches'"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown subject 'swatches'"* ]] || _hi_why rc out
 }
 
 # --help with no subject lists the three, and exits 0
 function test_bare_help_lists_the_subjects() {
   local out
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" --help 2>&1)" || return 1
-  [[ "$out" == 'Usage: preview.sh <colors|packages|header>'* && "$out" == *header* ]]
+    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" --help 2>&1)" || _hi_why || return 1
+  [[ "$out" == 'Usage: preview.sh <colors|packages|header>'* && "$out" == *header* ]] || _hi_why out
 }
 
 # the header subject is hi_header itself, under the settings.sh in force
@@ -86,15 +86,15 @@ function test_header_subject_renders_the_header() {
   local out
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     _HI_DISABLE_BANNER=1 _HI_HEADER_ORDER="version" _HI_TARGETS_TTL=0 \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" header 2>&1)" || return 1
-  [[ "$out" == *"| "* ]]
+    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" header 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"| "* ]] || _hi_why out
 }
 
 function test_header_subject_refuses_an_argument() {
   local out rc=0
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" header nonsense 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]] || _hi_why rc out
 }
 
 # a header that is off says so, and names the toggle: the wizard's preview
@@ -104,8 +104,8 @@ function test_header_subject_says_when_the_header_is_off() {
   local out
   out="$(HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     _HI_DISABLE_HEADER=1 _HI_TARGETS_TTL=0 \
-    "$_HI_ROOT/scripts/preview.sh" header 2>&1)" || return 1
-  [[ "$out" == *"header off (_HI_DISABLE_HEADER=1"* && "$out" != *"| "* ]]
+    "$_HI_ROOT/scripts/preview.sh" header 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"header off (_HI_DISABLE_HEADER=1"* && "$out" != *"| "* ]] || _hi_why out
 }
 
 #
@@ -167,31 +167,31 @@ EOF
 # usernames have no ssh config to carry tags, so the tag branch must not fire
 # for them even when a usertag of that name exists
 function test_source_never_reports_a_tag_for_a_username() {
-  [[ "$(_hi_color_source username ops)" != tag:* ]]
+  [[ "$(_hi_color_source username ops)" != tag:* ]] || _hi_why
 }
 
 # the preview exists to show what the prompt will do; if these two ever
 # disagree the table is confidently wrong, which is worse than no table
 function test_source_agrees_with_resolve_color_on_overrides() {
   [ "$(_hi_resolve_color hostname pinned)" = brcyan ] &&
-    [ "$(_hi_color_source hostname pinned)" = "override:hostname" ]
+    [ "$(_hi_color_source hostname pinned)" = "override:hostname" ] || _hi_why
 }
 
 function test_source_agrees_with_resolve_color_on_tags() {
   [ "$(_hi_resolve_color hostname tagged)" = bryellow ] &&
-    [ "$(_hi_color_source hostname tagged)" = "tag:work" ]
+    [ "$(_hi_color_source hostname tagged)" = "tag:work" ] || _hi_why
 }
 
 function test_source_agrees_with_resolve_color_on_patterns() {
   [ "$(_hi_resolve_color hostname pat-1)" = brblue ] &&
-    [ "$(_hi_color_source hostname pat-1)" = "pattern:pat-*" ]
+    [ "$(_hi_color_source hostname pat-1)" = "pattern:pat-*" ] || _hi_why
 }
 
 function test_default_source_still_resolves_to_a_palette_color() {
   local color
   color="$(_hi_resolve_color hostname plain)"
-  [ "$(_hi_color_source hostname plain)" = hash ] &&
-    printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qxF "$color"
+  { [ "$(_hi_color_source hostname plain)" = hash ] &&
+    printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qxF "$color"; } || _hi_why color _HI_COLOR_NAMES
 }
 
 function test_colors_names_dedupes_and_skips() {
@@ -199,8 +199,8 @@ function test_colors_names_dedupes_and_skips() {
   printf '[hostname]\na = "red"\nb = "blue"\na = "green"\n[username]\nc = "red"\n' >"$colors"
   out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
   [ "$out" = "a
-b" ] || return 1
-  [ "$(_HI_COLORS="$colors" _hi_colors_names hostname a)" = b ]
+b" ] || _hi_why out || return 1
+  [ "$(_HI_COLORS="$colors" _hi_colors_names hostname a)" = b ] || _hi_why colors
 }
 
 # _hi_colors_rows reads the [type] sections core.sh's scan does: a name only
@@ -211,47 +211,48 @@ function test_colors_rows_are_scoped_to_their_section() {
   printf 'stray = "red"\n[hostname]\n# a note\n\nshared = "red"\n  h1   =   "blue" # padded\n[username]\nshared = "green"\n[hostname]\nh2 = "cyan ff0000"\nold red\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_colors_rows hostname)" = "$(printf 'shared\nh1\nh2')" ] &&
     [ "$(_HI_COLORS="$colors" _hi_colors_rows username)" = shared ] &&
-    [ -z "$(_HI_COLORS="$colors" _hi_colors_rows hosttag)" ]
+    [ -z "$(_HI_COLORS="$colors" _hi_colors_rows hosttag)" ] || _hi_why colors
 }
 
 function test_known_users_includes_the_current_user() {
-  _hi_known_users | grep -qxF "$(whoami)"
+  _hi_known_users | grep -qxF "$(whoami)" || _hi_why
 }
 
 function test_known_users_includes_override_names() {
-  _hi_known_users | grep -qxF alice
+  _hi_known_users | grep -qxF alice || _hi_why
 }
 
 # LOCALUSER is a placeholder for "whoever is running this", not a login name -
 # listing it verbatim would offer a user that doesn't exist
 function test_known_users_excludes_the_localuser_placeholder() {
-  ! _hi_known_users | grep -qxF LOCALUSER
+  ! _hi_known_users | grep -qxF LOCALUSER || _hi_why
 }
 
 function test_known_users_are_deduplicated() {
-  [ "$(_hi_known_users | sort | uniq -d | wc -l)" -eq 0 ]
+  [ "$(_hi_known_users | sort | uniq -d | wc -l)" -eq 0 ] || _hi_why
 }
 
 function test_known_usertags_lists_only_usertags() {
   local out
   out="$(_hi_colors_names usertag)"
-  printf '%s\n' "$out" | grep -qxF ops || return 1
-  ! printf '%s\n' "$out" | grep -qxF work # that one's a hosttag
+  printf '%s\n' "$out" | grep -qxF ops || _hi_why out || return 1
+  # work is a hosttag
+  ! printf '%s\n' "$out" | grep -qxF work || _hi_why out
 }
 
 function test_preview_users_adds_a_row_per_usertag() {
-  _hi_preview_users | grep -qxF ops
+  _hi_preview_users | grep -qxF ops || _hi_why
 }
 
 function test_preview_users_are_deduplicated() {
-  [ "$(_hi_preview_users | sort | uniq -d | wc -l)" -eq 0 ]
+  [ "$(_hi_preview_users | sort | uniq -d | wc -l)" -eq 0 ] || _hi_why
 }
 
 # `plain` is covered by no glob, and `pinned`'s exact row must not answer
 # either - exact pins are _hi_colors_lookup's business, never a pattern's
 function test_pattern_for_misses_uncovered_names() {
-  ! _hi_pattern_for plain || return 1
-  ! _hi_pattern_for pinned
+  ! _hi_pattern_for plain || _hi_why || return 1
+  ! _hi_pattern_for pinned || _hi_why
 }
 
 # every subnet-style pin once, in file order; exact rows and other types
@@ -260,40 +261,40 @@ function test_pattern_pins_dedupe_in_file_order() {
   local colors="$_HI_WORKDIR/colors.pins"
   printf '[hostname]\n"net-*" = "red"\nexact = "blue"\n"db-?" = "cyan"\n"net-*" = "green"\n[username]\n"u-*" = "green"\n' >"$colors"
   [ "$(_HI_COLORS="$colors" _hi_pattern_pins)" = 'net-*
-db-?' ]
+db-?' ] || _hi_why colors
 }
 
 # no colors file: no glob to answer with, no pins to list, and no error
 # under set -e
 function test_pattern_helpers_tolerate_a_missing_colors_file() {
-  ! _HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_for pat-1 || return 1
-  [ -z "$(_HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_pins)" ]
+  ! _HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_for pat-1 || _hi_why || return 1
+  [ -z "$(_HI_COLORS="$_HI_WORKDIR/absent" _hi_pattern_pins)" ] || _hi_why
 }
 
 # _hi_group_index reads the caller's group_order through dynamic scoping,
 # exactly as _hi_print_hosts_table uses it
 function test_group_index_finds_an_existing_key() {
   local group_order=(alpha beta gamma)
-  [ "$(_hi_group_index beta)" = 1 ] && [ "$(_hi_group_index gamma)" = 2 ]
+  [ "$(_hi_group_index beta)" = 1 ] && [ "$(_hi_group_index gamma)" = 2 ] || _hi_why
 }
 
 function test_group_index_misses_a_new_key() {
   local group_order=(alpha beta)
-  ! _hi_group_index gamma
+  ! _hi_group_index gamma || _hi_why
 }
 
 # no groups yet leaves group_order empty, which must read as a miss rather
 # than tripping set -u (the ${a[@]+...} guard the file leans on throughout)
 function test_group_index_handles_an_empty_table() {
   local group_order=()
-  ! _hi_group_index anything
+  ! _hi_group_index anything || _hi_why
 }
 
 # widths are per-host: user_width + a space + the host name, plus two spaces
 # between each pair of groups
 function test_group_preview_width_sums_its_hosts() {
   local user_width=4
-  [ "$(_hi_group_preview_width abc de)" = "$((4 + 1 + 3 + 4 + 1 + 2 + 2))" ]
+  [ "$(_hi_group_preview_width abc de)" = "$((4 + 1 + 3 + 4 + 1 + 2 + 2))" ] || _hi_why
 }
 
 # The two table renderers, called in-process against the exported fixtures
@@ -323,28 +324,28 @@ function _hi_hosts_out() { _hi_shared_out _HI_HOSTS_OUT _hi_render_hosts_table; 
 function _hi_colors_out() { _hi_shared_out _HI_COLORS_OUT _hi_render_colors; }
 
 function test_users_table_renders_override_rows() {
-  _hi_users_out || return 1
-  [[ "$_HI_USERS_OUT" == *alice* && "$_HI_USERS_OUT" == *brmagenta* && "$_HI_USERS_OUT" == *override:username* ]]
+  _hi_users_out || _hi_why || return 1
+  [[ "$_HI_USERS_OUT" == *alice* && "$_HI_USERS_OUT" == *brmagenta* && "$_HI_USERS_OUT" == *override:username* ]] || _hi_why _HI_USERS_OUT
 }
 
 # a user with no pin still renders in its hashed color, so the table lists it
 # and names the hash as the reason
 function test_users_table_lists_hashed_users() {
-  _hi_users_out || return 1
-  [[ "$_HI_USERS_OUT" == *defaultuser* ]] &&
-    _hi_strip_ansi "$_HI_USERS_OUT" | grep -q 'defaultuser.*| hash'
+  _hi_users_out || _hi_why || return 1
+  { [[ "$_HI_USERS_OUT" == *defaultuser* ]] &&
+    _hi_strip_ansi "$_HI_USERS_OUT" | grep -q 'defaultuser.*| hash'; } || _hi_why _HI_USERS_OUT
 }
 
 # LOCALUSER is a placeholder, not a login name, so its pin renders as its own
 # example row rather than as a user
 function test_users_table_shows_the_localuser_pin() {
-  _hi_users_out || return 1
-  [[ "$_HI_USERS_OUT" == *LOCALUSER* && "$_HI_USERS_OUT" == *local:username* ]]
+  _hi_users_out || _hi_why || return 1
+  [[ "$_HI_USERS_OUT" == *LOCALUSER* && "$_HI_USERS_OUT" == *local:username* ]] || _hi_why _HI_USERS_OUT
 }
 
 function test_users_table_shows_each_usertag() {
-  _hi_users_out || return 1
-  [[ "$_HI_USERS_OUT" == *usertag:ops* && "$_HI_USERS_OUT" == *brred* ]]
+  _hi_users_out || _hi_why || return 1
+  [[ "$_HI_USERS_OUT" == *usertag:ops* && "$_HI_USERS_OUT" == *brred* ]] || _hi_why _HI_USERS_OUT
 }
 
 # targets.sh's sweep cache would happily serve a previous render's host list;
@@ -363,9 +364,9 @@ function _hi_render_hosts_table() {
 # tagged and a-considerably-longer-hostname share a tag and a color, so they
 # collapse into one tag:work group row - grouping is the table's whole point
 function test_hosts_table_groups_identical_renders() {
-  _hi_hosts_out || return 1
-  [[ "$_HI_HOSTS_OUT" == *tagged* && "$_HI_HOSTS_OUT" == *a-considerably-longer-hostname* ]] || return 1
-  [ "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'tag:work')" -eq 1 ]
+  _hi_hosts_out || _hi_why || return 1
+  [[ "$_HI_HOSTS_OUT" == *tagged* && "$_HI_HOSTS_OUT" == *a-considerably-longer-hostname* ]] || _hi_why _HI_HOSTS_OUT || return 1
+  [ "$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'tag:work')" -eq 1 ] || _hi_why _HI_HOSTS_OUT
 }
 
 # the glob seeds its own example row, and a real host it covers joins that
@@ -376,7 +377,7 @@ function test_hosts_table_groups_identical_renders() {
 # did but the names came out in another order.
 function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
   local rows found
-  _hi_hosts_out || return 1
+  _hi_hosts_out || _hi_why || return 1
   rows="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep -c 'pattern:pat-')"
   found="$(printf '%s\n' "$_HI_HOSTS_OUT" | grep 'pattern:pat-')"
   [ "$rows" -eq 1 ] ||
@@ -391,10 +392,10 @@ function test_hosts_table_leads_with_a_localhostname_pin() {
   local colors="$_HI_WORKDIR/colors.localhost" out
   cat "$_HI_WORKDIR/colors" >"$colors"
   printf '[hostname]\nLOCALHOSTNAME = "brgreen"\n' >>"$colors"
-  out="$(_HI_COLORS="$colors" _hi_render_hosts_table)" || return 1
-  [[ "$out" == *localbox* && "$out" == *local:hostname* ]] || return 1
+  out="$(_HI_COLORS="$colors" _hi_render_hosts_table)" || _hi_why colors || return 1
+  [[ "$out" == *localbox* && "$out" == *local:hostname* ]] || _hi_why out || return 1
   # ahead of: nothing before the localbox row but the header
-  [[ "${out%%localbox*}" != *override:hostname* ]]
+  [[ "${out%%localbox*}" != *override:hostname* ]] || _hi_why out
 }
 
 # a group whose host list wraps onto more lines than there are preview users
@@ -403,10 +404,10 @@ function test_hosts_table_leads_with_a_localhostname_pin() {
 function test_hosts_table_pads_a_wrapped_group_past_its_users() {
   local colors="$_HI_WORKDIR/colors.solo" out row
   printf '[hosttag]\nwork = "bryellow"\n' >"$colors"
-  out="$(_HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
+  out="$(_HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || _hi_why colors || return 1
   # the wrapped host's own row, with no user@ beside it
-  row="$(_hi_strip_ansi "$out" | grep -F '| a-considerably-longer-hostname ')" || return 1
-  [[ "$row" != *@* ]] && _hi_table_is_rectangular "$out"
+  row="$(_hi_strip_ansi "$out" | grep -F '| a-considerably-longer-hostname ')" || _hi_why out || return 1
+  { [[ "$row" != *@* ]] && _hi_table_is_rectangular "$out"; } || _hi_why row out
 }
 
 # a leading `Host *` of defaults does not end the tag walk, so a tagged block
@@ -415,10 +416,10 @@ function test_hosts_table_pads_a_wrapped_group_past_its_users() {
 function test_hosts_table_paints_a_tag_behind_a_leading_wildcard() {
   local cfg="$_HI_WORKDIR/ssh_config.leadingstar" out esc
   printf 'Host *\n  AddKeysToAgent yes\n\n# Tags: work\nHost starbehind\n  User nobody\n' >"$cfg"
-  out="$(_HI_SSH_CONFIG="$cfg" _hi_render_hosts_table)" || return 1
+  out="$(_HI_SSH_CONFIG="$cfg" _hi_render_hosts_table)" || _hi_why cfg || return 1
   _hi_color_escape_var esc bryellow
   printf -v esc '%b' "$esc"
-  _hi_strip_ansi "$out" | grep -F '| starbehind ' | grep -qF 'tag:work' || return 1
+  _hi_strip_ansi "$out" | grep -F '| starbehind ' | grep -qF 'tag:work' || _hi_why out || return 1
   [[ "$out" == *"${esc}starbehind"* ]] || _hi_because "starbehind is not painted bryellow"
 }
 
@@ -428,31 +429,31 @@ function test_hosts_table_draws_a_usertag_row_only_under_its_tag() {
   local cfg="$_HI_WORKDIR/ssh_config.usertag" colors="$_HI_WORKDIR/colors.usertag" out esc
   printf '# Tags: ops\nHost opsbox\n  User nobody\n\nHost plainbox\n  User nobody\n' >"$cfg"
   printf '[usertag]\nops = "brred"\n' >"$colors"
-  out="$(_HI_SSH_CONFIG="$cfg" _HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
+  out="$(_HI_SSH_CONFIG="$cfg" _HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || _hi_why cfg colors || return 1
   _hi_color_escape_var esc brred
   printf -v esc '%b' "$esc"
   [[ "$out" == *"${esc}ops"* ]] || _hi_because "the ops row is not painted brred" || return 1
-  _hi_strip_ansi "$out" | grep -qF 'ops@opsbox' || return 1
-  ! _hi_strip_ansi "$out" | grep -qF 'ops@plainbox' &&
+  _hi_strip_ansi "$out" | grep -qF 'ops@opsbox' || _hi_why out || return 1
+  { ! _hi_strip_ansi "$out" | grep -qF 'ops@plainbox' &&
     _hi_strip_ansi "$out" | grep -qF 'solo@plainbox' &&
-    _hi_table_is_rectangular "$out"
+    _hi_table_is_rectangular "$out"; } || _hi_why out
 }
 
 # the machine the preview runs on is always listed, pinned or not: the
 # fixture colors file has no LOCALHOSTNAME row, so it reads by its own name
 function test_hosts_table_lists_the_local_machine_unpinned() {
   local out row
-  out="$(_hi_render_hosts_table)" || return 1
-  row="$(_hi_strip_ansi "$out" | grep '| localbox ')" || return 1
-  [[ "$row" != *local:hostname* && "$row" == *'| hash '* ]]
+  out="$(_hi_render_hosts_table)" || _hi_why || return 1
+  row="$(_hi_strip_ansi "$out" | grep '| localbox ')" || _hi_why out || return 1
+  [[ "$row" != *local:hostname* && "$row" == *'| hash '* ]] || _hi_why row
 }
 
 # with no ssh config there is nothing to walk; the table says so instead of
 # quietly rendering an empty box
 function test_hosts_table_reports_a_missing_ssh_config() {
   local out
-  out="$(_HI_SSH_CONFIG="$_HI_WORKDIR/absent" _hi_render_hosts_table)" || return 1
-  [[ "$out" == *"No ssh config found at $_HI_WORKDIR/absent"* ]]
+  out="$(_HI_SSH_CONFIG="$_HI_WORKDIR/absent" _hi_render_hosts_table)" || _hi_why || return 1
+  [[ "$out" == *"No ssh config found at $_HI_WORKDIR/absent"* ]] || _hi_why out
 }
 
 # Running the real script can't reuse the exported fixtures above: paths.sh
@@ -479,25 +480,25 @@ function _hi_render_colors() {
 _HI_COLORS_OUT=""
 
 function test_tables_render_without_error() {
-  _hi_colors_out || return 1
-  [[ "$_HI_COLORS_OUT" == *pinned* && "$_HI_COLORS_OUT" == *tagged* && "$_HI_COLORS_OUT" == *alice* ]]
+  _hi_colors_out || _hi_why || return 1
+  [[ "$_HI_COLORS_OUT" == *pinned* && "$_HI_COLORS_OUT" == *tagged* && "$_HI_COLORS_OUT" == *alice* ]] || _hi_why _HI_COLORS_OUT
 }
 
 # a scheme paints the swatches with the 24-bit tail, and the header line
 # says which scheme it is (HI.50)
 function test_tables_render_under_a_scheme() {
   local out
-  out="$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_render_colors)" || return 1
-  [[ "$out" == *"scheme: custom (24)"* && "$out" == *";38;2;"* ]] || return 1
-  out="$(_HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_render_colors)" || return 1
-  [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]]
+  out="$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_render_colors)" || _hi_why || return 1
+  [[ "$out" == *"scheme: custom (24)"* && "$out" == *";38;2;"* ]] || _hi_why out || return 1
+  out="$(_HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_render_colors)" || _hi_why || return 1
+  [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]] || _hi_why out
 }
 
 # a host with no override and no usable tag still paints its hashed color on a
 # connect, so every ssh-config host gets a row: the point of the hosts table
 function test_tables_list_every_ssh_config_host() {
   local out host
-  _hi_colors_out || return 1
+  _hi_colors_out || _hi_why || return 1
   out="$(_hi_strip_ansi "$_HI_COLORS_OUT")"
   for host in plain pinned tagged othertag pat-1 a-considerably-longer-hostname; do
     [[ "$out" == *"$host"* ]] || _hi_because "no row names $host" || return 1
@@ -507,8 +508,8 @@ function test_tables_list_every_ssh_config_host() {
 # the hashed rows name the hash as their rule and land on a palette color
 function test_tables_label_hashed_hosts_hash() {
   local row color
-  _hi_colors_out || return 1
-  row="$(_hi_strip_ansi "$_HI_COLORS_OUT" | grep '| plain ')" || return 1
+  _hi_colors_out || _hi_why || return 1
+  row="$(_hi_strip_ansi "$_HI_COLORS_OUT" | grep '| plain ')" || _hi_why _HI_COLORS_OUT || return 1
   [[ "$row" == *'| hash '* ]] || _hi_because "the plain row was: $row" || return 1
   color="$(_hi_resolve_color hostname plain)"
   [[ "$row" == *"| $color "* ]] || _hi_because "want $color in: $row"
@@ -517,29 +518,29 @@ function test_tables_label_hashed_hosts_hash() {
 # the tag column has to name the tag that actually matched, since that's the
 # line a user reads to work out which config/colors entry to edit
 function test_tables_name_the_matching_tag() {
-  _hi_colors_out || return 1
-  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'tag:work'
+  _hi_colors_out || _hi_why || return 1
+  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'tag:work' || _hi_why _HI_COLORS_OUT
 }
 
 # a pattern pin gets an example row (its glob never appears in targets.sh's
 # list), and a real host it covers joins that same group
 function test_tables_show_a_pattern_pin_example_row() {
-  _hi_colors_out || return 1
-  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pattern:pat-\*' || return 1
-  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pat-1'
+  _hi_colors_out || _hi_why || return 1
+  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pattern:pat-\*' || _hi_why _HI_COLORS_OUT || return 1
+  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pat-1' || _hi_why _HI_COLORS_OUT
 }
 
 # the users table carries the LOCALUSER pin and every usertag pin as example
 # rows of their own, each naming its source, since neither is a real user
 # targets.sh would list
 function test_tables_list_the_local_user_and_usertag_pins() {
-  _hi_colors_out || return 1
-  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'LOCALUSER.*local:username' || return 1
-  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'ops.*usertag:ops'
+  _hi_colors_out || _hi_why || return 1
+  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'LOCALUSER.*local:username' || _hi_why _HI_COLORS_OUT || return 1
+  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'ops.*usertag:ops' || _hi_why _HI_COLORS_OUT
 }
 
 function test_tables_are_rectangular() {
-  _hi_colors_out && _hi_table_is_rectangular "$_HI_COLORS_OUT"
+  { _hi_colors_out && _hi_table_is_rectangular "$_HI_COLORS_OUT"; } || _hi_why _HI_COLORS_OUT
 }
 
 # The same render off the checkout's own config/colors (LOCALUSER and a
@@ -550,17 +551,17 @@ function test_tables_render_from_the_checkout() {
   local out
   out="$(HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     _HI_LOCAL_USER=localdev _HI_LOCAL_HOSTNAME=localbox _HI_TARGETS_TTL=0 _HI_TRUECOLOR=0 \
-    "$_HI_ROOT/scripts/preview.sh" colors 2>&1)" || return 1
-  [[ "$out" == *"(no truecolor here"* ]] || return 1
-  printf '%s\n' "$out" | grep -q 'LOCALUSER.*local:username' || return 1
-  printf '%s\n' "$out" | grep -q 'usertag:'
+    "$_HI_ROOT/scripts/preview.sh" colors 2>&1)" || _hi_why || return 1
+  [[ "$out" == *"(no truecolor here"* ]] || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -q 'LOCALUSER.*local:username' || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -q 'usertag:' || _hi_why out
 }
 
 # --help answers before reading any config, prints the usage text, and exits 0
 function test_help_prints_usage_and_exits_zero() {
   local out
-  out="$(_hi_render_colors --help)" || return 1
-  [[ "$out" == 'Usage: preview.sh colors'* ]]
+  out="$(_hi_render_colors --help)" || _hi_why || return 1
+  [[ "$out" == 'Usage: preview.sh colors'* ]] || _hi_why out
 }
 
 # -h through the sourced form: source passes its arguments along, and the
@@ -571,7 +572,7 @@ function test_help_prints_usage_and_exits_zero() {
 function test_colors_stray_argument_is_refused() {
   local out rc=0
   out="$(_hi_render_colors nonsense)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]] || _hi_why rc out
 }
 
 function test_h_flag_prints_the_same_usage() {
@@ -579,8 +580,8 @@ function test_h_flag_prints_the_same_usage() {
   # source=/dev/null, not the script: followed into this subshell, shellcheck
   # reads every packages global the script assigns as lost on the way out
   # shellcheck source=/dev/null
-  out="$( (source "$_HI_PREVIEW" colors -h) )" || return 1
-  [[ "$out" == 'Usage: preview.sh colors'* ]]
+  out="$( (source "$_HI_PREVIEW" colors -h) )" || _hi_why _HI_PREVIEW || return 1
+  [[ "$out" == 'Usage: preview.sh colors'* ]] || _hi_why out
 }
 
 #

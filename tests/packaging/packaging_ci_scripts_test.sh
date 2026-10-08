@@ -28,7 +28,7 @@ function test_pct_ok_takes_a_figure_and_refuses_a_zero() {
     for f in '' unknown 96.04% -1 0 0.0 0.00 0.000; do
       ! pct_ok "$f" || _hi_because "took '$f'" || exit 1
     done
-  )
+  ) || _hi_why f
 }
 
 # find_tree_run.sh against a stand-in gh, which answers each API path with
@@ -52,16 +52,16 @@ esac
 EOF
   chmod +x "$dir/bin/gh"
   out="$(GITHUB_REPOSITORY=o/r PATH="$dir/bin:$PATH" \
-    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests sizes)" || return 1
+    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests sizes)" || _hi_why dir || return 1
   [ "$out" = "run=7" ] || _hi_because "with the oldest run whole: $out" || return 1
   out="$(GITHUB_REPOSITORY=o/r PATH="$dir/bin:$PATH" \
-    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests)" || return 1
+    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests)" || _hi_why dir || return 1
   [ "$out" = "run=9" ] || _hi_because "with the newest run enough: $out" || return 1
   out="$(GITHUB_REPOSITORY=o/r PATH="$dir/bin:$PATH" \
-    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-none tests)" || return 1
+    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-none tests)" || _hi_why dir || return 1
   [ "$out" = "run=" ] || _hi_because "with no run: $out" || return 1
   out="$(bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml 2>&1)" || rc=$?
-  [ "$rc" -eq 2 ] && [[ "$out" == "usage: find_tree_run.sh "* ]]
+  [ "$rc" -eq 2 ] && [[ "$out" == "usage: find_tree_run.sh "* ]] || _hi_why rc out
 }
 
 # platform_badges.sh against a stand-in gh serving two commits: a verdict on
@@ -89,7 +89,7 @@ esac
 EOF
   chmod +x "$dir/bin/gh"
   out="$(GITHUB_REPOSITORY=o/r PLATFORM_BADGE_COMMITS=2 PATH="$dir/bin:$PATH" \
-    bash "$_HI_ROOT/.github/scripts/platform_badges.sh" "$dir/out" 2>&1)" || return 1
+    bash "$_HI_ROOT/.github/scripts/platform_badges.sh" "$dir/out" 2>&1)" || _hi_why dir || return 1
   [ "$(cat "$dir/out/linux.json")" = '{"schemaVersion":1,"label":"Linux","message":"passing","color":"4c1","cacheSeconds":300}' ] ||
     _hi_because "linux.json: $(cat "$dir/out/linux.json")" || return 1
   grep -qF '"message":"failing","color":"e05d44"' "$dir/out/macos.json" &&
@@ -103,7 +103,7 @@ EOF
     [[ "$out" == *'::warning::no completed "e2e (Windows) / hi at stock Windows OpenSSH (PowerShell fallback)" in the last 2 commits'* ]] ||
     _hi_because "it said: $out" || return 1
   out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/platform_badges.sh" 2>&1)" || rc=$?
-  [ "$rc" -eq 2 ] && [[ "$out" == "usage: platform_badges.sh <outdir>" ]]
+  [ "$rc" -eq 2 ] && [[ "$out" == "usage: platform_badges.sh <outdir>" ]] || _hi_why rc out
 }
 
 # no_hi_session_left.sh with nothing left behind: it passes, and its argument
@@ -113,9 +113,9 @@ function test_no_hi_session_left_passes_a_clean_tmpdir() {
   mkdir -p "$dir"
   printf '#!/bin/sh\n' >"$dir/hi.sh"
   chmod +x "$dir/hi.sh"
-  TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" || return 1
-  TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" "$dir/hi.sh" || return 1
-  ! TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" "$dir/gone.sh"
+  TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" || _hi_why dir || return 1
+  TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" "$dir/hi.sh" || _hi_why dir || return 1
+  ! TMPDIR="$dir" bash "$_HI_ROOT/.github/scripts/no_hi_session_left.sh" "$dir/gone.sh" || _hi_why dir
 }
 
 # ...and a session directory still there is waited on, sleep stood in so the
@@ -204,7 +204,7 @@ function test_find_tree_run_filters_the_runs_itself() {
     bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests 2>&1)" || _hi_because "it failed: $out" || return 1
   [ "$out" = "run=8" ] || _hi_because "the one whole run is 8: $out" || return 1
   out="$(GITHUB_REPOSITORY=o/r HI_GH_API="$dir/api" PATH="$dir/bin:$PATH" \
-    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests sizes 2>&1)" || return 1
+    bash "$_HI_ROOT/.github/scripts/find_tree_run.sh" ci.yml ci-tree-abc tests sizes 2>&1)" || _hi_why dir || return 1
   [ "$out" = "run=" ] || _hi_because "an expired artifact counted: $out"
 }
 
@@ -248,7 +248,7 @@ EOF
   printf '#!/bin/sh\nprintf "sleep %%s\\n" "$1" >>"$HI_DISPATCH_LOG.sleeps"\n' >"$dir/bin/sleep"
   chmod +x "$dir/bin/gh" "$dir/bin/sleep"
   out="$(HI_DISPATCH_LOG="$dir/once" HI_DISPATCH_FAILS=1 PATH="$dir/bin:$PATH" \
-    bash "$_HI_ROOT/.github/scripts/gh_dispatch.sh" demos.yml v1.2.3 2>&1)" || return 1
+    bash "$_HI_ROOT/.github/scripts/gh_dispatch.sh" demos.yml v1.2.3 2>&1)" || _hi_why dir || return 1
   [ "$(cat "$dir/once")" = $'workflow run demos.yml --ref v1.2.3\nworkflow run demos.yml --ref v1.2.3' ] &&
     [ "$(cat "$dir/once.sleeps")" = "sleep 5" ] && [[ "$out" == *"(attempt 1/3), retrying"* ]] ||
     _hi_because "one failure: $out" || return 1
@@ -260,7 +260,7 @@ EOF
     _hi_because "three failures, rc $rc: $out" || return 1
   rc=0
   out="$(bash "$_HI_ROOT/.github/scripts/gh_dispatch.sh" pages.yml 2>&1)" || rc=$?
-  [ "$rc" -eq 2 ] && [[ "$out" == "usage: gh_dispatch.sh <workflow> <ref>" ]]
+  [ "$rc" -eq 2 ] && [[ "$out" == "usage: gh_dispatch.sh <workflow> <ref>" ]] || _hi_why rc out
 }
 
 # check_tool_versions.sh, copied into a fixture tree of its own (it reads the
@@ -289,7 +289,7 @@ function test_tool_versions_reports_each_pin() {
     "$h" "$h" "$h" "$h" >"$dir/.github/workflows/w.yml"
   printf 'FROM busybox:1.36@sha256:%s\nFROM --platform=linux/amd64 postgres:16@sha256:%s AS base\nFROM ghcr.io/o/i:1@sha256:%s\nFROM redis:7@sha256:%s\nFROM base\n' \
     "$a" "$b" "$a" "$a" >"$dir/a.Dockerfile"
-  git -C "$dir" init -q >/dev/null 2>&1 && git -C "$dir" add a.Dockerfile >/dev/null 2>&1 || return 1
+  git -C "$dir" init -q >/dev/null 2>&1 && git -C "$dir" add a.Dockerfile >/dev/null 2>&1 || _hi_why dir || return 1
   cat >"$dir/bin/curl" <<EOF
 #!/usr/bin/env bash
 for u; do :; done
@@ -405,7 +405,7 @@ function _hi_scan() {
 function test_image_scan_reports_the_repin_that_closes_a_finding() {
   local dir out rc=0 report a c
   a="$(printf '%064d' 1)" c="$(printf '%064d' 3)"
-  dir="$(_hi_scan_fixture)" || return 1
+  dir="$(_hi_scan_fixture)" || _hi_why || return 1
   out="$(_hi_scan '*.Dockerfile')" || rc=$?
   report="$(cat "$dir/report.md")"
   [ "$rc" -eq 2 ] && [[ "$out" == *"scanning 7 pinned image(s), 4 at a time:"* ]] &&
@@ -429,7 +429,7 @@ function test_image_scan_reports_the_repin_that_closes_a_finding() {
 # globs match no file or no file names an image
 function test_image_scan_exits_by_what_it_found() {
   local dir out rc=0 report
-  dir="$(_hi_scan_fixture)" || return 1
+  dir="$(_hi_scan_fixture)" || _hi_why || return 1
   out="$(_hi_scan 'clean.Dockerfile nodata.Dockerfile')" || rc=$?
   report="$(cat "$dir/report.md")"
   [ "$rc" -eq 0 ] && [[ "$report" == "### Image scan: clean"* && "$report" == *"vulnerabilities in the 1 of"$'\n'"2 pinned image(s)"* ]] ||
@@ -522,7 +522,7 @@ function test_local_tool_checks_name_each_parting() {
     source "$_HI_ROOT/.github/scripts/check_tool_versions.local.sh"
     _HI_FLOOR_PINS='bash:3.2 ubuntu:24.04 zshusers/zsh:5.5.1'
     ci_local_checks
-  )" || return 1
+  )" || _hi_why dir || return 1
   [[ "$out" == *"bash:3.2 "*"current (packaging/mkrepo.sh, a tests/dockerfiles pin)"* ]] &&
     [[ "$out" == *"busybox:1.36 "*"OUTDATED"* && "$out" == *"PROBLEM busybox:1.36 in packaging/mkrepo.sh"* ]] &&
     [[ "$out" == *"PROBLEM .github/workflows/ci.yml"* ]] &&
@@ -539,25 +539,25 @@ function test_local_tool_checks_name_each_parting() {
 
 function test_srctar_help_names_the_usage() {
   local out
-  out="$("$_HI_PKG_DIR/srctar.sh" --help)" || return 1
-  [[ "$out" == *"Usage: srctar.sh <version> <ref> <outfile>"* ]] || return 1
-  out="$("$_HI_PKG_DIR/srctar.sh" -h)" || return 1
-  [[ "$out" == *"Usage: srctar.sh"* ]]
+  out="$("$_HI_PKG_DIR/srctar.sh" --help)" || _hi_why _HI_PKG_DIR || return 1
+  [[ "$out" == *"Usage: srctar.sh <version> <ref> <outfile>"* ]] || _hi_why out || return 1
+  out="$("$_HI_PKG_DIR/srctar.sh" -h)" || _hi_why _HI_PKG_DIR || return 1
+  [[ "$out" == *"Usage: srctar.sh"* ]] || _hi_why out
 }
 
 function test_srctar_refuses_a_wrong_arg_count() {
   local out
   out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD 2>&1)" && return 1
-  [[ "$out" == *"expected <version> <ref> <outfile>"*"Usage: srctar.sh"* ]]
+  [[ "$out" == *"expected <version> <ref> <outfile>"*"Usage: srctar.sh"* ]] || _hi_why out
 }
 
 # the built file is the shape src_tarball's own cases pin down, and the green
 # confirmation names the outfile
 function test_srctar_builds_the_tarball_it_names() {
   local out f="$_HI_WORKDIR/srctar-cli.tar.gz"
-  out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD "$f" 2>&1)" || return 1
-  [[ "$out" == *"$f :)"* ]] || return 1
-  case "$(tar tzf "$f" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) false ;; esac
+  out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD "$f" 2>&1)" || _hi_why f _HI_PKG_DIR || return 1
+  [[ "$out" == *"$f :)"* ]] || _hi_why out f || return 1
+  case "$(tar tzf "$f" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) false ;; esac || _hi_why f out _HI_PKG_DIR
 }
 
 # packaging/stamp_badge.sh against a scratch README (its optional argument):
@@ -580,23 +580,23 @@ function _hi_badge_of() {
 function test_stamp_badge_restamps_only_the_badge() {
   local f out
   f="$(_hi_badge_readme 0.1KB)"
-  out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f")" || return 1
+  out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f")" || _hi_why f || return 1
   [[ "$out" == "${f##*/}: ssh_payload-"*KB ]] ||
     _hi_because "restamp said: $out" || return 1
   [ "$(_hi_badge_of "$f")" != 0.1KB ] && [ -n "$(_hi_badge_of "$f")" ] ||
     _hi_because "badge not restamped: $(cat "$f")" || return 1
   [ "$(sed -n 1p "$f")" = "# title" ] && [ "$(sed -n 3p "$f")" = "last line" ] &&
-    [ "$(wc -l <"$f" | tr -d ' ')" = 3 ]
+    [ "$(wc -l <"$f" | tr -d ' ')" = 3 ] || _hi_why f
 }
 
 # --check on a freshly stamped badge passes, and rewrites nothing
 function test_stamp_badge_check_passes_within_the_slack() {
   local f before
   f="$(_hi_badge_readme 0.1KB)"
-  "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || return 1
+  "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || _hi_why f || return 1
   before="$(cat "$f")"
-  "$_HI_ROOT/packaging/stamp_badge.sh" --check "$f" >/dev/null || return 1
-  [ "$(cat "$f")" = "$before" ]
+  "$_HI_ROOT/packaging/stamp_badge.sh" --check "$f" >/dev/null || _hi_why f || return 1
+  [ "$(cat "$f")" = "$before" ] || _hi_why f before
 }
 
 # 10KB off is past the 5KB slack: --check fails, says to restamp, and still
@@ -604,14 +604,14 @@ function test_stamp_badge_check_passes_within_the_slack() {
 function test_stamp_badge_check_fails_past_the_slack() {
   local f far before out
   f="$(_hi_badge_readme 0.1KB)"
-  "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || return 1
+  "$_HI_ROOT/packaging/stamp_badge.sh" "$f" >/dev/null || _hi_why f || return 1
   far="$(awk -v b="$(_hi_badge_of "$f")" 'BEGIN { printf "%.1f", b + 10 }')KB"
   sed "s/ssh_payload-[0-9.]*KB-/ssh_payload-$far-/" "$f" >"$f.far"
   before="$(cat "$f.far")"
   out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check "$f.far" 2>&1)" && return 1
   [[ "$out" == *"says $far"*"run packaging/stamp_badge.sh"* ]] ||
     _hi_because "--check said: $out" || return 1
-  [ "$(cat "$f.far")" = "$before" ]
+  [ "$(cat "$f.far")" = "$before" ] || _hi_why f before
 }
 
 function test_stamp_badge_refuses_a_readme_with_no_badge() {
@@ -619,7 +619,7 @@ function test_stamp_badge_refuses_a_readme_with_no_badge() {
   f="$(mktemp "$_HI_WORKDIR/badge-none.XXXXXX")"
   printf '# no badge here\n' >"$f"
   out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f" 2>&1)" && return 1
-  [[ "$out" == *"no ssh_payload-<n>KB badge in $f"* ]]
+  [[ "$out" == *"no ssh_payload-<n>KB badge in $f"* ]] || _hi_why out f
 }
 
 # _hi_in_mkrepo_gpg <dist> <out> <gpg-key> [gpg-public] - _hi_in_mkrepo's
@@ -654,11 +654,11 @@ function _hi_in_mkrepo_gpg() {
 function test_mkrepo_one_package_rule() {
   local d="$_HI_WORKDIR/one-pkg"
   mkdir -p "$d"
-  ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null || return 1
+  ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null || _hi_why d || return 1
   : >"$d/a.deb"
-  [ "$(_hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null)" = "$d/a.deb" ] || return 1
+  [ "$(_hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null)" = "$d/a.deb" ] || _hi_why d || return 1
   : >"$d/b.deb"
-  ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null
+  ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null || _hi_why d
 }
 
 # an apk with no .PKGINFO must be refused by name - before any docker runs,
@@ -667,14 +667,14 @@ function test_mkrepo_build_apk_refuses_a_pkginfo_less_apk() {
   local d="$_HI_WORKDIR/apk-refuse"
   mkdir -p "$d"
   dd if=/dev/zero bs=512 count=2 2>/dev/null | gzip -n >"$d/say-hi.apk"
-  ! _hi_in_mkrepo "$d" "$d/repo" build_apk 2>/dev/null
+  ! _hi_in_mkrepo "$d" "$d/repo" build_apk 2>/dev/null || _hi_why d
 }
 
 function test_mkrepo_deb_control_reads_the_paragraph() {
   local d="$_HI_WORKDIR/deb-ctl" deb out
   mkdir -p "$d"
-  deb="$(_hi_fake_deb "$d")" || return 1
-  out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb")" || return 1
+  deb="$(_hi_fake_deb "$d")" || _hi_why d || return 1
+  out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb")" || _hi_why d deb || return 1
   case "$out" in *'Package: say-hi'*'Version: 9.9.9'*) return 0 ;; esac
   _hi_cecho " | deb_control read: [$out]" "$RED"
   return 1
@@ -685,9 +685,9 @@ function test_mkrepo_deb_control_reads_the_paragraph() {
 function test_mkrepo_deb_control_refuses_an_unknown_member() {
   local d="$_HI_WORKDIR/deb-ctl-zst" deb out rc=0
   mkdir -p "$d"
-  deb="$(_hi_fake_deb "$d" control.tar.zst)" || return 1
+  deb="$(_hi_fake_deb "$d" control.tar.zst)" || _hi_why d || return 1
   out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb" 2>&1)" || rc=$?
-  [ "$rc" -ne 0 ] || return 1
+  [ "$rc" -ne 0 ] || _hi_why rc || return 1
   case "$out" in *"unexpected control member in $deb: 'control.tar.zst'"*) return 0 ;; esac
   _hi_cecho " | deb_control said: [$out]" "$RED"
   return 1
@@ -698,7 +698,7 @@ function test_mkrepo_release_hashes_shape() {
   mkdir -p "$d/dists/main/binary-amd64"
   printf 'Package: say-hi\n' >"$d/dists/main/binary-amd64/Packages"
   gzip -9 -n -c "$d/dists/main/binary-amd64/Packages" >"$d/dists/main/binary-amd64/Packages.gz"
-  out="$(_hi_in_mkrepo "$d" "$d/repo" release_hashes "$d/dists" SHA256 sha256)" || return 1
+  out="$(_hi_in_mkrepo "$d" "$d/repo" release_hashes "$d/dists" SHA256 sha256)" || _hi_why d || return 1
   # The shape is checked in bash, not with a regex: this case once read
   # `grep -qE '^ [0-9a-f]{64} +...'`, and FreeBSD 14's grep failed the bound
   # on output that was byte-for-byte what the pattern asked for, while GNU
@@ -708,7 +708,7 @@ function test_mkrepo_release_hashes_shape() {
   heading="${out%%$'\n'*}"
   second="${out#*$'\n'}"
   second="${second%%$'\n'*}"
-  [ "$heading" = 'SHA256:' ] || return 1
+  [ "$heading" = 'SHA256:' ] || _hi_why heading || return 1
   if [ "${second#" "}" != "$second" ]; then
     read -r hash size path <<<"$second"
     if [ "${#hash}" -eq 64 ] && [ "$path" = main/binary-amd64/Packages ]; then
@@ -731,12 +731,12 @@ function test_mkrepo_release_hashes_shape() {
 function test_mkrepo_build_apt_offline() {
   local d="$_HI_WORKDIR/apt-build" out arch
   mkdir -p "$d/dist" "$d/repo"
-  _hi_fake_deb "$d/dist" >/dev/null || return 1
-  _hi_in_mkrepo "$d/dist" "$d/repo" build_apt >/dev/null 2>&1 || return 1
-  [ -f "$d/repo/apt/pool/main/s/say-hi/say-hi_9.9.9_all.deb" ] || return 1
+  _hi_fake_deb "$d/dist" >/dev/null || _hi_why d || return 1
+  _hi_in_mkrepo "$d/dist" "$d/repo" build_apt >/dev/null 2>&1 || _hi_why d || return 1
+  [ -f "$d/repo/apt/pool/main/s/say-hi/say-hi_9.9.9_all.deb" ] || _hi_why d || return 1
   for arch in amd64 arm64 all; do
-    [ -f "$d/repo/apt/dists/stable/main/binary-$arch/Packages" ] || return 1
-    [ -f "$d/repo/apt/dists/stable/main/binary-$arch/Packages.gz" ] || return 1
+    [ -f "$d/repo/apt/dists/stable/main/binary-$arch/Packages" ] || _hi_why d arch || return 1
+    [ -f "$d/repo/apt/dists/stable/main/binary-$arch/Packages.gz" ] || _hi_why d arch || return 1
   done
   out="$(cat "$d/repo/apt/dists/stable/main/binary-amd64/Packages")"
   case "$out" in
@@ -746,7 +746,7 @@ function test_mkrepo_build_apt_offline() {
     return 1
     ;;
   esac
-  printf '%s\n' "$out" | grep -qE '^SHA256: [0-9a-f]{64}$' || return 1
+  printf '%s\n' "$out" | grep -qE '^SHA256: [0-9a-f]{64}$' || _hi_why out || return 1
   out="$(cat "$d/repo/apt/dists/stable/Release")"
   case "$out" in
   *'Suite: stable'*'Architectures: amd64 arm64 all'*'MD5Sum:'*'SHA256:'*) ;;
@@ -756,7 +756,7 @@ function test_mkrepo_build_apt_offline() {
     ;;
   esac
   # keyless: unsigned on purpose, and loud about it
-  [ ! -e "$d/repo/apt/dists/stable/InRelease" ]
+  [ ! -e "$d/repo/apt/dists/stable/InRelease" ] || _hi_why d
 }
 
 function test_mkrepo_gpg_setup_verdicts() {
@@ -772,7 +772,7 @@ function test_mkrepo_gpg_setup_verdicts() {
     _hi_cecho " | a missing --gpg-key should have been refused" "$RED"
     return 1
   }
-  _hi_mkrepo_keys || return 1
+  _hi_mkrepo_keys || _hi_why || return 1
   # ...the real key exports its public half beside the repo...
   _hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$_HI_WORKDIR/gpg/main.asc" \
     >/dev/null 2>"$err" && [ -s "$d/repo/say-hi.asc" ] || {
@@ -793,11 +793,11 @@ function test_mkrepo_gpg_setup_verdicts() {
 function test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one() {
   local d="$_HI_WORKDIR/gpg-notakey" out rc=0
   mkdir -p "$d/repo"
-  _hi_mkrepo_keys || return 1
+  _hi_mkrepo_keys || _hi_why || return 1
   printf 'this is not a key\n' >"$d/plain.asc"
   out="$(_hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$d/plain.asc" 2>&1)" || rc=$?
-  [ "$rc" -ne 0 ] || return 1
-  [ ! -f "$d/repo/say-hi.asc" ] || return 1
+  [ "$rc" -ne 0 ] || _hi_why rc || return 1
+  [ ! -f "$d/repo/say-hi.asc" ] || _hi_why d || return 1
   case "$out" in *"$d/plain.asc is missing or not a key"*) return 0 ;; esac
   _hi_cecho " | gpg_setup said: [$out]" "$RED"
   return 1

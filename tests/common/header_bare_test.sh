@@ -41,7 +41,7 @@ function test_system_info_without_uname_says_unknown() {
 function test_timestamp_answers_without_date() {
   local out
   out="$(_hi_stripped_header timestamp)"
-  ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out" || return 1
+  ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out" || _hi_why out _HI_SHELL_ERROR_RE || return 1
   if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
     [[ "$out" =~ [0-9]{2}:[0-9]{2}:[0-9]{2}\ UTC ]]
   else
@@ -58,7 +58,7 @@ function test_timestamp_answers_without_date() {
 function test_uptime_cell_survives_a_stripped_environment() {
   local out
   out="$(_hi_stripped_header '_hi_cell_uptime u; printf "%s" "$u"')"
-  [[ "$out" == *"Up: "* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+  { [[ "$out" == *"Up: "* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"; } || _hi_why out _HI_SHELL_ERROR_RE
 }
 
 # The exact case the comment above contrasts itself with: every branch of
@@ -70,14 +70,14 @@ function test_uptime_cell_survives_a_stripped_environment() {
 function test_ip_cell_says_unknown_under_a_stripped_environment() {
   local out
   out="$(_hi_stripped_header '_hi_cell_ip i; printf "%s" "$i"')"
-  [[ "$out" == *"IP: ?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+  { [[ "$out" == *"IP: ?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"; } || _hi_why out _HI_SHELL_ERROR_RE
 }
 
 # the whole banner, since that is what a session actually prints
 function test_banner_renders_without_coreutils() {
   local out
   out="$(_hi_stripped_header 'banner Connected "" ""')"
-  [[ "$out" == *Connected* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+  { [[ "$out" == *Connected* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"; } || _hi_why out _HI_SHELL_ERROR_RE
 }
 
 # --- the non-Linux arms of the sysinfo cells, uptime and ip, on shims ------
@@ -305,9 +305,9 @@ function test_ip_filter_hides_the_bridge_by_default() {
   local out
   unset _HI_IP_HIDE
   _hi_ip_filter out "172.17.0.2,10.0.0.5"
-  [ "$out" = "10.0.0.5" ] || return 1
+  [ "$out" = "10.0.0.5" ] || _hi_why out || return 1
   _hi_ip_filter out "10.0.0.5,172.18.0.1,192.0.2.10"
-  [ "$out" = "10.0.0.5,192.0.2.10" ]
+  [ "$out" = "10.0.0.5,192.0.2.10" ] || _hi_why out
 }
 
 # `none` hides nothing; an empty value is unset, so it hides the default
@@ -315,19 +315,19 @@ function test_ip_filter_hides_the_bridge_by_default() {
 function test_ip_filter_none_and_empty_keep_everything() {
   local out
   _HI_IP_HIDE=none _hi_ip_filter out "172.17.0.2,10.0.0.5"
-  [ "$out" = "172.17.0.2,10.0.0.5" ] || return 1
+  [ "$out" = "172.17.0.2,10.0.0.5" ] || _hi_why out || return 1
   _HI_IP_HIDE="" _hi_ip_filter out "172.17.0.2,10.0.0.5"
-  [ "$out" = "10.0.0.5" ]
+  [ "$out" = "10.0.0.5" ] || _hi_why out
 }
 
 function test_ip_filter_takes_a_glob_list() {
   local out
   _HI_IP_HIDE="10.*" _hi_ip_filter out "172.17.0.2,10.0.0.5"
-  [ "$out" = "172.17.0.2" ] || return 1
+  [ "$out" = "172.17.0.2" ] || _hi_why out || return 1
   _HI_IP_HIDE="10.* 172.*" _hi_ip_filter out "172.17.0.2,10.0.0.5,192.0.2.10"
-  [ "$out" = "192.0.2.10" ] || return 1
+  [ "$out" = "192.0.2.10" ] || _hi_why out || return 1
   _HI_IP_HIDE="192.0.2.1?" _hi_ip_filter out "192.0.2.10,192.0.2.100"
-  [ "$out" = "192.0.2.100" ]
+  [ "$out" = "192.0.2.100" ] || _hi_why out
 }
 
 # every address hidden: the cell is empty (so the header drops it), never
@@ -395,7 +395,7 @@ function test_uptime_and_ip_cells_on_windows() {
 function test_system_info_with_no_kernel_and_no_release_says_unknown() {
   local out
   out="$(_hi_platform_header "$(_hi_fake_path no-kernel-tools true)" "$_HI_ROW_FNS; _hi_sysinfo_row")"
-  [[ "$out" == *"?"* && "$out" != *"macOS"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+  { [[ "$out" == *"?"* && "$out" != *"macOS"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"; } || _hi_why out _HI_SHELL_ERROR_RE
 }
 
 # --- the row painter's two width-neutral switches -----------------------
@@ -417,7 +417,7 @@ function test_no_lead_space_drops_only_the_leading_space() {
     return 1
   }
   out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
-  [[ "$out" == " | alpha | beta"*"|" ]] && [ "${#out}" -eq 80 ]
+  [[ "$out" == " | alpha | beta"*"|" ]] && [ "${#out}" -eq 80 ] || _hi_why out
 }
 
 function test_no_lead_space_applies_to_the_packages_check() {
@@ -425,7 +425,7 @@ function test_no_lead_space_applies_to_the_packages_check() {
   mkdir -p "$_HI_WORKDIR/pkgcfg"
   printf '%s = []\n' "$_HI_REAL_CMD" >"$_HI_WORKDIR/pkgcfg/packages"
   out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 _HI_CONFIG_DIR="$_HI_WORKDIR/pkgcfg" bash -c 'source "$_HI_HEADER"; full_check')"
-  [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]]
+  [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]] || _hi_why out _HI_REAL_CMD
 }
 
 # a row with nothing to place still ends the line: hi_header's own loop
@@ -433,7 +433,7 @@ function test_no_lead_space_applies_to_the_packages_check() {
 function test_header_row_with_no_cells_prints_a_bare_line() {
   local out
   out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row; printf END')"
-  [ "$out" = $'\nEND' ]
+  [ "$out" = $'\nEND' ] || _hi_why out
 }
 
 # a git identity has to exist to be masked; none at all is its own text
@@ -441,7 +441,7 @@ function test_identity_without_a_git_email_says_so() {
   local out
   out="$(cd "$_HI_WORKDIR" && NO_COLOR=1 \
     PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 bash -c "source \"\$_HI_HEADER\"; $_HI_ROW_FNS; _hi_identity_row")"
-  [[ "$out" == *"No Git ID Found"* ]]
+  [[ "$out" == *"No Git ID Found"* ]] || _hi_why out
 }
 
 # ...and one that exists shows its local part, the domain a run of mask
@@ -462,9 +462,9 @@ function test_identity_masks_the_git_email_domain() {
 function test_header_word_alt_is_empty_for_an_unknown_word() {
   local v=set
   _hi_header_word_alt no-such-word v
-  [ -z "$v" ] || return 1
+  [ -z "$v" ] || _hi_why v || return 1
   _hi_header_word_alt uptime v
-  [ "$v" = "$BRGREEN" ]
+  [ "$v" = "$BRGREEN" ] || _hi_why v BRGREEN
 }
 
 function run_header_bare_tests() {

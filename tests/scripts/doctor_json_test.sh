@@ -41,7 +41,7 @@ function _hi_doctor_json_report() {
 
 function test_json_is_a_document_with_the_report_in_it() {
   _hi_doctor_json_report
-  [ -n "$_HI_DOC_JSON" ] && [ "$_HI_DOC_JSON_RC" -eq 0 ] || return 1
+  [ -n "$_HI_DOC_JSON" ] && [ "$_HI_DOC_JSON_RC" -eq 0 ] || _hi_why _HI_DOC_JSON _HI_DOC_JSON_RC || return 1
   python3 -c '
 import json, sys
 d = json.load(sys.stdin)
@@ -54,7 +54,7 @@ sevs = {r["severity"] for r in d["rows"]}
 assert sevs <= {"info", "ok", "warn", "bad"}, sevs
 assert any(r["label"] == "docker" and r["severity"] == "ok" for r in d["rows"])
 assert any(r["label"] == "nomad" and "not installed" in r["text"] for r in d["rows"])
-' <"$_HI_DOC_JSON"
+' <"$_HI_DOC_JSON" || _hi_why _HI_DOC_JSON
 }
 
 # a target, in either argument order, and the escaping: the target name
@@ -64,7 +64,7 @@ assert any(r["label"] == "nomad" and "not installed" in r["text"] for r in d["ro
 function test_json_takes_a_target_either_side_of_the_flag() {
   local a b
   a="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_json 'run"ning\box')" || return 1
-  b="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_run 'run"ning\box' --json)" || return 1
+  b="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_run 'run"ning\box' --json)" || _hi_why || return 1
   # each parsed on its own rather than compared as text: the probe timings
   # in the rows differ run to run
   printf '%s' "$a" | python3 -c '
@@ -77,20 +77,20 @@ assert any(r["section"] == "target" for r in d["rows"])
 import json, sys
 d = json.load(sys.stdin)
 assert d["target"] == "run\"ning\\box", d["target"]
-'
+' || _hi_why b
 }
 
 # --use typed on the command line reaches the target report: the forced
 # arm's row and no probe chain (the in-process cases set _HI_DOC_BACKEND)
 function test_json_use_flag_forces_the_arm() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --use docker ghostbox)" || return 1
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --use docker ghostbox)" || _hi_why || return 1
   printf '%s' "$out" | python3 -c '
 import json, sys
 t = [r for r in json.load(sys.stdin)["rows"] if r["section"] == "target"]
 assert any(r["label"] == "resolves" and r["text"] == "docker container (forced by --use docker)" for r in t), t
 assert not any(r["label"] == "checked" for r in t), t
-'
+' || _hi_why out
 }
 
 # --plain has nothing for doctor to report (it never connects), but it is a
@@ -103,7 +103,7 @@ function test_plain_flag_is_not_mistaken_for_the_target() {
 import json, sys
 d = json.load(sys.stdin)
 assert d["target"] == "runningbox", d["target"]
-'
+' || _hi_why out
 }
 
 # a bad row lands in findings and turns the exit code to 1, and the document
@@ -115,14 +115,14 @@ assert d["target"] == "runningbox", d["target"]
 function test_json_counts_findings_and_exits_with_them() {
   local out rc=0
   out="$(_hi_doctor_json somehost)" || rc=$?
-  [ "$rc" -eq 1 ] || return 1
+  [ "$rc" -eq 1 ] || _hi_why rc || return 1
   printf '%s' "$out" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["findings"] == 1, d["findings"]
 bad = [r for r in d["rows"] if r["severity"] == "bad"]
 assert len(bad) == 1 and "no base64" in bad[0]["text"], bad
-'
+' || _hi_why out
 }
 
 # --problems narrows the text report only: beside --json the document is the
@@ -136,7 +136,7 @@ assert len(bad) == 1 and "no base64" in bad[0]["text"], bad
 function test_problems_leaves_json_unchanged() {
   local a="$_HI_WORKDIR/json.a" b="$_HI_WORKDIR/json.b"
   _hi_doctor_json_report
-  [ -n "$_HI_DOC_JSON" ] || return 1
+  [ -n "$_HI_DOC_JSON" ] || _hi_why _HI_DOC_JSON || return 1
   sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' "$_HI_DOC_JSON" >"$a" || true
   _HI_PROBE_TIMEOUT=30 _hi_doctor_json --problems | sed -E 's/[0-9]+(\.[0-9]+)?s/Ns/g' >"$b" || true
   [ -s "$a" ] && cmp -s "$a" "$b" && return 0

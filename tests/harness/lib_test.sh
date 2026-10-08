@@ -24,25 +24,25 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_PAR_LOCAL=1
 
 function test_require_returns_for_an_installed_command() {
-  (_hi_require_bin sh)
+  (_hi_require_bin sh) || _hi_why
 }
 
 function test_require_exits_zero_and_warns_when_missing() {
   local out rc=0
   out="$( (_hi_require_bin definitely-not-a-real-hi-test-command-xyz) )" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"not installed, skipping"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"not installed, skipping"* ]] || _hi_why rc out
 }
 
 function test_require_uses_a_custom_reason() {
   local out
   out="$( (_hi_require_bin definitely-not-a-real-hi-test-command-xyz "unavailable here") )"
-  [[ "$out" == *"unavailable here, skipping"* ]]
+  [[ "$out" == *"unavailable here, skipping"* ]] || _hi_why out
 }
 
 function test_require_backend_skips_when_the_cli_is_missing() {
   local out rc=0
   out="$( (_hi_require_backend definitely-not-a-real-hi-test-command-xyz) )" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"skipping"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"skipping"* ]] || _hi_why rc out
 }
 
 function test_require_backend_skips_when_the_backend_is_unreachable() {
@@ -51,7 +51,7 @@ function test_require_backend_skips_when_the_backend_is_unreachable() {
   printf '%s\n' '#!/bin/sh' 'exit 1' >"$fake/hi-fake-backend"
   chmod +x "$fake/hi-fake-backend"
   out="$(PATH="$fake:$PATH" bash -c 'source "$_HI_TEST_LIB"; _hi_require_backend hi-fake-backend')" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"not reachable, skipping"* ]]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"not reachable, skipping"* ]] || _hi_why rc out
 }
 
 function _hi_probe_fixture() {
@@ -72,32 +72,32 @@ function _hi_probe_says_ok() {
 }
 
 function test_probe_cmd_bash_shape_fires_only_with_a_real_root() {
-  _hi_probe_says_ok bash "" &&
-    ! _hi_probe_says_ok bash "" /nonexistent/say-hi
+  { _hi_probe_says_ok bash "" &&
+    ! _hi_probe_says_ok bash "" /nonexistent/say-hi; } || _hi_why
 }
 
 function test_probe_cmd_fallback_shape_fires_only_with_the_aliases_default() {
-  _hi_probe_says_ok fallback "_HI_EZA_OPTS=x; " &&
-    ! _hi_probe_says_ok fallback "unset _HI_EZA_OPTS; "
+  { _hi_probe_says_ok fallback "_HI_EZA_OPTS=x; " &&
+    ! _hi_probe_says_ok fallback "unset _HI_EZA_OPTS; "; } || _hi_why
 }
 
 function test_probe_cmd_ssh_fallback_fires_only_with_hi_info() {
-  _hi_probe_says_ok ssh_fallback "alias hi_info='x'; " &&
-    ! _hi_probe_says_ok ssh_fallback "alias hi_info='x'; " /nonexistent/say-hi
+  { _hi_probe_says_ok ssh_fallback "alias hi_info='x'; " &&
+    ! _hi_probe_says_ok ssh_fallback "alias hi_info='x'; " /nonexistent/say-hi; } || _hi_why
 }
 
 # the shape a target that carries its own say-hi is asserted with: the session
 # has to be running out of some other tree than the one named
 function test_probe_cmd_rooted_elsewhere_fires_off_another_tree() {
-  _hi_probe_says_ok rooted_elsewhere "" "" bash /somewhere/else/say-hi &&
-    ! _hi_probe_says_ok rooted_elsewhere "" /somewhere/else/say-hi bash /somewhere/else/say-hi
+  { _hi_probe_says_ok rooted_elsewhere "" "" bash /somewhere/else/say-hi &&
+    ! _hi_probe_says_ok rooted_elsewhere "" /somewhere/else/say-hi bash /somewhere/else/say-hi; } || _hi_why
 }
 
 function test_probe_cmd_fish_shapes_run_under_fish() {
-  _hi_probe_says_ok fallback_fish "set -g _HI_EZA_OPTS x; " "" fish &&
+  { _hi_probe_says_ok fallback_fish "set -g _HI_EZA_OPTS x; " "" fish &&
     ! _hi_probe_says_ok fallback_fish "set -e _HI_EZA_OPTS; " "" fish &&
     _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " "" fish &&
-    ! _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " /nonexistent/say-hi fish
+    ! _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " /nonexistent/say-hi fish; } || _hi_why
 }
 
 # The plain report is deterministic within a run and costs ~0.4s (a docker and
@@ -114,20 +114,20 @@ function _hi_host_report_out() {
 function test_host_report_names_this_bash_and_kernel() {
   local out
   out="$(_hi_host_report_out)"
-  [[ "$out" == *"$BASH_VERSION"* ]] && [[ "$out" == *"$(uname -s)"* ]]
+  [[ "$out" == *"$BASH_VERSION"* ]] && [[ "$out" == *"$(uname -s)"* ]] || _hi_why out BASH_VERSION
 }
 
 function test_host_report_carries_the_tree_variables() {
   local out
   out="$(_hi_host_report_out)"
-  [[ "$out" == *"$_HI_HOME"* ]] && [[ "$out" == *"$_HI_ROOT"* ]]
+  [[ "$out" == *"$_HI_HOME"* ]] && [[ "$out" == *"$_HI_ROOT"* ]] || _hi_why out
 }
 
 function test_host_report_agrees_when_the_tree_matches() {
   local out
   out="$(_hi_host_report_out)"
   [[ "$out" == *"the tree this run came from"* ]] &&
-    [[ "$out" != *"another checkout"* ]]
+    [[ "$out" != *"another checkout"* ]] || _hi_why out
 }
 
 # The reference is captured before the subshell moves $_HI_ROOT: written as an
@@ -141,13 +141,13 @@ function test_host_report_warns_when_the_tree_differs() {
   )"
   # both paths named: which tree ran, and which one it should have been
   [[ "$out" == *"another checkout"* ]] &&
-    [[ "$out" == *"$_HI_WORKDIR"* ]] && [[ "$out" == *"$ref"* ]]
+    [[ "$out" == *"$_HI_WORKDIR"* ]] && [[ "$out" == *"$ref"* ]] || _hi_why out ref
 }
 
 function test_host_tree_check_is_silent_and_zero_when_it_agrees() {
   local out rc=0
   out="$(_hi_host_tree_check "$_HI_ROOT" 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ -z "$out" ]
+  [ "$rc" -eq 0 ] && [ -z "$out" ] || _hi_why rc out
 }
 
 function test_host_tree_check_returns_one_when_it_differs() {
@@ -156,7 +156,7 @@ function test_host_tree_check_returns_one_when_it_differs() {
     _HI_ROOT="$_HI_WORKDIR"
     _hi_host_tree_check "$ref"
   ) >/dev/null 2>&1 || rc=$?
-  [ "$rc" -eq 1 ]
+  [ "$rc" -eq 1 ] || _hi_why rc
 }
 
 # Which runner a borderline benchmark came off is the first question a CI log
@@ -165,7 +165,7 @@ function test_host_report_names_the_cpu_and_memory() {
   local out
   out="$(_hi_host_report_out)"
   [[ "$out" == *" cpu "* ]] && [[ "$out" == *" memory "* ]] &&
-    [[ "$out" =~ [0-9]+\ cores ]] && [[ "$out" == *GiB* ]]
+    [[ "$out" =~ [0-9]+\ cores ]] && [[ "$out" == *GiB* ]] || _hi_why out
 }
 
 # The same rule the rest of the block follows: a host that answers nothing
@@ -180,13 +180,13 @@ function test_host_report_marks_an_unreadable_cpu_and_memory() {
       _HI_PROC_MEMINFO="$_HI_WORKDIR/no_such_meminfo" \
       _hi_host_report "$_HI_ROOT" 2>&1
   )"
-  [[ "$out" == *"cpu       ? cores"* ]] && [[ "$out" == *"memory    ?"* ]]
+  [[ "$out" == *"cpu       ? cores"* ]] && [[ "$out" == *"memory    ?"* ]] || _hi_why out
 }
 
 function test_host_report_lists_the_lint_tools() {
   local out
   out="$(_hi_host_report_out)"
-  [[ "$out" == *shellcheck* ]] && [[ "$out" == *shfmt* ]] && [[ "$out" == *checkbashisms* ]]
+  [[ "$out" == *shellcheck* ]] && [[ "$out" == *shfmt* ]] && [[ "$out" == *checkbashisms* ]] || _hi_why out
 }
 
 # The report is a debug aid: a host so stripped that not one probe resolves
@@ -199,7 +199,7 @@ function test_host_report_survives_an_empty_path() {
     PATH=""
     _hi_host_report "$_HI_ROOT"
   ) >/dev/null 2>&1 || rc=$?
-  [ "$rc" -eq 0 ]
+  [ "$rc" -eq 0 ] || _hi_why rc
 }
 
 function test_host_report_marks_absent_tools_absent() {
@@ -209,33 +209,33 @@ function test_host_report_marks_absent_tools_absent() {
     PATH=""
     _hi_host_report "$_HI_ROOT" 2>&1
   )"
-  [[ "$out" == *"shellcheck (absent)"* ]] && [[ "$out" == *"docker: absent"* ]]
+  [[ "$out" == *"shellcheck (absent)"* ]] && [[ "$out" == *"docker: absent"* ]] || _hi_why out
 }
 
 function test_tool_version_reports_a_number_for_a_real_tool() {
-  [[ "$(_hi_tool_version bash)" =~ ^bash\ [0-9]+\.[0-9]+ ]]
+  [[ "$(_hi_tool_version bash)" =~ ^bash\ [0-9]+\.[0-9]+ ]] || _hi_why
 }
 
 function test_tool_version_says_absent_rather_than_failing() {
   local rc=0 out
   out="$(_hi_tool_version definitely-not-a-real-binary)" || rc=$?
-  [ "$rc" -eq 0 ] && [ "$out" = "definitely-not-a-real-binary (absent)" ]
+  [ "$rc" -eq 0 ] && [ "$out" = "definitely-not-a-real-binary (absent)" ] || _hi_why rc out
 }
 
 function test_probe_cmd_rejects_an_unknown_shape() {
   local rc=0
   _hi_probe_cmd MARK not-a-shape >/dev/null 2>&1 || rc=$?
-  [ "$rc" -ne 0 ]
+  [ "$rc" -ne 0 ] || _hi_why rc
 }
 
 function test_probe_cmd_every_shape_ends_with_the_marker() {
   local shape
   for shape in bash fallback fallback_fish ssh_fallback ssh_fallback_fish; do
-    [[ "$(_hi_probe_cmd HI_MARKER_XYZ "$shape")" == *"HI_MARKER_XYZ" ]] || return 1
+    [[ "$(_hi_probe_cmd HI_MARKER_XYZ "$shape")" == *"HI_MARKER_XYZ" ]] || _hi_why shape || return 1
   done
   # rooted_elsewhere takes a path; rooted_under is not here because its `case`
   # wraps the marker and ends with `esac`
-  [[ "$(_hi_probe_cmd HI_MARKER_XYZ rooted_elsewhere /tmp/tree)" == *"HI_MARKER_XYZ" ]]
+  [[ "$(_hi_probe_cmd HI_MARKER_XYZ rooted_elsewhere /tmp/tree)" == *"HI_MARKER_XYZ" ]] || _hi_why
 }
 
 function test_poll_bool_returns_one_when_never_true() {
@@ -250,7 +250,7 @@ function test_poll_bool_succeeds_on_a_later_attempt() {
     printf 'x' >>"$counter"
     [ "$(wc -c <"$counter")" -ge 3 ]
   }
-  _hi_poll_bool 300 0.01 _hi_third_time_lucky && [ "$(wc -c <"$counter")" -eq 3 ]
+  _hi_poll_bool 300 0.01 _hi_third_time_lucky && [ "$(wc -c <"$counter")" -eq 3 ] || _hi_why counter
 }
 
 function test_poll_bool_passes_arguments_through() {
@@ -263,10 +263,10 @@ function test_poll_bool_abort_predicate_stops_early() {
   # shellcheck disable=SC2317 # invoked by _hi_poll_bool through "$@"
   function _hi_never_true() {
     printf 'x' >>"$counter"
-    return 1
+    _hi_why -3 counter || return 1
   }
   _hi_poll_bool -a _hi_false 50 0.01 _hi_never_true && return 1
-  [ "$(wc -c <"$counter")" -eq 1 ]
+  [ "$(wc -c <"$counter")" -eq 1 ] || _hi_why counter
 }
 
 function test_poll_bool_stops_at_the_wall_clock_budget() {
@@ -296,7 +296,7 @@ function test_poll_budget_is_never_short() {
 function test_poll_value_prints_the_value_it_found() {
   local out
   out="$(_hi_poll_value 3 0.01 printf 'alloc-id')"
-  [ "$out" = "alloc-id" ]
+  [ "$out" = "alloc-id" ] || _hi_why out
 }
 
 function test_poll_value_fails_when_output_stays_empty() {
@@ -312,19 +312,19 @@ function test_poll_value_keeps_polling_past_empty_output() {
     [ "$(wc -c <"$counter")" -ge 2 ] && printf 'ready'
     return 0
   }
-  [ "$(_hi_poll_value 300 0.01 _hi_late_value)" = ready ]
+  [ "$(_hi_poll_value 300 0.01 _hi_late_value)" = ready ] || _hi_why
 }
 
 function test_wait_pid_reports_a_clean_exit() {
   sleep 0.05 &
   _hi_wait_pid "$!" 5
-  [ "$_HI_WAIT_EXIT" -eq 0 ]
+  [ "$_HI_WAIT_EXIT" -eq 0 ] || _hi_why _HI_WAIT_EXIT
 }
 
 function test_wait_pid_reports_the_real_exit_code() {
   bash -c 'exit 7' &
   _hi_wait_pid "$!" 5
-  [ "$_HI_WAIT_EXIT" -eq 7 ]
+  [ "$_HI_WAIT_EXIT" -eq 7 ] || _hi_why _HI_WAIT_EXIT
 }
 
 # 124 is the timeout convention (same as timeout(1)); the process must
@@ -352,7 +352,7 @@ function test_wait_pid_skips_the_hook_on_a_clean_exit() {
   rm -f "$marker"
   sleep 0.05 &
   _hi_wait_pid "$!" 5 _hi_probe_timeout_hook
-  [ ! -f "$marker" ]
+  [ ! -f "$marker" ] || _hi_why marker
 }
 
 # _hi_wait_quiet's deadline is silence, not age: a child still writing its
@@ -363,7 +363,7 @@ function test_wait_quiet_outlives_the_deadline_while_writing() {
   : >"$out"
   bash -c 'for i in 1 2 3 4 5 6; do echo "line $i"; sleep 0.5; done' >"$out" &
   _hi_wait_quiet "$!" 1 "$out" writing >/dev/null
-  [ "$_HI_WAIT_EXIT" -eq 0 ] && [ "$(wc -l <"$out")" -eq 6 ]
+  [ "$_HI_WAIT_EXIT" -eq 0 ] && [ "$(wc -l <"$out")" -eq 6 ] || _hi_why out _HI_WAIT_EXIT
 }
 
 function test_wait_quiet_kills_a_silent_child_and_shows_its_last_lines() {
@@ -376,7 +376,7 @@ function test_wait_quiet_kills_a_silent_child_and_shows_its_last_lines() {
   wait "$pid" 2>/dev/null || true
   [[ "$said" == *"[silent] -- TIMED OUT"*"the question it was left at"*"exit=124" ]] ||
     _hi_because "said: $said" || return 1
-  ! kill -0 "$pid" 2>/dev/null
+  ! kill -0 "$pid" 2>/dev/null || _hi_why pid
 }
 
 function test_wait_quiet_caps_a_child_that_never_stops() {
@@ -385,7 +385,7 @@ function test_wait_quiet_caps_a_child_that_never_stops() {
   bash -c 'while :; do echo more; sleep 0.3; done' >"$out" &
   pid=$!
   _hi_wait_quiet "$pid" 1 "$out" endless >/dev/null
-  [ "$_HI_WAIT_EXIT" -eq 124 ] && [ $((SECONDS - t0)) -ge 5 ] && ! kill -0 "$pid" 2>/dev/null
+  { [ "$_HI_WAIT_EXIT" -eq 124 ] && [ $((SECONDS - t0)) -ge 5 ] && ! kill -0 "$pid" 2>/dev/null; } || _hi_why pid _HI_WAIT_EXIT
 }
 
 # The verdict's one look at the exit code. A case that was SIGKILLed at its
@@ -397,19 +397,19 @@ function test_wait_quiet_caps_a_child_that_never_stops() {
 function test_case_result_fails_a_timed_out_case_despite_its_marker() {
   local out="$_HI_WORKDIR/case-result.out"
   printf 'HI_MARK\n' >"$out"
-  ! _HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK >/dev/null
+  ! _HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK >/dev/null || _hi_why out
 }
 
 function test_case_result_keeps_ok_on_an_odd_exit_with_the_marker() {
   local out="$_HI_WORKDIR/case-result.out"
   printf 'HI_MARK\n' >"$out"
-  _HI_FAILS_FILE="" _hi_case_result probe "a case" 3 0 1 "$out" HI_MARK >/dev/null
+  _HI_FAILS_FILE="" _hi_case_result probe "a case" 3 0 1 "$out" HI_MARK >/dev/null || _hi_why out
 }
 
 function test_case_result_says_timed_out_by_name() {
   local out="$_HI_WORKDIR/case-result.out"
   printf 'HI_MARK\n' >"$out"
-  [[ "$(_HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK 2>&1 || true)" == *'TIMED OUT'* ]]
+  [[ "$(_HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK 2>&1 || true)" == *'TIMED OUT'* ]] || _hi_why out
 }
 
 # _hi_retry_run <label> <timeout_s> <shim line>... - one _hi_exec_case run
@@ -442,12 +442,12 @@ function test_exec_case_retries_a_markerless_first_attempt() {
     "[ -e \"$seen\" ] && echo HI_RETRY_TEST_OK" \
     "touch \"$seen\"" \
     "exit 0"
-  [ "$_HI_RETRY_RC" -eq 0 ] && [[ "$_HI_RETRY_OUT" == *"retrying"* ]]
+  [ "$_HI_RETRY_RC" -eq 0 ] && [[ "$_HI_RETRY_OUT" == *"retrying"* ]] || _hi_why _HI_RETRY_RC _HI_RETRY_OUT
 }
 
 function test_exec_case_exhausts_retries_and_fails() {
   _hi_retry_run retryexhaust 10 'echo not-the-marker' 'exit 0'
-  [ "$_HI_RETRY_RC" -eq 1 ] && [ "$(grep -c retrying <<<"$_HI_RETRY_OUT" || true)" -eq 1 ]
+  [ "$_HI_RETRY_RC" -eq 1 ] && [ "$(grep -c retrying <<<"$_HI_RETRY_OUT" || true)" -eq 1 ] || _hi_why _HI_RETRY_RC _HI_RETRY_OUT
 }
 
 function test_exec_case_never_retries_a_timeout() {
@@ -462,12 +462,12 @@ function test_exec_case_never_retries_a_timeout() {
 function test_strip_ansi_strips_every_form_and_stays_linear() {
   local s big i out t0
   s="$(printf 'a\033[1;32mb\033[0mc\033]7;file:///x\007d\033]0;t\033\\e')"
-  [ "$(_hi_strip_ansi "$s")" = abcde ] || return 1
+  [ "$(_hi_strip_ansi "$s")" = abcde ] || _hi_why s || return 1
   big=""
   for ((i = 0; i < 4000; i++)); do big="$big"$'\e[31m'"word$i"$'\e[0m '; done
   t0=$SECONDS
   out="$(_hi_strip_ansi "$big")"
-  [ $((SECONDS - t0)) -le 10 ] && [[ "$out" == "word0 word1 "* ]] && [[ "$out" != *$'\e'* ]]
+  [ $((SECONDS - t0)) -le 10 ] && [[ "$out" == "word0 word1 "* ]] && [[ "$out" != *$'\e'* ]] || _hi_why out
 }
 
 function test_pty_wrap_force_wraps_even_on_a_tty() {
@@ -479,7 +479,7 @@ function test_pty_wrap_force_wraps_even_on_a_tty() {
     [ "${#_HI_PTY_WRAP[@]}" -gt 0 ] && [ "${_HI_PTY_WRAP[0]}" = python3 ]
   else
     [ "${#_HI_PTY_WRAP[@]}" -eq 0 ]
-  fi
+  fi || _hi_why -6
 }
 
 function test_pty_wrap_auto_leaves_a_real_tty_alone() {
@@ -491,7 +491,7 @@ function test_pty_wrap_auto_leaves_a_real_tty_alone() {
     [ "${#_HI_PTY_WRAP[@]}" -eq 0 ]
   else
     [ "${#_HI_PTY_WRAP[@]}" -gt 0 ]
-  fi
+  fi || _hi_why -6
 }
 
 function test_pty_wrap_actually_allocates_a_pty() {
@@ -507,7 +507,7 @@ function test_pty_wrap_actually_allocates_a_pty() {
   # stdin, `--verbose` runs suites in the foreground with that stdin inherited,
   # and this case swallowed the rest of the script mid-word. The child's fd 0
   # is the pty slave either way, so the assertion is untouched.
-  ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} sh -c 'test -t 0' >/dev/null 2>&1 </dev/null
+  ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} sh -c 'test -t 0' >/dev/null 2>&1 </dev/null || _hi_why
 }
 
 function test_pty_wrap_resets_between_calls() {
@@ -515,24 +515,24 @@ function test_pty_wrap_resets_between_calls() {
   _hi_pty_wrap 0 force "no python3" >/dev/null
   first="${#_HI_PTY_WRAP[@]}"
   _hi_pty_wrap 0 force "no python3" >/dev/null
-  [ "${#_HI_PTY_WRAP[@]}" -eq "$first" ]
+  [ "${#_HI_PTY_WRAP[@]}" -eq "$first" ] || _hi_why first
 }
 
 function test_ssh_opts_never_touch_the_users_known_hosts() {
   local joined="${_HI_SSH_OPTS[*]}"
   [[ "$joined" == *"UserKnownHostsFile=/dev/null"* && "$joined" == *"StrictHostKeyChecking=no"* &&
-    "$joined" == *"IdentitiesOnly=yes"* ]]
+    "$joined" == *"IdentitiesOnly=yes"* ]] || _hi_why joined
 }
 
 function test_sshd_entrypoint_body_passes_runtime_opts_to_sshd() {
   # shellcheck disable=SC2016 # matching literal text that expands on the target, not here
-  [[ "$_HI_SSHD_ENTRYPOINT_BODY" == *'exec /usr/sbin/sshd'* && "$_HI_SSHD_ENTRYPOINT_BODY" == *'$SSHD_OPTS'* ]]
+  [[ "$_HI_SSHD_ENTRYPOINT_BODY" == *'exec /usr/sbin/sshd'* && "$_HI_SSHD_ENTRYPOINT_BODY" == *'$SSHD_OPTS'* ]] || _hi_why _HI_SSHD_ENTRYPOINT_BODY
 }
 
 function test_sshd_entrypoint_body_unlocks_the_test_account() {
   # useradd/adduser -D leave the account locked and sshd refuses locked
   # accounts even for pubkey auth
-  [[ "$_HI_SSHD_ENTRYPOINT_BODY" == *"chpasswd -e"* && "$_HI_SSHD_ENTRYPOINT_BODY" == *"authorized_keys"* ]]
+  [[ "$_HI_SSHD_ENTRYPOINT_BODY" == *"chpasswd -e"* && "$_HI_SSHD_ENTRYPOINT_BODY" == *"authorized_keys"* ]] || _hi_why _HI_SSHD_ENTRYPOINT_BODY
 }
 
 function test_ssh_keypair_writes_a_usable_key() {
@@ -540,7 +540,7 @@ function test_ssh_keypair_writes_a_usable_key() {
     _HI_WORKDIR="$(mktemp -d "$_HI_WORKDIR/keys.XXXXXX")"
     _hi_ssh_keypair >/dev/null
     [ -f "$_HI_WORKDIR/id" ] && [ -f "$_HI_WORKDIR/id.pub" ] && [[ "$_HI_PUBKEY" == ssh-ed25519* ]]
-  )
+  ) || _hi_why _HI_PUBKEY
 }
 
 function test_ssh_reachable_fails_against_a_dead_port() {
@@ -560,7 +560,7 @@ function test_real_path_builds_a_usable_toolbox() {
   local dir
   dir="$(_hi_real_path caplinked sh awk)"
   [ -x "$dir/sh" ] && [ -x "$dir/awk" ] &&
-    [ "$(PATH="$dir" sh -c 'echo built')" = built ]
+    [ "$(PATH="$dir" sh -c 'echo built')" = built ] || _hi_why dir
 }
 
 # `ln` shadowed by a failing function is Git Bash without Developer Mode, where
@@ -572,7 +572,7 @@ function test_real_path_falls_back_to_a_wrapper_when_ln_fails() {
     _hi_real_path capfallback sh awk
   )"
   [ ! -L "$dir/sh" ] && [ -x "$dir/sh" ] && [ -x "$dir/awk" ] &&
-    [ "$(PATH="$dir" sh -c 'echo wrapped')" = wrapped ]
+    [ "$(PATH="$dir" sh -c 'echo wrapped')" = wrapped ] || _hi_why dir
 }
 
 # and the build-once guard must not hand a later caller the empty directory a
@@ -585,7 +585,7 @@ function test_real_path_never_caches_an_empty_toolbox() {
   )"
   second="$(_hi_real_path capcached sh)"
   [ "$first" = "$second" ] && [ -n "$(ls -A "$second")" ] &&
-    [ "$(PATH="$second" sh -c 'echo cached')" = cached ]
+    [ "$(PATH="$second" sh -c 'echo cached')" = cached ] || _hi_why first second
 }
 
 function test_check_capable_runs_the_predicate_when_able() {
@@ -597,7 +597,7 @@ function test_check_capable_runs_the_predicate_when_able() {
     _hi_check_capable symlink "a case that must run" true
     printf 'skipped=%s total=%s\n' "$_HI_SKIPPED" "$_HI_TOTAL"
   )"
-  [[ "$out" == *"skipped=0 total=1"* ]]
+  [[ "$out" == *"skipped=0 total=1"* ]] || _hi_why out
 }
 
 # the predicate is `false` on purpose: a guard that ran it would fail the case
@@ -611,14 +611,14 @@ function test_check_capable_skips_when_the_capability_is_absent() {
     _hi_check_capable symlink "a case that must not run" false
     printf 'skipped=%s total=%s\n' "$_HI_SKIPPED" "$_HI_TOTAL"
   )"
-  [[ "$out" == *SKIPPED* ]] && [[ "$out" == *"skipped=1 total=0"* ]]
+  [[ "$out" == *SKIPPED* ]] && [[ "$out" == *"skipped=1 total=0"* ]] || _hi_why out
 }
 
 # a typo in a capability name has to be a failure, not a silent stand-down
 function test_capable_rejects_an_unknown_capability() {
   local rc=0
   _hi_capable no-such-capability 2>/dev/null || rc=$?
-  [ "$rc" -eq 2 ]
+  [ "$rc" -eq 2 ] || _hi_why rc
 }
 
 function run_lib_process_tests() {

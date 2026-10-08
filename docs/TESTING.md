@@ -63,8 +63,24 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   arm64 (macOS included) it is not counted as a failure - it is listed under
   _Flaky cases_ at the end of the run, a GitHub warning on CI. On native Linux
   x64, the least loaded platform, a flake is a failure like any other
-  (`_HI_FLAKY_OK=1`/`0` overrides either way). Not for a failure
-  that took over 20s, nor under the coverage sweeps (`_HI_TRACE_RERUN=0`).
+  (`_HI_FLAKY_OK=1`/`0` overrides either way). A failure that took over 20s
+  is rerun too, for its trace alone - it is FAILED whatever the rerun does,
+  never FLAKY - and ended once it has had that time again and half a minute,
+  with the trace it got to: where a hung case stands. Only the coverage
+  sweeps go without (`_HI_TRACE_RERUN=0`, their tracers owning xtrace), and
+  say which job traces the case. None of it costs a passing case anything.
+- A case says why it failed on its first failure, so a flake has a reason
+  too and nothing waits on the rerun: `_hi_because "<what was wrong>"` on the
+  failing arm, or `_hi_why <variable>...` where the assertion says it all -
+  that prints the statement, read off the suite's file, and each variable's
+  value (`_hi_why -N` adds the N lines above, for a bare `return 1`). Both
+  run only once the assertion has failed. A new case ends every failing arm
+  in one of the two.
+- An end-to-end case that fails prints the end of its session's transcript
+  and, where it is about sessions or trees, what the target held:
+  its trees and their claims, its multiplexers' sessions, its processes
+  (`_hi_show_transcript`, `_hi_show_target`). A failure line with neither
+  beside it is a bug in the suite.
   Where a flake may pass, an _output probe_ line comes ahead of the rerun:
   how many of 20 captures came back short from a subshell, a child bash, and
   a process substitution, and from a child bash writing a file, with the
@@ -363,7 +379,7 @@ says whether the host is dropping output at that moment and from which
 writer; `plugins_test.sh` runs `hi` into a file and names a run that wrote
 nothing, which tells a silent run from a capture that lost its words.
 `_hi_run_said` (`tests/lib/report.sh`) does the same for the whole runs of
-`doctor.sh` and `install.sh`, which outlast the 20s a rerun is given: where a
+`doctor.sh` and `install.sh`, the slowest cases there are: where a
 flake may pass, a run that wrote nothing is made once more and listed under
 _Flaky cases_. A run that said anything is never made twice.
 

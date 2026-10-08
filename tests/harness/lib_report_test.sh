@@ -32,13 +32,13 @@ function _hi_sandboxed() {
 function test_case_counts_a_pass() {
   _hi_suite_begin
   _hi_case _hi_true
-  [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 0 ]
+  [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 0 ] || _hi_why _HI_TOTAL _HI_FAILED
 }
 
 function test_case_counts_a_failure() {
   _hi_suite_begin
   _hi_case _hi_false
-  [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 1 ]
+  [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 1 ] || _hi_why _HI_TOTAL _HI_FAILED
 }
 
 function test_case_keeps_running_after_a_failure() {
@@ -46,19 +46,19 @@ function test_case_keeps_running_after_a_failure() {
   _hi_case _hi_false
   _hi_case _hi_true
   _hi_case _hi_false
-  [ "$_HI_TOTAL" -eq 3 ] && [ "$_HI_FAILED" -eq 2 ]
+  [ "$_HI_TOTAL" -eq 3 ] && [ "$_HI_FAILED" -eq 2 ] || _hi_why _HI_TOTAL _HI_FAILED
 }
 
 function test_assert_passes_through_arguments() {
   local out
   out="$(_hi_strip_ansi "$(_hi_assert "with args" test 1 -eq 1)")"
-  printf '%s\n' "$out" | grep -qE 'with args +OK$'
+  printf '%s\n' "$out" | grep -qE 'with args +OK$' || _hi_why out
 }
 
 function test_assert_reports_ok_and_returns_zero() {
   local out
   out="$(_hi_strip_ansi "$(_hi_assert "some label" _hi_true)")"
-  printf '%s\n' "$out" | grep -qE 'some label +OK$'
+  printf '%s\n' "$out" | grep -qE 'some label +OK$' || _hi_why out
 }
 
 # ...and says where: a failed case is run once more under `set -x`, the
@@ -85,7 +85,7 @@ function test_a_failed_case_reruns_with_a_trace() {
     unset BASH_XTRACEFD
     export _HI_TRACE_RERUN=1
     _hi_rr_check
-  )
+  ) || _hi_why
 }
 function _hi_rr_check() {
   local err out fails="$_HI_WORKDIR/rr.fails"
@@ -121,6 +121,67 @@ function _hi_rr_stderr_flake() {
   return 1
 }
 
+# A failure that took over 20s is traced too, apart from the suite's shell: a
+# second failure with its trace, a pass that is a failure all the same, and a
+# rerun that hangs ended with the trace it got to
+function _hi_rr_hangs() {
+  local where=here
+  [ "$where" = here ] && sleep 30
+}
+function test_a_slow_failure_is_traced_and_a_hung_rerun_is_ended() {
+  (
+    set +x
+    unset BASH_XTRACEFD
+    _HI_TRACE_RERUN=1 _hi_rr_slow_check
+  ) || _hi_why
+}
+function _hi_rr_slow_check() {
+  _hi_trace_rerun 21 _hi_rr_fails && return 1
+  [[ "$_HI_RERUN_OUT" == *"traced rerun (exit 1, the failure took 21s)"* && "$_HI_RERUN_OUT" == *"'[' 2 = 3 ']'"* ]] ||
+    _hi_because "a slow failure said: [$_HI_RERUN_OUT]" || return 1
+  rm -f "$_HI_WORKDIR/rr.flag"
+  _hi_rr_flake || :
+  ! _hi_trace_rerun 21 _hi_rr_flake || _hi_because "a slow failure passed as a flake" || return 1
+  [[ "$_HI_RERUN_OUT" == *"traced rerun passed in "*"where the failure took 21s"*"never a flake"* ]] ||
+    _hi_because "a slow failure whose rerun passed said: [$_HI_RERUN_OUT]" || return 1
+  # a limit of a second: the time it took, and half a minute
+  _hi_trace_rerun_slow -29 _hi_rr_hangs && return 1
+  [[ "$_HI_RERUN_OUT" == *"ended at 1s"*"where it stood"* && "$_HI_RERUN_OUT" == *"sleep 30"* ]] ||
+    _hi_because "a hung rerun said: [$_HI_RERUN_OUT]" || return 1
+  [ ! -e "$_HI_WORKDIR/hi.rerun.$$" ] || _hi_because "the trace file was left behind"
+}
+
+# An assertion with no words of its own names itself: the statement, off the
+# suite's file at the caller's line, every line of it, and each variable it
+# was handed, a long one cut and an unset one said to be
+function _hi_why_fixture() {
+  local got=two long
+  printf -v long '%400s' ''
+  [ "$got" = three ] &&
+    [ -n "$long" ] || _hi_why got long nosuchvar 'not a name'
+}
+function test_why_names_the_statement_and_its_values() {
+  local err rc=0
+  err="$(_hi_why_fixture 2>&1)" || rc=$?
+  [ "$rc" = 1 ] || _hi_because "it returned $rc" || return 1
+  [[ "$err" == *"not so, at "*".sh:"*": [ \"\$got\" = three ] && [ -n \"\$long\" ] || _hi_why got long nosuchvar"* ]] ||
+    _hi_because "the statement: [$err]" || return 1
+  [[ "$err" == *"got=[two]"* && "$err" == *"(400 characters, cut)"* && "$err" == *"nosuchvar=[<unset>]"* && "$err" != *"not a name="* ]] ||
+    _hi_because "the values: [$err]"
+}
+
+# The end of a transcript under a failure line, without the escapes a prompt
+# wrote; one that is empty or missing is said to be
+function test_show_transcript_prints_the_tail_as_text() {
+  local f="$_HI_WORKDIR/shown.out" out
+  printf 'first\n\033[2J\033[1;32mgreen\033[0m words\r\n\033]0;title\alast\n' >"$f"
+  out="$(_hi_show_transcript "the transcript" "$f" 2)"
+  [ "$out" = "$(printf '      the transcript, its last 2 lines:\n        green words\n        last')" ] ||
+    _hi_because "shown: [$out]" || return 1
+  out="$(_hi_show_transcript "the transcript" "$f.none")"
+  [[ "$out" == *"the transcript: nothing was written ($f.none)"* ]] || _hi_because "a missing one: [$out]"
+}
+
 # A case that took a second or more is noted with its label beside the
 # failures file, for the runner's slowest cases; a quicker one is not, and
 # nothing is outside a run. The case moves $SECONDS on where a sleep would
@@ -130,8 +191,8 @@ function test_case_notes_the_time_a_slow_case_took() {
   rm -f "$fails.times"
   (_hi_times_run "$fails")
   [ "$(wc -l <"$fails.times")" -eq 2 ] || _hi_because "noted: $(cat "$fails.times" 2>&1)" || return 1
-  grep -qE "^[34]$(printf '\t')a slow one\$" "$fails.times" &&
-    grep -qE "^[23]$(printf '\t')_hi_takes 2\$" "$fails.times"
+  { grep -qE "^[34]$(printf '\t')a slow one\$" "$fails.times" &&
+    grep -qE "^[23]$(printf '\t')_hi_takes 2\$" "$fails.times"; } || _hi_why fails
 }
 function _hi_times_run() {
   local _HI_TOTAL=0 _HI_FAILED=0 _HI_PROGRESS_FILE=""
@@ -173,28 +234,28 @@ function _hi_said_is() {
   [ "$got" = "$want" ] || _hi_because "_hi_said_try $*: want [$want], got [$got]"
 }
 function test_run_said_passes_a_run_through() {
-  _hi_said_is "run 1|0|1|0" 1 "" 0 || return 1
-  _hi_said_is "run 1|3|1|0" 1 "" 3 || return 1
-  [ ! -s "$_HI_WORKDIR/said.err" ]
+  _hi_said_is "run 1|0|1|0" 1 "" 0 || _hi_why || return 1
+  _hi_said_is "run 1|3|1|0" 1 "" 3 || _hi_why || return 1
+  [ ! -s "$_HI_WORKDIR/said.err" ] || _hi_why
 }
 function test_run_said_reruns_only_a_silent_run() {
-  _hi_said_is "run 2|0|2|1" 1 "1" 0 || return 1
-  [ ! -s "$_HI_WORKDIR/said.err" ]
+  _hi_said_is "run 2|0|2|1" 1 "1" 0 || _hi_why || return 1
+  [ ! -s "$_HI_WORKDIR/said.err" ] || _hi_why
 }
 function test_run_said_leaves_a_silent_run_failing() {
-  _hi_said_is "|0|2|1" 1 "1 2" 0 || return 1
-  grep -qF 'the prog wrote nothing and exited 0' "$_HI_WORKDIR/said.err" || return 1
-  _hi_said_is "|4|2|1" 1 "1 2" 4 || return 1
-  _hi_said_is "|0|1|0" 0 "1" 0 || return 1
-  grep -qF 'the prog wrote nothing and exited 0' "$_HI_WORKDIR/said.err"
+  _hi_said_is "|0|2|1" 1 "1 2" 0 || _hi_why || return 1
+  grep -qF 'the prog wrote nothing and exited 0' "$_HI_WORKDIR/said.err" || _hi_why || return 1
+  _hi_said_is "|4|2|1" 1 "1 2" 4 || _hi_why || return 1
+  _hi_said_is "|0|1|0" 0 "1" 0 || _hi_why || return 1
+  grep -qF 'the prog wrote nothing and exited 0' "$_HI_WORKDIR/said.err" || _hi_why
 }
 function _hi_said_stderr_only() {
   printf 'only stderr\n' >&2
 }
 function test_run_said_both_counts_stderr_as_said() {
   local out
-  out="$(_HI_FLAKY_OK=1 _hi_run_said --both "the prog" _hi_said_stderr_only 2>/dev/null)" || return 1
-  [ "$out" = "only stderr" ]
+  out="$(_HI_FLAKY_OK=1 _hi_run_said --both "the prog" _hi_said_stderr_only 2>/dev/null)" || _hi_why || return 1
+  [ "$out" = "only stderr" ] || _hi_why out
 }
 
 function test_assert_reports_failed_and_returns_nonzero() {
@@ -202,20 +263,20 @@ function test_assert_reports_failed_and_returns_nonzero() {
   # the capture stays on _hi_assert itself: wrapping it in _hi_strip_ansi would
   # report the stripper's exit status, which is 0 whatever _hi_assert returned
   out="$(_hi_assert "some label" _hi_false)" || rc=$?
-  [ "$rc" -ne 0 ] && printf '%s\n' "$(_hi_strip_ansi "$out")" | grep -qE 'some label +FAILED$'
+  { [ "$rc" -ne 0 ] && printf '%s\n' "$(_hi_strip_ansi "$out")" | grep -qE 'some label +FAILED$'; } || _hi_why rc out
 }
 
 function test_check_counts_and_labels_in_one_call() {
   _hi_suite_begin
   _hi_check "a failing check" _hi_false >/dev/null
-  [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 1 ]
+  [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 1 ] || _hi_why _HI_TOTAL _HI_FAILED
 }
 
 function test_suite_begin_zeroes_both_counters() {
   _HI_TOTAL=7
   _HI_FAILED=3
   _hi_suite_begin
-  [ "$_HI_TOTAL" -eq 0 ] && [ "$_HI_FAILED" -eq 0 ]
+  [ "$_HI_TOTAL" -eq 0 ] && [ "$_HI_FAILED" -eq 0 ] || _hi_why _HI_TOTAL _HI_FAILED
 }
 
 function test_suite_end_exits_zero_when_nothing_failed() {
@@ -223,7 +284,7 @@ function test_suite_end_exits_zero_when_nothing_failed() {
     _HI_TOTAL=4
     _HI_FAILED=0
     _hi_suite_end thing >/dev/null
-  )
+  ) || _hi_why
 }
 
 function test_suite_end_exits_with_the_failure_count() {
@@ -233,7 +294,7 @@ function test_suite_end_exits_with_the_failure_count() {
     _HI_FAILED=3
     _hi_suite_end thing >/dev/null
   ) || rc=$?
-  [ "$rc" -eq 3 ]
+  [ "$rc" -eq 3 ] || _hi_why rc
 }
 
 function test_suite_end_default_wording_uses_the_subject() {
@@ -243,7 +304,7 @@ function test_suite_end_default_wording_uses_the_subject() {
     _HI_FAILED=0
     _hi_suite_end "check.sh"
   )"
-  [[ "$out" == *"All check.sh checks passed (2 cases)"* ]]
+  [[ "$out" == *"All check.sh checks passed (2 cases)"* ]] || _hi_why out
 }
 
 function test_suite_end_default_failure_wording_shows_the_ratio() {
@@ -253,7 +314,7 @@ function test_suite_end_default_failure_wording_shows_the_ratio() {
     _HI_FAILED=2
     _hi_suite_end "check.sh"
   )" || true
-  [[ "$out" == *"2/5 check.sh checks FAILED"* ]]
+  [[ "$out" == *"2/5 check.sh checks FAILED"* ]] || _hi_why out
 }
 
 function test_suite_end_honours_custom_banners() {
@@ -268,7 +329,7 @@ function test_suite_end_honours_custom_banners() {
     _HI_FAILED=1
     _hi_suite_end "" "custom pass line" "custom fail line"
   )" || true
-  [[ "$pass" == *"custom pass line"* && "$fail" == *"custom fail line"* ]]
+  [[ "$pass" == *"custom pass line"* && "$fail" == *"custom fail line"* ]] || _hi_why pass fail
 }
 
 function test_report_counts_writes_total_and_failed() {
@@ -278,7 +339,7 @@ function test_report_counts_writes_total_and_failed() {
     _HI_COUNTS_FILE="$file"
     _hi_report_counts 9 2
   )
-  [ "$(cat "$file")" = "9 2 0" ]
+  [ "$(cat "$file")" = "9 2 0" ] || _hi_why file
 }
 
 function test_report_counts_writes_the_skip_tally() {
@@ -288,7 +349,7 @@ function test_report_counts_writes_the_skip_tally() {
     _HI_COUNTS_FILE="$file"
     _hi_report_counts 9 2 3
   )
-  [ "$(cat "$file")" = "9 2 3" ]
+  [ "$(cat "$file")" = "9 2 3" ] || _hi_why file
 }
 
 function test_case_keeps_the_progress_file_current() {
@@ -298,7 +359,7 @@ function test_case_keeps_the_progress_file_current() {
     _hi_case _hi_true
     _hi_case _hi_false
   )
-  [ "$(cat "$file")" = "2 1 1" ]
+  [ "$(cat "$file")" = "2 1 1" ] || _hi_why file
 }
 
 function test_case_names_itself_before_it_runs() {
@@ -309,7 +370,7 @@ function test_case_names_itself_before_it_runs() {
   )"
   # a label is cut to a line's worth, and a temp path may be longer
   want="cat $file.case"
-  [ "$seen" = "${want:0:100}" ]
+  [ "$seen" = "${want:0:100}" ] || _hi_why seen want
 }
 
 function test_note_failure_appends_the_label() {
@@ -321,14 +382,14 @@ function test_note_failure_appends_the_label() {
     _hi_note_failure "second case"
   )
   [ "$(cat "$file")" = "first case
-second case" ]
+second case" ] || _hi_why file
 }
 
 function test_note_failure_is_a_noop_without_a_fails_file() {
   (
     unset _HI_FAILS_FILE
     _hi_note_failure "nobody listening"
-  )
+  ) || _hi_why
 }
 
 # run standalone (no runner above it) the helper must do nothing at all,
@@ -337,7 +398,7 @@ function test_report_counts_is_a_noop_without_a_counts_file() {
   (
     unset _HI_COUNTS_FILE
     _hi_report_counts 1 0
-  )
+  ) || _hi_why
 }
 
 function test_report_skip_marks_the_suite_as_skipped() {
@@ -347,14 +408,14 @@ function test_report_skip_marks_the_suite_as_skipped() {
     _HI_COUNTS_FILE="$file"
     _hi_report_skip "no docker"
   )
-  [ "$(cat "$file")" = "SKIP no docker" ]
+  [ "$(cat "$file")" = "SKIP no docker" ] || _hi_why file
 }
 
 function test_report_skip_is_a_noop_without_a_counts_file() {
   (
     unset _HI_COUNTS_FILE
     _hi_report_skip "no docker"
-  )
+  ) || _hi_why
 }
 
 # _hi_require_bin's skip path has to reach the runner, or a suite that never ran
@@ -366,7 +427,7 @@ function test_require_reports_a_skip_for_a_missing_binary() {
     _HI_COUNTS_FILE="$file"
     _hi_require_bin definitely-not-a-real-binary >/dev/null 2>&1
   ) || true
-  [[ "$(cat "$file")" == SKIP* ]]
+  [[ "$(cat "$file")" == SKIP* ]] || _hi_why file
 }
 
 # the counter has to be bumped in the *caller's* shell, so the output goes to
@@ -377,7 +438,7 @@ function test_skip_counts_the_case_without_passing_it() {
   local _HI_SKIPPED=0 _HI_REQUIRE_RUN=0
   _hi_skip "[case]" "no python3" >"$file"
   out="$(cat "$file")"
-  [ "$_HI_SKIPPED" -eq 1 ] && [[ "$out" == *SKIPPED* ]] && [[ "$out" == *"no python3"* ]]
+  [ "$_HI_SKIPPED" -eq 1 ] && [[ "$out" == *SKIPPED* ]] && [[ "$out" == *"no python3"* ]] || _hi_why out _HI_SKIPPED
 }
 
 # $_HI_REQUIRE_RUN is pinned off in every case below that skips something: the
@@ -392,7 +453,7 @@ function test_suite_end_names_the_skipped_cases() {
     _HI_SKIPPED=2
     _hi_suite_end demo
   )" || true
-  [[ "$out" == *"3 cases, 2 skipped"* ]]
+  [[ "$out" == *"3 cases, 2 skipped"* ]] || _hi_why out
 }
 
 # --require-run: a case that never ran is a failure, and the suite has to exit
@@ -407,7 +468,7 @@ function test_suite_end_fails_on_a_skip_under_require_run() {
     _HI_SKIPPED=2
     _hi_suite_end demo
   )" || rc=$?
-  [ "$rc" -eq 2 ] && [[ "$out" == *"stood down"* ]] && [[ "$out" == *"--require-run"* ]]
+  [ "$rc" -eq 2 ] && [[ "$out" == *"stood down"* ]] && [[ "$out" == *"--require-run"* ]] || _hi_why rc out
 }
 
 # a suite that both failed and skipped keeps its own failure wording, with the
@@ -421,7 +482,7 @@ function test_suite_end_adds_skips_to_real_failures() {
     _HI_SKIPPED=1
     _hi_suite_end demo
   )" || rc=$?
-  [ "$rc" -eq 3 ] && [[ "$out" == *"2/5 demo checks FAILED"* ]] && [[ "$out" == *"1 more stood down"* ]]
+  [ "$rc" -eq 3 ] && [[ "$out" == *"2/5 demo checks FAILED"* ]] && [[ "$out" == *"1 more stood down"* ]] || _hi_why rc out
 }
 
 # ...but the tally it hands the runner is unchanged: the cases skipped, they
@@ -438,7 +499,7 @@ function test_require_run_leaves_the_counts_alone() {
     _HI_SKIPPED=2
     _hi_suite_end thing >/dev/null
   ) || true
-  [ "$(cat "$file")" = "4 1 2" ]
+  [ "$(cat "$file")" = "4 1 2" ] || _hi_why file
 }
 
 # the label and the reason are only in hand inside _hi_skip, so that is where
@@ -456,7 +517,7 @@ function test_skip_names_the_case_under_require_run() {
   )
   [[ "$(cat "$fails")" == *"[mise]"* ]] &&
     [[ "$(cat "$fails")" == *"image did not build"* ]] &&
-    [[ "$(cat "$file")" == *SKIPPED* ]]
+    [[ "$(cat "$file")" == *SKIPPED* ]] || _hi_why fails file
 }
 
 function test_suite_end_stays_quiet_with_nothing_skipped() {
@@ -467,7 +528,7 @@ function test_suite_end_stays_quiet_with_nothing_skipped() {
     _HI_SKIPPED=0
     _hi_suite_end demo
   )" || true
-  [[ "$out" == *"3 cases)"* ]] && [[ "$out" != *skipped* ]]
+  [[ "$out" == *"3 cases)"* ]] && [[ "$out" != *skipped* ]] || _hi_why out
 }
 
 function test_suite_end_reports_its_counts() {
@@ -480,7 +541,7 @@ function test_suite_end_reports_its_counts() {
     _HI_SKIPPED=1
     _hi_suite_end thing >/dev/null
   ) || true
-  [ "$(cat "$file")" = "5 2 1" ]
+  [ "$(cat "$file")" = "5 2 1" ] || _hi_why file
 }
 
 # _hi_dump_log prints a log's text, never its *path*: every log is under
@@ -494,7 +555,7 @@ function test_dump_log_prints_the_logs_text() {
   local log="$_HI_WORKDIR/dump.log" out
   printf 'first line\nsecond line\n' >"$log"
   out="$(_hi_dump_log_out "it broke:" "$log")"
-  [[ "$out" == *"first line"* ]] && [[ "$out" == *"second line"* ]]
+  [[ "$out" == *"first line"* ]] && [[ "$out" == *"second line"* ]] || _hi_why out
 }
 
 function test_dump_log_indents_the_text_it_dumps() {
@@ -502,28 +563,28 @@ function test_dump_log_indents_the_text_it_dumps() {
   printf 'a failure\n' >"$log"
   out="$(_hi_dump_log_out "it broke:" "$log")"
   # six spaces, the indent _hi_case_result already dumps transcripts at
-  printf '%s\n' "$out" | grep -qx '      a failure'
+  printf '%s\n' "$out" | grep -qx '      a failure' || _hi_why out
 }
 
 function test_dump_log_prints_its_message() {
   local log="$_HI_WORKDIR/dump.log" out
   printf 'noise\n' >"$log"
   out="$(_hi_dump_log_out "the pod never started:" "$log")"
-  [[ "$out" == *"the pod never started:"* ]]
+  [[ "$out" == *"the pod never started:"* ]] || _hi_why out
 }
 
 function test_dump_log_says_so_when_the_log_is_empty() {
   local log="$_HI_WORKDIR/empty.log" out
   : >"$log"
   out="$(_hi_dump_log_out "it broke:" "$log")"
-  [[ "$out" == *"it broke:"* ]] && [[ "$out" == *"wrote nothing"* ]]
+  [[ "$out" == *"it broke:"* ]] && [[ "$out" == *"wrote nothing"* ]] || _hi_why out
 }
 
 # a command can fail before its redirection ever creates the file
 function test_dump_log_survives_a_missing_log() {
   local out
   out="$(_hi_dump_log_out "it broke:" "$_HI_WORKDIR/never-written.log")"
-  [[ "$out" == *"it broke:"* ]] && [[ "$out" == *"wrote nothing"* ]]
+  [[ "$out" == *"it broke:"* ]] && [[ "$out" == *"wrote nothing"* ]] || _hi_why out
 }
 
 # the path is not printed: it is unlinked before it can be read, so printing
@@ -532,7 +593,7 @@ function test_dump_log_does_not_print_the_path() {
   local log="$_HI_WORKDIR/dump.log" out
   printf 'boom\n' >"$log"
   out="$(_hi_dump_log_out "it broke:" "$log")"
-  [[ "$out" != *"$log"* ]]
+  [[ "$out" != *"$log"* ]] || _hi_why out log
 }
 # _hi_align is the one rule behind every verdict a run prints - the per-case
 # lines here and, through _hi_status_line, the per-suite ones the runner leaves
@@ -546,7 +607,7 @@ function test_align_spans_hi_max_width() {
   export _HI_MAX_WIDTH=60
   out="$(_hi_align_out " | a label" "OK")"
   unset _HI_MAX_WIDTH
-  [ "${#out}" -eq 60 ]
+  [ "${#out}" -eq 60 ] || _hi_why out
 }
 
 # the point of it: two labels of different lengths put their verdict in the
@@ -560,13 +621,13 @@ function test_align_puts_verdicts_in_one_column() {
   # the column each verdict starts in, as the width of everything before it
   short="${short%%OK*}"
   long="${long%%OK*}"
-  [ "${#short}" -eq "${#long}" ]
+  [ "${#short}" -eq "${#long}" ] || _hi_why short long
 }
 
 function test_align_defaults_to_eighty_columns() {
   local out
   out="$(_hi_align_out " | a label" "OK")"
-  [ "${#out}" -eq 80 ]
+  [ "${#out}" -eq 80 ] || _hi_why out
 }
 
 # a label with no room left for its verdict overflows rather than truncating,
@@ -577,7 +638,7 @@ function test_align_overflows_rather_than_truncating() {
   out="$(_hi_align_out " | a label far wider than the width" "OK")"
   unset _HI_MAX_WIDTH
   [[ "$out" == *"a label far wider than the width"* ]] &&
-    [[ "$out" == *"  OK" ]]
+    [[ "$out" == *"  OK" ]] || _hi_why out
 }
 
 function test_align_keeps_the_whole_verdict_together() {
@@ -585,7 +646,7 @@ function test_align_keeps_the_whole_verdict_together() {
   export _HI_MAX_WIDTH=60
   out="$(_hi_align_out " | a case" "SKIPPED (no python3)")"
   unset _HI_MAX_WIDTH
-  [[ "$out" == *"SKIPPED (no python3)" ]]
+  [[ "$out" == *"SKIPPED (no python3)" ]] || _hi_why out
 }
 
 function run_lib_report_tests() {
@@ -624,6 +685,9 @@ function run_lib_report_tests() {
   _hi_check "No-op without a counts file" test_report_counts_is_a_noop_without_a_counts_file
   _hi_check "Each case rewrites the progress tally" test_case_keeps_the_progress_file_current
   _hi_check "Each case names itself before it runs" test_case_names_itself_before_it_runs
+  _hi_check "A slow failure is traced, and a hung rerun ended" test_a_slow_failure_is_traced_and_a_hung_rerun_is_ended
+  _hi_check "A transcript's tail prints as text, or is said to be empty" test_show_transcript_prints_the_tail_as_text
+  _hi_check "An assertion with no words names its statement and values" test_why_names_the_statement_and_its_values
   _hi_check "End reports its counts" test_suite_end_reports_its_counts
   _hi_check "Note_failure appends the label" test_note_failure_appends_the_label
   _hi_check "Note_failure is a no-op standalone" test_note_failure_is_a_noop_without_a_fails_file

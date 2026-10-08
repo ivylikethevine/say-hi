@@ -54,6 +54,7 @@ function _hi_forced_session_is_the_hosts() {
     return 0
   fi
   _hi_h3 " | [$label] -- FAILED: hi's command ran on a forced-command host" "$RED"
+  _hi_show_transcript "the session's transcript" "$file"
   _hi_note_failure "[$label] forced command not detected"
   return 1
 }
@@ -72,6 +73,7 @@ function _hi_installed_session_is_ours() {
     return 0
   fi
   _hi_h3 " | [$label] -- FAILED: the target's own install greeted or ran the session" "$RED"
+  _hi_show_transcript "the session's transcript (one Connected, no Online, a ROOT- line off $install)" "$file"
   _hi_note_failure "[$label] installed target leaked into the session"
   return 1
 }

@@ -211,6 +211,7 @@ function _hi_par_wait() {
       read -r rc skipped <"$_HI_PAR_DIR/$i.res"
     else
       _hi_align " | [$label] -- the case left no verdict (killed, or it exited the subshell)" "FAILED" "$RED"
+      [ -s "$_HI_PAR_DIR/$i.out" ] || printf '      it printed nothing before it went: look for a kill or an exit ahead of its first line\n'
       _hi_note_failure "[$label] left no verdict"
     fi
     # $_HI_TOTAL counts cases that reached a verdict, pass or fail - a skipped

@@ -36,13 +36,13 @@ function _hi_all_lines_are() {
 function test_header_row_joins_cells() {
   local out
   out="$(header_row foo bar baz)"
-  [[ "$out" == *"| foo"* && "$out" == *"| bar"* && "$out" == *"| baz"* ]]
+  [[ "$out" == *"| foo"* && "$out" == *"| bar"* && "$out" == *"| baz"* ]] || _hi_why out
 }
 
 function test_header_row_single_cell() {
   local out
   out="$(header_row solo)"
-  [[ "$out" == *"| solo"* ]]
+  [[ "$out" == *"| solo"* ]] || _hi_why out
 }
 
 # a normal-width terminal still gets one line for a normal row - the wrap
@@ -51,14 +51,14 @@ function test_header_row_default_width_stays_one_line() {
   local out lines
   out="$(header_row foo bar baz)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  [ "$lines" -eq 1 ]
+  [ "$lines" -eq 1 ] || _hi_why lines
 }
 
 function test_header_row_wraps_at_max_width() {
   local out lines
   out="$(_HI_MAX_WIDTH=1 header_row foo bar baz)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  [ "$lines" -ge 2 ]
+  [ "$lines" -ge 2 ] || _hi_why lines
 }
 
 # wrapping happens between cells, never inside one - every original cell's
@@ -66,7 +66,7 @@ function test_header_row_wraps_at_max_width() {
 function test_header_row_wrap_keeps_cells_intact() {
   local out
   out="$(_HI_MAX_WIDTH=5 header_row alpha beta gamma)"
-  [[ "$out" == *alpha* && "$out" == *beta* && "$out" == *gamma* ]]
+  [[ "$out" == *alpha* && "$out" == *beta* && "$out" == *gamma* ]] || _hi_why out
 }
 
 # --- the right edge: a row ends in the banner's column, not just a pipe ---
@@ -74,13 +74,13 @@ function test_header_row_wrap_keeps_cells_intact() {
 function test_header_row_closes_at_default_width() {
   local out
   out="$(header_row foo bar baz)"
-  _hi_all_lines_are "$out" 80
+  _hi_all_lines_are "$out" 80 || _hi_why out
 }
 
 function test_header_row_closes_at_narrow_width() {
   local out
   out="$(_HI_MAX_WIDTH=40 header_row cell-one-x cell-two-x cell-three cell-four- cell-five-)"
-  _hi_all_lines_are "$out" 40
+  _hi_all_lines_are "$out" 40 || _hi_why out
 }
 
 # every wrapped continuation line closes too, not only the first
@@ -88,7 +88,7 @@ function test_header_row_closes_every_wrapped_line() {
   local out lines
   out="$(_HI_MAX_WIDTH=24 header_row aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  [ "$lines" -ge 3 ] && _hi_all_lines_are "$out" 24
+  { [ "$lines" -ge 3 ] && _hi_all_lines_are "$out" 24; } || _hi_why lines out
 }
 
 # $_HI_DISABLE_RIGHT_EDGE gives back the open-ended row: no closing pipe, and
@@ -99,9 +99,9 @@ function test_disable_right_edge_gives_back_the_open_row() {
   local line n
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || return 1
+    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || _hi_why line || return 1
     _hi_visible_width n "$(_hi_strip_ansi "$line")"
-    ((n < 40)) || return 1
+    ((n < 40)) || _hi_why || return 1
   done <<<"$out"
 }
 
@@ -109,7 +109,7 @@ function test_disable_right_edge_gives_back_the_open_row() {
 function test_hi_visible_width_strips_a_leading_color() {
   local n
   _hi_visible_width n "${GREEN}hi"
-  [ "$n" -eq 2 ]
+  [ "$n" -eq 2 ] || _hi_why n
 }
 
 # Columns, never bytes. The header packs by this number, so where ${#}
@@ -119,7 +119,7 @@ function test_hi_visible_width_strips_a_leading_color() {
 function test_hi_visible_width_counts_columns_not_bytes() {
   local n
   _hi_visible_width n "abc●●●"
-  [ "$n" = 6 ]
+  [ "$n" = 6 ] || _hi_why n
 }
 
 # ...and the byte-counting branch itself, forced on, so the case exercises it
@@ -130,13 +130,13 @@ function test_hi_visible_width_counts_columns_where_length_counts_bytes() {
     _HI_BYTE_COUNTS=1
     _hi_visible_width n "${GREEN}abc●●●"
     [ "$n" = 6 ]
-  )
+  ) || _hi_why n
 }
 
 function test_hi_visible_width_plain_text_unchanged() {
   local n
   _hi_visible_width n "hi"
-  [ "$n" -eq 2 ]
+  [ "$n" -eq 2 ] || _hi_why n
 }
 
 # the width math has to be off the visible length, not the byte length - two
@@ -146,7 +146,7 @@ function test_header_row_width_ignores_color_escape_bytes() {
   local out lines
   out="$(_HI_MAX_WIDTH=20 header_row "${GREEN}short" "${RED}text")"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  [ "$lines" -eq 1 ]
+  [ "$lines" -eq 1 ] || _hi_why lines
 }
 
 # _hi_draw_width's own contract: captured output (this whole suite runs
@@ -155,7 +155,7 @@ function test_header_row_width_ignores_color_escape_bytes() {
 function test_hi_draw_width_defaults_to_max_width_when_captured() {
   local n
   n="$(_HI_MAX_WIDTH=42 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
-  [ "$n" = 42 ]
+  [ "$n" = 42 ] || _hi_why n
 }
 
 # $_HI_TERM_COLS is a deliberate override - it wins whether or not stdout is
@@ -164,7 +164,7 @@ function test_hi_draw_width_defaults_to_max_width_when_captured() {
 function test_hi_draw_width_honors_an_explicit_override() {
   local n
   n="$(_HI_MAX_WIDTH=80 _HI_TERM_COLS=30 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
-  [ "$n" = 30 ]
+  [ "$n" = 30 ] || _hi_why n
 }
 
 # the terminal only ever narrows the draw width, never widens it past
@@ -172,7 +172,7 @@ function test_hi_draw_width_honors_an_explicit_override() {
 function test_hi_draw_width_never_widens_past_max_width() {
   local n
   n="$(_HI_MAX_WIDTH=40 _HI_TERM_COLS=200 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
-  [ "$n" = 40 ]
+  [ "$n" = 40 ] || _hi_why n
 }
 
 # header_row wraps at the narrower of the two - the point of the whole
@@ -182,7 +182,7 @@ function test_header_row_wraps_at_hi_term_cols_override() {
   local out lines
   out="$(_HI_MAX_WIDTH=80 _HI_TERM_COLS=10 header_row alpha beta gamma)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  [ "$lines" -eq 3 ]
+  [ "$lines" -eq 3 ] || _hi_why lines
 }
 
 # Armed (hi_header's own row loop), a row that overflows hands the rest
@@ -199,7 +199,7 @@ function test_header_row_armed_carries_overflow_to_the_next_call() {
   out="$(cat "$outfile")"
   [[ "$out" == *alpha* ]] && [[ "$out" != *beta* ]] && [[ "$out" != *gamma* ]] &&
     [ "${#_HI_ROW_CARRY[@]}" -eq 2 ] &&
-    [ "${_HI_ROW_CARRY[0]}" = beta ] && [ "${_HI_ROW_CARRY[1]}" = gamma ]
+    [ "${_HI_ROW_CARRY[0]}" = beta ] && [ "${_HI_ROW_CARRY[1]}" = gamma ] || _hi_why out _HI_ROW_CARRY
 }
 
 # ...and the carried cells reach the very next header_row call, prepended
@@ -209,7 +209,7 @@ function test_header_row_armed_carry_opens_the_next_row() {
   local -a _HI_ROW_CARRY=()
   _HI_MAX_WIDTH=10 header_row alpha beta gamma >/dev/null
   out="$(header_row delta)"
-  [[ "$out" == *beta* ]] && [[ "$out" == *gamma* ]] && [[ "$out" == *delta* ]]
+  [[ "$out" == *beta* ]] && [[ "$out" == *gamma* ]] && [[ "$out" == *delta* ]] || _hi_why out
 }
 
 # unarmed - every caller but hi_header's own loop - a row still drains
@@ -219,7 +219,7 @@ function test_header_row_unarmed_leaves_no_carry_behind() {
   local _HI_ROW_CARRY_ARMED=0
   local -a _HI_ROW_CARRY=()
   _HI_MAX_WIDTH=5 header_row alpha beta gamma >/dev/null
-  [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
+  [ "${#_HI_ROW_CARRY[@]}" -eq 0 ] || _hi_why _HI_ROW_CARRY
 }
 
 # _hi_row_line's own documented contract: zero cells is a no-op, not an empty
@@ -228,7 +228,7 @@ function test_header_row_unarmed_leaves_no_carry_behind() {
 function test_row_line_returns_1_and_prints_nothing_for_zero_cells() {
   local out ec=0
   out="$(_hi_row_line)" || ec=$?
-  [ "$ec" -eq 1 ] && [ -z "$out" ]
+  [ "$ec" -eq 1 ] && [ -z "$out" ] || _hi_why ec out
 }
 
 # _hi_header_flush's termination argument, proven rather than assumed: three
@@ -241,7 +241,7 @@ function test_header_flush_drains_across_multiple_overflow_rounds() {
   out="$(cat "$outfile")"
   lines="$(printf '%s\n' "$out" | grep -c .)"
   [[ "$out" == *alpha* && "$out" == *beta* && "$out" == *gamma* ]] &&
-    [ "$lines" -eq 3 ] && [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
+    [ "$lines" -eq 3 ] && [ "${#_HI_ROW_CARRY[@]}" -eq 0 ] || _hi_why out lines _HI_ROW_CARRY
 }
 
 function test_timestamp_runs_and_has_three_cells() {
@@ -250,7 +250,7 @@ function test_timestamp_runs_and_has_three_cells() {
   # four pipes for three cells: the one that opens the row, the two that join
   # the cells, and the one that closes it on the right - and that last one
   # sits in the banner's own column, not merely somewhere in the row
-  [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 4 ] && _hi_all_lines_are "$out" 80
+  { [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 4 ] && _hi_all_lines_are "$out" 80; } || _hi_why out
 }
 
 # the version is the middle cell, between the two clocks, and is printed bare
@@ -259,7 +259,7 @@ function test_timestamp_runs_and_has_three_cells() {
 function test_timestamp_puts_the_version_between_the_clocks() {
   local out
   out="$(NC='' GREEN='' BRBLUE='' BRYELLOW='' _HI_RELEASE=1.2.3 timestamp)"
-  [ "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" = "1.2.3" ] && [[ "$out" != *"say-hi"* ]]
+  [ "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" = "1.2.3" ] && [[ "$out" != *"say-hi"* ]] || _hi_why out
 }
 
 # ...and a shell with no stamp still gets one: this checkout answers with git
@@ -267,7 +267,7 @@ function test_timestamp_puts_the_version_between_the_clocks() {
 function test_timestamp_version_falls_back_without_a_stamp() {
   local out
   out="$(NC='' GREEN='' BRBLUE='' BRYELLOW='' _HI_RELEASE="" timestamp)"
-  [ -n "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" ]
+  [ -n "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" ] || _hi_why out
 }
 
 # _hi_header_version's own memo - "resolved once per shell (the row prints
@@ -282,7 +282,7 @@ function test_header_version_resolves_once_per_shell() {
     _HI_RELEASE=2.0.0 # a later change must not reach an already-memoized version
     _hi_header_version >/dev/null
     [ "$_HI_HEADER_VERSION" = "$first" ] && [ "$first" = 1.0.0 ]
-  )
+  ) || _hi_why -6 first _HI_HEADER_VERSION
 }
 
 # the header cell itself carries the shortened form, not just the helper in
@@ -292,7 +292,7 @@ function test_timestamp_version_cell_is_shortened() {
   out="$(NC='' GREEN='' BRBLUE='' BRYELLOW='' _HI_RELEASE="" timestamp)"
   version="$(cut -d'|' -f3 <<<"$out" | tr -d ' ')"
   [[ "$version" != *-g[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]* && "$version" != *-dirty ]] &&
-    [ "${#version}" -le 10 ]
+    [ "${#version}" -le 10 ] || _hi_why version
 }
 
 # The two row renders the suite asserts on, kept here rather than in header.sh
@@ -332,14 +332,14 @@ eval "$_HI_ROW_FNS"
 function test_system_info_includes_static_labels() {
   local out
   out="$(_hi_sysinfo_row)"
-  [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]]
+  [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]] || _hi_why out
 }
 
 # the uptime cell is an identity-group word - the sysinfo row must not carry it
 function test_system_info_does_not_show_uptime() {
   local out
   out="$(_hi_sysinfo_row)"
-  [[ "$out" != *"Up:"* ]]
+  [[ "$out" != *"Up:"* ]] || _hi_why out
 }
 
 # GHz is the only format the CPU cell renders now - one pin so a regression
@@ -347,7 +347,7 @@ function test_system_info_does_not_show_uptime() {
 function test_system_info_cpu_cell_is_ghz() {
   local out
   out="$(_hi_sysinfo_row)"
-  [[ "$out" == *"GHz"* ]]
+  [[ "$out" == *"GHz"* ]] || _hi_why out
 }
 
 # the CPU cell sits right after Cores:, with RAM: behind it
@@ -357,8 +357,8 @@ function test_system_info_cpu_cell_sits_next_to_cores() {
   cores_pos="$(_hi_pos "$out" "Cores:")"
   cpu_pos="$(_hi_pos "$out" "CPU:")"
   ram_pos="$(_hi_pos "$out" "RAM:")"
-  [ -n "$cores_pos" ] && [ -n "$cpu_pos" ] && [ -n "$ram_pos" ] &&
-    ((cores_pos < cpu_pos)) && ((cpu_pos < ram_pos))
+  { [ -n "$cores_pos" ] && [ -n "$cpu_pos" ] && [ -n "$ram_pos" ] &&
+    ((cores_pos < cpu_pos)) && ((cpu_pos < ram_pos)); } || _hi_why cores_pos cpu_pos ram_pos
 }
 
 # _hi_ghz's own contract, from its comment: rounded to tenths *before*
@@ -368,11 +368,11 @@ function test_system_info_cpu_cell_sits_next_to_cores() {
 function test_ghz_rounds_the_carry_into_the_whole_digit() {
   local out
   _hi_ghz out 2950
-  [ "$out" = 3.0 ] || return 1
+  [ "$out" = 3.0 ] || _hi_why out || return 1
   _hi_ghz out 2949
-  [ "$out" = 2.9 ] || return 1
+  [ "$out" = 2.9 ] || _hi_why out || return 1
   _hi_ghz out 2100
-  [ "$out" = 2.1 ]
+  [ "$out" = 2.1 ] || _hi_why out
 }
 
 # _hi_load_pct's own contract: load divided by cores, rounded to a whole
@@ -381,7 +381,7 @@ function test_ghz_rounds_the_carry_into_the_whole_digit() {
 function test_hi_load_pct_divides_load_by_cores() {
   local out
   _hi_load_pct out 2.00 4
-  [ "$out" = 50 ]
+  [ "$out" = 50 ] || _hi_why out
 }
 
 # _hi_load_pct_out <load> <cores> - _hi_load_pct's out-variable on stdout, so
@@ -397,7 +397,7 @@ function _hi_load_pct_out() {
 function test_uptime_cell_is_humanized() {
   local out
   _hi_cell_uptime out
-  [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
+  [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]] || _hi_why out
 }
 
 # _hi_cell_ip: dotted-quad addresses joined with ", ", or "?" - the shape is
@@ -407,7 +407,7 @@ function test_ip_cell_has_a_shape() {
   # none: in a container the only address is often docker's 172.*, hidden by
   # default, and an empty cell has no shape to check
   _HI_IP_HIDE=none _hi_cell_ip out
-  [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,\ [0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
+  [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,\ [0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]] || _hi_why out
 }
 
 # used/total, one unit on total only ("6/60G", not "6G/60G" - the used
@@ -420,7 +420,7 @@ function test_ip_cell_has_a_shape() {
 function test_system_info_ram_cell_is_used_over_total() {
   local out
   out="$(_hi_sysinfo_row)"
-  [[ "$out" =~ RAM:\ ([0-9]+/[0-9]+G|[0-9]+G|\?) ]] && [[ "$out" != *"G/"* ]]
+  [[ "$out" =~ RAM:\ ([0-9]+/[0-9]+G|[0-9]+G|\?) ]] && [[ "$out" != *"G/"* ]] || _hi_why out
 }
 
 # the load-average figure, when a probe answers, rides in parens right after
@@ -433,7 +433,7 @@ function test_system_info_load_rides_the_cores_cell() {
   local out load
   out="$(_hi_sysinfo_row)"
   load="$(printf '%s' "$out" | sed -n 's/.*Cores: [0-9?]* (\([^)]*\)).*/\1/p')"
-  [[ -z "$load" || "$load" =~ ^[0-9]+%$ ]]
+  [[ -z "$load" || "$load" =~ ^[0-9]+%$ ]] || _hi_why load
 }
 
 # ...and the GHz cell carries nothing of its own in parens - the one
@@ -441,13 +441,13 @@ function test_system_info_load_rides_the_cores_cell() {
 function test_system_info_cpu_cell_has_no_parenthetical() {
   local out
   out="$(_hi_sysinfo_row)"
-  [[ "$out" != *"GHz ("* ]]
+  [[ "$out" != *"GHz ("* ]] || _hi_why out
 }
 
 function test_identity_includes_static_labels() {
   local out
   out="$(_hi_identity_row)"
-  [[ "$out" == *"Auth:"* && "$out" == *"Pub:"* ]]
+  [[ "$out" == *"Auth:"* && "$out" == *"Pub:"* ]] || _hi_why out
 }
 
 # uptime rides at the end of the identity row, after Auth:/Pub: - not a
@@ -458,8 +458,8 @@ function test_identity_includes_uptime_cell_last() {
   auth_pos="$(_hi_pos "$out" "Auth:")"
   pub_pos="$(_hi_pos "$out" "Pub:")"
   up_pos="$(_hi_pos "$out" "Up:")"
-  [ -n "$auth_pos" ] && [ -n "$pub_pos" ] && [ -n "$up_pos" ] &&
-    ((auth_pos < pub_pos)) && ((pub_pos < up_pos))
+  { [ -n "$auth_pos" ] && [ -n "$pub_pos" ] && [ -n "$up_pos" ] &&
+    ((auth_pos < pub_pos)) && ((pub_pos < up_pos)); } || _hi_why auth_pos pub_pos up_pos
 }
 
 # A restricted PATH with just what the identity cells/_hi_probe_launch need, and none
@@ -534,7 +534,7 @@ function _hi_identity_with() {
 function test_identity_hides_all_backend_cells_when_none_found() {
   local out
   out="$(_hi_identity_with "$(_hi_identity_path)")"
-  [[ "$out" != *"Containers:"* && "$out" != *"Jobs:"* && "$out" != *"Pods:"* && "$out" != *"docker/podman"* ]]
+  [[ "$out" != *"Containers:"* && "$out" != *"Jobs:"* && "$out" != *"Pods:"* && "$out" != *"docker/podman"* ]] || _hi_why out
 }
 
 # test_identity_shows_count <backend> <n> <label> - once found, the count
@@ -543,7 +543,7 @@ function test_identity_hides_all_backend_cells_when_none_found() {
 function test_identity_shows_count() {
   local shim
   if [ "$1" = kube ]; then shim="$(_hi_kube_shim "$2")"; else shim="$(_hi_backend_shim "$1" "$2")"; fi
-  [[ "$(_hi_identity_with "$shim")" == *"$3: $2"* ]]
+  [[ "$(_hi_identity_with "$shim")" == *"$3: $2"* ]] || _hi_why shim
 }
 
 # shellcheck disable=SC2209 # the literal command name "sh" is intentional, not a botched `sh` invocation
@@ -569,7 +569,7 @@ function test_hi_header_closes_every_line() {
     _HI_PACKAGES="$(_hi_pkg_one close-e2e "$_HI_REAL_CMD = []\nbash = []\n")" \
     _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime uptime check" hi_header Connected
   )"
-  _hi_all_lines_are "$out" 40
+  _hi_all_lines_are "$out" 40 || _hi_why out
 }
 
 # ...and hi_footer's banner-plus-timestamp shape closes the same way
@@ -579,7 +579,7 @@ function test_hi_footer_closes_every_line() {
     unset _HI_BANNER_HOST
     _HI_MAX_WIDTH=40 _HI_HEADER_ORDER="utc version localtime" hi_footer Disconnected
   )"
-  _hi_all_lines_are "$out" 40
+  _hi_all_lines_are "$out" 40 || _hi_why out
 }
 
 # _hi_pos <haystack> <needle> - the byte offset of the first match, or empty
@@ -605,7 +605,7 @@ function test_full_check_closes_every_row_at_max_width() {
     full_check
   )"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  [ "$lines" -ge 2 ] && _hi_all_lines_are "$out" 12
+  { [ "$lines" -ge 2 ] && _hi_all_lines_are "$out" 12; } || _hi_why lines out
 }
 
 # the carry rides in full_check's own edge too - the path that lost it before
@@ -618,7 +618,7 @@ function test_full_check_closes_a_row_that_absorbed_a_carry() {
     _HI_MAX_WIDTH=20
     full_check
   )"
-  _hi_all_lines_are "$out" 20
+  _hi_all_lines_are "$out" 20 || _hi_why out
 }
 
 function test_full_check_right_edge_disabled_stays_under_max_width() {
@@ -631,9 +631,9 @@ function test_full_check_right_edge_disabled_stays_under_max_width() {
   )"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || return 1
+    [[ "$(_hi_strip_ansi "$line")" != *"|" ]] || _hi_why line || return 1
     _hi_visible_width n "$(_hi_strip_ansi "$line")"
-    ((n < 20)) || return 1
+    ((n < 20)) || _hi_why || return 1
   done <<<"$out"
 }
 

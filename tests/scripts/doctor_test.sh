@@ -130,14 +130,14 @@ function test_local_without_a_git_dir_reads_as_a_package_install() {
   local root out
   root="$(_hi_scratch_tree nogit common config scripts hi.sh load.sh)/say-hi"
   out="$(_HI_ROOT="$root" doctor_local 2>/dev/null)"
-  [[ "$out" == *"no .git - a package or tarball install"* ]]
+  [[ "$out" == *"no .git - a package or tarball install"* ]] || _hi_why out
 }
 
 # the version row carries whatever _hi_version answers (a stamp here)
 function test_local_reports_the_version() {
   local out
   out="$(_HI_RELEASE=1.2.3 doctor_local)"
-  [[ "$out" == *version* && "$out" == *"1.2.3"* ]]
+  [[ "$out" == *version* && "$out" == *"1.2.3"* ]] || _hi_why out
 }
 
 # The tool-floor branches: only the happy path (everything present) is ever
@@ -147,8 +147,8 @@ function test_local_reports_missing_floor_tools() {
   local out
   out="$(PATH="$(_hi_real_path nofloor sh bash awk grep sed printf mktemp rm cat wc tr \
     sleep timeout du date find git zsh fish)" doctor_local)"
-  [[ "$out" == *"MISSING locally: base64 tar"* ]] || return 1
-  [[ "$out" == *"unknown - needs base64 tar to measure"* ]]
+  [[ "$out" == *"MISSING locally: base64 tar"* ]] || _hi_why out || return 1
+  [[ "$out" == *"unknown - needs base64 tar to measure"* ]] || _hi_why out
 }
 
 # The two verdicts a gzip-less client gets, and which one it gets is a question
@@ -182,7 +182,7 @@ function _hi_nogzip_tar() {
 function test_local_warns_without_gzip() {
   local out
   out="$(PATH="$(_hi_nogzip_tar 0):$(_hi_nogzip_path)" doctor_local)"
-  [[ "$out" == *" tar present, no gzip (your tar compresses on its own - a padded payload, not a broken one)"* ]]
+  [[ "$out" == *" tar present, no gzip (your tar compresses on its own - a padded payload, not a broken one)"* ]] || _hi_why out
 }
 
 # ...and a tar that shells out to gzip for -z has nothing to fall back on, so
@@ -190,26 +190,26 @@ function test_local_warns_without_gzip() {
 function test_local_flags_a_gzip_that_nothing_can_replace() {
   local out
   out="$(PATH="$(_hi_nogzip_tar 1):$(_hi_nogzip_path)" doctor_local)"
-  [[ "$out" == *"MISSING locally: gzip"* ]] || return 1
-  [[ "$out" == *"unknown - needs gzip to measure"* ]]
+  [[ "$out" == *"MISSING locally: gzip"* ]] || _hi_why out || return 1
+  [[ "$out" == *"unknown - needs gzip to measure"* ]] || _hi_why out
 }
 
 function test_backend_missing_reports_not_installed() {
   local out
   out="$(PATH="$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
-  [[ "$out" == *"not installed"* ]]
+  [[ "$out" == *"not installed"* ]] || _hi_why out
 }
 
 function test_backend_answering_reports_timing() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend docker docker ps -q)"
-  [[ "$out" == *"answering"* && "$out" == *s\)* ]]
+  [[ "$out" == *"answering"* && "$out" == *s\)* ]] || _hi_why out
 }
 
 function test_backend_dead_reports_not_answering() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _hi_doc_rows doctor_backend podman podman ps -q)"
-  [[ "$out" == *"not answering"* ]]
+  [[ "$out" == *"not answering"* ]] || _hi_why out
 }
 
 # the ssh row counts literal Host names through targets.sh: two here, and a
@@ -218,7 +218,7 @@ function test_backends_count_literal_ssh_hosts() {
   local cfg="$_HI_WORKDIR/ssh_config" out
   printf 'Host alpha beta\n  HostName 192.0.2.1\nHost *.wild\n' >"$cfg"
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG="$cfg" doctor_backends)"
-  [[ "$out" == *"2 literal host(s) in $(_hi_doc_path "$cfg")"* ]]
+  [[ "$out" == *"2 literal host(s) in $(_hi_doc_path "$cfg")"* ]] || _hi_why out cfg
 }
 
 # _hi_doc_path <path> - <path> as the boxed report writes it: ~ for $HOME, so
@@ -234,9 +234,9 @@ function _hi_doc_path() {
 # row: quotes and backslashes escaped, control characters flattened to spaces
 function test_json_str_escapes_and_flattens() {
   local s
-  _hi_json_str s 'plain text' && [ "$s" = '"plain text"' ] || return 1
-  _hi_json_str s 'a "quoted" \path' && [ "$s" = '"a \"quoted\" \\path"' ] || return 1
-  _hi_json_str s $'two\nlines\tand tab\rcr' && [ "$s" = '"two lines and tab cr"' ]
+  _hi_json_str s 'plain text' && [ "$s" = '"plain text"' ] || _hi_why s || return 1
+  _hi_json_str s 'a "quoted" \path' && [ "$s" = '"a \"quoted\" \\path"' ] || _hi_why s || return 1
+  _hi_json_str s $'two\nlines\tand tab\rcr' && [ "$s" = '"two lines and tab cr"' ] || _hi_why s
 }
 
 # severity is doctor_row's own argument: bad counts as a finding, the rest
@@ -251,7 +251,7 @@ function test_doctor_row_counts_only_bad() {
     doctor_row d "plain"
     echo "bad=$_HI_DOC_BAD"
   )"
-  case "$out" in *'bad=1'*) ;; *) return 1 ;; esac
+  case "$out" in *'bad=1'*) ;; *) _hi_why out || return 1 ;; esac
   out="$(
     _HI_DOC_JSON=1
     _HI_DOC_ROWS=""
@@ -284,9 +284,9 @@ function test_doctor_row_marks_each_severity() {
     doctor_flush
   )"
   out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *"$v $_HI_MARK_OK $v a "*"$v ! $v b "*"$v $_HI_MARK_NO $v c "*"$v   $v d "* ]] || return 1
-  [[ "$out" == *"$v + $v e "*"$v x $v f "* ]] || return 1
-  _hi_table_is_rectangular "$out"
+  [[ "$out" == *"$v $_HI_MARK_OK $v a "*"$v ! $v b "*"$v $_HI_MARK_NO $v c "*"$v   $v d "* ]] || _hi_why out v _HI_MARK_OK _HI_MARK_NO || return 1
+  [[ "$out" == *"$v + $v e "*"$v x $v f "* ]] || _hi_why out v || return 1
+  _hi_table_is_rectangular "$out" || _hi_why out
 }
 
 # --problems' box gathers the warn and bad rows of every section, labeled
@@ -297,7 +297,7 @@ function test_findings_box_holds_only_warn_and_bad() {
   [ -z "$(
     _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
     doctor_findings
-  )" ] || return 1
+  )" ] || _hi_why || return 1
   out="$(
     _HI_DOC_BAD=0 _HI_DOC_WARN=0
     _HI_DOC_F_LABEL=() _HI_DOC_F_TEXT=() _HI_DOC_F_SEV=()
@@ -315,10 +315,10 @@ function test_findings_box_holds_only_warn_and_bad() {
     doctor_findings
   )"
   out="$(_hi_strip_ansi "${out#*--findings--}")"
-  [[ "$out" == *"Findings: 1 bad, 1 warn"* ]] || return 1
-  [[ "$out" == *"one/b"*"meh"*"the detail under meh"*"two/c"*"broken"* ]] || return 1
-  [[ "$out" != *"one/a"* && "$out" != *fine* && "$out" != *plain* ]] || return 1
-  _hi_table_is_rectangular "$out"
+  [[ "$out" == *"Findings: 1 bad, 1 warn"* ]] || _hi_why out || return 1
+  [[ "$out" == *"one/b"*"meh"*"the detail under meh"*"two/c"*"broken"* ]] || _hi_why out || return 1
+  [[ "$out" != *"one/a"* && "$out" != *fine* && "$out" != *plain* ]] || _hi_why out || return 1
+  _hi_table_is_rectangular "$out" || _hi_why out
 }
 
 # On a terminal (or with $_HI_TERM_COLS pinned, as here) a row too long for
@@ -335,19 +335,19 @@ function test_a_long_row_wraps_to_the_terminal() {
     doctor_flush
   )"
   out="$(_hi_strip_ansi "$out")"
-  _hi_table_is_rectangular "$out" || return 1
+  _hi_table_is_rectangular "$out" || _hi_why out || return 1
   while IFS= read -r line; do
     _hi_visible_len n "$line"
-    [ "$n" -le 50 ] || return 1
+    [ "$n" -le 50 ] || _hi_why n || return 1
   done <<<"$out"
-  [[ "$out" == *word1*word18* ]] || return 1
-  [ "$(printf '%s\n' "$out" | grep -c 'xxxx')" -ge 2 ]
+  [[ "$out" == *word1*word18* ]] || _hi_why out || return 1
+  [ "$(printf '%s\n' "$out" | grep -c 'xxxx')" -ge 2 ] || _hi_why out
 }
 
 function test_missing_tools_lists_only_the_absent() {
   local out
   out="$(PATH="$(_hi_fake_path doctools sh present-tool)" _hi_missing_tools present-tool absent-tool-9x other-absent-8y)"
-  [ "$out" = "absent-tool-9x other-absent-8y" ]
+  [ "$out" = "absent-tool-9x other-absent-8y" ] || _hi_why out
 }
 
 function test_ladder_first_picks_in_ladder_order() {
@@ -359,15 +359,15 @@ function test_ladder_first_picks_in_ladder_order() {
       ;;
     esac
   done
-  [ -n "$want" ] || return 1
-  [ "$(_hi_ladder_first "dash zsh fish")" = "$want" ] || return 1
-  [ -z "$(_hi_ladder_first "nothing known")" ]
+  [ -n "$want" ] || _hi_why want || return 1
+  [ "$(_hi_ladder_first "dash zsh fish")" = "$want" ] || _hi_why want || return 1
+  [ -z "$(_hi_ladder_first "nothing known")" ] || _hi_why
 }
 
 # the probe snippet is sh the target runs; here the target is this box
 function test_doctor_probe_snippet_runs_under_sh() {
   local out
-  out="$(sh -c "$(_hi_doctor_probe_snippet)")" || return 1
+  out="$(sh -c "$(_hi_doctor_probe_snippet)")" || _hi_why || return 1
   case " $out " in *' bash '*) return 0 ;; esac
   return 1
 }

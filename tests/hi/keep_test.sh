@@ -266,7 +266,7 @@ function test_keep_leaves_a_command_and_no_keep_alone() {
   for out in "$(_hi_keep_script_for 1 'ls; exit')" "$(_hi_keep_script_for 0 '')"; do
     [[ "$out" != *_hi_kept* && "$out" != *attach-session* && "$out" != *_HI_KEEP_AS* && "$out" != *hi.kept* &&
       "$out" != *'exit 86'* &&
-      "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || return 1
+      "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_why out _HI_CLEANUP || return 1
   done
 }
 
@@ -301,8 +301,8 @@ function test_kept_asks_tmux_then_zellij_then_screen() {
 # dead (screen) or exited (zellij, which would resurrect it), are not this
 # target's
 function test_kept_passes_over_a_dead_or_longer_named_session() {
-  [ "$(_hi_kept_answer _HI_TEST_SCREENS='\t7.hi-box\t(Dead ???)\n\t8.hi-boxes\t(Detached)\n')" = "1||" ] || return 1
-  [ "$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 1h ago] (EXITED - attach to resurrect)\nhi-boxes [Created 2s ago] \n')" = "1||" ]
+  [ "$(_hi_kept_answer _HI_TEST_SCREENS='\t7.hi-box\t(Dead ???)\n\t8.hi-boxes\t(Detached)\n')" = "1||" ] || _hi_why || return 1
+  [ "$(_hi_kept_answer _HI_TEST_ZELLIJ='hi-box [Created 1h ago] (EXITED - attach to resurrect)\nhi-boxes [Created 2s ago] \n')" = "1||" ] || _hi_why
 }
 
 function test_keep_attaches_a_kept_session_and_stops() {
@@ -323,7 +323,7 @@ function test_keep_attach_needs_a_terminal() {
   local out
   out="$(_hi_keep_sh "$_HI_WORKDIR/notty.log" "$(DOMAIN=box KEEP="" CMDARG="" _hi_keep_attach)
 echo UNPACKED" _HI_TEST_HAS=0)"
-  [[ "$out" == *UNPACKED* && "$out" != *attach-session* ]]
+  [[ "$out" == *UNPACKED* && "$out" != *attach-session* ]] || _hi_why out
 }
 
 # the pane's variables ride as an env argv, and the multiplexer's own
@@ -391,7 +391,7 @@ function test_keep_start_reads_the_carried_zellij_config() {
 function test_keep_start_without_a_terminal_is_the_plain_handoff() {
   local out
   out="$(_hi_keep_sh "$_HI_WORKDIR/startnotty.log" "$(_hi_keep_start_script)")"
-  [[ "$out" == *"BASH --rcfile /t/say-hi/hi.bashrc -i"* && "$out" != *new-session* && "$out" != *"--keep needs"* ]]
+  [[ "$out" == *"BASH --rcfile /t/say-hi/hi.bashrc -i"* && "$out" != *new-session* && "$out" != *"--keep needs"* ]] || _hi_why out
 }
 
 function test_keep_start_without_a_multiplexer_holds_the_tree() {
@@ -582,7 +582,7 @@ function test_keep_connect_keeps_the_record_by_the_script_s_status() {
   rm -f "$XDG_RUNTIME_DIR"/hi.kept.*
   out="$(_hi_keep_connect_run 1 '' 0 255:1)"
   [[ "$out" == *"rc=255 calls=1 record=1 said=0 seen=0" ]] || _hi_because "a keeping connect that dropped: $out"
-  rm -f "$XDG_RUNTIME_DIR"/hi.kept.*
+  rm -f "$XDG_RUNTIME_DIR"/hi.kept.* || _hi_why out XDG_RUNTIME_DIR
 }
 
 # at a terminal, a multiplexer's pane or none, a session that drops with the
@@ -620,7 +620,7 @@ function test_keep_connect_gives_up_after_the_window() {
   [[ "$out" == *"rc=255 calls=4 "* ]] || _hi_because "a retry that dropped at once restarted the window: $out" || return 1
   out="$(_HI_KEEP_RETRY=soon _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
   [[ "$out" == *"retrying for 5m,"* ]] || _hi_because "a window hi cannot read: $out"
-  rm -f "$XDG_RUNTIME_DIR"/hi.kept.*
+  rm -f "$XDG_RUNTIME_DIR"/hi.kept.* || _hi_why out XDG_RUNTIME_DIR
 }
 
 # a connect that keeps, or comes back to a kept session, asks ssh for a
@@ -846,7 +846,7 @@ function test_keep_alone_is_a_session_s_and_an_error_elsewhere() {
 function test_keep_scripts_quote_the_target() {
   local out mean='a$(id)b'\''c'
   out="$(DOMAIN="$mean" KEEP=1 CMDARG="" _hi_keep_attach)$(DOMAIN="$mean" KEEP=1 CMDARG="" _hi_keep_start)"
-  [[ "$out" == *"'a\$(id)b'\\''c'"* && "$out" == *"_hi_kn='hi-a--id-b-c'"* ]]
+  [[ "$out" == *"'a\$(id)b'\\''c'"* && "$out" == *"_hi_kn='hi-a--id-b-c'"* ]] || _hi_why out
 }
 
 function run_hi_keep_tests() {

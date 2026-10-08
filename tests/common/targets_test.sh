@@ -223,30 +223,30 @@ function _hi_has_row() {
 function test_multi_alias_host_yields_one_row_each() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" ssh)"
-  _hi_has_row "$out" alpha ssh && _hi_has_row "$out" beta ssh
+  { _hi_has_row "$out" alpha ssh && _hi_has_row "$out" beta ssh; } || _hi_why out
 }
 
 function test_wildcard_patterns_are_skipped() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" ssh)"
-  ! printf '%s\n' "$out" | grep -qE '^(\*|web-\?)'
+  ! printf '%s\n' "$out" | grep -qE '^(\*|web-\?)' || _hi_why out
 }
 
 function test_lowercase_host_keyword_is_matched() {
-  _hi_has_row "$(_hi_targets "$_HI_CONFIG" ssh)" lowercase-keyword ssh
+  _hi_has_row "$(_hi_targets "$_HI_CONFIG" ssh)" lowercase-keyword ssh || _hi_why _HI_CONFIG
 }
 
 function test_trailing_comment_is_not_a_host() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" ssh)"
-  _hi_has_row "$out" commented ssh || return 1
-  ! printf '%s\n' "$out" | grep -Eq 'trailing|comment,'
+  _hi_has_row "$out" commented ssh || _hi_why out || return 1
+  ! printf '%s\n' "$out" | grep -Eq 'trailing|comment,' || _hi_why out
 }
 
 function test_missing_config_is_empty_and_succeeds() {
   local out
-  out="$(_hi_targets "$_HI_NO_CONFIG" ssh)" || return 1
-  [ -z "$out" ]
+  out="$(_hi_targets "$_HI_NO_CONFIG" ssh)" || _hi_why _HI_NO_CONFIG || return 1
+  [ -z "$out" ] || _hi_why out
 }
 
 # a host that lives only in an Included file completes like one in the config
@@ -259,9 +259,9 @@ function test_ssh_hosts_follow_include() {
   printf 'Include config.d/* $(touch %s/ran)\nHost top\n' "$h" >"$h/.ssh/config"
   printf 'Host alpha\n  Include deep/*\n' >"$h/.ssh/config.d/01-a"
   printf 'Host gamma\n' >"$h/.ssh/deep/x"
-  out="$(HOME="$h" _hi_targets "$h/.ssh/config" ssh)" || return 1
+  out="$(HOME="$h" _hi_targets "$h/.ssh/config" ssh)" || _hi_why h || return 1
   _hi_has_row "$out" alpha ssh && _hi_has_row "$out" gamma ssh &&
-    _hi_has_row "$out" top ssh && [ ! -e "$h/ran" ]
+    _hi_has_row "$out" top ssh && [ ! -e "$h/ran" ] || _hi_why out h
 }
 
 # `ssh-files` names every file an Include walk reads, the config first and
@@ -285,30 +285,30 @@ function test_add_tag_words_are_the_literal_ssh_hosts() {
   printf 'Host alpha # a note\n' >"$h/.ssh/config.d/01-a"
   out="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" sh "$_HI_TARGETS" words --add-tag | cut -f1 | sort | tr '\n' ' ')"
   [ "$out" = "alpha top " ] || _hi_because "--add-tag words: [$out]" || return 1
-  [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/none" sh "$_HI_TARGETS" words --add-tag)" ]
+  [ -z "$(HOME="$h" _HI_SSH_CONFIG="$h/none" sh "$_HI_TARGETS" words --add-tag)" ] || _hi_why h _HI_TARGETS
 }
 
 function test_ssh_kind_excludes_container_backends() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" ssh)"
-  [ -n "$out" ] || return 1
-  ! printf '%s\n' "$out" | grep -qv $'\tssh$'
+  [ -n "$out" ] || _hi_why out || return 1
+  ! printf '%s\n' "$out" | grep -qv $'\tssh$' || _hi_why out
 }
 
 function test_docker_kind_lists_running_containers() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" docker)"
-  _hi_has_row "$out" alpha docker && _hi_has_row "$out" beta docker
+  { _hi_has_row "$out" alpha docker && _hi_has_row "$out" beta docker; } || _hi_why out
 }
 
 # ...unless $_HI_BACKENDS_OFF names it, which leaves the others listing
 function test_a_backend_switched_off_is_not_listed() {
   local out
-  [ -z "$(_HI_BACKENDS_OFF=docker _hi_targets "$_HI_CONFIG" docker)" ] || return 1
+  [ -z "$(_HI_BACKENDS_OFF=docker _hi_targets "$_HI_CONFIG" docker)" ] || _hi_why _HI_CONFIG || return 1
   out="$(_HI_BACKENDS_OFF="nomad,docker" _hi_targets "$_HI_CONFIG" all)"
-  ! printf '%s\n' "$out" | grep -q $'\tdocker$' && printf '%s\n' "$out" | grep -q $'\tssh$' || return 1
+  ! printf '%s\n' "$out" | grep -q $'\tdocker$' && printf '%s\n' "$out" | grep -q $'\tssh$' || _hi_why out || return 1
   out="$(_HI_BACKENDS_OFF=all _hi_targets "$_HI_CONFIG" all)"
-  [ -n "$out" ] && ! printf '%s\n' "$out" | grep -qv $'\tssh$'
+  { [ -n "$out" ] && ! printf '%s\n' "$out" | grep -qv $'\tssh$'; } || _hi_why out
 }
 
 # beta's compose label rides in as a third row - the friendlier name a real
@@ -316,7 +316,7 @@ function test_a_backend_switched_off_is_not_listed() {
 function test_docker_kind_lists_compose_service_alias() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" docker)"
-  _hi_has_row "$out" compose-svc docker
+  _hi_has_row "$out" compose-svc docker || _hi_why out
 }
 
 # podman resolves a compose service name exactly as docker does - the same
@@ -326,9 +326,9 @@ function test_docker_kind_lists_compose_service_alias() {
 function test_podman_kind_lists_compose_service_alias() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" podman)"
-  _hi_has_row "$out" pod-one podman &&
+  { _hi_has_row "$out" pod-one podman &&
     _hi_has_row "$out" pod-two podman &&
-    _hi_has_row "$out" compose-pod podman
+    _hi_has_row "$out" compose-pod podman; } || _hi_why out
 }
 
 # alpha has no label, so its second field is empty - must not turn into a
@@ -336,20 +336,20 @@ function test_podman_kind_lists_compose_service_alias() {
 function test_docker_kind_omits_alias_row_when_label_is_empty() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" docker)"
-  ! printf '%s\n' "$out" | grep -qxF $'\t''docker'
+  ! printf '%s\n' "$out" | grep -qxF $'\t''docker' || _hi_why out
 }
 
 # every member of the docker-compatible family is a kind of its own, and the
 # family is not configurable: all four are always tried (GLOSSARY: HI.51)
 function test_nerdctl_kind_lists_running_containers() {
-  _hi_has_row "$(_hi_targets "$_HI_CONFIG" nerdctl)" nerd-one nerdctl
+  _hi_has_row "$(_hi_targets "$_HI_CONFIG" nerdctl)" nerd-one nerdctl || _hi_why _HI_CONFIG
 }
 
 # a member off $PATH emits nothing and fails nothing: finch has no shim
 function test_absent_family_member_is_silent() {
   local out
-  out="$(_hi_targets "$_HI_CONFIG" finch)" || return 1
-  [ -z "$out" ]
+  out="$(_hi_targets "$_HI_CONFIG" finch)" || _hi_why _HI_CONFIG || return 1
+  [ -z "$out" ] || _hi_why out
 }
 
 # the family's own order is the emission order, ahead of nomad and kube, and
@@ -358,9 +358,9 @@ function test_absent_family_member_is_silent() {
 function test_family_order_is_emission_order() {
   local out
   out="$(_HI_CONTAINER_CLIS=podman _hi_targets "$_HI_CONFIG" | grep -v $'\tssh$')"
-  [ "$(printf '%s\n' "$out" | sed -n '1p')" = "alpha"$'\t'"docker" ] || return 1
-  printf '%s\n' "$out" | grep -qxF "pod-one"$'\t'"podman" || return 1
-  printf '%s\n' "$out" | grep -qxF "nerd-one"$'\t'"nerdctl"
+  [ "$(printf '%s\n' "$out" | sed -n '1p')" = "alpha"$'\t'"docker" ] || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -qxF "pod-one"$'\t'"podman" || _hi_why out || return 1
+  printf '%s\n' "$out" | grep -qxF "nerd-one"$'\t'"nerdctl" || _hi_why out
 }
 
 # podman-docker's `docker` is podman: both lanes list the same container, and
@@ -368,10 +368,10 @@ function test_family_order_is_emission_order() {
 function test_duplicate_daemon_rows_are_emitted_once() {
   local out
   out="$(PATH="$_HI_TWIN_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS")"
-  [ "$(printf '%s\n' "$out" | grep -c $'^twin\t')" -eq 1 ] || return 1
-  _hi_has_row "$out" twin docker || return 1
-  _hi_has_row "$out" only-docker docker || return 1
-  _hi_has_row "$out" only-podman podman
+  [ "$(printf '%s\n' "$out" | grep -c $'^twin\t')" -eq 1 ] || _hi_why out || return 1
+  _hi_has_row "$out" twin docker || _hi_why out || return 1
+  _hi_has_row "$out" only-docker docker || _hi_why out || return 1
+  _hi_has_row "$out" only-podman podman || _hi_why out
 }
 
 # the dedupe is the family's alone: a pod named like a container keeps its row
@@ -389,23 +389,23 @@ esac
 EOF
   chmod +x "$dir/kubectl"
   out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS")"
-  _hi_has_row "$out" twin docker || return 1
-  _hi_has_row "$out" twin kube
+  _hi_has_row "$out" twin docker || _hi_why out || return 1
+  _hi_has_row "$out" twin kube || _hi_why out
 }
 
 function test_nomad_kind_lists_running_allocs() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" nomad)"
-  _hi_has_row "$out" abc12345 nomad || return 1
+  _hi_has_row "$out" abc12345 nomad || _hi_why out || return 1
   # the `nomad job status` header row must not become a target of its own
-  ! printf '%s\n' "$out" | grep -q '^ID'
+  ! printf '%s\n' "$out" | grep -q '^ID' || _hi_why out
 }
 
 function test_kube_kind_lists_running_pods() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" kube)"
-  _hi_has_row "$out" pod-a kube && _hi_has_row "$out" pod-b kube &&
-    _hi_has_row "$out" other:pod-c kube
+  { _hi_has_row "$out" pod-a kube && _hi_has_row "$out" pod-b kube &&
+    _hi_has_row "$out" other:pod-c kube; } || _hi_why out
 }
 
 # an alloc running more than one task also offers each as "alloc/task", the
@@ -423,11 +423,11 @@ esac
 EOF
   chmod +x "$dir/nomad"
   out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" nomad)"
-  _hi_has_row "$out" abc12345 nomad || return 1
-  _hi_has_row "$out" abc12345/web nomad || return 1
-  _hi_has_row "$out" abc12345/sidecar nomad || return 1
-  _hi_has_row "$out" def67890 nomad || return 1
-  ! printf '%s\n' "$out" | grep -q '^def67890/'
+  _hi_has_row "$out" abc12345 nomad || _hi_why out || return 1
+  _hi_has_row "$out" abc12345/web nomad || _hi_why out || return 1
+  _hi_has_row "$out" abc12345/sidecar nomad || _hi_why out || return 1
+  _hi_has_row "$out" def67890 nomad || _hi_why out || return 1
+  ! printf '%s\n' "$out" | grep -q '^def67890/' || _hi_why out
 }
 
 # the same for a pod: more than one container is a real choice and gets
@@ -445,21 +445,21 @@ esac
 EOF
   chmod +x "$dir/kubectl"
   out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" kube)"
-  _hi_has_row "$out" pod-a kube || return 1
-  _hi_has_row "$out" pod-a/app kube || return 1
-  _hi_has_row "$out" pod-a/sidecar kube || return 1
-  _hi_has_row "$out" pod-b kube || return 1
-  ! printf '%s\n' "$out" | grep -q '^pod-b/'
+  _hi_has_row "$out" pod-a kube || _hi_why out || return 1
+  _hi_has_row "$out" pod-a/app kube || _hi_why out || return 1
+  _hi_has_row "$out" pod-a/sidecar kube || _hi_why out || return 1
+  _hi_has_row "$out" pod-b kube || _hi_why out || return 1
+  ! printf '%s\n' "$out" | grep -q '^pod-b/' || _hi_why out
 }
 
 # The fan-out itself. Three backends that take 0.3s each: started together the
 # log opens with three starts, started in turn it never gets two in a row.
 function test_backends_are_swept_together() {
   local out first
-  out="$(_hi_targets_slow)" || return 1
-  _hi_has_row "$out" slow-docker docker || return 1
-  _hi_has_row "$out" slow-podman podman || return 1
-  _hi_has_row "$out" slow-pod kube || return 1
+  out="$(_hi_targets_slow)" || _hi_why || return 1
+  _hi_has_row "$out" slow-docker docker || _hi_why out || return 1
+  _hi_has_row "$out" slow-podman podman || _hi_why out || return 1
+  _hi_has_row "$out" slow-pod kube || _hi_why out || return 1
   first="$(head -n 3 "$_HI_PROBE_LOG" | grep -c ' start$')"
   [ "$first" = 3 ] && return 0
   _hi_cecho "   the backends ran in turn - the log opens: $(head -n 3 "$_HI_PROBE_LOG" | tr '\n' '/')" "$RED"
@@ -471,35 +471,35 @@ function test_backends_are_swept_together() {
 # mkdir'd, so scratch_dir fails the way an unwritable host would.
 function test_no_scratch_dir_falls_back_in_turn() {
   local out
-  out="$(_hi_targets_slow /dev/null/nope)" || return 1
-  _hi_has_row "$out" slow-docker docker || return 1
-  _hi_has_row "$out" slow-podman podman || return 1
-  _hi_has_row "$out" slow-pod kube || return 1
+  out="$(_hi_targets_slow /dev/null/nope)" || _hi_why || return 1
+  _hi_has_row "$out" slow-docker docker || _hi_why out || return 1
+  _hi_has_row "$out" slow-podman podman || _hi_why out || return 1
+  _hi_has_row "$out" slow-pod kube || _hi_why out || return 1
   # one backend finished before the next started, i.e. really the in-turn arm
-  [ "$(sed -n '2p' "$_HI_PROBE_LOG")" = "docker end" ]
+  [ "$(sed -n '2p' "$_HI_PROBE_LOG")" = "docker end" ] || _hi_why _HI_PROBE_LOG
 }
 
 # ...and nomad's per-job calls fall back the same way: nomad alone would fan
 # them out, so with no scratch dir they run in turn and the alloc still lists
 function test_nomad_without_scratch_dir_lists_allocs_in_turn() {
   local out
-  out="$(TMPDIR=/dev/null/nope _hi_targets "$_HI_NO_CONFIG" nomad)" || return 1
-  _hi_has_row "$out" abc12345 nomad
+  out="$(TMPDIR=/dev/null/nope _hi_targets "$_HI_NO_CONFIG" nomad)" || _hi_why _HI_NO_CONFIG || return 1
+  _hi_has_row "$out" abc12345 nomad || _hi_why out
 }
 
 function test_no_argument_lists_every_kind() {
   local out kind
   out="$(_hi_targets "$_HI_CONFIG")"
-  _hi_has_row "$out" alpha ssh || return 1
+  _hi_has_row "$out" alpha ssh || _hi_why out || return 1
   for kind in docker podman nerdctl nomad kube; do
-    printf '%s\n' "$out" | grep -q $'\t'"$kind\$" || return 1
+    printf '%s\n' "$out" | grep -q $'\t'"$kind\$" || _hi_why out kind || return 1
   done
 }
 
 function test_unknown_kind_is_empty_and_succeeds() {
   local out
-  out="$(_hi_targets "$_HI_CONFIG" not-a-backend)" || return 1
-  [ -z "$out" ]
+  out="$(_hi_targets "$_HI_CONFIG" not-a-backend)" || _hi_why _HI_CONFIG || return 1
+  [ -z "$out" ] || _hi_why out
 }
 
 # 110ms of backend CLIs on every TAB is what this exists to avoid, so what
@@ -523,7 +523,7 @@ function test_cache_reuses_the_first_answer() {
   second="$(_hi_targets_cached "$dir" 60 docker)"
   mv "$shim.aside" "$shim"
   [ -n "$first" ] && [ "$first" = "$second" ] && ok=1
-  [ "$ok" -eq 1 ]
+  [ "$ok" -eq 1 ] || _hi_why ok
 }
 
 function test_cache_is_bypassed_at_ttl_zero() {
@@ -531,7 +531,7 @@ function test_cache_is_bypassed_at_ttl_zero() {
   mkdir -p "$dir"
   printf '%s\nstale\tdocker\n' "$(date +%s)" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 0 docker)"
-  ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker"
+  ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker" || _hi_why out
 }
 
 function test_cache_expires_with_its_ttl() {
@@ -540,7 +540,7 @@ function test_cache_expires_with_its_ttl() {
   # stamped an hour ago, so any sane ttl has to treat it as a miss
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 3600))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
-  ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker"
+  ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker" || _hi_why out
 }
 
 # ...whereas one only just past the TTL is the answer *now*, and the sweep
@@ -552,10 +552,10 @@ function test_stale_cache_answers_now_and_refreshes_behind() {
   mkdir -p "$dir"
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
-  _hi_has_row "$out" stale docker || return 1
-  ! _hi_has_row "$out" alpha docker || return 1
+  _hi_has_row "$out" stale docker || _hi_why out || return 1
+  ! _hi_has_row "$out" alpha docker || _hi_why out || return 1
   _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
-  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
+  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker" || _hi_why dir
 }
 
 # a refresh already running is left to finish: a second stale TAB inside its
@@ -566,10 +566,10 @@ function test_stale_cache_refresh_is_not_doubled() {
   date +%s >"$dir/hi.targets.docker.lock/at"
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
-  _hi_has_row "$out" stale docker || return 1
+  _hi_has_row "$out" stale docker || _hi_why out || return 1
   sleep 0.3
-  [ -d "$dir/hi.targets.docker.lock" ] &&
-    grep -qxF "stale"$'\t'"docker" "$dir/hi.targets.docker"
+  { [ -d "$dir/hi.targets.docker.lock" ] &&
+    grep -qxF "stale"$'\t'"docker" "$dir/hi.targets.docker"; } || _hi_why dir
 }
 
 # ...but a lock nobody could still be holding - taken longer ago than any
@@ -580,9 +580,9 @@ function test_stale_cache_dead_lock_is_taken_over() {
   printf '%s\n' "$(($(date +%s) - 120))" >"$dir/hi.targets.docker.lock/at"
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
-  _hi_has_row "$out" stale docker || return 1
+  _hi_has_row "$out" stale docker || _hi_why out || return 1
   _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
-  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
+  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker" || _hi_why dir
 }
 
 # a hand-edited or truncated cache file must be re-derived, not printed
@@ -591,7 +591,7 @@ function test_cache_ignores_a_file_with_no_timestamp() {
   mkdir -p "$dir"
   printf 'not-a-timestamp\nstale\tdocker\n' >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 60 docker)"
-  _hi_has_row "$out" alpha docker && ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker"
+  { _hi_has_row "$out" alpha docker && ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker"; } || _hi_why out
 }
 
 # the timestamp is bookkeeping, not a target - it must never reach completion
@@ -600,7 +600,7 @@ function test_cache_does_not_leak_its_timestamp() {
   mkdir -p "$dir"
   _hi_targets_cached "$dir" 60 docker >/dev/null
   out="$(_hi_targets_cached "$dir" 60 docker)"
-  ! printf '%s\n' "$out" | grep -qE '^[0-9]+$'
+  ! printf '%s\n' "$out" | grep -qE '^[0-9]+$' || _hi_why out
 }
 
 # The hijack defense only runs on the $TMPDIR/hi-<uid> fallback (every case
@@ -617,8 +617,8 @@ function test_cache_dir_symlink_is_not_trusted() {
   ln -s "$elsewhere" "$tmp/hi-$uid"
   out="$(PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker)"
-  _hi_has_row "$out" alpha docker || return 1
-  [ -z "$(ls -A "$elsewhere" 2>/dev/null)" ]
+  _hi_has_row "$out" alpha docker || _hi_why out || return 1
+  [ -z "$(ls -A "$elsewhere" 2>/dev/null)" ] || _hi_why elsewhere
 }
 
 # No root here to actually own a directory as somebody else, so `ls -ld` is
@@ -642,8 +642,8 @@ SHIM
   chmod +x "$bin/ls"
   out="$(PATH="$bin:$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker)"
-  _hi_has_row "$out" alpha docker || return 1
-  [ ! -e "$tmp/hi-$uid/hi.targets.docker" ]
+  _hi_has_row "$out" alpha docker || _hi_why out || return 1
+  [ ! -e "$tmp/hi-$uid/hi.targets.docker" ] || _hi_why tmp uid
 }
 
 # A cache dir that is ours but refuses the write is not an error either: the
@@ -659,9 +659,9 @@ function test_unwritable_cache_dir_still_answers() {
   out="$(PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker 2>"$err")" || rc=1
   chmod 700 "$tmp/hi-$uid"
-  [ "$rc" = 0 ] || return 1
-  _hi_has_row "$out" alpha docker || return 1
-  [ -z "$(ls -A "$tmp/hi-$uid")" ] || return 1
+  [ "$rc" = 0 ] || _hi_why rc || return 1
+  _hi_has_row "$out" alpha docker || _hi_why out || return 1
+  [ -z "$(ls -A "$tmp/hi-$uid")" ] || _hi_why tmp uid || return 1
   [ ! -s "$err" ] || {
     _hi_cecho "   stderr: $(cat "$err")" "$RED"
     return 1
@@ -670,9 +670,9 @@ function test_unwritable_cache_dir_still_answers() {
 
 function test_absent_backends_leave_only_ssh_rows() {
   local out
-  out="$(PATH="$_HI_TOOLBOX_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" sh "$_HI_TARGETS")" || return 1
-  _hi_has_row "$out" alpha ssh || return 1
-  ! printf '%s\n' "$out" | grep -qv $'\tssh$'
+  out="$(PATH="$_HI_TOOLBOX_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" sh "$_HI_TARGETS")" || _hi_why _HI_TOOLBOX_PATH _HI_CONFIG _HI_TARGETS || return 1
+  _hi_has_row "$out" alpha ssh || _hi_why out || return 1
+  ! printf '%s\n' "$out" | grep -qv $'\tssh$' || _hi_why out
 }
 
 # _hi_targets_begin - what every part of this suite starts from, and the tally

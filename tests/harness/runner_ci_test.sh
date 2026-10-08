@@ -43,13 +43,13 @@ function test_list_paths_adds_a_readable_path_per_suite() {
     }
     count=$((count + 1))
   done < <(printf '%s\n' "$_HI_LIST_PATHS_OUT")
-  [ "$count" -gt 0 ]
+  [ "$count" -gt 0 ] || _hi_why count
 }
 
 # the two listings have to describe the same table, or coverage.sh and CI are
 # reading different things
 function test_list_paths_matches_list() {
-  [ "$(printf '%s\n' "$_HI_LIST_PATHS_OUT" | awk '{print $1, $2}')" = "$_HI_LIST_OUT" ]
+  [ "$(printf '%s\n' "$_HI_LIST_PATHS_OUT" | awk '{print $1, $2}')" = "$_HI_LIST_OUT" ] || _hi_why _HI_LIST_PATHS_OUT _HI_LIST_OUT
 }
 
 # Every suite has to be in a group CI actually runs, or it never runs on a push

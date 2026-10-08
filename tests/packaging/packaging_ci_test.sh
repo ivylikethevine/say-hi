@@ -57,14 +57,14 @@ function test_nfpm_staging_sources_all_exist() {
       bad=1
     }
   done < <(sed -n 's|^ *- src: \./dist/staging\(.*\)$|./dist/staging\1|p' "$_HI_NFPM")
-  [ "$bad" -eq 0 ]
+  [ "$bad" -eq 0 ] || _hi_why bad
 }
 
 # ...and the manifest has to actually reference the staging root at all. A
 # rename of dist/staging that updated mkpkg.sh but not nfpm.yaml would leave
 # every assertion above vacuously true.
 function test_nfpm_references_the_staging_root() {
-  [ "$(grep -c 'src: \./dist/staging' "$_HI_NFPM")" -ge 2 ]
+  [ "$(grep -c 'src: \./dist/staging' "$_HI_NFPM")" -ge 2 ] || _hi_why _HI_NFPM
 }
 
 # the symlink nfpm declares must be the one install_tree makes, target and all
@@ -73,14 +73,14 @@ function test_nfpm_symlink_matches_install_tree() {
   dest="$(stage_fixture)"
   declared="$(sed -n 's|^ *- src: \(/usr/share/say-hi/hi.sh\)$|\1|p' "$_HI_NFPM" | head -1)"
   actual="$(readlink "$dest/usr/bin/hi")"
-  [ -n "$declared" ] && [ "$declared" = "$actual" ]
+  [ -n "$declared" ] && [ "$declared" = "$actual" ] || _hi_why declared actual
 }
 
 # no $DESTDIR may leak into a link target - it does not exist at runtime.
 # Only the symlink entry's own src line is checked: the apk workaround ships
 # legitimate staged hi.sh/load.sh file entries elsewhere in the manifest.
 function test_nfpm_symlink_target_is_absolute_and_unstaged() {
-  ! grep -B1 'dst: /usr/bin/hi' "$_HI_NFPM" | grep 'dist/staging' >/dev/null
+  ! grep -B1 'dst: /usr/bin/hi' "$_HI_NFPM" | grep 'dist/staging' >/dev/null || _hi_why _HI_NFPM
 }
 
 # The apk cannot use the tree entry (nfpm 2.47.0 mode-bit bug, see nfpm.yaml),
@@ -117,7 +117,7 @@ function test_nfpm_apk_entries_match_package_contents() {
     /^  - src:/ { dst = "" }
     /^    dst:/ { dst = $2 }
     /packager: apk/ && dst { print dst }
-  ' "$_HI_NFPM")
+  ' "$_HI_NFPM") || _hi_why
 }
 
 # ...and the globs are one level deep, so a nested directory appearing under a
@@ -152,8 +152,8 @@ function test_nfpm_apk_globs_cover_the_staged_depth() {
 # filename the docs tell users to install
 # shellcheck disable=SC2016 # ${HI_APK_KEY} is nfpm's to expand, quoted as literal text
 function test_nfpm_declares_the_apk_signature() {
-  grep -qF 'key_file: ${HI_APK_KEY}' "$_HI_NFPM" &&
-    grep -qF 'key_name: say-hi.rsa.pub' "$_HI_NFPM"
+  { grep -qF 'key_file: ${HI_APK_KEY}' "$_HI_NFPM" &&
+    grep -qF 'key_name: say-hi.rsa.pub' "$_HI_NFPM"; } || _hi_why _HI_NFPM
 }
 
 # The formula cannot call install.sh (install_tree hardcodes /usr/bin and
@@ -170,7 +170,7 @@ function test_formula_file_list_matches_package_contents() {
   actual="$(awk '/\(libexec\/"say-hi"\)\.install/ { inside = 1 }
                  inside { print; if (!/,[[:space:]]*$/) exit }' "$_HI_FORMULA" |
     grep -oE '"[^"]+"' | tr -d '"' | grep -v '^say-hi$' | LC_ALL=C sort)"
-  [ "$expected" = "$actual" ]
+  [ "$expected" = "$actual" ] || _hi_why expected actual
 }
 
 # hi.sh never locates itself, so a bare symlink on PATH would resolve the tree
@@ -180,9 +180,9 @@ function test_formula_ships_a_wrapper_that_exports_hi_home() {
   # _HI_HOME. Checked on code lines only - the comment above it in the formula
   # explains the choice by naming bin.install_symlink, and a bare grep for that
   # string reads its own documentation as a violation.
-  grep -qF '(bin/"hi").write' "$_HI_FORMULA" &&
+  { grep -qF '(bin/"hi").write' "$_HI_FORMULA" &&
     grep -qF 'export _HI_HOME="#{libexec}"' "$_HI_FORMULA" &&
-    ! grep -vE '^[[:space:]]*#' "$_HI_FORMULA" | grep -F 'bin.install_symlink' >/dev/null
+    ! grep -vE '^[[:space:]]*#' "$_HI_FORMULA" | grep -F 'bin.install_symlink' >/dev/null; } || _hi_why _HI_FORMULA
 }
 
 # The rpm's signature block, on the apk's pattern: the key file from the env,
@@ -190,14 +190,14 @@ function test_formula_ships_a_wrapper_that_exports_hi_home() {
 # GPG key the package repository is signed with
 # shellcheck disable=SC2016 # ${HI_GPG_KEY} is nfpm's to expand, quoted as literal text
 function test_nfpm_declares_the_rpm_signature() {
-  sed -n '/^rpm:/,/^[a-z]/p' "$_HI_NFPM" | grep -qF 'key_file: ${HI_GPG_KEY}'
+  sed -n '/^rpm:/,/^[a-z]/p' "$_HI_NFPM" | grep -qF 'key_file: ${HI_GPG_KEY}' || _hi_why _HI_NFPM
 }
 
 # Nothing under packaging/ may be a private key: the public halves live there
 # (packaging/apk/say-hi.rsa.pub, packaging/gpg/say-hi.asc), the secrets in
 # GitHub. A slip here ships the signing key in every source tarball.
 function test_no_private_key_is_committed() {
-  ! grep -rlE 'PRIVATE KEY( BLOCK)?-----' "$_HI_PKG_DIR" 2>/dev/null | grep . >/dev/null
+  ! grep -rlE 'PRIVATE KEY( BLOCK)?-----' "$_HI_PKG_DIR" 2>/dev/null | grep . >/dev/null || _hi_why _HI_PKG_DIR
 }
 
 # ...and the committed GPG half, when it exists, is a public key block
@@ -207,20 +207,20 @@ function test_packaging_doc_has_the_apk_key_hash() {
   local pub="$_HI_PKG_DIR/apk/say-hi.rsa.pub" sum
   [ -f "$pub" ] || return 0
   sum="$(sha256sum "$pub" 2>/dev/null || shasum -a 256 "$pub")"
-  grep -qF -- "${sum%% *}" "$_HI_ROOT/docs/PACKAGING.md"
+  grep -qF -- "${sum%% *}" "$_HI_ROOT/docs/PACKAGING.md" || _hi_why sum
 }
 
 function test_packaging_doc_has_the_gpg_fingerprint() {
   local asc="$_HI_PKG_DIR/gpg/say-hi.asc" fpr
   [ -f "$asc" ] || return 0
   fpr="$(gpg --homedir "$_HI_WORKDIR" --show-keys --with-fingerprint "$asc" 2>/dev/null | sed -n 's/^ *\([0-9A-F ]\{40,\}\)$/\1/p' | head -n 1)"
-  [ -n "$fpr" ] && grep -qF -- "$fpr" "$_HI_ROOT/docs/PACKAGING.md"
+  { [ -n "$fpr" ] && grep -qF -- "$fpr" "$_HI_ROOT/docs/PACKAGING.md"; } || _hi_why fpr
 }
 
 function test_committed_gpg_key_is_public() {
   local asc="$_HI_PKG_DIR/gpg/say-hi.asc"
   [ -f "$asc" ] || return 0 # not generated yet - docs/RELEASING.md's runbook
-  grep -qF -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$asc"
+  grep -qF -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$asc" || _hi_why asc
 }
 
 # The needles below are makepkg's variables ($pkgdir, $srcdir, $pkgver) quoted
@@ -235,8 +235,8 @@ function test_committed_gpg_key_is_public() {
 function test_pkgbuilds_call_install_sh() {
   local f
   for f in "$_HI_PKGBUILD" "$_HI_PKGBUILD_GIT"; do
-    grep -qF 'scripts/install.sh" --prefix /usr/share' "$f" || return 1
-    grep -qF 'DESTDIR="$pkgdir"' "$f" || return 1
+    grep -qF 'scripts/install.sh" --prefix /usr/share' "$f" || _hi_why f || return 1
+    grep -qF 'DESTDIR="$pkgdir"' "$f" || _hi_why f || return 1
   done
 }
 
@@ -245,21 +245,21 @@ function test_pkgbuilds_call_install_sh() {
 # versioned one, by the `say-hi::` source alias in the git one.
 # shellcheck disable=SC2016 # makepkg's variables as literal text, see above
 function test_pkgbuilds_give_install_sh_a_say_hi_named_checkout() {
-  grep -qF 'ln -sfn "$srcdir/$pkgname-$pkgver" "$srcdir/say-hi"' "$_HI_PKGBUILD" &&
-    grep -qF 'source=("say-hi::git+' "$_HI_PKGBUILD_GIT"
+  { grep -qF 'ln -sfn "$srcdir/$pkgname-$pkgver" "$srcdir/say-hi"' "$_HI_PKGBUILD" &&
+    grep -qF 'source=("say-hi::git+' "$_HI_PKGBUILD_GIT"; } || _hi_why _HI_PKGBUILD _HI_PKGBUILD_GIT
 }
 
 # a VCS package that does not conflict with the versioned one gets both installed
 function test_git_pkgbuild_provides_and_conflicts() {
-  grep -qF "provides=('say-hi')" "$_HI_PKGBUILD_GIT" &&
-    grep -qF "conflicts=('say-hi')" "$_HI_PKGBUILD_GIT"
+  { grep -qF "provides=('say-hi')" "$_HI_PKGBUILD_GIT" &&
+    grep -qF "conflicts=('say-hi')" "$_HI_PKGBUILD_GIT"; } || _hi_why _HI_PKGBUILD_GIT
 }
 
 function test_pkgbuild_and_formula_agree_on_the_version() {
   local pkgver
   pkgver="$(_hi_in_pkglib pkgbuild_version)"
-  [ -n "$pkgver" ] &&
-    grep -qF "/releases/download/v$pkgver/say-hi-$pkgver.tar.gz" "$_HI_FORMULA"
+  { [ -n "$pkgver" ] &&
+    grep -qF "/releases/download/v$pkgver/say-hi-$pkgver.tar.gz" "$_HI_FORMULA"; } || _hi_why pkgver _HI_FORMULA
 }
 
 # Both channels build from the release asset, never GitHub's auto-generated
@@ -307,13 +307,13 @@ function test_committed_manifests_are_templates() {
     [[ "$srcinfo" == *'pkgver = 0.0.0'* ]] &&
     [[ "$srcinfo" == *'b2sums = SKIP'* ]] &&
     [[ "$formula" == *'/v0.0.0/say-hi-0.0.0.tar.gz'* ]] &&
-    [[ "$formula" == *'sha256 "0000000000000000000000000000000000000000000000000000000000000000"'* ]]
+    [[ "$formula" == *'sha256 "0000000000000000000000000000000000000000000000000000000000000000"'* ]] || _hi_why pkgbuild srcinfo formula
 }
 
 function test_srcinfo_agrees_with_its_pkgbuild() {
   local pkgver
   pkgver="$(_hi_in_pkglib pkgbuild_version)"
-  grep -qF "pkgver = $pkgver" "$_HI_PKG_DIR/aur/say-hi/.SRCINFO"
+  grep -qF "pkgver = $pkgver" "$_HI_PKG_DIR/aur/say-hi/.SRCINFO" || _hi_why pkgver _HI_PKG_DIR
 }
 
 # .SRCINFO is generated from the PKGBUILD but committed by hand, and only its
@@ -331,7 +331,7 @@ function _hi_srcinfo_depends() {
 function test_srcinfo_depends_match_their_pkgbuild() {
   local f
   for f in "$_HI_PKGBUILD" "$_HI_PKGBUILD_GIT"; do
-    [ "$(_hi_pkgbuild_depends "$f")" = "$(_hi_srcinfo_depends "${f%PKGBUILD}.SRCINFO")" ] || return 1
+    [ "$(_hi_pkgbuild_depends "$f")" = "$(_hi_srcinfo_depends "${f%PKGBUILD}.SRCINFO")" ] || _hi_why f || return 1
   done
 }
 

@@ -17,52 +17,52 @@ source "$_HI_ROOT/scripts/lib.sh"
 function test_visible_len_counts_plain_text() {
   local n
   _hi_visible_len n "hello"
-  [ "$n" = 5 ]
+  [ "$n" = 5 ] || _hi_why n
 }
 
 function test_visible_len_strips_ansi_escapes() {
   local n colored
   printf -v colored '%b' "${RED}ab${NC}"
   _hi_visible_len n "$colored"
-  [ "$n" = 2 ] || return 1
+  [ "$n" = 2 ] || _hi_why n || return 1
   # a bare reset with no parameters counts as zero columns too
   _hi_visible_len n $'\e[mx'
-  [ "$n" = 1 ]
+  [ "$n" = 1 ] || _hi_why n
 }
 
 function test_widen_grows_to_the_longest_string() {
   local w=0
   _hi_widen w one three seven-x
-  [ "$w" = 7 ]
+  [ "$w" = 7 ] || _hi_why w
 }
 
 function test_widen_never_shrinks() {
   local w=10
   _hi_widen w abc
-  [ "$w" = 10 ]
+  [ "$w" = 10 ] || _hi_why w
 }
 
 function test_widen_to_takes_widths_not_strings() {
   local w=2
   _hi_widen_to w 5 12 7
-  [ "$w" = 12 ] || return 1
+  [ "$w" = 12 ] || _hi_why w || return 1
   # the trap _hi_widen_to exists for: _hi_widen would measure "12" as 2 chars
   w=3
   _hi_widen w 12
-  [ "$w" = 3 ]
+  [ "$w" = 3 ] || _hi_why w
 }
 
 function test_pad_to_pads_either_side_by_printed_width() {
   local out colored
   _hi_pad_to out 4 ab
-  [ "$out" = 'ab  ' ] || return 1
+  [ "$out" = 'ab  ' ] || _hi_why out || return 1
   _hi_pad_to out 4 7 right
-  [ "$out" = '   7' ] || return 1
+  [ "$out" = '   7' ] || _hi_why out || return 1
   printf -v colored '%b' "${RED}ab${NC}"
   _hi_pad_to out 4 "$colored" right
-  [ "$out" = "  $colored" ] || return 1
+  [ "$out" = "  $colored" ] || _hi_why out colored || return 1
   _hi_pad_to out 2 toolong
-  [ "$out" = toolong ]
+  [ "$out" = toolong ] || _hi_why out
 }
 
 # the awk writers' column: only a line with a \037 is padded, and a last line
@@ -70,26 +70,26 @@ function test_pad_to_pads_either_side_by_printed_width() {
 function test_pad_cols_pads_the_marked_lines() {
   local out
   out="$(printf '# note\nab\037= "x"\nabcdef\037y' | _hi_pad_cols 4 | od -An -c | tr -s ' \n' ' ')"
-  [ "$out" = "$(printf '# note\nab   = "x"\nabcdef y' | od -An -c | tr -s ' \n' ' ')" ]
+  [ "$out" = "$(printf '# note\nab   = "x"\nabcdef y' | od -An -c | tr -s ' \n' ' ')" ] || _hi_why out
 }
 
 function test_fit_cuts_with_an_ellipsis() {
   local out
   _hi_fit out abcdefgh 8
-  [ "$out" = abcdefgh ] || return 1
+  [ "$out" = abcdefgh ] || _hi_why out || return 1
   _hi_fit out abcdefgh 6
-  [ "$out" = abc... ] || return 1
+  [ "$out" = abc... ] || _hi_why out || return 1
   _hi_fit out abcdefgh 2
-  [ "$out" = ... ]
+  [ "$out" = ... ] || _hi_why out
 }
 
 function test_hotkey_brackets_the_letter() {
   local out want
   _hi_hotkey prompt r out
   printf -v want 'p%b[r]%bompt' "$BRYELLOW" "$NC"
-  [ "$out" = "$want" ] || return 1
+  [ "$out" = "$want" ] || _hi_why out want || return 1
   _hi_hotkey save z out
-  [ "$out" = save ]
+  [ "$out" = save ] || _hi_why out
 }
 
 # Built from the $_HI_BOX_* set in play rather than from a literal "+---+":
@@ -108,8 +108,8 @@ function _hi_rule() { # <left> <junction> <right> <width...>
 function test_hbar_pads_each_column_by_two() {
   # width n renders n+2 fills per segment
   local l="$_HI_BOX_L" x="$_HI_BOX_X" r="$_HI_BOX_R"
-  [ "$(_hi_hbar mid 1)" = "$(_hi_rule "$l" "$x" "$r" 1)" ] || return 1
-  [ "$(_hi_hbar mid 2 3)" = "$(_hi_rule "$l" "$x" "$r" 2 3)" ]
+  [ "$(_hi_hbar mid 1)" = "$(_hi_rule "$l" "$x" "$r" 1)" ] || _hi_why l x r || return 1
+  [ "$(_hi_hbar mid 2 3)" = "$(_hi_rule "$l" "$x" "$r" 2 3)" ] || _hi_why l x r
 }
 
 # ASCII spells all nine corners `+`, so the three positions are one rule there.
@@ -122,8 +122,8 @@ function test_hbar_positions_are_one_rule_in_ascii() {
     source "$_HI_HOME/say-hi/scripts/table.sh"
     _hi_hbar top 2 3
     _hi_hbar mid 2 3
-    _hi_hbar bottom 2 3')" || return 1
-  [ "$out" = "$(printf '%s\n%s\n%s' '+----+-----+' '+----+-----+' '+----+-----+')" ]
+    _hi_hbar bottom 2 3')" || _hi_why || return 1
+  [ "$out" = "$(printf '%s\n%s\n%s' '+----+-----+' '+----+-----+' '+----+-----+')" ] || _hi_why out
 }
 
 function test_hbar_positions_differ_on_the_glyph_set() {
@@ -134,15 +134,15 @@ function test_hbar_positions_differ_on_the_glyph_set() {
     source "$_HI_HOME/say-hi/scripts/table.sh"
     _hi_hbar top 1 1
     _hi_hbar mid 1 1
-    _hi_hbar bottom 1 1')" || return 1
-  [ "$out" = "$(printf '%s\n%s\n%s' '┌───┬───┐' '├───┼───┤' '└───┴───┘')" ]
+    _hi_hbar bottom 1 1')" || _hi_why || return 1
+  [ "$out" = "$(printf '%s\n%s\n%s' '┌───┬───┐' '├───┼───┤' '└───┴───┘')" ] || _hi_why out
 }
 
 function test_cell_pads_to_the_width() {
   local want padded
   printf -v padded '%-5s' ab
   printf -v want '%s %b ' "$_HI_BOX_V" "${RED}${padded}${NC}"
-  [ "$(_hi_cell 5 "$RED" ab)" = "$want" ]
+  [ "$(_hi_cell 5 "$RED" ab)" = "$want" ] || _hi_why want
 }
 
 function test_cell_visible_width_is_stable() {
@@ -150,14 +150,14 @@ function test_cell_visible_width_is_stable() {
   # the trailing pad space)
   local n
   _hi_visible_len n "$(_hi_cell 6 "$GREEN" abc)"
-  [ "$n" = 9 ]
+  [ "$n" = 9 ] || _hi_why n
 }
 
 function test_cell_empty_renders_the_continuation_blank() {
   local want padded
   printf -v padded '%-4s' ''
   printf -v want '%s %b ' "$_HI_BOX_V" "${padded}${NC}"
-  [ "$(_hi_cell 4 '' '')" = "$want" ]
+  [ "$(_hi_cell 4 '' '')" = "$want" ] || _hi_why want
 }
 
 function test_cell_raw_pads_by_the_declared_width() {
@@ -165,7 +165,7 @@ function test_cell_raw_pads_by_the_declared_width() {
   printf -v text '%b' "${BRCYAN}ab${NC}"
   # caller says the text prints as 2 columns; the cell pads the other 4
   printf -v want '%s %b%*s ' "$_HI_BOX_V" "${text}${NC}" 4 ''
-  [ "$(_hi_cell_raw 6 2 "$text")" = "$want" ]
+  [ "$(_hi_cell_raw 6 2 "$text")" = "$want" ] || _hi_why text want
 }
 
 # _hi_hrule/_hi_h1/_hi_h2 (scripts/lib.sh) draw every section heading
@@ -175,17 +175,17 @@ function test_hrule_spans_max_width() {
   local out n
   out="$(_HI_MAX_WIDTH=40 _hi_hrule "label" '-' 2 "$BRCYAN")"
   _hi_visible_len n "$out"
-  [ "$n" -eq 40 ]
+  [ "$n" -eq 40 ] || _hi_why n
 }
 
 function test_h1_and_h2_span_max_width_too() {
   local out n
   out="$(_HI_MAX_WIDTH=50 _hi_h1 "Heading")"
   _hi_visible_len n "$out"
-  [ "$n" -eq 50 ] || return 1
+  [ "$n" -eq 50 ] || _hi_why n || return 1
   out="$(_HI_MAX_WIDTH=50 _hi_h2 "Heading")"
   _hi_visible_len n "$out"
-  [ "$n" -eq 50 ]
+  [ "$n" -eq 50 ] || _hi_why n
 }
 
 # a label wider than the rule clamps the bar split to 8 rather than going
@@ -195,7 +195,7 @@ function test_hrule_clamps_and_overflows_for_a_wide_label() {
   label="$(printf 'x%.0s' $(seq 1 100))"
   out="$(_HI_MAX_WIDTH=40 _hi_hrule "$label" '=' 1 "$BRBLUE")"
   _hi_visible_len n "$out"
-  [ "$n" -gt 40 ]
+  [ "$n" -gt 40 ] || _hi_why n
 }
 
 # _hi_scheme_label's four answers (scripts/lib.sh): the preview line and the
@@ -206,13 +206,13 @@ function test_scheme_label_names_each_kind() {
   custom="$(printf 'abcdef %.0s' $(seq 1 24))"
   custom="${custom% }"
   _HI_COLOR_SCHEME="" _hi_scheme_label label
-  [ "$label" = default ] || return 1
+  [ "$label" = default ] || _hi_why label || return 1
   _HI_COLOR_SCHEME="$custom" _hi_scheme_label label
-  [ "$label" = "custom (24)" ] || return 1
+  [ "$label" = "custom (24)" ] || _hi_why label || return 1
   _HI_COLOR_SCHEME="$custom $custom" _hi_scheme_label label
-  [ "$label" = "custom (48)" ] || return 1
+  [ "$label" = "custom (48)" ] || _hi_why label || return 1
   _HI_COLOR_SCHEME=nope _hi_scheme_label label
-  [ "$label" = "nope (ignored - not a scheme)" ]
+  [ "$label" = "nope (ignored - not a scheme)" ] || _hi_why label
 }
 
 # the box glyphs are chosen once at source time off _hi_use_ascii, so each
@@ -227,10 +227,10 @@ function _hi_box_glyphs() {
 }
 function test_box_glyphs_follow_the_ascii_switch() {
   local out
-  out="$(_hi_box_glyphs 1)" || return 1
-  [ "$out" = '+++++++++-|' ] || return 1
-  out="$(_hi_box_glyphs 0)" || return 1
-  [ "$out" = '┌┬┐├┼┤└┴┘─│' ]
+  out="$(_hi_box_glyphs 1)" || _hi_why || return 1
+  [ "$out" = '+++++++++-|' ] || _hi_why out || return 1
+  out="$(_hi_box_glyphs 0)" || _hi_why || return 1
+  [ "$out" = '┌┬┐├┼┤└┴┘─│' ] || _hi_why out
 }
 
 function run_table_tests() {

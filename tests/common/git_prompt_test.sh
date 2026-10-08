@@ -31,7 +31,7 @@ function test_prompt_ascii_fallback_renders_ok() {
     _hi_choose_glyphs
     _hi_git_prompt
   )"
-  [[ "$out" == *"ok"* ]] && ! printf '%s' "$out" | LC_ALL=C grep -qF "✔"
+  { [[ "$out" == *"ok"* ]] && ! printf '%s' "$out" | LC_ALL=C grep -qF "✔"; } || _hi_why out
 }
 
 # Every case starts from test_lib.sh's _hi_git_fixture: a fresh copy of the
@@ -56,21 +56,21 @@ function test_outside_a_repo_produces_no_output() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/plain.XXXXXX")"
   out="$(cd "$dir" && _hi_git_prompt)"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 function test_disabled_flag_produces_no_output() {
   local dir out
   dir="$(_hi_git_fixture)"
   out="$(cd "$dir" && _HI_DISABLE_GIT_STATUS=1 _hi_git_prompt)"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 function test_clean_repo_shows_branch_and_checkmark() {
   local dir out
   dir="$(_hi_git_fixture)"
   out="$(cd "$dir" && _hi_git_prompt)"
-  [[ "$out" == *"main"* ]] && _hi_has_rendered "$out" "${BRGREEN}✔${NC}"
+  { [[ "$out" == *"main"* ]] && _hi_has_rendered "$out" "${BRGREEN}✔${NC}"; } || _hi_why out BRGREEN
 }
 
 function test_staged_change_shows_bullet_count() {
@@ -79,7 +79,7 @@ function test_staged_change_shows_bullet_count() {
   printf 'two\n' >"$dir/staged.txt"
   git -C "$dir" add staged.txt
   out="$(cd "$dir" && _hi_git_prompt)"
-  _hi_has_rendered "$out" "${YELLOW}●1${NC}"
+  _hi_has_rendered "$out" "${YELLOW}●1${NC}" || _hi_why out
 }
 
 function test_dirty_change_shows_plus_count() {
@@ -87,7 +87,7 @@ function test_dirty_change_shows_plus_count() {
   dir="$(_hi_git_fixture)"
   printf 'modified\n' >"$dir/file.txt"
   out="$(cd "$dir" && _hi_git_prompt)"
-  _hi_has_rendered "$out" "${RED}✚1${NC}"
+  _hi_has_rendered "$out" "${RED}✚1${NC}" || _hi_why out
 }
 
 function test_untracked_file_shows_ellipsis_count() {
@@ -95,7 +95,7 @@ function test_untracked_file_shows_ellipsis_count() {
   dir="$(_hi_git_fixture)"
   printf 'x\n' >"$dir/untracked.txt"
   out="$(cd "$dir" && _hi_git_prompt)"
-  _hi_has_rendered "$out" "${BRBLUE}…1${NC}"
+  _hi_has_rendered "$out" "${BRBLUE}…1${NC}" || _hi_why out BRBLUE
 }
 
 function test_merge_conflict_shows_invalid_and_merging() {
@@ -104,7 +104,7 @@ function test_merge_conflict_shows_invalid_and_merging() {
   _hi_git_diverge "$dir" other
   git -C "$dir" merge -q other >/dev/null 2>&1 || true
   out="$(cd "$dir" && _hi_git_prompt)"
-  [[ "$out" == *"|MERGING"* ]] && _hi_has_rendered "$out" "${RED}✖1${NC}"
+  { [[ "$out" == *"|MERGING"* ]] && _hi_has_rendered "$out" "${RED}✖1${NC}"; } || _hi_why out
 }
 
 function test_ahead_and_behind_show_arrows() {
@@ -121,7 +121,7 @@ function test_ahead_and_behind_show_arrows() {
   git -C "$dir" commit -qam m1
   git -C "$dir" checkout -q feature
   out="$(cd "$dir" && _hi_git_prompt)"
-  [[ "$out" == *"↑2"* && "$out" == *"↓1"* ]]
+  [[ "$out" == *"↑2"* && "$out" == *"↓1"* ]] || _hi_why out
 }
 
 function test_detached_head_shows_short_sha_and_red() {
@@ -130,7 +130,7 @@ function test_detached_head_shows_short_sha_and_red() {
   sha="$(git -C "$dir" rev-parse HEAD)"
   git -C "$dir" -c advice.detachedHead=false checkout -q "$sha"
   out="$(cd "$dir" && _hi_git_prompt)"
-  [[ "$out" == *"${sha:0:8}"* ]] && _hi_has_rendered "$out" "$RED"
+  { [[ "$out" == *"${sha:0:8}"* ]] && _hi_has_rendered "$out" "$RED"; } || _hi_why out sha
 }
 
 function test_long_branch_name_is_truncated() {
@@ -139,7 +139,7 @@ function test_long_branch_name_is_truncated() {
   long_name="$(printf 'x%.0s' {1..40})"
   git -C "$dir" checkout -q -b "$long_name"
   out="$(cd "$dir" && _hi_git_prompt)"
-  [[ "$out" == *"${long_name:0:31}…"* ]]
+  [[ "$out" == *"${long_name:0:31}…"* ]] || _hi_why out long_name
 }
 
 function _hi_rebase_case() {
@@ -163,7 +163,7 @@ function test_am_conflict_shows_state() {
   git -C "$dir" am "$_HI_WORKDIR/am.patch" >/dev/null 2>&1 || true
   out="$(cd "$dir" && _hi_git_prompt)"
   git -C "$dir" am --abort >/dev/null 2>&1 || true
-  [[ "$out" == *"|AM"* ]]
+  [[ "$out" == *"|AM"* ]] || _hi_why out
 }
 
 # neither marker file present in rebase-apply/ - a state git itself does not
@@ -177,7 +177,7 @@ function test_am_rebase_with_neither_marker_shows_state() {
   printf '1\n' >"$dir/.git/rebase-apply/last"
   out="$(cd "$dir" && _hi_git_prompt)"
   rm -rf "$dir/.git/rebase-apply"
-  [[ "$out" == *"|AM/REBASE"* ]]
+  [[ "$out" == *"|AM/REBASE"* ]] || _hi_why out
 }
 
 function test_cherry_pick_conflict_shows_state() {
@@ -187,7 +187,7 @@ function test_cherry_pick_conflict_shows_state() {
   target_sha="$(git -C "$dir" rev-parse source-branch)"
   git -C "$dir" cherry-pick "$target_sha" >/dev/null 2>&1 || true
   out="$(cd "$dir" && _hi_git_prompt)"
-  [[ "$out" == *"|CHERRY-PICKING"* ]]
+  [[ "$out" == *"|CHERRY-PICKING"* ]] || _hi_why out
 }
 
 function test_revert_conflict_shows_state() {
@@ -200,7 +200,7 @@ function test_revert_conflict_shows_state() {
   git -C "$dir" commit -qam commit-B
   git -C "$dir" revert --no-edit "$commit_a" >/dev/null 2>&1 || true
   out="$(cd "$dir" && _hi_git_prompt)"
-  [[ "$out" == *"|REVERTING"* ]]
+  [[ "$out" == *"|REVERTING"* ]] || _hi_why out
 }
 
 function test_bisect_shows_state() {
@@ -214,7 +214,7 @@ function test_bisect_shows_state() {
   git -C "$dir" bisect good "$old_sha" >/dev/null 2>&1
   out="$(cd "$dir" && _hi_git_prompt)"
   git -C "$dir" bisect reset >/dev/null 2>&1 || true
-  [[ "$out" == *"|BISECTING"* ]]
+  [[ "$out" == *"|BISECTING"* ]] || _hi_why out
 }
 
 function test_stash_shows_flag_count() {
@@ -223,7 +223,7 @@ function test_stash_shows_flag_count() {
   printf 'stashed-change\n' >"$dir/file.txt"
   git -C "$dir" stash push -q -m teststash >/dev/null 2>&1
   out="$(cd "$dir" && _hi_git_prompt)"
-  _hi_has_rendered "$out" "${BRBLUE}⚑1${NC}"
+  _hi_has_rendered "$out" "${BRBLUE}⚑1${NC}" || _hi_why out BRBLUE
 }
 
 # rebase-merge/ with no interactive marker - the REBASE-m rung of the state
@@ -240,7 +240,7 @@ function test_rebase_merge_backend_shows_state() {
   printf '1\n' >"$dir/.git/rebase-merge/end"
   out="$(cd "$dir" && _hi_git_prompt)"
   rm -rf "$dir/.git/rebase-merge"
-  [[ "$out" == *"|REBASE-m 1/1"* ]]
+  [[ "$out" == *"|REBASE-m 1/1"* ]] || _hi_why out
 }
 
 # Both production callers (common/bash.sh's PROMPT_COMMAND, common/zsh.zsh's
@@ -256,7 +256,7 @@ function test_out_var_form_fills_variable_not_stdout() {
   )"
   # nothing on stdout from the _hi_git_prompt call itself, then the captured
   # var's value printed by hand - so a non-empty $out here can only be the var
-  [[ "$out" == *"main"* ]]
+  [[ "$out" == *"main"* ]] || _hi_why out
 }
 
 function test_out_var_and_stdout_form_agree() {
@@ -268,7 +268,7 @@ function test_out_var_and_stdout_form_agree() {
     _hi_git_prompt captured
     printf '%s' "$captured"
   )"
-  [ "$stdout_form" = "$outvar_form" ]
+  [ "$stdout_form" = "$outvar_form" ] || _hi_why stdout_form outvar_form
 }
 
 # _hi_git_prompt's first line clears the out-var, before either early return
@@ -283,7 +283,7 @@ function test_out_var_is_precleared_when_disabled() {
     _HI_DISABLE_GIT_STATUS=1 _hi_git_prompt captured
     printf '%s' "$captured"
   )"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 function test_out_var_is_precleared_outside_a_repo() {
@@ -297,7 +297,7 @@ function test_out_var_is_precleared_outside_a_repo() {
     _hi_git_prompt captured
     printf '%s' "$captured"
   )"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 # _HI_DESC_OID/_HI_DESC_REF memoize the detached-HEAD describe walk (the
@@ -337,7 +337,7 @@ function test_detached_head_reuses_the_describe_memo() {
   (
     _hi_describe_twice true
     [[ "$out1" == "$out2" ]] && [ "$before" -gt 0 ] && [ "$after" -eq "$before" ]
-  )
+  ) || _hi_why out1 out2 before after
 }
 
 function test_a_new_commit_drops_the_describe_memo() {
@@ -345,7 +345,7 @@ function test_a_new_commit_drops_the_describe_memo() {
   (
     _hi_describe_twice git commit -q --allow-empty -m again
     [[ "$out1" != "$out2" ]] && [ "$after" -gt "$before" ]
-  )
+  ) || _hi_why out1 out2 after before
 }
 
 function run_git_prompt_tests() {

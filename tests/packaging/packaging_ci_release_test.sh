@@ -37,7 +37,7 @@ function test_release_jobs_under_the_gate_check_their_needs() {
       bad=1
     done
   done < <(_hi_wf_jobs "$_HI_RELEASE_WF")
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # Green CI on the tagged commit before anything builds: `gate` is the first
@@ -63,7 +63,7 @@ function test_release_requires_green_ci_before_build() {
     [[ "$gate" == *"compare/main...\$GITHUB_SHA"* ]] &&
     [[ "$gate" == *'[ "$conclusion" = success ]'* ]] &&
     [[ "$build" == *"needs: [gate, upgrade]"* ]] &&
-    [[ "$build" == *"needs.gate.result == 'success'"* ]]
+    [[ "$build" == *"needs.gate.result == 'success'"* ]] || _hi_why gate build GITHUB_SHA
 }
 
 # HI.60 is walked before anything builds: the upgrade job, under the gate,
@@ -80,7 +80,7 @@ function test_release_requires_green_ci_before_build() {
 function test_upgrade_path_goes_red_on_a_restored_load_guard() {
   local d="$_HI_WORKDIR/upgrade" out rc=0
   mkdir -p "$d/prev" "$d/new"
-  (cd "$_HI_ROOT" && git ls-files -z | tar --null -T - -cf -) | tar -x -C "$d/prev" || return 1
+  { (cd "$_HI_ROOT" && git ls-files -z | tar --null -T - -cf -) | tar -x -C "$d/prev"; } || _hi_why d || return 1
   cp -R "$d/prev/." "$d/new/"
   if ! grep -qx 'unset _hi_core_loaded' "$d/new/common/bash.sh" ||
     ! grep -qF '"$_HI_ROOT/config/colors"' "$d/new/common/paths.sh"; then
@@ -110,7 +110,7 @@ function test_release_walks_the_upgrade_before_build() {
     [[ "$upgrade" == *"--match 'v*' \"\$GITHUB_SHA^\""* ]] &&
     [[ "$upgrade" == *".github/scripts/upgrade_path.sh"* ]] &&
     [[ "$build" == *"needs.upgrade.result == 'success'"* ]] &&
-    [ -x "$_HI_ROOT/.github/scripts/upgrade_path.sh" ]
+    [ -x "$_HI_ROOT/.github/scripts/upgrade_path.sh" ] || _hi_why upgrade build GITHUB_SHA
 }
 
 # The tag itself is checked before CI is: a release version, and signed by a
@@ -124,12 +124,12 @@ function test_release_gate_verifies_the_signed_tag() {
     [[ "$gate" == *'GIT_CONFIG_GLOBAL: /dev/null'* ]] &&
     [[ "$gate" == *'GIT_CONFIG_NOSYSTEM: "1"'* ]] &&
     [[ "$gate" == *'git cat-file -t "refs/tags/$GITHUB_REF_NAME"'* ]] &&
-    [[ "$gate" == *'=~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'* ]] || return 1
+    [[ "$gate" == *'=~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'* ]] || _hi_why gate || return 1
   # a shipped tree has no .github; a checkout must carry at least one key,
   # each scoped to git's signing namespace
   [ -f "$signers" ] || return 0
-  grep -qE '^[^#[:space:]]+ namespaces="git" ssh-[a-z0-9-]+ [A-Za-z0-9+/=]+' "$signers" &&
-    ! grep -vE '^(#|$)' "$signers" | grep -vqE '^[^#[:space:]]+ namespaces="git" '
+  { grep -qE '^[^#[:space:]]+ namespaces="git" ssh-[a-z0-9-]+ [A-Za-z0-9+/=]+' "$signers" &&
+    ! grep -vE '^(#|$)' "$signers" | grep -vqE '^[^#[:space:]]+ namespaces="git" '; } || _hi_why signers
 }
 
 # The two signing keys build reads live in the release environment, so build
@@ -147,7 +147,7 @@ function test_release_signing_keys_are_read_under_the_release_environment() {
       bad=1
     }
   done < <(_hi_wf_jobs "$_HI_RELEASE_WF")
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # Every asset the release carries goes up one at a time, through
@@ -159,7 +159,7 @@ function test_release_signing_keys_are_read_under_the_release_environment() {
 # shellcheck disable=SC2016 # matching the workflows' literal source text
 function test_release_assets_go_through_the_helper() {
   local publish attach wf n
-  [ -f "$_HI_ROOT/.github/scripts/gh_asset.sh" ] || return 1
+  [ -f "$_HI_ROOT/.github/scripts/gh_asset.sh" ] || _hi_why || return 1
   publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
   [[ "$publish" != *'gh release upload'* && "$attach" != *'gh release upload'* ]] || {
@@ -167,7 +167,7 @@ function test_release_assets_go_through_the_helper() {
     return 1
   }
   [[ "$publish" == *'_ci_upload_assets "$GITHUB_REF_NAME" "${files[@]}"'* ]] &&
-    [[ "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* ]] || return 1
+    [[ "$attach" == *'_ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"'* ]] || _hi_why publish attach || return 1
   for wf in "$_HI_RELEASE_WF" "$_HI_DEMOS_WF"; do
     n="$(grep -c '^ *source \.github/scripts/gh_asset\.sh$' "$wf")"
     [ "$n" -gt 0 ] &&
@@ -187,7 +187,7 @@ function test_only_the_gated_job_publishes() {
   # _ci_upload_asset and _ci_upload_assets
   before="$(sed -n '1,/^  publish:/p' "$_HI_RELEASE_WF")"
   ! { [[ "$before" == *'gh release create'* ]] || [[ "$before" == *'gh release upload'* ]] ||
-    [[ "$before" == *'_ci_upload_asset'* ]]; }
+    [[ "$before" == *'_ci_upload_asset'* ]]; } || _hi_why before
 }
 
 # A prerelease tag (a `-` in the name: v1.0.0-rc.1) is a GitHub Release and
@@ -198,10 +198,10 @@ function test_only_the_gated_job_publishes() {
 function test_release_workflow_marks_prerelease_tags() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  [ -n "$job" ] || return 1
+  [ -n "$job" ] || _hi_why job || return 1
   # shellcheck disable=SC2016 # matching release.yml's literal source text
   [[ "$job" == *'case "$GITHUB_REF_NAME" in *-*)'* ]] &&
-    [[ "$job" == *"--prerelease --latest=false"* ]]
+    [[ "$job" == *"--prerelease --latest=false"* ]] || _hi_why job
 }
 
 function test_prerelease_tags_reach_no_channel() {
@@ -224,7 +224,7 @@ function test_prerelease_tags_reach_no_channel() {
     _hi_cecho " | demos.yml refreshes Pages on a prerelease tag" "$RED"
     bad=1
   fi
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # The release page's "What changed" list is each PR's `## Release note`
@@ -235,7 +235,7 @@ function test_prerelease_tags_reach_no_channel() {
 function test_release_workflow_publishes_release_notes() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  [[ "$job" == *"release_notes.sh"* ]] && [[ "$job" == *"pull-requests: read"* ]]
+  [[ "$job" == *"release_notes.sh"* ]] && [[ "$job" == *"pull-requests: read"* ]] || _hi_why job
 }
 
 # The body opens with the tag's own figures as static shields badges: three
@@ -245,14 +245,14 @@ function test_release_workflow_publishes_release_notes() {
 function test_release_body_carries_frozen_badges() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  [[ "$job" == *"head-sha: \${{ github.sha }}"* ]] || return 1
-  [[ "$job" == *"artifact-name: tests"* && "$job" == *'artifact-name: "{coverage-pct,coverage-v2-pct}"'* ]] || return 1
-  [[ "$job" == *"img.shields.io/badge/"* && "$job" == *"unknown"* && "$job" == *"lightgrey"* ]] || return 1
+  [[ "$job" == *"head-sha: \${{ github.sha }}"* ]] || _hi_why job || return 1
+  [[ "$job" == *"artifact-name: tests"* && "$job" == *'artifact-name: "{coverage-pct,coverage-v2-pct}"'* ]] || _hi_why job || return 1
+  [[ "$job" == *"img.shields.io/badge/"* && "$job" == *"unknown"* && "$job" == *"lightgrey"* ]] || _hi_why job || return 1
   # shellcheck disable=SC2016 # the workflow's own literals, expanded there
   [[ "$job" == *'![tests]($HI_BADGE_TESTS)'* && "$job" == *'($HI_BADGE_KCOV)'* &&
-    "$job" == *'($HI_BADGE_BASHCOV)'* ]] || return 1
+    "$job" == *'($HI_BADGE_BASHCOV)'* ]] || _hi_why job || return 1
   # shellcheck disable=SC2016 # likewise
-  grep -q 'head_sha=\$HEAD_SHA' "$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml"
+  grep -q 'head_sha=\$HEAD_SHA' "$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml" || _hi_why
 }
 
 function _hi_release_note_of() {
@@ -262,14 +262,14 @@ function _hi_release_note_of() {
 function test_release_note_extract_takes_the_section() {
   local body
   body=$'# What\'s New\n\n## What Changed & Why\n\nstuff\n\n## Release note\n\n<!-- one or two sentences -->\n\nhi keeps your prompt.\n\n## Issue/Discussion Links\n\nnone'
-  [ "$(_hi_release_note_of "$body")" = "hi keeps your prompt." ]
+  [ "$(_hi_release_note_of "$body")" = "hi keeps your prompt." ] || _hi_why s
 }
 
 function test_release_note_extract_treats_none_as_empty() {
   [ -z "$(_hi_release_note_of $'## Release note\n\nnone\n\n## Next')" ] &&
     [ -z "$(_hi_release_note_of $'## Release note\n\nNone.\n')" ] &&
     [ -z "$(_hi_release_note_of $'## Release note\n\n<!-- a\nmulti-line comment -->\n\n## Next')" ] &&
-    [ -z "$(_hi_release_note_of $'## What Changed\n\nno section here')" ]
+    [ -z "$(_hi_release_note_of $'## What Changed\n\nno section here')" ] || _hi_why
 }
 
 # --check, release-note.yml's lint: the section has to be there and say
@@ -279,7 +279,7 @@ function test_release_note_extract_treats_none_as_empty() {
 # heading is followed straight by the next section
 function test_release_note_check_requires_a_written_section() {
   local script="$_HI_ROOT/.github/scripts/release_notes.sh"
-  bash "$script" --check <"$_HI_PR_TEMPLATE" >/dev/null &&
+  { bash "$script" --check <"$_HI_PR_TEMPLATE" >/dev/null &&
     printf '## Release note\n\nnone\n' | bash "$script" --check >/dev/null &&
     [ -z "$(printf '## Release note\n\nN/A\n' | bash "$script" --check)" ] &&
     [ "$(printf '## Release note\r\n\r\nhi keeps your prompt.\r\n' | bash "$script" --check)" = "hi keeps your prompt." ] &&
@@ -287,7 +287,7 @@ function test_release_note_check_requires_a_written_section() {
     ! printf '' | bash "$script" --check 2>/dev/null &&
     ! printf '## Release note\n\n   \n\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null &&
     ! printf '## Release note\r\n\r\n<!-- a\r\nmulti-line comment -->\r\n' | bash "$script" --check 2>/dev/null &&
-    ! printf '## Release note\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null
+    ! printf '## Release note\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null; } || _hi_why script _HI_PR_TEMPLATE
 }
 
 # ...and release-note.yml runs it on every body edit, the body through env,
@@ -304,7 +304,7 @@ function test_release_note_workflow_runs_the_check() {
     grep -qF 'BODY: ${{ github.event.pull_request.body }}' "$wf" &&
     grep -qF 'bash .github/scripts/release_notes.sh --check' "$wf" &&
     ! grep -qE '^  pull_request_target:' "$wf" &&
-    [ ! -e "$_HI_ROOT/.github/workflows/pr-body.yml" ]
+    [ ! -e "$_HI_ROOT/.github/workflows/pr-body.yml" ] || _hi_why wf
 }
 
 # the network mode, against a stand-in gh: one bullet per PR with a note, in
@@ -323,7 +323,7 @@ EOF
   chmod +x "$dir/bin/gh"
   printf '## What Changed\n* header tweaks by @x in https://github.com/o/r/pull/13\n* prompt by @x in https://github.com/o/r/pull/12\n* again in https://github.com/o/r/pull/12\n' >"$dir/notes.md"
   out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/release_notes.sh" o/r "$dir/notes.md")"
-  [ "$out" = $'## What changed\n\n- hi keeps your prompt. On targets too. (#12)' ]
+  [ "$out" = $'## What changed\n\n- hi keeps your prompt. On targets too. (#12)' ] || _hi_why out
 }
 
 # ...and nothing at all when no PR wrote one: the titles then stand alone
@@ -334,11 +334,11 @@ function test_release_notes_are_silent_without_a_note() {
   chmod +x "$dir/bin/gh"
   printf '* x in https://github.com/o/r/pull/1\n' >"$dir/notes.md"
   out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/release_notes.sh" o/r "$dir/notes.md")"
-  [ -z "$out" ]
+  [ -z "$out" ] || _hi_why out
 }
 
 function test_release_workflow_only_runs_on_tags() {
-  grep -qE '^ *- "v\*"' "$_HI_RELEASE_WF" && ! grep -qE '^ *(branches|pull_request):' "$_HI_RELEASE_WF"
+  { grep -qE '^ *- "v\*"' "$_HI_RELEASE_WF" && ! grep -qE '^ *(branches|pull_request):' "$_HI_RELEASE_WF"; } || _hi_why _HI_RELEASE_WF
 }
 
 # release.yml's publish job seds the minisign public key out of
@@ -378,7 +378,7 @@ function test_ci_chained_workflows_carry_the_green_push_gate() {
       bad=1
     }
   done
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # actions/upload-artifact (v4.4+, the pin every workflow here uses) drops
@@ -411,7 +411,7 @@ function test_upload_artifact_dotfile_paths_set_include_hidden() {
       bad=1
     done <<<"$out"
   done
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # the minisign half of release verification: the signing step and its secret
@@ -422,14 +422,14 @@ function test_publish_job_signs_the_sums() {
   publish="$(sed -n '/^  publish:/,$p' "$_HI_RELEASE_WF")"
   [[ "$publish" == *'MINISIGN_SECRET_KEY'* ]] &&
     [[ "$publish" == *'minisign -S'* ]] &&
-    [[ "$publish" == *'tools: minisign'* ]]
+    [[ "$publish" == *'tools: minisign'* ]] || _hi_why publish
 }
 
 # release.yml's offline verification leans on minisign being pinned *and*
 # drift-checked; the general manifest guards below cannot know that.
 function test_minisign_pin_is_drift_checked() {
   [ -f "$_HI_TOOLS_TXT" ] || return 0 # a shipped tree has no .github
-  grep -qE '^minisign\|[0-9][^|]*\|.*\|github:jedisct1/minisign\|[^|]*\|[0-9a-f]{64}$' "$_HI_TOOLS_TXT"
+  grep -qE '^minisign\|[0-9][^|]*\|.*\|github:jedisct1/minisign\|[^|]*\|[0-9a-f]{64}$' "$_HI_TOOLS_TXT" || _hi_why _HI_TOOLS_TXT
 }
 
 # every row is eight fields, a known kind (a source kind may carry `:deps`),
@@ -469,7 +469,7 @@ function test_tool_manifest_rows_are_wellformed() {
       bad=1
     }
   done < <(grep -Ev '^[[:space:]]*(#|$)' "$_HI_TOOLS_TXT")
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # ...and every setup-tools call names only rows. It reads every word of the
@@ -484,13 +484,13 @@ function test_every_setup_tool_call_names_a_manifest_row() {
       bad=1
     }
   done < <(sed -n 's/^ *tools: *//p' "$_HI_ROOT"/.github/workflows/*.yml | tr ' ' '\n' | grep . | sort -u)
-  [ "$bad" = 0 ]
+  [ "$bad" = 0 ] || _hi_why bad
 }
 
 # the release ships what mkpkg.sh says it ships, not a second glob list in YAML
 function test_release_workflow_reads_the_artifact_list() {
   [ -f "$_HI_RELEASE_WF" ] || return 0
-  grep -qF 'dist/ARTIFACTS' "$_HI_RELEASE_WF"
+  grep -qF 'dist/ARTIFACTS' "$_HI_RELEASE_WF" || _hi_why _HI_RELEASE_WF
 }
 
 # write_checksums also writes dist/ARTIFACTS, which is what release.yml reads
@@ -510,7 +510,7 @@ function test_write_checksums_lists_the_artifacts() {
     source "$_HI_PKG_DIR/mkpkg.sh"
     _HI_DIST="$d"
     write_checksums >/dev/null 2>&1
-  ) || return 1
+  ) || _hi_why d _HI_PKG_DIR || return 1
   [ -f "$d/ARTIFACTS" ] || {
     _hi_cecho " | write_checksums wrote no ARTIFACTS" "$RED"
     return 1
@@ -518,10 +518,10 @@ function test_write_checksums_lists_the_artifacts() {
   # every built file, plus SHA256SUMS, basenames only - and nothing else
   diff <(sort "$d/ARTIFACTS") \
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
-    return 1
+    return 1 || _hi_why d || return 1
   # ...and it agrees with what SHA256SUMS covers
   diff <(awk "$_HI_SUMS_NAMES" "$d/SHA256SUMS" | sort) \
-    <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort)
+    <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort) || _hi_why d _HI_SUMS_NAMES
 }
 
 # Every existing fixture pre-creates all three artifact types; a wrong glob
@@ -538,7 +538,7 @@ function test_write_checksums_reports_a_missing_artifact_type() {
     _HI_DIST="$d"
     write_checksums 2>&1
   )" || rc=$?
-  [ "$rc" -ne 0 ] || return 1
+  [ "$rc" -ne 0 ] || _hi_why rc || return 1
   case "$out" in *"nfpm exited 0 but built no .rpm"*) return 0 ;; esac
   return 1
 }
@@ -560,9 +560,9 @@ function test_write_checksums_refuses_an_empty_package() {
     _HI_DIST="$d"
     write_checksums 2>&1
   )" || rc=$?
-  [ "$rc" -ne 0 ] || return 1
+  [ "$rc" -ne 0 ] || _hi_why rc || return 1
   # and it stopped before summing: an empty package must never reach SHA256SUMS
-  [ ! -f "$d/SHA256SUMS" ] || return 1
+  [ ! -f "$d/SHA256SUMS" ] || _hi_why d || return 1
   case "$out" in *"wrote an empty .rpm"*) return 0 ;; esac
   return 1
 }
@@ -585,7 +585,7 @@ function test_write_checksums_ships_the_source_tarball() {
     _HI_DIST="$d"
     _HI_SRC_TARBALL="$d/elsewhere/say-hi-1.0.0.tar.gz"
     write_checksums >/dev/null 2>&1
-  ) || return 1
+  ) || _hi_why d _HI_PKG_DIR || return 1
   # copied in beside the packages, listed, and summed
   [ -f "$d/say-hi-1.0.0.tar.gz" ] || {
     _hi_cecho " | the source tarball was not copied into the outdir" "$RED"
@@ -593,9 +593,9 @@ function test_write_checksums_ships_the_source_tarball() {
   }
   diff <(sort "$d/ARTIFACTS") \
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.tar.gz say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
-    return 1
+    return 1 || _hi_why d || return 1
   diff <(awk "$_HI_SUMS_NAMES" "$d/SHA256SUMS" | sort) \
-    <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort)
+    <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort) || _hi_why d _HI_SUMS_NAMES
 }
 
 # A tarball already sitting in the outdir is the shape a caller reaches by
@@ -614,8 +614,8 @@ function test_write_checksums_takes_a_tarball_already_in_the_outdir() {
     _HI_DIST="$d"
     _HI_SRC_TARBALL="$d/say-hi-1.0.0.tar.gz"
     write_checksums >/dev/null 2>&1
-  ) || return 1
-  grep -q 'say-hi-1.0.0.tar.gz' "$d/ARTIFACTS"
+  ) || _hi_why d _HI_PKG_DIR || return 1
+  grep -q 'say-hi-1.0.0.tar.gz' "$d/ARTIFACTS" || _hi_why d
 }
 
 # A tarball path that names nothing is refused by name before any sum is
@@ -634,8 +634,8 @@ function test_write_checksums_refuses_a_missing_source_tarball() {
     _HI_SRC_TARBALL="$d/absent.tar.gz"
     write_checksums 2>&1
   )" || rc=$?
-  [ "$rc" -ne 0 ] || return 1
-  [ ! -f "$d/SHA256SUMS" ] || return 1
+  [ "$rc" -ne 0 ] || _hi_why rc || return 1
+  [ ! -f "$d/SHA256SUMS" ] || _hi_why d || return 1
   case "$out" in *"no such source tarball: $d/absent.tar.gz"*) return 0 ;; esac
   return 1
 }
@@ -647,15 +647,15 @@ function test_write_checksums_refuses_a_missing_source_tarball() {
 # which the manifests' checksums and the uploaded asset could drift apart.
 function test_src_tarball_uses_the_prepare_prefix() {
   local out="$_HI_WORKDIR/srctar-prefix.tar.gz"
-  src_tarball 9.9.9 HEAD "$out" || return 1
+  src_tarball 9.9.9 HEAD "$out" || _hi_why out || return 1
   # OpenBSD's tar lists a directory without its trailing slash
-  case "$(tar tzf "$out" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) return 1 ;; esac
+  case "$(tar tzf "$out" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) _hi_why out || return 1 ;; esac
 }
 
 function test_src_tarball_is_byte_stable() {
   local a="$_HI_WORKDIR/srctar-a.tar.gz" b="$_HI_WORKDIR/srctar-b.tar.gz"
-  src_tarball 9.9.9 HEAD "$a" && src_tarball 9.9.9 HEAD "$b" || return 1
-  cmp -s "$a" "$b"
+  src_tarball 9.9.9 HEAD "$a" && src_tarball 9.9.9 HEAD "$b" || _hi_why a b || return 1
+  cmp -s "$a" "$b" || _hi_why a b
 }
 
 # ubi (and mise's `ubi:` backend) finds an in-archive executable by exact or
@@ -666,10 +666,10 @@ function test_src_tarball_is_byte_stable() {
 # hint would point at nothing.
 function test_src_tarball_ships_an_executable_hi_sh() {
   local out="$_HI_WORKDIR/srctar-ubi.tar.gz" dir="$_HI_WORKDIR/srctar-ubi-extract"
-  src_tarball 9.9.9 HEAD "$out" || return 1
+  src_tarball 9.9.9 HEAD "$out" || _hi_why out || return 1
   mkdir -p "$dir"
-  tar -xzf "$out" -C "$dir" || return 1
-  [ -x "$dir/say-hi-9.9.9/hi.sh" ]
+  tar -xzf "$out" -C "$dir" || _hi_why out dir || return 1
+  [ -x "$dir/say-hi-9.9.9/hi.sh" ] || _hi_why dir
 }
 
 # release.yml builds that tarball on the tag path too, not only on a rehearsal:
@@ -677,10 +677,10 @@ function test_src_tarball_ships_an_executable_hi_sh() {
 # bytes back outside the provenance chain, silently and only on real releases.
 # shellcheck disable=SC2016 # $HI_VERSION is the workflow's variable, matched literally
 function test_release_workflow_builds_the_source_tarball() {
-  grep -qF 'packaging/srctar.sh' "$_HI_RELEASE_WF" &&
+  { grep -qF 'packaging/srctar.sh' "$_HI_RELEASE_WF" &&
     grep -qF 'packaging/bump.sh --tarball' "$_HI_RELEASE_WF" &&
     grep -qF 'mkpkg.sh --source-tarball' "$_HI_RELEASE_WF" &&
-    ! grep -qE 'bump\.sh "\$HI_VERSION"' "$_HI_RELEASE_WF"
+    ! grep -qE 'bump\.sh "\$HI_VERSION"' "$_HI_RELEASE_WF"; } || _hi_why _HI_RELEASE_WF
 }
 
 function run_packaging_ci_release_tests() {

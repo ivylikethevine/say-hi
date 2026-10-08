@@ -19,7 +19,7 @@ source "${BASH_SOURCE[0]%/*}/payload_test.sh"
 function test_overlay_tar_carries_shell_files() {
   local dir
   dir="$(_hi_overlay_fixture withshells bashrc zshrc config.fish)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | tr '\n' ' ')" = "bashrc config.fish zshrc " ]
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | tr '\n' ' ')" = "bashrc config.fish zshrc " ] || _hi_why dir
 }
 
 #
@@ -87,8 +87,8 @@ function test_overlay_carries_packages_stripped() {
   local dir="$_HI_WORKDIR/packages-overlay" got="$_HI_WORKDIR/packages-sent" out
   mkdir -p "$dir" "$got"
   printf '# a note\n[core]\nbat = ["batcat"]\n\n  # indented\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []\n' >"$dir/packages"
-  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || return 1
-  [ "$(cd "$got" && printf '%s,' *)" = packages, ] || return 1
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
+  [ "$(cd "$got" && printf '%s,' *)" = packages, ] || _hi_why got || return 1
   out="$(<"$got/packages")"
   [ "$(printf '%s\n' "$out" | grep -v '^$')" = "$(printf '[core]\nbat = ["batcat"]\n[core.unwanted]\nsudo = ["doas"]\n[core.required]\n"g++" = []')" ] || {
     _hi_cecho " | packages arrived as: [$out]" "$RED"
@@ -104,8 +104,8 @@ function test_overlay_carries_extensions() {
   mkdir -p "$dir/extensions" "$got"
   printf '#!/bin/sh\n# a comment\nexport _HI_SEGMENT="printf x"\n' >"$dir/extensions/10-x"
   printf 'export Y=1\n' >"$dir/extensions/10-x.orig"
-  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || return 1
-  [ "$(cd "$got" && printf '%s,' * */*)" = extensions,extensions/10-x, ] || return 1
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
+  [ "$(cd "$got" && printf '%s,' * */*)" = extensions,extensions/10-x, ] || _hi_why got || return 1
   out="$(<"$got/extensions/10-x")"
   [ "$out" = '#!/bin/sh
 export _HI_SEGMENT="printf x"' ] || {
@@ -118,13 +118,13 @@ function test_overlay_is_empty_without_one() {
   local dir="$_HI_WORKDIR/no-overlay"
   mkdir -p "$dir"
   [ -z "$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)" ] &&
-    [ -z "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar)" ]
+    [ -z "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar)" ] || _hi_why dir
 }
 
 function test_overlay_is_seen_when_present() {
   local dir
   dir="$(_hi_overlay_fixture some colors)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)" = colors ]
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)" = colors ] || _hi_why dir
 }
 
 # members land at the archive's top level under their plain names, since it is
@@ -134,7 +134,7 @@ function test_overlay_tar_members_are_bare_names() {
   local dir listing
   dir="$(_hi_overlay_fixture members colors aliases.sh settings.sh)"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
-  [ "$(printf '%s\n' "$listing" | sort | paste -sd, -)" = "aliases.sh,colors,settings.sh" ]
+  [ "$(printf '%s\n' "$listing" | sort | paste -sd, -)" = "aliases.sh,colors,settings.sh" ] || _hi_why listing
 }
 
 # only what the user actually has - an overlay holding one file must not carry
@@ -142,7 +142,7 @@ function test_overlay_tar_members_are_bare_names() {
 function test_overlay_tar_carries_only_what_exists() {
   local dir
   dir="$(_hi_overlay_fixture partial colors)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "colors" ]
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "colors" ] || _hi_why dir
 }
 
 # a member a variable points its tool at rides with the line that does it:
@@ -153,8 +153,8 @@ function test_overlay_tar_carries_only_what_exists() {
 function test_overlay_tar_wires_the_members_it_carries() {
   local dir d want
   dir="$(_hi_overlay_fixture wired colors inputrc bat/config eza/theme.yml oh-my-posh.toml kak/kakrc)"
-  d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || return 1
-  _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
+  d="$(mktemp -d "$_HI_WORKDIR/wired-out.XXXXXX")" || _hi_why || return 1
+  _HI_PROMPT_TOOL=oh-my-posh _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
   want='export KAKOUNE_CONFIG_DIR="$_HI_CONFIG_DIR/kak"
 export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
 export EZA_CONFIG_DIR="$_HI_CONFIG_DIR/eza"
@@ -178,8 +178,8 @@ function test_overlay_tar_aliases_the_editors_and_multiplexers() {
   mkdir -p "$dir/zellij/themes"
   printf 'x\n' >"$dir/zellij/config.kdl"
   printf 'x\n' >"$dir/zellij/themes/dark.kdl"
-  d="$(mktemp -d "$_HI_WORKDIR/aliased-out.XXXXXX")" || return 1
-  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || return 1
+  d="$(mktemp -d "$_HI_WORKDIR/aliased-out.XXXXXX")" || _hi_why || return 1
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$d" || _hi_why dir d || return 1
   want='export _HI_VIMRC="$_HI_CONFIG_DIR/vim/vimrc"
 command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vim/vimrc" || true
 export _HI_NVIMRC="$_HI_CONFIG_DIR/nvim/init.lua"
@@ -200,7 +200,7 @@ command -v zellij >/dev/null 2>&1 && alias zellij="zellij --config-dir $_HI_CONF
 function test_overlay_tar_has_no_wiring_without_a_wired_member() {
   local dir
   dir="$(_hi_overlay_fixture unwired colors bashrc aliases.sh wiring.sh)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "aliases.sh,bashrc,colors" ]
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "aliases.sh,bashrc,colors" ] || _hi_why dir
 }
 
 # a plugin of the user's own, in the overlay's plugins: a file of it rides
@@ -224,7 +224,7 @@ function test_carry_row_rides_from_home_with_its_wiring() {
   } >"$dir/plugins"
   stubs="$(_hi_stub_tools hi-carry-here)"
   # hi's own prompt: a prompt program on this machine would add its init line
-  d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" _HI_PROMPT_TOOL=hi)" || return 1
+  d="$(_hi_tool_home_unpacked "$dir" PATH="$stubs:$PATH" _HI_PROMPT_TOOL=hi)" || _hi_why dir stubs || return 1
   # gone.rc stays home: its tool is nowhere on this machine
   [ "$(find "$d" -type f | sed 's|.*/||' | sort | paste -sd, -)" = "b.conf,c.toml,taskrc,wiring.sh" ] ||
     _hi_because "carried: $(ls "$d")" || return 1
@@ -336,7 +336,7 @@ function test_carry_turns_down_a_row_the_table_cannot_hold() {
     _hi_overlay_row zellij/layouts/x r
     [ "${r##*|}" = "$tilde/x/" ] || _hi_because "the tree's zellij was not replaced: $r" || exit 1
     ! _hi_overlay_row zellij/config.kdl r || _hi_because "a file of the tree's zellij outlived it: $r"
-  )
+  ) || _hi_why r tilde
 }
 
 # the check and the writer take a wire apart through one function
@@ -371,7 +371,7 @@ function test_the_tree_plugins_file_holds() {
     [ "${#_HI_PLUGIN_BAD[@]}" = 0 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
     [ "${#_HI_PLUGIN_ROWS[@]}" = "$(sed -n 's/^files = "\(.*\)"$/\1/p' "$_HI_ROOT/config/plugins" | wc -w | tr -d ' ')" ] ||
       _hi_because "rows: ${#_HI_PLUGIN_ROWS[@]}"
-  )
+  ) || _hi_why _HI_PLUGIN_ROWS
 }
 
 # a plugin that is switched off sends nothing: $_HI_PLUGINS_OFF names it or
@@ -406,9 +406,9 @@ function test_plugin_off_keeps_its_members_home() {
 function test_a_plugin_off_has_no_wiring_line() {
   local dir w=""
   dir="$(_hi_overlay_fixture wire-off vim/vimrc nvim/init.lua nano/nanorc kak/kakrc bat/config)"
-  [ "$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat/config,nano/nanorc,nvim/init.lua,vim/vimrc,wiring.sh" ] || return 1
+  [ "$(_HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | paste -sd, -)" = "bat/config,nano/nanorc,nvim/init.lua,vim/vimrc,wiring.sh" ] || _hi_why dir || return 1
   _HI_PLUGINS_OFF=kak _HI_CONFIG_DIR="$dir" _hi_overlay_wiring w bat/config
-  [[ "$w" != *KAKOUNE* ]]
+  [[ "$w" != *KAKOUNE* ]] || _hi_why w
 }
 
 # _hi_hooks_wiring <overlay> <stubs> [VAR=value...] - wiring.sh's text for an
@@ -436,19 +436,19 @@ function test_hook_plugins_ride_as_wiring_rows() {
     printf '[mine.hi-prompt-here]\ninit = "hi-prompt-here init {shell}"\nprompt = "yes"\n'
   } >"$dir/plugins"
   stubs="$(_hi_stub_tools hi-hook-here hi-hook-off hi-prompt-here)"
-  w="$(_hi_hooks_wiring "$dir" "$stubs")" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs")" || _hi_why dir stubs || return 1
   [[ "$w" == *'export _HI_HOOKS="'*'mine.hi-hook-here=hi-hook-here init {shell}'*'"'* ]] || _hi_because "no hook row: $w" || return 1
   [[ "$w" != *hi-hook-off* && "$w" != *hi-hook-gone* && "$w" != *hi-prompt-here* && "$w" != *_HI_PROMPT_INITS* ]] ||
     _hi_because "rode unasked: $w" || return 1
-  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off)" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off)" || _hi_why dir stubs || return 1
   [[ "$w" == *'mine.-hi-hook-off=hi-hook-off hook {shell}'* ]] || _hi_because "on by name: $w" || return 1
-  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=mine)" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=mine)" || _hi_why dir stubs || return 1
   [[ "$w" != *hi-hook-off* ]] || _hi_because "on by its group's word: $w" || return 1
-  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off _HI_PLUGINS_OFF=hi-hook-off)" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off _HI_PLUGINS_OFF=hi-hook-off)" || _hi_why dir stubs || return 1
   [[ "$w" != *hi-hook-off* ]] || _hi_because "off list lost: $w" || return 1
-  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_OFF=mine)" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_OFF=mine)" || _hi_why dir stubs || return 1
   [[ "$w" == *'mine.hi-hook-here='* ]] || _hi_because "off by its group's word: $w" || return 1
-  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PROMPT_TOOL="hi-prompt-here hi")" || return 1
+  w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PROMPT_TOOL="hi-prompt-here hi")" || _hi_why dir stubs || return 1
   [[ "$w" == *'export _HI_PROMPT_INITS="hi-prompt-here=hi-prompt-here init {shell}"'*'export _HI_PROMPT_PLUGINS="hi-prompt-here|bash zsh fish|bin|-"'* ]] ||
     _hi_because "prompt plugin: $w" || return 1
   [[ "$w" != *'mine.hi-prompt-here'* ]] || _hi_because "a prompt plugin is no hook: $w"
@@ -472,7 +472,7 @@ function test_hook_plugin_rows_hold_a_command_alone() {
     [[ "${_HI_PLUGIN_BAD[0]}" == *"a: init is a command and its words"* && "${_HI_PLUGIN_BAD[1]}" == *"b: init is a command"* &&
       "${_HI_PLUGIN_BAD[2]}" == *"c: prompt = yes needs an init"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
     [[ " ${_HI_PLUGIN_HOOKS[*]} " == *" mine|d|d-tool|d-tool hook {shell} --flag|no|- "* ]] || _hi_because "rows: ${_HI_PLUGIN_HOOKS[*]}"
-  )
+  ) || _hi_why _HI_PLUGIN_BAD _HI_PLUGIN_HOOKS
 }
 
 # `shells` keeps a hook to the shells it names, a , apart after its name in
@@ -507,7 +507,7 @@ function test_plugin_shells_and_env_ride_in_the_wiring() {
     [ "${#_HI_PLUGIN_BAD[@]}" = 3 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
     [[ "${_HI_PLUGIN_BAD[0]}" == *"a: env is variable names"* && "${_HI_PLUGIN_BAD[1]}" == *"b: shells needs an init"* &&
       "${_HI_PLUGIN_BAD[2]}" == *"c: shells is any of bash, zsh, and fish"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")"
-  )
+  ) || _hi_why _HI_PLUGIN_BAD
 }
 
 # the init check is builtins alone, so a cut-down PATH turns the same rows
@@ -554,7 +554,7 @@ export _HI_MAX_WIDTH=72' ] || {
     return 1
   }
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat colors)"
-  [ -n "$out" ] || return 1
+  [ -n "$out" ] || _hi_why out || return 1
   case "$out" in *'#'*)
     _hi_cecho " | colors kept a comment line through the strip" "$RED"
     return 1

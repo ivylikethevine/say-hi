@@ -34,7 +34,7 @@ function test_workdir_creates_a_scratch_dir() {
   )"
   # the subshell's exit trap already removed it, which is the other half of
   # the contract - so assert on the shape and on its being gone
-  [[ "$dir" == */hi.probe.* ]] && [ ! -d "$dir" ]
+  [[ "$dir" == */hi.probe.* ]] && [ ! -d "$dir" ] || _hi_why dir
 }
 
 function test_test_cleanup_runs_the_extra_hook_first() {
@@ -47,7 +47,7 @@ function test_test_cleanup_runs_the_extra_hook_first() {
     _HI_EXTRA_CLEANUP=_hi_probe_hook
     _hi_test_cleanup
   )
-  [ -f "$marker" ]
+  [ -f "$marker" ] || _hi_why marker
 }
 
 function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
@@ -59,7 +59,7 @@ function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
     _HI_EXTRA_CLEANUP=_hi_false
     _hi_test_cleanup
   )
-  [ ! -d "$inner" ]
+  [ ! -d "$inner" ] || _hi_why inner
 }
 
 # The ledger's whole reason for being a file: the background subshell's entry
@@ -73,8 +73,8 @@ function test_track_container_records_from_a_subshell_too() {
   wait
   _hi_track_network relaynet
   rows="$(_hi_ledger_rows container | tr '\n' ' ')"
-  [ "$rows" = "one two " ] || return 1
-  [ "$(_hi_ledger_rows network)" = relaynet ]
+  [ "$rows" = "one two " ] || _hi_why rows || return 1
+  [ "$(_hi_ledger_rows network)" = relaynet ] || _hi_why
 }
 
 # ...and the sweep that consumes it, through a fake backend that records what it
@@ -97,8 +97,8 @@ function test_cleanup_sweeps_containers_then_networks() {
     _hi_track_network alsogone
     _hi_test_cleanup
   )
-  [ -f "$log" ] || return 1
-  _hi_before "$(cat "$log")" '^rm -f gone$' '^network rm alsogone$'
+  [ -f "$log" ] || _hi_why log || return 1
+  _hi_before "$(cat "$log")" '^rm -f gone$' '^network rm alsogone$' || _hi_why log
 }
 
 # The counted-case contract, run in a background subshell. Everything here is
@@ -131,7 +131,7 @@ function test_par_case_tallies_pass_fail_and_skip() {
     _hi_par_case skipped _hi_par_skipper
     _hi_par_wait
     [ "$_HI_TOTAL" -eq 2 ] && [ "$_HI_FAILED" -eq 1 ] && [ "$_HI_SKIPPED" -eq 1 ]
-  ) >/dev/null
+  ) >/dev/null || _hi_why _HI_TOTAL _HI_FAILED _HI_SKIPPED
 }
 
 # _hi_par_check reports through _hi_assert, which names the case by its bare
@@ -149,7 +149,7 @@ function test_par_failed_assertion_is_recapped_once() {
     _hi_par_check "a failing case" _hi_false
     _hi_par_wait
   ) >/dev/null 2>&1 || true
-  [ "$(grep -c . "$fails")" -eq 1 ] && grep -qxF "a failing case" "$fails"
+  { [ "$(grep -c . "$fails")" -eq 1 ] && grep -qxF "a failing case" "$fails"; } || _hi_why fails
 }
 
 # a case that never reaches its verdict is a failure, not a case that vanishes
@@ -164,8 +164,8 @@ function test_par_case_without_a_verdict_counts_as_a_failure() {
     _hi_par_case vanished _hi_par_exits
     _hi_par_wait
     [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 1 ]
-  ) >/dev/null || return 1
-  grep -q 'vanished' "$fails"
+  ) >/dev/null || _hi_why fails _HI_TOTAL _HI_FAILED || return 1
+  grep -q 'vanished' "$fails" || _hi_why fails
 }
 
 # _hi_expect_eq's whole reason to exist is the failure transcript: a bare
@@ -174,14 +174,14 @@ function test_par_case_without_a_verdict_counts_as_a_failure() {
 function _hi_expect_probe() { printf '%s' "${1:-}"; }
 
 function test_expect_eq_passes_on_a_match() {
-  _hi_expect_eq "match" wanted _hi_expect_probe wanted >/dev/null
+  _hi_expect_eq "match" wanted _hi_expect_probe wanted >/dev/null || _hi_why
 }
 
 function test_expect_eq_prints_want_and_got_on_a_mismatch() {
   local out
   out="$(_hi_expect_eq "mismatch" wanted _hi_expect_probe "" 2>&1)" && return 1
   out="$(_hi_strip_ansi "$out")"
-  [[ "$out" == *FAILED* ]] && [[ "$out" == *'want: "wanted"'* ]] && [[ "$out" == *'got:  ""'* ]]
+  [[ "$out" == *FAILED* ]] && [[ "$out" == *'want: "wanted"'* ]] && [[ "$out" == *'got:  ""'* ]] || _hi_why out
 }
 
 # and it has to name the failing case for the recap, exactly as _hi_assert does
@@ -192,7 +192,7 @@ function test_expect_eq_names_the_case_for_the_recap() {
     _HI_FAILS_FILE="$fails"
     _hi_expect_eq "a mismatched case" wanted _hi_expect_probe other
   ) >/dev/null 2>&1 || true
-  grep -qxF "a mismatched case" "$fails"
+  grep -qxF "a mismatched case" "$fails" || _hi_why fails
 }
 
 function test_par_wait_replays_in_submission_order() {
@@ -205,7 +205,7 @@ function test_par_wait_replays_in_submission_order() {
     _hi_par_case quick _hi_par_says SECOND-CASE
     _hi_par_wait
   )"
-  _hi_before "$out" 'FIRST-CASE' 'SECOND-CASE'
+  _hi_before "$out" 'FIRST-CASE' 'SECOND-CASE' || _hi_why out
 }
 
 function test_par_cases_really_run_at_once() {
@@ -219,7 +219,7 @@ function test_par_cases_really_run_at_once() {
     _hi_par_case b _hi_par_rendezvous b a 20
     _hi_par_wait
     [ "$_HI_FAILED" -eq 0 ]
-  ) >/dev/null
+  ) >/dev/null || _hi_why _HI_PAR_RV_DIR _HI_FAILED
 }
 
 # the other half of the same proof, and the escape hatch's test: at width 1 the
@@ -236,7 +236,7 @@ function test_par_width_one_really_serializes() {
     _hi_par_case b _hi_par_rendezvous b a 4
     _hi_par_wait
     [ "$_HI_FAILED" -eq 1 ]
-  ) >/dev/null
+  ) >/dev/null || _hi_why _HI_PAR_RV_DIR _HI_FAILED
 }
 
 # a capped run must say it is capped rather than read as "everything at once"
@@ -244,8 +244,8 @@ function test_par_begin_announces_the_width() {
   local wide narrow
   wide="$( (_HI_PAR_WIDTH=3 _hi_par_begin "probe cases") )"
   narrow="$( (_HI_PAR_WIDTH=1 _hi_par_begin "probe cases") )"
-  [[ "$wide" == *"3 at a time"* ]] || return 1
-  [[ "$narrow" == *"one at a time"* ]]
+  [[ "$wide" == *"3 at a time"* ]] || _hi_why wide || return 1
+  [[ "$narrow" == *"one at a time"* ]] || _hi_why narrow
 }
 
 function test_par_width_defaults_within_bounds() {
@@ -254,7 +254,7 @@ function test_par_width_defaults_within_bounds() {
     unset _HI_PAR_WIDTH _HI_PAR_LOCAL
     _hi_par_width
   ))"
-  [ "$w" -ge 1 ] && [ "$w" -le 4 ]
+  [ "$w" -ge 1 ] && [ "$w" -le 4 ] || _hi_why w
 }
 
 # a local-process suite gets the whole box; the daemon cap is the default only
@@ -266,7 +266,7 @@ function test_par_width_local_is_the_core_count() {
     unset _HI_PAR_WIDTH
     _HI_PAR_LOCAL=1 _hi_par_width
   ))"
-  [ "$w" -eq "$cpus" ]
+  [ "$w" -eq "$cpus" ] || _hi_why w cpus
 }
 
 function run_lib_parallel_tests() {

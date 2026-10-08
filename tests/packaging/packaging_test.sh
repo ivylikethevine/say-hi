@@ -99,8 +99,8 @@ function test_bump_rewrite_preserves_file_mode() {
 # ship a stale version in the tag tarball
 # shellcheck disable=SC2016 # the ${...:-} default is hi.sh's, quoted as literal text
 function test_launcher_release_line_is_unique_and_empty() {
-  [ "$(grep -c '^_HI_RELEASE=' "$_HI_ROOT/hi.sh")" -eq 1 ] &&
-    grep -qF '_HI_RELEASE="${_HI_RELEASE:-}"' "$_HI_ROOT/hi.sh"
+  { [ "$(grep -c '^_HI_RELEASE=' "$_HI_ROOT/hi.sh")" -eq 1 ] &&
+    grep -qF '_HI_RELEASE="${_HI_RELEASE:-}"' "$_HI_ROOT/hi.sh"; } || _hi_why
 }
 
 # All four channels, the -git one included: the installed tree never carries
@@ -138,8 +138,8 @@ function test_no_channel_kept_a_private_stamp() {
 
 function test_package_sh_stamps_the_staged_launcher() {
   local out
-  out="$(_hi_staged_999)" &&
-    grep -qF '_HI_RELEASE="9.9.9"' "$out/staging/usr/share/say-hi/hi.sh"
+  { out="$(_hi_staged_999)" &&
+    grep -qF '_HI_RELEASE="9.9.9"' "$out/staging/usr/share/say-hi/hi.sh"; } || _hi_why out
 }
 
 # through the same --stage-only run as the launcher's check: the staged gz
@@ -149,7 +149,7 @@ function test_package_sh_stamps_the_staged_launcher() {
 # - this is the case that only reproduces on real OpenBSD.
 function test_package_sh_stamps_the_staged_man_page() {
   local out th
-  out="$(_hi_staged_999)" || return 1
+  out="$(_hi_staged_999)" || _hi_why || return 1
   th="$(gzip -dc "$out/staging/usr/share/man/man1/hi.1.gz" 2>&1 | grep '^\.TH ')"
   [[ "$th" =~ ^\.TH\ HI\ 1\ \"[0-9]{4}-[0-9]{2}-[0-9]{2}\"\ \"say-hi\ 9\.9\.9\" ]] && return 0
   _hi_cecho " | staged .TH line: ${th:-<none - gzip -dc found no .TH line>}" "$RED"
@@ -184,16 +184,16 @@ function _hi_stamp() { "$_HI_PKG_DIR/stamp.sh" "$@"; }
 function test_stamp_writes_the_release_line() {
   local d
   d="$(_hi_stamp_fixture)"
-  _hi_stamp --root "$d" --version 9.9.9 --date 2026-01-02 &&
-    grep -qF '_HI_RELEASE="9.9.9"' "$d/usr/share/say-hi/hi.sh"
+  { _hi_stamp --root "$d" --version 9.9.9 --date 2026-01-02 &&
+    grep -qF '_HI_RELEASE="9.9.9"' "$d/usr/share/say-hi/hi.sh"; } || _hi_why d
 }
 
 function test_stamp_writes_the_th_line() {
   local d
   d="$(_hi_stamp_fixture)"
-  _hi_stamp --root "$d" --version 9.9.9 --date 2026-01-02 &&
+  { _hi_stamp --root "$d" --version 9.9.9 --date 2026-01-02 &&
     gzip -dc "$d/usr/share/man/man1/hi.1.gz" |
-    grep -qF '.TH HI 1 "2026-01-02" "say-hi 9.9.9" "User Commands"'
+    grep -qF '.TH HI 1 "2026-01-02" "say-hi 9.9.9" "User Commands"'; } || _hi_why d
 }
 
 # a .TH that sed wrote wrong is caught with the line it wrote, not shipped:
@@ -211,8 +211,8 @@ function test_stamp_refuses_a_th_line_that_came_out_wrong() {
 function test_stamp_dates_from_source_date_epoch() {
   local d
   d="$(_hi_stamp_fixture)"
-  SOURCE_DATE_EPOCH=946684800 _hi_stamp --root "$d" --version 1.0.0 &&
-    gzip -dc "$d/usr/share/man/man1/hi.1.gz" | grep -qF '"2000-01-01"'
+  { SOURCE_DATE_EPOCH=946684800 _hi_stamp --root "$d" --version 1.0.0 &&
+    gzip -dc "$d/usr/share/man/man1/hi.1.gz" | grep -qF '"2000-01-01"'; } || _hi_why d
 }
 
 # neither --date nor an epoch is a build failure, not a silent `date +%F` -
@@ -221,7 +221,7 @@ function test_stamp_refuses_to_guess_a_date() {
   local d
   d="$(_hi_stamp_fixture)"
   env -u SOURCE_DATE_EPOCH "$_HI_PKG_DIR/stamp.sh" --root "$d" --version 1.0.0 >/dev/null 2>&1 &&
-    return 1
+    _hi_why -3 d _HI_PKG_DIR || return 1
   return 0
 }
 
@@ -230,12 +230,12 @@ function test_stamp_refuses_to_guess_a_date() {
 function test_stamp_is_idempotent() {
   local d
   d="$(_hi_stamp_fixture)"
-  _hi_stamp --root "$d" --version 3.3.3 --date 2026-01-02 || return 1
+  _hi_stamp --root "$d" --version 3.3.3 --date 2026-01-02 || _hi_why d || return 1
   cp "$d/usr/share/say-hi/hi.sh" "$d/launcher.first"
   cp "$d/usr/share/man/man1/hi.1.gz" "$d/man.first"
-  _hi_stamp --root "$d" --version 3.3.3 --date 2026-01-02 || return 1
-  cmp -s "$d/launcher.first" "$d/usr/share/say-hi/hi.sh" &&
-    cmp -s "$d/man.first" "$d/usr/share/man/man1/hi.1.gz"
+  _hi_stamp --root "$d" --version 3.3.3 --date 2026-01-02 || _hi_why d || return 1
+  { cmp -s "$d/launcher.first" "$d/usr/share/say-hi/hi.sh" &&
+    cmp -s "$d/man.first" "$d/usr/share/man/man1/hi.1.gz"; } || _hi_why d
 }
 
 # the launcher has to stay executable - `cat` back rather than `mv`, the same
@@ -244,9 +244,9 @@ function test_stamp_keeps_the_launcher_exec_bit() {
   local d before after
   d="$(_hi_stamp_fixture)"
   before="$(_hi_mode_string "$d/usr/share/say-hi/hi.sh")"
-  _hi_stamp --root "$d" --version 4.4.4 --date 2026-01-02 || return 1
+  _hi_stamp --root "$d" --version 4.4.4 --date 2026-01-02 || _hi_why d || return 1
   after="$(_hi_mode_string "$d/usr/share/say-hi/hi.sh")"
-  [ "$before" = "$after" ]
+  [ "$before" = "$after" ] || _hi_why before after
 }
 
 # the --x=y spelling, normalized at the top of the parse loop the same way
@@ -254,8 +254,8 @@ function test_stamp_keeps_the_launcher_exec_bit() {
 function test_stamp_accepts_the_equals_form() {
   local d
   d="$(_hi_stamp_fixture)"
-  _hi_stamp --root="$d" --version=5.5.5 --date=2026-01-02 || return 1
-  grep -qF '_HI_RELEASE="5.5.5"' "$d/usr/share/say-hi/hi.sh"
+  _hi_stamp --root="$d" --version=5.5.5 --date=2026-01-02 || _hi_why d || return 1
+  grep -qF '_HI_RELEASE="5.5.5"' "$d/usr/share/say-hi/hi.sh" || _hi_why d
 }
 
 # the parse loop's own exits, each by its message: --help is the one exit 0
@@ -263,28 +263,28 @@ function test_stamp_accepts_the_equals_form() {
 # wrong, so one regressing into another's wording cannot pass as it
 function test_stamp_help_prints_usage_and_exits_zero() {
   local out
-  out="$(_hi_stamp --help 2>&1)" || return 1
-  [[ "$out" == "Usage: stamp.sh --version"* ]]
+  out="$(_hi_stamp --help 2>&1)" || _hi_why || return 1
+  [[ "$out" == "Usage: stamp.sh --version"* ]] || _hi_why out
 }
 
 function test_stamp_refuses_an_unknown_argument() {
   local out
   out="$(_hi_stamp --bogus 2>&1)" && return 1
-  [[ "$out" == *"unknown argument: --bogus"* && "$out" == *"Usage: stamp.sh"* ]]
+  [[ "$out" == *"unknown argument: --bogus"* && "$out" == *"Usage: stamp.sh"* ]] || _hi_why out
 }
 
 function test_stamp_requires_a_version() {
   local d out
   d="$(_hi_stamp_fixture)"
   out="$(_hi_stamp --root "$d" --date 2026-01-02 2>&1)" && return 1
-  [[ "$out" == *"--version is required"* ]]
+  [[ "$out" == *"--version is required"* ]] || _hi_why out
 }
 
 # --version alone names nothing to write into: neither --root nor --launcher
 function test_stamp_refuses_with_nothing_to_stamp() {
   local out
   out="$(_hi_stamp --version 1.0.0 --date 2026-01-02 2>&1)" && return 1
-  [[ "$out" == *"nothing to stamp"* ]]
+  [[ "$out" == *"nothing to stamp"* ]] || _hi_why out
 }
 
 # a renamed line makes every channel's bare sed a silent no-op; this is the
@@ -306,7 +306,7 @@ function test_stamp_fails_on_no_launcher_at_the_given_path() {
     --launcher "$d/usr/share/say-hi/nonexistent.sh" \
     --man "$d/usr/share/man/man1/hi.1.gz" 2>&1)" && return 1
   case "$out" in *"no launcher at"*) return 0 ;; esac
-  return 1
+  _hi_why -3 d out || return 1
 }
 
 # require_one_match's other failure shape: more than one match is just as
@@ -335,10 +335,10 @@ function test_stamp_takes_explicit_paths() {
   d="$(_hi_stamp_fixture plain)"
   _hi_stamp --version 5.5.5 --date 5.5.5 \
     --launcher "$d/usr/share/say-hi/hi.sh" \
-    --man "$d/usr/share/man/man1/hi.1" || return 1
+    --man "$d/usr/share/man/man1/hi.1" || _hi_why d || return 1
   grep -qF '_HI_RELEASE="5.5.5"' "$d/usr/share/say-hi/hi.sh" &&
     grep -qF '.TH HI 1 "5.5.5" "say-hi 5.5.5"' "$d/usr/share/man/man1/hi.1" &&
-    [ ! -f "$d/usr/share/man/man1/hi.1.gz" ]
+    [ ! -f "$d/usr/share/man/man1/hi.1.gz" ] || _hi_why d
 }
 
 # install_tree leaves the page out on a host with no gzip, so an absent one is
@@ -347,8 +347,8 @@ function test_stamp_skips_a_missing_man_page() {
   local d
   d="$(_hi_stamp_fixture)"
   rm -f "$d/usr/share/man/man1/hi.1.gz"
-  _hi_stamp --root "$d" --version 6.6.6 --date 2026-01-02 &&
-    grep -qF '_HI_RELEASE="6.6.6"' "$d/usr/share/say-hi/hi.sh"
+  { _hi_stamp --root "$d" --version 6.6.6 --date 2026-01-02 &&
+    grep -qF '_HI_RELEASE="6.6.6"' "$d/usr/share/say-hi/hi.sh"; } || _hi_why d
 }
 
 # Two stagings under the same pinned SOURCE_DATE_EPOCH carry identical - and
@@ -359,11 +359,11 @@ function test_stage_mtimes_are_clamped_and_reproducible() {
   local a="$_HI_WORKDIR/repro-a" b="$_HI_WORKDIR/repro-b" ref="$_HI_WORKDIR/repro-now"
   SOURCE_DATE_EPOCH=946684800 "$_HI_PKG_DIR/mkpkg.sh" --stage-only --outdir "$a" >/dev/null 2>&1 &&
     SOURCE_DATE_EPOCH=946684800 "$_HI_PKG_DIR/mkpkg.sh" --stage-only --outdir "$b" >/dev/null 2>&1 ||
-    return 1
+    return 1 || _hi_why a b _HI_PKG_DIR || return 1
   a="$a/staging/usr/share/say-hi/hi.sh"
   b="$b/staging/usr/share/say-hi/hi.sh"
   touch "$ref"
-  [ ! "$a" -nt "$b" ] && [ ! "$b" -nt "$a" ] && [ "$a" -ot "$ref" ]
+  [ ! "$a" -nt "$b" ] && [ ! "$b" -nt "$a" ] && [ "$a" -ot "$ref" ] || _hi_why a b ref
 }
 
 # --- packaging/lib.sh's primitives, at suite level via a subshell source ----
@@ -382,8 +382,8 @@ function _hi_in_pkglib() {
 # a workflow secret lands in a file only its owner reads, whatever the umask
 function test_lib_write_key_writes_an_owner_only_file() {
   local f="$_HI_WORKDIR/write-key"
-  (umask 022 && _hi_in_pkglib write_key "$f" 'the secret') || return 1
-  [ "$(cat "$f")" = 'the secret' ] || return 1
+  { (umask 022 && _hi_in_pkglib write_key "$f" 'the secret'); } || _hi_why f || return 1
+  [ "$(cat "$f")" = 'the secret' ] || _hi_why f || return 1
   # shellcheck disable=SC2012 # the mode column, of a name this case chose
   case "$(ls -l "$f")" in -rw-------*) ;; *) _hi_because "mode: $(ls -l "$f")" ;; esac
 }
@@ -391,11 +391,11 @@ function test_lib_write_key_writes_an_owner_only_file() {
 function test_lib_sha256_agrees_with_openssl() {
   local f="$_HI_WORKDIR/sum.probe"
   printf 'hash me\n' >"$f"
-  [ "$(_hi_in_pkglib sha256_of "$f")" = "$(openssl dgst -sha256 -r "$f" | cut -d' ' -f1)" ] || return 1
+  [ "$(_hi_in_pkglib sha256_of "$f")" = "$(openssl dgst -sha256 -r "$f" | cut -d' ' -f1)" ] || _hi_why f || return 1
   # the multi-file form keeps sha256sum's "<sum><sep><file>" shape mkpkg
   # depends on; the separator is two spaces on GNU and " *" where the tool
   # opened the file binary - see the note above $_HI_SUMS_NAMES
-  _hi_in_pkglib sha256_lines "$f" "$f" | grep -cE "^[0-9a-f]{64} [ *]" | grep -qx 2
+  _hi_in_pkglib sha256_lines "$f" "$f" | grep -cE "^[0-9a-f]{64} [ *]" | grep -qx 2 || _hi_why f
 }
 
 function test_lib_b2_matches_makepkg_expectation() {
@@ -403,17 +403,17 @@ function test_lib_b2_matches_makepkg_expectation() {
   printf 'hash me\n' >"$f"
   out="$(_hi_in_pkglib b2_of "$f")"
   # BLAKE2b-512: 128 hex chars, and both impls agree where both exist
-  [ "${#out}" -eq 128 ] || return 1
+  [ "${#out}" -eq 128 ] || _hi_why out || return 1
   openssl dgst -blake2b512 </dev/null >/dev/null 2>&1 || return 0
-  [ "$out" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ]
+  [ "$out" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ] || _hi_why out f NF
 }
 
 function test_lib_pkgbuild_version_reads_and_refuses() {
   local f="$_HI_WORKDIR/PKGBUILD.probe"
   printf 'pkgname=say-hi\npkgver=1.2.3\npkgrel=1\n' >"$f"
-  [ "$(_hi_in_pkglib pkgbuild_version "$f")" = 1.2.3 ] || return 1
+  [ "$(_hi_in_pkglib pkgbuild_version "$f")" = 1.2.3 ] || _hi_why f || return 1
   printf 'pkgname=say-hi\n' >"$f"
-  ! _hi_in_pkglib pkgbuild_version "$f" 2>/dev/null
+  ! _hi_in_pkglib pkgbuild_version "$f" 2>/dev/null || _hi_why f
 }
 
 # default_version()'s three rungs, each one forcing the next: a real
@@ -425,7 +425,7 @@ function test_lib_default_version_falls_through_the_template() {
   local pkgbuild="$_HI_WORKDIR/dv.PKGBUILD" gitdir="$_HI_WORKDIR/dv.git"
 
   printf 'pkgname=say-hi\npkgver=1.2.3\npkgrel=1\n' >"$pkgbuild"
-  [ "$(_HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 1.2.3 ] || return 1
+  [ "$(_HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 1.2.3 ] || _hi_why pkgbuild || return 1
 
   printf 'pkgname=say-hi\npkgver=0.0.0\npkgrel=1\n' >"$pkgbuild"
   rm -rf "$gitdir" && mkdir -p "$gitdir"
@@ -436,24 +436,24 @@ function test_lib_default_version_falls_through_the_template() {
   # key - a maintainer machine with tag.gpgSign=true set globally would
   # otherwise fail this with "no tag message?"
   git -C "$gitdir" -c tag.gpgSign=false tag v9.9.9
-  [ "$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 9.9.9 ] || return 1
+  [ "$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 9.9.9 ] || _hi_why gitdir pkgbuild || return 1
 
   rm -rf "$gitdir" && mkdir -p "$gitdir"
   git -C "$gitdir" init -q
-  [ "$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 0.0.0 ]
+  [ "$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 0.0.0 ] || _hi_why gitdir pkgbuild
 }
 
 function test_lib_pkgbuild_url_reads_and_refuses() {
   local f="$_HI_WORKDIR/PKGBUILD.url"
   printf 'pkgname=say-hi\nurl="https://example.invalid/say-hi"\n' >"$f"
-  [ "$(_hi_in_pkglib pkgbuild_url "$f")" = "https://example.invalid/say-hi" ] || return 1
+  [ "$(_hi_in_pkglib pkgbuild_url "$f")" = "https://example.invalid/say-hi" ] || _hi_why f || return 1
   printf 'pkgname=say-hi\n' >"$f"
-  ! _hi_in_pkglib pkgbuild_url "$f" 2>/dev/null
+  ! _hi_in_pkglib pkgbuild_url "$f" 2>/dev/null || _hi_why f
 }
 
 function test_lib_need_verdicts() {
-  _hi_in_pkglib need sh || return 1
-  ! _hi_in_pkglib need hi-no-such-tool 2>/dev/null
+  _hi_in_pkglib need sh || _hi_why || return 1
+  ! _hi_in_pkglib need hi-no-such-tool 2>/dev/null || _hi_why
 }
 
 # the whole contract: a missing/unreadable file reads as empty rather than
@@ -462,8 +462,8 @@ function test_lib_gpg_fpr_is_empty_never_fatal() {
   local hd="$_HI_WORKDIR/gpgfpr" out
   mkdir -p "$hd"
   chmod 700 "$hd"
-  out="$(_hi_in_pkglib gpg_fpr --homedir "$hd" --show-keys "$_HI_WORKDIR/no-such-key.asc")" || return 1
-  [ -z "$out" ]
+  out="$(_hi_in_pkglib gpg_fpr --homedir "$hd" --show-keys "$_HI_WORKDIR/no-such-key.asc")" || _hi_why hd || return 1
+  [ -z "$out" ] || _hi_why out
 }
 
 # the walk at the top of lib.sh: sourced through a symlink - absolute, then a
@@ -516,11 +516,11 @@ function test_lib_verify_signing_key_refuses_a_non_key_secret() {
   local f="$_HI_WORKDIR/notakey.asc" out
   printf 'this is not a key\n' >"$f"
   out="$(_hi_in_pkglib verify_signing_key gpg "$f" "$f" 2>&1)" && return 1
-  [[ "$out" == *"could not import the secret key"* ]]
+  [[ "$out" == *"could not import the secret key"* ]] || _hi_why out
 }
 
 function test_lib_verify_signing_key_gpg_verdicts() {
-  _hi_mkrepo_keys || return 1
+  _hi_mkrepo_keys || _hi_why || return 1
   local kd="$_HI_WORKDIR/gpg" fpr
   # the matching pair passes and prints the fingerprint...
   fpr="$(_hi_in_pkglib verify_signing_key gpg "$kd/main.key" "$kd/main.asc" 2>/dev/null)" || {
@@ -539,7 +539,7 @@ function test_lib_verify_signing_key_gpg_verdicts() {
     return 1
   }
   # ...and so is a missing public half
-  ! _hi_in_pkglib verify_signing_key gpg "$kd/main.key" "$kd/absent.asc" 2>/dev/null
+  ! _hi_in_pkglib verify_signing_key gpg "$kd/main.key" "$kd/absent.asc" 2>/dev/null || _hi_why kd
 }
 
 function test_lib_verify_signing_key_rsa_verdicts() {
@@ -547,17 +547,17 @@ function test_lib_verify_signing_key_rsa_verdicts() {
   mkdir -p "$kd"
   openssl genrsa -out "$kd/a.rsa" 2048 2>/dev/null &&
     openssl genrsa -out "$kd/b.rsa" 2048 2>/dev/null &&
-    openssl rsa -in "$kd/a.rsa" -pubout -out "$kd/a.pub" 2>/dev/null || return 1
-  _hi_in_pkglib verify_signing_key rsa "$kd/a.rsa" "$kd/a.pub" || return 1
-  ! _hi_in_pkglib verify_signing_key rsa "$kd/b.rsa" "$kd/a.pub" 2>/dev/null
+    openssl rsa -in "$kd/a.rsa" -pubout -out "$kd/a.pub" 2>/dev/null || _hi_why kd || return 1
+  _hi_in_pkglib verify_signing_key rsa "$kd/a.rsa" "$kd/a.pub" || _hi_why kd || return 1
+  ! _hi_in_pkglib verify_signing_key rsa "$kd/b.rsa" "$kd/a.pub" 2>/dev/null || _hi_why kd
 }
 
 function test_lib_src_tarball_carries_the_versioned_prefix() {
   local out="$_HI_WORKDIR/src.tar.gz"
-  _hi_in_pkglib src_tarball 9.9.9 HEAD "$out" || return 1
+  _hi_in_pkglib src_tarball 9.9.9 HEAD "$out" || _hi_why out || return 1
   # no -q: an early grep exit would SIGPIPE tar mid-listing, which reads as
   # a red 141 under the suite's pipefail
-  tar -tzf "$out" | grep -x 'say-hi-9.9.9/hi.sh' >/dev/null
+  tar -tzf "$out" | grep -x 'say-hi-9.9.9/hi.sh' >/dev/null || _hi_why out
 }
 
 # --- mkpkg.sh's arms past --stage-only -------------------------------------
@@ -617,9 +617,9 @@ function test_mkpkg_touch_epoch_falls_back_without_gnu_touch() {
   fi
   chmod +x "$shim/date"
   SOURCE_DATE_EPOCH=946684800 PATH="$shim:$PATH" \
-    _hi_in_mkpkg "$dist" touch_epoch "$dist/staging" || return 1
+    _hi_in_mkpkg "$dist" touch_epoch "$dist/staging" || _hi_why shim dist || return 1
   got="$(stat -c '%Y' "$dist/staging/probe" 2>/dev/null || stat -f '%m' "$dist/staging/probe")"
-  [ "$got" -eq 946684800 ]
+  [ "$got" -eq 946684800 ] || _hi_why got
 }
 
 # _hi_mkrepo_keys - two throwaway GPG keys (main + imposter) into
