@@ -247,15 +247,16 @@ row, and everything answered **no**, and why:
   `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-six flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty-four flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
-  outlives it, unless you ask: `hi --keep <target>` runs the session in `tmux`
-  or `screen` on the target, the next `hi <target>` reattaches, and
-  `hi --end <target>` or a day unattended closes it. `hi --mux <target>` does
-  the wrapping on your side instead, in a local `tmux`, `zellij`, or `screen`
-  ([both](docs/INTEGRATIONS.md#terminal-multiplexers)).
+  outlives it, unless you ask: `hi --keep <target>` runs the session in
+  `tmux`, `zellij`, or `screen` on the target, the next `hi <target>`
+  reattaches, and `hi --end <target>` or a day unattended closes it. On a
+  target with none of the three, its files and directory wait fifteen
+  minutes for you
+  ([how](docs/INTEGRATIONS.md#terminal-multiplexers)).
 - Done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `~/.local/bin/hi` (or a `/usr/bin/hi` of its own making; a
@@ -384,24 +385,21 @@ account or an upstream review that lands when it lands.
 3. [ ] _Before 1.0:_ **Every tree has a claim and a timer** — shipped:
        every session leaves its pid in its tree, the next connect's sweep
        reads it, and a watcher apart from the session removes the tree of a
-       shell killed outright. Its timer is what
-       _`--keep` holds on a target with no multiplexer_ adds. What is left
+       shell killed outright, and is a held tree's timer. What is left
        is seeing it on a target. **Ticks when:** a session whose shell and
        bootstrap are killed with `kill -9` has its tree gone within two
        minutes and no connect in between, and a tree a reboot left is gone
        after the next connect.
 
 4. [ ] _Before 1.0:_ **`--keep` holds on a target with no multiplexer** —
-       there `--keep` warns and connects as usual, and the drop takes the
-       tree. A shell cannot outlive its connection with nothing holding its
-       terminal, but the tree can. **Do:** on such a target the hangup
-       leaves the tree to the timer, with the directory the shell was in
-       and its history beside it; a connect inside the window takes that
-       tree and starts its shell there, and unpacks nothing. Its default
-       window is fifteen minutes, where a live session's stays 24h.
-       **Ticks when:** a drop and a reconnect on a target with none of the
-       three land in the directory the first shell left, on one tree, and
-       with no reconnect the tree is gone at the window's end.
+       shipped: there a dropped link leaves the session's tree to a timer,
+       fifteen minutes unless `_HI_KEEP_TIMEOUT` says otherwise, with the
+       directory its shell was in; a connect inside the window takes the
+       tree, starts its shell there, and unpacks nothing; and `hi --end`
+       removes one that is waiting
+       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is left is
+       seeing it in CI. **Ticks when:** the `ssh_keep` suite's `held` and
+       `expired` cases pass.
 
 5. [ ] _Before 1.0:_ **A multiplexer started in a session is the kept
        session** — shipped: `tmux`, `zellij`, or `screen` typed bare in a
@@ -413,19 +411,7 @@ account or an upstream review that lands when it lands.
        plain `hi <target>` session opens a pane that shows hi's prompt, and
        the next `hi <target>` after a drop attaches it.
 
-6. [ ] _Before 1.0:_ **`--mux` goes** — it wraps the connect in a local
-       multiplexer ([HI.52](docs/GLOSSARY.md#hi52-client-multiplexer-wrap)),
-       which a dropped link ends with the connect inside it; what it does
-       cover, a closed terminal, a kept session covers from the target, and
-       the retry no longer needs its pane. **Do:** remove `--mux`,
-       `--no-mux`, `_HI_MUX`, and `_hi_mux_wrap` with its zellij layout,
-       keeping `_hi_mux_name` for the session's name; the docs name
-       `tmux new -A -s <name> hi <target>` for a container or `--plain`
-       session that has to outlive a terminal. **Ticks when:** `hi --mux`
-       is refused as an unknown option, and no doc, completion, or setting
-       names it.
-
-7. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
+6. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
        shipped: the fixture's `packages` overlay
        (`docs/tapes/fixtures.sh`, `up:packages`) was rows of a shape hi no
        longer reads, so the check had nothing to draw; it is TOML rows now,
@@ -434,12 +420,12 @@ account or an upstream review that lands when it lands.
        left is a render. **Ticks when:** a release's `demo.gif` shows the
        check's row on both boxes.
 
-8. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+7. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-9. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
+8. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
        `nvim/init.lua` rides, and a `require` of a module under the config's
        `lua/` is dropped with the plugin managers', so a config split into
        modules starts nearly bare; an `init.vim` does not ride at all.
@@ -451,15 +437,15 @@ account or an upstream review that lands when it lands.
        dialect. **Ticks when:** a target's `nvim` opens on an `init.lua`
        that requires two modules of its own, both loaded.
 
-10. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
-        rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
-        directory of the overlay
-        ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
-        alone and under a size cap, on a session's `$PATH`. **Ticks when:** a
-        script in `~/.config/say-hi/bin/` runs by name in a session, and
-        `hi --doctor` names a binary there as left home.
+9. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
+       rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
+       directory of the overlay
+       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
+       alone and under a size cap, on a session's `$PATH`. **Ticks when:** a
+       script in `~/.config/say-hi/bin/` runs by name in a session, and
+       `hi --doctor` names a binary there as left home.
 
-11. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
+10. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
         git has no plugin: a config that rode whole would bring identity,
         signing, and credential helpers to a box that must not have them.
         **Do:** a `git` plugin, off by default, added over the target's own
@@ -471,13 +457,13 @@ account or an upstream review that lands when it lands.
         alias runs on a target, `git config user.email` there is the
         target's own, and a `signingkey` rides only with its `hi-allow`.
 
-12. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
+11. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
         AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
         a flake with the package and a home-manager module that writes the
         rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
         the flake.
 
-13. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
+12. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
         `hi --install --print-rc`'s block looks in `$HOME`,
         `/usr/local/share`, and `/usr/share`, and whether an install from
         the formula writes its versioned keg into an rc is not yet known.
@@ -487,17 +473,17 @@ account or an upstream review that lands when it lands.
         machine with a clone and on one with the formula, across a
         `brew upgrade`.
 
-14. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-15. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-16. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

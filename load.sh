@@ -72,15 +72,24 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # Everything hi put on the target and nothing the target had. hi never writes
 # to a target's own login files, so there is nothing to strip back out.
 function clean_all() {
+  # the rc directory nests under $_HI_CLEANUP when there is one; this removal
+  # is for a session with no disposable tree - a local install's own shells -
+  # and for a tree that is held, whose next session writes its own
+  [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
+  # A session that holds its tree (_hi_keep_holds) and has lost its terminal
+  # was dropped: the tree is left to the watcher's timer under hi.held, the
+  # watcher, this shell, and the name a connect takes it by. An `exit` still
+  # has its terminal, and takes the tree with it.
+  if [ -n "${_hi_keep_tty:-}" ] && ! [ -t 0 ] && kill -0 "${_hi_tree_watch_pid:-0}" 2>/dev/null &&
+    printf '%s %s %s\n' "$_hi_tree_watch_pid" "$$" "$_HI_KEEP_HOLD" 2>/dev/null >"$_HI_ROOT/hi.held"; then
+    return 0
+  fi
   # the tree's watcher (_hi_tree_watch), which takes its own sleep with it
   [ -z "${_hi_tree_watch_pid:-}" ] || kill "$_hi_tree_watch_pid" 2>/dev/null
   # a kept session's timeout watcher, by process group: its `sleep` goes too
   if [ -n "${_hi_keep_watch_pid:-}" ]; then
     kill -- "-$_hi_keep_watch_pid" 2>/dev/null || kill "$_hi_keep_watch_pid" 2>/dev/null
   fi
-  # the rc directory nests under $_HI_CLEANUP when there is one; this removal
-  # is for a session with no disposable tree - a local install's own shells
-  [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
   _hi_clean_tree
   # an owner pane is its session: the panes opened beside it run on this
   # tree's rc (_hi_keep_panes), and go with it
@@ -225,6 +234,17 @@ function _hi_session_rc_setup() {
     fish_vars="${fish_vars}set -gx $v $q"$'\n'
   done
   sh_vars="${sh_vars}unset _hi_core_loaded"$'\n'
+  # A session that holds its tree (_hi_keep_holds) notes the directory it is
+  # in, for the connect that takes the tree after a drop: at each prompt in
+  # bash and zsh, the last command's status kept for the hooks behind it, and
+  # at each change in fish. A builtin's write, no fork.
+  if [ -n "${_hi_keep_tty:-}" ]; then
+    printf -v q '%q' "$_HI_ROOT/hi.cwd"
+    sh_vars="${sh_vars}_hi_held_cwd() { local e=\$?; printf '%s\\n' \"\$PWD\" 2>/dev/null >$q; return \$e; }"$'\n'
+    sh_vars="${sh_vars}[ -n \"\${ZSH_VERSION:-}\" ] && precmd_functions+=(_hi_held_cwd) || PROMPT_COMMAND=\"_hi_held_cwd\${PROMPT_COMMAND:+; \$PROMPT_COMMAND}\""$'\n'
+    _hi_fishquote q "$_HI_ROOT/hi.cwd"
+    fish_vars="${fish_vars}function _hi_held_cwd --on-variable PWD; echo \$PWD >$q 2>/dev/null; end"$'\n'
+  fi
   for v in "${_HI_SESSION_VARS[@]}"; do
     [ -n "${!v-}" ] || continue
     printf -v q '%q' "${!v}"
@@ -423,25 +443,60 @@ function _hi_keep_claim() {
   fi
 }
 
-# _hi_tree_watch [step] - the tree's last resort: a job apart from this shell
-# that waits it out and, should the tree still be there, does what its exit
-# hook would have. The hook and the bootstrap's trap remove the tree on every
-# exit a shell can see; this is for the one neither sees, both killed
+# Whether this session holds its tree through a drop: hi.sh asked for it
+# ($_HI_KEEP_HOLD, the name, where a keeping connect found no multiplexer or
+# took a held tree), the tree is a disposable one, and there is a terminal to
+# lose. GLOSSARY: HI.65
+function _hi_keep_holds() {
+  [[ -n "${_HI_KEEP_HOLD:-}" && -z "${_HI_KEEP_MUX:-}" && -n "${_HI_CLEANUP:-}" &&
+    "$_HI_ROOT" == "$_HI_CLEANUP"/* ]] && [ -t 0 ]
+}
+
+# _hi_keep_claimed <file> <pid> <field> - is <pid> the <field>th word of the
+# claim <file> in this tree?
+function _hi_keep_claimed() {
+  local a="" b=""
+  read -r a b _ 2>/dev/null <"$_HI_ROOT/$1" || return 1
+  case "$3" in 1) [ "$a" = "$2" ] ;; *) [ "$b" = "$2" ] ;; esac
+}
+
+# _hi_tree_watch [step [poll]] - the tree's last resort: a job apart from this
+# shell that waits it out and, should the tree still be there, does what its
+# exit hook would have. The hook and the bootstrap's trap remove the tree on
+# every exit a shell can see; this is for the one neither sees, both killed
 # outright. It ignores the hangup that ends a session, holds no terminal, and
-# is killed by the hook on the way out; <step> is the poll, a test's to
-# shorten. GLOSSARY: HI.65
+# is killed by the hook on the way out.
+#
+# It is also a held tree's timer. While hi.held names the shell it waited out,
+# it waits $_HI_KEEP_TIMEOUT more (15m here, where a live session's is 24h,
+# and for a 0 too: nothing of hi's stays for good), or until `hi --end`
+# leaves hi.end. A connect that takes the tree rewrites hi.pid first, and a
+# tree whose hi.pid is no longer that shell's is left to its new session.
+# <step> and <poll> are the two waits, a test's to shorten. GLOSSARY: HI.65
 function _hi_tree_watch() {
-  local pid="$$" step="${1:-60}"
+  local pid="$$" step="${1:-60}" poll="${2:-5}" limit=0 t0
   [ -n "${_HI_CLEANUP:-}" ] && [ -d "$_HI_CLEANUP" ] || return 0
+  if [ -n "${_hi_keep_tty:-}" ]; then
+    _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-15m}" limit && ((limit > 0)) || limit=900
+  fi
   {
     (
       trap '' HUP
       trap 'kill "$!" 2>/dev/null; exit 0' TERM
-      unset _hi_tree_watch_pid
+      unset _hi_tree_watch_pid _hi_keep_tty
       while kill -0 "$pid" 2>/dev/null; do
         sleep "$step" &
         wait "$!"
       done
+      if ((limit > 0)); then
+        t0=$SECONDS
+        while _hi_keep_claimed hi.held "$pid" 2 && [ ! -e "$_HI_ROOT/hi.end" ] && ((SECONDS - t0 < limit)); do
+          sleep "$poll" &
+          wait "$!"
+        done
+        _hi_keep_claimed hi.pid "$pid" 1 || exit 0
+        [ ! -e "$_HI_ROOT/hi.held" ] || rm "$_HI_ROOT/hi.held" 2>/dev/null || exit 0
+      fi
       [ ! -d "$_HI_CLEANUP" ] || clean_all
     ) </dev/null >/dev/null 2>&1 &
   } 2>/dev/null
@@ -570,6 +625,16 @@ function load() {
   # an ordinary ssh session can be kept from inside; an owner pane already is
   [ -z "${_HI_KEEP_AS:-}" ] || [ -n "${_HI_KEEP_MUX:-}" ] || _hi_keep_file >"$_HI_ROOT/hi.keep"
   _hi_keep_claim
+  # a tree a dropped session left, taken by this connect (hi.sh's
+  # _hi_keep_held), still has the directory that session was in
+  local banner=Connected
+  [ ! -s "$_HI_ROOT/hi.cwd" ] || [ -z "${_HI_KEEP_HOLD:-}" ] || banner=Resumed
+  _hi_keep_tty=""
+  if _hi_keep_holds; then
+    _hi_keep_tty=1
+    rm -f "$_HI_ROOT/hi.end"
+    printf '%s\n' "$PWD" >"$_HI_ROOT/hi.cwd"
+  fi
 
   # connect (the client's leg) plus copy (this one), each measured wholly on
   # one machine, since clock skew makes a client/target subtraction
@@ -581,7 +646,7 @@ function load() {
   # size hi.sh printed stayed outside the multiplexer
   [ -z "${_HI_KEEP_NAME:-}" ] || printf '%s' "${_HI_CONNECT_PREFIX:-}"
   _hi_cecho " | ${total}s" "$NC" 1
-  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
+  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || hi_header "$banner" "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
   _hi_nano_fallback
   # vim only: VIMINIT breaks a target that has just vi. Only with the rc

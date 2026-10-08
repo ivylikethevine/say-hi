@@ -269,16 +269,16 @@ function test_settings_drop_the_old_alias_toggles() {
 function test_settings_move_the_tool_toggles_to_the_list() {
   _hi_conv_is _hi_convert_settings "#!/bin/sh\nexport _HI_DISABLE_VIM=1\nexport _HI_DISABLE_NANO='0'\nexport _HI_MAX_WIDTH=100\n  _HI_DISABLE_TMUX=\"1\"\n" \
     "#!/bin/sh\nexport _HI_MAX_WIDTH=100\nexport _HI_PLUGINS_OFF='vim nvim tmux'" || return 1
-  _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_OFF='lazygit, vim'\nexport _HI_DISABLE_EDITORS=1\nexport _HI_DISABLE_VIM=1\nexport _HI_MUX=1\n" \
-    "export _HI_PLUGINS_OFF='lazygit vim nvim nano emacs hx kak micro'\nexport _HI_MUX=1" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_OFF='lazygit, vim'\nexport _HI_DISABLE_EDITORS=1\nexport _HI_DISABLE_VIM=1\nexport _HI_KEEP=1\n" \
+    "export _HI_PLUGINS_OFF='lazygit vim nvim nano emacs hx kak micro'\nexport _HI_KEEP=1" || return 1
   _hi_conv_is _hi_convert_settings "export _HI_DISABLE_EMACS=0\n" ""
 }
 
 # a group's word in either list is its plugins' words, each once, where the
 # line stands; a plugin's word stays
 function test_settings_spell_a_group_as_its_plugins() {
-  _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_ON=\"hooks\"\nexport _HI_PLUGINS_OFF='lazygit, mux tmux'\nexport _HI_MUX=1\n" \
-    "export _HI_PLUGINS_ON='zoxide atuin direnv mise'\nexport _HI_PLUGINS_OFF='lazygit tmux screen zellij'\nexport _HI_MUX=1" || return 1
+  _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_ON=\"hooks\"\nexport _HI_PLUGINS_OFF='lazygit, mux tmux'\nexport _HI_KEEP=1\n" \
+    "export _HI_PLUGINS_ON='zoxide atuin direnv mise'\nexport _HI_PLUGINS_OFF='lazygit tmux screen zellij'\nexport _HI_KEEP=1" || return 1
   _HI_GROUP_MAP="mine:task note;" _hi_conv_is _hi_convert_settings "export _HI_PLUGINS_OFF='mine bat'\n" \
     "export _HI_PLUGINS_OFF='task note bat'"
 }

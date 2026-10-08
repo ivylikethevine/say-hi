@@ -302,12 +302,14 @@ function test_case_keeps_the_progress_file_current() {
 }
 
 function test_case_names_itself_before_it_runs() {
-  local file="$_HI_WORKDIR/progress.named" seen
+  local file="$_HI_WORKDIR/progress.named" seen want
   seen="$(
     _HI_PROGRESS_FILE="$file" _HI_TOTAL=0 _HI_FAILED=0
     _hi_case cat "$file.case"
   )"
-  [ "$seen" = "cat $file.case" ]
+  # a label is cut to a line's worth, and a temp path may be longer
+  want="cat $file.case"
+  [ "$seen" = "${want:0:100}" ]
 }
 
 function test_note_failure_appends_the_label() {

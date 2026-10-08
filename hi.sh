@@ -51,7 +51,7 @@ _HI_RELEASE="${_HI_RELEASE:-}"
 
 # Kept identical to docs/hi.1's SYNOPSIS (parse_test.sh compares the two);
 # folded so --help fits 80 columns
-_HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain|--no-plain] [--mux|--no-mux]
+_HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain|--no-plain]
           [--keep|--no-keep|--end] <target> [command ...]"
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
@@ -839,12 +839,12 @@ REMOTE
 # where this zellij lists it.
 # _hi_keep_start [note prefix [name...]] - the names are the pane's variables
 # where a session starts it, which has them in a file and not in a connect.
-# $_HI_KEEP_WITH, there, is the one of the three that was typed.
+# $_HI_KEEP_WITH, there, is the one of the three that was typed. A target with
+# none of the three holds the session's tree instead (_hi_keep_held): its
+# bootstrap outlasts the hangup, so the session's own exit decides the tree.
 function _hi_keep_start() {
-  local n target_q _hi_esc _hi_nc argv="" drop="" note="${1:- |}"
+  local n argv="" drop="" note="${1:- |}"
   local -a names=("${@:2}")
-  _hi_esc_pair _hi_esc _hi_nc
-  _hi_shquote target_q "$DOMAIN"
   if [ "${#names[@]}" -eq 0 ]; then
     while IFS=$'\t' read -r n _; do names+=("$n"); done < <(_hi_session_env)
     names+=(_HI_ROOT _HI_CLEANUP _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME)
@@ -892,7 +892,7 @@ function _hi_keep_start() {
           )
           _hi_kept_note '$note'
         else
-          [ -n "\$_hi_k" ] || printf '%s --keep needs tmux, zellij, or screen on [%s], connecting without it %s\n' "$_hi_esc" $target_q "$_hi_nc" >&2
+          [ -n "\$_hi_k" ] || { export _HI_KEEP_HOLD="\$_hi_kn" && trap : HUP; }
           bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
         fi
 REMOTE
@@ -902,25 +902,65 @@ REMOTE
 # own. A session killed with no exit hook - the target went down under it -
 # left its tree, and its claim in it (load.sh's _hi_keep_claim): hi.kept, an
 # owner pane's pid and that of the shell it was kept from, or hi.pid, any
-# other session's. A tree no process of its claim still runs on is removed,
-# and one a kept session claims is that claim's alone. GLOSSARY: HI.65
+# other session's, or hi.held, the watcher's of a tree a drop left to its
+# timer and the shell's that left it (load.sh's clean_all). A tree no process
+# of its claim still runs on is removed, and one a kept session or a timer
+# claims is that claim's alone. GLOSSARY: HI.65
 function _hi_keep_sweep() {
   # shellcheck disable=SC2016 # the target's to expand
   printf '%s\n' \
-    '      for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.kept "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.pid; do' \
-    '        case "$_hi_s" in */hi.pid) [ ! -e "${_hi_s%pid}kept" ] || continue ;; esac' \
-    '        read -r _hi_ko _hi_kp 2>/dev/null <"$_hi_s" && [ -n "$_hi_ko" ] || continue' \
+    '      for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.kept "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.held "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.pid; do' \
+    '        case "$_hi_s" in */hi.pid) [ ! -e "${_hi_s%pid}kept" ] && [ ! -e "${_hi_s%pid}held" ] || continue ;; esac' \
+    '        read -r _hi_ko _hi_kp _hi_kh 2>/dev/null <"$_hi_s" && [ -n "$_hi_ko" ] || continue' \
     '        kill -0 "$_hi_ko" 2>/dev/null || kill -0 "${_hi_kp:-$_hi_ko}" 2>/dev/null || rm -rf "${_hi_s%/say-hi/hi.*}"' \
+    '      done'
+}
+
+# What a connect that looks for a kept session runs after the sweep, at a
+# terminal: a tree a dropped session of this name left to its timer
+# (hi.held: the watcher, the shell, the name) becomes this connect's, in place
+# of the empty one it just made, and $_hi_held says the unpack is not needed.
+# Only a directory of this account's own, never a link to one, since its rc
+# is about to be run. The claim is this script's pid in hi.pid, then the
+# removal of hi.held, which one of two connects wins; the session starts in
+# the directory the dropped one was in, and holds its tree as that one did.
+# GLOSSARY: HI.65
+function _hi_keep_held() {
+  # shellcheck disable=SC2016 # the target's to expand
+  printf '%s\n' \
+    '      _hi_held=' \
+    '      [ ! -t 0 ] || for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.held; do' \
+    '        _hi_d=${_hi_s%/say-hi/hi.held}' \
+    '        [ -O "$_hi_d" ] && [ ! -L "$_hi_d" ] && read -r _hi_ko _hi_kp _hi_kh 2>/dev/null <"$_hi_s" && [ "$_hi_kh" = "$_hi_kn" ] || continue' \
+    '        echo "$$" >"$_hi_d/say-hi/hi.pid" && rm "$_hi_s" 2>/dev/null || continue' \
+    '        rmdir "$_HI_ROOT" "$_HI_HOME"' \
+    '        export _HI_HOME="$_hi_d" _HI_ROOT="$_hi_d/say-hi" _HI_CONFIG_DIR="$_hi_d/say-hi/config" _HI_CLEANUP="$_hi_d" _HI_KEEP_HOLD="$_hi_kn"' \
+    '        _hi_held=1' \
+    '        trap : HUP' \
+    '        ! IFS= read -r _hi_s <"$_HI_ROOT/hi.cwd" || cd "$_hi_s" 2>/dev/null || :' \
+    '        break' \
     '      done'
 }
 
 # What `hi --end` runs on the target: 3 when there is no kept session to
 # close. The owner pane's bash takes the hangup and its exit hook removes the
-# tree, as on a dropped connection.
+# tree, as on a dropped connection. A tree a drop left to its timer is ended
+# through that timer's watcher, which hi.end tells to stop waiting.
 function _hi_keep_end_script() {
+  local tmpl
+  _hi_whoami >/dev/null
+  _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
   _hi_keep_find
   cat <<REMOTE
-      _hi_kept || exit 3
+      _hi_kept || {
+        _hi_e=3
+        _hi_d=\$(mktemp -d -t $tmpl) && rmdir "\$_hi_d" || exit 3
+        for _hi_s in "\${_hi_d%.hi.*}".hi.*/say-hi/hi.held; do
+          [ -O "\$_hi_s" ] && read -r _hi_ko _hi_kp _hi_kh 2>/dev/null <"\$_hi_s" && [ "\$_hi_kh" = "\$_hi_kn" ] || continue
+          : >"\${_hi_s%held}end" && _hi_e=0
+        done
+        exit \$_hi_e
+      }
       case \$_hi_k in
       tmux) tmux kill-session -t "=\$_hi_kn" ;;
       zellij) zellij kill-session "\$_hi_kn" ;;
@@ -954,13 +994,14 @@ function _hi_keep_end() {
 # session comes here too (common/mux.sh), naming itself in $_HI_KEEP_WITH,
 # and is the one started where the name is one of the three. GLOSSARY: HI.65
 function _hi_keep_here() {
-  local file="$_HI_ROOT/hi.keep" line tool with=""
+  local file="$_HI_ROOT/hi.keep" line with=""
   case "${_HI_KEEP_WITH:-}" in tmux | zellij | screen) with="$_HI_KEEP_WITH" ;; esac
   local -a names=()
   [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session over ssh, into bash, started without --no-keep"
   [ -t 0 ] || _hi_die "--keep needs a terminal"
   [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ] || _hi_die "--keep: already inside a multiplexer here, and hi does not nest one"
-  _hi_mux_tool tool 2>/dev/null || _hi_die "--keep needs tmux, zellij, or screen on this machine"
+  { command -v tmux || command -v zellij || command -v screen; } >/dev/null 2>&1 ||
+    _hi_die "--keep needs tmux, zellij, or screen on this machine"
   # The script's environment, in the shell _hi is about to leave: a child's
   # (GLOSSARY: HI.47) and the file's, so the multiplexer started here
   # inherits what one a connect starts does, and none of this launcher's own.
@@ -1160,15 +1201,19 @@ REMOTE
 # The `trap ... exit` is a backstop for bash killed by a signal nothing can
 # trap: load.sh's clean_all owns the teardown otherwise, and the trap only
 # has to remove the tree, since $_HI_SESSION_RC_DIR nests inside it. A kept
-# session's tree is left to its owner pane, and one kept later from inside
-# leaves a marker for the same; the tree of an owner pane that died goes
-# here, by the next connect (GLOSSARY: HI.65).
+# session's tree is left to its owner pane, one kept later from inside
+# leaves a marker for the same, and one a drop left to its timer is the
+# timer's; the tree of an owner pane that died goes here, by the next connect,
+# which takes a held tree of its own name in place of unpacking
+# (GLOSSARY: HI.65).
 function _hi_remote_middle() {
-  local tmpl _hi_esc _hi_nc kept="" sweep=""
-  ! _hi_keep_probes || sweep="$(_hi_keep_sweep)"
+  local tmpl _hi_esc _hi_nc kept="" sweep="" fresh="" fi=""
+  # shellcheck disable=SC2016 # the target's to expand
+  ! _hi_keep_probes || sweep="$(_hi_keep_sweep)"$'\n'"$(_hi_keep_held)" fresh='      if [ -z "$_hi_held" ]; then' fi='      fi'
   # shellcheck disable=SC2016 # the target's to expand, when the trap runs
-  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || '
-  ! _hi_keep_starts || kept='_hi_kept || '
+  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || [ -e "$_HI_ROOT/hi.held" ] || '
+  # shellcheck disable=SC2016
+  ! _hi_keep_starts || kept='_hi_kept || [ -e "$_HI_ROOT/hi.held" ] || '
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
@@ -1185,6 +1230,7 @@ $sweep
       trap '${kept}rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
       printf '%s %s%s' "$_hi_esc" "$_hi_nc" "$size" >&2
+$fresh
       { printf 'export _HI_HOME="%s"\nexport _HI_ROOT="%s"\n' "\$_HI_HOME" "\$_HI_ROOT"
         echo "$bootloader" | $_HI_UNARMOR
       } > "\$_hi_rc_dir/hi.bashrc"
@@ -1196,7 +1242,7 @@ REMOTE
   # payload line. $overlay_line carries one of those armored values itself.
   printf '      echo "%s" | %s | tar -x -m -z -f - -C "$_HI_HOME"\n' \
     "$tree" "$_HI_UNARMOR"
-  printf '      %s\n      export _HI_CONNECT_PREFIX=" %s"\n' "$overlay_line" "$size"
+  printf '      %s\n%s\n      export _HI_CONNECT_PREFIX=" %s"\n' "$overlay_line" "$fi" "$size"
 }
 
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
@@ -1639,9 +1685,9 @@ function _hi_is_ssh_value_opt() {
 # split ssh's arguments from the target and any trailing remote command
 function _hi_parse() {
   local use_word takes own=""
-  # plain globals, so an inherited MUX=1 or PLAIN=1 must not stand in for a
+  # plain globals, so an inherited KEEP=1 or PLAIN=1 must not stand in for a
   # flag that was never typed
-  DOMAIN="" BACKEND="" PLAIN="" MUX="" KEEP="" END="" RAWCMD="" CMDARG=""
+  DOMAIN="" BACKEND="" PLAIN="" KEEP="" END="" RAWCMD="" CMDARG=""
   SSHARGS=()
   while [ $# -gt 0 ]; do
     # the target ends the options: every word after it, dashed or not, is
@@ -1668,13 +1714,10 @@ function _hi_parse() {
     --plain) PLAIN=1 own=1 ;;
     # the last of the pair wins, and either beats _HI_PLAIN=1, a tag's included
     --no-plain) PLAIN=0 own=1 ;;
-    --mux) MUX=1 own=1 ;;
-    # the last of --mux/--no-mux wins, and either beats _HI_MUX=1 - which is
-    # what makes --no-mux useful behind that setting
-    --no-mux) MUX=0 own=1 ;;
     --keep) KEEP=1 own=1 ;;
-    # the same pair, over _HI_KEEP=1; this one also leaves a session the
-    # target is already keeping alone, for an ordinary one beside it
+    # the last of the pair wins, and either beats _HI_KEEP=1; this one also
+    # leaves a session the target is already keeping alone, for an ordinary
+    # one beside it
     --no-keep) KEEP=0 own=1 ;;
     --end) END=1 own=1 ;;
     # ssh's own option terminator, passed along as-is
@@ -1815,21 +1858,6 @@ function _hi_mux_name() {
   _hi_out "${2:-}" "hi-${1//[^[:alnum:]_-]/-}"
 }
 
-# _hi_mux_tool <outvar> - which multiplexer wraps the session: the first of
-# tmux, zellij, and screen on PATH. Empty, with the reason on stderr, when
-# there is none to use.
-function _hi_mux_tool() {
-  local _hi_mt_tool
-  for _hi_mt_tool in tmux zellij screen; do
-    if command -v "$_hi_mt_tool" >/dev/null 2>&1; then
-      printf -v "$1" '%s' "$_hi_mt_tool"
-      return 0
-    fi
-  done
-  _hi_cecho "hi: --mux needs tmux, zellij, or screen on this machine; connecting without it" "$YELLOW" >&2
-  return 1
-}
-
 # One KDL string, for a zellij layout: inside double quotes KDL reads only the
 # backslash and the quote itself.
 function _hi_kdl_quote() {
@@ -1837,78 +1865,6 @@ function _hi_kdl_quote() {
   _hi_kq="${_hi_kq//\\/\\\\}"
   _hi_kq="${_hi_kq//\"/\\\"}"
   printf -v "$1" '"%s"' "$_hi_kq"
-}
-
-# With --mux (or _HI_MUX=1 and no --no-mux), re-run this connect inside a
-# local multiplexer session named for the target and never return; a second
-# `hi --mux <target>` joins the one already running. All client-side - the
-# target sees the same session it always does. GLOSSARY: HI.52
-function _hi_mux_wrap() {
-  local name tool cmd="" word plain q layout
-  local -a inner=()
-  [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
-  [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0 # already inside: connect as usual
-  _hi_mux_tool tool || return 0
-  name="$(_hi_mux_name "$DOMAIN")"
-  # Rebuilt from what _hi_parse settled on, not replayed from "$@", so the
-  # resolved target rides along. tmux and screen take it as one single-quoted
-  # string: tmux hands it to its default-shell, which may be fish, and screen
-  # to `sh -c`, and single quotes are the one form every shell reads alike
-  # (%q's $'...' is bash's alone). zellij takes the words, in a layout.
-  case "${KEEP:-}" in 1) word=--keep ;; 0) word=--no-keep ;; *) word="" ;; esac
-  case "${PLAIN:-}" in 1) plain=--plain ;; 0) plain=--no-plain ;; *) plain="" ;; esac
-  inner=(env _HI_MUX_INNER=1 "$_HI_LAUNCHER"
-    ${BACKEND:+--use "$BACKEND"} ${plain:+"$plain"} ${word:+"$word"}
-    ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"})
-  for word in "${inner[@]}"; do
-    _hi_shquote q "$word"
-    cmd="$cmd${cmd:+ }$q"
-  done
-  case "$tool" in
-  tmux)
-    if [ -n "${TMUX:-}" ]; then
-      # tmux refuses to nest: create detached if needed, then switch this client
-      tmux has-session -t "=$name" 2>/dev/null ||
-        tmux new-session -d -s "$name" "$cmd" || exit 1
-      exec tmux switch-client -t "=$name"
-    fi
-    exec tmux new-session -A -s "$name" "$cmd"
-    ;;
-  screen)
-    if [ -n "${STY:-}" ]; then
-      # screen has no client switch: a new window in this session is the
-      # nearest thing, and the wrap is done once it exists
-      screen -t "$name" sh -c "$cmd" || exit 1
-      exit 0
-    fi
-    # -D -R: reattach that session, detaching it elsewhere first, else create it
-    exec screen -D -R -S "$name" sh -c "$cmd"
-    ;;
-  zellij)
-    # zellij starts a session's command from a layout file, never from argv;
-    # one file per target, under hi's runtime directory, rewritten each time
-    _hi_runtime_dir layout
-    layout="${layout:-${TMPDIR:-/tmp}}/hi.mux.$name.kdl"
-    {
-      printf 'layout {\n    pane command=%s close_on_exit=true {\n        args' '"env"'
-      for word in "${inner[@]}"; do
-        [ "$word" = env ] && continue
-        _hi_kdl_quote q "$word"
-        printf ' %s' "$q"
-      done
-      printf '\n    }\n}\n'
-    } >"$layout" || exit 1
-    if [ -n "${ZELLIJ:-}" ]; then
-      # inside a zellij: a new tab in this session, named for the target
-      zellij action new-tab --name "$name" --layout "$layout" || exit 1
-      exit 0
-    fi
-    if zellij list-sessions --short 2>/dev/null | grep -qx -- "$name"; then
-      exec zellij attach "$name"
-    fi
-    exec zellij --session "$name" --new-session-with-layout "$layout"
-    ;;
-  esac
 }
 
 function _hi() {
@@ -1929,7 +1885,7 @@ function _hi() {
     exit $?
   fi
   # ahead of everything that reads a setting: the prompt list, the members,
-  # --mux, --keep, and --plain itself
+  # --keep, and --plain itself
   _hi_tag_settings "$tmp.settings"
   [ -n "${PLAIN:-}" ] || [ "${_HI_PLAIN:-0}" != 1 ] || PLAIN=1
   # Primed in the shell that keeps them: a caller that reads one through $( )
@@ -1946,8 +1902,6 @@ function _hi() {
     _hi_keep_end
     exit $?
   fi
-  # only with a terminal to attach: a piped `hi host cmd` keeps working
-  if [ -t 0 ]; then _hi_mux_wrap; fi
   # No `2>"$tmp"` around this block: it would also catch every word ssh says
   # on a *successful* session - the server's `Banner`, the "Permanently added"
   # line, the host-key fingerprint. $tmp still reaches _say_hi_container,

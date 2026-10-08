@@ -69,8 +69,8 @@ real connect authenticates with, so \`hi --doctor -J bastion host\`
 diagnoses the connect that needed the jump host; for a container,
 allocation, or pod target they are reported as ignored. --use <backend>
 names the target's arm outright, as a real \`hi --use <backend> <target>\`
-would, and skips the probe chain. --plain, --mux, --no-mux, --keep,
---no-keep, and --end are accepted and ignored - doctor never opens a session.
+would, and skips the probe chain. --plain, --keep, --no-keep, and --end
+are accepted and ignored - doctor never opens a session.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -137,7 +137,7 @@ while [ $# -gt 0 ]; do
     ;;
   # doctor never opens a session, so the connect-time flags have nothing to report
   # and are silently accepted rather than misread as a target name
-  --plain | --mux | --no-mux | --keep | --no-keep | --end) ;;
+  --plain | --keep | --no-keep | --end) ;;
   # asked for anywhere on the line, not only first
   -h | --help)
     _hi_doctor_help
@@ -645,7 +645,6 @@ function doctor_settings_values() {
     "_HI_PLUGINS_ON|_hi_is_plugin_list|plugins that hi --plugins lists (hi --configure converts a group's word)" \
     "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
     "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
-    "_HI_MUX|_hi_is_flag|1 or 0" \
     "_HI_KEEP|_hi_is_flag|1 or 0" \
     "_HI_KEEP_TIMEOUT|_hi_is_duration|seconds, or a number with s, m, h, or d" \
     "_HI_KEEP_RETRY|_hi_is_duration|seconds, or a number with s, m, h, or d"; do

@@ -142,9 +142,9 @@ function test_plugin_off_keeps_the_other_settings() {
   local cfg
   cfg="$(_hi_plugins_cfg off-keeps)"
   mkdir -p "$cfg"
-  printf '#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_PLUGINS_OFF="bat, rg"\nexport _HI_MUX=1\n' >"$cfg/settings.sh"
+  printf '#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_PLUGINS_OFF="bat, rg"\nexport _HI_KEEP=1\n' >"$cfg/settings.sh"
   _hi_plugins_run "$cfg" --plugin-off fzf >/dev/null || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_MUX=1\n$(_hi_plugins_off_line 'bat rg fzf')\n"
+  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_KEEP=1\n$(_hi_plugins_off_line 'bat rg fzf')\n"
 }
 
 function test_plugin_off_twice_writes_nothing() {

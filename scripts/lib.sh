@@ -391,7 +391,7 @@ function _hi_is_package_groups() {
   '' | *[!A-Za-z0-9_.,\ -]*) return 1 ;;
   esac
 }
-# a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
+# a 0/1 switch (_HI_KEEP, _HI_TRUECOLOR, the toggles)
 function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
 # $_HI_KEEP_TIMEOUT, $_HI_KEEP_RETRY: seconds, or a number with s, m, h, or d
 function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }

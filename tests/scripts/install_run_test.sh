@@ -560,7 +560,7 @@ function test_configure_without_a_terminal_says_so() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]]
 }
 
-# the last --link on the line wins, the way --mux/--no-mux do
+# the last --link on the line wins, the way --keep/--no-keep do
 function test_last_link_flag_wins() {
   local out
   out="$(_hi_run_install_here lastlink --dry-run --link system --link none --preset balanced 2>&1)" || return 1

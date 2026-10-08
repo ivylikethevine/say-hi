@@ -173,8 +173,13 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   out="$(_hi_keep_script_for '' '')"
   _hi_before "$out" 'tmux attach-session' 'mktemp -d' || _hi_because "no reattach ahead of the unpack" || return 1
   _hi_before "$out" 'export TERM=xterm-256color' 'tmux attach-session' || _hi_because "the reattach is ahead of the TERM fallback" || return 1
-  [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
-    _hi_because "a plain connect's trap does not stand down for a session kept from inside" || return 1
+  [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.held\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
+    _hi_because "a plain connect's trap does not stand down for a session kept from inside, or a held tree" || return 1
+  # a tree a drop left is looked for once the sweep is done, and the unpack
+  # is the part it replaces
+  _hi_before "$out" '/say-hi/hi.pid; do' '_hi_held=$' && _hi_before "$out" '_hi_held=1' 'if \[ -z "$_hi_held" \]' &&
+    _hi_before "$out" 'if \[ -z "$_hi_held" \]' 'tar -x' && [[ "$out" == *'tar -x'*$'\n      fi\n      export _HI_CONNECT_PREFIX'* ]] ||
+    _hi_because "the held tree is not taken between the sweep and the unpack" || return 1
   [[ "$out" == *"export _HI_KEEP_AS='box'"* ]] || _hi_because "the session is not told its target's name" || return 1
   _hi_before "$out" 'mkdir "$_HI_ROOT"' '/say-hi/hi.pid; do' || _hi_because "no sweep once it has a tree" || return 1
   [[ "$out" != *'new-session'* ]] || _hi_because "a plain connect starts a session" || return 1
@@ -216,17 +221,22 @@ function test_keep_script_says_how_it_ends_and_what_is_gone() {
 # the next connect removes the tree of a session that died with no exit
 # hook: one whose claim names no process still running - an owner pane's or
 # that of the shell it was kept from in hi.kept, any other session's in
-# hi.pid. A claim not written yet, a tree with none, another account's, and
-# a dead session's that a live kept one claims are left.
+# hi.pid, a held tree's timer in hi.held. A claim not written yet, a tree
+# with none, another account's, and a dead session's that a live kept one or
+# a running timer claims are left.
 function test_keep_sweep_removes_the_tree_of_a_dead_owner_pane() {
   local d="$_HI_WORKDIR/sweep" dead n out
   sleep 0 &
   wait "$!"
   dead=$!
   for n in u.hi.dead u.hi.both u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other \
-    u.hi.gone u.hi.here u.hi.handed; do
+    u.hi.gone u.hi.here u.hi.handed u.hi.held u.hi.unheld; do
     mkdir -p "$d/$n/say-hi"
   done
+  printf '%s\n' "$dead" >"$d/u.hi.held/say-hi/hi.pid"
+  printf '%s %s hi-box\n' "$$" "$dead" >"$d/u.hi.held/say-hi/hi.held"
+  printf '%s\n' "$dead" >"$d/u.hi.unheld/say-hi/hi.pid"
+  printf '%s %s hi-box\n' "$dead" "$dead" >"$d/u.hi.unheld/say-hi/hi.held"
   printf '%s\n' "$dead" >"$d/u.hi.gone/say-hi/hi.pid"
   printf '%s\n' "$$" >"$d/u.hi.here/say-hi/hi.pid"
   printf '%s\n' "$dead" >"$d/u.hi.handed/say-hi/hi.pid"
@@ -239,10 +249,10 @@ function test_keep_sweep_removes_the_tree_of_a_dead_owner_pane() {
   printf '%s \n' "$dead" >"$d/v.hi.other/say-hi/hi.kept"
   out="$(_HI_HOME="$d/u.hi.new" sh -c "$(_hi_keep_sweep)" 2>&1)" || _hi_because "the sweep failed: $out" || return 1
   [ -z "$out" ] || _hi_because "the sweep said: $out" || return 1
-  for n in u.hi.dead u.hi.both u.hi.gone; do
+  for n in u.hi.dead u.hi.both u.hi.gone u.hi.unheld; do
     [ ! -e "$d/$n" ] || _hi_because "$n is still there" || return 1
   done
-  for n in u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other u.hi.here u.hi.handed; do
+  for n in u.hi.live u.hi.outer u.hi.unclaimed u.hi.plain u.hi.new v.hi.other u.hi.here u.hi.handed u.hi.held; do
     [ -d "$d/$n/say-hi" ] || _hi_because "$n was taken" || return 1
   done
   # ...and with nothing beside it, nothing is said
@@ -265,7 +275,7 @@ function test_keep_leaves_a_command_and_no_keep_alone() {
 function test_keep_start_guards_the_trap_and_starts_the_owner_pane() {
   local out
   out="$(_hi_keep_script_for 1 '')"
-  [[ "$out" == *"trap '_hi_kept || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_because "the trap is not guarded" || return 1
+  [[ "$out" == *"trap '_hi_kept || [ -e \"\$_HI_ROOT/hi.held\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_because "the trap is not guarded" || return 1
   [[ "$out" == *'exec tmux new-session -s "$_hi_kn" "$@"'* && "$out" == *'exec screen -S "$_hi_kn" "$@"'* &&
     "$out" == *'exec zellij "$@"'* ]] || _hi_because "no owner pane start" || return 1
   [[ "$out" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* ]] || _hi_because "the pane is not the bash handoff"
@@ -384,16 +394,74 @@ function test_keep_start_without_a_terminal_is_the_plain_handoff() {
   [[ "$out" == *"BASH --rcfile /t/say-hi/hi.bashrc -i"* && "$out" != *new-session* && "$out" != *"--keep needs"* ]]
 }
 
-function test_keep_start_without_a_multiplexer_says_so() {
+function test_keep_start_without_a_multiplexer_holds_the_tree() {
   local log="$_HI_WORKDIR/nomux.log" out bare
   bare="$_HI_WORKDIR/keepbare"
   mkdir -p "$bare"
-  cp "$(_hi_keep_shims)/bash" "$bare/bash"
+  # shellcheck disable=SC2016 # the shim's sh expands it
+  printf '%s\n' '#!/bin/sh' 'printf '\''BASH %s hold=%s\n'\'' "$*" "${_HI_KEEP_HOLD:-}" >>"$_HI_TEST_LOG"' >"$bare/bash"
+  chmod +x "$bare/bash"
   : >"$log"
   out="$(env _HI_TEST_LOG="$log" PATH="$bare:$(_hi_real_path keeptools sh sed awk date env)" \
     sh -c "$(_hi_keep_start_script)" </dev/null 2>&1)" || true
-  [[ "$out" == *"--keep needs tmux, zellij, or screen on [box]"* ]] || _hi_because "no warning: $out" || return 1
-  grep -q '^BASH --rcfile /t/say-hi/hi.bashrc -i$' "$log" || _hi_because "no session either: $(cat "$log")"
+  [[ "$out" != *"needs tmux"* ]] || _hi_because "a target that holds the tree was told what it lacks: $out" || return 1
+  grep -q '^BASH --rcfile /t/say-hi/hi.bashrc -i hold=hi-box$' "$log" || _hi_because "the session is not told to hold: $(cat "$log")" || return 1
+  # ...and its bootstrap outlasts the hangup, so the session's exit decides
+  [[ "$(_hi_keep_start_script)" == *'export _HI_KEEP_HOLD="$_hi_kn" && trap : HUP'* ]] || _hi_because "the bootstrap does not outlast a hangup"
+}
+
+# _hi_keep_held_run <dir> [pty] - the take, as a connect named hi-box runs it
+# with an empty tree of its own at <dir>/u.hi.new: what it settled on
+function _hi_keep_held_run() {
+  local script
+  script="_hi_kn=hi-box
+export _HI_HOME=$1/u.hi.new _HI_ROOT=$1/u.hi.new/say-hi
+$(_hi_keep_held)
+printf 'HELD=%s HOME=%s PWD=%s HOLD=%s\n' \"\$_hi_held\" \"\$_HI_HOME\" \"\$PWD\" \"\${_HI_KEEP_HOLD:-}\""
+  mkdir -p "$1/u.hi.new/say-hi"
+  if [ -n "${2:-}" ]; then
+    python3 -c "$_HI_PTY_SPAWN" sh -c "$script" </dev/null 2>&1 | tr -d '\r'
+  else
+    sh -c "$script" </dev/null 2>&1
+  fi
+}
+
+# _hi_keep_held_trees <dir> - a tree a drop left for hi-box, with the
+# directory its shell was in, and one left for another name
+function _hi_keep_held_trees() {
+  local dead
+  sleep 0 &
+  wait "$!"
+  dead=$!
+  mkdir -p "$1/u.hi.old/say-hi" "$1/u.hi.else/say-hi" "$1/where it was"
+  printf '%s %s hi-box\n' "$$" "$dead" >"$1/u.hi.old/say-hi/hi.held"
+  printf '%s\n' "$dead" >"$1/u.hi.old/say-hi/hi.pid"
+  printf '%s\n' "$1/where it was" >"$1/u.hi.old/say-hi/hi.cwd"
+  printf '%s %s hi-else\n' "$$" "$dead" >"$1/u.hi.else/say-hi/hi.held"
+  printf '%s' "$dead"
+}
+
+# a connect at a terminal takes the tree a dropped session of its name left:
+# its own empty one goes, the claim is its pid, the timer's is gone, and it
+# starts where that session was, holding as it did
+function test_keep_held_takes_the_tree_a_drop_left() {
+  local d="$_HI_WORKDIR/held" dead out
+  dead="$(_hi_keep_held_trees "$d")"
+  out="$(_hi_keep_held_run "$d" pty)"
+  [ "$out" = "HELD=1 HOME=$d/u.hi.old PWD=$d/where it was HOLD=hi-box" ] || _hi_because "the take: $out" || return 1
+  [ ! -e "$d/u.hi.new" ] || _hi_because "its own empty tree is still there" || return 1
+  [ ! -e "$d/u.hi.old/say-hi/hi.held" ] || _hi_because "the timer still claims the tree" || return 1
+  [ "$(cat "$d/u.hi.old/say-hi/hi.pid")" != "$dead" ] || _hi_because "the claim is still the dropped session's" || return 1
+  [ -e "$d/u.hi.else/say-hi/hi.held" ] || _hi_because "a tree held under another name was taken"
+}
+
+# ...and with no terminal, or none of its name, it keeps the tree it made
+function test_keep_held_leaves_a_tree_it_may_not_take() {
+  local d="$_HI_WORKDIR/unheld" out
+  _hi_keep_held_trees "$d" >/dev/null
+  out="$(_hi_keep_held_run "$d")"
+  [ "$out" = "HELD= HOME=$d/u.hi.new PWD=$PWD HOLD=" ] || _hi_because "with no terminal: $out" || return 1
+  [ -e "$d/u.hi.old/say-hi/hi.held" ] && [ -d "$d/u.hi.new/say-hi" ] || _hi_because "with no terminal, a tree moved"
 }
 
 function test_keep_end_kills_the_session_or_says_there_is_none() {
@@ -406,6 +474,21 @@ function test_keep_end_kills_the_session_or_says_there_is_none() {
   [[ "$out" == *"SCREEN -S 9.hi-box -X quit"* ]] || _hi_because "screen: $out" || return 1
   out="$(_hi_keep_sh "$_HI_WORKDIR/end.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?")"
   [[ "$out" == *RC=3* && "$out" != *kill-session* && "$out" != *quit* ]] || _hi_because "none: $out"
+}
+
+# with no session, a tree a drop left under the name is ended through its
+# timer: hi.end beside the claim, and 0
+function test_keep_end_ends_a_held_tree_through_its_timer() {
+  local d="$_HI_WORKDIR/endheld" out t
+  _hi_whoami >/dev/null
+  t="$d/$_HI_WHOAMI_CACHE.hi.zzzzzz/say-hi"
+  mkdir -p "$t"
+  printf '1 1 hi-box\n' >"$t/hi.held"
+  out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?" TMPDIR="$d")"
+  [[ "$out" == *RC=0* ]] && [ -e "$t/hi.end" ] || _hi_because "a held tree: $out" || return 1
+  rm -f "$t/hi.end"
+  out="$(_hi_keep_sh "$_HI_WORKDIR/endheld.log" "($(DOMAIN=elsewhere _hi_keep_end_script)); echo RC=\$?" TMPDIR="$d")"
+  [[ "$out" == *RC=3* ]] && [ ! -e "$t/hi.end" ] || _hi_because "another name's: $out"
 }
 
 # hi --end's own line and status: ssh's 3 is "none", and hi's 1
@@ -785,8 +868,11 @@ function run_hi_keep_tests() {
   _hi_check_capable pty "...with the popups this zellij knows turned off" test_keep_start_turns_off_the_zellij_popups_it_knows
   _hi_check_capable pty "...under the config hi carried" test_keep_start_reads_the_carried_zellij_config
   _hi_check "No terminal: the plain handoff" test_keep_start_without_a_terminal_is_the_plain_handoff
-  _hi_check "No multiplexer: said, then the plain handoff" test_keep_start_without_a_multiplexer_says_so
+  _hi_check "No multiplexer: the plain handoff, told to hold its tree" test_keep_start_without_a_multiplexer_holds_the_tree
+  _hi_check_capable pty "A connect takes the tree a drop left under its name" test_keep_held_takes_the_tree_a_drop_left
+  _hi_check "...and not with no terminal" test_keep_held_leaves_a_tree_it_may_not_take
   _hi_check "--end kills the session, or exits 3 with none" test_keep_end_kills_the_session_or_says_there_is_none
+  _hi_check "...and ends a held tree through its timer" test_keep_end_ends_a_held_tree_through_its_timer
   _hi_check "...which hi --end reports, exiting 1" test_keep_end_reports_what_the_target_answered
   _hi_h2 "Testing: hi --keep typed in a session"
   _hi_check "--keep alone is a session's; elsewhere, no target" test_keep_alone_is_a_session_s_and_an_error_elsewhere

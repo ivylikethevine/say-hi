@@ -25,6 +25,14 @@
 #   lost     the same, and the session dies with the link: the retry says
 #            the kept session is gone and keeps a new one
 #
+# and twice on a target with none of the three, where the tree is what holds:
+#
+#   held     the link is cut: the tree stays, and the retry's shell is on
+#            that tree, in the directory the first one left, with nothing
+#            new unpacked; `exit` then removes it
+#   expired  the same with no retry: the tree is gone at the end of
+#            $_HI_KEEP_TIMEOUT
+#
 # Each ends with no session and no tree on the target. A multiplexer redraws,
 # so its transcript is text with cursor moves through it: a case types at the
 # session and reads the answers off the target - the multiplexer's own
@@ -46,6 +54,9 @@ _HI_KEEP_SESSION=hi-hitest-127-0-0-1
 
 # the timeout case's $_HI_KEEP_TIMEOUT, in seconds; the watcher polls at it
 _HI_KEEPTEST_LIMIT=4
+
+# where the held case's shell stands when its link is cut
+_HI_KEEPTEST_DIR=/var/tmp
 
 # A case's container, multiplexer, and live launcher are its own
 # ($_HI_KEEPTEST_C, $_HI_KEEPTEST_MUX, $_HI_KEEPTEST_PID, locals of
@@ -296,6 +307,26 @@ function _hi_keep_feed_lost() {
   _hi_keep_feed_exit "$1" y
 }
 
+# a session on a target with no multiplexer: moved to a directory of its
+# own and marked, then left up
+function _hi_keep_feed_stand() {
+  _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
+  printf '%s\n' "cd $_HI_KEEPTEST_DIR; : >/tmp/keep.up"
+  _hi_poll_bool 120 0.5 _hi_keep_left keep.up || true
+}
+
+# ...and once the case has cut the link and the retry's session is up, that
+# one says where it stands, the trees are counted, and `exit` ends it
+function _hi_keep_feed_resume() {
+  _hi_keep_feed_stand "$1"
+  _hi_poll_bool 240 0.5 grep -q 'retrying for' "$1" || true
+  _hi_poll_bool 240 0.5 _hi_keep_last "$1" "$_HI_SESSION_LOADED_RE" 'retrying for' || true
+  printf '%s\n' 'pwd >/tmp/keep.back'
+  _hi_poll_bool 60 0.5 _hi_keep_left keep.back || true
+  _hi_keep_trees >"$1.trees"
+  printf 'exit\n'
+}
+
 # a connect that finds nothing kept: the tree count is taken while its own
 # session is up, then `exit`
 function _hi_keep_feed_count() {
@@ -532,6 +563,50 @@ function _hi_keep_lost() {
     _hi_keep_fail "$label" "exit and y left the session or its tree" "$out"
 }
 
+# No multiplexer on the target: the tree outlives the cut link, and the retry
+# is a shell on it, where the first one stood
+function _hi_keep_held() {
+  local label="$1" out="$_HI_WORKDIR/$1.out"
+  _hi_ssh_launch "$_HI_SSH_PORT" --keep
+  _hi_keep_typed "$out" _hi_keep_feed_resume "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
+    _hi_keep_fail "$label" "the session never came up" "$out" || return 1
+  _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) session trees, not 1" || return 1
+
+  _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
+  _hi_keep_ended "$label" "$out" 240 "the retried session never closed" || return 1
+  grep -q 'lost \[.*retrying for' "$out" ||
+    _hi_keep_fail "$label" "the dropped connect did not say it was retrying" "$out" || return 1
+  grep -q 'Resumed' "$out" ||
+    _hi_keep_fail "$label" "the retry's header does not say it resumed" "$out" || return 1
+  [ "$(docker exec "$_HI_KEEPTEST_C" cat /tmp/keep.back 2>/dev/null)" = "$_HI_KEEPTEST_DIR" ] ||
+    _hi_keep_fail "$label" "the retry's shell is not where the first one stood" "$out" || return 1
+  [ "$(cat "$out.trees" 2>/dev/null)" = 1 ] ||
+    _hi_keep_fail "$label" "the retry unpacked a tree of its own" || return 1
+  _hi_poll_bool 40 0.5 _hi_keep_gone ||
+    _hi_keep_fail "$label" "exit left the tree" "$out"
+}
+
+# ...and with no retry, the tree is there past the drop and gone once its
+# window is over: the watcher notices the shell within its minute's poll
+function _hi_keep_expired() {
+  local label="$1" out="$_HI_WORKDIR/$1.out"
+  local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
+  mkdir -p "$_HI_CONFIG_DIR"
+  printf 'export _HI_KEEP_TIMEOUT=%s\n' "$_HI_KEEPTEST_LIMIT" >"$_HI_CONFIG_DIR/settings.sh"
+  _hi_ssh_launch "$_HI_SSH_PORT" --keep
+  _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
+  _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
+    _hi_keep_fail "$label" "the session never came up" "$out" || return 1
+
+  _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
+  _hi_keep_ended "$label" "$out" 120 "the dropped connect never ended" || return 1
+  _hi_keep_trees_are 1 ||
+    _hi_keep_fail "$label" "the drop took the tree: $(_hi_keep_trees) left" "$out" || return 1
+  _hi_poll_bool 200 0.5 _hi_keep_gone ||
+    _hi_keep_fail "$label" "the tree outlived its ${_HI_KEEPTEST_LIMIT}s window" "$out"
+}
+
 # <scenario>:<what a pass showed>
 _HI_KEEP_CASES=(
   "drop:outlived a dropped link, reattached, closed on y"
@@ -544,8 +619,15 @@ _HI_KEEP_CASES=(
   "lost:killed with its link, the retry said so and kept a new one"
 )
 
+# ...and on a target with none of the three
+_HI_KEEP_BARE_CASES=(
+  "held:its link cut, the retry on the same tree where it stood"
+  "expired:its link cut and not retried, its tree gone at the window's end"
+)
+
 # _hi_keep_case <mux> <scenario> <what a pass showed> - one container holding
-# <mux>, and one of the scenarios above against it
+# <mux> (none: the sshd image as it is), and one of the scenarios above
+# against it
 function _hi_keep_case() {
   local label="$1-$2" rc=0 t0
   local _HI_SSH_PORT="" _HI_KEEPTEST_PID="" _HI_KEEPTEST_MUX="$1" _HI_KEEPTEST_C="hi-keeptest-$1-$2-$$"
@@ -559,8 +641,13 @@ function _hi_keep_case() {
   [ "$2" != drop ] || run=(-e "$_HI_SSHD_ALIVE")
 
   _hi_h3 "Testing a kept session in $1: $2"
+  [ "$1" != none ] || _HI_KEEPTEST_MUX=""
   t0="$(_hi_now)"
-  _hi_sshd_container "$_HI_KEEPTEST_C" "hi-keeptest-$1-$$" ${run[@]+"${run[@]}"} || return 1
+  if [ "$1" = none ]; then
+    _hi_sshd_container "$_HI_KEEPTEST_C" "$_HI_SSHD_IMAGE" || return 1
+  else
+    _hi_sshd_container "$_HI_KEEPTEST_C" "hi-keeptest-$1-$$" ${run[@]+"${run[@]}"} || return 1
+  fi
   "_hi_keep_$2" "$label" || rc=1
 
   _hi_thaw_frozen
@@ -606,6 +693,9 @@ function run_ssh_keep_tests() {
         _hi_skip "[$mux-${spec%%:*}]" "image did not build"
       fi
     done
+  done
+  for spec in "${_HI_KEEP_BARE_CASES[@]}"; do
+    _hi_par_case "none-${spec%%:*}" _hi_keep_case none "${spec%%:*}" "${spec#*:}"
   done
   _hi_par_wait
 

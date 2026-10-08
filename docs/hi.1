@@ -217,30 +217,6 @@ and
 .B \-\-no\-plain
 wins.
 .TP
-.B \-\-mux
-run the session in a local
-.BR tmux (1),
-.BR zellij (1),
-or
-.BR screen (1)
-session, the first on your PATH, named
-.BI hi\- target
-(characters tmux rejects become dashes), so a dropped link leaves it running
-and the next
-.B hi \-\-mux
-to that target reattaches. Client\-side only. Inside tmux hi switches to the
-session; inside screen or zellij it opens a window or tab. With no terminal,
-or no multiplexer, hi connects as usual.
-.B _HI_MUX=1
-makes this the default.
-.TP
-.B \-\-no\-mux
-connect without the multiplexer, past
-.B _HI_MUX=1
-or an earlier
-.BR \-\-mux ;
-the last of the two flags wins.
-.TP
 .B \-\-keep
 keep the session on an ssh target past a disconnect: it runs in a
 .BR tmux (1),
@@ -256,15 +232,25 @@ multiplexer's own key. Leaving the first pane's shell asks before it closes
 the session; with nobody attached for
 .B _HI_KEEP_TIMEOUT
 (24h) it closes itself. Either way the session directory is removed.
-The target needs bash and one of the three multiplexers, and you a terminal;
-otherwise hi says so and connects as usual.
+The target needs bash, and you a terminal; otherwise hi says so and connects
+as usual.
+On a target with none of the three the shell cannot outlive its connection,
+and its directory does: a dropped link leaves it for
+.B _HI_KEEP_TIMEOUT
+(15m there), and a
+.B hi
+to that target inside the window starts its shell on the same directory, in
+the directory the dropped one was in, with nothing unpacked.
+.B exit
+removes it as in any session.
 Panes opened in the session start hi's session shell as well, and close
 with the first.
 The directory of a kept session that died with its target is removed by the
 next
 .B hi
 to it, which says the session is gone if this machine had seen it.
-At a terminal, a dropped link to a kept session is retried
+At a terminal, a dropped link to a kept session, or to a directory that is
+held, is retried
 for
 .B _HI_KEEP_RETRY
 (5m).
@@ -1089,14 +1075,6 @@ whether your terminal renders 24\-bit color. Unset, it is read off
 .B COLORTERM
 and shipped to the session, since ssh never forwards that.
 .TP
-.B _HI_MUX
-.B 1
-makes every connect a
-.B \-\-mux
-one;
-.B \-\-no\-mux
-overrides it once. Client\-side only.
-.TP
 .B _HI_KEEP
 .B 1
 makes every ssh connect a
@@ -1163,6 +1141,12 @@ or
 .B 0
 is never. Default
 .BR 24h .
+On a target with no multiplexer it is how long a dropped session's directory
+waits for a reconnect:
+.B 15m
+unless set, and for a
+.B 0
+too.
 Read on the target, so set it in
 .BR settings.sh .
 .TP

@@ -17,8 +17,6 @@ in a session.
   - [`hi --use`](#hi---use)
   - [`hi --plain`](#hi---plain)
   - [`hi --no-plain`](#hi---no-plain)
-  - [`hi --mux`](#hi---mux)
-  - [`hi --no-mux`](#hi---no-mux)
   - [`hi --keep`](#hi---keep)
   - [`hi --no-keep`](#hi---no-keep)
   - [`hi --end`](#hi---end)
@@ -71,21 +69,9 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 
 It changes how a connect runs, which the [README's demos](../README.md) show.
 
-### `hi --mux`
-
-`hi --mux`: a local tmux/zellij/screen session; a repeat reattaches. Works in a session too.
-
-It changes how a connect runs, which the [README's demos](../README.md) show.
-
-### `hi --no-mux`
-
-`hi --no-mux`: skip the multiplexer this once, past --mux or \_HI\_MUX=1. Works in a session too.
-
-It changes how a connect runs, which the [README's demos](../README.md) show.
-
 ### `hi --keep`
 
-`hi --keep`: keep the session on the target, in tmux/zellij/screen. Works in a session too.
+`hi --keep`: keep the session on the target through a dropped link. Works in a session too.
 
 It changes how a connect runs, which the [README's demos](../README.md) show.
 

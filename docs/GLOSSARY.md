@@ -60,7 +60,6 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
 - [HI.50 truecolor color schemes](#hi50-truecolor-color-schemes)
 - [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
-- [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
 - [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
 - [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
 - [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
@@ -1026,51 +1025,6 @@ and is the only way to: there is no per-backend flag, so a member added to
 the family is reachable with no second spelling. Names stay plain identifiers
 (`[A-Za-z0-9_]`): `hi.sh`'s per-member predicate is `eval`-defined.
 
-## HI.52 client multiplexer wrap
-
-`hi --mux <target>` re-executes the connect inside a local multiplexer
-session named `hi-<target>` and never returns; a second `hi --mux` to the same
-target joins the running session. It is the client-side answer to a dropped
-link; [HI.65](#hi65-kept-session) is the target-side one. `_hi_mux_tool` picks
-the first of tmux, zellij, and screen on `PATH`, each driven in its own idiom:
-
-- **tmux**: `new-session -A -s <name> <one string>`; the `-A` is the reattach.
-- **screen**: `-D -R -S <name> sh -c <one string>`; `-D -R` reattaches a
-  session of that name (detaching it elsewhere first) or creates it running
-  the command.
-- **zellij**: takes a session's command only from a layout file, never from
-  argv, so `_hi_mux_wrap` writes `hi.mux.<name>.kdl` under hi's runtime
-  directory (one per target, rewritten each connect, each word a KDL string
-  via `_hi_kdl_quote`) and starts it with `--new-session-with-layout`; a name
-  already in `list-sessions --short` is `attach`ed instead.
-
-Five rules in `_hi_mux_wrap`:
-
-- **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
-  insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
-  inner argv is rebuilt from the parsed state (`--use`, `--plain` or
-  `--no-plain`, `--keep` or `--no-keep`, the ssh options, `$DOMAIN`, the command), not replayed from
-  `"$@"`, so the target it settled on rides along.
-- **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
-  the wrap returns at once when that is set. The inner argv carries no
-  `--mux`/`--no-mux` of its own, so the inner hi re-reads `$_HI_MUX` - without
-  the guard, `_HI_MUX=1` would nest forever. `_hi` also skips the wrap without
-  a terminal on stdin (nothing to attach), and it stands down without a
-  multiplexer to use.
-- **One string.** tmux hands the command to its `default-shell`, which may be
-  fish, and screen to `sh -c`, so the argv is joined into one string with
-  `_hi_shquote` (HI.40): single quotes are the one form every shell reads the
-  same way, where `%q`'s `$'...'` is bash's alone. zellij gets the words.
-- **The name.** `_hi_mux_name` keeps `[[:alnum:]_-]` and turns everything
-  else into `-`: tmux refuses `:` and `.` in a session name, zellij takes
-  the same class, and `/` and `@` read badly in a status line, so a kube
-  `ctx:ns:pod/ctr` is `hi-ctx-ns-pod-ctr`.
-- **Already inside one.** tmux (`$TMUX` set) refuses to nest, so the session
-  is created detached and the client switched to it. screen (`$STY`) has no
-  client switch: a new window in the current session (`screen -t <name>`),
-  and hi exits once it is made. zellij (`$ZELLIJ`) likewise gets a new tab
-  from the same layout (`zellij action new-tab --name <name> --layout`).
-
 ## HI.53 terminal reset after a failed session
 
 `_hi_reset_terminal` (hi.sh) runs when a connect's exit status is not 0 and
@@ -1588,14 +1542,17 @@ for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 ## HI.65 kept session
 
 `hi --keep <target>` (or `_HI_KEEP=1`) runs the session inside the target's
-tmux, zellij, or screen, so it outlives the connection;
-[HI.52](#hi52-client-multiplexer-wrap) is the same idea on the client. All of
-it is the ssh arm's and the bash tier's: a container arm, `--plain`, and a
+tmux, zellij, or screen, so it outlives the connection, and where the target
+has none of the three holds the session's tree through a drop. All of it is
+the ssh arm's and the bash tier's: a container arm, `--plain`, and a
 bash-less target connect as usual.
 
-- **The name.** `hi-<target>`, from `_hi_mux_name` as `--mux` names its local
-  session: the target as typed on this client, so two clients that call a
-  host the same thing reach one session.
+- **The name.** `hi-<target>`, from `_hi_mux_name`: the target as typed on
+  this client, so two clients that call a host the same thing reach one
+  session. It keeps `[[:alnum:]_-]` and turns everything else into `-`: tmux
+  refuses `:` and `.` in a session name, zellij takes the same class, and `/`
+  and `@` read badly in a status line, so a kube `ctx:ns:pod/ctr` would be
+  `hi-ctx-ns-pod-ctr`.
 - **Reattach comes first.** Every interactive connect, `--keep` or not,
   carries `_hi_keep_attach` between the preamble and the unpack. Its
   `_hi_kept` asks tmux (`has-session -t =<name>`), then zellij (`ls -n`,
@@ -1630,6 +1587,32 @@ bash-less target connect as usual.
   `trap 'rm -rf $_HI_CLEANUP' exit` is guarded by `_hi_kept ||`: bash as `sh`
   runs an exit trap on a hangup, and a dropped link would otherwise take the
   tree from under the session.
+- **A target with none of the three.** A shell cannot outlive its connection
+  with nothing holding its terminal, and its tree can. There the start block
+  hands off to bash as usual with `$_HI_KEEP_HOLD` set to the name, and traps
+  the hangup (`trap : HUP`) so the bootstrap waits for `load()` instead of
+  dying under it. `load()` holds when it has that name, a disposable tree,
+  and a terminal (`_hi_keep_holds`): each shell's rc gets a hook that writes
+  `$PWD` to `hi.cwd` (a prompt hook in bash and zsh, an `--on-variable PWD`
+  function in fish), and the exit hook, where the terminal is gone, leaves
+  the tree under `hi.held` - the watcher's pid, the shell's, the name - in
+  place of removing it. An `exit` still has its terminal, and takes the tree.
+  The bootstrap's trap leaves a tree with `hi.held` alone.
+- **The timer.** `_hi_tree_watch`, which every session already runs, is the
+  held tree's: once the shell is gone and `hi.held` names it, the watcher
+  waits `$_HI_KEEP_TIMEOUT` - 15m here, and for a `0` too, since nothing
+  holds a terminal to say the tree is in use - and removes the tree. It
+  stops early for `hi.end`, which `hi --end` leaves, and goes without
+  touching a tree whose `hi.pid` is no longer that shell's.
+- **Taking a held tree.** A connect that looks for a kept session runs
+  `_hi_keep_held` after the sweep, at a terminal: a sibling tree whose
+  `hi.held` carries its name, in a directory the account owns that is no
+  symlink, becomes its own. It writes its pid to that tree's `hi.pid`,
+  removes `hi.held` - the step one of two connects wins - drops the empty
+  tree it had made, re-points `$_HI_HOME` and the rest, and changes to the
+  directory in `hi.cwd`. The unpack is skipped (`$_hi_held`), the session
+  holds as the dropped one did, and its header reads `Resumed`. The payload
+  still crossed the wire: one script serves both answers.
 - **A multiplexer typed bare.** In a session `tmux`, `zellij`, and `screen`
   are aliases to `common/mux.sh` (`common/aliases.sh`, over the wiring's
   aliases for the three). Typed with no word after it, at a terminal, outside
@@ -1677,7 +1660,7 @@ bash-less target connect as usual.
   every session's `load()` claims its tree (`_hi_keep_claim`): an owner pane
   writes `hi.kept`, its pid, then `$_HI_KEEP_OUTER`'s where it was kept from
   inside, and any other session `hi.pid`, its own, and only into a tree it
-  may remove. A connect
+  may remove; a held tree's claim is `hi.held`, its watcher's pid first. A connect
   that looks for a kept session and attaches none runs `_hi_keep_sweep` once
   it has a tree of its own: each sibling of that tree (`<user>.hi.*`, the
   same `mktemp` template in the same directory) whose claim names no process

@@ -25,7 +25,7 @@ function test_help_names_what_was_typed() {
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
-# is an error rather than the target; --mux and --no-mux
+# is an error rather than the target; --keep and --no-keep
 # are the connect-time flags with nothing to report here, like --plain
 function test_unknown_flag_is_refused_not_taken_as_the_target() {
   local out rc=0 home
@@ -34,7 +34,7 @@ function test_unknown_flag_is_refused_not_taken_as_the_target() {
   rc=0
   home="$(_hi_doctor_home)"
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --mux --no-mux)" || rc=$?
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --keep --no-keep)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" != *"Target: --"* ]]
 }
 

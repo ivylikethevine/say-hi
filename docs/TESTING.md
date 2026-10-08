@@ -134,7 +134,9 @@ membership) - `ci` above, and:
   tmux, in screen, and in zellij (alpine's package) through a dropped link and
   a reattach, `hi --end`, its timeout, a `hi --keep` typed inside a session,
   a second pane, a session killed outright, and a link cut at a terminal
-  with the session left or lost, reading each answer off the
+  with the session left or lost, and on a target with none of the three
+  holds a dropped session's tree for the retry and removes it at its
+  window's end, reading each answer off the
   target rather than the multiplexer's redrawn transcript. Two are not about sessions: `repo` builds
   the package repository with throwaway keys and installs from it as apt, dnf,
   and apk clients, signatures verified, and `home_prompt` installs hi over

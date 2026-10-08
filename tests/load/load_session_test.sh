@@ -241,6 +241,79 @@ function test_load_claims_its_tree_and_a_watcher_outlives_it() {
 }
 function _hi_pid_gone() { ! kill -0 "$1" 2>/dev/null; }
 
+# _hi_held_session <tree> <timeout> - a session that holds its tree and ends
+# with its terminal gone, as a dropped one does: its pid and its watcher's
+# land in <tree>.ids. A child bash, since the claim is the shell's own pid.
+function _hi_held_session() {
+  mkdir -p "$1/say-hi"
+  # shellcheck disable=SC2016 # the child's to expand
+  "$BASH" -c 'source "$1/common/core.sh" && source "$1/load.sh" || exit 1
+    _HI_CLEANUP="$2" _HI_ROOT="$2/say-hi" _HI_KEEP_MUX="" _HI_KEEP_HOLD=hi-box _HI_SESSION_RC_DIR="" _HI_KEEP_TIMEOUT="$3"
+    _hi_keep_claim
+    _hi_keep_tty="$4"
+    _hi_tree_watch 1 1
+    printf "%s %s\n" "$$" "$_hi_tree_watch_pid" >"$2.ids"
+    clean_all' held "${_HI_LAUNCHER%/*}" "$1" "$2" "${3-1}" </dev/null >/dev/null 2>&1
+}
+
+# A session that holds its tree and loses its terminal leaves the tree to the
+# watcher, under a claim that names the two of them: there through the
+# window, gone at its end. One that does not hold takes its tree as it goes.
+function test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer() {
+  local t="$_HI_WORKDIR/held/u.hi.aaaaaa" pid w
+  _hi_held_session "$t" 3 || _hi_because "the session failed" || return 1
+  read -r pid w <"$t.ids"
+  [ "$(cat "$t/say-hi/hi.held" 2>/dev/null)" = "$w $pid hi-box" ] || _hi_because "the claim: $(cat "$t/say-hi/hi.held" 2>&1)" || return 1
+  sleep 1
+  [ -d "$t" ] || _hi_because "the tree went before its window" || return 1
+  _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "the tree outlived its window" || return 1
+  _hi_poll_bool 20 0.25 _hi_pid_gone "$w" || _hi_because "the watcher outlived the tree" || return 1
+  t="$_HI_WORKDIR/held/u.hi.bbbbbb"
+  _hi_held_session "$t" 3 "" || return 1
+  [ ! -d "$t" ] || _hi_because "a session that does not hold left its tree"
+}
+
+# ...a tree a later connect took - its pid in hi.pid, the claim gone - is that
+# session's, and the watcher goes without it; and hi.end ends the wait
+function test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end() {
+  local t="$_HI_WORKDIR/held/u.hi.cccccc" w
+  _hi_held_session "$t" 2 || return 1
+  read -r _ w <"$t.ids"
+  printf '%s\n' "$$" >"$t/say-hi/hi.pid"
+  rm -f "$t/say-hi/hi.held"
+  _hi_poll_bool 40 0.25 _hi_pid_gone "$w" || _hi_because "the watcher of a taken tree stayed" || return 1
+  [ -d "$t/say-hi" ] || _hi_because "a taken tree was removed" || return 1
+  t="$_HI_WORKDIR/held/u.hi.dddddd"
+  _hi_held_session "$t" 1h || return 1
+  : >"$t/say-hi/hi.end"
+  _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "hi.end did not end the wait"
+}
+
+# A session that holds notes the directory it is in for the connect that
+# takes its tree: each shell's rc gets the hook, and bash's keeps the last
+# command's status for the hooks behind it
+function test_session_rc_notes_the_directory_of_a_session_that_holds() {
+  local t="$_HI_WORKDIR/held/u.hi.eeeeee" dir out
+  mkdir -p "$t/say-hi"
+  dir="$(
+    _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=1
+    _hi_session_rc_setup || exit 1
+    printf '%s' "$_HI_SESSION_RC_DIR"
+  )" || return 1
+  grep -q '^function _hi_held_cwd --on-variable PWD' "$dir/fish.config" || _hi_because "no hook in fish's rc" || return 1
+  grep -q '_hi_held_cwd' "$dir/.zshrc" || _hi_because "no hook in zsh's rc" || return 1
+  grep _hi_held_cwd "$dir/bashrc" >"$t/hook"
+  # shellcheck disable=SC2016 # the child's to expand
+  out="$("$BASH" -c 'PROMPT_COMMAND=later; source "$1"; builtin cd /; false; _hi_held_cwd; echo "after=$? $PROMPT_COMMAND"' _ "$t/hook")"
+  [ "$out" = "after=1 _hi_held_cwd; later" ] && [ "$(cat "$t/say-hi/hi.cwd")" = / ] || _hi_because "bash: $out, $(cat "$t/say-hi/hi.cwd" 2>&1)" || return 1
+  dir="$(
+    _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=""
+    _hi_session_rc_setup || exit 1
+    printf '%s' "$_HI_SESSION_RC_DIR"
+  )" || return 1
+  ! grep -q _hi_held_cwd "$dir/bashrc" "$dir/fish.config" || _hi_because "a session that does not hold got the hook"
+}
+
 # the trap wired by load() itself: the rc directory is live while the session
 # runs (the shell proves it from inside) and gone once load() has exited
 function test_load_cleans_up_its_session_rc_dir() {
@@ -636,6 +709,9 @@ function run_load_session_tests() {
   _hi_check "A tree two sessions share goes with the last one out" test_clean_all_leaves_a_shared_tree_to_the_last_one_out
   _hi_check "An owner pane leaves a launcher its multiplexer opens panes on" test_keep_panes_leaves_a_launcher_the_multiplexer_opens
   _hi_check "...and its end is the session's, every pane of it" test_clean_all_ends_the_session_an_owner_pane_holds
+  _hi_check "A dropped session that holds leaves its tree to the timer" test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer
+  _hi_check "...which leaves a taken tree, and ends on hi.end" test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end
+  _hi_check "A session that holds notes its directory, each prompt" test_session_rc_notes_the_directory_of_a_session_that_holds
 
   _hi_h2 "Testing: this checkout"
   _hi_check "Still intact after every clean_all above" test_this_checkout_was_never_touched

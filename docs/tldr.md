@@ -28,9 +28,9 @@
 
 `hi --use {{ssh|docker|podman|nerdctl|finch|nomad|kube}} {{container}}`
 
-- Keep the session in a local `tmux`, `zellij`, or `screen` that survives a dropped link (a repeat reattaches):
+- Keep the session on the host through a dropped link, in its `tmux`, `zellij`, or `screen` where it has one (a repeat reattaches):
 
-`hi --mux {{target}}`
+`hi --keep {{host}}`
 
 - Diagnose a slow or failing target (backends, config, and reachability):
 

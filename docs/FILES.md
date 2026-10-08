@@ -317,7 +317,6 @@ into place.
 | `hi.settings.<key>`     | `settings.sh` with a tagged target's `settings.<tag>.sh` files joined on, what that target is sent; rewritten only when its content changes                                                                                                            |
 | `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                                                                             |
 | `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                                                                  |
-| `hi.mux.<target>.kdl`   | the zellij layout `--mux` starts a session from, rewritten each time                                                                                                                                                                                   |
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per
