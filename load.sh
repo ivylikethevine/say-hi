@@ -76,12 +76,14 @@ function clean_all() {
   # is for a session with no disposable tree - a local install's own shells -
   # and for a tree that is held, whose next session writes its own
   [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
-  # A session that holds its tree (_hi_keep_holds) and has lost its terminal
-  # was dropped: the tree is left to the watcher's timer under hi.held, the
-  # watcher, this shell, and the name a connect takes it by. An `exit` still
-  # has its terminal, and takes the tree with it.
+  # A session that holds its tree (hi.hold, the name) and has lost its
+  # terminal was dropped: the tree is left to the watcher's timer under
+  # hi.held, the watcher, this shell, and the name a connect takes it by. An
+  # `exit` still has its terminal, and takes the tree with it.
+  local held=""
   if [ -n "${_hi_keep_tty:-}" ] && ! [ -t 0 ] && kill -0 "${_hi_tree_watch_pid:-0}" 2>/dev/null &&
-    printf '%s %s %s\n' "$_hi_tree_watch_pid" "$$" "$_HI_KEEP_HOLD" 2>/dev/null >"$_HI_ROOT/hi.held"; then
+    read -r held 2>/dev/null <"$_HI_ROOT/hi.hold" && [ -n "$held" ] &&
+    printf '%s %s %s\n' "$_hi_tree_watch_pid" "$$" "$held" 2>/dev/null >"$_HI_ROOT/hi.held"; then
     return 0
   fi
   # the tree's watcher (_hi_tree_watch), which takes its own sleep with it
@@ -234,16 +236,20 @@ function _hi_session_rc_setup() {
     fish_vars="${fish_vars}set -gx $v $q"$'\n'
   done
   sh_vars="${sh_vars}unset _hi_core_loaded"$'\n'
-  # A session that holds its tree (_hi_keep_holds) notes the directory it is
-  # in, for the connect that takes the tree after a drop: at each prompt in
-  # bash and zsh, the last command's status kept for the hooks behind it, and
-  # at each change in fish. A builtin's write, no fork.
+  # A session that may hold its tree (_hi_keep_holds) notes the directory it
+  # is in while hi.hold says it does, for the connect that takes the tree
+  # after a drop: at each prompt in bash and zsh, the last command's status
+  # kept for the hooks behind it, and at each change in fish. Builtins, no
+  # fork.
   if [ -n "${_hi_keep_tty:-}" ]; then
+    local hold
     printf -v q '%q' "$_HI_ROOT/hi.cwd"
-    sh_vars="${sh_vars}_hi_held_cwd() { local e=\$?; printf '%s\\n' \"\$PWD\" 2>/dev/null >$q; return \$e; }"$'\n'
+    printf -v hold '%q' "$_HI_ROOT/hi.hold"
+    sh_vars="${sh_vars}_hi_held_cwd() { local e=\$?; [ ! -e $hold ] || printf '%s\\n' \"\$PWD\" 2>/dev/null >$q; return \$e; }"$'\n'
     sh_vars="${sh_vars}[ -n \"\${ZSH_VERSION:-}\" ] && precmd_functions+=(_hi_held_cwd) || PROMPT_COMMAND=\"_hi_held_cwd\${PROMPT_COMMAND:+; \$PROMPT_COMMAND}\""$'\n'
     _hi_fishquote q "$_HI_ROOT/hi.cwd"
-    fish_vars="${fish_vars}function _hi_held_cwd --on-variable PWD; echo \$PWD >$q 2>/dev/null; end"$'\n'
+    _hi_fishquote hold "$_HI_ROOT/hi.hold"
+    fish_vars="${fish_vars}function _hi_held_cwd --on-variable PWD; test -e $hold; and echo \$PWD >$q 2>/dev/null; end"$'\n'
   fi
   for v in "${_HI_SESSION_VARS[@]}"; do
     [ -n "${!v-}" ] || continue
@@ -443,13 +449,18 @@ function _hi_keep_claim() {
   fi
 }
 
-# Whether this session holds its tree through a drop: hi.sh asked for it
-# ($_HI_KEEP_HOLD, the name, where a keeping connect found no multiplexer or
-# took a held tree), the tree is a disposable one, and there is a terminal to
-# lose. GLOSSARY: HI.65
+# Whether this session may hold its tree through a drop: not an owner pane,
+# the tree a disposable one, a terminal to lose, and a window to hold it for,
+# into $_hi_keep_limit - $_HI_KEEP_TIMEOUT in seconds, 15m here where a live
+# session's is 24h, and 0 holds nothing. It does hold once hi.hold names it:
+# load() writes that for a connect that asked ($_HI_KEEP_HOLD, where a
+# keeping connect found no multiplexer or took a held tree), and `hi --keep`
+# typed in the session writes it later. GLOSSARY: HI.65
 function _hi_keep_holds() {
-  [[ -n "${_HI_KEEP_HOLD:-}" && -z "${_HI_KEEP_MUX:-}" && -n "${_HI_CLEANUP:-}" &&
-    "$_HI_ROOT" == "$_HI_CLEANUP"/* ]] && [ -t 0 ]
+  _hi_keep_limit=0
+  [[ -z "${_HI_KEEP_MUX:-}" && -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]] && [ -t 0 ] || return 1
+  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-15m}" _hi_keep_limit || _hi_keep_limit=900
+  ((_hi_keep_limit > 0))
 }
 
 # _hi_keep_claimed <file> <pid> <field> - is <pid> the <field>th word of the
@@ -468,17 +479,14 @@ function _hi_keep_claimed() {
 # is killed by the hook on the way out.
 #
 # It is also a held tree's timer. While hi.held names the shell it waited out,
-# it waits $_HI_KEEP_TIMEOUT more (15m here, where a live session's is 24h,
-# and for a 0 too: nothing of hi's stays for good), or until `hi --end`
+# it waits the session's window more (_hi_keep_holds), or until `hi --end`
 # leaves hi.end. A connect that takes the tree rewrites hi.pid first, and a
 # tree whose hi.pid is no longer that shell's is left to its new session.
 # <step> and <poll> are the two waits, a test's to shorten. GLOSSARY: HI.65
 function _hi_tree_watch() {
   local pid="$$" step="${1:-60}" poll="${2:-5}" limit=0 t0
   [ -n "${_HI_CLEANUP:-}" ] && [ -d "$_HI_CLEANUP" ] || return 0
-  if [ -n "${_hi_keep_tty:-}" ]; then
-    _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-15m}" limit && ((limit > 0)) || limit=900
-  fi
+  [ -z "${_hi_keep_tty:-}" ] || limit="${_hi_keep_limit:-0}"
   {
     (
       trap '' HUP
@@ -630,10 +638,13 @@ function load() {
   local banner=Connected
   [ ! -s "$_HI_ROOT/hi.cwd" ] || [ -z "${_HI_KEEP_HOLD:-}" ] || banner=Resumed
   _hi_keep_tty=""
+  rm -f "$_HI_ROOT/hi.end" "$_HI_ROOT/hi.hold"
   if _hi_keep_holds; then
     _hi_keep_tty=1
-    rm -f "$_HI_ROOT/hi.end"
-    printf '%s\n' "$PWD" >"$_HI_ROOT/hi.cwd"
+    if [ -n "${_HI_KEEP_HOLD:-}" ]; then
+      printf '%s\n' "$_HI_KEEP_HOLD" >"$_HI_ROOT/hi.hold"
+      printf '%s\n' "$PWD" >"$_HI_ROOT/hi.cwd"
+    fi
   fi
 
   # connect (the client's leg) plus copy (this one), each measured wholly on

@@ -256,7 +256,8 @@ for
 Typed with no target inside a session,
 .B hi \-\-keep
 keeps that session: a fresh shell in a multiplexer there, under the same
-name; detaching returns to the shell it was typed in.
+name; detaching returns to the shell it was typed in. With no multiplexer
+there, the session holds its directory through a drop from then on.
 .B _HI_KEEP=1
 makes this the default.
 .TP
@@ -1141,9 +1142,9 @@ is never. Default
 On a target with no multiplexer it is how long a dropped session's directory
 waits for a reconnect:
 .B 15m
-unless set, and for a
+unless set, and
 .B 0
-too.
+holds nothing: the directory goes with the connection.
 Read on the target, so set it in
 .BR settings.sh .
 .TP

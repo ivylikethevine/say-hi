@@ -1000,8 +1000,10 @@ function _hi_keep_here() {
   [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session over ssh, into bash, started without --no-keep"
   [ -t 0 ] || _hi_die "--keep needs a terminal"
   [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ] || _hi_die "--keep: already inside a multiplexer here, and hi does not nest one"
-  { command -v tmux || command -v zellij || command -v screen; } >/dev/null 2>&1 ||
-    _hi_die "--keep needs tmux, zellij, or screen on this machine"
+  if ! { command -v tmux || command -v zellij || command -v screen; } >/dev/null 2>&1; then
+    _hi_keep_hold_here "$file"
+    return
+  fi
   # The script's environment, in the shell _hi is about to leave: a child's
   # (GLOSSARY: HI.47) and the file's, so the multiplexer started here
   # inherits what one a connect starts does, and none of this launcher's own.
@@ -1018,6 +1020,28 @@ function _hi_keep_here() {
       : >"$_HI_ROOT/hi.kept"
 '"$(_hi_keep_start ' hi:' "${names[@]}")"'
       _hi_kept || rm -f "$_HI_ROOT/hi.kept"' || [ "$?" = 86 ]
+}
+
+# `hi --keep` typed in a session on a machine with none of the three: the
+# session holds its tree from here on, as one a keeping connect started
+# there does. hi.hold, the name a later connect looks for, is what its exit
+# hook, its prompt hooks, and its bootstrap's trap read (load.sh's
+# _hi_keep_holds), and the directory it is in now is noted for it. Refused
+# where the session could not hold: a window of 0.
+function _hi_keep_hold_here() {
+  local line as="" name limit=0
+  while IFS= read -r line; do
+    [ "${line%%=*}" != _HI_KEEP_AS ] || as="${line#*=}"
+  done <"$1"
+  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-15m}" limit || limit=900
+  if [ -z "$as" ] || ((limit <= 0)); then
+    _hi_die "--keep needs tmux, zellij, or screen on this machine, or a _HI_KEEP_TIMEOUT over 0 to hold its files by"
+  fi
+  _hi_mux_name "$as" name
+  if ! { printf '%s\n' "$PWD" >"$_HI_ROOT/hi.cwd" && printf '%s\n' "$name" >"$_HI_ROOT/hi.hold"; }; then
+    _hi_die "--keep: could not write to $_HI_ROOT"
+  fi
+  _hi_cecho "hi: no tmux, zellij, or screen here: a dropped link leaves this session's files for ${_HI_KEEP_TIMEOUT:-15m}, and hi $as comes back to them" "$YELLOW"
 }
 
 # _hi_keep_record <outvar> - where this client notes that the target holds a
@@ -1202,8 +1226,8 @@ REMOTE
 # trap: load.sh's clean_all owns the teardown otherwise, and the trap only
 # has to remove the tree, since $_HI_SESSION_RC_DIR nests inside it. A kept
 # session's tree is left to its owner pane, one kept later from inside
-# leaves a marker for the same, and one a drop left to its timer is the
-# timer's; the tree of an owner pane that died goes here, by the next connect,
+# leaves a marker for the same, and one that holds its tree (hi.hold) leaves
+# it to its own exit hook and the timer behind that; the tree of an owner pane that died goes here, by the next connect,
 # which takes a held tree of its own name in place of unpacking
 # (GLOSSARY: HI.65).
 function _hi_remote_middle() {
@@ -1211,9 +1235,9 @@ function _hi_remote_middle() {
   # shellcheck disable=SC2016 # the target's to expand
   ! _hi_keep_probes || sweep="$(_hi_keep_sweep)"$'\n'"$(_hi_keep_held)" fresh='      if [ -z "$_hi_held" ]; then' fi='      fi'
   # shellcheck disable=SC2016 # the target's to expand, when the trap runs
-  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || [ -e "$_HI_ROOT/hi.held" ] || '
+  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || [ -e "$_HI_ROOT/hi.hold" ] || '
   # shellcheck disable=SC2016
-  ! _hi_keep_starts || kept='_hi_kept || [ -e "$_HI_ROOT/hi.held" ] || '
+  ! _hi_keep_starts || kept='_hi_kept || [ -e "$_HI_ROOT/hi.hold" ] || '
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"

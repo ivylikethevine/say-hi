@@ -173,8 +173,8 @@ function test_keep_reattach_rides_ahead_of_the_unpack() {
   out="$(_hi_keep_script_for '' '')"
   _hi_before "$out" 'tmux attach-session' 'mktemp -d' || _hi_because "no reattach ahead of the unpack" || return 1
   _hi_before "$out" 'export TERM=xterm-256color' 'tmux attach-session' || _hi_because "the reattach is ahead of the TERM fallback" || return 1
-  [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.held\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
-    _hi_because "a plain connect's trap does not stand down for a session kept from inside, or a held tree" || return 1
+  [[ "$out" == *"trap '[ -e \"\$_HI_ROOT/hi.kept\" ] || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] ||
+    _hi_because "a plain connect's trap does not stand down for a session kept from inside, or one that holds" || return 1
   # a tree a drop left is looked for once the sweep is done, and the unpack
   # is the part it replaces
   _hi_before "$out" '/say-hi/hi.pid; do' '_hi_held=$' && _hi_before "$out" '_hi_held=1' 'if \[ -z "$_hi_held" \]' &&
@@ -275,7 +275,7 @@ function test_keep_leaves_a_command_and_no_keep_alone() {
 function test_keep_start_guards_the_trap_and_starts_the_owner_pane() {
   local out
   out="$(_hi_keep_script_for 1 '')"
-  [[ "$out" == *"trap '_hi_kept || [ -e \"\$_HI_ROOT/hi.held\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_because "the trap is not guarded" || return 1
+  [[ "$out" == *"trap '_hi_kept || [ -e \"\$_HI_ROOT/hi.hold\" ] || rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_because "the trap is not guarded" || return 1
   [[ "$out" == *'exec tmux new-session -s "$_hi_kn" "$@"'* && "$out" == *'exec screen -S "$_hi_kn" "$@"'* &&
     "$out" == *'exec zellij "$@"'* ]] || _hi_because "no owner pane start" || return 1
   [[ "$out" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* ]] || _hi_because "the pane is not the bash handoff"
@@ -802,7 +802,8 @@ function test_mux_alias_keeps_a_bare_multiplexer() {
 }
 
 # what cannot be kept says why: no file (a container's session, --no-keep,
-# an owner pane), a multiplexer already around it, none to start, no terminal
+# an owner pane), a multiplexer already around it, no terminal; with none to
+# start the session holds its tree instead, unless its window is 0
 function test_keep_here_refuses_what_it_cannot_keep() {
   local log="$_HI_WORKDIR/hereno.log" t out bare="$_HI_WORKDIR/herebare"
   t="$(_hi_keep_here_tree hereno)"
@@ -810,7 +811,13 @@ function test_keep_here_refuses_what_it_cannot_keep() {
   [[ "$out" == *"already inside a multiplexer here"* && "$out" != *new-session* ]] || _hi_because "nested: $out" || return 1
   mkdir -p "$bare"
   out="$(_hi_keep_here_run "$log" "$t" PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"
-  [[ "$out" == *"--keep needs tmux, zellij, or screen on this machine"* ]] || _hi_because "no multiplexer: $out" || return 1
+  [[ "$out" == *"a dropped link leaves this session's files for 15m, and hi box comes back"* ]] &&
+    [ "$(cat "$t/say-hi/hi.hold" 2>/dev/null)" = hi-box ] && [ -s "$t/say-hi/hi.cwd" ] ||
+    _hi_because "no multiplexer, so the tree is held: $out" || return 1
+  rm -f "$t/say-hi/hi.hold" "$t/say-hi/hi.cwd"
+  out="$(_hi_keep_here_run "$log" "$t" _HI_KEEP_TIMEOUT=0 PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"
+  [[ "$out" == *"--keep needs tmux, zellij, or screen on this machine, or a _HI_KEEP_TIMEOUT over 0"* ]] && [ ! -e "$t/say-hi/hi.hold" ] ||
+    _hi_because "no multiplexer and no window: $out" || return 1
   out="$(env -u TMUX -u ZELLIJ -u STY PATH="$(_hi_keep_shims):$PATH" _HI_HOME="$t" _HI_ROOT="$t/say-hi" \
     _HI_CONFIG_DIR="$t/say-hi/config" _HI_REMOTE_SESSION=1 "$BASH" -c 'source "$1"; _hi_keep_here' _ "$_HI_LAUNCHER" </dev/null 2>&1)" || true
   [[ "$out" == *"--keep needs a terminal"* ]] || _hi_because "no terminal: $out" || return 1

@@ -274,7 +274,8 @@ the host's bare one, and closing the first pane (a `y`) closes them all.
 Typed with no target inside a session you already have, `hi --keep` keeps
 that one: a fresh shell in a multiplexer there, under the same name, sharing
 the session's directory. Detaching lands you back in the shell you typed it
-in, and whichever of the two ends last removes the directory.
+in, and whichever of the two ends last removes the directory. Where there
+is no multiplexer, it turns on the hold described below for that session.
 A kept session that dies with its target - a reboot that keeps `/tmp` - leaves
 its directory behind; your next `hi <target>` removes it, and says the kept
 session is gone if this machine had seen it. When the link to a kept session
@@ -290,7 +291,7 @@ On a target with none of the three, a shell has nothing to hold its terminal
 and ends with the connection, so `--keep` holds what can outlive it: the
 session directory, and the directory you were in. A dropped link leaves both
 for [`_HI_KEEP_TIMEOUT`](SETTINGS.md#every-setting), 15 minutes there unless
-you set it, and the retry, or any `hi <target>` inside that window, starts a
+you set it (`0` turns the hold off), and the retry, or any `hi <target>` inside that window, starts a
 shell on the same files where the last one stood, with nothing unpacked; its
 header says `Resumed`. What was running is gone, and the shell's history is
 where the target's own shell keeps it. `exit` removes the directory as in any

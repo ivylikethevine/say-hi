@@ -373,16 +373,7 @@ account or an upstream review that lands when it lands.
        `tool-versions.yml` dispatch with one upstream host removed from
        `allowed-endpoints` opens the tracking issue naming it.
 
-2. [ ] _Before 1.0:_ **A dropped session is retried from any terminal** —
-       shipped: the retry runs at any terminal, with no local multiplexer; a
-       connect that keeps asks ssh for a keepalive where the config sets
-       none, so a link that freezes becomes a drop; and a target with none
-       of the three is no longer told a kept session is gone
-       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is left is
-       seeing it in CI. **Ticks when:** the `ssh_keep` suite's `retry` and
-       `lost` cases pass with no multiplexer around the client.
-
-3. [ ] _Before 1.0:_ **Every tree has a claim and a timer** — shipped:
+2. [ ] _Before 1.0:_ **Every tree has a claim and a timer** — shipped:
        every session leaves its pid in its tree, the next connect's sweep
        reads it, and a watcher apart from the session removes the tree of a
        shell killed outright, and is a held tree's timer. What is left
@@ -391,17 +382,7 @@ account or an upstream review that lands when it lands.
        minutes and no connect in between, and a tree a reboot left is gone
        after the next connect.
 
-4. [ ] _Before 1.0:_ **`--keep` holds on a target with no multiplexer** —
-       shipped: there a dropped link leaves the session's tree to a timer,
-       fifteen minutes unless `_HI_KEEP_TIMEOUT` says otherwise, with the
-       directory its shell was in; a connect inside the window takes the
-       tree, starts its shell there, and unpacks nothing; and `hi --end`
-       removes one that is waiting
-       ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is left is
-       seeing it in CI. **Ticks when:** the `ssh_keep` suite's `held` and
-       `expired` cases pass.
-
-5. [ ] _Before 1.0:_ **A multiplexer started in a session is the kept
+3. [ ] _Before 1.0:_ **A multiplexer started in a session is the kept
        session** — shipped: `tmux`, `zellij`, or `screen` typed bare in a
        session runs what `hi --keep` typed there runs, in the one that was
        named (`common/mux.sh`), so the session is `hi-<target>`, its panes
@@ -411,7 +392,7 @@ account or an upstream review that lands when it lands.
        plain `hi <target>` session opens a pane that shows hi's prompt, and
        the next `hi <target>` after a drop attaches it.
 
-6. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
+4. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
        shipped: the fixture's `packages` overlay
        (`docs/tapes/fixtures.sh`, `up:packages`) was rows of a shape hi no
        longer reads, so the check had nothing to draw; it is TOML rows now,
@@ -420,12 +401,12 @@ account or an upstream review that lands when it lands.
        left is a render. **Ticks when:** a release's `demo.gif` shows the
        check's row on both boxes.
 
-7. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+5. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-8. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
+6. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
        `nvim/init.lua` rides, and a `require` of a module under the config's
        `lua/` is dropped with the plugin managers', so a config split into
        modules starts nearly bare; an `init.vim` does not ride at all.
@@ -437,7 +418,7 @@ account or an upstream review that lands when it lands.
        dialect. **Ticks when:** a target's `nvim` opens on an `init.lua`
        that requires two modules of its own, both loaded.
 
-9. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
+7. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
        rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
        directory of the overlay
        ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
@@ -445,25 +426,25 @@ account or an upstream review that lands when it lands.
        script in `~/.config/say-hi/bin/` runs by name in a session, and
        `hi --doctor` names a binary there as left home.
 
-10. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
-        git has no plugin: a config that rode whole would bring identity,
-        signing, and credential helpers to a box that must not have them.
-        **Do:** a `git` plugin, off by default, added over the target's own
-        config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
-        place, read in a dialect that drops `[user]`, `[credential]`, every
-        signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
-        those rides only under a `hi-allow` line the user wrote above it,
-        and `hi --plugins` names each that does. **Ticks when:** a carried
-        alias runs on a target, `git config user.email` there is the
-        target's own, and a `signingkey` rides only with its `hi-allow`.
+8. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
+       git has no plugin: a config that rode whole would bring identity,
+       signing, and credential helpers to a box that must not have them.
+       **Do:** a `git` plugin, off by default, added over the target's own
+       config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
+       place, read in a dialect that drops `[user]`, `[credential]`, every
+       signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
+       those rides only under a `hi-allow` line the user wrote above it,
+       and `hi --plugins` names each that does. **Ticks when:** a carried
+       alias runs on a target, `git config user.email` there is the
+       target's own, and a `signingkey` rides only with its `hi-allow`.
 
-11. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
-        AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
-        a flake with the package and a home-manager module that writes the
-        rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
-        the flake.
+9. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
+       AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
+       a flake with the package and a home-manager module that writes the
+       rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
+       the flake.
 
-12. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
+10. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
         `hi --install --print-rc`'s block looks in `$HOME`,
         `/usr/local/share`, and `/usr/share`, and whether an install from
         the formula writes its versioned keg into an rc is not yet known.
@@ -473,17 +454,17 @@ account or an upstream review that lands when it lands.
         machine with a clone and on one with the formula, across a
         `brew upgrade`.
 
-13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+11. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+12. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+13. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

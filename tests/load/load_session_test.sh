@@ -248,9 +248,10 @@ function _hi_held_session() {
   mkdir -p "$1/say-hi"
   # shellcheck disable=SC2016 # the child's to expand
   "$BASH" -c 'source "$1/common/core.sh" && source "$1/load.sh" || exit 1
-    _HI_CLEANUP="$2" _HI_ROOT="$2/say-hi" _HI_KEEP_MUX="" _HI_KEEP_HOLD=hi-box _HI_SESSION_RC_DIR="" _HI_KEEP_TIMEOUT="$3"
+    _HI_CLEANUP="$2" _HI_ROOT="$2/say-hi" _HI_KEEP_MUX="" _HI_SESSION_RC_DIR=""
     _hi_keep_claim
-    _hi_keep_tty="$4"
+    _hi_keep_tty="$4" _hi_keep_limit="$3"
+    printf "hi-box\n" >"$_HI_ROOT/hi.hold"
     _hi_tree_watch 1 1
     printf "%s %s\n" "$$" "$_hi_tree_watch_pid" >"$2.ids"
     clean_all' held "${_HI_LAUNCHER%/*}" "$1" "$2" "${3-1}" </dev/null >/dev/null 2>&1
@@ -284,7 +285,7 @@ function test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end() {
   _hi_poll_bool 40 0.25 _hi_pid_gone "$w" || _hi_because "the watcher of a taken tree stayed" || return 1
   [ -d "$t/say-hi" ] || _hi_because "a taken tree was removed" || return 1
   t="$_HI_WORKDIR/held/u.hi.dddddd"
-  _hi_held_session "$t" 1h || return 1
+  _hi_held_session "$t" 3600 || return 1
   : >"$t/say-hi/hi.end"
   _hi_poll_bool 40 0.25 test ! -d "$t" || _hi_because "hi.end did not end the wait"
 }
@@ -303,15 +304,20 @@ function test_session_rc_notes_the_directory_of_a_session_that_holds() {
   grep -q '^function _hi_held_cwd --on-variable PWD' "$dir/fish.config" || _hi_because "no hook in fish's rc" || return 1
   grep -q '_hi_held_cwd' "$dir/.zshrc" || _hi_because "no hook in zsh's rc" || return 1
   grep _hi_held_cwd "$dir/bashrc" >"$t/hook"
+  # ...which writes only once hi.hold says the session holds
   # shellcheck disable=SC2016 # the child's to expand
   out="$("$BASH" -c 'PROMPT_COMMAND=later; source "$1"; builtin cd /; false; _hi_held_cwd; echo "after=$? $PROMPT_COMMAND"' _ "$t/hook")"
-  [ "$out" = "after=1 _hi_held_cwd; later" ] && [ "$(cat "$t/say-hi/hi.cwd")" = / ] || _hi_because "bash: $out, $(cat "$t/say-hi/hi.cwd" 2>&1)" || return 1
+  [ "$out" = "after=1 _hi_held_cwd; later" ] && [ ! -e "$t/say-hi/hi.cwd" ] || _hi_because "bash, not holding: $out" || return 1
+  : >"$t/say-hi/hi.hold"
+  # shellcheck disable=SC2016
+  out="$("$BASH" -c 'source "$1"; builtin cd /; false; _hi_held_cwd; echo "after=$?"' _ "$t/hook")"
+  [ "$out" = "after=1" ] && [ "$(cat "$t/say-hi/hi.cwd")" = / ] || _hi_because "bash: $out, $(cat "$t/say-hi/hi.cwd" 2>&1)" || return 1
   dir="$(
     _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _hi_keep_tty=""
     _hi_session_rc_setup || exit 1
     printf '%s' "$_HI_SESSION_RC_DIR"
   )" || return 1
-  ! grep -q _hi_held_cwd "$dir/bashrc" "$dir/fish.config" || _hi_because "a session that does not hold got the hook"
+  ! grep -q _hi_held_cwd "$dir/bashrc" "$dir/fish.config" || _hi_because "a session that cannot hold got the hook"
 }
 
 # the trap wired by load() itself: the rc directory is live while the session

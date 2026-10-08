@@ -145,7 +145,7 @@ command.
   processes are gone ([HI.65](GLOSSARY.md#hi65-kept-session)).
 - Where `--keep` finds no multiplexer, a dropped link leaves the tree to the
   one process each session already runs apart from itself, which removes it
-  after `_HI_KEEP_TIMEOUT` (15m there, and for a `0` too). A connect takes
+  after `_HI_KEEP_TIMEOUT` (15m there; `0` holds nothing). A connect takes
   such a tree only from a directory its own account owns, and never through
   a symlink, since it runs the rc inside.
 - The session tree is **not** added to `$PATH`; `hi` inside a session is an

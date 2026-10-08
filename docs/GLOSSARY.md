@@ -1591,19 +1591,24 @@ bash-less target connect as usual.
   with nothing holding its terminal, and its tree can. There the start block
   hands off to bash as usual with `$_HI_KEEP_HOLD` set to the name, and traps
   the hangup (`trap : HUP`) so the bootstrap waits for `load()` instead of
-  dying under it. `load()` holds when it has that name, a disposable tree,
-  and a terminal (`_hi_keep_holds`): each shell's rc gets a hook that writes
-  `$PWD` to `hi.cwd` (a prompt hook in bash and zsh, an `--on-variable PWD`
-  function in fish), and the exit hook, where the terminal is gone, leaves
-  the tree under `hi.held` - the watcher's pid, the shell's, the name - in
-  place of removing it. An `exit` still has its terminal, and takes the tree.
-  The bootstrap's trap leaves a tree with `hi.held` alone.
+  dying under it. `load()` may hold where it is no owner pane, has a
+  disposable tree and a terminal, and `$_HI_KEEP_TIMEOUT` is not 0
+  (`_hi_keep_holds`), and does hold once `hi.hold` carries the name: written
+  by `load()` for that connect, or later by `hi --keep` typed in the session
+  (`_hi_keep_hold_here`), which is how a session started without `--keep`
+  turns it on. Each shell's rc has a hook that, while `hi.hold` is there,
+  writes `$PWD` to `hi.cwd` (a prompt hook in bash and zsh, an
+  `--on-variable PWD` function in fish), and the exit hook, where the
+  terminal is gone, leaves the tree under `hi.held` - the watcher's pid, the
+  shell's, the name - in place of removing it. An `exit` still has its
+  terminal, and takes the tree. The bootstrap's trap leaves a tree with
+  `hi.hold` alone, since bash as `sh` runs it on the hangup, ahead of that
+  hook.
 - **The timer.** `_hi_tree_watch`, which every session already runs, is the
   held tree's: once the shell is gone and `hi.held` names it, the watcher
-  waits `$_HI_KEEP_TIMEOUT` - 15m here, and for a `0` too, since nothing
-  holds a terminal to say the tree is in use - and removes the tree. It
-  stops early for `hi.end`, which `hi --end` leaves, and goes without
-  touching a tree whose `hi.pid` is no longer that shell's.
+  waits `$_HI_KEEP_TIMEOUT` (15m here) and removes the tree. It stops early
+  for `hi.end`, which `hi --end` leaves, and goes without touching a tree
+  whose `hi.pid` is no longer that shell's.
 - **Taking a held tree.** A connect that looks for a kept session runs
   `_hi_keep_held` after the sweep, at a terminal: a sibling tree whose
   `hi.held` carries its name, in a directory the account owns that is no
@@ -1637,7 +1642,8 @@ bash-less target connect as usual.
   that could be kept); the owner pane's `clean_all` gives the claim up and
   leaves the tree while `$_HI_KEEP_OUTER` is still running. A session with
   no `hi.keep` - a container's, a `--no-keep` one, an owner pane - says it
-  cannot be kept, as does one already inside a multiplexer.
+  cannot be kept, as does one already inside a multiplexer. On a machine
+  with none of the three the session holds its tree instead (below).
 - **The other panes.** A multiplexer opens a new pane on its default shell,
   the host's own, which reads none of hi's rc
   ([HI.46](#hi46-session-rc-directory)). The owner pane's `_hi_keep_panes`
