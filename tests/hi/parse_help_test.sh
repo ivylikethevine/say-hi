@@ -541,7 +541,7 @@ function test_local_subcommands_exec_the_right_script() {
 function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
   home="$(_hi_scratch_tree preview-real common config load.sh hi.sh link:scripts)"
-  out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
+  ! out="$(_hi_subcmd_run "$home" --preview bogus)" || _hi_why out home || return 1
   [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why out || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
   [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why out || return 1

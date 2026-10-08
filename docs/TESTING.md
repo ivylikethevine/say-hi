@@ -74,13 +74,16 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   failing arm, or `_hi_why <variable>...` where the assertion says it all -
   that prints the statement, read off the suite's file, and each variable's
   value (`_hi_why -N` adds the N lines above, for a bare `return 1`). Both
-  run only once the assertion has failed. A new case ends every failing arm
-  in one of the two.
+  run only once the assertion has failed. Every failing arm of a case ends
+  in one of the two, and the lint group's `drift` suite reads each `test_*`
+  function for one that does not: a `return 1` with nothing printed in or
+  just above it, or a bare assertion as the last statement.
 - An end-to-end case that fails prints the end of its session's transcript
   and, where it is about sessions or trees, what the target held:
   its trees and their claims, its multiplexers' sessions, its processes
   (`_hi_show_transcript`, `_hi_show_target`). A failure line with neither
-  beside it is a bug in the suite.
+  beside it is a bug in the suite, and `drift` fails a function of
+  `tests/targets/` that prints one alone.
   Where a flake may pass, an _output probe_ line comes ahead of the rerun:
   how many of 20 captures came back short from a subshell, a child bash, and
   a process substitution, and from a child bash writing a file, with the

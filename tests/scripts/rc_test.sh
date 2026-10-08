@@ -530,7 +530,7 @@ function test_check_shell_configs_names_the_broken_roster_file() {
   printf 'echo fine\n' >"$home/.bashrc"
   printf 'echo fine\n' >"$home/.zshrc"
   printf 'if true\n' >"$home/.config/fish/config.fish"
-  out="$(_hi_rc_out "$home" -- check_shell_configs)" && return 1
+  ! out="$(_hi_rc_out "$home" -- check_shell_configs)" || _hi_why out home || return 1
   [[ "$out" == *"config.fish) has issues"* && "$out" != *".bashrc) has issues"* && "$out" != *".zshrc) has issues"* ]] || _hi_why out
 }
 

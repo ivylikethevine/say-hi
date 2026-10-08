@@ -378,7 +378,7 @@ function test_oh_my_bash_keeps_an_alias_with_a_quote() {
 # for the next in the list, hi's prompt at the end of it
 function test_prompt_framework_without_its_loader_is_passed_over() {
   local shell="$1" fw="$2" want="$3" base
-  base="$(mktemp -d "$_HI_WORKDIR/noloader.XXXXXX")" || return 1
+  base="$(mktemp -d "$_HI_WORKDIR/noloader.XXXXXX")" || _hi_why base || return 1
   mkdir -p "$base/say-hi"
   cp -R "$_HI_ROOT/common" "$_HI_ROOT/config" "$base/say-hi/"
   rm -f "$base/say-hi/common/fw_$fw".*

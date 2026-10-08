@@ -119,7 +119,7 @@ function test_bash_sources_the_convenience_aliases() {
     "source \"\$_HI_HOME/say-hi/common/bash.sh\" 2>/dev/null
      for a in $sample; do
        alias \"\$a\" >/dev/null 2>&1 || { echo \"missing alias: \$a\" >&2; exit 1; }
-     done"
+     done" || _hi_why sample a
 }
 
 # A plain child bash rather than _hi_rc_shell's `env -i`, for the cases below
@@ -618,7 +618,7 @@ function test_fish_lead_yields_to_an_activate_prefix() {
 function test_env_defers_to_an_activate_that_ran_here() {
   local shell="$1" want="$2"
   _hi_env_names "$shell" "$want" "$(_hi_venv_activated "$shell")" \
-    DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
+    DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj || _hi_why shell want
 }
 
 # fish is the one shell whose prompt is actually run here, so it is the one
@@ -714,7 +714,7 @@ function test_zsh_runs_no_compinit_of_its_own() {
     return 1
   }
   for f in "$h"/.zcompdump*; do
-    [ -e "$f" ] && return 1
+    ! [ -e "$f" ] || _hi_why f || return 1
   done
   return 0
 }
@@ -833,13 +833,13 @@ function _hi_shell_override_probe() {
 # value would make this case a report on the local fish build; as a
 # difference it still fails the day a preference lands in a shipped rc.
 function test_shell_ships_no_preference_default() {
-  [ "$(_hi_shell_override_probe "$1" none)" = "$(_hi_shell_override_probe "$1" bare)" ]
+  [ "$(_hi_shell_override_probe "$1" none)" = "$(_hi_shell_override_probe "$1" bare)" ] || _hi_why
 }
 
 function test_shell_user_file_applies() {
   local row="$1" shell file script line value
   IFS='|' read -r shell file script line value <<<"$row"
-  [ "$(_hi_shell_override_probe "$row" user)" = "$value" ]
+  [ "$(_hi_shell_override_probe "$row" user)" = "$value" ] || _hi_why row value
 }
 
 # _hi_rc_begin - what every part of this suite starts from, and the tally

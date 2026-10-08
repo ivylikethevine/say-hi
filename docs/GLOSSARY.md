@@ -652,9 +652,10 @@ carries the file and leaves it alone (a per-toggle trim would save about a
 kilobyte at the cost of a cache key, a second table, and an exclusion list).
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
-is not hi's to touch, so it is copied to a `mktemp -d` stage through an
-intermediate tar _file_ (`-h` resolves symlinks) — a `tar | tar` pipe ends in
-EPIPE when the reader stops before a GNU writer's record padding. The subshell
+is not hi's to touch, so it is copied to a `mktemp -d` stage with `cp -R -L`
+(`-L` resolves symlinks) and made writable there. Not through tar: busybox's
+sets a directory's mode as it makes it, so a tree of read-only directories,
+the nix store's, could not be filled. The subshell
 lets cleanup be an `EXIT` trap rather than an `rm` on each way out, so a ^C
 mid-build leaves nothing in the client's tmp. `INT` and `TERM` are trapped
 explicitly to `exit`, since a signal that kills the subshell outright never

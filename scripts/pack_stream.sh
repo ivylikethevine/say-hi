@@ -81,8 +81,7 @@ function _hi_stage_carry() {
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
 # comments, gzip what comes out. Reads $stage_in (members to pull), $stage_out
-# (members to emit), $stage_excl (stage paths dropped once pulled - not tar's
-# --exclude, which OpenBSD's has none of) and $stage_add
+# (members to emit), $stage_excl (stage paths dropped once pulled) and $stage_add
 # (<member> <path> pairs copied in from outside <src-dir>) and $stage_lint (1
 # for the overlay: the include scan runs over the stage, and each member is
 # stripped by its dialect rather than $_HI_STRIP_NAMES) from
@@ -103,26 +102,23 @@ function _hi_stage_tar() {
     trap 'exit 130' INT
     trap 'exit 143' TERM
     _hi_st_root="$stage${2:+/$2}"
-    # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
-    # marker while a GNU writer still has record padding to send, which is an
-    # EPIPE and a "tar: Write error" on stderr. Skipped when every member is
-    # a $stage_add one: GNU tar refuses to write an empty archive.
-    if ((${#stage_in[@]})); then
-      tar -c -h -f "$stage/in.tar" -C "$1" "${stage_in[@]}" || exit 1
-      tar -x -f "$stage/in.tar" -C "$stage" || exit 1
-      # a source read-only by mode (the nix store's 0444 files in 0555
-      # directories) is cut and stripped here, and removed on the target, by
-      # its owner. Not under busybox's tar, which sets a directory's mode as
-      # it makes it and fails the extraction above.
-      chmod -R u+w "$stage" || exit 1
-      rm -rf "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]/#/$stage/}"}
-    fi
+    # cp, not a tar pair: busybox's tar sets a directory's mode as it makes
+    # it, so a source of read-only directories (the nix store's 0555) could
+    # not be filled, where cp sets the mode last. -L resolves a dotfile
+    # manager's symlinks into content.
+    for f in ${stage_in[@]+"${stage_in[@]}"}; do
+      case "$f" in */*) [ -d "$stage/${f%/*}" ] || mkdir -p "$stage/${f%/*}" || exit 1 ;; esac
+      cp -R -L "$1/$f" "$stage/$f" || exit 1
+    done
     for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
       case "${_hi_st_add[_hi_st_i]}" in */*) mkdir -p "$_hi_st_root/${_hi_st_add[_hi_st_i]%/*}" || exit 1 ;; esac
       cp "${_hi_st_add[_hi_st_i + 1]}" "$_hi_st_root/${_hi_st_add[_hi_st_i]}" || exit 1
     done
-    # cp carries a copied member's mode in too
-    ((${#_hi_st_add[@]} == 0)) || chmod -R u+w "$stage" || exit 1
+    # a copy keeps its source's mode, and one read-only by it (the nix
+    # store's 0444) is cut and stripped here, and removed on the target, by
+    # its owner
+    chmod -R u+w "$stage" || exit 1
+    ((${#stage_excl[@]} == 0)) || rm -rf "${stage_excl[@]/#/$stage/}"
     # fish's universal variables are everything `set -U` ever kept, secrets
     # included: tide's lines ride and nothing else
     if [ -f "$_hi_st_root/tide.vars" ]; then
@@ -177,7 +173,7 @@ function _hi_stage_tar() {
 # over _hi_overlay_files when called bare; nothing when there are none.
 # Comment-stripped through a staging copy like the payload (GLOSSARY: HI.35):
 # the overlay is the user's prose-heavy files and every byte rides each
-# connect. The first tar's -h resolves a dotfile manager's symlinks into
+# connect. The stager's cp -L resolves a dotfile manager's symlinks into
 # content; the final tar names the members, so strip.awk never ships. A
 # member _hi_overlay_src packs from elsewhere is copied in under its own name.
 # wiring.sh rides beside the members it has a line for (GLOSSARY: HI.62).

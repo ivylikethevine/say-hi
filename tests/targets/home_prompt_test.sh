@@ -60,13 +60,13 @@ function _hi_hp_read() {
 
 # <label> <shell> - a stock rc's prompt is drawn over
 function test_home_prompt_drawn() {
-  _hi_hp_read "$1" "$2" || return 1
+  _hi_hp_read "$1" "$2" || _hi_why || return 1
   [[ "$_HI_HP_PS1" == *__hi_env_info* ]] || _hi_because "$1 $2 kept [$_HI_HP_PS1]"
 }
 
 # <label> <shell> - a PS1 the rc sets ahead of hi's block stays
 function test_home_prompt_stays() {
-  _hi_hp_read "$1" "$2" "$_HI_HP_OWN" || return 1
+  _hi_hp_read "$1" "$2" "$_HI_HP_OWN" || _hi_why || return 1
   [ "$_HI_HP_PS1" = "$_HI_HP_OWN" ] || _hi_because "$1 $2 drew [$_HI_HP_PS1] over [$_HI_HP_OWN]"
 }
 

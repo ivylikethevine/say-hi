@@ -591,6 +591,42 @@ function test_overlay_tar_carries_aliases() {
     _hi_because "the overlay tar listed [$listed], wanted [aliases.sh]"
 }
 
+# a variable a plugin's home starts at is one the harness clears
+# (tests/test_lib.sh), or a developer's own config would ride in every
+# overlay a suite builds; the config base and git's global file are pinned
+# there instead
+function test_the_harness_clears_every_home_variable() {
+  local row home name left=""
+  _hi_plugins_load
+  for row in "${_HI_PLUGIN_ROWS[@]}"; do
+    home="${row##*|}"
+    while [[ $home =~ [$]([A-Za-z_][A-Za-z0-9_]*) ]]; do
+      name="${BASH_REMATCH[1]}"
+      home="${home#*"$name"}"
+      case "$name" in XDG_CONFIG_HOME | _HI_XDG_CONFIG | GIT_CONFIG_GLOBAL) continue ;; esac
+      [ -z "${!name:-}" ] || left="$left $name"
+    done
+  done
+  [ -z "$left" ] || _hi_because "set in a suite's environment:$left"
+}
+
+# an overlay read-only by mode, directories included - one a nix store holds -
+# packs, and what unpacks is its owner's to write and remove
+function test_a_read_only_overlay_packs_and_unpacks_writable() {
+  local dir="$_HI_WORKDIR/ro-overlay" got="$_HI_WORKDIR/ro-got" rc=0
+  mkdir -p "$dir/zellij/layouts" "$got"
+  printf 'theme "x"\n' >"$dir/zellij/config.kdl"
+  printf 'layout {\n}\n' >"$dir/zellij/layouts/mine.kdl"
+  printf '# mine\nalias a=b\n' >"$dir/aliases.sh"
+  chmod -R a-w "$dir"
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || rc=$?
+  # the workdir's own removal needs it back
+  chmod -R u+w "$dir"
+  [ "$rc" = 0 ] || _hi_why rc dir || return 1
+  [ -w "$got/zellij/layouts" ] && [ -w "$got/zellij/layouts/mine.kdl" ] && [ "$(cat "$got/aliases.sh")" = 'alias a=b' ] ||
+    _hi_why got
+}
+
 # the overlay's bin/ rides its scripts alone, as written and still executable:
 # not a binary, a file that is not executable, or one over the cap; and
 # nothing of it with its plugin off. Git Bash has no mode bit to read and
@@ -635,6 +671,7 @@ function run_hi_payload_overlay_tests() {
   _hi_check "...what the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
   _hi_check "...a wire is checked as it is written" test_a_wire_is_checked_as_it_is_written
   _hi_check "...and the tree's own file holds whole" test_the_tree_plugins_file_holds
+  _hi_check "...and the harness clears each variable a home starts at" test_the_harness_clears_every_home_variable
   _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line
   _hi_check "A shell hook rides as a wiring row, by the lists and the tool here" test_hook_plugins_ride_as_wiring_rows
@@ -649,6 +686,7 @@ function run_hi_payload_overlay_tests() {
   _hi_check "The overlay's packages rides stripped" test_overlay_carries_packages_stripped
   _hi_check "Extensions ride stripped" test_overlay_carries_extensions
   _hi_check "bin/ rides its scripts alone, as written" test_bin_rides_its_scripts_alone
+  _hi_check "A read-only overlay packs, and unpacks writable" test_a_read_only_overlay_packs_and_unpacks_writable
   _hi_suite_end "hi.sh (the overlay stream)"
 }
 

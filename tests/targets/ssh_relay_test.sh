@@ -112,6 +112,7 @@ function _hi_relay_pair() {
     --network "$_HI_RELAY_NET" -e "$_HI_SSHD_ALIVE" || return 1
   _hi_relay_arm_client || {
     _hi_cecho " | could not arm B as an ssh client" "$RED"
+    _hi_show_target "$_HI_RELAY_B"
     return 1
   }
 }
@@ -189,8 +190,7 @@ function _hi_relay_report_leftovers() {
   for host in "$_HI_RELAY_B" "$_HI_RELAY_C"; do
     _hi_relay_clean "$host" && continue
     _hi_cecho " | [$1] -- $host still has a session tree:" "$RED"
-    docker exec "$host" sh -c 'ls -d /tmp/*.hi.* /tmp/hi.boot.* 2>/dev/null' |
-      sed 's/^/      /' || true
+    _hi_show_target "$host"
   done
 }
 
@@ -233,6 +233,7 @@ function _hi_relay_case() {
       _hi_relay_report_leftovers relay
       ok=0
     fi
+    [ "$ok" -eq 1 ] || _hi_show_transcript "[relay] the session" "$_HI_RELAY_OUT"
   fi
   [ "$ok" -eq 1 ] || _hi_note_failure "[relay] clean-exit relay"
   _hi_rm_container "$_HI_RELAY_B"

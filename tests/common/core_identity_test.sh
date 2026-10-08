@@ -234,7 +234,7 @@ function test_pattern_beats_hash() {
 # skipped, never eval'd: the zsh arm re-parses its pattern as case syntax
 # otherwise, and ~/.ssh/config is a file the user edits by hand.
 function test_pattern_hit_skips_a_token_that_is_not_a_hostname() {
-  _hi_ssh_pattern_hit myhost 'x) hit=0 ;; case y in y' && return 1
+  ! _hi_ssh_pattern_hit myhost 'x) hit=0 ;; case y in y' || _hi_why hit || return 1
   _hi_ssh_pattern_hit myhost 'my*' || _hi_why || return 1
   _hi_ssh_pattern_hit fe80::1 'fe80:*' || _hi_why || return 1
   ! _hi_ssh_pattern_hit myhost 'other?' || _hi_why

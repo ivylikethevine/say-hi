@@ -118,7 +118,7 @@ function test_zsh_walks_the_order_list_the_same_way() {
       MISE_SHELL=zsh DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj \
       zsh -c "cd '$_hi_mise_project' && source '$_HI_ENV_PROMPT' && _hi_env_prompt"
   )"
-  [ -n "$want" ] && [ "$want" = "$got" ]
+  [ -n "$want" ] && [ "$want" = "$got" ] || _hi_why want got
 }
 
 # Every _hi_env_case is a fresh subshell, so none of them reads the memo back.

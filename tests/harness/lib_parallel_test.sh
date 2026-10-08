@@ -179,7 +179,7 @@ function test_expect_eq_passes_on_a_match() {
 
 function test_expect_eq_prints_want_and_got_on_a_mismatch() {
   local out
-  out="$(_hi_expect_eq "mismatch" wanted _hi_expect_probe "" 2>&1)" && return 1
+  ! out="$(_hi_expect_eq "mismatch" wanted _hi_expect_probe "" 2>&1)" || _hi_why out || return 1
   out="$(_hi_strip_ansi "$out")"
   [[ "$out" == *FAILED* ]] && [[ "$out" == *'want: "wanted"'* ]] && [[ "$out" == *'got:  ""'* ]] || _hi_why out
 }

@@ -343,7 +343,7 @@ function test_setup_tool_builds_from_a_source_tarball() {
   chmod +x "$stage/mk/mk-1.0/configure" "$stage/nomk/nomk-1.0/configure"
   printf 'project(cm)\n' >"$stage/cm/cm-1.0/CMakeLists.txt"
   printf 'loose\n' >"$stage/flat/README"
-  for name in mk nomk cm flat; do tar -czf "$dir/src/$name.tar.gz" -C "$stage/$name" . || return 1; done
+  for name in mk nomk cm flat; do tar -czf "$dir/src/$name.tar.gz" -C "$stage/$name" . || _hi_why dir name stage || return 1; done
   printf '%s\n' "mk|1.0|make:libfoo-dev,libbar-dev|https://x/mk.tar.gz||-||$(_hi_tool_sum "$dir/src/mk.tar.gz")" \
     "nomk|1.0|make|https://x/nomk.tar.gz||-||$(_hi_tool_sum "$dir/src/nomk.tar.gz")" \
     "cm|1.0|cmake:libz-dev|https://x/cm.tar.gz||-||$(_hi_tool_sum "$dir/src/cm.tar.gz")" \
@@ -584,7 +584,7 @@ function test_setup_tool_finds_the_binary_inside_an_archive() {
   printf '#!/bin/sh\n' >"$stage/twins/a/twins"
   printf '#!/bin/sh\n' >"$stage/twins/b/twins"
   chmod +x "$stage/deep/tool-1.0/bin/deep" "$stage/arch"/*/arch "$stage/twins"/*/twins
-  for out in deep arch twins; do tar -czf "$dir/src/$out.tar.gz" -C "$stage/$out" . || return 1; done
+  for out in deep arch twins; do tar -czf "$dir/src/$out.tar.gz" -C "$stage/$out" . || _hi_why dir out stage || return 1; done
   printf '%s\n' "deep|1.0|tar.gz|https://x/deep.tar.gz||-||$(_hi_tool_sum "$dir/src/deep.tar.gz")" \
     "arch|1.0|tar.gz|https://x/arch.tar.gz||-||$(_hi_tool_sum "$dir/src/arch.tar.gz")" \
     "twins|1.0|tar.gz|https://x/twins.tar.gz||-||$(_hi_tool_sum "$dir/src/twins.tar.gz")" >"$dir/tools.txt"

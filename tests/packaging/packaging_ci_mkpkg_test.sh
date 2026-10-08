@@ -293,7 +293,7 @@ function test_bump_write_reports_a_failed_asset_fetch() {
 function test_bump_cli_refuses_a_missing_tarball() {
   bump_fixture
   local out
-  out="$(_hi_bump_cli --tarball "$_HI_WORKDIR/bump/absent.tar.gz" 9.9.9 2>&1)" && return 1
+  ! out="$(_hi_bump_cli --tarball "$_HI_WORKDIR/bump/absent.tar.gz" 9.9.9 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"no such file: $_HI_WORKDIR/bump/absent.tar.gz"* ]] || _hi_why out
 }
 
@@ -342,14 +342,14 @@ function test_bump_help_names_both_modes() {
 
 function test_bump_rejects_an_unknown_flag() {
   local out
-  out="$("$_HI_PKG_DIR/bump.sh" --bogus 2>&1)" && return 1
+  ! out="$("$_HI_PKG_DIR/bump.sh" --bogus 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"unrecognized argument: --bogus"*"Usage: bump.sh"* ]] || _hi_why out
 }
 
 # flags alone are not a run - the version check sits below the parse loop
 function test_bump_requires_a_version() {
   local out
-  out="$("$_HI_PKG_DIR/bump.sh" --check 2>&1)" && return 1
+  ! out="$("$_HI_PKG_DIR/bump.sh" --check 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"a version is required"*"Usage: bump.sh"* ]] || _hi_why out
 }
 
@@ -443,7 +443,7 @@ function test_mkpkg_help_names_its_flags() {
 # is staged, naming the problem
 function test_mkpkg_refuses_a_bare_flag_and_a_stranger() {
   local out
-  out="$("$_HI_PKG_DIR/mkpkg.sh" --outdir 2>&1)" && return 1
+  ! out="$("$_HI_PKG_DIR/mkpkg.sh" --outdir 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"--outdir requires a value"* ]] || _hi_why out || return 1
   out="$("$_HI_PKG_DIR/mkpkg.sh" --bogus 2>&1)" && return 1
   [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkpkg.sh"* ]] || _hi_why out
@@ -452,8 +452,8 @@ function test_mkpkg_refuses_a_bare_flag_and_a_stranger() {
 # no nfpm on the PATH: the refusal says where to get it, and nothing builds
 function test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it() {
   local out
-  out="$(PATH="$(_hi_real_path nonfpm sh bash awk sed grep cat printf)" \
-    _hi_in_mkpkg "$_HI_WORKDIR/nonfpm" run_nfpm 2>&1)" && return 1
+  ! out="$(PATH="$(_hi_real_path nonfpm sh bash awk sed grep cat printf)" \
+    _hi_in_mkpkg "$_HI_WORKDIR/nonfpm" run_nfpm 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"nfpm is not installed"*"go install github.com/goreleaser/nfpm"* ]] || _hi_why out
 }
 
@@ -653,7 +653,7 @@ function test_mkrepo_build_apk_with_a_key_derives_the_public_half() {
 # stranger stop with the usage - all before docker is asked for
 function test_mkrepo_parses_flags_before_asking_for_docker() {
   local out
-  out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" --outdir="$_HI_WORKDIR/x" --bogus 2>&1)" && return 1
+  ! out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" --outdir="$_HI_WORKDIR/x" --bogus 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkrepo.sh"* ]] || _hi_why out || return 1
   out="$("$_HI_MKREPO" --dist 2>&1)" && return 1
   [[ "$out" == *"--dist requires a value"* ]] || _hi_why out
@@ -663,12 +663,12 @@ function test_mkrepo_parses_flags_before_asking_for_docker() {
 # does not answer
 function test_mkrepo_main_refuses_without_a_reachable_docker() {
   local out dir="$_HI_WORKDIR/deaddocker"
-  out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" && return 1
+  ! out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"docker is not installed"* ]] || _hi_why out || return 1
   mkdir -p "$dir"
   printf '#!/bin/sh\nexit 1\n' >"$dir/docker"
   chmod +x "$dir/docker"
-  out="$(PATH="$dir:$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" && return 1
+  ! out="$(PATH="$dir:$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" || _hi_why out dir || return 1
   [[ "$out" == *"docker is installed but not reachable"* ]] || _hi_why out
 }
 

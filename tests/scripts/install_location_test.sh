@@ -181,12 +181,12 @@ function _hi_loc_sh() {
 }
 
 function test_sh_renders_the_header() {
-  _hi_has_rendered "$(_hi_loc_sh 'bash -c ". \"$_HI_HEADER\"; hi_header Online"')" Online
+  _hi_has_rendered "$(_hi_loc_sh 'bash -c ". \"$_HI_HEADER\"; hi_header Online"')" Online || _hi_why
 }
 
 # doctor's stderr kept here, which _hi_loc_sh otherwise drops
 function test_sh_doctor_names_the_nested_tree() {
-  _hi_loc_names_the_tree "$(_hi_loc_sh '"$_HI_LAUNCHER" --doctor 2>&1')"
+  _hi_loc_names_the_tree "$(_hi_loc_sh '"$_HI_LAUNCHER" --doctor 2>&1')" || _hi_why
 }
 
 #
@@ -210,7 +210,7 @@ function _hi_loc_outside_resolves() {
 
 # the launcher answers rather than reporting a path nobody typed
 function test_outside_launcher_runs() {
-  _hi_loc_outside_env "$_HI_LOC_OUT_ROOT/hi.sh" --version >/dev/null 2>&1
+  _hi_loc_outside_env "$_HI_LOC_OUT_ROOT/hi.sh" --version >/dev/null 2>&1 || _hi_why
 }
 
 # and through the $_HI_LINK shape: a symlink from somewhere else entirely,
@@ -222,7 +222,7 @@ function test_outside_launcher_runs_through_a_symlink() {
   mkdir -p "$_HI_WORKDIR/bin"
   ln -sfn "$_HI_LOC_OUT_ROOT/hi.sh" "$link"
   out="$(_hi_loc_outside_env "$link" --doctor 2>/dev/null)" || true
-  [[ "$(_hi_strip_ansi "$out")" == *"$_HI_LOC_OUT_ROOT"* ]]
+  [[ "$(_hi_strip_ansi "$out")" == *"$_HI_LOC_OUT_ROOT"* ]] || _hi_why out
 }
 
 # a tree that genuinely isn't there says so, rather than sourcing a stranger
@@ -230,7 +230,7 @@ function test_a_missing_tree_is_named_and_refused() {
   local out rc=0
   out="$(_HI_HOME="$_HI_WORKDIR/nothing-here" "$_HI_LOC_OUT_ROOT/hi.sh" --version 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] && [[ "$out" == *"no say-hi at $_HI_WORKDIR/nothing-here"* ]] &&
-    [[ "$out" == *"set _HI_HOME"* ]]
+    [[ "$out" == *"set _HI_HOME"* ]] || _hi_why rc out
 }
 
 # --uninstall takes its own line back out of all three rc files, wherever the

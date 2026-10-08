@@ -623,6 +623,161 @@ function lint_dockerfiles() {
   return "$bad"
 }
 
+# A case that fails has to say why on that first failure (docs/TESTING.md):
+# a red label alone is no evidence, and a flake's rerun may pass. So every
+# failing arm of a case - a function named test_* in a suite - is read for
+# one that says nothing:
+#
+#   return  a statement holding `return 1` with no reporter in it and none in
+#           the three statements above it (a block that prints, then cleans
+#           up, then returns)
+#   last    a last statement that is a bare assertion: its status is the
+#           case's, and nothing follows to explain it
+#
+# A reporter is _hi_because, _hi_why, _hi_cecho, _hi_show_*, _hi_dump_*, or a
+# printf or echo that is neither captured nor sent to a file. Statements are
+# joined across `||`, `&&`, `|`, and `\` line ends and across an open quote or
+# $( ), a heredoc's body and a nested function are skipped, and a quoted
+# `return 1` (a stub's `{ return 1; }`, a fixture's text) is not one. What it
+# cannot see: an arm inside a loop or an `if` that the function ends on, and
+# a helper the case calls. One row a finding:
+# <file>:<line>|<case>|<return|last>|<statement>. No awk comments inside: the
+# portable-spelling sweep above reads this file too.
+function _hi_reasons_awk() {
+  cat <<'AWK'
+function says(s) {
+  if (s ~ /_hi_because|_hi_why|_hi_cecho|_hi_show_[a-z_]+|_hi_dump_[a-z_]+/) return 1
+  if (s ~ /(^|[^A-Za-z0-9_])(printf|echo)[ \t]/ && s !~ /^[A-Za-z_][A-Za-z0-9_]*=/ && s !~ />>?[ \t]*["$\/A-Za-z]/) return 1
+  return 0
+}
+function scan(s,   i, c, x) {
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1); x = (d ? sk[d] : "")
+    if (x == "'") { if (c == "'") d--; continue }
+    if (c == "\\") { i++; continue }
+    if (x == "a") { if (c == "'") d--; continue }
+    if (c == "$" && substr(s, i + 1, 1) == "(") { sk[++d] = "("; i++; continue }
+    if (x != "\"" && c == "$" && substr(s, i + 1, 1) == "'") { sk[++d] = "a"; i++; continue }
+    if (d == 0 && substr(s, i, 2) == "<<" && substr(s, i, 3) != "<<<" && match(substr(s, i), /^<<-?[ \t]*['"]?[A-Za-z_][A-Za-z0-9_]*['"]?/)) {
+      tag = substr(s, i, RLENGTH); gsub(/<<-?[ \t]*|['"]/, "", tag); i += RLENGTH - 1; continue
+    }
+    if (x == "\"") { if (c == "\"") d--; continue }
+    if (c == "'" || c == "\"") { sk[++d] = c; continue }
+    if (d && c == "(") { sk[++d] = "p"; continue }
+    if (d && c == ")") { d--; continue }
+    if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t;]/)) return substr(s, 1, i - 1)
+  }
+  return s
+}
+function bare(s) { gsub(/'[^']*'/, "", s); gsub(/[A-Za-z_][A-Za-z0-9_]*\(\) \{ return 1; \}/, "", s); return s }
+function hit(kind, i) { printf "%s:%d|%s|%s|%s\n", FILENAME, ln[i], fn, kind, substr(st[i], 1, 160) }
+function flush(   last) {
+  if (fn != "" && n > 0) {
+    last = st[n]
+    if (last !~ /^(return( 0)?|fi|done.*|esac|\}|\)|:|true)$/ && last !~ /\|\| (true|:)$/ && last !~ /^test_[A-Za-z0-9_]+( |$)/ &&
+      bare(last) !~ /(^|[^A-Za-z0-9_])return 1([^0-9]|$)/ && !says(last)) hit("last", n)
+  }
+  fn = ""; n = 0; cur = ""; d = 0; nest = 0; tag = ""
+}
+FNR == 1 { flush() }
+/^function test_[A-Za-z0-9_]*\(\) \{/ { flush(); fn = $2; sub(/\(\).*/, "", fn); next }
+fn == "" { next }
+tag != "" { t = $0; sub(/^\t+/, "", t); if (t == tag) tag = ""; next }
+d == 0 && /^\}/ { flush(); next }
+{
+  l = $0
+  if (d == 0) { sub(/^[ \t]+/, "", l); if (l ~ /^#/ || l == "") next }
+  if (cur == "") start = FNR
+  l = scan(l); sub(/[ \t]+$/, "", l)
+  cur = (cur == "" ? l : cur " " l)
+  if (d > 0) next
+  if (l ~ /(\|\||&&|\\|\|)$/) next
+  s = cur; cur = ""
+  if (nest) { if (s == "}") nest = 0; next }
+  if (s ~ /^(function )?[A-Za-z_][A-Za-z0-9_]*\(\) *\{/) { if (s !~ /\}$/) nest = 1; next }
+  n++; st[n] = s; ln[n] = start
+  if (bare(s) ~ /(^|[^A-Za-z0-9_])return 1([^0-9]|$)/ && !says(s) && !(n > 1 && says(st[n - 1])) && !(n > 2 && says(st[n - 2])) && !(n > 3 && says(st[n - 3])))
+    hit("return", n)
+}
+END { flush() }
+AWK
+}
+
+# ...and an end-to-end suite's failure line needs its session beside it: in
+# any function of tests/targets/ that prints one in red, a _hi_show_transcript,
+# _hi_show_target, or _hi_dump_log. One row a finding, the same shape.
+function _hi_transcripts_awk() {
+  cat <<'AWK'
+function flush() { if (fn != "" && red && !shown) printf "%s:%d|%s|transcript|%s\n", FILENAME, red, fn, text; fn = ""; red = 0; shown = 0 }
+FNR == 1 { flush() }
+/^function [A-Za-z0-9_]+\(\) \{/ { flush(); fn = $2; sub(/\(\).*/, "", fn); next }
+/^\}/ { flush(); next }
+fn == "" { next }
+/^[ \t]*#/ { next }
+/_hi_show_transcript|_hi_show_target|_hi_dump_log/ { shown = 1 }
+/_hi_cecho .*"\$(BR)?RED"/ && !red { red = FNR; text = $0; sub(/^[ \t]+/, "", text); text = substr(text, 1, 110) }
+END { flush() }
+AWK
+}
+
+# _hi_reasons_rows <awk program> <file...> - its rows, paths under the tree
+function _hi_reasons_rows() {
+  awk "$1" "${@:2}" | sed "s|^$_HI_ROOT/||"
+}
+
+# The scan is first run on a case written to fail it, so a scan that stopped
+# seeing anything is itself a finding: a bare assertion as a last line and a
+# silent `|| return 1` are both named, and their repaired twins are not.
+function lint_case_reasons() {
+  local dir="$_HI_WORKDIR/reasons" rows row bad=0
+  local -a suites=()
+  _hi_h2 "Checking that every failing arm of a case says why"
+  mkdir -p "$dir"
+  # shellcheck disable=SC2016 # the fixture's own text, and the rows naming it
+  printf '%s\n' 'function test_fixture_ends_bare() {' '  local a=1 b=2' '  [ "$a" = "$b" ]' '}' \
+    'function test_fixture_returns_silently() {' '  true || return 1' '  [ -n "$a" ] || _hi_why a' '}' \
+    'function test_fixture_says_why() {' '  true || _hi_because "it was false" || return 1' '  [ -n "$a" ] || _hi_why a' '}' \
+    >"$dir/fixture_test.sh"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  rows="$(awk "$(_hi_reasons_awk)" "$dir/fixture_test.sh" | sed "s|^$dir/||")"
+  # shellcheck disable=SC2016
+  if [ "$rows" = 'fixture_test.sh:3|test_fixture_ends_bare|last|[ "$a" = "$b" ]
+fixture_test.sh:6|test_fixture_returns_silently|return|true || return 1' ]; then
+    _hi_align " | the scan names a bare last line and a silent return 1" "OK" "$GREEN"
+  else
+    _hi_align " | the scan read its own fixture as: $rows" "FAILED" "$RED"
+    _hi_note_failure "case reasons: the scan no longer sees its fixture"
+    bad=1
+  fi
+  _hi_read_lines suites < <(find "$_HI_ROOT/tests" -name '*_test.sh' | sort)
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  rows="$(_hi_reasons_rows "$(_hi_reasons_awk)" "${suites[@]}")"
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    _hi_align " | ${row%%|*}: says nothing when it fails - ${row#*|}" "FOUND" "$RED"
+    bad=$((bad + 1))
+  done <<<"$rows"
+  if [ -z "$rows" ]; then
+    _hi_align " | every failing arm of ${#suites[@]} suites' cases says why" "OK" "$GREEN"
+  else
+    _hi_note_failure "case reasons: an arm that says nothing - end it in _hi_because \"<why>\" or _hi_why <variable>..."
+  fi
+  suites=("$_HI_ROOT"/tests/targets/*_test.sh)
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  rows="$(_hi_reasons_rows "$(_hi_transcripts_awk)" "${suites[@]}")"
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    _hi_align " | ${row%%|*}: a failure line with no transcript beside it - ${row#*|}" "FOUND" "$RED"
+    bad=$((bad + 1))
+  done <<<"$rows"
+  if [ -z "$rows" ]; then
+    _hi_align " | every end-to-end failure line has its session beside it" "OK" "$GREEN"
+  else
+    _hi_note_failure "case reasons: an end-to-end failure line alone - add _hi_show_transcript or _hi_show_target"
+  fi
+  return "$bad"
+}
+
 function run_drift() {
   _hi_lint_suite_begin "Checking repo-consistency drift"
 
@@ -631,7 +786,7 @@ function run_drift() {
 
   _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload \
     lint_container_family lint_runtime_dir lint_eval_roster lint_dockerfiles lint_image_tags \
-    lint_image_digests
+    lint_image_digests lint_case_reasons
   _hi_lint_suite_end
 }
 

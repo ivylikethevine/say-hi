@@ -301,11 +301,11 @@ function test_header_probes_every_backend_in_the_roster() {
     # name is a member of that one list, and that _hi_probe_launch reads it
     # rather than spelling its own - GLOSSARY: HI.51.
     case "$name" in
-    kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || return 1 ;;
-    nomad) [[ "$launch" == *nomad* ]] || return 1 ;;
+    kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || _hi_why launch || return 1 ;;
+    nomad) [[ "$launch" == *nomad* ]] || _hi_why launch || return 1 ;;
     *)
       case " $_HI_CONTAINER_CLIS " in
-      *" $name "*) [[ "$launch" == *'_HI_CONTAINER_CLIS'* ]] || return 1 ;;
+      *" $name "*) [[ "$launch" == *'_HI_CONTAINER_CLIS'* ]] || _hi_why name launch || return 1 ;;
       *) _hi_why -3 name launch _HI_CONTAINER_CLIS || return 1 ;;
       esac
       ;;

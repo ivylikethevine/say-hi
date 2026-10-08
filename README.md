@@ -440,26 +440,14 @@ when it lands.
        real `brew install`. **Ticks when:** one rc loads hi on a machine with a
        clone and on one with the formula, across a `brew upgrade`.
 
-9. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
-       shipped: the fixture's `packages` overlay
-       (`docs/tapes/fixtures.sh`, `up:packages`) was rows of a shape hi no
-       longer reads, so the check had nothing to draw; it is TOML rows now,
-       its `colors` overlay with it, and `packages.tape` waits on the
-       check's row after each connect, so a render without it fails. What is
-       left is a render. **Ticks when:** a release's `demo.gif` shows the
-       check's row on both boxes.
+9. [ ] _Before 1.0:_ **A read-only tree stages under busybox's tar** —
+       shipped: the packer fills its staging copy with `cp -R -L`, which sets a
+       directory's mode last, so a tree or an overlay with read-only
+       directories (the nix store's) packs on a client whose `tar` is
+       busybox. What is left is seeing it in CI. **Ticks when:** `hi_payload`'s
+       read-only case passes on the Alpine client.
 
-10. [ ] _Before 1.0:_ **A case without a reason does not get in** — every
-        failing arm of a unit case now ends in `_hi_because` or `_hi_why`
-        ([docs/TESTING.md](docs/TESTING.md#running-the-tests)), and nothing
-        holds a new case to it. **Do:** a check in the lint group that reads
-        each registered case and fails on a failing arm - a `|| return 1`, a
-        bare `return 1`, a last statement - that prints nothing, and on an
-        end-to-end failure line with no transcript beside it. **Ticks when:**
-        a case added with a bare `[ "$a" = "$b" ]` as its last line turns
-        the lint group red, with the case named.
-
-11. [ ] _Before 1.0:_ **A failed comparison shows what it got** — `_hi_why`
+10. [ ] _Before 1.0:_ **A failed comparison shows what it got** — `_hi_why`
         prints the statement and its variables, so an assertion on a command
         substitution (`[ "$(cmd)" = want ]`, some three hundred of them)
         names itself and not the value that was wrong; only the traced rerun
@@ -468,22 +456,22 @@ when it lands.
         **Ticks when:** no registered case compares a command substitution
         inside the assertion that reports it.
 
-12. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
         [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
         **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
         versions_ prose into its version table.
 
-13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

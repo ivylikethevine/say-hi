@@ -135,7 +135,7 @@ function test_banner_change_count_is_computed_once() {
   unset _HI_BANNER_CHANGES _HI_BANNER_HOST
   banner TestBanner >"$file"
   first="$(cat "$file")"
-  [ -n "${_HI_BANNER_CHANGES+x}" ] || return 1 # nothing was cached at all
+  [ -n "${_HI_BANNER_CHANGES+x}" ] || _hi_why || return 1 # nothing was cached at all
   # a value git could never produce, so a second git call would overwrite it
   _HI_BANNER_CHANGES=4242
   banner TestBanner >"$file"
@@ -599,7 +599,7 @@ function test_header_hues_never_repeat_in_the_default_order() {
     hue=""
     _hi_cell_hue hue "$cell"
     [ -n "$hue" ] || continue
-    [ "$hue" = "$prev" ] && return 1
+    ! [ "$hue" = "$prev" ] || _hi_why hue prev || return 1
     prev="$hue"
   done || _hi_why -6 words w cell hue
 }
@@ -616,7 +616,7 @@ function test_header_hues_never_repeat_in_a_pathological_order() {
     hue=""
     _hi_cell_hue hue "$cell"
     [ -n "$hue" ] || continue
-    [ "$hue" = "$prev" ] && return 1
+    ! [ "$hue" = "$prev" ] || _hi_why hue prev || return 1
     prev="$hue"
   done || _hi_why -6 words w cell hue
 }

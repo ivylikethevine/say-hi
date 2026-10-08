@@ -66,7 +66,7 @@ Host inc1' ] && ! grep -q lab "$home/.ssh/config"; } || _hi_why home
 function test_add_tag_refuses_a_wildcard_only_host() {
   local home out
   home="$(_hi_addtag_fixture addtag-wild)"
-  out="$(_hi_addtag_run "$home" db.prod prod)" && return 1
+  ! out="$(_hi_addtag_run "$home" db.prod prod)" || _hi_why out home || return 1
   { [[ "$out" == *"only 'Host *.prod' covers it"* ]] && ! grep -q '^# Tags: prod' "$home/.ssh/config"; } || _hi_why out home
 }
 

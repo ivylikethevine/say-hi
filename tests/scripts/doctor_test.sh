@@ -32,7 +32,7 @@ source "$_HI_DOCTOR"
 # base64 is a different fiction, and $HI_FAKE_TOOLS is the one that tells it.
 function _hi_doctor_path() {
   _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep \
-    timeout du date base64 openssl sort tar gzip find readlink uname mv chmod mkdir
+    timeout du date base64 openssl sort tar gzip find readlink uname mv chmod mkdir cp
 }
 
 # A $HOME with one non-empty rc file, isolating doctor_configs()'s local-rc

@@ -238,14 +238,14 @@ function test_install_section_names_an_older_hi_block() {
   # shellcheck disable=SC2016 # the old lines, verbatim
   _hi_wired_block "$(tmpdir_line sh)" '[[ $- != *i* ]] && return' "source \"$_HI_BASHRC\"" >"$home/.bashrc"
   _hi_wired_block "$(tmpdir_line fish)" 'if status is-interactive' "  source \"$_HI_FISH_CONFIG\"" end >"$fishrc"
-  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || _hi_why out home path || return 1
   [[ "$out" == *"~/.bashrc is wired to this tree, but not with the lines this hi writes (hi --install refreshes them)"* &&
-    "$out" == *"config.fish is wired to this tree, but not with the lines this hi writes"* ]] || return 1
+    "$out" == *"config.fish is wired to this tree, but not with the lines this hi writes"* ]] || _hi_why out || return 1
   _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
   _hi_rc_block fish "$_HI_FISH_CONFIG" fish >"$fishrc"
-  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || return 1
+  out="$(_hi_doctor_install_out "$home" PATH="$path" XDG_CONFIG_HOME="$home/.config")" || _hi_why out home path || return 1
   [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" == *"config.fish is wired to this tree"* &&
-    "$out" != *"lines this hi writes"* ]]
+    "$out" != *"lines this hi writes"* ]] || _hi_why out
 }
 
 function test_install_section_flags_a_foreign_tree() {

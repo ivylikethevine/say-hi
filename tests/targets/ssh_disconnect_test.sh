@@ -30,8 +30,8 @@ function test_clean_exit_removes_cleanup_dir() {
   "${_HI_SSH_LAUNCH[@]}" 'echo READY:$_HI_CLEANUP' >"$out_file" 2>&1 || true
 
   cleanup_dir="$(_hi_ready_dir READY "$out_file")"
-  [ -n "$cleanup_dir" ] || return 1
-  ! docker exec "$_HI_CONTAINER" test -d "$cleanup_dir" 2>/dev/null
+  [ -n "$cleanup_dir" ] || _hi_why cleanup_dir || return 1
+  ! docker exec "$_HI_CONTAINER" test -d "$cleanup_dir" 2>/dev/null || _hi_why cleanup_dir
 }
 
 function test_sudden_disconnect_removes_cleanup_dir() {
@@ -63,7 +63,7 @@ function test_sudden_disconnect_removes_cleanup_dir() {
   # client *and* mux master - see _hi_freeze_session, which says why both
   if ! _hi_freeze_session; then
     kill -9 "$launcher_pid" 2>/dev/null || true
-    return 1
+    _hi_because "the session's client could not be frozen" || return 1
   fi
 
   # sshd's ClientAliveInterval=2/ClientAliveCountMax=1 reaps a frozen client in
@@ -74,7 +74,7 @@ function test_sudden_disconnect_removes_cleanup_dir() {
   _hi_thaw_frozen
   _hi_wait_pid "$launcher_pid" 5
 
-  [ "$ok" -eq 1 ]
+  [ "$ok" -eq 1 ] || _hi_why ok
 }
 
 function run_ssh_disconnect_test() {

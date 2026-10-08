@@ -14,7 +14,9 @@
 #
 # GLOSSARY: HI.30 + HI.34. The subshell containment above is the mechanism
 # SC2030/2031 would warn about.
-# shellcheck disable=SC2329,SC2030,SC2031
+# SC2015: `A && B || _hi_why` is one assertion, its reporter run when either
+# half is false.
+# shellcheck disable=SC2329,SC2030,SC2031,SC2015
 set -euo pipefail
 
 # shellcheck source=../test_lib.sh
@@ -239,7 +241,7 @@ function test_probe_cmd_every_shape_ends_with_the_marker() {
 }
 
 function test_poll_bool_returns_one_when_never_true() {
-  ! _hi_poll_bool 2 0.01 _hi_false
+  ! _hi_poll_bool 2 0.01 _hi_false || _hi_why
 }
 
 function test_poll_bool_succeeds_on_a_later_attempt() {
@@ -254,7 +256,7 @@ function test_poll_bool_succeeds_on_a_later_attempt() {
 }
 
 function test_poll_bool_passes_arguments_through() {
-  _hi_poll_bool 2 0.01 test foo = foo && ! _hi_poll_bool 2 0.01 test foo = bar
+  _hi_poll_bool 2 0.01 test foo = foo && ! _hi_poll_bool 2 0.01 test foo = bar || _hi_why
 }
 
 function test_poll_bool_abort_predicate_stops_early() {
@@ -265,7 +267,7 @@ function test_poll_bool_abort_predicate_stops_early() {
     printf 'x' >>"$counter"
     _hi_why -3 counter || return 1
   }
-  _hi_poll_bool -a _hi_false 50 0.01 _hi_never_true && return 1
+  ! _hi_poll_bool -a _hi_false 50 0.01 _hi_never_true || _hi_why || return 1
   [ "$(wc -c <"$counter")" -eq 1 ] || _hi_why counter
 }
 
@@ -278,8 +280,8 @@ function test_poll_bool_stops_at_the_wall_clock_budget() {
     sleep 0.3
     return 1
   }
-  _hi_poll_bool 100 0.01 _hi_slow_false && return 1
-  [ "$(wc -c <"$counter")" -lt 20 ]
+  ! _hi_poll_bool 100 0.01 _hi_slow_false || _hi_why || return 1
+  [ "$(wc -c <"$counter")" -lt 20 ] || _hi_why counter
 }
 
 # $SECONDS is whole seconds and already truncated when it is read, so a naive
@@ -289,8 +291,8 @@ function test_poll_bool_stops_at_the_wall_clock_budget() {
 # poll at that floor has to have spent its full second.
 function test_poll_budget_is_never_short() {
   local t0=$SECONDS
-  ! _hi_poll_bool 1 0.05 _hi_false || return 1
-  [ $((SECONDS - t0)) -ge 2 ]
+  ! _hi_poll_bool 1 0.05 _hi_false || _hi_why || return 1
+  [ $((SECONDS - t0)) -ge 2 ] || _hi_why
 }
 
 function test_poll_value_prints_the_value_it_found() {
@@ -300,7 +302,7 @@ function test_poll_value_prints_the_value_it_found() {
 }
 
 function test_poll_value_fails_when_output_stays_empty() {
-  ! _hi_poll_value 2 0.01 true
+  ! _hi_poll_value 2 0.01 true || _hi_why
 }
 
 function test_poll_value_keeps_polling_past_empty_output() {
@@ -334,7 +336,7 @@ function test_wait_pid_kills_and_reports_124_on_timeout() {
   sleep 30 &
   pid=$!
   _hi_wait_pid "$pid" 1
-  [ "$_HI_WAIT_EXIT" -eq 124 ] && ! kill -0 "$pid" 2>/dev/null
+  [ "$_HI_WAIT_EXIT" -eq 124 ] && ! kill -0 "$pid" 2>/dev/null || _hi_why pid
 }
 
 function test_wait_pid_runs_the_timeout_hook_before_killing() {
@@ -344,7 +346,7 @@ function test_wait_pid_runs_the_timeout_hook_before_killing() {
   function _hi_probe_timeout_hook() { : >"$marker"; }
   sleep 30 &
   _hi_wait_pid "$!" 1 _hi_probe_timeout_hook
-  [ -f "$marker" ]
+  [ -f "$marker" ] || _hi_why marker
 }
 
 function test_wait_pid_skips_the_hook_on_a_clean_exit() {
@@ -452,7 +454,7 @@ function test_exec_case_exhausts_retries_and_fails() {
 
 function test_exec_case_never_retries_a_timeout() {
   _hi_retry_run retrytimeout 1 'echo HI_RETRY_TEST_OK' 'sleep 5'
-  [ "$_HI_RETRY_RC" -eq 1 ] && [[ "$_HI_RETRY_OUT" == *'TIMED OUT'* ]] && [[ "$_HI_RETRY_OUT" != *"retrying"* ]]
+  [ "$_HI_RETRY_RC" -eq 1 ] && [[ "$_HI_RETRY_OUT" == *'TIMED OUT'* ]] && [[ "$_HI_RETRY_OUT" != *"retrying"* ]] || _hi_why
 }
 
 # Every escape form the helper documents goes, and a render's worth of them
@@ -547,7 +549,7 @@ function test_ssh_reachable_fails_against_a_dead_port() {
   # port 1 has nothing listening; this must fail rather than hang or error
   # out. ssh's own "connection refused" is the expected noise, not a result -
   # _hi_poll_bool discards it the same way for real callers
-  ! _hi_ssh_reachable 1 2>/dev/null
+  ! _hi_ssh_reachable 1 2>/dev/null || _hi_why
 }
 
 #

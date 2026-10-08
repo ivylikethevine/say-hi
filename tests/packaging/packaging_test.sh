@@ -87,7 +87,7 @@ function test_bump_rewrite_preserves_file_mode() {
   chmod 604 "$f"
   before="$(_hi_mode_string "$f")"
   _hi_rewrite "$f" 's/^pkgver=.*/pkgver=1.2.3/'
-  [ "$(_hi_mode_string "$f")" = "$before" ]
+  [ "$(_hi_mode_string "$f")" = "$before" ] || _hi_why f before
 }
 
 # Every channel stamps `^_HI_RELEASE=` into the hi.sh it installs, and the
@@ -271,21 +271,21 @@ function test_stamp_help_prints_usage_and_exits_zero() {
 
 function test_stamp_refuses_an_unknown_argument() {
   local out
-  out="$(_hi_stamp --bogus 2>&1)" && return 1
+  ! out="$(_hi_stamp --bogus 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"unknown argument: --bogus"* && "$out" == *"Usage: stamp.sh"* ]] || _hi_why out
 }
 
 function test_stamp_requires_a_version() {
   local d out
   d="$(_hi_stamp_fixture)"
-  out="$(_hi_stamp --root "$d" --date 2026-01-02 2>&1)" && return 1
+  ! out="$(_hi_stamp --root "$d" --date 2026-01-02 2>&1)" || _hi_why out d || return 1
   [[ "$out" == *"--version is required"* ]] || _hi_why out
 }
 
 # --version alone names nothing to write into: neither --root nor --launcher
 function test_stamp_refuses_with_nothing_to_stamp() {
   local out
-  out="$(_hi_stamp --version 1.0.0 --date 2026-01-02 2>&1)" && return 1
+  ! out="$(_hi_stamp --version 1.0.0 --date 2026-01-02 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"nothing to stamp"* ]] || _hi_why out
 }
 
@@ -295,7 +295,7 @@ function test_stamp_fails_on_a_missing_release_line() {
   local d
   d="$(_hi_stamp_fixture)"
   printf '#!/bin/bash\necho hi\n' >"$d/usr/share/say-hi/hi.sh"
-  _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 && return 1
+  ! _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 || _hi_why d || return 1
   return 0
 }
 
@@ -304,9 +304,9 @@ function test_stamp_fails_on_a_missing_release_line() {
 function test_stamp_fails_on_no_launcher_at_the_given_path() {
   local d out
   d="$(_hi_stamp_fixture)"
-  out="$("$_HI_PKG_DIR/stamp.sh" --version 1.0.0 --date 2026-01-02 \
+  ! out="$("$_HI_PKG_DIR/stamp.sh" --version 1.0.0 --date 2026-01-02 \
     --launcher "$d/usr/share/say-hi/nonexistent.sh" \
-    --man "$d/usr/share/man/man1/hi.1.gz" 2>&1)" && return 1
+    --man "$d/usr/share/man/man1/hi.1.gz" 2>&1)" || _hi_why out || return 1
   case "$out" in *"no launcher at"*) return 0 ;; esac
   _hi_why -3 d out || return 1
 }
@@ -317,7 +317,7 @@ function test_stamp_fails_on_a_duplicated_release_line() {
   local d
   d="$(_hi_stamp_fixture)"
   printf '#!/bin/bash\n_HI_RELEASE=""\n_HI_RELEASE=""\n' >"$d/usr/share/say-hi/hi.sh"
-  _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 && return 1
+  ! _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 || _hi_why d || return 1
   return 0
 }
 
@@ -327,7 +327,7 @@ function test_stamp_fails_on_a_man_page_with_no_th_line() {
   local d
   d="$(_hi_stamp_fixture plain)"
   printf '.SH NAME\nhi - say hi\n' >"$d/usr/share/man/man1/hi.1"
-  _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 && return 1
+  ! _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 || _hi_why d || return 1
   return 0
 }
 
@@ -517,7 +517,7 @@ function test_lib_hash_fallbacks_agree_with_coreutils() {
 function test_lib_verify_signing_key_refuses_a_non_key_secret() {
   local f="$_HI_WORKDIR/notakey.asc" out
   printf 'this is not a key\n' >"$f"
-  out="$(_hi_in_pkglib verify_signing_key gpg "$f" "$f" 2>&1)" && return 1
+  ! out="$(_hi_in_pkglib verify_signing_key gpg "$f" "$f" 2>&1)" || _hi_why out f || return 1
   [[ "$out" == *"could not import the secret key"* ]] || _hi_why out
 }
 

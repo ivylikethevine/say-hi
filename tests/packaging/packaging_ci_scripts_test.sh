@@ -547,7 +547,7 @@ function test_srctar_help_names_the_usage() {
 
 function test_srctar_refuses_a_wrong_arg_count() {
   local out
-  out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD 2>&1)" && return 1
+  ! out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"expected <version> <ref> <outfile>"*"Usage: srctar.sh"* ]] || _hi_why out
 }
 
@@ -608,7 +608,7 @@ function test_stamp_badge_check_fails_past_the_slack() {
   far="$(awk -v b="$(_hi_badge_of "$f")" 'BEGIN { printf "%.1f", b + 10 }')KB"
   sed "s/ssh_payload-[0-9.]*KB-/ssh_payload-$far-/" "$f" >"$f.far"
   before="$(cat "$f.far")"
-  out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check "$f.far" 2>&1)" && return 1
+  ! out="$("$_HI_ROOT/packaging/stamp_badge.sh" --check "$f.far" 2>&1)" || _hi_why out f || return 1
   [[ "$out" == *"says $far"*"run packaging/stamp_badge.sh"* ]] ||
     _hi_because "--check said: $out" || return 1
   [ "$(cat "$f.far")" = "$before" ] || _hi_why f before
@@ -618,7 +618,7 @@ function test_stamp_badge_refuses_a_readme_with_no_badge() {
   local f out
   f="$(mktemp "$_HI_WORKDIR/badge-none.XXXXXX")"
   printf '# no badge here\n' >"$f"
-  out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f" 2>&1)" && return 1
+  ! out="$("$_HI_ROOT/packaging/stamp_badge.sh" "$f" 2>&1)" || _hi_why out f || return 1
   [[ "$out" == *"no ssh_payload-<n>KB badge in $f"* ]] || _hi_why out f
 }
 

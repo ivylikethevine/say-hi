@@ -695,10 +695,12 @@ function _hi_bin_ok() {
   local _hi_bk="" _hi_bk_nul=0 _hi_bk_why=""
   # true at a NUL or at the cap, false at the end of the file
   ! IFS= read -r -d '' -n $((_HI_BIN_MAX + 1)) _hi_bk <"$1" 2>/dev/null || _hi_bk_nul=1
-  if [ ! -x "$1" ]; then
-    _hi_bk_why="not executable (chmod +x)"
-  elif [ "${_hi_bk:0:2}" != '#!' ] || { [ "$_hi_bk_nul" = 1 ] && [ "${#_hi_bk}" -le "$_HI_BIN_MAX" ]; }; then
+  # what it is ahead of its mode: Git Bash reads no mode bit, and calls a
+  # file executable by its #! line or its name
+  if [ "${_hi_bk:0:2}" != '#!' ] || { [ "$_hi_bk_nul" = 1 ] && [ "${#_hi_bk}" -le "$_HI_BIN_MAX" ]; }; then
     _hi_bk_why="a binary, or no #! line: only scripts ride"
+  elif [ ! -x "$1" ]; then
+    _hi_bk_why="not executable (chmod +x)"
   elif [ "${#_hi_bk}" -gt "$_HI_BIN_MAX" ]; then
     _hi_bk_why="over $_HI_BIN_MAX characters"
   fi

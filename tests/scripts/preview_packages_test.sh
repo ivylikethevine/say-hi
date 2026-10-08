@@ -390,9 +390,9 @@ function test_preview_reports_no_packages_file() {
   local home out
   home="$(_hi_scratch_tree nopackages common config link:scripts)"
   rm -f "$home/say-hi/config/packages"
-  out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
+  ! out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
-    "$home/say-hi/scripts/preview.sh" packages 2>&1)" && return 1
+    "$home/say-hi/scripts/preview.sh" packages 2>&1)" || _hi_why out || return 1
   [[ "$out" == *"No packages file at $home/say-hi/config/packages"* ]] || _hi_why out home
 }
 
