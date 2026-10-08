@@ -20,6 +20,7 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
   - [Others](#others)
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
   - [Extensions](#extensions)
+  - [Scripts of your own](#scripts-of-your-own)
   - [Switching a plugin off](#switching-a-plugin-off)
   - [Shell hooks](#shell-hooks)
   - [Variables that ride](#variables-that-ride)
@@ -123,32 +124,33 @@ default. A shell's own rc - `bashrc`, `zshrc`, `config.fish` - has no middle
 step: it rides only from here, never found at home
 ([HI.61](GLOSSARY.md#hi61-one-overlay-priority)).
 
-| overlay file                            | overrides         | what it is                                                                                                                                                                                                     |
-| --------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.config/say-hi/settings.sh`          | -                 | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                           |
-| `~/.config/say-hi/settings.<tag>.sh`    | -                 | settings for the hosts carrying that `# Tags:` value, over `settings.sh`; read here and sent joined to it, never as itself; see [below](#settings-by-host-tag)                                                 |
-| `~/.config/say-hi/colors`               | `config/colors`   | your color pins; `hi --set-color` copies the tree's in before its first write ([COLORS.md](COLORS.md))                                                                                                         |
-| `~/.config/say-hi/packages`             | `config/packages` | what the package check looks for; `hi --add-package` copies the tree's in before its first write ([COLORS.md](COLORS.md#the-package-checks-rows))                                                              |
-| `~/.config/say-hi/vim/vimrc`            | -                 | your vim config for the `vim` alias and `$VIMINIT`; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them))                   |
-| `~/.config/say-hi/nvim/init.lua`        | -                 | the same for neovim - the `nvim` alias, and `vim` where a target has nvim - over your `~/.config/nvim/init.lua`                                                                                                |
-| `~/.config/say-hi/helix/config.toml`    | -                 | the same for the `hx` or `helix` alias (`-c`), over your `~/.config/helix/config.toml`                                                                                                                         |
-| `~/.config/say-hi/helix/languages.toml` | -                 | helix's language settings, over your `~/.config/helix/languages.toml`; `hx` has no flag for it, so a target reads it through the `xdg` wire ([below](#a-tool-hi-does-not-know))                                |
-| `~/.config/say-hi/kak/kakrc`            | -                 | kakoune's `kak/kakrc`, over your own: on a target `$KAKOUNE_CONFIG_DIR` names the overlay, so kak's system kakrc and its syntax files still load                                                               |
-| `~/.config/say-hi/kak/colors/`          | -                 | kakoune colorschemes, file by file, beside your `~/.config/kak/colors/`: the scheme a `kak/kakrc` names with `colorscheme` is there on a target                                                                |
-| `~/.config/say-hi/nano/nanorc`          | -                 | the same for the `nano` alias, over your `~/.nanorc`                                                                                                                                                           |
-| `~/.config/say-hi/emacs/init.el`        | -                 | the same for the `emacs` alias (`emacs -nw -q -l`), over your `~/.emacs`                                                                                                                                       |
-| `~/.config/say-hi/tmux/tmux.conf`       | -                 | the same for the `tmux` alias (`tmux -f`), over your `~/.tmux.conf`; with neither, `tmux` is left alone                                                                                                        |
-| `~/.config/say-hi/screenrc`             | -                 | the same for the `screen` alias (`screen -c`), over your `~/.screenrc`                                                                                                                                         |
-| `~/.config/say-hi/zellij/`              | -                 | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                         |
-| `~/.config/say-hi/micro/`               | -                 | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                         |
-| `~/.config/say-hi/aliases.sh`           | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                         |
-| `~/.config/say-hi/plugins`              | -                 | a plugin for each tool hi does not know, or your own for one it does; read here and not sent; see [below](#a-tool-hi-does-not-know)                                                                            |
-| `~/.config/say-hi/extensions/`          | -                 | extensions in the same subset, sourced after the aliases in name order; see [below](#extensions)                                                                                                               |
-| `~/.config/say-hi/header/`              | -                 | header cells of your own, a bash file each defining `_hi_cell_<word>` for `_HI_HEADER_ORDER` to name; see [Integrations](INTEGRATIONS.md#header-cells-of-your-own)                                             |
-| `~/.config/say-hi/bashrc`               | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session)) |
-| `~/.config/say-hi/zshrc`                | -                 | the same for zsh - history, keybindings, `zstyle` completion rules                                                                                                                                             |
-| `~/.config/say-hi/config.fish`          | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                          |
-| `~/.config/say-hi/oh-my-posh.json`      | -                 | your oh-my-posh config (or `.yaml` / `.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names                   |
+| overlay file                            | overrides         | what it is                                                                                                                                                                                                                   |
+| --------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/say-hi/settings.sh`          | -                 | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                                         |
+| `~/.config/say-hi/settings.<tag>.sh`    | -                 | settings for the hosts carrying that `# Tags:` value, over `settings.sh`; read here and sent joined to it, never as itself; see [below](#settings-by-host-tag)                                                               |
+| `~/.config/say-hi/colors`               | `config/colors`   | your color pins; `hi --set-color` copies the tree's in before its first write ([COLORS.md](COLORS.md))                                                                                                                       |
+| `~/.config/say-hi/packages`             | `config/packages` | what the package check looks for; `hi --add-package` copies the tree's in before its first write ([COLORS.md](COLORS.md#the-package-checks-rows))                                                                            |
+| `~/.config/say-hi/vim/vimrc`            | -                 | your vim config for the `vim` alias and `$VIMINIT`; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them))                                 |
+| `~/.config/say-hi/nvim/init.lua`        | -                 | the same for neovim - the `nvim` alias, and `vim` where a target has nvim - over your `~/.config/nvim/init.lua`; an `nvim/init.vim` is read the same way, and the modules either requires from the `lua/` beside it ride too |
+| `~/.config/say-hi/helix/config.toml`    | -                 | the same for the `hx` or `helix` alias (`-c`), over your `~/.config/helix/config.toml`                                                                                                                                       |
+| `~/.config/say-hi/helix/languages.toml` | -                 | helix's language settings, over your `~/.config/helix/languages.toml`; `hx` has no flag for it, so a target reads it through the `xdg` wire ([below](#a-tool-hi-does-not-know))                                              |
+| `~/.config/say-hi/kak/kakrc`            | -                 | kakoune's `kak/kakrc`, over your own: on a target `$KAKOUNE_CONFIG_DIR` names the overlay, so kak's system kakrc and its syntax files still load                                                                             |
+| `~/.config/say-hi/kak/colors/`          | -                 | kakoune colorschemes, file by file, beside your `~/.config/kak/colors/`: the scheme a `kak/kakrc` names with `colorscheme` is there on a target                                                                              |
+| `~/.config/say-hi/nano/nanorc`          | -                 | the same for the `nano` alias, over your `~/.nanorc`                                                                                                                                                                         |
+| `~/.config/say-hi/emacs/init.el`        | -                 | the same for the `emacs` alias (`emacs -nw -q -l`), over your `~/.emacs`                                                                                                                                                     |
+| `~/.config/say-hi/tmux/tmux.conf`       | -                 | the same for the `tmux` alias (`tmux -f`), over your `~/.tmux.conf`; with neither, `tmux` is left alone                                                                                                                      |
+| `~/.config/say-hi/screenrc`             | -                 | the same for the `screen` alias (`screen -c`), over your `~/.screenrc`                                                                                                                                                       |
+| `~/.config/say-hi/zellij/`              | -                 | zellij's `config.kdl`, `layouts/`, and `themes/`, each file over the one in your zellij config directory; the `zellij` alias's `--config-dir` names it                                                                       |
+| `~/.config/say-hi/micro/`               | -                 | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it                                                                       |
+| `~/.config/say-hi/aliases.sh`           | -                 | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session)                                                                       |
+| `~/.config/say-hi/plugins`              | -                 | a plugin for each tool hi does not know, or your own for one it does; read here and not sent; see [below](#a-tool-hi-does-not-know)                                                                                          |
+| `~/.config/say-hi/extensions/`          | -                 | extensions in the same subset, sourced after the aliases in name order; see [below](#extensions)                                                                                                                             |
+| `~/.config/say-hi/bin/`                 | -                 | scripts of your own, each a command on a session's `$PATH`; see [below](#scripts-of-your-own)                                                                                                                                |
+| `~/.config/say-hi/header/`              | -                 | header cells of your own, a bash file each defining `_hi_cell_<word>` for `_HI_HEADER_ORDER` to name; see [Integrations](INTEGRATIONS.md#header-cells-of-your-own)                                                           |
+| `~/.config/say-hi/bashrc`               | -                 | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings - or a copy or symlink of your whole `~/.bashrc` ([below](#shells-you-drop-into-inside-a-session))               |
+| `~/.config/say-hi/zshrc`                | -                 | the same for zsh - history, keybindings, `zstyle` completion rules                                                                                                                                                           |
+| `~/.config/say-hi/config.fish`          | -                 | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                                                                                                        |
+| `~/.config/say-hi/oh-my-posh.json`      | -                 | your oh-my-posh config (or `.yaml` / `.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names                                 |
 
 starship's, powerlevel10k's, tide's, bat's, eza's, rg's, fzf's, lazygit's, and
 readline's own configs, and your oh-my-zsh, oh-my-bash, and bash-it themes, need
@@ -156,7 +158,8 @@ no copy here: every target gets the one each tool reads on your machine
 ([Integrations](INTEGRATIONS.md#prompt-programs)). A `starship.toml`,
 `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
 `tide.vars`, `bat/config`, `eza/theme.yml`, `ripgreprc`, `fzfrc`,
-`lazygit/config.yml`, or `inputrc` in `~/.config/say-hi/` is the override:
+`lazygit/config.yml`, `git/config`, or `inputrc` in `~/.config/say-hi/` is the
+override:
 targets get it instead, and at home the tool keeps reading its own. A prompt
 program's copy rides only when that program is one a target is handed, and
 `hi --doctor` says when it is not.
@@ -268,6 +271,7 @@ takes an answer by.
 | `_HI_PLAIN`                 | `0`                                                                               | `hi --configure`          | `1` makes every connect a `--plain` one, a bare shell with nothing sent; `--no-plain` overrides it for one connect. The wizard's targets switch writes it for every target; in a tag's file, `settings.<tag>.sh`, it holds for the hosts carrying that tag ([Settings by host tag](#settings-by-host-tag))                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `_HI_KEEP_TIMEOUT`          | `24h`                                                                             | you                       | how long a kept session waits with nobody attached before it closes and its directory is removed: a number of seconds, or one with `s`, `m`, `h`, or `d`; `0` is never. On a target with no multiplexer it is how long a dropped session's directory waits for a reconnect: 15m unless set, and `0` holds nothing. Read on the target, so it belongs in `settings.sh`                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_KEEP_RETRY`            | `5m`                                                                              | you                       | how long a connect at a terminal keeps retrying a target whose kept session it lost the link to: a duration as above; `0` is never                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `_HI_DISABLE_KEEP`          | `0`                                                                               | you                       | `1` switches the kept session off whole: `--keep` and `--end` are refused, `_HI_KEEP=1` does nothing, a connect looks for no session to reattach and no dead one's directory to remove, and `common/keep.sh` and `common/mux.sh` stay out of the payload, so `tmux`, `zellij`, and `screen` in a session are the tools themselves ([Integrations](INTEGRATIONS.md#terminal-multiplexers))                                                                                                                                                                                                                                                                                                                                                                                     |
 | `_HI_BACKENDS_OFF`          | unset                                                                             | you                       | the backends hi never asks, a space or a comma apart: any of `docker`, `podman`, `nerdctl`, `finch`, `nomad`, and `kube`, or `all` for ssh alone. One named here is left out of target resolution, `hi <TAB>`, and the header's counts, so its CLI is never started; `--use <backend>` still reaches it by name ([Compatibility](COMPATIBILITY.md#what-ships))                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `_HI_DISABLE_CONTROLMASTER` | `0`                                                                               | you                       | `1` keeps hi from passing ssh its `ControlMaster`, `ControlPath`, and `ControlPersist` options, so a `ControlMaster` line of your own `~/.ssh/config` decides; the bootstrap and the session are then two connections, each authenticating ([Security](SECURITY.md#trust-boundaries))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_TRUECOLOR`             | by terminal                                                                       | `hi --configure` advanced | `1`/`0` forces or refuses 24-bit color; unset, the client decides ([Colors](COLORS.md))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -569,6 +573,17 @@ The whole contract is [HI.59](GLOSSARY.md#hi59-extensions). Before 1.0 the
 directory was `plugins.d`; one still under that name is not read, and
 `hi --doctor` names it with the `mv` that fixes it.
 
+### Scripts of your own
+
+An executable script in `~/.config/say-hi/bin/` rides to every target and is a
+command there by its name: the directory is the last entry of a session's
+`$PATH`, so nothing in it stands in for a command the target has, and
+`hi <target> <name>` runs one too. Scripts alone ride, as written: a file
+that is not executable, has no `#!` line, holds a NUL, or runs past 16384
+characters stays home, and `hi --doctor` names each with the reason. The
+directory is a plugin, `bin`, so `hi --plugin-off bin` keeps it home
+([HI.58](GLOSSARY.md#hi58-overlay-directory-members)).
+
 ### Switching a plugin off
 
 A plugin is the configs of one tool that hi carries to a target: its files,
@@ -692,7 +707,8 @@ files = "notes.txt"
   with one of them on this machine. Left out, it is the plugin's name; `-`
   asks about nothing.
 - **wire** is how a target's tool finds a file: `env:` and the variables to
-  set to the file's path, `envdir:` and the variable to set to its directory,
+  set to the file's path (one written `NAME=word` is set to that word),
+  `envdir:` and the variable to set to its directory,
   `flag:` and the command and flag to alias it with (`flagdir:` for the
   directory; a flag written `--rc=` takes the path in the same word;
   several wires a `;` apart), `xdg:` and the command to alias with
@@ -756,20 +772,20 @@ The editor, tmux, screen, micro, and zellij rows of the overlay usually need
 no file: hi carries the config each tool **already reads on this machine**,
 so there is one copy to edit:
 
-| member                 | hi looks at                                                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `vim/vimrc`            | `~/.vimrc`, else `~/.vim/vimrc`, else `$XDG_CONFIG_HOME/vim/vimrc`                                                  |
-| `nvim/init.lua`        | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                    |
-| `helix/config.toml`    | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                |
-| `helix/languages.toml` | `$XDG_CONFIG_HOME/helix/languages.toml`                                                                             |
-| `kak/kakrc`            | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/kakrc`                                                                 |
-| `kak/colors/`          | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/colors/`, file by file                                                 |
-| `nano/nanorc`          | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                                                                    |
-| `emacs/init.el`        | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el`                    |
-| `tmux/tmux.conf`       | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                              |
-| `screenrc`             | `${SCREENRC:-~/.screenrc}`                                                                                          |
-| `micro/<file>`         | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua`         |
-| `zellij/<file>`        | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`, for `config.kdl` and every file of `layouts/` and `themes/` |
+| member                           | hi looks at                                                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `vim/vimrc`                      | `~/.vimrc`, else `~/.vim/vimrc`, else `$XDG_CONFIG_HOME/vim/vimrc`                                                  |
+| `nvim/init.lua`, `nvim/init.vim` | `$XDG_CONFIG_HOME/nvim/`, and the modules either requires from its `lua/`                                           |
+| `helix/config.toml`              | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                |
+| `helix/languages.toml`           | `$XDG_CONFIG_HOME/helix/languages.toml`                                                                             |
+| `kak/kakrc`                      | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/kakrc`                                                                 |
+| `kak/colors/`                    | `${KAKOUNE_CONFIG_DIR:-$XDG_CONFIG_HOME/kak}/colors/`, file by file                                                 |
+| `nano/nanorc`                    | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                                                                    |
+| `emacs/init.el`                  | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el`                    |
+| `tmux/tmux.conf`                 | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                                                              |
+| `screenrc`                       | `${SCREENRC:-~/.screenrc}`                                                                                          |
+| `micro/<file>`                   | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua`         |
+| `zellij/<file>`                  | `${ZELLIJ_CONFIG_DIR:-$XDG_CONFIG_HOME/zellij}/<file>`, for `config.kdl` and every file of `layouts/` and `themes/` |
 
 An overlay copy still wins — that is how you give a target an editor config
 that differs from your local one. With neither, nothing rides and the tool
@@ -801,7 +817,11 @@ bootstrap. Those are disabled on the way out, and `hi --doctor` names each, file
 and line, in yellow. One naming a file of the tool's own directory -
 `source-file ~/.config/tmux/theme.conf`, vim's `source ~/.vim/keys.vim` - is
 carried instead: the file rides beside the member and the include reads it there
-([HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan)). Two comments
+([HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan)). neovim's
+`require` of a module under its config's `lua/` is carried the same way, with
+whatever that module requires, and the `init.lua` that rides puts their
+directory on the `runtimepath`. git's config is read for something else: what
+is private stays home ([Integrations](INTEGRATIONS.md#git)). Two comments
 on the line above one, in the file's own syntax (`# hi-allow`, or `" hi-allow`
 in vim), decide that line alone:
 
@@ -868,11 +888,13 @@ packed.
 into the deployed `~/.bashrc`, which the manager's next apply takes back out.
 `hi --install --print-rc` prints each shell's block instead and writes no rc
 file: add it to the manager's copy. The block looks for the tree in `$HOME`,
-then where a package puts it (`/usr/local/share`, `/usr/share`), and tests for
-it before sourcing, so one rc serves a machine with a clone, one with a
-package, and one without say-hi, and `hi --doctor` and a later `hi --install`
-both read it as wired. The block an older hi printed, naming `$HOME` alone,
-still reads as wired too.
+then where a package puts it (`/usr/local/share`, `/usr/share`), then where
+Homebrew does (`opt/say-hi/libexec` under `/opt/homebrew`, `/usr/local`, and
+`/home/linuxbrew/.linuxbrew`), and tests for it before sourcing, so one rc
+serves a machine with a clone, one with a package, and one without say-hi, and
+`hi --doctor` and a later `hi --install` both read it as wired. The blocks an
+older hi printed, naming `$HOME` alone or looking in no Homebrew prefix, still
+read as wired too.
 
 **Pick one keeper for the files a manager owns.** `hi --configure` writes
 `settings.sh` in the **live** directory; if your manager also owns it, the two

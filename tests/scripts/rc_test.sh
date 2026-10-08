@@ -258,18 +258,20 @@ function test_rc_lines_survive_a_missing_tree() {
 function test_rc_lines_portable_spells_home() {
   local home="$_HI_WORKDIR/portable"
   [ "$(_hi_rc_out "$home" -- eval '_HI_HOME="$HOME/opt"
-    rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')" = 'for _hi_d in "$HOME/opt" "$HOME" /usr/local/share /usr/share; do [ -r "$_hi_d/say-hi/common/bash.sh" ] && export _HI_HOME="$_hi_d" && break; done; unset _hi_d
+    rc_lines bash "$_HI_HOME/say-hi/common/bash.sh" sh portable')" = 'for _hi_d in "$HOME/opt" "$HOME" /usr/local/share /usr/share /opt/homebrew/opt/say-hi/libexec /usr/local/opt/say-hi/libexec /home/linuxbrew/.linuxbrew/opt/say-hi/libexec; do [ -r "$_hi_d/say-hi/common/bash.sh" ] && export _HI_HOME="$_hi_d" && break; done; unset _hi_d
 [[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' ] || _hi_why home
 }
 
-# ...the same lines from a clone in $HOME and from a package, so one rc
-# serves both machines; sourced, they find the tree that is there and leave
-# nothing else behind
+# ...the same lines from a clone in $HOME, from a package, and from Homebrew
+# under a default prefix, so one rc serves all three machines; sourced, they
+# find the tree that is there and leave nothing else behind
 function test_rc_lines_portable_is_one_block_for_every_install() {
-  local home="$_HI_WORKDIR/portable-same" a b out
+  local home="$_HI_WORKDIR/portable-same" a b c out
   a="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"' -- rc_lines zsh "$home/say-hi/common/zsh.zsh" sh portable)" || _hi_why home || return 1
   b="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME=/usr/share' -- rc_lines zsh /usr/share/say-hi/common/zsh.zsh sh portable)" || _hi_why home || return 1
-  [ -n "$a" ] && [ "$a" = "$b" ] || _hi_because "clone: $a / package: $b" || return 1
+  c="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME=/home/linuxbrew/.linuxbrew/opt/say-hi/libexec' -- \
+    rc_lines zsh /home/linuxbrew/.linuxbrew/opt/say-hi/libexec/say-hi/common/zsh.zsh sh portable)" || _hi_why home || return 1
+  [ -n "$a" ] && [ "$a" = "$b" ] && [ "$a" = "$c" ] || _hi_because "clone: $a / package: $b / brew: $c" || return 1
   mkdir -p "$home/say-hi/common"
   printf 'printf LOADED\n' >"$home/say-hi/common/zsh.zsh"
   printf '%s\n' "$a" >"$home/rc"
@@ -277,23 +279,72 @@ function test_rc_lines_portable_is_one_block_for_every_install() {
   [ "$out" = "LOADED|$home|gone" ] || _hi_because "sourced: $out"
 }
 
-# ...and the block --print-rc handed out before it looked still reads as
-# wired, so an install leaves a managed rc alone
+# ...fish's block looks in the same places
+function test_rc_lines_portable_fish_looks_in_the_same_places() {
+  local home="$_HI_WORKDIR/portable-fish" out
+  out="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"' -- rc_lines fish "$home/say-hi/common/config.fish" fish portable)" || _hi_why home || return 1
+  [[ "$out" == 'for _hi_d in "$HOME" /usr/local/share /usr/share /opt/homebrew/opt/say-hi/libexec /usr/local/opt/say-hi/libexec /home/linuxbrew/.linuxbrew/opt/say-hi/libexec'$'\n''  if test -r "$_hi_d/say-hi/common/config.fish"'$'\n'* ]] || _hi_because "fish's block: $out"
+}
+
+# older_block <form>: an rc carrying rc_lines' <form> block for bash, then
+# what rc_block_form calls it
+_HI_RC_OLDER='_HI_HOME="$HOME"
+  older_block() {
+    local -a l
+    local b f
+    _hi_read_lines l < <(rc_lines bash "$HOME/say-hi/common/bash.sh" sh "$1")
+    rc_tagged b "${l[@]}"
+    printf %s "$b" >"$HOME/.bashrc"
+    rc_block_form f bash "$HOME/say-hi/common/bash.sh" sh "$HOME/.bashrc"
+    printf %s "$f"
+  }'
+
+# ...and the blocks --print-rc handed out earlier still read as wired, so an
+# install leaves a managed rc alone: the one from before it looked...
 function test_rc_block_form_knows_the_older_portable_block() {
   local home="$_HI_WORKDIR/portable-old" form
   mkdir -p "$home"
-  form="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_HI_HOME="$HOME"
-    older_block() {
-      local -a l
-      local b f
-      _hi_read_lines l < <(rc_lines bash "$HOME/say-hi/common/bash.sh" sh legacy)
-      rc_tagged b "${l[@]}"
-      printf %s "$b" >"$HOME/.bashrc"
-      rc_block_form f bash "$HOME/say-hi/common/bash.sh" sh "$HOME/.bashrc"
-      printf %s "$f"
-    }' -- older_block)" || _hi_why home l b f || return 1
+  form="$(_hi_rc_out "$home" _HI_RC_PRELUDE="$_HI_RC_OLDER" -- older_block legacy)" || _hi_why home _HI_RC_OLDER || return 1
   [ "$form" = portable ] || _hi_because "form: $form" || return 1
   grep -qF 'export _HI_HOME="$HOME"' "$home/.bashrc" || _hi_why home
+}
+
+# ...and the one from before it looked where Homebrew installs
+function test_rc_block_form_knows_the_block_from_before_homebrew() {
+  local home="$_HI_WORKDIR/portable-prebrew" form
+  mkdir -p "$home"
+  form="$(_hi_rc_out "$home" _HI_RC_PRELUDE="$_HI_RC_OLDER" -- older_block prebrew)" || _hi_why home _HI_RC_OLDER || return 1
+  [ "$form" = portable ] || _hi_because "form: $form" || return 1
+  grep -qF 'for _hi_d in "$HOME" /usr/local/share /usr/share; do' "$home/.bashrc" || _hi_why home
+}
+
+# A Homebrew keg is named through the opt link brew keeps on the current
+# one, in the _HI_HOME line and the source under it; a keg that link does not
+# lead to keeps its own path
+function test_rc_home_names_a_keg_through_opt() {
+  local home="$_HI_WORKDIR/keg" brew keg opt out
+  brew="$home/brew"
+  keg="$brew/Cellar/say-hi/1.2.3/libexec"
+  opt="$brew/opt/say-hi/libexec"
+  mkdir -p "$keg/say-hi" "$brew/Cellar/say-hi/1.2.2/libexec/say-hi" "$brew/opt"
+  # a rerun starts where the first try did: without the link
+  rm -f "$brew/opt/say-hi"
+  ln -s ../Cellar/say-hi/1.2.3 "$brew/opt/say-hi"
+  out="$(_hi_rc_out "$home" _HI_RC_PRELUDE='keg_lines() {
+      _HI_HOME="$1"
+      tmpdir_line fish
+      printf "\n"
+      rc_lines zsh "$_HI_HOME/say-hi/common/zsh.zsh" sh
+    }' -- keg_lines "$keg")" || _hi_why home keg || return 1
+  [ "$out" = "set -gx _HI_HOME \"$opt\"
+export _HI_HOME=\"$opt\"
+[ -r \"$opt/say-hi/common/zsh.zsh\" ] && source \"$opt/say-hi/common/zsh.zsh\"" ] || _hi_because "the current keg ($keg): $out" || return 1
+  keg="$brew/Cellar/say-hi/1.2.2/libexec"
+  out="$(_hi_rc_out "$home" _HI_RC_PRELUDE='keg_line() {
+      _HI_HOME="$1"
+      tmpdir_line sh
+    }' -- keg_line "$keg")" || _hi_why home keg || return 1
+  [ "$out" = "export _HI_HOME=\"$keg\"" ] || _hi_because "a keg opt/say-hi does not lead to ($keg): $out"
 }
 
 # --print-rc prints that block and writes no rc file; once it is in the rc,
@@ -640,7 +691,10 @@ function run_rc_lines_test() {
   _hi_check "A missing tree costs a shell nothing" test_rc_lines_survive_a_missing_tree
   _hi_check "The portable block spells \$HOME" test_rc_lines_portable_spells_home
   _hi_check "...is the same from a clone and a package" test_rc_lines_portable_is_one_block_for_every_install
+  _hi_check "...fish's looks in the same places" test_rc_lines_portable_fish_looks_in_the_same_places
   _hi_check "...and its older form still reads as wired" test_rc_block_form_knows_the_older_portable_block
+  _hi_check "...the one from before it looked for Homebrew too" test_rc_block_form_knows_the_block_from_before_homebrew
+  _hi_check_capable symlink "A Homebrew keg is named through its opt link" test_rc_home_names_a_keg_through_opt
   _hi_check "--print-rc writes nothing, and its block is kept" test_print_rc_writes_nothing_and_its_block_is_kept
   _hi_check "zsh's rc lives under \$ZDOTDIR" test_install_rc_lines_honours_zdotdir
   _hi_check "...the one a ~/.zshenv sets too" test_install_rc_lines_follows_a_zshenv_zdotdir

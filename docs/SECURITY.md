@@ -34,7 +34,9 @@ to report what slipped through it.
   `$_HI_OVERLAY_FILES` (the roster is
   [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break)), and
   the files your own `plugins` rows name, each listed by `hi --doctor`;
-  nothing else in `~/.config/say-hi/` leaves the client. A
+  nothing else in `~/.config/say-hi/` leaves the client. Your git config
+  rides only with its plugin switched on, and then without its credentials,
+  keys, and signing settings ([INTEGRATIONS.md](INTEGRATIONS.md#git)). A
   `settings.<tag>.sh` is the one file sent under another name: joined to the
   `settings.sh` of a host carrying that tag, and to no other
   ([SETTINGS.md](SETTINGS.md#settings-by-host-tag)). A `plugins` row is
@@ -150,7 +152,10 @@ command.
   a symlink, since it runs the rc inside.
 - The session tree is **not** added to `$PATH`; `hi` inside a session is an
   alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
-  any host that is scanned for one.
+  any host that is scanned for one. The one exception is yours to make: an
+  overlay with scripts in `bin/` puts that one directory of the tree last on
+  the session's `$PATH` ([SETTINGS.md](SETTINGS.md#scripts-of-your-own)), and
+  `hi --plugin-off bin` takes it back off.
 - A say-hi installed on the target is neither read nor written by a session:
   every session runs out of the tree hi just unpacked, so the installed tree
   need not be writable by you or at any fixed path.

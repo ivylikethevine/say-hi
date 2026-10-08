@@ -20,11 +20,12 @@ _HI_PAYLOAD_CUT=(say-hi/config/plugins)
 # (member $_hi_st_m, dialect row $_hi_st_d): each include the scan finds whose
 # path names a file under the member's tool directories (_hi_tool_dirs) is
 # rewritten to the copy that rides (_hi_include_carry), and the file staged
-# as a member of its own, queued for the same scan; each file a line under
+# as a member of its own, queued for the same scan; a module neovim's init
+# requires from its lua/ rides the same way (_hi_require_carry); each file a line under
 # `hi-carry` names rides too, as written (_hi_marked_carry). The source each
 # came from is kept in $_hi_st_carry. Reads and grows _hi_stage_tar's locals.
 function _hi_stage_carry() {
-  local _hi_sc_src="${_hi_st_qs[_hi_st_i]:-}" _hi_sc_at=" " _hi_sc_ct=" " _hi_sc_l _hi_sc_n=0 _hi_sc_out="" _hi_sc_k _hi_sc_j _hi_sc_m
+  local _hi_sc_src="${_hi_st_qs[_hi_st_i]:-}" _hi_sc_at=" " _hi_sc_ct=" " _hi_sc_l _hi_sc_n=0 _hi_sc_out="" _hi_sc_k _hi_sc_j _hi_sc_m _hi_sc_rtp=""
   local -a _hi_dirs=() _hi_carried=() _hi_marked=() _hi_unmarked=()
   [ -n "$_hi_sc_src" ] || _hi_overlay_src "$_hi_st_m" _hi_sc_src || return 0
   _hi_tool_dirs "$_hi_st_m" "$_hi_sc_src"
@@ -37,11 +38,24 @@ function _hi_stage_carry() {
   [ "$_hi_sc_at$_hi_sc_ct" != "  " ] || return 0
   while IFS= read -r _hi_sc_l || [ -n "$_hi_sc_l" ]; do
     _hi_sc_n=$((_hi_sc_n + 1))
-    case "$_hi_sc_at" in *" $_hi_sc_n "*) _hi_include_carry _hi_sc_l "$_hi_sc_l" "${_hi_st_m%%/*}" || true ;; esac
+    case "$_hi_sc_at" in *" $_hi_sc_n "*)
+      _hi_include_carry _hi_sc_l "$_hi_sc_l" "${_hi_st_m%%/*}" || true
+      # neovim's require of a module that rides: the line stays, under the
+      # marker the scan spares
+      case "$_hi_st_m:$_hi_st_d" in nvim/*:'lua | '*)
+        ! _hi_require_carry "$_hi_sc_l" nvim || _hi_sc_out+="-- hi-allow"$'\n' _hi_sc_rtp=1
+        ;;
+      esac
+      ;;
+    esac
     case "$_hi_sc_ct" in *" $_hi_sc_n "*) _hi_marked_carry _hi_sc_l "$_hi_sc_l" "$_hi_st_m" || true ;; esac
     _hi_sc_out+="$_hi_sc_l"$'\n'
   done <"$f"
   ((${#_hi_carried[@]} + ${#_hi_marked[@]})) || return 0
+  # the modules land under the overlay's nvim/, which the init puts on the
+  # runtimepath itself: no alias, $EDITOR, or $VIMINIT has to say so
+  [ -z "$_hi_sc_rtp" ] || [ "$_hi_st_m" != nvim/init.lua ] ||
+    _hi_sc_out="vim.opt.rtp:prepend(\"$_HI_CARRY_TOKEN/nvim\")"$'\n'"$_hi_sc_out"
   printf '%s' "$_hi_sc_out" >"$f" || return 1
   # a marked file rides as written: it is no config of the member's dialect
   for ((_hi_sc_j = 0; _hi_sc_j < ${#_hi_marked[@]}; _hi_sc_j += 2)); do
@@ -96,12 +110,18 @@ function _hi_stage_tar() {
     if ((${#stage_in[@]})); then
       tar -c -h -f "$stage/in.tar" -C "$1" "${stage_in[@]}" || exit 1
       tar -x -f "$stage/in.tar" -C "$stage" || exit 1
+      # a source read-only by mode (the nix store's 0444 files in 0555
+      # directories) is cut and stripped here, and removed on the target, by
+      # its owner
+      chmod -R u+w "$stage" || exit 1
       rm -rf "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]/#/$stage/}"}
     fi
     for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
       case "${_hi_st_add[_hi_st_i]}" in */*) mkdir -p "$_hi_st_root/${_hi_st_add[_hi_st_i]%/*}" || exit 1 ;; esac
       cp "${_hi_st_add[_hi_st_i + 1]}" "$_hi_st_root/${_hi_st_add[_hi_st_i]}" || exit 1
     done
+    # cp carries a copied member's mode in too
+    ((${#_hi_st_add[@]} == 0)) || chmod -R u+w "$stage" || exit 1
     # fish's universal variables are everything `set -U` ever kept, secrets
     # included: tide's lines ride and nothing else
     if [ -f "$_hi_st_root/tide.vars" ]; then
@@ -334,13 +354,16 @@ AWK
 # not the default beside the file that beats it. Only a member that ships
 # counts, so a file still under a $_HI_OVERLAY_RENAMES name cuts nothing.
 # With the header off the target never draws one, so header.sh and the
-# package list it checks stay home too. A framework's prompt loader,
+# package list it checks stay home too, and with the kept session off
+# ($_HI_DISABLE_KEEP) so do common/keep.sh and common/mux.sh. A framework's prompt loader,
 # common/fw_<name>.<ext>, rides only to a target handed that framework
 # (_hi_prompt_list): the shell there picks from that list alone. GLOSSARY: HI.32
 function _hi_payload_excl() {
   local f s
   payload_excl=()
   ! _hi_toggle_on _HI_DISABLE_HEADER || payload_excl=(say-hi/common/header.sh say-hi/config/packages)
+  # the kept session switched off: neither file of it rides (GLOSSARY: HI.65)
+  [ "${_HI_DISABLE_KEEP:-0}" != 1 ] || payload_excl+=(say-hi/common/keep.sh say-hi/common/mux.sh)
   for f; do
     f="${f%%/*}"
     case "$_HI_OVERLAY_SHADOWS${payload_excl[*]-} " in

@@ -270,6 +270,32 @@ function test_keep_leaves_a_command_and_no_keep_alone() {
   done
 }
 
+# switched off, a connect carries none of the kept session whatever the flag
+# and the default say, nothing is retried, and each flag is refused with the
+# switch named - as it is in a session whose tree came without keep.sh
+function test_keep_switched_off_sends_none_of_it() {
+  local out rc=0
+  out="$(_HI_DISABLE_KEEP=1 _HI_KEEP=1 _hi_keep_script_for 1 '')"
+  [[ "$out" != *_hi_kept* && "$out" != *attach-session* && "$out" != *new-session* && "$out" != *_HI_KEEP_AS* &&
+    "$out" != *hi.kept* && "$out" != *hi.held* && "$out" != *hi.pid* && "$out" != *'exit 86'* &&
+    "$out" == *"trap 'rm -rf \$_HI_CLEANUP' exit"* ]] || _hi_why out || return 1
+  out="$(
+    function _say_hi() { printf 'try\n' && return 255; }
+    function _hi_keep_at_tty() { return 0; }
+    DOMAIN=box KEEP=1 CMDARG="" _HI_DISABLE_KEEP=1 _hi_keep_connect "$_HI_WORKDIR/off.log" || printf 'rc=%s' "$?"
+  )"
+  [ "$out" = $'try\nrc=255' ] || _hi_because "a dropped connect, switched off: $out" || return 1
+  out="$( (_HI_DISABLE_KEEP=1 KEEP=1 END=0 _hi_keep_refuse) 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--keep: the kept session is switched off (_HI_DISABLE_KEEP=1)"* ]] ||
+    _hi_because "--keep, switched off: $rc, $out" || return 1
+  rc=0
+  out="$( (_HI_DISABLE_KEEP=0 _HI_KEEP_GONE=1 KEEP="" END=1 _hi_keep_refuse) 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--end: the kept session is switched off (_HI_DISABLE_KEEP=1)"* ]] ||
+    _hi_because "--end, in a tree without keep.sh: $rc, $out" || return 1
+  out="$( (_HI_DISABLE_KEEP=0 KEEP=1 END=0 _hi_keep_refuse) 2>&1)" || _hi_because "--keep was refused with the switch unset: $out" || return 1
+  [ -z "$out" ] || _hi_because "the switch unset said: $out"
+}
+
 # a dropped link runs the bootstrap's exit trap where sh is bash, so on a
 # connect that keeps, the trap asks before it removes the tree
 function test_keep_start_guards_the_trap_and_starts_the_owner_pane() {
@@ -860,6 +886,7 @@ function run_hi_keep_tests() {
   _hi_h2 "Testing: what a connect carries"
   _hi_check "The reattach rides ahead of the unpack" test_keep_reattach_rides_ahead_of_the_unpack
   _hi_check "A command and --no-keep carry neither block" test_keep_leaves_a_command_and_no_keep_alone
+  _hi_check "Switched off, a connect carries none of it and the flags are refused" test_keep_switched_off_sends_none_of_it
   _hi_check "The next connect removes a dead owner pane's tree" test_keep_sweep_removes_the_tree_of_a_dead_owner_pane
   _hi_check_capable pty "The script ends 86 off a session still kept" test_keep_script_ends_86_off_a_kept_session
   _hi_check "...0 where it leaves none, and says one is gone" test_keep_script_says_how_it_ends_and_what_is_gone

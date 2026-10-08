@@ -44,8 +44,8 @@ jobs:
   # draft clause themselves, since `!cancelled()` runs past a skipped need.
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
-  # test-arm, test-macos, test-alpine, profile, packaging-smoke, e2e, and
-  # e2e-backends skip on a workflow-only or docs-only diff. workflow-lint,
+  # test-arm, test-macos, test-alpine, profile, packaging-smoke, nix-flake,
+  # e2e, and e2e-backends skip on a workflow-only or docs-only diff. workflow-lint,
   # advisory-lint, and secret-scan are exempt - such a
   # change is what they audit - and so are lint and bench: the lint group
   # checks the Markdown itself and bench_test.sh README.md's payload badge,
@@ -1005,6 +1005,43 @@ jobs:
           packaging/mkrepo.sh --gpg-key "$RUNNER_TEMP/smoke.gpg.key" --apk-key "$RUNNER_TEMP/smoke.rsa" \
             --tarball "$RUNNER_TEMP/package-repo.tar.gz"
           echo "package-repo.tar.gz: $(tar -tzf "$RUNNER_TEMP/package-repo.tar.gz" | grep -c '[^/]$') files"
+
+  # The nix channel on the PR that breaks it: the flake's package builds from
+  # the committed flake.lock, its install check answers `hi --version` out of
+  # the store, and `nix run` starts hi.
+  nix-flake:
+    name: nix flake
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          # Listed by hand, not off an audit log: the checkout, nix's
+          # installer, the nixpkgs tarball flake.lock names (the API with the
+          # job token, else codeload), and the binary cache.
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            releases.nixos.org:443
+            cache.nixos.org:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      # --no-update-lock-file: a flake.lock that is missing or behind
+      # flake.nix fails here instead of being rewritten for this run alone
+      - name: Build the flake and run its checks
+        run: nix flake check --no-update-lock-file --print-build-logs
+
+      - name: Start hi through nix run
+        run: nix run --no-update-lock-file . -- --version
 
   # Beside the fast suites, not after them: this and e2e-backends each take
   # about three minutes to start, so waiting on `test` would cost every green

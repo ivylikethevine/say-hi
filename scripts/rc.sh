@@ -189,11 +189,35 @@ function strip_marker() {
 # packaging mode writes: there the answer is the package's prefix, not where
 # this script happens to be running from.
 function tmpdir_line() {
-  local home="${2:-$_HI_HOME}"
+  local home="${2:-}"
+  [ -n "$home" ] || rc_home home
   case "$1" in
   fish) printf 'set -gx _HI_HOME "%s"' "$home" ;;
   *) printf 'export _HI_HOME="%s"' "$home" ;;
   esac
+}
+
+# rc_home <outvar> - $_HI_HOME as an rc names it. A Homebrew keg,
+# <prefix>/Cellar/<formula>/<version>[/...], is gone after the next
+# `brew upgrade`, so it is named through <prefix>/opt/<formula>, the link
+# brew keeps on the current keg - where that is the same directory.
+function rc_home() {
+  local _hi_rh_tail _hi_rh_opt
+  printf -v "$1" '%s' "$_HI_HOME"
+  case "$_HI_HOME" in
+  */Cellar/*/*) ;;
+  *) return 0 ;;
+  esac
+  # <formula>/<version>[/...] -> <formula>[/...]
+  _hi_rh_tail="${_HI_HOME#*/Cellar/}"
+  _hi_rh_opt="${_hi_rh_tail#*/}"
+  case "$_hi_rh_opt" in
+  */*) _hi_rh_opt="${_hi_rh_tail%%/*}/${_hi_rh_opt#*/}" ;;
+  *) _hi_rh_opt="${_hi_rh_tail%%/*}" ;;
+  esac
+  _hi_rh_opt="${_HI_HOME%%/Cellar/*}/opt/$_hi_rh_opt"
+  [ "$_hi_rh_opt" -ef "$_HI_HOME" ] || return 0
+  printf -v "$1" '%s' "$_hi_rh_opt"
 }
 
 # One row per shell hi wires up locally: <shell>|<rc label>|<hi's rc>|<the
@@ -379,22 +403,27 @@ function config_validate_shells() {
 # `hi --uninstall` costs a shell nothing. A fourth argument of `portable`
 # spells the block for an rc shared between machines: $HOME left for the
 # shell to expand, the tree looked for where an install puts one
-# (rc_probe_lines), and named through the $_HI_HOME that found. `legacy` is
-# the block --print-rc handed out before it looked: this tree's home alone.
+# (rc_probe_lines), and named through the $_HI_HOME that found. Two more
+# are the blocks --print-rc handed out earlier: `prebrew`, which looked in
+# $HOME and the package directories alone, and `legacy`, which did not look -
+# this tree's home alone.
 function rc_lines() {
-  local home="$_HI_HOME" rc="$2"
+  local home rc="$2"
+  rc_home home
+  case "$2" in "$_HI_HOME"/*) rc="$home${2#"$_HI_HOME"}" ;; esac
   case "${4:-}" in
-  portable | legacy)
+  portable | prebrew | legacy)
     rc_home_spelled home
     rc="\$_HI_HOME${2#"$_HI_HOME"}"
     ;;
   esac
-  if [ "${4:-}" = portable ]; then
-    rc_probe_lines "$3" "$home" "${2#"$_HI_HOME"}"
-  else
+  case "${4:-}" in
+  portable | prebrew) rc_probe_lines "$3" "$home" "${2#"$_HI_HOME"}" "$4" ;;
+  *)
     tmpdir_line "$3" "$home"
     printf '\n'
-  fi
+    ;;
+  esac
   case "$3" in
   fish)
     # fish before 3.4 cannot parse hi's config.fish: one line saying so
@@ -418,16 +447,19 @@ function rc_lines() {
   esac
 }
 
-# rc_probe_lines <dialect> <home> <rc under it> - the portable block's first
-# lines: $_HI_HOME is the first directory that holds the tree's rc, of a
-# clone's ($HOME), a package's (/usr/local/share, /usr/share), and ahead of
+# rc_probe_lines <dialect> <home> <rc under it> [prebrew] - the portable
+# block's first lines: $_HI_HOME is the first directory that holds the tree's
+# rc, of a clone's ($HOME), a package's (/usr/local/share, /usr/share),
+# Homebrew's under each default prefix (opt/say-hi/libexec), and ahead of
 # them <home> where this install is in none. The same lines on every machine
 # with one of those, so one rc serves a clone here and a package there.
+# `prebrew` leaves Homebrew's out: the block as it was before it looked there.
 function rc_probe_lines() {
   # shellcheck disable=SC2016 # the rc's shell expands them
   local dirs='"$HOME" /usr/local/share /usr/share'
-  # shellcheck disable=SC2016
-  case "$2" in '$HOME' | /usr/local/share | /usr/share) ;; *) dirs="\"$2\" $dirs" ;; esac
+  [ "${4:-}" = prebrew ] ||
+    dirs+=' /opt/homebrew/opt/say-hi/libexec /usr/local/opt/say-hi/libexec /home/linuxbrew/.linuxbrew/opt/say-hi/libexec'
+  case " $dirs " in *" $2 "* | *" \"$2\" "*) ;; *) dirs="\"$2\" $dirs" ;; esac
   case "$1" in
   fish)
     # shellcheck disable=SC2016
@@ -446,14 +478,16 @@ function rc_probe_lines() {
   esac
 }
 
-# rc_home_spelled <outvar> - $_HI_HOME as a shared rc says it: under $HOME,
-# with $HOME left unexpanded; anywhere else, as it is
+# rc_home_spelled <outvar> - rc_home's answer as a shared rc says it: under
+# $HOME, with $HOME left unexpanded; anywhere else, as it is
 function rc_home_spelled() {
+  local _hi_hs_home
+  rc_home _hi_hs_home
   # shellcheck disable=SC2016 # the rc's shell expands it
-  case "$_HI_HOME" in
+  case "$_hi_hs_home" in
   "$HOME") printf -v "$1" '%s' '$HOME' ;;
-  "$HOME"/*) printf -v "$1" '%s' "\$HOME${_HI_HOME#"$HOME"}" ;;
-  *) printf -v "$1" '%s' "$_HI_HOME" ;;
+  "$HOME"/*) printf -v "$1" '%s' "\$HOME${_hi_hs_home#"$HOME"}" ;;
+  *) printf -v "$1" '%s' "$_hi_hs_home" ;;
   esac
 }
 
@@ -468,11 +502,11 @@ function rc_block_form() {
   printf -v "$1" '%s' ''
   _hi_bf_have="$(grep -F "$_HI_MARKER" "$5" 2>/dev/null || true)"
   [ -n "$_hi_bf_have" ] || return 0
-  for _hi_bf_form in written portable legacy; do
+  for _hi_bf_form in written portable prebrew legacy; do
     _hi_read_lines _hi_bf_lines < <(rc_lines "$2" "$3" "$4" "$_hi_bf_form")
     rc_tagged _hi_bf_want "${_hi_bf_lines[@]}"
     [ "$_hi_bf_have" = "${_hi_bf_want%$'\n'}" ] || continue
-    [ "$_hi_bf_form" != legacy ] || _hi_bf_form=portable
+    [ "$_hi_bf_form" = written ] || _hi_bf_form=portable
     printf -v "$1" '%s' "$_hi_bf_form"
     return 0
   done

@@ -21,6 +21,7 @@ PR you merge, or a dispatch by hand.
   - [Homebrew tap](#homebrew-tap)
   - [deb / rpm / apk](#deb--rpm--apk)
   - [Package repository](#package-repository)
+  - [Nix flake](#nix-flake)
 - [Verifying a packaged build locally](#verifying-a-packaged-build-locally)
   - [Reproducibility](#reproducibility)
 - [Regenerating the demo GIFs](#regenerating-the-demo-gifs)
@@ -40,10 +41,12 @@ one) has nothing else to read.
 | ------------------ | ---------------------- | ---------------------------------------------------------- |
 | AUR, deb, rpm, apk | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`      |
 | Homebrew           | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes |
+| nix                | `<out>/share/say-hi`   | the `bin/hi` wrapper, plus the home-manager module's block |
 
 `scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this; its
 `_HI_PACKAGE_CONTENTS` and `install_tree()` decide what a packaged install
-contains, and both AUR PKGBUILDs and `mkpkg.sh` call it. Two places repeat the
+contains, and the AUR PKGBUILDs, `mkpkg.sh`, and the flake's package
+([Nix flake](#nix-flake)) all call it. Two places repeat the
 list, and `tests/packaging/packaging_ci_test.sh` (the `packaging_ci` suite, ci
 group) fails if either drifts: the Homebrew formula, because `install_tree`
 hardcodes `/usr/bin` and `/etc/profile.d` and neither exists in a brew prefix,
@@ -66,6 +69,7 @@ Under `packaging/`:
 | `aur/say-hi-git/`    | the same package built from `main`                                                               |
 | `homebrew/say-hi.rb` | the tap formula                                                                                  |
 | `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                                          |
+| `nix/`               | the package and the home-manager module that `flake.nix`, at the root, exports                   |
 | `gpg/say-hi.asc`     | the public half of the key that signs the rpm and the apt/rpm repository metadata                |
 | `apk/say-hi.rsa.pub` | the public half of the key that signs the apk and its `APKINDEX`                                 |
 
@@ -74,20 +78,15 @@ Under `packaging/`:
 `bump.sh` runs only after the tag exists (its checksums need the tarball), so
 a committed stamp would always be one release stale in the tarball Homebrew
 and the AUR build from; a checkout answers `hi --version` with `git describe`.
-The formula passes `--date <version>`, having no `SOURCE_DATE_EPOCH`;
-`stamp.sh` refuses to guess one. `packaging_test.sh` guards all of it.
+The formula passes `--date <version>`, having no `SOURCE_DATE_EPOCH`, and the
+flake passes its commit's date; `stamp.sh` refuses to guess one.
+`packaging_test.sh` guards all of it.
 
 ## Channels weighed and not shipped
 
-**nix**: looked at, and no for now. The derivation would be the Homebrew
-formula's shape (`$out/share/say-hi` plus a wrapped `$out/bin/hi` exporting
-`_HI_HOME`), not `scripts/install.sh --prefix`, for the same reason the
-formula is — and that is one more copy of `_HI_PACKAGE_CONTENTS` for
-`packaging_ci_test.sh` to guard. It would start as a `flake.nix` here and reach
-nixpkgs (where nix users look, and which wants upstream review and a standing
-maintainer entry) later. The one thing it buys:
-[reproducibility](#reproducibility) becomes a property of hermetic builds
-rather than a CI check.
+**nixpkgs**: not submitted. The flake in this repository is the nix channel
+([Nix flake](#nix-flake)); nixpkgs, where nix users look first, wants upstream
+review and a standing maintainer entry.
 
 ## Cutting a release
 
@@ -417,6 +416,36 @@ in [README.md's Installation](../README.md#installation) from a clean box.
 Locally, `packaging/mkpkg.sh && packaging/mkrepo.sh` builds an unsigned
 `dist/repo/` for a look (`--gpg-key`/`--apk-key` sign it), and
 `tests/test_runner.sh repo` is the full proof with throwaway keys.
+
+### Nix flake
+
+Nothing to publish: the flake is the repository, so a pushed commit is a
+flake ref and a release is `github:ivylikethevine/say-hi/v1.0.0`. How a user
+runs it is [PACKAGING.md's Nix flake](PACKAGING.md#nix-flake).
+
+**How it is built.** `packaging/nix/package.nix` renames the unpacked source
+to `say-hi`, stages it with `install.sh --prefix /usr/share` and stamps it
+with `stamp.sh`, as a PKGBUILD does, then moves the staged tree and man page
+under `$out/share` and writes a `bin/hi` wrapper that exports `_HI_HOME`. The
+staged `/usr/bin` link and `/etc/profile.d` snippet name paths a store has
+none of and are left behind. It patches no shebang, because the tree is what
+a session sends to a target, and its install check runs `hi --version` out of
+the store.
+
+**The version is not the tag's.** A flake cannot read the ref it was fetched
+at, and the tree carries no stamp ([Layout](#layout)), so `hi --version`
+answers `0-unstable-<commit date>-<short rev>` for a release as for any other
+commit. An override names one:
+`say-hi.packages.<system>.default.override { version = "1.0.0"; }`.
+
+**`flake.lock` pins nixpkgs.** `nix flake update` moves it, in a pull request
+like any other change; `ci.yml`'s `nix-flake` job builds from the committed
+lock with `--no-update-lock-file`, so a missing or stale one fails there.
+
+**The home-manager module** (`packaging/nix/home-manager.nix`) spells
+`scripts/rc.sh`'s `rc_lines` block in Nix, each line tagged as `install.sh`
+tags it, which is how `hi --doctor` and `hi --install` know an rc is wired.
+The `packaging_ci` suite fails when the module and `rc_lines` part.
 
 ## Verifying a packaged build locally
 

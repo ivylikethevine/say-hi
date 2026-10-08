@@ -256,6 +256,19 @@ function test_install_section_flags_a_foreign_tree() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"~/.bashrc names /elsewhere, this is $_HI_HOME"* ]] || _hi_why rc out
 }
 
+# an rc naming this tree by another path - a Homebrew keg's versioned one,
+# where hi now writes the opt link - is this tree's, with lines to refresh
+function test_install_section_knows_this_tree_by_another_path() {
+  local home="$_HI_WORKDIR/inst-alias" out rc=0
+  mkdir -p "$home"
+  # a rerun starts where the first try did: without the link
+  rm -f "$home/alias"
+  ln -s "$_HI_HOME" "$home/alias"
+  _hi_wired_line sh "$home/alias" >"$home/.bashrc"
+  out="$(_hi_doctor_install_out "$home")" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"~/.bashrc is wired to this tree, but not with the lines this hi writes"* ]] || _hi_why rc out
+}
+
 function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() {
   local home="$_HI_WORKDIR/inst-bare" out rc=0
   mkdir -p "$home"
@@ -372,6 +385,7 @@ function run_doctor_target_tests() {
   _hi_h2 "Testing: the install section"
   _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
   _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
+  _hi_check_capable symlink "...one naming this tree by another path is not" test_install_section_knows_this_tree_by_another_path
   _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
   _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
   _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link

@@ -591,6 +591,27 @@ function test_overlay_tar_carries_aliases() {
     _hi_because "the overlay tar listed [$listed], wanted [aliases.sh]"
 }
 
+# the overlay's bin/ rides its scripts alone, as written and still executable:
+# not a binary, a file that is not executable, or one over the cap; and
+# nothing of it with its plugin off
+function test_bin_rides_its_scripts_alone() {
+  local dir="$_HI_WORKDIR/bin-overlay" got="$_HI_WORKDIR/bin-got" out
+  mkdir -p "$dir/bin" "$got"
+  printf '#!/bin/sh\n# mine\necho mine\n' >"$dir/bin/mine"
+  printf '#!/bin/sh\necho plain\n' >"$dir/bin/plain"
+  printf 'ELF\0\0\0' >"$dir/bin/tool"
+  printf '#!/bin/sh\0payload' >"$dir/bin/packed"
+  { printf '#!/bin/sh\n# ' && printf '%*s\n' "$_HI_BIN_MAX" ''; } >"$dir/bin/big"
+  chmod +x "$dir/bin/mine" "$dir/bin/tool" "$dir/bin/packed" "$dir/bin/big"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  [ "$out" = bin/mine ] || _hi_because "what rides: [$out]" || return 1
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
+  [ -x "$got/bin/mine" ] && cmp -s "$dir/bin/mine" "$got/bin/mine" ||
+    _hi_because "the script did not arrive as written, executable" || return 1
+  out="$(_HI_PLUGINS_OFF=bin _HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  [ -z "$out" ] || _hi_because "bin switched off still sent: $out"
+}
+
 function run_hi_payload_overlay_tests() {
   _hi_payload_begin
 
@@ -625,6 +646,7 @@ function run_hi_payload_overlay_tests() {
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
   _hi_check "The overlay's packages rides stripped" test_overlay_carries_packages_stripped
   _hi_check "Extensions ride stripped" test_overlay_carries_extensions
+  _hi_check "bin/ rides its scripts alone, as written" test_bin_rides_its_scripts_alone
   _hi_suite_end "hi.sh (the overlay stream)"
 }
 

@@ -637,6 +637,20 @@ function test_keep_panes_leaves_a_launcher_the_multiplexer_opens() {
   [ -z "$(_hi_keep_panes_in '')" ] || _hi_because "an ordinary session left a launcher"
 }
 
+# ...and puts the overlay's bin/ on a pane's $PATH, which the multiplexer's
+# server never had
+function test_keep_panes_put_the_overlay_s_bin_on_a_pane_s_path() {
+  local t="$_HI_WORKDIR/pane bin" out q
+  mkdir -p "$t/say-hi/config/bin"
+  printf -v q '%q' "$t/say-hi/config/bin"
+  out="$(
+    unset "${_HI_CHILD_ENV[@]}"
+    _HI_KEEP_MUX=zellij _HI_KEEP_NAME=hi-box _HI_ROOT="$t/say-hi" _HI_CONFIG_DIR="$t/say-hi/config" _hi_keep_panes bash -i
+    cat "$t/say-hi/hi.pane"
+  )"
+  [[ "$out" == *$'\n''export PATH="$PATH":'"$q"$'\nexec bash -i' ]] || _hi_because "the launcher: $out"
+}
+
 # the owner pane is its session: its end takes the session's other panes
 # with it, which run on the tree it removes, its own claim on it no bar; an
 # ordinary session ends alone
@@ -714,6 +728,7 @@ function run_load_session_tests() {
   _hi_check "An owner pane claims its tree by pid" test_keep_claim_names_the_pane_and_the_shell_it_was_kept_from
   _hi_check "A tree two sessions share goes with the last one out" test_clean_all_leaves_a_shared_tree_to_the_last_one_out
   _hi_check "An owner pane leaves a launcher its multiplexer opens panes on" test_keep_panes_leaves_a_launcher_the_multiplexer_opens
+  _hi_check "...with the overlay's bin/ on a pane's \$PATH" test_keep_panes_put_the_overlay_s_bin_on_a_pane_s_path
   _hi_check "...and its end is the session's, every pane of it" test_clean_all_ends_the_session_an_owner_pane_holds
   _hi_check "A dropped session that holds leaves its tree to the timer" test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer
   _hi_check "...which leaves a taken tree, and ends on hi.end" test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end

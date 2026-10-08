@@ -797,30 +797,42 @@ function test_config_flags_a_secret_in_a_riding_file() {
     _hi_because "the report said: $out"
 }
 
-# neovim's init.lua rides alone: the modules beside it are counted, at any
-# depth, as staying home, and an init.lua with none gets no row
-function test_config_names_the_nvim_modules_that_stay_home() {
+# a module neovim's init.lua requires from its lua/ rides with it, so the
+# require is no finding; one that resolves to no file there still is
+function test_config_passes_a_require_of_a_module_that_rides() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/nvimlua.XXXXXX")"
-  mkdir -p "$dir/nvim"
-  printf 'require("mine")\n' >"$dir/nvim/init.lua"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
-  [[ "$out" != *"nvim/lua"* ]] || _hi_because "a row with no lua directory: $out" || return 1
   mkdir -p "$dir/nvim/lua/mine"
-  printf 'return {}\n' >"$dir/nvim/lua/mine.lua"
+  printf 'require("mine.keys")\nrequire("absent")\n' >"$dir/nvim/init.lua"
   printf 'return {}\n' >"$dir/nvim/lua/mine/keys.lua"
-  printf 'notes\n' >"$dir/nvim/lua/README"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"nvim/lua"*"2 file(s) under $dir/nvim/lua stay home"* ]] ||
+  [[ "$out" != *"nvim/init.lua:1"* && "$out" == *"nvim/init.lua:2"*"reads a file hi does not carry"* ]] ||
     _hi_because "the report said: $out"
+}
+
+# the overlay's bin/: a script rides, and each entry that cannot is named
+# with why - a binary, one not executable, one over the cap
+function test_config_names_what_bin_leaves_home() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/bin.XXXXXX")"
+  mkdir -p "$dir/bin"
+  printf '#!/bin/sh\necho mine\n' >"$dir/bin/mine"
+  printf '#!/bin/sh\necho plain\n' >"$dir/bin/plain"
+  printf 'ELF\0\0\0' >"$dir/bin/tool"
+  { printf '#!/bin/sh\n# ' && printf '%*s\n' "$_HI_BIN_MAX" ''; } >"$dir/bin/big"
+  chmod +x "$dir/bin/mine" "$dir/bin/tool" "$dir/bin/big"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"bin/tool"*"left home - a binary"* && "$out" == *"bin/plain"*"left home - not executable"* &&
+    "$out" == *"bin/big"*"left home - over $_HI_BIN_MAX characters"* && "$out" != *"bin/mine"* &&
+    "$out" == *"1 file(s) ride"* ]] || _hi_because "the report said: $out"
 }
 
 # the tag files are listed by tag, and one no tag can name is said to be unread
@@ -982,7 +994,8 @@ function run_doctor_config_tests() {
   _hi_check "...in the set spelling of fish too" test_secret_awk_reads_a_fish_set
   _hi_check "...but not an alias's escaped \$variable" test_secret_awk_passes_an_escaped_reference
   _hi_check "...nor a name inside another variable's value" test_secret_awk_passes_a_name_inside_a_value
-  _hi_check "neovim's modules are named as staying home" test_config_names_the_nvim_modules_that_stay_home
+  _hi_check "A require of a neovim module that rides is no finding" test_config_passes_a_require_of_a_module_that_rides
+  _hi_check "What the overlay's bin/ leaves home is named, with why" test_config_names_what_bin_leaves_home
   _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
   _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
   _hi_check "...and an \$EDITOR it exports" test_config_flags_an_editor_set_in_aliases_sh

@@ -1203,9 +1203,27 @@ overlay lands (`_hi_overlay_fixup`, one `grep -rl` and a `sed` per file that has
 it). The line is not a finding, so `hi --doctor` does not name it. A relay
 sends the carried copy with the rest of its tree, and its own overlay directory
 as the word ([HI.66](#hi66-the-packer-stays-home)). The overlay cache
-watches the carried files through the list the last build left beside it. An
-include naming a module rather than a path - lua's `require("x")` - is not one
-this reads, and is dropped as before.
+watches the carried files through the list the last build left beside it.
+
+neovim's `require("x.y")` names a module, not a path, and is carried by its
+own reading (`_hi_require_carry`): a module that resolves under `lua/` in one
+of those directories - `lua/x/y.lua`, else `lua/x/y/init.lua` - rides as
+`nvim/lua/...` and is scanned in turn, so what it requires rides too. The
+line stays as written, under a `hi-allow` the stager writes above it, and the
+staged `init.lua` opens with a line putting `@@HI_CONFIG@@/nvim` on the
+`runtimepath`: said in the config, the alias, `$EDITOR`, and `$VIMINIT` need
+no word of it. A `require` that resolves to no file there is dropped as
+before.
+
+The `git` dialect reads for what is private and not for what is missing. Its
+statements are keys under a `[section]`, so the grammar matches
+`<section>.<key>`, lower-cased: every key of `[credential]`, `[gpg]`,
+`[includeIf]`, and `[sendemail]`, a `[url]`'s `insteadOf`, and any section's
+signing, key, and credential settings are a `private` row, dropped with the
+lines that continue them and named by nobody, since keeping them home is the
+plugin's job. A header is never dropped, so the keys left under it stay in
+their section. Under a `hi-allow` a private line rides and is an `allowed`
+row, which `hi --plugins` lists (`_hi_allowed_lines`).
 
 One finding is given back. A nanorc whose syntax include (`*.nanorc` outside
 `/usr/share/nano`) was dropped would highlight nothing, so the stripper keeps
@@ -1227,7 +1245,7 @@ ride one by one: `scripts/pack.sh`'s `_hi_overlay_files` lists each as
 `<dir>/<name>`, in name order, over the overlay's directory and home's, each name once and the
 overlay's copy first (zellij's `layouts/` and `themes/`, kakoune's `colors/`),
 or over the overlay's alone where the row has no home (`extensions/`,
-`header/`), and the rest of the stream - `_hi_overlay_src`, the cache key, the
+`header/`, `bin/`), and the rest of the stream - `_hi_overlay_src`, the cache key, the
 stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s strip (by the
 directory row's dialect) - treats that path like any member. The directory stays
 an allow list: `core.sh`'s `_hi_dir_member_ok` admits a plain name only (a
@@ -1236,6 +1254,15 @@ letter or digit first, then `[A-Za-z0-9_.-]`, not ending
 the same function, so a file hi would not send is one hi would not read either.
 The archive carries no directory entry; every tar hi unpacks with creates the
 parent, busybox's included.
+
+`bin/` is scripts for a session's `$PATH`. `_hi_bin_ok` admits a file that is
+executable, opens with `#!`, and holds no NUL and no more than `$_HI_BIN_MAX`
+characters, read with builtins since every connect asks; the row has no
+dialect, so a script rides as written with its mode. `load.sh` appends the
+directory to `$PATH` as it is sourced, where `hi <target> <cmd>` and the
+session shell both inherit it, and last, so nothing in it stands in for a
+command of the target's; a kept session's pane launcher appends it too, since
+the multiplexer's server never had it.
 
 The two directories of code, `extensions/` and `header/`, are listed by one
 function, `core.sh`'s `_hi_dir_members`: the members in name order, and every
@@ -1387,7 +1414,10 @@ XDG one), and zellij's `layouts/` and `themes/` are trailing-`/` entries
 Pointing a tool at its carried config is a line on the target, and the target's
 line has to parse in bash, zsh, fish, and sh: `common/paths.sh`'s dialect, which
 has no loop to walk a table with. So the client writes the lines. A row's wire
-column says how: `env:<variables>` exports each as the member's path,
+column says how: `env:<variables>` exports each as the member's path (a
+`<variable>=<word>` among them as that word, which is how git's
+`GIT_CONFIG_COUNT=1` and `GIT_CONFIG_KEY_0=include.path` ride beside the
+`GIT_CONFIG_VALUE_0` that names the file),
 `envdir:<variable>` as the directory holding it (eza and its fixed
 `eza/theme.yml`), `flag:<command> <words>` and `flagdir:` alias the command to
 itself with the words and that path, where the target has the command (a flag
@@ -1547,6 +1577,16 @@ has none of the three holds the session's tree through a drop. All of it is
 the ssh arm's and the bash tier's: a container arm, `--plain`, and a
 bash-less target connect as usual. The client's half is `common/keep.sh`,
 which `hi.sh` sources, and the target's is `load.sh`'s.
+
+`$_HI_DISABLE_KEEP=1` switches it off whole. `_hi_keep_off` is the one
+reading: `_hi_keep_probes` is false, so no connect carries the reattach, the
+start, the sweep, or the hold, keeps a record, or retries; `--keep` and
+`--end` are refused by name (`_hi_keep_refuse`); and `_hi_payload_excl` cuts
+`common/keep.sh` and `common/mux.sh` from the tree. A session's `hi.sh` finds
+no `keep.sh`, defines the four functions the connect path calls as no-ops,
+and reads the absence as the switch, so a relay from it carries none of it
+either; `common/aliases.sh` makes its multiplexer aliases only where `mux.sh`
+rode, which leaves `wiring.sh`'s.
 
 - **The name.** `hi-<target>`, from `_hi_mux_name`: the target as typed on
   this client, so two clients that call a host the same thing reach one

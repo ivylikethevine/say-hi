@@ -85,7 +85,10 @@ function _hi_row_col() {
 # no column holding a ` | `, - for none. <leader> starts a comment line; with
 # <strip> 1 the strip drops those, blank lines, and indentation. <end> is
 # where a statement ends: line, \ (a line ending in one continues it), ()
-# (the brackets balance, strings "-quoted), or ()' ('-quoted too).
+# (the brackets balance, strings "-quoted), ()' ('-quoted too), or [] (a key
+# under a [section], a \ continuing it: <plugin> and <include> then match
+# `<section>.<key>`, lower-cased, and a <plugin> match is private, not a
+# manager).
 # <disable> is how a finding goes out: comment (a <leader> line, the whole
 # statement), : or true (the verb and its file word become that no-op, a
 # plugin line is prefixed with it), or "" (the value is emptied). <plugin>,
@@ -112,6 +115,7 @@ elisp | ; | 1 | () | comment | [(](package-initialize|package-install|use-packag
 nano | # | 1 | line | comment | - | ^[ \t]*include[ \t] | ^[ \t]*include[ \t]+["']?/usr/share/nano/?[^/"' \t]*(["' \t].*)?$ | -
 tmux | # | 1 | \ | comment | @plugin|(^|[ \t;{"'])run(-shell)?[ \t].*tpm | (^|[ \t;{"'])(source(-file)?|set(-option)?[ \t]+(-[A-Za-z]+[ \t]+)*default-shell)[ \t] | - | -
 screen | # | 1 | line | comment | - | ^[ \t]*(source|shell|defshell)[ \t] | - | -
+git | # | 1 | [] | comment | ^(credential|gpg|includeif|sendemail)[.]|^url[.](push)?insteadof$|[.](signingkey|gpgsign|forcesignannotated|sshcommand|sslkey|sslcert|cookiefile|extraheader|askpass|proxy|password)$ | ^include[.]path$ | - | -
 readline | # | 1 | line | comment | - | ^[ \t]*[$]include[ \t] | ^[ \t]*[$]include[ \t]+/etc/inputrc([ \t].*)?$ | -
 kak | # | 0 | line | comment | ^[ \t]*(plug|bundle)[ \t]|(plug|bundle)[.]kak | (^|[ \t;{])source[ \t] | .*%val[{]runtime[}].* | -
 kdl | // | 0 | () | comment | "file: | ^[ \t]*(layout_dir|theme_dir|default_shell)[ \t] | - | ^[ \t]*pane[ \t].*borderless[ \t]*=[ \t]*true => plugin location="zellij:compact-bar"
@@ -534,7 +538,8 @@ function _hi_plugin_off() {
 # its member on a target, in common/paths.sh's four-shell dialect, which
 # sources them there. A row's wire column holds one wire or several, a ;
 # between them, each read by _hi_wire_read: env:<variables> exports each as
-# the member's path and envdir: as its directory; flag:<command> <words>
+# the member's path and envdir: as its directory, a <variable>=<word> among
+# them as that word; flag:<command> <words>
 # aliases the command to itself, the words, and the path, where the target
 # has the command, and flagdir: the same with the directory. A flag ending
 # in = takes the path in the same word.
@@ -583,7 +588,10 @@ function _hi_overlay_wiring() {
         _hi_ow_l="${_hi_ow_l}export"
         # shellcheck disable=SC2086 # the split is the column
         for _hi_ow_v in $_hi_wr_vars; do
-          _hi_ow_l="$_hi_ow_l $_hi_ow_v=\"$_hi_ow_p\""
+          case "$_hi_ow_v" in
+          *=*) _hi_ow_l="$_hi_ow_l ${_hi_ow_v%%=*}=\"${_hi_ow_v#*=}\"" ;;
+          *) _hi_ow_l="$_hi_ow_l $_hi_ow_v=\"$_hi_ow_p\"" ;;
+          esac
         done
         # a line behind a toggle ends true, or a sourcer under set -e would
         # stop at the file whose last line a toggle turned down
@@ -675,11 +683,35 @@ function _hi_tool_here() {
 # shellcheck source=./pack_scan.sh
 source "$_HI_ROOT/scripts/pack_scan.sh"
 
+# The most a script of the overlay's bin/ may hold, in characters: it rides
+# on every connect
+_HI_BIN_MAX=16384
+
+# _hi_bin_ok <file> [outvar] - may a file of the overlay's bin/ ride: one
+# that is executable, opens with #!, and holds no NUL and no more than
+# $_HI_BIN_MAX characters; why not, into <outvar>. Read with builtins, since
+# every connect asks. GLOSSARY: HI.58
+function _hi_bin_ok() {
+  local _hi_bk="" _hi_bk_nul=0 _hi_bk_why=""
+  # true at a NUL or at the cap, false at the end of the file
+  ! IFS= read -r -d '' -n $((_HI_BIN_MAX + 1)) _hi_bk <"$1" 2>/dev/null || _hi_bk_nul=1
+  if [ ! -x "$1" ]; then
+    _hi_bk_why="not executable (chmod +x)"
+  elif [ "${_hi_bk:0:2}" != '#!' ] || { [ "$_hi_bk_nul" = 1 ] && [ "${#_hi_bk}" -le "$_HI_BIN_MAX" ]; }; then
+    _hi_bk_why="a binary, or no #! line: only scripts ride"
+  elif [ "${#_hi_bk}" -gt "$_HI_BIN_MAX" ]; then
+    _hi_bk_why="over $_HI_BIN_MAX characters"
+  fi
+  [ -n "$_hi_bk_why" ] || return 0
+  [ -z "${2:-}" ] || printf -v "$2" '%s' "$_hi_bk_why"
+  return 1
+}
+
 # _hi_overlay_files [member...] - the members (default $_HI_OVERLAY_FILES and
 # the plugins files', $_HI_PLUGIN_FILES) that have a source, one per line;
 # callers read it once and hand the list to _hi_overlay_tar. A trailing-/ entry lists its members as <dir>/<name>, in
-# name order, only those _hi_dir_member_ok admits, over the overlay's
-# directory and home's, each name once.
+# name order, only those _hi_dir_member_ok admits (and, of bin/, _hi_bin_ok),
+# over the overlay's directory and home's, each name once.
 function _hi_overlay_files() {
   local f src home seen
   _hi_plugins_load
@@ -692,7 +724,8 @@ function _hi_overlay_files() {
       seen=" "
       for src in "$_HI_CONFIG_DIR/$f"* ${home:+"$home"*}; do
         case "$seen" in *" ${src##*/} "*) continue ;; esac
-        [ -f "$src" ] && _hi_dir_member_ok "${src##*/}" && _hi_overlay_src "$f${src##*/}" >/dev/null &&
+        [ -f "$src" ] && _hi_dir_member_ok "${src##*/}" && { [ "$f" != bin/ ] || _hi_bin_ok "$src"; } &&
+          _hi_overlay_src "$f${src##*/}" >/dev/null &&
           seen="$seen${src##*/} " && printf '%s\n' "$f${src##*/}"
       done
       ;;

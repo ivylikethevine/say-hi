@@ -361,10 +361,10 @@ myself.
 ## Roadmap
 
 What's left; nothing here is parked or descoped. One list, in the order the
-work is best done: what CI has yet to show, then the 1.0 tag. An entry is
-deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the tag:
-what more a session carries first, then what is outside this checkout, an
-account or an upstream review that lands when it lands.
+work is best done: what CI or a target has yet to show, then the 1.0 tag. An
+entry is deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the
+tag and are outside this checkout: an account or an upstream review that lands
+when it lands.
 
 1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
        `check_tool_versions.sh` counts a problem, naming the host, when no
@@ -392,20 +392,55 @@ account or an upstream review that lands when it lands.
        plain `hi <target>` session opens a pane that shows hi's prompt, and
        the next `hi <target>` after a drop attaches it.
 
-4. [ ] _Before 1.0:_ **`--keep` can be switched off, and then does not
-       ship** — every interactive ssh connect looks for a kept session, sweeps
-       for dead trees, and carries `common/keep.sh` and `common/mux.sh` to
-       the target, whether or not `--keep` is ever typed. **Do:** one switch
-       that turns the kept session off whole: `--keep`, `--end`, and
-       `_HI_KEEP` say it is off, a connect sends no reattach, start, sweep,
-       or hold, keeps no record and retries nothing, a session's `tmux`,
-       `zellij`, and `screen` are the tools themselves, and the payload
-       leaves both files out. **Ticks when:** with the switch set, the
-       script a connect sends names no multiplexer, the tree on the target
-       holds neither file, and `hi --keep <target>` is refused with the
-       switch named.
+4. [ ] _Before 1.0:_ **A neovim config in more than one file** — shipped: a
+       module `init.lua` requires by name from the `lua/` beside it rides, and
+       what that module requires with it, the way an include is carried
+       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan));
+       the `init.lua` that rides puts their directory on `runtimepath` itself,
+       so no alias says it; and `nvim/init.vim` is a member, read as vim
+       script. What is left is seeing it on a target. **Ticks when:** a
+       target's `nvim` opens on an `init.lua` that requires two modules of its
+       own, both loaded.
 
-5. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
+5. [ ] _Before 1.0:_ **Scripts of your own on a target's `$PATH`** — shipped:
+       the overlay's `bin/`
+       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)) rides its
+       executable scripts, each under a size cap and as written, and is the
+       last entry of a session's `$PATH`; `hi --doctor` names what stays home,
+       with why. What is left is seeing it on a target. **Ticks when:** a
+       script in `~/.config/say-hi/bin/` runs by name in a session over ssh.
+
+6. [ ] _Before 1.0:_ **git's aliases and settings, and none of its keys** —
+       shipped: a `git` plugin, off by default, added over the target's own
+       config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
+       place, read in a dialect that keeps `[credential]`, `[gpg]`,
+       `includeIf`, `url.*.insteadOf`, and every signing, key, and key-path
+       setting home; your name and email ride. One of those rides only under a
+       `hi-allow` line written above it, and `hi --plugins` names each that
+       does ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#git)). What is left is
+       seeing it on a target. **Ticks when:** with `hi --plugin-on git`, a
+       carried alias runs on a target, an alias of the target's own still
+       does, and `git config user.signingkey` there is empty.
+
+7. [ ] _Before 1.0:_ **A nix flake** — shipped: `flake.nix` builds the
+       package out of `scripts/install.sh`'s staging and carries a
+       home-manager module that writes the rc block
+       ([docs/PACKAGING.md](docs/PACKAGING.md#nix-flake)), and `ci.yml`'s
+       `nix flake` job builds it and starts `hi` through `nix run`. The job
+       has not run yet, and its egress allowlist was written by hand.
+       **Ticks when:** the `nix flake` job is green on a pull request, its
+       allowlist taken from that run's audit log.
+
+8. [ ] _Before 1.0:_ **The portable rc block finds a Homebrew install** —
+       shipped: an install whose tree is a keg (`<prefix>/Cellar/say-hi/<version>`)
+       is named in the rc through the formula's `opt` path, which outlives an
+       upgrade, and `hi --install --print-rc`'s block looks under the three
+       default prefixes' `opt/say-hi` too
+       ([docs/PACKAGING.md](docs/PACKAGING.md)). None of it has run under a
+       real `brew install`. **Ticks when:** one rc loads hi on a machine with a
+       clone and on one with the formula, across a `brew upgrade`.
+
+9. [ ] _Before 1.0:_ **The release's GIF shows the package check** —
        shipped: the fixture's `packages` overlay
        (`docs/tapes/fixtures.sh`, `up:packages`) was rows of a shape hi no
        longer reads, so the check had nothing to draw; it is TOML rows now,
@@ -414,89 +449,41 @@ account or an upstream review that lands when it lands.
        left is a render. **Ticks when:** a release's `demo.gif` shows the
        check's row on both boxes.
 
-6. [ ] _Before 1.0:_ **A case without a reason does not get in** — every
-       failing arm of a unit case now ends in `_hi_because` or `_hi_why`
-       ([docs/TESTING.md](docs/TESTING.md#running-the-tests)), and nothing
-       holds a new case to it. **Do:** a check in the lint group that reads
-       each registered case and fails on a failing arm - a `|| return 1`, a
-       bare `return 1`, a last statement - that prints nothing, and on an
-       end-to-end failure line with no transcript beside it. **Ticks when:**
-       a case added with a bare `[ "$a" = "$b" ]` as its last line turns
-       the lint group red, with the case named.
+10. [ ] _Before 1.0:_ **A case without a reason does not get in** — every
+        failing arm of a unit case now ends in `_hi_because` or `_hi_why`
+        ([docs/TESTING.md](docs/TESTING.md#running-the-tests)), and nothing
+        holds a new case to it. **Do:** a check in the lint group that reads
+        each registered case and fails on a failing arm - a `|| return 1`, a
+        bare `return 1`, a last statement - that prints nothing, and on an
+        end-to-end failure line with no transcript beside it. **Ticks when:**
+        a case added with a bare `[ "$a" = "$b" ]` as its last line turns
+        the lint group red, with the case named.
 
-7. [ ] _Before 1.0:_ **A failed comparison shows what it got** — `_hi_why`
-       prints the statement and its variables, so an assertion on a command
-       substitution (`[ "$(cmd)" = want ]`, some three hundred of them)
-       names itself and not the value that was wrong; only the traced rerun
-       shows it, which a flake's first failure does not have. **Do:** capture
-       each into a variable ahead of its assertion, so the reason prints it.
-       **Ticks when:** no registered case compares a command substitution
-       inside the assertion that reports it.
+11. [ ] _Before 1.0:_ **A failed comparison shows what it got** — `_hi_why`
+        prints the statement and its variables, so an assertion on a command
+        substitution (`[ "$(cmd)" = want ]`, some three hundred of them)
+        names itself and not the value that was wrong; only the traced rerun
+        shows it, which a flake's first failure does not have. **Do:** capture
+        each into a variable ahead of its assertion, so the reason prints it.
+        **Ticks when:** no registered case compares a command substitution
+        inside the assertion that reports it.
 
-8. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
+12. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+        versions_ prose into its version table.
 
-9. [ ] _Post 1.0:_ **A neovim config in more than one file** — only
-       `nvim/init.lua` rides, and a `require` of a module under the config's
-       `lua/` is dropped with the plugin managers', so a config split into
-       modules starts nearly bare; an `init.vim` does not ride at all.
-       **Do:** carry a module a `require` resolves under `lua/` the way an
-       include is carried
-       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan)),
-       put the overlay's `nvim/` on `runtimepath` with no quote in the
-       alias's body, and add `nvim/init.vim` as a member in the vim
-       dialect. **Ticks when:** a target's `nvim` opens on an `init.lua`
-       that requires two modules of its own, both loaded.
-
-10. [ ] _Post 1.0:_ **Scripts of your own on a target's `$PATH`** — a file
-        rides only as a config or under a `hi-carry` line. **Do:** a `bin/`
-        directory of the overlay
-        ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), scripts
-        alone and under a size cap, on a session's `$PATH`. **Ticks when:** a
-        script in `~/.config/say-hi/bin/` runs by name in a session, and
-        `hi --doctor` names a binary there as left home.
-
-11. [ ] _Post 1.0:_ **git's aliases and settings, and none of its keys** —
-        git has no plugin: a config that rode whole would bring identity,
-        signing, and credential helpers to a box that must not have them.
-        **Do:** a `git` plugin, off by default, added over the target's own
-        config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
-        place, read in a dialect that drops `[user]`, `[credential]`, every
-        signing and key setting, `includeIf`, and `url.*.insteadOf`. One of
-        those rides only under a `hi-allow` line the user wrote above it,
-        and `hi --plugins` names each that does. **Ticks when:** a carried
-        alias runs on a target, `git config user.email` there is the
-        target's own, and a `signingkey` rides only with its `hi-allow`.
-
-12. [ ] _Post 1.0:_ **A nix flake** — the channels are deb, rpm, apk, the
-        AUR, and Homebrew ([docs/PACKAGING.md](docs/PACKAGING.md)). **Do:**
-        a flake with the package and a home-manager module that writes the
-        rc block. **Ticks when:** `nix run` starts `hi`, and a CI job builds
-        the flake.
-
-13. [ ] _Post 1.0:_ **The portable rc block finds a Homebrew install** —
-        `hi --install --print-rc`'s block looks in `$HOME`,
-        `/usr/local/share`, and `/usr/share`, and whether an install from
-        the formula writes its versioned keg into an rc is not yet known.
-        **Do:** read what `hi --install` writes under a real `brew install`,
-        name the tree through the formula's `opt` path where it is the keg,
-        and add that path to the block. **Ticks when:** one rc loads hi on a
-        machine with a clone and on one with the formula, across a
-        `brew upgrade`.
-
-14. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+13. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-15. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+14. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-16. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+15. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

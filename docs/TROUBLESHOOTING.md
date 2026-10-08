@@ -123,10 +123,11 @@ disabled on the way out. `hi --doctor` names each by file and line; a
 
 ### neovim errors about a missing module
 
-Only `init.lua` rides. A `require` of a module under `~/.config/nvim/lua/`
-finds nothing on a target, and `hi --doctor` says how many files stay home.
-An `nvim/init.lua` in the overlay that needs none is what targets get
-instead.
+`init.lua` rides with the modules it requires by name from the `lua/` beside
+it, and those with theirs. A module named some other way - a `require` of a
+variable, a plugin manager's `import` - stays home, as every plugin does, and
+`hi --doctor` names each `require` that was dropped. An `nvim/init.lua` in
+the overlay that needs none of them is what targets get instead.
 
 ### My aliases are missing after `sudo -i` or `su -`
 

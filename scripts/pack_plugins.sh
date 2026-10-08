@@ -437,7 +437,7 @@ function _hi_wire_read() {
 # Every part is checked, since each becomes a word of a line a target
 # sources: nothing that could run or expand there beyond a $NAME.
 function _hi_plugin_wire_ok() {
-  local _hi_wk_s="$1;" _hi_wk_w _hi_wk_why
+  local _hi_wk_s="$1;" _hi_wk_w _hi_wk_why _hi_wk_v
   local _hi_wr_kind _hi_wr_vars _hi_wr_names _hi_wr_env _hi_wr_cmd _hi_wr_words
   [ "$1" != - ] || return 0
   while [ -n "$_hi_wk_s" ]; do
@@ -445,7 +445,12 @@ function _hi_plugin_wire_ok() {
     _hi_wire_read "$_hi_wk_w" || _hi_wr_cmd=""
     case "$_hi_wk_w" in
     env:?* | envdir:?*)
-      _hi_words_ok "$_hi_wr_vars" 'A-Za-z_' 'A-Za-z0-9_' || _hi_wk_why="is no list of variable names"
+      # a name, or <name>=<word> for a value that is no path
+      [ -n "${_hi_wr_vars// /}" ] || _hi_wk_why="is no list of variable names"
+      for _hi_wk_v in $_hi_wr_vars; do
+        _hi_words_ok "${_hi_wk_v%%=*}" 'A-Za-z_' 'A-Za-z0-9_' || _hi_wk_why="is no list of variable names"
+        case "$_hi_wk_v" in *=*) _hi_words_ok "${_hi_wk_v#*=}" 'A-Za-z0-9._-' 'A-Za-z0-9._-' || _hi_wk_why="sets a value that is no plain word" ;; esac
+      done
       ;;
     flag:?* | flagdir:?*)
       # a command, at least one word after it, and nothing else in a part

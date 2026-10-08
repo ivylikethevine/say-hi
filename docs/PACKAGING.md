@@ -12,6 +12,7 @@ each channel is built, signed, and published is the maintainer's runbook,
   - [Package repository](#package-repository)
   - [deb / rpm / apk](#deb--rpm--apk)
   - [Homebrew tap](#homebrew-tap)
+  - [Nix flake](#nix-flake)
   - [AUR](#aur)
   - [ubi / mise](#ubi--mise)
 - [Verifying a release download](#verifying-a-release-download)
@@ -19,11 +20,13 @@ each channel is built, signed, and published is the maintainer's runbook,
 
 ## Install channels
 
-**Live today: releases, the package repository, and the Homebrew tap; not the
-AUR.** Tagged releases exist from `v0.1.0` on, the apt/rpm/apk repository is
-live and signed at `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`,
-and `brew install ivylikethevine/tap/say-hi` installs from
-[ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap).
+**Live today: releases, the package repository, the Homebrew tap, and the nix
+flake; not the AUR.** Tagged releases exist from `v0.1.0` on, the apt/rpm/apk
+repository is live and signed at
+`https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`,
+`brew install ivylikethevine/tap/say-hi` installs from
+[ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap),
+and `nix run github:ivylikethevine/say-hi` runs the repository's own flake.
 A clone plus `scripts/install.sh` needs none of these
 ([README.md's Installation](../README.md#installation)). Channels weighed and
 not shipped, with the reason, are
@@ -90,11 +93,55 @@ Homebrew's side. Then run `hi --install` once, as for any package. The formula
 declares no dependencies: `ssh` and `base64` ship with macOS and any Linux that
 would install this.
 
+The rc lines name the tree as `<prefix>/opt/say-hi/libexec`, the link Homebrew
+keeps on the current keg, not the versioned `Cellar` path under it, so they
+hold across `brew upgrade`. Lines an older hi wrote name the keg:
+`hi --doctor` warns about them and `hi --install` rewrites them. The block for
+a shared rc finds a Homebrew install under a default prefix
+([SETTINGS.md's _Keeping the overlay in a dotfile manager_](SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)).
+
 Each release (not a candidate) opens a PR against the tap with the new
 formula, checked by the tap's own CI before it is merged, so the tap can trail
 a release by that merge. Bugs in hi go to this repository
 ([SUPPORT.md](SUPPORT.md)), not the tap. How the formula is generated and
 gated is [RELEASING.md's Homebrew tap](RELEASING.md#homebrew-tap).
+
+### Nix flake
+
+The repository is a flake, for x86_64 and aarch64 Linux and aarch64 macOS, so
+`nix run` starts `hi` with nothing installed and `nix profile install` puts
+it on `PATH`:
+
+```sh
+nix run github:ivylikethevine/say-hi -- --version
+nix profile install github:ivylikethevine/say-hi
+```
+
+A release is the same ref with its tag on the end
+(`github:ivylikethevine/say-hi/v1.0.0`); `hi --version` names the commit
+either way, for the reason
+[RELEASING.md's Nix flake](RELEASING.md#nix-flake) gives. From a profile, run
+`hi --install` once as for any package, and again after an upgrade: the rc
+line it writes names the store path of the version that wrote it.
+
+**With home-manager**, the flake's module does that wiring and keeps it in
+step with the package:
+
+```nix
+{
+  imports = [ inputs.say-hi.homeManagerModules.default ];
+  programs.say-hi.enable = true;
+}
+```
+
+`inputs.say-hi` is this repository as a flake input
+(`say-hi.url = "github:ivylikethevine/say-hi"`). The module adds the package
+to `home.packages` and hi's rc block, the lines `hi --install` writes, to
+`programs.bash.initExtra`, `programs.zsh`'s init, and
+`programs.fish.interactiveShellInit`, so each shell home-manager manages
+sources hi and one it does not is left alone. `programs.say-hi.package`
+swaps the package. The module writes no file of its own: settings stay in
+`~/.config/say-hi`, and `hi --configure` edits them.
 
 ### AUR
 
@@ -159,7 +206,9 @@ hi --install
 The package's `/usr/bin/hi` is already on `PATH` and runs this tree, so the
 install makes no link of its own (and never touches a link a package owns).
 Answers go to `~/.config/say-hi/`, never into the tree. `hi --update` refuses
-to move a packaged tree and points at the package manager.
+to move a packaged tree and points at the package manager. Under home-manager
+the [module](#nix-flake) has done the wiring, and `hi --configure` is the
+whole of this step.
 
 **Saying `hi` _to_ a packaged machine works whether or not anyone ran that.**
 A session ships its own tree to every ssh target and runs out of that, so the

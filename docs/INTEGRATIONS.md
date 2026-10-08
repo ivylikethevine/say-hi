@@ -20,6 +20,7 @@ machine only ([On your own machine](#on-your-own-machine)).
   - [Shipping your eza theme](#shipping-your-eza-theme)
 - [Terminal multiplexers](#terminal-multiplexers)
 - [Debian chroots](#debian-chroots)
+- [git](#git)
 - [readline](#readline)
 - [Shell frameworks](#shell-frameworks)
   - [On your own machine](#on-your-own-machine)
@@ -287,6 +288,12 @@ a keepalive, unless your ssh config sets a `ServerAliveInterval` of its own.
 `_HI_KEEP=1` makes it the default.
 [HI.65](GLOSSARY.md#hi65-kept-session) is how it works.
 
+[`_HI_DISABLE_KEEP=1`](SETTINGS.md#every-setting) switches all of it off:
+`--keep` and `--end` are refused, a connect looks for nothing to reattach or
+clean up, and the two files behind it stay out of the payload, so `tmux`,
+`zellij`, and `screen` typed in a session are the tools themselves, on the
+config hi carried.
+
 On a target with none of the three, a shell has nothing to hold its terminal
 and ends with the connection, so `--keep` holds what can outlive it: the
 session directory, and the directory you were in. A dropped link leaves both
@@ -327,6 +334,33 @@ A chroot's `/etc/debian_chroot` leads the prompt, as the distro's own
 hi sets no `$LESSOPEN`, `$GCC_COLORS`, `$CLICOLOR`, or `$LSCOLORS`: those
 stay your rc's, and `hi --plugin-on env` sends a target the values the color
 ones have here ([SETTINGS.md](SETTINGS.md#variables-that-ride)).
+
+## git
+
+git has a plugin, off until you run `hi --plugin-on git`. It carries your
+global config - `$GIT_CONFIG_GLOBAL`, else `~/.gitconfig`, else
+`$XDG_CONFIG_HOME/git/config` - so your aliases, your name and email, and
+settings such as `pull.rebase` are there on a target. It is added over the
+target's own config and never put in its place: the session exports
+`GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0=include.path`, and `GIT_CONFIG_VALUE_0`
+naming the file that rode, which git 2.31 and newer read after every config
+file. What rode therefore wins over the target's global and a repository's own
+config alike, your name and email included, and an older git ignores it.
+
+No key and no path to one rides. These stay home, with the lines that
+continue them:
+
+- every key of `[credential]`, `[gpg]`, `[includeIf]`, and `[sendemail]`;
+- a `[url]`'s `insteadOf` and `pushInsteadOf`;
+- in any section: `signingKey`, `gpgSign`, `forceSignAnnotated`,
+  `sshCommand`, `sslKey`, `sslCert`, `cookieFile`, `extraHeader`, `askPass`,
+  `proxy`, and `password`.
+
+One of them rides only under a `# hi-allow` comment you wrote on the line
+above it, and `hi --plugins` lists each that does. An `[include]` of a file
+under `~/.config/git/` is carried and read the same way; one of a file
+elsewhere is dropped, and `hi --doctor` names it
+([HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan)).
 
 ## readline
 
@@ -374,12 +408,13 @@ different thing:
 - **The client, about what rides.** A config from home - your `~/.vimrc`,
   `~/.tmux.conf`, micro's directory, bat's and eza's files - is "the one in
   force here" only with its tool here to read it, so it ships only then:
-  `vim/vimrc` with vim, `nvim/init.lua` with nvim, `helix/`'s files with hx,
+  `vim/vimrc` with vim, `nvim/init.lua` or `init.vim` with nvim, `helix/`'s files with hx,
   `kak/`'s with kak, `nano/nanorc` with nano, `emacs/init.el` with emacs,
   `tmux/tmux.conf` with tmux, `screenrc` with screen, `micro/` with micro,
   `zellij/` with zellij, `bat/config` with bat (or `batcat`), `eza/theme.yml`
   with eza, `ripgreprc` with rg, `fzfrc` with fzf, `lazygit/config.yml` with
-  lazygit; `inputrc` always, since readline is a library, not a command. A
+  lazygit, `git/config` with git once its plugin is on; `inputrc` always,
+  since readline is a library, not a command. A
   dotfile left behind by a tool you removed neither ships nor gets a
   `hi --doctor` row. It is the client because only the client can be asked
   before a connect, which is when the overlay is packed - the reason the
@@ -444,6 +479,6 @@ files shrink the most: powerlevel10k's wizard output is three-quarters comments.
 | a long-lived bash setup                                     | `bashrc`, `aliases.sh`, a few extensions           | 10-30 KB | 5-15 KB  | 2-6 KB             |
 | all of it: powerlevel10k, tide, neovim, vim, bash, starship | everything above that ships at once                | ~200 KB  | ~75 KB   | ~20 KB             |
 
-A neovim config spread over many files under `~/.config/nvim/lua/` does not
-ride at all - only `nvim/init.lua` does - so its size here is the single file,
-and `hi --doctor` says how many files stay home.
+A neovim config spread over files under `~/.config/nvim/lua/` rides as its
+`init.lua` and the modules that file requires by name, so its size is theirs;
+a plugin manager's specs stay home with the plugins.

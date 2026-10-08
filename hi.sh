@@ -46,9 +46,35 @@ export _HI_HOME
 }
 # shellcheck source=./common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
-# the kept session's client half, a file of its own (GLOSSARY: HI.65)
-# shellcheck source=./common/keep.sh
-source "$_HI_ROOT/common/keep.sh"
+# the kept session's client half, a file of its own (GLOSSARY: HI.65). A
+# session whose client switched it off was sent none, and these stand in.
+_HI_KEEP_GONE=""
+if [ -r "$_HI_ROOT/common/keep.sh" ]; then
+  # shellcheck source=./common/keep.sh
+  source "$_HI_ROOT/common/keep.sh"
+else
+  _HI_KEEP_GONE=1
+  function _hi_keep_probes() { return 1; }
+  function _hi_keep_starts() { return 1; }
+  function _hi_keep_alive() { :; }
+  function _hi_keep_connect() { _say_hi; }
+fi
+
+# Is the kept session switched off: $_HI_DISABLE_KEEP, or a tree that came
+# without common/keep.sh, which is what the switch sends. GLOSSARY: HI.65
+function _hi_keep_off() {
+  [ "${_HI_DISABLE_KEEP:-0}" = 1 ] || [ -n "$_HI_KEEP_GONE" ]
+}
+
+# --keep and --end with the kept session switched off: refused, the switch named
+function _hi_keep_refuse() {
+  _hi_keep_off || return 0
+  if [ "${END:-0}" = 1 ]; then
+    _hi_die "--end: the kept session is switched off (_HI_DISABLE_KEEP=1)"
+  elif [ "${KEEP:-}" = 1 ]; then
+    _hi_die "--keep: the kept session is switched off (_HI_DISABLE_KEEP=1)"
+  fi
+}
 
 _HI_RELEASE="${_HI_RELEASE:-}"
 
@@ -1549,6 +1575,7 @@ function _hi() {
 
   _hi_parse "$@"
   if [ -z "${DOMAIN:-}" ]; then
+    _hi_keep_refuse
     _hi_keep_here
     exit $?
   fi
@@ -1556,6 +1583,7 @@ function _hi() {
   # --keep, and --plain itself
   _hi_tag_settings "$tmp.settings"
   [ -n "${PLAIN:-}" ] || [ "${_HI_PLAIN:-0}" != 1 ] || PLAIN=1
+  _hi_keep_refuse
   # Primed in the shell that keeps them: a caller that reads one through $( )
   # would fill the memo in a subshell and lose it there, and the script
   # builders ask six times between them. GLOSSARY: HI.05
@@ -1579,6 +1607,9 @@ function _hi() {
   # does not apply
   if [ "${KEEP:-}" = 1 ] && { [ "${PLAIN:-0}" = 1 ] || [ -n "$arm" ]; }; then
     _hi_cecho "hi: --keep needs an ssh target and hi's own session; connecting without it" "$YELLOW" >&2
+  elif [ -z "${KEEP:-}${RAWCMD:-}$arm" ] && [ "${_HI_KEEP:-0}" = 1 ] && [ "${PLAIN:-0}" != 1 ] && _hi_keep_off; then
+    # the one place the default speaks: it asks for what the switch took away
+    _hi_cecho "hi: _HI_KEEP=1 does nothing while _HI_DISABLE_KEEP=1 switches the kept session off" "$YELLOW" >&2
   fi
   if [ "${PLAIN:-0}" = 1 ]; then
     if [ -n "$arm" ]; then

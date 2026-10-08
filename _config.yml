@@ -55,6 +55,8 @@ exclude:
   - docs/hi.1
   - hi.sh
   - load.sh
+  - flake.nix
+  - flake.lock
   - CLAUDE.md
   # untracked host notes; listed so a local build or lint sweep skips them too
   - CLAUDE.local.md

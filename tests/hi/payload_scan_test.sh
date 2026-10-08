@@ -772,6 +772,177 @@ set_it=1' ] || _hi_because "arrived as: [$out]" || return 1
 set_it=1' ] || _hi_because "with no dialect arrived as: [$out]"
 }
 
+# a module neovim's init.lua requires from its lua/ rides, what that module
+# requires with it, and the init puts their directory on the runtimepath; a
+# require of nothing there is dropped as before, and a module nothing
+# requires stays home
+function test_a_required_neovim_module_rides() {
+  local dir out listing
+  dir="$(_hi_lint_fixture require nvim/init.lua 'vim.g.one = 1
+require("mine.opts")
+local keys = require '"'"'keys'"'"'
+require("absent")
+')"
+  mkdir -p "$dir/nvim/lua/mine/deep"
+  printf 'require("mine.deep")\n' >"$dir/nvim/lua/mine/opts.lua"
+  printf 'vim.g.deep = 1\n' >"$dir/nvim/lua/mine/deep/init.lua"
+  printf 'return {}\n' >"$dir/nvim/lua/keys.lua"
+  printf 'return {}\n' >"$dir/nvim/lua/unused.lua"
+  listing="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -t -z -f - | sort | tr '\n' ' ')"
+  [[ "$listing" == *"nvim/lua/keys.lua nvim/lua/mine/deep/init.lua nvim/lua/mine/opts.lua "* && "$listing" != *unused* ]] ||
+    _hi_because "what rode: $listing" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.lua)"
+  [ "$out" = "vim.opt.rtp:prepend(\"$_HI_CARRY_TOKEN/nvim\")
+vim.g.one = 1
+require(\"mine.opts\")
+local keys = require 'keys'" ] || _hi_because "nvim/init.lua arrived as: [$out]" || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_include_lint)"
+  [ "$out" = 'nvim/init.lua|4|include|require("absent")' ] || _hi_because "the findings: [$out]"
+}
+
+# _hi_real_nvim <outvar> - an nvim past the suite's stand-in on $PATH, or a
+# path that is no command, for _hi_check_requires to skip by
+function _hi_real_nvim() {
+  local d
+  local -a dirs
+  printf -v "$1" '%s' /no/real/nvim
+  IFS=: read -r -a dirs <<<"$PATH"
+  for d in "${dirs[@]}"; do
+    [ "$d" = "$_HI_WORKDIR/stubtools" ] || [ ! -x "$d/nvim" ] || {
+      printf -v "$1" '%s' "$d/nvim"
+      return 0
+    }
+  done
+}
+
+# ...and a real neovim, started on the init.lua as a target has it, loads
+# each from the overlay
+function test_neovim_loads_the_modules_that_rode() {
+  local dir got="$_HI_WORKDIR/nvim-got" out nvim
+  _hi_real_nvim nvim
+  dir="$(_hi_lint_fixture nvimrun nvim/init.lua 'require("one")
+require("two.deep")
+')"
+  mkdir -p "$dir/nvim/lua/two" "$got"
+  printf 'vim.g.hi_one = 1\n' >"$dir/nvim/lua/one.lua"
+  printf 'vim.g.hi_two = 2\n' >"$dir/nvim/lua/two/deep.lua"
+  _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
+  sh -c "$(_hi_overlay_fixup "'$got'")" || _hi_why got || return 1
+  out="$(HI_TEST_OUT="$got/loaded" XDG_CONFIG_HOME="$got/none" XDG_STATE_HOME="$got/state" XDG_DATA_HOME="$got/data" \
+    XDG_CACHE_HOME="$got/cache" "$nvim" --headless -u "$got/nvim/init.lua" \
+    -c 'lua vim.fn.writefile({ tostring(vim.g.hi_one) .. tostring(vim.g.hi_two) }, vim.env.HI_TEST_OUT)' -c 'qa!' 2>&1 </dev/null)" ||
+    _hi_because "nvim failed: $out" || return 1
+  [ "$(cat "$got/loaded" 2>/dev/null)" = 12 ] || _hi_because "nvim said [$out] and loaded [$(cat "$got/loaded" 2>&1)]"
+}
+
+# an init.vim rides as a member of its own, read as vim script
+function test_neovim_s_init_vim_rides_in_the_vim_dialect() {
+  local dir out w
+  dir="$(_hi_lint_fixture initvim nvim/init.vim 'set number
+source ~/elsewhere.vim
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nvim/init.vim)"
+  [ "$out" = 'set number' ] || _hi_because "nvim/init.vim arrived as: [$out]" || return 1
+  _hi_overlay_wiring w nvim/init.vim
+  [[ "$w" == *'export _HI_NVIMRC="$_HI_CONFIG_DIR/nvim/init.vim"'* && "$w" == *'nvim -u $_HI_CONFIG_DIR/nvim/init.vim"'* ]] ||
+    _hi_because "its wiring: $w"
+}
+
+_HI_LINT_GITCONFIG='[user]
+	name = A User
+	email = a@example.com
+	signingkey = ABCDEF
+[alias]
+	co = checkout
+[commit]
+	gpgSign = true
+[credential "https://example.com"]
+	helper = store
+[url "git@example.com:"]
+	insteadOf = https://example.com/
+[core]
+	sshCommand = ssh -i ~/.ssh/work
+	# hi-allow
+	sshCommand = ssh -o Compression=yes
+[gpg "ssh"] allowedSignersFile = ~/.ssh/allowed
+[includeIf "gitdir:~/work/"]
+	path = ~/.gitconfig-work
+[http]
+	extraHeader = Authorization: x \
+		y
+	postBuffer = 1
+'
+
+# git's config rides only once switched on, and less what is private: a key,
+# a credential, a signing setting, an includeIf, a url's insteadOf, each with
+# the lines continuing it. The name and the email ride, a header stays, and a
+# private line rides under a hi-allow alone, where it is listed.
+function test_git_keeps_its_keys_and_credentials_home() {
+  local dir out w
+  dir="$(_hi_lint_fixture gitkeys git/config "$_HI_LINT_GITCONFIG")"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)"
+  [ -z "$out" ] || _hi_because "git rode without being switched on: $out" || return 1
+  out="$(_HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat git/config)"
+  [ "$out" = '[user]
+name = A User
+email = a@example.com
+[alias]
+co = checkout
+[commit]
+[credential "https://example.com"]
+[url "git@example.com:"]
+[core]
+sshCommand = ssh -o Compression=yes
+[gpg "ssh"]
+[includeIf "gitdir:~/work/"]
+[http]
+postBuffer = 1' ] || _hi_because "git/config arrived as: [$out]" || return 1
+  out="$(_HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_include_lint)"
+  [ -z "$out" ] || _hi_because "what stays home was a finding: $out" || return 1
+  out="$(_HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_allowed_lines)"
+  [ "$out" = 'git/config|16|allowed|sshCommand = ssh -o Compression=yes' ] || _hi_because "the allowed lines: [$out]" || return 1
+  _hi_overlay_wiring w git/config
+  [[ "$w" == *'export GIT_CONFIG_COUNT="1" GIT_CONFIG_KEY_0="include.path" GIT_CONFIG_VALUE_0="$_HI_CONFIG_DIR/git/config"'* ]] ||
+    _hi_because "its wiring: $w"
+}
+
+# ...and a real git reads what rode over a target's own config, which it
+# still reads: the carried alias and the target's, and no key
+function test_git_reads_what_rode_over_its_own_config() {
+  local dir got="$_HI_WORKDIR/git-got" out
+  dir="$(_hi_lint_fixture gitkeys git/config "$_HI_LINT_GITCONFIG")"
+  mkdir -p "$got/home"
+  printf '[alias]\n\ttheirs = status\n' >"$got/home/.gitconfig"
+  _HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar -x -z -f - -C "$got" || _hi_why dir got || return 1
+  out="$(
+    export HOME="$got/home" GIT_CONFIG_GLOBAL="$got/home/.gitconfig" GIT_CONFIG_NOSYSTEM=1
+    export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0="$got/git/config"
+    for key in alias.co alias.theirs user.email user.signingkey commit.gpgsign core.sshcommand; do
+      printf '%s=%s\n' "$key" "$(git config --get "$key" 2>&1)"
+    done
+  )"
+  [ "$out" = 'alias.co=checkout
+alias.theirs=status
+user.email=a@example.com
+user.signingkey=
+commit.gpgsign=
+core.sshcommand=ssh -o Compression=yes' ] || _hi_because "git answered: [$out]"
+}
+
+# ...and an include of it under git's own directory rides, read the same way
+function test_a_git_include_rides_less_its_keys() {
+  local dir home="$_HI_WORKDIR/githome" out
+  mkdir -p "$home/.config/git"
+  printf '[alias]\n\tst = status\n[user]\n\tsigningkey = ZZZ\n' >"$home/.config/git/extra"
+  dir="$(_hi_lint_fixture gitinc git/config '[include]
+	path = ~/.config/git/extra
+')"
+  out="$(HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_PLUGINS_ON=git _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat git/extra)"
+  [ "$out" = '[alias]
+st = status
+[user]' ] || _hi_because "git/extra arrived as: [$out]"
+}
+
 function run_hi_payload_scan_tests() {
   _hi_payload_begin
 
@@ -809,6 +980,14 @@ function run_hi_payload_scan_tests() {
   _hi_check "...and a lone marker still decides one line" test_a_single_marker_still_decides_one_line
   _hi_check "A commented line is no finding" test_the_scan_skips_a_commented_line
   _hi_check "A plugin of the user's is read in its dialect" test_a_users_row_is_read_in_its_dialect
+  _hi_check "A module neovim's init.lua requires rides, on its runtimepath" test_a_required_neovim_module_rides
+  local nvim
+  _hi_real_nvim nvim
+  _hi_check_requires "$nvim" "...which a real neovim loads from the overlay" test_neovim_loads_the_modules_that_rode
+  _hi_check "neovim's init.vim rides, read as vim script" test_neovim_s_init_vim_rides_in_the_vim_dialect
+  _hi_check "git's config rides less its keys and credentials" test_git_keeps_its_keys_and_credentials_home
+  _hi_check_requires git "...read by a real git over a target's own config" test_git_reads_what_rode_over_its_own_config
+  _hi_check "...and so does an include of it" test_a_git_include_rides_less_its_keys
   _hi_suite_end "hi.sh (the include scan)"
 }
 

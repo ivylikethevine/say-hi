@@ -204,6 +204,16 @@ function _hi_plugins_list() {
     _hi_env_rows
     _hi_rows_flush
   fi
+  # what a dialect keeps home as private, riding under a hi-allow (HI.57)
+  _hi_read_lines rows < <(_hi_allowed_lines)
+  if [ "${#rows[@]}" -gt 0 ]; then
+    _hi_section "allowed"
+    for row in "${rows[@]}"; do
+      IFS='|' read -r name line _ group <<<"$row"
+      _hi_row "$name:$line" "rides under its hi-allow: $group"
+    done
+    _hi_rows_flush
+  fi
   [ "${#_HI_PLUGIN_BAD[@]}" -gt 0 ] || return 0
   _hi_section "ignored"
   for line in "${_HI_PLUGIN_BAD[@]}"; do
