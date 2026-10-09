@@ -379,6 +379,17 @@ function test_print_rc_writes_nothing_and_its_block_is_kept() {
   [[ "$out" == *"has them already"* ]] || _hi_why out
 }
 
+# --shell narrows a print to the shells it names: an rc that carries hi's
+# lines already is rewritten by an install, and not printed for
+function test_print_rc_prints_only_the_shells_named() {
+  local home="$_HI_WORKDIR/print-rc-named" out
+  mkdir -p "$home/.config/fish"
+  printf 'true %s\n' "$_HI_MARKER" | tee "$home/.bashrc" "$home/.zshrc" >"$home/.config/fish/config.fish"
+  out="$(_hi_rc_out "$home" _HI_UNAME=Darwin _HI_RC_PRINT=1 _HI_SHELLS=zsh _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines)" || _hi_why home _HI_RC_ALL || return 1
+  [[ "$out" == *"Lines for zshrc"* ]] || _hi_because "zsh's block is missing: $out" || return 1
+  [[ "$out" != *bashrc* && "$out" != *bash_profile* && "$out" != *config.fish* ]] || _hi_because "a shell --shell did not name: $out"
+}
+
 # the rc file is where the user's shell reads it: zsh under $ZDOTDIR, fish
 # under $XDG_CONFIG_HOME - ~/.zshrc is not written when zsh never opens it
 function test_install_rc_lines_honours_zdotdir() {
@@ -719,6 +730,7 @@ function run_rc_lines_test() {
   _hi_check "...the one from before it looked for Homebrew too" test_rc_block_form_knows_the_block_from_before_homebrew
   _hi_check_capable symlink "A Homebrew keg is named through its opt link" test_rc_home_names_a_keg_through_opt
   _hi_check "--print-rc writes nothing, and its block is kept" test_print_rc_writes_nothing_and_its_block_is_kept
+  _hi_check "...and prints only the shells --shell names" test_print_rc_prints_only_the_shells_named
   _hi_check "zsh's rc lives under \$ZDOTDIR" test_install_rc_lines_honours_zdotdir
   _hi_check "...the one a ~/.zshenv sets too" test_install_rc_lines_follows_a_zshenv_zdotdir
   _hi_check "...read by a grammar, never sourced" test_zshrc_here_reads_a_zshenv_by_grammar

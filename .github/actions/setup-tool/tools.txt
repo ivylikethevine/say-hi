@@ -88,7 +88,7 @@ zizmor|1.30.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/
 hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint||c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
 # Pinning the binary does not stale the scan: trivy downloads its vulnerability
 # database on every run, whatever this pin is.
-trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy||2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+trivy|0.75.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy||c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f
 # Tags are "lychee-v<version>"; the tag-prefix column strips that so the drift
 # check compares versions, not strings.
 lychee|0.24.2|tar.gz|https://github.com/lycheeverse/lychee/releases/download/lychee-v%v/lychee-x86_64-unknown-linux-gnu.tar.gz|--version|github:lycheeverse/lychee|lychee-v|1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a

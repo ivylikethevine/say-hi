@@ -11,6 +11,10 @@
 # the installed path) and that the installed tree is still sitting there,
 # whole, when the session is gone.
 #
+# One case more asks the keg a question of its own: the rc block
+# `hi --install --print-rc` hands out loads hi in the box's own shell before
+# and after what `brew upgrade` does to the keg.
+#
 # ssh_test.sh is the sibling suite, and the split is deliberate: that one varies
 # the login shell against one install, this one varies the install against one
 # login shell. They share the case runner in tests/lib/ssh.sh.
@@ -80,6 +84,77 @@ function _hi_method_case() {
   _hi_ssh_run_case "$label" "$image" "$shell" \
     "$(_hi_probe_cmd "$_HI_TEST_MARKER" rooted_elsewhere "$root")" \
     "$post"
+}
+
+# _hi_keg_shell <container> - an interactive bash of hitest's, on its
+# ~/.bashrc: the $_HI_HOME hi loaded through and the keg that path leads to,
+# on the last line, under whatever a bash with no terminal says first
+function _hi_keg_shell() {
+  # shellcheck disable=SC2016 # the container's bash expands it
+  docker exec -u hitest -e HOME=/home/hitest "$1" bash -ic \
+    'type hi >/dev/null 2>&1 && printf "%s %s\n" "$_HI_HOME" "$(readlink -f "$_HI_HOME")"' 2>&1
+}
+
+# The prefix tests/dockerfiles/installed-brew.Dockerfile stands its keg under
+_HI_BREW_PREFIX=/home/linuxbrew/.linuxbrew
+
+# _hi_brew_upgrade_fail <label> <container> <why> [what the shell said] - the
+# case's red line, the shell's own words, and what the box holds: the opt
+# link, the kegs, and the rc's last lines
+function _hi_brew_upgrade_fail() {
+  _hi_h3 " | [$1] -- FAILED: $3" "$RED"
+  [ -z "${4:-}" ] || printf '%s\n' "$4" | sed 's/^/      the shell: /'
+  # shellcheck disable=SC2016 # the container's sh expands it
+  docker exec "$2" sh -c 'ls -l "$1/opt" "$1/Cellar/say-hi"; tail -n 3 /home/hitest/.bashrc' sh "$_HI_BREW_PREFIX" 2>&1 |
+    sed 's/^/        /' || true
+  _hi_note_failure "[$1] $3"
+  _hi_rm_container "$2"
+  return 1
+}
+
+# _hi_brew_upgrade_case <label> <image> - the portable block in the box's
+# ~/.bashrc, then an upgrade as brew does one: the keg under its new
+# version's name and the opt link turned to it. A shell on that rc loads hi
+# through the opt path both times, off the keg the link names then. No
+# session is made: the question is the box's own shell.
+function _hi_brew_upgrade_case() {
+  local label="$1" image="$2" name block said from to t0 opt="$_HI_BREW_PREFIX/opt"
+  local _HI_SSH_PORT=""
+
+  name="$_HI_SSH_CASE_PREFIX-$label-$$"
+  _hi_h3 "Testing one rc across a brew upgrade: $label"
+  t0="$(_hi_now)"
+  _hi_sshd_container "$name" "$image" || return 1
+
+  mkdir -p "$_HI_WORKDIR/home-$label"
+  # shellcheck disable=SC2016 # the child's to expand
+  block="$(HOME="$_HI_WORKDIR/home-$label" bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HOME/say-hi/scripts/lib.sh"
+    source "$_HI_HOME/say-hi/scripts/table.sh"
+    source "$_HI_HOME/say-hi/scripts/rc.sh"
+    _HI_HOME="$HOME"
+    rc_lines bash "$HOME/say-hi/common/bash.sh" sh portable' 2>&1)" ||
+    _hi_brew_upgrade_fail "$label" "$name" "rc.sh printed no portable block" "$block" || return 1
+  printf '%s\n' "$block" | docker exec -i "$name" sh -c 'cat >>/home/hitest/.bashrc' ||
+    _hi_brew_upgrade_fail "$label" "$name" "the block could not be added to the rc" || return 1
+
+  # the link as brew writes it: ../Cellar/say-hi/<version>
+  from="$(docker exec "$name" readlink "$opt/say-hi" 2>&1)" && [ -n "${from##*/}" ] ||
+    _hi_brew_upgrade_fail "$label" "$name" "opt/say-hi is no link to a keg: $from" || return 1
+  to="$from.1"
+  said="$(_hi_keg_shell "$name")" || true
+  [ "${said##*$'\n'}" = "$opt/say-hi/libexec $_HI_BREW_PREFIX/Cellar/say-hi/${from##*/}/libexec" ] ||
+    _hi_brew_upgrade_fail "$label" "$name" "before the upgrade, a shell on the rc did not load the keg through opt" "$said" || return 1
+
+  docker exec "$name" sh -c 'mv "$1/$2" "$1/$3" && ln -sfn "$3" "$1/say-hi"' sh "$opt" "$from" "$to" ||
+    _hi_brew_upgrade_fail "$label" "$name" "the keg could not be moved to ${to##*/}" || return 1
+  said="$(_hi_keg_shell "$name")" || true
+  [ "${said##*$'\n'}" = "$opt/say-hi/libexec $_HI_BREW_PREFIX/Cellar/say-hi/${to##*/}/libexec" ] ||
+    _hi_brew_upgrade_fail "$label" "$name" "after the upgrade, the same rc did not load the new keg" "$said" || return 1
+
+  _hi_rm_container "$name"
+  _hi_align " | [$label] -- one rc loaded ${from##*/}, then ${to##*/}, through opt" "OK ($(_hi_elapsed "$t0" "$(_hi_now)")s)" "$GREEN"
 }
 
 # shellcheck disable=SC2034 # the <method>_ok flags are read as ${!okvar} at the dispatch loop
@@ -238,6 +313,12 @@ function run_install_methods_tests() {
       _hi_skip "[$label]" "$reason"
     fi
   done
+
+  if [ "$brew_ok" -eq 1 ]; then
+    _hi_par_case brew-upgrade _hi_brew_upgrade_case brew-upgrade "$_HI_SSH_CASE_PREFIX-brew-img-$$"
+  else
+    _hi_skip "[brew-upgrade]" "the sshd image failed"
+  fi
 
   _hi_par_wait
 
