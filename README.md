@@ -422,16 +422,7 @@ when it lands.
        carried alias runs on a target, an alias of the target's own still
        does, and `git config user.signingkey` there is empty.
 
-7. [ ] _Before 1.0:_ **A nix flake** — shipped: `flake.nix` builds the
-       package out of `scripts/install.sh`'s staging and carries a
-       home-manager module that writes the rc block
-       ([docs/PACKAGING.md](docs/PACKAGING.md#nix-flake)), and `ci.yml`'s
-       `nix flake` job builds it and starts `hi` through `nix run`. The job
-       has not run yet, and its egress allowlist was written by hand.
-       **Ticks when:** the `nix flake` job is green on a pull request, its
-       allowlist taken from that run's audit log.
-
-8. [ ] _Before 1.0:_ **The portable rc block finds a Homebrew install** —
+7. [ ] _Before 1.0:_ **The portable rc block finds a Homebrew install** —
        shipped: an install whose tree is a keg (`<prefix>/Cellar/say-hi/<version>`)
        is named in the rc through the formula's `opt` path, which outlives an
        upgrade, and `hi --install --print-rc`'s block looks under the three
@@ -440,22 +431,22 @@ when it lands.
        real `brew install`. **Ticks when:** one rc loads hi on a machine with a
        clone and on one with the formula, across a `brew upgrade`.
 
-9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+8. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-        upstream style. **Do:** open the PR against tldr-pages. **Ticks
-        when:** merged.
+9. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+       upstream style. **Do:** open the PR against tldr-pages. **Ticks
+       when:** merged.
 
-11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+10. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+11. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand
