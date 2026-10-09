@@ -92,7 +92,7 @@ function _hi_method_case() {
 function _hi_keg_shell() {
   # shellcheck disable=SC2016 # the container's bash expands it
   docker exec -u hitest -e HOME=/home/hitest "$1" bash -ic \
-    'type hi >/dev/null 2>&1 && printf "%s %s\n" "$_HI_HOME" "$(readlink -f "$_HI_HOME")"' 2>&1
+    'type hi >/dev/null 2>&1 && printf "%s %s\n" "$_HI_HOME" "$(cd -P "$_HI_HOME" && pwd -P)"' 2>&1
 }
 
 # The prefix tests/dockerfiles/installed-brew.Dockerfile stands its keg under
