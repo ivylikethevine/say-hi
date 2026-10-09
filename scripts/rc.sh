@@ -282,6 +282,7 @@ function install_bash_profile_line() {
   local profile
   _hi_login_bash_profile profile
   if [ -n "${_HI_RC_PRINT:-}" ]; then
+    rc_shell_wanted bash "$HOME/.bashrc" || return 0
     grep -v -F "$_HI_MARKER" "$profile" 2>/dev/null | grep -F '.bashrc' >/dev/null ||
       rc_print bash_profile "$profile" "$_HI_BASH_PROFILE_LINE"
   elif [ "$profile" = "$HOME/.bash_profile" ]; then
@@ -559,13 +560,17 @@ function install_rc_lines() {
       _hi_cecho " $shell is not installed here - leaving $target alone (re-run hi --install once it is)" "$BLUE"
       continue
     }
-    # a shell nobody uses here keeps its rc, lines of an earlier install
-    # included: uninstall is what takes those out
-    rc_shell_wanted "$shell" "$target" || _hi_has_marker "$target" || {
-      _hi_h2 "Checking $label"
-      _hi_cecho " $shell is not your login shell and has no $target - left alone (--shell $shell wires it)" "$BLUE"
-      continue
-    }
+    if ! rc_shell_wanted "$shell" "$target"; then
+      # a print is of the shells asked for, whatever an rc already carries
+      [ -z "${_HI_RC_PRINT:-}" ] || continue
+      # a shell nobody uses here keeps its rc, lines of an earlier install
+      # included: uninstall is what takes those out
+      _hi_has_marker "$target" || {
+        _hi_h2 "Checking $label"
+        _hi_cecho " $shell is not your login shell and has no $target - left alone (--shell $shell wires it)" "$BLUE"
+        continue
+      }
+    fi
     if [ -n "${_HI_RC_PRINT:-}" ]; then
       _hi_read_lines lines < <(rc_lines "$shell" "$tree_rc" "$dialect" portable)
       rc_print "$label" "$target" "${lines[@]}"

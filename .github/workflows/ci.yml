@@ -1019,9 +1019,10 @@ jobs:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # Listed by hand, not off an audit log: the checkout, nix's
-          # installer, the nixpkgs tarball flake.lock names (the API with the
-          # job token, else codeload), and the binary cache.
+          # Off this job's own audit log: the checkout, nix's installer, and
+          # the binary cache, which serves the nixpkgs source flake.lock names
+          # too. GitHub's API and codeload are the fallback for a pinned
+          # revision the cache lacks, and went uncalled on that run.
           allowed-endpoints: >
             github.com:443
             api.github.com:443

@@ -72,7 +72,9 @@ _HI_FRAMEWORKS=(
 # client's languages.toml through its xdg: wire, kakoune the client's own
 # colorscheme beside its kakrc, lazygit its config.yml, and git a row of the
 # overlay's own plugins file. bash for the session, script(1) for lazygit's pty.
-_HI_TOOLS_PKGS="bash git kakoune helix lazygit util-linux-misc"
+# neovim is the carried case's, which connects to the same image from a home
+# of its own (_hi_carried_client_home).
+_HI_TOOLS_PKGS="bash git kakoune helix lazygit neovim util-linux-misc"
 
 # <stem in _HI_FRAMEWORKS>:<login shell>:<_HI_PROMPT_TOOL name>. The same
 # images the rows above already build, reused rather than built again, with
@@ -156,6 +158,12 @@ function _hi_framework_probe() {
   pershell:zsh) printf '%s\n' "[[ \$PROMPT == *__hi_env_info* ]] && (( \${precmd_functions[(I)*starship*]} == 0 )) && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   pershell:fish) printf '%s\n' "functions -q __hi_env_prompt; and not functions -q starship_transient_prompt_func; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' LOST" ;;
   prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t __hi_ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # the carried case: nvim, the alias, starts on the init.lua that rode and
+  # loads both modules it requires; the overlay's bin/ script runs by name;
+  # with the git plugin on, the carried alias runs beside one the target's own
+  # config holds, and no signing setting came along. Each step that fails is
+  # named after LOST
+  carried) printf '%s\n' "f=; nvim --headless \"+lua vim.fn.writefile({tostring(vim.g.hi_one) .. tostring(vim.g.hi_two)}, '/tmp/hinvim')\" +q; grep -qsx HIONEHITWO /tmp/hinvim || f=\"\$f nvim\"; test \"\$(hicheck)\" = HIBIN || f=\"\$f bin\"; git config --global alias.hiown '!echo HIGITOWN'; test \"\$(git hicarried)\" = HIGITCARRIED || f=\"\$f git-carried\"; test \"\$(git hiown)\" = HIGITOWN || f=\"\$f git-own\"; test -z \"\$(git config user.signingkey)\$(git config commit.gpgsign)\" || f=\"\$f git-keys\"; test -z \"\$f\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' \"LOST:\$f\"" ;;
   # a hook hi ran itself: zoxide's z in a zsh whose own rc never starts
   # zoxide, an alias or a function by zoxide's version
   hookon) printf '%s\n' "whence z >/dev/null && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
@@ -219,6 +227,21 @@ function _hi_tools_client_home() {
   printf 'gui:\n  language: zh-CN\n' >"$1/.config/lazygit/config.yml"
   printf '[hi]\n\tmark = HIGIT\n' >"$1/.config/git/config"
   printf '[mine.git]\nwire = "env:GIT_CONFIG_GLOBAL"\nhome = "$XDG_CONFIG_HOME/git/config"\nfiles = "git/config"\n' >"$1/.config/say-hi/plugins"
+}
+
+# _hi_carried_client_home <dir> - a client home with a neovim config in three
+# files, an executable script in its overlay's bin/, and a git config holding
+# an alias beside a signing key, the git plugin switched on as
+# `hi --plugin-on git` leaves it; each a marker the carried probe looks for
+function _hi_carried_client_home() {
+  mkdir -p "$1/.config/nvim/lua" "$1/.config/say-hi/bin"
+  printf 'require("hi_one")\nrequire("hi_two")\n' >"$1/.config/nvim/init.lua"
+  printf 'vim.g.hi_one = "HIONE"\n' >"$1/.config/nvim/lua/hi_one.lua"
+  printf 'vim.g.hi_two = "HITWO"\n' >"$1/.config/nvim/lua/hi_two.lua"
+  printf '#!/bin/sh\necho HIBIN\n' >"$1/.config/say-hi/bin/hicheck"
+  chmod +x "$1/.config/say-hi/bin/hicheck"
+  printf '[user]\n\tname = Hi Check\n\tsigningkey = HIKEY\n[commit]\n\tgpgsign = true\n[alias]\n\thicarried = "!echo HIGITCARRIED"\n' >"$1/.gitconfig"
+  printf "export _HI_PLUGINS_ON='git'\n" >"$1/.config/say-hi/settings.sh"
 }
 
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with
@@ -318,6 +341,18 @@ function _hi_run_framework_case() {
     local -x PATH="$stubs:$PATH"
     _hi_tools_client_home "$HOME"
     ;;
+  carried)
+    local -x HOME="$_HI_WORKDIR/home-$label"
+    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
+    # nvim's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported,
+    # and git's the global config test_lib.sh points at /dev/null
+    local -x _HI_XDG_CONFIG="$XDG_CONFIG_HOME" GIT_CONFIG_GLOBAL="$HOME/.gitconfig"
+    # home's configs ride only with their tools here; git is the runner's own
+    local stubs
+    stubs="$(_hi_stub_tools nvim)"
+    local -x PATH="$stubs:$PATH"
+    _hi_carried_client_home "$HOME"
+    ;;
   hookon)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
@@ -385,8 +420,12 @@ function run_framework_tests() {
   done
   if [ "$(_hi_kv_get _HI_FRAMEWORK_OK tools)" = 1 ]; then
     _hi_par_case tools _hi_run_framework_case tools /bin/ash tools
+    # ...and the same image from another home: a neovim config in more than
+    # one file, a script of the overlay's bin/, and the git plugin
+    _hi_par_case carried _hi_run_framework_case carried /bin/ash carried tools
   else
     _hi_skip "[tools]" "image did not build"
+    _hi_skip "[carried]" "image did not build"
   fi
 
   # Three more containers off the starship, p10k, and bash-it images above,

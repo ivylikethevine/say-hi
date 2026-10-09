@@ -155,10 +155,13 @@ membership) - `ci` above, and:
   line. `ssh_keep` holds a [kept session](GLOSSARY.md#hi65-kept-session) in
   tmux, in screen, and in zellij (alpine's package) through a dropped link and
   a reattach, `hi --end`, its timeout, a `hi --keep` typed inside a session,
+  the multiplexer's own name typed bare there,
   a second pane, a session killed outright, and a link cut at a terminal
   with the session left or lost, and on a target with none of the three
   holds a dropped session's tree for the retry and removes it at its
-  window's end, reading each answer off the
+  window's end, and removes the tree of an ordinary session killed with no
+  exit hook run, by its watcher and by the next connect, reading each answer
+  off the
   target rather than the multiplexer's redrawn transcript. Two are not about sessions: `repo` builds
   the package repository with throwaway keys and installs from it as apt, dnf,
   and apk clients, signatures verified, and `home_prompt` installs hi over
@@ -247,7 +250,10 @@ system-wide `install.sh --prefix`, and a packaged tree with its
 hi ships its payload to every ssh target and never reads a say-hi already
 there, so every case asserts the same two things: the session runs out of its
 own tree (`$_HI_ROOT` is _not_ the installed path), and the installed tree is
-still whole once the session is gone.
+still whole once the session is gone. One case more makes no session: the rc
+block `hi --install --print-rc` hands out, in the keg box's `~/.bashrc`, loads
+hi in that box's own shell before and after what `brew upgrade` does to the
+keg.
 
 The three package cases build what they install with `packaging/mkpkg.sh`, so
 they need `nfpm`; without it they stand down yellow **per case**, which
