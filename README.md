@@ -366,21 +366,214 @@ entry is deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the
 tag and are outside this checkout: an account or an upstream review that lands
 when it lands.
 
+<<<<<<< Updated upstream
 1. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
+||||||| Stash base
+1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
+       `check_tool_versions.sh` counts a problem, naming the host, when no
+       lookup on one host answered (a blocked host, not a one-off rate
+       limit). What is left is seeing it in CI. **Ticks when:** a
+       `tool-versions.yml` dispatch with one upstream host removed from
+       `allowed-endpoints` opens the tracking issue naming it.
 
+2. [ ] _Before 1.0:_ **Every tree has a claim and a timer** — shipped:
+       every session leaves its pid in its tree, the next connect's sweep
+       reads it, and a watcher apart from the session removes the tree of a
+       shell killed outright, and is a held tree's timer. What is left
+       is seeing it on a target. **Ticks when:** a session whose shell and
+       bootstrap are killed with `kill -9` has its tree gone within two
+       minutes and no connect in between, and a tree a reboot left is gone
+       after the next connect.
+
+3. [ ] _Before 1.0:_ **A multiplexer started in a session is the kept
+       session** — shipped: `tmux`, `zellij`, or `screen` typed bare in a
+       session runs what `hi --keep` typed there runs, in the one that was
+       named (`common/mux.sh`), so the session is `hi-<target>`, its panes
+       hi's shell, and the tree its own; one started with words of its own
+       passes through ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is
+       left is seeing it on a target. **Ticks when:** `tmux` typed in a
+       plain `hi <target>` session opens a pane that shows hi's prompt, and
+       the next `hi <target>` after a drop attaches it.
+
+4. [ ] _Before 1.0:_ **A neovim config in more than one file** — shipped: a
+       module `init.lua` requires by name from the `lua/` beside it rides, and
+       what that module requires with it, the way an include is carried
+       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan));
+       the `init.lua` that rides puts their directory on `runtimepath` itself,
+       so no alias says it; and `nvim/init.vim` is a member, read as vim
+       script. What is left is seeing it on a target. **Ticks when:** a
+       target's `nvim` opens on an `init.lua` that requires two modules of its
+       own, both loaded.
+
+5. [ ] _Before 1.0:_ **Scripts of your own on a target's `$PATH`** — shipped:
+       the overlay's `bin/`
+       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)) rides its
+       executable scripts, each under a size cap and as written, and is the
+       last entry of a session's `$PATH`; `hi --doctor` names what stays home,
+       with why. What is left is seeing it on a target. **Ticks when:** a
+       script in `~/.config/say-hi/bin/` runs by name in a session over ssh.
+
+6. [ ] _Before 1.0:_ **git's aliases and settings, and none of its keys** —
+       shipped: a `git` plugin, off by default, added over the target's own
+       config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
+       place, read in a dialect that keeps `[credential]`, `[gpg]`,
+       `includeIf`, `url.*.insteadOf`, and every signing, key, and key-path
+       setting home; your name and email ride. One of those rides only under a
+       `hi-allow` line written above it, and `hi --plugins` names each that
+       does ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#git)). What is left is
+       seeing it on a target. **Ticks when:** with `hi --plugin-on git`, a
+       carried alias runs on a target, an alias of the target's own still
+       does, and `git config user.signingkey` there is empty.
+
+7. [ ] _Before 1.0:_ **A nix flake** — shipped: `flake.nix` builds the
+       package out of `scripts/install.sh`'s staging and carries a
+       home-manager module that writes the rc block
+       ([docs/PACKAGING.md](docs/PACKAGING.md#nix-flake)), and `ci.yml`'s
+       `nix flake` job builds it and starts `hi` through `nix run`. The job
+       has not run yet, and its egress allowlist was written by hand.
+       **Ticks when:** the `nix flake` job is green on a pull request, its
+       allowlist taken from that run's audit log.
+
+8. [ ] _Before 1.0:_ **The portable rc block finds a Homebrew install** —
+       shipped: an install whose tree is a keg (`<prefix>/Cellar/say-hi/<version>`)
+       is named in the rc through the formula's `opt` path, which outlives an
+       upgrade, and `hi --install --print-rc`'s block looks under the three
+       default prefixes' `opt/say-hi` too
+       ([docs/PACKAGING.md](docs/PACKAGING.md)). None of it has run under a
+       real `brew install`. **Ticks when:** one rc loads hi on a machine with a
+       clone and on one with the formula, across a `brew upgrade`.
+
+9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
+=======
+1. [ ] _Before 1.0:_ **A blocked upstream shows as drift** — shipped:
+       `check_tool_versions.sh` counts a problem, naming the host, when no
+       lookup on one host answered (a blocked host, not a one-off rate
+       limit). What is left is seeing it in CI. **Ticks when:** a
+       `tool-versions.yml` dispatch with one upstream host removed from
+       `allowed-endpoints` opens the tracking issue naming it.
+
+2. [ ] _Before 1.0:_ **Every tree has a claim and a timer** — shipped:
+       every session leaves its pid in its tree, the next connect's sweep
+       reads it, and a watcher apart from the session removes the tree of a
+       shell killed outright, and is a held tree's timer. What is left
+       is seeing it on a target. **Ticks when:** a session whose shell and
+       bootstrap are killed with `kill -9` has its tree gone within two
+       minutes and no connect in between, and a tree a reboot left is gone
+       after the next connect.
+
+3. [ ] _Before 1.0:_ **A multiplexer started in a session is the kept
+       session** — shipped: `tmux`, `zellij`, or `screen` typed bare in a
+       session runs what `hi --keep` typed there runs, in the one that was
+       named (`common/mux.sh`), so the session is `hi-<target>`, its panes
+       hi's shell, and the tree its own; one started with words of its own
+       passes through ([HI.65](docs/GLOSSARY.md#hi65-kept-session)). What is
+       left is seeing it on a target. **Ticks when:** `tmux` typed in a
+       plain `hi <target>` session opens a pane that shows hi's prompt, and
+       the next `hi <target>` after a drop attaches it.
+
+4. [ ] _Before 1.0:_ **A neovim config in more than one file** — shipped: a
+       module `init.lua` requires by name from the `lua/` beside it rides, and
+       what that module requires with it, the way an include is carried
+       ([HI.57](docs/GLOSSARY.md#hi57-carried-configs-and-the-include-scan));
+       the `init.lua` that rides puts their directory on `runtimepath` itself,
+       so no alias says it; and `nvim/init.vim` is a member, read as vim
+       script. What is left is seeing it on a target. **Ticks when:** a
+       target's `nvim` opens on an `init.lua` that requires two modules of its
+       own, both loaded.
+
+5. [ ] _Before 1.0:_ **Scripts of your own on a target's `$PATH`** — shipped:
+       the overlay's `bin/`
+       ([HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)) rides its
+       executable scripts, each under a size cap and as written, and is the
+       last entry of a session's `$PATH`; `hi --doctor` names what stays home,
+       with why. What is left is seeing it on a target. **Ticks when:** a
+       script in `~/.config/say-hi/bin/` runs by name in a session over ssh.
+
+6. [ ] _Before 1.0:_ **git's aliases and settings, and none of its keys** —
+       shipped: a `git` plugin, off by default, added over the target's own
+       config through `GIT_CONFIG_COUNT`'s `include.path` and never in its
+       place, read in a dialect that keeps `[credential]`, `[gpg]`,
+       `includeIf`, `url.*.insteadOf`, and every signing, key, and key-path
+       setting home; your name and email ride. One of those rides only under a
+       `hi-allow` line written above it, and `hi --plugins` names each that
+       does ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#git)). What is left is
+       seeing it on a target. **Ticks when:** with `hi --plugin-on git`, a
+       carried alias runs on a target, an alias of the target's own still
+       does, and `git config user.signingkey` there is empty.
+
+7. [ ] _Before 1.0:_ **A nix flake** — shipped: `flake.nix` builds the
+       package out of `scripts/install.sh`'s staging and carries a
+       home-manager module that writes the rc block
+       ([docs/PACKAGING.md](docs/PACKAGING.md#nix-flake)), and `ci.yml`'s
+       `nix flake` job builds it and starts `hi` through `nix run`. The job
+       has not run yet, and its egress allowlist was written by hand.
+       **Ticks when:** the `nix flake` job is green on a pull request, its
+       allowlist taken from that run's audit log.
+
+8. [ ] _Before 1.0:_ **The portable rc block finds a Homebrew install** —
+       shipped: an install whose tree is a keg (`<prefix>/Cellar/say-hi/<version>`)
+       is named in the rc through the formula's `opt` path, which outlives an
+       upgrade, and `hi --install --print-rc`'s block looks under the three
+       default prefixes' `opt/say-hi` too
+       ([docs/PACKAGING.md](docs/PACKAGING.md)). None of it has run under a
+       real `brew install`. **Ticks when:** one rc loads hi on a machine with a
+       clone and on one with the formula, across a `brew upgrade`.
+
+9. [ ] _Before 1.0:_ **A `config.d` file's name is a tag** — a host read
+       from `~/.ssh/config.d/<name>` carries `<name>` as a tag beside its
+       `# Tags:` line, so a file per client or site tags its hosts by being
+       the file, the way sshm's tags are read: `colors` rows,
+       `settings.<tag>.sh`, and `hi --add-tag` know it, and `hi --doctor
+       <host>` names the file it came from. **Ticks when:** a host in `~/.ssh/config.d/acme` with no
+       `# Tags:` line colors as `acme` and reads `settings.acme.sh`.
+>>>>>>> Stashed changes
+
+<<<<<<< Updated upstream
 2. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
+||||||| Stash base
+10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+        upstream style. **Do:** open the PR against tldr-pages. **Ticks
+        when:** merged.
+=======
+10. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+        versions_ prose into its version table.
 
+11. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+        upstream style. **Do:** open the PR against tldr-pages. **Ticks
+        when:** merged.
+>>>>>>> Stashed changes
+
+<<<<<<< Updated upstream
 3. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
+||||||| Stash base
+11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+        settle its three flagged rows (`small_tasks`, `secure_2FA`,
+        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+        the live entry matches the sheet.
+=======
+12. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+        settle its three flagged rows (`small_tasks`, `secure_2FA`,
+        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+        the live entry matches the sheet.
+>>>>>>> Stashed changes
 
+<<<<<<< Updated upstream
 4. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
@@ -388,6 +581,23 @@ when it lands.
        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
        packages are live and a dispatch has kept `say-hi` current for one
        release.
+||||||| Stash base
+12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+        `publish-external.yml`'s `aur` job is written but unexercised. **When
+        it reopens:** register, add `AUR_SSH_KEY` to the `release`
+        environment, and push each package once by hand
+        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+        packages are live and a dispatch has kept `say-hi` current for one
+        release.
+=======
+13. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+        `publish-external.yml`'s `aur` job is written but unexercised. **When
+        it reopens:** register, add `AUR_SSH_KEY` to the `release`
+        environment, and push each package once by hand
+        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+        packages are live and a dispatch has kept `say-hi` current for one
+        release.
+>>>>>>> Stashed changes
 
 ## License
 
