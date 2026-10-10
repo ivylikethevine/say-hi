@@ -404,6 +404,20 @@ function test_boot_probe_reports_its_dir_on_success() {
   { [ -f "$dir/bootloader" ] && rm -rf "$dir"; } || _hi_why dir
 }
 
+# ...and whether the target has a multiplexer to keep a session in, on a line
+# ahead of the directory's
+function test_boot_probe_says_whether_a_multiplexer_is_there() {
+  local out dir sh_bin
+  sh_bin="$(command -v sh)"
+  dir="$(_hi_real_path nomux base64 mktemp cat)"
+  out="$(PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || _hi_why out || return 1
+  [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
+  [[ "$out" == *$'\nHIMUX:0\nHIBOOT:/'* ]] || _hi_because "none on PATH: $out" || return 1
+  out="$(PATH="$(_hi_fake_path withmux screen):$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || _hi_why out || return 1
+  [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
+  [[ "$out" == *$'\nHIMUX:1\nHIBOOT:/'* ]] || _hi_because "screen on PATH: $out"
+}
+
 function run_hi_remote_tests() {
   _hi_workdir hiremotetest
 
@@ -419,6 +433,7 @@ function run_hi_remote_tests() {
   _hi_check_requires openssl "...but not with openssl in its place" test_boot_probe_takes_openssl
   _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
+  _hi_check "...and whether a multiplexer is there" test_boot_probe_says_whether_a_multiplexer_is_there
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session
   _hi_check "A command replaces load" test_bootloader_replaces_load_with_the_command
   _hi_check "Bootloader drops strict mode before the command" test_bootloader_drops_strict_mode_before_the_command

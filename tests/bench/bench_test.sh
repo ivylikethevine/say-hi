@@ -50,8 +50,14 @@ function _hi_bench() {
       --style none --export-json "$_HI_WORKDIR/bench.json" -- "$cmd" \
       >/dev/null 2>&1; then
       # "mean" is seconds in the JSON export; awk's numeric coercion drops
-      # the trailing comma, so no jq needed
-      avg="$(awk -F: '/"mean"/ { printf "%.1f", $2 * 1000; exit }' "$_HI_WORKDIR/bench.json")"
+      # the trailing comma, so no jq needed. hyperfine 1 has one "mean", the
+      # wall clock's; 2 has one a metric, and the wall clock's is the one
+      # under "time_wall_clock"
+      avg="$(awk -F: '
+        /"time_wall_clock"/ { wall = 1 }
+        /}/ { wall = 0 }
+        /"mean"/ { if (wall) { m = $2; exit } if (m == "") m = $2 }
+        END { if (m != "") printf "%.1f", m * 1000 }' "$_HI_WORKDIR/bench.json")"
     fi
     if [ -n "$avg" ]; then
       backend="hyperfine, " n="$runs"

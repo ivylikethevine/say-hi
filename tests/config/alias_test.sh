@@ -82,11 +82,10 @@ function _hi_test_shell() {
 # is skipped here: the two lists partition the alias names between them.
 #
 # Per line rather than per guard, and merged across lines by alias name: one
-# line can define more than one alias (nvim answers to both `vim` and `nvim`)
-# and one alias name can be defined by more than one line (`vim` is nvim's
-# where there is one, vim's where there is not). What the check asks is
-# whether the *name* is there, so its bins are the union of every probe that
-# can define it - "vim nvim vim", not one row per line.
+# line can define more than one alias and one alias name can be defined by
+# more than one line. What the check asks is whether the *name* is there, so
+# its bins are the union of every probe that can define it, not one row per
+# line.
 _HI_PRESENCE_ALIASES=$(awk -v sampled=" $_HI_SAMPLE_ALIASES" '
   /alias [A-Za-z_][A-Za-z0-9_]*=/ && (/command -v / || /"\$_HI_BAT_BIN" \]/) {
     s = $0; nb = 0

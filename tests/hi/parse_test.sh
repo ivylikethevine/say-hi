@@ -595,6 +595,15 @@ function test_report_failure_speaks_on_255() {
   [[ "$got" == *"could not reach [myhost]"* ]] || _hi_why got f
 }
 
+# ...and a session that was up was cut, not missed: ssh's ~. ends 255 too
+function test_report_failure_says_disconnected_once_the_link_was_up() {
+  local got
+  local DOMAIN=myhost f="$_HI_WORKDIR/ssh255-up.log" _HI_LINK_UP=1
+  : >"$f"
+  got="$(_hi_report_failure 255 "" "$f" 2>&1)"
+  [[ "$got" == *"hi: disconnected from [myhost]"* && "$got" != *"could not reach"* ]] || _hi_why got f
+}
+
 # a container arm with nothing filed in its errlog means nothing hi ran on
 # the way in complained, so the exit is the session's, not hi's to announce
 function test_report_failure_is_silent_for_a_quiet_container_errlog() {
@@ -834,6 +843,7 @@ function run_hi_parse_tests() {
   _hi_check "report_failure: silent once hi already said it" test_report_failure_is_silent_once_hi_already_said_it
   _hi_check "report_failure: silent for a non-255 ssh exit" test_report_failure_is_silent_for_a_non_255_ssh_exit
   _hi_check "report_failure: speaks on 255" test_report_failure_speaks_on_255
+  _hi_check "...and says disconnected once the link was up" test_report_failure_says_disconnected_once_the_link_was_up
   _hi_check "report_failure: silent for a quiet container errlog" test_report_failure_is_silent_for_a_quiet_container_errlog
   _hi_check "report_failure: speaks with a filed container error" test_report_failure_speaks_with_a_filed_container_error
   _hi_check "report_failure: no \\r off a tty" test_report_failure_has_no_carriage_return_off_a_tty

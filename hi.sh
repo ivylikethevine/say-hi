@@ -571,12 +571,17 @@ function _hi_ctl_close() {
 # directory) so _say_hi can name the reason. `if`s rather than `|| exit N`:
 # Windows OpenSSH hands the command to cmd.exe, which cannot run `sh` but
 # does honour `||`, and would itself exit 64. GLOSSARY: HI.19
+#
+# HIMUX says whether the target has a multiplexer to keep a session in, which
+# decides how long one is kept (_hi_keep_until); ahead of HIBOOT, whose line
+# stays the last.
 function _hi_boot_probe() {
   cat <<'PROBE'
 if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi
 if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
 cat > "$d/bootloader" || exit 1
-printf "\nHIBOOT:%s\n" "$d"
+m=0; for s in tmux zellij screen; do if command -v "$s" >/dev/null 2>&1; then m=1; fi; done
+printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"
 PROBE
 }
 
@@ -955,8 +960,11 @@ function _hi_boot_call() {
   if [ "$boot_fd" = 8 ]; then
     exec 8>&-
     [ "$boot_ec" != 255 ] || return 1
+    # over the retry's countdown line
+    [ ! -t 2 ] || printf '\r\033[K' >&2
     cat "$_HI_KEEP_QUIET" >&2
   fi
+  case "$boot_out" in *HIMUX:0*) _HI_TARGET_MUX=0 ;; *HIMUX:1*) _HI_TARGET_MUX=1 ;; esac
   boot_tmp=""
   case "$boot_out" in *HIBOOT:*)
     boot_tmp="${boot_out##*HIBOOT:}"
@@ -1533,8 +1541,10 @@ function _hi_reset_terminal() {
 # which is the session's own status, so `hi host false` stays as quiet as
 # `ssh host false`; and when the container errlog is empty.
 function _hi_report_failure() {
-  local code="$1" arm="$2" errlog="$3" errors
+  local code="$1" arm="$2" errlog="$3" errors said="could not reach"
   [ "${_HI_SAID:-0}" != 1 ] || return 0
+  # an ssh session that was up was cut, by the link or by ssh's own ~.
+  [ -n "$arm" ] || [ "${_HI_LINK_UP:-0}" != 1 ] || said="disconnected from"
   if [ -n "$arm" ]; then
     [ -s "$errlog" ] || return 0
   else
@@ -1548,7 +1558,7 @@ function _hi_report_failure() {
   else
     printf '\n' >&2
   fi
-  _hi_cecho "hi: could not reach [$DOMAIN]" "$BRRED" >&2
+  _hi_cecho "hi: $said [$DOMAIN]" "$BRRED" >&2
   [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
 }
 

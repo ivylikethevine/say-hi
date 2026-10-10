@@ -630,9 +630,28 @@ function test_keep_connect_retries_a_dropped_kept_session() {
   local out
   rm -f "$XDG_RUNTIME_DIR"/hi.kept.*
   out="$(_hi_keep_connect_run 1 '' 1 255:1:60 255:0 86:1)"
-  [[ "$out" == *"hi: lost [box], where the session is kept - retrying for 5m, Ctrl+C stops"* ]] ||
+  [[ "$out" == *"hi: lost [box], where the session is kept for 24h until "*" - retrying for 5m, Ctrl+C stops"* ]] ||
     _hi_because "no word of the retry: $out" || return 1
   [[ "$out" == *"rc=0 calls=3 record=1 said=0 seen=0 1q 1q" ]] || _hi_because "back on the second retry: $out" || return 1
+  # the line names how long the target keeps it, by $_HI_KEEP_TIMEOUT
+  out="$(_HI_KEEP_TIMEOUT=90m _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
+  [[ "$out" == *"is kept for 90m until "[0-9][0-9]:[0-9][0-9]" - retrying"* ]] || _hi_because "a set timeout: $out" || return 1
+  out="$(_HI_KEEP_TIMEOUT=0 _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
+  [[ "$out" == *"is kept - retrying"* ]] || _hi_because "a timeout of 0: $out" || return 1
+  # ...as a target with no multiplexer reads it: 15m for a held directory,
+  # and with 0 nothing is kept to speak of
+  out="$(_HI_TARGET_MUX=0 _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
+  [[ "$out" == *"is kept for 15m until "[0-9][0-9]:[0-9][0-9]" - retrying"* ]] || _hi_because "no multiplexer there: $out" || return 1
+  out="$(_HI_TARGET_MUX=0 _HI_KEEP_TIMEOUT=0 _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
+  [[ "$out" == *"hi: lost [box] - retrying"* ]] || _hi_because "nothing held: $out" || return 1
+  # at a terminal each wait is a line of five dots, a second apart
+  out="$(
+    function _hi_keep_live() { :; }
+    _hi_keep_connect_run 1 '' 1 255:1:60 255:0 86:1
+  )"
+  local dots="${out//[^.$'\r']/}"
+  [ "$dots" = $'\r.....\r.....' ] || _hi_because "no dots: $(printf '%q' "$out")" || return 1
+  [[ "$out" == *"rc=0 calls=3 "* ]] || _hi_because "the dots cost a try: $out" || return 1
   # ...and what does not retry: no terminal, a target never reached, a
   # connect with no record, a window of 0
   out="$(_hi_keep_connect_run '' '' 0 255:1:60 86:1)"
@@ -837,7 +856,11 @@ function test_mux_alias_keeps_a_bare_multiplexer() {
   [[ "$out" == *"zellij "* && "$out" != *"HI --keep"* ]] || _hi_because "inside a multiplexer: $out" || return 1
   rm -f "$t/say-hi/hi.keep"
   out="$(env -u TMUX -u ZELLIJ -u STY -u _HI_CONFIG_DIR PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" tmux </dev/null 2>&1)"
-  [[ "$out" == *"tmux -f $t/say-hi/config/tmux/tmux.conf"* && "$out" != *"HI --keep"* ]] || _hi_because "a session that cannot be kept: $out"
+  [[ "$out" == *"tmux -f $t/say-hi/config/tmux/tmux.conf"* && "$out" != *"HI --keep"* ]] || _hi_because "a session that cannot be kept: $out" || return 1
+  # ...which says whose shell the panes get, and only there
+  [[ "$out" == *"hi: tmux's panes open this machine's own shell"* ]] || _hi_because "no word of the panes: $out" || return 1
+  out="$(env -u TMUX -u ZELLIJ -u STY -u _HI_CONFIG_DIR PATH="$t/bin:$PATH" python3 -c "$_HI_PTY_SPAWN" sh "$t/say-hi/common/mux.sh" tmux ls </dev/null 2>&1)"
+  [[ "$out" != *"own shell"* ]] || _hi_because "said of a multiplexer with words: $out"
 }
 
 # what cannot be kept says why: no file (a container's session, --no-keep,

@@ -366,30 +366,22 @@ entry is deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the
 tag and are outside this checkout: an account or an upstream review that lands
 when it lands.
 
-1. [ ] _Before 1.0:_ **ssh's `~.` ends a session** — Enter, `~`, `.` typed in
-       a `hi <target>` session left it connected, seen once from a pane of a
-       kept tmux session, so a stuck session took a `kill` of the client. Not
-       yet known: whether the control master, the command line `-t` runs, or
-       the target's multiplexer takes the keys. **Ticks when:** the cause is
-       named, and `~.` drops a plain session and a kept one or the reason it
-       cannot is documented.
-
-2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+1. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+2. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+3. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+4. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

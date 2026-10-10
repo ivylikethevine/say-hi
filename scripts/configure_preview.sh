@@ -205,7 +205,7 @@ function _hi_check_preview() {
 # pack.sh's _hi_overlay_wiring writes for the editor configs that would ride
 # (GLOSSARY: HI.62), read off that writer rather than restated here, each
 # naming the file it carries in place of the target's copy. A name two
-# lines alias (`vim`, where a target has nvim) is listed for each, in the
+# lines alias (`hx`, with a languages.toml) is listed for each, in the
 # order a target reads them, so the last is the one it keeps, and a line
 # several members of one directory share (micro's) once. A subshell: nothing
 # this defines should survive past the preview.
