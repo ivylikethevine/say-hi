@@ -323,8 +323,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # bash-preexec. A whole-element/whole-segment check, not the loop
       # above's substring one: "prompt_command" is also a real suffix other
       # tools' own hook names legitimately end in (mise's
-      # _mise_hook_prompt_command, for one), which the substring form of
-      # this check corrupted into "_mise_hook_:" the first time this shipped.
+      # _mise_hook_prompt_command, for one).
       case "$_hi_pcd" in
       "declare -a"*)
         # eval'd for the same reason as the loop above: a literal array
@@ -371,16 +370,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # the marks' own setup follows the prompt: a program's draw has them too
     _hi_marks_for=hi
     function __hi_ps1() {
-      local _hi_ec=$? _hi_ma="" _hi_mb="" _hi_u
-      if _hi_marks_on; then
-        _hi_marks_live=1 _hi_ma="$_hi_marks_a" _hi_mb="$_hi_marks_b"
-        _hi_url_path _hi_u "$PWD"
-        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$_hi_ec" "${HOSTNAME:-}" "$_hi_u"
-        [[ ${PS0-} == *"$_hi_mark_c"* ]] || PS0="$_hi_mark_c${PS0-}"
-      else
-        _hi_marks_live=0
-        [ -z "${PS0-}" ] || PS0="${PS0/"$_hi_mark_c"/}"
-      fi
+      local _hi_ec=$? _hi_ma="" _hi_mb=""
+      ! _hi_marks_draw "$_hi_ec" || _hi_ma="$_hi_marks_a" _hi_mb="$_hi_marks_b"
       # git info through a reference, never expanded into PS1: expanding user
       # strings is the pw3nage class of bug (github.com/njhartwell/pw3nage)
       _hi_git_prompt __powerline_git_info # out-var form: no $( ) fork per prompt
@@ -433,21 +424,28 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
         ! declare -F __ghostty_precmd >/dev/null &&
         ! declare -F __wezterm_semantic_precmd >/dev/null
     }
+    # _hi_marks_draw <status> [tail] - a draw's D and cwd, then [tail], with C
+    # armed in PS0; false, and C disarmed, where the marks are off
+    function _hi_marks_draw() {
+      local _hi_u
+      if _hi_marks_on; then
+        _hi_marks_live=1
+        _hi_url_path _hi_u "$PWD"
+        printf '\e]133;D;%s\a\e]7;file://%s%s\a%s' "$1" "${HOSTNAME:-}" "$_hi_u" "${2:-}"
+        [[ ${PS0-} == *"$_hi_mark_c"* ]] || PS0="$_hi_mark_c${PS0-}"
+      else
+        _hi_marks_live=0
+        [ -z "${PS0-}" ] || PS0="${PS0/"$_hi_mark_c"/}"
+        return 1
+      fi
+    }
     # A prompt program's $PS1 is its own, so there D, the cwd, and A go out
     # ahead of its hook, C from PS0 as above, and no B. The status it found
     # is handed on, as __hi_ps1 hands it.
     if [ "$_hi_marks_for" = program ]; then
       function __hi_marks_pc() {
-        local _hi_ec=$? _hi_u
-        if _hi_marks_on; then
-          _hi_marks_live=1
-          _hi_url_path _hi_u "$PWD"
-          printf '\e]133;D;%s\a\e]7;file://%s%s\a\e]133;A\a' "$_hi_ec" "${HOSTNAME:-}" "$_hi_u"
-          [[ ${PS0-} == *"$_hi_mark_c"* ]] || PS0="$_hi_mark_c${PS0-}"
-        else
-          _hi_marks_live=0
-          [ -z "${PS0-}" ] || PS0="${PS0/"$_hi_mark_c"/}"
-        fi
+        local _hi_ec=$?
+        _hi_marks_draw "$_hi_ec" $'\e]133;A\a'
         return "$_hi_ec"
       }
       [[ ${PROMPT_COMMAND-} == *__hi_marks_pc* ]] || PROMPT_COMMAND="__hi_marks_pc${PROMPT_COMMAND:+; $PROMPT_COMMAND}"

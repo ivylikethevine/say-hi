@@ -366,16 +366,7 @@ entry is deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the
 tag and are outside this checkout: an account or an upstream review that lands
 when it lands.
 
-1. [ ] _Before 1.0:_ **Shell hooks under fish** — shipped: a `hooks` plugin
-       (zoxide, atuin, direnv, mise;
-       [HI.67](docs/GLOSSARY.md#hi67-shell-hooks)) runs its init in a fish
-       session as it does in bash and zsh, and
-       `tests/targets/framework_test.sh`'s `hooks-fish` case connects to a
-       fish target with zoxide and atuin turned on. **Ticks when:** that case
-       is green in CI: `z` jumps and Ctrl-R is atuin's search in a fish
-       session on a target.
-
-2. [ ] _Before 1.0:_ **`vim` is vim where a target has both** — shipped: the
+1. [ ] _Before 1.0:_ **`vim` is vim where a target has both** — shipped: the
        `nvim` alias answers to `nvim` alone, so `vim` is the `vim` plugin's
        where the target has vim, and `tests/targets/framework_test.sh`'s
        `editors` case connects to a target with both. What is left is seeing
@@ -383,33 +374,32 @@ when it lands.
        vim on the carried `vim/vimrc` and `nvim` neovim on the carried
        `init.lua`, from a tagged version.
 
-3. [ ] _Before 1.0:_ **A `config.d` file's name is a tag** — shipped: a host
+2. [ ] _Before 1.0:_ **A `config.d` file's name is a tag** — shipped: a host
        spelled out in `~/.ssh/config.d/<name>` under no `# Tags:` line
        carries `<name>` as its tag ([docs/COLORS.md](docs/COLORS.md)), so a
        file per client or site tags its hosts by being the file: `colors`
        rows, `settings.<tag>.sh`, and `hi --add-tag` know it, and
        `hi --doctor <host>` names the file it came from. A `# Tags:` line
-       above a host wins over the name. **Ticks when:** the fast group is
-       green in CI with it, and a host in
+       above a host wins over the name. **Ticks when:** a host in
        `~/.ssh/config.d/acme` with no `# Tags:` line colors as `acme` and
        reads `settings.acme.sh` on a real config.
 
-4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+3. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+4. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+5. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+6. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

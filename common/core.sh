@@ -1120,10 +1120,7 @@ function _hi_hash_color() {
 
 # the user/host say-hi is permanently installed on; hi.sh ships these ahead as
 # _HI_LOCAL_USER/_HI_LOCAL_HOSTNAME (its _hi_remote_preamble)
-# [outvar], as the escapes below take one: through $( ) each of these cost a
-# subshell wrapped around a subshell wrapped around a value core.sh already
-# had memoized, and _hi_override_color asks on every color resolution.
-# GLOSSARY: HI.05
+# [outvar] (GLOSSARY: HI.05): _hi_override_color asks on every color resolution
 function _hi_local_username() {
   _hi_whoami >/dev/null # primes the memo; read the variable, not a $( )
   _hi_out "${1:-}" "${_HI_LOCAL_USER:-$_HI_WHOAMI_CACHE}"
@@ -1460,11 +1457,8 @@ function _hi_ssh_tag_color() {
   _hi_ssh_host_tag "$1" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE" "${2:-}"
 }
 
-# _hi_resolve_color <type> <name> [tag] [outvar] - [outvar] as the last of
-# four so every existing three-arg call (a username's tag) keeps working.
-# Threaded through _hi_override_color/_hi_ssh_tag_color/_hi_colors_pattern/
-# _hi_hash_color so the two memos below can fill without a $( ) anywhere in
-# the chain - each still answers on stdout when [outvar] is empty.
+# _hi_resolve_color <type> <name> [tag] [outvar] - the whole chain answers
+# into [outvar] with no $( ), or on stdout when it is empty
 function _hi_resolve_color() {
   local type="$1" name="$2" tag="${3:-}" outvar="${4:-}"
   # one load of the colors file for the whole chain

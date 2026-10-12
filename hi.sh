@@ -751,12 +751,9 @@ function _hi_version() {
   if [ "${_HI_VERSION_KEY-}" != "$_HI_ROOT|${_HI_RELEASE:-}" ]; then
     _HI_VERSION_KEY="$_HI_ROOT|${_HI_RELEASE:-}"
     _HI_VERSION_MEMO="$(_hi_release_or_describe)"
-    if [ -n "$_HI_VERSION_MEMO" ]; then
-      :
-    elif [ -d "$_HI_ROOT/.git" ]; then
-      _HI_VERSION_MEMO='unknown (git would not answer)'
-    else
+    if [ -z "$_HI_VERSION_MEMO" ]; then
       _HI_VERSION_MEMO='unknown (no stamp, no git)'
+      [ ! -d "$_HI_ROOT/.git" ] || _HI_VERSION_MEMO='unknown (git would not answer)'
     fi
   fi
   if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_VERSION_MEMO"; else printf '%s\n' "$_HI_VERSION_MEMO"; fi
@@ -1443,12 +1440,8 @@ function _hi_parse() {
         # `--plain=1` is one mistake, a local command behind an ssh option is
         # another - those dispatch on the first word alone. Bare flags matched
         # above, so an empty column here is the joined case.
-        if [ -z "$takes" ]; then
-          _hi_cecho "hi: ${1%%=*} takes no value" "$RED" >&2
-        else
-          _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2
-        fi
-        exit 1
+        [ -n "$takes" ] || _hi_die "${1%%=*} takes no value"
+        _hi_die "$1 goes first on the line (hi ${1%%=*} ...)"
       elif [ "${1#--}" != "$1" ]; then
         _hi_die "unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)"
       else
