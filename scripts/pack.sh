@@ -430,7 +430,8 @@ function _hi_overlay_places() {
 # _hi_ssh_tags_file <member> [outvar] - the tag map a relayed hop colors by
 # (ssh_tags' home, so the table's calling shape): every
 # `# Tags:` line of ~/.ssh/config and the files it Includes, with the Host or
-# Match line under it and nothing else of the block, so the middle box's
+# Match line under it and nothing else of the block, and a config.d file's
+# name written out as the line it stands for, so the middle box's
 # _hi_ssh_host_tag can walk it as the config it is cut from. Kept in the
 # runtime dir, recut when the config is newer or has an Include; fails with no
 # config, no runtime dir, or no tag.
@@ -444,10 +445,18 @@ function _hi_ssh_tags_file() {
   if [ ! "$_hi_tf" -nt "$_HI_SSH_CONFIG" ] || grep -qi '^[[:space:]]*include[[:space:]=]' "$_HI_SSH_CONFIG"; then
     # mktemp, not `.$$`: every subshell of one shell shares its $$
     _hi_tf_tmp="$(mktemp "$_hi_tf.XXXXXX")" || return 1
+    # ft: the name of the config.d file the lines are from, which tags the
+    # hosts it spells out under no comment, as the walk reads it
     sh "$_HI_TARGETS" ssh-config "$_HI_SSH_CONFIG" | awk '{ t = $0; sub(/^[ \t]+/, "", t); l = tolower(t) }
+      t ~ /^# hi-file: / { ft = ""; n = t; if (sub(/^.*\/config\.d\//, "", n) && n ~ /^[A-Za-z0-9_.-]+$/) ft = n; next }
       l ~ /^#[ \t]*tags[:=]/ { tag = t; next }
       l ~ /^#/ || l == "" { next }
       tag != "" && l ~ /^(host|match[ \t]+host)[ \t]/ { print tag; print t }
+      tag == "" && ft != "" && l ~ /^host[ \t]/ {
+        h = t; sub(/#.*/, "", h); gsub(/[\t,]/, " ", h); k = split(h, w, / +/); h = ""
+        for (i = 2; i <= k; i++) if (w[i] != "" && w[i] !~ /[*?]/) h = h " " w[i]
+        if (h != "") print "# Tags: " ft "\nHost" h
+      }
       { tag = "" }' >"$_hi_tf_tmp" && mv -f "$_hi_tf_tmp" "$_hi_tf" && _hi_tf_tmp=""
     [ -z "$_hi_tf_tmp" ] || {
       rm -f "$_hi_tf_tmp"

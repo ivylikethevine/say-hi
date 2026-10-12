@@ -342,7 +342,8 @@ out of your namespace.
 ## Settings by host tag
 
 A file named `settings.<tag>.sh` in the overlay holds settings for the hosts
-whose `# Tags:` line in `~/.ssh/config` names that tag
+whose `# Tags:` line in `~/.ssh/config` names that tag, or whose file in
+`~/.ssh/config.d` is named for it
 ([Colors](COLORS.md) has the tags, and `hi --add-tag` writes one). It is
 `settings.sh`'s shape, `export NAME=value` lines, and takes any setting of the
 table above:

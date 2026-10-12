@@ -56,7 +56,9 @@ _HI_FRAMEWORKS=(
   "fzf:/bin/bash:fzf:bind:fzf"
   "zoxide:/bin/bash:zoxide:hook:zoxide_hook"
   "direnv:/bin/bash:direnv:hook:_direnv_hook"
-  "atuin:/bin/bash:curl:bind:atuin"
+  # zoxide beside atuin, started by no rc: the fish case's, which has hi run
+  # both hooks
+  "atuin:/bin/bash:curl zoxide:bind:atuin"
   "mise:/bin/bash:curl:hook:mise"
   # The configs hi carries for a tool the target runs: a tmux started in the
   # session reads the client's ~/.tmux.conf over the target's own, micro
@@ -73,8 +75,9 @@ _HI_FRAMEWORKS=(
 # colorscheme beside its kakrc, lazygit its config.yml, and git a row of the
 # overlay's own plugins file. bash for the session, script(1) for lazygit's pty.
 # neovim is the carried case's, which connects to the same image from a home
-# of its own (_hi_carried_client_home).
-_HI_TOOLS_PKGS="bash git kakoune helix lazygit neovim util-linux-misc"
+# of its own (_hi_carried_client_home), and vim beside it the editors case's
+# (_hi_editors_client_home).
+_HI_TOOLS_PKGS="bash git kakoune helix lazygit neovim vim util-linux-misc"
 
 # <stem in _HI_FRAMEWORKS>:<login shell>:<_HI_PROMPT_TOOL name>. The same
 # images the rows above already build, reused rather than built again, with
@@ -170,6 +173,15 @@ function _hi_framework_probe() {
   hookon | hookshells:zsh) printf '%s\n' "whence z >/dev/null && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # ...and kept to bash, the same zsh has no z
   hookshells:bash) printf '%s\n' "whence z >/dev/null && printf 'HI_FW-%s\\n' LOST || printf 'HI_FW-%s\\n' CLEAN" ;;
+  # ...and both hooks in fish, which reads $_HI_HOOKS in config.fish: z, of
+  # zoxide's making, jumps to a directory this session visited, and Ctrl-R is
+  # atuin's search. Each step that fails is named after LOST
+  hookfish) printf '%s\n' "set -l f; mkdir -p /tmp/hizjump; cd /tmp/hizjump; cd /; z hizjump; test \"\$PWD\" = /tmp/hizjump; or set -a f z; cd; functions -q _atuin_search; and bind | string match -q '*_atuin_search*'; or set -a f ctrl-r; test -z \"\$f\"; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' \"LOST:\$f\"" ;;
+  # the editors case, on a target with vim and neovim both: vim, the alias, is
+  # vim on the vimrc that rode, and nvim neovim on the init.lua, neither with
+  # the other's rc; a bare nvim takes its own through $VIMINIT. Each step
+  # that fails is named after LOST
+  editors) printf '%s\n' "f=; vim -es \"+call writefile([get(g:, 'hi_vim', 'none') . has('nvim')], '/tmp/hivim')\" +qa; grep -qsx HIVIM0 /tmp/hivim || f=\"\$f vim\"; nvim --headless \"+lua vim.fn.writefile({tostring(vim.g.hi_nvim) .. tostring(vim.g.hi_vim)}, '/tmp/hinvim')\" +q; grep -qsx HINVIMnil /tmp/hinvim || f=\"\$f nvim\"; command nvim --headless \"+lua vim.fn.writefile({tostring(vim.g.hi_nvim) .. tostring(vim.g.hi_vim)}, '/tmp/hibare')\" +q; grep -qsx HINVIMnil /tmp/hibare || f=\"\$f nvim-bare\"; test -z \"\$f\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' \"LOST:\$f\"" ;;
   # the nofish case, on a target with no fish: a tmux server on the carried
   # config has the client's mark and no fish for a shell, the carried zellij
   # config lost its default_shell and every file: plugin, the layout's bar is
@@ -265,6 +277,15 @@ function _hi_carried_client_home() {
   chmod +x "$1/.config/say-hi/bin/hicheck"
   printf '[user]\n\tname = Hi Check\n\tsigningkey = HIKEY\n[commit]\n\tgpgsign = true\n[alias]\n\thicarried = "!echo HIGITCARRIED"\n' >"$1/.gitconfig"
   printf "export _HI_PLUGINS_ON='git'\n" >"$1/.config/say-hi/settings.sh"
+}
+
+# _hi_editors_client_home <dir> - a client home with a vimrc and a neovim
+# init.lua, each setting a variable the other does not: the markers the
+# editors probe looks for
+function _hi_editors_client_home() {
+  mkdir -p "$1/.config/nvim"
+  printf 'let g:hi_vim = "HIVIM"\n' >"$1/.vimrc"
+  printf 'vim.g.hi_nvim = "HINVIM"\n' >"$1/.config/nvim/init.lua"
 }
 
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with
@@ -384,19 +405,35 @@ function _hi_run_framework_case() {
     local -x PATH="$stubs:$PATH"
     _hi_carried_client_home "$HOME"
     ;;
-  hookon | hookshells:*)
+  hookon | hookshells:* | hookfish)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
     # the line the wizard's box and `hi --plugin-on zoxide` write; a hook
-    # rides only with its tool here, and a runner has no zoxide
-    local stubs
-    stubs="$(_hi_stub_tools zoxide)"
+    # rides only with its tool here, and a runner has no zoxide or atuin
+    local stubs on=zoxide
+    [ "$3" != hookfish ] || on="zoxide atuin"
+    # shellcheck disable=SC2086 # one stub a word
+    stubs="$(_hi_stub_tools $on)"
     local -x PATH="$stubs:$PATH"
     mkdir -p "$_HI_CONFIG_DIR"
-    printf "export _HI_PLUGINS_ON='zoxide'\n" >"$_HI_CONFIG_DIR/settings.sh"
+    printf "export _HI_PLUGINS_ON='%s'\n" "$on" >"$_HI_CONFIG_DIR/settings.sh"
     # a table of the client's own keeps the hook to the shells it names
-    [ "$3" = hookon ] ||
+    case "$3" in
+    hookshells:*)
       printf '[hooks.zoxide]\ninit = "zoxide init {shell}"\nshells = "%s"\n' "${3#hookshells:}" >"$_HI_CONFIG_DIR/plugins"
+      ;;
+    esac
+    ;;
+  editors)
+    local -x HOME="$_HI_WORKDIR/home-$label"
+    local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
+    # nvim's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
+    local -x _HI_XDG_CONFIG="$XDG_CONFIG_HOME"
+    # home's configs ride only with their tools here
+    local stubs
+    stubs="$(_hi_stub_tools vim nvim)"
+    local -x PATH="$stubs:$PATH"
+    _hi_editors_client_home "$HOME"
     ;;
   nofish)
     local -x HOME="$_HI_WORKDIR/home-$label"
@@ -466,9 +503,12 @@ function run_framework_tests() {
     # ...and the same image from another home: a neovim config in more than
     # one file, a script of the overlay's bin/, and the git plugin
     _hi_par_case carried _hi_run_framework_case carried /bin/ash carried tools
+    # ...and from a third, with a vimrc and an init.lua, to vim and neovim both
+    _hi_par_case editors _hi_run_framework_case editors /bin/ash editors tools
   else
     _hi_skip "[tools]" "image did not build"
     _hi_skip "[carried]" "image did not build"
+    _hi_skip "[editors]" "image did not build"
   fi
 
   # Three more containers off the starship, p10k, and bash-it images above,
@@ -510,6 +550,14 @@ function run_framework_tests() {
     _hi_skip "[zoxide-on]" "image did not build"
     _hi_skip "[zoxide-zsh]" "image did not build"
     _hi_skip "[zoxide-bash]" "image did not build"
+  fi
+  # ...and one off the atuin image under fish, whose own config starts
+  # neither tool: the client's settings name zoxide and atuin, and hi runs
+  # both inits there
+  if [ "$(_hi_kv_get _HI_FRAMEWORK_OK atuin)" = 1 ]; then
+    _hi_par_case hooks-fish _hi_run_framework_case hooks-fish /usr/bin/fish hookfish atuin
+  else
+    _hi_skip "[hooks-fish]" "image did not build"
   fi
   # ...and a target with no fish, from a home whose tmux and zellij configs
   # ask for it

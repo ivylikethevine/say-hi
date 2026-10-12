@@ -57,11 +57,24 @@ a relative path is under `~/.ssh`, globs expand in sorted order, nested
 Includes too - so a host and its `# Tags:` line that live in
 `~/.ssh/config.d/01-work` complete, color, and ride like any other.
 
+A file directly in a directory named `config.d` tags the hosts it spells out
+with its own name: a host in `~/.ssh/config.d/acme` under no `# Tags:` line
+carries `acme`, so a file per client or site colors by its `hosttag` and
+`usertag` rows and reads `settings.acme.sh`
+([SETTINGS.md](SETTINGS.md#settings-by-host-tag)) with nothing written. A
+`# Tags:` line above a host still wins, a wildcard block (`Host *.acme`) takes
+a tag only from a line of its own, and a file name that is not letters,
+digits, `_`, `.` and `-` alone tags nothing; one holding a `.` colors and
+names no settings file. `hi --add-tag` says so when the file's name is
+already the tag asked for, and `hi --doctor <host>` names the file a tag came
+from.
+
 Tags follow you past the first hop. A `hi` typed inside a session runs on a
 box whose `~/.ssh/config` has none of your `# Tags:` lines, so the tagged
 `Host` and `Match host` lines of yours - those two lines of each block and
 nothing else, no `HostName`, no `User`, no untagged host - ride the overlay as
-`ssh_tags`, and the middle box reads them wherever its own config has no tag
+`ssh_tags`, a `config.d` file's name written out as the `# Tags:` line it
+stands for, and the middle box reads them wherever its own config has no tag
 for the name. The host is matched as you type it there, against the patterns
 you wrote here. `hi --doctor` says when the member rides; like `colors`, it
 names hosts to every target you visit, so an empty `ssh_tags` of your own in

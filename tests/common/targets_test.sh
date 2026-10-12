@@ -276,6 +276,31 @@ function test_ssh_files_lists_the_config_and_its_includes_in_order() {
   [ "$out" = "$h/.ssh/config $h/.ssh/config.d/01-a $h/.ssh/config.d/02-b " ] || _hi_because "ssh-files: [$out]"
 }
 
+# `ssh-config` and `ssh-include` say which file an Included line is from, in a
+# comment ahead of it, and the parent's again once a nested Include is done:
+# what the tag walk reads a config.d file's name off
+function test_ssh_config_marks_each_included_file() {
+  local h="$_HI_WORKDIR/marks-home" out want
+  mkdir -p "$h/.ssh/config.d" "$h/.ssh/deep"
+  printf 'Include config.d/*\nHost top\n' >"$h/.ssh/config"
+  printf 'Host alpha\nInclude deep/*\nHost omega\n' >"$h/.ssh/config.d/acme"
+  printf 'Host gamma\n' >"$h/.ssh/deep/x"
+  want="# hi-file: $h/.ssh/config.d/acme
+Host alpha
+Include deep/*
+# hi-file: $h/.ssh/deep/x
+Host gamma
+# hi-file: $h/.ssh/config.d/acme
+Host omega"
+  out="$(HOME="$h" sh "$_HI_TARGETS" ssh-include 'config.d/*')"
+  [ "$out" = "$want" ] || _hi_because "ssh-include: [$out]" || return 1
+  out="$(HOME="$h" sh "$_HI_TARGETS" ssh-config "$h/.ssh/config")"
+  [ "$out" = "Include config.d/*
+$want
+# hi-file: $h/.ssh/config
+Host top" ] || _hi_because "ssh-config: [$out]"
+}
+
 # the word after --add-tag is a literal Host from the config or an Include;
 # a pattern names no host to tag
 function test_add_tag_words_are_the_literal_ssh_hosts() {
@@ -711,6 +736,7 @@ function run_targets_tests() {
   _hi_check "A backend switched off is not listed" test_a_backend_switched_off_is_not_listed
   _hi_check "ssh hosts follow Include" test_ssh_hosts_follow_include
   _hi_check "ssh-files lists the config and its Includes, in order" test_ssh_files_lists_the_config_and_its_includes_in_order
+  _hi_check "ssh-config marks each Included file, and its parent after it" test_ssh_config_marks_each_included_file
   _hi_check "--add-tag completes the literal ssh hosts" test_add_tag_words_are_the_literal_ssh_hosts
 
   _hi_h2 "Testing: container/orchestrator backends"

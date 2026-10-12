@@ -282,6 +282,22 @@ Host included' ] || {
   ! XDG_RUNTIME_DIR="$dir/rt" _HI_SSH_CONFIG="$dir/config" _HI_CONFIG_DIR="$dir/overlay" _hi_overlay_src ssh_tags || _hi_why dir
 }
 
+# ...and a config.d file's name rides as the `# Tags:` line it stands for,
+# over the hosts that file spells out and no wildcard: the middle box has no
+# such file to read a name off
+function test_ssh_tags_writes_out_a_config_d_file_s_name() {
+  local dir="$_HI_WORKDIR/tags-configd" out
+  mkdir -p "$dir/rt" "$dir/.ssh/config.d"
+  printf '%s\n' 'Host web1 *.acme web2 # ours' '  HostName 10.0.0.1' 'Host *.wild' '# Tags: prod' 'Host db1' \
+    'Match host lab-*' >"$dir/.ssh/config.d/acme"
+  printf 'Include config.d/*\nHost plain\n' >"$dir/config"
+  out="$(HOME="$dir" _hi_tags_at "$dir")"
+  [ "$out" = '# Tags: acme
+Host web1 web2
+# Tags: prod
+Host db1' ] || _hi_because "the cut: [$out]"
+}
+
 # _hi_tags_at <dir> - _hi_ssh_tags_file's answer against <dir>/config with
 # <dir>/rt as the runtime dir: the cut's contents, or `rc <n>`
 function _hi_tags_at() {
@@ -511,6 +527,7 @@ function run_hi_payload_home_tests() {
   _hi_check "kakoune's colors/ rides beside its kakrc" test_kak_colors_ride_beside_the_kakrc
   _hi_check "inputrc rides like the tool configs, its includes dropped" test_inputrc_rides_like_the_tool_configs
   _hi_check "ssh_tags is the tagged Host lines of ~/.ssh/config" test_ssh_tags_is_cut_from_the_ssh_config
+  _hi_check "...a config.d file's name written out over its hosts" test_ssh_tags_writes_out_a_config_d_file_s_name
   _hi_check "...kept, and recut once the config is newer or Includes" test_ssh_tags_cut_is_reused_until_the_config_is_newer
   _hi_check_capable lockout "...and failing cleanly with no tag or no writable dir" test_ssh_tags_fails_cleanly_without_a_tag_or_a_writable_dir
   _hi_check "...and leaving no temp file when the cut cannot land" test_ssh_tags_leaves_no_temp_file_when_the_cut_fails

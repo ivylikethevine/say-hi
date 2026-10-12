@@ -509,6 +509,21 @@ function test_bash_starship_handoff_installs_no_ps1_hook() {
   [[ "$out" != *__hi_ps1* ]] || _hi_why out
 }
 
+# A plugin's shell hook in fish (GLOSSARY: HI.67), as core.sh's _hi_run_hooks
+# runs one in bash and zsh: config.fish sources what each row's command
+# prints, {shell} filled in, for the rows the two lists leave on, the shells a
+# row names, and the tools this box has. The stub answers with fish's own
+# code, so a row that ran is a word in $hi_hooks_ran.
+function test_fish_runs_the_hooks_its_settings_leave_on() {
+  local out stub
+  stub="$(_hi_stub_bin hi-hook-tool 'printf "set -ga hi_hooks_ran %s-%s\n" "$1" "$2"')"
+  out="$(_hi_rc_shell xterm-256color fish \
+    'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; string join " " -- $hi_hooks_ran' \
+    "PATH=$stub:$PATH" _HI_PLUGINS_ON=hi-asked _HI_PLUGINS_OFF=hi-dropped \
+    "_HI_HOOKS=x.hi-plain=hi-hook-tool plain {shell};x.-hi-off=hi-hook-tool off {shell};x.-hi-asked=hi-hook-tool asked {shell};x.hi-dropped=hi-hook-tool dropped {shell};x.hi-zsh:zsh=hi-hook-tool zsh {shell};x.hi-kept:bash,fish=hi-hook-tool kept {shell};x.hi-gone=hi-no-such-tool gone {shell}")"
+  [ "$out" = "plain-fish asked-fish kept-fish" ] || _hi_why out stub
+}
+
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
 # machine without one still runs (and honestly reports) the rest.
 
@@ -896,6 +911,7 @@ function run_rc_tests() {
   _hi_check_requires zsh "[zsh] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias zsh
   _hi_check_requires fish "[fish] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias fish
   _hi_check "starship handoff installs no __hi_ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
+  _hi_check_requires fish "fish runs the shell hooks its settings leave on" test_fish_runs_the_hooks_its_settings_leave_on
 
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built

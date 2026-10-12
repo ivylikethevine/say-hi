@@ -1369,10 +1369,11 @@ function _hi_ssh_try_patterns() {
 # that matches (a leading `Host *`) does not end the walk: ssh applies every
 # matching block, so a tag further down still counts. An `Include` is walked
 # in place, its files flattened by targets.sh - a fork only for a config that
-# has one.
+# has one. A file directly in a `config.d` tags the hosts it spells out, where
+# no comment does, with its own name.
 function _hi_ssh_host_tag_walk() {
   local line trimmed known=1
-  _hi_sw_tag=""
+  _hi_sw_tag="" _hi_sw_file=""
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
     trimmed="${line#"${line%%[![:space:]]*}"}"
@@ -1383,6 +1384,7 @@ function _hi_ssh_host_tag_walk() {
         _hi_ssh_walk_line "$line" "$1" && return 0
         [ $? -eq 1 ] || known=2
       done < <(sh "$_HI_TARGETS" ssh-include "${trimmed#*[[:space:]=]}" 2>/dev/null)
+      _hi_sw_file=""
       ;;
     *)
       _hi_ssh_walk_line "$line" "$1" && return 0
@@ -1394,7 +1396,8 @@ function _hi_ssh_host_tag_walk() {
 }
 
 # One line of the walk above: 0 tagged (printed), 2 known-but-untagged, 1 go
-# on. The pending tag rides in $_hi_sw_tag between lines.
+# on. The pending tag rides in $_hi_sw_tag between lines, and the config.d
+# file they are from, as targets.sh marks it, in $_hi_sw_file.
 function _hi_ssh_walk_line() {
   local trimmed rest patterns rc
   trimmed="${1#"${1%%[![:space:]]*}"}"
@@ -1409,11 +1412,21 @@ function _hi_ssh_walk_line() {
       # the leftmost tag only - "prod, web" pins on prod
       _hi_sw_tag="${rest%%[,[:space:]]*}"
       ;;
+    hi-file:*)
+      _hi_sw_file=""
+      # a name that is one plain word, or it is no tag
+      case "${rest##*/config.d/}" in "$rest" | '' | *[!A-Za-z0-9_.-]*) ;; *) _hi_sw_file="${rest#hi-file: }" ;; esac
+      ;;
     esac
     ;;
   [Hh][Oo][Ss][Tt][[:space:]]*)
     rc=0
     _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "$_hi_sw_tag" || rc=$?
+    if [ "$rc" -eq 2 ] && [ -n "$_hi_sw_file" ]; then
+      # a wildcard names no host: only a spelled-out one takes the file's name
+      local _HI_SSH_LITERAL_ONLY=1
+      _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "${_hi_sw_file##*/}" && return 0
+    fi
     [ "$rc" -eq 1 ] || return "$rc"
     _hi_sw_tag=""
     ;;

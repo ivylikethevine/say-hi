@@ -29,6 +29,9 @@
 # sorted order, nested Includes too (16 deep, ssh's own limit). A word with
 # anything but path and glob characters is skipped, never handed to sh.
 # `files` prints the path of each file read, in order, instead of its lines.
+# The lines of an Included file follow a `# hi-file: <path>` comment, and its
+# parent's is said again after it: a file's name tags its hosts (core.sh's
+# _hi_ssh_walk_line).
 ssh_config_flat() {
   awk -v mode="$1" -v arg="$2" -v home="$HOME" '
     function inc(args, depth,   n, w, i, p, cmd, f, m, list, k) {
@@ -49,6 +52,7 @@ ssh_config_flat() {
     }
     function emit(file, depth,   line, rest) {
       if (mode == "files") print file
+      else if (depth) print "# hi-file: " file
       while ((getline line < file) > 0) {
         rest = line
         sub(/^[ \t]+/, "", rest)
@@ -56,6 +60,7 @@ ssh_config_flat() {
           if (mode != "files") print line
           sub(/^[^ \t=]+[ \t=]+/, "", rest)
           inc(rest, depth)
+          if (mode != "files") print "# hi-file: " file
         } else if (mode != "files") print line
       }
       close(file)

@@ -746,7 +746,10 @@ keeps its own rather than an alias to a missing file.
 `_hi_ssh_tags_file` cuts the `# Tags:` lines and the `Host`/`Match host` line
 under each out of `~/.ssh/config` into the runtime dir, in ssh_config's own
 shape, so `_hi_ssh_host_tag` on a relaying box walks it with the walker it
-already has - after its own config, and only in a remote session. Only tagged
+already has - after its own config, and only in a remote session. A `config.d`
+file's name is written out there as the `# Tags:` line it stands for: the
+walk and the cut both read it off the `# hi-file:` comment `targets.sh` puts
+ahead of each Included file's lines. Only tagged
 blocks ride, so an untagged block that would have answered first at home is
 not there to: a name both it and a later tagged wildcard match reads as
 tagged on the second hop.

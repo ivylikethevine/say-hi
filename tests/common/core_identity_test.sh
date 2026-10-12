@@ -61,6 +61,61 @@ function test_ssh_host_tag_follows_include() {
   [ -z "$got" ] || _hi_why got h
 }
 
+# _hi_config_d_home <name> - a home whose config Includes config.d/*: `acme`
+# spells out web1 and late, covers *.acme by a wildcard, tags db1 itself and
+# Includes deep/x between them; `z+odd` is no word a tag can be. Printed.
+function _hi_config_d_home() {
+  local h="$_HI_WORKDIR/$1"
+  mkdir -p "$h/.ssh/config.d" "$h/.ssh/deep"
+  printf 'Include config.d/*\nHost top\n' >"$h/.ssh/config"
+  printf 'Host web1 *.acme\n  HostName 10.0.0.1\n\n# Tags: prod\nHost db1\n  Include deep/*\nHost late\n' >"$h/.ssh/config.d/acme"
+  printf 'Host odd\n' >"$h/.ssh/config.d/z+odd"
+  printf 'Host nested\n' >"$h/.ssh/deep/x"
+  printf '%s' "$h"
+}
+
+# _hi_config_d_tags <home> [shell] - "<host>=<tag>(<rc>)" for each host of
+# that home, space-joined, as _hi_ssh_host_tag answers in [shell] (bash)
+function _hi_config_d_tags() {
+  HOME="$1" _hi_in_shell "${2:-bash}" "export _HI_SSH_CONFIG='$1/.ssh/config'
+    for h in web1 db1 x.acme nested late top odd nope; do
+      unset _HI_TAG_NAME; rc=0; t=\"\$(_hi_ssh_host_tag \$h)\" || rc=\$?; printf '%s=%s(%s) ' \"\$h\" \"\$t\" \"\$rc\"; done"
+}
+
+# a file directly in a config.d tags the hosts it spells out with its own
+# name: a `# Tags:` line there still wins, a wildcard names no host, a file
+# Included from it is not of the config.d and the lines after it are again,
+# and neither a name that is no plain word nor the config itself tags
+function test_ssh_host_tag_takes_a_config_d_file_s_name() {
+  local h got want='web1=acme(0) db1=prod(0) x.acme=(2) nested=(2) late=acme(0) top=(2) odd=(2) nope=(1) '
+  h="$(_hi_config_d_home configd-tags)"
+  got="$(_hi_config_d_tags "$h")"
+  [ "$got" = "$want" ] || _hi_why got want h
+}
+
+function test_zsh_config_d_tag_agrees_with_bash() {
+  local h got want
+  h="$(_hi_config_d_home configd-zsh)"
+  want="$(_hi_config_d_tags "$h")"
+  got="$(_hi_config_d_tags "$h" zsh)"
+  [ "$got" = "$want" ] || _hi_why got want h
+}
+
+# a host of ~/.ssh/config.d/acme under no `# Tags:` line takes the hosttag
+# row's color, and a usertag row colors its user
+function test_config_d_host_colors_by_its_file() {
+  local h got tag
+  h="$(_hi_config_d_home configd-color)"
+  printf '[hosttag]\nacme = "brred"\n\n[usertag]\nacme = "teal"\n' >"$h/colors"
+  unset _HI_TAG_NAME
+  got="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _HI_COLORS="$h/colors" _hi_resolve_color hostname web1)"
+  [ "$got" = brred ] || _hi_why got h || return 1
+  unset _HI_TAG_NAME
+  tag="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" _hi_ssh_host_tag web1)"
+  got="$(_HI_COLORS="$h/colors" _hi_resolve_color username deploy "$tag")"
+  [ "$got" = teal ] || _hi_why got tag h
+}
+
 # a matching untagged block earlier in the file does not end the walk: a
 # leading `Host *` of defaults marks every name known (rc 2) and the walk
 # goes on to the tagged block below it, as ssh reads on past a first match
@@ -586,6 +641,8 @@ function run_core_identity_tests() {
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
   _hi_check "A tag in an Included file colors its host" test_ssh_host_tag_follows_include
+  _hi_check "A config.d file's name tags the hosts it spells out" test_ssh_host_tag_takes_a_config_d_file_s_name
+  _hi_check "...and they color by its hosttag and usertag rows" test_config_d_host_colors_by_its_file
   _hi_check "A leading untagged Host * does not end the walk" test_ssh_host_tag_survives_a_leading_untagged_wildcard
   _hi_check "A blank line before its Host keeps the tag" test_ssh_host_tag_survives_a_blank_line_before_its_host
   _hi_check "Untagged host fails" test_ssh_host_tag_untagged_host_fails
@@ -644,6 +701,7 @@ function run_core_identity_tests() {
   _hi_check_requires zsh "A scheme escape agrees with bash" test_zsh_scheme_escape_agrees_with_bash
   _hi_check_requires zsh "A scheme list agrees with bash" test_zsh_scheme_list_agrees_with_bash
   _hi_check_requires zsh "_hi_ssh_host_tag agrees with bash" test_zsh_host_tag_agrees_with_bash
+  _hi_check_requires zsh "...and on a config.d file's name" test_zsh_config_d_tag_agrees_with_bash
   _hi_check_requires zsh "...and under extended_glob, a # still splits a pin and a comment" test_zsh_extended_glob_agrees_with_bash
   _hi_check_requires zsh "...and rejects the same hosts" test_zsh_host_tag_rejects_the_same_hosts
   _hi_check_requires zsh "...and agrees on wildcard blocks" test_zsh_host_tag_wildcard_agrees_with_bash

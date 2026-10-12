@@ -24,5 +24,10 @@ sh "$_hi_installer" >/dev/null 2>&1
 # bash-preexec has no releases worth naming: pinned by commit and sha256
 curl -fsSL https://raw.githubusercontent.com/rcaloras/bash-preexec/5ae4758c36e8391fb3932e6ae68c283489fc813d/bash-preexec.sh -o ~/.bash-preexec.sh
 echo "33de4e70ee84981d46e7d8a0e3105f1dd9affc9c4178594446cd96e7ef3b2752  $HOME/.bash-preexec.sh" | sha256sum -c - >/dev/null
+# a fish login finds the binary and starts nothing: the init there is hi's to
+# run, from the hook the client switched on
+mkdir -p ~/.config/fish/conf.d
+# shellcheck disable=SC2016 # fish expands this at login
+printf 'set -gx PATH $HOME/.atuin/bin $PATH\n' >~/.config/fish/conf.d/atuin-path.fish
 # shellcheck disable=SC2016 # the target's shell expands this at login
 printf 'source ~/.bash-preexec.sh\n. "$HOME/.atuin/bin/env"\neval "$(atuin init bash --disable-up-arrow)"\n' >>~/.bashrc
