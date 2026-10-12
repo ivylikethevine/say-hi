@@ -409,7 +409,8 @@ function test_boot_probe_reports_its_dir_on_success() {
 function test_boot_probe_says_whether_a_multiplexer_is_there() {
   local out dir sh_bin
   sh_bin="$(command -v sh)"
-  dir="$(_hi_real_path nomux base64 mktemp cat)"
+  # openssl too: stock OpenBSD has no base64, and the probe would exit 64
+  dir="$(_hi_real_path nomux base64 openssl mktemp cat)"
   out="$(PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || _hi_why out || return 1
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
   [[ "$out" == *$'\nHIMUX:0\nHIBOOT:/'* ]] || _hi_because "none on PATH: $out" || return 1
