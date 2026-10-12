@@ -158,7 +158,7 @@ function _hi_assert() {
 # the rerun sets survives it - files it writes do, so a rerun can differ from
 # the first try.
 #
-# A failure that took over 20s is rerun all the same, since a slow failure is
+# A failure that took over 30s is rerun all the same, since a slow failure is
 # the likeliest kind on an emulated runner and the one a label explains
 # least: apart from this shell and into a file, so it can be ended once it
 # has had that time again and half a minute, with the trace it got to - where
@@ -178,7 +178,7 @@ function _hi_trace_rerun() {
     _HI_RERUN_OUT="      (no trace here: a coverage tracer owns xtrace; the fast suites job of this commit runs the case with one)"
     return 1
   fi
-  if [ "$took" -gt 20 ]; then
+  if [ "$took" -gt 30 ]; then
     _hi_trace_rerun_slow "$took" "$@"
     return
   fi

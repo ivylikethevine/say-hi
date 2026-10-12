@@ -63,7 +63,7 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   arm64 (macOS included) it is not counted as a failure - it is listed under
   _Flaky cases_ at the end of the run, a GitHub warning on CI. On native Linux
   x64, the least loaded platform, a flake is a failure like any other
-  (`_HI_FLAKY_OK=1`/`0` overrides either way). A failure that took over 20s
+  (`_HI_FLAKY_OK=1`/`0` overrides either way). A failure that took over 30s
   is rerun too, for its trace alone - it is FAILED whatever the rerun does,
   never FLAKY - and ended once it has had that time again and half a minute,
   with the trace it got to: where a hung case stands. Only the coverage
