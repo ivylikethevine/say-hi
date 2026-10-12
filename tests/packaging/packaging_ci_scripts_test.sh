@@ -518,6 +518,81 @@ EOF
   [ "$got" -eq 300 ] && [ "$rc" -eq 255 ] || _hi_because "exit $rc"
 }
 
+# check_tool_versions.sh in a tree with no setup-tool, its hook naming one
+# manifest of each kind: each direct dependency is read at its lock's version,
+# a hold keeps a later major out, a requirement is met by a longer version, a
+# manifest that reads nothing is an error, and an outdated action is followed
+# by the commit to pin
+function test_tool_versions_reads_the_manifests() {
+  local dir="$_HI_WORKDIR/toolmanifests" out rc=0 line h o='"2020-01-01T00:00:00.123456Z"'
+  h="$(printf '%040d' 1)"
+  mkdir -p "$dir/bin" "$dir/.github/scripts" "$dir/.github/workflows" "$dir/app" "$dir/tf"
+  cp "$_HI_ROOT/.github/scripts/check_tool_versions.sh" "$_HI_ROOT/.github/scripts/lib.sh" "$dir/.github/scripts/"
+  printf '      - uses: actions/checkout@%s # v4.1.0\n' "$h" >"$dir/.github/workflows/w.yml"
+  printf '%s\n' '{"devDependencies":{"prettier":"3.0.0","@s/lint":"^1.0.0"}}' >"$dir/package.json"
+  printf '%s\n' '-c app/requirements.txt' '# tools' 'Ruff==0.1.0' 'typing_extensions>=4.0' 'gone>=1' >"$dir/app/requirements.in"
+  # shellcheck disable=SC1003 # a pip-compile continuation, not an escaped quote
+  printf '%s\n' 'ruff==0.1.0 \' '    --hash=sha256:x' 'typing-extensions==4.1.0 ; python_version < "3.13" \' >"$dir/app/requirements.txt"
+  printf '%s\n' 'version = 1' '[[package]]' 'name = "django"' 'version = "5.2.17"' 'dependencies = [' '    { name = "asgiref" },' ']' \
+    '[[package]]' 'name = "asgiref"' 'version = "3.0.0"' '[[package]]' 'name = "numpy"' 'version = "2.2.0"' \
+    '[[package]]' 'name = "numpy"' 'version = "2.10.0"' '[[package]]' 'name = "proj"' '[package.metadata]' 'requires-dist = [' \
+    '    { name = "numpy", specifier = ">=2" },' ']' '[package.metadata.requires-dev]' 'dev = [' \
+    '    { name = "django", specifier = "==5.2.17" },' ']' >"$dir/uv.lock"
+  printf '%s\n' '[workspace.package]' 'version = "0.0.0-dev"' '[workspace.dependencies]' 'matroska = "0.30"' \
+    'sqlx = { version = "0.9.0", default-features = false }' 'mine = { version = "0.0.0-dev", path = "crates/mine" }' \
+    '[workspace.lints.rust]' 'unsafe_code = "forbid"' >"$dir/Cargo.toml"
+  printf '%s\n' 'terraform {' '  required_version = ">= 1.6"' '  required_providers {' '    aws = {' '      source = "hashicorp/aws"' \
+    '      # the version = "x" of a comment' '      version = "~> 6.64"' '    }' '    local = {' '      source  = "hashicorp/local"' \
+    '      version = "~> 2.9"' '    }' '  }' '}' >"$dir/tf/versions.tf"
+  printf '%s\n' "CI_IMAGE_GLOBS=''" "CI_MANIFESTS='npm|package.json" 'pip|app/requirements.in' 'uv|uv.lock|django@major' \
+    'cargo|Cargo.toml|sqlx@major' 'terraform|tf/versions.tf' "npm|nope.json'" >"$dir/.github/scripts/check_tool_versions.local.sh"
+  cat >"$dir/bin/curl" <<EOF
+#!/usr/bin/env bash
+for u; do :; done
+function rel() { printf '"%s":[{"upload_time_iso_8601":$o,"yanked":%s}]' "\$1" "\${2:-false}"; }
+function crate() { printf '{"num":"%s","created_at":$o,"yanked":%s}' "\$1" "\${2:-false}"; }
+case "\$u" in
+*/repos/actions/checkout/releases*) echo '[{"tag_name":"v4.2.0","published_at":"2020-01-01T00:00:00Z"}]' ;;
+*/repos/actions/checkout/commits/v4.2.0) printf '%040d' 7 ;;
+https://registry.npmjs.org/prettier) echo '{"time":{"created":"x","3.0.0":$o,"3.1.0":$o},"versions":{"3.0.0":{},"3.1.0":{}}}' ;;
+https://registry.npmjs.org/@s%2Flint) echo '{"time":{"1.0.0":$o},"versions":{"1.0.0":{}}}' ;;
+https://pypi.org/pypi/ruff/json) echo "{\"releases\":{\$(rel 0.1.0),\$(rel 0.2.0),\$(rel 0.3.0 true),\"0.4.0\":[],\$(rel 0.5.0rc1)}}" ;;
+https://pypi.org/pypi/typing-extensions/json) echo "{\"releases\":{\$(rel 4.1.0)}}" ;;
+https://pypi.org/pypi/django/json) echo "{\"releases\":{\$(rel 5.2.17),\$(rel 5.2.18),\$(rel 6.0.1)}}" ;;
+https://pypi.org/pypi/numpy/json) echo "{\"releases\":{\$(rel 2.10.0)}}" ;;
+https://crates.io/api/v1/crates/matroska/versions) echo "{\"versions\":[\$(crate 0.30.4),\$(crate 0.31.0 true)]}" ;;
+https://crates.io/api/v1/crates/sqlx/versions) echo "{\"versions\":[\$(crate 0.9.0),\$(crate 1.0.0)]}" ;;
+*/repos/hashicorp/terraform-provider-aws/releases*) echo '[{"tag_name":"v6.70.0","published_at":"2020-01-01T00:00:00Z"}]' ;;
+*/repos/hashicorp/terraform-provider-local/releases*) echo '[{"tag_name":"v3.0.0","published_at":"2020-01-01T00:00:00Z"}]' ;;
+*) exit 22 ;;
+esac
+EOF
+  chmod +x "$dir/bin/curl"
+  out="$(env -u TOOL_COOLDOWN_DAYS -u CI_WORKFLOW_ROSTER -u GH_TOKEN GITHUB_ACTIONS=true PATH="$dir/bin:$PATH" \
+    bash "$dir/.github/scripts/check_tool_versions.sh" 2>&1)" || rc=$?
+  [[ "$out" == "## GitHub Actions (uses: SHAs)"* ]] || _hi_because "a tree with no setup-tool does not open on the actions: $out" || return 1
+  for line in \
+    '^actions/checkout +4\.1\.0 +OUTDATED \(latest: 4\.2\.0\)$' \
+    '^  -> @0{39}7 # v4\.2\.0$' \
+    '^prettier +3\.0\.0 +OUTDATED \(latest: 3\.1\.0\)$' \
+    '^@s/lint +1\.0\.0 +current$' \
+    '^ruff +0\.1\.0 +OUTDATED \(latest: 0\.2\.0\)$' \
+    '^typing-extensions +4\.1\.0 +current$' \
+    '^gone +- +ERROR \(not in the lock of app/requirements\.in\)$' \
+    '^django +5\.2\.17 +OUTDATED \(latest: 5\.2\.18\)$' \
+    '^numpy +2\.10\.0 +current$' \
+    '^matroska +0\.30 +current$' \
+    '^sqlx +0\.9\.0 +current$' \
+    '^hashicorp/aws +6 +current$' \
+    '^hashicorp/local +2 +OUTDATED \(latest: 3\.0\.0\)$' \
+    '^nope\.json +- +ERROR \(no npm dependency read from nope\.json\)$' \
+    '^::warning title=ruff outdated::pinned 0\.1\.0, latest 0\.2\.0 - bump it in app/requirements\.txt \(pip-compile --upgrade-package ruff\)$'; do
+    grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $out" || return 1
+  done
+  [[ "$out" != *"asgiref"* && "$out" != *"mine "* ]] || _hi_because "a transitive or path dependency was compared: $out" || return 1
+  [ "$rc" -eq 7 ] || _hi_because "exit $rc, with 7 problems: $out"
+}
+
 # check_tool_versions.local.sh's ci_local_checks over a fixture tree, its
 # floors cut to three: a digest outside a Dockerfile that is a fixture's pin
 # is current and one that is not is outdated, a file left with no digest is
@@ -844,6 +919,7 @@ function run_packaging_ci_scripts_tests() {
   _hi_check_requires jq "platform_badges.sh's own filter reads the check runs" test_platform_badges_read_the_check_runs_themselves
   _hi_check "gh_dispatch.sh retries twice, then fails by name" test_gh_dispatch_retries_twice_then_fails
   _hi_check_requires jq "check_tool_versions.sh reports each pin, exits on the count" test_tool_versions_reports_each_pin
+  _hi_check_requires jq "...reads each manifest's dependencies at its lock's versions" test_tool_versions_reads_the_manifests
   _hi_check "The local tool checks name each parting" test_local_tool_checks_name_each_parting
   # lib.sh's walk without git is globstar's, bash 4
   if ((BASH_VERSINFO[0] >= 4)); then

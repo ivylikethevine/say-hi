@@ -52,12 +52,12 @@
 #
 #   zsh, fish        ../setup-shells (apt; brew on macOS)
 #                    the runner's current packages; the floors and ceilings
-#                    under test are tests/dockerfiles pins, which dependabot moves
+#                    under test are tests/dockerfiles pins, in the digest section
 #   podman, nomad    ../setup-backends (ubuntu and HashiCorp apt repos)
 #                    backends the e2e suites drive, not build inputs; the
 #                    cache key rolls weekly, so they cannot go stale for long
 #   kind, kubectl    ../setup-backends (helm/kind-action's defaults)
-#                    move with that action's SHA, which dependabot bumps
+#                    move with that action's SHA, in the actions section
 #   ruby             coverage.yml (preinstalled on the runner image)
 #                    only runs bashcov, which is pinned in
 #                    .github/scripts/check_tool_versions.local.sh's roster
@@ -65,11 +65,12 @@
 #                    the renderer's helpers; vhs itself is pinned and in the roster
 #   FreeBSD/OpenBSD  freebsd-e2e.yml / openbsd-e2e.yml `release:`
 #                    a hand pin to the newest release the vmactions action SHA
-#                    ships (its README's table); dependabot moves the SHA, and
-#                    there is no release feed to drift-check the image against
+#                    ships (its README's table); the SHA is in the actions
+#                    section, and there is no release feed to drift-check the
+#                    image against
 #   node             ci.yml's lint job (actions/setup-node, `node-version: "22"`)
 #                    the newest 22.x; only runs markdownlint-cli2 and prettier,
-#                    which .github/package-lock.json pins and dependabot moves
+#                    which .github/package-lock.json pins (CI_MANIFESTS)
 #   trivy's DB       image-scan.yml (fetched at scan time)
 #                    the point is today's advisories; the trivy binary is pinned
 #

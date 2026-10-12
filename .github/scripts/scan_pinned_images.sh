@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# The severity half of digest-pinning, and the gate dependabot cannot offer.
+# The severity half of digest-pinning.
 #
-# Base images here are pinned by digest, and dependabot opens the repin PR on
-# release. Neither knows whether the bump *fixes* anything: dependabot's
-# docker ecosystem has no security-update mode (GHSA has no container
-# ecosystem), and a digest is just a digest. This asks the missing question -
+# Base images here are pinned by digest, and check_tool_versions.sh reports a
+# tag that has moved. Neither knows whether the repin *fixes* anything: GHSA
+# has no container ecosystem, so dependabot has no security update for an
+# image, and a digest is just a digest. This asks the missing question -
 # would repinning reduce the number of fixable CRITICAL/HIGH findings? - and
 # answers it by measuring both sides.
 #
@@ -325,7 +325,7 @@ done <"$_ci_indexed"
     echo
     echo "trivy scanned each pinned digest and the image its tag points at now."
     echo "The repins below are **verified** to reduce the fixable"
-    echo "$_CI_SEVERITIES count - dependabot's open bump PR for each is the fix."
+    echo "$_CI_SEVERITIES count - the edit under each is the fix."
     echo
     cat "$_ci_actionable"
   elif [ "$_ci_hits" -gt 0 ]; then

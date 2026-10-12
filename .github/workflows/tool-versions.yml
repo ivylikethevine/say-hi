@@ -1,14 +1,15 @@
 name: Tool versions
 
-# Drift check over the pins dependabot can't see: the CI tools in
-# .github/actions/setup-tool/tools.txt and the inline pins and local checks in
-# .github/scripts/check_tool_versions.local.sh. It also re-checks the action
-# SHAs and image digests dependabot does move, so an unmerged bump shows as
-# drift, and applies dependabot's 7-day cooldown. The signal is one tracking
-# issue, kept current: opened when something is behind, rewritten on every
-# later run, closed when all is current. Runs after every green CI run on a
-# push to main and weekly (Monday, after dependabot's run), since upstream
-# releases land without a push here.
+# Drift check over every pin: the CI tools in
+# .github/actions/setup-tool/tools.txt, the inline pins and local checks in
+# .github/scripts/check_tool_versions.local.sh, the action SHAs, the image
+# digests, and the dependency manifests. Dependabot opens no version-update
+# pull request (.github/dependabot.yml), so this is the one report of an
+# upstream release, held to the same 7-day cooldown. The signal is one
+# tracking issue, kept current: opened when something is behind, rewritten on
+# every later run, closed when all is current. Runs after every green CI run
+# on a push to main and weekly, since upstream releases land without a push
+# here.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -37,14 +38,15 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read
       # the one write this job does: upsert (and close) its own tracking issue
       issues: write
     steps:
       # block, not audit: check_tool_versions.sh asks the GitHub API, Docker
-      # Hub, npm, and any gitlab: host a roster row names - nothing else.
+      # Hub, the registry of each manifest in CI_MANIFESTS, and any gitlab:
+      # host a roster row names - nothing else.
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
@@ -84,8 +86,9 @@ jobs:
           set -euo pipefail
           {
             echo "$PROBLEMS problem(s) with the pins below. Fix each OUTDATED, MISMATCH or ERROR row"
-            echo "where it points: tools.txt (pin and sha256 together), the file an inline or local"
-            echo "row names, or dependabot's open bump PR for an action SHA or image digest."
+            echo "where it points: tools.txt (pin and sha256 together), the file an inline, dependency"
+            echo "or local row names, or every use of an action SHA or image digest - the \`->\` line"
+            echo "under such a row is what to pin."
             echo
             echo '```'
             cat "$RUNNER_TEMP/tool-versions.txt"
@@ -96,8 +99,8 @@ jobs:
         with:
           label: tool-versions
           label-color: 0E8A16
-          label-description: A pin dependabot cannot move is behind upstream
-          title: Pinned CI tools are behind their upstream releases
+          label-description: A pin is behind its upstream release
+          title: Pinned tools and dependencies are behind upstream
           resolved: ${{ steps.check.outputs.problems == '0' }}
           close-comment: Every pin is current again.
           resolved-when: every pin is current
