@@ -384,28 +384,76 @@ when it lands.
        `~/.ssh/config.d/acme` with no `# Tags:` line colors as `acme` and
        reads `settings.acme.sh` on a real config.
 
-3. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+3. [ ] _Before 1.0:_ **The kept session is one feature in one place** —
+       shipped: both of its halves are `common/keep.sh`'s, with `load.sh`
+       standing in for a tree that came without the file as `hi.sh` does;
+       the multiplexers are one roster, `$_HI_MUXES`; and the file lists
+       every `hi.*` file a session leaves in its tree. Left: a tool's config
+       flag is spelled in `_hi_keep_start` and again in `common/mux.sh`, the
+       kill in `_hi_keep_end_script` and in `_hi_keep_kill`, and
+       `_hi_remote_middle` takes the feature as four string fragments.
+       **Ticks when:** each of the three is written once, and the fast,
+       lint, bench, and keep suites are green in CI with it.
+
+4. [ ] _Before 1.0:_ **Shared primitives are written once** — shipped:
+       `_hi_list_has` reads the payload's space-or-comma lists, `_hi_die` is
+       `common/core.sh`'s alone, so a script's refusal names the script, and
+       an owner pane's variables are one list. Left: the same list idiom in
+       `scripts/`, and the greeting line's own wrap in `load()` beside the
+       header's rows. **Ticks when:** both are gone and the fast and lint
+       groups are green in CI.
+
+5. [ ] _Before 1.0:_ **`scripts/settings` is the one registry** — a
+       setting's default is spelled where it is read (`_HI_PROBE_TIMEOUT`
+       nine times, `_HI_MAX_WIDTH` three), its validator and that
+       validator's wording in `hi --doctor` and again in `hi --configure`,
+       and the toggles in `common/core.sh`, `common/paths.sh`, and
+       `common/config.fish`. **Ticks when:** a row carries its validator and
+       hint for both readers, the runtime defaults are one block in
+       `common/core.sh` that `drift` pins to the table, and a new setting is
+       one row and one read.
+
+6. [ ] _Before 1.0:_ **`common/flags` reaches past dispatch** — each
+       `scripts/` entry point has its own preamble, option loop, and mode
+       flip; `hi --doctor` sorts ssh options from a target with a loop of
+       its own beside `_hi_parse`; a flag's completable words are literals
+       in `common/targets.sh`; and the data files' flags follow four verb
+       schemes (`--add-package`, `--set-color`, `--plugin-on`, `--add-tag`
+       with no remove). **Ticks when:** the scripts share one option loop,
+       doctor and a connect share one sorter, and the verbs are one scheme,
+       settled before the tag freezes them.
+
+7. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
+       each make the scratch directory, send the tree, fall back without
+       bash, and clean up in their own way, so `--keep` is the ssh arm's
+       alone and `hi --doctor` has two target halves. `_hi_container_cmds`'
+       probe, cp, and attach are the interface, and ssh fits it. **Ticks
+       when:** a container target takes the script an ssh one does, through
+       its own three commands, and the e2e and backends groups are green in
+       CI with it.
+
+8. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-4. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+9. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-5. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
+10. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+        settle its three flagged rows (`small_tasks`, `secure_2FA`,
+        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+        the live entry matches the sheet.
 
-6. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-       `publish-external.yml`'s `aur` job is written but unexercised. **When
-       it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package once by hand
-       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-       packages are live and a dispatch has kept `say-hi` current for one
-       release.
+11. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+        `publish-external.yml`'s `aur` job is written but unexercised. **When
+        it reopens:** register, add `AUR_SSH_KEY` to the `release`
+        environment, and push each package once by hand
+        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+        packages are live and a dispatch has kept `say-hi` current for one
+        release.
 
 ## License
 

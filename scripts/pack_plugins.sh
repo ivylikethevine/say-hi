@@ -385,11 +385,9 @@ function _hi_hook_off() {
 
 # _hi_plugin_switched_off <name> - the two lists' verdict on a plugin
 function _hi_plugin_switched_off() {
-  local _hi_so_off="${_HI_PLUGINS_OFF:-}" _hi_so_on="${_HI_PLUGINS_ON:-}"
-  case " ${_hi_so_off//,/ } " in *" $1 "*) return 0 ;; esac
+  ! _hi_list_has "${_HI_PLUGINS_OFF:-}" "$1" || return 0
   case "$_HI_PLUGIN_DEFAULT_OFF" in *" $1 "*) ;; *) return 1 ;; esac
-  case " ${_hi_so_on//,/ } " in *" $1 "*) return 1 ;; esac
-  return 0
+  ! _hi_list_has "${_HI_PLUGINS_ON:-}" "$1"
 }
 
 # _hi_wire_read <wire> - one wire of a <wire> column, taken apart into the

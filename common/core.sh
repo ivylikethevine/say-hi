@@ -105,6 +105,11 @@ export _HI_SHELL_TREE="fish zsh bash dash ash sh"
 # suite pins the two against each other. GLOSSARY: HI.51
 export _HI_CONTAINER_CLIS="docker podman nerdctl finch"
 
+# The multiplexers a kept session runs in, first found first: hi.sh's boot
+# probe and common/keep.sh read this. common/mux.sh and common/aliases.sh,
+# which cannot, spell the three again. GLOSSARY: HI.65
+_HI_MUXES="tmux zellij screen"
+
 # fish's set_color vocabulary; no greys, since fish has none
 _HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan
   orange pink teal lime violet salmon gold sky indigo mint peach lavender)
@@ -465,6 +470,19 @@ function _hi_out() {
   if [ -n "$1" ]; then printf -v "$1" '%s' "$2"; else printf '%s' "$2"; fi
 }
 
+# _hi_list_has <list> <word> - is <word> in a space- or comma-separated list
+function _hi_list_has() {
+  case " ${1//,/ } " in *" $2 "*) return 0 ;; esac
+  return 1
+}
+
+# _hi_die <msg> - "<who>: <msg>" in red on stderr, then exit 1: a refusal made
+# before anything ran. <who> is $_HI_ME, a script's own name, else hi.
+function _hi_die() {
+  _hi_cecho "${_HI_ME:-hi}: $1" "$RED" >&2
+  exit 1
+}
+
 # _hi_path_lookup <outvar> <name>... - the first <name> that is an executable
 # file in a $PATH directory, or empty. aliases.sh's resolver in the shells
 # that load this file: a PATH walk sees no alias or function, so it needs
@@ -710,11 +728,7 @@ _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
 # _hi_backend_off <name> - is <name> a backend $_HI_BACKENDS_OFF keeps hi
 # from asking: its word there, or `all`. common/targets.sh has its own copy.
 function _hi_backend_off() {
-  local _hi_bo="${_HI_BACKENDS_OFF:-}"
-  case " ${_hi_bo//,/ } " in
-  *" $1 "* | *" all "*) return 0 ;;
-  esac
-  return 1
+  _hi_list_has "${_HI_BACKENDS_OFF:-}" "$1" || _hi_list_has "${_HI_BACKENDS_OFF:-}" all
 }
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
@@ -904,11 +918,9 @@ function _hi_prompt_row() {
 # said it is off by default (the hook's row carries a leading - then).
 # pack_plugins.sh's _hi_hook_off is the client's reading of the same lists.
 function _hi_hook_on() {
-  local _hi_ho_off="${_HI_PLUGINS_OFF:-}" _hi_ho_on="${_HI_PLUGINS_ON:-}" _hi_ho_n="${1#-}"
-  case " ${_hi_ho_off//,/ } " in *" $_hi_ho_n "*) return 1 ;; esac
+  ! _hi_list_has "${_HI_PLUGINS_OFF:-}" "${1#-}" || return 1
   [ "${1#-}" != "$1" ] || return 0
-  case " ${_hi_ho_on//,/ } " in *" $_hi_ho_n "*) return 0 ;; esac
-  return 1
+  _hi_list_has "${_HI_PLUGINS_ON:-}" "${1#-}"
 }
 
 # _hi_run_init <shell> <command...> - a tool's shell hook (GLOSSARY: HI.67): the

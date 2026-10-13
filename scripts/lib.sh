@@ -8,13 +8,6 @@
 # *after* common/core.sh, whose _hi_repeat, _hi_cecho, and palette it uses;
 # sourcing it does nothing else.
 
-# _hi_die <msg> - "$_HI_ME: <msg>" in red on stderr, then exit 1: every
-# refusal a script makes before it does anything.
-function _hi_die() {
-  _hi_cecho "$_HI_ME: $1" "$RED" >&2
-  exit 1
-}
-
 # _hi_flag_word_or_die <outvar> <errmsg> <flag> [next] - _hi_flag_word, but a
 # bare flag with nothing after it _hi_die's with <errmsg> rather than handing
 # the caller a status to branch on. Status 2 (it took <next>, the caller must
