@@ -224,8 +224,8 @@ row, and everything answered **no**, and why:
   `compinit` your `~/.zshrc` runs, before hi's line or after it; hi runs none
   of its own.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any setting
-  on its pages — Header, its cells and package check, Prompt, Plugins,
-  Aliases, Advanced — and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+  on its pages — Header, its cells and package check, Prompt, Plugins — or
+  by a switch's key on the first, and save to `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--problems` for
   only what needs fixing, `--json` for a bug report); it also reports which rc
   files are wired and where `hi` on your `PATH` leads.

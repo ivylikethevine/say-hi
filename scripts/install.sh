@@ -104,9 +104,9 @@ EOF
     cat <<EOF
 Revisit the settings, leaving the rc wiring and the hi link alone: a table of
 the pages - Header with its cells and package check, Prompt, Plugins and a
-page a group of them, Aliases, and Advanced - with l and t for whether this
-machine and the targets are styled, p for a preset, s to save, q to leave
-the file alone. Answers go to
+page a group of them - with l and t for whether this machine and the targets
+are styled, a key each for the alias, leading space, --keep and 24-bit color
+settings, p for a preset, s to save, q to leave the file alone. Answers go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
   --preset <name>  Answer the feature and header settings from a
@@ -587,7 +587,7 @@ else
   _hi_h1 "Installing (or reinstalling) hi.sh!"
 fi
 _hi_version_line="$(_hi_release_or_describe 2>/dev/null || true)"
-_hi_cells_line "$BLUE" "hi_home: $_HI_HOME" "hi_root: $_HI_ROOT" "version: ${_hi_version_line:-unknown}" "login shell: ${SHELL##*/}"
+_hi_cells_line "$BLUE" "hi_home: $_HI_HOME" "hi_root: $_HI_ROOT" "version: ${_hi_version_line:-unknown}"
 unset _hi_version_line
 [ -z "$_HI_DRY_RUN" ] || _hi_cecho " | dry run: nothing below is written" "$BLUE"
 

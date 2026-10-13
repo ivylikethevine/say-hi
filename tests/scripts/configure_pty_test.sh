@@ -84,14 +84,14 @@ function _hi_cfg_screen_has() {
 # _hi_cfg_titles <label> - every draw's title, in order, comma-joined
 function _hi_cfg_titles() {
   _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
-    sed -E -n 's/.*-  (hi --configure(: [A-Za-z: ]+)?|Header( cells)?|Package check|Prompt|Plugins(: [a-z]+)?|Aliases|Advanced)  -.*/\1/p' |
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z: ]+)?|Header( cells)?|Package check|Prompt|Plugins(: [a-z]+)?)  -.*/\1/p' |
     paste -sd, -
 }
 
 # every page's key in order, g1 the first group of plugins (cli) standing
-# for the groups', then b: the eight pages and the main page again, each
+# for the groups', then b: the six pages and the main page again, each
 # drawn once
-_HI_MENU_EVERY_PAGE='i\ne\nc\nr\ng\ng1\na\nv\nb\ns\n'
+_HI_MENU_EVERY_PAGE='i\ne\nc\nr\ng\ng1\nb\ns\n'
 
 function test_ask_value_takes_a_typed_number() {
   local got
@@ -386,7 +386,7 @@ function test_menu_prompt_program_rejects_a_stranger() {
   [[ "$got" == *"export _HI_PROMPT_TOOL=bash:starship"* ]] || _hi_why got
 }
 
-# the Advanced rows: an opt-in toggle and a value typed for real, including
+# the main page's closing rows: an opt-in toggle and a value typed for real, including
 # the words-to-flag mapping _HI_TRUECOLOR's question hides behind ("on" is
 # stored as 1)
 function test_menu_advanced_rows() {
@@ -468,19 +468,19 @@ function test_menu_junk_is_bounded_and_quits() {
 
 # the main page is a table and no preview: the two switches for where hi
 # styles a shell, then a row a page, in order - its key, its name, and what
-# it holds - a group of plugins under Plugins with its plugins named, and
-# none of the pages' own rows
+# it holds - a group of plugins under Plugins with its plugins named, the
+# switches with no page and the 24-bit color, and none of the pages' own rows
 function test_menu_main_page_is_a_table_of_its_pages() {
   local main keys
   _HI_TERM_COLS=80 _hi_cfg_pty hub_all 's\n' '' run_configure "" || _hi_why || return 1
   main="$(_hi_cfg_screen hub_all 0)"
   keys="$(printf '%s\n' "$main" | sed -n 's/^ [^ ]* \[\([a-z]\)\] .*/\1/p' | paste -sd, -)"
-  [ "$keys" = "l,t,i,e,c,r,g,a,v" ] || _hi_because "the main page's rows: [$keys]" || return 1
+  [ "$keys" = "l,t,i,e,c,r,g,a,o,m,k,y" ] || _hi_because "the main page's rows: [$keys]" || return 1
   [[ "$main" != *"preview"* && "$main" == *"[l] "*"[x] this machine "*"[t] "*"[x] targets "* ]] &&
     [[ "$main" == *"[i] "*" Header "*"3 of 3 on, width 80"*"[e] "*" cells "*" utc version "* ]] &&
     [[ "$main" == *"[c] "*" package check "*" core useful deprecated"* && "$main" == *"[g] "*" Plugins "*" ride"* ]] &&
     [[ "$main" == *" g1 "*" cli "*" bat "*" g2 "*" editors "*" nano "* ]] &&
-    [[ "$main" == *"[v] "*" Advanced "*", 24-bit color auto"* ]] &&
+    [[ "$main" == *"[a] "*"[ ] tool aliases "*"[k] "*"[ ] ssh --keep "*"[y] "*" 24-bit color "*" auto"* ]] &&
     [[ "$main" != *") ["* && "$main" != *"hi --configure:"* && "$main" != *"[b]ack"* ]] &&
     _hi_cfg_has hub_all "CFGQUIT=none" || _hi_why main
 }
@@ -489,10 +489,10 @@ function test_menu_main_page_is_a_table_of_its_pages() {
 # rows, and a preview of what they change or none - and b comes back to the
 # main page
 function test_menu_keys_open_their_pages() {
-  local titles end sudo core hdr utc bat
+  local titles end core hdr utc bat
   end="$(_hi_item 'end|bash')" && core="$(_hi_item 'group|core')" &&
-    sudo="$(_hi_item 'row|_HI_FEATURE_PROMPTS|5')" && hdr="$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')" &&
-    utc="$(_hi_item 'word|0')" && bat="$(_hi_item 'plugin|bat')" || _hi_why end core sudo hdr || return 1
+    hdr="$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')" &&
+    utc="$(_hi_item 'word|0')" && bat="$(_hi_item 'plugin|bat')" || _hi_why end core hdr || return 1
   _HI_TERM_COLS=80 _hi_cfg_pty hub_pages "$_HI_MENU_EVERY_PAGE" '' run_configure "" || _hi_why || return 1
   titles="$(_hi_cfg_titles hub_pages)"
   [ "$titles" = "$_HI_MENU_EVERY_TITLE" ] || _hi_because "titles: [$titles]" || return 1
@@ -500,6 +500,7 @@ function test_menu_keys_open_their_pages() {
     _hi_cfg_screen_has hub_pages 1 " $hdr) [x] header" &&
     _hi_cfg_screen_has hub_pages 1 "Connected" &&
     _hi_cfg_screen_has hub_pages 1 "[e] cells" &&
+    _hi_cfg_screen_has hub_pages 1 ") [ ] drop the header's right edge" &&
     _hi_cfg_screen_has hub_pages 2 " [b]ack  [h]eader preset" &&
     _hi_cfg_screen_has hub_pages 2 " $utc) [x] utc" &&
     _hi_cfg_screen_has hub_pages 3 "$core) [x] core" &&
@@ -507,42 +508,44 @@ function test_menu_keys_open_their_pages() {
     _hi_cfg_screen_has hub_pages 5 "g2  editors  vim nvim nano" &&
     _hi_cfg_screen_has hub_pages 6 "$bat) [x] bat" &&
     _hi_cfg_screen_has hub_pages 6 "program  config  on a target" &&
-    _hi_cfg_screen_has hub_pages 7 "$sudo) [ ] sudo alias" &&
-    _hi_cfg_screen_has hub_pages 8 "24-bit color" &&
-    _hi_cfg_screen_has hub_pages 9 "[x] this machine" &&
+    _hi_cfg_screen_has hub_pages 7 "[x] this machine" &&
     ! _hi_cfg_screen_has hub_pages 4 " $hdr) [x] header" 2>/dev/null &&
     ! _hi_cfg_screen_has hub_pages 4 "Connected" 2>/dev/null &&
     ! _hi_cfg_screen_has hub_pages 5 "preview" 2>/dev/null &&
     ! _hi_cfg_screen_has hub_pages 6 "preview" 2>/dev/null &&
-    ! _hi_cfg_screen_has hub_pages 9 "preview" 2>/dev/null &&
-    ! _hi_cfg_screen_has hub_pages 9 "[b]ack" 2>/dev/null || _hi_why hdr utc core end
+    ! _hi_cfg_screen_has hub_pages 7 "preview" 2>/dev/null &&
+    ! _hi_cfg_screen_has hub_pages 7 "[b]ack" 2>/dev/null || _hi_why hdr utc core end
 }
 
-# the main page's two switches flip by their keys: this machine's writes
-# _HI_DISABLE_LOCAL, the targets' _HI_PLAIN
+# the main page's switches flip by their keys: this machine's writes
+# _HI_DISABLE_LOCAL, the targets' _HI_PLAIN, and the ones with no page their
+# own setting
 function test_menu_main_page_switches_where_hi_styles() {
   local lines
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_where 'l\nt\ns\n' '' run_configure "" || _hi_why || return 1
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_where 'l\nt\na\nk\ns\n' '' run_configure "" || _hi_why || return 1
   lines="$(_hi_cfg_lines hub_where)"
   _hi_cfg_screen_has hub_where 1 "this machine: now off" &&
     _hi_cfg_screen_has hub_where 1 "[ ] this machine" &&
     _hi_cfg_screen_has hub_where 2 "targets: now off" &&
     _hi_cfg_screen_has hub_where 2 "[ ] targets" &&
-    [[ "$lines" == *"export _HI_DISABLE_LOCAL=1"* && "$lines" == *"export _HI_PLAIN=1"* ]] || _hi_why lines
+    _hi_cfg_screen_has hub_where 3 "[x] tool aliases" &&
+    _hi_cfg_screen_has hub_where 4 "[x] ssh --keep" &&
+    [[ "$lines" == *"export _HI_DISABLE_LOCAL=1"* && "$lines" == *"export _HI_PLAIN=1"* ]] &&
+    [[ "$lines" == *"export _HI_TOOL_ALIASES=1"* && "$lines" == *"export _HI_KEEP=1"* ]] || _hi_why lines
 }
 
 # a number works from any page: the main page's flips a Prompt row and stays
-# on the main page, the Advanced page's flips an Aliases row and stays there
+# on the main page, the Plugins page's flips a main-page switch and stays there
 function test_menu_number_works_from_any_page() {
   local p t
   p="$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')" && t="$(_hi_item 'row|_HI_FEATURE_PROMPTS|4')" || _hi_why p t || return 1
-  _HI_TERM_COLS=80 _hi_cfg_pty hub_num "$p\nv\n$t\ns\n" '' run_configure "" || _hi_why p t || return 1
+  _HI_TERM_COLS=80 _hi_cfg_pty hub_num "$p\ng\n$t\ns\n" '' run_configure "" || _hi_why p t || return 1
   local lines
   lines="$(_hi_cfg_lines hub_num)"
   _hi_cfg_screen_has hub_num 1 "colored user@host prompt: now off" &&
     _hi_cfg_screen_has hub_num 1 "[x] this machine" &&
     _hi_cfg_screen_has hub_num 3 "styled tool aliases: now on" &&
-    _hi_cfg_screen_has hub_num 3 "hi --configure: Advanced" &&
+    _hi_cfg_screen_has hub_num 3 "hi --configure: Plugins" &&
     [[ "$lines" == *"export _HI_DISABLE_PROMPT=1"* && "$lines" == *"export _HI_TOOL_ALIASES=1"* ]] || _hi_why lines
 }
 
@@ -568,7 +571,7 @@ function test_menu_header_grid_at_40() { _hi_menu_grid_at 40 2; }
 function test_menu_pages_fit_24_rows() {
   local k rows
   _HI_TERM_COLS=80 _hi_cfg_pty hub_rows "$_HI_MENU_EVERY_PAGE" '' run_configure "" || _hi_why || return 1
-  for k in 1 2 3 4 5 6 7 8 9; do
+  for k in 1 2 3 4 5 6 7; do
     rows=$(($(_hi_cfg_screen hub_rows "$k" | wc -l) + 1))
     ((rows <= 24)) || _hi_because "draw $k is $rows rows" || return 1
   done
@@ -635,7 +638,7 @@ function run_configure_pty_tests() {
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
   _hi_par_check_capable pty "Menu: the main page is a table of its pages" test_menu_main_page_is_a_table_of_its_pages
   _hi_par_check_capable pty "Menu: a row's key opens its page, b comes back" test_menu_keys_open_their_pages
-  _hi_par_check_capable pty "Menu: l and t switch where hi styles a shell" test_menu_main_page_switches_where_hi_styles
+  _hi_par_check_capable pty "Menu: the main page's switches flip by their keys" test_menu_main_page_switches_where_hi_styles
   _hi_par_check_capable pty "Menu: a number works from any page" test_menu_number_works_from_any_page
   _hi_par_check_capable pty "Menu: the cells' grid holds 4 columns at 80" test_menu_header_grid_at_80
   _hi_par_check_capable pty "Menu: the cells' grid folds to 2 at 40" test_menu_header_grid_at_40
