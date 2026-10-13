@@ -123,6 +123,34 @@ block, `docs/PACKAGING.md`'s `minisign -Vm` line, and `packaging/nfpm/nfpm.yaml`
 are all machine-read by a suite, and `README.md`'s payload badge by
 `--group bench`.
 
+**These pass local checks and fail CI:**
+
+- typos splits an identifier at `_` and reads a two-letter piece as a word:
+  run `typos --config .typos.toml` over every touched file.
+- `tests/hi/payload_test.sh` keeps its stub directory on `$PATH` for the whole
+  run, so a "tool absent" assertion needs a name nothing ever stubs.
+- A scratch harness that runs single test functions has to copy the suite's
+  setup (`HOME`, `PATH`, `_hi_workdir`), or it passes what CI fails.
+- `drift` fails a `scripts/settings` row whose name has no literal read
+  (`$NAME`, `${NAME`) in the shipped tree, which is why the overlay table's
+  `off` column spells `$_HI_DISABLE_X` with its `$`.
+- A new flag changes what a prefix completes to (`hi --pl` wanted `--plain`
+  alone until `--plugins`): grep the tests for a prefix of the new flag's
+  name.
+- A new `feature` row in `scripts/settings` shifts every index after it: the
+  wizard's pages and the configure suites name rows by position (0-5: header,
+  greeting, git, env, tool aliases, sudo), and a page fits 24. Append after
+  `_HI_PLAIN`'s row; the menu finds `_HI_DISABLE_LOCAL` and `_HI_PLAIN` by
+  name.
+- A plugin's line on the wizard's group page is the comment right above its
+  table in `config/plugins`, to the first full stop, with about 36 columns to
+  show it at 80: keep a new one that short, and a group's comment a blank
+  line away from its first table.
+- An alias body holds no quote: `load.sh`'s `_hi_session_editor` strips the
+  outer quotes of `alias <name>` to build `$EDITOR`.
+- A test that starts vim uses `-es`: any other mode waits on "Press ENTER"
+  after an error and hangs the suite.
+
 ## Docs rules
 
 - Which doc a change updates is

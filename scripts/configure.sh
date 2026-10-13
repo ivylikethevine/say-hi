@@ -517,7 +517,7 @@ function configure_intro() {
   [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
   case "$file" in "$HOME"/*) file="~${file#"$HOME"}" ;; esac
   _hi_menu_cols _HI_MENU_W
-  _hi_menu_say "A row's key opens its page and [b] comes back; a number flips a setting or asks for its value, from any page." "$BLUE"
+  _hi_menu_say "A row's key opens or flips it and [b] comes back; a number sets an item." "$BLUE"
   _hi_menu_say "Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
   _hi_menu_say "settings: $file ($state)" "$BLUE"
 }

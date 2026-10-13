@@ -42,11 +42,12 @@ Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--problems] [--use <backend>] [ssh-opti
 Prints, in order, each section as a table whose rows are marked by severity
 ($_HI_MARK_OK ok, ! warn, $_HI_MARK_NO bad, blank for information):
   the local tree     where say-hi is, git state, payload size, local shells
-  the config overlay settings.sh (and whether every shell can parse it),
-                     colors/packages overrides, non-default toggles
+  the config overlay what is wrong with a file of it, the non-default
+                     toggles, and the plugins switched off
   the files          every place each overlay member can come from - the
                      overlay, each home location, the tree's default - and
-                     which one is used, or why none is
+                     which one is used, or why none is; a plugin that is
+                     switched off has no row
   the shell configs  every rc file and overlay shell file, parsed by the
                      shell that will read it
   the install        each shell's rc lines and whether they name this tree,
@@ -483,11 +484,10 @@ function doctor_config() {
   for t in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do
     doctor_row "${t%%|*}" "ignored - ${t#*|}" warn
   done
-  # every overlay file hi ships (pack.sh's _HI_OVERLAY_FILES is the contract,
-  # and the plugins rows' members after it), minus settings.sh, which got
-  # its richer parse-checked row above
+  # what the files table below cannot say of a member (pack.sh's
+  # _HI_OVERLAY_FILES is the contract, and the plugins rows' members after
+  # it); where each comes from is that table's
   for f in "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do
-    [ "$f" = settings.sh ] && continue
     [ "$f" = extensions/ ] && {
       doctor_code_dir "$f" "$_HI_EXTENSIONS" bash zsh fish
       continue
@@ -502,38 +502,21 @@ function doctor_config() {
         doctor_row "$f" "the # Tags: lines of $_HI_SSH_CONFIG ride along - a hop taken from inside a session keeps its tag colors"
       continue
     }
-    # bin/: what stays home, and why, ahead of the count of what rides
+    # bin/: what stays home, and why
     [ "$f" != bin/ ] || _hi_plugin_off "$f" || doctor_bin_dir
-    # a directory entry: how many of its files ride, and from where
-    case "$f" in */)
-      _hi_count_lines t < <(_hi_overlay_files "$f")
-      _hi_member_label "$f" label
-      [ "$t" = 0 ] || doctor_row "$label" "$t file(s) ride, the overlay's copy of each first, then $(_hi_overlay_home "$f" || echo "none at home")"
-      continue
-      ;;
-    esac
-    t=""
-    _hi_overlay_src "$f" t || true
-    # a member with no tree default has nothing to report until it exists
-    [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/config/$f" ] || continue
+    case "$f" in settings.sh | */) continue ;; esac
+    [ -f "$_HI_CONFIG_DIR/$f" ] || continue
     _hi_member_label "$f" label
-    if [ -z "$t" ] && _hi_unsent_why "$f" late; then
-      # a finding where the overlay holds a copy that was not switched off: a
-      # prompt program's with the program out of the list, or an oh-my-posh
-      # format another overlay copy already stands in for
-      v=info
-      [ ! -f "$_HI_CONFIG_DIR/$f" ] || _hi_plugin_off "$f" || v=warn
-      doctor_row "$label" "not sent - $late, so targets keep their own" "$v"
-    elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
-      # the section says what rides; the row names which file
-      doctor_row "$label" "$t"
-    elif [ -z "$t" ]; then
-      doctor_row "$label" "tree default"
-    elif [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/config/$f"; then
+    t=""
+    if ! _hi_overlay_src "$f" t; then
+      # an overlay copy that rides nowhere and was not switched off: a prompt
+      # program's with the program out of the list, or an oh-my-posh format
+      # another overlay copy already stands in for
+      _hi_plugin_off "$f" || ! _hi_unsent_why "$f" late ||
+        doctor_row "$label" "not sent - $late, so targets keep their own" warn
+    elif [ "$t" = "$_HI_CONFIG_DIR/$f" ] && [ -f "$_HI_ROOT/config/$f" ] && cmp -s "$t" "$_HI_ROOT/config/$f"; then
       # a copy of the tree's own file, byte for byte, so not an override yet
       doctor_row "$label" "a copy of the tree's, unchanged - edit it to override"
-    else
-      doctor_row "$label" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
   # Every editor rc and shell file hi packs ships into the target's config/, so
@@ -624,6 +607,8 @@ function doctor_config() {
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
+  # the one row a switched-off plugin gets: the files table lists none of it
+  [ -z "${_HI_PLUGINS_OFF:-}" ] || doctor_row "plugins off" "$_HI_PLUGINS_OFF (hi --plugins lists each)"
   doctor_flush
 }
 
@@ -695,9 +680,11 @@ function doctor_files() {
   local row _HI_ROW_FN=doctor_row
   local -a members=()
   _hi_plugins_load
-  # settings.sh and extensions/ have rows of their own in the overlay section
+  # settings.sh and extensions/ have rows of their own in the overlay
+  # section, and what is switched off is one row there
   for row in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
-    case "${row%%|*}" in settings.sh | extensions/) ;; *) members+=("${row%%|*}") ;; esac
+    case "${row%%|*}" in settings.sh | extensions/) continue ;; esac
+    _hi_plugin_off "${row%%|*}" || members+=("${row%%|*}")
   done
   _hi_member_rows "${members[@]}"
   doctor_flush

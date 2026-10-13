@@ -31,25 +31,28 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
 ## The wizard
 
 `hi --configure` opens on the keys (`[p]reset`, `[h]eader preset`, `[s]ave`,
-`[q]uit`) over a table, a row a page: its key, its name, and what it holds
-and where that stands, a page of another indented under it. A row's key
-opens its page, under a preview of what that page's settings change, or none
-where they change nothing to draw, and `[b]` comes back. Every setting keeps
-one number across the pages, and a number works from any of them:
+`[q]uit`) over a table, a row a page or a switch: its key, its name, and
+what it holds and where that stands, a page of another indented under it. A
+page's key opens it, under a preview of what that page's settings change, or
+none where they change nothing to draw, and `[b]` comes back; a switch's key
+flips it. Every setting keeps one number across the pages, and a number works
+from any of them:
 
 - **this machine** `[l]` and **targets** `[t]` — the table's first two rows,
   switches flipped by their key: whether hi styles the machine you run it on
   (`_HI_DISABLE_LOCAL`), and the hosts and containers you connect to
   (`_HI_PLAIN`).
 - **Header** `[i]` — under the header: the header, the greeting, and the
-  banner on or off, then the width and the hidden addresses. Outside the
+  banner on or off, then the width, the hidden addresses, and the header's
+  right edge (`_HI_DISABLE_RIGHT_EDGE`). Outside the
   menu, `hi --preview header` prints the header at the saved settings. Two
   pages sit under it:
   - **cells** `[e]` — the header's items in
     [Header details](#header-details), a grid in the order they print
-    (`up N`/`down N` moves one).
+    (`up N`/`down N` moves one), each name in a color of its own.
   - **package check** `[c]` — under the check alone: each group of the
-    packages file with what it holds, a number flipping whether it runs.
+    packages file, its name in a color of its own, with what it holds, a
+    number flipping whether it runs.
     `hi --preview packages` prints the check's legend.
 - **Prompt** `[r]` — under the prompt line: the colored prompt on or off, git
   status and the environment segment, who draws each shell's prompt (auto,
@@ -62,10 +65,13 @@ one number across the pages, and a number works from any of them:
   target, unchecked stays home - whether its program and a config of its are
   found here, and what a target gets of it, which is the comment above its
   table in the plugins file ([Switching a plugin off](#switching-a-plugin-off)).
-- **Aliases** `[a]` — whether `cat`, `ls`, and `sudo` get hi's aliases; both
-  opt-ins, off until turned on, under what `ls` and `cat` become.
-- **Advanced** `[v]` — the leading space, the header's right edge, the
-  `--keep` default, and 24-bit color.
+- **tool aliases** `[a]` and **sudo alias** `[o]` — the table's switches for
+  whether `cat` and `ls`, and `sudo`, get hi's aliases; both opt-ins, off
+  until turned on.
+- **no lead space** `[m]` and **ssh --keep** `[k]` — switches for the leading
+  space (`_HI_DISABLE_LEAD_SPACE`) and the `--keep` default (`_HI_KEEP`).
+- **24-bit color** `[y]` — the table's last row asks for `auto`, `on`, or
+  `off`.
 
 A row away from its default says the default beside it (`(default 2)`,
 `(default on)`). The menu draws to your terminal's width, its prose and the
@@ -234,7 +240,7 @@ by** column:
   `export` line into `settings.sh` by hand. The wizard carries such a line
   over, never drops it.
 - **`hi --configure`** — the same, with a menu item attached. **advanced**
-  marks the items under the menu's _Advanced_ heading.
+  marks the items most installs never touch.
 
 The table is written from `scripts/settings`, one row a setting, which
 `hi --configure` reads its menu items from too, so a new setting is one row

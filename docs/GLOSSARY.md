@@ -1386,7 +1386,8 @@ spells out the rows of hi's own files (`settings.sh`, `colors`, `packages`,
 their tiers against it. No setting reorders it. `hi --doctor`'s files
 section (`doctor_files`) walks the same rows, naming each member's tool and
 marking every location that holds something used or passed over, and why
-nothing is sent when something is there.
+nothing is sent when something is there; a member that is switched off has no
+row, the overlay section naming the list once.
 
 The home tier is the config in force _here_: client-only, since a relay
 packs nothing of the middle box's

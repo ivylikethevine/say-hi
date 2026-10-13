@@ -26,16 +26,20 @@ function test_config_flags_a_settings_file_that_does_not_parse() {
   [[ "$out" == *"settings.sh"*"has issues (sh)"* ]] || _hi_why out
 }
 
-function test_config_counts_an_overlay_file() {
+# where a member comes from is the files table's to say: an overlay file and
+# a tree default get no row of the overlay's section, nor does a tool config
+# found at home
+function test_config_leaves_a_members_source_to_the_files_table() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
   printf 'a\nb\n' >"$dir/colors"
+  printf 'set number\n' >"$dir/.vimrc"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
+    HOME="$dir" doctor_config
   )"
-  [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]] || _hi_why out
+  [[ "$out" == *"toggles"* && "$out" != *colors* && "$out" != *packages* && "$out" != *vimrc* ]] || _hi_why out
 }
 
 # an ssh config with a `# Tags:` line is a row saying the tags ride; one
@@ -74,35 +78,6 @@ function test_member_labels_name_the_reading_tool() {
   [ "$label" = colors ] || _hi_because "colors -> $label"
 }
 
-# a member with no tree copy - bashrc, starship.toml - has no default to
-# report, so an absent one gets no row at all
-function test_config_has_no_tree_default_for_a_member_without_one() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
-  { printf '%s\n' "$out" | grep -qE 'colors.*tree default|tree default.*colors' &&
-    ! printf '%s\n' "$out" | grep -q 'bash\.sh.*tree default' &&
-    ! printf '%s\n' "$out" | grep -q 'starship\.toml.*tree default'; } || _hi_why out
-}
-
-# a tool config the overlay lacks names the file that travels in its place
-function test_config_names_a_home_tool_config() {
-  local dir out got
-  dir="$(mktemp -d "$_HI_WORKDIR/homecfg.XXXXXX")"
-  printf -- '--theme=x\n' >"$dir/bat-flags"
-  out="$(
-    _HI_CONFIG_DIR="$dir/overlay"
-    _HI_SETTINGS="$dir/overlay/settings.sh"
-    BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
-  )"
-  got="$(_hi_doc_path "$dir/bat-flags")"
-  [[ "$out" == *"bat/config (bat)"*"$got"* && "$out" != *"the one in force here"* ]] || _hi_why got out dir
-}
-
 # a candidate that is there but is no file (a directory named as the rc is)
 # is found, passed over, and said to be not the one a connect sends
 function test_files_names_a_place_that_is_no_file() {
@@ -116,10 +91,10 @@ function test_files_names_a_place_that_is_no_file() {
   [[ "$out" == *"vim/vimrc (vim)"*"passed over"*".vimrc"*"not sent: not the file in force here"* ]] || _hi_because "doctor said: $out"
 }
 
-# a tool config copy in the overlay is the override, over the file the tool
-# reads here; a prompt program's copy with that program out of the list is
-# flagged, since nothing ships it
-function test_config_counts_a_tool_config_copy_as_an_override() {
+# a tool config copy in the overlay that rides is the files table's row; a
+# prompt program's copy with that program out of the list is flagged, since
+# nothing ships it
+function test_config_flags_an_overlay_copy_nothing_ships() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/tooloverride.XXXXXX")"
   mkdir -p "$dir/bat"
@@ -130,13 +105,13 @@ function test_config_counts_a_tool_config_copy_as_an_override() {
     _HI_SETTINGS="$dir/settings.sh"
     BAT_CONFIG_PATH="$dir/elsewhere" doctor_config
   )"
-  [[ "$out" == *"bat/config"*"overridden (1 lines)"* ]] &&
+  [[ "$out" != *"bat/config"* ]] &&
     [[ "$out" == *"starship.toml"*"not sent - its prompt program is not one a target is handed"* ]] || _hi_why out
 }
 
 # what hi turned down of a plugins file is a row, by file and line, and a
-# member a good plugin carries from home is named by its path (GLOSSARY:
-# HI.63)
+# member a good plugin carries from home is named by its path in the files
+# table (GLOSSARY: HI.63)
 function test_config_reports_the_carry_rows() {
   local got
   local dir out h="$_HI_WORKDIR/carry-doc-home"
@@ -148,14 +123,16 @@ function test_config_reports_the_carry_rows() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
+    doctor_files
   )"
   [[ "$out" == *"plugins:6"*"ignored - 'vimrc' is a member already"* ]] || _hi_because "no row for the bad table: $out" || return 1
   got="$(_hi_doc_path "$h/.taskrc")"
   [[ "$out" == *"taskrc"*"$got"* ]] || _hi_because "no row for the member: $out"
 }
 
-# a member of a plugin that is switched off says so, a word of the list that
-# names nothing is a finding, and so is a toggle the list replaced
+# what is switched off is one row of the list and no row of the files
+# table, a word of the list that names nothing is a finding, and so is a
+# toggle the list replaced
 function test_config_reports_what_is_switched_off() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/offdoc.XXXXXX")"
@@ -165,46 +142,28 @@ function test_config_reports_what_is_switched_off() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="bat nosuch" doctor_config
+    export _HI_DISABLE_NANO=1 _HI_PLUGINS_OFF="bat nosuch"
+    doctor_config
+    doctor_files
   )"
-  [[ "$out" == *"bat/config (bat)"*"not sent - switched off (_HI_PLUGINS_OFF)"* ]] || _hi_because "bat: $out" || return 1
+  [[ "$out" == *"plugins off"*"bat nosuch (hi --plugins lists each)"* && "$out" != *"bat/config"* ]] || _hi_because "bat: $out" || return 1
   [[ "$out" == *"nano/nanorc (nano)"* && "$out" != *"nano/nanorc (nano)"*"not sent"*"_HI_DISABLE_NANO"* ]] || _hi_because "nano: $out" || return 1
   [[ "$out" == *"_HI_DISABLE_NANO"*"is ignored"* ]] || _hi_because "the old toggle: $out" || return 1
   [[ "$out" == *"_HI_PLUGINS_OFF"*"'bat nosuch' is ignored"* ]] || _hi_because "the list: $out"
 }
 
-# tmux's and micro's configs come from home like a tool's: the file in force
-# here is named, a micro file nobody has gets no row, and a tmux/tmux.conf's
-# source-file is a row of the include scan like any editor rc's
-function test_config_names_tmux_and_micro_configs() {
+# a tmux/tmux.conf found at home is scanned like any editor rc: its
+# source-file is a row of the include scan
+function test_config_scans_a_home_tmux_config() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/muxcfg.XXXXXX")"
-  mkdir -p "$dir/micro"
   printf 'set -g mouse on\nsource-file ~/.tmux/theme.conf\n' >"$dir/.tmux.conf"
-  printf '{}\n' >"$dir/micro/settings.json"
   out="$(
-    _HI_CONFIG_DIR="$dir/overlay"
-    _HI_SETTINGS="$dir/overlay/settings.sh"
-    HOME="$dir" MICRO_CONFIG_HOME="$dir/micro" doctor_config
-  )"
-  [[ "$out" == *"tmux/tmux.conf (tmux)"*"~/.tmux.conf"* ]] &&
-    [[ "$out" == *"micro/settings.json (micro)"*"~/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
-    [[ "$out" == *"tmux/tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]] || _hi_why out
-}
-
-# ...and only with the tool here: home's config for a tool this machine lacks
-# is in force nowhere, so it neither ships nor gets a row
-function test_config_is_silent_on_a_config_for_an_absent_tool() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/notool.XXXXXX")"
-  printf 'set -g mouse on\n' >"$dir/.tmux.conf"
-  out="$(
-    function _hi_tool_here() { return 1; }
     _HI_CONFIG_DIR="$dir/overlay"
     _HI_SETTINGS="$dir/overlay/settings.sh"
     HOME="$dir" doctor_config
   )"
-  [[ "$out" != *tmux/tmux.conf* ]] || _hi_why out
+  [[ "$out" == *"tmux/tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]] || _hi_why out
 }
 
 # The files table walks every tier of a member in the table's order and marks
@@ -378,20 +337,6 @@ function test_config_names_an_unclosed_block_marker() {
     [[ "$out" == *"aliases.sh:2"*"reads a file hi does not carry"* && "$out" != *"vim/vimrc:"* ]] || _hi_why out
 }
 
-# an editor rc hi picked up from where that editor reads it says where it came
-# from, so "which file is my target actually getting" has one answer on screen
-function test_config_names_the_editor_config_in_force_here() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/in-force.XXXXXX")"
-  printf 'set number\n' >"$dir/.vimrc"
-  out="$(
-    _HI_CONFIG_DIR="$dir/overlay"
-    _HI_SETTINGS="$dir/settings.sh"
-    HOME="$dir" doctor_config
-  )"
-  [[ "$out" == *"vim/vimrc (vim)"*"~/.vimrc"* ]] || _hi_why out
-}
-
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
 # at their defaults folded into one quiet line
 # the parse verdict is doctor_configs', off rc.sh's _HI_OVERLAY_CHECKS - one
@@ -504,20 +449,17 @@ function test_config_lists_the_header_cells() {
   [[ "$out" != *header/* ]] || _hi_because "listed with the header off: $out"
 }
 
-# packages is an overlay file like colors: the tree's default until the
-# overlay has one, then a copy of it (what `hi --add-package` starts from)
-# or an override counted in lines
+# packages is an overlay file like colors: a copy of the tree's (what
+# `hi --add-package` starts from) says so until it is edited
 function test_config_reports_the_packages_file() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/packages.XXXXXX")"
-  out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
-  [[ "$out" == *"packages"*"tree default"* || "$out" == *"tree default"*"packages"* ]] || _hi_why out || return 1
   cp "$_HI_ROOT/config/packages" "$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
   [[ "$out" == *"packages"*"a copy of the tree's, unchanged"* ]] || _hi_why out || return 1
   printf '# a note\n[core]\nsh = []\n' >"$dir/packages"
   out="$(_HI_CONFIG_DIR="$dir" doctor_config)"
-  [[ "$out" == *"packages"*"overridden (3 lines)"* ]] || _hi_why out
+  [[ "$out" != *"a copy of the tree's"* ]] || _hi_why out
 }
 
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
@@ -589,8 +531,7 @@ function test_config_names_a_file_under_an_old_member_name() {
   got3="$(_hi_doc_path "$dir/bash.sh")"
   got4="$(_hi_doc_path "$dir/bashrc")"
   [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $got $got2"* &&
-    "$out" == *"bash.sh"*"old name"*"mv $got3 $got4"* &&
-    "$out" == *"bashrc"*"overridden (1 lines)"* ]] || _hi_why got got2 got3 got4 out dir || return 1
+    "$out" == *"bash.sh"*"old name"*"mv $got3 $got4"* ]] || _hi_why got got2 got3 got4 out dir || return 1
   # the carry's lines are rewritten, not moved
   got="$(_hi_doc_path "$dir/carry")"
   [[ "$out" == *"carry"*"old name hi no longer reads - it is plugins now: hi --configure converts it"* && "$out" != *"mv $got"* ]] ||
@@ -843,6 +784,7 @@ function test_config_names_what_bin_leaves_home() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
+    doctor_files
   )"
   [ ! -x "$dir/bin/plain" ] || rides=2 plain=""
   [[ "$out" == *"bin/tool"*"left home - a binary"* && "$out" == *"$plain"* &&
@@ -971,17 +913,14 @@ function run_doctor_config_tests() {
 
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
-  _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+  _hi_check "A member's source is the files table's to say" test_config_leaves_a_members_source_to_the_files_table
   _hi_check "A tagged ssh config says its tags ride" test_config_says_the_ssh_tags_ride
   _hi_check "A member's label names the tool that reads it" test_member_labels_name_the_reading_tool
   _hi_check "A carry row is reported, good or turned down" test_config_reports_the_carry_rows
-  _hi_check "What is switched off says so, and by what" test_config_reports_what_is_switched_off
-  _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
-  _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
+  _hi_check "What is switched off is one row, and no row of the files table" test_config_reports_what_is_switched_off
   _hi_check "A place that is there but is no file is said to be passed over" test_files_names_a_place_that_is_no_file
-  _hi_check "An overlay copy of one is overridden, or not sent" test_config_counts_a_tool_config_copy_as_an_override
-  _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
-  _hi_check "...and a config for an absent tool gets no row" test_config_is_silent_on_a_config_for_an_absent_tool
+  _hi_check "An overlay copy nothing ships is flagged" test_config_flags_an_overlay_copy_nothing_ships
+  _hi_check "A tmux config from home is scanned" test_config_scans_a_home_tmux_config
   _hi_check "The files table walks every tier" test_files_table_walks_every_tier
   _hi_check "...and names an overlay copy alone, not the tree's behind it" test_files_table_hides_the_tree_default_behind_a_copy
   _hi_check "...and says why a file it found is not sent" test_files_table_names_why_a_found_file_is_not_sent
@@ -991,7 +930,6 @@ function run_doctor_config_tests() {
   _hi_check "A file under hi-carry that is not there is named" test_config_names_a_marked_file_that_is_not_there
   _hi_check "A shell include is named unless hi-allow or hi-quiet" test_config_names_a_shell_include_unless_allowed
   _hi_check "A block marker's start with no end is named" test_config_names_an_unclosed_block_marker
-  _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
   _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases

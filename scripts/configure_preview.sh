@@ -270,12 +270,6 @@ function _hi_tool_alias_preview() {
   )
 }
 
-# The Aliases page's picture: what ls and cat become, while that row is on
-function _hi_aliases_preview() {
-  setting_on _HI_TOOL_ALIASES "$_HI_SETTINGS" "" 1 || return 0
-  _hi_tool_alias_preview
-}
-
 # _hi_prompt_choice <shell> <value> <outvar> - who draws <shell>'s prompt
 # under a $_HI_PROMPT_TOOL value, as the menu names it: the first program or
 # `hi` its entries try, auto when there are only other shells' entries or

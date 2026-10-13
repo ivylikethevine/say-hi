@@ -539,7 +539,7 @@ _HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Package check,hi --c
 
 _HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Plugins,hi --configure: Plugins: cli"
 
-_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure: Aliases,hi --configure: Advanced,hi --configure"
+_HI_MENU_EVERY_TITLE="$_HI_MENU_EVERY_TITLE,hi --configure"
 
 # _hi_item <kind> - the number the menu gives an item ("word|0" the first
 # header item, "end|bash", "width", ...), read off the list itself rather
@@ -630,6 +630,20 @@ function test_menu_numbers_every_row() {
   done
 }
 
+# a name's color is its own wherever it is listed, and a key a line names is
+# painted without a character of the line lost; a checkbox is no key
+function test_menu_paints_names_and_keys() {
+  local a b c out plain
+  _hi_name_color a core
+  _hi_name_color b core
+  _hi_name_color c useful
+  [ "$a" = "$b" ] && { [ -z "$CYAN" ] || [ "$a" != "$c" ]; } || _hi_why a b c || return 1
+  _hi_menu_keyed out "save with [s] - [x] runs" "$BLUE"
+  plain="$(_hi_strip_ansi "$out")"
+  [ "$plain" = "save with [s] - [x] runs" ] || _hi_why plain || return 1
+  [ -z "$BRYELLOW" ] || { printf -v a '%b[s]' "$BRYELLOW" && [[ "$out" == *"$a"* && "$out" != *"m[x]"* ]]; } || _hi_why out
+}
+
 # _hi_configure_begin - what every part of this suite starts from, and the tally
 function _hi_configure_begin() {
   _hi_workdir configuretest
@@ -693,6 +707,7 @@ function run_configure_tests() {
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
   _hi_check "Menu: a row names the command it needs and this machine lacks" test_menu_row_notes_an_absent_needs_command
+  _hi_check "Menu: a name keeps its color, and a key a line names is painted" test_menu_paints_names_and_keys
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"
