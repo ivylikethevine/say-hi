@@ -235,8 +235,13 @@ function _hi_keep_held() {
 
 # What `hi --end` runs on the target: 3 when there is no kept session to
 # close. The owner pane's bash takes the hangup and its exit hook removes the
-# tree, as on a dropped connection. A tree a drop left to its timer is ended
-# through that timer's watcher, which hi.end tells to stop waiting.
+# tree, as on a dropped connection. That hook may never run: zellij sends a
+# layout's command SIGTERM and then SIGKILL as its server goes, and an
+# interactive bash ignores the first. So the script waits, two seconds at
+# most, for one of the panes that were running to go, then sweeps as a
+# connect does (_hi_keep_sweep), and its status stays the kill's. A tree a
+# drop left to its timer is ended through that timer's watcher, which hi.end
+# tells to stop waiting.
 function _hi_keep_end_script() {
   local tmpl
   _hi_whoami >/dev/null
@@ -252,11 +257,29 @@ function _hi_keep_end_script() {
         done
         exit \$_hi_e
       }
+      _hi_live() { read -r _hi_ko _hi_kp 2>/dev/null <"\$1" && kill -0 "\$_hi_ko" 2>/dev/null; }
+      _hi_d=\$(mktemp -d -t $tmpl) && rmdir "\$_hi_d" || _hi_d=
+      set --
+      [ -z "\$_hi_d" ] || for _hi_s in "\${_hi_d%.hi.*}".hi.*/say-hi/hi.kept; do
+        ! _hi_live "\$_hi_s" || set -- "\$@" "\$_hi_s"
+      done
       case \$_hi_k in
       tmux) tmux kill-session -t "=\$_hi_kn" ;;
       zellij) zellij kill-session "\$_hi_kn" ;;
       screen) screen -S "\$_hi_ks" -X quit ;;
       esac
+      _hi_e=\$?
+      _hi_n=0
+      while [ \$# -gt 0 ] && [ \$_hi_n -lt 10 ]; do
+        for _hi_s; do _hi_live "\$_hi_s" || break 2; done
+        _hi_n=\$((_hi_n + 1))
+        sleep 0.2 2>/dev/null || sleep 1
+      done
+      [ -z "\$_hi_d" ] || {
+        _HI_HOME=\$_hi_d
+$(_hi_keep_sweep)
+      }
+      (exit "\$_hi_e")
 REMOTE
 }
 

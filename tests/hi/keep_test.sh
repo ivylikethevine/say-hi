@@ -535,6 +535,27 @@ function test_keep_end_ends_a_held_tree_through_its_timer() {
   [[ "$out" == *RC=3* ]] && [ ! -e "$t/hi.end" ] || _hi_because "another name's: $out"
 }
 
+# after the kill, a tree whose owner pane is dead goes with the session: the
+# pane's exit hook may never have run. One the shell it was kept from still
+# runs on is left, and the status is the kill's.
+function test_keep_end_sweeps_the_tree_of_a_dead_owner_pane() {
+  local d="$_HI_WORKDIR/endsweep" out dead path
+  sleep 0 &
+  wait "$!"
+  dead=$!
+  mkdir -p "$d/u.hi.dead/say-hi" "$d/u.hi.outer/say-hi" "$d/bin"
+  # shellcheck disable=SC2016 # the shim's sh expands it
+  printf '%s\n' '#!/bin/sh' 'mkdir -p "$_HI_TEST_TMP/u.hi.probe" && printf "%s\n" "$_HI_TEST_TMP/u.hi.probe"' >"$d/bin/mktemp"
+  chmod +x "$d/bin/mktemp"
+  path="$d/bin:$(_hi_keep_shims):$PATH"
+  printf '%s \n' "$dead" >"$d/u.hi.dead/say-hi/hi.kept"
+  printf '%s %s\n' "$dead" "$$" >"$d/u.hi.outer/say-hi/hi.kept"
+  out="$(_hi_keep_sh "$_HI_WORKDIR/endsweep.log" "($(DOMAIN=box _hi_keep_end_script)); echo RC=\$?" PATH="$path" _HI_TEST_TMP="$d" _HI_TEST_HAS=0)"
+  [[ "$out" == *"TMUX kill-session -t =hi-box"* && "$out" == *RC=0* ]] || _hi_because "the kill: $out" || return 1
+  [ ! -e "$d/u.hi.dead" ] || _hi_because "a dead pane's tree is still there: $out" || return 1
+  [ -d "$d/u.hi.outer/say-hi" ] || _hi_because "a tree its outer shell still runs on was taken: $out"
+}
+
 # hi --end's own line and status: ssh's 3 is "none", and hi's 1
 function test_keep_end_reports_what_the_target_answered() {
   local bin="$_HI_WORKDIR/endssh" out rc=0
@@ -951,6 +972,7 @@ function run_hi_keep_tests() {
   _hi_check "...and not with no terminal" test_keep_held_leaves_a_tree_it_may_not_take
   _hi_check "--end kills the session, or exits 3 with none" test_keep_end_kills_the_session_or_says_there_is_none
   _hi_check "...and ends a held tree through its timer" test_keep_end_ends_a_held_tree_through_its_timer
+  _hi_check "...and sweeps the tree of a dead owner pane" test_keep_end_sweeps_the_tree_of_a_dead_owner_pane
   _hi_check "...which hi --end reports, exiting 1" test_keep_end_reports_what_the_target_answered
   _hi_h2 "Testing: hi --keep typed in a session"
   _hi_check "--keep alone is a session's; elsewhere, no target" test_keep_alone_is_a_session_s_and_an_error_elsewhere

@@ -1707,7 +1707,10 @@ rode, which leaves `wiring.sh`'s.
   `action detach` leaves an attached client where it is - so there the fresh
   shell comes with a line naming the key. With nobody attached it closes.
   `hi --end <target>` kills the session over one ssh call, and the pane's
-  bash takes the hangup.
+  bash takes the hangup. zellij may kill that bash before its exit hook has
+  run (a layout's command gets SIGTERM, which an interactive bash ignores,
+  then SIGKILL), so the same call waits up to two seconds for a pane to go
+  and then sweeps, as a connect does.
 - **A session that died.** A target that goes down kills a session with no
   exit hook run, and a `/tmp` that outlasts the reboot keeps its tree. So
   every session's `load()` claims its tree (`_hi_keep_claim`): an owner pane
