@@ -1580,8 +1580,8 @@ for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 tmux, zellij, or screen, so it outlives the connection, and where the target
 has none of the three holds the session's tree through a drop. All of it is
 the ssh arm's and the bash tier's: a container arm, `--plain`, and a
-bash-less target connect as usual. The client's half is `common/keep.sh`,
-which `hi.sh` sources, and the target's is `load.sh`'s.
+bash-less target connect as usual. Both halves are `common/keep.sh`'s: the
+client's, which `hi.sh` sources, and the target's, which `load.sh` does.
 
 `$_HI_DISABLE_KEEP=1` switches it off whole. `_hi_keep_off` is the one
 reading: `_hi_keep_probes` is false, so no connect carries the reattach, the
@@ -1590,7 +1590,7 @@ start, the sweep, or the hold, keeps a record, or retries; `--keep` and
 `common/keep.sh` and `common/mux.sh` from the tree. A session's `hi.sh` finds
 no `keep.sh`, defines the four functions the connect path calls as no-ops,
 and reads the absence as the switch, so a relay from it carries none of it
-either; `common/aliases.sh` makes its multiplexer aliases only where `mux.sh`
+either, and its `load.sh` stands in for the session's six the same way; `common/aliases.sh` makes its multiplexer aliases only where `mux.sh`
 rode, which leaves `wiring.sh`'s.
 
 - **The name.** `hi-<target>`, from `_hi_mux_name`: the target as typed on
@@ -1707,7 +1707,10 @@ rode, which leaves `wiring.sh`'s.
   `action detach` leaves an attached client where it is - so there the fresh
   shell comes with a line naming the key. With nobody attached it closes.
   `hi --end <target>` kills the session over one ssh call, and the pane's
-  bash takes the hangup.
+  bash takes the hangup. zellij may kill that bash before its exit hook has
+  run (a layout's command gets SIGTERM, which an interactive bash ignores,
+  then SIGKILL), so the same call waits up to two seconds for a pane to go
+  and then sweeps, as a connect does.
 - **A session that died.** A target that goes down kills a session with no
   exit hook run, and a `/tmp` that outlasts the reboot keeps its tree. So
   every session's `load()` claims its tree (`_hi_keep_claim`): an owner pane

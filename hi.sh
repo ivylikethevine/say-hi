@@ -46,8 +46,8 @@ export _HI_HOME
 }
 # shellcheck source=./common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
-# the kept session's client half, a file of its own (GLOSSARY: HI.65). A
-# session whose client switched it off was sent none, and these stand in.
+# the kept session, a file of its own (GLOSSARY: HI.65). A session whose
+# client switched it off was sent none, and these stand in.
 _HI_KEEP_GONE=""
 if [ -r "$_HI_ROOT/common/keep.sh" ]; then
   # shellcheck source=./common/keep.sh
@@ -341,13 +341,6 @@ function _hi_fail() {
   _HI_SAID=1
 }
 
-# _hi_die <msg> - "hi: <msg>" in red on stderr, then exit 1: a refusal made
-# before anything ran.
-function _hi_die() {
-  _hi_cecho "hi: $1" "$RED" >&2
-  exit 1
-}
-
 # The walker's rc 2 means "known host, no tag"; only 1 means not in the config.
 # Literal entries only, or a `Host *` block would claim every container,
 # allocation, and pod name for ssh. Unmemoized: the memo holds the
@@ -580,9 +573,9 @@ function _hi_boot_probe() {
 if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi
 if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
 cat > "$d/bootloader" || exit 1
-m=0; for s in tmux zellij screen; do if command -v "$s" >/dev/null 2>&1; then m=1; fi; done
-printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"
 PROBE
+  printf '%s\n' "m=0; for s in $_HI_MUXES; do if command -v \"\$s\" >/dev/null 2>&1; then m=1; fi; done" \
+    'printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"'
 }
 
 # _hi_boot_why <status> <output> - why the boot probe left no scratch dir, as

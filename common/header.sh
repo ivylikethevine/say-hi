@@ -1176,11 +1176,8 @@ function check_line() {
 
 # _hi_group_on <group> - whether $_HI_PACKAGES_GROUPS runs <group>
 function _hi_group_on() {
-  local _hi_go_g="${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT}"
   # `none` is the setting's word for no groups, never a group of its own
-  [ "$1" != none ] || return 1
-  case " ${_hi_go_g//,/ } " in *" $1 "*) return 0 ;; esac
-  return 1
+  [ "$1" != none ] && _hi_list_has "${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT}" "$1"
 }
 
 # _hi_package_groups <outvar> - the groups $_HI_PACKAGES holds, in file

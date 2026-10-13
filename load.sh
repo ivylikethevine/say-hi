@@ -61,6 +61,22 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # with the header off, the client sent no header.sh
 # shellcheck source=./common/header.sh
 [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || source "$_HI_HEADER"
+# the kept session's target half (GLOSSARY: HI.65). A tree whose client
+# switched it off came without the file, and these stand in.
+if [ -r "$_HI_ROOT/common/keep.sh" ]; then
+  # shellcheck source=./common/keep.sh
+  source "$_HI_ROOT/common/keep.sh"
+else
+  function _hi_keep_file() { :; }
+  function _hi_keep_claim() { :; }
+  function _hi_keep_holds() {
+    _hi_keep_limit=0
+    return 1
+  }
+  function _hi_keep_panes() { :; }
+  function _hi_keep_watch() { :; }
+  function _hi_keep_stays() { return 1; }
+fi
 
 # The bootloader shell: `hi <target> <cmd>` runs <cmd> here and load() starts
 # the session shell from here, so what is exported now is what both inherit:
@@ -341,14 +357,14 @@ function _hi_session_shell_cmd() {
 # `alias vim=...` reaches $EDITOR too. An editor with no alias goes bare,
 # hence the ${body:-$e} tail.
 function _hi_session_editor() {
-  local e body off=" ${_HI_PLUGINS_OFF:-} "
+  local e body
   # no parse of the overlay's aliases.sh first: the session's shell does
   # that, and here it would be a fork a call
   _HI_ALIAS_GUARD=true
   # shellcheck source=./common/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} "$@" $_HI_EDITORS; do
-    [[ "${off//,/ }" != *" ${e/#helix/hx} "* ]] || continue
+    ! _hi_list_has "${_HI_PLUGINS_OFF:-}" "${e/#helix/hx}" || continue
     type -P "$e" &>/dev/null || continue
     body="$(alias "$e" 2>/dev/null)"
     body="${body#alias "$e"=\'}"
@@ -429,55 +445,6 @@ $1 == "extendsyntax" && !($2 in have) {
   mv -f "$rc.hi" "$rc"
 }
 
-# What `hi --keep` typed in this session starts its owner pane with, a
-# NAME=value a line for common/keep.sh's _hi_keep_here: the target's name as the
-# client typed it, the client's verdicts, the tree, and this shell, whose
-# exit that pane waits out before it removes the tree. GLOSSARY: HI.65
-function _hi_keep_file() {
-  local v
-  for v in _HI_KEEP_AS "${_HI_SESSION_VARS[@]}" NO_COLOR _HI_ROOT _HI_CLEANUP \
-    _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME; do
-    [ -z "${!v-}" ] || printf '%s=%s\n' "$v" "${!v}"
-  done
-  printf '_HI_KEEP_OUTER=%s\n' "$$"
-}
-
-# A session's claim on its tree. An owner pane's is hi.kept: its pid, then
-# that of the shell it was kept from. Any other session of a disposable tree
-# leaves its pid in hi.pid. A later connect reads both (common/keep.sh's
-# _hi_keep_sweep) and removes the tree of a session that died with no exit
-# hook. GLOSSARY: HI.65
-function _hi_keep_claim() {
-  if [ -n "${_HI_KEEP_MUX:-}" ]; then
-    printf '%s %s\n' "$$" "${_HI_KEEP_OUTER:-}" >"$_HI_ROOT/hi.kept"
-  elif [[ -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]]; then
-    # only into a tree this session may remove: never an install's
-    printf '%s\n' "$$" >"$_HI_ROOT/hi.pid"
-  fi
-}
-
-# Whether this session may hold its tree through a drop: not an owner pane,
-# the tree a disposable one, a terminal to lose, and a window to hold it for,
-# into $_hi_keep_limit - $_HI_KEEP_TIMEOUT in seconds, 15m here where a live
-# session's is 24h, and 0 holds nothing. It does hold once hi.hold names it:
-# load() writes that for a connect that asked ($_HI_KEEP_HOLD, where a
-# keeping connect found no multiplexer or took a held tree), and `hi --keep`
-# typed in the session writes it later. GLOSSARY: HI.65
-function _hi_keep_holds() {
-  _hi_keep_limit=0
-  [[ -z "${_HI_KEEP_MUX:-}" && -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]] && [ -t 0 ] || return 1
-  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-15m}" _hi_keep_limit || _hi_keep_limit=900
-  ((_hi_keep_limit > 0))
-}
-
-# _hi_keep_claimed <file> <pid> <field> - is <pid> the <field>th word of the
-# claim <file> in this tree?
-function _hi_keep_claimed() {
-  local a="" b=""
-  read -r a b _ 2>/dev/null <"$_HI_ROOT/$1" || return 1
-  case "$3" in 1) [ "$a" = "$2" ] ;; *) [ "$b" = "$2" ] ;; esac
-}
-
 # _hi_tree_watch [step [poll]] - the tree's last resort: a job apart from this
 # shell that waits it out and, should the tree still be there, does what its
 # exit hook would have. The hook and the bootstrap's trap remove the tree on
@@ -517,123 +484,6 @@ function _hi_tree_watch() {
   } 2>/dev/null
   _hi_tree_watch_pid=$!
   disown "$_hi_tree_watch_pid" 2>/dev/null || true
-}
-
-# A kept session (GLOSSARY: HI.65) runs load() in the owner pane of a tmux,
-# zellij, or screen session hi.sh started: $_HI_KEEP_MUX names the multiplexer
-# and $_HI_KEEP_NAME the session. The three functions below are that pane's.
-
-# Is a client attached to the session this pane owns? zellij lists its
-# clients a line each under a header. With no header to read - a zellij too
-# old to list them, or one still starting, which answers with nothing - it
-# counts as attached, so nothing closes a session somebody may be in.
-function _hi_keep_attached() {
-  local n
-  case "${_HI_KEEP_MUX:-}" in
-  tmux)
-    n="$(tmux display-message -p -t "=$_HI_KEEP_NAME:" '#{session_attached}' 2>/dev/null)"
-    [ "${n:-0}" != 0 ]
-    ;;
-  zellij)
-    n="$(zellij --session "$_HI_KEEP_NAME" action list-clients 2>/dev/null)" || return 0
-    [[ "$n" != CLIENT_ID* || "$n" == *$'\n'* ]]
-    ;;
-  screen) screen -ls 2>/dev/null | grep -F "${STY:-.$_HI_KEEP_NAME}" | grep -F '(Attached)' >/dev/null ;;
-  *) return 1 ;;
-  esac
-}
-
-# The timeout: a background job of the owner pane that ends the session once
-# no client has been attached for $_HI_KEEP_TIMEOUT (24h; 0 is never). The
-# pane takes the hangup and its exit hook removes the tree, so nothing of
-# hi's outlives the session. <step> is the poll, a test's to shorten.
-function _hi_keep_watch() {
-  local limit step="${1:-60}" idle=0
-  [ -n "${_HI_KEEP_NAME:-}" ] || return 0
-  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-24h}" limit || limit=86400
-  ((limit > 0)) || return 0
-  ((step <= limit)) || step="$limit"
-  (
-    while sleep "$step"; do
-      if _hi_keep_attached; then
-        idle=0
-      else
-        idle=$((idle + step))
-        ((idle < limit)) || break
-      fi
-    done
-    _hi_keep_kill
-  ) </dev/null >/dev/null 2>&1 &
-  _hi_keep_watch_pid=$!
-}
-
-# End the session this pane owns, every pane of it.
-function _hi_keep_kill() {
-  case "$_HI_KEEP_MUX" in
-  tmux) tmux kill-session -t "=$_HI_KEEP_NAME" ;;
-  zellij) zellij kill-session "$_HI_KEEP_NAME" ;;
-  screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X quit ;;
-  esac
-}
-
-# _hi_keep_panes <session shell command...> - the session's other panes. A
-# multiplexer opens each on its default shell, the host's own, which reads
-# none of hi's rc (GLOSSARY: HI.46). So the owner pane leaves a launcher
-# beside the rc - what load() exported for the session shell, then that shell
-# - and names it the session's: tmux's default-command and screen's shell,
-# set here for this session alone; zellij takes a default shell at its start
-# only, where hi.sh named this path. $SHELL is written back since screen
-# hands a window its `shell` as $SHELL. GLOSSARY: HI.65
-function _hi_keep_panes() {
-  local v q file="$_HI_ROOT/hi.pane"
-  [ -n "${_HI_KEEP_MUX:-}" ] || return 0
-  {
-    printf '#!%s\n' "$BASH"
-    for v in "${_HI_CHILD_ENV[@]}" ZDOTDIR ENV VIMINIT EDITOR SUDO_EDITOR VISUAL NO_COLOR SHELL; do
-      [ -n "${!v+x}" ] || continue
-      printf -v q '%q' "${!v}"
-      printf 'export %s=%s\n' "$v" "$q"
-    done
-    # the overlay's bin/, which the multiplexer's server never had on $PATH
-    if [ -n "${_HI_CONFIG_DIR:-}" ] && [ -d "$_HI_CONFIG_DIR/bin" ]; then
-      printf -v q '%q' "$_HI_CONFIG_DIR/bin"
-      # shellcheck disable=SC2016 # the launcher's to expand
-      printf 'export PATH="$PATH":%s\n' "$q"
-    fi
-    printf 'exec'
-    printf ' %q' "$@"
-    printf '\n'
-  } >"$file" && chmod +x "$file" || return 0
-  case "$_HI_KEEP_MUX" in
-  tmux)
-    # run by tmux's default-shell, whichever that is: %q's backslashes are
-    # the one quoting sh, zsh, and fish all read. The colon: set-option's
-    # target is a pane, and takes the session's exact name only before one.
-    printf -v q '%q' "$file"
-    tmux set-option -t "=$_HI_KEEP_NAME:" default-command "$q" >/dev/null 2>&1
-    ;;
-  screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X shell "$file" >/dev/null 2>&1 ;;
-  esac
-  return 0
-}
-
-# Asked when the owner pane's shell exits with a client attached, since an
-# `exit` typed from habit would otherwise end every pane. True to stay: the
-# client is detached and load() starts a fresh shell. zellij has no command
-# that detaches a client, so there the fresh shell comes with the key that
-# does. With nobody attached there is nobody to ask, and the session closes.
-function _hi_keep_stays() {
-  local reply=""
-  [ -n "${_HI_KEEP_NAME:-}" ] && [ -t 0 ] && _hi_keep_attached || return 1
-  _hi_cecho " hi: close the kept session? [y/N] " "$YELLOW" 1
-  read -r reply || return 1
-  case "$reply" in [yY]*) return 1 ;; esac
-  case "$_HI_KEEP_MUX" in
-  tmux) tmux detach-client -s "=$_HI_KEEP_NAME" ;;
-  zellij) _hi_cecho " hi: kept - zellij's own key detaches, Ctrl+o d unless rebound" "$YELLOW" ;;
-  screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X detach ;;
-  esac
-  return 0
 }
 
 function load() {
@@ -679,10 +529,9 @@ function load() {
   # too and `:source` runs a .lua file as lua, so a box with nvim and no vim
   # gets init.lua, and one with both has each read its own: an $EDITOR an
   # overlay file set bare, with no `-u`, still opens on the right rc.
-  local vimrc="" nvimrc="" off=" ${_HI_PLUGINS_OFF:-} "
-  off="${off//,/ }"
-  [[ "$off" != *" vim "* && -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
-  [[ "$off" != *" nvim "* && -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && nvimrc="$_HI_NVIMRC"
+  local vimrc="" nvimrc=""
+  ! _hi_list_has "${_HI_PLUGINS_OFF:-}" vim && [[ -f "${_HI_VIMRC:-}" ]] && command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
+  ! _hi_list_has "${_HI_PLUGINS_OFF:-}" nvim && [[ -f "${_HI_NVIMRC:-}" ]] && command -v nvim &>/dev/null && nvimrc="$_HI_NVIMRC"
   if [[ -n "$vimrc" && -n "$nvimrc" ]]; then
     export VIMINIT="let \$MYVIMRC = has('nvim') ? '$nvimrc' : '$vimrc' | source \$MYVIMRC"
   elif [[ -n "$vimrc$nvimrc" ]]; then
