@@ -342,6 +342,49 @@ function _hi_keep_at_tty() {
   [ -t 0 ]
 }
 
+# A terminal for the wait to draw its dots on
+function _hi_keep_live() {
+  [ -t 2 ]
+}
+
+# _hi_keep_until <outvar> - ", where the session is kept for <how long> until
+# <when that is>", for the line a drop leaves. How long is $_HI_KEEP_TIMEOUT
+# as the target reads it: unset, 24h for a session in a multiplexer and 15m
+# for a directory held where there is none ($_HI_TARGET_MUX, the boot probe's
+# word); 0, a multiplexer's session with no end and no held directory at all.
+# No time where date gives none.
+function _hi_keep_until() {
+  local span="${_HI_KEEP_TIMEOUT:-}" secs at fmt='%H:%M' mux="${_HI_TARGET_MUX:-1}"
+  { [ -n "$span" ] && _hi_keep_seconds "$span" secs; } || {
+    span=24h secs=86400
+    [ "$mux" = 1 ] || span=15m secs=900
+  }
+  printf -v "$1" '%s' ""
+  ((secs > 0)) || [ "$mux" = 1 ] || return 0
+  printf -v "$1" '%s' ", where the session is kept"
+  ((secs > 0)) || return 0
+  ((secs < 86400)) || fmt='%a %H:%M'
+  at=$(($(date +%s) + secs))
+  # GNU and busybox read @<seconds>, BSD -r <seconds>
+  at="$(date -d "@$at" "+$fmt" 2>/dev/null || date -r "$at" "+$fmt" 2>/dev/null)" || at=""
+  printf -v "$1" ', where the session is kept for %s%s' "$span" "${at:+ until $at}"
+}
+
+# The five seconds between tries: at a terminal a dot a second, the fifth as
+# the try starts, on a line each wait starts over
+function _hi_keep_wait() {
+  local n
+  _hi_keep_live || {
+    sleep 5
+    return 0
+  }
+  printf '\r\033[K ' >&2
+  for n in 1 2 3 4 5; do
+    sleep 1
+    _hi_cecho . "$YELLOW" - >&2
+  done
+}
+
 # _hi_keep_connect <log> - _say_hi, for a session that may be kept. The
 # target's script ends 86 when it leaves a kept session behind and 0 when it
 # does not, and the record follows; a connect that keeps writes it up front,
@@ -351,7 +394,7 @@ function _hi_keep_at_tty() {
 # drop, each try quiet (its words in <log>) until the target answers. A try that gets in and drops within ten seconds does
 # not restart the window. GLOSSARY: HI.65
 function _hi_keep_connect() {
-  local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-5m}" limit t0="" t1 expected=""
+  local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-5m}" limit t0="" t1 expected="" until
   ! _hi_keep_probes || probes=1
   [ "$probes" = 0 ] || _hi_keep_record rec || rec=""
   [ -z "$rec" ] || [ ! -e "$rec" ] || expected=1
@@ -373,15 +416,17 @@ function _hi_keep_connect() {
     if [ "$_HI_LINK_UP" = 1 ] && { [ -z "$t0" ] || ((SECONDS - t1 >= 10)); }; then
       t0=$SECONDS
       [ ! -t 1 ] || _hi_reset_terminal "$ec"
-      _hi_cecho " hi: lost [$DOMAIN], where the session is kept - retrying for $window, Ctrl+C stops" "$YELLOW" >&2
+      _hi_keep_until until
+      _hi_cecho " hi: lost [$DOMAIN]$until - retrying for $window, Ctrl+C stops" "$YELLOW" >&2
     elif [ -z "$t0" ]; then
       break
     elif ((SECONDS - t0 >= limit)); then
+      ! _hi_keep_live || printf '\r\033[K' >&2
       _hi_cecho "hi: [$DOMAIN] did not come back in $window; a later hi to it reattaches the session it kept" "$YELLOW" >&2
       _HI_SAID=1
       break
     fi
-    sleep 5
+    _hi_keep_wait
     expected=1 _HI_CONNECT_T0="$(_hi_now)" _HI_KEEP_QUIET="$log"
   done
   _HI_KEEP_QUIET=""

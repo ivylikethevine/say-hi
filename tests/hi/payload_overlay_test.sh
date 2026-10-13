@@ -178,8 +178,8 @@ export INPUTRC="$_HI_CONFIG_DIR/inputrc"'
 # an editor's or a multiplexer's config rides with its alias: the command
 # and its flags, where the target has the command, under the path load.sh
 # reads for $VIMINIT.
-# vim and nvim keep their state in the session tree, nvim answers to vim
-# too, helix under each of its names as itself, its languages.toml through
+# vim and nvim keep their state in the session tree, each under its own
+# name, helix under each of its names as itself, its languages.toml through
 # the xdg wire, whose alias comes last and wins, and zellij's directory is
 # aliased once for all its files
 # shellcheck disable=SC2016 # the wanted lines hold their $ unexpanded
@@ -194,7 +194,7 @@ function test_overlay_tar_aliases_the_editors_and_multiplexers() {
   want='export _HI_VIMRC="$_HI_CONFIG_DIR/vim/vimrc"
 command -v vim >/dev/null 2>&1 && alias vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_CONFIG_DIR/vim/vimrc" || true
 export _HI_NVIMRC="$_HI_CONFIG_DIR/nvim/init.lua"
-command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/nvim/init.lua" && alias vim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/nvim/init.lua" || true
+command -v nvim >/dev/null 2>&1 && alias nvim="env XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u $_HI_CONFIG_DIR/nvim/init.lua" || true
 command -v hx >/dev/null 2>&1 && alias hx="hx -c $_HI_CONFIG_DIR/helix/config.toml" || true
 command -v helix >/dev/null 2>&1 && alias helix="helix -c $_HI_CONFIG_DIR/helix/config.toml" || true
 command -v hx >/dev/null 2>&1 && alias hx="env XDG_CONFIG_HOME=$_HI_CONFIG_DIR hx" || true

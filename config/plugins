@@ -67,7 +67,7 @@ files = "vim/vimrc"
 
 # nvim starts on your init.lua or init.vim
 [editors.nvim]
-wire = "env:_HI_NVIMRC;flag:nvim,vim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u"
+wire = "env:_HI_NVIMRC;flag:nvim=XDG_STATE_HOME=$_HI_HOME/nvim/state XDG_DATA_HOME=$_HI_HOME/nvim/data XDG_CACHE_HOME=$_HI_HOME/nvim/cache nvim -u"
 home = "$_HI_XDG_CONFIG/nvim/"
 dialect = "lua"
 files = "nvim/init.vim nvim/init.lua"

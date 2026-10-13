@@ -786,8 +786,8 @@ function test_every_checkout_drops_its_credentials() {
 }
 
 # every third-party `uses:` is a 40-hex commit SHA with its full `# vX.Y.Z`
-# beside it: a tag can be moved under a pin, and the comment is what dependabot
-# rewrites and check_tool_versions.sh reads. `$/` and `./` are this repo's own.
+# beside it: a tag can be moved under a pin, and the comment is what
+# check_tool_versions.sh reads. `$/` and `./` are this repo's own.
 function test_every_third_party_action_is_sha_pinned() {
   local f out line bad=0
   while IFS= read -r f; do

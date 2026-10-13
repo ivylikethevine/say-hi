@@ -3,7 +3,7 @@
 # rule silenced without one is a rule nobody can put back.
 ignored:
   # DL3008/DL3018/DL3041: pin apt/apk/dnf versions. The base image is
-  # digest-pinned instead (dependabot watches it); per-package pins would
+  # digest-pinned instead (tool-versions.yml watches it); per-package pins would
   # freeze dozens of versions nothing watches, for packages hi's behaviour
   # never depends on.
   - DL3008

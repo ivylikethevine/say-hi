@@ -59,6 +59,11 @@ function doctor_target() {
     local tag tagged=""
     local -a tags=()
     if _hi_ssh_host_tag "${target##*@}" >/dev/null; then
+      # a tag no line wrote is the name of the host's config.d file: walked
+      # again here, unforked, for the file the walk leaves in $_hi_sw_file
+      if _hi_ssh_host_tag_walk "${target##*@}" >/dev/null 2>&1 && [ -z "$_hi_sw_tag" ] && [ -n "$_hi_sw_file" ]; then
+        doctor_row tag "$_HI_TAG_VALUE - the name of $_hi_sw_file, which holds its Host line under no # Tags: line"
+      fi
       IFS=' ,' read -r -a tags <<<"$_HI_TAG_VALUE" || true
       for tag in ${tags[@]+"${tags[@]}"}; do
         case "$tag" in '' | *[!A-Za-z0-9_-]*) continue ;; esac

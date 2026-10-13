@@ -107,7 +107,7 @@ EOF
 }
 
 # _hi_doctor_run [args...] - doctor.sh as a program, on the shims and the
-# fixture $HOME. Through _hi_run_said: a whole report outlasts the 20s past
+# fixture $HOME. Through _hi_run_said: a whole report outlasts the 30s past
 # which a failed case gets no second try, so a silent run gets its own.
 function _hi_doctor_run() {
   local home
@@ -384,7 +384,7 @@ function test_doctor_probe_snippet_runs_under_sh() {
 # and exit code are memoized here - once the report ran to its closing line.
 # One that stopped short is not kept, so the next call (the other case, or a
 # failed case's traced rerun) runs it again; where a flake may pass it is run
-# once more here too, a whole report outlasting the 20s a rerun is given.
+# once more here too, a whole report outlasting the 30s a rerun is given.
 _HI_DOC_PLAIN_OUT=""
 
 _HI_DOC_PLAIN_RC=""

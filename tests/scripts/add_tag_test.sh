@@ -63,6 +63,18 @@ function test_add_tag_writes_the_included_file() {
 Host inc1' ] && ! grep -q lab "$home/.ssh/config"; } || _hi_why got home
 }
 
+# ...where the file's own name already tags it: asked for that tag, nothing
+# is written, and another is said to go over it
+function test_add_tag_knows_a_config_d_file_s_name() {
+  local home out got
+  home="$(_hi_addtag_fixture addtag-configd)"
+  out="$(_hi_addtag_run "$home" inc1 01-inc)" || _hi_why home || return 1
+  got="$(cat "$home/.ssh/config.d/01-inc")"
+  [[ "$out" == *"inc1 is already tagged 01-inc, by the file's name"* ]] && [ "$got" = 'Host inc1' ] || _hi_why out got home || return 1
+  out="$(_hi_addtag_run "$home" inc1 lab)" || _hi_why home || return 1
+  { [[ "$out" == *"over the file's own tag 01-inc"* ]] && grep -qx '# Tags: lab' "$home/.ssh/config.d/01-inc"; } || _hi_why out home
+}
+
 # a name only a wildcard covers is refused, naming the block to tag instead
 function test_add_tag_refuses_a_wildcard_only_host() {
   local home out
@@ -165,6 +177,7 @@ function run_add_tag_tests() {
   _hi_check "Writes a tag above the Host line" test_add_tag_writes_above_the_host
   _hi_check "Replaces an existing tag" test_add_tag_replaces_an_existing_tag
   _hi_check "Tags a host in the file it is Included from" test_add_tag_writes_the_included_file
+  _hi_check "...and knows the tag a config.d file's name gives it" test_add_tag_knows_a_config_d_file_s_name
   _hi_check "Refuses a wildcard-only host, naming the block" test_add_tag_refuses_a_wildcard_only_host
   _hi_check "Tags a pattern" test_add_tag_tags_a_pattern
   _hi_check "Refuses an unknown host and a bad tag" test_add_tag_refuses_an_unknown_host_and_a_bad_tag

@@ -63,7 +63,7 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   arm64 (macOS included) it is not counted as a failure - it is listed under
   _Flaky cases_ at the end of the run, a GitHub warning on CI. On native Linux
   x64, the least loaded platform, a flake is a failure like any other
-  (`_HI_FLAKY_OK=1`/`0` overrides either way). A failure that took over 20s
+  (`_HI_FLAKY_OK=1`/`0` overrides either way). A failure that took over 30s
   is rerun too, for its trace alone - it is FAILED whatever the rerun does,
   never FLAKY - and ended once it has had that time again and half a minute,
   with the trace it got to: where a hung case stands. Only the coverage
@@ -422,8 +422,8 @@ naming a missing Dockerfile.
 `tests/dockerfiles/` that names an upstream image (11 of 20: alpine, ubuntu,
 debian, fedora, bash, zshusers/zsh) carries a `@sha256:` — what makes a failed
 e2e run reproducible and a base-image move a deliberate, reviewable act.
-Dependabot bumps the digests weekly, which is how a base image reaching EOL
-gets noticed. The other 9 are `FROM ${BASE}` over an image a suite or a tape
+`tool-versions.yml` reports a moved tag weekly, which is how a base image
+reaching EOL gets noticed. The other 9 are `FROM ${BASE}` over an image a suite or a tape
 builds locally (`hi-test-sshd` and the like; see `--build-arg BASE=` in
 `tests/targets/*_test.sh`), with no upstream digest to pin; Scorecard flags
 them as unpinned `containerImage` dependencies, and
@@ -434,8 +434,8 @@ actions are SHA-pinned separately.
 
 **The same tags named in shell and YAML are guarded, not watched.** `alpine:`
 and `debian:` also appear as plain tags in `tests/lib/backend.sh`,
-`docs/tapes/fixtures.sh`, and `ci.yml`'s packaging smoke, where Dependabot
-cannot see them. `lint_image_tags` fails when a tag named anywhere in the tree
+`docs/tapes/fixtures.sh`, and `ci.yml`'s packaging smoke, where the digest
+check cannot see them. `lint_image_tags` fails when a tag named anywhere in the tree
 disagrees with the digest-pinned ones; `lint_image_digests` when two
 Dockerfiles pin one tag to different digests.
 
@@ -471,9 +471,11 @@ locally for want of a tool fails there. Its binaries are pinned in
 `name|pin|kind|url|verify|check|tag-prefix|sha256` (the file's header
 documents each), the last a sha256 of the download, one for every platform or
 one per platform (`linux-x86_64=<hex>,darwin-aarch64=<hex>`), so a pin moves
-only with its checksum. `tool-versions.yml` drift-checks every row weekly, and
-`.github/scripts/check_tool_versions.local.sh` adds this repo's inline pins
-and image checks. markdownlint-cli2 and prettier are pinned in
+only with its checksum. `tool-versions.yml` drift-checks every row weekly,
+with every action SHA, image digest and npm pin beside them: Dependabot opens
+no version-update pull request, so its one tracking issue is where a bump
+starts. `.github/scripts/check_tool_versions.local.sh` adds this repo's
+inline pins and image checks. markdownlint-cli2 and prettier are pinned in
 `.github/package-lock.json` instead, installed by `npm ci --prefix .github`
 and run from `.github/node_modules/.bin`. After the group, the same job runs
 lychee (settings in `lychee.toml`) offline over the tracked Markdown, so a

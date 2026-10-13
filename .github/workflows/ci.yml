@@ -12,9 +12,9 @@ on:
   # HashiCorp's apt repo, kind via helm/kind-action's install_only (only the
   # action's SHA is pinned). The framework installers under
   # tests/dockerfiles/frameworks/ are pinned per release and bumped by hand,
-  # not by this schedule; dependabot's digest bumps run the same jobs only when
-  # a base image moved. Wednesday, after the Monday dependabot/tool-versions
-  # and Tuesday codeql/scorecard crons, so a red run follows a fresh sweep.
+  # not by this schedule; a digest bump runs the same jobs only when a base
+  # image moved. Wednesday, after the Monday tool-versions and Tuesday
+  # codeql/scorecard crons, so a red run follows a fresh sweep.
   schedule:
     - cron: '17 6 * * 3'
 
@@ -370,7 +370,7 @@ jobs:
           cache-dependency-path: .github/package-lock.json
 
       # markdownlint-cli2 and prettier with their whole dependency tree, from
-      # .github/package-lock.json (dependabot's npm entry moves it);
+      # .github/package-lock.json (tool-versions.yml reports its drift);
       # tools_test.sh runs them from .github/node_modules/.bin
       - name: Install the pinned Markdown tools
         run: npm ci --prefix .github --ignore-scripts --no-audit --no-fund
@@ -573,7 +573,7 @@ jobs:
   # BLAKE2 fallback) every other CI box has. Alpine as a target is
   # ssh_test.sh's; this is hi.sh itself on busybox sed/awk/mktemp/ip. Built
   # from alpine-shell.Dockerfile, so the base stays digest-pinned under
-  # dependabot and image-scan. The copy sits in $HOME/hi-tree, not
+  # tool-versions and image-scan. The copy sits in $HOME/hi-tree, not
   # $HOME/say-hi, for the reason windows-e2e.yml's wsl-suites gives.
   test-alpine:
     name: fast suites (Alpine client)

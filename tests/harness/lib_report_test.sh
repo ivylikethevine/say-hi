@@ -121,7 +121,7 @@ function _hi_rr_stderr_flake() {
   return 1
 }
 
-# A failure that took over 20s is traced too, apart from the suite's shell: a
+# A failure that took over 30s is traced too, apart from the suite's shell: a
 # second failure with its trace, a pass that is a failure all the same, and a
 # rerun that hangs ended with the trace it got to
 function _hi_rr_hangs() {
@@ -136,13 +136,13 @@ function test_a_slow_failure_is_traced_and_a_hung_rerun_is_ended() {
   ) || _hi_why
 }
 function _hi_rr_slow_check() {
-  _hi_trace_rerun 21 _hi_rr_fails && return 1
-  [[ "$_HI_RERUN_OUT" == *"traced rerun (exit 1, the failure took 21s)"* && "$_HI_RERUN_OUT" == *"'[' 2 = 3 ']'"* ]] ||
+  _hi_trace_rerun 31 _hi_rr_fails && return 1
+  [[ "$_HI_RERUN_OUT" == *"traced rerun (exit 1, the failure took 31s)"* && "$_HI_RERUN_OUT" == *"'[' 2 = 3 ']'"* ]] ||
     _hi_because "a slow failure said: [$_HI_RERUN_OUT]" || return 1
   rm -f "$_HI_WORKDIR/rr.flag"
   _hi_rr_flake || :
-  ! _hi_trace_rerun 21 _hi_rr_flake || _hi_because "a slow failure passed as a flake" || return 1
-  [[ "$_HI_RERUN_OUT" == *"traced rerun passed in "*"where the failure took 21s"*"never a flake"* ]] ||
+  ! _hi_trace_rerun 31 _hi_rr_flake || _hi_because "a slow failure passed as a flake" || return 1
+  [[ "$_HI_RERUN_OUT" == *"traced rerun passed in "*"where the failure took 31s"*"never a flake"* ]] ||
     _hi_because "a slow failure whose rerun passed said: [$_HI_RERUN_OUT]" || return 1
   # a limit of a second: the time it took, and half a minute
   _hi_trace_rerun_slow -29 _hi_rr_hangs && return 1

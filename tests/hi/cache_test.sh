@@ -522,6 +522,19 @@ function test_tag_settings_join_and_ride_for_a_tagged_host() {
     _hi_because "got: $out"
 }
 
+# ...and so for a host no line tags, by the name of its config.d file
+function test_tag_settings_read_a_config_d_file_s_name() {
+  local dir rt out
+  dir="$(_hi_tag_fixture tag.configd)"
+  rt="$(_hi_cache_rt tag.configd.rt)"
+  mkdir -p "$dir/.ssh/config.d"
+  printf 'Include config.d/*\n' >"$dir/ssh_config"
+  printf 'Host web9\n  HostName 10.0.0.9\n' >"$dir/.ssh/config.d/acme"
+  printf 'export _HI_PLAIN=1\n' >"$dir/settings.acme.sh"
+  out="$(HOME="$dir" _hi_tag_run "$dir" "$rt" web9)"
+  [[ "$out" == "1|$rt/hi.settings."*"|joined|export _HI_PLAIN=1;" ]] || _hi_because "got: $out"
+}
+
 # an untagged host, and a relay from inside a session: settings.sh as it is
 function test_tag_settings_leave_other_hosts_alone() {
   local dir rt out
@@ -779,6 +792,7 @@ function run_cache_tests() {
 
   _hi_h2 "Testing: _hi_tag_settings"
   _hi_check "A tagged host reads its tag's file, joined to settings.sh" test_tag_settings_join_and_ride_for_a_tagged_host
+  _hi_check "...a host of ~/.ssh/config.d/<name> reads settings.<name>.sh" test_tag_settings_read_a_config_d_file_s_name
   _hi_check "An untagged host and a relay are left alone" test_tag_settings_leave_other_hosts_alone
   _hi_check "A tag's file stands alone, and is not rewritten" test_tag_settings_stand_alone_and_keep_their_file
   _hi_check "The overlay archive holds the joined settings.sh" test_tag_settings_ride_in_the_overlay_tar

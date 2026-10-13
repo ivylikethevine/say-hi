@@ -19,9 +19,13 @@ just-the-docs|_config.yml|remote_theme: just-the-docs/just-the-docs@v\([0-9][0-9
 # shellcheck disable=SC2034 # read by check_tool_versions.sh
 CI_IMAGE_GLOBS='tests/dockerfiles/*.Dockerfile'
 
-# Files that run a digest-pinned image outside a Dockerfile. Dependabot cannot
-# see them, so each digest must be one of the tests/dockerfiles pins, which it
-# does move - this reports the two parting after a repin PR merges.
+# The Markdown tools' npm manifest; nothing else here has one.
+# shellcheck disable=SC2034 # read by check_tool_versions.sh
+CI_MANIFESTS='npm|.github/package.json'
+
+# Files that run a digest-pinned image outside a Dockerfile. The digest
+# section cannot read them, so each digest must be one of the tests/dockerfiles
+# pins, which it does report - this reports the two parting after a repin.
 _HI_IMAGE_FILES='packaging/mkrepo.sh .github/workflows/ci.yml'
 
 # The floors (and fish's ceiling) the docker `ignore:` rules in
@@ -73,7 +77,7 @@ function ci_local_checks() {
       _ci_problem "$floor" "the $floor floor is no longer a tests/dockerfiles pin - move the floor fixture back, or update _HI_FLOOR_PINS"
     elif ! grep -qxF "$image" <<<"$ignores"; then
       printf '%-48s ERROR (no dependabot ignore holds it)\n' "$floor"
-      _ci_problem "$floor" "dependabot.yml has no docker ignore for $image, so a bump PR can move the $floor floor"
+      _ci_problem "$floor" "dependabot.yml has no docker ignore for $image, so a bump pull request could move the $floor floor once they are back on"
     else
       printf '%-48s pinned and ignored\n' "$floor"
     fi

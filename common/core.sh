@@ -1120,10 +1120,7 @@ function _hi_hash_color() {
 
 # the user/host say-hi is permanently installed on; hi.sh ships these ahead as
 # _HI_LOCAL_USER/_HI_LOCAL_HOSTNAME (its _hi_remote_preamble)
-# [outvar], as the escapes below take one: through $( ) each of these cost a
-# subshell wrapped around a subshell wrapped around a value core.sh already
-# had memoized, and _hi_override_color asks on every color resolution.
-# GLOSSARY: HI.05
+# [outvar] (GLOSSARY: HI.05): _hi_override_color asks on every color resolution
 function _hi_local_username() {
   _hi_whoami >/dev/null # primes the memo; read the variable, not a $( )
   _hi_out "${1:-}" "${_HI_LOCAL_USER:-$_HI_WHOAMI_CACHE}"
@@ -1369,10 +1366,11 @@ function _hi_ssh_try_patterns() {
 # that matches (a leading `Host *`) does not end the walk: ssh applies every
 # matching block, so a tag further down still counts. An `Include` is walked
 # in place, its files flattened by targets.sh - a fork only for a config that
-# has one.
+# has one. A file directly in a `config.d` tags the hosts it spells out, where
+# no comment does, with its own name.
 function _hi_ssh_host_tag_walk() {
   local line trimmed known=1
-  _hi_sw_tag=""
+  _hi_sw_tag="" _hi_sw_file=""
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
     trimmed="${line#"${line%%[![:space:]]*}"}"
@@ -1383,6 +1381,7 @@ function _hi_ssh_host_tag_walk() {
         _hi_ssh_walk_line "$line" "$1" && return 0
         [ $? -eq 1 ] || known=2
       done < <(sh "$_HI_TARGETS" ssh-include "${trimmed#*[[:space:]=]}" 2>/dev/null)
+      _hi_sw_file=""
       ;;
     *)
       _hi_ssh_walk_line "$line" "$1" && return 0
@@ -1394,7 +1393,8 @@ function _hi_ssh_host_tag_walk() {
 }
 
 # One line of the walk above: 0 tagged (printed), 2 known-but-untagged, 1 go
-# on. The pending tag rides in $_hi_sw_tag between lines.
+# on. The pending tag rides in $_hi_sw_tag between lines, and the config.d
+# file they are from, as targets.sh marks it, in $_hi_sw_file.
 function _hi_ssh_walk_line() {
   local trimmed rest patterns rc
   trimmed="${1#"${1%%[![:space:]]*}"}"
@@ -1409,11 +1409,21 @@ function _hi_ssh_walk_line() {
       # the leftmost tag only - "prod, web" pins on prod
       _hi_sw_tag="${rest%%[,[:space:]]*}"
       ;;
+    hi-file:*)
+      _hi_sw_file=""
+      # a name that is one plain word, or it is no tag
+      case "${rest##*/config.d/}" in "$rest" | '' | *[!A-Za-z0-9_.-]*) ;; *) _hi_sw_file="${rest#hi-file: }" ;; esac
+      ;;
     esac
     ;;
   [Hh][Oo][Ss][Tt][[:space:]]*)
     rc=0
     _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "$_hi_sw_tag" || rc=$?
+    if [ "$rc" -eq 2 ] && [ -n "$_hi_sw_file" ]; then
+      # a wildcard names no host: only a spelled-out one takes the file's name
+      local _HI_SSH_LITERAL_ONLY=1
+      _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$2" "${_hi_sw_file##*/}" && return 0
+    fi
     [ "$rc" -eq 1 ] || return "$rc"
     _hi_sw_tag=""
     ;;
@@ -1447,11 +1457,8 @@ function _hi_ssh_tag_color() {
   _hi_ssh_host_tag "$1" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE" "${2:-}"
 }
 
-# _hi_resolve_color <type> <name> [tag] [outvar] - [outvar] as the last of
-# four so every existing three-arg call (a username's tag) keeps working.
-# Threaded through _hi_override_color/_hi_ssh_tag_color/_hi_colors_pattern/
-# _hi_hash_color so the two memos below can fill without a $( ) anywhere in
-# the chain - each still answers on stdout when [outvar] is empty.
+# _hi_resolve_color <type> <name> [tag] [outvar] - the whole chain answers
+# into [outvar] with no $( ), or on stdout when it is empty
 function _hi_resolve_color() {
   local type="$1" name="$2" tag="${3:-}" outvar="${4:-}"
   # one load of the colors file for the whole chain

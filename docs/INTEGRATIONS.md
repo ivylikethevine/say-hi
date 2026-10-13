@@ -281,8 +281,12 @@ A kept session that dies with its target - a reboot that keeps `/tmp` - leaves
 its directory behind; your next `hi <target>` removes it, and says the kept
 session is gone if this machine had seen it. When the link to a kept session
 drops, hi retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and
-lands back in the session, in any terminal; Ctrl+C stops it, with no terminal
-it ends as ssh does, and `hi <target>` reattaches either way. A link that
+lands back in the session, in any terminal: one line says how long the target
+keeps the session, and a row of dots grows a second at a time, five to a
+try. Ctrl+C stops it, with no terminal it ends as ssh does, and `hi <target>`
+reattaches either way.
+ssh's own `~.` is a drop like any other, so in a kept session it is followed
+by the retry: `~.`, then Ctrl+C, leaves. A link that
 goes quiet counts as dropped after 45 seconds: a keeping connect asks ssh for
 a keepalive, unless your ssh config sets a `ServerAliveInterval` of its own.
 `_HI_KEEP=1` makes it the default.

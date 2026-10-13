@@ -17,10 +17,12 @@
 # live here, not at each caller: packaging/mkpkg.sh stages a *copy* of the tree
 # under dist/, so a run after a local package build would lint everything twice
 # and report against paths that are not the source. .claude/ is agent config
-# and local scratch; node_modules/ is `npm ci --prefix .github`'s install.
+# and local scratch; scratch/ is one-off measuring and driving scripts, kept
+# to run again and held to no gate; node_modules/ is `npm ci --prefix
+# .github`'s install.
 function _hi_lint_find() {
   find "$_HI_ROOT" \( "$@" \) -not -path '*/.git/*' -not -path '*/node_modules/*' \
-    -not -path "$_HI_ROOT/dist/*" -not -path "$_HI_ROOT/.claude/*" \
+    -not -path "$_HI_ROOT/dist/*" -not -path "$_HI_ROOT/.claude/*" -not -path "$_HI_ROOT/scratch/*" \
     -not -path "$_HI_ROOT/coverage-report/*" -not -path "$_HI_ROOT/coverage-v2-report/*" | sort
 }
 

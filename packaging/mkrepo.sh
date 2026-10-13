@@ -45,9 +45,8 @@ _HI_TARBALL=""
 # the noarch packages are listed under every architecture a client asks for
 _HI_DEB_ARCHES="amd64 arm64 all"
 _HI_APK_ARCHES="x86_64 aarch64"
-# By digest, the same pins as tests/dockerfiles (sshd-alpine, sshd-debian),
-# which dependabot moves; check_tool_versions.local.sh reports when these fall
-# behind them. createrepo_c: Alpine 3.24 does not package it, Debian bookworm
+# By digest, the same pins as tests/dockerfiles (sshd-alpine, sshd-debian);
+# check_tool_versions.local.sh reports when these fall behind them. createrepo_c: Alpine 3.24 does not package it, Debian bookworm
 # (oldstable) does. Not trixie yet: its createrepo_c 1.2 writes .zst repodata
 # where bookworm's writes .gz, a change to what every existing dnf/yum client
 # of the published repository reads.

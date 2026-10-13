@@ -571,12 +571,17 @@ function _hi_ctl_close() {
 # directory) so _say_hi can name the reason. `if`s rather than `|| exit N`:
 # Windows OpenSSH hands the command to cmd.exe, which cannot run `sh` but
 # does honour `||`, and would itself exit 64. GLOSSARY: HI.19
+#
+# HIMUX says whether the target has a multiplexer to keep a session in, which
+# decides how long one is kept (_hi_keep_until); ahead of HIBOOT, whose line
+# stays the last.
 function _hi_boot_probe() {
   cat <<'PROBE'
 if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi
 if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
 cat > "$d/bootloader" || exit 1
-printf "\nHIBOOT:%s\n" "$d"
+m=0; for s in tmux zellij screen; do if command -v "$s" >/dev/null 2>&1; then m=1; fi; done
+printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"
 PROBE
 }
 
@@ -746,12 +751,9 @@ function _hi_version() {
   if [ "${_HI_VERSION_KEY-}" != "$_HI_ROOT|${_HI_RELEASE:-}" ]; then
     _HI_VERSION_KEY="$_HI_ROOT|${_HI_RELEASE:-}"
     _HI_VERSION_MEMO="$(_hi_release_or_describe)"
-    if [ -n "$_HI_VERSION_MEMO" ]; then
-      :
-    elif [ -d "$_HI_ROOT/.git" ]; then
-      _HI_VERSION_MEMO='unknown (git would not answer)'
-    else
+    if [ -z "$_HI_VERSION_MEMO" ]; then
       _HI_VERSION_MEMO='unknown (no stamp, no git)'
+      [ ! -d "$_HI_ROOT/.git" ] || _HI_VERSION_MEMO='unknown (git would not answer)'
     fi
   fi
   if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_VERSION_MEMO"; else printf '%s\n' "$_HI_VERSION_MEMO"; fi
@@ -955,8 +957,11 @@ function _hi_boot_call() {
   if [ "$boot_fd" = 8 ]; then
     exec 8>&-
     [ "$boot_ec" != 255 ] || return 1
+    # over the retry's countdown line
+    [ ! -t 2 ] || printf '\r\033[K' >&2
     cat "$_HI_KEEP_QUIET" >&2
   fi
+  case "$boot_out" in *HIMUX:0*) _HI_TARGET_MUX=0 ;; *HIMUX:1*) _HI_TARGET_MUX=1 ;; esac
   boot_tmp=""
   case "$boot_out" in *HIBOOT:*)
     boot_tmp="${boot_out##*HIBOOT:}"
@@ -1435,12 +1440,8 @@ function _hi_parse() {
         # `--plain=1` is one mistake, a local command behind an ssh option is
         # another - those dispatch on the first word alone. Bare flags matched
         # above, so an empty column here is the joined case.
-        if [ -z "$takes" ]; then
-          _hi_cecho "hi: ${1%%=*} takes no value" "$RED" >&2
-        else
-          _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2
-        fi
-        exit 1
+        [ -n "$takes" ] || _hi_die "${1%%=*} takes no value"
+        _hi_die "$1 goes first on the line (hi ${1%%=*} ...)"
       elif [ "${1#--}" != "$1" ]; then
         _hi_die "unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)"
       else
@@ -1533,8 +1534,10 @@ function _hi_reset_terminal() {
 # which is the session's own status, so `hi host false` stays as quiet as
 # `ssh host false`; and when the container errlog is empty.
 function _hi_report_failure() {
-  local code="$1" arm="$2" errlog="$3" errors
+  local code="$1" arm="$2" errlog="$3" errors said="could not reach"
   [ "${_HI_SAID:-0}" != 1 ] || return 0
+  # an ssh session that was up was cut, by the link or by ssh's own ~.
+  [ -n "$arm" ] || [ "${_HI_LINK_UP:-0}" != 1 ] || said="disconnected from"
   if [ -n "$arm" ]; then
     [ -s "$errlog" ] || return 0
   else
@@ -1548,7 +1551,7 @@ function _hi_report_failure() {
   else
     printf '\n' >&2
   fi
-  _hi_cecho "hi: could not reach [$DOMAIN]" "$BRRED" >&2
+  _hi_cecho "hi: $said [$DOMAIN]" "$BRRED" >&2
   [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
 }
 

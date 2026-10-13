@@ -746,7 +746,10 @@ keeps its own rather than an alias to a missing file.
 `_hi_ssh_tags_file` cuts the `# Tags:` lines and the `Host`/`Match host` line
 under each out of `~/.ssh/config` into the runtime dir, in ssh_config's own
 shape, so `_hi_ssh_host_tag` on a relaying box walks it with the walker it
-already has - after its own config, and only in a remote session. Only tagged
+already has - after its own config, and only in a remote session. A `config.d`
+file's name is written out there as the `# Tags:` line it stands for: the
+walk and the cut both read it off the `# hi-file:` comment `targets.sh` puts
+ahead of each Included file's lines. Only tagged
 blocks ride, so an untagged block that would have answered first at home is
 not there to: a name both it and a later tagged wildcard match reads as
 tagged on the second hop.
@@ -1666,7 +1669,8 @@ rode, which leaves `wiring.sh`'s.
   a multiplexer, in a session with `hi.keep`, it runs `hi --keep` with
   `$_HI_KEEP_WITH` naming the tool, and the start block takes that one of
   the three; anything else passes through to the tool on the config hi
-  carried. So a multiplexer started by habit is the kept session, not one
+  carried, and one typed bare where there is no `hi.keep` says first that
+  its panes get the machine's own shell. So a multiplexer started by habit is the kept session, not one
   left on a tree its connect removes at the drop.
 - **Kept from inside.** `hi --keep` with no target, typed in a session, keeps
   that session: `_hi_keep_here` runs the same attach and start under `sh`,
@@ -1752,7 +1756,14 @@ rode, which leaves `wiring.sh`'s.
   target answers, and a boot call ssh itself failed ends the try there, with
   no PowerShell fallback for a host that was not reached. A try that gets in
   and drops within ten seconds does not restart the window. A connect that
-  never got in is not retried. A link that freezes is no drop until ssh
+  never got in is not retried. The drop's line names how long the
+  target keeps the session and the time that runs out (`_hi_keep_until`):
+  `$_HI_KEEP_TIMEOUT`, else the default of what the target has, which the
+  boot probe's `HIMUX` line said at the connect - 24h in a multiplexer, 15m
+  for a held directory. At a terminal `_hi_keep_wait` draws a dot a second,
+  five to a try, on a line the try that answers clears. ssh's `~.` ends 255 as a lost link does, and
+  nothing tells the two apart, so it is retried too: Ctrl+C at the
+  countdown is how a kept session is left for good. A link that freezes is no drop until ssh
   says so, so a connect that keeps, or comes back to a kept session, asks
   for `ServerAliveInterval=15` and `ServerAliveCountMax=3` where the ssh
   config sets no interval (`_hi_keep_alive`, by `ssh -G`): forty-five

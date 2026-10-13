@@ -5,7 +5,8 @@
 # `Match host`) line in ~/.ssh/config or whichever file it Includes the host
 # from. A tag already there is replaced - the walk reads the leftmost only, so
 # a second would change nothing. A name only a wildcard block covers is
-# refused with that block named: tagging the pattern is the way to say it.
+# refused with that block named: tagging the pattern is the way to say it. A
+# host the name of its config.d file already tags that way is left alone.
 # add_package.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -33,7 +34,8 @@ Writes "# Tags: <tag>" directly above <host>'s Host (or Match host) line in
 $_HI_SSH_CONFIG, or in the file it Includes the host from, so a hosttag or
 usertag row in your colors file colors it (docs/COLORS.md). A tag already
 there is replaced. <host> is matched as written in the config, so a pattern
-tags its whole block: $me '*.prod' prod.
+tags its whole block: $me '*.prod' prod. A host in a file of a config.d
+directory carries that file's name as its tag until a line says otherwise.
 
   -n, --dry-run    say what would be written, and write nothing
 
@@ -128,6 +130,13 @@ for ((i = at - 2; i >= 0; i--)); do
   esac
 done
 
+# The tag the walk reads off the file's own name, where no line is written: a
+# file directly in a config.d tags the hosts it spells out.
+filetag=""
+case "$file" in */config.d/*) filetag="${file##*/config.d/}" ;; esac
+case "$host" in *[\*\?]*) filetag="" ;; esac
+case "$filetag" in *[!A-Za-z0-9_.-]*) filetag="" ;; esac
+
 hostline="${lines[at - 1]}"
 indent="${hostline%%[![:space:]]*}"
 new="$indent# Tags: $tag"
@@ -135,11 +144,17 @@ if [ "$tagline" -ge 0 ] && [ "${lines[tagline]}" = "$new" ]; then
   _hi_cecho " $file: $host is already tagged $tag" "$BLUE"
   exit 0
 fi
+if [ "$tagline" -lt 0 ] && [ "$tag" = "$filetag" ]; then
+  _hi_cecho " $file: $host is already tagged $tag, by the file's name" "$BLUE"
+  exit 0
+fi
 if [ "$tagline" -ge 0 ]; then
   _hi_cecho " ~ ${lines[tagline]#"$indent"} -> # Tags: $tag (above ${hostline#"$indent"})" "$YELLOW"
   lines[tagline]="$new"
 else
-  _hi_cecho " + # Tags: $tag (above ${hostline#"$indent"})" "$GREEN"
+  over=""
+  [ -z "$filetag" ] || over=", over the file's own tag $filetag"
+  _hi_cecho " + # Tags: $tag (above ${hostline#"$indent"}$over)" "$GREEN"
   lines=("${lines[@]:0:at-1}" "$new" "${lines[@]:at-1}")
 fi
 

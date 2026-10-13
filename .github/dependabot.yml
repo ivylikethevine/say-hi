@@ -1,13 +1,13 @@
-# Moves the SHA-pinned `uses:` in the workflows and composite actions, the
-# Markdown tools' npm lock, and the digest-pinned base images in
-# tests/dockerfiles, via one weekly pull request into dev.
+# Names what dependabot could move: the SHA-pinned `uses:` in the workflows
+# and composite actions, the Markdown tools' npm lock, and the digest-pinned
+# base images in tests/dockerfiles.
 #
 # What this file cannot cover, and what covers it instead:
 #
 #   * The CI tools in .github/actions/setup-tool/tools.txt and the inline pins
 #     in .github/scripts/check_tool_versions.local.sh (bashcov, vhs, the
-#     just-the-docs theme): tool-versions.yml reports their drift in one
-#     tracking issue, on the same Monday and with the same 7-day cooldown.
+#     just-the-docs theme): tool-versions.yml reports their drift in the same
+#     tracking issue, with the same 7-day cooldown.
 #   * The same base images run outside a Dockerfile (packaging/mkrepo.sh,
 #     ci.yml's packaging smoke): check_tool_versions.local.sh reports them
 #     parting from the tests/dockerfiles digests, and tests/lint/drift_test.sh
@@ -20,23 +20,13 @@
 # second bot, its own config dialect, and a PR stream where tool-versions.yml
 # keeps one tracking issue.
 #
-# Every ecosystem feeds one multi-ecosystem group, so a Monday run opens (or
-# rebases) a single pull request. schedule, commit-message and target-branch
-# are group-only keys (GitHub rejects them on an entry in a group); `patterns`
-# is required per entry, and cooldown/ignore stay per ecosystem. Dependabot
-# security updates, if enabled in the repository settings, still open their
-# own pull requests.
+# Each entry sets `open-pull-requests-limit: 0`, so no version-update pull
+# request opens: tool-versions.yml reports the same drift in one tracking
+# issue, and every bump is a hand edit made from it. Deleting the limits turns
+# the pull requests back on, with the schedule, cooldown and ignores they
+# need. Dependabot security updates, if enabled in the repository settings,
+# are not bound by the limit and still open their own pull requests.
 version: 2
-
-multi-ecosystem-groups:
-  all-dependencies:
-    schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: deps
-    # development happens on dev; main only moves by a release merge
-    target-branch: dev
 
 updates:
   # the composite actions under .github/actions/ pin their own `uses:`
@@ -44,8 +34,13 @@ updates:
     directories:
       - "/"
       - "/.github/actions/*"
-    multi-ecosystem-group: all-dependencies
-    patterns: ["*"]
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: dev
+    commit-message:
+      prefix: deps
+    open-pull-requests-limit: 0
     # let a release age before its bump: a compromised release's window is its
     # first days (zizmor: dependabot-cooldown)
     cooldown:
@@ -54,22 +49,32 @@ updates:
   # .github/package.json -> package-lock.json (markdownlint-cli2, prettier)
   - package-ecosystem: npm
     directory: /.github
-    multi-ecosystem-group: all-dependencies
-    patterns: ["*"]
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: dev
+    commit-message:
+      prefix: deps
+    open-pull-requests-limit: 0
     cooldown:
       default-days: 7
 
   # the fixtures' digest-pinned base images, tests/dockerfiles/*.Dockerfile
   - package-ecosystem: docker
     directory: /tests/dockerfiles
-    multi-ecosystem-group: all-dependencies
-    patterns: ["*"]
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: dev
+    commit-message:
+      prefix: deps
+    open-pull-requests-limit: 0
     cooldown:
       default-days: 7
     # Each ignore protects a shell floor or ceiling a fixture exists to pin
     # (docs/COMPATIBILITY.md); check_tool_versions.local.sh reports an ignore
     # that no longer matches a fixture pin. Only semver update-types are
-    # ignored, so digest refreshes still arrive.
+    # ignored, so a digest refresh would still arrive.
     ignore:
       # zshusers/zsh:5.5.1 is the zsh floor (zsh55.Dockerfile)
       - dependency-name: zshusers/zsh

@@ -405,9 +405,7 @@ function _hi_system_info_probe() {
     load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ printf "%s", $2 }' || true)
     # Apple Silicon exposes no clock via sysctl at all (only Intel Macs get a
     # value here), so the cell reads "?" there, like every failed probe; drop
-    # `cpu` from $_HI_HEADER_ORDER on such a box. A boost figure once came
-    # from a hand-bounded, reverse-engineered ioreg read - more code and more
-    # churn than one header cell was worth.
+    # `cpu` from $_HI_HEADER_ORDER on such a box.
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
   fi
   _hi_sanitize_var os "$os"
@@ -542,8 +540,7 @@ function _hi_ip_filter() {
   while [ -n "$_hi_if_rest" ]; do
     _hi_if_ip="${_hi_if_rest%%,*}"
     if [ "$_hi_if_ip" = "$_hi_if_rest" ]; then _hi_if_rest=""; else _hi_if_rest="${_hi_if_rest#*,}"; fi
-    # core.sh's matcher, which is this loop's former self: same peel, same
-    # glob rule, and one place to fix when either is wrong
+    # core.sh's matcher: the same peel and glob rule
     _hi_ssh_pattern_hit "$_hi_if_ip" "$_hi_if_hide" ||
       _hi_if_kept="$_hi_if_kept${_hi_if_kept:+,}$_hi_if_ip"
   done
@@ -852,10 +849,7 @@ function _hi_header_cells_load() {
   _hi_dir_members "${_HI_HEADER_CELLS:-}"
   for _hi_hc_f in ${_hi_members[@]+"${_hi_members[@]}"}; do
     _hi_hc_w="${_hi_hc_f##*/}"
-    "${BASH:-bash}" -n "$_hi_hc_f" 2>/dev/null || {
-      _hi_cecho "hi: header cell $_hi_hc_w does not parse in bash; skipped" "${YELLOW:-}" >&2
-      continue
-    }
+    _hi_parses "$_hi_hc_f" "header cell $_hi_hc_w" || continue
     _hi_hc_w="${_hi_hc_w%%.*}"
     # shellcheck source=/dev/null
     source "$_hi_hc_f" || true

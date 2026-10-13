@@ -94,6 +94,25 @@ function test_target_falls_through_to_ssh() {
   [[ "$out" == *"nothing matched"* && "$out" == *"connect"*ok* ]] || _hi_why out
 }
 
+# a host tagged by the name of its config.d file: the row names the file, and
+# that tag's settings file is the one read; a tag a line wrote has no such row
+function test_target_names_the_config_d_file_a_tag_is_from() {
+  local h="$_HI_WORKDIR/doc-configd" out
+  mkdir -p "$h/.ssh/config.d" "$h/overlay"
+  printf 'Include config.d/*\n' >"$h/.ssh/config"
+  printf 'Host web1\n\n# Tags: prod\nHost db1\n' >"$h/.ssh/config.d/acme"
+  : >"$h/overlay/settings.acme.sh"
+  unset _HI_TAG_NAME
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
+  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 bash " doctor_target web1)"
+  [[ "$out" == *"acme - the name of ~/.ssh/config.d/acme"* && "$out" == *"settings.acme.sh - read over settings.sh"* ]] ||
+    _hi_why out h || return 1
+  unset _HI_TAG_NAME
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
+  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 bash " doctor_target db1)"
+  [[ "$out" != *"the name of"* ]] || _hi_why out h
+}
+
 # --use docker forces the arm and skips the probe chain entirely: "ghostbox" would
 # fall through to ssh unforced (nothing answers for it), but a forced backend
 # reports it as a container without ever asking whether one is running.
@@ -376,6 +395,7 @@ function run_doctor_target_tests() {
   _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
   _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
+  _hi_check "Names the config.d file a host's tag is from" test_target_names_the_config_d_file_a_tag_is_from
   _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
   _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
   _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target

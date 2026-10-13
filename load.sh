@@ -695,7 +695,7 @@ function load() {
   # sudo -e takes $EDITOR's.
   local editor visual
   editor="$(_hi_session_editor "${_HI_CLIENT_EDITOR:-}" "${_HI_CLIENT_VISUAL:-}")"
-  visual="$(_hi_session_editor "${_HI_CLIENT_VISUAL:-}" "${_HI_CLIENT_EDITOR:-}")"
+  [[ "${_HI_CLIENT_EDITOR:-}" == "${_HI_CLIENT_VISUAL:-}" ]] && visual="$editor" || visual="$(_hi_session_editor "${_HI_CLIENT_VISUAL:-}" "${_HI_CLIENT_EDITOR:-}")"
   [[ -n "$editor" ]] && export EDITOR="$editor" SUDO_EDITOR="$editor"
   [[ -n "$visual" ]] && export VISUAL="$visual"
   # the greeting and its three timers are a line of their own, not part of
