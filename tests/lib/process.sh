@@ -368,6 +368,10 @@ function _hi_session_ready() {
 #   -f <fn>       runs inside the feeder between the marker line and the
 #                 `exit`: its stdout is typed into the live session, and it
 #                 may also do host-side work mid-session
+# the interactive case is still waiting on its session ($out_file is the
+# case's, through dynamic scoping)
+function _hi_interactive_live() { [ ! -e "$out_file.over" ]; }
+
 function _hi_interactive_case() {
   local closing="| session: " feeder=""
   local -a extra=()
@@ -405,11 +409,13 @@ function _hi_interactive_case() {
   _hi_cecho " | Running (interactive): $*"
   t0="$(_hi_now)"
   : >"$out_file"
+  rm -f "$out_file.over"
   # The left side of the pipe runs alongside the session, so it can watch the
   # transcript the session is writing rather than guessing how long it needs.
-  # A fixed sleep here would flake: on a loaded runner the input lands before
-  # the shell is ready and the marker never appears.
-  # $_HI_INTERACTIVE_SETTLE is the ceiling, not the wait itself.
+  # Nothing is typed before the shell is ready - input that lands earlier is
+  # lost on a loaded runner - and a shell never ready is the case's timeout,
+  # reported as one. The pipe is held until the closing line lands, or the
+  # case is over.
   #
   # Reading $out_file on the left while the right writes it is the whole
   # mechanism, not the accident SC2094 warns about: the two sides are separate
@@ -417,15 +423,15 @@ function _hi_interactive_case() {
   # race to hit.
   # shellcheck disable=SC2094
   {
-    _hi_poll_bool "$((${_HI_INTERACTIVE_SETTLE:-4} * 4))" 0.25 _hi_session_ready "$out_file" || true
-    printf "printf '%%s-%%s\\\\n' %s INTERACTIVE\n" "$marker"
-    [ -z "$feeder" ] || "$feeder"
-    printf 'exit\n'
-    # ...and the same on the way out: hold the pipe open until the closing
-    # line lands rather than for a flat two seconds
-    _hi_poll_bool 20 0.25 grep -q "$closing" "$out_file" || true
+    if _hi_poll_bool -a _hi_interactive_live "$((timeout_s * 4))" 0.25 _hi_session_ready "$out_file"; then
+      printf "printf '%%s-%%s\\\\n' %s INTERACTIVE\n" "$marker"
+      [ -z "$feeder" ] || "$feeder"
+      printf 'exit\n'
+      _hi_poll_bool -a _hi_interactive_live "$((timeout_s * 4))" 0.25 grep -q "$closing" "$out_file" || true
+    fi
   } | "${_HI_PTY_FORCED[@]}" "$@" >"$out_file" 2>&1 &
   _hi_wait_pid "$!" "$timeout_s" _hi_timed_out "$label" "$timeout_s"
+  : >"$out_file.over"
   exit_code="$_HI_WAIT_EXIT"
   t1="$(_hi_now)"
 

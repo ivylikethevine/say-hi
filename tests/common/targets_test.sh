@@ -587,7 +587,8 @@ function test_stale_cache_answers_now_and_refreshes_behind() {
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || _hi_why out || return 1
   ! _hi_has_row "$out" alpha docker || _hi_why out || return 1
-  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
+  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] ||
+    _hi_because "the refresh never finished: its lock is still there" || return 1
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker" || _hi_why dir
 }
 
@@ -614,7 +615,8 @@ function test_stale_cache_dead_lock_is_taken_over() {
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || _hi_why out || return 1
-  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
+  _hi_poll_bool 300 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] ||
+    _hi_because "the refresh never finished: its lock is still there" || return 1
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker" || _hi_why dir
 }
 

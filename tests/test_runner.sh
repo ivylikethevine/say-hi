@@ -140,6 +140,44 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   )
 fi
 
+# What each suite costs a coverage sweep, in seconds under a tracer: its
+# trace lines (scratch/trace_volume.sh) at bashcov's rate, plus what an e2e
+# suite waits on its containers. --shard deals the suites by it when
+# $_HI_SHARD_BY is cost, as tests/lib/coverage.sh asks; a suite not named
+# costs 5. Re-measure with scratch/trace_sweep.sh when a suite's weight moves.
+_HI_TEST_COSTS="
+  hi_payload_scan:415 configure_pty:364 doctor_config:298
+  hi_payload_overlay:228 doctor_target:180 framework:176 hi_payload_home:158
+  ssh_keep:122 repo:98 rc_prompt:96 configure_wizard:93 podman:90 nomad:90
+  kube:90 install_methods:76 install_location:75 doctor_json:74 ssh_relay:74
+  ssh:50 install_run:41 hi_payload:41 ssh_disconnect:40 doctor_report:37
+  ssh_wire:36 load_session:31 hi_cache:28 home_prompt:24 drift_docs:22
+  preview:20 aliases:20 add_package:16 rc:15 hi_container:15 set_color:13
+  test_runner_ci:13 preview_packages:12 docker:12 convert_settings:11
+  targets_complete:11 rc_lines:11 test_runner:11 configure:10 hi_help:10
+  hi_keep:9 paths:8 update:8 packaging_ci_mkpkg:8 header_whole:8
+  core_identity:7 load:7 add_tag:7 alias_fallthrough:6 header_check:6
+  packaging:5 header:5 hi_remote:5 dialects:5 tools:5 drift:5 bench:5
+  packaging_ci_scripts:4 doctor:4 core:4 hi:4 test_lib:4
+  packaging_ci_release:3 header_bare:3 exports:3 install:2 hi_prompt:2
+  core_target:2 packaging_ci_workflows:2 env_prompt:2 targets:1
+  packaging_ci:1 hi_helpers:1 table:1 test_lib_report:1 hi_dispatch:1
+  git_prompt:1 test_lib_par:1 hi_mux:1
+"
+
+# _hi_test_cost <name> - its $_HI_TEST_COSTS entry, 5 for none. Out here, not
+# in the substitution that deals by it: bash 3.2 cannot parse a case there.
+function _hi_test_cost() {
+  local costs=" ${_HI_TEST_COSTS//$'\n'/ } " c
+  case "$costs" in
+  *" $1:"*)
+    c="${costs#* "$1":}"
+    printf '%s' "${c%% *}"
+    ;;
+  *) printf 5 ;;
+  esac
+}
+
 # <group>:<name>:<path> -> the parts every consumer below wants. Kept as
 # accessors so nothing else has to know the field order.
 function _hi_test_group() { printf '%s' "${1%%:*}"; }
@@ -311,6 +349,10 @@ fi
 # seven minutes under Git Bash, where backgrounded suites barely overlap
 # (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
 # a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
+# With $_HI_SHARD_BY=cost the slices are dealt by $_HI_TEST_COSTS instead: the
+# costliest suite first, each to the slice that costs least so far, the
+# first of equals - the same partition on every runner, but slices of
+# different n do not compose.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"
@@ -330,10 +372,32 @@ if [ -n "$_HI_SHARD" ]; then
     _hi_cecho "test_runner.sh: --shard $_HI_SHARD is out of range (1/$_hi_shard_n to $_hi_shard_n/$_hi_shard_n)" "$RED"
     exit 1
   fi
-  declare -a _hi_sharded=()
+  declare -a _hi_sharded=() _hi_loads=()
+  _hi_mine=" "
+  if [ "${_HI_SHARD_BY:-table}" = cost ]; then
+    for ((_hi_k = 0; _hi_k < _hi_shard_n; _hi_k++)); do _hi_loads[_hi_k]=0; done
+    while read -r _hi_c _hi_k; do
+      _hi_min=0
+      for ((_hi_j = 1; _hi_j < _hi_shard_n; _hi_j++)); do
+        if [ "${_hi_loads[_hi_j]}" -lt "${_hi_loads[_hi_min]}" ]; then _hi_min=$_hi_j; fi
+      done
+      _hi_loads[_hi_min]=$((_hi_loads[_hi_min] + _hi_c))
+      if [ "$_hi_min" -eq $((_hi_shard_i - 1)) ]; then _hi_mine="$_hi_mine$_hi_k "; fi
+    done < <(
+      _hi_k=0
+      for _hi_t in "${_HI_SELECTED[@]}"; do
+        printf '%s %s\n' "$(_hi_test_cost "$(_hi_test_name "$_hi_t")")" "$_hi_k"
+        _hi_k=$((_hi_k + 1))
+      done | sort -k1,1nr -k2,2n
+    )
+  fi
   _hi_k=0
   for _hi_t in "${_HI_SELECTED[@]}"; do
-    [ $((_hi_k % _hi_shard_n)) -eq $((_hi_shard_i - 1)) ] && _hi_sharded+=("$_hi_t")
+    if [ "${_HI_SHARD_BY:-table}" = cost ]; then
+      case "$_hi_mine" in *" $_hi_k "*) _hi_sharded+=("$_hi_t") ;; esac
+    elif [ $((_hi_k % _hi_shard_n)) -eq $((_hi_shard_i - 1)) ]; then
+      _hi_sharded+=("$_hi_t")
+    fi
     _hi_k=$((_hi_k + 1))
   done
   # more shards than suites: a slice that runs nothing must not report green

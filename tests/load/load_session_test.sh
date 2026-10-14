@@ -450,6 +450,9 @@ SHIM
   printf '%s' "$bin"
 }
 
+# _hi_lines_at_least <file> <n> - <file> holds <n> lines or more
+function _hi_lines_at_least() { [ "$(grep -c . "$1" 2>/dev/null)" -ge "$2" ]; }
+
 # a typo is refused, so the watcher falls back to the default, not to "never"
 function test_keep_seconds_reads_the_duration_grammar() {
   local v out
@@ -529,7 +532,9 @@ function _hi_keep_watch_ends() {
     _HI_KEEP_MUX="$mux" _HI_KEEP_NAME=hi-box _HI_KEEP_TIMEOUT=1s
     # the watcher forks inside the call, so it keeps the stand-in's PATH
     PATH="$bin:$PATH" _HI_TEST_LOG="$log" _HI_TEST_ATTACHED="$flag" _hi_keep_watch 1
-    sleep 2.5
+    # two of the watcher's polls, each logged by the stand-in it asks, past
+    # the 1s timeout with a client attached
+    _hi_poll_bool 40 0.1 _hi_lines_at_least "$log" 2 || exit 4
     ! grep -q kill-session "$log" || exit 3
     printf '0\n' >"$flag"
     wait "$_hi_keep_watch_pid"

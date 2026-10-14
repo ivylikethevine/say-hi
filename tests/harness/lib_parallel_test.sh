@@ -133,7 +133,7 @@ function _hi_par_exits() { exit 0; }
 function _hi_par_says() { printf '%s\n' "$1"; }
 # a case that never ends: a sleep it waits on, its pid written to $1
 function _hi_par_hangs() {
-  sleep 600 &
+  sleep 30 &
   printf "%s" "$!" >"$1"
   wait "$!"
 }
@@ -214,8 +214,12 @@ function test_par_case_past_the_limit_is_stopped() {
     printf 'total=%s failed=%s\n' "$_HI_TOTAL" "$_HI_FAILED"
   )" || _hi_why out || return 1
   child="$(cat "$pidf")"
-  [[ "$out" == *"[hangs] -- still running after 2s"*"sleep 600"*"total=2 failed=1"* ]] || _hi_why out || return 1
-  ! kill -0 "$child" 2>/dev/null || _hi_because "its sleep $child outlived it" || return 1
+  if kill -0 "$child" 2>/dev/null; then
+    kill -9 "$child" 2>/dev/null || true
+    _hi_because "its sleep $child outlived it: $out"
+    return 1
+  fi
+  [[ "$out" == *"[hangs] -- still running after 2s"*"sleep"*"total=2 failed=1"* ]] || _hi_why out || return 1
   grep -qF '[hangs] still running after 2s, stopped' "$fails" || _hi_why fails
 }
 

@@ -401,7 +401,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       HI_LOOPBACK: ${{ needs.changes.outputs.trusted == 'true' }}
     steps:
@@ -853,7 +853,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     # a profile is stopped at 7 minutes (tests/profile.sh), with what held it
-    timeout-minutes: 25
+    timeout-minutes: 15
     continue-on-error: true
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -1138,7 +1138,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    timeout-minutes: 20
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

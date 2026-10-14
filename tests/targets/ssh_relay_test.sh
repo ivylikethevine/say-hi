@@ -169,7 +169,8 @@ function _hi_relay_client_home() {
 # how long that takes is not something to guess at.
 function _hi_relay_feeder() {
   printf 'hi %s\n' "$_HI_RELAY_HOST"
-  _hi_poll_bool 120 0.5 _hi_relay_sessions 2 || true
+  # no second session, nothing to type into: the case fails on its markers
+  _hi_poll_bool 120 0.5 _hi_relay_sessions 2 || return 1
   printf '%s\n' "$(_hi_probe_cmd "$_HI_RELAY_PROOF" bash)"
   printf '%s\n' "$_HI_RELAY_TAG_PROOF"
   printf 'exit\n'

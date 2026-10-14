@@ -94,6 +94,7 @@ function _hi_plugins_load() {
   local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df _hi_rc_sh _hi_rc_e
   local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
   [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
+  _HI_PLUGIN_GEN=$((${_HI_PLUGIN_GEN:-0} + 1))
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
   _HI_PLUGIN_HOOKS=() _HI_PLUGIN_ENVS=() _HI_PLUGIN_DEFAULT_OFF=" "
   for _hi_cy_s in config/plugins plugins; do
@@ -102,7 +103,11 @@ function _hi_plugins_load() {
     _hi_cy_n=0 _hi_cy_seen=" " _hi_cy_old="" _hi_rc_n="" _hi_rc_to=-3
     while IFS= read -r _hi_cy_l || [ -n "$_hi_cy_l" ]; do
       _hi_cy_n=$((_hi_cy_n + 1))
-      _hi_trim _hi_cy_l
+      # a comment or a blank line at the margin, before any trimming: near
+      # half of config/plugins, read on every pack
+      case "$_hi_cy_l" in '' | '#'*) continue ;; esac
+      _hi_cy_l="${_hi_cy_l#"${_hi_cy_l%%[! ]*}"}"
+      _hi_cy_l="${_hi_cy_l%"${_hi_cy_l##*[! ]}"}"
       case "$_hi_cy_l" in
       '' | '#'*) continue ;;
       '['*']'*)
@@ -356,11 +361,15 @@ function _hi_plugin_hook_put() {
 # _hi_hook_col <row> <group|name|tool|init|prompt|shells> [outvar] - one
 # column of a hook row; shells is - for every shell
 function _hi_hook_col() {
-  local _hi_hc_r="$1" _hi_hc_n
-  for _hi_hc_n in group name tool init prompt shells; do
-    [ "$_hi_hc_n" != "$2" ] || break
-    _hi_hc_r="${_hi_hc_r#*|}"
-  done
+  local _hi_hc_r="$1"
+  case "$2" in
+  group) ;;
+  name) _hi_hc_r="${_hi_hc_r#*|}" ;;
+  tool) _hi_hc_r="${_hi_hc_r#*|*|}" ;;
+  init) _hi_hc_r="${_hi_hc_r#*|*|*|}" ;;
+  prompt) _hi_hc_r="${_hi_hc_r#*|*|*|*|}" ;;
+  *) _hi_hc_r="${_hi_hc_r##*|}" ;;
+  esac
   _hi_out "${3:-}" "${_hi_hc_r%%|*}"
 }
 

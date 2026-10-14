@@ -296,8 +296,11 @@ line above continues. The `comment` job puts the table in its summary and
 those lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
 `--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
 
-In CI each tool is sharded 4 ways (`--shard i/4`, which `_hi_cov_select_suites`
-passes straight to `test_runner.sh`) and merged by a gather job: `kcov --merge`
+In CI each tool is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
+to `test_runner.sh` with `_HI_SHARD_BY=cost`: the suites dealt by
+`$_HI_TEST_COSTS`, their cost under a tracer, costliest first to the lightest
+slice, so the slices cost about the same; `scratch/trace_sweep.sh` re-measures
+it) and merged by a gather job: `kcov --merge`
 over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
 `--command-name`-keyed `.resultset.json` files, safe because shards partition
 the suite table.
@@ -330,7 +333,7 @@ the suite table.
   `tests/lib/coverage_env.sh` makes it blocking ahead of each suite; with
   bashcov's reader the bottleneck, a parallel suite gains nothing, so the
   driver runs every one with `_HI_PAR_WIDTH=1`. A suite still running after
-  `_HI_COV_SUITE_LIMIT` seconds (1200) is stopped, and the drivers print the
+  `_HI_COV_SUITE_LIMIT` seconds (600) is stopped, and the drivers print the
   processes running then: a stall names its suite rather than running the job
   out. It needs `gem install --user-install bashcov` (found
   off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into

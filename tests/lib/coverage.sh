@@ -201,12 +201,13 @@ function _hi_cov_select_suites() {
   _HI_NAMES=()
   _HI_PATHS=()
   local _hi_group _hi_name _hi_path
+  # a shard's slice dealt by cost: see test_runner.sh's $_HI_TEST_COSTS
   while read -r _hi_group _hi_name _hi_path; do
     [ -n "${_hi_path:-}" ] || continue
     [ "$_hi_name" = shellcheck ] && continue
     _HI_NAMES+=("$_hi_name")
     _HI_PATHS+=("$_hi_path")
-  done < <("$_HI_RUNNER" "$@" --list-paths)
+  done < <(_HI_SHARD_BY=cost "$_HI_RUNNER" "$@" --list-paths)
 
   if [ "${#_HI_PATHS[@]}" -eq 0 ]; then
     _hi_cecho " | coverage: no suites selected by: $*" "$RED" >&2
@@ -244,13 +245,13 @@ function _hi_cov_counts_files() {
 # and with no report: a figure over the suites that happened to pass is a
 # partial number, and a partial number is no number. A tool that is missing
 # (no fish, no docker) is a skip, never a failure, so this is a real one.
-# A suite still running after $_HI_COV_SUITE_LIMIT seconds (1200) is stalled:
+# A suite still running after $_HI_COV_SUITE_LIMIT seconds (600) is stalled:
 # the processes running then are kept for the report, and the tracer is
 # stopped, so a stall names its suite and what held it rather than running
 # the job out.
 function _hi_cov_trace_all() {
   local _hi_i _hi_suite _hi_path _hi_log _hi_run _hi_dog _hi_rc
-  local _hi_limit="${_HI_COV_SUITE_LIMIT:-1200}"
+  local _hi_limit="${_HI_COV_SUITE_LIMIT:-600}"
   _hi_log="$(mktemp -t hi.cov.log.XXXXXX)"
   _HI_COV_TRASH+=("$_hi_log" "$_hi_log.ps")
   for _hi_i in "${!_HI_PATHS[@]}"; do

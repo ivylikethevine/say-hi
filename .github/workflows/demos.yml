@@ -63,7 +63,7 @@ jobs:
     # `collect` below only runs when every tape rendered.
     runs-on: ubuntu-latest
     # the hosted path pays the apt and kind installs on top of one render
-    timeout-minutes: 30
+    timeout-minutes: 15
     strategy:
       # one tape failing must not cancel the five that would have rendered:
       # the transcripts of the others are what say whether it is that tape or

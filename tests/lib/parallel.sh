@@ -92,7 +92,7 @@ function _hi_par_slot() {
   local pid
   local -a keep
   while [ "${#_HI_PAR_RUNNING[@]}" -ge "$_HI_PAR_SLOTS" ]; do
-    _hi_par_overdue
+    [ "${_HI_PAR_CASE_LIMIT:-300}" = 0 ] || _hi_par_overdue
     keep=()
     for pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do
       if kill -0 "$pid" 2>/dev/null; then
@@ -144,7 +144,9 @@ function _hi_par_case() {
 # A case still running $_HI_PAR_CASE_LIMIT seconds after it started (300, or
 # 0 for no limit; the slowest healthy case takes under 40) is stopped, its
 # processes listed into its transcript first. Waiting on a hung one ran the
-# job out with no transcript replayed and no case named.
+# job out with no transcript replayed and no case named. At 0 neither poll
+# calls this: under a tracer each line it runs is a line through the trace
+# pipe, 20 times a second.
 function _hi_par_overdue() {
   local n pid limit="${_HI_PAR_CASE_LIMIT:-300}"
   [ "${#_HI_PAR_PID[@]}" -gt 0 ] || return 0
@@ -160,10 +162,14 @@ function _hi_par_overdue() {
   return 0
 }
 
-# _hi_par_tree <pid> - "pid ppid elapsed args" for <pid> and every process
-# under it, from one ps listing; nothing where ps cannot list parents
+# _hi_par_tree <pid> - <pid> and every process under it, a "pid ppid ..."
+# row each, from one ps listing; nothing where ps cannot list parents
 function _hi_par_tree() {
-  ps -eo pid=,ppid=,etime=,args= 2>/dev/null | awk -v root="$1" '
+  local list
+  list="$(ps -A -o pid=,ppid=,etime=,args= 2>/dev/null)" || list=""
+  # Git Bash's ps has no -o: its -ef, where the header names PID and PPID
+  [ -n "$list" ] || list="$(ps -ef 2>/dev/null | awk 'NR == 1 { ok = $2 == "PID" && $3 == "PPID"; next } ok { $1 = ""; print }')"
+  printf '%s\n' "$list" | awk -v root="$1" '
     { pid[NR] = $1; ppid[NR] = $2; row[NR] = $0 }
     END {
       keep[root] = 1
@@ -192,7 +198,7 @@ function _hi_par_stop() {
   # the subshell's own writes are done, so the note lands after them
   {
     _hi_align " | [${_HI_PAR_LABELS[n - 1]}] -- still running after ${3}s (_HI_PAR_CASE_LIMIT), stopped" "FAILED" "$RED"
-    printf '      its processes then (pid ppid elapsed command):\n'
+    printf '      its processes then (pid ppid, then what ps shows):\n'
     printf '%s\n' "${tree:-(ps lists no parents here)}" | sed 's/^/      /'
   } >>"$_HI_PAR_DIR/$n.out"
   [ -s "$_HI_PAR_DIR/$n.res" ] || printf '124 0\n' >"$_HI_PAR_DIR/$n.res"
@@ -266,7 +272,7 @@ function _hi_par_requires_body() {
 # Waits out the batch, then replays and tallies it in submission order.
 function _hi_par_wait() {
   local pid i=0 label rc skipped
-  while [ "${#_HI_PAR_PID[@]}" -gt 0 ]; do
+  while [ "${_HI_PAR_CASE_LIMIT:-300}" != 0 ] && [ "${#_HI_PAR_PID[@]}" -gt 0 ]; do
     _hi_par_overdue
     [ "${#_HI_PAR_PID[@]}" -eq 0 ] || sleep 0.2
   done

@@ -8,9 +8,11 @@ name: Coverage
 # figure; docs/TESTING.md's Coverage and profiling section says why there
 # are two and how each skews.
 #
-# Each tool is sharded 4 ways (shard-<tool>, --shard i/4, spreading the e2e
-# suites that drive wall clock) and merged by its own gather-<tool>, rather
-# than one matrix over tool, so neither tool's queue waits on the other's.
+# Each tool is sharded (shard-<tool>, --shard i/n, the suites dealt by their
+# cost under a tracer - tests/test_runner.sh's $_HI_TEST_COSTS - so every
+# shard takes about as long) and merged by its own gather-<tool>, rather than
+# one matrix over tool, so neither tool's queue waits on the other's. Each
+# shard finishes inside 15 minutes, setup included.
 #
 # Both tracers follow a child only when it is bash (bashcov rides on
 # SHELLOPTS=xtrace, kcov on a DEBUG trap), and ubuntu's /bin/sh is dash, so
@@ -213,7 +215,7 @@ jobs:
     needs: reuse
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     concurrency:
       group: coverage-kcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
       cancel-in-progress: true
@@ -298,11 +300,10 @@ jobs:
     needs: reuse
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
-    # past kcov's 25, and six shards to kcov's four: with the trace pipe
-    # blocking (tests/lib/coverage_env.sh) bash waits on bashcov's reader,
-    # and a suite runs its cases one at a time - configure_pty alone took 6x
-    # its old traced time, and a four-way shard ran past 45 minutes
-    timeout-minutes: 60
+    # ten shards to kcov's four: with the trace pipe blocking
+    # (tests/lib/coverage_env.sh) bash waits on bashcov's reader, so a
+    # suite's time is its trace lines, about 6800 a second
+    timeout-minutes: 15
     # job-level so the cache step below and check_tool_versions.local.sh's
     # roster regex for the literal `BASHCOV_VERSION: "..."` both still find it
     env:
@@ -313,7 +314,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
+        shard: [1/10, 2/10, 3/10, 4/10, 5/10, 6/10, 7/10, 8/10, 9/10, 10/10]
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:

@@ -27,7 +27,7 @@ jobs:
   stock-openssh:
     name: hi at stock Windows OpenSSH (PowerShell fallback)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     # No `environment:` - a required reviewer would stall every push to main;
     # ci.yml calls this on `push` and on same-repository PRs only, so a fork
     # PR never reaches it.
@@ -110,7 +110,7 @@ jobs:
   git-bash-target:
     name: hi at Windows OpenSSH with Git Bash as the shell
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -185,13 +185,13 @@ jobs:
   # distribution's own filesystem rather than from /mnt. Under WSL 2 the
   # checkout on D: reaches the VM as a 9p share - a round trip per file
   # operation - and the fast group is nothing but file operations; from
-  # /mnt/d it ran past the 900-second kill. On ext4 it runs at Linux speed,
-  # which makes --verbose (width 1, streamed live) affordable, so a wedge
-  # names its suite and case instead of leaving 900 seconds of silence.
+  # /mnt/d it ran past its kill. On ext4 it runs at Linux speed, which makes
+  # --verbose (width 1, streamed live) affordable, so a wedge names its suite
+  # and case instead of leaving the kill's 600 seconds of silence.
   wsl-suites:
     name: fast suites (WSL, shard ${{ matrix.shard }})
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -261,7 +261,7 @@ jobs:
           # -k 30: a wedge that outlives the first signal would otherwise
           # leave `timeout` waiting on it forever too - see
           # .github/scripts/bsd_loopback.sh's comment on the same flag.
-          setsid -w timeout -k 30 900 bash ./tests/test_runner.sh --verbose --host-report \
+          setsid -w timeout -k 30 600 bash ./tests/test_runner.sh --verbose --host-report \
             --group fast --shard "$HI_SHARD" </dev/null
 
       # The rest of this job is shard 1 only: the package layout on this same
