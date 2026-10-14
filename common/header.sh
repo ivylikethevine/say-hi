@@ -16,16 +16,15 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 source "$_hi_d/core.sh"
 unset _hi_d
 
-# <var> gets $2's visible column width - one leading color-var prefix
-# stripped first, since a header_row cell never carries more than the one its
-# caller opens it with (the reset between cells is header_row's own, added
-# below, never the caller's). The color vars hold the literal two characters
-# `\e`, not a real escape byte (core.sh assigns them single-quoted; only
-# header_row's own final `printf '%b'` interprets it), so the pattern matches
-# that literal prefix rather than $'\e'.
+# <var> gets $2's visible column width - every color var in it stripped
+# first: most cells open with one, load()'s greeting changes color midway. The
+# color vars hold the literal two characters `\e`, not a real escape byte
+# (core.sh assigns them single-quoted; only header_row's own final
+# `printf '%b'` interprets it), so the pattern matches that literal rather
+# than $'\e'.
 function _hi_visible_width() {
-  local s="$2" re='^\\e\[[0-9;]*m(.*)$'
-  [[ "$s" =~ $re ]] && s="${BASH_REMATCH[1]}"
+  local s="$2" re='^(.*)\\e\[[0-9;]*m(.*)$'
+  while [[ "$s" =~ $re ]]; do s="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   # where ${#} counts bytes (core.sh's $_HI_BYTE_COUNTS), the UTF-8
   # continuation bytes come off first: 0x80-0xBF never start a character, so
   # what is left is one byte per column. GLOSSARY: HI.12

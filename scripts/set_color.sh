@@ -81,7 +81,7 @@ else
   [ "${#args[@]}" -eq 2 ] || _hi_die "needs a type and a name ($me --help)"
 fi
 type="${args[0]}" name="${args[1]}" color="${args[2]:-}" hex="${args[3]:-}"
-case " $types " in *" $type "*) ;; *) _hi_die "not a type: $type (one of $types)" ;; esac
+_hi_list_has "$types" "$type" || _hi_die "not a type: $type (one of $types)"
 # one key core.sh's _hi_toml_row reads whole: no spaces, and nothing that
 # would read as a comment or a table, or that a quoted key would escape
 _hi_name_re='^[^]["\\#[:space:]]+$'

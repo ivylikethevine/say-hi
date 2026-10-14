@@ -396,12 +396,12 @@ when it lands.
        lint, bench, and keep suites are green in CI with it.
 
 4. [ ] _Before 1.0:_ **Shared primitives are written once** — shipped:
-       `_hi_list_has` reads the payload's space-or-comma lists, `_hi_die` is
-       `common/core.sh`'s alone, so a script's refusal names the script, and
-       an owner pane's variables are one list. Left: the same list idiom in
-       `scripts/`, and the greeting line's own wrap in `load()` beside the
-       header's rows. **Ticks when:** both are gone and the fast and lint
-       groups are green in CI.
+       `_hi_list_has` answers the word-list membership tests, `scripts/`'
+       included; `_hi_die` is `common/core.sh`'s alone, so a script's refusal
+       names the script; an owner pane's variables are one list; and
+       `load()`'s greeting is a `header_row`, wrapped and closed by the
+       header's own code. **Ticks when:** the fast and lint groups are green
+       in CI with it.
 
 5. [ ] _Before 1.0:_ **`scripts/settings` is the one registry** — a
        setting's default is spelled where it is read (`_HI_PROBE_TIMEOUT`

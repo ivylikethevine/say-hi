@@ -227,7 +227,7 @@ function _hi_plugins_close() {
   fi
   _hi_plugin_env_put "$_hi_rc_n" "${_hi_cl_x:+$_hi_rc_g|$_hi_rc_n|$_hi_cl_x}"
   if [ "$_hi_rc_df" = off ]; then
-    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_rc_n "*) ;; *) _HI_PLUGIN_DEFAULT_OFF="$_HI_PLUGIN_DEFAULT_OFF$_hi_rc_n " ;; esac
+    _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_rc_n" || _HI_PLUGIN_DEFAULT_OFF="$_HI_PLUGIN_DEFAULT_OFF$_hi_rc_n "
   else
     _HI_PLUGIN_DEFAULT_OFF="${_HI_PLUGIN_DEFAULT_OFF// $_hi_rc_n / }"
   fi

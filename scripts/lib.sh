@@ -244,7 +244,7 @@ function _hi_packages_drift() {
   [ "$1" != "$2" ] && [ -f "$2" ] || return 0
   while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
     _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k || continue
-    case "$_hi_pd_have" in *" $_hi_pd_g "*) continue ;; esac
+    ! _hi_list_has "$_hi_pd_have" "$_hi_pd_g" || continue
     _hi_pd_have="$_hi_pd_have$_hi_pd_g " _hi_pd_lack="$_hi_pd_lack${_hi_pd_lack:+, }$_hi_pd_g"
   done <"$2"
   [ -z "$_hi_pd_lack" ] ||
@@ -413,7 +413,7 @@ function _hi_is_header_order() {
   _hi_header_vocab _hi_ho_v
   # shellcheck disable=SC2086 # the value is a space-separated word list
   for _hi_ho_w in $1; do
-    case " $_hi_ho_v " in *" $_hi_ho_w "*) ;; *) return 1 ;; esac
+    _hi_list_has "$_hi_ho_v" "$_hi_ho_w" || return 1
   done
   return 0
 }
@@ -427,7 +427,7 @@ function _hi_is_prompt_list() {
     case "$_hi_pl_w" in bash:hi | zsh:hi | fish:hi | hi) continue ;; esac
     _hi_prompt_row "${_hi_pl_w#*:}" _hi_pl_r || return 1
     _hi_pl_r="${_hi_pl_r#*|}"
-    case "$_hi_pl_w" in *:*) case " ${_hi_pl_r%%|*} " in *" ${_hi_pl_w%%:*} "*) ;; *) return 1 ;; esac ;; esac
+    case "$_hi_pl_w" in *:*) _hi_list_has "${_hi_pl_r%%|*}" "${_hi_pl_w%%:*}" || return 1 ;; esac
   done
   return 0
 }
@@ -541,10 +541,8 @@ function _hi_hook_rows() {
       _hi_plugin_color _hi_hr_c absent
       _hi_row "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent" info "$_hi_hr_c"
     elif _hi_hook_off "$_hi_hr_r"; then
-      case "$_HI_PLUGIN_DEFAULT_OFF" in
-      *" $_hi_hr_n "*) _hi_hr_why="off by default (hi --plugin-on $_hi_hr_n)" ;;
-      *) _hi_hr_why="switched off (_HI_PLUGINS_OFF)" ;;
-      esac
+      _hi_hr_why="switched off (_HI_PLUGINS_OFF)"
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_hr_n" || _hi_hr_why="off by default (hi --plugin-on $_hi_hr_n)"
       _hi_plugin_color _hi_hr_c off
       _hi_row "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why" info "$_hi_hr_c"
     else
@@ -566,10 +564,8 @@ function _hi_env_rows() {
     _hi_er_n="${_hi_er_r#*|}"
     _hi_er_n="${_hi_er_n%%|*}" _hi_er_off=""
     if _hi_plugin_switched_off "$_hi_er_n"; then
-      case "$_HI_PLUGIN_DEFAULT_OFF" in
-      *" $_hi_er_n "*) _hi_er_off="off by default (hi --plugin-on $_hi_er_n)" ;;
-      *) _hi_er_off="switched off (_HI_PLUGINS_OFF)" ;;
-      esac
+      _hi_er_off="switched off (_HI_PLUGINS_OFF)"
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_er_n" || _hi_er_off="off by default (hi --plugin-on $_hi_er_n)"
     fi
     for _hi_er_v in ${_hi_er_r##*|}; do
       if [ -z "${!_hi_er_v:-}" ]; then
@@ -688,10 +684,10 @@ function _hi_member_rows() {
     case "$m" in */*) family="${m%%/*}/" ;; oh-my-posh.*) family="oh-my-posh.*" ;; esac
     all=1
     for p; do
-      case "$p" in "$family"* | "${family%\*}"*) case "$none " in *" $p "*) ;; *) all=0 ;; esac ;; esac
+      case "$p" in "$family"* | "${family%\*}"*) _hi_list_has "$none" "$p" || all=0 ;; esac
     done
     [ "$all" = 1 ] || family="$m"
-    case "$said" in *" $family "*) continue ;; esac
+    ! _hi_list_has "$said" "$family" || continue
     said="$said$family " text="$text${text:+ }$family"
   done
   "$draw" "none anywhere" "$text"

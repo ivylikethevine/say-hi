@@ -409,7 +409,8 @@ function _hi_menu_list() {
     for row in ${notes[@]+"${notes[@]}"}; do
       [ "${row%%|*}" != "$g" ] || note="${row#*|}"
     done
-    case " ${groups//,/ } " in *" $g "*) state=1 ;; *) state=0 ;; esac
+    state=0
+    ! _hi_list_has "$groups" "$g" || state=1
     _hi_menu_check state "$state"
     _hi_pad_to name "$w" "$g"
     _hi_name_color end "$g"
@@ -808,14 +809,14 @@ function _hi_header_edit_load() {
   # shellcheck disable=SC2086 # the split is the point: one word per feature
   for word in $current; do
     _hi_is_header_word "$word" || continue
-    case "$seen" in *" $word "*) continue ;; esac
+    ! _hi_list_has "$seen" "$word" || continue
     seen="$seen$word "
     _HI_HDR_WORDS+=("$word")
     _HI_HDR_ON+=(1)
   done
   # shellcheck disable=SC2086 # the split is the point: one word per feature
   for word in $vocab; do
-    case "$seen" in *" $word "*) continue ;; esac
+    ! _hi_list_has "$seen" "$word" || continue
     seen="$seen$word "
     _HI_HDR_WORDS+=("$word")
     _HI_HDR_ON+=(0)
@@ -957,7 +958,7 @@ function _hi_plugin_states() {
       printf '%s\n' "${buf[@]}"
     }
     while IFS='|' read -r name group _; do
-      case "$seen" in *" $group|$name "*) continue ;; esac
+      ! _hi_list_has "$seen" "$group|$name" || continue
       seen="$seen$group|$name "
       if [ "$group" != "$last" ]; then
         _hi_ps_flush
@@ -979,7 +980,7 @@ function _hi_plugin_states() {
       done
       on=1 d=0
       ! _hi_plugin_switched_off "$name" || on=0
-      case "$_HI_PLUGIN_DEFAULT_OFF" in *" $name "*) d=1 ;; esac
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$name" || d=1
       # a hook's tool, where it has no command, is its init's
       if [ -n "$hook" ]; then
         _hi_hook_col "$hook" tool tool
@@ -998,7 +999,7 @@ function _hi_plugin_states() {
         done
       elif _hi_prompt_row "$name" >/dev/null; then
         prog="$name" here=0
-        case "$prompts" in *" $name "*) here=1 ;; esac
+        ! _hi_list_has "$prompts" "$name" || here=1
       fi
       cfg=-
       ((${#members[@]} == 0)) || cfg=0

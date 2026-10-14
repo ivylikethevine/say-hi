@@ -571,7 +571,7 @@ function doctor_config() {
   while [ "${wired#* alias }" != "$wired" ]; do
     wired="${wired#* alias }"
     t="${wired%%=*}"
-    case " $shadowed " in *" $t "*) continue ;; esac
+    ! _hi_list_has "$shadowed" "$t" || continue
     re="(^|[[:space:];&|])alias[[:space:]]+$t="
     [[ ! "$atext" =~ $re ]] || shadowed="$shadowed $t"
   done

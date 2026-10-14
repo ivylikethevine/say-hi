@@ -383,7 +383,7 @@ function _hi_print_hosts_table() {
   local known=" " tag_rows=" "
   while IFS= read -r user; do known+="$user "; done < <(_hi_known_users)
   while IFS= read -r tag; do
-    case "$known" in *" $tag "*) ;; *) tag_rows+="$tag " ;; esac
+    _hi_list_has "$known" "$tag" || tag_rows+="$tag "
   done < <(_hi_colors_names usertag)
 
   # The current machine renders as its own single-host group ahead of the ssh
@@ -485,7 +485,7 @@ function _hi_print_hosts_table() {
     # applying
     group_users=()
     for user in ${preview_users[@]+"${preview_users[@]}"}; do
-      case "$tag_rows" in *" $user "*) [ "$user" = "${group_tag[gidx]}" ] || continue ;; esac
+      ! _hi_list_has "$tag_rows" "$user" || [ "$user" = "${group_tag[gidx]}" ] || continue
       group_users+=("$user")
     done
     total_lines=${#item_lines[@]}

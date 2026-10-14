@@ -113,6 +113,14 @@ function test_hi_visible_width_strips_a_leading_color() {
   [ "$n" -eq 2 ] || _hi_why n
 }
 
+# ...and one opened midway too: load()'s greeting cell changes color after
+# "hi loaded: "
+function test_hi_visible_width_strips_a_color_midway() {
+  local n
+  _hi_visible_width n "${BRCYAN}hi loaded: ${RED}bash"
+  [ "$n" -eq 15 ] || _hi_why n
+}
+
 # Columns, never bytes. The header packs by this number, so where ${#}
 # answers in bytes - a target under LC_ALL=C drawing the glyph set its client
 # shipped it - a three-byte glyph measured as three would wrap a line the
@@ -680,6 +688,7 @@ function run_header_tests() {
   _hi_check "Wrap keeps every cell intact" test_header_row_wrap_keeps_cells_intact
   _hi_check "_hi_visible_width strips a leading color" test_hi_visible_width_strips_a_leading_color
   _hi_check "...plain text is unchanged" test_hi_visible_width_plain_text_unchanged
+  _hi_check "...a color opened midway does not count either" test_hi_visible_width_strips_a_color_midway
   _hi_check "...and a glyph counts one column, not three bytes" test_hi_visible_width_counts_columns_not_bytes
   _hi_check "...on a shell whose \${#} answers in bytes too" test_hi_visible_width_counts_columns_where_length_counts_bytes
   _hi_check "Wrap math ignores color escape bytes" test_header_row_width_ignores_color_escape_bytes

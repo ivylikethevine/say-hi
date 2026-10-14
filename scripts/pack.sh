@@ -275,7 +275,7 @@ function _hi_prompt_here() {
     _hi_hook_col "$_hi_pl_r" prompt _hi_pl_p
     [ "$_hi_pl_p" = yes ] || continue
     _hi_hook_col "$_hi_pl_r" name _hi_pl_t
-    case " $_hi_pl_out " in *" $_hi_pl_t "*) continue ;; esac
+    ! _hi_list_has "$_hi_pl_out" "$_hi_pl_t" || continue
     _hi_hook_here "$_hi_pl_r" && ! _hi_hook_off "$_hi_pl_r" && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
   done
   _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
@@ -529,14 +529,11 @@ function _hi_plugin_off() {
   # hi's own file: its toggles above, never the list
   [ "$_hi_po_g" != - ] || return 1
   _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
-  if [ -n "${_HI_PLUGINS_OFF:-}" ]; then
-    case " ${_HI_PLUGINS_OFF//,/ } " in
-    *" $_hi_po_n "* | *" ${_hi_po_r%%|*} "* | *" $1 "*)
-      [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
-      return 0
-      ;;
-    esac
-  fi
+  [ -z "${_HI_PLUGINS_OFF:-}" ] || for _hi_po_t in "$_hi_po_n" "${_hi_po_r%%|*}" "$1"; do
+    _hi_list_has "$_HI_PLUGINS_OFF" "$_hi_po_t" || continue
+    [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
+    return 0
+  done
   # off by default, until $_HI_PLUGINS_ON names the plugin
   _hi_plugin_switched_off "$_hi_po_n" || return 1
   [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_ON, off by default"
@@ -649,7 +646,7 @@ function _hi_overlay_wiring() {
     fi
     _hi_hook_off "$_hi_ow_r" && continue
     # a leading - on the name says off by default, for the target's _hi_hook_on
-    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_ow_n "*) _hi_ow_n="-$_hi_ow_n" ;; esac
+    ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_ow_n" || _hi_ow_n="-$_hi_ow_n"
     # ...and a :<shells> after it, a , apart, the shells the hook is kept to
     [ "$_hi_ow_s" = - ] || _hi_ow_n="$_hi_ow_n:${_hi_ow_s// /,}"
     _hi_hook_col "$_hi_ow_r" group _hi_ow_p

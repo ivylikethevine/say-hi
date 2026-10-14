@@ -180,7 +180,7 @@ function _hi_plugins_list() {
   _hi_read_lines rows < <(_hi_plugin_rows)
   for row in ${rows[@]+"${rows[@]}"}; do
     group="${row#*|}" group="${group%|*}"
-    case "$groups" in *" $group "*) ;; *) groups="$groups$group " ;; esac
+    _hi_list_has "$groups" "$group" || groups="$groups$group "
   done
   # shellcheck disable=SC2086 # group names, a space apart
   for group in $groups; do

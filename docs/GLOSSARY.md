@@ -945,7 +945,7 @@ Those bytes are **one SGR**, `\e[<bold>;3<n>;38;2;<r>;<g>;<b>m`: the
 16-color pair first, the 24-bit triple after it. A terminal that ignores
 `38;2` keeps the first; a capable one applies the last foreground it was
 given. One escape rather than two keeps every reader of a cell's leading
-escape working unchanged - `_hi_visible_width` strips one prefix,
+escape working unchanged - `_hi_visible_width` strips each escape,
 `_hi_collect_header_word` cuts at the first `m`, `scripts/table.sh` and the
 suites' `_hi_strip_ansi` match `\e[[0-9;]*m` - and `_hi_cell_hue` (HI.48)
 needed only to accept `;` as well as `m` after the slot digit, which is

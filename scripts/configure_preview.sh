@@ -321,8 +321,9 @@ function _hi_prompt_tool_preview() {
     *)
       _hi_prompt_row "$name" r
       r="${r#*|}"
-      case " ${r%%|*} " in *" $1 "*) ;; *) continue ;; esac
-      case " $found " in *" $name "*) note="found here" ;; *) note="not found here" ;; esac
+      _hi_list_has "${r%%|*}" "$1" || continue
+      note="not found here"
+      ! _hi_list_has "$found" "$name" || note="found here"
       ;;
     esac
     [ "$name" != hi ] || note="hi's own prompt"

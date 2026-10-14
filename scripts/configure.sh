@@ -250,12 +250,10 @@ function config_prompt_tool() {
     menu_read " Who draws the $1 prompt, by number or name? $w " reply || break
     [ -n "$reply" ] || break
     case "$reply" in *[!0-9]* | 0*) ;; *) ((reply > ${#all[@]})) || reply="${all[reply - 1]}" ;; esac
-    case " ${all[*]} " in
-    *" $reply "*)
+    if _hi_list_has "${all[*]}" "$reply"; then
       choice="$reply"
       break
-      ;;
-    esac
+    fi
     _hi_menu_reject rejects 3 "no choice $reply - type a number or a name from the list" && continue
     break
   done
@@ -466,7 +464,7 @@ function apply_preset() {
   vocab=" $(_hi_preset_vocab | tr '\n' ' ')"
   # shellcheck disable=SC2086
   for pair in $values; do
-    case "$vocab" in *" ${pair%%=*} "*) continue ;; esac
+    ! _hi_list_has "$vocab" "${pair%%=*}" || continue
     _hi_pending_set "${pair%%=*}" "${pair#*=}"
     extra="$extra${extra:+, }${pair%%=*}"
   done

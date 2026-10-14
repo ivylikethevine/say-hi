@@ -204,11 +204,16 @@ fi
 # script has a reason to make.
 #
 # The filters keep the HTML report to the subject, as _hi_cov_v2_report does
-# the ranking and coverage.sh's --exclude-path does kcov's.
+# the ranking and coverage.sh's --exclude-path does kcov's. SimpleCov's own
+# go first: its root filter would drop a script run from a scratch-tree copy
+# before _hi_cov_v2_credit could credit it, and the hidden-directory filter
+# it takes with it comes back.
 cat >"$_HI_SIMPLECOV" <<'SIMPLECOV'
 SimpleCov.coverage_dir(ENV['_HI_COV_OUT']) if ENV['_HI_COV_OUT']
 SimpleCov.command_name(ENV['_HI_COV_NAME']) if ENV['_HI_COV_NAME']
 SimpleCov.merge_timeout(3600)
+SimpleCov.filters.clear
+SimpleCov.add_filter(%r{\A/\.})
 SIMPLECOV
 for _hi_cov_dir in "${_HI_COV_NOT_SUBJECT[@]}"; do
   printf 'SimpleCov.add_filter(%%r{^/%s/})\n' "${_hi_cov_dir//./\\.}" >>"$_HI_SIMPLECOV"
@@ -220,18 +225,56 @@ _hi_cov_select_suites "$@"
 _hi_cov_counts_files covv2
 
 export _HI_COV_OUT="$_HI_COV_DIR"
+# the suites' work directories, kept past each suite (tests/lib/workdir.sh)
+_HI_COV_KEEP="$(mktemp -t hi.covkeep.XXXXXX)"
+_HI_COV_TRASH+=("$_HI_COV_KEEP")
+export _HI_COV_KEEP
+
+# _hi_cov_v2_credit <suite> - in that suite's entry of the resultset, a
+# script's hits under a scratch-tree copy (a path outside the tree ending in
+# say-hi/<rel>) go to the tree's <rel> where the two files are byte for byte
+# the same, and every entry outside the tree goes. Run while the copies are
+# still there to compare.
+function _hi_cov_v2_credit() {
+  ruby -rjson -e '
+    root, file, name = ARGV
+    root = root.chomp("/") + "/"
+    sets = JSON.parse(File.read(file))
+    cov = (sets[name] || {})["coverage"] or exit
+    lines = ->(d) { d.is_a?(Hash) ? d["lines"] : d }
+    cov.keys.each do |path|
+      next if path.start_with?(root)
+      copy = cov.delete(path)
+      rel = path[%r{\A.*/say-hi/(.+)\z}, 1]
+      real = rel && root + rel
+      next unless real && File.file?(real) && File.file?(path) && File.binread(real) == File.binread(path)
+      add = lines.(copy)
+      have = cov[real] && lines.(cov[real])
+      cov[real] = { "lines" => have ? have.each_with_index.map { |v, i| [v, add[i]].compact.sum if v || add[i] } : add }
+    end
+    File.write(file, JSON.generate(sets))
+  ' "$_HI_COV_ROOT" "$_HI_COV_DIR/.resultset.json" "$1"
+}
 
 # --command-name is what keeps one suite's result from replacing the last
 # one's: SimpleCov merges results under distinct names and overwrites under
 # equal ones. --root is the tree, which is what makes its files discoverable
 # at all; without it SimpleCov reports the suite script and nothing else.
 function _hi_cov_trace_one() {
+  local rc=0 dir
   # no --mute: _hi_cov_trace_all keeps the suite's transcript for its failure
   # report, and --mute would hand it SimpleCov's lines instead
   # BASH_ENV: the suite's bash makes the trace pipe blocking before its first
   # line (tests/lib/coverage_env.sh), or lines are dropped at random
   BASH_ENV="$_HI_COV_ROOT/tests/lib/coverage_env.sh" _HI_COV_NAME="$1" bashcov --root "$_HI_COV_ROOT" \
-    --command-name "$1" -- "$2"
+    --command-name "$1" -- "$2" || rc=$?
+  [ ! -f "$_HI_COV_DIR/.resultset.json" ] || _hi_cov_v2_credit "$1" || rc=1
+  # the kept work directories, each in the shape _hi_workdir's mktemp gave it
+  while IFS= read -r dir; do
+    case "$dir" in */hi.*.??????) rm -rf "$dir" ;; esac
+  done <"$_HI_COV_KEEP"
+  : >"$_HI_COV_KEEP"
+  return "$rc"
 }
 _hi_cov_trace_all _hi_cov_trace_one || exit 1
 
