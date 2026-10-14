@@ -28,7 +28,10 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 function test_workdir_creates_a_scratch_dir() {
   local dir
+  # a coverage driver's $_HI_COV_KEEP would keep the directory: the plain
+  # path is this case's
   dir="$(
+    unset _HI_COV_KEEP
     _hi_workdir probe
     printf '%s' "$_HI_WORKDIR"
   )"
@@ -54,12 +57,29 @@ function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
   local inner
   inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
   (
+    unset _HI_COV_KEEP
     _HI_WORKDIR="$inner"
     _HI_LEDGER=""
     _HI_EXTRA_CLEANUP=_hi_false
     _hi_test_cleanup
   )
   [ ! -d "$inner" ] || _hi_why inner
+}
+
+# under tests/coverage_v2.sh the workdir outlives the suite, named in
+# $_HI_COV_KEEP for the driver to credit its copies and remove it
+function test_test_cleanup_keeps_the_workdir_for_a_coverage_driver() {
+  local inner keep="$_HI_WORKDIR/covkeep"
+  inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
+  : >"$keep"
+  (
+    _HI_COV_KEEP="$keep"
+    _HI_WORKDIR="$inner"
+    _HI_LEDGER=""
+    _HI_EXTRA_CLEANUP=""
+    _hi_test_cleanup
+  )
+  [ -d "$inner" ] && [ "$(cat "$keep")" = "$inner" ] || _hi_why inner keep
 }
 
 # The ledger's whole reason for being a file: the background subshell's entry
@@ -284,6 +304,7 @@ function run_lib_parallel_tests() {
   _hi_check "Workdir creates a scratch dir" test_workdir_creates_a_scratch_dir
   _hi_check "Cleanup runs the suite-specific hook" test_test_cleanup_runs_the_extra_hook_first
   _hi_check "Cleanup removes the workdir even if the hook fails" test_test_cleanup_removes_the_workdir_even_if_the_hook_fails
+  _hi_check "...and keeps it, named, for a coverage driver" test_test_cleanup_keeps_the_workdir_for_a_coverage_driver
   _hi_check "Track_container records from a subshell too" test_track_container_records_from_a_subshell_too
   _hi_check "Cleanup sweeps containers, then networks" test_cleanup_sweeps_containers_then_networks
 
