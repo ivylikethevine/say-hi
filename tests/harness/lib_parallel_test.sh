@@ -69,7 +69,7 @@ function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
 # under tests/coverage_v2.sh the workdir outlives the suite, named in
 # $_HI_COV_KEEP for the driver to credit its copies and remove it
 function test_test_cleanup_keeps_the_workdir_for_a_coverage_driver() {
-  local inner keep="$_HI_WORKDIR/covkeep"
+  local inner kept keep="$_HI_WORKDIR/covkeep"
   inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
   : >"$keep"
   (
@@ -79,7 +79,8 @@ function test_test_cleanup_keeps_the_workdir_for_a_coverage_driver() {
     _HI_EXTRA_CLEANUP=""
     _hi_test_cleanup
   )
-  [ -d "$inner" ] && [ "$(cat "$keep")" = "$inner" ] || _hi_why inner keep
+  kept="$(cat "$keep")"
+  [ -d "$inner" ] && [ "$kept" = "$inner" ] || _hi_why inner kept
 }
 
 # The ledger's whole reason for being a file: the background subshell's entry

@@ -531,15 +531,18 @@ function test_lib_hash_fallbacks_agree_with_coreutils() {
 }
 
 # ...and OpenBSD has neither of those: its sha256 -r (one space where
-# coreutils prints two) and, LibreSSL having no BLAKE2, python's blake2b
+# coreutils prints two) and, LibreSSL having no BLAKE2, python's blake2b.
+# The stand-in prints sha256 -r's own line, and the fallback has to make
+# coreutils' text-mode line of it: Git Bash's coreutils prints binary mode's
+# ` *` instead, so the hash is taken from it and the line built here.
 function test_lib_hash_fallbacks_agree_on_openbsd() {
   local f="$_HI_WORKDIR/fallback-bsd.probe" bin="$_HI_WORKDIR/bsd-hash-bin" path sha b2 got
   printf 'hash me\n' >"$f"
-  sha="$(_hi_in_pkglib sha256_lines "$f")"
+  sha="$(_hi_in_pkglib sha256_of "$f")  $f"
   b2="$(_hi_in_pkglib b2_of "$f")"
   mkdir -p "$bin"
   # shellcheck disable=SC2016 # the stand-in's own expansions
-  printf '#!/bin/sh\n[ "$1" = -r ] && shift\n[ "$1" = -- ] && shift\n"%s" "$@" | sed "s/  / /"\n' "$(type -P sha256sum)" >"$bin/sha256"
+  printf '#!/bin/sh\n[ "$1" = -r ] && shift\n[ "$1" = -- ] && shift\n"%s" "$@" | sed "s/ [ *]/ /"\n' "$(type -P sha256sum)" >"$bin/sha256"
   printf '#!/bin/sh\nexit 1\n' >"$bin/openssl"
   chmod +x "$bin/sha256" "$bin/openssl"
   path="$bin:$(_hi_real_path bsd-hash-tools bash sh awk sed grep cat tr dirname readlink uname python3)"
