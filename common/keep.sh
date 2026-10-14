@@ -16,8 +16,8 @@
 #
 # What a session leaves in its tree, each file's words, and who reads it:
 #   hi.pid       <pid>: a disposable session's claim - the sweep, the watcher
-#   hi.kept      <pane pid> [<outer shell pid>]: an owner pane's claim - the
-#                sweep, clean_all, the bootstrap's trap
+#   hi.kept      <pane pid> <outer shell pid, or -> <name>: an owner pane's
+#                claim - the sweep, clean_all, the bootstrap's trap
 #   hi.hold      <name>: this session holds its tree through a drop - clean_all,
 #                the prompt hooks, the bootstrap's trap
 #   hi.held      <watcher pid> <shell pid> <name>: a dropped session's tree, on
@@ -203,14 +203,17 @@ function _hi_keep_middle() {
 # other session's, or hi.held, the watcher's of a tree a drop left to its
 # timer and the shell's that left it (load.sh's clean_all). A tree no process
 # of its claim still runs on is removed, and one a kept session or a timer
-# claims is that claim's alone. GLOSSARY: HI.65
+# claims is that claim's alone - but for the session $_hi_endname names, which
+# hi --end has just ended: its tree goes whatever its panes are still doing,
+# since a multiplexer may end them late or without a hangup. GLOSSARY: HI.65
 function _hi_keep_sweep() {
   # shellcheck disable=SC2016 # the target's to expand
   printf '%s\n' \
     '      for _hi_s in "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.kept "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.held "${_HI_HOME%.hi.*}".hi.*/say-hi/hi.pid; do' \
     '        case "$_hi_s" in */hi.pid) [ ! -e "${_hi_s%pid}kept" ] && [ ! -e "${_hi_s%pid}held" ] || continue ;; esac' \
     '        read -r _hi_ko _hi_kp _hi_kh 2>/dev/null <"$_hi_s" && [ -n "$_hi_ko" ] || continue' \
-    '        kill -0 "$_hi_ko" 2>/dev/null || kill -0 "${_hi_kp:-$_hi_ko}" 2>/dev/null || rm -rf "${_hi_s%/say-hi/hi.*}"' \
+    '        [ "$_hi_kh" = "${_hi_endname:-/}" ] || ! { kill -0 "$_hi_ko" 2>/dev/null || kill -0 "${_hi_kp:-$_hi_ko}" 2>/dev/null; } || continue' \
+    '        rm -rf "${_hi_s%/say-hi/hi.*}"' \
     '      done'
 }
 
@@ -280,7 +283,7 @@ $(declare -f _hi_mux_kill)
         sleep 0.2 2>/dev/null || sleep 1
       done
       [ -z "\$_hi_d" ] || {
-        _HI_HOME=\$_hi_d
+        _HI_HOME=\$_hi_d _hi_endname=\$_hi_kn
 $(_hi_keep_sweep)
       }
       (exit "\$_hi_e")
@@ -510,7 +513,7 @@ function _hi_keep_file() {
 # hook. GLOSSARY: HI.65
 function _hi_keep_claim() {
   if [ -n "${_HI_KEEP_MUX:-}" ]; then
-    printf '%s %s\n' "$$" "${_HI_KEEP_OUTER:-}" >"$_HI_ROOT/hi.kept"
+    printf '%s %s %s\n' "$$" "${_HI_KEEP_OUTER:--}" "${_HI_KEEP_NAME:-}" >"$_HI_ROOT/hi.kept"
   elif [[ -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]]; then
     # only into a tree this session may remove: never an install's
     printf '%s\n' "$$" >"$_HI_ROOT/hi.pid"
@@ -582,6 +585,7 @@ function _hi_keep_watch() {
         ((idle < limit)) || break
       fi
     done
+    ! declare -F _hi_clean_tree >/dev/null || _hi_clean_tree
     _hi_keep_kill
   ) </dev/null >/dev/null 2>&1 &
   _hi_keep_watch_pid=$!

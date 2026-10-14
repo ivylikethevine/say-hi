@@ -287,7 +287,9 @@ side by side, with a `!` on a file the tools read fifteen points apart or only
 one of them lists: an artifact to rule out against the lists below, not a gap.
 Beside `files` each leaves `missed`, its unrun lines, and
 `tests/coverage.sh --untested <revision>` lists the lines changed since that
-revision that are on both. The `comment` job puts the table in its summary and
+revision that are on both, less the ones `xtrace` never prints: a line that only
+closes a block with a redirect (`done <file`), and the rest of a command the
+line above continues. The `comment` job puts the table in its summary and
 those lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
 `--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
 

@@ -852,7 +852,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # a profile is stopped at 7 minutes (tests/profile.sh), with what held it
+    timeout-minutes: 25
     continue-on-error: true
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1

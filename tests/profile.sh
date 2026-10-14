@@ -171,22 +171,46 @@ function prof_preflight() {
 }
 
 function prof_one() { # <name> <what> <body>
-  local name="$1" what="$2" body="$3" out rc=0
+  local name="$1" what="$2" body="$3" out rc=0 box run dog
+  local limit="${_HI_PROF_LIMIT:-420}"
   out="$_HI_PROF_DIR/$name"
+  box="hi-prof-$name-$$"
   mkdir -p "$out"
+  rm -f "$out/stalled.txt"
   _hi_cecho " | $name - $what" "$BLUE"
 
   # --tmpfs with `exec`: docker's default /dev/shm is noexec, and timep loads
   # its builtin from there. The checkout is `:ro` and only $out is writable, so
   # a profiler that runs arbitrary upstream code cannot touch the tree.
-  docker run --rm -t \
+  docker run --rm -t --name "$box" \
     --tmpfs /dev/shm:rw,exec,nosuid,nodev,size=512m \
     -v "$_HI_ROOT:/work/say-hi:ro" \
     -v "$out:/out" \
     ${_HI_TIMEP_MOUNT[@]+"${_HI_TIMEP_MOUNT[@]}"} \
     -e _HI_HOME=/work -e _HI_CONFIG_DIR=/out/cfg -e _HI_PROBE_TIMEOUT=1 -e _HI_TARGETS_TTL=5 \
     -w /work/say-hi "$_HI_PROF_IMAGE" \
-    bash -c "$_HI_PROF_RUNNER" bash "$body" >"$out/profile.txt" 2>&1 || rc=$?
+    bash -c "$_HI_PROF_RUNNER" bash "$body" >"$out/profile.txt" 2>&1 &
+  run=$!
+  # A profile still running after $_HI_PROF_LIMIT seconds (420) is stalled:
+  # the box's processes are kept for the report (off /proc - the image need
+  # not have ps), and the box goes, so a stall names what held it.
+  (
+    trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+    sleep "$limit" &
+    nap=$!
+    wait "$nap" || exit 0
+    # shellcheck disable=SC2016 # the box's sh expands it
+    docker exec "$box" sh -c 'for p in /proc/[0-9]*; do printf "%s %s\n" "${p#/proc/}" "$(tr "\000" " " <"$p/cmdline" 2>/dev/null)"; done' >"$out/stalled.txt" 2>&1
+    docker rm -f "$box" >/dev/null 2>&1
+  ) >/dev/null 2>&1 &
+  dog=$!
+  wait "$run" || rc=$?
+  kill "$dog" 2>/dev/null || true
+  if [ -s "$out/stalled.txt" ]; then
+    _hi_cecho " |   STALLED - still running after ${limit}s; the box's processes then:" "$RED"
+    sed 's/^/      /' "$out/stalled.txt"
+    return 1
+  fi
 
   if [ "$rc" -ne 0 ]; then
     _hi_cecho " |   FAILED (exit $rc) - see $out/profile.txt" "$RED"

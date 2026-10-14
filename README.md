@@ -453,10 +453,11 @@ when it lands.
 
 8. [ ] _Before 1.0:_ **The coverage comment names what a PR left
        untested** — shipped: `coverage.yml`'s comment lists the lines a PR
-       changed that neither tool recorded, and
-       `tests/coverage.sh --untested <revision>` does the same by hand. No PR
-       has run it yet. **Ticks when:** a PR's comment carries the list, and
-       its rows are arms no case reaches rather than artifacts.
+       changed that neither tool recorded, less the shapes `xtrace` never
+       prints, and `tests/coverage.sh --untested <revision>` does the same by
+       hand. PR 214's comment carried it, two real gaps among three
+       artifacts the filter now drops. **Ticks when:** a PR's comment lists
+       only arms no case reaches.
 
 9. [ ] _Before 1.0:_ **Known tracer artifacts are marked in the source** —
        shipped: an arm neither tool can reach in a sweep (zsh's, a bash

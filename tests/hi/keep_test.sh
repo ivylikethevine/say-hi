@@ -264,6 +264,34 @@ function test_keep_sweep_removes_the_tree_of_a_dead_owner_pane() {
   [ -z "$out" ] || _hi_because "alone, the sweep said: $out"
 }
 
+# _hi_mux_kill ends a session each multiplexer's own way, screen by its
+# session's own id
+function test_mux_kill_spells_each_tool_s_kill() {
+  local log="$_HI_WORKDIR/muxkill.log" bin got m
+  bin="$(_hi_keep_shims)"
+  : >"$log"
+  for m in tmux zellij screen; do
+    _HI_TEST_LOG="$log" PATH="$bin:$PATH" _hi_mux_kill "$m" hi-box 411.hi-box
+  done
+  got="$(cat "$log")"
+  [ "$got" = "TMUX kill-session -t =hi-box
+ZELLIJ kill-session hi-box
+SCREEN -S 411.hi-box -X quit" ] || _hi_why got
+}
+
+# ...and after hi --end, the session it ended ($_hi_endname) goes even with its
+# pane still running: zellij can end a pane late, or with no hangup to run
+# its exit hook. Another live session stays.
+function test_keep_sweep_takes_the_session_hi_end_ended() {
+  local d="$_HI_WORKDIR/sweep-end" out n
+  mkdir -p "$d/u.hi.new" "$d/u.hi.ended/say-hi" "$d/u.hi.kept/say-hi"
+  printf '%s - hi-box\n' "$$" >"$d/u.hi.ended/say-hi/hi.kept"
+  printf '%s - hi-other\n' "$$" >"$d/u.hi.kept/say-hi/hi.kept"
+  out="$(_HI_HOME="$d/u.hi.new" _hi_endname=hi-box sh -c "$(_hi_keep_sweep)" 2>&1)" || _hi_because "the sweep failed: $out" || return 1
+  [ ! -e "$d/u.hi.ended" ] || _hi_because "the ended session's tree is still there" || return 1
+  [ -d "$d/u.hi.kept/say-hi" ] || _hi_because "another live session's tree was taken"
+}
+
 function test_keep_leaves_a_command_and_no_keep_alone() {
   local out
   for out in "$(_hi_keep_script_for 1 'ls; exit')" "$(_hi_keep_script_for 0 '')"; do
@@ -952,6 +980,8 @@ function run_hi_keep_tests() {
   _hi_check "A command and --no-keep carry neither block" test_keep_leaves_a_command_and_no_keep_alone
   _hi_check "Switched off, a connect carries none of it and the flags are refused" test_keep_switched_off_sends_none_of_it
   _hi_check "The next connect removes a dead owner pane's tree" test_keep_sweep_removes_the_tree_of_a_dead_owner_pane
+  _hi_check "...and hi --end's sweep, the session it ended, live pane and all" test_keep_sweep_takes_the_session_hi_end_ended
+  _hi_check "_hi_mux_kill ends each multiplexer's session its own way" test_mux_kill_spells_each_tool_s_kill
   _hi_check_capable pty "The script ends 86 off a session still kept" test_keep_script_ends_86_off_a_kept_session
   _hi_check "...0 where it leaves none, and says one is gone" test_keep_script_says_how_it_ends_and_what_is_gone
   _hi_check "A keepalive is asked for where the ssh config sets none" test_keep_alive_is_asked_where_the_config_sets_none

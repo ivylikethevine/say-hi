@@ -610,19 +610,20 @@ function _hi_shared_tree() {
 }
 
 # an owner pane claims its tree by pid, its own and that of the shell it was
-# kept from, for the connect that finds it dead; an ordinary session's tree
+# kept from (- for none), for the connect that finds it dead, and by its
+# session's name, for the hi --end that ends it; an ordinary session's tree
 # carries no claim
 function test_keep_claim_names_the_pane_and_the_shell_it_was_kept_from() {
   local t got
   t="$(_hi_shared_tree claim)"
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX="" _HI_KEEP_OUTER="" _hi_keep_claim)
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "an ordinary session claimed its tree" || return 1
-  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER="" _hi_keep_claim)
+  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER="" _HI_KEEP_NAME=hi-box _hi_keep_claim)
   got="$(cat "$t/say-hi/hi.kept")"
-  [ "$got" = "$$ " ] || _hi_because "a keeping connect's pane: $got" || return 1
-  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER=4242 _hi_keep_claim)
+  [ "$got" = "$$ - hi-box" ] || _hi_because "a keeping connect's pane: $got" || return 1
+  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER=4242 _HI_KEEP_NAME=hi-box _hi_keep_claim)
   got="$(cat "$t/say-hi/hi.kept")"
-  [ "$got" = "$$ 4242" ] || _hi_because "a pane kept from inside: $got"
+  [ "$got" = "$$ 4242 hi-box" ] || _hi_because "a pane kept from inside: $got"
 }
 
 # a session kept from inside another shares its tree, and the last of the two

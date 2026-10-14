@@ -241,7 +241,9 @@ function test_install_section_reports_a_wired_shell() {
   mkdir -p "$home"
   _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || _hi_why home || return 1
-  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]] || _hi_why out
+  # the install section alone: the whole report runs past what _hi_why shows
+  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]] ||
+    _hi_because "the install section: $(printf '%s\n' "$out" | sed -n '/The install/,$p')"
 }
 
 # the blocks an older hi wrote name this tree, so only a comparison with

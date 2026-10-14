@@ -69,7 +69,7 @@ function _hi_cov_untested() {
       return 1
     }
   done
-  git -C "$_HI_HOME/say-hi" diff -U0 --no-color "$1" -- '*.sh' | awk -v K="$2" -v B="$3" '
+  git -C "$_HI_HOME/say-hi" diff -U0 --no-color "$1" -- '*.sh' | awk -v K="$2" -v B="$3" -v T="$_HI_HOME/say-hi/" '
     function flush() {
       if (from != "") row = row (row == "" ? "" : ", ") (from == to ? from : from "-" to)
       from = ""
@@ -78,6 +78,25 @@ function _hi_cov_untested() {
       flush()
       if (row != "") printf " |   %s: %s\n", file, row
       row = ""
+    }
+    # a line xtrace never prints, so neither tool can record it: one that
+    # only closes a block with a redirect (`done <file`, `} >file`), or the
+    # rest of a command the line above continues (a trailing \\, |, &&, ||,
+    # or an array still open)
+    function shadow(i,   t, p) {
+      if (!(file in read)) {
+        read[file]
+        n = 0
+        while ((getline line < (T file)) > 0) src[file, ++n] = line
+        close(T file)
+      }
+      t = src[file, i]
+      if (t ~ /^[ \t]*(done|[})]|fi|esac)[ \t]*[0-9]*[<>]/) return 1
+      p = src[file, i - 1]
+      sub(/[ \t]+#.*$/, "", p)
+      if (p ~ /(\\|\||&&|\|\|)[ \t]*$/) return 1
+      if (p ~ /=\([^)]*$/) return 1
+      return 0
     }
     BEGIN {
       while ((getline line < K) > 0) k[line]
@@ -95,6 +114,7 @@ function _hi_cov_untested() {
       count = (at[2] == "") ? 1 : at[2] + 0
       for (i = first; i < first + count; i++) {
         if (!((file ":" i) in k && (file ":" i) in b)) continue
+        if (shadow(i)) continue
         if (from != "" && i == to + 1) { to = i; continue }
         flush()
         from = to = i

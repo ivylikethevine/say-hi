@@ -301,16 +301,18 @@ $want
 Host top" ] || _hi_because "ssh-config: [$out]"
 }
 
-# the word after --add-tag is a literal Host from the config or an Include;
-# a pattern names no host to tag
+# the word after --add-tag or --remove-tag is a literal Host from the config
+# or an Include; a pattern names no host to tag
 function test_add_tag_words_are_the_literal_ssh_hosts() {
-  local got
+  local got flag
   local h="$_HI_WORKDIR/addtag-home" out
   mkdir -p "$h/.ssh/config.d"
   printf 'Include config.d/*\nHost top *.example web?\n' >"$h/.ssh/config"
   printf 'Host alpha # a note\n' >"$h/.ssh/config.d/01-a"
-  out="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" sh "$_HI_TARGETS" words --add-tag | cut -f1 | sort | tr '\n' ' ')"
-  [ "$out" = "alpha top " ] || _hi_because "--add-tag words: [$out]" || return 1
+  for flag in --add-tag --remove-tag; do
+    out="$(HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" sh "$_HI_TARGETS" words "$flag" | cut -f1 | sort | tr '\n' ' ')"
+    [ "$out" = "alpha top " ] || _hi_because "$flag words: [$out]" || return 1
+  done
   got="$(HOME="$h" _HI_SSH_CONFIG="$h/none" sh "$_HI_TARGETS" words --add-tag)"
   [ -z "$got" ] || _hi_why got h _HI_TARGETS
 }
