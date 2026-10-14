@@ -1176,7 +1176,10 @@ that is never a finding: each file under `$HOME` it names rides as written -
 no scan, no strip, since it is no config of the member's dialect - under
 `<tool>/carried/`, or `<member>.carried/` where the member has no directory,
 and the line holds the carried path as a carried include does. What of it
-cannot ride is a row of the kind `carry`. The scan cannot know a start is closed until the
+cannot ride is a row of the kind `carry`. A line under `hi-drop` is the
+reverse: no finding by the grammar, it is disabled like one and never
+reported, for a setting some target's version of the tool rejects; an allow
+or a carry spares it, and a dialect with no comment has no marker to hold. The scan cannot know a start is closed until the
 file ends, so it reads the file through once for the pairs before it reads it
 for findings. There is no setting that turns the scan off: the comments are the
 per-line and per-block answer.

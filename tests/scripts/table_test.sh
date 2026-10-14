@@ -226,6 +226,39 @@ function test_scheme_label_names_each_kind() {
   [ "$label" = "nope (ignored - not a scheme)" ] || _hi_why label
 }
 
+# a line's pieces: cut at the last space that fits, the space gone with the
+# cut, and a line that fits is one piece
+function test_wrap_cuts_at_spaces() {
+  local -a pieces=()
+  _hi_wrap 10 "aaa bbb ccc ddd"
+  [ "${#pieces[@]}" = 2 ] && [ "${pieces[0]}" = "aaa bbb" ] && [ "${pieces[1]}" = "ccc ddd" ] || _hi_why pieces || return 1
+  pieces=()
+  _hi_wrap 10 "aaa bbb"
+  [ "${#pieces[@]}" = 1 ] && [ "${pieces[0]}" = "aaa bbb" ] || _hi_why pieces
+}
+
+# a word wider than the width has no space to cut at, so it is split there
+function test_wrap_splits_a_word_wider_than_the_width() {
+  local -a pieces=()
+  _hi_wrap 4 "ab cdefghij"
+  [ "${pieces[*]}" = "ab cdef ghij" ] && [ "${#pieces[@]}" = 3 ] || _hi_why pieces
+}
+
+# the box wraps a row's text to the terminal's width, and the later lines
+# leave the mark and label cells blank
+function test_the_box_wraps_a_long_text_on_a_terminal() {
+  local out lines named
+  out="$(
+    _HI_ROWS_SEV=() _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_COLOR=()
+    _hi_row name "one two three four five six seven eight nine ten" ok
+    _HI_TERM_COLS=36 _hi_rows_box
+  )"
+  out="$(_hi_strip_ansi "$out")"
+  lines="$(grep -c . <<<"$out")" named="$(grep -c name <<<"$out")"
+  [ "$lines" = 5 ] && [ "$named" = 1 ] &&
+    [[ "$out" == *"name"*"one two three four "*$'\n'*"five six seven eight "*$'\n'*"nine ten "* ]] || _hi_why out lines named
+}
+
 # the box glyphs are chosen once at source time off _hi_use_ascii, so each
 # side is proven by re-sourcing lib.sh in a child with _HI_ASCII forced. All
 # eleven, in reading order: the three rules, then the fill and the edge.
@@ -266,6 +299,11 @@ function run_table_tests() {
   _hi_check "_hi_pad_cols pads only the marked lines" test_pad_cols_pads_the_marked_lines
   _hi_check "_hi_fit cuts with an ellipsis" test_fit_cuts_with_an_ellipsis
   _hi_check "_hi_hotkey brackets the letter" test_hotkey_brackets_the_letter
+
+  _hi_h2 "Testing: _hi_wrap / _hi_rows_box"
+  _hi_check "_hi_wrap cuts at spaces" test_wrap_cuts_at_spaces
+  _hi_check "...and splits a word wider than the width" test_wrap_splits_a_word_wider_than_the_width
+  _hi_check "The box wraps a long text on a terminal" test_the_box_wraps_a_long_text_on_a_terminal
 
   _hi_h2 "Testing: _hi_cell / _hi_cell_raw"
   _hi_check "Pads to the width" test_cell_pads_to_the_width
