@@ -12,6 +12,12 @@
 #                backends groups included; pass e.g. --group fast to narrow
 #                it). The `shellcheck` suite is dropped from whatever this
 #                selects, wherever it appears - see tests/lib/coverage.sh.
+#        tests/coverage.sh --join [kcov rows] [bashcov rows]
+#   both tools' rankings side by side, off the `files` each sweep leaves in
+#   its outdir (the defaults are the two default outdirs)
+#        tests/coverage.sh --untested <base> [kcov missed] [bashcov missed]
+#   the lines changed since <base> that neither sweep recorded, off the
+#   `missed` each leaves beside `files`
 #
 # ---------------------------------------------------------------------------
 # HOW FAR TO TRUST A NUMBER THIS PRINTS
@@ -37,10 +43,19 @@
 #
 # 2.82% was 2 lines of 71: the `set -euo pipefail`/`set +euo pipefail` pair
 # that runs at *source* time, with the whole asserted function body recorded
-# as never executed. The cause was inside kcov's bash instrumentation (it
-# drives a DEBUG trap; something in test_lib.sh's source-time work lost it),
-# not in test_lib.sh or the suites. If kcov's badge ever sags far under
-# bashcov's again, rerun that probe before believing either figure.
+# as never executed. The cause is kcov's default method, which reads xtrace
+# through PS4: under bash 5.3 it stops recording at the first traced
+# assignment whose value holds a quote and a newline, and test_lib.sh reaches
+# one by sourcing tests/dockerfiles/sshd-entrypoint.sh. Three lines reproduce
+# it:
+#
+#   X="$(printf "a'b\nc'd\n")"
+#   source lib.sh     # a function f
+#   f                 # lib.sh ABSENT under PS4, covered under DEBUG
+#
+# So this driver passes --bash-method=DEBUG, which reads the same suites the
+# same on bash 5.2 and 5.3. If kcov's badge ever sags far under bashcov's
+# again, rerun that probe before believing either figure.
 #
 # THE MERGE RE-READS THE SOURCES
 #
@@ -126,11 +141,40 @@ function _hi_cov_rank() {
     }' "$1" | sort -n
 }
 
+# _hi_cov_missed <merged-dir> [root] - `path:line` for every line kcov's
+# merged report counts and never saw run, <root> trimmed off each path. Off
+# its Cobertura file, the one output that carries per-line hits as text.
+function _hi_cov_missed() {
+  local xml
+  xml="$(find "$1" -name cov.xml | head -1)"
+  [ -n "$xml" ] || return 0
+  awk -v root="${2:-}" '
+    /<source>/ {
+      src = $0
+      sub(/.*<source>/, "", src)
+      sub(/<\/source>.*/, "", src)
+    }
+    /<class / {
+      file = $0
+      sub(/.*filename="/, "", file)
+      sub(/".*/, "", file)
+      file = src file
+      if (root != "" && index(file, root) == 1) file = substr(file, length(root) + 1)
+    }
+    /<line / && /hits="0"/ {
+      n = $0
+      sub(/.*number="/, "", n)
+      sub(/".*/, "", n)
+      print file ":" n
+    }' "$xml"
+}
+
 # --merge <dest> <parts-dir> - coverage.yml's gather-kcov mode: merge every
 # shard's uploaded parts (one subdirectory per suite, flattened into
 # <parts-dir> by download-artifact's merge-multiple - disjoint by
 # construction, since --shard partitions the suite table), print the same
-# worst-first ranking a local sweep does, and write <dest>/coverage-pct/pct.
+# worst-first ranking a local sweep does, and write <dest>/coverage-pct/pct
+# with that ranking beside it as `files` and the unrun lines as `missed`.
 # Exits 0 either way, warning instead of failing: a badge is visibility,
 # never a gate, and gather-kcov's own continue-on-error is one job-wide
 # reason already, this is the other. `kcov --merge` re-reads every source
@@ -153,7 +197,7 @@ if [ "${1:-}" = --merge ]; then
   kcov --merge "$_hi_cov_merge_dest/merged" "${_hi_cov_merge_dirs[@]}"
   # the same ranking a local sweep prints, since CI's gather job merges here
   _hi_cov_merge_json="$(find "$_hi_cov_merge_dest/merged" -name coverage.json | head -1)"
-  [ -z "$_hi_cov_merge_json" ] || _hi_cov_rank "$_hi_cov_merge_json"
+  [ -z "$_hi_cov_merge_json" ] || _hi_cov_rank "$_hi_cov_merge_json" "$_HI_HOME/say-hi/"
   # A merge that resolved no sources still writes a well-formed report -
   # "files": [], run-wide 0.00 - and publishing that is worse than nothing:
   # a grey "not measured" badge reads as broken while 0.00% reads as true.
@@ -169,8 +213,21 @@ if [ "${1:-}" = --merge ]; then
   esac
   mkdir -p "$_hi_cov_merge_dest/coverage-pct"
   printf '%s\n' "$_hi_cov_merge_pct" >"$_hi_cov_merge_dest/coverage-pct/pct"
+  _hi_cov_rank "$_hi_cov_merge_json" "$_HI_HOME/say-hi/" >"$_hi_cov_merge_dest/coverage-pct/files"
+  _hi_cov_missed "$_hi_cov_merge_dest/merged" "$_HI_HOME/say-hi/" >"$_hi_cov_merge_dest/coverage-pct/missed"
   echo "kcov reports ${_hi_cov_merge_pct}% of lines executed"
   exit 0
+fi
+
+if [ "${1:-}" = --join ]; then
+  _hi_cov_join "${2:-${TMPDIR:-/tmp}/say-hi-coverage/files}" "${3:-${TMPDIR:-/tmp}/say-hi-coverage-v2/files}"
+  exit
+fi
+
+if [ "${1:-}" = --untested ]; then
+  _hi_cov_untested "${2:?--untested needs a revision to compare with}" \
+    "${3:-${TMPDIR:-/tmp}/say-hi-coverage/missed}" "${4:-${TMPDIR:-/tmp}/say-hi-coverage-v2/missed}"
+  exit
 fi
 
 if ! command -v kcov >/dev/null 2>&1; then
@@ -191,13 +248,16 @@ _hi_cov_counts_files cov
 
 # The suite script is what kcov launches - not test_runner.sh with the suite
 # named, which puts the suite back in a child process and traces nothing (see
-# the header). tests/ itself is excluded from the report - the product is the
-# subject, not the harness.
+# the header). The report is the subject's *.sh files, the ones no suite
+# loads included (tests/lib/coverage.sh); without the pattern the parse would
+# count the zsh and fish files beside them as bash that never ran.
+_HI_COV_KCOV=(--bash-method=DEBUG
+  --include-path="$_HI_HOME/say-hi" --include-pattern=.sh
+  --exclude-path="$(_hi_cov_not_subject_paths)")
+_HI_COV_PARSE="$(_hi_cov_subject_dirs)"
+[ -z "$_HI_COV_PARSE" ] || _HI_COV_KCOV+=(--bash-parse-files-in-dir="$_HI_COV_PARSE")
 function _hi_cov_trace_one() {
-  kcov --include-path="$_HI_HOME/say-hi" \
-    --exclude-path="$_HI_HOME/say-hi/tests" \
-    "$_HI_COV_DIR/parts/$1" \
-    "$2"
+  kcov "${_HI_COV_KCOV[@]}" "$_HI_COV_DIR/parts/$1" "$2"
 }
 _hi_cov_trace_all _hi_cov_trace_one || exit 1
 
@@ -210,5 +270,6 @@ _hi_cecho " | coverage: report in $_HI_COV_DIR/merged/index.html" "$GREEN"
 # as suites are added.
 _HI_COV_JSON="$(find "$_HI_COV_DIR/merged" -name coverage.json 2>/dev/null | head -1)"
 if [ -n "$_HI_COV_JSON" ] && [ -f "$_HI_COV_JSON" ]; then
-  _hi_cov_rank "$_HI_COV_JSON" "$_HI_HOME/say-hi/"
+  _hi_cov_rank "$_HI_COV_JSON" "$_HI_HOME/say-hi/" | tee "$_HI_COV_DIR/files"
+  _hi_cov_missed "$_HI_COV_DIR/merged" "$_HI_HOME/say-hi/" >"$_HI_COV_DIR/missed"
 fi

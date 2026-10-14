@@ -279,37 +279,52 @@ stream side by side loses lines, and both put a bash-as-`sh` first on their own
 `PATH`: neither tracer follows a dash child, so a `#!/bin/sh` file a suite
 executes as `sh …` (`common/targets.sh`) would read 0% where `/bin/sh` is dash.
 
+Both report one subject: every tracked `*.sh` file outside `tests/`, `docs/`,
+`scratch/`, and `.github/` (`_HI_COV_NOT_SUBJECT` in `tests/lib/coverage.sh`),
+a file no suite loads included, at 0%. Each sweep leaves its worst-first
+ranking as `files` in its outdir, and `tests/coverage.sh --join` sets the two
+side by side, with a `!` on a file the tools read fifteen points apart or only
+one of them lists: an artifact to rule out against the lists below, not a gap.
+Beside `files` each leaves `missed`, its unrun lines, and
+`tests/coverage.sh --untested <revision>` lists the lines changed since that
+revision that are on both. The `comment` job puts the table in its summary and
+those lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
+`--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
+
 In CI each tool is sharded 4 ways (`--shard i/4`, which `_hi_cov_select_suites`
 passes straight to `test_runner.sh`) and merged by a gather job: `kcov --merge`
 over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
 `--command-name`-keyed `.resultset.json` files, safe because shards partition
 the suite table.
 
-- **kcov**'s known failure mode is losing its DEBUG trap once the harness is
-  sourced, which reads whole suites as load-time-only; the script's header keeps
-  the probe to re-run if the badges diverge. **`kcov --merge` re-reads the
+- **kcov** runs with `--bash-method=DEBUG`: its default `PS4` method stops
+  recording under bash 5.3 once the harness is sourced, which reads whole
+  suites as load-time-only; the script's header keeps the probe to re-run if
+  the badges diverge. **`kcov --merge` re-reads the
   sources** at the absolute paths each shard recorded, so a merge with no
   working tree yields `"files": []` and a well-formed `0.00%` badge, not an
   error. `coverage.yml`'s `gather-kcov` checks the tree out before calling
   `tests/coverage.sh --merge` (a local sweep's own merge, ranking, and all-zero
   refusal), and the `test_runner_ci` suite (`runner_test.sh`'s ci part) asserts
-  every job calling it does. `gather-bashcov` needs no checkout.
+  every job calling it does. `gather-bashcov` calls
+  `tests/coverage_v2.sh --merge`, which reads the resultsets alone.
 - **bashcov** reads bash's `xtrace`, and skews the other way: a **heredoc body**
-  counts as covered whether or not it ran, and children under `env -i` or inside
-  containers drop out of the trace — so a single file reads a few points off
+  counts as covered whether or not it ran, and children under a bare `env -i`
+  or inside containers drop out of the trace — so a single file reads a few points off
   either way while the pair brackets the truth. More readings are artifacts, not
   gaps, and `tests/coverage_v2.sh`'s header is their list: a scratch-tree copy,
-  an `eval` inside a `$( )`, a zsh-only arm, the `sh …` case above, lines a
-  passing case asserts but that still read 0, and the lines `xtrace` never
-  prints (an empty case arm, a redirect line). Rule those out before writing a
-  test against a number. It needs `gem install --user-install bashcov` (found
+  an `eval` inside a `$( )`, a zsh-only arm, the `sh …` case above, and the
+  lines `xtrace` never prints (an empty case arm, a redirect line). Rule those
+  out before writing a test against a number. bashcov's trace pipe is
+  non-blocking, and bash drops a line written while it is full, so
+  `tests/lib/coverage_env.sh` makes it blocking ahead of each suite. It needs `gem install --user-install bashcov` (found
   off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into
   the checkout for the run, refusing to start rather than overwrite one you
   have.
 
 `pages.yml` publishes both aggregates as shields endpoints
 (`badges/coverage.json`, `badges/coverage-v2.json`), each labelled by its tool
-and computed over the shipped product only (`tests/` and `docs/` excluded).
+and computed over that subject.
 A completed Coverage run is `pages.yml`'s only automatic trigger, so a badge
 is never older than its sweep.
 

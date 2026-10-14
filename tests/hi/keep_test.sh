@@ -832,11 +832,13 @@ function test_keep_here_starts_the_multiplexer_that_was_typed() {
 }
 
 # _hi_mux_alias_tree - a session's tree for common/mux.sh, whose tools and
-# hi.sh say what they were run with; prints the tree
+# hi.sh say what they were run with; prints the tree. mux.sh is a link, not
+# a copy: it takes its tree off $0 either way, and bashcov files a link's
+# hits under the repo's file where a copy's are dropped.
 function _hi_mux_alias_tree() {
   local t="$_HI_WORKDIR/muxalias" bin
   mkdir -p "$t/say-hi/common" "$t/say-hi/config/tmux" "$t/bin"
-  cp "$_HI_ROOT/common/mux.sh" "$t/say-hi/common/mux.sh"
+  ln -sfn "$_HI_ROOT/common/mux.sh" "$t/say-hi/common/mux.sh"
   : >"$t/say-hi/config/tmux/tmux.conf"
   for bin in tmux screen zellij; do
     printf '#!/bin/sh\nprintf "%%s\\n" "%s $*"\n' "$bin" >"$t/bin/$bin"

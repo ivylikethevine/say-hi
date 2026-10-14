@@ -461,6 +461,36 @@ function test_keep_seconds_reads_the_duration_grammar() {
   done
 }
 
+# _hi_keep_holds_on <env...> - "<status> <limit>" from the hold check, on a pty,
+# with the tree under a disposable root unless the case says otherwise
+function _hi_keep_holds_on() {
+  local t="$_HI_WORKDIR/holds/say-hi"
+  mkdir -p "$t"
+  # shellcheck disable=SC2016 # the child bash expands its own script
+  env -u _HI_KEEP_MUX _HI_CLEANUP="${t%/say-hi}" "$@" python3 -c "$_HI_PTY_SPAWN" bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; _HI_ROOT="$1"; source "$_HI_HOME/say-hi/common/keep.sh"
+     _hi_keep_holds; printf "%s %s\n" "$?" "$_hi_keep_limit"' _ "$t" </dev/null 2>&1 | tr -d '\r'
+}
+
+# a session holds its tree through a drop for $_HI_KEEP_TIMEOUT, 15m with
+# none and with a typo, nothing at 0, and only in a disposable tree, on a
+# terminal, with no multiplexer of its own
+function test_keep_holds_only_where_a_drop_can_be_held() {
+  local got
+  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=10m)"
+  [ "$got" = "0 600" ] || _hi_because "10m: $got" || return 1
+  got="$(_hi_keep_holds_on)"
+  [ "$got" = "0 900" ] || _hi_because "unset: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=soon)"
+  [ "$got" = "0 900" ] || _hi_because "a typo: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=0)"
+  [ "$got" = "1 0" ] || _hi_because "0: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_KEEP_MUX=tmux)"
+  [ "$got" = "1 0" ] || _hi_because "under its own multiplexer: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_CLEANUP="$_HI_WORKDIR/elsewhere")"
+  [ "$got" = "1 0" ] || _hi_because "a tree that is not disposable: $got"
+}
+
 # zellij's client list, read: only a header with nothing under it is nobody.
 # One that is still starting answers with nothing, and one too old to list
 # clients refuses - neither may read as a session to close.
@@ -744,6 +774,7 @@ function run_load_session_tests() {
   _hi_check "The watcher ends a session nobody is attached to" test_keep_watch_ends_a_session_nobody_is_attached_to
   _hi_check "...and is off without a session, or at a timeout of 0" test_keep_watch_is_off_outside_a_kept_session
   _hi_check_capable pty "The owner pane's exit asks first" test_keep_stays_asks_before_the_owner_pane_closes
+  _hi_check_capable pty "A session holds its tree only where a drop can be held" test_keep_holds_only_where_a_drop_can_be_held
   _hi_check_capable pty "...and under zellij an n names the key that detaches" test_keep_stays_names_zellij_s_detach_key
   _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
   _hi_check "hi.keep lists what an owner pane needs, a line each" test_keep_file_lists_what_an_owner_pane_needs

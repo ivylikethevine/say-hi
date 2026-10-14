@@ -548,6 +548,18 @@ function test_bash_profile_lines_end_a_sourcing_loop() {
   }
 }
 
+# --print-rc on macOS prints the .bash_profile lines for whoever manages that
+# file and writes nothing - unless it sources ~/.bashrc already
+function test_darwin_print_rc_prints_the_bash_profile_lines() {
+  local home="$_HI_WORKDIR/darwin-print" out
+  out="$(_hi_rc_out "$home" _HI_UNAME=Darwin _HI_RC_PRINT=1 -- install_bash_profile_line)" || _hi_why out || return 1
+  [[ "$out" == *"Lines for bash_profile"* && "$out" == *"$_HI_MARKER"* ]] && [ ! -e "$home/.bash_profile" ] ||
+    _hi_why out home || return 1
+  printf '%s\n' '[ -f ~/.bashrc ] && . ~/.bashrc' >"$home/.bash_profile"
+  out="$(_hi_rc_out "$home" _HI_UNAME=Darwin _HI_RC_PRINT=1 -- install_bash_profile_line)" || _hi_why out || return 1
+  [[ "$out" != *"Lines for bash_profile"* ]] || _hi_why out
+}
+
 # ...and nowhere else: Linux gets no .bash_profile
 function test_linux_gets_no_bash_profile() {
   local home="$_HI_WORKDIR/linux"
@@ -742,6 +754,7 @@ function run_rc_lines_test() {
   _hi_check "macOS: .bash_login is pointed at, not edited" test_darwin_bash_login_is_only_pointed_at
   _hi_check "Linux gets no .bash_profile" test_linux_gets_no_bash_profile
   _hi_check "The .bash_profile lines end a sourcing loop" test_bash_profile_lines_end_a_sourcing_loop
+  _hi_check "--print-rc on macOS prints the .bash_profile lines" test_darwin_print_rc_prints_the_bash_profile_lines
   _hi_check "A file that was theirs survives an emptying strip" test_strip_keeps_a_file_that_was_not_his
   _hi_check "Strip removes a backup it matches, keeps and names one it does not" test_strip_prunes_the_backups
 

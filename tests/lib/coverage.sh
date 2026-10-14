@@ -12,10 +12,128 @@ if [ -z "${_HI_HOME:-}" ]; then
   _HI_HOME="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 fi
 export _HI_HOME
+# core.sh exports what it reads, a developer's own overlay
+# (~/.config/say-hi/settings.sh) included, and a suite that inherited it would
+# test those settings instead of its fixtures' (_HI_PLUGINS_ON fails
+# core_target, _HI_PLUGINS_OFF doctor_json). This process keeps them; the
+# suites it launches get none it did not have before.
+_hi_cov_had=" $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p' | tr '\n' ' ') "
 # shellcheck source=../../common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
+for _hi_cov_v in $(compgen -e); do
+  case "$_hi_cov_v" in
+  _HI_*) case "$_hi_cov_had" in *" $_hi_cov_v "*) ;; *) export -n "${_hi_cov_v?}" ;; esac ;;
+  esac
+done
+unset _hi_cov_v _hi_cov_had
 
 _HI_RUNNER="$_HI_HOME/say-hi/tests/test_runner.sh"
+
+# The report's subject is the product, not what drives or builds it: both
+# drivers leave these top-level directories out of every ranking and figure.
+_HI_COV_NOT_SUBJECT=(tests docs scratch .github)
+
+# _hi_cov_not_subject_paths - that list as kcov's --exclude-path wants it
+function _hi_cov_not_subject_paths() {
+  local dir out=""
+  for dir in "${_HI_COV_NOT_SUBJECT[@]}"; do
+    out="$out${out:+,}$_HI_HOME/say-hi/$dir"
+  done
+  printf '%s' "$out"
+}
+
+# _hi_cov_subject_dirs - the top-level directories holding the subject's
+# tracked *.sh files, comma-separated, for kcov to parse: a file no suite
+# loads then reads 0%, as bashcov has it, where kcov alone leaves it out
+function _hi_cov_subject_dirs() {
+  local root="$_HI_HOME/say-hi" dir skip out=""
+  while IFS= read -r dir; do
+    for skip in "${_HI_COV_NOT_SUBJECT[@]}"; do
+      [ "$dir" != "$skip" ] || continue 2
+    done
+    out="$out${out:+,}$root/$dir"
+  done < <(git -C "$root" ls-files '*.sh' 2>/dev/null | sed -n 's|/.*||p' | sort -u)
+  printf '%s' "$out"
+}
+
+# _hi_cov_untested <base> <kcov missed> <bashcov missed> - the lines of the
+# tree's *.sh files changed since <base> that both tools list as never run
+# (the `path:line` lists each sweep leaves as `missed`), a row a file. Both,
+# since each tool alone misses lines that ran; what is left is an arm no case
+# reaches or an artifact both share, and each driver's header says which.
+function _hi_cov_untested() {
+  local list
+  for list in "$2" "$3"; do
+    [ -f "$list" ] || {
+      _hi_cecho " | coverage: no list at $list - run that tool's sweep first" "$RED" >&2
+      return 1
+    }
+  done
+  git -C "$_HI_HOME/say-hi" diff -U0 --no-color "$1" -- '*.sh' | awk -v K="$2" -v B="$3" '
+    function flush() {
+      if (from != "") row = row (row == "" ? "" : ", ") (from == to ? from : from "-" to)
+      from = ""
+    }
+    function done() {
+      flush()
+      if (row != "") printf " |   %s: %s\n", file, row
+      row = ""
+    }
+    BEGIN {
+      while ((getline line < K) > 0) k[line]
+      close(K)
+      while ((getline line < B) > 0) b[line]
+    }
+    /^\+\+\+ / {
+      done()
+      file = ($2 == "/dev/null") ? "" : substr($2, 3)
+      next
+    }
+    /^@@ / && file != "" {
+      split($3, at, ",")
+      first = substr(at[1], 2) + 0
+      count = (at[2] == "") ? 1 : at[2] + 0
+      for (i = first; i < first + count; i++) {
+        if (!((file ":" i) in k && (file ":" i) in b)) continue
+        if (from != "" && i == to + 1) { to = i; continue }
+        flush()
+        from = to = i
+      }
+    }
+    END { done() }'
+}
+
+# _hi_cov_join <kcov rows> <bashcov rows> - the two rankings side by side,
+# lowest average first. A `!` marks a file the tools read fifteen points apart
+# or one of them never listed: a tracer artifact to rule out (each driver's
+# header) before a test is written against either number.
+function _hi_cov_join() {
+  local rows
+  for rows in "$1" "$2"; do
+    [ -f "$rows" ] || {
+      _hi_cecho " | coverage: no ranking at $rows - run that tool's sweep first" "$RED" >&2
+      return 1
+    }
+  done
+  printf ' |   bashcov     kcov      gap  file\n'
+  awk '
+    $1 != "|" || $2 !~ /^[0-9.]+%$/ || NF != 4 { next }
+    { sub(/%/, "", $2) }
+    FNR == NR { k[$4] = $2; seen[$4]; next }
+    { b[$4] = $2; seen[$4] }
+    END {
+      for (p in seen) {
+        if (p in k && p in b) {
+          gap = b[p] - k[p]
+          flag = (gap >= 15 || gap <= -15) ? "!" : " "
+          printf "%07.2f  | %s %6.2f%%  %6.2f%%  %+7.2f  %s\n", (k[p] + b[p]) / 2, flag, b[p], k[p], gap, p
+        } else if (p in b)
+          printf "%07.2f  | ! %6.2f%%  %7s  %7s  %s\n", b[p], b[p], "-", "-", p
+        else
+          printf "%07.2f  | ! %7s  %6.2f%%  %7s  %s\n", k[p], "-", k[p], "-", p
+      }
+    }' "$1" "$2" | sort | sed 's/^[^|]*/ /'
+}
 
 # Everything a driver wants removed on the way out lands in this array (a
 # file or a directory - _hi_cov_shim_sh_to_bash's is one); the one trap

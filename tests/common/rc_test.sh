@@ -17,20 +17,34 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # cases can pick the color branch (xterm-256color) or the plain one (dumb)
 function _hi_rc_shell() {
   local term="$1" shell="$2" script="$3"
-  local -a trace=()
+  local -a _hi_trace=()
   # anything after the script is NAME=VALUE for the child - `env -i` is what
   # keeps local settings out, so extra variables have to be injected here
   # rather than exported around the call
   shift 3
-  # ...and under a coverage tracer (xtrace on, into its own fd) the three
-  # variables it traces a bash child through, which `env -i` would strip:
-  # without them every bash.sh line these cases run read as untested
-  if [ "$shell" = bash ] && [ -n "${BASH_XTRACEFD:-}" ] && [[ $- == *x* ]]; then
-    trace=(SHELLOPTS=xtrace "PS4=$PS4" "BASH_XTRACEFD=$BASH_XTRACEFD")
-  fi
+  # ...and under a coverage tracer what it follows a bash child through
+  [ "$shell" != bash ] || _hi_trace_env
   env -i HOME="$_HI_WORKDIR" TERM="$term" PATH="$PATH" _HI_PROMPT_TOOL="$_HI_PROMPT_TOOL" \
-    _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" ${trace[@]+"${trace[@]}"} "$@" \
+    _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" ${_hi_trace[@]+"${_hi_trace[@]}"} "$@" \
     "$shell" -c "$script" </dev/null
+}
+
+# an extension's prompt decision comes first (HI.59): _HI_PROMPT_DRAWN=1
+# stands hi's prompt down, and _HI_PROMPT_INIT runs that program's init in
+# its place where the program is here - and where it is not, hi draws its own
+function test_bash_prompt_stands_down_for_an_extension() {
+  local bin="$_HI_WORKDIR/promptbin" out
+  # shellcheck disable=SC2016 # the child shells expand these
+  local probe='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf "%s|%s" "${HI_PS1-unset}" "$PS1"'
+  mkdir -p "$bin"
+  printf '#!/bin/sh\n[ "$*" = "init bash" ] && printf "%%s\\n" "PS1=mine"\n' >"$bin/myprompt"
+  chmod +x "$bin/myprompt"
+  out="$(_hi_rc_shell xterm-256color bash "$probe" _HI_PROMPT_DRAWN=1)"
+  [[ "$out" == "unset|"* ]] || _hi_because "drawn by the extension: $out" || return 1
+  out="$(_hi_rc_shell xterm-256color bash "$probe" PATH="$bin:$PATH" "_HI_PROMPT_INIT=myprompt init {shell}")"
+  [ "$out" = "unset|mine" ] || _hi_because "the program's init: $out" || return 1
+  out="$(_hi_rc_shell xterm-256color bash "$probe" "_HI_PROMPT_INIT=no-such-prompt init {shell}")"
+  [[ "$out" != unset\|* ]] || _hi_because "a program not here stood hi down: $out"
 }
 
 function test_bash_hi_ps1_contains_user_host_cwd() {
@@ -876,6 +890,7 @@ function run_rc_tests() {
 
   _hi_h2 "Testing: bash"
   _hi_check "HI_PS1 carries user, host, and cwd" test_bash_hi_ps1_contains_user_host_cwd
+  _hi_check "The prompt stands down for an extension's own" test_bash_prompt_stands_down_for_an_extension
   _hi_check "Plain HI_PS1 without color" test_bash_hi_ps1_plain_without_color
   _hi_check "_hi_ps_mark wraps color escapes for readline" test_bash_ps_mark_wraps_color_escapes
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone

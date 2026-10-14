@@ -454,6 +454,24 @@ function test_identity_includes_static_labels() {
   [[ "$out" == *"Auth:"* && "$out" == *"Pub:"* ]] || _hi_why out
 }
 
+# the key cells count what is there: Auth a line of authorized_keys each, Pub
+# a *.pub file each anywhere under ~/.ssh and nothing else; with neither, 0
+function test_identity_counts_the_keys() {
+  local home="$_HI_WORKDIR/idkeys" out
+  mkdir -p "$home/.ssh/old"
+  printf '%s\n' 'ssh-ed25519 AAAA one' 'ssh-ed25519 AAAA two' 'ssh-rsa AAAA three' >"$home/.ssh/authorized_keys"
+  : >"$home/.ssh/id_ed25519.pub"
+  : >"$home/.ssh/old/id_rsa.pub"
+  : >"$home/.ssh/id_ed25519"
+  : >"$home/.ssh/config"
+  out="$(HOME="$home" _hi_identity_with "$(_hi_identity_path)")"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"Auth: 3"* && "$out" == *"Pub: 2"* ]] || _hi_why out || return 1
+  out="$(HOME="$_HI_WORKDIR/idkeys-none" _hi_identity_with "$(_hi_identity_path)")"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"Auth: 0"* && "$out" == *"Pub: 0"* ]] || _hi_why out
+}
+
 # uptime rides at the end of the identity row, after Auth:/Pub: - not a
 # row of its own
 function test_identity_includes_uptime_cell_last() {
@@ -722,6 +740,7 @@ function run_header_tests() {
   _hi_check "The ip cell has a shape" test_ip_cell_has_a_shape
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
   _hi_check "Identity's uptime cell rides last" test_identity_includes_uptime_cell_last
+  _hi_check "Auth and Pub count the keys there are" test_identity_counts_the_keys
   _hi_check "No cells at all when no backend is found" test_identity_hides_all_backend_cells_when_none_found
   _hi_check "Containers: 0 when docker is found but empty" test_identity_shows_count docker 0 Containers
   _hi_check "Containers count when docker is found" test_identity_shows_count docker 3 Containers

@@ -477,6 +477,44 @@ bind g display-popup \"less ~/gone.txt\"" ] || _hi_because "tmux.conf: [$got]" |
   [ "$got" = "$got2" ] || _hi_because "the sheet did not ride as written"
 }
 
+# two files of one name under one member: the second rides under its own
+# directory's name too, and a file named twice rides once
+function test_a_second_carried_file_of_a_name_takes_its_directory() {
+  local h="$_HI_WORKDIR/marked-twice" d got
+  mkdir -p "$h/a" "$h/b" "$h/overlay/tmux"
+  printf 'A\n' >"$h/a/keys.txt"
+  printf 'B\n' >"$h/b/keys.txt"
+  printf '%s\n' '# hi-carry' 'bind a display-popup "less ~/a/keys.txt"' '# hi-carry' 'bind b display-popup "less ~/b/keys.txt"' \
+    '# hi-carry' 'bind c display-popup "less ~/a/keys.txt"' >"$h/overlay/tmux/tmux.conf"
+  set -- HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_CONFIG_DIR="$h/overlay" PATH="$(_hi_fake_path marked-twice-bins tmux):$PATH"
+  d="$(mktemp -d "$_HI_WORKDIR/marked-twice-unpacked.XXXXXX")" || _hi_why || return 1
+  env "$@" bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_tar tmux/tmux.conf' | tar -x -z -f - -C "$d" || _hi_why d || return 1
+  got="$(cat "$d/tmux/tmux.conf")"
+  [ "$got" = "bind a display-popup \"less $_HI_CARRY_TOKEN/tmux/carried/keys.txt\"
+bind b display-popup \"less $_HI_CARRY_TOKEN/tmux/carried/b-keys.txt\"
+bind c display-popup \"less $_HI_CARRY_TOKEN/tmux/carried/keys.txt\"" ] || _hi_because "tmux.conf: [$got]" || return 1
+  got="$(cat "$d/tmux/carried/keys.txt")|$(cat "$d/tmux/carried/b-keys.txt")"
+  [ "$got" = "A|B" ] || _hi_why got d
+}
+
+# a relay's tree carries no packer, so hi.sh takes the token off the relay's
+# own overlay path: an absolute one of plain characters, else none, and then
+# the fixup a target gets is a no-op
+function test_a_relay_takes_its_token_off_its_overlay_path() {
+  local home cfg out
+  # shellcheck disable=SC2016 # the child bash expands its own script
+  local probe='source "$1" 2>/dev/null; printf "%s|%s|%s" "${_HI_RELAY:-}" "$_HI_CARRY_TOKEN" "$(_hi_overlay_fixup x)"'
+  home="$(_hi_scratch_tree relay link:common link:config link:hi.sh link:load.sh)"
+  for cfg in /srv/hi/cfg rel/cfg "/srv/a b"; do
+    out="$(env -u _HI_ROOT _HI_HOME="$home" _HI_CONFIG_DIR="$cfg" bash -c "$probe" _ "$home/say-hi/hi.sh" 2>&1)"
+    case "$cfg:$out" in
+    "/srv/hi/cfg:1|/srv/hi/cfg|{ d=x; grep -rl /srv/hi/cfg "*) ;;
+    "rel/cfg:1||:" | "/srv/a b:1||:") ;;
+    *) _hi_because "overlay at [$cfg]: $out" || return 1 ;;
+    esac
+  done
+}
+
 # the target's half: a real sh makes every held path the directory the
 # overlay landed in
 function test_a_carried_path_lands_on_the_target() {
@@ -1018,6 +1056,8 @@ function run_hi_payload_scan_tests() {
   _hi_check "An include under the tool's own directory rides" test_an_include_under_the_tools_directory_rides
   _hi_check "A line under hi-carry rides the files it names" test_a_marked_line_rides_the_files_it_names
   _hi_check "...its path lands on the target's overlay" test_a_carried_path_lands_on_the_target
+  _hi_check "A relay takes its token off its own overlay path" test_a_relay_takes_its_token_off_its_overlay_path
+  _hi_check "A second carried file of a name takes its directory's" test_a_second_carried_file_of_a_name_takes_its_directory
   _hi_check "...it is no doctor finding" test_a_carried_include_is_no_finding
   _hi_check "An edit to a carried file rebuilds the cache" test_an_edit_to_a_carried_file_rebuilds_the_cache
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream

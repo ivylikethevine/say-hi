@@ -580,6 +580,16 @@ function test_nano_fallback_follows_the_target() {
   [ "$out" = "$dropped" ] || _hi_why out dropped
 }
 
+# an include the nanorc kept counts too, a ~/ one read under this $HOME: an
+# extendsyntax takes the spelling its files define
+function test_nano_fallback_reads_a_kept_home_include() {
+  local home="$_HI_WORKDIR/nano-home" out
+  mkdir -p "$home/syn"
+  printf 'syntax "HiOnly" "\\.hio$"\n' >"$home/syn/hionly.nanorc"
+  out="$(HOME="$home" _hi_nano_case "$_HI_WORKDIR/nano-g" $'# hi dropped: include "/opt/none/*.nanorc"\ninclude "~/syn/*.nanorc"\nextendsyntax hionly tabgives " "\n')"
+  [[ "$out" == *$'include "~/syn/*.nanorc"\nextendsyntax HiOnly tabgives " "'* ]] || _hi_why out
+}
+
 # a dropped include whose files the target has comes back in its own place,
 # ahead of the extendsyntax lines nano resolves as it reads them; each of those
 # takes the spelling the target defines, and one naming no syntax there is
@@ -652,6 +662,7 @@ function run_load_tests() {
   _hi_check_requires zsh "...and follows a ~/.zshenv that moves ZDOTDIR" test_session_zsh_follows_a_zshenv_that_moves_zdotdir
   _hi_check "a dropped nano syntax include falls back to the target's" test_nano_fallback_follows_the_target
   _hi_check "nano extendsyntax follows the target's syntax names" test_nano_fallback_resolves_extendsyntax
+  _hi_check "...an include the nanorc kept, a ~/ one included" test_nano_fallback_reads_a_kept_home_include
 
   _hi_h2 "Testing: _hi_login_shell"
   _hi_check "\$SHELL answers as its basename" test_login_shell_answers_with_the_basename_of_shell

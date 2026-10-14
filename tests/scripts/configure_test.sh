@@ -618,6 +618,32 @@ function test_menu_row_notes_an_absent_needs_command() {
   [[ "$out" == *"needy"*"(no hi-no-such-cmd here)"*"easy"* && "${out#*easy}" != *" here)"* ]] || _hi_because "the rows: $out"
 }
 
+# ...and with no index given, _hi_menu_rows draws every row, in order
+function test_menu_rows_default_to_every_row() {
+  local out
+  local -a _HI_NEEDS_ROWS=('_HI_NO_SUCH|1|||bash|first - a row' '_HI_NO_SUCH|1|||bash|second - a row')
+  out="$(_HI_MENU_ITEMS=() _HI_MENU_DRAW=1 _HI_MENU_W=80 _HI_MENU_SUM_N=0 && _hi_menu_rows _HI_NEEDS_ROWS)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"first"*"second"* ]] || _hi_because "the rows: $out"
+}
+
+# a switch's key finds its table row, `row|<table>|<index>`, and its name;
+# a key no switch has, or a switch whose row has left its table, finds none
+function test_menu_switch_keys_find_their_rows() {
+  local item="" name="" i
+  local -a rows=()
+  _hi_menu_switch_item k item name || _hi_why item || return 1
+  _hi_prompt_rows _HI_ADVANCED_PROMPTS rows
+  i="${item##*|}"
+  [ "${item%|*}" = "row|_HI_ADVANCED_PROMPTS" ] && [ "${rows[i]%%|*}" = _HI_KEEP ] && [ "$name" = "ssh --keep" ] ||
+    _hi_why item name || return 1
+  ! _hi_menu_switch_item z item || _hi_because "a key no switch has found $item" || return 1
+  (
+    _HI_MENU_SWITCHES=("q|_HI_ADVANCED_PROMPTS|_HI_NOT_A_ROW|")
+    ! _hi_menu_switch_item q item
+  ) || _hi_because "a switch with no row found one"
+}
+
 # every row of every table gets a number, whichever page draws it
 function test_menu_numbers_every_row() {
   local t i
@@ -707,6 +733,8 @@ function run_configure_tests() {
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
   _hi_check "Menu: a row names the command it needs and this machine lacks" test_menu_row_notes_an_absent_needs_command
+  _hi_check "Menu: a table's rows default to every row" test_menu_rows_default_to_every_row
+  _hi_check "Menu: a switch's key finds its row, and only a real one" test_menu_switch_keys_find_their_rows
   _hi_check "Menu: a name keeps its color, and a key a line names is painted" test_menu_paints_names_and_keys
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 

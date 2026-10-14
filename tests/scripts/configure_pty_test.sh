@@ -458,11 +458,13 @@ function test_menu_eof_saves() {
 }
 
 # ...and the third junk answer in a row ends the run too, but as a quit:
-# three words that are not menu items are not an instruction to write
+# three words that are not menu items are not an instruction to write. No
+# word here is a key of the menu's, and nothing after the third is typed, so
+# the quit is the count's
 function test_menu_junk_is_bounded_and_quits() {
-  _hi_cfg_pty hub_junk 'x\ny\nz\nq\n' '' run_configure "" || _hi_why || return 1
+  _hi_cfg_pty hub_junk 'xx\nzz\nww\n' '' run_configure "" || _hi_why || return 1
   _hi_cfg_has hub_junk "type an item number" &&
-    _hi_cfg_has hub_junk "leaving" &&
+    _hi_cfg_has hub_junk "not a menu item three times - leaving" &&
     _hi_cfg_has hub_junk "CFGQUIT=1" || _hi_why
 }
 
