@@ -131,6 +131,12 @@ function test_cleanup_sweeps_containers_then_networks() {
 function _hi_par_skipper() { _hi_skip "[a skipped case]" "on purpose"; }
 function _hi_par_exits() { exit 0; }
 function _hi_par_says() { printf '%s\n' "$1"; }
+# a case that never ends: a sleep it waits on, its pid written to $1
+function _hi_par_hangs() {
+  sleep 600 &
+  printf "%s" "$!" >"$1"
+  wait "$!"
+}
 
 # Two cases that each wait on a file the other creates: run together both
 # return at once, run in turn the first spends its whole budget and fails.
@@ -191,6 +197,26 @@ function test_par_case_without_a_verdict_counts_as_a_failure() {
     [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 1 ]
   ) >/dev/null || _hi_why fails _HI_TOTAL _HI_FAILED || return 1
   grep -q 'vanished' "$fails" || _hi_why fails
+}
+
+# a case past $_HI_PAR_CASE_LIMIT is stopped, the process it started with it,
+# and fails with its processes listed; the case beside it still reports
+function test_par_case_past_the_limit_is_stopped() {
+  local fails="$_HI_WORKDIR/par-late-fails" out pidf="$_HI_WORKDIR/par-late.pid" child
+  : >"$fails"
+  out="$(
+    _HI_FAILS_FILE="$fails" _HI_PAR_CASE_LIMIT=2
+    _hi_suite_begin
+    _hi_par_begin "limit probe"
+    _hi_par_case hangs _hi_par_hangs "$pidf"
+    _hi_par_case ok _hi_true
+    _hi_par_wait
+    printf 'total=%s failed=%s\n' "$_HI_TOTAL" "$_HI_FAILED"
+  )" || _hi_why out || return 1
+  child="$(cat "$pidf")"
+  [[ "$out" == *"[hangs] -- still running after 2s"*"sleep 600"*"total=2 failed=1"* ]] || _hi_why out || return 1
+  ! kill -0 "$child" 2>/dev/null || _hi_because "its sleep $child outlived it" || return 1
+  grep -qF '[hangs] still running after 2s, stopped' "$fails" || _hi_why fails
 }
 
 # _hi_expect_eq's whole reason to exist is the failure transcript: a bare
@@ -313,6 +339,7 @@ function run_lib_parallel_tests() {
   _hi_check "Tallies pass, fail, and skip" test_par_case_tallies_pass_fail_and_skip
   _hi_check "A failed assertion is recapped once" test_par_failed_assertion_is_recapped_once
   _hi_check "A case with no verdict is a failure" test_par_case_without_a_verdict_counts_as_a_failure
+  _hi_check "A case past _HI_PAR_CASE_LIMIT is stopped, and fails" test_par_case_past_the_limit_is_stopped
   _hi_check "Transcripts replay in submission order" test_par_wait_replays_in_submission_order
   _hi_check "The cases really do overlap" test_par_cases_really_run_at_once
   _hi_check "_HI_PAR_WIDTH=1 really serializes" test_par_width_one_really_serializes

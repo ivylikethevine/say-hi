@@ -220,7 +220,10 @@ thrashes the docker daemon on a laptop. A suite whose cases are plain local
 processes (`configure`'s pty runs, `install_location`'s shells, the harness
 suites' nested runners) sets `_HI_PAR_LOCAL=1` and gets the whole CPU count.
 `_HI_PAR_WIDTH` overrides both; `nomad` pins itself to 1, since its single-node
-dev agent gains nothing from two cases at once.
+dev agent gains nothing from two cases at once. A case still running after
+`_HI_PAR_CASE_LIMIT` seconds (300; 0 for none) is stopped with its process
+tree printed into its transcript, and fails; the rest of the batch replays as
+usual.
 
 ```sh
 _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisecting a flake

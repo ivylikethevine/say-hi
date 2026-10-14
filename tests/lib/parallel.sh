@@ -35,6 +35,8 @@ declare -a _HI_PAR_LABELS=()
 # is left is exactly what _hi_par_wait must wait on and _hi_par_kill may kill
 # (a reaped pid could already belong to somebody else's new process)
 declare -a _HI_PAR_RUNNING=()
+# case <n>'s subshell and the $SECONDS it started at, while it runs
+declare -a _HI_PAR_PID=() _HI_PAR_T0=()
 
 # How wide to fan out. Unbounded is the wrong answer on a laptop: twenty sshd
 # containers, twenty ssh clients, and twenty pty feeders thrash the docker daemon
@@ -70,6 +72,8 @@ function _hi_par_begin() {
   _HI_PAR_N=0
   _HI_PAR_LABELS=()
   _HI_PAR_RUNNING=()
+  _HI_PAR_PID=()
+  _HI_PAR_T0=()
   _HI_PAR_SLOTS="$(_hi_par_width)"
   if [ "$_HI_PAR_SLOTS" -le 1 ]; then
     _hi_cecho " | ${1:-cases}: one at a time (_HI_PAR_WIDTH=$_HI_PAR_SLOTS)" "$YELLOW"
@@ -88,6 +92,7 @@ function _hi_par_slot() {
   local pid
   local -a keep
   while [ "${#_HI_PAR_RUNNING[@]}" -ge "$_HI_PAR_SLOTS" ]; do
+    _hi_par_overdue
     keep=()
     for pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do
       if kill -0 "$pid" 2>/dev/null; then
@@ -131,7 +136,67 @@ function _hi_par_case() {
     printf '%s %s\n' "$_hi_par_rc" "${_HI_SKIPPED:-0}" >"$res"
   ) >"$out" 2>&1 &
   _HI_PAR_RUNNING+=("$!")
+  _HI_PAR_PID[_HI_PAR_N]=$!
+  _HI_PAR_T0[_HI_PAR_N]=$SECONDS
   return 0
+}
+
+# A case still running $_HI_PAR_CASE_LIMIT seconds after it started (300, or
+# 0 for no limit; the slowest healthy case takes under 40) is stopped, its
+# processes listed into its transcript first. Waiting on a hung one ran the
+# job out with no transcript replayed and no case named.
+function _hi_par_overdue() {
+  local n pid limit="${_HI_PAR_CASE_LIMIT:-300}"
+  [ "${#_HI_PAR_PID[@]}" -gt 0 ] || return 0
+  for n in "${!_HI_PAR_PID[@]}"; do
+    pid="${_HI_PAR_PID[n]}"
+    if ! kill -0 "$pid" 2>/dev/null; then
+      unset "_HI_PAR_PID[n]"
+    elif [ "$limit" -gt 0 ] && ((SECONDS - _HI_PAR_T0[n] >= limit)); then
+      _hi_par_stop "$n" "$pid" "$limit"
+      unset "_HI_PAR_PID[n]"
+    fi
+  done
+  return 0
+}
+
+# _hi_par_tree <pid> - "pid ppid elapsed args" for <pid> and every process
+# under it, from one ps listing; nothing where ps cannot list parents
+function _hi_par_tree() {
+  ps -eo pid=,ppid=,etime=,args= 2>/dev/null | awk -v root="$1" '
+    { pid[NR] = $1; ppid[NR] = $2; row[NR] = $0 }
+    END {
+      keep[root] = 1
+      do {
+        grew = 0
+        for (i = 1; i <= NR; i++)
+          if (!(pid[i] in keep) && (ppid[i] in keep)) { keep[pid[i]] = 1; grew = 1 }
+      } while (grew)
+      for (i = 1; i <= NR; i++) if (pid[i] in keep) print row[i]
+    }'
+}
+
+# _hi_par_stop <n> <pid> <limit> - ends case <n>'s subshell and everything
+# under it, TERM first so its traps run, and leaves the verdict a timeout
+function _hi_par_stop() {
+  local n="$1" pid="$2" tree p
+  local -a pids=("$pid")
+  tree="$(_hi_par_tree "$pid")"
+  while read -r p _; do
+    [ -z "$p" ] || [ "$p" = "$pid" ] || pids+=("$p")
+  done <<<"$tree"
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  sleep 1
+  kill -KILL "${pids[@]}" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  # the subshell's own writes are done, so the note lands after them
+  {
+    _hi_align " | [${_HI_PAR_LABELS[n - 1]}] -- still running after ${3}s (_HI_PAR_CASE_LIMIT), stopped" "FAILED" "$RED"
+    printf '      its processes then (pid ppid elapsed command):\n'
+    printf '%s\n' "${tree:-(ps lists no parents here)}" | sed 's/^/      /'
+  } >>"$_HI_PAR_DIR/$n.out"
+  [ -s "$_HI_PAR_DIR/$n.res" ] || printf '124 0\n' >"$_HI_PAR_DIR/$n.res"
+  printf '%s\n' "$3" >"$_HI_PAR_DIR/$n.late"
 }
 
 # _hi_par_check / _hi_par_check_requires - _hi_check's parallel twins. The
@@ -201,6 +266,10 @@ function _hi_par_requires_body() {
 # Waits out the batch, then replays and tallies it in submission order.
 function _hi_par_wait() {
   local pid i=0 label rc skipped
+  while [ "${#_HI_PAR_PID[@]}" -gt 0 ]; do
+    _hi_par_overdue
+    [ "${#_HI_PAR_PID[@]}" -eq 0 ] || sleep 0.2
+  done
   for pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do wait "$pid" 2>/dev/null || true; done
   for label in ${_HI_PAR_LABELS[@]+"${_HI_PAR_LABELS[@]}"}; do
     i=$((i + 1))
@@ -221,7 +290,11 @@ function _hi_par_wait() {
     # test_runner.sh's `pass = cases - failed` report every stand-down as a
     # green pass - inflating the number that feeds --totals-file and the README
     # badge. A case that skipped and then failed is still a failure.
-    if [ "$rc" -ne 0 ]; then
+    if [ -s "$_HI_PAR_DIR/$i.late" ]; then
+      _HI_TOTAL=$((_HI_TOTAL + 1))
+      _HI_FAILED=$((_HI_FAILED + 1))
+      _hi_note_failure "[$label] still running after $(cat "$_HI_PAR_DIR/$i.late")s, stopped"
+    elif [ "$rc" -ne 0 ]; then
       _HI_TOTAL=$((_HI_TOTAL + 1))
       _HI_FAILED=$((_HI_FAILED + 1))
       _hi_note_failure_unless_named "$label" "[$label] exited $rc before reporting a verdict"
@@ -233,6 +306,8 @@ function _hi_par_wait() {
   done
   _HI_PAR_LABELS=()
   _HI_PAR_RUNNING=()
+  _HI_PAR_PID=()
+  _HI_PAR_T0=()
   _HI_PAR_N=0
   _hi_report_progress
 }
@@ -250,6 +325,7 @@ function _hi_par_kill() {
     wait "$pid" 2>/dev/null || true
   done
   _HI_PAR_RUNNING=()
+  _HI_PAR_PID=()
   return 0
 }
 
