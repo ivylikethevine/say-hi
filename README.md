@@ -426,12 +426,29 @@ when it lands.
 
 7. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
        each make the scratch directory, send the tree, fall back without
-       bash, and clean up in their own way, so `--keep` is the ssh arm's
-       alone and `hi --doctor` has two target halves. `_hi_container_cmds`'
-       probe, cp, and attach are the interface, and ssh fits it. **Ticks
-       when:** a container target takes the script an ssh one does, through
-       its own three commands, and the e2e and backends groups are green in
-       CI with it.
+       bash, and clean up in their own way: a container takes seven or more
+       `exec` calls, has no `--keep`, and `hi --doctor` has two target
+       halves. The design, approved and not yet built: (1)
+       `_hi_transport_cmds <arm>` fills `probe` (no stdin, no tty), `cp`
+       (stdin), and `attach` (a tty where there is one) for every arm, a
+       container's `_hi_container_cmds`' and ssh's `ssh` over the
+       ControlMaster as `-n`, stdin, and `-t`; (2) every arm boots in one
+       `cp` call - make the temp directory, write the script, check the bytes
+       that landed, print the path - and runs in one `attach`,
+       `sh <dir>/bootloader`, then removes the directory, so a container
+       takes ssh's script, the tree armored inside it, and with it the
+       script's no-bash ladder (`_hi_container_no_bash` goes), one size
+       figure (`_hi_wire_bytes`), and the kept session's start and reattach;
+       (3) `hi --doctor`'s target half is one, probing through `probe`; (4)
+       left per arm: ssh's ControlMaster, keepalive, reconnect loop, and
+       PowerShell notice, a container's name resolution, and both `--plain`
+       paths, with a dropped container `exec` not retried; (5) docs: GLOSSARY
+       HI.43 and HI.65, SECURITY's _What hi writes on a target_, TESTING. The
+       cost is a third more bytes for a container (armored, where a raw tar
+       went before); nomad's and kube's stdin and tty handling is why the
+       boot checks what landed. **Ticks when:** a container target takes the
+       script an ssh one does, through its own three commands, and the e2e
+       and backends groups are green in CI with it.
 
 8. [ ] _Before 1.0:_ **The coverage comment names what a PR left
        untested** — shipped: `coverage.yml`'s comment lists the lines a PR

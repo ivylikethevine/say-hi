@@ -298,9 +298,11 @@ jobs:
     needs: reuse
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
-    # past kcov's 25: with the trace pipe blocking (tests/lib/coverage_env.sh)
-    # bash waits on bashcov's reader, about twice a shard's old time
-    timeout-minutes: 45
+    # past kcov's 25, and six shards to kcov's four: with the trace pipe
+    # blocking (tests/lib/coverage_env.sh) bash waits on bashcov's reader,
+    # and a suite runs its cases one at a time - configure_pty alone took 6x
+    # its old traced time, and a four-way shard ran past 45 minutes
+    timeout-minutes: 60
     # job-level so the cache step below and check_tool_versions.local.sh's
     # roster regex for the literal `BASHCOV_VERSION: "..."` both still find it
     env:
@@ -311,7 +313,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1/4, 2/4, 3/4, 4/4]
+        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -604,14 +606,22 @@ jobs:
         with:
           prefix: coverage-tree
 
-      # by pattern, so each lands in its own <artifact-name>/pct; a tool whose
+      # by name, each into its own <artifact-name>/pct: a pattern matching only
+      # one extracts it flat into path, which read as neither; a tool whose
       # gather published nothing is simply absent
-      - name: Download this run's figures
+      - name: Download this run's kcov figure
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: coverage*-pct
-          path: ${{ runner.temp }}/pr
+          name: coverage-pct
+          path: ${{ runner.temp }}/pr/coverage-pct
+
+      - name: Download this run's bashcov figure
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-v2-pct
+          path: ${{ runner.temp }}/pr/coverage-v2-pct
 
       # one lookup, both figures - dest-subdir carries no artifact name of its
       # own, so each still lands at main/<artifact-name>/pct, unchanged below
