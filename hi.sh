@@ -1648,6 +1648,8 @@ function _hi_run_script() {
 _HI_FLAGS=()
 while IFS= read -r _hi_row || [ -n "$_hi_row" ]; do
   case "$_hi_row" in '#'* | '') continue ;; esac
+  # a word row (<flag>=<word>) is completion's alone
+  case "${_hi_row%%|*}" in *=*) continue ;; esac
   _HI_FLAGS+=("$_hi_row")
 done <"$_HI_ROOT/common/flags"
 unset _hi_row

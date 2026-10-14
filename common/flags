@@ -41,3 +41,27 @@
 --enable-plugin|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--on|switch them back on
 --add-plugin|<group> <name> <file>... [<key>=<value>...] [--dry-run]|scripts|_HI_PLUGINS_CMD|--add|carry the configs of a tool hi does not know
 --remove-plugin|<name> [--dry-run]|scripts|_HI_PLUGINS_CMD|--remove|stop carrying them
+
+# The words a flag or a switch takes from a fixed list, a row each:
+# <flag>=<word>|<help>, the shape of the flag typed joined to its word. They
+# are what `hi <flag> <TAB>` offers (common/targets.sh), and --remove-color
+# takes --add-color's. Every reader of the rows above skips them: a flag
+# never holds an `=`.
+--link=user|~/.local/bin/hi (the default)
+--link=system|/usr/bin/hi, through sudo
+--link=none|no link; the wired shells alias hi either way
+--shell=bash|~/.bashrc
+--shell=zsh|.zshrc, under ZDOTDIR when that is set
+--shell=fish|config.fish
+--shell=all|every one of them installed here
+--preset=everything|the shipped defaults, every feature on
+--preset=balanced|everything but the noise
+--preset=minimal|on targets only the colored prompt
+--preset=lean|minimal, and nothing of yours rides
+--add-color=hosttag|a # Tags: value in your ssh config
+--add-color=usertag|the username on hosts carrying that tag
+--add-color=username|a username
+--add-color=hostname|a hostname, or a * or ? pattern
+--preview=colors|every ssh host and your user, in their resolved colors
+--preview=packages|the package-group legend, as the header prints it
+--preview=header|the connect header, as it prints here

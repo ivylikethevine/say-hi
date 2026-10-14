@@ -139,7 +139,7 @@ if [ "$kind" = flags ]; then
     done <"$hi_tree/common/flags"
   fi
   while IFS='|' read -r flag _arg needs _var _first help; do
-    case "$flag" in '#'* | '') continue ;; esac
+    case "$flag" in '#'* | '' | *=*) continue ;; esac
     [ "$needs" = - ] || [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue
     case "$needs" in
     scripts) [ -d "$hi_tree/scripts" ] || continue ;;
@@ -152,12 +152,12 @@ fi
 
 # The word after a flag that takes one, so `hi --preview <TAB>` and
 # `hi --use <TAB>` complete it the way a flag completes: "<word>\t<help>"
-# lines. --use's roster is the arms hi.sh dispatches on - ssh, the whole
-# docker-compatible family, nomad, kube - spelled here because a completion can
-# reach this file without hi.sh (parse_test.sh pins the two against each
-# other); --preset's is configure.sh's table, pinned the same way by
-# targets_test.sh. Answered before the probes, like the flags. The membership
-# test is paths.sh's $_HI_WORD_FLAGS.
+# lines. A fixed list is common/flags' <flag>=<word> rows; what is computed
+# (a host, a package row, a plugin) is read here. --use's roster is the arms
+# hi.sh dispatches on, in its order - ssh, the docker-compatible family,
+# nomad, kube - spelled here because a completion can reach this file without
+# hi.sh (parse_test.sh pins the two against each other). Answered before the
+# probes, like the flags. The membership test is paths.sh's $_HI_WORD_FLAGS.
 
 # plugin_tables <file> - the `[<group>.<name>]` tables of a plugins file, a
 # `<group>|<name>` line each; nothing when there is no file
@@ -173,24 +173,14 @@ if [ "$kind" = words ]; then
   # unexported (HI.47) and cannot source paths.sh).
   pkgs="${_HI_CONFIG_DIR:-}/packages"
   [ -f "$pkgs" ] || pkgs="$hi_tree/config/packages"
+  # a fixed list is common/flags' <flag>=<word> rows; --remove-color takes
+  # --add-color's
+  key="${2:-}"
+  [ "$key" != --remove-color ] || key=--add-color
+  while IFS='|' read -r flag help; do
+    case "$flag" in "$key="?*) printf '%s\t%s\n' "${flag#*=}" "$help" ;; esac
+  done <"$hi_tree/common/flags"
   case "${2:-}" in
-  --link)
-    printf 'user\t~/.local/bin/hi (the default)\n'
-    printf 'system\t/usr/bin/hi, through sudo\n'
-    printf 'none\tno link; the wired shells alias hi either way\n'
-    ;;
-  --shell)
-    printf 'bash\t~/.bashrc\n'
-    printf 'zsh\t.zshrc, under ZDOTDIR when that is set\n'
-    printf 'fish\tconfig.fish\n'
-    printf 'all\tevery one of them installed here\n'
-    ;;
-  --preset)
-    printf 'everything\tthe shipped defaults, every feature on\n'
-    printf 'balanced\teverything but the noise\n'
-    printf 'minimal\ton targets only the colored prompt\n'
-    printf 'lean\tminimal, and nothing of yours rides\n'
-    ;;
   --update)
     # the release tags a checkout knows of, newest first; a package has no
     # .git and gets nothing
@@ -208,13 +198,6 @@ if [ "$kind" = words ]; then
     [ -f "$pkgs" ] &&
       sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$pkgs" |
       while IFS= read -r line; do printf '%s\ta package check row\n' "$line"; done
-    ;;
-  --add-color | --remove-color)
-    # the four [type] sections of a colors file
-    printf 'hosttag\ta # Tags: value in your ssh config\n'
-    printf 'usertag\tthe username on hosts carrying that tag\n'
-    printf 'username\ta username\n'
-    printf 'hostname\ta hostname, or a * or ? pattern\n'
     ;;
   --disable-plugin)
     # the plugins files read as text, since this file cannot source the
@@ -257,11 +240,6 @@ if [ "$kind" = words ]; then
           printf '%s\ta package check group\n' "$line"
         done
       }
-    ;;
-  --preview)
-    printf 'colors\tevery ssh host and your user, in their resolved colors\n'
-    printf 'packages\tthe package-group legend, as the header prints it\n'
-    printf 'header\tthe connect header, as it prints here\n'
     ;;
   --use)
     printf 'ssh\tssh, no probing (a container of the same name loses)\n'

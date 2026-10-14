@@ -221,15 +221,41 @@ function _hi_cov_counts_files() {
 # and with no report: a figure over the suites that happened to pass is a
 # partial number, and a partial number is no number. A tool that is missing
 # (no fish, no docker) is a skip, never a failure, so this is a real one.
+# A suite still running after $_HI_COV_SUITE_LIMIT seconds (1200) is stalled:
+# the processes running then are kept for the report, and the tracer is
+# stopped, so a stall names its suite and what held it rather than running
+# the job out.
 function _hi_cov_trace_all() {
-  local _hi_i _hi_suite _hi_path _hi_log
+  local _hi_i _hi_suite _hi_path _hi_log _hi_run _hi_dog _hi_rc
+  local _hi_limit="${_HI_COV_SUITE_LIMIT:-1200}"
   _hi_log="$(mktemp -t hi.cov.log.XXXXXX)"
-  _HI_COV_TRASH+=("$_hi_log")
+  _HI_COV_TRASH+=("$_hi_log" "$_hi_log.ps")
   for _hi_i in "${!_HI_PATHS[@]}"; do
     _hi_suite="${_HI_NAMES[$_hi_i]}"
     _hi_path="${_HI_PATHS[$_hi_i]}"
     _hi_cecho " | coverage: tracing $_hi_suite" "$BRCYAN"
-    "$1" "$_hi_suite" "$_hi_path" >"$_hi_log" 2>&1 || {
+    rm -f "$_hi_log.ps"
+    "$1" "$_hi_suite" "$_hi_path" >"$_hi_log" 2>&1 &
+    _hi_run=$!
+    (
+      # its sleep goes with it when the suite ends in time
+      trap 'kill "$_hi_nap" 2>/dev/null; exit 0' TERM
+      sleep "$_hi_limit" &
+      _hi_nap=$!
+      wait "$_hi_nap" || exit 0
+      ps -eo pid,ppid,etime,args >"$_hi_log.ps" 2>&1
+      pkill -TERM -P "$_hi_run"
+    ) >/dev/null 2>&1 &
+    _hi_dog=$!
+    _hi_rc=0
+    wait "$_hi_run" || _hi_rc=$?
+    kill "$_hi_dog" 2>/dev/null || true
+    [ ! -s "$_hi_log.ps" ] || {
+      _hi_cecho " | coverage: $_hi_suite was still running after ${_hi_limit}s - stopped; the processes then:" "$RED"
+      grep -v ' \[[^]]*\]$' "$_hi_log.ps" | sed 's/^/ |   /'
+      _hi_rc=1
+    }
+    [ "$_hi_rc" -eq 0 ] || {
       # each failed case's evidence (printed above its row), then the
       # transcript's tail, since a case that fails only under the tracer
       # cannot be seen by running the suite without one - less bashcov's line

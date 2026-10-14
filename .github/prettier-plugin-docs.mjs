@@ -138,7 +138,8 @@ function writeUsage(text) {
   if (at < 0) return text;
   let end = at + 1;
   while (end < lines.length && !/^## /.test(lines[end])) end++;
-  const flags = tableRows("../common/flags");
+  // a <flag>=<word> row is a completion word, no flag of its own
+  const flags = tableRows("../common/flags").filter((f) => !f[0].includes("="));
   const examples = new Map();
   let last = "";
   for (const [flag, example = ""] of tableRows("../docs/tapes/usage")) {

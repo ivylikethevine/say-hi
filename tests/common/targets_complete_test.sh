@@ -444,9 +444,14 @@ function test_word_flags_match_the_words_roster() {
   local arms want got
   # the arm labels of the `words` case, one per line; `--a | --b)` gives both.
   # shellcheck disable=SC2016 # the sed script is literal, not an expansion
-  arms="$(sed -n '/if \[ "\$kind" = words \]/,/^fi$/p' "$_HI_TARGETS" |
-    sed -n 's/^  \(--[a-z| -]*\))$/\1/p' | tr -d ' ' | tr '|' '\n' |
-    sort | tr '\n' ' ')"
+  # ...and the flags common/flags gives <flag>=<word> rows, --remove-color
+  # taking --add-color's
+  arms="$({
+    sed -n '/if \[ "\$kind" = words \]/,/^fi$/p' "$_HI_TARGETS" |
+      sed -n 's/^  \(--[a-z| -]*\))$/\1/p' | tr -d ' ' | tr '|' '\n'
+    sed -n 's/^\(--[a-z-]*\)=.*/\1/p' "$_HI_ROOT/common/flags"
+    echo --remove-color
+  } | sort -u | tr '\n' ' ')"
   # shellcheck disable=SC2086 # the split is the roster
   want="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
   got="$arms"
@@ -528,13 +533,14 @@ function test_words_set_and_unset_color_list_the_four_types() {
   [ "$got" = "$want" ] || _hi_why got out want
 }
 
-# ...and they are set_color.sh's own list, so neither can name a type the
-# script refuses
+# ...and they are the types set_color.sh takes, the same common/flags rows,
+# so neither can name a type the script refuses
 function test_words_color_types_match_set_color() {
-  local out types
+  local out said types
   out="$(sh "$_HI_TARGETS" words --add-color | cut -f1 | tr '\n' ' ')"
-  types="$(sed -n 's/^types="\(.*\)"$/\1/p' "$_HI_ROOT/scripts/set_color.sh")"
-  [ -n "$types" ] && [ "$out" = "$types " ] || _hi_why types out
+  said="$(NO_COLOR=1 bash "$_HI_ROOT/scripts/set_color.sh" nosuch x red 2>&1)" || true
+  types="${said##*one of }" types="${types%)*}"
+  { [ -n "$types" ] && [ "$out" = "$types " ]; } || _hi_why said types out
 }
 
 # --disable-plugin: every plugin of the tree's plugins file, read as text, then

@@ -200,7 +200,7 @@ function _hi_flag_switches() {
 # the ones that want scripts/ or .git and so have a synopsis line and an
 # OPTIONS heading of their own with sub-switches after the name.
 function _hi_local_flags() {
-  grep -vE '^(#|$)' "$_HI_ROOT/common/flags" | awk -F'|' '$3 != "-" { print $1 }'
+  grep -vE '^(#|$)' "$_HI_ROOT/common/flags" | awk -F'|' '$1 !~ /=/ && $3 != "-" { print $1 }'
 }
 
 # ...and the check above is one-way: a flag --help knows has to be in the

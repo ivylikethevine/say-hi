@@ -417,12 +417,13 @@ when it lands.
        the data files' flags are one scheme, `--add-X`/`--remove-X`
        (`--add-color`, `--remove-color`, `--remove-tag`), with
        `--enable-plugin`/`--disable-plugin` as the switch; the scripts that
-       take only `--help`, `--dry-run`, and words share `_hi_args`; and
-       `hi --doctor` sorts ssh options with a connect's `_hi_ssh_opt`. Left:
-       a flag's completable words are literals in `common/targets.sh`, and
-       `scripts/update.sh` keeps a loop of its own, since its `--help` answers
-       ahead of the `.git` check. **Ticks when:** the completable words come
-       from `common/flags`, and the fast and lint groups are green in CI.
+       take only `--help`, `--dry-run`, and words share `_hi_args`;
+       `hi --doctor` sorts ssh options with a connect's `_hi_ssh_opt`; and a
+       flag's fixed words are `common/flags`' `<flag>=<word>` rows, which
+       completion and `--add-color`'s types read. `scripts/update.sh` keeps a
+       loop of its own, since its `--help` answers ahead of the `.git` check,
+       and `--use`'s words stay hi.sh's arms in their order. **Ticks when:**
+       the fast and lint groups are green in CI with it.
 
 7. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
        each make the scratch directory, send the tree, fall back without

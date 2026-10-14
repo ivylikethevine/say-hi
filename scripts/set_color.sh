@@ -28,7 +28,12 @@ me="hi --add-color"
 me="${_HI_ARGV0:-$me}"
 _HI_ME="$me"
 _HI_DRY_RUN="" args=()
-types="hosttag usertag username hostname"
+# the colors file's [type] sections: common/flags' --add-color words
+types=""
+while IFS='|' read -r _hi_w _; do
+  case "$_hi_w" in --add-color=?*) types="$types${types:+ }${_hi_w#*=}" ;; esac
+done <"$_HI_ROOT/common/flags"
+unset _hi_w
 usage="$me <type> <name> <color> [rrggbb] [--dry-run]"
 [ "$mode" = set ] || usage="$me <type> <name> [--dry-run]"
 

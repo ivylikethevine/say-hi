@@ -324,7 +324,10 @@ the suite table.
   non-blocking, and bash drops a line written while it is full, so
   `tests/lib/coverage_env.sh` makes it blocking ahead of each suite; with
   bashcov's reader the bottleneck, a parallel suite gains nothing, so the
-  driver runs every one with `_HI_PAR_WIDTH=1`. It needs `gem install --user-install bashcov` (found
+  driver runs every one with `_HI_PAR_WIDTH=1`. A suite still running after
+  `_HI_COV_SUITE_LIMIT` seconds (1200) is stopped, and the drivers print the
+  processes running then: a stall names its suite rather than running the job
+  out. It needs `gem install --user-install bashcov` (found
   off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into
   the checkout for the run, refusing to start rather than overwrite one you
   have.
