@@ -117,15 +117,24 @@ function _hi_setting_flip() {
   printf -v "$4" '%s' "$want"
 }
 
-# ask_setting_value <var> <default> <validator-fn> <invalid-msg> <question> -
-# ask_value against a setting, recorded. The whole shape of every free-text
-# question here: this run's answer (or the file's) is the current value, and
-# the reply goes back into the pending set.
+# ask_setting_value <var> <question> [default] - ask_value against a setting,
+# recorded. The whole shape of every free-text question here: this run's
+# answer (or the file's) is the current value, the reply goes back into the
+# pending set, and the answer is judged by the setting's scripts/settings row
+# (_hi_setting_rules). The default is core.sh's $<var>_DEFAULT unless given.
 function ask_setting_value() {
-  local _hi_asv_cur=""
+  local _hi_asv_cur="" _hi_asv_n _hi_asv_c _hi_asv_h _hi_asv_d="${1}_DEFAULT"
+  _hi_asv_d="${3-${!_hi_asv_d:-}}"
   setting_value "$1" "$_HI_SETTINGS" _hi_asv_cur
-  _hi_pending_set "$1" "$(ask_value "$5" "$_hi_asv_cur" "$2" "$3" "$4")"
+  while IFS='|' read -r _hi_asv_n _HI_ASV_CHECK _hi_asv_h; do
+    [ "$_hi_asv_n" != "$1" ] || break
+  done < <(_hi_setting_rules)
+  [ "$_hi_asv_n" = "$1" ] || _HI_ASV_CHECK=- _hi_asv_h=""
+  _hi_pending_set "$1" "$(ask_value "$2" "$_hi_asv_cur" "$_hi_asv_d" _hi_asv_valid "$_hi_asv_h")"
 }
+
+# the validator ask_setting_value hands ask_value: its row's <check>
+function _hi_asv_valid() { _hi_setting_check "$_HI_ASV_CHECK" "$1"; }
 
 # _hi_shell_var <outvar> <shell> - the uppercase half of a $_HI_PROMPT_END_<SHELL>
 # name. _HI_RC_TABLE carries the shell lowercase and the setting is spelled
@@ -208,11 +217,6 @@ function _hi_menu_reject() {
 # The value validators are scripts/lib.sh's (_hi_is_width and the rest):
 # doctor judges a hand-written settings.sh by the same rules the menu takes
 # an answer by. Only the two that need the menu's own state live here.
-
-# a settings.sh value has to survive being written into a single-quoted export
-function _hi_has_no_single_quote() {
-  case "$1" in *\'*) return 1 ;; esac
-}
 
 function _hi_is_truecolor_choice() {
   case "$1" in auto | on | off) ;; *) return 1 ;; esac
@@ -525,20 +529,17 @@ function configure_intro() {
 source "$_HI_ROOT/scripts/configure_menu.sh"
 
 # Which addresses the header's ip cell leaves out - header.sh's
-# _hi_ip_filter reads it. `172.*` is the shipped default (the docker/podman
-# bridge range), so typing it clears the override the way config_max_width's
-# 80 does; `none` shows every address.
+# _hi_ip_filter reads it. The shipped default (core.sh's
+# $_HI_IP_HIDE_DEFAULT, the docker/podman bridge range) typed clears the
+# override, as config_max_width's does; `none` shows every address.
 function config_ip_hide() {
-  ask_setting_value _HI_IP_HIDE '172.*' _hi_is_ip_hide "answer none, or globs like 172.* 10.0.*" \
-    "Hide which addresses from the ip cell (globs, space-separated, or none)?"
+  ask_setting_value _HI_IP_HIDE "Hide which addresses from the ip cell (globs, space-separated, or none)?"
 }
 
-# Ask for the header/banner's terminal width. Entering 80 (common/core.sh's
-# own built-in default, via ${_HI_MAX_WIDTH:-80}) clears the override instead
-# of writing it out.
+# Ask for the header/banner's terminal width. Entering the default (core.sh's
+# $_HI_MAX_WIDTH_DEFAULT) clears the override instead of writing it out.
 function config_max_width() {
-  ask_setting_value _HI_MAX_WIDTH 80 _hi_is_width "a number, 40 or more" \
-    "Terminal width for the header/banner (40 or more)?"
+  ask_setting_value _HI_MAX_WIDTH "Terminal width for the header/banner (40 or more)?"
 }
 
 # config_prompt_end <shell> - the character <shell>'s prompt ends with. The
@@ -549,9 +550,7 @@ function config_max_width() {
 function config_prompt_end() {
   local shell
   _hi_shell_var shell "$1"
-  ask_setting_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" \
-    _hi_has_no_single_quote "a single quote can't be written to settings.sh" \
-    "Character to end the $1 prompt with?"
+  ask_setting_value "_HI_PROMPT_END_$shell" "Character to end the $1 prompt with?" "$(_hi_prompt_end_default "$shell")"
 }
 
 # The 24-bit color verdict. It keeps its current value on Enter and clears
@@ -620,8 +619,8 @@ function collect_setting_lines() {
   _hi_collect_value _HI_PACKAGES_GROUPS "$_HI_PACKAGES_GROUPS_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_PALETTE ""
   _hi_collect_value _HI_COLOR_SCHEME ""
-  _hi_collect_value _HI_IP_HIDE '172.*' quoted
-  _hi_collect_value _HI_MAX_WIDTH 80
+  _hi_collect_value _HI_IP_HIDE "$_HI_IP_HIDE_DEFAULT" quoted
+  _hi_collect_value _HI_MAX_WIDTH "$_HI_MAX_WIDTH_DEFAULT"
   _hi_collect_group _HI_FEATURE_PROMPTS
   _hi_collect_value _HI_PLUGINS_OFF "" quoted
   _hi_collect_value _HI_PLUGINS_ON "" quoted

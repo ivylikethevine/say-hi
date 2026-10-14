@@ -159,6 +159,105 @@ function lint_settings_table() {
   return "$bad"
 }
 
+# common/core.sh's defaults block is the one spelling of each default that is
+# not 0 or unset: a row's has to be its <default> cell, no bash or zsh file
+# reads a row's or a block name's variable with a literal default of its own,
+# and common/targets.sh's two, which cannot source the block, have to match it.
+function lint_setting_defaults() {
+  local bad=0 block name value cell reads line ttl cap
+  _hi_h2 "Checking common/core.sh's defaults block"
+  block="$(sed -n "s/^\(_HI_[A-Z0-9_]*\)_DEFAULT=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}$/\1 \2/p" "$_HI_ROOT/common/core.sh")"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if [ -z "$block" ]; then
+    _hi_align " | common/core.sh: no _HI_*_DEFAULT block where one is expected" "FAILED" "$RED"
+    _hi_note_failure "defaults: common/core.sh has no block"
+    return 1
+  fi
+  # a backticked <default> cell is a value, and the block's has to be it;
+  # prose (a pointer to another table) is not compared
+  while read -r name value; do
+    cell="$(awk -F' [|] ' -v n="$name" '!/^#/ && $2 == n { print $3 }' "$_HI_ROOT/scripts/settings")"
+    case "$cell" in '`'*'`') ;; *) continue ;; esac
+    [ "$cell" != "\`$value\`" ] || continue
+    _hi_align " | $name: the block says '$value', its row $cell" "FAILED" "$RED"
+    _hi_note_failure "defaults: $name disagrees with its row"
+    bad=$((bad + 1))
+  done <<<"$block"
+  [ "$bad" -eq 0 ] && _hi_align " | every block value a row states is that row's <default>" "OK" "$GREEN"
+
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  # shellcheck disable=SC2016 # a ${...:-...} read is the text sought
+  reads="$(grep -rnoE '\$\{_HI_[A-Z0-9_]+:-[^}$0][^}]*\}' "$_HI_ROOT/common" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    "$_HI_ROOT/scripts" --include='*.sh' --include='*.zsh' 2>/dev/null | grep -v '/common/targets\.sh:')"
+  local stray=0 names
+  names=" $(printf '%s\n' "$block" | cut -d' ' -f1 | tr '\n' ' ')$(_hi_settings_documented | tr '|' ' ') "
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    name="${line#*\$\{}" name="${name%%:-*}"
+    case "$names" in *" $name "*) ;; *) continue ;; esac
+    _hi_align " | ${line#"$_HI_ROOT"/}: a default of its own, not \$${name}_DEFAULT" "FAILED" "$RED"
+    _hi_note_failure "defaults: $name read with a literal default"
+    stray=$((stray + 1))
+  done <<<"$reads"
+  [ "$stray" -eq 0 ] && _hi_align " | every such read goes through the block" "OK" "$GREEN"
+  bad=$((bad + stray))
+
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  line="$(grep -E '^ttl="\$\{_HI_TARGETS_TTL:-[0-9]+\}" cap="\$\{_HI_PROBE_TIMEOUT:-[0-9]+\}"$' "$_HI_ROOT/common/targets.sh")"
+  ttl="${line#*TTL:-}" ttl="${ttl%%\}*}" cap="${line#*TIMEOUT:-}" cap="${cap%%\}*}"
+  if [ -z "$line" ]; then
+    _hi_align " | common/targets.sh: no ttl/cap line where one is expected" "FAILED" "$RED"
+    _hi_note_failure "defaults: common/targets.sh has no mirror line"
+    bad=$((bad + 1))
+  elif [ "$ttl $cap" != "$(printf '%s\n' "$block" | sed -n 's/^_HI_TARGETS_TTL //p') $(printf '%s\n' "$block" | sed -n 's/^_HI_PROBE_TIMEOUT //p')" ]; then
+    _hi_align " | common/targets.sh: ttl $ttl, cap $cap - not the block's" "FAILED" "$RED"
+    _hi_note_failure "defaults: common/targets.sh drifted"
+    bad=$((bad + 1))
+  else
+    _hi_align " | common/targets.sh: ttl $ttl, cap $cap, as the block says" "OK" "$GREEN"
+  fi
+  return "$bad"
+}
+
+# A row's <check> is what both hi --doctor and hi --configure judge a value
+# by, so it has to be one scripts/lib.sh's _hi_setting_check knows
+# ($_HI_SETTING_CHECKS). The rows whose check is `toggle` are the disables
+# core.sh's $_HI_TOGGLES defaults and _HI_DISABLE_LOCAL gates, so that list
+# is pinned to them; paths_test pins config.fish's and paths.sh's to it.
+function lint_setting_checks() {
+  local bad=0 kinds name check rows toggles core
+  _hi_h2 "Checking scripts/settings' <check> column"
+  kinds=" $(sed -n 's/^_HI_SETTING_CHECKS="\(.*\)"$/\1/p' "$_HI_ROOT/scripts/lib.sh") "
+  rows="$(awk -F' [|] ' '!/^#/ && NF > 10 { print $2 " " $9 }' "$_HI_ROOT/scripts/settings")"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if [ "$kinds" = "  " ] || [ -z "$rows" ]; then
+    _hi_align " | no \$_HI_SETTING_CHECKS in scripts/lib.sh, or no row with a <check>" "FAILED" "$RED"
+    _hi_note_failure "checks: nothing to compare"
+    return 1
+  fi
+  while read -r name check; do
+    case "$kinds" in *" ${check%%:*}:"* | *" $check "*) continue ;; esac
+    _hi_align " | $name: <check> '$check' is none of$kinds" "FAILED" "$RED"
+    _hi_note_failure "checks: $name has an unknown <check>"
+    bad=$((bad + 1))
+  done <<<"$rows"
+  [ "$bad" -eq 0 ] && _hi_align " | every row's <check> is a kind _hi_setting_check knows" "OK" "$GREEN"
+
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  toggles="$(printf '%s\n' "$rows" | awk '$2 == "toggle" { print $1 }' | sort | tr '\n' ' ')"
+  core="$(sed -n '/_HI_TOGGLES=(/,/)/p' "$_HI_ROOT/common/core.sh" | grep -oE '_HI_[A-Z0-9_]+' |
+    grep -vx -e _HI_TOGGLES -e _HI_REMOTE_SESSION | sort | tr '\n' ' ')"
+  if [ "$toggles" != "$core" ]; then
+    _hi_align " | rows of check toggle: $toggles" "FAILED" "$RED"
+    _hi_align " | core.sh's _HI_TOGGLES: $core" "FAILED" "$RED"
+    _hi_note_failure "checks: _HI_TOGGLES is not the toggle rows"
+    bad=$((bad + 1))
+  else
+    _hi_align " | _HI_TOGGLES is the rows whose check is toggle" "OK" "$GREEN"
+  fi
+  return "$bad"
+}
+
 # The rows the unread check excuses: names core.sh only ever reads through
 # `eval "\${_HI_PROMPT_END_$1:-}"` in _hi_prompt_end, one per shell of the
 # tree, so no grep for the literal can find them. Spelled out rather than
@@ -428,7 +527,7 @@ function run_drift_docs() {
 
   _hi_workdir driftdocstest
 
-  _hi_lint_halves lint_glossary_tags lint_settings_table lint_liquid_docs lint_site_links lint_tldr_page
+  _hi_lint_halves lint_glossary_tags lint_settings_table lint_setting_defaults lint_setting_checks lint_liquid_docs lint_site_links lint_tldr_page
   _hi_lint_suite_end
 }
 

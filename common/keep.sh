@@ -153,11 +153,7 @@ function _hi_keep_start() {
           (
             unset$drop
             case \$_hi_k in
-            tmux)
-              _hi_kc="\$_HI_CONFIG_DIR/tmux/tmux.conf"
-              [ ! -f "\$_hi_kc" ] || exec tmux -f "\$_hi_kc" new-session -s "\$_hi_kn" "\$@"
-              exec tmux new-session -s "\$_hi_kn" "\$@"
-              ;;
+            tmux) set -- new-session -s "\$_hi_kn" "\$@" ;;
             zellij)
               _hi_kc="\$_hi_rc_dir/hi.keep.kdl"
               {
@@ -171,15 +167,10 @@ function _hi_keep_start() {
               for _hi_s in startup-tips release-notes; do
                 ! zellij options --help 2>/dev/null | grep -q -- "--show-\$_hi_s" || set -- "\$@" "--show-\$_hi_s" false
               done
-              [ ! -d "\$_HI_CONFIG_DIR/zellij" ] || set -- --config-dir "\$_HI_CONFIG_DIR/zellij" "\$@"
-              exec zellij "\$@"
               ;;
-            screen)
-              _hi_kc="\$_HI_CONFIG_DIR/screenrc"
-              [ ! -f "\$_hi_kc" ] || exec screen -c "\$_hi_kc" -S "\$_hi_kn" "\$@"
-              exec screen -S "\$_hi_kn" "\$@"
-              ;;
+            screen) set -- -S "\$_hi_kn" "\$@" ;;
             esac
+            exec sh "\$_hi_rc_dir/common/mux.sh" "\$_hi_k" "\$@"
           )
           _hi_kept_note '$note'
         else
@@ -187,6 +178,22 @@ function _hi_keep_start() {
           bash --rcfile "\$_hi_rc_dir/hi.bashrc" -i
         fi
 REMOTE
+}
+
+# _hi_keep_middle - the kept session's parts of _hi_remote_middle, into its
+# locals: the sweep and a held tree's take after the root is made ($sweep),
+# the trap's test for a tree the session leaves to its owner pane or its
+# timer ($kept), and the unpack skipped for a held tree ($fresh ... $fi)
+# shellcheck disable=SC2034 # the caller's locals
+function _hi_keep_middle() {
+  _hi_keep_probes || return 0
+  sweep="$(_hi_keep_sweep)"$'\n'"$(_hi_keep_held)"
+  # shellcheck disable=SC2016 # the target's to expand
+  fresh='      if [ -z "$_hi_held" ]; then' fi='      fi'
+  # shellcheck disable=SC2016 # the target's to expand, when the trap runs
+  kept='[ -e "$_HI_ROOT/hi.kept" ] || [ -e "$_HI_ROOT/hi.hold" ] || '
+  # shellcheck disable=SC2016
+  ! _hi_keep_starts || kept='_hi_kept || [ -e "$_HI_ROOT/hi.hold" ] || '
 }
 
 # What a connect that looks for a kept session runs once it has a tree of its
@@ -263,11 +270,8 @@ function _hi_keep_end_script() {
       [ -z "\$_hi_d" ] || for _hi_s in "\${_hi_d%.hi.*}".hi.*/say-hi/hi.kept; do
         ! _hi_live "\$_hi_s" || set -- "\$@" "\$_hi_s"
       done
-      case \$_hi_k in
-      tmux) tmux kill-session -t "=\$_hi_kn" ;;
-      zellij) zellij kill-session "\$_hi_kn" ;;
-      screen) screen -S "\$_hi_ks" -X quit ;;
-      esac
+$(declare -f _hi_mux_kill)
+      _hi_mux_kill "\$_hi_k" "\$_hi_kn" "\$_hi_ks"
       _hi_e=\$?
       _hi_n=0
       while [ \$# -gt 0 ] && [ \$_hi_n -lt 10 ]; do
@@ -347,7 +351,7 @@ function _hi_keep_hold_here() {
   while IFS= read -r line; do
     [ "${line%%=*}" != _HI_KEEP_AS ] || as="${line#*=}"
   done <"$1"
-  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-15m}" limit || limit=900
+  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-$_HI_KEEP_HOLD_DEFAULT}" limit || _hi_keep_seconds "$_HI_KEEP_HOLD_DEFAULT" limit
   if [ -z "$as" ] || ((limit <= 0)); then
     _hi_die "--keep needs tmux, zellij, or screen on this machine, or a _HI_KEEP_TIMEOUT over 0 to hold its files by"
   fi
@@ -355,7 +359,7 @@ function _hi_keep_hold_here() {
   if ! { printf '%s\n' "$PWD" >"$_HI_ROOT/hi.cwd" && printf '%s\n' "$name" >"$_HI_ROOT/hi.hold"; }; then
     _hi_die "--keep: could not write to $_HI_ROOT"
   fi
-  _hi_cecho "hi: no tmux, zellij, or screen here: a dropped link leaves this session's files for ${_HI_KEEP_TIMEOUT:-15m}, and hi $as comes back to them" "$YELLOW"
+  _hi_cecho "hi: no tmux, zellij, or screen here: a dropped link leaves this session's files for ${_HI_KEEP_TIMEOUT:-$_HI_KEEP_HOLD_DEFAULT}, and hi $as comes back to them" "$YELLOW"
 }
 
 # _hi_keep_record <outvar> - where this client notes that the target holds a
@@ -409,8 +413,9 @@ function _hi_keep_live() {
 function _hi_keep_until() {
   local span="${_HI_KEEP_TIMEOUT:-}" secs at fmt='%H:%M' mux="${_HI_TARGET_MUX:-1}"
   { [ -n "$span" ] && _hi_keep_seconds "$span" secs; } || {
-    span=24h secs=86400
-    [ "$mux" = 1 ] || span=15m secs=900
+    span="$_HI_KEEP_TIMEOUT_DEFAULT"
+    [ "$mux" = 1 ] || span="$_HI_KEEP_HOLD_DEFAULT"
+    _hi_keep_seconds "$span" secs
   }
   printf -v "$1" '%s' ""
   ((secs > 0)) || [ "$mux" = 1 ] || return 0
@@ -447,7 +452,7 @@ function _hi_keep_wait() {
 # drop, each try quiet (its words in <log>) until the target answers. A try that gets in and drops within ten seconds does
 # not restart the window. GLOSSARY: HI.65
 function _hi_keep_connect() {
-  local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-5m}" limit t0="" t1 expected="" until
+  local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-$_HI_KEEP_RETRY_DEFAULT}" limit t0="" t1 expected="" until
   ! _hi_keep_probes || probes=1
   [ "$probes" = 0 ] || _hi_keep_record rec || rec=""
   [ -z "$rec" ] || [ ! -e "$rec" ] || expected=1
@@ -522,7 +527,7 @@ function _hi_keep_claim() {
 function _hi_keep_holds() {
   _hi_keep_limit=0
   [[ -z "${_HI_KEEP_MUX:-}" && -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]] && [ -t 0 ] || return 1
-  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-15m}" _hi_keep_limit || _hi_keep_limit=900
+  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-$_HI_KEEP_HOLD_DEFAULT}" _hi_keep_limit || _hi_keep_seconds "$_HI_KEEP_HOLD_DEFAULT" _hi_keep_limit
   ((_hi_keep_limit > 0))
 }
 
@@ -565,7 +570,7 @@ function _hi_keep_attached() {
 function _hi_keep_watch() {
   local limit step="${1:-60}" idle=0
   [ -n "${_HI_KEEP_NAME:-}" ] || return 0
-  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-24h}" limit || limit=86400
+  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-$_HI_KEEP_TIMEOUT_DEFAULT}" limit || _hi_keep_seconds "$_HI_KEEP_TIMEOUT_DEFAULT" limit
   ((limit > 0)) || return 0
   ((step <= limit)) || step="$limit"
   (
@@ -582,13 +587,19 @@ function _hi_keep_watch() {
   _hi_keep_watch_pid=$!
 }
 
-# End the session this pane owns, every pane of it.
-function _hi_keep_kill() {
-  case "$_HI_KEEP_MUX" in
-  tmux) tmux kill-session -t "=$_HI_KEEP_NAME" ;;
-  zellij) zellij kill-session "$_HI_KEEP_NAME" ;;
-  screen) screen -S "${STY:-$_HI_KEEP_NAME}" -X quit ;;
+# _hi_mux_kill <tool> <name> <screen id> - end a session, every pane of it.
+# POSIX sh: _hi_keep_end_script sends it as written (declare -f).
+function _hi_mux_kill() {
+  case "$1" in
+  tmux) tmux kill-session -t "=$2" ;;
+  zellij) zellij kill-session "$2" ;;
+  screen) screen -S "$3" -X quit ;;
   esac
+}
+
+# End the session this pane owns.
+function _hi_keep_kill() {
+  _hi_mux_kill "$_HI_KEEP_MUX" "$_HI_KEEP_NAME" "${STY:-$_HI_KEEP_NAME}"
 }
 
 # _hi_keep_panes <session shell command...> - the session's other panes. A

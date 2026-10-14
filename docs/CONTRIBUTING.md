@@ -213,9 +213,10 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name
   and default (the type is what the row's prose says: `0`/`1`, a number, a
   word list, a name from a fixed set). A toggle that has to go is a 2.0. A
-  new `_HI_DISABLE_*` toggle is a minor, and lands in `_HI_TOGGLES`,
-  `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
-  together, or "all of the above" quietly stops meaning all of them. An
+  new `_HI_DISABLE_*` toggle is a minor, and lands in its `scripts/settings`
+  row (check `toggle`), `_HI_TOGGLES`, `config.fish`'s mirror, and
+  `_HI_DISABLE_LOCAL`'s block in `common/paths.sh` together, or "all of the
+  above" quietly stops meaning all of them. An
   opt-in (`_HI_TOOL_ALIASES`'s shape) stays out of `_HI_TOGGLES`: it takes
   its `0` from `common/aliases.sh`'s backstop line, every reader compares it
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.

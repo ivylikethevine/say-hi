@@ -273,7 +273,9 @@ if [ "$kind" = words ]; then
   exit 0
 fi
 
-ttl="${_HI_TARGETS_TTL:-5}"
+# core.sh's _HI_TARGETS_TTL_DEFAULT and _HI_PROBE_TIMEOUT_DEFAULT, which drift
+# pins these to
+ttl="${_HI_TARGETS_TTL:-5}" cap="${_HI_PROBE_TIMEOUT:-2}"
 
 # `timeout` is GNU/busybox, absent on stock macOS - optional. `-k 0.2`: the
 # cap is a SIGTERM, which rootless podman defers while its runtime initialises
@@ -286,11 +288,11 @@ run_backend() {
   if ! command -v timeout >/dev/null 2>&1; then
     run_backend() { "$@"; }
   elif timeout -k 0.2 1 true 2>/dev/null; then
-    run_backend() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    run_backend() { timeout -k 0.2 "$cap" "$@"; }
   elif timeout 1 true 2>/dev/null; then
-    run_backend() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    run_backend() { timeout "$cap" "$@"; }
   elif timeout -t 1 true 2>/dev/null; then
-    run_backend() { timeout -t "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    run_backend() { timeout -t "$cap" "$@"; }
   else
     run_backend() { "$@"; }
   fi
@@ -495,7 +497,7 @@ list_kube() {
 
 # --request-timeout: kubectl's own bound, the one left where `timeout` is not
 kube_pods() {
-  run_backend kubectl get pods -A --request-timeout="${_HI_PROBE_TIMEOUT:-2}s" --field-selector=status.phase=Running \
+  run_backend kubectl get pods -A --request-timeout="${cap}s" --field-selector=status.phase=Running \
     -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{range .spec.containers[*]}{" "}{.name}{end}{"\n"}{end}'
 }
 

@@ -376,8 +376,8 @@ function _hi_menu_list() {
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  _hi_menu_value width "width" "${width:-80}" 80
-  _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}" '172.*' quiet
+  _hi_menu_value width "width" "${width:-$_HI_MAX_WIDTH_DEFAULT}" "$_HI_MAX_WIDTH_DEFAULT"
+  _hi_menu_value iphide "hidden addresses" "${iphide:-$_HI_IP_HIDE_DEFAULT}" "$_HI_IP_HIDE_DEFAULT" quiet
   # no part of the section's "N of M on": on is the edge dropped
   i=$_HI_MENU_SUM_N state=$_HI_MENU_SUM_ON
   ! _hi_row_index _HI_ADVANCED_PROMPTS _HI_DISABLE_RIGHT_EDGE word || _hi_menu_row _HI_ADVANCED_PROMPTS "$word"

@@ -267,7 +267,7 @@ function _hi_term_cols() {
 # _hi_out_width <outvar> - what a rule or a wrapped line draws to:
 # $_HI_MAX_WIDTH, narrowed to the terminal when that is narrower
 function _hi_out_width() {
-  local _hi_ow=${_HI_MAX_WIDTH:-80} _hi_ow_cols
+  local _hi_ow=${_HI_MAX_WIDTH:-$_HI_MAX_WIDTH_DEFAULT} _hi_ow_cols
   _hi_term_cols _hi_ow_cols
   [ -n "$_hi_ow_cols" ] && ((_hi_ow_cols < _hi_ow)) && _hi_ow=$_hi_ow_cols
   printf -v "$1" '%d' "$_hi_ow"
@@ -389,9 +389,10 @@ function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
 # $_HI_KEEP_TIMEOUT, $_HI_KEEP_RETRY: seconds, or a number with s, m, h, or d
 function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }
 # one of core.sh's $_HI_EDITORS
-function _hi_is_editor() {
-  case " $_HI_EDITORS " in *" $1 "*) return 0 ;; esac
-  return 1
+function _hi_is_editor() { _hi_list_has "$_HI_EDITORS" "$1"; }
+# a value written into settings.sh's single-quoted export
+function _hi_has_no_single_quote() {
+  case "$1" in *\'*) return 1 ;; esac
 }
 
 # $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
@@ -430,6 +431,61 @@ function _hi_is_prompt_list() {
     case "$_hi_pl_w" in *:*) _hi_list_has "${_hi_pl_r%%|*}" "${_hi_pl_w%%:*}" || return 1 ;; esac
   done
   return 0
+}
+
+# _hi_is_plugin_list <value> - is every word of it a plugin or a member
+# that can be switched (_hi_plugin_word_ok)?
+function _hi_is_plugin_list() {
+  local w known
+  known=" $(_hi_plugin_words | tr '\n' ' ')"
+  for w in ${1//,/ }; do
+    _hi_plugin_word_ok "$w" "$known" || return 1
+  done
+}
+
+# _hi_setting_check <check> <value> - is <value> what a scripts/settings row
+# of that <check> takes; 2 for a <check> this does not know. The kinds are
+# $_HI_SETTING_CHECKS, which drift holds every row's to.
+_HI_SETTING_CHECKS="toggle flag number: duration globs groups header prompts plugins editor noquote scheme palette -"
+function _hi_setting_check() {
+  case "$1" in
+  toggle | flag) _hi_is_flag "$2" ;;
+  number:*) _hi_is_number "$2" && [ "$2" -ge "${1#number:}" ] ;;
+  duration) _hi_is_duration "$2" ;;
+  globs) _hi_is_ip_hide "$2" ;;
+  groups) _hi_is_package_groups "$2" ;;
+  header) _hi_is_header_order "$2" ;;
+  prompts) _hi_is_prompt_list "$2" ;;
+  plugins) _hi_is_plugin_list "$2" ;;
+  editor) _hi_is_editor "$2" ;;
+  noquote) _hi_has_no_single_quote "$2" ;;
+  scheme) _hi_scheme_ok "$2" ;;
+  palette) _hi_ramp_ok "$2" ;;
+  -) ;;
+  *) return 2 ;;
+  esac
+}
+
+# _hi_setting_rules - every scripts/settings row with a <check>, a line each:
+# <name>|<check>|<hint>, the hint ending in the vocabulary its check reads
+# where it reads one
+function _hi_setting_rules() {
+  local _hi_sr_l _hi_sr_n _hi_sr_c _hi_sr_i
+  while IFS= read -r _hi_sr_l || [ -n "$_hi_sr_l" ]; do
+    case "$_hi_sr_l" in '' | '#'*) continue ;; esac
+    _hi_sr_l="${_hi_sr_l#* | }" _hi_sr_n="${_hi_sr_l%% | *}"
+    # past <name>, <default>, <off>, <on>, <preview>, <needs>, and <label>
+    for _hi_sr_i in 1 2 3 4 5 6 7; do _hi_sr_l="${_hi_sr_l#* | }"; done
+    _hi_sr_c="${_hi_sr_l%% | *}" _hi_sr_l="${_hi_sr_l#* | }"
+    [ "$_hi_sr_c" != - ] || continue
+    _hi_sr_l="${_hi_sr_l%% | *}"
+    case "$_hi_sr_c" in
+    header) _hi_sr_l="$_hi_sr_l $_HI_HEADER_ORDER_DEFAULT" ;;
+    prompts) _hi_sr_l="$_hi_sr_l $_HI_PROMPT_TOOLS" ;;
+    editor) _hi_sr_l="$_hi_sr_l $_HI_EDITORS" ;;
+    esac
+    printf '%s|%s|%s\n' "$_hi_sr_n" "$_hi_sr_c" "$_hi_sr_l"
+  done <"$_HI_ROOT/scripts/settings"
 }
 
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh

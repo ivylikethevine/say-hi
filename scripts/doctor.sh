@@ -452,15 +452,6 @@ function doctor_config() {
   done
   [ -z "$tags" ] ||
     doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: line names it, and joined to the settings.sh that host gets"
-  # a scheme nothing renders, and a packages ramp nothing paints (HI.50):
-  # both are written into settings.sh by hand, so a typo is silent otherwise.
-  # settings.sh is already sourced, so the exported values are the ones to judge
-  if [ -n "${_HI_COLOR_SCHEME:-}" ] && ! _hi_scheme_ok "$_HI_COLOR_SCHEME"; then
-    doctor_row color-scheme "'$_HI_COLOR_SCHEME' is ignored - not 24 or 48 six-digit hex words" bad
-  fi
-  if [ -n "${_HI_PACKAGES_PALETTE:-}" ] && ! _hi_ramp_ok "$_HI_PACKAGES_PALETTE"; then
-    doctor_row pkg-palette "'$_HI_PACKAGES_PALETTE' is ignored - not eight color names" bad
-  fi
   doctor_settings_values
   # a file still under a name hi stopped reading before 1.0: nothing else
   # would say why the override stopped applying
@@ -612,41 +603,19 @@ function doctor_config() {
   doctor_flush
 }
 
-# _hi_is_plugin_list <value> - is every word of it a plugin or a member
-# that can be switched (lib.sh's _hi_plugin_word_ok)?
-function _hi_is_plugin_list() {
-  local w known
-  known=" $(_hi_plugin_words | tr '\n' ' ')"
-  for w in ${1//,/ }; do
-    _hi_plugin_word_ok "$w" "$known" || return 1
-  done
-}
-
 # doctor_settings_values - a hand-written settings.sh line the code would
-# silently fall back from: each value against scripts/lib.sh's predicate, the
-# ones the wizard takes an answer by. settings.sh is already sourced, so the
-# exported values are the ones to judge; unset is the default and no row.
+# silently fall back from: each value against its scripts/settings row's
+# <check>, the rule the wizard takes an answer by - a scheme nothing renders
+# and a ramp nothing paints (HI.50) among them. settings.sh is already
+# sourced, so the exported values are the ones to judge; unset is the
+# default and no row.
 function doctor_settings_values() {
-  local spec name pred why v
-  for spec in \
-    "_HI_MAX_WIDTH|_hi_is_width|a number, 40 or more" \
-    "_HI_PACKAGES_GROUPS|_hi_is_package_groups|none, or group names like core useful" \
-    "_HI_IP_HIDE|_hi_is_ip_hide|none, or globs like 172.* 10.0.*" \
-    "_HI_HEADER_ORDER|_hi_is_header_order|words from $_HI_HEADER_ORDER_DEFAULT" \
-    "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS, each optionally bash:, zsh:, or fish: for a shell it fits" \
-    "_HI_PLUGINS_OFF|_hi_is_plugin_list|plugins or members that hi --plugins lists (hi --configure converts a group's word)" \
-    "_HI_PLUGINS_ON|_hi_is_plugin_list|plugins that hi --plugins lists (hi --configure converts a group's word)" \
-    "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
-    "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
-    "_HI_KEEP|_hi_is_flag|1 or 0" \
-    "_HI_KEEP_TIMEOUT|_hi_is_duration|seconds, or a number with s, m, h, or d" \
-    "_HI_KEEP_RETRY|_hi_is_duration|seconds, or a number with s, m, h, or d"; do
-    name="${spec%%|*}" pred="${spec#*|}"
-    why="${pred#*|}" pred="${pred%%|*}"
+  local name check why v
+  while IFS='|' read -r name check why; do
     v="${!name:-}"
     [ -n "$v" ] || continue
-    "$pred" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
-  done
+    _hi_setting_check "$check" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
+  done < <(_hi_setting_rules)
   # the package check's old shape, which nothing reads any more
   [ -z "${_HI_PACKAGES_MIN_PRIORITY:-}" ] ||
     doctor_row _HI_PACKAGES_MIN_PRIORITY "is ignored - name the groups to show in _HI_PACKAGES_GROUPS" bad
@@ -849,7 +818,7 @@ function doctor_backend() {
 
 function doctor_backends() {
   local hosts t0 t1
-  doctor_section backends "Backends (probes capped at ${_HI_PROBE_TIMEOUT:-2}s each, like the header)"
+  doctor_section backends "Backends (probes capped at ${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}s each, like the header)"
   if [ -f "$_HI_SSH_CONFIG" ]; then
     # counted through targets.sh, whose awk owns the "literal Host" rule for
     # completion (hi.sh keeps a documented hot-path copy) - not a third copy
@@ -874,7 +843,7 @@ function doctor_backends() {
   _hi_doc_now t0
   _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" >/dev/null 2>&1 || true
   _hi_doc_now t1
-  doctor_row completion "full target list built in $(_hi_elapsed "$t0" "$t1")s cold (TAB reuses it for ${_HI_TARGETS_TTL:-5}s)"
+  doctor_row completion "full target list built in $(_hi_elapsed "$t0" "$t1")s cold (TAB reuses it for ${_HI_TARGETS_TTL:-$_HI_TARGETS_TTL_DEFAULT}s)"
   doctor_flush
 }
 

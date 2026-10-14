@@ -388,12 +388,12 @@ when it lands.
        shipped: both of its halves are `common/keep.sh`'s, with `load.sh`
        standing in for a tree that came without the file as `hi.sh` does;
        the multiplexers are one roster, `$_HI_MUXES`; and the file lists
-       every `hi.*` file a session leaves in its tree. Left: a tool's config
-       flag is spelled in `_hi_keep_start` and again in `common/mux.sh`, the
-       kill in `_hi_keep_end_script` and in `_hi_keep_kill`, and
-       `_hi_remote_middle` takes the feature as four string fragments.
-       **Ticks when:** each of the three is written once, and the fast,
-       lint, bench, and keep suites are green in CI with it.
+       every `hi.*` file a session leaves in its tree; a kept session starts
+       through `common/mux.sh`, which alone spells each tool's config flag;
+       `_hi_mux_kill` is the one kill, sent to `hi --end`'s target as
+       written; and `_hi_keep_middle` is the feature's whole part in
+       `_hi_remote_middle`. **Ticks when:** the fast, lint, bench, and keep
+       suites are green in CI with it.
 
 4. [ ] _Before 1.0:_ **Shared primitives are written once** — shipped:
        `_hi_list_has` answers the word-list membership tests, `scripts/`'
@@ -403,15 +403,15 @@ when it lands.
        header's own code. **Ticks when:** the fast and lint groups are green
        in CI with it.
 
-5. [ ] _Before 1.0:_ **`scripts/settings` is the one registry** — a
-       setting's default is spelled where it is read (`_HI_PROBE_TIMEOUT`
-       nine times, `_HI_MAX_WIDTH` three), its validator and that
-       validator's wording in `hi --doctor` and again in `hi --configure`,
-       and the toggles in `common/core.sh`, `common/paths.sh`, and
-       `common/config.fish`. **Ticks when:** a row carries its validator and
-       hint for both readers, the runtime defaults are one block in
-       `common/core.sh` that `drift` pins to the table, and a new setting is
-       one row and one read.
+5. [ ] _Before 1.0:_ **`scripts/settings` is the one registry** — shipped:
+       a row carries its `<check>` and `<hint>`, which `hi --doctor` judges
+       a hand-written value by and `hi --configure` an answer by
+       (`_hi_setting_check`); every default that is not 0 or unset is one
+       block in `common/core.sh` that drift pins to the rows, with
+       `common/targets.sh`'s two copies; and drift pins `_HI_TOGGLES` to the
+       rows whose check is `toggle`. A new setting is a row and a read, plus
+       a block line for a default that is not 0 or unset. **Ticks when:** the
+       fast and lint groups are green in CI with it.
 
 6. [ ] _Before 1.0:_ **`common/flags` reaches past dispatch** — each
        `scripts/` entry point has its own preamble, option loop, and mode

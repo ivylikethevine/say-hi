@@ -56,6 +56,7 @@ else
   _HI_KEEP_GONE=1
   function _hi_keep_probes() { return 1; }
   function _hi_keep_starts() { return 1; }
+  function _hi_keep_middle() { :; }
   function _hi_keep_alive() { :; }
   function _hi_keep_connect() { _say_hi; }
 fi
@@ -437,7 +438,7 @@ function _hi_kube_split() {
 function _hi_is_k8s_pod() {
   _hi_kube_split "$1"
   _hi_probe_is Running kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} \
-    get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' --request-timeout="${_HI_PROBE_TIMEOUT:-2}s"
+    get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' --request-timeout="${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}s"
 }
 
 # The backend roster, in resolution order:
@@ -522,11 +523,11 @@ function _hi_ctl_open() {
     return 0
     ;;
   esac
-  if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
+  if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-$_HI_CTL_PERSIST_DEFAULT}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
       _hi_conn_key key
-      ctl_path="$dir/hi.ctl.$key" persist="${_HI_CTL_PERSIST:-60}" ctl_shared=1
+      ctl_path="$dir/hi.ctl.$key" persist="${_HI_CTL_PERSIST:-$_HI_CTL_PERSIST_DEFAULT}" ctl_shared=1
     fi
   fi
   if [ "$ctl_shared" != 1 ]; then
@@ -888,12 +889,7 @@ REMOTE
 # (GLOSSARY: HI.65).
 function _hi_remote_middle() {
   local tmpl _hi_esc _hi_nc kept="" sweep="" fresh="" fi=""
-  # shellcheck disable=SC2016 # the target's to expand
-  ! _hi_keep_probes || sweep="$(_hi_keep_sweep)"$'\n'"$(_hi_keep_held)" fresh='      if [ -z "$_hi_held" ]; then' fi='      fi'
-  # shellcheck disable=SC2016 # the target's to expand, when the trap runs
-  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || [ -e "$_HI_ROOT/hi.hold" ] || '
-  # shellcheck disable=SC2016
-  ! _hi_keep_starts || kept='_hi_kept || [ -e "$_HI_ROOT/hi.hold" ] || '
+  _hi_keep_middle
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"

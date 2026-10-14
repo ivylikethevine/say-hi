@@ -456,9 +456,11 @@ $1 == "extendsyntax" && !($2 in have) {
 # it waits the session's window more (_hi_keep_holds), or until `hi --end`
 # leaves hi.end. A connect that takes the tree rewrites hi.pid first, and a
 # tree whose hi.pid is no longer that shell's is left to its new session.
-# <step> and <poll> are the two waits, a test's to shorten. GLOSSARY: HI.65
+# <step> and <poll> are the two waits, a test's to shorten; a session's step
+# is $_HI_WATCH_STEP's, a test lever, else 60. GLOSSARY: HI.65
 function _hi_tree_watch() {
-  local pid="$$" step="${1:-60}" poll="${2:-5}" limit=0 t0
+  local pid="$$" step="${1:-${_HI_WATCH_STEP:-$_HI_WATCH_STEP_DEFAULT}}" poll="${2:-5}" limit=0 t0
+  case "$step" in '' | 0* | *[!0-9]*) step="$_HI_WATCH_STEP_DEFAULT" ;; esac
   [ -n "${_HI_CLEANUP:-}" ] && [ -d "$_HI_CLEANUP" ] || return 0
   [ -z "${_hi_keep_tty:-}" ] || limit="${_hi_keep_limit:-0}"
   {

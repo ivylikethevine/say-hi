@@ -65,6 +65,10 @@ _HI_KEEP_SESSION=hi-hitest-127-0-0-1
 # the timeout case's $_HI_KEEP_TIMEOUT, in seconds; the watcher polls at it
 _HI_KEEPTEST_LIMIT=4
 
+# the tree watcher's step for the cases that wait on it, in place of a
+# session's minute
+_HI_KEEPTEST_STEP=2
+
 # where the held case's shell stands when its link is cut
 _HI_KEEPTEST_DIR=/var/tmp
 
@@ -597,12 +601,12 @@ function _hi_keep_held() {
 }
 
 # ...and with no retry, the tree is there past the drop and gone once its
-# window is over: the watcher notices the shell within its minute's poll
+# window is over: the watcher notices the shell within its step
 function _hi_keep_expired() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
   local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
   mkdir -p "$_HI_CONFIG_DIR"
-  printf 'export _HI_KEEP_TIMEOUT=%s\n' "$_HI_KEEPTEST_LIMIT" >"$_HI_CONFIG_DIR/settings.sh"
+  printf 'export _HI_KEEP_TIMEOUT=%s\nexport _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_LIMIT" "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
@@ -638,10 +642,12 @@ function _hi_keep_kill_session() {
 }
 
 # An ordinary session, killed with no exit hook run and no retry to follow:
-# the watcher notices the shell within its minute's poll and removes the tree
+# the watcher notices the shell within its step and removes the tree
 function _hi_keep_killed() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  local -x _HI_KEEP_RETRY=0
+  local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
+  mkdir -p "$_HI_CONFIG_DIR"
+  printf 'export _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||

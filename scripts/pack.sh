@@ -144,7 +144,7 @@ function _hi_member_dialect() {
 # the members alone, and those with a tree default the overlay's copy
 # replaces wholesale on a target (aliases.sh is not one - the overlay's is
 # sourced on top of the tree's); _hi_payload_excl reads the second
-_HI_OVERLAY_FILES=() _HI_OVERLAY_SHADOWS=" "
+_HI_OVERLAY_FILES=() _HI_OVERLAY_SHADOWS=" " _HI_TAKEN_OWN=""
 # ...and every toggle an <off> column names, once each, for _hi_plugin_off
 _HI_OFF_TOGGLES=" "
 for _hi_r in "${_HI_OVERLAY_TABLE[@]}"; do

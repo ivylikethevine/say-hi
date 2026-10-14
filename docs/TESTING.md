@@ -317,7 +317,9 @@ the suite table.
   lines `xtrace` never prints (an empty case arm, a redirect line). Rule those
   out before writing a test against a number. bashcov's trace pipe is
   non-blocking, and bash drops a line written while it is full, so
-  `tests/lib/coverage_env.sh` makes it blocking ahead of each suite. It needs `gem install --user-install bashcov` (found
+  `tests/lib/coverage_env.sh` makes it blocking ahead of each suite; with
+  bashcov's reader the bottleneck, a parallel suite gains nothing, so the
+  driver runs every one with `_HI_PAR_WIDTH=1`. It needs `gem install --user-install bashcov` (found
   off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into
   the checkout for the run, refusing to start rather than overwrite one you
   have.
@@ -584,30 +586,37 @@ checking that something written down elsewhere still agrees with the tree:
   [SETTINGS.md](SETTINGS.md)'s _Every setting_ table is written from and
   `hi --configure` reads its items from) names a variable the shipped tree
   still reads, and none is one the doc's _Not settings_ lists.
-- **20. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
+- **20. The defaults block**: each `_HI_*_DEFAULT` in `common/core.sh` is its
+  row's `<default>` where the row states a value, no bash or zsh file reads a
+  setting or a block name with a literal default of its own, and
+  `common/targets.sh`'s two copies match the block.
+- **21. The `<check>` column**: every row's `<check>` is a kind
+  `scripts/lib.sh`'s `_hi_setting_check` knows, and the rows whose check is
+  `toggle` are `common/core.sh`'s `$_HI_TOGGLES`.
+- **22. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
   and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file
   can read the other.
-- **21. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
+- **23. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
   `common/targets.sh`'s cache directory build the same path, with the same
   ownership guards, in their two dialects.
-- **22. Liquid syntax**: no page the Pages build renders may carry a raw
+- **24. Liquid syntax**: no page the Pages build renders may carry a raw
   Liquid delimiter outside a guarded span — Liquid tokenizes before Markdown,
   so a fence gives no shelter.
-- **23. Site links**: a relative link on a page the site builds lands on a
+- **25. Site links**: a relative link on a page the site builds lands on a
   page the site builds too, not a dot-path or anything `_config.yml` excludes
   (which renders on GitHub and 404s on Pages); link those as absolute
   github.com URLs.
-- **24. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **26. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples (the upstream cap).
-- **25. tests/dockerfiles/**: every image definition has a caller and vice
+- **27. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **26. Image tags**: every plain image tag named in shell or YAML is one of
+- **28. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **27. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
-  its digest — check 26 strips digests before comparing, so it can't see one
+- **29. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
+  its digest — check 28 strips digests before comparing, so it can't see one
   tag pinned two ways.
-- **28. The eval roster**: every `eval` in the payload and `scripts/` has a
+- **30. The eval roster**: every `eval` in the payload and `scripts/` has a
   row in `tests/lint/eval_roster` saying what it evaluates, and every file's
   count of its kin (a `source` of a path in a variable, a shell's `-c`, a
   recursive `rm`) matches its row; a row nothing matches fails too, so the
@@ -615,15 +624,17 @@ checking that something written down elsewhere still agrees with the tree:
 
 ## Test levers
 
-Five environment variables the tree reads that are not settings: they exist so
+Six environment variables the tree reads that are not settings: they exist so
 a suite, the bench, or a demo can pin what a real run derives.
 `_HI_TARGETS_TTL` (seconds `targets.sh` reuses its list; `0` sweeps every
 call), `_HI_PROBE_TIMEOUT` (seconds one backend CLI gets), `_HI_PAYLOAD_CACHE`
 (`0` builds the payload and overlay archives fresh), `_HI_CTL_PERSIST`
 (seconds a shared ssh control socket lingers; `0` gives a connect a private
-one, closed after) and `_HI_HEADER_VERSION` (the header's version cell,
+one, closed after), `_HI_HEADER_VERSION` (the header's version cell,
 otherwise the release stamp or `git describe` — what
-`docs/tapes/generate.sh --version` sets). Their defaults are the shipped
+`docs/tapes/generate.sh --version` sets) and `_HI_WATCH_STEP` (seconds
+between a session tree's watcher's checks on its shell, otherwise 60 —
+`ssh_keep`'s killed and expired cases set 2). Their defaults are the shipped
 behaviour; `hi --configure` writes none of them. `_HI_LOAD_NO_INIT=1` is
 adjacent but not a lever: it makes `load.sh` define its functions without
 running the profile chain, for `scripts/install.sh` to source.

@@ -110,6 +110,23 @@ export _HI_CONTAINER_CLIS="docker podman nerdctl finch"
 # which cannot, spell the three again. GLOSSARY: HI.65
 _HI_MUXES="tmux zellij screen"
 
+# Every default of a setting or test lever that is not 0 or unset, read as
+# ${_HI_X:-$_HI_X_DEFAULT}; drift pins each a scripts/settings row has to the
+# row's <default>. common/targets.sh and common/config.fish, which cannot
+# source this file, spell theirs again under the same pin.
+_HI_MAX_WIDTH_DEFAULT=80
+_HI_IP_HIDE_DEFAULT='172.*'
+_HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
+_HI_PACKAGES_GROUPS_DEFAULT="core useful deprecated"
+# a kept session's wait with nobody attached, and a held tree's for a reconnect
+_HI_KEEP_TIMEOUT_DEFAULT=24h
+_HI_KEEP_HOLD_DEFAULT=15m
+_HI_KEEP_RETRY_DEFAULT=5m
+_HI_PROBE_TIMEOUT_DEFAULT=2
+_HI_TARGETS_TTL_DEFAULT=5
+_HI_CTL_PERSIST_DEFAULT=60
+_HI_WATCH_STEP_DEFAULT=60
+
 # fish's set_color vocabulary; no greys, since fish has none
 _HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan
   orange pink teal lime violet salmon gold sky indigo mint peach lavender)
@@ -699,11 +716,11 @@ function _hi_probe() {
   if ! command -v timeout >/dev/null 2>&1; then
     function _hi_probe() { "$@"; }
   elif timeout -k 0.2 1 true 2>/dev/null; then
-    function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}" "$@"; }
   elif timeout 1 true 2>/dev/null; then
-    function _hi_probe() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    function _hi_probe() { timeout "${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}" "$@"; }
   elif timeout -t 1 true 2>/dev/null; then
-    function _hi_probe() { timeout -t "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    function _hi_probe() { timeout -t "${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}" "$@"; }
   else
     function _hi_probe() { "$@"; }
   fi

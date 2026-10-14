@@ -326,8 +326,9 @@ More names look like settings and are not:
   it as `1` on a target, no local rc ever does, and it is how the local-only
   toggle tells the two apart. Written into `settings.sh`, it tells every shell
   it is somewhere it is not.
-- Five test levers - `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`,
-  `_HI_PAYLOAD_CACHE`, `_HI_CTL_PERSIST`, and `_HI_HEADER_VERSION` - take
+- Six test levers - `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`,
+  `_HI_PAYLOAD_CACHE`, `_HI_CTL_PERSIST`, `_HI_HEADER_VERSION`, and
+  `_HI_WATCH_STEP` - take
   effect like any row above but exist for the suites, the bench, and the
   demos ([TESTING.md's _Test levers_](TESTING.md#test-levers)). They are not
   part of the 1.x contract and may change in a minor.

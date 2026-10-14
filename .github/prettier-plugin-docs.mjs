@@ -66,7 +66,8 @@ function writeContents(text) {
 
 // The table under `## Every setting` whose header starts `| variable`, one
 // line a row of scripts/settings: <section> | <name> | <default> | ... |
-// <what it does>, its section giving the "set by" cell.
+// <what it does>, its section giving the "set by" cell. <what it does> is
+// the eleventh column and the last.
 function writeSettings(text) {
   const lines = text.split("\n");
   const at = lines.indexOf("## Every setting");
@@ -93,7 +94,7 @@ function writeSettings(text) {
     .map((l) => {
       const c = l.split(" | ");
       const by = setBy[c[0]] ?? "`hi --configure`";
-      return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(8).join(" | ")} |`;
+      return `| \`${c[1]}\` | ${c[2]} | ${by} | ${c.slice(10).join(" | ")} |`;
     });
   let end = start;
   while (end < lines.length && lines[end].startsWith("|")) end++;

@@ -380,14 +380,14 @@ function test_config_flags_a_scheme_nothing_renders() {
     _HI_COLOR_SCHEME=solarized
     doctor_config
   )"
-  [[ "$out" == *"color-scheme"*"'solarized' is ignored"* ]] || _hi_why out || return 1
+  [[ "$out" == *"_HI_COLOR_SCHEME"*"'solarized' is ignored"* ]] || _hi_why out || return 1
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_COLOR_SCHEME="$_HI_TEST_L24"
     doctor_config
   )"
-  [[ "$out" != *"color-scheme"* ]] || _hi_why out
+  [[ "$out" != *"is ignored - not 24 or 48 six-digit hex words"* ]] || _hi_why out
 }
 
 # ...and the same for a ramp nothing paints: both are hand-written into
@@ -403,14 +403,14 @@ function test_config_flags_a_ramp_nothing_paints() {
     _HI_PACKAGES_PALETTE=mono
     doctor_config
   )"
-  [[ "$out" == *"pkg-palette"*"'mono' is ignored"* ]] || _hi_why out || return 1
+  [[ "$out" == *"_HI_PACKAGES_PALETTE"*"'mono' is ignored"* ]] || _hi_why out || return 1
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP"
     doctor_config
   )"
-  [[ "$out" != *"pkg-palette"* ]] || _hi_why out
+  [[ "$out" != *"is ignored - not eight color names"* ]] || _hi_why out
 }
 
 # extensions/ (HI.59): the load order in one row, a warn for an extension a

@@ -266,7 +266,10 @@ function _hi_cov_trace_one() {
   # report, and --mute would hand it SimpleCov's lines instead
   # BASH_ENV: the suite's bash makes the trace pipe blocking before its first
   # line (tests/lib/coverage_env.sh), or lines are dropped at random
-  BASH_ENV="$_HI_COV_ROOT/tests/lib/coverage_env.sh" _HI_COV_NAME="$1" bashcov --root "$_HI_COV_ROOT" \
+  # _HI_PAR_WIDTH=1: the blocking pipe makes bashcov's reader the bottleneck,
+  # so parallel cases gain nothing and their timers run long; one at a time,
+  # a container suite's waits add up instead (a few minutes a sweep)
+  _HI_PAR_WIDTH=1 BASH_ENV="$_HI_COV_ROOT/tests/lib/coverage_env.sh" _HI_COV_NAME="$1" bashcov --root "$_HI_COV_ROOT" \
     --command-name "$1" -- "$2" || rc=$?
   [ ! -f "$_HI_COV_DIR/.resultset.json" ] || _hi_cov_v2_credit "$1" || rc=1
   # the kept work directories, each in the shape _hi_workdir's mktemp gave it
