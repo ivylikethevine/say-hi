@@ -10,7 +10,7 @@ none of them, and what hi put there is removed when it ends. Nothing is
 installed on the host. The same command opens a session in a container, a
 Nomad allocation, or a Kubernetes pod.
 
-![Payload](https://img.shields.io/badge/ssh_payload-77KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
