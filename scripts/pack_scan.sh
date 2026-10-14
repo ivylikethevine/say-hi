@@ -76,7 +76,10 @@
 # start with the next end of its word, so an allow pair inside a quiet one
 # keeps its lines. A line under `hi-carry`, or inside its pair, is neither: it
 # is a `carry` row in either mode, never dropped, and the stager rides the
-# files it names (_hi_marked_carry). A start with no end below it, or with a second start of
+# files it names (_hi_marked_carry). A line under `hi-drop`, or inside its
+# pair, is disabled whatever it says and never reported - a setting some
+# target's version of the tool rejects - unless an allow or a carry spares it;
+# a dialect with no comment has no marker to hold. A start with no end below it, or with a second start of
 # its word before one, decides nothing and is an `unclosed` row; an end with
 # no start is ignored. Whether a start is closed is known only at the end of
 # the file, so FNR == 1 reads the file through once with getline before the
@@ -109,7 +112,7 @@ function _hi_lint_awk() {
   cat <<'AWK'
 function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
 function mark(s) {
-  if (!match(s, /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-(allow|quiet|carry)(-start|-end)?/)) return ""
+  if (!match(s, /^[ \t]*(#|"|--|;|\/\/)+[ \t]*hi-(allow|quiet|carry|drop)(-start|-end)?/)) return ""
   s = substr(s, RSTART, RLENGTH); sub(/.*hi-/, "", s)
   return s
 }
@@ -173,7 +176,7 @@ function kindof(s,   t) {
   return "include"
 }
 FNR == 1 {
-  close(out); out = FILENAME ".lint"; depth = allow_l = quiet = n = vcont = 0; sect = ""
+  close(out); out = FILENAME ".lint"; depth = allow_l = quiet = drop_l = n = vcont = 0; sect = ""
   split("", blk); split("", bad); split("", from)
   while ((getline l < FILENAME) > 0) {
     n++; w = k = mark(l); sub(/-.*/, "", k)
@@ -194,17 +197,22 @@ depth > 0 {
   depth = (stmt == "\\" || stmt == "[]") ? ($0 ~ /\\$/) : depth + bal($0)
   if (depth < 0) depth = 0
   if (mode == "fix") print lead " hi dropped: " $0 > out
-  allow_l = quiet = carry_l = 0
+  allow_l = quiet = carry_l = drop_l = 0
   next
 }
 {
   w = mark($0)
-  carry = (carry_l || (("carry", FNR) in blk)) && w == "" && $0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))
+  code = w == "" && $0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))
+  carry = (carry_l || (("carry", FNR) in blk)) && code
   spare = carry || allow_l || (("allow", FNR) in blk)
   kind = (spare && stmt != "[]") ? "" : kindof($0)
   if (spare && kind != "") { if (kind == "private") printf "%s|%d|allowed|%s\n", name, FNR, trim($0); kind = "" }
   hush = quiet || (("quiet", FNR) in blk)
-  allow_l = (w == "allow"); quiet = (w == "quiet"); carry_l = (w == "carry")
+  if ((drop_l || (("drop", FNR) in blk)) && code && !spare && lead != "-") {
+    hush = 1
+    if (kind == "") { kind = "drop"; match($0, /^[ \t]*/); fixed = substr($0, 1, RLENGTH) noop }
+  }
+  allow_l = (w == "allow"); quiet = (w == "quiet"); carry_l = (w == "carry"); drop_l = (w == "drop")
   if (carry) printf "%s|%d|carry|%s\n", name, FNR, trim($0)
   if (kind == "") { vcont = ($0 ~ /\\$/); if (mode == "fix") print > out; if ($0 ~ /[^ \t]/ && !(lead != "-" && $0 ~ ("^[ \t]*" lead))) prev = $0; next }
   if (!hush) printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)

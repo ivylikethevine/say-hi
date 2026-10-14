@@ -365,6 +365,61 @@ function test_plugins_lists_the_hooks() {
   [[ "$out" == *"zoxide"*"zoxide init {shell} - "* ]] || _hi_because "the tree's: $out"
 }
 
+# ...and a hook whose init draws the prompt says so
+function test_plugins_says_a_hook_draws_the_prompt() {
+  local cfg out stubs
+  cfg="$(_hi_plugins_cfg prompthook)"
+  mkdir -p "$cfg"
+  printf '[mine.hi-hook-prompt]\ninit = "hi-hook-prompt init {shell}"\nprompt = "yes"\n' >"$cfg/plugins"
+  stubs="$(_hi_stub_tools hi-hook-prompt)"
+  out="$(_hi_strip_ansi "$(PATH="$stubs:$PATH" _hi_plugins_run "$cfg" --plugins)")" || _hi_why stubs cfg || return 1
+  [[ "$out" == *"hi-hook-prompt init {shell} - runs on a target that has it, and draws the prompt"* ]] || _hi_because "listed: $out"
+}
+
+# _hi_plugins_row_has <report> <label> <text> - one row holds both, in either
+# cell: rows sharing a text fold into one, the text as its label
+function _hi_plugins_row_has() {
+  grep -F -- "$2" <<<"$1" | grep -qF -- "$3"
+}
+
+# the variables section: a row a variable an `env` names, saying whether a
+# target gets its value - unset here, its plugin off (by the list, or by
+# default), a value no line can hold, or riding
+function test_plugins_lists_the_variables() {
+  local cfg out
+  cfg="$(_hi_plugins_cfg vars)"
+  mkdir -p "$cfg"
+  {
+    printf '[mine.hi-env-on]\ntool = "-"\nenv = "HI_ENVT_SET HI_ENVT_UNSET HI_ENVT_QUOTED"\n'
+    printf '[mine.hi-env-listed]\ntool = "-"\nenv = "HI_ENVT_LISTED"\n'
+  } >"$cfg/plugins"
+  printf '#!/bin/sh\nexport _HI_PLUGINS_OFF="hi-env-listed"\n' >"$cfg/settings.sh"
+  out="$(_hi_strip_ansi "$(HI_ENVT_SET=1 HI_ENVT_QUOTED="it's" HI_ENVT_LISTED=1 LESS=-R _hi_plugins_run "$cfg" --plugins)")" ||
+    _hi_why cfg || return 1
+  [[ "$out" == *" variables "* ]] || _hi_because "no section: $out" || return 1
+  _hi_plugins_row_has "$out" "HI_ENVT_SET (hi-env-on)" "its value here is exported on a target" || _hi_because "set: $out" || return 1
+  _hi_plugins_row_has "$out" "HI_ENVT_UNSET (hi-env-on)" "not set here, so not sent" || _hi_because "unset: $out" || return 1
+  _hi_plugins_row_has "$out" "HI_ENVT_QUOTED (hi-env-on)" "its value holds a quote, a backslash, or a line break - not sent" ||
+    _hi_because "quoted: $out" || return 1
+  _hi_plugins_row_has "$out" "HI_ENVT_LISTED (hi-env-listed)" "switched off (_HI_PLUGINS_OFF)" || _hi_because "listed: $out" || return 1
+  _hi_plugins_row_has "$out" "LESS (env)" "off by default (hi --plugin-on env)" || _hi_because "default off: $out"
+}
+
+# the allowed section: a private line of git's config that rides under a
+# hi-allow is named, by its member and line
+function test_plugins_lists_what_rides_under_a_hi_allow() {
+  local cfg out
+  cfg="$(_hi_plugins_cfg allowed)"
+  mkdir -p "$cfg/git"
+  printf '[core]\n# hi-allow\nsshCommand = ssh -o Compression=yes\n' >"$cfg/git/config"
+  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || _hi_why cfg || return 1
+  [[ "$out" != *" allowed "* ]] || _hi_because "git is off, and its line was listed: $out" || return 1
+  printf '#!/bin/sh\nexport _HI_PLUGINS_ON="git"\n' >"$cfg/settings.sh"
+  out="$(_hi_strip_ansi "$(_hi_plugins_run "$cfg" --plugins)")" || _hi_why cfg || return 1
+  [[ "$out" == *" allowed "*"git/config:3"*"rides under its hi-allow: sshCommand = ssh -o Compression=yes"* ]] ||
+    _hi_because "listed: $out"
+}
+
 # a row of the tree's own config/plugins that hi turns down is named under
 # the tree, not the overlay
 function test_plugins_names_a_bad_tree_row_under_the_tree() {
@@ -410,6 +465,9 @@ function run_plugins_tests() {
   _hi_h2 "Testing: --plugins"
   _hi_check "Lists what rides and what is off" test_plugins_lists_what_rides_and_what_is_off
   _hi_check "...and the hooks, with whether a target gets each" test_plugins_lists_the_hooks
+  _hi_check "...a hook that draws the prompt says so" test_plugins_says_a_hook_draws_the_prompt
+  _hi_check "...and the variables, with whether a target gets each" test_plugins_lists_the_variables
+  _hi_check "...and a private line riding under a hi-allow" test_plugins_lists_what_rides_under_a_hi_allow
   _hi_check "...and names a bad row of the tree's under the tree" test_plugins_names_a_bad_tree_row_under_the_tree
 
   _hi_suite_end "scripts/plugins.sh"

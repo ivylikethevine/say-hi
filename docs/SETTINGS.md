@@ -868,6 +868,19 @@ ignore file, a cheatsheet a key opens:
 --ignore-file=/home/you/.config/fd/ignore
 ```
 
+A fourth is for a line that is no include at all, but that not every target
+can read - a setting a newer version of the tool added, in a config with no
+conditional:
+
+- `hi-drop` drops the line on the way out, whatever it says, with no row in
+  `hi --doctor`. Your own copy keeps it. `hi-drop-start` and `hi-drop-end`
+  take a block, and a `hi-allow` line inside one keeps its line.
+
+```sh
+# hi-drop
+set colonparsing
+```
+
 There is no switch that sends them all.
 [HI.57](GLOSSARY.md#hi57-carried-configs-and-the-include-scan) is the whole
 mechanism, including what it cannot see.

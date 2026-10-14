@@ -597,6 +597,46 @@ source ~/.vim/other.vim
   }
 }
 
+# `hi-drop` is for a line that is no finding: a setting an older nano on some
+# target rejects goes like one, with no row, alone or in a pair, and an
+# allowed line inside the pair still rides
+function test_hi_drop_drops_a_line_that_is_no_finding() {
+  local dir out
+  dir="$(_hi_lint_fixture drop-mark nano/nanorc 'set tabsize 4
+# hi-drop
+set colonparsing
+set mouse
+# hi-drop-start
+set minibar
+# hi-allow
+include ~/kept.nanorc
+# hi-drop-end
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat nano/nanorc)"
+  [ "$out" = 'set tabsize 4
+set mouse
+include ~/kept.nanorc' ] &&
+    [ -z "$(_HI_CONFIG_DIR="$dir" _hi_include_lint)" ] || {
+    _hi_cecho " | nano/nanorc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# ...and in a shell file the line becomes the no-op, so a body it was alone in
+# still parses
+function test_hi_drop_leaves_a_shell_body_its_no_op() {
+  local dir out
+  dir="$(_hi_lint_fixture drop-sh bashrc 'if true; then
+  # hi-drop
+  shopt -s globstar
+fi
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat bashrc)"
+  [ "$out" = 'if true; then
+:
+fi' ] || _hi_why out
+}
+
 # `hi-quiet-start` to `hi-quiet-end` is `hi-quiet` over every line between
 # them, so a guarded block of plugin lines takes one pair
 function test_a_quiet_block_drops_its_lines_without_a_row() {
@@ -993,6 +1033,8 @@ function run_hi_payload_scan_tests() {
   _hi_check "...a framework's tree passes only its own theme" test_a_framework_tree_passes_only_its_own_theme
   _hi_check "hi-allow keeps the next line" test_hi_allow_keeps_the_next_line
   _hi_check "hi-quiet drops the next line without a row" test_hi_quiet_drops_the_next_line_without_a_row
+  _hi_check "hi-drop drops a line that is no finding" test_hi_drop_drops_a_line_that_is_no_finding
+  _hi_check "...and leaves a shell body its no-op" test_hi_drop_leaves_a_shell_body_its_no_op
   _hi_check "A hi-quiet pair drops its block without a row" test_a_quiet_block_drops_its_lines_without_a_row
   _hi_check "A hi-allow pair keeps its block" test_an_allow_block_keeps_its_lines
   _hi_check "...in every dialect's comment syntax" test_a_block_is_read_in_every_dialect
