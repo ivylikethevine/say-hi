@@ -17,6 +17,11 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # every batch here is plain local processes, no container daemon to spare
 _HI_PAR_LOCAL=1
+# The header preview's backend probe (_hi_backend_probe) runs whatever
+# container CLI the host has: on a CI runner, a rootless podman starting on
+# every case, a pause process left behind each time, and a pty suite past
+# 20 minutes under a tracer. No case here is about a backend.
+export _HI_BACKENDS_OFF=all
 
 set -- # install.sh reads "$@" for its own args; make sure it sees none
 # shellcheck source=../../scripts/install.sh

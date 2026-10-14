@@ -129,6 +129,18 @@ function test_install_copies_no_default_into_the_overlay() {
   [ ! -d "$ovl/.git" ] || _hi_why ovl
 }
 
+# --print-rc installs with no rc file written, and its closing line says the
+# install waits on the printed lines
+function test_install_print_rc_writes_no_rc() {
+  local home="$_HI_WORKDIR/print-rc" out rc=0 f
+  out="$(_hi_run_install_here print-rc --link none --yes --print-rc 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Installed, once those lines are in your rc files"* && "$out" != *"Installed!"* ]] ||
+    _hi_why rc out || return 1
+  for f in .bashrc .zshrc .config/fish/config.fish; do
+    ! grep -qs '_HI_HOME=' "$home/$f" || _hi_because "--print-rc wrote $f: $(cat "$home/$f")" || return 1
+  done
+}
+
 # --uninstall against a home that never installed: every half reports clean
 # and the run still closes with its banner - the safe-to-re-run contract
 function test_uninstall_mode_is_safe_on_a_fresh_home() {
@@ -670,6 +682,7 @@ function run_install_run_tests() {
   _hi_check "--link system reaches for /usr/bin/hi" test_system_link_flag_targets_usr_bin
   _hi_check "The banner names the version" test_install_reports_the_version
   _hi_check "A full install copies no default in" test_install_copies_no_default_into_the_overlay
+  _hi_check "--print-rc installs and writes no rc file" test_install_print_rc_writes_no_rc
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--uninstall --purge removes the overlay, dry-run keeps it" test_uninstall_purge_removes_the_overlay
   _hi_check_capable lockout "...and says when it cannot" test_uninstall_purge_says_when_it_cannot_remove

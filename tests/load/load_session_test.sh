@@ -491,6 +491,18 @@ function test_keep_holds_only_where_a_drop_can_be_held() {
   [ "$got" = "1 0" ] || _hi_because "a tree that is not disposable: $got"
 }
 
+# a tree whose client switched the kept session off came without keep.sh,
+# and load.sh's stand-ins hold nothing
+function test_a_tree_without_keep_sh_never_holds() {
+  local home out
+  home="$(_hi_scratch_tree nokeep common config link:load.sh)"
+  rm -f "$home/say-hi/common/keep.sh"
+  out="$(_HI_HOME="$home" _HI_ROOT="$home/say-hi" HOME="$_HI_WORKDIR/nokeep" bash -c \
+    'source "$1/load.sh"; _hi_keep_limit=5; _hi_keep_holds; printf "%s %s|" "$?" "$_hi_keep_limit"; _hi_keep_stays; printf "%s|" "$?"; declare -F _hi_keep_held' \
+    _ "$home/say-hi" 2>&1)"
+  [ "$out" = "1 0|1|" ] || _hi_why out
+}
+
 # zellij's client list, read: only a header with nothing under it is nobody.
 # One that is still starting answers with nothing, and one too old to list
 # clients refuses - neither may read as a session to close.
@@ -776,6 +788,7 @@ function run_load_session_tests() {
   _hi_check "...and is off without a session, or at a timeout of 0" test_keep_watch_is_off_outside_a_kept_session
   _hi_check_capable pty "The owner pane's exit asks first" test_keep_stays_asks_before_the_owner_pane_closes
   _hi_check_capable pty "A session holds its tree only where a drop can be held" test_keep_holds_only_where_a_drop_can_be_held
+  _hi_check "...and a tree that came without keep.sh holds nothing" test_a_tree_without_keep_sh_never_holds
   _hi_check_capable pty "...and under zellij an n names the key that detaches" test_keep_stays_names_zellij_s_detach_key
   _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
   _hi_check "hi.keep lists what an owner pane needs, a line each" test_keep_file_lists_what_an_owner_pane_needs

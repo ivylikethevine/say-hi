@@ -172,6 +172,10 @@ function _hi_cov_missed() {
     }' "$xml"
 }
 
+# the marker pair around an arm neither tool can record (tests/coverage_v2.sh
+# drops the same region), for every kcov run and merge below
+_HI_COV_NOCOV=hi-nocov-begin:hi-nocov-end
+
 # --merge <dest> <parts-dir> - coverage.yml's gather-kcov mode: merge every
 # shard's uploaded parts (one subdirectory per suite, flattened into
 # <parts-dir> by download-artifact's merge-multiple - disjoint by
@@ -197,7 +201,9 @@ if [ "${1:-}" = --merge ]; then
     echo "::warning::no kcov shard parts were downloaded - nothing to merge"
     exit 0
   fi
-  kcov --merge "$_hi_cov_merge_dest/merged" "${_hi_cov_merge_dirs[@]}"
+  # the regions again: the merge re-reads every source and counts a marked
+  # line the shards left out
+  kcov --merge --exclude-region="$_HI_COV_NOCOV" "$_hi_cov_merge_dest/merged" "${_hi_cov_merge_dirs[@]}"
   # the same ranking a local sweep prints, since CI's gather job merges here
   _hi_cov_merge_json="$(find "$_hi_cov_merge_dest/merged" -name coverage.json | head -1)"
   [ -z "$_hi_cov_merge_json" ] || _hi_cov_rank "$_hi_cov_merge_json" "$_HI_HOME/say-hi/"
@@ -257,10 +263,7 @@ _hi_cov_counts_files cov
 _HI_COV_METHOD=PS4
 _hi_v="$(bash -c 'printf %s "$((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1]))"')"
 [ "${_hi_v:-0}" -lt 503 ] || _HI_COV_METHOD=DEBUG
-# a region between `# hi-nocov-begin` and `# hi-nocov-end` is an arm neither
-# tool can record here (a zsh-only one, an old bash's); coverage_v2.sh drops it
-# the same way
-_HI_COV_KCOV=(--bash-method="$_HI_COV_METHOD" --exclude-region=hi-nocov-begin:hi-nocov-end
+_HI_COV_KCOV=(--bash-method="$_HI_COV_METHOD" --exclude-region="$_HI_COV_NOCOV"
   --include-path="$_HI_HOME/say-hi" --include-pattern=.sh
   --exclude-path="$(_hi_cov_not_subject_paths)")
 _HI_COV_PARSE="$(_hi_cov_subject_dirs)"
@@ -270,7 +273,7 @@ function _hi_cov_trace_one() {
 }
 _hi_cov_trace_all _hi_cov_trace_one || exit 1
 
-kcov --merge "$_HI_COV_DIR/merged" "$_HI_COV_DIR"/parts/* >/dev/null 2>&1
+kcov --merge --exclude-region="$_HI_COV_NOCOV" "$_HI_COV_DIR/merged" "$_HI_COV_DIR"/parts/* >/dev/null 2>&1
 
 _hi_cecho " | coverage: report in $_HI_COV_DIR/merged/index.html" "$GREEN"
 

@@ -397,6 +397,14 @@ function test_menu_advanced_rows() {
     [[ "$lines" == *"export _HI_DISABLE_LEAD_SPACE=1"* && "$lines" == *"export _HI_TRUECOLOR=1"* ]] || _hi_why lines
 }
 
+# the hub's y key opens the same truecolor question its row does
+function test_menu_y_key_asks_truecolor() {
+  _hi_cfg_pty y_key 'y\noff\ns\n' '' config_hub || _hi_why || return 1
+  local lines
+  lines="$(_hi_cfg_lines y_key)"
+  [[ "$lines" == *"export _HI_TRUECOLOR=0"* ]] || _hi_why lines
+}
+
 # Enter at the preset question keeps the current settings: nothing seeded,
 # and the run carries on rather than failing
 function test_preset_question_enter_keeps_current() {
@@ -675,6 +683,7 @@ function run_configure_pty_tests() {
   _hi_par_check_capable pty "Menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Menu: a quoted separator is refused" test_menu_refuses_a_quoted_separator
   _hi_par_check_capable pty "Menu: the advanced rows" test_menu_advanced_rows
+  _hi_par_check_capable pty "Menu: the y key asks the truecolor question" test_menu_y_key_asks_truecolor
   _hi_par_check_capable pty "Full run: preset, then save" test_full_run_preset_then_save
   _hi_par_check_capable pty "Full run: preset, then quit writes nothing" test_full_run_quit_writes_nothing
   _hi_par_check_capable pty "Menu: EOF saves" test_menu_eof_saves
