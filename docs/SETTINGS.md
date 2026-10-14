@@ -134,7 +134,7 @@ step: it rides only from here, never found at home
 | --------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/.config/say-hi/settings.sh`          | -                 | what `hi --configure` writes; no in-tree counterpart                                                                                                                                                           |
 | `~/.config/say-hi/settings.<tag>.sh`    | -                 | settings for the hosts carrying that `# Tags:` value, over `settings.sh`; read here and sent joined to it, never as itself; see [below](#settings-by-host-tag)                                                 |
-| `~/.config/say-hi/colors`               | `config/colors`   | your color pins; `hi --set-color` copies the tree's in before its first write ([COLORS.md](COLORS.md))                                                                                                         |
+| `~/.config/say-hi/colors`               | `config/colors`   | your color pins; `hi --add-color` copies the tree's in before its first write ([COLORS.md](COLORS.md))                                                                                                         |
 | `~/.config/say-hi/packages`             | `config/packages` | what the package check looks for; `hi --add-package` copies the tree's in before its first write ([COLORS.md](COLORS.md#the-package-checks-rows))                                                              |
 | `~/.config/say-hi/vim/vimrc`            | -                 | your vim config for the `vim` alias and `$VIMINIT`; only needed when it should differ from your `~/.vimrc`, which hi carries anyway ([below](#the-editor-rcs-come-from-where-you-keep-them))                   |
 | `~/.config/say-hi/nvim/init.lua`        | -                 | the same for neovim - the `nvim` alias - over your `~/.config/nvim/init.lua`; an `nvim/init.vim` is read the same way, and the modules either requires from the `lua/` beside it ride too                      |
@@ -179,7 +179,7 @@ cp "$_HI_ROOT/config/colors" ~/.config/say-hi/colors
 ```
 
 `hi --add-package core bat,batcat` does that copy for the package check, then
-adds the row; `hi --set-color hostname bastion yellow` does it for `colors`,
+adds the row; `hi --add-color hostname bastion yellow` does it for `colors`,
 then adds the pin.
 
 A copy stops tracking what `hi --update` delivers for that file; delete it to
@@ -270,8 +270,8 @@ takes an answer by.
 | `_HI_PROMPT_END_FISH`       | `\|`                                                                              | `hi --configure`          | fish's prompt separator; unset, root gets `#` in its place, and a value you set is used for root too                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `_HI_DISABLE_LEAD_SPACE`    | `0`                                                                               | `hi --configure` advanced | `1` drops the leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_DISABLE_RIGHT_EDGE`    | `0`                                                                               | `hi --configure` advanced | `1` drops the closing \| from every header row and the greeting line, so each ends at its last cell instead of at the banner's column                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `_HI_PLUGINS_ON`            | unset                                                                             | `hi --configure`          | the plugins that are off by default (`default = "off"` in their table: the shipped `hooks`, whose tools keep state on a target, and `env`, whose variables are this machine's) and should ride and run anyway, a space or a comma apart; `hi --plugin-on` and `hi --plugin-off` write it ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `_HI_PLUGINS_OFF`           | unset                                                                             | `hi --configure`          | the plugins or members that stay home, a space or a comma apart; `hi --plugin-off` and `hi --plugin-on` write it too ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `_HI_PLUGINS_ON`            | unset                                                                             | `hi --configure`          | the plugins that are off by default (`default = "off"` in their table: the shipped `hooks`, whose tools keep state on a target, and `env`, whose variables are this machine's) and should ride and run anyway, a space or a comma apart; `hi --enable-plugin` and `hi --disable-plugin` write it ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `_HI_PLUGINS_OFF`           | unset                                                                             | `hi --configure`          | the plugins or members that stay home, a space or a comma apart; `hi --disable-plugin` and `hi --enable-plugin` write it too ([Switching a plugin off](#switching-a-plugin-off))                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `_HI_KEEP`                  | `0`                                                                               | `hi --configure` advanced | `1` makes every ssh connect a `--keep` one: the session runs in tmux, zellij, or screen on the target and outlives the connection, and on a target with none of the three its directory does ([Integrations](INTEGRATIONS.md#terminal-multiplexers)); `--no-keep` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `_HI_UPDATE_SIGNED`         | `0`                                                                               | you                       | `1` has `hi --update` refuse a release tag unless its signature verifies against a key the checkout already trusts (`.github/allowed_signers`, or your gpg keyring); unset, only a signature that fails to verify refuses, and an unsigned tag or an unknown key is said and allowed ([Security](SECURITY.md#what-hi-does---and-deliberately-doesnt))                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_PLAIN`                 | `0`                                                                               | `hi --configure`          | `1` makes every connect a `--plain` one, a bare shell with nothing sent; `--no-plain` overrides it for one connect. The wizard's targets switch writes it for every target; in a tag's file, `settings.<tag>.sh`, it holds for the hosts carrying that tag ([Settings by host tag](#settings-by-host-tag))                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -589,7 +589,7 @@ command there by its name: the directory is the last entry of a session's
 `hi <target> <name>` runs one too. Scripts alone ride, as written: a file
 that is not executable, has no `#!` line, holds a NUL, or runs past 16384
 characters stays home, and `hi --doctor` names each with the reason. The
-directory is a plugin, `bin`, so `hi --plugin-off bin` keeps it home
+directory is a plugin, `bin`, so `hi --disable-plugin bin` keeps it home
 ([HI.58](GLOSSARY.md#hi58-overlay-directory-members)).
 
 ### Switching a plugin off
@@ -608,10 +608,10 @@ where the file is found, and whether it is sent or why not:
 +---+------------------------------+--------------------------------+
 ```
 
-`hi --plugin-off lazygit` keeps it home, and `hi --plugin-on lazygit` lets
+`hi --disable-plugin lazygit` keeps it home, and `hi --enable-plugin lazygit` lets
 it ride again. A plugin that is off by default (`default = "off"` in its table:
 the shipped `hooks`) moves the other way, through `_HI_PLUGINS_ON`:
-`hi --plugin-on zoxide` adds it there and `hi --plugin-off zoxide` takes it
+`hi --enable-plugin zoxide` adds it there and `hi --disable-plugin zoxide` takes it
 out, as its box in the wizard does. A name is a plugin, a member (`bat/config`), or one file of a
 member that is a directory (`extensions/10-kube`). What is off sends no file, an overlay
 copy included, and sets nothing on a target, so the tool there keeps the
@@ -632,7 +632,7 @@ A plugin with an `init` runs its tool's shell hook on a target: zoxide's,
 atuin's, direnv's and mise's are shipped under the `hooks` group, off by
 default because each keeps state under a target's `$HOME` (zoxide's database,
 atuin's history and its sync, direnv's allow list, mise's shims).
-`hi --plugin-on zoxide` turns one on, and
+`hi --enable-plugin zoxide` turns one on, and
 `hi --plugins` lists each with whether a target gets it. A hook runs only on a
 target that has the tool, after the aliases and extensions and before the
 prompt; starship's and oh-my-posh's inits are plugins of the same shape with
@@ -660,7 +660,7 @@ sets at home and no target's rc knows. The shipped `env` plugin names the
 pager's and the color variables and is off by default:
 
 ```sh
-hi --plugin-on env
+hi --enable-plugin env
 ```
 
 `hi --plugins` lists each variable with whether it rides. One that is unset
@@ -704,7 +704,7 @@ files = "notes.txt"
 - **group** is the table's first name, the section `hi --plugins` and the
   wizard list the plugin under: one of hi's (`editors`, `mux`, `prompt`,
   `cli`, `shell`, `hooks`) or one of your own.
-- **name** is its second, the plugin: its own word for `hi --plugin-off`, and
+- **name** is its second, the plugin: its own word for `hi --disable-plugin`, and
   what a report calls it. Letters, digits, `_`, and `-`.
 - **files** is the members, a space apart, each the name a file rides under:
   one hi does not use already, a tool's own file under its directory
@@ -756,7 +756,7 @@ files = "notes.txt"
 - **env** is variables, a space apart, whose values here a target exports
   ([above](#variables-that-ride)). A plugin with an env needs no **files**.
 - **default**, `off`, keeps the plugin home, hook and files, until
-  `_HI_PLUGINS_ON` names it: `hi --plugin-on <name>`.
+  `_HI_PLUGINS_ON` names it: `hi --enable-plugin <name>`.
 
 A file whose wire, home, or dialect is not its plugin's has a table of its own
 under it, `[<group>.<name>."<member>"]`, holding the keys that differ; a wire

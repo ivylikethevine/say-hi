@@ -163,8 +163,10 @@ function write_manifests() {
   _hi_cecho " $_HI_FORMULA :)" "$GREEN"
 
   if command -v makepkg >/dev/null 2>&1; then
+    # hi-nocov-begin: Arch's makepkg, which no sweep has
     (cd "$(dirname "$_HI_PKGBUILD")" && makepkg --printsrcinfo >.SRCINFO)
     _hi_cecho " $_HI_SRCINFO :)" "$GREEN"
+    # hi-nocov-end
   else
     rewrite_srcinfo_lines "$b2" "$url"
     _hi_cecho " $_HI_SRCINFO (pkgver/source/b2sums only - rerun makepkg --printsrcinfo on an Arch box if any other PKGBUILD field changed)" "$YELLOW"

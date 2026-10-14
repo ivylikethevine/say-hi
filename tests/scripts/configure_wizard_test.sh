@@ -756,7 +756,7 @@ function test_plugin_flip_edits_the_list_kept_home() {
 }
 
 # a plugin that is off by default moves through $_HI_PLUGINS_ON, as `hi
-# --plugin-on` moves it: switched on it is named there, and switched off it
+# --enable-plugin` moves it: switched on it is named there, and switched off it
 # is taken out
 function test_plugin_flip_moves_a_default_off_plugin_through_the_on_list() {
   local dir out="" kept="" _HI_SETTINGS _HI_MENU_NOTE=""

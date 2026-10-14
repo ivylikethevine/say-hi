@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# `hi --set-color`: pin a color in ~/.config/say-hi/colors, a TOML row under
-# its type's table; `hi --unset-color` (a leading --unset) removes a pin. That file replaces the tree's wholesale
+# `hi --add-color`: pin a color in ~/.config/say-hi/colors, a TOML row under
+# its type's table; `hi --remove-color` (a leading --unset) removes a pin. That file replaces the tree's wholesale
 # (common/paths.sh), so the first write copies the tree's in and edits there.
 # add_package.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
 
@@ -23,7 +23,9 @@ mode="set"
   mode="unset"
   shift
 }
-me="${_HI_ARGV0:-hi --$mode-color}"
+me="hi --add-color"
+[ "$mode" = set ] || me="hi --remove-color"
+me="${_HI_ARGV0:-$me}"
 _HI_ME="$me"
 _HI_DRY_RUN="" args=()
 types="hosttag usertag username hostname"
@@ -62,18 +64,7 @@ wholesale. \`hi --preview colors\` shows the pin in effect.
 EOF
 }
 
-while [ $# -gt 0 ]; do
-  case "$1" in
-  -h | --help)
-    _hi_set_color_help
-    exit 0
-    ;;
-  -n | --dry-run) _HI_DRY_RUN=1 ;;
-  -*) _hi_die "unknown option $1 ($usage)" ;;
-  *) args+=("$1") ;;
-  esac
-  shift
-done
+_hi_args _hi_set_color_help "$usage" "$@"
 
 if [ "$mode" = set ]; then
   [ "${#args[@]}" -eq 3 ] || [ "${#args[@]}" -eq 4 ] || _hi_die "needs a type, a name, and a color ($me --help)"

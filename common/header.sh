@@ -218,8 +218,10 @@ function _hi_cell_clock() {
       printf -v _hi_ck_raw "%(${_HI_HUMAN_CENTRIC_DATE#+})T" -1
     fi
   else
+    # hi-nocov-begin: bash before 4.2 - macOS's 3.2, which no sweep runs
     # shellcheck disable=SC2086 # ${3:+-u} is a flag or nothing, never a word
     _hi_ck_raw="$(exec date ${3:+-u} "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null)" || _hi_ck_raw=""
+    # hi-nocov-end
   fi
   printf -v "$1" '%s' "$2${_hi_ck_raw:-?}"
 }

@@ -65,7 +65,7 @@ and makes no other choice for you. Then, in the order they tend to come up:
   adds one host.
 - `hi --configure` is the settings menu, under a preview of each change.
 - `hi <TAB>` lists the hosts of `~/.ssh/config` and every running container.
-- `hi --add-tag <host> prod` and `hi --set-color hosttag prod red` color the
+- `hi --add-tag <host> prod` and `hi --add-color hosttag prod red` color the
   hosts you should be careful on ([COLORS.md](COLORS.md)).
 - `hi --uninstall` takes it all back out.
 

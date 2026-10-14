@@ -267,7 +267,7 @@ function _hi_tools_client_home() {
 # _hi_carried_client_home <dir> - a client home with a neovim config in three
 # files, an executable script in its overlay's bin/, and a git config holding
 # an alias beside a signing key, the git plugin switched on as
-# `hi --plugin-on git` leaves it; each a marker the carried probe looks for
+# `hi --enable-plugin git` leaves it; each a marker the carried probe looks for
 function _hi_carried_client_home() {
   mkdir -p "$1/.config/nvim/lua" "$1/.config/say-hi/bin"
   printf 'require("hi_one")\nrequire("hi_two")\n' >"$1/.config/nvim/init.lua"
@@ -408,7 +408,7 @@ function _hi_run_framework_case() {
   hookon | hookshells:* | hookfish)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
-    # the line the wizard's box and `hi --plugin-on zoxide` write; a hook
+    # the line the wizard's box and `hi --enable-plugin zoxide` write; a hook
     # rides only with its tool here, and a runner has no zoxide or atuin
     local stubs on=zoxide
     [ "$3" != hookfish ] || on="zoxide atuin"

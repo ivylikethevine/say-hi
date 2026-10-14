@@ -169,6 +169,41 @@ function test_add_tag_round_trips_through_preview_colors() {
   printf '%s\n' "$out" | grep 'web2' | grep -q 'tag:lab' || _hi_why out
 }
 
+# --remove-tag takes the line back out, and nothing else
+function test_remove_tag_takes_the_line_out() {
+  local home before after
+  home="$(_hi_addtag_fixture rmtag)"
+  before="$(wc -l <"$home/.ssh/config")"
+  HOME="$home" _HI_CONFIG_DIR="$home/overlay" _hi_subcmd_run "$home" --remove-tag web1 >/dev/null || _hi_why home || return 1
+  after="$(wc -l <"$home/.ssh/config")"
+  { ! grep -q '^# Tags:' "$home/.ssh/config" && [ "$after" -eq "$((before - 1))" ] &&
+    grep -qx 'Host web1' "$home/.ssh/config"; } || _hi_why before after home
+}
+
+# ...a host with no line writes nothing, and says so - naming the file's own
+# tag where a config.d file's name gives it one
+function test_remove_tag_without_a_line_writes_nothing() {
+  local home out sum now
+  home="$(_hi_addtag_fixture rmtag-none)"
+  sum="$(cksum <"$home/.ssh/config")"
+  out="$(HOME="$home" _HI_CONFIG_DIR="$home/overlay" _hi_subcmd_run "$home" --remove-tag web2)" || _hi_why home || return 1
+  [[ "$out" == *"web2 has no # Tags: line - nothing to write"* ]] || _hi_why out || return 1
+  out="$(HOME="$home" _HI_CONFIG_DIR="$home/overlay" _hi_subcmd_run "$home" --remove-tag inc1)" || _hi_why home || return 1
+  [[ "$out" == *"the file's name tags it 01-inc"* ]] || _hi_why out || return 1
+  now="$(cksum <"$home/.ssh/config")"
+  [ "$now" = "$sum" ] || _hi_why home sum now
+}
+
+# --remove-tag takes a host alone, and its --help is its own
+function test_remove_tag_takes_a_host_alone() {
+  local home out rc=0
+  home="$(_hi_addtag_fixture rmtag-args)"
+  out="$(HOME="$home" _HI_CONFIG_DIR="$home/overlay" _hi_subcmd_run "$home" --remove-tag web1 lab 2>&1)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"needs a host"* ]] || _hi_why rc out || return 1
+  out="$(HOME="$home" _HI_CONFIG_DIR="$home/overlay" _hi_subcmd_run "$home" --remove-tag --help)" || _hi_why home || return 1
+  [[ "$out" == "Usage: hi --remove-tag <host> [--dry-run]"* ]] || _hi_why out
+}
+
 function run_add_tag_tests() {
   _hi_workdir addtag
   _hi_suite_begin
@@ -187,6 +222,10 @@ function run_add_tag_tests() {
   _hi_check "--dry-run writes nothing" test_add_tag_dry_run_writes_nothing
   _hi_check_capable mode_bits "Keeps the config's mode" test_add_tag_keeps_the_config_mode
   _hi_check "Round-trips through hi --preview colors" test_add_tag_round_trips_through_preview_colors
+
+  _hi_check "--remove-tag takes the line back out" test_remove_tag_takes_the_line_out
+  _hi_check "...writes nothing where there is none, and says why" test_remove_tag_without_a_line_writes_nothing
+  _hi_check "...and takes a host alone, with its own --help" test_remove_tag_takes_a_host_alone
 
   _hi_suite_end "scripts/add_tag.sh"
 }

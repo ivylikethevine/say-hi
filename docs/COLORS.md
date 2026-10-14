@@ -44,9 +44,9 @@ ssh-config entry needed — the first matching pattern in the file wins.
 Precedence, highest first: an exact pin, then a hosttag, then a pattern, then
 the hash.
 
-`hi --set-color <type> <name> <color> [rrggbb]` writes a pin, replacing one
+`hi --add-color <type> <name> <color> [rrggbb]` writes a pin, replacing one
 the name already has and creating the section when the file has none;
-`hi --unset-color <type> <name>` removes it. Both refuse a name holding a
+`hi --remove-color <type> <name>` removes it. Both refuse a name holding a
 space, `#`, or a bracket, a color outside the vocabulary below, and a hex that
 is not six digits. The first write copies the tree's file there, since a copy
 of your own replaces the tree's wholesale.

@@ -29,10 +29,11 @@
 --add-package|useful lazygit,tig --dry-run|
 --remove-package|kubectl --dry-run|
 --add-tag|web-dev dev --dry-run|
---set-color|hosttag prod red --dry-run|
---unset-color|username root --dry-run|
---plugins||--plugin-off tmux
---plugin-off|bat --dry-run|
---plugin-on|tmux --dry-run|--plugin-off tmux
+--remove-tag|web-dev --dry-run|
+--add-color|hosttag prod red --dry-run|
+--remove-color|username root --dry-run|
+--plugins||--disable-plugin tmux
+--disable-plugin|bat --dry-run|
+--enable-plugin|tmux --dry-run|--disable-plugin tmux
 --add-plugin|cli lnav lnav/config.json home=~/.config/lnav/config.json --dry-run|
 --remove-plugin|lnav --dry-run|--add-plugin cli lnav lnav/config.json home=~/.config/lnav/config.json

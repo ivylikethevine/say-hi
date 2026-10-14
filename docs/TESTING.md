@@ -297,9 +297,11 @@ over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
 `--command-name`-keyed `.resultset.json` files, safe because shards partition
 the suite table.
 
-- **kcov** runs with `--bash-method=DEBUG`: its default `PS4` method stops
+- **kcov**'s method is the suites' bash's: its default `PS4` method stops
   recording under bash 5.3 once the harness is sourced, which reads whole
-  suites as load-time-only; the script's header keeps the probe to re-run if
+  suites as load-time-only, and `DEBUG` never follows a suite into a child
+  bash, which reads every script run through `hi.sh` as 0. So `PS4` before
+  5.3 and `DEBUG` from it; the script's header keeps the probe to re-run if
   the badges diverge. **`kcov --merge` re-reads the
   sources** at the absolute paths each shard recorded, so a merge with no
   working tree yields `"files": []` and a well-formed `0.00%` badge, not an
@@ -313,9 +315,12 @@ the suite table.
   or inside containers drop out of the trace — so a single file reads a few points off
   either way while the pair brackets the truth. More readings are artifacts, not
   gaps, and `tests/coverage_v2.sh`'s header is their list: a scratch-tree copy,
-  an `eval` inside a `$( )`, a zsh-only arm, the `sh …` case above, and the
+  an `eval` inside a `$( )`, the `sh …` case above, and the
   lines `xtrace` never prints (an empty case arm, a redirect line). Rule those
-  out before writing a test against a number. bashcov's trace pipe is
+  out before writing a test against a number. An arm neither tool can reach
+  here (zsh's, an old bash's, a tool no sweep has) sits between
+  `# hi-nocov-begin: <why>` and `# hi-nocov-end` comments, which both drivers
+  leave out of their figures. bashcov's trace pipe is
   non-blocking, and bash drops a line written while it is full, so
   `tests/lib/coverage_env.sh` makes it blocking ahead of each suite; with
   bashcov's reader the bottleneck, a parallel suite gains nothing, so the

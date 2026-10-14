@@ -1040,7 +1040,7 @@ function _hi_plugin_states() {
 
 # _hi_plugin_flip <plugin> - a plugin of the Plugins pages, sent or kept home,
 # in this run's $_HI_PLUGINS_OFF and $_HI_PLUGINS_ON: the lists `hi
-# --plugin-off` and `--plugin-on` keep too (GLOSSARY: HI.64). One that is off
+# --disable-plugin` and `--enable-plugin` keep too (GLOSSARY: HI.64). One that is off
 # by default moves through the second, as there.
 function _hi_plugin_flip() {
   local kept="" on="" w entry n s d state=1 dflt="" said="stays home" next=""

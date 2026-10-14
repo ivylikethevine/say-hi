@@ -605,7 +605,7 @@ function test_config_flags_an_old_plugin_toggle() {
   )"
   for t in VIM TMUX; do
     case "$out" in
-    *'"label": "_HI_DISABLE_'"$t"'", "text": "is ignored - hi --plugin-off keeps a config home, and hi --configure converts this line", "severity": "bad"'*) ;;
+    *'"label": "_HI_DISABLE_'"$t"'", "text": "is ignored - hi --disable-plugin keeps a config home, and hi --configure converts this line", "severity": "bad"'*) ;;
     *) _hi_because "no row for _HI_DISABLE_$t: $out" || return 1 ;;
     esac
   done

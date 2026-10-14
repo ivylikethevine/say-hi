@@ -28,7 +28,9 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # arm is eval'd
   if [ -z "${_HI_HOME:-}" ]; then
     if [ -n "${ZSH_VERSION:-}" ]; then
+      # hi-nocov-begin: zsh's, which neither tracer reads
       eval '_hi_self=${(%):-%x}'
+      # hi-nocov-end
     else
       _hi_self="${BASH_SOURCE[0]}"
     fi
@@ -649,12 +651,16 @@ function _hi_du_size() {
 # form. Both read gethostname() and the passwd entry, not $HOSTNAME/$USER.
 function _hi_prompt_escape() {
   if [ -n "${ZSH_VERSION:-}" ]; then
+    # hi-nocov-begin: zsh's
     eval "$1=\${(%):-$2}"
+    # hi-nocov-end
   elif ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
     printf -v "$1" '%s' "$2"
     eval "$1=\${$1@P}"
   else
+    # hi-nocov-begin: bash before 4.4 - macOS's 3.2, which no sweep runs
     return 1
+    # hi-nocov-end
   fi
 }
 
@@ -760,7 +766,9 @@ function _hi_unexport() {
   local _hi_n _hi_keep=" ${_HI_CHILD_ENV[*]} "
   local -a _hi_names _hi_drop
   if [ -n "${ZSH_VERSION:-}" ]; then
+    # hi-nocov-begin: zsh's
     eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
+    # hi-nocov-end
   else
     eval '_hi_names=("${!_HI_@}")'
   fi
@@ -839,10 +847,12 @@ function _hi_url_path() {
 # exempt from that scoping. GLOSSARY: HI.14
 function _hi_on_exit() {
   if [ -n "${ZSH_VERSION:-}" ]; then
+    # hi-nocov-begin: zsh's
     _hi_on_exit_n=$((${_hi_on_exit_n:-0} + 1))
     eval "_hi_on_exit_fn_$_hi_on_exit_n() { $1; }"
     autoload -Uz add-zsh-hook
     add-zsh-hook zshexit "_hi_on_exit_fn_$_hi_on_exit_n"
+    # hi-nocov-end
   else
     # shellcheck disable=SC2064 # $1 is the command we want stored, expanded now
     trap "$1" EXIT
@@ -1366,7 +1376,9 @@ function _hi_ssh_pattern_hit() {
     if [ -n "${ZSH_VERSION:-}" ]; then
       # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
       # and cannot parse `${~pat}` (SC2296)
+      # hi-nocov-begin: zsh's
       eval 'case "$name" in ${~pat}) hit=0 ;; esac'
+      # hi-nocov-end
     else
       # shellcheck disable=SC2254 # deliberate: $pat is a glob, not a literal
       case "$name" in $pat) hit=0 ;; esac

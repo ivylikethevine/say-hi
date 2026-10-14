@@ -103,9 +103,9 @@ All **package**, never in the payload.
 | `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag, or fast-forwards `dev`.                                                                                                                                                                                       |
 | `scripts/add_package.sh`          | `hi --add-package` and `--remove-package`: adds rows to a group in `~/.config/say-hi/packages`, or removes them, copying the tree's in first.                                                                                                                     |
 | `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                                                                                                                     |
-| `scripts/set_color.sh`            | `hi --set-color` and `--unset-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                                                                                                          |
+| `scripts/set_color.sh`            | `hi --add-color` and `--remove-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                                                                                                         |
 | `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, `plugins`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                                                                                |
-| `scripts/plugins.sh`              | `hi --plugins`, `--plugin-off`, `--plugin-on`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes tables of `~/.config/say-hi/plugins`.                                                                |
+| `scripts/plugins.sh`              | `hi --plugins`, `--disable-plugin`, `--enable-plugin`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes tables of `~/.config/say-hi/plugins`.                                                        |
 | `scripts/pack.sh`                 | The packer `hi.sh` sources on a client: the overlay table and the plugins rows, the include scan, the comment strip, and the cached tars a connect sends. A session has none, and relays its tree as it stands ([HI.66](GLOSSARY.md#hi66-the-packer-stays-home)). |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                                                                                      |
 | `scripts/table.sh`                | The display the scripts draw through: column padding, the pieces a line is painted from, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                                                   |
@@ -264,7 +264,7 @@ and readline's always; an overlay copy rides either way.
 | `ripgreprc`                      | `$RIPGREP_CONFIG_PATH`; rg reads no file without it                                                                                                                                                                                                              |
 | `fzfrc`                          | `$FZF_DEFAULT_OPTS_FILE`; fzf reads no file without it                                                                                                                                                                                                           |
 | `lazygit/config.yml`             | `$LG_CONFIG_FILE`, `$XDG_CONFIG_HOME/lazygit/config.yml`, `~/Library/Application Support/lazygit/config.yml`                                                                                                                                                     |
-| `git/config`                     | `$GIT_CONFIG_GLOBAL`, else `~/.gitconfig`; `$XDG_CONFIG_HOME/git/config`; only with `hi --plugin-on git`, and less what is private ([INTEGRATIONS.md](INTEGRATIONS.md#git))                                                                                      |
+| `git/config`                     | `$GIT_CONFIG_GLOBAL`, else `~/.gitconfig`; `$XDG_CONFIG_HOME/git/config`; only with `hi --enable-plugin git`, and less what is private ([INTEGRATIONS.md](INTEGRATIONS.md#git))                                                                                  |
 | `inputrc`                        | `${INPUTRC:-~/.inputrc}`                                                                                                                                                                                                                                         |
 | `ssh_tags`                       | the `# Tags:` lines of `~/.ssh/config` and its Includes, each with the `Host` or `Match host` line under it and nothing else                                                                                                                                     |
 
@@ -302,7 +302,7 @@ reads none of their config files.
 | `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                                                                                                                                                                   |
 | `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                                                                                                                                                                 |
 | `$_HI_CONFIG_DIR/plugins`                                                             | the tables `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                                                                                                                                                              |
-| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --plugin-off` keeps                                                                                                                                                                                  |
+| `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --disable-plugin` keeps                                                                                                                                                                              |
 | `~/.local/bin/hi` (`--link user`), `/usr/bin/hi` (`--link system`)                    | a symlink to `hi.sh`; `$_HI_LINK`; a link that is not hi's, or a package's, is left alone                                                                                                                                                                                           |
 | the checkout                                                                          | `hi --update` fetches tags and checks one out; refused on a dirty tree                                                                                                                                                                                                              |
 | uninstall                                                                             | removes the tagged lines (and an rc hi created that is now empty), `settings.sh`, and hi's links; `--purge` also removes `$_HI_CONFIG_DIR`                                                                                                                                          |
@@ -331,20 +331,20 @@ change.
 
 All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 
-| Pattern                                                       | Made by                                                                      |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `hi.log.XXXXXX`                                               | every `hi` run                                                               |
-| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes)                 |
-| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off                  |
-| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)                         |
-| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                                         |
-| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                |
-| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                               |
-| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                                    |
-| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                               |
-| `hi.colors.XXXXXX`                                            | `hi --set-color`, `hi --unset-color`                                         |
-| `hi.plugins.XXXXXX`                                           | `hi --plugin-off`, `hi --plugin-on`, `hi --add-plugin`, `hi --remove-plugin` |
-| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                |
+| Pattern                                                       | Made by                                                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `hi.log.XXXXXX`                                               | every `hi` run                                                                       |
+| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes)                         |
+| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off                          |
+| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)                                 |
+| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                                                 |
+| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                        |
+| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                                       |
+| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                                            |
+| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                                       |
+| `hi.colors.XXXXXX`                                            | `hi --add-color`, `hi --remove-color`                                                |
+| `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`, `hi --add-plugin`, `hi --remove-plugin` |
+| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                        |
 
 ## What a session does on a target
 

@@ -57,9 +57,12 @@
 #   - an `eval` anywhere inside a `$( )` zeroes every line of that subshell,
 #     the lines that ran included (scripts/lib.sh's _hi_setting_get and the other
 #     out-var helpers); a probe calling the function directly still reads 0.
-#   - a zsh-only arm (`[ -n "$ZSH_VERSION" ]`) is invisible to both tools.
-#   - an arm for another OS (header.sh's macOS vm_stat and Windows wmic
-#     reads) runs only on that OS's CI leg; the sweep is ubuntu.
+#   - an arm only zsh, a bash before 4.4, or a tool no sweep has (Arch's
+#     makepkg) runs is invisible to both tools, and sits between a
+#     `# hi-nocov-begin: <why>` and a `# hi-nocov-end` comment, which both
+#     drivers drop from their figures; a new such arm gets the same pair.
+#     Another OS's sysinfo arms are no such arm: the suites fake the
+#     platform, and what reads 0 there is a continuation line (above).
 #   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh)
 #     is traced only where sh is bash: the xtrace
 #     rides on SHELLOPTS, which dash ignores, so the whole file reads 0%
@@ -119,6 +122,16 @@ function _hi_cov_v2_report() {
         else
           lines.dup
         end
+      end
+    end
+    # a region between the hi-nocov-begin and hi-nocov-end comments is no line
+    # either tool can record (kcov drops it by --exclude-region)
+    by_file.each do |path, lines|
+      inside = false
+      (File.readlines(root + path) rescue []).each_with_index do |text, i|
+        inside = true if text.include?("hi-nocov-begin")
+        lines[i] = nil if inside && i < lines.size
+        inside = false if text.include?("hi-nocov-end")
       end
     end
     rows = by_file.map do |path, lines|

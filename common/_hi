@@ -25,7 +25,7 @@ if (( $#ask )); then
   compadd -d descs -a flags
   return 0
 fi
-if (( _HI_TARGET_ROWS_AT < 0 || SECONDS - _HI_TARGET_ROWS_AT >= ${_HI_TARGETS_TTL:-5} )); then
+if (( _HI_TARGET_ROWS_AT < 0 || SECONDS - _HI_TARGET_ROWS_AT >= ${_HI_TARGETS_TTL:-$_HI_TARGETS_TTL_DEFAULT} )); then
   _HI_TARGET_ROWS=()
   _HI_TARGET_DESCS=()
   while IFS=$'\t' read -r name kind; do

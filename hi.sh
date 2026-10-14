@@ -1368,13 +1368,24 @@ function _hi_help_or_version() {
   exit 0
 }
 
-# _hi_is_ssh_value_opt <word> - an ssh option that takes a separate value;
-# doctor.sh sorts its argv with it too
+# _hi_is_ssh_value_opt <word> - an ssh option that takes a separate value
 function _hi_is_ssh_value_opt() {
   case "$1" in
   -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w) return 0 ;;
   *) return 1 ;;
   esac
+}
+
+# _hi_ssh_opt <word> [next...] - one ssh option sorted from the words after
+# it, into $_HI_SSH_OPT: the option, and the next word where it takes a value,
+# which is never read as the target; 2 when it took that word, for the caller
+# to shift past too. _hi_parse and doctor.sh's argv loop sort with it.
+function _hi_ssh_opt() {
+  _HI_SSH_OPT=("$1")
+  _hi_is_ssh_value_opt "$1" || return 0
+  [ "$#" -ge 2 ] || _hi_die "$1 needs a value"
+  _HI_SSH_OPT+=("$2")
+  return 2
 }
 
 # split ssh's arguments from the target and any trailing remote command
@@ -1420,12 +1431,7 @@ function _hi_parse() {
     # ssh takes no other `--word` option, so each is an error in hi's voice;
     # a single-dash one is ssh's
     -*)
-      if _hi_is_ssh_value_opt "$1"; then
-        # its value is never read as the target
-        [ "$#" -ge 2 ] || _hi_die "$1 needs a value"
-        SSHARGS+=("$1" "$2")
-        shift
-      elif takes="$(_hi_flag_takes "${1%%=*}")"; then
+      if takes="$(_hi_flag_takes "${1%%=*}")"; then
         # `--plain=1` is one mistake, a local command behind an ssh option is
         # another - those dispatch on the first word alone. Bare flags matched
         # above, so an empty column here is the joined case.
@@ -1433,9 +1439,9 @@ function _hi_parse() {
         _hi_die "$1 goes first on the line (hi ${1%%=*} ...)"
       elif [ "${1#--}" != "$1" ]; then
         _hi_die "unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)"
-      else
-        SSHARGS+=("$1")
       fi
+      _hi_ssh_opt "$@" || shift
+      SSHARGS+=("${_HI_SSH_OPT[@]}")
       ;;
     *)
       DOMAIN="$1"

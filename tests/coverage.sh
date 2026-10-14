@@ -53,9 +53,12 @@
 #   source lib.sh     # a function f
 #   f                 # lib.sh ABSENT under PS4, covered under DEBUG
 #
-# So this driver passes --bash-method=DEBUG, which reads the same suites the
-# same on bash 5.2 and 5.3. If kcov's badge ever sags far under bashcov's
-# again, rerun that probe before believing either figure.
+# DEBUG has a loss of its own: it does not follow a suite into the child bash
+# it starts (a script run through hi.sh, a file sourced in a child), so every
+# file reached only that way reads 0 - PR 214's sweep read 62.72% under it
+# against 90.76% under PS4 on CI's bash 5.2. So the method is the suites'
+# bash's: PS4 before 5.3, DEBUG from it. If kcov's badge ever sags far under
+# bashcov's again, rerun that probe before believing either figure.
 #
 # THE MERGE RE-READS THE SOURCES
 #
@@ -251,7 +254,13 @@ _hi_cov_counts_files cov
 # the header). The report is the subject's *.sh files, the ones no suite
 # loads included (tests/lib/coverage.sh); without the pattern the parse would
 # count the zsh and fish files beside them as bash that never ran.
-_HI_COV_KCOV=(--bash-method=DEBUG
+_HI_COV_METHOD=PS4
+_hi_v="$(bash -c 'printf %s "$((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1]))"')"
+[ "${_hi_v:-0}" -lt 503 ] || _HI_COV_METHOD=DEBUG
+# a region between `# hi-nocov-begin` and `# hi-nocov-end` is an arm neither
+# tool can record here (a zsh-only one, an old bash's); coverage_v2.sh drops it
+# the same way
+_HI_COV_KCOV=(--bash-method="$_HI_COV_METHOD" --exclude-region=hi-nocov-begin:hi-nocov-end
   --include-path="$_HI_HOME/say-hi" --include-pattern=.sh
   --exclude-path="$(_hi_cov_not_subject_paths)")
 _HI_COV_PARSE="$(_hi_cov_subject_dirs)"

@@ -7,6 +7,7 @@
 # a second would change nothing. A name only a wildcard block covers is
 # refused with that block named: tagging the pattern is the way to say it. A
 # host the name of its config.d file already tags that way is left alone.
+# `hi --remove-tag` (--remove first) takes the `# Tags:` line back out.
 # add_package.sh's shape: HI.33 the standalone entry, HI.09 the commit step.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -22,11 +23,29 @@ unset _hi_d
 # after core.sh, which ends with `set +euo pipefail`. GLOSSARY: HI.15
 set -euo pipefail
 
-me="${_HI_ARGV0:-hi --add-tag}"
+mode=add
+[ "${1:-}" != --remove ] || {
+  mode=remove
+  shift
+}
+me="${_HI_ARGV0:-hi --$mode-tag}"
 _HI_ME="$me"
 _HI_DRY_RUN="" args=()
 
+# shellcheck disable=SC2329 # _hi_args runs it
 function _hi_add_tag_help() {
+  if [ "$mode" = remove ]; then
+    cat <<EOF
+Usage: $me <host> [--dry-run]
+
+Takes the "# Tags:" line above <host>'s Host (or Match host) line out of
+$_HI_SSH_CONFIG, or the file it Includes the host from. A host in a file of a
+config.d directory still carries that file's name as its tag.
+
+  -n, --dry-run    say what would be written, and write nothing
+EOF
+    return 0
+  fi
   cat <<EOF
 Usage: $me <host> <tag> [--dry-run]
 
@@ -43,23 +62,16 @@ directory carries that file's name as its tag until a line says otherwise.
 EOF
 }
 
-while [ $# -gt 0 ]; do
-  case "$1" in
-  -h | --help)
-    _hi_add_tag_help
-    exit 0
-    ;;
-  -n | --dry-run) _HI_DRY_RUN=1 ;;
-  -*) _hi_die "unknown option $1 ($me <host> <tag> [--dry-run])" ;;
-  *) args+=("$1") ;;
-  esac
-  shift
-done
+_hi_args _hi_add_tag_help "$me --help" "$@"
 
-[ "${#args[@]}" -eq 2 ] || _hi_die "needs a host and a tag ($me --help)"
-host="${args[0]}" tag="${args[1]}"
+if [ "$mode" = remove ]; then
+  [ "${#args[@]}" -eq 1 ] || _hi_die "needs a host ($me --help)"
+else
+  [ "${#args[@]}" -eq 2 ] || _hi_die "needs a host and a tag ($me --help)"
+fi
+host="${args[0]}" tag="${args[1]:-}"
 # one word the walk reads whole: it stops the leftmost tag at a comma or space
-[[ "$tag" =~ ^[A-Za-z0-9_.-]+$ ]] ||
+[ "$mode" = remove ] || [[ "$tag" =~ ^[A-Za-z0-9_.-]+$ ]] ||
   _hi_die "not a tag: $tag (letters, digits, _ . - only)"
 [ -f "$_HI_SSH_CONFIG" ] || _hi_die "no ssh config at $_HI_SSH_CONFIG"
 
@@ -104,7 +116,7 @@ if [ -z "$file" ]; then
   # set -f: the words are ssh's patterns, never this directory's files
   pattern="$(set -f && _hi_wild_block)" || true
   [ -z "$pattern" ] ||
-    _hi_die "$host has no Host line of its own - only 'Host $pattern' covers it; tag that instead: $me '$pattern' $tag"
+    _hi_die "$host has no Host line of its own - only 'Host $pattern' covers it; tag that instead: $me '$pattern'${tag:+ $tag}"
   _hi_die "no Host $host in $_HI_SSH_CONFIG or the files it Includes"
 fi
 
@@ -137,8 +149,31 @@ case "$file" in */config.d/*) filetag="${file##*/config.d/}" ;; esac
 case "$host" in *[\*\?]*) filetag="" ;; esac
 case "$filetag" in *[!A-Za-z0-9_.-]*) filetag="" ;; esac
 
+# _hi_tag_write - $lines over $file, unless --dry-run; ends the script
+function _hi_tag_write() {
+  dry_run_say "write $file" && exit 0
+  tmpfile="$(mktemp -t hi.sshconfig.XXXXXX)"
+  printf '%s\n' "${lines[@]}" >"$tmpfile"
+  _hi_write_back "$tmpfile" "$file"
+  _hi_cecho "$file updated" "$GREEN"
+  exit 0
+}
+
 hostline="${lines[at - 1]}"
 indent="${hostline%%[![:space:]]*}"
+if [ "$mode" = remove ]; then
+  if [ "$tagline" -lt 0 ]; then
+    if [ -n "$filetag" ]; then
+      _hi_cecho " $file: $host has no # Tags: line - the file's name tags it $filetag" "$BLUE"
+    else
+      _hi_cecho " $file: $host has no # Tags: line - nothing to write" "$BLUE"
+    fi
+    exit 0
+  fi
+  _hi_cecho " - ${lines[tagline]#"$indent"} (above ${hostline#"$indent"})" "$YELLOW"
+  lines=("${lines[@]:0:tagline}" "${lines[@]:tagline+1}")
+  _hi_tag_write
+fi
 new="$indent# Tags: $tag"
 if [ "$tagline" -ge 0 ] && [ "${lines[tagline]}" = "$new" ]; then
   _hi_cecho " $file: $host is already tagged $tag" "$BLUE"
@@ -158,8 +193,4 @@ else
   lines=("${lines[@]:0:at-1}" "$new" "${lines[@]:at-1}")
 fi
 
-dry_run_say "write $file" && exit 0
-tmpfile="$(mktemp -t hi.sshconfig.XXXXXX)"
-printf '%s\n' "${lines[@]}" >"$tmpfile"
-_hi_write_back "$tmpfile" "$file"
-_hi_cecho "$file updated" "$GREEN"
+_hi_tag_write

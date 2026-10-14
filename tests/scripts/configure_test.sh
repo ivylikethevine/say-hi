@@ -508,10 +508,10 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  # the packer, with the files it sources, and the shipped plugins rows,
-  # which hi.sh reads under $_HI_ROOT
+  # the packer, with the files it sources, the shipped plugins rows, which
+  # hi.sh reads under $_HI_ROOT, and the settings rows an answer is judged by
   mkdir -p "$_hi_dir/config" "$_hi_dir/scripts"
-  for _hi_part in "${_HI_LAUNCHER%/*}"/scripts/pack*.sh "${_HI_LAUNCHER%/*}/scripts/zshrc.sh"; do
+  for _hi_part in "${_HI_LAUNCHER%/*}"/scripts/pack*.sh "${_HI_LAUNCHER%/*}/scripts/zshrc.sh" "${_HI_LAUNCHER%/*}/scripts/settings"; do
     ln -sfn "$_hi_part" "$_hi_dir/scripts/${_hi_part##*/}"
   done
   ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"

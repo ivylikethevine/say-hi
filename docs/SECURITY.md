@@ -106,12 +106,12 @@ That is everything hi's own code writes. A prompt program drawing the prompt
 have installed at home and the target has too - writes what it always does,
 under the target's `$HOME`, and keeps it after the session ends:
 
-| tool                        | what it keeps, by default                                                                                                                                             | when                                                                                                              |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| starship, oh-my-posh        | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/`                                                                      | when it draws the prompt                                                                                          |
-| powerlevel10k               | gitstatusd under `~/.cache/gitstatus/` and its instant-prompt cache under `~/.cache/`                                                                                 | when it draws the prompt                                                                                          |
-| tide                        | a `_tide_*` universal variable or two in the target's `fish_variables`, rewritten each start                                                                          | when it draws the prompt                                                                                          |
-| zoxide, atuin, direnv, mise | zoxide's database, atuin's history (and a sync, where the target's atuin is logged in), direnv's allow list, mise's shims and caches, each under the target's `$HOME` | only once `hi --plugin-on` named it: the `hooks` group is off by default ([SETTINGS.md](SETTINGS.md#shell-hooks)) |
+| tool                        | what it keeps, by default                                                                                                                                             | when                                                                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| starship, oh-my-posh        | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/`                                                                      | when it draws the prompt                                                                                              |
+| powerlevel10k               | gitstatusd under `~/.cache/gitstatus/` and its instant-prompt cache under `~/.cache/`                                                                                 | when it draws the prompt                                                                                              |
+| tide                        | a `_tide_*` universal variable or two in the target's `fish_variables`, rewritten each start                                                                          | when it draws the prompt                                                                                              |
+| zoxide, atuin, direnv, mise | zoxide's database, atuin's history (and a sync, where the target's atuin is logged in), direnv's allow list, mise's shims and caches, each under the target's `$HOME` | only once `hi --enable-plugin` named it: the `hooks` group is off by default ([SETTINGS.md](SETTINGS.md#shell-hooks)) |
 
 Each tool's own settings on that target can move those paths;
 `_HI_PROMPT_TOOL=hi` brings a session back to the first table alone. What your
@@ -155,7 +155,7 @@ command.
   any host that is scanned for one. The one exception is yours to make: an
   overlay with scripts in `bin/` puts that one directory of the tree last on
   the session's `$PATH` ([SETTINGS.md](SETTINGS.md#scripts-of-your-own)), and
-  `hi --plugin-off bin` takes it back off.
+  `hi --disable-plugin bin` takes it back off.
 - A say-hi installed on the target is neither read nor written by a session:
   every session runs out of the tree hi just unpacked, so the installed tree
   need not be writable by you or at any fixed path.

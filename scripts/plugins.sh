@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # `hi --plugins`: every plugin - the configs of a tool's hi carries to a
 # target, a table of config/plugins or of your own plugins file - with what
-# rides and what is off. `hi --plugin-off` and `--plugin-on` (a leading
+# rides and what is off. `hi --disable-plugin` and `--enable-plugin` (a leading
 # --off, --on) switch plugins through $_HI_PLUGINS_OFF in settings.sh; `hi
 # --add-plugin` and `--remove-plugin` (--add, --remove) write a table of
 # ~/.config/say-hi/plugins.
@@ -45,7 +45,8 @@ case "${1:-}" in
 esac
 case "$mode" in
 list) me="hi --plugins" usage="hi --plugins" ;;
-off | on) me="hi --plugin-$mode" usage="hi --plugin-$mode <name>... [--dry-run]" ;;
+off) me="hi --disable-plugin" usage="hi --disable-plugin <name>... [--dry-run]" ;;
+on) me="hi --enable-plugin" usage="hi --enable-plugin <name>... [--dry-run]" ;;
 add) me="hi --add-plugin" usage="hi --add-plugin <group> <name> <file>... [<key>=<value>...] [--dry-run]" ;;
 remove) me="hi --remove-plugin" usage="hi --remove-plugin <name> [--dry-run]" ;;
 esac
@@ -66,8 +67,8 @@ where its file is found, and whether it rides or why not - its plugin is
 switched off, or its tool is not installed here. Members found nowhere share
 one last row.
 
-  hi --plugin-off <name>...     switch plugins off: nothing of theirs rides
-  hi --plugin-on <name>...      switch them back on
+  hi --disable-plugin <name>...     switch plugins off: nothing of theirs rides
+  hi --enable-plugin <name>...      switch them back on
   hi --add-plugin <group> <name> <file>... [<key>=<value>...]
                                 carry the configs of a tool hi does not know
   hi --remove-plugin <name>     stop carrying them
@@ -124,7 +125,7 @@ and each <file> the name a config rides under. The keys:
   env=<variables>     variables whose values on this machine a target's
                       session exports ('LESS LS_COLORS'). A plugin with one
                       needs no file.
-  default=off         off until hi --plugin-on names it
+  default=off         off until hi --enable-plugin names it
 
 A file whose wire, home, or dialect differs from the rest has a table of its
 own under the plugin's, [<group>.<name>."<file>"], written by hand.
@@ -140,7 +141,7 @@ Usage: $usage
 
 Removes the plugin <name>, its table and its files' tables, from
 ~/.config/say-hi/plugins. A plugin of hi's own has no table there to remove:
-\`hi --plugin-off\` switches it off.
+\`hi --disable-plugin\` switches it off.
 
   -n, --dry-run    say what would be written, and write nothing
 EOF
@@ -148,18 +149,7 @@ EOF
   esac
 }
 
-while [ $# -gt 0 ]; do
-  case "$1" in
-  -h | --help)
-    _hi_plugins_help
-    exit 0
-    ;;
-  -n | --dry-run) _HI_DRY_RUN=1 ;;
-  -*) _hi_die "unknown option $1 ($usage)" ;;
-  *) args+=("$1") ;;
-  esac
-  shift
-done
+_hi_args _hi_plugins_help "$usage" "$@"
 
 # _hi_plugin_row <label> <text> [severity] - a member's row, its label in the
 # color of its plugin's state (lib.sh's _hi_plugin_color)
@@ -410,7 +400,7 @@ function _hi_plugins_remove() {
   if ! _hi_plugin_span "${args[0]}"; then
     while IFS='|' read -r line _; do
       [ "$line" != "${args[0]}" ] ||
-        _hi_die "${args[0]} is hi's own, with no table of yours to remove: hi --plugin-off ${args[0]} switches it off"
+        _hi_die "${args[0]} is hi's own, with no table of yours to remove: hi --disable-plugin ${args[0]} switches it off"
     done < <(_hi_plugin_rows)
     _hi_cecho "$plugins has no plugin ${args[0]} - nothing to write" "$GREEN"
     exit 0

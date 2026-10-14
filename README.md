@@ -239,15 +239,15 @@ row, and everything answered **no**, and why:
 - `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
   in `~/.ssh/config`, which a `hosttag` row then colors
   ([docs/COLORS.md](docs/COLORS.md)).
-- `hi --set-color hostname prod-db yellow` pins a color in
+- `hi --add-color hostname prod-db yellow` pins a color in
   `~/.config/say-hi/colors`, copying the shipped pins there first;
-  `hi --unset-color hostname prod-db` removes the pin.
+  `hi --remove-color hostname prod-db` removes the pin.
 - `hi --plugins` lists every config hi carries to a target, and what rides;
-  `hi --plugin-off lazygit vim` keeps a plugin home and
-  `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
+  `hi --disable-plugin lazygit vim` keeps a plugin home and
+  `hi --enable-plugin` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-four flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty-five flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
@@ -276,7 +276,7 @@ Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
 `packages` apply until you copy one out of the tree's `config/` to edit
-(`hi --add-package` and `hi --set-color` do the copying) or add an
+(`hi --add-package` and `hi --add-color` do the copying) or add an
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
@@ -296,7 +296,7 @@ removed on exit:
 
 Every username and hostname gets a color derived from its name; a line in
 `~/.config/say-hi/colors` (`prod-db = "yellow"` under `[hostname]`, which
-`hi --set-color hostname prod-db yellow` writes) pins one, and
+`hi --add-color hostname prod-db yellow` writes) pins one, and
 `hi --preview colors` shows what every host and your user resolve to. Tags
 (`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
 schemes of your own, and using the hash in your own prompt:
@@ -413,15 +413,16 @@ when it lands.
        a block line for a default that is not 0 or unset. **Ticks when:** the
        fast and lint groups are green in CI with it.
 
-6. [ ] _Before 1.0:_ **`common/flags` reaches past dispatch** — each
-       `scripts/` entry point has its own preamble, option loop, and mode
-       flip; `hi --doctor` sorts ssh options from a target with a loop of
-       its own beside `_hi_parse`; a flag's completable words are literals
-       in `common/targets.sh`; and the data files' flags follow four verb
-       schemes (`--add-package`, `--set-color`, `--plugin-on`, `--add-tag`
-       with no remove). **Ticks when:** the scripts share one option loop,
-       doctor and a connect share one sorter, and the verbs are one scheme,
-       settled before the tag freezes them.
+6. [ ] _Before 1.0:_ **`common/flags` reaches past dispatch** — shipped:
+       the data files' flags are one scheme, `--add-X`/`--remove-X`
+       (`--add-color`, `--remove-color`, `--remove-tag`), with
+       `--enable-plugin`/`--disable-plugin` as the switch; the scripts that
+       take only `--help`, `--dry-run`, and words share `_hi_args`; and
+       `hi --doctor` sorts ssh options with a connect's `_hi_ssh_opt`. Left:
+       a flag's completable words are literals in `common/targets.sh`, and
+       `scripts/update.sh` keeps a loop of its own, since its `--help` answers
+       ahead of the `.git` check. **Ticks when:** the completable words come
+       from `common/flags`, and the fast and lint groups are green in CI.
 
 7. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
        each make the scratch directory, send the tree, fall back without
@@ -440,22 +441,21 @@ when it lands.
        its rows are arms no case reaches rather than artifacts.
 
 9. [ ] _Before 1.0:_ **Known tracer artifacts are marked in the source** —
-       the arms neither tool can record (zsh-only, another OS's, the lines
-       `xtrace` never prints) are lists in the two drivers' headers, ruled
-       out by hand at every reading. **Ticks when:** one marker comment takes
-       such a line out of both rankings (kcov's `--exclude-line` and
-       `--exclude-region`, the same pattern in `tests/coverage_v2.sh`), and
-       the headers keep only what a marker cannot express.
+       shipped: an arm neither tool can reach in a sweep (zsh's, a bash
+       before 4.4's, Arch's `makepkg`) sits between `# hi-nocov-begin: <why>`
+       and `# hi-nocov-end`, which kcov drops by `--exclude-region` and
+       `tests/coverage_v2.sh` by the same pair; the bashcov header keeps only
+       what a marker cannot express. **Ticks when:** a CI sweep's two figures
+       leave the marked arms out.
 
 10. [ ] _Before 1.0:_ **kcov's trace method is confirmed in CI** —
-        shipped: `tests/coverage.sh` passes `--bash-method=DEBUG`, since
-        kcov's default `PS4` method stops recording under bash 5.3 at the
-        first traced assignment whose value holds a quote and a newline,
-        which every suite reaches (the script's header has the probe). One
-        suite read the same under `DEBUG` there as under `PS4` in CI; the
-        full sweep has not run with it. **Ticks when:** a full sweep in CI
-        under `DEBUG` lands within a point of the last `PS4` figure, or the
-        files that moved are explained.
+        shipped: `tests/coverage.sh` takes the method from the suites'
+        bash: `PS4` before 5.3, `DEBUG` from it. `DEBUG` does not follow a
+        suite into the child bash it starts, so a file reached only that way
+        reads 0 (PR 214's sweep under it read 62.72% against `PS4`'s 90.76%
+        on bash 5.2); `PS4` stops recording on 5.3 (the script's header has
+        the probe). **Ticks when:** a full CI sweep lands within a point of
+        90.76%.
 
 11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
         [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).

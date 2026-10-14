@@ -235,7 +235,7 @@ function _hi_cov_trace_all() {
       # cannot be seen by running the suite without one - less bashcov's line
       # for each fixture script a case ran and removed, which outnumber it
       _hi_cecho " | coverage: $_hi_suite failed while being traced - stopping, no report; its failed cases, then its last lines:" "$RED"
-      grep -v '^bashcov: warning: .* has been deleted since then' "$_hi_log" |
+      grep -v '^bashcov: warning: .* has been deleted since then' "$_hi_log" | sed $'s/\e\\[[0-9;]*m//g' |
         grep -B 30 -A 3 -E ' FAILED( \([^)]*\))?$' | sed 's/^/ |   /' || true
       _hi_cecho " | coverage: ...its last lines:" "$RED"
       grep -v '^bashcov: warning: .* has been deleted since then' "$_hi_log" | tail -n 40 | sed 's/^/ |   /'

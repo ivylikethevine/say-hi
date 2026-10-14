@@ -115,7 +115,8 @@ source "$_HI_HEADER"
 # option that takes a value (hi.sh's _hi_is_ssh_value_opt) takes the next
 # word with it into $_HI_DOC_SSHARGS; any other `-x` rides along alone. An
 # unknown `--word` is an error, not a target - a target never starts with a
-# dash - and so is a second target.
+# dash - and so is a second target. hi.sh's _hi_ssh_opt sorts an ssh option
+# from its value for both.
 # --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
 # not resolved last-wins: doctor reports the arm a connect would take
 function _hi_doctor_use() {
@@ -152,15 +153,10 @@ while [ $# -gt 0 ]; do
     _hi_die "unknown option $_hi_arg (--json, --problems, --use <backend>, ssh options, a target)"
     ;;
   -*)
-    if _hi_is_ssh_value_opt "$_hi_arg"; then
-      [ $# -ge 2 ] || _hi_die "$_hi_arg needs a value"
-      _HI_DOC_SSHARGS+=("$_hi_arg" "$2")
-      shift
-    else
-      # a bare ssh flag (-4, -A, -C, -v, ...) - doctor does not validate
-      # ssh's own vocabulary, only sorts a target from an option
-      _HI_DOC_SSHARGS+=("$_hi_arg")
-    fi
+    # doctor does not validate ssh's own vocabulary, only sorts a target from
+    # an option, as a connect does
+    _hi_ssh_opt "$@" || shift
+    _HI_DOC_SSHARGS+=("${_HI_SSH_OPT[@]}")
     ;;
   *)
     [ -z "$_HI_DOC_TARGET" ] || _hi_die "one target at a time ($_HI_DOC_TARGET and $_hi_arg)"
@@ -623,7 +619,7 @@ function doctor_settings_values() {
   for name in ${_HI_OLD_TOGGLES//|/ }; do
     name="_HI_DISABLE_$name"
     [ -z "${!name:-}" ] ||
-      doctor_row "$name" "is ignored - hi --plugin-off keeps a config home, and hi --configure converts this line" bad
+      doctor_row "$name" "is ignored - hi --disable-plugin keeps a config home, and hi --configure converts this line" bad
   done
   _hi_data_shape v "${_HI_PACKAGES:-}" "$_HI_FLAT_PACKAGES"
   case "$v" in

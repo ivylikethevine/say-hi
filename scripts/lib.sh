@@ -52,6 +52,27 @@ function _hi_missing_into() {
 # add_package.sh's), say what would happen and succeed, so the caller returns
 # before it writes; otherwise fail quietly and the caller carries on. Every
 # writer either of them reaches opens with one of these.
+# _hi_args <help-fn> <usage> <word>... - a script's own words: -h/--help runs
+# <help-fn> and exits, -n/--dry-run sets $_HI_DRY_RUN, any other --word is
+# refused naming <usage>, and the rest (a lone - word among them: a package's
+# unwanted mark) land in the caller's args array, in order
+function _hi_args() {
+  local _hi_ag_help="$1" _hi_ag_usage="$2"
+  shift 2
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -h | --help)
+      "$_hi_ag_help"
+      exit 0
+      ;;
+    -n | --dry-run) _HI_DRY_RUN=1 ;;
+    --*) _hi_die "unknown option $1 ($_hi_ag_usage)" ;;
+    *) args+=("$1") ;;
+    esac
+    shift
+  done
+}
+
 function dry_run_say() {
   [ -n "${_HI_DRY_RUN:-}" ] || return 1
   _hi_cecho " dry run: would $1" "$BLUE"
@@ -598,7 +619,7 @@ function _hi_hook_rows() {
       _hi_row "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent" info "$_hi_hr_c"
     elif _hi_hook_off "$_hi_hr_r"; then
       _hi_hr_why="switched off (_HI_PLUGINS_OFF)"
-      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_hr_n" || _hi_hr_why="off by default (hi --plugin-on $_hi_hr_n)"
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_hr_n" || _hi_hr_why="off by default (hi --enable-plugin $_hi_hr_n)"
       _hi_plugin_color _hi_hr_c off
       _hi_row "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why" info "$_hi_hr_c"
     else
@@ -621,7 +642,7 @@ function _hi_env_rows() {
     _hi_er_n="${_hi_er_n%%|*}" _hi_er_off=""
     if _hi_plugin_switched_off "$_hi_er_n"; then
       _hi_er_off="switched off (_HI_PLUGINS_OFF)"
-      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_er_n" || _hi_er_off="off by default (hi --plugin-on $_hi_er_n)"
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_er_n" || _hi_er_off="off by default (hi --enable-plugin $_hi_er_n)"
     fi
     for _hi_er_v in ${_hi_er_r##*|}; do
       if [ -z "${!_hi_er_v:-}" ]; then

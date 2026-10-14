@@ -200,20 +200,23 @@ if [ "$kind" = words ]; then
   --add-tag)
     ssh_hosts 'an ssh host to tag'
     ;;
+  --remove-tag)
+    ssh_hosts 'an ssh host to untag'
+    ;;
   --remove-package)
     # each row's key, bare or quoted: its first package and the name remove matches on
     [ -f "$pkgs" ] &&
       sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$pkgs" |
       while IFS= read -r line; do printf '%s\ta package check row\n' "$line"; done
     ;;
-  --set-color | --unset-color)
+  --add-color | --remove-color)
     # the four [type] sections of a colors file
     printf 'hosttag\ta # Tags: value in your ssh config\n'
     printf 'usertag\tthe username on hosts carrying that tag\n'
     printf 'username\ta username\n'
     printf 'hostname\ta hostname, or a * or ? pattern\n'
     ;;
-  --plugin-off)
+  --disable-plugin)
     # the plugins files read as text, since this file cannot source the
     # packer: each table's plugin. A session has neither file, and no use
     # for the flag.
@@ -221,7 +224,7 @@ if [ "$kind" = words ]; then
       plugin_tables "$f"
     done | awk -F'|' '!seen[$2]++ { printf "%s\ta plugin\n", $2 }'
     ;;
-  --plugin-on)
+  --enable-plugin)
     # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line
     [ -f "${_HI_CONFIG_DIR:-}/settings.sh" ] &&
       sed -n 's/^[ ]*\(export[ ]\{1,\}\)\{0,1\}_HI_PLUGINS_OFF=//p' "$_HI_CONFIG_DIR/settings.sh" |
