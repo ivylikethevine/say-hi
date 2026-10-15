@@ -30,17 +30,19 @@ name: Coverage
 # sweep is done.
 #
 # pull_request too, for the comment job at the bottom: a same-repo, non-draft
-# PR runs the same sweep and gets both figures posted beside main's, one
-# comment edited in place per push. Never a fork's: pages.yml reads the
+# PR runs bashcov's sweep and gets its figure posted beside main's, one
+# comment edited in place per push. kcov sweeps main alone: the two sweeps
+# were half of every PR's runner time, and the PR's comment quotes main's
+# kcov figure beside its own bashcov one. Never a fork's: pages.yml reads the
 # figures off the newest green run of this workflow on branch `main`, which a
 # fork PR opened from its own `main` would be (runner_test.sh pins the gate).
 # Concurrency groups carry the PR number so a PR's sweep never cancels main's.
 #
-# A push whose tree its same-repo PR run already swept is not swept again:
-# that run's `comment` job leaves a coverage-tree-<tree> marker
-# (./.github/actions/mark-tree), and `reuse` republishes its two figures
-# under this run, where pages.yml and release.yml look - ci.yml's
-# push-to-main dedupe, same lookup.
+# A push whose tree its same-repo PR run already swept is not swept by
+# bashcov again: that run's `comment` job leaves a coverage-tree-<tree>
+# marker (./.github/actions/mark-tree), and `reuse` republishes its bashcov
+# figure under this run, where pages.yml and release.yml look - ci.yml's
+# push-to-main dedupe, same lookup. kcov always sweeps a push.
 #
 # No partial figures. A suite that fails under either tracer ends that
 # shard non-zero with nothing uploaded (tests/lib/coverage.sh), fail-fast
@@ -81,6 +83,7 @@ jobs:
       pull-requests: read # dorny/paths-filter lists a PR's files via the API
     outputs:
       sweep: ${{ steps.gate.outputs.sweep }}
+      sweep_kcov: ${{ steps.gate.outputs.sweep_kcov }}
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -147,23 +150,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TREE: ${{ github.event.workflow_run.head_commit.tree_id }}
-        run: .github/scripts/find_tree_run.sh coverage.yml "coverage-tree-$TREE" coverage-pct coverage-v2-pct | tee -a "$GITHUB_OUTPUT"
+        run: .github/scripts/find_tree_run.sh coverage.yml "coverage-tree-$TREE" coverage-v2-pct | tee -a "$GITHUB_OUTPUT"
 
       # the per-file reports stay on the PR run, which the step above logs
       - if: steps.find.outputs.run != ''
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: "{coverage-pct,coverage-v2-pct}"
-          path: carried
+          name: coverage-v2-pct
+          path: carried/coverage-v2-pct
           run-id: ${{ steps.find.outputs.run }}
           github-token: ${{ github.token }}
-
-      - if: steps.find.outputs.run != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-pct
-          path: carried/coverage-pct
-          if-no-files-found: error
 
       - if: steps.find.outputs.run != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -172,8 +168,9 @@ jobs:
           path: carried/coverage-v2-pct
           if-no-files-found: error
 
-      # sweep: a green push or a same-repo PR, and nothing
-      # already reused above. `event_name == 'pull_request'` paired with
+      # sweep (bashcov): a green push or a same-repo PR, and nothing
+      # already reused above. sweep_kcov: a green push alone, never reused,
+      # since no PR run sweeps kcov. `event_name == 'pull_request'` paired with
       # same-repo is the guard: a fork PR opened from its own
       # `main` would otherwise pass pages.yml's "newest green run on branch
       # main" lookup and publish as the README's figure. `always()` so a
@@ -192,19 +189,23 @@ jobs:
           DIFF_CODE: ${{ steps.diff.outputs.code }}
         run: |
           set -eu
-          sweep=false
+          sweep=false sweep_kcov=false
           if [ "$EVENT" = workflow_dispatch ] \
-            || { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; } \
-            || { [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ]; }; then
+            || { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; }; then
+            sweep=true sweep_kcov=true
+          elif [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ]; then
             sweep=true
           fi
           [ -z "$FOUND_RUN" ] || sweep=false
           # a docs-only diff, from whichever arm above ran
-          [ "$FILTER_OUTCOME" != success ] || [ "$FILTER_CODE" = true ] || sweep=false
-          [ "$DIFF_OUTCOME" != success ] || [ "$DIFF_CODE" = true ] || sweep=false
+          if { [ "$FILTER_OUTCOME" = success ] && [ "$FILTER_CODE" != true ]; } ||
+            { [ "$DIFF_OUTCOME" = success ] && [ "$DIFF_CODE" != true ]; }; then
+            sweep=false sweep_kcov=false
+          fi
           echo "sweep=$sweep" >>"$GITHUB_OUTPUT"
+          echo "sweep_kcov=$sweep_kcov" >>"$GITHUB_OUTPUT"
 
-  # every-suite selection sliced 4 ways, per the header above; each shard
+  # every-suite selection sliced 3 ways, per the header above; each shard
   # writes only its own $_HI_COV_DIR/parts/<suite> subdirectories, which are
   # disjoint across shards by construction (--shard partitions the suite
   # table, never splits a suite), so gather-kcov's `kcov --merge` over the
@@ -213,7 +214,7 @@ jobs:
   shard-kcov:
     name: kcov over the suite sweep (shard ${{ matrix.shard }})
     needs: reuse
-    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
+    if: ${{ !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -222,7 +223,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1/4, 2/4, 3/4, 4/4]
+        shard: [1/3, 2/3, 3/3]
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -269,8 +270,8 @@ jobs:
 
       # built from its GitHub source tarball (tools.txt's cmake kind): kcov
       # publishes no binary asset and reaches Debian/Ubuntu only
-      # through a PPA. Cached by version+os+arch, so all four shards' runners
-      # hit the cache rather than each rebuilding kcov from source.
+      # through a PPA. Cached by version+os+arch, so every shard's runner
+      # hits the cache rather than each rebuilding kcov from source.
       - uses: ./.github/actions/setup-tools
         with:
           tools: kcov
@@ -286,7 +287,7 @@ jobs:
         run: tests/coverage.sh coverage-report --shard "$HI_SHARD"
 
       # job-index, not matrix.shard: an artifact name may not contain "/",
-      # and --shard is a whole i/n slice (e.g. 4/4) - the index only has to
+      # and --shard is a whole i/n slice (e.g. 3/3) - the index only has to
       # be unique per shard, which strategy.job-index already is
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -300,9 +301,9 @@ jobs:
     needs: reuse
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
-    # ten shards to kcov's four: with the trace pipe blocking
-    # (tests/lib/coverage_env.sh) bash waits on bashcov's reader, so a
-    # suite's time is its trace lines, about 6800 a second
+    # eight shards to kcov's three, each about seven minutes: with the trace
+    # pipe blocking (tests/lib/coverage_env.sh) bash waits on bashcov's
+    # reader, so a suite's time is its trace lines, about 6800 a second
     timeout-minutes: 15
     # job-level so the cache step below and check_tool_versions.local.sh's
     # roster regex for the literal `BASHCOV_VERSION: "..."` both still find it
@@ -314,7 +315,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1/10, 2/10, 3/10, 4/10, 5/10, 6/10, 7/10, 8/10, 9/10, 10/10]
+        shard: [1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8]
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -392,7 +393,7 @@ jobs:
 
       # Only the resultset, not the whole coverage-v2-report tree: SimpleCov
       # writes an HTML report per shard too, and gather-bashcov has no use
-      # for four partial, suite-incomplete copies of it - only the raw
+      # for partial, suite-incomplete copies of it - only the raw
       # per-line hit data merges cleanly (see gather-bashcov below).
       # include-hidden-files: upload-artifact drops dotfiles by default, and
       # .resultset.json is one - without this the step silently uploads
@@ -407,12 +408,12 @@ jobs:
           retention-days: 1
 
   # kcov's own --merge takes any glob of independent kcov output directories,
-  # which is exactly what four shards' parts/ uploads are - nothing about the
+  # which is exactly what the shards' parts/ uploads are - nothing about the
   # merge assumes they came from one process, one machine, or in order.
   gather-kcov:
     name: kcov - merge shards and publish
     needs: [reuse, shard-kcov]
-    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-kcov.result == 'success' }}
+    if: ${{ !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' && needs.shard-kcov.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -496,7 +497,7 @@ jobs:
           if-no-files-found: error
 
   # bashcov's SimpleCov .resultset.json is a plain hash keyed by
-  # --command-name (the suite name), so four shards' resultsets are disjoint
+  # --command-name (the suite name), so the shards' resultsets are disjoint
   # by construction and merging them is a hash union - no SimpleCov.merge, no
   # lock file. Only the HTML index would need SimpleCov.collate and the gem
   # installed here, and nothing downstream reads it: pages.yml fetches the
@@ -607,16 +608,8 @@ jobs:
         with:
           prefix: coverage-tree
 
-      # by name, each into its own <artifact-name>/pct: a pattern matching only
-      # one extracts it flat into path, which read as neither; a tool whose
-      # gather published nothing is simply absent
-      - name: Download this run's kcov figure
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: coverage-pct
-          path: ${{ runner.temp }}/pr/coverage-pct
-
+      # by name, into its own <artifact-name>/pct, absent where the gather
+      # published nothing; a PR sweeps no kcov, whose figure is main's below
       - name: Download this run's bashcov figure
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -683,19 +676,20 @@ jobs:
           run-id: ${{ steps.pr-tests.outputs.run }}
           github-token: ${{ github.token }}
 
-      # Both tools' rankings side by side, into the job summary, and the lines
-      # this PR changed that neither recorded, for the comment
-      # (tests/lib/coverage.sh's _hi_cov_join and _hi_cov_untested), off the
+      # The rankings side by side, into the job summary - this PR's bashcov
+      # beside main's kcov - and the lines this PR changed that bashcov did
+      # not record, for the comment (tests/lib/coverage.sh's _hi_cov_join and
+      # _hi_cov_untested, `-` for the kcov list a PR has none of), off the
       # `files` and `missed` each gather uploads beside its figure. HEAD is the
       # PR's merge commit, so HEAD^1 is its base.
-      - name: Rank the files, and list the changed lines neither tool ran
+      - name: Rank the files, and list the changed lines bashcov did not run
         continue-on-error: true
         run: |
           set -euo pipefail
-          tests/coverage.sh --untested HEAD^1 "$RUNNER_TEMP/pr/coverage-pct/missed" "$RUNNER_TEMP/pr/coverage-v2-pct/missed" \
+          tests/coverage.sh --untested HEAD^1 - "$RUNNER_TEMP/pr/coverage-v2-pct/missed" \
             >"$RUNNER_TEMP/untested" || rm -f "$RUNNER_TEMP/untested"
-          table="$(tests/coverage.sh --join "$RUNNER_TEMP/pr/coverage-pct/files" "$RUNNER_TEMP/pr/coverage-v2-pct/files")"
-          printf '\n### Coverage by file\n\n~~~text\n%s\n~~~\n' "$table" >>"$GITHUB_STEP_SUMMARY"
+          table="$(tests/coverage.sh --join "$RUNNER_TEMP/main/coverage-pct/files" "$RUNNER_TEMP/pr/coverage-v2-pct/files")"
+          printf '\n### Coverage by file (kcov: main)\n\n~~~text\n%s\n~~~\n' "$table" >>"$GITHUB_STEP_SUMMARY"
 
       # via env, never inline ${{ }} in the run block (zizmor: template-injection)
       - name: Post or update the coverage comment
@@ -743,11 +737,14 @@ jobs:
             printf '| %s | %s | %s | %s |\n' "$1" "$now" "$was" "$change"
           }
           avg() { [ -n "$1" ] && [ -n "$2" ] && awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", (a + b) / 2 }' || true; }
-          k="$(fig "$RUNNER_TEMP/pr/coverage-pct/pct")"
+          # kcov sweeps main alone, so this PR's average is main's kcov
+          # figure beside its own bashcov one
           b="$(fig "$RUNNER_TEMP/pr/coverage-v2-pct/pct")"
           k0="$(fig "$RUNNER_TEMP/main/coverage-pct/pct")"
           b0="$(fig "$RUNNER_TEMP/main/coverage-v2-pct/pct")"
-          a="$(avg "$k" "$b")"
+          a="$(avg "$k0" "$b")"
+          k0s="not measured"
+          [ -z "$k0" ] || k0s="$k0%"
           if [ -z "$a" ]; then
             verdict="The target is ${TARGET}%; this PR's average was not measured."
           elif awk -v a="$a" -v t="$TARGET" 'BEGIN { exit !(a < t) }'; then
@@ -755,20 +752,21 @@ jobs:
           else
             verdict="At or above the ${TARGET}% target."
           fi
-          # the changed lines neither tool recorded: of the step above's
+          # the changed lines bashcov did not record: of the step above's
           # output, only rows that are a path and line numbers, twenty at most
           untested=""
           if [ -f "$RUNNER_TEMP/untested" ]; then
             untested="$(grep -E '^ \|   [A-Za-z0-9_./-]+: [0-9, -]+$' "$RUNNER_TEMP/untested" | head -n 20 || true)"
             if [ -n "$untested" ]; then
-              untested="$(printf '\n**Changed lines neither tool recorded** - an arm no case reaches, or an artifact both tracers share:\n\n~~~text\n%s\n~~~' "$untested")"
+              untested="$(printf '\n**Changed lines bashcov did not record** - an arm no case reaches, or one of the artifacts [TESTING.md](%s) lists:\n\n~~~text\n%s\n~~~' \
+                "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/TESTING.md#coverage-and-profiling" "$untested")"
             else
-              untested=$'\nNo changed line of a shell file went unrecorded by both tools.'
+              untested=$'\nNo changed line of a shell file went unrecorded.'
             fi
           fi
           body="$(
             printf '%s\n### Coverage\n\n| | This PR | main | Change |\n| --- | ---: | ---: | ---: |\n' "$marker"
-            row kcov "$k" "$k0"
+            printf '| kcov | sweeps main only | %s | - |\n' "$k0s"
             row bashcov "$b" "$b0"
             row '**average**' "$a" "$(avg "$k0" "$b0")"
             count_row 'cases passed (fast, ci)' "$(cases "$RUNNER_TEMP/pr/tests/totals")" "$(cases "$RUNNER_TEMP/main-tests/totals")"

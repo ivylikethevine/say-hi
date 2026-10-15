@@ -632,16 +632,19 @@ function test_report_failure_has_no_carriage_return_off_a_tty() {
   [[ "$got" != *$'\r'* ]] || _hi_why got f
 }
 
-# _hi_attach_is <tty> <backend> <domain> <want-glob> - run _hi_container_cmds
+# _hi_attach_is <tty> <backend> <domain> <want-glob> - run _hi_transport_cmds
 # for <backend> against <domain> and match the attach line against <want-glob>
 # (a leading ! inverts the match). The tty decision is `[ -t 0 ]` in
-# _hi_container_cmds itself and a suite has no tty of its own, so the command
+# _hi_transport_cmds itself and a suite has no tty of its own, so the command
 # runs in a child bash: under $_HI_PTY_FORCED for the tty arm, on /dev/null
-# for the other. The child prints the attach and cp lines; _HI_ATTACH_CP
-# keeps the cp line for a case that wants it after its last run.
-_HI_ATTACH_CP=""
+# for the other. The child prints the attach and cp lines, kept in
+# $_HI_ATTACH_LINE and $_HI_ATTACH_CP - globals, not stdout, since a `$( )`
+# around the call would lose the cp line to its subshell - for a case that
+# wants either after its last run.
+_HI_ATTACH_LINE="" _HI_ATTACH_CP=""
 
-# _hi_container_child <tty:1|0> <backend> <domain> - the attach line on stdout
+# _hi_container_child <tty:1|0> <backend> <domain> - the attach and cp lines
+# into $_HI_ATTACH_LINE and $_HI_ATTACH_CP
 function _hi_container_child() {
   local tty="$1" backend="$2" domain="$3" out
   local -a wrap=()
@@ -650,12 +653,12 @@ function _hi_container_child() {
     ${wrap[@]+"${wrap[@]}"} bash -c '
       source "$_HI_LAUNCHER"
       DOMAIN="$1"
-      _hi_container_cmds "$2"
+      _hi_transport_cmds "$2"
       printf "ATTACH=%s\nCP=%s\n" "${attach[*]}" "${cp[*]}"' _ "$domain" "$backend" \
       </dev/null 2>/dev/null | tr -d '\r'
   )"
   _HI_ATTACH_CP="$(printf '%s\n' "$out" | sed -n 's/^CP=//p')"
-  printf '%s\n' "$out" | sed -n 's/^ATTACH=//p'
+  _HI_ATTACH_LINE="$(printf '%s\n' "$out" | sed -n 's/^ATTACH=//p')"
 }
 
 function _hi_attach_is() {
@@ -666,7 +669,8 @@ function _hi_attach_is() {
     want="${want#!}"
     ;;
   esac
-  attach="$(_hi_container_child "$1" "$2" "$3")"
+  _hi_container_child "$1" "$2" "$3"
+  attach="$_HI_ATTACH_LINE"
   # SC2254: the unquoted expansion is the point - $want is a glob
   # shellcheck disable=SC2254
   case "$attach" in
@@ -686,7 +690,10 @@ function test_container_cmds_pick_the_inner_unit() {
   _hi_attach_is 1 nomad 685afd67/worker '*-task worker*685afd67' || _hi_why || return 1
   # docker has no inner unit and `/` is legal in a container name, so it is
   # taken whole - splitting one would break a real target
-  _hi_attach_is 1 docker some/name '*exec -it some/name' || _hi_why
+  _hi_attach_is 1 docker some/name '*exec -it some/name' || _hi_why || return 1
+  # ssh, with a terminal to give, asks for a pty on the attach and never on cp
+  _hi_attach_is 1 ssh box 'ssh -t box' || _hi_why || return 1
+  [ "$_HI_ATTACH_CP" = "ssh box" ] || _hi_why _HI_ATTACH_CP
 }
 
 # The other arm of that probe, which is the one `hi <target> <cmd> | ...` takes:
@@ -709,6 +716,10 @@ function test_container_cmds_drop_the_tty_without_one() {
     return 1
     ;;
   esac
+
+  # ssh asks for no pty without a terminal, and its cp never does
+  _hi_attach_is 0 ssh box 'ssh box' || _hi_why || return 1
+  [ "$_HI_ATTACH_CP" = "ssh box" ] || _hi_why _HI_ATTACH_CP || return 1
   return 0
 }
 

@@ -38,10 +38,9 @@ jobs:
   # a failed lookup both leave it 'true', so change detection breaking is
   # never read as "assume nothing changed". `outputs.trusted` is the other
   # flag: a push, or a pull_request from this repository - read by
-  # test-macos's loopback, e2e-gate, and e2e-windows-client. The three e2e-*
-  # reusable-workflow jobs gate on `needs.e2e-gate.outputs.ok` instead, which
-  # is empty when that job skips. The `!cancelled()` jobs below name the
-  # draft clause themselves, since `!cancelled()` runs past a skipped need.
+  # test-macos's loopback, the three platform e2e-* jobs, and
+  # e2e-windows-client. The `!cancelled()` jobs below name the draft clause
+  # themselves, since `!cancelled()` runs past a skipped need.
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
   # test-arm, test-macos, test-alpine, profile, packaging-smoke, nix-flake,
@@ -96,8 +95,8 @@ jobs:
           persist-credentials: false
 
       # trusted: a push, or a pull_request from this repository - read by
-      # mark-tree below, test-macos's HI_LOOPBACK, e2e-gate, and
-      # e2e-windows-client's `if:`. A fork PR's head repository is the fork.
+      # mark-tree below, test-macos's HI_LOOPBACK, and the e2e-* platform
+      # jobs' and e2e-windows-client's `if:`. A fork PR's head repository is the fork.
       - id: trust
         env:
           EVENT: ${{ github.event_name }}
@@ -219,7 +218,7 @@ jobs:
   # (free on a public repo) runs the same suites on arm64, so an x86-only
   # assumption - the header's uname -m and CPU cells, a probe that only knows
   # one arch - fails here rather than on someone's Pi. A red arm64 entry
-  # holds e2e-gate like a red ubuntu-latest one.
+  # holds the platform e2e jobs, which wait on this job alone.
   test-ubuntu:
     name: fast suites (ubuntu-latest)
     needs: changes
@@ -258,8 +257,13 @@ jobs:
       # folds into a ::group:: and a failing one replays in full with an
       # ::error annotation - only the live stream is lost.
       # fast plus ci here, and here only: ci is the suites a second platform
-      # could only repeat - workflow and manifest checks, ubuntu-only tooling
+      # could only repeat - workflow and manifest checks, ubuntu-only tooling.
+      # _HI_RUN_DEADLINE, here and on every runner step: the job's limit less
+      # three minutes, so the runner ends itself and names what was running
+      # where the limit would end the job with no log (test_runner.sh --help)
       - name: Run fast test suites
+        env:
+          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast,ci --totals-file ${{ runner.temp }}/totals"
 
       # The tests badge's number: pages.yml reads this artifact and publishes it
@@ -290,6 +294,8 @@ jobs:
       - uses: ./.github/actions/setup-shells
 
       - name: Run fast test suites
+        env:
+          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
   # The lint group's four suites (shellcheck, dialects, tools, drift), against
@@ -299,10 +305,10 @@ jobs:
   # by side, and `test` installs none of the tools only the linters call.
   # markdownlint and prettier gate through tools_test.sh, inside this job, so
   # making them blocking left the required-check names as they were.
-  # Not in e2e-gate's `needs:` - a red lint has no bearing on whether an ssh
-  # session works, and gating on it would only make the platform e2e jobs
-  # wait on tool installs they don't use. Add `lint` to e2e-gate's `needs:`
-  # to make lint block e2e.
+  # Not in the platform e2e jobs' `needs:` - a red lint has no bearing on
+  # whether an ssh session works, and gating on it would only make them wait
+  # on tool installs they don't use. Add `lint` to their `needs:` to make
+  # lint block e2e.
   lint:
     name: lint suites (ubuntu-latest)
     needs: changes
@@ -376,6 +382,8 @@ jobs:
         run: npm ci --prefix .github --ignore-scripts --no-audit --no-fund
 
       - name: Run the lint group
+        env:
+          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
 
       # Blocking, unlike link-check.yml's weekly sweep: --offline checks only
@@ -389,7 +397,7 @@ jobs:
   # %e/width/sort fixes in common/ came out of it). No lint group here: that is
   # its own ubuntu job, against pinned tools, on a runner a tenth the price.
   #
-  # Then, for e2e-gate's audience (pushes and same-repo PRs: the steps stand
+  # Then, for the platform e2e jobs' audience (pushes and same-repo PRs: the steps stand
   # up an sshd and authorize a throwaway key), the BSD path end to end on this
   # runner rather than a second macOS one. It ssh's to itself, so client and
   # target are both macOS userland and Apple's /bin/bash 3.2 - run as
@@ -418,8 +426,14 @@ jobs:
 
       - uses: ./.github/actions/setup-shells
 
-      # No --verbose - see the `test` job's comment on the same flag.
+      # No --verbose - see the `test` job's comment on the same flag. Six at
+      # once on three cores: at three, the cores sat a third busy (the
+      # runner's machine-use table), the suites waiting on their own forks
+      # and pty sessions rather than on the CPU.
       - name: Run fast test suites
+        env:
+          _HI_RUN_DEADLINE: "720"
+          _HI_RUNNER_WIDTH: "6"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
       - name: Enable Remote Login and authorize a throwaway key
@@ -620,7 +634,7 @@ jobs:
             chown -R hi:hi /home/hi/hi-tree
             su -s /bin/sh hi -c "cd /home/hi/hi-tree/say-hi &&
               git config --global --add safe.directory \"\$PWD\" &&
-              _HI_HOME=/home/hi/hi-tree bash tests/test_runner.sh --host-report --group fast"'
+              _HI_HOME=/home/hi/hi-tree _HI_RUN_DEADLINE=420 bash tests/test_runner.sh --host-report --group fast"'
 
   # actionlint (bad `needs`, invalid contexts, shellcheck over every run:) and
   # zizmor (the Actions security audit; its one deliberate exception, the
@@ -839,6 +853,8 @@ jobs:
       - uses: ./.github/actions/setup-shells
 
       - name: Run benchmarks
+        env:
+          _HI_RUN_DEADLINE: "420"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group bench"
 
   # Per-command profiles of the same four hot paths, through timep in the
@@ -1050,11 +1066,11 @@ jobs:
   # PR three minutes of wall clock, and a red unit test and a red e2e show up
   # together.
   #
-  # Four shards rather than one long run: the ten e2e suites take 25
-  # minutes serial (test_runner.sh pins its width to 1 whenever an
-  # e2e/backends/bench suite is selected), and --shard i/n (the same tool
-  # windows-client.yml uses) is a runner-count knob - two or three suites a
-  # shard.
+  # Three shards rather than one long run: the ten e2e suites run serial
+  # (test_runner.sh pins its width to 1 whenever an e2e/backends/bench suite
+  # is selected), about seven minutes in all, and --shard i/n dealt by each
+  # suite's time ($_HI_SHARD_BY=e2e, $_HI_TEST_COSTS_E2E) gives each shard
+  # about two and a half.
   e2e:
     name: e2e (ssh, docker, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
@@ -1064,12 +1080,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/4, 2/4, 3/4, 4/4]
+        shard: [1/3, 2/3, 3/3]
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: block
-          # The union of every endpoint the four shards called on three runs'
+          # The union of every endpoint the shards called on three runs'
           # audit logs (Docker Hub's image pulls, the apt, apk, and dnf the
           # test images build with - dnf pinned to mirrors.kernel.org in
           # sshd-fedora.Dockerfile and repo_test.sh, where MirrorManager used
@@ -1123,12 +1139,18 @@ jobs:
 
       # --require-run: here a skip is a broken runner, not an optional
       # backend. runner_test.sh checks the matrix's slices partition the
-      # e2e group.
+      # e2e group. Two suites at once (_HI_E2E_WIDTH): one at a time the
+      # runner sat at 30-64% CPU, and each suite's containers are its own.
+      # No --verbose, which would pin it back to one: a failing transcript
+      # still replays in full.
       - name: Run this shard of the end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
+          _HI_SHARD_BY: e2e
+          _HI_RUN_DEADLINE: "720"
+          _HI_E2E_WIDTH: "2"
         run: |
-          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group e2e --shard "$HI_SHARD"
+          "${{ github.workspace }}/tests/test_runner.sh" --host-report --require-run --group e2e --shard "$HI_SHARD"
 
   # One backend per shard, a runner apiece: the three serial on one runner take
   # 40 minutes (one shared container/VM daemon is what test_runner.sh's width
@@ -1196,6 +1218,7 @@ jobs:
       - name: Run this shard of the backend end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
+          _HI_RUN_DEADLINE: "720"
         run: |
           "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD"
 
@@ -1222,7 +1245,7 @@ jobs:
         with:
           egress-policy: block
           disable-sudo: true
-          # A gate job, as e2e-gate below: its audit log named no endpoint.
+          # A gate job: its audit log named no endpoint.
           allowed-endpoints: >
             github.com:443
 
@@ -1250,7 +1273,7 @@ jobs:
         with:
           egress-policy: block
           disable-sudo: true
-          # A gate job, as e2e-gate below: its audit log named no endpoint.
+          # A gate job: its audit log named no endpoint.
           allowed-endpoints: >
             github.com:443
 
@@ -1272,69 +1295,41 @@ jobs:
   # not something to hand a stranger's pull request, but a PR whose head
   # branch lives in this repository was pushed by someone who can push to
   # main already, and it is that PR where a red Windows or BSD run is worth
-  # knowing - not after the merge, off a release. Gated on `test-ubuntu` and
-  # `test-arm` alone, not `test-macos` too: nearly every bad push fails a red
-  # ubuntu or arm64 unit test first, and waiting on macOS's own 30-minute job
-  # as well only delays the Windows and BSD runners starting, for what a red
-  # macOS entry catches on its own (a red gate here still holds them, so
-  # nothing ships around a macOS-only break, just later - macOS's own check
-  # still fails the run). One gate job rather than the same needs/if on every
-  # caller below; macOS's loopback rides in test-macos itself, for the same
-  # audience.
-  e2e-gate:
-    name: e2e gate
-    needs: [changes, test-ubuntu, test-arm]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      ok: ${{ steps.gate.outputs.ok }}
-    steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: block
-          disable-sudo: true
-          # A gate job: it reads its needs' outputs and reaches nothing else.
-          # Its own audit log named no endpoint at all.
-          allowed-endpoints: >
-            github.com:443
-
-      - id: gate
-        env:
-          TRUSTED: ${{ needs.changes.outputs.trusted }}
-          TEST_UBUNTU: ${{ needs.test-ubuntu.result }}
-          TEST_ARM: ${{ needs.test-arm.result }}
-        run: |
-          ok=false
-          [ "$TRUSTED" = true ] && [ "$TEST_UBUNTU" = success ] && [ "$TEST_ARM" = success ] && ok=true
-          echo "ok=$ok" >>"$GITHUB_OUTPUT"
-
+  # knowing - not after the merge, off a release. Each waits on `test-arm`
+  # alone: nearly every bad push fails a red arm64 unit test first, and arm64
+  # has a runner pool of its own, so it starts at once where an ubuntu job
+  # queues behind every other one. A break only ubuntu's or macOS's fast
+  # suites catch fails their own checks, and so the run, all the same. The
+  # condition is spelled out on each of the three rather than read off a gate
+  # job, which spent two minutes in the ubuntu queue for twelve seconds of
+  # work; `success()` is implied, so a red or skipped test-arm skips them.
+  # macOS's loopback rides in test-macos itself, for the same audience.
   e2e-windows:
     name: e2e (Windows)
-    needs: e2e-gate
-    if: needs.e2e-gate.outputs.ok == 'true'
+    needs: [changes, test-arm]
+    if: needs.changes.outputs.trusted == 'true' && github.event.pull_request.draft != true
     uses: ./.github/workflows/windows-e2e.yml
 
-  # The non-macOS BSDs, on the same gate: a FreeBSD and an OpenBSD VM on
+  # The non-macOS BSDs, on the same condition: a FreeBSD and an OpenBSD VM on
   # hosted runners each run the fast suites and ssh to themselves.
   e2e-freebsd:
     name: e2e (FreeBSD)
-    needs: e2e-gate
-    if: needs.e2e-gate.outputs.ok == 'true'
+    needs: [changes, test-arm]
+    if: needs.changes.outputs.trusted == 'true' && github.event.pull_request.draft != true
     uses: ./.github/workflows/freebsd-e2e.yml
 
   e2e-openbsd:
     name: e2e (OpenBSD)
-    needs: e2e-gate
-    if: needs.e2e-gate.outputs.ok == 'true'
+    needs: [changes, test-arm]
+    if: needs.changes.outputs.trusted == 'true' && github.event.pull_request.draft != true
     uses: ./.github/workflows/openbsd-e2e.yml
 
-  # The client-side half of Windows. Not behind e2e-gate: it is the fast
+  # The client-side half of Windows. Not behind test-arm: it is the fast
   # suites on another client, not an e2e that wants green targets first, and
   # waiting on `test` as well would make it the long pole of every push.
   # Pushes and same-repo PRs, the
-  # same audience as e2e-gate (spelled out here because it does not sit
-  # behind the gate), and gated on `changes` like the other fast-suite jobs.
+  # same audience as the platform e2e jobs (spelled out here because it does
+  # not wait on test-arm), and gated on `changes` like the other fast-suite jobs.
   # A real check, not advisory: windows-client.yml carries no
   # continue-on-error, so a red suite fails the run. Not on the
   # required-checks list, so it does not block a merge.

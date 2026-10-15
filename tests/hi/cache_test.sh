@@ -344,6 +344,7 @@ function test_payload_cached_builds_cold_then_reuses_it() {
 function test_payload_cached_is_keyed_on_the_cut_list() {
   local got got2
   local whole="" cut="" dir
+  # shellcheck disable=SC2034 # _hi_payload_excl fills it, _hi_payload_cached reads it
   local -a payload_excl=()
   dir="$(_hi_cache_rt pc.excl)"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached whole || _hi_why dir || return 1

@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Unit tests for hi.sh's container arm - the command shapes, the three helpers
-# that read their caller's scope, and _say_hi_container's failure ladder.
+# Unit tests for hi.sh's transport over a container: the command shapes, the
+# no-bash probe the --plain path reads, and _say_hi's boot ladder on a
+# container arm.
 #
 # WHY THIS IS NOT AN E2E SUITE. tests/targets/docker_test.sh reaches this code
-# through a real daemon, and reaches exactly one of the ladder's eight
-# _hi_fail arms - the happy path plus "no writable temp directory". The other
-# seven are transport failures nothing can provoke on a working container, and
-# they are where the arm's error handling actually lives. So the backend here
-# is a shim: `docker exec [-i|-it] <name> <cmd...>` runs <cmd> locally with
-# $TMPDIR pointed at a scratch tree standing in for the container's, and a
-# handful of _HI_CT_* knobs make one specific call fail. Everything hi.sh does
-# either side of that call is the real thing, including a real payload tar.
+# through a real daemon, and reaches the happy path and "no writable temp
+# directory" alone. The short landing, a missing base64, a refused path, and
+# an exec that fails are transport failures nothing can provoke on a working
+# container, and they are where the arm's error handling lives. So the
+# backend here is a shim: `docker exec [-i|-it] <name> sh -c <script>` runs
+# <script> locally with $TMPDIR pointed at a scratch tree standing in for the
+# container's, and a handful of _HI_CT_* knobs make one call fail.
+# Everything hi.sh does either side of that call is the real thing, including
+# a real payload tar.
 #
 # The shim answers *only* the argv shapes hi.sh builds, and exits 1 on
 # anything else - the discipline tests/lib/fixtures.sh's _hi_probe_shims uses,
@@ -37,16 +39,15 @@ source "$_HI_LAUNCHER"
 # turns rather than as a second fixture.
 #
 #   _HI_CT_TMPDIR      the "container's" ${TMPDIR:-/tmp}
-#   _HI_CT_NO_BASH=1   `command -v bash` finds nothing there
-#   _HI_CT_LADDER      what the ladder probe echoes back, verbatim
-#   _HI_CT_PUT_FAIL    a `cat > '<path>'` naming a path with this in it writes
-#                      nothing - the transport race _hi_container_put retries
-#   _HI_CT_CP_FAIL=1   the `cp` of the fallback rc onto .zshrc fails
-#   _HI_CT_TAR_FAIL=1  the payload's `tar mxzf` fails
+#   _HI_CT_PATH        the $PATH a script runs under there
+#   _HI_CT_SHORT=<n>   the first <n> boots land 64 bytes of the script at most
+#                      - the race the boot's byte check is for
+#   _HI_CT_GONE=1      every exec fails as one into a container that is gone
 #
-# An `exec `-bearing script, a bare shell name, or `fish -C` is the *attach* -
-# the session hi would hand over - and is a no-op that records it happened:
-# running it for real would block on a terminal that is not there.
+# The boot is logged as `boot`. The attach - `sh <dir>/bootloader` - is logged
+# with its script, its bootloader copied beside the log, and its directory
+# removed as the real one does; it is not run, since it would hand over a
+# session. A bare shell name is the --plain path's attach, logged alike.
 function _hi_ct_shim() {
   _HI_CT_BIN="$_HI_WORKDIR/ctbin"
   mkdir -p "$_HI_CT_BIN"
@@ -63,78 +64,55 @@ exec) shift ;;
 *) exit 1 ;;
 esac
 while [ "$1" = -i ] || [ "$1" = -it ] || [ "$1" = -t ]; do shift; done
+if [ "${_HI_CT_GONE:-0}" = 1 ]; then
+  printf 'Error response from daemon: No such container: %s\n' "$1" >&2
+  exit 1
+fi
 shift # the container name
-
-# a bare shell name is the attach - the session hi would hand over. Anything
-# else that is not `sh -c`/`cat` is an ordinary command (the cleanup's rm),
-# logged apart so a case can tell the two apart.
-case "$1" in
-sh | ash | dash | zsh | fish | bash)
-  if [ "$1" != sh ] || [ "$2" != -c ]; then
-    printf '%s\n' "attach:$*" >>"$_HI_CT_LOG"
-    exit 0
+if [ "$1" != sh ] || [ "$2" != -c ]; then
+  printf 'attach:%s\n' "$*" >>"$_HI_CT_LOG"
+  exit 0
+fi
+SH="$(command -v sh)"
+script="$3"
+case "$script" in
+_HI_CONNECT_TIME=*)
+  printf 'attach:%s\n' "$script" >>"$_HI_CT_LOG"
+  dir="${script#*sh \"}"
+  dir="${dir%%/bootloader\"*}"
+  cp "$dir/bootloader" "$_HI_CT_LOG.landed"
+  rm -rf "$dir"
+  exit 0
+  ;;
+*'cat > "$d/bootloader"'*)
+  printf 'boot\n' >>"$_HI_CT_LOG"
+  if [ "$(grep -c '^boot$' "$_HI_CT_LOG")" -le "${_HI_CT_SHORT:-0}" ]; then
+    # dd rather than head -c, which OpenBSD's head lacks
+    dd bs=64 count=1 2>/dev/null | PATH="${_HI_CT_PATH:-$PATH}" TMPDIR="$_HI_CT_TMPDIR" "$SH" -c "$script"
+    exit $?
   fi
   ;;
-cat) TMPDIR="$_HI_CT_TMPDIR" exec cat "$2" ;;
-*)
-  printf '%s\n' "cmd:$*" >>"$_HI_CT_LOG"
-  exit 0
-  ;;
 esac
-
-script="$3"
-printf '%s\n' "sh:$script" >>"$_HI_CT_LOG"
-case "$script" in
-*"exec "*)
-  printf '%s\n' "attach:$script" >>"$_HI_CT_LOG"
-  exit 0
-  ;;
-esac
-case "$script" in
-"command -v bash") [ "${_HI_CT_NO_BASH:-0}" = 1 ] && exit 1 ;;
-esac
-case "$script" in
-*'echo "$_hi_s"'*)
-  [ -n "${_HI_CT_LADDER:-}" ] && {
-    printf '%s' "$_HI_CT_LADDER"
-    exit 0
-  }
-  ;;
-esac
-case "$script" in
-cp\ *) [ "${_HI_CT_CP_FAIL:-0}" = 1 ] && exit 1 ;;
-esac
-case "$script" in
-*'tar -x -m -z -f - -C'*) [ "${_HI_CT_TAR_FAIL:-0}" = 1 ] && exit 1 ;;
-esac
-case "${_HI_CT_PUT_FAIL:-}" in
-"") ;;
-*)
-  case "$script" in
-  "cat > "*"$_HI_CT_PUT_FAIL"*)
-    cat >/dev/null
-    exit 0
-    ;;
-  esac
-  ;;
-esac
-TMPDIR="$_HI_CT_TMPDIR" exec sh -c "$script"
+PATH="${_HI_CT_PATH:-$PATH}" TMPDIR="$_HI_CT_TMPDIR" exec "$SH" -c "$script"
 SHIM
   cp "$_HI_CT_BIN/docker" "$_HI_CT_BIN/podman"
   chmod +x "$_HI_CT_BIN/docker" "$_HI_CT_BIN/podman"
 }
 
-# _hi_ct_run <slug> [NAME=VALUE...] - one _say_hi_container docker run against
-# a scratch tree of its own, its stderr into $_HI_CT_ERR and its exit status
-# into $_HI_CT_RC. DOMAIN and the tree are per-case so no two share a root.
+# _hi_ct_run <slug> [NAME=VALUE...] - one interactive-shaped _say_hi docker
+# run against a scratch tree of its own, its stderr into $_HI_CT_ERR, the
+# exec's words into $_HI_CT_ERRLOG, and its exit status into $_HI_CT_RC.
+# DOMAIN and the tree are per-case so no two share a root.
 function _hi_ct_run() {
   local slug="$1"
   shift
   local case_dir="$_HI_WORKDIR/ct.$slug"
   mkdir -p "$case_dir/tmp"
   _HI_CT_ERR="$case_dir/err"
+  _HI_CT_ERRLOG="$case_dir/errlog"
   _HI_CT_LOG="$case_dir/log"
   : >"$_HI_CT_LOG"
+  : >"$_HI_CT_ERRLOG"
   _HI_CT_RC=0
   DOMAIN="ct-$slug" \
     env PATH="$_HI_CT_BIN:$PATH" _HI_CT_TMPDIR="$case_dir/tmp" \
@@ -142,8 +120,9 @@ function _hi_ct_run() {
     bash -c '
       set -uo pipefail
       source "$_HI_LAUNCHER"
-      _say_hi_container docker "$1"
-    ' -- "$case_dir/errlog" 2>"$_HI_CT_ERR" || _HI_CT_RC=$?
+      CMDARG="" KEEP=""
+      _say_hi docker "$1"
+    ' -- "$_HI_CT_ERRLOG" 2>"$_HI_CT_ERR" </dev/null || _HI_CT_RC=$?
 }
 
 # A miss prints what the case *did* say. The harness reports a bare label and
@@ -159,19 +138,27 @@ function _hi_ct_said() {
   return 1
 }
 
-# _hi_ct_said's twin over the shim's log, for the cases whose whole assertion
-# is "the attach hi handed over looked like this"
+# _hi_ct_said's twin over the shim's log, for the cases whose assertion is
+# what the boot and the attach looked like
 function _hi_ct_logged() {
   grep -q "$1" "$_HI_CT_LOG" && return 0
   {
     printf ' _hi_ct_logged: rc=%s, no /%s/ in:\n' "$_HI_CT_RC" "$1"
     sed 's/^/ | /' "$_HI_CT_LOG"
+    sed 's/^/ | stderr: /' "$_HI_CT_ERR"
   } >&2
   return 1
 }
 
+# _hi_ct_boots <n> - the boot ran <n> times
+function _hi_ct_boots() {
+  local n
+  n="$(grep -c '^boot$' "$_HI_CT_LOG" || true)"
+  [ "$n" = "$1" ] || _hi_because "$n boots, not $1: $(cat "$_HI_CT_LOG")"
+}
+
 # ---------------------------------------------------------------------------
-# _hi_container_cmds - the probe/cp/attach shapes, per backend
+# _hi_transport_cmds - the probe/cp/attach shapes, per backend
 # ---------------------------------------------------------------------------
 
 # Every case runs with no terminal on stdin (the runner's suites do), which is
@@ -180,8 +167,8 @@ function _hi_ct_logged() {
 # for `hi <container> <cmd> | ...`.
 function _hi_ct_cmds() {
   local DOMAIN="$1" label="$2"
-  local -a probe cp attach
-  _hi_container_cmds "$label"
+  local -a probe cp attach ctl_opts=() SSHARGS=()
+  _hi_transport_cmds "$label"
   printf 'probe=%s\ncp=%s\nattach=%s\n' "${probe[*]}" "${cp[*]}" "${attach[*]}"
 }
 
@@ -238,6 +225,21 @@ function test_cmds_kube_names_the_container_when_one_is_given() {
   esac
 }
 
+# ssh's three are one connection's: no stdin for the probe, none of the
+# ControlMaster's options missing from any
+function test_cmds_ssh_rides_the_control_master() {
+  local out
+  out="$(
+    local DOMAIN=box
+    local -a probe cp attach ctl_opts=(-o ControlPath=/s) SSHARGS=(-p 22)
+    _hi_transport_cmds ssh
+    printf 'probe=%s\ncp=%s\nattach=%s\n' "${probe[*]}" "${cp[*]}" "${attach[*]}"
+  )"
+  [ "$out" = "probe=ssh -n -o ControlPath=/s -p 22 box
+cp=ssh -o ControlPath=/s -p 22 box
+attach=ssh -o ControlPath=/s -p 22 box" ] || _hi_why out
+}
+
 # ---------------------------------------------------------------------------
 # _hi_container_fallback_shell - a word read back from the container
 # ---------------------------------------------------------------------------
@@ -267,104 +269,71 @@ function test_fallback_shell_answer() {
 }
 
 # ---------------------------------------------------------------------------
-# _hi_container_put - proven to have landed, not assumed from a zero exit
+# _say_hi over a container
 # ---------------------------------------------------------------------------
 
-function test_put_lands_the_file() {
-  local got
-  local dir="$_HI_WORKDIR/put.ok" tmp
-  local -a cp=(env) probe=(env)
+# One boot and one attach, the attach the script's own `sh <dir>/bootloader`
+# and the removal after it; what landed is the script an ssh target gets -
+# the preamble, the kept session's reattach, the bash handoff, and the no-bash
+# ladder - whole, since the boot checked its bytes.
+function test_say_hi_boots_once_and_attaches_once() {
+  local landed
+  _hi_ct_run ok
+  [ "$_HI_CT_RC" = 0 ] || _hi_why _HI_CT_RC _HI_CT_ERR || return 1
+  _hi_ct_boots 1 || return 1
+  # BSD mktemp takes the template as a prefix and appends a suffix of its own
+  _hi_ct_logged '^attach:_HI_CONNECT_TIME=[0-9.]* sh ".*/hi\.boot\.[A-Za-z0-9.]*/bootloader"; _hi_e=\$?; rm -rf ".*"; exit \$_hi_e$' || return 1
+  landed="$(cat "$_HI_CT_LOG.landed")"
+  [[ "$landed" == *'_hi_t0=$(_hi_now)'* && "$landed" == *'_hi_kept()'* &&
+    "$landed" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* &&
+    "$landed" == *'no bash on [%s]'* ]] || _hi_because "the script that landed: ${landed:0:400}" || return 1
+  local left
+  for left in "$_HI_WORKDIR"/ct.ok/tmp/hi.boot.*; do
+    [ ! -e "$left" ] || _hi_because "the boot directory stayed: $left" || return 1
+  done
+}
+
+# a landing short of the script is tried again, and the session goes on
+function test_say_hi_retries_a_short_landing() {
+  _hi_ct_run short _HI_CT_SHORT=2
+  { [ "$_HI_CT_RC" = 0 ] && _hi_ct_boots 3 && _hi_ct_logged '^attach:_HI_CONNECT_TIME='; } || _hi_why _HI_CT_RC
+}
+
+# ...three times, and then the container's own shell, said
+function test_say_hi_hands_over_after_three_short_landings() {
+  _hi_ct_run shorter _HI_CT_SHORT=9
+  { _hi_ct_boots 3 && _hi_ct_said "hi's script reached [ct-shorter] short, three times over - handing over" &&
+    _hi_ct_logged '^attach:bash$'; } || _hi_why _HI_CT_RC
+}
+
+# _hi_ct_mktemp <name> <body> - a stand-in mktemp, in a directory of its own
+# for _HI_CT_PATH to lead with: a $TMPDIR the real one cannot use fails on
+# GNU's and not on macOS's, which falls back to a directory of its own
+function _hi_ct_mktemp() {
+  local dir="$_HI_WORKDIR/ct.mktemp.$1"
   mkdir -p "$dir"
-  tmp="$dir/err"
-  printf 'payload\n' >"$dir/src"
-  _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir || return 1
-  got="$(cat "$dir/dest")"
-  [ "$got" = payload ] || _hi_why got dir
+  printf '#!/bin/sh\n%s\n' "$2" >"$dir/mktemp"
+  chmod +x "$dir/mktemp"
+  printf '%s' "$dir"
 }
 
-# the write can succeed at the transport and still deliver nothing - an
-# `exec -i` whose stdin closes before the target's cat drains it - so an empty
-# landing is a failure however the transport exited
-function test_put_fails_when_nothing_lands() {
-  local dir="$_HI_WORKDIR/put.empty" tmp
-  local -a cp probe=(env)
-  mkdir -p "$dir"
-  tmp="$dir/err"
-  printf 'payload\n' >"$dir/src"
-  # a transport that reports success and delivers nothing
-  cat >"$dir/blackhole" <<'EOF'
-#!/bin/sh
-cat >/dev/null
-exit 0
-EOF
-  chmod +x "$dir/blackhole"
-  cp=("$dir/blackhole")
-  ! _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir
+# nowhere to make the boot directory: said, and the container's own shell
+function test_say_hi_no_writable_temp_directory() {
+  local bin
+  bin="$(_hi_ct_mktemp fail 'exit 1')"
+  _hi_ct_run notmp "_HI_CT_PATH=$bin:$PATH"
+  { _hi_ct_said "no writable temp directory on [ct-notmp] - handing over" &&
+    _hi_ct_logged '^attach:bash$'; } || _hi_why _HI_CT_RC
 }
 
-# the race is transient, so a second try is given rather than failing on the
-# first empty landing - and $src is a regular file precisely so the retry can
-# replay the same bytes
-function test_put_retries_and_succeeds_on_a_later_try() {
-  local got got2
-  local dir="$_HI_WORKDIR/put.retry" tmp
-  local -a cp probe=(env)
-  mkdir -p "$dir"
-  tmp="$dir/err"
-  printf 'payload\n' >"$dir/src"
-  cat >"$dir/flaky" <<'EOF'
-#!/bin/sh
-# the first attempt swallows the bytes; every later one delivers
-n=0
-[ -f "$FLAKY_COUNT" ] && n="$(cat "$FLAKY_COUNT")"
-n=$((n + 1))
-printf '%s' "$n" >"$FLAKY_COUNT"
-if [ "$n" = 1 ]; then
-  cat >/dev/null
-  exit 0
-fi
-exec sh -c "$3"
-EOF
-  chmod +x "$dir/flaky"
-  cp=(env "FLAKY_COUNT=$dir/count" "$dir/flaky")
-  _hi_container_put "$dir/src" "$dir/dest" || _hi_why dir || return 1
-  got="$(cat "$dir/dest")"
-  got2="$(cat "$dir/count")"
-  [ "$got" = payload ] && [ "$got2" = 2 ] || _hi_why got got2 dir
-}
-
-# ---------------------------------------------------------------------------
-# _hi_container_cleanup - the client-side sweep on every early exit
-# ---------------------------------------------------------------------------
-
-function test_cleanup_removes_the_scratch_tree() {
-  local root="$_HI_WORKDIR/clean.root"
-  local -a probe=(env)
-  mkdir -p "$root/say-hi"
-  _hi_container_cleanup || _hi_why || return 1
-  [ ! -d "$root" ] || _hi_why root
-}
-
-# it runs on paths that are already gone, so it must never be the thing that
-# fails an exit path
-function test_cleanup_is_quiet_when_there_is_nothing_there() {
-  local root="$_HI_WORKDIR/clean.gone"
-  local -a probe=(env)
-  _hi_container_cleanup || _hi_why
-}
-
-# ---------------------------------------------------------------------------
-# _say_hi_container's failure ladder
-# ---------------------------------------------------------------------------
-
-# names the directory it tried, at the probe rather than later at the copy.
-# A regular file rather than a /proc path: mkdir has to fail for the same
-# reason everywhere, and /proc is Linux's alone.
-function test_ladder_no_writable_temp_directory() {
-  printf 'not a directory\n' >"$_HI_WORKDIR/ct.notmp.file"
-  _hi_ct_run notmp "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.notmp.file"
-  { [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "no writable temp directory" &&
-    _hi_ct_said "--plain needs none"; } || _hi_why _HI_CT_RC
+# no base64 or openssl: nothing to unarmor the tree with, and the plain path
+# lands in the best shell of the ladder
+function test_say_hi_no_armor_hands_over_the_ladder_shell() {
+  local path
+  path="$(_hi_real_path ct-noarmor sh mktemp cat wc rm)"
+  _hi_ct_run noarmor "_HI_CT_PATH=$path"
+  { _hi_ct_said "no base64 or openssl on [ct-noarmor] - handing over" &&
+    _hi_ct_logged '^attach:sh$'; } || _hi_why _HI_CT_RC path
 }
 
 # the path comes back from the target and is interpolated into every command
@@ -372,98 +341,37 @@ function test_ladder_no_writable_temp_directory() {
 # semicolon: both are outside _hi_safe_path's class, which is the whole
 # assertion, but MSYS rewrites an argument that looks like a `;`-joined path
 # list and would answer a different question under Git Bash.
-function test_ladder_refuses_a_scratch_path_it_will_not_use() {
-  mkdir -p "$_HI_WORKDIR/ct.badroot/od,ir"
-  _hi_ct_run badroot "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.badroot/od,ir"
-  { [ "$_HI_CT_RC" != 0 ] &&
-    _hi_ct_said "named a scratch directory hi will not use"; } || _hi_why _HI_CT_RC
+function test_say_hi_refuses_a_scratch_path_it_will_not_use() {
+  local bin
+  # shellcheck disable=SC2016 # the stand-in's to expand
+  bin="$(_hi_ct_mktemp comma 'mkdir -p "$TMPDIR/od,ir" && printf "%s\n" "$TMPDIR/od,ir"')"
+  _hi_ct_run badroot "_HI_CT_PATH=$bin:$PATH"
+  { _hi_ct_said "named a scratch directory hi will not use" &&
+    ! grep -q '^attach:_HI_CONNECT_TIME=' "$_HI_CT_LOG"; } || _hi_why _HI_CT_RC
 }
 
-# no bash and nothing on the ladder either: hi says so rather than guessing a
-# shell out of thin air
-function test_ladder_no_shell_hi_asked_about() {
-  _hi_ct_run noshell _HI_CT_NO_BASH=1 _HI_CT_LADDER=bogusshell
-  { [ "$_HI_CT_RC" != 0 ] &&
-    _hi_ct_said "named no shell hi asked about - not falling back"; } || _hi_why _HI_CT_RC
-}
-
-# aliases.sh is the whole point of the fallback, so failing to land it is
-# fatal to the fancy path - but the session still happens, bare
-function test_ladder_aliases_copy_failure_still_attaches() {
-  _hi_ct_run noalias _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh \
-    _HI_CT_PUT_FAIL=aliases.sh
-  { _hi_ct_said "failed to copy aliases.sh into" &&
-    _hi_ct_logged '^attach:'; } || _hi_why
-}
-
-# the rc carries $CMDARG, so dropping it would leave a bare, uncommanded shell
-# with no way to tell that from the ordinary kind - fatal, and swept
-function test_ladder_fallback_rc_write_failure_is_fatal() {
-  _hi_ct_run norc _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh \
-    _HI_CT_PUT_FAIL=.hi_fallback_rc
-  { [ "$_HI_CT_RC" != 0 ] &&
-    _hi_ct_said "failed to write the fallback rc into" &&
-    ! grep -q '^attach:' "$_HI_CT_LOG"; } || _hi_why _HI_CT_RC _HI_CT_LOG
-}
-
-# zsh reads $ZDOTDIR/.zshrc and nothing else, so the copy is the handoff
-function test_ladder_zshrc_write_failure_is_fatal() {
-  _hi_ct_run nozshrc _HI_CT_NO_BASH=1 _HI_CT_LADDER=zsh _HI_CT_CP_FAIL=1
-  { [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "failed to write .zshrc into"; } || _hi_why _HI_CT_RC
-}
-
-# the tree itself failing to land is the last of the fallback-free arms
-function test_ladder_payload_copy_failure_is_fatal() {
-  _hi_ct_run notar _HI_CT_TAR_FAIL=1
-  { [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "failed to copy say-hi into"; } || _hi_why _HI_CT_RC
-}
-
-# Every fatal arm past the probe sweeps the scratch tree: it exists on the
-# target from the moment the probe returns, so a bare `return` leaves it in
-# the container. The shim logs the cleanup as an ordinary command.
-function test_ladder_every_fatal_arm_sweeps_the_scratch_tree() {
-  _hi_ct_run noshell2 _HI_CT_NO_BASH=1 _HI_CT_LADDER=bogusshell
-  _hi_ct_logged '^cmd:rm -rf ' || _hi_why || return 1
-  _hi_ct_run notar2 _HI_CT_TAR_FAIL=1
-  _hi_ct_logged '^cmd:rm -rf ' || _hi_why
-}
-
-# the bootloader is the file `bash --rcfile` reads: landing it empty would
-# hand over a bare shell that sourced nothing, silently, so it goes through
-# _hi_container_put's retry-and-verify like every other copy
-function test_ladder_bootloader_write_failure_is_fatal() {
-  _hi_ct_run noboot _HI_CT_PUT_FAIL=hi.bashrc
-  { [ "$_HI_CT_RC" != 0 ] &&
-    _hi_ct_said "failed to write hi's bootloader into" &&
-    ! grep -q '^attach:' "$_HI_CT_LOG"; } || _hi_why _HI_CT_RC _HI_CT_LOG
-}
-
-# a fish fallback takes the rc through -C and the command through -c, as
-# _hi_remote_suffix does - never through $ENV, which fish does not read
-function test_ladder_fish_fallback_passes_the_rc_through_dash_c() {
-  _hi_ct_run fish _HI_CT_NO_BASH=1 _HI_CT_LADDER=fish
-  _hi_ct_logged '^attach:fish -C' || _hi_why
-}
-
-# every other ladder shell gets it through $ENV instead
-function test_ladder_posix_fallback_passes_the_rc_through_env() {
-  _hi_ct_run posix _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh
-  _hi_ct_logged 'attach:export ENV=' || _hi_why
+# an exec that fails outright reached nothing: no attach, the exec's own words
+# kept for the report, and a failing status
+function test_say_hi_keeps_a_failed_exec_s_words() {
+  _hi_ct_run gone _HI_CT_GONE=1
+  { [ "$_HI_CT_RC" != 0 ] && grep -q 'No such container: ct-gone' "$_HI_CT_ERRLOG" &&
+    ! grep -q '^attach:' "$_HI_CT_LOG"; } || _hi_why _HI_CT_RC _HI_CT_ERRLOG
 }
 
 function run_container_tests() {
-  _hi_h1 "Testing hi.sh's container arm"
+  _hi_h1 "Testing hi.sh's transport over a container"
   _hi_workdir hicontainer
   _hi_suite_begin
   _hi_ct_shim
 
-  _hi_h2 "Testing: _hi_container_cmds"
+  _hi_h2 "Testing: _hi_transport_cmds"
   _hi_check "docker: docker exec" test_cmds_docker_uses_docker_exec
   _hi_check "podman is a drop-in" test_cmds_podman_is_a_drop_in_for_docker
   _hi_check "nomad spells out -i and -t" test_cmds_nomad_spells_out_both_flags
   _hi_check "nomad names the task" test_cmds_nomad_names_the_task_when_one_is_given
   _hi_check "kube ends every shape with --" test_cmds_kube_ends_every_shape_with_a_double_dash
   _hi_check "kube names the container" test_cmds_kube_names_the_container_when_one_is_given
+  _hi_check "ssh rides the ControlMaster" test_cmds_ssh_rides_the_control_master
 
   _hi_h2 "Testing: _hi_container_fallback_shell"
   _hi_check "Takes a ladder name" test_fallback_shell_answer sh sh
@@ -471,33 +379,16 @@ function run_container_tests() {
   _hi_check "Rejects a word with extra output" test_fallback_shell_answer "sh and then some"
   _hi_check "Rejects an empty answer" test_fallback_shell_answer ""
 
-  _hi_h2 "Testing: _hi_container_put / _hi_container_cleanup"
-  _hi_check "Lands the file" test_put_lands_the_file
-  _hi_check "Fails when nothing lands" test_put_fails_when_nothing_lands
-  _hi_check "Retries and succeeds on a later try" test_put_retries_and_succeeds_on_a_later_try
-  _hi_check "Cleanup removes the scratch tree" test_cleanup_removes_the_scratch_tree
-  _hi_check "Cleanup is quiet when it is already gone" test_cleanup_is_quiet_when_there_is_nothing_there
+  _hi_h2 "Testing: _say_hi over a container"
+  _hi_check "Boots once, attaches once, ssh's script" test_say_hi_boots_once_and_attaches_once
+  _hi_check "Retries a short landing" test_say_hi_retries_a_short_landing
+  _hi_check "Hands over after three short landings" test_say_hi_hands_over_after_three_short_landings
+  _hi_check "No writable temp directory" test_say_hi_no_writable_temp_directory
+  _hi_check "No armor: the ladder's shell" test_say_hi_no_armor_hands_over_the_ladder_shell
+  _hi_check "Refuses a scratch path it will not use" test_say_hi_refuses_a_scratch_path_it_will_not_use
+  _hi_check "Keeps a failed exec's words" test_say_hi_keeps_a_failed_exec_s_words
 
-  # Every case below drives _say_hi_container past its scratch-dir probe,
-  # which reads `mkdir -m 700`'s exit status as its verdict. Where that status
-  # disagrees with the tree the shim is not exercising the ladder at all: the
-  # probe arm answers first and every case after it reports the same "no
-  # writable temp directory". The one case that expects that arm is gated too,
-  # since there it would pass without having tested anything.
-  _hi_h2 "Testing: _say_hi_container's failure ladder"
-  _hi_check_capable mkdir_mode "No writable temp directory" test_ladder_no_writable_temp_directory
-  _hi_check_capable mkdir_mode "Refuses a scratch path it will not use" test_ladder_refuses_a_scratch_path_it_will_not_use
-  _hi_check_capable mkdir_mode "No shell hi asked about" test_ladder_no_shell_hi_asked_about
-  _hi_check_capable mkdir_mode "aliases.sh copy failure still attaches" test_ladder_aliases_copy_failure_still_attaches
-  _hi_check_capable mkdir_mode "Fallback rc write failure is fatal" test_ladder_fallback_rc_write_failure_is_fatal
-  _hi_check_capable mkdir_mode ".zshrc write failure is fatal" test_ladder_zshrc_write_failure_is_fatal
-  _hi_check_capable mkdir_mode "Payload copy failure is fatal" test_ladder_payload_copy_failure_is_fatal
-  _hi_check_capable mkdir_mode "Bootloader write failure is fatal" test_ladder_bootloader_write_failure_is_fatal
-  _hi_check_capable mkdir_mode "Every fatal arm sweeps the tree" test_ladder_every_fatal_arm_sweeps_the_scratch_tree
-  _hi_check_capable mkdir_mode "fish takes the rc through -C" test_ladder_fish_fallback_passes_the_rc_through_dash_c
-  _hi_check_capable mkdir_mode "POSIX shells take it through \$ENV" test_ladder_posix_fallback_passes_the_rc_through_env
-
-  _hi_suite_end "hi.sh container arm"
+  _hi_suite_end "hi.sh container transport"
 }
 
 run_container_tests

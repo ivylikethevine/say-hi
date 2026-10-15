@@ -221,7 +221,7 @@ and
 wins.
 .TP
 .B \-\-keep
-keep the session on an ssh target past a disconnect: it runs in a
+keep the session on a target past a disconnect: it runs in a
 .BR tmux (1),
 .BR zellij (1),
 or
@@ -252,8 +252,8 @@ The directory of a kept session that died with its target is removed by the
 next
 .B hi
 to it, which says the session is gone if this machine had seen it.
-At a terminal, a dropped link to a kept session, or to a directory that is
-held, is retried
+At a terminal, a dropped ssh link to a kept session, or to a directory that
+is held, is retried
 for
 .B _HI_KEEP_RETRY
 (5m).

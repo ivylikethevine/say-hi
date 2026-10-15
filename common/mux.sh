@@ -29,7 +29,7 @@ if [ "$#" -eq 0 ] && [ -t 0 ] && [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ]; then
   fi
   # no hi.keep, a container's session or a --no-keep one: the panes are not
   # hi's, and nothing else would say so
-  printf " hi: %s's panes open this machine's own shell - a kept session takes one over ssh, into bash, started without --no-keep\n" "$_hi_t" >&2
+  printf " hi: %s's panes open this machine's own shell - a kept session takes one hi connected, into bash, started without --no-keep\n" "$_hi_t" >&2
 fi
 case "$_hi_t" in
 tmux) [ ! -f "$_hi_c/tmux/tmux.conf" ] || exec tmux -f "$_hi_c/tmux/tmux.conf" "$@" ;;

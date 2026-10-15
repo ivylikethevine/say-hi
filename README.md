@@ -99,7 +99,7 @@ bash session on a debian container and a fish session on an alpine box, reached
 through docker and podman. The operator again, in fish's own prompt at the
 workstation and hi's on both boxes, with the header trimmed to the clocks, the
 backend counts, and the check on a blue-to-red ramp of their own. A box with no
-bash gets the aliases-only tier — hi's own aliases, not the overlay
+bash gets the aliases-only tier
 ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on an alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
@@ -366,66 +366,7 @@ entry is deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the
 tag and are outside this checkout: an account or an upstream review that lands
 when it lands.
 
-1. [ ] _Before 1.0:_ **`vim` is vim where a target has both** — shipped: the
-       `nvim` alias answers to `nvim` alone, so `vim` is the `vim` plugin's
-       where the target has vim, and `tests/targets/framework_test.sh`'s
-       `editors` case connects to a target with both. What is left is seeing
-       it in a release. **Ticks when:** on a target with both, `vim` opens
-       vim on the carried `vim/vimrc` and `nvim` neovim on the carried
-       `init.lua`, from a tagged version.
-
-2. [ ] _Before 1.0:_ **A `config.d` file's name is a tag** — shipped: a host
-       spelled out in `~/.ssh/config.d/<name>` under no `# Tags:` line
-       carries `<name>` as its tag ([docs/COLORS.md](docs/COLORS.md)), so a
-       file per client or site tags its hosts by being the file: `colors`
-       rows, `settings.<tag>.sh`, and `hi --add-tag` know it, and
-       `hi --doctor <host>` names the file it came from. A `# Tags:` line
-       above a host wins over the name. **Ticks when:** a host in
-       `~/.ssh/config.d/acme` with no `# Tags:` line colors as `acme` and
-       reads `settings.acme.sh` on a real config.
-
-3. [ ] _Before 1.0:_ **The kept session is one feature in one place** —
-       shipped: both of its halves are `common/keep.sh`'s, with `load.sh`
-       standing in for a tree that came without the file as `hi.sh` does;
-       the multiplexers are one roster, `$_HI_MUXES`; and the file lists
-       every `hi.*` file a session leaves in its tree; a kept session starts
-       through `common/mux.sh`, which alone spells each tool's config flag;
-       `_hi_mux_kill` is the one kill, sent to `hi --end`'s target as
-       written; and `_hi_keep_middle` is the feature's whole part in
-       `_hi_remote_middle`. **Ticks when:** the fast, lint, bench, and keep
-       suites are green in CI with it.
-
-4. [ ] _Before 1.0:_ **Shared primitives are written once** — shipped:
-       `_hi_list_has` answers the word-list membership tests, `scripts/`'
-       included; `_hi_die` is `common/core.sh`'s alone, so a script's refusal
-       names the script; an owner pane's variables are one list; and
-       `load()`'s greeting is a `header_row`, wrapped and closed by the
-       header's own code. **Ticks when:** the fast and lint groups are green
-       in CI with it.
-
-5. [ ] _Before 1.0:_ **`scripts/settings` is the one registry** — shipped:
-       a row carries its `<check>` and `<hint>`, which `hi --doctor` judges
-       a hand-written value by and `hi --configure` an answer by
-       (`_hi_setting_check`); every default that is not 0 or unset is one
-       block in `common/core.sh` that drift pins to the rows, with
-       `common/targets.sh`'s two copies; and drift pins `_HI_TOGGLES` to the
-       rows whose check is `toggle`. A new setting is a row and a read, plus
-       a block line for a default that is not 0 or unset. **Ticks when:** the
-       fast and lint groups are green in CI with it.
-
-6. [ ] _Before 1.0:_ **`common/flags` reaches past dispatch** — shipped:
-       the data files' flags are one scheme, `--add-X`/`--remove-X`
-       (`--add-color`, `--remove-color`, `--remove-tag`), with
-       `--enable-plugin`/`--disable-plugin` as the switch; the scripts that
-       take only `--help`, `--dry-run`, and words share `_hi_args`;
-       `hi --doctor` sorts ssh options with a connect's `_hi_ssh_opt`; and a
-       flag's fixed words are `common/flags`' `<flag>=<word>` rows, which
-       completion and `--add-color`'s types read. `scripts/update.sh` keeps a
-       loop of its own, since its `--help` answers ahead of the `.git` check,
-       and `--use`'s words stay hi.sh's arms in their order. **Ticks when:**
-       the fast and lint groups are green in CI with it.
-
-7. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
+1. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
        each make the scratch directory, send the tree, fall back without
        bash, and clean up in their own way: a container takes seven or more
        `exec` calls, has no `--keep`, and `hi --doctor` has two target
@@ -451,53 +392,28 @@ when it lands.
        script an ssh one does, through its own three commands, and the e2e
        and backends groups are green in CI with it.
 
-8. [ ] _Before 1.0:_ **The coverage comment names what a PR left
-       untested** — shipped: `coverage.yml`'s comment lists the lines a PR
-       changed that neither tool recorded, less the shapes `xtrace` never
-       prints, and `tests/coverage.sh --untested <revision>` does the same by
-       hand. PR 214's comment carried it, two real gaps among three
-       artifacts the filter now drops. **Ticks when:** a PR's comment lists
-       only arms no case reaches.
+2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
 
-9. [ ] _Before 1.0:_ **Known tracer artifacts are marked in the source** —
-       shipped: an arm neither tool can reach in a sweep (zsh's, a bash
-       before 4.4's, Arch's `makepkg`) sits between `# hi-nocov-begin: <why>`
-       and `# hi-nocov-end`, which kcov drops by `--exclude-region` and
-       `tests/coverage_v2.sh` by the same pair; the bashcov header keeps only
-       what a marker cannot express. **Ticks when:** a CI sweep's two figures
-       leave the marked arms out.
+3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+       upstream style. **Do:** open the PR against tldr-pages. **Ticks
+       when:** merged.
 
-10. [ ] _Before 1.0:_ **kcov's trace method is confirmed in CI** —
-        shipped: `tests/coverage.sh` takes the method from the suites'
-        bash: `PS4` before 5.3, `DEBUG` from it. `DEBUG` does not follow a
-        suite into the child bash it starts, so a file reached only that way
-        reads 0 (PR 214's sweep under it read 62.72% against `PS4`'s 90.76%
-        on bash 5.2); `PS4` stops recording on 5.3 (the script's header has
-        the probe). **Ticks when:** a full CI sweep lands within a point of
-        90.76%.
+4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       settle its three flagged rows (`small_tasks`, `secure_2FA`,
+       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+       the live entry matches the sheet.
 
-11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-        versions_ prose into its version table.
-
-12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-        upstream style. **Do:** open the PR against tldr-pages. **Ticks
-        when:** merged.
-
-13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-        settle its three flagged rows (`small_tasks`, `secure_2FA`,
-        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-        the live entry matches the sheet.
-
-14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-        `publish-external.yml`'s `aur` job is written but unexercised. **When
-        it reopens:** register, add `AUR_SSH_KEY` to the `release`
-        environment, and push each package once by hand
-        ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-        packages are live and a dispatch has kept `say-hi` current for one
-        release.
+5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+       `publish-external.yml`'s `aur` job is written but unexercised. **When
+       it reopens:** register, add `AUR_SSH_KEY` to the `release`
+       environment, and push each package once by hand
+       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+       packages are live and a dispatch has kept `say-hi` current for one
+       release.
 
 ## License
 

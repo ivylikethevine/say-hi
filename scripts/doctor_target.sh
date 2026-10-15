@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # hi --doctor's target section: which backend a name resolves to, each check
-# timed, and for an ssh or a container target what a session ships and what
-# the far end has installed. Sourced by scripts/doctor.sh, whose rows
+# timed, and what a session ships and what the far end has installed. Sourced by scripts/doctor.sh, whose rows
 # (doctor_section, doctor_row, doctor_flush) and argument state it reads; not
 # an entry point of its own.
 
@@ -28,7 +27,7 @@ function doctor_target() {
       done
     fi
   else
-    # the label rides along beside the human name: doctor_container_target
+    # the label rides along beside the human name: doctor_transport_target
     # needs "docker", not "docker container", to build the same exec the
     # session would
     local -a chain=("ssh host::_hi_is_ssh_host")
@@ -71,70 +70,78 @@ function doctor_target() {
       done
     fi
     [ -z "$tagged" ] || doctor_row "tag settings" "$tagged - read over settings.sh for this host, and sent joined to it"
-    doctor_ssh_target "$target"
-  else
-    if [ "${#_HI_DOC_SSHARGS[@]}" -gt 0 ]; then
-      doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
-    fi
-    doctor_container_target "$label" "$target"
+    label=ssh
+  elif [ "${#_HI_DOC_SSHARGS[@]}" -gt 0 ]; then
+    doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
   fi
+  doctor_transport_target "$label" "$target"
   doctor_flush
   return 0
 }
 
-# The tool probe both target arms send: one `command -v` sweep, printed as a
+# The tool probe the target half sends: one `command -v` sweep, printed as a
 # space-separated list. $_HI_SHELL_LADDER expands here, "$c" is left for the
-# target's shell. One copy, or a tool added to the list reaches only one arm.
+# target's shell.
 function _hi_doctor_probe_snippet() {
   # shellcheck disable=SC2016 # "$c" is the target shell's variable, not ours -
   # expanding it here is exactly what must not happen
   printf 'for c in base64 openssl bash %s vim git; do command -v "$c" >/dev/null 2>&1 && printf "%%s " "$c"; done' "$_HI_SHELL_LADDER"
 }
 
-# The container half, and deliberately the same shape as doctor_ssh_target: what
-# the target has, whether a session lands in the full tier or the aliases-only
-# one, and what it costs to get there. A docker/podman/nomad/kube target gets
-# the same tier report an ssh one does, not just the `resolves` row: the tier is
-# the half worth having when a session comes up in the fallback and nobody can
-# say why.
-#
-# hi.sh's _hi_container_cmds builds the exec, so this asks the question through
-# exactly the call a real session would - not an approximation of it.
-function doctor_container_target() {
-  local label="$1" tools shells
+# The target half, for every arm: what the target has, which tier a session
+# lands in, and what it costs to get there. hi.sh's _hi_transport_cmds builds
+# the probe, so this asks the question through exactly the call a real
+# session would - not an approximation of it. An ssh target is reached once
+# first, BatchMode over the ControlMaster a real session would use, so the
+# whole section costs a single authentication.
+# doctor_transport_target <arm> <target>
+function doctor_transport_target() {
+  local arm="$1" tools shells
   DOMAIN="$2"
-  # shellcheck disable=SC2034 # _hi_container_cmds fills all three
-  local -a probe cp attach
-  _hi_container_cmds "$label"
+  # shellcheck disable=SC2034 # hi.sh's helpers read and set these; set,
+  # since _hi_ctl_close reads them under doctor.sh's set -u on any arm
+  local ctl_path="" ctl_dir="" ctl_shared=0
+  # shellcheck disable=SC2034 # _hi_transport_cmds fills all three
+  local -a ctl_opts=() probe cp attach
+  if [ "$arm" = ssh ]; then
+    # the run's ssh options, so the probe authenticates the way the connect
+    # would
+    SSHARGS=(${_HI_DOC_SSHARGS[@]+"${_HI_DOC_SSHARGS[@]}"})
+    _hi_ctl_open 15 run -o BatchMode=yes
+    doctor_ssh_connect || return 0
+  fi
+  _hi_transport_cmds "$arm"
 
-  # one exec, not one per tool: a kubectl round trip is ~100ms and this is a
+  # one call, not one per tool: a kubectl round trip is ~100ms and this is a
   # report somebody is waiting on
-  tools="$("${probe[@]}" sh -c "$(_hi_doctor_probe_snippet)" 2>/dev/null || true)"
-  if [ -z "$tools" ]; then
+  tools="$(_hi_on_target probe "$(_hi_doctor_probe_snippet)" 2>/dev/null || true)"
+  if [ -z "$tools" ] && [ "$arm" != ssh ]; then
     doctor_row target "no answer - the container is not running, or exec is refused" bad
     return 0
   fi
-  doctor_row target "has: $tools"
+  doctor_row target "has: ${tools:-nothing this probes for}"
 
-  # the tier, which is the question this arm exists for. hi ships the tree and
-  # runs load.sh under bash; without bash it copies common/aliases.sh alone and
-  # drops into the best of the ladder.
-  case " $tools" in
-  *" bash "*)
-    doctor_row session "full - bash is there, so hi ships the tree and load.sh runs"
-    ;;
+  # the tier, which is the question this section exists for: the tree and
+  # load.sh under bash, the best of the ladder with hi's aliases without it,
+  # and the target's own session where the script cannot land
+  shells="$(_hi_ladder_first "$tools")"
+  # padded both ends, so a word matches whatever spacing the answer came in
+  case " $tools " in
+  *" base64 "* | *" openssl "*) ;;
   *)
-    shells="$(_hi_ladder_first "$tools")"
-    if [ -n "$shells" ]; then
-      doctor_row session "aliases only - no bash, so a session lands in $shells with common/aliases.sh" warn
-    else
-      doctor_row session "no shell hi knows - not even ${_HI_SHELL_LADDER%% *}" bad
-    fi
+    doctor_row session "the target's own - no base64 or openssl, so hi's script cannot decode there" bad
+    shells=-
     ;;
   esac
+  case "$shells: $tools " in
+  -:*) ;;
+  *" bash "*) doctor_row session "full - bash is there, so hi ships the tree and load.sh runs" ;;
+  :*) doctor_row session "no shell hi knows - not even ${_HI_SHELL_LADDER%% *}" bad ;;
+  *) doctor_row session "aliases only - no bash, so a session lands in $shells with hi's aliases" warn ;;
+  esac
 
-  # what it costs: every session pays the copy, as on the ssh arm.
-  doctor_row ships "$(_hi_human_bytes "$(_hi_file_bytes <(_hi_payload_tar))") gzipped, streamed through $label exec - no base64 armor, unlike ssh"
+  doctor_row install "hi ships $(_hi_wire_estimate) each session - a say-hi installed on the target is not used from here"
+  _hi_ctl_close
 }
 
 # _hi_ladder_first <space-separated tools> - the first shell of $_HI_SHELL_LADDER
@@ -150,49 +157,23 @@ function _hi_ladder_first() {
   return 0
 }
 
-# The ssh half: one BatchMode connection, multiplexed exactly like a real
-# session, then a tool inventory over the same socket - so the whole section
-# costs a single authentication.
-function doctor_ssh_target() {
-  DOMAIN="$1"
-  # the run's ssh options, so the probe authenticates the way the connect would
-  SSHARGS=(${_HI_DOC_SSHARGS[@]+"${_HI_DOC_SSHARGS[@]}"})
-  # shellcheck disable=SC2034 # hi.sh's socket helper reads and sets ctl_path
-  local ctl_path t0 t1 tools err
+# The ssh target's one authentication, as a row: SSHARGS first, since ssh
+# keeps an option's first value, so your own -o ConnectTimeout wins over the
+# bound. False when it failed, with ssh's own words as a row of their own:
+# the JSON document has nowhere else to put them. Reads the caller's ctl_opts.
+function doctor_ssh_connect() {
+  local t0 t1 err
   err="$(mktemp -t hi.doc.err.XXXXXX)"
-  # hi.sh's own socket helper, so this probe multiplexes exactly like a real
-  # session; BatchMode keeps an unanswerable auth prompt a finding, not a hang
-  local -a ctl_opts
-  _hi_ctl_open 15 run -o BatchMode=yes
   t0="$(_hi_now)"
-  # SSHARGS first: ssh keeps an option's first value, so your own
-  # -o ConnectTimeout wins over the bound
   if ! ssh "${ctl_opts[@]}" ${SSHARGS[@]+"${SSHARGS[@]}"} -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
     t1="$(_hi_now)"
     doctor_row connect "FAILED after $(_hi_elapsed "$t0" "$t1")s (BatchMode - a password/2FA prompt fails here but may work interactively)" bad
-    # ssh's own words, as a row of their own: the JSON document has nowhere
-    # else to put them, and the text report reads the same either way
     doctor_row "" "$(cat "$err")"
     rm -f "$err"
-    return 0
+    _hi_ctl_close
+    return 1
   fi
   t1="$(_hi_now)"
   rm -f "$err"
   doctor_row connect "ok ($(_hi_elapsed "$t0" "$t1")s to authenticate - later probes reuse the socket)" ok
-  doctor_row install "hi ships $(_hi_wire_estimate) each session - a say-hi installed on the target is not used from here"
-  # through _hi_ssh_sh, like every other command hi sends: unwrapped, a fish
-  # login shell cannot parse the loop and the report would claim the target
-  # has nothing
-  tools="$(_hi_ssh_sh "$(_hi_doctor_probe_snippet)" \
-    "${ctl_opts[@]}" 2>/dev/null || true)"
-  doctor_row remote "has: ${tools:-nothing this probes for}"
-  case " $tools" in
-  *" base64 "* | *" openssl "*) ;;
-  *) doctor_row remote "no base64 or openssl - the ssh bootstrap cannot decode there" bad ;;
-  esac
-  case " $tools" in
-  *" bash "*) ;;
-  *) doctor_row remote "no bash - sessions fall back to ${_HI_SHELL_LADDER// / > } with aliases only" warn ;;
-  esac
-  _hi_ctl_close
 }

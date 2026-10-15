@@ -174,13 +174,15 @@ function _hi_cov_resultset() {
 
 # tests/coverage_v2.sh --merge, over two shards: the suites' hits summed per
 # line, the ranking and the figure over the subject alone (no tests/, no
-# scratch/, no .github/, nothing outside the tree), and the union written out
+# scratch/, no .github/ or .git/, nothing outside the tree), and the union
+# written out
 function test_coverage_v2_merge_reports_the_subject_alone() {
   local dir="$_HI_WORKDIR/covmerge" root="$_HI_ROOT" out files missed pct rc=0
   _hi_cov_resultset "$dir/shards/a/.resultset.json" one "$root/common/x.sh" '[null,1,0,0]' \
     "$root/tests/t.sh" '[0,0]' /elsewhere/y.sh '[0]'
   _hi_cov_resultset "$dir/shards/b/.resultset.json" two "$root/common/x.sh" '[null,0,2,0]' \
-    "$root/scratch/z.sh" '[0,0]' "$root/.github/scripts/q.sh" '[0]' "$root/hi.sh" '[1,null]'
+    "$root/scratch/z.sh" '[0,0]' "$root/.github/scripts/q.sh" '[0]' "$root/hi.sh" '[1,null]' \
+    "$root/.git/hooks/update.sample" '[0]'
   out="$("$_HI_ROOT/tests/coverage_v2.sh" --merge "$dir/out" "$dir/shards" 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] || _hi_why rc out || return 1
   files="$(cat "$dir/out/coverage-v2-pct/files" 2>&1)"
@@ -208,7 +210,10 @@ function test_coverage_v2_merge_writes_no_figure_without_the_subject() {
 
 # tests/coverage.sh --untested, in a tree of its own: of the lines changed
 # since a revision, the ones on both tools' lists, a run of them joined - and
-# none that only one tool lists, or that did not change
+# none that only one tool lists, that did not change, or that xtrace never
+# prints (an array above its closing line, an empty case arm); the command
+# after a trailing && is its own line, and listed. `-` for kcov's list reads
+# bashcov's alone.
 function test_coverage_untested_lists_changed_lines_both_tools_missed() {
   local home tree out rc=0
   home="$(_hi_scratch_tree covdiff link:common link:tests)"
@@ -216,11 +221,14 @@ function test_coverage_untested_lists_changed_lines_both_tools_missed() {
   cp -r "$(_hi_git_fixture)/.git" "$tree/.git"
   printf '%s\n' a b c d e f >"$tree/x.sh"
   git -C "$tree" add x.sh && git -C "$tree" commit -q -m x || _hi_why tree || return 1
-  printf '%s\n' a B C d E F G >"$tree/x.sh"
-  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:5 x.sh:7 >"$home/kcov"
-  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 >"$home/bashcov"
+  printf '%s\n' a B C d E F G 'v=(1' '  2)' '  y) ;;' 'true &&' '  z' >"$tree/x.sh"
+  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:5 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/kcov"
+  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/bashcov"
   out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD "$home/kcov" "$home/bashcov" 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7' ] || _hi_why rc out
+  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7, 9, 12' ] || _hi_why rc out || return 1
+  # a PR sweeps bashcov alone: `-` for kcov's list reads bashcov's by itself
+  out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD - "$home/bashcov" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 6-7, 9, 12' ] || _hi_why rc out
 }
 
 # coverage.yml's pull_request path is for same-repo PRs only: pages.yml reads
@@ -270,14 +278,14 @@ function test_coverage_pr_runs_are_same_repo_only() {
 #
 # One check for every sharded workflow job: the runner's --shard slices its
 # matrix names have to partition the group, or a suite never runs (or runs
-# twice). Each entry is a whole i/n slice, and n may differ between them
-# (windows-client.yml mixes /4 and /8). <job> scopes the sed extraction to
+# twice), dealt as the job deals them (its _HI_SHARD_BY). Each entry is a
+# whole i/n slice. <job> scopes the sed extraction to
 # that job's own block (through to the next top-level key) when several
 # sharded jobs share a file (ci.yml); "-" reads the whole file
 # (windows-client.yml holds just the one).
 function _hi_shards_cover_group() {
   local workflow="$_HI_ROOT/.github/workflows/$1" job="$2" group="$3"
-  local where="$1" block entry slices=""
+  local where="$1" block entry slices="" by
   [ "$job" = - ] || where="$1's $job"
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   if [ "$job" = - ]; then
@@ -285,13 +293,46 @@ function _hi_shards_cover_group() {
   else
     block="$(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow")"
   fi
+  # dealt as the workflow deals them: by the cost table its _HI_SHARD_BY names
+  by="$(printf '%s\n' "$block" | sed -n 's/^ *_HI_SHARD_BY: *//p' | head -1)"
   for entry in $(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
-    slices="$slices$("$_HI_TEST_RUN" --group "$group" --shard "$entry" --list 2>/dev/null)"$'\n'
+    slices="$slices$(_HI_SHARD_BY="$by" "$_HI_TEST_RUN" --group "$group" --shard "$entry" --list 2>/dev/null)"$'\n'
   done
   [ "$(printf '%s' "$slices" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ] || {
     _hi_cecho " | $where's shard matrix does not partition the $group group" "$RED"
     return 1
   }
+}
+
+# The cost tables deal shards by suite name, so a suite renamed, removed, or
+# added without its entry deals blind - one a table does not name costs 5.
+# Each table names every suite it deals (coverage's every suite but the
+# linter sweep both drivers drop, the Windows client's the fast group,
+# ci.yml's e2e shards the e2e group) and none the suite table lacks.
+function test_cost_tables_name_the_suites_they_deal() {
+  local spec var group keys want n bad=""
+  local names
+  names=" $("$_HI_TEST_RUN" --list 2>/dev/null | awk '{ printf "%s ", $2 }') "
+  for spec in KCOV:- BASHCOV:- GITBASH:fast E2E:e2e; do
+    var="_HI_TEST_COSTS_${spec%%:*}" group="${spec#*:}"
+    keys=" $(sed -n "/^$var=\"\$/,/^\"\$/p" "$_HI_TEST_RUN" | tr ' ' '\n' | sed -n 's/^\([a-z0-9_]*\):[0-9]*$/\1/p' | tr '\n' ' ') "
+    [ "$keys" != "  " ] || {
+      bad="$bad $var:(no table)"
+      continue
+    }
+    for n in $keys; do
+      case "$names" in *" $n "*) ;; *) bad="$bad $var:$n(stale)" ;; esac
+    done
+    if [ "$group" = - ]; then
+      want="$("$_HI_TEST_RUN" --list 2>/dev/null | awk '$2 != "shellcheck" { print $2 }')"
+    else
+      want="$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | awk '{ print $2 }')"
+    fi
+    for n in $want; do
+      case "$keys" in *" $n "*) ;; *) bad="$bad $var:$n(missing)" ;; esac
+    done
+  done
+  [ -z "$bad" ] || _hi_because "cost tables out of step with the suite table:$bad - refresh them (scratch/coverage_costs.sh, scratch/shard_costs.sh)"
 }
 
 # coverage.yml's two sweeps take their slices dealt by their own tracer's
@@ -384,6 +425,8 @@ function run_runner_ci_tests() {
   # inside WSL, and on ci.yml's e2e runners are exactly their group.
   _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
   _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
+  _hi_check "The OpenBSD job's shards cover the fast group" _hi_shards_cover_group openbsd-e2e.yml - fast
+  _hi_check "Each cost table names the suites it deals" test_cost_tables_name_the_suites_they_deal
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
   # Also the shape "one backend per runner" depends on: three suites, three
   # shards, so every shard really is exactly one backend - not asserted here

@@ -69,23 +69,20 @@ _HI_OVERLAY_TABLE=(
   'ssh_tags|-|-|-|-|ssh|-|-|-|@_hi_ssh_tags_file'
 )
 
-# _hi_row_col <row> <column> <outvar> - one column of a row, by the name the
-# table's comment gives it
+# _hi_row_col <row> <column> <outvar> - one column of a row, tool to home, by
+# the name the table's comment gives it; any other name gets the member
 function _hi_row_col() {
   local _hi_rc_r="$1"
   # the columns ahead of it cut in one expansion: called for every row of
   # every pack, a loop of ten was most of a pack's time
   case "$2" in
-  member) ;;
-  variable) _hi_rc_r="${_hi_rc_r#*|}" ;;
-  tree) _hi_rc_r="${_hi_rc_r#*|*|}" ;;
   tool) _hi_rc_r="${_hi_rc_r#*|*|*|}" ;;
   group) _hi_rc_r="${_hi_rc_r#*|*|*|*|}" ;;
   plugin) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|}" ;;
   wire) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|*|}" ;;
   off) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|*|*|}" ;;
   dialect) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|*|*|*|}" ;;
-  *) _hi_rc_r="${_hi_rc_r##*|}" ;;
+  home) _hi_rc_r="${_hi_rc_r##*|}" ;;
   esac
   printf -v "$3" '%s' "${_hi_rc_r%%|*}"
 }
@@ -454,7 +451,8 @@ function _hi_overlay_home() {
 # caller's $_hi_paths, best first, a candidate ending in / as the member's
 # file inside it
 function _hi_overlay_places() {
-  local _hi_op_h="${2##*|}" _hi_op_c="" _hi_op_i
+  local _hi_op_h _hi_op_c="" _hi_op_i
+  _hi_row_col "$2" home _hi_op_h
   _hi_paths=()
   case "$_hi_op_h" in
   -) ;;

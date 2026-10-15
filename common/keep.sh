@@ -290,10 +290,14 @@ $(_hi_keep_sweep)
 REMOTE
 }
 
-# hi --end <target>: close the kept session there, without attaching
+# hi --end <target>: close the kept session there, without attaching, through
+# _hi_keep_end [arm]'s probe (ssh when empty)
 function _hi_keep_end() {
   local ec=0 rec
-  _hi_ssh_sh "$(_hi_keep_end_script)" </dev/null || ec=$?
+  # shellcheck disable=SC2034 # _hi_transport_cmds reads and fills these
+  local -a probe cp attach ctl_opts=()
+  _hi_transport_cmds "${1:-ssh}"
+  _hi_on_target probe "$(_hi_keep_end_script)" </dev/null || ec=$?
   # closed, or not there: either way this client no longer expects it
   case "$ec" in 0 | 3) ! _hi_keep_record rec || rm -f "$rec" ;; esac
   case "$ec" in
@@ -318,7 +322,7 @@ function _hi_keep_here() {
   local file="$_HI_ROOT/hi.keep" line with=""
   ! _hi_list_has "$_HI_MUXES" "${_HI_KEEP_WITH:--}" || with="$_HI_KEEP_WITH"
   local -a vars=()
-  [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session over ssh, into bash, started without --no-keep"
+  [ -r "$file" ] || _hi_die "--keep: nothing to keep here - it takes a session hi connected, into bash, started without --no-keep"
   [ -t 0 ] || _hi_die "--keep needs a terminal"
   [ -z "${TMUX:-}${ZELLIJ:-}${STY:-}" ] || _hi_die "--keep: already inside a multiplexer here, and hi does not nest one"
   if ! _hi_mux_here; then
@@ -446,16 +450,18 @@ function _hi_keep_wait() {
   done
 }
 
-# _hi_keep_connect <log> - _say_hi, for a session that may be kept. The
+# _hi_keep_connect <log> [arm] - _say_hi, for a session that may be kept. The
 # target's script ends 86 when it leaves a kept session behind and 0 when it
 # does not, and the record follows; a connect that keeps writes it up front,
 # since a dropped link says nothing. The record is what the next connect's
 # script warns by when the session is gone (_hi_keep_attach), and what a
 # dropped session is retried by: at a terminal, for $_HI_KEEP_RETRY from the
-# drop, each try quiet (its words in <log>) until the target answers. A try that gets in and drops within ten seconds does
-# not restart the window. GLOSSARY: HI.65
+# drop, each try quiet (its words in <log>) until the target answers. A try
+# that gets in and drops within ten seconds does not restart the window. Only
+# ssh's drop is retried: a container's exec that ends is not a link that
+# went. GLOSSARY: HI.65
 function _hi_keep_connect() {
-  local log="$1" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-$_HI_KEEP_RETRY_DEFAULT}" limit t0="" t1 expected="" until
+  local log="$1" arm="${2:-ssh}" ec rec="" probes=0 window="${_HI_KEEP_RETRY:-$_HI_KEEP_RETRY_DEFAULT}" limit t0="" t1 expected="" until
   ! _hi_keep_probes || probes=1
   [ "$probes" = 0 ] || _hi_keep_record rec || rec=""
   [ -z "$rec" ] || [ ! -e "$rec" ] || expected=1
@@ -463,7 +469,7 @@ function _hi_keep_connect() {
   _hi_keep_seconds "$window" limit || window=5m limit=300
   while :; do
     ec=0 t1=$SECONDS _HI_LINK_UP=0 _HI_KEEP_EXPECTED="$expected"
-    _say_hi || ec=$?
+    _say_hi "$arm" "$log" || ec=$?
     if [ "$probes" = 1 ]; then
       case "$ec" in
       86)
@@ -473,7 +479,7 @@ function _hi_keep_connect() {
       0) [ -z "$rec" ] || rm -f "$rec" ;;
       esac
     fi
-    { [ "$ec" = 255 ] && [ -n "$rec" ] && [ -e "$rec" ] && ((limit > 0)) && _hi_keep_at_tty; } || break
+    { [ "$ec" = 255 ] && [ "$arm" = ssh ] && [ -n "$rec" ] && [ -e "$rec" ] && ((limit > 0)) && _hi_keep_at_tty; } || break
     if [ "$_HI_LINK_UP" = 1 ] && { [ -z "$t0" ] || ((SECONDS - t1 >= 10)); }; then
       t0=$SECONDS
       [ ! -t 1 ] || _hi_reset_terminal "$ec"

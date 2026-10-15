@@ -60,11 +60,12 @@ function _hi_cov_subject_dirs() {
 # tree's *.sh files changed since <base> that both tools list as never run
 # (the `path:line` lists each sweep leaves as `missed`), a row a file. Both,
 # since each tool alone misses lines that ran; what is left is an arm no case
-# reaches or an artifact both share, and each driver's header says which.
+# reaches or an artifact both share, and each driver's header says which. A
+# kcov list of `-` reads bashcov's alone: a PR sweeps bashcov only.
 function _hi_cov_untested() {
   local list
   for list in "$2" "$3"; do
-    [ -f "$list" ] || {
+    [ "$list" = - ] || [ -f "$list" ] || {
       _hi_cecho " | coverage: no list at $list - run that tool's sweep first" "$RED" >&2
       return 1
     }
@@ -80,10 +81,12 @@ function _hi_cov_untested() {
       row = ""
     }
     # a line xtrace never prints, so neither tool can record it: one that
-    # only closes a block with a redirect (`done <file`, `} >file`), or the
-    # rest of a command the line above continues (a trailing \\, |, &&, ||,
-    # or an array still open)
-    function shadow(i,   t, p) {
+    # only closes a block with a redirect (`done <file`, `} >file`), an empty
+    # case arm, the rest of a command the line above continues with a
+    # trailing \\, or an array assignment above the line that closes it,
+    # which is the one xtrace prints. A command after a trailing |, && or ||
+    # prints on its own line, so a miss there is an arm that never ran.
+    function shadow(i,   t, p, j) {
       if (!(file in read)) {
         read[file]
         n = 0
@@ -92,14 +95,16 @@ function _hi_cov_untested() {
       }
       t = src[file, i]
       if (t ~ /^[ \t]*(done|[})]|fi|esac)[ \t]*[0-9]*[<>]/) return 1
+      if (t ~ /^[ \t]*\(?[^()#]+\)[ \t]*;(;&?|&)[ \t]*$/) return 1
       p = src[file, i - 1]
       sub(/[ \t]+#.*$/, "", p)
-      if (p ~ /(\\|\||&&|\|\|)[ \t]*$/) return 1
-      if (p ~ /=\([^)]*$/) return 1
+      if (p ~ /\\[ \t]*$/) return 1
+      for (j = i; j > 0 && src[file, j] !~ /\)/; j--)
+        if (src[file, j] ~ /=\(/) return 1
       return 0
     }
     BEGIN {
-      while ((getline line < K) > 0) k[line]
+      if (K != "-") while ((getline line < K) > 0) k[line]
       close(K)
       while ((getline line < B) > 0) b[line]
     }
@@ -113,7 +118,7 @@ function _hi_cov_untested() {
       first = substr(at[1], 2) + 0
       count = (at[2] == "") ? 1 : at[2] + 0
       for (i = first; i < first + count; i++) {
-        if (!((file ":" i) in k && (file ":" i) in b)) continue
+        if (!((K == "-" || (file ":" i) in k) && (file ":" i) in b)) continue
         if (shadow(i)) continue
         if (from != "" && i == to + 1) { to = i; continue }
         flush()

@@ -267,8 +267,9 @@ over; `--no-keep` asks for an ordinary session beside it. It ends three ways:
 
 Each removes the session directory, as any session's end does
 ([SECURITY.md](SECURITY.md#footprint-and-cleanup-on-the-target)). Detach with
-the multiplexer's own key. It needs an ssh target with bash, and a terminal
-on your side; anywhere else hi says so and connects as usual. A zellij session starts under zellij's own two bars, kept off the disk
+the multiplexer's own key. It needs a target with bash, an ssh host or a
+container, and a terminal on your side; anywhere else hi says so and connects
+as usual. A zellij session starts under zellij's own two bars, kept off the disk
 (nothing to resurrect) and with its startup popups off.
 A pane or window you open in a kept session is hi's session shell too, not
 the host's bare one, and closing the first pane (a `y`) closes them all.
@@ -280,7 +281,7 @@ is no multiplexer, it turns on the hold described below for that session.
 A kept session that dies with its target - a reboot that keeps `/tmp` - leaves
 its directory behind; your next `hi <target>` removes it, and says the kept
 session is gone if this machine had seen it. When the link to a kept session
-drops, hi retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and
+drops over ssh, hi retries for [`_HI_KEEP_RETRY`](SETTINGS.md#every-setting) (5m) and
 lands back in the session, in any terminal: one line says how long the target
 keeps the session, and a row of dots grows a second at a time, five to a
 try. Ctrl+C stops it, with no terminal it ends as ssh does, and `hi <target>`

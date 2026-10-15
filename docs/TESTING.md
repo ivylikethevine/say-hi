@@ -98,10 +98,25 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   `_HI_PROGRESS=0`/`1` overrides.
 - A suite that neither starts nor finishes a case for ten minutes is ended,
   with what it started, and reported **FAILED (hung)** with that case named
-  in the recap; the other suites carry on. `_HI_SUITE_STALL=<seconds>` moves
-  the limit, and `0` lifts it. Suites that run one at a time (e2e, backends,
-  bench) are watched only where it is set, since a case there may build an
-  image.
+  in the recap and its processes listed; the other suites carry on.
+  `_HI_SUITE_STALL=<seconds>` moves the limit, and `0` lifts it. Suites that
+  run one at a time (e2e, backends, bench) are watched only where it is set,
+  since a case there may build an image.
+- `_HI_RUN_DEADLINE=<seconds>` ends the whole run that long after it started:
+  each suite still running is reported **FAILED (deadline)** the same way,
+  and each not yet started as never run. Every CI step that runs the suites
+  sets it three minutes under its job's limit, since a job its limit ends
+  keeps no log of what it was doing.
+- The machine is sampled every two seconds while suites run, and the run
+  ends with a **Machine use** section: CPU busy (average, 90th percentile,
+  peak), memory in use at its peak, and CPU busy by how many suites were
+  running at once - low CPU with every slot full says a wider run
+  (`_HI_RUNNER_WIDTH`) or another shard has room. Under GitHub Actions the
+  same table goes to the job's summary page. `_HI_USAGE=0` turns it off,
+  `_HI_USAGE_STEP=<seconds>` moves the interval.
+- The e2e and backends groups run one suite at a time, since they share one
+  container daemon; `_HI_E2E_WIDTH=<n>` runs n at once, as `ci.yml`'s e2e
+  shards do with 2. Each suite's containers, ports, and names are its own.
 - A suite whose backend is missing reports **SKIPPED**, never green; so does a
   single case (an image that would not build, a tool not installed).
   `--require-run` (CI's lint, e2e, and backends jobs pass it) turns both into
@@ -149,8 +164,7 @@ membership) - `ci` above, and:
   budgets.
 - **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `ssh_wire`,
   `install_methods`, `repo`, `docker`, `framework`, `home_prompt`, `ssh_keep`:
-  throwaway containers driving `hi.sh`'s real connection paths (`_say_hi` and
-  `_say_hi_container`). `ssh_wire` counts one session's bytes through a
+  throwaway containers driving `hi.sh`'s real connection path (`_say_hi`). `ssh_wire` counts one session's bytes through a
   `ProxyCommand` and checks them against the figure hi prints on its connect
   line. `ssh_keep` holds a [kept session](GLOSSARY.md#hi65-kept-session) in
   tmux, in screen, and in zellij (alpine's package) through a dropped link and
@@ -268,10 +282,11 @@ run.
 Two coverage tools, kcov (`tests/coverage.sh`) and
 [bashcov](https://github.com/infertux/bashcov) (`tests/coverage_v2.sh`), each
 run over the full suite sweep — every suite the box's backends can host — by
-hand or by `coverage.yml`: after every green CI run on a push to `main`, and on
-every same-repo, non-draft PR, where the `comment` job posts both figures beside
-main's in one comment edited in place, with the PR's passed-case count from its
-CI run beside main's (the push that merges the PR reuses them). The two
+hand or by `coverage.yml`: both after every green CI run on a push to `main`,
+and bashcov alone on every same-repo, non-draft PR, where the `comment` job
+posts its figure beside main's in one comment edited in place, with main's kcov
+figure, and the PR's passed-case count from its CI run beside main's (the push
+that merges the PR reuses its bashcov figure). The two
 aggregates have tracked each other within a few points for many commits: **the
 average of the two badges** is the coverage figure, and the per-file reports are
 for finding untested arms. Only a divergence of tens of points means one tool
@@ -291,9 +306,11 @@ one of them lists: an artifact to rule out against the lists below, not a gap.
 Beside `files` each leaves `missed`, its unrun lines, and
 `tests/coverage.sh --untested <revision>` lists the lines changed since that
 revision that are on both, less the ones `xtrace` never prints: a line that only
-closes a block with a redirect (`done <file`), and the rest of a command the
-line above continues. The `comment` job puts the table in its summary and
-those lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
+closes a block with a redirect (`done <file`), an empty case arm, the rest of a
+command the line above continues with a `\`, and an array assignment's lines
+above the one that closes it; `-` for the kcov list reads bashcov's alone. The
+`comment` job puts the table in its summary, kcov's column main's, and the
+lines bashcov did not record, for the PR's diff, in the comment. The `test_runner_ci` suite runs
 `--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
 
 In CI each tool is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
@@ -305,6 +322,11 @@ coverage run) and merged by a gather job: `kcov --merge`
 over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
 `--command-name`-keyed `.resultset.json` files, safe because shards partition
 the suite table.
+
+The Windows client's shards and `ci.yml`'s e2e shards are dealt the same way,
+by `_HI_SHARD_BY=gitbash` (`$_HI_TEST_COSTS_GITBASH`, each suite's time under
+Git Bash on arm64) and `_HI_SHARD_BY=e2e` (`$_HI_TEST_COSTS_E2E`);
+`scratch/shard_costs.sh` re-reads either off a CI run's summary tables.
 
 - **kcov**'s method is the suites' bash's: its default `PS4` method stops
   recording under bash 5.3 once the harness is sourced, which reads whole

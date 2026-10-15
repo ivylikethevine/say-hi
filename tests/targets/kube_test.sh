@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Boots a throwaway kind (Kubernetes-in-docker) cluster and drives hi.sh's
-# real kube path (_say_hi_container) over actual `kubectl exec` against pods
-# running on it. This proves the kube-specific command shapes added to
-# _say_hi_container (`kubectl exec POD --` for the probe, `-i ... --` for
-# copying, `-it ... --` for the interactive attach, the `--` separating
-# kubectl's own flags from the remote command).
+# real kube path (_say_hi) over actual `kubectl exec` against pods running on
+# it. This proves the kube-specific command shapes of _hi_transport_cmds
+# (`kubectl exec POD --` for the probe, `-i ... --` for the boot,
+# `-it ... --` for the interactive attach, the `--` separating kubectl's own
+# flags from the remote command), and that the boot lands whole through
+# kubectl's stdin.
 # Only two cases are covered, not the full zsh/fish fallback matrix
-# docker_test.sh/podman_test.sh run: _say_hi_container's fallback logic past
-# the initial `command -v bash` probe is identical code for every backend and
-# is already proven there, so this only needs to prove kubectl exec's own
-# argument shapes work - once with bash present, once without.
+# docker_test.sh/podman_test.sh run: the script past the boot is identical
+# for every backend and is already proven there, so this only needs to prove
+# kubectl exec's own argument shapes work - once with bash present, once
+# without.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329

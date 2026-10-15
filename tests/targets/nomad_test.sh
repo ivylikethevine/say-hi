@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Boots a throwaway `nomad agent -dev` (single-node, server+client, its own
-# temp data dir) and drives hi.sh's real nomad path (_say_hi_container) over
-# actual `nomad alloc exec` against jobs running under nomad's docker task
-# driver.
+# temp data dir) and drives hi.sh's real nomad path (_say_hi) over actual
+# `nomad alloc exec` against jobs running under nomad's docker task driver.
 # Only two cases are covered here, not the full zsh/fish fallback matrix
-# docker_test.sh/podman_test.sh run: _say_hi_container's fallback logic past
-# the initial `command -v bash` probe is identical code for every backend and
-# is already proven there, so this only needs to prove nomad's own probe/cp/
-# attach argument shapes work - once with bash present, once without.
+# docker_test.sh/podman_test.sh run: the script past the boot is identical
+# for every backend and is already proven there, so this only needs to prove
+# nomad's own probe/cp/attach argument shapes work - once with bash present,
+# once without.
 # Everything is ephemeral (its own data dir, agent process, jobs) and bound to
 # 127.0.0.1 only. Skips cleanly if nomad or docker isn't installed/reachable
 # (the dev agent's docker task driver needs a real docker daemon).

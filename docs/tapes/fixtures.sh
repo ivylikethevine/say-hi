@@ -181,7 +181,7 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|fish
     ;;
   # fish-bash is fish with bash beside it: a box hi can give a *full* session on, in fish
   # (fish leads the shell tree) - the overlay demo's second target, since
-  # the bash-less aliases-only tier ships hi's own aliases and not the overlay
+  # the bash-less aliases-only tier is not that demo's subject
   zsh | fish | fish-bash)
     "$backend" build "${net[@]}" -t "hi-demo-$flavor-img" --build-arg "PKGS=${flavor/-/ } git" \
       -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >&2

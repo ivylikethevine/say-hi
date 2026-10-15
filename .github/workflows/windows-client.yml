@@ -7,8 +7,9 @@ name: Windows client
 # and every same-repository pull request as a real gate (a failing suite
 # fails the run, no continue-on-error).
 #
-# Four runners a leg: the quarters of the table, which test_runner.sh deals
-# out so the four take about the same time on arm64. Four and no more:
+# Four runners a leg: quarters of the table that test_runner.sh deals by
+# each suite's arm64 time ($_HI_SHARD_BY=gitbash), so the four take about
+# the same time. Four and no more:
 # GitHub runs about four windows-11-arm jobs at once, and a fifth shard waited
 # for one of them to finish - in eight of ten runs, 9 to 26 minutes into a run
 # that the arm64 leg alone then decided. Each slice runs twice: on windows-latest (x64)
@@ -80,6 +81,11 @@ jobs:
           HI_SHARD: ${{ matrix.shard }}
           # empty is the runner's own width (the core count)
           _HI_RUNNER_WIDTH: ${{ matrix.width }}
+          # the quarters dealt by $_HI_TEST_COSTS_GITBASH
+          _HI_SHARD_BY: gitbash
+          # the job's limit less three minutes: the runner ends itself and
+          # names what was running, where the limit leaves no log
+          _HI_RUN_DEADLINE: "720"
         run: |
           set -euo pipefail
           # belt and braces (hi.sh derives its tree, HI.33): a wrong one under

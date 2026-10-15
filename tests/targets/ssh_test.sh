@@ -78,6 +78,38 @@ function _hi_installed_session_is_ours() {
   return 1
 }
 
+# A host spelled out in ~/.ssh/config.d/acme under no `# Tags:` line carries
+# `acme`: its hosttag color and settings.acme.sh reach the session, from a
+# config split the way a real one is. hi reads the config off $HOME; ssh reads
+# it off the passwd home, so the fixture's rides in by -F as well.
+function _hi_ssh_configd_case() {
+  local label=configd image="$1" name home cfg exit_code t0 t1 _HI_SSH_PORT=""
+  name="${_HI_SSH_CASE_PREFIX:-hi-sshtest}-$label-$$"
+  home="$_HI_WORKDIR/$label.home"
+  cfg="$_HI_WORKDIR/$label.overlay"
+  _hi_h3 "Testing a config.d file's name as the host's tag"
+  t0="$(_hi_now)"
+  _hi_sshd_container "$name" "$image" -e LOGIN_SHELL=/bin/bash || return 1
+  mkdir -p "$home/.ssh/config.d" "$cfg"
+  printf 'Include %s/.ssh/config.d/*\n' "$home" >"$home/.ssh/config"
+  printf 'Host acmebox\n  HostName 127.0.0.1\n  Port %s\n  User hitest\n  IdentityFile %s\n' \
+    "$_HI_SSH_PORT" "$_HI_WORKDIR/id" >"$home/.ssh/config.d/acme"
+  printf '[hosttag]\nacme = "brcyan"\n' >"$cfg/colors"
+  printf 'export HI_ACME_SETTINGS=read\n' >"$cfg/settings.acme.sh"
+  local out_file="$_HI_WORKDIR/$label.ssh.out"
+  # shellcheck disable=SC2016 # the target's to expand
+  HOME="$home" _HI_CONFIG_DIR="$cfg" ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} "$_HI_LAUNCHER" \
+    -F "$home/.ssh/config" "${_HI_SSH_OPTS[@]}" -o ConnectTimeout=5 acmebox \
+    'printf "HI_CONFIGD-%s-%s-%s\n" "$_HI_TARGET_TAG" "$_HI_TARGET_COLOR" "${HI_ACME_SETTINGS:-unread}"' \
+    <&3 >"$out_file" 2>&1 &
+  _hi_wait_pid "$!" "${_HI_SSH_CASE_TIMEOUT:-90}"
+  exit_code="$_HI_WAIT_EXIT"
+  t1="$(_hi_now)"
+  _hi_rm_container "$name"
+  _hi_case_result "$label" "config.d/acme tags acmebox" "$exit_code" "$t0" "$t1" "$out_file" \
+    HI_CONFIGD-acme-brcyan-read
+}
+
 function run_ssh_tests() {
   _hi_require_backend docker
 
@@ -241,6 +273,7 @@ function run_ssh_tests() {
     _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oMaxSessions=1" \
       _hi_par_case maxsessions1 _hi_ssh_run_case maxsessions1 "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     _hi_par_case rbash _hi_ssh_run_case rbash "$_HI_SSHD_IMAGE" /bin/rbash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+    _hi_par_case configd _hi_ssh_configd_case "$_HI_SSHD_IMAGE"
   fi
 
   for _hi_case_spec in nobash:alpine:ssh_fallback nobash-zsh:alpine-zsh:ssh_fallback \

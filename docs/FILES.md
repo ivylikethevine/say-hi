@@ -357,27 +357,26 @@ target's rc files point at another one.
 One scratch directory per session under the target's `$TMPDIR`, named for the
 user running `hi`:
 
-| Arm                         | Directory                                                              |
-| --------------------------- | ---------------------------------------------------------------------- |
-| ssh                         | `${TMPDIR:-/tmp}/<user>.hi.XXXXXX/`                                    |
-| container, nomad alloc, pod | `${TMPDIR:-/tmp}/<user>.hi.log.<pid>/`, mode 700, refused if it exists |
+| Arm                              | Directory                           |
+| -------------------------------- | ----------------------------------- |
+| ssh, container, nomad alloc, pod | `${TMPDIR:-/tmp}/<user>.hi.XXXXXX/` |
 
 That directory is `$_HI_HOME` and `$_HI_CLEANUP`. Inside it:
 
-| Path                                      | What                                                                                                                                                                    |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `say-hi/`                                 | `$_HI_ROOT`: the unpacked payload                                                                                                                                       |
-| `say-hi/config/`                          | `$_HI_CONFIG_DIR`: hi's defaults with the unpacked overlay over them                                                                                                    |
-| `say-hi/hi.bashrc`                        | the bootloader rc: names this tree, then sources `load.sh`                                                                                                              |
-| `say-hi/.hi_fallback_rc`, `say-hi/.zshrc` | on a target without bash: the aliases-and-prompt rc `$ENV` or `ZDOTDIR` points at (the container arm keeps these, and a lone `aliases.sh`, at the top of the directory) |
-| `hi.rc.XXXXXX/`                           | the session rc directory, below                                                                                                                                         |
+| Path                                      | What                                                                              |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `say-hi/`                                 | `$_HI_ROOT`: the unpacked payload                                                 |
+| `say-hi/config/`                          | `$_HI_CONFIG_DIR`: hi's defaults with the unpacked overlay over them              |
+| `say-hi/hi.bashrc`                        | the bootloader rc: names this tree, then sources `load.sh`                        |
+| `say-hi/.hi_fallback_rc`, `say-hi/.zshrc` | on a target without bash: the aliases-and-prompt rc `$ENV` or `ZDOTDIR` points at |
+| `hi.rc.XXXXXX/`                           | the session rc directory, below                                                   |
 
-The ssh arm also lands its bootloader in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
+Every arm also lands its bootloader in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
 removed when the session ends. A read-only root works when `$TMPDIR`
-names a writable mount; with nowhere writable, hi says so and names `--plain`,
-which writes nothing. How the tree goes on exit is
-[SECURITY.md's](SECURITY.md#footprint-and-cleanup-on-the-target); the
-container arm's client also removes it after the attach returns.
+names a writable mount; with nowhere writable, hi says so and hands over the
+target's own session, as `--plain` does, which writes nothing. How the tree
+goes on exit is
+[SECURITY.md's](SECURITY.md#footprint-and-cleanup-on-the-target).
 
 ### The session rc directory
 

@@ -85,12 +85,11 @@ function _hi_stage_carry() {
 # (<member> <path> pairs copied in from outside <src-dir>) and $stage_lint (1
 # for the overlay: the include scan runs over the stage, and each member is
 # stripped by its dialect rather than $_HI_STRIP_NAMES) from
-# its caller, the convention _hi_container_cleanup and _hi_remote_middle also
-# use.
+# its caller, the convention _hi_remote_middle and _hi_boot_call also use.
 #
 # A subshell, so cleanup is a trap and a ^C mid-build leaves nothing behind
-# (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): `root` is
-# _say_hi_container's name for the target's tree, and this runs inside it.
+# (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): this runs inside
+# _say_hi, whose locals a bare name would shadow.
 function _hi_stage_tar() {
   local stage f _hi_st_root _hi_st_i _hi_st_prog _hi_st_m _hi_st_d _hi_st_n
   local -a _hi_st_strip=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
