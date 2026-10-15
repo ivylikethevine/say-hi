@@ -734,9 +734,11 @@ function _hi_run_suite() {
 
 # _hi_suite_procs <pgid> - the processes of a suite's group, ps's header
 # first, for the line that ends it: what it was waiting on. ps -o where ps
-# takes it, MSYS's plain ps elsewhere; the group is the third column of both.
+# takes it - every process is -A on Linux, macOS, and the BSDs (where -e is
+# the environment), -e on a busybox without -A - and MSYS's plain ps
+# elsewhere; the group is the third column of all three.
 function _hi_suite_procs() {
-  { ps -eo pid,ppid,pgid,etime,args 2>/dev/null || ps 2>/dev/null; } |
+  { ps -A -o pid,ppid,pgid,etime,args 2>/dev/null || ps -e -o pid,ppid,pgid,etime,args 2>/dev/null || ps 2>/dev/null; } |
     awk -v g="$1" 'NR == 1 || $3 == g { print " |   " $0 }'
 }
 

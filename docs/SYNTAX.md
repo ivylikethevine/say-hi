@@ -55,16 +55,17 @@ first time a spelling costs a CI round trip.
 
 ## Files and dates
 
-| Write                                             | Not                          | Breaks on                                                                                                      | Caught by      |
-| ------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------- |
-| `date +%e`                                        | `date +%-e`                  | BSD strftime prints `%-e` literally ([HI.10](GLOSSARY.md#hi10-strftime-e-over--e))                             | `drift`        |
-| `stat -c '%a' f 2>/dev/null \|\| stat -f '%Lp' f` | `stat -c` alone              | BSD and macOS `stat` spell formats with `-f`                                                                   | `drift`        |
-| `cd -P "$d" && pwd -P`                            | `readlink -f`                | absent from older macOS                                                                                        | `drift`        |
-| `mktemp -t hi.name.XXXXXX`, or a path template    | `mktemp -t name` with no X's | GNU refuses a template without X's; BSD takes `-t` as a prefix, so an X template is the one spelling both read | `drift`        |
-| test for empty input, then `xargs`                | `xargs -r`                   | BSD `xargs` has no `-r`                                                                                        | `drift`        |
-| `tar -c -f - … \| gzip -n`                        | `tar -c -z -f -`             | bsdtar pads the compressed stream ([HI.38](GLOSSARY.md#hi38-split-tar-and-gzip))                               | a suite        |
-| `tar -x -f … -C <dir>`, then read the file        | `tar -x -O -f …` to stdout   | OpenBSD's tar: `-O` writes an old-style archive, so the extract prints nothing                                 | a suite        |
-| `ps -A -o pid= -o ppid=`                          | `ps -eo pid=,ppid=`          | BSD `ps`: `-e` adds the environment, and the text after a `=` is the rest of the argument, so one column       | `test_lib_par` |
+| Write                                                         | Not                                        | Breaks on                                                                                                      | Caught by                     |
+| ------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `date +%e`                                                    | `date +%-e`                                | BSD strftime prints `%-e` literally ([HI.10](GLOSSARY.md#hi10-strftime-e-over--e))                             | `drift`                       |
+| `stat -c '%a' f 2>/dev/null \|\| stat -f '%Lp' f`             | `stat -c` alone                            | BSD and macOS `stat` spell formats with `-f`                                                                   | `drift`                       |
+| `cd -P "$d" && pwd -P`                                        | `readlink -f`                              | absent from older macOS                                                                                        | `drift`                       |
+| `mktemp -t hi.name.XXXXXX`, or a path template                | `mktemp -t name` with no X's               | GNU refuses a template without X's; BSD takes `-t` as a prefix, so an X template is the one spelling both read | `drift`                       |
+| test for empty input, then `xargs`                            | `xargs -r`                                 | BSD `xargs` has no `-r`                                                                                        | `drift`                       |
+| `tar -c -f - … \| gzip -n`                                    | `tar -c -z -f -`                           | bsdtar pads the compressed stream ([HI.38](GLOSSARY.md#hi38-split-tar-and-gzip))                               | a suite                       |
+| `tar -x -f … -C <dir>`, then read the file                    | `tar -x -O -f …` to stdout                 | OpenBSD's tar: `-O` writes an old-style archive, so the extract prints nothing                                 | a suite                       |
+| `ps -A -o pid= -o ppid=`                                      | `ps -eo pid=,ppid=`                        | BSD `ps`: `-e` adds the environment, and the text after a `=` is the rest of the argument, so one column       | `test_lib_par`, `test_runner` |
+| `ps -A -o … \|\| ps`, and a process matched by its name alone | `ps -o` alone, or a match on its arguments | Git Bash: MSYS `ps` takes no `-o`, and its plain listing prints a command's path without its arguments         | `test_runner`                 |
 
 ## bash 3.2
 
