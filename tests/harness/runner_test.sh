@@ -634,7 +634,8 @@ function test_a_hung_suite_is_ended_and_named_by_its_case() {
 
 # Past $_HI_RUN_DEADLINE the run ends itself, so a job's own limit never ends
 # it with no log: each suite still running is ended, named by its case, with
-# the processes it left, and the one still queued is never started.
+# the processes it left, and the one still queued is never started. The
+# processes by name alone: MSYS's ps prints no arguments.
 function test_the_deadline_ends_the_run_with_its_evidence() {
   local _HI_RUNNER_WIDTH=2 n
   for n in 1 2; do
@@ -651,7 +652,7 @@ function test_the_deadline_ends_the_run_with_its_evidence() {
   chmod +x "$_HI_FIXTURES"/late_[123].sh
   _HI_RUN_WITH="_HI_RUN_DEADLINE=8" _hi_run_runner $'late_1:late_1.sh\nlate_2:late_2.sh\nlate_3:late_3.sh'
   [[ "$_HI_RUN_EXIT" == 3 && "$_HI_RUN_OUT" == *"the run's deadline of 8s passed: the suite is ended here, in: the case that waits"* &&
-    "$_HI_RUN_OUT" == *"sleep 300"* && "$_HI_RUN_OUT" == *"ended at the run's 8s deadline in: the case that waits"* &&
+    "$_HI_RUN_OUT" == *"its processes then:"*sleep* && "$_HI_RUN_OUT" == *"ended at the run's 8s deadline in: the case that waits"* &&
     "$_HI_RUN_OUT" == *"late_3: not started: the run had passed its 8s deadline"* &&
     "$_HI_RUN_OUT" != *ran:late_3* ]] || _hi_why _HI_RUN_EXIT _HI_RUN_OUT
 }
