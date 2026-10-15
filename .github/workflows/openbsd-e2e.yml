@@ -66,11 +66,11 @@ jobs:
       - name: Fast suites, then say hi to ourselves
         uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
         env:
-          HI_SHARD: ${{ matrix.shard }}
+          HI_BSD_SHARD: ${{ matrix.shard }}
           _HI_SHARD_BY: gitbash
         with:
           release: "7.9"
-          envs: HI_SHARD _HI_SHARD_BY
+          envs: HI_BSD_SHARD _HI_SHARD_BY
           usesh: true
           sync: rsync
           copyback: false

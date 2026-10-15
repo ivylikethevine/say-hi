@@ -472,7 +472,9 @@ function _hi_bsd_loop() {
     printf '#!/bin/sh\n' >"$dir/bin/sleep"
     chmod +x "$dir/bin"/*
   fi
-  env HOME="$dir/home" USER=tester GITHUB_WORKSPACE="$dir/ws" TMPDIR="$dir/tmp" HI_LOOP_LOG="$dir/log" \
+  # -u: a CI step's own shard (coverage.yml's, windows-client.yml's) is in
+  # this suite's environment, and the script reads the same names
+  env -u HI_BSD_SHARD -u _HI_SHARD_BY HOME="$dir/home" USER=tester GITHUB_WORKSPACE="$dir/ws" TMPDIR="$dir/tmp" HI_LOOP_LOG="$dir/log" \
     HI_LOOP_SAYS=HI_BSD_LOOP_OK HI_LOOP_RC=0 PATH="$dir/bin:$PATH" "$@" \
     bash "$_HI_ROOT/.github/scripts/bsd_loopback.sh" 2>&1
 }
@@ -480,7 +482,7 @@ function _hi_bsd_loop() {
 # bsd_loopback.sh: the fast group under a timeout, a throwaway key trusted
 # for the loopback, and hi at 127.0.0.1 through it. Green takes the marker,
 # a zero exit from the client, and no session directory left behind - each
-# alone is not enough. A workflow that splits the group runs $HI_SHARD's
+# alone is not enough. A workflow that splits the group runs $HI_BSD_SHARD's
 # slice, and the loopback on the first slice alone.
 function test_bsd_loopback_wants_the_marker_a_clean_exit_and_no_session() {
   local dir="$_HI_WORKDIR/bsdloop" out rc=0
@@ -500,7 +502,7 @@ function test_bsd_loopback_wants_the_marker_a_clean_exit_and_no_session() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"session directory survived the exit"* ]] || _hi_because "a session left, rc $rc: $out" || return 1
   rmdir "$dir/tmp/ab.hi.cd"
   : >"$dir/log"
-  out="$(_hi_bsd_loop "$dir" HI_SHARD=2/2)" || _hi_because "the second slice failed: $out" || return 1
+  out="$(_hi_bsd_loop "$dir" HI_BSD_SHARD=2/2)" || _hi_because "the second slice failed: $out" || return 1
   { grep -qx 'timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast --shard 2/2' "$dir/log" &&
     ! grep -q '^client ' "$dir/log"; } || _hi_because "the second slice ran: $(cat "$dir/log")"
 }

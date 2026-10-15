@@ -89,7 +89,9 @@ function _hi_run_runner() {
   # unterminated string. GLOSSARY-worthy, learned from the macOS CI job.)
   # shellcheck disable=SC2163 # the var=value pair is chosen by each caller
   _HI_RUN_OUT="$(
-    unset GITHUB_ACTIONS _HI_VERBOSE _HI_HOST_REPORT _HI_PROGRESS _HI_E2E_WIDTH
+    # and how the CI step deals and bounds its run, which a fixture run
+    # would otherwise take as its own
+    unset GITHUB_ACTIONS _HI_VERBOSE _HI_HOST_REPORT _HI_PROGRESS _HI_E2E_WIDTH _HI_SHARD_BY _HI_RUN_DEADLINE
     # no sampler unless a case asks: its report would end every fixture run
     export _HI_USAGE=0
     [ -n "${_HI_RUN_WITH:-}" ] && export "${_HI_RUN_WITH?}"
