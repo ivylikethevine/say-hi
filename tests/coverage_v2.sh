@@ -115,7 +115,9 @@ function _hi_cov_v2_report() {
       (payload["coverage"] || {}).each do |file, data|
         next unless file.start_with?(root)
         path = file.sub(root, "")
-        next if skip.include?(path.split("/").first)
+        # bashcov lists every shell file under the root, the samples in
+        # .git/hooks included; a hidden directory is never the subject
+        next if path.start_with?(".") || skip.include?(path.split("/").first)
         lines = data.is_a?(Hash) ? data["lines"] : data
         have = by_file[path]
         by_file[path] = if have

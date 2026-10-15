@@ -455,43 +455,26 @@ when it lands.
        untested** — shipped: `coverage.yml`'s comment lists the lines a PR
        changed that neither tool recorded, less the shapes `xtrace` never
        prints, and `tests/coverage.sh --untested <revision>` does the same by
-       hand. PR 214's comment carried it, two real gaps among three
-       artifacts the filter now drops. **Ticks when:** a PR's comment lists
-       only arms no case reaches.
+       hand. Over PR 214's sweep the filter leaves only `scripts/pack.sh`'s
+       `_hi_row_col` arms no caller asks for. **Ticks when:** a PR's comment
+       lists only arms no case reaches.
 
-9. [ ] _Before 1.0:_ **Known tracer artifacts are marked in the source** —
-       shipped: an arm neither tool can reach in a sweep (zsh's, a bash
-       before 4.4's, Arch's `makepkg`) sits between `# hi-nocov-begin: <why>`
-       and `# hi-nocov-end`, which kcov drops by `--exclude-region` and
-       `tests/coverage_v2.sh` by the same pair; the bashcov header keeps only
-       what a marker cannot express. **Ticks when:** a CI sweep's two figures
-       leave the marked arms out.
+9. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+       versions_ prose into its version table.
 
-10. [ ] _Before 1.0:_ **kcov's trace method is confirmed in CI** —
-        shipped: `tests/coverage.sh` takes the method from the suites'
-        bash: `PS4` before 5.3, `DEBUG` from it. `DEBUG` does not follow a
-        suite into the child bash it starts, so a file reached only that way
-        reads 0 (PR 214's sweep under it read 62.72% against `PS4`'s 90.76%
-        on bash 5.2); `PS4` stops recording on 5.3 (the script's header has
-        the probe). **Ticks when:** a full CI sweep lands within a point of
-        90.76%.
-
-11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-        versions_ prose into its version table.
-
-12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+10. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
         upstream style. **Do:** open the PR against tldr-pages. **Ticks
         when:** merged.
 
-13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+11. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+12. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

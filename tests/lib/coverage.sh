@@ -80,10 +80,11 @@ function _hi_cov_untested() {
       row = ""
     }
     # a line xtrace never prints, so neither tool can record it: one that
-    # only closes a block with a redirect (`done <file`, `} >file`), or the
-    # rest of a command the line above continues (a trailing \\, |, &&, ||,
-    # or an array still open)
-    function shadow(i,   t, p) {
+    # only closes a block with a redirect (`done <file`, `} >file`), an empty
+    # case arm, the rest of a command the line above continues (a trailing
+    # \\, |, &&, ||), or an array assignment above the line that closes it,
+    # which is the one xtrace prints
+    function shadow(i,   t, p, j) {
       if (!(file in read)) {
         read[file]
         n = 0
@@ -92,10 +93,12 @@ function _hi_cov_untested() {
       }
       t = src[file, i]
       if (t ~ /^[ \t]*(done|[})]|fi|esac)[ \t]*[0-9]*[<>]/) return 1
+      if (t ~ /^[ \t]*\(?[^()#]+\)[ \t]*;(;&?|&)[ \t]*$/) return 1
       p = src[file, i - 1]
       sub(/[ \t]+#.*$/, "", p)
       if (p ~ /(\\|\||&&|\|\|)[ \t]*$/) return 1
-      if (p ~ /=\([^)]*$/) return 1
+      for (j = i; j > 0 && src[file, j] !~ /\)/; j--)
+        if (src[file, j] ~ /=\(/) return 1
       return 0
     }
     BEGIN {
