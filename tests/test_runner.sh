@@ -332,6 +332,12 @@ and 0 lifts it. _HI_RUN_DEADLINE=<seconds> ends the whole run that long after
 it started, the same way: each suite still running is reported FAILED
 (deadline) with its case and processes, and each not yet started as never
 run. CI sets it under the job's own limit, which ends a job with no log.
+The machine is sampled every two seconds while suites run, and the summary
+ends with what it saw: CPU busy and memory in use, and the CPU by how many
+suites were running at once - whether a wider run would have room
+(_HI_RUNNER_WIDTH). Under GitHub Actions the same table goes to the job's
+summary page. _HI_USAGE=0 turns it off; _HI_USAGE_STEP=<seconds> moves the
+interval.
 
 Suites, in the order they run:
 $(_hi_test_listing)
@@ -543,6 +549,9 @@ fi
 _HI_RUN_DEADLINE="${_HI_RUN_DEADLINE:-0}"
 case "$_HI_RUN_DEADLINE" in '' | *[!0-9]*) _HI_RUN_DEADLINE=0 ;; esac
 _HI_RUN_DEADLINE_AT=$((SECONDS + _HI_RUN_DEADLINE))
+# the machine's CPU and memory sampled through the run and reported at its
+# end (_hi_usage_watch): 1 by default, 0 for none
+_HI_USAGE="${_HI_USAGE:-1}"
 
 # One row per suite, tab-joined:
 # <name>\t<status>\t<pass>\t<fail>\t<skip>\t<duration>.
@@ -878,6 +887,89 @@ function _hi_progress_tick() {
   done
 }
 
+# _hi_usage_watch <file> - a line every $_HI_USAGE_STEP seconds (2) while
+# this run lasts: <seconds> <CPU busy %> <memory in use, kB> <suites
+# running>. Off /proc where there is one (Linux, WSL, MSYS), read with the
+# builtin - forks are what Git Bash is slow at - the CPU from /proc/stat's
+# deltas and the memory as MemTotal less MemAvailable (MemFree where that is
+# missing). Elsewhere (macOS, the BSDs) the CPU is ps's summed %cpu over the
+# cores, and the memory "-". A suite is running while its .running marker
+# is there (_hi_run_batch).
+function _hi_usage_watch() {
+  local out="$1" step="${_HI_USAGE_STEP:-2}" cores t0=$SECONDS
+  local u n s i w q sq st busy total pb=0 pt=0 pct mem key v mt ma mf running f
+  cores="$(_hi_host_cores)"
+  case "$cores" in '' | 0) cores=1 ;; esac
+  case "$step" in '' | *[!0-9]* | 0) step=2 ;; esac
+  while kill -0 "$$" 2>/dev/null; do
+    pct="-" mem="-"
+    if [ -r /proc/stat ]; then
+      read -r _ u n s i w q sq st _ </proc/stat || :
+      total=$((u + n + s + i + ${w:-0} + ${q:-0} + ${sq:-0} + ${st:-0}))
+      busy=$((total - i - ${w:-0}))
+      ((pt == 0 || total <= pt)) || pct=$(((busy - pb) * 100 / (total - pt)))
+      pb=$busy pt=$total
+    else
+      pct="$(ps -A -o %cpu= 2>/dev/null | awk -v c="$cores" '{ s += $1 } END { printf "%d", s / c }')" || pct="-"
+    fi
+    if [ -r /proc/meminfo ]; then
+      mt="" ma="" mf=""
+      while read -r key v _; do
+        case "$key" in
+        MemTotal:) mt="$v" ;;
+        MemAvailable:) ma="$v" ;;
+        MemFree:) mf="$v" ;;
+        esac
+      done </proc/meminfo
+      [ -n "$ma" ] || ma="$mf"
+      [ -z "$mt" ] || [ -z "$ma" ] || mem=$((mt - ma))
+    fi
+    running=0
+    for f in "$_HI_RUN_DIR"/*.running; do
+      [ ! -e "$f" ] || running=$((running + 1))
+    done
+    [ "$pct" = - ] || ((pct <= 100)) || pct=100
+    printf '%s %s %s %s\n' "$((SECONDS - t0))" "$pct" "$mem" "$running" >>"$out"
+    sleep "$step"
+  done
+}
+
+# _hi_usage_report <file> - _hi_usage_watch's samples, summed up: the cores
+# and memory, CPU busy on average, at the 90th percentile, and at its peak,
+# memory in use at its peak, then CPU busy by how many suites were running
+# at once - the row that says whether a wider run has room. Into the step
+# summary as well under GitHub Actions, where it is read without the log.
+function _hi_usage_report() {
+  local file="$1" cores total lines
+  [ -s "$file" ] || return 0
+  cores="$(_hi_host_cores)"
+  total="$(_hi_host_mem_kb MemTotal)"
+  lines="$(awk -v cores="${cores:-?}" -v total="${total:-}" -v step="${_HI_USAGE_STEP:-2}" '
+    $2 != "-" { c[++n] = $2; sum += $2; k = $4; ks[k] += $2; kn[k]++ }
+    { all++; if ($3 != "-" && $3 > peak) peak = $3; last = $1 }
+    END {
+      if (!n) exit
+      for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++) if (c[j] < c[i]) { t = c[i]; c[i] = c[j]; c[j] = t }
+      p90 = c[int(n * 0.9) > 0 ? int(n * 0.9) : 1]
+      printf "%s cores; sampled every %ss over %ss\n", cores, step, last
+      printf "CPU busy: average %d%%, 90th percentile %d%%, peak %d%%\n", sum / n, p90, c[n]
+      if (peak > 0) {
+        if (total > 0) printf "memory in use: peak %.1f GiB of %.1f GiB (%d%%)\n", peak / 1048576, total / 1048576, peak * 100 / total
+        else printf "memory in use: peak %.1f GiB\n", peak / 1048576
+      }
+      printf "suites at once|share of the run|CPU busy, average\n"
+      for (k = 0; k <= 64; k++) if (kn[k]) printf "%d|%d%%|%d%%\n", k, kn[k] * 100 / n, ks[k] / kn[k]
+    }' "$file")"
+  [ -n "$lines" ] || return 0
+  _hi_h2 "Machine use"
+  printf '%s\n' "$lines" | awk -F'|' 'NF == 1 { print " | " $0; next } { printf " |   %-15s %-17s %s\n", $1, $2, $3 }'
+  [ -n "$_HI_CI" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ] && {
+    printf '\n### Machine use\n\n'
+    printf '%s\n' "$lines" | awk -F'|' 'NF == 1 { print "- " $0; next } !h++ { print "\n| " $1 " | " $2 " | " $3 " |\n| ---: | ---: | ---: |"; next } { print "| " $1 " | " $2 " | " $3 " |" }'
+  } >>"$GITHUB_STEP_SUMMARY"
+  return 0
+}
+
 # _hi_run_batch <width> <suite-entry...> - the scheduling loop plus its
 # parallel-run collection pass, over one homogeneous batch. $_hi_i is global
 # and never reset between calls, so the two batches' $_HI_RUN_DIR files never
@@ -937,9 +1029,12 @@ function _hi_run_batch() {
       (
         # its presence is what the progress line reads as "running"
         [ -z "$_hi_progress" ] || : >"$_hi_progress"
+        # ...and .running what the usage sampler counts
+        : >"$_HI_RUN_DIR/$_hi_i.running"
         _hi_t0="$(_hi_now)"
         if _hi_run_suite_watched "$_hi_stall" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
         printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
+        rm -f "$_HI_RUN_DIR/$_hi_i.running"
       ) &
       _HI_PAR_RUNNING+=("$!")
       continue
@@ -947,11 +1042,13 @@ function _hi_run_batch() {
 
     _hi_h2 "Running $_hi_name"
     _hi_t0="$(_hi_now)"
+    : >"$_HI_RUN_DIR/$_hi_i.running"
     if [ "$_HI_VERBOSE" = 1 ]; then
       if _hi_run_suite_watched "$_hi_stall"; then _hi_code=0; else _hi_code=$?; fi
     else
       if _hi_run_suite_watched "$_hi_stall" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
     fi
+    rm -f "$_HI_RUN_DIR/$_hi_i.running"
     _hi_restore_tty
     _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"
   done
@@ -981,8 +1078,17 @@ function _hi_run_batch() {
 }
 
 _hi_i=0
+_hi_usage_pid=""
+if [ "$_HI_USAGE" = 1 ]; then
+  _hi_usage_watch "$_HI_RUN_DIR/usage" &
+  _hi_usage_pid=$!
+fi
 _hi_run_batch "$_HI_RUNNER_WIDTH" ${_HI_SELECTED_PAR[@]+"${_HI_SELECTED_PAR[@]}"}
 _hi_run_batch 1 ${_HI_SELECTED_SERIAL[@]+"${_HI_SELECTED_SERIAL[@]}"}
+if [ -n "$_hi_usage_pid" ]; then
+  kill "$_hi_usage_pid" 2>/dev/null || :
+  wait "$_hi_usage_pid" 2>/dev/null || :
+fi
 
 _hi_h1 "Summary"
 _hi_width=5 # "TOTAL" is the widest the name column can need on its own
@@ -1060,6 +1166,8 @@ if [ "${#_HI_TIME_NOTES[@]}" -gt 0 ]; then
     _hi_cecho " | $(printf '%5ss' "$_hi_dur")  $_hi_note"
   done < <(printf '%s\n' "${_HI_TIME_NOTES[@]}" | sort -t "$(printf '\t')" -k 1,1nr | head -n 10)
 fi
+
+[ "$_HI_USAGE" != 1 ] || _hi_usage_report "$_HI_RUN_DIR/usage"
 
 _HI_SKIP_NOTE=""
 [ "$_HI_SUITE_SKIPPED" -gt 0 ] && _HI_SKIP_NOTE=", $_HI_SUITE_SKIPPED skipped"

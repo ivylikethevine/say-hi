@@ -107,6 +107,13 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   and each not yet started as never run. Every CI step that runs the suites
   sets it three minutes under its job's limit, since a job its limit ends
   keeps no log of what it was doing.
+- The machine is sampled every two seconds while suites run, and the run
+  ends with a **Machine use** section: CPU busy (average, 90th percentile,
+  peak), memory in use at its peak, and CPU busy by how many suites were
+  running at once - low CPU with every slot full says a wider run
+  (`_HI_RUNNER_WIDTH`) or another shard has room. Under GitHub Actions the
+  same table goes to the job's summary page. `_HI_USAGE=0` turns it off,
+  `_HI_USAGE_STEP=<seconds>` moves the interval.
 - A suite whose backend is missing reports **SKIPPED**, never green; so does a
   single case (an image that would not build, a tool not installed).
   `--require-run` (CI's lint, e2e, and backends jobs pass it) turns both into

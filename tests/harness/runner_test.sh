@@ -90,6 +90,8 @@ function _hi_run_runner() {
   # shellcheck disable=SC2163 # the var=value pair is chosen by each caller
   _HI_RUN_OUT="$(
     unset GITHUB_ACTIONS _HI_VERBOSE _HI_HOST_REPORT _HI_PROGRESS
+    # no sampler unless a case asks: its report would end every fixture run
+    export _HI_USAGE=0
     [ -n "${_HI_RUN_WITH:-}" ] && export "${_HI_RUN_WITH?}"
     _HI_TESTS=("${entries[@]}")
     _HI_TESTS_DIR="$_HI_FIXTURES"
@@ -657,6 +659,16 @@ function test_the_deadline_ends_the_run_with_its_evidence() {
     "$_HI_RUN_OUT" != *ran:late_3* ]] || _hi_why _HI_RUN_EXIT _HI_RUN_OUT
 }
 
+# The machine is sampled while suites run and summed up at the end: CPU busy,
+# and CPU busy by how many suites were running at once
+function test_machine_use_is_reported() {
+  printf '#!/usr/bin/env bash\nsleep 3\n' >"$_HI_FIXTURES/busy.sh"
+  chmod +x "$_HI_FIXTURES/busy.sh"
+  _HI_RUN_WITH="_HI_USAGE=1" _hi_run_runner 'busy:busy.sh'
+  [[ "$_HI_RUN_OUT" == *"Machine use"* && "$_HI_RUN_OUT" == *"CPU busy: average "* &&
+    "$_HI_RUN_OUT" == *"suites at once"*" 1 "* ]] || _hi_why _HI_RUN_OUT
+}
+
 function test_progress_line_names_the_running_case() {
   _hi_stall_run
   [[ "$_HI_RUN_OUT" == *"running: stall_hung (the case that hangs)"* ]] || _hi_why _HI_RUN_OUT
@@ -789,6 +801,7 @@ function run_runner_tests() {
   _hi_check "Names the case a running suite is in" test_progress_line_names_the_running_case
   _hi_check "A hung suite is ended and named by its case" test_a_hung_suite_is_ended_and_named_by_its_case
   _hi_check "The deadline ends the run with its evidence" test_the_deadline_ends_the_run_with_its_evidence
+  _hi_check "Machine use is reported" test_machine_use_is_reported
 
   _hi_h2 "Testing: summary case counts"
   _hi_check "Has a column header" test_summary_has_a_column_header
