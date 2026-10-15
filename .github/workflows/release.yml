@@ -707,8 +707,8 @@ jobs:
         run: |
           set -euo pipefail
           # Body: the badges frozen above, what changed, then how to check it.
-          # The notes are generated because README.md's Roadmap section deletes
-          # finished entries and this is where the git-history ledger gets
+          # The notes are generated because README.md's Roadmap and Release
+          # Stages delete finished entries and this is where the git-history ledger gets
           # published. Asked for via the API and composed here rather than
           # --generate-notes plus --notes, which would put the checklist first:
           # gh appends generated notes *after* --notes.

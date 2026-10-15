@@ -46,6 +46,7 @@ Nomad allocation, or a Kubernetes pod.
 - [Getting help and contributing](#getting-help-and-contributing)
 - [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
+- [Release Stages](#release-stages)
 - [License](#license)
 
 ---
@@ -360,60 +361,41 @@ myself.
 
 ## Roadmap
 
-What's left; nothing here is parked or descoped. One list, in the order the
-work is best done: what is left to fix, the 1.0 tag, then what waits on it. An
-entry is deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the
-tag and are outside this checkout: an account or an upstream review that lands
-when it lands.
+The features and changes left to build; nothing here is parked or descoped.
+One list, in the order the work is best done. An entry is deleted once its
+**Ticks when** holds. What a release waits on is
+[Release Stages](#release-stages).
 
-1. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
-       each make the scratch directory, send the tree, fall back without
-       bash, and clean up in their own way: a container takes seven or more
-       `exec` calls, has no `--keep`, and `hi --doctor` has two target
-       halves. The design, approved and not yet built: (1)
-       `_hi_transport_cmds <arm>` fills `probe` (no stdin, no tty), `cp`
-       (stdin), and `attach` (a tty where there is one) for every arm, a
-       container's `_hi_container_cmds`' and ssh's `ssh` over the
-       ControlMaster as `-n`, stdin, and `-t`; (2) every arm boots in one
-       `cp` call - make the temp directory, write the script, check the bytes
-       that landed, print the path - and runs in one `attach`,
-       `sh <dir>/bootloader`, then removes the directory, so a container
-       takes ssh's script, the tree armored inside it, and with it the
-       script's no-bash ladder (`_hi_container_no_bash` goes), one size
-       figure (`_hi_wire_bytes`), and the kept session's start and reattach;
-       (3) `hi --doctor`'s target half is one, probing through `probe`; (4)
-       left per arm: ssh's ControlMaster, keepalive, reconnect loop, and
-       PowerShell notice, a container's name resolution, and both `--plain`
-       paths, with a dropped container `exec` not retried; (5) docs: GLOSSARY
-       HI.43 and HI.65, SECURITY's _What hi writes on a target_, TESTING. The
-       cost is a third more bytes for a container (armored, where a raw tar
-       went before); nomad's and kube's stdin and tty handling is why the
-       boot checks what landed. **Ticks when:** a container target takes the
-       script an ssh one does, through its own three commands, and the e2e
-       and backends groups are green in CI with it.
+None open.
 
-2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
+## Release Stages
 
-3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-       upstream style. **Do:** open the PR against tldr-pages. **Ticks
-       when:** merged.
+What the 1.0 tag and the releases after it wait on, in order. An entry is
+deleted once its **Ticks when** holds. _Post 1.0_ entries are outside this
+checkout: an account or an upstream review that lands when it lands.
 
-4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       settle its three flagged rows (`small_tasks`, `secure_2FA`,
-       `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-       the live entry matches the sheet.
+- [ ] **I.** _At the 1.0.0 tag:_ **A stability contract is written down** —
+      [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+      **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+      versions_ prose into its version table.
 
-5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
-       `publish-external.yml`'s `aur` job is written but unexercised. **When
-       it reopens:** register, add `AUR_SSH_KEY` to the `release`
-       environment, and push each package once by hand
-       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
-       packages are live and a dispatch has kept `say-hi` current for one
-       release.
+- [ ] **II.** _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1`
+      and upstream style. **Do:** open the PR against tldr-pages. **Ticks
+      when:** merged.
+
+- [ ] **III.** _Post 1.0:_ **Best Practices badge** — the answers are in
+      [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+      settle its three flagged rows (`small_tasks`, `secure_2FA`,
+      `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
+      the live entry matches the sheet.
+
+- [ ] **IV.** _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+      `publish-external.yml`'s `aur` job is written but unexercised. **When
+      it reopens:** register, add `AUR_SSH_KEY` to the `release`
+      environment, and push each package once by hand
+      ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+      packages are live and a dispatch has kept `say-hi` current for one
+      release.
 
 ## License
 
