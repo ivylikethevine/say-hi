@@ -410,30 +410,22 @@ when it lands.
        script an ssh one does, through its own three commands, and the e2e
        and backends groups are green in CI with it.
 
-4. [ ] _Before 1.0:_ **The coverage comment names what a PR left
-       untested** — shipped: `coverage.yml`'s comment lists the lines a PR
-       changed that neither tool recorded, less the shapes `xtrace` never
-       prints, and `tests/coverage.sh --untested <revision>` does the same by
-       hand. Over PR 214's sweep it now lists no artifact, and the one gap
-       it named, three `_hi_row_col` arms no caller asked for, is deleted.
-       **Ticks when:** a PR's comment lists only arms no case reaches.
-
-5. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-6. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-7. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-8. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand

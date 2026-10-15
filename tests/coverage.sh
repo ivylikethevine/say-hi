@@ -17,7 +17,8 @@
 #   its outdir (the defaults are the two default outdirs)
 #        tests/coverage.sh --untested <base> [kcov missed] [bashcov missed]
 #   the lines changed since <base> that neither sweep recorded, off the
-#   `missed` each leaves beside `files`
+#   `missed` each leaves beside `files`; a kcov list of `-` reads bashcov's
+#   alone, for a PR, which sweeps bashcov only
 #
 # ---------------------------------------------------------------------------
 # HOW FAR TO TRUST A NUMBER THIS PRINTS

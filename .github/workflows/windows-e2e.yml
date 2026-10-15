@@ -261,7 +261,9 @@ jobs:
           # -k 30: a wedge that outlives the first signal would otherwise
           # leave `timeout` waiting on it forever too - see
           # .github/scripts/bsd_loopback.sh's comment on the same flag.
-          setsid -w timeout -k 30 600 bash ./tests/test_runner.sh --verbose --host-report \
+          # _HI_RUN_DEADLINE under timeout's 600: the runner ends itself and
+          # names what was running, where timeout's kill names nothing
+          _HI_RUN_DEADLINE=540 setsid -w timeout -k 30 600 bash ./tests/test_runner.sh --verbose --host-report \
             --group fast --shard "$HI_SHARD" </dev/null
 
       # The rest of this job is shard 1 only: the package layout on this same

@@ -34,14 +34,11 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 
 # group:name:path (relative to this directory), in the order they run - fast
 # local checks first, the docker/kind/nomad-backed end-to-end tests after.
-# The fast section is dealt out for windows-client.yml's four shards: row k
-# lands in quarter k mod 4, and each quarter's suites were picked so the four
-# take about the same wall clock on Git Bash arm64 - the heavy doctor suites
-# (report, json, target) in different quarters - then listed slowest first, so a
-# row of four heavy suites leads and the parallel runner starts them first.
-# Re-deal from a Windows arm64 run's per-suite TIME column when a suite's
-# weight changes; test_runner's shard check proves the quarters still cover
-# the group.
+# The fast section is listed slowest first, so the parallel runner starts
+# the heavy suites first. windows-client.yml's shards are dealt by cost
+# ($_HI_TEST_COSTS_GITBASH below), not by this order; refresh that table
+# from a Windows arm64 run (scratch/shard_costs.sh) when a suite's weight
+# changes.
 #
 # `ci` is what a second platform could only repeat: suites that read repo
 # text (workflows, manifests) or run tooling only ubuntu CI ever runs.
@@ -141,49 +138,71 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   )
 fi
 
-# What each suite costs a coverage sweep, in seconds, one table a tracer:
-# the time CI took tracing it (scratch/coverage_costs.sh reads them off a
-# coverage run). --shard deals the suites by one when $_HI_SHARD_BY names its
-# tracer, kcov or bashcov, as tests/lib/coverage.sh asks; a suite not named
-# costs 5, and one a tracer skips costs it 0.
+# What each suite costs, in seconds, one table a way of dealing shards:
+# --shard deals the suites by one when $_HI_SHARD_BY names it, and a suite
+# not named costs 5. kcov and bashcov are a coverage sweep's, the time CI
+# took tracing each (scratch/coverage_costs.sh reads them off a coverage
+# run), as tests/lib/coverage.sh asks; a suite a tracer skips costs it 0.
+# gitbash is the Windows client's, the time each took under Git Bash on
+# arm64, and e2e ci.yml's e2e shards' (scratch/shard_costs.sh reads both off
+# a CI run's summaries).
 _HI_TEST_COSTS_KCOV="
-  ssh_keep:257 framework:168 kube:110 ssh_relay:61 ssh:59 podman:44
-  hi_payload_scan:36 test_lib:32 doctor_config:31 home_prompt:27 dialects:23
-  ssh_disconnect:22 configure_pty:21 doctor_target:21 hi_payload_overlay:20
-  load_session:20 test_runner:20 plugins:19 configure_menu:15 docker:14
-  rc_prompt:14 rc:12 configure_wizard:11 install_methods:11 doctor_json:9
-  hi_payload_home:9 nomad:9 repo:9 targets:8 update:8 install_location:7
-  install_run:7 packaging_ci_scripts:7 test_runner_ci:7 doctor_report:6
-  test_lib_par:6 alias_fallthrough:5 hi_cache:4 hi_keep:4
-  packaging_ci_mkpkg:4 test_lib_report:4 add_package:3 configure:3 drift:3
-  header:3 hi_payload:3 packaging:3 packaging_ci_release:3 preview:3
-  rc_lines:3 set_color:3 ssh_wire:3 add_tag:2 aliases:2 bench:2
-  convert_settings:2 core_identity:2 drift_docs:2 hi:2 hi_container:2
-  hi_help:2 load:2 packaging_ci_workflows:2 preview_packages:2
-  targets_complete:2 core:1 doctor:1 exports:1 git_prompt:1 header_bare:1
-  header_check:1 header_whole:1 hi_helpers:1 hi_remote:1 install:1
-  packaging_ci:1 paths:1 tools:1 core_target:0 env_prompt:0 hi_dispatch:0
-  hi_mux:0 hi_prompt:0 table:0
+  ssh_keep:272 framework:140 kube:112 ssh:60 ssh_relay:45 podman:40
+  hi_payload_scan:35 home_prompt:34 test_lib:34 configure_pty:32
+  doctor_config:29 test_runner:26 dialects:23 docker:21 install_methods:21
+  plugins:20 configure_menu:19 load_session:19 ssh_wire:18 rc:15
+  doctor_target:14 hi_payload_home:14 hi_payload_overlay:14
+  install_location:14 rc_prompt:14 ssh_disconnect:11 configure_wizard:10
+  targets:10 doctor_json:9 alias_fallthrough:7 install_run:7 test_runner_ci:7
+  doctor_report:6 packaging_ci_scripts:6 test_lib_par:6 update:6 header:5
+  hi_cache:5 hi_keep:4 packaging_ci_mkpkg:4 rc_lines:4 test_lib_report:4
+  add_package:3 aliases:3 configure:3 hi_help:3 hi_payload:3
+  packaging_ci_release:3 preview:3 add_tag:2 bench:2 core_identity:2 drift:2
+  drift_docs:2 hi:2 hi_container:2 load:2 packaging:2
+  packaging_ci_workflows:2 preview_packages:2 set_color:2 convert_settings:1
+  core:1 core_target:1 doctor:1 exports:1 git_prompt:1 header_bare:1
+  header_check:1 header_whole:1 hi_helpers:1 hi_prompt:1 hi_remote:1
+  install:1 packaging_ci:1 paths:1 targets_complete:1 tools:1 env_prompt:0
+  hi_dispatch:0 hi_mux:0 nomad:0 repo:0 table:0
 "
 _HI_TEST_COSTS_BASHCOV="
-  ssh_keep:360 framework:255 hi_payload_scan:185 doctor_config:137 kube:117
-  ssh:105 plugins:101 doctor_target:95 ssh_relay:76 configure_wizard:75
-  hi_payload_home:60 install_location:60 rc_prompt:59 add_package:57
-  podman:56 set_color:56 hi_payload_overlay:55 test_lib:53 ssh_disconnect:43
-  update:42 dialects:41 test_runner:40 docker:38 doctor_json:37
-  load_session:36 add_tag:33 home_prompt:32 doctor_report:31
-  install_methods:31 install_run:30 test_runner_ci:27 hi_cache:26 rc:25
-  hi_help:24 preview:24 test_lib_par:22 aliases:21 header_whole:21
-  hi_payload:21 packaging_ci_scripts:21 bench:20 configure:20 drift_docs:20
-  rc_lines:20 targets_complete:20 core_identity:19 packaging:19
-  packaging_ci_mkpkg:19 ssh_wire:19 core:18 doctor:18 load:18
-  packaging_ci_release:18 packaging_ci_workflows:18 paths:18 env_prompt:17
-  header_check:17 hi_helpers:17 install:17 targets:17 convert_settings:16
-  exports:16 git_prompt:16 hi_container:16 hi_keep:16 hi_dispatch:15 table:15
-  alias_fallthrough:14 header:14 hi:14 header_bare:13 hi_remote:13
-  packaging_ci:13 preview_packages:13 test_lib_report:13 tools:13 drift:12
-  hi_mux:12 hi_prompt:12 repo:12 core_target:11 nomad:60 configure_menu:0
-  configure_pty:0
+  ssh_keep:323 framework:227 hi_payload_scan:181 kube:122
+  hi_payload_overlay:107 doctor_config:106 ssh:100 doctor_target:93
+  ssh_relay:80 hi_payload_home:79 configure_wizard:75 install_location:71
+  podman:59 add_package:58 set_color:58 plugins:50 update:46 test_lib:45
+  rc:44 add_tag:43 dialects:43 load_session:43 ssh_disconnect:43
+  test_runner:43 install_run:39 docker:38 doctor_json:38 hi_payload:35
+  home_prompt:35 rc_prompt:34 hi_cache:31 targets:31 install_methods:30
+  test_runner_ci:29 hi_help:24 preview:24 bench:22 header_whole:22
+  packaging_ci_scripts:22 preview_packages:22 aliases:21 doctor_report:21
+  load:21 configure:20 convert_settings:20 drift_docs:20 hi_container:20
+  hi_keep:20 packaging_ci_mkpkg:20 ssh_wire:20 core_identity:19
+  targets_complete:19 hi_prompt:18 install:18 packaging_ci_workflows:18
+  test_lib_report:18 core:17 core_target:17 header_bare:17 header_check:17
+  hi:17 nomad:17 repo:17 test_lib_par:17 alias_fallthrough:16 drift:16
+  git_prompt:16 hi_helpers:16 packaging_ci_release:16 rc_lines:16 tools:16
+  hi_dispatch:15 hi_mux:15 table:15 env_prompt:14 header:14 hi_remote:14
+  packaging_ci:14 doctor:13 packaging:13 paths:12 exports:11
+  configure_menu:0 configure_pty:0
+"
+_HI_TEST_COSTS_GITBASH="
+  update:187 test_runner:183 doctor_target:181 hi_payload_scan:177
+  alias_fallthrough:150 doctor_config:118 plugins:113 load_session:107
+  doctor_json:98 hi_payload_overlay:90 rc_lines:89 configure_wizard:86
+  targets:84 hi_payload_home:79 rc_prompt:73 install_run:70 hi_cache:69
+  doctor_report:60 hi_help:58 preview:52 configure:51 hi_payload:50
+  test_lib_report:48 convert_settings:47 test_lib:47 hi_keep:46 header:45
+  add_package:43 header_whole:43 packaging:42 set_color:40 doctor:37
+  add_tag:36 install_location:36 targets_complete:35 rc:31 hi:26
+  test_lib_par:25 load:24 git_prompt:23 aliases:22 header_bare:22
+  preview_packages:22 hi_remote:20 paths:18 install:16 core_identity:15
+  hi_helpers:15 hi_prompt:13 core_target:11 hi_dispatch:11 configure_menu:8
+  configure_pty:8 header_check:8 hi_container:8 env_prompt:6 core:5 exports:5
+  table:4 hi_mux:2
+"
+_HI_TEST_COSTS_E2E="
+  framework:111 ssh_keep:85 repo:52 ssh_relay:51 install_methods:43 ssh:30
+  ssh_disconnect:25 ssh_wire:21 home_prompt:15 docker:9
 "
 
 # _hi_test_cost <name> - its entry in $_HI_SHARD_BY's table, 5 for none. Out
@@ -191,7 +210,11 @@ _HI_TEST_COSTS_BASHCOV="
 # there.
 function _hi_test_cost() {
   local costs="$_HI_TEST_COSTS_KCOV" c
-  [ "$_HI_SHARD_BY" != bashcov ] || costs="$_HI_TEST_COSTS_BASHCOV"
+  case "$_HI_SHARD_BY" in
+  bashcov) costs="$_HI_TEST_COSTS_BASHCOV" ;;
+  gitbash) costs="$_HI_TEST_COSTS_GITBASH" ;;
+  e2e) costs="$_HI_TEST_COSTS_E2E" ;;
+  esac
   costs=" ${costs//$'\n'/ } "
   case "$costs" in
   *" $1:"*)
@@ -200,6 +223,12 @@ function _hi_test_cost() {
     ;;
   *) printf 5 ;;
   esac
+}
+
+# _hi_shard_by_cost - does $_HI_SHARD_BY name a table above
+function _hi_shard_by_cost() {
+  case "${_HI_SHARD_BY:-}" in kcov | bashcov | gitbash | e2e) return 0 ;; esac
+  return 1
 }
 
 # <group>:<name>:<path> -> the parts every consumer below wants. Kept as
@@ -297,9 +326,12 @@ are emitted as ::error annotations. While suites run side by side, a progress
 line counts finished suites and cases - redrawn in place at a terminal, a line
 per finished suite (and every 30s) on CI; _HI_PROGRESS=0/1 overrides.
 A suite side by side that starts and finishes no case for ten minutes is
-ended and reported FAILED (hung), with the case it was in;
-_HI_SUITE_STALL=<seconds> moves the limit, for suites one by one too, and 0
-lifts it.
+ended and reported FAILED (hung), with the case it was in and the processes
+it left; _HI_SUITE_STALL=<seconds> moves the limit, for suites one by one too,
+and 0 lifts it. _HI_RUN_DEADLINE=<seconds> ends the whole run that long after
+it started, the same way: each suite still running is reported FAILED
+(deadline) with its case and processes, and each not yet started as never
+run. CI sets it under the job's own limit, which ends a job with no log.
 
 Suites, in the order they run:
 $(_hi_test_listing)
@@ -369,14 +401,13 @@ fi
 # the table - dealt out for it, see the table's header - spreads the slow suites
 # across them rather than handing one runner all of them. Applied after the
 # group/name selection and before --list, so `--group fast --shard 2/4 --list`
-# shows what a CI shard will run. windows-client.yml is the caller: the fast group takes about
-# seven minutes under Git Bash, where backgrounded suites barely overlap
-# (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
-# a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
-# With $_HI_SHARD_BY=kcov or bashcov the slices are dealt by that tracer's
-# table above instead: the costliest suite first, each to the slice that
-# costs least so far, the first of equals - the same partition on every
-# runner, but slices of different n do not compose.
+# shows what a CI shard will run. Slices of different n compose: 2/8 and
+# 6/8 are 2/4. With $_HI_SHARD_BY naming a table above the slices are dealt
+# by it instead: the costliest suite first, each to the slice that costs
+# least so far, the first of equals - the same partition on every runner,
+# and slices that take about as long, but slices of different n do not
+# compose. The Windows client's and ci.yml's e2e shards are dealt so, and
+# coverage.yml's by their tracer.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"
@@ -398,7 +429,7 @@ if [ -n "$_HI_SHARD" ]; then
   fi
   declare -a _hi_sharded=() _hi_loads=()
   _hi_mine=" "
-  if [ "${_HI_SHARD_BY:-}" = kcov ] || [ "${_HI_SHARD_BY:-}" = bashcov ]; then
+  if _hi_shard_by_cost; then
     for ((_hi_k = 0; _hi_k < _hi_shard_n; _hi_k++)); do _hi_loads[_hi_k]=0; done
     while read -r _hi_c _hi_k; do
       _hi_min=0
@@ -417,7 +448,7 @@ if [ -n "$_HI_SHARD" ]; then
   fi
   _hi_k=0
   for _hi_t in "${_HI_SELECTED[@]}"; do
-    if [ "${_HI_SHARD_BY:-}" = kcov ] || [ "${_HI_SHARD_BY:-}" = bashcov ]; then
+    if _hi_shard_by_cost; then
       case "$_hi_mine" in *" $_hi_k "*) _hi_sharded+=("$_hi_t") ;; esac
     elif [ $((_hi_k % _hi_shard_n)) -eq $((_hi_shard_i - 1)) ]; then
       _hi_sharded+=("$_hi_t")
@@ -506,6 +537,13 @@ if [ -z "$_HI_PROGRESS" ]; then
   if [ -n "$_HI_CI" ] || [ -t 1 ]; then _HI_PROGRESS=1; else _HI_PROGRESS=0; fi
 fi
 
+# seconds from this run's start past which every suite still running is
+# ended and none is started: 0 for none. Held as the $SECONDS it falls at,
+# which every subshell carries on, from where this run started counting.
+_HI_RUN_DEADLINE="${_HI_RUN_DEADLINE:-0}"
+case "$_HI_RUN_DEADLINE" in '' | *[!0-9]*) _HI_RUN_DEADLINE=0 ;; esac
+_HI_RUN_DEADLINE_AT=$((SECONDS + _HI_RUN_DEADLINE))
+
 # One row per suite, tab-joined:
 # <name>\t<status>\t<pass>\t<fail>\t<skip>\t<duration>.
 # Six arrays appended in lockstep from two places meant a missed append in one
@@ -588,8 +626,10 @@ function _hi_collect_suite() {
     _hi_status="PASS"
   else
     _hi_status="FAILED ($_hi_code)"
-    # _hi_run_suite_watched's verdict
+    # _hi_run_suite_watched's verdicts, and a suite the deadline kept from
+    # starting
     [ "$_hi_code" != 124 ] || _hi_status="FAILED (hung)"
+    [ "$_hi_code" != 125 ] || _hi_status="FAILED (deadline)"
     _HI_SUITE_FAILED=$((_HI_SUITE_FAILED + 1))
   fi
   _HI_ROWS+=("$_hi_name"$'\t'"$_hi_status"$'\t'"$_hi_pass"$'\t'"$_hi_fail"$'\t'"$_hi_skipcnt"$'\t'"$_hi_dur")
@@ -683,23 +723,33 @@ function _hi_run_suite() {
     _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
 }
 
+# _hi_suite_procs <pgid> - the processes of a suite's group, ps's header
+# first, for the line that ends it: what it was waiting on. ps -o where ps
+# takes it, MSYS's plain ps elsewhere; the group is the third column of both.
+function _hi_suite_procs() {
+  { ps -eo pid,ppid,pgid,etime,args 2>/dev/null || ps 2>/dev/null; } |
+    awk -v g="$1" 'NR == 1 || $3 == g { print " |   " $0 }'
+}
+
 # _hi_run_suite_watched <stall> - _hi_run_suite, ended where it hangs: a
 # suite that neither starts nor finishes a case for <stall> seconds is
 # killed, with every process it started, and exits 124 with the case it was
 # in named for the recap - a hung case otherwise costs the whole job its
-# timeout and leaves no name. The suite is started under job control, and
-# only it: a process group of its own is what lets the kill reach its
-# children, and costs it the terminal's input and its interrupt, which the
-# trap hands on. 0 runs it unwatched.
+# timeout and leaves no name. Past $_HI_RUN_DEADLINE it is ended the same
+# way and exits 125. Either way the processes it left are listed first. The
+# suite is started under job control, and only it: a process group of its
+# own is what lets the kill reach its children, and costs it the terminal's
+# input and its interrupt, which the trap hands on. A stall of 0 and no
+# deadline run it unwatched.
 function _hi_run_suite_watched() {
   local stall="$1"
-  case "$stall" in '' | 0 | *[!0-9]*)
+  case "$stall" in '' | *[!0-9]*) stall=0 ;; esac
+  if [ "$stall" = 0 ] && [ "$_HI_RUN_DEADLINE" = 0 ]; then
     _hi_run_suite
     return
-    ;;
-  esac
+  fi
   (
-    rm -f "$_hi_progress.hung"
+    rm -f "$_hi_progress.hung" "$_hi_progress.deadline"
     # the suite a process group of its own, which the stall below ends
     # whole; job control off again inside it, or a tracer exporting
     # SHELLOPTS hands it to every shell under it, each background job then a
@@ -720,12 +770,20 @@ function _hi_run_suite_watched() {
         now="" label=""
         [ ! -s "$_hi_progress" ] || read -r now <"$_hi_progress" || :
         [ ! -s "$_hi_progress.case" ] || IFS= read -r label <"$_hi_progress.case" || :
-        if [ "$now|$label" != "$seen" ]; then
+        why=""
+        if [ "$_HI_RUN_DEADLINE" != 0 ] && ((SECONDS >= _HI_RUN_DEADLINE_AT)); then
+          : >"$_hi_progress.deadline"
+          why="the run's deadline of ${_HI_RUN_DEADLINE}s passed" short="ended at the run's ${_HI_RUN_DEADLINE}s deadline"
+        elif [ "$now|$label" != "$seen" ]; then
           seen="$now|$label" last=$SECONDS
-        elif ((SECONDS - last >= stall)); then
+        elif [ "$stall" != 0 ] && ((SECONDS - last >= stall)); then
           : >"$_hi_progress.hung"
-          printf ' | no case started or finished in %ss: the suite is ended here, in: %s\n' "$stall" "${label:-a case it never named}"
-          printf 'hung for %ss in: %s\n' "$stall" "${label:-a case it never named}" >>"$_hi_fails"
+          why="no case started or finished in ${stall}s" short="hung for ${stall}s"
+        fi
+        if [ -n "$why" ]; then
+          printf ' | %s: the suite is ended here, in: %s; its processes then:\n' "$why" "${label:-a case it never named}"
+          _hi_suite_procs "$pid"
+          printf '%s in: %s\n' "$short" "${label:-a case it never named}" >>"$_hi_fails"
           kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
           sleep 2 >/dev/null 2>&1
           kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
@@ -737,9 +795,10 @@ function _hi_run_suite_watched() {
     wait "$pid"
     code=$?
     # a watcher that ended the suite has its second, harder kill to send yet
-    [ -f "$_hi_progress.hung" ] || kill "$watch" 2>/dev/null
+    [ -f "$_hi_progress.hung" ] || [ -f "$_hi_progress.deadline" ] || kill "$watch" 2>/dev/null
     wait "$watch" 2>/dev/null
     [ ! -f "$_hi_progress.hung" ] || code=124
+    [ ! -f "$_hi_progress.deadline" ] || code=125
     exit "$code"
   )
 }
@@ -861,8 +920,20 @@ function _hi_run_batch() {
       continue
     fi
 
+    # past the deadline nothing more starts: said, and failed. Asked once a
+    # slot is free, since the wait for one can outlast it.
+    [ "$width" -le 1 ] || _hi_par_slot
+    if [ "$_HI_RUN_DEADLINE" != 0 ] && ((SECONDS >= _HI_RUN_DEADLINE_AT)); then
+      printf 'not started: the run had passed its %ss deadline\n' "$_HI_RUN_DEADLINE" | tee "$_hi_fails" | sed 's/^/ | /' >"$_hi_log"
+      if [ "$width" -gt 1 ]; then
+        printf '125 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
+      else
+        _hi_collect_suite "$_hi_name" 125 0 "$_hi_counts" "$_hi_fails" "$_hi_log"
+      fi
+      continue
+    fi
+
     if [ "$width" -gt 1 ]; then
-      _hi_par_slot
       (
         # its presence is what the progress line reads as "running"
         [ -z "$_hi_progress" ] || : >"$_hi_progress"

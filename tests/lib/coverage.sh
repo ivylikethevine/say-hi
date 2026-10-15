@@ -60,11 +60,12 @@ function _hi_cov_subject_dirs() {
 # tree's *.sh files changed since <base> that both tools list as never run
 # (the `path:line` lists each sweep leaves as `missed`), a row a file. Both,
 # since each tool alone misses lines that ran; what is left is an arm no case
-# reaches or an artifact both share, and each driver's header says which.
+# reaches or an artifact both share, and each driver's header says which. A
+# kcov list of `-` reads bashcov's alone: a PR sweeps bashcov only.
 function _hi_cov_untested() {
   local list
   for list in "$2" "$3"; do
-    [ -f "$list" ] || {
+    [ "$list" = - ] || [ -f "$list" ] || {
       _hi_cecho " | coverage: no list at $list - run that tool's sweep first" "$RED" >&2
       return 1
     }
@@ -103,7 +104,7 @@ function _hi_cov_untested() {
       return 0
     }
     BEGIN {
-      while ((getline line < K) > 0) k[line]
+      if (K != "-") while ((getline line < K) > 0) k[line]
       close(K)
       while ((getline line < B) > 0) b[line]
     }
@@ -117,7 +118,7 @@ function _hi_cov_untested() {
       first = substr(at[1], 2) + 0
       count = (at[2] == "") ? 1 : at[2] + 0
       for (i = first; i < first + count; i++) {
-        if (!((file ":" i) in k && (file ":" i) in b)) continue
+        if (!((K == "-" || (file ":" i) in k) && (file ":" i) in b)) continue
         if (shadow(i)) continue
         if (from != "" && i == to + 1) { to = i; continue }
         flush()

@@ -84,13 +84,13 @@ reports. All but the last five rows are `ci.yml`'s.
 | `nix flake` (builds the flake, then `nix run`)                          | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
 | `e2e (ssh, docker)`                                                     | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
 | `e2e (podman, nomad, kube)`                                             | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
-| `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                     | Same-repo PRs, after both ubuntu fast-suite jobs pass                      | Gate, but see below                                              |
+| `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                     | Same-repo PRs, after the arm64 fast suites pass                            | Gate, but see below                                              |
 | `fast suites (Windows client)`                                          | Same-repo PRs, skipped on a workflow- or docs-only diff; eight runners     | Gate, but see below                                              |
 | `release note (pr body)` (`release-note.yml`)                           | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
 | `dependency review` (`dependency-review.yml`)                           | Always; fails on a new dependency with a high or critical advisory         | Gate                                                             |
 | `render the usage images` (`usage.yml`)                                 | Always; runs every `docs/tapes/usage` example                              | Gate                                                             |
 | `CodeQL (actions)` (`codeql.yml`)                                       | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset)                |
-| `coverage.yml`'s kcov and bashcov sweep                                 | Same-repo PRs; posts both figures as a comment                             | Advisory — never blocks a PR; a failed suite publishes no figure |
+| `coverage.yml`'s kcov and bashcov sweep                                 | bashcov on same-repo PRs, as a comment; kcov on `main`                     | Advisory — never blocks a PR; a failed suite publishes no figure |
 
 Nothing runs on a draft: every job skips until the PR is marked ready, which
 fires a full run. "Skipped on a workflow- or docs-only diff" is `ci.yml`'s

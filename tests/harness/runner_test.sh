@@ -632,6 +632,30 @@ function test_a_hung_suite_is_ended_and_named_by_its_case() {
     "$_HI_RUN_OUT" == *"stall_ok "*"PASS (2 passed"* ]] || _hi_why _HI_RUN_EXIT _HI_RUN_OUT
 }
 
+# Past $_HI_RUN_DEADLINE the run ends itself, so a job's own limit never ends
+# it with no log: each suite still running is ended, named by its case, with
+# the processes it left, and the one still queued is never started.
+function test_the_deadline_ends_the_run_with_its_evidence() {
+  local _HI_RUNNER_WIDTH=2 n
+  for n in 1 2; do
+    {
+      printf '#!/usr/bin/env bash\n'
+      # shellcheck disable=SC2016
+      printf 'printf "1 0 0\\n" >"$_HI_PROGRESS_FILE"\n'
+      # shellcheck disable=SC2016
+      printf 'printf "the case that waits\\n" >"$_HI_PROGRESS_FILE.case"\n'
+      printf 'sleep 300 &\nwait\n'
+    } >"$_HI_FIXTURES/late_$n.sh"
+  done
+  printf '#!/usr/bin/env bash\nprintf "ran:late_3\\n"\n' >"$_HI_FIXTURES/late_3.sh"
+  chmod +x "$_HI_FIXTURES"/late_[123].sh
+  _HI_RUN_WITH="_HI_RUN_DEADLINE=8" _hi_run_runner $'late_1:late_1.sh\nlate_2:late_2.sh\nlate_3:late_3.sh'
+  [[ "$_HI_RUN_EXIT" == 3 && "$_HI_RUN_OUT" == *"the run's deadline of 8s passed: the suite is ended here, in: the case that waits"* &&
+    "$_HI_RUN_OUT" == *"sleep 300"* && "$_HI_RUN_OUT" == *"ended at the run's 8s deadline in: the case that waits"* &&
+    "$_HI_RUN_OUT" == *"late_3: not started: the run had passed its 8s deadline"* &&
+    "$_HI_RUN_OUT" != *ran:late_3* ]] || _hi_why _HI_RUN_EXIT _HI_RUN_OUT
+}
+
 function test_progress_line_names_the_running_case() {
   _hi_stall_run
   [[ "$_HI_RUN_OUT" == *"running: stall_hung (the case that hangs)"* ]] || _hi_why _HI_RUN_OUT
@@ -763,6 +787,7 @@ function run_runner_tests() {
   _hi_check "CI turns it on" test_ci_turns_the_progress_line_on
   _hi_check "Names the case a running suite is in" test_progress_line_names_the_running_case
   _hi_check "A hung suite is ended and named by its case" test_a_hung_suite_is_ended_and_named_by_its_case
+  _hi_check "The deadline ends the run with its evidence" test_the_deadline_ends_the_run_with_its_evidence
 
   _hi_h2 "Testing: summary case counts"
   _hi_check "Has a column header" test_summary_has_a_column_header

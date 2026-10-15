@@ -31,7 +31,9 @@ git config --global --add safe.directory "$GITHUB_WORKSPACE"
 # timeout(1) in base. -k 30: without it, a wedge that outlives the first
 # signal leaves `timeout` waiting on it forever too; both take the same
 # `-k SECONDS` short form GNU's does.
-timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
+# _HI_RUN_DEADLINE under timeout's 900: the runner ends itself and names what
+# was running, where timeout's kill names nothing
+_HI_RUN_DEADLINE=840 timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
 
 # a throwaway key, and sshd is already up in the vmactions image
 ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"

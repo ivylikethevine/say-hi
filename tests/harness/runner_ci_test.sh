@@ -212,7 +212,8 @@ function test_coverage_v2_merge_writes_no_figure_without_the_subject() {
 # since a revision, the ones on both tools' lists, a run of them joined - and
 # none that only one tool lists, that did not change, or that xtrace never
 # prints (an array above its closing line, an empty case arm); the command
-# after a trailing && is its own line, and listed
+# after a trailing && is its own line, and listed. `-` for kcov's list reads
+# bashcov's alone.
 function test_coverage_untested_lists_changed_lines_both_tools_missed() {
   local home tree out rc=0
   home="$(_hi_scratch_tree covdiff link:common link:tests)"
@@ -224,7 +225,10 @@ function test_coverage_untested_lists_changed_lines_both_tools_missed() {
   printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:5 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/kcov"
   printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/bashcov"
   out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD "$home/kcov" "$home/bashcov" 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7, 9, 12' ] || _hi_why rc out
+  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7, 9, 12' ] || _hi_why rc out || return 1
+  # a PR sweeps bashcov alone: `-` for kcov's list reads bashcov's by itself
+  out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD - "$home/bashcov" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 6-7, 9, 12' ] || _hi_why rc out
 }
 
 # coverage.yml's pull_request path is for same-repo PRs only: pages.yml reads
@@ -274,14 +278,14 @@ function test_coverage_pr_runs_are_same_repo_only() {
 #
 # One check for every sharded workflow job: the runner's --shard slices its
 # matrix names have to partition the group, or a suite never runs (or runs
-# twice). Each entry is a whole i/n slice, and n may differ between them
-# (windows-client.yml mixes /4 and /8). <job> scopes the sed extraction to
+# twice), dealt as the job deals them (its _HI_SHARD_BY). Each entry is a
+# whole i/n slice. <job> scopes the sed extraction to
 # that job's own block (through to the next top-level key) when several
 # sharded jobs share a file (ci.yml); "-" reads the whole file
 # (windows-client.yml holds just the one).
 function _hi_shards_cover_group() {
   local workflow="$_HI_ROOT/.github/workflows/$1" job="$2" group="$3"
-  local where="$1" block entry slices=""
+  local where="$1" block entry slices="" by
   [ "$job" = - ] || where="$1's $job"
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   if [ "$job" = - ]; then
@@ -289,8 +293,10 @@ function _hi_shards_cover_group() {
   else
     block="$(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow")"
   fi
+  # dealt as the workflow deals them: by the cost table its _HI_SHARD_BY names
+  by="$(printf '%s\n' "$block" | sed -n 's/^ *_HI_SHARD_BY: *//p' | head -1)"
   for entry in $(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
-    slices="$slices$("$_HI_TEST_RUN" --group "$group" --shard "$entry" --list 2>/dev/null)"$'\n'
+    slices="$slices$(_HI_SHARD_BY="$by" "$_HI_TEST_RUN" --group "$group" --shard "$entry" --list 2>/dev/null)"$'\n'
   done
   [ "$(printf '%s' "$slices" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ] || {
     _hi_cecho " | $where's shard matrix does not partition the $group group" "$RED"
