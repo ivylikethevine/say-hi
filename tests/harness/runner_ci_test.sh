@@ -304,6 +304,37 @@ function _hi_shards_cover_group() {
   }
 }
 
+# The cost tables deal shards by suite name, so a suite renamed, removed, or
+# added without its entry deals blind - one a table does not name costs 5.
+# Each table names every suite it deals (coverage's every suite but the
+# linter sweep both drivers drop, the Windows client's the fast group,
+# ci.yml's e2e shards the e2e group) and none the suite table lacks.
+function test_cost_tables_name_the_suites_they_deal() {
+  local spec var group keys want n bad=""
+  local names
+  names=" $("$_HI_TEST_RUN" --list 2>/dev/null | awk '{ printf "%s ", $2 }') "
+  for spec in KCOV:- BASHCOV:- GITBASH:fast E2E:e2e; do
+    var="_HI_TEST_COSTS_${spec%%:*}" group="${spec#*:}"
+    keys=" $(sed -n "/^$var=\"\$/,/^\"\$/p" "$_HI_TEST_RUN" | tr ' ' '\n' | sed -n 's/^\([a-z0-9_]*\):[0-9]*$/\1/p' | tr '\n' ' ') "
+    [ "$keys" != "  " ] || {
+      bad="$bad $var:(no table)"
+      continue
+    }
+    for n in $keys; do
+      case "$names" in *" $n "*) ;; *) bad="$bad $var:$n(stale)" ;; esac
+    done
+    if [ "$group" = - ]; then
+      want="$("$_HI_TEST_RUN" --list 2>/dev/null | awk '$2 != "shellcheck" { print $2 }')"
+    else
+      want="$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | awk '{ print $2 }')"
+    fi
+    for n in $want; do
+      case "$keys" in *" $n "*) ;; *) bad="$bad $var:$n(missing)" ;; esac
+    done
+  done
+  [ -z "$bad" ] || _hi_because "cost tables out of step with the suite table:$bad - refresh them (scratch/coverage_costs.sh, scratch/shard_costs.sh)"
+}
+
 # coverage.yml's two sweeps take their slices dealt by their own tracer's
 # costs (tests/lib/coverage.sh), and each matrix still partitions the table
 function test_coverage_shards_partition_by_cost() {
@@ -395,6 +426,7 @@ function run_runner_ci_tests() {
   _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
   _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
   _hi_check "The OpenBSD job's shards cover the fast group" _hi_shards_cover_group openbsd-e2e.yml - fast
+  _hi_check "Each cost table names the suites it deals" test_cost_tables_name_the_suites_they_deal
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
   # Also the shape "one backend per runner" depends on: three suites, three
   # shards, so every shard really is exactly one backend - not asserted here

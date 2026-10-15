@@ -480,12 +480,13 @@ function _hi_bsd_loop() {
 # bsd_loopback.sh: the fast group under a timeout, a throwaway key trusted
 # for the loopback, and hi at 127.0.0.1 through it. Green takes the marker,
 # a zero exit from the client, and no session directory left behind - each
-# alone is not enough.
+# alone is not enough. A workflow that splits the group runs $HI_SHARD's
+# slice, and the loopback on the first slice alone.
 function test_bsd_loopback_wants_the_marker_a_clean_exit_and_no_session() {
   local dir="$_HI_WORKDIR/bsdloop" out rc=0
   out="$(_hi_bsd_loop "$dir")" || _hi_because "the green path failed: $out" || return 1
   grep -qx "git config --global --add safe.directory $dir/ws" "$dir/log" &&
-    grep -qx 'timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast' "$dir/log" &&
+    grep -qx 'timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast --shard 1/1' "$dir/log" &&
     grep -q "^client bash ./hi.sh -i $dir/home/.ssh/loop .*tester@127.0.0.1 echo HI_BSD_LOOP_OK\$" "$dir/log" &&
     grep -qx 'ssh-ed25519 LOOPKEY' "$dir/home/.ssh/authorized_keys" || _hi_because "it ran: $(cat "$dir/log")" || return 1
   out="$(_hi_bsd_loop "$dir" HI_LOOP_SAYS=nothing)" || rc=$?
@@ -496,7 +497,12 @@ function test_bsd_loopback_wants_the_marker_a_clean_exit_and_no_session() {
   mkdir -p "$dir/tmp/ab.hi.cd"
   rc=0
   out="$(_hi_bsd_loop "$dir")" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"session directory survived the exit"* ]] || _hi_because "a session left, rc $rc: $out"
+  [ "$rc" -eq 1 ] && [[ "$out" == *"session directory survived the exit"* ]] || _hi_because "a session left, rc $rc: $out" || return 1
+  rmdir "$dir/tmp/ab.hi.cd"
+  : >"$dir/log"
+  out="$(_hi_bsd_loop "$dir" HI_SHARD=2/2)" || _hi_because "the second slice failed: $out" || return 1
+  { grep -qx 'timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast --shard 2/2' "$dir/log" &&
+    ! grep -q '^client ' "$dir/log"; } || _hi_because "the second slice ran: $(cat "$dir/log")"
 }
 
 # the apt helpers every installing step shares, with sudo and sleep stood in:

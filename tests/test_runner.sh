@@ -997,10 +997,11 @@ function _hi_run_batch() {
   local width="$1" _hi_t _hi_rest _hi_name _hi_path _hi_counts _hi_fails _hi_log
   local _hi_t0 _hi_code _hi_dur _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1" _hi_pid _hi_ticker="" _hi_progress=""
   # the stall a suite is ended at: ten minutes side by side, where a suite
-  # is plain processes, and never one by one unless asked, where a case may
-  # build an image
+  # is plain processes, and never one by one or in the e2e phase
+  # ($_hi_e2e_phase) unless asked, where a case may build an image - the run's
+  # deadline is the bound there
   local _hi_stall="${_HI_SUITE_STALL:-}"
-  [ -n "$_hi_stall" ] || { [ "$width" -le 1 ] && _hi_stall=0 || _hi_stall=600; }
+  [ -n "$_hi_stall" ] || { [ "$width" -le 1 ] || [ "${_hi_e2e_phase:-0}" = 1 ] && _hi_stall=0 || _hi_stall=600; }
   local -a _HI_PAR_RUNNING=() _hi_batch_names=()
   shift
   if [ "$width" -gt 1 ] && [ "$_HI_PROGRESS" = 1 ] && [ "$#" -gt 0 ]; then
@@ -1102,7 +1103,7 @@ if [ "$_HI_USAGE" = 1 ]; then
   _hi_usage_pid=$!
 fi
 _hi_run_batch "$_HI_RUNNER_WIDTH" ${_HI_SELECTED_PAR[@]+"${_HI_SELECTED_PAR[@]}"}
-_hi_run_batch "$_HI_E2E_WIDTH" ${_HI_SELECTED_E2E[@]+"${_HI_SELECTED_E2E[@]}"}
+_hi_e2e_phase=1 _hi_run_batch "$_HI_E2E_WIDTH" ${_HI_SELECTED_E2E[@]+"${_HI_SELECTED_E2E[@]}"}
 _hi_run_batch 1 ${_HI_SELECTED_SERIAL[@]+"${_HI_SELECTED_SERIAL[@]}"}
 if [ -n "$_hi_usage_pid" ]; then
   kill "$_hi_usage_pid" 2>/dev/null || :
