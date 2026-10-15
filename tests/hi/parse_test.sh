@@ -690,7 +690,10 @@ function test_container_cmds_pick_the_inner_unit() {
   _hi_attach_is 1 nomad 685afd67/worker '*-task worker*685afd67' || _hi_why || return 1
   # docker has no inner unit and `/` is legal in a container name, so it is
   # taken whole - splitting one would break a real target
-  _hi_attach_is 1 docker some/name '*exec -it some/name' || _hi_why
+  _hi_attach_is 1 docker some/name '*exec -it some/name' || _hi_why || return 1
+  # ssh, with a terminal to give, asks for a pty on the attach and never on cp
+  _hi_attach_is 1 ssh box 'ssh -t box' || _hi_why || return 1
+  [ "$_HI_ATTACH_CP" = "ssh box" ] || _hi_why _HI_ATTACH_CP
 }
 
 # The other arm of that probe, which is the one `hi <target> <cmd> | ...` takes:
@@ -714,11 +717,9 @@ function test_container_cmds_drop_the_tty_without_one() {
     ;;
   esac
 
-  # ssh asks for a pty with a terminal to give it and not without, its cp
-  # never
-  _hi_attach_is 1 ssh box 'ssh -t box' || _hi_why || return 1
-  [ "$_HI_ATTACH_CP" = "ssh box" ] || _hi_why _HI_ATTACH_CP || return 1
+  # ssh asks for no pty without a terminal, and its cp never does
   _hi_attach_is 0 ssh box 'ssh box' || _hi_why || return 1
+  [ "$_HI_ATTACH_CP" = "ssh box" ] || _hi_why _HI_ATTACH_CP || return 1
   return 0
 }
 

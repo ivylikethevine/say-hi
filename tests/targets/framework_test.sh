@@ -182,6 +182,9 @@ function _hi_framework_probe() {
   # the other's rc; a bare nvim takes its own through $VIMINIT. Each step
   # that fails is named after LOST
   editors) printf '%s\n' "f=; vim -es \"+call writefile([get(g:, 'hi_vim', 'none') . has('nvim')], '/tmp/hivim')\" +qa; grep -qsx HIVIM0 /tmp/hivim || f=\"\$f vim\"; nvim --headless \"+lua vim.fn.writefile({tostring(vim.g.hi_nvim) .. tostring(vim.g.hi_vim)}, '/tmp/hinvim')\" +q; grep -qsx HINVIMnil /tmp/hinvim || f=\"\$f nvim\"; command nvim --headless \"+lua vim.fn.writefile({tostring(vim.g.hi_nvim) .. tostring(vim.g.hi_vim)}, '/tmp/hibare')\" +q; grep -qsx HINVIMnil /tmp/hibare || f=\"\$f nvim-bare\"; test -z \"\$f\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' \"LOST:\$f\"" ;;
+  # ...and the same from a tree a release ships (_hi_release_tree): the
+  # session carries the version stamped into it as well
+  editors-release) printf '%s\n' "f=; [ \"\${_HI_RELEASE:-}\" = 0.0.0-hitest ] || f=\"\$f release\"; vim -es \"+call writefile([get(g:, 'hi_vim', 'none') . has('nvim')], '/tmp/hivim')\" +qa; grep -qsx HIVIM0 /tmp/hivim || f=\"\$f vim\"; nvim --headless \"+lua vim.fn.writefile({tostring(vim.g.hi_nvim) .. tostring(vim.g.hi_vim)}, '/tmp/hinvim')\" +q; grep -qsx HINVIMnil /tmp/hinvim || f=\"\$f nvim\"; command nvim --headless \"+lua vim.fn.writefile({tostring(vim.g.hi_nvim) .. tostring(vim.g.hi_vim)}, '/tmp/hibare')\" +q; grep -qsx HINVIMnil /tmp/hibare || f=\"\$f nvim-bare\"; test -z \"\$f\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' \"LOST:\$f\"" ;;
   # the nofish case, on a target with no fish: a tmux server on the carried
   # config has the client's mark and no fish for a shell, the carried zellij
   # config lost its default_shell and every file: plugin, the layout's bar is
@@ -286,6 +289,23 @@ function _hi_editors_client_home() {
   mkdir -p "$1/.config/nvim"
   printf 'let g:hi_vim = "HIVIM"\n' >"$1/.vimrc"
   printf 'vim.g.hi_nvim = "HINVIM"\n' >"$1/.config/nvim/init.lua"
+}
+
+# _hi_release_tree <dir> - <dir>/say-hi as a tagged release ships it: this
+# commit's source tarball (packaging/srctar.sh, the file release.yml
+# attaches), unpacked, its launcher stamped the way every channel stamps it
+# (packaging/stamp.sh). The tarball is git's, so the tree is the commit and
+# not the working copy.
+function _hi_release_tree() {
+  local dir="$1" v=0.0.0-hitest
+  mkdir -p "$dir"
+  if ! { "$_HI_ROOT/packaging/srctar.sh" "$v" HEAD "$dir.tar.gz" >/dev/null 2>"$dir.err" &&
+    gzip -dc "$dir.tar.gz" | tar -x -f - -C "$dir" 2>>"$dir.err" &&
+    mv "$dir/say-hi-$v" "$dir/say-hi" &&
+    "$_HI_ROOT/packaging/stamp.sh" --version "$v" --date 2026-01-01 --launcher "$dir/say-hi/hi.sh" >/dev/null 2>>"$dir.err"; }; then
+    _hi_dump_log "could not build a release tree:" "$dir.err"
+    return 1
+  fi
 }
 
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with
@@ -424,7 +444,7 @@ function _hi_run_framework_case() {
       ;;
     esac
     ;;
-  editors)
+  editors | editors-release)
     local -x HOME="$_HI_WORKDIR/home-$label"
     local -x XDG_CONFIG_HOME="$HOME/.config" _HI_CONFIG_DIR="$HOME/.config/say-hi"
     # nvim's row reads $_HI_XDG_CONFIG, which test_lib.sh's core.sh exported
@@ -445,6 +465,12 @@ function _hi_run_framework_case() {
     _hi_nofish_client_home "$HOME"
     ;;
   esac
+
+  # the client is a release's tree rather than this checkout
+  if [ "$3" = editors-release ]; then
+    _hi_release_tree "$_HI_WORKDIR/release-$label" || return 1
+    local -x _HI_HOME="$_HI_WORKDIR/release-$label" _HI_LAUNCHER="$_HI_WORKDIR/release-$label/say-hi/hi.sh"
+  fi
 
   name="hi-fwtest-$label-c-$$"
   _hi_h3 "Testing framework: $label ($login_shell)"
@@ -505,10 +531,13 @@ function run_framework_tests() {
     _hi_par_case carried _hi_run_framework_case carried /bin/ash carried tools
     # ...and from a third, with a vimrc and an init.lua, to vim and neovim both
     _hi_par_case editors _hi_run_framework_case editors /bin/ash editors tools
+    # ...and the same from a tree a release ships
+    _hi_par_case editors-release _hi_run_framework_case editors-release /bin/ash editors-release tools
   else
     _hi_skip "[tools]" "image did not build"
     _hi_skip "[carried]" "image did not build"
     _hi_skip "[editors]" "image did not build"
+    _hi_skip "[editors-release]" "image did not build"
   fi
 
   # Three more containers off the starship, p10k, and bash-it images above,

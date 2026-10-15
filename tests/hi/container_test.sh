@@ -281,7 +281,8 @@ function test_say_hi_boots_once_and_attaches_once() {
   _hi_ct_run ok
   [ "$_HI_CT_RC" = 0 ] || _hi_why _HI_CT_RC _HI_CT_ERR || return 1
   _hi_ct_boots 1 || return 1
-  _hi_ct_logged '^attach:_HI_CONNECT_TIME=[0-9.]* sh ".*/hi\.boot\.[A-Za-z0-9]*/bootloader"; _hi_e=\$?; rm -rf ".*"; exit \$_hi_e$' || return 1
+  # BSD mktemp takes the template as a prefix and appends a suffix of its own
+  _hi_ct_logged '^attach:_HI_CONNECT_TIME=[0-9.]* sh ".*/hi\.boot\.[A-Za-z0-9.]*/bootloader"; _hi_e=\$?; rm -rf ".*"; exit \$_hi_e$' || return 1
   landed="$(cat "$_HI_CT_LOG.landed")"
   [[ "$landed" == *'_hi_t0=$(_hi_now)'* && "$landed" == *'_hi_kept()'* &&
     "$landed" == *'bash --rcfile "$_hi_rc_dir/hi.bashrc" -i'* &&
@@ -305,12 +306,22 @@ function test_say_hi_hands_over_after_three_short_landings() {
     _hi_ct_logged '^attach:bash$'; } || _hi_why _HI_CT_RC
 }
 
-# nowhere to make the boot directory: said, and the container's own shell. A
-# regular file rather than a /proc path: mktemp has to fail for the same
-# reason everywhere, and /proc is Linux's alone.
+# _hi_ct_mktemp <name> <body> - a stand-in mktemp, in a directory of its own
+# for _HI_CT_PATH to lead with: a $TMPDIR the real one cannot use fails on
+# GNU's and not on macOS's, which falls back to a directory of its own
+function _hi_ct_mktemp() {
+  local dir="$_HI_WORKDIR/ct.mktemp.$1"
+  mkdir -p "$dir"
+  printf '#!/bin/sh\n%s\n' "$2" >"$dir/mktemp"
+  chmod +x "$dir/mktemp"
+  printf '%s' "$dir"
+}
+
+# nowhere to make the boot directory: said, and the container's own shell
 function test_say_hi_no_writable_temp_directory() {
-  printf 'not a directory\n' >"$_HI_WORKDIR/ct.notmp.file"
-  _hi_ct_run notmp "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.notmp.file"
+  local bin
+  bin="$(_hi_ct_mktemp fail 'exit 1')"
+  _hi_ct_run notmp "_HI_CT_PATH=$bin:$PATH"
   { _hi_ct_said "no writable temp directory on [ct-notmp] - handing over" &&
     _hi_ct_logged '^attach:bash$'; } || _hi_why _HI_CT_RC
 }
@@ -331,8 +342,10 @@ function test_say_hi_no_armor_hands_over_the_ladder_shell() {
 # assertion, but MSYS rewrites an argument that looks like a `;`-joined path
 # list and would answer a different question under Git Bash.
 function test_say_hi_refuses_a_scratch_path_it_will_not_use() {
-  mkdir -p "$_HI_WORKDIR/ct.badroot/od,ir"
-  _hi_ct_run badroot "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.badroot/od,ir"
+  local bin
+  # shellcheck disable=SC2016 # the stand-in's to expand
+  bin="$(_hi_ct_mktemp comma 'mkdir -p "$TMPDIR/od,ir" && printf "%s\n" "$TMPDIR/od,ir"')"
+  _hi_ct_run badroot "_HI_CT_PATH=$bin:$PATH"
   { _hi_ct_said "named a scratch directory hi will not use" &&
     ! grep -q '^attach:_HI_CONNECT_TIME=' "$_HI_CT_LOG"; } || _hi_why _HI_CT_RC
 }

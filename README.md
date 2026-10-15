@@ -366,25 +366,7 @@ entry is deleted once its **Ticks when** holds. _Post 1.0_ entries wait on the
 tag and are outside this checkout: an account or an upstream review that lands
 when it lands.
 
-1. [ ] _Before 1.0:_ **`vim` is vim where a target has both** — shipped: the
-       `nvim` alias answers to `nvim` alone, so `vim` is the `vim` plugin's
-       where the target has vim, and `tests/targets/framework_test.sh`'s
-       `editors` case connects to a target with both. What is left is seeing
-       it in a release. **Ticks when:** on a target with both, `vim` opens
-       vim on the carried `vim/vimrc` and `nvim` neovim on the carried
-       `init.lua`, from a tagged version.
-
-2. [ ] _Before 1.0:_ **A `config.d` file's name is a tag** — shipped: a host
-       spelled out in `~/.ssh/config.d/<name>` under no `# Tags:` line
-       carries `<name>` as its tag ([docs/COLORS.md](docs/COLORS.md)), so a
-       file per client or site tags its hosts by being the file: `colors`
-       rows, `settings.<tag>.sh`, and `hi --add-tag` know it, and
-       `hi --doctor <host>` names the file it came from. A `# Tags:` line
-       above a host wins over the name. **Ticks when:** a host in
-       `~/.ssh/config.d/acme` with no `# Tags:` line colors as `acme` and
-       reads `settings.acme.sh` on a real config.
-
-3. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
+1. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
        each make the scratch directory, send the tree, fall back without
        bash, and clean up in their own way: a container takes seven or more
        `exec` calls, has no `--keep`, and `hi --doctor` has two target
@@ -410,22 +392,22 @@ when it lands.
        script an ssh one does, through its own three commands, and the e2e
        and backends groups are green in CI with it.
 
-4. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+2. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
        versions_ prose into its version table.
 
-5. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+3. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
        upstream style. **Do:** open the PR against tldr-pages. **Ticks
        when:** merged.
 
-6. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+4. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        settle its three flagged rows (`small_tasks`, `secure_2FA`,
        `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
        the live entry matches the sheet.
 
-7. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+5. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
        `publish-external.yml`'s `aur` job is written but unexercised. **When
        it reopens:** register, add `AUR_SSH_KEY` to the `release`
        environment, and push each package once by hand
