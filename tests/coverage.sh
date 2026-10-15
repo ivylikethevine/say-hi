@@ -105,7 +105,7 @@
 #     (_hi_cov_shim_sh_to_bash, tests/lib/coverage.sh) before it starts.
 #   hi.sh                  64.77% here under --group fast, 84.56% under the
 #     full sweep, 97.80% under coverage_v2.sh's full sweep - the e2e/backends
-#     suites reach _say_hi/_say_hi_container/_hi themselves only inside a
+#     suites reach _say_hi/_hi themselves only inside a
 #     backgrounded child (tests/lib/process.sh) or a parallel-case subshell
 #     (tests/lib/backend.sh), both invisible here for the same reason.
 #

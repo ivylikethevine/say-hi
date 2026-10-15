@@ -55,17 +55,18 @@ function test_target_says_ssh_options_skip_a_container() {
     _hi_because "report: $out"
 }
 
-# The container arm reports a tier like the ssh arm, not just the `resolves`
-# row. bash present is the full tier; the interesting case is the other one.
+# A container reports the tier an ssh target does, not just the `resolves`
+# row, and the same wire figure, since it takes the same script. bash present
+# is the full tier; the interesting case is the other one.
 function test_container_target_reports_the_full_tier() {
   local out
   out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doc_target runningbox)"
-  [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]] || _hi_why out
+  [[ "$out" == *"session"*"full"* && "$out" == *install*"each session"* ]] || _hi_why out
 }
 
-# no bash means hi copies common/aliases.sh alone and drops into the best of the
-# ladder - the report has to name which shell that is, since that is the whole
-# question somebody runs this to answer
+# no bash means the session drops into the best of the ladder with hi's
+# aliases - the report has to name which shell that is, since that is the
+# whole question somebody runs this to answer
 function test_container_target_names_the_fallback_shell() {
   local out
   out="$(HI_FAKE_TOOLS="base64 ash sh " _hi_doc_target runningbox)"
@@ -144,19 +145,19 @@ function test_forced_ssh_overrides_a_real_container() {
 function test_ssh_target_reports_the_wire_cost() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" \
-  HI_FAKE_TOOLS="base64 bash " _hi_doc_rows doctor_ssh_target somewhere)"
+  HI_FAKE_TOOLS="base64 bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *install*"each session"* ]] || _hi_why out
 }
 
 function test_ssh_target_flags_a_missing_base64() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_ssh_target somewhere)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *"no base64"* ]] || _hi_why out
 }
 
 function test_ssh_target_flags_a_missing_bash() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " _hi_doc_rows doctor_ssh_target somewhere)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]] || _hi_why out
 }
 
@@ -176,7 +177,7 @@ SHIM
     # shellcheck disable=SC2030 # lives and dies in this $( )
     PATH="$bin:$(_hi_real_path sshfail-tools mktemp date rm cat sh bash awk grep sed printf wc tr sleep)"
     _HI_DOC_BAD=0
-    _hi_doc_rows doctor_ssh_target somewhere
+    _hi_doc_rows doctor_transport_target ssh somewhere
     echo "bad=$_HI_DOC_BAD"
   )"
   [[ "$out" == *"FAILED after"* ]] || _hi_why out || return 1
@@ -398,7 +399,7 @@ function run_doctor_target_tests() {
 
   _hi_h1 "Testing scripts/doctor.sh (target)"
 
-  _hi_h2 "Testing: doctor_target / doctor_ssh_target"
+  _hi_h2 "Testing: doctor_target / doctor_transport_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
   _hi_check "...and says the ssh options on the line skip it" test_target_says_ssh_options_skip_a_container
   _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend

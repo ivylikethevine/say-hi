@@ -233,65 +233,6 @@ function test_safe_path_rejects_chars_outside_the_class() {
   [ -z "$got" ] && [ -z "$got2" ] || _hi_why got got2
 }
 
-# _hi_container_put's contract: retry a landing the target reports empty,
-# give up after three, cost one call on the happy path. cp/probe/tmp land in
-# the caller's own locals through bash's dynamic scoping, the same trick
-# _hi_attach_is above relies on - so the stand-ins below are plain functions
-# the arrays name, not real backends.
-#
-# probe always runs its argv for real: it is only ever a proof-of-landing
-# check against a file already on disk, never a payload of its own. cp
-# simulates a transport that reports success but delivers nothing - draining
-# $src without writing $dest - until the call number in $_HI_PUT_STUB_TRY is
-# reached, then genuinely writes. Plain globals rather than a subshell-local
-# counter: cp is invoked as `"${cp[@]}" sh -c ...`, so it has no scope in
-# common with the test function to hold one otherwise.
-_HI_PUT_STUB_CALLS=0
-_HI_PUT_STUB_TRY=1
-function _hi_put_stub_cp() {
-  _HI_PUT_STUB_CALLS=$((_HI_PUT_STUB_CALLS + 1))
-  if [ "$_HI_PUT_STUB_CALLS" -lt "$_HI_PUT_STUB_TRY" ]; then
-    cat >/dev/null
-    return 0
-  fi
-  "$@"
-}
-function _hi_put_stub_probe() { "$@"; }
-
-function test_container_put_retries_an_empty_landing() {
-  local got
-  local -a cp=(_hi_put_stub_cp) probe=(_hi_put_stub_probe)
-  local tmp="$_HI_WORKDIR/put.retry.err" src="$_HI_WORKDIR/put.retry.src" \
-    dest="$_HI_WORKDIR/put.retry.dest"
-  printf 'payload\n' >"$src"
-  rm -f "$dest"
-  _HI_PUT_STUB_CALLS=0 _HI_PUT_STUB_TRY=2
-  _hi_container_put "$src" "$dest" || _hi_why src dest || return 1
-  got="$(cat "$dest")"
-  [ "$_HI_PUT_STUB_CALLS" -eq 2 ] && [ "$got" = payload ] || _hi_why got dest _HI_PUT_STUB_CALLS
-}
-
-function test_container_put_gives_up_after_three_empty_landings() {
-  local -a cp=(_hi_put_stub_cp) probe=(_hi_put_stub_probe)
-  local tmp="$_HI_WORKDIR/put.giveup.err" src="$_HI_WORKDIR/put.giveup.src" \
-    dest="$_HI_WORKDIR/put.giveup.dest"
-  printf 'payload\n' >"$src"
-  rm -f "$dest"
-  _HI_PUT_STUB_CALLS=0 _HI_PUT_STUB_TRY=99
-  ! _hi_container_put "$src" "$dest" && [ "$_HI_PUT_STUB_CALLS" -eq 3 ] || _hi_why src dest _HI_PUT_STUB_CALLS
-}
-
-function test_container_put_costs_one_call_on_the_happy_path() {
-  local -a cp=(_hi_put_stub_cp) probe=(_hi_put_stub_probe)
-  local tmp="$_HI_WORKDIR/put.happy.err" src="$_HI_WORKDIR/put.happy.src" \
-    dest="$_HI_WORKDIR/put.happy.dest"
-  printf 'payload\n' >"$src"
-  rm -f "$dest"
-  _HI_PUT_STUB_CALLS=0 _HI_PUT_STUB_TRY=1
-  _hi_container_put "$src" "$dest" || _hi_why src dest || return 1
-  [ "$_HI_PUT_STUB_CALLS" -eq 1 ] || _hi_why _HI_PUT_STUB_CALLS
-}
-
 # _hi_require is the missing-tool refusal every transport leans on
 function test_require_finds_an_installed_tool() {
   _hi_require sh "for this case" 2>/dev/null || _hi_why
@@ -425,11 +366,6 @@ function run_hi_helpers_test() {
   _hi_check_eq "Accepts an absolute path built from the class" /tmp/hi.scratch.XXXX _hi_safe_path /tmp/hi.scratch.XXXX A-Za-z0-9/._-
   _hi_check "Rejects a relative path" test_safe_path_rejects_relative_paths
   _hi_check "Rejects a char outside the class" test_safe_path_rejects_chars_outside_the_class
-
-  _hi_h2 "Testing: _hi_container_put"
-  _hi_check "Retries a landing the target reports empty" test_container_put_retries_an_empty_landing
-  _hi_check "Gives up after three empty landings" test_container_put_gives_up_after_three_empty_landings
-  _hi_check "Costs one call on the happy path" test_container_put_costs_one_call_on_the_happy_path
 
   _hi_h2 "Testing: _hi_container_target's compose lookup"
   _hi_check "A running name is taken as is" test_container_target_takes_a_running_name_as_is

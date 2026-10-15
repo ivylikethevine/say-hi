@@ -99,7 +99,7 @@ bash session on a debian container and a fish session on an alpine box, reached
 through docker and podman. The operator again, in fish's own prompt at the
 workstation and hi's on both boxes, with the header trimmed to the clocks, the
 backend counts, and the check on a blue-to-red ramp of their own. A box with no
-bash gets the aliases-only tier — hi's own aliases, not the overlay
+bash gets the aliases-only tier
 ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on an alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)

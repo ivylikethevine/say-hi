@@ -169,7 +169,7 @@ function test_run_script_reports_the_missing_checkout_on_stderr() {
 }
 
 # ---------------------------------------------------------------------------
-# _hi_ssh_sh
+# _hi_on_target
 # ---------------------------------------------------------------------------
 
 # an ssh that reports its argv one element per line, so the assertions are
@@ -185,12 +185,22 @@ EOF
   printf '%s' "$dir"
 }
 
-function test_ssh_sh_puts_the_options_before_the_target() {
-  local DOMAIN=liona out bin
-  local -a SSHARGS=(-p 2222)
+# _hi_ds_on_ssh <cmd> <script> - _hi_on_target <cmd> over ssh to liona, with
+# the caller's SSHARGS and ctl_opts, through the fake ssh
+function _hi_ds_on_ssh() {
+  local DOMAIN=liona bin
+  local -a probe cp attach
   bin="$(_hi_ds_fake_ssh)"
-  out="$(PATH="$bin:$PATH" _hi_ssh_sh 'echo hi' -o BatchMode=yes)"
-  [ "$out" = "-o
+  _hi_transport_cmds ssh </dev/null
+  PATH="$bin:$PATH" _hi_on_target "$1" "$2"
+}
+
+function test_on_target_puts_ssh_options_before_the_target() {
+  local out
+  local -a SSHARGS=(-p 2222) ctl_opts=(-o BatchMode=yes)
+  out="$(_hi_ds_on_ssh probe 'echo hi')"
+  [ "$out" = "-n
+-o
 BatchMode=yes
 -p
 2222
@@ -200,12 +210,10 @@ sh -c 'echo hi'" ] || _hi_why out
 
 # the whole script is one sh word after the target unquotes it - the contract
 # _hi_shquote exists for, checked by running it rather than by reading it
-function test_ssh_sh_script_survives_as_one_word() {
-  local got
-  local DOMAIN=liona out bin last
-  local -a SSHARGS=()
-  bin="$(_hi_ds_fake_ssh)"
-  out="$(PATH="$bin:$PATH" _hi_ssh_sh "printf '%s' \"it's a word\"")"
+function test_on_target_script_survives_ssh_as_one_word() {
+  local got out last
+  local -a SSHARGS=() ctl_opts=()
+  out="$(_hi_ds_on_ssh cp "printf '%s' \"it's a word\"")"
   last="${out##*$'\n'}"
   # the target runs that whole last argument through its own sh; the script
   # has to come back out of the quoting byte-identical
@@ -213,17 +221,25 @@ function test_ssh_sh_script_survives_as_one_word() {
   [ "$got" = "it's a word" ] || _hi_why got last
 }
 
-function test_ssh_sh_needs_no_ssh_options_at_all() {
-  local got
-  local DOMAIN=liona out bin
-  local -a SSHARGS=()
-  bin="$(_hi_ds_fake_ssh)"
-  out="$(PATH="$bin:$PATH" _hi_ssh_sh 'true')"
+function test_on_target_needs_no_ssh_options_at_all() {
+  local got out
+  local -a SSHARGS=() ctl_opts=()
+  out="$(_hi_ds_on_ssh cp 'true')"
   got="$(printf '%s\n' "$out" | head -1)"
   [ "$got" = liona ] || _hi_why got out || return 1
   case "$(printf '%s\n' "$out" | tail -1)" in "sh -c "*) ;; *) _hi_why out || return 1 ;; esac
   got="$(printf '%s\n' "$out" | wc -l)"
   [ "$got" -eq 2 ] || _hi_why got out
+}
+
+# an exec takes the script as an argv of its own, unquoted
+function test_on_target_hands_an_exec_an_argv() {
+  local out
+  local -a probe=(printf '%s\n') cp attach
+  out="$(_hi_on_target probe "echo 'a b'")"
+  [ "$out" = "sh
+-c
+echo 'a b'" ] || _hi_why out
 }
 
 # ---------------------------------------------------------------------------
@@ -347,10 +363,11 @@ function run_dispatch_tests() {
   _hi_check "Names the flag that wanted the checkout" test_run_script_says_which_flag_wanted_the_checkout
   _hi_check "Reports the missing checkout on stderr" test_run_script_reports_the_missing_checkout_on_stderr
 
-  _hi_h2 "Testing: _hi_ssh_sh"
-  _hi_check "Options come before the target" test_ssh_sh_puts_the_options_before_the_target
-  _hi_check "The script survives as one word" test_ssh_sh_script_survives_as_one_word
-  _hi_check "Needs no ssh options at all" test_ssh_sh_needs_no_ssh_options_at_all
+  _hi_h2 "Testing: _hi_on_target"
+  _hi_check "ssh: options come before the target" test_on_target_puts_ssh_options_before_the_target
+  _hi_check "ssh: the script survives as one word" test_on_target_script_survives_ssh_as_one_word
+  _hi_check "ssh: needs no options at all" test_on_target_needs_no_ssh_options_at_all
+  _hi_check "An exec takes an argv" test_on_target_hands_an_exec_an_argv
 
   _hi_h2 "Testing: _hi_remote_middle"
   _hi_check "Parses as POSIX sh" test_remote_middle_parses_as_posix_sh

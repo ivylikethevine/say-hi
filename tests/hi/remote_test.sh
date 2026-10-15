@@ -59,11 +59,10 @@ function test_fallback_rc_sources_paths_and_aliases() {
   [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/common/aliases.sh'* ]] || _hi_why out
 }
 
-# no settings.sh reaches the aliases-only tier, so the client's alias opt-ins
-# ride the rc itself, anything but 1 as 0
+# the client's alias opt-ins ride the rc itself, anything but 1 as 0
 function test_fallback_rc_carries_the_alias_opt_ins() {
   local out
-  out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=yes CMDARG="" _hi_fallback_rc --aliases-only /x)"
+  out="$(_HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=yes CMDARG="" _hi_fallback_rc)"
   [[ "$out" == *"export _HI_TOOL_ALIASES=1"* && "$out" == *"export _HI_SUDO_ALIAS=0"* ]] || _hi_why out
 }
 

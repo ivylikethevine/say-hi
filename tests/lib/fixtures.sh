@@ -206,8 +206,7 @@ function _hi_mode_string() {
 # ("mkdir: cannot change permissions of ...: Permission denied"), so the
 # directory is there and the exit status says it is not. That splits any
 # caller that reads mkdir's status as its verdict from one that re-tests
-# `[ -d ]` - hi.sh does both, deliberately, in _hi_runtime_dir and in
-# _say_hi_container's scratch probe.
+# `[ -d ]` - hi.sh does both, deliberately, in _hi_runtime_dir.
 #
 # Probed rather than named by kernel, unlike its two neighbours above: what
 # decides is the filesystem being written to, not the runtime, so a tree where

@@ -164,8 +164,7 @@ membership) - `ci` above, and:
   budgets.
 - **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `ssh_wire`,
   `install_methods`, `repo`, `docker`, `framework`, `home_prompt`, `ssh_keep`:
-  throwaway containers driving `hi.sh`'s real connection paths (`_say_hi` and
-  `_say_hi_container`). `ssh_wire` counts one session's bytes through a
+  throwaway containers driving `hi.sh`'s real connection path (`_say_hi`). `ssh_wire` counts one session's bytes through a
   `ProxyCommand` and checks them against the figure hi prints on its connect
   line. `ssh_keep` holds a [kept session](GLOSSARY.md#hi65-kept-session) in
   tmux, in screen, and in zellij (alpine's package) through a dropped link and

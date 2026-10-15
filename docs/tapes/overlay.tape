@@ -7,10 +7,9 @@
 # container and a fish session on an
 # alpine box - via docker and podman, so no two of client, target shell, and
 # backend match. The alpine has bash beside its fish, and fish leads hi's
-# shell tree: that is a *full* session in fish. (A fish-only box was tried
-# here first and taken out - the bash-less aliases-only tier ships hi's own
-# aliases and not the overlay, which is the tier's documented shape and not
-# this demo's subject.) Render with `vhs docs/tapes/overlay.tape` from the
+# shell tree: that is a *full* session in fish. (A fish-only box would land
+# in the bash-less aliases-only tier, which is not this demo's subject.)
+# Render with `vhs docs/tapes/overlay.tape` from the
 # repo root, docker and podman working, hi on PATH. CI renders it too
 # (demos.yml).
 #

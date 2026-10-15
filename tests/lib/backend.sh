@@ -71,7 +71,8 @@ function _hi_backend_interactive_case() {
   if _hi_interactive_case "$label" "$_HI_BACKEND path (interactive)" "$_HI_TEST_MARKER" \
     "$timeout_s" "$_HI_LAUNCHER" "$_HI_CONTAINER"; then
     ok=1
-    if "$_HI_BACKEND" exec "$_HI_CONTAINER" sh -c 'ls -d /tmp/*.hi.log.* >/dev/null 2>&1'; then
+    # shellcheck disable=SC2016 # the container's sh expands $d
+    if "$_HI_BACKEND" exec "$_HI_CONTAINER" sh -c 'for d in /tmp/hi.boot.* /tmp/*.hi.*; do [ -e "$d" ] && exit 0; done; exit 1'; then
       _hi_align " | [$label] -- say-hi's copy was left behind in the container" "FAILED" "$RED"
       ok=0
     fi
@@ -81,12 +82,12 @@ function _hi_backend_interactive_case() {
 }
 
 # Boots throwaway containers - one per shell environment - and drives hi.sh's
-# real _say_hi_container against each of them over `<backend> exec`. Podman's
+# real _say_hi against each of them over `<backend> exec`. Podman's
 # CLI is a full drop-in for docker's here, so
 # docker_test.sh and podman_test.sh are both just `_hi_container_backend_test
-# docker|podman` - this one function proves both branches of
-# _say_hi_container: the bash-present main path (tar copy + `bash --rcfile`),
-# and every arm of the bash-less fallback's ladder ($_HI_SHELL_LADDER).
+# docker|podman` - this one function proves both branches of the script a
+# container takes: the bash-present main path (`bash --rcfile`), and every
+# arm of the bash-less fallback's ladder ($_HI_SHELL_LADDER).
 # Everything is ephemeral and nothing touches host ssh config. Skips cleanly
 # if $backend isn't installed/running. Needs network access the first time it
 # runs, to pull/build the test images.
@@ -171,8 +172,8 @@ _HI_PAIR_IMAGE_SH="alpine:3.24"
 # _hi_backend_pair_cases <label> <thing> [extra-case-fn...] - the bash-present +
 # bash-less pair every ephemeral-cluster suite (kube, nomad) ends with, once
 # its cluster/agent is up, $_HI_TEST_MARKER is set and a suite-local
-# _hi_run_case is in scope, plus any case only one backend has. The fallback
-# logic past `command -v bash` is shared and proven by
+# _hi_run_case is in scope, plus any case only one backend has. The script
+# past the boot is shared and proven by
 # _hi_container_backend_test above, so these prove only their own backend's
 # probe/attach argument shapes. One parallel batch - a real saving on kube, none
 # on serial nomad. The extras ride in it because _hi_suite_end below reports

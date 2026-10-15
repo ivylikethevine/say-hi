@@ -266,23 +266,28 @@ log, and one more thing for fish to differ about.
 
 ## HI.19 stdin transport
 
-The bootloader travels over **stdin of the first of two ssh calls multiplexed
-on one connection** (one authentication), never as an argument: Linux caps a
-_single_ argv entry at 128KB (`MAX_ARG_STRLEN`) however large `ARG_MAX` is —
-a hard ceiling on payload growth that stdin does not have. Two calls because
-the second's stdin belongs to the interactive session. The script goes as
+The bootloader travels over **stdin of the first of two calls**, the arm's
+`cp` (two ssh calls multiplexed on one connection, one authentication, or two
+of a container's execs), never as an argument: Linux caps a _single_ argv
+entry at 128KB (`MAX_ARG_STRLEN`) however large `ARG_MAX` is — a hard ceiling
+on payload growth that stdin does not have. Two calls because the second's
+stdin, the arm's `attach`, belongs to the interactive session. The script goes as
 plain text and is `cat` into place; only the streams _inside_ it are armored —
 armoring the whole script spent a third of every session's bytes re-encoding
 ASCII.
 
 The write doubles as the probe (`_hi_boot_probe`), and `_hi_boot_why` reads
 its status: the directory came back and the session runs; `sh` ran but found
-neither `base64` nor `openssl` (exit 64) or nowhere to `mktemp` (65), and hi
-names the missing piece and hands over the host's own session; something that
+neither `base64` nor `openssl` (exit 64), nowhere to `mktemp` (65), or fewer
+bytes than were sent (66, tried three times: an `exec -i` on nomad or kube can
+close its stdin before the target has drained it), and hi names the missing
+piece and hands over the host's own session; something that
 was not `sh` answered — a `ForceCommand` or a `command=` key, told by an exit
 of 0 or any stdout, neither of which a missing `sh` produces — and hi says so
 and hands over the same; or nothing ran at all (stock Windows OpenSSH), and
 the session falls through to the PowerShell branch rather than half-landing.
+A container whose exec fails outright is not reached, and its exec's words
+are the report.
 
 ## HI.20 fallback rc
 
@@ -633,8 +638,8 @@ compresses in-process, padded as above, while GNU's and OpenBSD's implement
 fallback is not "no gzip is survivable" — it is "a tar that compresses on its
 own is". `_hi_can_gzip` asks which one this is (free where `gzip` is present,
 else one real `tar -c -z` of `hi.sh` — `/dev/null` is not reliably stat'able
-under Git Bash), `_hi_require_packer` refuses by name in both `_say_hi` and
-`_say_hi_container` rather than letting the target receive an empty archive,
+under Git Bash), `_hi_require_packer` refuses by name in `_say_hi` rather
+than letting the target receive an empty archive,
 and `hi --doctor` reports the same three verdicts.
 
 Every tar in `hi.sh`, client and target side, takes dash-style options:
@@ -686,10 +691,9 @@ shell will parse, and some of it is data: `$DOMAIN` off argv,
 `$_HI_TARGET_TAG` out of a free-text `# Tags:` comment, `$_HI_RELEASE` off
 `git describe --dirty`. An unescaped `$`, quote, or backtick in any of them
 breaks the bootloader's parse and lets the target run a command substitution
-it should not. `_hi_ssh_sh` quotes its `sh -c` word through the same function,
-so the transports cannot drift into two dialects, and `_hi_env_each` hands
-its per-transport format values already quoted (`%s=%s`, never `%s="%s"`), so
-quoting is one decision rather than one per transport.
+it should not. `_hi_on_target` quotes ssh's `sh -c` word through the same
+function, and `_hi_env_each` hands its format values already quoted (`%s=%s`,
+never `%s="%s"`), so quoting is one decision rather than one per transport.
 
 ## HI.41 overlay stream
 
@@ -734,9 +738,7 @@ armored: no target draws a header, and `common/paths.sh` there reads a
 missing `header.sh` as the header off, whatever the target's `settings.sh`
 says. Dropped from the stage rather than with tar's `--exclude`, which
 OpenBSD's tar lacks. Only a caller holding the list cuts anything:
-`_hi_wire_bytes` has none and measures the stock tree (HI.44), and the
-container arm, where the two archives travel separately, sends the defaults
-after all when the overlay's copy fails. A file still under a pre-1.0 name
+`_hi_wire_bytes` has none and measures the stock tree (HI.44). A file still under a pre-1.0 name
 (`$_HI_OVERLAY_RENAMES`) is not a member, so it cuts nothing and the default
 it no longer overrides keeps riding. The target's aliases and `$VIMINIT` ask
 for the rc file as well as the binary, so a box whose editor got no config
@@ -762,6 +764,18 @@ container are the same idea here, and a suffix rather than a flag so completion
 can offer the pairs (`_hi_outer` / `_hi_inner` in `hi.sh`). Only those two
 split: a container name on any of the docker-compatible family (HI.51) is
 taken whole, having no inner unit and `/` being legal in it.
+
+Whatever the grammar, a target is reached through three commands,
+`_hi_transport_cmds`' `probe` (no stdin, no tty), `cp` (stdin), and `attach`
+(a tty where there is one): a backend's `exec` in its own spelling, or ssh's
+over the ControlMaster as `-n`, stdin, and `-t`. `_hi_on_target` runs a
+script through one of them, as an argv for an exec and as one string quoted
+for ssh's login shell ([HI.18](#hi18-sh--c-wrapping)). Every arm boots in one
+`cp` and runs in one `attach` ([HI.19](#hi19-stdin-transport)), so a
+container takes the script an ssh target does: its no-bash ladder, its size
+figure, and the kept session ([HI.65](#hi65-kept-session)). What stays per
+arm is ssh's ControlMaster, keepalive, retry, and PowerShell notice, a
+container's name resolution, and the `--plain` paths.
 
 kube adds `[[context:]namespace:]pod[/container]` (`_hi_kube_split`). `:` is
 the separator because no ssh host, container name, or allocation id may carry
@@ -1582,8 +1596,9 @@ for `$EDITOR`, and `vim` or `nvim` in it sets no `$VIMINIT`.
 `hi --keep <target>` (or `_HI_KEEP=1`) runs the session inside the target's
 tmux, zellij, or screen, so it outlives the connection, and where the target
 has none of the three holds the session's tree through a drop. All of it is
-the ssh arm's and the bash tier's: a container arm, `--plain`, and a
-bash-less target connect as usual. Both halves are `common/keep.sh`'s: the
+the bash tier's, on every arm, since a container takes the script an ssh
+target does: `--plain` and a bash-less target connect as usual, and only an
+ssh link's drop is retried. Both halves are `common/keep.sh`'s: the
 client's, which `hi.sh` sources, and the target's, which `load.sh` does.
 
 `$_HI_DISABLE_KEEP=1` switches it off whole. `_hi_keep_off` is the one
@@ -1691,7 +1706,7 @@ rode, which leaves `wiring.sh`'s.
   `clean_all` and its bootstrap trap (`[ -e hi.kept ] ||`, on every connect
   that could be kept); the owner pane's `clean_all` gives the claim up and
   leaves the tree while `$_HI_KEEP_OUTER` is still running. A session with
-  no `hi.keep` - a container's, a `--no-keep` one, an owner pane - says it
+  no `hi.keep` - a command's, a `--no-keep` one, an owner pane - says it
   cannot be kept, as does one already inside a multiplexer. On a machine
   with none of the three the session holds its tree instead (below).
 - **The other panes.** A multiplexer opens a new pane on its default shell,
@@ -1709,7 +1724,7 @@ rode, which leaves `wiring.sh`'s.
   and starts a fresh shell. zellij has no command for that - its
   `action detach` leaves an attached client where it is - so there the fresh
   shell comes with a line naming the key. With nobody attached it closes.
-  `hi --end <target>` kills the session over one ssh call, and the pane's
+  `hi --end <target>` kills the session over one call, the arm's `probe`, and the pane's
   bash takes the hangup. zellij may kill that bash before its exit hook has
   run (a layout's command gets SIGTERM, which an interactive bash ignores,
   then SIGKILL), so the same call waits up to two seconds for a pane to go
@@ -1754,7 +1769,7 @@ rode, which leaves `wiring.sh`'s.
   keeping connect writes the record before it knows what the target has, so
   one with none of the three is not told of a session it never kept. The runtime directory does not outlive a logout, and a
   client that forgot expects nothing.
-- **The retry.** At a terminal, a session that was up, ends 255, and has
+- **The retry.** At a terminal, an ssh session that was up, ends 255, and has
   the record is retried, whether or not a local multiplexer holds the pane:
   the session is the target's, and a connect is all that brings it back. Every
   five seconds for `$_HI_KEEP_RETRY` (5m; 0 is never) from the drop, then
@@ -1799,12 +1814,11 @@ payload, already stripped, with the overlay unpacked over `config/`. There
 functions: no overlay members, no cut list, no cache, and a `_hi_payload_tar`
 that tars `$_HI_PAYLOAD` as it stands. A relay sends what it was sent.
 
-- **The seam.** `_say_hi` and `_say_hi_container` reach the packer through
+- **The seam.** `_say_hi` reaches the packer through
   `_hi_overlay_files`, `_hi_payload_excl`, `_hi_payload_cached`,
   `_hi_payload_tar`, and `_hi_payload_stream`, the five a session defines, and
-  through four that run only with an overlay to send or outside a session
-  (`_hi_overlay_cached`, `_hi_overlay_stream`, `_hi_overlay_bytes`,
-  `_hi_prompt_here`). `payload_test.sh` holds `hi.sh` to that list.
+  through three that run only with an overlay to send or outside a session
+  (`_hi_overlay_cached`, `_hi_overlay_stream`, `_hi_prompt_here`). `payload_test.sh` holds `hi.sh` to that list.
 - **Carried includes.** An include the client carried names the config
   directory of the hop it landed on, once `_hi_overlay_fixup` has run there.
   A relay hands that path on as the token, so the next hop's fixup makes it its

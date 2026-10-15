@@ -40,15 +40,14 @@ eval|scripts/configure.sh|name|eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
 rm -r|common/header.sh|1
 rm -r|common/keep.sh|1
 rm -r|common/targets.sh|3
-rm -r|hi.sh|5
+rm -r|hi.sh|4
 rm -r|load.sh|2
 rm -r|scripts/install.sh|4
 rm -r|scripts/pack_stream.sh|2
 sh -c|common/config.fish|4
 sh -c|common/keep.sh|1
 sh -c|common/zsh.zsh|1
-sh -c|hi.sh|15
-sh -c|scripts/doctor_target.sh|1
+sh -c|hi.sh|4
 source|common/aliases.sh|2
 source|common/bash.sh|7
 source|common/config.fish|8

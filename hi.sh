@@ -58,7 +58,7 @@ else
   function _hi_keep_starts() { return 1; }
   function _hi_keep_middle() { :; }
   function _hi_keep_alive() { :; }
-  function _hi_keep_connect() { _say_hi; }
+  function _hi_keep_connect() { _say_hi "${2:-}" "$1"; }
 fi
 
 # Is the kept session switched off: $_HI_DISABLE_KEEP, or a tree that came
@@ -480,15 +480,6 @@ function _hi_use_backend() {
   printf '%s' "$arm"
 }
 
-# Run <script> on $DOMAIN through `sh -c`, with ssh's own flags in "$@"
-# GLOSSARY: HI.18 - fish-shaped login shells, and quoting over %q
-function _hi_ssh_sh() {
-  local script="$1" q
-  shift
-  _hi_shquote q "$script"
-  ssh "$@" ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" "sh -c $q"
-}
-
 # _hi_ctl_open <run-persist-secs> <run|shared> [ssh-opts...] - a ControlMaster
 # socket into the caller's ctl_dir/ctl_path/ctl_opts/ctl_shared, so the boot
 # probe and the session multiplex one authentication. _hi_ctl_close tears it
@@ -554,17 +545,21 @@ function _hi_ctl_close() {
   return 0
 }
 
-# The sh script the first ssh call runs: check for base64 (or openssl), make
-# a scratch directory, take the bootloader off stdin, say where it went.
+# _hi_boot_probe [bytes] - the sh script the boot runs through the arm's `cp`:
+# check for base64 (or openssl), make a scratch directory, take the script
+# off stdin, check that [bytes] of it landed, say where it went.
 #
 # Every path in it is the *target's*: a client-side `mktemp -u -t` would name
 # a path in the client's $TMPDIR, and a target without it would fall through
 # to the PowerShell branch.
 #
-# The two failures say which in the exit status (64 no armor, 65 no scratch
-# directory) so _say_hi can name the reason. `if`s rather than `|| exit N`:
-# Windows OpenSSH hands the command to cmd.exe, which cannot run `sh` but
-# does honour `||`, and would itself exit 64. GLOSSARY: HI.19
+# The failures say which in the exit status (64 no armor, 65 no scratch
+# directory, 66 a short landing) so _say_hi can name the reason. A short
+# landing is nomad's and kube's: an `exec -i` whose stdin closes before the
+# target's cat drains it succeeds at the transport and delivers less. `if`s
+# rather than `|| exit N`: Windows OpenSSH hands the command to cmd.exe,
+# which cannot run `sh` but does honour `||`, and would itself exit 64.
+# GLOSSARY: HI.19
 #
 # HIMUX says whether the target has a multiplexer to keep a session in, which
 # decides how long one is kept (_hi_keep_until); ahead of HIBOOT, whose line
@@ -575,12 +570,14 @@ if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; 
 if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
 cat > "$d/bootloader" || exit 1
 PROBE
+  [ -z "${1:-}" ] ||
+    printf 'n=$(wc -c <"$d/bootloader"); if [ "$((n))" != %s ]; then rm -rf "$d"; exit 66; fi\n' "$1"
   printf '%s\n' "m=0; for s in $_HI_MUXES; do if command -v \"\$s\" >/dev/null 2>&1; then m=1; fi; done" \
     'printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"'
 }
 
 # _hi_boot_why <status> <output> - why the boot probe left no scratch dir, as
-# a line naming $DOMAIN, or nothing (GLOSSARY: HI.19): the probe's own two
+# a line naming $DOMAIN, or nothing (GLOSSARY: HI.19): the probe's own three
 # codes; a path hi refused; and a *forced command* (sshd's `ForceCommand`, or
 # a `command=` on the key), known by exiting 0 or printing anything, since
 # cmd.exe and PowerShell both fail `sh` non-zero and say so on stderr. One
@@ -591,6 +588,7 @@ function _hi_boot_why() {
   *HIBOOT:*) printf '%s\n' "[$DOMAIN] named a scratch directory hi will not use" ;;
   64:*) printf '%s\n' "no base64 or openssl on [$DOMAIN]" ;;
   65:*) printf '%s\n' "no writable temp directory on [$DOMAIN]" ;;
+  66:*) printf '%s\n' "hi's script reached [$DOMAIN] short, three times over" ;;
   0:* | *:?*) printf '%s\n' "a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
   esac
 }
@@ -622,11 +620,9 @@ EOF
 }
 
 # The no-bash target's rc: every line valid in sh, zsh *and* fish at once.
-# --aliases-only <dir> is the container fallback's shape (aliases.sh alone).
 # GLOSSARY: HI.20 - the three-shell subset, and why each line is there
 function _hi_fallback_rc() {
-  local t aliases_dir=""
-  [ "${1:-}" = --aliases-only ] && aliases_dir="$2"
+  local t
   printf 'export _HI_REMOTE_SESSION=1\n'
   # an unset toggle under `set -u` breaks a bash-less target
   for t in "${_HI_TOGGLES[@]}"; do
@@ -636,15 +632,9 @@ function _hi_fallback_rc() {
   for t in _HI_TOOL_ALIASES _HI_SUDO_ALIAS; do
     if [ "${!t:-0}" = 1 ]; then printf 'export %s=1\n' "$t"; else printf 'export %s=0\n' "$t"; fi
   done
-  if [ -n "$aliases_dir" ]; then
-    # the client verdicts the ssh preamble would have exported ride the rc here
-    _hi_client_verdicts 'export %s=%s\n'
-    printf '. %s/aliases.sh 2>/dev/null\n' "$aliases_dir"
-  else
-    printf 'export _HI_CONFIG_DIR=$_HI_ROOT/config\n'
-    printf '[ -f $_HI_ROOT/config/settings.sh ] && . $_HI_ROOT/config/settings.sh\n'
-    printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/common/aliases.sh 2>/dev/null\n'
-  fi
+  printf 'export _HI_CONFIG_DIR=$_HI_ROOT/config\n'
+  printf '[ -f $_HI_ROOT/config/settings.sh ] && . $_HI_ROOT/config/settings.sh\n'
+  printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/common/aliases.sh 2>/dev/null\n'
   # no $CMDARG here: the two helpers below hand it to each shell the way that
   # shell honours it (GLOSSARY: HI.23)
   return 0
@@ -921,15 +911,17 @@ REMOTE
   printf '      %s\n%s\n      export _HI_CONNECT_PREFIX=" %s"\n' "$overlay_line" "$fi" "$size"
 }
 
-# The bootloader rides stdin of the first of two calls on one connection,
-# and the write doubles as the POSIX-shell-and-base64 probe that selects the
-# PowerShell fallback. GLOSSARY: HI.19 - the argv cap, and why two calls.
+# The script rides stdin of the first of two calls, the arm's `cp`, and the
+# write doubles as the POSIX-shell-and-base64 probe that selects the
+# fallbacks. GLOSSARY: HI.19 - the argv cap, and why two calls. A short
+# landing (66) is tried twice more, since the race behind it is transient.
 #
-# Its stderr is deliberately *not* redirected: this call authenticates, so
+# An ssh call's stderr is deliberately *not* redirected: it authenticates, so
 # it carries the server's `Banner` and, on an unknown host, the key
 # fingerprint the yes/no prompt on /dev/tty is about. A retry
-# (_hi_keep_connect) holds the transport's words back until the target has
-# answered, and is false where ssh could not reach it.
+# (_hi_keep_connect) holds those words back until the target has answered,
+# and is false where ssh could not reach it. A container's words are the
+# exec's, and go to $errlog for _hi_report_failure.
 #
 # The *target* names the directory and prints it back (_hi_boot_probe),
 # tagged rather than taken whole: a target whose sh writes anything of its
@@ -937,14 +929,24 @@ REMOTE
 # reaching a command run back on that target, so _hi_safe_path's rule holds,
 # over the characters a temp path is built from ("+" for macOS).
 #
-# Reads script and ctl_opts from _say_hi, and fills its boot_out, boot_ec,
-# and boot_tmp.
+# Reads arm, errlog, script, bytes, and the arm's commands from _say_hi, and
+# fills its boot_out, boot_ec, and boot_tmp.
 function _hi_boot_call() {
-  local boot_fd=2
-  [ -z "${_HI_KEEP_QUIET:-}" ] || { exec 8>"$_HI_KEEP_QUIET" && boot_fd=8; }
-  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}" 2>&"$boot_fd")" || boot_ec=$?
-  if [ "$boot_fd" = 8 ]; then
-    exec 8>&-
+  local boot_fd=2 quiet="" try
+  [ "$arm" != ssh ] || quiet="${_HI_KEEP_QUIET:-}"
+  if [ -n "$quiet" ]; then
+    exec 8>"$quiet" && boot_fd=8
+  elif [ "$arm" != ssh ]; then
+    exec 8>"$errlog" && boot_fd=8
+  fi
+  # shellcheck disable=SC2034 # try only bounds the retry count, never read
+  for try in 1 2 3; do
+    boot_ec=0
+    boot_out="$(printf '%s\n' "$script" | _hi_on_target cp "$(_hi_boot_probe "$bytes")" 2>&"$boot_fd")" || boot_ec=$?
+    [ "$boot_ec" = 66 ] || break
+  done
+  [ "$boot_fd" != 8 ] || exec 8>&-
+  if [ -n "$quiet" ]; then
     [ "$boot_ec" != 255 ] || return 1
     # over the retry's countdown line
     [ ! -t 2 ] || printf '\r\033[K' >&2
@@ -960,123 +962,34 @@ function _hi_boot_call() {
   boot_tmp="$(_hi_safe_path "$boot_tmp" 'A-Za-z0-9._/+-')"
 }
 
-# Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
-# branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
-function _say_hi() {
-  local size script boot_tmp ctl_path ctl_dir ctl_shared ct run ec=0
-  local bootloader="" tree="" overlay_line=""
-  local -a ctl_opts overlay=() retry=()
-
-  # Asked here rather than at the pipeline that needs them: a
-  # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
-  # refusal further in is swallowed and the target gets an empty archive.
-  _hi_require "${_HI_ARMOR%% *}" "(or base64) to reach an ssh target" || return 1
-  _hi_require_packer || return 1
-
-  # local-only, so resolved once here and reused by the warm below and the
-  # real stream
-  _hi_read_lines overlay < <(_hi_overlay_files)
-  local -a payload_excl=()
-  _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
-
-  # warm the caches while _hi_ctl_open below settles, so a miss's ~70-130ms
-  # build is not paid in series with the connect
-  (
-    _hi_payload_cached _hi_warm
-    ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
-    true
-  ) >/dev/null 2>&1 &
-  local warm_bg=$!
-
-  # multiplex the bootloader write and the real session over one ssh
-  # connection; `shared` tries to reuse one already authenticated for this
-  # target
-  # a retry (_hi_keep_connect) does not wait out a network that is not there
-  [ -z "${_HI_KEEP_QUIET:-}" ] || retry=(-o ConnectTimeout=10)
-  _hi_keep_alive
-  _hi_ctl_open 30 shared ${retry[@]+"${retry[@]}"}
-
-  # the tars the script carries. The orphaned warm finishes its own atomic mv
-  # after hi has moved on.
-  wait "$warm_bg" 2>/dev/null || true
-  bootloader="$(_hi_bootloader | $_HI_ARMOR)"
-  tree="$(_hi_payload_stream)"
-  # the overlay's own stream, omitted when empty (GLOSSARY: HI.41); a relay's
-  # rode in its tree, and only the paths of what it carried are left to fix
-  if ((${#overlay[@]})); then
-    overlay_line="mkdir -p \"\$_HI_ROOT/config\"
-$(_hi_overlay_stream "${overlay[@]}")"
-  elif [ -n "$_HI_RELAY" ]; then
-    overlay_line="$(_hi_overlay_fixup '"$_HI_ROOT/config"')"
-  fi
-  size="$_HI_SIZE_TOKEN"
-  _hi_remote_script script
-
-  # the true byte count, substituted for the token (GLOSSARY: HI.44)
-  _hi_human_bytes "${#script}" size
-  script="${script//$_HI_SIZE_TOKEN/$size}"
-
-  # a retry that ssh itself failed ends here: a host that was not reached
-  # has no shell to fall back on
-  local boot_out="" boot_ec=0
-  if ! _hi_boot_call; then
-    _hi_ctl_close
-    return 255
-  fi
-
-  # `-t` only when there is a terminal to ask for: ssh already declines a pty
-  # when stdin is not one, so this only stops "Pseudo-terminal will not be
-  # allocated" landing in the stderr of every piped `hi <host> <cmd>`.
-  local -a tflag=()
-  [ -t 0 ] && tflag=(-t)
-  # an empty $boot_tmp: _hi_boot_why names the cause it can, and the host
-  # with no `sh` the PowerShell notice exists for is the one it cannot
-  local why=""
-  [ -n "$boot_tmp" ] || why="$(_hi_boot_why "$boot_ec" "$boot_out")"
-  if [ -n "$boot_tmp" ]; then
-    # $ct is our own _hi_elapsed digits-and-a-dot, never text a target sent
-    # back, so it interpolates straight into the command line
-    ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
-    run="_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\""
-    # a session that drops from here on was up (_hi_keep_connect)
-    _HI_LINK_UP=1
-    if _hi_keep_probes; then
-      # the script's status is its word on a kept session, so it outlasts
-      # the removal - under sh, whatever the login shell
-      _hi_ssh_sh "$run; _hi_e=\$?; rm -rf \"$boot_tmp\"; exit \$_hi_e" ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" || ec=$?
-    else
-      ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" "$run; rm -rf \"$boot_tmp\"" || ec=$?
-    fi
-  elif [ -n "$why" ]; then
-    _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
-    _say_hi_plain "${ctl_opts[@]}" || ec=$?
-  else
-    ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
-      powershell -NoLogo -NoExit -Command \
-      "Write-Host 'hi from PowerShell - no bash or sh on this host, say-hi colors/aliases are unavailable' -ForegroundColor Yellow" || ec=$?
-  fi
-
-  _hi_ctl_close
-  return "$ec"
-}
-
-# _hi_container_cmds <label> - the three ways to run something in a container
-# target, into the caller's probe/cp/attach arrays: probe asks a question (no
-# stdin, no tty), cp streams a file in, attach hands over a session. Its own
-# function because scripts/doctor.sh has to ask exactly as a session would.
-function _hi_container_cmds() {
+# _hi_transport_cmds <arm> - the three ways to reach the target through
+# <arm>, ssh or a roster name, into the caller's probe/cp/attach arrays: probe
+# asks a question (no stdin, no tty), cp streams a file in, attach hands over
+# a session (a tty where there is one). ssh's ride the caller's ctl_opts,
+# its ControlMaster. Its own function because scripts/doctor.sh has to ask
+# exactly as a session would. Each runs a script by _hi_on_target.
+function _hi_transport_cmds() {
   # the where/what halves (GLOSSARY: HI.43); $inner is empty for a plain target
   local outer inner
   _hi_outer "$DOMAIN" outer
   _hi_inner "$DOMAIN" inner
-  local -a pick=()
+  local -a pick=() tflag=()
   # A tty only when there is one to hand over: unlike ssh -t, `docker exec -it`
   # on a pipe refuses outright rather than degrading. The `-i`/`-it` split is
   # the same decision in each backend's spelling; nomad wants it explicit
-  # either way, since its own guess hangs the exec on a wrapped pty.
+  # either way, since its own guess hangs the exec on a wrapped pty. ssh
+  # declines a pty where stdin is not one, and -t then only says so.
   local it=-i nt=-t=false
-  [ ! -t 0 ] || it=-it nt=-t=true
+  if [ -t 0 ]; then
+    it=-it nt=-t=true
+    tflag=(-t)
+  fi
   case "$1" in
+  ssh)
+    probe=(ssh -n ${ctl_opts[@]+"${ctl_opts[@]}"} ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN")
+    cp=(ssh ${ctl_opts[@]+"${ctl_opts[@]}"} ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN")
+    attach=(ssh ${tflag[@]+"${tflag[@]}"} ${ctl_opts[@]+"${ctl_opts[@]}"} ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN")
+    ;;
   nomad)
     [ -n "$inner" ] && pick=(-task "$inner")
     probe=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=false -t=false "$outer")
@@ -1103,21 +1016,135 @@ function _hi_container_cmds() {
   esac
 }
 
-# The sweep of the scratch tree on every early exit and after the session.
-# Reads $root and $probe from _say_hi_container, as _hi_remote_middle reads
-# _say_hi's locals.
-function _hi_container_cleanup() {
-  "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
-  return 0
+# _hi_on_target <probe|cp|attach> <script> - <script> under the target's sh,
+# through that command of the caller's (_hi_transport_cmds). An exec takes
+# `sh -c` as an argv; ssh hands its words to the login shell as one string,
+# so they are quoted for it. GLOSSARY: HI.18 - fish-shaped login shells, and
+# quoting over %q
+function _hi_on_target() {
+  local _hi_tgt_q
+  local -a _hi_tgt_c
+  case "$1" in
+  probe) _hi_tgt_c=("${probe[@]}") ;;
+  cp) _hi_tgt_c=("${cp[@]}") ;;
+  *) _hi_tgt_c=("${attach[@]}") ;;
+  esac
+  if [ "${_hi_tgt_c[0]}" = ssh ]; then
+    _hi_shquote _hi_tgt_q "$2"
+    "${_hi_tgt_c[@]}" "sh -c $_hi_tgt_q"
+  else
+    "${_hi_tgt_c[@]}" sh -c "$2"
+  fi
 }
 
-# Every fatal arm of the ladder below, once: say why, sweep the scratch tree,
-# fail. The two arms that must *not* sweep - nothing created yet, or a $root
-# hi refused and must never rm -rf - stay written out.
-function _hi_container_abort() {
-  _hi_fail "$1"
-  _hi_container_cleanup
-  return 1
+# _say_hi [arm] [errlog] - connect through [arm] (ssh when empty), copy
+# say-hi over, hand off to load.sh: the script boots in one `cp` call and
+# runs in one `attach`, the same script for every arm. Everything up to the
+# bash branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18). [errlog]
+# takes a container's words.
+function _say_hi() {
+  local arm="${1:-ssh}" errlog="${2:-/dev/null}"
+  local size script bytes boot_tmp ctl_path="" ctl_dir="" ctl_shared=0 ct ec=0
+  local bootloader="" tree="" overlay_line=""
+  local -a ctl_opts=() overlay=() retry=() probe cp attach
+
+  # Asked here rather than at the pipeline that needs them: a
+  # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
+  # refusal further in is swallowed and the target gets an empty archive.
+  _hi_require "${_HI_ARMOR%% *}" "(or base64) to reach a target" || return 1
+  _hi_require_packer || return 1
+
+  # local-only, so resolved once here and reused by the warm below and the
+  # real stream
+  _hi_read_lines overlay < <(_hi_overlay_files)
+  # shellcheck disable=SC2034 # _hi_payload_excl fills it, the packer reads it
+  local -a payload_excl=()
+  _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
+
+  # warm the caches while _hi_ctl_open below settles, so a miss's ~70-130ms
+  # build is not paid in series with the connect
+  (
+    _hi_payload_cached _hi_warm
+    ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
+    true
+  ) >/dev/null 2>&1 &
+  local warm_bg=$!
+
+  # multiplex the boot and the session over one ssh connection; `shared`
+  # tries to reuse one already authenticated for this target. A retry
+  # (_hi_keep_connect) does not wait out a network that is not there.
+  if [ "$arm" = ssh ]; then
+    [ -z "${_HI_KEEP_QUIET:-}" ] || retry=(-o ConnectTimeout=10)
+    _hi_keep_alive
+    _hi_ctl_open 30 shared ${retry[@]+"${retry[@]}"}
+  fi
+  _hi_transport_cmds "$arm"
+
+  # the tars the script carries. The orphaned warm finishes its own atomic mv
+  # after hi has moved on.
+  wait "$warm_bg" 2>/dev/null || true
+  bootloader="$(_hi_bootloader | $_HI_ARMOR)"
+  tree="$(_hi_payload_stream)"
+  # the overlay's own stream, omitted when empty (GLOSSARY: HI.41); a relay's
+  # rode in its tree, and only the paths of what it carried are left to fix
+  if ((${#overlay[@]})); then
+    overlay_line="mkdir -p \"\$_HI_ROOT/config\"
+$(_hi_overlay_stream "${overlay[@]}")"
+  elif [ -n "$_HI_RELAY" ]; then
+    overlay_line="$(_hi_overlay_fixup '"$_HI_ROOT/config"')"
+  fi
+  size="$_HI_SIZE_TOKEN"
+  _hi_remote_script script
+
+  # the true byte count, substituted for the token (GLOSSARY: HI.44), and
+  # what the boot checks landed: the script and printf's newline
+  _hi_human_bytes "${#script}" size
+  script="${script//$_HI_SIZE_TOKEN/$size}"
+  bytes="$(printf '%s\n' "$script" | wc -c)"
+  bytes="${bytes// /}"
+
+  # a retry that ssh itself failed ends here: a host that was not reached
+  # has no shell to fall back on
+  local boot_out="" boot_ec=0
+  if ! _hi_boot_call; then
+    _hi_ctl_close
+    return 255
+  fi
+
+  # an empty $boot_tmp: _hi_boot_why names the cause it can, and the host
+  # with no `sh` the PowerShell notice exists for is the one it cannot
+  local why=""
+  [ -n "$boot_tmp" ] || why="$(_hi_boot_why "$boot_ec" "$boot_out")"
+  if [ -n "$boot_tmp" ]; then
+    # what the exec said on the way in is no failure of the session's
+    [ "$arm" = ssh ] || : >"$errlog"
+    # $ct is our own _hi_elapsed digits-and-a-dot, never text a target sent
+    # back, so it interpolates straight into the command line
+    ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
+    # a session that drops from here on was up (_hi_keep_connect)
+    _HI_LINK_UP=1
+    # the script's status is the session's, and its word on a kept one, so it
+    # outlasts the removal - under sh, whatever the login shell
+    _hi_on_target attach "_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\"; _hi_e=\$?; rm -rf \"$boot_tmp\"; exit \$_hi_e" || ec=$?
+  elif [ -n "$why" ]; then
+    [ "$arm" = ssh ] || : >"$errlog"
+    _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
+    if [ "$arm" = ssh ]; then
+      _say_hi_plain ${ctl_opts[@]+"${ctl_opts[@]}"} || ec=$?
+    else
+      _say_hi_container_plain "$arm" || ec=$?
+    fi
+  elif [ "$arm" = ssh ]; then
+    "${attach[@]}" powershell -NoLogo -NoExit -Command \
+      "Write-Host 'hi from PowerShell - no bash or sh on this host, say-hi colors/aliases are unavailable' -ForegroundColor Yellow" || ec=$?
+  else
+    # the exec's own words are in $errlog, for _hi_report_failure
+    ec="$boot_ec"
+    [ "$ec" != 0 ] || ec=1
+  fi
+
+  _hi_ctl_close
+  return "$ec"
 }
 
 # The no-bash fallback, probed and validated: the answer is a word read back
@@ -1133,170 +1160,6 @@ function _hi_container_fallback_shell() {
   return 0
 }
 
-# _hi_container_put <local-file> <target-path> - one local file onto the
-# target, proven to have landed: an `exec -i` whose stdin closes before the
-# target's cat drains it succeeds at the transport and delivers nothing. The
-# race is transient and only seen on a piped writer's stdin, so the retry
-# replays a regular file: <local-file> `-` stages stdin to one first. Reads
-# cp/probe/tmp from the caller.
-function _hi_container_put() {
-  local src="$1" dest="$2" try rc=1
-  if [ "$src" = - ]; then
-    src="$tmp.put"
-    cat >"$src"
-  fi
-  # shellcheck disable=SC2034 # try only bounds the retry count, never read
-  for try in 1 2 3; do
-    if "${cp[@]}" sh -c "cat > '$dest'" <"$src" 2>"$tmp" &&
-      "${probe[@]}" sh -c "[ -s '$dest' ]" 2>"$tmp"; then
-      rc=0
-      break
-    fi
-  done
-  [ "$1" != - ] || rm -f "$src"
-  return "$rc"
-}
-
-# The container arm on a target with no bash: the best shell it has, on the
-# aliases and the fallback rc alone, then the sweep. Reads probe, cp, attach,
-# root, and tmp from _say_hi_container, whose status this is.
-function _hi_container_no_bash() {
-  local fallback exit_code
-  fallback="$(_hi_container_fallback_shell "$tmp")"
-  [ -n "$fallback" ] || _hi_container_abort " [$DOMAIN] named no shell hi asked about - not falling back" || return 1
-  _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
-
-  if ! _hi_container_put "$_HI_ALIASES" "$root/aliases.sh"; then
-    _hi_fail " failed to copy aliases.sh into [$DOMAIN]"
-    _hi_container_cleanup
-    "${attach[@]}" "$fallback"
-    return $?
-  fi
-
-  # the shared fallback rc in its aliases-only shape, plus the POSIX prompt
-  # for the shells that parse it - the ssh path's `*)` rule
-  local -a fish_cmd=()
-  if ! {
-    _hi_fallback_rc --aliases-only "$root"
-    case "$fallback" in
-    zsh | fish) ;;
-    *) _hi_fallback_prompt ;;
-    esac
-    # last, for the shells that read the file to its end; fish takes it as
-    # -c below instead (GLOSSARY: HI.23)
-    [ "$fallback" = fish ] || [ -z "${CMDARG:-}" ] || printf '%s\n' "$CMDARG"
-  } | _hi_container_put - "$root/.hi_fallback_rc"; then
-    _hi_container_abort " failed to write the fallback rc into [$DOMAIN]"
-    return 1
-  fi
-  [ "$fallback" != fish ] || [ -z "${CMDARG:-}" ] || fish_cmd=(-c "$CMDARG")
-
-  case "$fallback" in
-  zsh)
-    "${cp[@]}" sh -c "cp '$root/.hi_fallback_rc' '$root/.zshrc'" 2>"$tmp" || _hi_container_abort " failed to write .zshrc into [$DOMAIN]" || return 1
-    "${attach[@]}" sh -c "export ZDOTDIR='$root'; exec zsh -i"
-    ;;
-  # the rc through -C and the command through -c, as in _hi_remote_suffix
-  fish) "${attach[@]}" fish -C "$("${probe[@]}" cat "$root/.hi_fallback_rc")" ${fish_cmd[@]+"${fish_cmd[@]}"} ;;
-  *) "${attach[@]}" sh -c "export ENV='$root/.hi_fallback_rc'; exec $fallback -i" ;;
-  esac
-  exit_code=$?
-  _hi_container_cleanup
-  return $exit_code
-}
-
-# _say_hi_container <label> <errlog> - the container arm, across the
-# docker-compatible family, nomad, and kube.
-function _say_hi_container() {
-  local label="$1" tmp="$2"
-  local shell_end root exit_code size prefix tarball env_kv
-  local -a probe cp attach overlay=()
-  _hi_require_packer || return 1
-  _hi_container_cmds "$label"
-
-  # The parent is the *target's* `${TMPDIR:-/tmp}`, expanded there, so a pod
-  # with a read-only root and an emptyDir still has somewhere to land. Mode
-  # 700 and no -p, like the ssh path's boot_tmp: an existing directory is not
-  # adopted, and the path that comes back is checked the same way.
-  root="$("${probe[@]}" sh -c 'd="${TMPDIR:-/tmp}"; d="${d%/}/'"$(_hi_whoami).hi.log.$$"'"
-if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMPDIR:-/tmp}" >&2; exit 1; fi' 2>"$tmp")" || {
-    _hi_fail " no writable temp directory ($(cat "$tmp")) in [$DOMAIN] - --plain needs none"
-    return 1
-  }
-  # the class adds "@" to boot_tmp's: the directory name embeds _hi_whoami
-  root="$(_hi_safe_path "$root" 'A-Za-z0-9._/+@-')"
-  if [ -z "$root" ]; then
-    _hi_fail " [$DOMAIN] named a scratch directory hi will not use"
-    return 1
-  fi
-  shell_end="$(_hi_now)"
-
-  # no bash on the target means no fancy stuff, just our aliases
-  if ! "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>"$tmp"; then
-    _hi_container_no_bash
-    return
-  fi
-
-  # Staged to a file so the announced size is the one actually sent, and asked
-  # of the cache first, which already holds that shape.
-  local -a payload_excl=()
-  _hi_read_lines overlay < <(_hi_overlay_files)
-  _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
-  if ! _hi_payload_cached tarball; then
-    tarball="$tmp.tar.gz"
-    _hi_payload_tar >"$tarball" || _hi_container_abort " failed to archive say-hi for [$DOMAIN]" || return 1
-  fi
-  _hi_human_bytes "$(_hi_file_bytes "$tarball")" size
-  prefix=" $size" # the shape the ssh path's prefix reads
-  printf '%s' "$prefix" >&2
-
-  exit_code=0
-  "${cp[@]}" sh -c "tar -x -m -z -f - -C '$root'" <"$tarball" || exit_code=$?
-  # the cache's file stays, a staged one goes
-  [ "$tarball" != "$tmp.tar.gz" ] || rm -f "$tarball"
-  [ "$exit_code" = 0 ] || _hi_container_abort " failed to copy say-hi into [$DOMAIN]" || return 1
-
-  if ((${#overlay[@]})) &&
-    ! _hi_overlay_bytes "${overlay[@]}" |
-    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config' && $(_hi_overlay_fixup "'$root/say-hi/config'")" 2>"$tmp"; then
-    _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
-    # the defaults that overlay shadowed were cut from the tree above; a
-    # prompt loader's cut is not the overlay's, and a hop's tree lacks it
-    local f
-    local -a config_defaults=()
-    for f in ${payload_excl[@]+"${payload_excl[@]}"}; do
-      case "$f" in say-hi/config/*) config_defaults+=("$f") ;; esac
-    done
-    ! ((${#config_defaults[@]})) || tar -c -f - -C "$_HI_HOME" "${config_defaults[@]}" |
-      "${cp[@]}" sh -c "tar -x -m -f - -C '$root'" 2>>"$tmp" || true
-  fi
-  # a relay's overlay rode in its tree: the paths of what it carried, as in
-  # _say_hi
-  [ -z "$_HI_RELAY" ] || "${probe[@]}" sh -c "$(_hi_overlay_fixup "'$root/say-hi/config'")" 2>>"$tmp" || true
-
-  # hi.sh rides the payload tar unpacked above, mode and all. An empty
-  # hi.bashrc is fatal, not unchecked: `bash --rcfile` would start, source
-  # nothing, and hand over a bare shell with no error at all.
-  _hi_bootloader | _hi_container_put - "$root/say-hi/hi.bashrc" || _hi_container_abort " failed to write hi's bootloader into [$DOMAIN]" || return 1
-
-  # `-i` explicitly: `--rcfile` is read by an *interactive* bash and nothing
-  # else, and with a conditional tty a piped `hi <container> <cmd>` would read
-  # the empty pipe as a script and never source load.sh.
-  #
-  # _HI_CLEANUP marks the tree disposable for load.sh's clean_all, which owns
-  # the teardown; $_HI_SESSION_RC_DIR nests under it.
-  env_kv="$(_hi_env_each ' %s=%s')"
-  # one clock read for both legs: they are microseconds apart, and each
-  # _hi_now is a subshell and a `date` fork on the line before the attach
-  local now
-  now="$(_hi_now)"
-  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$now")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$now")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
-  exit_code=$?
-
-  _hi_container_cleanup
-  return $exit_code
-}
-
 # --plain over ssh: no bootstrap, no boot probe, no payload - just ssh
 # handing over the target's own login shell. Needs nothing beyond sshd and a
 # shell. Also where _say_hi lands when the target refused its bootstrap, which
@@ -1308,12 +1171,12 @@ function _say_hi_plain() {
 }
 
 # --plain over a container backend: no mkdir, no copy, straight into the best
-# shell the target has. Built on the same _hi_container_cmds probe/attach as
+# shell the target has. Built on the same _hi_transport_cmds probe/attach as
 # the full path, so the two cannot disagree on how to reach the target.
 function _say_hi_container_plain() {
   local label="$1" shell
   local -a probe cp attach
-  _hi_container_cmds "$label"
+  _hi_transport_cmds "$label"
   if "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>&1; then
     shell=bash
   else
@@ -1539,8 +1402,8 @@ function _hi_report_failure() {
     [ "$code" -eq 255 ] || return 0
   fi
   errors="$(<"$errlog")"
-  # clearing the container arm's in-progress " <size>", which has no newline
-  # yet; on a pipe there is no cursor to move, so a newline is the whole job
+  # clearing the connect's in-progress " <size>", which has no newline yet;
+  # on a pipe there is no cursor to move, so a newline is the whole job
   if [ -t 2 ]; then
     printf '\r\033[K' >&2
   else
@@ -1589,23 +1452,22 @@ function _hi() {
   _hi_hostname >/dev/null
   _hi_target_color >/dev/null && _hi_prompt_list >/dev/null
   if [ "${END:-0}" = 1 ]; then
-    # a kept session is the ssh arm's alone, and closing one runs no command
+    # closing a kept session runs no command
     [ -z "${RAWCMD:-}" ] || _hi_die "--end takes a target and nothing after it"
-    [ "${PLAIN:-0}" != 1 ] && [ -z "$(_hi_select_arm)" ] ||
-      _hi_die "--end closes a kept session, which only an ssh target has"
-    _hi_keep_end
+    [ "${PLAIN:-0}" != 1 ] || _hi_die "--end closes a kept session, which --plain never starts"
+    _hi_keep_end "$(_hi_select_arm)"
     exit $?
   fi
   # No `2>"$tmp"` around this block: it would also catch every word ssh says
   # on a *successful* session - the server's `Banner`, the "Permanently added"
-  # line, the host-key fingerprint. $tmp still reaches _say_hi_container,
-  # which redirects the commands whose noise is hi's.
+  # line, the host-key fingerprint. $tmp still reaches _say_hi, which sends a
+  # container exec's words there.
   arm="$(_hi_select_arm)"
   # said for the flag alone: _HI_KEEP=1 is a default, and silent where it
   # does not apply
-  if [ "${KEEP:-}" = 1 ] && { [ "${PLAIN:-0}" = 1 ] || [ -n "$arm" ]; }; then
-    _hi_cecho "hi: --keep needs an ssh target and hi's own session; connecting without it" "$YELLOW" >&2
-  elif [ -z "${KEEP:-}${RAWCMD:-}$arm" ] && [ "${_HI_KEEP:-0}" = 1 ] && [ "${PLAIN:-0}" != 1 ] && _hi_keep_off; then
+  if [ "${KEEP:-}" = 1 ] && [ "${PLAIN:-0}" = 1 ]; then
+    _hi_cecho "hi: --keep needs hi's own session, which --plain skips; connecting without it" "$YELLOW" >&2
+  elif [ -z "${KEEP:-}${RAWCMD:-}" ] && [ "${_HI_KEEP:-0}" = 1 ] && [ "${PLAIN:-0}" != 1 ] && _hi_keep_off; then
     # the one place the default speaks: it asks for what the switch took away
     _hi_cecho "hi: _HI_KEEP=1 does nothing while _HI_DISABLE_KEEP=1 switches the kept session off" "$YELLOW" >&2
   fi
@@ -1615,10 +1477,8 @@ function _hi() {
     else
       _say_hi_plain
     fi
-  elif [ -n "$arm" ]; then
-    _say_hi_container "$arm" "$tmp"
   else
-    _hi_keep_connect "$tmp"
+    _hi_keep_connect "$tmp" "$arm"
   fi
   exit_code="$?"
 

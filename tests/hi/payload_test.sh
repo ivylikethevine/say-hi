@@ -622,7 +622,7 @@ function test_a_relay_hands_on_what_it_carried() {
 }
 
 # hi.sh reaches the packer through the five functions a session defines for
-# itself, and four more that run only with an overlay to send or outside a
+# itself, and three more that run only with an overlay to send or outside a
 # session. The session's stripped copy is read, so a comment names nothing.
 function test_hi_sh_reaches_the_packer_only_through_the_seam() {
   local dir have n
@@ -631,7 +631,7 @@ function test_hi_sh_reaches_the_packer_only_through_the_seam() {
   [[ "$have" == *" _hi_payload_tar "* ]] || _hi_because "a session's hi.sh defines no _hi_payload_tar" || return 1
   while IFS= read -r n; do
     grep -E "(^|[^A-Za-z0-9_])$n([^A-Za-z0-9_]|\$)" "$dir/say-hi/hi.sh" >/dev/null || continue
-    case "$have _hi_overlay_cached _hi_overlay_stream _hi_overlay_bytes _hi_prompt_here " in *" $n "*) continue ;; esac
+    case "$have _hi_overlay_cached _hi_overlay_stream _hi_prompt_here " in *" $n "*) continue ;; esac
     _hi_because "hi.sh calls $n, which only scripts/pack.sh defines" || return 1
   done < <(sed -n 's/^function \(_hi_[a-z0-9_]*\)().*/\1/p' "$_HI_ROOT"/scripts/pack.sh "$_HI_ROOT"/scripts/pack_*.sh)
 }

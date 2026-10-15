@@ -89,17 +89,17 @@ session's opens. All three are `tests/targets/ssh_test.sh` cases.
 
 ## What hi writes on a target
 
-Default answer: one directory (two over ssh), and only for the life of the
+Default answer: two directories, and only for the life of the
 session. A session is as long as its connection unless you ask otherwise:
 `hi --keep` runs it in tmux, zellij, or screen on the target, where it and
 its directory last until you close it or nobody has been attached for
 `_HI_KEEP_TIMEOUT` (24h); on a target with none of the three, a dropped
 link leaves the directory for fifteen minutes, for a reconnect to take.
 
-| what              | where, in the target's temp directory, mode 0700                                             | when                                                               |
-| ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| the session tree  | `mktemp -d` `<user>.hi.XXXXXX` over ssh; `mkdir -m 700` `<user>.hi.log.<pid>` in a container | every session but `--plain`                                        |
-| the ssh bootstrap | `mktemp -d` `hi.boot.XXXXXX`                                                                 | ssh only, removed by the same remote command once the session ends |
+| what             | where, in the target's temp directory, mode 0700 | when                                                                                  |
+| ---------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| the session tree | `mktemp -d` `<user>.hi.XXXXXX`                   | every session but `--plain`                                                           |
+| the bootstrap    | `mktemp -d` `hi.boot.XXXXXX`                     | every session but `--plain`, removed by the same remote command once the session ends |
 
 That is everything hi's own code writes. A prompt program drawing the prompt
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) - by default, one you

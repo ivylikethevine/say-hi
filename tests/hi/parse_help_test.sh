@@ -594,7 +594,7 @@ function test_paths_defines_no_command_aliases() {
 # _hi is the dispatch function itself: the missing-$_HI_ROOT exit, the
 # PLAIN/arm 2x2 that picks which _say_hi* runs, and the record/report calls
 # that follow depending on the exit status. It calls `exit` outright, so
-# every case here redefines the four _say_hi* arms plus _hi_parse,
+# every case here redefines the three _say_hi* arms plus _hi_parse,
 # _hi_select_arm, and _hi_report_failure to markers instead
 # of the real thing, in a subshell so none of it leaks to the next case.
 #
@@ -614,11 +614,7 @@ function _hi_dispatch_probe() {
     function _hi_parse() { :; }
     function _hi_select_arm() { printf '%s' "$chosen_arm"; }
     function _say_hi() {
-      printf 'say_hi\n' >>"$marker"
-      return "$status"
-    }
-    function _say_hi_container() {
-      printf 'say_hi_container:%s\n' "$1" >>"$marker"
+      printf 'say_hi:%s\n' "$1" >>"$marker"
       return "$status"
     }
     function _say_hi_plain() {
@@ -663,14 +659,15 @@ function test_hi_dispatch_plain0_no_arm_calls_say_hi() {
   local out got
   out="$(_hi_dispatch_probe 0 "" 0)"
   got="$(printf '%s\n' "$out" | sed -n 2p)"
-  [[ "$got" == say_hi ]] || _hi_why got out
+  [[ "$got" == say_hi:ssh ]] || _hi_why got out
 }
 
-function test_hi_dispatch_plain0_with_arm_calls_say_hi_container() {
+# a container takes the same _say_hi, through the same kept-session wrapper
+function test_hi_dispatch_plain0_with_arm_calls_say_hi_with_the_arm() {
   local out got
   out="$(_hi_dispatch_probe 0 docker 0)"
   got="$(printf '%s\n' "$out" | sed -n 2p)"
-  [[ "$got" == "say_hi_container:docker" ]] || _hi_why got out
+  [[ "$got" == "say_hi:docker" ]] || _hi_why got out
 }
 
 function test_hi_dispatch_plain1_no_arm_calls_say_hi_plain() {
@@ -715,7 +712,7 @@ function run_hi_parse_help_tests() {
   _hi_h2 "Testing: _hi (the dispatch)"
   _hi_check "Exits 1 when \$_HI_ROOT is missing" test_hi_exits_1_when_root_is_missing
   _hi_check "PLAIN=0, no arm -> _say_hi" test_hi_dispatch_plain0_no_arm_calls_say_hi
-  _hi_check "PLAIN=0, an arm -> _say_hi_container" test_hi_dispatch_plain0_with_arm_calls_say_hi_container
+  _hi_check "PLAIN=0, an arm -> _say_hi with it" test_hi_dispatch_plain0_with_arm_calls_say_hi_with_the_arm
   _hi_check "PLAIN=1, no arm -> _say_hi_plain" test_hi_dispatch_plain1_no_arm_calls_say_hi_plain
   _hi_check "_HI_PLAIN=1 is the default, --no-plain past it" test_hi_dispatch_plain_setting_is_a_default
   _hi_check "PLAIN=1, an arm -> _say_hi_container_plain" test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain

@@ -35,7 +35,7 @@ drop-in costs that word, not a row here. Anything else touches seven places:
 - **a predicate** beside `_hi_is_nomad_alloc`: one
   `_hi_probe_is <literal> <cli> <query...>` line, which carries the
   `command -v` guard, the timeout, and the muted stderr.
-- **an arm in `_hi_container_cmds`** filling `probe`/`cp`/`attach`; past
+- **an arm in `_hi_transport_cmds`** filling `probe`/`cp`/`attach`; past
   that, everything is backend-agnostic.
 - **a lister, a `run_lister` case, and the usage line** in `common/targets.sh`,
   in its standalone-POSIX dialect — the only file all three completions read
