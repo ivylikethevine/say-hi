@@ -211,7 +211,8 @@ function test_coverage_v2_merge_writes_no_figure_without_the_subject() {
 # tests/coverage.sh --untested, in a tree of its own: of the lines changed
 # since a revision, the ones on both tools' lists, a run of them joined - and
 # none that only one tool lists, that did not change, or that xtrace never
-# prints (an array above its closing line, an empty case arm)
+# prints (an array above its closing line, an empty case arm); the command
+# after a trailing && is its own line, and listed
 function test_coverage_untested_lists_changed_lines_both_tools_missed() {
   local home tree out rc=0
   home="$(_hi_scratch_tree covdiff link:common link:tests)"
@@ -219,11 +220,11 @@ function test_coverage_untested_lists_changed_lines_both_tools_missed() {
   cp -r "$(_hi_git_fixture)/.git" "$tree/.git"
   printf '%s\n' a b c d e f >"$tree/x.sh"
   git -C "$tree" add x.sh && git -C "$tree" commit -q -m x || _hi_why tree || return 1
-  printf '%s\n' a B C d E F G 'v=(1' '  2)' '  y) ;;' >"$tree/x.sh"
-  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:5 x.sh:7 x.sh:8 x.sh:9 x.sh:10 >"$home/kcov"
-  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 x.sh:8 x.sh:9 x.sh:10 >"$home/bashcov"
+  printf '%s\n' a B C d E F G 'v=(1' '  2)' '  y) ;;' 'true &&' '  z' >"$tree/x.sh"
+  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:5 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/kcov"
+  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 x.sh:8 x.sh:9 x.sh:10 x.sh:12 >"$home/bashcov"
   out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD "$home/kcov" "$home/bashcov" 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7, 9' ] || _hi_why rc out
+  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7, 9, 12' ] || _hi_why rc out
 }
 
 # coverage.yml's pull_request path is for same-repo PRs only: pages.yml reads

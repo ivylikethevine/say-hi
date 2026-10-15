@@ -81,9 +81,10 @@ function _hi_cov_untested() {
     }
     # a line xtrace never prints, so neither tool can record it: one that
     # only closes a block with a redirect (`done <file`, `} >file`), an empty
-    # case arm, the rest of a command the line above continues (a trailing
-    # \\, |, &&, ||), or an array assignment above the line that closes it,
-    # which is the one xtrace prints
+    # case arm, the rest of a command the line above continues with a
+    # trailing \\, or an array assignment above the line that closes it,
+    # which is the one xtrace prints. A command after a trailing |, && or ||
+    # prints on its own line, so a miss there is an arm that never ran.
     function shadow(i,   t, p, j) {
       if (!(file in read)) {
         read[file]
@@ -96,7 +97,7 @@ function _hi_cov_untested() {
       if (t ~ /^[ \t]*\(?[^()#]+\)[ \t]*;(;&?|&)[ \t]*$/) return 1
       p = src[file, i - 1]
       sub(/[ \t]+#.*$/, "", p)
-      if (p ~ /(\\|\||&&|\|\|)[ \t]*$/) return 1
+      if (p ~ /\\[ \t]*$/) return 1
       for (j = i; j > 0 && src[file, j] !~ /\)/; j--)
         if (src[file, j] ~ /=\(/) return 1
       return 0
