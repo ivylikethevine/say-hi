@@ -8,15 +8,15 @@ name: Windows e2e
 # and the same sshd with Git Bash as its shell must get a full session.
 # The client is the runner's own Git Bash;
 # windows-client.yml is the client-side half. The rest is WSL: `wsl-suites`
-# runs the fast suites inside an Ubuntu distribution (sharded, from a copy on
-# the distribution's own filesystem - see the job), and its first shard's
-# distribution then also takes the package layout (`install.sh --prefix`,
+# runs the fast suites inside an Ubuntu distribution (from a copy on the
+# distribution's own filesystem - see the job), and that distribution then
+# also takes the package layout (`install.sh --prefix`,
 # what the .deb's package() runs) and is said hi to from Git Bash - the
 # Windows-desk homelab shape, and what turns COMPATIBILITY.md's WSL row from
 # expected to proven - here rather than on a Windows runner of its own, since
-# a distribution already exists once a shard's fast suites finish. ci.yml
+# a distribution already exists once the fast suites finish. ci.yml
 # calls this on every push to main and every same-repository pull request
-# once both fast-suite jobs are green.
+# once the arm64 fast suites are green.
 on:
   workflow_call:
 
@@ -180,14 +180,15 @@ jobs:
         shell: bash
         run: bash .github/scripts/no_hi_session_left.sh
 
-  # The fast suites inside WSL, sharded the way windows-client.yml shards
-  # them under Git Bash, and run from a copy of the checkout on the
+  # The fast suites inside WSL, run from a copy of the checkout on the
   # distribution's own filesystem rather than from /mnt. Under WSL 2 the
   # checkout on D: reaches the VM as a 9p share - a round trip per file
   # operation - and the fast group is nothing but file operations; from
-  # /mnt/d it ran past its kill. On ext4 it runs at Linux speed, which makes
-  # --verbose (width 1, streamed live) affordable, so a wedge names its suite
-  # and case instead of leaving the kill's 600 seconds of silence.
+  # /mnt/d it ran past its kill. On ext4 it runs at Linux speed, side by side
+  # at the core count, in one job: one at a time it left three of the four
+  # cores idle (the runner's machine-use table), and a wedge names its suite
+  # and case through the runner's deadline. A one-entry matrix, so the check
+  # names and the roll-up below stay as they were.
   wsl-suites:
     name: fast suites (WSL, shard ${{ matrix.shard }})
     runs-on: windows-latest
@@ -195,11 +196,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/2, 2/2]
+        shard: [1/1]
     # WSLENV is the allowlist of names Windows shares into a wsl-bash step;
     # HI_SHARD has to be on it or the step's own env: never reaches the
-    # distribution, and USERPROFILE is shard 1's alone (the session steps
-    # below say why) but costs nothing to list for both
+    # distribution, and USERPROFILE is for the session steps below
     env:
       WSLENV: GITHUB_WORKSPACE:HI_SHARD:USERPROFILE
     steps:
@@ -214,8 +214,22 @@ jobs:
 
       - uses: ./.github/actions/defender-off
 
-      # WSL 2: hosted Windows runners carry the nested virtualization it needs
-      - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+      # WSL 2: hosted Windows runners carry the nested virtualization it needs.
+      # About a minute normally; one install hung the whole job's fifteen
+      # minutes with no log, so each try is bounded and a hung one is tried
+      # once more.
+      - id: wsl
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: bash zsh fish git python3 openssh-server
+
+      - if: steps.wsl.outcome == 'failure'
+        timeout-minutes: 5
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
           distribution: Ubuntu-24.04
           wsl-version: 2
@@ -225,7 +239,7 @@ jobs:
       # $HOME/hi-tree rather than $HOME/say-hi on purpose: $HOME is on hi's
       # install-probe candidate list, and a tree there would be the one a
       # session into this distribution found.
-      - name: This shard of the fast suites, from a copy on ext4
+      - name: The fast suites, from a copy on ext4
         shell: wsl-bash {0}
         env:
           HI_SHARD: ${{ matrix.shard }}
@@ -263,10 +277,10 @@ jobs:
           # .github/scripts/bsd_loopback.sh's comment on the same flag.
           # _HI_RUN_DEADLINE under timeout's 600: the runner ends itself and
           # names what was running, where timeout's kill names nothing
-          _HI_RUN_DEADLINE=540 setsid -w timeout -k 30 600 bash ./tests/test_runner.sh --verbose --host-report \
+          _HI_RUN_DEADLINE=540 setsid -w timeout -k 30 600 bash ./tests/test_runner.sh --host-report \
             --group fast --shard "$HI_SHARD" </dev/null
 
-      # The rest of this job is shard 1 only: the package layout on this same
+      # The rest of this job: the package layout on this same
       # distribution, then said hi to from Git Bash - the target side of the
       # Windows-desk homelab shape, and what turns COMPATIBILITY.md's WSL row from
       # expected to proven. By the same call the .deb's package() step makes:
@@ -279,7 +293,6 @@ jobs:
       # a separate wsl-bash step starts its own subshell, and the original
       # checkout is what the .deb's package() would see too.
       - name: Install the package layout inside WSL
-        if: matrix.shard == '1/2'
         shell: wsl-bash {0}
         run: |
           set -eu
@@ -299,7 +312,6 @@ jobs:
       # listener from inside before Git Bash tries it from outside, so a
       # refusal in the next step can only be the Windows -> WSL relay.
       - name: Start sshd inside WSL
-        if: matrix.shard == '1/2'
         shell: wsl-bash {0}
         run: |
           set -eu
@@ -331,7 +343,6 @@ jobs:
       # left in the target's /tmp. shell: bash, not wsl-bash - this one runs
       # on the Windows side, which is where the client (Git Bash) is.
       - name: Say hi into WSL from Git Bash
-        if: matrix.shard == '1/2'
         shell: bash
         timeout-minutes: 5
         run: |
@@ -389,7 +400,6 @@ jobs:
       # transcript cannot show: the shipped tree took itself with it
       # (load.sh's clean_all), and the packaged tree is still whole.
       - name: Nothing left behind in the target
-        if: matrix.shard == '1/2'
         shell: wsl-bash {0}
         run: bash "$(wslpath -u "$GITHUB_WORKSPACE")/.github/scripts/no_hi_session_left.sh" /usr/share/say-hi/hi.sh
 

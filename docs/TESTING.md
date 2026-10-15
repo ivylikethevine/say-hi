@@ -114,6 +114,9 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   (`_HI_RUNNER_WIDTH`) or another shard has room. Under GitHub Actions the
   same table goes to the job's summary page. `_HI_USAGE=0` turns it off,
   `_HI_USAGE_STEP=<seconds>` moves the interval.
+- The e2e and backends groups run one suite at a time, since they share one
+  container daemon; `_HI_E2E_WIDTH=<n>` runs n at once, as `ci.yml`'s e2e
+  shards do with 2. Each suite's containers, ports, and names are its own.
 - A suite whose backend is missing reports **SKIPPED**, never green; so does a
   single case (an image that would not build, a tool not installed).
   `--require-run` (CI's lint, e2e, and backends jobs pass it) turns both into

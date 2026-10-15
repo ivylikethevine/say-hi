@@ -427,10 +427,14 @@ jobs:
 
       - uses: ./.github/actions/setup-shells
 
-      # No --verbose - see the `test` job's comment on the same flag.
+      # No --verbose - see the `test` job's comment on the same flag. Six at
+      # once on three cores: at three, the cores sat a third busy (the
+      # runner's machine-use table), the suites waiting on their own forks
+      # and pty sessions rather than on the CPU.
       - name: Run fast test suites
         env:
           _HI_RUN_DEADLINE: "720"
+          _HI_RUNNER_WIDTH: "6"
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
       - name: Enable Remote Login and authorize a throwaway key
@@ -1136,14 +1140,18 @@ jobs:
 
       # --require-run: here a skip is a broken runner, not an optional
       # backend. runner_test.sh checks the matrix's slices partition the
-      # e2e group.
+      # e2e group. Two suites at once (_HI_E2E_WIDTH): one at a time the
+      # runner sat at 30-64% CPU, and each suite's containers are its own.
+      # No --verbose, which would pin it back to one: a failing transcript
+      # still replays in full.
       - name: Run this shard of the end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
           _HI_SHARD_BY: e2e
           _HI_RUN_DEADLINE: "720"
+          _HI_E2E_WIDTH: "2"
         run: |
-          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group e2e --shard "$HI_SHARD"
+          "${{ github.workspace }}/tests/test_runner.sh" --host-report --require-run --group e2e --shard "$HI_SHARD"
 
   # One backend per shard, a runner apiece: the three serial on one runner take
   # 40 minutes (one shared container/VM daemon is what test_runner.sh's width

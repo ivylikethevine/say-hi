@@ -338,6 +338,8 @@ suites were running at once - whether a wider run would have room
 (_HI_RUNNER_WIDTH). Under GitHub Actions the same table goes to the job's
 summary page. _HI_USAGE=0 turns it off; _HI_USAGE_STEP=<seconds> moves the
 interval.
+The e2e and backends groups run one suite at a time, since they share a
+container daemon; _HI_E2E_WIDTH=<n> runs n of them at once.
 
 Suites, in the order they run:
 $(_hi_test_listing)
@@ -697,26 +699,29 @@ function _hi_collect_suite() {
 # its own $XDG_CONFIG_HOME, per-suite tally files above), so the unit groups
 # run side by side and the wall clock collapses toward the slowest suite.
 # Serial where it has to be: --verbose streams transcripts live and two at
-# once would interleave; bench measures timings; e2e and backends contend on
-# one container daemon. The width is the CPU count: the unit suites are plain
-# processes, and the daemon-bound groups below are pinned to one anyway.
+# once would interleave, and bench measures timings. e2e and backends share
+# one container daemon, so they run one at a time unless _HI_E2E_WIDTH asks
+# for more. The width is the CPU count: the unit suites are plain processes.
 # $_HI_RUNNER_WIDTH overrides (1 is a plain serial run) - both phases below,
 # since a bench/e2e/backends suite in the selection pins only its own phase
 # to width 1, not the whole run.
 # parallel.sh's width rule, uncapped as a local-process suite gets it
 _HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-$(_HI_PAR_WIDTH='' _HI_PAR_LOCAL=1 _hi_par_width)}"
 [ "$_HI_RUNNER_WIDTH" -ge 1 ] || _HI_RUNNER_WIDTH=1
-[ "$_HI_VERBOSE" = 1 ] && _HI_RUNNER_WIDTH=1
+_HI_E2E_WIDTH="${_HI_E2E_WIDTH:-1}"
+case "$_HI_E2E_WIDTH" in '' | 0 | *[!0-9]*) _HI_E2E_WIDTH=1 ;; esac
+[ "$_HI_VERBOSE" != 1 ] || _HI_RUNNER_WIDTH=1 _HI_E2E_WIDTH=1
 
 # Split the selection into what can run side by side and what cannot
 # (bench/e2e/backends contend on one container daemon, or measure timings
 # that parallel noise would corrupt), each keeping its own table order. A
 # `--group` run is homogeneous, so one of the two is always empty and this
 # is a no-op split; a bare `test_runner.sh` is the case it is for.
-declare -a _HI_SELECTED_PAR=() _HI_SELECTED_SERIAL=()
+declare -a _HI_SELECTED_PAR=() _HI_SELECTED_E2E=() _HI_SELECTED_SERIAL=()
 for _hi_t in "${_HI_SELECTED[@]}"; do
   case "${_hi_t%%:*}" in
-  bench | e2e | backends) _HI_SELECTED_SERIAL+=("$_hi_t") ;;
+  bench) _HI_SELECTED_SERIAL+=("$_hi_t") ;;
+  e2e | backends) _HI_SELECTED_E2E+=("$_hi_t") ;;
   *) _HI_SELECTED_PAR+=("$_hi_t") ;;
   esac
 done
@@ -894,8 +899,10 @@ function _hi_progress_tick() {
 # running>. Off /proc where there is one (Linux, WSL, MSYS), read with the
 # builtin - forks are what Git Bash is slow at - the CPU from /proc/stat's
 # deltas and the memory as MemTotal less MemAvailable (MemFree where that is
-# missing). Elsewhere (macOS, the BSDs) the CPU is ps's summed %cpu over the
-# cores, and the memory "-". A suite is running while its .running marker
+# missing). On the BSDs the CPU is kern.cp_time's deltas the same way (idle
+# its last field, comma-separated on OpenBSD), a sysctl fork a sample; on
+# macOS, which has neither, ps's summed %cpu over the cores, which misses
+# short-lived processes and so reads low. Memory there is "-". A suite is running while its .running marker
 # is there (_hi_run_batch).
 function _hi_usage_watch() {
   local out="$1" step="${_HI_USAGE_STEP:-2}" cores t0=$SECONDS
@@ -905,10 +912,19 @@ function _hi_usage_watch() {
   case "$step" in '' | *[!0-9]* | 0) step=2 ;; esac
   while kill -0 "$$" 2>/dev/null; do
     pct="-" mem="-"
+    total=""
     if [ -r /proc/stat ]; then
       read -r _ u n s i w q sq st _ </proc/stat || :
       total=$((u + n + s + i + ${w:-0} + ${q:-0} + ${sq:-0} + ${st:-0}))
       busy=$((total - i - ${w:-0}))
+    elif v="$(sysctl -n kern.cp_time 2>/dev/null)" && [ -n "$v" ]; then
+      # shellcheck disable=SC2086 # split on the commas and spaces
+      set -- ${v//,/ }
+      total=0
+      for i; do total=$((total + i)); done
+      busy=$((total - ${!#}))
+    fi
+    if [ -n "$total" ]; then
       ((pt == 0 || total <= pt)) || pct=$(((busy - pb) * 100 / (total - pt)))
       pb=$busy pt=$total
     else
@@ -1086,6 +1102,7 @@ if [ "$_HI_USAGE" = 1 ]; then
   _hi_usage_pid=$!
 fi
 _hi_run_batch "$_HI_RUNNER_WIDTH" ${_HI_SELECTED_PAR[@]+"${_HI_SELECTED_PAR[@]}"}
+_hi_run_batch "$_HI_E2E_WIDTH" ${_HI_SELECTED_E2E[@]+"${_HI_SELECTED_E2E[@]}"}
 _hi_run_batch 1 ${_HI_SELECTED_SERIAL[@]+"${_HI_SELECTED_SERIAL[@]}"}
 if [ -n "$_hi_usage_pid" ]; then
   kill "$_hi_usage_pid" 2>/dev/null || :

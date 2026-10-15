@@ -89,7 +89,7 @@ function _hi_run_runner() {
   # unterminated string. GLOSSARY-worthy, learned from the macOS CI job.)
   # shellcheck disable=SC2163 # the var=value pair is chosen by each caller
   _HI_RUN_OUT="$(
-    unset GITHUB_ACTIONS _HI_VERBOSE _HI_HOST_REPORT _HI_PROGRESS
+    unset GITHUB_ACTIONS _HI_VERBOSE _HI_HOST_REPORT _HI_PROGRESS _HI_E2E_WIDTH
     # no sampler unless a case asks: its report would end every fixture run
     export _HI_USAGE=0
     [ -n "${_HI_RUN_WITH:-}" ] && export "${_HI_RUN_WITH?}"
@@ -669,6 +669,31 @@ function test_machine_use_is_reported() {
     "$_HI_RUN_OUT" == *"suites at once"*" 1 "* ]] || _hi_why _HI_RUN_OUT
 }
 
+# e2e and backends run one at a time, since they share a container daemon,
+# unless _HI_E2E_WIDTH asks for more: two fixtures that each wait a while for
+# the other's marker see it only side by side
+function test_e2e_width_runs_e2e_side_by_side() {
+  local n other
+  for n in a b; do
+    other=b
+    [ "$n" = a ] || other=a
+    {
+      printf '#!/usr/bin/env bash\n'
+      # shellcheck disable=SC2016 # the fixture's to expand
+      printf 'd="${_HI_PROGRESS_FILE%%/*}"\n: >"$d/pair.%s"\n' "$n"
+      # shellcheck disable=SC2016
+      printf 'i=0\nuntil [ -e "$d/pair.%s" ] || [ "$i" -ge 30 ]; do sleep 0.1; i=$((i + 1)); done\n' "$other"
+      # shellcheck disable=SC2016
+      printf '[ -e "$d/pair.%s" ] || { echo "pair_%s:alone"; exit 1; }\n' "$other" "$n"
+    } >"$_HI_FIXTURES/pair_$n.sh"
+  done
+  chmod +x "$_HI_FIXTURES"/pair_[ab].sh
+  _HI_RUN_WITH="_HI_E2E_WIDTH=2" _hi_run_runner $'e2e:pair_a:pair_a.sh\ne2e:pair_b:pair_b.sh'
+  [ "$_HI_RUN_EXIT" = 0 ] || _hi_because "side by side, a pair waited alone: $_HI_RUN_OUT" || return 1
+  _hi_run_runner $'e2e:pair_a:pair_a.sh\ne2e:pair_b:pair_b.sh'
+  [[ "$_HI_RUN_EXIT" == 1 && "$_HI_RUN_OUT" == *pair_a:alone* ]] || _hi_why _HI_RUN_EXIT _HI_RUN_OUT
+}
+
 function test_progress_line_names_the_running_case() {
   _hi_stall_run
   [[ "$_HI_RUN_OUT" == *"running: stall_hung (the case that hangs)"* ]] || _hi_why _HI_RUN_OUT
@@ -802,6 +827,7 @@ function run_runner_tests() {
   _hi_check "A hung suite is ended and named by its case" test_a_hung_suite_is_ended_and_named_by_its_case
   _hi_check "The deadline ends the run with its evidence" test_the_deadline_ends_the_run_with_its_evidence
   _hi_check "Machine use is reported" test_machine_use_is_reported
+  _hi_check "_HI_E2E_WIDTH runs e2e side by side" test_e2e_width_runs_e2e_side_by_side
 
   _hi_h2 "Testing: summary case counts"
   _hi_check "Has a column header" test_summary_has_a_column_header
