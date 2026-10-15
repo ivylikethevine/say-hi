@@ -87,7 +87,7 @@ _HI_TARGET_ROWS_AT=-1
 
 function _hi_target_rows() {
   if [ "$_HI_TARGET_ROWS_AT" -ge 0 ] &&
-    [ "$((SECONDS - _HI_TARGET_ROWS_AT))" -lt "${_HI_TARGETS_TTL:-5}" ]; then
+    [ "$((SECONDS - _HI_TARGET_ROWS_AT))" -lt "${_HI_TARGETS_TTL:-$_HI_TARGETS_TTL_DEFAULT}" ]; then
     return 0
   fi
   # the rows whole, as common/zsh.zsh caches them: name is field 1 and kind

@@ -29,11 +29,12 @@ in a session.
   - [`hi --add-package`](#hi---add-package)
   - [`hi --remove-package`](#hi---remove-package)
   - [`hi --add-tag`](#hi---add-tag)
-  - [`hi --set-color`](#hi---set-color)
-  - [`hi --unset-color`](#hi---unset-color)
+  - [`hi --remove-tag`](#hi---remove-tag)
+  - [`hi --add-color`](#hi---add-color)
+  - [`hi --remove-color`](#hi---remove-color)
   - [`hi --plugins`](#hi---plugins)
-  - [`hi --plugin-off`](#hi---plugin-off)
-  - [`hi --plugin-on`](#hi---plugin-on)
+  - [`hi --disable-plugin`](#hi---disable-plugin)
+  - [`hi --enable-plugin`](#hi---enable-plugin)
   - [`hi --add-plugin`](#hi---add-plugin)
   - [`hi --remove-plugin`](#hi---remove-plugin)
 
@@ -145,17 +146,23 @@ No image: its output depends on the network and the release tags.
 
 ![hi --add-tag web-dev dev --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-add-tag.svg)
 
-### `hi --set-color`
+### `hi --remove-tag`
 
-`hi --set-color <type> <name> <color> [rrggbb] [--dry-run]`: pin a color in your colors file.
+`hi --remove-tag <host> [--dry-run]`: take a host's # Tags: line back out.
 
-![hi --set-color hosttag prod red --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-set-color.svg)
+![hi --remove-tag web-dev --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-tag.svg)
 
-### `hi --unset-color`
+### `hi --add-color`
 
-`hi --unset-color <type> <name> [--dry-run]`: remove a pin from your colors file.
+`hi --add-color <type> <name> <color> [rrggbb] [--dry-run]`: pin a color in your colors file.
 
-![hi --unset-color username root --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-unset-color.svg)
+![hi --add-color hosttag prod red --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-add-color.svg)
+
+### `hi --remove-color`
+
+`hi --remove-color <type> <name> [--dry-run]`: remove a pin from your colors file.
+
+![hi --remove-color username root --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-color.svg)
 
 ### `hi --plugins`
 
@@ -163,17 +170,17 @@ No image: its output depends on the network and the release tags.
 
 ![hi --plugins](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugins.svg)
 
-### `hi --plugin-off`
+### `hi --disable-plugin`
 
-`hi --plugin-off <name>... [--dry-run]`: switch plugins off: nothing of theirs rides.
+`hi --disable-plugin <name>... [--dry-run]`: switch plugins off: nothing of theirs rides.
 
-![hi --plugin-off bat --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugin-off.svg)
+![hi --disable-plugin bat --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-disable-plugin.svg)
 
-### `hi --plugin-on`
+### `hi --enable-plugin`
 
-`hi --plugin-on <name>... [--dry-run]`: switch them back on.
+`hi --enable-plugin <name>... [--dry-run]`: switch them back on.
 
-![hi --plugin-on tmux --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugin-on.svg)
+![hi --enable-plugin tmux --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-enable-plugin.svg)
 
 ### `hi --add-plugin`
 

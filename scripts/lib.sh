@@ -52,6 +52,27 @@ function _hi_missing_into() {
 # add_package.sh's), say what would happen and succeed, so the caller returns
 # before it writes; otherwise fail quietly and the caller carries on. Every
 # writer either of them reaches opens with one of these.
+# _hi_args <help-fn> <usage> <word>... - a script's own words: -h/--help runs
+# <help-fn> and exits, -n/--dry-run sets $_HI_DRY_RUN, any other --word is
+# refused naming <usage>, and the rest (a lone - word among them: a package's
+# unwanted mark) land in the caller's args array, in order
+function _hi_args() {
+  local _hi_ag_help="$1" _hi_ag_usage="$2"
+  shift 2
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -h | --help)
+      "$_hi_ag_help"
+      exit 0
+      ;;
+    -n | --dry-run) _HI_DRY_RUN=1 ;;
+    --*) _hi_die "unknown option $1 ($_hi_ag_usage)" ;;
+    *) args+=("$1") ;;
+    esac
+    shift
+  done
+}
+
 function dry_run_say() {
   [ -n "${_HI_DRY_RUN:-}" ] || return 1
   _hi_cecho " dry run: would $1" "$BLUE"
@@ -244,7 +265,7 @@ function _hi_packages_drift() {
   [ "$1" != "$2" ] && [ -f "$2" ] || return 0
   while IFS= read -r _hi_pd_l || [ -n "$_hi_pd_l" ]; do
     _hi_package_table "$_hi_pd_l" _hi_pd_g _hi_pd_k || continue
-    case "$_hi_pd_have" in *" $_hi_pd_g "*) continue ;; esac
+    ! _hi_list_has "$_hi_pd_have" "$_hi_pd_g" || continue
     _hi_pd_have="$_hi_pd_have$_hi_pd_g " _hi_pd_lack="$_hi_pd_lack${_hi_pd_lack:+, }$_hi_pd_g"
   done <"$2"
   [ -z "$_hi_pd_lack" ] ||
@@ -267,7 +288,7 @@ function _hi_term_cols() {
 # _hi_out_width <outvar> - what a rule or a wrapped line draws to:
 # $_HI_MAX_WIDTH, narrowed to the terminal when that is narrower
 function _hi_out_width() {
-  local _hi_ow=${_HI_MAX_WIDTH:-80} _hi_ow_cols
+  local _hi_ow=${_HI_MAX_WIDTH:-$_HI_MAX_WIDTH_DEFAULT} _hi_ow_cols
   _hi_term_cols _hi_ow_cols
   [ -n "$_hi_ow_cols" ] && ((_hi_ow_cols < _hi_ow)) && _hi_ow=$_hi_ow_cols
   printf -v "$1" '%d' "$_hi_ow"
@@ -389,9 +410,10 @@ function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
 # $_HI_KEEP_TIMEOUT, $_HI_KEEP_RETRY: seconds, or a number with s, m, h, or d
 function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }
 # one of core.sh's $_HI_EDITORS
-function _hi_is_editor() {
-  case " $_HI_EDITORS " in *" $1 "*) return 0 ;; esac
-  return 1
+function _hi_is_editor() { _hi_list_has "$_HI_EDITORS" "$1"; }
+# a value written into settings.sh's single-quoted export
+function _hi_has_no_single_quote() {
+  case "$1" in *\'*) return 1 ;; esac
 }
 
 # $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
@@ -413,7 +435,7 @@ function _hi_is_header_order() {
   _hi_header_vocab _hi_ho_v
   # shellcheck disable=SC2086 # the value is a space-separated word list
   for _hi_ho_w in $1; do
-    case " $_hi_ho_v " in *" $_hi_ho_w "*) ;; *) return 1 ;; esac
+    _hi_list_has "$_hi_ho_v" "$_hi_ho_w" || return 1
   done
   return 0
 }
@@ -427,9 +449,64 @@ function _hi_is_prompt_list() {
     case "$_hi_pl_w" in bash:hi | zsh:hi | fish:hi | hi) continue ;; esac
     _hi_prompt_row "${_hi_pl_w#*:}" _hi_pl_r || return 1
     _hi_pl_r="${_hi_pl_r#*|}"
-    case "$_hi_pl_w" in *:*) case " ${_hi_pl_r%%|*} " in *" ${_hi_pl_w%%:*} "*) ;; *) return 1 ;; esac ;; esac
+    case "$_hi_pl_w" in *:*) _hi_list_has "${_hi_pl_r%%|*}" "${_hi_pl_w%%:*}" || return 1 ;; esac
   done
   return 0
+}
+
+# _hi_is_plugin_list <value> - is every word of it a plugin or a member
+# that can be switched (_hi_plugin_word_ok)?
+function _hi_is_plugin_list() {
+  local w known
+  known=" $(_hi_plugin_words | tr '\n' ' ')"
+  for w in ${1//,/ }; do
+    _hi_plugin_word_ok "$w" "$known" || return 1
+  done
+}
+
+# _hi_setting_check <check> <value> - is <value> what a scripts/settings row
+# of that <check> takes; 2 for a <check> this does not know. The kinds are
+# $_HI_SETTING_CHECKS, which drift holds every row's to.
+_HI_SETTING_CHECKS="toggle flag number: duration globs groups header prompts plugins editor noquote scheme palette -"
+function _hi_setting_check() {
+  case "$1" in
+  toggle | flag) _hi_is_flag "$2" ;;
+  number:*) _hi_is_number "$2" && [ "$2" -ge "${1#number:}" ] ;;
+  duration) _hi_is_duration "$2" ;;
+  globs) _hi_is_ip_hide "$2" ;;
+  groups) _hi_is_package_groups "$2" ;;
+  header) _hi_is_header_order "$2" ;;
+  prompts) _hi_is_prompt_list "$2" ;;
+  plugins) _hi_is_plugin_list "$2" ;;
+  editor) _hi_is_editor "$2" ;;
+  noquote) _hi_has_no_single_quote "$2" ;;
+  scheme) _hi_scheme_ok "$2" ;;
+  palette) _hi_ramp_ok "$2" ;;
+  -) ;;
+  *) return 2 ;;
+  esac
+}
+
+# _hi_setting_rules - every scripts/settings row with a <check>, a line each:
+# <name>|<check>|<hint>, the hint ending in the vocabulary its check reads
+# where it reads one
+function _hi_setting_rules() {
+  local _hi_sr_l _hi_sr_n _hi_sr_c _hi_sr_i
+  while IFS= read -r _hi_sr_l || [ -n "$_hi_sr_l" ]; do
+    case "$_hi_sr_l" in '' | '#'*) continue ;; esac
+    _hi_sr_l="${_hi_sr_l#* | }" _hi_sr_n="${_hi_sr_l%% | *}"
+    # past <name>, <default>, <off>, <on>, <preview>, <needs>, and <label>
+    for _hi_sr_i in 1 2 3 4 5 6 7; do _hi_sr_l="${_hi_sr_l#* | }"; done
+    _hi_sr_c="${_hi_sr_l%% | *}" _hi_sr_l="${_hi_sr_l#* | }"
+    [ "$_hi_sr_c" != - ] || continue
+    _hi_sr_l="${_hi_sr_l%% | *}"
+    case "$_hi_sr_c" in
+    header) _hi_sr_l="$_hi_sr_l $_HI_HEADER_ORDER_DEFAULT" ;;
+    prompts) _hi_sr_l="$_hi_sr_l $_HI_PROMPT_TOOLS" ;;
+    editor) _hi_sr_l="$_hi_sr_l $_HI_EDITORS" ;;
+    esac
+    printf '%s|%s|%s\n' "$_hi_sr_n" "$_hi_sr_c" "$_hi_sr_l"
+  done <"$_HI_ROOT/scripts/settings"
 }
 
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh
@@ -541,10 +618,8 @@ function _hi_hook_rows() {
       _hi_plugin_color _hi_hr_c absent
       _hi_row "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent" info "$_hi_hr_c"
     elif _hi_hook_off "$_hi_hr_r"; then
-      case "$_HI_PLUGIN_DEFAULT_OFF" in
-      *" $_hi_hr_n "*) _hi_hr_why="off by default (hi --plugin-on $_hi_hr_n)" ;;
-      *) _hi_hr_why="switched off (_HI_PLUGINS_OFF)" ;;
-      esac
+      _hi_hr_why="switched off (_HI_PLUGINS_OFF)"
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_hr_n" || _hi_hr_why="off by default (hi --enable-plugin $_hi_hr_n)"
       _hi_plugin_color _hi_hr_c off
       _hi_row "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why" info "$_hi_hr_c"
     else
@@ -566,10 +641,8 @@ function _hi_env_rows() {
     _hi_er_n="${_hi_er_r#*|}"
     _hi_er_n="${_hi_er_n%%|*}" _hi_er_off=""
     if _hi_plugin_switched_off "$_hi_er_n"; then
-      case "$_HI_PLUGIN_DEFAULT_OFF" in
-      *" $_hi_er_n "*) _hi_er_off="off by default (hi --plugin-on $_hi_er_n)" ;;
-      *) _hi_er_off="switched off (_HI_PLUGINS_OFF)" ;;
-      esac
+      _hi_er_off="switched off (_HI_PLUGINS_OFF)"
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_er_n" || _hi_er_off="off by default (hi --enable-plugin $_hi_er_n)"
     fi
     for _hi_er_v in ${_hi_er_r##*|}; do
       if [ -z "${!_hi_er_v:-}" ]; then
@@ -688,10 +761,10 @@ function _hi_member_rows() {
     case "$m" in */*) family="${m%%/*}/" ;; oh-my-posh.*) family="oh-my-posh.*" ;; esac
     all=1
     for p; do
-      case "$p" in "$family"* | "${family%\*}"*) case "$none " in *" $p "*) ;; *) all=0 ;; esac ;; esac
+      case "$p" in "$family"* | "${family%\*}"*) _hi_list_has "$none" "$p" || all=0 ;; esac
     done
     [ "$all" = 1 ] || family="$m"
-    case "$said" in *" $family "*) continue ;; esac
+    ! _hi_list_has "$said" "$family" || continue
     said="$said$family " text="$text${text:+ }$family"
   done
   "$draw" "none anywhere" "$text"

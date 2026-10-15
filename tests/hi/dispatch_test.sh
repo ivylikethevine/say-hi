@@ -105,21 +105,21 @@ function test_dispatch_hands_remove_package_its_switch() {
 args=--remove exa --dry-run" ] || _hi_why got _HI_DS_OUT
 }
 
-# --set-color's words reach the script untouched, a hex and all
+# --add-color's words reach the script untouched, a hex and all
 function test_dispatch_hands_set_color_its_words() {
   local got
-  _hi_ds_dispatch --set-color hostname 'web-*' orange fd971f --dry-run
+  _hi_ds_dispatch --add-color hostname 'web-*' orange fd971f --dry-run
   got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --set-color
+  [ "$got" = "argv0=hi --add-color
 args=hostname web-* orange fd971f --dry-run" ] || _hi_why got _HI_DS_OUT
 }
 
-# --unset-color shares the script, told apart by its first-arg column
+# --remove-color shares the script, told apart by its first-arg column
 function test_dispatch_hands_unset_color_its_switch() {
   local got
-  _hi_ds_dispatch --unset-color username root
+  _hi_ds_dispatch --remove-color username root
   got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --unset-color
+  [ "$got" = "argv0=hi --remove-color
 args=--unset username root" ] || _hi_why got _HI_DS_OUT
 }
 
@@ -131,9 +131,9 @@ function test_dispatch_hands_the_plugin_flags_their_switches() {
   got="$(cat "$_HI_DS_OUT")"
   [ "$got" = "argv0=hi --plugins
 args=" ] || _hi_why got _HI_DS_OUT || return 1
-  _hi_ds_dispatch --plugin-off vim bat --dry-run
+  _hi_ds_dispatch --disable-plugin vim bat --dry-run
   got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --plugin-off
+  [ "$got" = "argv0=hi --disable-plugin
 args=--off vim bat --dry-run" ] || _hi_why got _HI_DS_OUT || return 1
   _hi_ds_dispatch --add-plugin taskrc task env:TASKRC '/opt/taskrc : /etc/taskrc'
   got="$(cat "$_HI_DS_OUT")"
@@ -338,8 +338,8 @@ function run_dispatch_tests() {
   _hi_check "Keeps it ahead of the rest" test_dispatch_keeps_the_first_argument_ahead_of_the_rest
   _hi_check "--add-package's rows reach the script untouched" test_dispatch_hands_add_package_its_rows
   _hi_check "--remove-package reaches the same script with --remove" test_dispatch_hands_remove_package_its_switch
-  _hi_check "--set-color's words reach the script untouched" test_dispatch_hands_set_color_its_words
-  _hi_check "--unset-color reaches the same script with --unset" test_dispatch_hands_unset_color_its_switch
+  _hi_check "--add-color's words reach the script untouched" test_dispatch_hands_set_color_its_words
+  _hi_check "--remove-color reaches the same script with --unset" test_dispatch_hands_unset_color_its_switch
   _hi_check "The plugin flags reach one script, each behind its word" test_dispatch_hands_the_plugin_flags_their_switches
   _hi_check "Declines a row with no script" test_dispatch_declines --plain
   _hi_check "Declines an unknown flag" test_dispatch_declines --nonesuch

@@ -16,16 +16,15 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 source "$_hi_d/core.sh"
 unset _hi_d
 
-# <var> gets $2's visible column width - one leading color-var prefix
-# stripped first, since a header_row cell never carries more than the one its
-# caller opens it with (the reset between cells is header_row's own, added
-# below, never the caller's). The color vars hold the literal two characters
-# `\e`, not a real escape byte (core.sh assigns them single-quoted; only
-# header_row's own final `printf '%b'` interprets it), so the pattern matches
-# that literal prefix rather than $'\e'.
+# <var> gets $2's visible column width - every color var in it stripped
+# first: most cells open with one, load()'s greeting changes color midway. The
+# color vars hold the literal two characters `\e`, not a real escape byte
+# (core.sh assigns them single-quoted; only header_row's own final
+# `printf '%b'` interprets it), so the pattern matches that literal rather
+# than $'\e'.
 function _hi_visible_width() {
-  local s="$2" re='^\\e\[[0-9;]*m(.*)$'
-  [[ "$s" =~ $re ]] && s="${BASH_REMATCH[1]}"
+  local s="$2" re='^(.*)\\e\[[0-9;]*m(.*)$'
+  while [[ "$s" =~ $re ]]; do s="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; done
   # where ${#} counts bytes (core.sh's $_HI_BYTE_COUNTS), the UTF-8
   # continuation bytes come off first: 0x80-0xBF never start a character, so
   # what is left is one byte per column. GLOSSARY: HI.12
@@ -70,7 +69,7 @@ function _hi_cell_hue() {
 # so a same-named local declared here would shadow the caller's variable
 # instead of writing into it.
 function _hi_draw_width() {
-  local _hi_dw_max=${_HI_MAX_WIDTH:-80} _hi_dw_cols=""
+  local _hi_dw_max=${_HI_MAX_WIDTH:-$_HI_MAX_WIDTH_DEFAULT} _hi_dw_cols=""
   if [ -n "${_HI_TERM_COLS+x}" ]; then
     _hi_dw_cols="$_HI_TERM_COLS"
   elif [ -t 1 ]; then
@@ -219,8 +218,10 @@ function _hi_cell_clock() {
       printf -v _hi_ck_raw "%(${_HI_HUMAN_CENTRIC_DATE#+})T" -1
     fi
   else
+    # hi-nocov-begin: bash before 4.2 - macOS's 3.2, which no sweep runs
     # shellcheck disable=SC2086 # ${3:+-u} is a flag or nothing, never a word
     _hi_ck_raw="$(exec date ${3:+-u} "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null)" || _hi_ck_raw=""
+    # hi-nocov-end
   fi
   printf -v "$1" '%s' "$2${_hi_ck_raw:-?}"
 }
@@ -531,7 +532,7 @@ function _hi_ip_list() {
 # string one at a time rather than word-split in a `for`, which would also
 # pathname-expand `172.*` against the cwd.
 function _hi_ip_filter() {
-  local _hi_if_hide="${_HI_IP_HIDE:-172.*}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip
+  local _hi_if_hide="${_HI_IP_HIDE:-$_HI_IP_HIDE_DEFAULT}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip
   case "$_hi_if_hide" in none)
     printf -v "$1" '%s' "$2"
     return 0
@@ -832,7 +833,6 @@ function banner() {
 # be reordered or left out on its own, independent of the others. Named here
 # rather than only in the case below, so a doc or test can read the default
 # without parsing the dispatch.
-_HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
 
 # The header/ overlay member's cells (GLOSSARY: HI.58, HI.48): a file each,
 # its word the name up to the first `.`, defining _hi_cell_<word> the way the
@@ -1045,7 +1045,6 @@ function hi_footer() {
 # installed colors then four missing, tier 0 first. _hi_packages_palette
 # below splits it into the _HI_YES_NAMES/_HI_NO_NAMES arrays its callers index
 # by tier - the one spelling of the eight names, not two kept in step.
-_HI_PACKAGES_GROUPS_DEFAULT="core useful deprecated"
 _HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 
 # Palette *names*, not escapes: these are configuration - which of

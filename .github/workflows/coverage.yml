@@ -8,9 +8,11 @@ name: Coverage
 # figure; docs/TESTING.md's Coverage and profiling section says why there
 # are two and how each skews.
 #
-# Each tool is sharded 4 ways (shard-<tool>, --shard i/4, spreading the e2e
-# suites that drive wall clock) and merged by its own gather-<tool>, rather
-# than one matrix over tool, so neither tool's queue waits on the other's.
+# Each tool is sharded (shard-<tool>, --shard i/n, the suites dealt by their
+# cost under a tracer - tests/test_runner.sh's $_HI_TEST_COSTS - so every
+# shard takes about as long) and merged by its own gather-<tool>, rather than
+# one matrix over tool, so neither tool's queue waits on the other's. Each
+# shard finishes inside 15 minutes, setup included.
 #
 # Both tracers follow a child only when it is bash (bashcov rides on
 # SHELLOPTS=xtrace, kcov on a DEBUG trap), and ubuntu's /bin/sh is dash, so
@@ -213,7 +215,7 @@ jobs:
     needs: reuse
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     concurrency:
       group: coverage-kcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
       cancel-in-progress: true
@@ -298,7 +300,10 @@ jobs:
     needs: reuse
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # ten shards to kcov's four: with the trace pipe blocking
+    # (tests/lib/coverage_env.sh) bash waits on bashcov's reader, so a
+    # suite's time is its trace lines, about 6800 a second
+    timeout-minutes: 15
     # job-level so the cache step below and check_tool_versions.local.sh's
     # roster regex for the literal `BASHCOV_VERSION: "..."` both still find it
     env:
@@ -309,7 +314,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1/4, 2/4, 3/4, 4/4]
+        shard: [1/10, 2/10, 3/10, 4/10, 5/10, 6/10, 7/10, 8/10, 9/10, 10/10]
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -433,8 +438,7 @@ jobs:
       # Load-bearing, and not obvious: `kcov --merge` re-reads every source
       # file at the absolute path its shard recorded, so a gather job with no
       # working tree merges to `"files": []` and `"percent_covered": "0.00"`
-      # - a badge reading 0.00% rather than an error. gather-bashcov needs
-      # none: its ruby reads only the resultset's per-line arrays.
+      # - a badge reading 0.00% rather than an error.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -492,17 +496,11 @@ jobs:
           if-no-files-found: error
 
   # bashcov's SimpleCov .resultset.json is a plain hash keyed by
-  # --command-name (the suite name), so four shards' resultsets are
-  # disjoint-by-construction and merging them is a plain hash union - no
-  # SimpleCov.merge, no lock file, just JSON. That is also exactly what the
-  # existing badge/ranking code already does one level up (each iterates
-  # every payload's "coverage" hash and sums per-file arrays across
-  # entries), so this reuses the same shape rather than inventing a second
-  # one. Only the full HTML index would need SimpleCov.collate (and the
-  # simplecov gem installed here to call it) - deliberately skipped: nothing
-  # downstream reads coverage-v2-report's HTML programmatically (pages.yml
-  # only ever fetches the coverage-pct/coverage-v2-pct artifacts), so it is
-  # not worth a second gem install in a job that otherwise needs only ruby.
+  # --command-name (the suite name), so four shards' resultsets are disjoint
+  # by construction and merging them is a hash union - no SimpleCov.merge, no
+  # lock file. Only the HTML index would need SimpleCov.collate and the gem
+  # installed here, and nothing downstream reads it: pages.yml fetches the
+  # coverage-pct/coverage-v2-pct artifacts alone.
   gather-bashcov:
     name: bashcov - merge shards and publish
     needs: [reuse, shard-bashcov]
@@ -523,6 +521,11 @@ jobs:
             github.com:443
             results-receiver.actions.githubusercontent.com:443
 
+      # for tests/coverage_v2.sh alone: the merge reads only the resultsets
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       # each shard's resultset lands in its own artifact-named subdirectory
       # (merge-multiple: false, the default) - never merge-multiple here:
       # every shard's file is literally named .resultset.json, and flattening
@@ -534,67 +537,10 @@ jobs:
           pattern: coverage-parts-bashcov-*
           path: coverage-v2-report/shards
 
-      # bashcov's SimpleCov .resultset.json has no aggregate percentage at
-      # all, only per-line hit arrays, so ruby computes the badge figure too -
-      # applying the tests/ + docs/ subject filters itself: coverage_v2.sh's
-      # SimpleCov filters shape only the HTML report, while the resultset
-      # stays raw, so without them the badge counts the harness and the
-      # never-executed demo scripts against the product.
+      # tests/coverage_v2.sh --merge: the union, a local sweep's own ranking
+      # and subject filter, and the badge figure the resultset does not carry
       - name: Merge the shards, rank the files, and write the badge figure
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          shards=(coverage-v2-report/shards/*/.resultset.json)
-          if [ "${#shards[@]}" -eq 0 ]; then
-            echo "::warning::no bashcov shard resultsets were downloaded - nothing to merge"
-            exit 0
-          fi
-          ruby -rjson -e '
-            merged = {}
-            ARGV.each do |f|
-              JSON.parse(File.read(f)).each { |name, payload| merged[name] = payload }
-            end
-            File.write("coverage-v2-report/.resultset.json", JSON.generate(merged))
-
-            # Every file bashcov traced, worst first - the same ranking
-            # tests/coverage_v2.sh prints locally, reproduced here since this
-            # merge happens in the gather job instead.
-            root = Dir.pwd + "/"
-            lines_by_file = Hash.new
-            merged.each_value do |payload|
-              (payload["coverage"] || {}).each do |file, data|
-                lines = data.is_a?(Hash) ? data["lines"] : data
-                if lines_by_file[file]
-                  lines_by_file[file] = lines_by_file[file].each_with_index.map do |v, i|
-                    [v, lines[i]].compact.sum if v || lines[i]
-                  end
-                else
-                  lines_by_file[file] = lines.dup
-                end
-              end
-            end
-            rows = lines_by_file.map do |file, lines|
-              relevant = lines.compact
-              next if relevant.empty?
-              hit = relevant.count { |c| c > 0 }
-              [100.0 * hit / relevant.size, hit, relevant.size, file.sub(root, "")]
-            end.compact
-            rows.sort_by { |pct, _, _, path| [pct, path] }.each do |pct, hit, total, path|
-              printf(" |   %6.2f%%  %5d/%-5d  %s\n", pct, hit, total, path)
-            end
-
-            relevant = lines_by_file.reject { |f, _|
-              f.sub(root, "").start_with?("tests/", "docs/")
-            }.values.flatten.compact
-            if relevant.empty?
-              puts "::warning::the merged resultset holds no product lines - no badge figure to publish"
-            else
-              pct = format("%.2f", 100.0 * relevant.count { |c| c > 0 } / relevant.size)
-              Dir.mkdir("coverage-v2-pct")
-              File.write("coverage-v2-pct/pct", pct + "\n")
-              puts "bashcov reports #{pct}% of lines executed"
-            end
-          ' "${shards[@]}"
+        run: tests/coverage_v2.sh --merge coverage-v2-report coverage-v2-report/shards
 
       # same dotfile exclusion as the shard upload above
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -606,16 +552,18 @@ jobs:
           retention-days: 90
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: hashFiles('coverage-v2-pct/pct') != ''
+        if: hashFiles('coverage-v2-report/coverage-v2-pct/pct') != ''
         with:
           name: coverage-v2-pct
-          path: coverage-v2-pct
+          path: coverage-v2-report/coverage-v2-pct
           if-no-files-found: error
 
   # A same-repo PR's two figures and case count beside main's newest
   # (pages.yml's own lookups), as one comment edited in place on every push - see the header for
-  # why never a fork's. The checkout is for that composite action alone;
-  # nothing here runs the PR's code. A figure missing on either side reads
+  # why never a fork's. The checkout is for that composite action and for
+  # the step that ranks the files, which is handed no token; two commits deep,
+  # so that step has the PR's base to diff against. A figure missing on either
+  # side reads
   # "not measured", never 0. The comment names the pull request template's 90%
   # target and flags an average below it - a target, not a gate: this job
   # stays continue-on-error and fails nothing.
@@ -652,20 +600,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
 
       # the marker the push landing this tree on main looks for (`reuse`)
       - uses: ./.github/actions/mark-tree
         with:
           prefix: coverage-tree
 
-      # by pattern, so each lands in its own <artifact-name>/pct; a tool whose
+      # by name, each into its own <artifact-name>/pct: a pattern matching only
+      # one extracts it flat into path, which read as neither; a tool whose
       # gather published nothing is simply absent
-      - name: Download this run's figures
+      - name: Download this run's kcov figure
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: coverage*-pct
-          path: ${{ runner.temp }}/pr
+          name: coverage-pct
+          path: ${{ runner.temp }}/pr/coverage-pct
+
+      - name: Download this run's bashcov figure
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-v2-pct
+          path: ${{ runner.temp }}/pr/coverage-v2-pct
 
       # one lookup, both figures - dest-subdir carries no artifact name of its
       # own, so each still lands at main/<artifact-name>/pct, unchanged below
@@ -726,6 +683,20 @@ jobs:
           run-id: ${{ steps.pr-tests.outputs.run }}
           github-token: ${{ github.token }}
 
+      # Both tools' rankings side by side, into the job summary, and the lines
+      # this PR changed that neither recorded, for the comment
+      # (tests/lib/coverage.sh's _hi_cov_join and _hi_cov_untested), off the
+      # `files` and `missed` each gather uploads beside its figure. HEAD is the
+      # PR's merge commit, so HEAD^1 is its base.
+      - name: Rank the files, and list the changed lines neither tool ran
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          tests/coverage.sh --untested HEAD^1 "$RUNNER_TEMP/pr/coverage-pct/missed" "$RUNNER_TEMP/pr/coverage-v2-pct/missed" \
+            >"$RUNNER_TEMP/untested" || rm -f "$RUNNER_TEMP/untested"
+          table="$(tests/coverage.sh --join "$RUNNER_TEMP/pr/coverage-pct/files" "$RUNNER_TEMP/pr/coverage-v2-pct/files")"
+          printf '\n### Coverage by file\n\n~~~text\n%s\n~~~\n' "$table" >>"$GITHUB_STEP_SUMMARY"
+
       # via env, never inline ${{ }} in the run block (zizmor: template-injection)
       - name: Post or update the coverage comment
         env:
@@ -784,6 +755,17 @@ jobs:
           else
             verdict="At or above the ${TARGET}% target."
           fi
+          # the changed lines neither tool recorded: of the step above's
+          # output, only rows that are a path and line numbers, twenty at most
+          untested=""
+          if [ -f "$RUNNER_TEMP/untested" ]; then
+            untested="$(grep -E '^ \|   [A-Za-z0-9_./-]+: [0-9, -]+$' "$RUNNER_TEMP/untested" | head -n 20 || true)"
+            if [ -n "$untested" ]; then
+              untested="$(printf '\n**Changed lines neither tool recorded** - an arm no case reaches, or an artifact both tracers share:\n\n~~~text\n%s\n~~~' "$untested")"
+            else
+              untested=$'\nNo changed line of a shell file went unrecorded by both tools.'
+            fi
+          fi
           body="$(
             printf '%s\n### Coverage\n\n| | This PR | main | Change |\n| --- | ---: | ---: | ---: |\n' "$marker"
             row kcov "$k" "$k0"
@@ -791,6 +773,7 @@ jobs:
             row '**average**' "$a" "$(avg "$k0" "$b0")"
             count_row 'cases passed (fast, ci)' "$(cases "$RUNNER_TEMP/pr/tests/totals")" "$(cases "$RUNNER_TEMP/main-tests/totals")"
             printf '\n%s\n' "$verdict"
+            [ -z "$untested" ] || printf '%s\n' "$untested"
             printf '\nThe average is the figure to quote, and neither gates anything ([why two](%s)). ' \
               "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/TESTING.md#coverage-and-profiling"
             printf 'Measured at %s by [this run](%s).\n' "$HEAD_SHA" \

@@ -113,6 +113,14 @@ function test_hi_visible_width_strips_a_leading_color() {
   [ "$n" -eq 2 ] || _hi_why n
 }
 
+# ...and one opened midway too: load()'s greeting cell changes color after
+# "hi loaded: "
+function test_hi_visible_width_strips_a_color_midway() {
+  local n
+  _hi_visible_width n "${BRCYAN}hi loaded: ${RED}bash"
+  [ "$n" -eq 15 ] || _hi_why n
+}
+
 # Columns, never bytes. The header packs by this number, so where ${#}
 # answers in bytes - a target under LC_ALL=C drawing the glyph set its client
 # shipped it - a three-byte glyph measured as three would wrap a line the
@@ -454,6 +462,24 @@ function test_identity_includes_static_labels() {
   [[ "$out" == *"Auth:"* && "$out" == *"Pub:"* ]] || _hi_why out
 }
 
+# the key cells count what is there: Auth a line of authorized_keys each, Pub
+# a *.pub file each anywhere under ~/.ssh and nothing else; with neither, 0
+function test_identity_counts_the_keys() {
+  local home="$_HI_WORKDIR/idkeys" out
+  mkdir -p "$home/.ssh/old"
+  printf '%s\n' 'ssh-ed25519 AAAA one' 'ssh-ed25519 AAAA two' 'ssh-rsa AAAA three' >"$home/.ssh/authorized_keys"
+  : >"$home/.ssh/id_ed25519.pub"
+  : >"$home/.ssh/old/id_rsa.pub"
+  : >"$home/.ssh/id_ed25519"
+  : >"$home/.ssh/config"
+  out="$(HOME="$home" _hi_identity_with "$(_hi_identity_path)")"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"Auth: 3"* && "$out" == *"Pub: 2"* ]] || _hi_why out || return 1
+  out="$(HOME="$_HI_WORKDIR/idkeys-none" _hi_identity_with "$(_hi_identity_path)")"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"Auth: 0"* && "$out" == *"Pub: 0"* ]] || _hi_why out
+}
+
 # uptime rides at the end of the identity row, after Auth:/Pub: - not a
 # row of its own
 function test_identity_includes_uptime_cell_last() {
@@ -662,6 +688,7 @@ function run_header_tests() {
   _hi_check "Wrap keeps every cell intact" test_header_row_wrap_keeps_cells_intact
   _hi_check "_hi_visible_width strips a leading color" test_hi_visible_width_strips_a_leading_color
   _hi_check "...plain text is unchanged" test_hi_visible_width_plain_text_unchanged
+  _hi_check "...a color opened midway does not count either" test_hi_visible_width_strips_a_color_midway
   _hi_check "...and a glyph counts one column, not three bytes" test_hi_visible_width_counts_columns_not_bytes
   _hi_check "...on a shell whose \${#} answers in bytes too" test_hi_visible_width_counts_columns_where_length_counts_bytes
   _hi_check "Wrap math ignores color escape bytes" test_header_row_width_ignores_color_escape_bytes
@@ -722,6 +749,7 @@ function run_header_tests() {
   _hi_check "The ip cell has a shape" test_ip_cell_has_a_shape
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
   _hi_check "Identity's uptime cell rides last" test_identity_includes_uptime_cell_last
+  _hi_check "Auth and Pub count the keys there are" test_identity_counts_the_keys
   _hi_check "No cells at all when no backend is found" test_identity_hides_all_backend_cells_when_none_found
   _hi_check "Containers: 0 when docker is found but empty" test_identity_shows_count docker 0 Containers
   _hi_check "Containers count when docker is found" test_identity_shows_count docker 3 Containers

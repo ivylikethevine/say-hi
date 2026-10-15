@@ -241,7 +241,9 @@ function test_install_section_reports_a_wired_shell() {
   mkdir -p "$home"
   _hi_rc_block bash "$_HI_BASHRC" sh >"$home/.bashrc"
   out="$(_hi_doctor_install_out "$home")" || _hi_why home || return 1
-  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]] || _hi_why out
+  # the install section alone: the whole report runs past what _hi_why shows
+  [[ "$out" == *"~/.bashrc is wired to this tree"* && "$out" != *"lines this hi writes"* ]] ||
+    _hi_because "the install section: $(printf '%s\n' "$out" | sed -n '/The install/,$p')"
 }
 
 # the blocks an older hi wrote name this tree, so only a comparison with
@@ -298,6 +300,15 @@ function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() 
   out="$(_hi_doctor_install_out "$home" SHELL=/bin/bash)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"~/.bashrc has no hi lines"* ]] &&
     [[ "$out" == *"no ~/.local/bin/hi"* ]] && [[ "$out" == *"zsh"*"not installed here"* ]] || _hi_why rc out
+}
+
+# a shell that is here, but neither the login shell nor given an rc file, is
+# left alone on purpose: a plain row, not a warning
+function test_install_section_leaves_an_unused_shell_alone() {
+  local home="$_HI_WORKDIR/inst-unused" out rc=0
+  mkdir -p "$home"
+  out="$(_hi_doctor_install_out "$home" SHELL=/bin/sh)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"not wired - not your login shell, and no ~/.bashrc (hi --install --shell bash wires it)"* ]] || _hi_why rc out
 }
 
 function test_install_section_reports_the_link() {
@@ -410,6 +421,7 @@ function run_doctor_target_tests() {
   _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
   _hi_check_capable symlink "...one naming this tree by another path is not" test_install_section_knows_this_tree_by_another_path
   _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
+  _hi_check "...and a shell nobody uses here is left alone" test_install_section_leaves_an_unused_shell_alone
   _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
   _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
   _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path

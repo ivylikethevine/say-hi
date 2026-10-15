@@ -1,6 +1,6 @@
 # Color pins: a `[type]` line starts a section, and each row under it is
-# "name color [rrggbb]". `hi --set-color <type> <name> <color> [rrggbb]` and
-# `hi --unset-color <type> <name>` edit ~/.config/say-hi/colors, copying this
+# "name color [rrggbb]". `hi --add-color <type> <name> <color> [rrggbb]` and
+# `hi --remove-color <type> <name>` edit ~/.config/say-hi/colors, copying this
 # file there on the first write; that copy replaces this one wholesale.
 #
 # type  = hosttag | username | hostname | usertag

@@ -266,6 +266,19 @@ function test_bash_it_from_the_rc_hands_over_its_precmd() {
   [ "$out" = "BASHIT|other_hook" ] || _hi_because "bash drew: [$out]"
 }
 
+# hi named takes the prompt back from a PROMPT_COMMAND array too: each known
+# hook, bash-it's whole-element prompt_command among them, becomes a `:`,
+# anyone else's stays where it was, and hi's own leads the first
+function test_hi_named_clears_the_hooks_of_a_prompt_command_array() {
+  local h out
+  h="$(_hi_fw_home)"
+  out="$(_hi_rc_shell dumb bash 'PROMPT_COMMAND=(prompt_command other_hook starship_precmd)
+    source "$_HI_HOME/say-hi/common/bash.sh" >/dev/null 2>&1
+    declare -p PROMPT_COMMAND | cut -c1-10; printf "%s|" "${PROMPT_COMMAND[@]}"' \
+    HOME="$h" _HI_CONFIG_DIR="$h/cfg" _HI_PROMPT_TOOL=hi _HI_REMOTE_SESSION=1)"
+  [ "$out" = "declare -a"$'\n'"__hi_ps1; :|other_hook|:|" ] || _hi_because "PROMPT_COMMAND: [$out]"
+}
+
 # oh-my-bash loaded by hi takes every alias with `unalias -a`, its libraries'
 # included, and puts back each one set before it as it was, a quote in the
 # value too
@@ -806,6 +819,8 @@ function run_rc_prompt_tests() {
     test_prompt_program_draws bash '*\\u@\\h:\\w*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL=hi
   _hi_check "[bash] ...unset, bash-it's array-held hook keeps drawing" \
     test_prompt_program_draws bash '*RC|*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_check "[bash] hi named clears the known hooks of a PROMPT_COMMAND array, and keeps the rest" \
+    test_hi_named_clears_the_hooks_of_a_prompt_command_array
   _hi_check_requires fish "[fish] unset, tide found here draws" \
     test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
   _hi_check_requires fish "[fish] a program that does not fit fish keeps hi's prompt" \

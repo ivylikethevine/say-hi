@@ -28,7 +28,7 @@ mode=add
 }
 me="${_HI_ARGV0:-hi --$mode-package}"
 _HI_ME="$me"
-_HI_DRY_RUN="" group="" rows=()
+_HI_DRY_RUN="" group="" rows=() args=()
 usage="$me <group> <pkg>[,...] [--dry-run]"
 [ "$mode" = add ] || usage="$me <pkg>... [--dry-run]"
 
@@ -69,20 +69,12 @@ EOF
 # --help and --dry-run anywhere on the line; adding, the first other word is
 # the group and the rest rows - a single-dash word such as `-exa` is a row.
 # Loop shape matches scripts/update.sh's.
-while [ $# -gt 0 ]; do
-  case "$1" in
-  -h | --help)
-    _hi_add_package_help
-    exit 0
-    ;;
-  -n | --dry-run) _HI_DRY_RUN=1 ;;
-  --*) _hi_die "unknown option $1 ($usage)" ;;
-  *)
-    if [ "$mode" = add ] && [ -z "$group" ]; then group="$1"; else rows+=("$1"); fi
-    ;;
-  esac
-  shift
-done
+_hi_args _hi_add_package_help "$usage" "$@"
+rows=(${args[@]+"${args[@]}"})
+[ "$mode" != add ] || [ "${#rows[@]}" -eq 0 ] || {
+  group="${rows[0]}"
+  rows=("${rows[@]:1}")
+}
 
 if [ "$mode" = remove ]; then
   [ "${#rows[@]}" -gt 0 ] || _hi_die "needs at least one package ($me --help)"

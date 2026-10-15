@@ -40,6 +40,26 @@ function test_setting_on_toggle_absent_is_on() {
   setting_on _HI_DISABLE_FOO "$target" 1 || _hi_why target
 }
 
+# _hi_setting_flip, both kinds and both ways: a default-on toggle turned off
+# records its off-value and back on records "" (the default); an opt-in
+# turned on records its on-value and back off records ""
+function test_setting_flip_records_both_kinds_both_ways() {
+  local target="$_HI_WORKDIR/flip" state=""
+  : >"$target"
+  (
+    _HI_SETTINGS="$target" _HI_SETTING_PENDING=()
+    _hi_setting_flip _HI_DISABLE_FOO 1 "" state
+    [ "$state" = off ] && [ "${_HI_SETTING_PENDING[*]}" = "_HI_DISABLE_FOO=1" ] || _hi_because "toggle off: $state [${_HI_SETTING_PENDING[*]}]" || exit 1
+    _hi_setting_flip _HI_DISABLE_FOO 1 "" state
+    [ "$state" = on ] && [ "${_HI_SETTING_PENDING[*]}" = "_HI_DISABLE_FOO=" ] || _hi_because "toggle back on: $state [${_HI_SETTING_PENDING[*]}]" || exit 1
+    _HI_SETTING_PENDING=()
+    _hi_setting_flip _HI_DISABLE_LEAD_SPACE 0 1 state
+    [ "$state" = on ] && [ "${_HI_SETTING_PENDING[*]}" = "_HI_DISABLE_LEAD_SPACE=1" ] || _hi_because "opt-in on: $state [${_HI_SETTING_PENDING[*]}]" || exit 1
+    _hi_setting_flip _HI_DISABLE_LEAD_SPACE 0 1 state
+    [ "$state" = off ] && [ "${_HI_SETTING_PENDING[*]}" = "_HI_DISABLE_LEAD_SPACE=" ] || _hi_because "opt-in back off: $state [${_HI_SETTING_PENDING[*]}]"
+  )
+}
+
 # an opt-in that is off writes nothing - there is no "=0" spelling of it, and
 # the shipped defaults are core.sh's own, so writing them out would be noise
 # that then has to be kept in sync - the same rule config_max_width has for 80
@@ -667,6 +687,23 @@ function test_plugin_states_describe_a_plugin_of_yours() {
   [[ "$out" == *"cli|due|1|0|due|"[01]"|-|task lists what is due"$'\n'* ]] || _hi_because "due: $out"
 }
 
+# ...and with no comment, what each kind does: a hook names the command it
+# runs, a flag or xdg wire aliases the tool onto the config, and a plain row
+# says its file rides
+function test_plugin_states_describe_each_kind_uncommented() {
+  local h="$_HI_WORKDIR/plugins-kinds" out
+  mkdir -p "$h"
+  printf '%s\n' '[cli.hooky]' 'init = "hooky init {shell}"' '' \
+    '[cli.flagged]' 'wire = "flag:flagged -c"' 'files = "flagged.conf"' '' \
+    '[cli.xdgged]' 'wire = "xdg:xdgged"' 'files = "xdgged/"' '' \
+    '[cli.plain]' 'files = "plainrc"' >"$h/plugins"
+  out="$(_HI_CONFIG_DIR="$h" _hi_plugin_states '' '')"
+  [[ "$out" == *"cli|hooky|"*"|runs \`hooky init {shell}\` in a target's shell"$'\n'* ]] || _hi_because "hook: $out" || return 1
+  [[ "$out" == *"cli|flagged|"*"|aliases flagged to read your config"$'\n'* ]] || _hi_because "flag: $out" || return 1
+  [[ "$out" == *"cli|xdgged|"*"|aliases xdgged to read your config"$'\n'* ]] || _hi_because "xdg: $out" || return 1
+  [[ "$out" == *"cli|plain|"*"|your plainrc rides"* ]] || _hi_because "plain: $out"
+}
+
 # a group's page is a row a plugin: its box, its name, the marks for its
 # program and its config, and what a target gets; under 60 columns the box,
 # the name, and the marks. editors is g2, the second group by name; the
@@ -719,7 +756,7 @@ function test_plugin_flip_edits_the_list_kept_home() {
 }
 
 # a plugin that is off by default moves through $_HI_PLUGINS_ON, as `hi
-# --plugin-on` moves it: switched on it is named there, and switched off it
+# --enable-plugin` moves it: switched on it is named there, and switched off it
 # is taken out
 function test_plugin_flip_moves_a_default_off_plugin_through_the_on_list() {
   local dir out="" kept="" _HI_SETTINGS _HI_MENU_NOTE=""
@@ -778,6 +815,7 @@ function run_configure_wizard_tests() {
   _hi_check "An absent opt-in is off" test_setting_on_opt_in_absent_is_off
   _hi_check "A written opt-in is on" test_setting_on_opt_in_present_is_on
   _hi_check "An absent toggle is on" test_setting_on_toggle_absent_is_on
+  _hi_check "A flip records both kinds of setting both ways" test_setting_flip_records_both_kinds_both_ways
   _hi_check "An opt-in that is off writes nothing" test_opt_in_off_writes_nothing
   _hi_check "hi's prompt is kept when chosen" test_hi_prompt_kept_when_chosen
   _hi_check "Advanced: unanswered keeps every value" test_advanced_declined_keeps_every_value
@@ -834,6 +872,7 @@ function run_configure_wizard_tests() {
   _hi_check "...and says when they show nothing" test_check_preview_says_when_nothing_shows
   _hi_check "Every plugin has a line of its state" test_plugin_states_list_every_plugin
   _hi_check "...a plugin of yours by its wire, or its comment" test_plugin_states_describe_a_plugin_of_yours
+  _hi_check "...and with no comment, by what each kind does" test_plugin_states_describe_each_kind_uncommented
   _hi_check "A group's page draws a row a plugin" test_plugins_page_draws_a_row_a_plugin
   _hi_check "...and the main and Plugins pages a row a group" test_plugins_rows_name_each_group
   _hi_check "A plugin's number edits the list kept home" test_plugin_flip_edits_the_list_kept_home

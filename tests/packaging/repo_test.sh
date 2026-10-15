@@ -136,8 +136,18 @@ _HI_DNF_PIN='sed -i -e "s/^metalink=/#metalink=/" -e "s|^#baseurl=http://downloa
     sed -i "s/^enabled=1/enabled=0/" /etc/yum.repos.d/fedora-cisco-openh264.repo'
 
 function _hi_repo_client() {
-  local label="$1" image="$2" shell="$3" script="$4" log="$_HI_WORKDIR/$1.log" last
-  if ! docker run --rm -v "$_HI_REPO:/repo:ro" -v "$_HI_PREV:/prev:ro" "$image" "$shell" -ec "$script" >"$log" 2>&1; then
+  local label="$1" image="$2" shell="$3" script="$4" log="$_HI_WORKDIR/$1.log" last rc=0
+  local box="hi-repotest-$1-$$" limit="${_HI_REPO_LIMIT:-300}"
+  # bounded: dnf reads a Fedora mirror, and a slow one fails this case with
+  # its log rather than running the shard out
+  _hi_track_container "$box"
+  timeout -k 10 "$limit" docker run --rm --name "$box" -v "$_HI_REPO:/repo:ro" -v "$_HI_PREV:/prev:ro" \
+    "$image" "$shell" -ec "$script" >"$log" 2>&1 || rc=$?
+  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    _hi_rm_container "$box"
+    _hi_dump_log "$label client still running after ${limit}s (a slow package mirror?) - its log so far:" "$log" "$RED"
+    return 1
+  elif [ "$rc" -ne 0 ]; then
     _hi_dump_log "$label client failed:" "$log" "$RED"
     return 1
   fi

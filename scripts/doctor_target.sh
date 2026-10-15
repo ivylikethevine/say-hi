@@ -143,11 +143,9 @@ function doctor_container_target() {
 function _hi_ladder_first() {
   local s
   for s in $_HI_SHELL_LADDER; do
-    case " $1 " in *" $s "*)
-      printf '%s' "$s"
-      return 0
-      ;;
-    esac
+    _hi_list_has "$1" "$s" || continue
+    printf '%s' "$s"
+    return 0
   done
   return 0
 }

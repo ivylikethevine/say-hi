@@ -530,6 +530,28 @@ function test_lib_hash_fallbacks_agree_with_coreutils() {
   }
 }
 
+# ...and OpenBSD has neither of those: its sha256 -r (one space where
+# coreutils prints two) and, LibreSSL having no BLAKE2, python's blake2b.
+# The stand-in prints sha256 -r's own line, and the fallback has to make
+# coreutils' text-mode line of it: Git Bash's coreutils prints binary mode's
+# ` *` instead, so the hash is taken from it and the line built here.
+function test_lib_hash_fallbacks_agree_on_openbsd() {
+  local f="$_HI_WORKDIR/fallback-bsd.probe" bin="$_HI_WORKDIR/bsd-hash-bin" path sha b2 got
+  printf 'hash me\n' >"$f"
+  sha="$(_hi_in_pkglib sha256_of "$f")  $f"
+  b2="$(_hi_in_pkglib b2_of "$f")"
+  mkdir -p "$bin"
+  # shellcheck disable=SC2016 # the stand-in's own expansions
+  printf '#!/bin/sh\n[ "$1" = -r ] && shift\n[ "$1" = -- ] && shift\n"%s" "$@" | sed "s/ [ *]/ /"\n' "$(type -P sha256sum)" >"$bin/sha256"
+  printf '#!/bin/sh\nexit 1\n' >"$bin/openssl"
+  chmod +x "$bin/sha256" "$bin/openssl"
+  path="$bin:$(_hi_real_path bsd-hash-tools bash sh awk sed grep cat tr dirname readlink uname python3)"
+  got="$(PATH="$path" _hi_in_pkglib sha256_lines "$f")"
+  [ "$got" = "$sha" ] || _hi_because "sha256 -r: [$got], coreutils: [$sha]" || return 1
+  got="$(PATH="$path" _hi_in_pkglib b2_of "$f")"
+  [ "$got" = "$b2" ] || _hi_because "python's blake2b: [$got], b2sum: [$b2]"
+}
+
 # a secret file gpg cannot import is refused by name, before any fingerprint
 # comparison could report a confusing "not the key ... names"
 function test_lib_verify_signing_key_refuses_a_non_key_secret() {
@@ -732,6 +754,11 @@ function run_packaging_tests() {
   _hi_check_requires gpg "gpg_fpr reads a bad file as empty, never fatal" test_lib_gpg_fpr_is_empty_never_fatal
   _hi_check_capable symlink "lib.sh locates its tree through a symlink" test_lib_locates_its_tree_through_a_symlink
   _hi_check_requires shasum "sha256/blake2b fallbacks agree with coreutils" test_lib_hash_fallbacks_agree_with_coreutils
+  if command -v python3 >/dev/null 2>&1; then
+    _hi_check_requires sha256sum "...and OpenBSD's sha256 -r and python's blake2b too" test_lib_hash_fallbacks_agree_on_openbsd
+  else
+    _hi_skip "...and OpenBSD's sha256 -r and python's blake2b too" "no python3"
+  fi
   _hi_check_requires gpg "verify_signing_key's gpg verdicts" test_lib_verify_signing_key_gpg_verdicts
   _hi_check_requires gpg "verify_signing_key refuses a non-key secret" test_lib_verify_signing_key_refuses_a_non_key_secret
   _hi_check_requires openssl "verify_signing_key's rsa verdicts" test_lib_verify_signing_key_rsa_verdicts

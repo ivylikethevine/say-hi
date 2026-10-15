@@ -31,7 +31,7 @@ jobs:
   shard:
     name: fast suites (Git Bash ${{ matrix.arch }}, shard ${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -40,8 +40,13 @@ jobs:
         include:
           - arch: x64
             runner: windows-latest
+          # two suites at a time, not the core count: the emulated MSYS runtime
+          # with four suites and their cases besides ran at a load of 14 to
+          # 27 on four cores, where a 2s probe timed out and a case ran past
+          # its own waits
           - arch: arm64
             runner: windows-11-arm
+            width: 2
           # the check names: quarters 1-4
           - { shard: 1/4, label: "1" }
           - { shard: 2/4, label: "2" }
@@ -73,6 +78,8 @@ jobs:
         # partition the fast group
         env:
           HI_SHARD: ${{ matrix.shard }}
+          # empty is the runner's own width (the core count)
+          _HI_RUNNER_WIDTH: ${{ matrix.width }}
         run: |
           set -euo pipefail
           # belt and braces (hi.sh derives its tree, HI.33): a wrong one under

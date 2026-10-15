@@ -508,7 +508,8 @@ function test_hook_plugin_rows_hold_a_command_alone() {
 # the row, and is a prompt plugin's shells; `env` sends a variable set here
 # as its value: not one holding a quote, one unset, or one of a plugin that
 # is off. A shells with no init, a shell hi does not style, and a variable
-# whose name reads as a secret are each turned down (GLOSSARY: HI.62, HI.67)
+# whose name reads as a secret are each turned down, as are a prompt or a
+# default that is not one of its two words (GLOSSARY: HI.62, HI.67)
 function test_plugin_shells_and_env_ride_in_the_wiring() {
   local dir stubs w
   dir="$(_hi_overlay_fixture shells-env)"
@@ -520,6 +521,8 @@ function test_plugin_shells_and_env_ride_in_the_wiring() {
     printf '[mine.a]\nenv = "MY_TOKEN"\n'
     printf '[mine.b]\nshells = "zsh"\nfiles = "b.rc"\n'
     printf '[mine.c]\ninit = "c init {shell}"\nshells = "ksh"\n'
+    printf '[mine.d]\ninit = "d init {shell}"\nprompt = "maybe"\n'
+    printf '[mine.e]\nenv = "HI_T_E"\ndefault = "sometimes"\n'
   } >"$dir/plugins"
   stubs="$(_hi_stub_tools hi-hook-here hi-prompt-here)"
   w="$(_hi_hooks_wiring "$dir" "$stubs" "HI_T_PLAIN=a b;c" "HI_T_QUOTE=it's" HI_T_LATER=x)" || return 1
@@ -533,9 +536,11 @@ function test_plugin_shells_and_env_ride_in_the_wiring() {
   (
     _HI_CONFIG_DIR="$dir"
     _hi_plugins_load
-    [ "${#_HI_PLUGIN_BAD[@]}" = 3 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    [ "${#_HI_PLUGIN_BAD[@]}" = 5 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
     [[ "${_HI_PLUGIN_BAD[0]}" == *"a: env is variable names"* && "${_HI_PLUGIN_BAD[1]}" == *"b: shells needs an init"* &&
-      "${_HI_PLUGIN_BAD[2]}" == *"c: shells is any of bash, zsh, and fish"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")"
+      "${_HI_PLUGIN_BAD[2]}" == *"c: shells is any of bash, zsh, and fish"* &&
+      "${_HI_PLUGIN_BAD[3]}" == *"d: prompt is yes or no, not 'maybe'"* &&
+      "${_HI_PLUGIN_BAD[4]}" == *"e: default is on or off, not 'sometimes'"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")"
   ) || _hi_why _HI_PLUGIN_BAD
 }
 

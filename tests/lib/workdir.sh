@@ -107,7 +107,13 @@ function _hi_test_cleanup() {
   for c in $(_hi_ledger_rows dir); do
     rm -rf "$c" 2>/dev/null || true
   done
-  if [ -n "$_HI_WORKDIR" ]; then
+  # Under tests/coverage_v2.sh the tree outlives the suite, named in
+  # $_HI_COV_KEEP for the driver to remove: bashcov reads the trace after the
+  # suite exits, and a script run from a copy in here is credited to the
+  # repo's file only while the copy is still there to compare.
+  if [ -n "${_HI_COV_KEEP:-}" ] && [ -n "$_HI_WORKDIR" ]; then
+    printf '%s\n' "$_HI_WORKDIR" >>"$_HI_COV_KEEP"
+  elif [ -n "$_HI_WORKDIR" ]; then
     rm -rf "$_HI_WORKDIR" || true
   fi
   # the isolated config overlay and runtime dir from the top of test_lib.sh:

@@ -136,6 +136,93 @@ function test_coverage_drivers_shim_sh_to_bash() {
   }
 }
 
+# tests/coverage.sh --join, over two rankings as the drivers write them: a
+# row per file either tool listed, lowest average first, with a `!` where the
+# two read fifteen points apart or one never listed the file - and nothing
+# for a line that is not a ranking's row.
+function test_coverage_join_marks_what_the_tools_disagree_on() {
+  local dir="$_HI_WORKDIR/covjoin" out rc=0
+  mkdir -p "$dir"
+  printf '%s\n' ' |    90.00%     90/100    common/a.sh' ' |    50.00%      5/10     common/b.sh' \
+    ' |    80.00%      8/10     common/konly.sh' 'kcov reports 73.33% of lines executed' >"$dir/kcov"
+  printf '%s\n' ' |    95.00%     95/100    common/a.sh' ' |   100.00%     10/10     common/b.sh' \
+    ' |     0.00%      0/15     common/bonly.sh' >"$dir/bashcov"
+  out="$("$_HI_ROOT/tests/coverage.sh" --join "$dir/kcov" "$dir/bashcov" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || _hi_why rc out || return 1
+  [[ "$out" == *$' | !   0.00%        -        -  common/bonly.sh\n | ! 100.00%   50.00%   +50.00  common/b.sh\n'* ]] || _hi_because "the one-sided file, then the fifty-point gap, both marked: $out" || return 1
+  [[ "$out" == *$' | !       -   80.00%        -  common/konly.sh\n |    95.00%   90.00%    +5.00  common/a.sh' ]] || _hi_because "kcov's own file marked, the five-point gap not, in that order: $out" || return 1
+  [[ "$out" != *"kcov reports"* ]] || _hi_because "a line that is no row came through: $out" || return 1
+  # a ranking that is not there is said, and is a failure
+  out="$("$_HI_ROOT/tests/coverage.sh" --join "$dir/kcov" "$dir/none" 2>&1)" && rc=0 || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"no ranking at $dir/none"* ]] || _hi_why rc out
+}
+
+# _hi_cov_resultset <file> <suite> <path> <lines>... - a bashcov resultset of
+# one suite, each file's per-line hits as JSON
+function _hi_cov_resultset() {
+  local file="$1" sep=""
+  mkdir -p "${file%/*}"
+  printf '{"%s":{"coverage":{' "$2" >"$file"
+  shift 2
+  while [ "$#" -ge 2 ]; do
+    printf '%s"%s":{"lines":%s}' "$sep" "$1" "$2" >>"$file"
+    sep=,
+    shift 2
+  done
+  printf '}}}\n' >>"$file"
+}
+
+# tests/coverage_v2.sh --merge, over two shards: the suites' hits summed per
+# line, the ranking and the figure over the subject alone (no tests/, no
+# scratch/, no .github/, nothing outside the tree), and the union written out
+function test_coverage_v2_merge_reports_the_subject_alone() {
+  local dir="$_HI_WORKDIR/covmerge" root="$_HI_ROOT" out files missed pct rc=0
+  _hi_cov_resultset "$dir/shards/a/.resultset.json" one "$root/common/x.sh" '[null,1,0,0]' \
+    "$root/tests/t.sh" '[0,0]' /elsewhere/y.sh '[0]'
+  _hi_cov_resultset "$dir/shards/b/.resultset.json" two "$root/common/x.sh" '[null,0,2,0]' \
+    "$root/scratch/z.sh" '[0,0]' "$root/.github/scripts/q.sh" '[0]' "$root/hi.sh" '[1,null]'
+  out="$("$_HI_ROOT/tests/coverage_v2.sh" --merge "$dir/out" "$dir/shards" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || _hi_why rc out || return 1
+  files="$(cat "$dir/out/coverage-v2-pct/files" 2>&1)"
+  [ "$files" = $' |    66.67%      2/3      common/x.sh\n |   100.00%      1/1      hi.sh' ] || _hi_why files out || return 1
+  missed="$(cat "$dir/out/coverage-v2-pct/missed" 2>&1)"
+  [ "$missed" = common/x.sh:4 ] || _hi_why missed || return 1
+  pct="$(cat "$dir/out/coverage-v2-pct/pct" 2>&1)"
+  [ "$pct" = 75.00 ] && [[ "$out" == *"bashcov reports 75.00% of lines executed"* ]] || _hi_why pct out || return 1
+  out="$(cat "$dir/out/.resultset.json" 2>&1)"
+  [[ "$out" == *'"one"'* && "$out" == *'"two"'* ]] || _hi_because "the union lacks a shard's suite: $out"
+}
+
+# ...and it publishes no figure where there is none to give: no shards, or
+# shards that hold no line of the subject - a warning and exit 0 either way,
+# since a badge is never a gate
+function test_coverage_v2_merge_writes_no_figure_without_the_subject() {
+  local dir="$_HI_WORKDIR/covempty" out rc=0
+  mkdir -p "$dir/shards"
+  out="$("$_HI_ROOT/tests/coverage_v2.sh" --merge "$dir/out" "$dir/shards" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"nothing to merge"* ]] && [ ! -e "$dir/out/coverage-v2-pct/pct" ] || _hi_why rc out || return 1
+  _hi_cov_resultset "$dir/shards/a/.resultset.json" one "$_HI_ROOT/tests/t.sh" '[1,0]'
+  out="$("$_HI_ROOT/tests/coverage_v2.sh" --merge "$dir/out" "$dir/shards" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no product lines"* ]] && [ ! -e "$dir/out/coverage-v2-pct/pct" ] || _hi_why rc out
+}
+
+# tests/coverage.sh --untested, in a tree of its own: of the lines changed
+# since a revision, the ones on both tools' lists, a run of them joined - and
+# none that only one tool lists, or that did not change
+function test_coverage_untested_lists_changed_lines_both_tools_missed() {
+  local home tree out rc=0
+  home="$(_hi_scratch_tree covdiff link:common link:tests)"
+  tree="$home/say-hi"
+  cp -r "$(_hi_git_fixture)/.git" "$tree/.git"
+  printf '%s\n' a b c d e f >"$tree/x.sh"
+  git -C "$tree" add x.sh && git -C "$tree" commit -q -m x || _hi_why tree || return 1
+  printf '%s\n' a B C d E F G >"$tree/x.sh"
+  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:5 x.sh:7 >"$home/kcov"
+  printf '%s\n' x.sh:1 x.sh:2 x.sh:3 x.sh:6 x.sh:7 >"$home/bashcov"
+  out="$(_HI_HOME="$home" "$tree/tests/coverage.sh" --untested HEAD "$home/kcov" "$home/bashcov" 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [ "$out" = ' |   x.sh: 2-3, 7' ] || _hi_why rc out
+}
+
 # coverage.yml's pull_request path is for same-repo PRs only: pages.yml reads
 # the badge figures off the newest green run of it on branch `main`, which a
 # fork PR opened from its own `main` is - its sweep would publish as the
@@ -205,6 +292,23 @@ function _hi_shards_cover_group() {
     _hi_cecho " | $where's shard matrix does not partition the $group group" "$RED"
     return 1
   }
+}
+
+# coverage.yml's two sweeps take their slices dealt by their own tracer's
+# costs (tests/lib/coverage.sh), and each matrix still partitions the table
+function test_coverage_shards_partition_by_cost() {
+  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job tool entry slices got want
+  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
+  want="$("$_HI_TEST_RUN" --list 2>/dev/null | sort)"
+  for job in shard-kcov shard-bashcov; do
+    tool="${job#shard-}" slices=""
+    for entry in $(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
+      slices="$slices$(_HI_SHARD_BY="$tool" "$_HI_TEST_RUN" --shard "$entry" --list 2>/dev/null)"$'\n'
+    done
+    got="$(printf '%s' "$slices" | sed '/^$/d' | sort)"
+    [ "$got" = "$want" ] ||
+      _hi_because "$job's slices miss or repeat: $(comm -3 <(printf '%s\n' "$got") <(printf '%s\n' "$want") | tr '\n' ' ')" || return 1
+  done
 }
 
 function test_every_group_selects_only_its_own_suites() {
@@ -287,12 +391,22 @@ function run_runner_ci_tests() {
   # that ever drifted from the group's suite count would fail this the same
   # way an incomplete matrix would.
   _hi_check "ci.yml's e2e-backends shards cover the backends group" _hi_shards_cover_group ci.yml e2e-backends backends
+  _hi_check "coverage.yml's shards partition the table, dealt by each tracer's costs" test_coverage_shards_partition_by_cost
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "Every suite on disk is in the table" test_every_suite_script_on_disk_is_in_the_table
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
   _hi_check "coverage.yml merges with the tree checked out" test_coverage_merge_jobs_check_out_the_tree
   _hi_check "the coverage drivers shim sh to bash before sweeping" test_coverage_drivers_shim_sh_to_bash
   _hi_check "coverage.yml runs a PR's sweep for same-repo PRs only" test_coverage_pr_runs_are_same_repo_only
+  _hi_check "coverage.sh --join marks what the two tools disagree on" test_coverage_join_marks_what_the_tools_disagree_on
+  _hi_check "coverage.sh --untested lists the changed lines both tools missed" test_coverage_untested_lists_changed_lines_both_tools_missed
+  if command -v ruby >/dev/null 2>&1; then
+    _hi_check "coverage_v2.sh --merge ranks and figures the subject alone" test_coverage_v2_merge_reports_the_subject_alone
+    _hi_check "...and writes no figure where the subject has no line" test_coverage_v2_merge_writes_no_figure_without_the_subject
+  else
+    _hi_skip "coverage_v2.sh --merge ranks and figures the subject alone" "no ruby"
+    _hi_skip "...and writes no figure where the subject has no line" "no ruby"
+  fi
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites
 
   _hi_suite_end "test_runner.sh (ci)"

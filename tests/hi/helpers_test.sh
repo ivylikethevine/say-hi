@@ -182,7 +182,8 @@ function test_flag_help_splits_local_from_anywhere() {
   # every common/flags row lands on exactly one side: one label line each
   # (a wide label's help sits on its own line, indented past the flag column)
   local total
-  total="$(grep -Ecv '^(#|$)' "$_HI_ROOT/common/flags")"
+  # a <flag>=<word> row is a completion word, no line of --help's
+  total="$(grep -Ev '^(#|$)' "$_HI_ROOT/common/flags" | grep -cv '^[^|]*=')"
   got="$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')"
   [ "$got" = "$total" ] || _hi_why got anywhere local_rows total
 }

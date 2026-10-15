@@ -89,11 +89,11 @@ function _hi_header_preview() {
   (
     # no wider than the menu's box can hold: a session clamps to its
     # terminal the same way
-    w="${width:-80}"
+    w="${width:-$_HI_MAX_WIDTH_DEFAULT}"
     ((w > _HI_MENU_W - 8)) && w=$((_HI_MENU_W - (_HI_MENU_W < 60 ? 6 : 8)))
     export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="$w"
     export _HI_PACKAGES_GROUPS="$groups" _HI_PACKAGES_PALETTE="$palette"
-    export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
+    export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-$_HI_IP_HIDE_DEFAULT}"
     # the palette and the check ramps were captured at source time;
     # rebuild both under this run's scheme so the preview paints with it
     # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
@@ -191,7 +191,7 @@ function _hi_check_preview() {
   esac
   # no wider than the menu's box can hold, as the header's preview is
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" w
-  w="${w:-80}"
+  w="${w:-$_HI_MAX_WIDTH_DEFAULT}"
   ((w > _HI_MENU_W - 8)) && w=$((_HI_MENU_W - (_HI_MENU_W < 60 ? 6 : 8)))
   out="$(_HI_MAX_WIDTH="$w" _HI_PACKAGES_GROUPS="${groups:-$_HI_PACKAGES_GROUPS_DEFAULT}" full_check)"
   if [ -n "$out" ]; then
@@ -321,8 +321,9 @@ function _hi_prompt_tool_preview() {
     *)
       _hi_prompt_row "$name" r
       r="${r#*|}"
-      case " ${r%%|*} " in *" $1 "*) ;; *) continue ;; esac
-      case " $found " in *" $name "*) note="found here" ;; *) note="not found here" ;; esac
+      _hi_list_has "${r%%|*}" "$1" || continue
+      note="not found here"
+      ! _hi_list_has "$found" "$name" || note="found here"
       ;;
     esac
     [ "$name" != hi ] || note="hi's own prompt"

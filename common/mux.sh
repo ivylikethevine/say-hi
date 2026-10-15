@@ -13,7 +13,9 @@
 # its panes are the machine's own, and goes on to the tool.
 #
 # With words of its own (`tmux attach`, `tmux new -s work`) it is the user's,
-# and starts on the config hi carried, as the alias this one replaces did.
+# and starts on the config hi carried, as the alias this one replaces did; a
+# kept session starts through here too (keep.sh's _hi_keep_start), so each
+# tool's config flag is spelled once.
 # POSIX sh: it runs where the tool does, bash or not. GLOSSARY: HI.65
 _hi_t="$1"
 shift

@@ -55,15 +55,16 @@ first time a spelling costs a CI round trip.
 
 ## Files and dates
 
-| Write                                             | Not                          | Breaks on                                                                                                      | Caught by |
-| ------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- | --------- |
-| `date +%e`                                        | `date +%-e`                  | BSD strftime prints `%-e` literally ([HI.10](GLOSSARY.md#hi10-strftime-e-over--e))                             | `drift`   |
-| `stat -c '%a' f 2>/dev/null \|\| stat -f '%Lp' f` | `stat -c` alone              | BSD and macOS `stat` spell formats with `-f`                                                                   | `drift`   |
-| `cd -P "$d" && pwd -P`                            | `readlink -f`                | absent from older macOS                                                                                        | `drift`   |
-| `mktemp -t hi.name.XXXXXX`, or a path template    | `mktemp -t name` with no X's | GNU refuses a template without X's; BSD takes `-t` as a prefix, so an X template is the one spelling both read | `drift`   |
-| test for empty input, then `xargs`                | `xargs -r`                   | BSD `xargs` has no `-r`                                                                                        | `drift`   |
-| `tar -c -f - … \| gzip -n`                        | `tar -c -z -f -`             | bsdtar pads the compressed stream ([HI.38](GLOSSARY.md#hi38-split-tar-and-gzip))                               | a suite   |
-| `tar -x -f … -C <dir>`, then read the file        | `tar -x -O -f …` to stdout   | OpenBSD's tar: `-O` writes an old-style archive, so the extract prints nothing                                 | a suite   |
+| Write                                             | Not                          | Breaks on                                                                                                      | Caught by      |
+| ------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------- |
+| `date +%e`                                        | `date +%-e`                  | BSD strftime prints `%-e` literally ([HI.10](GLOSSARY.md#hi10-strftime-e-over--e))                             | `drift`        |
+| `stat -c '%a' f 2>/dev/null \|\| stat -f '%Lp' f` | `stat -c` alone              | BSD and macOS `stat` spell formats with `-f`                                                                   | `drift`        |
+| `cd -P "$d" && pwd -P`                            | `readlink -f`                | absent from older macOS                                                                                        | `drift`        |
+| `mktemp -t hi.name.XXXXXX`, or a path template    | `mktemp -t name` with no X's | GNU refuses a template without X's; BSD takes `-t` as a prefix, so an X template is the one spelling both read | `drift`        |
+| test for empty input, then `xargs`                | `xargs -r`                   | BSD `xargs` has no `-r`                                                                                        | `drift`        |
+| `tar -c -f - … \| gzip -n`                        | `tar -c -z -f -`             | bsdtar pads the compressed stream ([HI.38](GLOSSARY.md#hi38-split-tar-and-gzip))                               | a suite        |
+| `tar -x -f … -C <dir>`, then read the file        | `tar -x -O -f …` to stdout   | OpenBSD's tar: `-O` writes an old-style archive, so the extract prints nothing                                 | a suite        |
+| `ps -A -o pid= -o ppid=`                          | `ps -eo pid=,ppid=`          | BSD `ps`: `-e` adds the environment, and the text after a `=` is the rest of the argument, so one column       | `test_lib_par` |
 
 ## bash 3.2
 
@@ -79,6 +80,7 @@ the first four rows.
 | `tr '[:upper:]' '[:lower:]'`                                | `${x,,}`                                              | bash 4                                                                                         | `drift`                                                     |
 | `${a[@]+"${a[@]}"}`, and a plain `"${!a[@]}"`               | `"${a[@]}"` of a maybe-empty array, or `${!a[@]+…}`   | "unbound variable" under `set -u` ([HI.01](GLOSSARY.md#hi01-empty-array-guard))                | `drift` (the index form)                                    |
 | comments above a `$( … )`, apostrophe-free inside one       | a `'` in a comment inside `$( … )`                    | the whole file fails to parse ([HI.29](GLOSSARY.md#hi29-apostrophes-in-substitution-comments)) | `bash -n` under the bash:3.2 image                          |
+| a `case` in a function the `$( … )` or `<( … )` calls       | a `case` inside the `$( … )` or `<( … )`              | the whole file fails to parse: "syntax error near unexpected token `;;'"                       | `bash -n` under the bash:3.2 image                          |
 | `_hi_shquote`                                               | `${2//\'/…}`                                          | 3.2 keeps the replacement's quoting ([HI.40](GLOSSARY.md#hi40-hand-rolled-sh-quoting))         | `hi_helpers` and `hi_dispatch`, on the macOS job's bash 3.2 |
 | `d="${m%%/*}"`, then `${x//$d/…}`                           | `${x//${m%%/*}/…}`                                    | bash 3.2 ends the pattern at the `/` inside the nested expansion: "bad substitution"           | `drift`                                                     |
 | `if ((BASH_VERSINFO[0] > 4 \|\| …))` around a newer builtin | `printf '%(…)T'` unguarded                            | bash before 4.2 has no `%(…)T`                                                                 | the header suite on macOS                                   |

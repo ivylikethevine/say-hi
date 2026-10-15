@@ -28,7 +28,10 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 function test_workdir_creates_a_scratch_dir() {
   local dir
+  # a coverage driver's $_HI_COV_KEEP would keep the directory: the plain
+  # path is this case's
   dir="$(
+    unset _HI_COV_KEEP
     _hi_workdir probe
     printf '%s' "$_HI_WORKDIR"
   )"
@@ -54,12 +57,30 @@ function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
   local inner
   inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
   (
+    unset _HI_COV_KEEP
     _HI_WORKDIR="$inner"
     _HI_LEDGER=""
     _HI_EXTRA_CLEANUP=_hi_false
     _hi_test_cleanup
   )
   [ ! -d "$inner" ] || _hi_why inner
+}
+
+# under tests/coverage_v2.sh the workdir outlives the suite, named in
+# $_HI_COV_KEEP for the driver to credit its copies and remove it
+function test_test_cleanup_keeps_the_workdir_for_a_coverage_driver() {
+  local inner kept keep="$_HI_WORKDIR/covkeep"
+  inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
+  : >"$keep"
+  (
+    _HI_COV_KEEP="$keep"
+    _HI_WORKDIR="$inner"
+    _HI_LEDGER=""
+    _HI_EXTRA_CLEANUP=""
+    _hi_test_cleanup
+  )
+  kept="$(cat "$keep")"
+  [ -d "$inner" ] && [ "$kept" = "$inner" ] || _hi_why inner kept
 }
 
 # The ledger's whole reason for being a file: the background subshell's entry
@@ -110,6 +131,12 @@ function test_cleanup_sweeps_containers_then_networks() {
 function _hi_par_skipper() { _hi_skip "[a skipped case]" "on purpose"; }
 function _hi_par_exits() { exit 0; }
 function _hi_par_says() { printf '%s\n' "$1"; }
+# a case that never ends: a sleep it waits on, its pid written to $1
+function _hi_par_hangs() {
+  sleep 30 &
+  printf "%s" "$!" >"$1"
+  wait "$!"
+}
 
 # Two cases that each wait on a file the other creates: run together both
 # return at once, run in turn the first spends its whole budget and fails.
@@ -170,6 +197,30 @@ function test_par_case_without_a_verdict_counts_as_a_failure() {
     [ "$_HI_TOTAL" -eq 1 ] && [ "$_HI_FAILED" -eq 1 ]
   ) >/dev/null || _hi_why fails _HI_TOTAL _HI_FAILED || return 1
   grep -q 'vanished' "$fails" || _hi_why fails
+}
+
+# a case past $_HI_PAR_CASE_LIMIT is stopped, the process it started with it,
+# and fails with its processes listed; the case beside it still reports
+function test_par_case_past_the_limit_is_stopped() {
+  local fails="$_HI_WORKDIR/par-late-fails" out pidf="$_HI_WORKDIR/par-late.pid" child
+  : >"$fails"
+  out="$(
+    _HI_FAILS_FILE="$fails" _HI_PAR_CASE_LIMIT=2
+    _hi_suite_begin
+    _hi_par_begin "limit probe"
+    _hi_par_case hangs _hi_par_hangs "$pidf"
+    _hi_par_case ok _hi_true
+    _hi_par_wait
+    printf 'total=%s failed=%s\n' "$_HI_TOTAL" "$_HI_FAILED"
+  )" || _hi_why out || return 1
+  child="$(cat "$pidf")"
+  if kill -0 "$child" 2>/dev/null; then
+    kill -9 "$child" 2>/dev/null || true
+    _hi_because "its sleep $child outlived it: $out"
+    return 1
+  fi
+  [[ "$out" == *"[hangs] -- still running after 2s"*"sleep"*"total=2 failed=1"* ]] || _hi_why out || return 1
+  grep -qF '[hangs] still running after 2s, stopped' "$fails" || _hi_why fails
 }
 
 # _hi_expect_eq's whole reason to exist is the failure transcript: a bare
@@ -284,6 +335,7 @@ function run_lib_parallel_tests() {
   _hi_check "Workdir creates a scratch dir" test_workdir_creates_a_scratch_dir
   _hi_check "Cleanup runs the suite-specific hook" test_test_cleanup_runs_the_extra_hook_first
   _hi_check "Cleanup removes the workdir even if the hook fails" test_test_cleanup_removes_the_workdir_even_if_the_hook_fails
+  _hi_check "...and keeps it, named, for a coverage driver" test_test_cleanup_keeps_the_workdir_for_a_coverage_driver
   _hi_check "Track_container records from a subshell too" test_track_container_records_from_a_subshell_too
   _hi_check "Cleanup sweeps containers, then networks" test_cleanup_sweeps_containers_then_networks
 
@@ -291,6 +343,7 @@ function run_lib_parallel_tests() {
   _hi_check "Tallies pass, fail, and skip" test_par_case_tallies_pass_fail_and_skip
   _hi_check "A failed assertion is recapped once" test_par_failed_assertion_is_recapped_once
   _hi_check "A case with no verdict is a failure" test_par_case_without_a_verdict_counts_as_a_failure
+  _hi_check "A case past _HI_PAR_CASE_LIMIT is stopped, and fails" test_par_case_past_the_limit_is_stopped
   _hi_check "Transcripts replay in submission order" test_par_wait_replays_in_submission_order
   _hi_check "The cases really do overlap" test_par_cases_really_run_at_once
   _hi_check "_HI_PAR_WIDTH=1 really serializes" test_par_width_one_really_serializes

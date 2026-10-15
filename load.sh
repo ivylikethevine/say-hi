@@ -456,9 +456,11 @@ $1 == "extendsyntax" && !($2 in have) {
 # it waits the session's window more (_hi_keep_holds), or until `hi --end`
 # leaves hi.end. A connect that takes the tree rewrites hi.pid first, and a
 # tree whose hi.pid is no longer that shell's is left to its new session.
-# <step> and <poll> are the two waits, a test's to shorten. GLOSSARY: HI.65
+# <step> and <poll> are the two waits, a test's to shorten; a session's step
+# is $_HI_WATCH_STEP's, a test lever, else 60. GLOSSARY: HI.65
 function _hi_tree_watch() {
-  local pid="$$" step="${1:-60}" poll="${2:-5}" limit=0 t0
+  local pid="$$" step="${1:-${_HI_WATCH_STEP:-$_HI_WATCH_STEP_DEFAULT}}" poll="${2:-5}" limit=0 t0
+  case "$step" in '' | 0* | *[!0-9]*) step="$_HI_WATCH_STEP_DEFAULT" ;; esac
   [ -n "${_HI_CLEANUP:-}" ] && [ -d "$_HI_CLEANUP" ] || return 0
   [ -z "${_hi_keep_tty:-}" ] || limit="${_hi_keep_limit:-0}"
   {
@@ -550,7 +552,8 @@ function load() {
   # the greeting and its three timers are a line of their own, not part of
   # the header: they survive $_HI_DISABLE_HEADER and answer to their own
   # toggle
-  local shell greeting color timer max width close=0 pad=""
+  local shell greeting color
+  local -a cells
   _hi_session_shell shell
   if [[ "${_HI_DISABLE_GREETING:-0}" != 1 ]]; then
     case "$shell" in
@@ -558,31 +561,16 @@ function load() {
     zsh) greeting="zsh shell! :)" color="$PURPLE" ;;
     *) greeting="bash today :(" color="$RED" ;;
     esac
-    _hi_cecho " | " "$NC" 1
-    _hi_cecho "hi loaded: " "$BRCYAN" 1
-    _hi_cecho "$greeting" "$color" 1
-    # wrapped and closed like the header rows above it; with the header off
-    # this line continues hi.sh's, whose width is not known here, so it runs on
-    max=0 width=$((14 + ${#greeting}))
+    cells=("${BRCYAN}hi loaded: $color$greeting" "init: ${_HI_CONNECT_TIME:--1}s" "copy: ${_HI_COPY_TIME:--1}s"
+      "load: $(_hi_elapsed "$start" "$(_hi_now)")s")
+    # a header row, wrapped and closed like the ones above it; with the header
+    # off this line continues hi.sh's, whose width is not known here, so it
+    # runs on
     if [[ "${_HI_DISABLE_HEADER:-0}" != 1 ]]; then
-      _hi_draw_width max
-      [[ "${_HI_DISABLE_RIGHT_EDGE:-0}" == 1 ]] || { close=1 max=$((max - 2)); }
+      header_row "${cells[@]}"
+    else
+      printf '%b' "${cells[@]/#/$NC | }" "$NC\n"
     fi
-    for timer in "init: ${_HI_CONNECT_TIME:--1}" "copy: ${_HI_COPY_TIME:--1}" \
-      "load: $(_hi_elapsed "$start" "$(_hi_now)")"; do
-      timer=" | ${timer}s"
-      if ((max && width + ${#timer} > max)); then
-        _hi_repeat pad $((max - width)) ' '
-        ((close)) && printf '%s |' "$pad"
-        printf '\n'
-        width=0
-      fi
-      printf '%s' "$timer"
-      width=$((width + ${#timer}))
-    done
-    _hi_repeat pad $((max - width)) ' '
-    ((close)) && printf '%s |' "$pad"
-    printf '\n'
   else
     _hi_line_close
   fi

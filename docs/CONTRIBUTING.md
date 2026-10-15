@@ -186,7 +186,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The twenty-four flags in `common/flags`** — name, argument shape, and what
+- **The twenty-five flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -200,8 +200,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
   `--update --dry-run`, `--add-package --dry-run`, `--remove-package --dry-run`,
-  `--add-tag --dry-run`, `--set-color --dry-run`, `--unset-color --dry-run`,
-  `--plugin-off --dry-run`, `--plugin-on --dry-run`, `--add-plugin --dry-run`,
+  `--add-tag --dry-run`, `--add-color --dry-run`, `--remove-color --dry-run`,
+  `--disable-plugin --dry-run`, `--enable-plugin --dry-run`, `--add-plugin --dry-run`,
   `--remove-plugin --dry-run`, `scripts/install.sh --prefix <dir>` — name and
   meaning (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
   `--install --yes`; no other switch has one); and the `--json` document's
@@ -213,9 +213,10 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name
   and default (the type is what the row's prose says: `0`/`1`, a number, a
   word list, a name from a fixed set). A toggle that has to go is a 2.0. A
-  new `_HI_DISABLE_*` toggle is a minor, and lands in `_HI_TOGGLES`,
-  `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
-  together, or "all of the above" quietly stops meaning all of them. An
+  new `_HI_DISABLE_*` toggle is a minor, and lands in its `scripts/settings`
+  row (check `toggle`), `_HI_TOGGLES`, `config.fish`'s mirror, and
+  `_HI_DISABLE_LOCAL`'s block in `common/paths.sh` together, or "all of the
+  above" quietly stops meaning all of them. An
   opt-in (`_HI_TOOL_ALIASES`'s shape) stays out of `_HI_TOGGLES`: it takes
   its `0` from `common/aliases.sh`'s backstop line, every reader compares it
   against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.

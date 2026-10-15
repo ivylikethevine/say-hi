@@ -10,7 +10,7 @@ none of them, and what hi put there is removed when it ends. Nothing is
 installed on the host. The same command opens a session in a container, a
 Nomad allocation, or a Kubernetes pod.
 
-![Payload](https://img.shields.io/badge/ssh_payload-77KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -239,15 +239,15 @@ row, and everything answered **no**, and why:
 - `hi --add-tag web1 prod` writes the `# Tags: prod` line above `Host web1`
   in `~/.ssh/config`, which a `hosttag` row then colors
   ([docs/COLORS.md](docs/COLORS.md)).
-- `hi --set-color hostname prod-db yellow` pins a color in
+- `hi --add-color hostname prod-db yellow` pins a color in
   `~/.config/say-hi/colors`, copying the shipped pins there first;
-  `hi --unset-color hostname prod-db` removes the pin.
+  `hi --remove-color hostname prod-db` removes the pin.
 - `hi --plugins` lists every config hi carries to a target, and what rides;
-  `hi --plugin-off lazygit vim` keeps a plugin home and
-  `hi --plugin-on` brings it back; `hi --add-plugin` and `hi --remove-plugin`
+  `hi --disable-plugin lazygit vim` keeps a plugin home and
+  `hi --enable-plugin` brings it back; `hi --add-plugin` and `hi --remove-plugin`
   carry the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-four flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty-five flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
@@ -276,7 +276,7 @@ Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
 along to every host you say `hi` to. `settings.sh` is what `hi --configure`
 writes; the install copies nothing else there, so the shipped `colors` and
 `packages` apply until you copy one out of the tree's `config/` to edit
-(`hi --add-package` and `hi --set-color` do the copying) or add an
+(`hi --add-package` and `hi --add-color` do the copying) or add an
 `aliases.sh` of your own. The editor rcs need no copy: hi carries your
 own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
@@ -296,7 +296,7 @@ removed on exit:
 
 Every username and hostname gets a color derived from its name; a line in
 `~/.config/say-hi/colors` (`prod-db = "yellow"` under `[hostname]`, which
-`hi --set-color hostname prod-db yellow` writes) pins one, and
+`hi --add-color hostname prod-db yellow` writes) pins one, and
 `hi --preview colors` shows what every host and your user resolve to. Tags
 (`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
 schemes of your own, and using the hash in your own prompt:
@@ -388,66 +388,110 @@ when it lands.
        shipped: both of its halves are `common/keep.sh`'s, with `load.sh`
        standing in for a tree that came without the file as `hi.sh` does;
        the multiplexers are one roster, `$_HI_MUXES`; and the file lists
-       every `hi.*` file a session leaves in its tree. Left: a tool's config
-       flag is spelled in `_hi_keep_start` and again in `common/mux.sh`, the
-       kill in `_hi_keep_end_script` and in `_hi_keep_kill`, and
-       `_hi_remote_middle` takes the feature as four string fragments.
-       **Ticks when:** each of the three is written once, and the fast,
-       lint, bench, and keep suites are green in CI with it.
+       every `hi.*` file a session leaves in its tree; a kept session starts
+       through `common/mux.sh`, which alone spells each tool's config flag;
+       `_hi_mux_kill` is the one kill, sent to `hi --end`'s target as
+       written; and `_hi_keep_middle` is the feature's whole part in
+       `_hi_remote_middle`. **Ticks when:** the fast, lint, bench, and keep
+       suites are green in CI with it.
 
 4. [ ] _Before 1.0:_ **Shared primitives are written once** — shipped:
-       `_hi_list_has` reads the payload's space-or-comma lists, `_hi_die` is
-       `common/core.sh`'s alone, so a script's refusal names the script, and
-       an owner pane's variables are one list. Left: the same list idiom in
-       `scripts/`, and the greeting line's own wrap in `load()` beside the
-       header's rows. **Ticks when:** both are gone and the fast and lint
-       groups are green in CI.
+       `_hi_list_has` answers the word-list membership tests, `scripts/`'
+       included; `_hi_die` is `common/core.sh`'s alone, so a script's refusal
+       names the script; an owner pane's variables are one list; and
+       `load()`'s greeting is a `header_row`, wrapped and closed by the
+       header's own code. **Ticks when:** the fast and lint groups are green
+       in CI with it.
 
-5. [ ] _Before 1.0:_ **`scripts/settings` is the one registry** — a
-       setting's default is spelled where it is read (`_HI_PROBE_TIMEOUT`
-       nine times, `_HI_MAX_WIDTH` three), its validator and that
-       validator's wording in `hi --doctor` and again in `hi --configure`,
-       and the toggles in `common/core.sh`, `common/paths.sh`, and
-       `common/config.fish`. **Ticks when:** a row carries its validator and
-       hint for both readers, the runtime defaults are one block in
-       `common/core.sh` that `drift` pins to the table, and a new setting is
-       one row and one read.
+5. [ ] _Before 1.0:_ **`scripts/settings` is the one registry** — shipped:
+       a row carries its `<check>` and `<hint>`, which `hi --doctor` judges
+       a hand-written value by and `hi --configure` an answer by
+       (`_hi_setting_check`); every default that is not 0 or unset is one
+       block in `common/core.sh` that drift pins to the rows, with
+       `common/targets.sh`'s two copies; and drift pins `_HI_TOGGLES` to the
+       rows whose check is `toggle`. A new setting is a row and a read, plus
+       a block line for a default that is not 0 or unset. **Ticks when:** the
+       fast and lint groups are green in CI with it.
 
-6. [ ] _Before 1.0:_ **`common/flags` reaches past dispatch** — each
-       `scripts/` entry point has its own preamble, option loop, and mode
-       flip; `hi --doctor` sorts ssh options from a target with a loop of
-       its own beside `_hi_parse`; a flag's completable words are literals
-       in `common/targets.sh`; and the data files' flags follow four verb
-       schemes (`--add-package`, `--set-color`, `--plugin-on`, `--add-tag`
-       with no remove). **Ticks when:** the scripts share one option loop,
-       doctor and a connect share one sorter, and the verbs are one scheme,
-       settled before the tag freezes them.
+6. [ ] _Before 1.0:_ **`common/flags` reaches past dispatch** — shipped:
+       the data files' flags are one scheme, `--add-X`/`--remove-X`
+       (`--add-color`, `--remove-color`, `--remove-tag`), with
+       `--enable-plugin`/`--disable-plugin` as the switch; the scripts that
+       take only `--help`, `--dry-run`, and words share `_hi_args`;
+       `hi --doctor` sorts ssh options with a connect's `_hi_ssh_opt`; and a
+       flag's fixed words are `common/flags`' `<flag>=<word>` rows, which
+       completion and `--add-color`'s types read. `scripts/update.sh` keeps a
+       loop of its own, since its `--help` answers ahead of the `.git` check,
+       and `--use`'s words stay hi.sh's arms in their order. **Ticks when:**
+       the fast and lint groups are green in CI with it.
 
 7. [ ] _Before 1.0:_ **One transport** — `_say_hi` and `_say_hi_container`
        each make the scratch directory, send the tree, fall back without
-       bash, and clean up in their own way, so `--keep` is the ssh arm's
-       alone and `hi --doctor` has two target halves. `_hi_container_cmds`'
-       probe, cp, and attach are the interface, and ssh fits it. **Ticks
-       when:** a container target takes the script an ssh one does, through
-       its own three commands, and the e2e and backends groups are green in
-       CI with it.
+       bash, and clean up in their own way: a container takes seven or more
+       `exec` calls, has no `--keep`, and `hi --doctor` has two target
+       halves. The design, approved and not yet built: (1)
+       `_hi_transport_cmds <arm>` fills `probe` (no stdin, no tty), `cp`
+       (stdin), and `attach` (a tty where there is one) for every arm, a
+       container's `_hi_container_cmds`' and ssh's `ssh` over the
+       ControlMaster as `-n`, stdin, and `-t`; (2) every arm boots in one
+       `cp` call - make the temp directory, write the script, check the bytes
+       that landed, print the path - and runs in one `attach`,
+       `sh <dir>/bootloader`, then removes the directory, so a container
+       takes ssh's script, the tree armored inside it, and with it the
+       script's no-bash ladder (`_hi_container_no_bash` goes), one size
+       figure (`_hi_wire_bytes`), and the kept session's start and reattach;
+       (3) `hi --doctor`'s target half is one, probing through `probe`; (4)
+       left per arm: ssh's ControlMaster, keepalive, reconnect loop, and
+       PowerShell notice, a container's name resolution, and both `--plain`
+       paths, with a dropped container `exec` not retried; (5) docs: GLOSSARY
+       HI.43 and HI.65, SECURITY's _What hi writes on a target_, TESTING. The
+       cost is a third more bytes for a container (armored, where a raw tar
+       went before); nomad's and kube's stdin and tty handling is why the
+       boot checks what landed. **Ticks when:** a container target takes the
+       script an ssh one does, through its own three commands, and the e2e
+       and backends groups are green in CI with it.
 
-8. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
-       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
-       **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
-       versions_ prose into its version table.
+8. [ ] _Before 1.0:_ **The coverage comment names what a PR left
+       untested** — shipped: `coverage.yml`'s comment lists the lines a PR
+       changed that neither tool recorded, less the shapes `xtrace` never
+       prints, and `tests/coverage.sh --untested <revision>` does the same by
+       hand. PR 214's comment carried it, two real gaps among three
+       artifacts the filter now drops. **Ticks when:** a PR's comment lists
+       only arms no case reaches.
 
-9. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
-       upstream style. **Do:** open the PR against tldr-pages. **Ticks
-       when:** merged.
+9. [ ] _Before 1.0:_ **Known tracer artifacts are marked in the source** —
+       shipped: an arm neither tool can reach in a sweep (zsh's, a bash
+       before 4.4's, Arch's `makepkg`) sits between `# hi-nocov-begin: <why>`
+       and `# hi-nocov-end`, which kcov drops by `--exclude-region` and
+       `tests/coverage_v2.sh` by the same pair; the bashcov header keeps only
+       what a marker cannot express. **Ticks when:** a CI sweep's two figures
+       leave the marked arms out.
 
-10. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
+10. [ ] _Before 1.0:_ **kcov's trace method is confirmed in CI** —
+        shipped: `tests/coverage.sh` takes the method from the suites'
+        bash: `PS4` before 5.3, `DEBUG` from it. `DEBUG` does not follow a
+        suite into the child bash it starts, so a file reached only that way
+        reads 0 (PR 214's sweep under it read 62.72% against `PS4`'s 90.76%
+        on bash 5.2); `PS4` stops recording on 5.3 (the script's header has
+        the probe). **Ticks when:** a full CI sweep lands within a point of
+        90.76%.
+
+11. [ ] _At the 1.0.0 tag:_ **A stability contract is written down** —
+        [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+        **Ticks when:** the tag commit turns `docs/SECURITY.md`'s _Supported
+        versions_ prose into its version table.
+
+12. [ ] _Post 1.0:_ **tldr page** — `docs/tldr.md` matches `docs/hi.1` and
+        upstream style. **Do:** open the PR against tldr-pages. **Ticks
+        when:** merged.
+
+13. [ ] _Post 1.0:_ **Best Practices badge** — the answers are in
         [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
         settle its three flagged rows (`small_tasks`, `secure_2FA`,
         `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
         the live entry matches the sheet.
 
-11. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+14. [ ] _Post 1.0:_ **AUR** — registration is closed to new accounts, so
         `publish-external.yml`'s `aur` job is written but unexercised. **When
         it reopens:** register, add `AUR_SSH_KEY` to the `release`
         environment, and push each package once by hand

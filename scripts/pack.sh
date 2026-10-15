@@ -72,11 +72,21 @@ _HI_OVERLAY_TABLE=(
 # _hi_row_col <row> <column> <outvar> - one column of a row, by the name the
 # table's comment gives it
 function _hi_row_col() {
-  local _hi_rc_r="$1" _hi_rc_n
-  for _hi_rc_n in member variable tree tool group plugin wire off dialect home; do
-    [ "$_hi_rc_n" != "$2" ] || break
-    _hi_rc_r="${_hi_rc_r#*|}"
-  done
+  local _hi_rc_r="$1"
+  # the columns ahead of it cut in one expansion: called for every row of
+  # every pack, a loop of ten was most of a pack's time
+  case "$2" in
+  member) ;;
+  variable) _hi_rc_r="${_hi_rc_r#*|}" ;;
+  tree) _hi_rc_r="${_hi_rc_r#*|*|}" ;;
+  tool) _hi_rc_r="${_hi_rc_r#*|*|*|}" ;;
+  group) _hi_rc_r="${_hi_rc_r#*|*|*|*|}" ;;
+  plugin) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|}" ;;
+  wire) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|*|}" ;;
+  off) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|*|*|}" ;;
+  dialect) _hi_rc_r="${_hi_rc_r#*|*|*|*|*|*|*|*|}" ;;
+  *) _hi_rc_r="${_hi_rc_r##*|}" ;;
+  esac
   printf -v "$3" '%s' "${_hi_rc_r%%|*}"
 }
 
@@ -144,7 +154,7 @@ function _hi_member_dialect() {
 # the members alone, and those with a tree default the overlay's copy
 # replaces wholesale on a target (aliases.sh is not one - the overlay's is
 # sourced on top of the tree's); _hi_payload_excl reads the second
-_HI_OVERLAY_FILES=() _HI_OVERLAY_SHADOWS=" "
+_HI_OVERLAY_FILES=() _HI_OVERLAY_SHADOWS=" " _HI_TAKEN_OWN=""
 # ...and every toggle an <off> column names, once each, for _hi_plugin_off
 _HI_OFF_TOGGLES=" "
 for _hi_r in "${_HI_OVERLAY_TABLE[@]}"; do
@@ -163,6 +173,9 @@ unset _hi_r _hi_w
 # what it turned down, `<file>:<line>|<why>` each, for scripts/doctor.sh.
 # GLOSSARY: HI.63
 _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=() _HI_PLUGIN_KEY=""
+# bumped by each load, so what is kept off the rows (_hi_overlay_row's index)
+# knows to redo itself
+_HI_PLUGIN_GEN=0
 # The plugins with a shell hook, `<group>|<name>|<tool>|<init>|<prompt>|<shells>`
 # each (HI.67), those with variables to send, `<group>|<name>|<variables>`
 # (HI.62), and the names whose `default` is off, a space around each: on only
@@ -275,7 +288,7 @@ function _hi_prompt_here() {
     _hi_hook_col "$_hi_pl_r" prompt _hi_pl_p
     [ "$_hi_pl_p" = yes ] || continue
     _hi_hook_col "$_hi_pl_r" name _hi_pl_t
-    case " $_hi_pl_out " in *" $_hi_pl_t "*) continue ;; esac
+    ! _hi_list_has "$_hi_pl_out" "$_hi_pl_t" || continue
     _hi_hook_here "$_hi_pl_r" && ! _hi_hook_off "$_hi_pl_r" && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
   done
   _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
@@ -359,18 +372,44 @@ source "$_HI_ROOT/scripts/pack_plugins.sh"
 
 # _hi_overlay_row <member> [outvar] - its row, $_HI_OVERLAY_TABLE's then the
 # plugins files' ($_HI_PLUGIN_ROWS): its own or the directory entry (a
-# trailing /) it sits under
+# trailing /) it sits under, the first of them in that order. Looked up in
+# $_HI_OVERLAY_INDEX, `<member>|<position>` a line for the first row of each
+# member, made once a load: a scan of every row was most of a pack's time.
+_HI_OVERLAY_INDEX="" _HI_OVERLAY_INDEX_GEN=""
 function _hi_overlay_row() {
-  local _hi_or
+  local _hi_or_nl=$'\n' _hi_or_m="$1" _hi_or_k _hi_or_i _hi_or_at=""
   _hi_plugins_load
-  for _hi_or in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
-    case "$1" in "${_hi_or%%|*}" | "${_hi_or%%/|*}"/?*)
-      _hi_out "${2:-}" "$_hi_or"
-      return 0
+  if [ "$_HI_OVERLAY_INDEX_GEN" != "$_HI_PLUGIN_GEN" ]; then
+    _HI_OVERLAY_INDEX="" _HI_OVERLAY_INDEX_GEN="$_HI_PLUGIN_GEN" _hi_or_i=0
+    for _hi_or_k in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
+      _hi_or_k="${_hi_or_k%%|*}"
+      case "$_HI_OVERLAY_INDEX$_hi_or_nl" in
+      *"$_hi_or_nl$_hi_or_k|"*) ;;
+      *) _HI_OVERLAY_INDEX="$_HI_OVERLAY_INDEX$_hi_or_nl$_hi_or_k|$_hi_or_i" ;;
+      esac
+      _hi_or_i=$((_hi_or_i + 1))
+    done
+    _HI_OVERLAY_INDEX="$_HI_OVERLAY_INDEX$_hi_or_nl"
+  fi
+  # the member, then each directory above it, keeping the earliest row
+  _hi_or_k="$_hi_or_m"
+  while :; do
+    case "$_HI_OVERLAY_INDEX" in *"$_hi_or_nl$_hi_or_k|"*)
+      _hi_or_i="${_HI_OVERLAY_INDEX#*"$_hi_or_nl$_hi_or_k|"}"
+      _hi_or_i="${_hi_or_i%%"$_hi_or_nl"*}"
+      [ -n "$_hi_or_at" ] && [ "$_hi_or_at" -le "$_hi_or_i" ] || _hi_or_at="$_hi_or_i"
       ;;
     esac
+    case "$_hi_or_m" in */?*) ;; *) break ;; esac
+    _hi_or_m="${_hi_or_m%/*}"
+    _hi_or_k="$_hi_or_m/"
   done
-  return 1
+  [ -n "$_hi_or_at" ] || return 1
+  if [ "$_hi_or_at" -lt "${#_HI_OVERLAY_TABLE[@]}" ]; then
+    _hi_out "${2:-}" "${_HI_OVERLAY_TABLE[_hi_or_at]}"
+  else
+    _hi_out "${2:-}" "${_HI_PLUGIN_ROWS[_hi_or_at - ${#_HI_OVERLAY_TABLE[@]}]}"
+  fi
 }
 
 # _hi_overlay_src <member> [outvar] - where an overlay member is packed from,
@@ -529,14 +568,11 @@ function _hi_plugin_off() {
   # hi's own file: its toggles above, never the list
   [ "$_hi_po_g" != - ] || return 1
   _hi_plugin_name "$1" _hi_po_n "$_hi_po_r"
-  if [ -n "${_HI_PLUGINS_OFF:-}" ]; then
-    case " ${_HI_PLUGINS_OFF//,/ } " in
-    *" $_hi_po_n "* | *" ${_hi_po_r%%|*} "* | *" $1 "*)
-      [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
-      return 0
-      ;;
-    esac
-  fi
+  [ -z "${_HI_PLUGINS_OFF:-}" ] || for _hi_po_t in "$_hi_po_n" "${_hi_po_r%%|*}" "$1"; do
+    _hi_list_has "$_HI_PLUGINS_OFF" "$_hi_po_t" || continue
+    [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_OFF"
+    return 0
+  done
   # off by default, until $_HI_PLUGINS_ON names the plugin
   _hi_plugin_switched_off "$_hi_po_n" || return 1
   [ -z "${2:-}" ] || printf -v "$2" '%s' "_HI_PLUGINS_ON, off by default"
@@ -649,7 +685,7 @@ function _hi_overlay_wiring() {
     fi
     _hi_hook_off "$_hi_ow_r" && continue
     # a leading - on the name says off by default, for the target's _hi_hook_on
-    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_ow_n "*) _hi_ow_n="-$_hi_ow_n" ;; esac
+    ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_ow_n" || _hi_ow_n="-$_hi_ow_n"
     # ...and a :<shells> after it, a , apart, the shells the hook is kept to
     [ "$_hi_ow_s" = - ] || _hi_ow_n="$_hi_ow_n:${_hi_ow_s// /,}"
     _hi_hook_col "$_hi_ow_r" group _hi_ow_p

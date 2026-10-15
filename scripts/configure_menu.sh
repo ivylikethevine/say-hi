@@ -17,10 +17,14 @@
 # truecolor. _HI_MENU_WORD0 is the first header item's number, for up/down.
 # _HI_MENU_PLUGINS is _hi_plugin_states' lines as the list last drew them,
 # and _HI_MENU_GROUPS their groups in order: g<N> is the page of the Nth.
+# _HI_MENU_STATES is the lines as read once a run, for the overlay in
+# _HI_MENU_STATES_DIR.
 _HI_MENU_ITEMS=()
 _HI_MENU_WORD0=0
 _HI_MENU_PLUGINS=()
 _HI_MENU_GROUPS=()
+_HI_MENU_STATES=()
+_HI_MENU_STATES_DIR=""
 # how many checkboxes the grid being drawn holds so far
 _HI_MENU_GRID_N=0
 # The page drawn: empty for the main page, else a section's key, or g<N> for
@@ -376,8 +380,8 @@ function _hi_menu_list() {
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_GROUPS "$_HI_SETTINGS" groups
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  _hi_menu_value width "width" "${width:-80}" 80
-  _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}" '172.*' quiet
+  _hi_menu_value width "width" "${width:-$_HI_MAX_WIDTH_DEFAULT}" "$_HI_MAX_WIDTH_DEFAULT"
+  _hi_menu_value iphide "hidden addresses" "${iphide:-$_HI_IP_HIDE_DEFAULT}" "$_HI_IP_HIDE_DEFAULT" quiet
   # no part of the section's "N of M on": on is the edge dropped
   i=$_HI_MENU_SUM_N state=$_HI_MENU_SUM_ON
   ! _hi_row_index _HI_ADVANCED_PROMPTS _HI_DISABLE_RIGHT_EDGE word || _hi_menu_row _HI_ADVANCED_PROMPTS "$word"
@@ -409,7 +413,8 @@ function _hi_menu_list() {
     for row in ${notes[@]+"${notes[@]}"}; do
       [ "${row%%|*}" != "$g" ] || note="${row#*|}"
     done
-    case " ${groups//,/ } " in *" $g "*) state=1 ;; *) state=0 ;; esac
+    state=0
+    ! _hi_list_has "$groups" "$g" || state=1
     _hi_menu_check state "$state"
     _hi_pad_to name "$w" "$g"
     _hi_name_color end "$g"
@@ -508,6 +513,28 @@ function _hi_menu_mark() {
   esac
 }
 
+# _hi_menu_states <kept home> <switched on> - $_HI_MENU_PLUGINS under those
+# two lists: _hi_plugin_states read once a run, since neither the plugins
+# files nor what this machine has change under the menu, and each plugin's
+# <on> redone as _hi_plugin_switched_off reads the lists
+function _hi_menu_states() {
+  local entry g n s d rest
+  if [ "$_HI_MENU_STATES_DIR" != "${_HI_CONFIG_DIR:-}|set" ]; then
+    _HI_MENU_STATES_DIR="${_HI_CONFIG_DIR:-}|set"
+    _hi_read_lines _HI_MENU_STATES < <(_hi_plugin_states "" "")
+  fi
+  _HI_MENU_PLUGINS=()
+  for entry in ${_HI_MENU_STATES[@]+"${_HI_MENU_STATES[@]}"}; do
+    IFS='|' read -r g n s d rest <<<"$entry"
+    if [ -n "$n" ]; then
+      s=1
+      if _hi_list_has "$1" "$n" || { [ "$d" = 1 ] && ! _hi_list_has "$2" "$n"; }; then s=0; fi
+      entry="$g|$n|$s|$d|$rest"
+    fi
+    _HI_MENU_PLUGINS+=("$entry")
+  done
+}
+
 # The plugins, every one of the plugins files. The main page's table has a
 # row for the section and one under it a group, the group's plugins named in
 # their state's color; the Plugins page the same rows. A group's page, g<N>,
@@ -520,8 +547,8 @@ function _hi_menu_plugins() {
   local text key state num box cell m1 m2 wn=6 wp=5 wg=0 room
   setting_value _HI_PLUGINS_OFF "$_HI_SETTINGS" kept
   setting_value _HI_PLUGINS_ON "$_HI_SETTINGS" on
-  _HI_MENU_PLUGINS=() _HI_MENU_GROUPS=()
-  _hi_read_lines _HI_MENU_PLUGINS < <(_hi_plugin_states "$kept" "$on")
+  _HI_MENU_GROUPS=()
+  _hi_menu_states "$kept" "$on"
   for entry in ${_HI_MENU_PLUGINS[@]+"${_HI_MENU_PLUGINS[@]}"}; do
     IFS='|' read -r group name s d prog here cfg about <<<"$entry"
     if [ -z "$name" ]; then
@@ -808,14 +835,14 @@ function _hi_header_edit_load() {
   # shellcheck disable=SC2086 # the split is the point: one word per feature
   for word in $current; do
     _hi_is_header_word "$word" || continue
-    case "$seen" in *" $word "*) continue ;; esac
+    ! _hi_list_has "$seen" "$word" || continue
     seen="$seen$word "
     _HI_HDR_WORDS+=("$word")
     _HI_HDR_ON+=(1)
   done
   # shellcheck disable=SC2086 # the split is the point: one word per feature
   for word in $vocab; do
-    case "$seen" in *" $word "*) continue ;; esac
+    ! _hi_list_has "$seen" "$word" || continue
     seen="$seen$word "
     _HI_HDR_WORDS+=("$word")
     _HI_HDR_ON+=(0)
@@ -940,12 +967,23 @@ function _hi_plugin_states() {
     # shellcheck source=/dev/null # hi.sh, whose functions alone are wanted
     source "$_HI_LAUNCHER" >/dev/null 2>&1
     local name group last="" seen=" " nl=$'\n' i r p m on d tool wire hook prog here cfg about prompts notes
-    local -a members=() buf=() plugs=() _hi_paths=()
+    local rowat="" hookat="" rest
+    local -a members=() mrows=() buf=() _hi_paths=()
     _HI_PLUGINS_OFF="$1" _HI_PLUGINS_ON="${2:-}"
     _hi_plugins_load
+    # `<plugin>|<index>` a line, of the rows and of the hooks: one pass each,
+    # where a scan of both for every plugin was most of the menu's cost
+    i=0
     for r in ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
       _hi_row_col "$r" plugin p
-      plugs+=("$p")
+      rowat="$rowat$nl$p|$i"
+      i=$((i + 1))
+    done
+    i=0
+    for r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
+      _hi_hook_col "$r" name p
+      hookat="$hookat$nl$p|$i"
+      i=$((i + 1))
     done
     # the prompt programs this machine has, whatever is switched off
     prompts=" $(unset _HI_PROMPT_TOOL _HI_PROMPT_LIST_KEY && _HI_PLUGINS_OFF='' _hi_prompt_list) "
@@ -957,29 +995,35 @@ function _hi_plugin_states() {
       printf '%s\n' "${buf[@]}"
     }
     while IFS='|' read -r name group _; do
-      case "$seen" in *" $group|$name "*) continue ;; esac
+      ! _hi_list_has "$seen" "$group|$name" || continue
       seen="$seen$group|$name "
       if [ "$group" != "$last" ]; then
         _hi_ps_flush
         last="$group" buf=()
       fi
-      members=() tool="" wire="" hook=""
-      for i in ${plugs[@]+"${!plugs[@]}"}; do
-        [ "${plugs[i]}" = "$name" ] || continue
+      members=() mrows=() tool="" wire="" hook=""
+      rest="$rowat$nl"
+      while :; do
+        case "$rest" in *"$nl$name|"*) ;; *) break ;; esac
+        rest="${rest#*"$nl$name|"}"
+        i="${rest%%"$nl"*}"
         r="${_HI_PLUGIN_ROWS[i]}"
-        members+=("${r%%|*}")
+        members+=("${r%%|*}") mrows+=("$r")
         [ -n "$tool" ] || {
           _hi_row_col "$r" tool tool
           _hi_row_col "$r" wire wire
         }
       done
-      for r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
-        _hi_hook_col "$r" name p
-        [ "$p" != "$name" ] || hook="$r"
-      done
+      # the last hook of the name, as the plugins files read
+      case "$hookat$nl" in *"$nl$name|"*)
+        i="${hookat##*"$nl$name|"}"
+        i="${i%%"$nl"*}"
+        hook="${_HI_PLUGIN_HOOKS[i]}"
+        ;;
+      esac
       on=1 d=0
       ! _hi_plugin_switched_off "$name" || on=0
-      case "$_HI_PLUGIN_DEFAULT_OFF" in *" $name "*) d=1 ;; esac
+      ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$name" || d=1
       # a hook's tool, where it has no command, is its init's
       if [ -n "$hook" ]; then
         _hi_hook_col "$hook" tool tool
@@ -998,12 +1042,14 @@ function _hi_plugin_states() {
         done
       elif _hi_prompt_row "$name" >/dev/null; then
         prog="$name" here=0
-        case "$prompts" in *" $name "*) here=1 ;; esac
+        ! _hi_list_has "$prompts" "$name" || here=1
       fi
       cfg=-
       ((${#members[@]} == 0)) || cfg=0
-      for m in ${members[@]+"${members[@]}"}; do
-        _hi_overlay_row "$m" r || continue
+      # a member's row is its plugin's own: the plugins files turn down one
+      # that another row, hi's or a plugin's, holds
+      for i in ${mrows[@]+"${!mrows[@]}"}; do
+        m="${members[i]}" r="${mrows[i]}"
         _hi_overlay_places "$m" "$r"
         for p in "$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"}; do
           [ -f "$p" ] || { [ -z "${m##*/}" ] && [ -d "$p" ]; } || continue
@@ -1039,7 +1085,7 @@ function _hi_plugin_states() {
 
 # _hi_plugin_flip <plugin> - a plugin of the Plugins pages, sent or kept home,
 # in this run's $_HI_PLUGINS_OFF and $_HI_PLUGINS_ON: the lists `hi
-# --plugin-off` and `--plugin-on` keep too (GLOSSARY: HI.64). One that is off
+# --disable-plugin` and `--enable-plugin` keep too (GLOSSARY: HI.64). One that is off
 # by default moves through the second, as there.
 function _hi_plugin_flip() {
   local kept="" on="" w entry n s d state=1 dflt="" said="stays home" next=""

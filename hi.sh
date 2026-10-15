@@ -56,6 +56,7 @@ else
   _HI_KEEP_GONE=1
   function _hi_keep_probes() { return 1; }
   function _hi_keep_starts() { return 1; }
+  function _hi_keep_middle() { :; }
   function _hi_keep_alive() { :; }
   function _hi_keep_connect() { _say_hi; }
 fi
@@ -437,7 +438,7 @@ function _hi_kube_split() {
 function _hi_is_k8s_pod() {
   _hi_kube_split "$1"
   _hi_probe_is Running kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} \
-    get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' --request-timeout="${_HI_PROBE_TIMEOUT:-2}s"
+    get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' --request-timeout="${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}s"
 }
 
 # The backend roster, in resolution order:
@@ -522,11 +523,11 @@ function _hi_ctl_open() {
     return 0
     ;;
   esac
-  if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
+  if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-$_HI_CTL_PERSIST_DEFAULT}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
       _hi_conn_key key
-      ctl_path="$dir/hi.ctl.$key" persist="${_HI_CTL_PERSIST:-60}" ctl_shared=1
+      ctl_path="$dir/hi.ctl.$key" persist="${_HI_CTL_PERSIST:-$_HI_CTL_PERSIST_DEFAULT}" ctl_shared=1
     fi
   fi
   if [ "$ctl_shared" != 1 ]; then
@@ -888,12 +889,7 @@ REMOTE
 # (GLOSSARY: HI.65).
 function _hi_remote_middle() {
   local tmpl _hi_esc _hi_nc kept="" sweep="" fresh="" fi=""
-  # shellcheck disable=SC2016 # the target's to expand
-  ! _hi_keep_probes || sweep="$(_hi_keep_sweep)"$'\n'"$(_hi_keep_held)" fresh='      if [ -z "$_hi_held" ]; then' fi='      fi'
-  # shellcheck disable=SC2016 # the target's to expand, when the trap runs
-  ! _hi_keep_probes || kept='[ -e "$_HI_ROOT/hi.kept" ] || [ -e "$_HI_ROOT/hi.hold" ] || '
-  # shellcheck disable=SC2016
-  ! _hi_keep_starts || kept='_hi_kept || [ -e "$_HI_ROOT/hi.hold" ] || '
+  _hi_keep_middle
   _hi_esc_pair _hi_esc _hi_nc
   _hi_whoami >/dev/null
   _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
@@ -1372,13 +1368,24 @@ function _hi_help_or_version() {
   exit 0
 }
 
-# _hi_is_ssh_value_opt <word> - an ssh option that takes a separate value;
-# doctor.sh sorts its argv with it too
+# _hi_is_ssh_value_opt <word> - an ssh option that takes a separate value
 function _hi_is_ssh_value_opt() {
   case "$1" in
   -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w) return 0 ;;
   *) return 1 ;;
   esac
+}
+
+# _hi_ssh_opt <word> [next...] - one ssh option sorted from the words after
+# it, into $_HI_SSH_OPT: the option, and the next word where it takes a value,
+# which is never read as the target; 2 when it took that word, for the caller
+# to shift past too. _hi_parse and doctor.sh's argv loop sort with it.
+function _hi_ssh_opt() {
+  _HI_SSH_OPT=("$1")
+  _hi_is_ssh_value_opt "$1" || return 0
+  [ "$#" -ge 2 ] || _hi_die "$1 needs a value"
+  _HI_SSH_OPT+=("$2")
+  return 2
 }
 
 # split ssh's arguments from the target and any trailing remote command
@@ -1424,12 +1431,7 @@ function _hi_parse() {
     # ssh takes no other `--word` option, so each is an error in hi's voice;
     # a single-dash one is ssh's
     -*)
-      if _hi_is_ssh_value_opt "$1"; then
-        # its value is never read as the target
-        [ "$#" -ge 2 ] || _hi_die "$1 needs a value"
-        SSHARGS+=("$1" "$2")
-        shift
-      elif takes="$(_hi_flag_takes "${1%%=*}")"; then
+      if takes="$(_hi_flag_takes "${1%%=*}")"; then
         # `--plain=1` is one mistake, a local command behind an ssh option is
         # another - those dispatch on the first word alone. Bare flags matched
         # above, so an empty column here is the joined case.
@@ -1437,9 +1439,9 @@ function _hi_parse() {
         _hi_die "$1 goes first on the line (hi ${1%%=*} ...)"
       elif [ "${1#--}" != "$1" ]; then
         _hi_die "unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)"
-      else
-        SSHARGS+=("$1")
       fi
+      _hi_ssh_opt "$@" || shift
+      SSHARGS+=("${_HI_SSH_OPT[@]}")
       ;;
     *)
       DOMAIN="$1"
@@ -1646,6 +1648,8 @@ function _hi_run_script() {
 _HI_FLAGS=()
 while IFS= read -r _hi_row || [ -n "$_hi_row" ]; do
   case "$_hi_row" in '#'* | '') continue ;; esac
+  # a word row (<flag>=<word>) is completion's alone
+  case "${_hi_row%%|*}" in *=*) continue ;; esac
   _HI_FLAGS+=("$_hi_row")
 done <"$_HI_ROOT/common/flags"
 unset _hi_row

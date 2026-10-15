@@ -28,7 +28,9 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # arm is eval'd
   if [ -z "${_HI_HOME:-}" ]; then
     if [ -n "${ZSH_VERSION:-}" ]; then
+      # hi-nocov-begin: zsh's, which neither tracer reads
       eval '_hi_self=${(%):-%x}'
+      # hi-nocov-end
     else
       _hi_self="${BASH_SOURCE[0]}"
     fi
@@ -109,6 +111,23 @@ export _HI_CONTAINER_CLIS="docker podman nerdctl finch"
 # probe and common/keep.sh read this. common/mux.sh and common/aliases.sh,
 # which cannot, spell the three again. GLOSSARY: HI.65
 _HI_MUXES="tmux zellij screen"
+
+# Every default of a setting or test lever that is not 0 or unset, read as
+# ${_HI_X:-$_HI_X_DEFAULT}; drift pins each a scripts/settings row has to the
+# row's <default>. common/targets.sh and common/config.fish, which cannot
+# source this file, spell theirs again under the same pin.
+_HI_MAX_WIDTH_DEFAULT=80
+_HI_IP_HIDE_DEFAULT='172.*'
+_HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
+_HI_PACKAGES_GROUPS_DEFAULT="core useful deprecated"
+# a kept session's wait with nobody attached, and a held tree's for a reconnect
+_HI_KEEP_TIMEOUT_DEFAULT=24h
+_HI_KEEP_HOLD_DEFAULT=15m
+_HI_KEEP_RETRY_DEFAULT=5m
+_HI_PROBE_TIMEOUT_DEFAULT=2
+_HI_TARGETS_TTL_DEFAULT=5
+_HI_CTL_PERSIST_DEFAULT=60
+_HI_WATCH_STEP_DEFAULT=60
 
 # fish's set_color vocabulary; no greys, since fish has none
 _HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan
@@ -632,12 +651,16 @@ function _hi_du_size() {
 # form. Both read gethostname() and the passwd entry, not $HOSTNAME/$USER.
 function _hi_prompt_escape() {
   if [ -n "${ZSH_VERSION:-}" ]; then
+    # hi-nocov-begin: zsh's
     eval "$1=\${(%):-$2}"
+    # hi-nocov-end
   elif ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
     printf -v "$1" '%s' "$2"
     eval "$1=\${$1@P}"
   else
+    # hi-nocov-begin: bash before 4.4 - macOS's 3.2, which no sweep runs
     return 1
+    # hi-nocov-end
   fi
 }
 
@@ -699,11 +722,11 @@ function _hi_probe() {
   if ! command -v timeout >/dev/null 2>&1; then
     function _hi_probe() { "$@"; }
   elif timeout -k 0.2 1 true 2>/dev/null; then
-    function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}" "$@"; }
   elif timeout 1 true 2>/dev/null; then
-    function _hi_probe() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    function _hi_probe() { timeout "${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}" "$@"; }
   elif timeout -t 1 true 2>/dev/null; then
-    function _hi_probe() { timeout -t "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    function _hi_probe() { timeout -t "${_HI_PROBE_TIMEOUT:-$_HI_PROBE_TIMEOUT_DEFAULT}" "$@"; }
   else
     function _hi_probe() { "$@"; }
   fi
@@ -743,7 +766,9 @@ function _hi_unexport() {
   local _hi_n _hi_keep=" ${_HI_CHILD_ENV[*]} "
   local -a _hi_names _hi_drop
   if [ -n "${ZSH_VERSION:-}" ]; then
+    # hi-nocov-begin: zsh's
     eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
+    # hi-nocov-end
   else
     eval '_hi_names=("${!_HI_@}")'
   fi
@@ -822,10 +847,12 @@ function _hi_url_path() {
 # exempt from that scoping. GLOSSARY: HI.14
 function _hi_on_exit() {
   if [ -n "${ZSH_VERSION:-}" ]; then
+    # hi-nocov-begin: zsh's
     _hi_on_exit_n=$((${_hi_on_exit_n:-0} + 1))
     eval "_hi_on_exit_fn_$_hi_on_exit_n() { $1; }"
     autoload -Uz add-zsh-hook
     add-zsh-hook zshexit "_hi_on_exit_fn_$_hi_on_exit_n"
+    # hi-nocov-end
   else
     # shellcheck disable=SC2064 # $1 is the command we want stored, expanded now
     trap "$1" EXIT
@@ -1349,7 +1376,9 @@ function _hi_ssh_pattern_hit() {
     if [ -n "${ZSH_VERSION:-}" ]; then
       # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
       # and cannot parse `${~pat}` (SC2296)
+      # hi-nocov-begin: zsh's
       eval 'case "$name" in ${~pat}) hit=0 ;; esac'
+      # hi-nocov-end
     else
       # shellcheck disable=SC2254 # deliberate: $pat is a glob, not a literal
       case "$name" in $pat) hit=0 ;; esac

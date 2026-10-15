@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Unit tests for scripts/set_color.sh - `hi --set-color`, which pins a color
-# in a [type] section of ~/.config/say-hi/colors, and `hi --unset-color`,
+# Unit tests for scripts/set_color.sh - `hi --add-color`, which pins a color
+# in a [type] section of ~/.config/say-hi/colors, and `hi --remove-color`,
 # which removes a pin.
 #
-# Driven through `hi.sh --set-color` rather than by calling the script
+# Driven through `hi.sh --add-color` rather than by calling the script
 # directly, so the common/flags rows and _hi_dispatch_subcommand are covered
 # with it, as add_package_test.sh drives --add-package. Each case gets its own
 # $_HI_CONFIG_DIR, so one case's colors file cannot bleed into another's.
@@ -17,24 +17,24 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # _hi_setcolor_fixture <name> - a target-shaped tree with scripts/ added, the
-# one thing that makes --set-color reachable at all. Prints its _HI_HOME.
+# one thing that makes --add-color reachable at all. Prints its _HI_HOME.
 function _hi_setcolor_fixture() {
   _hi_scratch_tree "$1" common config load.sh hi.sh link:scripts
 }
 
-# _hi_setcolor_run <home> <config> <args...> - `hi --set-color` with its own
+# _hi_setcolor_run <home> <config> <args...> - `hi --add-color` with its own
 # overlay directory
 function _hi_setcolor_run() {
   local home="$1" cfg="$2"
   shift 2
-  _HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --set-color "$@"
+  _HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --add-color "$@"
 }
 
-# _hi_unsetcolor_run <home> <config> <args...> - the same, for --unset-color
+# _hi_unsetcolor_run <home> <config> <args...> - the same, for --remove-color
 function _hi_unsetcolor_run() {
   local home="$1" cfg="$2"
   shift 2
-  _HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --unset-color "$@"
+  _HI_CONFIG_DIR="$cfg" _hi_subcmd_run "$home" --remove-color "$@"
 }
 
 # _hi_setcolor_overlay <config> <body> - an existing overlay colors file
@@ -53,7 +53,7 @@ function _hi_setcolor_is() {
   return 1
 }
 
-# _hi_setcolor_refused <home> <config> <message> <args...> - --set-color with
+# _hi_setcolor_refused <home> <config> <message> <args...> - --add-color with
 # <args> fails, says <message>, and writes no file
 function _hi_setcolor_refused() {
   local home="$1" cfg="$2" msg="$3" out rc=0
@@ -78,7 +78,7 @@ function test_set_color_help_is_its_own() {
   home="$(_hi_setcolor_fixture setcolor-help)"
   cfg="$_HI_WORKDIR/setcolor-help-cfg"
   out="$(_hi_setcolor_run "$home" "$cfg" --help)" || _hi_why home cfg || return 1
-  [[ "$out" == "Usage: hi --set-color <type> <name> <color> [rrggbb]"* ]] &&
+  [[ "$out" == "Usage: hi --add-color <type> <name> <color> [rrggbb]"* ]] &&
     [[ "$out" == *"hosttag usertag username hostname"* && "$out" == *lavender* ]] &&
     [[ "$out" == *"-n, --dry-run"* ]] && [ ! -e "$cfg" ] || _hi_why out cfg
 }
@@ -88,7 +88,7 @@ function test_unset_color_help_is_its_own() {
   home="$(_hi_setcolor_fixture unsetcolor-help)"
   cfg="$_HI_WORKDIR/unsetcolor-help-cfg"
   out="$(_hi_unsetcolor_run "$home" "$cfg" --help)" || _hi_why home cfg || return 1
-  [[ "$out" == "Usage: hi --unset-color <type> <name> [--dry-run]"* && "$out" == *"-n, --dry-run"* ]] || _hi_why out
+  [[ "$out" == "Usage: hi --remove-color <type> <name> [--dry-run]"* && "$out" == *"-n, --dry-run"* ]] || _hi_why out
 }
 
 # three or four words to set, two to unset; anything else is refused
@@ -272,7 +272,7 @@ function test_set_color_pin_reaches_the_lookup() {
   [ "$out" = 'orange#fd971f' ] || _hi_why out
 }
 
-# --- --unset-color ------------------------------------------------------------
+# --- --remove-color ------------------------------------------------------------
 
 # the pin goes, the section header stays
 function test_unset_color_removes_a_pin() {
@@ -350,8 +350,8 @@ function run_set_color_tests() {
   _hi_suite_begin
 
   _hi_h2 "Testing: scripts/set_color.sh arguments"
-  _hi_check "--set-color --help is its own text" test_set_color_help_is_its_own
-  _hi_check "--unset-color --help is its own text" test_unset_color_help_is_its_own
+  _hi_check "--add-color --help is its own text" test_set_color_help_is_its_own
+  _hi_check "--remove-color --help is its own text" test_unset_color_help_is_its_own
   _hi_check "The wrong number of words is refused" test_set_color_counts_its_arguments
   _hi_check "An unknown option is refused" test_set_color_refuses_an_unknown_option
   _hi_check "An unknown type is refused" test_set_color_refuses_an_unknown_type
@@ -372,7 +372,7 @@ function run_set_color_tests() {
   _hi_check "Dropping the hex is a change" test_set_color_new_hex_is_a_change
   _hi_check "The pin reaches _hi_colors_lookup" test_set_color_pin_reaches_the_lookup
 
-  _hi_h2 "Testing: --unset-color"
+  _hi_h2 "Testing: --remove-color"
   _hi_check "Removes the pin, keeps the section" test_unset_color_removes_a_pin
   _hi_check "No pin under the type writes nothing" test_unset_color_without_a_pin_is_a_no_op
 

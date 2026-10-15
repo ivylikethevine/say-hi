@@ -293,12 +293,7 @@ configure) _hi_allowed=" --preset --dry-run " ;;
 *) _hi_allowed=" --yes --link --shell --print-rc --preset --dry-run --prefix " ;;
 esac
 for _hi_flag in $_HI_SEEN; do
-  case "$_hi_allowed" in
-  *" $_hi_flag "*) ;;
-  *)
-    _hi_die "$_hi_flag does not apply here ($_HI_ME --help lists what does)"
-    ;;
-  esac
+  _hi_list_has "$_hi_allowed" "$_hi_flag" || _hi_die "$_hi_flag does not apply here ($_HI_ME --help lists what does)"
 done
 unset _hi_allowed _hi_flag _HI_SEEN
 # packaging mode is scripts/install.sh's own: reached as `hi --install` it

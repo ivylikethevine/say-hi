@@ -220,16 +220,19 @@ thrashes the docker daemon on a laptop. A suite whose cases are plain local
 processes (`configure`'s pty runs, `install_location`'s shells, the harness
 suites' nested runners) sets `_HI_PAR_LOCAL=1` and gets the whole CPU count.
 `_HI_PAR_WIDTH` overrides both; `nomad` pins itself to 1, since its single-node
-dev agent gains nothing from two cases at once.
+dev agent gains nothing from two cases at once. A case still running after
+`_HI_PAR_CASE_LIMIT` seconds (300; 0 for none) is stopped with its process
+tree printed into its transcript, and fails; the rest of the batch replays as
+usual.
 
 ```sh
 _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisecting a flake
 _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can take it
 ```
 
-The pty-driven cases (`configure_pty`, `install_run`) kill a child that has
-written nothing to its transcript for 60s, or has run five times that, and
-count it a failure: a slow host still drawing is not a wedge. A killed case
+The pty-driven cases (`configure_pty`, `configure_menu`, `install_run`) kill a
+child that has written nothing to its transcript for 60s, or has run five times
+that, and count it a failure: a slow host still drawing is not a wedge. A killed case
 prints the host's load and the last lines it drew. `rc_lines`' one pty case
 keeps a plain 60s. `_HI_CASE_TIMEOUT` raises the deadline on a host slow for
 reasons the suites cannot fix, as `_HI_SSH_CASE_TIMEOUT` (90s) does for the
@@ -279,37 +282,70 @@ stream side by side loses lines, and both put a bash-as-`sh` first on their own
 `PATH`: neither tracer follows a dash child, so a `#!/bin/sh` file a suite
 executes as `sh …` (`common/targets.sh`) would read 0% where `/bin/sh` is dash.
 
-In CI each tool is sharded 4 ways (`--shard i/4`, which `_hi_cov_select_suites`
-passes straight to `test_runner.sh`) and merged by a gather job: `kcov --merge`
+Both report one subject: every tracked `*.sh` file outside `tests/`, `docs/`,
+`scratch/`, and `.github/` (`_HI_COV_NOT_SUBJECT` in `tests/lib/coverage.sh`),
+a file no suite loads included, at 0%. Each sweep leaves its worst-first
+ranking as `files` in its outdir, and `tests/coverage.sh --join` sets the two
+side by side, with a `!` on a file the tools read fifteen points apart or only
+one of them lists: an artifact to rule out against the lists below, not a gap.
+Beside `files` each leaves `missed`, its unrun lines, and
+`tests/coverage.sh --untested <revision>` lists the lines changed since that
+revision that are on both, less the ones `xtrace` never prints: a line that only
+closes a block with a redirect (`done <file`), and the rest of a command the
+line above continues. The `comment` job puts the table in its summary and
+those lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
+`--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
+
+In CI each tool is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
+to `test_runner.sh` with `_HI_SHARD_BY` naming the tracer: the suites dealt by
+that tracer's table, `$_HI_TEST_COSTS_KCOV` or `$_HI_TEST_COSTS_BASHCOV`, the
+seconds CI took tracing each, costliest first to the lightest slice, so the
+slices take about as long; `scratch/coverage_costs.sh` re-reads them off a
+coverage run) and merged by a gather job: `kcov --merge`
 over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
 `--command-name`-keyed `.resultset.json` files, safe because shards partition
 the suite table.
 
-- **kcov**'s known failure mode is losing its DEBUG trap once the harness is
-  sourced, which reads whole suites as load-time-only; the script's header keeps
-  the probe to re-run if the badges diverge. **`kcov --merge` re-reads the
+- **kcov**'s method is the suites' bash's: its default `PS4` method stops
+  recording under bash 5.3 once the harness is sourced, which reads whole
+  suites as load-time-only, and `DEBUG` never follows a suite into a child
+  bash, which reads every script run through `hi.sh` as 0. So `PS4` before
+  5.3 and `DEBUG` from it; the script's header keeps the probe to re-run if
+  the badges diverge. **`kcov --merge` re-reads the
   sources** at the absolute paths each shard recorded, so a merge with no
   working tree yields `"files": []` and a well-formed `0.00%` badge, not an
   error. `coverage.yml`'s `gather-kcov` checks the tree out before calling
   `tests/coverage.sh --merge` (a local sweep's own merge, ranking, and all-zero
   refusal), and the `test_runner_ci` suite (`runner_test.sh`'s ci part) asserts
-  every job calling it does. `gather-bashcov` needs no checkout.
+  every job calling it does. `gather-bashcov` calls
+  `tests/coverage_v2.sh --merge`, which reads the resultsets alone.
 - **bashcov** reads bash's `xtrace`, and skews the other way: a **heredoc body**
-  counts as covered whether or not it ran, and children under `env -i` or inside
-  containers drop out of the trace — so a single file reads a few points off
+  counts as covered whether or not it ran, and children under a bare `env -i`
+  or inside containers drop out of the trace — so a single file reads a few points off
   either way while the pair brackets the truth. More readings are artifacts, not
   gaps, and `tests/coverage_v2.sh`'s header is their list: a scratch-tree copy,
-  an `eval` inside a `$( )`, a zsh-only arm, the `sh …` case above, lines a
-  passing case asserts but that still read 0, and the lines `xtrace` never
-  prints (an empty case arm, a redirect line). Rule those out before writing a
-  test against a number. It needs `gem install --user-install bashcov` (found
+  an `eval` inside a `$( )`, the `sh …` case above, and the
+  lines `xtrace` never prints (an empty case arm, a redirect line). Rule those
+  out before writing a test against a number. An arm neither tool can reach
+  here (zsh's, an old bash's, a tool no sweep has) sits between
+  `# hi-nocov-begin: <why>` and `# hi-nocov-end` comments, which both drivers
+  leave out of their figures. bashcov's trace pipe is
+  non-blocking, and bash drops a line written while it is full, so
+  `tests/lib/coverage_env.sh` makes it blocking ahead of each suite; with
+  bashcov's reader the bottleneck, a parallel suite gains nothing, so the
+  driver runs every one with `_HI_PAR_WIDTH=1`. A suite still running after
+  `_HI_COV_SUITE_LIMIT` seconds (600) is stopped, and the drivers print the
+  processes running then: a stall names its suite rather than running the job
+  out. It skips `configure_pty` and `configure_menu`, which run near ten times
+  slower under bashcov on a CI runner than anywhere else measured; kcov's
+  figure carries them. It needs `gem install --user-install bashcov` (found
   off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into
   the checkout for the run, refusing to start rather than overwrite one you
   have.
 
 `pages.yml` publishes both aggregates as shields endpoints
 (`badges/coverage.json`, `badges/coverage-v2.json`), each labelled by its tool
-and computed over the shipped product only (`tests/` and `docs/` excluded).
+and computed over that subject.
 A completed Coverage run is `pages.yml`'s only automatic trigger, so a badge
 is never older than its sweep.
 
@@ -569,30 +605,37 @@ checking that something written down elsewhere still agrees with the tree:
   [SETTINGS.md](SETTINGS.md)'s _Every setting_ table is written from and
   `hi --configure` reads its items from) names a variable the shipped tree
   still reads, and none is one the doc's _Not settings_ lists.
-- **20. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
+- **20. The defaults block**: each `_HI_*_DEFAULT` in `common/core.sh` is its
+  row's `<default>` where the row states a value, no bash or zsh file reads a
+  setting or a block name with a literal default of its own, and
+  `common/targets.sh`'s two copies match the block.
+- **21. The `<check>` column**: every row's `<check>` is a kind
+  `scripts/lib.sh`'s `_hi_setting_check` knows, and the rows whose check is
+  `toggle` are `common/core.sh`'s `$_HI_TOGGLES`.
+- **22. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
   and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file
   can read the other.
-- **21. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
+- **23. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
   `common/targets.sh`'s cache directory build the same path, with the same
   ownership guards, in their two dialects.
-- **22. Liquid syntax**: no page the Pages build renders may carry a raw
+- **24. Liquid syntax**: no page the Pages build renders may carry a raw
   Liquid delimiter outside a guarded span — Liquid tokenizes before Markdown,
   so a fence gives no shelter.
-- **23. Site links**: a relative link on a page the site builds lands on a
+- **25. Site links**: a relative link on a page the site builds lands on a
   page the site builds too, not a dot-path or anything `_config.yml` excludes
   (which renders on GitHub and 404s on Pages); link those as absolute
   github.com URLs.
-- **24. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **26. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples (the upstream cap).
-- **25. tests/dockerfiles/**: every image definition has a caller and vice
+- **27. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **26. Image tags**: every plain image tag named in shell or YAML is one of
+- **28. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **27. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
-  its digest — check 26 strips digests before comparing, so it can't see one
+- **29. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
+  its digest — check 28 strips digests before comparing, so it can't see one
   tag pinned two ways.
-- **28. The eval roster**: every `eval` in the payload and `scripts/` has a
+- **30. The eval roster**: every `eval` in the payload and `scripts/` has a
   row in `tests/lint/eval_roster` saying what it evaluates, and every file's
   count of its kin (a `source` of a path in a variable, a shell's `-c`, a
   recursive `rm`) matches its row; a row nothing matches fails too, so the
@@ -600,15 +643,17 @@ checking that something written down elsewhere still agrees with the tree:
 
 ## Test levers
 
-Five environment variables the tree reads that are not settings: they exist so
+Six environment variables the tree reads that are not settings: they exist so
 a suite, the bench, or a demo can pin what a real run derives.
 `_HI_TARGETS_TTL` (seconds `targets.sh` reuses its list; `0` sweeps every
 call), `_HI_PROBE_TIMEOUT` (seconds one backend CLI gets), `_HI_PAYLOAD_CACHE`
 (`0` builds the payload and overlay archives fresh), `_HI_CTL_PERSIST`
 (seconds a shared ssh control socket lingers; `0` gives a connect a private
-one, closed after) and `_HI_HEADER_VERSION` (the header's version cell,
+one, closed after), `_HI_HEADER_VERSION` (the header's version cell,
 otherwise the release stamp or `git describe` — what
-`docs/tapes/generate.sh --version` sets). Their defaults are the shipped
+`docs/tapes/generate.sh --version` sets) and `_HI_WATCH_STEP` (seconds
+between a session tree's watcher's checks on its shell, otherwise 60 —
+`ssh_keep`'s killed and expired cases set 2). Their defaults are the shipped
 behaviour; `hi --configure` writes none of them. `_HI_LOAD_NO_INIT=1` is
 adjacent but not a lever: it makes `load.sh` define its functions without
 running the profile chain, for `scripts/install.sh` to source.

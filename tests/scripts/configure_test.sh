@@ -17,6 +17,11 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # every batch here is plain local processes, no container daemon to spare
 _HI_PAR_LOCAL=1
+# The header preview's backend probe (_hi_backend_probe) runs whatever
+# container CLI the host has: on a CI runner, a rootless podman starting on
+# every case, a pause process left behind each time, and a pty suite past
+# 20 minutes under a tracer. No case here is about a backend.
+export _HI_BACKENDS_OFF=all
 
 set -- # install.sh reads "$@" for its own args; make sure it sees none
 # shellcheck source=../../scripts/install.sh
@@ -508,10 +513,10 @@ _HI_CFG_CHILD='
   set --
   source "$_HI_INSTALL"
   _HI_ROOT="$_hi_dir"
-  # the packer, with the files it sources, and the shipped plugins rows,
-  # which hi.sh reads under $_HI_ROOT
+  # the packer, with the files it sources, the shipped plugins rows, which
+  # hi.sh reads under $_HI_ROOT, and the settings rows an answer is judged by
   mkdir -p "$_hi_dir/config" "$_hi_dir/scripts"
-  for _hi_part in "${_HI_LAUNCHER%/*}"/scripts/pack*.sh "${_HI_LAUNCHER%/*}/scripts/zshrc.sh"; do
+  for _hi_part in "${_HI_LAUNCHER%/*}"/scripts/pack*.sh "${_HI_LAUNCHER%/*}/scripts/zshrc.sh" "${_HI_LAUNCHER%/*}/scripts/settings"; do
     ln -sfn "$_hi_part" "$_hi_dir/scripts/${_hi_part##*/}"
   done
   ln -sfn "${_HI_LAUNCHER%/*}/config/plugins" "$_hi_dir/config/plugins"
@@ -618,6 +623,32 @@ function test_menu_row_notes_an_absent_needs_command() {
   [[ "$out" == *"needy"*"(no hi-no-such-cmd here)"*"easy"* && "${out#*easy}" != *" here)"* ]] || _hi_because "the rows: $out"
 }
 
+# ...and with no index given, _hi_menu_rows draws every row, in order
+function test_menu_rows_default_to_every_row() {
+  local out
+  local -a _HI_NEEDS_ROWS=('_HI_NO_SUCH|1|||bash|first - a row' '_HI_NO_SUCH|1|||bash|second - a row')
+  out="$(_HI_MENU_ITEMS=() _HI_MENU_DRAW=1 _HI_MENU_W=80 _HI_MENU_SUM_N=0 && _hi_menu_rows _HI_NEEDS_ROWS)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"first"*"second"* ]] || _hi_because "the rows: $out"
+}
+
+# a switch's key finds its table row, `row|<table>|<index>`, and its name;
+# a key no switch has, or a switch whose row has left its table, finds none
+function test_menu_switch_keys_find_their_rows() {
+  local item="" name="" i
+  local -a rows=()
+  _hi_menu_switch_item k item name || _hi_why item || return 1
+  _hi_prompt_rows _HI_ADVANCED_PROMPTS rows
+  i="${item##*|}"
+  [ "${item%|*}" = "row|_HI_ADVANCED_PROMPTS" ] && [ "${rows[i]%%|*}" = _HI_KEEP ] && [ "$name" = "ssh --keep" ] ||
+    _hi_why item name || return 1
+  ! _hi_menu_switch_item z item || _hi_because "a key no switch has found $item" || return 1
+  (
+    _HI_MENU_SWITCHES=("q|_HI_ADVANCED_PROMPTS|_HI_NOT_A_ROW|")
+    ! _hi_menu_switch_item q item
+  ) || _hi_because "a switch with no row found one"
+}
+
 # every row of every table gets a number, whichever page draws it
 function test_menu_numbers_every_row() {
   local t i
@@ -707,6 +738,8 @@ function run_configure_tests() {
   _hi_check "...and turns on a preset's words, in its order" test_header_edit_preset_turns_on_its_words_in_order
   _hi_check "Menu: every table row has a number" test_menu_numbers_every_row
   _hi_check "Menu: a row names the command it needs and this machine lacks" test_menu_row_notes_an_absent_needs_command
+  _hi_check "Menu: a table's rows default to every row" test_menu_rows_default_to_every_row
+  _hi_check "Menu: a switch's key finds its row, and only a real one" test_menu_switch_keys_find_their_rows
   _hi_check "Menu: a name keeps its color, and a key a line names is painted" test_menu_paints_names_and_keys
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
@@ -728,6 +761,85 @@ function run_configure_tests() {
 
   _hi_suite_end "configure.sh logic"
 }
+
+# The pty parts' rig (configure_pty, configure_menu).
+
+# _hi_pty_run <child-script> <suffix> <label> <input> <line> [args...] - the
+# pty rig _hi_cfg_pty runs: a scratch settings.sh, the
+# input typed at a forced pty, the transcript captured to
+# $_HI_WORKDIR/<label>.<suffix>.out, killed once it has written nothing for
+# the deadline rather than hung forever.
+function _hi_pty_run() {
+  local child="$1" suffix="$2" label="$3" input="$4" line="${5:-}"
+  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.$suffix.out"
+  shift 5
+  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
+  printf '#!/bin/sh\n%s\n' "$line" >"$dir/overlay/settings.sh"
+  : >"$out"
+  rm -f "$dir/verdict"
+  printf '%b' "$input" |
+    "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
+  _hi_wait_quiet "$!" "${_HI_CASE_TIMEOUT:-60}" "$out" "$label"
+  [ "$_HI_WAIT_EXIT" != 124 ]
+}
+
+# _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
+# a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
+# everything to the end of the line by default, or just what <capture>
+# matches (a sed bracket expression body) when the tag's value can have
+# trailing text of its own. The one shape behind _hi_cfg_rc and
+# _hi_cfg_lines. The child also writes that line to
+# <label>/verdict, which is read first: a BSD pty can drop the last output of
+# a child that exits at once, and the transcript is only the fallback.
+function _hi_pty_field() {
+  local src="$_HI_WORKDIR/$1/verdict"
+  [ -s "$src" ] || src="$_HI_WORKDIR/$1.$2.out"
+  tr '\r' '\n' <"$src" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
+}
+
+# _hi_cfg_pty <label> <input> <settings-line> <fn> [arg...] - one configure
+# function under a pty with <input> (printf %b) on its stdin. Transcript
+# lands in $_HI_WORKDIR/<label>.cfg.out; non-zero when the child had to be
+# killed at the deadline.
+function _hi_cfg_pty() {
+  local label="$1" input="$2" line="$3"
+  shift 3
+  _hi_pty_run "$_HI_CFG_CHILD" cfg "$label" "$input" "$line" "$@"
+}
+
+# the readers: the transcript's visible text for substrings (fixed strings
+# only - a pty writes CR-LF, so nothing here anchors a line; the menu paints
+# inside a row, so its escapes come out first), the tail line's fields
+# through the same CR normalisation the groups loop's readers use
+function _hi_cfg_has() { _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | grep -qF "$2"; }
+
+function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
+
+function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
+
+# _hi_cfg_screen <label> <n> - the menu's <n>th draw, 0 the first: the pty
+# echoes no input, so each ` > ` prompt shares its line with the next draw's
+# title, and a draw runs from one prompt line to the line before the next
+function _hi_cfg_screen() {
+  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
+    awk -v n="$2" 'index($0, " > ") == 1 { s++ } s == n'
+}
+
+function _hi_cfg_screen_has() {
+  _hi_cfg_screen "$1" "$2" | grep -qF -- "$3" || _hi_because "draw $2 of $1 has no \"$3\""
+}
+
+# _hi_cfg_titles <label> - every draw's title, in order, comma-joined
+function _hi_cfg_titles() {
+  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z: ]+)?|Header( cells)?|Package check|Prompt|Plugins(: [a-z]+)?)  -.*/\1/p' |
+    paste -sd, -
+}
+
+# every page's key in order, g1 the first group of plugins (cli) standing
+# for the groups', then b: the six pages and the main page again, each
+# drawn once
+_HI_MENU_EVERY_PAGE='i\ne\nc\nr\ng\ng1\nb\ns\n'
 
 # a part (configure_*_test.sh) sources this file for what is above and runs its own
 [ -n "${_HI_CONFIGURE_PART:-}" ] || run_configure_tests

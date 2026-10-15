@@ -468,20 +468,14 @@ function _hi_convert_data() {
 set -euo pipefail
 
 _HI_ME="${_HI_ARGV0:-convert_settings.sh}"
-_HI_DRY_RUN=""
+_HI_DRY_RUN="" args=()
 dir="$_HI_CONFIG_DIR"
-while [ $# -gt 0 ]; do
-  case "$1" in
-  -h | --help)
-    printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, plugins (or carry), and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' convert_settings.sh "$_HI_CONFIG_DIR"
-    exit 0
-    ;;
-  -n | --dry-run) _HI_DRY_RUN=1 ;;
-  -*) _hi_die "unknown option $1 (--dry-run, a directory)" ;;
-  *) dir="$1" ;;
-  esac
-  shift
-done
+function _hi_convert_help() {
+  printf 'Usage: %s [--dry-run] [<dir>]\n\nConverts the packages, colors, plugins (or carry), and settings.sh in <dir> (default %s)\nfrom a format this hi no longer reads, keeping each original as <file>.old.\n' convert_settings.sh "$_HI_CONFIG_DIR"
+}
+_hi_args _hi_convert_help "--dry-run, a directory" "$@"
+# the last directory named
+[ "${#args[@]}" -eq 0 ] || dir="${args[${#args[@]} - 1]}"
 
 _hi_old_settings="^[[:space:]]*(export[[:space:]]+)?_HI_(PACKAGES_MIN_PRIORITY|DISABLE_TOOL_ALIASES|DISABLE_SUDO_ALIAS|DISABLE_($_HI_OLD_TOGGLES))="
 _hi_convert_data "$dir/packages" packages "$_HI_FLAT_PACKAGES"

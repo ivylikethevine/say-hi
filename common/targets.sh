@@ -139,7 +139,7 @@ if [ "$kind" = flags ]; then
     done <"$hi_tree/common/flags"
   fi
   while IFS='|' read -r flag _arg needs _var _first help; do
-    case "$flag" in '#'* | '') continue ;; esac
+    case "$flag" in '#'* | '' | *=*) continue ;; esac
     [ "$needs" = - ] || [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue
     case "$needs" in
     scripts) [ -d "$hi_tree/scripts" ] || continue ;;
@@ -152,12 +152,12 @@ fi
 
 # The word after a flag that takes one, so `hi --preview <TAB>` and
 # `hi --use <TAB>` complete it the way a flag completes: "<word>\t<help>"
-# lines. --use's roster is the arms hi.sh dispatches on - ssh, the whole
-# docker-compatible family, nomad, kube - spelled here because a completion can
-# reach this file without hi.sh (parse_test.sh pins the two against each
-# other); --preset's is configure.sh's table, pinned the same way by
-# targets_test.sh. Answered before the probes, like the flags. The membership
-# test is paths.sh's $_HI_WORD_FLAGS.
+# lines. A fixed list is common/flags' <flag>=<word> rows; what is computed
+# (a host, a package row, a plugin) is read here. --use's roster is the arms
+# hi.sh dispatches on, in its order - ssh, the docker-compatible family,
+# nomad, kube - spelled here because a completion can reach this file without
+# hi.sh (parse_test.sh pins the two against each other). Answered before the
+# probes, like the flags. The membership test is paths.sh's $_HI_WORD_FLAGS.
 
 # plugin_tables <file> - the `[<group>.<name>]` tables of a plugins file, a
 # `<group>|<name>` line each; nothing when there is no file
@@ -173,24 +173,14 @@ if [ "$kind" = words ]; then
   # unexported (HI.47) and cannot source paths.sh).
   pkgs="${_HI_CONFIG_DIR:-}/packages"
   [ -f "$pkgs" ] || pkgs="$hi_tree/config/packages"
+  # a fixed list is common/flags' <flag>=<word> rows; --remove-color takes
+  # --add-color's
+  key="${2:-}"
+  [ "$key" != --remove-color ] || key=--add-color
+  while IFS='|' read -r flag help; do
+    case "$flag" in "$key="?*) printf '%s\t%s\n' "${flag#*=}" "$help" ;; esac
+  done <"$hi_tree/common/flags"
   case "${2:-}" in
-  --link)
-    printf 'user\t~/.local/bin/hi (the default)\n'
-    printf 'system\t/usr/bin/hi, through sudo\n'
-    printf 'none\tno link; the wired shells alias hi either way\n'
-    ;;
-  --shell)
-    printf 'bash\t~/.bashrc\n'
-    printf 'zsh\t.zshrc, under ZDOTDIR when that is set\n'
-    printf 'fish\tconfig.fish\n'
-    printf 'all\tevery one of them installed here\n'
-    ;;
-  --preset)
-    printf 'everything\tthe shipped defaults, every feature on\n'
-    printf 'balanced\teverything but the noise\n'
-    printf 'minimal\ton targets only the colored prompt\n'
-    printf 'lean\tminimal, and nothing of yours rides\n'
-    ;;
   --update)
     # the release tags a checkout knows of, newest first; a package has no
     # .git and gets nothing
@@ -200,20 +190,16 @@ if [ "$kind" = words ]; then
   --add-tag)
     ssh_hosts 'an ssh host to tag'
     ;;
+  --remove-tag)
+    ssh_hosts 'an ssh host to untag'
+    ;;
   --remove-package)
     # each row's key, bare or quoted: its first package and the name remove matches on
     [ -f "$pkgs" ] &&
       sed -n 's/^[[:space:]]*"\{0,1\}\([^]["#=[:space:]]\{1,\}\)"\{0,1\}[[:space:]]*=.*/\1/p' "$pkgs" |
       while IFS= read -r line; do printf '%s\ta package check row\n' "$line"; done
     ;;
-  --set-color | --unset-color)
-    # the four [type] sections of a colors file
-    printf 'hosttag\ta # Tags: value in your ssh config\n'
-    printf 'usertag\tthe username on hosts carrying that tag\n'
-    printf 'username\ta username\n'
-    printf 'hostname\ta hostname, or a * or ? pattern\n'
-    ;;
-  --plugin-off)
+  --disable-plugin)
     # the plugins files read as text, since this file cannot source the
     # packer: each table's plugin. A session has neither file, and no use
     # for the flag.
@@ -221,7 +207,7 @@ if [ "$kind" = words ]; then
       plugin_tables "$f"
     done | awk -F'|' '!seen[$2]++ { printf "%s\ta plugin\n", $2 }'
     ;;
-  --plugin-on)
+  --enable-plugin)
     # what is off: the words of settings.sh's last _HI_PLUGINS_OFF line
     [ -f "${_HI_CONFIG_DIR:-}/settings.sh" ] &&
       sed -n 's/^[ ]*\(export[ ]\{1,\}\)\{0,1\}_HI_PLUGINS_OFF=//p' "$_HI_CONFIG_DIR/settings.sh" |
@@ -255,11 +241,6 @@ if [ "$kind" = words ]; then
         done
       }
     ;;
-  --preview)
-    printf 'colors\tevery ssh host and your user, in their resolved colors\n'
-    printf 'packages\tthe package-group legend, as the header prints it\n'
-    printf 'header\tthe connect header, as it prints here\n'
-    ;;
   --use)
     printf 'ssh\tssh, no probing (a container of the same name loses)\n'
     # shellcheck disable=SC2086 # the split is the roster
@@ -273,7 +254,9 @@ if [ "$kind" = words ]; then
   exit 0
 fi
 
-ttl="${_HI_TARGETS_TTL:-5}"
+# core.sh's _HI_TARGETS_TTL_DEFAULT and _HI_PROBE_TIMEOUT_DEFAULT, which drift
+# pins these to
+ttl="${_HI_TARGETS_TTL:-5}" cap="${_HI_PROBE_TIMEOUT:-2}"
 
 # `timeout` is GNU/busybox, absent on stock macOS - optional. `-k 0.2`: the
 # cap is a SIGTERM, which rootless podman defers while its runtime initialises
@@ -286,11 +269,11 @@ run_backend() {
   if ! command -v timeout >/dev/null 2>&1; then
     run_backend() { "$@"; }
   elif timeout -k 0.2 1 true 2>/dev/null; then
-    run_backend() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    run_backend() { timeout -k 0.2 "$cap" "$@"; }
   elif timeout 1 true 2>/dev/null; then
-    run_backend() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    run_backend() { timeout "$cap" "$@"; }
   elif timeout -t 1 true 2>/dev/null; then
-    run_backend() { timeout -t "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+    run_backend() { timeout -t "$cap" "$@"; }
   else
     run_backend() { "$@"; }
   fi
@@ -495,7 +478,7 @@ list_kube() {
 
 # --request-timeout: kubectl's own bound, the one left where `timeout` is not
 kube_pods() {
-  run_backend kubectl get pods -A --request-timeout="${_HI_PROBE_TIMEOUT:-2}s" --field-selector=status.phase=Running \
+  run_backend kubectl get pods -A --request-timeout="${cap}s" --field-selector=status.phase=Running \
     -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{range .spec.containers[*]}{" "}{.name}{end}{"\n"}{end}'
 }
 

@@ -65,13 +65,38 @@ _HI_KEEP_SESSION=hi-hitest-127-0-0-1
 # the timeout case's $_HI_KEEP_TIMEOUT, in seconds; the watcher polls at it
 _HI_KEEPTEST_LIMIT=4
 
+# the tree watcher's step for the cases that wait on it, in place of a
+# session's minute
+_HI_KEEPTEST_STEP=2
+
 # where the held case's shell stands when its link is cut
 _HI_KEEPTEST_DIR=/var/tmp
 
 # A case's container, multiplexer, and live launcher are its own
 # ($_HI_KEEPTEST_C, $_HI_KEEPTEST_MUX, $_HI_KEEPTEST_PID, locals of
 # _hi_keep_case): the helpers below read them through bash's dynamic scoping,
-# as the feeders do from the pipeline _hi_keep_typed starts.
+# as the feeders do from the pipeline _hi_keep_typed starts. So do the case's
+# two marks: $_HI_KEEPTEST_STUCK, what a feeder waited on in vain, and
+# $_HI_KEEPTEST_OVER, there once the case is done with its session.
+
+# _hi_keep_await <tries> <cmd...> - a feeder's wait, every half second. One
+# that never comes leaves <cmd> in $_HI_KEEPTEST_STUCK and fails, so the
+# feeder types nothing more and the case, which watches for it, fails naming
+# it at once; a feeder that typed on regardless left the case waiting out
+# every budget after it. A case over ends the wait too.
+function _hi_keep_await() {
+  local tries="$1"
+  shift
+  _hi_poll_bool -a _hi_keep_live "$tries" 0.5 "$@" && return 0
+  [ -e "$_HI_KEEPTEST_OVER" ] || printf '%s\n' "$*" >"$_HI_KEEPTEST_STUCK"
+  return 1
+}
+
+# the case still wants its session typed into
+function _hi_keep_live() { [ ! -e "$_HI_KEEPTEST_OVER" ]; }
+
+# no feeder has given up
+function _hi_keep_feeding() { [ ! -s "$_HI_KEEPTEST_STUCK" ]; }
 
 # "attached" or "detached" for the session hi keeps on the target, nothing
 # when it keeps none - the multiplexer's own answer
@@ -116,6 +141,18 @@ function _hi_keep_link_gone() {
   ! docker exec "$_HI_KEEPTEST_C" sh -c 'grep -qs "hitest@pt[s]" /proc/[0-9]*/cmdline'
 }
 
+# how many of sshd's sessions on the target hold a pty, off /proc
+function _hi_keep_links() {
+  { docker exec "$_HI_KEEPTEST_C" sh -c 'grep -ls "hitest@pt[s]" /proc/[0-9]*/cmdline' 2>/dev/null || true; } |
+    awk 'END { print NR }'
+}
+
+# a retry is back in: the cut link's session gone, the retry's up, and the
+# kept session attached. Not "detached first": a retry can reattach between
+# two polls, so that state may never be seen.
+function _hi_keep_retried() { _hi_keep_links_are 1 && _hi_keep_is attached; }
+function _hi_keep_links_are() { [ "$(_hi_keep_links)" = "$1" ]; }
+
 # how many shells on the target are reading hi's session rc, off /proc
 function _hi_keep_shells() {
   { docker exec "$_HI_KEEPTEST_C" sh -c 'grep -ls "hi[.]rc[.].*/bashrc" /proc/[0-9]*/cmdline' 2>/dev/null || true; } |
@@ -146,11 +183,12 @@ function _hi_keep_left() { docker exec "$_HI_KEEPTEST_C" test -e "/tmp/$1"; }
 # processes - and the case's name for the runner's recap. Every failure, so
 # none is a label alone.
 function _hi_keep_fail() {
-  local file="${3:-${out:-}}"
-  _hi_h3 " | [$1] -- FAILED: $2" "$RED"
+  local file="${3:-${out:-}}" why="$2"
+  _hi_keep_feeding || why="$why: the typing stopped, waiting on: $(cat "$_HI_KEEPTEST_STUCK")"
+  _hi_h3 " | [$1] -- FAILED: $why" "$RED"
   [ -z "$file" ] || _hi_show_transcript "the session's transcript" "$file"
   _hi_show_target "${_HI_KEEPTEST_C:-}"
-  _hi_note_failure "[$1] $2"
+  _hi_note_failure "[$1] $why"
   return 1
 }
 
@@ -201,11 +239,11 @@ function _hi_keep_zellij_normal() {
 
 # the first connect: the owner pane's shell is marked, and left attached
 function _hi_keep_feed_mark() {
-  _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
+  _hi_keep_await 120 _hi_session_ready "$1" || return 1
   printf '%s\n' '_hi_keep_mark=owner; : >/tmp/keep.up'
-  _hi_poll_bool 120 0.5 _hi_keep_left keep.up || true
+  _hi_keep_await 120 _hi_keep_left keep.up || return 1
   # zellij lists its client a moment after the pane's shell is up
-  _hi_poll_bool 40 0.5 _hi_keep_is attached || true
+  _hi_keep_await 40 _hi_keep_is attached || return 1
 }
 
 # _hi_keep_feed_detach <transcript> - the multiplexer's own detach key.
@@ -217,7 +255,7 @@ function _hi_keep_feed_detach() {
   screen) printf '\001d' ;;
   zellij)
     printf '\017'
-    _hi_poll_bool 20 0.5 grep -q 'Detach' "$1" || true
+    _hi_keep_await 20 grep -q 'Detach' "$1" || return 1
     printf 'd'
     ;;
   esac
@@ -228,24 +266,24 @@ function _hi_keep_feed_detach() {
 # naming the key that detaches.
 function _hi_keep_feed_exit() {
   printf 'exit\n'
-  _hi_poll_bool 40 0.5 grep -q 'close the kept session' "$1" || true
+  _hi_keep_await 40 grep -q 'close the kept session' "$1" || return 1
   printf '%s\n' "$2"
   [ "$_HI_KEEPTEST_MUX:$2" = zellij:n ] || return 0
-  _hi_poll_bool 40 0.5 grep -q 'own key detaches' "$1" || true
-  _hi_keep_feed_detach "$1"
+  _hi_keep_await 40 grep -q 'own key detaches' "$1" || return 1
+  _hi_keep_feed_detach "$1" || return 1
 }
 
 # ...marked, then left by `exit` and an `n`
 function _hi_keep_feed_leave() {
-  _hi_keep_feed_mark "$1"
-  _hi_keep_feed_exit "$1" n
+  _hi_keep_feed_mark "$1" || return 1
+  _hi_keep_feed_exit "$1" n || return 1
 }
 
 # ...the same once the case says go, having held it attached
 function _hi_keep_feed_hold() {
-  _hi_keep_feed_mark "$1"
-  _hi_poll_bool 240 0.5 test -e "$1.go" || true
-  _hi_keep_feed_exit "$1" n
+  _hi_keep_feed_mark "$1" || return 1
+  _hi_keep_await 240 test -e "$1.go" || return 1
+  _hi_keep_feed_exit "$1" n || return 1
 }
 
 # an ordinary session that types `hi --keep` ($_HI_KEEPTEST_TYPED where a
@@ -253,19 +291,19 @@ function _hi_keep_feed_hold() {
 # owner pane's; the detach lands back in the first, which says so through its
 # mark and exits
 function _hi_keep_feed_inside() {
-  _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
+  _hi_keep_await 120 _hi_session_ready "$1" || return 1
   printf '%s\n' "_hi_keep_mark=outer; ${_HI_KEEPTEST_TYPED:-hi --keep}"
-  _hi_poll_bool 120 0.5 _hi_keep_is attached || true
+  _hi_keep_await 120 _hi_keep_is attached || return 1
   # zellij lists its client while it is still asking the terminal about
   # itself, and what is typed then is lost: the pane's header comes after
-  _hi_poll_bool 120 0.5 _hi_keep_loaded_twice "$1" || true
+  _hi_keep_await 120 _hi_keep_loaded_twice "$1" || return 1
   printf '%s\n' '_hi_keep_mark=owner; : >/tmp/keep.up'
-  _hi_poll_bool 120 0.5 _hi_keep_left keep.up || true
-  _hi_keep_feed_detach "$1"
-  _hi_poll_bool 60 0.5 _hi_keep_is detached || true
+  _hi_keep_await 120 _hi_keep_left keep.up || return 1
+  _hi_keep_feed_detach "$1" || return 1
+  _hi_keep_await 60 _hi_keep_is detached || return 1
   # shellcheck disable=SC2016 # the outer shell expands it
   printf '%s\n' 'printf "%s\n" "$_hi_keep_mark" >/tmp/keep.outer'
-  _hi_poll_bool 60 0.5 _hi_keep_left keep.outer || true
+  _hi_keep_await 60 _hi_keep_left keep.outer || return 1
   printf 'exit\n'
 }
 
@@ -273,58 +311,58 @@ function _hi_keep_feed_inside() {
 # has the keys - that pane's shell asked for what only hi's rc gives it, and
 # closed; back in the first, `exit` and a `y`
 function _hi_keep_feed_pane() {
-  _hi_keep_feed_mark "$1"
-  _hi_poll_bool 240 0.5 test -e "$1.go" || true
+  _hi_keep_feed_mark "$1" || return 1
+  _hi_keep_await 240 test -e "$1.go" || return 1
   # shellcheck disable=SC2016 # the pane's shell expands it
   printf '%s\n' '[ -n "$_HI_SESSION_RC" ] && alias hi >/dev/null && [ -z "${_hi_keep_mark:-}" ] && : >/tmp/keep.pane'
-  _hi_poll_bool 60 0.5 _hi_keep_left keep.pane || true
+  _hi_keep_await 60 _hi_keep_left keep.pane || return 1
   printf 'exit\n'
-  _hi_poll_bool 60 0.5 _hi_keep_shells_are 1 || true
-  _hi_keep_feed_exit "$1" y
+  _hi_keep_await 60 _hi_keep_shells_are 1 || return 1
+  _hi_keep_feed_exit "$1" y || return 1
 }
 
 # marked, then - once the case has cut the link and hi has said it is
-# retrying - back in the kept shell as any later connect is. The old client
-# is waited out first, and zellij's new one until it draws.
+# retrying - back in the kept shell as any later connect is: the retry's link
+# the only one, and zellij's new client waited out until it draws.
 function _hi_keep_feed_retry() {
-  _hi_keep_feed_mark "$1"
-  _hi_poll_bool 240 0.5 grep -q 'retrying for' "$1" || true
-  _hi_poll_bool 40 0.5 _hi_keep_is detached || true
-  [ "$_HI_KEEPTEST_MUX" != zellij ] || _hi_poll_bool 120 0.5 _hi_keep_last "$1" 'Ctrl +' 'retrying for' || true
-  _hi_keep_feed_back "$1"
+  _hi_keep_feed_mark "$1" || return 1
+  _hi_keep_await 240 grep -q 'retrying for' "$1" || return 1
+  _hi_keep_await 120 _hi_keep_retried || return 1
+  [ "$_HI_KEEPTEST_MUX" != zellij ] || _hi_keep_await 120 _hi_keep_last "$1" 'Ctrl +' 'retrying for' || return 1
+  _hi_keep_feed_back "$1" || return 1
 }
 
 # marked, then - once the session has died with its link and the retry has
 # said so - the shell of the session kept in its place says it is a new one,
 # and `exit` with a `y` closes it
 function _hi_keep_feed_lost() {
-  _hi_keep_feed_mark "$1"
-  _hi_poll_bool 240 0.5 grep -q 'is gone' "$1" || true
-  _hi_poll_bool 120 0.5 _hi_keep_last "$1" "$_HI_SESSION_LOADED_RE" 'is gone' || true
-  _hi_poll_bool 120 0.5 _hi_keep_is attached || true
+  _hi_keep_feed_mark "$1" || return 1
+  _hi_keep_await 240 grep -q 'is gone' "$1" || return 1
+  _hi_keep_await 120 _hi_keep_last "$1" "$_HI_SESSION_LOADED_RE" 'is gone' || return 1
+  _hi_keep_await 120 _hi_keep_is attached || return 1
   # shellcheck disable=SC2016 # the new shell expands it
   printf '%s\n' 'printf "%s\n" "${_hi_keep_mark:-fresh}" >/tmp/keep.back'
-  _hi_poll_bool 60 0.5 _hi_keep_left keep.back || true
+  _hi_keep_await 60 _hi_keep_left keep.back || return 1
   _hi_keep_trees >"$1.trees"
-  _hi_keep_feed_exit "$1" y
+  _hi_keep_feed_exit "$1" y || return 1
 }
 
 # a session on a target with no multiplexer: moved to a directory of its
 # own and marked, then left up
 function _hi_keep_feed_stand() {
-  _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
+  _hi_keep_await 120 _hi_session_ready "$1" || return 1
   printf '%s\n' "cd $_HI_KEEPTEST_DIR; : >/tmp/keep.up"
-  _hi_poll_bool 120 0.5 _hi_keep_left keep.up || true
+  _hi_keep_await 120 _hi_keep_left keep.up || return 1
 }
 
 # ...and once the case has cut the link and the retry's session is up, that
 # one says where it stands, the trees are counted, and `exit` ends it
 function _hi_keep_feed_resume() {
-  _hi_keep_feed_stand "$1"
-  _hi_poll_bool 240 0.5 grep -q 'retrying for' "$1" || true
-  _hi_poll_bool 240 0.5 _hi_keep_last "$1" "$_HI_SESSION_LOADED_RE" 'retrying for' || true
+  _hi_keep_feed_stand "$1" || return 1
+  _hi_keep_await 240 grep -q 'retrying for' "$1" || return 1
+  _hi_keep_await 240 _hi_keep_last "$1" "$_HI_SESSION_LOADED_RE" 'retrying for' || return 1
   printf '%s\n' 'pwd >/tmp/keep.back'
-  _hi_poll_bool 60 0.5 _hi_keep_left keep.back || true
+  _hi_keep_await 60 _hi_keep_left keep.back || return 1
   _hi_keep_trees >"$1.trees"
   printf 'exit\n'
 }
@@ -332,7 +370,7 @@ function _hi_keep_feed_resume() {
 # a connect that finds nothing kept: the tree count is taken while its own
 # session is up, then `exit`
 function _hi_keep_feed_count() {
-  _hi_poll_bool 120 0.5 _hi_session_ready "$1" || true
+  _hi_keep_await 120 _hi_session_ready "$1" || return 1
   _hi_keep_trees >"$1.trees"
   printf 'exit\n'
 }
@@ -340,28 +378,28 @@ function _hi_keep_feed_count() {
 # a later connect: the mark comes back out of the shell it reattached, the
 # tree count is taken while attached, and `exit` with a `y` closes it
 function _hi_keep_feed_back() {
-  _hi_poll_bool 120 0.5 _hi_keep_is attached || true
+  _hi_keep_await 120 _hi_keep_is attached || return 1
   # zellij comes back in the mode its last client left by, the one its
   # detach key lives in: Enter is the way out (an empty line elsewhere),
   # typed once a frame is drawn, since the terminal queries ahead of it take
   # what is typed. A key typed before the mode has changed is still that
   # mode's.
   if [ "$_HI_KEEPTEST_MUX" = zellij ]; then
-    _hi_poll_bool 40 0.5 grep -q 'Ctrl +' "$1" || true
+    _hi_keep_await 40 grep -q 'Ctrl +' "$1" || return 1
     printf '\n'
-    _hi_poll_bool 40 0.5 _hi_keep_zellij_normal "$1" || true
+    _hi_keep_await 40 _hi_keep_zellij_normal "$1" || return 1
   fi
   # shellcheck disable=SC2016 # the kept shell expands it
   printf '%s\n' 'printf "%s\n" "$_hi_keep_mark" >/tmp/keep.back'
-  _hi_poll_bool 60 0.5 _hi_keep_left keep.back || true
+  _hi_keep_await 60 _hi_keep_left keep.back || return 1
   _hi_keep_trees >"$1.trees"
-  _hi_keep_feed_exit "$1" y
+  _hi_keep_feed_exit "$1" y || return 1
 }
 
 # _hi_keep_up <label> <transcript> - the session a feeder marked is there:
 # kept, under hi's name, attached, on one tree
 function _hi_keep_up() {
-  _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
+  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
     _hi_keep_fail "$1" "the session never came up" "$2" || return 1
   _hi_poll_bool 40 0.5 _hi_keep_is attached ||
     _hi_keep_fail "$1" "no $_HI_KEEPTEST_MUX session named $_HI_KEEP_SESSION holds it" "$2" || return 1
@@ -369,11 +407,20 @@ function _hi_keep_up() {
 }
 
 # _hi_keep_ended <label> <transcript> <budget_s> <what never happened> - the
-# launcher _hi_keep_typed started has exited by itself
+# launcher _hi_keep_typed started has exited by itself; a feeder giving up
+# fails it then, not at the budget. One still running is the case's cleanup's
+# to kill.
 function _hi_keep_ended() {
-  _hi_wait_pid "$_HI_KEEPTEST_PID" "$3"
+  local deadline=$((SECONDS + $3 + 1))
+  while kill -0 "$_HI_KEEPTEST_PID" 2>/dev/null; do
+    if ! _hi_keep_feeding || [ "$SECONDS" -ge "$deadline" ]; then
+      _hi_keep_fail "$1" "$4" "$2"
+      return 1
+    fi
+    sleep 0.2
+  done
+  wait "$_HI_KEEPTEST_PID" 2>/dev/null || true
   _HI_KEEPTEST_PID=""
-  [ "$_HI_WAIT_EXIT" != 124 ] || _hi_keep_fail "$1" "$4" "$2"
 }
 
 function _hi_keep_drop() {
@@ -578,7 +625,7 @@ function _hi_keep_held() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_resume "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
+  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
     _hi_keep_fail "$label" "the session never came up" "$out" || return 1
   _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) session trees, not 1" || return 1
 
@@ -597,15 +644,15 @@ function _hi_keep_held() {
 }
 
 # ...and with no retry, the tree is there past the drop and gone once its
-# window is over: the watcher notices the shell within its minute's poll
+# window is over: the watcher notices the shell within its step
 function _hi_keep_expired() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
   local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
   mkdir -p "$_HI_CONFIG_DIR"
-  printf 'export _HI_KEEP_TIMEOUT=%s\n' "$_HI_KEEPTEST_LIMIT" >"$_HI_CONFIG_DIR/settings.sh"
+  printf 'export _HI_KEEP_TIMEOUT=%s\nexport _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_LIMIT" "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
+  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
     _hi_keep_fail "$label" "the session never came up" "$out" || return 1
 
   _hi_keep_cut_link || _hi_keep_fail "$label" "no connection to cut" "$out" || return 1
@@ -638,13 +685,15 @@ function _hi_keep_kill_session() {
 }
 
 # An ordinary session, killed with no exit hook run and no retry to follow:
-# the watcher notices the shell within its minute's poll and removes the tree
+# the watcher notices the shell within its step and removes the tree
 function _hi_keep_killed() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
-  local -x _HI_KEEP_RETRY=0
+  local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
+  mkdir -p "$_HI_CONFIG_DIR"
+  printf 'export _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
+  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
     _hi_keep_fail "$label" "the session never came up" "$out" || return 1
   _hi_keep_trees_are 1 || _hi_keep_fail "$label" "$(_hi_keep_trees) session trees, not 1" || return 1
 
@@ -662,7 +711,7 @@ function _hi_keep_orphan() {
   local -x _HI_KEEP_RETRY=0
   _hi_ssh_launch "$_HI_SSH_PORT"
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
-  _hi_poll_bool 240 0.5 _hi_keep_left keep.up ||
+  _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
     _hi_keep_fail "$label" "the session never came up" "$out" || return 1
 
   docker exec "$_HI_KEEPTEST_C" sh -c 'test -s /tmp/*.hi.*/say-hi/hi.pid' ||
@@ -707,6 +756,8 @@ _HI_KEEP_BARE_CASES=(
 function _hi_keep_case() {
   local label="$1-$2" rc=0 t0
   local _HI_SSH_PORT="" _HI_KEEPTEST_PID="" _HI_KEEPTEST_MUX="$1" _HI_KEEPTEST_C="hi-keeptest-$1-$2-$$"
+  local _HI_KEEPTEST_STUCK="$_HI_WORKDIR/$1-$2.stuck" _HI_KEEPTEST_OVER="$_HI_WORKDIR/$1-$2.over"
+  rm -f "$_HI_KEEPTEST_STUCK" "$_HI_KEEPTEST_OVER"
   local -a run=()
 
   if [ "${#_HI_PTY_FORCED[@]}" -eq 0 ]; then
@@ -725,6 +776,7 @@ function _hi_keep_case() {
     _hi_sshd_container "$_HI_KEEPTEST_C" "hi-keeptest-$1-$$" ${run[@]+"${run[@]}"} || return 1
   fi
   "_hi_keep_$2" "$label" || rc=1
+  : >"$_HI_KEEPTEST_OVER"
 
   _hi_thaw_frozen
   [ -z "$_HI_KEEPTEST_PID" ] || kill -9 "$_HI_KEEPTEST_PID" 2>/dev/null || true

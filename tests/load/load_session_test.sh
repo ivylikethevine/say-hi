@@ -450,6 +450,9 @@ SHIM
   printf '%s' "$bin"
 }
 
+# _hi_lines_at_least <file> <n> - <file> holds <n> lines or more
+function _hi_lines_at_least() { [ "$(grep -c . "$1" 2>/dev/null)" -ge "$2" ]; }
+
 # a typo is refused, so the watcher falls back to the default, not to "never"
 function test_keep_seconds_reads_the_duration_grammar() {
   local v out
@@ -459,6 +462,48 @@ function test_keep_seconds_reads_the_duration_grammar() {
   for v in '' x h 1.5h -3 10x '1 h'; do
     ! _hi_keep_seconds "$v" out || _hi_because "'$v' was taken as $out" || return 1
   done
+}
+
+# _hi_keep_holds_on <env...> - "<status> <limit>" from the hold check, on a pty,
+# with the tree under a disposable root unless the case says otherwise
+function _hi_keep_holds_on() {
+  local t="$_HI_WORKDIR/holds/say-hi"
+  mkdir -p "$t"
+  # shellcheck disable=SC2016 # the child bash expands its own script
+  env -u _HI_KEEP_MUX _HI_CLEANUP="${t%/say-hi}" "$@" python3 -c "$_HI_PTY_SPAWN" bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; _HI_ROOT="$1"; source "$_HI_HOME/say-hi/common/keep.sh"
+     _hi_keep_holds; printf "%s %s\n" "$?" "$_hi_keep_limit"' _ "$t" </dev/null 2>&1 | tr -d '\r'
+}
+
+# a session holds its tree through a drop for $_HI_KEEP_TIMEOUT, 15m with
+# none and with a typo, nothing at 0, and only in a disposable tree, on a
+# terminal, with no multiplexer of its own
+function test_keep_holds_only_where_a_drop_can_be_held() {
+  local got
+  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=10m)"
+  [ "$got" = "0 600" ] || _hi_because "10m: $got" || return 1
+  got="$(_hi_keep_holds_on)"
+  [ "$got" = "0 900" ] || _hi_because "unset: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=soon)"
+  [ "$got" = "0 900" ] || _hi_because "a typo: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=0)"
+  [ "$got" = "1 0" ] || _hi_because "0: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_KEEP_MUX=tmux)"
+  [ "$got" = "1 0" ] || _hi_because "under its own multiplexer: $got" || return 1
+  got="$(_hi_keep_holds_on _HI_CLEANUP="$_HI_WORKDIR/elsewhere")"
+  [ "$got" = "1 0" ] || _hi_because "a tree that is not disposable: $got"
+}
+
+# a tree whose client switched the kept session off came without keep.sh,
+# and load.sh's stand-ins hold nothing
+function test_a_tree_without_keep_sh_never_holds() {
+  local home out
+  home="$(_hi_scratch_tree nokeep common config link:load.sh)"
+  rm -f "$home/say-hi/common/keep.sh"
+  out="$(_HI_HOME="$home" _HI_ROOT="$home/say-hi" HOME="$_HI_WORKDIR/nokeep" bash -c \
+    'source "$1/load.sh"; _hi_keep_limit=5; _hi_keep_holds; printf "%s %s|" "$?" "$_hi_keep_limit"; _hi_keep_stays; printf "%s|" "$?"; declare -F _hi_keep_held' \
+    _ "$home/say-hi" 2>&1)"
+  [ "$out" = "1 0|1|" ] || _hi_why out
 }
 
 # zellij's client list, read: only a header with nothing under it is nobody.
@@ -487,7 +532,9 @@ function _hi_keep_watch_ends() {
     _HI_KEEP_MUX="$mux" _HI_KEEP_NAME=hi-box _HI_KEEP_TIMEOUT=1s
     # the watcher forks inside the call, so it keeps the stand-in's PATH
     PATH="$bin:$PATH" _HI_TEST_LOG="$log" _HI_TEST_ATTACHED="$flag" _hi_keep_watch 1
-    sleep 2.5
+    # two of the watcher's polls, each logged by the stand-in it asks, past
+    # the 1s timeout with a client attached
+    _hi_poll_bool 40 0.1 _hi_lines_at_least "$log" 2 || exit 4
     ! grep -q kill-session "$log" || exit 3
     printf '0\n' >"$flag"
     wait "$_hi_keep_watch_pid"
@@ -580,19 +627,20 @@ function _hi_shared_tree() {
 }
 
 # an owner pane claims its tree by pid, its own and that of the shell it was
-# kept from, for the connect that finds it dead; an ordinary session's tree
+# kept from (- for none), for the connect that finds it dead, and by its
+# session's name, for the hi --end that ends it; an ordinary session's tree
 # carries no claim
 function test_keep_claim_names_the_pane_and_the_shell_it_was_kept_from() {
   local t got
   t="$(_hi_shared_tree claim)"
   (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX="" _HI_KEEP_OUTER="" _hi_keep_claim)
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "an ordinary session claimed its tree" || return 1
-  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER="" _hi_keep_claim)
+  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER="" _HI_KEEP_NAME=hi-box _hi_keep_claim)
   got="$(cat "$t/say-hi/hi.kept")"
-  [ "$got" = "$$ " ] || _hi_because "a keeping connect's pane: $got" || return 1
-  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER=4242 _hi_keep_claim)
+  [ "$got" = "$$ - hi-box" ] || _hi_because "a keeping connect's pane: $got" || return 1
+  (_HI_ROOT="$t/say-hi" _HI_KEEP_MUX=tmux _HI_KEEP_OUTER=4242 _HI_KEEP_NAME=hi-box _hi_keep_claim)
   got="$(cat "$t/say-hi/hi.kept")"
-  [ "$got" = "$$ 4242" ] || _hi_because "a pane kept from inside: $got"
+  [ "$got" = "$$ 4242 hi-box" ] || _hi_because "a pane kept from inside: $got"
 }
 
 # a session kept from inside another shares its tree, and the last of the two
@@ -744,6 +792,8 @@ function run_load_session_tests() {
   _hi_check "The watcher ends a session nobody is attached to" test_keep_watch_ends_a_session_nobody_is_attached_to
   _hi_check "...and is off without a session, or at a timeout of 0" test_keep_watch_is_off_outside_a_kept_session
   _hi_check_capable pty "The owner pane's exit asks first" test_keep_stays_asks_before_the_owner_pane_closes
+  _hi_check_capable pty "A session holds its tree only where a drop can be held" test_keep_holds_only_where_a_drop_can_be_held
+  _hi_check "...and a tree that came without keep.sh holds nothing" test_a_tree_without_keep_sh_never_holds
   _hi_check_capable pty "...and under zellij an n names the key that detaches" test_keep_stays_names_zellij_s_detach_key
   _hi_check "...and an ordinary session's does not" test_keep_stays_is_no_outside_a_kept_session
   _hi_check "hi.keep lists what an owner pane needs, a line each" test_keep_file_lists_what_an_owner_pane_needs

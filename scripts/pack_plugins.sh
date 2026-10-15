@@ -94,6 +94,7 @@ function _hi_plugins_load() {
   local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df _hi_rc_sh _hi_rc_e
   local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
   [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
+  _HI_PLUGIN_GEN=$((${_HI_PLUGIN_GEN:-0} + 1))
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
   _HI_PLUGIN_HOOKS=() _HI_PLUGIN_ENVS=() _HI_PLUGIN_DEFAULT_OFF=" "
   for _hi_cy_s in config/plugins plugins; do
@@ -102,7 +103,11 @@ function _hi_plugins_load() {
     _hi_cy_n=0 _hi_cy_seen=" " _hi_cy_old="" _hi_rc_n="" _hi_rc_to=-3
     while IFS= read -r _hi_cy_l || [ -n "$_hi_cy_l" ]; do
       _hi_cy_n=$((_hi_cy_n + 1))
-      _hi_trim _hi_cy_l
+      # a comment or a blank line at the margin, before any trimming: near
+      # half of config/plugins, read on every pack
+      case "$_hi_cy_l" in '' | '#'*) continue ;; esac
+      _hi_cy_l="${_hi_cy_l#"${_hi_cy_l%%[! ]*}"}"
+      _hi_cy_l="${_hi_cy_l%"${_hi_cy_l##*[! ]}"}"
       case "$_hi_cy_l" in
       '' | '#'*) continue ;;
       '['*']'*)
@@ -227,7 +232,7 @@ function _hi_plugins_close() {
   fi
   _hi_plugin_env_put "$_hi_rc_n" "${_hi_cl_x:+$_hi_rc_g|$_hi_rc_n|$_hi_cl_x}"
   if [ "$_hi_rc_df" = off ]; then
-    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $_hi_rc_n "*) ;; *) _HI_PLUGIN_DEFAULT_OFF="$_HI_PLUGIN_DEFAULT_OFF$_hi_rc_n " ;; esac
+    _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_rc_n" || _HI_PLUGIN_DEFAULT_OFF="$_HI_PLUGIN_DEFAULT_OFF$_hi_rc_n "
   else
     _HI_PLUGIN_DEFAULT_OFF="${_HI_PLUGIN_DEFAULT_OFF// $_hi_rc_n / }"
   fi
@@ -261,9 +266,12 @@ function _hi_plugins_close() {
       _hi_cl_files+=("$_hi_cl_m") _hi_cl_names+=("$_hi_rc_n")
     done
   fi
-  if ((${#_hi_cl_rows[@]})); then
-    # where the tree's plugin of this name stood, else last
-    for _hi_cl_i in ${_HI_PLUGIN_NAMES[@]+"${!_HI_PLUGIN_NAMES[@]}"}; do
+  if ((${#_hi_cl_rows[@]})) && ! _hi_list_has "${_HI_PLUGIN_NAMES[*]-}" "$_hi_rc_n"; then
+    # a name not read before goes last
+    _HI_PLUGIN_ROWS+=("${_hi_cl_rows[@]}") _HI_PLUGIN_FILES+=("${_hi_cl_files[@]}") _HI_PLUGIN_NAMES+=("${_hi_cl_names[@]}")
+  elif ((${#_hi_cl_rows[@]})); then
+    # where the tree's plugin of this name stood
+    for _hi_cl_i in "${!_HI_PLUGIN_NAMES[@]}"; do
       if [ "${_HI_PLUGIN_NAMES[_hi_cl_i]}" != "$_hi_rc_n" ]; then
         _hi_cl_r+=("${_HI_PLUGIN_ROWS[_hi_cl_i]}") _hi_cl_f+=("${_HI_PLUGIN_FILES[_hi_cl_i]}") _hi_cl_n+=("${_HI_PLUGIN_NAMES[_hi_cl_i]}")
       elif [ -z "$_hi_cl_put" ]; then
@@ -271,7 +279,6 @@ function _hi_plugins_close() {
         _hi_cl_r+=("${_hi_cl_rows[@]}") _hi_cl_f+=("${_hi_cl_files[@]}") _hi_cl_n+=("${_hi_cl_names[@]}")
       fi
     done
-    [ -n "$_hi_cl_put" ] || _hi_cl_r+=("${_hi_cl_rows[@]}") _hi_cl_f+=("${_hi_cl_files[@]}") _hi_cl_n+=("${_hi_cl_names[@]}")
     _HI_PLUGIN_ROWS=("${_hi_cl_r[@]}") _HI_PLUGIN_FILES=("${_hi_cl_f[@]}") _HI_PLUGIN_NAMES=("${_hi_cl_n[@]}")
   fi
   _hi_rc_n=""
@@ -354,11 +361,15 @@ function _hi_plugin_hook_put() {
 # _hi_hook_col <row> <group|name|tool|init|prompt|shells> [outvar] - one
 # column of a hook row; shells is - for every shell
 function _hi_hook_col() {
-  local _hi_hc_r="$1" _hi_hc_n
-  for _hi_hc_n in group name tool init prompt shells; do
-    [ "$_hi_hc_n" != "$2" ] || break
-    _hi_hc_r="${_hi_hc_r#*|}"
-  done
+  local _hi_hc_r="$1"
+  case "$2" in
+  group) ;;
+  name) _hi_hc_r="${_hi_hc_r#*|}" ;;
+  tool) _hi_hc_r="${_hi_hc_r#*|*|}" ;;
+  init) _hi_hc_r="${_hi_hc_r#*|*|*|}" ;;
+  prompt) _hi_hc_r="${_hi_hc_r#*|*|*|*|}" ;;
+  *) _hi_hc_r="${_hi_hc_r##*|}" ;;
+  esac
   _hi_out "${3:-}" "${_hi_hc_r%%|*}"
 }
 
@@ -485,6 +496,31 @@ function _hi_plugin_member_ok() {
   _hi_dir_member_ok "${_hi_pm%%/*}" && _hi_dir_member_ok "${_hi_pm##*/}"
 }
 
+# _hi_plugin_taken_any <member> [member...] - could <member> clash with
+# anything taken: hi's own members and their old names, <member...>, or any
+# plugin's file, its own plugin's too. Pattern matches over one joined list,
+# so a member nothing clashes with costs no walk of the lists below.
+function _hi_plugin_taken_any() {
+  local _hi_ta_m="${1%/}" _hi_ta_l _hi_ta_w IFS
+  shift
+  if [ -z "${_HI_TAKEN_OWN:-}" ]; then
+    _HI_TAKEN_OWN="|"
+    for _hi_ta_w in "${_HI_OVERLAY_FILES[@]}" $_HI_OVERLAY_RENAMES; do
+      _HI_TAKEN_OWN="$_HI_TAKEN_OWN${_hi_ta_w%%:*}|"
+    done
+  fi
+  IFS='|'
+  _hi_ta_l="$_HI_TAKEN_OWN$*|${_HI_PLUGIN_FILES[*]-}|"
+  # the member itself, or an entry under it
+  case "$_hi_ta_l" in *"|$_hi_ta_m|"* | *"|$_hi_ta_m/"*) return 0 ;; esac
+  # ...or an entry it sits under
+  while [ "${_hi_ta_m%/*}" != "$_hi_ta_m" ]; do
+    _hi_ta_m="${_hi_ta_m%/*}"
+    case "$_hi_ta_l" in *"|$_hi_ta_m|"* | *"|$_hi_ta_m/|"*) return 0 ;; esac
+  done
+  return 1
+}
+
 # _hi_plugin_taken <member> <plugin> [member...] - is <member> the table's or
 # a name a member had before ($_HI_OVERLAY_RENAMES), one of the <member...>
 # its own plugin has already, another plugin's, or the directory entry any of
@@ -493,6 +529,7 @@ function _hi_plugin_member_ok() {
 function _hi_plugin_taken() {
   local _hi_ct _hi_ct_m="$1" _hi_ct_n="$2" _hi_ct_i
   shift 2
+  _hi_plugin_taken_any "$_hi_ct_m" "$@" || return 1
   for _hi_ct in "${_HI_OVERLAY_FILES[@]}" $_HI_OVERLAY_RENAMES "$@"; do
     _hi_ct="${_hi_ct%%:*}"
     case "$_hi_ct_m" in "$_hi_ct" | "${_hi_ct%/}"/*) return 0 ;; esac

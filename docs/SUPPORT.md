@@ -64,7 +64,7 @@ permanent - it is the argument to beat.
 - **Renaming a user's overlay files for them in `hi --update`.** hi writes
   into `~/.config/say-hi/` only what the user asked it to write, by name, on
   the command line (`settings.sh`, `hi --add-package`'s `packages`,
-  `hi --set-color`'s `colors`), plus the conversion of a file in a shape hi
+  `hi --add-color`'s `colors`), plus the conversion of a file in a shape hi
   cannot read, which keeps the original as `<file>.old`; a rename is neither.
   The doctor row prints the exact `mv`, which is the same outcome with no new
   write.

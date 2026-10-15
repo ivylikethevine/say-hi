@@ -1,7 +1,7 @@
 # Color pins, in as much of TOML as hi reads: a `[type]` line starts a table,
 # and each row under it is `name = "color"` or `name = "color rrggbb"`, on one
-# line. `hi --set-color <type> <name> <color> [rrggbb]` and
-# `hi --unset-color <type> <name>` edit ~/.config/say-hi/colors, copying this
+# line. `hi --add-color <type> <name> <color> [rrggbb]` and
+# `hi --remove-color <type> <name>` edit ~/.config/say-hi/colors, copying this
 # file there on the first write; that copy replaces this one wholesale.
 #
 # type  = hosttag | username | hostname | usertag

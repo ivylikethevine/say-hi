@@ -645,6 +645,19 @@ function _hi_stub_tools() {
   printf '%s' "$dir"
 }
 
+# _hi_trace_env - fills the caller's `local -a _hi_trace` with what a coverage
+# tracer follows a bash child through, for an `env -i` to hand on: bashcov's
+# xtrace trio, or kcov's DEBUG-trap one. Stripped, every line the child runs
+# reads as untested. Empty outside a sweep, and no fork either way.
+function _hi_trace_env() {
+  _hi_trace=()
+  if [ -n "${BASH_XTRACEFD:-}" ] && [[ $- == *x* ]]; then
+    _hi_trace=(SHELLOPTS=xtrace "PS4=$PS4" "BASH_XTRACEFD=$BASH_XTRACEFD")
+  elif [ -n "${KCOV_BASH_USE_DEBUG_TRAP:-}" ] && [ -n "${BASH_ENV:-}" ]; then
+    _hi_trace=("BASH_ENV=$BASH_ENV" "KCOV_BASH_XTRACEFD=${KCOV_BASH_XTRACEFD:-}" KCOV_BASH_USE_DEBUG_TRAP=1)
+  fi
+}
+
 # _hi_login_env <home> <cmd...> - `env -i` plus only what a login shell has:
 # no _HI_HOME (it would answer what install.sh derives) and no _HI_CONFIG_DIR;
 # $SHELL because install.sh reports ${SHELL##*/} under `set -u`.
@@ -659,12 +672,14 @@ function _hi_stub_tools() {
 # `timeout` (stock macOS) the call runs bare, the way core.sh's _hi_probe does.
 function _hi_login_env() {
   local home="$1"
-  local -a bound=()
+  local -a bound=() _hi_trace
   shift
   command -v timeout >/dev/null 2>&1 &&
     bound=(timeout -k 5 "${_HI_LOGIN_TIMEOUT:-180}")
+  _hi_trace_env
   ${bound[@]+"${bound[@]}"} env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
-    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" _HI_PROMPT_TOOL="${_HI_PROMPT_TOOL-}" "$@"
+    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" _HI_PROMPT_TOOL="${_HI_PROMPT_TOOL-}" \
+    ${_hi_trace[@]+"${_hi_trace[@]}"} "$@"
 }
 
 # _hi_bare_bash <toolbox> <tools> <script> [NAME=VALUE...] - <script> in an
@@ -673,9 +688,11 @@ function _hi_login_env() {
 # ~/.config/say-hi of whoever runs the suite into the probe.
 function _hi_bare_bash() {
   local box="$1" tools="$2" script="$3" nocfg="$_HI_WORKDIR/$1-nocfg"
+  local -a _hi_trace
   shift 3
+  _hi_trace_env
   # shellcheck disable=SC2086 # the tool list splits on purpose
   env -i PATH="$(_hi_real_path "$box" $tools)" HOME="$HOME" NO_COLOR=1 \
     XDG_CONFIG_HOME="$nocfg" _HI_CONFIG_DIR="$nocfg/say-hi" \
-    _HI_HOME="$_HI_HOME" "$@" bash -c "$script" 2>&1
+    _HI_HOME="$_HI_HOME" ${_hi_trace[@]+"${_hi_trace[@]}"} "$@" bash -c "$script" 2>&1
 }
