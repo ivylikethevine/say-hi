@@ -152,9 +152,35 @@ function test_overlay_cache_key_changes_with_the_wiring() {
   [ -n "$was" ] && [ "$was" != "$now" ] || _hi_why was now
 }
 
+# the overlay the members are read from is in the key: the same list from
+# another directory is another cache
+function test_overlay_cache_key_changes_with_the_overlay() {
+  local a b
+  a="$(_HI_CONFIG_DIR="$_HI_WORKDIR/ok.a" _hi_overlay_cache_key colors)"
+  b="$(_HI_CONFIG_DIR="$_HI_WORKDIR/ok.b" _hi_overlay_cache_key colors)"
+  [ -n "$a" ] && [ "$a" != "$b" ] || _hi_why a b
+}
+
 # ---------------------------------------------------------------------------
 # _hi_overlay_cached
 # ---------------------------------------------------------------------------
+
+# two overlays of the same members, the second's file the older: it is still
+# served its own file, never the first's archive
+function test_overlay_cached_keeps_two_overlays_apart() {
+  local dir a="$_HI_WORKDIR/oc.two.a" b="$_HI_WORKDIR/oc.two.b" x="$_HI_WORKDIR/oc.two.x" out_a="" out_b="" got
+  dir="$(_hi_cache_rt oc.two)"
+  mkdir -p "$a" "$b" "$x"
+  printf 'which = b\n' >"$b/colors"
+  touch -t 202001010000 "$b/colors"
+  printf 'which = a\n' >"$a/colors"
+  XDG_RUNTIME_DIR="$dir" _HI_CONFIG_DIR="$a" _hi_overlay_cached out_a colors || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_CONFIG_DIR="$b" _hi_overlay_cached out_b colors || _hi_why dir || return 1
+  [ "$out_a" != "$out_b" ] || _hi_because "one cache for both overlays: $out_a" || return 1
+  tar -x -z -f "$out_b" -C "$x" || _hi_why out_b || return 1
+  got="$(cat "$x/colors" 2>&1)"
+  [ "$got" = "which = b" ] || _hi_why got
+}
 
 function test_overlay_cached_refuses_an_empty_member_list() {
   local out="" dir
@@ -758,6 +784,7 @@ function run_cache_tests() {
   _hi_check "Overlay key is stable for one member list" test_overlay_cache_key_is_stable_for_one_member_list
   _hi_check "Overlay key changes with the member list" test_overlay_cache_key_changes_with_the_member_list
   _hi_check "Overlay key changes with the wiring" test_overlay_cache_key_changes_with_the_wiring
+  _hi_check "Overlay key changes with the overlay" test_overlay_cache_key_changes_with_the_overlay
 
   _hi_h2 "Testing: _hi_overlay_cached"
   _hi_check "Refuses an empty member list" test_overlay_cached_refuses_an_empty_member_list
@@ -765,6 +792,7 @@ function run_cache_tests() {
   _hi_check "Refuses without a runtime dir" test_overlay_cached_refuses_without_a_runtime_dir
   _hi_check "Builds cold and names the file" test_overlay_cached_builds_cold_and_names_the_file
   _hi_check "Leaves no temp file behind" test_overlay_cached_leaves_no_temp_file
+  _hi_check "Two overlays of the same members are two caches" test_overlay_cached_keeps_two_overlays_apart
   _hi_check "A failed build leaves nothing and answers 1" test_cached_cleans_up_after_a_failed_build
   _hi_check "Reuses a warm cache" test_overlay_cached_reuses_a_warm_cache
   _hi_check "Rebuilds when a member is newer" test_overlay_cached_rebuilds_when_a_member_is_newer

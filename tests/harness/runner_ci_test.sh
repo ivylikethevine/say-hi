@@ -294,16 +294,16 @@ function _hi_shards_cover_group() {
   }
 }
 
-# coverage.yml's two sweeps take their slices dealt by cost
-# (tests/lib/coverage.sh), and each matrix still partitions the table
+# coverage.yml's two sweeps take their slices dealt by their own tracer's
+# costs (tests/lib/coverage.sh), and each matrix still partitions the table
 function test_coverage_shards_partition_by_cost() {
-  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job entry slices got want
+  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job tool entry slices got want
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   want="$("$_HI_TEST_RUN" --list 2>/dev/null | sort)"
   for job in shard-kcov shard-bashcov; do
-    slices=""
+    tool="${job#shard-}" slices=""
     for entry in $(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
-      slices="$slices$(_HI_SHARD_BY=cost "$_HI_TEST_RUN" --shard "$entry" --list 2>/dev/null)"$'\n'
+      slices="$slices$(_HI_SHARD_BY="$tool" "$_HI_TEST_RUN" --shard "$entry" --list 2>/dev/null)"$'\n'
     done
     got="$(printf '%s' "$slices" | sed '/^$/d' | sort)"
     [ "$got" = "$want" ] ||
@@ -391,7 +391,7 @@ function run_runner_ci_tests() {
   # that ever drifted from the group's suite count would fail this the same
   # way an incomplete matrix would.
   _hi_check "ci.yml's e2e-backends shards cover the backends group" _hi_shards_cover_group ci.yml e2e-backends backends
-  _hi_check "coverage.yml's shards partition the table, dealt by cost" test_coverage_shards_partition_by_cost
+  _hi_check "coverage.yml's shards partition the table, dealt by each tracer's costs" test_coverage_shards_partition_by_cost
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "Every suite on disk is in the table" test_every_suite_script_on_disk_is_in_the_table
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table

@@ -230,9 +230,9 @@ _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisect
 _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can take it
 ```
 
-The pty-driven cases (`configure_pty`, `install_run`) kill a child that has
-written nothing to its transcript for 60s, or has run five times that, and
-count it a failure: a slow host still drawing is not a wedge. A killed case
+The pty-driven cases (`configure_pty`, `configure_menu`, `install_run`) kill a
+child that has written nothing to its transcript for 60s, or has run five times
+that, and count it a failure: a slow host still drawing is not a wedge. A killed case
 prints the host's load and the last lines it drew. `rc_lines`' one pty case
 keeps a plain 60s. `_HI_CASE_TIMEOUT` raises the deadline on a host slow for
 reasons the suites cannot fix, as `_HI_SSH_CASE_TIMEOUT` (90s) does for the
@@ -297,10 +297,11 @@ those lines, for the PR's diff, in the comment. The `test_runner_ci` suite runs
 `--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
 
 In CI each tool is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
-to `test_runner.sh` with `_HI_SHARD_BY=cost`: the suites dealt by
-`$_HI_TEST_COSTS`, their cost under a tracer, costliest first to the lightest
-slice, so the slices cost about the same; `scratch/trace_sweep.sh` re-measures
-it) and merged by a gather job: `kcov --merge`
+to `test_runner.sh` with `_HI_SHARD_BY` naming the tracer: the suites dealt by
+that tracer's table, `$_HI_TEST_COSTS_KCOV` or `$_HI_TEST_COSTS_BASHCOV`, the
+seconds CI took tracing each, costliest first to the lightest slice, so the
+slices take about as long; `scratch/coverage_costs.sh` re-reads them off a
+coverage run) and merged by a gather job: `kcov --merge`
 over the shards' `parts/` directories, and a plain JSON hash union of bashcov's
 `--command-name`-keyed `.resultset.json` files, safe because shards partition
 the suite table.
@@ -335,7 +336,9 @@ the suite table.
   driver runs every one with `_HI_PAR_WIDTH=1`. A suite still running after
   `_HI_COV_SUITE_LIMIT` seconds (600) is stopped, and the drivers print the
   processes running then: a stall names its suite rather than running the job
-  out. It needs `gem install --user-install bashcov` (found
+  out. It skips `configure_pty` and `configure_menu`, which run near ten times
+  slower under bashcov on a CI runner than anywhere else measured; kcov's
+  figure carries them. It needs `gem install --user-install bashcov` (found
   off the gem bin directory if not on `$PATH`), and writes a `.simplecov` into
   the checkout for the run, refusing to start rather than overwrite one you
   have.

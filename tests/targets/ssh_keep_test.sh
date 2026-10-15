@@ -141,6 +141,18 @@ function _hi_keep_link_gone() {
   ! docker exec "$_HI_KEEPTEST_C" sh -c 'grep -qs "hitest@pt[s]" /proc/[0-9]*/cmdline'
 }
 
+# how many of sshd's sessions on the target hold a pty, off /proc
+function _hi_keep_links() {
+  { docker exec "$_HI_KEEPTEST_C" sh -c 'grep -ls "hitest@pt[s]" /proc/[0-9]*/cmdline' 2>/dev/null || true; } |
+    awk 'END { print NR }'
+}
+
+# a retry is back in: the cut link's session gone, the retry's up, and the
+# kept session attached. Not "detached first": a retry can reattach between
+# two polls, so that state may never be seen.
+function _hi_keep_retried() { _hi_keep_links_are 1 && _hi_keep_is attached; }
+function _hi_keep_links_are() { [ "$(_hi_keep_links)" = "$1" ]; }
+
 # how many shells on the target are reading hi's session rc, off /proc
 function _hi_keep_shells() {
   { docker exec "$_HI_KEEPTEST_C" sh -c 'grep -ls "hi[.]rc[.].*/bashrc" /proc/[0-9]*/cmdline' 2>/dev/null || true; } |
@@ -310,12 +322,12 @@ function _hi_keep_feed_pane() {
 }
 
 # marked, then - once the case has cut the link and hi has said it is
-# retrying - back in the kept shell as any later connect is. The old client
-# is waited out first, and zellij's new one until it draws.
+# retrying - back in the kept shell as any later connect is: the retry's link
+# the only one, and zellij's new client waited out until it draws.
 function _hi_keep_feed_retry() {
   _hi_keep_feed_mark "$1" || return 1
   _hi_keep_await 240 grep -q 'retrying for' "$1" || return 1
-  _hi_keep_await 40 _hi_keep_is detached || return 1
+  _hi_keep_await 120 _hi_keep_retried || return 1
   [ "$_HI_KEEPTEST_MUX" != zellij ] || _hi_keep_await 120 _hi_keep_last "$1" 'Ctrl +' 'retrying for' || return 1
   _hi_keep_feed_back "$1" || return 1
 }

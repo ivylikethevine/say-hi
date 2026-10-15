@@ -11,7 +11,8 @@
 #                "every suite" test_runner.sh itself defaults to, e2e and
 #                backends groups included; pass e.g. --group fast to narrow
 #                it). The `shellcheck` suite is dropped from whatever this
-#                selects, wherever it appears - see tests/lib/coverage.sh.
+#                selects, wherever it appears - see tests/lib/coverage.sh -
+#                and so are configure_pty and configure_menu (below).
 # tests/coverage.sh --join sets this sweep's ranking beside kcov's.
 #
 # ---------------------------------------------------------------------------
@@ -234,6 +235,12 @@ done
 unset _hi_cov_dir
 _HI_COV_TRASH+=("$_HI_SIMPLECOV")
 
+_HI_COV_TOOL=bashcov
+# configure's menu suites run each case near ten times slower under bashcov
+# on a CI runner than anywhere else measured (a container of CI's own ruby
+# and bashcov, any core count, CI's locale), past a shard's budget; kcov
+# traces them in seconds, so its figure carries them
+_HI_COV_SKIP="configure_pty configure_menu"
 _hi_cov_select_suites "$@"
 _hi_cov_counts_files covv2
 

@@ -201,13 +201,16 @@ function _hi_cov_select_suites() {
   _HI_NAMES=()
   _HI_PATHS=()
   local _hi_group _hi_name _hi_path
-  # a shard's slice dealt by cost: see test_runner.sh's $_HI_TEST_COSTS
+  # a shard's slice dealt by the driver's tracer's costs ($_HI_COV_TOOL, kcov
+  # or bashcov: test_runner.sh's $_HI_TEST_COSTS_*), less what that tracer
+  # skips ($_HI_COV_SKIP)
   while read -r _hi_group _hi_name _hi_path; do
     [ -n "${_hi_path:-}" ] || continue
     [ "$_hi_name" = shellcheck ] && continue
+    case " ${_HI_COV_SKIP:-} " in *" $_hi_name "*) continue ;; esac
     _HI_NAMES+=("$_hi_name")
     _HI_PATHS+=("$_hi_path")
-  done < <(_HI_SHARD_BY=cost "$_HI_RUNNER" "$@" --list-paths)
+  done < <(_HI_SHARD_BY="${_HI_COV_TOOL:-}" "$_HI_RUNNER" "$@" --list-paths)
 
   if [ "${#_HI_PATHS[@]}" -eq 0 ]; then
     _hi_cecho " | coverage: no suites selected by: $*" "$RED" >&2

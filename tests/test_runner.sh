@@ -112,6 +112,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:load_session:load/load_session_test.sh"
     "fast:preview_packages:scripts/preview_packages_test.sh"
     "fast:install_run:scripts/install_run_test.sh"
+    "fast:configure_menu:scripts/configure_menu_test.sh"
     "ci:packaging_ci:packaging/packaging_ci_test.sh"
     "ci:packaging_ci_release:packaging/packaging_ci_release_test.sh"
     "ci:packaging_ci_workflows:packaging/packaging_ci_workflows_test.sh"
@@ -140,35 +141,58 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   )
 fi
 
-# What each suite costs a coverage sweep, in seconds under a tracer: its
-# trace lines (scratch/trace_volume.sh) at bashcov's rate, plus what an e2e
-# suite waits on its containers. --shard deals the suites by it when
-# $_HI_SHARD_BY is cost, as tests/lib/coverage.sh asks; a suite not named
-# costs 5. Re-measure with scratch/trace_sweep.sh when a suite's weight moves.
-_HI_TEST_COSTS="
-  hi_payload_scan:415 configure_pty:364 doctor_config:298
-  hi_payload_overlay:228 doctor_target:180 framework:176 hi_payload_home:158
-  ssh_keep:122 repo:98 rc_prompt:96 configure_wizard:93 podman:90 nomad:90
-  kube:90 install_methods:76 install_location:75 doctor_json:74 ssh_relay:74
-  ssh:50 install_run:41 hi_payload:41 ssh_disconnect:40 doctor_report:37
-  ssh_wire:36 load_session:31 hi_cache:28 home_prompt:24 drift_docs:22
-  preview:20 aliases:20 add_package:16 rc:15 hi_container:15 set_color:13
-  test_runner_ci:13 preview_packages:12 docker:12 convert_settings:11
-  targets_complete:11 rc_lines:11 test_runner:11 configure:10 hi_help:10
-  hi_keep:9 paths:8 update:8 packaging_ci_mkpkg:8 header_whole:8
-  core_identity:7 load:7 add_tag:7 alias_fallthrough:6 header_check:6
-  packaging:5 header:5 hi_remote:5 dialects:5 tools:5 drift:5 bench:5
-  packaging_ci_scripts:4 doctor:4 core:4 hi:4 test_lib:4
-  packaging_ci_release:3 header_bare:3 exports:3 install:2 hi_prompt:2
-  core_target:2 packaging_ci_workflows:2 env_prompt:2 targets:1
-  packaging_ci:1 hi_helpers:1 table:1 test_lib_report:1 hi_dispatch:1
-  git_prompt:1 test_lib_par:1 hi_mux:1
+# What each suite costs a coverage sweep, in seconds, one table a tracer:
+# the time CI took tracing it (scratch/coverage_costs.sh reads them off a
+# coverage run). --shard deals the suites by one when $_HI_SHARD_BY names its
+# tracer, kcov or bashcov, as tests/lib/coverage.sh asks; a suite not named
+# costs 5, and one a tracer skips costs it 0.
+_HI_TEST_COSTS_KCOV="
+  ssh_keep:257 framework:168 kube:110 ssh_relay:61 ssh:59 podman:44
+  hi_payload_scan:36 test_lib:32 doctor_config:31 home_prompt:27 dialects:23
+  ssh_disconnect:22 configure_pty:21 doctor_target:21 hi_payload_overlay:20
+  load_session:20 test_runner:20 plugins:19 configure_menu:15 docker:14
+  rc_prompt:14 rc:12 configure_wizard:11 install_methods:11 doctor_json:9
+  hi_payload_home:9 nomad:9 repo:9 targets:8 update:8 install_location:7
+  install_run:7 packaging_ci_scripts:7 test_runner_ci:7 doctor_report:6
+  test_lib_par:6 alias_fallthrough:5 hi_cache:4 hi_keep:4
+  packaging_ci_mkpkg:4 test_lib_report:4 add_package:3 configure:3 drift:3
+  header:3 hi_payload:3 packaging:3 packaging_ci_release:3 preview:3
+  rc_lines:3 set_color:3 ssh_wire:3 add_tag:2 aliases:2 bench:2
+  convert_settings:2 core_identity:2 drift_docs:2 hi:2 hi_container:2
+  hi_help:2 load:2 packaging_ci_workflows:2 preview_packages:2
+  targets_complete:2 core:1 doctor:1 exports:1 git_prompt:1 header_bare:1
+  header_check:1 header_whole:1 hi_helpers:1 hi_remote:1 install:1
+  packaging_ci:1 paths:1 tools:1 core_target:0 env_prompt:0 hi_dispatch:0
+  hi_mux:0 hi_prompt:0 table:0
+"
+_HI_TEST_COSTS_BASHCOV="
+  ssh_keep:360 framework:255 hi_payload_scan:185 doctor_config:137 kube:117
+  ssh:105 plugins:101 doctor_target:95 ssh_relay:76 configure_wizard:75
+  hi_payload_home:60 install_location:60 rc_prompt:59 add_package:57
+  podman:56 set_color:56 hi_payload_overlay:55 test_lib:53 ssh_disconnect:43
+  update:42 dialects:41 test_runner:40 docker:38 doctor_json:37
+  load_session:36 add_tag:33 home_prompt:32 doctor_report:31
+  install_methods:31 install_run:30 test_runner_ci:27 hi_cache:26 rc:25
+  hi_help:24 preview:24 test_lib_par:22 aliases:21 header_whole:21
+  hi_payload:21 packaging_ci_scripts:21 bench:20 configure:20 drift_docs:20
+  rc_lines:20 targets_complete:20 core_identity:19 packaging:19
+  packaging_ci_mkpkg:19 ssh_wire:19 core:18 doctor:18 load:18
+  packaging_ci_release:18 packaging_ci_workflows:18 paths:18 env_prompt:17
+  header_check:17 hi_helpers:17 install:17 targets:17 convert_settings:16
+  exports:16 git_prompt:16 hi_container:16 hi_keep:16 hi_dispatch:15 table:15
+  alias_fallthrough:14 header:14 hi:14 header_bare:13 hi_remote:13
+  packaging_ci:13 preview_packages:13 test_lib_report:13 tools:13 drift:12
+  hi_mux:12 hi_prompt:12 repo:12 core_target:11 nomad:60 configure_menu:0
+  configure_pty:0
 "
 
-# _hi_test_cost <name> - its $_HI_TEST_COSTS entry, 5 for none. Out here, not
-# in the substitution that deals by it: bash 3.2 cannot parse a case there.
+# _hi_test_cost <name> - its entry in $_HI_SHARD_BY's table, 5 for none. Out
+# here, not in the substitution that deals by it: bash 3.2 cannot parse a case
+# there.
 function _hi_test_cost() {
-  local costs=" ${_HI_TEST_COSTS//$'\n'/ } " c
+  local costs="$_HI_TEST_COSTS_KCOV" c
+  [ "$_HI_SHARD_BY" != bashcov ] || costs="$_HI_TEST_COSTS_BASHCOV"
+  costs=" ${costs//$'\n'/ } "
   case "$costs" in
   *" $1:"*)
     c="${costs#* "$1":}"
@@ -349,10 +373,10 @@ fi
 # seven minutes under Git Bash, where backgrounded suites barely overlap
 # (tests/lib/fixtures.sh's fork_concurrency), so more runners shorten it where
 # a wider run would not. Slices of different n compose: 2/8 and 6/8 are 2/4.
-# With $_HI_SHARD_BY=cost the slices are dealt by $_HI_TEST_COSTS instead: the
-# costliest suite first, each to the slice that costs least so far, the
-# first of equals - the same partition on every runner, but slices of
-# different n do not compose.
+# With $_HI_SHARD_BY=kcov or bashcov the slices are dealt by that tracer's
+# table above instead: the costliest suite first, each to the slice that
+# costs least so far, the first of equals - the same partition on every
+# runner, but slices of different n do not compose.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"
@@ -374,7 +398,7 @@ if [ -n "$_HI_SHARD" ]; then
   fi
   declare -a _hi_sharded=() _hi_loads=()
   _hi_mine=" "
-  if [ "${_HI_SHARD_BY:-table}" = cost ]; then
+  if [ "${_HI_SHARD_BY:-}" = kcov ] || [ "${_HI_SHARD_BY:-}" = bashcov ]; then
     for ((_hi_k = 0; _hi_k < _hi_shard_n; _hi_k++)); do _hi_loads[_hi_k]=0; done
     while read -r _hi_c _hi_k; do
       _hi_min=0
@@ -393,7 +417,7 @@ if [ -n "$_HI_SHARD" ]; then
   fi
   _hi_k=0
   for _hi_t in "${_HI_SELECTED[@]}"; do
-    if [ "${_HI_SHARD_BY:-table}" = cost ]; then
+    if [ "${_HI_SHARD_BY:-}" = kcov ] || [ "${_HI_SHARD_BY:-}" = bashcov ]; then
       case "$_hi_mine" in *" $_hi_k "*) _hi_sharded+=("$_hi_t") ;; esac
     elif [ $((_hi_k % _hi_shard_n)) -eq $((_hi_shard_i - 1)) ]; then
       _hi_sharded+=("$_hi_t")
@@ -676,8 +700,15 @@ function _hi_run_suite_watched() {
   esac
   (
     rm -f "$_hi_progress.hung"
+    # the suite a process group of its own, which the stall below ends
+    # whole; job control off again inside it, or a tracer exporting
+    # SHELLOPTS hands it to every shell under it, each background job then a
+    # group of its own that outlives the kill and holds the bashcov pipe
     set -m
-    _hi_run_suite </dev/null &
+    {
+      set +m
+      _hi_run_suite
+    } </dev/null &
     pid=$!
     set +m
     trap 'kill -TERM -- "-$pid" 2>/dev/null; exit 130' INT TERM HUP

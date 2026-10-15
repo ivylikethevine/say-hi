@@ -762,5 +762,84 @@ function run_configure_tests() {
   _hi_suite_end "configure.sh logic"
 }
 
+# The pty parts' rig (configure_pty, configure_menu).
+
+# _hi_pty_run <child-script> <suffix> <label> <input> <line> [args...] - the
+# pty rig _hi_cfg_pty runs: a scratch settings.sh, the
+# input typed at a forced pty, the transcript captured to
+# $_HI_WORKDIR/<label>.<suffix>.out, killed once it has written nothing for
+# the deadline rather than hung forever.
+function _hi_pty_run() {
+  local child="$1" suffix="$2" label="$3" input="$4" line="${5:-}"
+  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.$suffix.out"
+  shift 5
+  mkdir -p "$dir/common" "$dir/config" "$dir/overlay"
+  printf '#!/bin/sh\n%s\n' "$line" >"$dir/overlay/settings.sh"
+  : >"$out"
+  rm -f "$dir/verdict"
+  printf '%b' "$input" |
+    "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
+  _hi_wait_quiet "$!" "${_HI_CASE_TIMEOUT:-60}" "$out" "$label"
+  [ "$_HI_WAIT_EXIT" != 124 ]
+}
+
+# _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
+# a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
+# everything to the end of the line by default, or just what <capture>
+# matches (a sed bracket expression body) when the tag's value can have
+# trailing text of its own. The one shape behind _hi_cfg_rc and
+# _hi_cfg_lines. The child also writes that line to
+# <label>/verdict, which is read first: a BSD pty can drop the last output of
+# a child that exits at once, and the transcript is only the fallback.
+function _hi_pty_field() {
+  local src="$_HI_WORKDIR/$1/verdict"
+  [ -s "$src" ] || src="$_HI_WORKDIR/$1.$2.out"
+  tr '\r' '\n' <"$src" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
+}
+
+# _hi_cfg_pty <label> <input> <settings-line> <fn> [arg...] - one configure
+# function under a pty with <input> (printf %b) on its stdin. Transcript
+# lands in $_HI_WORKDIR/<label>.cfg.out; non-zero when the child had to be
+# killed at the deadline.
+function _hi_cfg_pty() {
+  local label="$1" input="$2" line="$3"
+  shift 3
+  _hi_pty_run "$_HI_CFG_CHILD" cfg "$label" "$input" "$line" "$@"
+}
+
+# the readers: the transcript's visible text for substrings (fixed strings
+# only - a pty writes CR-LF, so nothing here anchors a line; the menu paints
+# inside a row, so its escapes come out first), the tail line's fields
+# through the same CR normalisation the groups loop's readers use
+function _hi_cfg_has() { _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | grep -qF "$2"; }
+
+function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
+
+function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
+
+# _hi_cfg_screen <label> <n> - the menu's <n>th draw, 0 the first: the pty
+# echoes no input, so each ` > ` prompt shares its line with the next draw's
+# title, and a draw runs from one prompt line to the line before the next
+function _hi_cfg_screen() {
+  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
+    awk -v n="$2" 'index($0, " > ") == 1 { s++ } s == n'
+}
+
+function _hi_cfg_screen_has() {
+  _hi_cfg_screen "$1" "$2" | grep -qF -- "$3" || _hi_because "draw $2 of $1 has no \"$3\""
+}
+
+# _hi_cfg_titles <label> - every draw's title, in order, comma-joined
+function _hi_cfg_titles() {
+  _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | tr -d '\r' |
+    sed -E -n 's/.*-  (hi --configure(: [A-Za-z: ]+)?|Header( cells)?|Package check|Prompt|Plugins(: [a-z]+)?)  -.*/\1/p' |
+    paste -sd, -
+}
+
+# every page's key in order, g1 the first group of plugins (cli) standing
+# for the groups', then b: the six pages and the main page again, each
+# drawn once
+_HI_MENU_EVERY_PAGE='i\ne\nc\nr\ng\ng1\nb\ns\n'
+
 # a part (configure_*_test.sh) sources this file for what is above and runs its own
 [ -n "${_HI_CONFIGURE_PART:-}" ] || run_configure_tests

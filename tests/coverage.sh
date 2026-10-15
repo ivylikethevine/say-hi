@@ -252,6 +252,7 @@ shift 2>/dev/null || true
 rm -rf "$_HI_COV_DIR"
 mkdir -p "$_HI_COV_DIR/parts"
 
+_HI_COV_TOOL=kcov
 _hi_cov_select_suites "$@"
 _hi_cov_counts_files cov
 

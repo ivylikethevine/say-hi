@@ -196,14 +196,17 @@ function _hi_overlay_tar() {
   _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
 
-# What changes an overlay tar without touching any member's mtime: the member
-# list itself, and the wiring written from it, which a newer hi.sh can change
-# under the same list. Hashed, not spelled out, to keep the cache filename
-# short.
+# What changes an overlay tar without touching any member's mtime: the
+# overlay it is read from, the member list itself, and the wiring written from
+# it, which a newer hi.sh can change under the same list. Keyed on the
+# overlay's path as the tree's cache is on its own: two overlays of the same
+# members share the runtime dir, and staleness is only "no file newer than
+# the cache", so one keyed by its list alone was served the other's files.
+# Hashed, not spelled out, to keep the cache filename short.
 function _hi_overlay_cache_key() {
   local _hi_ok_w
   _hi_overlay_wiring _hi_ok_w "$@"
-  _hi_hash "$*$_hi_ok_w"
+  _hi_hash "${_HI_CONFIG_DIR:-}|$*$_hi_ok_w"
 }
 
 # _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two

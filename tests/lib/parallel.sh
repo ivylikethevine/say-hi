@@ -166,7 +166,7 @@ function _hi_par_overdue() {
 # row each, from one ps listing; nothing where ps cannot list parents
 function _hi_par_tree() {
   local list
-  list="$(ps -A -o pid=,ppid=,etime=,args= 2>/dev/null)" || list=""
+  list="$(ps -A -o pid= -o ppid= -o args= 2>/dev/null)" || list=""
   # Git Bash's ps has no -o: its -ef, where the header names PID and PPID
   [ -n "$list" ] || list="$(ps -ef 2>/dev/null | awk 'NR == 1 { ok = $2 == "PID" && $3 == "PPID"; next } ok { $1 = ""; print }')"
   printf '%s\n' "$list" | awk -v root="$1" '
