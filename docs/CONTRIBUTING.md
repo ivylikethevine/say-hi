@@ -122,7 +122,7 @@ then each still fails its run.
 `fast suites (Windows client)` run on a pull request only when its head branch
 lives in this repository: each stands up an sshd and authorizes a throwaway
 key, which is not something to hand a fork's PR (the first three sit behind
-`e2e-gate`; the macOS job's loopback steps skip on a fork for the same reason).
+`test-arm`; the macOS job's loopback steps skip on a fork for the same reason).
 A fork's PR would never report them, so they stay off the required list;
 `fast suites (Alpine client)`, `fast suites (ubuntu-24.04-arm)`, and
 `nix flake` are off it until they have a track record. None carries

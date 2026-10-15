@@ -33,7 +33,13 @@ git config --global --add safe.directory "$GITHUB_WORKSPACE"
 # `-k SECONDS` short form GNU's does.
 # _HI_RUN_DEADLINE under timeout's 900: the runner ends itself and names what
 # was running, where timeout's kill names nothing
-_HI_RUN_DEADLINE=840 timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
+# $HI_SHARD: a workflow that splits the group across VMs names this one's
+# slice (openbsd-e2e.yml), dealt by its $_HI_SHARD_BY; unset, the whole group
+_HI_RUN_DEADLINE=840 timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast \
+  --shard "${HI_SHARD:-1/1}" </dev/null
+
+# the loopback once a workflow, on its first slice
+case "${HI_SHARD:-1/1}" in 1/*) ;; *) exit 0 ;; esac
 
 # a throwaway key, and sshd is already up in the vmactions image
 ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"

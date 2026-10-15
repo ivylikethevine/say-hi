@@ -8,7 +8,10 @@ name: OpenBSD e2e
 # asks of an OpenBSD target. No fish: two fish
 # versions share the package stem, and a non-interactive pkg_add refuses the
 # ambiguity; the fish dialect is proven on every other platform. ci.yml calls
-# it beside freebsd-e2e.yml, behind the same gate.
+# it beside freebsd-e2e.yml, behind the same gate. Two VMs, each with half the
+# fast group dealt by cost: the suites keep its four cores busy (the runner's
+# machine-use table), so a slow host is one that runs out of time, and half
+# the work each fits even a host four times slower inside the deadline.
 on:
   workflow_call:
 
@@ -17,9 +20,13 @@ permissions:
 
 jobs:
   loopback:
-    name: hi localhost (OpenBSD both ends)
+    name: hi localhost (OpenBSD both ends, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/2, 2/2]
     steps:
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -54,10 +61,16 @@ jobs:
 
       # .github/scripts/bsd_loopback.sh - byte for byte freebsd-e2e.yml's own
       # call, its header says why
+      # the shard and how it is dealt reach the VM through envs; shard 1 also
+      # says hi to itself (bsd_loopback.sh)
       - name: Fast suites, then say hi to ourselves
         uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        env:
+          HI_SHARD: ${{ matrix.shard }}
+          _HI_SHARD_BY: gitbash
         with:
           release: "7.9"
+          envs: HI_SHARD _HI_SHARD_BY
           usesh: true
           sync: rsync
           copyback: false

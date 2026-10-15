@@ -394,6 +394,7 @@ function run_runner_ci_tests() {
   # inside WSL, and on ci.yml's e2e runners are exactly their group.
   _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
   _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
+  _hi_check "The OpenBSD job's shards cover the fast group" _hi_shards_cover_group openbsd-e2e.yml - fast
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
   # Also the shape "one backend per runner" depends on: three suites, three
   # shards, so every shard really is exactly one backend - not asserted here

@@ -38,10 +38,9 @@ jobs:
   # a failed lookup both leave it 'true', so change detection breaking is
   # never read as "assume nothing changed". `outputs.trusted` is the other
   # flag: a push, or a pull_request from this repository - read by
-  # test-macos's loopback, e2e-gate, and e2e-windows-client. The three e2e-*
-  # reusable-workflow jobs gate on `needs.e2e-gate.outputs.ok` instead, which
-  # is empty when that job skips. The `!cancelled()` jobs below name the
-  # draft clause themselves, since `!cancelled()` runs past a skipped need.
+  # test-macos's loopback, the three platform e2e-* jobs, and
+  # e2e-windows-client. The `!cancelled()` jobs below name the draft clause
+  # themselves, since `!cancelled()` runs past a skipped need.
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
   # test-arm, test-macos, test-alpine, profile, packaging-smoke, nix-flake,
@@ -96,8 +95,8 @@ jobs:
           persist-credentials: false
 
       # trusted: a push, or a pull_request from this repository - read by
-      # mark-tree below, test-macos's HI_LOOPBACK, e2e-gate, and
-      # e2e-windows-client's `if:`. A fork PR's head repository is the fork.
+      # mark-tree below, test-macos's HI_LOOPBACK, and the e2e-* platform
+      # jobs' and e2e-windows-client's `if:`. A fork PR's head repository is the fork.
       - id: trust
         env:
           EVENT: ${{ github.event_name }}
@@ -219,7 +218,7 @@ jobs:
   # (free on a public repo) runs the same suites on arm64, so an x86-only
   # assumption - the header's uname -m and CPU cells, a probe that only knows
   # one arch - fails here rather than on someone's Pi. A red arm64 entry
-  # holds e2e-gate, which waits on this job alone.
+  # holds the platform e2e jobs, which wait on this job alone.
   test-ubuntu:
     name: fast suites (ubuntu-latest)
     needs: changes
@@ -306,10 +305,10 @@ jobs:
   # by side, and `test` installs none of the tools only the linters call.
   # markdownlint and prettier gate through tools_test.sh, inside this job, so
   # making them blocking left the required-check names as they were.
-  # Not in e2e-gate's `needs:` - a red lint has no bearing on whether an ssh
-  # session works, and gating on it would only make the platform e2e jobs
-  # wait on tool installs they don't use. Add `lint` to e2e-gate's `needs:`
-  # to make lint block e2e.
+  # Not in the platform e2e jobs' `needs:` - a red lint has no bearing on
+  # whether an ssh session works, and gating on it would only make them wait
+  # on tool installs they don't use. Add `lint` to their `needs:` to make
+  # lint block e2e.
   lint:
     name: lint suites (ubuntu-latest)
     needs: changes
@@ -398,7 +397,7 @@ jobs:
   # %e/width/sort fixes in common/ came out of it). No lint group here: that is
   # its own ubuntu job, against pinned tools, on a runner a tenth the price.
   #
-  # Then, for e2e-gate's audience (pushes and same-repo PRs: the steps stand
+  # Then, for the platform e2e jobs' audience (pushes and same-repo PRs: the steps stand
   # up an sshd and authorize a throwaway key), the BSD path end to end on this
   # runner rather than a second macOS one. It ssh's to itself, so client and
   # target are both macOS userland and Apple's /bin/bash 3.2 - run as
@@ -1246,7 +1245,7 @@ jobs:
         with:
           egress-policy: block
           disable-sudo: true
-          # A gate job, as e2e-gate below: its audit log named no endpoint.
+          # A gate job: its audit log named no endpoint.
           allowed-endpoints: >
             github.com:443
 
@@ -1274,7 +1273,7 @@ jobs:
         with:
           egress-policy: block
           disable-sudo: true
-          # A gate job, as e2e-gate below: its audit log named no endpoint.
+          # A gate job: its audit log named no endpoint.
           allowed-endpoints: >
             github.com:443
 
@@ -1296,67 +1295,41 @@ jobs:
   # not something to hand a stranger's pull request, but a PR whose head
   # branch lives in this repository was pushed by someone who can push to
   # main already, and it is that PR where a red Windows or BSD run is worth
-  # knowing - not after the merge, off a release. Gated on `test-arm` alone:
-  # nearly every bad push fails a red arm64 unit test first, and arm64 has a
-  # runner pool of its own, so it starts at once where `test-ubuntu` queues
-  # behind every other ubuntu job and held the Windows and BSD runners to the
-  # end of the run. A break only ubuntu's or macOS's fast suites catch fails
-  # their own checks, and so the run, all the same. One gate job rather than
-  # the same needs/if on every caller below; macOS's loopback rides in
-  # test-macos itself, for the same audience.
-  e2e-gate:
-    name: e2e gate
-    needs: [changes, test-arm]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      ok: ${{ steps.gate.outputs.ok }}
-    steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: block
-          disable-sudo: true
-          # A gate job: it reads its needs' outputs and reaches nothing else.
-          # Its own audit log named no endpoint at all.
-          allowed-endpoints: >
-            github.com:443
-
-      - id: gate
-        env:
-          TRUSTED: ${{ needs.changes.outputs.trusted }}
-          TEST_ARM: ${{ needs.test-arm.result }}
-        run: |
-          ok=false
-          [ "$TRUSTED" = true ] && [ "$TEST_ARM" = success ] && ok=true
-          echo "ok=$ok" >>"$GITHUB_OUTPUT"
-
+  # knowing - not after the merge, off a release. Each waits on `test-arm`
+  # alone: nearly every bad push fails a red arm64 unit test first, and arm64
+  # has a runner pool of its own, so it starts at once where an ubuntu job
+  # queues behind every other one. A break only ubuntu's or macOS's fast
+  # suites catch fails their own checks, and so the run, all the same. The
+  # condition is spelled out on each of the three rather than read off a gate
+  # job, which spent two minutes in the ubuntu queue for twelve seconds of
+  # work; `success()` is implied, so a red or skipped test-arm skips them.
+  # macOS's loopback rides in test-macos itself, for the same audience.
   e2e-windows:
     name: e2e (Windows)
-    needs: e2e-gate
-    if: needs.e2e-gate.outputs.ok == 'true'
+    needs: [changes, test-arm]
+    if: needs.changes.outputs.trusted == 'true' && github.event.pull_request.draft != true
     uses: ./.github/workflows/windows-e2e.yml
 
-  # The non-macOS BSDs, on the same gate: a FreeBSD and an OpenBSD VM on
+  # The non-macOS BSDs, on the same condition: a FreeBSD and an OpenBSD VM on
   # hosted runners each run the fast suites and ssh to themselves.
   e2e-freebsd:
     name: e2e (FreeBSD)
-    needs: e2e-gate
-    if: needs.e2e-gate.outputs.ok == 'true'
+    needs: [changes, test-arm]
+    if: needs.changes.outputs.trusted == 'true' && github.event.pull_request.draft != true
     uses: ./.github/workflows/freebsd-e2e.yml
 
   e2e-openbsd:
     name: e2e (OpenBSD)
-    needs: e2e-gate
-    if: needs.e2e-gate.outputs.ok == 'true'
+    needs: [changes, test-arm]
+    if: needs.changes.outputs.trusted == 'true' && github.event.pull_request.draft != true
     uses: ./.github/workflows/openbsd-e2e.yml
 
-  # The client-side half of Windows. Not behind e2e-gate: it is the fast
+  # The client-side half of Windows. Not behind test-arm: it is the fast
   # suites on another client, not an e2e that wants green targets first, and
   # waiting on `test` as well would make it the long pole of every push.
   # Pushes and same-repo PRs, the
-  # same audience as e2e-gate (spelled out here because it does not sit
-  # behind the gate), and gated on `changes` like the other fast-suite jobs.
+  # same audience as the platform e2e jobs (spelled out here because it does
+  # not wait on test-arm), and gated on `changes` like the other fast-suite jobs.
   # A real check, not advisory: windows-client.yml carries no
   # continue-on-error, so a red suite fails the run. Not on the
   # required-checks list, so it does not block a merge.
