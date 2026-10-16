@@ -78,5 +78,5 @@ outside this repository. If the maintainer goes permanently quiet, fork it and
 carry on; the license is the succession plan.
 
 That is not a second person able to cut a release within a week, which is why
-the OpenSSF `access_continuity` and `bus_factor` criteria are answered unmet in
-[OPENSSF-IMPROVEMENTS.md](OPENSSF-IMPROVEMENTS.md#basics--project-oversight).
+the OpenSSF `access_continuity` and `bus_factor` criteria are answered unmet on
+[the project's Best Practices page](https://www.bestpractices.dev/en/projects/14397).
