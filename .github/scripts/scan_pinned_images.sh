@@ -72,10 +72,9 @@ _CI_REPORT="${SCAN_REPORT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/image-scan-report.md}
 # under a hosted runner's core count without hammering a registry
 _CI_JOBS="${SCAN_JOBS:-4}"
 
-_CI_GLOBS="${SCAN_GLOBS:-Dockerfile */Dockerfile **/*.Dockerfile **/compose*.y*ml docker-compose*.y*ml}"
-
 # shellcheck source=./lib.sh
 source .github/scripts/lib.sh
+_CI_GLOBS="${SCAN_GLOBS:-$_CI_IMAGE_GLOBS}"
 _ci_need scan_pinned_images trivy jq
 
 _CI_WORK="$(mktemp -d)"
@@ -116,17 +115,10 @@ if [ "${#_ci_files_list[@]}" -eq 0 ]; then
 fi
 
 # The pins, read out of the files rather than repeated here, so an image
-# added, dropped or repinned is covered without editing this script. Two
-# shapes: a Dockerfile `FROM` (optional --platform=) and a compose `image:`.
-# `FROM <stage>` and `FROM ${ARG}` carry no tag and digest and drop out.
+# added, dropped or repinned is covered without editing this script.
 _ci_pins="$_CI_WORK/pins"
 _ci_tagonly="$_CI_WORK/tagonly"
-for _ci_f in "${_ci_files_list[@]}"; do
-  sed -nE \
-    -e 's/^FROM[[:space:]]+(--platform=[^[:space:]]+[[:space:]]+)?([^[:space:]@$]+):([^[:space:]@$:/]+)@(sha256:[0-9a-f]{64}).*/\2|\3|\4/p' \
-    -e "s/^[[:space:]]*(-[[:space:]]+)?image:[[:space:]]*[\"']?([^[:space:]@\$\"'*&]+):([^[:space:]@\$:/\"']+)@(sha256:[0-9a-f]{64}).*/\2|\3|\4/p" \
-    "$_ci_f"
-done | sort -u >"$_ci_pins"
+printf '%s\n' "${_ci_files_list[@]}" | _ci_image_pins >"$_ci_pins"
 # tagged, no digest: a whole reference token free of `@` and `$`
 for _ci_f in "${_ci_files_list[@]}"; do
   sed -nE \
@@ -153,6 +145,14 @@ echo
 _ci_indexed="$_CI_WORK/pins.indexed"
 nl -ba -w1 -s'|' "$_ci_pins" >"$_ci_indexed"
 
+# _ci_verdict <hit> <win> <unscanned> - a worker's last act: its verdict in
+# $wd (_ci_scan_one's), the end of its log group, and its exit
+function _ci_verdict() {
+  echo "$*" >"$wd/verdict"
+  echo "::endgroup::"
+  exit 0
+}
+
 # _ci_scan_one <idx> <image> <tag> <pinned> - one image, start to finish, run
 # as a background job: everything it learns goes to files under w<idx>/
 # (a subshell's variables die with it), and its console narration is
@@ -176,9 +176,7 @@ function _ci_scan_one() {
     if ! _ci_trivy "$image@$pinned" "$wd/a.json"; then
       echo "  could not scan the pinned digest"
       printf -- '- `%s` - the pinned digest could not be scanned; see the job log.\n' "$ref" >"$wd/stale.md"
-      echo "0 0 1" >"$wd/verdict"
-      echo "::endgroup::"
-      exit 0
+      _ci_verdict 0 0 1
     fi
     # trivy declines some distros it can identify, and that report has a
     # null .Results rather than an empty list. Zero findings and zero data
@@ -187,9 +185,7 @@ function _ci_scan_one() {
       echo "  not scanned: trivy has no vulnerability data for this image"
       printf -- '- `%s` - trivy has no vulnerability data for this OS, so its zero means "not scanned", not "clean".\n' \
         "$ref" >"$wd/stale.md"
-      echo "0 0 1" >"$wd/verdict"
-      echo "::endgroup::"
-      exit 0
+      _ci_verdict 0 0 1
     fi
 
     _ci_ids "$wd/a.json" >"$wd/a.ids"
@@ -198,9 +194,7 @@ function _ci_scan_one() {
     # 2. the quiet path, and the usual one
     if [ "$a_n" -eq 0 ]; then
       echo "  clean: no fixable $_CI_SEVERITIES findings in the pinned digest"
-      echo "0 0 0" >"$wd/verdict"
-      echo "::endgroup::"
-      exit 0
+      _ci_verdict 0 0 0
     fi
     echo "  pinned digest has $a_n fixable finding(s)"
 
@@ -210,9 +204,7 @@ function _ci_scan_one() {
       echo "  could not scan the current tag - reporting the pin as-is"
       printf -- '- `%s` - %d fixable finding(s); the current tag could not be scanned\n' \
         "$ref" "$a_n" >"$wd/stale.md"
-      echo "1 0 0" >"$wd/verdict"
-      echo "::endgroup::"
-      exit 0
+      _ci_verdict 1 0 0
     fi
     _ci_ids "$wd/b.json" >"$wd/b.ids"
     b_n="$(_ci_lines "$wd/b.ids")"
@@ -223,9 +215,7 @@ function _ci_scan_one() {
       echo "  the tag still resolves to the pinned digest - no rebuild to take"
       printf -- '- `%s` - %d fixable finding(s), and the tag still resolves to the pinned digest. Nothing to repin to yet.\n' \
         "$ref" "$a_n" >"$wd/stale.md"
-      echo "1 0 0" >"$wd/verdict"
-      echo "::endgroup::"
-      exit 0
+      _ci_verdict 1 0 0
     fi
 
     # 5. rebuilt, but no better - a repin would be churn
@@ -233,9 +223,7 @@ function _ci_scan_one() {
       echo "  the tag has been rebuilt but still has $b_n finding(s) - no gain"
       printf -- '- `%s` - %d fixable finding(s); the current tag has %d, so a repin would not reduce the count.\n' \
         "$ref" "$a_n" "$b_n" >"$wd/stale.md"
-      echo "1 0 0" >"$wd/verdict"
-      echo "::endgroup::"
-      exit 0
+      _ci_verdict 1 0 0
     fi
 
     # 6. the one case worth acting on
@@ -252,8 +240,7 @@ function _ci_scan_one() {
       grep -lF "@$pinned" "${_ci_files_list[@]}" 2>/dev/null | sed 's|^|- `|;s|$|`|' || true
       printf -- '\n'
     } >"$wd/actionable.md"
-    echo "1 1 0" >"$wd/verdict"
-    echo "::endgroup::"
+    _ci_verdict 1 1 0
   } >"$wd/log" 2>&1
 }
 

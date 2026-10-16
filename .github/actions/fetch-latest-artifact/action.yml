@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 name: Fetch latest artifact
 # Find the newest successful run of a workflow that still holds the artifact
 # and download one or more artifacts from it - badge figures for a Pages deploy, a release's figures

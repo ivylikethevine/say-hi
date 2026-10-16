@@ -118,15 +118,17 @@ function _ci_fetch() {
   }
 }
 
-# _ci_source_dir - the one top-level directory a source tarball unpacks to
-function _ci_source_dir() {
-  local dir
-  dir="$(find "$_ci_tmp/src" -mindepth 1 -maxdepth 1 -type d | head -1)"
-  [ -n "$dir" ] || {
+# _ci_unpack_source - unpacks the fetched source tarball and sets $_ci_src to
+# the one top-level directory it holds; run in this shell, not a $(...), so
+# `set -e` covers the unpack
+function _ci_unpack_source() {
+  mkdir "$_ci_tmp/src"
+  tar -xzf "$_ci_tmp/archive" -C "$_ci_tmp/src"
+  _ci_src="$(find "$_ci_tmp/src" -mindepth 1 -maxdepth 1 -type d | head -1)"
+  [ -n "$_ci_src" ] || {
     echo "setup-tool: no source directory inside $_ci_url" >&2
     exit 1
   }
-  printf '%s\n' "$dir"
 }
 
 # _ci_build_deps [pkg...] - apt build deps for a source kind. Headers, not
@@ -188,9 +190,7 @@ cmake)
   _ci_fetch "$_ci_tmp/archive"
   # shellcheck disable=SC2086 # the dep list is words on purpose
   _ci_build_deps build-essential cmake $_ci_deps
-  mkdir "$_ci_tmp/src"
-  tar -xzf "$_ci_tmp/archive" -C "$_ci_tmp/src"
-  _ci_src="$(_ci_source_dir)"
+  _ci_unpack_source
   cmake -S "$_ci_src" -B "$_ci_tmp/build" -DCMAKE_BUILD_TYPE=Release
   cmake --build "$_ci_tmp/build" --parallel "$(_ci_nproc)"
   # searched under build/ only: the source tree has its own files named
@@ -207,9 +207,7 @@ make)
   _ci_fetch "$_ci_tmp/archive"
   # shellcheck disable=SC2086 # the dep list is words on purpose
   _ci_build_deps $_ci_deps
-  mkdir "$_ci_tmp/src"
-  tar -xzf "$_ci_tmp/archive" -C "$_ci_tmp/src"
-  _ci_src="$(_ci_source_dir)"
+  _ci_unpack_source
   (cd "$_ci_src" && ./configure && make -j"$(_ci_nproc)")
   _ci_bin="$(find "$_ci_src" -maxdepth 1 -type f -name "$CI_TOOL" -perm -u+x | head -1)"
   [ -n "$_ci_bin" ] || {

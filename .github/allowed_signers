@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # The SSH keys a release tag may be signed with - the release workflow's gate
 # job runs `git tag -v` against this file (gpg.ssh.allowedSignersFile) and
 # refuses a tag none of them signed. Each key is one of the maintainer's

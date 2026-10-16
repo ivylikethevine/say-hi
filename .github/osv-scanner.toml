@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # Advisories against .github/package-lock.json accepted as not applicable,
 # each with its reason. Two readers: OpenSSF Scorecard's Vulnerabilities check
 # (osv-scanner looks for this file beside the lockfile) and advisories.yml,

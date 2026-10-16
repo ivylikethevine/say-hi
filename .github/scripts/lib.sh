@@ -35,3 +35,20 @@ function _ci_files() {
     )
   fi | sort -u
 }
+
+# the files _ci_image_pins reads when the caller names none
+_CI_IMAGE_GLOBS='Dockerfile */Dockerfile **/*.Dockerfile **/compose*.y*ml docker-compose*.y*ml'
+
+# _ci_image_pins - `image|tag|sha256:<hex>` per digest-pinned reference in the
+# files named on stdin, sorted and unique: a Dockerfile `FROM` (optional
+# --platform=) or a compose `image:`. `FROM <stage>` and `FROM ${ARG}` carry
+# no tag and digest and drop out.
+function _ci_image_pins() {
+  local f
+  while IFS= read -r f; do
+    sed -nE \
+      -e 's/^FROM[[:space:]]+(--platform=[^[:space:]]+[[:space:]]+)?([^[:space:]@$]+):([^[:space:]@$:/]+)@(sha256:[0-9a-f]{64}).*/\2|\3|\4/p' \
+      -e "s/^[[:space:]]*(-[[:space:]]+)?image:[[:space:]]*[\"']?([^[:space:]@\$\"'*&]+):([^[:space:]@\$:/\"']+)@(sha256:[0-9a-f]{64}).*/\2|\3|\4/p" \
+      "$f"
+  done | sort -u
+}

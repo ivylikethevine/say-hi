@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 name: Release note
 
 # A PR body's `## Release note` section (the PR template's) is what the release
@@ -5,15 +6,15 @@ name: Release note
 # .github/scripts/release_notes.sh. `none` is a valid answer; a missing heading
 # or a blank section (whitespace and HTML comments only) gets a warning here.
 #
-# dev -> main PRs are checked the same way: squash-merged, theirs is the body a
-# release reads, carrying the notes of the PRs they bring in. Dependabot's
-# bodies have no template and a bump is never a note, so its PRs skip, as do
-# drafts until ready_for_review.
+# Only PRs into main are checked: dev -> main is squash-merged, so its body is
+# the one a release reads. Dependabot's bodies have no template and a bump is
+# never a note, so its PRs skip, as do drafts until ready_for_review.
 #
 # Its own workflow rather than a ci.yml job: `edited` has to re-run it, and a
 # body edit shouldn't re-run all of CI.
 on:
   pull_request:
+    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions: {}

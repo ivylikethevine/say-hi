@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 name: CodeQL
 
 # CodeQL over the one language here it can read: GitHub Actions; it has no
@@ -16,6 +17,7 @@ on:
     branches: [main]
   # drafts analyse nothing (the jobs' `if`) until ready_for_review
   pull_request:
+    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   schedule:
     - cron: "17 6 * * 2"
