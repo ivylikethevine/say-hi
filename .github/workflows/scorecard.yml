@@ -27,7 +27,7 @@ concurrency:
 
 # read-all is the floor; job-level permissions replace this block rather than
 # adding to it, which is why the job spells out its read scopes again.
-permissions: read-all
+permissions: read-all # zizmor: ignore[excessive-permissions]
 
 jobs:
   analysis:
@@ -47,12 +47,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      # the only write scopes in this file: code scanning takes the SARIF, and
-      # publish_results signs the score it sends with an OIDC token
-      security-events: write
-      id-token: write
-      # Dangerous-Workflow and Token-Permissions read workflow definitions
-      actions: read
+      security-events: write # code scanning takes the SARIF
+      id-token: write # publish_results signs the score it sends
+      actions: read # Dangerous-Workflow and Token-Permissions read workflows
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:

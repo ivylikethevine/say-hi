@@ -41,8 +41,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      # the one write this job does: upsert (and close) its own tracking issue
-      issues: write
+      issues: write # upsert (and close) its own tracking issue
     steps:
       # block, not audit: check_tool_versions.sh asks the GitHub API, Docker
       # Hub, the registry of each manifest in CI_MANIFESTS, and any gitlab:
