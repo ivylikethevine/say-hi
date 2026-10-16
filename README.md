@@ -216,8 +216,8 @@ row, and everything answered **no**, and why:
   with an rc file already; `--shell bash,zsh` names them instead, and `all` is
   every one installed. Each line tests for the tree first, so a deleted
   checkout costs a shell nothing. On macOS `~/.bash_profile` is taught to read
-  `~/.bashrc`. A first install asks whether hi styles this machine too, and
-  nothing else. For an rc file a dotfile manager owns, `--print-rc` prints
+  `~/.bashrc`. A first install asks one thing, which preset to start from
+  ([docs/SETTINGS.md](docs/SETTINGS.md#presets)), and nothing else. For an rc file a dotfile manager owns, `--print-rc` prints
   each block and writes none
   ([docs/SETTINGS.md](docs/SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)). `hi` is linked at `~/.local/bin/hi` (`--link system`
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
@@ -407,29 +407,6 @@ One list, in the order the work is best done. An entry is deleted once its
        reads. **Ticks when:** `settings.kube.sh` reaches a pod and no ssh
        host, a namespace's file reaches that namespace's pods alone, and
        doctor lists both.
-
-4. [ ] _Before 1.0:_ **A preset for configs alone, and a first-run question
-       that reads as English** — the presets are a ladder of "less hi", and
-       `minimal` drops the editors, so "my aliases and editor rcs along, the
-       box's own prompt, no header" is two hand-written lines. **Do:** a
-       fifth preset, `configs` (`_HI_DISABLE_HEADER=1`,
-       `_HI_DISABLE_PROMPT=1`, `_HI_DISABLE_GIT_STATUS=1`,
-       `_HI_DISABLE_LOCAL=1`; every plugin rides), and the install's one
-       question becomes a short pick between the five, each described in a
-       plain sentence with `everything` the default and the existing
-       this-machine question folded in; `--preset` and a missing terminal
-       skip it as they do today. **Ticks when:** `hi --configure --preset configs`
-       writes those four lines, the install at a terminal offers the five,
-       and the wizard's `[p]` lists five.
-
-5. [ ] _Before 1.0:_ **A text form of every table** — `hi --doctor`,
-       `hi --plugins` and `hi --preview` draw box tables, which a screen
-       reader reads cell border by cell border; `--doctor --json` is the only
-       other form. **Do:** a `--text` switch on the three: one row a line,
-       `section / label: value`, no border, no color, the same rows in the
-       same order, and its name in the contract's sub-command switches.
-       **Ticks when:** the three take it, the output holds no `+`, `|` or
-       `-` rule and no escape sequence, and `docs/USAGE.md` shows one.
 
 ## Release Stages
 

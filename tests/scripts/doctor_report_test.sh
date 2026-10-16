@@ -23,8 +23,25 @@ function test_help_names_what_was_typed() {
   local got got2
   got="$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)"
   got2="$("$_HI_DOCTOR" --help | head -1)"
-  [ "$got" = "Usage: hi --doctor [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] &&
-    [ "$got2" = "Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]" ] || _hi_why got got2
+  [ "$got" = "Usage: hi --doctor [--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]" ] &&
+    [ "$got2" = "Usage: doctor.sh [--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]" ] || _hi_why got got2
+}
+
+# --text: every row as `section / label: text`, the local tree's first, no
+# box rule, no bar, no escape sequence, and the same sections as the boxes
+function test_text_prints_rows_without_a_box() {
+  local out rules
+  out="$(_hi_doctor_run --text)" || _hi_why out || return 1
+  rules="$(printf '%s\n' "$out" | grep -c -E $'^[ ]*[+|]|^[ ]*-{3}|\e' || true)"
+  [[ "$out" == *"local / tree: "* && "$out" == *"local / version: "* && "$out" == *"config / "* &&
+    "$out" == *"install / "* && "$out" == *"hi doctor"* ]] && [ "$rules" = 0 ] || _hi_why rules out
+}
+
+# the JSON document is its own form: asked for both, the run refuses
+function test_text_and_json_are_two_forms() {
+  local out rc=0
+  out="$(_hi_doctor_run --text --json)" || rc=$?
+  [ "$rc" -ne 0 ] && [[ "$out" == *"two forms"* ]] || _hi_why rc out
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
@@ -166,6 +183,8 @@ function run_doctor_report_tests() {
   _hi_check "Sections are tables, and no findings box repeats them" test_full_report_draws_tables_and_no_findings_box
   _hi_check "--json is off by default" test_json_is_off_by_default
   _hi_check "--problems prints only the findings" test_problems_prints_only_the_findings
+  _hi_check "--text prints a row a line, no box, no color" test_text_prints_rows_without_a_box
+  _hi_check "--text and --json are refused together" test_text_and_json_are_two_forms
 
   _hi_suite_end "doctor.sh (report)"
 }

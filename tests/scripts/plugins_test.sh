@@ -229,6 +229,22 @@ function test_plugins_lists_what_rides_and_what_is_off() {
   [[ "$out" == *" ignored "*"$cfg/plugins line 3"*"not a line of a plugin"* && "$out" != *" colors "* ]] || _hi_because "the rest: $out"
 }
 
+# --text: the same rows as `group / member: text`, a riding row with (ok),
+# the ignored line by its file and number, and no rule, bar, or escape
+function test_plugins_text_lists_a_row_a_line() {
+  local cfg out rules
+  cfg="$(_hi_plugins_cfg text)"
+  mkdir -p "$cfg/bat" "$cfg.home"
+  printf 'x\n' >"$cfg/bat/config"
+  printf '[mine.task]\nbad line\nfiles = "taskrc"\n' >"$cfg/plugins"
+  out="$(_hi_plugins_run "$cfg" --plugins --text)" || _hi_why cfg || return 1
+  rules="$(printf '%s\n' "$out" | grep -c -E $'^[ ]*[+|]|^[ ]*-{3}|\e' || true)"
+  [[ "$out" == *"cli / bat/config (bat): used $cfg/bat/config (ok)"* && "$out" == *"ignored / $cfg/plugins line 2: not a line of a plugin"* ]] &&
+    [ "$rules" = 0 ] || _hi_why rules out || return 1
+  out="$(_hi_plugins_run "$cfg" --disable-plugin bat --text)" && _hi_because "took --text: $out" && return 1
+  [[ "$out" == *"--text is hi --plugins' switch"* ]] || _hi_why out
+}
+
 # the hooks section: a row a hook, saying whether a target gets it - the
 # tool missing here, the plugin off (by default, or by the list), or on
 function test_plugins_lists_the_hooks() {
@@ -340,6 +356,7 @@ function run_plugins_tests() {
 
   _hi_h2 "Testing: --plugins"
   _hi_check "Lists what rides and what is off" test_plugins_lists_what_rides_and_what_is_off
+  _hi_check "...and under --text one row a line, no box, no color" test_plugins_text_lists_a_row_a_line
   _hi_check "...and the hooks, with whether a target gets each" test_plugins_lists_the_hooks
   _hi_check "...a hook that draws the prompt says so" test_plugins_says_a_hook_draws_the_prompt
   _hi_check "...and the variables, with whether a target gets each" test_plugins_lists_the_variables

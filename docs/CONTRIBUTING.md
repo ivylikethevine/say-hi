@@ -195,7 +195,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   argument is a word (`--use`, `--preview`, `--update`), refused on the rest;
   every `--word` is hi's (an unknown one is hi's error); and everything after
   the target is the remote command.
-- **The sub-command switches** — `--doctor --json` and `--doctor --problems`,
+- **The sub-command switches** — `--doctor --json`, `--doctor --problems`,
+  `--doctor --text`, `--plugins --text`, `--preview --text`,
   `--install`'s `-y`/`--yes`, `--link {none,user,system}`, `--shell <list>`,
   `--print-rc`, `--preset <name>`, and `-n`/`--dry-run`, `--uninstall --purge`
   and `--uninstall --dry-run`,

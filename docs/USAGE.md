@@ -89,7 +89,7 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 
 ### `hi --preview`
 
-`hi --preview <subject>`: colors, packages, or header, as printed here.
+`hi --preview <subject> [--text]`: colors, packages, or header, as printed here.
 
 ![hi --preview colors](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-preview.svg)
 
@@ -99,7 +99,7 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 
 ### `hi --doctor`
 
-`hi --doctor [--json] [--problems] [--use <backend>] [ssh-options] [target]`: a read-only pre-flight report, or just its problems.
+`hi --doctor [--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]`: a read-only pre-flight report, or just its problems.
 
 ![hi --doctor --problems](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-doctor.svg)
 
@@ -165,9 +165,11 @@ No image: what it shows is the network's, a release tag's, or your editor's.
 
 ### `hi --plugins`
 
-`hi --plugins`: list the plugins: what rides, and what is off.
+`hi --plugins [--text]`: list the plugins: what rides, and what is off.
 
 ![hi --plugins](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugins.svg)
+
+![hi --plugins --text](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-plugins-2.svg)
 
 ### `hi --disable-plugin`
 

@@ -18,6 +18,11 @@
 # BASH_SOURCE guard (same story as tests/hi/parse_test.sh).
 # shellcheck disable=SC2317,SC2329
 
+# --text, read ahead of core.sh: its palette is set as it is sourced, and
+# $NO_COLOR is how it is asked for none
+_HI_TEXT=0
+case " $* " in *" --text "*) _HI_TEXT=1 && export NO_COLOR=1 ;; esac
+
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
@@ -37,7 +42,7 @@ unset _hi_d
 
 function _hi_doctor_help() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--problems] [--use <backend>] [ssh-options] [target]
+Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]
 
 Prints, in order, each section as a table whose rows are marked by severity
 ($_HI_MARK_OK ok, ! warn, $_HI_MARK_NO bad, blank for information):
@@ -63,7 +68,10 @@ Prints, in order, each section as a table whose rows are marked by severity
 
 A warn or bad row stays in its section; --problems prints only those rows,
 gathered into one box - or, with none, only the closing line - so a long
-report reads as what needs fixing.
+report reads as what needs fixing. --text draws no box and no color: one
+row a line, "section / label: text", a warn, bad, or ok row saying so in
+brackets, for a screen reader or a grep; the same rows as the boxes, and
+not --json's form.
 
 ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
 real connect authenticates with, so \`hi --doctor -J bastion host\`
@@ -132,6 +140,8 @@ while [ $# -gt 0 ]; do
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
   --problems) _HI_DOC_PROBLEMS=1 ;;
+  # read ahead of core.sh, above
+  --text) ;;
   --use | --use=*)
     _hi_flag_word_or_die _hi_arm "--use needs a backend name (ssh counts as one)" "$@"
     [ $? -eq 2 ] && shift
@@ -150,7 +160,7 @@ while [ $# -gt 0 ]; do
     _HI_DOC_SSHARGS+=("$_hi_arg")
     ;;
   --*)
-    _hi_die "unknown option $_hi_arg (--json, --problems, --use <backend>, ssh options, a target)"
+    _hi_die "unknown option $_hi_arg (--json, --problems, --text, --use <backend>, ssh options, a target)"
     ;;
   -*)
     # doctor does not validate ssh's own vocabulary, only sorts a target from
@@ -166,6 +176,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 unset _hi_arg _hi_arm _hi_doc_args
+[ "$_HI_DOC_JSON" != 1 ] || [ "$_HI_TEXT" != 1 ] || _hi_die "--json and --text are two forms of the report: one at a time"
 
 _HI_DOC_BAD=0
 # the section the rows below belong to, and the JSON rows collected so far -
@@ -188,6 +199,11 @@ _HI_DOC_IN_FINDING=0
 # Each section function ends in doctor_flush, which draws its table.
 function doctor_section() {
   _HI_DOC_SECTION="$1"
+  # --text's rows open on the key, the stable name, as --json's do
+  if [ "$_HI_TEXT" = 1 ]; then
+    _HI_TEXT_SECTION="$1"
+    return 0
+  fi
   [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_section "$2"
 }
 
@@ -205,6 +221,7 @@ function doctor_flush() {
 function doctor_findings() {
   [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ] || return 0
   _hi_h2 "Findings: $_HI_DOC_BAD bad, $_HI_DOC_WARN warn"
+  _HI_TEXT_SECTION=findings
   _HI_ROWS_LABEL=("${_HI_DOC_F_LABEL[@]}")
   _HI_ROWS_TEXT=("${_HI_DOC_F_TEXT[@]}")
   _HI_ROWS_SEV=("${_HI_DOC_F_SEV[@]}")

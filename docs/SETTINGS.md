@@ -101,14 +101,17 @@ names a shape this hi does not read.
 
 ## Presets
 
-The menu's `[p]`, or `hi --configure --preset <name>` without the menu:
+The menu's `[p]`, `hi --configure --preset <name>` without the menu, or the
+first install's one question, a pick between the five with `everything` the
+default:
 
-| preset       | what it answers                                                                                                                                                                                                                                     |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `everything` | the shipped defaults: every feature and header item on, the alias opt-ins off                                                                                                                                                                       |
-| `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_GROUPS=core,deprecated`)                                                                                                                                                           |
-| `minimal`    | on targets only the colored prompt: no header, git status, or editors (`_HI_PLUGINS_OFF` names each) — and nothing on this machine (`_HI_DISABLE_LOCAL=1`).                                                                                         |
-| `lean`       | `minimal`, and nothing of yours rides: every plugin but the hooks, which are off already, stays home (`_HI_PLUGINS_OFF` names each), hi's own prompt draws everywhere (`_HI_PROMPT_TOOL=hi`), and ssh is the only backend (`_HI_BACKENDS_OFF=all`). |
+| preset       | what it answers                                                                                                                                                                                                                                             |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `everything` | the shipped defaults: every feature and header item on, the alias opt-ins off                                                                                                                                                                               |
+| `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_GROUPS=core,deprecated`)                                                                                                                                                                   |
+| `minimal`    | on targets only the colored prompt: no header, git status, or editors (`_HI_PLUGINS_OFF` names each) — and nothing on this machine (`_HI_DISABLE_LOCAL=1`).                                                                                                 |
+| `lean`       | `minimal`, and nothing of yours rides: every plugin but the hooks, which are off already, stays home (`_HI_PLUGINS_OFF` names each), hi's own prompt draws everywhere (`_HI_PROMPT_TOOL=hi`), and ssh is the only backend (`_HI_BACKENDS_OFF=all`).         |
+| `configs`    | your aliases, editor rcs, and every other config along, with each target's own prompt and no header (`_HI_DISABLE_HEADER=1`, `_HI_DISABLE_PROMPT=1`, `_HI_DISABLE_GIT_STATUS=1`) — and nothing on this machine (`_HI_DISABLE_LOCAL=1`); every plugin rides. |
 
 `lean` is the least hi can send and still be hi: every shipped plugin stays
 home, so no config of yours rides but `settings.sh`, `colors`, and `packages`;

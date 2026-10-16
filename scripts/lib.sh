@@ -359,10 +359,19 @@ function _hi_hrule() {
 }
 
 function _hi_h1() {
+  if [ "${_HI_TEXT:-0}" = 1 ]; then
+    printf '%s\n' "$1"
+    return 0
+  fi
   _hi_hrule "$1" '=' 1 "${2:-$BRBLUE}"
 }
 
 function _hi_h2() {
+  # under --text (table.sh) a heading is its words alone, no rule
+  if [ "${_HI_TEXT:-0}" = 1 ]; then
+    printf '%s\n' "$1"
+    return 0
+  fi
   _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
 }
 

@@ -136,7 +136,7 @@ function test_configure_leaves_a_hand_line_it_does_not_write() {
 # converter and doctor read in place of guessing from the rows; a second
 # run writes it once, and the diff report never counts it as a setting
 function test_configure_opens_the_block_on_its_shape_line() {
-  local out got first n
+  local out got first n shape
   n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
   [ -n "$n" ] || _hi_why n || return 1
   out="$(_hi_run_in shape "export _HI_MAX_WIDTH=100")" || _hi_why || return 1
@@ -144,7 +144,8 @@ function test_configure_opens_the_block_on_its_shape_line() {
   [[ "$first" == "# say-hi settings $n "*"$_HI_MARKER" ]] || _hi_why first out || return 1
   out="$(_hi_run_in shape)" || _hi_why || return 1
   got="$(printf '%s\n' "$out" | grep -c '^# say-hi settings ')"
-  [ "$got" -eq 1 ] && [ "$n" = "$(_hi_settings_shape_of "$_HI_WORKDIR/run_shape/settings.sh")" ] || _hi_why got out
+  shape="$(_hi_settings_shape_of "$_HI_WORKDIR/run_shape/settings.sh")"
+  [ "$got" -eq 1 ] && [ "$n" = "$shape" ] || _hi_why got shape out
 }
 
 # _hi_settings_shape_of <file> - lib.sh's reader, as the suite sees it

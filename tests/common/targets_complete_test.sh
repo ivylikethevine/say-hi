@@ -327,7 +327,7 @@ function test_complete_the_word_after_link_preset_and_update() {
     return 1
   }
   out="$(_hi_completions_after --preset "" | sort | tr '\n' ' ')"
-  [ "$out" = "balanced everything lean minimal " ] || {
+  [ "$out" = "balanced configs everything lean minimal " ] || {
     _hi_cecho "   --preset: $out" "$RED"
     return 1
   }

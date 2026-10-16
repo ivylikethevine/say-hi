@@ -68,6 +68,7 @@ source|scripts/configure_menu.sh|1
 source|scripts/configure_preview.sh|3
 source|scripts/convert_settings.sh|3
 source|scripts/doctor.sh|7
+source|scripts/edit.sh|4
 source|scripts/install.sh|5
 source|scripts/lib.sh|1
 source|scripts/pack.sh|4

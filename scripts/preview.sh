@@ -13,6 +13,11 @@
 # One script for the three subjects: they share the boxed table (table.sh),
 # the palette they paint with, and the scheme line above every table.
 
+# --text, read ahead of core.sh: its palette is set as it is sourced, and
+# $NO_COLOR is how it is asked for none
+_HI_TEXT=0
+case " $* " in *" --text "*) _HI_TEXT=1 && export NO_COLOR=1 ;; esac
+
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
@@ -30,6 +35,26 @@ source "$_HI_HEADER"
 # shellcheck source=./table.sh
 source "$_HI_ROOT/scripts/table.sh"
 
+# --text, read above, out of the words the subjects parse
+_hi_argv=()
+for _hi_a in "$@"; do
+  [ "$_hi_a" != --text ] || continue
+  _hi_argv+=("$_hi_a")
+done
+set -- ${_hi_argv[@]+"${_hi_argv[@]}"}
+unset _hi_argv _hi_a
+
+# _hi_pv_note <text> [color] - a line beside a table: ` | ` leads it under the
+# box, nothing under --text
+function _hi_pv_note() {
+  if [ "$_HI_TEXT" = 1 ]; then
+    printf '%s\n' "$1"
+  else
+    local _hi_lead=" | "
+    _hi_cecho "$_hi_lead$1" "${2:-}"
+  fi
+}
+
 _hi_subject="${1:-}"
 _hi_argv0="${_HI_ARGV0:-preview.sh${_hi_subject:+ $_hi_subject}}"
 
@@ -41,7 +66,8 @@ Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header>
   packages   the header's packages check: groups, marks, tables, then the check
   header     the connect header as it will print here
 
-Each subject takes --help and no other argument.
+Each subject takes --help, and --text for no box and no color (one row a
+line, "table / item: cells"), and no other argument.
 EOF
 }
 
@@ -130,7 +156,7 @@ esac
 function _hi_print_ramp_line() {
   local label
   _hi_ramp_label label
-  _hi_cecho " | palette: $label"
+  _hi_pv_note "palette: $label"
 }
 
 # what the swatches are painted under, so an eyeball pass of a
@@ -139,9 +165,9 @@ function _hi_print_scheme_line() {
   local label
   _hi_scheme_label label
   if _hi_has_truecolor; then
-    _hi_cecho " | scheme: $label"
+    _hi_pv_note "scheme: $label"
   else
-    _hi_cecho " | scheme: $label (no truecolor here - the 16-color escapes render)"
+    _hi_pv_note "scheme: $label (no truecolor here - the 16-color escapes render)"
   fi
 }
 
@@ -334,6 +360,7 @@ function _hi_print_users_table() {
     [[ -n "${t_color[tidx]}" ]] && _hi_widen w_color "${t_color[tidx]}"
   done
 
+  _HI_TEXT_SECTION=users
   _hi_hbar top "$w_item" "$w_color" "$w_source"
   _hi_head_row "$w_item" USER "$w_color" COLOR "$w_source" SOURCE
   _hi_hbar mid "$w_item" "$w_color" "$w_source"
@@ -449,6 +476,7 @@ function _hi_print_hosts_table() {
     done
   done
 
+  _HI_TEXT_SECTION=hosts
   _hi_hbar top "$w_item" "$w_color" "$w_source" "$w_preview"
   _hi_head_row "$w_item" HOST "$w_color" COLOR "$w_source" SOURCE "$w_preview" PREVIEW
   _hi_hbar mid "$w_item" "$w_color" "$w_source" "$w_preview"
@@ -650,6 +678,7 @@ function _hi_print_groups_table() {
     _hi_widen_to w_example "$ex_width"
   done
 
+  _HI_TEXT_SECTION=groups
   _hi_hbar top "$w_group" "$w_state" "$w_yes" "$w_no" "$w_example"
   _hi_head_row "$w_group" GROUP "$w_state" STATE "$w_yes" INSTALLED \
     "$w_no" MISSING "$w_example" EXAMPLE
@@ -664,14 +693,17 @@ function _hi_print_groups_table() {
     _hi_cell "$w_state" "" "$state"
     _hi_cell "$w_yes" "${_HI_YES[t]:-}" "${_HI_YES_NAMES[t]:-plain}"
     _hi_cell "$w_no" "${_HI_NO[t]:-}" "${_HI_NO_NAMES[t]:-plain}"
-    _hi_cell_raw "$w_example" "${c_ex_width[g]}" "${c_example[g]}"
+    example="${c_example[g]}"
+    # the check line's own bar leads the example; --text has no bars
+    [ "$_HI_TEXT" != 1 ] || { example="${example#| }" && example="${example% }"; }
+    _hi_cell_raw "$w_example" "${c_ex_width[g]}" "$example"
     _hi_row_end
   done
 
   _hi_hbar bottom "$w_group" "$w_state" "$w_yes" "$w_no" "$w_example"
-  _hi_cecho " | $_HI_PKG_LISTED listed, $_HI_PKG_SHOWN shown, $_HI_PKG_SILENT silent by their table"
+  _hi_pv_note "$_HI_PKG_LISTED listed, $_HI_PKG_SHOWN shown, $_HI_PKG_SILENT silent by their table"
   if ((_HI_PKG_OFF > 0)); then
-    _hi_cecho " | $_HI_PKG_OFF more in groups \$_HI_PACKAGES_GROUPS leaves off (${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT} run)" "$YELLOW"
+    _hi_pv_note "$_HI_PKG_OFF more in groups \$_HI_PACKAGES_GROUPS leaves off (${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT} run)" "$YELLOW"
   fi
 }
 
@@ -680,7 +712,7 @@ function _hi_print_groups_table() {
 function _hi_print_packages_drift() {
   local what
   while IFS='|' read -r _ what; do
-    _hi_cecho " | $what" "$YELLOW"
+    _hi_pv_note "$what" "$YELLOW"
   done < <(_hi_packages_drift "$_HI_PACKAGES" "$_HI_ROOT/config/packages")
 }
 
@@ -696,6 +728,7 @@ function _hi_print_marks_table() {
     "$RED$_HI_MARK_NO|not installed - no name on the row resolved"
     "$YELLOW$_HI_MARK_WARN|installed, under .unwanted: a package you don't want")
   for entry in "${rows[@]}"; do _hi_widen w2 "${entry#*|}"; done
+  _HI_TEXT_SECTION=marks
   _hi_hbar top 4 "$w2"
   _hi_head_row 4 MARK "$w2" MEANS
   _hi_hbar mid 4 "$w2"
@@ -707,8 +740,8 @@ function _hi_print_marks_table() {
   done
   _hi_hbar bottom 4 "$w2"
   # the third axis, the table a row sits in: whether the row speaks at all
-  _hi_cecho " | a row under [group.unwanted] speaks only when installed, one under"
-  _hi_cecho " | [group.required] only when missing; one under [group] both ways"
+  _hi_pv_note "a row under [group.unwanted] speaks only when installed, one under"
+  _hi_pv_note "[group.required] only when missing; one under [group] both ways"
 }
 
 # same hatch as scripts/install.sh: sourcing this file defines its functions
@@ -736,7 +769,7 @@ packages)
     _hi_cecho "No packages file at $_HI_PACKAGES - the header has nothing to check" "$RED"
     exit 1
   fi
-  _hi_cecho " | reading $_HI_PACKAGES"
+  _hi_pv_note "reading $_HI_PACKAGES"
   _hi_print_ramp_line
   _hi_print_scheme_line
   printf '\n'
@@ -746,14 +779,35 @@ packages)
   printf '\n'
   _hi_print_marks_table
   printf '\n'
-  _hi_h2 "as the header will print it"
-  full_check
+  if [ "$_HI_TEXT" = 1 ]; then
+    # the check's own line is the header's, cells a | apart: not text
+    printf 'check: as the header prints it, which hi --preview packages draws\n'
+  else
+    _hi_h2 "as the header will print it"
+    full_check
+  fi
   ;;
 header)
   # the wizard's preview says the same in its box: a silent exit here read
   # as "the header is empty", not "the header is off"
   if [ "${_HI_DISABLE_HEADER:-0}" = 1 ]; then
     _hi_cecho " header off (_HI_DISABLE_HEADER=1${_HI_DISABLE_LOCAL:+, through _HI_DISABLE_LOCAL=$_HI_DISABLE_LOCAL on this machine}) - nothing to draw" "$YELLOW"
+  elif [ "$_HI_TEXT" = 1 ]; then
+    # a cell a line, in the header's order, the check's left to the header
+    _HI_PROBE_HOLD=1
+    _hi_header_prefetch
+    if _hi_order_has containers || _hi_order_has jobs || _hi_order_has pods; then _hi_probe_launch; fi
+    # shellcheck disable=SC2086 # the split is the point: one word per cell
+    for _hi_w in ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT}; do
+      if [ "$_hi_w" = check ]; then
+        printf 'header / check: as the header prints it, which hi --preview packages draws\n'
+        continue
+      fi
+      _hi_header_word_cell "$_hi_w" _hi_v
+      [ -z "$_hi_v" ] || printf 'header / %s: %s\n' "$_hi_w" "$_hi_v"
+    done
+    _HI_PROBE_HOLD=""
+    _hi_probe_done
   else
     hi_header Preview
   fi

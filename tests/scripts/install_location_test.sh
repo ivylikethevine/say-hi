@@ -114,7 +114,11 @@ function test_fish_config_states_the_tree() { _hi_loc_rc_states_the_tree .config
 # wiring the rc files and its closing banner would leave every case below
 # asserting against a half-made install
 function test_the_install_reported_success() {
-  grep -q "Installed!" "$_HI_WORKDIR/install.log" || _hi_why
+  local tail
+  grep -q "Installed!" "$_HI_WORKDIR/install.log" && return 0
+  # the install's own last words are the evidence: a run that died says why
+  tail="$(tail -n 15 "$_HI_WORKDIR/install.log" 2>&1)"
+  _hi_because "install.log ends: $tail"
 }
 
 # the tree stays where it is: an install writes the user's rc files and the

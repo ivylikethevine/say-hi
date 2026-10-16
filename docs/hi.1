@@ -17,6 +17,7 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-doctor
 .RB [ \-\-json ]
 .RB [ \-\-problems ]
+.RB [ \-\-text ]
 .RB [ \-\-use " " \fIbackend\fR]
 .RI [ ssh\-options ]
 .RI [ target ]
@@ -67,6 +68,7 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-plugins
+.RB [ \-\-text ]
 .br
 .B hi \-\-disable\-plugin
 .IR name ...
@@ -81,6 +83,7 @@ hi \- your shell config, on every host you say hi to
 .br
 .B hi \-\-preview
 .RB { colors | packages | header }
+.RB [ \-\-text ]
 .br
 .BR "hi \-h" " | " \-V
 .SH DESCRIPTION
@@ -286,7 +289,7 @@ which a package has not.
 .BR \-n " is " \-\-dry\-run 's
 short form wherever it appears.
 .TP
-.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
+.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR} [\fB\-\-text\fR]
 print one of these and exit:
 .B colors
 \- each user and ssh host a pin, tag, or pattern colors, in that color, with
@@ -296,8 +299,12 @@ the rule it matched;
 then the marks and the check;
 .B header
 \- the connect header at your settings.
+.B \-\-text
+draws no table and no color: one row a line, as under
+.BR \-\-doctor ;
+the header's own check line stays the header's.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-problems\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-problems\fR] [\fB\-\-text\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree;
 the config overlay; each overlay member and the tool that reads it, with the
 places it was found (the overlay, a home location, the tree's default) and
@@ -321,6 +328,13 @@ and
 outside a UTF\-8 locale).
 .B \-\-problems
 prints only the warn and bad rows, gathered into one findings table.
+.B \-\-text
+draws no table and no color: one row a line,
+.IR section / label : text ,
+a warn, bad, or ok row saying so in brackets, for a screen reader or a grep;
+the same rows as the tables, and not
+.BR \-\-json 's
+form, which it refuses beside.
 ssh options reach
 that check's BatchMode probe as they would a connect, and are reported as
 ignored for a non\-ssh target.
@@ -434,7 +448,8 @@ picks a preset
 .RB ( everything ,
 .BR balanced ,
 .BR minimal ,
-.BR lean ),
+.BR lean ,
+.BR configs ),
 .B s
 saves, and
 .B q
@@ -581,13 +596,16 @@ under
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
-.B \-\-plugins
+.B \-\-plugins \fR[\fB\-\-text\fR]
 list every plugin, the configs of a tool's hi carries to a target and points
 the tool at: its name, its group, each member, and the file that rides, or
 why none does. A plugin is a table of the tree's
 .B config/plugins
 or of
 .BR ~/.config/say-hi/plugins .
+.B \-\-text
+draws no table and no color: one row a line, as under
+.BR \-\-doctor .
 .TP
 .B \-\-disable\-plugin \fIname\fR... [\fB\-\-dry\-run\fR]
 switch plugins off for every target: a plugin that is off sends no file and

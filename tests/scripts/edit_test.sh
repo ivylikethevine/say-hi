@@ -74,17 +74,19 @@ function test_edit_makes_a_plugins_file_from_the_key_reference() {
   [ "$got" = "rec
 $cfg/plugins" ] || _hi_why got || return 1
   want="$(awk '/^#/ { print; next } { exit }' "$_HI_ROOT/config/plugins")"
-  [ "$(sed '/^$/,$d' "$cfg/plugins")" = "$want" ] && grep -qx '# \[cli.task\]' "$cfg/plugins" || _hi_why cfg want || return 1
+  got="$(sed '/^$/,$d' "$cfg/plugins")"
+  [ "$got" = "$want" ] && grep -qx '# \[cli.task\]' "$cfg/plugins" || _hi_why got want cfg || return 1
   printf '[mine.x]\nfiles = "x"\n' >"$cfg/plugins"
   out="$(EDITOR=rec _hi_edit_run "$cfg" plugins)" || _hi_why cfg out || return 1
-  [[ "$out" != *made* ]] && [ "$(cat "$cfg/plugins")" = '[mine.x]
-files = "x"' ] || _hi_why out cfg
+  got="$(cat "$cfg/plugins")"
+  [[ "$out" != *made* ]] && [ "$got" = '[mine.x]
+files = "x"' ] || _hi_why out got
 }
 
 # colors and packages start as copies of the tree's, as --add-color and
 # --add-package make them; settings.sh as --configure starts one
 function test_edit_makes_hi_s_other_files_as_their_commands_do() {
-  local cfg out n
+  local cfg out n got want
   cfg="$(_hi_edit_cfg own)"
   n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
   out="$(EDITOR=rec _hi_edit_run "$cfg" colors)" || _hi_why cfg out || return 1
@@ -92,8 +94,9 @@ function test_edit_makes_hi_s_other_files_as_their_commands_do() {
   out="$(EDITOR=rec _hi_edit_run "$cfg" packages)" || _hi_why cfg out || return 1
   cmp -s "$cfg/packages" "$_HI_ROOT/config/packages" || _hi_why cfg out || return 1
   out="$(EDITOR=rec _hi_edit_run "$cfg" settings.sh)" || _hi_why cfg out || return 1
-  [ "$(sed -n 1p "$cfg/settings.sh")" = '#!/bin/sh' ] && [[ "$(sed -n 2p "$cfg/settings.sh")" == "# say-hi settings $n "*"$_HI_MARKER" ]] &&
-    [ "$(wc -l <"$cfg/settings.sh" | tr -d ' ')" = 2 ] || _hi_why cfg out
+  got="$(cat "$cfg/settings.sh")"
+  want="$(printf '#!/bin/sh\n%-45s %s' "# say-hi settings $n" "$_HI_MARKER")"
+  [ "$got" = "$want" ] || _hi_why got want out
 }
 
 # any other file gets its directory and nothing else: one the editor is
@@ -119,17 +122,20 @@ function test_edit_picks_the_editor_in_order() {
 --wait
 $cfg" ] || _hi_because "VISUAL with a flag: $got" || return 1
   out="$(VISUAL=no-such-editor-here EDITOR=rec _hi_edit_run "$cfg")" || _hi_why cfg out || return 1
-  [ "$(_hi_edit_opened "$cfg")" = "rec
-$cfg" ] || _hi_because "an absent VISUAL: $(_hi_edit_opened "$cfg")" || return 1
+  got="$(_hi_edit_opened "$cfg")"
+  [ "$got" = "rec
+$cfg" ] || _hi_because "an absent VISUAL: $got" || return 1
   mkdir -p "$cfg"
   printf '#!/bin/sh\nexport _HI_EDITOR=nano\n' >"$cfg/settings.sh"
   out="$(_hi_edit_run "$cfg")" || _hi_why cfg out || return 1
-  [ "$(_hi_edit_opened "$cfg")" = "nano
-$cfg" ] || _hi_because "_HI_EDITOR: $(_hi_edit_opened "$cfg")" || return 1
+  got="$(_hi_edit_opened "$cfg")"
+  [ "$got" = "nano
+$cfg" ] || _hi_because "_HI_EDITOR: $got" || return 1
   rm -f "$cfg/settings.sh"
   out="$(_hi_edit_run "$cfg")" || _hi_why cfg out || return 1
-  [ "$(_hi_edit_opened "$cfg")" = "nvim
-$cfg" ] || _hi_because "the list's first: $(_hi_edit_opened "$cfg")"
+  got="$(_hi_edit_opened "$cfg")"
+  [ "$got" = "nvim
+$cfg" ] || _hi_because "the list's first: $got"
 }
 
 # a path that leaves the overlay, more than one file, an unknown option, and

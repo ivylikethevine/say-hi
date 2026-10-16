@@ -13,6 +13,11 @@
 # after the source line unreachable (scripts/doctor.sh has the same story).
 # shellcheck disable=SC2317,SC2329
 
+# --text, read ahead of core.sh: its palette is set as it is sourced, and
+# $NO_COLOR is how it is asked for none
+_HI_TEXT=0
+case " $* " in *" --text "*) _HI_TEXT=1 && export NO_COLOR=1 ;; esac
+
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
@@ -43,7 +48,7 @@ case "${1:-}" in
   ;;
 esac
 case "$mode" in
-list) me="hi --plugins" usage="hi --plugins" ;;
+list) me="hi --plugins" usage="hi --plugins [--text]" ;;
 off) me="hi --disable-plugin" usage="hi --disable-plugin <name>... [--dry-run]" ;;
 on) me="hi --enable-plugin" usage="hi --enable-plugin <name>... [--dry-run]" ;;
 esac
@@ -69,6 +74,9 @@ one last row.
 
 A <name> is a plugin or a member, as listed here, or one file of a member
 that is a directory (extensions/10-kube).
+
+  --text    no box and no color: one row a line, "group / member: text", a
+            riding row saying (ok), for a screen reader or a grep
 EOF
     ;;
   off | on)
@@ -87,6 +95,15 @@ EOF
   esac
 }
 
+# --text, read ahead of core.sh above, is the list's alone
+_hi_argv=()
+for _hi_a in "$@"; do
+  [ "$_hi_a" != --text ] || continue
+  _hi_argv+=("$_hi_a")
+done
+set -- ${_hi_argv[@]+"${_hi_argv[@]}"}
+unset _hi_argv _hi_a
+[ "$_HI_TEXT" != 1 ] || [ "$mode" = list ] || _hi_die "--text is hi --plugins' switch ($me --help)"
 _hi_args _hi_plugins_help "$usage" "$@"
 
 # _hi_plugin_row <label> <text> [severity] - a member's row, its label in the
