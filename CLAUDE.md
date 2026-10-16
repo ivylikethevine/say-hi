@@ -157,7 +157,8 @@ are all machine-read by a suite, and `README.md`'s payload badge by
   [CONTRIBUTING.md's _Which docs change with what_](docs/CONTRIBUTING.md#which-docs-change-with-what);
   every fact has one home, mapped by [docs/README.md](docs/README.md). Link
   to that home, don't copy it — this file included.
-- `README.md`'s Roadmap is a to-do list, not a changelog (same section).
+- `README.md`'s Roadmap and Release Stages are to-do lists, not a changelog
+  (same section).
   Beyond that: entries whose code half shipped but which wait on a human step
   stay unticked, rewritten to say what shipped and what the tick now means.
 

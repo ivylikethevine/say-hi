@@ -6,7 +6,7 @@ Best Practices questionnaire answer sheet to enter at
 Work already shipped for either badge is not repeated here; git history is
 the ledger, and [SECURITY.md#assurance-case](SECURITY.md#assurance-case) is
 the security half. The account-side steps still open are in
-[README's Roadmap](../README.md#roadmap).
+[README's Release Stages](../README.md#release-stages).
 
 ## Contents
 

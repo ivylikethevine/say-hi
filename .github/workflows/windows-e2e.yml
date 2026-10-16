@@ -32,7 +32,7 @@ jobs:
     # ci.yml calls this on `push` and on same-repository PRs only, so a fork
     # PR never reaches it.
     steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           # audit only: on Windows harden-runner has no block mode
           egress-policy: audit
@@ -112,7 +112,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           # audit only: on Windows harden-runner has no block mode
           egress-policy: audit
@@ -203,7 +203,7 @@ jobs:
     env:
       WSLENV: GITHUB_WORKSPACE:HI_SHARD:USERPROFILE
     steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           # audit only: on Windows harden-runner has no block mode
           egress-policy: audit
@@ -416,7 +416,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           # block: this collector runs on ubuntu, not Windows, and only reads
           # the shards' result - it reaches nothing but the results receiver

@@ -27,7 +27,7 @@ concurrency:
 
 # read-all is the floor; job-level permissions replace this block rather than
 # adding to it, which is why the job spells out its read scopes again.
-permissions: read-all
+permissions: read-all # zizmor: ignore[excessive-permissions]
 
 jobs:
   analysis:
@@ -47,14 +47,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      # the only write scopes in this file: code scanning takes the SARIF, and
-      # publish_results signs the score it sends with an OIDC token
-      security-events: write
-      id-token: write
-      # Dangerous-Workflow and Token-Permissions read workflow definitions
-      actions: read
+      security-events: write # code scanning takes the SARIF
+      id-token: write # publish_results signs the score it sends
+      actions: read # Dangerous-Workflow and Token-Permissions read workflows
     steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           disable-sudo: true
@@ -92,13 +89,13 @@ jobs:
       # kept alongside the code-scanning upload: the artifact is the whole
       # report as the tool emitted it; code scanning keeps only what it can
       # map to a line.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scorecard-results
           path: results.sarif
           if-no-files-found: error
 
       - name: Upload the findings to code scanning
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: results.sarif

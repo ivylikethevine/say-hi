@@ -16,9 +16,9 @@
 #     version-updates-only (GHSA has no container ecosystem), and a digest is
 #     just a digest. image-scan.yml measures that with trivy.
 #
-# Renovate was weighed and declined: it would cover tools.txt, but costs a
-# second bot, its own config dialect, and a PR stream where tool-versions.yml
-# keeps one tracking issue.
+# Renovate was weighed and declined: it would cover the pins this file cannot,
+# but costs a second bot, its own config dialect, and a PR stream where
+# tool-versions.yml keeps one tracking issue.
 #
 # Each entry sets `open-pull-requests-limit: 0`, so no version-update pull
 # request opens: tool-versions.yml reports the same drift in one tracking

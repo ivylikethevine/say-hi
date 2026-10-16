@@ -26,7 +26,7 @@ for id in $(api "actions/artifacts?name=$marker&per_page=20" \
   have="$(api "actions/runs/$id/artifacts?per_page=100" '.artifacts[] | select(.expired | not) | .name')"
   for a in "$@"; do
     # a here-string: `printf | grep -q` under pipefail fails on the writer's
-    # SIGPIPE once grep leaves at its match (docs/SYNTAX.md)
+    # SIGPIPE once grep leaves at its match
     grep -qxF -- "$a" <<<"$have" || continue 2
   done
   echo "run=$id"

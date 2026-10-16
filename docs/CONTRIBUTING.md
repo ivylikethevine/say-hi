@@ -1,7 +1,8 @@
 # Contributing to say-hi
 
 say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md): interfaces can still
-move, and [README's Roadmap](../README.md#roadmap) is what is left to do. The
+move, and [README's Roadmap](../README.md#roadmap) and
+[Release Stages](../README.md#release-stages) are what is left to do. The
 test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
 [docs/GLOSSARY.md](GLOSSARY.md).
 
@@ -283,8 +284,9 @@ site builds into a path the site leaves out (a dot-path such as `.github/`, or
 anything `_config.yml` excludes) is an absolute github.com URL, or it 404s on
 Pages; the lint group checks that too.
 
-[README's Roadmap](../README.md#roadmap) is a to-do list, not a changelog:
-finishing an entry means **deleting** it. What a _user_ reads is the pull
+[README's Roadmap](../README.md#roadmap) and
+[Release Stages](../README.md#release-stages) are to-do lists, not a
+changelog: finishing an entry means **deleting** it. What a _user_ reads is the pull
 request's `## Release note` section (the template has it), which
 [`release.yml` collects into the release body](RELEASING.md#cutting-a-release):
 write the sentence you would want on the release page, or `none` when nothing
