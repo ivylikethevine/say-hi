@@ -97,6 +97,9 @@ function test_add_tag_refuses_an_unknown_host_and_a_bad_tag() {
   before="$(cat "$home/.ssh/config")"
   ! _hi_addtag_run "$home" nothere lab >/dev/null || _hi_why home || return 1
   ! _hi_addtag_run "$home" web2 'two words' >/dev/null || _hi_why home || return 1
+  # a backend's word is every target of that kind's tag (settings.kube.sh)
+  ! _hi_addtag_run "$home" web2 kube >/dev/null || _hi_why home || return 1
+  ! _hi_addtag_run "$home" web2 docker >/dev/null || _hi_why home || return 1
   ! _hi_addtag_run "$home" web2 >/dev/null || _hi_why home || return 1
   got="$(cat "$home/.ssh/config")"
   [ "$got" = "$before" ] || _hi_why got home before

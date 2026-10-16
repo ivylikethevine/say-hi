@@ -188,21 +188,45 @@ function _hi_client_verdicts() {
   }
 }
 
-# _hi_tag_settings <fallback> - the settings of the target's tags: each
-# `settings.<tag>.sh` of the overlay whose tag the `# Tags:` line above
-# $DOMAIN names, in that line's order. Sourced here, over settings.sh, and
-# joined to it in one file that rides as the target's settings.sh
-# ($_HI_TAG_SETTINGS, pack.sh's _hi_overlay_src), so both ends read the same.
-# The file lives in the runtime directory, rewritten only when its content
-# changes since the overlay cache watches its mtime, else at <fallback>, the
-# caller's to remove. A session's relay has none: it inherits what it was sent.
+# _hi_backend_tags <arm> <target> - the tags a target that is no ssh host
+# carries, into the caller's $_hi_tags: its backend's word (the six are
+# reserved, which hi --add-tag holds to), and a pod's context and namespace
+# after it, the prefixes _hi_kube_split reads, each a settings.<tag>.sh of
+# the overlay in that order, the last winning
+function _hi_backend_tags() {
+  local _hi_bt_i
+  _hi_tags=("$1")
+  [ "$1" = kube ] || return 0
+  _hi_kube_split "$2"
+  for ((_hi_bt_i = 1; _hi_bt_i < ${#_HI_K_ARGS[@]}; _hi_bt_i += 2)); do
+    _hi_tags+=("${_HI_K_ARGS[_hi_bt_i]}")
+  done
+}
+
+# _hi_tag_settings <fallback> [arm] - the settings a target's tags name:
+# for an ssh host (no [arm]) each `settings.<tag>.sh` of the overlay whose
+# tag the `# Tags:` line above $DOMAIN names, in that line's order; for a
+# container, an allocation, or a pod ([arm], the backend's word) the
+# backend's file, then a pod's context's and namespace's
+# (_hi_backend_tags). Sourced here, over settings.sh, and joined to it - the
+# site tier's settings.sh (HI.61) ahead of both - in one file that rides as
+# the target's settings.sh ($_HI_TAG_SETTINGS, pack.sh's _hi_overlay_src),
+# so both ends read the same. The file lives in the runtime directory,
+# rewritten only when its content changes since the overlay cache watches
+# its mtime, else at <fallback>, the caller's to remove. A session's relay
+# has none: it inherits what it was sent.
 function _hi_tag_settings() {
-  local _hi_ts_t _hi_ts_f _hi_ts_dir _hi_ts_out _hi_ts_tmp _hi_ts_o=$-
-  local -a _hi_ts_tags=() _hi_ts_files=()
+  local _hi_ts_t _hi_ts_f _hi_ts_dir _hi_ts_out _hi_ts_tmp _hi_ts_o=$- _hi_ts_site=""
+  local -a _hi_ts_tags=() _hi_ts_files=() _hi_tags=()
   _HI_TAG_SETTINGS=""
   [ "$_HI_REMOTE_SESSION" != 1 ] || return 0
-  _hi_ssh_host_tag "${DOMAIN##*@}" >/dev/null || return 0
-  IFS=' ,' read -r -a _hi_ts_tags <<<"$_HI_TAG_VALUE" || true
+  [ -z "${_HI_SITE_DIR:-}" ] || [ ! -f "$_HI_SITE_DIR/settings.sh" ] || _hi_ts_site="$_HI_SITE_DIR/settings.sh"
+  if [ -n "${2:-}" ]; then
+    _hi_backend_tags "$2" "$DOMAIN"
+    _hi_ts_tags=("${_hi_tags[@]}")
+  elif _hi_ssh_host_tag "${DOMAIN##*@}" >/dev/null; then
+    IFS=' ,' read -r -a _hi_ts_tags <<<"$_HI_TAG_VALUE" || true
+  fi
   for _hi_ts_t in ${_hi_ts_tags[@]+"${_hi_ts_tags[@]}"}; do
     # a tag is free text; a file is named only by one that is a plain word
     case "$_hi_ts_t" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
@@ -216,18 +240,19 @@ function _hi_tag_settings() {
     case "$_hi_ts_o" in *u*) set -u ;; esac
     _hi_ts_files+=("$_hi_ts_f")
   done
-  ((${#_hi_ts_files[@]})) || return 0
+  ((${#_hi_ts_files[@]})) || [ -n "$_hi_ts_site" ] || return 0
   _hi_runtime_dir _hi_ts_dir
   if [ -n "$_hi_ts_dir" ]; then
-    _hi_hash "$_HI_CONFIG_DIR ${_hi_ts_files[*]}" _hi_ts_out
+    _hi_hash "$_HI_CONFIG_DIR $_hi_ts_site ${_hi_ts_files[*]-}" _hi_ts_out
     _hi_ts_out="$_hi_ts_dir/hi.settings.$_hi_ts_out"
     _hi_ts_tmp="$(mktemp "$_hi_ts_out.XXXXXX")" || return 0
   else
     _hi_ts_out="$1" _hi_ts_tmp="$1.new"
   fi
   {
+    [ -z "$_hi_ts_site" ] || cat "$_hi_ts_site"
     [ ! -f "$_HI_CONFIG_DIR/settings.sh" ] || cat "$_HI_CONFIG_DIR/settings.sh"
-    cat "${_hi_ts_files[@]}"
+    cat ${_hi_ts_files[@]+"${_hi_ts_files[@]}"}
   } >"$_hi_ts_tmp" || return 0
   if cmp -s "$_hi_ts_tmp" "$_hi_ts_out"; then
     rm -f "$_hi_ts_tmp"
@@ -1440,9 +1465,12 @@ function _hi() {
     _hi_keep_here
     exit $?
   fi
-  # ahead of everything that reads a setting: the prompt list, the members,
-  # --keep, and --plain itself
-  _hi_tag_settings "$tmp.settings"
+  # the arm first, since a container's, an allocation's, or a pod's tags are
+  # its backend's word and a pod's prefixes; then the tag settings, ahead of
+  # everything that reads a setting: the prompt list, the members, --keep,
+  # and --plain itself
+  arm="$(_hi_select_arm)"
+  _hi_tag_settings "$tmp.settings" "$arm"
   [ -n "${PLAIN:-}" ] || [ "${_HI_PLAIN:-0}" != 1 ] || PLAIN=1
   _hi_keep_refuse
   # Primed in the shell that keeps them: a caller that reads one through $( )
@@ -1455,14 +1483,13 @@ function _hi() {
     # closing a kept session runs no command
     [ -z "${RAWCMD:-}" ] || _hi_die "--end takes a target and nothing after it"
     [ "${PLAIN:-0}" != 1 ] || _hi_die "--end closes a kept session, which --plain never starts"
-    _hi_keep_end "$(_hi_select_arm)"
+    _hi_keep_end "$arm"
     exit $?
   fi
   # No `2>"$tmp"` around this block: it would also catch every word ssh says
   # on a *successful* session - the server's `Banner`, the "Permanently added"
   # line, the host-key fingerprint. $tmp still reaches _say_hi, which sends a
   # container exec's words there.
-  arm="$(_hi_select_arm)"
   # said for the flag alone: _HI_KEEP=1 is a default, and silent where it
   # does not apply
   if [ "${KEEP:-}" = 1 ] && [ "${PLAIN:-0}" = 1 ]; then

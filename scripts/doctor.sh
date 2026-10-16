@@ -457,7 +457,16 @@ function doctor_config() {
   _hi_settings_shape v "$_HI_SETTINGS"
   [ -z "$v" ] || [ "$v" -le "$_HI_SETTINGS_SHAPE" ] ||
     doctor_row settings.sh "is shape $v, which this hi does not read (it reads $_HI_SETTINGS_SHAPE): a newer hi wrote it - move this one up, or hi --configure rewrites the block in this one's shape" bad
-  # settings.<tag>.sh: read for a host carrying that tag, never sent as itself
+  # the site tier (HI.61): a team's defaults, under the tree's and over
+  # nothing of the user's
+  if [ -d "${_HI_SITE_DIR:-}" ]; then
+    t=""
+    for f in settings.sh colors packages plugins; do
+      [ ! -f "$_HI_SITE_DIR/$f" ] || t="$t${t:+ }$f"
+    done
+    doctor_row site "$_HI_SITE_DIR holds ${t:-none of settings.sh, colors, packages, plugins} - read after the tree's defaults and before yours, and sent where you have no copy"
+  fi
+  # settings.<tag>.sh: read for a target carrying that tag, never sent as itself
   local tags=""
   for f in "$_HI_CONFIG_DIR"/settings.*.sh; do
     [ -f "$f" ] || continue
@@ -469,7 +478,7 @@ function doctor_config() {
     esac
   done
   [ -z "$tags" ] ||
-    doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: line names it, and joined to the settings.sh that host gets"
+    doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: line names it, a container, allocation, or pod for its backend's word, and a pod for its context and namespace, and joined to the settings.sh that target gets"
   doctor_settings_values
   # a file still under a name hi stopped reading before 1.0: nothing else
   # would say why the override stopped applying
@@ -712,7 +721,7 @@ function doctor_config_row() {
 # --check-configs` went - a read-only check is a doctor's row; install.sh
 # keeps the same check as its pre-write gate.
 function doctor_configs() {
-  local row shell target check file
+  local row shell target check file label
   doctor_section configs "Shell configs (the rc files and the overlay's shell files, parsed)"
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell _ _ target check _ <<<"$row"
@@ -726,11 +735,14 @@ function doctor_configs() {
     # shellcheck disable=SC2086
     doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
   done
-  # a tag's settings are joined to settings.sh, so the same two parsers
-  for target in "$_HI_CONFIG_DIR"/settings.*.sh; do
+  # a tag's settings are joined to settings.sh, so the same two parsers;
+  # the site's settings.sh too
+  for target in "$_HI_CONFIG_DIR"/settings.*.sh "${_HI_SITE_DIR:-/nonexistent}/settings.sh"; do
     [ -f "$target" ] || continue
-    doctor_config_row "${target##*/}" "$target" sh -n
-    doctor_config_row "${target##*/}" "$target" fish --no-execute
+    label="${target##*/}"
+    [ "$target" != "${_HI_SITE_DIR:-}/settings.sh" ] || label="site settings.sh"
+    doctor_config_row "$label" "$target" sh -n
+    doctor_config_row "$label" "$target" fish --no-execute
   done
   doctor_flush
 }

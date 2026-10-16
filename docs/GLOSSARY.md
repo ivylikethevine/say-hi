@@ -1382,8 +1382,16 @@ no later name arriving empty can reach the root of the disk again.
 
 Every overlay member resolves in one order, written once as `scripts/pack.sh`'s
 `$_HI_OVERLAY_TABLE` and the rows `config/plugins` adds to it
-([HI.63](#hi63-plugins-rows)): the overlay's copy, else the user's own file
-at home, else the tree's default where `config/` holds one. A row names the
+([HI.63](#hi63-plugins-rows)): the overlay's copy, else the site tier's
+(`$_HI_SITE_DIR`: `/etc/say-hi`, else the first `say-hi/` under
+`$XDG_CONFIG_DIRS`, read on a client alone) for `settings.sh`, `colors`,
+`packages`, and `plugins`, else the user's own file at home, else the tree's
+default where `config/` holds one. A site `settings.sh` is sourced ahead of
+the user's and joined under it in the one `settings.sh` that rides
+(`hi.sh`'s `_hi_tag_settings`); a site `colors` or `packages` rides in the
+tree default's place as an overlay copy does (`_hi_overlay_site`); a site
+`plugins` is the second of the three files `_hi_plugins_load` reads. A tier
+is added in a minor, never reordered. A row names the
 member, the `common/paths.sh` variable that carries one of hi's own files to
 the shells (`-` for a tool's member), whether `config/` holds a default
 (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that reads it

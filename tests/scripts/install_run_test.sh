@@ -428,10 +428,12 @@ function test_install_gate_accepted_at_a_terminal_continues() {
 # the five listed; "m" is minimal, which keeps hi off this machine. The menu
 # is hi --configure's
 function test_first_install_asks_only_about_this_machine() {
-  local home="$_HI_WORKDIR/first-q" out="$_HI_WORKDIR/first-q.pty.out" p
+  local home="$_HI_WORKDIR/first-q" out="$_HI_WORKDIR/first-q.pty.out" p plain
   _hi_run_install_pty first-q 'm\n' --link none || _hi_why || return 1
+  # each name as the pick draws it, its first letter the hotkey: [b]alanced
+  plain="$(_hi_strip_ansi "$(cat "$out")")"
   for p in everything balanced minimal lean configs; do
-    grep -qF "$p" "$out" || _hi_because "the pick never listed $p" || return 1
+    [[ "$plain" == *"[${p:0:1}]${p:1}"* ]] || _hi_because "the pick never listed $p: $plain" || return 1
   done
   { grep -qF "Start from which?" "$out" && grep -qF "starting from the 'minimal' preset" "$out" &&
     grep -qF 'Installed!' "$out" && ! grep -qF 'Nothing is written until you save' "$out" &&

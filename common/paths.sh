@@ -38,11 +38,15 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # assignment wins; paths_test.sh pins the lines to pack.sh's $_HI_OVERLAY_TABLE
 # (GLOSSARY: HI.61).
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
+# the site tier (HI.61) stands in for the tree's until the overlay has a
+# copy, on a client alone: on a target the site's file rode as the copy
 export _HI_COLORS="$_HI_ROOT/config/colors"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SITE_DIR/colors" ] && export _HI_COLORS="$_HI_SITE_DIR/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
 # the package check; `hi --add-package` copies the tree's in before its
 # first write, so a copy of your own starts with every stock row
 export _HI_PACKAGES="$_HI_ROOT/config/packages"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SITE_DIR/packages" ] && export _HI_PACKAGES="$_HI_SITE_DIR/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
 # extensions, sourced after the aliases; the same only home (HI.59)
 export _HI_EXTENSIONS="$_HI_CONFIG_DIR/extensions"

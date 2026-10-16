@@ -40,8 +40,8 @@ function test_text_prints_rows_without_a_box() {
 # the JSON document is its own form: asked for both, the run refuses
 function test_text_and_json_are_two_forms() {
   local out rc=0
-  out="$(_hi_doctor_run --text --json)" || rc=$?
-  [ "$rc" -ne 0 ] && [[ "$out" == *"two forms"* ]] || _hi_why rc out
+  out="$("$_HI_DOCTOR" --text --json 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"two forms"* ]] || _hi_why rc out
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
@@ -108,7 +108,7 @@ function test_use_twice_naming_two_backends_is_refused() {
 
 # --help anywhere on the line, not only first: after a flag, after a target
 function test_help_is_read_anywhere_on_the_line() {
-  local out want="Usage: doctor.sh [--json] [--problems] [--use <backend>] [ssh-options] [target]"
+  local out want="Usage: doctor.sh [--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]"
   out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || _hi_why out want || return 1
   out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ] || _hi_why out want
 }

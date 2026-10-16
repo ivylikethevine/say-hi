@@ -260,7 +260,7 @@ function test_flags_behind_a_local_command_are_its_switches() {
     return 1
   }
   got="$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')"
-  [ "$got" = "--json --problems --use " ] || _hi_why got _HI_TARGETS || return 1
+  [ "$got" = "--json --problems --text --use " ] || _hi_why got _HI_TARGETS || return 1
   # a row with no switches offers nothing; a connect flag or a target first
   # is not a local command, so the top-level roster stands
   ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || _hi_why _HI_TARGETS || return 1

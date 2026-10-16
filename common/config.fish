@@ -26,6 +26,25 @@ set -l _hi_cfg_base ~/.config
 set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
 set -q _HI_CONFIG_DIR; or set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
 set -q _HI_XDG_CONFIG; or set -gx _HI_XDG_CONFIG $_hi_cfg_base
+# the site tier (HI.61), as core.sh derives it: /etc/say-hi, else the first
+# say-hi/ under $XDG_CONFIG_DIRS; its settings.sh ahead of the user's, on a
+# client alone
+if not set -q _HI_SITE_DIR
+  set -gx _HI_SITE_DIR /etc/say-hi
+  if not test -d /etc/say-hi
+    set -l _hi_dirs /etc/xdg
+    set -q XDG_CONFIG_DIRS; and set _hi_dirs (string split : -- $XDG_CONFIG_DIRS)
+    for _hi_d in $_hi_dirs
+      if test -d $_hi_d/say-hi
+        set -gx _HI_SITE_DIR $_hi_d/say-hi
+        break
+      end
+    end
+  end
+end
+if test "$_HI_REMOTE_SESSION" != 1; and test -f $_HI_SITE_DIR/settings.sh
+  source $_HI_SITE_DIR/settings.sh
+end
 # settings ahead of paths.sh, whose gate reads them (plain `export NAME=value`
 # lines, which fish parses natively)
 if test -f $_HI_CONFIG_DIR/settings.sh

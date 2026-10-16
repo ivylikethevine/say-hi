@@ -194,6 +194,38 @@ function test_files_table_walks_every_tier() {
   }
 }
 
+# a site colors is used where the overlay has none and passed over where it
+# has one, named as the site's either way
+function test_files_table_names_the_site_tier() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/sitefiles.XXXXXX")"
+  mkdir -p "$h/overlay" "$h/site"
+  printf '[hosttag]\nprod = "red"\n' >"$h/site/colors"
+  printf '[core]\nbat = []\n' >"$h/site/packages"
+  printf '[core]\neza = []\n' >"$h/overlay/packages"
+  out="$(HOME="$h" _HI_CONFIG_DIR="$h/overlay" _HI_SITE_DIR="$h/site" doctor_files)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"colors"*"used the site's ~/site/colors"* && "$out" == *"packages"*"used ~/overlay/packages; passed over the site's ~/site/packages"* ]] ||
+    _hi_why out h
+}
+
+# the overlay section names the site directory and what it holds, and the
+# site's settings.sh gets the two parser rows under its own label; with no
+# such directory, no row
+function test_config_names_the_site_tier() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/sitecfg.XXXXXX")"
+  mkdir -p "$h/overlay" "$h/site"
+  printf 'export _HI_MAX_WIDTH=70\n' >"$h/site/settings.sh"
+  printf '[core]\nbat = []\n' >"$h/site/packages"
+  out="$(_HI_CONFIG_DIR="$h/overlay" _HI_SETTINGS="$h/overlay/settings.sh" _HI_SITE_DIR="$h/site" doctor_config)"
+  [[ "$out" == *"site"*"$h/site holds settings.sh packages"* ]] || _hi_because "the overlay section: $out" || return 1
+  out="$(_HI_CONFIG_DIR="$h/overlay" _HI_SETTINGS="$h/overlay/settings.sh" _HI_SITE_DIR="$h/site" doctor_configs)"
+  [[ "$out" == *"site settings.sh"*"parses (sh)"* ]] || _hi_because "the configs section: $out" || return 1
+  out="$(_HI_CONFIG_DIR="$h/overlay" _HI_SETTINGS="$h/overlay/settings.sh" _HI_SITE_DIR="$h/nosite" doctor_config)"
+  [[ "$out" != *"$h/nosite"* ]] || _hi_because "no site directory: $out"
+}
+
 # a directory member counts the files that ride from it, and a prompt
 # program's config is named but not sent while the prompt is hi's own
 function test_files_table_names_why_a_found_file_is_not_sent() {
@@ -956,6 +988,8 @@ function run_doctor_config_tests() {
   _hi_check "An overlay copy nothing ships is flagged" test_config_flags_an_overlay_copy_nothing_ships
   _hi_check "A tmux config from home is scanned" test_config_scans_a_home_tmux_config
   _hi_check "The files table walks every tier" test_files_table_walks_every_tier
+  _hi_check "...the site's between the overlay's copy and the tree's" test_files_table_names_the_site_tier
+  _hi_check "The site tier is a row of the overlay section, its settings.sh parsed" test_config_names_the_site_tier
   _hi_check "...and names an overlay copy alone, not the tree's behind it" test_files_table_hides_the_tree_default_behind_a_copy
   _hi_check "...and says why a file it found is not sent" test_files_table_names_why_a_found_file_is_not_sent
   _hi_check "The box folds alike rows, drops its header, and writes ~" test_the_box_folds_and_shortens

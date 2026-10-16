@@ -172,6 +172,7 @@ if [ "$kind" = words ]; then
   # here since this file can run forked with the session's own _HI_*
   # unexported (HI.47) and cannot source paths.sh).
   pkgs="${_HI_CONFIG_DIR:-}/packages"
+  [ -f "$pkgs" ] || pkgs="${_HI_SITE_DIR:-/etc/say-hi}/packages"
   [ -f "$pkgs" ] || pkgs="$hi_tree/config/packages"
   # a fixed list is common/flags' <flag>=<word> rows; --remove-color takes
   # --add-color's

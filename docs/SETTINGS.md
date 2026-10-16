@@ -13,6 +13,7 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
 - [The wizard](#the-wizard)
 - [Presets](#presets)
 - [The overlay](#the-overlay)
+  - [The site tier](#the-site-tier)
 - [Every setting](#every-setting)
   - [Not settings](#not-settings)
 - [Settings by host tag](#settings-by-host-tag)
@@ -226,6 +227,21 @@ which the list of plugins replaced, becomes its word in `_HI_PLUGINS_OFF`:
 `_HI_PLUGINS_ON` (`editors`, `hooks`), which switched every plugin of the
 group, becomes its plugins' words.
 
+### The site tier
+
+A team's defaults for every account on a box live in `/etc/say-hi/`, or the
+first `say-hi/` under `$XDG_CONFIG_DIRS` where `/etc/say-hi/` is not there:
+`settings.sh`, `colors`, `packages`, and `plugins`, each in the shape of the
+overlay's. The tier sits between the tree's defaults and yours: a site
+`settings.sh` is read before your `settings.sh`, so a line of yours wins, and
+rides joined to it; a site `colors` or `packages` stands in for the tree's
+until you copy one into the overlay, and rides in the tree's place as your
+copy would; a site `plugins` adds to the tree's and a plugin of yours of the
+same name replaces it. `hi --doctor` names the tier, and its files table
+says which tier each file came from. No package ships anything there, and
+`hi --configure`, `--add-color`, and `--add-package` write the overlay alone.
+A target never reads its own site directory: what rode is what applies.
+
 ## Every setting
 
 Every setting below is an environment variable, checked where it is used.
@@ -357,12 +373,14 @@ out of your namespace.
 
 ## Settings by host tag
 
-A file named `settings.<tag>.sh` in the overlay holds settings for the hosts
-whose `# Tags:` line in `~/.ssh/config` names that tag, or whose file in
-`~/.ssh/config.d` is named for it
-([Colors](COLORS.md) has the tags, and `hi --add-tag` writes one). It is
-`settings.sh`'s shape, `export NAME=value` lines, and takes any setting of the
-table above:
+A file named `settings.<tag>.sh` in the overlay holds settings for the
+targets carrying that tag: the hosts whose `# Tags:` line in `~/.ssh/config`
+names it, or whose file in `~/.ssh/config.d` is named for it
+([Colors](COLORS.md) has the tags, and `hi --add-tag` writes one), and every
+container, allocation, or pod, which carries its backend's word (`docker`,
+`podman`, `nerdctl`, `finch`, `nomad`, `kube`), a pod its context and
+namespace besides. It is `settings.sh`'s shape, `export NAME=value` lines,
+and takes any setting of the table above:
 
 ```sh
 # ~/.config/say-hi/settings.prod.sh
@@ -386,10 +404,14 @@ line names them, the last winning. A tag's file never rides as itself, so
   `hi --no-plain <host>` is hi's own session there once.
 - `hi --configure` writes `settings.sh` alone: a tag's file is written by
   hand.
-- A container, an allocation, and a pod carry no tag. Nor does a `hi` typed
-  inside a session read one: the relay inherits the settings it was sent.
+- A container, an allocation, or a pod reads its backend's file, then a
+  pod `settings.<context>.sh` and `settings.<namespace>.sh`, in that order,
+  the last winning: `settings.kube.sh` reaches every pod and no ssh host,
+  and a namespace's file that namespace's pods alone. The six backend words
+  are reserved, so `hi --add-tag` refuses them for a host. A `hi` typed
+  inside a session reads none: the relay inherits the settings it was sent.
 - `hi --doctor` lists the tag files, parses each as it does `settings.sh`,
-  and `hi --doctor <host>` names the ones that host reads.
+  and `hi --doctor <target>` names the ones that target reads.
 
 ## Header details
 

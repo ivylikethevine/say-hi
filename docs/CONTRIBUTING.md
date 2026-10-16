@@ -240,7 +240,11 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
   `tide.vars`, `eza/theme.yml`, `bat/config`, `ripgreprc`, `fzfrc`,
   `lazygit/config.yml`, `git/config`, `inputrc`, and `ssh_tags`), `settings.<tag>.sh` beside
-  them, their formats, the XDG path, and the `_HI_CONFIG_DIR` override. The rule behind the names: a member is
+  them, their formats, the XDG path, and the `_HI_CONFIG_DIR` override; and
+  the order a member resolves in - the overlay's copy, the site tier
+  (`$_HI_SITE_DIR`, for `settings.sh`, `colors`, `packages`, and `plugins`),
+  the file at home, the tree's default - which a minor may add a tier to and
+  never reorders. The rule behind the names: a member is
   called what its tool calls the file, under a directory of the tool's name
   where the tool keeps one in `~/.config`; where the tool has no fixed name the
   member carries the tool's name and extension.

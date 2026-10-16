@@ -609,7 +609,8 @@ function test_colors_text_is_a_row_a_line() {
   local out rules
   out="$(_hi_render_colors --text)" || _hi_why out || return 1
   rules="$(_hi_text_rules "$out")"
-  [[ "$out" == *"users / root: color "*", source "* && "$out" == *"hosts / "* ]] && [ "$rules" = 0 ] || _hi_why rules out
+  [[ "$out" == *"users / alice: color brmagenta, source override:username"* && "$out" == *"hosts / "*": color "*", source "* ]] &&
+    [ "$rules" = 0 ] || _hi_why rules out
 }
 
 # ...and the groups and marks tables, the check's own line left to the

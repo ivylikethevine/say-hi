@@ -53,10 +53,10 @@ function doctor_target() {
       kind="ssh host"
     fi
   fi
+  # what _hi_tag_settings would read for it, by the same rule
+  local tag tagged=""
+  local -a tags=() _hi_tags=()
   if [ "$kind" = "ssh host" ]; then
-    # what _hi_tag_settings would read for it, by the same rule
-    local tag tagged=""
-    local -a tags=()
     if _hi_ssh_host_tag "${target##*@}" >/dev/null; then
       # a tag no line wrote is the name of the host's config.d file: walked
       # again here, unforked, for the file the walk leaves in $_hi_sw_file
@@ -71,8 +71,18 @@ function doctor_target() {
     fi
     [ -z "$tagged" ] || doctor_row "tag settings" "$tagged - read over settings.sh for this host, and sent joined to it"
     label=ssh
-  elif [ "${#_HI_DOC_SSHARGS[@]}" -gt 0 ]; then
-    doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
+  else
+    # its backend's word, and a pod's context and namespace: the tags of a
+    # target no # Tags: line can name
+    _hi_backend_tags "$label" "$target"
+    for tag in "${_hi_tags[@]}"; do
+      case "$tag" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
+      [ ! -f "$_HI_CONFIG_DIR/settings.$tag.sh" ] || tagged="$tagged${tagged:+ }settings.$tag.sh"
+    done
+    doctor_row tags "${_hi_tags[*]} - its backend's word${_hi_tags[1]:+, then its context and namespace}, each a settings.<tag>.sh of the overlay"
+    [ -z "$tagged" ] || doctor_row "tag settings" "$tagged - read over settings.sh for this $kind, and sent joined to it"
+    [ "${#_HI_DOC_SSHARGS[@]}" -eq 0 ] ||
+      doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
   fi
   doctor_transport_target "$label" "$target"
   doctor_flush

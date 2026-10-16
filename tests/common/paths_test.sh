@@ -438,7 +438,7 @@ function test_paths_follow_the_overlay_table() {
   local home="$_HI_WORKDIR/table-home"
   mkdir -p "$home"
   env -u MICRO_CONFIG_HOME -u ZELLIJ_CONFIG_DIR -u SCREENRC -u _HI_XDG_CONFIG HOME="$home" \
-    XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/overlay" bash -c '
+    XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/overlay" _HI_SITE_DIR="$home/site" bash -c '
     set -- && source "$_HI_LAUNCHER" || exit 1
     set +eu
     fail=0 seen=" "
@@ -463,6 +463,16 @@ function test_paths_follow_the_overlay_table() {
       for c in "${cands[@]}" "$ov"; do mk "$c"; done
       chk "$ov" "the overlay"
       rm -rf "$ov"
+      # the site tier stands in for the tree default, on a client alone
+      case "$row" in *"|tree|"*)
+        mk "$_HI_SITE_DIR/$m"
+        chk "$_HI_SITE_DIR/$m" "the site"
+        _HI_REMOTE_SESSION=1
+        chk "$none" "a target, with a site file"
+        _HI_REMOTE_SESSION=0
+        rm -rf "$_HI_SITE_DIR/$m"
+        ;;
+      esac
       _HI_REMOTE_SESSION=1
       chk "$none" "a target"
       _HI_REMOTE_SESSION=0

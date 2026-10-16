@@ -123,6 +123,26 @@ function test_target_honors_a_forced_backend() {
   [[ "$out" == *"resolves"*"docker container"*"forced by --use docker"* && "$out" != *checked* ]] || _hi_why out
 }
 
+# a container reads its backend's file and a pod its context's and
+# namespace's after it; an ssh host reads none of them
+function test_target_names_a_backend_s_tag_files() {
+  local h="$_HI_WORKDIR/doc-backend-tags" out
+  mkdir -p "$h/overlay"
+  : >"$h/overlay/settings.docker.sh"
+  : >"$h/overlay/settings.kube.sh"
+  : >"$h/overlay/settings.ns1.sh"
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=docker _HI_CONFIG_DIR="$h/overlay" _hi_doc_target ghostbox)"
+  [[ "$out" == *"tags"*"docker - its backend's word"* && "$out" == *"tag settings"*"settings.docker.sh - read over settings.sh for this docker container"* ]] ||
+    _hi_because "a container: $out" || return 1
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=kube _HI_CONFIG_DIR="$h/overlay" _hi_doc_target ctx1:ns1:pod1)"
+  [[ "$out" == *"tags"*"kube ctx1 ns1 - its backend's word, then its context and namespace"* &&
+    "$out" == *"tag settings"*"settings.kube.sh settings.ns1.sh - read over"* && "$out" != *"settings.docker.sh"* ]] ||
+    _hi_because "a pod: $out" || return 1
+  unset _HI_TAG_NAME
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=ssh _HI_CONFIG_DIR="$h/overlay" _hi_doc_target web1)"
+  [[ "$out" != *"settings.kube.sh"* && "$out" != *"settings.docker.sh"* ]] || _hi_because "an ssh host: $out"
+}
+
 # a family member with no flag row of its own was forced through --use, and
 # the report says so in the user's own spelling
 function test_target_names_use_for_a_rowless_member() {
@@ -405,6 +425,7 @@ function run_doctor_target_tests() {
   _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
   _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
   _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
+  _hi_check "A container's tag is its backend's word, a pod's its context and namespace too" test_target_names_a_backend_s_tag_files
   _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
   _hi_check "Names the config.d file a host's tag is from" test_target_names_the_config_d_file_a_tag_is_from

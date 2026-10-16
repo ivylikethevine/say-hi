@@ -162,11 +162,12 @@ function _hi_plugins_list() {
   [ "${#_HI_PLUGIN_BAD[@]}" -gt 0 ] || return 0
   _hi_section "ignored"
   for line in "${_HI_PLUGIN_BAD[@]}"; do
-    # a file:line of the tree's config/ or of the overlay
-    name="$_HI_CONFIG_DIR"
-    case "$line" in config/*) name="$_HI_ROOT" ;; esac
+    # a file:line of the tree's config/, of the site's (a whole path), or
+    # of the overlay
+    name="$_HI_CONFIG_DIR/"
+    case "$line" in config/*) name="$_HI_ROOT/" ;; /*) name="" ;; esac
     row="${line%%|*}"
-    _hi_row "$name/${row%%:*} line ${row#*:}" "${line#*|}" warn
+    _hi_row "$name${row%%:*} line ${row#*:}" "${line#*|}" warn
   done
   _hi_rows_flush
 }

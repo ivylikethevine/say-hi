@@ -378,36 +378,6 @@ One list, in the order the work is best done. An entry is deleted once its
        contract says which, and under the second a clone named `hi-tools`
        installs, connects, and reads as healthy in `hi --doctor`.
 
-2. [ ] _Before 1.0:_ **A site tier under the user's overlay** — a package's
-       `/usr/share/say-hi/config/*` is overwritten on upgrade, so a team
-       cannot ship a default `packages`, `colors`, `plugins` or `settings.sh`
-       to every account on a box. **Do:** a third rung in
-       [HI.61](docs/GLOSSARY.md#hi61-one-overlay-priority)'s order, read from
-       `/etc/say-hi/` (or the first `say-hi/` under `$XDG_CONFIG_DIRS`),
-       between the shipped default and the user's copy: a site `settings.sh`
-       is sourced before the user's, a site `colors`, `packages` or
-       `plugins` stands in for the tree's until the user copies one, and the
-       site file rides in the tree default's place as an overlay copy does.
-       `hi --doctor` names the tier each file came from, packages ship
-       nothing there, and `install.sh --prefix` is untouched. At the least,
-       before the tag, the contract's overlay paragraph words the precedence
-       so a tier can be added in a minor. **Ticks when:** a target gets a
-       site `packages` when the user has none and the user's when they do,
-       and doctor says which.
-
-3. [ ] _Before 1.0:_ **Tag settings reach containers, allocations and pods** —
-       `settings.<tag>.sh` keys off `# Tags:` lines, which only ssh hosts
-       carry, so nothing varies per backend, cluster or namespace. **Do:**
-       every target carries its backend's word as a tag (`docker`, `podman`,
-       `nerdctl`, `finch`, `nomad`, `kube`), and a kube target its context
-       and namespace besides, each a `settings.<tag>.sh` of the same shape
-       and order (backend, then context, then namespace, the last winning);
-       the six words are reserved, so `hi --add-tag` refuses them on an ssh
-       host. `hi --doctor <target>` names the files a container or pod
-       reads. **Ticks when:** `settings.kube.sh` reaches a pod and no ssh
-       host, a namespace's file reaches that namespace's pods alone, and
-       doctor lists both.
-
 ## Release Stages
 
 What the 1.0 tag and the releases after it wait on, in order. An entry is

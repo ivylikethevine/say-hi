@@ -61,6 +61,27 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # starts at. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG
+  # The site tier (GLOSSARY: HI.61): /etc/say-hi, else the first say-hi/
+  # under $XDG_CONFIG_DIRS. Read on a client alone - a target gets what rode
+  # - and an already-set value wins, as the overlay's does. The walk is
+  # parameter expansion: bash and zsh split an unquoted word differently.
+  if [ -z "${_HI_SITE_DIR:-}" ]; then
+    _HI_SITE_DIR=/etc/say-hi
+    _hi_t="${XDG_CONFIG_DIRS:-/etc/xdg}:"
+    while [ ! -d "$_HI_SITE_DIR" ] && [ -n "$_hi_t" ]; do
+      [ ! -d "${_hi_t%%:*}/say-hi" ] || _HI_SITE_DIR="${_hi_t%%:*}/say-hi"
+      _hi_t="${_hi_t#*:}"
+    done
+    unset _hi_t
+  fi
+  export _HI_SITE_DIR
+  # the site's settings ahead of the user's, so a line of theirs wins
+  # shellcheck source=/dev/null # a site's config, may not exist
+  if [ "${_HI_REMOTE_SESSION:-0}" != 1 ] && [ -f "$_HI_SITE_DIR/settings.sh" ]; then
+    set +euo pipefail
+    . "$_HI_SITE_DIR/settings.sh"
+    set -euo pipefail
+  fi
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   # loaded as the user's own shell would: strict mode here would turn one

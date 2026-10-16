@@ -742,7 +742,11 @@ function _hi_member_rows() {
     used="" eff="" text="" found=""
     _hi_overlay_src "$m" used || used=""
     _hi_overlay_places "$m" "$row"
-    locs=("$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"})
+    # the tiers in order: the overlay's copy, the site's (for a member
+    # config/ holds a default of), home, the tree's default
+    locs=("$_HI_CONFIG_DIR/$m")
+    case "$row" in *'|tree|'*) [ -z "${_HI_SITE_DIR:-}" ] || locs+=("$_HI_SITE_DIR/$m") ;; esac
+    locs+=(${_hi_paths[@]+"${_hi_paths[@]}"})
     case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
     eff="$used"
     [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
@@ -765,6 +769,7 @@ function _hi_member_rows() {
       [ "$state" != "passed over" ] || [ "$p" != "$_HI_ROOT/config/$m" ] || continue
       found=1
       [ "$p" != "$_HI_ROOT/config/$m" ] || p="the tree's config/$m"
+      [ -z "${_HI_SITE_DIR:-}" ] || [ "$p" != "$_HI_SITE_DIR/$m" ] || p="the site's $p"
       text="$text${text:+; }$state $p"
     done
     _hi_member_label "$m" label
