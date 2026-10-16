@@ -62,6 +62,13 @@ Repository settings, secrets (the signing and publishing keys), and the
 `release` environment are reachable by the maintainer alone, and two-factor
 authentication is enabled on that account.
 
+Escalated access - write or merge rights, a secret, the `release`
+environment, or admin - goes to a collaborator only after the maintainer has
+reviewed them: a record of merged contributions here, two-factor
+authentication on their account, and an identity the maintainer can tie to
+it. Each grant is the least role the work needs, and is withdrawn when the
+work ends.
+
 ## Continuity
 
 Everything needed to carry the project on is public: the tree is
@@ -71,5 +78,5 @@ outside this repository. If the maintainer goes permanently quiet, fork it and
 carry on; the license is the succession plan.
 
 That is not a second person able to cut a release within a week, which is why
-the OpenSSF `access_continuity` and `bus_factor` criteria are answered unmet in
-[OPENSSF-IMPROVEMENTS.md](OPENSSF-IMPROVEMENTS.md#basics--project-oversight).
+the OpenSSF `access_continuity` and `bus_factor` criteria are answered unmet on
+[the project's Best Practices page](https://www.bestpractices.dev/en/projects/14397).

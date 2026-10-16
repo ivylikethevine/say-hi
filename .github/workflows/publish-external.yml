@@ -31,8 +31,8 @@ concurrency:
 
 jobs:
   # A plain git push over ssh - the AUR has no PR mechanism - so the safety is
-  # the manual dispatch against a published tag, AUR_SSH_KEY sealed in
-  # `environment: release`, and pushing exactly the two files the release
+  # the manual dispatch against a published tag, `environment: release`'s
+  # deployment rule, and pushing exactly the two files the release
   # carries. Deliberately does NOT run namcap (it needs an
   # Arch box, so each package's first push is still a manual, namcap'd one -
   # docs/RELEASING.md) and does NOT touch say-hi-git (it builds from `main`

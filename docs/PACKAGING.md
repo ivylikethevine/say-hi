@@ -51,9 +51,9 @@ repository (`packaging/gpg/say-hi.asc`, `packaging/apk/say-hi.rsa.pub`):
 
 ```sh
 gpg --show-keys --with-fingerprint say-hi.asc
-#   A46E 27A7 F7BF 9BEC 059A  0758 DD0F 9D76 EA22 6F65
+#   38F0 C4F6 4C11 FE62 C6AD  E51A 97FE CA9A 5412 340F
 sha256sum say-hi.rsa.pub
-#   2349552c01eda6a5f5247c339894c5de676e0c0d19991240c289e5fb2cc2b42f
+#   19ba56d74f8753e7409f0fb32e83926dc7aac1454f06ecab86ec49a7f5c58e67
 ```
 
 **No maintainer scripts, no `conffiles`, on purpose.** Everything a user
@@ -177,7 +177,7 @@ sums (the offline half — no `gh`, no network, one static public key):
 
 ```sh
 sha256sum -c --ignore-missing SHA256SUMS                        # the bytes match the release
-minisign -Vm SHA256SUMS -P 'RWR2I3MAqExrIMvAdepnWzlWlaWyvb6bEJiFmsU6lAoE10FnZPSizkAA'
+minisign -Vm SHA256SUMS -P 'RWR016ARV233WIhkYGyz2ckhgS2NpsKVdepW//xAIKe1ib/M5nLCbOIN'
 gh attestation verify say-hi_*_all.deb --repo ivylikethevine/say-hi # which CI run built them
 ```
 
