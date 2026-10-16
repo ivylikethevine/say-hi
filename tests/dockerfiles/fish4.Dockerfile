@@ -16,7 +16,7 @@
 # (.github/dependabot.yml can't tell this pin apart from apt-client.Dockerfile's),
 # so moving this to a later Ubuntu release is a deliberate hand edit -
 # tool-versions.yml still reports a moved digest within 26.04.
-FROM ubuntu:26.04@sha256:cd21a4f68a617580279d4b091cb18e3af9fa8a87500665f0ae5f7f757d17d367
+FROM ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7
 # The version is *asserted*, not pinned to an exact fish build: an exact pin
 # breaks the build outright the day 26.04 ships a security update, and a
 # broken build here means the check stops running rather than fails, which is
