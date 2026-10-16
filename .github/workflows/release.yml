@@ -903,7 +903,7 @@ jobs:
       prerelease: ${{ needs.publish.outputs.prerelease }}
       debug: ${{ needs.publish.outputs.debug }}
     steps:
-      # audit only: on macOS harden-runner has no block mode
+      # audit until this job has an allowlist taken from its audit runs
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit

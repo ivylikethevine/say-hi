@@ -174,13 +174,13 @@ These are constraints the tree enforces, not requests:
   which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 - **Every workflow job starts with `step-security/harden-runner`**
   (`egress-policy: block` with an allowlist taken from a real run's audit log on
-  every Ubuntu job; `audit` only where there is no block mode - macOS and
-  Windows - and on `link-check.yml`, whose job is reaching any URL; a Linux
-  arm64 job goes without, having no agent) and sets `timeout-minutes`. Beside
-  it: third-party actions pinned to a full SHA with a `# vX.Y.Z` comment, every
-  checkout with `persist-credentials: false`, least-privilege `permissions:`,
-  and untrusted input passed through `env:` rather than an inline expression in
-  a `run:`. The `packaging_ci` suite and `workflow lint` enforce them.
+  every Ubuntu job; `audit` on macOS and Windows until a job has its own
+  allowlist, and on `link-check.yml`, whose job is reaching any URL; Windows
+  arm64 has no agent, and `test-arm` has no harden-runner yet) and sets
+  `timeout-minutes`. Beside it: third-party actions pinned to a full SHA with a
+  `# vX.Y.Z` comment, every checkout with `persist-credentials: false`,
+  least-privilege `permissions:`, and untrusted input passed through `env:`
+  rather than an inline expression in a `run:`. The `packaging_ci` suite and `workflow lint` enforce them.
 
 ## What 1.x will not break
 

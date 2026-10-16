@@ -304,8 +304,8 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
-    # no harden-runner: its community tier has no arm agent (it only logs
-    # that and exits), so the step would be a no-op here
+    # no harden-runner yet: its agent supports Linux arm64, so this job
+    # can start one in audit and take an allowlist from its runs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -435,9 +435,7 @@ jobs:
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
-          # audit, and it cannot be otherwise: harden-runner blocks egress on
-          # Ubuntu runners only. Its macOS agent reports no endpoint or DNS
-          # event at all.
+          # audit until this job has an allowlist taken from its audit runs
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

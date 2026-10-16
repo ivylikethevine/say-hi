@@ -262,7 +262,7 @@ runs it in `block` with an allowlist - `gate`, `upgrade`, `build`, and the
 three that hold a publishing credential: `publish` (the signing keys and a
 `contents: write` token), `tap` (`HOMEBREW_TAP_TOKEN`), and `aur`
 (`AUR_SSH_KEY`). `brew` stays on `audit`, which records its outbound
-connections without refusing any: harden-runner has no block mode on macOS.
+connections without refusing any, until it has an allowlist of its own.
 Each allowlist's comment names what each host is for; tighten or extend one
 from the harden-runner insights a release's run summary links (a host `block`
 refused shows there), not by guessing.
