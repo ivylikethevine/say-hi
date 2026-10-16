@@ -383,16 +383,10 @@ checkout: an account or an upstream review that lands when it lands.
       and upstream style. **Do:** open the PR against tldr-pages. **Ticks
       when:** merged.
 
-- [ ] **III.** _Post 1.0:_ **Best Practices badge** — the answers are in
-      [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-      settle its three flagged rows (`small_tasks`, `secure_2FA`,
-      `hardened_site`) and enter it at bestpractices.dev. **Ticks when:**
-      the live entry matches the sheet.
-
-- [ ] **IV.** _Post 1.0:_ **AUR** — registration is closed to new accounts, so
+- [ ] **III.** _Post 1.0:_ **AUR** — registration is closed to new accounts, so
       `publish-external.yml`'s `aur` job is written but unexercised. **When
-      it reopens:** register, add `AUR_SSH_KEY` to the `release`
-      environment, and push each package once by hand
+      it reopens:** register, add `AUR_SSH_KEY` as a repository secret,
+      and push each package once by hand
       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
       packages are live and a dispatch has kept `say-hi` current for one
       release.

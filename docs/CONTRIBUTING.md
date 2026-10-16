@@ -109,15 +109,15 @@ checks on the merged commit. `coverage.yml` reuses the PR's figures the same
 way.
 
 "Gate" means the job fails loudly rather than reporting and continuing — not,
-on its own, that it blocks the merge button. `main`'s ruleset requires six
+on its own, that it blocks the merge button. `main`'s ruleset requires nine
 checks, on a branch up to date with `main`: `fast suites (ubuntu-latest)`,
 `fast suites (macos-latest)`, `lint suites (ubuntu-latest)`,
-`package build (deb, rpm, apk)`, `e2e (ssh, docker)`, and
+`package build (deb, rpm, apk)`, `e2e (ssh, docker)`,
 `e2e (podman, nomad, kube)` — the e2e pair by aggregate name, since the shard
-count is a knob — plus CodeQL reporting no high-or-higher alert.
-`workflow lint`, `secret scan (gitleaks)`, `dependency review`, and
-`release note (pr body)` belong on that list under exactly those names; until
-then each still fails its run.
+count is a knob — `secret scan (gitleaks)`, `dependency review`, and
+`release note (pr body)`, plus CodeQL reporting no high-or-higher alert.
+`workflow lint` belongs on that list under exactly that name; until then it
+still fails its run.
 
 `e2e (Windows)`, `e2e (FreeBSD)`, `e2e (OpenBSD)`, and
 `fast suites (Windows client)` run on a pull request only when its head branch

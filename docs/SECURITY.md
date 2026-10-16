@@ -12,6 +12,7 @@ to report what slipped through it.
 - [Trust boundaries](#trust-boundaries)
   - [What a process started from a session inherits](#what-a-process-started-from-a-session-inherits)
 - [Assurance case](#assurance-case)
+- [Scanning policy](#scanning-policy)
 - [Supported versions](#supported-versions)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
   - [What happens to a report](#what-happens-to-a-report)
@@ -242,7 +243,7 @@ where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 | Fail loud, fail closed                                       | every entry point (`hi.sh`, `load.sh`, `common/core.sh`, `scripts/install.sh`) runs under `set -euo pipefail`, each with a documented re-disable where an error must not close an interactive shell                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Untrusted input allowlisted, not sanitized after the fact    | `_hi_safe_path` in `hi.sh` checks the scratch directory a target hands back against an explicit `[bracket-class]` before it reaches a command run back on it; `_hi_ssh_pattern_hit` in `common/core.sh` skips an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` in `common/core.sh` strips control characters and backslashes from target-derived text                                                                                                                                                                                                                                                                                |
 | No secret ever needs to be in the payload                    | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop and `ci.yml`'s `secret scan (gitleaks)` sweeping the full history on every PR and push to `main`, findings redacted from the log                                                                                                                                                                                                                                                                                                   |
-| The build and release path is defended, not just the product | every CI and release job starts with `step-security/harden-runner` but the arm64 Linux one, which has no agent (egress blocked to an allowlist on every Ubuntu x64 job, each list taken from a real run; audited only on macOS and Windows, which have no block mode, and on the link checker); third-party actions are pinned by SHA; `dependency review` fails a PR that adds a dependency with a high or critical advisory; `release.yml`'s `gate` builds only a tag signed by a key in `.github/allowed_signers`, on `main`, with green CI; the signing keys are `release` environment secrets no other job can read ([RELEASING.md](RELEASING.md#the-release-environment)) |
+| The build and release path is defended, not just the product | every CI and release job starts with `step-security/harden-runner` but the arm64 Linux one, which has no agent (egress blocked to an allowlist on every Ubuntu x64 job, each list taken from a real run; audited only on macOS and Windows, which have no block mode, and on the link checker); third-party actions are pinned by SHA; `dependency review` fails a PR that adds a dependency with a high or critical advisory; `release.yml`'s `gate` builds only a tag signed by a key in `.github/allowed_signers`, on `main`, with green CI; the signing keys are repository secrets only the signing and publishing steps name ([RELEASING.md](RELEASING.md#the-release-environment)) |
 
 **What is not (yet) countered.** Unless `_HI_UPDATE_SIGNED=1` is set,
 `hi --update` refuses a tampered signature, not a missing or foreign one: a
@@ -253,11 +254,40 @@ allowed-signers file is trusted on first use - the copy already checked out, whi
 A packaged install updates through its package manager instead
 ([PACKAGING.md](PACKAGING.md)).
 
+## Scanning policy
+
+What a dependency or code-scanning finding must clear, and by when. The checks
+themselves are [CONTRIBUTING.md's _What CI runs_](CONTRIBUTING.md#what-ci-runs).
+
+- **Dependencies (SCA).** `dependency review`, a required check on every pull
+  request, refuses a change that adds a dependency with a high or critical
+  advisory. An advisory published later against an existing dependency
+  reaches Dependabot and the weekly `tool-versions.yml` issue: high or
+  critical is fixed before the next release, moderate or low by the next
+  routine bump. The one exception is an advisory with no patched release,
+  accepted in `.github/osv-scanner.toml` with its reason and an expiry date.
+- **Licenses.** Nothing is vendored or redistributed: every dependency is a
+  dev-only tool or a system package the user's package manager installs. A
+  dependency whose license is incompatible with MIT is refused at review.
+- **Code (SAST).** shellcheck runs in `lint suites (ubuntu-latest)`, a
+  required check, with nothing disabled globally: any finding blocks the
+  merge, and a suppression is inline on the line it covers. CodeQL blocks a
+  merge on a high or critical alert through `main`'s ruleset; a medium or
+  lower one is fixed or dismissed with its reason before the next release.
+  zizmor runs in `workflow lint`, each rule-level ignore in
+  `.github/zizmor.yml` with its reason.
+- **Before a release.** `release.yml`'s `gate` builds only a tag whose commit
+  went green on `main`, and a tag is not pushed while a high or critical SCA
+  or SAST finding is open.
+
 ## Supported versions
 
-No **1.0** release yet: the supported version is the tip of `main`, and
-packages exist for the pre-1.0 versions a hand-pushed `v*` tag has built
-([RELEASING.md](RELEASING.md#cutting-a-release)). Once v1.0 is tagged, this
+No **1.0** release yet: the supported version is the latest release and the
+tip of `main`, and packages exist for the pre-1.0 versions a hand-pushed `v*`
+tag has built ([RELEASING.md](RELEASING.md#cutting-a-release)). Bug and
+security fixes land on `main` and ship in the next release, never as a
+backport, so a release stops receiving security updates the day its
+successor is tagged. Once v1.0 is tagged, this
 becomes a version table with the latest release supported; what a 1.x release
 keeps stable is
 [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).

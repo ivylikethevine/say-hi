@@ -6,9 +6,10 @@ name: Release
 # prerelease tag (a `-` in the name, v1.0.0-rc.1) is a GitHub Release only:
 # marked as a prerelease and never Latest, no Pages refresh, no brew/tap job,
 # and publish-external.yml's AUR job refuses it. Branch pushes and PRs
-# are ci.yml's. Needs the `release` environment, which seals
-# MINISIGN_SECRET_KEY, APK_SIGNING_KEY, and GPG_SIGNING_KEY (docs/RELEASING.md)
-# - no required reviewer on it: the gates are the tag protection rule and the
+# are ci.yml's. Signs with the MINISIGN_SECRET_KEY, APK_SIGNING_KEY, and
+# GPG_SIGNING_KEY repository secrets, and runs build and publish in the
+# `release` environment (docs/RELEASING.md) - no required reviewer on it: the
+# gates are the tag protection rule and the
 # `gate` job (a tag publishes only once it is signed by a key in
 # .github/allowed_signers, sits on main, and CI went green on its commit). The
 # three keys are each optional and skip loudly. The AUR push is not here -
@@ -234,12 +235,11 @@ jobs:
   # Everything that can fail, nothing that can publish: a bad tag fails here,
   # before publish touches the release.
   #
-  # `environment: release` on a tag push only: APK_SIGNING_KEY and
-  # GPG_SIGNING_KEY are sealed there, and its deployment-tags rule (`v*`)
-  # would refuse a rehearsal's branch ref. An empty name is no environment, so
-  # a rehearsal builds with neither key - unsigned apk and rpm, both skipping
-  # loudly - while ci.yml's packaging-smoke keeps the signed shape covered
-  # with throwaway keys.
+  # `environment: release` on a tag push only: its deployment-tags rule (`v*`)
+  # would refuse a rehearsal's branch ref, and an empty name is no
+  # environment. APK_SIGNING_KEY and GPG_SIGNING_KEY are repository secrets,
+  # so a rehearsal signs with the real keys too; ci.yml's packaging-smoke
+  # covers the signed shape with throwaway keys.
   build:
     name: build packages
     needs: [gate, upgrade]
@@ -397,8 +397,7 @@ jobs:
         with:
           tools: nfpm
 
-      # Absent APK_SIGNING_KEY (forks, before first release, and every
-      # rehearsal - the job's environment comment says why) the apk builds
+      # Absent APK_SIGNING_KEY (forks, before first release) the apk builds
       # unsigned, as a keyless local build does.
       - name: Write the apk signing key
         env:
@@ -422,12 +421,11 @@ jobs:
           echo "HI_APK_KEY=$RUNNER_TEMP/say-hi-apk.rsa" >>"$GITHUB_ENV"
 
       # The GPG key that signs the rpm here (nfpm, via HI_GPG_KEY) and, in
-      # publish, the package repository's indexes - sealed to the release
-      # environment like the apk key. Its fingerprint has to match the
-      # committed public half, packaging/gpg/say-hi.asc - the key every apt and
-      # dnf client is told to trust (docs/RELEASING.md's _Package repository_).
-      # Absent, the rpm builds unsigned and publish ships no repository, both
-      # loudly.
+      # publish, the package repository's indexes. Its fingerprint has to match
+      # the committed public half, packaging/gpg/say-hi.asc - the key every apt
+      # and dnf client is told to trust (docs/RELEASING.md's _Package
+      # repository_). Absent, the rpm builds unsigned and publish ships no
+      # repository, both loudly.
       - name: Write the GPG signing key
         env:
           GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
@@ -540,8 +538,7 @@ jobs:
 
   # The only job that publishes. It runs unattended: the gate is the tag
   # protection rule (only someone who can push a v* tag can start a release),
-  # not a person clicking approve. `environment: release` stays because
-  # the signing keys are sealed to it, and because its
+  # not a person clicking approve. `environment: release` stays because its
   # deployment-tags rule (`v*`) keeps the job to tag refs - a repo setting,
   # not this file. See docs/RELEASING.md.
   publish:
@@ -619,8 +616,8 @@ jobs:
 
       # The offline half of verification: the attestation needs gh and GitHub,
       # a detached minisign signature over SHA256SUMS verifies with one static
-      # public key (in docs/PACKAGING.md) and no network. The secret is sealed to
-      # this environment, and only this job reads it. Generated with
+      # public key (in docs/PACKAGING.md) and no network. Only this job reads the
+      # secret. Generated with
       # `minisign -G -W` - no password, nobody is at this terminal to type
       # one. Absent, the release ships unsigned sums, loudly.
       - name: Sign SHA256SUMS

@@ -16,7 +16,7 @@ home, the doc named for it below, and every other page links there.
 | [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, and what a package leaves for you to do.                                                              |
 | [Troubleshooting](TROUBLESHOOTING.md)                                        | Symptom, cause, and fix: installing, your own machine, connecting, and inside a session.                                                                  |
 | [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, what response to expect, and the changes already turned down, with the reasons.                   |
-| [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, supported versions, and how to report a vulnerability.                                                     |
+| [Security policy](SECURITY.md)                                               | The threat model, what hi touches on a target, the scanning policy, supported versions, and how to report a vulnerability.                                |
 | [Man page](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1)     | `man hi`: every flag, setting, and exit status; `hi --help` is its short form. A roff page, so not on the site.                                           |
 | [tldr page](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md) | The eight-example draft for tldr-pages, kept in step with `common/flags` by the lint gate. Not on the site either.                                        |
 

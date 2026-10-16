@@ -217,15 +217,26 @@ which a file in the tree can set; the workflows only name them.
   reviewers_: you, or a rehearsal starts a build with nobody asked. A branch
   rule `main` fits.
 - **`MINISIGN_SECRET_KEY`**, **`APK_SIGNING_KEY`**, **`GPG_SIGNING_KEY`**,
-  **`AUR_SSH_KEY`** — environment secrets on `release`, never repository
-  secrets (an environment secret shadows a repository one of the same name;
-  edit the one that exists), so only a job in that environment reads them and
-  a rehearsal's `build` sees none. Each is optional and its step skips
-  loudly without it. The package keys are
-  [Package repository](#package-repository)'s _What signs what_.
-- **`HOMEBREW_TAP_TOKEN`** — the one repository secret, since `tap` runs in
-  no environment: a fine-grained PAT scoped to the tap repo with contents and
-  pull-requests write.
+  **`AUR_SSH_KEY`**, **`HOMEBREW_TAP_TOKEN`** — repository secrets, all in
+  one place; the environments hold none, since an environment secret shadows
+  a repository one of the same name. Only the steps that sign or push name
+  them, and a rehearsal's `build` signs with the real keys. Each is optional
+  and its step skips loudly without it. The package keys are
+  [Package repository](#package-repository)'s _What signs what_;
+  `HOMEBREW_TAP_TOKEN` is a fine-grained PAT scoped to the tap repo with
+  contents and pull-requests write.
+
+**Storing, reaching, and rotating them.** A secret lives only as a GitHub
+repository secret and in the maintainer's offline copy of the key files,
+never in the tree: push protection and `secret scan (gitleaks)` are the
+backstop. Only the maintainer can read or set one
+([GOVERNANCE.md](GOVERNANCE.md#sensitive-access)), and a workflow names it
+only in the step that signs or pushes, under harden-runner's `block`.
+`HOMEBREW_TAP_TOKEN` carries an expiry of 90 days at most and is replaced
+before it lapses. A signing key is replaced when it is lost or may have
+leaked: generate the pair as above, merge its public half to `main` before
+the next tag, update the secret, and have that release's notes tell
+subscribers to re-fetch `say-hi.asc` or `say-hi.rsa.pub`.
 
 `MINISIGN_SECRET_KEY`'s value is the **whole** `minisign.key` file
 `minisign -G -W` writes: both lines, unwrapped and unindented, or the signing
