@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # Prettier is what Zed formats Markdown with on save; this pins its defaults so
 # a hand run (`.github/node_modules/.bin/prettier --write <files>`, after
 # `npm ci --prefix .github`) produces the same bytes and agrees with

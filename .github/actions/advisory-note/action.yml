@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 name: Advisory note
 # The tail every advisory (never-blocking) check ends with: a ::warning
 # annotation plus a $GITHUB_STEP_SUMMARY section. The call site keeps the

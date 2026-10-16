@@ -5,6 +5,7 @@ on:
   # it. ready_for_review is not in the default type set, so it is named here,
   # or a draft marked ready would never get its run.
   pull_request:
+    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
@@ -198,16 +199,35 @@ jobs:
           RUN: ${{ steps.reuse.outputs.run }}
         run: |
           set -euo pipefail
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" \
-            --jq '.jobs[] | select(.name | contains(" / ")) | [.name, .conclusion, .html_url] | @tsv' |
-            while IFS=$'\t' read -r name conclusion url; do
-              gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
-                -f name="$name" -f head_sha="$GITHUB_SHA" -f status=completed \
-                -f conclusion="$conclusion" -f details_url="$url" \
-                -f "output[title]=Reused from PR run $RUN" \
-                -f "output[summary]=This commit's tree is the one that run tested." >/dev/null
-              printf '%s  %s\n' "$conclusion" "$name"
+          # Three tries per call: GitHub has answered a 400 or a truncated
+          # page here that a re-run then didn't get. Output is kept from the
+          # passing try only; a POST repeated after a lost answer adds a
+          # duplicate check, and GitHub shows the newest per name.
+          api() {
+            local try out
+            for try in 1 2 3; do
+              if out="$(gh api "$@")"; then
+                [ -z "$out" ] || printf '%s\n' "$out"
+                return 0
+              fi
+              [ "$try" -lt 3 ] || break
+              echo "gh api failed (attempt $try/3), retrying" >&2
+              sleep $((try * 5))
             done
+            echo "::error::gh api failed after three attempts" >&2
+            return 1
+          }
+          jobs="$(api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name | contains(" / ")) | [.name, .conclusion, .html_url] | @tsv')"
+          while IFS=$'\t' read -r name conclusion url; do
+            [ -n "$name" ] || continue
+            api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+              -f name="$name" -f head_sha="$GITHUB_SHA" -f status=completed \
+              -f conclusion="$conclusion" -f details_url="$url" \
+              -f "output[title]=Reused from PR run $RUN" \
+              -f "output[summary]=This commit's tree is the one that run tested." >/dev/null
+            printf '%s  %s\n' "$conclusion" "$name"
+          done <<<"$jobs"
 
   # Two plain jobs, not a matrix: a matrix job's skipped entries go unnamed -
   # GitHub reports one skip against the job id, not per `matrix.os` - so a

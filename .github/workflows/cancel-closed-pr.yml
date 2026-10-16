@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 name: Cancel a closed PR's runs
 
 # A merged or closed PR's in-flight runs would otherwise finish anyway: ci.yml's
@@ -13,6 +14,7 @@ name: Cancel a closed PR's runs
 # every hosted runner.
 on:
   pull_request:
+    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
     types: [closed]
 
 permissions:
