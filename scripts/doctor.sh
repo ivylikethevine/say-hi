@@ -435,6 +435,11 @@ function doctor_config() {
   # doctor_configs walks that table below, so settings.sh gets one verdict.
   [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
+  # ...and a shape line a newer hi wrote: this one reads the rows it knows
+  # and no converter of its can bring the rest back
+  _hi_settings_shape v "$_HI_SETTINGS"
+  [ -z "$v" ] || [ "$v" -le "$_HI_SETTINGS_SHAPE" ] ||
+    doctor_row settings.sh "is shape $v, which this hi does not read (it reads $_HI_SETTINGS_SHAPE): a newer hi wrote it - move this one up, or hi --configure rewrites the block in this one's shape" bad
   # settings.<tag>.sh: read for a host carrying that tag, never sent as itself
   local tags=""
   for f in "$_HI_CONFIG_DIR"/settings.*.sh; do
@@ -457,7 +462,7 @@ function doctor_config() {
     # needs the directory first
     f=""
     case "$t" in
-    carry:*) f="hi --configure converts it, or hi --add-plugin writes its plugins there" ;;
+    carry:*) f="hi --configure converts it" ;;
     *)
       case "${t#*:}" in */*) f="mkdir -p $_HI_CONFIG_DIR/${t#*:}" f="${f%/*} && " ;; esac
       f="${f}mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}"
@@ -635,6 +640,13 @@ function doctor_settings_values() {
   case "$v" in
   flat) doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad ;;
   sections) doctor_row colors "$_HI_COLORS has rows that are not TOML's name = \"color\", which pin nothing - hi --configure converts it" bad ;;
+  *)
+    # a line outside the subset (SETTINGS.md, The TOML hi reads) is skipped
+    # where the file is read, and pins nothing
+    while IFS='|' read -r v why; do
+      doctor_row colors "line $v is no row, and pins nothing: '$why' - a row is name = \"color\" on one line" warn
+    done < <(_hi_toml_strays "${_HI_COLORS:-}")
+    ;;
   esac
 }
 

@@ -116,11 +116,12 @@ zoxide's and atuin's `init`, `direnv hook`, and `mise activate` are plugins of
 the `hooks` group, off by default: `hi --enable-plugin zoxide` has a target that
 has zoxide run its init after the aliases and extensions
 ([SETTINGS.md](SETTINGS.md#shell-hooks)). A tool of your own is one
-`hi --add-plugin hooks <name> 'init=<command> {shell}'`. Once started, a tool
+`[hooks.<name>]` table with an `init` in your plugins file (`hi --edit plugins`
+opens it). Once started, a tool
 keeps state of its own under the target's `$HOME` - zoxide's directory
 database, atuin's history - which hi neither writes nor cleans up, and which is
 why none is on until you say so. A hook of your own can name the shells it
-runs in (`shells=zsh fish`). The per-shell files the overlay carries
+runs in (`shells = "zsh fish"`). The per-shell files the overlay carries
 (`~/.config/say-hi/bashrc`, `zshrc`, `config.fish`) still take a line of your
 own for anything else:
 
@@ -302,7 +303,7 @@ config hi carried.
 On a target with none of the three, a shell has nothing to hold its terminal
 and ends with the connection, so `--keep` holds what can outlive it: the
 session directory, and the directory you were in. A dropped link leaves both
-for [`_HI_KEEP_TIMEOUT`](SETTINGS.md#every-setting), 15 minutes there unless
+for [`_HI_HOLD_TIMEOUT`](SETTINGS.md#every-setting), 15 minutes unless
 you set it (`0` turns the hold off), and the retry, or any `hi <target>` inside that window, starts a
 shell on the same files where the last one stood, with nothing unpacked; its
 header says `Resumed`. What was running is gone, and the shell's history is

@@ -122,7 +122,7 @@ _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid c
 _HI_PACKAGES_GROUPS_DEFAULT="core useful deprecated"
 # a kept session's wait with nobody attached, and a held tree's for a reconnect
 _HI_KEEP_TIMEOUT_DEFAULT=24h
-_HI_KEEP_HOLD_DEFAULT=15m
+_HI_HOLD_TIMEOUT_DEFAULT=15m
 _HI_KEEP_RETRY_DEFAULT=5m
 _HI_PROBE_TIMEOUT_DEFAULT=2
 _HI_TARGETS_TTL_DEFAULT=5

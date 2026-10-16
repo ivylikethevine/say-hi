@@ -358,15 +358,15 @@ function _hi_keep_hold_here() {
   while IFS= read -r line; do
     [ "${line%%=*}" != _HI_KEEP_AS ] || as="${line#*=}"
   done <"$1"
-  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-$_HI_KEEP_HOLD_DEFAULT}" limit || _hi_keep_seconds "$_HI_KEEP_HOLD_DEFAULT" limit
+  _hi_keep_seconds "${_HI_HOLD_TIMEOUT:-$_HI_HOLD_TIMEOUT_DEFAULT}" limit || _hi_keep_seconds "$_HI_HOLD_TIMEOUT_DEFAULT" limit
   if [ -z "$as" ] || ((limit <= 0)); then
-    _hi_die "--keep needs tmux, zellij, or screen on this machine, or a _HI_KEEP_TIMEOUT over 0 to hold its files by"
+    _hi_die "--keep needs tmux, zellij, or screen on this machine, or a _HI_HOLD_TIMEOUT over 0 to hold its files by"
   fi
   _hi_mux_name "$as" name
   if ! { printf '%s\n' "$PWD" >"$_HI_ROOT/hi.cwd" && printf '%s\n' "$name" >"$_HI_ROOT/hi.hold"; }; then
     _hi_die "--keep: could not write to $_HI_ROOT"
   fi
-  _hi_cecho "hi: no tmux, zellij, or screen here: a dropped link leaves this session's files for ${_HI_KEEP_TIMEOUT:-$_HI_KEEP_HOLD_DEFAULT}, and hi $as comes back to them" "$YELLOW"
+  _hi_cecho "hi: no tmux, zellij, or screen here: a dropped link leaves this session's files for ${_HI_HOLD_TIMEOUT:-$_HI_HOLD_TIMEOUT_DEFAULT}, and hi $as comes back to them" "$YELLOW"
 }
 
 # _hi_keep_record <outvar> - where this client notes that the target holds a
@@ -412,18 +412,21 @@ function _hi_keep_live() {
 }
 
 # _hi_keep_until <outvar> - ", where the session is kept for <how long> until
-# <when that is>", for the line a drop leaves. How long is $_HI_KEEP_TIMEOUT
-# as the target reads it: unset, 24h for a session in a multiplexer and 15m
-# for a directory held where there is none ($_HI_TARGET_MUX, the boot probe's
-# word); 0, a multiplexer's session with no end and no held directory at all.
-# No time where date gives none.
+# <when that is>", for the line a drop leaves. How long is what the target
+# reads: $_HI_KEEP_TIMEOUT (24h) for a session in a multiplexer, and
+# $_HI_HOLD_TIMEOUT (15m) for a directory held where there is none
+# ($_HI_TARGET_MUX, the boot probe's word); 0, a multiplexer's session with
+# no end and no held directory at all. No time where date gives none.
 function _hi_keep_until() {
-  local span="${_HI_KEEP_TIMEOUT:-}" secs at fmt='%H:%M' mux="${_HI_TARGET_MUX:-1}"
-  { [ -n "$span" ] && _hi_keep_seconds "$span" secs; } || {
-    span="$_HI_KEEP_TIMEOUT_DEFAULT"
-    [ "$mux" = 1 ] || span="$_HI_KEEP_HOLD_DEFAULT"
-    _hi_keep_seconds "$span" secs
-  }
+  local span secs at fmt='%H:%M' mux="${_HI_TARGET_MUX:-1}"
+  if [ "$mux" = 1 ]; then
+    span="${_HI_KEEP_TIMEOUT:-$_HI_KEEP_TIMEOUT_DEFAULT}"
+    _hi_keep_seconds "$span" secs || span="$_HI_KEEP_TIMEOUT_DEFAULT"
+  else
+    span="${_HI_HOLD_TIMEOUT:-$_HI_HOLD_TIMEOUT_DEFAULT}"
+    _hi_keep_seconds "$span" secs || span="$_HI_HOLD_TIMEOUT_DEFAULT"
+  fi
+  _hi_keep_seconds "$span" secs
   printf -v "$1" '%s' ""
   ((secs > 0)) || [ "$mux" = 1 ] || return 0
   printf -v "$1" '%s' ", where the session is kept"
@@ -528,15 +531,15 @@ function _hi_keep_claim() {
 
 # Whether this session may hold its tree through a drop: not an owner pane,
 # the tree a disposable one, a terminal to lose, and a window to hold it for,
-# into $_hi_keep_limit - $_HI_KEEP_TIMEOUT in seconds, 15m here where a live
-# session's is 24h, and 0 holds nothing. It does hold once hi.hold names it:
+# into $_hi_keep_limit - $_HI_HOLD_TIMEOUT in seconds (15m), and 0 holds
+# nothing. It does hold once hi.hold names it:
 # load() writes that for a connect that asked ($_HI_KEEP_HOLD, where a
 # keeping connect found no multiplexer or took a held tree), and `hi --keep`
 # typed in the session writes it later. GLOSSARY: HI.65
 function _hi_keep_holds() {
   _hi_keep_limit=0
   [[ -z "${_HI_KEEP_MUX:-}" && -n "${_HI_CLEANUP:-}" && "$_HI_ROOT" == "$_HI_CLEANUP"/* ]] && [ -t 0 ] || return 1
-  _hi_keep_seconds "${_HI_KEEP_TIMEOUT:-$_HI_KEEP_HOLD_DEFAULT}" _hi_keep_limit || _hi_keep_seconds "$_HI_KEEP_HOLD_DEFAULT" _hi_keep_limit
+  _hi_keep_seconds "${_HI_HOLD_TIMEOUT:-$_HI_HOLD_TIMEOUT_DEFAULT}" _hi_keep_limit || _hi_keep_seconds "$_HI_HOLD_TIMEOUT_DEFAULT" _hi_keep_limit
   ((_hi_keep_limit > 0))
 }
 

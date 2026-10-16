@@ -632,8 +632,11 @@ checking that something written down elsewhere still agrees with the tree:
   setting or a block name with a literal default of its own, and
   `common/targets.sh`'s two copies match the block.
 - **21. The `<check>` column**: every row's `<check>` is a kind
-  `scripts/lib.sh`'s `_hi_setting_check` knows, and the rows whose check is
-  `toggle` are `common/core.sh`'s `$_HI_TOGGLES`.
+  `scripts/lib.sh`'s `_hi_setting_check` knows, the rows whose check is
+  `toggle` are `common/core.sh`'s `$_HI_TOGGLES`, and names follow polarity
+  ([CONTRIBUTING.md](CONTRIBUTING.md#what-1x-will-not-break)): every `toggle`
+  is `_HI_DISABLE_*`, and no `flag` is but the four default-on settings
+  `_HI_DISABLE_LOCAL` leaves alone, excused by name.
 - **22. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
   and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file

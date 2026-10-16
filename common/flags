@@ -39,8 +39,7 @@
 --plugins||scripts|_HI_PLUGINS_CMD||list the plugins: what rides, and what is off
 --disable-plugin|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--off|switch plugins off: nothing of theirs rides
 --enable-plugin|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--on|switch them back on
---add-plugin|<group> <name> <file>... [<key>=<value>...] [--dry-run]|scripts|_HI_PLUGINS_CMD|--add|carry the configs of a tool hi does not know
---remove-plugin|<name> [--dry-run]|scripts|_HI_PLUGINS_CMD|--remove|stop carrying them
+--edit|[<file>]|scripts|_HI_EDIT||open your overlay, or one file of it, in your editor
 
 # The words a flag or a switch takes from a fixed list, a row each:
 # <flag>=<word>|<help>, the shape of the flag typed joined to its word. They

@@ -453,6 +453,31 @@ function test_entry_leaves_a_toml_file_with_an_unread_line_alone() {
     cmp -s "$dir/packages" "$dir/packages.orig" && cmp -s "$dir/colors" "$dir/colors.orig"; } || _hi_why dir
 }
 
+# a settings.sh says its shape on the line the wizard's block opens with,
+# and that line decides: one at this hi's shape is left alone whatever old
+# row it holds, one of a newer shape is said and left alone, and one with no
+# line (shape 0) is read by its rows as before
+function test_entry_reads_the_settings_shape_line() {
+  local dir="$_HI_WORKDIR/conv-shape" out n
+  n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
+  [ -n "$n" ] || _hi_why n || return 1
+  mkdir -p "$dir"
+  printf '#!/bin/sh\n%-45s %s\nexport _HI_PACKAGES_MIN_PRIORITY=3\n' "# say-hi settings $n" "$_HI_MARKER" >"$dir/settings.sh"
+  cp "$dir/settings.sh" "$dir/settings.sh.orig"
+  out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  [ -z "$out" ] && [ ! -e "$dir/settings.sh.old" ] && cmp -s "$dir/settings.sh" "$dir/settings.sh.orig" ||
+    _hi_because "at this shape, said: $out" || return 1
+  printf '#!/bin/sh\n# say-hi settings %s\nexport _HI_PACKAGES_MIN_PRIORITY=3\n' "$((n + 1))" >"$dir/settings.sh"
+  cp "$dir/settings.sh" "$dir/settings.sh.orig"
+  out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  [[ "$out" == *"settings.sh is shape $((n + 1)), which this hi does not read"* ]] && [ ! -e "$dir/settings.sh.old" ] &&
+    cmp -s "$dir/settings.sh" "$dir/settings.sh.orig" || _hi_because "a newer shape, said: $out" || return 1
+  printf '#!/bin/sh\nexport _HI_PACKAGES_MIN_PRIORITY=3\n' >"$dir/settings.sh"
+  out="$(_hi_conv_run "$dir")" || _hi_why dir || return 1
+  { [[ "$out" == *"converted $dir/settings.sh"* ]] && grep -qx "export _HI_PACKAGES_GROUPS='core deprecated'" "$dir/settings.sh"; } ||
+    _hi_because "no shape line, said: $out"
+}
+
 # with no directory, $_HI_CONFIG_DIR is the one converted
 function test_entry_defaults_to_the_overlay() {
   local dir out
@@ -603,6 +628,7 @@ function run_convert_settings_tests() {
   _hi_check "The rows under [section] lines are converted too" test_entry_converts_the_sections
   _hi_check "Current or absent files are left alone" test_entry_leaves_current_files_alone
   _hi_check "...and so is a TOML file with a line hi does not read" test_entry_leaves_a_toml_file_with_an_unread_line_alone
+  _hi_check "A settings.sh is the shape its line says" test_entry_reads_the_settings_shape_line
   _hi_check "No directory means the overlay" test_entry_defaults_to_the_overlay
   _hi_check "--help, and an unknown option refused" test_entry_help_and_unknown_option
 

@@ -25,6 +25,7 @@ you say `hi` to ([The overlay](#the-overlay), [How it works](HOW-IT-WORKS.md)).
   - [Shell hooks](#shell-hooks)
   - [Variables that ride](#variables-that-ride)
   - [A tool hi does not know](#a-tool-hi-does-not-know)
+  - [The TOML hi reads](#the-toml-hi-reads)
 - [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 
@@ -93,6 +94,10 @@ terminal (`hi --configure </dev/null`, a script) there is no menu — the file
 is written back as it stands, and none is created when there is nothing to
 say. A line you wrote into `settings.sh` by hand is adopted into hi's block
 the next time the wizard writes that setting, never duplicated beside it.
+The block opens on `# say-hi settings 1`, the file's shape: `hi --configure`
+and `hi --install` convert a file of an older shape before reading it (one
+with no such line is read by its rows), and `hi --doctor` says when the line
+names a shape this hi does not read.
 
 ## Presets
 
@@ -275,7 +280,8 @@ takes an answer by.
 | `_HI_KEEP`                  | `0`                                                                               | `hi --configure` advanced | `1` makes every ssh connect a `--keep` one: the session runs in tmux, zellij, or screen on the target and outlives the connection, and on a target with none of the three its directory does ([Integrations](INTEGRATIONS.md#terminal-multiplexers)); `--no-keep` overrides it for one connect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `_HI_UPDATE_SIGNED`         | `0`                                                                               | you                       | `1` has `hi --update` refuse a release tag unless its signature verifies against a key the checkout already trusts (`.github/allowed_signers`, or your gpg keyring); unset, only a signature that fails to verify refuses, and an unsigned tag or an unknown key is said and allowed ([Security](SECURITY.md#what-hi-does---and-deliberately-doesnt))                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_PLAIN`                 | `0`                                                                               | `hi --configure`          | `1` makes every connect a `--plain` one, a bare shell with nothing sent; `--no-plain` overrides it for one connect. The wizard's targets switch writes it for every target; in a tag's file, `settings.<tag>.sh`, it holds for the hosts carrying that tag ([Settings by host tag](#settings-by-host-tag))                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `_HI_KEEP_TIMEOUT`          | `24h`                                                                             | you                       | how long a kept session waits with nobody attached before it closes and its directory is removed: a number of seconds, or one with `s`, `m`, `h`, or `d`; `0` is never. On a target with no multiplexer it is how long a dropped session's directory waits for a reconnect: 15m unless set, and `0` holds nothing. Read on the target, so it belongs in `settings.sh`                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `_HI_KEEP_TIMEOUT`          | `24h`                                                                             | you                       | how long a kept session waits with nobody attached before it closes and its directory is removed: a number of seconds, or one with `s`, `m`, `h`, or `d`; `0` is never. Read on the target, so it belongs in `settings.sh`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `_HI_HOLD_TIMEOUT`          | `15m`                                                                             | you                       | how long a dropped session's directory waits for a reconnect on a target with no multiplexer, where nothing can hold the shell: a duration as above; `0` holds nothing, and the directory goes with the connection. Read on the target, so it belongs in `settings.sh`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `_HI_KEEP_RETRY`            | `5m`                                                                              | you                       | how long a connect at a terminal keeps retrying a target whose kept session it lost the link to: a duration as above; `0` is never                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `_HI_DISABLE_KEEP`          | `0`                                                                               | you                       | `1` switches the kept session off whole: `--keep` and `--end` are refused, `_HI_KEEP=1` does nothing, a connect looks for no session to reattach and no dead one's directory to remove, and `common/keep.sh` and `common/mux.sh` stay out of the payload, so `tmux`, `zellij`, and `screen` in a session are the tools themselves ([Integrations](INTEGRATIONS.md#terminal-multiplexers))                                                                                                                                                                                                                                                                                                                                                                                     |
 | `_HI_BACKENDS_OFF`          | unset                                                                             | you                       | the backends hi never asks, a space or a comma apart: any of `docker`, `podman`, `nerdctl`, `finch`, `nomad`, and `kube`, or `all` for ssh alone. One named here is left out of target resolution, `hi <TAB>`, and the header's counts, so its CLI is never started; `--use <backend>` still reaches it by name ([Compatibility](COMPATIBILITY.md#what-ships))                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -637,10 +643,12 @@ atuin's history and its sync, direnv's allow list, mise's shims).
 target that has the tool, after the aliases and extensions and before the
 prompt; starship's and oh-my-posh's inits are plugins of the same shape with
 `prompt = "yes"`, started through the prompt hand-over alone. A tool of your
-own is one table, or one command:
+own is one table of your `plugins` file (`hi --edit plugins` opens it):
 
-```sh
-hi --add-plugin hooks fnm 'init=fnm env --use-on-cd --shell {shell}' default=off
+```toml
+[hooks.fnm]
+init = "fnm env --use-on-cd --shell {shell}"
+default = "off"
 ```
 
 `shells` keeps a hook to the shells it names, for a tool you run in some and
@@ -667,19 +675,22 @@ hi --enable-plugin env
 here sends nothing; a value holding a quote, a backslash, or a line break
 stays home, and so does a name that reads as a secret (`*TOKEN*`, `*SECRET*`,
 `*PASSWORD*`, `*_KEY`), which the plugin is turned down for. Variables of your
-own are a table of your `plugins`, or one command:
+own are a table of your `plugins`:
 
-```sh
-hi --add-plugin shell mine 'env=PAGER MANROFFOPT TZ'
+```toml
+[shell.mine]
+env = "PAGER MANROFFOPT TZ"
 ```
 
 ### A tool hi does not know
 
 Every config hi carries belongs to a plugin of the tree's `config/plugins`,
 in as much of TOML as hi reads: a `[<group>.<name>]` table for each tool, a
-`key = "value"` to a line. A config hi has no plugin for rides once
-`~/.config/say-hi/plugins` has one, written by hand or by `hi --add-plugin`,
-and a plugin there of a name the tree's file has replaces the tree's whole:
+`key = "value"` to a line ([the TOML hi reads](#the-toml-hi-reads)). A config
+hi has no plugin for rides once `~/.config/say-hi/plugins` has one, written by
+hand (`hi --edit plugins` opens the file in your editor, started from the
+tree's key reference), and a plugin there of a name the tree's file has
+replaces the tree's whole:
 
 ```toml
 [cli.task]
@@ -762,17 +773,43 @@ A file whose wire, home, or dialect is not its plugin's has a table of its own
 under it, `[<group>.<name>."<member>"]`, holding the keys that differ; a wire
 of `-` there gives that file none.
 
-`hi --add-plugin cli task taskrc wire=env:TASKRC 'home=$TASKRC : ~/.taskrc'`
-writes a table like the first above, the files first and any of `tool=`,
-`wire=`, `home=`, and `dialect=` after them, quoted so the shell leaves a `$`
-and a `~` alone, and refuses one hi could not read;
-`hi --remove-plugin task` takes it out, its files' tables with it. A file's
-own table is written by hand. `hi --plugins` and `hi --doctor` name each file
-a plugin carries, and each line hi could not read, with the reason. The
-variable or alias is set on a target only; at home the tool goes on reading
-its own config. `hi --configure` rewrites a file of the rows this replaced,
+`hi --edit plugins` opens the file in your editor (`$VISUAL`, `$EDITOR`,
+`_HI_EDITOR`, or the first editor hi knows that is installed), starting a
+new one from the key reference at the top of the tree's `config/plugins`;
+`hi --edit` alone opens the whole overlay directory, and `hi --edit <file>`
+any file of it, `colors`, `packages`, or `vim/vimrc` say. `hi --plugins` and
+`hi --doctor` then name each file a plugin carries, and each line hi could
+not read, with the reason. The variable or alias is set on a target only; at
+home the tool goes on reading its own config. `hi --configure` rewrites a
+file of the rows this replaced,
 `"<member>" = "<tool> | <wire> | <home> | <dialect>"` under a `[group]`
 line. The whole contract is [HI.63](GLOSSARY.md#hi63-plugins-rows).
+
+### The TOML hi reads
+
+`colors`, `packages`, and `plugins` are TOML, in this much of it and no more:
+
+- a table header on a line of its own: `[a]`, `[a.b]`, or `[a.b."file"]`,
+  the last name in double quotes where it holds more than letters, digits,
+  `_`, and `-`;
+- a row on one line, `key = "string"` or `key = ["string", ...]`, the key
+  bare or in double quotes by the same rule; what follows the closing `"` or
+  `]`, a `#` comment say, is left unread;
+- `#` comment lines and blank lines.
+
+Nothing else is a row: no array over several lines, inline table (`{ }`),
+number, boolean, date, dotted key (`a.b = ...`), single-quoted string, or
+escape inside a string (a `\` is a backslash, and the first `"` ends the
+string). Which headers and rows each file takes is its own: `colors` has
+`[type]` and `name = "color [rrggbb]"` ([COLORS.md](COLORS.md)); `packages`
+has `[group]`, `[group.required]`, `[group.unwanted]`, and
+`name = ["alternative", ...]`
+([COLORS.md](COLORS.md#the-package-checks-rows)); `plugins` has
+`[group.name]`, `[group.name."member"]`, and the keys
+[above](#a-tool-hi-does-not-know). A line outside the subset is skipped
+where the file is read, and `hi --doctor` names it by file and line
+(`hi --plugins` too, for a plugins file); a whole file in a shape an older
+hi wrote is said as such, and `hi --configure` converts it.
 
 ## The editor rcs come from where you keep them
 

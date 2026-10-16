@@ -76,14 +76,8 @@ hi \- your shell config, on every host you say hi to
 .IR name ...
 .RB [ \-\-dry\-run ]
 .br
-.B hi \-\-add\-plugin
-.IR "group name file" ...
-.RI [ key = value ...]
-.RB [ \-\-dry\-run ]
-.br
-.B hi \-\-remove\-plugin
-.I name
-.RB [ \-\-dry\-run ]
+.B hi \-\-edit
+.RI [ file ]
 .br
 .B hi \-\-preview
 .RB { colors | packages | header }
@@ -239,8 +233,8 @@ The target needs bash, and you a terminal; otherwise hi says so and connects
 as usual.
 On a target with none of the three the shell cannot outlive its connection,
 and its directory does: a dropped link leaves it for
-.B _HI_KEEP_TIMEOUT
-(15m there), and a
+.B _HI_HOLD_TIMEOUT
+(15m), and a
 .B hi
 to that target inside the window starts its shell on the same directory, in
 the directory the dropped one was in, with nothing unpacked.
@@ -617,57 +611,34 @@ back out of that list.
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
-.B \-\-add\-plugin \fIgroup name file\fR... [\fIkey\fR=\fIvalue\fR...] [\fB\-\-dry\-run\fR]
-write the
-.BI [ group . name ]
-table of
-.BR ~/.config/say-hi/plugins ,
-for the configs of a tool hi does not know, or your own plugin for one it
-does:
-.I group
-is the section it is listed under,
-.I name
-its own word and its name in a report, and each
+.B \-\-edit \fR[\fIfile\fR]
+open your overlay,
+.BR ~/.config/say-hi ,
+in your editor: the directory, or the one
 .I file
-the name a config rides under. The keys are
-.BR tool= ,
-the command that reads them (left out,
-.IR name ;
-.B \-
-for none),
-.BR wire= ,
-how a target's tool finds a file,
-.BR home= ,
-where a file is here,
-.BR dialect= ,
-.BR init= ,
-the tool's shell hook (a command printing a shell's code,
-.B {shell}
-for the shell's name, run on a target that has the tool; a plugin with one
-needs no file),
-.BR prompt=yes ,
-when that init draws the prompt,
-.BR shells= ,
-the shells the init runs in (left out, bash, zsh, and fish),
-.BR env= ,
-variables whose values on this machine a target's session exports (a plugin
-with one needs no file), and
-.BR default=off ,
-for a plugin kept home until
-.B \-\-enable\-plugin
-names it (see
-.BR FILES ).
-A table hi could not read is refused, with the reason.
-.B \-\-dry\-run
-says what would be written and writes nothing.
-.TP
-.B \-\-remove\-plugin \fIname\fR [\fB\-\-dry\-run\fR]
-remove the plugin
-.IR name ,
-its table and its files' tables, from
-.BR ~/.config/say-hi/plugins .
-.B \-\-dry\-run
-says what would be written and writes nothing.
+of it
+.RB ( plugins ,
+.BR colors ,
+.BR vim/vimrc ),
+made where it is not there yet: a
+.B plugins
+started from the key reference at the top of the tree's
+.BR config/plugins ,
+a
+.B colors
+or
+.B packages
+as a copy of the tree's, a
+.B settings.sh
+as
+.B \-\-configure
+starts one. The editor is
+.BR $VISUAL ,
+else
+.BR $EDITOR ,
+else
+.BR _HI_EDITOR ,
+else the first of hi's editors installed here.
 .PP
 Everything else is passed through to
 .BR ssh (1)
@@ -774,8 +745,8 @@ the four pin types,
 the plugins,
 .B \-\-enable\-plugin
 the ones that are off,
-.B \-\-remove\-plugin
-the members of your plugins file, and
+.B \-\-edit
+the files of your overlay, and
 .B hi \-\-update <TAB>
 the release tags a checkout knows of.
 .SH CONFIGURATION
@@ -1199,12 +1170,15 @@ or
 .B 0
 is never. Default
 .BR 24h .
-On a target with no multiplexer it is how long a dropped session's directory
-waits for a reconnect:
-.B 15m
-unless set, and
+Read on the target, so set it in
+.BR settings.sh .
+.TP
+.B _HI_HOLD_TIMEOUT
+how long a dropped session's directory waits for a reconnect on a target with
+no multiplexer, a duration as above;
 .B 0
-holds nothing: the directory goes with the connection.
+holds nothing: the directory goes with the connection. Default
+.BR 15m .
 Read on the target, so set it in
 .BR settings.sh .
 .TP

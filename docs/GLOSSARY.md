@@ -1656,7 +1656,7 @@ rode, which leaves `wiring.sh`'s.
   hands off to bash as usual with `$_HI_KEEP_HOLD` set to the name, and traps
   the hangup (`trap : HUP`) so the bootstrap waits for `load()` instead of
   dying under it. `load()` may hold where it is no owner pane, has a
-  disposable tree and a terminal, and `$_HI_KEEP_TIMEOUT` is not 0
+  disposable tree and a terminal, and `$_HI_HOLD_TIMEOUT` is not 0
   (`_hi_keep_holds`), and does hold once `hi.hold` carries the name: written
   by `load()` for that connect, or later by `hi --keep` typed in the session
   (`_hi_keep_hold_here`), which is how a session started without `--keep`
@@ -1670,7 +1670,7 @@ rode, which leaves `wiring.sh`'s.
   hook.
 - **The timer.** `_hi_tree_watch`, which every session already runs, is the
   held tree's: once the shell is gone and `hi.held` names it, the watcher
-  waits `$_HI_KEEP_TIMEOUT` (15m here) and removes the tree. It stops early
+  waits `$_HI_HOLD_TIMEOUT` (15m) and removes the tree. It stops early
   for `hi.end`, which `hi --end` leaves, and goes without touching a tree
   whose `hi.pid` is no longer that shell's.
 - **Taking a held tree.** A connect that looks for a kept session runs
@@ -1780,9 +1780,9 @@ rode, which leaves `wiring.sh`'s.
   and drops within ten seconds does not restart the window. A connect that
   never got in is not retried. The drop's line names how long the
   target keeps the session and the time that runs out (`_hi_keep_until`):
-  `$_HI_KEEP_TIMEOUT`, else the default of what the target has, which the
-  boot probe's `HIMUX` line said at the connect - 24h in a multiplexer, 15m
-  for a held directory. At a terminal `_hi_keep_wait` draws a dot a second,
+  `$_HI_KEEP_TIMEOUT` (24h) in a multiplexer, `$_HI_HOLD_TIMEOUT` (15m) for
+  a held directory, which the boot probe's `HIMUX` line said at the
+  connect. At a terminal `_hi_keep_wait` draws a dot a second,
   five to a try, on a line the try that answers clears. ssh's `~.` ends 255 as a lost link does, and
   nothing tells the two apart, so it is retried too: Ctrl+C at the
   countdown is how a kept session is left for good. A link that freezes is no drop until ssh

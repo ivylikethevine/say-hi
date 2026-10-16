@@ -807,6 +807,40 @@ function test_config_lists_the_tag_settings() {
     _hi_because "the report said: $out"
 }
 
+# a settings.sh whose shape line names a shape this hi does not read is a
+# bad row; one at this hi's shape, or with no line, gets none
+function test_config_flags_a_settings_shape_this_hi_does_not_read() {
+  local dir out n
+  n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
+  [ -n "$n" ] || _hi_why n || return 1
+  dir="$(mktemp -d "$_HI_WORKDIR/shape.XXXXXX")"
+  printf '#!/bin/sh\n# say-hi settings %s\nexport _HI_MAX_WIDTH=100\n' "$((n + 1))" >"$dir/settings.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" == *"settings.sh"*"is shape $((n + 1)), which this hi does not read (it reads $n)"* ]] ||
+    _hi_because "a newer shape: $out" || return 1
+  printf '#!/bin/sh\n# say-hi settings %s\nexport _HI_MAX_WIDTH=100\n' "$n" >"$dir/settings.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" != *"does not read"* ]] || _hi_because "this shape: $out" || return 1
+  printf '#!/bin/sh\nexport _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" != *"does not read"* ]] || _hi_because "no line: $out"
+}
+
+# a line of a colors file outside the TOML hi reads - an inline table, a
+# value on the next line - pins nothing, and is named by its line
+function test_config_names_a_colors_line_outside_the_subset() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/strays.XXXXXX")"
+  printf '[hostname]\nbox = { color = "red" }\nweb = "blue"\nlab =\n  "green"\n' >"$dir/colors"
+  out="$(
+    _HI_COLORS="$dir/colors"
+    _hi_doc_values_json
+  )"
+  [[ "$out" == *'"label": "colors", "text": "line 2 is no row'*'box = { color = '*'"severity": "warn"'* &&
+    "$out" == *'"text": "line 4 is no row'*'lab ='* && "$out" == *'"text": "line 5 is no row'* && "$out" != *'line 3'* ]] ||
+    _hi_why out
+}
+
 # fish's `set` spelling of the same, read by the one awk
 function test_secret_awk_reads_a_fish_set() {
   local got
@@ -956,6 +990,8 @@ function run_doctor_config_tests() {
   _hi_check "A require of a neovim module that rides is no finding" test_config_passes_a_require_of_a_module_that_rides
   _hi_check "What the overlay's bin/ leaves home is named, with why" test_config_names_what_bin_leaves_home
   _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
+  _hi_check "A settings.sh of a newer shape is flagged" test_config_flags_a_settings_shape_this_hi_does_not_read
+  _hi_check "A colors line outside the subset is named by its line" test_config_names_a_colors_line_outside_the_subset
   _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
   _hi_check "...and an \$EDITOR it exports" test_config_flags_an_editor_set_in_aliases_sh
 

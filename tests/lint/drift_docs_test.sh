@@ -223,9 +223,16 @@ function lint_setting_defaults() {
 # by, so it has to be one scripts/lib.sh's _hi_setting_check knows
 # ($_HI_SETTING_CHECKS). The rows whose check is `toggle` are the disables
 # core.sh's $_HI_TOGGLES defaults and _HI_DISABLE_LOCAL gates, so that list
-# is pinned to them; paths_test pins config.fish's and paths.sh's to it.
+# is pinned to them; paths_test pins config.fish's and paths.sh's to it. A
+# name states its polarity (CONTRIBUTING's _What 1.x will not break_): a 1
+# that turns off something on by default is _HI_DISABLE_*, so every toggle
+# is, and a 1 that turns on something off by default is a positive name, so
+# a flag is - bar the default-on settings _HI_DISABLE_LOCAL has to leave
+# alone (they ride to targets or shape a connect), which stay flags and are
+# excused by name.
 function lint_setting_checks() {
-  local bad=0 kinds name check rows toggles core
+  local bad=0 kinds name check rows toggles core polar=0 why
+  local excused=" _HI_DISABLE_LEAD_SPACE _HI_DISABLE_RIGHT_EDGE _HI_DISABLE_KEEP _HI_DISABLE_CONTROLMASTER "
   _hi_h2 "Checking scripts/settings' <check> column"
   kinds=" $(sed -n 's/^_HI_SETTING_CHECKS="\(.*\)"$/\1/p' "$_HI_ROOT/scripts/lib.sh") "
   rows="$(awk -F' [|] ' '!/^#/ && NF > 10 { print $2 " " $9 }' "$_HI_ROOT/scripts/settings")"
@@ -255,7 +262,24 @@ function lint_setting_checks() {
   else
     _hi_align " | _HI_TOGGLES is the rows whose check is toggle" "OK" "$GREEN"
   fi
-  return "$bad"
+
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  while read -r name check; do
+    case "$check:$name" in
+    toggle:*_DISABLE_*) continue ;;
+    toggle:*) why="a toggle turns off a default-on feature, so its name is _HI_DISABLE_*" ;;
+    flag:*_DISABLE_*)
+      case "$excused" in *" $name "*) continue ;; esac
+      why="a flag turns on an opt-in, so its name is positive; a default-on setting is a toggle, or excused here by name"
+      ;;
+    *) continue ;;
+    esac
+    _hi_align " | $name: $why" "FAILED" "$RED"
+    _hi_note_failure "checks: $name is a $check named against its polarity"
+    polar=$((polar + 1))
+  done <<<"$rows"
+  [ "$polar" -eq 0 ] && _hi_align " | every toggle is _HI_DISABLE_*, and no flag is but the excused" "OK" "$GREEN"
+  return $((bad + polar))
 }
 
 # The rows the unread check excuses: names core.sh only ever reads through

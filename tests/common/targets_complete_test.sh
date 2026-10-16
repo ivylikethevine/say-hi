@@ -571,20 +571,22 @@ function test_words_plugin_off_match_the_table() {
 }
 
 # --enable-plugin: the words that are off, as settings.sh's last list has them;
-# --remove-plugin: the plugins of the overlay's file; --add-plugin: nothing
-function test_words_plugin_on_and_remove_read_the_overlay() {
+# --edit: hi's own four files, there or not, then every other file of the
+# overlay, by its path under it
+function test_words_plugin_on_and_edit_read_the_overlay() {
   local got got2
   local out cfg="$_HI_WORKDIR/words-plugins-on"
-  mkdir -p "$cfg"
+  mkdir -p "$cfg/vim"
   printf '#!/bin/sh\nexport _HI_PLUGINS_OFF=old\nexport _HI_PLUGINS_OFF="bat, vim"\n' >"$cfg/settings.sh"
-  printf '[mine.task]\nfiles = "taskrc"\n[cli.b]\nfiles = "b.rc b.d/"\n[cli.b."b.d/"]\nwire = "-"\n' >"$cfg/plugins"
+  printf '[mine.task]\nfiles = "taskrc"\n' >"$cfg/plugins"
+  printf 'set number\n' >"$cfg/vim/vimrc"
   out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --enable-plugin | cut -f1 | tr '\n' ' ')"
   [ "$out" = "bat vim " ] || _hi_because "--enable-plugin offered: $out" || return 1
-  out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --remove-plugin | cut -f1 | tr '\n' ' ')"
-  [ "$out" = "task b " ] || _hi_because "--remove-plugin offered: $out" || return 1
-  got="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --add-plugin)"
+  out="$(_HI_CONFIG_DIR="$cfg" sh "$_HI_TARGETS" words --edit | cut -f1 | tr '\n' ' ')"
+  [ "$out" = "settings.sh colors packages plugins vim/vimrc " ] || _hi_because "--edit offered: $out" || return 1
+  got="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --edit | cut -f1 | tr '\n' ' ')"
   got2="$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" sh "$_HI_TARGETS" words --enable-plugin)"
-  [ -z "$got" ] && [ -z "$got2" ] || _hi_why got got2 cfg _HI_TARGETS
+  [ "$got" = "settings.sh colors packages plugins " ] && [ -z "$got2" ] || _hi_why got got2 cfg _HI_TARGETS
 }
 
 function run_targets_complete_tests() {
@@ -632,7 +634,7 @@ function run_targets_complete_tests() {
   _hi_check "...which are set_color.sh's own" test_words_color_types_match_set_color
   _hi_check "--disable-plugin lists the plugins, the overlay's too" test_words_plugin_off_lists_the_plugins
   _hi_check "...every word hi.sh's own reading gives" test_words_plugin_off_match_the_table
-  _hi_check "--enable-plugin and --remove-plugin read the overlay" test_words_plugin_on_and_remove_read_the_overlay
+  _hi_check "--enable-plugin and --edit read the overlay" test_words_plugin_on_and_edit_read_the_overlay
 
   _hi_suite_end "targets.sh (completion)"
 }

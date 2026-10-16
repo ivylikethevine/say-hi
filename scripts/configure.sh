@@ -696,7 +696,9 @@ function settings_diff_before() {
   while IFS= read -r line; do
     line="${line%"$_HI_MARKER"}"
     line="${line%"${line##*[![:space:]]}"}"
-    [ -n "$line" ] && _HI_SETTINGS_BEFORE+=("$line")
+    # the block's shape line is no setting
+    case "$line" in '' | '# say-hi settings '*) continue ;; esac
+    _HI_SETTINGS_BEFORE+=("$line")
   done < <(grep -F "$_HI_MARKER" "$_HI_SETTINGS" || true)
 }
 
@@ -769,6 +771,9 @@ function run_configure() {
   # ${a[@]+"${a[@]}"}, not a plain "${a[@]}": on bash 3.2 (macOS) expanding
   # an *empty* array under `set -u` is a fatal "unbound variable", and
   # every setting at its default leaves exactly that - no lines to write.
-  config_shell settings "$_HI_SETTINGS" ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || return 1
+  # The block opens on its shape line, which convert_settings.sh and
+  # hi --doctor read in place of guessing the shape from the rows.
+  config_shell settings "$_HI_SETTINGS" "# say-hi settings $_HI_SETTINGS_SHAPE" \
+    ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || return 1
   settings_diff_report
 }

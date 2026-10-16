@@ -105,7 +105,8 @@ All **package**, never in the payload.
 | `scripts/add_tag.sh`              | `hi --add-tag`: writes a `# Tags:` line into `~/.ssh/config`.                                                                                                                                                                                                     |
 | `scripts/set_color.sh`            | `hi --add-color` and `--remove-color`: writes or removes a pin in `~/.config/say-hi/colors`, copying the tree's in first.                                                                                                                                         |
 | `scripts/convert_settings.sh`     | Rewrites an older hi's `packages`, `colors`, `plugins`, and `settings.sh` into the current shape, keeping each as `<file>.old`; `--install`, `--configure`, and `--update` run it.                                                                                |
-| `scripts/plugins.sh`              | `hi --plugins`, `--disable-plugin`, `--enable-plugin`, `--add-plugin`, and `--remove-plugin`: lists what rides, keeps `_HI_PLUGINS_OFF` in `settings.sh`, and writes tables of `~/.config/say-hi/plugins`.                                                        |
+| `scripts/plugins.sh`              | `hi --plugins`, `--disable-plugin`, and `--enable-plugin`: lists what rides, and keeps `_HI_PLUGINS_OFF` and `_HI_PLUGINS_ON` in `settings.sh`.                                                                                                                   |
+| `scripts/edit.sh`                 | `hi --edit`: opens the overlay, or one file of it, in your editor, making a `plugins`, `colors`, `packages`, or `settings.sh` that is not there yet.                                                                                                              |
 | `scripts/pack.sh`                 | The packer `hi.sh` sources on a client: the overlay table and the plugins rows, the include scan, the comment strip, and the cached tars a connect sends. A session has none, and relays its tree as it stands ([HI.66](GLOSSARY.md#hi66-the-packer-stays-home)). |
 | `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.                                                                                                                                                                                      |
 | `scripts/table.sh`                | The display the scripts draw through: column padding, the pieces a line is painted from, the boxed table the previews draw, and the section of rows `hi --doctor` and `hi --plugins` report in.                                                                   |
@@ -301,7 +302,7 @@ reads none of their config files.
 | `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish` | lines tagged `# added by hi during install`, in the login shell's rc and any other that exists already (`--shell` chooses); `ZDOTDIR` is the environment's, else the one `~/.zshenv` sets; the file and its directory are created if missing; `--print-rc` prints the lines instead |
 | `<rc>.hi-orig`                                                                        | a one-time backup before hi first writes a non-empty rc; never overwritten, and left by uninstall                                                                                                                                                                                   |
 | `~/.bash_profile` (macOS)                                                             | a line sourcing `~/.bashrc`, plus `~/.profile` in a file hi creates                                                                                                                                                                                                                 |
-| `$_HI_CONFIG_DIR/plugins`                                                             | the tables `hi --add-plugin` writes and `hi --remove-plugin` takes out                                                                                                                                                                                                              |
+| `$_HI_CONFIG_DIR/plugins`                                                             | the plugins of your own, written by hand (`hi --edit plugins` opens it)                                                                                                                                                                                                             |
 | `$_HI_CONFIG_DIR/settings.sh`                                                         | the settings block `hi --configure` writes, and the `_HI_PLUGINS_OFF` line `hi --disable-plugin` keeps                                                                                                                                                                              |
 | `~/.local/bin/hi` (`--link user`), `/usr/bin/hi` (`--link system`)                    | a symlink to `hi.sh`; `$_HI_LINK`; a link that is not hi's, or a package's, is left alone                                                                                                                                                                                           |
 | the checkout                                                                          | `hi --update` fetches tags and checks one out; refused on a dirty tree                                                                                                                                                                                                              |
@@ -331,20 +332,20 @@ change.
 
 All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 
-| Pattern                                                       | Made by                                                                              |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `hi.log.XXXXXX`                                               | every `hi` run                                                                       |
-| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes)                         |
-| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off                          |
-| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)                                 |
-| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                                                 |
-| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                                        |
-| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place                                       |
-| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                                            |
-| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                                                       |
-| `hi.colors.XXXXXX`                                            | `hi --add-color`, `hi --remove-color`                                                |
-| `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`, `hi --add-plugin`, `hi --remove-plugin` |
-| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                                        |
+| Pattern                                                       | Made by                                                      |
+| ------------------------------------------------------------- | ------------------------------------------------------------ |
+| `hi.log.XXXXXX`                                               | every `hi` run                                               |
+| `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes) |
+| `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off  |
+| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)         |
+| `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                         |
+| `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                |
+| `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place               |
+| `hi.packages.XXXXXX`                                          | `hi --add-package`, `hi --remove-package`                    |
+| `hi.sshconfig.XXXXXX`                                         | `hi --add-tag`                                               |
+| `hi.colors.XXXXXX`                                            | `hi --add-color`, `hi --remove-color`                        |
+| `hi.plugins.XXXXXX`                                           | `hi --disable-plugin`, `hi --enable-plugin`                  |
+| `hi.convert.XXXXXX`                                           | `scripts/convert_settings.sh`                                |
 
 ## What a session does on a target
 

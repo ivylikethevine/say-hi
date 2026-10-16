@@ -86,6 +86,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:add_tag:scripts/add_tag_test.sh"
     "fast:set_color:scripts/set_color_test.sh"
     "fast:plugins:scripts/plugins_test.sh"
+    "fast:edit:scripts/edit_test.sh"
     "fast:convert_settings:scripts/convert_settings_test.sh"
     "fast:hi_mux:hi/mux_test.sh"
     "fast:hi_keep:hi/keep_test.sh"
@@ -157,7 +158,7 @@ _HI_TEST_COSTS_KCOV="
   doctor_report:6 packaging_ci_scripts:6 test_lib_par:6 update:6 header:5
   hi_cache:5 hi_keep:4 packaging_ci_mkpkg:4 rc_lines:4 test_lib_report:4
   add_package:3 aliases:3 configure:3 hi_help:3 hi_payload:3
-  packaging_ci_release:3 preview:3 add_tag:2 bench:2 core_identity:2 drift:2
+  packaging_ci_release:3 preview:3 add_tag:2 bench:2 core_identity:2 drift:2 edit:2
   drift_docs:2 hi:2 hi_container:2 load:2 packaging:2
   packaging_ci_workflows:2 preview_packages:2 set_color:2 convert_settings:1
   core:1 core_target:1 doctor:1 exports:1 git_prompt:1 header_bare:1
@@ -182,7 +183,7 @@ _HI_TEST_COSTS_BASHCOV="
   hi:17 nomad:17 repo:17 test_lib_par:17 alias_fallthrough:16 drift:16
   git_prompt:16 hi_helpers:16 packaging_ci_release:16 rc_lines:16 tools:16
   hi_dispatch:15 hi_mux:15 table:15 env_prompt:14 header:14 hi_remote:14
-  packaging_ci:14 doctor:13 packaging:13 paths:12 exports:11
+  packaging_ci:14 doctor:13 packaging:13 paths:12 exports:11 edit:11
   configure_menu:0 configure_pty:0
 "
 _HI_TEST_COSTS_GITBASH="
@@ -198,7 +199,7 @@ _HI_TEST_COSTS_GITBASH="
   preview_packages:22 hi_remote:20 paths:18 install:16 core_identity:15
   hi_helpers:15 hi_prompt:13 core_target:11 hi_dispatch:11 configure_menu:8
   configure_pty:8 header_check:8 hi_container:8 env_prompt:6 core:5 exports:5
-  table:4 hi_mux:2
+  table:4 hi_mux:2 edit:4
 "
 _HI_TEST_COSTS_E2E="
   framework:111 ssh_keep:85 repo:52 ssh_relay:51 install_methods:43 ssh:30

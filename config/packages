@@ -2,7 +2,7 @@
 # real example from this file, then the check itself.
 #
 # TOML, as much of it as hi reads: a row on one line, its value an array of
-# strings.
+# strings (docs/SETTINGS.md, "The TOML hi reads", is the whole grammar).
 #
 # `[group]` starts a group; $_HI_PACKAGES_GROUPS (space- or comma-separated,
 # or `none`) names the groups that run, and ships as `core useful deprecated`.

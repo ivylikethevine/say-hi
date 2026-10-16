@@ -1,6 +1,7 @@
 # The plugins: every config of a tool's that hi carries to a target and
 # points the tool at, a `[<group>.<name>]` table each, in as much of TOML as
-# hi reads: one `key = "value"` to a line. <group> is the section a list
+# hi reads: one `key = "value"` to a line (docs/SETTINGS.md, "The TOML hi
+# reads", is the whole grammar). <group> is the section a list
 # draws it under (editors, mux, prompt, cli, shell, hooks); <name> is the
 # plugin, its word in $_HI_PLUGINS_OFF and its name in a report.
 #
@@ -54,9 +55,9 @@
 # The comment right above a plugin's table is what `hi --configure` says of
 # it, to its first full stop.
 #
-# `hi --add-plugin` writes a table to ~/.config/say-hi/plugins, which adds to
-# this file, or replaces the plugin of the same name; `hi --plugins` lists
-# what rides.
+# A table of ~/.config/say-hi/plugins adds to this file, or replaces the
+# plugin of the same name: `hi --edit plugins` opens it, starting a new one
+# from this comment; `hi --plugins` lists what rides.
 
 # vim starts on your vimrc
 [editors.vim]

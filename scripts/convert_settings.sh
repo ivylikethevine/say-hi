@@ -17,7 +17,10 @@
 #                _HI_PLUGINS_ON -> its plugins'
 # A file already in the current shape is left alone, so a second run is a
 # no-op; a packages or colors file holding one TOML row is in it, whatever
-# else it holds. scripts/install.sh (--install, --configure) and scripts/update.sh
+# else it holds, and a settings.sh is the shape its `# say-hi settings N`
+# line says (lib.sh's $_HI_SETTINGS_SHAPE): with none it is shape 0, and
+# the rows above say whether it converts; one of a shape this hi does not
+# read is said and left alone. scripts/install.sh (--install, --configure) and scripts/update.sh
 # run it; add_package.sh's shape: HI.33 the standalone entry, HI.09 the
 # commit step.
 
@@ -490,5 +493,10 @@ _HI_GROUP_MAP="$(_hi_group_map "$_HI_ROOT/config/plugins" "$dir/plugins")"
 _hi_groups="$(printf '%s' "$_HI_GROUP_MAP" | tr ';' '\n' | sed -n 's/:.*//p' | tr '\n' '|')"
 [ -z "$_hi_groups" ] ||
   _hi_old_settings="$_hi_old_settings|^[[:space:]]*(export[[:space:]]+)?_HI_PLUGINS_(OFF|ON)=(.*[^A-Za-z0-9_./-])?(${_hi_groups%|})([^A-Za-z0-9_./-]|\$)"
-[ ! -f "$dir/settings.sh" ] || ! grep -Eq "$_hi_old_settings" "$dir/settings.sh" ||
+# the shape line decides; only a file with none (shape 0) is read by its rows
+_hi_settings_shape _hi_shape "$dir/settings.sh"
+if [ -n "$_hi_shape" ] && [ "$_hi_shape" -gt "$_HI_SETTINGS_SHAPE" ]; then
+  _hi_cecho " $dir/settings.sh is shape $_hi_shape, which this hi does not read (it writes $_HI_SETTINGS_SHAPE) - left as it is" "$YELLOW"
+elif [ "$_hi_shape" = 0 ] && grep -Eq "$_hi_old_settings" "$dir/settings.sh"; then
   _hi_convert_one "$dir/settings.sh" settings _hi_convert_settings
+fi

@@ -35,8 +35,7 @@ in a session.
   - [`hi --plugins`](#hi---plugins)
   - [`hi --disable-plugin`](#hi---disable-plugin)
   - [`hi --enable-plugin`](#hi---enable-plugin)
-  - [`hi --add-plugin`](#hi---add-plugin)
-  - [`hi --remove-plugin`](#hi---remove-plugin)
+  - [`hi --edit`](#hi---edit)
 
 ## Every command
 
@@ -126,7 +125,7 @@ It changes how a connect runs, which the [README's demos](../README.md) show.
 
 `hi --update [<tag>] [--dry-run]`: move the checkout to the newest release tag, or \<tag\>. Needs a git checkout, which a package is not.
 
-No image: its output depends on the network and the release tags.
+No image: what it shows is the network's, a release tag's, or your editor's.
 
 ### `hi --add-package`
 
@@ -182,14 +181,8 @@ No image: its output depends on the network and the release tags.
 
 ![hi --enable-plugin tmux --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-enable-plugin.svg)
 
-### `hi --add-plugin`
+### `hi --edit`
 
-`hi --add-plugin <group> <name> <file>... [<key>=<value>...] [--dry-run]`: carry the configs of a tool hi does not know.
+`hi --edit [<file>]`: open your overlay, or one file of it, in your editor.
 
-![hi --add-plugin cli lnav lnav/config.json home=~/.config/lnav/config.json --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-add-plugin.svg)
-
-### `hi --remove-plugin`
-
-`hi --remove-plugin <name> [--dry-run]`: stop carrying them.
-
-![hi --remove-plugin lnav --dry-run](https://ivylikethevine.github.io/say-hi/docs/tapes/usage-remove-plugin.svg)
+No image: what it shows is the network's, a release tag's, or your editor's.

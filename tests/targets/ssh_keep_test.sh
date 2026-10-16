@@ -33,7 +33,7 @@
 #            that tree, in the directory the first one left, with nothing
 #            new unpacked; `exit` then removes it
 #   expired  the same with no retry: the tree is gone at the end of
-#            $_HI_KEEP_TIMEOUT
+#            $_HI_HOLD_TIMEOUT
 #
 # and twice more there for an ordinary session, no `--keep`, that dies with no
 # exit hook run:
@@ -62,7 +62,7 @@ unset TMUX ZELLIJ STY
 # what _hi_mux_name makes of the target every case connects to
 _HI_KEEP_SESSION=hi-hitest-127-0-0-1
 
-# the timeout case's $_HI_KEEP_TIMEOUT, in seconds; the watcher polls at it
+# the timeout case's $_HI_KEEP_TIMEOUT and the expired case's $_HI_HOLD_TIMEOUT, in seconds; the watcher polls at it
 _HI_KEEPTEST_LIMIT=4
 
 # the tree watcher's step for the cases that wait on it, in place of a
@@ -649,7 +649,7 @@ function _hi_keep_expired() {
   local label="$1" out="$_HI_WORKDIR/$1.out"
   local -x _HI_CONFIG_DIR="$_HI_WORKDIR/$1.config" _HI_KEEP_RETRY=0
   mkdir -p "$_HI_CONFIG_DIR"
-  printf 'export _HI_KEEP_TIMEOUT=%s\nexport _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_LIMIT" "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
+  printf 'export _HI_HOLD_TIMEOUT=%s\nexport _HI_WATCH_STEP=%s\n' "$_HI_KEEPTEST_LIMIT" "$_HI_KEEPTEST_STEP" >"$_HI_CONFIG_DIR/settings.sh"
   _hi_ssh_launch "$_HI_SSH_PORT" --keep
   _hi_keep_typed "$out" _hi_keep_feed_stand "${_HI_SSH_LAUNCH_BARE[@]}"
   _hi_poll_bool -a _hi_keep_feeding 240 0.5 _hi_keep_left keep.up ||
