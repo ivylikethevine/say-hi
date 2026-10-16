@@ -1,7 +1,7 @@
 name: CodeQL
 
-# CodeQL over the one language here it can read: GitHub Actions (it has no
-# shell analyser; the test suites cover the bash).
+# CodeQL over the one language here it can read: GitHub Actions; it has no
+# analyser for the rest.
 # The actions half overlaps zizmor on purpose: zizmor is the fast gate in
 # ci.yml, CodeQL the slower dataflow pass whose findings land in the Security
 # tab with a trace, and Scorecard's SAST check counts only this one.
@@ -41,7 +41,7 @@ jobs:
       security-events: write # the SARIF upload
       actions: read # the workflow definitions being analysed
     steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           disable-sudo: true
@@ -58,12 +58,12 @@ jobs:
           persist-credentials: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           languages: actions
           build-mode: none
 
       - name: Analyze
-        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           category: "/language:actions"

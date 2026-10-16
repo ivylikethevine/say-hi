@@ -56,7 +56,7 @@ jobs:
     steps:
       # audit on the x64 legs; the arm64 legs only log that harden-runner
       # has no Windows arm agent and carry on
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -104,7 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           # block: this collector runs on ubuntu, not Windows, and only reads
           # the shards' result - it reaches nothing but the results receiver

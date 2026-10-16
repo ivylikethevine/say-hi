@@ -8,3 +8,10 @@ rules:
   # unpinned third-party action. Revisit when Scorecard understands `$/`.
   self-repository:
     disable: true
+
+  # unpinned-tools is not listed: every scanner installs a sha256-pinned
+  # binary, never a floating download.
+
+  # dangerous-triggers is not listed: each workflow_run trigger carries an
+  # inline `# zizmor: ignore[dangerous-triggers]` on its `on:` line, next to
+  # the justification in that file's header.

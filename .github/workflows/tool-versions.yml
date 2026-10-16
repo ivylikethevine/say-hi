@@ -1,9 +1,9 @@
 name: Tool versions
 
 # Drift check over every pin: the CI tools in
-# .github/actions/setup-tool/tools.txt, the inline pins and local checks in
-# .github/scripts/check_tool_versions.local.sh, the action SHAs, the image
-# digests, and the dependency manifests. Dependabot opens no version-update
+# .github/actions/setup-tool/tools.txt where a repo has one, the inline pins
+# and local checks in .github/scripts/check_tool_versions.local.sh, the action
+# SHAs, any image digests, and the dependency manifests. Dependabot opens no version-update
 # pull request (.github/dependabot.yml), so this is the one report of an
 # upstream release, held to the same 7-day cooldown. The signal is one
 # tracking issue, kept current: opened when something is behind, rewritten on
@@ -46,8 +46,26 @@ jobs:
     steps:
       # block, not audit: check_tool_versions.sh asks the GitHub API, Docker
       # Hub, the registry of each manifest in CI_MANIFESTS, and any gitlab:
-      # host a roster row names - nothing else.
-      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+      # host a roster row names - nothing else. The list is the union of what
+      # every repo carrying this file needs, so a repo may allow a registry it
+      # never calls. Every host is HTTPS on 443, every request a GET, and the
+      # token goes to api.github.com alone; the job's only write is its own
+      # tracking issue, and checkout keeps no credential.
+      #
+      #   github.com          actions/checkout fetching this repository
+      #   api.github.com      releases, tags and commits for github: rows and
+      #                       action SHAs, and the tracking-issue upsert; the
+      #                       one host that gets the token
+      #   hub.docker.com      tag digests for digest-pinned images; read-only
+      #                       public API, sent no credential
+      #   registry.npmjs.org  npm manifests' versions; anonymous GET
+      #   crates.io           cargo manifests' versions; anonymous GET with a
+      #                       User-Agent, as crates.io asks
+      #   pypi.org            pip and uv manifests' versions; anonymous GET of
+      #                       the JSON API
+      #   salsa.debian.org    the gitlab: row for checkbashisms; anonymous GET
+      #                       of the tags API
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           disable-sudo: true
@@ -56,6 +74,8 @@ jobs:
             api.github.com:443
             hub.docker.com:443
             registry.npmjs.org:443
+            crates.io:443
+            pypi.org:443
             salsa.debian.org:443
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -86,9 +106,9 @@ jobs:
           set -euo pipefail
           {
             echo "$PROBLEMS problem(s) with the pins below. Fix each OUTDATED, MISMATCH or ERROR row"
-            echo "where it points: tools.txt (pin and sha256 together), the file an inline, dependency"
-            echo "or local row names, or every use of an action SHA or image digest - the \`->\` line"
-            echo "under such a row is what to pin."
+            echo "where it points: tools.txt (pin and sha256 together) where a repo has one, the file"
+            echo "an inline, dependency or local row names, or every use of an action SHA or image"
+            echo "digest - the \`->\` line under such a row is what to pin."
             echo
             echo '```'
             cat "$RUNNER_TEMP/tool-versions.txt"

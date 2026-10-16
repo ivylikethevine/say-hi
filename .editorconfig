@@ -8,3 +8,7 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
+
+# ruff format's indent, which pyproject.toml follows too
+[{*.py,*.pyi,pyproject.toml}]
+indent_size = 4

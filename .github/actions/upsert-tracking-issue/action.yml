@@ -121,7 +121,8 @@ runs:
         fi
 
         if [ -n "$WARNING_TITLE" ]; then
-          # workflow-command escaping, as in ../advisory-note
+          # workflow-command escaping: %, CR, and LF in the message; a
+          # property value also needs : and , escaped
           esc_data() {
             local s="${1//"%"/%25}"
             s="${s//$'\r'/%0D}"
