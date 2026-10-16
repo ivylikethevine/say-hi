@@ -366,7 +366,134 @@ One list, in the order the work is best done. An entry is deleted once its
 **Ticks when** holds. What a release waits on is
 [Release Stages](#release-stages).
 
-None open.
+1. [ ] _Before 1.0:_ **Toggle polarity is a stated rule** — a feature on by
+       default is a `_HI_DISABLE_*` row (`toggle` in `scripts/settings`), an
+       opt-in is a positive name (`_HI_TOOL_ALIASES`, `_HI_SUDO_ALIAS`,
+       `_HI_KEEP`, `_HI_PLAIN`; `flag`), and the contract commits every
+       later setting to the same split. The rule is implied today by
+       `_HI_TOGGLES` and `_HI_DISABLE_LOCAL`'s block; it is not written. **Do:**
+       one sentence in
+       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break),
+       and a `drift` row that fails a `toggle` whose name has no `_DISABLE_`
+       or a `flag` whose name has one (`_HI_DISABLE_LEAD_SPACE` and
+       `_HI_DISABLE_RIGHT_EDGE` are flags today: rename, or exempt them by
+       name). **Ticks when:** the sentence is in the contract and `drift`
+       enforces it.
+
+2. [ ] _Before 1.0:_ **`settings.sh` carries a shape number** — the block
+       `hi --configure` writes opens with `# say-hi settings 1`, so
+       `scripts/convert_settings.sh` reads the number instead of guessing the
+       shape from the rows, and a file with none is shape 0 (today's
+       heuristics). `hi --doctor` flags a number the tree does not read, and
+       the converter keeps `<file>.old` as it does now. **Do:** the line, the
+       converter's read, a doctor row, the sentence in
+       [docs/SETTINGS.md's _The wizard_](docs/SETTINGS.md#the-wizard), and
+       the line's name in the contract's overlay list. **Ticks when:** a
+       fresh `hi --configure` writes the line, a file without it still
+       converts, and the number is in the contract.
+
+3. [ ] _Before 1.0:_ **The TOML subset is a closed grammar** — `colors`,
+       `packages` and `plugins` take a table header (`[a]`, `[a.b]`,
+       `[a.b."file"]`), a quoted or bare key, one line a row, and a string or
+       an array of strings as the value, and nothing else: no multi-line
+       array, inline table, number, boolean, dotted key, or escape inside a
+       string. A user who pastes real TOML hits the parser with no row saying
+       why. **Do:** one section of
+       [docs/SETTINGS.md](docs/SETTINGS.md#a-tool-hi-does-not-know) naming
+       the subset, which `config/colors`, `config/packages`, `config/plugins`
+       and [docs/COLORS.md](docs/COLORS.md) link to, and a `hi --doctor` row
+       naming each line of the three files outside it (`packages` has one
+       today). **Ticks when:** the section exists, the three files point at
+       it, and doctor names an inline table in `colors` and a multi-line
+       array in `plugins` by file and line.
+
+4. [ ] _Before 1.0:_ **One name, one duration** — `_HI_KEEP_TIMEOUT` is 24h
+       for a kept session and 15m for a held tree, one row with two defaults.
+       **Do:** decide between a second row (`_HI_HOLD_TIMEOUT`, 15m, the held
+       tree alone; `_HI_KEEP_TIMEOUT` keeps the session) and one row whose
+       table cell states both defaults as the contract; a second row needs no
+       conversion, since an old value keeps its kept-session meaning.
+       **Ticks when:** `scripts/settings` holds the rows decided on,
+       `common/keep.sh` reads them, and
+       [docs/INTEGRATIONS.md's _Terminal multiplexers_](docs/INTEGRATIONS.md#terminal-multiplexers)
+       names each.
+
+5. [ ] _Before 1.0:_ **`--add-plugin` takes every key the plugins file does** —
+       its `<key>=<value>` tail is the one place a later plugin attribute can
+       land without a new positional, so every key of `config/plugins`
+       (`tool`, `wire`, `home`, `dialect`, `init`, `prompt`, `shells`, `env`,
+       `default`) is one the flag accepts, and a member's own table stays
+       hand-written and says so. **Do:** accept the keys the flag refuses
+       today, list them in `docs/hi.1` and the flag's `docs/tapes/usage`
+       row, and a `tests/hi/parse_test.sh` case that pins the flag's key list
+       against the keys `scripts/pack_plugins.sh` reads. **Ticks when:** the
+       case passes and `hi --add-plugin hooks fnm 'init=fnm env --shell {shell}' shells='zsh fish' default=off`
+       writes a table `hi --plugins` reads back whole.
+
+6. [ ] _Before 1.0:_ **The checkout's name** — the tree has to be a directory
+       named `say-hi` because `$_HI_ROOT` is `$_HI_HOME/say-hi`, and a clone
+       under any other name stops at the install's error. **Do:** decide
+       between keeping it (then the contract's _installed layout_ names the
+       constraint and the install error as its UX) and lifting it (every
+       entry point derives `$_HI_ROOT` from its own path and `$_HI_HOME` from
+       that, the rc block and `/etc/profile.d/say-hi.sh` export `_HI_ROOT`,
+       and [HI.33](docs/GLOSSARY.md#hi33-derived-tree-location) is
+       rewritten; packaging keeps `/usr/share/say-hi`). **Ticks when:** the
+       contract says which, and under the second a clone named `hi-tools`
+       installs, connects, and reads as healthy in `hi --doctor`.
+
+7. [ ] _Before 1.0:_ **A site tier under the user's overlay** — a package's
+       `/usr/share/say-hi/config/*` is overwritten on upgrade, so a team
+       cannot ship a default `packages`, `colors`, `plugins` or `settings.sh`
+       to every account on a box. **Do:** a third rung in
+       [HI.61](docs/GLOSSARY.md#hi61-one-overlay-priority)'s order, read from
+       `/etc/say-hi/` (or the first `say-hi/` under `$XDG_CONFIG_DIRS`),
+       between the shipped default and the user's copy: a site `settings.sh`
+       is sourced before the user's, a site `colors`, `packages` or
+       `plugins` stands in for the tree's until the user copies one, and the
+       site file rides in the tree default's place as an overlay copy does.
+       `hi --doctor` names the tier each file came from, packages ship
+       nothing there, and `install.sh --prefix` is untouched. At the least,
+       before the tag, the contract's overlay paragraph words the precedence
+       so a tier can be added in a minor. **Ticks when:** a target gets a
+       site `packages` when the user has none and the user's when they do,
+       and doctor says which.
+
+8. [ ] _Before 1.0:_ **Tag settings reach containers, allocations and pods** —
+       `settings.<tag>.sh` keys off `# Tags:` lines, which only ssh hosts
+       carry, so nothing varies per backend, cluster or namespace. **Do:**
+       every target carries its backend's word as a tag (`docker`, `podman`,
+       `nerdctl`, `finch`, `nomad`, `kube`), and a kube target its context
+       and namespace besides, each a `settings.<tag>.sh` of the same shape
+       and order (backend, then context, then namespace, the last winning);
+       the six words are reserved, so `hi --add-tag` refuses them on an ssh
+       host. `hi --doctor <target>` names the files a container or pod
+       reads. **Ticks when:** `settings.kube.sh` reaches a pod and no ssh
+       host, a namespace's file reaches that namespace's pods alone, and
+       doctor lists both.
+
+9. [ ] _Before 1.0:_ **A preset for configs alone, and a first-run question
+       that reads as English** — the presets are a ladder of "less hi", and
+       `minimal` drops the editors, so "my aliases and editor rcs along, the
+       box's own prompt, no header" is two hand-written lines. **Do:** a
+       fifth preset, `configs` (`_HI_DISABLE_HEADER=1`,
+       `_HI_DISABLE_PROMPT=1`, `_HI_DISABLE_GIT_STATUS=1`,
+       `_HI_DISABLE_LOCAL=1`; every plugin rides), and the install's one
+       question becomes a short pick between the five, each described in a
+       plain sentence with `everything` the default and the existing
+       this-machine question folded in; `--preset` and a missing terminal
+       skip it as they do today. **Ticks when:** `hi --configure --preset configs`
+       writes those four lines, the install at a terminal offers the five,
+       and the wizard's `[p]` lists five.
+
+10. [ ] _Before 1.0:_ **A text form of every table** — `hi --doctor`,
+        `hi --plugins` and `hi --preview` draw box tables, which a screen
+        reader reads cell border by cell border; `--doctor --json` is the only
+        other form. **Do:** a `--text` switch on the three: one row a line,
+        `section / label: value`, no border, no color, the same rows in the
+        same order, and its name in the contract's sub-command switches.
+        **Ticks when:** the three take it, the output holds no `+`, `|` or
+        `-` rule and no escape sequence, and `docs/USAGE.md` shows one.
 
 ## Release Stages
 
