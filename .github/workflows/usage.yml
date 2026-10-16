@@ -8,6 +8,7 @@ name: Usage
 # run already took green, and the site's artifact has to come from main.
 on:
   pull_request:
+    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]

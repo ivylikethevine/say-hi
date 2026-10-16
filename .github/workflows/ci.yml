@@ -5,6 +5,7 @@ on:
   # it. ready_for_review is not in the default type set, so it is named here,
   # or a draft marked ready would never get its run.
   pull_request:
+    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
