@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # lychee's settings for both link checks: ci.yml's offline gate and the
 # weekly external sweep. Flags that differ between the two (--offline,
 # --include-fragments, the output format) stay on their command lines.

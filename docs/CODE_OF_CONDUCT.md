@@ -1,7 +1,9 @@
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
 # Code of conduct
 
-How people treat each other in say-hi's spaces: the repository, its issues,
-pull requests, and discussions.
+How people treat each other in this project's spaces: the repository, its
+issues, pull requests, and discussions.
 
 ## Contents
 
@@ -50,9 +52,9 @@ Examples of unacceptable behavior include:
   attacks
 - Public or private harassment
 - Publishing others' private information, such as a physical or email address,
-  without their explicit permission. That includes what a shared transcript
-  can carry: a hostname, an ssh config, a username. Redact what a report does
-  not need.
+  without their explicit permission. That includes what a shared log or
+  transcript can carry: a hostname, a username, a config file. Redact what a
+  report does not need.
 - Other conduct which could reasonably be considered inappropriate in a
   professional setting
 
@@ -84,9 +86,9 @@ be reviewed and investigated promptly and fairly.
 The maintainer is obligated to respect the privacy and security of the
 reporter of any incident: what happened and who reported it stay confidential.
 
-A _security_ issue goes to
-[SECURITY.md's private channel](SECURITY.md#reporting-a-vulnerability)
-instead, which takes vulnerabilities only.
+A _security_ issue goes to the repository's private vulnerability reporting
+instead (Security, then "Report a vulnerability"), which takes vulnerabilities
+only.
 
 ## Enforcement guidelines
 
@@ -145,8 +147,7 @@ used under the
 [Creative Commons Attribution 4.0 International license (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
 The adaptations: the maintainer replaces "community leaders" throughout, the
 contact is a named address, security reports are routed to their own channel,
-and one example of unacceptable behavior names what a shared transcript can
-leak.
+and one example of unacceptable behavior names what a shared log can leak.
 
 Community impact guidelines were inspired by
 [Mozilla's code of conduct enforcement ladder](https://github.com/mozilla/diversity).

@@ -75,7 +75,7 @@ COOLDOWN_DAYS="${TOOL_COOLDOWN_DAYS:-7}"
 CI_WORKFLOW_ROSTER="${CI_WORKFLOW_ROSTER:-}"
 CI_MANIFESTS="${CI_MANIFESTS:-}"
 # unset means the default list; set-but-empty skips the section
-CI_IMAGE_GLOBS="${CI_IMAGE_GLOBS-Dockerfile */Dockerfile **/*.Dockerfile **/compose*.y*ml docker-compose*.y*ml}"
+CI_IMAGE_GLOBS="${CI_IMAGE_GLOBS-$_CI_IMAGE_GLOBS}"
 
 bad=0
 # one `host|read` line per upstream lookup, read 1 or 0: a host none of whose
@@ -117,26 +117,30 @@ function _ci_problem() {
   printf '::warning title=%s::%s\n' "${t//,/%2C}" "$m"
 }
 
+# _ci_gh_curl <curl args...> - curl for api.github.com, with GH_TOKEN when set:
+# unauthenticated GitHub allows 60 requests/hour per IP, so CI passes one
+function _ci_gh_curl() {
+  if [ -n "${GH_TOKEN:-}" ]; then
+    curl -H "Authorization: Bearer $GH_TOKEN" "$@"
+  else
+    curl "$@"
+  fi
+}
+
 # _ci_fetch_versions <check> - upstream versions as JSON [{tag, t}], t an
-# ISO-8601 publish time; empty output when the API declines. Unauthenticated
-# GitHub allows 60 requests/hour per IP, so CI passes GH_TOKEN.
+# ISO-8601 publish time; empty output when the API declines
 function _ci_fetch_versions() {
-  local kind="${1%%:*}" project="${1#*:}" auth=() host
+  local kind="${1%%:*}" project="${1#*:}" host
   case "$kind" in
   github)
-    [ -n "${GH_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GH_TOKEN")
-    curl -sSf ${auth[@]+"${auth[@]}"} "https://api.github.com/repos/$project/releases?per_page=30" 2>/dev/null |
+    _ci_gh_curl -sSf "https://api.github.com/repos/$project/releases?per_page=30" 2>/dev/null |
       jq -c '[ .[] | select(.draft or .prerelease | not) | {tag: .tag_name, t: .published_at} ]' 2>/dev/null
     ;;
   gitlab)
     # gitlab:[host/]group%2Fname - the project path is url-encoded, so the
     # first `/` (if any) can only end the host
-    host=gitlab.com
-    case "$project" in */*)
-      host="${project%%/*}"
-      project="${project#*/}"
-      ;;
-    esac
+    _ci_host "$1"
+    project="${project#"$host"/}"
     curl -sSf "https://$host/api/v4/projects/$project/repository/tags?per_page=100" 2>/dev/null |
       jq -c '[ .[] | {tag: .name, t: (.created_at // .commit.committed_date // .commit.created_at)} ]' 2>/dev/null
     ;;
@@ -165,9 +169,8 @@ function _ci_fetch_versions() {
 
 # _ci_tag_commit <owner/repo> <tag> - the commit <tag> names, or nothing
 function _ci_tag_commit() {
-  local auth=() sha
-  [ -n "${GH_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GH_TOKEN")
-  sha="$(curl -sSf ${auth[@]+"${auth[@]}"} -H "Accept: application/vnd.github.sha" \
+  local sha
+  sha="$(_ci_gh_curl -sSf -H "Accept: application/vnd.github.sha" \
     "https://api.github.com/repos/$1/commits/$2" 2>/dev/null)" || sha=""
   case "$sha" in "" | *[!0-9a-f]*) return 0 ;; esac
   printf '%s' "$sha"
@@ -419,17 +422,17 @@ done < <(
 
 if [ -n "$CI_IMAGE_GLOBS" ]; then
   _ci_section "Image digests (CI_IMAGE_GLOBS)"
-  # The same extraction scan_pinned_images.sh uses. This asks only "has the
-  # tag moved", which Docker Hub answers without a scan; whether a move fixes
-  # anything is scan_pinned_images.sh's question.
+  # This asks only "has the tag moved", which Docker Hub answers without a
+  # scan; whether a move fixes anything is scan_pinned_images.sh's question.
   while IFS='|' read -r image tag pinned; do
     [ -n "$image" ] || continue
     ref="$image:$tag"
+    short="${pinned:7:12}..."
     hub="${image#docker.io/}"
     hub="${hub#index.docker.io/}"
     case "$hub" in
     *.*/* | *:*/* | localhost/*)
-      printf '%-48s %-22s (not on Docker Hub - not checked)\n' "$ref" "${pinned:7:12}..."
+      printf '%-48s %-22s (not on Docker Hub - not checked)\n' "$ref" "$short"
       continue
       ;;
     */*) ;;
@@ -442,25 +445,18 @@ if [ -n "$CI_IMAGE_GLOBS" ]; then
              ] | join("|")' 2>/dev/null || echo "|")"
     hosts+="hub.docker.com|$([ -n "$current" ] && echo 1 || echo 0)"$'\n'
     if [ -z "$current" ]; then
-      printf '%-48s %-22s (could not read the current tag digest)\n' "$ref" "${pinned:7:12}..."
+      printf '%-48s %-22s (could not read the current tag digest)\n' "$ref" "$short"
     elif [ "$current" = "$pinned" ]; then
-      printf '%-48s %-22s current\n' "$ref" "${pinned:7:12}..."
+      printf '%-48s %-22s current\n' "$ref" "$short"
     elif [ -n "$age" ] && [ "$age" -lt "$COOLDOWN_DAYS" ]; then
       printf '%-48s %-22s current (tag re-pushed %s day(s) ago, inside the %s-day cooldown)\n' \
-        "$ref" "${pinned:7:12}..." "$age" "$COOLDOWN_DAYS"
+        "$ref" "$short" "$age" "$COOLDOWN_DAYS"
     else
-      printf '%-48s %-22s OUTDATED (tag now resolves to %s)\n' "$ref" "${pinned:7:12}..." "${current:7:12}..."
+      printf '%-48s %-22s OUTDATED (tag now resolves to %s)\n' "$ref" "$short" "${current:7:12}..."
       _ci_problem "$ref outdated" "$ref now resolves to $current - repin it (scan_pinned_images.sh says whether that fixes anything)"
       printf '  -> %s@%s\n' "$ref" "$current"
     fi
-  done < <(
-    _ci_files "$CI_IMAGE_GLOBS" | while IFS= read -r f; do
-      sed -nE \
-        -e 's/^FROM[[:space:]]+(--platform=[^[:space:]]+[[:space:]]+)?([^[:space:]@$]+):([^[:space:]@$:/]+)@(sha256:[0-9a-f]{64}).*/\2|\3|\4/p' \
-        -e "s/^[[:space:]]*(-[[:space:]]+)?image:[[:space:]]*[\"']?([^[:space:]@\$\"'*&]+):([^[:space:]@\$:/\"']+)@(sha256:[0-9a-f]{64}).*/\2|\3|\4/p" \
-        "$f"
-    done | sort -u
-  )
+  done < <(_ci_files "$CI_IMAGE_GLOBS" | _ci_image_pins)
 fi
 
 if [ -n "$CI_MANIFESTS" ]; then

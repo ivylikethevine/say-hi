@@ -1,6 +1,7 @@
 {
   "name": "ci-markdown-tools",
   "private": true,
+  "license": "MIT",
   "description": "Pins CI's Markdown tools (markdownlint-cli2, prettier) and their dependency tree with a lockfile, for `npm ci --prefix .github`.",
   "devDependencies": {
     "markdownlint-cli2": "0.23.3",

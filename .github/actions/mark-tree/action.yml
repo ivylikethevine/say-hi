@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 name: Mark tree
 # The pull_request half of the push-to-main dedupe: an artifact named after
 # the tree this run tested (the merge ref's), which the push landing that same

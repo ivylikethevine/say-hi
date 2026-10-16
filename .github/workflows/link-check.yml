@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 name: Link check
 
 # External links in the docs. Advisory: a rotted URL is worth fixing but has
