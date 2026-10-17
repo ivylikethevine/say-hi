@@ -10,7 +10,7 @@ name: Dependency review
 # main and on a schedule, where this job could only ever show as skipped.
 on:
   pull_request:
-    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
+    branches: [main] # PRs into dev run only CI and CodeQL
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:

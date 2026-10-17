@@ -59,7 +59,7 @@ on: # zizmor: ignore[dangerous-triggers]
     branches: [main]
   # drafts skip, same as ci.yml; the `reuse` job skips docs-only changes
   pull_request:
-    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
+    branches: [main] # PRs into dev run only CI and CodeQL
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
