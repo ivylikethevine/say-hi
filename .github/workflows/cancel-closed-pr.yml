@@ -14,7 +14,7 @@ name: Cancel a closed PR's runs
 # every hosted runner.
 on:
   pull_request:
-    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
+    branches: [main, dev] # every PR CI and CodeQL run on
     types: [closed]
 
 permissions:

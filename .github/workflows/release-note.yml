@@ -14,7 +14,7 @@ name: Release note
 # body edit shouldn't re-run all of CI.
 on:
   pull_request:
-    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
+    branches: [main] # a PR into dev carries no note; dev -> main is the one a release reads
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions: {}

@@ -9,15 +9,18 @@ name: CodeQL
 # build-mode none throughout: nothing needs compiling.
 #
 # Runs on every push to main (not after green CI: Scorecard counts analysed
-# commits), every non-draft PR, weekly for the default-branch baseline code
-# scanning diffs a PR against, and on dispatch. No `paths:` filter: a skipped
-# category leaves code scanning waiting on a result.
+# commits), every non-draft PR into main or dev, weekly for the default-branch
+# baseline code scanning diffs a PR against, and on dispatch. PRs into dev are
+# analysed too: Scorecard's SAST and CI-Tests checks grade each commit on main
+# by the first PR it was merged through, and for the shared-CI sync PRs that is
+# the one into dev. No `paths:` filter: a skipped category leaves code scanning
+# waiting on a result.
 on:
   push:
     branches: [main]
   # drafts analyse nothing (the jobs' `if`) until ready_for_review
   pull_request:
-    branches: [main] # PRs into dev run nothing; dev is checked by its PR into main
+    branches: [main, dev] # dev: the sync PRs' commits are graded by this PR
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   schedule:
     - cron: "17 6 * * 2"
