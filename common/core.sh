@@ -775,7 +775,7 @@ function _hi_interactive_extras() {
 # files un-export everything else once the aliases and prompt have read it
 # (paths.sh's dialect can only `export`). config.fish mirrors it;
 # exports_test.sh pins the two. GLOSSARY: HI.47
-_HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
+_HI_CHILD_ENV=(_HI_HOME _HI_ROOT _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
   _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF)
 
 # _hi_backend_off <name> - is <name> a backend $_HI_BACKENDS_OFF keeps hi

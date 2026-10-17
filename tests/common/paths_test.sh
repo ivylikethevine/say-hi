@@ -143,14 +143,14 @@ function test_paths_sources_cleanly_under_strict_mode() {
 function test_no_header_file_turns_the_header_off() {
   local got
   # shellcheck disable=SC2016 # the child sh expands it
-  local home="$_HI_WORKDIR/headerless" script='. "$1"; printf %s "$_HI_DISABLE_HEADER"'
+  local home="$_HI_WORKDIR/headerless" script='. "$1"; printf %s "$_HI_DISABLE_HEADER"' paths="$_HI_ROOT/common/paths.sh"
   mkdir -p "$home/say-hi/common"
   # both names, as a target's bootstrap exports them (HI.33); the harness's
   # own _HI_ROOT would otherwise reach the child
-  got="$(_HI_HOME="$home" _HI_ROOT="$home/say-hi" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")"
+  got="$(_HI_HOME="$home" _HI_ROOT="$home/say-hi" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$paths")"
   [ "$got" = 1 ] ||
     _hi_because "a tree with no header.sh kept the header on" || return 1
-  got="$(_HI_HOME="$_HI_HOME" _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$_HI_ROOT/common/paths.sh")"
+  got="$(_HI_HOME="$_HI_HOME" _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$home/cfg" _HI_DISABLE_HEADER=0 sh -c "$script" _ "$paths")"
   [ "$got" = 0 ] ||
     _hi_because "a whole tree turned the header off"
 }

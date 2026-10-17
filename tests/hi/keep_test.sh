@@ -401,7 +401,7 @@ function test_keep_start_hands_the_pane_its_environment() {
   [[ "$out" == *" _HI_LOCAL_USER="*" _HI_CLEANUP=$_HI_WORKDIR/t "*" bash --rcfile $_HI_WORKDIR/t/say-hi/hi.bashrc -i"* ]] ||
     _hi_because "the argv lost a variable: $out" || return 1
   grep -qx "_HI_HOME=$_HI_WORKDIR/t" "$log.env" || _hi_because "the multiplexer lost \$_HI_HOME" || return 1
-  ! grep -qE '^_HI_(LOCAL_USER|LOCAL_HOSTNAME|CLEANUP|ROOT|TARGET_COLOR|KEEP_AS)=' "$log.env" ||
+  ! grep -qE '^_HI_(LOCAL_USER|LOCAL_HOSTNAME|CLEANUP|TARGET_COLOR|KEEP_AS)=' "$log.env" ||
     _hi_because "the multiplexer kept: $(grep -E '^_HI_' "$log.env" | tr '\n' ' ')"
 }
 
@@ -811,7 +811,7 @@ function test_keep_here_starts_the_owner_pane_from_the_session_s_file() {
     _hi_because "no owner pane: $out" || return 1
   # the multiplexer's own environment is a session child's and no more: the
   # launcher's fifty-odd paths stay behind with the client's verdicts
-  ! grep -E '^_HI_' "$log.env" | grep -qvE '^_HI_(HOME|CONFIG_DIR|SITE_DIR|REMOTE_SESSION|SESSION_RC|TARGETS_TTL|PROBE_TIMEOUT|TEST_[A-Z]*)=' ||
+  ! grep -E '^_HI_' "$log.env" | grep -qvE '^_HI_(HOME|ROOT|CONFIG_DIR|SITE_DIR|REMOTE_SESSION|SESSION_RC|TARGETS_TTL|PROBE_TIMEOUT|TEST_[A-Z]*)=' ||
     _hi_because "the multiplexer kept: $(grep -E '^_HI_' "$log.env" | cut -d= -f1 | tr '\n' ' ')" || return 1
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "the marker outlived a session that is not there"
 }

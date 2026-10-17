@@ -123,7 +123,7 @@ set -e __hi_row
 # file shells out to has to be handed them - __hi_bash's job. `-f` (function
 # scope) rather than `-l`: a `-l` inside the `for` is gone by the time the
 # command runs. GLOSSARY: HI.47
-set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
+set -g _HI_CHILD_ENV _HI_HOME _HI_ROOT _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
     _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_CLIENT_EDITOR \

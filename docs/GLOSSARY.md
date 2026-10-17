@@ -867,10 +867,14 @@ reasoning).
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is seven names:
+is nine names:
 
-- `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
-  `hi.sh` put it, and cannot be re-derived;
+- `$_HI_HOME`, `$_HI_ROOT` and `$_HI_CONFIG_DIR` — the overlay on a target is
+  wherever `hi.sh` put it, and cannot be re-derived; the tree is a clone under
+  any name ([HI.33](#hi33-derived-tree-location)), which a child could only
+  guess as `$_HI_HOME/say-hi`;
+- `$_HI_SITE_DIR` — the site tier ([HI.61](#hi61-one-overlay-priority)),
+  which `sh targets.sh` reads for a completion;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
 - `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_BACKENDS_OFF` — the knobs
