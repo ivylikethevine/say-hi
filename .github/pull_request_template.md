@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: MIT -->
+
 # What's new
 
 ## What changed and why
@@ -10,9 +12,9 @@ ____________ used to [be/do/say] ____________ but now it [is/does/says] ________
 
 <!-- One or two sentences a user reads on the release page: what they see
      differently after upgrading, present tense, no file names. Write `none`
-     when nothing a user sees changes (tests, CI, doc wording). release.yml
-     publishes this section as the release's "What changed" list; the PR
-     title is only the fallback. -->
+     when nothing a user sees changes (tests, CI, doc wording). The release
+     workflow collects this section into the release notes; the PR title is
+     only the fallback. -->
 
 none
 
