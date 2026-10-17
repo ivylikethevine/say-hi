@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 name: CodeQL
 
-# CodeQL over the one language here it can read: GitHub Actions; it has no
-# analyser for the rest.
+# CodeQL over the languages here it can read: GitHub Actions, and the
+# repository's own language where CodeQL has an analyser for it.
 # The actions half overlaps zizmor on purpose: zizmor is the fast gate in
 # ci.yml, CodeQL the slower dataflow pass whose findings land in the Security
 # tab with a trace, and Scorecard's SAST check counts only this one.
