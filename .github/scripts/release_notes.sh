@@ -61,7 +61,7 @@ main() {
   local repo="$1" file="$2" num body note out=""
   while IFS= read -r num; do
     [ -n "$num" ] || continue
-    body="$(gh api "repos/$repo/pulls/$num" --jq .body 2>/dev/null || true)"
+    body="$(gh api "repos/$repo/pulls/$num" --jq .body 2>/dev/null)" || continue
     [ -n "$body" ] || continue
     note="$(printf '%s\n' "$body" | extract)"
     [ -n "$note" ] || continue

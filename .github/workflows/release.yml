@@ -1060,8 +1060,9 @@ jobs:
           # main ruleset requires of every commit it merges. The mutation
           # commits onto a branch that exists, so the branch is created from
           # main's head first; a re-run that left one behind without a PR
-          # commits on top of it.
-          branch_head="$(gh api "repos/$TAP_REPO/git/ref/heads/$branch" --jq .object.sha 2>/dev/null || true)"
+          # commits on top of it. A missing branch is the exit status: gh
+          # prints the 404's JSON body to stdout.
+          branch_head="$(gh api "repos/$TAP_REPO/git/ref/heads/$branch" --jq .object.sha 2>/dev/null)" || branch_head=""
           if [ -z "$branch_head" ]; then
             gh api "repos/$TAP_REPO/git/refs" -f ref="refs/heads/$branch" -f sha="$head" >/dev/null
             branch_head="$head"

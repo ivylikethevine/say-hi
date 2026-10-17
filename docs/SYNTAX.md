@@ -48,10 +48,11 @@ first time a spelling costs a CI round trip.
 
 ## Output
 
-| Write                                     | Not                                 | Breaks on                                                                        | Caught by                                      |
-| ----------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `printf '%s\n' "$x"`                      | `echo -e`, or `echo` of a backslash | dash and macOS's POSIX-mode `sh` expand escapes that bash-as-`sh` prints as text | `drift` (`echo -e`); a dash sweep for the rest |
-| `printf -v x '%s' ''` to clear an out-var | `printf -v x ''`                    | bash 3.2 skips the assignment ([HI.05](GLOSSARY.md#hi05-printf--v-out-var))      | `drift`                                        |
+| Write                                     | Not                                     | Breaks on                                                                                                  | Caught by                                      |
+| ----------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `printf '%s\n' "$x"`                      | `echo -e`, or `echo` of a backslash     | dash and macOS's POSIX-mode `sh` expand escapes that bash-as-`sh` prints as text                           | `drift` (`echo -e`); a dash sweep for the rest |
+| `printf -v x '%s' ''` to clear an out-var | `printf -v x ''`                        | bash 3.2 skips the assignment ([HI.05](GLOSSARY.md#hi05-printf--v-out-var))                                | `drift`                                        |
+| `x="$(gh api … 2>/dev/null)" \|\| x=""`   | `x="$(gh api … 2>/dev/null \|\| true)"` | every runner: a failed `gh api` prints the response's JSON error body to stdout, so a 404 reads as a value | review; learned from v0.7.4's tap job          |
 
 ## Files and dates
 

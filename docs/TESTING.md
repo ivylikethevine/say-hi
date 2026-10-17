@@ -442,13 +442,14 @@ Written down as not races:
   their callers are serial, as every caller is; build one before a
   `_hi_par_begin`, never inside a parallel case.
 
-Instrumented, not yet explained: on Windows arm64, `hi_payload_scan`'s include
-scan cases have left an empty overlay stream with no error of their own
-(gzip then reports "unexpected end of file"). The suite wraps
-`_hi_overlay_tar` to print its exit status and stderr, so the next one names
-its cause. The same runners (an x64 MSYS runtime, emulated) have handed a
-capture nothing from a `hi` run that exited 0, and a process substitution
-nothing from a list that was there a call earlier. The output probe above
+On Windows arm64, an overlay stream that gzip calls truncated ("unexpected end
+of file") is the runner's, not the code's: under load, a subshell in
+`_hi_stage_tar` has died with a segmentation fault (exit 139) in the
+emulated x64 MSYS runtime there. `payload_test.sh` wraps `_hi_overlay_tar` to
+print its exit status and stderr, so look for `exited 139` before chasing the
+gzip error; a rerun is the answer unless it recurs. The same runners have
+handed a capture nothing from a `hi` run that exited 0, and a process
+substitution nothing from a list that was there a call earlier. The output probe above
 says whether the host is dropping output at that moment and from which
 writer; `plugins_test.sh` runs `hi` into a file and names a run that wrote
 nothing, which tells a silent run from a capture that lost its words.
