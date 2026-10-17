@@ -73,8 +73,7 @@ function lint_config_dir_sources() {
       done
       [ -n "$ok" ] && continue
       rel="${file#"$_HI_ROOT"/}"
-      _hi_align " | $rel:$((i + 1)) sources the config dir with no 'shellcheck source=' above it" "FAILED" "$RED"
-      _hi_note_failure "config-dir source: $rel:$((i + 1))"
+      _hi_lint_fail " | $rel:$((i + 1)) sources the config dir with no 'shellcheck source=' above it" "config-dir source: $rel:$((i + 1))"
       bad=$((bad + 1))
     done
   done < <(grep -lF -- "$needle" "${_HI_SH_FILES[@]}")

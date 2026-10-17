@@ -44,15 +44,6 @@ function _hi_setcolor_overlay() {
   printf '%b' "$2" >"$1/colors"
 }
 
-# _hi_setcolor_is <file> <body> - <file> holds exactly <body> (%b)
-function _hi_setcolor_is() {
-  local want
-  want="$(printf '%b' "$2")"
-  [ "$(cat "$1")" = "$want" ] && return 0
-  _hi_cecho " | got: [$(cat "$1")]" "$RED"
-  return 1
-}
-
 # _hi_setcolor_refused <home> <config> <message> <args...> - --add-color with
 # <args> fails, says <message>, and writes no file
 function _hi_setcolor_refused() {
@@ -162,7 +153,7 @@ function test_set_color_dry_run_over_an_overlay() {
   _hi_setcolor_overlay "$cfg" '[hostname]\na = "red"\n'
   out="$(_hi_setcolor_run "$home" "$cfg" hostname box red --dry-run)" || _hi_why home cfg || return 1
   { [[ "$out" == *"write $cfg/colors"* && "$out" != *"copy "* ]] &&
-    _hi_setcolor_is "$cfg/colors" '[hostname]\na = "red"'; } || _hi_why out cfg
+    _hi_file_is "$cfg/colors" '[hostname]\na = "red"'; } || _hi_why out cfg
 }
 
 # --- where a pin lands -------------------------------------------------------
@@ -175,7 +166,7 @@ function test_set_color_joins_its_section() {
   _hi_setcolor_overlay "$cfg" '[hostname]\na = "red"\n\n[username]\nb = "blue"\n'
   out="$(_hi_setcolor_run "$home" "$cfg" hostname box cyan)" || _hi_why home cfg || return 1
   { [[ "$out" == *"+ box cyan in [hostname]"* && "$out" == *"$cfg/colors updated"* ]] &&
-    _hi_setcolor_is "$cfg/colors" '[hostname]\na = "red"\nbox = "cyan"\n\n[username]\nb = "blue"'; } || _hi_why out cfg
+    _hi_file_is "$cfg/colors" '[hostname]\na = "red"\nbox = "cyan"\n\n[username]\nb = "blue"'; } || _hi_why out cfg
 }
 
 # a type the file has no section for gets one at the end, after a blank line,
@@ -186,11 +177,11 @@ function test_set_color_creates_a_section() {
   cfg="$_HI_WORKDIR/setcolor-section-cfg"
   _hi_setcolor_overlay "$cfg" '[hostname]\na = "red"\n'
   _hi_setcolor_run "$home" "$cfg" usertag ops brred '#3BA55D' >/dev/null || _hi_why home cfg || return 1
-  _hi_setcolor_is "$cfg/colors" '[hostname]\na = "red"\n\n[usertag]\nops = "brred 3BA55D"' || _hi_why cfg || return 1
+  _hi_file_is "$cfg/colors" '[hostname]\na = "red"\n\n[usertag]\nops = "brred 3BA55D"' || _hi_why cfg || return 1
   # a name TOML would not read bare is written in quotes, and found there
   _hi_setcolor_run "$home" "$cfg" hostname '10.0.*' red >/dev/null || _hi_why home cfg || return 1
   _hi_setcolor_run "$home" "$cfg" hostname '10.0.*' blue >/dev/null || _hi_why home cfg || return 1
-  _hi_setcolor_is "$cfg/colors" '[hostname]\na = "red"\n"10.0.*" = "blue"\n\n[usertag]\nops = "brred 3BA55D"' || _hi_why cfg
+  _hi_file_is "$cfg/colors" '[hostname]\na = "red"\n"10.0.*" = "blue"\n\n[usertag]\nops = "brred 3BA55D"' || _hi_why cfg
 }
 
 # a name already pinned under the type is replaced in place
@@ -201,7 +192,7 @@ function test_set_color_replaces_a_pin() {
   _hi_setcolor_overlay "$cfg" '[hostname]\nbox = "red 3ba55d"\nz = "blue"\n'
   out="$(_hi_setcolor_run "$home" "$cfg" hostname box green)" || _hi_why home cfg || return 1
   { [[ "$out" == *"~ box green (replacing box red 3ba55d in [hostname])"* ]] &&
-    _hi_setcolor_is "$cfg/colors" '[hostname]\nbox = "green"\nz = "blue"'; } || _hi_why out cfg
+    _hi_file_is "$cfg/colors" '[hostname]\nbox = "green"\nz = "blue"'; } || _hi_why out cfg
 }
 
 # the same name under another type is a different pin, left alone
@@ -211,7 +202,7 @@ function test_set_color_keeps_to_its_type() {
   cfg="$_HI_WORKDIR/setcolor-scope-cfg"
   _hi_setcolor_overlay "$cfg" '[username]\nbox = "red"\n'
   _hi_setcolor_run "$home" "$cfg" hostname box blue >/dev/null || _hi_why home cfg || return 1
-  _hi_setcolor_is "$cfg/colors" '[username]\nbox = "red"\n\n[hostname]\nbox = "blue"' || _hi_why cfg
+  _hi_file_is "$cfg/colors" '[username]\nbox = "red"\n\n[hostname]\nbox = "blue"' || _hi_why cfg
 }
 
 # the identical pin changes nothing and writes nothing
@@ -222,7 +213,7 @@ function test_set_color_identical_pin_is_a_no_op() {
   _hi_setcolor_overlay "$cfg" '# mine\n[hostname]\nbox = "red"\n'
   out="$(_hi_setcolor_run "$home" "$cfg" hostname box red)" || _hi_why home cfg || return 1
   { [[ "$out" == *"$cfg/colors: box red is already in [hostname] - nothing to write"* ]] &&
-    _hi_setcolor_is "$cfg/colors" '# mine\n[hostname]\nbox = "red"'; } || _hi_why out cfg
+    _hi_file_is "$cfg/colors" '# mine\n[hostname]\nbox = "red"'; } || _hi_why out cfg
 }
 
 # a pin in the shipped file's padded spelling is the same pin: re-pinning the
@@ -236,7 +227,7 @@ function test_set_color_same_pin_padded_is_a_no_op() {
   [[ "$out" == *"is already in [hostname] - nothing to write"* ]] || _hi_why out || return 1
   out="$(_hi_setcolor_run "$home" "$cfg" hostname z blue)" || _hi_why home cfg || return 1
   { [[ "$out" == *"is already in [hostname] - nothing to write"* ]] &&
-    _hi_setcolor_is "$cfg/colors" '[hostname]\nbox             =   "red   #3ba55d"  # a note\n  z = "blue"'; } || _hi_why out cfg
+    _hi_file_is "$cfg/colors" '[hostname]\nbox             =   "red   #3ba55d"  # a note\n  z = "blue"'; } || _hi_why out cfg
 }
 
 # ...and through the cascade: re-pinning a shipped pin as it stands makes no
@@ -257,7 +248,7 @@ function test_set_color_new_hex_is_a_change() {
   cfg="$_HI_WORKDIR/setcolor-rehex-cfg"
   _hi_setcolor_overlay "$cfg" '[hostname]\nbox = "red 3ba55d"\n'
   _hi_setcolor_run "$home" "$cfg" hostname box red >/dev/null || _hi_why home cfg || return 1
-  _hi_setcolor_is "$cfg/colors" '[hostname]\nbox = "red"' || _hi_why cfg
+  _hi_file_is "$cfg/colors" '[hostname]\nbox = "red"' || _hi_why cfg
 }
 
 # the written pin is what the resolver reads back - $_HI_HEADER is this dev
@@ -282,7 +273,7 @@ function test_unset_color_removes_a_pin() {
   _hi_setcolor_overlay "$cfg" '[hostname]\nbox = "red"\nz = "blue"\n'
   out="$(_hi_unsetcolor_run "$home" "$cfg" hostname box)" || _hi_why home cfg || return 1
   { [[ "$out" == *"- box red (from [hostname])"* ]] &&
-    _hi_setcolor_is "$cfg/colors" '[hostname]\nz = "blue"'; } || _hi_why out cfg
+    _hi_file_is "$cfg/colors" '[hostname]\nz = "blue"'; } || _hi_why out cfg
 }
 
 # a name pinned only under another type, or not at all, is a no-op
@@ -293,7 +284,7 @@ function test_unset_color_without_a_pin_is_a_no_op() {
   _hi_setcolor_overlay "$cfg" '[username]\nbox = "red"\n'
   out="$(_hi_unsetcolor_run "$home" "$cfg" hostname box)" || _hi_why home cfg || return 1
   { [[ "$out" == *"$cfg/colors has no [hostname] pin for box - nothing to write"* ]] &&
-    _hi_setcolor_is "$cfg/colors" '[username]\nbox = "red"'; } || _hi_why out cfg
+    _hi_file_is "$cfg/colors" '[username]\nbox = "red"'; } || _hi_why out cfg
 }
 
 # --- the overlay file replaces the tree's wholesale, so the first write
@@ -318,7 +309,7 @@ function test_set_color_second_call_does_not_recopy() {
   _hi_setcolor_run "$home" "$cfg" hostname a red >/dev/null || _hi_why home cfg || return 1
   printf '[hostname]\ntruncated = "red"\n' >"$cfg/colors"
   _hi_setcolor_run "$home" "$cfg" hostname b blue >/dev/null || _hi_why home cfg || return 1
-  _hi_setcolor_is "$cfg/colors" '[hostname]\ntruncated = "red"\nb = "blue"' || _hi_why cfg
+  _hi_file_is "$cfg/colors" '[hostname]\ntruncated = "red"\nb = "blue"' || _hi_why cfg
 }
 
 # unsetting a shipped pin reads through the cascade and copies the tree in

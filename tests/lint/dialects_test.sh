@@ -119,8 +119,7 @@ function _hi_floor_ready() {
   # which is how a floor check quietly stops being one.
   if ! _hi_build_image "$stem" "$tag" "the $label check" -f "$(_hi_dockerfile "$stem")" "$_HI_ROOT/tests/dockerfiles"; then
     _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-    _hi_align " | $label: the pinned image would not build (has the distro moved off it?)" "FAILED" "$RED"
-    _hi_note_failure "$label: image build"
+    _hi_lint_fail " | $label: the pinned image would not build (has the distro moved off it?)" "$label: image build"
     return 2
   fi
   return 0

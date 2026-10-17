@@ -49,15 +49,6 @@ function _hi_addpkg_overlay() {
   printf '%b' "$2" >"$1/packages"
 }
 
-# _hi_addpkg_is <file> <body> - <file> holds exactly <body> (%b)
-function _hi_addpkg_is() {
-  local want
-  want="$(printf '%b' "$2")"
-  [ "$(cat "$1")" = "$want" ] && return 0
-  _hi_cecho " | got: [$(cat "$1")]" "$RED"
-  return 1
-}
-
 # a real row known to be in the tree's config/packages, in its [core] group,
 # used by several cases below to probe the copied/cascaded content without a
 # second fixture
@@ -158,7 +149,7 @@ function test_add_package_dry_run_over_an_overlay() {
   _hi_addpkg_overlay "$cfg" '[core]\ngo = []\n'
   out="$(_hi_addpkg_run "$home" "$cfg" core foo --dry-run)" || _hi_why home cfg || return 1
   { [[ "$out" == *"write $cfg/packages"* && "$out" != *"copy "* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[core]\ngo = []'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[core]\ngo = []'; } || _hi_why out cfg
 }
 
 # --- where a row lands -------------------------------------------------------
@@ -183,9 +174,9 @@ function test_add_package_several_arguments_are_several_rows() {
   cfg="$_HI_WORKDIR/addpkg-multi-cfg"
   _hi_addpkg_overlay "$cfg" '[core]\ngo = []\n\n[last]\nz = []\n'
   _hi_addpkg_run "$home" "$cfg" mine foo -baz +qux ssh-keygen,x-y,z +g++ >/dev/null || _hi_why home cfg || return 1
-  _hi_addpkg_is "$cfg/packages" '[core]\ngo = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []' || _hi_why cfg || return 1
+  _hi_file_is "$cfg/packages" '[core]\ngo = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []' || _hi_why cfg || return 1
   _hi_addpkg_run "$home" "$cfg" core +need >/dev/null || _hi_why home cfg || return 1
-  _hi_addpkg_is "$cfg/packages" '[core]\ngo = []\n\n[core.required]\nneed = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []' || _hi_why cfg
+  _hi_file_is "$cfg/packages" '[core]\ngo = []\n\n[core.required]\nneed = []\n\n[last]\nz = []\n\n[mine]\nfoo = []\nssh-keygen = ["x-y", "z"]\n\n[mine.unwanted]\nbaz = []\n\n[mine.required]\nqux = []\n"g++" = []' || _hi_why cfg
 }
 
 # into an existing group: after its last row, ahead of a comment or blank
@@ -197,7 +188,7 @@ function test_add_package_joins_an_existing_group() {
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n# about b\n\n[b]\ny = []\n'
   out="$(_hi_addpkg_run "$home" "$cfg" a z)" || _hi_why home cfg || return 1
   { [[ "$out" == *"+ z in [a]"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\nz = []\n# about b\n\n[b]\ny = []'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[a]\nx = []\nz = []\n# about b\n\n[b]\ny = []'; } || _hi_why out cfg
 }
 
 # a row naming the same first package in the same group replaces it rather
@@ -210,10 +201,10 @@ function test_add_package_replaces_same_first_package() {
   _hi_addpkg_overlay "$cfg" '[a]\nbat = ["batcat"] # mine\nx = []\n[b]\ny = []\n'
   out="$(_hi_addpkg_run "$home" "$cfg" a 'bat,ccat')" || _hi_why home cfg || return 1
   [[ "$out" == *"~ bat,ccat (replacing the row for bat in [a])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nbat = ["ccat"]\nx = []\n[b]\ny = []' || _hi_why out cfg || return 1
+    _hi_file_is "$cfg/packages" '[a]\nbat = ["ccat"]\nx = []\n[b]\ny = []' || _hi_why out cfg || return 1
   out="$(_hi_addpkg_run "$home" "$cfg" a '-bat')" || _hi_why home cfg || return 1
   { [[ "$out" == *"~ -bat (replacing the row for bat in [a])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n\n[a.unwanted]\nbat = []\n\n[b]\ny = []'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[a]\nx = []\n\n[a.unwanted]\nbat = []\n\n[b]\ny = []'; } || _hi_why out cfg
 }
 
 # ...and in another group, it moves there - even an identical row, which is
@@ -225,7 +216,7 @@ function test_add_package_moves_a_row_between_groups() {
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n[a.required]\nbat = []\n[b]\ny = []\n'
   out="$(_hi_addpkg_run "$home" "$cfg" b +bat)" || _hi_why home cfg || return 1
   { [[ "$out" == *"~ +bat (moving the row for bat from [a] to [b])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n[a.required]\n[b]\ny = []\n\n[b.required]\nbat = []'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[a]\nx = []\n[a.required]\n[b]\ny = []\n\n[b.required]\nbat = []'; } || _hi_why out cfg
 }
 
 # a row above the first header is in no group, and moves out of there too
@@ -236,7 +227,7 @@ function test_add_package_moves_an_ungrouped_row() {
   _hi_addpkg_overlay "$cfg" 'top = []\n[b]\ny = []\n'
   out="$(_hi_addpkg_run "$home" "$cfg" b top)" || _hi_why home cfg || return 1
   { [[ "$out" == *"moving the row for top from [no group] to [b]"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[b]\ny = []\ntop = []'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[b]\ny = []\ntop = []'; } || _hi_why out cfg
 }
 
 # the same row in the same group changes nothing and writes nothing, however
@@ -248,7 +239,7 @@ function test_add_package_identical_row_is_a_no_op() {
   _hi_addpkg_overlay "$cfg" '[a.required]\n  foo   =   [ "bar","baz" ]  # mine\n'
   out="$(_hi_addpkg_run "$home" "$cfg" a +foo,bar,baz)" || _hi_why home cfg || return 1
   { [[ "$out" == *"$cfg/packages: +foo,bar,baz is already in [a]"* && "$out" == *"needs no change - nothing to write"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a.required]\n  foo   =   [ "bar","baz" ]  # mine'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[a.required]\n  foo   =   [ "bar","baz" ]  # mine'; } || _hi_why out cfg
 }
 
 # comments already in an overlay file survive a write - the read-rewrite loop
@@ -261,7 +252,7 @@ function test_add_package_preserves_comments() {
   _hi_addpkg_overlay "$cfg" '# a hand-written note\n[a] # the first\ngo = [] # a compiler\n'
   out="$(_hi_addpkg_run "$home" "$cfg" a cargo)" || _hi_why home cfg || return 1
   { [[ "$out" == *"+ cargo in [a]"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '# a hand-written note\n[a] # the first\ngo = [] # a compiler\ncargo = []'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '# a hand-written note\n[a] # the first\ngo = [] # a compiler\ncargo = []'; } || _hi_why out cfg
 }
 
 # the written row is what the check itself reads back, not just a file that
@@ -304,7 +295,7 @@ function test_add_package_second_call_does_not_recopy() {
   _hi_addpkg_run "$home" "$cfg" a foo >/dev/null || _hi_why home cfg || return 1
   printf '[a]\ntruncated = []\n' >"$cfg/packages"
   _hi_addpkg_run "$home" "$cfg" a bar >/dev/null || _hi_why home cfg || return 1
-  _hi_addpkg_is "$cfg/packages" '[a]\ntruncated = []\nbar = []' || _hi_why cfg
+  _hi_file_is "$cfg/packages" '[a]\ntruncated = []\nbar = []' || _hi_why cfg
 }
 
 # --dry-run reads through the cascade too: a row already in the tree's file
@@ -356,7 +347,7 @@ function test_remove_package_removes_by_first_package() {
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n[a.unwanted]\nexa = []\n[b]\nbat = ["batcat"]\n'
   out="$(_hi_rmpkg_run "$home" "$cfg" -exa bat)" || _hi_why home cfg || return 1
   { [[ "$out" == *"- -exa (from [a])"* && "$out" == *"- bat,batcat (from [b])"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []\n[a.unwanted]\n[b]'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[a]\nx = []\n[a.unwanted]\n[b]'; } || _hi_why out cfg
 }
 
 # a package with no row is said so, and nothing is written
@@ -367,7 +358,7 @@ function test_remove_package_without_a_row_is_a_no_op() {
   _hi_addpkg_overlay "$cfg" '[a]\nx = []\n'
   out="$(_hi_rmpkg_run "$home" "$cfg" nope)" || _hi_why home cfg || return 1
   { [[ "$out" == *"no row for nope"* && "$out" == *"needs no change - nothing to write"* ]] &&
-    _hi_addpkg_is "$cfg/packages" '[a]\nx = []'; } || _hi_why out cfg
+    _hi_file_is "$cfg/packages" '[a]\nx = []'; } || _hi_why out cfg
 }
 
 # with no overlay yet, removing a shipped row copies the tree in without it

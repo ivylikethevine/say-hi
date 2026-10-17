@@ -61,15 +61,6 @@ function _hi_plugins_fresh() {
   printf '#!/bin/sh\\n%-45s %s\\n' "# say-hi settings $n" "$_HI_MARKER"
 }
 
-# _hi_plugins_is <file> <body> - <file> holds exactly <body> (%b)
-function _hi_plugins_is() {
-  local want
-  want="$(printf '%b' "$2")"
-  [ "$(cat "$1")" = "$want" ] && return 0
-  _hi_cecho " | got: [$(cat "$1" 2>&1)]" "$RED"
-  return 1
-}
-
 # _hi_plugins_refused <config> <message> <flag> <args...> - the command
 # fails, says <message>, and leaves the overlay as it was: not made
 function _hi_plugins_refused() {
@@ -117,7 +108,7 @@ function test_plugin_off_writes_the_list() {
   cfg="$(_hi_plugins_cfg off)"
   out="$(_hi_plugins_run "$cfg" --disable-plugin lazygit vim tmux/tmux.conf)" || _hi_why cfg || return 1
   [[ "$out" == *" - lazygit"* && "$out" == *" - vim"* && "$out" == *"settings.sh updated"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'lazygit vim tmux/tmux.conf')\n" || _hi_why cfg
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'lazygit vim tmux/tmux.conf')\n" || _hi_why cfg
 }
 
 # one file of a directory member is a word too, there or not; a file of
@@ -127,9 +118,9 @@ function test_plugin_off_takes_one_file_of_a_directory() {
   cfg="$(_hi_plugins_cfg off-file)"
   out="$(_hi_plugins_run "$cfg" --disable-plugin extensions/10-kube zellij/layouts/work.kdl)" || _hi_why cfg || return 1
   [[ "$out" == *" - extensions/10-kube"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'extensions/10-kube zellij/layouts/work.kdl')\n" || _hi_why cfg || return 1
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'extensions/10-kube zellij/layouts/work.kdl')\n" || _hi_why cfg || return 1
   _hi_plugins_run "$cfg" --enable-plugin extensions/10-kube zellij/layouts/work.kdl >/dev/null || _hi_why cfg || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)" || _hi_why cfg || return 1
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)" || _hi_why cfg || return 1
   { _hi_plugins_refused "$(_hi_plugins_cfg off-file-r1)" "not a plugin or a member: header/sky" --disable-plugin header/sky &&
     _hi_plugins_refused "$(_hi_plugins_cfg off-file-r2)" "not a plugin or a member: extensions/sub/x" --disable-plugin extensions/sub/x &&
     _hi_plugins_refused "$(_hi_plugins_cfg off-file-r3)" "not a plugin or a member: extensions/x.bak" --disable-plugin extensions/x.bak &&
@@ -144,7 +135,7 @@ function test_plugin_off_keeps_the_other_settings() {
   mkdir -p "$cfg"
   printf '#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_PLUGINS_OFF="bat, rg"\nexport _HI_KEEP=1\n' >"$cfg/settings.sh"
   _hi_plugins_run "$cfg" --disable-plugin fzf >/dev/null || _hi_why cfg || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_KEEP=1\n$(_hi_plugins_off_line 'bat rg fzf')\n" || _hi_why cfg
+  _hi_file_is "$cfg/settings.sh" "#!/bin/sh\nexport _HI_MAX_WIDTH=72\nexport _HI_KEEP=1\n$(_hi_plugins_off_line 'bat rg fzf')\n" || _hi_why cfg
 }
 
 function test_plugin_off_twice_writes_nothing() {
@@ -153,7 +144,7 @@ function test_plugin_off_twice_writes_nothing() {
   _hi_plugins_run "$cfg" --disable-plugin bat >/dev/null || _hi_why cfg || return 1
   out="$(_hi_plugins_run "$cfg" --disable-plugin bat)" || _hi_why cfg || return 1
   [[ "$out" == *"bat is off already"* && "$out" != *updated* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'bat')\n" || _hi_why cfg
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'bat')\n" || _hi_why cfg
 }
 
 # switching the last one back on takes the line with it
@@ -163,9 +154,9 @@ function test_plugin_on_takes_a_word_back() {
   _hi_plugins_run "$cfg" --disable-plugin bat vim >/dev/null || _hi_why cfg || return 1
   out="$(_hi_plugins_run "$cfg" --enable-plugin vim)" || _hi_why cfg || return 1
   [[ "$out" == *" + vim"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'bat')\n" || _hi_why cfg || return 1
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(_hi_plugins_off_line 'bat')\n" || _hi_why cfg || return 1
   _hi_plugins_run "$cfg" --enable-plugin bat >/dev/null || _hi_why cfg || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)" || _hi_why cfg
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)" || _hi_why cfg
 }
 
 # a word that is on says so, and nothing is written
@@ -176,7 +167,7 @@ function test_plugin_on_says_a_word_is_on() {
   printf '#!/bin/sh\n' >"$cfg/settings.sh"
   out="$(_hi_plugins_run "$cfg" --enable-plugin bat)" || _hi_why cfg || return 1
   [[ "$out" == *"bat is not in the list"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "#!/bin/sh\n" || _hi_why cfg
+  _hi_file_is "$cfg/settings.sh" "#!/bin/sh\n" || _hi_why cfg
 }
 
 # a plugin off by default moves through _HI_PLUGINS_ON: on adds it, off
@@ -186,14 +177,14 @@ function test_plugin_on_moves_a_default_off_plugin() {
   cfg="$(_hi_plugins_cfg on-default)"
   out="$(_hi_plugins_run "$cfg" --enable-plugin zoxide)" || _hi_why cfg || return 1
   [[ "$out" == *" + zoxide"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(printf '%-45s %s' "export _HI_PLUGINS_ON='zoxide'" "$_HI_MARKER")\n" || _hi_why cfg _HI_MARKER || return 1
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(printf '%-45s %s' "export _HI_PLUGINS_ON='zoxide'" "$_HI_MARKER")\n" || _hi_why cfg _HI_MARKER || return 1
   out="$(_hi_plugins_run "$cfg" --enable-plugin zoxide)" || _hi_why cfg || return 1
   [[ "$out" == *"zoxide is on already"* ]] || _hi_because "said: $out" || return 1
   _hi_plugins_run "$cfg" --enable-plugin mise >/dev/null && _hi_plugins_run "$cfg" --disable-plugin zoxide >/dev/null || _hi_why cfg || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(printf '%-45s %s' "export _HI_PLUGINS_ON='mise'" "$_HI_MARKER")\n" || _hi_why cfg _HI_MARKER || return 1
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)$(printf '%-45s %s' "export _HI_PLUGINS_ON='mise'" "$_HI_MARKER")\n" || _hi_why cfg _HI_MARKER || return 1
   out="$(_hi_plugins_run "$cfg" --disable-plugin mise)" || _hi_why cfg || return 1
   [[ "$out" == *" - mise"* ]] || _hi_because "said: $out" || return 1
-  _hi_plugins_is "$cfg/settings.sh" "$(_hi_plugins_fresh)" || _hi_why cfg || return 1
+  _hi_file_is "$cfg/settings.sh" "$(_hi_plugins_fresh)" || _hi_why cfg || return 1
   out="$(_hi_plugins_run "$cfg" --disable-plugin atuin)" || _hi_why cfg || return 1
   [[ "$out" == *"atuin is off already (off by default)"* ]] || _hi_because "said: $out"
 }
