@@ -332,7 +332,7 @@ function test_session_rc_notes_the_directory_of_a_session_that_holds() {
 # session left opens as Resumed; an exit with its terminal still takes the
 # tree
 function test_load_notes_the_name_and_directory_a_session_holds_under() {
-  local t="$_HI_WORKDIR/held/u.hi.ffffff" home="$_HI_WORKDIR/held/home" noted="$_HI_WORKDIR/held/noted" out got
+  local t="$_HI_WORKDIR/held/u.hi.ffffff" home="$_HI_WORKDIR/held/home" noted="$_HI_WORKDIR/held/noted" out got want
   mkdir -p "$t/say-hi" "$home"
   rm -f "$noted"
   printf '%s\n' "$t/before" >"$t/say-hi/hi.cwd"
@@ -347,7 +347,8 @@ function test_load_notes_the_name_and_directory_a_session_holds_under() {
           _HI_CLEANUP="$1" _HI_ROOT="$1/say-hi"; load' _ "$t"
   ) 2>&1 | tr -d '\r')" || true
   got="$(cat "$noted" 2>&1)"
-  [ "$got" = "$(printf 'hi-box\n%s' "$home")" ] || _hi_because "hi.hold and hi.cwd during the session: $got" || return 1
+  want="$(printf 'hi-box\n%s' "$home")"
+  [ "$got" = "$want" ] || _hi_because "hi.hold and hi.cwd during the session: $got, want $want" || return 1
   case "$(_hi_strip_ansi "$out")" in *Resumed*) ;; *) _hi_because "a taken tree did not open as Resumed: $out" || return 1 ;; esac
   [ ! -d "$t" ] || _hi_because "an exit with its terminal left the tree"
 }
