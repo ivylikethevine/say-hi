@@ -141,7 +141,7 @@ function test_a_clone_under_another_name_installs_and_doctors() {
     _hi_why out home || return 1
   got="$(_hi_login_env "$home" bash -i -c 'printf %s "$_HI_ROOT"' </dev/null 2>/dev/null)"
   [ "$got" = "$root" ] || _hi_why got root || return 1
-  out="$(_hi_login_env "$home" bash -i -c 'hi --doctor --text' </dev/null 2>/dev/null)"
+  out="$(_hi_login_env "$home" bash -i -c '"$_HI_LAUNCHER" --doctor --text 2>&1' </dev/null 2>/dev/null)"
   [[ "$out" == *"local / tree: $root"* && "$out" == *"install / bash: "*"is wired to this tree (ok)"* ]] || _hi_why out root
 }
 
