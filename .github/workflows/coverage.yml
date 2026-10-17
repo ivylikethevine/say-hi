@@ -70,11 +70,15 @@ jobs:
   # The dedupe lookup (workflow_run/push only, for a tree whose PR run
   # published both figures) and the sweep's one eligibility gate, both here:
   # every sharded and gathering job below reads `sweep` instead of
-  # re-deriving "a green push or a same-repo PR" for itself.
-  # Skipped on a draft, and everything below skips with it.
+  # re-deriving "a green push or a same-repo PR" for itself. Each job's `if`
+  # still names the triggering run's conclusion, as lint_workflows.sh requires
+  # of a workflow_run job; the gate below would say false anyway.
+  # Skipped on a draft or a red run, and everything below skips with it.
   reuse:
     name: gate the sweep, and reuse the PR run's figures where possible
-    if: github.event.pull_request.draft != true
+    if: >-
+      github.event.pull_request.draft != true &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true
@@ -215,7 +219,9 @@ jobs:
   shard-kcov:
     name: kcov over the suite sweep (shard ${{ matrix.shard }})
     needs: reuse
-    if: ${{ !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' }}
+    if: >-
+      !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -300,7 +306,9 @@ jobs:
   shard-bashcov:
     name: bashcov over the suite sweep (shard ${{ matrix.shard }})
     needs: reuse
-    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
+    if: >-
+      !cancelled() && needs.reuse.outputs.sweep == 'true' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     # eight shards to kcov's three, each about seven minutes: with the trace
     # pipe blocking (tests/lib/coverage_env.sh) bash waits on bashcov's
@@ -414,7 +422,9 @@ jobs:
   gather-kcov:
     name: kcov - merge shards and publish
     needs: [reuse, shard-kcov]
-    if: ${{ !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' && needs.shard-kcov.result == 'success' }}
+    if: >-
+      !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' && needs.shard-kcov.result == 'success' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -506,7 +516,9 @@ jobs:
   gather-bashcov:
     name: bashcov - merge shards and publish
     needs: [reuse, shard-bashcov]
-    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' }}
+    if: >-
+      !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -573,7 +585,7 @@ jobs:
     name: coverage (comment)
     needs: [gather-kcov, gather-bashcov]
     if: >-
-      always() &&
+      always() && github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
