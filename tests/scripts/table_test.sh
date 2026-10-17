@@ -332,6 +332,15 @@ function test_text_cells_print_head_and_cell() {
   [ "$got" = "$want" ] || _hi_why got want
 }
 
+# under --text a heading is its words alone: no rule, no color
+function test_text_headings_are_their_words() {
+  local got
+  got="$(_hi_text_mode _hi_h1 "Local")"
+  [ "$got" = Local ] || _hi_why got || return 1
+  got="$(_hi_text_mode _hi_h2 "Targets")"
+  [ "$got" = Targets ] || _hi_why got
+}
+
 function run_table_tests() {
   _hi_h1 "Testing scripts/table.sh"
   _hi_workdir table
@@ -363,6 +372,7 @@ function run_table_tests() {
   _hi_h2 "Testing: --text (_HI_TEXT=1)"
   _hi_check "Rows print one a line, no box, the severity in brackets" test_text_rows_print_one_a_line
   _hi_check "A cell table prints its head words beside each cell" test_text_cells_print_head_and_cell
+  _hi_check "A heading is its words alone" test_text_headings_are_their_words
 
   _hi_h2 "Testing: _hi_cell / _hi_cell_raw"
   _hi_check "Pads to the width" test_cell_pads_to_the_width

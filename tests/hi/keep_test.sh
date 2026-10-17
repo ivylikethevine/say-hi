@@ -327,6 +327,19 @@ function test_keep_switched_off_sends_none_of_it() {
   [ -z "$out" ] || _hi_because "the switch unset said: $out"
 }
 
+# a tree that came without common/keep.sh, which is what the switch sends,
+# runs on hi.sh's stand-ins: hi answers, and --keep is refused as switched off
+function test_a_tree_without_keep_sh_runs_on_the_stand_ins() {
+  local t out rc=0
+  t="$(_hi_scratch_tree nokeep-hi common config scripts link:hi.sh)"
+  rm -f "$t/say-hi/common/keep.sh"
+  out="$(_HI_RELEASE=1.2.3 _HI_HOME="$t" _HI_ROOT="$t/say-hi" bash "$t/say-hi/hi.sh" --version 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *1.2.3* ]] || _hi_because "--version without keep.sh: $rc, $out" || return 1
+  out="$(_HI_HOME="$t" _HI_ROOT="$t/say-hi" bash "$t/say-hi/hi.sh" --keep box 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--keep: the kept session is switched off (_HI_DISABLE_KEEP=1)"* ]] ||
+    _hi_because "--keep box without keep.sh: $rc, $out"
+}
+
 # a dropped link runs the bootstrap's exit trap where sh is bash, so on a
 # connect that keeps, the trap asks before it removes the tree
 function test_keep_start_guards_the_trap_and_starts_the_owner_pane() {
@@ -979,6 +992,7 @@ function run_hi_keep_tests() {
   _hi_check "The reattach rides ahead of the unpack" test_keep_reattach_rides_ahead_of_the_unpack
   _hi_check "A command and --no-keep carry neither block" test_keep_leaves_a_command_and_no_keep_alone
   _hi_check "Switched off, a connect carries none of it and the flags are refused" test_keep_switched_off_sends_none_of_it
+  _hi_check "A tree without keep.sh runs on the stand-ins" test_a_tree_without_keep_sh_runs_on_the_stand_ins
   _hi_check "The next connect removes a dead owner pane's tree" test_keep_sweep_removes_the_tree_of_a_dead_owner_pane
   _hi_check "...and hi --end's sweep, the session it ended, live pane and all" test_keep_sweep_takes_the_session_hi_end_ended
   _hi_check "_hi_mux_kill ends each multiplexer's session its own way" test_mux_kill_spells_each_tool_s_kill

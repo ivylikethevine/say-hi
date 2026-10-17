@@ -746,6 +746,49 @@ function test_keep_stays_is_no_outside_a_kept_session() {
   ) || _hi_why
 }
 
+# screen's list names the session's state in brackets, and a multiplexer hi
+# does not know is nobody
+function test_keep_attached_reads_screen_s_list() {
+  local bin="$_HI_WORKDIR/keepscreen" flag="$_HI_WORKDIR/sattached" v got
+  mkdir -p "$bin"
+  cat >"$bin/screen" <<'SHIM'
+#!/bin/sh
+printf 'There is a screen on:\n\t9.hi-box\t(%s)\n' "$(cat "$_HI_TEST_ATTACHED")"
+SHIM
+  chmod +x "$bin/screen"
+  for v in Attached:0 Detached:1; do
+    printf '%s\n' "${v%%:*}" >"$flag"
+    got=0
+    PATH="$bin:$PATH" STY="" _HI_TEST_ATTACHED="$flag" _HI_KEEP_MUX=screen _HI_KEEP_NAME=hi-box _hi_keep_attached || got=$?
+    [ "$got" = "${v##*:}" ] || _hi_because "${v%%:*}: _hi_keep_attached answered $got" || return 1
+  done
+  got=0
+  _HI_KEEP_MUX=byobu _HI_KEEP_NAME=hi-box _hi_keep_attached || got=$?
+  [ "$got" = 1 ] || _hi_because "an unknown multiplexer: _hi_keep_attached answered $got"
+}
+
+# an owner pane's timeout watcher goes with clean_all, as the tree does. The
+# stand-in says when it is up (a kill between fork and exec is lost), and is
+# waited on by the shell that started it: killed, it answers 143 at once;
+# missed, it runs its 5s out and answers 0.
+function test_clean_all_ends_the_keep_watcher() {
+  local t got
+  t="$(_hi_shared_tree endwatch)"
+  got="$(
+    _HI_CLEANUP="$t" _HI_ROOT="$t/say-hi" _HI_SESSION_RC_DIR="" _HI_KEEP_OUTER="" _HI_KEEP_MUX=""
+    (
+      : >"$t.up"
+      exec sleep 5
+    ) >/dev/null 2>&1 &
+    _hi_keep_watch_pid=$!
+    _hi_poll_bool 40 0.05 test -e "$t.up" || exit 9
+    clean_all
+    wait "$_hi_keep_watch_pid" && printf 'ran out' || printf '%s' "$?"
+  )"
+  [ "$got" = 143 ] || _hi_because "the keep watcher's end: $got" || return 1
+  [ ! -e "$t" ] || _hi_because "the tree survived clean_all"
+}
+
 function run_load_session_tests() {
   _hi_load_begin
   local vim="env XDG_STATE_HOME=$_HI_HOME/vim/state XDG_DATA_HOME=$_HI_HOME/vim/data XDG_CACHE_HOME=$_HI_HOME/vim/cache vim -i NONE -u $_HI_VIMRC"
@@ -789,6 +832,7 @@ function run_load_session_tests() {
   _hi_h2 "Testing: a kept session's owner pane"
   _hi_check "_hi_keep_seconds reads <n> and <n>[smhd], nothing else" test_keep_seconds_reads_the_duration_grammar
   _hi_check "zellij's client list: only a bare header is nobody" test_keep_attached_reads_zellij_s_client_list
+  _hi_check "screen's list: the state in brackets; an unknown multiplexer is nobody" test_keep_attached_reads_screen_s_list
   _hi_check "The watcher ends a session nobody is attached to" test_keep_watch_ends_a_session_nobody_is_attached_to
   _hi_check "...and is off without a session, or at a timeout of 0" test_keep_watch_is_off_outside_a_kept_session
   _hi_check_capable pty "The owner pane's exit asks first" test_keep_stays_asks_before_the_owner_pane_closes
@@ -802,6 +846,7 @@ function run_load_session_tests() {
   _hi_check "An owner pane leaves a launcher its multiplexer opens panes on" test_keep_panes_leaves_a_launcher_the_multiplexer_opens
   _hi_check "...with the overlay's bin/ on a pane's \$PATH" test_keep_panes_put_the_overlay_s_bin_on_a_pane_s_path
   _hi_check "...and its end is the session's, every pane of it" test_clean_all_ends_the_session_an_owner_pane_holds
+  _hi_check "...and its timeout watcher goes with it" test_clean_all_ends_the_keep_watcher
   _hi_check "A dropped session that holds leaves its tree to the timer" test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer
   _hi_check "...which leaves a taken tree, and ends on hi.end" test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end
   _hi_check "A session that holds notes its directory, each prompt" test_session_rc_notes_the_directory_of_a_session_that_holds

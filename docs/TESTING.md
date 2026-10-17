@@ -313,6 +313,9 @@ above the one that closes it; `-` for the kcov list reads bashcov's alone. The
 `comment` job puts the table in its summary, kcov's column main's, and the
 lines bashcov did not record, for the PR's diff, in the comment. The `test_runner_ci` suite runs
 `--join`, `--untested`, and `tests/coverage_v2.sh --merge` over fixtures.
+Without a local sweep, `scratch/coverage_gaps.sh <run id>` reads a CI run's two
+reports out of its artifacts and writes the lines both tools missed, sorted into
+tracer artifacts, platform-only arms, and gaps, under `local/`.
 
 In CI each tool is sharded (`--shard i/n`, which `_hi_cov_select_suites` passes
 to `test_runner.sh` with `_HI_SHARD_BY` naming the tracer: the suites dealt by

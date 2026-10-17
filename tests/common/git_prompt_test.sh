@@ -348,6 +348,18 @@ function test_a_new_commit_drops_the_describe_memo() {
   ) || _hi_why out1 out2 after before
 }
 
+# a worktree's .git is a file, not a directory, so the fork-free walk has no
+# answer and rev-parse is asked for the git dir: the prompt is the worktree's
+# own branch, clean
+function test_a_worktree_asks_git_for_its_dir() {
+  local dir out
+  dir="$(_hi_git_fixture)"
+  git -C "$dir" worktree add -q -b wt "$dir-wt" >/dev/null 2>&1 || _hi_because "git worktree add failed" || return 1
+  [ -f "$dir-wt/.git" ] || _hi_because "the worktree's .git is not a file" || return 1
+  out="$(cd "$dir-wt" && _hi_git_prompt)"
+  { [[ "$out" == *"wt"* ]] && _hi_has_rendered "$out" "${BRGREEN}✔${NC}"; } || _hi_why out
+}
+
 function run_git_prompt_tests() {
   _hi_require_bin git
 
@@ -388,6 +400,7 @@ function run_git_prompt_tests() {
   _hi_check "Rebase (merge backend)" test_rebase_merge_backend_shows_state
   _hi_check "The out-var form (what bash.sh/zsh.zsh call) fills the var, not stdout" test_out_var_form_fills_variable_not_stdout
   _hi_check "Agrees with the stdout form" test_out_var_and_stdout_form_agree
+  _hi_check "A worktree, whose .git is a file, asks git for its dir" test_a_worktree_asks_git_for_its_dir
   _hi_check "Pre-cleared when disabled" test_out_var_is_precleared_when_disabled
   _hi_check "Pre-cleared outside a repo" test_out_var_is_precleared_outside_a_repo
 
