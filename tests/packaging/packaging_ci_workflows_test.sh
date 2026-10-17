@@ -42,7 +42,9 @@ function test_aur_is_dispatch_only() {
 # The tap PR is part of the release: release.yml's tap job waits on brew's
 # verdict (a formula that failed install/test/audit never reaches the tap),
 # skips the same debug and prerelease tags brew does, opens a PR rather than
-# pushing, and reads the tap token - never the repo's own - for that.
+# pushing, and reads the tap token - never the repo's own - for that. The
+# commit goes through createCommitOnBranch so GitHub signs it (the tap's
+# ruleset requires that), never a clone and push from the runner.
 function test_release_workflow_opens_the_tap_pr_after_brew() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" tap)"
@@ -56,7 +58,10 @@ function test_release_workflow_opens_the_tap_pr_after_brew() {
     [[ "$job" == *"needs.brew.outputs.prerelease != 'true'"* ]] &&
     [[ "$job" == *"secrets.HOMEBREW_TAP_TOKEN"* ]] &&
     [[ "$job" == *"gh pr create"* ]] &&
-    [[ "$job" == *"tap_formula.sh <../dist/manifests/say-hi.rb >Formula/say-hi.rb"* ]] &&
+    [[ "$job" == *"tap_formula.sh <dist/manifests/say-hi.rb >"* ]] &&
+    [[ "$job" == *"createCommitOnBranch"* ]] &&
+    [[ "$job" == *".commit.verification.verified"* ]] &&
+    [[ "$job" != *"git push"* ]] &&
     [[ "$job" != *"- [ ]"* ]] &&
     [[ "$job" != *"environment:"* ]] || _hi_why job
 }
