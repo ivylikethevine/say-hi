@@ -9,9 +9,10 @@
 # everywhere else. Noise, so off.
 unresolved_diagnostics = false
 
-# Build output, packaging stages and runtime data, matched by directory name
-# (not path); dot-directories are skipped already.
-excluded_folders = ["dist"]
+# Build output, packaging stages, runtime data and local Jekyll builds, matched
+# by directory name (not path) across every repository sharing this file;
+# dot-directories are skipped already.
+excluded_folders = ["_site", "dist", "local", "target"]
 
 # Write links the way the docs spell them: .md extension, headings as slugs.
 include_md_extension_md_link = true
