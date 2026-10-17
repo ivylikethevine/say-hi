@@ -53,10 +53,12 @@ files, and the payload budget chief among them. Read it before touching
 ### `_HI_HOME` points at this checkout
 
 Set `_HI_HOME` explicitly on every hi.sh, script, or test invocation, to the
-directory **holding this checkout** (the tree is `$_HI_HOME/say-hi`) — never
-to a real install of hi, even one on the same machine. Symptom of getting it
-wrong: suites report fewer/MISSING cases, or a script runs "clean" against the
-wrong tree.
+directory **holding this checkout** (the tree is `$_HI_HOME/say-hi`; a
+checkout under another name is `_HI_ROOT=<the checkout>` instead, GLOSSARY:
+HI.33) — never to a real install of hi, even one on the same machine. An
+inherited `_HI_ROOT` of another tree is never taken over an explicit
+`_HI_HOME`. Symptom of getting it wrong: suites report fewer/MISSING cases,
+or a script runs "clean" against the wrong tree.
 
 **Clear inherited `_HI_*` first.** A session launched from a shell with hi
 installed inherits that install's `_HI_*` (`_HI_HOME`, `_HI_ROOT`,

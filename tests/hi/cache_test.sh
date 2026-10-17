@@ -363,7 +363,7 @@ function test_payload_cached_is_keyed_on_the_tree() {
   mkdir -p "$other"
   ln -sfn "$_HI_ROOT" "$other/say-hi"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached a || _hi_why dir || return 1
-  XDG_RUNTIME_DIR="$dir" _HI_HOME="$other" _hi_payload_cached b || _hi_why dir other || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_HOME="$other" _HI_ROOT="$other/say-hi" _hi_payload_cached b || _hi_why dir other || return 1
   [ -s "$a" ] && [ -s "$b" ] && [ "$a" != "$b" ] || _hi_why a b
 }
 
@@ -521,20 +521,80 @@ function _hi_tag_fixture() {
   printf '%s' "$dir"
 }
 
-# _hi_tag_run <dir> <runtime-dir> <domain> - _hi_tag_settings for <domain>,
-# then what it left: $_HI_PLAIN, the path settings.sh rides from, whether
-# that is $_HI_TAG_SETTINGS, and the file's lines `;`-joined
+# _hi_tag_run <dir> <runtime-dir> <domain> [arm] - _hi_tag_settings for
+# <domain>, an ssh host or, with [arm], a target of that backend, then what
+# it left: $_HI_PLAIN, the path settings.sh rides from, whether that is
+# $_HI_TAG_SETTINGS, and the file's lines `;`-joined. $_HI_SITE_DIR is
+# <dir>/site, present or not.
 function _hi_tag_run() {
   (
     local src=""
-    _HI_CONFIG_DIR="$1" _HI_SETTINGS="$1/settings.sh" _HI_SSH_CONFIG="$1/ssh_config"
+    _HI_CONFIG_DIR="$1" _HI_SETTINGS="$1/settings.sh" _HI_SSH_CONFIG="$1/ssh_config" _HI_SITE_DIR="$1/site"
     XDG_RUNTIME_DIR="$2" DOMAIN="$3" _HI_PLAIN=0
     unset _HI_TAG_NAME
-    _hi_tag_settings "$1/fallback"
+    _hi_tag_settings "$1/fallback" ${4:+"$4"}
     _hi_overlay_src settings.sh src || src=""
     printf '%s|%s|%s|' "$_HI_PLAIN" "$src" "$([ -n "$src" ] && [ "$src" = "$_HI_TAG_SETTINGS" ] && echo joined)"
     [ -z "$src" ] || tr '\n' ';' <"$src"
   )
+}
+
+# a target that is no ssh host carries its backend's word: a docker
+# container reads settings.docker.sh, a pod settings.kube.sh, then its
+# context's and its namespace's files in that order, the last winning; an
+# ssh host reads none of them, nor a container a host's tag file
+function test_tag_settings_read_a_backend_s_word() {
+  local dir rt out
+  dir="$(_hi_tag_fixture tag.backend)"
+  rt="$(_hi_cache_rt tag.backend.rt)"
+  printf 'export _HI_KEEP=1\n' >"$dir/settings.docker.sh"
+  printf 'export _HI_PLAIN=1\n' >"$dir/settings.kube.sh"
+  printf 'export _HI_MAX_WIDTH=90\n' >"$dir/settings.ctx1.sh"
+  printf 'export _HI_MAX_WIDTH=60\nexport _HI_PLAIN=0\n' >"$dir/settings.ns1.sh"
+  out="$(_hi_tag_run "$dir" "$rt" box docker)"
+  [[ "$out" == "0|$rt/hi.settings."*"|joined|export _HI_KEEP=1;" ]] || _hi_because "docker: $out" || return 1
+  out="$(_hi_tag_run "$dir" "$rt" ctx1:ns1:pod1 kube)"
+  [[ "$out" == "0|$rt/hi.settings."*"|joined|export _HI_PLAIN=1;export _HI_MAX_WIDTH=90;export _HI_MAX_WIDTH=60;export _HI_PLAIN=0;" ]] ||
+    _hi_because "a pod with a context and a namespace: $out" || return 1
+  out="$(_hi_tag_run "$dir" "$rt" ns1:pod1 kube)"
+  [[ "$out" == "0|$rt/hi.settings."*"|joined|export _HI_PLAIN=1;export _HI_MAX_WIDTH=60;export _HI_PLAIN=0;" ]] ||
+    _hi_because "a pod with a namespace: $out" || return 1
+  out="$(_hi_tag_run "$dir" "$rt" web1)"
+  [[ "$out" == "1|"*"|joined|export _HI_PLAIN=1;" ]] || _hi_because "an ssh host: $out" || return 1
+  out="$(_hi_tag_run "$dir" "$rt" web1 docker)"
+  [[ "$out" == "0|"*"|joined|export _HI_KEEP=1;" ]] || _hi_because "a container named like a tagged host: $out"
+}
+
+# the site tier's settings.sh (HI.61) rides ahead of the user's, joined,
+# whether or not a tag's file follows, and a line of the user's wins
+function test_site_settings_ride_joined_under_the_user_s() {
+  local dir rt out
+  dir="$(_hi_tag_fixture tag.site)"
+  rt="$(_hi_cache_rt tag.site.rt)"
+  mkdir -p "$dir/site"
+  printf 'export _HI_MAX_WIDTH=70\n' >"$dir/site/settings.sh"
+  printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(_hi_tag_run "$dir" "$rt" dev1)"
+  [[ "$out" == "0|$rt/hi.settings."*"|joined|export _HI_MAX_WIDTH=70;export _HI_MAX_WIDTH=100;" ]] ||
+    _hi_because "an untagged host: $out" || return 1
+  out="$(_hi_tag_run "$dir" "$rt" me@web1)"
+  [[ "$out" == "1|"*"|joined|export _HI_MAX_WIDTH=70;export _HI_MAX_WIDTH=100;export _HI_PLAIN=1;" ]] ||
+    _hi_because "a tagged host: $out"
+}
+
+# a site packages stands in for the tree's default until the user copies
+# one into the overlay, and rides in its place as that copy would; a target
+# reads no site directory of its own
+function test_site_packages_stand_in_until_the_user_copies() {
+  local dir got got2 got3
+  dir="$_HI_WORKDIR/site.packages"
+  mkdir -p "$dir/site" "$dir/overlay"
+  printf '[core]\nbat = []\n' >"$dir/site/packages"
+  got="$(_HI_CONFIG_DIR="$dir/overlay" _HI_SITE_DIR="$dir/site" _hi_overlay_src packages 2>/dev/null)"
+  printf '[core]\neza = []\n' >"$dir/overlay/packages"
+  got2="$(_HI_CONFIG_DIR="$dir/overlay" _HI_SITE_DIR="$dir/site" _hi_overlay_src packages 2>/dev/null)"
+  got3="$(_HI_CONFIG_DIR="$dir/none" _HI_SITE_DIR="$dir/site" _HI_REMOTE_SESSION=1 _hi_overlay_src packages 2>/dev/null)"
+  [ "$got" = "$dir/site/packages" ] && [ "$got2" = "$dir/overlay/packages" ] && [ -z "$got3" ] || _hi_why got got2 got3
 }
 
 # a tagged host: its tag's file is read here, and settings.sh rides joined to
@@ -826,6 +886,9 @@ function run_cache_tests() {
   _hi_check "A tag's file stands alone, and is not rewritten" test_tag_settings_stand_alone_and_keep_their_file
   _hi_check "The overlay archive holds the joined settings.sh" test_tag_settings_ride_in_the_overlay_tar
   _hi_check "No runtime dir: the caller's own file" test_tag_settings_fall_back_without_a_runtime_dir
+  _hi_check "A container reads its backend's file, a pod its context's and namespace's too" test_tag_settings_read_a_backend_s_word
+  _hi_check "The site's settings.sh rides joined under the user's" test_site_settings_ride_joined_under_the_user_s
+  _hi_check "A site packages stands in for the tree's until the user copies one" test_site_packages_stand_in_until_the_user_copies
   _hi_check "Shared falls back without a runtime dir" test_ctl_open_shared_falls_back_without_a_runtime_dir
   _hi_check "Gives up quietly with nowhere to put a socket" test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket
   _hi_check "No multiplexing on an MSYS client" test_ctl_open_declines_to_multiplex_on_msys

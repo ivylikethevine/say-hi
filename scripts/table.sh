@@ -134,6 +134,14 @@ function _hi_widen() {
   _hi_widen_to "$var" ${lens[@]+"${lens[@]}"}
 }
 
+# --text: no box and no color - one row a line, `<section> / <label>: <text>`,
+# for a screen reader or a grep. A command that takes the switch sets $_HI_TEXT
+# (and $NO_COLOR) before core.sh is sourced; here the rules print nothing, the
+# head row keeps its labels, the cells collect, and the row's end prints them.
+_HI_TEXT="${_HI_TEXT:-0}"
+_HI_TEXT_SECTION=""
+_HI_TEXT_HEAD=() _HI_TEXT_CELLS=()
+
 # _hi_hbar <top|mid|bottom> <width...> - one horizontal rule; each column is
 # padded by one space either side, so a width of n renders n+2 fills. The
 # position picks the corners and the junction from lib.sh's $_HI_BOX_* set:
@@ -141,6 +149,7 @@ function _hi_widen() {
 # identically there and differ only where the box glyphs do.
 function _hi_hbar() {
   local pos="$1" left mid right w fill seg
+  [ "$_HI_TEXT" != 1 ] || return 0
   shift
   case "$pos" in
   top) left="$_HI_BOX_TL" mid="$_HI_BOX_T" right="$_HI_BOX_TR" ;;
@@ -159,6 +168,15 @@ function _hi_hbar() {
 # _hi_head_row <width> <label>... - the header row, each label padded to its column
 function _hi_head_row() {
   local out="$_HI_BOX_V" cell
+  if [ "$_HI_TEXT" = 1 ]; then
+    # the labels, lower-cased, name the cells of every row below
+    _HI_TEXT_HEAD=()
+    while [ $# -ge 2 ]; do
+      _HI_TEXT_HEAD+=("$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')")
+      shift 2
+    done
+    return 0
+  fi
   while [ $# -ge 2 ]; do
     _hi_pad_to cell "$1" "$2"
     out="$out $cell $_HI_BOX_V"
@@ -168,9 +186,26 @@ function _hi_head_row() {
 }
 
 # _hi_row_end - the closing edge every row ends with, so no caller spells the
-# glyph and a row cannot end in a different vocabulary than its rules
+# glyph and a row cannot end in a different vocabulary than its rules. Under
+# --text, the row: its first cell as the label, the rest as `<head> <cell>`
+# a comma apart; a continuation row (no first cell) indented under its own
 function _hi_row_end() {
-  printf '%s\n' "$_HI_BOX_V"
+  local _hi_re_i _hi_re_out="" _hi_re_sep=""
+  if [ "$_HI_TEXT" != 1 ]; then
+    printf '%s\n' "$_HI_BOX_V"
+    return 0
+  fi
+  for ((_hi_re_i = 1; _hi_re_i < ${#_HI_TEXT_CELLS[@]}; _hi_re_i++)); do
+    [ -n "${_HI_TEXT_CELLS[_hi_re_i]}" ] || continue
+    _hi_re_out+="$_hi_re_sep${_HI_TEXT_HEAD[_hi_re_i]:+${_HI_TEXT_HEAD[_hi_re_i]} }${_HI_TEXT_CELLS[_hi_re_i]}"
+    _hi_re_sep=", "
+  done
+  if [ -n "${_HI_TEXT_CELLS[0]:-}" ]; then
+    printf '%s%s: %s\n' "${_HI_TEXT_SECTION:+$_HI_TEXT_SECTION / }" "${_HI_TEXT_CELLS[0]}" "$_hi_re_out"
+  else
+    printf '  %s\n' "$_hi_re_out"
+  fi
+  _HI_TEXT_CELLS=()
 }
 
 # _hi_cell <width> <escape> <text> - one padded, colored cell of plain text; an
@@ -178,6 +213,10 @@ function _hi_row_end() {
 # escapes go through %b: the text is printed as-is, backslashes and all.
 function _hi_cell() {
   local padded
+  [ "$_HI_TEXT" != 1 ] || {
+    _HI_TEXT_CELLS+=("$3")
+    return 0
+  }
   _hi_pad_to padded "$1" "$3"
   _hi_paint padded "$2" "$padded"
   printf '%s %s ' "$_HI_BOX_V" "$padded"
@@ -188,6 +227,10 @@ function _hi_cell() {
 # as) and its own colors (so it is emitted as-is rather than wrapped in one).
 function _hi_cell_raw() {
   local pad
+  [ "$_HI_TEXT" != 1 ] || {
+    _HI_TEXT_CELLS+=("$3")
+    return 0
+  }
   _hi_repeat pad $(($1 - $2)) ' '
   printf '%s %b%s ' "$_HI_BOX_V" "$3$NC" "$pad"
 }
@@ -199,10 +242,34 @@ function _hi_cell_raw() {
 # width is known. `hi --doctor` and `hi --plugins` both draw through it.
 _HI_ROWS_LABEL=() _HI_ROWS_TEXT=() _HI_ROWS_SEV=() _HI_ROWS_COLOR=()
 
-# _hi_section <title> - a section's banner, $HOME shortened to ~
+# _hi_section <title> - a section's banner, $HOME shortened to ~; under
+# --text the word every row of it opens on
 function _hi_section() {
   _hi_tilde "$1"
+  if [ "$_HI_TEXT" = 1 ]; then
+    _HI_TEXT_SECTION="$_HI_TILDED"
+    return 0
+  fi
   _hi_h2 "$_HI_TILDED"
+}
+
+# _hi_rows_text - the rows in $_HI_ROWS_* one a line: `<section> / <label>:
+# <text>`, a multi-line text on the one line, a warn, bad, or ok row saying
+# so in brackets where the box has its mark. No fold: the same rows in the
+# same order as --json's.
+function _hi_rows_text() {
+  local _hi_rt_i _hi_rt_n="${#_HI_ROWS_SEV[@]}" _hi_rt_label _hi_rt_line _hi_rt_sev
+  for ((_hi_rt_i = 0; _hi_rt_i < _hi_rt_n; _hi_rt_i++)); do
+    _hi_tilde "${_HI_ROWS_LABEL[_hi_rt_i]}"
+    _hi_rt_label="$_HI_TILDED"
+    _hi_tilde "${_HI_ROWS_TEXT[_hi_rt_i]}"
+    _hi_rt_line="${_HI_TILDED//$'\r'/}"
+    _hi_rt_line="${_hi_rt_line//$'\n'/ }"
+    _hi_rt_line="${_hi_rt_line//$'\t'/ }"
+    _hi_rt_sev=""
+    case "${_HI_ROWS_SEV[_hi_rt_i]}" in ok | warn | bad) _hi_rt_sev=" (${_HI_ROWS_SEV[_hi_rt_i]})" ;; esac
+    printf '%s%s%s%s\n' "${_HI_TEXT_SECTION:+$_HI_TEXT_SECTION / }" "${_hi_rt_label:+$_hi_rt_label: }" "$_hi_rt_line" "$_hi_rt_sev"
+  done
 }
 
 # _hi_row <label> <text> [severity] [label-color] - one row of the open section
@@ -271,6 +338,10 @@ function _hi_wrap() {
 function _hi_rows_box() {
   local wl=0 wt=0 i=0 n line first glyph color fit
   local -a pieces
+  if [ "$_HI_TEXT" = 1 ]; then
+    _hi_rows_text
+    return 0
+  fi
   _hi_rows_fold
   n="${#_HI_ROWS_SEV[@]}"
   [ "$n" -gt 0 ] || return 0

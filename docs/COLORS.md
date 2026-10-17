@@ -15,7 +15,8 @@ Every username and hostname resolves to a color derived from its own name, so
 an unpinned host looks the same from every machine you say `hi` from. Pin the
 ones that matter in `~/.config/say-hi/colors`, which is TOML: a `[type]` line
 opens a table, and each row under it is `name = "color"`, on one line. A name
-that is not letters, digits, `_` and `-` alone goes in double quotes.
+that is not letters, digits, `_` and `-` alone goes in double quotes
+([the TOML hi reads](SETTINGS.md#the-toml-hi-reads) is the whole grammar).
 
 ```toml
 [username]
@@ -184,9 +185,11 @@ The table a row sits under sets what the row is for:
 - **`[group.required]`**: silent while installed, an alarm (`✗`) when
   missing — the `base` group's coreutils.
 
-hi reads that much of TOML and no more: a value on a second line, a string
-in single quotes, or an inline table is a row it skips, and `hi --doctor`
-says so of a file still in an older format.
+hi reads that much of TOML and no more
+([the TOML hi reads](SETTINGS.md#the-toml-hi-reads)): a value on a second
+line, a string in single quotes, or an inline table is a row it skips, and
+`hi --doctor` names the line, and says so of a file still in an older
+format.
 
 Warnings and alarms sort first and paint in the loudest missing color.
 Every other row paints in its group's tier of the ramp above; there is no

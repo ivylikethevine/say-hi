@@ -33,7 +33,7 @@
 --add-color|hosttag prod red --dry-run|
 --remove-color|username root --dry-run|
 --plugins||--disable-plugin tmux
+--plugins|--text|--disable-plugin tmux
 --disable-plugin|bat --dry-run|
 --enable-plugin|tmux --dry-run|--disable-plugin tmux
---add-plugin|cli lnav lnav/config.json home=~/.config/lnav/config.json --dry-run|
---remove-plugin|lnav --dry-run|--add-plugin cli lnav lnav/config.json home=~/.config/lnav/config.json
+--edit|-|

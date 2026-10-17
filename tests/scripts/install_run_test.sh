@@ -424,14 +424,28 @@ function test_install_gate_accepted_at_a_terminal_continues() {
     grep -qF "$_HI_MARKER" "$home/.bashrc"; } || _hi_why home _HI_MARKER
 }
 
-# a first install asks a terminal one thing, and "n" keeps hi off this
-# machine; the menu is hi --configure's
+# a first install asks a terminal one thing, which preset to start from,
+# the five listed; "m" is minimal, which keeps hi off this machine. The menu
+# is hi --configure's
 function test_first_install_asks_only_about_this_machine() {
-  local home="$_HI_WORKDIR/first-q" out="$_HI_WORKDIR/first-q.pty.out"
-  _hi_run_install_pty first-q 'n\n' --link none || _hi_why || return 1
-  { grep -qF "Style this machine's own shells too" "$out" && grep -qF 'Installed!' "$out" &&
-    ! grep -qF 'Nothing is written until you save' "$out" &&
+  local home="$_HI_WORKDIR/first-q" out="$_HI_WORKDIR/first-q.pty.out" p plain
+  _hi_run_install_pty first-q 'm\n' --link none || _hi_why || return 1
+  # each name as the pick draws it, its first letter the hotkey: [b]alanced
+  plain="$(_hi_strip_ansi "$(cat "$out")")"
+  for p in everything balanced minimal lean configs; do
+    [[ "$plain" == *"[${p:0:1}]${p:1}"* ]] || _hi_because "the pick never listed $p: $plain" || return 1
+  done
+  { grep -qF "Start from which?" "$out" && grep -qF "starting from the 'minimal' preset" "$out" &&
+    grep -qF 'Installed!' "$out" && ! grep -qF 'Nothing is written until you save' "$out" &&
     grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"; } || _hi_why out home
+}
+
+# ...and Enter is everything, which writes no setting line
+function test_first_install_defaults_to_everything() {
+  local home="$_HI_WORKDIR/first-e" out="$_HI_WORKDIR/first-e.pty.out" got
+  _hi_run_install_pty first-e '\n' --link none || _hi_why || return 1
+  got="$(grep -c '^export ' "$home/.config/say-hi/settings.sh")"
+  { grep -qF "starting from the 'everything' preset" "$out" && grep -qF 'Installed!' "$out" && [ "$got" = 0 ]; } || _hi_why out got
 }
 
 # ...and nothing at all once there is a settings.sh
@@ -440,7 +454,7 @@ function test_a_later_install_asks_nothing() {
   mkdir -p "$home/.config/say-hi"
   printf '#!/bin/sh\n' >"$home/.config/say-hi/settings.sh"
   _hi_run_install_pty later-q '' --link none || _hi_why || return 1
-  { ! grep -qF 'Style this machine' "$out" && grep -qF 'Installed!' "$out"; } || _hi_why out
+  { ! grep -qF 'Start from which' "$out" && grep -qF 'Installed!' "$out"; } || _hi_why out
 }
 
 # hi --configure quit at its menu writes nothing and says so
@@ -511,15 +525,14 @@ function test_locator_walks_a_bare_name_symlink() {
   _hi_run_named_the_tree "$out" || _hi_why out
 }
 
-# The first command a fresh clone runs has to answer a checkout that is not
-# called say-hi by name - hi.sh has that guard, and install.sh reached it
-# first with a raw "No such file" from bash
-function test_a_misnamed_clone_is_refused_by_name() {
+# A clone under any name installs in place: its rc lines name the tree by
+# _HI_ROOT, and nothing asks for the name say-hi (HI.33)
+function test_a_clone_under_any_name_installs_in_place() {
   local dir="$_HI_WORKDIR/misnamed" out rc=0
   mkdir -p "$dir"
   cp -R "$_HI_RUN_TREE" "$dir/sayhi"
-  out="$(_hi_run_env misnamed-home bash "$dir/sayhi/scripts/install.sh" --uninstall --dry-run 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"has to be a directory named say-hi"* ]] || _hi_why rc out
+  out="$(_hi_run_env misnamed-home bash "$dir/sayhi/scripts/install.sh" --dry-run --link none --shell bash 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"_HI_ROOT=\"$dir/sayhi\""* && "$out" != *"named say-hi"* ]] || _hi_why rc out
 }
 
 # reached as `hi --uninstall`, every message says so - the usage line, the
@@ -583,7 +596,7 @@ function test_configure_help_is_its_own() {
 function test_configure_without_a_terminal_says_so() {
   local out rc=0
   out="$(_hi_run_install_here nomenu --configure 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean"* ]] || _hi_why rc out || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal lean configs"* ]] || _hi_why rc out || return 1
   rc=0
   out="$(_hi_run_install_here nomenu-install --dry-run --link none 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]] || _hi_why rc out
@@ -676,7 +689,7 @@ function run_install_run_tests() {
   _hi_check "The last --link on the line wins" test_last_link_flag_wins
   _hi_check "--link user undoes an earlier none" test_link_user_undoes_an_earlier_none
   _hi_check "--configure with no terminal says so" test_configure_without_a_terminal_says_so
-  _hi_check "A clone not named say-hi is refused by name" test_a_misnamed_clone_is_refused_by_name
+  _hi_check "A clone under any name installs in place" test_a_clone_under_any_name_installs_in_place
   _hi_check "--dry-run installs nothing, and says what it would" test_dry_run_install_writes_nothing
   _hi_check "--uninstall --dry-run removes nothing" test_dry_run_uninstall_removes_nothing
   _hi_check "--link system reaches for /usr/bin/hi" test_system_link_flag_targets_usr_bin
@@ -704,7 +717,8 @@ function run_install_run_tests() {
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
   _hi_check_capable pty "Declined at a terminal, the gate aborts" test_install_gate_declined_at_a_terminal_aborts
   _hi_check_capable pty "Accepted at a terminal, the install goes on" test_install_gate_accepted_at_a_terminal_continues
-  _hi_check_capable pty "A first install asks only about this machine" test_first_install_asks_only_about_this_machine
+  _hi_check_capable pty "A first install asks only which preset to start from" test_first_install_asks_only_about_this_machine
+  _hi_check_capable pty "...and Enter is everything" test_first_install_defaults_to_everything
   _hi_check_capable pty "A later install asks nothing" test_a_later_install_asks_nothing
   # install_tree links usr/bin/hi, so a host without symlinks cannot stage
   _hi_check_capable symlink "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir

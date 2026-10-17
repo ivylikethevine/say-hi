@@ -597,6 +597,43 @@ function test_help_prints_usage_and_exits_zero() {
 # over: a bare `source` directly inside $( ) crashes shellcheck 0.11.0
 # ("Non-exhaustive patterns in checkCmd"), and the space before it keeps $( (
 # from reading as arithmetic.
+# _hi_text_rules <text> - how many lines of <text> open on a box rule or a
+# bar, or carry an escape: 0 is what --text promises
+function _hi_text_rules() {
+  printf '%s\n' "$1" | grep -c -E $'^[ ]*[+|]|^[ ]*-{3}|\e' || true
+}
+
+# --text: the users and hosts tables as `users / <user>: color <c>, source
+# <s>` lines, no rule, bar, or escape
+function test_colors_text_is_a_row_a_line() {
+  local out rules
+  out="$(_hi_render_colors --text)" || _hi_why out || return 1
+  rules="$(_hi_text_rules "$out")"
+  [[ "$out" == *"users / alice: color brmagenta, source override:username"* && "$out" == *"hosts / "*": color "*", source "* ]] &&
+    [ "$rules" = 0 ] || _hi_why rules out
+}
+
+# ...and the groups and marks tables, the check's own line left to the
+# header, which has no text form
+function test_packages_text_is_a_row_a_line() {
+  local out rules
+  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" _HI_TARGETS_TTL=0 \
+    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" packages --text 2>&1)" || _hi_why out || return 1
+  rules="$(_hi_text_rules "$out")"
+  [[ "$out" == *"groups / core: state "*", installed "*", missing "*", example "* && "$out" == *"marks / "* &&
+    "$out" == *"check: as the header prints it"* ]] && [ "$rules" = 0 ] || _hi_why rules out
+}
+
+# ...and the header, a cell a line in the header's order
+function test_header_text_is_a_cell_a_line() {
+  local out rules
+  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+    _HI_DISABLE_BANNER=1 _HI_HEADER_ORDER="version check" _HI_TARGETS_TTL=0 \
+    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" header --text 2>&1)" || _hi_why out || return 1
+  rules="$(_hi_text_rules "$out")"
+  [[ "$out" == *"header / version: "*"header / check: as the header prints it"* ]] && [ "$rules" = 0 ] || _hi_why rules out
+}
+
 function test_colors_stray_argument_is_refused() {
   local out rc=0
   out="$(_hi_render_colors nonsense)" || rc=$?
@@ -781,6 +818,11 @@ EOF
   _hi_check "--help prints usage and exits 0" test_help_prints_usage_and_exits_zero
   _hi_check "-h prints the same usage" test_h_flag_prints_the_same_usage
   _hi_check "A stray argument is refused" test_colors_stray_argument_is_refused
+
+  _hi_h2 "Testing: --text"
+  _hi_check "colors --text is a row a line, no box, no color" test_colors_text_is_a_row_a_line
+  _hi_check "packages --text is too, the check left to the header" test_packages_text_is_a_row_a_line
+  _hi_check "header --text is a cell a line" test_header_text_is_a_cell_a_line
 
   _hi_suite_end "preview.sh"
 }

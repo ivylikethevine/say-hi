@@ -24,8 +24,8 @@
 --keep||-|||keep the session on the target through a dropped link
 --no-keep||-|||an ordinary session, past _HI_KEEP=1 or a kept one
 --end||-|||close the session <target> is keeping
---preview|<subject>|scripts|_HI_PREVIEW||colors, packages, or header, as printed here
---doctor|[--json] [--problems] [--use <backend>] [ssh-options] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report, or just its problems
+--preview|<subject> [--text]|scripts|_HI_PREVIEW||colors, packages, or header, as printed here
+--doctor|[--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report, or just its problems
 --install|[--yes] [--link {none,user,system}] [--shell <list>] [--print-rc] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
 --uninstall|[--purge] [--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines out; --purge removes the overlay too
 --configure|[--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--configure|revisit the settings, leaving the rc wiring be
@@ -36,11 +36,10 @@
 --remove-tag|<host> [--dry-run]|scripts|_HI_ADD_TAG|--remove|take a host's # Tags: line back out
 --add-color|<type> <name> <color> [rrggbb] [--dry-run]|scripts|_HI_COLOR_PIN||pin a color in your colors file
 --remove-color|<type> <name> [--dry-run]|scripts|_HI_COLOR_PIN|--unset|remove a pin from your colors file
---plugins||scripts|_HI_PLUGINS_CMD||list the plugins: what rides, and what is off
+--plugins|[--text]|scripts|_HI_PLUGINS_CMD||list the plugins: what rides, and what is off
 --disable-plugin|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--off|switch plugins off: nothing of theirs rides
 --enable-plugin|<name>... [--dry-run]|scripts|_HI_PLUGINS_CMD|--on|switch them back on
---add-plugin|<group> <name> <file>... [<key>=<value>...] [--dry-run]|scripts|_HI_PLUGINS_CMD|--add|carry the configs of a tool hi does not know
---remove-plugin|<name> [--dry-run]|scripts|_HI_PLUGINS_CMD|--remove|stop carrying them
+--edit|[<file>]|scripts|_HI_EDIT||open your overlay, or one file of it, in your editor
 
 # The words a flag or a switch takes from a fixed list, a row each:
 # <flag>=<word>|<help>, the shape of the flag typed joined to its word. They
@@ -58,6 +57,7 @@
 --preset=balanced|everything but the noise
 --preset=minimal|on targets only the colored prompt
 --preset=lean|minimal, and nothing of yours rides
+--preset=configs|your configs along, each target's own prompt, no header
 --add-color=hosttag|a # Tags: value in your ssh config
 --add-color=usertag|the username on hosts carrying that tag
 --add-color=username|a username

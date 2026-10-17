@@ -277,6 +277,61 @@ function test_box_glyphs_follow_the_ascii_switch() {
   [ "$out" = '┌┬┐├┼┤└┴┘─│' ] || _hi_why out
 }
 
+# _hi_text_mode <command...> - <command> with --text's switch on, in a
+# subshell, so the box tests around it keep theirs
+function _hi_text_mode() {
+  (
+    _HI_TEXT=1
+    _HI_TEXT_SECTION="" _HI_TEXT_HEAD=() _HI_TEXT_CELLS=()
+    "$@"
+  )
+}
+
+# under --text the rows buffer prints `section / label: text`, a warn, bad,
+# or ok row saying so in brackets, a multi-line text on one line, nothing
+# folded, and no rule above or below
+function _hi_text_rows_sample() {
+  _hi_section "local"
+  _hi_row tree /opt/hi
+  _hi_row version "two
+lines" ok
+  _hi_row a same
+  _hi_row b same
+  _hi_row link "no link" warn
+  _hi_row "" "stderr alone" bad
+  _hi_rows_flush
+}
+function test_text_rows_print_one_a_line() {
+  local got want
+  got="$(_hi_text_mode _hi_text_rows_sample)"
+  want="$(printf '%s\n' 'local / tree: /opt/hi' 'local / version: two lines (ok)' 'local / a: same' 'local / b: same' 'local / link: no link (warn)' 'local / stderr alone (bad)')"
+  [ "$got" = "$want" ] || _hi_why got want
+}
+
+# a head row names the cells of every row below it, lower-cased; a
+# continuation row (no first cell) indents under its own
+function _hi_text_cells_sample() {
+  _HI_TEXT_SECTION=users
+  _hi_hbar top 4 5 6
+  _hi_head_row 4 USER 5 COLOR 6 SOURCE
+  _hi_hbar mid 4 5 6
+  _hi_cell 4 "$RED" root
+  _hi_cell 5 "$RED" red
+  _hi_cell_raw 6 8 override
+  _hi_row_end
+  _hi_cell 4 "" ""
+  _hi_cell 5 "" blue
+  _hi_cell 6 "" ""
+  _hi_row_end
+  _hi_hbar bottom 4 5 6
+}
+function test_text_cells_print_head_and_cell() {
+  local got want
+  got="$(_hi_text_mode _hi_text_cells_sample)"
+  want="$(printf '%s\n' 'users / root: color red, source override' '  color blue')"
+  [ "$got" = "$want" ] || _hi_why got want
+}
+
 function run_table_tests() {
   _hi_h1 "Testing scripts/table.sh"
   _hi_workdir table
@@ -304,6 +359,10 @@ function run_table_tests() {
   _hi_check "_hi_wrap cuts at spaces" test_wrap_cuts_at_spaces
   _hi_check "...and splits a word wider than the width" test_wrap_splits_a_word_wider_than_the_width
   _hi_check "The box wraps a long text on a terminal" test_the_box_wraps_a_long_text_on_a_terminal
+
+  _hi_h2 "Testing: --text (_HI_TEXT=1)"
+  _hi_check "Rows print one a line, no box, the severity in brackets" test_text_rows_print_one_a_line
+  _hi_check "A cell table prints its head words beside each cell" test_text_cells_print_head_and_cell
 
   _hi_h2 "Testing: _hi_cell / _hi_cell_raw"
   _hi_check "Pads to the width" test_cell_pads_to_the_width

@@ -8,9 +8,12 @@
 # instrumented process stays the suite script itself (see each driver's
 # header for what its instrumentation does and does not record).
 
-if [ -z "${_HI_HOME:-}" ]; then
-  _HI_HOME="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# the tree this harness sits in, under any name, and the directory above it
+if [ -z "${_HI_ROOT:-}" ] || { [ -n "${_HI_HOME:-}" ] && [ "${_HI_ROOT%/*}" != "$_HI_HOME" ]; }; then
+  _HI_ROOT="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
+export _HI_ROOT
+: "${_HI_HOME:=${_HI_ROOT%/*}}"
 export _HI_HOME
 # core.sh exports what it reads, a developer's own overlay
 # (~/.config/say-hi/settings.sh) included, and a suite that inherited it would
@@ -19,7 +22,7 @@ export _HI_HOME
 # suites it launches get none it did not have before.
 _hi_cov_had=" $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p' | tr '\n' ' ') "
 # shellcheck source=../../common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 for _hi_cov_v in $(compgen -e); do
   case "$_hi_cov_v" in
   _HI_*) case "$_hi_cov_had" in *" $_hi_cov_v "*) ;; *) export -n "${_hi_cov_v?}" ;; esac ;;
@@ -27,7 +30,7 @@ for _hi_cov_v in $(compgen -e); do
 done
 unset _hi_cov_v _hi_cov_had
 
-_HI_RUNNER="$_HI_HOME/say-hi/tests/test_runner.sh"
+_HI_RUNNER="$_HI_ROOT/tests/test_runner.sh"
 
 # The report's subject is the product, not what drives or builds it: both
 # drivers leave these top-level directories out of every ranking and figure.
@@ -37,7 +40,7 @@ _HI_COV_NOT_SUBJECT=(tests docs scratch .github)
 function _hi_cov_not_subject_paths() {
   local dir out=""
   for dir in "${_HI_COV_NOT_SUBJECT[@]}"; do
-    out="$out${out:+,}$_HI_HOME/say-hi/$dir"
+    out="$out${out:+,}$_HI_ROOT/$dir"
   done
   printf '%s' "$out"
 }
@@ -70,7 +73,7 @@ function _hi_cov_untested() {
       return 1
     }
   done
-  git -C "$_HI_HOME/say-hi" diff -U0 --no-color "$1" -- '*.sh' | awk -v K="$2" -v B="$3" -v T="$_HI_HOME/say-hi/" '
+  git -C "$_HI_ROOT" diff -U0 --no-color "$1" -- '*.sh' | awk -v K="$2" -v B="$3" -v T="$_HI_HOME/say-hi/" '
     function flush() {
       if (from != "") row = row (row == "" ? "" : ", ") (from == to ? from : from "-" to)
       from = ""

@@ -178,6 +178,25 @@ export _HI_HOME=\"/custom\"
 export _HI_HOME=\"$home\"" ] || _hi_why got home
 }
 
+# a tree called anything but say-hi is named by itself, _HI_ROOT, in both
+# dialects, and its rc line sources through that name (HI.33)
+function test_tmpdir_line_names_an_odd_tree_by_its_root() {
+  local got
+  local home="$_HI_WORKDIR/oddtree"
+  got="$(_hi_rc_out "$home" _HI_RC_PRELUDE='odd_lines() {
+      _HI_ROOT="$1" _HI_HOME="${1%/*}"
+      tmpdir_line fish
+      printf "\n"
+      tmpdir_line sh
+      printf "\n"
+      rc_lines bash "$1/common/bash.sh" sh
+    }' -- odd_lines "$home/hi-tools")"
+  [ "$got" = "set -gx _HI_ROOT \"$home/hi-tools\"
+export _HI_ROOT=\"$home/hi-tools\"
+export _HI_ROOT=\"$home/hi-tools\"
+[[ \$- == *i* && -r \"$home/hi-tools/common/bash.sh\" ]] && source \"$home/hi-tools/common/bash.sh\"" ] || _hi_why got home
+}
+
 # the roster loop: every local shell's rc gets its marker block, in its own
 # dialect, and bash its interactive-only condition
 function test_install_rc_lines_covers_the_roster() {
@@ -725,6 +744,7 @@ function run_rc_lines_test() {
   _hi_check "Removes only hi's lines" test_strip_marker_removes_only_hi_lines
   _hi_check "A missing file is fine" test_strip_marker_missing_file_is_fine
   _hi_check "tmpdir_line: each dialect's _HI_HOME line" test_tmpdir_line_dialects
+  _hi_check "...a tree called anything else is named by its root" test_tmpdir_line_names_an_odd_tree_by_its_root
 
   _hi_h2 "Testing: install_rc_lines / strip_rc_lines"
   _hi_check "Install covers the local roster, per dialect" test_install_rc_lines_covers_the_roster

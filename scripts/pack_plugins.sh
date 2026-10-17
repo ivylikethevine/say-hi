@@ -86,7 +86,7 @@ function _hi_path_list() {
 # another plugin's, a tool, a wire, or a dialect that is not the table's, a
 # home naming a function. GLOSSARY: HI.63
 function _hi_plugins_load() {
-  local _hi_cy_k="$_HI_ROOT|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_n _hi_cy_h _hi_cy_g _hi_cy_p _hi_cy_m _hi_cy_v _hi_cy_i _hi_cy_seen _hi_cy_old
+  local _hi_cy_k="$_HI_ROOT|${_HI_SITE_DIR:-}|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_n _hi_cy_h _hi_cy_g _hi_cy_p _hi_cy_m _hi_cy_v _hi_cy_i _hi_cy_seen _hi_cy_old
   # the plugin being read: where it opened, its group, name, and keys, its
   # files with the keys each has of its own, and where a key lands - the
   # plugin (-1), one of its files (an index), a table that was turned down
@@ -97,8 +97,10 @@ function _hi_plugins_load() {
   _HI_PLUGIN_GEN=$((${_HI_PLUGIN_GEN:-0} + 1))
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
   _HI_PLUGIN_HOOKS=() _HI_PLUGIN_ENVS=() _HI_PLUGIN_DEFAULT_OFF=" "
-  for _hi_cy_s in config/plugins plugins; do
-    case "$_hi_cy_s" in config/*) _hi_cy_f="$_HI_ROOT/$_hi_cy_s" ;; *) _hi_cy_f="${_HI_CONFIG_DIR:-}/$_hi_cy_s" ;; esac
+  # the tree's, the site's (HI.61, by its whole path), then the user's: a
+  # later file's plugin of a name an earlier one has replaces it whole
+  for _hi_cy_s in config/plugins "${_HI_SITE_DIR:+$_HI_SITE_DIR/plugins}" plugins; do
+    case "$_hi_cy_s" in config/*) _hi_cy_f="$_HI_ROOT/$_hi_cy_s" ;; /*) _hi_cy_f="$_hi_cy_s" ;; *) _hi_cy_f="${_HI_CONFIG_DIR:-}/$_hi_cy_s" ;; esac
     [ -f "$_hi_cy_f" ] || continue
     _hi_cy_n=0 _hi_cy_seen=" " _hi_cy_old="" _hi_rc_n="" _hi_rc_to=-3
     while IFS= read -r _hi_cy_l || [ -n "$_hi_cy_l" ]; do

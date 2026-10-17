@@ -26,7 +26,14 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # The tree from this file's own path, only when unset (an outer export
   # survives and costs no fork). GLOSSARY: HI.33 - why not $HOME, why zsh's
   # arm is eval'd
-  if [ -z "${_HI_HOME:-}" ]; then
+  # The tree (GLOSSARY: HI.33): $_HI_ROOT where it is set and sits in
+  # $_HI_HOME, else $_HI_HOME/say-hi where that is a tree, else this file's
+  # own path; $_HI_HOME is then the directory above it
+  if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
+    :
+  elif [ -n "${_HI_HOME:-}" ] && [ -r "$_HI_HOME/say-hi/common/core.sh" ]; then
+    _HI_ROOT="$_HI_HOME/say-hi"
+  else
     if [ -n "${ZSH_VERSION:-}" ]; then
       # hi-nocov-begin: zsh's, which neither tracer reads
       eval '_hi_self=${(%):-%x}'
@@ -38,9 +45,11 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     */*) _hi_self="${_hi_self%/*}" ;;
     *) _hi_self="." ;;
     esac
-    _HI_HOME="$(CDPATH='' builtin cd -P "$_hi_self/../.." && pwd)"
+    _HI_ROOT="$(CDPATH='' builtin cd -P "$_hi_self/.." && pwd)"
     unset _hi_self
   fi
+  export _HI_ROOT
+  : "${_HI_HOME:=${_HI_ROOT%/*}}"
   export _HI_HOME
   # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry but
   # _HI_REMOTE_SESSION (hi's own "this is a session" mark, 1 on a target) is
@@ -61,6 +70,27 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # starts at. config.fish mirrors both lines.
   : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
   export _HI_XDG_CONFIG
+  # The site tier (GLOSSARY: HI.61): /etc/say-hi, else the first say-hi/
+  # under $XDG_CONFIG_DIRS. Read on a client alone - a target gets what rode
+  # - and an already-set value wins, as the overlay's does. The walk is
+  # parameter expansion: bash and zsh split an unquoted word differently.
+  if [ -z "${_HI_SITE_DIR:-}" ]; then
+    _HI_SITE_DIR=/etc/say-hi
+    _hi_t="${XDG_CONFIG_DIRS:-/etc/xdg}:"
+    while [ ! -d "$_HI_SITE_DIR" ] && [ -n "$_hi_t" ]; do
+      [ ! -d "${_hi_t%%:*}/say-hi" ] || _HI_SITE_DIR="${_hi_t%%:*}/say-hi"
+      _hi_t="${_hi_t#*:}"
+    done
+    unset _hi_t
+  fi
+  export _HI_SITE_DIR
+  # the site's settings ahead of the user's, so a line of theirs wins
+  # shellcheck source=/dev/null # a site's config, may not exist
+  if [ "${_HI_REMOTE_SESSION:-0}" != 1 ] && [ -f "$_HI_SITE_DIR/settings.sh" ]; then
+    set +euo pipefail
+    . "$_HI_SITE_DIR/settings.sh"
+    set -euo pipefail
+  fi
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   # loaded as the user's own shell would: strict mode here would turn one
@@ -71,7 +101,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     set -euo pipefail
   fi
   # shellcheck source=./paths.sh
-  source "$_HI_HOME/say-hi/common/paths.sh"
+  source "$_HI_ROOT/common/paths.sh"
 fi
 
 # Every shell hi wires up:
@@ -122,7 +152,7 @@ _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid c
 _HI_PACKAGES_GROUPS_DEFAULT="core useful deprecated"
 # a kept session's wait with nobody attached, and a held tree's for a reconnect
 _HI_KEEP_TIMEOUT_DEFAULT=24h
-_HI_KEEP_HOLD_DEFAULT=15m
+_HI_HOLD_TIMEOUT_DEFAULT=15m
 _HI_KEEP_RETRY_DEFAULT=5m
 _HI_PROBE_TIMEOUT_DEFAULT=2
 _HI_TARGETS_TTL_DEFAULT=5
@@ -745,7 +775,7 @@ function _hi_interactive_extras() {
 # files un-export everything else once the aliases and prompt have read it
 # (paths.sh's dialect can only `export`). config.fish mirrors it;
 # exports_test.sh pins the two. GLOSSARY: HI.47
-_HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
+_HI_CHILD_ENV=(_HI_HOME _HI_ROOT _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
   _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF)
 
 # _hi_backend_off <name> - is <name> a backend $_HI_BACKENDS_OFF keeps hi

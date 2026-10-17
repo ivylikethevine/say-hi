@@ -19,10 +19,17 @@ _hi_now() {
 # empty connect time rather than aborting before this file defines anything.
 _HI_CONNECT_T0="${EPOCHREALTIME:-$(_hi_now)}" || _HI_CONNECT_T0=""
 
-# The directory *containing* say-hi, off this script's own path behind a
-# symlink walk. Same walk as scripts/install.sh's and packaging/lib.sh's:
-# fix one, fix all. GLOSSARY: HI.33
-if [ -z "${_HI_HOME:-}" ]; then
+# The tree: $_HI_ROOT where it is exported and sits in $_HI_HOME, else
+# $_HI_HOME/say-hi where $_HI_HOME is exported (an older rc line, a target,
+# the suites - and refused below when nothing is there, never a stranger),
+# else this script's own path behind a symlink walk - the same walk as
+# scripts/install.sh's and packaging/lib.sh's: fix one, fix all. $_HI_HOME
+# is then the directory above it. GLOSSARY: HI.33
+if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
+  :
+elif [ -n "${_HI_HOME:-}" ]; then
+  _HI_ROOT="$_HI_HOME/say-hi"
+else
   _hi_self="${BASH_SOURCE[0]}"
   while [ -L "$_hi_self" ]; do
     _hi_link="$(readlink "$_hi_self")"
@@ -34,18 +41,20 @@ if [ -z "${_HI_HOME:-}" ]; then
       esac ;;
     esac
   done
-  _HI_HOME="$(CDPATH='' cd -P "$(dirname "$_hi_self")/.." && pwd)"
+  _HI_ROOT="$(CDPATH='' cd -P "$(dirname "$_hi_self")" && pwd)"
   unset _hi_self _hi_link
 fi
+export _HI_ROOT
+: "${_HI_HOME:=${_HI_ROOT%/*}}"
 export _HI_HOME
 # checked before the source: bash's own "No such file" would name a path
 # nobody typed, and _hi_cecho is in the file that's missing
-[ -r "$_HI_HOME/say-hi/common/core.sh" ] || {
-  echo "hi: no say-hi at $_HI_HOME/say-hi - set _HI_HOME to the directory that holds it (the checkout has to be a directory named say-hi)" >&2
+[ -r "$_HI_ROOT/common/core.sh" ] || {
+  echo "hi: no say-hi at $_HI_ROOT - set _HI_ROOT to the checkout, wherever it is, or set _HI_HOME to the directory holding a say-hi" >&2
   exit 1
 }
 # shellcheck source=./common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 # the kept session, a file of its own (GLOSSARY: HI.65). A session whose
 # client switched it off was sent none, and these stand in.
 _HI_KEEP_GONE=""
@@ -188,21 +197,45 @@ function _hi_client_verdicts() {
   }
 }
 
-# _hi_tag_settings <fallback> - the settings of the target's tags: each
-# `settings.<tag>.sh` of the overlay whose tag the `# Tags:` line above
-# $DOMAIN names, in that line's order. Sourced here, over settings.sh, and
-# joined to it in one file that rides as the target's settings.sh
-# ($_HI_TAG_SETTINGS, pack.sh's _hi_overlay_src), so both ends read the same.
-# The file lives in the runtime directory, rewritten only when its content
-# changes since the overlay cache watches its mtime, else at <fallback>, the
-# caller's to remove. A session's relay has none: it inherits what it was sent.
+# _hi_backend_tags <arm> <target> - the tags a target that is no ssh host
+# carries, into the caller's $_hi_tags: its backend's word (the six are
+# reserved, which hi --add-tag holds to), and a pod's context and namespace
+# after it, the prefixes _hi_kube_split reads, each a settings.<tag>.sh of
+# the overlay in that order, the last winning
+function _hi_backend_tags() {
+  local _hi_bt_i
+  _hi_tags=("$1")
+  [ "$1" = kube ] || return 0
+  _hi_kube_split "$2"
+  for ((_hi_bt_i = 1; _hi_bt_i < ${#_HI_K_ARGS[@]}; _hi_bt_i += 2)); do
+    _hi_tags+=("${_HI_K_ARGS[_hi_bt_i]}")
+  done
+}
+
+# _hi_tag_settings <fallback> [arm] - the settings a target's tags name:
+# for an ssh host (no [arm]) each `settings.<tag>.sh` of the overlay whose
+# tag the `# Tags:` line above $DOMAIN names, in that line's order; for a
+# container, an allocation, or a pod ([arm], the backend's word) the
+# backend's file, then a pod's context's and namespace's
+# (_hi_backend_tags). Sourced here, over settings.sh, and joined to it - the
+# site tier's settings.sh (HI.61) ahead of both - in one file that rides as
+# the target's settings.sh ($_HI_TAG_SETTINGS, pack.sh's _hi_overlay_src),
+# so both ends read the same. The file lives in the runtime directory,
+# rewritten only when its content changes since the overlay cache watches
+# its mtime, else at <fallback>, the caller's to remove. A session's relay
+# has none: it inherits what it was sent.
 function _hi_tag_settings() {
-  local _hi_ts_t _hi_ts_f _hi_ts_dir _hi_ts_out _hi_ts_tmp _hi_ts_o=$-
-  local -a _hi_ts_tags=() _hi_ts_files=()
+  local _hi_ts_t _hi_ts_f _hi_ts_dir _hi_ts_out _hi_ts_tmp _hi_ts_o=$- _hi_ts_site=""
+  local -a _hi_ts_tags=() _hi_ts_files=() _hi_tags=()
   _HI_TAG_SETTINGS=""
   [ "$_HI_REMOTE_SESSION" != 1 ] || return 0
-  _hi_ssh_host_tag "${DOMAIN##*@}" >/dev/null || return 0
-  IFS=' ,' read -r -a _hi_ts_tags <<<"$_HI_TAG_VALUE" || true
+  [ -z "${_HI_SITE_DIR:-}" ] || [ ! -f "$_HI_SITE_DIR/settings.sh" ] || _hi_ts_site="$_HI_SITE_DIR/settings.sh"
+  if [ -n "${2:-}" ]; then
+    _hi_backend_tags "$2" "$DOMAIN"
+    _hi_ts_tags=("${_hi_tags[@]}")
+  elif _hi_ssh_host_tag "${DOMAIN##*@}" >/dev/null; then
+    IFS=' ,' read -r -a _hi_ts_tags <<<"$_HI_TAG_VALUE" || true
+  fi
   for _hi_ts_t in ${_hi_ts_tags[@]+"${_hi_ts_tags[@]}"}; do
     # a tag is free text; a file is named only by one that is a plain word
     case "$_hi_ts_t" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
@@ -216,18 +249,19 @@ function _hi_tag_settings() {
     case "$_hi_ts_o" in *u*) set -u ;; esac
     _hi_ts_files+=("$_hi_ts_f")
   done
-  ((${#_hi_ts_files[@]})) || return 0
+  ((${#_hi_ts_files[@]})) || [ -n "$_hi_ts_site" ] || return 0
   _hi_runtime_dir _hi_ts_dir
   if [ -n "$_hi_ts_dir" ]; then
-    _hi_hash "$_HI_CONFIG_DIR ${_hi_ts_files[*]}" _hi_ts_out
+    _hi_hash "$_HI_CONFIG_DIR $_hi_ts_site ${_hi_ts_files[*]-}" _hi_ts_out
     _hi_ts_out="$_hi_ts_dir/hi.settings.$_hi_ts_out"
     _hi_ts_tmp="$(mktemp "$_hi_ts_out.XXXXXX")" || return 0
   else
     _hi_ts_out="$1" _hi_ts_tmp="$1.new"
   fi
   {
+    [ -z "$_hi_ts_site" ] || cat "$_hi_ts_site"
     [ ! -f "$_HI_CONFIG_DIR/settings.sh" ] || cat "$_HI_CONFIG_DIR/settings.sh"
-    cat "${_hi_ts_files[@]}"
+    cat ${_hi_ts_files[@]+"${_hi_ts_files[@]}"}
   } >"$_hi_ts_tmp" || return 0
   if cmp -s "$_hi_ts_tmp" "$_hi_ts_out"; then
     rm -f "$_hi_ts_tmp"
@@ -1440,9 +1474,12 @@ function _hi() {
     _hi_keep_here
     exit $?
   fi
-  # ahead of everything that reads a setting: the prompt list, the members,
-  # --keep, and --plain itself
-  _hi_tag_settings "$tmp.settings"
+  # the arm first, since a container's, an allocation's, or a pod's tags are
+  # its backend's word and a pod's prefixes; then the tag settings, ahead of
+  # everything that reads a setting: the prompt list, the members, --keep,
+  # and --plain itself
+  arm="$(_hi_select_arm)"
+  _hi_tag_settings "$tmp.settings" "$arm"
   [ -n "${PLAIN:-}" ] || [ "${_HI_PLAIN:-0}" != 1 ] || PLAIN=1
   _hi_keep_refuse
   # Primed in the shell that keeps them: a caller that reads one through $( )
@@ -1455,14 +1492,13 @@ function _hi() {
     # closing a kept session runs no command
     [ -z "${RAWCMD:-}" ] || _hi_die "--end takes a target and nothing after it"
     [ "${PLAIN:-0}" != 1 ] || _hi_die "--end closes a kept session, which --plain never starts"
-    _hi_keep_end "$(_hi_select_arm)"
+    _hi_keep_end "$arm"
     exit $?
   fi
   # No `2>"$tmp"` around this block: it would also catch every word ssh says
   # on a *successful* session - the server's `Banner`, the "Permanently added"
   # line, the host-key fingerprint. $tmp still reaches _say_hi, which sends a
   # container exec's words there.
-  arm="$(_hi_select_arm)"
   # said for the flag alone: _HI_KEEP=1 is a default, and silent where it
   # does not apply
   if [ "${KEEP:-}" = 1 ] && [ "${PLAIN:-0}" = 1 ]; then

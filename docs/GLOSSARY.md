@@ -480,14 +480,25 @@ reaches, and an unset setting there stays hi's prompt.
 
 ## HI.33 derived tree location
 
-`$_HI_HOME` is the directory _containing_ `say-hi`. Every file that needs the
-tree derives it from its own path rather than defaulting to `$HOME`: the
-default was right for a standard install and wrong everywhere else, and when
-wrong it silently read _another tree_ (the platform e2e jobs sourced a tree
-under `/Users/runner` that was never there). `hi.sh` and the standalone
-scripts ask only when `$_HI_HOME` is unset, so an outer export still wins and
-costs no fork; `scripts/install.sh` and `packaging/lib.sh` always derive from
-their own resolved path - an install acts on the tree it sits in.
+`$_HI_ROOT` is the tree, a checkout under any name or a package's
+`/usr/share/say-hi`, and `$_HI_HOME` the directory above it; a session's tree
+is always `$_HI_HOME/say-hi`, which the bootstrap unpacked. Every file that
+needs the tree takes it by one rule: `$_HI_ROOT` where it is set and sits in
+`$_HI_HOME` (or `$_HI_HOME` is unset), else `$_HI_HOME/say-hi` where
+`$_HI_HOME` is set (an rc line written before 1.0, a target, the suites'
+`_HI_HOME=`; an entry point run as a process refuses when nothing is there, a
+loader sourced by path falls back to its own), else its own path - never
+`$HOME`: that default was right for a standard
+install and wrong everywhere else, and when wrong it silently read _another
+tree_ (the platform e2e jobs sourced a tree under `/Users/runner` that was
+never there). The rule lets an exported `_HI_HOME` keep meaning what it did
+while an inherited `_HI_ROOT` of another tree is never taken over it.
+`scripts/install.sh` and `packaging/lib.sh` always derive from their own
+resolved path - an install acts on the tree it sits in. The rc line an
+install writes names a tree called `say-hi` by `_HI_HOME`, as every line
+before 1.0 did, and any other by `_HI_ROOT` (`rc.sh`'s `tmpdir_line`); the
+payload stages the tree under `say-hi/` whatever it is called
+(`pack_stream.sh`'s `stage_as`).
 
 `common/core.sh` owns the answer; everything that merely _needs_ the tree
 reaches core.sh through its own path. The files that derive have nothing above
@@ -495,31 +506,32 @@ them to ask through:
 
 | where                                                                          | how                                                                                                                                                                                    |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                                                               | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                              |
+| `common/core.sh`                                                               | `${BASH_SOURCE[0]}`, then `cd -P .. && pwd`; answers for every file sourced through it                                                                                                 |
 | `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                              | the same behind a `readlink` walk, so `~/.local/bin/hi` (a package's `/usr/bin/hi`) answers the tree it links to. Three copies: each must resolve itself before it can source anything |
 | `load.sh`, `tests/test_runner.sh`                                              | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                          |
 | `tests/test_lib.sh`                                                            | `${BASH_SOURCE[0]}` only, `$_HI_HOME` or not - the harness sits in the tree it tests, and `_hi_host_tree_check` warns when `$_HI_ROOT` names another                                   |
-| `scripts/doctor.sh`, `preview.sh`, `update.sh`, `add_tag.sh`, `add_package.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                                         |
+| `scripts/doctor.sh`, `preview.sh`, `update.sh`, `add_tag.sh`, `add_package.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME`'s `say-hi` or `$_HI_ROOT` by the rule - the standalone-entry form below                                                                          |
 | zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                         |
-| fish (`common/config.fish`)                                                    | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                    |
-| `common/bash.sh`                                                               | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                                |
+| fish (`common/config.fish`)                                                    | `sh -c 'cd -P "$1/.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                       |
+| `common/bash.sh`                                                               | the rule, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set a name before this file is sourced                                                     |
 
-**The standalone-entry form, and why `$_HI_HOME` wins in it.** A script run
-on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
+**The standalone-entry form, and why an exported name wins in it.** A script
+run on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
 
 ```sh
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 ```
 
-With `$_HI_HOME` set, _everything_ comes from there, core.sh included:
-reaching core.sh through the script's own path while `$_HI_ROOT` came from
-`$_HI_HOME` runs two trees in one process, silently.
+With a name set, _everything_ comes from there, core.sh included: reaching
+core.sh through the script's own path while `$_HI_ROOT` came from the
+environment runs two trees in one process, silently.
 
 No file falls back silently: `hi.sh` prints
-`set _HI_HOME to the directory that holds it` and exits when the derived path
-holds no tree. A _target_ needs no such rule — a session's tree is the one hi
+`set _HI_ROOT to the checkout, wherever it is, or set _HI_HOME to the
+directory holding a say-hi` and exits when the derived path holds no tree. A _target_ needs no such rule — a session's tree is the one hi
 just unpacked, its `$_HI_HOME` exported by the script that unpacked it; a say-hi
 the target already has is that machine's own install, and a session never reads
 it.
@@ -855,10 +867,14 @@ reasoning).
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is seven names:
+is nine names:
 
-- `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
-  `hi.sh` put it, and cannot be re-derived;
+- `$_HI_HOME`, `$_HI_ROOT` and `$_HI_CONFIG_DIR` — the overlay on a target is
+  wherever `hi.sh` put it, and cannot be re-derived; the tree is a clone under
+  any name ([HI.33](#hi33-derived-tree-location)), which a child could only
+  guess as `$_HI_HOME/say-hi`;
+- `$_HI_SITE_DIR` — the site tier ([HI.61](#hi61-one-overlay-priority)),
+  which `sh targets.sh` reads for a completion;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
 - `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_BACKENDS_OFF` — the knobs
@@ -1382,8 +1398,16 @@ no later name arriving empty can reach the root of the disk again.
 
 Every overlay member resolves in one order, written once as `scripts/pack.sh`'s
 `$_HI_OVERLAY_TABLE` and the rows `config/plugins` adds to it
-([HI.63](#hi63-plugins-rows)): the overlay's copy, else the user's own file
-at home, else the tree's default where `config/` holds one. A row names the
+([HI.63](#hi63-plugins-rows)): the overlay's copy, else the site tier's
+(`$_HI_SITE_DIR`: `/etc/say-hi`, else the first `say-hi/` under
+`$XDG_CONFIG_DIRS`, read on a client alone) for `settings.sh`, `colors`,
+`packages`, and `plugins`, else the user's own file at home, else the tree's
+default where `config/` holds one. A site `settings.sh` is sourced ahead of
+the user's and joined under it in the one `settings.sh` that rides
+(`hi.sh`'s `_hi_tag_settings`); a site `colors` or `packages` rides in the
+tree default's place as an overlay copy does (`_hi_overlay_site`); a site
+`plugins` is the second of the three files `_hi_plugins_load` reads. A tier
+is added in a minor, never reordered. A row names the
 member, the `common/paths.sh` variable that carries one of hi's own files to
 the shells (`-` for a tool's member), whether `config/` holds a default
 (`$_HI_OVERLAY_SHADOWS` is derived from that column), the tool that reads it
@@ -1656,7 +1680,7 @@ rode, which leaves `wiring.sh`'s.
   hands off to bash as usual with `$_HI_KEEP_HOLD` set to the name, and traps
   the hangup (`trap : HUP`) so the bootstrap waits for `load()` instead of
   dying under it. `load()` may hold where it is no owner pane, has a
-  disposable tree and a terminal, and `$_HI_KEEP_TIMEOUT` is not 0
+  disposable tree and a terminal, and `$_HI_HOLD_TIMEOUT` is not 0
   (`_hi_keep_holds`), and does hold once `hi.hold` carries the name: written
   by `load()` for that connect, or later by `hi --keep` typed in the session
   (`_hi_keep_hold_here`), which is how a session started without `--keep`
@@ -1670,7 +1694,7 @@ rode, which leaves `wiring.sh`'s.
   hook.
 - **The timer.** `_hi_tree_watch`, which every session already runs, is the
   held tree's: once the shell is gone and `hi.held` names it, the watcher
-  waits `$_HI_KEEP_TIMEOUT` (15m here) and removes the tree. It stops early
+  waits `$_HI_HOLD_TIMEOUT` (15m) and removes the tree. It stops early
   for `hi.end`, which `hi --end` leaves, and goes without touching a tree
   whose `hi.pid` is no longer that shell's.
 - **Taking a held tree.** A connect that looks for a kept session runs
@@ -1780,9 +1804,9 @@ rode, which leaves `wiring.sh`'s.
   and drops within ten seconds does not restart the window. A connect that
   never got in is not retried. The drop's line names how long the
   target keeps the session and the time that runs out (`_hi_keep_until`):
-  `$_HI_KEEP_TIMEOUT`, else the default of what the target has, which the
-  boot probe's `HIMUX` line said at the connect - 24h in a multiplexer, 15m
-  for a held directory. At a terminal `_hi_keep_wait` draws a dot a second,
+  `$_HI_KEEP_TIMEOUT` (24h) in a multiplexer, `$_HI_HOLD_TIMEOUT` (15m) for
+  a held directory, which the boot probe's `HIMUX` line said at the
+  connect. At a terminal `_hi_keep_wait` draws a dot a second,
   five to a try, on a line the try that answers clears. ssh's `~.` ends 255 as a lost link does, and
   nothing tells the two apart, so it is retried too: Ctrl+C at the
   countdown is how a kept session is left for good. A link that freezes is no drop until ssh

@@ -377,10 +377,11 @@ function _hi_prompt_rows() {
 # file holds. Applied, its answers are what the menu shows and saves;
 # `--preset <name>` writes them without a hub at all.
 _HI_PRESETS=(
-  "everything|the shipped defaults - every feature and header item on, the alias opt-ins off|"
-  "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
-  "minimal|on targets only the colored prompt - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
+  "everything|every feature on, here and on every target you hi to|"
+  "balanced|everything, with a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
+  "minimal|on targets only the colored prompt, no header or editor configs; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
   "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,bin,env,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,git,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
+  "configs|your aliases, editor rcs, and every other config along, each target's own prompt, no header; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
@@ -477,18 +478,24 @@ function apply_preset() {
 }
 
 # config_first_install - all an install asks a terminal, and only while
-# there is no settings.sh: whether hi styles this machine as well as the
-# hosts it connects to. The menu is hi --configure's.
+# there is no settings.sh: which preset to start from, each a plain sentence,
+# everything the default; whether hi styles this machine is in the pick
+# (minimal, lean, and configs leave it alone). The menu is hi --configure's.
 function config_first_install() {
-  local reply=""
+  local reply="" short
   if [ -f "$_HI_SETTINGS" ]; then
     _hi_cecho " your settings stay as they are - hi --configure changes them" "$GREEN"
     return 0
   fi
-  menu_read " Style this machine's own shells too, not only the hosts you hi to? [Y/n] " reply || reply=""
-  case "$reply" in
-  n | no) _hi_pending_set _HI_DISABLE_LOCAL 1 ;;
-  esac
+  _hi_cecho " How much of hi rides along? One of:" "$BLUE"
+  _hi_preset_list _HI_PRESETS 13
+  menu_read " Start from which? (the bracketed letter or the name; Enter is everything) [everything] " reply || reply=""
+  [ -n "$reply" ] || reply=everything
+  short="$(preset_shorthand "$reply")" && reply="$short"
+  apply_preset "$reply" || {
+    _hi_cecho " ...so everything, the shipped defaults, applies" "$YELLOW"
+    apply_preset everything
+  }
   _hi_cecho " hi --configure has every other setting" "$BLUE"
 }
 
@@ -696,7 +703,9 @@ function settings_diff_before() {
   while IFS= read -r line; do
     line="${line%"$_HI_MARKER"}"
     line="${line%"${line##*[![:space:]]}"}"
-    [ -n "$line" ] && _HI_SETTINGS_BEFORE+=("$line")
+    # the block's shape line is no setting
+    case "$line" in '' | '# say-hi settings '*) continue ;; esac
+    _HI_SETTINGS_BEFORE+=("$line")
   done < <(grep -F "$_HI_MARKER" "$_HI_SETTINGS" || true)
 }
 
@@ -769,6 +778,9 @@ function run_configure() {
   # ${a[@]+"${a[@]}"}, not a plain "${a[@]}": on bash 3.2 (macOS) expanding
   # an *empty* array under `set -u` is a fatal "unbound variable", and
   # every setting at its default leaves exactly that - no lines to write.
-  config_shell settings "$_HI_SETTINGS" ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || return 1
+  # The block opens on its shape line, which convert_settings.sh and
+  # hi --doctor read in place of guessing the shape from the rows.
+  config_shell settings "$_HI_SETTINGS" "# say-hi settings $_HI_SETTINGS_SHAPE" \
+    ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || return 1
   settings_diff_report
 }

@@ -7,7 +7,9 @@
 # holds the helpers the parts share (GLOSSARY: HI.34).
 #
 # GLOSSARY: HI.30 + HI.34
-# shellcheck disable=SC2329
+# SC2031: runner_test.sh sources the runner in a subshell, and the runner
+# exports the _HI_ROOT it derives (HI.33); this file reads the harness's
+# shellcheck disable=SC2329,SC2031
 set -euo pipefail
 
 _HI_RUNNER_PART=ci

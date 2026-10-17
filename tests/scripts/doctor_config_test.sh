@@ -194,6 +194,38 @@ function test_files_table_walks_every_tier() {
   }
 }
 
+# a site colors is used where the overlay has none and passed over where it
+# has one, named as the site's either way
+function test_files_table_names_the_site_tier() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/sitefiles.XXXXXX")"
+  mkdir -p "$h/overlay" "$h/site"
+  printf '[hosttag]\nprod = "red"\n' >"$h/site/colors"
+  printf '[core]\nbat = []\n' >"$h/site/packages"
+  printf '[core]\neza = []\n' >"$h/overlay/packages"
+  out="$(HOME="$h" _HI_CONFIG_DIR="$h/overlay" _HI_SITE_DIR="$h/site" doctor_files)"
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"colors"*"used the site's ~/site/colors"* && "$out" == *"packages"*"used ~/overlay/packages; passed over the site's ~/site/packages"* ]] ||
+    _hi_why out h
+}
+
+# the overlay section names the site directory and what it holds, and the
+# site's settings.sh gets the two parser rows under its own label; with no
+# such directory, no row
+function test_config_names_the_site_tier() {
+  local h out
+  h="$(mktemp -d "$_HI_WORKDIR/sitecfg.XXXXXX")"
+  mkdir -p "$h/overlay" "$h/site"
+  printf 'export _HI_MAX_WIDTH=70\n' >"$h/site/settings.sh"
+  printf '[core]\nbat = []\n' >"$h/site/packages"
+  out="$(_HI_CONFIG_DIR="$h/overlay" _HI_SETTINGS="$h/overlay/settings.sh" _HI_SITE_DIR="$h/site" doctor_config)"
+  [[ "$out" == *"site"*"$h/site holds settings.sh packages"* ]] || _hi_because "the overlay section: $out" || return 1
+  out="$(_HI_CONFIG_DIR="$h/overlay" _HI_SETTINGS="$h/overlay/settings.sh" _HI_SITE_DIR="$h/site" doctor_configs)"
+  [[ "$out" == *"site settings.sh"*"parses (sh)"* ]] || _hi_because "the configs section: $out" || return 1
+  out="$(_HI_CONFIG_DIR="$h/overlay" _HI_SETTINGS="$h/overlay/settings.sh" _HI_SITE_DIR="$h/nosite" doctor_config)"
+  [[ "$out" != *"$h/nosite"* ]] || _hi_because "no site directory: $out"
+}
+
 # a directory member counts the files that ride from it, and a prompt
 # program's config is named but not sent while the prompt is hi's own
 function test_files_table_names_why_a_found_file_is_not_sent() {
@@ -807,6 +839,40 @@ function test_config_lists_the_tag_settings() {
     _hi_because "the report said: $out"
 }
 
+# a settings.sh whose shape line names a shape this hi does not read is a
+# bad row; one at this hi's shape, or with no line, gets none
+function test_config_flags_a_settings_shape_this_hi_does_not_read() {
+  local dir out n
+  n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
+  [ -n "$n" ] || _hi_why n || return 1
+  dir="$(mktemp -d "$_HI_WORKDIR/shape.XXXXXX")"
+  printf '#!/bin/sh\n# say-hi settings %s\nexport _HI_MAX_WIDTH=100\n' "$((n + 1))" >"$dir/settings.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" == *"settings.sh"*"is shape $((n + 1)), which this hi does not read (it reads $n)"* ]] ||
+    _hi_because "a newer shape: $out" || return 1
+  printf '#!/bin/sh\n# say-hi settings %s\nexport _HI_MAX_WIDTH=100\n' "$n" >"$dir/settings.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" != *"does not read"* ]] || _hi_because "this shape: $out" || return 1
+  printf '#!/bin/sh\nexport _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_SETTINGS="$dir/settings.sh" doctor_config)"
+  [[ "$out" != *"does not read"* ]] || _hi_because "no line: $out"
+}
+
+# a line of a colors file outside the TOML hi reads - an inline table, a
+# value on the next line - pins nothing, and is named by its line
+function test_config_names_a_colors_line_outside_the_subset() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/strays.XXXXXX")"
+  printf '[hostname]\nbox = { color = "red" }\nweb = "blue"\nlab =\n  "green"\n' >"$dir/colors"
+  out="$(
+    _HI_COLORS="$dir/colors"
+    _hi_doc_values_json
+  )"
+  [[ "$out" == *'"label": "colors", "text": "line 2 is no row'*'box = { color = '*'"severity": "warn"'* &&
+    "$out" == *'"text": "line 4 is no row'*'lab ='* && "$out" == *'"text": "line 5 is no row'* && "$out" != *'line 3'* ]] ||
+    _hi_why out
+}
+
 # fish's `set` spelling of the same, read by the one awk
 function test_secret_awk_reads_a_fish_set() {
   local got
@@ -922,6 +988,8 @@ function run_doctor_config_tests() {
   _hi_check "An overlay copy nothing ships is flagged" test_config_flags_an_overlay_copy_nothing_ships
   _hi_check "A tmux config from home is scanned" test_config_scans_a_home_tmux_config
   _hi_check "The files table walks every tier" test_files_table_walks_every_tier
+  _hi_check "...the site's between the overlay's copy and the tree's" test_files_table_names_the_site_tier
+  _hi_check "The site tier is a row of the overlay section, its settings.sh parsed" test_config_names_the_site_tier
   _hi_check "...and names an overlay copy alone, not the tree's behind it" test_files_table_hides_the_tree_default_behind_a_copy
   _hi_check "...and says why a file it found is not sent" test_files_table_names_why_a_found_file_is_not_sent
   _hi_check "The box folds alike rows, drops its header, and writes ~" test_the_box_folds_and_shortens
@@ -956,6 +1024,8 @@ function run_doctor_config_tests() {
   _hi_check "A require of a neovim module that rides is no finding" test_config_passes_a_require_of_a_module_that_rides
   _hi_check "What the overlay's bin/ leaves home is named, with why" test_config_names_what_bin_leaves_home
   _hi_check "The tag settings files are listed" test_config_lists_the_tag_settings
+  _hi_check "A settings.sh of a newer shape is flagged" test_config_flags_a_settings_shape_this_hi_does_not_read
+  _hi_check "A colors line outside the subset is named by its line" test_config_names_a_colors_line_outside_the_subset
   _hi_check "...and an alias that replaces one hi wires" test_config_flags_aliases_that_replace_a_wired_one
   _hi_check "...and an \$EDITOR it exports" test_config_flags_an_editor_set_in_aliases_sh
 

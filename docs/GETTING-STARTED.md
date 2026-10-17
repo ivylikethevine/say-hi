@@ -52,14 +52,15 @@ unchanged.
 For a first install, with the defaults.
 
 ```sh
-git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
+git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # or any directory you like
 ~/say-hi/scripts/install.sh
 exec $SHELL
 hi <host>
 ```
 
-The install wires your login shell, asks whether hi styles this machine too,
-and makes no other choice for you. Then, in the order they tend to come up:
+The install wires your login shell, asks which preset to start from
+([SETTINGS.md](SETTINGS.md#presets); `everything` is the default), and makes
+no other choice for you. Then, in the order they tend to come up:
 
 - `hi --doctor` says what is wired and what would be sent; `hi --doctor <host>`
   adds one host.

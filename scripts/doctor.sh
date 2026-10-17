@@ -18,10 +18,16 @@
 # BASH_SOURCE guard (same story as tests/hi/parse_test.sh).
 # shellcheck disable=SC2317,SC2329
 
+# --text, read ahead of core.sh: its palette is set as it is sourced, and
+# $NO_COLOR is how it is asked for none
+_HI_TEXT=0
+case " $* " in *" --text "*) _HI_TEXT=1 && export NO_COLOR=1 ;; esac
+
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
@@ -37,7 +43,7 @@ unset _hi_d
 
 function _hi_doctor_help() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--problems] [--use <backend>] [ssh-options] [target]
+Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--problems] [--text] [--use <backend>] [ssh-options] [target]
 
 Prints, in order, each section as a table whose rows are marked by severity
 ($_HI_MARK_OK ok, ! warn, $_HI_MARK_NO bad, blank for information):
@@ -63,7 +69,10 @@ Prints, in order, each section as a table whose rows are marked by severity
 
 A warn or bad row stays in its section; --problems prints only those rows,
 gathered into one box - or, with none, only the closing line - so a long
-report reads as what needs fixing.
+report reads as what needs fixing. --text draws no box and no color: one
+row a line, "section / label: text", a warn, bad, or ok row saying so in
+brackets, for a screen reader or a grep; the same rows as the boxes, and
+not --json's form.
 
 ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
 real connect authenticates with, so \`hi --doctor -J bastion host\`
@@ -132,6 +141,8 @@ while [ $# -gt 0 ]; do
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
   --problems) _HI_DOC_PROBLEMS=1 ;;
+  # read ahead of core.sh, above
+  --text) ;;
   --use | --use=*)
     _hi_flag_word_or_die _hi_arm "--use needs a backend name (ssh counts as one)" "$@"
     [ $? -eq 2 ] && shift
@@ -150,7 +161,7 @@ while [ $# -gt 0 ]; do
     _HI_DOC_SSHARGS+=("$_hi_arg")
     ;;
   --*)
-    _hi_die "unknown option $_hi_arg (--json, --problems, --use <backend>, ssh options, a target)"
+    _hi_die "unknown option $_hi_arg (--json, --problems, --text, --use <backend>, ssh options, a target)"
     ;;
   -*)
     # doctor does not validate ssh's own vocabulary, only sorts a target from
@@ -166,6 +177,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 unset _hi_arg _hi_arm _hi_doc_args
+[ "$_HI_DOC_JSON" != 1 ] || [ "$_HI_TEXT" != 1 ] || _hi_die "--json and --text are two forms of the report: one at a time"
 
 _HI_DOC_BAD=0
 # the section the rows below belong to, and the JSON rows collected so far -
@@ -188,6 +200,11 @@ _HI_DOC_IN_FINDING=0
 # Each section function ends in doctor_flush, which draws its table.
 function doctor_section() {
   _HI_DOC_SECTION="$1"
+  # --text's rows open on the key, the stable name, as --json's do
+  if [ "$_HI_TEXT" = 1 ]; then
+    _HI_TEXT_SECTION="$1"
+    return 0
+  fi
   [ "$_HI_DOC_JSON" = 1 ] || [ "$_HI_DOC_PROBLEMS" = 1 ] || _hi_section "$2"
 }
 
@@ -205,6 +222,7 @@ function doctor_flush() {
 function doctor_findings() {
   [ "${#_HI_DOC_F_SEV[@]}" -gt 0 ] || return 0
   _hi_h2 "Findings: $_HI_DOC_BAD bad, $_HI_DOC_WARN warn"
+  _HI_TEXT_SECTION=findings
   _HI_ROWS_LABEL=("${_HI_DOC_F_LABEL[@]}")
   _HI_ROWS_TEXT=("${_HI_DOC_F_TEXT[@]}")
   _HI_ROWS_SEV=("${_HI_DOC_F_SEV[@]}")
@@ -435,7 +453,21 @@ function doctor_config() {
   # doctor_configs walks that table below, so settings.sh gets one verdict.
   [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
-  # settings.<tag>.sh: read for a host carrying that tag, never sent as itself
+  # ...and a shape line a newer hi wrote: this one reads the rows it knows
+  # and no converter of its can bring the rest back
+  _hi_settings_shape v "$_HI_SETTINGS"
+  [ -z "$v" ] || [ "$v" -le "$_HI_SETTINGS_SHAPE" ] ||
+    doctor_row settings.sh "is shape $v, which this hi does not read (it reads $_HI_SETTINGS_SHAPE): a newer hi wrote it - move this one up, or hi --configure rewrites the block in this one's shape" bad
+  # the site tier (HI.61): a team's defaults, under the tree's and over
+  # nothing of the user's
+  if [ -d "${_HI_SITE_DIR:-}" ]; then
+    t=""
+    for f in settings.sh colors packages plugins; do
+      [ ! -f "$_HI_SITE_DIR/$f" ] || t="$t${t:+ }$f"
+    done
+    doctor_row site "$_HI_SITE_DIR holds ${t:-none of settings.sh, colors, packages, plugins} - read after the tree's defaults and before yours, and sent where you have no copy"
+  fi
+  # settings.<tag>.sh: read for a target carrying that tag, never sent as itself
   local tags=""
   for f in "$_HI_CONFIG_DIR"/settings.*.sh; do
     [ -f "$f" ] || continue
@@ -447,7 +479,7 @@ function doctor_config() {
     esac
   done
   [ -z "$tags" ] ||
-    doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: line names it, and joined to the settings.sh that host gets"
+    doctor_row "tag settings" "$tags - each settings.<tag>.sh is read for a host whose # Tags: line names it, a container, allocation, or pod for its backend's word, and a pod for its context and namespace, and joined to the settings.sh that target gets"
   doctor_settings_values
   # a file still under a name hi stopped reading before 1.0: nothing else
   # would say why the override stopped applying
@@ -457,7 +489,7 @@ function doctor_config() {
     # needs the directory first
     f=""
     case "$t" in
-    carry:*) f="hi --configure converts it, or hi --add-plugin writes its plugins there" ;;
+    carry:*) f="hi --configure converts it" ;;
     *)
       case "${t#*:}" in */*) f="mkdir -p $_HI_CONFIG_DIR/${t#*:}" f="${f%/*} && " ;; esac
       f="${f}mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}"
@@ -635,6 +667,13 @@ function doctor_settings_values() {
   case "$v" in
   flat) doctor_row colors "$_HI_COLORS has type,name,color rows, which pin nothing - hi --configure converts it" bad ;;
   sections) doctor_row colors "$_HI_COLORS has rows that are not TOML's name = \"color\", which pin nothing - hi --configure converts it" bad ;;
+  *)
+    # a line outside the subset (SETTINGS.md, The TOML hi reads) is skipped
+    # where the file is read, and pins nothing
+    while IFS='|' read -r v why; do
+      doctor_row colors "line $v is no row, and pins nothing: '$why' - a row is name = \"color\" on one line" warn
+    done < <(_hi_toml_strays "${_HI_COLORS:-}")
+    ;;
   esac
 }
 
@@ -683,7 +722,7 @@ function doctor_config_row() {
 # --check-configs` went - a read-only check is a doctor's row; install.sh
 # keeps the same check as its pre-write gate.
 function doctor_configs() {
-  local row shell target check file
+  local row shell target check file label
   doctor_section configs "Shell configs (the rc files and the overlay's shell files, parsed)"
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell _ _ target check _ <<<"$row"
@@ -697,19 +736,36 @@ function doctor_configs() {
     # shellcheck disable=SC2086
     doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
   done
-  # a tag's settings are joined to settings.sh, so the same two parsers
-  for target in "$_HI_CONFIG_DIR"/settings.*.sh; do
+  # a tag's settings are joined to settings.sh, so the same two parsers;
+  # the site's settings.sh too
+  for target in "$_HI_CONFIG_DIR"/settings.*.sh "${_HI_SITE_DIR:-/nonexistent}/settings.sh"; do
     [ -f "$target" ] || continue
-    doctor_config_row "${target##*/}" "$target" sh -n
-    doctor_config_row "${target##*/}" "$target" fish --no-execute
+    label="${target##*/}"
+    [ "$target" != "${_HI_SITE_DIR:-}/settings.sh" ] || label="site settings.sh"
+    doctor_config_row "$label" "$target" sh -n
+    doctor_config_row "$label" "$target" fish --no-execute
   done
   doctor_flush
 }
 
-# _hi_rc_names_tree <rc-file> - the _HI_HOME a marker line in <rc-file>
-# states, on stdout; empty when none does
+# _hi_rc_names_tree <rc-file> - the path a marker line in <rc-file> names,
+# on stdout: its _HI_ROOT line's, else its _HI_HOME line's (the directory
+# holding a say-hi); empty when none does
 function _hi_rc_names_tree() {
-  grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_HOME[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p'
+  local _hi_rn
+  _hi_rn="$(grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_ROOT[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p')"
+  [ -n "$_hi_rn" ] ||
+    _hi_rn="$(grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_HOME[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p')"
+  printf '%s' "$_hi_rn"
+}
+
+# _hi_rc_names_this_tree <rc-file> - does the path that line names lead to
+# this tree: as its root, or as the directory above a tree called say-hi
+function _hi_rc_names_this_tree() {
+  local _hi_rt
+  _hi_rt="$(_hi_rc_names_tree "$1")"
+  [ -n "$_hi_rt" ] || return 1
+  [ "$_hi_rt" -ef "$_HI_ROOT" ] || { [ "${_HI_ROOT##*/}" = say-hi ] && [ "$_hi_rt" -ef "$_HI_HOME" ]; }
 }
 
 # The install's own footprint, as rows: is each shell's rc wired, and to this
@@ -731,7 +787,7 @@ function doctor_install() {
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif rc_block_form form "$shell" "$tree_rc" "$dialect" "$target" && [ -n "$form" ]; then
       doctor_row "$shell" "$target is wired to this tree" ok
-    elif grep -qF "$(tmpdir_line "$dialect")" "$target" || [ "$(_hi_rc_names_tree "$target")" -ef "$_HI_HOME" ]; then
+    elif grep -qF "$(tmpdir_line "$dialect")" "$target" || _hi_rc_names_this_tree "$target"; then
       # an older hi's block names this tree too, but not the lines this one
       # writes: bash's `return` ends the rc for `ssh host cmd`, fish's bare
       # is-interactive block is a parse error on every fish 3.0-3.3 start,

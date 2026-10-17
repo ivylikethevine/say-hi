@@ -1,7 +1,8 @@
 # Testing
 
-Every script resolves against `$_HI_HOME/say-hi`, and the runner defaults
-`_HI_HOME` to this checkout's parent, so a fresh clone needs no setup. With a
+Every script resolves against `$_HI_ROOT`, this checkout under any name, and
+the runner derives it from its own path, with `_HI_HOME` its parent, so a
+fresh clone needs no setup. With a
 second say-hi tree on the machine (an install beside a dev checkout), set it
 on every invocation: a shell that sourced an install exports the whole `_HI_*`
 set at paths that exist, and a suite run against the wrong tree reports fewer
@@ -632,8 +633,11 @@ checking that something written down elsewhere still agrees with the tree:
   setting or a block name with a literal default of its own, and
   `common/targets.sh`'s two copies match the block.
 - **21. The `<check>` column**: every row's `<check>` is a kind
-  `scripts/lib.sh`'s `_hi_setting_check` knows, and the rows whose check is
-  `toggle` are `common/core.sh`'s `$_HI_TOGGLES`.
+  `scripts/lib.sh`'s `_hi_setting_check` knows, the rows whose check is
+  `toggle` are `common/core.sh`'s `$_HI_TOGGLES`, and names follow polarity
+  ([CONTRIBUTING.md](CONTRIBUTING.md#what-1x-will-not-break)): every `toggle`
+  is `_HI_DISABLE_*`, and no `flag` is but the four default-on settings
+  `_HI_DISABLE_LOCAL` leaves alone, excused by name.
 - **22. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
   and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file

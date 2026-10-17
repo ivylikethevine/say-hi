@@ -426,8 +426,19 @@ function _hi_overlay_src() {
   fi
   ! _hi_plugin_off "$1" || return 1
   ! _hi_prompt_row "$1" >/dev/null || _hi_prompt_handed "$1" || return 1
-  [ -f "$_hi_os_f" ] || _hi_overlay_home "$1" _hi_os_f || return 1
+  [ -f "$_hi_os_f" ] || _hi_overlay_site "$1" _hi_os_f || _hi_overlay_home "$1" _hi_os_f || return 1
   _hi_out "${2:-}" "$_hi_os_f"
+}
+
+# _hi_overlay_site <member> [outvar] - the site tier (HI.61): the file of
+# that name under $_HI_SITE_DIR, for a member config/ holds a default of, on
+# a client; it rides in the tree default's place as an overlay copy does
+function _hi_overlay_site() {
+  local _hi_ost_r
+  [ "${_HI_REMOTE_SESSION:-0}" != 1 ] && [ -n "${_HI_SITE_DIR:-}" ] && [ -f "$_HI_SITE_DIR/$1" ] || return 1
+  _hi_overlay_row "$1" _hi_ost_r || return 1
+  case "$_hi_ost_r" in *'|tree|'*) ;; *) return 1 ;; esac
+  _hi_out "${2:-}" "$_HI_SITE_DIR/$1"
 }
 
 # _hi_overlay_home <member> [outvar] - the home tier alone, with the member's

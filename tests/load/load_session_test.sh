@@ -475,18 +475,18 @@ function _hi_keep_holds_on() {
      _hi_keep_holds; printf "%s %s\n" "$?" "$_hi_keep_limit"' _ "$t" </dev/null 2>&1 | tr -d '\r'
 }
 
-# a session holds its tree through a drop for $_HI_KEEP_TIMEOUT, 15m with
+# a session holds its tree through a drop for $_HI_HOLD_TIMEOUT, 15m with
 # none and with a typo, nothing at 0, and only in a disposable tree, on a
 # terminal, with no multiplexer of its own
 function test_keep_holds_only_where_a_drop_can_be_held() {
   local got
-  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=10m)"
+  got="$(_hi_keep_holds_on _HI_HOLD_TIMEOUT=10m)"
   [ "$got" = "0 600" ] || _hi_because "10m: $got" || return 1
   got="$(_hi_keep_holds_on)"
   [ "$got" = "0 900" ] || _hi_because "unset: $got" || return 1
-  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=soon)"
+  got="$(_hi_keep_holds_on _HI_HOLD_TIMEOUT=soon)"
   [ "$got" = "0 900" ] || _hi_because "a typo: $got" || return 1
-  got="$(_hi_keep_holds_on _HI_KEEP_TIMEOUT=0)"
+  got="$(_hi_keep_holds_on _HI_HOLD_TIMEOUT=0)"
   [ "$got" = "1 0" ] || _hi_because "0: $got" || return 1
   got="$(_hi_keep_holds_on _HI_KEEP_MUX=tmux)"
   [ "$got" = "1 0" ] || _hi_because "under its own multiplexer: $got" || return 1
@@ -694,7 +694,7 @@ function test_keep_panes_leaves_a_launcher_the_multiplexer_opens() {
   t="$_HI_WORKDIR/pane tmux"
   printf -v q '%q' "$t"
   got="$(printf '%s\n' "set-option -t =hi-box: default-command $q/say-hi/hi.pane" "#!$BASH" \
-    "export _HI_HOME=$q" "export _HI_SESSION_RC=$q/hi.rc.x" 'export EDITOR=vim\ -u\ \"a\ b\"' 'export SHELL=/bin/bash' \
+    "export _HI_HOME=$q" "export _HI_ROOT=$q/say-hi" "export _HI_SESSION_RC=$q/hi.rc.x" 'export EDITOR=vim\ -u\ \"a\ b\"' 'export SHELL=/bin/bash' \
     "exec bash --rcfile $q/hi.rc.x/bashrc -i")"
   [ "$out" = "$got" ] || _hi_because "tmux: $out" || return 1
   [ -x "$t/say-hi/hi.pane" ] || _hi_because "the launcher is not executable" || return 1

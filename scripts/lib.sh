@@ -237,6 +237,36 @@ function _hi_plugins_shape() {
   [ ! -f "$2" ] || ! grep -Eq '^[[:space:]]*\[[^].]+\][[:space:]]*(#.*)?$' "$2" || printf -v "$1" rows
 }
 
+# The shape of settings.sh this hi writes and reads: the N of the
+# `# say-hi settings N` line hi --configure opens its block with. A file
+# with none is shape 0, told by its rows (convert_settings.sh's heuristics).
+_HI_SETTINGS_SHAPE=1
+
+# _hi_settings_shape <outvar> <file> - the N of <file>'s first
+# `# say-hi settings N` line, 0 for a file with none, empty for no file
+function _hi_settings_shape() {
+  printf -v "$1" '%s' ''
+  [ -f "$2" ] || return 0
+  printf -v "$1" '%s' "$(awk '
+    !n && /^#[ \t]*say-hi settings[ \t]+[0-9]+/ { sub(/^#[ \t]*say-hi settings[ \t]+/, ""); sub(/[^0-9].*/, ""); n = $0 }
+    END { printf "%d\n", n }
+  ' "$2")"
+}
+
+# _hi_toml_strays <file> - each line of a colors or packages file that is
+# no row of the subset (SETTINGS.md, The TOML hi reads) and so is read as
+# nothing: `<line number>|<text>`, none for no file
+function _hi_toml_strays() {
+  local _hi_ts_l _hi_ts_k _hi_ts_v _hi_ts_n=0
+  [ -f "$1" ] || return 0
+  while IFS= read -r _hi_ts_l || [ -n "$_hi_ts_l" ]; do
+    _hi_ts_n=$((_hi_ts_n + 1))
+    _hi_ts_l="${_hi_ts_l#"${_hi_ts_l%%[![:space:]]*}"}"
+    case "$_hi_ts_l" in '' | '#'* | '['*']'*) continue ;; esac
+    _hi_toml_row "$_hi_ts_l" _hi_ts_k _hi_ts_v || printf '%s|%s\n' "$_hi_ts_n" "$_hi_ts_l"
+  done <"$1"
+}
+
 # _hi_packages_drift <file> <tree's> - what a packages file of the user's own
 # gets wrong unseen, a `<severity>|<sentence>` line each: a row with a name
 # led by - or +, which is part of a name nothing matches (a table says what
@@ -329,10 +359,19 @@ function _hi_hrule() {
 }
 
 function _hi_h1() {
+  if [ "${_HI_TEXT:-0}" = 1 ]; then
+    printf '%s\n' "$1"
+    return 0
+  fi
   _hi_hrule "$1" '=' 1 "${2:-$BRBLUE}"
 }
 
 function _hi_h2() {
+  # under --text (table.sh) a heading is its words alone, no rule
+  if [ "${_HI_TEXT:-0}" = 1 ]; then
+    printf '%s\n' "$1"
+    return 0
+  fi
   _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
 }
 
@@ -407,7 +446,7 @@ function _hi_is_package_groups() {
 }
 # a 0/1 switch (_HI_KEEP, _HI_TRUECOLOR, the toggles)
 function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
-# $_HI_KEEP_TIMEOUT, $_HI_KEEP_RETRY: seconds, or a number with s, m, h, or d
+# $_HI_KEEP_TIMEOUT, $_HI_HOLD_TIMEOUT, $_HI_KEEP_RETRY: seconds, or a number with s, m, h, or d
 function _hi_is_duration() { [[ "$1" =~ ^[0-9]+[smhd]?$ ]]; }
 # one of core.sh's $_HI_EDITORS
 function _hi_is_editor() { _hi_list_has "$_HI_EDITORS" "$1"; }
@@ -703,7 +742,11 @@ function _hi_member_rows() {
     used="" eff="" text="" found=""
     _hi_overlay_src "$m" used || used=""
     _hi_overlay_places "$m" "$row"
-    locs=("$_HI_CONFIG_DIR/$m" ${_hi_paths[@]+"${_hi_paths[@]}"})
+    # the tiers in order: the overlay's copy, the site's (for a member
+    # config/ holds a default of), home, the tree's default
+    locs=("$_HI_CONFIG_DIR/$m")
+    case "$row" in *'|tree|'*) [ -z "${_HI_SITE_DIR:-}" ] || locs+=("$_HI_SITE_DIR/$m") ;; esac
+    locs+=(${_hi_paths[@]+"${_hi_paths[@]}"})
     case "$row" in *'|tree|'*) locs+=("$_HI_ROOT/config/$m") ;; esac
     eff="$used"
     [ -n "$eff" ] || case "$row" in *'|tree|'*) ! _hi_tool_here "$m" || eff="$_HI_ROOT/config/$m" ;; esac
@@ -726,6 +769,7 @@ function _hi_member_rows() {
       [ "$state" != "passed over" ] || [ "$p" != "$_HI_ROOT/config/$m" ] || continue
       found=1
       [ "$p" != "$_HI_ROOT/config/$m" ] || p="the tree's config/$m"
+      [ -z "${_HI_SITE_DIR:-}" ] || [ "$p" != "$_HI_SITE_DIR/$m" ] || p="the site's $p"
       text="$text${text:+; }$state $p"
     done
     _hi_member_label "$m" label

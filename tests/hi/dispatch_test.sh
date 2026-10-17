@@ -50,6 +50,7 @@ function _hi_ds_dispatch() {
     _HI_ADD_PACKAGE="$stub"
     _HI_COLOR_PIN="$stub"
     _HI_PLUGINS_CMD="$stub"
+    _HI_EDIT="$stub"
     _hi_dispatch_subcommand "$@"
   ) >"$_HI_DS_OUT" 2>&1 || _HI_DS_RC=$?
 }
@@ -123,8 +124,9 @@ function test_dispatch_hands_unset_color_its_switch() {
 args=--unset username root" ] || _hi_why got _HI_DS_OUT
 }
 
-# the five plugin flags share one script too: --plugins reaches it bare, the
-# rest behind the word that tells them apart
+# the three plugin flags share one script too: --plugins reaches it bare, the
+# rest behind the word that tells them apart; --edit's script takes its
+# word as given
 function test_dispatch_hands_the_plugin_flags_their_switches() {
   local got
   _hi_ds_dispatch --plugins
@@ -135,10 +137,10 @@ args=" ] || _hi_why got _HI_DS_OUT || return 1
   got="$(cat "$_HI_DS_OUT")"
   [ "$got" = "argv0=hi --disable-plugin
 args=--off vim bat --dry-run" ] || _hi_why got _HI_DS_OUT || return 1
-  _hi_ds_dispatch --add-plugin taskrc task env:TASKRC '/opt/taskrc : /etc/taskrc'
+  _hi_ds_dispatch --edit plugins
   got="$(cat "$_HI_DS_OUT")"
-  [ "$got" = "argv0=hi --add-plugin
-args=--add taskrc task env:TASKRC /opt/taskrc : /etc/taskrc" ] || _hi_why got _HI_DS_OUT
+  [ "$got" = "argv0=hi --edit
+args=plugins" ] || _hi_why got _HI_DS_OUT
 }
 
 # test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no

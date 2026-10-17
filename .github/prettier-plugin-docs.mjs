@@ -168,7 +168,7 @@ function writeUsage(text) {
         out.push(
           needs === "-"
             ? "It changes how a connect runs, which the [README's demos](../README.md) show."
-            : "No image: its output depends on the network and the release tags.",
+            : "No image: what it shows is the network's, a release tag's, or your editor's.",
           "",
         );
         return;

@@ -6,7 +6,9 @@
 # shellcheck disable=SC2139 # aliases are meant to expand $_HI_* now, not later
 # shellcheck disable=SC2153 # $_HI_HOME is set by whoever sources this, not here
 
-export _HI_ROOT="$_HI_HOME/say-hi"
+# the tree, as core.sh or config.fish derived it; the sh tier, which reads
+# this file alone, takes the say-hi under $_HI_HOME (GLOSSARY: HI.33)
+[ -z "$_HI_ROOT" ] && export _HI_ROOT="$_HI_HOME/say-hi"
 export _HI_LAUNCHER="$_HI_ROOT/hi.sh"
 export _HI_CORE="$_HI_ROOT/common/core.sh"
 export _HI_HEADER="$_HI_ROOT/common/header.sh"
@@ -23,6 +25,7 @@ export _HI_ADD_PACKAGE="$_HI_ROOT/scripts/add_package.sh"
 export _HI_ADD_TAG="$_HI_ROOT/scripts/add_tag.sh"
 export _HI_COLOR_PIN="$_HI_ROOT/scripts/set_color.sh"
 export _HI_PLUGINS_CMD="$_HI_ROOT/scripts/plugins.sh"
+export _HI_EDIT="$_HI_ROOT/scripts/edit.sh"
 
 # tests - only the two entry points every session needs
 export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
@@ -37,11 +40,15 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # assignment wins; paths_test.sh pins the lines to pack.sh's $_HI_OVERLAY_TABLE
 # (GLOSSARY: HI.61).
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
+# the site tier (HI.61) stands in for the tree's until the overlay has a
+# copy, on a client alone: on a target the site's file rode as the copy
 export _HI_COLORS="$_HI_ROOT/config/colors"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SITE_DIR/colors" ] && export _HI_COLORS="$_HI_SITE_DIR/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
 # the package check; `hi --add-package` copies the tree's in before its
 # first write, so a copy of your own starts with every stock row
 export _HI_PACKAGES="$_HI_ROOT/config/packages"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_SITE_DIR/packages" ] && export _HI_PACKAGES="$_HI_SITE_DIR/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
 # extensions, sourced after the aliases; the same only home (HI.59)
 export _HI_EXTENSIONS="$_HI_CONFIG_DIR/extensions"
@@ -88,7 +95,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # shells need it and this is the only file all four read - spelled per shell,
 # a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use --update --link --shell --preset --add-package --remove-package --add-tag --remove-tag --add-color --remove-color --disable-plugin --enable-plugin --add-plugin --remove-plugin"
+export _HI_WORD_FLAGS="--preview --use --update --link --shell --preset --add-package --remove-package --add-tag --remove-tag --add-color --remove-color --disable-plugin --enable-plugin --edit"
 alias hi="$_HI_LAUNCHER"
 # The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

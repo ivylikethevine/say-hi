@@ -172,6 +172,7 @@ if [ "$kind" = words ]; then
   # here since this file can run forked with the session's own _HI_*
   # unexported (HI.47) and cannot source paths.sh).
   pkgs="${_HI_CONFIG_DIR:-}/packages"
+  [ -f "$pkgs" ] || pkgs="${_HI_SITE_DIR:-/etc/say-hi}/packages"
   [ -f "$pkgs" ] || pkgs="$hi_tree/config/packages"
   # a fixed list is common/flags' <flag>=<word> rows; --remove-color takes
   # --add-color's
@@ -215,13 +216,15 @@ if [ "$kind" = words ]; then
         [ -z "$line" ] || printf '%s\tswitched off\n' "$line"
       done
     ;;
-  --add-plugin)
-    # a plugin's name is the user's to make up: nothing to offer, and no
-    # target names either
-    ;;
-  --remove-plugin)
-    plugin_tables "${_HI_CONFIG_DIR:-}/plugins" | while IFS='|' read -r _ line; do
-      printf '%s\ta plugin of your plugins file\n' "$line"
+  --edit)
+    # hi's own four, there or not, then every other file of the overlay
+    for line in settings.sh colors packages plugins; do printf '%s\thi reads it\n' "$line"; done
+    [ -d "${_HI_CONFIG_DIR:-}" ] && find "$_HI_CONFIG_DIR" -type f 2>/dev/null |
+      cut -c"$((${#_HI_CONFIG_DIR} + 2))-" | sort | while IFS= read -r line; do
+      case "$line" in
+      settings.sh | colors | packages | plugins) ;;
+      *) printf '%s\ta file of your overlay\n' "$line" ;;
+      esac
     done
     ;;
   --add-package)

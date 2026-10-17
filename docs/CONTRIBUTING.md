@@ -187,7 +187,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The twenty-five flags in `common/flags`** — name, argument shape, and what
+- **The twenty-four flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -195,15 +195,16 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   argument is a word (`--use`, `--preview`, `--update`), refused on the rest;
   every `--word` is hi's (an unknown one is hi's error); and everything after
   the target is the remote command.
-- **The sub-command switches** — `--doctor --json` and `--doctor --problems`,
+- **The sub-command switches** — `--doctor --json`, `--doctor --problems`,
+  `--doctor --text`, `--plugins --text`, `--preview --text`,
   `--install`'s `-y`/`--yes`, `--link {none,user,system}`, `--shell <list>`,
   `--print-rc`, `--preset <name>`, and `-n`/`--dry-run`, `--uninstall --purge`
   and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
   `--update --dry-run`, `--add-package --dry-run`, `--remove-package --dry-run`,
   `--add-tag --dry-run`, `--add-color --dry-run`, `--remove-color --dry-run`,
-  `--disable-plugin --dry-run`, `--enable-plugin --dry-run`, `--add-plugin --dry-run`,
-  `--remove-plugin --dry-run`, `scripts/install.sh --prefix <dir>` — name and
+  `--disable-plugin --dry-run`, `--enable-plugin --dry-run`,
+  `scripts/install.sh --prefix <dir>` — name and
   meaning (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
   `--install --yes`; no other switch has one); and the `--json` document's
   top-level keys (`version`, `target`, `findings`, `rows`) with each row's four
@@ -220,8 +221,15 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   above" quietly stops meaning all of them. An
   opt-in (`_HI_TOOL_ALIASES`'s shape) stays out of `_HI_TOGGLES`: it takes
   its `0` from `common/aliases.sh`'s backstop line, every reader compares it
-  against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`.
-- **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
+  against `1`, and `_HI_DISABLE_LOCAL`'s block exports it as `0`. The split
+  is by polarity, and every later setting keeps to it: a `1` that turns off
+  something on by default is a `_HI_DISABLE_*` row, a `1` that turns on
+  something off by default has a positive name (`_HI_KEEP`, `_HI_PLAIN`), and
+  `drift` fails a `toggle` named any other way and a `_HI_DISABLE_*` flag
+  unless it is one of the four default-on settings `_HI_DISABLE_LOCAL` has to
+  leave alone (`_HI_DISABLE_KEEP`'s kind), which it excuses by name.
+- **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh` and its
+  `# say-hi settings <n>` shape line, `colors`, `packages`,
   `extensions/` and its hook names, `header/` and its `_hi_cell_<word>`
   functions, `bin/`, `plugins` and its keys, `vim/vimrc`,
   `nvim/init.lua`/`init.vim`, `helix/config.toml`/`languages.toml`, `kak/kakrc`/`colors/`,
@@ -232,12 +240,20 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`,
   `tide.vars`, `eza/theme.yml`, `bat/config`, `ripgreprc`, `fzfrc`,
   `lazygit/config.yml`, `git/config`, `inputrc`, and `ssh_tags`), `settings.<tag>.sh` beside
-  them, their formats, the XDG path, and the `_HI_CONFIG_DIR` override. The rule behind the names: a member is
+  them, their formats, the XDG path, and the `_HI_CONFIG_DIR` override; and
+  the order a member resolves in - the overlay's copy, the site tier
+  (`$_HI_SITE_DIR`, for `settings.sh`, `colors`, `packages`, and `plugins`),
+  the file at home, the tree's default - which a minor may add a tier to and
+  never reorders. The rule behind the names: a member is
   called what its tool calls the file, under a directory of the tool's name
   where the tool keeps one in `~/.config`; where the tool has no fixed name the
   member carries the tool's name and extension.
-- **The installed layout** — `$_HI_HOME/say-hi` and `/etc/profile.d/say-hi.sh`
-  for packages, the rc lines `install.sh` writes and the `--print-rc` block, and
+- **The installed layout** — `$_HI_ROOT` is the tree wherever it is, a
+  clone under any name or a package's `/usr/share/say-hi`, and `$_HI_HOME`
+  the directory above it; a session's is `$_HI_HOME/say-hi`;
+  `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes
+  (`_HI_HOME` for a tree called `say-hi`, `_HI_ROOT` for any other, both read
+  for good) and the `--print-rc` block, and
   `_HI_RELEASE` as the
   version stamp `packaging/stamp.sh` fills.
 - **Target behaviour** — nothing hi writes outside the session directory,

@@ -132,6 +132,29 @@ function test_configure_leaves_a_hand_line_it_does_not_write() {
   [ "$got" -eq 1 ] && [[ "$got2" != *"$_HI_MARKER"* ]] || _hi_why got got2 out _HI_MARKER
 }
 
+# the block opens on its shape line, `# say-hi settings N`, which the
+# converter and doctor read in place of guessing from the rows; a second
+# run writes it once, and the diff report never counts it as a setting
+function test_configure_opens_the_block_on_its_shape_line() {
+  local out got first n shape
+  n="$(sed -n 's/^_HI_SETTINGS_SHAPE=//p' "$_HI_ROOT/scripts/lib.sh")"
+  [ -n "$n" ] || _hi_why n || return 1
+  out="$(_hi_run_in shape "export _HI_MAX_WIDTH=100")" || _hi_why || return 1
+  first="$(printf '%s\n' "$out" | grep -F "$_HI_MARKER" | sed -n 1p)"
+  [[ "$first" == "# say-hi settings $n "*"$_HI_MARKER" ]] || _hi_why first out || return 1
+  out="$(_hi_run_in shape)" || _hi_why || return 1
+  got="$(printf '%s\n' "$out" | grep -c '^# say-hi settings ')"
+  shape="$(_hi_settings_shape_of "$_HI_WORKDIR/run_shape/settings.sh")"
+  [ "$got" -eq 1 ] && [ "$n" = "$shape" ] || _hi_why got shape out
+}
+
+# _hi_settings_shape_of <file> - lib.sh's reader, as the suite sees it
+function _hi_settings_shape_of() {
+  local shape
+  _hi_settings_shape shape "$1"
+  printf '%s' "$shape"
+}
+
 # no tty, no preset, no file, and nothing to say: no file - a shebang alone
 # would be a decision record with no decision in it, and its existence is
 # what stops the one-shot prompt-framework detection asking again
@@ -822,6 +845,7 @@ function run_configure_wizard_tests() {
   _hi_check "Advanced: defaults write nothing" test_advanced_defaults_write_nothing
   _hi_check "A hand-written line is adopted, not duplicated" test_configure_adopts_a_hand_written_line
   _hi_check "A hand line this run does not write is left alone" test_configure_leaves_a_hand_line_it_does_not_write
+  _hi_check "The block opens on its shape line, written once" test_configure_opens_the_block_on_its_shape_line
   _hi_check "No tty and nothing to say: no file" test_no_tty_run_with_defaults_writes_no_file
   _hi_check "A preset run creates the file" test_preset_run_still_creates_the_file
   _hi_check "Validators for the advanced values" test_validators_for_the_advanced_values

@@ -14,6 +14,7 @@
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
@@ -73,6 +74,11 @@ host="${args[0]}" tag="${args[1]:-}"
 # one word the walk reads whole: it stops the leftmost tag at a comma or space
 [ "$mode" = remove ] || [[ "$tag" =~ ^[A-Za-z0-9_.-]+$ ]] ||
   _hi_die "not a tag: $tag (letters, digits, _ . - only)"
+# a backend's word is the tag of every target of its kind (hi.sh's
+# _hi_backend_tags), so no host carries one
+case " $_HI_CONTAINER_CLIS nomad kube " in
+*" $tag "*) _hi_die "not a tag for a host: $tag is a backend's word, the tag of every $tag target (settings.$tag.sh reaches them)" ;;
+esac
 [ -f "$_HI_SSH_CONFIG" ] || _hi_die "no ssh config at $_HI_SSH_CONFIG"
 
 # _hi_host_line <file> - the line number of the first Host or Match host line

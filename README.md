@@ -54,7 +54,7 @@ Nomad allocation, or a Kubernetes pod.
 ## In Sixty Seconds
 
 ```sh
-git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
+git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # or any directory you like
 ~/say-hi/scripts/install.sh    # wires your shell's rc file and asks one question
 exec $SHELL                    # reload
 hi <anything>                  # ssh, with your prompt, aliases, and editors along
@@ -216,8 +216,8 @@ row, and everything answered **no**, and why:
   with an rc file already; `--shell bash,zsh` names them instead, and `all` is
   every one installed. Each line tests for the tree first, so a deleted
   checkout costs a shell nothing. On macOS `~/.bash_profile` is taught to read
-  `~/.bashrc`. A first install asks whether hi styles this machine too, and
-  nothing else. For an rc file a dotfile manager owns, `--print-rc` prints
+  `~/.bashrc`. A first install asks one thing, which preset to start from
+  ([docs/SETTINGS.md](docs/SETTINGS.md#presets)), and nothing else. For an rc file a dotfile manager owns, `--print-rc` prints
   each block and writes none
   ([docs/SETTINGS.md](docs/SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)). `hi` is linked at `~/.local/bin/hi` (`--link system`
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
@@ -245,10 +245,10 @@ row, and everything answered **no**, and why:
   `hi --remove-color hostname prod-db` removes the pin.
 - `hi --plugins` lists every config hi carries to a target, and what rides;
   `hi --disable-plugin lazygit vim` keeps a plugin home and
-  `hi --enable-plugin` brings it back; `hi --add-plugin` and `hi --remove-plugin`
-  carry the configs of a tool hi does not know
+  `hi --enable-plugin` brings it back; `hi --edit plugins` opens your plugins
+  file in your editor, for the configs of a tool hi does not know
   ([docs/SETTINGS.md](docs/SETTINGS.md#switching-a-plugin-off)).
-- The whole surface is twenty-five flags: `hi --help` (or bare `hi`) lists them,
+- The whole surface is twenty-four flags: `hi --help` (or bare `hi`) lists them,
   [docs/USAGE.md](docs/USAGE.md) shows what each prints, `man hi` is the long
   form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
@@ -364,9 +364,8 @@ myself.
 The features and changes left to build; nothing here is parked or descoped.
 One list, in the order the work is best done. An entry is deleted once its
 **Ticks when** holds. What a release waits on is
-[Release Stages](#release-stages).
-
-None open.
+[Release Stages](#release-stages). The list is empty: everything that was to
+land before 1.0 has.
 
 ## Release Stages
 

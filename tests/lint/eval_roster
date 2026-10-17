@@ -50,8 +50,8 @@ sh -c|common/zsh.zsh|1
 sh -c|hi.sh|4
 source|common/aliases.sh|2
 source|common/bash.sh|7
-source|common/config.fish|8
-source|common/core.sh|3
+source|common/config.fish|9
+source|common/core.sh|4
 source|common/fw_bash-it.sh|2
 source|common/fw_oh-my-bash.sh|2
 source|common/fw_oh-my-zsh.zsh|2
@@ -68,6 +68,7 @@ source|scripts/configure_menu.sh|1
 source|scripts/configure_preview.sh|3
 source|scripts/convert_settings.sh|3
 source|scripts/doctor.sh|7
+source|scripts/edit.sh|4
 source|scripts/install.sh|5
 source|scripts/lib.sh|1
 source|scripts/pack.sh|4

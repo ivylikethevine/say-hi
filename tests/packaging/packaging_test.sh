@@ -384,6 +384,19 @@ function _hi_in_pkglib() {
   )
 }
 
+# _hi_in_pkglib_at <root> <command...> - the same, the tree set to <root>
+# once the library has derived its own (it always does, as install.sh does)
+function _hi_in_pkglib_at() {
+  local _hi_pa_root="$1"
+  shift
+  (
+    # shellcheck source=../../packaging/lib.sh
+    source "$_HI_PKG_DIR/lib.sh"
+    _HI_ROOT="$_hi_pa_root"
+    "$@"
+  )
+}
+
 # a workflow secret lands in a file only its owner reads, whatever the umask
 function test_lib_write_key_writes_an_owner_only_file() {
   local got
@@ -452,12 +465,12 @@ function test_lib_default_version_falls_through_the_template() {
   # key - a maintainer machine with tag.gpgSign=true set globally would
   # otherwise fail this with "no tag message?"
   git -C "$gitdir" -c tag.gpgSign=false tag v9.9.9
-  got="$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)"
+  got="$(_HI_PKGBUILD="$pkgbuild" _hi_in_pkglib_at "$gitdir" default_version)"
   [ "$got" = 9.9.9 ] || _hi_why got gitdir pkgbuild || return 1
 
   rm -rf "$gitdir" && mkdir -p "$gitdir"
   git -C "$gitdir" init -q
-  got="$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)"
+  got="$(_HI_PKGBUILD="$pkgbuild" _hi_in_pkglib_at "$gitdir" default_version)"
   [ "$got" = 0.0.0 ] || _hi_why got gitdir pkgbuild
 }
 

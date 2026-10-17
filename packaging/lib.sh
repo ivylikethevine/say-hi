@@ -24,13 +24,15 @@ while [ -L "$_HI_SELF" ]; do
     esac ;;
   esac
 done
-_HI_HOME="$(cd -P "$(dirname "$_HI_SELF")/../.." && pwd)"
+_HI_ROOT="$(cd -P "$(dirname "$_HI_SELF")/.." && pwd)"
+export _HI_ROOT
+_HI_HOME="${_HI_ROOT%/*}"
 export _HI_HOME
 
 # shellcheck source=../common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 # shellcheck source=../scripts/lib.sh
-source "$_HI_HOME/say-hi/scripts/lib.sh"
+source "$_HI_ROOT/scripts/lib.sh"
 
 # need <tool> [hint] - the tool-missing refusal every entry point spells the
 # same way; the optional hint says where the tool comes from.

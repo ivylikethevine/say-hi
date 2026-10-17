@@ -17,6 +17,7 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-doctor
 .RB [ \-\-json ]
 .RB [ \-\-problems ]
+.RB [ \-\-text ]
 .RB [ \-\-use " " \fIbackend\fR]
 .RI [ ssh\-options ]
 .RI [ target ]
@@ -67,6 +68,7 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-plugins
+.RB [ \-\-text ]
 .br
 .B hi \-\-disable\-plugin
 .IR name ...
@@ -76,17 +78,12 @@ hi \- your shell config, on every host you say hi to
 .IR name ...
 .RB [ \-\-dry\-run ]
 .br
-.B hi \-\-add\-plugin
-.IR "group name file" ...
-.RI [ key = value ...]
-.RB [ \-\-dry\-run ]
-.br
-.B hi \-\-remove\-plugin
-.I name
-.RB [ \-\-dry\-run ]
+.B hi \-\-edit
+.RI [ file ]
 .br
 .B hi \-\-preview
 .RB { colors | packages | header }
+.RB [ \-\-text ]
 .br
 .BR "hi \-h" " | " \-V
 .SH DESCRIPTION
@@ -239,8 +236,8 @@ The target needs bash, and you a terminal; otherwise hi says so and connects
 as usual.
 On a target with none of the three the shell cannot outlive its connection,
 and its directory does: a dropped link leaves it for
-.B _HI_KEEP_TIMEOUT
-(15m there), and a
+.B _HI_HOLD_TIMEOUT
+(15m), and a
 .B hi
 to that target inside the window starts its shell on the same directory, in
 the directory the dropped one was in, with nothing unpacked.
@@ -292,7 +289,7 @@ which a package has not.
 .BR \-n " is " \-\-dry\-run 's
 short form wherever it appears.
 .TP
-.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
+.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR} [\fB\-\-text\fR]
 print one of these and exit:
 .B colors
 \- each user and ssh host a pin, tag, or pattern colors, in that color, with
@@ -302,8 +299,12 @@ the rule it matched;
 then the marks and the check;
 .B header
 \- the connect header at your settings.
+.B \-\-text
+draws no table and no color: one row a line, as under
+.BR \-\-doctor ;
+the header's own check line stays the header's.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-problems\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-problems\fR] [\fB\-\-text\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree;
 the config overlay; each overlay member and the tool that reads it, with the
 places it was found (the overlay, a home location, the tree's default) and
@@ -327,6 +328,13 @@ and
 outside a UTF\-8 locale).
 .B \-\-problems
 prints only the warn and bad rows, gathered into one findings table.
+.B \-\-text
+draws no table and no color: one row a line,
+.IR section / label : text ,
+a warn, bad, or ok row saying so in brackets, for a screen reader or a grep;
+the same rows as the tables, and not
+.BR \-\-json 's
+form, which it refuses beside.
 ssh options reach
 that check's BatchMode probe as they would a connect, and are reported as
 ignored for a non\-ssh target.
@@ -440,7 +448,8 @@ picks a preset
 .RB ( everything ,
 .BR balanced ,
 .BR minimal ,
-.BR lean ),
+.BR lean ,
+.BR configs ),
 .B s
 saves, and
 .B q
@@ -587,13 +596,16 @@ under
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
-.B \-\-plugins
+.B \-\-plugins \fR[\fB\-\-text\fR]
 list every plugin, the configs of a tool's hi carries to a target and points
 the tool at: its name, its group, each member, and the file that rides, or
 why none does. A plugin is a table of the tree's
 .B config/plugins
 or of
 .BR ~/.config/say-hi/plugins .
+.B \-\-text
+draws no table and no color: one row a line, as under
+.BR \-\-doctor .
 .TP
 .B \-\-disable\-plugin \fIname\fR... [\fB\-\-dry\-run\fR]
 switch plugins off for every target: a plugin that is off sends no file and
@@ -617,57 +629,34 @@ back out of that list.
 .B \-\-dry\-run
 says what would be written and writes nothing.
 .TP
-.B \-\-add\-plugin \fIgroup name file\fR... [\fIkey\fR=\fIvalue\fR...] [\fB\-\-dry\-run\fR]
-write the
-.BI [ group . name ]
-table of
-.BR ~/.config/say-hi/plugins ,
-for the configs of a tool hi does not know, or your own plugin for one it
-does:
-.I group
-is the section it is listed under,
-.I name
-its own word and its name in a report, and each
+.B \-\-edit \fR[\fIfile\fR]
+open your overlay,
+.BR ~/.config/say-hi ,
+in your editor: the directory, or the one
 .I file
-the name a config rides under. The keys are
-.BR tool= ,
-the command that reads them (left out,
-.IR name ;
-.B \-
-for none),
-.BR wire= ,
-how a target's tool finds a file,
-.BR home= ,
-where a file is here,
-.BR dialect= ,
-.BR init= ,
-the tool's shell hook (a command printing a shell's code,
-.B {shell}
-for the shell's name, run on a target that has the tool; a plugin with one
-needs no file),
-.BR prompt=yes ,
-when that init draws the prompt,
-.BR shells= ,
-the shells the init runs in (left out, bash, zsh, and fish),
-.BR env= ,
-variables whose values on this machine a target's session exports (a plugin
-with one needs no file), and
-.BR default=off ,
-for a plugin kept home until
-.B \-\-enable\-plugin
-names it (see
-.BR FILES ).
-A table hi could not read is refused, with the reason.
-.B \-\-dry\-run
-says what would be written and writes nothing.
-.TP
-.B \-\-remove\-plugin \fIname\fR [\fB\-\-dry\-run\fR]
-remove the plugin
-.IR name ,
-its table and its files' tables, from
-.BR ~/.config/say-hi/plugins .
-.B \-\-dry\-run
-says what would be written and writes nothing.
+of it
+.RB ( plugins ,
+.BR colors ,
+.BR vim/vimrc ),
+made where it is not there yet: a
+.B plugins
+started from the key reference at the top of the tree's
+.BR config/plugins ,
+a
+.B colors
+or
+.B packages
+as a copy of the tree's, a
+.B settings.sh
+as
+.B \-\-configure
+starts one. The editor is
+.BR $VISUAL ,
+else
+.BR $EDITOR ,
+else
+.BR _HI_EDITOR ,
+else the first of hi's editors installed here.
 .PP
 Everything else is passed through to
 .BR ssh (1)
@@ -774,8 +763,8 @@ the four pin types,
 the plugins,
 .B \-\-enable\-plugin
 the ones that are off,
-.B \-\-remove\-plugin
-the members of your plugins file, and
+.B \-\-edit
+the files of your overlay, and
 .B hi \-\-update <TAB>
 the release tags a checkout knows of.
 .SH CONFIGURATION
@@ -790,7 +779,24 @@ writes
 .BR settings.sh ;
 you create the rest, the tree's
 .B config/
-copy of a file being the default until you copy it here. Every setting is an
+copy of a file being the default until you copy it here. Between the two, a
+site tier:
+.B /etc/say-hi/
+(else the first
+.B say-hi/
+under
+.BR $XDG_CONFIG_DIRS ,
+or
+.BR $_HI_SITE_DIR )
+may hold a
+.BR settings.sh ,
+read before yours,
+and a
+.BR colors ,
+.BR packages ,
+or
+.B plugins
+that stands in for the tree's until you copy one. Every setting is an
 environment variable, tabulated with its default in
 .IR docs/SETTINGS.md .
 The tree itself can be root\-owned (a package install): hi never writes into
@@ -798,8 +804,7 @@ it.
 .SH FILES
 .TP
 .B /usr/share/say-hi
-the tree, in a package install; a git checkout (in a directory named
-.BR say-hi )
+the tree, in a package install; a git checkout, under any directory name,
 works the same.
 .TP
 .B ~/.config/say-hi/settings.sh
@@ -811,8 +816,18 @@ settings for the hosts whose
 .B # Tags:
 line names
 .IR tag ,
-in settings.sh's shape: read after it on a connect, and sent to that host
-joined to it. Written by hand.
+and for every container, allocation, or pod where
+.I tag
+is its backend's word
+.RB ( docker ,
+.BR podman ,
+.BR nerdctl ,
+.BR finch ,
+.BR nomad ,
+.BR kube ),
+or a pod's context or namespace; in settings.sh's shape: read after it on a
+connect, backend, context, then namespace, and sent to that target joined to
+it. Written by hand; the six words are no host's tag.
 .TP
 .B ~/.config/say-hi/colors
 your copy of
@@ -1199,12 +1214,15 @@ or
 .B 0
 is never. Default
 .BR 24h .
-On a target with no multiplexer it is how long a dropped session's directory
-waits for a reconnect:
-.B 15m
-unless set, and
+Read on the target, so set it in
+.BR settings.sh .
+.TP
+.B _HI_HOLD_TIMEOUT
+how long a dropped session's directory waits for a reconnect on a target with
+no multiplexer, a duration as above;
 .B 0
-holds nothing: the directory goes with the connection.
+holds nothing: the directory goes with the connection. Default
+.BR 15m .
 Read on the target, so set it in
 .BR settings.sh .
 .TP

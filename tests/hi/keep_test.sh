@@ -401,7 +401,7 @@ function test_keep_start_hands_the_pane_its_environment() {
   [[ "$out" == *" _HI_LOCAL_USER="*" _HI_CLEANUP=$_HI_WORKDIR/t "*" bash --rcfile $_HI_WORKDIR/t/say-hi/hi.bashrc -i"* ]] ||
     _hi_because "the argv lost a variable: $out" || return 1
   grep -qx "_HI_HOME=$_HI_WORKDIR/t" "$log.env" || _hi_because "the multiplexer lost \$_HI_HOME" || return 1
-  ! grep -qE '^_HI_(LOCAL_USER|LOCAL_HOSTNAME|CLEANUP|ROOT|TARGET_COLOR|KEEP_AS)=' "$log.env" ||
+  ! grep -qE '^_HI_(LOCAL_USER|LOCAL_HOSTNAME|CLEANUP|TARGET_COLOR|KEEP_AS)=' "$log.env" ||
     _hi_because "the multiplexer kept: $(grep -E '^_HI_' "$log.env" | tr '\n' ' ')"
 }
 
@@ -693,7 +693,7 @@ function test_keep_connect_retries_a_dropped_kept_session() {
   # and with 0 nothing is kept to speak of
   out="$(_HI_TARGET_MUX=0 _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
   [[ "$out" == *"is kept for 15m until "[0-9][0-9]:[0-9][0-9]" - retrying"* ]] || _hi_because "no multiplexer there: $out" || return 1
-  out="$(_HI_TARGET_MUX=0 _HI_KEEP_TIMEOUT=0 _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
+  out="$(_HI_TARGET_MUX=0 _HI_HOLD_TIMEOUT=0 _hi_keep_connect_run 1 '' 1 255:1:60 86:1)"
   [[ "$out" == *"hi: lost [box] - retrying"* ]] || _hi_because "nothing held: $out" || return 1
   # at a terminal each wait is a line of five dots, a second apart
   out="$(
@@ -811,7 +811,7 @@ function test_keep_here_starts_the_owner_pane_from_the_session_s_file() {
     _hi_because "no owner pane: $out" || return 1
   # the multiplexer's own environment is a session child's and no more: the
   # launcher's fifty-odd paths stay behind with the client's verdicts
-  ! grep -E '^_HI_' "$log.env" | grep -qvE '^_HI_(HOME|CONFIG_DIR|REMOTE_SESSION|SESSION_RC|TARGETS_TTL|PROBE_TIMEOUT|TEST_[A-Z]*)=' ||
+  ! grep -E '^_HI_' "$log.env" | grep -qvE '^_HI_(HOME|ROOT|CONFIG_DIR|SITE_DIR|REMOTE_SESSION|SESSION_RC|TARGETS_TTL|PROBE_TIMEOUT|TEST_[A-Z]*)=' ||
     _hi_because "the multiplexer kept: $(grep -E '^_HI_' "$log.env" | cut -d= -f1 | tr '\n' ' ')" || return 1
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "the marker outlived a session that is not there"
 }
@@ -933,8 +933,8 @@ function test_keep_here_refuses_what_it_cannot_keep() {
     [ -s "$t/say-hi/hi.cwd" ] ||
     _hi_because "no multiplexer, so the tree is held: $out" || return 1
   rm -f "$t/say-hi/hi.hold" "$t/say-hi/hi.cwd"
-  out="$(_hi_keep_here_run "$log" "$t" _HI_KEEP_TIMEOUT=0 PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"
-  [[ "$out" == *"--keep needs tmux, zellij, or screen on this machine, or a _HI_KEEP_TIMEOUT over 0"* ]] && [ ! -e "$t/say-hi/hi.hold" ] ||
+  out="$(_hi_keep_here_run "$log" "$t" _HI_HOLD_TIMEOUT=0 PATH="$bare:$(_hi_real_path heretools sh bash sed awk date env grep cat mkdir python3 dirname uname tr)")"
+  [[ "$out" == *"--keep needs tmux, zellij, or screen on this machine, or a _HI_HOLD_TIMEOUT over 0"* ]] && [ ! -e "$t/say-hi/hi.hold" ] ||
     _hi_because "no multiplexer and no window: $out" || return 1
   out="$(env -u TMUX -u ZELLIJ -u STY PATH="$(_hi_keep_shims):$PATH" _HI_HOME="$t" _HI_ROOT="$t/say-hi" \
     _HI_CONFIG_DIR="$t/say-hi/config" _HI_REMOTE_SESSION=1 "$BASH" -c 'source "$1"; _hi_keep_here' _ "$_HI_LAUNCHER" </dev/null 2>&1)" || true
