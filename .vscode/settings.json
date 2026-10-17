@@ -7,10 +7,10 @@
     "config/packages": "toml",
     "config/plugins": "toml",
     "docs/tapes/editors/vimrc": "ini",
-    "docs/tapes/editors/nanorc": "ini",
+    "docs/tapes/editors/nanorc": "ini"
   },
   "[markdown]": {
-    "editor.inlineSuggest.enabled": false,
     "editor.formatOnSave": false,
-  },
+    "editor.inlineSuggest.enabled": false
+  }
 }
