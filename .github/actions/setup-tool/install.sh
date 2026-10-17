@@ -39,8 +39,7 @@ esac
 _ci_row="$(_ci_tool_row "$CI_TOOL")" || exit 1
 IFS='|' read -r _ _ci_pin _ci_kind _ci_url _ci_verify _ _ _ci_row_sha256 <<<"$_ci_row"
 
-_ci_version="${CI_TOOL_VERSION:-}"
-[ -n "$_ci_version" ] || _ci_version="$_ci_pin"
+_ci_version="${CI_TOOL_VERSION:-$_ci_pin}"
 
 # The row's sha256 only vouches for the pinned asset. An override without its
 # own checksum would install unverified bytes, so it is refused outright.
@@ -141,9 +140,7 @@ function _ci_build_deps() {
   }
   # shellcheck source=../apt/lib.sh
   source "$(dirname "${BASH_SOURCE[0]}")/../apt/lib.sh"
-  _ci_apt_drop_vendor_lists
-  _ci_apt_update
-  sudo apt-get install -y --no-install-recommends "$@"
+  _ci_apt_install "$@"
 }
 
 # _ci_nproc - build parallelism on Linux and macOS alike

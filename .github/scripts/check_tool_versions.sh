@@ -16,8 +16,9 @@
 #   2. inline pins      versions pinned in workflow/config text rather than
 #                       tools.txt (e.g. a release download URL), listed in
 #                       CI_WORKFLOW_ROSTER
-#   3. action SHAs      every distinct `uses: owner/repo@<sha> # vX.Y.Z`;
-#                       an outdated row is followed by the commit to pin
+#   3. action SHAs      every distinct `uses: owner/repo@<sha> # vX.Y.Z` under
+#                       CI_ACTION_DIRS; an outdated row is followed by the
+#                       commit to pin
 #   4. image digests    every `FROM`/`image:` pinned by digest in files
 #                       matching CI_IMAGE_GLOBS, against Docker Hub's tag; an
 #                       outdated row is followed by the reference to pin
@@ -43,6 +44,9 @@
 #     tag-prefix mean what they do in tools.txt. held, optional, is one
 #     upstream release known broken: while it is the latest, the row reads
 #     `held` instead of OUTDATED, and any later release reports as usual.
+#   - set CI_ACTION_DIRS, the space-separated directories whose workflows
+#     and actions section 3 reads (default .github; a root action.yml is
+#     read as well)
 #   - set CI_IMAGE_GLOBS (space-separated git pathspec globs; empty skips
 #     section 4)
 #   - set CI_MANIFESTS, one row per line:
@@ -73,6 +77,7 @@ _ci_need check_tool_versions curl jq
 # mirrors `cooldown: default-days` in .github/dependabot.yml; change both
 COOLDOWN_DAYS="${TOOL_COOLDOWN_DAYS:-7}"
 CI_WORKFLOW_ROSTER="${CI_WORKFLOW_ROSTER:-}"
+CI_ACTION_DIRS="${CI_ACTION_DIRS:-.github}"
 CI_MANIFESTS="${CI_MANIFESTS:-}"
 # unset means the default list; set-but-empty skips the section
 CI_IMAGE_GLOBS="${CI_IMAGE_GLOBS-$_CI_IMAGE_GLOBS}"
@@ -115,6 +120,13 @@ function _ci_problem() {
   t="${t//$'\r'/%0D}" m="${m//$'\r'/%0D}"
   t="${t//:/%3A}"
   printf '::warning title=%s::%s\n' "${t//,/%2C}" "$m"
+}
+
+# _ci_error <label> <pinned> <row text> <annotation> - an ERROR row, counted
+# and annotated by _ci_problem
+function _ci_error() {
+  printf '%-32s %-14s ERROR (%s)\n' "$1" "$2" "$3"
+  _ci_problem "$1" "$4"
 }
 
 # _ci_gh_curl <curl args...> - curl for api.github.com, with GH_TOKEN when set:
@@ -229,7 +241,7 @@ function _ci_at_least() {
 # row leaves its release in $_ci_due.
 function _ci_report_pin() {
   local label="$1" pinned="$2" check="$3" prefix="$4" where="$5" held="${6-}" within="${7-}" partial="${8-}"
-  local due newest age note=""
+  local due newest age host note=""
   _ci_due=""
   if [ "$check" = "-" ]; then
     printf '%-32s %-14s (not drift-checked - see %s)\n' "$label" "$pinned" "$where"
@@ -238,8 +250,7 @@ function _ci_report_pin() {
   case "$check" in
   github:?* | gitlab:?* | npm:?* | pypi:?* | crates:?*) ;;
   *)
-    printf '%-32s %-14s ERROR (unknown check kind: %s)\n' "$label" "$pinned" "$check"
-    _ci_problem "$label" "unknown check kind '$check' - fix $where"
+    _ci_error "$label" "$pinned" "unknown check kind: $check" "unknown check kind '$check' - fix $where"
     return 0
     ;;
   esac
@@ -368,11 +379,11 @@ if declare -F _ci_tool_rows >/dev/null; then
     [ -n "$tool" ] || continue
     # a malformed row fails only when some job installs it; say so weekly
     if [ -n "$extra" ] || [ -z "$kind" ] || [ -z "$url" ] || ! _ci_row_sha256_ok "$sha256"; then
-      printf '%-32s %-14s ERROR (malformed row - see the tools.txt header)\n' "$tool" "$pinned"
-      _ci_problem "$tool" "tools.txt row is malformed (8 columns, sha256 as a hex or platform list)"
+      _ci_error "$tool" "$pinned" "malformed row - see the tools.txt header" \
+        "tools.txt row is malformed (8 columns, sha256 as a hex or platform list)"
       continue
     fi
-    _ci_report_pin "$tool" "$pinned" "$check" "$prefix" ".github/actions/setup-tool/tools.txt (pin and sha256)"
+    _ci_report_pin "$tool" "$pinned" "$check" "$prefix" "${_CI_TOOLS_TXT#"$PWD/"} (pin and sha256)"
   done < <(_ci_tool_rows)
 fi
 
@@ -385,12 +396,11 @@ if [ -n "$CI_WORKFLOW_ROSTER" ]; then
     found="$(_ci_extract "$regex" "$glob")"
     case "$found" in
     "")
-      printf '%-32s %-14s ERROR (no pin matched in %s)\n' "$tool" "-" "$glob"
-      _ci_problem "$tool" "the roster regex matched nothing in $glob - the pin moved or the row is stale"
+      _ci_error "$tool" - "no pin matched in $glob" "the roster regex matched nothing in $glob - the pin moved or the row is stale"
       ;;
     *$'\n'*)
-      printf '%-32s %-14s ERROR (pins disagree: %s)\n' "$tool" "-" "$(printf '%s' "$found" | tr '\n' ' ')"
-      _ci_problem "$tool" "$glob pins more than one version: $(printf '%s' "$found" | tr '\n' ' ')"
+      found="${found//$'\n'/ }"
+      _ci_error "$tool" - "pins disagree: $found" "$glob pins more than one version: $found"
       ;;
     *)
       _ci_report_pin "$tool" "$found" "$check" "$prefix" "$glob" "$held"
@@ -400,10 +410,11 @@ if [ -n "$CI_WORKFLOW_ROSTER" ]; then
 fi
 
 _ci_section "GitHub Actions (uses: SHAs)"
-# Every `uses: <path>@<40-hex> # <comment>` under .github/ and in a root
-# action.yml, folded to owner/repo (github/codeql-action/init and /analyze
-# are one repo to track) and deduplicated after the fold. A comment that is
-# not v<digits> names a moving alias with nothing to compare, and is skipped.
+# Every `uses: <path>@<40-hex> # <comment>` under the CI_ACTION_DIRS
+# directories and in a root action.yml, folded to owner/repo
+# (github/codeql-action/init and /analyze are one repo to track) and
+# deduplicated after the fold. A comment that is not v<digits> names a moving
+# alias with nothing to compare, and is skipped.
 while IFS='|' read -r repo comment pin; do
   [ -n "$repo" ] || continue
   _ci_report_pin "$repo" "${comment#v}" "github:$repo" "" "every use of $repo (SHA and comment, pinned ${pin:0:12})"
@@ -411,10 +422,11 @@ while IFS='|' read -r repo comment pin; do
   sha="$(_ci_tag_commit "$repo" "v$_ci_due")"
   [ -z "$sha" ] || printf '  -> @%s # v%s\n' "$sha" "$_ci_due"
 done < <(
-  grep -rhoE 'uses:[[:space:]]*[^[:space:]@]+@[0-9a-f]{40}[[:space:]]*#[[:space:]]*[^[:space:]]+' .github/ action.yml action.yaml 2>/dev/null |
+  # shellcheck disable=SC2086 # the directories are words on purpose
+  grep -rhoE 'uses:[[:space:]]*[^[:space:]@]+@[0-9a-f]{40}[[:space:]]*#[[:space:]]*[^[:space:]]+' $CI_ACTION_DIRS action.yml action.yaml 2>/dev/null |
     sed -E 's/^uses:[[:space:]]*([^@]+)@([0-9a-f]{40})[[:space:]]*#[[:space:]]*([^[:space:]]+)$/\1|\2|\3/' |
     awk -F'|' '$3 ~ /^v[0-9]/ {
-      n = split($1, parts, "/")
+      split($1, parts, "/")
       print parts[1] "/" parts[2] "|" $3 "|" $2
     }' |
     sort -t'|' -k1,1 -k2,2 -u
@@ -466,8 +478,7 @@ if [ -n "$CI_MANIFESTS" ]; then
     pins="$(_ci_manifest_pins "$kind" "$file")" || pins=""
     # as with the roster: a row that reads nothing is an error, not a skip
     if [ -z "$pins" ]; then
-      printf '%-32s %-14s ERROR (no %s dependency read from %s)\n' "$file" "-" "$kind" "$file"
-      _ci_problem "$file" "no $kind dependency could be read from $file - the file moved or the row is stale"
+      _ci_error "$file" - "no $kind dependency read from $file" "no $kind dependency could be read from $file - the file moved or the row is stale"
       continue
     fi
     case "$kind" in
@@ -484,8 +495,7 @@ if [ -n "$CI_MANIFESTS" ]; then
       esac
       case "$pinned" in
       "")
-        printf '%-32s %-14s ERROR (not in the lock of %s)\n' "$name" "-" "$file"
-        _ci_problem "$name" "$file names $name, which its lock does not hold - regenerate the lock"
+        _ci_error "$name" - "not in the lock of $file" "$file names $name, which its lock does not hold - regenerate the lock"
         continue
         ;;
       *[!0-9.]*)

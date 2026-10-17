@@ -93,8 +93,6 @@ keys/
 
 *.py
 *.pyc
-# scratch/'s drivers, which the blanket *.py above would swallow
-!scratch/*.py
 *.env
 *.direnv
 *.envrc

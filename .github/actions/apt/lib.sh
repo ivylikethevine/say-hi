@@ -34,3 +34,10 @@ function _ci_apt_update() {
   echo "apt-get update failed three times" >&2
   return 1
 }
+
+# _ci_apt_install <pkg...> - the two above, then the install
+function _ci_apt_install() {
+  _ci_apt_drop_vendor_lists
+  _ci_apt_update
+  sudo apt-get install -y --no-install-recommends "$@"
+}

@@ -70,8 +70,9 @@ workflow_filter='
       elif ($on | type) == "object" then ($on | keys)
       else [] end;
   def cond: (.if // "") | tostring;
+  def jobs: (.jobs // {}) | to_entries[];
   (if .permissions == null then "no top-level permissions: block" else empty end),
-  ((.jobs // {}) | to_entries[] | .key as $job | .value as $j
+  (jobs | .key as $job | .value as $j
     | select($j.uses == null)
     | (if $j["timeout-minutes"] == null then "job \($job): no timeout-minutes" else empty end),
       (($j.steps // [])[0] // {}) as $first
@@ -81,7 +82,7 @@ workflow_filter='
           then "job \($job): step-security/harden-runner has no explicit egress-policy (audit or block)"
         else empty end)),
   (if (triggers | index("workflow_run")) != null then
-    (.jobs // {}) | to_entries[] | .key as $job | .value as $j
+    jobs | .key as $job | .value as $j
     | ($j | cond) as $if
     | select($j.needs == null or ($if | test("always\\(\\)|cancelled\\(\\)|failure\\(\\)")))
     | select($if | test("github\\.event\\.workflow_run\\.conclusion\\s*==\\s*.success.") | not)
@@ -90,7 +91,7 @@ workflow_filter='
               and ($if | test("github\\.event_name\\s*(==|!=)\\s*.workflow_run.") | not)) | not)
     | "job \($job): runs on workflow_run without requiring github.event.workflow_run.conclusion == '"'"'success'"'"'"
   else empty end),
-  ((.jobs // {}) | to_entries[] | .key as $job | (.value.steps // []) as $steps
+  (jobs | .key as $job | (.value.steps // []) as $steps
     | [$steps[] | select((.uses // "") | startswith("actions/checkout@"))
         | (.with // {})["sparse-checkout"] | select(. != null)] as $lists
     | select($lists | length > 0)
@@ -139,7 +140,7 @@ for file in "$@"; do
   }
 
   case "$file" in
-  */action.yml | */action.yaml | action.yml | action.yaml) filter="$checkout_filter" ;;
+  action.y*ml | */action.y*ml) filter="$checkout_filter" ;;
   *) filter="($workflow_filter), ($checkout_filter)" ;;
   esac
   msgs="$(printf '%s\n' "$json" | jq -r "$filter")" || {
