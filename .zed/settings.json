@@ -1,13 +1,13 @@
 {
+  "tab_size": 2,
   "file_types": {
     "JSONC": [".zed/settings.json"],
     "TOML": ["colors**", "packages", "plugins"],
-    "Properties": ["vimrc", "nanorc"],
+    "Properties": ["vimrc", "nanorc"]
   },
-  "tab_size": 2,
   "languages": {
     "Markdown": {
-      "show_edit_predictions": false,
-    },
-  },
+      "show_edit_predictions": false
+    }
+  }
 }

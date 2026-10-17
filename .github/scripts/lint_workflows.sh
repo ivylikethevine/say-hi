@@ -15,7 +15,8 @@
 #      narrows it to another event (`github.event_name == '<event>'`, no `||`,
 #      and no comparison of event_name against workflow_run)
 #   5. every third-party `uses:` is pinned to a 40-hex commit SHA followed by
-#      a `# vX.Y.Z` comment (local `./`, `$/` and `docker://` refs are exempt)
+#      a `# vX.Y.Z` comment, or `# X.Y.Z` where upstream's tags carry no v
+#      (local `./`, `$/` and `docker://` refs are exempt)
 #   6. every job's first step is step-security/harden-runner with an explicit
 #      egress-policy, audit or block (reusable-workflow calls have no steps
 #      and are exempt; the action's own default is `block`, which with no
@@ -120,7 +121,7 @@ checkout_filter='
 # Held in variables so bash 3.2 and 4+ read the regexes the same way.
 _lw_uses_re='^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'"'"']?([^"'"'"'[:space:]]+)["'"'"']?(.*)$'
 _lw_sha_re='^[^/@[:space:]]+/[^@[:space:]]+@[0-9a-f]{40}$'
-_lw_comment_re='^[[:space:]]+#[[:space:]]*v[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?([[:space:]]|$)'
+_lw_comment_re='^[[:space:]]+#[[:space:]]*v?[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?([[:space:]]|$)'
 
 bad=0
 # report <where> <message>
