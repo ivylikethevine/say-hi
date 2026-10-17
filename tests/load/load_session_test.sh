@@ -694,7 +694,7 @@ function test_keep_panes_leaves_a_launcher_the_multiplexer_opens() {
   t="$_HI_WORKDIR/pane tmux"
   printf -v q '%q' "$t"
   got="$(printf '%s\n' "set-option -t =hi-box: default-command $q/say-hi/hi.pane" "#!$BASH" \
-    "export _HI_HOME=$q" "export _HI_SESSION_RC=$q/hi.rc.x" 'export EDITOR=vim\ -u\ \"a\ b\"' 'export SHELL=/bin/bash' \
+    "export _HI_HOME=$q" "export _HI_ROOT=$q/say-hi" "export _HI_SESSION_RC=$q/hi.rc.x" 'export EDITOR=vim\ -u\ \"a\ b\"' 'export SHELL=/bin/bash' \
     "exec bash --rcfile $q/hi.rc.x/bashrc -i")"
   [ "$out" = "$got" ] || _hi_because "tmux: $out" || return 1
   [ -x "$t/say-hi/hi.pane" ] || _hi_because "the launcher is not executable" || return 1
