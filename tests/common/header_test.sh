@@ -675,6 +675,41 @@ function _hi_header_begin() {
   _hi_suite_begin
 }
 
+# the Linux probes' out-variables on stdout, for _hi_check_eq roster lines
+function _hi_linux_ram_out() {
+  local got
+  _hi_linux_ram got "$1"
+  printf '%s' "$got"
+}
+
+function _hi_linux_base_mhz_out() {
+  local got
+  _hi_linux_base_mhz got "$1" "$2"
+  printf '%s' "$got"
+}
+
+# _hi_linux_probe_fixtures - the files the Linux probes read, staged once: a
+# /proc/meminfo with and without MemAvailable (a pre-3.14 kernel has none,
+# and still has a total to print), a /proc/cpuinfo whose model name carries
+# the clock with a decimal, one without, one that carries none (AMD), and
+# cpufreq directories holding base_frequency, amd-pstate's floor, or a 0.
+# Prints the directory.
+function _hi_linux_probe_fixtures() {
+  local d="$_HI_WORKDIR/linux-probes"
+  if [ ! -d "$d" ]; then
+    mkdir -p "$d/freq-base" "$d/freq-amd" "$d/freq-zero"
+    printf 'MemTotal:       16384000 kB\nMemFree:         1000000 kB\nMemAvailable:    8192000 kB\n' >"$d/meminfo"
+    printf 'MemTotal:       16384000 kB\nMemFree:         1000000 kB\n' >"$d/meminfo-old"
+    printf 'processor\t: 0\nmodel name\t: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz\nmodel name\t: other @ 9.99GHz\n' >"$d/cpuinfo-intel"
+    printf 'model name\t: Some CPU @ 3GHz\n' >"$d/cpuinfo-whole"
+    printf 'model name\t: AMD Ryzen 9 5900X 12-Core Processor\n' >"$d/cpuinfo-amd"
+    printf '3700000\n' >"$d/freq-base/base_frequency"
+    printf '2800000\n' >"$d/freq-amd/amd_pstate_lowest_nonlinear_freq"
+    printf '0\n' >"$d/freq-zero/base_frequency"
+  fi
+  printf '%s' "$d"
+}
+
 function run_header_tests() {
   _hi_header_begin
 
@@ -734,6 +769,19 @@ function run_header_tests() {
   _hi_check "System_info's CPU cell renders GHz" test_system_info_cpu_cell_is_ghz
   _hi_check "System_info's CPU cell sits next to Cores:" test_system_info_cpu_cell_sits_next_to_cores
   _hi_check "_hi_ghz rounds the carry into the whole digit" test_ghz_rounds_the_carry_into_the_whole_digit
+  # the Linux probes, off fixture files rather than this box's own /proc
+  local fx
+  fx="$(_hi_linux_probe_fixtures)"
+  _hi_check_eq "_hi_linux_ram is used/total, kB to GiB" 8/16G _hi_linux_ram_out "$fx/meminfo"
+  _hi_check_eq "...the total alone without MemAvailable" 16G _hi_linux_ram_out "$fx/meminfo-old"
+  _hi_check_eq "...empty without the file" "" _hi_linux_ram_out "$fx/none"
+  _hi_check_eq "_hi_linux_base_mhz reads the first model name's clock" 2800 _hi_linux_base_mhz_out "$fx/cpuinfo-intel" "$fx/none"
+  _hi_check_eq "...a whole-GHz clock too" 3000 _hi_linux_base_mhz_out "$fx/cpuinfo-whole" "$fx/none"
+  _hi_check_eq "...ahead of cpufreq" 2800 _hi_linux_base_mhz_out "$fx/cpuinfo-intel" "$fx/freq-base"
+  _hi_check_eq "...falls to cpufreq's base_frequency" 3700 _hi_linux_base_mhz_out "$fx/cpuinfo-amd" "$fx/freq-base"
+  _hi_check_eq "...then to amd-pstate's floor" 2800 _hi_linux_base_mhz_out "$fx/cpuinfo-amd" "$fx/freq-amd"
+  _hi_check_eq "...and a 0 there reads as none" "" _hi_linux_base_mhz_out "$fx/cpuinfo-amd" "$fx/freq-zero"
+  _hi_check_eq "...empty with neither file" "" _hi_linux_base_mhz_out "$fx/none" "$fx/none"
   _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
   _hi_check_eq "...rounds to a whole percent" 33 _hi_load_pct_out 1.00 3
   _hi_check_eq "...empty without a load figure" "" _hi_load_pct_out "" 4

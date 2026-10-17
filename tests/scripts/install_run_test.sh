@@ -448,6 +448,15 @@ function test_first_install_defaults_to_everything() {
   { grep -qF "starting from the 'everything' preset" "$out" && grep -qF 'Installed!' "$out" && [ "$got" = 0 ]; } || _hi_why out got
 }
 
+# ...and a name off the roster is said, and everything applies in its place
+function test_first_install_falls_back_to_everything() {
+  local home="$_HI_WORKDIR/first-x" out="$_HI_WORKDIR/first-x.pty.out" got
+  _hi_run_install_pty first-x 'nope\n' --link none || _hi_why || return 1
+  got="$(grep -c '^export ' "$home/.config/say-hi/settings.sh")"
+  { grep -qF "no such preset: nope" "$out" && grep -qF "...so everything, the shipped defaults, applies" "$out" &&
+    grep -qF 'Installed!' "$out" && [ "$got" = 0 ]; } || _hi_why out got
+}
+
 # ...and nothing at all once there is a settings.sh
 function test_a_later_install_asks_nothing() {
   local home="$_HI_WORKDIR/later-q" out="$_HI_WORKDIR/later-q.pty.out"
@@ -719,6 +728,7 @@ function run_install_run_tests() {
   _hi_check_capable pty "Accepted at a terminal, the install goes on" test_install_gate_accepted_at_a_terminal_continues
   _hi_check_capable pty "A first install asks only which preset to start from" test_first_install_asks_only_about_this_machine
   _hi_check_capable pty "...and Enter is everything" test_first_install_defaults_to_everything
+  _hi_check_capable pty "...which a name off the roster falls back to" test_first_install_falls_back_to_everything
   _hi_check_capable pty "A later install asks nothing" test_a_later_install_asks_nothing
   # install_tree links usr/bin/hi, so a host without symlinks cannot stage
   _hi_check_capable symlink "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir

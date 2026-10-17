@@ -1,13 +1,16 @@
+# SPDX-License-Identifier: MIT
 # markdown-oxide (LSP) settings. markdownlint (.markdownlint.yaml) is the
 # linter of record; this only keeps oxide from disagreeing with it.
 
 # oxide resolves `[text](path)` against the vault root and keeps punctuation in
 # heading slugs (neither is configurable). GitHub and MD051 resolve relative to
-# the file and strip punctuation, so every `../README.md` and GLOSSARY anchor
-# is "unresolved" to oxide while correct everywhere else. Noise, so off.
+# the file and strip punctuation, so every `../README.md` link and every anchor
+# on a heading with punctuation is "unresolved" to oxide while correct
+# everywhere else. Noise, so off.
 unresolved_diagnostics = false
 
-# dist/ holds the packaging stage, a second copy of README.md and config/.
+# Build output, packaging stages and runtime data, matched by directory name
+# (not path); dot-directories are skipped already.
 excluded_folders = ["dist"]
 
 # Write links the way the docs spell them: .md extension, headings as slugs.

@@ -1,13 +1,14 @@
+# SPDX-License-Identifier: MIT
 # Jekyll config for the GitHub Pages site (.github/workflows/pages.yml). Nothing
 # else reads it, and no Ruby is a dependency here: actions/jekyll-build-pages
 # supplies the github-pages gem, the theme, and every plugin below.
 
 title: say-hi
-description: >-
-  A greeting, a prompt, and your aliases on every machine you ssh, docker,
-  podman, nomad, or kubectl into - without installing anything there.
+description: A greeting, a prompt, and your aliases on every machine you ssh, docker, podman, nomad, or kubectl into - without installing anything there.
 remote_theme: just-the-docs/just-the-docs@v0.12.0
 
+# remote-theme: fetches remote_theme above; the github-pages gem has no
+#   just-the-docs of its own.
 # readme-index: README.md is the site index; there is no index.md and there
 #   should not be.
 # relative-links: rewrites in-repo links like docs/GLOSSARY.md to the pages
@@ -16,11 +17,11 @@ remote_theme: just-the-docs/just-the-docs@v0.12.0
 #   they are read in the repo first and on the site second.
 # titles-from-headings: each page's <title> is its own H1.
 plugins:
+  - jekyll-remote-theme
   - jekyll-readme-index
   - jekyll-relative-links
   - jekyll-optional-front-matter
   - jekyll-titles-from-headings
-  - jekyll-remote-theme
 
 # Without a layout, front-matter-less pages render with no theme chrome.
 defaults:
@@ -36,20 +37,23 @@ relative_links:
 readme_index:
   with_frontmatter: true
 
-# The site is the prose: code, tooling, and packaging stay off it. docs/tapes/
-# is laid over the built site by pages.yml (the committed demo.gif plus the
-# demos.yml renders), and README.md links the GIFs at their published URLs.
-# docs/tldr.md is a draft for an upstream tldr-pages PR and has to keep tldr's
-# `{{placeholder}}` syntax byte-for-byte, which Liquid would parse, so it is
-# kept off the site rather than guarded; docs/README.md links it and hi.1 by
-# their GitHub URLs, never relatively, so the site index has no dead rows.
-# tests/lint/drift_test.sh derives its Liquid sweep from this block: one bare
+# The site is the prose: code, tooling, packaging, runtime data and agent notes
+# stay off it. Jekyll already skips dot-files and dot-directories. One bare
 # `- path` per line, comments on their own lines.
 exclude:
+  # docs/tapes/ is laid over the built site by pages.yml (the committed
+  # demo.gif plus the demos.yml renders), and README.md links the GIFs at their
+  # published URLs. docs/tldr.md is a draft for an upstream tldr-pages PR and
+  # has to keep tldr's `{{placeholder}}` syntax byte-for-byte, which Liquid
+  # would parse, so it is kept off the site rather than guarded; docs/README.md
+  # links it and hi.1 by their GitHub URLs, never relatively, so the site index
+  # has no dead rows. tests/lint/drift_test.sh derives its Liquid sweep from
+  # this block.
   - common/
   - scripts/
   - tests/
   - packaging/
+  - local/
   - config/
   - docs/tapes/
   - docs/hi.1
@@ -58,6 +62,5 @@ exclude:
   - flake.nix
   - flake.lock
   - CLAUDE.md
-  # untracked host notes; listed so a local build or lint sweep skips them too
   - CLAUDE.local.md
   - docs/tldr.md

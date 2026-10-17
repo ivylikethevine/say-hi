@@ -18,9 +18,13 @@ _ci_paths=""
 for _ci_t in $CI_TOOLS; do
   : >"$_ci_out"
   CI_TOOL="$_ci_t" GITHUB_OUTPUT="$_ci_out" "$_ci_install" resolve
-  _ci_version="$(sed -n 's/^version=//p' "$_ci_out")"
-  _ci_sha256="$(sed -n 's/^sha256=//p' "$_ci_out")"
-  _ci_path="$(sed -n 's/^path=//p' "$_ci_out")"
+  while IFS='=' read -r _ci_k _ci_v; do
+    case "$_ci_k" in
+    version) _ci_version="$_ci_v" ;;
+    sha256) _ci_sha256="$_ci_v" ;;
+    path) _ci_path="$_ci_v" ;;
+    esac
+  done <"$_ci_out"
   # the checksum's first 12 hex digits: enough for a corrected sha256 to
   # miss the old cache, short enough to keep the key readable
   _ci_key="$_ci_key $_ci_t=$_ci_version@${_ci_sha256:0:12}"

@@ -252,6 +252,62 @@ function _hi_ghz() {
   printf -v "$1" '%d.%d' "$((t / 10))" "$((t % 10))"
 }
 
+# _hi_linux_ram <var> <meminfo> - "<used>/<total>G" straight off the file
+# free(1) reads: used is MemTotal - MemAvailable (the "how much could a new
+# process actually get" figure free -h reports, not the naive MemTotal -
+# MemFree); a pre-3.14 kernel has no MemAvailable and still gets its total;
+# no file, empty. kB to GiB, rounded half up. A `read` loop, not an awk fork
+# per shell start.
+function _hi_linux_ram() {
+  local k v total="" avail=""
+  printf -v "$1" '%s' ''
+  [ -r "$2" ] || return 0
+  while read -r k v _; do
+    case "$k" in
+    MemTotal:) total="$v" ;;
+    MemAvailable:)
+      avail="$v"
+      break
+      ;;
+    esac
+  done <"$2"
+  if [ -n "$avail" ]; then
+    printf -v "$1" '%s/%sG' "$(((total - avail + 524288) / 1048576))" "$(((total + 524288) / 1048576))"
+  elif [ -n "$total" ]; then
+    printf -v "$1" '%sG' "$(((total + 524288) / 1048576))"
+  fi
+}
+
+# _hi_linux_base_mhz <var> <cpuinfo> <cpufreq dir> - the base clock in MHz,
+# from the first model name ("... @ 2.80GHz"); AMD chips print none, so
+# cpufreq's base_frequency, then amd-pstate-epp's lowest_nonlinear_freq (the
+# driver's floor, but it beats "?"); empty when nothing answers. `read <
+# file`, not $(cat file): a miss is silent and costs no fork.
+function _hi_linux_base_mhz() {
+  local line v k khz freq_path mhz=""
+  if [ -r "$2" ]; then
+    while IFS= read -r line; do
+      case "$line" in "model name"*) ;; *) continue ;; esac
+      case "$line" in *@*GHz*)
+        v="${line#*@}" v="${v%%GHz*}" v="${v// /}"
+        k="${v#*.}000"
+        case "$v" in *.*) ;; *) k=000 ;; esac
+        case "${v%%.*}${k:0:3}" in '' | *[!0-9]*) ;; *) mhz=$((10#${v%%.*} * 1000 + 10#${k:0:3})) ;; esac
+        ;;
+      esac
+      break
+    done <"$2"
+  fi
+  for freq_path in "$3/base_frequency" "$3/amd_pstate_lowest_nonlinear_freq"; do
+    [ -n "$mhz" ] && break
+    [ -f "$freq_path" ] || continue
+    read -r khz <"$freq_path" 2>/dev/null || khz=0
+    mhz=$((khz / 1000))
+    ((mhz)) || mhz=""
+  done
+  printf -v "$1" '%s' "$mhz"
+}
+
 # _hi_load_pct <var> <load> <cpus> - the 1-minute load average as a percentage
 # of this box's own core count ("2.34" on 8 cores -> "29"): the number that
 # actually answers "is this box busy", where the bare load figure needed the
@@ -314,65 +370,21 @@ function _hi_system_info_probe() {
   _hi_platform plat
   _hi_uname
   if [ "$plat" = linux ]; then
-    local cpufreq=/sys/devices/system/cpu/cpu0/cpufreq
     # also covers WSL - a real Linux kernel with its own /etc/os-release.
     # Every probe ends in `|| true`: a stripped-down target falls through to
     # "?" - and a caller under its own `set -e` (see the top of the file)
     # must not abort on a missing probe.
     # the files themselves, a `read` loop each rather than an awk fork per
     # shell start; nproc stays, since it honors a container's CPU affinity
-    local k v total="" avail="" line
+    local k v
     while IFS='=' read -r k v; do
       [ "$k" != PRETTY_NAME ] || os="${v//\"/}"
     done <"$_HI_LINUX_RELEASE"
     _hi_slow_out cpus nproc
-    # straight at the files free(1) and uptime(1) themselves read. Used is
-    # MemTotal - MemAvailable (the "how much could a new process actually get"
-    # figure free -h reports, not the naive MemTotal - MemFree); MemAvailable
-    # predates nothing this project targets but a pre-3.14 kernel, where
-    # there is still a total to print. kB to GiB, rounded half up.
-    if [ -r /proc/meminfo ]; then
-      while read -r k v _; do
-        case "$k" in
-        MemTotal:) total="$v" ;;
-        MemAvailable:)
-          avail="$v"
-          break
-          ;;
-        esac
-      done </proc/meminfo
-    fi
-    if [ -n "$avail" ]; then
-      ram="$(((total - avail + 524288) / 1048576))/$(((total + 524288) / 1048576))G"
-    elif [ -n "$total" ]; then
-      ram="$(((total + 524288) / 1048576))G"
-    fi
+    # straight at the files free(1) and uptime(1) themselves read
+    _hi_linux_ram ram /proc/meminfo
     read -r load _ 2>/dev/null </proc/loadavg || load=""
-    # base clock from the first model name ("... @ 2.80GHz"); AMD chips print
-    # none, so fall back to cpufreq's base_frequency, then amd-pstate-epp's
-    # lowest_nonlinear_freq (the driver's floor, but it beats "?").
-    # `read < file`, not $(cat file): a miss is silent and costs no fork.
-    if [ -r /proc/cpuinfo ]; then
-      while IFS= read -r line; do
-        case "$line" in "model name"*) ;; *) continue ;; esac
-        case "$line" in *@*GHz*)
-          v="${line#*@}" v="${v%%GHz*}" v="${v// /}"
-          k="${v#*.}000"
-          case "$v" in *.*) ;; *) k=000 ;; esac
-          case "${v%%.*}${k:0:3}" in '' | *[!0-9]*) ;; *) base_mhz=$((10#${v%%.*} * 1000 + 10#${k:0:3})) ;; esac
-          ;;
-        esac
-        break
-      done </proc/cpuinfo
-    fi
-    local khz freq_path
-    for freq_path in "$cpufreq/base_frequency" "$cpufreq/amd_pstate_lowest_nonlinear_freq"; do
-      [ -n "$base_mhz" ] && break
-      [ -f "$freq_path" ] || continue
-      read -r khz <"$freq_path" 2>/dev/null || khz=0
-      base_mhz=$((khz / 1000))
-      ((base_mhz)) || base_mhz=""
-    done
+    _hi_linux_base_mhz base_mhz /proc/cpuinfo /sys/devices/system/cpu/cpu0/cpufreq
   elif [ "$plat" = windows ]; then
     # git-bash/MSYS2/Cygwin on native Windows - no /etc/os-release, no sysctl
     os="Windows ($_HI_KERNEL)"

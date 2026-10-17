@@ -9,4 +9,5 @@
 *.gif binary
 *.png binary
 *.jpg binary
+*.jpeg binary
 *.webp binary

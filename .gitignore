@@ -1,10 +1,10 @@
-**output**
-**build**
-**tmp**
-**secret**
-**private**
-**key**
-**local**
+# SPDX-License-Identifier: MIT
+
+# Everything generated on this machine (scratch, tool caches, local builds).
+local/
+
+# npm installs, the pinned CI Markdown tools' (.github/package.json) included.
+node_modules/
 
 # Claude Code: .claude/settings.json is shared and tracked; personal overrides,
 # agent worktrees and host-specific agent notes stay local.
@@ -34,8 +34,44 @@ CLAUDE.local.md
 /.claude/skills
 /.claude/workflows
 /.claude/.cc-writes
-/.vscode
 
+# Secrets and local environment. A .env.example is a template with no real
+# values, so it stays tracked.
+.env
+.env.*
+!.env.example
+.envrc
+.direnv/
+*.key
+*.pem
+*.pfx
+*.crt
+*.cert
+*.pub
+*.rsa
+*.priv
+secret/
+secrets/
+private/
+keys/
+
+# Editor and OS droppings, and the backups merge tools leave beside a conflict.
+.DS_Store
+*.swp
+*.swo
+*~
+*.orig
+
+# Logs.
+*.log
+
+# Screenshots and images: none ships, and one can hold real account content.
+*.png
+*.jpg
+*.jpeg
+*.bmp
+# Not used in this project; kept out so stray editor or tooling output isn't
+# committed by accident.
 *.js
 *.ts
 *.bat
@@ -47,23 +83,19 @@ CLAUDE.local.md
 *.doc
 *.docx
 *.id
+**output**
+**build**
+**tmp**
+**secret**
+**private**
+**key**
+**local**
+
 *.py
 *.pyc
-*.pem
-*.pub
 *.env
 *.direnv
 *.envrc
-*.rsa
-*.crt
-*.pfx
-*.bmp
-*.cert
-*.key
-*.png
-*.jpg
-*.jpeg
-*.log
 *.txt
 # setup-tool's roster, which the blanket *.txt above would swallow; the action
 # and the drift checker both read it
@@ -90,15 +122,13 @@ CLAUDE.local.md
 # "output/": the blanket rules above would swallow those.
 dist/
 
-# this project's own publishing keys
+# this project's own publishing key, which the secrets rules above would swallow
 !packaging/apk/*.rsa.pub
 
 # `nix build`'s link to what it built
 /result
 /result-*
 
-# npm installs of the pinned CI Markdown tools (.github/package.json)
-node_modules/
 # the coverage drivers' reports (tests/coverage.sh, tests/coverage_v2.sh), as
 # coverage.yml writes them into the checkout
 /coverage-report/
