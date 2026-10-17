@@ -26,7 +26,7 @@ case " $* " in *" --text "*) _HI_TEXT=1 && export NO_COLOR=1 ;; esac
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
-[ -z "${_HI_HOME:-}" ] || [ ! -r "$_HI_HOME/say-hi/common/core.sh" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
 [ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
@@ -748,15 +748,24 @@ function doctor_configs() {
   doctor_flush
 }
 
-# _hi_rc_names_tree <rc-file> - the tree a marker line in <rc-file> states,
-# on stdout: its _HI_ROOT, or the say-hi under its _HI_HOME; empty when
-# none does
+# _hi_rc_names_tree <rc-file> - the path a marker line in <rc-file> names,
+# on stdout: its _HI_ROOT line's, else its _HI_HOME line's (the directory
+# holding a say-hi); empty when none does
 function _hi_rc_names_tree() {
   local _hi_rn
   _hi_rn="$(grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_ROOT[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p')"
   [ -n "$_hi_rn" ] ||
-    _hi_rn="$(grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_HOME[= ]*"\([^"]*\)".*/\1\/say-hi/p' | sed -n '1p')"
+    _hi_rn="$(grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_HOME[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p')"
   printf '%s' "$_hi_rn"
+}
+
+# _hi_rc_names_this_tree <rc-file> - does the path that line names lead to
+# this tree: as its root, or as the directory above a tree called say-hi
+function _hi_rc_names_this_tree() {
+  local _hi_rt
+  _hi_rt="$(_hi_rc_names_tree "$1")"
+  [ -n "$_hi_rt" ] || return 1
+  [ "$_hi_rt" -ef "$_HI_ROOT" ] || { [ "${_HI_ROOT##*/}" = say-hi ] && [ "$_hi_rt" -ef "$_HI_HOME" ]; }
 }
 
 # The install's own footprint, as rows: is each shell's rc wired, and to this
@@ -778,7 +787,7 @@ function doctor_install() {
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif rc_block_form form "$shell" "$tree_rc" "$dialect" "$target" && [ -n "$form" ]; then
       doctor_row "$shell" "$target is wired to this tree" ok
-    elif grep -qF "$(tmpdir_line "$dialect")" "$target" || [ "$(_hi_rc_names_tree "$target")" -ef "$_HI_ROOT" ]; then
+    elif grep -qF "$(tmpdir_line "$dialect")" "$target" || _hi_rc_names_this_tree "$target"; then
       # an older hi's block names this tree too, but not the lines this one
       # writes: bash's `return` ends the rc for `ssh host cmd`, fish's bare
       # is-interactive block is a parse error on every fish 3.0-3.3 start,

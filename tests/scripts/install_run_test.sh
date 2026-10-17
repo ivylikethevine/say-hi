@@ -525,15 +525,14 @@ function test_locator_walks_a_bare_name_symlink() {
   _hi_run_named_the_tree "$out" || _hi_why out
 }
 
-# The first command a fresh clone runs has to answer a checkout that is not
-# called say-hi by name - hi.sh has that guard, and install.sh reached it
-# first with a raw "No such file" from bash
-function test_a_misnamed_clone_is_refused_by_name() {
+# A clone under any name installs in place: its rc lines name the tree by
+# _HI_ROOT, and nothing asks for the name say-hi (HI.33)
+function test_a_clone_under_any_name_installs_in_place() {
   local dir="$_HI_WORKDIR/misnamed" out rc=0
   mkdir -p "$dir"
   cp -R "$_HI_RUN_TREE" "$dir/sayhi"
-  out="$(_hi_run_env misnamed-home bash "$dir/sayhi/scripts/install.sh" --uninstall --dry-run 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"has to be a directory named say-hi"* ]] || _hi_why rc out
+  out="$(_hi_run_env misnamed-home bash "$dir/sayhi/scripts/install.sh" --dry-run --link none --shell bash 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"_HI_ROOT=\"$dir/sayhi\""* && "$out" != *"named say-hi"* ]] || _hi_why rc out
 }
 
 # reached as `hi --uninstall`, every message says so - the usage line, the
@@ -690,7 +689,7 @@ function run_install_run_tests() {
   _hi_check "The last --link on the line wins" test_last_link_flag_wins
   _hi_check "--link user undoes an earlier none" test_link_user_undoes_an_earlier_none
   _hi_check "--configure with no terminal says so" test_configure_without_a_terminal_says_so
-  _hi_check "A clone not named say-hi is refused by name" test_a_misnamed_clone_is_refused_by_name
+  _hi_check "A clone under any name installs in place" test_a_clone_under_any_name_installs_in_place
   _hi_check "--dry-run installs nothing, and says what it would" test_dry_run_install_writes_nothing
   _hi_check "--uninstall --dry-run removes nothing" test_dry_run_uninstall_removes_nothing
   _hi_check "--link system reaches for /usr/bin/hi" test_system_link_flag_targets_usr_bin

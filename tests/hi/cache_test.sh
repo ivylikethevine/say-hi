@@ -363,7 +363,7 @@ function test_payload_cached_is_keyed_on_the_tree() {
   mkdir -p "$other"
   ln -sfn "$_HI_ROOT" "$other/say-hi"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached a || _hi_why dir || return 1
-  XDG_RUNTIME_DIR="$dir" _HI_HOME="$other" _hi_payload_cached b || _hi_why dir other || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_HOME="$other" _HI_ROOT="$other/say-hi" _hi_payload_cached b || _hi_why dir other || return 1
   [ -s "$a" ] && [ -s "$b" ] && [ "$a" != "$b" ] || _hi_why a b
 }
 

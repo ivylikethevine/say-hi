@@ -20,13 +20,14 @@ _hi_now() {
 _HI_CONNECT_T0="${EPOCHREALTIME:-$(_hi_now)}" || _HI_CONNECT_T0=""
 
 # The tree: $_HI_ROOT where it is exported and sits in $_HI_HOME, else
-# $_HI_HOME/say-hi where that is a tree (an older rc line, a target, the
-# suites), else this script's own path behind a symlink walk - the same walk
-# as scripts/install.sh's and packaging/lib.sh's: fix one, fix all.
-# $_HI_HOME is then the directory above it. GLOSSARY: HI.33
+# $_HI_HOME/say-hi where $_HI_HOME is exported (an older rc line, a target,
+# the suites - and refused below when nothing is there, never a stranger),
+# else this script's own path behind a symlink walk - the same walk as
+# scripts/install.sh's and packaging/lib.sh's: fix one, fix all. $_HI_HOME
+# is then the directory above it. GLOSSARY: HI.33
 if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
   :
-elif [ -n "${_HI_HOME:-}" ] && [ -r "$_HI_HOME/say-hi/common/core.sh" ]; then
+elif [ -n "${_HI_HOME:-}" ]; then
   _HI_ROOT="$_HI_HOME/say-hi"
 else
   _hi_self="${BASH_SOURCE[0]}"
@@ -49,7 +50,7 @@ export _HI_HOME
 # checked before the source: bash's own "No such file" would name a path
 # nobody typed, and _hi_cecho is in the file that's missing
 [ -r "$_HI_ROOT/common/core.sh" ] || {
-  echo "hi: no say-hi tree at $_HI_ROOT - set _HI_ROOT to the checkout, wherever it is" >&2
+  echo "hi: no say-hi at $_HI_ROOT - set _HI_ROOT to the checkout, wherever it is, or set _HI_HOME to the directory holding a say-hi" >&2
   exit 1
 }
 # shellcheck source=./common/core.sh

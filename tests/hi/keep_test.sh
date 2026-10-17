@@ -811,7 +811,7 @@ function test_keep_here_starts_the_owner_pane_from_the_session_s_file() {
     _hi_because "no owner pane: $out" || return 1
   # the multiplexer's own environment is a session child's and no more: the
   # launcher's fifty-odd paths stay behind with the client's verdicts
-  ! grep -E '^_HI_' "$log.env" | grep -qvE '^_HI_(HOME|CONFIG_DIR|REMOTE_SESSION|SESSION_RC|TARGETS_TTL|PROBE_TIMEOUT|TEST_[A-Z]*)=' ||
+  ! grep -E '^_HI_' "$log.env" | grep -qvE '^_HI_(HOME|CONFIG_DIR|SITE_DIR|REMOTE_SESSION|SESSION_RC|TARGETS_TTL|PROBE_TIMEOUT|TEST_[A-Z]*)=' ||
     _hi_because "the multiplexer kept: $(grep -E '^_HI_' "$log.env" | cut -d= -f1 | tr '\n' ' ')" || return 1
   [ ! -e "$t/say-hi/hi.kept" ] || _hi_because "the marker outlived a session that is not there"
 }

@@ -484,9 +484,11 @@ reaches, and an unset setting there stays hi's prompt.
 `/usr/share/say-hi`, and `$_HI_HOME` the directory above it; a session's tree
 is always `$_HI_HOME/say-hi`, which the bootstrap unpacked. Every file that
 needs the tree takes it by one rule: `$_HI_ROOT` where it is set and sits in
-`$_HI_HOME` (or `$_HI_HOME` is unset), else `$_HI_HOME/say-hi` where that is
-a tree (an rc line written before 1.0, a target, the suites' `_HI_HOME=`),
-else its own path - never `$HOME`: that default was right for a standard
+`$_HI_HOME` (or `$_HI_HOME` is unset), else `$_HI_HOME/say-hi` where
+`$_HI_HOME` is set (an rc line written before 1.0, a target, the suites'
+`_HI_HOME=`; an entry point run as a process refuses when nothing is there, a
+loader sourced by path falls back to its own), else its own path - never
+`$HOME`: that default was right for a standard
 install and wrong everywhere else, and when wrong it silently read _another
 tree_ (the platform e2e jobs sourced a tree under `/Users/runner` that was
 never there). The rule lets an exported `_HI_HOME` keep meaning what it did
@@ -519,7 +521,7 @@ run on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
 ```sh
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
-[ -z "${_HI_HOME:-}" ] || [ ! -r "$_HI_HOME/say-hi/common/core.sh" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
 [ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 ```
 
@@ -528,8 +530,8 @@ core.sh through the script's own path while `$_HI_ROOT` came from the
 environment runs two trees in one process, silently.
 
 No file falls back silently: `hi.sh` prints
-`set _HI_ROOT to the checkout, wherever it is` and exits when the derived
-path holds no tree. A _target_ needs no such rule — a session's tree is the one hi
+`set _HI_ROOT to the checkout, wherever it is, or set _HI_HOME to the
+directory holding a say-hi` and exits when the derived path holds no tree. A _target_ needs no such rule — a session's tree is the one hi
 just unpacked, its `$_HI_HOME` exported by the script that unpacked it; a say-hi
 the target already has is that machine's own install, and a session never reads
 it.
