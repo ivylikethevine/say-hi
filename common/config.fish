@@ -5,12 +5,19 @@
 # see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
 set -q _hi_rc_loading; and return
 set -g _hi_rc_loading 1
-# The tree from this file's own path, only when unset. Through `sh`, not
-# fish's `cd`/`pwd`: a builtin-only command substitution runs in the current
-# process, and fish's `pwd` is logical. GLOSSARY: HI.33
-if not set -q _HI_HOME
-  set -gx _HI_HOME (command sh -c 'CDPATH= cd -P "$1/../.." && pwd' sh (status dirname))
+# The tree, by core.sh's rule (GLOSSARY: HI.33): $_HI_ROOT where it sits in
+# $_HI_HOME, else $_HI_HOME/say-hi where that is one, else this file's own
+# path - through `sh`, not fish's `cd`/`pwd`: a builtin-only command
+# substitution runs in the current process, and fish's `pwd` is logical.
+# $_HI_HOME is then the directory above it.
+if set -q _HI_ROOT; and begin; not set -q _HI_HOME; or test (string replace -r '/[^/]*$' '' -- $_HI_ROOT) = "$_HI_HOME"; end
+  true
+else if set -q _HI_HOME; and test -r $_HI_HOME/say-hi/common/core.sh
+  set -gx _HI_ROOT $_HI_HOME/say-hi
+else
+  set -gx _HI_ROOT (command sh -c 'CDPATH= cd -P "$1/.." && pwd' sh (status dirname))
 end
+set -q _HI_HOME; or set -gx _HI_HOME (string replace -r '/[^/]*$' '' -- $_HI_ROOT)
 # GLOSSARY: HI.07 - defaulted, never assigned, so settings.sh still overrides.
 # Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
@@ -50,7 +57,7 @@ end
 if test -f $_HI_CONFIG_DIR/settings.sh
   source $_HI_CONFIG_DIR/settings.sh
 end
-source $_HI_HOME/say-hi/common/paths.sh
+source $_HI_ROOT/common/paths.sh
 # core.sh's _hi_parses, in fish: the overlay's aliases.sh and each extension
 # are parsed before they are sourced, and one fish cannot parse is skipped
 set -e _HI_ALIAS_GUARD
@@ -116,7 +123,7 @@ set -e __hi_row
 # file shells out to has to be handed them - __hi_bash's job. `-f` (function
 # scope) rather than `-l`: a `-l` inside the `for` is gone by the time the
 # command runs. GLOSSARY: HI.47
-set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
+set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
     _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_CLIENT_EDITOR \

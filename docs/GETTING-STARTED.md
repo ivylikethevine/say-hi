@@ -52,7 +52,7 @@ unchanged.
 For a first install, with the defaults.
 
 ```sh
-git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
+git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # or any directory you like
 ~/say-hi/scripts/install.sh
 exec $SHELL
 hi <host>

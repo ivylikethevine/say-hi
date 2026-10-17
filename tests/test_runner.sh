@@ -19,6 +19,8 @@ if [ -z "${_HI_HOME:-}" ]; then
   _HI_HOME="$(cd -P "$_HI_RUNNER_TREE/.." && pwd)"
 fi
 export _HI_HOME
+# the tree, whatever it is called, where $_HI_HOME names its parent
+[ "${_HI_RUNNER_TREE%/*}" != "$_HI_HOME" ] || export _HI_ROOT="$_HI_RUNNER_TREE"
 # The scaffolding every suite sources; the runner wants the host report out of
 # it (and the tree check it prints on every run). It is also what puts the
 # runner behind the config isolation - $XDG_CONFIG_HOME moves to a path that
@@ -30,7 +32,7 @@ export _HI_HOME
 # suite re-sources the file and re-derives that path from its own $$, so what
 # the suites see is unchanged.
 # shellcheck source=./test_lib.sh
-source "$_HI_HOME/say-hi/tests/test_lib.sh"
+source "${_HI_ROOT:-$_HI_HOME/say-hi}/tests/test_lib.sh"
 
 # group:name:path (relative to this directory), in the order they run - fast
 # local checks first, the docker/kind/nomad-backed end-to-end tests after.
@@ -478,7 +480,7 @@ if [ "$_HI_LIST" = 1 ]; then
   for _hi_t in "${_HI_SELECTED[@]}"; do
     if [ "$_HI_LIST_PATHS" = 1 ]; then
       printf '%s %s %s\n' "$(_hi_test_group "$_hi_t")" "$(_hi_test_name "$_hi_t")" \
-        "$_HI_HOME/say-hi/tests/${_hi_t##*:}"
+        "$_HI_ROOT/tests/${_hi_t##*:}"
     else
       printf '%s %s\n' "$(_hi_test_group "$_hi_t")" "$(_hi_test_name "$_hi_t")"
     fi

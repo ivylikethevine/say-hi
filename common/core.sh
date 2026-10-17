@@ -26,7 +26,14 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # The tree from this file's own path, only when unset (an outer export
   # survives and costs no fork). GLOSSARY: HI.33 - why not $HOME, why zsh's
   # arm is eval'd
-  if [ -z "${_HI_HOME:-}" ]; then
+  # The tree (GLOSSARY: HI.33): $_HI_ROOT where it is set and sits in
+  # $_HI_HOME, else $_HI_HOME/say-hi where that is a tree, else this file's
+  # own path; $_HI_HOME is then the directory above it
+  if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
+    :
+  elif [ -n "${_HI_HOME:-}" ] && [ -r "$_HI_HOME/say-hi/common/core.sh" ]; then
+    _HI_ROOT="$_HI_HOME/say-hi"
+  else
     if [ -n "${ZSH_VERSION:-}" ]; then
       # hi-nocov-begin: zsh's, which neither tracer reads
       eval '_hi_self=${(%):-%x}'
@@ -38,9 +45,11 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     */*) _hi_self="${_hi_self%/*}" ;;
     *) _hi_self="." ;;
     esac
-    _HI_HOME="$(CDPATH='' builtin cd -P "$_hi_self/../.." && pwd)"
+    _HI_ROOT="$(CDPATH='' builtin cd -P "$_hi_self/.." && pwd)"
     unset _hi_self
   fi
+  export _HI_ROOT
+  : "${_HI_HOME:=${_HI_ROOT%/*}}"
   export _HI_HOME
   # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry but
   # _HI_REMOTE_SESSION (hi's own "this is a session" mark, 1 on a target) is
@@ -92,7 +101,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     set -euo pipefail
   fi
   # shellcheck source=./paths.sh
-  source "$_HI_HOME/say-hi/common/paths.sh"
+  source "$_HI_ROOT/common/paths.sh"
 fi
 
 # Every shell hi wires up:
@@ -766,7 +775,7 @@ function _hi_interactive_extras() {
 # files un-export everything else once the aliases and prompt have read it
 # (paths.sh's dialect can only `export`). config.fish mirrors it;
 # exports_test.sh pins the two. GLOSSARY: HI.47
-_HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
+_HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
   _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF)
 
 # _hi_backend_off <name> - is <name> a backend $_HI_BACKENDS_OFF keeps hi

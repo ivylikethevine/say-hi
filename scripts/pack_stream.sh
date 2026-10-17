@@ -105,9 +105,12 @@ function _hi_stage_tar() {
     # it, so a source of read-only directories (the nix store's 0555) could
     # not be filled, where cp sets the mode last. -L resolves a dotfile
     # manager's symlinks into content.
+    # $stage_as names the directory the base is staged under (the payload's
+    # say-hi/, whatever the tree is called); the overlay stages at the top
     for f in ${stage_in[@]+"${stage_in[@]}"}; do
-      case "$f" in */*) [ -d "$stage/${f%/*}" ] || mkdir -p "$stage/${f%/*}" || exit 1 ;; esac
-      cp -R -L "$1/$f" "$stage/$f" || exit 1
+      _hi_st_d="$stage${stage_as:+/$stage_as}/$f"
+      [ -d "${_hi_st_d%/*}" ] || mkdir -p "${_hi_st_d%/*}" || exit 1
+      cp -R -L "$1/$f" "$_hi_st_d" || exit 1
     done
     for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
       case "${_hi_st_add[_hi_st_i]}" in */*) mkdir -p "$_hi_st_root/${_hi_st_add[_hi_st_i]%/*}" || exit 1 ;; esac
@@ -277,10 +280,10 @@ function _hi_overlay_cached() {
 # payload; and a tree cut for one overlay is never served beside another.
 function _hi_payload_cached() {
   local _hi_pc_key
-  _hi_hash "$_HI_HOME|${_HI_PAYLOAD_CUT[*]} ${payload_excl[*]-}" _hi_pc_key
+  _hi_hash "$_HI_ROOT|${_HI_PAYLOAD_CUT[*]} ${payload_excl[*]-}" _hi_pc_key
   _hi_pc_key="tree.$_hi_pc_key"
   _hi_cached "$1" payload "$_hi_pc_key" \
-    "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
+    "$_HI_ROOT/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }
 
 # The overlay tar on stdout: the cache when warm and clean, a fresh build
@@ -385,8 +388,9 @@ function _hi_payload_excl() {
 # none, and measures the stock tree, less $_HI_PAYLOAD_CUT.
 function _hi_payload_tar() {
   local -a stage_in stage_out=(say-hi) stage_excl=("${_HI_PAYLOAD_CUT[@]}" ${payload_excl[@]+"${payload_excl[@]}"})
-  stage_in=("${_HI_PAYLOAD[@]/#/say-hi/}")
-  _hi_stage_tar "$_HI_HOME" say-hi
+  local stage_as=say-hi
+  stage_in=("${_HI_PAYLOAD[@]}")
+  _hi_stage_tar "$_HI_ROOT" say-hi
 }
 
 # The tree twin of _hi_overlay_stream: the armored payload tar, through the

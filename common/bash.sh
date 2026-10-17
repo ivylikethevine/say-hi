@@ -19,7 +19,15 @@ shopt -u expand_aliases
 # hand-written `source` pays.
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
-: "${_HI_HOME:=$(CDPATH='' builtin cd -P "$_hi_d/../.." && pwd)}"
+# the tree, by core.sh's rule (GLOSSARY: HI.33): $_HI_ROOT where it sits in
+# $_HI_HOME, else $_HI_HOME/say-hi where that is one, else this file's path
+if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
+  :
+elif [ -n "${_HI_HOME:-}" ] && [ -r "$_HI_HOME/say-hi/common/core.sh" ]; then
+  _HI_ROOT="$_HI_HOME/say-hi"
+else
+  _HI_ROOT="$(CDPATH='' builtin cd -P "$_hi_d/.." && pwd)"
+fi
 unset _hi_d
 # core.sh's load guard is a no-op *within* one process, and this file is the
 # one place that is wrong: a shell outlives the tree under it, and re-sourcing
@@ -28,7 +36,7 @@ unset _hi_d
 # a target. GLOSSARY: HI.60
 unset _hi_core_loaded
 # shellcheck source=./core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 # shellcheck source=./git_prompt.sh
 source "$_HI_GIT_PROMPT"
 # shellcheck source=./env_prompt.sh

@@ -16,12 +16,19 @@ for _hi_o in ksh_arrays sh_word_split warn_create_global warn_nested_var aliases
 done
 [[ -o unset ]] || { _hi_zopts+=(no_unset) && setopt unset; }
 unset _hi_o
-# The tree from this file's own path: %x is this file, :A absolute, :h up one.
-# GLOSSARY: HI.33
-: "${_HI_HOME:=${${(%):-%x}:A:h:h:h}}"
+# The tree, by core.sh's rule (GLOSSARY: HI.33): $_HI_ROOT where it sits in
+# $_HI_HOME, else $_HI_HOME/say-hi where that is one, else this file's own
+# path - %x is this file, :A absolute, :h up one.
+if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
+  :
+elif [ -n "${_HI_HOME:-}" ] && [ -r "$_HI_HOME/say-hi/common/core.sh" ]; then
+  _HI_ROOT="$_HI_HOME/say-hi"
+else
+  _HI_ROOT="${${(%):-%x}:A:h:h}"
+fi
 # see common/bash.sh: an rc re-sourced after an in-place upgrade re-derives
 unset _hi_core_loaded
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"
 source "$_HI_ALIASES"

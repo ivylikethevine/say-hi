@@ -248,8 +248,12 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   called what its tool calls the file, under a directory of the tool's name
   where the tool keeps one in `~/.config`; where the tool has no fixed name the
   member carries the tool's name and extension.
-- **The installed layout** — `$_HI_HOME/say-hi` and `/etc/profile.d/say-hi.sh`
-  for packages, the rc lines `install.sh` writes and the `--print-rc` block, and
+- **The installed layout** — `$_HI_ROOT` is the tree wherever it is, a
+  clone under any name or a package's `/usr/share/say-hi`, and `$_HI_HOME`
+  the directory above it; a session's is `$_HI_HOME/say-hi`;
+  `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes
+  (`_HI_HOME` for a tree called `say-hi`, `_HI_ROOT` for any other, both read
+  for good) and the `--print-rc` block, and
   `_HI_RELEASE` as the
   version stamp `packaging/stamp.sh` fills.
 - **Target behaviour** — nothing hi writes outside the session directory,

@@ -54,7 +54,7 @@ Nomad allocation, or a Kubernetes pod.
 ## In Sixty Seconds
 
 ```sh
-git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
+git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # or any directory you like
 ~/say-hi/scripts/install.sh    # wires your shell's rc file and asks one question
 exec $SHELL                    # reload
 hi <anything>                  # ssh, with your prompt, aliases, and editors along
@@ -364,19 +364,8 @@ myself.
 The features and changes left to build; nothing here is parked or descoped.
 One list, in the order the work is best done. An entry is deleted once its
 **Ticks when** holds. What a release waits on is
-[Release Stages](#release-stages).
-
-1. [ ] _Before 1.0:_ **The checkout's name** — the tree has to be a directory
-       named `say-hi` because `$_HI_ROOT` is `$_HI_HOME/say-hi`, and a clone
-       under any other name stops at the install's error. **Do:** decide
-       between keeping it (then the contract's _installed layout_ names the
-       constraint and the install error as its UX) and lifting it (every
-       entry point derives `$_HI_ROOT` from its own path and `$_HI_HOME` from
-       that, the rc block and `/etc/profile.d/say-hi.sh` export `_HI_ROOT`,
-       and [HI.33](docs/GLOSSARY.md#hi33-derived-tree-location) is
-       rewritten; packaging keeps `/usr/share/say-hi`). **Ticks when:** the
-       contract says which, and under the second a clone named `hi-tools`
-       installs, connects, and reads as healthy in `hi --doctor`.
+[Release Stages](#release-stages). The list is empty: everything that was to
+land before 1.0 has.
 
 ## Release Stages
 

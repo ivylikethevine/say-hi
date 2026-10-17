@@ -56,8 +56,10 @@ shopt -u expand_aliases
 set -euo pipefail
 
 : "${_HI_HOME:=$(CDPATH='' builtin cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# a session's tree is the one the bootstrap unpacked, always say-hi under it
+: "${_HI_ROOT:=$_HI_HOME/say-hi}"
 # shellcheck source=./common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 # with the header off, the client sent no header.sh
 # shellcheck source=./common/header.sh
 [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] || source "$_HI_HEADER"

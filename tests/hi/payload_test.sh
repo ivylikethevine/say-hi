@@ -292,6 +292,16 @@ function test_a_shadowed_tree_default_is_cut_from_the_payload() {
   [ "$got" = 1 ] || _hi_why got dir
 }
 
+# the payload stages the tree under say-hi/ whatever the checkout is called:
+# a target unpacks the same layout from a clone named hi-tools (HI.33)
+function test_payload_tar_stages_an_odd_tree_under_say_hi() {
+  local odd listing
+  odd="$(_hi_scratch_tree payload-odd common config load.sh hi.sh)"
+  mv "$odd/say-hi" "$odd/hi-tools"
+  listing="$(_HI_ROOT="$odd/hi-tools" _HI_HOME="$odd" _hi_payload_tar | tar tzf -)"
+  [[ "$listing" == *"say-hi/hi.sh"* && "$listing" == *"say-hi/common/core.sh"* && "$listing" != *hi-tools* ]] || _hi_why listing odd
+}
+
 # with the header off no target draws one, so header.sh, the tree's package
 # list, and the overlay's copy of it all stay home; under _HI_DISABLE_LOCAL=1
 # only a line of settings.sh's own says so
@@ -753,6 +763,7 @@ function run_hi_payload_tests() {
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
   _hi_check "A tree default the overlay shadows is cut" test_a_shadowed_tree_default_is_cut_from_the_payload
+  _hi_check "A tree under any name stages as say-hi/" test_payload_tar_stages_an_odd_tree_under_say_hi
   _hi_check "With the header off, header.sh and the package list stay home" test_header_off_keeps_the_header_home
   _hi_check "...only for a caller holding a cut list" test_the_payload_is_whole_without_a_cut_list
   _hi_check "With the kept session off, keep.sh and mux.sh stay home" test_keep_off_keeps_both_its_files_home

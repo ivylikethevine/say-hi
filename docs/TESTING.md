@@ -1,7 +1,8 @@
 # Testing
 
-Every script resolves against `$_HI_HOME/say-hi`, and the runner defaults
-`_HI_HOME` to this checkout's parent, so a fresh clone needs no setup. With a
+Every script resolves against `$_HI_ROOT`, this checkout under any name, and
+the runner derives it from its own path, with `_HI_HOME` its parent, so a
+fresh clone needs no setup. With a
 second say-hi tree on the machine (an install beside a dev checkout), set it
 on every invocation: a shell that sourced an install exports the whole `_HI_*`
 set at paths that exist, and a suite run against the wrong tree reports fewer

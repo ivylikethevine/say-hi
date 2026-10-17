@@ -189,12 +189,25 @@ function strip_marker() {
 # packaging mode writes: there the answer is the package's prefix, not where
 # this script happens to be running from.
 function tmpdir_line() {
-  local home="${2:-}"
-  [ -n "$home" ] || rc_home home
+  local home="${2:-}" var=_HI_HOME
+  # a tree called say-hi is named by the directory above it, as every rc
+  # written so far is; one called anything else by itself (HI.33), whether
+  # derived here or handed in by rc_lines
+  if [ -z "$home" ]; then
+    if [ "${_HI_ROOT##*/}" = say-hi ]; then rc_home home; else rc_root home && var=_HI_ROOT; fi
+  elif [ "$home" = "$_HI_ROOT" ] && [ "${_HI_ROOT##*/}" != say-hi ]; then
+    var=_HI_ROOT
+  fi
   case "$1" in
-  fish) printf 'set -gx _HI_HOME "%s"' "$home" ;;
-  *) printf 'export _HI_HOME="%s"' "$home" ;;
+  fish) printf 'set -gx %s "%s"' "$var" "$home" ;;
+  *) printf 'export %s="%s"' "$var" "$home" ;;
   esac
+}
+
+# rc_root <outvar> - $_HI_ROOT as an rc names it: itself; a Homebrew keg is
+# always a say-hi, named through rc_home
+function rc_root() {
+  printf -v "$1" '%s' "$_HI_ROOT"
 }
 
 # rc_home <outvar> - $_HI_HOME as an rc names it. A Homebrew keg,
@@ -410,8 +423,13 @@ function config_validate_shells() {
 # this tree's home alone.
 function rc_lines() {
   local home rc="$2"
-  rc_home home
-  case "$2" in "$_HI_HOME"/*) rc="$home${2#"$_HI_HOME"}" ;; esac
+  if [ "${_HI_ROOT##*/}" = say-hi ]; then
+    rc_home home
+    case "$2" in "$_HI_HOME"/*) rc="$home${2#"$_HI_HOME"}" ;; esac
+  else
+    rc_root home
+    case "$2" in "$_HI_ROOT"/*) rc="$home${2#"$_HI_ROOT"}" ;; esac
+  fi
   case "${4:-}" in
   portable | prebrew | legacy)
     rc_home_spelled home

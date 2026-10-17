@@ -327,16 +327,18 @@ takes an answer by.
 
 More names look like settings and are not:
 
-- `$_HI_CONFIG_DIR` and `$_HI_HOME` (the **parent** of your `say-hi`
-  directory) are read **before** `settings.sh` is sourced, so a line there is
-  too late: export them, as `hi.sh` and `install.sh`'s rc line do. Unset, each
-  entry point derives `$_HI_HOME` from its own path. `$_HI_XDG_CONFIG` is the
+- `$_HI_CONFIG_DIR`, `$_HI_ROOT` (the checkout, under any name) and
+  `$_HI_HOME` (the directory **above** it) are read **before** `settings.sh`
+  is sourced, so a line there is too late: export them, as `hi.sh` and
+  `install.sh`'s rc line do. Unset, each entry point derives them from its
+  own path; `$_HI_HOME` alone names a `say-hi` under it. `$_HI_XDG_CONFIG` is the
   `$XDG_CONFIG_HOME`-or-`~/.config` base resolved beside them — set
   `$XDG_CONFIG_HOME` instead.
-- `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments
-  are read from), `$_HI_COLORS`, and `$_HI_PACKAGES` are re-derived by
-  `common/paths.sh` on every source, from `$_HI_HOME`, `$HOME`, and the overlay,
-  so an exported value does not survive: put your file in the overlay.
+- `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:` comments are read
+  from), `$_HI_COLORS`, and `$_HI_PACKAGES` are re-derived by
+  `common/paths.sh` on every source, from `$_HI_ROOT`, `$HOME`, the site tier,
+  and the overlay, so an exported value does not survive: put your file in
+  the overlay.
 - `$_HI_VIMRC`, `$_HI_NVIMRC`, and `$_HI_NANORC` are a session's: the path of a
   config that rode, set on a target by `wiring.sh`
   ([HI.62](GLOSSARY.md#hi62-generated-wiring)). At home nothing reads them.

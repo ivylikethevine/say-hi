@@ -26,7 +26,8 @@ case " $* " in *" --text "*) _HI_TEXT=1 && export NO_COLOR=1 ;; esac
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
-[ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_HOME:-}" ] || [ ! -r "$_HI_HOME/say-hi/common/core.sh" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
@@ -747,10 +748,15 @@ function doctor_configs() {
   doctor_flush
 }
 
-# _hi_rc_names_tree <rc-file> - the _HI_HOME a marker line in <rc-file>
-# states, on stdout; empty when none does
+# _hi_rc_names_tree <rc-file> - the tree a marker line in <rc-file> states,
+# on stdout: its _HI_ROOT, or the say-hi under its _HI_HOME; empty when
+# none does
 function _hi_rc_names_tree() {
-  grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_HOME[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p'
+  local _hi_rn
+  _hi_rn="$(grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_ROOT[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p')"
+  [ -n "$_hi_rn" ] ||
+    _hi_rn="$(grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_HOME[= ]*"\([^"]*\)".*/\1\/say-hi/p' | sed -n '1p')"
+  printf '%s' "$_hi_rn"
 }
 
 # The install's own footprint, as rows: is each shell's rc wired, and to this
@@ -772,7 +778,7 @@ function doctor_install() {
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif rc_block_form form "$shell" "$tree_rc" "$dialect" "$target" && [ -n "$form" ]; then
       doctor_row "$shell" "$target is wired to this tree" ok
-    elif grep -qF "$(tmpdir_line "$dialect")" "$target" || [ "$(_hi_rc_names_tree "$target")" -ef "$_HI_HOME" ]; then
+    elif grep -qF "$(tmpdir_line "$dialect")" "$target" || [ "$(_hi_rc_names_tree "$target")" -ef "$_HI_ROOT" ]; then
       # an older hi's block names this tree too, but not the lines this one
       # writes: bash's `return` ends the rc for `ssh host cmd`, fish's bare
       # is-interactive block is a parse error on every fish 3.0-3.3 start,

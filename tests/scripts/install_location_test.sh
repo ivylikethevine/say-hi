@@ -127,6 +127,24 @@ function test_the_install_wrote_nothing_into_the_tree() {
   [ ! -e "$_HI_LOC_ROOT/overlay" ] && [ ! -e "$_HI_LOC_ROOT/config/settings.sh" ] || _hi_why _HI_LOC_ROOT
 }
 
+# a clone under another name installs, its rc names it by _HI_ROOT, a fresh
+# bash finds that tree, and hi --doctor reads it as the tree (HI.33)
+function test_a_clone_under_another_name_installs_and_doctors() {
+  local home="$_HI_WORKDIR/odd-home" root out got
+  root="$(_hi_scratch_tree odd-tree "${_HI_LOC_ITEMS[@]}")"
+  mv "$root/say-hi" "$root/hi-tools"
+  root="$root/hi-tools"
+  chmod +x "$root/hi.sh"
+  _hi_loc_quiet_home "$home"
+  out="$(_hi_login_env "$home" "$root/scripts/install.sh" --link none --shell bash -y 2>&1)" || _hi_why out || return 1
+  { grep -qF "Installed!" <<<"$out" && grep -qF "_HI_ROOT=\"$root\"" "$home/.bashrc" && ! grep -qF "say-hi/common/bash.sh" "$home/.bashrc"; } ||
+    _hi_why out home || return 1
+  got="$(_hi_login_env "$home" bash -i -c 'printf %s "$_HI_ROOT"' </dev/null 2>/dev/null)"
+  [ "$got" = "$root" ] || _hi_why got root || return 1
+  out="$(_hi_login_env "$home" bash -i -c 'hi --doctor --text' </dev/null 2>/dev/null)"
+  [[ "$out" == *"local / tree: $root"* && "$out" == *"install / bash: "*"is wired to this tree (ok)"* ]] || _hi_why out root
+}
+
 function test_fish_resolves_the_nested_tree() {
   _hi_strip_ansi "$(_hi_loc_shell fish 'printf %s "$_HI_ROOT"')"
 }
@@ -267,6 +285,7 @@ function run_install_location_tests() {
   _hi_check_requires zsh "zshrc names the tree" test_zshrc_states_the_tree
   _hi_check_requires fish "config.fish names the tree" test_fish_config_states_the_tree
   _hi_check "The tree itself was not written to" test_the_install_wrote_nothing_into_the_tree
+  _hi_check "A clone under another name installs, loads, and doctors" test_a_clone_under_another_name_installs_and_doctors
 
   # Read-only from here to the uninstall, so it runs in parallel: five
   # `hi --doctor` runs at ~350ms each would be most of this suite's wall clock.

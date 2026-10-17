@@ -131,9 +131,9 @@ in force until you copy one there yourself and edit it
 (cp <say-hi>/config/colors \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/), and
 the editor rcs need no copy at all - hi carries your own ~/.vimrc and friends.
 Safe to re-run any time - it repairs its own lines and leaves everything else
-alone. The install location is always wherever this script lives (say-hi's
-parent directory, which has to be named say-hi), not a path you pass in -
-say-hi installs in place. Your own answers
+alone. The install location is always wherever this script lives (the
+checkout, whatever its directory is called), not a path you pass in - say-hi
+installs in place. Your own answers
 never land in the tree: they go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so this works against a checkout
 you don't own.
@@ -177,8 +177,8 @@ EOF
   esac
 }
 
-# Locate say-hi relative to this script (resolving symlinks) - say-hi's parent
-# directory is always the install dir, since this installs in place.
+# Locate the tree relative to this script (resolving symlinks): an install
+# acts on the tree it sits in, whatever the directory is called.
 # The same walk as hi.sh's and packaging/lib.sh's: fix one, fix all three.
 # GLOSSARY: HI.33
 _HI_SELF="${BASH_SOURCE[0]}"
@@ -192,28 +192,30 @@ while [ -L "$_HI_SELF" ]; do
     esac ;;
   esac
 done
-_HI_HOME="$(CDPATH='' cd -P "$(dirname "$_HI_SELF")/../.." && pwd)"
+_HI_ROOT="$(CDPATH='' cd -P "$(dirname "$_HI_SELF")/.." && pwd)"
+export _HI_ROOT
+_HI_HOME="${_HI_ROOT%/*}"
 export _HI_HOME
 
 # the same guard hi.sh has, and for the same reason: bash's own "No such
 # file" would name a path nobody typed. This is the first command a fresh
-# clone runs, so a checkout called anything but say-hi is answered here.
-[ -r "$_HI_HOME/say-hi/common/core.sh" ] || {
-  echo "$_HI_ME: no say-hi at $_HI_HOME/say-hi - the checkout has to be a directory named say-hi (this script is in ${_HI_SELF%/scripts/*})" >&2
+# clone runs.
+[ -r "$_HI_ROOT/common/core.sh" ] || {
+  echo "$_HI_ME: no say-hi tree at $_HI_ROOT (this script is in ${_HI_SELF%/scripts/*})" >&2
   exit 1
 }
 # shellcheck source=../common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 # the heading rules and _hi_rewrite; deliberately outside the shipped common/
 # shellcheck source=./lib.sh
-source "$_HI_HOME/say-hi/scripts/lib.sh"
+source "$_HI_ROOT/scripts/lib.sh"
 # the measure-then-render primitives; deliberately outside the shipped common/
 # shellcheck source=./table.sh
-source "$_HI_HOME/say-hi/scripts/table.sh"
+source "$_HI_ROOT/scripts/table.sh"
 # shellcheck source=./rc.sh
-source "$_HI_HOME/say-hi/scripts/rc.sh"
+source "$_HI_ROOT/scripts/rc.sh"
 # shellcheck source=./configure.sh
-source "$_HI_HOME/say-hi/scripts/configure.sh"
+source "$_HI_ROOT/scripts/configure.sh"
 
 # The four modes are one choice, and every one of them is a word: hi's
 # --install, --configure, and --uninstall each inject theirs (common/flags),

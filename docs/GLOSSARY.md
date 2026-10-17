@@ -480,14 +480,23 @@ reaches, and an unset setting there stays hi's prompt.
 
 ## HI.33 derived tree location
 
-`$_HI_HOME` is the directory _containing_ `say-hi`. Every file that needs the
-tree derives it from its own path rather than defaulting to `$HOME`: the
-default was right for a standard install and wrong everywhere else, and when
-wrong it silently read _another tree_ (the platform e2e jobs sourced a tree
-under `/Users/runner` that was never there). `hi.sh` and the standalone
-scripts ask only when `$_HI_HOME` is unset, so an outer export still wins and
-costs no fork; `scripts/install.sh` and `packaging/lib.sh` always derive from
-their own resolved path - an install acts on the tree it sits in.
+`$_HI_ROOT` is the tree, a checkout under any name or a package's
+`/usr/share/say-hi`, and `$_HI_HOME` the directory above it; a session's tree
+is always `$_HI_HOME/say-hi`, which the bootstrap unpacked. Every file that
+needs the tree takes it by one rule: `$_HI_ROOT` where it is set and sits in
+`$_HI_HOME` (or `$_HI_HOME` is unset), else `$_HI_HOME/say-hi` where that is
+a tree (an rc line written before 1.0, a target, the suites' `_HI_HOME=`),
+else its own path - never `$HOME`: that default was right for a standard
+install and wrong everywhere else, and when wrong it silently read _another
+tree_ (the platform e2e jobs sourced a tree under `/Users/runner` that was
+never there). The rule lets an exported `_HI_HOME` keep meaning what it did
+while an inherited `_HI_ROOT` of another tree is never taken over it.
+`scripts/install.sh` and `packaging/lib.sh` always derive from their own
+resolved path - an install acts on the tree it sits in. The rc line an
+install writes names a tree called `say-hi` by `_HI_HOME`, as every line
+before 1.0 did, and any other by `_HI_ROOT` (`rc.sh`'s `tmpdir_line`); the
+payload stages the tree under `say-hi/` whatever it is called
+(`pack_stream.sh`'s `stage_as`).
 
 `common/core.sh` owns the answer; everything that merely _needs_ the tree
 reaches core.sh through its own path. The files that derive have nothing above
@@ -495,31 +504,32 @@ them to ask through:
 
 | where                                                                          | how                                                                                                                                                                                    |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                                                               | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                              |
+| `common/core.sh`                                                               | `${BASH_SOURCE[0]}`, then `cd -P .. && pwd`; answers for every file sourced through it                                                                                                 |
 | `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                              | the same behind a `readlink` walk, so `~/.local/bin/hi` (a package's `/usr/bin/hi`) answers the tree it links to. Three copies: each must resolve itself before it can source anything |
 | `load.sh`, `tests/test_runner.sh`                                              | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                          |
 | `tests/test_lib.sh`                                                            | `${BASH_SOURCE[0]}` only, `$_HI_HOME` or not - the harness sits in the tree it tests, and `_hi_host_tree_check` warns when `$_HI_ROOT` names another                                   |
-| `scripts/doctor.sh`, `preview.sh`, `update.sh`, `add_tag.sh`, `add_package.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                                         |
+| `scripts/doctor.sh`, `preview.sh`, `update.sh`, `add_tag.sh`, `add_package.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME`'s `say-hi` or `$_HI_ROOT` by the rule - the standalone-entry form below                                                                          |
 | zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                         |
-| fish (`common/config.fish`)                                                    | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                    |
-| `common/bash.sh`                                                               | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                                |
+| fish (`common/config.fish`)                                                    | `sh -c 'cd -P "$1/.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                       |
+| `common/bash.sh`                                                               | the rule, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set a name before this file is sourced                                                     |
 
-**The standalone-entry form, and why `$_HI_HOME` wins in it.** A script run
-on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
+**The standalone-entry form, and why an exported name wins in it.** A script
+run on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
 
 ```sh
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
-[ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_HOME:-}" ] || [ ! -r "$_HI_HOME/say-hi/common/core.sh" ] || _hi_d="$_HI_HOME/say-hi"
+[ -z "${_HI_ROOT:-}" ] || [ "${_HI_ROOT%/*}" != "${_HI_HOME:-${_HI_ROOT%/*}}" ] || _hi_d="$_HI_ROOT"
 ```
 
-With `$_HI_HOME` set, _everything_ comes from there, core.sh included:
-reaching core.sh through the script's own path while `$_HI_ROOT` came from
-`$_HI_HOME` runs two trees in one process, silently.
+With a name set, _everything_ comes from there, core.sh included: reaching
+core.sh through the script's own path while `$_HI_ROOT` came from the
+environment runs two trees in one process, silently.
 
 No file falls back silently: `hi.sh` prints
-`set _HI_HOME to the directory that holds it` and exits when the derived path
-holds no tree. A _target_ needs no such rule — a session's tree is the one hi
+`set _HI_ROOT to the checkout, wherever it is` and exits when the derived
+path holds no tree. A _target_ needs no such rule — a session's tree is the one hi
 just unpacked, its `$_HI_HOME` exported by the script that unpacked it; a say-hi
 the target already has is that machine's own install, and a session never reads
 it.

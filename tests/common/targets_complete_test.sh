@@ -264,9 +264,9 @@ function test_flags_behind_a_local_command_are_its_switches() {
   # a row with no switches offers nothing; a connect flag or a target first
   # is not a local command, so the top-level roster stands
   ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || _hi_why _HI_TARGETS || return 1
-  # --preview acts locally too but has no switches: nothing, not hi's roster
-  got="$(sh "$_HI_TARGETS" flags --preview)"
-  [ -z "$got" ] || _hi_why got _HI_TARGETS || return 1
+  # --preview acts locally too, with --text its one switch: that, not hi's roster
+  got="$(sh "$_HI_TARGETS" flags --preview | cut -f1 | tr '\n' ' ')"
+  [ "$got" = "--text " ] || _hi_why got _HI_TARGETS || return 1
   got="$(sh "$_HI_TARGETS" flags --plain)"
   got2="$(sh "$_HI_TARGETS" flags)"
   got3="$(sh "$_HI_TARGETS" flags somehost)"

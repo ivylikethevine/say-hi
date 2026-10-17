@@ -19,10 +19,16 @@ _hi_now() {
 # empty connect time rather than aborting before this file defines anything.
 _HI_CONNECT_T0="${EPOCHREALTIME:-$(_hi_now)}" || _HI_CONNECT_T0=""
 
-# The directory *containing* say-hi, off this script's own path behind a
-# symlink walk. Same walk as scripts/install.sh's and packaging/lib.sh's:
-# fix one, fix all. GLOSSARY: HI.33
-if [ -z "${_HI_HOME:-}" ]; then
+# The tree: $_HI_ROOT where it is exported and sits in $_HI_HOME, else
+# $_HI_HOME/say-hi where that is a tree (an older rc line, a target, the
+# suites), else this script's own path behind a symlink walk - the same walk
+# as scripts/install.sh's and packaging/lib.sh's: fix one, fix all.
+# $_HI_HOME is then the directory above it. GLOSSARY: HI.33
+if [ -n "${_HI_ROOT:-}" ] && { [ -z "${_HI_HOME:-}" ] || [ "${_HI_ROOT%/*}" = "$_HI_HOME" ]; }; then
+  :
+elif [ -n "${_HI_HOME:-}" ] && [ -r "$_HI_HOME/say-hi/common/core.sh" ]; then
+  _HI_ROOT="$_HI_HOME/say-hi"
+else
   _hi_self="${BASH_SOURCE[0]}"
   while [ -L "$_hi_self" ]; do
     _hi_link="$(readlink "$_hi_self")"
@@ -34,18 +40,20 @@ if [ -z "${_HI_HOME:-}" ]; then
       esac ;;
     esac
   done
-  _HI_HOME="$(CDPATH='' cd -P "$(dirname "$_hi_self")/.." && pwd)"
+  _HI_ROOT="$(CDPATH='' cd -P "$(dirname "$_hi_self")" && pwd)"
   unset _hi_self _hi_link
 fi
+export _HI_ROOT
+: "${_HI_HOME:=${_HI_ROOT%/*}}"
 export _HI_HOME
 # checked before the source: bash's own "No such file" would name a path
 # nobody typed, and _hi_cecho is in the file that's missing
-[ -r "$_HI_HOME/say-hi/common/core.sh" ] || {
-  echo "hi: no say-hi at $_HI_HOME/say-hi - set _HI_HOME to the directory that holds it (the checkout has to be a directory named say-hi)" >&2
+[ -r "$_HI_ROOT/common/core.sh" ] || {
+  echo "hi: no say-hi tree at $_HI_ROOT - set _HI_ROOT to the checkout, wherever it is" >&2
   exit 1
 }
 # shellcheck source=./common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+source "$_HI_ROOT/common/core.sh"
 # the kept session, a file of its own (GLOSSARY: HI.65). A session whose
 # client switched it off was sent none, and these stand in.
 _HI_KEEP_GONE=""
