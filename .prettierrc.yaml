@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
-# Prettier is what Zed formats Markdown with on save; this pins its defaults so
-# a hand run (`.github/node_modules/.bin/prettier --write <files>`, after
-# `npm ci --prefix .github`) produces the same bytes and agrees with
-# .markdownlint.yaml, .editorconfig and .moxide.toml:
+# Prettier formats Markdown, in the editor on save and in CI's check; this pins
+# its defaults so a hand run (`.github/node_modules/.bin/prettier --write
+# <files>`, after `npm ci --prefix .github`) produces the same bytes and agrees
+# with .markdownlint.yaml and .editorconfig:
 #   - proseWrap preserve: the docs are hand-wrapped and MD013 is effectively
 #     off, so line breaks are the author's, not the formatter's
 #   - tabWidth 2 / spaces / lf: .editorconfig's values, restated so prettier

@@ -12,7 +12,7 @@ MD049:
 MD013: false
 
 # MD025/single-h1: only the `# H1` counts as a page's title, never a front
-# matter `title:`. No page here carries front matter (_config.yml), so this
-# only keeps one that slips in from counting as a second H1.
+# matter `title:`. No page here carries front matter, so this only keeps one
+# that slips in from counting as a second H1.
 MD025:
   front_matter_title: ""
