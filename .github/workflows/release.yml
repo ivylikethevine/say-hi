@@ -1003,9 +1003,9 @@ jobs:
       cancel-in-progress: false
     steps:
       # block: this job holds the tap PAT, and only needs GitHub itself -
-      # checkout, clone, and push (github) and gh's PR and release calls
-      # (api); the artifact download is on the agent's implicit allowlist.
-      # Tighten or extend it from a release's harden-runner insights.
+      # checkout (github) and gh's ref, commit, PR and release calls (api);
+      # the artifact download is on the agent's implicit allowlist. Tighten
+      # or extend it from a release's harden-runner insights.
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
@@ -1043,26 +1043,42 @@ jobs:
             echo "link=- Homebrew: $install ([tap PR]($url))" >>"$GITHUB_OUTPUT"
             exit 0
           fi
-          gh repo clone "$TAP_REPO" tap -- --depth 1
-          cd tap
-          # gh's token into git's credential helper, so the push below is
-          # authenticated as the PAT rather than as nobody
-          gh auth setup-git
-          git checkout -b "$branch"
-          mkdir -p Formula
           # the template's header is about this repository; the tap's copy
           # gets the one that says where to edit it instead
-          bash ../.github/scripts/tap_formula.sh <../dist/manifests/say-hi.rb >Formula/say-hi.rb
-          git add Formula/say-hi.rb
-          if git diff --cached --quiet; then
+          formula="$RUNNER_TEMP/say-hi.rb"
+          bash .github/scripts/tap_formula.sh <dist/manifests/say-hi.rb >"$formula"
+          head="$(gh api "repos/$TAP_REPO/git/ref/heads/main" --jq .object.sha)"
+          current="$RUNNER_TEMP/current.rb"
+          gh api "repos/$TAP_REPO/contents/Formula/say-hi.rb?ref=$head" --jq .content 2>/dev/null | base64 -d >"$current" || : >"$current"
+          if cmp -s "$formula" "$current"; then
             echo "tap formula already current - nothing to open"
             echo "link=- Homebrew: $install ([formula](https://github.com/$TAP_REPO/blob/HEAD/Formula/say-hi.rb))" >>"$GITHUB_OUTPUT"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "say-hi $TAG"
-          git push origin "$branch"
+          # No clone, commit and push: the commit is made through GitHub's
+          # createCommitOnBranch mutation, so GitHub signs it, which the tap's
+          # main ruleset requires of every commit it merges. The mutation
+          # commits onto a branch that exists, so the branch is created from
+          # main's head first; a re-run that left one behind without a PR
+          # commits on top of it.
+          branch_head="$(gh api "repos/$TAP_REPO/git/ref/heads/$branch" --jq .object.sha 2>/dev/null || true)"
+          if [ -z "$branch_head" ]; then
+            gh api "repos/$TAP_REPO/git/refs" -f ref="refs/heads/$branch" -f sha="$head" >/dev/null
+            branch_head="$head"
+          fi
+          commit="$(jq -n --arg repo "$TAP_REPO" --arg branch "$branch" --arg head "$branch_head" \
+            --arg msg "say-hi $TAG" --rawfile formula "$formula" '{
+              query: "mutation($in: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $in) { commit { oid } } }",
+              variables: {in: {
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                expectedHeadOid: $head,
+                message: {headline: $msg},
+                fileChanges: {additions: [{path: "Formula/say-hi.rb", contents: ($formula | @base64)}]}}}}' |
+            gh api graphql --input - --jq .data.createCommitOnBranch.commit.oid)"
+          if [ "$(gh api "repos/$TAP_REPO/commits/$commit" --jq .commit.verification.verified)" != true ]; then
+            echo "::error title=Homebrew tap::GitHub did not sign commit $commit on $branch; the tap's ruleset will block the PR"
+            exit 1
+          fi
           # No checklist: this run's `brew` job already installed, tested, and
           # audited the formula on a hosted mac, and the tap's own CI repeats
           # that on macOS and Linux against this PR. printf rather than a

@@ -333,7 +333,10 @@ verdict in its run summary. When it passes, `tap` opens a PR against
 [the tap](https://github.com/ivylikethevine/homebrew-tap) with the formula
 (its header rewritten for the tap by `.github/scripts/tap_formula.sh`),
 linking that run, and links the PR (or the tap's formula, when already
-current) from the release body. The tap's own CI runs `brew style`,
+current) from the release body. The PR's commit is made through GitHub's
+`createCommitOnBranch` API rather than pushed from the runner, so GitHub signs
+it: the tap's `main` ruleset requires signed commits and blocks every merge of
+a PR holding an unsigned one. The tap's own CI runs `brew style`,
 `brew audit`, install, and test on macOS and Linux against the PR. Without
 `HOMEBREW_TAP_TOKEN`, `tap` warns and does nothing.
 
