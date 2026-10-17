@@ -757,9 +757,9 @@ function test_every_job_has_a_timeout() {
 # every job's first step is harden-runner, so its egress is recorded (audit)
 # or allowlisted (block) from before anything else runs. Exempt: a job that
 # calls a reusable workflow (no steps - the callee's jobs carry it), and an
-# arm runner (`*-arm`), which harden-runner's community tier does not
-# support. A matrix `runs-on` counts as supported: its x64 legs are monitored
-# and an arm leg only logs that it is not.
+# arm runner (`*-arm`): Windows arm64 has no agent. A matrix `runs-on`
+# counts as supported: its x64 legs are monitored and an arm leg only logs
+# that it is not.
 function test_every_job_starts_with_harden_runner() {
   local wf job bad=0
   for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
