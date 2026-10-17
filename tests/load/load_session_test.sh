@@ -326,6 +326,33 @@ function test_session_rc_notes_the_directory_of_a_session_that_holds() {
   ! grep -q _hi_held_cwd "$dir/bashrc" "$dir/fish.config" || _hi_because "a session that cannot hold got the hook"
 }
 
+# A session that holds (a terminal, a disposable tree, no multiplexer of its
+# own) and was given a name to hold under notes the name and its directory
+# for the connect that takes the tree; one that takes a tree a dropped
+# session left opens as Resumed; an exit with its terminal still takes the
+# tree
+function test_load_notes_the_name_and_directory_a_session_holds_under() {
+  local t="$_HI_WORKDIR/held/u.hi.ffffff" home="$_HI_WORKDIR/held/home" noted="$_HI_WORKDIR/held/noted" out got want
+  mkdir -p "$t/say-hi" "$home"
+  rm -f "$noted"
+  printf '%s\n' "$t/before" >"$t/say-hi/hi.cwd"
+  out="$( (
+    builtin cd "$home" || exit 1
+    # the session shell reads the two files while the tree is still there
+    # (by the tree's path: its rc derives $_HI_ROOT from this checkout's)
+    printf 'cat "%s/say-hi/hi.hold" "%s/say-hi/hi.cwd" >"%s"; exit 0\n' "$t" "$t" "$noted" |
+      env -u _HI_KEEP_MUX -u TMUX HOME="$home" SHELL=/bin/bash "_HI_HEADER_ORDER= " _HI_HOLD_TIMEOUT=10m \
+        _HI_KEEP_HOLD=hi-box _HI_SESSION_RC_DIR="" _HI_LOAD_NO_INIT=1 _HI_HOME="$_HI_HOME" \
+        python3 -c "$_HI_PTY_SPAWN" bash -c 'source "$_HI_HOME/say-hi/load.sh"; set +euo pipefail
+          _HI_CLEANUP="$1" _HI_ROOT="$1/say-hi"; load' _ "$t"
+  ) 2>&1 | tr -d '\r')" || true
+  got="$(cat "$noted" 2>&1)"
+  want="$(printf 'hi-box\n%s' "$home")"
+  [ "$got" = "$want" ] || _hi_because "hi.hold and hi.cwd during the session: $got, want $want" || return 1
+  case "$(_hi_strip_ansi "$out")" in *Resumed*) ;; *) _hi_because "a taken tree did not open as Resumed: $out" || return 1 ;; esac
+  [ ! -d "$t" ] || _hi_because "an exit with its terminal left the tree"
+}
+
 # the trap wired by load() itself: the rc directory is live while the session
 # runs (the shell proves it from inside) and gone once load() has exited
 function test_load_cleans_up_its_session_rc_dir() {
@@ -850,6 +877,7 @@ function run_load_session_tests() {
   _hi_check "A dropped session that holds leaves its tree to the timer" test_clean_all_leaves_a_dropped_session_s_tree_to_the_timer
   _hi_check "...which leaves a taken tree, and ends on hi.end" test_tree_watch_leaves_a_taken_tree_and_ends_on_hi_end
   _hi_check "A session that holds notes its directory, each prompt" test_session_rc_notes_the_directory_of_a_session_that_holds
+  _hi_check_capable pty "...and load() writes the name it holds under, and its directory" test_load_notes_the_name_and_directory_a_session_holds_under
 
   _hi_h2 "Testing: this checkout"
   _hi_check "Still intact after every clean_all above" test_this_checkout_was_never_touched

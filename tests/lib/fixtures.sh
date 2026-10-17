@@ -632,6 +632,16 @@ function _hi_has_rendered() {
   [[ "$1" == *"$needle"* ]]
 }
 
+# _hi_file_is <file> <body> - <file> holds exactly <body> (%b, so \n is a
+# line break); what it holds instead is printed when it does not
+function _hi_file_is() {
+  local want
+  want="$(printf '%b' "$2")"
+  [ "$(cat "$1" 2>&1)" = "$want" ] && return 0
+  _hi_cecho " | got: [$(cat "$1" 2>&1)]" "$RED"
+  return 1
+}
+
 # _hi_stub_tools <tool...> - a directory of do-nothing executables by those
 # names, printed, for a caller's $PATH: _hi_overlay_src ships home's config
 # only with its tool on this machine, and a runner has no micro or helix.

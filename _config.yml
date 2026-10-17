@@ -40,27 +40,43 @@ readme_index:
 # The site is the prose: code, tooling, packaging, runtime data and agent notes
 # stay off it. Jekyll already skips dot-files and dot-directories. One bare
 # `- path` per line, comments on their own lines.
+# One list for every repository sharing this file; a path a repository lacks
+# is skipped. docs/openapi.json stays on the site on purpose (README and
+# CONTRIBUTING link it). docs/tapes/ is laid over the built site by pages.yml
+# (the committed demo.gif plus the demos.yml renders), and README.md links the
+# GIFs at their published URLs. docs/tldr.md is a draft for an upstream
+# tldr-pages PR and has to keep tldr's `{{placeholder}}` syntax byte-for-byte,
+# which Liquid would parse, so it is kept off the site rather than guarded;
+# docs/README.md links it and hi.1 by their GitHub URLs, never relatively, so
+# the site index has no dead rows.
 exclude:
-  # docs/tapes/ is laid over the built site by pages.yml (the committed
-  # demo.gif plus the demos.yml renders), and README.md links the GIFs at their
-  # published URLs. docs/tldr.md is a draft for an upstream tldr-pages PR and
-  # has to keep tldr's `{{placeholder}}` syntax byte-for-byte, which Liquid
-  # would parse, so it is kept off the site rather than guarded; docs/README.md
-  # links it and hi.1 by their GitHub URLs, never relatively, so the site index
-  # has no dead rows. tests/lint/drift_test.sh derives its Liquid sweep from
-  # this block.
+  - app/
   - common/
-  - scripts/
-  - tests/
-  - packaging/
-  - local/
   - config/
+  - crates/
+  - docker/
   - docs/tapes/
-  - docs/hi.1
-  - hi.sh
-  - load.sh
-  - flake.nix
-  - flake.lock
+  - local/
+  - migrations/
+  - packaging/
+  - scripts/
+  - target/
+  - tests/
+  - typings/
+  - .env.example
   - CLAUDE.md
   - CLAUDE.local.md
+  - Cargo.lock
+  - Cargo.toml
+  - deny.toml
+  - docker-compose.yml
+  - docs/hi.1
   - docs/tldr.md
+  - flake.lock
+  - flake.nix
+  - hi.sh
+  - load.sh
+  - pyproject.toml
+  - requirements-dev.in
+  - requirements-dev.txt
+  - rustfmt.toml

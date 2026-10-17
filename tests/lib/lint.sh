@@ -46,6 +46,13 @@ function _hi_lint_has() {
   return 1
 }
 
+# _hi_lint_fail <left> <label> - one red verdict row, and <label> named to
+# the runner's recap; the caller bumps its own counter.
+function _hi_lint_fail() {
+  _hi_align "$1" "FAILED" "$RED"
+  _hi_note_failure "$2"
+}
+
 # _hi_lint_suite_begin <banner> - zero the file counters, start the clock,
 # print the suite heading.
 function _hi_lint_suite_begin() {

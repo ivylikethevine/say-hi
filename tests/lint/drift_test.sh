@@ -394,8 +394,7 @@ function lint_container_family() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   line="$(sed -n 's/^export _HI_CONTAINER_CLIS="\([a-z][a-z ]*\)"$/\1/p' "$_HI_ROOT/common/core.sh")"
   if [ -z "$line" ]; then
-    _hi_align " | common/core.sh: no \$_HI_CONTAINER_CLIS where one is expected" "FAILED" "$RED"
-    _hi_note_failure "container family: common/core.sh has no list"
+    _hi_lint_fail " | common/core.sh: no \$_HI_CONTAINER_CLIS where one is expected" "container family: common/core.sh has no list"
     bad=$((bad + 1))
   else
     core="$line"
@@ -404,14 +403,12 @@ function lint_container_family() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   line="$(sed -n 's/^clis="\([a-z][a-z ]*\)"$/\1/p' "$_HI_ROOT/common/targets.sh")"
   if [ -z "$line" ]; then
-    _hi_align " | common/targets.sh: no family list where one is expected" "FAILED" "$RED"
-    _hi_note_failure "container family: common/targets.sh has no list"
+    _hi_lint_fail " | common/targets.sh: no family list where one is expected" "container family: common/targets.sh has no list"
     bad=$((bad + 1))
   else
     targets="$line"
     if [ -n "$core" ] && [ "$targets" != "$core" ]; then
-      _hi_align " | common/targets.sh: $targets" "FAILED" "$RED"
-      _hi_note_failure "container family: common/targets.sh drifted"
+      _hi_lint_fail " | common/targets.sh: $targets" "container family: common/targets.sh drifted"
       bad=$((bad + 1))
     else
       _hi_align " | common/targets.sh: $targets" "OK" "$GREEN"
@@ -446,14 +443,12 @@ function lint_runtime_dir() {
     # would search for this shell's TMPDIR instead of the source's spelling
     name="$(sed -n 's/.*="\${TMPDIR:-\/tmp}\/hi-\$[A-Za-z_][A-Za-z0-9_]*"$/${TMPDIR:-\/tmp}\/hi-$UID/p' "$_HI_ROOT/$file" | head -1)"
     if [ -z "$name" ]; then
-      _hi_align " | $file: no \${TMPDIR:-/tmp}/hi-<uid> fallback" "FAILED" "$RED"
-      _hi_note_failure "runtime dir: $file has no fallback path"
+      _hi_lint_fail " | $file: no \${TMPDIR:-/tmp}/hi-<uid> fallback" "runtime dir: $file has no fallback path"
       bad=$((bad + 1))
       continue
     fi
     if [ -n "$first" ] && [ "$name" != "$first" ]; then
-      _hi_align " | $file: $name" "FAILED" "$RED"
-      _hi_note_failure "runtime dir: $file names a different directory"
+      _hi_lint_fail " | $file: $name" "runtime dir: $file names a different directory"
       bad=$((bad + 1))
       continue
     fi
@@ -462,8 +457,7 @@ function lint_runtime_dir() {
     local lost=0
     for guard in 'XDG_RUNTIME_DIR' 'mkdir -m 700' 'ls -ldn'; do
       if ! grep -qF -- "$guard" "$_HI_ROOT/$file"; then
-        _hi_align " | $file: lost the '$guard' guard" "FAILED" "$RED"
-        _hi_note_failure "runtime dir: $file lost '$guard'"
+        _hi_lint_fail " | $file: lost the '$guard' guard" "runtime dir: $file lost '$guard'"
         lost=$((lost + 1))
       fi
     done
@@ -585,8 +579,7 @@ function lint_dockerfiles() {
     # build time - the shape this guard exists to keep out
     first="$(grep -vE '^[[:space:]]*(#|$)' "$file" | head -1 | awk '{print $1}')"
     if [ "$first" != FROM ] && [ "$first" != ARG ]; then
-      _hi_align " | $stem: starts with ${first:-nothing}, not FROM or ARG" "FAILED" "$RED"
-      _hi_note_failure "tests/dockerfiles/$stem (no FROM)"
+      _hi_lint_fail " | $stem: starts with ${first:-nothing}, not FROM or ARG" "tests/dockerfiles/$stem (no FROM)"
       bad=$((bad + 1))
       continue
     fi
@@ -602,8 +595,7 @@ function lint_dockerfiles() {
     if [ -n "$seen" ]; then
       _hi_align " | $stem" "OK" "$GREEN"
     else
-      _hi_align " | $stem: no caller references it" "FAILED" "$RED"
-      _hi_note_failure "tests/dockerfiles/$stem (orphaned)"
+      _hi_lint_fail " | $stem: no caller references it" "tests/dockerfiles/$stem (orphaned)"
       bad=$((bad + 1))
     fi
   done
@@ -615,8 +607,7 @@ function lint_dockerfiles() {
     if [ -f "$dir/$ref.Dockerfile" ]; then
       _hi_align " | referenced $ref" "OK" "$GREEN"
     else
-      _hi_align " | referenced $ref: no such file in tests/dockerfiles/" "FAILED" "$RED"
-      _hi_note_failure "tests/dockerfiles/$ref (referenced, missing)"
+      _hi_lint_fail " | referenced $ref: no such file in tests/dockerfiles/" "tests/dockerfiles/$ref (referenced, missing)"
       bad=$((bad + 1))
     fi
   done
@@ -756,8 +747,7 @@ fixture_test.sh:6|test_fixture_returns_silently|return|true || return 1
 fixture_test.sh:14|test_fixture_compares_a_substitution|subst|[ "$(cat "$a")" = x ] || _hi_why a' ]; then
     _hi_align " | the scan names a bare last line, a silent return 1, and a compared substitution" "OK" "$GREEN"
   else
-    _hi_align " | the scan read its own fixture as: $rows" "FAILED" "$RED"
-    _hi_note_failure "case reasons: the scan no longer sees its fixture"
+    _hi_lint_fail " | the scan read its own fixture as: $rows" "case reasons: the scan no longer sees its fixture"
     bad=1
   fi
   _hi_read_lines suites < <(find "$_HI_ROOT/tests" -name '*_test.sh' | sort)

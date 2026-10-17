@@ -383,15 +383,17 @@ function test_zsh_pattern_pins_agree_with_bash() {
 # GLOSSARY: HI.33's bash arm - the every-entry-point-derives-its-own-tree
 # fallback that makes $_HI_HOME optional. Every other case in this suite sets
 # $_HI_HOME before sourcing core.sh (test_lib.sh's own doing, HI.33's *test*
-# side), so this branch never otherwise runs: a fresh bash with $_HI_HOME
-# genuinely unset (not just empty - `-u`, not a blank value) sourcing core.sh
-# by its real path is the only way to reach it. Asserts against the real
+# side), so this branch never otherwise runs: a fresh bash with $_HI_HOME and
+# $_HI_ROOT genuinely unset (not just empty - `-u`, not a blank value)
+# sourcing core.sh by its real path is the only way to reach it. core.sh
+# exports both, and a child that inherits the suite's $_HI_ROOT takes it as
+# the tree and never derives one. Asserts against the real
 # checkout's own $_HI_HOME rather than a scratch tree, since the point is
 # that the derivation is correct, not merely that it runs.
 function test_hi_home_self_derives_when_unset() {
   local got
   local real="$_HI_HOME/say-hi/common/core.sh"
-  got="$(env -u _HI_HOME -u _hi_core_loaded bash -c \
+  got="$(env -u _HI_HOME -u _HI_ROOT -u _hi_core_loaded bash -c \
     "source '$real'; printf '%s' \"\$_HI_HOME\"")"
   [ "$got" = "$_HI_HOME" ] || _hi_why got
 }
@@ -404,7 +406,7 @@ function test_hi_home_self_derives_when_unset() {
 # `*) _hi_self="."` arm instead.
 function test_hi_home_self_derives_from_a_bare_relative_source() {
   local got
-  got="$(cd "$_HI_HOME/say-hi/common" && env -u _HI_HOME -u _hi_core_loaded bash -c \
+  got="$(cd "$_HI_HOME/say-hi/common" && env -u _HI_HOME -u _HI_ROOT -u _hi_core_loaded bash -c \
     'source core.sh; printf "%s" "$_HI_HOME"')"
   [ "$got" = "$_HI_HOME" ] || _hi_why got
 }
@@ -421,9 +423,9 @@ function test_hi_sh_walks_its_symlinks_to_the_tree() {
   ln -sf "$_HI_HOME/say-hi/hi.sh" "$d/abs"
   ln -sf ../abs "$d/bin/rel"
   for got in \
-    "$(env -u _HI_HOME -u _hi_core_loaded bash -c "set --; source '$d/abs'; printf '%s' \"\$_HI_HOME\"")" \
-    "$(env -u _HI_HOME -u _hi_core_loaded bash -c "set --; source '$d/bin/rel'; printf '%s' \"\$_HI_HOME\"")" \
-    "$(cd "$d/bin" && env -u _HI_HOME -u _hi_core_loaded bash -c 'set --; source rel; printf "%s" "$_HI_HOME"')"; do
+    "$(env -u _HI_HOME -u _HI_ROOT -u _hi_core_loaded bash -c "set --; source '$d/abs'; printf '%s' \"\$_HI_HOME\"")" \
+    "$(env -u _HI_HOME -u _HI_ROOT -u _hi_core_loaded bash -c "set --; source '$d/bin/rel'; printf '%s' \"\$_HI_HOME\"")" \
+    "$(cd "$d/bin" && env -u _HI_HOME -u _HI_ROOT -u _hi_core_loaded bash -c 'set --; source rel; printf "%s" "$_HI_HOME"')"; do
     [ "$got" = "$_HI_HOME" ] || _hi_because "derived $got, not $_HI_HOME" || return 1
   done
 }

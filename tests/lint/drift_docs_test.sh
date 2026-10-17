@@ -42,8 +42,7 @@ function lint_glossary_tags() {
         case "$part" in "$h"*) ok=1 ;; esac
       done
       if [ -z "$ok" ]; then
-        _hi_align " | unknown code in ${line%%:*}: $part" "FAILED" "$RED"
-        _hi_note_failure "GLOSSARY tag: $part"
+        _hi_lint_fail " | unknown code in ${line%%:*}: $part" "GLOSSARY tag: $part"
         bad=$((bad + 1))
       fi
     done <<<"${tag//" + "/$'\n'}"
@@ -59,8 +58,7 @@ function lint_glossary_tags() {
   used="$(printf '%s\n' "${tags[@]}")"
   for h in "${headings[@]}"; do
     case "$used" in *"$h"*) continue ;; esac
-    _hi_align " | $h is defined but nothing references it" "FAILED" "$RED"
-    _hi_note_failure "GLOSSARY entry: $h unreferenced"
+    _hi_lint_fail " | $h is defined but nothing references it" "GLOSSARY entry: $h unreferenced"
     orphan=$((orphan + 1))
   done
   [ "$orphan" -eq 0 ] && _hi_align " | every entry is referenced" "OK" "$GREEN"
@@ -86,8 +84,7 @@ function lint_settings_table() {
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     case "$documented" in *"|$name|"*) ;; *) continue ;; esac
-    _hi_align " | $name has a row in scripts/settings, and a '### Not settings' entry saying it is none" "FAILED" "$RED"
-    _hi_note_failure "settings table: $name is both a row and not a setting"
+    _hi_lint_fail " | $name has a row in scripts/settings, and a '### Not settings' entry saying it is none" "settings table: $name is both a row and not a setting"
     lever=$((lever + 1))
   done <<<"$levers"
   [ "$lever" -eq 0 ] && _hi_align " | no row is also listed under '### Not settings'" "OK" "$GREEN"
@@ -116,8 +113,7 @@ function lint_settings_table() {
     [ -n "$name" ] || continue
     case $'\n'"$tree"$'\n' in *$'\n'"$name"$'\n'*) continue ;; esac
     case $'\n'"$dynamic"$'\n' in *$'\n'"$name"$'\n'*) continue ;; esac
-    _hi_align " | $name has a row but nothing in the shipped tree reads it" "FAILED" "$RED"
-    _hi_note_failure "settings table: $name unread"
+    _hi_lint_fail " | $name has a row but nothing in the shipped tree reads it" "settings table: $name unread"
     stale=$((stale + 1))
   done <<<"$(printf '%s' "$documented" | tr '|' '\n')"
   [ "$stale" -eq 0 ] && _hi_align " | every row names a variable the shipped tree reads" "OK" "$GREEN"
@@ -136,22 +132,19 @@ function lint_settings_table() {
   tree_presets="$(sed -n '/^_HI_PRESETS=(/,/^)$/p' "$_HI_ROOT/scripts/configure.sh" |
     sed -n 's/^ *"\([a-z][a-z0-9-]*\)|.*/\1/p' | sort -u)"
   if [ -z "$doc_presets" ] || [ -z "$tree_presets" ]; then
-    _hi_align " | the presets scrape came back empty" "FAILED" "$RED"
-    _hi_note_failure "settings table: presets scrape empty"
+    _hi_lint_fail " | the presets scrape came back empty" "settings table: presets scrape empty"
     drift=1
   fi
   while IFS= read -r preset; do
     [ -n "$preset" ] || continue
     case $'\n'"$doc_presets"$'\n' in *$'\n'"$preset"$'\n'*) continue ;; esac
-    _hi_align " | preset '$preset' is in _HI_PRESETS with no row in '## Presets'" "FAILED" "$RED"
-    _hi_note_failure "settings table: preset $preset undocumented"
+    _hi_lint_fail " | preset '$preset' is in _HI_PRESETS with no row in '## Presets'" "settings table: preset $preset undocumented"
     drift=$((drift + 1))
   done <<<"$tree_presets"
   while IFS= read -r preset; do
     [ -n "$preset" ] || continue
     case $'\n'"$tree_presets"$'\n' in *$'\n'"$preset"$'\n'*) continue ;; esac
-    _hi_align " | preset '$preset' has a row in '## Presets' but no _HI_PRESETS entry" "FAILED" "$RED"
-    _hi_note_failure "settings table: preset $preset unknown to configure.sh"
+    _hi_lint_fail " | preset '$preset' has a row in '## Presets' but no _HI_PRESETS entry" "settings table: preset $preset unknown to configure.sh"
     drift=$((drift + 1))
   done <<<"$doc_presets"
   [ "$drift" -eq 0 ] && _hi_align " | '## Presets' names exactly _HI_PRESETS' presets" "OK" "$GREEN"
@@ -169,8 +162,7 @@ function lint_setting_defaults() {
   block="$(sed -n "s/^\(_HI_[A-Z0-9_]*\)_DEFAULT=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}$/\1 \2/p" "$_HI_ROOT/common/core.sh")"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   if [ -z "$block" ]; then
-    _hi_align " | common/core.sh: no _HI_*_DEFAULT block where one is expected" "FAILED" "$RED"
-    _hi_note_failure "defaults: common/core.sh has no block"
+    _hi_lint_fail " | common/core.sh: no _HI_*_DEFAULT block where one is expected" "defaults: common/core.sh has no block"
     return 1
   fi
   # a backticked <default> cell is a value, and the block's has to be it;
@@ -179,8 +171,7 @@ function lint_setting_defaults() {
     cell="$(awk -F' [|] ' -v n="$name" '!/^#/ && $2 == n { print $3 }' "$_HI_ROOT/scripts/settings")"
     case "$cell" in '`'*'`') ;; *) continue ;; esac
     [ "$cell" != "\`$value\`" ] || continue
-    _hi_align " | $name: the block says '$value', its row $cell" "FAILED" "$RED"
-    _hi_note_failure "defaults: $name disagrees with its row"
+    _hi_lint_fail " | $name: the block says '$value', its row $cell" "defaults: $name disagrees with its row"
     bad=$((bad + 1))
   done <<<"$block"
   [ "$bad" -eq 0 ] && _hi_align " | every block value a row states is that row's <default>" "OK" "$GREEN"
@@ -195,8 +186,7 @@ function lint_setting_defaults() {
     [ -n "$line" ] || continue
     name="${line#*\$\{}" name="${name%%:-*}"
     case "$names" in *" $name "*) ;; *) continue ;; esac
-    _hi_align " | ${line#"$_HI_ROOT"/}: a default of its own, not \$${name}_DEFAULT" "FAILED" "$RED"
-    _hi_note_failure "defaults: $name read with a literal default"
+    _hi_lint_fail " | ${line#"$_HI_ROOT"/}: a default of its own, not \$${name}_DEFAULT" "defaults: $name read with a literal default"
     stray=$((stray + 1))
   done <<<"$reads"
   [ "$stray" -eq 0 ] && _hi_align " | every such read goes through the block" "OK" "$GREEN"
@@ -206,12 +196,10 @@ function lint_setting_defaults() {
   line="$(grep -E '^ttl="\$\{_HI_TARGETS_TTL:-[0-9]+\}" cap="\$\{_HI_PROBE_TIMEOUT:-[0-9]+\}"$' "$_HI_ROOT/common/targets.sh")"
   ttl="${line#*TTL:-}" ttl="${ttl%%\}*}" cap="${line#*TIMEOUT:-}" cap="${cap%%\}*}"
   if [ -z "$line" ]; then
-    _hi_align " | common/targets.sh: no ttl/cap line where one is expected" "FAILED" "$RED"
-    _hi_note_failure "defaults: common/targets.sh has no mirror line"
+    _hi_lint_fail " | common/targets.sh: no ttl/cap line where one is expected" "defaults: common/targets.sh has no mirror line"
     bad=$((bad + 1))
   elif [ "$ttl $cap" != "$(printf '%s\n' "$block" | sed -n 's/^_HI_TARGETS_TTL //p') $(printf '%s\n' "$block" | sed -n 's/^_HI_PROBE_TIMEOUT //p')" ]; then
-    _hi_align " | common/targets.sh: ttl $ttl, cap $cap - not the block's" "FAILED" "$RED"
-    _hi_note_failure "defaults: common/targets.sh drifted"
+    _hi_lint_fail " | common/targets.sh: ttl $ttl, cap $cap - not the block's" "defaults: common/targets.sh drifted"
     bad=$((bad + 1))
   else
     _hi_align " | common/targets.sh: ttl $ttl, cap $cap, as the block says" "OK" "$GREEN"
@@ -238,14 +226,12 @@ function lint_setting_checks() {
   rows="$(awk -F' [|] ' '!/^#/ && NF > 10 { print $2 " " $9 }' "$_HI_ROOT/scripts/settings")"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   if [ "$kinds" = "  " ] || [ -z "$rows" ]; then
-    _hi_align " | no \$_HI_SETTING_CHECKS in scripts/lib.sh, or no row with a <check>" "FAILED" "$RED"
-    _hi_note_failure "checks: nothing to compare"
+    _hi_lint_fail " | no \$_HI_SETTING_CHECKS in scripts/lib.sh, or no row with a <check>" "checks: nothing to compare"
     return 1
   fi
   while read -r name check; do
     case "$kinds" in *" ${check%%:*}:"* | *" $check "*) continue ;; esac
-    _hi_align " | $name: <check> '$check' is none of$kinds" "FAILED" "$RED"
-    _hi_note_failure "checks: $name has an unknown <check>"
+    _hi_lint_fail " | $name: <check> '$check' is none of$kinds" "checks: $name has an unknown <check>"
     bad=$((bad + 1))
   done <<<"$rows"
   [ "$bad" -eq 0 ] && _hi_align " | every row's <check> is a kind _hi_setting_check knows" "OK" "$GREEN"
@@ -256,8 +242,7 @@ function lint_setting_checks() {
     grep -vx -e _HI_TOGGLES -e _HI_REMOTE_SESSION | sort | tr '\n' ' ')"
   if [ "$toggles" != "$core" ]; then
     _hi_align " | rows of check toggle: $toggles" "FAILED" "$RED"
-    _hi_align " | core.sh's _HI_TOGGLES: $core" "FAILED" "$RED"
-    _hi_note_failure "checks: _HI_TOGGLES is not the toggle rows"
+    _hi_lint_fail " | core.sh's _HI_TOGGLES: $core" "checks: _HI_TOGGLES is not the toggle rows"
     bad=$((bad + 1))
   else
     _hi_align " | _HI_TOGGLES is the rows whose check is toggle" "OK" "$GREEN"
@@ -274,8 +259,7 @@ function lint_setting_checks() {
       ;;
     *) continue ;;
     esac
-    _hi_align " | $name: $why" "FAILED" "$RED"
-    _hi_note_failure "checks: $name is a $check named against its polarity"
+    _hi_lint_fail " | $name: $why" "checks: $name is a $check named against its polarity"
     polar=$((polar + 1))
   done <<<"$rows"
   [ "$polar" -eq 0 ] && _hi_align " | every toggle is _HI_DISABLE_*, and no flag is but the excused" "OK" "$GREEN"
@@ -384,8 +368,7 @@ function lint_liquid_docs() {
         if [ "$raw" -eq 0 ]; then
           case "$line" in
           *'{{'* | *'{%'*)
-            _hi_align " | $rel:$n has {{ or {% outside {% raw %}" "FAILED" "$RED"
-            _hi_note_failure "liquid docs: $rel:$n"
+            _hi_lint_fail " | $rel:$n has {{ or {% outside {% raw %}" "liquid docs: $rel:$n"
             filebad=$((filebad + 1))
             ;;
           esac
@@ -394,8 +377,7 @@ function lint_liquid_docs() {
       esac
     done <"$file"
     if [ "$raw" -eq 1 ]; then
-      _hi_align " | $rel ends inside an unclosed {% raw %}" "FAILED" "$RED"
-      _hi_note_failure "liquid docs: $rel unclosed {% raw %}"
+      _hi_lint_fail " | $rel ends inside an unclosed {% raw %}" "liquid docs: $rel unclosed {% raw %}"
       filebad=$((filebad + 1))
     fi
     bad=$((bad + filebad))
@@ -504,8 +486,7 @@ function lint_site_links() {
         case "$overlay:$norm" in 1:docs/tapes/*.gif) why="" ;; esac
       fi
       [ -n "$why" ] || continue
-      _hi_align " | $rel:$n: $target $why - use a github.com URL" "FAILED" "$RED"
-      _hi_note_failure "site links: $rel:$n"
+      _hi_lint_fail " | $rel:$n: $target $why - use a github.com URL" "site links: $rel:$n"
       filebad=1
     done < <(_hi_md_link_targets "$file")
     bad=$((bad + filebad))
@@ -529,8 +510,7 @@ function lint_tldr_page() {
     if grep -q "^$flag|" "$_HI_ROOT/common/flags"; then
       _hi_align " | $flag" "OK" "$GREEN"
     else
-      _hi_align " | $flag is not a common/flags row" "FAILED" "$RED"
-      _hi_note_failure "docs/tldr.md: $flag"
+      _hi_lint_fail " | $flag is not a common/flags row" "docs/tldr.md: $flag"
       bad=$((bad + 1))
     fi
   done < <(sed -n 's/^`hi \(--[a-z-]*\).*/\1/p' "$page" | sort -u)
@@ -539,8 +519,7 @@ function lint_tldr_page() {
   if [ "$n" -le 8 ]; then
     _hi_align " | $n examples (tldr-pages allows 8)" "OK" "$GREEN"
   else
-    _hi_align " | $n examples, over tldr-pages' cap of 8" "FAILED" "$RED"
-    _hi_note_failure "docs/tldr.md: $n examples"
+    _hi_lint_fail " | $n examples, over tldr-pages' cap of 8" "docs/tldr.md: $n examples"
     bad=$((bad + 1))
   fi
   return "$bad"

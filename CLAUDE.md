@@ -100,6 +100,11 @@ export _HI_HOME="$(dirname "$PWD")"
 export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 ```
 
+**A child meant to derive its own tree needs `env -u _HI_ROOT` as well as
+`-u _HI_HOME`.** `core.sh` exports both, and a child that inherits the suite's
+`_HI_ROOT` takes it as the tree: the derivation never runs, and the case
+passes against the inherited value.
+
 **Check [docs/SYNTAX.md](docs/SYNTAX.md) before writing a pipe, a `sed`, or
 a `date`.** Each row there is a spelling that passed here and failed on
 another target; the ones a pattern can see fail `drift`, the rest only a CI

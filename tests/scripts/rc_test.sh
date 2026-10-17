@@ -150,6 +150,22 @@ function test_config_shell_preserves_hardlinks() {
   grep -qF 'export A=1' "$home/twin" || _hi_why home
 }
 
+# a rewrite refused after the append probe passed (an append-only file) is
+# said the same way, lines to add and all, with the file as it was
+function test_config_shell_reports_a_refused_rewrite() {
+  local got
+  local home="$_HI_WORKDIR/refused" out rc=0
+  mkdir -p "$home"
+  printf 'echo mine\n' >"$home/.bashrc"
+  out="$(_hi_rc_out "$home" _HI_RC_PRELUDE='_hi_write_back() { command rm -f "$1"; return 1; }' -- \
+    config_shell bashrc "$home/.bashrc" 'export A=1')" || rc=$?
+  got="$(cat "$home/.bashrc")"
+  [ "$rc" -eq 1 ] &&
+    [[ "$out" == *"can't write $home/.bashrc - left as it was"* && "$out" == *"   export A=1"* ]] &&
+    [[ "$out" != *"updated"* ]] &&
+    [ "$got" = "echo mine" ] || _hi_why got rc out home
+}
+
 function test_strip_marker_removes_only_hi_lines() {
   local home="$_HI_WORKDIR/strip"
   mkdir -p "$home"
@@ -739,6 +755,7 @@ function run_rc_lines_test() {
   _hi_check "Appends at the end" test_config_shell_appends_at_the_end
   _hi_check "Keeps the file's mode" test_config_shell_preserves_the_mode
   _hi_check "Keeps a hardlink joined" test_config_shell_preserves_hardlinks
+  _hi_check "A refused rewrite is said, the file left as it was" test_config_shell_reports_a_refused_rewrite
 
   _hi_h2 "Testing: strip_marker"
   _hi_check "Removes only hi's lines" test_strip_marker_removes_only_hi_lines
