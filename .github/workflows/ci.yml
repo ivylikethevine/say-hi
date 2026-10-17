@@ -704,6 +704,13 @@ jobs:
         continue-on-error: true
         run: actionlint -color
 
+      # the conventions neither tool has a rule for (timeouts, checkout
+      # credentials, top-level permissions, SHA pins, harden-runner first)
+      - id: lint-workflows
+        name: Check the workflows' conventions
+        continue-on-error: true
+        run: .github/scripts/lint_workflows.sh
+
       # `.`, not `.github/`: collection honors .gitignore only from the root,
       # and a local `npm ci --prefix .github` puts third-party workflows under
       # .github/node_modules that `.github/` would audit
@@ -714,8 +721,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: zizmor --no-progress .
 
-      - name: Fail if either found something
-        if: steps.actionlint.outcome == 'failure' || steps.zizmor.outcome == 'failure'
+      - name: Fail if any found something
+        if: steps.actionlint.outcome == 'failure' || steps.lint-workflows.outcome == 'failure' || steps.zizmor.outcome == 'failure'
         run: exit 1
 
   # Every commit reachable from the checkout, not just this diff: a secret
