@@ -31,11 +31,7 @@ function _ci_tool_row() {
 # arm64 on macOS and aarch64 on Linux for the same CPU; one spelling here.
 function _ci_platform() {
   local os arch
-  case "$(uname -s)" in
-  Linux) os=linux ;;
-  Darwin) os=darwin ;;
-  *) os="$(uname -s | tr '[:upper:]' '[:lower:]')" ;;
-  esac
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   case "$(uname -m)" in
   x86_64 | amd64) arch=x86_64 ;;
   aarch64 | arm64) arch=aarch64 ;;

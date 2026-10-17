@@ -69,11 +69,13 @@ jobs:
         run: |
           set -uo pipefail
           # .github/link-check-paths.txt, in a repo that has one, adds
-          # pathspecs beyond the Markdown, one per line
-          extra=()
+          # pathspecs beyond the Markdown, one per line; the cleaned list
+          # is kept for the issue body
+          : >"$RUNNER_TEMP/link-paths"
           if [ -f .github/link-check-paths.txt ]; then
-            mapfile -t extra < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/link-check-paths.txt)
+            sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/link-check-paths.txt >"$RUNNER_TEMP/link-paths"
           fi
+          mapfile -t extra <"$RUNNER_TEMP/link-paths"
           mapfile -d '' files < <(git ls-files -z '*.md' ${extra[@]+"${extra[@]}"})
           rc=0
           lychee --config lychee.toml --include-fragments --no-progress \
@@ -88,10 +90,7 @@ jobs:
         if: steps.check.outputs.found == '1'
         run: |
           set -euo pipefail
-          extra=""
-          if [ -f .github/link-check-paths.txt ]; then
-            extra="$(sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/link-check-paths.txt | tr '\n' ' ')"
-          fi
+          extra="$(tr '\n' ' ' <"$RUNNER_TEMP/link-paths")"
           {
             echo "lychee found dead or unreachable links in the docs. A URL that is fine but"
             echo "refuses automated checks belongs in \`lychee.toml\` with a comment saying why."

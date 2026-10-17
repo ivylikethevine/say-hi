@@ -105,7 +105,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "$PROBLEMS problem(s) with the pins below. Fix each OUTDATED, MISMATCH or ERROR row"
+            echo "$PROBLEMS problem(s) with the pins below. Fix each OUTDATED, ERROR or UNREAD row"
             echo "where it points: tools.txt (pin and sha256 together) where a repo has one, the file"
             echo "an inline, dependency or local row names, or every use of an action SHA or image"
             echo "digest - the \`->\` line under such a row is what to pin."

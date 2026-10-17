@@ -119,13 +119,9 @@ fi
 _ci_pins="$_CI_WORK/pins"
 _ci_tagonly="$_CI_WORK/tagonly"
 printf '%s\n' "${_ci_files_list[@]}" | _ci_image_pins >"$_ci_pins"
-# tagged, no digest: a whole reference token free of `@` and `$`
-for _ci_f in "${_ci_files_list[@]}"; do
-  sed -nE \
-    -e "s|^FROM[[:space:]]+(--platform=[^[:space:]]+[[:space:]]+)?([^[:space:]@\$]+:[^[:space:]@\$:/]+)([[:space:]].*)?\$|$_ci_f: \2|p" \
-    -e "s|^[[:space:]]*(-[[:space:]]+)?image:[[:space:]]*[\"']?([^[:space:]@\$\"'*&]+:[^[:space:]@\$:/\"']+)[\"']?[[:space:]]*(#.*)?\$|$_ci_f: \2|p" \
-    "$_ci_f"
-done | sort -u >"$_ci_tagonly"
+# tagged, no digest: "file: image:tag"
+printf '%s\n' "${_ci_files_list[@]}" | _ci_image_refs |
+  awk -F'|' '$4 == "" { print $1 ": " $2 ":" $3 }' | sort -u >"$_ci_tagonly"
 
 _ci_total="$(_ci_lines "$_ci_pins")"
 if [ "$_ci_total" -eq 0 ] && [ ! -s "$_ci_tagonly" ]; then
@@ -211,7 +207,7 @@ function _ci_scan_one() {
     candidate="$(_ci_digest "$wd/b.json")"
 
     # 4. upstream has not rebuilt - nothing to repin to
-    if [ -n "$candidate" ] && [ "$candidate" = "$pinned" ]; then
+    if [ "$candidate" = "$pinned" ]; then
       echo "  the tag still resolves to the pinned digest - no rebuild to take"
       printf -- '- `%s` - %d fixable finding(s), and the tag still resolves to the pinned digest. Nothing to repin to yet.\n' \
         "$ref" "$a_n" >"$wd/stale.md"
@@ -227,11 +223,11 @@ function _ci_scan_one() {
     fi
 
     # 6. the one case worth acting on
-    closed="$(comm -23 "$wd/a.ids" "$wd/b.ids" | tr '\n' ' ')"
+    closed="$(comm -23 "$wd/a.ids" "$wd/b.ids" | paste -sd ' ' -)"
     echo "  ACTIONABLE: repinning drops $a_n finding(s) to $b_n"
     {
       printf -- '#### `%s`: %d fixable finding(s) -> %d\n\n' "$ref" "$a_n" "$b_n"
-      printf -- 'Closed by the repin: %s\n\n' "$(echo "$closed" | sed 's/ *$//;s/ /, /g')"
+      printf -- 'Closed by the repin: %s\n\n' "${closed// /, }"
       printf -- '```diff\n'
       printf -- '-%s@%s\n' "$ref" "$pinned"
       printf -- '+%s@%s\n' "$ref" "${candidate:-<resolve the tag>}"
