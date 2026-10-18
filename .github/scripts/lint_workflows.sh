@@ -18,9 +18,11 @@
 #      a `# vX.Y.Z` comment, or `# X.Y.Z` where upstream's tags carry no v
 #      (local `./`, `$/` and `docker://` refs are exempt)
 #   6. every job's first step is step-security/harden-runner with an explicit
-#      egress-policy, audit or block (reusable-workflow calls have no steps
-#      and are exempt; the action's own default is `block`, which with no
-#      allowlist would cut a job off, so the policy is never left to it)
+#      egress-policy, audit or block, or an expression choosing one of them by
+#      `runner.os` (one step: the action's `pre` ignores its step's `if:`, so a
+#      second step's agent would start too); reusable-workflow calls have no
+#      steps and are exempt; the action's own default is `block`, which with no
+#      allowlist would cut a job off, so the policy is never left to it
 #   7. in a job whose actions/checkout sets sparse-checkout, every local
 #      `uses: ./<path>` step has <path> (or a parent directory of it) in that
 #      list - otherwise the runner fails with "Can't find 'action.yml'"
@@ -79,7 +81,9 @@ workflow_filter='
       (($j.steps // [])[0] // {}) as $first
       | (if (($first.uses // "") | startswith("step-security/harden-runner@") | not)
           then "job \($job): first step is not step-security/harden-runner"
-        elif ((($first.with // {})["egress-policy"] // "") | tostring | test("^(audit|block)$") | not)
+        elif ((($first.with // {})["egress-policy"] // "") | tostring
+            | test("^(audit|block)$|^\\$\\{\\{ *runner\\.os *[!=]= *\\x27[A-Za-z]+\\x27 *&& *\\x27(audit|block)\\x27 *\\|\\| *\\x27(audit|block)\\x27 *\\}\\}$")
+            | not)
           then "job \($job): step-security/harden-runner has no explicit egress-policy (audit or block)"
         else empty end)),
   (if (triggers | index("workflow_run")) != null then
