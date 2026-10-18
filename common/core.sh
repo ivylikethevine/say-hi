@@ -998,10 +998,13 @@ function _hi_run_init() {
 
 # _hi_run_hooks <shell> - every hook of $_HI_HOOKS (`<group>.<name>=<init>`
 # rows a ; apart, written by the client as the overlay was packed) whose
-# plugin the settings leave on, in the client's order; a `:<shells>` after
-# the name, a , apart, keeps a hook to those shells
+# plugin the settings leave on, in the client's order, once a shell; a
+# `:<shells>` after the name, a , apart, keeps a hook to those shells, and a
+# `~` ahead of it drops what the activation prints
 function _hi_run_hooks() {
   local _hi_rh_l="${_HI_HOOKS:-}" _hi_rh_r _hi_rh_k
+  [ -n "$_hi_rh_l" ] && [ -z "${_hi_hooks_ran:-}" ] || return 0
+  _hi_hooks_ran=1
   while [ -n "$_hi_rh_l" ]; do
     _hi_rh_r="${_hi_rh_l%%;*}"
     case "$_hi_rh_l" in *\;*) _hi_rh_l="${_hi_rh_l#*;}" ;; *) _hi_rh_l="" ;; esac
@@ -1012,8 +1015,12 @@ function _hi_run_hooks() {
       _hi_rh_k="${_hi_rh_k%%:*}"
       ;;
     esac
-    _hi_hook_on "${_hi_rh_k#*.}" || continue
-    _hi_run_init "$1" "${_hi_rh_r#*=}" || true
+    _hi_rh_k="${_hi_rh_k#*.}"
+    _hi_hook_on "${_hi_rh_k#\~}" || continue
+    case "$_hi_rh_k" in
+    \~*) _hi_run_init "$1" "${_hi_rh_r#*=}" >/dev/null 2>&1 || true ;;
+    *) _hi_run_init "$1" "${_hi_rh_r#*=}" || true ;;
+    esac
   done
   return 0
 }

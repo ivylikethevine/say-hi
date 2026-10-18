@@ -364,8 +364,17 @@ myself.
 The features and changes left to build; nothing here is parked or descoped.
 One list, in the order the work is best done. An entry is deleted once its
 **Ticks when** holds. What a release waits on is
-[Release Stages](#release-stages). The list is empty: everything that was to
-land before 1.0 has.
+[Release Stages](#release-stages).
+
+- [ ] **Shell hooks run once per shell, quietly** — shipped: the hook rows
+      are the session tree's alone, each shell runs them once and the
+      bootloader none ([HI.67](docs/GLOSSARY.md#hi67-shell-hooks)), and a
+      plugin's `quiet = "yes"` drops what its activation prints, the shipped
+      mise's included; `tests/load/load_test.sh` pins one run per shell, from
+      the session tree, in bash, zsh, and fish on a target whose rc wires a hi
+      of its own. **Ticks when:** a fish or bash session on a target with hi
+      installed and mise's status settings on prints no mise line before the
+      first `cd`.
 
 ## Release Stages
 

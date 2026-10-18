@@ -675,7 +675,7 @@ function _hi_overlay_wiring() {
   # settings, the ones that rode, still leave it on); and the prompt programs
   # a target is handed (_hi_prompt_list), as rows core.sh's _hi_prompt_row
   # reads beside its own table
-  local _hi_ow_h="" _hi_ow_pp="" _hi_ow_pi="" _hi_ow_i _hi_ow_s
+  local _hi_ow_h="" _hi_ow_pp="" _hi_ow_pi="" _hi_ow_i _hi_ow_s _hi_ow_q
   _hi_plugins_load
   _hi_prompt_list >/dev/null
   for _hi_ow_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
@@ -695,6 +695,9 @@ function _hi_overlay_wiring() {
     _hi_hook_off "$_hi_ow_r" && continue
     # a leading - on the name says off by default, for the target's _hi_hook_on
     ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_ow_n" || _hi_ow_n="-$_hi_ow_n"
+    # ...a ~ ahead of that, a hook whose activation prints nothing
+    _hi_hook_col "$_hi_ow_r" quiet _hi_ow_q
+    [ "$_hi_ow_q" != yes ] || _hi_ow_n="~$_hi_ow_n"
     # ...and a :<shells> after it, a , apart, the shells the hook is kept to
     [ "$_hi_ow_s" = - ] || _hi_ow_n="$_hi_ow_n:${_hi_ow_s// /,}"
     _hi_hook_col "$_hi_ow_r" group _hi_ow_p
@@ -710,7 +713,9 @@ function _hi_overlay_wiring() {
       ! _hi_env_rides "$_hi_ow_v" || _hi_ow_all="${_hi_ow_all}export $_hi_ow_v='${!_hi_ow_v}'"$'\n'
     done
   done
-  [ -z "$_hi_ow_h" ] || _hi_ow_all="${_hi_ow_all}export _HI_HOOKS=\"$_hi_ow_h\""$'\n'
+  # the hooks are the session tree's alone: a target's own hi, wired into its
+  # rc, reads this file too, through the $_HI_CONFIG_DIR it inherits
+  [ -z "$_hi_ow_h" ] || _hi_ow_all="${_hi_ow_all}[ \"\$_HI_CONFIG_DIR\" = \"\$_HI_ROOT/config\" ] && export _HI_HOOKS=\"$_hi_ow_h\" || true"$'\n'
   [ -z "$_hi_ow_pi" ] || _hi_ow_all="${_hi_ow_all}export _HI_PROMPT_INITS=\"$_hi_ow_pi\""$'\n'
   [ -z "$_hi_ow_pp" ] || _hi_ow_all="${_hi_ow_all}export _HI_PROMPT_PLUGINS=\"$_hi_ow_pp\""$'\n'
   printf -v "$_hi_ow_out" '%s' "${_hi_ow_all#$'\n'}"

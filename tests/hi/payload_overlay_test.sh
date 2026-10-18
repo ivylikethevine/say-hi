@@ -449,10 +449,11 @@ function _hi_hooks_wiring() {
     bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w && printf %s "$w"'
 }
 
-# a shell hook rides as a row of _HI_HOOKS, its tool here and its plugin on;
-# one off by default rides with a leading - once _HI_PLUGINS_ON names it,
-# and never when _HI_PLUGINS_OFF does, its group's word switching nothing in
-# either; a prompt plugin's init
+# a shell hook rides as a row of _HI_HOOKS, its tool here and its plugin on,
+# set where the session's own tree reads the file; one off by default rides
+# with a leading - once _HI_PLUGINS_ON names it, and never when
+# _HI_PLUGINS_OFF does, its group's word switching nothing in either; a quiet
+# one with a ~ ahead of the name; a prompt plugin's init
 # rides as _HI_PROMPT_INITS and a _HI_PROMPT_PLUGINS row instead, only when
 # a target is handed the program (GLOSSARY: HI.67)
 function test_hook_plugins_ride_as_wiring_rows() {
@@ -463,10 +464,13 @@ function test_hook_plugins_ride_as_wiring_rows() {
     printf '[mine.hi-hook-off]\ninit = "hi-hook-off hook {shell}"\ndefault = "off"\n'
     printf '[mine.hi-hook-gone]\ninit = "hi-hook-gone init {shell}"\n'
     printf '[mine.hi-prompt-here]\ninit = "hi-prompt-here init {shell}"\nprompt = "yes"\n'
+    printf '[mine.hi-hook-quiet]\ninit = "hi-hook-quiet init {shell}"\nquiet = "yes"\n'
   } >"$dir/plugins"
-  stubs="$(_hi_stub_tools hi-hook-here hi-hook-off hi-prompt-here)"
+  stubs="$(_hi_stub_tools hi-hook-here hi-hook-off hi-prompt-here hi-hook-quiet)"
   w="$(_hi_hooks_wiring "$dir" "$stubs")" || _hi_why dir stubs || return 1
-  [[ "$w" == *'export _HI_HOOKS="'*'mine.hi-hook-here=hi-hook-here init {shell}'*'"'* ]] || _hi_because "no hook row: $w" || return 1
+  [[ "$w" == *'[ "$_HI_CONFIG_DIR" = "$_HI_ROOT/config" ] && export _HI_HOOKS="'*'mine.hi-hook-here=hi-hook-here init {shell}'*'" || true'* ]] ||
+    _hi_because "no hook row for the session tree: $w" || return 1
+  [[ "$w" == *'mine.~hi-hook-quiet=hi-hook-quiet init {shell}'* ]] || _hi_because "quiet: $w" || return 1
   [[ "$w" != *hi-hook-off* && "$w" != *hi-hook-gone* && "$w" != *hi-prompt-here* && "$w" != *_HI_PROMPT_INITS* ]] ||
     _hi_because "rode unasked: $w" || return 1
   w="$(_hi_hooks_wiring "$dir" "$stubs" _HI_PLUGINS_ON=hi-hook-off)" || _hi_why dir stubs || return 1
@@ -483,8 +487,9 @@ function test_hook_plugins_ride_as_wiring_rows() {
   [[ "$w" != *'mine.hi-prompt-here'* ]] || _hi_because "a prompt plugin is no hook: $w"
 }
 
-# an init is a command and its words: one the shell would read as more, or
-# a prompt = yes with no init, is a row turned down with its reason
+# an init is a command and its words: one the shell would read as more, a
+# prompt = yes or a quiet with no init, or a quiet of no yes or no, is a row
+# turned down with its reason
 function test_hook_plugin_rows_hold_a_command_alone() {
   local dir
   dir="$(_hi_overlay_fixture hooks-bad)"
@@ -493,14 +498,17 @@ function test_hook_plugin_rows_hold_a_command_alone() {
     printf '[mine.b]\ninit = "b init $(x)"\n'
     printf '[mine.c]\nprompt = "yes"\nfiles = "c.rc"\n'
     printf '[mine.d]\ninit = "d-tool hook {shell} --flag"\n'
+    printf '[mine.e]\nquiet = "yes"\nfiles = "e.rc"\n'
+    printf '[mine.f]\ninit = "f-tool hook"\nquiet = "maybe"\n'
   } >"$dir/plugins"
   (
     _HI_CONFIG_DIR="$dir"
     _hi_plugins_load
-    [ "${#_HI_PLUGIN_BAD[@]}" = 3 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    [ "${#_HI_PLUGIN_BAD[@]}" = 5 ] || _hi_because "turned down: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
     [[ "${_HI_PLUGIN_BAD[0]}" == *"a: init is a command and its words"* && "${_HI_PLUGIN_BAD[1]}" == *"b: init is a command"* &&
-      "${_HI_PLUGIN_BAD[2]}" == *"c: prompt = yes needs an init"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
-    [[ " ${_HI_PLUGIN_HOOKS[*]} " == *" mine|d|d-tool|d-tool hook {shell} --flag|no|- "* ]] || _hi_because "rows: ${_HI_PLUGIN_HOOKS[*]}"
+      "${_HI_PLUGIN_BAD[2]}" == *"c: prompt = yes needs an init"* && "${_HI_PLUGIN_BAD[3]}" == *"e: quiet needs an init"* &&
+      "${_HI_PLUGIN_BAD[4]}" == *"f: quiet is yes or no, not 'maybe'"* ]] || _hi_because "reasons: $(printf '[%s] ' "${_HI_PLUGIN_BAD[@]}")" || exit 1
+    [[ " ${_HI_PLUGIN_HOOKS[*]} " == *" mine|d|d-tool|d-tool hook {shell} --flag|no|-|no "* ]] || _hi_because "rows: ${_HI_PLUGIN_HOOKS[*]}"
   ) || _hi_why _HI_PLUGIN_BAD _HI_PLUGIN_HOOKS
 }
 

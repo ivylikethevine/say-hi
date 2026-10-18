@@ -106,15 +106,26 @@ function __hi_prompt_init --description 'a prompt program init: its $_HI_PROMPT_
   end
   echo "$argv[1] init {shell}"
 end
-for __hi_row in (string split -n ';' -- "$_HI_HOOKS")
-  set -l __hi_key (string split -m1 '=' -- $__hi_row)
-  # a :<shells> after the name keeps the hook to those
-  set -l __hi_ks (string split -m1 ':' -- $__hi_key[1])
-  set -q __hi_ks[2]; and not contains -- fish (string split ',' -- $__hi_ks[2]); and continue
-  set -l __hi_gn (string split -m1 '.' -- $__hi_ks[1])
-  __hi_hook_on $__hi_gn[2]; and __hi_run_init $__hi_key[2]
+# once a shell, as core.sh's
+if test -n "$_HI_HOOKS"; and not set -q _hi_hooks_ran
+  set -g _hi_hooks_ran 1
+  for __hi_row in (string split -n ';' -- "$_HI_HOOKS")
+    set -l __hi_key (string split -m1 '=' -- $__hi_row)
+    # a :<shells> after the name keeps the hook to those
+    set -l __hi_ks (string split -m1 ':' -- $__hi_key[1])
+    set -q __hi_ks[2]; and not contains -- fish (string split ',' -- $__hi_ks[2]); and continue
+    set -l __hi_gn (string split -m1 '.' -- $__hi_ks[1])
+    # ...and a ~ ahead of it drops what the activation prints
+    set -l __hi_n (string replace -r '^~' '' -- $__hi_gn[2])
+    __hi_hook_on $__hi_n; or continue
+    if test "$__hi_n" = "$__hi_gn[2]"
+      __hi_run_init $__hi_key[2]
+    else
+      __hi_run_init $__hi_key[2] >/dev/null 2>&1
+    end
+  end
+  set -e __hi_row
 end
-set -e __hi_row
 
 # core.sh's _HI_CHILD_ENV and _HI_SESSION_VARS, mirrored (fish cannot read a
 # bash array); exports_test.sh pins both. The first is what a child inherits

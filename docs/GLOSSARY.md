@@ -1879,6 +1879,19 @@ them passes the row over; for a prompt plugin it is the shells column of its
 never heard of is picked the same way; its configs ride as its plugin's files,
 with no table column to name them.
 
+The rows are the session tree's alone. A target with a hi of its own wired
+into its rc loads that tree too, in the bootloader's profile chain and again
+in the session shell, and its `paths.sh` reads the session's `wiring.sh`
+through the `$_HI_CONFIG_DIR` it inherits; so `_HI_HOOKS` is set behind
+`[ "$_HI_CONFIG_DIR" = "$_HI_ROOT/config" ]`, true only in the tree the
+overlay was unpacked into, whatever version the install is. Each shell runs
+them once: the runner sets `_hi_hooks_ran`, a plain variable, as it starts on
+rows, and `load.sh` sets it over the bootloader's profile chain, a shell
+nobody types at. A plugin's `quiet = "yes"` rides as a `~` ahead of its name,
+and its activation runs with both streams on `/dev/null`: mise's status line
+goes, and the prompt hook it installed prints at a later `cd` as before,
+which mise's own `--quiet` would silence too.
+
 The decision stays data: an init is a command and its words, refused with a
 quote, `;`, `|`, `&`, `$`, a backtick or a bracket in it, since what runs is
 what the command prints and not the line itself.
