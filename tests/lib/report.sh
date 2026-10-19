@@ -182,22 +182,25 @@ function _hi_trace_rerun() {
     _hi_trace_rerun_slow "$took" "$@"
     return
   fi
-  # xtrace on fd 9, a copy of the capture: on stderr it would land in every
-  # `$(... 2>&1)` the case makes, and a case that reads its own stderr would
-  # fail the rerun on the trace alone and never count as a flake (bash 3.2
-  # has no BASH_XTRACEFD and keeps tracing to stderr)
-  out="$(
-    PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '
-    exec 9>&1
-    BASH_XTRACEFD=9
-    {
-      set -x
-      "$@"
-    } 2>&1
-  )" || rc=$?
+  out="$(_hi_traced "$@")" || rc=$?
   [ "$rc" = 0 ] && return 0
   _HI_RERUN_OUT="      traced rerun (exit $rc), its last lines:"$'\n'"$(printf '%s\n' "$out" | tail -n 40 | sed 's/^/      /')"
   return 1
+}
+
+# _hi_traced <case...> - the case under set -x, its trace beside its output;
+# only ever in a subshell. xtrace on fd 9, a copy of the capture: on stderr it
+# would land in every `$(... 2>&1)` the case makes, and a case that reads its
+# own stderr would fail the rerun on the trace alone and never count as a
+# flake (bash 3.2 has no BASH_XTRACEFD and keeps tracing to stderr)
+function _hi_traced() {
+  PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '
+  exec 9>&1
+  BASH_XTRACEFD=9
+  {
+    set -x
+    "$@"
+  } 2>&1
 }
 
 # ...the slow failure's: the same rerun as a job of its own, on this shell's
@@ -206,15 +209,7 @@ function _hi_trace_rerun_slow() {
   local took="$1" limit rc=0 pid t0=$SECONDS ended="" file="${_HI_WORKDIR:-${TMPDIR:-/tmp}}/hi.rerun.$$"
   shift
   limit=$((took + 30))
-  (
-    PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}: '
-    exec 9>&1
-    BASH_XTRACEFD=9
-    {
-      set -x
-      "$@"
-    } 2>&1
-  ) <&0 >"$file" 2>&1 &
+  _hi_traced "$@" <&0 >"$file" 2>&1 &
   pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     if ((SECONDS - t0 >= limit)); then
@@ -756,8 +751,8 @@ function _hi_host_backend_state() {
 # a login profile exporting _HI_HOME is how - and it shows up nowhere else
 # than as suites quietly running fewer cases.
 function _hi_host_tree_check() {
-  local here="${1:-}" there
-  there="$(_hi_host_resolve "${_HI_ROOT:-}")"
+  local here="${1:-}" there="${_HI_ROOT:-}"
+  [ "$there" = "$here" ] || there="$(_hi_host_resolve "$there")"
   [ -n "$here" ] && [ "$here" = "$there" ] && return 0
   _hi_cecho " | _HI_ROOT is ${there:-${_HI_ROOT:-unset} (missing)}, not the tree this run came from${here:+ ($here)} - the suites are testing another checkout" "$YELLOW"
   return 1

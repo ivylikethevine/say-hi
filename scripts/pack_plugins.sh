@@ -201,19 +201,10 @@ function _hi_plugins_close() {
   # the shell hook (HI.67): a command printing the shell's code, {shell} in
   # it the shell's name; `prompt = "yes"` says it draws the prompt; `default
   # = "off"` keeps the plugin home until $_HI_PLUGINS_ON names it
-  if [ -n "$_hi_rc_p" ] && [ "$_hi_rc_p" != yes ] && [ "$_hi_rc_p" != no ]; then
-    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: prompt is yes or no, not '$_hi_rc_p'")
-    _hi_rc_p=""
-  fi
+  _hi_plugin_pick prompt _hi_rc_p yes no
   # `quiet = "yes"` drops what the activation prints, and nothing after it
-  if [ -n "$_hi_rc_q" ] && [ "$_hi_rc_q" != yes ] && [ "$_hi_rc_q" != no ]; then
-    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: quiet is yes or no, not '$_hi_rc_q'")
-    _hi_rc_q=""
-  fi
-  if [ -n "$_hi_rc_df" ] && [ "$_hi_rc_df" != off ] && [ "$_hi_rc_df" != on ]; then
-    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: default is on or off, not '$_hi_rc_df'")
-    _hi_rc_df=""
-  fi
+  _hi_plugin_pick quiet _hi_rc_q yes no
+  _hi_plugin_pick default _hi_rc_df on off
   # `shells` keeps the hook to the shells it names, of bash, zsh, and fish
   if [ -n "$_hi_rc_sh" ] && ! _hi_plugin_shells_ok "$_hi_rc_sh"; then
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: shells is any of bash, zsh, and fish, a space apart, not '$_hi_rc_sh'")
@@ -310,6 +301,14 @@ function _hi_plugin_init_ok() {
     case "$1" in *"${_hi_io_bad:_hi_io_i:1}"*) return 1 ;; esac
   done
   _hi_words_ok "${1%% *}" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
+}
+
+# _hi_plugin_pick <key> <var> <a> <b> - empty <var> unless it holds <a> or <b>,
+# noting the closing plugin's bad <key> in $_HI_PLUGIN_BAD
+function _hi_plugin_pick() {
+  case "${!2}" in '' | "$3" | "$4") return 0 ;; esac
+  _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: $1 is $3 or $4, not '${!2}'")
+  printf -v "$2" '%s' ''
 }
 
 # _hi_plugin_shells_ok <shells> - a hook's shells: of bash, zsh, and fish

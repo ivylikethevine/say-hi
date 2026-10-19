@@ -51,17 +51,16 @@ function _hi_pv_note() {
   if [ "$_HI_TEXT" = 1 ]; then
     printf '%s\n' "$1"
   else
-    local _hi_lead=" | "
-    _hi_cecho "$_hi_lead$1" "${2:-}"
+    _hi_cecho " | $1" "${2:-}"
   fi
 }
 
 _hi_subject="${1:-}"
-_hi_argv0="${_HI_ARGV0:-preview.sh${_hi_subject:+ $_hi_subject}}"
+_HI_ME="${_HI_ARGV0:-preview.sh}"
 
 function _hi_preview_usage() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header>
+Usage: $_HI_ME <colors|packages|header>
 
   colors     every ssh host and every known user, in the color it resolves to
   packages   the header's packages check: groups, marks, tables, then the check
@@ -81,23 +80,18 @@ colors | packages | header) shift ;;
 '')
   # sourced with no subject (the test suite's hatch below): every function,
   # no render, nothing to refuse
-  if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages, or header is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
-    exit 1
-  fi
+  [[ "${BASH_SOURCE[0]}" != "$0" ]] || _hi_die "one of colors, packages, or header is required ($_HI_ME --help)"
   ;;
-*)
-  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages, or header (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
-  exit 1
-  ;;
+*) _hi_die "unknown subject '$_hi_subject' - one of colors, packages, or header ($_HI_ME --help)" ;;
 esac
+_HI_ME="${_HI_ARGV0:-preview.sh${_hi_subject:+ $_hi_subject}}"
 
 case "${1:-}" in
 -h | --help)
   case "$_hi_subject" in
   colors)
     cat <<EOF
-Usage: $_hi_argv0
+Usage: $_HI_ME
 
 Prints two tables - every known user, and every ssh host - rendered in the
 color they'd actually appear in, alongside *why* they resolve that way (an
@@ -110,7 +104,7 @@ EOF
     ;;
   packages)
     cat <<EOF
-Usage: $_hi_argv0
+Usage: $_HI_ME
 
 Prints the legend for the header's packages check - every group in your
 packages file, whether \$_HI_PACKAGES_GROUPS runs it, the colors it renders
@@ -133,7 +127,7 @@ EOF
     ;;
   header)
     cat <<EOF
-Usage: $_hi_argv0
+Usage: $_HI_ME
 
 Prints the connect header exactly as this machine would draw it, under the
 settings.sh in force - the way to judge a header order, width, or palette
@@ -146,19 +140,8 @@ EOF
   exit 0
   ;;
 '') ;;
-*)
-  _hi_cecho "$_hi_argv0: takes no arguments (got: $*) - $_hi_argv0 --help" "$RED" >&2
-  exit 1
-  ;;
+*) _hi_die "takes no arguments (got: $*) - $_HI_ME --help" ;;
 esac
-
-# which ramp the legend below is painted in - default, custom, or a value
-# nothing paints, exactly as hi --doctor names it
-function _hi_print_ramp_line() {
-  local label
-  _hi_ramp_label label
-  _hi_pv_note "palette: $label"
-}
 
 # what the swatches are painted under, so an eyeball pass of a
 # $_HI_COLOR_SCHEME says which one it is looking at (GLOSSARY: HI.50)
@@ -771,7 +754,9 @@ packages)
     exit 1
   fi
   _hi_pv_note "reading $_HI_PACKAGES"
-  _hi_print_ramp_line
+  # the ramp the legend is painted in, as hi --doctor names it
+  _hi_l="" && _hi_ramp_label _hi_l
+  _hi_pv_note "palette: $_hi_l"
   _hi_print_scheme_line
   printf '\n'
   _hi_collect_examples

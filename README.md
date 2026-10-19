@@ -376,6 +376,16 @@ One list, in the order the work is best done. An entry is deleted once its
       installed and mise's status settings on prints no mise line before the
       first `cd`.
 
+- [ ] **The configure step adopts every hand-written line** —
+      `scripts/configure.sh`'s `settings_adopt_hand_lines` pipes
+      `grep -v -F` into `grep -qE` under `install.sh`'s `pipefail`, the
+      spelling [SYNTAX.md](docs/SYNTAX.md#pipes-under-strict-mode) warns
+      about: on a match `grep -q` leaves early, the writer takes SIGPIPE, the
+      pipeline reads 141, and the line is skipped, intermittently and on a
+      large `settings.sh` (OpenBSD's 1 KB buffer first). **Do:** end the pipe
+      in `grep -E … >/dev/null`. **Ticks when:** a case adopts a hand line
+      that sits past the first 4 KB of a `settings.sh` under `pipefail`.
+
 ## Release Stages
 
 What the 1.0 tag and the releases after it wait on, in order. An entry is

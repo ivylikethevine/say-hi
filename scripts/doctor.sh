@@ -128,9 +128,6 @@ source "$_HI_HEADER"
 # from its value for both.
 # --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
 # not resolved last-wins: doctor reports the arm a connect would take
-function _hi_doctor_use() {
-  _HI_DOC_BACKEND="$(_hi_use_backend "$1" "$_HI_DOC_BACKEND")" || exit 1
-}
 # what this run is called in its messages, as _hi_flag_word_or_die spells it
 _HI_ME="${_HI_ARGV0:-doctor.sh}"
 _hi_arm=""
@@ -146,7 +143,7 @@ while [ $# -gt 0 ]; do
   --use | --use=*)
     _hi_flag_word_or_die _hi_arm "--use needs a backend name (ssh counts as one)" "$@"
     [ $? -eq 2 ] && shift
-    _hi_doctor_use "$_hi_arm"
+    _HI_DOC_BACKEND="$(_hi_use_backend "$_hi_arm" "$_HI_DOC_BACKEND")" || exit 1
     ;;
   # doctor never opens a session, so the connect-time flags have nothing to report
   # and are silently accepted rather than misread as a target name
@@ -230,8 +227,7 @@ function doctor_findings() {
 }
 
 # _hi_json_str <outvar> <text> - <text> as a JSON string literal, quotes
-# included. Backslash and quote escaped (hi.sh's _hi_kdl_quote: the same two),
-# newline, tab and CR folded to spaces: a row's text is one line of prose,
+# included. Backslash and quote escaped, newline, tab and CR folded to spaces: a row's text is one line of prose,
 # and the one multi-line thing that reaches here (ssh's stderr on a failed
 # connect) reads fine flattened. No fork: a document is three of these a row.
 function _hi_json_str() {
@@ -239,7 +235,9 @@ function _hi_json_str() {
   _hi_js="${_hi_js//"$_hi_js_nl"/ }"
   _hi_js="${_hi_js//"$_hi_js_tab"/ }"
   _hi_js="${_hi_js//"$_hi_js_cr"/ }"
-  _hi_kdl_quote "$1" "$_hi_js"
+  _hi_js="${_hi_js//\\/\\\\}"
+  _hi_js="${_hi_js//\"/\\\"}"
+  printf -v "$1" '"%s"' "$_hi_js"
 }
 
 # doctor_row <label> <text> [severity] - one row of the open section. Severity
@@ -711,7 +709,7 @@ function doctor_config_row() {
   if [ "$rc" -eq 0 ]; then
     doctor_row "$label" "$target parses ($1)" ok
   else
-    doctor_row "$label" "$target has issues ($1): $(printf '%s' "$_HI_CONFIG_CHECK_OUT" | sed -n '1p')" bad
+    doctor_row "$label" "$target has issues ($1): ${_HI_CONFIG_CHECK_OUT%%$'\n'*}" bad
   fi
   return 0
 }

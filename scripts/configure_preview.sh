@@ -112,7 +112,7 @@ function _hi_prompt_end_shown() {
   local _hi_pe_end=""
   # core.sh's _hi_prompt_end order: the shell's own, then the default
   setting_value "_HI_PROMPT_END_$1" "$_HI_SETTINGS" _hi_pe_end
-  [ -n "$_hi_pe_end" ] || _hi_pe_end="$(_hi_prompt_end_default "$1")"
+  [ -n "$_hi_pe_end" ] || _hi_prompt_end_default "$1" _hi_pe_end
   printf -v "$2" '%s' "${_hi_pe_end#\\}"
 }
 

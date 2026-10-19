@@ -126,12 +126,9 @@ function _hi_widen_to() {
 # _hi_widen <var> <string...> - grow the width variable named <var> to the
 # longest of the strings.
 function _hi_widen() {
-  local s
-  local -a lens=()
-  local var="$1"
+  local var="$1" s
   shift
-  for s in "$@"; do lens+=("${#s}"); done
-  _hi_widen_to "$var" ${lens[@]+"${lens[@]}"}
+  for s; do ((${#s} <= ${!var:-0})) || printf -v "$var" '%s' "${#s}"; done
 }
 
 # --text: no box and no color - one row a line, `<section> / <label>: <text>`,

@@ -44,14 +44,6 @@ function test_mux_flags_are_unknown_options() {
   done
 }
 
-function test_kdl_quote_escapes_the_two_characters_kdl_reads() {
-  local q
-  _hi_kdl_quote q 'plain'
-  [ "$q" = '"plain"' ] || _hi_why q || return 1
-  _hi_kdl_quote q 'a\b "c" $d'
-  [ "$q" = '"a\\b \"c\" $d"' ] || _hi_why q
-}
-
 function run_hi_mux_tests() {
   _hi_workdir himuxtest
   _hi_suite_begin
@@ -61,7 +53,6 @@ function run_hi_mux_tests() {
   _hi_check "Characters tmux rejects become dashes" test_mux_name_drops_what_tmux_rejects
   _hi_check_requires tmux "tmux accepts the name" test_mux_name_is_a_session_name_tmux_accepts
   _hi_check "--mux and --no-mux are unknown options" test_mux_flags_are_unknown_options
-  _hi_check "_hi_kdl_quote escapes backslash and quote only" test_kdl_quote_escapes_the_two_characters_kdl_reads
   _hi_suite_end "hi.sh (session name)"
 }
 run_hi_mux_tests

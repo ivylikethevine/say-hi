@@ -183,10 +183,8 @@ case "$sig" in
   _hi_cecho "$me: could not check the signature on $tag (${sig:-no gpg?})" "$YELLOW"
   ;;
 esac
-if [ "${_HI_UPDATE_SIGNED:-0}" = 1 ] && [ -z "$verified" ]; then
-  _hi_cecho "$me: _HI_UPDATE_SIGNED=1 and $tag has no signature this checkout can vouch for - refusing to check it out" "$RED" >&2
-  exit 1
-fi
+[ "${_HI_UPDATE_SIGNED:-0}" != 1 ] || [ -n "$verified" ] ||
+  _hi_die "_HI_UPDATE_SIGNED=1 and $tag has no signature this checkout can vouch for - refusing to check it out"
 [ -z "$dry_run" ] || {
   _hi_cecho "$me: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
   exit 0

@@ -128,11 +128,10 @@ fi
 
 # The comment run directly above the Host line - blank lines and comments, the
 # lines the walk carries a tag across - and a `# Tags:` line within it, if any.
-lines=()
-_hi_read_lines lines <"$file"
+_hi_rows_read "$file"
 tagline=-1
 for ((i = at - 2; i >= 0; i--)); do
-  t="${lines[i]#"${lines[i]%%[![:space:]]*}"}"
+  t="${_hi_rows[i]#"${_hi_rows[i]%%[![:space:]]*}"}"
   case "$t" in
   '') continue ;;
   '#'*)
@@ -155,33 +154,22 @@ case "$file" in */config.d/*) filetag="${file##*/config.d/}" ;; esac
 case "$host" in *[\*\?]*) filetag="" ;; esac
 case "$filetag" in *[!A-Za-z0-9_.-]*) filetag="" ;; esac
 
-# _hi_tag_write - $lines over $file, unless --dry-run; ends the script
-function _hi_tag_write() {
-  dry_run_say "write $file" && exit 0
-  tmpfile="$(mktemp -t hi.sshconfig.XXXXXX)"
-  printf '%s\n' "${lines[@]}" >"$tmpfile"
-  _hi_write_back "$tmpfile" "$file"
-  _hi_cecho "$file updated" "$GREEN"
-  exit 0
-}
-
-hostline="${lines[at - 1]}"
+hostline="${_hi_rows[at - 1]}"
 indent="${hostline%%[![:space:]]*}"
 if [ "$mode" = remove ]; then
   if [ "$tagline" -lt 0 ]; then
-    if [ -n "$filetag" ]; then
-      _hi_cecho " $file: $host has no # Tags: line - the file's name tags it $filetag" "$BLUE"
-    else
-      _hi_cecho " $file: $host has no # Tags: line - nothing to write" "$BLUE"
-    fi
+    why="nothing to write"
+    [ -z "$filetag" ] || why="the file's name tags it $filetag"
+    _hi_cecho " $file: $host has no # Tags: line - $why" "$BLUE"
     exit 0
   fi
-  _hi_cecho " - ${lines[tagline]#"$indent"} (above ${hostline#"$indent"})" "$YELLOW"
-  lines=("${lines[@]:0:tagline}" "${lines[@]:tagline+1}")
-  _hi_tag_write
+  _hi_cecho " - ${_hi_rows[tagline]#"$indent"} (above ${hostline#"$indent"})" "$YELLOW"
+  _hi_rows=("${_hi_rows[@]:0:tagline}" "${_hi_rows[@]:tagline+1}")
+  _hi_rows_write "$file"
+  exit 0
 fi
 new="$indent# Tags: $tag"
-if [ "$tagline" -ge 0 ] && [ "${lines[tagline]}" = "$new" ]; then
+if [ "$tagline" -ge 0 ] && [ "${_hi_rows[tagline]}" = "$new" ]; then
   _hi_cecho " $file: $host is already tagged $tag" "$BLUE"
   exit 0
 fi
@@ -190,13 +178,13 @@ if [ "$tagline" -lt 0 ] && [ "$tag" = "$filetag" ]; then
   exit 0
 fi
 if [ "$tagline" -ge 0 ]; then
-  _hi_cecho " ~ ${lines[tagline]#"$indent"} -> # Tags: $tag (above ${hostline#"$indent"})" "$YELLOW"
-  lines[tagline]="$new"
+  _hi_cecho " ~ ${_hi_rows[tagline]#"$indent"} -> # Tags: $tag (above ${hostline#"$indent"})" "$YELLOW"
+  _hi_rows[tagline]="$new"
 else
   over=""
   [ -z "$filetag" ] || over=", over the file's own tag $filetag"
   _hi_cecho " + # Tags: $tag (above ${hostline#"$indent"}$over)" "$GREEN"
-  lines=("${lines[@]:0:at-1}" "$new" "${lines[@]:at-1}")
+  _hi_rows=("${_hi_rows[@]:0:at-1}" "$new" "${_hi_rows[@]:at-1}")
 fi
 
-_hi_tag_write
+_hi_rows_write "$file"

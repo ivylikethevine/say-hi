@@ -108,12 +108,11 @@ unset _hi_argv _hi_a
 _hi_args _hi_plugins_help "$usage" "$@"
 
 # _hi_plugin_row <label> <text> [severity] - a member's row, its label in the
-# color of its plugin's state (lib.sh's _hi_plugin_color)
+# color of its plugin's state (lib.sh's _hi_state_row)
 function _hi_plugin_row() {
-  local c state=absent
+  local state=absent
   if [ "${3:-}" = ok ]; then state=rides; elif _hi_plugin_off "${1%% (*}"; then state=off; fi
-  _hi_plugin_color c "$state"
-  _hi_row "$1" "$2" "${3:-}" "$c"
+  _hi_state_row "$state" "$@"
 }
 
 # a section a group, in the order the rows name them, and a member's row as
@@ -177,27 +176,22 @@ function _hi_plugins_list() {
 # with that list as its one line of that name, among the lines hi --configure
 # writes, or with none when the list is empty
 function _hi_plugins_write_list() {
-  local var="$1" tmpfile line
+  local var="$1" line
+  local -a _hi_rows=()
   shift
   dry_run_say "write $var='$1' to $_HI_SETTINGS" && return 0
-  mkdir -p "$_HI_CONFIG_DIR"
-  tmpfile="$(mktemp -t hi.plugins.XXXXXX)"
   if [ -f "$_HI_SETTINGS" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
-      [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?$var= ]] || printf '%s\n' "$line"
-    done <"$_HI_SETTINGS" >"$tmpfile"
+      [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?$var= ]] || _hi_rows+=("$line")
+    done <"$_HI_SETTINGS"
   else
     # a new file opens as the wizard's block does, on its shape line
-    printf '#!/bin/sh\n' >"$tmpfile"
     rc_tagged line "# say-hi settings $_HI_SETTINGS_SHAPE"
-    printf '%s' "$line" >>"$tmpfile"
+    _hi_rows=('#!/bin/sh' "${line%$'\n'}")
   fi
   # the wizard's own spelling of the line, so its block holds it
-  local tagged
-  [ -z "$1" ] || rc_tagged tagged "export $var='$1'"
-  printf '%s' "${tagged:-}" >>"$tmpfile"
-  _hi_write_back "$tmpfile" "$_HI_SETTINGS"
-  _hi_cecho "$_HI_SETTINGS updated" "$GREEN"
+  [ -z "$1" ] || { rc_tagged line "export $var='$1'" && _hi_rows+=("${line%$'\n'}"); }
+  _hi_rows_write "$_HI_SETTINGS"
 }
 
 function _hi_plugins_switch() {
@@ -216,8 +210,7 @@ function _hi_plugins_switch() {
     # a plugin off by default moves through the on list: on adds it there,
     # off takes it out (and never into the off list, which would say more
     # than it needs to)
-    case "$_HI_PLUGIN_DEFAULT_OFF" in *" $word "*) ;; *) word="$word|" ;; esac
-    if [ "${word%|}" = "$word" ]; then
+    if _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$word"; then
       case "$mode:$nexton" in
       on:*" $word "*) _hi_cecho " $word is on already" "$GREEN" ;;
       on:*)
@@ -234,7 +227,6 @@ function _hi_plugins_switch() {
       esac
       continue
     fi
-    word="${word%|}"
     case "$mode:$next" in
     off:*" $word "*) _hi_cecho " $word is off already" "$GREEN" ;;
     off:*)

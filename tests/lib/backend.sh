@@ -107,9 +107,7 @@ function _hi_container_backend_test() {
   _hi_h1 "Testing hi's $backend path across container shell environments"
 
   _hi_h2 "Building test images"
-  # shellcheck disable=SC2034 # read back through _hi_kv_get, which shellcheck
-  # cannot follow (the name is a string there)
-  local shell shell_ok=""
+  local shell ok built=""
   local -a built_images=()
   # three independent builds off the same daemon, overlapped (_hi_bg)
   for shell in zsh fish dash; do
@@ -121,10 +119,9 @@ function _hi_container_backend_test() {
       --build-arg "PKGS=$shell" -f "$(_hi_dockerfile alpine-shell)" "$_HI_WORKDIR/$shell"
   done
   wait
-  local ok
   for shell in zsh fish dash; do
     _hi_bg_ok "$shell" ok
-    _hi_kv_set shell_ok "$shell" "$ok"
+    [ "$ok" != 1 ] || built="$built $shell"
   done
 
   _HI_TEST_MARKER="HI_$(printf '%s' "$backend" | tr '[:lower:]' '[:upper:]')_TEST_OK"
@@ -141,7 +138,7 @@ function _hi_container_backend_test() {
   local spec
   for spec in zsh:fallback fish:fallback_fish dash:fallback; do
     shell="${spec%%:*}"
-    if [ "$(_hi_kv_get shell_ok "$shell")" = 1 ]; then
+    if _hi_list_has "$built" "$shell"; then
       _hi_par_case "$shell" _hi_backend_case "$shell" "hi-${backend}test-$shell-$$" "$(_hi_probe_cmd "$_HI_TEST_MARKER" "${spec#*:}")"
     fi
   done

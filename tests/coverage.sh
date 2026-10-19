@@ -207,7 +207,8 @@ if [ "${1:-}" = --merge ]; then
   kcov --merge --exclude-region="$_HI_COV_NOCOV" "$_hi_cov_merge_dest/merged" "${_hi_cov_merge_dirs[@]}"
   # the same ranking a local sweep prints, since CI's gather job merges here
   _hi_cov_merge_json="$(find "$_hi_cov_merge_dest/merged" -name coverage.json | head -1)"
-  [ -z "$_hi_cov_merge_json" ] || _hi_cov_rank "$_hi_cov_merge_json" "$_HI_HOME/say-hi/"
+  mkdir -p "$_hi_cov_merge_dest/coverage-pct"
+  [ -z "$_hi_cov_merge_json" ] || _hi_cov_rank "$_hi_cov_merge_json" "$_HI_HOME/say-hi/" | tee "$_hi_cov_merge_dest/coverage-pct/files"
   # A merge that resolved no sources still writes a well-formed report -
   # "files": [], run-wide 0.00 - and publishing that is worse than nothing:
   # a grey "not measured" badge reads as broken while 0.00% reads as true.
@@ -221,9 +222,7 @@ if [ "${1:-}" = --merge ]; then
     exit 0
     ;;
   esac
-  mkdir -p "$_hi_cov_merge_dest/coverage-pct"
   printf '%s\n' "$_hi_cov_merge_pct" >"$_hi_cov_merge_dest/coverage-pct/pct"
-  _hi_cov_rank "$_hi_cov_merge_json" "$_HI_HOME/say-hi/" >"$_hi_cov_merge_dest/coverage-pct/files"
   _hi_cov_missed "$_hi_cov_merge_dest/merged" "$_HI_HOME/say-hi/" >"$_hi_cov_merge_dest/coverage-pct/missed"
   echo "kcov reports ${_hi_cov_merge_pct}% of lines executed"
   exit 0

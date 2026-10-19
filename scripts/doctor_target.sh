@@ -55,7 +55,8 @@ function doctor_target() {
   fi
   # what _hi_tag_settings would read for it, by the same rule
   local tag tagged=""
-  local -a tags=() _hi_tags=()
+  local -a _hi_tags=()
+  what="$kind"
   if [ "$kind" = "ssh host" ]; then
     if _hi_ssh_host_tag "${target##*@}" >/dev/null; then
       # a tag no line wrote is the name of the host's config.d file: walked
@@ -63,27 +64,22 @@ function doctor_target() {
       if _hi_ssh_host_tag_walk "${target##*@}" >/dev/null 2>&1 && [ -z "$_hi_sw_tag" ] && [ -n "$_hi_sw_file" ]; then
         doctor_row tag "$_HI_TAG_VALUE - the name of $_hi_sw_file, which holds its Host line under no # Tags: line"
       fi
-      IFS=' ,' read -r -a tags <<<"$_HI_TAG_VALUE" || true
-      for tag in ${tags[@]+"${tags[@]}"}; do
-        case "$tag" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
-        [ ! -f "$_HI_CONFIG_DIR/settings.$tag.sh" ] || tagged="$tagged${tagged:+ }settings.$tag.sh"
-      done
+      IFS=' ,' read -r -a _hi_tags <<<"$_HI_TAG_VALUE" || true
     fi
-    [ -z "$tagged" ] || doctor_row "tag settings" "$tagged - read over settings.sh for this host, and sent joined to it"
-    label=ssh
+    label=ssh what=host
   else
     # its backend's word, and a pod's context and namespace: the tags of a
     # target no # Tags: line can name
     _hi_backend_tags "$label" "$target"
-    for tag in "${_hi_tags[@]}"; do
-      case "$tag" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
-      [ ! -f "$_HI_CONFIG_DIR/settings.$tag.sh" ] || tagged="$tagged${tagged:+ }settings.$tag.sh"
-    done
     doctor_row tags "${_hi_tags[*]} - its backend's word${_hi_tags[1]:+, then its context and namespace}, each a settings.<tag>.sh of the overlay"
-    [ -z "$tagged" ] || doctor_row "tag settings" "$tagged - read over settings.sh for this $kind, and sent joined to it"
-    [ "${#_HI_DOC_SSHARGS[@]}" -eq 0 ] ||
-      doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
   fi
+  for tag in ${_hi_tags[@]+"${_hi_tags[@]}"}; do
+    case "$tag" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
+    [ ! -f "$_HI_CONFIG_DIR/settings.$tag.sh" ] || tagged="$tagged${tagged:+ }settings.$tag.sh"
+  done
+  [ -z "$tagged" ] || doctor_row "tag settings" "$tagged - read over settings.sh for this $what, and sent joined to it"
+  [ "$label" = ssh ] || [ "${#_HI_DOC_SSHARGS[@]}" -eq 0 ] ||
+    doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
   doctor_transport_target "$label" "$target"
   doctor_flush
   return 0

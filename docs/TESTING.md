@@ -438,7 +438,7 @@ Written down as not races:
   history each write through their own lock or append, and no case reads
   another's.
 - **Build-once fixture helpers** (`_hi_fake_path`, `_hi_real_path`,
-  `_hi_git_fixture`, `_hi_stub_tools`, `_hi_can_mkdir_mode`): safe while
+  `_hi_git_fixture`, `_hi_stub_tools`, `_hi_capable mkdir_mode`): safe while
   their callers are serial, as every caller is; build one before a
   `_hi_par_begin`, never inside a parallel case.
 

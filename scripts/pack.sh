@@ -778,9 +778,9 @@ function _hi_overlay_files() {
   _hi_plugins_load
   [ $# -gt 0 ] || set -- "${_HI_OVERLAY_FILES[@]}" ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}
   for f; do
-    ! _hi_plugin_off "$f" || continue
     case "$f" in
     */)
+      ! _hi_plugin_off "$f" || continue
       _hi_overlay_home "$f" home || home=""
       seen=" "
       for src in "$_HI_CONFIG_DIR/$f"* ${home:+"$home"*}; do
