@@ -532,9 +532,10 @@ EOF
     source "$1/.github/actions/apt/lib.sh"
     _ci_apt_drop_vendor_lists && _ci_apt_update' _ "$_HI_ROOT" 2>&1)" || _hi_because "one failure was fatal: $out" || return 1
   got="$(sed -n 1p "$dir/once")"
+  got3="$(sed -n 2p "$dir/once")"
   got2="$(sed 1,2d "$dir/once")"
   [[ "$got" == "rm -f /etc/apt/sources.list.d/"* ]] &&
-    [ "$(sed -n 2p "$dir/once")" = "find /etc/apt/sources.list.d -name" ] &&
+    [ "$got3" = "find /etc/apt/sources.list.d -name" ] &&
     [ "$got2" = $'apt-get update \nrm -rf /var/lib/apt\nsleep 5\napt-get update ' ] &&
     [[ "$out" == *"(attempt 1/3), clearing the index cache"* ]] || _hi_because "one failure: $(cat "$dir/once") | $out" || return 1
   out="$(HI_APT_LOG="$dir/never" HI_APT_FAILS=9 PATH="$dir/bin:$PATH" bash -c '
