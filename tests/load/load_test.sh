@@ -431,7 +431,10 @@ function test_hooks_run_once_a_shell_from_the_session_tree() {
     'if status is-interactive; and test -r "$_HI_HOME/say-hi/common/config.fish"' \
     '  source "$_HI_HOME/say-hi/common/config.fish"' 'end' >"$home/.config/fish/config.fish"
   printf 'export PATH=%q\n[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"\n' "$base/bin:$PATH" >"$home/.profile"
-  out="$(env -i HOME="$home" TERM=dumb PATH="$base/bin:$PATH" XDG_CONFIG_HOME="$home/.config" \
+  # _hi_login_env's bound: on the FreeBSD and OpenBSD VMs this shell has sat
+  # silent, with no child to name, until the suite's stall ended it; bounded,
+  # the case fails with what the shell printed first
+  out="$(_hi_login_env "$home" env TERM=dumb PATH="$base/bin:$PATH" \
     _HI_HOME="$sess" _HI_ROOT="$sess/say-hi" _HI_CONFIG_DIR="$sess/say-hi/config" _HI_CLEANUP="$sess" \
     bash --norc -i -c '
     source "$_HI_ROOT/load.sh"
