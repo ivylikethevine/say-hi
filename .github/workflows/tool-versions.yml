@@ -105,10 +105,12 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "$PROBLEMS problem(s) with the pins below. Fix each OUTDATED, ERROR or UNREAD row"
-            echo "where it points: tools.txt (pin and sha256 together) where a repo has one, the file"
-            echo "an inline, dependency or local row names, or every use of an action SHA or image"
-            echo "digest - the \`->\` line under such a row is what to pin."
+            echo "$PROBLEMS row(s) marked fix below: a pin behind a release past the cooldown, or a"
+            echo "check that could not run. Ages are days since release; a release still inside the"
+            echo "cooldown is not offered yet. Bump each fix row where it points: tools.txt (pin and"
+            echo "sha256 together) where a repo has one, the file an inline, dependency or local row"
+            echo "names, or every use of an action SHA or image digest - such a row ends with the"
+            echo "value to pin."
             echo
             echo '```'
             cat "$RUNNER_TEMP/tool-versions.txt"

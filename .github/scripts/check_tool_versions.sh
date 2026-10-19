@@ -2,10 +2,9 @@
 # SPDX-License-Identifier: MIT
 # Every pin in the tree: nothing else reports an upstream release, since
 # dependabot opens no version-update pull request here.
-# Prints each pin next to the newest upstream release old enough to take, and
-# exits with the number of problems (capped at 255). The tool-versions
-# workflow runs it on a schedule; it runs from a checkout too, given curl and
-# jq:
+# Prints one row per pin and exits with the number of problems (capped at
+# 255). The tool-versions workflow runs it on a schedule; it runs from a
+# checkout too, given curl and jq:
 #
 #   GH_TOKEN="$(gh auth token)" .github/scripts/check_tool_versions.sh
 #
@@ -17,19 +16,24 @@
 #                       tools.txt (e.g. a release download URL), listed in
 #                       CI_WORKFLOW_ROSTER
 #   3. action SHAs      every distinct `uses: owner/repo@<sha> # vX.Y.Z` under
-#                       CI_ACTION_DIRS; an outdated row is followed by the
-#                       commit to pin
+#                       CI_ACTION_DIRS; a fix row ends with the commit to
+#                       pin
 #   4. image digests    every `FROM`/`image:` pinned by digest in files
-#                       matching CI_IMAGE_GLOBS, against Docker Hub's tag; an
-#                       outdated row is followed by the reference to pin
+#                       matching CI_IMAGE_GLOBS, against Docker Hub's tag; a
+#                       fix row ends with the reference to pin
 #   5. dependencies     the direct dependencies (and, for npm, the overrides)
 #                       of each manifest in CI_MANIFESTS, at the version its
 #                       lockfile holds
 #   6. local checks     ci_local_checks from the per-repo hook, if any
 #
-# A release younger than TOOL_COOLDOWN_DAYS (default 7) is shown as pending,
-# not drift: a compromised release's window is its first days.
-# TOOL_COOLDOWN_DAYS=0 shows everything upstream has published.
+# Each row has three columns after its label, every version beside its age in
+# days: `fix`, set only when the row needs an edit; `pins`, the pin as the
+# tree holds it; `upgrades`, the newest release past the cooldown when it is
+# ahead of the pin. After the columns, a fix row for an action SHA or an image
+# digest ends with the value to pin, and a note explains an error, an unread
+# upstream or a held release. A release younger than TOOL_COOLDOWN_DAYS
+# (default 7) is not offered: a compromised release's window is its first
+# days. TOOL_COOLDOWN_DAYS=0 offers everything upstream has published.
 #
 # Versions are compared as dotted numerics (sort -V), never by date or as
 # strings: some upstreams re-release old majors the same day, and a pin at or
@@ -43,8 +47,9 @@
 #     sed-regex is a BRE with one \(capture\) around the version; every file
 #     matching file-glob is read, and all matches must agree. check and
 #     tag-prefix mean what they do in tools.txt. held, optional, is one
-#     upstream release known broken: while it is the latest, the row reads
-#     `held` instead of OUTDATED, and any later release reports as usual.
+#     upstream release known broken: while it is the latest, the row shows it
+#     under upgrades with a `held` note and no fix, and any later release
+#     reports as usual.
 #   - set CI_ACTION_DIRS, the space-separated directories whose workflows
 #     and actions section 3 reads (default .github; a root action.yml is
 #     read as well)
@@ -58,10 +63,11 @@
 #     file). holds, optional, is space-separated `name@major` or `name@minor`:
 #     that dependency is compared only within its pinned major or minor.
 #   - define ci_local_checks, called last. It prints its own `## heading`
-#     and rows and calls `_ci_problem "<title>" "<message>"` once per problem
-#     (that counts it and annotates under Actions). A non-zero return counts
-#     as one more problem. It may also use _ci_report_pin, _ci_latest,
-#     _ci_at_least and _ci_extract.
+#     and rows (_ci_section and _ci_row give the shared layout) and calls
+#     `_ci_problem "<title>" "<message>"` once per problem (that counts it and
+#     annotates under Actions). A non-zero return counts as one more problem.
+#     It may also use _ci_report_pin, _ci_latest, _ci_at_least and
+#     _ci_extract.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -89,14 +95,31 @@ bad=0
 hosts=""
 # set once a section has printed, so the next is set off by a blank line
 sections=""
-# the release an OUTDATED row named, for the line that follows it; else empty
-_ci_due=""
+# column widths of the current section: the label, and each version cell
+_ci_label_w=32
+_ci_ver_w=16
 
-# _ci_section <heading> - a section's heading, set off from the one before
+# _ci_section <heading> [label-width] [version-width] - a section's heading,
+# set off from the one before, and its column header; the widths hold for the
+# rows that follow
 function _ci_section() {
+  local w
   [ -z "$sections" ] || echo
   sections=1
-  printf '## %s\n\n' "$1"
+  _ci_label_w="${2:-32}" _ci_ver_w="${3:-16}"
+  # a header cell spans a version cell, its age and the gaps around them
+  w=$((_ci_ver_w + 7))
+  printf "## %s\n\n%-${_ci_label_w}s %-4s %-${w}s%s\n" "$1" "" fix pins upgrades
+}
+
+# _ci_row <label> <fix> <pin> <pin-age> <upgrade> <upgrade-age> [tail] - one
+# row in the current section's columns; an age is a day count or empty, and
+# trailing blank cells are trimmed. <tail> is the value to pin or a note.
+function _ci_row() {
+  local line
+  line="$(printf "%-${_ci_label_w}s %-4s %-${_ci_ver_w}s %5s %-${_ci_ver_w}s %5s %s" \
+    "${1-}" "${2-}" "${3-}" "${4:+${4}d}" "${5-}" "${6:+${6}d}" "${7-}")"
+  printf '%s\n' "${line%"${line##*[![:space:]]}"}"
 }
 
 # _ci_host <check> - sets $host to the one <check> is served from
@@ -123,10 +146,10 @@ function _ci_problem() {
   printf '::warning title=%s::%s\n' "${t//,/%2C}" "$m"
 }
 
-# _ci_error <label> <pinned> <row text> <annotation> - an ERROR row, counted
-# and annotated by _ci_problem
+# _ci_error <label> <pinned> <row text> <annotation> - an error row, marked
+# fix, counted and annotated by _ci_problem
 function _ci_error() {
-  printf '%-32s %-14s ERROR (%s)\n' "$1" "$2" "$3"
+  _ci_row "$1" fix "$2" "" "" "" "error: $3"
   _ci_problem "$1" "$4"
 }
 
@@ -181,6 +204,7 @@ function _ci_fetch_versions() {
 }
 
 # _ci_tag_commit <owner/repo> <tag> - the commit <tag> names, or nothing
+# shellcheck disable=SC2329 # reached through _ci_action_pin, called by name
 function _ci_tag_commit() {
   local sha
   sha="$(_ci_gh_curl -sSf -H "Accept: application/vnd.github.sha" \
@@ -189,21 +213,23 @@ function _ci_tag_commit() {
   printf '%s' "$sha"
 }
 
-# _ci_latest <check> <tag-prefix> [within] - prints `due|newest|age`, bare
-# versions: `due` is the highest release at least COOLDOWN_DAYS old, `newest`
-# the highest regardless of age, `age` its age in days. All empty when
-# upstream cannot be read. Only tags shaped <prefix><digits>[.<digits>...]
-# count, which drops prereleases, backport tags, and unrelated series sharing
-# a repo. An empty prefix means an optional leading "v". <within> keeps only
-# the versions starting with it (`5.` for a held major).
+# _ci_latest <check> <tag-prefix> [within] [pinned] - prints
+# `due|due-age|newest|pin-age`, bare versions and ages in whole days: `due`
+# is the highest release at least COOLDOWN_DAYS old, `newest` the highest
+# regardless of age, `pin-age` the age of <pinned>'s own release (empty when
+# upstream does not list it). All empty when upstream cannot be
+# read. Only tags shaped <prefix><digits>[.<digits>...] count, which drops
+# prereleases, backport tags, and unrelated series sharing a repo. An empty
+# prefix means an optional leading "v". <within> keeps only the versions
+# starting with it (`5.` for a held major).
 function _ci_latest() {
   local json
   json="$(_ci_fetch_versions "$1")" || json=""
   [ -n "$json" ] || {
-    echo "||"
+    echo "|||"
     return 0
   }
-  jq -r --argjson days "$COOLDOWN_DAYS" --arg prefix "$2" --arg within "${3-}" '
+  jq -r --argjson days "$COOLDOWN_DAYS" --arg prefix "$2" --arg within "${3-}" --arg pinned "${4-}" '
     # ISO-8601 with optional fraction and offset: fromdateiso8601 takes
     # neither, and a committer offset is not UTC
     def ts:
@@ -214,6 +240,7 @@ function _ci_latest() {
              | (($z[1:3] | tonumber) * 3600 + ($z[3:5] | tonumber) * 60)
                * (if $z[0:1] == "+" then 1 else -1 end)
            end);
+    def age: if . then ((now - .t) / 86400 | floor | tostring) else "" end;
     [ .[] | select(.t != null and .tag != null)
           | (.tag | if $prefix == "" then ltrimstr("v")
                     elif startswith($prefix) then ltrimstr($prefix)
@@ -225,9 +252,9 @@ function _ci_latest() {
     | (now - $days * 86400) as $cutoff
     | (map(select(.t <= $cutoff)) | first) as $due
     | first as $newest
-    | [ ($due.v // ""), ($newest.v // ""),
-        (if $newest then ((now - $newest.t) / 86400 | floor | tostring) else "" end)
-      ] | join("|")' <<<"$json" 2>/dev/null || echo "||"
+    | (map(select(.v == $pinned)) | first) as $pin
+    | [ ($due.v // ""), ($due | age), ($newest.v // ""), ($pin | age) ]
+    | join("|")' <<<"$json" 2>/dev/null || echo "|||"
 }
 
 # _ci_at_least <pinned> <due> - pinned is at or above due, as dotted numerics
@@ -236,16 +263,16 @@ function _ci_at_least() {
 }
 
 # _ci_report_pin <label> <pinned> <check> <tag-prefix> <where> [held]
-# [within] [partial] - one row; <where> names the place to bump it, for the
-# annotation. <within> is _ci_latest's. A non-empty <partial> reads <pinned>
-# as a requirement a longer version meets (0.30 takes 0.30.2). An OUTDATED
-# row leaves its release in $_ci_due.
+# [within] [partial] [tail-fn] - one row; <where> names the place to bump it,
+# for the annotation. <within> is _ci_latest's. A non-empty <partial> reads
+# <pinned> as a requirement a longer version meets (0.30 takes 0.30.2). A fix
+# row ends with the output of `<tail-fn> <label> <due>`, when given: the value
+# to pin.
 function _ci_report_pin() {
-  local label="$1" pinned="$2" check="$3" prefix="$4" where="$5" held="${6-}" within="${7-}" partial="${8-}"
-  local due newest age host note=""
-  _ci_due=""
+  local label="$1" pinned="$2" check="$3" prefix="$4" where="$5" held="${6-}" within="${7-}" partial="${8-}" tail_fn="${9-}"
+  local due due_age newest pin_age host tail=""
   if [ "$check" = "-" ]; then
-    printf '%-32s %-14s (not drift-checked - see %s)\n' "$label" "$pinned" "$where"
+    _ci_row "$label" "" "$pinned" "" "" "" "not drift-checked - see $where"
     return 0
   fi
   case "$check" in
@@ -255,29 +282,35 @@ function _ci_report_pin() {
     return 0
     ;;
   esac
-  IFS='|' read -r due newest age <<<"$(_ci_latest "$check" "$prefix" "$within")"
+  IFS='|' read -r due due_age newest pin_age <<<"$(_ci_latest "$check" "$prefix" "$within" "$pinned")"
   _ci_host "$check"
   # no answer is a rate limit or an outage, not a stale pin - unless the
   # whole host went unread, which the end of the run counts
   if [ -z "$due" ] && [ -z "$newest" ]; then
     hosts+="$host|0"$'\n'
-    printf '%-32s %-14s (could not read upstream releases)\n' "$label" "$pinned"
+    _ci_row "$label" "" "$pinned" "" "" "" "could not read upstream releases"
     return 0
   fi
   hosts+="$host|1"$'\n'
-  if [ -n "$newest" ] && [ "$newest" != "$pinned" ] && [ "$newest" != "$due" ]; then
-    note=" ($newest released $age day(s) ago, inside the $COOLDOWN_DAYS-day cooldown)"
-  fi
   # an empty `due` means every release is still cooling down: not drift
   if [ -z "$due" ] || _ci_at_least "$pinned" "$due" || { [ -n "$partial" ] && [[ "$due" == "$pinned".* ]]; }; then
-    printf '%-32s %-14s current%s\n' "$label" "$pinned" "$note"
+    _ci_row "$label" "" "$pinned" "$pin_age"
   elif [ -n "$held" ] && [ "$due" = "$held" ]; then
-    printf '%-32s %-14s held (latest %s is known broken - see %s)%s\n' "$label" "$pinned" "$due" "$where" "$note"
+    _ci_row "$label" "" "$pinned" "$pin_age" "$due" "$due_age" "held: $due is known broken - see $where"
   else
-    printf '%-32s %-14s OUTDATED (latest: %s)%s\n' "$label" "$pinned" "$due" "$note"
-    _ci_problem "$label outdated" "pinned $pinned, latest $due - bump it in $where"
-    _ci_due="$due"
+    [ -z "$tail_fn" ] || tail="$("$tail_fn" "$label" "$due")"
+    _ci_row "$label" fix "$pinned" "$pin_age" "$due" "$due_age" "$tail"
+    _ci_problem "$label behind" "pinned $pinned, $due released ${due_age:-?} day(s) ago - bump it in $where"
   fi
+}
+
+# _ci_action_pin <owner/repo> <version> - what a `uses:` of the action pins at
+# <version>, for a fix row's tail; nothing when the tag cannot be resolved
+# shellcheck disable=SC2329 # _ci_report_pin calls it by name
+function _ci_action_pin() {
+  local sha
+  sha="$(_ci_tag_commit "$1" "v$2")"
+  [ -z "$sha" ] || printf '@%s # v%s' "$sha" "$2"
 }
 
 # _ci_extract <sed-regex> <file-glob> - the distinct captures across every
@@ -422,10 +455,7 @@ _ci_section "GitHub Actions (uses: SHAs)"
 # alias with nothing to compare, and is skipped.
 while IFS='|' read -r repo comment pin; do
   [ -n "$repo" ] || continue
-  _ci_report_pin "$repo" "${comment#v}" "github:$repo" "" "every use of $repo (SHA and comment, pinned ${pin:0:12})"
-  [ -n "$_ci_due" ] || continue
-  sha="$(_ci_tag_commit "$repo" "v$_ci_due")"
-  [ -z "$sha" ] || printf '  -> @%s # v%s\n' "$sha" "$_ci_due"
+  _ci_report_pin "$repo" "${comment#v}" "github:$repo" "" "every use of $repo (SHA and comment, pinned ${pin:0:12})" "" "" "" _ci_action_pin
 done < <(
   # shellcheck disable=SC2086 # the directories are words on purpose
   grep -rhoE 'uses:[[:space:]]*[^[:space:]@]+@[0-9a-f]{40}[[:space:]]*#[[:space:]]*[^[:space:]]+' $CI_ACTION_DIRS action.yml action.yaml 2>/dev/null |
@@ -438,9 +468,11 @@ done < <(
 )
 
 if [ -n "$CI_IMAGE_GLOBS" ]; then
-  _ci_section "Image digests (CI_IMAGE_GLOBS)"
+  _ci_section "Image digests (CI_IMAGE_GLOBS)" 48 16
   # This asks only "has the tag moved", which Docker Hub answers without a
   # scan; whether a move fixes anything is scan_pinned_images.sh's question.
+  # Docker Hub dates the tag's last push, not the pinned digest, so the pin
+  # has no age.
   while IFS='|' read -r image tag pinned; do
     [ -n "$image" ] || continue
     ref="$image:$tag"
@@ -449,7 +481,7 @@ if [ -n "$CI_IMAGE_GLOBS" ]; then
     hub="${hub#index.docker.io/}"
     case "$hub" in
     *.*/* | *:*/* | localhost/*)
-      printf '%-48s %-22s (not on Docker Hub - not checked)\n' "$ref" "$short"
+      _ci_row "$ref" "" "$short" "" "" "" "not on Docker Hub - not checked"
       continue
       ;;
     */*) ;;
@@ -461,17 +493,14 @@ if [ -n "$CI_IMAGE_GLOBS" ]; then
                (if .tag_last_pushed then ((now - (.tag_last_pushed | sub("\\.[0-9]+"; "") | fromdateiso8601)) / 86400 | floor | tostring) else "" end)
              ] | join("|")' 2>/dev/null || echo "|")"
     hosts+="hub.docker.com|$([ -n "$current" ] && echo 1 || echo 0)"$'\n'
+    # a tag re-pushed inside the cooldown is not offered yet
     if [ -z "$current" ]; then
-      printf '%-48s %-22s (could not read the current tag digest)\n' "$ref" "$short"
-    elif [ "$current" = "$pinned" ]; then
-      printf '%-48s %-22s current\n' "$ref" "$short"
-    elif [ -n "$age" ] && [ "$age" -lt "$COOLDOWN_DAYS" ]; then
-      printf '%-48s %-22s current (tag re-pushed %s day(s) ago, inside the %s-day cooldown)\n' \
-        "$ref" "$short" "$age" "$COOLDOWN_DAYS"
+      _ci_row "$ref" "" "$short" "" "" "" "could not read the current tag digest"
+    elif [ "$current" = "$pinned" ] || { [ -n "$age" ] && [ "$age" -lt "$COOLDOWN_DAYS" ]; }; then
+      _ci_row "$ref" "" "$short"
     else
-      printf '%-48s %-22s OUTDATED (tag now resolves to %s)\n' "$ref" "$short" "${current:7:12}..."
-      _ci_problem "$ref outdated" "$ref now resolves to $current - repin it (scan_pinned_images.sh says whether that fixes anything)"
-      printf '  -> %s@%s\n' "$ref" "$current"
+      _ci_row "$ref" fix "$short" "" "${current:7:12}..." "$age" "$ref@$current"
+      _ci_problem "$ref behind" "$ref now resolves to $current - repin it (scan_pinned_images.sh says whether that fixes anything)"
     fi
   done < <(_ci_files "$CI_IMAGE_GLOBS" | _ci_image_pins)
 fi
@@ -504,7 +533,7 @@ if [ -n "$CI_MANIFESTS" ]; then
         continue
         ;;
       *[!0-9.]*)
-        printf '%-32s %-14s (a range, not a pin - not compared)\n' "$name" "$pinned"
+        _ci_row "$name" "" "$pinned" "" "" "" "a range, not a pin - not compared"
         continue
         ;;
       esac
@@ -529,10 +558,11 @@ fi
 
 # A one-off miss is a rate limit; every lookup on one host missing is a host
 # this run cannot reach, which would otherwise read as current forever
+_ci_label_w=32 _ci_ver_w=16
 while IFS='|' read -r h n; do
   [ -n "$h" ] || continue
   echo
-  printf '%-32s UNREAD (%s lookup(s), none answered - blocked by the egress allow list, or down)\n' "$h" "$n"
+  _ci_row "$h" fix "" "" "" "" "unread: $n lookup(s), none answered - blocked by the egress allow list, or down"
   _ci_problem "$h unreachable" "none of the $n upstream lookup(s) on $h answered - add it to the workflow's allowed-endpoints, or check the host"
 done < <(printf '%s' "$hosts" | awk -F'|' '{ n[$1]++; r[$1] += $2 } END { for (h in n) if (!r[h]) print h "|" n[h] }' | sort)
 
