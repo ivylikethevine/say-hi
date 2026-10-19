@@ -325,27 +325,30 @@ EOF
 gone|pins/*.yml|nope: \([0-9]*\)|github:o/old||
 split|split/*.yml|ver: \([0-9.]*\)|github:o/old||' \
     bash "$dir/.github/scripts/check_tool_versions.sh" 2>&1)" || rc=$?
+  # a row: label, `fix` when it needs an edit, the pin and its age, the
+  # upgrade and its age when one is due, then the value to pin or a note; a
+  # release still cooling down (fresh, redis) is not offered
   for line in \
-    '^old +1\.2\.0 +OUTDATED \(latest: 1\.3\.0\)$' \
-    '^fresh +2\.0\.0 +current \(2\.1\.0 released 0 day\(s\) ago, inside the 7-day cooldown\)$' \
-    '^ahead +9\.0\.0 +current$' \
-    '^glab +1\.0\.0 +current$' \
-    '^pkg +1\.0\.0 +\(could not read upstream releases\)$' \
-    '^float +3 +\(not drift-checked ' \
-    '^odd +1 +ERROR \(unknown check kind: svn:x\)$' \
-    '^broken +1 +ERROR \(malformed row ' \
-    '^held +3\.0\.0 +held \(latest 3\.1\.0 is known broken - see pins/\*\.yml\)$' \
-    '^gone +- +ERROR \(no pin matched in pins/\*\.yml\)$' \
-    '^split +- +ERROR \(pins disagree: 1\.2\.0 1\.3\.0\)$' \
-    '^actions/checkout +4\.1\.0 +current$' \
-    '^github/codeql-action +3\.0\.0 +OUTDATED \(latest: 3\.1\.0\)$' \
-    '^busybox:1\.36 +0{12}\.\.\. +OUTDATED \(tag now resolves to 0{12}\.\.\.\)$' \
-    '^postgres:16 +0{12}\.\.\. +current$' \
-    '^ghcr\.io/o/i:1 +0{12}\.\.\. +\(not on Docker Hub - not checked\)$' \
-    '^redis:7 +0{12}\.\.\. +current \(tag re-pushed 0 day\(s\) ago, inside the 7-day cooldown\)$' \
-    '^registry\.npmjs\.org +UNREAD \(1 lookup\(s\), none answered' \
-    '^::warning title=old outdated::pinned 1\.2\.0, latest 1\.3\.0 - bump it in ' \
-    '^::warning title=busybox%3A1\.36 outdated::busybox:1\.36 now resolves to '; do
+    '^old +fix +1\.2\.0 +[0-9]+d +1\.3\.0 +[0-9]+d$' \
+    '^fresh +2\.0\.0 +[0-9]+d$' \
+    '^ahead +9\.0\.0$' \
+    '^glab +1\.0\.0 +[0-9]+d$' \
+    '^pkg +1\.0\.0 +could not read upstream releases$' \
+    '^float +3 +not drift-checked - see ' \
+    '^odd +fix +1 +error: unknown check kind: svn:x$' \
+    '^broken +fix +1 +error: malformed row ' \
+    '^held +3\.0\.0 +3\.1\.0 +[0-9]+d held: 3\.1\.0 is known broken - see pins/\*\.yml$' \
+    '^gone +fix +- +error: no pin matched in pins/\*\.yml$' \
+    '^split +fix +- +error: pins disagree: 1\.2\.0 1\.3\.0$' \
+    '^actions/checkout +4\.1\.0 +[0-9]+d$' \
+    '^github/codeql-action +fix +3\.0\.0 +3\.1\.0 +[0-9]+d$' \
+    '^busybox:1\.36 +fix +0{12}\.\.\. +0{12}\.\.\. +[0-9]+d busybox:1\.36@sha256:0{63}3$' \
+    '^postgres:16 +0{12}\.\.\.$' \
+    '^ghcr\.io/o/i:1 +0{12}\.\.\. +not on Docker Hub - not checked$' \
+    '^redis:7 +0{12}\.\.\.$' \
+    '^registry\.npmjs\.org +fix +unread: 1 lookup\(s\), none answered' \
+    '^::warning title=old behind::pinned 1\.2\.0, 1\.3\.0 released [0-9]+ day\(s\) ago - bump it in ' \
+    '^::warning title=busybox%3A1\.36 behind::busybox:1\.36 now resolves to '; do
     grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $out" || return 1
   done
   [[ "$out" != *"o/moving"* ]] || _hi_because "a moving alias was compared: $out" || return 1
@@ -506,23 +509,23 @@ EOF
   out="$(env -u TOOL_COOLDOWN_DAYS -u CI_WORKFLOW_ROSTER -u CI_IMAGE_GLOBS GITHUB_ACTIONS=true PATH="$dir/bin:$PATH" \
     bash "$dir/.github/scripts/check_tool_versions.sh" 2>&1)" || rc=$?
   for line in \
-    '^nginx:1\.27 +0{12}\.\.\. +current$' \
-    '^redis:7 +0{12}\.\.\. +OUTDATED \(tag now resolves to 0{12}\.\.\.\)$' \
-    '^postgres:16 +0{12}\.\.\. +\(could not read the current tag digest\)$' \
+    '^nginx:1\.27 +0{12}\.\.\.$' \
+    '^redis:7 +fix +0{12}\.\.\. +0{12}\.\.\. +[0-9]+d redis:7@sha256:0{63}3$' \
+    '^postgres:16 +0{12}\.\.\. +could not read the current tag digest$' \
     '^## The hook ran$' \
     '^::warning title=local checks::ci_local_checks in check_tool_versions\.local\.sh returned non-zero$'; do
     grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $(printf '%s\n' "$out" | grep -vE '^t[0-9]|title=t[0-9]')" || return 1
   done
-  [[ "$out" != *"local-build"* && "$out" != *"UNREAD"* ]] || _hi_because "a tagless image, or a host read as unread" || return 1
-  got="$(printf '%s\n' "$out" | grep -c 'ERROR (malformed row')"
+  [[ "$out" != *"local-build"* && "$out" != *"unread:"* ]] || _hi_because "a tagless image, or a host read as unread" || return 1
+  got="$(printf '%s\n' "$out" | grep -c 'error: malformed row')"
   [ "$got" -eq 300 ] && [ "$rc" -eq 255 ] || _hi_because "exit $rc"
 }
 
 # check_tool_versions.sh in a tree with no setup-tool, its hook naming one
 # manifest of each kind: each direct dependency is read at its lock's version,
 # a hold keeps a later major out, a requirement is met by a longer version, a
-# manifest that reads nothing is an error, and an outdated action is followed
-# by the commit to pin
+# manifest that reads nothing is an error, and an outdated action's row ends
+# with the commit to pin
 function test_tool_versions_reads_the_manifests() {
   local dir="$_HI_WORKDIR/toolmanifests" out rc=0 line h o='"2020-01-01T00:00:00.123456Z"'
   h="$(printf '%040d' 1)"
@@ -572,21 +575,20 @@ EOF
     bash "$dir/.github/scripts/check_tool_versions.sh" 2>&1)" || rc=$?
   [[ "$out" == "## GitHub Actions (uses: SHAs)"* ]] || _hi_because "a tree with no setup-tool does not open on the actions: $out" || return 1
   for line in \
-    '^actions/checkout +4\.1\.0 +OUTDATED \(latest: 4\.2\.0\)$' \
-    '^  -> @0{39}7 # v4\.2\.0$' \
-    '^prettier +3\.0\.0 +OUTDATED \(latest: 3\.1\.0\)$' \
-    '^@s/lint +1\.0\.0 +current$' \
-    '^ruff +0\.1\.0 +OUTDATED \(latest: 0\.2\.0\)$' \
-    '^typing-extensions +4\.1\.0 +current$' \
-    '^gone +- +ERROR \(not in the lock of app/requirements\.in\)$' \
-    '^django +5\.2\.17 +OUTDATED \(latest: 5\.2\.18\)$' \
-    '^numpy +2\.10\.0 +current$' \
-    '^matroska +0\.30 +current$' \
-    '^sqlx +0\.9\.0 +current$' \
-    '^hashicorp/aws +6 +current$' \
-    '^hashicorp/local +2 +OUTDATED \(latest: 3\.0\.0\)$' \
-    '^nope\.json +- +ERROR \(no npm dependency read from nope\.json\)$' \
-    '^::warning title=ruff outdated::pinned 0\.1\.0, latest 0\.2\.0 - bump it in app/requirements\.txt \(pip-compile --upgrade-package ruff\)$'; do
+    '^actions/checkout +fix +4\.1\.0 +4\.2\.0 +[0-9]+d @0{39}7 # v4\.2\.0$' \
+    '^prettier +fix +3\.0\.0 +[0-9]+d +3\.1\.0 +[0-9]+d$' \
+    '^@s/lint +1\.0\.0 +[0-9]+d$' \
+    '^ruff +fix +0\.1\.0 +[0-9]+d +0\.2\.0 +[0-9]+d$' \
+    '^typing-extensions +4\.1\.0 +[0-9]+d$' \
+    '^gone +fix +- +error: not in the lock of app/requirements\.in$' \
+    '^django +fix +5\.2\.17 +[0-9]+d +5\.2\.18 +[0-9]+d$' \
+    '^numpy +2\.10\.0 +[0-9]+d$' \
+    '^matroska +0\.30$' \
+    '^sqlx +0\.9\.0 +[0-9]+d$' \
+    '^hashicorp/aws +6$' \
+    '^hashicorp/local +fix +2 +3\.0\.0 +[0-9]+d$' \
+    '^nope\.json +fix +- +error: no npm dependency read from nope\.json$' \
+    '^::warning title=ruff behind::pinned 0\.1\.0, 0\.2\.0 released [0-9]+ day\(s\) ago - bump it in app/requirements\.txt \(pip-compile --upgrade-package ruff\)$'; do
     grep -qE -- "$line" <<<"$out" || _hi_because "no line /$line/ in: $out" || return 1
   done
   [[ "$out" != *"asgiref"* && "$out" != *"mine "* ]] || _hi_because "a transitive or path dependency was compared: $out" || return 1
