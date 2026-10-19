@@ -182,6 +182,39 @@ function _hi_par_tree() {
     }'
 }
 
+# _hi_proc_table [pid] - every process, or <pid> with everything under it and
+# everything in its group, ps's header first: pid, ppid, pgid, then where ps
+# -o has them the controlling terminal, the state (T is stopped) and the
+# kernel wait channel, then age and command. For a hung case: whether the
+# shell had a terminal, whether a signal stopped it, and what it waits on.
+# Both the tree and the group, because a `timeout` may have moved what it ran
+# into a group of its own (OpenBSD's does) and a daemon reparents to init.
+# -A on Linux, macOS and the BSDs (-e there is the environment), -e on a
+# busybox without -A, MSYS's plain ps elsewhere; pid, ppid and pgid lead all.
+function _hi_proc_table() {
+  local list
+  list="$(ps -A -o pid,ppid,pgid,tty,stat,wchan,etime,args 2>/dev/null)" ||
+    list="$(ps -A -o pid,ppid,pgid,etime,args 2>/dev/null)" ||
+    list="$(ps -e -o pid,ppid,pgid,etime,args 2>/dev/null)" ||
+    list="$(ps 2>/dev/null)"
+  if [ -z "${1:-}" ]; then
+    printf '%s\n' "$list"
+    return 0
+  fi
+  printf '%s\n' "$list" | awk -v root="$1" '
+    NR == 1 { print; next }
+    { n++; pid[n] = $1; ppid[n] = $2; pgid[n] = $3; row[n] = $0 }
+    END {
+      keep[root] = 1
+      do {
+        grew = 0
+        for (i = 1; i <= n; i++)
+          if (!(pid[i] in keep) && (ppid[i] in keep || pgid[i] == root)) { keep[pid[i]] = 1; grew = 1 }
+      } while (grew)
+      for (i = 1; i <= n; i++) if (pid[i] in keep) print row[i]
+    }'
+}
+
 # _hi_par_stop <n> <pid> <limit> - ends case <n>'s subshell and everything
 # under it, TERM first so its traps run, and leaves the verdict a timeout
 function _hi_par_stop() {

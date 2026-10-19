@@ -739,14 +739,12 @@ function _hi_run_suite() {
     _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
 }
 
-# _hi_suite_procs <pgid> - the processes of a suite's group, ps's header
-# first, for the line that ends it: what it was waiting on. ps -o where ps
-# takes it - every process is -A on Linux, macOS, and the BSDs (where -e is
-# the environment), -e on a busybox without -A - and MSYS's plain ps
-# elsewhere; the group is the third column of all three.
+# _hi_suite_procs <pid> - the suite's processes, ps's header first, for the
+# line that ends it: what it was waiting on. The group alone missed what a
+# `timeout` moved into a group of its own (OpenBSD's does), so this is
+# _hi_proc_table's tree under the suite plus its group.
 function _hi_suite_procs() {
-  { ps -A -o pid,ppid,pgid,etime,args 2>/dev/null || ps -e -o pid,ppid,pgid,etime,args 2>/dev/null || ps 2>/dev/null; } |
-    awk -v g="$1" 'NR == 1 || $3 == g { print " |   " $0 }'
+  _hi_proc_table "$1" | sed 's/^/ |   /'
 }
 
 # _hi_run_suite_watched <stall> - _hi_run_suite, ended where it hangs: a

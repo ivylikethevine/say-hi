@@ -405,7 +405,7 @@ function test_session_zsh_follows_a_zshenv_that_moves_zdotdir() {
 # session shell, started on load.sh's rc files. The stub's code notes the
 # tree it ran in.
 function test_hooks_run_once_a_shell_from_the_session_tree() {
-  local sh="$1" base="$_HI_WORKDIR/hooks-once-$1" t out
+  local sh="$1" base="$_HI_WORKDIR/hooks-once-$1" t out rc=0
   local sess="$base/sess" inst="$base/inst" home="$base/home"
   mkdir -p "$sess/say-hi/config" "$inst/say-hi" "$home/.config/fish" "$base/bin" "$base/client"
   for t in "$sess" "$inst"; do ln -sfn "$_HI_ROOT/common" "$t/say-hi/common"; done
@@ -431,10 +431,13 @@ function test_hooks_run_once_a_shell_from_the_session_tree() {
     'if status is-interactive; and test -r "$_HI_HOME/say-hi/common/config.fish"' \
     '  source "$_HI_HOME/say-hi/common/config.fish"' 'end' >"$home/.config/fish/config.fish"
   printf 'export PATH=%q\n[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"\n' "$base/bin:$PATH" >"$home/.profile"
-  # _hi_login_env's bound: on the FreeBSD and OpenBSD VMs this shell has sat
-  # silent, with no child to name, until the suite's stall ended it; bounded,
-  # the case fails with what the shell printed first
-  out="$(_hi_login_env "$home" env TERM=dumb PATH="$base/bin:$PATH" \
+  # To a file, never a $( ): an interactive bash asks tcgetpgrp of its stderr,
+  # and on FreeBSD and OpenBSD a pipe answers 0 (their pipe ioctl takes
+  # TIOCGPGRP), so the shell reads it as a terminal another group owns and
+  # stops itself with SIGTTIN before its first line. A short bound, and on
+  # failure the bound's status, the output, and every process with its
+  # terminal, state and wait channel.
+  _HI_LOGIN_TIMEOUT=30 _hi_login_env "$home" env TERM=dumb PATH="$base/bin:$PATH" \
     _HI_HOME="$sess" _HI_ROOT="$sess/say-hi" _HI_CONFIG_DIR="$sess/say-hi/config" _HI_CLEANUP="$sess" \
     bash --norc -i -c '
     source "$_HI_ROOT/load.sh"
@@ -442,8 +445,13 @@ function test_hooks_run_once_a_shell_from_the_session_tree() {
     printf "boot[%s]\n" "${hi_hook_trees-}"
     _hi_session_rc_setup || exit 1
     _hi_session_shell_cmd "$1"
-    "${shell_cmd[@]}" -c "printf \"$1[%s]\\n\" \"\$hi_hook_trees\""' _ "$sh" 2>&1 </dev/null)"
-  [[ $'\n'"$out" == *$'\n'"boot[]"$'\n'* && "$out" == *$'\n'"${sh}[<$sess/say-hi>]"* ]] || _hi_why out sess inst
+    "${shell_cmd[@]}" -c "printf \"$1[%s]\\n\" \"\$hi_hook_trees\""' _ "$sh" >"$base/out" 2>&1 </dev/null || rc=$?
+  out="$(cat "$base/out")"
+  [[ $'\n'"$out" == *$'\n'"boot[]"$'\n'* && "$out" == *$'\n'"${sh}[<$sess/say-hi>]"* ]] && return 0
+  _hi_why rc out sess inst
+  [ "$rc" != 124 ] || printf '%s\n' "      nothing in 30s: a stopped interactive shell, or one waiting on a pipe (docs/SYNTAX.md, Tests)"
+  _hi_proc_table | sed 's/^/ |   /'
+  return 1
 }
 
 # Which shell the session runs in - the login shell when hi styles it, else

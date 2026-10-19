@@ -99,7 +99,10 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   `_HI_PROGRESS=0`/`1` overrides.
 - A suite that neither starts nor finishes a case for ten minutes is ended,
   with what it started, and reported **FAILED (hung)** with that case named
-  in the recap and its processes listed; the other suites carry on.
+  in the recap and its processes listed - the tree under the suite and its
+  group, each with its terminal, state and wait channel where `ps -o` has
+  them, so a shell stopped by a signal (`T`, with a terminal) tells from one
+  waiting on a pipe; the other suites carry on.
   `_HI_SUITE_STALL=<seconds>` moves the limit, and `0` lifts it. Suites that
   run one at a time (e2e, backends, bench) are watched only where it is set,
   since a case there may build an image.
@@ -135,7 +138,11 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   `setsid -w timeout … tests/test_runner.sh …` — `setsid` outside, so
   `timeout` still kills the runner's group. Without it the interactive
   sessions the `load` and `install_location` suites start stop on SIGTTIN
-  until the deadline. GitHub's ubuntu runner has no controlling terminal.
+  until the deadline. GitHub's ubuntu runner has no controlling terminal. The
+  BSDs stop one without any terminal: there `tcgetpgrp` on a pipe answers 0,
+  so an interactive bash whose stderr is a pipe takes it for a foreign
+  terminal ([SYNTAX.md](SYNTAX.md#tests)); a hung case's process table shows
+  it as state `T` with no terminal.
 - Under WSL 2, drop the `/mnt/` entries from `$PATH` first: interop's ~50
   `/mnt/c/...` directories are served over 9p, and the package check's uncached
   `command -v` misses make one `full_check` take 30–37s instead of 30ms - half a
