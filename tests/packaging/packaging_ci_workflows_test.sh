@@ -513,8 +513,8 @@ function test_bsd_loopback_wants_the_marker_a_clean_exit_and_no_session() {
 }
 
 # the apt helpers every installing step shares, with sudo and sleep stood in:
-# the vendor lists are removed, and an update that fails is retried over a
-# cleared index cache - twice, then the step fails
+# the vendor lists are removed, legacy and deb822 both, and an update that
+# fails is retried over a cleared index cache - twice, then the step fails
 function test_apt_update_retries_over_a_cleared_cache() {
   local got got2 got3
   local dir="$_HI_WORKDIR/aptlib" out rc=0
@@ -532,8 +532,9 @@ EOF
     source "$1/.github/actions/apt/lib.sh"
     _ci_apt_drop_vendor_lists && _ci_apt_update' _ "$_HI_ROOT" 2>&1)" || _hi_because "one failure was fatal: $out" || return 1
   got="$(sed -n 1p "$dir/once")"
-  got2="$(sed 1d "$dir/once")"
+  got2="$(sed 1,2d "$dir/once")"
   [[ "$got" == "rm -f /etc/apt/sources.list.d/"* ]] &&
+    [ "$(sed -n 2p "$dir/once")" = "find /etc/apt/sources.list.d -name" ] &&
     [ "$got2" = $'apt-get update \nrm -rf /var/lib/apt\nsleep 5\napt-get update ' ] &&
     [[ "$out" == *"(attempt 1/3), clearing the index cache"* ]] || _hi_because "one failure: $(cat "$dir/once") | $out" || return 1
   out="$(HI_APT_LOG="$dir/never" HI_APT_FAILS=9 PATH="$dir/bin:$PATH" bash -c '
@@ -549,7 +550,8 @@ EOF
     [[ "$out" == *"apt-get update failed three times"* ]] || _hi_because "three failures, rc $rc: $(cat "$dir/never") | $out"
 }
 
-# resolve writes the pin, its checksum, and where the binary will land; a
+# resolve writes the pin, its checksum, where the binary will land, and the
+# hosted image ($ImageOS, empty off a hosted runner) for the cache key; a
 # version override needs a checksum of its own, and an unknown tool, a
 # platform the row has no asset for, and a stray subcommand each fail by name
 function test_setup_tool_resolve_names_the_pin() {
@@ -561,15 +563,15 @@ function test_setup_tool_resolve_names_the_pin() {
   plat="$(source "$_HI_ROOT/.github/actions/setup-tool/lib.sh" && _ci_platform)"
   printf '%s\n' "one|1.2.3|raw|https://x/one-%v||-||$a" "two|2.0|raw|https://x/%a||-||$plat:slug=$b" \
     "far|1|raw|https://x/%a||-||plan9-mips=$a" >"$dir/tools.txt"
-  _hi_tool_run "$dir" resolve CI_TOOL=one >/dev/null || _hi_why dir || return 1
+  _hi_tool_run "$dir" resolve CI_TOOL=one ImageOS=img1 >/dev/null || _hi_why dir || return 1
   got2="$(cat "$dir/output")"
-  [ "$got2" = "version=1.2.3"$'\n'"sha256=$a"$'\n'"path=$dir/out/one" ] || _hi_because "one: $got2" || return 1
+  [ "$got2" = "version=1.2.3"$'\n'"sha256=$a"$'\n'"path=$dir/out/one"$'\n'"image=img1" ] || _hi_because "one: $got2" || return 1
   : >"$dir/output"
   _hi_tool_run "$dir" resolve CI_TOOL=two >/dev/null && grep -qx "sha256=$b" "$dir/output" || _hi_why dir b || return 1
   : >"$dir/output"
-  _hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9 CI_TOOL_SHA256="$b" >/dev/null || _hi_because "an override: $(cat "$dir/output")" || return 1
+  _hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9 CI_TOOL_SHA256="$b" ImageOS= >/dev/null || _hi_because "an override: $(cat "$dir/output")" || return 1
   got2="$(cat "$dir/output")"
-  [ "$got2" = "version=9.9"$'\n'"sha256=$b"$'\n'"path=$dir/out/one" ] || _hi_because "an override: $got2" || return 1
+  [ "$got2" = "version=9.9"$'\n'"sha256=$b"$'\n'"path=$dir/out/one"$'\n'"image=" ] || _hi_because "an override: $got2" || return 1
   out="$(_hi_tool_run "$dir" resolve CI_TOOL=one CI_TOOL_VERSION=9.9)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"one version 9.9 overrides the pin (1.2.3) without a sha256"* ]] || _hi_because "a bare override: $out" || return 1
   rc=0
@@ -655,8 +657,9 @@ function test_setup_tool_refuses_a_row_that_cannot_work() {
 }
 
 # setup-tools, the batch over the same installer: resolve folds every tool
-# into one cache key (name, pin, the checksum's first twelve digits) and one
-# path list, and the install step fetches only what the cache did not restore
+# into one cache key (the hosted image first, then name, pin, the checksum's
+# first twelve digits) and one path list, and the install step fetches only
+# what the cache did not restore
 function test_setup_tools_batches_resolve_and_install() {
   local dir out sum got got2 got3
   dir="$(_hi_tool_dir batch)"
@@ -664,11 +667,17 @@ function test_setup_tools_batches_resolve_and_install() {
   printf '#!/bin/sh\necho two\n' >"$dir/src/two"
   sum="$(_hi_tool_sum "$dir/src/two")"
   printf '%s\n' "one|1.0|raw|https://x/one||-||$(_hi_tool_sum "$dir/src/one")" "two|2.5|raw|https://x/two||-||$sum" >"$dir/tools.txt"
-  env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
+  env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 ImageOS=img1 CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
     GITHUB_OUTPUT="$dir/output" bash "$_HI_ROOT/.github/actions/setup-tools/resolve.sh" || _hi_why dir || return 1
   out="$(cat "$dir/output")"
   got="$(_hi_tool_sum "$dir/src/one" | cut -c1-12)"
-  [ "$out" = "key= one=1.0@$got two=2.5@${sum:0:12}"$'\n'"paths<<CI_TOOLS_EOF"$'\n'"$dir/out/one"$'\n'"$dir/out/two"$'\n'"CI_TOOLS_EOF" ] ||
+  [ "$out" = "key= img1 one=1.0@$got two=2.5@${sum:0:12}"$'\n'"paths<<CI_TOOLS_EOF"$'\n'"$dir/out/one"$'\n'"$dir/out/two"$'\n'"CI_TOOLS_EOF" ] ||
+    _hi_because "the outputs: $out" || return 1
+  : >"$dir/output"
+  env -u CI_TOOL_VERSION -u CI_TOOL_SHA256 -u ImageOS CI_TOOLS="one two" CI_TOOLS_TXT="$dir/tools.txt" CI_TOOL_BIN_DIR="$dir/out" \
+    GITHUB_OUTPUT="$dir/output" bash "$_HI_ROOT/.github/actions/setup-tools/resolve.sh" || _hi_why dir || return 1
+  out="$(sed -n 1p "$dir/output")"
+  [ "$out" = "key= one=1.0@$got two=2.5@${sum:0:12}" ] ||
     _hi_because "the outputs: $out" || return 1
   printf '#!/bin/sh\necho restored\n' >"$dir/out/one"
   chmod +x "$dir/out/one"
