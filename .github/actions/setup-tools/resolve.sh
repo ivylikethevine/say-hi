@@ -13,7 +13,9 @@ _ci_install="$(dirname "${BASH_SOURCE[0]}")/../setup-tool/install.sh"
 _ci_out="$(mktemp)"
 trap 'rm -f "$_ci_out"' EXIT
 
-_ci_key=""
+# the hosted image first (ImageOS: ubuntu24, ubuntu26, macos15; empty
+# elsewhere): a source build links that image's libraries
+_ci_key="${ImageOS:+ $ImageOS}"
 _ci_paths=""
 for _ci_t in $CI_TOOLS; do
   : >"$_ci_out"

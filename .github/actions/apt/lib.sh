@@ -11,12 +11,14 @@
 # when *any* index fails, so one of those republishing mid-fetch ("Hash Sum
 # mismatch") fails every job that installs anything.
 #
-# Ubuntu's own repositories are not touched: noble keeps them in the deb822
-# /etc/apt/sources.list.d/ubuntu.sources and jammy in /etc/apt/sources.list,
-# so the *.list files in sources.list.d are exactly the vendor ones. Call this
-# BEFORE adding a repository of your own, or it takes that one out too.
+# Ubuntu's own repositories are not touched: noble and later keep them in the
+# deb822 /etc/apt/sources.list.d/ubuntu.sources and jammy in
+# /etc/apt/sources.list, so everything else in sources.list.d, legacy *.list
+# or deb822 *.sources, is a vendor's. Call this BEFORE adding a repository of
+# your own, or it takes that one out too.
 function _ci_apt_drop_vendor_lists() {
   sudo rm -f /etc/apt/sources.list.d/*.list
+  sudo find /etc/apt/sources.list.d -name '*.sources' ! -name ubuntu.sources -delete
 }
 
 # A mirror can still hand back a short or stale index, so the update is
