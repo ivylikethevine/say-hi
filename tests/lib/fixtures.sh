@@ -118,49 +118,50 @@ function _hi_check_requires() { _hi_par_requires_body "$1" _hi_check "${@:2}"; }
 # of the same guard, the serial twin of _hi_par_check_requires_eq.
 function _hi_check_requires_eq() { _hi_par_requires_body "$1" _hi_check_eq "${@:2}"; }
 
-# _hi_can_symlink - whether this filesystem makes real symbolic links, probed
-# once and remembered. Git Bash is the case that matters: `ln -s` on Windows
-# wants Developer Mode or administrator, so it fails outright and every case
-# whose *subject* is a symlink has nothing to say there. Probed lazily rather
-# than at source time - $_HI_WORKDIR does not exist until a suite calls
-# _hi_workdir, and this file is sourced long before that.
-_HI_CAP_SYMLINK=""
-function _hi_can_symlink() {
-  local probe
-  if [ -z "$_HI_CAP_SYMLINK" ]; then
-    # a private directory rather than a fixed name: the memo dies with a
-    # parallel case's subshell, so several cases can be probing at once
-    probe="$(mktemp -d "$_HI_WORKDIR/cap.symlink.XXXXXX")"
-    : >"$probe/target"
-    ln -s "$probe/target" "$probe/link" 2>/dev/null || :
-    if [ -L "$probe/link" ]; then _HI_CAP_SYMLINK=yes; else _HI_CAP_SYMLINK=no; fi
-    rm -rf "$probe"
+# _hi_cap_memo <var> <probe> - <probe>'s answer, asked once and kept in <var>
+# as yes or no. Lazy: the probes write under $_HI_WORKDIR, which does not
+# exist until a suite calls _hi_workdir, long after this file is sourced.
+function _hi_cap_memo() {
+  if [ -z "${!1:-}" ]; then
+    if "$2"; then printf -v "$1" '%s' yes; else printf -v "$1" '%s' no; fi
   fi
-  [ "$_HI_CAP_SYMLINK" = yes ]
+  [ "${!1}" = yes ]
 }
 
-# _hi_can_lock_out - whether a mode can actually refuse *us* a write, probed
-# once and remembered. Root is the case that matters: it bypasses the
-# permission bits outright, so a case that chmods a directory 555 to make the
-# next write fail gets a write that succeeds instead, and reads as a bug in
-# the code under test rather than as a test that cannot run here. CI that
-# runs as root is not exotic - the FreeBSD VM and most container images do -
-# so the answer has to be asked rather than assumed. Lazy for
-# _hi_can_symlink's reason: $_HI_WORKDIR is not there at source time.
-_HI_CAP_LOCKOUT=""
+# _hi_can_symlink - whether this filesystem makes real symbolic links. Git
+# Bash is the case that matters: `ln -s` on Windows wants Developer Mode or
+# administrator, so it fails outright and every case whose *subject* is a
+# symlink has nothing to say there.
+function _hi_can_symlink() {
+  local probe rc=0
+  # a private directory rather than a fixed name: the memo dies with a
+  # parallel case's subshell, so several cases can be probing at once
+  probe="$(mktemp -d "$_HI_WORKDIR/cap.symlink.XXXXXX")"
+  : >"$probe/target"
+  ln -s "$probe/target" "$probe/link" 2>/dev/null || :
+  [ -L "$probe/link" ] || rc=1
+  rm -rf "$probe"
+  return "$rc"
+}
+
+# _hi_can_lock_out - whether a mode can actually refuse *us* a write. Root is
+# the case that matters: it bypasses the permission bits outright, so a case
+# that chmods a directory 555 to make the next write fail gets a write that
+# succeeds instead, and reads as a bug in the code under test rather than as
+# a test that cannot run here. CI that runs as root is not exotic - the
+# FreeBSD VM and most container images do - so the answer has to be asked
+# rather than assumed.
 function _hi_can_lock_out() {
-  local probe
-  if [ -z "$_HI_CAP_LOCKOUT" ]; then
-    probe="$(mktemp -d "$_HI_WORKDIR/cap.lockout.XXXXXX")"
-    mkdir -p "$probe/dir"
-    chmod 555 "$probe/dir"
-    # stderr first: the message a refused `>` prints is the shell's own, and a
-    # 2>/dev/null after the redirection that fails comes too late to catch it
-    if : 2>/dev/null >"$probe/dir/probe"; then _HI_CAP_LOCKOUT=no; else _HI_CAP_LOCKOUT=yes; fi
-    chmod 755 "$probe/dir"
-    rm -rf "$probe"
-  fi
-  [ "$_HI_CAP_LOCKOUT" = yes ]
+  local probe rc=1
+  probe="$(mktemp -d "$_HI_WORKDIR/cap.lockout.XXXXXX")"
+  mkdir -p "$probe/dir"
+  chmod 555 "$probe/dir"
+  # stderr first: the message a refused `>` prints is the shell's own, and a
+  # 2>/dev/null after the redirection that fails comes too late to catch it
+  : 2>/dev/null >"$probe/dir/probe" || rc=0
+  chmod 755 "$probe/dir"
+  rm -rf "$probe"
+  return "$rc"
 }
 
 # _hi_can_fork_concurrently - whether backgrounded jobs from one shell
@@ -183,12 +184,10 @@ function _hi_can_lock_out() {
 # already works around by giving its stand-in hi.sh a real shebang. Same
 # kernel-name probe as fork_concurrency, a different root cause: that one is
 # about scheduling, this one is about what the permission string even means.
-# _hi_is_msys answers both.
+# _hi_is_msys answers both, off $OSTYPE as hi.sh asks it: no fork.
 function _hi_is_msys() {
-  case "$(uname -s 2>/dev/null)" in
-  MINGW* | MSYS* | CYGWIN*) return 0 ;;
-  *) return 1 ;;
-  esac
+  case "${OSTYPE:-}" in msys* | cygwin*) return 0 ;; esac
+  return 1
 }
 
 # _hi_mode_string <file> - <file>'s permission string, for a "did the mode
@@ -210,17 +209,12 @@ function _hi_mode_string() {
 #
 # Probed rather than named by kernel, unlike its two neighbours above: what
 # decides is the filesystem being written to, not the runtime, so a tree where
-# it works would answer yes and still be honest. Lazy for _hi_can_symlink's
-# reason: $_HI_WORKDIR is not there at source time.
-_HI_CAP_MKDIR_MODE=""
+# it works would answer yes and still be honest.
 function _hi_can_mkdir_mode() {
-  local probe
-  if [ -z "$_HI_CAP_MKDIR_MODE" ]; then
-    probe="$_HI_WORKDIR/cap.mkdirmode"
-    if mkdir -m 700 "$probe" 2>/dev/null; then _HI_CAP_MKDIR_MODE=yes; else _HI_CAP_MKDIR_MODE=no; fi
-    rm -rf "$probe"
-  fi
-  [ "$_HI_CAP_MKDIR_MODE" = yes ]
+  local probe="$_HI_WORKDIR/cap.mkdirmode" rc=0
+  mkdir -m 700 "$probe" 2>/dev/null || rc=1
+  rm -rf "$probe"
+  return "$rc"
 }
 
 # _hi_gpg_test_key <homedir> <identity> <err-file> <quick-generate-key args...>
@@ -252,23 +246,16 @@ function _hi_gpg_test_key() {
 # why the probe's homedir sits under a short base on /tmp, the same place the
 # suites put theirs. Launched explicitly, asked to answer, then killed:
 # nothing this probe starts outlives it.
-_HI_CAP_GPG_AGENT=""
 function _hi_can_reach_gpg_agent() {
-  local home
-  if [ -z "$_HI_CAP_GPG_AGENT" ]; then
-    _HI_CAP_GPG_AGENT=no
-    if command -v gpg >/dev/null 2>&1 && command -v gpgconf >/dev/null 2>&1 &&
-      home="$(mktemp -d /tmp/hi.gpgcap.XXXXXX 2>/dev/null)"; then
-      chmod 700 "$home"
-      if gpgconf --homedir "$home" --launch gpg-agent >/dev/null 2>&1 &&
-        gpg-connect-agent --homedir "$home" /bye >/dev/null 2>&1; then
-        _HI_CAP_GPG_AGENT=yes
-      fi
-      gpgconf --homedir "$home" --kill all >/dev/null 2>&1 || true
-      rm -rf "$home"
-    fi
-  fi
-  [ "$_HI_CAP_GPG_AGENT" = yes ]
+  local home rc=1
+  command -v gpg >/dev/null 2>&1 && command -v gpgconf >/dev/null 2>&1 &&
+    home="$(mktemp -d /tmp/hi.gpgcap.XXXXXX 2>/dev/null)" || return 1
+  chmod 700 "$home"
+  gpgconf --homedir "$home" --launch gpg-agent >/dev/null 2>&1 &&
+    gpg-connect-agent --homedir "$home" /bye >/dev/null 2>&1 && rc=0
+  gpgconf --homedir "$home" --kill all >/dev/null 2>&1 || true
+  rm -rf "$home"
+  return "$rc"
 }
 
 # _hi_can_shape_netem - whether the netem qdisc is loadable here, what the
@@ -276,16 +263,8 @@ function _hi_can_reach_gpg_agent() {
 # container cannot load a kernel module itself - `modprobe` inside one only
 # ever sees the host's module state - so this is a host question, answered
 # once from /proc/modules or /sys/module rather than paid for per case.
-_HI_CAP_NETEM=""
 function _hi_can_shape_netem() {
-  if [ -z "$_HI_CAP_NETEM" ]; then
-    if grep -q '^sch_netem ' /proc/modules 2>/dev/null || [ -d /sys/module/sch_netem ]; then
-      _HI_CAP_NETEM=yes
-    else
-      _HI_CAP_NETEM=no
-    fi
-  fi
-  [ "$_HI_CAP_NETEM" = yes ]
+  grep -q '^sch_netem ' /proc/modules 2>/dev/null || [ -d /sys/module/sch_netem ]
 }
 
 # _hi_capable <capability> - whether this machine can do <capability> at all.
@@ -323,13 +302,13 @@ function _hi_can_shape_netem() {
 # than a silently skipped one.
 function _hi_capable() {
   case "$1" in
-  symlink) _hi_can_symlink ;;
+  symlink) _hi_cap_memo _HI_CAP_SYMLINK _hi_can_symlink ;;
   pty) [ "${#_HI_PTY_FORCED[@]}" -gt 0 ] ;;
-  lockout) _hi_can_lock_out ;;
+  lockout) _hi_cap_memo _HI_CAP_LOCKOUT _hi_can_lock_out ;;
   fork_concurrency | mode_bits) ! _hi_is_msys ;;
-  mkdir_mode) _hi_can_mkdir_mode ;;
-  gpg_agent) _hi_can_reach_gpg_agent ;;
-  netem) _hi_can_shape_netem ;;
+  mkdir_mode) _hi_cap_memo _HI_CAP_MKDIR_MODE _hi_can_mkdir_mode ;;
+  gpg_agent) _hi_cap_memo _HI_CAP_GPG_AGENT _hi_can_reach_gpg_agent ;;
+  netem) _hi_cap_memo _HI_CAP_NETEM _hi_can_shape_netem ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2
@@ -403,7 +382,7 @@ function _hi_real_path() {
       real="$(type -P "$tool" 2>/dev/null)" || continue
       [ -n "$real" ] || continue
       rm -f "$dir/$tool"
-      if _hi_can_symlink; then
+      if _hi_capable symlink; then
         ln -sf "$real" "$dir/$tool" 2>/dev/null || :
         [ -L "$dir/$tool" ] && continue
       fi

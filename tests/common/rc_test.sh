@@ -538,6 +538,18 @@ function test_fish_runs_the_hooks_its_settings_leave_on() {
   [ "$out" = "plain-fish asked-fish kept-fish" ] || _hi_why out stub
 }
 
+# ...once a shell, as core.sh's: config.fish sourced again runs none of them,
+# and a ~ ahead of the name drops what that activation prints
+function test_fish_runs_each_hook_once_and_a_quiet_one_silently() {
+  local out stub
+  stub="$(_hi_stub_bin hi-hook-loud 'printf "echo LOUD-%s >&2; set -ga hi_hooks_ran %s\n" "$1" "$1"')"
+  out="$(_hi_rc_shell xterm-256color fish \
+    'for i in 1 2; source $_HI_HOME/say-hi/common/config.fish 2>>$HOME/hooks-once.err; end
+    printf "%s|" (string join " " -- $hi_hooks_ran); string match -- "LOUD-*" <$HOME/hooks-once.err' \
+    "PATH=$stub:$PATH" "_HI_HOOKS=x.hi-loud=hi-hook-loud loud;x.~hi-quiet=hi-hook-loud quiet")"
+  [ "$out" = "loud quiet|LOUD-loud" ] || _hi_why out stub
+}
+
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
 # machine without one still runs (and honestly reports) the rest.
 
@@ -927,6 +939,7 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias fish
   _hi_check "starship handoff installs no __hi_ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
   _hi_check_requires fish "fish runs the shell hooks its settings leave on" test_fish_runs_the_hooks_its_settings_leave_on
+  _hi_check_requires fish "...each once a shell, a quiet one's activation unheard" test_fish_runs_each_hook_once_and_a_quiet_one_silently
 
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built

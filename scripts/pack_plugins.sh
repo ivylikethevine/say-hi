@@ -77,8 +77,8 @@ function _hi_path_list() {
 # is a plugin, its keys `files` (the members, a space apart), `tool` (left
 # out, the name), and `wire`, `home`, and `dialect` (left out, -); a
 # `[<group>.<name>."<member>"]` table under it is the wire, home, or dialect
-# one of its files has of its own. `init`, `prompt`, and `shells` are its
-# shell hook (HI.67), and `env` the variables whose values here ride (HI.62). What the table could not hold is left out
+# one of its files has of its own. `init`, `prompt`, `shells`, and `quiet` are
+# its shell hook (HI.67), and `env` the variables whose values here ride (HI.62). What the table could not hold is left out
 # and noted in $_HI_PLUGIN_BAD: a line that is no table and no key =
 # "value", a key above the first plugin or of no name hi reads, a table of
 # the rows before these, a second plugin of a name, a plugin of no files, a
@@ -91,7 +91,7 @@ function _hi_plugins_load() {
   # files with the keys each has of its own, and where a key lands - the
   # plugin (-1), one of its files (an index), a table that was turned down
   # (-2), or above the first table (-3)
-  local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df _hi_rc_sh _hi_rc_e
+  local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df _hi_rc_sh _hi_rc_q _hi_rc_e
   local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
   [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
   _HI_PLUGIN_GEN=$((${_HI_PLUGIN_GEN:-0} + 1))
@@ -145,7 +145,7 @@ function _hi_plugins_load() {
         else
           _hi_cy_seen="$_hi_cy_seen$_hi_cy_p "
           _hi_rc_at="$_hi_cy_s:$_hi_cy_n" _hi_rc_g="$_hi_cy_g" _hi_rc_n="$_hi_cy_p" _hi_rc_to=-1
-          _hi_rc_t="" _hi_rc_w="" _hi_rc_h="" _hi_rc_d="" _hi_rc_i="" _hi_rc_p="" _hi_rc_df="" _hi_rc_sh="" _hi_rc_e=""
+          _hi_rc_t="" _hi_rc_w="" _hi_rc_h="" _hi_rc_d="" _hi_rc_i="" _hi_rc_p="" _hi_rc_df="" _hi_rc_sh="" _hi_rc_q="" _hi_rc_e=""
           _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
         fi
         continue
@@ -174,8 +174,9 @@ function _hi_plugins_load() {
       -1:prompt) _hi_rc_p="$_hi_cy_v" ;;
       -1:default) _hi_rc_df="$_hi_cy_v" ;;
       -1:shells) _hi_rc_sh="$_hi_cy_v" ;;
+      -1:quiet) _hi_rc_q="$_hi_cy_v" ;;
       -1:env) _hi_rc_e="$_hi_cy_v" ;;
-      -1:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin: files, tool, wire, home, dialect, init, prompt, shells, default, env") ;;
+      -1:*) _HI_PLUGIN_BAD+=("$_hi_cy_s:$_hi_cy_n|'$_hi_cy_h' is no key of a plugin: files, tool, wire, home, dialect, init, prompt, shells, quiet, default, env") ;;
       *:wire) _hi_rc_mw[_hi_rc_to]="$_hi_cy_v" ;;
       *:home) _hi_rc_mh[_hi_rc_to]="$_hi_cy_v" ;;
       *:dialect) _hi_rc_md[_hi_rc_to]="$_hi_cy_v" ;;
@@ -200,14 +201,10 @@ function _hi_plugins_close() {
   # the shell hook (HI.67): a command printing the shell's code, {shell} in
   # it the shell's name; `prompt = "yes"` says it draws the prompt; `default
   # = "off"` keeps the plugin home until $_HI_PLUGINS_ON names it
-  if [ -n "$_hi_rc_p" ] && [ "$_hi_rc_p" != yes ] && [ "$_hi_rc_p" != no ]; then
-    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: prompt is yes or no, not '$_hi_rc_p'")
-    _hi_rc_p=""
-  fi
-  if [ -n "$_hi_rc_df" ] && [ "$_hi_rc_df" != off ] && [ "$_hi_rc_df" != on ]; then
-    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: default is on or off, not '$_hi_rc_df'")
-    _hi_rc_df=""
-  fi
+  _hi_plugin_pick prompt _hi_rc_p yes no
+  # `quiet = "yes"` drops what the activation prints, and nothing after it
+  _hi_plugin_pick quiet _hi_rc_q yes no
+  _hi_plugin_pick default _hi_rc_df on off
   # `shells` keeps the hook to the shells it names, of bash, zsh, and fish
   if [ -n "$_hi_rc_sh" ] && ! _hi_plugin_shells_ok "$_hi_rc_sh"; then
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: shells is any of bash, zsh, and fish, a space apart, not '$_hi_rc_sh'")
@@ -217,12 +214,14 @@ function _hi_plugins_close() {
     if ! _hi_plugin_init_ok "$_hi_rc_i"; then
       _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: init is a command and its words, no quote, ; | & or \$ among them: '$_hi_rc_i'")
     else
-      _hi_plugin_hook_put "$_hi_rc_g|$_hi_rc_n|$_hi_cl_t|$_hi_rc_i|${_hi_rc_p:-no}|${_hi_rc_sh:--}"
+      _hi_plugin_hook_put "$_hi_rc_g|$_hi_rc_n|$_hi_cl_t|$_hi_rc_i|${_hi_rc_p:-no}|${_hi_rc_sh:--}|${_hi_rc_q:-no}"
     fi
   elif [ "$_hi_rc_p" = yes ]; then
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: prompt = yes needs an init")
   elif [ -n "$_hi_rc_sh" ]; then
     _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: shells needs an init")
+  elif [ -n "$_hi_rc_q" ]; then
+    _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: quiet needs an init")
   fi
   # `env` names variables whose values here ride to a target (HI.62); a
   # plugin of this name read before has its row replaced, or dropped
@@ -304,6 +303,14 @@ function _hi_plugin_init_ok() {
   _hi_words_ok "${1%% *}" 'A-Za-z0-9_' 'A-Za-z0-9._+-'
 }
 
+# _hi_plugin_pick <key> <var> <a> <b> - empty <var> unless it holds <a> or <b>,
+# noting the closing plugin's bad <key> in $_HI_PLUGIN_BAD
+function _hi_plugin_pick() {
+  case "${!2}" in '' | "$3" | "$4") return 0 ;; esac
+  _HI_PLUGIN_BAD+=("$_hi_rc_at|$_hi_rc_n: $1 is $3 or $4, not '${!2}'")
+  printf -v "$2" '%s' ''
+}
+
 # _hi_plugin_shells_ok <shells> - a hook's shells: of bash, zsh, and fish
 function _hi_plugin_shells_ok() {
   local _hi_sk
@@ -360,8 +367,8 @@ function _hi_plugin_hook_put() {
   _HI_PLUGIN_HOOKS+=("$1")
 }
 
-# _hi_hook_col <row> <group|name|tool|init|prompt|shells> [outvar] - one
-# column of a hook row; shells is - for every shell
+# _hi_hook_col <row> <group|name|tool|init|prompt|shells|quiet> [outvar] -
+# one column of a hook row; shells is - for every shell
 function _hi_hook_col() {
   local _hi_hc_r="$1"
   case "$2" in
@@ -370,6 +377,7 @@ function _hi_hook_col() {
   tool) _hi_hc_r="${_hi_hc_r#*|*|}" ;;
   init) _hi_hc_r="${_hi_hc_r#*|*|*|}" ;;
   prompt) _hi_hc_r="${_hi_hc_r#*|*|*|*|}" ;;
+  shells) _hi_hc_r="${_hi_hc_r#*|*|*|*|*|}" ;;
   *) _hi_hc_r="${_hi_hc_r##*|}" ;;
   esac
   _hi_out "${3:-}" "${_hi_hc_r%%|*}"

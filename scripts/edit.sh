@@ -66,14 +66,9 @@ done
 # the first of hi's own list on PATH
 function _hi_edit_editor() {
   local e
-  for e in "${VISUAL:-}" "${EDITOR:-}" "${_HI_EDITOR:-}"; do
+  for e in "${VISUAL:-}" "${EDITOR:-}" "${_HI_EDITOR:-}" $_HI_EDITORS; do
     [ -n "$e" ] || continue
     command -v "${e%% *}" >/dev/null 2>&1 || continue
-    printf '%s' "$e"
-    return 0
-  done
-  for e in $_HI_EDITORS; do
-    command -v "$e" >/dev/null 2>&1 || continue
     printf '%s' "$e"
     return 0
   done

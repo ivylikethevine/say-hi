@@ -398,6 +398,62 @@ function test_session_zsh_follows_a_zshenv_that_moves_zdotdir() {
   _hi_session_zsh_layers "$h" "$h/.config/zsh" || _hi_why h
 }
 
+# <shell>: a target whose rc wires a hi of its own reads the session's
+# wiring.sh too, through the $_HI_CONFIG_DIR it inherits. Each shell hook
+# still runs once a shell and from the session's tree (GLOSSARY: HI.67):
+# none in the bootloader, whose profile chain sources that rc, and one in the
+# session shell, started on load.sh's rc files. The stub's code notes the
+# tree it ran in.
+function test_hooks_run_once_a_shell_from_the_session_tree() {
+  local sh="$1" base="$_HI_WORKDIR/hooks-once-$1" t out rc=0
+  local sess="$base/sess" inst="$base/inst" home="$base/home"
+  mkdir -p "$sess/say-hi/config" "$inst/say-hi" "$home/.config/fish" "$base/bin" "$base/client"
+  for t in "$sess" "$inst"; do ln -sfn "$_HI_ROOT/common" "$t/say-hi/common"; done
+  ln -sfn "$_HI_ROOT/load.sh" "$sess/say-hi/load.sh"
+  ln -sfn "$_HI_ROOT/config" "$inst/say-hi/config"
+  cp "$_HI_ROOT/config/colors" "$_HI_ROOT/config/packages" "$sess/say-hi/config/"
+  printf '%s\n' '#!/bin/sh' 'case "$1" in' \
+    "fish) printf '%s\\n' 'set -g hi_hook_trees \"\$hi_hook_trees<\$_HI_ROOT>\"' ;;" \
+    "*) printf '%s\\n' 'hi_hook_trees=\"\${hi_hook_trees-}<\$_HI_ROOT>\"' ;;" 'esac' >"$base/bin/hi-hook-tree"
+  chmod +x "$base/bin/hi-hook-tree"
+  printf '[mine.hi-hook-tree]\ninit = "hi-hook-tree {shell}"\n' >"$base/client/plugins"
+  env PATH="$base/bin:$PATH" _HI_CONFIG_DIR="$base/client" _HI_PLUGINS_OFF= _HI_PLUGINS_ON= _HI_PROMPT_TOOL=hi \
+    bash -c 'set -- && source "$_HI_LAUNCHER" && _hi_overlay_wiring w && printf "%s\n" "$w"' \
+    >"$sess/say-hi/config/wiring.sh" || _hi_why base || return 1
+  # the lines install.sh writes, each rc naming the target's own tree; a
+  # Debian ~/.profile, which the bootloader's chain reads, sources ~/.bashrc
+  # and puts the user's bin on $PATH after /etc/profile reset it
+  printf '%s\n' "export _HI_HOME=\"$inst\"" \
+    '[[ $- == *i* && -r "$_HI_HOME/say-hi/common/bash.sh" ]] && source "$_HI_HOME/say-hi/common/bash.sh"' >"$home/.bashrc"
+  printf '%s\n' "export _HI_HOME=\"$inst\"" \
+    '[ -r "$_HI_HOME/say-hi/common/zsh.zsh" ] && source "$_HI_HOME/say-hi/common/zsh.zsh"' >"$home/.zshrc"
+  printf '%s\n' "set -gx _HI_HOME \"$inst\"" \
+    'if status is-interactive; and test -r "$_HI_HOME/say-hi/common/config.fish"' \
+    '  source "$_HI_HOME/say-hi/common/config.fish"' 'end' >"$home/.config/fish/config.fish"
+  printf 'export PATH=%q\n[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"\n' "$base/bin:$PATH" >"$home/.profile"
+  # To a file, never a $( ): an interactive bash asks tcgetpgrp of its stderr,
+  # and on FreeBSD and OpenBSD a pipe answers 0 (their pipe ioctl takes
+  # TIOCGPGRP), so the shell reads it as a terminal another group owns and
+  # stops itself with SIGTTIN before its first line. A short bound, and on
+  # failure the bound's status, the output, and every process with its
+  # terminal, state and wait channel.
+  _HI_LOGIN_TIMEOUT=30 _hi_login_env "$home" env TERM=dumb PATH="$base/bin:$PATH" \
+    _HI_HOME="$sess" _HI_ROOT="$sess/say-hi" _HI_CONFIG_DIR="$sess/say-hi/config" _HI_CLEANUP="$sess" \
+    bash --norc -i -c '
+    source "$_HI_ROOT/load.sh"
+    set +euo pipefail
+    printf "boot[%s]\n" "${hi_hook_trees-}"
+    _hi_session_rc_setup || exit 1
+    _hi_session_shell_cmd "$1"
+    "${shell_cmd[@]}" -c "printf \"$1[%s]\\n\" \"\$hi_hook_trees\""' _ "$sh" >"$base/out" 2>&1 </dev/null || rc=$?
+  out="$(cat "$base/out")"
+  [[ $'\n'"$out" == *$'\n'"boot[]"$'\n'* && "$out" == *$'\n'"${sh}[<$sess/say-hi>]"* ]] && return 0
+  _hi_why rc out sess inst
+  [ "$rc" != 124 ] || printf '%s\n' "      nothing in 30s: a stopped interactive shell, or one waiting on a pipe (docs/SYNTAX.md, Tests)"
+  _hi_proc_table | sed 's/^/ |   /'
+  return 1
+}
+
 # Which shell the session runs in - the login shell when hi styles it, else
 # the tree; load.sh's own comment says why `login` leads.
 
@@ -660,6 +716,9 @@ function run_load_tests() {
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
   _hi_check_requires zsh "a session zsh reads ~/.zshrc, then hi's" test_session_zsh_reads_the_home_zshrc_then_his
   _hi_check_requires zsh "...and follows a ~/.zshenv that moves ZDOTDIR" test_session_zsh_follows_a_zshenv_that_moves_zdotdir
+  _hi_check "[bash] a hook runs once a shell, from the session's tree" test_hooks_run_once_a_shell_from_the_session_tree bash
+  _hi_check_requires zsh "[zsh] ...and in zsh" test_hooks_run_once_a_shell_from_the_session_tree zsh
+  _hi_check_requires fish "[fish] ...and in fish" test_hooks_run_once_a_shell_from_the_session_tree fish
   _hi_check "a dropped nano syntax include falls back to the target's" test_nano_fallback_follows_the_target
   _hi_check "nano extendsyntax follows the target's syntax names" test_nano_fallback_resolves_extendsyntax
   _hi_check "...an include the nanorc kept, a ~/ one included" test_nano_fallback_reads_a_kept_home_include

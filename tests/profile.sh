@@ -68,9 +68,7 @@
 # `hi.sh`'s payload assembly.
 # ---------------------------------------------------------------------------
 #
-# Lives in tests/ on purpose, beside coverage.sh and for the same reason:
-# tests/ ships in neither the ssh payload ($_HI_PAYLOAD) nor the OS packages
-# ($_HI_PACKAGE_CONTENTS), and a profiler has no business on a target.
+# Lives in tests/ for tests/coverage.sh's reason: no target ships it.
 set -euo pipefail
 
 if [ -z "${_HI_HOME:-}" ]; then
@@ -129,10 +127,9 @@ _HI_PROF_RUNNER='
   timep -c "$1"'
 
 function prof_list() {
-  local i=0
-  while [ "$i" -lt "${#_HI_PROF_NAMES[@]}" ]; do
-    printf '  %-11s %s\n' "${_HI_PROF_NAMES[$i]}" "${_HI_PROF_WHAT[$i]}"
-    i=$((i + 1))
+  local i
+  for i in "${!_HI_PROF_NAMES[@]}"; do
+    printf '  %-11s %s\n' "${_HI_PROF_NAMES[i]}" "${_HI_PROF_WHAT[i]}"
   done
 }
 
@@ -265,10 +262,8 @@ _hi_cecho " | output:  $_HI_PROF_DIR" "$BLUE"
 
 _HI_PROF_FAILED=0
 _HI_PROF_RAN=0
-_hi_i=0
-while [ "$_hi_i" -lt "${#_HI_PROF_NAMES[@]}" ]; do
-  _hi_name="${_HI_PROF_NAMES[$_hi_i]}"
-  _hi_i=$((_hi_i + 1))
+for _hi_i in "${!_HI_PROF_NAMES[@]}"; do
+  _hi_name="${_HI_PROF_NAMES[_hi_i]}"
   # no names given means all of them; otherwise only the ones asked for
   if [ "${#_HI_PROF_WANT[@]}" -gt 0 ]; then
     case " ${_HI_PROF_WANT[*]} " in *" $_hi_name "*) ;; *) continue ;; esac
@@ -278,8 +273,8 @@ while [ "$_hi_i" -lt "${#_HI_PROF_NAMES[@]}" ]; do
   # finished-log numbers off a pipe on a timeout, and a number cut in two
   # there (`409` read as `09`: "value too great for base") fails a profile
   # the next run of it produces
-  prof_one "$_hi_name" "${_HI_PROF_WHAT[$((_hi_i - 1))]}" "${_HI_PROF_BODY[$((_hi_i - 1))]}" ||
-    prof_one "$_hi_name" "${_HI_PROF_WHAT[$((_hi_i - 1))]}" "${_HI_PROF_BODY[$((_hi_i - 1))]}" ||
+  prof_one "$_hi_name" "${_HI_PROF_WHAT[_hi_i]}" "${_HI_PROF_BODY[_hi_i]}" ||
+    prof_one "$_hi_name" "${_HI_PROF_WHAT[_hi_i]}" "${_HI_PROF_BODY[_hi_i]}" ||
     _HI_PROF_FAILED=$((_HI_PROF_FAILED + 1))
 done
 

@@ -34,6 +34,20 @@
 # (_hi_keep_start) or from a session's hi.keep (_hi_keep_file)
 _HI_KEEP_PANE_VARS=(_HI_ROOT _HI_CLEANUP _HI_CONNECT_PREFIX _HI_CONNECT_TIME _HI_COPY_TIME)
 
+# _hi_keep_seconds <duration> <outvar> - <n>, or <n> with s, m, h, or d, as
+# seconds; false for anything else
+function _hi_keep_seconds() {
+  local _hi_kd_n="${1%[smhd]}" _hi_kd_u="${1#"${1%?}"}"
+  case "$_hi_kd_n" in '' | *[!0-9]*) return 1 ;; esac
+  _hi_kd_n=$((10#$_hi_kd_n))
+  case "$_hi_kd_u" in
+  m) _hi_kd_n=$((_hi_kd_n * 60)) ;;
+  h) _hi_kd_n=$((_hi_kd_n * 3600)) ;;
+  d) _hi_kd_n=$((_hi_kd_n * 86400)) ;;
+  esac
+  printf -v "$2" '%s' "$_hi_kd_n"
+}
+
 # Is one of $_HI_MUXES installed here
 function _hi_mux_here() {
   local m
@@ -418,15 +432,13 @@ function _hi_keep_live() {
 # ($_HI_TARGET_MUX, the boot probe's word); 0, a multiplexer's session with
 # no end and no held directory at all. No time where date gives none.
 function _hi_keep_until() {
-  local span secs at fmt='%H:%M' mux="${_HI_TARGET_MUX:-1}"
+  local span secs at fmt='%H:%M' mux="${_HI_TARGET_MUX:-1}" def
   if [ "$mux" = 1 ]; then
-    span="${_HI_KEEP_TIMEOUT:-$_HI_KEEP_TIMEOUT_DEFAULT}"
-    _hi_keep_seconds "$span" secs || span="$_HI_KEEP_TIMEOUT_DEFAULT"
+    def="$_HI_KEEP_TIMEOUT_DEFAULT" span="${_HI_KEEP_TIMEOUT:-$_HI_KEEP_TIMEOUT_DEFAULT}"
   else
-    span="${_HI_HOLD_TIMEOUT:-$_HI_HOLD_TIMEOUT_DEFAULT}"
-    _hi_keep_seconds "$span" secs || span="$_HI_HOLD_TIMEOUT_DEFAULT"
+    def="$_HI_HOLD_TIMEOUT_DEFAULT" span="${_HI_HOLD_TIMEOUT:-$_HI_HOLD_TIMEOUT_DEFAULT}"
   fi
-  _hi_keep_seconds "$span" secs
+  _hi_keep_seconds "$span" secs || { span="$def" && _hi_keep_seconds "$span" secs; }
   printf -v "$1" '%s' ""
   ((secs > 0)) || [ "$mux" = 1 ] || return 0
   printf -v "$1" '%s' ", where the session is kept"
@@ -469,7 +481,7 @@ function _hi_keep_connect() {
   [ "$probes" = 0 ] || _hi_keep_record rec || rec=""
   [ -z "$rec" ] || [ ! -e "$rec" ] || expected=1
   [ -z "$rec" ] || ! _hi_keep_starts || : >"$rec"
-  _hi_keep_seconds "$window" limit || window=5m limit=300
+  _hi_keep_seconds "$window" limit || { window="$_HI_KEEP_RETRY_DEFAULT" && _hi_keep_seconds "$window" limit; }
   while :; do
     ec=0 t1=$SECONDS _HI_LINK_UP=0 _HI_KEEP_EXPECTED="$expected"
     _say_hi "$arm" "$log" || ec=$?

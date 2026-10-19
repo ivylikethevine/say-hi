@@ -23,9 +23,6 @@ set -euo pipefail
 if [ -z "${_hi_core_loaded:-}" ]; then
   _hi_core_loaded=1
 
-  # The tree from this file's own path, only when unset (an outer export
-  # survives and costs no fork). GLOSSARY: HI.33 - why not $HOME, why zsh's
-  # arm is eval'd
   # The tree (GLOSSARY: HI.33): $_HI_ROOT where it is set and sits in
   # $_HI_HOME, else $_HI_HOME/say-hi where that is a tree, else this file's
   # own path; $_HI_HOME is then the directory above it
@@ -84,22 +81,16 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     unset _hi_t
   fi
   export _HI_SITE_DIR
-  # the site's settings ahead of the user's, so a line of theirs wins
+  # settings ahead of paths.sh, whose gate reads them - hence the spelled
+  # path - and loaded as the user's own shell would: strict mode here would
+  # turn one failing line or unset variable into a shell that never starts.
+  # The site's go first, so a line of the user's wins.
+  set +euo pipefail
   # shellcheck source=/dev/null # a site's config, may not exist
-  if [ "${_HI_REMOTE_SESSION:-0}" != 1 ] && [ -f "$_HI_SITE_DIR/settings.sh" ]; then
-    set +euo pipefail
-    . "$_HI_SITE_DIR/settings.sh"
-    set -euo pipefail
-  fi
-  # settings ahead of paths.sh, whose gate reads them - hence the spelled path
+  [ "${_HI_REMOTE_SESSION:-0}" = 1 ] || [ ! -f "$_HI_SITE_DIR/settings.sh" ] || . "$_HI_SITE_DIR/settings.sh"
   # shellcheck source=/dev/null # user config, may not exist
-  # loaded as the user's own shell would: strict mode here would turn one
-  # failing line or unset variable into a shell that never starts
-  if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
-    set +euo pipefail
-    . "$_HI_CONFIG_DIR/settings.sh"
-    set -euo pipefail
-  fi
+  [ ! -f "$_HI_CONFIG_DIR/settings.sh" ] || . "$_HI_CONFIG_DIR/settings.sh"
+  set -euo pipefail
   # shellcheck source=./paths.sh
   source "$_HI_ROOT/common/paths.sh"
 fi
@@ -603,20 +594,6 @@ function _hi_human_duration() {
   _hi_out "${2:-}" "$_hi_hd"
 }
 
-# _hi_keep_seconds <duration> <outvar> - <n>, or <n> with s, m, h, or d, as
-# seconds; false for anything else
-function _hi_keep_seconds() {
-  local _hi_kd_n="${1%[smhd]}" _hi_kd_u="${1#"${1%?}"}"
-  case "$_hi_kd_n" in '' | *[!0-9]*) return 1 ;; esac
-  _hi_kd_n=$((10#$_hi_kd_n))
-  case "$_hi_kd_u" in
-  m) _hi_kd_n=$((_hi_kd_n * 60)) ;;
-  h) _hi_kd_n=$((_hi_kd_n * 3600)) ;;
-  d) _hi_kd_n=$((_hi_kd_n * 86400)) ;;
-  esac
-  printf -v "$2" '%s' "$_hi_kd_n"
-}
-
 # _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral
 # state (the ControlMaster socket, the payload/overlay caches), or empty when
 # there is none hi can vouch for: $XDG_RUNTIME_DIR, else a `mkdir -m 700`
@@ -998,10 +975,13 @@ function _hi_run_init() {
 
 # _hi_run_hooks <shell> - every hook of $_HI_HOOKS (`<group>.<name>=<init>`
 # rows a ; apart, written by the client as the overlay was packed) whose
-# plugin the settings leave on, in the client's order; a `:<shells>` after
-# the name, a , apart, keeps a hook to those shells
+# plugin the settings leave on, in the client's order, once a shell; a
+# `:<shells>` after the name, a , apart, keeps a hook to those shells, and a
+# `~` ahead of it drops what the activation prints
 function _hi_run_hooks() {
   local _hi_rh_l="${_HI_HOOKS:-}" _hi_rh_r _hi_rh_k
+  [ -n "$_hi_rh_l" ] && [ -z "${_hi_hooks_ran:-}" ] || return 0
+  _hi_hooks_ran=1
   while [ -n "$_hi_rh_l" ]; do
     _hi_rh_r="${_hi_rh_l%%;*}"
     case "$_hi_rh_l" in *\;*) _hi_rh_l="${_hi_rh_l#*;}" ;; *) _hi_rh_l="" ;; esac
@@ -1012,8 +992,12 @@ function _hi_run_hooks() {
       _hi_rh_k="${_hi_rh_k%%:*}"
       ;;
     esac
-    _hi_hook_on "${_hi_rh_k#*.}" || continue
-    _hi_run_init "$1" "${_hi_rh_r#*=}" || true
+    _hi_rh_k="${_hi_rh_k#*.}"
+    _hi_hook_on "${_hi_rh_k#\~}" || continue
+    case "$_hi_rh_k" in
+    \~*) _hi_run_init "$1" "${_hi_rh_r#*=}" >/dev/null 2>&1 || true ;;
+    *) _hi_run_init "$1" "${_hi_rh_r#*=}" || true ;;
+    esac
   done
   return 0
 }
@@ -1362,14 +1346,14 @@ function _hi_override_color() {
 function _hi_ssh_host_tag() {
   if [ "${_HI_TAG_NAME+x}" != x ] || [ "$_HI_TAG_NAME" != "$1" ]; then
     _HI_TAG_RC=0
-    _HI_TAG_VALUE="$(_hi_ssh_host_tag_walk "$1")" || _HI_TAG_RC=$?
+    _hi_ssh_host_tag_walk "$1" || _HI_TAG_RC=$?
     # a relayed hop: this box's config carries no tags, so the client's, which
     # rode the overlay as ssh_tags, answers where it has one
-    if [ -z "$_HI_TAG_VALUE" ] && [ "${_HI_REMOTE_SESSION:-}" = 1 ] && [ -f "${_HI_CONFIG_DIR:-}/ssh_tags" ] &&
-      _HI_TAG_VALUE="$(_HI_SSH_CONFIG="$_HI_CONFIG_DIR/ssh_tags" _hi_ssh_host_tag_walk "$1")"; then
+    if [ -z "$_hi_sw_hit" ] && [ "${_HI_REMOTE_SESSION:-}" = 1 ] && [ -f "${_HI_CONFIG_DIR:-}/ssh_tags" ] &&
+      _HI_SSH_CONFIG="$_HI_CONFIG_DIR/ssh_tags" _hi_ssh_host_tag_walk "$1"; then
       _HI_TAG_RC=0
     fi
-    _HI_TAG_NAME="$1"
+    _HI_TAG_NAME="$1" _HI_TAG_VALUE="$_hi_sw_hit"
   fi
   [ -n "$_HI_TAG_VALUE" ] && printf '%s\n' "$_HI_TAG_VALUE"
   return "$_HI_TAG_RC"
@@ -1420,14 +1404,14 @@ function _hi_ssh_pattern_hit() {
 # The shared tail of both walker arms below: strip a trailing comment (not a
 # pattern), fold tabs and commas to spaces (a stray comma is friendlier
 # folded than rejected), then try the patterns. The walker's own contract on
-# the way out: 0 tagged (printed), 2 known-but-untagged, 1 no hit here.
+# the way out: 0 tagged (in $_hi_sw_hit), 2 known-but-untagged, 1 no hit here.
 function _hi_ssh_try_patterns() {
   local patterns="$1" name="$2" tag="$3"
   patterns="${patterns%%\#*}"
   patterns="${patterns//	/ }"
   patterns="${patterns//,/ }"
   _hi_ssh_pattern_hit "$name" "$patterns" || return 1
-  [ -n "$tag" ] && printf '%s\n' "$tag" && return 0
+  [ -n "$tag" ] && _hi_sw_hit="$tag" && return 0
   return 2
 }
 
@@ -1441,7 +1425,7 @@ function _hi_ssh_try_patterns() {
 # no comment does, with its own name.
 function _hi_ssh_host_tag_walk() {
   local line trimmed known=1
-  _hi_sw_tag="" _hi_sw_file=""
+  _hi_sw_tag="" _hi_sw_file="" _hi_sw_hit=""
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
     trimmed="${line#"${line%%[![:space:]]*}"}"
@@ -1463,8 +1447,8 @@ function _hi_ssh_host_tag_walk() {
   return "$known"
 }
 
-# One line of the walk above: 0 tagged (printed), 2 known-but-untagged, 1 go
-# on. The pending tag rides in $_hi_sw_tag between lines, and the config.d
+# One line of the walk above: 0 tagged (in $_hi_sw_hit), 2 known-but-untagged,
+# 1 go on. The pending tag rides in $_hi_sw_tag between lines, and the config.d
 # file they are from, as targets.sh marks it, in $_hi_sw_file.
 function _hi_ssh_walk_line() {
   local trimmed rest patterns rc

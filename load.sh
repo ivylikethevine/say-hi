@@ -16,8 +16,12 @@
 # under /tmp, which every hardening baseline greps for, and paths.sh already
 # aliases `hi` to $_HI_LAUNCHER in all four shells. An overlay's bin/ is the
 # one directory of it that is, where the user put scripts there (below).
+#
+# Nobody types at this shell, so it runs no shell hooks (GLOSSARY: HI.67): a
+# wired rc in the chain that loads a tree's _hi_run_hooks finds them run.
 function _hi_restore_profile() {
   local _hi_rp_home="${_HI_HOME:-}" _hi_rp_root="${_HI_ROOT:-}"
+  _hi_hooks_ran=1
   if [ -r /etc/profile ]; then source /etc/profile; fi
   # shellcheck disable=SC1090 # target-specific files, no fixed location
   if [ -r ~/.bash_profile ]; then
@@ -31,7 +35,7 @@ function _hi_restore_profile() {
   [ -n "$_hi_rp_root" ] && export _HI_ROOT="$_hi_rp_root"
   # a wired ~/.bashrc in the chain sourced that tree's core.sh too, and its
   # load guard would skip ours: every path would stay pointed at that tree
-  unset _hi_core_loaded
+  unset _hi_core_loaded _hi_hooks_ran
   return 0
 }
 

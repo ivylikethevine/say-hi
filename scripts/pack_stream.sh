@@ -57,24 +57,21 @@ function _hi_stage_carry() {
   [ -z "$_hi_sc_rtp" ] || [ "$_hi_st_m" != nvim/init.lua ] ||
     _hi_sc_out="vim.opt.rtp:prepend(\"$_HI_CARRY_TOKEN/nvim\")"$'\n'"$_hi_sc_out"
   printf '%s' "$_hi_sc_out" >"$f" || return 1
-  # a marked file rides as written: it is no config of the member's dialect
+  # a marked file rides as written, being no config of the member's dialect;
+  # a carried one joins the scan in that dialect. One already staged - a
+  # member, or a file carried before - rides once.
+  _hi_sc_k=${#_hi_marked[@]}
+  _hi_marked+=(${_hi_carried[@]+"${_hi_carried[@]}"})
   for ((_hi_sc_j = 0; _hi_sc_j < ${#_hi_marked[@]}; _hi_sc_j += 2)); do
-    _hi_sc_m="${_hi_marked[_hi_sc_j]}"
+    _hi_sc_m="${_hi_marked[_hi_sc_j]}" _hi_sc_l="${_hi_marked[_hi_sc_j + 1]}"
     [ ! -e "$_hi_st_root/$_hi_sc_m" ] || continue
-    mkdir -p "$_hi_st_root/${_hi_sc_m%/*}" && cp "${_hi_marked[_hi_sc_j + 1]}" "$_hi_st_root/$_hi_sc_m" || return 1
-    _hi_st_carry+=("${_hi_marked[_hi_sc_j + 1]}")
+    mkdir -p "$_hi_st_root/${_hi_sc_m%/*}" && cp "$_hi_sc_l" "$_hi_st_root/$_hi_sc_m" || return 1
+    _hi_st_carry+=("$_hi_sc_l")
     stage_out+=("$_hi_sc_m")
-  done
-  for ((_hi_sc_j = 0; _hi_sc_j < ${#_hi_carried[@]}; _hi_sc_j += 2)); do
-    _hi_sc_m="${_hi_carried[_hi_sc_j]}"
-    # one already staged - a member, or a file carried before - rides once
-    [ ! -e "$_hi_st_root/$_hi_sc_m" ] || continue
-    mkdir -p "$_hi_st_root/${_hi_sc_m%/*}" && cp "${_hi_carried[_hi_sc_j + 1]}" "$_hi_st_root/$_hi_sc_m" || return 1
+    ((_hi_sc_j >= _hi_sc_k)) || continue
     _hi_st_q+=("$_hi_st_root/$_hi_sc_m")
     _hi_st_qd[${#_hi_st_q[@]} - 1]="$_hi_st_d"
-    _hi_st_qs[${#_hi_st_q[@]} - 1]="${_hi_carried[_hi_sc_j + 1]}"
-    _hi_st_carry+=("${_hi_carried[_hi_sc_j + 1]}")
-    stage_out+=("$_hi_sc_m")
+    _hi_st_qs[${#_hi_st_q[@]} - 1]="$_hi_sc_l"
   done
 }
 

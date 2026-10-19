@@ -323,6 +323,12 @@ function test_hook_on_reads_both_lists() {
     ! _HI_PLUGINS_ON=zoxide _HI_PLUGINS_OFF=zoxide _hi_hook_on -zoxide; } || _hi_why
 }
 
+# _hi_hooks_fresh <shell> - _hi_run_hooks in a shell that has run none
+function _hi_hooks_fresh() {
+  unset _hi_hooks_ran
+  _hi_run_hooks "$1"
+}
+
 # _hi_run_init fills {shell} in, runs the command only where its first word
 # is here, and runs what it prints in this shell; _hi_run_hooks walks the
 # rows the lists leave on; _hi_prompt_init answers from _HI_PROMPT_INITS,
@@ -338,21 +344,41 @@ function test_run_init_runs_what_the_tool_prints() {
   ! PATH="$p" _hi_run_init bash hi-no-such-tool init "{shell}" || _hi_because "a tool not here ran" || return 1
   unset _hi_ri_got
   _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell};x.-off=hi-init-tool off {shell};x.gone=hi-no-such init {shell}" \
-    PATH="$p:$PATH" _hi_run_hooks bash || _hi_why p || return 1
+    PATH="$p:$PATH" _hi_hooks_fresh bash || _hi_why p || return 1
   [ "${_hi_ri_got:-}" = "init bash" ] || _hi_because "hooks ran: ${_hi_ri_got:-}" || return 1
-  _HI_HOOKS="x.-off=hi-init-tool off {shell}" _HI_PLUGINS_ON=off PATH="$p:$PATH" _hi_run_hooks fish || _hi_why p || return 1
+  _HI_HOOKS="x.-off=hi-init-tool off {shell}" _HI_PLUGINS_ON=off PATH="$p:$PATH" _hi_hooks_fresh fish || _hi_why p || return 1
   [ "${_hi_ri_got:-}" = "off fish" ] || _hi_because "a default-off hook on: ${_hi_ri_got:-}" || return 1
   unset _hi_ri_got
-  _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell}" _HI_PLUGINS_OFF=hi-init-tool PATH="$p:$PATH" _hi_run_hooks bash || _hi_why p || return 1
+  _HI_HOOKS="x.hi-init-tool=hi-init-tool init {shell}" _HI_PLUGINS_OFF=hi-init-tool PATH="$p:$PATH" _hi_hooks_fresh bash || _hi_why p || return 1
   [ -z "${_hi_ri_got:-}" ] || _hi_because "a hook off ran" || return 1
   # a :<shells> after the name keeps the hook to those
-  _HI_HOOKS="x.hi-init-tool:zsh,fish=hi-init-tool init {shell}" PATH="$p:$PATH" _hi_run_hooks bash || _hi_why p || return 1
+  _HI_HOOKS="x.hi-init-tool:zsh,fish=hi-init-tool init {shell}" PATH="$p:$PATH" _hi_hooks_fresh bash || _hi_why p || return 1
   [ -z "${_hi_ri_got:-}" ] || _hi_because "a zsh and fish hook ran in bash" || return 1
-  _HI_HOOKS="x.-off:zsh,fish=hi-init-tool kept {shell}" _HI_PLUGINS_ON=off PATH="$p:$PATH" _hi_run_hooks zsh || _hi_why p || return 1
+  _HI_HOOKS="x.-off:zsh,fish=hi-init-tool kept {shell}" _HI_PLUGINS_ON=off PATH="$p:$PATH" _hi_hooks_fresh zsh || _hi_why p || return 1
   [ "${_hi_ri_got:-}" = "kept zsh" ] || _hi_because "a zsh hook in zsh: ${_hi_ri_got:-}" || return 1
   _HI_PROMPT_INITS="a=a start {shell};omp=oh-my-posh init {shell} --config x" _hi_prompt_init omp got &&
     [ "$got" = "oh-my-posh init {shell} --config x" ] || _hi_because "init row: $got" || return 1
   _hi_prompt_init starship got && [ "$got" = "starship init {shell}" ] || _hi_why got
+}
+
+# ...once a shell: a second call runs nothing, while one with no rows leaves
+# the next its turn; a ~ ahead of the name drops what the activation prints,
+# and what the code it set up prints later still shows
+function test_run_hooks_runs_once_and_a_quiet_hook_silently() {
+  local p="$_HI_WORKDIR/loud-bins" out
+  mkdir -p "$p"
+  printf '%s\n' '#!/bin/sh' "printf 'echo LOUD-%s >&2\\n_hi_ri_got=\"\${_hi_ri_got-}x\"\\nhi_later() { echo LATER >&2; }\\n' \"\$1\"" >"$p/hi-loud-tool"
+  chmod +x "$p/hi-loud-tool"
+  out="$(
+    unset _hi_hooks_ran _hi_ri_got
+    export PATH="$p:$PATH"
+    _HI_HOOKS="" _hi_run_hooks bash
+    _HI_HOOKS="x.~hi-quiet=hi-loud-tool quiet;x.hi-loud=hi-loud-tool loud" _hi_run_hooks bash 2>&1
+    _HI_HOOKS="x.hi-again=hi-loud-tool again" _hi_run_hooks bash 2>&1
+    printf '|%s|' "${_hi_ri_got-}"
+    hi_later 2>&1
+  )"
+  [ "$out" = "LOUD-loud"$'\n'"|xx|LATER" ] || _hi_why out p
 }
 
 function test_colors_lookup_verdicts() {
@@ -503,6 +529,7 @@ function run_core_target_tests() {
   _hi_check "...and the client's prompt plugin rows are read after it" test_prompt_row_reads_the_plugin_rows
   _hi_check "_hi_hook_on reads the off list, then the on list for a default-off hook" test_hook_on_reads_both_lists
   _hi_check "_hi_run_init runs what the tool prints, where the tool is here" test_run_init_runs_what_the_tool_prints
+  _hi_check "...each hook once a shell, a quiet one's activation unheard" test_run_hooks_runs_once_and_a_quiet_hook_silently
 
   _hi_h2 "Testing: the colors file readers and the identity memos"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts

@@ -680,7 +680,10 @@ default = "off"
 
 `shells` keeps a hook to the shells it names, for a tool you run in some and
 not others: `shells = "zsh fish"` under an atuin table of your own leaves bash
-its own Ctrl-R.
+its own Ctrl-R. `quiet = "yes"` drops what a hook prints as it activates, and
+the shipped mise has it: with `status.show_tools` on, its line shows at a
+`cd` and not as you connect. Each hook runs once a shell, from the session's
+tree, even where the target's rc loads an install of its own.
 
 An extension can make the prompt decision itself: `_HI_PROMPT_INIT` names a
 program's init to run in hi's place, `_HI_PROMPT_DRAWN=1` says it drew the
@@ -791,6 +794,9 @@ files = "notes.txt"
   ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)).
 - **shells** is the shells the init runs in, of `bash`, `zsh`, and `fish`, a
   space apart; left out, all three.
+- **quiet**, `yes`, drops what the init's code prints as a shell starts
+  (mise's status line); what the hooks it installs print later still shows.
+  Left out, `no`.
 - **env** is variables, a space apart, whose values here a target exports
   ([above](#variables-that-ride)). A plugin with an env needs no **files**.
 - **default**, `off`, keeps the plugin home, hook and files, until

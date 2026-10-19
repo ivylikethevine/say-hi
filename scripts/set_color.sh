@@ -99,8 +99,6 @@ toml="$key = \"$color${hex:+ $hex}\""
 read_file="$_HI_COLORS" dst="$_HI_CONFIG_DIR/colors"
 _hi_rows_read "$read_file"
 match=-1 old=""
-# shellcheck disable=SC2034 # _hi_color_index's out-var; only its status is read
-ci=""
 _hi_rows_index match "$name" "$type"
 [ "$match" -lt 0 ] || _hi_toml_row "${_hi_rows[match]}" _ old
 

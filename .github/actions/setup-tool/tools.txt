@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # The pinned CI tools, one row per tool - installed by ./install.sh (through
 # ./action.yml or ../setup-tools) and drift-checked by
 # ../../scripts/check_tool_versions.sh. Both read it through ./lib.sh, so a

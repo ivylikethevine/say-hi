@@ -64,12 +64,9 @@ _hi_env_prompt() {
   # The order is a word list, walked a word at a time by expansion rather than
   # by `for x in $list`: zsh does not word-split an unquoted expansion, and
   # zsh.zsh sources this file too.
-  local _hi_rest="$_HI_ENV_ORDER_DEFAULT"
-  while :; do
-    while [[ "$_hi_rest" == " "* ]]; do _hi_rest="${_hi_rest# }"; done
-    [[ -n "$_hi_rest" ]] || break
-    _hi_src="${_hi_rest%% *}"
-    _hi_rest="${_hi_rest#"$_hi_src"}"
+  local _hi_rest="$_HI_ENV_ORDER_DEFAULT "
+  while [[ -n "$_hi_rest" ]]; do
+    _hi_src="${_hi_rest%% *}" _hi_rest="${_hi_rest#* }"
     _hi_name=""
     case "$_hi_src" in
     mise) [[ -n "${MISE_SHELL:-}" ]] && _hi_mise_local && _hi_name="mise" ;;

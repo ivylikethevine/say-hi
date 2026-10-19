@@ -208,23 +208,21 @@ _HI_TEST_COSTS_E2E="
   ssh_disconnect:25 ssh_wire:21 home_prompt:15 docker:9
 "
 
-# _hi_test_cost <name> - its entry in $_HI_SHARD_BY's table, 5 for none. Out
-# here, not in the substitution that deals by it: bash 3.2 cannot parse a case
-# there.
+# _hi_test_cost <name> - its entry in $_HI_SHARD_BY's table in $_hi_cost, 5
+# for none. Out here, not in the substitution that deals by it: bash 3.2
+# cannot parse a case there.
 function _hi_test_cost() {
-  local costs="$_HI_TEST_COSTS_KCOV" c
+  local costs="$_HI_TEST_COSTS_KCOV"
   case "$_HI_SHARD_BY" in
   bashcov) costs="$_HI_TEST_COSTS_BASHCOV" ;;
   gitbash) costs="$_HI_TEST_COSTS_GITBASH" ;;
   e2e) costs="$_HI_TEST_COSTS_E2E" ;;
   esac
-  costs=" ${costs//$'\n'/ } "
-  case "$costs" in
-  *" $1:"*)
-    c="${costs#* "$1":}"
-    printf '%s' "${c%% *}"
+  costs=" ${costs//$'\n'/ } " _hi_cost=5
+  case "$costs" in *" $1:"*)
+    _hi_cost="${costs#* "$1":}"
+    _hi_cost="${_hi_cost%% *}"
     ;;
-  *) printf 5 ;;
   esac
 }
 
@@ -234,35 +232,36 @@ function _hi_shard_by_cost() {
   return 1
 }
 
-# <group>:<name>:<path> -> the parts every consumer below wants. Kept as
-# accessors so nothing else has to know the field order.
-function _hi_test_group() { printf '%s' "${1%%:*}"; }
-function _hi_test_name() {
-  local rest="${1#*:}"
-  printf '%s' "${rest%%:*}"
+# <group>:<name>:<path> -> $_hi_tg and $_hi_tn, the parts every consumer below
+# wants: the one place that knows the field order, unforked
+function _hi_test_fields() {
+  _hi_tg="${1%%:*}" _hi_tn="${1#*:}"
+  _hi_tn="${_hi_tn%%:*}"
 }
 
 function _hi_test_names() {
   local t
   for t in "${_HI_TESTS[@]}"; do
-    _hi_test_name "$t"
-    printf ' '
+    _hi_test_fields "$t"
+    printf '%s ' "$_hi_tn"
   done
 }
 
 function _hi_test_groups() {
-  local t
+  local t seen=" "
   for t in "${_HI_TESTS[@]}"; do
-    _hi_test_group "$t"
-    printf '\n'
-  done | awk '!seen[$0]++' | tr '\n' ' '
+    _hi_test_fields "$t"
+    case "$seen" in *" $_hi_tg "*) ;; *) seen="$seen$_hi_tg " ;; esac
+  done
+  printf '%s' "${seen# }"
 }
 
 # "  <group>  <name>" per suite, for --help
 function _hi_test_listing() {
   local t
   for t in "${_HI_TESTS[@]}"; do
-    printf '  %-10s %s\n' "$(_hi_test_group "$t")" "$(_hi_test_name "$t")"
+    _hi_test_fields "$t"
+    printf '  %-10s %s\n' "$_hi_tg" "$_hi_tn"
   done
 }
 
@@ -383,7 +382,8 @@ declare -a _HI_SELECTED=()
 if [ -n "$_HI_GROUP" ]; then
   for _hi_t in "${_HI_TESTS[@]}"; do
     # a comma list is several groups, in table order
-    case ",$_HI_GROUP," in *",$(_hi_test_group "$_hi_t"),"*) _HI_SELECTED+=("$_hi_t") ;; esac
+    _hi_test_fields "$_hi_t"
+    case ",$_HI_GROUP," in *",$_hi_tg,"*) _HI_SELECTED+=("$_hi_t") ;; esac
   done
   if [ "${#_HI_SELECTED[@]}" -eq 0 ]; then
     _hi_cecho "no test group matches: $_HI_GROUP (known: $(_hi_test_groups))" "$RED"
@@ -392,13 +392,10 @@ if [ -n "$_HI_GROUP" ]; then
 elif [ "${#_HI_ARGS[@]}" -eq 0 ]; then
   _HI_SELECTED=("${_HI_TESTS[@]}")
 else
-  # the name depends on the outer item alone; resolved once per suite rather
-  # than once per (suite x argument) pair, which was 58 forks to compare 29
-  # strings for a two-argument run
   for _hi_t in "${_HI_TESTS[@]}"; do
-    _hi_name="$(_hi_test_name "$_hi_t")"
+    _hi_test_fields "$_hi_t"
     for _hi_arg in "${_HI_ARGS[@]}"; do
-      [ "$_hi_name" = "$_hi_arg" ] && _HI_SELECTED+=("$_hi_t")
+      [ "$_hi_tn" = "$_hi_arg" ] && _HI_SELECTED+=("$_hi_t")
     done
   done
   if [ "${#_HI_SELECTED[@]}" -eq 0 ]; then
@@ -452,7 +449,9 @@ if [ -n "$_HI_SHARD" ]; then
     done < <(
       _hi_k=0
       for _hi_t in "${_HI_SELECTED[@]}"; do
-        printf '%s %s\n' "$(_hi_test_cost "$(_hi_test_name "$_hi_t")")" "$_hi_k"
+        _hi_test_fields "$_hi_t"
+        _hi_test_cost "$_hi_tn"
+        printf '%s %s\n' "$_hi_cost" "$_hi_k"
         _hi_k=$((_hi_k + 1))
       done | sort -k1,1nr -k2,2n
     )
@@ -478,11 +477,11 @@ fi
 # which tests/harness/runner_test.sh reads instead of parsing an error message
 if [ "$_HI_LIST" = 1 ]; then
   for _hi_t in "${_HI_SELECTED[@]}"; do
+    _hi_test_fields "$_hi_t"
     if [ "$_HI_LIST_PATHS" = 1 ]; then
-      printf '%s %s %s\n' "$(_hi_test_group "$_hi_t")" "$(_hi_test_name "$_hi_t")" \
-        "$_HI_ROOT/tests/${_hi_t##*:}"
+      printf '%s %s %s\n' "$_hi_tg" "$_hi_tn" "$_HI_ROOT/tests/${_hi_t##*:}"
     else
-      printf '%s %s\n' "$(_hi_test_group "$_hi_t")" "$(_hi_test_name "$_hi_t")"
+      printf '%s %s\n' "$_hi_tg" "$_hi_tn"
     fi
   done
   exit 0
@@ -740,14 +739,12 @@ function _hi_run_suite() {
     _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
 }
 
-# _hi_suite_procs <pgid> - the processes of a suite's group, ps's header
-# first, for the line that ends it: what it was waiting on. ps -o where ps
-# takes it - every process is -A on Linux, macOS, and the BSDs (where -e is
-# the environment), -e on a busybox without -A - and MSYS's plain ps
-# elsewhere; the group is the third column of all three.
+# _hi_suite_procs <pid> - the suite's processes, ps's header first, for the
+# line that ends it: what it was waiting on. The group alone missed what a
+# `timeout` moved into a group of its own (OpenBSD's does), so this is
+# _hi_proc_table's tree under the suite plus its group.
 function _hi_suite_procs() {
-  { ps -A -o pid,ppid,pgid,etime,args 2>/dev/null || ps -e -o pid,ppid,pgid,etime,args 2>/dev/null || ps 2>/dev/null; } |
-    awk -v g="$1" 'NR == 1 || $3 == g { print " |   " $0 }'
+  _hi_proc_table "$1" | sed 's/^/ |   /'
 }
 
 # _hi_run_suite_watched <stall> - _hi_run_suite, ended where it hangs: a
@@ -997,7 +994,7 @@ function _hi_usage_report() {
 # collide. parallel.sh's _hi_par_slot is the semaphore, over locals of its
 # names, so each batch's starts empty.
 function _hi_run_batch() {
-  local width="$1" _hi_t _hi_rest _hi_name _hi_path _hi_counts _hi_fails _hi_log
+  local width="$1" _hi_t _hi_tg _hi_tn _hi_name _hi_path _hi_counts _hi_fails _hi_log
   local _hi_t0 _hi_code _hi_dur _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1" _hi_pid _hi_ticker="" _hi_progress=""
   # the stall a suite is ended at: ten minutes side by side, where a suite
   # is plain processes, and never one by one or in the e2e phase
@@ -1012,10 +1009,8 @@ function _hi_run_batch() {
     _hi_ticker=$!
   fi
   for _hi_t in "$@"; do
-    # the accessors' own expansions, inlined: this runs once per selected
-    # suite and both fields come off the one row, so two forks bought nothing
-    _hi_rest="${_hi_t#*:}"
-    _hi_name="${_hi_rest%%:*}"
+    _hi_test_fields "$_hi_t"
+    _hi_name="$_hi_tn"
     _hi_path="$_HI_TESTS_DIR/${_hi_t##*:}"
     _hi_i=$((_hi_i + 1))
     _hi_counts="$_HI_RUN_DIR/$_hi_i.counts"

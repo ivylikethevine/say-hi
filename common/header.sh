@@ -1191,17 +1191,6 @@ function _hi_group_on() {
   [ "$1" != none ] && _hi_list_has "${_HI_PACKAGES_GROUPS:-$_HI_PACKAGES_GROUPS_DEFAULT}" "$1"
 }
 
-# _hi_package_groups <outvar> - the groups $_HI_PACKAGES holds, in file
-# order, space-separated, each once
-function _hi_package_groups() {
-  local _hi_pg_l _hi_pg_g _hi_pg_m _hi_pg_all=""
-  [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r _hi_pg_l; do
-    _hi_package_table "$_hi_pg_l" _hi_pg_g _hi_pg_m && [ -n "$_hi_pg_g" ] || continue
-    case " $_hi_pg_all " in *" $_hi_pg_g "*) ;; *) _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }$_hi_pg_g" ;; esac
-  done <"$_HI_PACKAGES"
-  printf -v "$1" '%s' "$_hi_pg_all"
-}
-
 # full_check's right edge: pads $2's row out to $1 and closes it with a
 # pipe. One home for the arithmetic, called from both places a row ends -
 # mid-loop on wrap, and once at the final flush.

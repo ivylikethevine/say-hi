@@ -52,6 +52,12 @@ function _hi_missing_into() {
 # add_package.sh's), say what would happen and succeed, so the caller returns
 # before it writes; otherwise fail quietly and the caller carries on. Every
 # writer either of them reaches opens with one of these.
+function dry_run_say() {
+  [ -n "${_HI_DRY_RUN:-}" ] || return 1
+  _hi_cecho " dry run: would $1" "$BLUE"
+  return 0
+}
+
 # _hi_args <help-fn> <usage> <word>... - a script's own words: -h/--help runs
 # <help-fn> and exits, -n/--dry-run sets $_HI_DRY_RUN, any other --word is
 # refused naming <usage>, and the rest (a lone - word among them: a package's
@@ -71,12 +77,6 @@ function _hi_args() {
     esac
     shift
   done
-}
-
-function dry_run_say() {
-  [ -n "${_HI_DRY_RUN:-}" ] || return 1
-  _hi_cecho " dry run: would $1" "$BLUE"
-  return 0
 }
 
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
@@ -189,7 +189,7 @@ function _hi_rows_write() {
   ! dry_run_say "$what" || return 0
   mkdir -p "${1%/*}"
   tmpfile="$(mktemp -t "hi.${1##*/}.XXXXXX")"
-  printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
+  [ "${#_hi_rows[@]}" -eq 0 ] || printf '%s\n' "${_hi_rows[@]}" >"$tmpfile"
   _hi_write_back "$tmpfile" "$1"
   _hi_cecho "$1 updated" "$GREEN"
 }
@@ -265,6 +265,17 @@ function _hi_toml_strays() {
     case "$_hi_ts_l" in '' | '#'* | '['*']'*) continue ;; esac
     _hi_toml_row "$_hi_ts_l" _hi_ts_k _hi_ts_v || printf '%s|%s\n' "$_hi_ts_n" "$_hi_ts_l"
   done <"$1"
+}
+
+# _hi_package_groups <outvar> - the groups $_HI_PACKAGES holds, in file
+# order, space-separated, each once
+function _hi_package_groups() {
+  local _hi_pg_l _hi_pg_g _hi_pg_m _hi_pg_all=""
+  [ -f "${_HI_PACKAGES:-}" ] && while IFS=$' ' read -r _hi_pg_l; do
+    _hi_package_table "$_hi_pg_l" _hi_pg_g _hi_pg_m && [ -n "$_hi_pg_g" ] || continue
+    case " $_hi_pg_all " in *" $_hi_pg_g "*) ;; *) _hi_pg_all="$_hi_pg_all${_hi_pg_all:+ }$_hi_pg_g" ;; esac
+  done <"$_HI_PACKAGES"
+  printf -v "$1" '%s' "$_hi_pg_all"
 }
 
 # _hi_packages_drift <file> <tree's> - what a packages file of the user's own
@@ -358,22 +369,9 @@ function _hi_hrule() {
   _hi_cecho " $lbar$label$rbar" "$4"
 }
 
-function _hi_h1() {
-  if [ "${_HI_TEXT:-0}" = 1 ]; then
-    printf '%s\n' "$1"
-    return 0
-  fi
-  _hi_hrule "$1" '=' 1 "${2:-$BRBLUE}"
-}
-
-function _hi_h2() {
-  # under --text (table.sh) a heading is its words alone, no rule
-  if [ "${_HI_TEXT:-0}" = 1 ]; then
-    printf '%s\n' "$1"
-    return 0
-  fi
-  _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
-}
+# under --text (table.sh) a heading is its words alone, no rule
+function _hi_h1() { if [ "${_HI_TEXT:-0}" = 1 ]; then printf '%s\n' "$1"; else _hi_hrule "$1" '=' 1 "${2:-$BRBLUE}"; fi; }
+function _hi_h2() { if [ "${_HI_TEXT:-0}" = 1 ]; then printf '%s\n' "$1"; else _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"; fi; }
 
 # _hi_is_darwin - macOS, where a login bash reads ~/.bash_profile and never
 # ~/.bashrc. $_HI_UNAME lets a suite stage the other platform.
@@ -620,6 +618,13 @@ function _hi_plugin_color() {
   esac
 }
 
+# _hi_state_row <rides|off|absent> <label> <text> [severity] - _hi_row, the label in that state's color
+function _hi_state_row() {
+  local _hi_sr_c
+  _hi_plugin_color _hi_sr_c "$1"
+  _hi_row "$2" "$3" "${4:-info}" "$_hi_sr_c"
+}
+
 # _hi_plugin_rows - every row that can be switched, the plugins files' (so
 # only where hi.sh is sourced), as `<plugin>|<group>|<member>` lines: what
 # hi --plugins lists
@@ -648,24 +653,21 @@ function _hi_plugin_rows() {
 # name in its state's color, its init, and whether a target gets it - the
 # tool here, the plugin on
 function _hi_hook_rows() {
-  local _hi_hr_r _hi_hr_n _hi_hr_i _hi_hr_p _hi_hr_why _hi_hr_c
+  local _hi_hr_r _hi_hr_n _hi_hr_i _hi_hr_p _hi_hr_why
   _hi_plugins_load
   for _hi_hr_r in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do
     _hi_hook_col "$_hi_hr_r" name _hi_hr_n
     _hi_hook_col "$_hi_hr_r" init _hi_hr_i
     if ! _hi_hook_here "$_hi_hr_r"; then
-      _hi_plugin_color _hi_hr_c absent
-      _hi_row "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent" info "$_hi_hr_c"
+      _hi_state_row absent "$_hi_hr_n" "$_hi_hr_i - not installed here, so not sent"
     elif _hi_hook_off "$_hi_hr_r"; then
       _hi_hr_why="switched off (_HI_PLUGINS_OFF)"
       ! _hi_list_has "$_HI_PLUGIN_DEFAULT_OFF" "$_hi_hr_n" || _hi_hr_why="off by default (hi --enable-plugin $_hi_hr_n)"
-      _hi_plugin_color _hi_hr_c off
-      _hi_row "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why" info "$_hi_hr_c"
+      _hi_state_row off "$_hi_hr_n" "$_hi_hr_i - $_hi_hr_why"
     else
       _hi_hook_col "$_hi_hr_r" prompt _hi_hr_p
       [ "$_hi_hr_p" != yes ] && _hi_hr_p="" || _hi_hr_p=", and draws the prompt"
-      _hi_plugin_color _hi_hr_c rides
-      _hi_row "$_hi_hr_n" "$_hi_hr_i - runs on a target that has it$_hi_hr_p" ok "$_hi_hr_c"
+      _hi_state_row rides "$_hi_hr_n" "$_hi_hr_i - runs on a target that has it$_hi_hr_p" ok
     fi
   done
 }
@@ -674,7 +676,7 @@ function _hi_hook_rows() {
 # (HI.62): the variable under its plugin, in its state's color, and whether
 # a target gets its value - set here, a value a line can hold, the plugin on
 function _hi_env_rows() {
-  local _hi_er_r _hi_er_n _hi_er_v _hi_er_c _hi_er_off
+  local _hi_er_r _hi_er_n _hi_er_v _hi_er_off
   _hi_plugins_load
   for _hi_er_r in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do
     _hi_er_n="${_hi_er_r#*|}"
@@ -685,17 +687,13 @@ function _hi_env_rows() {
     fi
     for _hi_er_v in ${_hi_er_r##*|}; do
       if [ -z "${!_hi_er_v:-}" ]; then
-        _hi_plugin_color _hi_er_c absent
-        _hi_row "$_hi_er_v ($_hi_er_n)" "not set here, so not sent" info "$_hi_er_c"
+        _hi_state_row absent "$_hi_er_v ($_hi_er_n)" "not set here, so not sent"
       elif [ -n "$_hi_er_off" ]; then
-        _hi_plugin_color _hi_er_c off
-        _hi_row "$_hi_er_v ($_hi_er_n)" "$_hi_er_off" info "$_hi_er_c"
+        _hi_state_row off "$_hi_er_v ($_hi_er_n)" "$_hi_er_off"
       elif ! _hi_env_rides "$_hi_er_v"; then
-        _hi_plugin_color _hi_er_c absent
-        _hi_row "$_hi_er_v ($_hi_er_n)" "its value holds a quote, a backslash, or a line break - not sent" warn "$_hi_er_c"
+        _hi_state_row absent "$_hi_er_v ($_hi_er_n)" "its value holds a quote, a backslash, or a line break - not sent" warn
       else
-        _hi_plugin_color _hi_er_c rides
-        _hi_row "$_hi_er_v ($_hi_er_n)" "its value here is exported on a target" ok "$_hi_er_c"
+        _hi_state_row rides "$_hi_er_v ($_hi_er_n)" "its value here is exported on a target" ok
       fi
     done
   done
@@ -832,4 +830,12 @@ function _hi_plugin_word_ok() {
   [ "${_hi_pk_r%%|*}${1##*/}" = "$1" ] || return 1
   _hi_row_col "$_hi_pk_r" group _hi_pk_g
   [ "$_hi_pk_g" != - ] && _hi_dir_member_ok "${1##*/}"
+}
+
+# _hi_file_bytes <file> - its size in bytes
+function _hi_file_bytes() {
+  # ${n// /} rather than a `tr` fork to strip BSD wc's padding
+  local n
+  n="$(wc -c <"$1")"
+  printf '%s' "${n// /}"
 }

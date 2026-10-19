@@ -446,7 +446,7 @@ function _hi_menu_list() {
     name="${row%%|*}"
     _hi_shell_var shell "$name"
     _hi_prompt_end_shown "$shell" end
-    def="$(_hi_prompt_end_default "$shell")"
+    _hi_prompt_end_default "$shell" def
     _hi_menu_value "end|$name" "$name prompt ends with" "$end" "${def#\\}" quiet
   done
   # the Plugins rows of the main page's table are _hi_menu_plugins' own
@@ -891,20 +891,15 @@ function _hi_header_edit_move() {
   _hi_header_edit_commit
 }
 
-# the menu's [h]eader preset pick: one shot, like config_preset
+# the menu's [h]eader preset pick: one shot, like config_preset - an
+# unambiguous first letter, else an exact name
 function config_header_preset() {
   local reply="" short=""
   _hi_preset_list _HI_HEADER_PRESETS 10
   menu_read " Header preset? (the bracketed letter or the name; Enter keeps the list as it is) [] " reply || return 0
   [ -n "$reply" ] || return 0
-  # an exact name first, then an unambiguous first letter - config_preset's
-  # own rule, through the same two helpers rather than a third copy of it
-  if preset_row "$reply" _HI_HEADER_PRESETS >/dev/null; then
-    short="$reply"
-  else
-    short="$(preset_shorthand "$reply" _HI_HEADER_PRESETS)" || short=""
-  fi
-  [ -n "$short" ] && _hi_header_edit_preset "$short" && return 0
+  short="$(preset_shorthand "$reply" _HI_HEADER_PRESETS)" && reply="$short"
+  _hi_header_edit_preset "$reply" && return 0
   _hi_menu_note " no such header preset: $reply" "$YELLOW"
   return 0
 }

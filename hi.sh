@@ -79,11 +79,8 @@ function _hi_keep_off() {
 # --keep and --end with the kept session switched off: refused, the switch named
 function _hi_keep_refuse() {
   _hi_keep_off || return 0
-  if [ "${END:-0}" = 1 ]; then
-    _hi_die "--end: the kept session is switched off (_HI_DISABLE_KEEP=1)"
-  elif [ "${KEEP:-}" = 1 ]; then
-    _hi_die "--keep: the kept session is switched off (_HI_DISABLE_KEEP=1)"
-  fi
+  [ "${END:-0}" != 1 ] || _hi_die "--end: the kept session is switched off (_HI_DISABLE_KEEP=1)"
+  [ "${KEEP:-}" != 1 ] || _hi_die "--keep: the kept session is switched off (_HI_DISABLE_KEEP=1)"
 }
 
 _HI_RELEASE="${_HI_RELEASE:-}"
@@ -226,17 +223,16 @@ function _hi_backend_tags() {
 # has none: it inherits what it was sent.
 function _hi_tag_settings() {
   local _hi_ts_t _hi_ts_f _hi_ts_dir _hi_ts_out _hi_ts_tmp _hi_ts_o=$- _hi_ts_site=""
-  local -a _hi_ts_tags=() _hi_ts_files=() _hi_tags=()
+  local -a _hi_ts_files=() _hi_tags=()
   _HI_TAG_SETTINGS=""
   [ "$_HI_REMOTE_SESSION" != 1 ] || return 0
   [ -z "${_HI_SITE_DIR:-}" ] || [ ! -f "$_HI_SITE_DIR/settings.sh" ] || _hi_ts_site="$_HI_SITE_DIR/settings.sh"
   if [ -n "${2:-}" ]; then
     _hi_backend_tags "$2" "$DOMAIN"
-    _hi_ts_tags=("${_hi_tags[@]}")
   elif _hi_ssh_host_tag "${DOMAIN##*@}" >/dev/null; then
-    IFS=' ,' read -r -a _hi_ts_tags <<<"$_HI_TAG_VALUE" || true
+    IFS=' ,' read -r -a _hi_tags <<<"$_HI_TAG_VALUE" || true
   fi
-  for _hi_ts_t in ${_hi_ts_tags[@]+"${_hi_ts_tags[@]}"}; do
+  for _hi_ts_t in ${_hi_tags[@]+"${_hi_tags[@]}"}; do
     # a tag is free text; a file is named only by one that is a plain word
     case "$_hi_ts_t" in '' | *[!A-Za-z0-9_-]*) continue ;; esac
     _hi_ts_f="$_HI_CONFIG_DIR/settings.$_hi_ts_t.sh"
@@ -727,13 +723,6 @@ function _hi_fallback_prompt() {
   printf '%s\n' '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}"); _hi_a= _hi_z= _hi_p=; [ -z "${BB_ASH_VERSION-}" ] || { _hi_a='"'"'\['"'"' _hi_z='"'"'\]'"'"'; }; case "${KSH_VERSION-}" in *MIRBSD*) _hi_a=$(printf '"'"'\001'"'"'); _hi_z=$_hi_a; _hi_p=$_hi_a$(printf '"'"'\r'"'"') ;; esac'
   printf 'PS1="${_hi_p} ${_hi_a}%s${_hi_z}${_hi_u}${_hi_a}%s${_hi_z}@${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} ${_hi_a}%s${_hi_z}%s${_hi_a}%s${_hi_z} %s "\n' \
     "$user_esc" "$nc" "$ce" "$host" "$nc" "$cwd_esc" '\${PWD}' "$nc" "$pe"
-}
-
-function _hi_file_bytes() {
-  # ${n// /} rather than a `tr` fork to strip BSD wc's padding
-  local n
-  n="$(wc -c <"$1")"
-  printf '%s' "${n// /}"
 }
 
 # _hi_human_bytes <bytes> [outvar] - 512B, 1.5K, 77K, 1.2M: one decimal
@@ -1438,22 +1427,9 @@ function _hi_report_failure() {
   errors="$(<"$errlog")"
   # clearing the connect's in-progress " <size>", which has no newline yet;
   # on a pipe there is no cursor to move, so a newline is the whole job
-  if [ -t 2 ]; then
-    printf '\r\033[K' >&2
-  else
-    printf '\n' >&2
-  fi
+  if [ -t 2 ]; then printf '\r\033[K'; else printf '\n'; fi >&2
   _hi_cecho "hi: $said [$DOMAIN]" "$BRRED" >&2
   [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
-}
-
-# One KDL string, for a zellij layout: inside double quotes KDL reads only the
-# backslash and the quote itself.
-function _hi_kdl_quote() {
-  local _hi_kq="$2"
-  _hi_kq="${_hi_kq//\\/\\\\}"
-  _hi_kq="${_hi_kq//\"/\\\"}"
-  printf -v "$1" '"%s"' "$_hi_kq"
 }
 
 function _hi() {

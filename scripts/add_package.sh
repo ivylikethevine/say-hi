@@ -107,8 +107,7 @@ unset _hi_row
 # optional leading -/+, up to the first comma. What check_line shows for a
 # row with nothing installed.
 function _hi_row_first_pkg() {
-  local _hi_rfp_r="$2"
-  case "$_hi_rfp_r" in -* | +*) _hi_rfp_r="${_hi_rfp_r#?}" ;; esac
+  local _hi_rfp_r="${2#[-+]}"
   printf -v "$1" '%s' "${_hi_rfp_r%%,*}"
 }
 
@@ -176,13 +175,12 @@ for row in "${rows[@]}"; do
       _hi_rows[match]="$toml"
       continue
     fi
-    _hi_rows=("${_hi_rows[@]:0:match}" "${_hi_rows[@]:match+1}")
   elif [ "$match" -ge 0 ]; then
-    _hi_rows=("${_hi_rows[@]:0:match}" "${_hi_rows[@]:match+1}")
     _hi_cecho " ~ $row (moving the row for $first from [${in_group:-no group}] to [$group])" "$YELLOW"
   else
     _hi_cecho " + $row in [$group]" "$GREEN"
   fi
+  [ "$match" -lt 0 ] || _hi_rows=("${_hi_rows[@]:0:match}" "${_hi_rows[@]:match+1}")
   changed=1
   _hi_section_add "$table" "$toml"
 done

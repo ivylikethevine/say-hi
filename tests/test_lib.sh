@@ -75,8 +75,9 @@ unset _HI_COLORS _HI_PACKAGES
 # fixture home. The prompt programs are pinned to hi's own for the same
 # reason - unset, whatever this box has installed would draw every prompt -
 # and a case about them names its list. payload_overlay_test.sh pins the list
-# to the plugins file's home columns.
-unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME ZELLIJ_CONFIG_DIR KAKOUNE_CONFIG_DIR POSH_CONFIG POSH_THEME INPUTRC SCREENRC \
+# to the plugins file's home columns. The developer's editor goes too: a case
+# that opens one names its own, and an inherited one waits on a terminal.
+unset VISUAL EDITOR SUDO_EDITOR STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME ZELLIJ_CONFIG_DIR KAKOUNE_CONFIG_DIR POSH_CONFIG POSH_THEME INPUTRC SCREENRC \
   RIPGREP_CONFIG_PATH FZF_DEFAULT_OPTS_FILE LG_CONFIG_FILE ATUIN_CONFIG_DIR \
   POWERLEVEL9K_CONFIG_FILE ZDOTDIR ZSH ZSH_CUSTOM ZSH_THEME OSH OSH_CUSTOM OSH_THEME _HI_POWERLINE_GO_OPTS
 export _HI_PROMPT_TOOL=hi
@@ -97,9 +98,9 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 # configuration, the only place git reads safe.directory from - and nothing
 # else does: `*` would also trust a .git another user planted above a scratch
 # dir. Appended, so a GIT_CONFIG_COUNT the caller already set survives.
-_hi_n="${GIT_CONFIG_COUNT:-0}"
+_hi_n="${GIT_CONFIG_COUNT:-0}" _hi_tl_tree="$(cd -P "$_hi_d/.." && pwd)" || :
 export GIT_CONFIG_COUNT=$((_hi_n + 1)) "GIT_CONFIG_KEY_$_hi_n=safe.directory" \
-  "GIT_CONFIG_VALUE_$_hi_n=$(cd -P "$_hi_d/.." && pwd)"
+  "GIT_CONFIG_VALUE_$_hi_n=$_hi_tl_tree"
 unset _hi_n
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
@@ -134,5 +135,5 @@ source "$_hi_d/lib/lint.sh"
 # half-succeeds against two trees with nothing saying so. The runner makes
 # this check once per run; a suite reaching here any other way gets the same
 # one yellow line. A warning, not a failure, for _hi_host_tree_check's reason.
-_hi_host_tree_check "$(_hi_host_resolve "$_hi_d/..")" || true
-unset _hi_d
+_hi_host_tree_check "$_hi_tl_tree" || true
+unset _hi_d _hi_tl_tree

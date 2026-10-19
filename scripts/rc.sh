@@ -194,7 +194,7 @@ function tmpdir_line() {
   # written so far is; one called anything else by itself (HI.33), whether
   # derived here or handed in by rc_lines
   if [ -z "$home" ]; then
-    if [ "${_HI_ROOT##*/}" = say-hi ]; then rc_home home; else rc_root home && var=_HI_ROOT; fi
+    if [ "${_HI_ROOT##*/}" = say-hi ]; then rc_home home; else home="$_HI_ROOT" var=_HI_ROOT; fi
   elif [ "$home" = "$_HI_ROOT" ] && [ "${_HI_ROOT##*/}" != say-hi ]; then
     var=_HI_ROOT
   fi
@@ -202,12 +202,6 @@ function tmpdir_line() {
   fish) printf 'set -gx %s "%s"' "$var" "$home" ;;
   *) printf 'export %s="%s"' "$var" "$home" ;;
   esac
-}
-
-# rc_root <outvar> - $_HI_ROOT as an rc names it: itself; a Homebrew keg is
-# always a say-hi, named through rc_home
-function rc_root() {
-  printf -v "$1" '%s' "$_HI_ROOT"
 }
 
 # rc_home <outvar> - $_HI_HOME as an rc names it. A Homebrew keg,
@@ -427,8 +421,7 @@ function rc_lines() {
     rc_home home
     case "$2" in "$_HI_HOME"/*) rc="$home${2#"$_HI_HOME"}" ;; esac
   else
-    rc_root home
-    case "$2" in "$_HI_ROOT"/*) rc="$home${2#"$_HI_ROOT"}" ;; esac
+    home="$_HI_ROOT"
   fi
   case "${4:-}" in
   portable | prebrew | legacy)
