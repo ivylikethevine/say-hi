@@ -63,10 +63,14 @@ _ci_bin_dir="${CI_TOOL_BIN_DIR:-/usr/local/bin}"
 
 if [ "$1" = resolve ]; then
   : "${GITHUB_OUTPUT:?set by the runner}"
+  # image: the hosted image's ImageOS (ubuntu24, ubuntu26, macos15), empty
+  # elsewhere; a binary built from source links that image's libraries, so
+  # the cache key carries it
   {
     printf 'version=%s\n' "$_ci_version"
     printf 'sha256=%s\n' "$_ci_sha256"
     printf 'path=%s\n' "$_ci_bin_dir/$CI_TOOL"
+    printf 'image=%s\n' "${ImageOS:-}"
   } >>"$GITHUB_OUTPUT"
   exit 0
 fi

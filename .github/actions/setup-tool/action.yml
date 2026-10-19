@@ -40,13 +40,15 @@ runs:
       run: '"$GITHUB_ACTION_PATH/install.sh" resolve'
 
     # the sha256 is in the key so a corrected checksum re-downloads rather
-    # than trusting bytes cached under the old one
+    # than trusting bytes cached under the old one; the image (resolve's
+    # `image`, empty off a hosted runner) so a source build does not
+    # outlive the libraries it linked
     - name: Cache ${{ inputs.tool }}
       id: cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.resolve.outputs.path }}
-        key: setup-tool-${{ inputs.tool }}-${{ steps.resolve.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.sha256 }}
+        key: setup-tool-${{ inputs.tool }}-${{ steps.resolve.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.image }}-${{ steps.resolve.outputs.sha256 }}
 
     - name: Install ${{ inputs.tool }}
       if: steps.cache.outputs.cache-hit != 'true'

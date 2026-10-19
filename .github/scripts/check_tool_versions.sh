@@ -22,8 +22,9 @@
 #   4. image digests    every `FROM`/`image:` pinned by digest in files
 #                       matching CI_IMAGE_GLOBS, against Docker Hub's tag; an
 #                       outdated row is followed by the reference to pin
-#   5. dependencies     the direct dependencies of each manifest in
-#                       CI_MANIFESTS, at the version its lockfile holds
+#   5. dependencies     the direct dependencies (and, for npm, the overrides)
+#                       of each manifest in CI_MANIFESTS, at the version its
+#                       lockfile holds
 #   6. local checks     ci_local_checks from the per-repo hook, if any
 #
 # A release younger than TOOL_COOLDOWN_DAYS (default 7) is shown as pending,
@@ -294,7 +295,11 @@ function _ci_manifest_pins() {
   local file="$2"
   case "$1" in
   npm)
-    jq -r '(.dependencies // {}) + (.devDependencies // {}) | to_entries[]
+    # overrides too: a transitive forced to a version stays there after the
+    # package that pulls it moves on, so it drifts like a direct dependency.
+    # Only a plain version counts; a nested override or a `$ref` has none.
+    jq -r '(.dependencies // {}) + (.devDependencies // {}) + (.overrides // {}) | to_entries[]
+      | select(.value | type == "string")
       | "\(.key)|\(.value | sub("^[~^]"; ""))|npm:\(.key)"' "$file"
     ;;
   pip)
