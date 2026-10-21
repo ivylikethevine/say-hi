@@ -269,7 +269,7 @@ themselves are [CONTRIBUTING.md's _What CI runs_](CONTRIBUTING.md#what-ci-runs).
 - **Licenses.** Nothing is vendored or redistributed: every dependency is a
   dev-only tool or a system package the user's package manager installs. A
   dependency whose license is incompatible with MIT is refused at review.
-- **Code (SAST).** shellcheck runs in `lint suites (ubuntu-latest)`, a
+- **Code (SAST).** shellcheck runs in `lint suites (ubuntu-26.04)`, a
   required check, with nothing disabled globally: any finding blocks the
   merge, and a suppression is inline on the line it covers. CodeQL blocks a
   merge on a high or critical alert through `main`'s ruleset; a medium or

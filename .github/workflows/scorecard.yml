@@ -44,7 +44,7 @@ jobs:
     # expression gets the submission rejected while the job goes green. The
     # same check allows no top-level env or defaults, and only the actions
     # used below.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read

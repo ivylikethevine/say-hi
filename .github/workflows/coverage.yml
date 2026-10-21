@@ -79,7 +79,7 @@ jobs:
     if: >-
       github.event.pull_request.draft != true &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     continue-on-error: true
     permissions:
@@ -222,7 +222,7 @@ jobs:
     if: >-
       !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     concurrency:
       group: coverage-kcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
@@ -309,7 +309,7 @@ jobs:
     if: >-
       !cancelled() && needs.reuse.outputs.sweep == 'true' &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # eight shards to kcov's three, each about seven minutes: with the trace
     # pipe blocking (tests/lib/coverage_env.sh) bash waits on bashcov's
     # reader, so a suite's time is its trace lines, about 6800 a second
@@ -425,7 +425,7 @@ jobs:
     if: >-
       !cancelled() && needs.reuse.outputs.sweep_kcov == 'true' && needs.shard-kcov.result == 'success' &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     concurrency:
       group: coverage-kcov-gather-${{ github.event.pull_request.number || 'main' }}
@@ -519,7 +519,7 @@ jobs:
     if: >-
       !cancelled() && needs.reuse.outputs.sweep == 'true' && needs.shard-bashcov.result == 'success' &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     concurrency:
       group: coverage-bashcov-gather-${{ github.event.pull_request.number || 'main' }}
@@ -588,7 +588,7 @@ jobs:
       always() && github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !github.event.pull_request.draft
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     concurrency:
       group: coverage-comment-${{ github.event.pull_request.number }}

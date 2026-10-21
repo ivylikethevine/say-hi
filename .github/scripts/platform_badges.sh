@@ -42,7 +42,7 @@ mkdir -p "$out"
 # Checks tab shows and what the old nameFilter tried to match. A rename on
 # either side lands here and nowhere else: README only names the badge file.
 ROWS=(
-  "linux.json|Linux|fast suites (ubuntu-latest)"
+  "linux.json|Linux|fast suites (ubuntu-26.04)"
   "macos.json|macOS|fast suites (macos-latest)"
   "freebsd.json|FreeBSD|e2e (FreeBSD) / hi localhost (FreeBSD both ends)"
   "openbsd.json|OpenBSD|e2e (OpenBSD) / hi localhost (OpenBSD both ends)"

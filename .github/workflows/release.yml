@@ -62,7 +62,7 @@ jobs:
   # `== 'success'` stops there.
   gate:
     name: gate the release (signed tag, on main, green CI)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # long enough to wait out a CI run still going when the tag was pushed
     # (its slowest jobs are the ~30-minute macOS and Windows ones)
     timeout-minutes: 60
@@ -193,7 +193,7 @@ jobs:
     name: the upgrade from the previous release re-sources clean
     needs: gate
     if: ${{ !cancelled() && needs.gate.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -247,7 +247,7 @@ jobs:
     # per the header; `!cancelled()` rather than `always()` so cancelling the
     # run still stops the build
     if: ${{ !cancelled() && needs.gate.result == 'success' && needs.upgrade.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     environment: ${{ github.event_name == 'push' && 'release' || '' }}
     # the provenance attestation below needs these two; contents stays read
@@ -551,7 +551,7 @@ jobs:
     # skips this one (v0.0.1-rc and v0.0.2-rc.1 shipped no packages that way,
     # when `gate` ran on dispatches only).
     if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name == 'push' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # 20, not 15: the assets go up one at a time now (gh_asset.sh), and a
     # run where several need their retries spends a couple of minutes
     # sleeping on top of mkrepo.sh's image pulls and three repo builds
@@ -993,7 +993,7 @@ jobs:
     name: open the Homebrew tap PR
     needs: brew
     if: github.event_name == 'push' && !cancelled() && needs.brew.result == 'success' && needs.brew.outputs.debug != 'true' && needs.brew.outputs.prerelease != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       # gh release edit, filling the body's tap slot

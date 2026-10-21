@@ -62,7 +62,7 @@ jobs:
   release-pending:
     name: is a release deploying this commit
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -90,7 +90,7 @@ jobs:
 
   build:
     name: build (jekyll)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # A Coverage run's own event is workflow_run (following CI on main) or a
     # maintainer's dispatch; a pull_request one never publishes - a fork's
     # `main` would pass the branch filter. The dispatch trigger has no run to
@@ -332,7 +332,7 @@ jobs:
   deploy:
     name: deploy
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       pages: write # deploy the site

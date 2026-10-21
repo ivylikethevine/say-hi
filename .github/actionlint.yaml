@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# GitHub-hosted labels newer than actionlint's list (1.7.12 knows `ubuntu-24.04` but not 26.04).
+# Drop each once a release knows it.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

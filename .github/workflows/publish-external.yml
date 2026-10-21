@@ -44,7 +44,7 @@ jobs:
     # first are debug tags pushed to exercise the release path, the second are
     # candidates whose version is not a legal pkgver besides
     if: ${{ !startsWith(github.event.inputs.tag, 'v0.0.') && !contains(github.event.inputs.tag, '-') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     environment: release
     steps:
