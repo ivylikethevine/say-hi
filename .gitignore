@@ -132,6 +132,9 @@ _site/
 !lychee.toml
 # the advisories Scorecard's Vulnerabilities check skips in package-lock.json
 !.github/osv-scanner.toml
+# the REUSE licensing data, which the blanket *.toml and *.txt above would swallow
+!REUSE.toml
+!LICENSES/*.txt
 # everything under the payload directories ships, whatever it is named: the
 # blanket rules above once swallowed a config/*.toml (drift_test.sh's
 # lint_ignored_payload keeps it that way)
