@@ -588,8 +588,8 @@ image no longer carries the version the check claims.
   image is upstream's `zshusers/zsh:5.5.1`, since a distro apt install failed
   on hosted runners only.
 
-**`tools`** (`tests/lint/tools_test.sh`) — seven external-tool wrappers, each
-skipping yellow when its tool isn't installed (CI has all seven):
+**`tools`** (`tests/lint/tools_test.sh`) — eight external-tool wrappers, each
+skipping yellow when its tool isn't installed (CI has all eight):
 
 - **6. shfmt** over the same `*.sh` list, style from `.editorconfig`. Fix a
   red run with `shfmt -w` on the paths it names, not `shfmt -w .`, which also
@@ -601,9 +601,15 @@ skipping yellow when its tool isn't installed (CI has all seven):
   `vim -u … -es` the way the alias does, so a syntax error shows here rather
   than on the recording.
 - **10. typos** over the whole tree, allowlisted by `.typos.toml`.
-- **11. markdownlint** (markdownlint-cli2, rules in `.markdownlint.yaml`)
+- **11. osv-scanner** over every lockfile git keeps, as Scorecard's
+  Vulnerabilities check reads them after a merge. Advisory: a finding prints
+  yellow and never fails the gate, as [SECURITY.md](SECURITY.md#scanning-policy)
+  gives a moderate or low advisory until the next routine bump. An advisory
+  with no patched release goes in the `osv-scanner.toml` beside its lockfile,
+  with its reason and an expiry date. It queries `api.osv.dev`.
+- **12. markdownlint** (markdownlint-cli2, rules in `.markdownlint.yaml`)
   over the Markdown git knows about, tracked or new.
-- **12. prettier --check** over the same list, style in `.prettierrc.yaml`,
+- **13. prettier --check** over the same list, style in `.prettierrc.yaml`,
   skipping `.prettierignore`'s files, with `.github/prettier-plugin-docs.mjs`,
   which writes each doc's `## Contents` list from its `##` and `###`
   headings, SETTINGS.md's table from `scripts/settings`, and USAGE.md's
@@ -613,66 +619,66 @@ skipping yellow when its tool isn't installed (CI has all seven):
   it names.
 
 **`drift`** (`tests/lint/drift_test.sh`, and `drift_docs_test.sh` for the five
-over the docs: 18, 19, 22, 23, 24) — sixteen repo-consistency sweeps, each
+over the docs: 19, 20, 23, 24, 25) — sixteen repo-consistency sweeps, each
 checking that something written down elsewhere still agrees with the tree:
 
-- **13. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
+- **14. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
   `${x,,}`, `wait -n`, or `${!a[@]+…}` — each explained in
   [GLOSSARY.md](GLOSSARY.md) by its `GLOSSARY: HI.NN` tag.
-- **14. One-userland spellings**: [SYNTAX.md](SYNTAX.md)'s enforced rows -
+- **15. One-userland spellings**: [SYNTAX.md](SYNTAX.md)'s enforced rows -
   `echo -e`, `sed -r` and `-i`, `grep -P`, `readlink -f`, `xargs -r`,
   `head -n -N`, `date %-X`, gawk-only functions, `mktemp -t` with no X's, and
   basic-sed alternation.
-- **15. Paired spellings**: `stat -c` only beside its `stat -f` twin, and
+- **16. Paired spellings**: `stat -c` only beside its `stat -f` twin, and
   strict mode switched off again in every file an interactive shell sources
   ([HI.15](GLOSSARY.md#hi15-strict-mode-bracketing)).
-- **16. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
+- **17. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
   derives the say-hi tree — over `*.zsh`, `*.fish`, and `*.md` too, since the
   docs teach the rule as much as the code obeys it.
-- **17. Ignored payload**: no file the payload or a package ships is one
+- **18. Ignored payload**: no file the payload or a package ships is one
   `.gitignore` swallows, asked of git itself — the suites read the working
   tree, so nothing else would notice it never reached a commit.
-- **18. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
+- **19. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
   GLOSSARY.md defines, and every entry is referenced; matched by code, not
   title.
-- **19. The settings rows**: every row of `scripts/settings` (the rows
+- **20. The settings rows**: every row of `scripts/settings` (the rows
   [SETTINGS.md](SETTINGS.md)'s _Every setting_ table is written from and
   `hi --configure` reads its items from) names a variable the shipped tree
   still reads, and none is one the doc's _Not settings_ lists.
-- **20. The defaults block**: each `_HI_*_DEFAULT` in `common/core.sh` is its
+- **21. The defaults block**: each `_HI_*_DEFAULT` in `common/core.sh` is its
   row's `<default>` where the row states a value, no bash or zsh file reads a
   setting or a block name with a literal default of its own, and
   `common/targets.sh`'s two copies match the block.
-- **21. The `<check>` column**: every row's `<check>` is a kind
+- **22. The `<check>` column**: every row's `<check>` is a kind
   `scripts/lib.sh`'s `_hi_setting_check` knows, the rows whose check is
   `toggle` are `common/core.sh`'s `$_HI_TOGGLES`, and names follow polarity
   ([CONTRIBUTING.md](CONTRIBUTING.md#what-1x-will-not-break)): every `toggle`
   is `_HI_DISABLE_*`, and no `flag` is but the four default-on settings
   `_HI_DISABLE_LOCAL` leaves alone, excused by name.
-- **22. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
+- **23. The docker-compatible family**: `common/core.sh`'s `$_HI_CONTAINER_CLIS`
   and `common/targets.sh`'s copy name the same CLIs
   ([HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)), since neither file
   can read the other.
-- **23. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
+- **24. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
   `common/targets.sh`'s cache directory build the same path, with the same
   ownership guards, in their two dialects.
-- **24. Liquid syntax**: no page the Pages build renders may carry a raw
+- **25. Liquid syntax**: no page the Pages build renders may carry a raw
   Liquid delimiter outside a guarded span — Liquid tokenizes before Markdown,
   so a fence gives no shelter.
-- **25. Site links**: a relative link on a page the site builds lands on a
+- **26. Site links**: a relative link on a page the site builds lands on a
   page the site builds too, not a dot-path or anything `_config.yml` excludes
   (which renders on GitHub and 404s on Pages); link those as absolute
   github.com URLs.
-- **26. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **27. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples (the upstream cap).
-- **27. tests/dockerfiles/**: every image definition has a caller and vice
+- **28. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **28. Image tags**: every plain image tag named in shell or YAML is one of
+- **29. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **29. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
-  its digest — check 28 strips digests before comparing, so it can't see one
+- **30. Image digests**: two Dockerfiles pinning the same `image:tag` agree on
+  its digest — check 29 strips digests before comparing, so it can't see one
   tag pinned two ways.
-- **30. The eval roster**: every `eval` in the payload and `scripts/` has a
+- **31. The eval roster**: every `eval` in the payload and `scripts/` has a
   row in `tests/lint/eval_roster` saying what it evaluates, and every file's
   count of its kin (a `source` of a path in a variable, a shell's `-c`, a
   recursive `rm`) matches its row; a row nothing matches fails too, so the

@@ -266,6 +266,9 @@ themselves are [CONTRIBUTING.md's _What CI runs_](CONTRIBUTING.md#what-ci-runs).
   critical is fixed before the next release, moderate or low by the next
   routine bump. The one exception is an advisory with no patched release,
   accepted in `.github/osv-scanner.toml` with its reason and an expiry date.
+  The lint suites run osv-scanner over every lockfile, locally and in
+  `lint suites (ubuntu-26.04)`, and show what Scorecard will find without
+  failing on it.
 - **Licenses.** Nothing is vendored or redistributed: every dependency is a
   dev-only tool or a system package the user's package manager installs. A
   dependency whose license is incompatible with MIT is refused at review.

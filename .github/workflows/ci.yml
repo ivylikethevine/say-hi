@@ -350,8 +350,8 @@ jobs:
           # salsa.debian.org and mandoc.bsd.lv are checkbashisms' and mandoc's
           # own download hosts from setup-tool/tools.txt; registry.npmjs.org is
           # `npm ci --prefix .github`; the release hosts are the other pinned
-          # tools. lychee's blocking pass is --offline, so no linked host
-          # belongs here.
+          # tools; api.osv.dev is osv-scanner's advisory lookup. lychee's
+          # blocking pass is --offline, so no linked host belongs here.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -359,6 +359,7 @@ jobs:
             objects.githubusercontent.com:443
             salsa.debian.org:443
             mandoc.bsd.lv:443
+            api.osv.dev:443
             registry.npmjs.org:443
             azure.archive.ubuntu.com:80
             archive.ubuntu.com:80
@@ -388,7 +389,7 @@ jobs:
       # release.yml's build job passes the identical list, which is the cache key
       - uses: ./.github/actions/setup-tools
         with:
-          tools: shellcheck shfmt checkbashisms mandoc typos lychee
+          tools: shellcheck shfmt checkbashisms mandoc typos lychee osv-scanner
 
       # markdownlint-cli2 needs node 22+, which the runner's default may not be;
       # the npm cache is keyed on the lockfile the step below installs from
