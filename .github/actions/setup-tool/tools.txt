@@ -97,6 +97,10 @@ lychee|0.24.2|tar.gz|https://github.com/lycheeverse/lychee/releases/download/lyc
 # `version` is a subcommand, not a flag.
 gitleaks|8.30.1|tar.gz|https://github.com/gitleaks/gitleaks/releases/download/v%v/gitleaks_%v_linux_x64.tar.gz|version|github:gitleaks/gitleaks||551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 typos|1.51.1|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos||93c301fd4120ff076e2cc2a6d6a61cab4a4bdb81899287c0938b452e56d1f454
+# Every lockfile as Scorecard's Vulnerabilities check reads it, before a merge
+# rather than after. Like trivy, the advisories are fetched on every run,
+# whatever this pin is.
+osv-scanner|2.7.0|raw|https://github.com/google/osv-scanner/releases/download/v%v/osv-scanner_linux_amd64|--version|github:google/osv-scanner||160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
 shfmt|3.14.1|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_linux_amd64|--version|github:mvdan/sh||76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
 # 2.26.13 ships the same checkbashisms.pl as 2.26.12 (verified against the devscripts_2.26.13
 # source tarball), so the sha256 is unchanged across this bump.
