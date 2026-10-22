@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Structural invariants over GitHub Actions YAML that neither zizmor nor
 # actionlint enforces as a rule. Each one is a convention a reviewer would
 # otherwise have to remember on every new job:

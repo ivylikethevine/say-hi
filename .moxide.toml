@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # markdown-oxide (LSP) settings. markdownlint (.markdownlint.yaml) is the
 # linter of record; this only keeps oxide from disagreeing with it.
 

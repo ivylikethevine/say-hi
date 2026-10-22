@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 name: Setup tool
 # One pinned CI tool from ./tools.txt: resolved, cached, downloaded,
 # sha256-verified, installed. The roster lives in tools.txt rather than in

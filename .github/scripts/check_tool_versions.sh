@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Every pin in the tree: nothing else reports an upstream release, since
 # dependabot opens no version-update pull request here.
 # Prints one row per pin and exits with the number of problems (capped at

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 name: Cancel a closed PR's runs
 
 # A merged or closed PR's in-flight runs would otherwise finish anyway: ci.yml's
