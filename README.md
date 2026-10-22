@@ -386,6 +386,15 @@ One list, in the order the work is best done. An entry is deleted once its
       in `grep -E … >/dev/null`. **Ticks when:** a case adopts a hand line
       that sits past the first 4 KB of a `settings.sh` under `pipefail`.
 
+- [ ] **The per-file SPDX headers come out** — `REUSE.toml` (`path = "**"`)
+      and `LICENSES/MIT.txt` arrive with the next sync of the shared CI files
+      and cover every file, and Scorecard's License check reads only
+      `LICENSE.md`, so the `SPDX-License-Identifier` comment at the top of
+      each file is redundant. **Do:** strip it from every file of this
+      repository's own and stop adding it; the synced CI files change in
+      their source, which the sync carries. **Ticks when:**
+      `git grep -l SPDX-License-Identifier` lists `REUSE.toml` alone.
+
 ## Release Stages
 
 What the 1.0 tag and the releases after it wait on, in order. An entry is

@@ -28,7 +28,7 @@ jobs:
   cancel:
     name: cancel the closed PR's runs
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     # job-scoped, not workflow-level, for Scorecard's Token-Permissions check
     permissions:

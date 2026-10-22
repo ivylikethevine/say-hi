@@ -62,7 +62,7 @@ jobs:
   # `== 'success'` stops there.
   gate:
     name: gate the release (signed tag, on main, green CI)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # long enough to wait out a CI run still going when the tag was pushed
     # (its slowest jobs are the ~30-minute macOS and Windows ones)
     timeout-minutes: 60
@@ -193,7 +193,7 @@ jobs:
     name: the upgrade from the previous release re-sources clean
     needs: gate
     if: ${{ !cancelled() && needs.gate.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -247,7 +247,7 @@ jobs:
     # per the header; `!cancelled()` rather than `always()` so cancelling the
     # run still stops the build
     if: ${{ !cancelled() && needs.gate.result == 'success' && needs.upgrade.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     environment: ${{ github.event_name == 'push' && 'release' || '' }}
     # the provenance attestation below needs these two; contents stays read
@@ -272,7 +272,8 @@ jobs:
           # here signed off an embedded TUF root, and a cold one would not.
           # salsa.debian.org and mandoc.bsd.lv are checkbashisms' and mandoc's
           # download hosts from setup-tool/tools.txt, for a tag whose pins no
-          # run on main has cached.
+          # run on main has cached. api.osv.dev is osv-scanner's advisory
+          # lookup in the lint group.
           allowed-endpoints: >
             github.com:443
             api.github.com:443
@@ -281,6 +282,7 @@ jobs:
             objects.githubusercontent.com:443
             salsa.debian.org:443
             mandoc.bsd.lv:443
+            api.osv.dev:443
             token.actions.githubusercontent.com:443
             results-receiver.actions.githubusercontent.com:443
             fulcio.sigstore.dev:443
@@ -326,12 +328,13 @@ jobs:
 
       # the same tools ci.yml's lint job pins, and for the same reason: without
       # them the tag build's "Run the lint group" below runs shellcheck alone,
-      # with shfmt, checkbashisms, mandoc, and typos skipping for want of a binary.
+      # with shfmt, checkbashisms, mandoc, typos, and osv-scanner skipping for want
+      # of a binary.
       # lychee too, though nothing here runs it: the list is the cache key, so
       # keeping it identical (same order) to ci.yml's reuses that job's cache
       - uses: ./.github/actions/setup-tools
         with:
-          tools: shellcheck shfmt checkbashisms mandoc typos lychee
+          tools: shellcheck shfmt checkbashisms mandoc typos lychee osv-scanner
 
       # Built here rather than fetched: GitHub's auto-generated /archive/
       # tarball is the one released artifact with no signature or attestation,
@@ -551,7 +554,7 @@ jobs:
     # skips this one (v0.0.1-rc and v0.0.2-rc.1 shipped no packages that way,
     # when `gate` ran on dispatches only).
     if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name == 'push' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # 20, not 15: the assets go up one at a time now (gh_asset.sh), and a
     # run where several need their retries spends a couple of minutes
     # sleeping on top of mkrepo.sh's image pulls and three repo builds
@@ -993,7 +996,7 @@ jobs:
     name: open the Homebrew tap PR
     needs: brew
     if: github.event_name == 'push' && !cancelled() && needs.brew.result == 'success' && needs.brew.outputs.debug != 'true' && needs.brew.outputs.prerelease != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       # gh release edit, filling the body's tap slot

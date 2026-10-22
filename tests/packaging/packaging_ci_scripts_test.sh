@@ -80,7 +80,7 @@ case "$2" in
 *) exit 1 ;;
 esac
 case "${4#repos/o/r/commits/}|${6#check_name=}" in
-"aaaaaaa1/check-runs|fast suites (ubuntu-latest)") echo success ;;
+"aaaaaaa1/check-runs|fast suites (ubuntu-26.04)") echo success ;;
 "aaaaaaa1/check-runs|fast suites (macos-latest)") echo failure ;;
 "bbbbbbb2/check-runs|e2e (FreeBSD) / hi localhost (FreeBSD both ends)") echo success ;;
 "aaaaaaa1/check-runs|e2e (OpenBSD) / hi localhost (OpenBSD both ends)") echo cancelled ;;
@@ -219,7 +219,7 @@ function test_platform_badges_read_the_check_runs_themselves() {
   local dir="$_HI_WORKDIR/badgejq" out
   _hi_gh_api "$dir"
   _hi_gh_json "$dir" 'repos/o/r/commits?sha=main&per_page=2' '[{"sha":"aaaaaaa1"},{"sha":"bbbbbbb2"}]'
-  _hi_gh_json "$dir" 'repos/o/r/commits/aaaaaaa1/check-runs|fast suites (ubuntu-latest)' \
+  _hi_gh_json "$dir" 'repos/o/r/commits/aaaaaaa1/check-runs|fast suites (ubuntu-26.04)' \
     '{"check_runs":[{"status":"completed","conclusion":"failure"},{"status":"completed","conclusion":"success"}]}'
   _hi_gh_json "$dir" 'repos/o/r/commits/aaaaaaa1/check-runs|fast suites (macos-latest)' \
     '{"check_runs":[{"status":"in_progress","conclusion":null},{"status":"completed","conclusion":"skipped"}]}'

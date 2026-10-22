@@ -39,7 +39,7 @@ jobs:
   analyze-actions:
     name: CodeQL (actions)
     if: github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read

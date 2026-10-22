@@ -61,7 +61,7 @@ jobs:
     # down for a missing backend a failure, never a green run that rendered
     # nothing - pages.yml serves the last *successful* run's artifact, and
     # `collect` below only runs when every tape rendered.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # the hosted path pays the apt and kind installs on top of one render
     timeout-minutes: 15
     strategy:
@@ -201,7 +201,7 @@ jobs:
   collect:
     name: collect the GIFs
     needs: render
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -248,7 +248,7 @@ jobs:
     name: attach the demo to the release
     needs: collect
     if: ${{ !cancelled() && needs.collect.result == 'success' && github.ref_type == 'tag' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write
@@ -311,7 +311,7 @@ jobs:
     name: redeploy the site for this release
     needs: [collect, attach]
     if: ${{ !cancelled() && github.ref_type == 'tag' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read

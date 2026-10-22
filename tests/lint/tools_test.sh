@@ -3,10 +3,11 @@
 # The external-tool wrappers that ride along with the lint gate when their
 # tool is installed, and skip yellow when it isn't: shfmt as a formatting
 # gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim
-# over the editors demo's vimrc, typos over the whole tree, and
-# markdownlint and prettier over the Markdown. CI always has them (setup-tool
-# pins each binary; `npm ci --prefix .github` the two node tools), so a local
-# skip here is a local-only gap, never a green run that CI would have failed.
+# over the editors demo's vimrc, typos over the whole tree, osv-scanner over
+# the lockfiles, and markdownlint and prettier over the Markdown. CI always
+# has them (setup-tool pins each binary; `npm ci --prefix .github` the two
+# node tools), so a local skip here is a local-only gap, never a green run
+# that CI would have failed.
 set -euo pipefail
 
 # shellcheck source=../test_lib.sh
@@ -132,6 +133,29 @@ function lint_typos() {
   fi
 }
 
+# Known advisories in every lockfile git keeps, as Scorecard's Vulnerabilities
+# check reads them after a merge, run before one. An osv-scanner.toml beside a
+# lockfile (.github's) accepts the advisories it lists for that lockfile alone.
+# Advisory: a finding, or a scan that could not reach api.osv.dev, prints
+# yellow and never fails the gate, since SECURITY.md's scanning policy gives a
+# moderate or low advisory until the next routine bump. Skips yellow when
+# osv-scanner is absent; CI pins one via tools.txt.
+function lint_osv() {
+  local out
+  _hi_h2 "Checking the lockfiles for known advisories (osv-scanner, advisory)"
+  _hi_lint_has osv-scanner || return 0
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if out="$(osv-scanner scan source --recursive "$_HI_ROOT" 2>&1)"; then
+    _hi_align " | osv-scanner: no known advisories" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_align " | osv-scanner: advisories below (advisory, never fails the gate)" "WARN" "$YELLOW"
+  printf '%s\n' "$out" | sed 's/^/      /'
+  [ "${GITHUB_ACTIONS:-}" != true ] ||
+    printf '%s\n' "::warning title=osv-scanner::a lockfile carries a known advisory - see the lint suites' tools output"
+  return 0
+}
+
 # The Markdown git knows about - tracked, plus new files not yet added, minus
 # what .gitignore drops (CLAUDE.local.md) - so a local run and CI's checkout
 # read the same list. `-f`: a file deleted but not yet staged is still in the
@@ -206,7 +230,7 @@ function lint_prettier() {
 }
 
 function run_tools() {
-  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, typos, markdownlint, prettier)"
+  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, typos, osv-scanner, markdownlint, prettier)"
   _hi_workdir toolstest
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt
@@ -217,7 +241,7 @@ function run_tools() {
   local -a _HI_MD_FILES=()
   _hi_read_lines _HI_MD_FILES < <(_hi_md_files 2>/dev/null)
 
-  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_typos \
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_typos lint_osv \
     lint_markdownlint lint_prettier
   _hi_lint_suite_end
 }

@@ -60,7 +60,7 @@ jobs:
   changes:
     name: detect changes
     if: github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -231,7 +231,7 @@ jobs:
 
   # Two plain jobs, not a matrix: a matrix job's skipped entries go unnamed -
   # GitHub reports one skip against the job id, not per `matrix.os` - so a
-  # draft or workflow/docs-only diff left `fast suites (ubuntu-latest)`,
+  # draft or workflow/docs-only diff left `fast suites (ubuntu-26.04)`,
   # required by branch protection, sitting at Expected forever instead of
   # showing skipped. Each of these is its own job, so a skip reports under
   # its own name like test-macos's or test-alpine's does. ubuntu-24.04-arm
@@ -240,10 +240,10 @@ jobs:
   # one arch - fails here rather than on someone's Pi. A red arm64 entry
   # holds the platform e2e jobs, which wait on this job alone.
   test-ubuntu:
-    name: fast suites (ubuntu-latest)
+    name: fast suites (ubuntu-26.04)
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -333,12 +333,12 @@ jobs:
   # on tool installs they don't use. Add `lint` to their `needs:` to make
   # lint block e2e.
   lint:
-    name: lint suites (ubuntu-latest)
+    name: lint suites (ubuntu-26.04)
     needs: changes
     if: >-
       !cancelled() && github.event.pull_request.draft != true
       && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -350,8 +350,8 @@ jobs:
           # salsa.debian.org and mandoc.bsd.lv are checkbashisms' and mandoc's
           # own download hosts from setup-tool/tools.txt; registry.npmjs.org is
           # `npm ci --prefix .github`; the release hosts are the other pinned
-          # tools. lychee's blocking pass is --offline, so no linked host
-          # belongs here.
+          # tools; api.osv.dev is osv-scanner's advisory lookup. lychee's
+          # blocking pass is --offline, so no linked host belongs here.
           allowed-endpoints: >
             github.com:443
             results-receiver.actions.githubusercontent.com:443
@@ -359,6 +359,7 @@ jobs:
             objects.githubusercontent.com:443
             salsa.debian.org:443
             mandoc.bsd.lv:443
+            api.osv.dev:443
             registry.npmjs.org:443
             azure.archive.ubuntu.com:80
             archive.ubuntu.com:80
@@ -388,7 +389,7 @@ jobs:
       # release.yml's build job passes the identical list, which is the cache key
       - uses: ./.github/actions/setup-tools
         with:
-          tools: shellcheck shfmt checkbashisms mandoc typos lychee
+          tools: shellcheck shfmt checkbashisms mandoc typos lychee osv-scanner
 
       # markdownlint-cli2 needs node 22+, which the runner's default may not be;
       # the npm cache is keyed on the lockfile the step below installs from
@@ -614,7 +615,7 @@ jobs:
     name: fast suites (Alpine client)
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -672,7 +673,7 @@ jobs:
     if: >-
       !cancelled() && github.event.pull_request.draft != true
       && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -739,7 +740,7 @@ jobs:
     if: >-
       !cancelled() && github.event.pull_request.draft != true
       && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -780,7 +781,7 @@ jobs:
     if: >-
       !cancelled() && github.event.pull_request.draft != true
       && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -857,7 +858,7 @@ jobs:
     if: >-
       !cancelled() && github.event.pull_request.draft != true
       && needs.changes.outputs.reuse-run == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -895,7 +896,7 @@ jobs:
     name: hot-path profiles (timep)
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # a profile is stopped at 7 minutes (tests/profile.sh), with what held it
     timeout-minutes: 15
     continue-on-error: true
@@ -937,7 +938,7 @@ jobs:
     name: package build (deb, rpm, apk)
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -1058,7 +1059,7 @@ jobs:
     name: nix flake
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -1101,7 +1102,7 @@ jobs:
   # about two and a half.
   e2e:
     name: e2e (ssh, docker, shard ${{ matrix.shard }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: changes
     if: needs.changes.outputs.code == 'true'
     timeout-minutes: 15
@@ -1158,7 +1159,7 @@ jobs:
           tools: nfpm
 
       # the ssh suite's starved case needs the netem qdisc to shape a
-      # container's own link; ubuntu-latest doesn't load it by default. `||
+      # container's own link; the hosted ubuntu image doesn't load it by default. `||
       # true`: a runner image that ever blocks this degrades to the case's
       # own explicit skip (tests/lib/fixtures.sh's netem capability) under
       # --require-run below, rather than failing this step outright.
@@ -1185,7 +1186,7 @@ jobs:
   # pin protects against).
   e2e-backends:
     name: e2e (podman, nomad, kube, shard ${{ matrix.shard }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: changes
     if: needs.changes.outputs.code == 'true'
     timeout-minutes: 15
@@ -1266,7 +1267,7 @@ jobs:
     name: e2e (ssh, docker)
     needs: [changes, e2e]
     if: ${{ !cancelled() && github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -1294,7 +1295,7 @@ jobs:
     name: e2e (podman, nomad, kube)
     needs: [changes, e2e-backends]
     if: ${{ !cancelled() && github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1

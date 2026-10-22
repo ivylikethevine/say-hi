@@ -35,12 +35,11 @@ jobs:
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
-      # the one write this job does: upsert (and close) its own tracking issue
-      issues: write
+      issues: write # the one write this job does: upsert (and close) its own tracking issue
     steps:
       # audit, deliberately: lychee's job is to reach every URL the docs name,
       # so an allowlist would be the docs' own link list.
