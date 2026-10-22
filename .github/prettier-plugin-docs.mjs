@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Prettier's own Markdown parser with a preprocess step that writes the
 // generated parts of a doc before it is formatted: each `## Contents` list,
 // from the page's `##` and `###` headings, the `## Every setting` table, from

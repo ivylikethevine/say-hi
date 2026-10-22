@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Renders docs/USAGE.md's images: each row of docs/tapes/usage run as
 # `hi <flag> <example>` and drawn by freeze as <out>/usage-<flag>[-<n>].svg.
 # .github/workflows/usage.yml renders them and pages.yml serves them beside the

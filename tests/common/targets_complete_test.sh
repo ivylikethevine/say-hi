@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Completion over common/targets.sh: bash's _hi_complete, the flag roster, and
 # the package and color words.
 # A part of targets_test.sh, a suite of its own so the Windows shards split them.

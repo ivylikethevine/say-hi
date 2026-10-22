@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # upgrade_path.sh <previous-tree> <new-tree> - GLOSSARY: HI.60 walked for
 # real, the way a tag creates it: a shell per dialect loads the previous
 # release's rc, the new tree replaces that one underneath it (`hi --update`

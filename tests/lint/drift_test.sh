@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The repo-consistency sweeps: checks that something written down elsewhere
 # (a bash-4 floor, a retired default, docs/GLOSSARY.md, docs/SETTINGS.md,
 # _config.yml's Liquid rule, tests/dockerfiles/'s own pins) still agrees with

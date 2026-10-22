@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # What hi actually puts on the wire, measured rather than computed. One
 # container, one session, through a byte-counting ProxyCommand: every ssh
 # target gets the whole tree, so there is one cost to measure. The count is

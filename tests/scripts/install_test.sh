@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/install.sh's own two halves: install_tree, the whole
 # of what a packaging recipe's package() step calls, and --uninstall's
 # marker-based rc rewriting (strip_marker/strip_settings/unlink_hi), plus an

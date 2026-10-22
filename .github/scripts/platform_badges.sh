@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # platform_badges.sh <outdir> - one shields endpoint object per row of README's
 # _Target Requirements_ badge strip, written as <outdir>/<file> for pages.yml
 # to publish beside tests.json and the coverage pair.

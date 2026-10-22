@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The packer's include scan: every line of an overlay member that names a
 # path no target has, in each dialect hi ships, and the files a marked line
 # carries along instead. Sourced by scripts/pack.sh, never run, and like it

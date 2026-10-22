@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Where this user's zsh reads its .zshrc. Sourced by scripts/rc.sh (the file
 # install wires and doctor checks) and scripts/pack.sh (the rc a prompt
 # framework is found in), after common/core.sh, whose _hi_out it uses; not an

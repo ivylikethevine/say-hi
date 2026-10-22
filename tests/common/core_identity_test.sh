@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # common/core.sh's host tags, the color a name resolves to, the settings
 # overlay, and the same answers in zsh.
 # A part of core_test.sh, a suite of its own so the Windows shards split them.

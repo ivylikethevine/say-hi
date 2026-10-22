@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The repo-consistency sweeps over the docs: GLOSSARY's tags, SETTINGS.md's
 # table, the Liquid rule, the site's links, and the tldr page. A part of
 # drift_test.sh, a suite of its own. The preamble's source line is

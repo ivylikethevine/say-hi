@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Shared bash/zsh git prompt segment, styled to match fish's fish_vcs_prompt
 # (config.fish's __fish_git_prompt_* settings). Needs the palette sourced.
 # strict while loading; the caller's options back at the end, as in core.sh

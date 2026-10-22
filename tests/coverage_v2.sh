@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Line coverage for the bash suites via bashcov - coverage.yml's shard-bashcov
 # matrix runs it and README's Bashcov badge is its output. Same job and same
 # CLI as tests/coverage.sh, different instrumentation, and that difference is

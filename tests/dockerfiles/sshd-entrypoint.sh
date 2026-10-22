@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The sshd container entrypoint's common tail, past a caller's own shebang
 # and login-shell setup: seed hitest's authorized_keys from $PUBKEY, generate
 # host keys, exec sshd locked down (password auth, root login, and PAM all

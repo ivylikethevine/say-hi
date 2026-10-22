@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # packaging/mkpkg.sh and bump.sh: their arguments, bump.sh's write path, and
 # mkpkg.sh's offline half.
 # A part of packaging_ci_test.sh, a suite of its own so the Windows shards split them.

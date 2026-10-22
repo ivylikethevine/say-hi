@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Fills one slot in a published release's body. The job that publishes the
 # release lays the body out and leaves a `<!-- <prefix>:<slot> -->` line
 # wherever a later job has something to add (a package-manager PR link, a

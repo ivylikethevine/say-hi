@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The scripts the workflows run (.github/scripts), and packaging/'s srctar.sh,
 # stamp_badge.sh, and mkrepo.sh.
 # A part of packaging_ci_test.sh, a suite of its own so the Windows shards split them.

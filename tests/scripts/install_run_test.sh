@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/install.sh run as a program: its flags and modes, and the locator's
 # walk through a symlink.
 # A part of install_test.sh, a suite of its own so the Windows shards split them.

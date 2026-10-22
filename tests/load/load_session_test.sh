@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # load.sh's load(), a kept session's owner pane, and this checkout's own
 # load.
 # A part of load_test.sh, a suite of its own so the Windows shards split them.

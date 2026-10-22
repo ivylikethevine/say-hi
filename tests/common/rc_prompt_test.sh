@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The prompt the shell rcs hand over or draw for a prompt program: starship and
 # oh-my-posh, the programs with no init, and the separator.
 # A part of rc_test.sh, a suite of its own so the Windows shards split them.

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # oh-my-bash's prompt hand-over, sourced by common/bash.sh once
 # _hi_prompt_tool picks it; its own file so a target not handed oh-my-bash is
 # not sent it (GLOSSARY: HI.32). Not loaded by the rc: all of it but plugins,

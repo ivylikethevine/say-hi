@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The tooling-side helpers scripts/, packaging/, docs/tapes/, and tests/ share:
 # flag parsing, the heading rules, the sed-rewrite primitive, the settings and
 # scheme readers, and the box glyphs. None of it belongs in common/core.sh -

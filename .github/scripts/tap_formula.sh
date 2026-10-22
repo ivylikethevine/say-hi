@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # tap_formula.sh <formula >tap-formula - the formula as the Homebrew tap
 # carries it. packaging/homebrew/say-hi.rb opens with a header written for
 # this repository (a v0.0.0 template, don't run bump.sh on it) that is wrong

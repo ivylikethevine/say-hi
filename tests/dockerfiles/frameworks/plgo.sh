@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # powerline-go, a prompt program with no `init <shell>`: common/bash.sh runs it
 # from PROMPT_COMMAND itself, so this is what says hi wires it the way its
 # README does and draws nothing over it.

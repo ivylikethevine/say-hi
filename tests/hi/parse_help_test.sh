@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # hi.sh's --plain, its dispatch, the local sub-commands, and what hi --help
 # prints.
 # A part of parse_test.sh, a suite of its own so the Windows shards split them.

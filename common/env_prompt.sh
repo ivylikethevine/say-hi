@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Shared bash/zsh environment prompt segment: the "(myproj) " prefix naming
 # every active environment manager. common/config.fish carries fish's own copy
 # and tests/hi/prompt_test.sh pins the two together. Plain text, no color - the

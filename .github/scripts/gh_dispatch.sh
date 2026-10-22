@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # gh_dispatch.sh <workflow> <ref> - `gh workflow run <workflow> --ref <ref>`,
 # three tries. release.yml's publish job dispatches demos.yml as its last
 # step, and demos.yml's refresh-pages job dispatches pages.yml; v0.4.8's first

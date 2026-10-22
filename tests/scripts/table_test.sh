@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/table.sh: the measure-then-render contract - the pad,
 # the two wideners, the rule, both cell renderers, and a line's pieces. Everything here is a pure
 # string/width function, so every case is an exact-output comparison.

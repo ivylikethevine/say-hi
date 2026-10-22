@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `hi --edit [<file>]`: open the overlay, ~/.config/say-hi, in the editor -
 # the whole directory, or one file of it by its path there - the way
 # `chezmoi edit` opens its source. A file of hi's own that is not there yet

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Stamps README.md's ssh_payload badge with what a session sends -
 # _hi_wire_estimate - so the number is measured, never typed. Run it after a
 # change that moves the payload, and commit the README it rewrites.

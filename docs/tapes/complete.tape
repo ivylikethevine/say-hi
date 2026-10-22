@@ -27,7 +27,7 @@
 # show.
 #
 # It goes *after* the rc, not before. common/paths.sh assigns _HI_SSH_CONFIG
-# from $HOME unconditionally every time it is sourced (paths.sh:52), so a value
+# from $HOME unconditionally every time it is sourced (paths.sh:80), so a value
 # set first is overwritten; set afterwards it stands, and the completion reads
 # it because targets.sh is a subprocess that honours the export
 # (`${_HI_SSH_CONFIG:-$HOME/.ssh/config}`). Nothing re-sources paths.sh per

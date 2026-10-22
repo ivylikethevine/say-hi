@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The packer's streams: the staged tars of the overlay and the tree, the
 # comment strip they pass through, their caches, and the sizes hi reports.
 # Sourced by scripts/pack.sh, never run, and like it nothing here rides in

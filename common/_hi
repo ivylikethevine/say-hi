@@ -1,5 +1,4 @@
 #compdef hi hi.sh
-# SPDX-License-Identifier: MIT
 # zsh's completion for hi, autoloaded from $fpath (common/zsh.zsh appends
 # this directory). The target list's in-shell TTL cache and the list-colors
 # style live in zsh.zsh; bash.sh's _hi_complete is the same logic in bash's

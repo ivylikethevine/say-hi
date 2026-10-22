@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # End-to-end test of a kept session (`hi --keep`, GLOSSARY: HI.65) over a real
 # sshd, once per multiplexer a target can hold one in:
 #

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # tests/hi/keep_test.sh - the kept session, client half: --keep, --no-keep and
 # --end in _hi_parse, which connects carry the reattach and the start, and the
 # sh those two put on a target, run under a real sh against tmux, zellij and

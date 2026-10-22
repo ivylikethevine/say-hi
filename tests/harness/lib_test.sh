@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for the tests/lib/ harness - everything that drives something
 # outside this shell.
 # tests/lib/process.sh and tests/lib/ssh.sh, plus the host half of report.sh:

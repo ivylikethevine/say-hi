@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Throwaway sshd containers - one per remote login shell - driven through
 # hi.sh's real ssh path over actual ssh, which is what proves _say_hi's
 # armor and quoting survive whatever shell sshd hands the command to. The

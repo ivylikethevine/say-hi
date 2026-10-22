@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Drives hi.sh's real docker path - see tests/lib/backend.sh's
 # _hi_container_backend_test for what this actually does and why it's shared
 # with podman_test.sh. docker also gets one extra case podman does not:

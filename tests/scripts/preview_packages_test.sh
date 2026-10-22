@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/preview.sh's packages subject: the header's colors named, the
 # examples, and the tables it renders.
 # A part of preview_test.sh, a suite of its own so the Windows shards split them.

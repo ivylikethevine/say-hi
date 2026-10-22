@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Demo-tape fixtures: the targets docs/tapes/*.tape connect to, shaped like
 # the e2e fixtures (tests/test_lib.sh) but standalone - a tape render happens
 # outside the test harness, on a machine that just has the backends installed.
@@ -312,7 +311,7 @@ function demo_settings() { # body on stdin
 # demo resolves them, the completion demo lists what carries them - but they
 # reach the file by different routes, and the difference is forced:
 #
-#   colors    exports a throwaway $HOME, which paths.sh:52 derives
+#   colors    exports a throwaway $HOME, which paths.sh:80 derives
 #             $_HI_SSH_CONFIG from. It reads files and starts nothing, so a
 #             fake $HOME costs it nothing.
 #   complete  sets $_HI_SSH_CONFIG directly, *after* the rc. It cannot fake
@@ -360,7 +359,7 @@ EOF
   } >"$_HI_DEMO_DIR/home/.ssh/config"
 }
 
-# ...and the colors overlay, which lands somewhere else again: paths.sh:30
+# ...and the colors overlay, which lands somewhere else again: paths.sh:46
 # reads `colors` out of $_HI_CONFIG_DIR, the same overlay dir every other demo
 # writes its settings.sh into. Two live sshd boxes, one per pinned tag, so the
 # preview's table and the two sessions after it are the same names.

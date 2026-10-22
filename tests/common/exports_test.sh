@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for what a process started from an interactive hi shell inherits:
 # core.sh's _HI_CHILD_ENV roster and _hi_unexport, the fish mirror of both in
 # common/config.fish, and the session rc lines load.sh writes so that a nested

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Runs the named cases of one suite and none of the rest: a copy of the suite
 # whose run function keeps only the _hi_check lines holding one of the words
 # given, run against this checkout with no inherited _HI_*.

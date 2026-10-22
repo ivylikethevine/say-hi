@@ -390,9 +390,9 @@ One list, in the order the work is best done. An entry is deleted once its
       and `LICENSES/MIT.txt` arrive with the next sync of the shared CI files
       and cover every file, and Scorecard's License check reads only
       `LICENSE.md`, so the `SPDX-License-Identifier` comment at the top of
-      each file is redundant. **Do:** strip it from every file of this
-      repository's own and stop adding it; the synced CI files change in
-      their source, which the sync carries. **Ticks when:**
+      each file is redundant. This repository's own files no longer carry it
+      (don't add it to new ones); the rest are the synced CI files, which
+      change in their source and arrive with the sync. **Ticks when:**
       `git grep -l SPDX-License-Identifier` lists `REUSE.toml` alone.
 
 ## Release Stages

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # hi's prompt at home over a distro's own rc chain (GLOSSARY: HI.32). At home
 # bash and zsh keep a PS1 the rc set unless it is one nobody wrote; rc_test.sh
 # proves that against the prompt strings, and this against the files they come

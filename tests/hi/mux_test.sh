@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # tests/hi/mux_test.sh - the session name a target maps to, which a kept
 # session is found by (GLOSSARY: HI.65): one case behind a real tmux proves
 # the name rule against the real thing. And the flag that once wrapped a

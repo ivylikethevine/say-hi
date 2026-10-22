@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/doctor.sh's config overlay section: what each file of the overlay
 # gets said about it.
 # A part of doctor_test.sh, a suite of its own so the Windows shards split them.

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The display every script draws through: the column pad, the pieces a line
 # is painted from, the boxed table the previews draw (measure every column,
 # then print a rule, padded cells, and a closing rule), and the section of

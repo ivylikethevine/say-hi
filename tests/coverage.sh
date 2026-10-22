@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Line coverage for the bash suites via kcov - run by hand, and by
 # coverage.yml after every green push to main. The point is finding which
 # arms of scripts/install.sh and packaging/bump.sh the ~1,400 cases never

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # hi --doctor's target section: which backend a name resolves to, each check
 # timed, and what a session ships and what the far end has installed. Sourced by scripts/doctor.sh, whose rows
 # (doctor_section, doctor_row, doctor_flush) and argument state it reads; not

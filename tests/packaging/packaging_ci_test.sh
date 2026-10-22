@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The workflows, the manifests, and the release tooling (bump.sh, mkpkg.sh,
 # mkrepo.sh, srctar.sh, .github/scripts): packaging/'s cases that read repo
 # text or run what only ubuntu CI runs, so the ci group runs them once rather

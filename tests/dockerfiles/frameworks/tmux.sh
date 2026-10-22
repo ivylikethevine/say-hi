@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Not a framework: the target's own ~/.tmux.conf, which a tmux started in a hi
 # session must not read - the client's config has to win over it - and an fzf
 # new enough to read $FZF_DEFAULT_OPTS_FILE (0.47 on; bookworm's apt fzf is

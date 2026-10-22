@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for common/git_prompt.sh's _hi_git_prompt.
 #
 # GLOSSARY: HI.30 + HI.34

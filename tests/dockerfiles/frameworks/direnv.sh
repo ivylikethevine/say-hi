@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # direnv's PROMPT_COMMAND hook, the same coexistence question as zoxide's. One
 # apt package.
 #

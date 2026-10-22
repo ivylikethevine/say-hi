@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Rewrites overlay files still in a shape this hi no longer reads, in place,
 # keeping each original beside it as <file>.old:
 #   packages     "[-|+]name:N,..." rows, or "[-|+]name,..." rows under

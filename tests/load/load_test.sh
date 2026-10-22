@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for load.sh, the target-side half of hi: the session rc directory
 # it writes, the shell handoff, and the cleanup that removes it - and, only for
 # a disposable tree, say-hi itself. Sourced with _HI_LOAD_NO_INIT=1 for the

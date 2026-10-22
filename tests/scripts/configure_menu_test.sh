@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/configure.sh's menu driven through a pty: its layout at 80 and 40
 # columns, and the header page.
 # A part of configure_test.sh, a suite of its own so the Windows and coverage

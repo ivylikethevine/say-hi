@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Every workflow and composite action, publish-external.yml, and the setup-tool
 # actions, read as text.
 # A part of packaging_ci_test.sh, a suite of its own so the Windows shards split them.

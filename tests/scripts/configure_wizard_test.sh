@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/configure.sh's opt-ins, presets, the skip path, and the previews its
 # questions draw.
 # A part of configure_test.sh, a suite of its own so the Windows shards split them.

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # common/header.sh's banner, the header drawn whole (hi_header), and the hues its
 # cells take.
 # A part of header_test.sh, a suite of its own so the Windows shards split them.

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Shared plumbing for packaging/'s entry points (bump.sh, mkpkg.sh, mkrepo.sh,
 # srctar.sh): locate
 # the tree, source core.sh, and hold the primitives they share.

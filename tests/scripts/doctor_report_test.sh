@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/doctor.sh's plain report, run whole.
 # A part of doctor_test.sh, a suite of its own so the Windows shards split them.
 # The preamble's source line is doctor_test.sh's - it sources the harness, and

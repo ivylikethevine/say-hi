@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's handoff layer: the common/flags dispatch into
 # scripts/, the sh invocation every ssh probe rides, the middle third of the
 # wire script, and the "hi already said its piece" mark that stops a failure

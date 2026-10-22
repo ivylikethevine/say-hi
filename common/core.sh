@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The entry point every bash/zsh script sources: toggles, settings, paths,
 # colors, shared primitives. One file - fish reaches it via bare `bash -c`.
 # _hi_opts_restore <$- saved at a file's top, p for pipefail> - strict mode

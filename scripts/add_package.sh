@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `hi --add-package`: add one or more package-check rows to
 # ~/.config/say-hi/packages, each as a TOML row under its group's table;
 # `hi --remove-package` (a leading --remove) takes them out. That file replaces the tree's wholesale

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The packer's plugins files: the tree's config/plugins and the overlay's
 # plugins read into rows, each table checked as it closes, and the shell
 # hooks among them. Sourced by scripts/pack.sh, never run, and like it

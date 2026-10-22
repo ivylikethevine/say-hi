@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/preview.sh - `hi --preview colors`, `packages`,
 # and `header`, one script with a subject switch.
 #

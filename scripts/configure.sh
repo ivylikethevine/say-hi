@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The settings wizard behind `hi --configure` (and the second half of a plain
 # install): one menu of every setting, a page a section under a live preview,
 # and the one write to $_HI_SETTINGS. Sourced by scripts/install.sh after

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The two pieces of common/aliases.sh that alias_test.sh doesn't cover: the
 # `command -v a || command -v b || ...` fallthrough chains, and the
 # _HI_DISABLE_* guards and opt-ins that gate parts of the file. The split from

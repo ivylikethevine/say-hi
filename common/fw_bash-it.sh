@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # bash-it's prompt hand-over, sourced by common/bash.sh once _hi_prompt_tool
 # picks it; its own file so a target not handed bash-it is not sent it
 # (GLOSSARY: HI.32).

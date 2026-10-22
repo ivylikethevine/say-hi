@@ -1,5 +1,4 @@
 #!/bin/zsh
-# SPDX-License-Identifier: MIT
 # powerlevel10k's prompt hand-over, sourced by common/zsh.zsh once
 # _hi_prompt_tool picks it; its own file so a target not handed p10k is not
 # sent it (GLOSSARY: HI.32). Not loaded by the rc (a target, then): the

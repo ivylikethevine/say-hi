@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for common/header.sh - the banner and its detail lines, plus the
 # packages check (check_line/full_check) that lives at the bottom of that file.
 #

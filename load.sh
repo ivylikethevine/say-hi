@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The target half (forked from sshrc): header, session rc, shell handoff, undo.
 
 # `bash --rcfile` skips the startup chain; restore it before strict mode

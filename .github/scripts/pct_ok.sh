@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Sourced (not run) by pages.yml, release.yml's freeze step, and coverage.yml's
 # PR comment - the one answer to "is this coverage figure a real measurement",
 # so the three places a figure reaches a reader agree.

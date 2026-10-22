@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/edit.sh - `hi --edit [<file>]`, which opens the
 # overlay, or one file of it, in the editor, making a file of hi's own
 # first where it is not there yet.

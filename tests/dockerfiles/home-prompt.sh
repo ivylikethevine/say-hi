@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # One case of tests/targets/home_prompt_test.sh, run as root in a stock distro
 # image holding this tree at /opt/hi/say-hi: a fresh $HOME from the image's
 # /etc/skel, hi installed there by its own install.sh, and the prompt an

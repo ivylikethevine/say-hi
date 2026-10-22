@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/set_color.sh - `hi --add-color`, which pins a color
 # in a [type] section of ~/.config/say-hi/colors, and `hi --remove-color`,
 # which removes a pin.
