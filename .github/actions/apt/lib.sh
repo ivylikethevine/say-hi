@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `apt-get update` on a GitHub-hosted runner, made survivable. Sourced by
 # ../setup-tool/install.sh (the cmake/make kinds' build deps) and by any other
 # step that installs from apt, so the two mitigations below are written once.

@@ -1,3 +1,2 @@
-# SPDX-License-Identifier: MIT
 # resolve `source` targets relative to the sourcing file
 source-path=SCRIPTDIR

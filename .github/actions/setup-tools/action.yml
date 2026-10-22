@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 name: Setup tools
 # The batched form of ../setup-tool for a job that needs several pinned tools:
 # one actions/cache round trip covers every tool named. The trade is that

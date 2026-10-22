@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # Prettier formats Markdown, in the editor on save and in CI's check; this pins
 # its defaults so a hand run (`.github/node_modules/.bin/prettier --write
 # <files>`, after `npm ci --prefix .github`) produces the same bytes and agrees

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # find_tree_run.sh <workflow file> <marker artifact> [artifact...] - the push
 # half of the push-to-main dedupe. Prints `run=<id>` (for $GITHUB_OUTPUT) of a
 # green same-repo pull_request run of <workflow> that uploaded <marker>

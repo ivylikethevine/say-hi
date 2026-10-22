@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The severity half of digest-pinning.
 #
 # Base images here are pinned by digest, and check_tool_versions.sh reports a

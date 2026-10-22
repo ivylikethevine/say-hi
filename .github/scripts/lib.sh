@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Shared by the CI scripts beside it; sourced, never run.
 
 # _ci_need <me> <tool...> - every tool on PATH, or "<me>: no <tool> on PATH"
