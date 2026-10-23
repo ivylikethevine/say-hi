@@ -135,7 +135,16 @@ function _hi_rr_fresh() {
   : >"$_HI_RR_FLAG"
   return 1
 }
+# Forced on as test_a_failed_case_reruns_with_a_trace is: under a coverage
+# sweep there would be no second try to count.
 function test_each_try_of_a_case_gets_an_empty_workdir() {
+  (
+    set +x
+    unset BASH_XTRACEFD
+    _HI_TRACE_RERUN=1 _hi_rr_fresh_check
+  ) || _hi_why
+}
+function _hi_rr_fresh_check() {
   local out tries mine="$_HI_WORKDIR" _HI_RR_FLAG="$_HI_WORKDIR/rr.flag" _HI_RR_SEEN="$_HI_WORKDIR/rr.seen"
   out="$(_HI_FLAKY_OK=1 _HI_FAILS_FILE="$_HI_WORKDIR/rr.fails" _hi_assert "rr-fresh" _hi_rr_fresh 2>&1)" ||
     _hi_why out || return 1
