@@ -41,7 +41,8 @@ jobs:
   # flag: a push, or a pull_request from this repository - read by
   # test-macos's loopback, the three platform e2e-* jobs, and
   # e2e-windows-client. The `!cancelled()` jobs below name the draft clause
-  # themselves, since `!cancelled()` runs past a skipped need.
+  # themselves, or read `code` (empty on a draft), since `!cancelled()` runs
+  # past a skipped need.
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
   # test-arm, test-macos, test-alpine, profile, packaging-smoke, nix-flake,
@@ -1255,18 +1256,19 @@ jobs:
   # `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` - two plain jobs, not
   # one matrix job, so a skip reports under each one's own name instead of
   # going unnamed the way a skipped matrix entry does (the same reason
-  # `test` split into `test-ubuntu`/`test-arm`), and each restates the draft
-  # clause since `!cancelled()` runs past a skipped need. `code` reads empty
-  # on a draft (`changes` itself skipped) same as on a workflow-only or
-  # docs-only diff, so the step takes the "rightly skipped" branch either way
-  # without needing its shard job to have run. `code` is what says a shard
-  # was rightly skipped rather than a failed gate - `changes` failing
-  # outright leaves `code` 'true' (run everything), never a skip that could
-  # pass as green.
+  # `test` split into `test-ubuntu`/`test-arm`). Each runs only to fail: a
+  # skipped job satisfies a required check, so the green path - every shard
+  # passed, or `code` says they were rightly skipped - skips it and costs no
+  # runner. `code` reads empty on a draft (`changes` itself skipped) same as
+  # on a workflow-only or docs-only diff, so neither starts it; `changes`
+  # failing outright leaves `code` 'true' (run everything), so a shard that
+  # never ran there is a failed gate, never a skip that could pass as green.
   e2e-checks-ssh:
     name: e2e (ssh, docker)
     needs: [changes, e2e]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
+    if: >-
+      !cancelled() && needs.changes.outputs.code == 'true'
+      && needs.e2e.result != 'success'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -1278,23 +1280,19 @@ jobs:
           allowed-endpoints: >
             github.com:443
 
-      - name: Require every shard green, unless the run was rightly skipped
+      - name: A shard was not green
         env:
-          CODE: ${{ needs.changes.outputs.code }}
           RESULT: ${{ needs.e2e.result }}
         run: |
-          set -euo pipefail
-          if [ "$CODE" = true ]; then
-            echo "shards: $RESULT"
-            [ "$RESULT" = success ]
-          else
-            echo "no code changes, or a green PR run of this tree - shards were rightly skipped"
-          fi
+          echo "::error::e2e shards: $RESULT"
+          exit 1
 
   e2e-checks-backends:
     name: e2e (podman, nomad, kube)
     needs: [changes, e2e-backends]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
+    if: >-
+      !cancelled() && needs.changes.outputs.code == 'true'
+      && needs.e2e-backends.result != 'success'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -1306,18 +1304,12 @@ jobs:
           allowed-endpoints: >
             github.com:443
 
-      - name: Require every shard green, unless the run was rightly skipped
+      - name: A shard was not green
         env:
-          CODE: ${{ needs.changes.outputs.code }}
           RESULT: ${{ needs.e2e-backends.result }}
         run: |
-          set -euo pipefail
-          if [ "$CODE" = true ]; then
-            echo "shards: $RESULT"
-            [ "$RESULT" = success ]
-          else
-            echo "no code changes, or a green PR run of this tree - shards were rightly skipped"
-          fi
+          echo "::error::e2e backend shards: $RESULT"
+          exit 1
 
   # Pushes to main and same-repository pull requests, never a fork's: the
   # platform e2e workflows stand up an sshd and authorize a throwaway key,

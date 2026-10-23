@@ -169,10 +169,9 @@ membership) - `ci` above, and:
   slowest suite. `_HI_RUNNER_WIDTH=1` runs one at a time, as `--verbose`
   does. `--shard <i>/<n>` keeps every n-th suite of the selection from the
   i-th on, to split a group across runners: `windows-client.yml` runs `fast`
-  as four slices (1/4 to 4/4) on each of x64 and arm64, eight jobs rolled into
-  one `fast suites (Git Bash)` check (backgrounded suites barely overlap
-  under MSYS, so only more machines shorten it), and `ci.yml` shards `e2e`
-  and `backends`.
+  as four slices (1/4 to 4/4) on each of x64 and arm64, eight checks of
+  their own (backgrounded suites barely overlap under MSYS, so only more
+  machines shorten it), and `ci.yml` shards `e2e` and `backends`.
 - **`lint`** — [the lint gate](#the-lint-gate): its own ubuntu CI job, beside
   `fast`'s; the macOS, Windows, and BSD jobs run `fast` alone, since linting
   text does not depend on the userland. Run `npm ci --prefix .github` first, or

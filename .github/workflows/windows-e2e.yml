@@ -187,8 +187,8 @@ jobs:
   # /mnt/d it ran past its kill. On ext4 it runs at Linux speed, side by side
   # at the core count, in one job: one at a time it left three of the four
   # cores idle (the runner's machine-use table), and a wedge names its suite
-  # and case through the runner's deadline. A one-entry matrix, so the check
-  # names and the roll-up below stay as they were.
+  # and case through the runner's deadline. A one-entry matrix, so a second
+  # shard is one row and runner_ci_test.sh's partition check reads it as is.
   wsl-suites:
     name: fast suites (WSL, shard ${{ matrix.shard }})
     runs-on: windows-latest
@@ -404,30 +404,3 @@ jobs:
       - name: Nothing left behind in the target
         shell: wsl-bash {0}
         run: bash "$(wslpath -u "$GITHUB_WORKSPACE")/.github/scripts/no_hi_session_left.sh" /usr/share/say-hi/hi.sh
-
-  # The one check the shards roll up into, as windows-client.yml's
-  # fast-suites job does for Git Bash. `!cancelled()` so it reports on a red
-  # shard rather than being skipped past; the explicit result is the verdict
-  # (a skipped or failed shard is a failed check).
-  wsl-fast-suites:
-    name: fast suites (WSL)
-    needs: wsl-suites
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          # block: this collector runs on ubuntu, not Windows, and only reads
-          # the shards' result - it reaches nothing but the results receiver
-          egress-policy: block
-          allowed-endpoints: >
-            results-receiver.actions.githubusercontent.com:443
-
-      - name: Require every shard green
-        env:
-          RESULT: ${{ needs.wsl-suites.result }}
-        run: |
-          set -euo pipefail
-          echo "shards: $RESULT"
-          [ "$RESULT" = success ]

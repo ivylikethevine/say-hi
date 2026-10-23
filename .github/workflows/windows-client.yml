@@ -18,10 +18,9 @@ name: Windows client
 # report's `os` row). No --verbose (ci.yml's `test` job's own comment on
 # the same flag): the runner then fans a shard's suites out to the core count
 # instead of forcing width 1 for live streaming, and a failing transcript
-# still replays in full either way - only the live stream is lost. The
-# `fast-suites` job below folds all eight back into the one check name README's
-# badge and CONTRIBUTING's table know, "fast suites (Windows client) / fast
-# suites (Git Bash)".
+# still replays in full either way - only the live stream is lost. No job
+# rolls the eight up into one check: a red shard fails the run on its own, and
+# README's badge reads the eight by name (.github/scripts/platform_badges.sh).
 on:
   workflow_call:
 
@@ -93,29 +92,3 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           ./tests/test_runner.sh --host-report --group fast --shard "$HI_SHARD"
-
-  # The one check the shards roll up into. `!cancelled()` so it reports on a
-  # red shard rather than being skipped past; the explicit result is the
-  # verdict (a skipped or failed shard is a failed check).
-  fast-suites:
-    name: fast suites (Git Bash)
-    needs: shard
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          # block: this collector runs on ubuntu, not Windows, and only reads
-          # the shards' result - it reaches nothing but the results receiver
-          egress-policy: block
-          allowed-endpoints: >
-            results-receiver.actions.githubusercontent.com:443
-
-      - name: Require every shard green
-        env:
-          RESULT: ${{ needs.shard.result }}
-        run: |
-          set -euo pipefail
-          echo "shards: $RESULT"
-          [ "$RESULT" = success ]

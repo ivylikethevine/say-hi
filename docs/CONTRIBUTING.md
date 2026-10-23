@@ -83,8 +83,8 @@ reports. All but the last five rows are `ci.yml`'s.
 | `hot-path profiles (timep)`                                            | Skipped on a workflow- or docs-only diff                                   | Advisory — `continue-on-error`                                   |
 | `package build (deb, rpm, apk)`                                        | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
 | `nix flake` (builds the flake, then `nix run`)                         | Skipped on a workflow- or docs-only diff                                   | Gate                                                             |
-| `e2e (ssh, docker)`                                                    | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
-| `e2e (podman, nomad, kube)`                                            | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                                             |
+| `e2e (ssh, docker)`                                                    | Three shards beside the fast suites; the check itself runs only to fail    | Gate                                                             |
+| `e2e (podman, nomad, kube)`                                            | Three shards beside the fast suites; the check itself runs only to fail    | Gate                                                             |
 | `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                    | Same-repo PRs, after the arm64 fast suites pass                            | Gate, but see below                                              |
 | `fast suites (Windows client)`                                         | Same-repo PRs, skipped on a workflow- or docs-only diff; eight runners     | Gate, but see below                                              |
 | `release note (pr body)` (`release-note.yml`)                          | Every body edit and push; Dependabot's PRs skip                            | Gate                                                             |
@@ -114,8 +114,9 @@ checks, on a branch up to date with `main`: `fast suites (ubuntu-26.04)`,
 `fast suites (macos-latest)`, `lint suites (ubuntu-26.04)`,
 `package build (deb, rpm, apk)`, `e2e (ssh, docker)`,
 `e2e (podman, nomad, kube)` — the e2e pair by aggregate name, since the shard
-count is a knob — `secret scan (gitleaks)`, `dependency review`, and
-`release note (pr body)`, plus CodeQL reporting no high-or-higher alert.
+count is a knob, each skipped (which a ruleset counts as passing) unless a
+shard that should have run is not green — `secret scan (gitleaks)`,
+`dependency review`, and `release note (pr body)`, plus CodeQL reporting no high-or-higher alert.
 `workflow lint` belongs on that list under exactly that name; until then it
 still fails its run.
 
