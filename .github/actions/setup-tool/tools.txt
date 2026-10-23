@@ -83,6 +83,9 @@
 # image does and would change what shellcheck reports with no commit here.
 shellcheck|0.11.0|tar.xz|https://github.com/koalaman/shellcheck/releases/download/v%v/shellcheck-v%v.%a.tar.xz|--version|github:koalaman/shellcheck||linux-x86_64:linux.x86_64=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198,darwin-aarch64:darwin.aarch64=56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79
 actionlint|1.7.12|tar.gz|https://github.com/rhysd/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:rhysd/actionlint||8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+# Every target installs zizmor from here, never from a Python lock: the shared
+# workflows' inline ignores hold on this version, and another can read them
+# differently (1.31.0 missed one on `on:` that 1.31.1 honours).
 zizmor|1.31.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor||d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99
 # A pin, not `releases/latest`: new rules arrive as a reviewed bump instead of
 # changing what an unrelated PR's lint reports.
