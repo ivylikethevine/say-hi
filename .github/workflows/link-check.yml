@@ -7,8 +7,8 @@ name: Link check
 # change checks its new links when it lands) and weekly, since links rot with
 # no push here; never per-PR. Pull requests check relative links and fragments
 # offline (ci.yml). Settings for both are lychee.toml.
-on: # zizmor: ignore[dangerous-triggers]
-  workflow_run:
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]

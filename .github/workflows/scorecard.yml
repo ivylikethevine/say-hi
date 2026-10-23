@@ -10,8 +10,8 @@ name: Scorecard
 # ref, never the triggering run's payload. The weekly cron re-grades against
 # upstream's moving checks in a quiet week, a ruleset change included: Actions
 # has no event for rulesets.
-on: # zizmor: ignore[dangerous-triggers]
-  workflow_run:
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]
