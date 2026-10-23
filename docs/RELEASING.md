@@ -182,7 +182,7 @@ release the run creates gets them: an existing body is never rewritten.
 ### Signing the tag
 
 Tags are SSH-signed (`gpg.format=ssh`), and the trust root is
-`.github/allowed_signers`: three SSH keys, each one of the maintainer's
+`.github/allowed_signers`: four SSH keys, each one of the maintainer's
 signing keys registered on GitHub. The `gate` job runs `git tag -v` against
 that file as of the tagged commit, which it has already required to be on
 `main`, with the global and system git configs ignored. Checking a tag
