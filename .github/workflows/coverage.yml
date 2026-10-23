@@ -52,8 +52,8 @@ name: Coverage
 # carry no continue-on-error for the same reason: it would report a failed
 # shard to its gather as a success. The run goes red, which is the point;
 # coverage stays advisory all the same - no branch protection names it.
-on: # zizmor: ignore[dangerous-triggers]
-  workflow_run:
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]

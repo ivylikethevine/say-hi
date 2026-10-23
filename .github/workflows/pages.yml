@@ -38,8 +38,8 @@ name: Pages
 # carries a v* tag (release-pending, below): that release is about to deploy
 # the same tree with its package repository and demos, and three deploys in
 # eight minutes was a merge and a tag.
-on: # zizmor: ignore[dangerous-triggers]
-  workflow_run:
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [Coverage]
     types: [completed]
     branches: [main]
