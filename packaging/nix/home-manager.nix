@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # The home-manager module: what `hi --install` does for a clone, said through
 # home-manager's own options - the package on the profile and hi's rc block in
 # each shell home-manager manages. It writes no file of its own, and settings

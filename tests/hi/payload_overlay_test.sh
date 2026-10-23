@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for the config overlay stream hi.sh sends beside the payload: what is a
 # member, how a member is wired, and what the plugins rows carry.
 # A part of payload_test.sh, a suite of its own so the Windows shards split

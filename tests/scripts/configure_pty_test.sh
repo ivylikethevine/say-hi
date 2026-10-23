@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/configure.sh's interactive arms and its menu, each driven through a
 # pty; the menu's layout and header page are configure_menu_test.sh's.
 # A part of configure_test.sh, a suite of its own so the Windows and coverage

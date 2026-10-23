@@ -7,13 +7,14 @@
 # (_HI_DISABLE_PROMPT), so every stop shows its distro's own - ubuntu's on the
 # laptop, debian's on the nas, Raspberry Pi OS's on the pihole - the whole
 # header with every address shown (_HI_IP_HIDE=none), the core and useful
-# groups on, and an overlay `packages` file that is the homelab toolbox in
-# those two groups.
+# groups on, and an overlay `packages` file whose core group is the homelab
+# toolbox; the tape's first line, `hi --add-package`, writes the useful group
+# the way a user would.
 # The nas (the tools debian) answers it with one quiet line; the pihole (a
 # bare debian) does not.
 #
 # After each connect the tape waits on the check's own row (`|| git`, which
-# the file printed above does not hold), so a header drawn without it fails
+# the add-package lines above do not hold), so a header drawn without it fails
 # the render.
 #
 # The Hide block paces itself with Wait+Screen on sentinel text instead of
@@ -42,9 +43,9 @@ Enter
 Show
 
 Sleep 500ms
-Type@5ms "# the homelab toolbox, and how loudly to miss each piece"
+Type@5ms "# check every box for the homelab toolbox"
 Enter
-Type "cat $_HI_CONFIG_DIR/packages"
+Type "hi --add-package useful htop tmux smartctl"
 Enter
 Sleep 3s
 

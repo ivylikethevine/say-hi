@@ -27,7 +27,7 @@
 # show.
 #
 # It goes *after* the rc, not before. common/paths.sh assigns _HI_SSH_CONFIG
-# from $HOME unconditionally every time it is sourced (paths.sh:52), so a value
+# from $HOME unconditionally every time it is sourced (paths.sh:80), so a value
 # set first is overwritten; set afterwards it stands, and the completion reads
 # it because targets.sh is a subprocess that honours the export
 # (`${_HI_SSH_CONFIG:-$HOME/.ssh/config}`). Nothing re-sources paths.sh per
@@ -44,7 +44,7 @@
 # hex string, so always ahead of `hi-demo-...` and `web-prod`) and edge-1
 # (podman) - every backend inside the visible rows, with two ssh hosts spilling
 # over. Raising the geometry to fit all twelve would need roughly double the
-# height, on all seven GIFs, to gain one row of ssh host.
+# height, on all eight GIFs, to gain one row of ssh host.
 #
 # **What does break it is a busy render box.** targets.sh lists every running
 # container, not the fixture's - that is the feature - so anything else running

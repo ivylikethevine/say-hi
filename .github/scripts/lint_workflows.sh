@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Structural invariants over GitHub Actions YAML that neither zizmor nor
 # actionlint enforces as a rule. Each one is a convention a reviewer would
 # otherwise have to remember on every new job:
@@ -26,8 +25,11 @@
 #   7. in a job whose actions/checkout sets sparse-checkout, every local
 #      `uses: ./<path>` step has <path> (or a parent directory of it) in that
 #      list - otherwise the runner fails with "Can't find 'action.yml'"
+#   8. no `# zizmor: ignore[...]` sits on the `on:` line: zizmor flags the
+#      trigger's own key, and 1.31.0 ignores a comment on `on:` that 1.30.1
+#      and 1.31.1 honour, so it goes on the trigger's line instead
 #
-# Workflows get all seven; composite actions (action.yml) get 2 and 5.
+# Workflows get all eight; composite actions (action.yml) get 2 and 5.
 #
 #   .github/scripts/lint_workflows.sh [file...]
 #
@@ -121,11 +123,12 @@ checkout_filter='
   | "\(.where): actions/checkout without persist-credentials: false"
 '
 
-# Rule 5 is line-based: the version comment is not part of the parsed YAML.
+# Rules 5 and 8 are line-based: comments are not part of the parsed YAML.
 # Held in variables so bash 3.2 and 4+ read the regexes the same way.
 _lw_uses_re='^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'"'"']?([^"'"'"'[:space:]]+)["'"'"']?(.*)$'
 _lw_sha_re='^[^/@[:space:]]+/[^@[:space:]]+@[0-9a-f]{40}$'
 _lw_comment_re='^[[:space:]]+#[[:space:]]*v?[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?([[:space:]]|$)'
+_lw_on_ignore_re='^["'"'"']?on["'"'"']?:.*#.*zizmor:[[:space:]]*ignore\['
 
 bad=0
 # report <where> <message>
@@ -145,8 +148,8 @@ for file in "$@"; do
   }
 
   case "$file" in
-  action.y*ml | */action.y*ml) filter="$checkout_filter" ;;
-  *) filter="($workflow_filter), ($checkout_filter)" ;;
+  action.y*ml | */action.y*ml) filter="$checkout_filter" workflow="" ;;
+  *) filter="($workflow_filter), ($checkout_filter)" workflow=1 ;;
   esac
   msgs="$(printf '%s\n' "$json" | jq -r "$filter")" || {
     report "$file" "jq could not evaluate the rules"
@@ -161,6 +164,9 @@ EOF_MSGS
   n=0
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
+    if [ -n "$workflow" ] && [[ "$line" =~ $_lw_on_ignore_re ]]; then
+      report "$file:$n" "zizmor ignore on the on: line: put it on the line of the trigger it covers"
+    fi
     [[ "$line" =~ $_lw_uses_re ]] || continue
     ref="${BASH_REMATCH[2]}"
     rest="${BASH_REMATCH[3]}"

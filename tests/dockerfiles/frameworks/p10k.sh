@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # oh-my-zsh plus the prompt everyone pairs it with. powerlevel10k is the
 # sharpest test of the array base: it is thousands of lines of zsh that all
 # assume the native one.

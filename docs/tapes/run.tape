@@ -1,18 +1,19 @@
 # The run demo, as the researcher sees it: chen, zsh on a fedora thinkpad
-# with its stock prompt (_HI_DISABLE_LOCAL), running one command across the
-# cluster's backends - `hi <target> <command>` over an ssh host, a docker
-# container, a nomad allocation, a kubernetes pod - in one loop, and only
-# each command's output comes back - one hostname per backend, plus the
-# aliases-only notice for the bash-less pod. (`cat` is plain cat: the tool
-# aliases are opt-in, and this demo leaves them off.) Render with
-# `vhs docs/tapes/run.tape` from the repo root with docker, nomad, kind, and
-# kubectl working and hi on PATH; the kind cluster takes a minute the first
-# time. CI renders it too (demos.yml). The most expensive fixture in the
-# set, and last in generate.sh's order for it.
+# with its stock prompt (_HI_DISABLE_LOCAL), running one alias of their own
+# across the cluster's backends - `hi <target> <command>` over an ssh host, a
+# docker container, a nomad allocation, a kubernetes pod - in one loop, and
+# only each command's output comes back: each box's name and distro, plus the
+# aliases-only notice for the bash-less pod. A one-off command runs after the
+# aliases load, which plain ssh, docker exec, and kubectl exec cannot give
+# you. Render with `vhs docs/tapes/run.tape` from the repo root with docker,
+# nomad, kind, and kubectl working and hi on PATH; the kind cluster takes a
+# minute the first time. CI renders it too (demos.yml). The most expensive
+# fixture in the set, and last in generate.sh's order for it.
 #
 # Its configuration: none that shows on a target - a one-off command draws no
 # header - so settings.sh carries _HI_DISABLE_LOCAL and _HI_TARGETS_TTL=0,
-# the second for the reason up:complete gives.
+# the second for the reason up:complete gives, and the overlay an
+# aliases.sh with the `distro` alias.
 #
 # $HOME is exported to a throwaway for the ssh host: its port and key are in
 # that ~/.ssh/config, and the renderer's real one must not be read. ssh reads
@@ -56,11 +57,11 @@ Enter
 Show
 
 Sleep 500ms
-Type@5ms "# one command, four backends: ssh, docker, nomad, kube"
+Type@5ms "# one alias of mine, four backends: ssh, docker, nomad, kube"
 Enter
-Type "for h in web-1 db-prod $alloc api-7; do hi -F ~/.ssh/config $h 'cat /etc/hostname'; done"
+Type "for h in web-1 db-prod $alloc api-7; do hi -F ~/.ssh/config $h distro; done"
 Enter
-Wait+Screen@120s /api-7/
+Wait+Screen@120s /Alpine/
 Sleep 6s
 
 # No in-tape cleanup: run `docs/tapes/fixtures.sh down` after rendering.

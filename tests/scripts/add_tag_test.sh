@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/add_tag.sh - `hi --add-tag`, which writes the
 # `# Tags:` comment above a host's Host line in ~/.ssh/config.
 #

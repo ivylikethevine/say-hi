@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: everything the client writes for the target to run.
 # The bootloader, the fallback rc, the ssh preamble,
 # and `--version` - strings assembled on this side and executed on the other.

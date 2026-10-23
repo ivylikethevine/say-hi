@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # common/core.sh on a target with nothing but a shell, the shell table, the
 # small formatters, and the verdicts hi ships.
 # A part of core_test.sh, a suite of its own so the Windows shards split them.

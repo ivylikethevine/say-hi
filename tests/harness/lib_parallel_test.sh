@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for the tests/lib/ harness - the scratch dir, its teardown, and
 # the parallel batch.
 # tests/lib/workdir.sh and tests/lib/parallel.sh. The cases that overwrite
@@ -43,7 +42,7 @@ function test_workdir_creates_a_scratch_dir() {
 function test_test_cleanup_runs_the_extra_hook_first() {
   local marker="$_HI_WORKDIR/hook-ran"
   (
-    _HI_WORKDIR="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
+    _HI_SUITE_WORKDIR="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
     _HI_LEDGER=""
     # shellcheck disable=SC2317 # invoked by _hi_test_cleanup through $_HI_EXTRA_CLEANUP
     function _hi_probe_hook() { : >"$marker"; }
@@ -58,7 +57,7 @@ function test_test_cleanup_removes_the_workdir_even_if_the_hook_fails() {
   inner="$(mktemp -d "$_HI_WORKDIR/inner.XXXXXX")"
   (
     unset _HI_COV_KEEP
-    _HI_WORKDIR="$inner"
+    _HI_SUITE_WORKDIR="$inner"
     _HI_LEDGER=""
     _HI_EXTRA_CLEANUP=_hi_false
     _hi_test_cleanup
@@ -74,7 +73,7 @@ function test_test_cleanup_keeps_the_workdir_for_a_coverage_driver() {
   : >"$keep"
   (
     _HI_COV_KEEP="$keep"
-    _HI_WORKDIR="$inner"
+    _HI_SUITE_WORKDIR="$inner"
     _HI_LEDGER=""
     _HI_EXTRA_CLEANUP=""
     _hi_test_cleanup
@@ -110,8 +109,8 @@ function test_cleanup_sweeps_containers_then_networks() {
   printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s"\n' "$log" >"$dir/bin/hi-fake-backend"
   chmod +x "$dir/bin/hi-fake-backend"
   (
-    _HI_WORKDIR="$(mktemp -d "$dir/inner.XXXXXX")"
-    _HI_LEDGER="$_HI_WORKDIR/.ledger"
+    _HI_SUITE_WORKDIR="$(mktemp -d "$dir/inner.XXXXXX")"
+    _HI_LEDGER="$_HI_SUITE_WORKDIR/.ledger"
     : >"$_HI_LEDGER"
     _HI_EXTRA_CLEANUP=""
     _HI_BACKEND=hi-fake-backend

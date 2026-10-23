@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 name: Tool versions
 
 # Drift check over every pin: the CI tools in
@@ -11,8 +10,8 @@ name: Tool versions
 # every later run, closed when all is current. Runs after every green CI run
 # on a push to main and weekly, since upstream releases land without a push
 # here.
-on: # zizmor: ignore[dangerous-triggers]
-  workflow_run:
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]

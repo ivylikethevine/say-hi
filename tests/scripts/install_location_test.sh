@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # say-hi installed somewhere other than $HOME/say-hi, driven through the real
 # scripts/install.sh and then read back out of a *fresh* shell in each dialect.
 #
@@ -69,7 +68,7 @@ function _hi_loc_install() {
   _HI_LOC_ROOT="$(_hi_loc_tree home/opt/nested)"
   _hi_loc_quiet_home "$_HI_LOC_HOME"
   _hi_login_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --link none --shell all -y \
-    >"$_HI_WORKDIR/install.log" 2>&1
+    >"$_HI_SUITE_WORKDIR/install.log" 2>&1
 }
 
 # _hi_loc_quiet_home <home> - the fabricated $HOME, with the host's own login
@@ -115,9 +114,9 @@ function test_fish_config_states_the_tree() { _hi_loc_rc_states_the_tree .config
 # asserting against a half-made install
 function test_the_install_reported_success() {
   local tail
-  grep -q "Installed!" "$_HI_WORKDIR/install.log" && return 0
+  grep -q "Installed!" "$_HI_SUITE_WORKDIR/install.log" && return 0
   # the install's own last words are the evidence: a run that died says why
-  tail="$(tail -n 15 "$_HI_WORKDIR/install.log" 2>&1)"
+  tail="$(tail -n 15 "$_HI_SUITE_WORKDIR/install.log" 2>&1)"
   _hi_because "install.log ends: $tail"
 }
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Boots a throwaway `nomad agent -dev` (single-node, server+client, its own
 # temp data dir) and drives hi.sh's real nomad path (_say_hi) over actual
 # `nomad alloc exec` against jobs running under nomad's docker task driver.

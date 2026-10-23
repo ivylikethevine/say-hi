@@ -9,3 +9,10 @@
 # platforms to gain a handful of syntaxes on one. Specific completion syntax
 # belongs in ~/.nanorc, which is yours and is not sent anywhere.
 include "/usr/share/nano/*.nanorc"
+
+# What shows it is this nanorc and not the box's, since Debian's own already
+# includes the syntaxes above: line numbers, the cursor's position, and a title
+# bar of its own, all three read by the dev box's nano (bookworm's 7.2).
+set linenumbers
+set constantshow
+set titlecolor bold,white,magenta

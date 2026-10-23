@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for hi --configure's settings wizard - scripts/configure.sh (the
 # rc.sh and table.sh helpers it shares have their own suites). This half is
 # everything a plain install's second stage, or a later `hi --configure`,
@@ -208,6 +207,63 @@ function test_validators_hold_their_grammars() {
   _hi_is_header_word check || _hi_why || return 1
   ! _hi_is_header_word bogus || _hi_why || return 1
   ! _hi_is_header_word "" || _hi_why
+}
+
+# _hi_setting_check, the one verdict the wizard takes an answer by and doctor
+# judges a hand-written line by: each kind of scripts/settings <check> against
+# a value it takes and one it does not, and 2 for a kind it does not know.
+# pack.sh in a subshell, as hi.sh has it loaded ahead of doctor: `plugins`
+# reads the plugin tables through it. Each row: <check>|<value>|<status>
+function test_setting_check_gives_each_kind_its_verdict() {
+  (
+    # not followed: its background jobs' $! would read, to shellcheck, as
+    # this file's own (SC2031 at every later "$!")
+    # shellcheck source=/dev/null
+    source "$_HI_ROOT/scripts/pack.sh" || _hi_because "pack.sh did not load" || exit 1
+    _hi_setting_check_rows
+  )
+}
+function _hi_setting_check_rows() {
+  local check value want got
+  while IFS='|' read -r check value want; do
+    got=0
+    _hi_setting_check "$check" "$value" || got=$?
+    [ "$got" = "$want" ] || _hi_because "$check [$value]: $got, not $want" || return 1
+  done <<'ROWS'
+toggle|1|0
+toggle|0|0
+toggle|2|1
+flag|yes|1
+number:5|5|0
+number:5|12|0
+number:5|4|1
+number:5|x|1
+duration|30|0
+duration|30s|0
+duration|5m|0
+duration|2h|0
+duration|1d|0
+duration|1.5h|1
+duration|5x|1
+duration|m|1
+duration||1
+header|utc check|0
+header|utc bogus|1
+header||1
+prompts|hi|0
+prompts|bash:hi starship|0
+prompts|fish:tide zsh:powerlevel10k|0
+prompts|bash:tide|1
+prompts|bogus|1
+plugins|vim, tmux|0
+plugins|vim bogus-plugin|1
+editor|nvim|0
+editor|notepad|1
+noquote|plain value|0
+noquote|don't|1
+-|anything|0
+bogus-kind|1|2
+ROWS
 }
 
 function test_pending_answer_reads_this_runs_answers() {
@@ -720,6 +776,7 @@ function run_configure_tests() {
 
   _hi_h2 "Testing: the answer plumbing"
   _hi_check "The input validators hold their grammars" test_validators_hold_their_grammars
+  _hi_check "_hi_setting_check gives each kind its verdict" test_setting_check_gives_each_kind_its_verdict
   _hi_check "pending_answer reads this run's answers" test_pending_answer_reads_this_runs_answers
   _hi_check "_hi_pending_set replaces in place" test_pending_set_replaces_in_place
   _hi_check "ask_value: non-interactive keeps current, blanks defaults" test_ask_value_non_interactive_keeps_current

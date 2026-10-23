@@ -1,14 +1,21 @@
 # The editors demo, as the developer on a shared dev box sees it: maya, zsh
 # on her mac, into her account on the team's debian. nano and vim with the
-# nanorc and vimrc her overlay carries (docs/tapes/editors/). Render with
+# nanorc and vimrc her overlay carries (docs/tapes/editors/), `sudo vim` on
+# the same vimrc, and her git aliases. Render with
 # `vhs docs/tapes/editors.tape` from the repo root, docker running, hi on
 # PATH. CI renders it too (demos.yml).
 #
 # Its configuration (docs/tapes/fixtures.sh, up:editors): her mac left as it
 # is (_HI_DISABLE_LOCAL), so the outside prompt is macOS's stock one; the
 # compact header preset, so the header stays one line and the editors get the
-# frame; and the prompt handed to starship (_HI_PROMPT_TOOL=starship - the box
-# has it); hi keeps everything else.
+# frame; the prompt handed to starship (_HI_PROMPT_TOOL=starship - the box
+# has it); the sudo alias (_HI_SUDO_ALIAS); and the git plugin on
+# (_HI_PLUGINS_ON=git) with a git/config of hers in the overlay.
+#
+# Debian's own vim and nano already highlight syntax, so the two rc files
+# carry what a stock box does not: line numbers, a cursor line, a status line
+# in vim, a title bar of their own in nano. The box is what makes `sudo vim`
+# mean something: root has no vimrc there.
 #
 # The Hide block paces itself with Wait+Screen on sentinel text instead of
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
@@ -55,12 +62,25 @@ Ctrl+X
 Sleep 1s
 
 Type "vim ~/app/main.py"
-Type@5ms "   # my vimrc: syntax on"
+Type@5ms "   # my vimrc"
 Enter
 Sleep 4s
 Type ":q"
 Enter
 Sleep 1s
+
+Type "sudo vim /etc/hosts"
+Type@5ms "   # as root, still my vimrc"
+Enter
+Sleep 4s
+Type ":q"
+Enter
+Sleep 1s
+
+Type "cd ~/app && git st && git lg"
+Type@5ms "   # my git aliases, not my keys"
+Enter
+Sleep 4s
 
 Type "exit"
 Enter

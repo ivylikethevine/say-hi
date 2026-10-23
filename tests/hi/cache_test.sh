@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's runtime-directory layer and the three things built on
 # it: the overlay cache, the payload cache, and the ControlMaster socket.
 # Nothing here connects to anything - _hi_ctl_open only *assembles* ssh's

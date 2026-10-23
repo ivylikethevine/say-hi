@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # What a release page says changed. The release workflow hands this the body
 # GitHub's releases/generate-notes endpoint returned - one "* <title> by @who
 # in <pull url>" line per PR merged since the last tag - and it prints a

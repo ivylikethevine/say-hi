@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # What tests/coverage_v2.sh has bash source ahead of each suite, through
 # $BASH_ENV. bashcov hands bash its end of the trace pipe non-blocking (Ruby
 # opens every pipe so), and bash drops a trace line whose write finds the

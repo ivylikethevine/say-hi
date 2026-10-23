@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # A FreeBSD VM on this machine for the cases that fail only on the BSD CI jobs:
 # boots the release's cloud-init image under qemu (KVM where /dev/kvm is
 # readable, software emulation otherwise), installs the packages the CI job's
@@ -183,7 +182,7 @@ down)
   say "stopped"
   ;;
 *)
-  sed -n '3,20p' "$0" >&2
+  sed -n '2,19p' "$0" >&2
   exit 2
   ;;
 esac

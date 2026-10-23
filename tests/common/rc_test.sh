@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Behavioral tests for common/bash.sh, zsh.zsh, and config.fish. Syntax-linting
 # alone lets a prompt or completion silently stop being defined and still pass
 # CI, so these run them. Each case runs a fresh shell under `env -i` with HOME
@@ -608,6 +607,19 @@ function _hi_env_names() {
   [ "$(_hi_env_segment "$shell" "$@")" = "$want" ]
 }
 
+# _hi_mise_env_names <shell> <want> <dir under ~> [NAME=VALUE ...] - the same
+# from <dir>, in the home the mise row was built for: a global
+# ~/.tool-versions, a directory under ~ that only inherits it, and a project
+# with a config of its own. Every child's $HOME is the case's $_HI_WORKDIR.
+function _hi_mise_env_names() {
+  local shell="$1" want="$2" dir="$3"
+  shift 3
+  mkdir -p "$_HI_WORKDIR/mise/proj"
+  : >"$_HI_WORKDIR/.tool-versions"
+  : >"$_HI_WORKDIR/mise/proj/.tool-versions"
+  _hi_env_names "$shell" "$want" "cd '$_HI_WORKDIR/$dir';" "$@"
+}
+
 # The venv activate scripts leave a marker behind saying they ran in *this*
 # shell: $_OLD_VIRTUAL_PS1 for bash and zsh, an _old_fish_prompt function for
 # fish. This is that marker, per shell.
@@ -862,7 +874,7 @@ function _hi_shell_override_probe() {
   local shell file script line value src=""
   IFS='|' read -r shell file script line value <<<"$row"
   rm -f "$_HI_WORKDIR/cfg/$file"
-  [ "$mode" = user ] && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
+  [ "$mode" = user ] && mkdir -p "$_HI_WORKDIR/cfg" && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
   [ "$mode" = bare ] || src='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of_member "$file")"'" 2>/dev/null; '
   _hi_rc_shell xterm-256color "$shell" "$src$script"
 }
@@ -891,7 +903,6 @@ function test_shell_user_file_applies() {
 # _hi_rc_begin - what every part of this suite starts from, and the tally
 function _hi_rc_begin() {
   _hi_workdir rctest
-  mkdir -p "$_HI_WORKDIR/cfg"
   _hi_suite_begin
 }
 
@@ -949,12 +960,6 @@ function run_rc_tests() {
   _hi_check_requires zsh "zsh's \$fpath holds common/ once, last, after a re-source" test_zsh_fpath_holds_common_once
 
   _hi_h2 "Testing: the environment segment (venv, conda, direnv, nix, ...)"
-  # every child's $HOME is $_HI_WORKDIR, so this is the case the mise row was
-  # built for: a global ~/.tool-versions, a directory under ~ that only
-  # inherits it, and a project with a config of its own
-  : >"$_HI_WORKDIR/.tool-versions"
-  mkdir -p "$_HI_WORKDIR/mise/proj"
-  : >"$_HI_WORKDIR/mise/proj/.tool-versions"
   local _hi_esh
   for _hi_esh in bash zsh fish; do
     _hi_check_requires "$_hi_esh" "[$_hi_esh] nothing active -> no segment" \
@@ -967,9 +972,9 @@ function run_rc_tests() {
     _hi_check_requires "$_hi_esh" "[$_hi_esh] _HI_DISABLE_ENV_STATUS silences it" \
       _hi_env_names "$_hi_esh" "" "" VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1
     _hi_check_requires "$_hi_esh" "[$_hi_esh] mise under a project config is named" \
-      _hi_env_names "$_hi_esh" "(mise) " "cd '$_HI_WORKDIR/mise/proj';" MISE_SHELL=x
+      _hi_mise_env_names "$_hi_esh" "(mise) " mise/proj MISE_SHELL=x
     _hi_check_requires "$_hi_esh" "[$_hi_esh] mise on ~'s config alone is not" \
-      _hi_env_names "$_hi_esh" "" "cd '$_HI_WORKDIR/mise';" MISE_SHELL=x
+      _hi_mise_env_names "$_hi_esh" "" mise MISE_SHELL=x
   done
   _hi_check "[bash] draws the venv its PROMPT_COMMAND would have eaten" \
     test_env_defers_to_an_activate_that_ran_here bash "(direnv:proj|myproj) "

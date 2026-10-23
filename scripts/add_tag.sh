@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `hi --add-tag`: write the `# Tags: <tag>` comment common/core.sh's
 # _hi_ssh_host_tag_walk reads, directly above a host's `Host` (or
 # `Match host`) line in ~/.ssh/config or whichever file it Includes the host

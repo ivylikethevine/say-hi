@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: the ssh payload and the size hi reports on connect. The
 # payload is an allow list, so most of this file is its drift guard - what
 # ships, whatever the overlay says. The config overlay stream is three suites

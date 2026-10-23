@@ -8,11 +8,11 @@ name: Demos
 # commit on top of the author's is what branch protection refuses. Needs
 # docker, podman, nomad, and kind.
 #
-# Of the eight .tape files, common.tape is the shared include, leaving seven
+# Of the nine .tape files, common.tape is the shared include, leaving eight
 # renderable tapes. demo.gif is hand-rendered, reviewed by eye, and committed in
 # its own commit: it is the one GIF claiming stock defaults, it goes quietly
 # wrong when the header, the prompt, or the tape moves, and only a person can
-# tell. The other six each
+# tell. The other seven each
 # advertise one feature, which a machine can render honestly, so `publish`
 # renders them.
 #
@@ -28,7 +28,7 @@ on:
   # `attach` below find it rather than race it. The weekly run is for
   # changes that move a demo without a release in between (header, prompt,
   # anything in the shipped tree) and keeps the render inside the artifact's 90-day
-  # retention. Rendering six of the seven renderable tapes stands a kind
+  # retention. Rendering seven of the eight renderable tapes stands a kind
   # cluster up and tears it down: a cadence, not a gate.
   schedule:
     - cron: "17 5 * * 1"
@@ -44,9 +44,9 @@ concurrency:
 
 jobs:
   # One runner per tape. The renders are independent - each tape stands its own
-  # fixtures up and takes them down - and serially they cost the sum of six
+  # fixtures up and takes them down - and serially they cost the sum of seven
   # renders plus one backend install; in parallel they cost the slowest tape
-  # plus that install, paid six times over on six runners. The `run` tape's
+  # plus that install, paid seven times over on seven runners. The `run` tape's
   # teardown deletes its kind cluster, which is no reason to order the roster:
   # nothing else is sharing its machine.
   #
@@ -55,7 +55,7 @@ jobs:
   # here: it is the committed, hand-rendered one.
   render:
     name: render ${{ matrix.tape }}
-    # Every one of these six tapes needs docker, podman, nomad, or kind; the
+    # Every one of these seven tapes needs docker, podman, nomad, or kind; the
     # hosted runner carries docker and the steps below install the other three
     # (as ci.yml's e2e-backends does). --require-run makes a tape that stands
     # down for a missing backend a failure, never a green run that rendered
@@ -65,12 +65,12 @@ jobs:
     # the hosted path pays the apt and kind installs on top of one render
     timeout-minutes: 15
     strategy:
-      # one tape failing must not cancel the five that would have rendered:
+      # one tape failing must not cancel the six that would have rendered:
       # the transcripts of the others are what say whether it is that tape or
       # the renderer
       fail-fast: false
       matrix:
-        tape: [packages, editors, overlay, colors, complete, run]
+        tape: [packages, editors, overlay, colors, keep, complete, run]
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
@@ -140,9 +140,9 @@ jobs:
       # nomad, and kind with the kubectl it brings for the run and complete
       # tapes) - plus renderer packages: `Set Shell zsh` wants that shell on
       # the *renderer*, and a missing one is a vhs error rather than a clean
-      # stand-down, so the shells go in too (editors and run want zsh, overlay
-      # and complete want fish) and --require-run turns each missing one into
-      # a failed tape. Installed unconditionally rather than per tape: the
+      # stand-down, so the shells go in too (editors, keep, and run want zsh,
+      # overlay and complete want fish) and --require-run turns each missing
+      # one into a failed tape. Installed unconditionally rather than per tape: the
       # roster is generate.sh's to state, and a matrix that had to restate it
       # would be a second copy to keep true.
       - uses: ./.github/actions/setup-backends
@@ -157,7 +157,7 @@ jobs:
       # reached a run the day it was tagged and every one of the six tapes
       # came back "vhs exited 0 but <gif> was not rewritten" (fixed in
       # v0.12.1) - the renderer is a build input like any other, so it gets a
-      # version. Bump it deliberately, and dispatch a run that renders all six.
+      # version. Bump it deliberately, and dispatch a run that renders all seven.
       - name: Install vhs, ttyd, and ffmpeg
         uses: charmbracelet/vhs-action@f6d7db07a432fcd3b06772628d36a57f96d95dcf # v2.1.1
         with:
@@ -193,11 +193,11 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-  # The six parts as the one artifact pages.yml fetches by name. `needs:` with
+  # The seven parts as the one artifact pages.yml fetches by name. `needs:` with
   # no status function, so a single failed tape skips this job and the run is
   # not a success - which is what keeps the site on the last render where
-  # every GIF was fresh, rather than publishing five new ones beside a stale
-  # sixth.
+  # every GIF was fresh, rather than publishing six new ones beside a stale
+  # seventh.
   collect:
     name: collect the GIFs
     needs: render
@@ -279,7 +279,7 @@ jobs:
           name: demo-gifs
           path: gifs
 
-      # packages: the header's check, the feature the top of README leads with
+      # the packages GIF is the release's demo: the header's check on two boxes
       - name: Upload and embed the demo
         env:
           GH_TOKEN: ${{ github.token }}

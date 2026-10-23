@@ -1,5 +1,4 @@
 #!/bin/zsh
-# SPDX-License-Identifier: MIT
 
 # === start required configuration ===
 # see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55

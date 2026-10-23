@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # zizmor configuration. Ignores are rule-level here or inline
 # (`# zizmor: ignore[<rule>]` on the flagged line), never by line number: a
 # line-numbered entry silently detaches the moment its file is edited.
@@ -14,5 +13,7 @@ rules:
   # binary, never a floating download.
 
   # dangerous-triggers is not listed: each workflow_run trigger carries an
-  # inline `# zizmor: ignore[dangerous-triggers]` on its `on:` line, next to
-  # the justification in that file's header.
+  # inline `# zizmor: ignore[dangerous-triggers]` on its own `workflow_run:`
+  # line, the one zizmor flags, with the justification in that file's header.
+  # On `on:` it matches only some zizmor versions (1.31.0 misses it), so
+  # lint_workflows.sh rejects an ignore there.

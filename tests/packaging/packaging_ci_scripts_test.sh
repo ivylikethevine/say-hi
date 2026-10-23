@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The scripts the workflows run (.github/scripts), and packaging/'s srctar.sh,
 # stamp_badge.sh, and mkrepo.sh.
 # A part of packaging_ci_test.sh, a suite of its own so the Windows shards split them.
@@ -66,8 +65,9 @@ EOF
 
 # platform_badges.sh against a stand-in gh serving two commits: a verdict on
 # the head commit is the badge, a check the head skipped takes the commit
-# before it, a conclusion that is neither pass nor fail is shown by name, and
-# a check no commit in the window ran is "no runs", with a warning naming it
+# before it, a conclusion that is neither pass nor fail is shown by name, a
+# sharded row is its worst shard, and a check no commit in the window ran is
+# "no runs", with a warning naming it
 function test_platform_badges_walk_back_past_a_skip() {
   local got
   local dir="$_HI_WORKDIR/badges" out rc=0
@@ -83,9 +83,11 @@ case "${4#repos/o/r/commits/}|${6#check_name=}" in
 "aaaaaaa1/check-runs|fast suites (ubuntu-26.04)") echo success ;;
 "aaaaaaa1/check-runs|fast suites (macos-latest)") echo failure ;;
 "bbbbbbb2/check-runs|e2e (FreeBSD) / hi localhost (FreeBSD both ends)") echo success ;;
-"aaaaaaa1/check-runs|e2e (OpenBSD) / hi localhost (OpenBSD both ends)") echo cancelled ;;
+"aaaaaaa1/check-runs|e2e (OpenBSD) / hi localhost (OpenBSD both ends, shard 1/2)") echo success ;;
+"aaaaaaa1/check-runs|e2e (OpenBSD) / hi localhost (OpenBSD both ends, shard 2/2)") echo cancelled ;;
 "aaaaaaa1/check-runs|fast suites (Alpine client)") echo timed_out ;;
-"bbbbbbb2/check-runs|fast suites (Windows client) / fast suites (Git Bash)") echo success ;;
+"bbbbbbb2/check-runs|fast suites (Windows client) / fast suites (Git Bash x64, shard 1)") echo success ;;
+"bbbbbbb2/check-runs|fast suites (Windows client) / fast suites (Git Bash arm64, shard 3)") echo failure ;;
 esac
 EOF
   chmod +x "$dir/bin/gh"
@@ -98,7 +100,7 @@ EOF
     grep -qF '"message":"failing","color":"e05d44"' "$dir/out/alpine.json" &&
     grep -qF '"label":"FreeBSD","message":"passing"' "$dir/out/freebsd.json" &&
     grep -qF '"message":"cancelled","color":"9f9f9f"' "$dir/out/openbsd.json" &&
-    grep -qF '"label":"Windows client","message":"passing"' "$dir/out/windows-client.json" &&
+    grep -qF '"label":"Windows client","message":"failing"' "$dir/out/windows-client.json" &&
     grep -qF '"label":"Windows","message":"no runs","color":"inactive"' "$dir/out/windows.json" ||
     _hi_because "the badges: $(cat "$dir/out"/*.json)" || return 1
   [[ "$out" == *"Linux: success (aaaaaaa)"* && "$out" == *"FreeBSD: success (bbbbbbb)"* ]] &&

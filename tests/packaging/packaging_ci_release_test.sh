@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # release.yml held to what a release needs: the gate, the signing environment,
 # and each job's steps.
 # A part of packaging_ci_test.sh, a suite of its own so the Windows shards split them.

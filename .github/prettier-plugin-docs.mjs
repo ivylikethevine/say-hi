@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Prettier's own Markdown parser with a preprocess step that writes the
 // generated parts of a doc before it is formatted: each `## Contents` list,
 // from the page's `##` and `###` headings, the `## Every setting` table, from
@@ -164,10 +163,18 @@ function writeUsage(text) {
       "",
     );
     rows.forEach((example, i) => {
+      // `-#<anchor>`: no image, the README's demo at <anchor> instead
+      if (example.startsWith("-#")) {
+        out.push(
+          `It changes how a connect runs, which [the README's demo](../README.md${example.slice(1)}) shows.`,
+          "",
+        );
+        return;
+      }
       if (example === "-") {
         out.push(
           needs === "-"
-            ? "It changes how a connect runs, which the [README's demos](../README.md) show."
+            ? "No image: what it does shows in a session, not in output of its own."
             : "No image: what it shows is the network's, a release tag's, or your editor's.",
           "",
         );

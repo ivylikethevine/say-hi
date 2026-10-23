@@ -86,31 +86,3 @@ jobs:
             cat /etc/resolv.conf
             pkg_add -I bash zsh git python%3
           run: bash "$GITHUB_WORKSPACE/.github/scripts/bsd_loopback.sh" </dev/null
-
-  # The one check the shards roll up into, under the name the platform badge
-  # (.github/scripts/platform_badges.sh) and the Checks tab already know.
-  # `!cancelled()` so it reports on a red shard rather than being skipped
-  # past; the explicit result is the verdict (a skipped or failed shard is a
-  # failed check).
-  loopback:
-    name: hi localhost (OpenBSD both ends)
-    needs: shard
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
-        with:
-          # block: this collector only reads the shards' result - it reaches
-          # nothing but the results receiver
-          egress-policy: block
-          allowed-endpoints: >
-            results-receiver.actions.githubusercontent.com:443
-
-      - name: Require every shard green
-        env:
-          RESULT: ${{ needs.shard.result }}
-        run: |
-          set -euo pipefail
-          echo "shards: $RESULT"
-          [ "$RESULT" = success ]

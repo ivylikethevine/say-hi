@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # fzf's Ctrl-R, one of the two bash surfaces hi touches. Debian's fzf predates
 # `fzf --bash`, so its packaged key-bindings file is what gets sourced - it
 # lives under /usr/share/doc, which framework.Dockerfile un-excludes before

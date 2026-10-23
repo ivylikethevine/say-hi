@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/install.sh's own two halves: install_tree, the whole
 # of what a packaging recipe's package() step calls, and --uninstall's
 # marker-based rc rewriting (strip_marker/strip_settings/unlink_hi), plus an
@@ -475,6 +474,24 @@ function test_config_hi_dry_run_makes_no_link() {
   [[ "$out" == *"would link $dir/bin/hi"* ]] && [ ! -e "$dir/bin/hi" ] || _hi_why out dir
 }
 
+# _hi_cells_line, the " | hi_home: ... | version: ..." lines an install ends
+# on: as many cells to a line as the width fits, the next cell starting a new
+# line, and a cell wider than the width a line of its own, never cut
+function test_cells_line_wraps_at_the_output_width() {
+  local out want
+  set -- aaaa bbbb cccc a-cell-wider-than-the-line-itself dd
+  out="$(_hi_strip_ansi "$(_HI_MAX_WIDTH=80 _HI_TERM_COLS=20 _hi_cells_line "$BLUE" "$@")")"
+  want=" | aaaa | bbbb
+ | cccc
+ | a-cell-wider-than-the-line-itself
+ | dd"
+  [ "$out" = "$want" ] || _hi_why out want || return 1
+  out="$(_hi_strip_ansi "$(_HI_MAX_WIDTH=80 _HI_TERM_COLS='' _hi_cells_line "$BLUE" "$@")")"
+  [ "$out" = " | aaaa | bbbb | cccc | a-cell-wider-than-the-line-itself | dd" ] || _hi_because "at 80 columns: [$out]" || return 1
+  out="$(_hi_cells_line "$BLUE")"
+  [ -z "$out" ] || _hi_because "no cells drew: [$out]"
+}
+
 # _hi_install_begin - what every part of this suite starts from, and the tally
 function _hi_install_begin() {
   _hi_workdir installtest
@@ -526,6 +543,9 @@ function run_install_tests() {
   _hi_check_capable symlink "Removes its own link from a writable bindir" test_unlink_hi_removes_its_own_link
   _hi_check_capable lockout "Instructs when sudo is refused" test_unlink_hi_instructs_when_sudo_is_refused
   _hi_check_capable lockout "Instructs with no sudo at all" test_unlink_hi_instructs_with_no_sudo_at_all
+
+  _hi_h2 "Testing: _hi_cells_line (the closing summary)"
+  _hi_check "Wraps at the output width, a wide cell on its own" test_cells_line_wraps_at_the_output_width
 
   _hi_suite_end "install.sh logic"
 }

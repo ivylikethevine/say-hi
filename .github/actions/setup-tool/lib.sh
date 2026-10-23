@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Reading ./tools.txt, shared by ./install.sh, ../setup-tools, and
 # .github/scripts/check_tool_versions.sh - every consumer of the roster goes
 # through here, so none keeps a copy of the format.

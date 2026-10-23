@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `hi --plugins`: every plugin - the configs of a tool's hi carries to a
 # target, a table of config/plugins or of your own plugins file - with what
 # rides and what is off. `hi --disable-plugin` and `--enable-plugin` (a leading

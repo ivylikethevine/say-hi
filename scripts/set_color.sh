@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `hi --add-color`: pin a color in ~/.config/say-hi/colors, a TOML row under
 # its type's table; `hi --remove-color` (a leading --unset) removes a pin. That file replaces the tree's wholesale
 # (common/paths.sh), so the first write copies the tree's in and edits there.

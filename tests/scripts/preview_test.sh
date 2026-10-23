@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/preview.sh - `hi --preview colors`, `packages`,
 # and `header`, one script with a subject switch.
 #
@@ -49,9 +48,9 @@ function _hi_write_preview_tree() {
   local home
   home="$(_hi_scratch_tree tree common config link:scripts)"
   mkdir -p "$home/.ssh"
-  cp "$_HI_WORKDIR/colors" "$home/say-hi/config/colors"
-  cp "$_HI_WORKDIR/ssh_config" "$home/.ssh/config"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages"
+  cp "$_HI_SUITE_WORKDIR/colors" "$home/say-hi/config/colors"
+  cp "$_HI_SUITE_WORKDIR/ssh_config" "$home/.ssh/config"
+  cp "$_HI_SUITE_WORKDIR/packages" "$home/say-hi/config/packages"
 }
 
 #
@@ -61,39 +60,39 @@ function _hi_write_preview_tree() {
 # a bare `preview.sh` is a usage error, never a silent default subject
 function test_a_missing_subject_is_refused() {
   local out rc=0
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" 2>&1)" || rc=$?
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, or header"* ]] || _hi_why rc out
 }
 
 function test_an_unknown_subject_is_refused() {
   local out rc=0
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" swatches 2>&1)" || rc=$?
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" swatches 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"unknown subject 'swatches'"* ]] || _hi_why rc out
 }
 
 # --help with no subject lists the three, and exits 0
 function test_bare_help_lists_the_subjects() {
   local out
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" --help 2>&1)" || _hi_why || return 1
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" --help 2>&1)" || _hi_why || return 1
   [[ "$out" == 'Usage: preview.sh <colors|packages|header>'* && "$out" == *header* ]] || _hi_why out
 }
 
 # the header subject is hi_header itself, under the settings.sh in force
 function test_header_subject_renders_the_header() {
   local out
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     _HI_DISABLE_BANNER=1 _HI_HEADER_ORDER="version" _HI_TARGETS_TTL=0 \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" header 2>&1)" || _hi_why || return 1
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" header 2>&1)" || _hi_why || return 1
   [[ "$out" == *"| "* ]] || _hi_why out
 }
 
 function test_header_subject_refuses_an_argument() {
   local out rc=0
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" header nonsense 2>&1)" || rc=$?
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" header nonsense 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]] || _hi_why rc out
 }
 
@@ -102,7 +101,7 @@ function test_header_subject_refuses_an_argument() {
 # header. The checkout's own script, so the coverage sweep sees the arm.
 function test_header_subject_says_when_the_header_is_off() {
   local out
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     _HI_DISABLE_HEADER=1 _HI_TARGETS_TTL=0 \
     "$_HI_ROOT/scripts/preview.sh" header 2>&1)" || _hi_why || return 1
   [[ "$out" == *"header off (_HI_DISABLE_HEADER=1"* && "$out" != *"| "* ]] || _hi_why out
@@ -113,7 +112,7 @@ function test_header_subject_says_when_the_header_is_off() {
 #
 
 function _hi_write_color_fixtures() {
-  cat >"$_HI_WORKDIR/colors" <<'EOF'
+  cat >"$_HI_SUITE_WORKDIR/colors" <<'EOF'
 # [type] tables of: name = "color [rrggbb]"
 [username]
 alice = "brmagenta"
@@ -130,7 +129,7 @@ pinned = "brcyan"
 work = "bryellow"
 EOF
 
-  cat >"$_HI_WORKDIR/ssh_config" <<'EOF'
+  cat >"$_HI_SUITE_WORKDIR/ssh_config" <<'EOF'
 Host plain
   User nobody
 
@@ -156,8 +155,8 @@ Host a-considerably-longer-hostname
   User nobody
 EOF
 
-  export _HI_COLORS="$_HI_WORKDIR/colors"
-  export _HI_SSH_CONFIG="$_HI_WORKDIR/ssh_config"
+  export _HI_COLORS="$_HI_SUITE_WORKDIR/colors"
+  export _HI_SSH_CONFIG="$_HI_SUITE_WORKDIR/ssh_config"
   # pin the "local" identities so LOCALUSER/LOCALHOSTNAME don't depend on
   # whoever happens to be running the suite
   export _HI_LOCAL_USER=localdev
@@ -418,7 +417,7 @@ function test_hosts_table_merges_pattern_hosts_into_the_example_row() {
 # group ahead of the ssh ones
 function test_hosts_table_leads_with_a_localhostname_pin() {
   local colors="$_HI_WORKDIR/colors.localhost" out
-  cat "$_HI_WORKDIR/colors" >"$colors"
+  cat "$_HI_SUITE_WORKDIR/colors" >"$colors"
   printf '[hostname]\nLOCALHOSTNAME = "brgreen"\n' >>"$colors"
   out="$(_HI_COLORS="$colors" _hi_render_hosts_table)" || _hi_why colors || return 1
   [[ "$out" == *localbox* && "$out" == *local:hostname* ]] || _hi_why out || return 1
@@ -492,9 +491,9 @@ function _hi_render_colors() {
   # _HI_TARGETS_TTL=0: targets.sh's sweep cache is keyed by kind alone
   # (hi.targets.ssh under $XDG_RUNTIME_DIR), so within the TTL a render here
   # would happily reuse the host list a *previous* run's fixtures produced
-  HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
+  HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
     _HI_LOCAL_USER=localdev _HI_LOCAL_HOSTNAME=localbox _HI_TARGETS_TTL=0 \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" colors "$@" 2>&1
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" colors "$@" 2>&1
 }
 
 # The tables are wide, colored, and layout-heavy; asserting their exact shape
@@ -577,7 +576,7 @@ function test_tables_are_rectangular() {
 # the scheme line says the 16-color escapes are what is on show.
 function test_tables_render_from_the_checkout() {
   local out
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     _HI_LOCAL_USER=localdev _HI_LOCAL_HOSTNAME=localbox _HI_TARGETS_TTL=0 _HI_TRUECOLOR=0 \
     "$_HI_ROOT/scripts/preview.sh" colors 2>&1)" || _hi_why || return 1
   [[ "$out" == *"(no truecolor here"* ]] || _hi_why out || return 1
@@ -617,8 +616,8 @@ function test_colors_text_is_a_row_a_line() {
 # header, which has no text form
 function test_packages_text_is_a_row_a_line() {
   local out rules
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" _HI_TARGETS_TTL=0 \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" packages --text 2>&1)" || _hi_why out || return 1
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" _HI_TARGETS_TTL=0 \
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" packages --text 2>&1)" || _hi_why out || return 1
   rules="$(_hi_text_rules "$out")"
   [[ "$out" == *"groups / core: state "*", installed "*", missing "*", example "* && "$out" == *"marks / "* &&
     "$out" == *"check: as the header prints it"* ]] && [ "$rules" = 0 ] || _hi_why rules out
@@ -627,9 +626,9 @@ function test_packages_text_is_a_row_a_line() {
 # ...and the header, a cell a line in the header's order
 function test_header_text_is_a_cell_a_line() {
   local out rules
-  out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+  out="$(HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     _HI_DISABLE_BANNER=1 _HI_HEADER_ORDER="version check" _HI_TARGETS_TTL=0 \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" header --text 2>&1)" || _hi_why out || return 1
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" header --text 2>&1)" || _hi_why out || return 1
   rules="$(_hi_text_rules "$out")"
   [[ "$out" == *"header / version: "*"header / check: as the header prints it"* ]] && [ "$rules" = 0 ] || _hi_why rules out
 }
@@ -659,7 +658,7 @@ function test_h_flag_prints_the_same_usage() {
 function _hi_write_package_fixtures() {
   _hi_fake_path pkgbin hitop hialpha hibravo hicharlie hidelta hiecho hifoxtrot >/dev/null
 
-  cat >"$_HI_WORKDIR/packages" <<'EOF'
+  cat >"$_HI_SUITE_WORKDIR/packages" <<'EOF'
 # a comment, and a blank line, both of which the header skips
 
 hitop = []
@@ -685,9 +684,9 @@ highost0 = []
 EOF
   # in-process cases read $_HI_PACKAGES; a child script re-derives it from
   # $_HI_CONFIG_DIR, so the fixture is also an overlay's packages file
-  mkdir -p "$_HI_WORKDIR/cfg"
-  export _HI_PACKAGES="$_HI_WORKDIR/packages"
-  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/cfg/packages"
+  mkdir -p "$_HI_SUITE_WORKDIR/cfg"
+  export _HI_PACKAGES="$_HI_SUITE_WORKDIR/packages"
+  cp "$_HI_SUITE_WORKDIR/packages" "$_HI_SUITE_WORKDIR/cfg/packages"
 }
 
 # the fixture's packages, and the coreutils the script itself shells out to

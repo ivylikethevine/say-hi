@@ -24,7 +24,7 @@ for wf in "$@"; do
       --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | "\(.id)\t\(.name)"' |
       while IFS=$'\t' read -r job name; do
         # a job that only collects its shards adds nothing of its own
-        case "$name" in *"(Git Bash)" | "e2e (ssh, docker)" | "e2e (podman, nomad, kube)" | "e2e gate") continue ;; esac
+        case "$name" in "e2e (ssh, docker)" | "e2e (podman, nomad, kube)" | "e2e gate") continue ;; esac
         gh api --allow-escape-sequences "repos/$repo/actions/jobs/$job/logs" 2>/dev/null |
           sed 's/\x1b\[[0-9;]*m//g; s/^[0-9TZ:.-]* //' |
           grep -oE '##\[error\].*' | grep -v 'Process completed with exit code' | sed 's/^##\[error\]//' |

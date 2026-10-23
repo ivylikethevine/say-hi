@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # common/header.sh's package check: check_line, the groups, full_check, and
 # the palette it paints with.
 # A part of header_test.sh, a suite of its own so the Windows shards split them.

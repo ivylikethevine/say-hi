@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The scaffold tests/coverage.sh and tests/coverage_v2.sh share: tree
 # resolution, suite selection off the runner's table, the tally files the
 # suites report through, the per-suite trace loop, and cleanup. Sourced by

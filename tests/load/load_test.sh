@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for load.sh, the target-side half of hi: the session rc directory
 # it writes, the shell handoff, and the cleanup that removes it - and, only for
 # a disposable tree, say-hi itself. Sourced with _HI_LOAD_NO_INIT=1 for the
@@ -673,16 +672,16 @@ function test_nano_fallback_resolves_extendsyntax() {
 function _hi_load_begin() {
   _hi_workdir loadtest
   # the editor configs an overlay carried in, for load() to hand the session
-  mkdir -p "$_HI_WORKDIR/overlay/vim" "$_HI_WORKDIR/overlay/nvim" "$_HI_WORKDIR/overlay/nano"
-  : >"$_HI_WORKDIR/overlay/vim/vimrc"
-  : >"$_HI_WORKDIR/overlay/nvim/init.lua"
-  : >"$_HI_WORKDIR/overlay/nano/nanorc"
-  mkdir -p "$_HI_WORKDIR/overlay/micro"
-  : >"$_HI_WORKDIR/overlay/micro/settings.json"
-  export _HI_VIMRC="$_HI_WORKDIR/overlay/vim/vimrc" _HI_NVIMRC="$_HI_WORKDIR/overlay/nvim/init.lua" _HI_NANORC="$_HI_WORKDIR/overlay/nano/nanorc"
+  mkdir -p "$_HI_SUITE_WORKDIR/overlay/vim" "$_HI_SUITE_WORKDIR/overlay/nvim" "$_HI_SUITE_WORKDIR/overlay/nano"
+  : >"$_HI_SUITE_WORKDIR/overlay/vim/vimrc"
+  : >"$_HI_SUITE_WORKDIR/overlay/nvim/init.lua"
+  : >"$_HI_SUITE_WORKDIR/overlay/nano/nanorc"
+  mkdir -p "$_HI_SUITE_WORKDIR/overlay/micro"
+  : >"$_HI_SUITE_WORKDIR/overlay/micro/settings.json"
+  export _HI_VIMRC="$_HI_SUITE_WORKDIR/overlay/vim/vimrc" _HI_NVIMRC="$_HI_SUITE_WORKDIR/overlay/nvim/init.lua" _HI_NANORC="$_HI_SUITE_WORKDIR/overlay/nano/nanorc"
   # ...and the wiring.sh a client packs beside them; vim's and nvim's lines
   # keep their state under the session tree
-  _hi_wiring_for vim/vimrc nvim/init.lua nano/nanorc micro/settings.json >"$_HI_WORKDIR/overlay/wiring.sh"
+  _hi_wiring_for vim/vimrc nvim/init.lua nano/nanorc micro/settings.json >"$_HI_SUITE_WORKDIR/overlay/wiring.sh"
   _hi_suite_begin
 }
 

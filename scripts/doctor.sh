@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # hi's pre-flight: one command that answers "why is hi slow or failing
 # against this target". Reports the local tree, the config overlay, and every
 # backend probed with the same timeout-bounded calls the header and

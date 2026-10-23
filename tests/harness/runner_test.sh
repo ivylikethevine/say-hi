@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for tests/test_runner.sh.
 #
 # GLOSSARY: HI.30 + HI.34

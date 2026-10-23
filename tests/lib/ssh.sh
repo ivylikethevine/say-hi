@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The shared sshd fixture: its image, its keypair, its container, and the client
 # side - mux paths, pid lookup, and freezing a session mid-flight.
 #
@@ -45,10 +44,14 @@ declare -a _HI_SSH_OPTS=(
   -o IdentitiesOnly=yes
 )
 
+# _hi_ssh_keypair - the suite's keypair, its private half's path in
+# $_HI_SSH_KEY: made once, before the cases, and read by every one of them
+# from its own $_HI_WORKDIR
 function _hi_ssh_keypair() {
-  _hi_h2 "Generating throwaway ed25519 keypair at $_HI_WORKDIR/id"
-  ssh-keygen -t ed25519 -N '' -q -f "$_HI_WORKDIR/id"
-  _HI_PUBKEY="$(cat "$_HI_WORKDIR/id.pub")"
+  _HI_SSH_KEY="$_HI_WORKDIR/id"
+  _hi_h2 "Generating throwaway ed25519 keypair at $_HI_SSH_KEY"
+  ssh-keygen -t ed25519 -N '' -q -f "$_HI_SSH_KEY"
+  _HI_PUBKEY="$(cat "$_HI_SSH_KEY.pub")"
 }
 
 # _hi_sshd_entrypoint <ctx-dir> <shebang> [extra-line...] - the entrypoint.sh
@@ -336,7 +339,7 @@ function _hi_freeze_session() {
 function _hi_ssh_launch() {
   local port="$1"
   shift
-  _HI_SSH_LAUNCH_BARE=("$_HI_LAUNCHER" -p "$port" -i "$_HI_WORKDIR/id"
+  _HI_SSH_LAUNCH_BARE=("$_HI_LAUNCHER" -p "$port" -i "$_HI_SSH_KEY"
     "${_HI_SSH_OPTS[@]}" -o ConnectTimeout=5 "$@" hitest@127.0.0.1)
   _HI_SSH_LAUNCH=(${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} "${_HI_SSH_LAUNCH_BARE[@]}")
 }

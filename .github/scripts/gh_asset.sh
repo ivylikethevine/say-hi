@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Sourced (not run) by release.yml's publish job and its package-repository
 # step, and by demos.yml's attach job - the one way this repo puts a file on a
 # release. CI-only: nothing here runs outside a hosted runner.

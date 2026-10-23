@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh, the client entry point: argument parsing, backend
 # dispatch, `--help`, and the local sub-commands - everything that decides what
 # hi is about to do before it does any of it.

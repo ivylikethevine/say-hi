@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # atuin's Ctrl-R. Not packaged in debian, so this takes its release installer
 # straight - the setup.atuin.sh wrapper around it exits nonzero in a container
 # - plus bash-preexec, without which `atuin init bash` warns at every shell:

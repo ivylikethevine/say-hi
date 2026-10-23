@@ -16,3 +16,8 @@ silent! source $VIMRUNTIME/defaults.vim
 " did load it set both already, and setting them twice costs nothing.
 syntax enable
 filetype plugin indent on
+
+" what shows it is this vimrc and not the box's: line numbers, the cursor's
+" line, and a status line on every window
+set number cursorline laststatus=2
+set statusline=\ %f%m%=%y\ %l:%c

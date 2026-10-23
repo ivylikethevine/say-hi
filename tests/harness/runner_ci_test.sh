@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The shipped suite table against the workflows that run it: repo text, which
 # gives the same answer on every platform, so the ci group runs it once.
 # A part of runner_test.sh, a suite of its own so the Windows shards split them.

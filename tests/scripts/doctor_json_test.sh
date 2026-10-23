@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/doctor.sh's --json document.
 # A part of doctor_test.sh, a suite of its own so the Windows shards split them.
 # The preamble's source line is doctor_test.sh's - it sources the harness, and
@@ -32,7 +31,7 @@ _HI_DOC_JSON=""
 _HI_DOC_JSON_RC=""
 
 function _hi_doctor_json_report() {
-  local f="$_HI_WORKDIR/json.bare"
+  local f="$_HI_SUITE_WORKDIR/json.bare"
   [ -z "$_HI_DOC_JSON" ] || return 0
   _HI_DOC_JSON_RC=0
   _HI_PROBE_TIMEOUT=30 _hi_doctor_json >"$f" || _HI_DOC_JSON_RC=$?

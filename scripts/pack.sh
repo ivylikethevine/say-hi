@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The packer: what hi.sh sends a target, built on the machine that owns the
 # config - the overlay's table and the plugins files' rows, home's lookups,
 # the include scan, the comment strip, and the staged tars with their caches.

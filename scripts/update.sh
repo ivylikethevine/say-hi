@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `hi --update`: move the say-hi checkout this hi runs from to a release tag,
 # or, on the dev branch, fast-forward it to the remote's dev.
 #

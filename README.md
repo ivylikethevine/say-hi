@@ -17,7 +17,7 @@ Nomad allocation, or a Kubernetes pod.
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 
-![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
+![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, hi's tree in /tmp during the session, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
 > View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
 >
@@ -30,12 +30,13 @@ Nomad allocation, or a Kubernetes pod.
 
 - [In Sixty Seconds](#in-sixty-seconds)
 - [What You Get](#what-you-get)
-  - [Connect Via More Than SSH](#connect-via-more-than-ssh)
-  - [The Header Tells You What's Missing](#the-header-tells-you-whats-missing)
-  - [One Config Directory, Every Host, Every Shell](#one-config-directory-every-host-every-shell)
-  - [Your Editors](#your-editors)
+  - [Your Aliases, in Every Shell, on Every Host](#your-aliases-in-every-shell-on-every-host)
+  - [Your Editors and Your Git](#your-editors-and-your-git)
   - [Know Where You Are at a Glance](#know-where-you-are-at-a-glance)
-  - [One Command, Any Backend](#one-command-any-backend)
+  - [One Command, Every Backend](#one-command-every-backend)
+  - [Survive a Dropped Link](#survive-a-dropped-link)
+  - [The Header Tells You What's Missing](#the-header-tells-you-whats-missing)
+  - [Every Target in One Tab](#every-target-in-one-tab)
 - [Target Requirements](#target-requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
@@ -67,75 +68,114 @@ menu.
 
 ## What You Get
 
-Each GIF below is one persona's real config - the settings behind every one
-are in [docs/SETTINGS.md](docs/SETTINGS.md). Most leave the laptop as it is
-(`_HI_DISABLE_LOCAL=1`), so the outside prompt is its distro's own and hi
-begins at the target.
+Each story is a problem, what its GIF shows, and the config it was recorded
+with; [docs/SETTINGS.md](docs/SETTINGS.md) has every setting. Most leave the
+laptop as it is (`_HI_DISABLE_LOCAL=1`), so the outside prompt is its own and
+hi begins at the target.
 
-### Connect Via More Than SSH
+### Your Aliases, in Every Shell, on Every Host
 
-`hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
-running container, allocation, and pod, each tagged with its backend;
-`hi --<TAB>` answers hi's own flags without probing any backend. An operator
-at a workstation, in fish for its pager's description column.
+_Your aliases live in one rc file on one machine, and the boxes you work on
+have none of them - some don't even run your shell._ `~/.config/say-hi/` rides
+along on every connect: Rio, an operator in fish at a workstation, uses one
+`aliases.sh` alias in a bash session on a debian container (docker) and a fish
+session on an alpine box (podman). A box with no bash gets the aliases-only
+tier ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
-![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
-
-### The Header Tells You What's Missing
-
-A package check of the tools you care about, in groups you switch on, in one
-`packages` file (a copy of your own replaces the shipped one); the header
-checks it on every target — one quiet line on a box that has them, a loud
-one on a box that does not. A homelab: bash from an Ubuntu laptop into the
-nas and the pihole, each keeping its distro's prompt — hi's is off
-(`_HI_DISABLE_PROMPT=1`), and the header, the check, and the aliases ride
-along anyway.
-
-![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
-
-### One Config Directory, Every Host, Every Shell
-
-`~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
-bash session on a debian container and a fish session on an alpine box, reached
-through docker and podman. The operator again, in fish's own prompt at the
-workstation and hi's on both boxes, with the header trimmed to the clocks, the
-backend counts, and the check on a blue-to-red ramp of their own. A box with no
-bash gets the aliases-only tier
-([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
+**Config:** fish's own prompt at home and hi's on the boxes, the header
+trimmed to the clocks, the backend counts, and the check on a blue-to-red
+`_HI_PACKAGES_PALETTE`, and the styled tool aliases (`_HI_TOOL_ALIASES=1`).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on an alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
-### Your Editors
+### Your Editors and Your Git
 
-`nano` and `vim` open with the nanorc and vimrc you keep at home (or an
-overlay copy), on a box with none of those files, and nothing is installed or
-left running on the target. A developer, zsh on a Mac with its stock prompt,
-into the team's shared dev box, where the prompt is starship's, not hi's
-(`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors, and aliases).
+_On a shared box, `vim` opens on the box's settings, `sudo vim` on root's, and
+`git` knows none of your aliases._ Maya, a developer in zsh on a Mac, opens
+nano and vim on the team's dev box with the nanorc and vimrc kept at home
+(line numbers, a status line), then `sudo vim` on the same vimrc, then
+`git st` and `git lg`. The git identity rides; the credential helper and the
+keys stay home ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md#git)). Nothing is
+installed on the box or left running there.
 
-![nano and vim with the carried rc files inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
+**Config:** the box's starship draws the prompt (`_HI_PROMPT_TOOL=starship`)
+and hi keeps the rest, the sudo alias (`_HI_SUDO_ALIAS=1`), the git plugin
+(`hi --enable-plugin git`), and the compact header.
+
+![nano and vim with the carried rc files, sudo vim on the same vimrc, and git aliases, inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
 ### Know Where You Are at a Glance
 
-`# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
-`hi --preview colors` to see what every host resolves to — then a prod host
-lands in red and a dev host in green. A sysadmin, bash from a laptop where
-the prompt is hi's too (`_HI_PROMPT_TOOL=hi`), into two fish ssh hosts, with
-a two-line fish prompt of their own riding the overlay, drawn on the colors
-hi resolved.
+_A prod terminal and a dev terminal look the same until the wrong command runs
+in one._ Kai, a sysadmin in bash on a laptop, tags the prod database with
+`hi --add-tag`, checks what every host resolves to with `hi --preview colors`,
+and connects: the prod host lands in red with the longer header its tag's
+`settings.prod.sh` asks for, and the dev host in green. Both boxes are fish,
+and Kai's own two-line fish prompt rides along, drawn on the colors hi
+resolved.
 
-![hi --preview colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
+**Config:** hosttag pins in a `colors` overlay, a hex `_HI_COLOR_SCHEME`, hi's
+prompt on the laptop too (`_HI_PROMPT_TOOL=hi`), and a `settings.prod.sh`
+([Settings by host tag](docs/SETTINGS.md#settings-by-host-tag)).
 
-### One Command, Any Backend
+![hi --add-tag, hi --preview colors, then hi into a prod-tagged host with a red prompt and a longer header and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
-`hi <name> <command>` runs one command inside the session and only its output
-comes back: the same loop over an ssh host, a docker container, a nomad
-allocation, and a kubernetes pod (`-F` is ssh's, passed through unchanged; the
-recording's ssh config is a throwaway). The pod is busybox `ash` with no bash
-— the aliases-only tier — and hi says so, once, and runs the command anyway.
-A researcher, in zsh on a Fedora laptop, sweeping the cluster's backends.
+### One Command, Every Backend
 
-![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation, and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
+_ssh, `docker exec`, `nomad alloc exec`, and `kubectl exec` each want their own
+syntax, and none of them knows your aliases._ Chen, a researcher in zsh on a
+Fedora laptop, loops `hi <target> distro` - an alias from their `aliases.sh` -
+over an ssh host, a docker container, a nomad allocation, and a kubernetes
+pod, and only each command's output comes back. The pod is busybox `ash` with
+no bash, the aliases-only tier: hi says so, once, and the alias runs there
+too. `-F` is ssh's, passed through unchanged; the recording's ssh config is a
+throwaway.
+
+**Config:** an `aliases.sh` overlay; a one-off command draws no header.
+
+![a for loop running one alias through hi over an ssh host, a docker container, a nomad allocation, and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
+
+### Survive a Dropped Link
+
+_A long job over a flaky link dies with the link._ Noor, on call in zsh on a
+MacBook over hotel wifi, starts a backfill on the prod database box under
+`hi --keep`. The link drops mid-job (the recording cuts it from the box's
+end); hi says how long the box keeps the session, retries every five seconds,
+and is back in the same tmux pane with the job still running. A box with no
+tmux, zellij, or screen keeps the session's files and directory through the
+drop instead ([HI.65](docs/GLOSSARY.md#hi65-kept-session)).
+
+**Config:** a three-cell header. `_HI_KEEP=1`, in `settings.sh` or a tag's
+file, makes every connect a kept one.
+
+![hi --keep into a prod box, a backfill running, the link dropping, hi retrying, and the same tmux pane back with the job still going](https://ivylikethevine.github.io/say-hi/docs/tapes/keep.gif)
+
+### The Header Tells You What's Missing
+
+_You find out a box lacks `rsync` or `tmux` halfway through the job that needed
+it._ Sam, running a homelab from bash on an Ubuntu laptop, adds tools to the
+check with `hi --add-package`, then connects to the nas and the pihole: one
+quiet line on the box that has them, a loud one on the box that does not.
+Groups switch on and off, and a `packages` file of your own replaces the
+shipped one ([docs/COLORS.md](docs/COLORS.md#the-package-checks-rows)).
+
+**Config:** hi's prompt off (`_HI_DISABLE_PROMPT=1`), so each box keeps its
+distro's own while the header, the check, and the aliases ride anyway, the
+`core` and `useful` groups on, and every address shown (`_HI_IP_HIDE=none`).
+
+![hi --add-package, then hi's header package check on a box with the tools installed and on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
+
+### Every Target in One Tab
+
+_Which box is an ssh host, and which a container, an allocation, or a pod?_
+`hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
+running container, allocation, and pod, each tagged with its backend;
+`hi --<TAB>` answers hi's own flags without waking a backend. Rio again, in
+fish, whose pager shows the backend column.
+
+**Config:** no cached sweep (`_HI_TARGETS_TTL=0`).
+
+![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
 ## Target Requirements
 
@@ -390,9 +430,9 @@ One list, in the order the work is best done. An entry is deleted once its
       and `LICENSES/MIT.txt` arrive with the next sync of the shared CI files
       and cover every file, and Scorecard's License check reads only
       `LICENSE.md`, so the `SPDX-License-Identifier` comment at the top of
-      each file is redundant. **Do:** strip it from every file of this
-      repository's own and stop adding it; the synced CI files change in
-      their source, which the sync carries. **Ticks when:**
+      each file is redundant. This repository's own files no longer carry it
+      (don't add it to new ones); the rest are the synced CI files, which
+      change in their source and arrive with the sync. **Ticks when:**
       `git grep -l SPDX-License-Identifier` lists `REUSE.toml` alone.
 
 ## Release Stages

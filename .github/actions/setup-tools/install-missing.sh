@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Installs whatever ./action.yml's cache step missed, one tool at a time via
 # ../setup-tool/install.sh - always the tools.txt pin, so the row's sha256 is
 # what gets verified.

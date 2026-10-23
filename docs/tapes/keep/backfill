@@ -1,0 +1,12 @@
+#!/bin/sh
+# The keep tape's long job (docs/tapes/keep.tape): a batch a second, so a link
+# cut part-way through shows the job still running when the session comes
+# back. tests/dockerfiles/demo-sshd.Dockerfile installs it as
+# /usr/local/bin/backfill; `backfill <table>`.
+table="${1:-events}" n=24 i=1
+while [ "$i" -le "$n" ]; do
+  printf 'backfill %s: batch %2d/%d ok\n' "$table" "$i" "$n"
+  sleep 1
+  i=$((i + 1))
+done
+printf 'backfill %s: done, %d batches\n' "$table" "$n"

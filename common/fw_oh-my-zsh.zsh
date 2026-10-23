@@ -1,5 +1,4 @@
 #!/bin/zsh
-# SPDX-License-Identifier: MIT
 # oh-my-zsh's prompt hand-over, sourced by common/zsh.zsh once
 # _hi_prompt_tool picks it; its own file so a target not handed oh-my-zsh is
 # not sent it (GLOSSARY: HI.32). Not loaded by the rc: only the libraries

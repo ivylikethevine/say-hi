@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: MIT
 # What `tmux`, `zellij`, and `screen` are aliased to in a session
 # (common/aliases.sh): mux.sh <tool> [words...]. The tree is this file's
 # own, and the config hi carried is $_HI_CONFIG_DIR, which a session's

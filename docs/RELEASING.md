@@ -526,7 +526,7 @@ with the backend up, minding the two things `generate.sh` handles for you
 (which `hi` is on `$PATH`, and a dirty tree's client/target split; see its
 header).
 
-**Six of the seven render themselves.**
+**Seven of the eight render themselves.**
 [`.github/workflows/demos.yml`](https://github.com/ivylikethevine/say-hi/blob/main/.github/workflows/demos.yml)
 renders every tape but `demo` in CI, one runner per tape (installing podman,
 nomad, and kind as `ci.yml`'s `e2e-backends` does), for each release, weekly,

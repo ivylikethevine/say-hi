@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # platform_badges.sh <outdir> - one shields endpoint object per row of README's
 # _Target Requirements_ badge strip, written as <outdir>/<file> for pages.yml
 # to publish beside tests.json and the coverage pair.
@@ -37,18 +36,30 @@ _ci_need platform_badges.sh gh
 out="$1"
 mkdir -p "$out"
 
-# "<file>|<label>|<check name>" - the compound name GitHub reports for a
-# reusable workflow's job ("<caller job> / <called job>"), which is what the
-# Checks tab shows and what the old nameFilter tried to match. A rename on
-# either side lands here and nowhere else: README only names the badge file.
+# shards <prefix> <suffix>... - a matrix job's check names, one per shard,
+# ';'-joined for a row's third field
+function shards() {
+  local prefix="$1" suffix names=""
+  shift
+  for suffix; do names+="${names:+;}$prefix$suffix)"; done
+  printf '%s' "$names"
+}
+
+# "<file>|<label>|<check name>[;<check name>...]" - the compound name GitHub
+# reports for a reusable workflow's job ("<caller job> / <called job>"),
+# which is what the Checks tab shows and what the old nameFilter tried to
+# match. A sharded job has no one check: its row names every shard, and the
+# badge is their worst. A rename on either side, or a shard added to a
+# matrix, lands here and nowhere else: README only names the badge file.
 ROWS=(
   "linux.json|Linux|fast suites (ubuntu-26.04)"
   "macos.json|macOS|fast suites (macos-latest)"
   "freebsd.json|FreeBSD|e2e (FreeBSD) / hi localhost (FreeBSD both ends)"
-  "openbsd.json|OpenBSD|e2e (OpenBSD) / hi localhost (OpenBSD both ends)"
+  "openbsd.json|OpenBSD|$(shards 'e2e (OpenBSD) / hi localhost (OpenBSD both ends, shard ' 1/2 2/2)"
   "alpine.json|Alpine client|fast suites (Alpine client)"
   "windows.json|Windows|e2e (Windows) / hi at stock Windows OpenSSH (PowerShell fallback)"
-  "windows-client.json|Windows client|fast suites (Windows client) / fast suites (Git Bash)"
+  "windows-client.json|Windows client|$(shards 'fast suites (Windows client) / fast suites (Git Bash ' \
+    'x64, shard '{1,2,3,4} 'arm64, shard '{1,2,3,4})"
 )
 
 # How far back a row may look for a commit that did not skip it. Thirty is a
@@ -64,8 +75,9 @@ function badge() {
 
 shas="$(gh api "repos/$GITHUB_REPOSITORY/commits?sha=main&per_page=$commits_back" --jq '.[].sha')"
 
-# One call per row per commit, and a row leaves `left` the moment it resolves,
-# so the usual deploy is seven calls: the head commit answers every row it ran.
+# One call per check name per commit, and a row leaves `left` the moment it
+# resolves, so the usual deploy is fifteen calls: the head commit answers every
+# row it ran.
 # --jq filters to the conclusions of completed runs of that one check, newest
 # first (GitHub answers latest-first), so a re-run's verdict wins.
 left=("${ROWS[@]}")
@@ -73,14 +85,29 @@ while IFS= read -r sha; do
   [ "${#left[@]}" -gt 0 ] || break
   [ -n "$sha" ] || continue
   still=()
-  while IFS='|' read -r file label name; do
-    got="$(gh api --method GET "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs" \
-      -f check_name="$name" -f per_page=100 \
-      --jq '[.check_runs[] | select(.status == "completed") | .conclusion
-             | select(. != null and . != "skipped")] | first // ""')"
+  while IFS='|' read -r file label names; do
+    # a row's worst shard: a red one decides it, any other non-pass outranks
+    # a pass, and a shard with no verdict here adds nothing
+    got=""
+    IFS=';' read -r -a each <<<"$names"
+    for name in "${each[@]}"; do
+      one="$(gh api --method GET "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs" \
+        -f check_name="$name" -f per_page=100 \
+        --jq '[.check_runs[] | select(.status == "completed") | .conclusion
+               | select(. != null and . != "skipped")] | first // ""')"
+      case "$one" in
+      "") ;;
+      failure | timed_out)
+        got="$one"
+        break
+        ;;
+      success) [ -n "$got" ] || got=success ;;
+      *) got="$one" ;;
+      esac
+    done
     # a skip, or no run at all, is "not decided here": keep walking back
     [ -n "$got" ] || {
-      still+=("$file|$label|$name")
+      still+=("$file|$label|$names")
       continue
     }
     case "$got" in
@@ -96,7 +123,7 @@ done <<<"$shas"
 # Whatever never ran inside the window: grey, and loud, since a permanent "no
 # runs" means the check was renamed and ROWS above was not.
 for row in ${left[@]+"${left[@]}"}; do
-  IFS='|' read -r file label name <<<"$row"
+  IFS='|' read -r file label names <<<"$row"
   badge "$file" "$label" inactive "no runs"
-  echo "::warning::no completed \"$name\" in the last $commits_back commits on main - $label published as \"no runs\""
+  echo "::warning::no completed \"${names//;/\", \"}\" in the last $commits_back commits on main - $label published as \"no runs\""
 done

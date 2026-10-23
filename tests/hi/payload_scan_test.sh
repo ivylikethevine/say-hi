@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for the include scan over the config overlay stream: what a line naming a
 # path costs an editor rc or a shell file on its way out (GLOSSARY: HI.57).
 # A part of payload_test.sh, a suite of its own so the Windows shards split
@@ -904,7 +903,7 @@ function _hi_real_nvim() {
   printf -v "$1" '%s' /no/real/nvim
   IFS=: read -r -a dirs <<<"$PATH"
   for d in "${dirs[@]}"; do
-    [ "$d" = "$_HI_WORKDIR/stubtools" ] || [ ! -x "$d/nvim" ] || {
+    [ "$d" = "$_HI_SUITE_WORKDIR/stubtools" ] || [ ! -x "$d/nvim" ] || {
       printf -v "$1" '%s' "$d/nvim"
       return 0
     }

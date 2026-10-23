@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # freebsd-e2e.yml's and openbsd-e2e.yml's run script, byte for byte the same
 # on both: hi localhost, client and target both BSD userland. Only each
 # workflow's `prepare:` package list differs (fish and gtar on FreeBSD; no

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # The nix channel: the package (`nix run` starts hi) and a home-manager module
 # that writes the rc block. docs/PACKAGING.md has the user's side.
 {

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # The package flake.nix builds: scripts/install.sh's packaging mode stages the
 # tree, as every other channel has it do, and the staged files move under $out.
 {

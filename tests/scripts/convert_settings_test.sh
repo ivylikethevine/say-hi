@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/convert_settings.sh, which rewrites overlay files an
 # older hi wrote - name:N packages rows, type,name,color colors rows, the
 # bare rows under [section] lines that followed both,

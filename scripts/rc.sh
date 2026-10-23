@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Ownership of the lines hi adds to a user's shell rc files - writing them
 # (config_shell), taking them back out (strip_marker) - and the syntax checks
 # run before either. Sourced by scripts/install.sh after common/core.sh and

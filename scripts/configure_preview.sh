@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The settings wizard's live previews: what each question draws above itself
 # - the header, the prompt, the package check, the editors, the aliases -
 # rendered from the answers pending this run. Sourced by scripts/configure.sh;

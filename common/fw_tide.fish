@@ -1,5 +1,4 @@
 #!/bin/fish
-# SPDX-License-Identifier: MIT
 # tide's prompt hand-over on a target, sourced by common/config.fish once it
 # picks tide; its own file so a target not handed tide is not sent it
 # (GLOSSARY: HI.32). fish already loaded tide and its fish_prompt autoloads;

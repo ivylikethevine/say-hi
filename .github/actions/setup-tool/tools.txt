@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: MIT
 # The pinned CI tools, one row per tool - installed by ./install.sh (through
 # ./action.yml or ../setup-tools) and drift-checked by
 # ../../scripts/check_tool_versions.sh. Both read it through ./lib.sh, so a
@@ -69,8 +68,8 @@
 #                    ships (its README's table); the SHA is in the actions
 #                    section, and there is no release feed to drift-check the
 #                    image against
-#   node             ci.yml's lint job (actions/setup-node, `node-version: "22"`)
-#                    the newest 22.x; only runs markdownlint-cli2 and prettier,
+#   node             ci.yml's lint job (actions/setup-node, `node-version: "24"`)
+#                    the newest 24.x; only runs markdownlint-cli2 and prettier,
 #                    which .github/package-lock.json pins (CI_MANIFESTS)
 #   trivy's DB       image-scan.yml (fetched at scan time)
 #                    the point is today's advisories; the trivy binary is pinned
@@ -84,13 +83,16 @@
 # image does and would change what shellcheck reports with no commit here.
 shellcheck|0.11.0|tar.xz|https://github.com/koalaman/shellcheck/releases/download/v%v/shellcheck-v%v.%a.tar.xz|--version|github:koalaman/shellcheck||linux-x86_64:linux.x86_64=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198,darwin-aarch64:darwin.aarch64=56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79
 actionlint|1.7.12|tar.gz|https://github.com/rhysd/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:rhysd/actionlint||8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
-zizmor|1.30.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor||e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a
+# Every target installs zizmor from here, never from a Python lock: the shared
+# workflows' inline ignores hold on this version, and another can read them
+# differently (1.31.0 missed one on `on:` that 1.31.1 honours).
+zizmor|1.31.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor||d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99
 # A pin, not `releases/latest`: new rules arrive as a reviewed bump instead of
 # changing what an unrelated PR's lint reports.
 hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint||c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
 # Pinning the binary does not stale the scan: trivy downloads its vulnerability
 # database on every run, whatever this pin is.
-trivy|0.75.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy||c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f
+trivy|0.76.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy||e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7
 # Tags are "lychee-v<version>"; the tag-prefix column strips that so the drift
 # check compares versions, not strings.
 lychee|0.24.2|tar.gz|https://github.com/lycheeverse/lychee/releases/download/lychee-v%v/lychee-x86_64-unknown-linux-gnu.tar.gz|--version|github:lycheeverse/lychee|lychee-v|1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
@@ -105,7 +107,7 @@ shfmt|3.14.1|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_lin
 # 2.26.13 ships the same checkbashisms.pl as 2.26.12 (verified against the devscripts_2.26.13
 # source tarball), so the sha256 is unchanged across this bump.
 checkbashisms|2.26.13|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/scripts/checkbashisms.pl|--version|gitlab:salsa.debian.org/debian%2Fdevscripts||7ffec5f4f3282d7551b7f1dd103d84ea6034bb1f177efdce2cebc60bfd72c088
-nfpm|2.47.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm||0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783
+nfpm|2.48.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm||6d7f9a28b2f397934403950fcbba83f598b08d02edbe79a0815b3b4897341750
 minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/minisign-%v-linux.tar.gz|-v|github:jedisct1/minisign||9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73
 # kcov publishes no binary asset, so this builds its source tarball. The
 # runtime libs (libdw1, libelf1, libcurl4, zlib1g, libstdc++6) are the

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for the tests/lib/ harness - what a suite counts and what it prints.
 # tests/lib/report.sh: the counters, the begin/end banners,
 # the skip and failure ledgers test_runner.sh reads back, and the two things
@@ -70,9 +69,11 @@ function _hi_rr_fails() {
   local got=2
   [ "$got" = 3 ]
 }
+# its flag is the calling case's, $_HI_RR_FLAG: each try of the case it is
+# runs in a directory of its own, where a flag would never be seen again
 function _hi_rr_flake() {
-  [ -f "$_HI_WORKDIR/rr.flag" ] && return 0
-  : >"$_HI_WORKDIR/rr.flag"
+  [ -f "$_HI_RR_FLAG" ] && return 0
+  : >"$_HI_RR_FLAG"
   return 1
 }
 # Run in a subshell with the rerun forced on, xtrace off, and BASH_XTRACEFD
@@ -88,20 +89,20 @@ function test_a_failed_case_reruns_with_a_trace() {
   ) || _hi_why
 }
 function _hi_rr_check() {
-  local err out fails="$_HI_WORKDIR/rr.fails"
+  local err out fails="$_HI_WORKDIR/rr.fails" _HI_RR_FLAG="$_HI_WORKDIR/rr.flag"
   err="$(_HI_FAILS_FILE="$fails" _hi_assert "rr" _hi_rr_fails 2>&1 >/dev/null)" && return 1
   [[ "$err" == *"traced rerun (exit 1)"* && "$err" == *"'[' 2 = 3 ']'"* ]] || {
     printf 'rerun said: [%s]\n' "$err" >&2
     return 1
   }
-  rm -f "$_HI_WORKDIR/rr.flag" "$fails.flaky"
+  rm -f "$_HI_RR_FLAG" "$fails.flaky"
   out="$(_HI_FLAKY_OK=1 _HI_FAILS_FILE="$fails" _hi_assert "rr-flake" _hi_rr_flake 2>/dev/null)" || return 1
   if ! [[ "$(_hi_strip_ansi "$out")" == *"rr-flake"*"FLAKY"* ]] || ! grep -qx 'rr-flake' "$fails.flaky"; then
     printf 'a flake reported: [%s]\n' "$out" >&2
     return 1
   fi
   # ...and on native Linux x64 a flake is a failure all the same
-  rm -f "$_HI_WORKDIR/rr.flag" "$fails"
+  rm -f "$_HI_RR_FLAG" "$fails"
   _HI_FLAKY_OK=0 _HI_FAILS_FILE="$fails" _hi_assert "rr-strict" _hi_rr_flake >/dev/null 2>&1 && return 1
   grep -qF 'rr-strict (flaky' "$fails" || return 1
   err="$(_HI_TRACE_RERUN=0 _hi_assert "rr" _hi_rr_fails 2>&1 >/dev/null)" && return 1
@@ -109,16 +110,67 @@ function _hi_rr_check() {
   # the trace stays out of a case's own `2>&1` capture, so a case that counts
   # its stderr lines still passes the rerun and reads FLAKY (bash 4.1+)
   [ "${BASH_VERSINFO[0]}${BASH_VERSINFO[1]}" -ge 41 ] || return 0
-  rm -f "$_HI_WORKDIR/rr.flag" "$fails.flaky"
+  rm -f "$_HI_RR_FLAG" "$fails.flaky"
   out="$(_HI_FLAKY_OK=1 _HI_FAILS_FILE="$fails" _hi_assert "rr-stderr" _hi_rr_stderr_flake 2>/dev/null)" || return 1
   [[ "$(_hi_strip_ansi "$out")" == *"rr-stderr"*"FLAKY"* ]]
 }
 function _hi_rr_stderr_flake() {
   local out
   out="$({ printf 'one\n' >&2; } 2>&1)"
-  [ -f "$_HI_WORKDIR/rr.flag" ] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ] && return 0
-  : >"$_HI_WORKDIR/rr.flag"
+  [ -f "$_HI_RR_FLAG" ] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ] && return 0
+  : >"$_HI_RR_FLAG"
   return 1
+}
+
+# Each try of a case runs in a new, empty $_HI_WORKDIR under the suite's,
+# and the caller's is back after: a first try that wrote there and failed
+# leaves its rerun nothing to trip on, which is what lets the flake pass
+function _hi_rr_fresh() {
+  local left
+  left="$(ls -A "$_HI_WORKDIR")"
+  [ -z "$left" ] && [ "${_HI_WORKDIR%/case.*}" = "$_HI_SUITE_WORKDIR" ] || return 2
+  printf '%s\n' "$_HI_WORKDIR" >>"$_HI_RR_SEEN"
+  : >"$_HI_WORKDIR/left"
+  [ -f "$_HI_RR_FLAG" ] && return 0
+  : >"$_HI_RR_FLAG"
+  return 1
+}
+# Forced on as test_a_failed_case_reruns_with_a_trace is: under a coverage
+# sweep there would be no second try to count.
+function test_each_try_of_a_case_gets_an_empty_workdir() {
+  (
+    set +x
+    unset BASH_XTRACEFD
+    _HI_TRACE_RERUN=1 _hi_rr_fresh_check
+  ) || _hi_why
+}
+function _hi_rr_fresh_check() {
+  local out tries mine="$_HI_WORKDIR" _HI_RR_FLAG="$_HI_WORKDIR/rr.flag" _HI_RR_SEEN="$_HI_WORKDIR/rr.seen"
+  out="$(_HI_FLAKY_OK=1 _HI_FAILS_FILE="$_HI_WORKDIR/rr.fails" _hi_assert "rr-fresh" _hi_rr_fresh 2>&1)" ||
+    _hi_why out || return 1
+  tries="$(sort -u "$_HI_RR_SEEN" | wc -l)"
+  out="$(_hi_strip_ansi "$out")"
+  [ "$tries" -eq 2 ] && [[ "$out" == *"rr-fresh"*"FLAKY"* ]] || _hi_why tries out || return 1
+  [ "$_HI_WORKDIR" = "$mine" ] || _hi_why mine _HI_WORKDIR
+}
+
+# _HI_RERUN_CHECK=1 runs a passing case once more: one whose first try
+# changed what lies outside its directory is FAILED and noted, one that
+# holds is OK
+function _hi_rr_once() {
+  [ ! -e "$_HI_RR_FLAG" ] || return 1
+  : >"$_HI_RR_FLAG"
+}
+function test_rerun_check_fails_a_case_its_leftovers_break() {
+  local out fails="$_HI_WORKDIR/rr-check.fails" _HI_RR_FLAG="$_HI_WORKDIR/rr.once"
+  _HI_RERUN_CHECK=0 _hi_assert "rr-once" _hi_rr_once >/dev/null 2>&1 || _hi_because "off, a first try failed" || return 1
+  rm -f "$_HI_RR_FLAG"
+  ! out="$(_HI_RERUN_CHECK=1 _HI_FAILS_FILE="$fails" _hi_assert "rr-once" _hi_rr_once 2>&1)" ||
+    _hi_because "a case its leftovers break passed: $out" || return 1
+  out="$(_hi_strip_ansi "$out")"
+  [[ "$out" == *"rr-once"*"FAILED"*"failed a second run"* ]] && grep -qxF 'rr-once (fails a second run)' "$fails" ||
+    _hi_why out fails || return 1
+  _HI_RERUN_CHECK=1 _hi_assert "rr-holds" _hi_true >/dev/null 2>&1 || _hi_because "a case that holds failed"
 }
 
 # A failure that took over 30s is traced too, apart from the suite's shell: a
@@ -136,10 +188,11 @@ function test_a_slow_failure_is_traced_and_a_hung_rerun_is_ended() {
   ) || _hi_why
 }
 function _hi_rr_slow_check() {
+  local _HI_RR_FLAG="$_HI_WORKDIR/rr.flag"
   _hi_trace_rerun 31 _hi_rr_fails && return 1
   [[ "$_HI_RERUN_OUT" == *"traced rerun (exit 1, the failure took 31s)"* && "$_HI_RERUN_OUT" == *"'[' 2 = 3 ']'"* ]] ||
     _hi_because "a slow failure said: [$_HI_RERUN_OUT]" || return 1
-  rm -f "$_HI_WORKDIR/rr.flag"
+  rm -f "$_HI_RR_FLAG"
   _hi_rr_flake || :
   ! _hi_trace_rerun 31 _hi_rr_flake || _hi_because "a slow failure passed as a flake" || return 1
   [[ "$_HI_RERUN_OUT" == *"traced rerun passed in "*"where the failure took 31s"*"never a flake"* ]] ||
@@ -384,6 +437,8 @@ function test_case_names_itself_before_it_runs() {
 function test_note_failure_appends_the_label() {
   local file got
   file="$_HI_WORKDIR/fails.noted"
+  # a rerun starts where the first try did: nothing noted
+  rm -f "$file"
   (
     _HI_FAILS_FILE="$file"
     _hi_note_failure "first case"
@@ -676,6 +731,8 @@ function run_lib_report_tests() {
   _hi_check "Assert reports OK" test_assert_reports_ok_and_returns_zero
   _hi_check "Assert reports FAILED and returns non-zero" test_assert_reports_failed_and_returns_nonzero
   _hi_check "...reruns it once, traced; a pass there is FLAKY" test_a_failed_case_reruns_with_a_trace
+  _hi_check "...in an empty directory each try, the caller's back after" test_each_try_of_a_case_gets_an_empty_workdir
+  _hi_check "_HI_RERUN_CHECK=1 fails a case its leftovers break" test_rerun_check_fails_a_case_its_leftovers_break
   _hi_check "A case of a second or more is noted with its time" test_case_notes_the_time_a_slow_case_took
   _hi_check "Run_said passes words and exit status through" test_run_said_passes_a_run_through
   _hi_check "...reruns only a run that wrote nothing, as a flake" test_run_said_reruns_only_a_silent_run

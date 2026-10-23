@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # `hi --preview <subject>`: what a setting resolves to, rendered the way a
 # connect will render it, plus why.
 #

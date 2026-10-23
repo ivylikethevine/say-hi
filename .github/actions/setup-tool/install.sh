@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The install half of ./action.yml and ../setup-tools, in a real file so the
 # repo's shellcheck step reads the code that curls, verifies, and installs.
 #

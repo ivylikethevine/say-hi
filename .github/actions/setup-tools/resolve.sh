@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The batched `resolve` for ./action.yml: every tool in $CI_TOOLS goes through
 # ../setup-tool/install.sh's own resolve (so an unknown tool, a missing
 # checksum, or an unsupported platform fails the same way), then the answers

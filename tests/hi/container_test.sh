@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's transport over a container: the command shapes, the
 # no-bash probe the --plain path reads, and _say_hi's boot ladder on a
 # container arm.

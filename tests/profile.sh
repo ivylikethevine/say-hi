@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Per-command profiles of hi's hot paths via timep - what to read when a bench
 # ceiling trips. ci.yml's `profile` job runs it on every push and uploads the
 # profiles as an artifact; advisory there, never a gate.
@@ -239,7 +238,7 @@ while [ $# -gt 0 ]; do
     _HI_ME=profile.sh _hi_flag_word_or_die _HI_PROF_DIR "--outdir needs a value" "$@" || shift
     ;;
   -h | --help)
-    sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 0
     ;;
   -*)

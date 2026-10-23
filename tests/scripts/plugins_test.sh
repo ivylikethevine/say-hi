@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/plugins.sh - `hi --plugins`, which lists what rides
 # to a target; `hi --disable-plugin` and `--enable-plugin`, which keep
 # $_HI_PLUGINS_OFF in settings.sh.

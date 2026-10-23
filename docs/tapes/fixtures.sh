@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Demo-tape fixtures: the targets docs/tapes/*.tape connect to, shaped like
 # the e2e fixtures (tests/test_lib.sh) but standalone - a tape render happens
 # outside the test harness, on a machine that just has the backends installed.
@@ -14,7 +13,8 @@
 #
 # Not sourced by anything; invoked from the tapes' Hide blocks:
 #
-#   docs/tapes/fixtures.sh up demo|packages|editors|overlay|colors|complete|run
+#   docs/tapes/fixtures.sh up demo|packages|editors|overlay|colors|keep|complete|run
+#   docs/tapes/fixtures.sh drop <name>
 #   docs/tapes/fixtures.sh down
 set -euo pipefail
 
@@ -312,7 +312,7 @@ function demo_settings() { # body on stdin
 # demo resolves them, the completion demo lists what carries them - but they
 # reach the file by different routes, and the difference is forced:
 #
-#   colors    exports a throwaway $HOME, which paths.sh:52 derives
+#   colors    exports a throwaway $HOME, which paths.sh:80 derives
 #             $_HI_SSH_CONFIG from. It reads files and starts nothing, so a
 #             fake $HOME costs it nothing.
 #   complete  sets $_HI_SSH_CONFIG directly, *after* the rc. It cannot fake
@@ -323,9 +323,9 @@ function demo_settings() { # body on stdin
 # The same roster with real connection details for the sshd boxes named, for
 # the demos that both *list* hosts and *connect* to one from a throwaway $HOME:
 # the tape types `hi db-prod` bare, so its port and key have to be in the file
-# ssh reads. `# Tags:` stays above each live block - it is what the hosttag
-# pins resolve from, and a live host without one would color by its name hash
-# and quietly stop being the demo.
+# ssh reads. `# Tags:` goes above each live block given a tag - it is what the
+# hosttag pins resolve from; colors leaves db-prod's off for its tape's
+# `hi --add-tag` to write.
 function demo_ssh_config_live() { # <name:tag...>; none: db-prod is a plain roster row
   local spec name tag plain="web-prod"
   [ $# -gt 0 ] || plain="db-prod web-prod"
@@ -360,13 +360,13 @@ EOF
   } >"$_HI_DEMO_DIR/home/.ssh/config"
 }
 
-# ...and the colors overlay, which lands somewhere else again: paths.sh:30
+# ...and the colors overlay, which lands somewhere else again: paths.sh:46
 # reads `colors` out of $_HI_CONFIG_DIR, the same overlay dir every other demo
 # writes its settings.sh into. Two live sshd boxes, one per pinned tag, so the
 # preview's table and the two sessions after it are the same names.
 function up_colors() {
   up_ssh kai db-prod dev-1 || return 1
-  demo_ssh_config_live db-prod:prod dev-1:dev
+  demo_ssh_config_live db-prod: dev-1:dev
   demo_overlay colors <<'EOF'
 # pins beat the name hash; everything unpinned still resolves on its own
 [username]
@@ -525,8 +525,7 @@ EOF
 
 # The run demo's stage: one target per backend, reached from a throwaway $HOME
 # that carries the ssh host's port and key and the kind cluster's kubeconfig -
-# the two things a bare `hi <name> <cmd>` reads out of $HOME. The tools debian
-# rather than a bare one, so one of the four `cat`s renders through bat.
+# the two things a bare `hi <name> <cmd>` reads out of $HOME.
 function up_run() {
   up_ssh deploy web-1 || return 1
   demo_ssh_config_live web-1:
@@ -535,6 +534,38 @@ function up_run() {
   up_kube || return 1
   mkdir -p "$_HI_DEMO_DIR/home/.kube"
   kind get kubeconfig --name hi-demo >"$_HI_DEMO_DIR/home/.kube/config"
+}
+
+# demo_drop <name> - the keep demo's dropped link, cut from the box's end the
+# way tests/targets/ssh_keep_test.sh cuts one: once the tape's backfill runs
+# on <name>, sshd's process for the connection is killed and the client's ssh
+# sees it close. Started in the background by keep.tape's Hide block, before
+# the connect, so it waits on the job rather than on a clock.
+function demo_drop() {
+  local i=0
+  demo_step "drop: waiting for the backfill on $1"
+  # the bracket keeps the pattern from matching its own grep's command line
+  until docker exec "$1" sh -c 'grep -qs "[b]ackfill" /proc/[0-9]*/cmdline'; do
+    i=$((i + 1))
+    if ((i >= 120)); then
+      echo "drop: no backfill ran on $1 in 120s" >&2
+      return 1
+    fi
+    sleep 1
+  done
+  # reading time: a few batches print before the link goes
+  sleep 5
+  demo_step "drop: cutting the link to $1"
+  # shellcheck disable=SC2016 # the container's sh expands it
+  docker exec "$1" sh -c 'n=0
+    for f in $(grep -ls "@pt[s]/" /proc/[0-9]*/cmdline); do
+      f=${f#/proc/}
+      kill "${f%/cmdline}" && n=1
+    done
+    [ "$n" = 1 ]' || {
+    echo "drop: no ssh connection to $1 to cut" >&2
+    return 1
+  }
 }
 
 # One of everything, at once - the completion demo's whole subject is that
@@ -606,7 +637,7 @@ mkdir -p "$_HI_DEMO_DIR"
 case "${1:-}:${2:-}" in
 # Client identities, chosen per tape rather than taken from the renderer: a
 # person at their own laptop or desktop, reaching a box that is less their
-# own. Five of the seven leave that machine alone (_HI_DISABLE_LOCAL, or the
+# own. Six of the eight leave that machine alone (_HI_DISABLE_LOCAL, or the
 # prompt off at both ends), so it shows its distro's stock prompt and hi's
 # begins at the target; demo and colors keep hi's prompt at home, and name
 # `hi` in _HI_PROMPT_TOOL so a prompt program the renderer happens to have
@@ -619,7 +650,8 @@ up:packages)
   # bridge these containers stand in for a LAN with), and the check as a
   # diagnosis: the overlay below is the homelab toolbox, and the two boxes
   # answer it very differently - the nas has most of it, the pihole almost
-  # none.
+  # none. The overlay holds the core group; the tape's `hi --add-package`
+  # writes the useful one.
   client_rc bash sam laptop ubuntu
   demo_settings <<'EOF'
 export _HI_DISABLE_PROMPT='1'
@@ -633,10 +665,6 @@ git = []
 vim = ["nano"]
 rsync = []
 curl = []
-[useful]
-htop = []
-tmux = []
-smartctl = []
 EOF
   up_container docker nas tools admin
   # shellcheck disable=SC2016 # the prompt's own text, never expanded
@@ -648,27 +676,43 @@ up:editors)
   # on the team's debian, where starship is installed. Her mac is left as it
   # is (_HI_DISABLE_LOCAL), so it shows macOS's stock prompt. The compact
   # header preset, and the prompt handed to starship (_HI_PROMPT_TOOL) - hi
-  # keeps the header, the editors, and the aliases; the prompt is hers.
+  # keeps the header, the editors, and the aliases; the prompt is hers. The
+  # sudo alias (_HI_SUDO_ALIAS), so `sudo vim` opens on her vimrc too, and the
+  # git plugin, off by default, switched on (_HI_PLUGINS_ON) so her aliases
+  # and identity ride without her keys.
   client_rc zsh maya mbp macos
   demo_settings <<'EOF'
 export _HI_DISABLE_LOCAL='1'
 export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods'
 export _HI_PROMPT_TOOL='starship'
+export _HI_SUDO_ALIAS='1'
+export _HI_PLUGINS_ON='git'
 EOF
   # hi ships no editor configs, so the demo carries its own through the
   # overlay, the way a user's would ride
   demo_overlay vim/vimrc <"$_HI_ROOT/docs/tapes/editors/vimrc"
   demo_overlay nano/nanorc <"$_HI_ROOT/docs/tapes/editors/nanorc"
+  # the credential helper is there to stay home: the git dialect strips it
+  demo_overlay git/config <<'EOF'
+[user]
+  name = Maya
+  email = maya@example.com
+[alias]
+  st = status -sb
+  lg = log --oneline --graph --decorate -5
+[credential]
+  helper = osxkeychain
+EOF
   up_container docker dev-box tools maya
   ;;
 up:overlay)
-  # The ops persona: fish on a workstation, left as it is (_HI_DISABLE_LOCAL,
+  # The operator: rio, fish on a workstation, left as it is (_HI_DISABLE_LOCAL,
   # so fish's own prompt), into a docker box and a podman box, where the
   # prompt is hi's (`hi` in _HI_PROMPT_TOOL). The header trimmed to what an
   # operator looks at - clocks, the backend counts, the check - painted with
   # a blue-to-red ramp of its own. No throwaway $HOME here: podman lives
   # under the real one.
-  client_rc fish ops workstation
+  client_rc fish rio workstation
   demo_settings <<'EOF'
 export _HI_DISABLE_LOCAL='1'
 export _HI_PROMPT_TOOL='hi'
@@ -703,7 +747,7 @@ up:complete)
   #
   # The workstation is left as it is (_HI_DISABLE_LOCAL): the completion is
   # hi's either way, and the prompt above the pane is fish's own.
-  client_rc fish ops workstation
+  client_rc fish rio workstation
   demo_settings <<'EOF'
 export _HI_DISABLE_LOCAL='1'
 export _HI_TARGETS_TTL='0'
@@ -716,14 +760,21 @@ up:colors)
   # _HI_PROMPT_TOOL). This demo's configuration is the `colors` overlay
   # up_colors writes, a hex scheme (atom's one dark) the preview and both
   # sessions paint with, a short header, and a two-line fish prompt of kai's
-  # own - all in the overlay, so all of it rides to both boxes. The tape
-  # exports a throwaway $HOME as well, for the ssh config the preview and the
-  # two sessions read, and COLORTERM, which vhs's shell does not set.
+  # own - all in the overlay, so all of it rides to both boxes. A prod host
+  # also reads settings.prod.sh, whose longer header is the tag file's
+  # visible difference. The tape exports a throwaway $HOME as well, for the
+  # ssh config the preview and the two sessions read, and COLORTERM, which
+  # vhs's shell does not set.
   client_rc bash kai ops-laptop ubuntu
   demo_settings <<'EOF'
 export _HI_PROMPT_TOOL='hi'
 export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
-export _HI_HEADER_ORDER='gitid containers jobs pods auth pub uptime'
+export _HI_HEADER_ORDER='gitid uptime'
+EOF
+  demo_overlay settings.prod.sh <<'EOF'
+#!/bin/sh
+# prod: what the box is, how long it has been up, and who can get in
+export _HI_HEADER_ORDER='os uptime auth pub'
 EOF
   # the boxes' login shell is fish, and this config.fish is sourced after hi's,
   # so the prompt below replaces hi's fish_prompt while reusing the colors hi
@@ -741,13 +792,21 @@ EOF
   ;;
 up:run)
   # The researcher: chen, zsh on a fedora thinkpad left as it is
-  # (_HI_DISABLE_LOCAL), running one command across the cluster's backends.
+  # (_HI_DISABLE_LOCAL), running an alias of their own across the cluster's
+  # backends.
   client_rc zsh chen thinkpad fedora
   # a one-off command draws no header, so nothing a knob would show; the TTL
   # is up:complete's, for up:complete's reason
   demo_settings <<'EOF'
 export _HI_DISABLE_LOCAL='1'
 export _HI_TARGETS_TTL='0'
+EOF
+  # The subject: a one-off command runs after the aliases load, so the alias
+  # works on every target, the bash-less pod's aliases-only tier included.
+  # No quote inside the body: the POSIX+fish subset common/aliases.sh keeps.
+  demo_overlay aliases.sh <<'EOF'
+# ~/.config/say-hi/aliases.sh - sourced on every target, in every shell
+alias distro='uname -n && sed -n s/^PRETTY_NAME=//p /etc/os-release'
 EOF
   up_run
   ;;
@@ -765,9 +824,24 @@ export _HI_PROMPT_TOOL='hi'
 EOF
   up_container docker db-prod tools deploy
   ;;
+up:keep)
+  # The on-call engineer: noor, zsh on a macbook left as it is
+  # (_HI_DISABLE_LOCAL), on hotel wifi, into the prod database box to run a
+  # backfill that must outlive the link. The box has tmux, so `hi --keep`
+  # runs the session in it; `fixtures.sh drop` cuts the link mid-job. A short
+  # header, so the pane has the rows.
+  client_rc zsh noor air macos
+  demo_settings <<'EOF'
+export _HI_DISABLE_LOCAL='1'
+export _HI_HEADER_ORDER='utc localtime uptime'
+EOF
+  up_ssh deploy db-prod
+  demo_ssh_config_live db-prod:prod
+  ;;
+drop:?*) demo_drop "$2" ;;
 down:) demo_down ;;
 *)
-  echo "usage: fixtures.sh up <demo|packages|editors|overlay|colors|complete|run> | down" >&2
+  echo "usage: fixtures.sh up <demo|packages|editors|overlay|colors|keep|complete|run> | drop <name> | down" >&2
   exit 1
   ;;
 esac

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for what the config overlay stream takes from home: the tool configs in
 # force here, the prompt frameworks' files, and ~/.ssh/config's tags.
 # A part of payload_test.sh, a suite of its own so the Windows shards split

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for common/targets.sh - the "<name>\t<kind>" list behind `hi`'s
 # bash/zsh/fish completions and hi.sh's own _hi_is_ssh_host check.
 #
@@ -25,7 +24,7 @@ _HI_NO_CONFIG=""
 # and failing anything else, so a changed command shape shows up as a missing
 # row rather than a silently passing test.
 function _hi_write_shims() {
-  local dir="$_HI_WORKDIR/shims" tool
+  local dir="$_HI_SUITE_WORKDIR/shims" tool
   mkdir -p "$dir"
 
   # "beta compose-svc" is the compose-labeled shape: {{.Names}} {{.Label ...}}
@@ -410,7 +409,7 @@ function test_duplicate_daemon_rows_are_emitted_once() {
 function test_dedupe_leaves_nomad_and_kube_alone() {
   local dir="$_HI_WORKDIR/shims/pod-twin" out
   mkdir -p "$dir"
-  cp "$_HI_WORKDIR/shims/twins/docker" "$_HI_WORKDIR/shims/twins/podman" "$dir/"
+  cp "$_HI_SUITE_WORKDIR/shims/twins/docker" "$_HI_SUITE_WORKDIR/shims/twins/podman" "$dir/"
   cat >"$dir/kubectl" <<'EOF'
 #!/bin/sh
 case "$1" in
@@ -547,7 +546,7 @@ function _hi_targets_cached() {
 }
 
 function test_cache_reuses_the_first_answer() {
-  local dir="$_HI_WORKDIR/cache-hit" shim="$_HI_WORKDIR/shims/docker" first second ok=0
+  local dir="$_HI_WORKDIR/cache-hit" shim="$_HI_SUITE_WORKDIR/shims/docker" first second ok=0
   mkdir -p "$dir"
   first="$(_hi_targets_cached "$dir" 60 docker)"
   # take the shim away: a miss now produces nothing, a hit still has the rows,

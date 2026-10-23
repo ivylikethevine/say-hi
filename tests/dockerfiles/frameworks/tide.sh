@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # tide through fisher, the way its README installs it: fish autoloads its
 # fish_prompt, which common/config.fish must leave defined, and tide's
 # background renderer is a `fish -c` that has to see the home variables.

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The kept session (GLOSSARY: HI.65), both halves, in a file the switch
 # ($_HI_DISABLE_KEEP) leaves home: hi.sh and load.sh each source it, with
 # stand-ins for a tree that came without.

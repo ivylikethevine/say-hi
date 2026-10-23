@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # scripts/doctor.sh's target section (scripts/doctor_target.sh) and its install
 # section.
 # A part of doctor_test.sh, a suite of its own so the Windows shards split them.

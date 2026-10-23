@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The settings wizard's menu: its pages and rows, the hub that reads a key and
 # acts on it, the header's item editor, and the package-group and plugin
 # flips. Sourced by scripts/configure.sh, whose pending answers

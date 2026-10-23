@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # Unit tests for scripts/add_package.sh - `hi --add-package`, which adds
 # rows to a group in ~/.config/say-hi/packages, and `hi --remove-package`,
 # which takes them out.

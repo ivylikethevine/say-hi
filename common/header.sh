@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: MIT
 # The connect/disconnect banner, one implementation for every shell (fish
 # shells out here); the packages check (full_check) lives at the bottom too.
 #
