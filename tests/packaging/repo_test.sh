@@ -105,7 +105,7 @@ function _hi_repo_build() {
   _hi_h2 "Building the repository"
   if ! "$_HI_ROOT/packaging/mkrepo.sh" --dist "$_HI_ROOT/dist" --outdir "$_HI_REPO" \
     --gpg-key "$_HI_WORKDIR/gpg.key" --public-key "$_HI_WORKDIR/gpg.asc" \
-    --apk-key "$_HI_WORKDIR/apk.rsa" --tarball "$_HI_WORKDIR/package-repo.tar.gz" \
+    --apk-key "$_HI_WORKDIR/apk.rsa" --tarball "$_HI_SUITE_WORKDIR/package-repo.tar.gz" \
     >"$_HI_WORKDIR/mkrepo.log" 2>&1; then
     _hi_dump_log "mkrepo.sh failed:" "$_HI_WORKDIR/mkrepo.log" "$RED"
     return 1
@@ -118,7 +118,7 @@ function _hi_repo_build() {
 function test_tarball_is_the_repository() {
   local unpacked="$_HI_WORKDIR/unpacked"
   mkdir -p "$unpacked"
-  tar -xzf "$_HI_WORKDIR/package-repo.tar.gz" -C "$unpacked"
+  tar -xzf "$_HI_SUITE_WORKDIR/package-repo.tar.gz" -C "$unpacked"
   diff -r "$_HI_REPO" "$unpacked" >/dev/null || _hi_why unpacked _HI_REPO
 }
 

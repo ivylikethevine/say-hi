@@ -323,13 +323,13 @@ function _hi_capable() {
 # OK for a case that never ran.
 function _hi_check_capable() { _hi_par_capable_body "$1" _hi_check "${@:2}"; }
 
-# _hi_fake_path <name> <bin...> - a $_HI_WORKDIR/<name> directory of no-op
-# executables, printed - for suites that prove a resolution ladder
+# _hi_fake_path <name> <bin...> - a $_HI_SUITE_WORKDIR/<name> directory of
+# no-op executables, printed - for suites that prove a resolution ladder
 # ("candidate X is missing, does it fall through to Y") against a PATH they
-# control rather than against whatever this machine has. Built once per name:
-# the callers ask for the same set many times over.
+# control rather than against whatever this machine has. Built once per name
+# and suite, not per case: the callers ask for the same set many times over.
 function _hi_fake_path() {
-  local dir="$_HI_WORKDIR/$1" bin
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/$1" bin
   shift
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
@@ -342,8 +342,8 @@ function _hi_fake_path() {
 }
 
 # _hi_real_path <name> <tool...> - the real-binary half of _hi_fake_path, same
-# build-once-per-name contract: a $_HI_WORKDIR/<name> directory pointing at the
-# named tools as this machine resolves them, printed. For suites that replace
+# build-once-per-name contract: a $_HI_SUITE_WORKDIR/<name> directory pointing
+# at the named tools as this machine resolves them, printed. For suites that replace
 # $PATH outright and still need a few real tools on it. A tool the machine
 # doesn't have is skipped, so the caller's cases fail (or skip) on the missing
 # tool itself rather than on the toolbox build.
@@ -362,7 +362,7 @@ function _hi_fake_path() {
 # `awk`, or `sed` at all, so its cases would fail in ways that look nothing
 # like the symlink that caused them.
 function _hi_real_path() {
-  local dir="$_HI_WORKDIR/$1" tool real
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/$1" tool real
   shift
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
@@ -416,14 +416,14 @@ function _hi_path_dirs_of() {
 
 # _hi_git_fixture - a fresh one-commit repo on a branch literally named "main"
 # (forced via symbolic-ref, so git's initial-branch config can't decide it),
-# printed. Built once per suite as a template, then copied per call: every
-# caller wants the identical starting point, and one `cp -r` is one process
-# where building from scratch is six git invocations. Each call still gets its
+# printed. Built once per suite, in $_HI_SUITE_WORKDIR, as a template, then
+# copied per call: every caller wants the identical starting point, and one
+# `cp -r` is one process where building from scratch is six git invocations. Each call still gets its
 # own private directory, so nothing leaks between cases - only the setup cost
 # is shared. The template holds one clean tracked file.txt; cases wanting
 # another branch or a dirty tree arrange that themselves.
 function _hi_git_fixture() {
-  local dir template="$_HI_WORKDIR/git-template"
+  local dir template="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/git-template"
   if [ ! -d "$template" ]; then
     mkdir -p "$template"
     git -C "$template" init -q
@@ -486,6 +486,7 @@ EOF
 # linked script credits the repo file where a copy's hits are dropped. Never
 # for a directory a case writes into - the write would land in the checkout.
 # Git Bash without symlink rights copies it, which only loses the credit.
+#
 function _hi_scratch_tree() {
   local name="$1" root="$_HI_WORKDIR/$1/say-hi" dir
   shift
@@ -624,7 +625,7 @@ function _hi_file_is() {
 # names, printed, for a caller's $PATH: _hi_overlay_src ships home's config
 # only with its tool on this machine, and a runner has no micro or helix.
 function _hi_stub_tools() {
-  local dir="$_HI_WORKDIR/stubtools" t
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/stubtools" t
   mkdir -p "$dir"
   for t; do
     [ -x "$dir/$t" ] || { printf '#!/bin/sh\nexit 0\n' >"$dir/$t" && chmod +x "$dir/$t"; }

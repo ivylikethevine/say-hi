@@ -62,7 +62,7 @@ function _hi_relay_arm_client() {
     cat > /home/hitest/.ssh/id
     chmod 600 /home/hitest/.ssh/id
     chown hitest:hitest /home/hitest/.ssh/id
-  ' <"$_HI_WORKDIR/id" || return 1
+  ' <"$_HI_SSH_KEY" || return 1
   # StrictHostKeyChecking/UserKnownHostsFile: C is a container that has never
   # been seen before and will never be seen again, and hi opens this
   # connection non-interactively - an unanswerable host-key prompt would read

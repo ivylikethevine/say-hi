@@ -40,8 +40,11 @@ function _hi_doctor_path() {
 # happens to carry - present and non-empty by luck on Ubuntu/macOS images,
 # absent on a freshly pkg-installed FreeBSD root. bash is on every image this
 # suite runs on, so its rc alone guarantees the section is never empty.
+#
+# Once a suite, like the shims below: the json report one case makes is
+# compared by another, and names this $HOME.
 function _hi_doctor_home() {
-  local dir="$_HI_WORKDIR/doctorhome"
+  local dir="$_HI_SUITE_WORKDIR/doctorhome"
   if [ ! -f "$dir/.bashrc" ]; then
     mkdir -p "$dir"
     printf '# fixture rc for doctor_test.sh\n' >"$dir/.bashrc"
@@ -50,7 +53,7 @@ function _hi_doctor_home() {
 }
 
 function _hi_doctor_shims() {
-  local dir="$_HI_WORKDIR/shims"
+  local dir="$_HI_SUITE_WORKDIR/shims"
   if [ ! -d "$dir" ]; then
     # the docker half is test_lib.sh's predicate-shape shims, with
     # "runningbox" as the one running target; nomad/kubectl stay off this

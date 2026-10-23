@@ -46,10 +46,11 @@ function test_defers_to_prompt_tool_when_asked() {
 # inputrc -> $INPUTRC, and ripgreprc, fzfrc, lazygit.yml the same); at
 # home the variable is left alone, whatever the overlay holds. The lines that
 # do it are the ones the client packs beside the file (GLOSSARY: HI.62).
-# <shell> <overlay file> <variable> <expected on a target> [NAME=VALUE...]
+# <shell> <overlay file> <variable> <expected on a target> [NAME=VALUE...],
+# @cfg@ in <expected> the case's own overlay, which it names only once it runs
 # shellcheck disable=SC2016 # the child bash expands its own script
 function test_remote_session_exports_overlay_config() {
-  local shell="$1" file="$2" var="$3" want="$4" script out home
+  local shell="$1" file="$2" var="$3" want="${4//@cfg@/$_HI_WORKDIR/cfg}" script out home
   shift 4
   mkdir -p "$_HI_WORKDIR/cfg"
   case "$file" in */*) mkdir -p "$_HI_WORKDIR/cfg/${file%/*}" ;; esac
@@ -70,9 +71,9 @@ function test_remote_session_exports_overlay_config() {
 # tmux, screen, and zellij are common/mux.sh's there, which names the
 # overlay's copy itself (hi/keep_test.sh has what it runs). With no overlay
 # copy the target's own ~/.tmux.conf is not picked up in its place.
-# <shell> <overlay file, or - for none> <alias> <wanted> [unwanted]
+# <shell> <overlay file, or - for none> <alias> <wanted, @cfg@ as above> [unwanted]
 function test_remote_session_aliases_overlay_config() {
-  local shell="$1" file="$2" name="$3" want="$4" bad="${5:-}" script out
+  local shell="$1" file="$2" name="$3" want="${4//@cfg@/$_HI_WORKDIR/cfg}" bad="${5:-}" script out
   [ "$file" = - ] || {
     mkdir -p "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/zellij" "$_HI_WORKDIR/cfg/tmux"
     printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
@@ -713,41 +714,41 @@ function run_rc_prompt_tests() {
   _hi_check "[bash] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked bash oh-my-posh
   _hi_check "[bash] keeps hi's prompt without the setting" test_bash_keeps_hi_prompt_without_the_setting
   _hi_check "[bash] falls back silently when absent" test_bash_falls_back_when_starship_is_absent
-  _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
-  _hi_check "[bash] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config bash eza/theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg/eza"
-  _hi_check "[bash] a target points bat at the overlay's config" test_remote_session_exports_overlay_config bash bat/config BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat/config"
-  _hi_check "[bash] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config bash inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
-  _hi_check "[bash] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config bash ripgreprc RIPGREP_CONFIG_PATH "$_HI_WORKDIR/cfg/ripgreprc"
-  _hi_check "[bash] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config bash fzfrc FZF_DEFAULT_OPTS_FILE "$_HI_WORKDIR/cfg/fzfrc"
-  _hi_check "[bash] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config bash lazygit/config.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit/config.yml"
-  _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
-  _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
-  _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.yaml"
+  _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "@cfg@/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
+  _hi_check "[bash] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config bash eza/theme.yml EZA_CONFIG_DIR "@cfg@/eza"
+  _hi_check "[bash] a target points bat at the overlay's config" test_remote_session_exports_overlay_config bash bat/config BAT_CONFIG_PATH "@cfg@/bat/config"
+  _hi_check "[bash] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config bash inputrc INPUTRC "@cfg@/inputrc"
+  _hi_check "[bash] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config bash ripgreprc RIPGREP_CONFIG_PATH "@cfg@/ripgreprc"
+  _hi_check "[bash] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config bash fzfrc FZF_DEFAULT_OPTS_FILE "@cfg@/fzfrc"
+  _hi_check "[bash] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config bash lazygit/config.yml LG_CONFIG_FILE "@cfg@/lazygit/config.yml"
+  _hi_check "[bash] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config bash kak/kakrc KAKOUNE_CONFIG_DIR "@cfg@/kak"
+  _hi_check "[bash] a target's load.sh is handed the overlay's vimrc" test_remote_session_exports_overlay_config bash vim/vimrc _HI_VIMRC "@cfg@/vim/vimrc"
+  _hi_check "[bash] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config bash oh-my-posh.yaml POSH_CONFIG "@cfg@/oh-my-posh.yaml"
   _hi_check "[bash] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash tmux/tmux.conf tmux "common/mux.sh tmux"
   _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
   _hi_check "[bash] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash screenrc screen "common/mux.sh screen"
   _hi_check "[bash] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config bash zellij/config.kdl zellij "common/mux.sh zellij"
   _hi_check "[bash] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config bash - micro "" micro
-  _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -backup false -savehistory false -config-dir $_HI_WORKDIR/cfg/micro"
+  _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -backup false -savehistory false -config-dir @cfg@/micro"
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
   _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
   _hi_check_requires fish "[fish] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked fish oh-my-posh
-  _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
-  _hi_check_requires fish "[fish] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config fish eza/theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg/eza"
-  _hi_check_requires fish "[fish] a target points bat at the overlay's config" test_remote_session_exports_overlay_config fish bat/config BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat/config"
-  _hi_check_requires fish "[fish] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config fish inputrc INPUTRC "$_HI_WORKDIR/cfg/inputrc"
-  _hi_check_requires fish "[fish] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config fish ripgreprc RIPGREP_CONFIG_PATH "$_HI_WORKDIR/cfg/ripgreprc"
-  _hi_check_requires fish "[fish] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config fish fzfrc FZF_DEFAULT_OPTS_FILE "$_HI_WORKDIR/cfg/fzfrc"
-  _hi_check_requires fish "[fish] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config fish lazygit/config.yml LG_CONFIG_FILE "$_HI_WORKDIR/cfg/lazygit/config.yml"
-  _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kak/kakrc KAKOUNE_CONFIG_DIR "$_HI_WORKDIR/cfg/kak"
-  _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vim/vimrc _HI_VIMRC "$_HI_WORKDIR/cfg/vim/vimrc"
-  _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "$_HI_WORKDIR/cfg/oh-my-posh.toml"
+  _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "@cfg@/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
+  _hi_check_requires fish "[fish] a target points eza at the overlay's theme" test_remote_session_exports_overlay_config fish eza/theme.yml EZA_CONFIG_DIR "@cfg@/eza"
+  _hi_check_requires fish "[fish] a target points bat at the overlay's config" test_remote_session_exports_overlay_config fish bat/config BAT_CONFIG_PATH "@cfg@/bat/config"
+  _hi_check_requires fish "[fish] a target points readline at the overlay's inputrc" test_remote_session_exports_overlay_config fish inputrc INPUTRC "@cfg@/inputrc"
+  _hi_check_requires fish "[fish] a target points ripgrep at the overlay's ripgreprc" test_remote_session_exports_overlay_config fish ripgreprc RIPGREP_CONFIG_PATH "@cfg@/ripgreprc"
+  _hi_check_requires fish "[fish] a target points fzf at the overlay's fzfrc" test_remote_session_exports_overlay_config fish fzfrc FZF_DEFAULT_OPTS_FILE "@cfg@/fzfrc"
+  _hi_check_requires fish "[fish] a target points lazygit at the overlay's config" test_remote_session_exports_overlay_config fish lazygit/config.yml LG_CONFIG_FILE "@cfg@/lazygit/config.yml"
+  _hi_check_requires fish "[fish] a target points kakoune at the overlay's kakrc" test_remote_session_exports_overlay_config fish kak/kakrc KAKOUNE_CONFIG_DIR "@cfg@/kak"
+  _hi_check_requires fish "[fish] a target's session is handed the overlay's vimrc" test_remote_session_exports_overlay_config fish vim/vimrc _HI_VIMRC "@cfg@/vim/vimrc"
+  _hi_check_requires fish "[fish] a target points oh-my-posh at the overlay's config" test_remote_session_exports_overlay_config fish oh-my-posh.toml POSH_CONFIG "@cfg@/oh-my-posh.toml"
   _hi_check_requires fish "[fish] a target's tmux is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish tmux/tmux.conf tmux "common/mux.sh tmux"
   _hi_check_requires fish "[fish] a target's screen is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish screenrc screen "common/mux.sh screen"
   _hi_check_requires fish "[fish] a target's zellij is common/mux.sh's to start" test_remote_session_aliases_overlay_config fish zellij/config.kdl zellij "common/mux.sh zellij"
   _hi_check_requires fish "[fish] a target's micro is left alone without a micro/" test_remote_session_aliases_overlay_config fish - micro "" micro
-  _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -backup false -savehistory false -config-dir $_HI_WORKDIR/cfg/micro"
+  _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -backup false -savehistory false -config-dir @cfg@/micro"
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
   _hi_check "[bash] at home the tools' own configs leave them unaliased" test_home_session_aliases_only_his_configs bash own
   _hi_check "[bash] ...and with no config, none at all" test_home_session_aliases_only_his_configs bash none

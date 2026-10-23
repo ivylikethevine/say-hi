@@ -80,14 +80,14 @@ function test_plain_container_runs_rawcmd_with_dash_c() {
 # ssh itself is "just get me a shell" with no target, so --plain's ssh path
 # is real ssh with no bootstrap - asserted through a shim that echoes its own
 # argv, proving nothing beyond SSHARGS/DOMAIN/RAWCMD ever reaches it
+function _hi_plain_ssh_shim() {
+  mkdir -p "$_HI_WORKDIR/plainssh"
+  printf '#!/bin/sh\necho "SSH:$*"\n' >"$_HI_WORKDIR/plainssh/ssh"
+  chmod +x "$_HI_WORKDIR/plainssh/ssh"
+}
 function test_plain_ssh_execs_real_ssh_with_rawcmd() {
   local dir="$_HI_WORKDIR/plainssh" out
-  mkdir -p "$dir"
-  cat >"$dir/ssh" <<'EOF'
-#!/bin/sh
-echo "SSH:$*"
-EOF
-  chmod +x "$dir/ssh"
+  _hi_plain_ssh_shim
   out="$(
     DOMAIN=myhost SSHARGS=() RAWCMD="echo hi"
     PATH="$dir:$PATH" _say_hi_plain </dev/null
@@ -96,10 +96,8 @@ EOF
 }
 
 function test_plain_ssh_with_no_command_passes_none() {
-  # the same argv-echoing shim, written by the RAWCMD case above - the two
-  # run in registration order
-  local dir="$_HI_WORKDIR/plainssh"
-  local out
+  local dir="$_HI_WORKDIR/plainssh" out
+  _hi_plain_ssh_shim
   out="$(
     DOMAIN=myhost SSHARGS=()
     unset RAWCMD

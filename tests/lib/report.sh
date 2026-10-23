@@ -121,9 +121,16 @@ function _hi_why() {
 }
 
 function _hi_assert() {
-  local label="$1" t0=$SECONDS
+  local label="$1" t0=$SECONDS _HI_WORKDIR="$_HI_WORKDIR"
   shift
+  if ! _hi_case_workdir; then
+    _hi_align " | $label" "FAILED" "$RED"
+    printf '      no directory of its own could be made under %s\n' "$_HI_SUITE_WORKDIR" >&2
+    _hi_note_failure "$label"
+    return 1
+  fi
   if "$@"; then
+    _hi_rerun_holds "$label" "$@" || return 1
     _hi_align " | $label" "OK" "$GREEN"
     return 0
   fi
@@ -131,6 +138,7 @@ function _hi_assert() {
   # second time is a flake - FLAKY in yellow, noted for the runner's recap,
   # and not a failure - and a second failure is FAILED with the trace's tail
   [ "${_HI_TRACE_RERUN:-1}" != 1 ] || ! _hi_flaky_allowed || _hi_pipe_probe
+  _hi_case_workdir || :
   if _hi_trace_rerun $((SECONDS - t0)) "$@"; then
     if _hi_flaky_allowed; then
       _hi_align " | $label" "FLAKY" "$YELLOW"
@@ -149,13 +157,53 @@ function _hi_assert() {
   return 1
 }
 
+# _hi_case_workdir - $_HI_WORKDIR as a new, empty directory of the suite's,
+# for one try of one case: _hi_assert's local, so the suite's own is back the
+# moment the case is done. A traced rerun gets another, or it would start
+# where its first try stopped - over the file, link, or fixture that try made
+# - and a flake could never pass it. A setup that builds once for every case
+# builds in $_HI_SUITE_WORKDIR.
+#
+# A name and `mkdir`, not `$(mktemp -d)`: an empty capture is Windows arm64's
+# flake, and this one would aim the case at the root. Parallel cases count
+# from the same number in their subshells, so a taken name is tried again.
+_HI_CASE_SEQ=0
+function _hi_case_workdir() {
+  local try
+  [ -n "${_HI_SUITE_WORKDIR:-}" ] || return 0
+  for try in 1 2 3 4 5; do
+    _HI_CASE_SEQ=$((_HI_CASE_SEQ + 1))
+    _HI_WORKDIR="$_HI_SUITE_WORKDIR/case.$_HI_CASE_SEQ.$RANDOM"
+    mkdir "$_HI_WORKDIR" 2>/dev/null && return 0
+  done
+  return 1
+}
+
+# _hi_rerun_holds <label> <case...> - under $_HI_RERUN_CHECK=1, a case that
+# passed is run once more, in a subshell and a fresh directory as its traced
+# rerun would be. One that fails there leaves something outside its
+# directory - $HOME, the tree, an exported variable - that its first try
+# changed, so a flake in it can never pass that rerun: a FLAKY that reads
+# FAILED. Off by default, since it doubles a run's time.
+function _hi_rerun_holds() {
+  local label="$1"
+  shift
+  [ "${_HI_RERUN_CHECK:-0}" = 1 ] || return 0
+  _hi_case_workdir || :
+  ("$@") >/dev/null 2>&1 && return 0
+  _hi_align " | $label" "FAILED" "$RED"
+  printf '      passed, then failed a second run: its first try changed something outside its directory, so its traced rerun could never pass\n' >&2
+  _hi_note_failure "$label (fails a second run)"
+  return 1
+}
+
 # _hi_trace_rerun <seconds-it-took> <case...> - a failed case once more under
 # `set -x`: most cases fail with a label and no word of their own, and a red
 # line from a runner nobody can reach is worth little. Exits 0 when the rerun
 # passed (a flake), 1 when it failed too or was not run; the trace's tail is
 # left in $_HI_RERUN_OUT for the FAILED line to print. A subshell, so nothing
-# the rerun sets survives it - files it writes do, so a rerun can differ from
-# the first try.
+# the rerun sets survives it, in a directory of its own (_hi_case_workdir), so
+# nothing the first try wrote there is in its way.
 #
 # A failure that took over 30s is rerun all the same, since a slow failure is
 # the likeliest kind on an emulated runner and the one a label explains
@@ -163,8 +211,8 @@ function _hi_assert() {
 # has had that time again and half a minute, with the trace it got to - where
 # a hung case stands - in place of a second timeout paid in full. It is for
 # the trace alone: a slow failure is a failure whatever its rerun does, never
-# a flake. All of it is a failure's cost; a pass forks nothing and opens no
-# file.
+# a flake. All of it is a failure's cost; a pass forks nothing but the
+# `mkdir` of its directory.
 #
 # Not when $_HI_TRACE_RERUN is 0: the coverage sweeps set that, their tracers
 # owning xtrace, and the line says where the same case is traced.

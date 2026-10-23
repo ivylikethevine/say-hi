@@ -262,15 +262,15 @@ function test_marks_table_renders_the_glyph_set() {
 # nothing exported - is pinned once, by test_preview_reads_the_trees_own_file
 # on a scratch tree below.
 function _hi_render_packages() {
-  PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" \
+  PATH="$(_hi_pkg_path)" HOME="$_HI_SUITE_WORKDIR/tree" \
+  _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" \
     "$_HI_ROOT/scripts/preview.sh" packages 2>&1
 }
 
 # the help path: same PATH as the render, plus the one argument
 function _hi_render_packages_help() {
-  PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" \
+  PATH="$(_hi_pkg_path)" HOME="$_HI_SUITE_WORKDIR/tree" \
+  _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/cfg" \
     "$_HI_ROOT/scripts/preview.sh" packages "$1" 2>&1
 }
 
@@ -279,9 +279,9 @@ function _hi_render_packages_help() {
 # fixture
 function test_preview_reads_the_trees_own_file() {
   local out
-  out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
+  out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_SUITE_WORKDIR/tree" _HI_HOME="$_HI_SUITE_WORKDIR/tree" \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" packages 2>&1)" || _hi_why || return 1
+    "$_HI_SUITE_WORKDIR/tree/say-hi/scripts/preview.sh" packages 2>&1)" || _hi_why || return 1
   [[ "$out" == *hialpha* ]] && [[ "$out" == *'14 listed'* ]] || _hi_why out
 }
 
@@ -405,7 +405,7 @@ function test_preview_reports_no_packages_file() {
 function test_preview_ignores_an_exported_packages() {
   local home decoy out
   home="$(_hi_scratch_tree exportedpkgs common config link:scripts)"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/config/packages"
+  cp "$_HI_SUITE_WORKDIR/packages" "$home/say-hi/config/packages"
   decoy="$_HI_WORKDIR/exported-packages"
   printf 'hionlyone\n' >"$decoy"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \

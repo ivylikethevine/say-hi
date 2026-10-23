@@ -561,7 +561,7 @@ function test_ssh_keypair_writes_a_usable_key() {
   (
     _HI_WORKDIR="$(mktemp -d "$_HI_WORKDIR/keys.XXXXXX")"
     _hi_ssh_keypair >/dev/null
-    [ -f "$_HI_WORKDIR/id" ] && [ -f "$_HI_WORKDIR/id.pub" ] && [[ "$_HI_PUBKEY" == ssh-ed25519* ]]
+    [ "$_HI_SSH_KEY" = "$_HI_WORKDIR/id" ] && [ -f "$_HI_SSH_KEY" ] && [ -f "$_HI_SSH_KEY.pub" ] && [[ "$_HI_PUBKEY" == ssh-ed25519* ]]
   ) || _hi_why _HI_PUBKEY
 }
 

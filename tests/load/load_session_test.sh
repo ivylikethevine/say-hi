@@ -39,8 +39,8 @@ function _hi_load_run() {
     # which common/paths.sh sourced on its way in (GLOSSARY: HI.62): the
     # same here, on this run's $PATH
     # shellcheck source=/dev/null
-    [ ! -f "$_HI_WORKDIR/overlay/wiring.sh" ] ||
-      _HI_CONFIG_DIR="$_HI_WORKDIR/overlay" source "$_HI_WORKDIR/overlay/wiring.sh"
+    [ ! -f "$_HI_SUITE_WORKDIR/overlay/wiring.sh" ] ||
+      _HI_CONFIG_DIR="$_HI_SUITE_WORKDIR/overlay" source "$_HI_SUITE_WORKDIR/overlay/wiring.sh"
     load
   ) <<<"$stdin_cmds" 2>/dev/null
 }
@@ -843,7 +843,7 @@ function run_load_session_tests() {
   _hi_check "The client's \$EDITOR and \$VISUAL stay two" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=$nvim|S=nano --rcfile $_HI_NANORC" _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "...one set stands in for the other" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|V=nano --rcfile $_HI_NANORC|" _HI_CLIENT_EDITOR=nano
   _hi_check "...a name the target lacks falls to the ladder" _hi_load_editor_is "E=$nvim|" _HI_CLIENT_EDITOR=no-such-editor
-  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -config-dir $_HI_WORKDIR/overlay/micro|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
+  _hi_check "..._HI_EDITOR still wins" _hi_load_editor_is "E=micro -backup false -savehistory false -config-dir $_HI_SUITE_WORKDIR/overlay/micro|V=micro -backup" _HI_EDITOR=micro _HI_CLIENT_EDITOR=nano _HI_CLIENT_VISUAL=nvim
   _hi_check "An editor that is off is passed over" _hi_load_editor_on "E=nano --rcfile $_HI_NANORC|" "$(_hi_fake_path withnvimnano nvim nano):$(_hi_editorless_path)" _HI_PLUGINS_OFF=bat,nvim
   _hi_check "...its group's word switches none" _hi_load_editor_is "E=$nvim|" _HI_PLUGINS_OFF=editors
   _hi_check "Every editor off leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" "_HI_PLUGINS_OFF=nvim vim micro hx kak nano emacs"

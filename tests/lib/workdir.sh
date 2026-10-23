@@ -18,10 +18,14 @@
 # first and starts second. Removing something twice is a no-op; removing
 # something that never started is a no-op too. Missing one is not.
 _HI_WORKDIR=""
+_HI_SUITE_WORKDIR=""
 _HI_EXTRA_CLEANUP=""
 _HI_LEDGER=""
 
-# Creates the suite's scratch dir as $_HI_WORKDIR and registers the one exit
+# Creates the suite's scratch dir as $_HI_SUITE_WORKDIR - and $_HI_WORKDIR,
+# until a case runs: _hi_assert hands each try of each case a fresh one of its
+# own under it (_hi_case_workdir), so what a suite's setup builds for its
+# cases to read goes by $_HI_SUITE_WORKDIR - and registers the one exit
 # trap it needs. $1 is a slug for the mktemp template ("checktest", "sshtest",
 # ...); $2, if given, names a suite-specific cleanup function (stopping a nomad
 # agent, deleting a kind cluster, ...) run before the generic teardown.
@@ -32,9 +36,10 @@ _HI_LEDGER=""
 # (GLOSSARY: HI.33), so a $TMPDIR holding a symlink - macOS's /var - would
 # leave a suite comparing two spellings of one directory.
 function _hi_workdir() {
-  _HI_WORKDIR="$(cd -P "$(mktemp -d -t "hi.$1.XXXXXX")" && pwd)"
+  _HI_SUITE_WORKDIR="$(cd -P "$(mktemp -d -t "hi.$1.XXXXXX")" && pwd)"
+  _HI_WORKDIR="$_HI_SUITE_WORKDIR"
   _HI_EXTRA_CLEANUP="${2:-}"
-  _HI_LEDGER="$_HI_WORKDIR/.ledger"
+  _HI_LEDGER="$_HI_SUITE_WORKDIR/.ledger"
   : >"$_HI_LEDGER"
   _hi_on_exit _hi_test_cleanup
 }
@@ -110,10 +115,12 @@ function _hi_test_cleanup() {
   # $_HI_COV_KEEP for the driver to remove: bashcov reads the trace after the
   # suite exits, and a script run from a copy in here is credited to the
   # repo's file only while the copy is still there to compare.
-  if [ -n "${_HI_COV_KEEP:-}" ] && [ -n "$_HI_WORKDIR" ]; then
-    printf '%s\n' "$_HI_WORKDIR" >>"$_HI_COV_KEEP"
-  elif [ -n "$_HI_WORKDIR" ]; then
-    rm -rf "$_HI_WORKDIR" || true
+  # The suite's and never $_HI_WORKDIR: a trap that fires inside a case would
+  # see that case's directory there.
+  if [ -n "${_HI_COV_KEEP:-}" ] && [ -n "$_HI_SUITE_WORKDIR" ]; then
+    printf '%s\n' "$_HI_SUITE_WORKDIR" >>"$_HI_COV_KEEP"
+  elif [ -n "$_HI_SUITE_WORKDIR" ]; then
+    rm -rf "$_HI_SUITE_WORKDIR" || true
   fi
   # the isolated config overlay and runtime dir from the top of test_lib.sh:
   # the one root it made, by the path it recorded and only in the shape

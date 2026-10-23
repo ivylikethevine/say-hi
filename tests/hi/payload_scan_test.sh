@@ -903,7 +903,7 @@ function _hi_real_nvim() {
   printf -v "$1" '%s' /no/real/nvim
   IFS=: read -r -a dirs <<<"$PATH"
   for d in "${dirs[@]}"; do
-    [ "$d" = "$_HI_WORKDIR/stubtools" ] || [ ! -x "$d/nvim" ] || {
+    [ "$d" = "$_HI_SUITE_WORKDIR/stubtools" ] || [ ! -x "$d/nvim" ] || {
       printf -v "$1" '%s' "$d/nvim"
       return 0
     }

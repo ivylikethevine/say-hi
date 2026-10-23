@@ -92,7 +92,7 @@ function _hi_ssh_configd_case() {
   mkdir -p "$home/.ssh/config.d" "$cfg"
   printf 'Include %s/.ssh/config.d/*\n' "$home" >"$home/.ssh/config"
   printf 'Host acmebox\n  HostName 127.0.0.1\n  Port %s\n  User hitest\n  IdentityFile %s\n' \
-    "$_HI_SSH_PORT" "$_HI_WORKDIR/id" >"$home/.ssh/config.d/acme"
+    "$_HI_SSH_PORT" "$_HI_SSH_KEY" >"$home/.ssh/config.d/acme"
   printf '[hosttag]\nacme = "brcyan"\n' >"$cfg/colors"
   printf 'export HI_ACME_SETTINGS=read\n' >"$cfg/settings.acme.sh"
   local out_file="$_HI_WORKDIR/$label.ssh.out"

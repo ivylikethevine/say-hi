@@ -31,7 +31,7 @@ _HI_DOC_JSON=""
 _HI_DOC_JSON_RC=""
 
 function _hi_doctor_json_report() {
-  local f="$_HI_WORKDIR/json.bare"
+  local f="$_HI_SUITE_WORKDIR/json.bare"
   [ -z "$_HI_DOC_JSON" ] || return 0
   _HI_DOC_JSON_RC=0
   _HI_PROBE_TIMEOUT=30 _hi_doctor_json >"$f" || _HI_DOC_JSON_RC=$?

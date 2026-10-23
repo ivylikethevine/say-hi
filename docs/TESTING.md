@@ -69,7 +69,16 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   never FLAKY - and ended once it has had that time again and half a minute,
   with the trace it got to: where a hung case stands. Only the coverage
   sweeps go without (`_HI_TRACE_RERUN=0`, their tracers owning xtrace), and
-  say which job traces the case. None of it costs a passing case anything.
+  say which job traces the case. None of it costs a passing case more than
+  the `mkdir` of its directory.
+- Each try of a case - the first and its rerun - runs in a new, empty
+  `$_HI_WORKDIR`, so a rerun never starts over the file, link, or fixture
+  its first try left, and a flake can pass it. What a suite builds once for
+  its cases to read - in its setup, or a cache like `_hi_fake_path`'s - goes
+  in `$_HI_SUITE_WORKDIR`; a path a registration line expands is the suite's,
+  never the case's. `_HI_RERUN_CHECK=1` runs every passing case a second time
+  and fails one that cannot pass it - one that changed `$HOME`, the tree, or
+  anything else outside its directory - at about twice a run's time.
 - A case says why it failed on its first failure, so a flake has a reason
   too and nothing waits on the rerun: `_hi_because "<what was wrong>"` on the
   failing arm, or `_hi_why <variable>...` where the assertion says it all -
