@@ -13,7 +13,8 @@
 # What it *uses* is the point, not what it connects to: the header
 # says what the box is missing, the prompt carries the git segment inside a
 # checkout on the target, `cat` falls through to the bat the box happens to
-# have, and the last line proves the session took its files with it.
+# have, and the target's /tmp - hi's tree in it while the session runs,
+# nothing once it ends - proves the session took its files with it.
 #
 # The target is the `tools` debian docs/tapes/fixtures.sh builds
 # (tests/dockerfiles/demo-debian.Dockerfile), the same box packages.tape and
@@ -57,6 +58,12 @@ Sleep 3s
 Type "cd ~/app && cat main.py"
 Enter
 Sleep 4s
+
+# `echo` and not `ls`: the tool aliases make `ls` the list ladder's
+Type "echo /tmp/*"
+Type@5ms "   # hi's tree, for this session only"
+Enter
+Sleep 3s
 
 Type "exit"
 Enter

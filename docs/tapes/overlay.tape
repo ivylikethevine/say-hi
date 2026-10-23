@@ -1,4 +1,4 @@
-# The overlay demo, as the ops persona sees it: fish on a workstation, into a
+# The overlay demo, as the operator sees it: rio, fish on a workstation, into a
 # docker box as deploy and a podman box as ops, the header trimmed to an
 # operator's cells (clocks, backend counts, the check on its own ramp). The
 # workstation is left as it is (_HI_DISABLE_LOCAL), so the outside prompt is

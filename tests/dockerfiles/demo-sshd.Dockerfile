@@ -17,12 +17,15 @@
 # ignores the box's own say-hi and runs on the client's overlay.
 ARG BASE=hi-demo-sshd-base
 FROM ${BASE}
-# git for the prompt's git segment, which the demo shows
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+# git for the prompt's git segment, which the demo shows; tmux for the keep
+# tape's kept session
+RUN apt-get update && apt-get install -y --no-install-recommends git tmux ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && usermod -s /usr/bin/fish hitest
 ARG LOGIN=hitest
 RUN if [ "$LOGIN" != hitest ]; then \
       usermod -l "$LOGIN" -d "/home/$LOGIN" -m hitest && groupmod -n "$LOGIN" hitest; fi
 COPY --chown=${LOGIN}:${LOGIN} checkout /home/${LOGIN}/say-hi
-RUN chmod +x /home/${LOGIN}/say-hi/hi.sh
+# the keep tape's long job, from the same clean tree
+COPY checkout/docs/tapes/keep/backfill /usr/local/bin/backfill
+RUN chmod +x /home/${LOGIN}/say-hi/hi.sh /usr/local/bin/backfill

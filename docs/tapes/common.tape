@@ -14,11 +14,11 @@
 # configuration - the settings.sh each gets from docs/tapes/fixtures.sh - is
 # the one a reader is meant to compare, so a difference in the frame is never
 # incidental. The theme is the other, and it is not decoration: it tracks the
-# **client shell**, so the set has three looks rather than seven and the look
+# **client shell**, so the set has three looks rather than eight and the look
 # tells you which shell you are watching.
 #
 #   bash (no `Set Shell`, the default here)      Monokai Pro
-#   zsh  (editors.tape, run.tape)                 Dracula
+#   zsh  (editors.tape, keep.tape, run.tape)      Dracula
 #   fish (overlay.tape, complete.tape)            nord
 #
 # bash is the warm one on purpose: it is the shell three of the demos use -

@@ -90,7 +90,7 @@ while IFS='|' read -r flag example setup || [ -n "$flag" ]; do
   case "$flag" in '#'* | '') continue ;; esac
   if [ "$flag" = "$last" ]; then n=$((n + 1)); else n=1; fi
   last="$flag"
-  [ "$example" != - ] || continue
+  case "$example" in - | -#*) continue ;; esac
   slug="${flag#--}"
   [ "$n" -eq 1 ] || slug="$slug-$n"
   if usage_render "$slug" "$flag" "$example" "$setup"; then

@@ -9,6 +9,8 @@
 # debian pin to bump. Built as root: demo-login.Dockerfile layers the tape's
 # login account on top and moves the checkout into its home.
 #
+# sudo for the editors tape's `sudo vim` (demo-login.Dockerfile grants it).
+#
 # starship too, for the editors tape's developer persona (_HI_PROMPT_TOOL=starship
 # hands the prompt over only where the binary is): the same pinned installer
 # and version as tests/dockerfiles/frameworks/starship.sh, into /usr/local/bin
@@ -21,7 +23,7 @@ FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595
 # here is dash, which has no `-o pipefail`.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git nano vim bat ca-certificates curl \
+      git nano vim bat sudo ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL https://starship.rs/install.sh -o /tmp/starship-install.sh \
     && echo "52c64f14a558034ebeb1907ea9364e802b32474576fd3e68265f73bc33cc8fbb  /tmp/starship-install.sh" | sha256sum -c - >/dev/null \

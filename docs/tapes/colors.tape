@@ -1,13 +1,16 @@
 # The colors demo, as the sysadmin sees it: kai, bash on a laptop, into kai's
-# account on a prod box and a dev box, whose login shell is fish. `# Tags:`
-# in ~/.ssh/config and hosttag pins in the colors overlay, `hi --preview colors`
-# to see what every host resolves to, then the prod host lands red and the
-# dev host green. Render with `vhs docs/tapes/colors.tape` from the repo
-# root, docker running, hi on PATH. CI renders it too (demos.yml).
+# account on a prod box and a dev box, whose login shell is fish.
+# `hi --add-tag` writes the prod box's `# Tags:` line in ~/.ssh/config,
+# hosttag pins in the colors overlay color the tags, `hi --preview colors`
+# shows what every host resolves to, then the prod host lands red with the
+# longer header its tag's settings.prod.sh asks for, and the dev host green.
+# Render with `vhs docs/tapes/colors.tape` from the repo root, docker
+# running, hi on PATH. CI renders it too (demos.yml).
 #
 # Its configuration (docs/tapes/fixtures.sh, up:colors): the `colors` overlay
 # with hosttag pins, a one-dark _HI_COLOR_SCHEME hex list, a short
-# _HI_HEADER_ORDER, `hi` as the prompt (so the laptop's is hi's too, in the
+# _HI_HEADER_ORDER and a settings.prod.sh with a longer one, `hi` as the
+# prompt (so the laptop's is hi's too, in the
 # colors the demo is about), and a two-line fish prompt of kai's own on hi's
 # colors (config.fish) - all in the overlay, so the preview and both sessions
 # paint with the same truecolor. COLORTERM is exported below because vhs's
@@ -37,7 +40,14 @@ Enter
 Show
 
 Sleep 500ms
-Type@5ms "# tags in ~/.ssh/config, pins in the colors overlay, a hex scheme"
+Type "hi --add-tag db-prod prod"
+Type@5ms "   # a # Tags: line in ~/.ssh/config"
+Enter
+Sleep 3s
+Type "clear"
+Enter
+
+Type@5ms "# every host's colors: its tags, the overlay's pins, a hex scheme"
 Enter
 Type "hi --preview colors"
 Enter
@@ -46,8 +56,13 @@ Sleep 6s
 Type "clear"
 Enter
 
+Type "cat $_HI_CONFIG_DIR/settings.prod.sh"
+Type@5ms "   # what prod hosts read on top"
+Enter
+Sleep 3s
+
 Type "hi -F ~/.ssh/config db-prod"
-Type@5ms "   # tagged prod: red"
+Type@5ms "   # tagged prod: red, the longer header"
 Enter
 Wait+Screen@60s /hi loaded:/
 Sleep 3s

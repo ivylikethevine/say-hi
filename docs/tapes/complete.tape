@@ -44,7 +44,7 @@
 # hex string, so always ahead of `hi-demo-...` and `web-prod`) and edge-1
 # (podman) - every backend inside the visible rows, with two ssh hosts spilling
 # over. Raising the geometry to fit all twelve would need roughly double the
-# height, on all seven GIFs, to gain one row of ssh host.
+# height, on all eight GIFs, to gain one row of ssh host.
 #
 # **What does break it is a busy render box.** targets.sh lists every running
 # container, not the fixture's - that is the feature - so anything else running

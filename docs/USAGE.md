@@ -55,37 +55,37 @@ in a session.
 
 `hi --use <backend>`: skip probing and force that backend (ssh counts as one). Works in a session too.
 
-It changes how a connect runs, which the [README's demos](../README.md) show.
+No image: what it does shows in a session, not in output of its own.
 
 ### `hi --plain`
 
 `hi --plain`: a bare shell, nothing copied: no tar or /tmp needed. Works in a session too.
 
-It changes how a connect runs, which the [README's demos](../README.md) show.
+No image: what it does shows in a session, not in output of its own.
 
 ### `hi --no-plain`
 
 `hi --no-plain`: hi's own session this once, past \_HI\_PLAIN=1. Works in a session too.
 
-It changes how a connect runs, which the [README's demos](../README.md) show.
+No image: what it does shows in a session, not in output of its own.
 
 ### `hi --keep`
 
 `hi --keep`: keep the session on the target through a dropped link. Works in a session too.
 
-It changes how a connect runs, which the [README's demos](../README.md) show.
+It changes how a connect runs, which [the README's demo](../README.md#survive-a-dropped-link) shows.
 
 ### `hi --no-keep`
 
 `hi --no-keep`: an ordinary session, past \_HI\_KEEP=1 or a kept one. Works in a session too.
 
-It changes how a connect runs, which the [README's demos](../README.md) show.
+No image: what it does shows in a session, not in output of its own.
 
 ### `hi --end`
 
 `hi --end`: close the session \<target\> is keeping. Works in a session too.
 
-It changes how a connect runs, which the [README's demos](../README.md) show.
+No image: what it does shows in a session, not in output of its own.
 
 ### `hi --preview`
 
