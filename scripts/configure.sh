@@ -655,7 +655,7 @@ function settings_adopt_hand_lines() {
     name="${line#export }"
     name="${name%%=*}"
     grep -v -F "$_HI_MARKER" "$_HI_SETTINGS" |
-      grep -qE "^[[:space:]]*(export[[:space:]]+)?$name=" || continue
+      grep -E "^[[:space:]]*(export[[:space:]]+)?$name=" >/dev/null || continue
     dry_run_say "adopt the hand-written $name line in $_HI_SETTINGS" && continue
     _hi_rewrite "$_HI_SETTINGS" \
       "/^[[:space:]]*\\(export[[:space:]]\\{1,\\}\\)\\{0,1\\}$name=/{/$_HI_MARKER/!d;}"

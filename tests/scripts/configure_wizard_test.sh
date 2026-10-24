@@ -122,6 +122,20 @@ function test_configure_adopts_a_hand_written_line() {
   [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_L24"*"$_HI_MARKER" ]] || _hi_why got got2 out _HI_MARKER
 }
 
+# ...and with 256 KB after it: an early-exiting reader in the match pipe gets
+# its writer a SIGPIPE, which pipefail reads as no match, every time at this size
+function test_configure_adopts_a_hand_line_in_a_large_file() {
+  local out got got2 pad="" i=0
+  while ((i < 4096)); do
+    pad="$pad# padding padding padding padding padding padding padding pad"$'\n'
+    i=$((i + 1))
+  done
+  out="$(_hi_run_in adopt_large "export _HI_COLOR_SCHEME='$_HI_TEST_L24'"$'\n'"$pad")" || _hi_why || return 1
+  got="$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)"
+  got2="$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)"
+  [ "$got" -eq 1 ] && [[ "$got2" == *"$_HI_TEST_L24"*"$_HI_MARKER" ]] || _hi_why got got2 _HI_MARKER
+}
+
 # ...and a hand line for a name this run does not write is left as it is
 function test_configure_leaves_a_hand_line_it_does_not_write() {
   local out got got2
@@ -843,6 +857,7 @@ function run_configure_wizard_tests() {
   _hi_check "Advanced: unanswered keeps every value" test_advanced_declined_keeps_every_value
   _hi_check "Advanced: defaults write nothing" test_advanced_defaults_write_nothing
   _hi_check "A hand-written line is adopted, not duplicated" test_configure_adopts_a_hand_written_line
+  _hi_check "...in a settings.sh of 256 KB too" test_configure_adopts_a_hand_line_in_a_large_file
   _hi_check "A hand line this run does not write is left alone" test_configure_leaves_a_hand_line_it_does_not_write
   _hi_check "The block opens on its shape line, written once" test_configure_opens_the_block_on_its_shape_line
   _hi_check "No tty and nothing to say: no file" test_no_tty_run_with_defaults_writes_no_file
