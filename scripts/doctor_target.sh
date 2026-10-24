@@ -136,10 +136,12 @@ function doctor_transport_target() {
   shells="$(_hi_ladder_first "$tools")"
   # padded both ends, so a word matches whatever spacing the answer came in
   case " $tools " in
-  *" tar-z "*) ;;
   *" base64 "* | *" openssl "*)
-    doctor_row session "the target's own - no tar that reads gzip, so hi's tree cannot unpack there" bad
-    shells=-
+    case " $tools " in *" tar-z "*) ;; *)
+      doctor_row session "the target's own - no tar that reads gzip, so hi's tree cannot unpack there" bad
+      shells=-
+      ;;
+    esac
     ;;
   *)
     doctor_row session "the target's own - no base64 or openssl, so hi's script cannot decode there" bad

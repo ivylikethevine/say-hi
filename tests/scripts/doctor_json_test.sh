@@ -62,8 +62,8 @@ assert any(r["label"] == "nomad" and "not installed" in r["text"] for r in d["ro
 # both named, so the report is clean and the exit code 0
 function test_json_takes_a_target_either_side_of_the_flag() {
   local a b
-  a="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_json 'run"ning\box')" || _hi_why a || return 1
-  b="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_run 'run"ning\box' --json)" || _hi_why || return 1
+  a="$(HI_FAKE_TOOLS="base64 tar-z bash" _hi_doctor_json 'run"ning\box')" || _hi_why a || return 1
+  b="$(HI_FAKE_TOOLS="base64 tar-z bash" _hi_doctor_run 'run"ning\box' --json)" || _hi_why || return 1
   # each parsed on its own rather than compared as text: the probe timings
   # in the rows differ run to run
   printf '%s' "$a" | python3 -c '
@@ -83,7 +83,7 @@ assert d["target"] == "run\"ning\\box", d["target"]
 # arm's row and no probe chain (the in-process cases set _HI_DOC_BACKEND)
 function test_json_use_flag_forces_the_arm() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --use docker ghostbox)" || _hi_why || return 1
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _hi_doctor_json --use docker ghostbox)" || _hi_why || return 1
   printf '%s' "$out" | python3 -c '
 import json, sys
 t = [r for r in json.load(sys.stdin)["rows"] if r["section"] == "target"]
@@ -97,7 +97,7 @@ assert not any(r["label"] == "checked" for r in t), t
 # through to _HI_DOC_TARGET the way an unrecognized word otherwise would
 function test_plain_flag_is_not_mistaken_for_the_target() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --plain runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _hi_doctor_json --plain runningbox)"
   printf '%s' "$out" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)

@@ -673,7 +673,65 @@ function test_src_tarball_ships_an_executable_hi_sh() {
   src_tarball 9.9.9 HEAD "$out" || _hi_why out || return 1
   mkdir -p "$dir"
   tar -xzf "$out" -C "$dir" || _hi_why out dir || return 1
-  [ -x "$dir/say-hi-9.9.9/hi.sh" ] || _hi_why dir
+  [ -x "$dir/say-hi-9.9.9/hi.sh" ] || _hi_why dir || return 1
+  # ...and the changelog, which the gate holds to the tag's version
+  [ -f "$dir/say-hi-9.9.9/CHANGELOG.md" ] ||
+    _hi_because "no CHANGELOG.md in a git archive of HEAD - is it committed?"
+}
+
+# _hi_changelog_run <dir> <args...> - changelog.sh over <dir>/CHANGELOG.md, a
+# copy of this tree's, with a stand-in gh: PR 12 says something (a backslash
+# in it), PR 13 says none
+function _hi_changelog_run() {
+  local dir="$1"
+  shift
+  if [ ! -d "$dir/bin" ]; then
+    mkdir -p "$dir/bin"
+    cp "$_HI_ROOT/CHANGELOG.md" "$dir/CHANGELOG.md"
+    cat >"$dir/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+*generate-notes*) printf '* a by @x in https://github.com/o/r/pull/12\n* b by @x in https://github.com/o/r/pull/13\n' ;;
+*pulls/12*) printf '## Release note\n\nhi keeps your prompt, a \\ and all.\n' ;;
+*pulls/13*) printf '## Release note\n\nnone\n' ;;
+*) exit 1 ;;
+esac
+EOF
+    chmod +x "$dir/bin/gh"
+  fi
+  PATH="$dir/bin:$PATH" HI_CHANGELOG="$dir/CHANGELOG.md" bash "$_HI_ROOT/.github/scripts/changelog.sh" "$@"
+}
+
+# the entry lands under the header, newest first; a second run for the same
+# version replaces it rather than stacking a copy; and the file ends on text
+function test_changelog_writes_one_entry_a_version() {
+  local dir="$_HI_WORKDIR/changelog-w" got
+  { _hi_changelog_run "$dir" o/r 1.0.0 && _hi_changelog_run "$dir" o/r 1.0.0 &&
+    _hi_changelog_run "$dir" o/r 1.1.0; } >/dev/null || _hi_why dir || return 1
+  got="$(grep -E '^## |^- ' "$dir/CHANGELOG.md" | sed 's/ - [0-9-]*$//')"
+  [ "$got" = $'## 1.1.0\n- hi keeps your prompt, a \\ and all. (#12)\n## 1.0.0\n- hi keeps your prompt, a \\ and all. (#12)' ] ||
+    _hi_because "the entries read: $got" || return 1
+  got="$(tail -n 1 "$dir/CHANGELOG.md")"
+  [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
+}
+
+# --check holds a tag to the top entry: its own version, the version a
+# prerelease leads to, and nothing for a 0.0.x debug tag
+function test_changelog_check_holds_the_tag_to_the_top_entry() {
+  local dir="$_HI_WORKDIR/changelog-c" err
+  _hi_changelog_run "$dir" o/r 1.1.0 >/dev/null || _hi_why dir || return 1
+  { _hi_changelog_run "$dir" --check 1.1.0 && _hi_changelog_run "$dir" --check 1.1.0-rc.1 &&
+    _hi_changelog_run "$dir" --check 0.0.7; } || _hi_why dir || return 1
+  ! err="$(_hi_changelog_run "$dir" --check 1.2.0 2>&1)" && [[ "$err" == *"opens on '1.1.0', not 1.2.0"* ]] ||
+    _hi_because "1.2.0 against a 1.1.0 entry said: $err"
+}
+
+# the gate runs it on every tag, so a tag without its entry builds nothing
+function test_release_gate_checks_the_changelog() {
+  local job
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" gate)"
+  # shellcheck disable=SC2016 # the workflow's literal
+  [[ "$job" == *'bash .github/scripts/changelog.sh --check "${GITHUB_REF_NAME#v}"'* ]] || _hi_why job
 }
 
 # release.yml builds that tarball on the tag path too, not only on a rehearsal:
@@ -733,7 +791,10 @@ function run_packaging_ci_release_tests() {
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
   _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
-  _hi_check "src_tarball ships an executable hi.sh" test_src_tarball_ships_an_executable_hi_sh
+  _hi_check "src_tarball ships an executable hi.sh, and CHANGELOG.md" test_src_tarball_ships_an_executable_hi_sh
+  _hi_check "changelog.sh writes one entry a version, newest first" test_changelog_writes_one_entry_a_version
+  _hi_check "changelog.sh --check holds a tag to the top entry" test_changelog_check_holds_the_tag_to_the_top_entry
+  _hi_check "the gate runs changelog.sh --check" test_release_gate_checks_the_changelog
   _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
   _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
   _hi_check "every dotfile upload-artifact path sets include-hidden-files" test_upload_artifact_dotfile_paths_set_include_hidden

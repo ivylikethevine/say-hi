@@ -439,21 +439,35 @@ function test_first_install_asks_only_about_this_machine() {
     grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"; } || _hi_why out home
 }
 
-# ...and Enter is everything, which writes no setting line
-function test_first_install_defaults_to_everything() {
-  local home="$_HI_WORKDIR/first-e" out="$_HI_WORKDIR/first-e.pty.out" got
+# ...and Enter is balanced, which leaves this machine alone
+function test_first_install_defaults_to_balanced() {
+  local home="$_HI_WORKDIR/first-e" out="$_HI_WORKDIR/first-e.pty.out"
   _hi_run_install_pty first-e '\n' --link none || _hi_why || return 1
-  got="$(grep -c '^export ' "$home/.config/say-hi/settings.sh")"
-  { grep -qF "starting from the 'everything' preset" "$out" && grep -qF 'Installed!' "$out" && [ "$got" = 0 ]; } || _hi_why out got
+  { grep -qF "starting from the 'balanced' preset" "$out" && grep -qF 'Installed!' "$out" &&
+    grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"; } || _hi_why out home
 }
 
-# ...and a name off the roster is said, and everything applies in its place
-function test_first_install_falls_back_to_everything() {
-  local home="$_HI_WORKDIR/first-x" out="$_HI_WORKDIR/first-x.pty.out" got
+# ...and a name off the roster is said, and balanced applies in its place
+function test_first_install_falls_back_to_balanced() {
+  local home="$_HI_WORKDIR/first-x" out="$_HI_WORKDIR/first-x.pty.out"
   _hi_run_install_pty first-x 'nope\n' --link none || _hi_why || return 1
-  got="$(grep -c '^export ' "$home/.config/say-hi/settings.sh")"
-  { grep -qF "no such preset: nope" "$out" && grep -qF "...so everything, the shipped defaults, applies" "$out" &&
-    grep -qF 'Installed!' "$out" && [ "$got" = 0 ]; } || _hi_why out got
+  { grep -qF "no such preset: nope" "$out" && grep -qF "...so balanced, the default, applies" "$out" &&
+    grep -qF 'Installed!' "$out" && grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"; } ||
+    _hi_why out home
+}
+
+# with no terminal a first install starts from balanced too, and a later one
+# keeps the file it finds
+function test_first_install_without_a_terminal_is_balanced() {
+  local home="$_HI_WORKDIR/first-notty" out rc=0
+  out="$(_hi_run_install_here first-notty --link none 2>&1)" || rc=$?
+  { [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu - the balanced preset applies"* ]] &&
+    grep -qF 'export _HI_DISABLE_LOCAL=1' "$home/.config/say-hi/settings.sh"; } || _hi_why rc out home || return 1
+  printf '%s\n' 'export _HI_DISABLE_HEADER=1' >>"$home/.config/say-hi/settings.sh"
+  rc=0
+  out="$(_hi_run_install_here first-notty --link none 2>&1)" || rc=$?
+  { [ "$rc" -eq 0 ] && [[ "$out" == *"your settings stay"* ]] &&
+    grep -qF 'export _HI_DISABLE_HEADER=1' "$home/.config/say-hi/settings.sh"; } || _hi_why rc out home
 }
 
 # ...and nothing at all once there is a settings.sh
@@ -737,8 +751,9 @@ function run_install_run_tests() {
   _hi_check_capable pty "Declined at a terminal, the gate aborts" test_install_gate_declined_at_a_terminal_aborts
   _hi_check_capable pty "Accepted at a terminal, the install goes on" test_install_gate_accepted_at_a_terminal_continues
   _hi_check_capable pty "A first install asks only which preset to start from" test_first_install_asks_only_about_this_machine
-  _hi_check_capable pty "...and Enter is everything" test_first_install_defaults_to_everything
-  _hi_check_capable pty "...which a name off the roster falls back to" test_first_install_falls_back_to_everything
+  _hi_check_capable pty "...and Enter is balanced" test_first_install_defaults_to_balanced
+  _hi_check_capable pty "...which a name off the roster falls back to" test_first_install_falls_back_to_balanced
+  _hi_check "No terminal: a first install is balanced, a later one keeps its file" test_first_install_without_a_terminal_is_balanced
   _hi_check_capable pty "A later install asks nothing" test_a_later_install_asks_nothing
   # install_tree links usr/bin/hi, so a host without symlinks cannot stage
   _hi_check_capable symlink "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir

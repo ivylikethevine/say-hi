@@ -67,7 +67,8 @@ the lines ending `# added by hi during install` from that rc file.
 
 ### My own prompt changed, or every new shell prints a header
 
-hi styles the client too unless told not to. `hi --configure`, _This
+The `everything` preset styles the client too, and so does a `settings.sh`
+written by hand without the line below. `hi --configure`, _This
 machine_, or `export _HI_DISABLE_LOCAL=1` in `~/.config/say-hi/settings.sh`,
 leaves this machine alone and keeps hi on targets.
 

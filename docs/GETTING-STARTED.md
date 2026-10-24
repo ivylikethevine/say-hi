@@ -59,7 +59,7 @@ hi <host>
 ```
 
 The install wires your login shell, asks which preset to start from
-([SETTINGS.md](SETTINGS.md#presets); `everything` is the default), and makes
+([SETTINGS.md](SETTINGS.md#presets); `balanced`, the default, leaves this machine as it is), and makes
 no other choice for you. Then, in the order they tend to come up:
 
 - `hi --doctor` says what is wired and what would be sent; `hi --doctor <host>`
@@ -126,7 +126,8 @@ export _HI_DISABLE_CONTROLMASTER=1   # your ssh config's ControlMaster line deci
 
 ## Installing without a terminal
 
-With no terminal the install asks nothing: it takes the defaults, or a preset.
+With no terminal the install asks nothing: it takes `balanced`, or the preset
+named.
 
 ```sh
 git clone https://github.com/ivylikethevine/say-hi "$HOME/say-hi"

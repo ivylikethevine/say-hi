@@ -125,9 +125,14 @@ it): `packaging/srctar.sh` writes a `git archive --prefix say-hi-<version>/`
 of the tag, and that one file is what `bump.sh` checksums, what `mkpkg.sh`
 lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 
-1. `git tag -s v1.0.0 -m v1.0.0 && git push origin v1.0.0` — `release.yml`
+1. `.github/scripts/changelog.sh ivylikethevine/say-hi 1.0.0` writes the
+   release's `CHANGELOG.md` entry from the PRs merged since the last tag; read
+   it, and merge it to `main` like any change. Then
+   `git tag -s v1.0.0 -m v1.0.0 && git push origin v1.0.0` — `release.yml`
    starts.
 2. The `gate` job refuses a tag that is not `vX.Y.Z` or `vX.Y.Z-<pre>`, whose
+   `CHANGELOG.md` does not open on that version (a prerelease on the version
+   it leads to; a `v0.0.x` debug tag is exempt), whose
    commit is not on `main`, that is lightweight or not signed by a key in
    `.github/allowed_signers` ([Signing the tag](#signing-the-tag)), or whose
    `ci.yml` push run on `main` did not conclude success (it waits for a run
@@ -186,7 +191,9 @@ you have, and it downloads the published asset only when neither is available
 (during a release the asset does not exist yet). `bump.sh --check 1.0.0`
 confirms the manifests match a cut release.
 
-**Release notes are the PRs' `## Release note` sections.** `publish` asks
+**Release notes are the PRs' `## Release note` sections.** `CHANGELOG.md`
+holds the same list, written before the tag (step 1) so the source tarball
+carries it; the release body is built afresh from the PRs. `publish` asks
 GitHub's `releases/generate-notes` endpoint for the PRs merged since the last
 tag, and `.github/scripts/release_notes.sh` puts each one's section (the pull
 request template's) into a "What changed" list at the top of the body, above

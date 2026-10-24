@@ -46,7 +46,9 @@ sudo chmod 0755 /usr/local/bin/nerdctl
 sudo systemd-run --unit hi-buildkitd --quiet /usr/local/bin/buildkitd \
   --oci-worker=false --containerd-worker=true --containerd-worker-namespace=default
 _hi_n=0
-while [ ! -S /run/buildkit/buildkitd.sock ]; do
+# as root: buildkitd makes /run/buildkit 0700, so the runner's user never
+# sees the socket inside it
+while ! sudo test -S /run/buildkit/buildkitd.sock; do
   _hi_n=$((_hi_n + 1))
   if [ "$_hi_n" -gt 100 ]; then
     echo "nerdctl.sh: buildkitd did not open its socket in 20s" >&2

@@ -407,15 +407,12 @@ One list, in the order the work is best done. An entry is deleted once its
 **Ticks when** holds. What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **The default preset leaves this machine alone** — `everything`
-      restyles the local prompt and prints a header in every local shell,
-      the first symptom under
-      [TROUBLESHOOTING.md's _On your own machine_](docs/TROUBLESHOOTING.md#on-your-own-machine)
-      and the opposite of "ssh with your config along"; the tag freezes
-      every default. **Do:** `_HI_DISABLE_LOCAL=1` in the shipped default and
-      `scripts/configure.sh`'s `_HI_PRESETS`, or one more install question.
-      **Ticks when:** a fresh `scripts/install.sh` with the default preset
-      changes nothing about a local shell's prompt.
+- [ ] **The default preset leaves this machine alone** — shipped: `balanced`
+      sets `_HI_DISABLE_LOCAL=1` and is a first install's default, its
+      fallback for a name off the roster, and what one with no terminal
+      writes; `everything` stays the shipped defaults, local styling
+      included. `tests/scripts/install_run_test.sh` holds all three.
+      **Ticks when:** the fast group runs green.
 
 - [ ] **`hi --update` verifies by default** — shipped: only a tag signed by a
       key the checkout trusts moves it, and `_HI_UPDATE_UNSIGNED=1`, which
@@ -442,12 +439,19 @@ One list, in the order the work is best done. An entry is deleted once its
       and the payload badge is current.
 
 - [ ] **fish 3.1 lands a fish session** — the 3.4 floor sends Ubuntu 22.04's
-      fish 3.3 and Debian 11's 3.1 to the next shell down for two constructs
+      fish 3.3 and Debian 11's 3.1 to the next shell down
       (`load.sh`'s `_hi_fish_new_enough`): `config.fish`'s top-level `return`
-      and `aliases.sh`'s `$( )`. **Do:** the body in a function, `( )` for
-      the substitution, the floor moved in `_hi_fish_new_enough` and
-      `tests/lint/dialects_test.sh`'s pinned fish image. **Ticks when:** the
-      dialect suite parses `config.fish` in a 3.1 image and a 3.3 image.
+      and `common/aliases.sh`'s `$( )`. fish parses a whole file before it
+      runs any, so the runtime guards do not help, and `( )` cannot stand in:
+      the file is shared with sh, where `( )` is a subshell. **Do:** the five
+      binary lookups that hold a `$( )` move to a file only the sh tier
+      sources, `config.fish` resolves the same `_HI_*_BIN` with
+      `command -s` before it sources `aliases.sh`, the re-entry `return`
+      becomes an `if` around the file, and a pinned 3.1 image joins the
+      dialect suite to find what else 3.1 rejects. An overlay `aliases.sh`
+      holding `$( )` stays skipped on old fish. **Ticks when:** the dialect
+      suite parses `config.fish` and `aliases.sh` in a 3.1 image and a 3.3
+      image, and the floor in `_hi_fish_new_enough` reads 3.1.
 
 - [ ] **The client's terminfo rides** — an unknown `TERM`
       ([HI.22](docs/GLOSSARY.md#hi22-term-fallback-probe)) is swapped for
@@ -474,13 +478,13 @@ One list, in the order the work is best done. An entry is deleted once its
       published GIF links unchanged. **Ticks when:** _Installation_ is on the
       first screen of the rendered README.
 
-- [ ] **A `CHANGELOG.md` ships in the tarball** — release notes exist only as
-      GitHub Release bodies assembled by `.github/scripts/release_notes.sh`
-      from each PR's `## Release note`; packagers and reviewers expect a file.
-      **Do:** `release.yml` writes the same notes under a version heading into
-      `CHANGELOG.md` and the source tarball carries it. **Ticks when:** a
-      release's tarball holds a `CHANGELOG.md` whose top entry is that
-      release's note.
+- [ ] **A `CHANGELOG.md` ships in the tarball** — shipped:
+      `.github/scripts/changelog.sh` writes a release's entry from its PRs'
+      release notes before the tag, and `release.yml`'s gate refuses a tag
+      whose `CHANGELOG.md` does not open on its version
+      ([RELEASING.md](docs/RELEASING.md#cutting-a-release)). **Ticks when:**
+      the next release's tarball holds a `CHANGELOG.md` whose top entry is
+      that release's note.
 
 - [ ] **Apple's `container` CLI is proven, not read** — the row in
       [COMPATIBILITY.md's _Targets weighed and not shipped_](docs/COMPATIBILITY.md#targets-weighed-and-not-shipped)
