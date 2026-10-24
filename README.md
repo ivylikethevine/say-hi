@@ -351,9 +351,8 @@ schemes of your own, and using the hash in your own prompt:
 - [bat](https://github.com/sharkdp/bat) — _in mind_ — (the reason the
   aliases.sh fallthrough logic works as portably as it does; `bat` is
   sometimes `batcat`)
-- [eza](https://github.com/eza-community/eza) — _in mind_ — (and its
-  predecessor [exa](https://github.com/ogham/exa): colorized `ls` upgrades,
-  both supported, with each one's flags kept apart for older hosts)
+- [eza](https://github.com/eza-community/eza) — _in mind_ — (the colorized
+  `ls` upgrade, with its flags kept apart from plain `ls`'s for older hosts)
 - [fish](https://github.com/fish-shell/fish-shell) — _with_ — (my preferred
   shell: its defaults/built-ins are easy to understand, but it is not POSIX)
 
@@ -430,6 +429,13 @@ checkout: an account or an upstream review that lands when it lands.
       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
       packages are live and a dispatch has kept `say-hi` current for one
       release.
+
+- [ ] **IV.** _Post 1.0:_ **nixpkgs** — the flake in this repository is the
+      nix channel until then
+      ([docs/RELEASING.md](docs/RELEASING.md#channels-weighed-and-not-shipped)).
+      **Do:** open the package PR against nixpkgs, with a maintainer entry.
+      **Ticks when:** merged, and one release's bump has landed through the
+      usual update bot or by hand.
 
 ## License
 

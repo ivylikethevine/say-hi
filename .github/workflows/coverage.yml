@@ -2,7 +2,7 @@ name: Coverage
 
 # kcov and bashcov, each over the full suite sweep (test_runner.sh's every-
 # suite default: fast plus whichever e2e backends the runner has - docker and
-# ssh here; kube/nomad/podman stand down as SKIPPED, nothing installs them),
+# ssh here; kube/nomad/podman/nerdctl stand down as SKIPPED, nothing installs them),
 # published as artifacts - visibility, never a gate: no PR waits on either
 # and no threshold fails one. The average of the two badges is the coverage
 # figure; docs/TESTING.md's Coverage and profiling section says why there

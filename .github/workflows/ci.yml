@@ -1186,7 +1186,7 @@ jobs:
   # 40 minutes (one shared container/VM daemon is what test_runner.sh's width
   # pin protects against).
   e2e-backends:
-    name: e2e (podman, nomad, kube, shard ${{ matrix.shard }})
+    name: e2e (podman, nerdctl, nomad, kube, shard ${{ matrix.shard }})
     runs-on: ubuntu-26.04
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -1194,14 +1194,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/3, 2/3, 3/3]
+        shard: [1/4, 2/4, 3/4, 4/4]
         # one backend per shard, in the suite table's order (backends:podman,
-        # backends:nomad, backends:kube) - setup-backends then installs only
-        # what this shard's suite drives instead of all three every time
+        # backends:nerdctl, backends:nomad, backends:kube) - setup-backends
+        # then installs only what this shard's suite drives instead of all
+        # four every time
         include:
-          - { shard: 1/3, backends: podman }
-          - { shard: 2/3, backends: nomad }
-          - { shard: 3/3, backends: kind }
+          - { shard: 1/4, backends: podman }
+          - { shard: 2/4, backends: nerdctl }
+          - { shard: 3/4, backends: nomad }
+          - { shard: 4/4, backends: kind }
     steps:
       - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:

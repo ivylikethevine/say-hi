@@ -573,17 +573,13 @@ function test_bat_preview_without_bat_says_targets_only() {
   [[ "$out" == *"bat is not installed here"* ]] || _hi_why out
 }
 
-# eza (or exa, its predecessor) on PATH: the preview names the ls it
-# aliases, each with its own options - a PATH of the fake alone, so a real
-# eza further down cannot answer for an exa case
+# eza on PATH: the preview names the ls it aliases, with eza's options - a
+# PATH of the fake alone, so a real eza further down cannot answer for it
 function test_eza_preview_names_the_ls_it_aliases() {
-  local tool dir out
-  for tool in eza exa; do
-    dir="$(_hi_fake_path "preview_$tool" "$tool")"
-    out="$(hash -r && PATH="$dir" _hi_tool_alias_preview)"
-    [[ "$out" == *"ls -> $dir/$tool "* && "$out" != *"eza is not installed"* ]] ||
-      _hi_because "with $tool: $out" || return 1
-  done
+  local dir out
+  dir="$(_hi_fake_path preview_eza eza)"
+  out="$(hash -r && PATH="$dir" _hi_tool_alias_preview)"
+  [[ "$out" == *"ls -> $dir/eza "* && "$out" != *"eza is not installed"* ]] || _hi_why out
 }
 
 # The environment-segment preview draws the live segment even while the
@@ -903,7 +899,7 @@ function run_configure_wizard_tests() {
   _hi_check "...and says when there are none" test_prompt_tool_preview_reports_none
   _hi_check "...and that it is moot with the prompt off" test_prompt_tool_preview_is_moot_with_the_prompt_off
   _hi_check "The menu reads who draws each shell's prompt" test_prompt_choice_reads_the_value
-  _hi_check "eza/exa preview names the ls it aliases" test_eza_preview_names_the_ls_it_aliases
+  _hi_check "eza preview names the ls it aliases" test_eza_preview_names_the_ls_it_aliases
   _hi_check "Env segment preview draws the live segment" test_env_status_preview_draws_the_live_segment
   _hi_check "...and a sample with nothing active" test_env_status_preview_samples_with_nothing_active
   _hi_check "Check preview renders the groups that run" test_check_preview_renders_the_groups_that_run

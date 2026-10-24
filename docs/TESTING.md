@@ -196,8 +196,8 @@ membership) - `ci` above, and:
   the package repository with throwaway keys and installs from it as apt, dnf,
   and apk clients, signatures verified, and `home_prompt` installs hi over
   each distro's stock `/etc/skel` rc to check which prompt wins at home.
-- **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
-  need extra runner setup.
+- **`backends`** — `podman`, `nerdctl`, `nomad`, `kube`: split from `e2e`
+  because they need extra runner setup.
 
 `bench`, `e2e`, and `backends` always run one suite at a time: the bench
 measures, and the other two contend on one container daemon.
@@ -238,7 +238,7 @@ nothing else ([HI.34](GLOSSARY.md#hi34-test-suite-preamble)).
 ### The container suites run their cases in parallel
 
 `ssh`, `ssh_relay`, `ssh_keep`, `install_methods`, `docker`, `podman`,
-`framework`, and `kube` spend nearly all their wall clock waiting on
+`nerdctl`, `framework`, and `kube` spend nearly all their wall clock waiting on
 containers, so their cases run in batches: `_hi_par_case` (`tests/lib/parallel.sh`) submits a case
 to a background subshell, `_hi_par_wait` collects the batch. Each case writes
 its verdict to a file the parent tallies, registers what it started on a

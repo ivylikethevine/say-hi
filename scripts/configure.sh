@@ -654,6 +654,7 @@ function settings_adopt_hand_lines() {
   for line in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
     name="${line#export }"
     name="${name%%=*}"
+    # not `grep -q`: under pipefail its early exit SIGPIPEs the writer (SYNTAX.md)
     grep -v -F "$_HI_MARKER" "$_HI_SETTINGS" |
       grep -E "^[[:space:]]*(export[[:space:]]+)?$name=" >/dev/null || continue
     dry_run_say "adopt the hand-written $name line in $_HI_SETTINGS" && continue

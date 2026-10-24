@@ -261,7 +261,7 @@ function _hi_tool_alias_preview() {
     else
       printf 'bat is not installed here - only targets that have it are affected\n'
     fi
-    if [ -n "$(command -v eza || command -v exa)" ]; then
+    if command -v eza >/dev/null 2>&1; then
       printf 'ls -> %s %s\n' "$_HI_LS_BIN" "$_HI_LS_OPTS"
     else
       printf 'eza is not installed here - only targets that have it are affected\n'

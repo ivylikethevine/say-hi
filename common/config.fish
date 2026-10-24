@@ -179,8 +179,6 @@ complete -c hi -f -k -n __hi_prev_takes_word \
 # a local command (`hi --install --<TAB>`) that command's own switches
 complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS flags (commandline -opc)[2])'
-# exa completes as eza only where hi's tool aliases made exa an alias
-functions -q exa; and test "$_HI_TOOL_ALIASES" = 1; and complete exa --wraps eza
 
 # fish can't run hi's bash side, so the greeting, the package check, and the
 # color resolution each come from one bash call

@@ -41,8 +41,9 @@ _HI_BASH32_LINT=(
 
 # Spellings one userland has and another does not, as "<pattern>|<what it
 # is>": the enforced rows of docs/SYNTAX.md, which says what to write instead
-# and which target each one broke. A spelling that needs a judgement call (a
-# `grep -q` under pipefail, sed's `\|`) is a SYNTAX row without a pattern.
+# and which target each one broke. A spelling that needs a judgement call
+# (sed's `\|`) is a SYNTAX row without a pattern; `grep -q` under pipefail is
+# lint_portable_pairs' below, since it needs the file's strict-mode line too.
 # shellcheck disable=SC2016 # these are regexes and prose, not expansions
 _HI_PORTABLE_LINT=(
   '\becho[[:space:]]+-e\b|echo -e - dash and a POSIX-mode sh print the -e; use printf'
@@ -182,15 +183,19 @@ function lint_portable() {
     _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "one-userland spelling" "${_HI_PORTABLE_LINT[@]}"
 }
 
-# docs/SYNTAX.md's two rows a single pattern cannot see. `stat -c` (GNU) is
+# docs/SYNTAX.md's three rows a single pattern cannot see. `stat -c` (GNU) is
 # fine beside its BSD twin `stat -f` on the same line, and nowhere else. A
 # file an interactive shell sources that turns strict mode on must turn it off
 # again further down (`set +euo pipefail` or `_hi_opts_restore`), or the user's
-# shell dies on its next non-zero status (GLOSSARY: HI.15).
+# shell dies on its next non-zero status (GLOSSARY: HI.15). And a pipe into
+# `grep -q` is fine until the file sets pipefail: then grep's early exit
+# SIGPIPEs the writer and the pipeline reads 141. Shipped files and scripts
+# only - the suites' probes are short strings, and their 170-odd pipes are
+# tests/' own to clean.
 function lint_portable_pairs() {
   local f hits bad=0
   _hi_h2 "Checking the paired spellings (docs/SYNTAX.md)"
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 2))
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 3))
   hits="$(cd "$_HI_ROOT" && grep -rnE --include='*.sh' '\bstat[[:space:]]+-c\b' . "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=.git 2>/dev/null |
     grep -v ':[[:space:]]*#' | grep -vE '\bstat[[:space:]]+-f\b' || true)"
   if [ -z "$hits" ]; then
@@ -212,6 +217,21 @@ function lint_portable_pairs() {
   else
     _hi_align " | strict mode left on in a sourced file: $hits" "FOUND" "$RED"
     _hi_note_failure "strict mode left on (HI.15): $hits"
+    bad=$((bad + 1))
+  fi
+  # the files that set pipefail, then the pipes into grep -q in them; `||`
+  # before the grep is an alternative, not a pipe, so the bar wants a
+  # non-bar before it
+  hits="$(cd "$_HI_ROOT" && grep -rlE --include='*.sh' 'set -(euo|o) pipefail' . "${_HI_LINT_NOT_OUTPUT[@]}" \
+    --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=scratch --exclude-dir=tests 2>/dev/null |
+    xargs grep -nHE '[^|]\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*q[A-Za-z]*([[:space:]]|$)' 2>/dev/null |
+    grep -v ':[[:space:]]*#' | sed 's|^\./||' || true)"
+  if [ -z "$hits" ]; then
+    _hi_align " | no pipe into grep -q under pipefail" "OK" "$GREEN"
+  else
+    _hi_align " | a pipe into grep -q under pipefail (SIGPIPE on OpenBSD)" "FOUND" "$RED"
+    printf '%s\n' "$hits" | sed 's/^/      /'
+    _hi_note_failure "one-userland spelling: a pipe into grep -q under pipefail"
     bad=$((bad + 1))
   fi
   return "$bad"

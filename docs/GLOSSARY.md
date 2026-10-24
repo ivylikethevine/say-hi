@@ -177,7 +177,7 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 
 ## HI.13 command -v fallthrough
 
-`export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)"` in
+`export _HI_LS_BIN="$(command -v eza || command -v ls)"` in
 `common/aliases.sh` (shown without its `[ -z ] &&` guard and the
 alias-clearing prefix below), with the aliases built on the result: resolved at
 source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every

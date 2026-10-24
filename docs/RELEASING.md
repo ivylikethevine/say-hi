@@ -84,9 +84,10 @@ flake passes its commit's date; `stamp.sh` refuses to guess one.
 
 ## Channels weighed and not shipped
 
-**nixpkgs**: not submitted. The flake in this repository is the nix channel
+**nixpkgs**: not submitted yet. The flake in this repository is the nix channel
 ([Nix flake](#nix-flake)); nixpkgs, where nix users look first, wants upstream
-review and a standing maintainer entry.
+review and a standing maintainer entry, so it waits on 1.0
+([README's Release Stages](../README.md#release-stages)).
 
 ## Cutting a release
 
