@@ -543,6 +543,16 @@ function test_a_clone_under_any_name_installs_in_place() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"_HI_ROOT=\"$dir/sayhi\""* && "$out" != *"named say-hi"* ]] || _hi_why rc out
 }
 
+# install.sh away from its tree names where it looked, not a core.sh path
+# nobody typed (a copy, so neither tracer files it under the shipped script)
+function test_install_away_from_a_tree_says_so() {
+  local dir="$_HI_WORKDIR/treeless" out rc=0
+  mkdir -p "$dir/x/scripts"
+  cp "$_HI_ROOT/scripts/install.sh" "$dir/x/scripts/install.sh"
+  out="$(_hi_run_env treeless-home bash "$dir/x/scripts/install.sh" --dry-run 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [ "$out" = "install.sh: no say-hi tree at $dir/x (this script is in $dir/x)" ] || _hi_why rc out
+}
+
 # reached as `hi --uninstall`, every message says so - the usage line, the
 # argument error, and a --help that describes uninstalling rather than the
 # install it undoes
@@ -698,6 +708,7 @@ function run_install_run_tests() {
   _hi_check "--link user undoes an earlier none" test_link_user_undoes_an_earlier_none
   _hi_check "--configure with no terminal says so" test_configure_without_a_terminal_says_so
   _hi_check "A clone under any name installs in place" test_a_clone_under_any_name_installs_in_place
+  _hi_check "Away from a tree it says where it looked" test_install_away_from_a_tree_says_so
   _hi_check "--dry-run installs nothing, and says what it would" test_dry_run_install_writes_nothing
   _hi_check "--uninstall --dry-run removes nothing" test_dry_run_uninstall_removes_nothing
   _hi_check "--link system reaches for /usr/bin/hi" test_system_link_flag_targets_usr_bin

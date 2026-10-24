@@ -49,6 +49,10 @@ tests/test_runner.sh --group fast
 tests/test_runner.sh --group lint
 ```
 
+`mise install` puts the lint group's tools on `PATH` at CI's pins
+(`mise.toml`; its header names the three it leaves to apt), and
+`mise run gate` runs both groups with any inherited `_HI_*` cleared.
+
 CI runs both on every push; both should be green before you open the pull
 request. If your change touches an ssh or container path, run the `e2e` or
 `backends` group too and say in the pull request whether it ran or stood down.

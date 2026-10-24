@@ -181,11 +181,26 @@ trap '_hi_cov_cleanup' EXIT
 # audit flags that on coverage.yml's workflow_run trigger) and nothing for a
 # caller to undo, which is what let this live in each driver instead of the
 # workflow that runs it.
+#
+# A script, not a symlink: bash started as sh reads no $BASH_ENV, which is
+# how kcov's PS4 method turns xtrace on in a child, so under a bare link
+# kcov read both files at 0% where bashcov, whose xtrace rides the exported
+# SHELLOPTS and PS4 that bash-as-sh does import, read 97. The script hands
+# kcov's trace on the same way (SHELLOPTS is readonly, so xtrace goes on and
+# the variable is exported, never assigned); DEBUG (bash 5.3+) has no such
+# route, and its children stay as they were.
 function _hi_cov_shim_sh_to_bash() {
   local dir
   dir="$(mktemp -d)"
   _HI_COV_TRASH+=("$dir")
-  ln -sf "$(command -v bash)" "$dir/sh"
+  # shellcheck disable=SC2016 # the shim's text: it expands when sh runs
+  printf '%s\n' "#!$(command -v bash)" \
+    'if [ -n "${KCOV_BASH_XTRACEFD:-}" ] && [ -z "${KCOV_BASH_USE_DEBUG_TRAP:-}" ]; then' \
+    '  export PS4=$'\''kcov@${BASH_SOURCE-}@${LINENO}@\nhi-xtrace: '\' \
+    '  set -o xtrace && export SHELLOPTS' \
+    'fi' \
+    "exec -a sh $(command -v bash) \"\$@\"" >"$dir/sh"
+  chmod +x "$dir/sh"
   PATH="$dir:$PATH"
   export PATH
 }

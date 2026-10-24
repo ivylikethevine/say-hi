@@ -1,0 +1,72 @@
+# The development tools for this checkout: `mise trust && mise install`, then
+# `mise run setup` once. Every version below is a copy of a pin whose home is
+# elsewhere - .github/actions/setup-tool/tools.txt for the binaries, ci.yml's
+# `node-version`, coverage.yml's BASHCOV_VERSION, demos.yml's vhs `version:` -
+# and the lint group's `mise` drift check fails a copy that parts from it.
+# Bump the home; this file follows.
+#
+# Not here, since mise has no package for them: install from apt (or brew)
+#   apt: checkbashisms kcov mandoc
+# checkbashisms is in devscripts; kcov builds from source the way tools.txt's
+# row says. zsh, fish, docker, and podman float for the reasons tools.txt
+# gives, and the suites skip yellow where one is missing.
+
+[tools]
+actionlint = "1.7.12"
+gitleaks = "8.30.1"
+hadolint = "2.15.1"
+lychee = "0.24.2"
+minisign = "0.12"
+nfpm = "2.48.0"
+osv-scanner = "2.7.0"
+shellcheck = "0.11.0"
+shfmt = "3.14.1"
+trivy = "0.76.0"
+typos = "1.51.1"
+zizmor = "1.31.1"
+"aqua:charmbracelet/freeze" = "0.2.2"
+vhs = "0.12.1"
+# markdownlint-cli2 and prettier are .github/package-lock.json's (`mise run setup`)
+node = "24"
+# floats in CI too (the runner's own); only runs bashcov
+ruby = "3"
+"gem:bashcov" = "4.0.0"
+
+[settings]
+# a prebuilt ruby rather than a half-hour compile
+ruby.compile = false
+
+# Each task clears an inherited hi install's _HI_* first and names this
+# checkout's parent as _HI_HOME (CLAUDE.md, _HI_HOME points at this checkout).
+[tasks.setup]
+description = "Install the lint group's Markdown tools off .github's lockfile"
+run = "npm ci --prefix .github"
+
+[tasks.test]
+description = "Run test_runner.sh: `mise run test --group fast`"
+shell = "bash -c"
+# mise appends a task's arguments to its last line
+run = '''
+unset $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p')
+_HI_HOME="$(dirname "$PWD")" tests/test_runner.sh
+'''
+
+[tasks.gate]
+description = "The gate: the fast and lint groups"
+shell = "bash -c"
+run = '''
+unset $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p')
+_HI_HOME="$(dirname "$PWD")" tests/test_runner.sh --group fast
+_HI_HOME="$(dirname "$PWD")" tests/test_runner.sh --group lint
+'''
+
+[tasks.coverage]
+description = "Both coverage sweeps, then their rankings side by side"
+shell = "bash -c"
+run = '''
+unset $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p')
+export _HI_HOME="$(dirname "$PWD")"
+tests/coverage.sh
+tests/coverage_v2.sh
+tests/coverage.sh --join
+'''

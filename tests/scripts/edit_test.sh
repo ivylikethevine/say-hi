@@ -137,6 +137,18 @@ $cfg" ] || _hi_because "_HI_EDITOR: $got" || return 1
 $cfg" ] || _hi_because "the list's first: $got"
 }
 
+# none of the three set and none of hi's editors on PATH: it says what to set,
+# and makes nothing
+function test_edit_names_what_to_set_with_no_editor() {
+  local cfg out box rc=0 _HI_EDIT_BIN="$_HI_WORKDIR/no-editors"
+  cfg="$(_hi_edit_cfg none)"
+  mkdir -p "$_HI_EDIT_BIN"
+  box="$(_hi_real_path edit-tools bash env mkdir cat sed awk dirname basename uname tr grep head cut sort id ls rm mktemp wc)"
+  out="$(PATH="$box" _hi_edit_run "$cfg")" || rc=$?
+  # shellcheck disable=SC2016 # the message names the variable, unexpanded
+  [ "$rc" -ne 0 ] && [[ "$out" == *'no editor found: set $EDITOR'* ]] && [ ! -e "$cfg" ] || _hi_why rc out cfg
+}
+
 # a path that leaves the overlay, more than one file, an unknown option, and
 # a name ending in a slash are refused, with nothing made
 function test_edit_refuses_what_it_cannot_open() {
@@ -175,6 +187,7 @@ function run_edit_tests() {
   _hi_check "colors, packages and settings.sh start as their commands make them" test_edit_makes_hi_s_other_files_as_their_commands_do
   _hi_check "Any other file gets its directory, not the file" test_edit_makes_a_members_directory_and_not_the_file
   _hi_check "The editor is picked in order" test_edit_picks_the_editor_in_order
+  _hi_check "With no editor it names what to set" test_edit_names_what_to_set_with_no_editor
   _hi_check "What it cannot open is refused" test_edit_refuses_what_it_cannot_open
 
   _hi_suite_end "scripts/edit.sh"

@@ -166,7 +166,7 @@ _HI_TEST_COSTS_KCOV="
   core:1 core_target:1 doctor:1 exports:1 git_prompt:1 header_bare:1
   header_check:1 header_whole:1 hi_helpers:1 hi_prompt:1 hi_remote:1
   install:1 packaging_ci:1 paths:1 targets_complete:1 tools:1 env_prompt:0
-  hi_dispatch:0 hi_mux:0 nomad:0 repo:0 table:0
+  hi_dispatch:0 hi_mux:0 nerdctl:0 nomad:0 repo:0 table:0
 "
 _HI_TEST_COSTS_BASHCOV="
   ssh_keep:323 framework:227 hi_payload_scan:181 kube:122
@@ -182,7 +182,7 @@ _HI_TEST_COSTS_BASHCOV="
   hi_keep:20 packaging_ci_mkpkg:20 ssh_wire:20 core_identity:19
   targets_complete:19 hi_prompt:18 install:18 packaging_ci_workflows:18
   test_lib_report:18 core:17 core_target:17 header_bare:17 header_check:17
-  hi:17 nomad:17 repo:17 test_lib_par:17 alias_fallthrough:16 drift:16
+  hi:17 nerdctl:17 nomad:17 repo:17 test_lib_par:17 alias_fallthrough:16 drift:16
   git_prompt:16 hi_helpers:16 packaging_ci_release:16 rc_lines:16 tools:16
   hi_dispatch:15 hi_mux:15 table:15 env_prompt:14 header:14 hi_remote:14
   packaging_ci:14 doctor:13 packaging:13 paths:12 exports:11 edit:11

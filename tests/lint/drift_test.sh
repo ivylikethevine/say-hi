@@ -436,6 +436,67 @@ function lint_container_family() {
   return "$bad"
 }
 
+# mise.toml's [tools] versions are copies of pins whose home is elsewhere, and
+# a bump to the home alone would leave `mise install` handing a developer a
+# tool CI does not run. Each tools.txt row is a [tools] key at its pin (bare,
+# or the tail of an `aqua:<owner>/<name>` key) or named on the file's `apt:`
+# comment line, so a new pin cannot skip the dev setup either; node, bashcov,
+# and vhs are checked against the workflow line that pins each.
+function _hi_mise_tool() {
+  local k v
+  while IFS='=' read -r k v; do
+    case "$k" in "$1" | aqua:*/"$1" | gem:"$1") printf '%s' "$v" && return 0 ;; esac
+  done <<<"$_HI_MISE_TOOLS"
+  return 1
+}
+
+function _hi_lint_mise_pin() {
+  local name="$1" want="$2" home="$3" got
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if ! got="$(_hi_mise_tool "$name")"; then
+    case "$_HI_MISE_APT" in
+    *" $name "*)
+      _hi_align " | $name: apt, not mise ($home pins $want)" "OK" "$GREEN" && return 0
+      ;;
+    esac
+    _hi_lint_fail " | $name: $home pins $want, and mise.toml neither lists it nor names it on its apt: line" \
+      "mise.toml: $name missing (add it at $want, or to the apt: line)"
+  elif [ "$got" = "$want" ]; then
+    _hi_align " | $name $got ($home)" "OK" "$GREEN" && return 0
+  else
+    _hi_lint_fail " | $name: mise.toml has $got, $home pins $want" "mise.toml: $name $got is not $home's $want"
+  fi
+  return 1
+}
+
+function lint_mise() {
+  local file="$_HI_ROOT/mise.toml" wf="$_HI_ROOT/.github/workflows" line k v in=0 name pin bad=0
+  _hi_h2 "Checking mise.toml against the pins it copies"
+  _HI_MISE_TOOLS="" _HI_MISE_APT=" "
+  while IFS= read -r line; do
+    case "$line" in
+    '[tools]') in=1 && continue ;;
+    '['*) in=0 && continue ;;
+    '#'*'apt:'*) _HI_MISE_APT=" ${line#*apt:} " && continue ;;
+    '' | '#'*) continue ;;
+    esac
+    [ "$in" = 1 ] || continue
+    k="${line%% = *}" v="${line#* = }"
+    k="${k#\"}" v="${v#\"}"
+    _HI_MISE_TOOLS="$_HI_MISE_TOOLS${k%\"}=${v%%\"*}
+"
+  done <"$file"
+  while IFS='|' read -r name pin _; do
+    case "$name" in '' | '#'*) continue ;; esac
+    _hi_lint_mise_pin "$name" "$pin" tools.txt || bad=$((bad + 1))
+  done <"$_HI_ROOT/.github/actions/setup-tool/tools.txt"
+  _hi_lint_mise_pin node "$(sed -n 's/^ *node-version: "\([0-9.]*\)".*/\1/p' "$wf/ci.yml")" ci.yml || bad=$((bad + 1))
+  _hi_lint_mise_pin bashcov "$(sed -n 's/^ *BASHCOV_VERSION: "\([0-9.]*\)".*/\1/p' "$wf/coverage.yml")" coverage.yml ||
+    bad=$((bad + 1))
+  _hi_lint_mise_pin vhs "$(sed -n 's/^ *version: v\([0-9.]*\)$/\1/p' "$wf/demos.yml")" demos.yml || bad=$((bad + 1))
+  return "$bad"
+}
+
 # common/core.sh's _hi_runtime_dir and common/targets.sh's cache_dir
 # independently build the SAME directory - $XDG_RUNTIME_DIR, else a private
 # ${TMPDIR:-/tmp}/hi-<uid> - and hand it to different callers (the
@@ -806,7 +867,7 @@ function run_drift() {
 
   _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload \
     lint_container_family lint_runtime_dir lint_eval_roster lint_dockerfiles lint_image_tags \
-    lint_image_digests lint_case_reasons
+    lint_image_digests lint_case_reasons lint_mise
   _hi_lint_suite_end
 }
 

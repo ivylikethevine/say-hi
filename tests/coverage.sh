@@ -268,8 +268,11 @@ _HI_COV_KCOV=(--bash-method="$_HI_COV_METHOD" --exclude-region="$_HI_COV_NOCOV"
   --exclude-path="$(_hi_cov_not_subject_paths)")
 _HI_COV_PARSE="$(_hi_cov_subject_dirs)"
 [ -z "$_HI_COV_PARSE" ] || _HI_COV_KCOV+=(--bash-parse-files-in-dir="$_HI_COV_PARSE")
+# The commands tests/lib/kcov_env.sh's PS4 puts on lines of their own reach
+# kcov's stderr, which passes them through; they are trace, not output.
 function _hi_cov_trace_one() {
-  kcov "${_HI_COV_KCOV[@]}" "$_HI_COV_DIR/parts/$1" "$2"
+  kcov "${_HI_COV_KCOV[@]}" "$_HI_COV_DIR/parts/$1" "$2" 2>&1 | grep -av '^hi-xtrace: '
+  return "${PIPESTATUS[0]}"
 }
 _hi_cov_trace_all _hi_cov_trace_one || exit 1
 

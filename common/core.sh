@@ -784,7 +784,9 @@ function _hi_unexport() {
   # one call for the lot
   ((${#_hi_drop[@]})) || return 0
   if [ -n "${ZSH_VERSION:-}" ]; then
+    # hi-nocov-begin: zsh's
     typeset -g +x "${_hi_drop[@]}"
+    # hi-nocov-end
   else
     # shellcheck disable=SC2163 # un-exporting the names held in the array is the point
     export -n "${_hi_drop[@]}"
