@@ -1,6 +1,6 @@
 name: Setup backends
-# The podman/nomad/kind install that ci.yml's e2e-backends job and demos.yml's
-# render job both need. The HashiCorp keyring fetch is the one
+# The podman/nerdctl/nomad/kind install that ci.yml's e2e-backends job and
+# demos.yml's render job both need. The HashiCorp keyring fetch is the one
 # security-relevant download in either job, so it lives here once: a key or
 # URL change, or a fix to the gpg pipeline, is one edit. Neither caller may
 # assume the other ran on the machine, and apt is idempotent when it has.
@@ -14,12 +14,13 @@ name: Setup backends
 # tools.txt's rows - they float with apt/HashiCorp's latest - so the key is
 # rounded to the week rather than held forever: a hit skips the re-download,
 # and the key rolls over on its own before the packages can go stale for
-# long.
-description: Install the backends the e2e suites and demo renders drive (podman, nomad, kind), plus any extra apt packages
+# long. nerdctl is the one pinned row: ./nerdctl.sh carries its version and
+# sha256, and its tarball is cached by that script's hash.
+description: Install the backends the e2e suites and demo renders drive (podman, nerdctl, nomad, kind), plus any extra apt packages
 
 inputs:
   backends:
-    description: space-separated subset to install (podman, nomad, kind) - a sharded caller names only the one it drives
+    description: space-separated subset to install (podman, nerdctl, nomad, kind) - a sharded caller names only the one it drives
     required: false
     default: podman nomad kind
   extra-packages:
@@ -52,6 +53,22 @@ runs:
         HI_EXTRA_PACKAGES: ${{ inputs.extra-packages }}
         HI_APT_CACHE: ${{ runner.temp }}/apt-archives
       run: '"$GITHUB_ACTION_PATH/install.sh"'
+
+    - name: Cache nerdctl's tarball
+      if: contains(inputs.backends, 'nerdctl')
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/nerdctl
+        key: setup-backends-nerdctl-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-backends/nerdctl.sh') }}
+
+    # rootful nerdctl over the runner's own containerd, plus buildkitd for the
+    # suite's image builds; ./nerdctl.sh, under the lint gate like install.sh
+    - name: Install nerdctl
+      if: contains(inputs.backends, 'nerdctl')
+      shell: bash
+      env:
+        HI_NERDCTL_CACHE: ${{ runner.temp }}/nerdctl
+      run: '"$GITHUB_ACTION_PATH/nerdctl.sh"'
 
     - name: Install kind
       if: contains(inputs.backends, 'kind')

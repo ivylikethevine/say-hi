@@ -185,7 +185,7 @@ fish, whose pager shows the backend column.
      a renamed CI job has to be mirrored. A badge added here reads
      "inaccessible" until the next Pages deploy publishes its file. -->
 
-![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64-0A6E8A)
+![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64%20%2B%20tar-0A6E8A)
 ![Full](https://img.shields.io/badge/full-bash%203.2-0A8E8A)
 ![Linux](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Flinux.json)
 ![macOS](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fmacos.json)
@@ -199,14 +199,16 @@ Which OSes hi lands a session on, which shell you end up in, what proves each
 row, and everything answered **no**, and why:
 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
-- **Client**: `bash` 3.2+ and `base64` (coreutils, busybox, macOS/BSD, and Git
+- **Client**: `bash` 3.2+, `tar` and `gzip` (a libarchive `tar` compresses on
+  its own and needs no `gzip`), and `base64` (coreutils, busybox, macOS/BSD, and Git
   Bash all ship one; `openssl base64` stands in where none does), `ssh` for
   ssh targets, any of `docker`/`podman`/`nerdctl`/`finch` and
   `nomad`/`kubectl` for those backends. hi has no protocol of its own: `ssh`
   is the transport, `base64` is armor, not crypto
   ([docs/SECURITY.md](docs/SECURITY.md)).
-- **Target**: `base64` (or `openssl`) for ssh targets; nothing extra for
-  container/alloc/pod targets. `bash` gets the full session; without it you
+- **Target**: `base64` (or `openssl`), `mktemp`, and a `tar` that reads
+  gzip (`tar -z`), on every backend: the payload lands the same way over
+  ssh and an exec. `bash` gets the full session; without it you
   land in the best shell the target has, with a smaller one
   ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 - **A slow link**: the ssh wire is meant to stay at or under 128 KB — 8 s over
@@ -351,9 +353,8 @@ schemes of your own, and using the hash in your own prompt:
 - [bat](https://github.com/sharkdp/bat) — _in mind_ — (the reason the
   aliases.sh fallthrough logic works as portably as it does; `bat` is
   sometimes `batcat`)
-- [eza](https://github.com/eza-community/eza) — _in mind_ — (and its
-  predecessor [exa](https://github.com/ogham/exa): colorized `ls` upgrades,
-  both supported, with each one's flags kept apart for older hosts)
+- [eza](https://github.com/eza-community/eza) — _in mind_ — (the colorized
+  `ls` upgrade, with its flags kept apart from plain `ls`'s for older hosts)
 - [fish](https://github.com/fish-shell/fish-shell) — _with_ — (my preferred
   shell: its defaults/built-ins are easy to understand, but it is not POSIX)
 
@@ -406,34 +407,91 @@ One list, in the order the work is best done. An entry is deleted once its
 **Ticks when** holds. What a release waits on is
 [Release Stages](#release-stages).
 
-- [ ] **Shell hooks run once per shell, quietly** — shipped: the hook rows
-      are the session tree's alone, each shell runs them once and the
-      bootloader none ([HI.67](docs/GLOSSARY.md#hi67-shell-hooks)), and a
-      plugin's `quiet = "yes"` drops what its activation prints, the shipped
-      mise's included; `tests/load/load_test.sh` pins one run per shell, from
-      the session tree, in bash, zsh, and fish on a target whose rc wires a hi
-      of its own. **Ticks when:** a fish or bash session on a target with hi
-      installed and mise's status settings on prints no mise line before the
-      first `cd`.
+- [ ] **The default preset leaves this machine alone** — shipped: `balanced`
+      sets `_HI_DISABLE_LOCAL=1` and is a first install's default, its
+      fallback for a name off the roster, and what one with no terminal
+      writes; `everything` stays the shipped defaults, local styling
+      included. `tests/scripts/install_run_test.sh` holds all three.
+      **Ticks when:** the fast group runs green.
 
-- [ ] **The configure step adopts every hand-written line** —
-      `scripts/configure.sh`'s `settings_adopt_hand_lines` pipes
-      `grep -v -F` into `grep -qE` under `install.sh`'s `pipefail`, the
-      spelling [SYNTAX.md](docs/SYNTAX.md#pipes-under-strict-mode) warns
-      about: on a match `grep -q` leaves early, the writer takes SIGPIPE, the
-      pipeline reads 141, and the line is skipped, intermittently and on a
-      large `settings.sh` (OpenBSD's 1 KB buffer first). **Do:** end the pipe
-      in `grep -E … >/dev/null`. **Ticks when:** a case adopts a hand line
-      that sits past the first 4 KB of a `settings.sh` under `pipefail`.
+- [ ] **`hi --update` verifies by default** — shipped: only a tag signed by a
+      key the checkout trusts moves it, and `_HI_UPDATE_UNSIGNED=1`, which
+      replaces `_HI_UPDATE_SIGNED`, takes an unsigned or unknown one.
+      `tests/scripts/update_test.sh` refuses each by default and takes each
+      under the opt-out. **Ticks when:** that suite has run green on Linux,
+      macOS, and Git Bash.
 
-- [ ] **The per-file SPDX headers come out** — `REUSE.toml` (`path = "**"`)
-      and `LICENSES/MIT.txt` arrive with the next sync of the shared CI files
-      and cover every file, and Scorecard's License check reads only
-      `LICENSE.md`, so the `SPDX-License-Identifier` comment at the top of
-      each file is redundant. This repository's own files no longer carry it
-      (don't add it to new ones); the rest are the synced CI files, which
-      change in their source and arrive with the sync. **Ticks when:**
-      `git grep -l SPDX-License-Identifier` lists `REUSE.toml` alone.
+- [ ] **Every default and preset audited before the tag** —
+      [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
+      freezes the name and default of all 45 rows of
+      [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
+      five presets, and a toggle removal is a 2.0. **Do:** read each row's
+      default as a stranger's first run, with the two entries above as the
+      known changes. **Ticks when:** the 1.0.0 release note lists the defaults
+      that moved, or says none did.
+
+- [ ] **The bootstrap names a missing `tar`** — shipped: the boot probe lists
+      a 64-byte gzipped archive and exits 67 when the target's `tar` cannot,
+      `hi` says "no tar that reads gzip" and hands over the host's session,
+      and `hi --doctor <target>` says the same.
+      `tests/hi/remote_test.sh` and `tests/hi/container_test.sh` hold both
+      halves. **Ticks when:** the fast group and `--group bench` run green,
+      and the payload badge is current.
+
+- [ ] **fish 3.1 lands a fish session** — the 3.4 floor sends Ubuntu 22.04's
+      fish 3.3 and Debian 11's 3.1 to the next shell down
+      (`load.sh`'s `_hi_fish_new_enough`): `config.fish`'s top-level `return`
+      and `common/aliases.sh`'s `$( )`. fish parses a whole file before it
+      runs any, so the runtime guards do not help, and `( )` cannot stand in:
+      the file is shared with sh, where `( )` is a subshell. **Do:** the five
+      binary lookups that hold a `$( )` move to a file only the sh tier
+      sources, `config.fish` resolves the same `_HI_*_BIN` with
+      `command -s` before it sources `aliases.sh`, the re-entry `return`
+      becomes an `if` around the file, and a pinned 3.1 image joins the
+      dialect suite to find what else 3.1 rejects. An overlay `aliases.sh`
+      holding `$( )` stays skipped on old fish. **Ticks when:** the dialect
+      suite parses `config.fish` and `aliases.sh` in a 3.1 image and a 3.3
+      image, and the floor in `_hi_fish_new_enough` reads 3.1.
+
+- [ ] **The client's terminfo rides** — an unknown `TERM`
+      ([HI.22](docs/GLOSSARY.md#hi22-term-fallback-probe)) is swapped for
+      `xterm-256color`, so kitty, ghostty, wezterm, foot, and rio users lose
+      styled underlines and the kitty keyboard protocol on every target.
+      **Do:** `infocmp -x "$TERM"` on the client (2-3 KB, those terminals
+      only), `tic -x -o` into the session tree where the target has `tic`,
+      `TERMINFO` exported for the session, the swap kept as the fallback.
+      **Ticks when:** an `xterm-kitty` client gets `TERM=xterm-kitty` on a
+      target with `tic` and `xterm-256color` on one without, each in a case.
+
+- [ ] **Glyphs follow the target's locale** — the ASCII decision is the
+      client's and ships as `_HI_ASCII`, so a target sitting in `LC_ALL=C`
+      draws multibyte glyphs under a shell that counts bytes, and header lines
+      wrap (`common/core.sh`'s `_hi_use_ascii` comment). **Do:** on the
+      target, `locale -a` for the client's locale, else `C.UTF-8` where it
+      exists, else ASCII. **Ticks when:** a target with no UTF-8 locale draws
+      the header in ASCII, unwrapped, in a case.
+
+- [ ] **The README opens with the pitch** — six persona stories run before
+      _Installation_, 442 lines in all, and a stranger skims. **Do:** ten lines
+      of what hi is, the install, one GIF; the stories move to
+      [GETTING-STARTED.md](docs/GETTING-STARTED.md) or a tour page, their
+      published GIF links unchanged. **Ticks when:** _Installation_ is on the
+      first screen of the rendered README.
+
+- [ ] **A `CHANGELOG.md` ships in the tarball** — shipped:
+      `.github/scripts/changelog.sh` writes a release's entry from its PRs'
+      release notes before the tag, and `release.yml`'s gate refuses a tag
+      whose `CHANGELOG.md` does not open on its version
+      ([RELEASING.md](docs/RELEASING.md#cutting-a-release)). **Ticks when:**
+      the next release's tarball holds a `CHANGELOG.md` whose top entry is
+      that release's note.
+
+- [ ] **Apple's `container` CLI is proven, not read** — the row in
+      [COMPATIBILITY.md's _Targets weighed and not shipped_](docs/COMPATIBILITY.md#targets-weighed-and-not-shipped)
+      is written from Apple's command reference, and
+      `.github/workflows/apple-container.yml` checks it on a hosted `macos-26`
+      runner. **Do:** dispatch it. **Ticks when:** its grammar step is green
+      and the row says what its runtime step found.
 
 ## Release Stages
 
@@ -457,6 +515,13 @@ checkout: an account or an upstream review that lands when it lands.
       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
       packages are live and a dispatch has kept `say-hi` current for one
       release.
+
+- [ ] **IV.** _Post 1.0:_ **nixpkgs** — the flake in this repository is the
+      nix channel until then
+      ([docs/RELEASING.md](docs/RELEASING.md#channels-weighed-and-not-shipped)).
+      **Do:** open the package PR against nixpkgs, with a maintainer entry.
+      **Ticks when:** merged, and one release's bump has landed through the
+      usual update bot or by hand.
 
 ## License
 

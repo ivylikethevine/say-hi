@@ -120,13 +120,22 @@ function test_coverage_merge_jobs_check_out_the_tree() {
 # PATH by hand (not GITHUB_PATH - zizmor's github-env audit rejects that on
 # a workflow_run workflow) - so this checks the drivers, not the workflow.
 function test_coverage_drivers_shim_sh_to_bash() {
-  local lib="$_HI_ROOT/tests/lib/coverage.sh" driver missing=""
+  local lib="$_HI_ROOT/tests/lib/coverage.sh" driver missing="" out trace="$_HI_WORKDIR/shimtrace"
   local -a drivers=("$_HI_ROOT/tests/coverage.sh" "$_HI_ROOT/tests/coverage_v2.sh")
   [ -f "$lib" ] || return 0 # a shipped tree has no tests/
-  grep -qE 'ln -sf .*bash.*/sh"?$' "$lib" || {
-    _hi_cecho " | tests/lib/coverage.sh's shim does not symlink bash as sh - has it moved?" "$RED"
-    return 1
-  }
+  # sh, once shimmed: bash in POSIX mode, which under kcov's PS4 method traces
+  # to kcov's descriptor (bash-as-sh reads no $BASH_ENV, kcov's own route)
+  # and under its DEBUG method leaves the child as it was
+  # shellcheck disable=SC2016 # the child's script, expanded there
+  out="$(env -u _HI_ROOT _HI_HOME="$_HI_HOME" bash -c '
+    source "$1" && _hi_cov_shim_sh_to_bash || exit 1
+    sh -c "shopt -qo posix && echo bash-posix"
+    BASH_XTRACEFD=9 KCOV_BASH_XTRACEFD=9 sh -c "hi_traced=1" 9>"$2"
+    BASH_XTRACEFD=9 KCOV_BASH_XTRACEFD=9 KCOV_BASH_USE_DEBUG_TRAP=1 sh -c "hi_untraced=1" 9>>"$2"
+  ' _ "$lib" "$trace" 2>&1)" || true
+  [ "$out" = bash-posix ] && grep -q '^kcov@' "$trace" && grep -qx 'hi-xtrace: hi_traced=1' "$trace" &&
+    ! grep -qx 'hi-xtrace: hi_untraced=1' "$trace" ||
+    _hi_why out trace || return 1
   for driver in "${drivers[@]}"; do
     [ -f "$driver" ] || continue
     grep -q '_hi_cov_shim_sh_to_bash' "$driver" || missing="$missing ${driver##*/}"

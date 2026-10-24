@@ -80,8 +80,7 @@ function _hi_prompt_fw() {
 _hi_pt=""
 [[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || _hi_prompt_tool bash _hi_pt || true
 
-# complete `hi` from the same target list zsh/fish use, and make `exa`
-# complete the way `eza` does.
+# complete `hi` from the same target list zsh/fish use.
 #
 # targets.sh file-caches for $_HI_TARGETS_TTL seconds, but finding that out is
 # still a fork; holding the names in the shell for the same window makes it
@@ -163,43 +162,6 @@ function _hi_complete() {
   fi
 }
 complete -F _hi_complete hi
-
-# Only where hi's tool aliases made exa an alias, and deferred to the first
-# TAB after `exa`: startup shouldn't parse a multi-KB spec most sessions never
-# use. 124 is bash-completion's "retry".
-function _hi_load_exa_completion() {
-  local spec w c q="'"
-  local -a words=()
-  command -v _completion_loader &>/dev/null && _completion_loader eza &>/dev/null
-  spec=$(complete -p eza 2>/dev/null) || return 1
-  # complete -p's words read back as words, not run as a line: bare text, a
-  # '...' word, and a \-escaped character, as it quotes them; a " it never
-  # writes means something else wrote this, and it stays eza's alone
-  case "$spec" in *\"*) return 1 ;; esac
-  spec="${spec% eza} "
-  while [ -n "${spec// /}" ]; do
-    spec="${spec#"${spec%%[! ]*}"}" w=""
-    while [ -n "$spec" ] && [ "${spec# }" = "$spec" ]; do
-      case "$spec" in
-      "$q"*)
-        spec="${spec#?}"
-        [ "${spec#*"$q"}" != "$spec" ] || return 1
-        w+="${spec%%"$q"*}" spec="${spec#*"$q"}"
-        ;;
-      \\?*) w+="${spec:1:1}" spec="${spec:2}" ;;
-      *)
-        # shellcheck disable=SC2295 # $q is a character of the class
-        c="${spec%%[ \\$q]*}"
-        w+="$c" spec="${spec#"$c"}"
-        ;;
-      esac
-    done
-    words+=("$w")
-  done
-  complete "${words[@]:1}" exa
-  return 124
-}
-alias exa >/dev/null 2>&1 && [ "${_HI_TOOL_ALIASES:-0}" = 1 ] && complete -F _hi_load_exa_completion exa
 
 # _hi_drop_prompt_command <array> - <array> minus prompt_command, a no-op when
 # unset; bash has no zsh-style :# array filter, so a rebuild loop

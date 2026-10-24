@@ -59,7 +59,7 @@ hi <host>
 ```
 
 The install wires your login shell, asks which preset to start from
-([SETTINGS.md](SETTINGS.md#presets); `everything` is the default), and makes
+([SETTINGS.md](SETTINGS.md#presets); `balanced`, the default, leaves this machine as it is), and makes
 no other choice for you. Then, in the order they tend to come up:
 
 - `hi --doctor` says what is wired and what would be sent; `hi --doctor <host>`
@@ -105,13 +105,14 @@ For hosts where what is sent, and what runs, has to be accounted for.
 
 `lean` sends hi's own files and nothing of yours, draws hi's own prompt so no
 prompt program runs on a target, leaves this machine's shells alone, and
-starts no backend CLI ([SETTINGS.md](SETTINGS.md#presets)). Two more, each a
-line in `~/.config/say-hi/settings.sh`:
+starts no backend CLI ([SETTINGS.md](SETTINGS.md#presets)). One more, a line
+in `~/.config/say-hi/settings.sh`:
 
 ```sh
 export _HI_DISABLE_CONTROLMASTER=1   # your ssh config's ControlMaster line decides
-export _HI_UPDATE_SIGNED=1           # hi --update takes only a tag it can verify
 ```
+
+`hi --update` already takes only a tag it can verify.
 
 - `hi --doctor` lists every setting away from its default and every file that
   rides, and flags a secret-shaped line in one.
@@ -125,7 +126,8 @@ export _HI_UPDATE_SIGNED=1           # hi --update takes only a tag it can verif
 
 ## Installing without a terminal
 
-With no terminal the install asks nothing: it takes the defaults, or a preset.
+With no terminal the install asks nothing: it takes `balanced`, or the preset
+named.
 
 ```sh
 git clone https://github.com/ivylikethevine/say-hi "$HOME/say-hi"

@@ -98,7 +98,6 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
     check_alias ls "$_HI_EXPECT_LS_ALIAS"
     check_alias eza "$_HI_EXPECT_LS_ALIAS"
-    check_alias exa "$_HI_EXPECT_LS_ALIAS"
   fi
 fi
 
@@ -183,10 +182,9 @@ if set -q _HI_CHECK_FLAGS
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   # `ls` is left out here on purpose: fish ships an `ls` function of its own,
   # so "no hi alias" cannot be told from "no function" the way it can in the
-  # POSIX shells - the eza/exa names are hi's alone either way
+  # POSIX shells - the eza name is hi's alone either way
   if set -q _HI_EXPECT_LS_ALIAS
     check_alias eza "$_HI_EXPECT_LS_ALIAS"
-    check_alias exa "$_HI_EXPECT_LS_ALIAS"
   end
 end
 
@@ -329,7 +327,7 @@ function run_path_lookup_tests() {
     "$_HI_ROOT/common/core.sh" >"$helpers"
   for shell in bash zsh; do
     case " $_HI_INSTALLED_SHELLS " in *" $shell "*) ;; *) continue ;; esac
-    for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza exa ls"; do
+    for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza ls"; do
       name="${var%%:*}" cands="${var#*:}"
       for installed in "$cands" "${cands##* }" ""; do
         expect="$(_hi_expect_winner "$cands" "$installed")"
@@ -340,10 +338,10 @@ function run_path_lookup_tests() {
           _HI_EXPECT="$([ -n "$expect" ] && printf '%s/%s' "$fakepath" "$expect" || printf '')"
       done
     done
-    fakepath="$(_hi_fake_path fpl_dir_rung exa ls)"
+    fakepath="$(_hi_fake_path fpl_dir_rung ls)"
     mkdir -p "$fakepath/eza"
     _hi_case _hi_run_scenario "$shell" "$fakepath" "a directory named eza is passed over" \
-      _HI_CORE_HELPERS="$helpers" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/exa"
+      _HI_CORE_HELPERS="$helpers" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
     fakepath="$(_hi_fake_path fpl_prealias ls)"
     _hi_case _hi_run_scenario "$shell" "$fakepath" "a prior alias ls= does not poison \$_HI_LS_BIN" \
       _HI_CORE_HELPERS="$helpers" _HI_PRE_ALIAS="ls=ls --color=auto" _HI_CHECK_VAR=LS_BIN _HI_EXPECT="$fakepath/ls"
@@ -433,7 +431,7 @@ function run_fallthrough_tests() {
   # nothing in it is installed, which is what aliases.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
-  for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza exa ls"; do
+  for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza ls"; do
     local name="${var%%:*}" cands="${var#*:}"
     # shellcheck disable=SC2086 # word-splitting into positional candidates is intended
     set -- $cands
@@ -478,7 +476,7 @@ function run_flag_tests() {
 # anything - even down to plain cat, its floor - so the opt-in is tested the
 # same way as _HI_SUDO_ALIAS above: does the alias exist at all,
 # regardless of what it would ultimately run. The one opt-in covers the
-# styled exa/eza wrappers and bat's own names too, and the binary lookups
+# styled eza wrapper and bat's own names too, and the binary lookups
 # behind them: off, $_HI_CAT_BIN stays empty.
 function run_tool_aliases_flag_tests() {
   local shell fakepath
@@ -490,7 +488,7 @@ function run_tool_aliases_flag_tests() {
       _HI_CHECK_BAT_NO_THEME=1 _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='-P --tabs 2 --style changes,grid'
   done
   _hi_h1 "_HI_TOOL_ALIASES opt-in"
-  fakepath="$(_hi_fake_path fp_toolflags cat bat vi eza exa nano emacs micro sudo)"
+  fakepath="$(_hi_fake_path fp_toolflags cat bat vi eza nano emacs micro sudo)"
 
   for combo in "1 1" "0 0" "unset 0"; do
     # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
@@ -529,9 +527,9 @@ function run_micro_tests() {
 # installed: every tool there reads its own config.
 function run_presence_tests() {
   _hi_h1 "An alias exists only where its tool does"
-  local shell gated="nano emacs micro vim nvim hx tmux screen zellij sudo bat batcat batn catn eza exa"
+  local shell gated="nano emacs micro vim nvim hx tmux screen zellij sudo bat batcat batn catn eza"
   local all bare
-  all="$(_hi_fake_path fp_all cat nano emacs micro vim nvim hx tmux screen zellij sudo bat eza exa)"
+  all="$(_hi_fake_path fp_all cat nano emacs micro vim nvim hx tmux screen zellij sudo bat eza)"
   bare="$(_hi_fake_path fp_bare cat)"
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$all" "every tool installed: every gated alias" \

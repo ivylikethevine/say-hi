@@ -177,7 +177,7 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 
 ## HI.13 command -v fallthrough
 
-`export _HI_LS_BIN="$(command -v eza || command -v exa || command -v ls)"` in
+`export _HI_LS_BIN="$(command -v eza || command -v ls)"` in
 `common/aliases.sh` (shown without its `[ -z ] &&` guard and the
 alias-clearing prefix below), with the aliases built on the result: resolved at
 source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every
@@ -278,7 +278,8 @@ ASCII.
 
 The write doubles as the probe (`_hi_boot_probe`), and `_hi_boot_why` reads
 its status: the directory came back and the session runs; `sh` ran but found
-neither `base64` nor `openssl` (exit 64), nowhere to `mktemp` (65), or fewer
+neither `base64` nor `openssl` (exit 64), no `tar` that reads gzip (67, a
+one-file archive listed), nowhere to `mktemp` (65), or fewer
 bytes than were sent (66, tried three times: an `exec -i` on nomad or kube can
 close its stdin before the target has drained it), and hi names the missing
 piece and hands over the host's own session; something that

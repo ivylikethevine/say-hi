@@ -1171,12 +1171,13 @@ one;
 .B \-\-no\-plain
 overrides it once. Its place is a tag's settings file.
 .TP
-.B _HI_UPDATE_SIGNED
+.B _HI_UPDATE_UNSIGNED
 .B 1
-has
+lets
 .B \-\-update
-refuse a release tag unless its signature verifies against a key the checkout
-already trusts; unset, an unsigned tag or an unknown key is said and allowed.
+check out a release tag that is unsigned or signed by a key the checkout does
+not trust, saying which; unset, only a signature the checkout can vouch for
+moves it. A signature that fails to verify refuses either way.
 .TP
 .B _HI_BACKENDS_OFF
 the backends hi never asks, a space or a comma apart:

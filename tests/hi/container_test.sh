@@ -335,6 +335,16 @@ function test_say_hi_no_armor_hands_over_the_ladder_shell() {
     _hi_ct_logged '^attach:sh$'; } || _hi_why _HI_CT_RC path
 }
 
+# no tar that reads gzip: the tree cannot unpack, said, and the plain path
+# lands in the best shell of the ladder
+function test_say_hi_no_tar_hands_over_the_ladder_shell() {
+  local path
+  path="$(_hi_real_path ct-notar sh base64 openssl mktemp cat wc rm)"
+  _hi_ct_run notar "_HI_CT_PATH=$path"
+  { _hi_ct_said "no tar that reads gzip on [ct-notar] - handing over" &&
+    _hi_ct_logged '^attach:sh$'; } || _hi_why _HI_CT_RC path
+}
+
 # the path comes back from the target and is interpolated into every command
 # run there, so it is refused rather than escaped. A comma rather than a
 # semicolon: both are outside _hi_safe_path's class, which is the whole
@@ -384,6 +394,7 @@ function run_container_tests() {
   _hi_check "Hands over after three short landings" test_say_hi_hands_over_after_three_short_landings
   _hi_check "No writable temp directory" test_say_hi_no_writable_temp_directory
   _hi_check "No armor: the ladder's shell" test_say_hi_no_armor_hands_over_the_ladder_shell
+  _hi_check_capable applet_shims "No tar that reads gzip: said, the ladder's shell" test_say_hi_no_tar_hands_over_the_ladder_shell
   _hi_check "Refuses a scratch path it will not use" test_say_hi_refuses_a_scratch_path_it_will_not_use
   _hi_check "Keeps a failed exec's words" test_say_hi_keeps_a_failed_exec_s_words
 

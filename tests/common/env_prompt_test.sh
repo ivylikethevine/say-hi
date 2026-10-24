@@ -153,6 +153,11 @@ function run_env_prompt_tests() {
   # project-less sibling, and the three *-proj directories the other spellings
   # mise reads.
   _hi_workdir envprompttest
+  # the cases that call _hi_env_prompt bare, not through _hi_env_case, start
+  # from no environment too: a developer's activated mise (MISE_SHELL), with
+  # this checkout's mise.toml above $PWD, would otherwise draw "(mise|...)"
+  # shellcheck disable=SC2086 # the roster is a word list on purpose
+  unset $_HI_ENV_ROSTER
   _hi_mise_home="$_HI_WORKDIR/home"
   _hi_mise_project="$_hi_mise_home/proj"
   # a tree beside home/, never under it, for the walks that must reach / -

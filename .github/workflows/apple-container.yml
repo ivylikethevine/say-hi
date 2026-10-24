@@ -1,0 +1,81 @@
+name: Apple container probe
+
+# Evidence for COMPATIBILITY.md's Apple `container` row, run by hand: how the
+# CLI lists and execs compared with the docker grammar the container arm
+# speaks, and whether a hosted macOS runner can start a container at all.
+# The grammar step fails when a fact the row states stops holding. The
+# runtime step is advisory: GitHub's arm64 macOS runners have no nested
+# virtualization, which the CLI's Linux VMs need, and its outcome is reported
+# either way. `container` comes from brew and floats, as setup-shells' fish
+# does: this pins nothing hi ships or builds with.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  probe:
+    name: Apple container (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 12
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          # audit, as every macOS job until it has an allowlist of its own
+          egress-policy: audit
+
+      - name: Install container
+        run: brew install container
+
+      - name: The CLI's grammar
+        run: |
+          set -euo pipefail
+          # ~~~ fences and no code spans: a backtick in a single-quoted
+          # format reads to shellcheck as a missed expansion
+          sum="$GITHUB_STEP_SUMMARY"
+          bad=0
+          printf '## Apple container on macos-26\n\n%s\n\n' "$(container --version 2>&1)" >>"$sum"
+          for sub in list exec inspect; do
+            printf '### container %s --help\n\n~~~text\n%s\n~~~\n\n' "$sub" "$(container "$sub" --help 2>&1)" >>"$sum"
+          done
+          # docker's `ps` is what the container arm runs; `list` is this CLI's
+          if out="$(container ps --help 2>&1)"; then ps="yes"; else ps="no"; fi
+          printf 'container ps answers: %s\n\n~~~text\n%s\n~~~\n\n' "$ps" "$out" >>"$sum"
+          check() {
+            if container "$1" --help 2>&1 | grep -qe "$2"; then
+              printf -- '- container %s takes %s\n' "$1" "$2" >>"$sum"
+            else
+              printf -- '- **container %s does not take %s**\n' "$1" "$2" >>"$sum"
+              echo "::error::container $1 --help names no $2"
+              bad=1
+            fi
+          }
+          check list --format
+          check list --quiet
+          check exec --interactive
+          check exec --tty
+          exit "$bad"
+
+      # continue-on-error: the step's outcome is the finding, not a failure
+      - name: Start a container and exec into it
+        id: runtime
+        continue-on-error: true
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          sw_vers
+          sysctl -n machdep.cpu.brand_string
+          container system start --help
+          container system start --enable-kernel-install </dev/null
+          container system status
+          container run -d --name hi-probe docker.io/library/alpine:3.22 sleep 300
+          container list
+          container exec hi-probe sh -c 'command -v base64 mktemp tar'
+          printf 'stdin reaches the exec\n' | container exec -i hi-probe cat
+
+      - name: Report the runtime step
+        if: always()
+        env:
+          OUTCOME: ${{ steps.runtime.outcome }}
+        run: |
+          printf '\n## Runtime\n\nStarting a container and exec-ing into it: **%s**. The step log has each command'"'"'s output.\n' "$OUTCOME" >>"$GITHUB_STEP_SUMMARY"

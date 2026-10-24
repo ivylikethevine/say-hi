@@ -354,6 +354,8 @@ function test_boot_why_names_each_failure() {
   local DOMAIN=h
   got="$(_hi_boot_why 64 '')"
   [ "$got" = "no base64 or openssl on [h]" ] || _hi_why got || return 1
+  got="$(_hi_boot_why 67 '')"
+  [ "$got" = "no tar that reads gzip on [h]" ] || _hi_why got || return 1
   got="$(_hi_boot_why 65 x)"
   [ "$got" = "no writable temp directory on [h]" ] || _hi_why got || return 1
   got="$(_hi_boot_why 1 'HIBOOT:/nope')"
@@ -379,10 +381,28 @@ function test_boot_probe_says_no_base64() {
 function test_boot_probe_takes_openssl() {
   local ec=0 sh_bin out dir
   sh_bin="$(command -v sh)"
-  dir="$(_hi_real_path onlyssl openssl mktemp cat)"
+  dir="$(_hi_real_path onlyssl openssl tar gzip mktemp cat)"
   out="$(PATH="$dir" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || ec=$?
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
   [ "$ec" -eq 0 ] || _hi_why ec
+}
+
+# 67 with no tar, and with a tar that cannot read gzip, a stand-in that
+# fails: GNU's without gzip is that tar, while busybox's and bsdtar read gzip
+# themselves, so a PATH without gzip proves nothing everywhere. Silent both
+# ways, since a target's stderr reaches the user's terminal. base64 and
+# mktemp are there, so neither 64 nor 65 answers for it.
+function test_boot_probe_says_no_tar() {
+  local ec sh_bin dir err nogz
+  sh_bin="$(command -v sh)"
+  nogz="$(_hi_real_path nogzip base64 mktemp cat)"
+  printf '%s\n' '#!/bin/sh' 'echo "tar: gzip: Cannot exec" >&2' 'exit 2' >"$nogz/tar"
+  chmod +x "$nogz/tar"
+  for dir in "$(_hi_real_path notar base64 mktemp cat)" "$nogz"; do
+    ec=0
+    err="$(PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>&1 >/dev/null)" || ec=$?
+    [ "$ec" -eq 67 ] && [ -z "$err" ] || _hi_because "PATH $dir: exit $ec, stderr: $err" || return 1
+  done
 }
 
 function test_boot_probe_says_no_scratch_dir() {
@@ -408,7 +428,7 @@ function test_boot_probe_says_whether_a_multiplexer_is_there() {
   local out dir sh_bin
   sh_bin="$(command -v sh)"
   # openssl too: stock OpenBSD has no base64, and the probe would exit 64
-  dir="$(_hi_real_path nomux base64 openssl mktemp cat)"
+  dir="$(_hi_real_path nomux base64 openssl tar gzip mktemp cat)"
   out="$(PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || _hi_why out || return 1
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
   [[ "$out" == *$'\nHIMUX:0\nHIBOOT:/'* ]] || _hi_because "none on PATH: $out" || return 1
@@ -430,6 +450,7 @@ function run_hi_remote_tests() {
   _hi_check "...and _hi_boot_why names each failure" test_boot_why_names_each_failure
   _hi_check "...and says 64 with no base64" test_boot_probe_says_no_base64
   _hi_check_requires openssl "...but not with openssl in its place" test_boot_probe_takes_openssl
+  _hi_check_capable applet_shims "...and 67, silently, with no tar that reads gzip" test_boot_probe_says_no_tar
   _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
   _hi_check "...and whether a multiplexer is there" test_boot_probe_says_whether_a_multiplexer_is_there

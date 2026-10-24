@@ -454,6 +454,35 @@ function test_setup_backends_adds_hashicorp_only_for_nomad() {
   [ "$got" = "nomad version" ] || _hi_because "the default: $(cat "$dir/both.log")"
 }
 
+# setup-backends' nerdctl.sh checks the tarball against its pinned sha256
+# before the first sudo: a download that is not the pinned bytes is refused by
+# name, dropped from the cache, and installs nothing; a tarball already in the
+# cache is not fetched again
+function test_setup_backends_nerdctl_refuses_an_unpinned_tarball() {
+  local dir="$_HI_WORKDIR/nerdctl" out rc=0 tar
+  mkdir -p "$dir/bin" "$dir/cache"
+  # shellcheck disable=SC2016 # the stubs expand these, not this shell
+  {
+    printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"$HI_BE_LOG"\n' >"$dir/bin/sudo"
+    printf '#!/bin/sh\nprintf "curl %%s\\n" "$*" >>"$HI_BE_LOG"\necho not-the-tarball >"$3"\n' >"$dir/bin/curl"
+  }
+  chmod +x "$dir/bin"/*
+  tar="$(sed -n 's/^HI_NERDCTL_VERSION=//p' "$_HI_ROOT/.github/actions/setup-backends/nerdctl.sh")"
+  [ -n "$tar" ] || _hi_why || return 1
+  tar="nerdctl-full-$tar-linux-amd64.tar.gz"
+  out="$(HI_BE_LOG="$dir/fetch.log" HI_NERDCTL_CACHE="$dir/cache" RUNNER_TEMP="$dir" PATH="$dir/bin:$PATH" \
+    bash "$_HI_ROOT/.github/actions/setup-backends/nerdctl.sh" 2>&1)" || rc=$?
+  { [ "$rc" -eq 1 ] && [[ "$out" == *"$tar does not match"* ]] && [ ! -e "$dir/cache/$tar" ] &&
+    grep -q '^curl ' "$dir/fetch.log" && ! grep -qv '^curl ' "$dir/fetch.log"; } ||
+    _hi_because "fetched: rc=$rc [$out] $(cat "$dir/fetch.log")" || return 1
+  printf 'stale\n' >"$dir/cache/$tar"
+  rc=0
+  out="$(HI_BE_LOG="$dir/cached.log" HI_NERDCTL_CACHE="$dir/cache" RUNNER_TEMP="$dir" PATH="$dir/bin:$PATH" \
+    bash "$_HI_ROOT/.github/actions/setup-backends/nerdctl.sh" 2>&1)" || rc=$?
+  { [ "$rc" -eq 1 ] && [[ "$out" == *"$tar does not match"* ]] && [ ! -e "$dir/cache/$tar" ] && [ ! -s "$dir/cached.log" ]; } ||
+    _hi_because "cached: rc=$rc [$out] $(cat "$dir/cached.log" 2>/dev/null)"
+}
+
 # _hi_bsd_loop <dir> [NAME=VALUE...] - bsd_loopback.sh in a workspace of
 # stand-ins: git, timeout, and ssh-keygen log their words (the last leaving a
 # key pair), and python3, the pty the client runs under, says $HI_LOOP_SAYS
@@ -926,6 +955,7 @@ function run_packaging_ci_workflows_tests() {
   _hi_check_capable lockout "...and reaches for sudo only for a locked bin dir" test_setup_tool_reaches_for_sudo_only_for_a_locked_bin_dir
   _hi_check "apt's update is retried over a cleared index cache" test_apt_update_retries_over_a_cleared_cache
   _hi_check "setup-backends adds HashiCorp's repository only for nomad" test_setup_backends_adds_hashicorp_only_for_nomad
+  _hi_check "setup-backends' nerdctl.sh refuses an unpinned tarball before any sudo" test_setup_backends_nerdctl_refuses_an_unpinned_tarball
   _hi_check "bsd_loopback.sh wants the marker, a clean exit, and no session" test_bsd_loopback_wants_the_marker_a_clean_exit_and_no_session
 
   _hi_suite_end "packaging (ci) (workflows)"

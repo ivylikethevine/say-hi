@@ -48,7 +48,7 @@ function test_target_says_ssh_options_skip_a_container() {
   local out
   out="$(
     _HI_DOC_SSHARGS=(-p 2222)
-    HI_FAKE_TOOLS="base64 bash sh " _hi_doc_target runningbox
+    HI_FAKE_TOOLS="base64 tar-z bash sh " _hi_doc_target runningbox
   )"
   [[ "$out" == *"ignored - -p 2222 apply only to an ssh target, and this one resolved to docker container"* ]] ||
     _hi_because "report: $out"
@@ -59,7 +59,7 @@ function test_target_says_ssh_options_skip_a_container() {
 # is the full tier; the interesting case is the other one.
 function test_container_target_reports_the_full_tier() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doc_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _hi_doc_target runningbox)"
   [[ "$out" == *"session"*"full"* && "$out" == *install*"each session"* ]] || _hi_why out
 }
 
@@ -68,7 +68,7 @@ function test_container_target_reports_the_full_tier() {
 # whole question somebody runs this to answer
 function test_container_target_names_the_fallback_shell() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 ash sh " _hi_doc_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z ash sh " _hi_doc_target runningbox)"
   [[ "$out" == *"aliases only"* && "$out" == *"lands in ash"* ]] || _hi_why out
 }
 
@@ -76,7 +76,7 @@ function test_container_target_names_the_fallback_shell() {
 # land, and the row says so rather than naming an empty fallback
 function test_container_target_flags_no_known_shell() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 " _hi_doc_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z " _hi_doc_target runningbox)"
   [[ "$out" == *"no shell hi knows"* ]] || _hi_why out
 }
 
@@ -90,7 +90,7 @@ function test_container_target_flags_a_silent_target() {
 
 function test_target_falls_through_to_ssh() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash " _hi_doc_target unknownbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash " _hi_doc_target unknownbox)"
   [[ "$out" == *"nothing matched"* && "$out" == *"connect"*ok* ]] || _hi_why out
 }
 
@@ -104,12 +104,12 @@ function test_target_names_the_config_d_file_a_tag_is_from() {
   : >"$h/overlay/settings.acme.sh"
   unset _HI_TAG_NAME
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
-  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 bash " doctor_target web1)"
+  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 tar-z bash " doctor_target web1)"
   [[ "$out" == *"acme - the name of ~/.ssh/config.d/acme"* && "$out" == *"settings.acme.sh - read over settings.sh"* ]] ||
     _hi_why out h || return 1
   unset _HI_TAG_NAME
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$h" _HI_SSH_CONFIG="$h/.ssh/config" \
-  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 bash " doctor_target db1)"
+  _HI_CONFIG_DIR="$h/overlay" HI_FAKE_TOOLS="base64 tar-z bash " doctor_target db1)"
   [[ "$out" != *"the name of"* ]] || _hi_why out h
 }
 
@@ -118,7 +118,7 @@ function test_target_names_the_config_d_file_a_tag_is_from() {
 # reports it as a container without ever asking whether one is running.
 function test_target_honors_a_forced_backend() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=docker _hi_doc_target ghostbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _HI_DOC_BACKEND=docker _hi_doc_target ghostbox)"
   [[ "$out" == *"resolves"*"docker container"*"forced by --use docker"* && "$out" != *checked* ]] || _hi_why out
 }
 
@@ -130,15 +130,15 @@ function test_target_names_a_backend_s_tag_files() {
   : >"$h/overlay/settings.docker.sh"
   : >"$h/overlay/settings.kube.sh"
   : >"$h/overlay/settings.ns1.sh"
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=docker _HI_CONFIG_DIR="$h/overlay" _hi_doc_target ghostbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _HI_DOC_BACKEND=docker _HI_CONFIG_DIR="$h/overlay" _hi_doc_target ghostbox)"
   [[ "$out" == *"tags"*"docker - its backend's word"* && "$out" == *"tag settings"*"settings.docker.sh - read over settings.sh for this docker container"* ]] ||
     _hi_because "a container: $out" || return 1
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=kube _HI_CONFIG_DIR="$h/overlay" _hi_doc_target ctx1:ns1:pod1)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _HI_DOC_BACKEND=kube _HI_CONFIG_DIR="$h/overlay" _hi_doc_target ctx1:ns1:pod1)"
   [[ "$out" == *"tags"*"kube ctx1 ns1 - its backend's word, then its context and namespace"* &&
     "$out" == *"tag settings"*"settings.kube.sh settings.ns1.sh - read over"* && "$out" != *"settings.docker.sh"* ]] ||
     _hi_because "a pod: $out" || return 1
   unset _HI_TAG_NAME
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=ssh _HI_CONFIG_DIR="$h/overlay" _hi_doc_target web1)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _HI_DOC_BACKEND=ssh _HI_CONFIG_DIR="$h/overlay" _hi_doc_target web1)"
   [[ "$out" != *"settings.kube.sh"* && "$out" != *"settings.docker.sh"* ]] || _hi_because "an ssh host: $out"
 }
 
@@ -146,7 +146,7 @@ function test_target_names_a_backend_s_tag_files() {
 # the report says so in the user's own spelling
 function test_target_names_use_for_a_rowless_member() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=nerdctl _hi_doc_target ghostbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash sh " _HI_DOC_BACKEND=nerdctl _hi_doc_target ghostbox)"
   [[ "$out" == *"resolves"*"nerdctl container"*"forced by --use nerdctl"* && "$out" != *checked* ]] || _hi_why out
 }
 
@@ -155,7 +155,7 @@ function test_target_names_use_for_a_rowless_member() {
 # forced --use ssh has to win over it rather than the roster ever being asked.
 function test_forced_ssh_overrides_a_real_container() {
   local out
-  out="$(HI_FAKE_TOOLS="base64 bash " _HI_DOC_BACKEND=ssh _hi_doc_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 tar-z bash " _HI_DOC_BACKEND=ssh _hi_doc_target runningbox)"
   [[ "$out" == *"resolves"*"ssh host (forced by --use ssh)"* && "$out" == *"connect"*ok* ]] || _hi_why out
 }
 
@@ -164,7 +164,7 @@ function test_forced_ssh_overrides_a_real_container() {
 function test_ssh_target_reports_the_wire_cost() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" \
-  HI_FAKE_TOOLS="base64 bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
+  HI_FAKE_TOOLS="base64 tar-z bash " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *install*"each session"* ]] || _hi_why out
 }
 
@@ -174,9 +174,17 @@ function test_ssh_target_flags_a_missing_base64() {
   [[ "$out" == *"no base64"* ]] || _hi_why out
 }
 
+# armor but no tar that reads gzip: the tree cannot unpack, and the row says
+# so in the boot probe's words
+function test_ssh_target_flags_a_missing_tar() {
+  local out
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
+  [[ "$out" == *"no tar that reads gzip"* && "$out" != *"full - bash is there"* ]] || _hi_why out
+}
+
 function test_ssh_target_flags_a_missing_bash() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 tar-z sh " _hi_doc_rows doctor_transport_target ssh somewhere)"
   [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]] || _hi_why out
 }
 
@@ -434,6 +442,7 @@ function run_doctor_target_tests() {
   _hi_check "Container with no known shell" test_container_target_flags_no_known_shell
   _hi_check "Reports the per-session wire cost" test_ssh_target_reports_the_wire_cost
   _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
+  _hi_check "Flags a target without a tar that reads gzip" test_ssh_target_flags_a_missing_tar
   _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
   _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 

@@ -58,13 +58,12 @@ to report what slipped through it.
   into accepting a fingerprint nobody was shown.
 - **`hi --update` reads the tag's signature before checking it out**, from
   `git verify-tag`'s output rather than its exit code, SSH signatures checked
-  against the checkout's own `.github/allowed_signers`: a failing signature
-  (gpg or ssh, or a revoked gpg key) refuses the checkout, a good one is named
-  with its signer, and a key nobody lists, an unsigned tag (a fork, a mirror),
-  or no `gpg` is said out loud and allowed, since refusing there would strand
-  every first install. `--dry-run` reports the same verdict.
-  [`_HI_UPDATE_SIGNED=1`](SETTINGS.md#every-setting) refuses those three as
-  well, so only a tag signed by a key the checkout already trusts moves it.
+  against the checkout's own `.github/allowed_signers`: only a tag signed by
+  a key the checkout already trusts moves it, named with its signer. A failing
+  signature (gpg or ssh, or a revoked gpg key) always refuses; a key nobody
+  lists, an unsigned tag (a fork, a mirror), or no `gpg` is said and refused,
+  and [`_HI_UPDATE_UNSIGNED=1`](SETTINGS.md#every-setting) takes those three.
+  `--dry-run` reports the same verdict.
 
 ## What runs where
 
@@ -245,10 +244,9 @@ where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 | No secret ever needs to be in the payload                    | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop and `ci.yml`'s `secret scan (gitleaks)` sweeping the full history on every PR and push to `main`, findings redacted from the log                                                                                                                                                                                                                                                                                                                                     |
 | The build and release path is defended, not just the product | every CI and release job starts with `step-security/harden-runner` (egress blocked to an allowlist on every Ubuntu x64 job, each list taken from a real run; audited on macOS, Windows and arm64 Linux until each job has its list, unmonitored on Windows arm64, which has no agent, and audited on the link checker); third-party actions are pinned by SHA; `dependency review` fails a PR that adds a dependency with a high or critical advisory; `release.yml`'s `gate` builds only a tag signed by a key in `.github/allowed_signers`, on `main`, with green CI; the signing keys are repository secrets only the signing and publishing steps name ([RELEASING.md](RELEASING.md#the-release-environment)) |
 
-**What is not (yet) countered.** Unless `_HI_UPDATE_SIGNED=1` is set,
-`hi --update` refuses a tampered signature, not a missing or foreign one: a
-tag re-signed with a key `.github/allowed_signers` does not list, or stripped
-of its signature, is named in yellow and checked out. On the `dev` branch it
+**What is not (yet) countered.** `_HI_UPDATE_UNSIGNED=1` takes a tag
+re-signed with a key `.github/allowed_signers` does not list, or stripped of
+its signature, naming it in yellow. On the `dev` branch `hi --update`
 fast-forwards commits, which carry no check under either setting. The
 allowed-signers file is trusted on first use - the copy already checked out, which a later release can change.
 A packaged install updates through its package manager instead

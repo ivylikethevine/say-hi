@@ -582,8 +582,9 @@ function _hi_ctl_close() {
 # a path in the client's $TMPDIR, and a target without it would fall through
 # to the PowerShell branch.
 #
-# The failures say which in the exit status (64 no armor, 65 no scratch
-# directory, 66 a short landing) so _say_hi can name the reason. A short
+# The failures say which in the exit status (64 no armor, 67 no tar that
+# reads gzip, 65 no scratch directory, 66 a short landing) so _say_hi can
+# name the reason. A short
 # landing is nomad's and kube's: an `exec -i` whose stdin closes before the
 # target's cat drains it succeeds at the transport and delivers less. `if`s
 # rather than `|| exit N`: Windows OpenSSH hands the command to cmd.exe,
@@ -594,8 +595,10 @@ function _hi_ctl_close() {
 # decides how long one is kept (_hi_keep_until); ahead of HIBOOT, whose line
 # stays the last.
 function _hi_boot_probe() {
+  printf '%s\n' 'if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi'
+  _hi_targz_check
   cat <<'PROBE'
-if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi
+if [ "$z" != x ]; then exit 67; fi
 if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
 cat > "$d/bootloader" || exit 1
 PROBE
@@ -605,8 +608,20 @@ PROBE
     'printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"'
 }
 
+# _hi_targz_check - sh that sets $z to x when the target's tar lists a
+# gzipped one-file archive, the shape the payload lands in: a tar alone is not
+# enough, since GNU's and OpenBSD's run gzip for -z and busybox's may be built
+# without it. The archive is a 64-byte ustar of an empty `x`. Shared with
+# scripts/doctor_target.sh's probe; the outer stdin is never read.
+function _hi_targz_check() {
+  cat <<'TARGZ'
+z=H4sIAAAAAAACA6tgoD0wAAIzExMwDQToNBa2maGRKYOCAR3cxlBaXJJYBLSSYRSMglEwCkYWAACMzJh/AAYAAA==
+if command -v base64 >/dev/null 2>&1; then z=$(printf %s "$z" | { base64 -d || base64 -D; } 2>/dev/null | tar -t -z -f - 2>/dev/null); else z=$(printf %s "$z" | openssl base64 -d -A 2>/dev/null | tar -t -z -f - 2>/dev/null); fi
+TARGZ
+}
+
 # _hi_boot_why <status> <output> - why the boot probe left no scratch dir, as
-# a line naming $DOMAIN, or nothing (GLOSSARY: HI.19): the probe's own three
+# a line naming $DOMAIN, or nothing (GLOSSARY: HI.19): the probe's own four
 # codes; a path hi refused; and a *forced command* (sshd's `ForceCommand`, or
 # a `command=` on the key), known by exiting 0 or printing anything, since
 # cmd.exe and PowerShell both fail `sh` non-zero and say so on stderr. One
@@ -616,6 +631,7 @@ function _hi_boot_why() {
   case "$1:$2" in
   *HIBOOT:*) printf '%s\n' "[$DOMAIN] named a scratch directory hi will not use" ;;
   64:*) printf '%s\n' "no base64 or openssl on [$DOMAIN]" ;;
+  67:*) printf '%s\n' "no tar that reads gzip on [$DOMAIN]" ;;
   65:*) printf '%s\n' "no writable temp directory on [$DOMAIN]" ;;
   66:*) printf '%s\n' "hi's script reached [$DOMAIN] short, three times over" ;;
   0:* | *:?*) printf '%s\n' "a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;

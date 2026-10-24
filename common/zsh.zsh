@@ -246,7 +246,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
 fi
 unset _hi_pt _hi_pdone _hi_omz_theme _hi_p10k_cfg _hi_marks_for
 
-# completion: `hi` from the shared target list, `exa` the same way as `eza`.
+# completion: `hi` from the shared target list.
 # compinit is the rc's own call: common/_hi is a `#compdef` function on
 # $fpath - appended, so it never shadows one of yours - that a compinit run
 # after this block picks up, and one run before it gets through compdef.
@@ -281,10 +281,6 @@ fi
   done
   zstyle ':completion:*:hi-targets' list-colors "${spec[@]}"
 }
-# only when something completes `eza`: compdef's service form errors out
-# otherwise. _comps is compinit's own command -> completion map, so no fork.
-# and only where hi's tool aliases made exa an alias
-(( ${+_comps[eza]} && ${+functions[compdef]} && ${+aliases[exa]} )) && [[ ${_HI_TOOL_ALIASES:-0} == 1 ]] && compdef exa=eza
 
 # see common/bash.sh: children inherit core.sh's _HI_CHILD_ENV and nothing
 # else with the prefix. GLOSSARY: HI.47

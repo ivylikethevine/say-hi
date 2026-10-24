@@ -197,14 +197,14 @@ function test_rc_exports_nothing_for_other_tools() {
 # stock session, every one with _HI_TOOL_ALIASES=1 and _HI_SUDO_ALIAS=1. ls
 # is asked of bash and zsh only: fish ships an ls function of its own.
 function test_rc_tool_and_sudo_aliases_are_opt_in() {
-  local shell="$1" names="cat catn bat batn batcat eza exa sudo" script path off on
+  local shell="$1" names="cat catn bat batn batcat eza sudo" script path off on
   [ "$shell" = fish ] || names="$names ls"
   case "$shell" in
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; for a in '"$names"'; do alias "$a" >/dev/null 2>&1 && printf "%s " "$a"; done' ;;
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; for a in '"$names"'; functions -q $a; and printf "%s " $a; end' ;;
   esac
-  path="$(_hi_fake_path rc-opt_in-tools bat eza exa sudo):$PATH"
+  path="$(_hi_fake_path rc-opt_in-tools bat eza sudo):$PATH"
   off="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path")"
   on="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1 _HI_SUDO_ALIAS=1)"
   [ -z "$off" ] && [ "$on" = "$names " ] || {
@@ -426,88 +426,6 @@ function test_bash_ble_auto_complete_runs_no_sweep() {
     auto
     printf "%s" "$(cat "$HI_TEST_COUNT")"' _HI_DISABLE_PROMPT=1 HI_TEST_STUB="$stub" HI_TEST_COUNT="$count")"
   [ "$out" = "[][web]x" ] || _hi_why out
-}
-
-# The deferred exa completion, registered only where hi's tool aliases made
-# exa an alias: the first TAB clones eza's registered spec onto exa and
-# answers 124, bash-completion's "retry with the new spec". The loader
-# function is dropped first so a host bash-completion cannot fetch a
-# different eza spec over the case's own.
-function test_bash_exa_completion_clones_ezas_spec() {
-  local out
-  out="$(_hi_bash_child '
-    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    unset -f _completion_loader 2>/dev/null
-    complete -W "--grid --tree" eza
-    _hi_load_exa_completion
-    printf "%s|" "$?"
-    complete -p exa' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
-  [[ "$out" == '124|'*'-W'*'--grid --tree'*' exa' ]] || _hi_why out
-}
-
-# ...a word of the spec that holds a quote, which `complete -p` writes as
-# '...'\''...', is cloned as that one word
-function test_bash_exa_completion_clones_a_quoted_word() {
-  local out
-  out="$(_hi_bash_child '
-    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    unset -f _completion_loader 2>/dev/null
-    complete -o nospace -W "it'\''s --grid" eza
-    _hi_load_exa_completion
-    eza="$(complete -p eza)" exa="$(complete -p exa)"
-    printf "%s" "${exa% exa}"
-    [ "${exa% exa}" = "${eza% eza}" ] && printf "|same"' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
-  [[ "$out" == *"it'\''s --grid"*'|same' ]] || _hi_because "exa's spec: $out"
-}
-
-# ...and with no eza spec to clone (and no loader to fetch one) it reports
-# failure and leaves its own registration armed for the next TAB.
-function test_bash_exa_completion_fails_without_an_eza_spec() {
-  local out
-  out="$(_hi_bash_child '
-    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    unset -f _completion_loader 2>/dev/null
-    complete -r eza 2>/dev/null
-    _hi_load_exa_completion
-    printf "%s|" "$?"
-    complete -p exa' _HI_DISABLE_PROMPT=1 _HI_TOOL_ALIASES=1 PATH="$(_hi_fake_path rc-exa exa):$PATH")"
-  [[ "$out" == '1|'*'_hi_load_exa_completion exa' ]] || _hi_why out
-}
-
-# <shell>: exa completes as eza only where hi's tool aliases made exa an
-# alias - not with the opt-in off, nor with the user's aliases.sh taking the
-# alias back. zsh's compdef is stubbed over a seeded eza entry, so the host's
-# own completions cannot answer for it.
-function test_exa_completes_as_eza_only_with_the_alias() {
-  local shell="$1" script path cfg="$_HI_WORKDIR/exa-unaliased-$1" mark on off back
-  mkdir -p "$cfg"
-  case "$shell" in
-  bash)
-    mark=_hi_load_exa_completion
-    printf 'unalias exa\n' >"$cfg/aliases.sh"
-    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; complete -p exa 2>/dev/null'
-    ;;
-  zsh)
-    mark=exa=eza
-    printf 'unalias exa\n' >"$cfg/aliases.sh"
-    # zsh's associative array, spelled so drift's bash-4 check reads past it
-    script='typeset "-A" _comps; _comps[eza]=_eza; compdef() { print -rn -- "[$*]"; }
-      source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null'
-    ;;
-  fish)
-    mark=eza
-    printf 'functions -e exa\n' >"$cfg/aliases.sh"
-    script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; complete -c exa'
-    ;;
-  esac
-  path="$(_hi_fake_path rc-exa exa):$PATH"
-  on="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1)"
-  off="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path")"
-  back="$(_hi_rc_shell dumb "$shell" "$script" PATH="$path" _HI_TOOL_ALIASES=1 _HI_CONFIG_DIR="$cfg")"
-  [[ "$on" == *"$mark"* && "$off" != *"$mark"* && "$back" != *"$mark"* ]] || {
-    _hi_cecho " | $shell: on [$on], off [$off], taken back [$back]" "$RED"
-    return 1
-  }
 }
 
 # When starship owns the prompt, hi's per-prompt hook must stay out of its
@@ -942,12 +860,6 @@ function run_rc_tests() {
   _hi_check "bash flag TAB completes hi's options, no sweep" test_bash_flag_completion_offers_hi_options_without_a_sweep
   _hi_check "bash target TAB reuses its names within the TTL" test_bash_target_names_are_held_for_the_ttl
   _hi_check "ble.sh's as-you-type completion runs no sweep" test_bash_ble_auto_complete_runs_no_sweep
-  _hi_check "the first exa TAB clones eza's spec (124)" test_bash_exa_completion_clones_ezas_spec
-  _hi_check "...a word holding a quote included" test_bash_exa_completion_clones_a_quoted_word
-  _hi_check "...and fails armed without an eza spec" test_bash_exa_completion_fails_without_an_eza_spec
-  _hi_check "[bash] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias bash
-  _hi_check_requires zsh "[zsh] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias zsh
-  _hi_check_requires fish "[fish] exa completes as eza only with hi's exa alias" test_exa_completes_as_eza_only_with_the_alias fish
   _hi_check "starship handoff installs no __hi_ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
   _hi_check_requires fish "fish runs the shell hooks its settings leave on" test_fish_runs_the_hooks_its_settings_leave_on
   _hi_check_requires fish "...each once a shell, a quiet one's activation unheard" test_fish_runs_each_hook_once_and_a_quiet_one_silently

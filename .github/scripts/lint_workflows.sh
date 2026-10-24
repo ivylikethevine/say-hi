@@ -49,7 +49,7 @@ _ci_need lint_workflows yq jq
 # YAML to JSON with whichever yq is installed: the Go one needs -o=json, the
 # Python one prints JSON already. The Python one reads `on:` as YAML 1.1's
 # boolean true, hence `.on // .["true"]` in the filter.
-if yq --version 2>&1 | grep -qi mikefarah; then
+if yq --version 2>&1 | grep -i mikefarah >/dev/null; then
   to_json() { yq -o=json '.' "$1"; }
 else
   to_json() { yq '.' "$1"; }
