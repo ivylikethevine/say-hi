@@ -1,11 +1,13 @@
-# OpenSSF Scorecard maintainer annotations (.github/workflows/scorecard.yml);
-# https://github.com/ossf/scorecard/blob/main/config/README.md. Display only -
-# they never change the score - so a finding this repo will not fix reads as
-# decided rather than unnoticed. The prose version of the pinned-dependencies
-# entry is docs/TESTING.md, "What is pinned, and what deliberately is not".
+# Maintainer annotations for OpenSSF Scorecard (.github/workflows/scorecard.yml);
+# https://github.com/ossf/scorecard/blob/main/config/README.md. Display only:
+# they never change the score, so a finding this repository will not fix reads
+# as decided rather than unnoticed. Annotate only a finding a run reports; one
+# that matches nothing misleads.
 #
 # code-review is deliberately not annotated: the 0/9 finding is accurate (no
-# second reviewer) and no reason code says so truthfully.
+# second reviewer) and no reason code says so truthfully. The prose version of
+# the pinned-dependencies entry is docs/TESTING.md, "What is pinned, and what
+# deliberately is not".
 annotations:
   - checks:
       - pinned-dependencies
@@ -27,4 +29,5 @@ annotations:
       - contributors
     reasons:
       - reason: not-applicable
-        # Wants >=2 contributing organizations. Single maintainer.
+        # Wants >=2 contributing organizations among recent contributors.
+        # Single maintainer.

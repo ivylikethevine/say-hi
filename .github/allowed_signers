@@ -4,6 +4,7 @@
 # signing keys registered on GitHub (api.github.com/users/<login>/ssh_signing_keys).
 # Rotating a key: add the new line here and merge it to main before tagging
 # with it; drop a retired key only once no tag still to be released needs it.
-ivylikethevine@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJF2OGOYDlX8FtsbC3juV0UZmyCfEDUFt++trSpfU2gI liona
-ivylikethevine@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAWq1DCyo4nB0h1+9a1mCrVmfytOg/ObFmEVMO1bIhgf bertha
-ivylikethevine@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC3Znn2ZnOKNi686zDqEFBoNQBrb4iewN7/KVgO+kZtd mavie
+ivylikethevine@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEwDHCIlCfQlpCNBuyOUVkhvs2JpEBv6WikyMNsmb7/Q slim
+ivylikethevine@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGI1IOUWkXSt7iHEXsU8UU96Z0rMmhGYzk8vT8TcaY+l liona
+ivylikethevine@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB4ZUMKgceIulGcP0WwVNOpsF4PoDWgRwr9TDjCzvT3l bertha
+ivylikethevine@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFo1oAuiaaHreeCzWdqq0C3ubla878KpAOSwZNOKCYqO mavie
