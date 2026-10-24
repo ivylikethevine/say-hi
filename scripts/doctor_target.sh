@@ -85,12 +85,16 @@ function doctor_target() {
 }
 
 # The tool probe the target half sends: one `command -v` sweep, printed as a
-# space-separated list. $_HI_SHELL_LADDER expands here, "$c" is left for the
-# target's shell.
+# space-separated list, and `tar-z` where the boot probe's own tar check
+# (hi.sh's _hi_targz_check) passes. $_HI_SHELL_LADDER expands here, "$c" and
+# "$z" are left for the target's shell.
 function _hi_doctor_probe_snippet() {
   # shellcheck disable=SC2016 # "$c" is the target shell's variable, not ours -
   # expanding it here is exactly what must not happen
-  printf 'for c in base64 openssl bash %s vim git; do command -v "$c" >/dev/null 2>&1 && printf "%%s " "$c"; done' "$_HI_SHELL_LADDER"
+  printf 'for c in base64 openssl bash %s vim git; do command -v "$c" >/dev/null 2>&1 && printf "%%s " "$c"; done\n' "$_HI_SHELL_LADDER"
+  _hi_targz_check
+  # shellcheck disable=SC2016 # the same: "$z" is the target's
+  printf '%s\n' '[ "$z" != x ] || printf "tar-z "'
 }
 
 # The target half, for every arm: what the target has, which tier a session
@@ -132,7 +136,11 @@ function doctor_transport_target() {
   shells="$(_hi_ladder_first "$tools")"
   # padded both ends, so a word matches whatever spacing the answer came in
   case " $tools " in
-  *" base64 "* | *" openssl "*) ;;
+  *" tar-z "*) ;;
+  *" base64 "* | *" openssl "*)
+    doctor_row session "the target's own - no tar that reads gzip, so hi's tree cannot unpack there" bad
+    shells=-
+    ;;
   *)
     doctor_row session "the target's own - no base64 or openssl, so hi's script cannot decode there" bad
     shells=-

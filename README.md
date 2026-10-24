@@ -185,7 +185,7 @@ fish, whose pager shows the backend column.
      a renamed CI job has to be mirrored. A badge added here reads
      "inaccessible" until the next Pages deploy publishes its file. -->
 
-![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64-0A6E8A)
+![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64%20%2B%20tar-0A6E8A)
 ![Full](https://img.shields.io/badge/full-bash%203.2-0A8E8A)
 ![Linux](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Flinux.json)
 ![macOS](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fmacos.json)
@@ -199,14 +199,16 @@ Which OSes hi lands a session on, which shell you end up in, what proves each
 row, and everything answered **no**, and why:
 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
-- **Client**: `bash` 3.2+ and `base64` (coreutils, busybox, macOS/BSD, and Git
+- **Client**: `bash` 3.2+, `tar` and `gzip` (a libarchive `tar` compresses on
+  its own and needs no `gzip`), and `base64` (coreutils, busybox, macOS/BSD, and Git
   Bash all ship one; `openssl base64` stands in where none does), `ssh` for
   ssh targets, any of `docker`/`podman`/`nerdctl`/`finch` and
   `nomad`/`kubectl` for those backends. hi has no protocol of its own: `ssh`
   is the transport, `base64` is armor, not crypto
   ([docs/SECURITY.md](docs/SECURITY.md)).
-- **Target**: `base64` (or `openssl`) for ssh targets; nothing extra for
-  container/alloc/pod targets. `bash` gets the full session; without it you
+- **Target**: `base64` (or `openssl`), `mktemp`, and a `tar` that reads
+  gzip (`tar -z`), on every backend: the payload lands the same way over
+  ssh and an exec. `bash` gets the full session; without it you
   land in the best shell the target has, with a smaller one
   ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 - **A slow link**: the ssh wire is meant to stay at or under 128 KB — 8 s over
@@ -405,7 +407,87 @@ One list, in the order the work is best done. An entry is deleted once its
 **Ticks when** holds. What a release waits on is
 [Release Stages](#release-stages).
 
-Nothing is open.
+- [ ] **The default preset leaves this machine alone** — `everything`
+      restyles the local prompt and prints a header in every local shell,
+      the first symptom under
+      [TROUBLESHOOTING.md's _On your own machine_](docs/TROUBLESHOOTING.md#on-your-own-machine)
+      and the opposite of "ssh with your config along"; the tag freezes
+      every default. **Do:** `_HI_DISABLE_LOCAL=1` in the shipped default and
+      `scripts/configure.sh`'s `_HI_PRESETS`, or one more install question.
+      **Ticks when:** a fresh `scripts/install.sh` with the default preset
+      changes nothing about a local shell's prompt.
+
+- [ ] **`hi --update` verifies by default** — shipped: only a tag signed by a
+      key the checkout trusts moves it, and `_HI_UPDATE_UNSIGNED=1`, which
+      replaces `_HI_UPDATE_SIGNED`, takes an unsigned or unknown one.
+      `tests/scripts/update_test.sh` refuses each by default and takes each
+      under the opt-out. **Ticks when:** that suite has run green on Linux,
+      macOS, and Git Bash.
+
+- [ ] **Every default and preset audited before the tag** —
+      [CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break)
+      freezes the name and default of all 45 rows of
+      [SETTINGS.md's _Every setting_](docs/SETTINGS.md#every-setting) and the
+      five presets, and a toggle removal is a 2.0. **Do:** read each row's
+      default as a stranger's first run, with the two entries above as the
+      known changes. **Ticks when:** the 1.0.0 release note lists the defaults
+      that moved, or says none did.
+
+- [ ] **The bootstrap names a missing `tar`** — shipped: the boot probe lists
+      a 64-byte gzipped archive and exits 67 when the target's `tar` cannot,
+      `hi` says "no tar that reads gzip" and hands over the host's session,
+      and `hi --doctor <target>` says the same.
+      `tests/hi/remote_test.sh` and `tests/hi/container_test.sh` hold both
+      halves. **Ticks when:** the fast group and `--group bench` run green,
+      and the payload badge is current.
+
+- [ ] **fish 3.1 lands a fish session** — the 3.4 floor sends Ubuntu 22.04's
+      fish 3.3 and Debian 11's 3.1 to the next shell down for two constructs
+      (`load.sh`'s `_hi_fish_new_enough`): `config.fish`'s top-level `return`
+      and `aliases.sh`'s `$( )`. **Do:** the body in a function, `( )` for
+      the substitution, the floor moved in `_hi_fish_new_enough` and
+      `tests/lint/dialects_test.sh`'s pinned fish image. **Ticks when:** the
+      dialect suite parses `config.fish` in a 3.1 image and a 3.3 image.
+
+- [ ] **The client's terminfo rides** — an unknown `TERM`
+      ([HI.22](docs/GLOSSARY.md#hi22-term-fallback-probe)) is swapped for
+      `xterm-256color`, so kitty, ghostty, wezterm, foot, and rio users lose
+      styled underlines and the kitty keyboard protocol on every target.
+      **Do:** `infocmp -x "$TERM"` on the client (2-3 KB, those terminals
+      only), `tic -x -o` into the session tree where the target has `tic`,
+      `TERMINFO` exported for the session, the swap kept as the fallback.
+      **Ticks when:** an `xterm-kitty` client gets `TERM=xterm-kitty` on a
+      target with `tic` and `xterm-256color` on one without, each in a case.
+
+- [ ] **Glyphs follow the target's locale** — the ASCII decision is the
+      client's and ships as `_HI_ASCII`, so a target sitting in `LC_ALL=C`
+      draws multibyte glyphs under a shell that counts bytes, and header lines
+      wrap (`common/core.sh`'s `_hi_use_ascii` comment). **Do:** on the
+      target, `locale -a` for the client's locale, else `C.UTF-8` where it
+      exists, else ASCII. **Ticks when:** a target with no UTF-8 locale draws
+      the header in ASCII, unwrapped, in a case.
+
+- [ ] **The README opens with the pitch** — six persona stories run before
+      _Installation_, 442 lines in all, and a stranger skims. **Do:** ten lines
+      of what hi is, the install, one GIF; the stories move to
+      [GETTING-STARTED.md](docs/GETTING-STARTED.md) or a tour page, their
+      published GIF links unchanged. **Ticks when:** _Installation_ is on the
+      first screen of the rendered README.
+
+- [ ] **A `CHANGELOG.md` ships in the tarball** — release notes exist only as
+      GitHub Release bodies assembled by `.github/scripts/release_notes.sh`
+      from each PR's `## Release note`; packagers and reviewers expect a file.
+      **Do:** `release.yml` writes the same notes under a version heading into
+      `CHANGELOG.md` and the source tarball carries it. **Ticks when:** a
+      release's tarball holds a `CHANGELOG.md` whose top entry is that
+      release's note.
+
+- [ ] **Apple's `container` CLI is proven, not read** — the row in
+      [COMPATIBILITY.md's _Targets weighed and not shipped_](docs/COMPATIBILITY.md#targets-weighed-and-not-shipped)
+      is written from Apple's command reference, and
+      `.github/workflows/apple-container.yml` checks it on a hosted `macos-26`
+      runner. **Do:** dispatch it. **Ticks when:** its grammar step is green
+      and the row says what its runtime step found.
 
 ## Release Stages
 

@@ -89,6 +89,33 @@ flake passes its commit's date; `stamp.sh` refuses to guess one.
 review and a standing maintainer entry, so it waits on 1.0
 ([README's Release Stages](../README.md#release-stages)).
 
+**Homebrew core**: not eligible yet. Homebrew's acceptance policy asks a
+project its author submits for 90 forks, 90 watchers, or 225 stars, and core
+takes only a release upstream calls stable. The [tap](#homebrew-tap) is the
+Homebrew channel until both hold.
+
+**FreeBSD ports**: not submitted. A port is a `Makefile` and `distinfo` over
+the release tarball with a `MAINTAINER`, sent as a `[NEW PORT]` diff to the
+FreeBSD Bugzilla. `freebsd-e2e.yml` already proves the userland, and until a
+port lands a FreeBSD user installs from a clone.
+
+**Alpine aports**: not submitted. A new `APKBUILD` goes to `alpine/aports` as
+a merge request on Alpine's GitLab, lands in `testing`, and moves to
+`community` once it has a maintainer. The [package repository](#package-repository)
+already serves a signed apk.
+
+**Fedora Copr and the openSUSE Build Service**: not set up. Each needs an
+account (Copr a Fedora Account System one) and builds from a spec file, which
+this repository does not keep: nfpm makes the rpm. Both would serve what the
+package repository already does, and their gain is being found
+(`dnf copr enable`, software.opensuse.org); the Build Service would add
+openSUSE builds and debs for other distributions.
+
+**Scoop**: not set up. A bucket is a git repository of JSON manifests,
+installed on the Windows side, while hi runs under Git Bash, whose rc a
+manifest would have to wire; a Git Bash client installs from a clone today
+([COMPATIBILITY.md](COMPATIBILITY.md#the-targets-os)).
+
 ## Cutting a release
 
 The tag never moves: the manifests carry checksums of a tarball that cannot

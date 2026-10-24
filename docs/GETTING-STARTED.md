@@ -105,13 +105,14 @@ For hosts where what is sent, and what runs, has to be accounted for.
 
 `lean` sends hi's own files and nothing of yours, draws hi's own prompt so no
 prompt program runs on a target, leaves this machine's shells alone, and
-starts no backend CLI ([SETTINGS.md](SETTINGS.md#presets)). Two more, each a
-line in `~/.config/say-hi/settings.sh`:
+starts no backend CLI ([SETTINGS.md](SETTINGS.md#presets)). One more, a line
+in `~/.config/say-hi/settings.sh`:
 
 ```sh
 export _HI_DISABLE_CONTROLMASTER=1   # your ssh config's ControlMaster line decides
-export _HI_UPDATE_SIGNED=1           # hi --update takes only a tag it can verify
 ```
+
+`hi --update` already takes only a tag it can verify.
 
 - `hi --doctor` lists every setting away from its default and every file that
   rides, and flags a secret-shaped line in one.

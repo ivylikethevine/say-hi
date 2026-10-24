@@ -266,6 +266,19 @@ function _hi_can_shape_netem() {
   grep -q '^sch_netem ' /proc/modules 2>/dev/null || [ -d /sys/module/sch_netem ]
 }
 
+# _hi_can_shim_applets - whether `sh` runs a PATH entry named like one of its
+# own applets. A busybox built to prefer applets runs its `tar` whatever PATH
+# holds, so a case that hides a tool from `sh` cannot hide that one.
+function _hi_can_shim_applets() {
+  local dir="${_HI_SUITE_WORKDIR:-$_HI_WORKDIR}/cap.applets" sh_bin out
+  sh_bin="$(command -v sh)"
+  mkdir -p "$dir"
+  printf '%s\n' '#!/bin/sh' 'echo shim' >"$dir/tar"
+  chmod +x "$dir/tar"
+  out="$(PATH="$dir" "$sh_bin" -c tar 2>/dev/null)"
+  [ "$out" = shim ]
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -296,6 +309,9 @@ function _hi_can_shape_netem() {
 #                       _hi_can_shape_netem. No when `modprobe sch_netem`
 #                       has not run on the host; a container cannot load it
 #                       for itself.
+#   applet_shims     - `sh` runs a PATH entry over an applet of the same
+#                       name - see _hi_can_shim_applets. No under a busybox
+#                       that prefers its applets.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -308,6 +324,7 @@ function _hi_capable() {
   mkdir_mode) _hi_cap_memo _HI_CAP_MKDIR_MODE _hi_can_mkdir_mode ;;
   gpg_agent) _hi_cap_memo _HI_CAP_GPG_AGENT _hi_can_reach_gpg_agent ;;
   netem) _hi_cap_memo _HI_CAP_NETEM _hi_can_shape_netem ;;
+  applet_shims) _hi_cap_memo _HI_CAP_APPLET_SHIMS _hi_can_shim_applets ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2

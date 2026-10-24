@@ -377,8 +377,8 @@ function test_ladder_first_picks_in_ladder_order() {
 function test_doctor_probe_snippet_runs_under_sh() {
   local out
   out="$(sh -c "$(_hi_doctor_probe_snippet)")" || _hi_why || return 1
-  case " $out " in *' bash '*) return 0 ;; esac
-  return 1
+  case " $out " in *' bash '*' tar-z '*) return 0 ;; esac
+  _hi_because "no bash, or no tar-z after it: $out"
 }
 
 # The whole plain report, end to end, on the restricted PATH. Two cases

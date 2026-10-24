@@ -19,6 +19,7 @@ here goes to [SUPPORT.md](SUPPORT.md).
   - [`hi <name>` opened a container, not the host (or the reverse)](#hi-name-opened-a-container-not-the-host-or-the-reverse)
   - [I am asked to authenticate twice](#i-am-asked-to-authenticate-twice)
   - [No header, and a plain prompt, with a notice](#no-header-and-a-plain-prompt-with-a-notice)
+  - [hi says "no tar that reads gzip", then gives a plain session](#hi-says-no-tar-that-reads-gzip-then-gives-a-plain-session)
   - [hi says its bootstrap never ran, then gives a plain session](#hi-says-its-bootstrap-never-ran-then-gives-a-plain-session)
   - [The session is gone after the connection dropped](#the-session-is-gone-after-the-connection-dropped)
 - [In a session](#in-a-session)
@@ -97,6 +98,13 @@ sharing is off on a Git Bash or Cygwin client, and under
 The target has no `bash`. hi's header and git segment need it; what is left
 is the aliases and a colored prompt
 ([COMPATIBILITY.md](COMPATIBILITY.md#the-shell-you-end-up-in)).
+
+### hi says "no tar that reads gzip", then gives a plain session
+
+hi's tree travels as a gzipped tar, and the target has no `tar`, or one that
+needs a `gzip` the target lacks. Install the one it is missing there
+([COMPATIBILITY.md](COMPATIBILITY.md#the-targets-os) lists what a target
+needs); `hi --doctor <target>` names it too.
 
 ### hi says its bootstrap never ran, then gives a plain session
 
