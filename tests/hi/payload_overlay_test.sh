@@ -379,6 +379,46 @@ command -v btool >/dev/null 2>&1 && alias b1="env X=$HOME/x btool -o k=v -f $_HI
   done
 }
 
+# The reading rides from one connect to the next in the runtime dir: a load
+# whose plugins files are unchanged fills its tables off the cache - a row
+# planted in it comes back - and a plugins file that appears, changes, or goes
+# is read afresh. _HI_PAYLOAD_CACHE=0 reads the files every time.
+function test_the_plugins_reading_is_cached() {
+  local dir="$_HI_WORKDIR/plugcache" c want got
+  mkdir -p "$dir"
+  (
+    # on in here whatever the run's lever says
+    _HI_CONFIG_DIR="$dir" _HI_PLUGIN_KEY="" _HI_PAYLOAD_CACHE=1
+    _HI_PAYLOAD_CACHE=0 _hi_plugins_load
+    want="${#_HI_PLUGIN_ROWS[@]}|${_HI_PLUGIN_FILES[*]}|${#_HI_PLUGIN_BAD[@]}|${#_HI_PLUGIN_HOOKS[@]}|$_HI_PLUGIN_DEFAULT_OFF"
+    _HI_PLUGIN_KEY="" && _hi_plugins_load
+    for c in "$XDG_RUNTIME_DIR"/hi.plugins.*; do [ -f "$c" ] && grep -qF "K|$_HI_PLUGIN_KEY|100|" "$c" && break; done
+    [ -f "$c" ] || _hi_because "no hi.plugins.* cache in $XDG_RUNTIME_DIR for this overlay" || exit 1
+    _HI_PLUGIN_KEY="" && _hi_plugins_load
+    got="${#_HI_PLUGIN_ROWS[@]}|${_HI_PLUGIN_FILES[*]}|${#_HI_PLUGIN_BAD[@]}|${#_HI_PLUGIN_HOOKS[@]}|$_HI_PLUGIN_DEFAULT_OFF"
+    [ "$got" = "$want" ] || _hi_because "read off the cache: [$got], parsed: [$want]" || exit 1
+    printf '%s\n' 'F|planted/member' >>"$c"
+    _HI_PLUGIN_KEY="" && _hi_plugins_load
+    case " ${_HI_PLUGIN_FILES[*]} " in *" planted/member "*) ;; *) _hi_because "the second load parsed again" || exit 1 ;; esac
+    printf '[mine.tool]\nfiles = "tool/conf"\n' >"$dir/plugins"
+    _HI_PLUGIN_KEY="" && _hi_plugins_load
+    case " ${_HI_PLUGIN_FILES[*]} " in
+    *" planted/member "*) _hi_because "an overlay plugins file that appeared was not read" || exit 1 ;;
+    *" tool/conf "*) ;;
+    *) _hi_because "the new plugin is missing: ${_HI_PLUGIN_FILES[*]}" || exit 1 ;;
+    esac
+    printf '[mine.tool]\nfiles = "tool/other"\n' >"$dir/plugins"
+    _HI_PLUGIN_KEY="" && _hi_plugins_load
+    case " ${_HI_PLUGIN_FILES[*]} " in *" tool/other "*) ;; *) _hi_because "a changed plugins file was served stale: ${_HI_PLUGIN_FILES[*]}" || exit 1 ;; esac
+    rm "$dir/plugins"
+    _HI_PLUGIN_KEY="" && _hi_plugins_load
+    case " ${_HI_PLUGIN_FILES[*]} " in *" tool/"*) _hi_because "a deleted plugins file's plugin was served: ${_HI_PLUGIN_FILES[*]}" || exit 1 ;; esac
+    printf '%s\n' 'F|planted/again' >>"$c"
+    _HI_PLUGIN_KEY="" _HI_PAYLOAD_CACHE=0 _hi_plugins_load
+    case " ${_HI_PLUGIN_FILES[*]} " in *" planted/again "*) _hi_because "_HI_PAYLOAD_CACHE=0 read the cache" || exit 1 ;; esac
+  ) || _hi_why dir
+}
+
 # ...the tree's own file is read by the same rules, and every row of it
 # holds
 function test_the_tree_plugins_file_holds() {
@@ -716,6 +756,7 @@ function run_hi_payload_overlay_tests() {
   _hi_check "...what the table cannot hold is turned down" test_carry_turns_down_a_row_the_table_cannot_hold
   _hi_check "...a wire is checked as it is written" test_a_wire_is_checked_as_it_is_written
   _hi_check "...and the tree's own file holds whole" test_the_tree_plugins_file_holds
+  _hi_check "...and the reading is cached, a changed file read afresh" test_the_plugins_reading_is_cached
   _hi_check "...and the harness clears each variable a home starts at" test_the_harness_clears_every_home_variable
   _hi_check "A plugin that is off sends nothing" test_plugin_off_keeps_its_members_home
   _hi_check "...nor has it a wiring line" test_a_plugin_off_has_no_wiring_line

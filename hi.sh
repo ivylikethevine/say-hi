@@ -137,11 +137,31 @@ function _hi_armored_line() {
 # GLOSSARY: HI.40 - why a hand loop and not ${2//...}
 function _hi_shquote() {
   local _s="$2" _o=""
+  # past a few hundred bytes the loop's re-slicing grows quadratic, and the
+  # worse in UTF-8, where each slice walks the characters: a whole script
+  # goes through the split instead
+  if [ "${#_s}" -gt 512 ]; then
+    _hi_shquote_long "$1" "$2"
+    return 0
+  fi
   while [ "${_s#*\'}" != "$_s" ]; do
     _o="$_o${_s%%\'*}'\\''"
     _s="${_s#*\'}"
   done
   printf -v "$1" "'%s'" "$_o$_s"
+}
+
+# _hi_shquote_long <var> <value> - _hi_shquote for a long value: split on '
+# by read, which is linear, bytewise, since a ' is one byte whatever the
+# locale, and joined with '\''. The trailing x keeps a closing ' from being
+# dropped as an empty last field. GLOSSARY: HI.40
+function _hi_shquote_long() {
+  local LC_ALL=C _hi_sql_s="${2}x" _hi_sql_o="" _hi_sql_p _hi_sql_sep="'\\''"
+  local -a _hi_sql_a=()
+  IFS="'" read -r -d '' -a _hi_sql_a < <(printf '%s' "$_hi_sql_s") || true
+  for _hi_sql_p in "${_hi_sql_a[@]}"; do _hi_sql_o="$_hi_sql_o$_hi_sql_p$_hi_sql_sep"; done
+  _hi_sql_o="${_hi_sql_o%"$_hi_sql_sep"}"
+  printf -v "$1" "'%s'" "${_hi_sql_o%x}"
 }
 
 # The client-derived env both transports export into the session, one
@@ -594,16 +614,25 @@ function _hi_ctl_close() {
 # HIMUX says whether the target has a multiplexer to keep a session in, which
 # decides how long one is kept (_hi_keep_until); ahead of HIBOOT, whose line
 # stays the last.
+#
+# [dir] is a target-side path the session's stub already waits on
+# (_hi_connect_overlap): made with `mkdir -m 700`, which refuses one that
+# exists, and the script renamed into it whole, so the stub never runs half.
 function _hi_boot_probe() {
+  local f='$d/bootloader'
   printf '%s\n' 'if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi'
   _hi_targz_check
-  cat <<'PROBE'
-if [ "$z" != x ]; then exit 67; fi
-if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
-cat > "$d/bootloader" || exit 1
-PROBE
+  printf '%s\n' 'if [ "$z" != x ]; then exit 67; fi'
+  if [ -n "${2:-}" ]; then
+    f='$d/part'
+    printf '%s\n' "d=$2" 'if ! mkdir -m 700 "$d" 2>/dev/null; then exit 65; fi'
+  else
+    printf '%s\n' 'if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi'
+  fi
+  printf 'cat > "%s" || exit 1\n' "$f"
   [ -z "${1:-}" ] ||
-    printf 'n=$(wc -c <"$d/bootloader"); if [ "$((n))" != %s ]; then rm -rf "$d"; exit 66; fi\n' "$1"
+    printf 'n=$(wc -c <"%s"); if [ "$((n))" != %s ]; then rm -rf "$d"; exit 66; fi\n' "$f" "$1"
+  [ -z "${2:-}" ] || printf 'mv "%s" "$d/bootloader"\n' "$f"
   printf '%s\n' "m=0; for s in $_HI_MUXES; do if command -v \"\$s\" >/dev/null 2>&1; then m=1; fi; done" \
     'printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"'
 }
@@ -990,6 +1019,12 @@ function _hi_boot_call() {
     [ ! -t 2 ] || printf '\r\033[K' >&2
     cat "$_HI_KEEP_QUIET" >&2
   fi
+  _hi_boot_parse
+}
+
+# _hi_boot_parse - $boot_out's HIMUX into _HI_TARGET_MUX and its HIBOOT
+# into boot_tmp, empty for a path _hi_safe_path refuses.
+function _hi_boot_parse() {
   case "$boot_out" in *HIMUX:0*) _HI_TARGET_MUX=0 ;; *HIMUX:1*) _HI_TARGET_MUX=1 ;; esac
   boot_tmp=""
   case "$boot_out" in *HIBOOT:*)
@@ -998,6 +1033,80 @@ function _hi_boot_call() {
     ;;
   esac
   boot_tmp="$(_hi_safe_path "$boot_tmp" 'A-Za-z0-9._/+-')"
+}
+
+# _hi_overlap_ok - this connect opens the session while the boot call is
+# still landing the script (_hi_connect_overlap): ssh over a ControlMaster,
+# with a tty, whose hangup is what ends a stub left waiting, and not a
+# dropped kept session's retry, whose words go to a log.
+function _hi_overlap_ok() {
+  [ "$arm" = ssh ] && [ -n "$ctl_path" ] && [ -z "${_HI_KEEP_QUIET:-}" ] && [ -t 0 ]
+}
+
+# _hi_ctl_alive - the ControlMaster still answers.
+function _hi_ctl_alive() {
+  [ -n "$ctl_path" ] && ssh -O check ${ctl_opts[@]+"${ctl_opts[@]}"} "$DOMAIN" >/dev/null 2>&1
+}
+
+# _hi_connect_overlap - the session opened while the boot call is still
+# landing the script, its command a stub that waits for the script in a
+# directory the client names (_hi_boot_probe's [dir]) and runs it only from
+# a directory of this user's, so neither channel waits out the other's round
+# trips. The boot call makes the master, as in series; the session goes once
+# its socket is there, which ssh makes only once authenticated, so both ride
+# one authentication and the master is the same ControlPersist one.
+#
+# 1 hands back to _say_hi, with booted set and boot_out/boot_ec when the boot
+# call failed, the stub stopped first; unset when the boot call was refused
+# while the master answers, `MaxSessions 1` having given the one channel to
+# the stub, so the boot is made again. A forced command's program is the
+# session already, so it is only named. A session channel refused the same
+# way leaves the script unclaimed, which a stub that ran never does, and
+# opens again once the boot is in. Fills
+# ec, booted, boot_out, boot_ec, and boot_tmp from _say_hi.
+function _hi_connect_overlap() {
+  local r d out boot sess=""
+  out="$(mktemp -t hi.boot.XXXXXX)" || return 1
+  r="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')" || r=""
+  # shellcheck disable=SC2016 # the target's to expand
+  d='${TMPDIR:-/tmp}/hi.boot.'"${r:-$RANDOM$RANDOM$RANDOM}"
+  printf '%s\n' "$script" | _hi_on_target cp "$(_hi_boot_probe "$bytes" "$d")" >"$out" &
+  boot=$!
+  while [ ! -S "$ctl_path" ] && kill -0 "$boot" 2>/dev/null; do sleep 0.01; done
+  if [ -S "$ctl_path" ]; then
+    ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
+    _HI_LINK_UP=1
+    # shellcheck disable=SC2016 # the target's to expand
+    _hi_on_target attach "d=$d; while [ ! -f \"\$d/bootloader\" ]; do sleep 0.01 2>/dev/null || sleep 1; done; [ -O \"\$d\" ] || { echo \"hi: \$d is not this user's\" >&2; exit 1; }; : >\"\$d/claimed\"; $(_hi_attach_cmd '$d')" exec <&0 &
+    sess=$!
+  fi
+  boot_ec=0
+  wait "$boot" || boot_ec=$?
+  boot_out="$(cat "$out")"
+  rm -f "$out"
+  _hi_boot_parse
+  if [ -n "$boot_tmp" ] && [ -n "$sess" ]; then
+    wait "$sess" || ec=$?
+    if [ "$ec" = 255 ] && _hi_ctl_alive && _hi_on_target probe "[ -f \"$boot_tmp/bootloader\" ] && [ ! -e \"$boot_tmp/claimed\" ]"; then
+      ec=0
+      _hi_on_target attach "$(_hi_attach_cmd "$boot_tmp")" || ec=$?
+    fi
+    return 0
+  fi
+  booted=1
+  [ -n "$sess" ] || return 1
+  case "$boot_ec:$boot_out" in
+  *HIBOOT:* | 6[4-7]:*) ;;
+  0:* | *:?*)
+    _hi_cecho " $(_hi_boot_why "$boot_ec" "$boot_out") - handing over the host's own session" "$YELLOW" >&2
+    wait "$sess" || ec=$?
+    return 0
+    ;;
+  esac
+  kill "$sess" 2>/dev/null || true
+  wait "$sess" 2>/dev/null || true
+  [ "$boot_ec" != 255 ] || [ -n "$boot_out" ] || ! _hi_ctl_alive || booted=""
+  return 1
 }
 
 # _hi_transport_cmds <arm> - the three ways to reach the target through
@@ -1059,6 +1168,9 @@ function _hi_transport_cmds() {
 # `sh -c` as an argv; ssh hands its words to the login shell as one string,
 # so they are quoted for it. GLOSSARY: HI.18 - fish-shaped login shells, and
 # quoting over %q
+#
+# [exec] runs the command in this process, so a backgrounded call's $! is
+# the command's.
 function _hi_on_target() {
   local _hi_tgt_q
   local -a _hi_tgt_c
@@ -1069,15 +1181,26 @@ function _hi_on_target() {
   esac
   if [ "${_hi_tgt_c[0]}" = ssh ]; then
     _hi_shquote _hi_tgt_q "$2"
-    "${_hi_tgt_c[@]}" "sh -c $_hi_tgt_q"
+    _hi_tgt_c+=("sh -c $_hi_tgt_q")
   else
-    "${_hi_tgt_c[@]}" sh -c "$2"
+    _hi_tgt_c+=(sh -c "$2")
   fi
+  [ "${3:-}" != exec ] || exec "${_hi_tgt_c[@]}"
+  "${_hi_tgt_c[@]}"
+}
+
+# _hi_attach_cmd <dir> - the session's command once the script is in <dir>:
+# its status is the session's, and its word on a kept one, so it outlasts the
+# removal - under sh, whatever the login shell. $ct is our own _hi_elapsed
+# digits-and-a-dot, never text a target sent back.
+function _hi_attach_cmd() {
+  printf '_HI_CONNECT_TIME=%s sh "%s/bootloader"; _hi_e=$?; rm -rf "%s"; exit $_hi_e' "$ct" "$1" "$1"
 }
 
 # _say_hi [arm] [errlog] - connect through [arm] (ssh when empty), copy
 # say-hi over, hand off to load.sh: the script boots in one `cp` call and
-# runs in one `attach`, the same script for every arm. Everything up to the
+# runs in one `attach`, the same script for every arm, the two overlapped
+# over ssh (GLOSSARY: HI.19). Everything up to the
 # bash branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18). [errlog]
 # takes a container's words.
 function _say_hi() {
@@ -1143,8 +1266,12 @@ $(_hi_overlay_stream "${overlay[@]}")"
 
   # a retry that ssh itself failed ends here: a host that was not reached
   # has no shell to fall back on
-  local boot_out="" boot_ec=0
-  if ! _hi_boot_call; then
+  local boot_out="" boot_ec=0 booted=""
+  if _hi_overlap_ok && _hi_connect_overlap; then
+    _hi_ctl_close
+    return "$ec"
+  fi
+  if [ -z "$booted" ] && ! _hi_boot_call; then
     _hi_ctl_close
     return 255
   fi
@@ -1156,14 +1283,10 @@ $(_hi_overlay_stream "${overlay[@]}")"
   if [ -n "$boot_tmp" ]; then
     # what the exec said on the way in is no failure of the session's
     [ "$arm" = ssh ] || : >"$errlog"
-    # $ct is our own _hi_elapsed digits-and-a-dot, never text a target sent
-    # back, so it interpolates straight into the command line
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
     # a session that drops from here on was up (_hi_keep_connect)
     _HI_LINK_UP=1
-    # the script's status is the session's, and its word on a kept one, so it
-    # outlasts the removal - under sh, whatever the login shell
-    _hi_on_target attach "_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\"; _hi_e=\$?; rm -rf \"$boot_tmp\"; exit \$_hi_e" || ec=$?
+    _hi_on_target attach "$(_hi_attach_cmd "$boot_tmp")" || ec=$?
   elif [ -n "$why" ]; then
     [ "$arm" = ssh ] || : >"$errlog"
     _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2

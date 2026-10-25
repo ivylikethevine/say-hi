@@ -297,6 +297,20 @@ the session falls through to the PowerShell branch rather than half-landing.
 A container whose exec fails outright is not reached, and its exec's words
 are the report.
 
+Over ssh with a ControlMaster and a tty the two calls **overlap**
+(`_hi_connect_overlap`): `cp` makes the master as in series, and the session
+opens once its socket is there, which ssh makes only once authenticated,
+while `cp` is still landing the script; its command is a short stub that
+waits for it. The script stays out of every argv, where `/proc` would show it to
+other users, and the stub stays far under Dropbear's limit of about 9000
+bytes a command. The client names the directory (`hi.boot.` and 16 random
+hex digits), `cp` makes it with `mkdir -m 700`, which refuses one that
+exists, and renames the script in whole; the stub runs it only from a
+directory of this user's. Saved: about two round trips a cold connect. A
+failed probe stops the stub, a forced command's program is already the
+session and is only named, and a `MaxSessions 1` host's refusal of either
+channel is made again in series.
+
 ## HI.20 fallback rc
 
 The no-bash target's rc is consumed by sh, zsh _and_ fish (`_say_hi`'s `fish -C`
@@ -704,7 +718,10 @@ walking it with prefix/suffix removal rather than the obvious
 `${2//\'/\'\\\'\'}`: bash 3.2 — the floor, and the bash macOS ships — leaves
 the quoting of the replacement word in the result, so that spelling emits a
 word no `sh` can parse. Prefix and suffix removal answer the same on every
-bash.
+bash. They re-slice the rest of the value at every `'`, though, quadratic in
+its length and slower still in UTF-8, so a value past 512 characters goes to
+`_hi_shquote_long`, which splits on `'` with `read` under `LC_ALL=C` and joins
+the parts: 81 KB of script in about 40 ms rather than nearly a second.
 
 Everything `hi.sh` bakes into a script for the target is text the target's
 shell will parse, and some of it is data: `$DOMAIN` off argv,
@@ -1586,6 +1603,11 @@ payload (`$_HI_PAYLOAD_CUT`) and the overlay's is no member, `plugins` being a
 name no row may take. A hop taken from a target sends the session's `config/`
 as it stands, so the members that rode and their wiring arrive again, and
 nothing of that machine's home does.
+
+The reading is kept between connects, `hi.plugins.<key>` in the runtime dir,
+since parsing the tree's file was a third of a connect's client work: tagged
+lines read back with `read`, never sourced, and read afresh when a plugins
+file or `scripts/` is newer, or a plugins file comes, goes, or changes size.
 
 ## HI.64 what is switched off
 

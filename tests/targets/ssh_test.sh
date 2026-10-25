@@ -259,8 +259,8 @@ function run_ssh_tests() {
     # check after the batch. rbash forbids `/` in a command name and little
     # else; `sh` has no slash, so rbash runs hi's bootstrap unrestricted and
     # the session is a full one - asserted so COMPATIBILITY.md's row stays true.
-    # `MaxSessions 1` caps *concurrent* channels per connection; the probe's
-    # has closed before the session's opens, so the multiplexed pair fits.
+    # `MaxSessions 1` caps *concurrent* channels per connection, and the two
+    # calls overlap: whichever channel is refused is made again in series.
     # Attached `-o` forms: $_HI_SSH_RUN_ARGS is word-split, so an option and
     # its value cannot be two words.
     _hi_forced_cmd="echo $_HI_TEST_MARKER"

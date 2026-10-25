@@ -490,6 +490,65 @@ One list, in the order the work is best done. An entry is deleted once its
       runner. **Do:** dispatch it. **Ticks when:** its grammar step is green
       and the row says what its runtime step found.
 
+- [ ] **A cold connect overlaps its two channels** — shipped: over ssh
+      with a ControlMaster and a tty, the session opens once the boot call's
+      master socket is there, while the boot call is still landing the
+      script, its command a short stub that waits for the script in a 0700
+      directory the client names
+      ([HI.19](docs/GLOSSARY.md#hi19-stdin-transport)). The script stays out
+      of every argv under `/proc` and the stub under Dropbear's limit of
+      about 9000 bytes a command. Cold connects against `HEAD`
+      (`scratch/lag_ab.sh`, 16CPU/60GB, quiet, median of 6): 0.271 to 0.225 s
+      at 0 ms added to each round trip, 1.044 to 0.921 s at 50, 2.745 to
+      2.423 s at 150, against `ssh`'s 0.126, 0.631, and 1.731 s. The
+      forced-command, rbash, `maxsessions1`, Dropbear, and no-base64 shapes behave
+      as in series (`scratch/channels_cases.sh`); `maxsessions1` prints the
+      refused channel's line and reopens it. **Ticks when:** a stock Windows
+      OpenSSH host still gets the PowerShell notice, which no target here
+      can show.
+
+- [ ] **The client's plugin and overlay work is cut** — about 95 ms of
+      client work runs before the first ssh call (16CPU/60GB), all of it ahead
+      of a cold connect's handshake. Shipped: the plugins files' reading is
+      kept between connects ([HI.63](docs/GLOSSARY.md#hi63-plugins-rows)),
+      `_hi_plugins_load` answers its memo before declaring its locals, and
+      `_hi_overlay_row`'s index is built in one pass and read with one scan a
+      name. On a quiet machine the plugins load went from 18 to 3 ms and the
+      overlay listing from 45 to 33 ms, and a cold connect from a client that
+      has connected before is 10-13 ms shorter at 0, 50, and 150 ms of added
+      round trip (`scratch/lag_ab.sh`); a client's first connect ever is about
+      as much longer, writing the cache. Left: the per-member work of `_hi_plugin_off`,
+      `_hi_row_col`, `_hi_path_list`, and `_hi_prompt_row`, and the 13 ms of
+      sourcing hi's files. **Ticks when:** the client work has halved in
+      `scratch/connect_lag.sh` on a quiet machine, with `--group bench`
+      green.
+
+- [ ] **The payload rides unarmored** — the script carries its two tarballs
+      base64-armored, a third of 81 KB; on a round-trip-bound link TCP slow
+      start lands both sizes in the same number of windows, so the gain is on
+      a bandwidth-bound one, about 1.3 s at 128 kbps. **Do:** the gzipped
+      tarballs as binary after the script on the boot call's stdin, split on
+      the target by byte count. **Ticks when:** the wire size and the README
+      badge drop by the armor, and the Git Bash, BSD, and busybox targets
+      still land a session.
+
+- [ ] **`_hi_hash` forks less and loops less** — `hi.sh`'s FNV hash runs a
+      `printf` per character over the connection and cache keys on every
+      connect. **Do:** `cksum`, one POSIX fork, for keys past a length where
+      the loop costs more. **Ticks when:** the hash's share of a traced
+      connect falls, and the keys stay stable across platforms.
+
+- [ ] **`git describe` runs once per commit, not per connect** — a clone
+      stamps the header's version with it on every connect, about 5 ms.
+      **Do:** cache it keyed on `.git/HEAD` and the ref it names. **Ticks
+      when:** a warm connect from a clone runs no git.
+
+- [ ] **The target side measured on a slow box** — the header and unpack
+      took 17 ms on this machine (16CPU/60GB), which says nothing about a
+      Raspberry Pi or a busy VM. **Do:** `scratch/connect_lag.sh`'s cells on
+      a Pi-class target. **Ticks when:** this entry holds the figure, and an
+      entry exists for whatever costs more than the network does.
+
 ## Release Stages
 
 What the 1.0 tag and the releases after it wait on, in order. An entry is
