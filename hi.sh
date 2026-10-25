@@ -112,8 +112,27 @@ else
   function _hi_payload_excl() { payload_excl=(); }
   function _hi_payload_cached() { return 1; }
   function _hi_payload_tar() { _hi_tar_gz -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}"; }
-  function _hi_payload_stream() { _hi_payload_tar | $_HI_ARMOR; }
 fi
+
+# _hi_payload_file <outvar> <dir> - the tree's archive as a file: the cache
+# when warm and clean, else built into <dir>/tree.tgz, as a relay's always is.
+function _hi_payload_file() {
+  local _hi_pf_c=""
+  if _hi_payload_cached _hi_pf_c; then
+    printf -v "$1" '%s' "$_hi_pf_c"
+    return 0
+  fi
+  _hi_payload_tar >"$2/tree.tgz" || return 1
+  printf -v "$1" '%s' "$2/tree.tgz"
+}
+
+# _hi_byte_count <outvar> <file> - its size in bytes, 0 for none; `wc -c`'s
+# padding (BSD's) trimmed.
+function _hi_byte_count() {
+  local _hi_bc_n=0
+  [ -z "$2" ] || _hi_bc_n="$(wc -c <"$2")" || _hi_bc_n=0
+  printf -v "$1" '%s' "${_hi_bc_n// /}"
+}
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -594,9 +613,12 @@ function _hi_ctl_close() {
   return 0
 }
 
-# _hi_boot_probe [bytes] - the sh script the boot runs through the arm's `cp`:
-# check for base64 (or openssl), make a scratch directory, take the script
-# off stdin, check that [bytes] of it landed, say where it went.
+# _hi_boot_probe [dir] - the sh script the boot runs through the arm's `cp`:
+# check for base64 (or openssl), make a scratch directory, take what
+# _hi_boot_stream sends off stdin, check that all of it landed, split it into
+# the script and the two archives beside it, say where it went. The split is
+# `dd` on a regular file, whose read is never short, and `tail -c`, POSIX
+# both; `head -c` is not, and OpenBSD has none.
 #
 # Every path in it is the *target's*: a client-side `mktemp -u -t` would name
 # a path in the client's $TMPDIR, and a target without it would fall through
@@ -619,23 +641,26 @@ function _hi_ctl_close() {
 # (_hi_connect_overlap): made 0700 by `mkdir` under `umask 077`, which
 # refuses one that exists and, unlike `mkdir -m`, makes no chmod Git Bash
 # refuses, and the script renamed into it whole, so the stub never runs half.
-# The byte count then rides stdin's first line and [bytes] goes unused: the
-# call starts before the script is built (_hi_overlap_start).
 function _hi_boot_probe() {
-  local f='$d/bootloader' want="${1:-}"
   printf '%s\n' 'if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi'
   _hi_targz_check
   printf '%s\n' 'if [ "$z" != x ]; then exit 67; fi'
-  if [ -n "${2:-}" ]; then
-    f='$d/part' want='"$s"'
-    printf '%s\n' "d=$2" 'if ! (umask 077 && mkdir "$d") 2>/dev/null; then exit 65; fi' 'read -r s'
+  if [ -n "${1:-}" ]; then
+    printf '%s\n' "d=$1" 'if ! (umask 077 && mkdir "$d") 2>/dev/null; then exit 65; fi'
   else
     printf '%s\n' 'if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi'
   fi
-  printf 'cat > "%s" || exit 1\n' "$f"
-  [ -z "$want" ] ||
-    printf 'n=$(wc -c <"%s"); if [ "$((n))" != %s ]; then rm -rf "$d"; exit 66; fi\n' "$f" "$want"
-  [ -z "${2:-}" ] || printf 'mv "%s" "$d/bootloader"\n' "$f"
+  cat <<'PROBE'
+read -r n t o
+cat > "$d/all" || exit 1
+c=$(wc -c <"$d/all"); if [ "$((c))" != "$((n + t + o))" ] || [ "$((n))" -lt 1 ]; then rm -rf "$d"; exit 66; fi
+dd if="$d/all" of="$d/part" bs="$n" count=1 2>/dev/null
+tail -c +"$((n + 1))" "$d/all" >"$d/rest"
+if [ "$((t))" -gt 0 ]; then dd if="$d/rest" of="$d/tree.tgz" bs="$t" count=1 2>/dev/null; fi
+if [ "$((o))" -gt 0 ]; then tail -c +"$((t + 1))" "$d/rest" >"$d/overlay.tgz"; fi
+rm -f "$d/all" "$d/rest"
+mv "$d/part" "$d/bootloader"
+PROBE
   printf '%s\n' "m=0; for s in $_HI_MUXES; do if command -v \"\$s\" >/dev/null 2>&1; then m=1; fi; done" \
     'printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"'
 }
@@ -935,9 +960,9 @@ $tail
 REMOTE
 }
 
-# The disposable-tree half of the script: unpack the armored streams into a
-# fresh /tmp root. Reads $size and the streams from its caller, so _say_hi and
-# _hi_wire_bytes assemble one shape.
+# The disposable-tree half of the script: unpack the archives beside it into
+# a fresh /tmp root. Reads $size, $bootloader, and $overlay_line from its
+# caller, so _say_hi and _hi_wire_bytes assemble one shape.
 #
 # The `trap ... exit` is a backstop for bash killed by a signal nothing can
 # trap: load.sh's clean_all owns the teardown otherwise, and the trap only
@@ -971,14 +996,20 @@ $fresh
         echo "$bootloader" | $_HI_UNARMOR
       } > "\$_hi_rc_dir/hi.bashrc"
 REMOTE
-  # printf'd rather than left in the heredoc above, and that is load-bearing
-  # on Git Bash: a many-line value spliced into the middle of a heredoc line
-  # never returns there - no output, no error - while `printf` on the same
-  # bytes is instant, which is how _hi_armored_line writes the overlay's own
-  # payload line. $overlay_line carries one of those armored values itself.
-  printf '      echo "%s" | %s | tar -x -m -z -f - -C "$_HI_HOME"\n' \
-    "$tree" "$_HI_UNARMOR"
+  # the tree's archive, and the overlay's when it rides, landed beside this
+  # script by the boot probe; $0 is the script's path under `sh <file>`
+  # shellcheck disable=SC2016 # the target's to expand
+  printf '      _hi_b=${0%%/*}\n      tar -x -m -z -f "$_hi_b/tree.tgz" -C "$_HI_HOME"\n'
   printf '      %s\n%s\n      export _HI_CONNECT_PREFIX=" %s"\n' "$overlay_line" "$fi" "$size"
+}
+
+# _hi_boot_stream - the boot call's stdin: a line of the script's, the
+# tree's, and the overlay's byte counts, the script, then the two archives as
+# they are, for _hi_boot_probe to split. Reads script, bytes, tree_f,
+# tree_n, ovl_f, and ovl_n from _say_hi.
+function _hi_boot_stream() {
+  printf '%s %s %s\n%s\n' "$bytes" "$tree_n" "$ovl_n" "$script"
+  cat "$tree_f" ${ovl_f:+"$ovl_f"}
 }
 
 # The script rides stdin of the first of two calls, the arm's `cp`, and the
@@ -1012,7 +1043,7 @@ function _hi_boot_call() {
   # shellcheck disable=SC2034 # try only bounds the retry count, never read
   for try in 1 2 3; do
     boot_ec=0
-    boot_out="$(printf '%s\n' "$script" | _hi_on_target cp "$(_hi_boot_probe "$bytes")" 2>&"$boot_fd")" || boot_ec=$?
+    boot_out="$(_hi_boot_stream | _hi_on_target cp "$(_hi_boot_probe)" 2>&"$boot_fd")" || boot_ec=$?
     [ "$boot_ec" = 66 ] || break
   done
   [ "$boot_fd" != 8 ] || exec 8>&-
@@ -1079,7 +1110,7 @@ function _hi_overlap_start() {
   r="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')" || r=""
   # shellcheck disable=SC2016 # the target's to expand
   ov_d='${TMPDIR:-/tmp}/hi.boot.'"${r:-$RANDOM$RANDOM$RANDOM}"
-  _hi_on_target cp "$(_hi_boot_probe "" "$ov_d")" <"$ov_dir/in" >"$ov_dir/out" &
+  _hi_on_target cp "$(_hi_boot_probe "$ov_d")" <"$ov_dir/in" >"$ov_dir/out" &
   ov_boot=$!
 }
 
@@ -1101,7 +1132,7 @@ function _hi_overlap_start() {
 # ec, booted, boot_out, boot_ec, and boot_tmp from _say_hi.
 function _hi_connect_overlap() {
   local d="$ov_d" boot="$ov_boot" sess=""
-  printf '%s\n%s\n' "$bytes" "$script" >"$ov_dir/script" && : >"$ov_dir/ready"
+  _hi_boot_stream >"$ov_dir/script" && : >"$ov_dir/ready"
   while [ ! -S "$ctl_path" ] && kill -0 "$boot" 2>/dev/null; do sleep 0.01; done
   if [ -S "$ctl_path" ]; then
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
@@ -1113,8 +1144,6 @@ function _hi_connect_overlap() {
   boot_ec=0
   wait "$boot" || boot_ec=$?
   boot_out="$(cat "$ov_dir/out")"
-  rm -f "$ov_dir/in" "$ov_dir/out" "$ov_dir/script" "$ov_dir/ready"
-  rmdir "$ov_dir" 2>/dev/null || true
   _hi_boot_parse
   if [ -n "$boot_tmp" ] && [ -n "$sess" ]; then
     wait "$sess" || ec=$?
@@ -1237,7 +1266,7 @@ function _hi_attach_cmd() {
 function _say_hi() {
   local arm="${1:-ssh}" errlog="${2:-/dev/null}"
   local size script bytes boot_tmp ctl_path="" ctl_dir="" ctl_shared=0 ct ec=0
-  local bootloader="" tree="" overlay_line=""
+  local bootloader="" overlay_line="" wire_dir="" tree_f="" tree_n=0 ovl_f="" ovl_n=0
   local -a ctl_opts=() overlay=() retry=() probe cp attach
 
   # Asked here rather than at the pipeline that needs them: a
@@ -1275,26 +1304,41 @@ function _say_hi() {
   ) >/dev/null 2>&1 &
   local warm_bg=$!
 
-
   # the tars the script carries. The orphaned warm finishes its own atomic mv
   # after hi has moved on.
   wait "$warm_bg" 2>/dev/null || true
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
-  tree="$(_hi_payload_stream)"
-  # the overlay's own stream, omitted when empty (GLOSSARY: HI.41); a relay's
-  # rode in its tree, and only the paths of what it carried are left to fix
+  # the archives ride as files after the script (_hi_boot_stream): the
+  # caches, or builds in the overlapped boot call's directory or one of this
+  # connect's own
+  wire_dir="$ov_dir"
+  [ -n "$wire_dir" ] || wire_dir="$(mktemp -d -t hi.wire.XXXXXX)" || wire_dir=""
+  if [ -z "$wire_dir" ] || ! _hi_payload_file tree_f "$wire_dir"; then
+    _hi_fail "hi: could not pack the tree to send"
+    _hi_wire_done
+    return 1
+  fi
+  # the overlay's own archive, omitted when empty (GLOSSARY: HI.41); a
+  # relay's rode in its tree, and only the paths of what it carried are left
+  # to fix
   if ((${#overlay[@]})); then
-    overlay_line="mkdir -p \"\$_HI_ROOT/config\"
-$(_hi_overlay_stream "${overlay[@]}")"
+    if ! _hi_overlay_file ovl_f "$wire_dir" "${overlay[@]}"; then
+      _hi_fail "hi: could not pack the overlay to send"
+      _hi_wire_done
+      return 1
+    fi
+    overlay_line="$(_hi_overlay_unpack)"
   elif [ -n "$_HI_RELAY" ]; then
     overlay_line="$(_hi_overlay_fixup '"$_HI_ROOT/config"')"
   fi
+  _hi_byte_count tree_n "$tree_f"
+  _hi_byte_count ovl_n "$ovl_f"
   size="$_HI_SIZE_TOKEN"
   _hi_remote_script script
 
   # the true byte count, substituted for the token (GLOSSARY: HI.44), and
   # what the boot checks landed: the script and printf's newline
-  _hi_human_bytes "${#script}" size
+  _hi_human_bytes "$((${#script} + tree_n + ovl_n))" size
   script="${script//$_HI_SIZE_TOKEN/$size}"
   bytes="$(printf '%s\n' "$script" | wc -c)"
   bytes="${bytes// /}"
@@ -1304,10 +1348,12 @@ $(_hi_overlay_stream "${overlay[@]}")"
   local boot_out="" boot_ec=0 booted=""
   if [ -n "$ov_dir" ] && _hi_connect_overlap; then
     _hi_ctl_close
+    _hi_wire_done
     return "$ec"
   fi
   if [ -z "$booted" ] && ! _hi_boot_call; then
     _hi_ctl_close
+    _hi_wire_done
     return 255
   fi
 
@@ -1340,7 +1386,18 @@ $(_hi_overlay_stream "${overlay[@]}")"
   fi
 
   _hi_ctl_close
+  _hi_wire_done
   return "$ec"
+}
+
+# _hi_wire_done - what _say_hi built to send, removed with its directory:
+# the overlapped boot call's files and any archive the caches did not hold.
+function _hi_wire_done() {
+  [ -n "$wire_dir" ] || wire_dir="$ov_dir"
+  [ -n "$wire_dir" ] || return 0
+  rm -f "$wire_dir/in" "$wire_dir/out" "$wire_dir/script" "$wire_dir/ready" \
+    "$wire_dir/tree.tgz" "$wire_dir/overlay.tgz"
+  rmdir "$wire_dir" 2>/dev/null || :
 }
 
 # The no-bash fallback, probed and validated: the answer is a word read back

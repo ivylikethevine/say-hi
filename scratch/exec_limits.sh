@@ -33,7 +33,7 @@ docker run -d --name "hi-exec-openssh-$$" -p 127.0.0.1::22 -e PUBKEY="$pub" hi-e
 
 # Dropbear on Alpine, key auth for one user
 names+=("hi-exec-dropbear-$$")
-docker run -d --name "hi-exec-dropbear-$$" -p 127.0.0.1::22 -e PUBKEY="$pub" alpine:3.22 sh -c '
+docker run -d --name "hi-exec-dropbear-$$" -p 127.0.0.1::22 -e PUBKEY="$pub" alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 sh -c '
   apk add -q dropbear >/dev/null &&
   adduser -D -s /bin/sh hitest && passwd -u hitest >/dev/null 2>&1;
   mkdir -p /home/hitest/.ssh && printf "%s\n" "$PUBKEY" >/home/hitest/.ssh/authorized_keys &&

@@ -376,7 +376,8 @@ That directory is `$_HI_HOME` and `$_HI_CLEANUP`. Inside it:
 | `say-hi/.hi_fallback_rc`, `say-hi/.zshrc` | on a target without bash: the aliases-and-prompt rc `$ENV` or `ZDOTDIR` points at |
 | `hi.rc.XXXXXX/`                           | the session rc directory, below                                                   |
 
-Every arm also lands its bootloader in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
+Every arm also lands its bootloader, with the tree's and the overlay's
+archives beside it, in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
 the `XXXXXX` 16 hex digits of the client's over ssh, removed when the
 session ends. A read-only root works when `$TMPDIR`
 names a writable mount; with nowhere writable, hi says so and hands over the

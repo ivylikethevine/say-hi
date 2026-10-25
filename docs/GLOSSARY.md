@@ -279,9 +279,12 @@ of a container's execs), never as an argument: Linux caps a _single_ argv
 entry at 128KB (`MAX_ARG_STRLEN`) however large `ARG_MAX` is — a hard ceiling
 on payload growth that stdin does not have. Two calls because the second's
 stdin, the arm's `attach`, belongs to the interactive session. The script goes as
-plain text and is `cat` into place; only the streams _inside_ it are armored —
-armoring the whole script spent a third of every session's bytes re-encoding
-ASCII.
+plain text, and the tree's and the overlay's archives go after it as they are
+(`_hi_boot_stream`), behind a line of the three byte counts: the probe lands
+the whole, checks its size, and splits it with `dd` and `tail -c`, and the
+script unpacks the archives from beside itself. Armored inside the script,
+they spent a third of every session's bytes on base64; only the bootloader and
+a few rc lines still are, so `base64` or `openssl` is still asked for.
 
 The write doubles as the probe (`_hi_boot_probe`), and `_hi_boot_why` reads
 its status: the directory came back and the session runs; `sh` ran but found
@@ -843,13 +846,14 @@ than decline it.
 The connect line prints the size of the script the session sent, but the script
 cannot know its own size while being assembled. `_say_hi` (`hi.sh`) builds it
 with `$_HI_SIZE_TOKEN` (`@@SIZE@@`, wider than any figure) standing in, measures
-`${#script}`, and substitutes the human figure back — honest to a few bytes,
-since the streams inside are already armored and the script goes over the wire
-as it stands. `_hi_wire_bytes` — what `hi --doctor` and the README badge quote —
-assembles the same script through the same `_hi_remote_script`, from the same
-payload cache `_say_hi` reads, rather than summing the armored streams: summing
-skips the boilerplate around them and reads ~6KB low, and a badge has to show
-the number the user sees. No overlay is counted, since which files ride is a
+`${#script}` and the archives that ride after it, and substitutes the human
+figure back — honest to a few bytes, since what goes over the wire is the
+script as it stands and the archives as their files hold them.
+`_hi_wire_bytes` — what `hi --doctor` and the README badge quote — assembles
+the same script through the same `_hi_remote_script`, from the same payload
+cache `_say_hi` reads, and adds the tree's archive and the count line, rather
+than summing the streams alone: summing skips the boilerplate around them and
+reads ~6KB low, and a badge has to show the number the user sees. No overlay is counted, since which files ride is a
 question about a target - and none of the tree defaults one would shadow is cut
 (HI.41), so the figure is the stock tree's on any client.
 

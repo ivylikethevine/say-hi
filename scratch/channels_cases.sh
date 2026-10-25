@@ -55,7 +55,7 @@ target forced -e SSHD_OPTS=-oForceCommand=/usr/bin/id hi-chan-sshd
 target maxsessions1 -e SSHD_OPTS=-oMaxSessions=1 hi-chan-sshd
 target rbash hi-chan-sshd
 target nobase64 hi-chan-sshd
-target dropbear alpine:3.22 sh -c '
+target dropbear alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 sh -c '
   apk add -q dropbear bash procps >/dev/null &&
   adduser -D -s /bin/bash hitest && passwd -u hitest >/dev/null 2>&1;
   mkdir -p /home/hitest/.ssh && printf "%s\n" "$PUBKEY" >/home/hitest/.ssh/authorized_keys &&

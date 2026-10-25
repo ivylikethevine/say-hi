@@ -252,7 +252,7 @@ echo 'a b'" ] || _hi_why out
 # color escapes, so they are not part of the contract.
 function _hi_ds_middle() {
   local size="54 KB"
-  local bootloader="Ym9vdA==" tree="dHJlZQ==" overlay_line="${1:-}"
+  local bootloader="Ym9vdA==" overlay_line="${1:-}"
   _hi_remote_middle
 }
 

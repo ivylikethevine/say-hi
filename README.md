@@ -10,7 +10,7 @@ none of them, and what hi put there is removed when it ends. Nothing is
 installed on the host. The same command opens a session in a container, a
 Nomad allocation, or a Kubernetes pod.
 
-![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-63KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -526,14 +526,14 @@ One list, in the order the work is best done. An entry is deleted once its
       has halved in `scratch/connect_lag.sh` on a quiet machine, with
       `--group bench` green.
 
-- [ ] **The payload rides unarmored** — the script carries its two tarballs
-      base64-armored, a third of 81 KB; on a round-trip-bound link TCP slow
-      start lands both sizes in the same number of windows, so the gain is on
-      a bandwidth-bound one, about 1.3 s at 128 kbps. **Do:** the gzipped
-      tarballs as binary after the script on the boot call's stdin, split on
-      the target by byte count. **Ticks when:** the wire size and the README
-      badge drop by the armor, and the Git Bash, BSD, and busybox targets
-      still land a session.
+- [ ] **The payload rides unarmored** — shipped: the tree's and the
+      overlay's archives go after the script on the boot call's stdin as they
+      are, behind a line of the byte counts, and the probe splits them out
+      with `dd` and `tail -c` ([HI.19](docs/GLOSSARY.md#hi19-stdin-transport));
+      the wire size went from 82 KB to 63 KB. On a round-trip-bound link both
+      sizes still cost the same windows; the gain is on a bandwidth-bound
+      one, about 1.3 s at 128 kbps. **Ticks when:** the Git Bash, BSD, and
+      busybox jobs land a session with it, which no target here can show.
 
 - [ ] **`_hi_hash` forks less and loops less** — `hi.sh`'s FNV hash runs a
       `printf` per character over the connection and cache keys on every
@@ -582,8 +582,8 @@ One list, in the order the work is best done. An entry is deleted once its
       files, the fish and zsh files, and `keep.sh`, the tree is 29.4 KB
       gzipped against 56.6 KB. **Do:** the core members first on the boot
       call's stdin and the rest after, the stub starting once the core is
-      in while the rest lands behind it; with the payload unarmored, the
-      core's script is about 35 KB. **Ticks when:** a cold connect is a
+      in while the rest lands behind it; unarmored, the core's script is
+      about 35 KB. **Ticks when:** a cold connect is a
       round trip shorter at 150 ms added, with nothing dropped from the
       tree, and the relay, fish, zsh, and kept-session suites pass.
 

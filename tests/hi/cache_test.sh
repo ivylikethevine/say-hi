@@ -299,31 +299,36 @@ function test_overlay_cached_keys_the_file_by_member_list() {
 }
 
 # ---------------------------------------------------------------------------
-# _hi_overlay_stream / _hi_payload_stream
+# _hi_overlay_file / _hi_payload_file
 # ---------------------------------------------------------------------------
 
-# both arms have to emit the same *shape* of armored line, whichever answered:
-# the caller bakes the result into the wire script and cannot tell them apart
-function test_overlay_stream_emits_an_armored_line_either_way() {
-  local dir warm cold
-  dir="$(_hi_cache_rt os.line)"
-  warm="$(XDG_RUNTIME_DIR="$dir" _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
-  cold="$(XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
-  case "$warm" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) _hi_why warm || return 1 ;; esac
-  case "$cold" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) _hi_why cold || return 1 ;; esac
+# the cache when it answers, a build into the caller's directory when it is
+# off, and the same members either way (sorted - two staging dirs need not
+# list alike): the boot call sends whichever file it is handed
+function test_overlay_file_is_the_cache_or_a_build() {
+  local dir w="$_HI_WORKDIR/of.build" warm="" cold="" a b
+  dir="$(_hi_cache_rt of.either)"
+  mkdir -p "$w"
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_file warm "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_overlay_file cold "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why w || return 1
+  [[ "$warm" == "$dir/hi.overlay."* ]] && [ "$cold" = "$w/overlay.tgz" ] || _hi_why warm cold || return 1
+  a="$(tar tzf "$warm" | sort)"
+  b="$(tar tzf "$cold" | sort)"
+  [ -n "$a" ] && [ "$a" = "$b" ] || _hi_why a b
 }
 
 # a warm cache is the same bytes twice: gzip stamps an mtime, so two *fresh*
-# builds would not be, and reading the file back is what makes a repeat
+# builds would not be, and handing the file back is what makes a repeat
 # connect byte-identical
-function test_overlay_stream_is_byte_identical_off_a_warm_cache() {
-  local dir a b out=""
-  dir="$(_hi_cache_rt os.same)"
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir _HI_CACHE_MEMBERS || return 1
-  touch -t 203001010000 "$out"
-  a="$(XDG_RUNTIME_DIR="$dir" _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
-  b="$(XDG_RUNTIME_DIR="$dir" _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
-  [ -n "$a" ] && [ "$a" = "$b" ] || _hi_why a b
+function test_overlay_file_is_byte_identical_off_a_warm_cache() {
+  local dir w="$_HI_WORKDIR/of.same" a="" b=""
+  dir="$(_hi_cache_rt of.same)"
+  mkdir -p "$w"
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_file a "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  touch -t 203001010000 "$a"
+  cp "$a" "$w/first"
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_file b "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  { [ "$a" = "$b" ] && cmp -s "$w/first" "$b"; } || _hi_why a b
 }
 
 function test_payload_cached_builds_cold_then_reuses_it() {
@@ -382,25 +387,29 @@ function test_payload_cached_is_off_when_the_toggle_is_zero() {
   ! XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_cached out || _hi_why dir
 }
 
-function test_payload_stream_is_byte_identical_off_a_warm_cache() {
-  local dir a b out=""
-  dir="$(_hi_cache_rt ps.same)"
-  XDG_RUNTIME_DIR="$dir" _hi_payload_cached out || _hi_why dir || return 1
-  touch -t 203001010000 "$out"
-  a="$(XDG_RUNTIME_DIR="$dir" _hi_payload_stream)"
-  b="$(XDG_RUNTIME_DIR="$dir" _hi_payload_stream)"
-  [ -n "$a" ] && [ "$a" = "$b" ] || _hi_why a b
+function test_payload_file_is_byte_identical_off_a_warm_cache() {
+  local dir w="$_HI_WORKDIR/pf.same" a="" b=""
+  dir="$(_hi_cache_rt pf.same)"
+  mkdir -p "$w"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_file a "$w" || _hi_why dir || return 1
+  touch -t 203001010000 "$a"
+  cp "$a" "$w/first"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_file b "$w" || _hi_why dir || return 1
+  { [ "$a" = "$b" ] && cmp -s "$w/first" "$b"; } || _hi_why a b
 }
 
-# ...and with the cache off it armors a fresh build instead: through the
-# target's own unarmor, the same members either way (sorted - two staging
-# dirs need not list alike)
-function test_payload_stream_is_the_same_tree_with_the_cache_off() {
-  local dir warm cold
-  dir="$(_hi_cache_rt ps.off)"
-  warm="$(XDG_RUNTIME_DIR="$dir" _hi_payload_stream | eval "$_HI_UNARMOR" | tar tzf - | sort)"
-  cold="$(XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_stream | eval "$_HI_UNARMOR" | tar tzf - | sort)"
-  [ -n "$cold" ] && [ "$cold" = "$warm" ] || _hi_why cold warm
+# ...and with the cache off it builds into the caller's directory instead,
+# the same members either way
+function test_payload_file_is_the_same_tree_with_the_cache_off() {
+  local dir w="$_HI_WORKDIR/pf.off" warm="" cold="" a b
+  dir="$(_hi_cache_rt pf.off)"
+  mkdir -p "$w"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_file warm "$w" || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_file cold "$w" || _hi_why w || return 1
+  [ "$cold" = "$w/tree.tgz" ] || _hi_why cold || return 1
+  a="$(tar tzf "$warm" | sort)"
+  b="$(tar tzf "$cold" | sort)"
+  [ -n "$b" ] && [ "$a" = "$b" ] || _hi_why a b
 }
 
 # ---------------------------------------------------------------------------
@@ -860,15 +869,15 @@ function run_cache_tests() {
   _hi_check "Keys the file by member list" test_overlay_cached_keys_the_file_by_member_list
 
   _hi_h2 "Testing: the streams and the payload cache"
-  _hi_check "Overlay stream is armored either way" test_overlay_stream_emits_an_armored_line_either_way
-  _hi_check "Overlay stream is byte-identical off a warm cache" test_overlay_stream_is_byte_identical_off_a_warm_cache
+  _hi_check "Overlay file is the cache, or a build with it off" test_overlay_file_is_the_cache_or_a_build
+  _hi_check "Overlay file is byte-identical off a warm cache" test_overlay_file_is_byte_identical_off_a_warm_cache
   _hi_check "Payload cache builds cold then reuses it" test_payload_cached_builds_cold_then_reuses_it
   _hi_check "Payload cache is keyed on what the overlay cut" test_payload_cached_is_keyed_on_the_cut_list
   _hi_check_capable symlink "Payload cache is keyed on the tree" test_payload_cached_is_keyed_on_the_tree
   _hi_check "Payload cache rebuilds on a newer source file" test_payload_cached_rebuilds_when_a_source_file_is_newer
   _hi_check "Payload cache off when _HI_PAYLOAD_CACHE=0" test_payload_cached_is_off_when_the_toggle_is_zero
-  _hi_check "Payload stream is byte-identical off a warm cache" test_payload_stream_is_byte_identical_off_a_warm_cache
-  _hi_check "Payload stream is the same tree with the cache off" test_payload_stream_is_the_same_tree_with_the_cache_off
+  _hi_check "Payload file is byte-identical off a warm cache" test_payload_file_is_byte_identical_off_a_warm_cache
+  _hi_check "Payload file is the same tree with the cache off" test_payload_file_is_the_same_tree_with_the_cache_off
 
   _hi_h2 "Testing: _hi_ctl_open / _hi_ctl_close"
   _hi_check "Shared uses the runtime dir" test_ctl_open_shared_uses_the_runtime_dir
