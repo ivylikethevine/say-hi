@@ -196,8 +196,8 @@ membership) - `ci` above, and:
   the package repository with throwaway keys and installs from it as apt, dnf,
   and apk clients, signatures verified, and `home_prompt` installs hi over
   each distro's stock `/etc/skel` rc to check which prompt wins at home.
-- **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
-  need extra runner setup.
+- **`backends`** — `podman`, `nerdctl`, `nomad`, `kube`: split from `e2e`
+  because they need extra runner setup.
 
 `bench`, `e2e`, and `backends` always run one suite at a time: the bench
 measures, and the other two contend on one container daemon.
@@ -238,7 +238,7 @@ nothing else ([HI.34](GLOSSARY.md#hi34-test-suite-preamble)).
 ### The container suites run their cases in parallel
 
 `ssh`, `ssh_relay`, `ssh_keep`, `install_methods`, `docker`, `podman`,
-`framework`, and `kube` spend nearly all their wall clock waiting on
+`nerdctl`, `framework`, and `kube` spend nearly all their wall clock waiting on
 containers, so their cases run in batches: `_hi_par_case` (`tests/lib/parallel.sh`) submits a case
 to a background subshell, `_hi_par_wait` collects the batch. Each case writes
 its verdict to a file the parent tallies, registers what it started on a
@@ -311,7 +311,10 @@ and the PR comment flags an average below it without failing anything. Both
 sweeps pin `_HI_PAR_WIDTH=1`, since a batch writing into a suite's one trace
 stream side by side loses lines, and both put a bash-as-`sh` first on their own
 `PATH`: neither tracer follows a dash child, so a `#!/bin/sh` file a suite
-executes as `sh …` (`common/targets.sh`) would read 0% where `/bin/sh` is dash.
+executes as `sh …` (`common/targets.sh`, `common/mux.sh`) would read 0% where
+`/bin/sh` is dash. It is a script rather than a link, since bash started as
+`sh` reads no `$BASH_ENV`, which is how kcov's `PS4` method traces a child: it
+switches kcov's trace on itself.
 
 Both report one subject: every tracked `*.sh` file outside `tests/`, `docs/`,
 `scratch/`, and `.github/` (`_HI_COV_NOT_SUBJECT` in `tests/lib/coverage.sh`),
@@ -352,7 +355,19 @@ Git Bash on arm64) and `_HI_SHARD_BY=e2e` (`$_HI_TEST_COSTS_E2E`);
   suites as load-time-only, and `DEBUG` never follows a suite into a child
   bash, which reads every script run through `hi.sh` as 0. So `PS4` before
   5.3 and `DEBUG` from it; the script's header keeps the probe to re-run if
-  the badges diverge. **`kcov --merge` re-reads the
+  the badges diverge. Under that `PS4` method `tests/test_lib.sh` sources
+  `tests/lib/kcov_env.sh`, which swaps kcov's `PS4` for one of hi's own, in
+  the suite and, through a `$BASH_ENV` of its own, in every bash child. kcov's
+  named a bare `${BASH_SOURCE}`, which killed a `set -u` child at a
+  `bash -c`'s top level, and printed each command on its record's line, where
+  kcov 43 counts quotes to follow a string across lines: an array literal
+  with an apostrophe in an element (`scripts/configure.sh`'s presets) left it
+  inside a string, and every later record of that process was lost. hi's ends
+  the record at the line number and puts the command on a `hi-xtrace:` line
+  of its own, which `tests/coverage.sh` drops from kcov's output. kcov still
+  reads a multi-line `awk '…'` program (the converters in
+  `scripts/convert_settings.sh`) as bash lines no trace can reach, so such a
+  file reads far under bashcov's figure. **`kcov --merge` re-reads the
   sources** at the absolute paths each shard recorded, so a merge with no
   working tree yields `"files": []` and a well-formed `0.00%` badge, not an
   error. `coverage.yml`'s `gather-kcov` checks the tree out before calling
@@ -484,7 +499,7 @@ build arg), `framework` for the thirteen shell frameworks and tools (the
 framework a build arg naming a script under `frameworks/`), `apt-client` for
 the `repo` suite's apt subscriber (openssh-client preinstalled, no Ubuntu
 archive in its sources, so the cases fetch from the repository under test
-alone), and `fish34`, `fish4`, `zsh55`, and `timep` for the lint gate and the
+alone), and `fish33`, `fish4`, `zsh55`, and `timep` for the lint gate and the
 profiler. Only the _build context_ is generated per case: the `entrypoint.sh`,
 and for the pre-installed cases the repo itself. Suites reach a file through
 `_hi_dockerfile <stem>`; variants differing only by a package list or base
@@ -578,9 +593,10 @@ image no longer carries the version the check claims.
 - **2. Native syntax checks**: `zsh -n` / `fish --no-execute` over the files
   those shells parse for themselves, with whatever `zsh` and `fish` this
   machine has.
-- **3. The fish 3.4 floor**: the same files in a pinned fish 3.4.1
-  (`tests/dockerfiles/fish34.Dockerfile`, oh-my-fish's prebuilt image), since
-  newer fish accepts constructs older fish rejects. The one it caught: a
+- **3. The fish 3.3 floor**: the same files in a pinned fish 3.3.1
+  (`tests/dockerfiles/fish33.Dockerfile`, oh-my-fish's prebuilt image), since
+  newer fish accepts constructs older fish rejects. It has caught a `$( )`,
+  which fish before 3.4 refuses anywhere in a file, and a
   `{ ... }` group in `common/paths.sh`, a brace expansion before fish 4, which
   refuses a comment inside one with "Mismatched braces" and fails even a clean
   one at run time. So `paths.sh` is also sourced there with
@@ -627,7 +643,7 @@ skipping yellow when its tool isn't installed (CI has all eight):
   it names.
 
 **`drift`** (`tests/lint/drift_test.sh`, and `drift_docs_test.sh` for the five
-over the docs: 19, 20, 23, 24, 25) — sixteen repo-consistency sweeps, each
+over the docs: 19, 20, 23, 24, 25) — seventeen repo-consistency sweeps, each
 checking that something written down elsewhere still agrees with the tree:
 
 - **14. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs,
@@ -691,6 +707,10 @@ checking that something written down elsewhere still agrees with the tree:
   count of its kin (a `source` of a path in a variable, a shell's `-c`, a
   recursive `rm`) matches its row; a row nothing matches fails too, so the
   roster only counts down.
+- **32. mise.toml**: every `[tools]` version is its home's pin
+  (`tools.txt`'s row, `ci.yml`'s `node-version`, `coverage.yml`'s
+  `BASHCOV_VERSION`, `demos.yml`'s vhs `version:`), and every `tools.txt` row
+  is a `[tools]` key or named on the file's `apt:` line.
 
 ## Test levers
 

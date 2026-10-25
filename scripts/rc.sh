@@ -437,14 +437,14 @@ function rc_lines() {
   esac
   case "$3" in
   fish)
-    # fish before 3.4 cannot parse hi's config.fish: one line saying so
+    # fish before 3.3 cannot run hi's config.fish: one line saying so
     # rather than a parse error on every start
     # shellcheck disable=SC2016 # $version is fish's, read at its start
     printf '%s\n' "if status is-interactive; and test -r \"$rc\"" \
-      "  if string match -qr '^([4-9]|3\.([4-9]|[1-9][0-9]))\.' -- \$version" \
+      "  if string match -qr '^([4-9]|3\.([3-9]|[1-9][0-9]))\.' -- \$version" \
       "    source \"$rc\"" \
       '  else' \
-      '    echo "hi needs fish 3.4 or newer (this is $version); not loaded" >&2' \
+      '    echo "hi needs fish 3.3 or newer (this is $version); not loaded" >&2' \
       '  end' \
       'end'
     ;;

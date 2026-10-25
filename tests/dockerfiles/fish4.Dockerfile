@@ -1,13 +1,13 @@
 # The fish *ceiling*: 4.x, which is what Ubuntu 26.04 ships. Nothing is
 # installed on top and no entrypoint is set - this image exists to run
 # `fish --no-execute` over the three files fish parses for itself, and nothing
-# else. The other end of the pair from fish34.Dockerfile, the floor.
+# else. The other end of the pair from fish33.Dockerfile, the floor.
 #
 # CI's own runners are Ubuntu 24.04, so lint_native (whatever fish this
 # machine has) sees fish 3.7 and the floor 3.4, and nothing else in CI ever
 # parses these files under fish 4. This image closes that gap: it is the
 # opposite guard, catching a construct fish 3 accepts that fish 4 rejects or
-# has removed, the same way fish34.Dockerfile catches the other direction (see
+# has removed, the same way fish33.Dockerfile catches the other direction (see
 # its header for the brace-comment case). Bumping this
 # image bumps the ceiling - do it deliberately, and expect the half to start
 # rejecting constructs the version behind it accepts.

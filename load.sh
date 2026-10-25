@@ -158,13 +158,14 @@ function _hi_login_shell() {
   _hi_out "${1:-}" "${shell##*/}"
 }
 
-# fish before 3.4 cannot parse config.fish (a top-level `return`, and
-# aliases.sh's `$( )`), so a target with one gets the next shell down. A
-# version that will not read counts as new enough.
+# fish before 3.3 cannot run config.fish: 3.2 has no `--no-config` for its
+# parse gate, and 3.1's `-n` refuses every `export NAME=value`, so a target
+# with one gets the next shell down. A version that will not read counts as
+# new enough.
 function _hi_fish_new_enough() {
   local v
   v="$(fish --version 2>/dev/null)" || return 0
-  case "${v##* }" in [0-2].* | 3.[0-3] | 3.[0-3].*) return 1 ;; esac
+  case "${v##* }" in [0-2].* | 3.[0-2] | 3.[0-2].*) return 1 ;; esac
   return 0
 }
 

@@ -41,8 +41,9 @@ _HI_BASH32_LINT=(
 
 # Spellings one userland has and another does not, as "<pattern>|<what it
 # is>": the enforced rows of docs/SYNTAX.md, which says what to write instead
-# and which target each one broke. A spelling that needs a judgement call (a
-# `grep -q` under pipefail, sed's `\|`) is a SYNTAX row without a pattern.
+# and which target each one broke. A spelling that needs a judgement call
+# (sed's `\|`) is a SYNTAX row without a pattern; `grep -q` under pipefail is
+# lint_portable_pairs' below, since it needs the file's strict-mode line too.
 # shellcheck disable=SC2016 # these are regexes and prose, not expansions
 _HI_PORTABLE_LINT=(
   '\becho[[:space:]]+-e\b|echo -e - dash and a POSIX-mode sh print the -e; use printf'
@@ -182,15 +183,19 @@ function lint_portable() {
     _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "one-userland spelling" "${_HI_PORTABLE_LINT[@]}"
 }
 
-# docs/SYNTAX.md's two rows a single pattern cannot see. `stat -c` (GNU) is
+# docs/SYNTAX.md's three rows a single pattern cannot see. `stat -c` (GNU) is
 # fine beside its BSD twin `stat -f` on the same line, and nowhere else. A
 # file an interactive shell sources that turns strict mode on must turn it off
 # again further down (`set +euo pipefail` or `_hi_opts_restore`), or the user's
-# shell dies on its next non-zero status (GLOSSARY: HI.15).
+# shell dies on its next non-zero status (GLOSSARY: HI.15). And a pipe into
+# `grep -q` is fine until the file sets pipefail: then grep's early exit
+# SIGPIPEs the writer and the pipeline reads 141. Shipped files and scripts
+# only - the suites' probes are short strings, and their 170-odd pipes are
+# tests/' own to clean.
 function lint_portable_pairs() {
   local f hits bad=0
   _hi_h2 "Checking the paired spellings (docs/SYNTAX.md)"
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 2))
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 3))
   hits="$(cd "$_HI_ROOT" && grep -rnE --include='*.sh' '\bstat[[:space:]]+-c\b' . "${_HI_LINT_NOT_OUTPUT[@]}" --exclude-dir=.git 2>/dev/null |
     grep -v ':[[:space:]]*#' | grep -vE '\bstat[[:space:]]+-f\b' || true)"
   if [ -z "$hits" ]; then
@@ -212,6 +217,21 @@ function lint_portable_pairs() {
   else
     _hi_align " | strict mode left on in a sourced file: $hits" "FOUND" "$RED"
     _hi_note_failure "strict mode left on (HI.15): $hits"
+    bad=$((bad + 1))
+  fi
+  # the files that set pipefail, then the pipes into grep -q in them; `||`
+  # before the grep is an alternative, not a pipe, so the bar wants a
+  # non-bar before it
+  hits="$(cd "$_HI_ROOT" && grep -rlE --include='*.sh' 'set -(euo|o) pipefail' . "${_HI_LINT_NOT_OUTPUT[@]}" \
+    --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=scratch --exclude-dir=tests 2>/dev/null |
+    xargs grep -nHE '[^|]\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*q[A-Za-z]*([[:space:]]|$)' 2>/dev/null |
+    grep -v ':[[:space:]]*#' | sed 's|^\./||' || true)"
+  if [ -z "$hits" ]; then
+    _hi_align " | no pipe into grep -q under pipefail" "OK" "$GREEN"
+  else
+    _hi_align " | a pipe into grep -q under pipefail (SIGPIPE on OpenBSD)" "FOUND" "$RED"
+    printf '%s\n' "$hits" | sed 's/^/      /'
+    _hi_note_failure "one-userland spelling: a pipe into grep -q under pipefail"
     bad=$((bad + 1))
   fi
   return "$bad"
@@ -413,6 +433,67 @@ function lint_container_family() {
       _hi_align " | common/targets.sh: $targets" "OK" "$GREEN"
     fi
   fi
+  return "$bad"
+}
+
+# mise.toml's [tools] versions are copies of pins whose home is elsewhere, and
+# a bump to the home alone would leave `mise install` handing a developer a
+# tool CI does not run. Each tools.txt row is a [tools] key at its pin (bare,
+# or the tail of an `aqua:<owner>/<name>` key) or named on the file's `apt:`
+# comment line, so a new pin cannot skip the dev setup either; node, bashcov,
+# and vhs are checked against the workflow line that pins each.
+function _hi_mise_tool() {
+  local k v
+  while IFS='=' read -r k v; do
+    case "$k" in "$1" | aqua:*/"$1" | gem:"$1") printf '%s' "$v" && return 0 ;; esac
+  done <<<"$_HI_MISE_TOOLS"
+  return 1
+}
+
+function _hi_lint_mise_pin() {
+  local name="$1" want="$2" home="$3" got
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if ! got="$(_hi_mise_tool "$name")"; then
+    case "$_HI_MISE_APT" in
+    *" $name "*)
+      _hi_align " | $name: apt, not mise ($home pins $want)" "OK" "$GREEN" && return 0
+      ;;
+    esac
+    _hi_lint_fail " | $name: $home pins $want, and mise.toml neither lists it nor names it on its apt: line" \
+      "mise.toml: $name missing (add it at $want, or to the apt: line)"
+  elif [ "$got" = "$want" ]; then
+    _hi_align " | $name $got ($home)" "OK" "$GREEN" && return 0
+  else
+    _hi_lint_fail " | $name: mise.toml has $got, $home pins $want" "mise.toml: $name $got is not $home's $want"
+  fi
+  return 1
+}
+
+function lint_mise() {
+  local file="$_HI_ROOT/mise.toml" wf="$_HI_ROOT/.github/workflows" line k v in=0 name pin bad=0
+  _hi_h2 "Checking mise.toml against the pins it copies"
+  _HI_MISE_TOOLS="" _HI_MISE_APT=" "
+  while IFS= read -r line; do
+    case "$line" in
+    '[tools]') in=1 && continue ;;
+    '['*) in=0 && continue ;;
+    '#'*'apt:'*) _HI_MISE_APT=" ${line#*apt:} " && continue ;;
+    '' | '#'*) continue ;;
+    esac
+    [ "$in" = 1 ] || continue
+    k="${line%% = *}" v="${line#* = }"
+    k="${k#\"}" v="${v#\"}"
+    _HI_MISE_TOOLS="$_HI_MISE_TOOLS${k%\"}=${v%%\"*}
+"
+  done <"$file"
+  while IFS='|' read -r name pin _; do
+    case "$name" in '' | '#'*) continue ;; esac
+    _hi_lint_mise_pin "$name" "$pin" tools.txt || bad=$((bad + 1))
+  done <"$_HI_ROOT/.github/actions/setup-tool/tools.txt"
+  _hi_lint_mise_pin node "$(sed -n 's/^ *node-version: "\([0-9.]*\)".*/\1/p' "$wf/ci.yml")" ci.yml || bad=$((bad + 1))
+  _hi_lint_mise_pin bashcov "$(sed -n 's/^ *BASHCOV_VERSION: "\([0-9.]*\)".*/\1/p' "$wf/coverage.yml")" coverage.yml ||
+    bad=$((bad + 1))
+  _hi_lint_mise_pin vhs "$(sed -n 's/^ *version: v\([0-9.]*\)$/\1/p' "$wf/demos.yml")" demos.yml || bad=$((bad + 1))
   return "$bad"
 }
 
@@ -786,7 +867,7 @@ function run_drift() {
 
   _hi_lint_halves lint_bash32 lint_portable lint_portable_pairs lint_home_default lint_ignored_payload \
     lint_container_family lint_runtime_dir lint_eval_roster lint_dockerfiles lint_image_tags \
-    lint_image_digests lint_case_reasons
+    lint_image_digests lint_case_reasons lint_mise
   _hi_lint_suite_end
 }
 

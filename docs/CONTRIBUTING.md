@@ -49,6 +49,10 @@ tests/test_runner.sh --group fast
 tests/test_runner.sh --group lint
 ```
 
+`mise install` puts the lint group's tools on `PATH` at CI's pins
+(`mise.toml`; its header names the three it leaves to apt), and
+`mise run gate` runs both groups with any inherited `_HI_*` cleared.
+
 CI runs both on every push; both should be green before you open the pull
 request. If your change touches an ssh or container path, run the `e2e` or
 `backends` group too and say in the pull request whether it ran or stood down.
@@ -188,9 +192,9 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The twenty-four flags in `common/flags`** — name, argument shape, and what
-  each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
-  or removed. Anything hi does not answer still passes to `ssh`.
+- **Every flag row in `common/flags`** — name, argument shape, and what each
+  needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed or
+  removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
   taking nothing after them; `--option=value` for every option whose first
   argument is a word (`--use`, `--preview`, `--update`), refused on the rest;
@@ -264,11 +268,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 Versioning is semver: a fix is a patch, an addition a minor, a break to the
 list above a major. Not covered: the exact header and prompt text, colors,
 completion ordering, the wording of any message or report row, `hi_info`,
-the test levers [SETTINGS.md](SETTINGS.md#not-settings) lists, the `exa`
-alias name and its `_HI_EXA_OPTS` row (exa has been archived since 2023; the
-`ls`/`eza` names and the `_HI_LS_*` rows are the contract, and the exa half
-may leave in a minor), and anything under `tests/` or `scripts/` a package
-does not ship.
+the test levers [SETTINGS.md](SETTINGS.md#not-settings) lists, and anything
+under `tests/` or `scripts/` a package does not ship.
 
 ## Which docs change with what
 

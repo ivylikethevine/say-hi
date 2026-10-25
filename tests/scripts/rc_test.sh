@@ -390,6 +390,13 @@ function test_rc_home_names_a_keg_through_opt() {
   [ "$out" = "set -gx _HI_HOME \"$opt\"
 export _HI_HOME=\"$opt\"
 [ -r \"$opt/say-hi/common/zsh.zsh\" ] && source \"$opt/say-hi/common/zsh.zsh\"" ] || _hi_because "the current keg ($keg): $out" || return 1
+  # a tree at the keg's own root, no libexec/ under it: the opt link itself
+  keg="$brew/Cellar/say-hi/1.2.3"
+  out="$(_hi_rc_out "$home" _HI_RC_PRELUDE='keg_line() {
+      _HI_HOME="$1"
+      tmpdir_line sh
+    }' -- keg_line "$keg")" || _hi_why home keg || return 1
+  [ "$out" = "export _HI_HOME=\"$brew/opt/say-hi\"" ] || _hi_because "a keg's root ($keg): $out" || return 1
   keg="$brew/Cellar/say-hi/1.2.2/libexec"
   out="$(_hi_rc_out "$home" _HI_RC_PRELUDE='keg_line() {
       _HI_HOME="$1"

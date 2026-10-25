@@ -16,12 +16,20 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # (so dist/ stays excluded). The 2-space style comes from .editorconfig, which
 # shfmt picks up when invoked with no style flags. Skips yellow when shfmt is
 # absent; CI pins one via .github/actions/setup-tool so the gate runs there.
+#
+# common/aliases.sh is left out: its sh-tier lookups are backticks, which
+# shfmt rewrites to `$( )`, and fish before 3.4 refuses a `$( )` anywhere in
+# a file it sources. dialects_test.sh's fish 3.3 floor is what holds it.
 function lint_shfmt() {
-  local out
+  local out f
+  local -a files=()
   _hi_h2 "Checking formatting (shfmt -d, style from .editorconfig)"
   _hi_lint_has shfmt || return 0
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  if out="$(shfmt -d "${_HI_SH_FILES[@]}" 2>&1)"; then
+  for f in "${_HI_SH_FILES[@]}"; do
+    case "$f" in *common/aliases.sh) ;; *) files+=("$f") ;; esac
+  done
+  if out="$(shfmt -d "${files[@]}" 2>&1)"; then
     _hi_align " | shfmt $(shfmt --version): every file already formatted" "OK" "$GREEN"
   else
     _hi_align " | shfmt: files need reformatting (fix with: shfmt -w on the paths below)" "FAILED" "$RED"

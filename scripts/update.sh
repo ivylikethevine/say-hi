@@ -123,18 +123,15 @@ if [ "$here" = "$tag" ]; then
 fi
 # The tag's signature, read off gpg's status lines rather than verify-tag's
 # exit code, which is 1 for "bad", "unsigned", and "signed by a key you have not
-# imported" alike. Only a bad signature refuses: an unsigned tag is what a
-# fork or a mirror has, and a missing key is most first installs - both are
-# said out loud and allowed, so the check never strands an update that plain
-# git would have made.
+# imported" alike. Only a signature that verified against a key this checkout
+# already trusts moves it. A bad one always refuses; an unsigned tag (a fork,
+# a mirror), a key nobody vouches for, or no gpg is said, then refused unless
+# $_HI_UPDATE_UNSIGNED=1.
 #
 # An ssh-signed tag (every release) is not checked at all without an
 # allowed-signers file, so one is always named: this checkout's own
 # .github/allowed_signers - the copy already trusted, not the tag's - else
 # git config's, else an empty one, which still catches a tampered signature.
-#
-# $_HI_UPDATE_SIGNED=1 is the strict form: only a signature that verified
-# against a key this checkout already trusts moves it.
 verified=""
 signers="$root/.github/allowed_signers"
 [ -f "$signers" ] || signers="$(exec git -C "$root" config --path --get gpg.ssh.allowedSignersFile)" || signers=""
@@ -182,8 +179,8 @@ case "$sig" in
   _hi_cecho "$me: could not check the signature on $tag (${sig:-no gpg?})" "$YELLOW"
   ;;
 esac
-[ "${_HI_UPDATE_SIGNED:-0}" != 1 ] || [ -n "$verified" ] ||
-  _hi_die "_HI_UPDATE_SIGNED=1 and $tag has no signature this checkout can vouch for - refusing to check it out"
+[ "${_HI_UPDATE_UNSIGNED:-0}" = 1 ] || [ -n "$verified" ] ||
+  _hi_die "$tag has no signature this checkout can vouch for - refusing to check it out (_HI_UPDATE_UNSIGNED=1 takes it anyway)"
 [ -z "$dry_run" ] || {
   _hi_cecho "$me: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
   exit 0

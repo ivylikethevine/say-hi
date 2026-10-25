@@ -494,8 +494,8 @@ function _hi_old_fish_answer() {
 
 function test_session_shell_passes_over_a_fish_too_old() {
   local got got2
-  got="$(_hi_old_fish_answer 3.3.1)"
-  got2="$(_hi_old_fish_answer 3.4.1)"
+  got="$(_hi_old_fish_answer 3.2.2)"
+  got2="$(_hi_old_fish_answer 3.3.1)"
   [ "$got" = zsh ] && [ "$got2" = fish ] || _hi_why got got2
 }
 

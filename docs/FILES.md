@@ -54,9 +54,11 @@ Each file is marked with where it goes:
 | `hi.sh`                                                                     | payload | The client: parses flags, resolves the target, ships the tree, chainloads `load.sh` there.        |
 | `load.sh`                                                                   | payload | The target half: header, session rc, shell handoff, cleanup.                                      |
 | `README.md`, `LICENSE.md`                                                   | package | The walkthrough and roadmap; the MIT license.                                                     |
+| `CHANGELOG.md`                                                              | dev     | Each release's notes, written before its tag; the source tarball carries it.                      |
 | `CLAUDE.md`, `.claude/settings.json`                                        | dev     | Conventions and shared tool permissions for agent sessions in this repo.                          |
 | `flake.nix`, `flake.lock`                                                   | dev     | The nix flake's outputs (`packaging/nix/` holds them) and its pinned nixpkgs.                     |
 | `_config.yml`                                                               | dev     | The GitHub Pages site's Jekyll config.                                                            |
+| `mise.toml`                                                                 | dev     | The development tools at CI's pins (drift-checked), and tasks for the gate and coverage.          |
 | `.editorconfig`, `.vscode/settings.json`, `.zed/settings.json`              | dev     | Editor settings; shfmt reads its style from `.editorconfig`.                                      |
 | `.gitattributes`, `.gitignore`                                              | dev     | LF everywhere, so Git Bash never gets a CRLF `hi.sh`; what stays untracked, `dist/` too.          |
 | `.shellcheckrc`, `.hadolint.yaml`                                           | dev     | shellcheck resolves `source` beside the sourcing file; hadolint's rules for `tests/dockerfiles/`. |

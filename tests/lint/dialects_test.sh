@@ -79,7 +79,7 @@ function lint_native() {
 # The two dialect *floors* plus one *ceiling*, run rather than grepped: the
 # files zsh and fish read for themselves, checked again inside a digest-pinned
 # build of that shell at the oldest-supported version
-# (tests/dockerfiles/{zsh55,fish34}.Dockerfile) and, for fish alone, the
+# (tests/dockerfiles/{zsh55,fish33}.Dockerfile) and, for fish alone, the
 # newest one too (tests/dockerfiles/fish4.Dockerfile).
 #
 # _HI_NATIVE_LINT above already runs both sets through the *host's* zsh and
@@ -169,12 +169,12 @@ function _hi_lint_fish_parse() {
   return 1
 }
 
-function lint_fish34() { _hi_lint_fish_parse fish34 hi-fish34 "fish 3.4 floor"; }
+function lint_fish33() { _hi_lint_fish_parse fish33 hi-fish33 "fish 3.3 floor"; }
 
-# fish34's counterpart: the same files, parsed again inside a digest-pinned
+# fish33's counterpart: the same files, parsed again inside a digest-pinned
 # fish 4 (tests/dockerfiles/fish4.Dockerfile, Ubuntu 26.04's fish), catching a
 # construct fish 3 accepts that fish 4 rejects or has removed - the direction
-# lint_fish34 cannot cover: CI's runners are 24.04 (fish 3.7), so nothing else
+# lint_fish33 cannot cover: CI's runners are 24.04 (fish 3.7), so nothing else
 # in CI ever parses these files under fish 4.
 function lint_fish4() { _hi_lint_fish_parse fish4 hi-fish4 "fish 4 ceiling"; }
 
@@ -230,7 +230,7 @@ function run_dialects() {
   # _hi_build_image (the floor/ceiling builds) logs to $_HI_WORKDIR/<label>.log
   _hi_workdir dialectstest
 
-  _hi_lint_halves lint_native lint_fish34 lint_fish4 lint_zsh55
+  _hi_lint_halves lint_native lint_fish33 lint_fish4 lint_zsh55
   _hi_lint_suite_end
 }
 

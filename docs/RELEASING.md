@@ -84,9 +84,37 @@ flake passes its commit's date; `stamp.sh` refuses to guess one.
 
 ## Channels weighed and not shipped
 
-**nixpkgs**: not submitted. The flake in this repository is the nix channel
+**nixpkgs**: not submitted yet. The flake in this repository is the nix channel
 ([Nix flake](#nix-flake)); nixpkgs, where nix users look first, wants upstream
-review and a standing maintainer entry.
+review and a standing maintainer entry, so it waits on 1.0
+([README's Release Stages](../README.md#release-stages)).
+
+**Homebrew core**: not eligible yet. Homebrew's acceptance policy asks a
+project its author submits for 90 forks, 90 watchers, or 225 stars, and core
+takes only a release upstream calls stable. The [tap](#homebrew-tap) is the
+Homebrew channel until both hold.
+
+**FreeBSD ports**: not submitted. A port is a `Makefile` and `distinfo` over
+the release tarball with a `MAINTAINER`, sent as a `[NEW PORT]` diff to the
+FreeBSD Bugzilla. `freebsd-e2e.yml` already proves the userland, and until a
+port lands a FreeBSD user installs from a clone.
+
+**Alpine aports**: not submitted. A new `APKBUILD` goes to `alpine/aports` as
+a merge request on Alpine's GitLab, lands in `testing`, and moves to
+`community` once it has a maintainer. The [package repository](#package-repository)
+already serves a signed apk.
+
+**Fedora Copr and the openSUSE Build Service**: not set up. Each needs an
+account (Copr a Fedora Account System one) and builds from a spec file, which
+this repository does not keep: nfpm makes the rpm. Both would serve what the
+package repository already does, and their gain is being found
+(`dnf copr enable`, software.opensuse.org); the Build Service would add
+openSUSE builds and debs for other distributions.
+
+**Scoop**: not set up. A bucket is a git repository of JSON manifests,
+installed on the Windows side, while hi runs under Git Bash, whose rc a
+manifest would have to wire; a Git Bash client installs from a clone today
+([COMPATIBILITY.md](COMPATIBILITY.md#the-targets-os)).
 
 ## Cutting a release
 
@@ -97,9 +125,14 @@ it): `packaging/srctar.sh` writes a `git archive --prefix say-hi-<version>/`
 of the tag, and that one file is what `bump.sh` checksums, what `mkpkg.sh`
 lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 
-1. `git tag -s v1.0.0 -m v1.0.0 && git push origin v1.0.0` — `release.yml`
+1. `.github/scripts/changelog.sh ivylikethevine/say-hi 1.0.0` writes the
+   release's `CHANGELOG.md` entry from the PRs merged since the last tag; read
+   it, and merge it to `main` like any change. Then
+   `git tag -s v1.0.0 -m v1.0.0 && git push origin v1.0.0` — `release.yml`
    starts.
 2. The `gate` job refuses a tag that is not `vX.Y.Z` or `vX.Y.Z-<pre>`, whose
+   `CHANGELOG.md` does not open on that version (a prerelease on the version
+   it leads to; a `v0.0.x` debug tag is exempt), whose
    commit is not on `main`, that is lightweight or not signed by a key in
    `.github/allowed_signers` ([Signing the tag](#signing-the-tag)), or whose
    `ci.yml` push run on `main` did not conclude success (it waits for a run
@@ -158,7 +191,9 @@ you have, and it downloads the published asset only when neither is available
 (during a release the asset does not exist yet). `bump.sh --check 1.0.0`
 confirms the manifests match a cut release.
 
-**Release notes are the PRs' `## Release note` sections.** `publish` asks
+**Release notes are the PRs' `## Release note` sections.** `CHANGELOG.md`
+holds the same list, written before the tag (step 1) so the source tarball
+carries it; the release body is built afresh from the PRs. `publish` asks
 GitHub's `releases/generate-notes` endpoint for the PRs merged since the last
 tag, and `.github/scripts/release_notes.sh` puts each one's section (the pull
 request template's) into a "What changed" list at the top of the body, above
@@ -182,7 +217,7 @@ release the run creates gets them: an existing body is never rewritten.
 ### Signing the tag
 
 Tags are SSH-signed (`gpg.format=ssh`), and the trust root is
-`.github/allowed_signers`: three SSH keys, each one of the maintainer's
+`.github/allowed_signers`: four SSH keys, each one of the maintainer's
 signing keys registered on GitHub. The `gate` job runs `git tag -v` against
 that file as of the tagged commit, which it has already required to be on
 `main`, with the global and system git configs ignored. Checking a tag

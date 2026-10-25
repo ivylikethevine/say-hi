@@ -101,6 +101,11 @@ _hi_n="${GIT_CONFIG_COUNT:-0}" _hi_tl_tree="$(cd -P "$_hi_d/.." && pwd)" || :
 export GIT_CONFIG_COUNT=$((_hi_n + 1)) "GIT_CONFIG_KEY_$_hi_n=safe.directory" \
   "GIT_CONFIG_VALUE_$_hi_n=$_hi_tl_tree"
 unset _hi_n
+# Under kcov's PS4 method, a $BASH_ENV whose PS4 a `set -u` child survives
+if [ -n "${KCOV_BASH_XTRACEFD:-}" ] && [ -z "${KCOV_BASH_USE_DEBUG_TRAP:-}" ]; then
+  # shellcheck source=./lib/kcov_env.sh
+  source "$_hi_d/lib/kcov_env.sh"
+fi
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
 # ~/.ssh/config, pinned after the source, which sets it: its `# Tags:` lines

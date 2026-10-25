@@ -1,8 +1,10 @@
 #!/bin/fish
 
 # === start required configuration ===
-# see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
-set -q _hi_rc_loading; and return
+# see common/bash.sh: re-entered while loading, skip. An `if` around the
+# file, closed on its last line, rather than a `return`: fish before 3.4
+# refuses one outside a function. GLOSSARY: HI.55
+if not set -q _hi_rc_loading
 set -g _hi_rc_loading 1
 # The tree, by core.sh's rule (GLOSSARY: HI.33): $_HI_ROOT where it sits in
 # $_HI_HOME, else $_HI_HOME/say-hi where that is one, else this file's own
@@ -179,8 +181,6 @@ complete -c hi -f -k -n __hi_prev_takes_word \
 # a local command (`hi --install --<TAB>`) that command's own switches
 complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS flags (commandline -opc)[2])'
-# exa completes as eza only where hi's tool aliases made exa an alias
-functions -q exa; and test "$_HI_TOOL_ALIASES" = 1; and complete exa --wraps eza
 
 # fish can't run hi's bash side, so the greeting, the package check, and the
 # color resolution each come from one bash call
@@ -466,9 +466,11 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set __fish_prompt_status_generation $status_generation
 
       # quoted so an empty set_color (no colour on this TERM) still counts as an
-      # argument - fish 3 otherwise reports "missing argument" on every prompt
-      set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
-        "$(set_color $fish_color_status)" "$(set_color $bold_flag $fish_color_status)" $last_pipestatus)
+      # argument - fish 3 otherwise reports "missing argument" on every prompt;
+      # through locals, since a quoted `$( )` is fish 3.4's
+      set -l sc (set_color $fish_color_status)
+      set -l scb (set_color $bold_flag $fish_color_status)
+      set -l prompt_status (__fish_print_pipestatus "[" "]" "|" "$sc" "$scb" $last_pipestatus)
 
       set -l ma
       set -l mb
@@ -592,3 +594,4 @@ if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/common/config.fish"
   source $_HI_CONFIG_DIR/config.fish
 end
 set -e _hi_rc_loading
+end

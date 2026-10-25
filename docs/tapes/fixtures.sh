@@ -247,7 +247,7 @@ function up_kube() {
     echo "kind is not installed" >&2
     return 1
   }
-  kind get clusters 2>/dev/null | grep -qx hi-demo ||
+  kind get clusters 2>/dev/null | grep -x hi-demo >/dev/null ||
     kind create cluster --name hi-demo --wait 120s >/dev/null 2>&1
   # a pod's hostname *is* its name, so naming it for the host is all it takes
   # for `hi api-7` to answer as api-7. The cluster keeps the hi-demo name: it
@@ -627,7 +627,7 @@ function demo_down() {
     kill "$(cat "$_HI_DEMO_DIR/nomad.pid")" 2>/dev/null || true
   fi
   pkill -f 'nomad agent -dev' 2>/dev/null || true
-  if kind get clusters 2>/dev/null | grep -qx hi-demo; then
+  if kind get clusters 2>/dev/null | grep -x hi-demo >/dev/null; then
     kind delete cluster --name hi-demo >/dev/null 2>&1 || true
   fi
   rm -rf "$_HI_DEMO_DIR" /tmp/hi-demo.log

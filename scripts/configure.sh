@@ -374,10 +374,13 @@ function _hi_prompt_rows() {
 # separators. A var the preset does not name goes back to its shipped
 # default, so a preset is an absolute answer rather than a delta on what the
 # file holds. Applied, its answers are what the menu shows and saves;
-# `--preset <name>` writes them without a hub at all.
+# `--preset <name>` writes them without a hub at all. $_HI_PRESET_DEFAULT is
+# what a first install starts from when nobody picks: everything a target
+# gets, and this machine left as it is.
+_HI_PRESET_DEFAULT=balanced
 _HI_PRESETS=(
   "everything|every feature on, here and on every target you hi to|"
-  "balanced|everything, with a shorter package check|_HI_PACKAGES_GROUPS=core,deprecated"
+  "balanced|everything on every target, a shorter package check; nothing on this machine|_HI_PACKAGES_GROUPS=core,deprecated _HI_DISABLE_LOCAL=1"
   "minimal|on targets only the colored prompt, no header or editor configs; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro _HI_DISABLE_LOCAL=1"
   "lean|minimal, and nothing of yours rides: hi's own prompt, no plugin's config, ssh the only backend|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_PLUGINS_OFF=vim,nvim,nano,emacs,hx,kak,micro,aliases,bash,zsh,fish,extensions,bin,env,starship,powerlevel10k,tide,oh-my-posh,oh-my-zsh,oh-my-bash,bash-it,eza,bat,rg,fzf,lazygit,git,readline,tmux,screen,zellij _HI_DISABLE_LOCAL=1 _HI_PROMPT_TOOL=hi _HI_BACKENDS_OFF=all"
   "configs|your aliases, editor rcs, and every other config along, each target's own prompt, no header; nothing on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_LOCAL=1"
@@ -478,8 +481,8 @@ function apply_preset() {
 
 # config_first_install - all an install asks a terminal, and only while
 # there is no settings.sh: which preset to start from, each a plain sentence,
-# everything the default; whether hi styles this machine is in the pick
-# (minimal, lean, and configs leave it alone). The menu is hi --configure's.
+# $_HI_PRESET_DEFAULT the default; whether hi styles this machine is in the
+# pick (only everything does). The menu is hi --configure's.
 function config_first_install() {
   local reply="" short
   if [ -f "$_HI_SETTINGS" ]; then
@@ -488,12 +491,12 @@ function config_first_install() {
   fi
   _hi_cecho " How much of hi rides along? One of:" "$BLUE"
   _hi_preset_list _HI_PRESETS 13
-  menu_read " Start from which? (the bracketed letter or the name; Enter is everything) [everything] " reply || reply=""
-  [ -n "$reply" ] || reply=everything
+  menu_read " Start from which? (the bracketed letter or the name; Enter is $_HI_PRESET_DEFAULT) [$_HI_PRESET_DEFAULT] " reply || reply=""
+  [ -n "$reply" ] || reply="$_HI_PRESET_DEFAULT"
   short="$(preset_shorthand "$reply")" && reply="$short"
   apply_preset "$reply" || {
-    _hi_cecho " ...so everything, the shipped defaults, applies" "$YELLOW"
-    apply_preset everything
+    _hi_cecho " ...so $_HI_PRESET_DEFAULT, the default, applies" "$YELLOW"
+    apply_preset "$_HI_PRESET_DEFAULT"
   }
   _hi_cecho " hi --configure has every other setting" "$BLUE"
 }
@@ -654,8 +657,9 @@ function settings_adopt_hand_lines() {
   for line in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
     name="${line#export }"
     name="${name%%=*}"
+    # not `grep -q`: under pipefail its early exit SIGPIPEs the writer (SYNTAX.md)
     grep -v -F "$_HI_MARKER" "$_HI_SETTINGS" |
-      grep -qE "^[[:space:]]*(export[[:space:]]+)?$name=" || continue
+      grep -E "^[[:space:]]*(export[[:space:]]+)?$name=" >/dev/null || continue
     dry_run_say "adopt the hand-written $name line in $_HI_SETTINGS" && continue
     _hi_rewrite "$_HI_SETTINGS" \
       "/^[[:space:]]*\\(export[[:space:]]\\{1,\\}\\)\\{0,1\\}$name=/{/$_HI_MARKER/!d;}"
@@ -757,20 +761,18 @@ function run_configure() {
     # the menu is this run's whole job, and there is nobody to answer it
     _hi_cecho " ${_HI_ME:-hi --configure}: no terminal for the menu - --preset <name> answers it without one (one of: $(preset_names))" "$RED" >&2
     return 1
+  elif [ ! -f "$_HI_SETTINGS" ]; then
+    # a first install with nobody to ask starts where a terminal's Enter would
+    _hi_cecho " no terminal for the settings menu - the $_HI_PRESET_DEFAULT preset applies; hi --configure at a terminal, or --preset <name>, changes it" "$YELLOW"
+    apply_preset "$_HI_PRESET_DEFAULT"
   else
-    _hi_cecho " no terminal for the settings menu - the defaults apply; hi --configure at a terminal, or --preset <name>, sets them" "$YELLOW"
+    _hi_cecho " no terminal for the settings menu - your settings stay; hi --configure at a terminal, or --preset <name>, changes them" "$YELLOW"
   fi
   if [ -n "$_HI_CONFIGURE_QUIT" ]; then
     _hi_cecho " nothing written - $_HI_SETTINGS is as it was" "$GREEN"
     return 0
   fi
   collect_setting_lines
-  # No terminal, no preset, no file, and nothing to say: a settings.sh with
-  # only a shebang in it would be a decision record with no decision in it.
-  if [ ! -t 0 ] && [ -z "$preset" ] && [ ! -f "$_HI_SETTINGS" ] && ((${#_HI_SETTING_LINES[@]} == 0)); then
-    _hi_cecho " nothing to write - the defaults apply until hi --configure is run at a terminal" "$GREEN"
-    return 0
-  fi
   settings_adopt_hand_lines
   ensure_settings_shebang
   settings_diff_before

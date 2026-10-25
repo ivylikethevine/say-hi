@@ -126,6 +126,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # the tarball is a `git archive` of the tag, so the entry has to be in
+      # the tagged tree: written and merged before the tag (changelog.sh)
+      - name: CHANGELOG.md opens on this release
+        if: github.event_name == 'push'
+        run: bash .github/scripts/changelog.sh --check "${GITHUB_REF_NAME#v}"
+
       # Tags are SSH-signed (git's gpg.format=ssh), so the trust root is an
       # allowed_signers file rather than a keyring. Only the committed file
       # counts: the global and system git configs are ignored, and a
