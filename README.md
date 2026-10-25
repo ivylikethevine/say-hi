@@ -537,13 +537,15 @@ One list, in the order the work is best done. An entry is deleted once its
 
 - [ ] **`_hi_hash` forks less and loops less** — `hi.sh`'s FNV hash runs a
       `printf` per character over the connection and cache keys on every
-      connect. **Do:** `cksum`, one POSIX fork, for keys past a length where
-      the loop costs more. **Ticks when:** the hash's share of a traced
+      connect, though at a terminal it now rides the overlapped boot call's
+      handshake and delays a connect only on a link fast enough to finish
+      that first. **Do:** `cksum`, one POSIX fork, for keys past a length
+      where the loop costs more. **Ticks when:** the hash's share of a traced
       connect falls, and the keys stay stable across platforms.
 
 - [ ] **`git describe` runs once per commit, not per connect** — a clone
-      stamps the header's version with it on every connect, about 5 ms.
-      **Do:** cache it keyed on `.git/HEAD` and the ref it names. **Ticks
+      stamps the header's version with it on every connect, about 5 ms,
+      hidden behind the handshake as the hash is. **Do:** cache it keyed on `.git/HEAD` and the ref it names. **Ticks
       when:** a warm connect from a clone runs no git.
 
 - [ ] **The target side measured on a slow box** — the header and unpack
@@ -572,6 +574,33 @@ One list, in the order the work is best done. An entry is deleted once its
       signal. **Ticks when:** a connect with stdin off a tty is about two
       round trips shorter, and the forced-command and `maxsessions1` cases
       pass that way.
+
+- [ ] **The session starts once the core files land** — a script past
+      about 45 KB costs a cold connect two extra round trips, one under 40 KB
+      one (`scratch/wire_rtt.sh`), and the tree a bash session needs to
+      start is a fraction of what ships: without `hi.sh`, the completion
+      files, the fish and zsh files, and `keep.sh`, the tree is 29.4 KB
+      gzipped against 56.6 KB. **Do:** the core members first on the boot
+      call's stdin and the rest after, the stub starting once the core is
+      in while the rest lands behind it; with the payload unarmored, the
+      core's script is about 35 KB. **Ticks when:** a cold connect is a
+      round trip shorter at 150 ms added, with nothing dropped from the
+      tree, and the relay, fish, zsh, and kept-session suites pass.
+
+- [ ] **The two 10 ms polls wake on the event** — the client polls for the
+      master's socket and the target's stub for the script, each every
+      10 ms with a fork, about 10 ms a connect on average. **Do:** a FIFO
+      on each side that the landing or the socket's maker writes. **Ticks
+      when:** the poll loops are gone and a cold connect is that much
+      shorter at 0 ms added.
+
+- [ ] **The boot call starts sooner still** — 17 ms pass before it
+      (`scratch/client_prep.sh`): bash's start, sourcing hi's files, the
+      parse, the arm's choice, then the tag settings and the prompt list.
+      **Do:** the boot call started ahead of the tag settings and the
+      prompt list, which the script needs only once built. **Ticks when:**
+      the first ssh call comes measurably sooner and the per-tag settings
+      still reach the session.
 
 ## Release Stages
 

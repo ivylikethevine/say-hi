@@ -616,8 +616,9 @@ function _hi_ctl_close() {
 # stays the last.
 #
 # [dir] is a target-side path the session's stub already waits on
-# (_hi_connect_overlap): made with `mkdir -m 700`, which refuses one that
-# exists, and the script renamed into it whole, so the stub never runs half.
+# (_hi_connect_overlap): made 0700 by `mkdir` under `umask 077`, which
+# refuses one that exists and, unlike `mkdir -m`, makes no chmod Git Bash
+# refuses, and the script renamed into it whole, so the stub never runs half.
 # The byte count then rides stdin's first line and [bytes] goes unused: the
 # call starts before the script is built (_hi_overlap_start).
 function _hi_boot_probe() {
@@ -627,7 +628,7 @@ function _hi_boot_probe() {
   printf '%s\n' 'if [ "$z" != x ]; then exit 67; fi'
   if [ -n "${2:-}" ]; then
     f='$d/part' want='"$s"'
-    printf '%s\n' "d=$2" 'if ! mkdir -m 700 "$d" 2>/dev/null; then exit 65; fi' 'read -r s'
+    printf '%s\n' "d=$2" 'if ! (umask 077 && mkdir "$d") 2>/dev/null; then exit 65; fi' 'read -r s'
   else
     printf '%s\n' 'if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi'
   fi
@@ -1052,9 +1053,12 @@ function _hi_ctl_alive() {
 
 # _hi_overlap_start - _hi_connect_overlap's boot call, started as soon as the
 # target is known, so the handshake runs while the client builds the script:
-# its stdin a FIFO this shell holds open on fd 7 until _hi_connect_overlap
-# writes the script to it. Fills ov_dir, ov_d, and ov_boot from _say_hi; 1
-# where no FIFO could be made, and the connect goes in series.
+# its stdin a FIFO a writer holds, which sends the script once
+# _hi_connect_overlap has written it beside and marked it ready, or ends
+# with this shell. No descriptor of this shell's is taken, since a fixed
+# number may be a tracer's BASH_XTRACEFD. Fills ov_dir, ov_d, and ov_boot
+# from _say_hi; 1 where no FIFO could be made, and the connect goes in
+# series.
 function _hi_overlap_start() {
   local r
   ov_dir="$(mktemp -d -t hi.boot.XXXXXX 2>/dev/null)" || ov_dir=""
@@ -1063,12 +1067,19 @@ function _hi_overlap_start() {
     ov_dir=""
     return 1
   fi
-  # read-write, so neither this open nor the boot call's waits on the other
-  exec 7<>"$ov_dir/in"
+  local self=$$
+  (
+    exec >"$ov_dir/in"
+    while [ ! -f "$ov_dir/ready" ]; do
+      kill -0 "$self" 2>/dev/null || exit 0
+      sleep 0.01
+    done
+    cat "$ov_dir/script"
+  ) &
   r="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')" || r=""
   # shellcheck disable=SC2016 # the target's to expand
   ov_d='${TMPDIR:-/tmp}/hi.boot.'"${r:-$RANDOM$RANDOM$RANDOM}"
-  _hi_on_target cp "$(_hi_boot_probe "" "$ov_d")" <"$ov_dir/in" 7>&- >"$ov_dir/out" &
+  _hi_on_target cp "$(_hi_boot_probe "" "$ov_d")" <"$ov_dir/in" >"$ov_dir/out" &
   ov_boot=$!
 }
 
@@ -1090,12 +1101,7 @@ function _hi_overlap_start() {
 # ec, booted, boot_out, boot_ec, and boot_tmp from _say_hi.
 function _hi_connect_overlap() {
   local d="$ov_d" boot="$ov_boot" sess=""
-  # a write end of its own before this shell lets go of the FIFO, so the
-  # boot call never reads an early EOF, and a writer whose reader died gets
-  # a broken pipe rather than a full one
-  exec 6>"$ov_dir/in"
-  { printf '%s\n%s\n' "$bytes" "$script" >&6; } 7>&- &
-  exec 6>&- 7>&-
+  printf '%s\n%s\n' "$bytes" "$script" >"$ov_dir/script" && : >"$ov_dir/ready"
   while [ ! -S "$ctl_path" ] && kill -0 "$boot" 2>/dev/null; do sleep 0.01; done
   if [ -S "$ctl_path" ]; then
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
@@ -1107,7 +1113,7 @@ function _hi_connect_overlap() {
   boot_ec=0
   wait "$boot" || boot_ec=$?
   boot_out="$(cat "$ov_dir/out")"
-  rm -f "$ov_dir/in" "$ov_dir/out"
+  rm -f "$ov_dir/in" "$ov_dir/out" "$ov_dir/script" "$ov_dir/ready"
   rmdir "$ov_dir" 2>/dev/null || true
   _hi_boot_parse
   if [ -n "$boot_tmp" ] && [ -n "$sess" ]; then

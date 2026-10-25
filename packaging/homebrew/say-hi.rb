@@ -100,5 +100,10 @@ class SayHi < Formula
 
     # ...and that the wrapper exports it for a caller who has not.
     assert_match libexec.to_s, (bin/"hi").read
+
+    # What a user runs: the wrapper starts hi, which answers with the stamped
+    # version from the keg.
+    assert_match "#{version} (package at #{libexec}/say-hi)", shell_output("#{bin}/hi --version")
+    assert_path_exists man1/"hi.1"
   end
 end

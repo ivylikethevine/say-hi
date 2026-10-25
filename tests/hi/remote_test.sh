@@ -432,8 +432,10 @@ function test_boot_probe_lands_in_a_named_dir() {
   ec=0
   out="$(printf '10\necho boot\n' | sh -c "$(_hi_boot_probe "" "$d")" 2>/dev/null)" || _hi_why out || return 1
   { [ "${out##*HIBOOT:}" = "$d" ] && [ -f "$d/bootloader" ] && [ ! -e "$d/part" ]; } || _hi_why out || return 1
-  mode="$(find "$d" -prune -perm 700)"
-  [ "$mode" = "$d" ] || _hi_because "$d is not mode 0700" || return 1
+  if _hi_capable mode_bits; then
+    mode="$(find "$d" -prune -perm 700)"
+    [ "$mode" = "$d" ] || _hi_because "$d is not mode 0700" || return 1
+  fi
   printf '10\necho boot\n' | sh -c "$(_hi_boot_probe "" "$d")" >/dev/null 2>&1 || ec=$?
   [ "$ec" -eq 65 ] || _hi_why ec
 }

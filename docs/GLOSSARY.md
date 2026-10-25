@@ -307,7 +307,7 @@ bytes a command. `cp` itself starts as soon as the target is known
 (`_hi_overlap_start`), so the handshake rides the client's building of the
 script, which reaches it through a FIFO with its byte count on the first
 line. The client names the directory (`hi.boot.` and 16 random hex digits),
-`cp` makes it with `mkdir -m 700`, which refuses one that exists, and
+`cp` makes it with `mkdir` under `umask 077`, which refuses one that exists, and
 renames the script in whole; the stub runs it only from a
 directory of this user's. Saved: about two round trips a cold connect. A
 failed probe stops the stub, a forced command's program is already the

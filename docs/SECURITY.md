@@ -99,7 +99,7 @@ link leaves the directory for fifteen minutes, for a reconnect to take.
 | what             | where, in the target's temp directory, mode 0700 | when                                                                                  |
 | ---------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | the session tree | `mktemp -d` `<user>.hi.XXXXXX`                   | every session but `--plain`                                                           |
-| the bootstrap    | `mkdir -m 700` or `mktemp -d` `hi.boot.XXXXXX`   | every session but `--plain`, removed by the same remote command once the session ends |
+| the bootstrap    | `mkdir` or `mktemp -d` `hi.boot.XXXXXX`          | every session but `--plain`, removed by the same remote command once the session ends |
 
 That is everything hi's own code writes. A prompt program drawing the prompt
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) - by default, one you
