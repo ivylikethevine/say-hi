@@ -50,7 +50,8 @@ drop-in costs that word, not a row here. Anything else touches seven places:
 
 Then the part everyone else pays, on machines with none of the runtime:
 `_hi_resolve_backend` runs **every** predicate, one background subshell per
-row, on every `hi <target>` that is not an ssh host, and `common/targets.sh`
+row, on every `hi <target>` that is neither an ssh host nor a `user@host`
+with no `:`, and `common/targets.sh`
 checks **every** backend on each uncached TAB (GLOSSARY: HI.26) — there the
 `command -v` guard is a builtin, so an absent CLI costs nothing and a present
 one is one parallel lane.

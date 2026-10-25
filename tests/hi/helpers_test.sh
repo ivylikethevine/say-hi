@@ -34,6 +34,30 @@ function test_shquote_roundtrips_the_hard_cases() {
     _hi_shquote_roundtrip '$(reboot)'; } || _hi_why
 }
 
+# ...and a value long enough to take the split, a script's worth of code:
+# quotes leading, trailing, and doubled, multibyte glyphs, and newlines,
+# round-tripped in the suite's own locale and quoted the same as by the loop
+function test_shquote_roundtrips_a_long_value() {
+  local v="" q short i
+  for ((i = 0; i < 40; i++)); do v="$v'it''s' \$x \"y\" ● é
+"; done
+  v="'$v'"
+  _hi_shquote_roundtrip "$v" || _hi_because "a ${#v}-character value did not round-trip" || return 1
+  _hi_shquote_long q "$v"
+  short="" && _hi_shquote_loop_ref short "$v"
+  [ "$q" = "$short" ] || _hi_because "the split and the loop quote it differently"
+}
+
+# the loop on its own, whatever the length, for the comparison above
+function _hi_shquote_loop_ref() {
+  local _s="$2" _o=""
+  while [ "${_s#*\'}" != "$_s" ]; do
+    _o="$_o${_s%%\'*}'\\''"
+    _s="${_s#*\'}"
+  done
+  printf -v "$1" "'%s'" "$_o$_s"
+}
+
 # the armor line is `echo "<base64>" | <unarmor> <op> <word>` - proven by
 # running it, not by parsing it
 function test_armored_line_roundtrips_through_sh() {
@@ -335,6 +359,7 @@ function run_hi_helpers_test() {
 
   _hi_h2 "Testing: quoting and armor"
   _hi_check "_hi_shquote round-trips the hard cases" test_shquote_roundtrips_the_hard_cases
+  _hi_check "...and a long value, through the split" test_shquote_roundtrips_a_long_value
   _hi_check "_hi_armored_line round-trips through sh" test_armored_line_roundtrips_through_sh
   _hi_check_requires openssl "...and through openssl where base64 is missing" test_armor_falls_back_to_openssl
 

@@ -279,9 +279,12 @@ of a container's execs), never as an argument: Linux caps a _single_ argv
 entry at 128KB (`MAX_ARG_STRLEN`) however large `ARG_MAX` is — a hard ceiling
 on payload growth that stdin does not have. Two calls because the second's
 stdin, the arm's `attach`, belongs to the interactive session. The script goes as
-plain text and is `cat` into place; only the streams _inside_ it are armored —
-armoring the whole script spent a third of every session's bytes re-encoding
-ASCII.
+plain text, and the tree's and the overlay's archives go after it as they are
+(`_hi_boot_stream`), behind a line of the three byte counts: the probe lands
+the whole, checks its size, and splits it with `dd` and `tail -c`, and the
+script unpacks the archives from beside itself. Armored inside the script,
+they spent a third of every session's bytes on base64; only the bootloader and
+a few rc lines still are, so `base64` or `openssl` is still asked for.
 
 The write doubles as the probe (`_hi_boot_probe`), and `_hi_boot_why` reads
 its status: the directory came back and the session runs; `sh` ran but found
@@ -296,6 +299,23 @@ and hands over the same; or nothing ran at all (stock Windows OpenSSH), and
 the session falls through to the PowerShell branch rather than half-landing.
 A container whose exec fails outright is not reached, and its exec's words
 are the report.
+
+Over ssh with a ControlMaster and a tty the two calls **overlap**
+(`_hi_connect_overlap`): `cp` makes the master as in series, and the session
+opens once its socket is there, which ssh makes only once authenticated,
+while `cp` is still landing the script; its command is a short stub that
+waits for it. The script stays out of every argv, where `/proc` would show it to
+other users, and the stub stays far under Dropbear's limit of about 9000
+bytes a command. `cp` itself starts as soon as the target is known
+(`_hi_overlap_start`), so the handshake rides the client's building of the
+script, which reaches it through a FIFO with its byte count on the first
+line. The client names the directory (`hi.boot.` and 16 random hex digits),
+`cp` makes it with `mkdir` under `umask 077`, which refuses one that exists, and
+renames the script in whole; the stub runs it only from a
+directory of this user's. Saved: about two round trips a cold connect. A
+failed probe stops the stub, a forced command's program is already the
+session and is only named, and a `MaxSessions 1` host's refusal of either
+channel is made again in series.
 
 ## HI.20 fallback rc
 
@@ -704,7 +724,10 @@ walking it with prefix/suffix removal rather than the obvious
 `${2//\'/\'\\\'\'}`: bash 3.2 — the floor, and the bash macOS ships — leaves
 the quoting of the replacement word in the result, so that spelling emits a
 word no `sh` can parse. Prefix and suffix removal answer the same on every
-bash.
+bash. They re-slice the rest of the value at every `'`, though, quadratic in
+its length and slower still in UTF-8, so a value past 512 characters goes to
+`_hi_shquote_long`, which splits on `'` with `read` under `LC_ALL=C` and joins
+the parts: 81 KB of script in about 40 ms rather than nearly a second.
 
 Everything `hi.sh` bakes into a script for the target is text the target's
 shell will parse, and some of it is data: `$DOMAIN` off argv,
@@ -804,6 +827,10 @@ points at, and `common/targets.sh`'s `list_kube` emits the same spelling for
 pods outside the current namespace. A multi-container pod resolves on the pod
 half; kubectl checks the container half when the session runs and fails loudly
 on a missing name — better than declining silently and falling through to ssh.
+The mirror rule: no container name, allocation id, or pod may carry an `@`,
+so `user@host` with no `:` goes to ssh with no backend asked
+(`_hi_select_arm`); a context's `@`, as in `admin@cluster:ns:pod`, has a `:`
+after it and is still asked.
 
 docker and podman also answer to a compose service name
 (`_hi_compose_container`) when exactly one running container carries that
@@ -819,13 +846,14 @@ than decline it.
 The connect line prints the size of the script the session sent, but the script
 cannot know its own size while being assembled. `_say_hi` (`hi.sh`) builds it
 with `$_HI_SIZE_TOKEN` (`@@SIZE@@`, wider than any figure) standing in, measures
-`${#script}`, and substitutes the human figure back — honest to a few bytes,
-since the streams inside are already armored and the script goes over the wire
-as it stands. `_hi_wire_bytes` — what `hi --doctor` and the README badge quote —
-assembles the same script through the same `_hi_remote_script`, from the same
-payload cache `_say_hi` reads, rather than summing the armored streams: summing
-skips the boilerplate around them and reads ~6KB low, and a badge has to show
-the number the user sees. No overlay is counted, since which files ride is a
+`${#script}` and the archives that ride after it, and substitutes the human
+figure back — honest to a few bytes, since what goes over the wire is the
+script as it stands and the archives as their files hold them.
+`_hi_wire_bytes` — what `hi --doctor` and the README badge quote — assembles
+the same script through the same `_hi_remote_script`, from the same payload
+cache `_say_hi` reads, and adds the tree's archive and the count line, rather
+than summing the streams alone: summing skips the boilerplate around them and
+reads ~6KB low, and a badge has to show the number the user sees. No overlay is counted, since which files ride is a
 question about a target - and none of the tree defaults one would shadow is cut
 (HI.41), so the figure is the stock tree's on any client.
 
@@ -1586,6 +1614,11 @@ payload (`$_HI_PAYLOAD_CUT`) and the overlay's is no member, `plugins` being a
 name no row may take. A hop taken from a target sends the session's `config/`
 as it stands, so the members that rode and their wiring arrive again, and
 nothing of that machine's home does.
+
+The reading is kept between connects, `hi.plugins.<key>` in the runtime dir,
+since parsing the tree's file was a third of a connect's client work: tagged
+lines read back with `read`, never sourced, and read afresh when a plugins
+file or `scripts/` is newer, or a plugins file comes, goes, or changes size.
 
 ## HI.64 what is switched off
 

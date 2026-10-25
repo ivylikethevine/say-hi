@@ -85,17 +85,20 @@ function _hi_path_list() {
 # another plugin's, a tool, a wire, or a dialect that is not the table's, a
 # home naming a function. GLOSSARY: HI.63
 function _hi_plugins_load() {
-  local _hi_cy_k="$_HI_ROOT|${_HI_SITE_DIR:-}|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_n _hi_cy_h _hi_cy_g _hi_cy_p _hi_cy_m _hi_cy_v _hi_cy_i _hi_cy_seen _hi_cy_old
+  # the memo ahead of the locals: every member asks, a hundred times a connect
+  [ "${_HI_PLUGIN_KEY-}" != "$_HI_ROOT|${_HI_SITE_DIR:-}|${_HI_CONFIG_DIR:-}" ] || return 0
+  local _hi_cy_k="$_HI_ROOT|${_HI_SITE_DIR:-}|${_HI_CONFIG_DIR:-}" _hi_cy_s _hi_cy_f _hi_cy_l _hi_cy_n _hi_cy_h _hi_cy_g _hi_cy_p _hi_cy_m _hi_cy_v _hi_cy_i _hi_cy_seen _hi_cy_old _hi_cy_c=""
   # the plugin being read: where it opened, its group, name, and keys, its
   # files with the keys each has of its own, and where a key lands - the
   # plugin (-1), one of its files (an index), a table that was turned down
   # (-2), or above the first table (-3)
   local _hi_rc_at _hi_rc_g _hi_rc_n _hi_rc_t _hi_rc_w _hi_rc_h _hi_rc_d _hi_rc_to _hi_rc_i _hi_rc_p _hi_rc_df _hi_rc_sh _hi_rc_q _hi_rc_e
   local -a _hi_rc_m=() _hi_rc_mw=() _hi_rc_mh=() _hi_rc_md=()
-  [ "$_HI_PLUGIN_KEY" != "$_hi_cy_k" ] || return 0
   _HI_PLUGIN_GEN=$((${_HI_PLUGIN_GEN:-0} + 1))
   _HI_PLUGIN_KEY="$_hi_cy_k" _HI_PLUGIN_ROWS=() _HI_PLUGIN_FILES=() _HI_PLUGIN_NAMES=() _HI_PLUGIN_BAD=()
   _HI_PLUGIN_HOOKS=() _HI_PLUGIN_ENVS=() _HI_PLUGIN_DEFAULT_OFF=" "
+  # the last connect's reading, where nothing it was read from has changed
+  ! _hi_plugins_cache_read _hi_cy_c || return 0
   # the tree's, the site's (HI.61, by its whole path), then the user's: a
   # later file's plugin of a name an earlier one has replaces it whole
   for _hi_cy_s in config/plugins "${_HI_SITE_DIR:+$_HI_SITE_DIR/plugins}" plugins; do
@@ -184,6 +187,87 @@ function _hi_plugins_load() {
     done <"$_hi_cy_f"
     _hi_plugins_close
   done
+  [ -z "$_hi_cy_c" ] || _hi_plugins_cache_write "$_hi_cy_c"
+}
+
+# _hi_plugins_cache_head [outvar] - the first line of the plugins cache: the
+# load's key, which of the tree's, the site's, and the overlay's plugins files
+# exist, so one that comes or goes reads as stale, and their sizes, so an edit
+# inside the second the cache was written does too where `find -newer` counts
+# whole seconds (busybox)
+function _hi_plugins_cache_head() {
+  local _hi_ph_f _hi_ph_s="" _hi_ph_z=""
+  local -a _hi_ph_on=()
+  for _hi_ph_f in "$_HI_ROOT/config/plugins" "${_HI_SITE_DIR:+$_HI_SITE_DIR/plugins}" "${_HI_CONFIG_DIR:+$_HI_CONFIG_DIR/plugins}"; do
+    if [ -n "$_hi_ph_f" ] && [ -f "$_hi_ph_f" ]; then
+      _hi_ph_s="${_hi_ph_s}1" _hi_ph_on+=("$_hi_ph_f")
+    else
+      _hi_ph_s="${_hi_ph_s}0"
+    fi
+  done
+  ((${#_hi_ph_on[@]} == 0)) || _hi_ph_z="$(wc -c "${_hi_ph_on[@]}" 2>/dev/null)"
+  _hi_out "${1:-}" "K|$_HI_PLUGIN_KEY|$_hi_ph_s|${_hi_ph_z//$'\n'/;}"
+}
+
+# _hi_plugins_cache_read <outvar> - _hi_plugins_load's reading off the cache
+# a connect before this one left in the runtime dir, the arrays filled from
+# its tagged lines a line at a time, never sourced. Fails, with <outvar>
+# naming the cache to write once parsed, when it is missing or stale: its head
+# differs, or a plugins file or scripts/ (the reader and the tables it checks
+# against) is newer. _HI_PAYLOAD_CACHE=0 turns it off, with the other caches.
+function _hi_plugins_cache_read() {
+  local _hi_pr_dir _hi_pr_key _hi_pr_c _hi_pr_head _hi_pr_l _hi_pr_f
+  local -a _hi_pr_watch=("$_HI_ROOT/config/plugins" "$_HI_ROOT/scripts")
+  [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
+  _hi_runtime_dir _hi_pr_dir
+  [ -n "$_hi_pr_dir" ] || return 1
+  _hi_hash "$_HI_PLUGIN_KEY" _hi_pr_key
+  _hi_pr_c="$_hi_pr_dir/hi.plugins.$_hi_pr_key"
+  _hi_out "$1" "$_hi_pr_c"
+  [ -f "$_hi_pr_c" ] || return 1
+  for _hi_pr_f in "${_HI_SITE_DIR:+$_HI_SITE_DIR/plugins}" "${_HI_CONFIG_DIR:+$_HI_CONFIG_DIR/plugins}"; do
+    [ -z "$_hi_pr_f" ] || [ ! -f "$_hi_pr_f" ] || _hi_pr_watch+=("$_hi_pr_f")
+  done
+  [ -z "$(find -H "${_hi_pr_watch[@]}" -newer "$_hi_pr_c" -print 2>/dev/null)" ] || return 1
+  _hi_plugins_cache_head _hi_pr_head
+  {
+    IFS= read -r _hi_pr_l && [ "$_hi_pr_l" = "$_hi_pr_head" ] || return 1
+    while IFS= read -r _hi_pr_l; do
+      case "$_hi_pr_l" in
+      R\|*) _HI_PLUGIN_ROWS+=("${_hi_pr_l#R|}") ;;
+      F\|*) _HI_PLUGIN_FILES+=("${_hi_pr_l#F|}") ;;
+      N\|*) _HI_PLUGIN_NAMES+=("${_hi_pr_l#N|}") ;;
+      B\|*) _HI_PLUGIN_BAD+=("${_hi_pr_l#B|}") ;;
+      H\|*) _HI_PLUGIN_HOOKS+=("${_hi_pr_l#H|}") ;;
+      E\|*) _HI_PLUGIN_ENVS+=("${_hi_pr_l#E|}") ;;
+      D\|*) _HI_PLUGIN_DEFAULT_OFF="${_hi_pr_l#D|}" ;;
+      esac
+    done
+  } <"$_hi_pr_c"
+}
+
+# _hi_plugins_cache_write <cache> - the arrays _hi_plugins_load just filled, a
+# tagged line each under the head, written aside and mv'd into place so a
+# concurrent connect reads the old file or the new one. Every value is one
+# line of a plugins file or built from one, so a line holds a whole value.
+function _hi_plugins_cache_write() {
+  local _hi_pw_tmp _hi_pw_head _hi_pw_v
+  _hi_pw_tmp="$(mktemp "$1.XXXXXX" 2>/dev/null)" || return 0
+  _hi_plugins_cache_head _hi_pw_head
+  {
+    printf '%s\n' "$_hi_pw_head"
+    for _hi_pw_v in ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do printf 'R|%s\n' "$_hi_pw_v"; done
+    for _hi_pw_v in ${_HI_PLUGIN_FILES[@]+"${_HI_PLUGIN_FILES[@]}"}; do printf 'F|%s\n' "$_hi_pw_v"; done
+    for _hi_pw_v in ${_HI_PLUGIN_NAMES[@]+"${_HI_PLUGIN_NAMES[@]}"}; do printf 'N|%s\n' "$_hi_pw_v"; done
+    for _hi_pw_v in ${_HI_PLUGIN_BAD[@]+"${_HI_PLUGIN_BAD[@]}"}; do printf 'B|%s\n' "$_hi_pw_v"; done
+    for _hi_pw_v in ${_HI_PLUGIN_HOOKS[@]+"${_HI_PLUGIN_HOOKS[@]}"}; do printf 'H|%s\n' "$_hi_pw_v"; done
+    for _hi_pw_v in ${_HI_PLUGIN_ENVS[@]+"${_HI_PLUGIN_ENVS[@]}"}; do printf 'E|%s\n' "$_hi_pw_v"; done
+    printf 'D|%s\n' "$_HI_PLUGIN_DEFAULT_OFF"
+  } >"$_hi_pw_tmp" || {
+    rm -f "$_hi_pw_tmp"
+    return 0
+  }
+  mv -f "$_hi_pw_tmp" "$1"
 }
 
 # _hi_plugins_close - the plugin _hi_plugins_load has read, into the rows: a

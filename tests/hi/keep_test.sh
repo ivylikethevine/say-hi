@@ -163,7 +163,7 @@ function test_keep_verdicts_follow_the_flags_and_the_setting() {
 }
 
 function _hi_keep_script_for() { # <KEEP> <CMDARG> - the whole remote script
-  local size=1K tree=TREE bootloader=BOOT overlay_line="" script
+  local size=1K bootloader=BOOT overlay_line="" script
   DOMAIN=box KEEP="$1" CMDARG="$2" _hi_remote_script script
   printf '%s\n' "$script"
 }

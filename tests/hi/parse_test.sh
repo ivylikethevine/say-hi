@@ -189,6 +189,18 @@ function test_select_arm_wildcard_host_does_not_shadow_a_container() {
   [ "$got" = docker ] || _hi_why got _HI_SHIM_PATH
 }
 
+# user@host is ssh's unasked, whatever a backend would answer; an `@` in a
+# kube context, a `:` after it, is still asked
+function test_select_arm_takes_user_at_host_unprobed() {
+  local got got2 shims="$_HI_WORKDIR/anyshims"
+  local DOMAIN=me@box BACKEND=
+  _hi_probe_shims "$shims" '*'
+  got="$(PATH="$shims:$PATH" _hi_select_arm)"
+  DOMAIN=admin@cluster:default:web
+  got2="$(PATH="$shims:$PATH" _hi_select_arm)"
+  [ -z "$got" ] && [ -n "$got2" ] || _hi_why got got2 shims
+}
+
 # a value-taking flag with nothing after it must report itself, not die on an
 # unbound $2 or swallow the next argument
 function test_parse_rejects_a_flag_missing_its_value() {
@@ -848,6 +860,7 @@ function run_hi_parse_tests() {
   _hi_check "select_arm: unset falls back to resolution" test_select_arm_falls_back_to_resolution_when_backend_unset
   _hi_check "select_arm: a backend switched off is not asked" test_select_arm_skips_a_backend_switched_off
   _hi_check "select_arm: a Host * block does not shadow a container" test_select_arm_wildcard_host_does_not_shadow_a_container
+  _hi_check "select_arm: user@host is ssh's unprobed, a kube context's @ is not" test_select_arm_takes_user_at_host_unprobed
   _hi_check "reset_terminal: the alt-screen exit rides in DECSC/DECRC" test_reset_terminal_wraps_the_alt_screen_exit_in_decsc_decrc
   _hi_check "reset_terminal: closes the prompt mark with the status" test_reset_terminal_closes_the_prompt_mark_with_the_status
   _hi_check "report_failure: silent once hi already said it" test_report_failure_is_silent_once_hi_already_said_it

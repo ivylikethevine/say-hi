@@ -369,8 +369,10 @@ source "$_HI_ROOT/scripts/pack_plugins.sh"
 # _hi_overlay_row <member> [outvar] - its row, $_HI_OVERLAY_TABLE's then the
 # plugins files' ($_HI_PLUGIN_ROWS): its own or the directory entry (a
 # trailing /) it sits under, the first of them in that order. Looked up in
-# $_HI_OVERLAY_INDEX, `<member>|<position>` a line for the first row of each
-# member, made once a load: a scan of every row was most of a pack's time.
+# $_HI_OVERLAY_INDEX, `<member>|<position>` a line for every row in order,
+# made once a load: a scan of every row was most of a pack's time. A member's
+# first line is its first row, the one a lookup finds, so no line is checked
+# for a duplicate on the way in.
 _HI_OVERLAY_INDEX="" _HI_OVERLAY_INDEX_GEN=""
 function _hi_overlay_row() {
   local _hi_or_nl=$'\n' _hi_or_m="$1" _hi_or_k _hi_or_i _hi_or_at=""
@@ -378,24 +380,20 @@ function _hi_overlay_row() {
   if [ "$_HI_OVERLAY_INDEX_GEN" != "$_HI_PLUGIN_GEN" ]; then
     _HI_OVERLAY_INDEX="" _HI_OVERLAY_INDEX_GEN="$_HI_PLUGIN_GEN" _hi_or_i=0
     for _hi_or_k in "${_HI_OVERLAY_TABLE[@]}" ${_HI_PLUGIN_ROWS[@]+"${_HI_PLUGIN_ROWS[@]}"}; do
-      _hi_or_k="${_hi_or_k%%|*}"
-      case "$_HI_OVERLAY_INDEX$_hi_or_nl" in
-      *"$_hi_or_nl$_hi_or_k|"*) ;;
-      *) _HI_OVERLAY_INDEX="$_HI_OVERLAY_INDEX$_hi_or_nl$_hi_or_k|$_hi_or_i" ;;
-      esac
+      _HI_OVERLAY_INDEX="$_HI_OVERLAY_INDEX$_hi_or_nl${_hi_or_k%%|*}|$_hi_or_i"
       _hi_or_i=$((_hi_or_i + 1))
     done
     _HI_OVERLAY_INDEX="$_HI_OVERLAY_INDEX$_hi_or_nl"
   fi
-  # the member, then each directory above it, keeping the earliest row
+  # the member, then each directory above it, keeping the earliest row; one
+  # scan a name, the removal itself saying whether it matched
   _hi_or_k="$_hi_or_m"
   while :; do
-    case "$_HI_OVERLAY_INDEX" in *"$_hi_or_nl$_hi_or_k|"*)
-      _hi_or_i="${_HI_OVERLAY_INDEX#*"$_hi_or_nl$_hi_or_k|"}"
+    _hi_or_i="${_HI_OVERLAY_INDEX#*"$_hi_or_nl$_hi_or_k|"}"
+    if [ "$_hi_or_i" != "$_HI_OVERLAY_INDEX" ]; then
       _hi_or_i="${_hi_or_i%%"$_hi_or_nl"*}"
       [ -n "$_hi_or_at" ] && [ "$_hi_or_at" -le "$_hi_or_i" ] || _hi_or_at="$_hi_or_i"
-      ;;
-    esac
+    fi
     case "$_hi_or_m" in */?*) ;; *) break ;; esac
     _hi_or_m="${_hi_or_m%/*}"
     _hi_or_k="$_hi_or_m/"

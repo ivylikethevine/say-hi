@@ -381,8 +381,8 @@ function test_boot_probe_says_no_base64() {
 function test_boot_probe_takes_openssl() {
   local ec=0 sh_bin out dir
   sh_bin="$(command -v sh)"
-  dir="$(_hi_real_path onlyssl openssl tar gzip mktemp cat)"
-  out="$(PATH="$dir" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || ec=$?
+  dir="$(_hi_real_path onlyssl openssl tar gzip mktemp cat wc dd tail rm mv)"
+  out="$(_hi_boot_feed | PATH="$dir" "$sh_bin" -c "$(_hi_boot_probe)" 2>/dev/null)" || ec=$?
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
   [ "$ec" -eq 0 ] || _hi_why ec
 }
@@ -415,11 +415,53 @@ function test_boot_probe_says_no_scratch_dir() {
   [ "$ec" -eq 65 ] || _hi_why ec
 }
 
+# _hi_boot_feed [tree] [overlay] - what _hi_boot_stream sends, around a
+# one-line script: the counts, the script, then the files as they are.
+function _hi_boot_feed() {
+  local script="echo boot" bytes=10 tree_f="${1:-}" ovl_f="${2:-}" tree_n ovl_n
+  _hi_byte_count tree_n "$tree_f"
+  _hi_byte_count ovl_n "$ovl_f"
+  [ -n "$tree_f" ] || tree_f=/dev/null
+  _hi_boot_stream
+}
+
 function test_boot_probe_reports_its_dir_on_success() {
   local out dir
-  out="$(printf 'echo boot\n' | TMPDIR="$_HI_WORKDIR" sh -c "$(_hi_boot_probe)" 2>/dev/null)" || _hi_why || return 1
+  out="$(_hi_boot_feed | TMPDIR="$_HI_WORKDIR" sh -c "$(_hi_boot_probe)" 2>/dev/null)" || _hi_why || return 1
   dir="${out##*HIBOOT:}"
   { [ -f "$dir/bootloader" ] && rm -rf "$dir"; } || _hi_why dir
+}
+
+# ...split back into the script and the two archives beside it, byte for
+# byte, binary and all
+function test_boot_probe_splits_the_archives_out() {
+  local out dir t="$_HI_WORKDIR/t.tgz" o="$_HI_WORKDIR/o.tgz" got
+  printf 'tree\n' | gzip -c >"$t"
+  printf 'overlay\0with a NUL\n' | gzip -c >"$o"
+  out="$(_hi_boot_feed "$t" "$o" | TMPDIR="$_HI_WORKDIR" sh -c "$(_hi_boot_probe)" 2>/dev/null)" || _hi_why out || return 1
+  dir="${out##*HIBOOT:}"
+  got="$(cat "$dir/bootloader")"
+  { [ "$got" = "echo boot" ] && cmp -s "$t" "$dir/tree.tgz" && cmp -s "$o" "$dir/overlay.tgz" &&
+    [ ! -e "$dir/all" ] && [ ! -e "$dir/rest" ]; } || _hi_why got dir || return 1
+  rm -rf "$dir" || _hi_why dir
+}
+
+# ...and a directory the client named (_hi_connect_overlap's): made 0700, the
+# script renamed in whole, a short landing refused, and so is a directory
+# that already exists
+function test_boot_probe_lands_in_a_named_dir() {
+  local out d="$_HI_WORKDIR/named.boot" mode ec=0
+  { _hi_boot_feed && printf x; } | sh -c "$(_hi_boot_probe "$d.short")" >/dev/null 2>&1 || ec=$?
+  { [ "$ec" -eq 66 ] && [ ! -e "$d.short" ]; } || _hi_why ec || return 1
+  ec=0
+  out="$(_hi_boot_feed | sh -c "$(_hi_boot_probe "$d")" 2>/dev/null)" || _hi_why out || return 1
+  { [ "${out##*HIBOOT:}" = "$d" ] && [ -f "$d/bootloader" ] && [ ! -e "$d/part" ]; } || _hi_why out || return 1
+  if _hi_capable mode_bits; then
+    mode="$(find "$d" -prune -perm 700)"
+    [ "$mode" = "$d" ] || _hi_because "$d is not mode 0700" || return 1
+  fi
+  _hi_boot_feed | sh -c "$(_hi_boot_probe "$d")" >/dev/null 2>&1 || ec=$?
+  [ "$ec" -eq 65 ] || _hi_why ec
 }
 
 # ...and whether the target has a multiplexer to keep a session in, on a line
@@ -428,11 +470,11 @@ function test_boot_probe_says_whether_a_multiplexer_is_there() {
   local out dir sh_bin
   sh_bin="$(command -v sh)"
   # openssl too: stock OpenBSD has no base64, and the probe would exit 64
-  dir="$(_hi_real_path nomux base64 openssl tar gzip mktemp cat)"
-  out="$(PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || _hi_why out || return 1
+  dir="$(_hi_real_path nomux base64 openssl tar gzip mktemp cat wc dd tail rm mv)"
+  out="$(_hi_boot_feed | PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" 2>/dev/null)" || _hi_why out || return 1
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
   [[ "$out" == *$'\nHIMUX:0\nHIBOOT:/'* ]] || _hi_because "none on PATH: $out" || return 1
-  out="$(PATH="$(_hi_fake_path withmux screen):$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || _hi_why out || return 1
+  out="$(_hi_boot_feed | PATH="$(_hi_fake_path withmux screen):$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" 2>/dev/null)" || _hi_why out || return 1
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
   [[ "$out" == *$'\nHIMUX:1\nHIBOOT:/'* ]] || _hi_because "screen on PATH: $out"
 }
@@ -453,6 +495,8 @@ function run_hi_remote_tests() {
   _hi_check_capable applet_shims "...and 67, silently, with no tar that reads gzip" test_boot_probe_says_no_tar
   _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
+  _hi_check "...and splits the archives out beside the script, byte for byte" test_boot_probe_splits_the_archives_out
+  _hi_check "...or lands whole in the 0700 one it was named, refusing one there or a short landing" test_boot_probe_lands_in_a_named_dir
   _hi_check "...and whether a multiplexer is there" test_boot_probe_says_whether_a_multiplexer_is_there
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session
   _hi_check "A command replaces load" test_bootloader_replaces_load_with_the_command

@@ -323,6 +323,7 @@ into place.
 | `hi.targets.<kind>`     | completion's target list, for `$_HI_TARGETS_TTL` seconds                                                                                                                                                                                               |
 | `hi.payload.tree.<key>` | the gzipped payload, rebuilt when a tree file changes, keyed on the tree's path and its cut list (the defaults an overlay shadows, or whose tool is not installed here, and the prompt loaders a target is not handed); off with `_HI_PAYLOAD_CACHE=0` |
 | `hi.overlay.<key>`      | the overlay stream, keyed on its member list and the home paths any member was packed from                                                                                                                                                             |
+| `hi.plugins.<key>`      | the plugins files' parsed rows, keyed on the tree, site, and overlay paths; read afresh when a plugins file or `scripts/` is newer, or a plugins file comes, goes, or changes size                                                                     |
 | `hi.settings.<key>`     | `settings.sh` with a tagged target's `settings.<tag>.sh` files joined on, what that target is sent; rewritten only when its content changes                                                                                                            |
 | `hi.ssh_tags`           | the `ssh_tags` member, recut when `~/.ssh/config` is newer                                                                                                                                                                                             |
 | `hi.ctl.<key>`          | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off)                                                                                                                                                                  |
@@ -375,8 +376,10 @@ That directory is `$_HI_HOME` and `$_HI_CLEANUP`. Inside it:
 | `say-hi/.hi_fallback_rc`, `say-hi/.zshrc` | on a target without bash: the aliases-and-prompt rc `$ENV` or `ZDOTDIR` points at |
 | `hi.rc.XXXXXX/`                           | the session rc directory, below                                                   |
 
-Every arm also lands its bootloader in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
-removed when the session ends. A read-only root works when `$TMPDIR`
+Every arm also lands its bootloader, with the tree's and the overlay's
+archives beside it, in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
+the `XXXXXX` 16 hex digits of the client's over ssh, removed when the
+session ends. A read-only root works when `$TMPDIR`
 names a writable mount; with nowhere writable, hi says so and hands over the
 target's own session, as `--plain` does, which writes nothing. How the tree
 goes on exit is

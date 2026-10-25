@@ -304,13 +304,15 @@ Pages; the lint group checks that too.
 
 [README's Roadmap](../README.md#roadmap) and
 [Release Stages](../README.md#release-stages) are to-do lists, not a
-changelog: finishing an entry means **deleting** it. What a _user_ reads is the pull
-request's `## Release note` section (the template has it), which
-[`release.yml` collects into the release body](RELEASING.md#cutting-a-release):
-write the sentence you would want on the release page, or `none` when nothing
-a user sees changes. `release note (pr body)` warns on a body with no such
-section, or an empty one. There is deliberately no `CHANGELOG` file: it would
-be a second copy of those notes to keep in step by hand.
+changelog: finishing an entry means **moving** it, as one sentence, into the
+`From the roadmap:` list under [CHANGELOG.md](../CHANGELOG.md)'s
+`## Unreleased`, which the next release's entry takes in. What a _user_ reads
+is the pull request's `## Release note` section (the template has it), which
+[`release.yml` collects into the release body](RELEASING.md#cutting-a-release)
+and `.github/scripts/changelog.sh` into `CHANGELOG.md`: write the sentence you
+would want on the release page, or `none` when nothing a user sees changes.
+`release note (pr body)` warns on a body with no such section, or an empty
+one.
 
 ## Opening the pull request
 

@@ -9,7 +9,9 @@
 #
 # The entry is release_notes.sh's list over the PRs merged into main since the
 # last tag, as GitHub's generate-notes endpoint lists them; with no note at
-# all it says so. A version already on top is replaced, so a run after a late
+# all it says so. README's Roadmap moves each finished entry, as one sentence,
+# into a `## Unreleased` section's `From the roadmap:` list, which a write
+# folds into the version's entry under the same line. A version already on top is replaced, so a run after a late
 # merge rewrites its own entry. A prerelease (1.0.0-rc.1) is held to the entry
 # of the version it leads to, and a 0.0.x debug tag to none.
 set -euo pipefail
@@ -26,6 +28,10 @@ top() {
 check() {
   local want="${1%%-*}" got
   case "$want" in 0.0.*) return 0 ;; esac
+  if grep -qx '## Unreleased' "$_cl_file" 2>/dev/null; then
+    echo "changelog.sh: CHANGELOG.md still holds a ## Unreleased section - run .github/scripts/changelog.sh <owner/repo> $want to fold it into the entry" >&2
+    return 1
+  fi
   got="$(top)"
   [ "$got" = "$want" ] && return 0
   echo "changelog.sh: CHANGELOG.md opens on '${got:-no entry}', not $want - run .github/scripts/changelog.sh <owner/repo> $want, and merge it before the tag" >&2
@@ -44,19 +50,33 @@ write() {
   [ -n "$changed" ] || changed="- Nothing a user sees changed."
   entry="$(printf '## %s - %s\n\n%s\n' "$version" "$(date -u +%Y-%m-%d)" "$changed")"
   [ -f "$_cl_file" ] || printf '# Changelog\n' >"$_cl_file"
-  # the header, then the entry, then every entry but one for this version;
-  # blank lines are held until a line follows them, so the file ends on text.
-  # ENVIRON, not -v: awk reads escapes in a -v value, and a note may hold a
-  # backslash.
+  # the header, then the entry, then every entry but this version's and the
+  # Unreleased one; the roadmap's finished items, this version's first and
+  # then Unreleased's, close the entry. Blank lines are held until a line
+  # follows them, so the file ends on text. ENVIRON, not -v: awk reads
+  # escapes in a -v value, and a note may hold a backslash.
   CL_ENTRY="$entry" awk -v v="$version" '
     function out(s) { while (blank > 0) { print ""; blank-- } print s }
-    /^## / && !placed { out(ENVIRON["CL_ENTRY"]); blank = 1; placed = 1 }
-    /^## / { skip = (index($0, "## " v " - ") == 1) }
+    function mine(l) { return index(l, "## " v " - ") == 1 || l == "## Unreleased" }
+    NR == FNR {
+      if (/^## /) { sec = mine($0) ? (($0 == "## Unreleased") ? 2 : 1) : 0; road = 0 }
+      else if ($0 == "From the roadmap:") road = 1
+      else if (sec && road && /^- /) done[sec] = done[sec] $0 "\n"
+      next
+    }
+    /^## / && !placed { place() }
+    /^## / { skip = mine($0) }
     skip { next }
     /^$/ { blank++; next }
     { out($0) }
-    END { if (!placed) { blank = 1; out(ENVIRON["CL_ENTRY"]) } }
-  ' "$_cl_file" >"$_cl_file.new"
+    function place(  d) {
+      d = done[1] done[2]
+      out(ENVIRON["CL_ENTRY"])
+      if (d != "") { blank = 1; out("From the roadmap:"); blank = 1; out(substr(d, 1, length(d) - 1)) }
+      blank = 1; placed = 1
+    }
+    END { if (!placed) { blank = 1; place() } }
+  ' "$_cl_file" "$_cl_file" >"$_cl_file.new"
   mv "$_cl_file.new" "$_cl_file"
   echo "changelog.sh: CHANGELOG.md opens on $version - review it, then commit"
 }

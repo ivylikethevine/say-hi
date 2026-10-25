@@ -83,7 +83,7 @@ _HI_CONNECT_TIME=*)
   rm -rf "$dir"
   exit 0
   ;;
-*'cat > "$d/bootloader"'*)
+*'cat > "$d/all"'*)
   printf 'boot\n' >>"$_HI_CT_LOG"
   if [ "$(grep -c '^boot$' "$_HI_CT_LOG")" -le "${_HI_CT_SHORT:-0}" ]; then
     # dd rather than head -c, which OpenBSD's head lacks

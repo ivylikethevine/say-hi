@@ -125,9 +125,12 @@ function test_coverage_drivers_shim_sh_to_bash() {
   [ -f "$lib" ] || return 0 # a shipped tree has no tests/
   # sh, once shimmed: bash in POSIX mode, which under kcov's PS4 method traces
   # to kcov's descriptor (bash-as-sh reads no $BASH_ENV, kcov's own route)
-  # and under its DEBUG method leaves the child as it was
+  # and under its DEBUG method leaves the child as it was. A tracer sweeping
+  # this suite exports its own method's switches, so they are cleared first,
+  # or the line meant to trace inherits KCOV_BASH_USE_DEBUG_TRAP.
   # shellcheck disable=SC2016 # the child's script, expanded there
-  out="$(env -u _HI_ROOT _HI_HOME="$_HI_HOME" bash -c '
+  out="$(env -u _HI_ROOT -u KCOV_BASH_USE_DEBUG_TRAP -u KCOV_BASH_XTRACEFD -u BASH_ENV -u BASH_XTRACEFD -u PS4 -u SHELLOPTS \
+    _HI_HOME="$_HI_HOME" bash -c '
     source "$1" && _hi_cov_shim_sh_to_bash || exit 1
     sh -c "shopt -qo posix && echo bash-posix"
     BASH_XTRACEFD=9 KCOV_BASH_XTRACEFD=9 sh -c "hi_traced=1" 9>"$2"

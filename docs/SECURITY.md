@@ -99,7 +99,7 @@ link leaves the directory for fifteen minutes, for a reconnect to take.
 | what             | where, in the target's temp directory, mode 0700 | when                                                                                  |
 | ---------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | the session tree | `mktemp -d` `<user>.hi.XXXXXX`                   | every session but `--plain`                                                           |
-| the bootstrap    | `mktemp -d` `hi.boot.XXXXXX`                     | every session but `--plain`, removed by the same remote command once the session ends |
+| the bootstrap    | `mkdir` or `mktemp -d` `hi.boot.XXXXXX`          | every session but `--plain`, removed by the same remote command once the session ends |
 
 That is everything hi's own code writes. A prompt program drawing the prompt
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) - by default, one you
@@ -192,7 +192,7 @@ command.
 - **What hi writes on the client.** The rc lines and `settings.sh` the install
   asked about - `install.sh` checks your rc files with each shell's own syntax
   checker before touching them, and `--uninstall` removes exactly what it
-  wrote - plus `hi <TAB>`'s target cache, the payload/overlay cache, the
+  wrote - plus `hi <TAB>`'s target cache, the payload, overlay, and plugins caches, the
   ssh `ControlMaster` socket, and an empty file per target seen holding a
   kept session, in a private runtime directory:
   `$XDG_RUNTIME_DIR`, or a per-uid directory hi creates with `mkdir -m 700`.

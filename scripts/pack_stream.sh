@@ -294,9 +294,25 @@ function _hi_overlay_bytes() {
   fi
 }
 
-# _hi_overlay_bytes armored into the line that unpacks it on the target.
-function _hi_overlay_stream() {
-  _hi_overlay_bytes "$@" | _hi_armored_line '|' "tar -x -m -z -f - -C \"\$_HI_ROOT/config\" && $(_hi_overlay_fixup '"$_HI_ROOT/config"')"
+# _hi_overlay_file <outvar> <dir> <member...> - the overlay's archive as
+# <dir>/overlay.tgz: a copy of the cache when warm and clean, for
+# _hi_payload_file's reason, else a build.
+function _hi_overlay_file() {
+  local _hi_of_out="$1" _hi_of_dir="$2" _hi_of_c=""
+  shift 2
+  if _hi_overlay_cached _hi_of_c "$@" && cp "$_hi_of_c" "$_hi_of_dir/overlay.tgz" 2>/dev/null; then
+    printf -v "$_hi_of_out" '%s' "$_hi_of_dir/overlay.tgz"
+    return 0
+  fi
+  _hi_overlay_tar "$@" >"$_hi_of_dir/overlay.tgz" || return 1
+  printf -v "$_hi_of_out" '%s' "$_hi_of_dir/overlay.tgz"
+}
+
+# The script's lines that unpack the overlay's archive, landed beside it by
+# the boot probe, and fix the paths of what it carried.
+function _hi_overlay_unpack() {
+  printf 'mkdir -p "$_HI_ROOT/config"\ntar -x -m -z -f "$_hi_b/overlay.tgz" -C "$_HI_ROOT/config" && %s' \
+    "$(_hi_overlay_fixup '"$_HI_ROOT/config"')"
 }
 
 # The comment stripper every payload file goes through: their prose headers
@@ -389,33 +405,28 @@ function _hi_payload_tar() {
   _hi_stage_tar "$_HI_ROOT" say-hi
 }
 
-# The tree twin of _hi_overlay_stream: the armored payload tar, through the
-# cache when it is warm and clean.
-function _hi_payload_stream() {
-  local cache=""
-  if _hi_payload_cached cache; then
-    $_HI_ARMOR <"$cache"
-  else
-    _hi_payload_tar | $_HI_ARMOR
-  fi
-}
-
 function _hi_size() {
   _hi_du_size "${_HI_PAYLOAD[@]/#/$_HI_ROOT/}"
 }
 
 # What a fresh session puts on the wire, without connecting: the real script,
-# assembled as _say_hi assembles it, through the same payload cache - a warm
-# one stages nothing. GLOSSARY: HI.44 - why not a sum of streams
+# assembled as _say_hi assembles it, and the tree's archive after it, through
+# the same payload cache - a warm one stages nothing. GLOSSARY: HI.44 - why
+# not a sum of streams
 # shellcheck disable=SC2034 # the locals are hi.sh's _hi_remote_script's to read
 function _hi_wire_bytes() {
-  local overlay_line="" bootloader tree script
+  local overlay_line="" bootloader script tree_f="" tree_n=0 dir head
   local size="$_HI_SIZE_TOKEN"
   local DOMAIN="${DOMAIN:-target}"
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
-  tree="$(_hi_payload_stream)"
+  dir="$(mktemp -d -t hi.wire.XXXXXX)" || return 1
+  _hi_payload_file tree_f "$dir" || tree_f=""
+  _hi_byte_count tree_n "$tree_f"
+  rm -f "$dir/tree.tgz"
+  rmdir "$dir" 2>/dev/null || :
   _hi_remote_script script
-  _hi_out "${1:-}" "${#script}"
+  head="$((${#script} + 1)) $tree_n 0"
+  _hi_out "${1:-}" "$((${#head} + 1 + ${#script} + 1 + tree_n))"
 }
 
 # the same figure for humans; the bench suite takes the bytes, so the README

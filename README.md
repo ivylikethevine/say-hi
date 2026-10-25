@@ -10,7 +10,7 @@ none of them, and what hi put there is removed when it ends. Nothing is
 installed on the host. The same command opens a session in a container, a
 Nomad allocation, or a Kubernetes pod.
 
-![Payload](https://img.shields.io/badge/ssh_payload-82KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-63KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -403,8 +403,9 @@ myself.
 ## Roadmap
 
 The features and changes left to build; nothing here is parked or descoped.
-One list, in the order the work is best done. An entry is deleted once its
-**Ticks when** holds. What a release waits on is
+One list, in the order the work is best done. Once its **Ticks when** holds,
+an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
+`## Unreleased` section. What a release waits on is
 [Release Stages](#release-stages).
 
 - [ ] **The default preset leaves this machine alone** — shipped: `balanced`
@@ -489,6 +490,92 @@ One list, in the order the work is best done. An entry is deleted once its
       `.github/workflows/apple-container.yml` checks it on a hosted `macos-26`
       runner. **Do:** dispatch it. **Ticks when:** its grammar step is green
       and the row says what its runtime step found.
+
+- [ ] **The client's plugin and overlay work is cut** — about 95 ms of
+      client work runs before the first ssh call (16CPU/60GB), all of it ahead
+      of a cold connect's handshake. Shipped: the plugins files' reading is
+      kept between connects ([HI.63](docs/GLOSSARY.md#hi63-plugins-rows)),
+      `_hi_plugins_load` answers its memo before declaring its locals, and
+      `_hi_overlay_row`'s index is built in one pass and read with one scan a
+      name. On a quiet machine the plugins load went from 18 to 3 ms and the
+      overlay listing from 45 to 33 ms, and a cold connect from a client that
+      has connected before is 10-13 ms shorter at 0, 50, and 150 ms of added
+      round trip (`scratch/lag_ab.sh`); a client's first connect ever is about
+      as much longer, writing the cache. Left: the per-member work of `_hi_plugin_off`,
+      `_hi_row_col`, `_hi_path_list`, and `_hi_prompt_row`, and the 13 ms of
+      sourcing hi's files. At a terminal the overlapped boot call now starts
+      17 ms into a connect and the rest rides its handshake
+      (`scratch/client_prep.sh`), so this work delays a cold connect only
+      where the handshake is the shorter. **Ticks when:** the client work
+      has halved in `scratch/connect_lag.sh` on a quiet machine, with
+      `--group bench` green.
+
+- [ ] **`_hi_hash` forks less and loops less** — `hi.sh`'s FNV hash runs a
+      `printf` per character over the connection and cache keys on every
+      connect, though at a terminal it now rides the overlapped boot call's
+      handshake and delays a connect only on a link fast enough to finish
+      that first. **Do:** `cksum`, one POSIX fork, for keys past a length
+      where the loop costs more. **Ticks when:** the hash's share of a traced
+      connect falls, and the keys stay stable across platforms.
+
+- [ ] **`git describe` runs once per commit, not per connect** — a clone
+      stamps the header's version with it on every connect, about 5 ms,
+      hidden behind the handshake as the hash is. **Do:** cache it keyed on `.git/HEAD` and the ref it names. **Ticks
+      when:** a warm connect from a clone runs no git.
+
+- [ ] **The target side measured on a slow box** — the header and unpack
+      took 17 ms on this machine (16CPU/60GB), which says nothing about a
+      Raspberry Pi or a busy VM. **Do:** `scratch/connect_lag.sh`'s cells on
+      a Pi-class target. **Ticks when:** this entry holds the figure, and an
+      entry exists for whatever costs more than the network does.
+
+- [ ] **The tree is cached on the target** — on a fresh connection a script
+      past about 45 KB costs two extra round trips over a small one, and one
+      under 40 KB costs one (`scratch/wire_rtt.sh`, 150 ms added); the
+      script is 83.5 KB, 76.7 KB of it the armored tree, which unarmored is
+      about 63 KB and under xz 50 KB, so neither alone saves a round trip.
+      **Open, the user's to decide:** a tree that outlives its session in
+      the target's temp directory, keyed by its hash, against
+      [SECURITY.md's](docs/SECURITY.md#footprint-and-cleanup-on-the-target)
+      promise that nothing does. **Do, if so:** the script ahead of the
+      tree on the boot call's stdin, and the session's stub starting from a
+      cached tree without waiting for the rest. **Ticks when:** a cold
+      connect to a host visited before is two round trips shorter.
+
+- [ ] **A connect without a tty overlaps too** — a scripted `hi host cmd`
+      keeps the two calls in series, since a failed boot leaves the stub
+      waiting on the target and only a tty's hangup ends it. **Do:** a stub
+      that ends on its own when the boot call fails, with no timeout as its
+      signal. **Ticks when:** a connect with stdin off a tty is about two
+      round trips shorter, and the forced-command and `maxsessions1` cases
+      pass that way.
+
+- [ ] **The session starts once the core files land** — a script past
+      about 45 KB costs a cold connect two extra round trips, one under 40 KB
+      one (`scratch/wire_rtt.sh`), and the tree a bash session needs to
+      start is a fraction of what ships: without `hi.sh`, the completion
+      files, the fish and zsh files, and `keep.sh`, the tree is 29.4 KB
+      gzipped against 56.6 KB. **Do:** the core members first on the boot
+      call's stdin and the rest after, the stub starting once the core is
+      in while the rest lands behind it; unarmored, the core's script is
+      about 35 KB. **Ticks when:** a cold connect is a
+      round trip shorter at 150 ms added, with nothing dropped from the
+      tree, and the relay, fish, zsh, and kept-session suites pass.
+
+- [ ] **The two 10 ms polls wake on the event** — the client polls for the
+      master's socket and the target's stub for the script, each every
+      10 ms with a fork, about 10 ms a connect on average. **Do:** a FIFO
+      on each side that the landing or the socket's maker writes. **Ticks
+      when:** the poll loops are gone and a cold connect is that much
+      shorter at 0 ms added.
+
+- [ ] **The boot call starts sooner still** — 17 ms pass before it
+      (`scratch/client_prep.sh`): bash's start, sourcing hi's files, the
+      parse, the arm's choice, then the tag settings and the prompt list.
+      **Do:** the boot call started ahead of the tag settings and the
+      prompt list, which the script needs only once built. **Ticks when:**
+      the first ssh call comes measurably sooner and the per-tag settings
+      still reach the session.
 
 ## Release Stages
 

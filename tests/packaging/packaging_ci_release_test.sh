@@ -680,14 +680,14 @@ function test_src_tarball_ships_an_executable_hi_sh() {
 }
 
 # _hi_changelog_run <dir> <args...> - changelog.sh over <dir>/CHANGELOG.md, a
-# copy of this tree's, with a stand-in gh: PR 12 says something (a backslash
-# in it), PR 13 says none
+# copy of this tree's header alone, with a stand-in gh: PR 12 says something
+# (a backslash in it), PR 13 says none
 function _hi_changelog_run() {
   local dir="$1"
   shift
   if [ ! -d "$dir/bin" ]; then
     mkdir -p "$dir/bin"
-    cp "$_HI_ROOT/CHANGELOG.md" "$dir/CHANGELOG.md"
+    sed '/^## /,$d' "$_HI_ROOT/CHANGELOG.md" >"$dir/CHANGELOG.md"
     cat >"$dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
@@ -710,6 +710,25 @@ function test_changelog_writes_one_entry_a_version() {
     _hi_changelog_run "$dir" o/r 1.1.0; } >/dev/null || _hi_why dir || return 1
   got="$(grep -E '^## |^- ' "$dir/CHANGELOG.md" | sed 's/ - [0-9-]*$//')"
   [ "$got" = $'## 1.1.0\n- hi keeps your prompt, a \\ and all. (#12)\n## 1.0.0\n- hi keeps your prompt, a \\ and all. (#12)' ] ||
+    _hi_because "the entries read: $got" || return 1
+  got="$(tail -n 1 "$dir/CHANGELOG.md")"
+  [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
+}
+
+# the roadmap's finished items wait under `## Unreleased`, which no tag
+# passes, and land at the foot of the next version's entry, the section
+# gone; a rewrite of that version keeps them, and the next version starts
+# with none
+function test_changelog_folds_the_roadmap_s_finished_items_in() {
+  local dir="$_HI_WORKDIR/changelog-r" got
+  _hi_changelog_run "$dir" --check 0.0.1 || _hi_why dir || return 1
+  printf '\n## Unreleased\n\nFrom the roadmap:\n\n- One thing was done.\n- Another was too.\n' >>"$dir/CHANGELOG.md"
+  ! got="$(_hi_changelog_run "$dir" --check 1.0.0 2>&1)" && [[ "$got" == *"still holds a ## Unreleased section"* ]] ||
+    _hi_because "a tag passed with items still unfolded: $got" || return 1
+  { _hi_changelog_run "$dir" o/r 1.0.0 && _hi_changelog_run "$dir" o/r 1.0.0 &&
+    _hi_changelog_run "$dir" o/r 1.1.0 && _hi_changelog_run "$dir" --check 1.1.0; } >/dev/null || _hi_why dir || return 1
+  got="$(grep -E '^## |^- |^From' "$dir/CHANGELOG.md" | sed 's/ - [0-9-]*$//')"
+  [ "$got" = $'## 1.1.0\n- hi keeps your prompt, a \\ and all. (#12)\n## 1.0.0\n- hi keeps your prompt, a \\ and all. (#12)\nFrom the roadmap:\n- One thing was done.\n- Another was too.' ] ||
     _hi_because "the entries read: $got" || return 1
   got="$(tail -n 1 "$dir/CHANGELOG.md")"
   [ -n "$got" ] || _hi_because "CHANGELOG.md ends on a blank line"
@@ -793,6 +812,7 @@ function run_packaging_ci_release_tests() {
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
   _hi_check "src_tarball ships an executable hi.sh, and CHANGELOG.md" test_src_tarball_ships_an_executable_hi_sh
   _hi_check "changelog.sh writes one entry a version, newest first" test_changelog_writes_one_entry_a_version
+  _hi_check "changelog.sh folds the roadmap's finished items into the next entry" test_changelog_folds_the_roadmap_s_finished_items_in
   _hi_check "changelog.sh --check holds a tag to the top entry" test_changelog_check_holds_the_tag_to_the_top_entry
   _hi_check "the gate runs changelog.sh --check" test_release_gate_checks_the_changelog
   _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
