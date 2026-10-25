@@ -403,8 +403,9 @@ myself.
 ## Roadmap
 
 The features and changes left to build; nothing here is parked or descoped.
-One list, in the order the work is best done. An entry is deleted once its
-**Ticks when** holds. What a release waits on is
+One list, in the order the work is best done. Once its **Ticks when** holds,
+an entry leaves as one sentence for [CHANGELOG.md](CHANGELOG.md)'s
+`## Unreleased` section. What a release waits on is
 [Release Stages](#release-stages).
 
 - [ ] **The default preset leaves this machine alone** — shipped: `balanced`
@@ -490,23 +491,6 @@ One list, in the order the work is best done. An entry is deleted once its
       runner. **Do:** dispatch it. **Ticks when:** its grammar step is green
       and the row says what its runtime step found.
 
-- [ ] **A cold connect overlaps its two channels** — shipped: over ssh
-      with a ControlMaster and a tty, the session opens once the boot call's
-      master socket is there, while the boot call is still landing the
-      script, its command a short stub that waits for the script in a 0700
-      directory the client names
-      ([HI.19](docs/GLOSSARY.md#hi19-stdin-transport)). The script stays out
-      of every argv under `/proc` and the stub under Dropbear's limit of
-      about 9000 bytes a command. Cold connects against `HEAD`
-      (`scratch/lag_ab.sh`, 16CPU/60GB, quiet, median of 6): 0.271 to 0.225 s
-      at 0 ms added to each round trip, 1.044 to 0.921 s at 50, 2.745 to
-      2.423 s at 150, against `ssh`'s 0.126, 0.631, and 1.731 s. The
-      forced-command, rbash, `maxsessions1`, Dropbear, and no-base64 shapes behave
-      as in series (`scratch/channels_cases.sh`); `maxsessions1` prints the
-      refused channel's line and reopens it. **Ticks when:** a stock Windows
-      OpenSSH host still gets the PowerShell notice, which no target here
-      can show.
-
 - [ ] **The client's plugin and overlay work is cut** — about 95 ms of
       client work runs before the first ssh call (16CPU/60GB), all of it ahead
       of a cold connect's handshake. Shipped: the plugins files' reading is
@@ -525,15 +509,6 @@ One list, in the order the work is best done. An entry is deleted once its
       where the handshake is the shorter. **Ticks when:** the client work
       has halved in `scratch/connect_lag.sh` on a quiet machine, with
       `--group bench` green.
-
-- [ ] **The payload rides unarmored** — shipped: the tree's and the
-      overlay's archives go after the script on the boot call's stdin as they
-      are, behind a line of the byte counts, and the probe splits them out
-      with `dd` and `tail -c` ([HI.19](docs/GLOSSARY.md#hi19-stdin-transport));
-      the wire size went from 82 KB to 63 KB. On a round-trip-bound link both
-      sizes still cost the same windows; the gain is on a bandwidth-bound
-      one, about 1.3 s at 128 kbps. **Ticks when:** the Git Bash, BSD, and
-      busybox jobs land a session with it, which no target here can show.
 
 - [ ] **`_hi_hash` forks less and loops less** — `hi.sh`'s FNV hash runs a
       `printf` per character over the connection and cache keys on every

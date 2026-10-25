@@ -165,7 +165,8 @@ are all machine-read by a suite, and `README.md`'s payload badge by
   every fact has one home, mapped by [docs/README.md](docs/README.md). Link
   to that home, don't copy it — this file included.
 - `README.md`'s Roadmap and Release Stages are to-do lists, not a changelog
-  (same section).
+  (same section): a finished entry moves, as one sentence, to the
+  `From the roadmap:` list under `CHANGELOG.md`'s `## Unreleased`.
   Beyond that: entries whose code half shipped but which wait on a human step
   stay unticked, rewritten to say what shipped and what the tick now means.
 
