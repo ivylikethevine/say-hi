@@ -256,11 +256,13 @@ function _hi_tool_alias_preview() {
     # shellcheck disable=SC2031 # lives and dies in this subshell
     # shellcheck source=../common/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
+    # shellcheck disable=SC2031 # aliases.sh's fish rungs pipe into read, which shellcheck takes for an sh subshell
     if [ -n "$_HI_BAT_BIN" ]; then
       printf 'cat -> %s %s\n' "$_HI_CAT_BIN" "$_HI_BAT_OPTS"
     else
       printf 'bat is not installed here - only targets that have it are affected\n'
     fi
+    # shellcheck disable=SC2031 # the same
     if command -v eza >/dev/null 2>&1; then
       printf 'ls -> %s %s\n' "$_HI_LS_BIN" "$_HI_LS_OPTS"
     else

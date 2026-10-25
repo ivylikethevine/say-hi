@@ -185,7 +185,8 @@ Backticks, not `$( )`: fish before 3.4 refuses a `$( )` anywhere in a file it
 sources and reads a backtick as text, which is also why the lint gate's shfmt
 pass, which would rewrite them, skips the file. Each chain has a rung per
 dialect - `_hi_path_lookup` for bash and zsh, the backtick line for sh,
-`command -v ... | read -gx` for fish - and a leading
+`command -v ... | read VAR && export VAR` for fish (a bare `read`, which
+checkbashisms passes, sets a global in fish) - and a leading
 `[ -n "$FISH_VERSION" ]` keeps the last two to their own shells. The chains
 run only under `_HI_TOOL_ALIASES=1`: off, no alias reads them, and their forks
 are skipped.

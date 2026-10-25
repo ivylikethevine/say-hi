@@ -12,9 +12,10 @@
 # bare under `set -u`, in an eval fish can't parse. The gate is really "no
 # file named shift on PATH" (fish's `command -v` reports no builtins; `getopts`
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
-# intentional empties survive. GLOSSARY: HI.07
+# intentional empties survive; $FISH_VERSION, which the lookups below test to
+# tell fish apart, stays unexported. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}"; _HI_ALIAS_GUARD="${_HI_ALIAS_GUARD-true}"' 2>/dev/null || true
+  eval 'export _HI_TOOL_ALIASES="${_HI_TOOL_ALIASES-0}" _HI_SUDO_ALIAS="${_HI_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}"; _HI_ALIAS_GUARD="${_HI_ALIAS_GUARD-true}" FISH_VERSION="${FISH_VERSION-}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -33,19 +34,19 @@ command -v shift >/dev/null 2>&1 &&
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_CAT_BIN bat batcat ccat cat && export _HI_CAT_BIN || true
 # shellcheck disable=SC2006,SC2015 # backticks for fish's parser; `|| true` only keeps a failed unalias from ending the chain
 [ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_CAT_BIN" ] || export _HI_CAT_BIN="`type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat`"
-# shellcheck disable=SC2162,SC3045,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
-[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v bat batcat ccat cat | read -gx _HI_CAT_BIN || true
+# shellcheck disable=SC2162,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
+[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v bat batcat ccat cat | read _HI_CAT_BIN && export _HI_CAT_BIN || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_BAT_BIN bat batcat && export _HI_BAT_BIN || true
 # shellcheck disable=SC2006,SC2015
 [ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_BAT_BIN" ] || export _HI_BAT_BIN="`type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat`"
-# shellcheck disable=SC2162,SC3045,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
-[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && command -v bat batcat | read -gx _HI_BAT_BIN || true
+# shellcheck disable=SC2162,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
+[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && command -v bat batcat | read _HI_BAT_BIN && export _HI_BAT_BIN || true
 # one ladder behind both list names below, newest first
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_LS_BIN eza ls && export _HI_LS_BIN || true
 # shellcheck disable=SC2006,SC2015
 [ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_LS_BIN" ] || export _HI_LS_BIN="`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v ls`"
-# shellcheck disable=SC2162,SC3045,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
-[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && command -v eza ls | read -gx _HI_LS_BIN || true
+# shellcheck disable=SC2162,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
+[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && command -v eza ls | read _HI_LS_BIN && export _HI_LS_BIN || true
 
 # The editors', tmux's, screen's, and zellij's aliases are not here: each is
 # a line of the overlay's wiring.sh, written from pack.sh's table for the
