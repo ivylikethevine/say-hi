@@ -68,25 +68,6 @@ function _hi_parses --description 'does fish parse this file; said when not'
   echo -s (set_color yellow) "hi: $argv[2] does not parse in fish; skipped" (set_color normal) >&2
   return 1
 end
-# common/aliases_bins.sh, in fish: aliases.sh calls it where the other shells
-# source that file, whose `$( )` fish refuses before 3.4. The same ladders,
-# through `command -s`, which sees no function or alias. GLOSSARY: HI.13
-function __hi_alias_bins --description 'aliases.sh binary lookups, the fish half'
-  if test "$_HI_TOOL_ALIASES" = 1
-    test -n "$_HI_CAT_BIN"; or set -gx _HI_CAT_BIN (command -s bat batcat ccat cat)[1]
-    test -n "$_HI_BAT_BIN"; or set -gx _HI_BAT_BIN (command -s bat batcat)[1]
-    test -n "$_HI_LS_BIN"; or set -gx _HI_LS_BIN (command -s eza ls)[1]
-  end
-  if test -z "$_HI_LS_OPTS"; and test -n "$_HI_LS_BIN"
-    set -l eza (command -s eza)[1]
-    test "$_HI_LS_BIN" = "$eza"; and set -gx _HI_LS_OPTS "$_HI_EZA_OPTS"
-  end
-  if test -z "$_HI_LS_OPTS"
-    set -gx _HI_LS_OPTS '-F -l'
-    command ls --color=auto -d / >/dev/null 2>&1; and set -gx _HI_LS_OPTS '-F -l --color=auto'
-  end
-  return 0
-end
 source $_HI_ALIASES
 # core.sh's _hi_load_extensions, in fish: each extensions/ member in name order,
 # skipped loudly when fish cannot parse it, its $_HI_SEGMENT collected.

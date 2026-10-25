@@ -5,6 +5,7 @@
 # shellcheck disable=SC2155
 # shellcheck disable=SC2089,SC2090 # the *_OPTS quotes are literal alias text; the overlay source below makes the linter guess otherwise
 # shellcheck disable=SC2166 # `[ a -o b ]` is the one "or" all three dialects parse inside an && chain
+# shellcheck disable=SC2031 # fish's `| read` sets the *_BIN values in its own process, not a subshell
 # GLOSSARY: HI.13 - first-installed wins; reorder to taste.
 
 # Backstop defaults for the opt-ins and every value var the guards below read
@@ -17,16 +18,34 @@ command -v shift >/dev/null 2>&1 &&
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
-# chain. bash and zsh have core.sh's _hi_path_lookup, a PATH walk that sees no
-# alias; everywhere else the lookups run in the ls block below, through
-# common/aliases_bins.sh or fish's __hi_alias_bins. $_HI_BAT_BIN is the
-# bat-only tier that parses $_HI_BAT_OPTS - cat and ccat reject that syntax,
-# so the options only ever attach behind it.
+# chain. Three rungs a chain, one per dialect. bash and zsh have core.sh's
+# _hi_path_lookup, a PATH walk that sees no alias. sh and the bash-less tier
+# clear aliases first, in a subshell of their own only - the target's
+# `alias ls='ls --color=auto'`, or ours on a re-source, would otherwise become
+# the binary - inside backticks, since fish before 3.4 refuses a `$( )`
+# anywhere in a file it sources and reads a backtick as text. fish pipes
+# `command -v`, which sees no function or alias, into `read`; a leading
+# `[ -n "$FISH_VERSION" ]` keeps each of those two rungs to its own shells.
+# `||` chains, because `zsh -n` fails a file holding a `!`. $_HI_BAT_BIN is
+# the bat-only tier that parses $_HI_BAT_OPTS - cat and ccat reject that
+# syntax, so the options only ever attach behind it.
 # GLOSSARY: HI.13.
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_CAT_BIN bat batcat ccat cat && export _HI_CAT_BIN || true
+# shellcheck disable=SC2006,SC2015 # backticks for fish's parser; `|| true` only keeps a failed unalias from ending the chain
+[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_CAT_BIN" ] || export _HI_CAT_BIN="`type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat`"
+# shellcheck disable=SC2162,SC3045,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
+[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v bat batcat ccat cat | read -gx _HI_CAT_BIN || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_BAT_BIN bat batcat && export _HI_BAT_BIN || true
+# shellcheck disable=SC2006,SC2015
+[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_BAT_BIN" ] || export _HI_BAT_BIN="`type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat`"
+# shellcheck disable=SC2162,SC3045,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
+[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && command -v bat batcat | read -gx _HI_BAT_BIN || true
 # one ladder behind both list names below, newest first
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_LS_BIN eza ls && export _HI_LS_BIN || true
+# shellcheck disable=SC2006,SC2015
+[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_LS_BIN" ] || export _HI_LS_BIN="`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v ls`"
+# shellcheck disable=SC2162,SC3045,SC2030 # fish's read, behind $FISH_VERSION: no sh runs it
+[ -n "$FISH_VERSION" ] && [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && command -v eza ls | read -gx _HI_LS_BIN || true
 
 # The editors', tmux's, screen's, and zellij's aliases are not here: each is
 # a line of the overlay's wiring.sh, written from pack.sh's table for the
@@ -37,25 +56,6 @@ command -v shift >/dev/null 2>&1 &&
 # the word after sudo, so `sudo vim` gets the vim alias's flags; fish has a
 # wrapper in config.fish behind the same setting
 [ "$_HI_SUDO_ALIAS" = 1 ] && command -v sudo >/dev/null 2>&1 && alias sudo="command sudo " || true
-
-# eza improved ls; time format per
-# https://docs.rs/chrono/latest/chrono/format/strftime/index.html. One alias
-# body, two names for it, and a flag list per rung: the two binaries diverge
-# past `-F -l` (--smart-group and --time-style are eza-only, ls parses
-# neither), so $_HI_LS_OPTS is whichever list the rung that answered takes.
-# Set it yourself and the ladder defers. `eza` answers only where that binary
-# is. ls colors only when asked (coreutils, busybox, newer BSD ls), so its
-# rung asks where the flag is taken; an ls that refuses it colors through
-# CLICOLOR, or not at all.
-[ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
-[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
-# The lookups that need a `$( )`, and ls's own last rung: aliases_bins.sh for
-# the shells with `shift` (fish's `command -v` reports no builtins), and
-# config.fish's __hi_alias_bins for fish, which refuses a `$( )` before 3.4.
-# shellcheck disable=SC2015 # the file ends on `|| true`, so only fish takes the `||`
-command -v shift >/dev/null 2>&1 && . "$_HI_ROOT/common/aliases_bins.sh" || __hi_alias_bins
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
-[ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
 
 # The styled tool aliases, opt-in (_HI_TOOL_ALIASES=1), and the binary
 # lookups above with them: cat is bat with these options when bat exists, ccat
@@ -68,6 +68,24 @@ command -v shift >/dev/null 2>&1 && . "$_HI_ROOT/common/aliases_bins.sh" || __hi
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
+
+# eza improved ls; time format per
+# https://docs.rs/chrono/latest/chrono/format/strftime/index.html. One alias
+# body, two names for it, and a flag list per rung: the two binaries diverge
+# past `-F -l` (--smart-group and --time-style are eza-only, ls parses
+# neither), so $_HI_LS_OPTS is whichever list the rung that answered takes.
+# Set it yourself and the ladder defers. `eza` answers only where that binary
+# is. ls colors only when asked (coreutils, busybox, newer BSD ls), so its
+# rung asks where the flag is taken; an ls that refuses it colors through
+# CLICOLOR, or not at all.
+[ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
+[ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
+# shellcheck disable=SC2006,SC2015
+[ -n "$FISH_VERSION" ] || command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "`type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza`" ] || export _HI_LS_OPTS="$_HI_EZA_OPTS"
+[ -n "$FISH_VERSION" ] && [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v eza | string match -q -- "$_HI_LS_BIN" && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
+[ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS='-F -l' && command ls --color=auto -d / >/dev/null 2>&1 && export _HI_LS_OPTS='-F -l --color=auto' || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
 
 # Drop into another shell inside a session and hi comes with you. load.sh's
 # _hi_session_rc_setup writes one rc per shell into $_HI_SESSION_RC; zsh and

@@ -440,9 +440,10 @@ One list, in the order the work is best done. An entry is deleted once its
 
 - [ ] **fish 3.3 lands a fish session** — shipped: the floor is 3.3,
       Ubuntu 22.04's, through `tests/dockerfiles/fish33.Dockerfile`.
-      `aliases.sh`'s `$( )` lookups moved to `common/aliases_bins.sh`, which
-      fish never parses, with `config.fish`'s `__hi_alias_bins` as fish's
-      twin, and the re-entry `return` became an `if` around `config.fish`.
+      `aliases.sh`'s sh-tier lookups are backticks, which fish reads as text,
+      with a `command -v ... | read` rung for fish beside each
+      ([HI.13](docs/GLOSSARY.md#hi13-command--v-fallthrough)), and the
+      re-entry `return` became an `if` around `config.fish`.
       3.2 has no `--no-config` for the overlay parse gate, and 3.1's `-n`
       refuses every `export`, so both stay below it
       ([COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).

@@ -168,13 +168,12 @@ function _hi_settings_shape_of() {
   printf '%s' "$shape"
 }
 
-# no tty, no preset, no file, and nothing to say: no file - a shebang alone
-# would be a decision record with no decision in it, and its existence is
-# what stops the one-shot prompt-framework detection asking again
-function test_no_tty_run_with_defaults_writes_no_file() {
+# no tty, no preset, and no file: a first install, which starts where a
+# terminal's Enter would, from $_HI_PRESET_DEFAULT
+function test_no_tty_first_run_writes_the_default_preset() {
   local got
   got="$(_hi_run_in notty)"
-  [ -z "$got" ] && [ ! -e "$_HI_WORKDIR/run_notty/settings.sh" ] || _hi_why got
+  [[ "$got" == *"export _HI_DISABLE_LOCAL=1"* && "$got" == *"_HI_PACKAGES_GROUPS='core,deprecated'"* ]] || _hi_why got
 }
 
 # a preset is a decision, so that run creates the file
@@ -856,7 +855,7 @@ function run_configure_wizard_tests() {
   _hi_check "...in a settings.sh of 256 KB too" test_configure_adopts_a_hand_line_in_a_large_file
   _hi_check "A hand line this run does not write is left alone" test_configure_leaves_a_hand_line_it_does_not_write
   _hi_check "The block opens on its shape line, written once" test_configure_opens_the_block_on_its_shape_line
-  _hi_check "No tty and nothing to say: no file" test_no_tty_run_with_defaults_writes_no_file
+  _hi_check "No tty and no file: the default preset is written" test_no_tty_first_run_writes_the_default_preset
   _hi_check "A preset run creates the file" test_preset_run_still_creates_the_file
   _hi_check "Validators for the advanced values" test_validators_for_the_advanced_values
   _hi_check "Diff reports added and removed lines" test_settings_diff_reports_added_and_removed

@@ -22,7 +22,9 @@ if [ -n "${2:-}" ]; then
   # shellcheck disable=SC2016 # the rc expands it
   printf 'PS1=$HI_OWN_PS1\n' >>"$rc"
 fi
-_HI_HOME="$HOME" bash "$HOME/say-hi/scripts/install.sh" --link none --shell "$shell" </dev/null >"$HOME/install.log" 2>&1 || {
+# everything: the default preset leaves this machine's prompt alone, and the
+# prompt hi draws here is what the case reads
+_HI_HOME="$HOME" bash "$HOME/say-hi/scripts/install.sh" --link none --shell "$shell" --preset everything </dev/null >"$HOME/install.log" 2>&1 || {
   cat "$HOME/install.log" >&2
   exit 1
 }

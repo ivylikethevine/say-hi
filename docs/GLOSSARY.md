@@ -177,16 +177,18 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 
 ## HI.13 command -v fallthrough
 
-`export _HI_LS_BIN="$(command -v eza || command -v ls)"` in
-`common/aliases_bins.sh` (shown without its `[ -z ] &&` guard and the
-alias-clearing prefix below), with the aliases `common/aliases.sh` builds on
-the result: resolved at source time, and ending in a binary every target has,
-so no alias points at a missing one. The `$( )` lines live in a file of their
-own because fish before 3.4 refuses a `$( )` anywhere in a file it sources:
-`aliases.sh` sources `aliases_bins.sh` where `command -v shift` answers (sh,
-bash, zsh) and calls `config.fish`'s `__hi_alias_bins`, the same ladders
-through `command -s`, where it does not (fish). The chains run only under
-`_HI_TOOL_ALIASES=1`: off, no alias reads them, and their forks are skipped.
+``export _HI_LS_BIN="`command -v eza || command -v ls`"`` in
+`common/aliases.sh` (shown without its guards and the alias-clearing prefix
+below), with the aliases built on the result: resolved at source time, and
+ending in a binary every target has, so no alias points at a missing one.
+Backticks, not `$( )`: fish before 3.4 refuses a `$( )` anywhere in a file it
+sources and reads a backtick as text, which is also why the lint gate's shfmt
+pass, which would rewrite them, skips the file. Each chain has a rung per
+dialect - `_hi_path_lookup` for bash and zsh, the backtick line for sh,
+`command -v ... | read -gx` for fish - and a leading
+`[ -n "$FISH_VERSION" ]` keeps the last two to their own shells. The chains
+run only under `_HI_TOOL_ALIASES=1`: off, no alias reads them, and their forks
+are skipped.
 
 A second, **narrower** chain over the same family delivers flags only to the
 tier that parses them: `$_HI_BAT_BIN` is `bat || batcat` where
@@ -200,11 +202,11 @@ definition once one exists, so an overlay `alias cat=...` ahead of the chains
 would leave `$_HI_CAT_BIN` holding the alias body. Ordering alone does not cover
 an alias that was there before hi - a target's `alias ls='ls --color=auto'`, or
 hi's own `vim` alias when an interactive shell re-sources its rc - so each
-`$( )` opens with `type unalias >/dev/null 2>&1 && unalias -a || true &&`,
+backtick line opens with `type unalias >/dev/null 2>&1 && unalias -a || true &&`,
 clearing aliases in that subshell only (fish has no `unalias` and its
 `command -v` never reports one). bash and zsh skip those forks: with
 `common/core.sh` loaded, each chain runs through `_hi_path_lookup`, a walk of
-`$PATH` that sees no alias or function, and the `$( )` line runs only where
+`$PATH` that sees no alias or function, and the backtick line runs only where
 that function is not defined. `tests/config/alias_fallthrough_test.sh` is the
 regression test.
 
