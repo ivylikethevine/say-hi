@@ -390,15 +390,15 @@ function test_boot_probe_takes_openssl() {
 # 67 with no tar, and with a tar that cannot read gzip, a stand-in that
 # fails: GNU's without gzip is that tar, while busybox's and bsdtar read gzip
 # themselves, so a PATH without gzip proves nothing everywhere. Silent both
-# ways, since a target's stderr reaches the user's terminal. base64 and
-# mktemp are there, so neither 64 nor 65 answers for it.
+# ways, since a target's stderr reaches the user's terminal. base64 (or openssl,
+# OpenBSD's) and mktemp are there, so neither 64 nor 65 answers for it.
 function test_boot_probe_says_no_tar() {
   local ec sh_bin dir err nogz
   sh_bin="$(command -v sh)"
-  nogz="$(_hi_real_path nogzip base64 mktemp cat)"
+  nogz="$(_hi_real_path nogzip base64 openssl mktemp cat)"
   printf '%s\n' '#!/bin/sh' 'echo "tar: gzip: Cannot exec" >&2' 'exit 2' >"$nogz/tar"
   chmod +x "$nogz/tar"
-  for dir in "$(_hi_real_path notar base64 mktemp cat)" "$nogz"; do
+  for dir in "$(_hi_real_path notar base64 openssl mktemp cat)" "$nogz"; do
     ec=0
     err="$(PATH="$dir" TMPDIR="$_HI_WORKDIR" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>&1 >/dev/null)" || ec=$?
     [ "$ec" -eq 67 ] && [ -z "$err" ] || _hi_because "PATH $dir: exit $ec, stderr: $err" || return 1
