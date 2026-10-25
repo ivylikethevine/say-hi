@@ -178,10 +178,14 @@ strings computes column counts explicitly (`changes_w` in `common/header.sh`,
 ## HI.13 command -v fallthrough
 
 `export _HI_LS_BIN="$(command -v eza || command -v ls)"` in
-`common/aliases.sh` (shown without its `[ -z ] &&` guard and the
-alias-clearing prefix below), with the aliases built on the result: resolved at
-source time, valid in sh, bash, zsh _and_ fish, and ending in a binary every
-target has, so no alias points at a missing one. The chains run only under
+`common/aliases_bins.sh` (shown without its `[ -z ] &&` guard and the
+alias-clearing prefix below), with the aliases `common/aliases.sh` builds on
+the result: resolved at source time, and ending in a binary every target has,
+so no alias points at a missing one. The `$( )` lines live in a file of their
+own because fish before 3.4 refuses a `$( )` anywhere in a file it sources:
+`aliases.sh` sources `aliases_bins.sh` where `command -v shift` answers (sh,
+bash, zsh) and calls `config.fish`'s `__hi_alias_bins`, the same ladders
+through `command -s`, where it does not (fish). The chains run only under
 `_HI_TOOL_ALIASES=1`: off, no alias reads them, and their forks are skipped.
 
 A second, **narrower** chain over the same family delivers flags only to the

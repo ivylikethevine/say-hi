@@ -1,8 +1,10 @@
 #!/bin/fish
 
 # === start required configuration ===
-# see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
-set -q _hi_rc_loading; and return
+# see common/bash.sh: re-entered while loading, skip. An `if` around the
+# file, closed on its last line, rather than a `return`: fish before 3.4
+# refuses one outside a function. GLOSSARY: HI.55
+if not set -q _hi_rc_loading
 set -g _hi_rc_loading 1
 # The tree, by core.sh's rule (GLOSSARY: HI.33): $_HI_ROOT where it sits in
 # $_HI_HOME, else $_HI_HOME/say-hi where that is one, else this file's own
@@ -65,6 +67,25 @@ function _hi_parses --description 'does fish parse this file; said when not'
   command fish --no-config -n $argv[1] 2>/dev/null; and return 0
   echo -s (set_color yellow) "hi: $argv[2] does not parse in fish; skipped" (set_color normal) >&2
   return 1
+end
+# common/aliases_bins.sh, in fish: aliases.sh calls it where the other shells
+# source that file, whose `$( )` fish refuses before 3.4. The same ladders,
+# through `command -s`, which sees no function or alias. GLOSSARY: HI.13
+function __hi_alias_bins --description 'aliases.sh binary lookups, the fish half'
+  if test "$_HI_TOOL_ALIASES" = 1
+    test -n "$_HI_CAT_BIN"; or set -gx _HI_CAT_BIN (command -s bat batcat ccat cat)[1]
+    test -n "$_HI_BAT_BIN"; or set -gx _HI_BAT_BIN (command -s bat batcat)[1]
+    test -n "$_HI_LS_BIN"; or set -gx _HI_LS_BIN (command -s eza ls)[1]
+  end
+  if test -z "$_HI_LS_OPTS"; and test -n "$_HI_LS_BIN"
+    set -l eza (command -s eza)[1]
+    test "$_HI_LS_BIN" = "$eza"; and set -gx _HI_LS_OPTS "$_HI_EZA_OPTS"
+  end
+  if test -z "$_HI_LS_OPTS"
+    set -gx _HI_LS_OPTS '-F -l'
+    command ls --color=auto -d / >/dev/null 2>&1; and set -gx _HI_LS_OPTS '-F -l --color=auto'
+  end
+  return 0
 end
 source $_HI_ALIASES
 # core.sh's _hi_load_extensions, in fish: each extensions/ member in name order,
@@ -464,9 +485,11 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set __fish_prompt_status_generation $status_generation
 
       # quoted so an empty set_color (no colour on this TERM) still counts as an
-      # argument - fish 3 otherwise reports "missing argument" on every prompt
-      set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
-        "$(set_color $fish_color_status)" "$(set_color $bold_flag $fish_color_status)" $last_pipestatus)
+      # argument - fish 3 otherwise reports "missing argument" on every prompt;
+      # through locals, since a quoted `$( )` is fish 3.4's
+      set -l sc (set_color $fish_color_status)
+      set -l scb (set_color $bold_flag $fish_color_status)
+      set -l prompt_status (__fish_print_pipestatus "[" "]" "|" "$sc" "$scb" $last_pipestatus)
 
       set -l ma
       set -l mb
@@ -590,3 +613,4 @@ if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/common/config.fish"
   source $_HI_CONFIG_DIR/config.fish
 end
 set -e _hi_rc_loading
+end

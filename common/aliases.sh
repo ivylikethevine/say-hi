@@ -18,24 +18,15 @@ command -v shift >/dev/null 2>&1 &&
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
 # chain. bash and zsh have core.sh's _hi_path_lookup, a PATH walk that sees no
-# alias; everywhere else each `$( )` below clears aliases first, in its own
-# subshell only - the target's `alias ls='ls --color=auto'`, or ours on a
-# re-source, would otherwise become the binary (fish has no unalias and never
-# reports one; a `;` there would split each line under shfmt). Those lines are
-# `||` chains, "helper present, or ..., or resolve", because `zsh -n` fails a
-# file holding a `!`. $_HI_BAT_BIN is the bat-only tier that parses
-# $_HI_BAT_OPTS - cat and ccat reject that syntax, so the options only ever
-# attach behind it.
+# alias; everywhere else the lookups run in the ls block below, through
+# common/aliases_bins.sh or fish's __hi_alias_bins. $_HI_BAT_BIN is the
+# bat-only tier that parses $_HI_BAT_OPTS - cat and ccat reject that syntax,
+# so the options only ever attach behind it.
 # GLOSSARY: HI.13.
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_CAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_CAT_BIN bat batcat ccat cat && export _HI_CAT_BIN || true
-command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_CAT_BIN" ] || export _HI_CAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat || command -v ccat || command -v cat)"
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_BAT_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_BAT_BIN bat batcat && export _HI_BAT_BIN || true
-# shellcheck disable=SC2015 # `|| true` only keeps a failed unalias from ending the chain
-command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_BAT_BIN" ] || export _HI_BAT_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v bat || command -v batcat)"
 # one ladder behind both list names below, newest first
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -z "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_path_lookup _HI_LS_BIN eza ls && export _HI_LS_BIN || true
-# shellcheck disable=SC2015 # `|| true` only keeps a failed unalias from ending the chain
-command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ -n "$_HI_LS_BIN" ] || export _HI_LS_BIN="$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza || command -v ls)"
 
 # The editors', tmux's, screen's, and zellij's aliases are not here: each is
 # a line of the overlay's wiring.sh, written from pack.sh's table for the
@@ -46,18 +37,6 @@ command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ 
 # the word after sudo, so `sudo vim` gets the vim alias's flags; fish has a
 # wrapper in config.fish behind the same setting
 [ "$_HI_SUDO_ALIAS" = 1 ] && command -v sudo >/dev/null 2>&1 && alias sudo="command sudo " || true
-
-# The styled tool aliases, opt-in (_HI_TOOL_ALIASES=1), and the binary
-# lookups above with them: cat is bat with these options when bat exists, ccat
-# or plain cat otherwise; bat, batcat, batn, and catn exist only with bat.
-# Everything they carry is bat syntax (-P included), hence the $_HI_BAT_BIN
-# gate. No --theme: that is your bat config's to say.
-[ -z "$_HI_BAT_OPTS" ] && export _HI_BAT_OPTS='-P --tabs 2 --style changes,grid' || true
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batcat="$_HI_CAT_BIN" || true
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias bat="batcat $_HI_BAT_OPTS" || true
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
-[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
 
 # eza improved ls; time format per
 # https://docs.rs/chrono/latest/chrono/format/strftime/index.html. One alias
@@ -70,10 +49,25 @@ command -v _hi_path_lookup >/dev/null 2>&1 || [ "$_HI_TOOL_ALIASES" != 1 ] || [ 
 # CLICOLOR, or not at all.
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_LS_OPTS" ] && [ -n "$_HI_LS_BIN" ] && command -v _hi_path_lookup >/dev/null 2>&1 && _hi_bin_is "$_HI_LS_BIN" eza && export _HI_LS_OPTS="$_HI_EZA_OPTS" || true
-command -v _hi_path_lookup >/dev/null 2>&1 || [ -n "$_HI_LS_OPTS" ] || [ -z "$_HI_LS_BIN" ] || [ "$_HI_LS_BIN" != "$(type unalias >/dev/null 2>&1 && unalias -a || true && command -v eza)" ] || export _HI_LS_OPTS="$_HI_EZA_OPTS"
-[ -z "$_HI_LS_OPTS" ] && export _HI_LS_OPTS="-F -l$(command ls --color=auto -d / >/dev/null 2>&1 && echo ' --color=auto')" || true
+# The lookups that need a `$( )`, and ls's own last rung: aliases_bins.sh for
+# the shells with `shift` (fish's `command -v` reports no builtins), and
+# config.fish's __hi_alias_bins for fish, which refuses a `$( )` before 3.4.
+# shellcheck disable=SC2015 # the file ends on `|| true`, so only fish takes the `||`
+command -v shift >/dev/null 2>&1 && . "$_HI_ROOT/common/aliases_bins.sh" || __hi_alias_bins
 [ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_LS_BIN" ] && alias ls="$_HI_LS_BIN $_HI_LS_OPTS" || true
 [ "$_HI_TOOL_ALIASES" = 1 ] && command -v eza >/dev/null 2>&1 && alias eza="ls" || true
+
+# The styled tool aliases, opt-in (_HI_TOOL_ALIASES=1), and the binary
+# lookups above with them: cat is bat with these options when bat exists, ccat
+# or plain cat otherwise; bat, batcat, batn, and catn exist only with bat.
+# Everything they carry is bat syntax (-P included), hence the $_HI_BAT_BIN
+# gate. No --theme: that is your bat config's to say.
+[ -z "$_HI_BAT_OPTS" ] && export _HI_BAT_OPTS='-P --tabs 2 --style changes,grid' || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batcat="$_HI_CAT_BIN" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias bat="batcat $_HI_BAT_OPTS" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_CAT_BIN" ] && alias cat="$_HI_CAT_BIN" || true
+[ "$_HI_TOOL_ALIASES" = 1 ] && [ -n "$_HI_BAT_BIN" ] && alias cat="bat" && alias catn="batn" || true
 
 # Drop into another shell inside a session and hi comes with you. load.sh's
 # _hi_session_rc_setup writes one rc per shell into $_HI_SESSION_RC; zsh and

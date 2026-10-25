@@ -217,7 +217,7 @@ row, and everything answered **no**, and why:
 - **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
   out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
-  **fish 3.4** (Alpine 3.16's) and **zsh 5.5** (RHEL 8's) for the other two
+  **fish 3.3** (Ubuntu 22.04's) and **zsh 5.5** (RHEL 8's) for the other two
   shells hi styles.
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.
@@ -438,20 +438,16 @@ One list, in the order the work is best done. An entry is deleted once its
       halves. **Ticks when:** the fast group and `--group bench` run green,
       and the payload badge is current.
 
-- [ ] **fish 3.1 lands a fish session** — the 3.4 floor sends Ubuntu 22.04's
-      fish 3.3 and Debian 11's 3.1 to the next shell down
-      (`load.sh`'s `_hi_fish_new_enough`): `config.fish`'s top-level `return`
-      and `common/aliases.sh`'s `$( )`. fish parses a whole file before it
-      runs any, so the runtime guards do not help, and `( )` cannot stand in:
-      the file is shared with sh, where `( )` is a subshell. **Do:** the five
-      binary lookups that hold a `$( )` move to a file only the sh tier
-      sources, `config.fish` resolves the same `_HI_*_BIN` with
-      `command -s` before it sources `aliases.sh`, the re-entry `return`
-      becomes an `if` around the file, and a pinned 3.1 image joins the
-      dialect suite to find what else 3.1 rejects. An overlay `aliases.sh`
-      holding `$( )` stays skipped on old fish. **Ticks when:** the dialect
-      suite parses `config.fish` and `aliases.sh` in a 3.1 image and a 3.3
-      image, and the floor in `_hi_fish_new_enough` reads 3.1.
+- [ ] **fish 3.3 lands a fish session** — shipped: the floor is 3.3,
+      Ubuntu 22.04's, through `tests/dockerfiles/fish33.Dockerfile`.
+      `aliases.sh`'s `$( )` lookups moved to `common/aliases_bins.sh`, which
+      fish never parses, with `config.fish`'s `__hi_alias_bins` as fish's
+      twin, and the re-entry `return` became an `if` around `config.fish`.
+      3.2 has no `--no-config` for the overlay parse gate, and 3.1's `-n`
+      refuses every `export`, so both stay below it
+      ([COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
+      **Ticks when:** the lint group's fish 3.3 floor and fish 4 ceiling, and
+      the fast group, run green.
 
 - [ ] **The client's terminfo rides** — an unknown `TERM`
       ([HI.22](docs/GLOSSARY.md#hi22-term-fallback-probe)) is swapped for

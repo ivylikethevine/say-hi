@@ -499,7 +499,7 @@ build arg), `framework` for the thirteen shell frameworks and tools (the
 framework a build arg naming a script under `frameworks/`), `apt-client` for
 the `repo` suite's apt subscriber (openssh-client preinstalled, no Ubuntu
 archive in its sources, so the cases fetch from the repository under test
-alone), and `fish34`, `fish4`, `zsh55`, and `timep` for the lint gate and the
+alone), and `fish33`, `fish4`, `zsh55`, and `timep` for the lint gate and the
 profiler. Only the _build context_ is generated per case: the `entrypoint.sh`,
 and for the pre-installed cases the repo itself. Suites reach a file through
 `_hi_dockerfile <stem>`; variants differing only by a package list or base
@@ -593,9 +593,10 @@ image no longer carries the version the check claims.
 - **2. Native syntax checks**: `zsh -n` / `fish --no-execute` over the files
   those shells parse for themselves, with whatever `zsh` and `fish` this
   machine has.
-- **3. The fish 3.4 floor**: the same files in a pinned fish 3.4.1
-  (`tests/dockerfiles/fish34.Dockerfile`, oh-my-fish's prebuilt image), since
-  newer fish accepts constructs older fish rejects. The one it caught: a
+- **3. The fish 3.3 floor**: the same files in a pinned fish 3.3.1
+  (`tests/dockerfiles/fish33.Dockerfile`, oh-my-fish's prebuilt image), since
+  newer fish accepts constructs older fish rejects. It has caught a `$( )`,
+  which fish before 3.4 refuses anywhere in a file, and a
   `{ ... }` group in `common/paths.sh`, a brace expansion before fish 4, which
   refuses a comment inside one with "Mismatched braces" and fails even a clean
   one at run time. So `paths.sh` is also sourced there with
