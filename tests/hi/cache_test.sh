@@ -302,33 +302,38 @@ function test_overlay_cached_keys_the_file_by_member_list() {
 # _hi_overlay_file / _hi_payload_file
 # ---------------------------------------------------------------------------
 
-# the cache when it answers, a build into the caller's directory when it is
-# off, and the same members either way (sorted - two staging dirs need not
-# list alike): the boot call sends whichever file it is handed
+# a copy of the cache when it answers, a build into the caller's directory
+# when it is off, and the same members either way (sorted - two staging dirs
+# need not list alike): the boot call sends whichever file it is handed
 function test_overlay_file_is_the_cache_or_a_build() {
-  local dir w="$_HI_WORKDIR/of.build" warm="" cold="" a b
+  local dir w="$_HI_WORKDIR/of.build" warm="" cold="" c="" a b
   dir="$(_hi_cache_rt of.either)"
-  mkdir -p "$w"
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_file warm "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
-  XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_overlay_file cold "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why w || return 1
-  [[ "$warm" == "$dir/hi.overlay."* ]] && [ "$cold" = "$w/overlay.tgz" ] || _hi_why warm cold || return 1
+  mkdir -p "$w/warm" "$w/cold"
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_file warm "$w/warm" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached c "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_overlay_file cold "$w/cold" "${_HI_CACHE_MEMBERS[@]}" || _hi_why w || return 1
+  { [ "$warm" = "$w/warm/overlay.tgz" ] && cmp -s "$c" "$warm" && [ "$cold" = "$w/cold/overlay.tgz" ]; } ||
+    _hi_why warm c cold || return 1
   a="$(tar tzf "$warm" | sort)"
   b="$(tar tzf "$cold" | sort)"
   [ -n "$a" ] && [ "$a" = "$b" ] || _hi_why a b
 }
 
 # a warm cache is the same bytes twice: gzip stamps an mtime, so two *fresh*
-# builds would not be, and handing the file back is what makes a repeat
-# connect byte-identical
+# builds would not be, and copying the file is what makes a repeat connect
+# byte-identical; and the copy holds when a concurrent connect's build lands
+# over the cache, so the size counted is the size sent
 function test_overlay_file_is_byte_identical_off_a_warm_cache() {
-  local dir w="$_HI_WORKDIR/of.same" a="" b=""
+  local dir w="$_HI_WORKDIR/of.same" a="" b="" c=""
   dir="$(_hi_cache_rt of.same)"
-  mkdir -p "$w"
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_file a "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
-  touch -t 203001010000 "$a"
-  cp "$a" "$w/first"
-  XDG_RUNTIME_DIR="$dir" _hi_overlay_file b "$w" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
-  { [ "$a" = "$b" ] && cmp -s "$w/first" "$b"; } || _hi_why a b
+  mkdir -p "$w/1" "$w/2"
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_cached c "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  touch -t 203001010000 "$c"
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_file a "$w/1" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _hi_overlay_file b "$w/2" "${_HI_CACHE_MEMBERS[@]}" || _hi_why dir || return 1
+  cmp -s "$a" "$b" || _hi_why a b || return 1
+  printf 'another build\n' >"$c"
+  cmp -s "$a" "$b" || _hi_because "the copy changed with the cache: $a"
 }
 
 function test_payload_cached_builds_cold_then_reuses_it() {
@@ -388,14 +393,16 @@ function test_payload_cached_is_off_when_the_toggle_is_zero() {
 }
 
 function test_payload_file_is_byte_identical_off_a_warm_cache() {
-  local dir w="$_HI_WORKDIR/pf.same" a="" b=""
+  local dir w="$_HI_WORKDIR/pf.same" a="" b="" c=""
   dir="$(_hi_cache_rt pf.same)"
-  mkdir -p "$w"
-  XDG_RUNTIME_DIR="$dir" _hi_payload_file a "$w" || _hi_why dir || return 1
-  touch -t 203001010000 "$a"
-  cp "$a" "$w/first"
-  XDG_RUNTIME_DIR="$dir" _hi_payload_file b "$w" || _hi_why dir || return 1
-  { [ "$a" = "$b" ] && cmp -s "$w/first" "$b"; } || _hi_why a b
+  mkdir -p "$w/1" "$w/2"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_cached c || _hi_why dir || return 1
+  touch -t 203001010000 "$c"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_file a "$w/1" || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _hi_payload_file b "$w/2" || _hi_why dir || return 1
+  { [ "$a" = "$w/1/tree.tgz" ] && cmp -s "$a" "$b"; } || _hi_why a b || return 1
+  printf 'another build\n' >"$c"
+  cmp -s "$a" "$b" || _hi_because "the copy changed with the cache: $a"
 }
 
 # ...and with the cache off it builds into the caller's directory instead,
@@ -404,9 +411,10 @@ function test_payload_file_is_the_same_tree_with_the_cache_off() {
   local dir w="$_HI_WORKDIR/pf.off" warm="" cold="" a b
   dir="$(_hi_cache_rt pf.off)"
   mkdir -p "$w"
-  XDG_RUNTIME_DIR="$dir" _hi_payload_file warm "$w" || _hi_why dir || return 1
-  XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_file cold "$w" || _hi_why w || return 1
-  [ "$cold" = "$w/tree.tgz" ] || _hi_why cold || return 1
+  mkdir -p "$w/warm" "$w/cold"
+  XDG_RUNTIME_DIR="$dir" _hi_payload_file warm "$w/warm" || _hi_why dir || return 1
+  XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_file cold "$w/cold" || _hi_why w || return 1
+  [ "$cold" = "$w/cold/tree.tgz" ] || _hi_why cold || return 1
   a="$(tar tzf "$warm" | sort)"
   b="$(tar tzf "$cold" | sort)"
   [ -n "$b" ] && [ "$a" = "$b" ] || _hi_why a b

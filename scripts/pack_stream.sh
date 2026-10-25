@@ -294,13 +294,14 @@ function _hi_overlay_bytes() {
   fi
 }
 
-# _hi_overlay_file <outvar> <dir> <member...> - the overlay's archive as a
-# file: the cache when warm and clean, else built into <dir>/overlay.tgz.
+# _hi_overlay_file <outvar> <dir> <member...> - the overlay's archive as
+# <dir>/overlay.tgz: a copy of the cache when warm and clean, for
+# _hi_payload_file's reason, else a build.
 function _hi_overlay_file() {
   local _hi_of_out="$1" _hi_of_dir="$2" _hi_of_c=""
   shift 2
-  if _hi_overlay_cached _hi_of_c "$@"; then
-    printf -v "$_hi_of_out" '%s' "$_hi_of_c"
+  if _hi_overlay_cached _hi_of_c "$@" && cp "$_hi_of_c" "$_hi_of_dir/overlay.tgz" 2>/dev/null; then
+    printf -v "$_hi_of_out" '%s' "$_hi_of_dir/overlay.tgz"
     return 0
   fi
   _hi_overlay_tar "$@" >"$_hi_of_dir/overlay.tgz" || return 1

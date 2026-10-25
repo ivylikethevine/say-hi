@@ -114,12 +114,14 @@ else
   function _hi_payload_tar() { _hi_tar_gz -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}"; }
 fi
 
-# _hi_payload_file <outvar> <dir> - the tree's archive as a file: the cache
-# when warm and clean, else built into <dir>/tree.tgz, as a relay's always is.
+# _hi_payload_file <outvar> <dir> - the tree's archive as <dir>/tree.tgz: a
+# copy of the cache when warm and clean, else a build, as a relay's always
+# is. A copy, since a concurrent connect may mv its own build over the cache
+# between the size this one counts and the bytes it sends.
 function _hi_payload_file() {
   local _hi_pf_c=""
-  if _hi_payload_cached _hi_pf_c; then
-    printf -v "$1" '%s' "$_hi_pf_c"
+  if _hi_payload_cached _hi_pf_c && cp "$_hi_pf_c" "$2/tree.tgz" 2>/dev/null; then
+    printf -v "$1" '%s' "$2/tree.tgz"
     return 0
   fi
   _hi_payload_tar >"$2/tree.tgz" || return 1
