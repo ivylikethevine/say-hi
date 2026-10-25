@@ -519,9 +519,12 @@ One list, in the order the work is best done. An entry is deleted once its
       round trip (`scratch/lag_ab.sh`); a client's first connect ever is about
       as much longer, writing the cache. Left: the per-member work of `_hi_plugin_off`,
       `_hi_row_col`, `_hi_path_list`, and `_hi_prompt_row`, and the 13 ms of
-      sourcing hi's files. **Ticks when:** the client work has halved in
-      `scratch/connect_lag.sh` on a quiet machine, with `--group bench`
-      green.
+      sourcing hi's files. At a terminal the overlapped boot call now starts
+      17 ms into a connect and the rest rides its handshake
+      (`scratch/client_prep.sh`), so this work delays a cold connect only
+      where the handshake is the shorter. **Ticks when:** the client work
+      has halved in `scratch/connect_lag.sh` on a quiet machine, with
+      `--group bench` green.
 
 - [ ] **The payload rides unarmored** — the script carries its two tarballs
       base64-armored, a third of 81 KB; on a round-trip-bound link TCP slow
@@ -548,6 +551,27 @@ One list, in the order the work is best done. An entry is deleted once its
       Raspberry Pi or a busy VM. **Do:** `scratch/connect_lag.sh`'s cells on
       a Pi-class target. **Ticks when:** this entry holds the figure, and an
       entry exists for whatever costs more than the network does.
+
+- [ ] **The tree is cached on the target** — on a fresh connection a script
+      past about 45 KB costs two extra round trips over a small one, and one
+      under 40 KB costs one (`scratch/wire_rtt.sh`, 150 ms added); the
+      script is 83.5 KB, 76.7 KB of it the armored tree, which unarmored is
+      about 63 KB and under xz 50 KB, so neither alone saves a round trip.
+      **Open, the user's to decide:** a tree that outlives its session in
+      the target's temp directory, keyed by its hash, against
+      [SECURITY.md's](docs/SECURITY.md#footprint-and-cleanup-on-the-target)
+      promise that nothing does. **Do, if so:** the script ahead of the
+      tree on the boot call's stdin, and the session's stub starting from a
+      cached tree without waiting for the rest. **Ticks when:** a cold
+      connect to a host visited before is two round trips shorter.
+
+- [ ] **A connect without a tty overlaps too** — a scripted `hi host cmd`
+      keeps the two calls in series, since a failed boot leaves the stub
+      waiting on the target and only a tty's hangup ends it. **Do:** a stub
+      that ends on its own when the boot call fails, with no timeout as its
+      signal. **Ticks when:** a connect with stdin off a tty is about two
+      round trips shorter, and the forced-command and `maxsessions1` cases
+      pass that way.
 
 ## Release Stages
 

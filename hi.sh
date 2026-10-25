@@ -618,20 +618,22 @@ function _hi_ctl_close() {
 # [dir] is a target-side path the session's stub already waits on
 # (_hi_connect_overlap): made with `mkdir -m 700`, which refuses one that
 # exists, and the script renamed into it whole, so the stub never runs half.
+# The byte count then rides stdin's first line and [bytes] goes unused: the
+# call starts before the script is built (_hi_overlap_start).
 function _hi_boot_probe() {
-  local f='$d/bootloader'
+  local f='$d/bootloader' want="${1:-}"
   printf '%s\n' 'if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi'
   _hi_targz_check
   printf '%s\n' 'if [ "$z" != x ]; then exit 67; fi'
   if [ -n "${2:-}" ]; then
-    f='$d/part'
-    printf '%s\n' "d=$2" 'if ! mkdir -m 700 "$d" 2>/dev/null; then exit 65; fi'
+    f='$d/part' want='"$s"'
+    printf '%s\n' "d=$2" 'if ! mkdir -m 700 "$d" 2>/dev/null; then exit 65; fi' 'read -r s'
   else
     printf '%s\n' 'if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi'
   fi
   printf 'cat > "%s" || exit 1\n' "$f"
-  [ -z "${1:-}" ] ||
-    printf 'n=$(wc -c <"%s"); if [ "$((n))" != %s ]; then rm -rf "$d"; exit 66; fi\n' "$f" "$1"
+  [ -z "$want" ] ||
+    printf 'n=$(wc -c <"%s"); if [ "$((n))" != %s ]; then rm -rf "$d"; exit 66; fi\n' "$f" "$want"
   [ -z "${2:-}" ] || printf 'mv "%s" "$d/bootloader"\n' "$f"
   printf '%s\n' "m=0; for s in $_HI_MUXES; do if command -v \"\$s\" >/dev/null 2>&1; then m=1; fi; done" \
     'printf "\nHIMUX:%s\nHIBOOT:%s\n" "$m" "$d"'
@@ -1048,6 +1050,28 @@ function _hi_ctl_alive() {
   [ -n "$ctl_path" ] && ssh -O check ${ctl_opts[@]+"${ctl_opts[@]}"} "$DOMAIN" >/dev/null 2>&1
 }
 
+# _hi_overlap_start - _hi_connect_overlap's boot call, started as soon as the
+# target is known, so the handshake runs while the client builds the script:
+# its stdin a FIFO this shell holds open on fd 7 until _hi_connect_overlap
+# writes the script to it. Fills ov_dir, ov_d, and ov_boot from _say_hi; 1
+# where no FIFO could be made, and the connect goes in series.
+function _hi_overlap_start() {
+  local r
+  ov_dir="$(mktemp -d -t hi.boot.XXXXXX 2>/dev/null)" || ov_dir=""
+  if [ -z "$ov_dir" ] || ! mkfifo "$ov_dir/in" 2>/dev/null; then
+    [ -z "$ov_dir" ] || rmdir "$ov_dir" 2>/dev/null || :
+    ov_dir=""
+    return 1
+  fi
+  # read-write, so neither this open nor the boot call's waits on the other
+  exec 7<>"$ov_dir/in"
+  r="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')" || r=""
+  # shellcheck disable=SC2016 # the target's to expand
+  ov_d='${TMPDIR:-/tmp}/hi.boot.'"${r:-$RANDOM$RANDOM$RANDOM}"
+  _hi_on_target cp "$(_hi_boot_probe "" "$ov_d")" <"$ov_dir/in" 7>&- >"$ov_dir/out" &
+  ov_boot=$!
+}
+
 # _hi_connect_overlap - the session opened while the boot call is still
 # landing the script, its command a stub that waits for the script in a
 # directory the client names (_hi_boot_probe's [dir]) and runs it only from
@@ -1065,13 +1089,13 @@ function _hi_ctl_alive() {
 # opens again once the boot is in. Fills
 # ec, booted, boot_out, boot_ec, and boot_tmp from _say_hi.
 function _hi_connect_overlap() {
-  local r d out boot sess=""
-  out="$(mktemp -t hi.boot.XXXXXX)" || return 1
-  r="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')" || r=""
-  # shellcheck disable=SC2016 # the target's to expand
-  d='${TMPDIR:-/tmp}/hi.boot.'"${r:-$RANDOM$RANDOM$RANDOM}"
-  printf '%s\n' "$script" | _hi_on_target cp "$(_hi_boot_probe "$bytes" "$d")" >"$out" &
-  boot=$!
+  local d="$ov_d" boot="$ov_boot" sess=""
+  # a write end of its own before this shell lets go of the FIFO, so the
+  # boot call never reads an early EOF, and a writer whose reader died gets
+  # a broken pipe rather than a full one
+  exec 6>"$ov_dir/in"
+  { printf '%s\n%s\n' "$bytes" "$script" >&6; } 7>&- &
+  exec 6>&- 7>&-
   while [ ! -S "$ctl_path" ] && kill -0 "$boot" 2>/dev/null; do sleep 0.01; done
   if [ -S "$ctl_path" ]; then
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
@@ -1082,8 +1106,9 @@ function _hi_connect_overlap() {
   fi
   boot_ec=0
   wait "$boot" || boot_ec=$?
-  boot_out="$(cat "$out")"
-  rm -f "$out"
+  boot_out="$(cat "$ov_dir/out")"
+  rm -f "$ov_dir/in" "$ov_dir/out"
+  rmdir "$ov_dir" 2>/dev/null || true
   _hi_boot_parse
   if [ -n "$boot_tmp" ] && [ -n "$sess" ]; then
     wait "$sess" || ec=$?
@@ -1215,22 +1240,6 @@ function _say_hi() {
   _hi_require "${_HI_ARMOR%% *}" "(or base64) to reach a target" || return 1
   _hi_require_packer || return 1
 
-  # local-only, so resolved once here and reused by the warm below and the
-  # real stream
-  _hi_read_lines overlay < <(_hi_overlay_files)
-  # shellcheck disable=SC2034 # _hi_payload_excl fills it, the packer reads it
-  local -a payload_excl=()
-  _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
-
-  # warm the caches while _hi_ctl_open below settles, so a miss's ~70-130ms
-  # build is not paid in series with the connect
-  (
-    _hi_payload_cached _hi_warm
-    ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
-    true
-  ) >/dev/null 2>&1 &
-  local warm_bg=$!
-
   # multiplex the boot and the session over one ssh connection; `shared`
   # tries to reuse one already authenticated for this target. A retry
   # (_hi_keep_connect) does not wait out a network that is not there.
@@ -1240,6 +1249,26 @@ function _say_hi() {
     _hi_ctl_open 30 shared ${retry[@]+"${retry[@]}"}
   fi
   _hi_transport_cmds "$arm"
+  # the overlapped boot call first, so its handshake rides all that follows
+  local ov_dir="" ov_d="" ov_boot=""
+  ! _hi_overlap_ok || _hi_overlap_start || :
+
+  # local-only, so resolved once here and reused by the warm below and the
+  # real stream
+  _hi_read_lines overlay < <(_hi_overlay_files)
+  # shellcheck disable=SC2034 # _hi_payload_excl fills it, the packer reads it
+  local -a payload_excl=()
+  _hi_payload_excl ${overlay[@]+"${overlay[@]}"}
+
+  # warm the caches while the connect settles, so a miss's ~70-130ms build
+  # is not paid in series with it
+  (
+    _hi_payload_cached _hi_warm
+    ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
+    true
+  ) >/dev/null 2>&1 &
+  local warm_bg=$!
+
 
   # the tars the script carries. The orphaned warm finishes its own atomic mv
   # after hi has moved on.
@@ -1267,7 +1296,7 @@ $(_hi_overlay_stream "${overlay[@]}")"
   # a retry that ssh itself failed ends here: a host that was not reached
   # has no shell to fall back on
   local boot_out="" boot_ec=0 booted=""
-  if _hi_overlap_ok && _hi_connect_overlap; then
+  if [ -n "$ov_dir" ] && _hi_connect_overlap; then
     _hi_ctl_close
     return "$ec"
   fi
@@ -1525,6 +1554,9 @@ function _hi_select_arm() {
     return 0
   fi
   _hi_is_ssh_host "$DOMAIN" && return 0
+  # no container, allocation, or pod name carries an `@`; a kube context may,
+  # but then a `:` follows it (GLOSSARY: HI.43)
+  case "$DOMAIN" in *:*) ;; *@*) return 0 ;; esac
   _hi_resolve_backend "$DOMAIN"
 }
 

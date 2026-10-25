@@ -303,9 +303,12 @@ opens once its socket is there, which ssh makes only once authenticated,
 while `cp` is still landing the script; its command is a short stub that
 waits for it. The script stays out of every argv, where `/proc` would show it to
 other users, and the stub stays far under Dropbear's limit of about 9000
-bytes a command. The client names the directory (`hi.boot.` and 16 random
-hex digits), `cp` makes it with `mkdir -m 700`, which refuses one that
-exists, and renames the script in whole; the stub runs it only from a
+bytes a command. `cp` itself starts as soon as the target is known
+(`_hi_overlap_start`), so the handshake rides the client's building of the
+script, which reaches it through a FIFO with its byte count on the first
+line. The client names the directory (`hi.boot.` and 16 random hex digits),
+`cp` makes it with `mkdir -m 700`, which refuses one that exists, and
+renames the script in whole; the stub runs it only from a
 directory of this user's. Saved: about two round trips a cold connect. A
 failed probe stops the stub, a forced command's program is already the
 session and is only named, and a `MaxSessions 1` host's refusal of either
@@ -821,6 +824,10 @@ points at, and `common/targets.sh`'s `list_kube` emits the same spelling for
 pods outside the current namespace. A multi-container pod resolves on the pod
 half; kubectl checks the container half when the session runs and fails loudly
 on a missing name — better than declining silently and falling through to ssh.
+The mirror rule: no container name, allocation id, or pod may carry an `@`,
+so `user@host` with no `:` goes to ssh with no backend asked
+(`_hi_select_arm`); a context's `@`, as in `admin@cluster:ns:pod`, has a `:`
+after it and is still asked.
 
 docker and podman also answer to a compose service name
 (`_hi_compose_container`) when exactly one running container carries that

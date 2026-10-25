@@ -422,15 +422,19 @@ function test_boot_probe_reports_its_dir_on_success() {
   { [ -f "$dir/bootloader" ] && rm -rf "$dir"; } || _hi_why dir
 }
 
-# ...and a directory the client named (_hi_connect_overlap's): made 0700, the
-# script renamed in whole, and one that already exists refused
+# ...and a directory the client named (_hi_connect_overlap's), the byte count
+# on stdin's first line: made 0700, the script renamed in whole, a short
+# landing refused, and so is a directory that already exists
 function test_boot_probe_lands_in_a_named_dir() {
   local out d="$_HI_WORKDIR/named.boot" mode ec=0
-  out="$(printf 'echo boot\n' | sh -c "$(_hi_boot_probe 10 "$d")" 2>/dev/null)" || _hi_why out || return 1
+  printf '11\necho boot\n' | sh -c "$(_hi_boot_probe "" "$d.short")" >/dev/null 2>&1 || ec=$?
+  { [ "$ec" -eq 66 ] && [ ! -e "$d.short" ]; } || _hi_why ec || return 1
+  ec=0
+  out="$(printf '10\necho boot\n' | sh -c "$(_hi_boot_probe "" "$d")" 2>/dev/null)" || _hi_why out || return 1
   { [ "${out##*HIBOOT:}" = "$d" ] && [ -f "$d/bootloader" ] && [ ! -e "$d/part" ]; } || _hi_why out || return 1
   mode="$(find "$d" -prune -perm 700)"
   [ "$mode" = "$d" ] || _hi_because "$d is not mode 0700" || return 1
-  printf 'echo boot\n' | sh -c "$(_hi_boot_probe 10 "$d")" >/dev/null 2>&1 || ec=$?
+  printf '10\necho boot\n' | sh -c "$(_hi_boot_probe "" "$d")" >/dev/null 2>&1 || ec=$?
   [ "$ec" -eq 65 ] || _hi_why ec
 }
 
@@ -465,7 +469,7 @@ function run_hi_remote_tests() {
   _hi_check_capable applet_shims "...and 67, silently, with no tar that reads gzip" test_boot_probe_says_no_tar
   _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
-  _hi_check "...or lands whole in the 0700 one it was named, refusing one there" test_boot_probe_lands_in_a_named_dir
+  _hi_check "...or lands whole in the 0700 one it was named, refusing one there or a short landing" test_boot_probe_lands_in_a_named_dir
   _hi_check "...and whether a multiplexer is there" test_boot_probe_says_whether_a_multiplexer_is_there
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session
   _hi_check "A command replaces load" test_bootloader_replaces_load_with_the_command
