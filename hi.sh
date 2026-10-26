@@ -1074,7 +1074,9 @@ REMOTE
   # script by the boot probe; $0 is the script's path under `sh <file>`
   # shellcheck disable=SC2016 # the target's to expand
   printf '      _hi_b=${0%%/*}\n      tar -x -m -z -f "$_hi_b/tree.tgz" -C "$_HI_HOME"\n'
-  printf '      %s\n%s\n      %s\n      export _HI_CONNECT_PREFIX=" %s"\n' "$overlay_line" "$fi" "${terminfo_line:-}" "$size"
+  printf '      %s\n%s\n' "$overlay_line" "$fi"
+  [ -z "${terminfo_line:-}" ] || printf '      %s\n' "$terminfo_line"
+  printf '      export _HI_CONNECT_PREFIX=" %s"\n' "$size"
 }
 
 # _hi_boot_stream - the boot call's stdin: a line of the script's, the

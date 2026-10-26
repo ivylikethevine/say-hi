@@ -139,7 +139,7 @@ set -g _HI_CHILD_ENV _HI_HOME _HI_ROOT _HI_CONFIG_DIR _HI_SITE_DIR _HI_REMOTE_SE
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_BACKENDS_OFF
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
     _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_CLIENT_EDITOR \
-    _HI_CLIENT_VISUAL _HI_ASCII _HI_TRUECOLOR
+    _HI_CLIENT_VISUAL _HI_CLIENT_LOCALE _HI_ASCII _HI_TRUECOLOR
 function __hi_bash --description 'bash -c <script>, with the session values hi keeps out of the environment passed along'
   for __hi_n in $_HI_SESSION_VARS
     set -q $__hi_n; and set -fx $__hi_n $$__hi_n
