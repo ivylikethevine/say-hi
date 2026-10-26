@@ -82,9 +82,12 @@ Type@5ms "   # my git aliases, not my keys"
 Enter
 Sleep 4s
 
+# the session outgrows the screen, and Wait+Screen reads the buffer from its
+# top, under the scrollback: wait instead for the client's prompt, after the
+# Disconnected footer, on the cursor's line
 Type "exit"
 Enter
-Wait+Screen@30s /Disconnected/
+Wait+Line@30s /^maya@mbp ~ %$/
 Sleep 2s
 
 # No in-tape cleanup: run `docs/tapes/fixtures.sh down` after rendering.
