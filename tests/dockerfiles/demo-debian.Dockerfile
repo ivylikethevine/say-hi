@@ -14,7 +14,8 @@
 # starship too, for the editors tape's developer persona (_HI_PROMPT_TOOL=starship
 # hands the prompt over only where the binary is): the same pinned installer
 # and version as tests/dockerfiles/frameworks/starship.sh, into /usr/local/bin
-# so every account has it.
+# so every account has it. The installer leaves its download in /tmp (a
+# mktemp directory and its tarball), which demo.tape counts as left behind.
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 # The checksum assertion below is a pipe, and a pipe in a RUN needs pipefail or
 # a failing `echo` is masked by sha256sum's status - DL4006, which
@@ -28,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -fsSL https://starship.rs/install.sh -o /tmp/starship-install.sh \
     && echo "52c64f14a558034ebeb1907ea9364e802b32474576fd3e68265f73bc33cc8fbb  /tmp/starship-install.sh" | sha256sum -c - >/dev/null \
     && sh /tmp/starship-install.sh --yes -b /usr/local/bin --version v1.26.0 >/dev/null \
-    && rm -f /tmp/starship-install.sh
+    && rm -rf /tmp/starship-install.sh /tmp/tmp.*
 # a repo with one commit and one unstaged edit: the git segment then shows a
 # branch *and* a dirty marker rather than a bare name
 WORKDIR /root/app
