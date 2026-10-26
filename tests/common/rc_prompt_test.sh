@@ -672,8 +672,8 @@ function run_rc_prompt_tests() {
   _hi_check "[bash] falls back silently when absent" test_bash_falls_back_when_starship_is_absent
   local shell posh row kind label file var want bad
   # oh-my-posh reads either form: bash's case takes yaml, fish's toml
-  for shell in bash:yaml fish:toml; do
-    posh="oh-my-posh.${shell#*:}" shell="${shell%:*}"
+  for shell in bash=yaml fish=toml; do
+    posh="oh-my-posh.${shell#*=}" shell="${shell%=*}"
     _hi_check_requires "$shell" "[$shell] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config "$shell" starship.toml STARSHIP_CONFIG "@cfg@/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
     for row in "${_HI_OVERLAY_ROWS[@]}" "exports|a target points oh-my-posh at the overlay's config|$posh|POSH_CONFIG|@cfg@/$posh"; do
       IFS='|' read -r kind label file var want bad <<<"$row"
