@@ -10,7 +10,7 @@ each; they, and the sentences of work not yet merged, wait under
 entry list theirs on
 [the releases page](https://github.com/ivylikethevine/say-hi/releases).
 
-## Unreleased
+## 0.8.0 - 2026-10-26
 
 - Connecting is faster. hi opens the session while its files are still on the way, starts ssh's handshake as soon as it knows the target, and sends 65 KB instead of 82 KB; a cold connect takes about half as long on a fast link, and about 0.4 s less over a 150 ms one.
 - `hi user@host` goes straight to ssh, without first asking docker, podman, or kubectl whether the name is theirs.
